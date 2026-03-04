@@ -52,35 +52,80 @@ BACKUP_BASE="$SCRIPT_DIR/ConfigBackup"
 TS="$(date '+%Y%m%d_%H%M')"
 BACKUP_DIR="$BACKUP_BASE/$TS"
 
-REPORTS_FONT_DIR="${REPORTS_FONT_DIR:-$DOMAIN_HOME/reports/fonts}"
 UIFONT_ALI="${UIFONT_ALI:-}"
-RWSERVER_CONF="${RWSERVER_CONF:-}"
 SETDOMAINENV="${SETDOMAINENV:-$DOMAIN_HOME/bin/setDomainEnv.sh}"
 OVERRIDES_SH="$DOMAIN_HOME/bin/setUserOverrides.sh"
 
-# cgicmd.dat (domain): lives in the same directory as rwserver.conf
-# Filename is lowercase on Linux – check both cases
-CGICMD_DAT=""
-if [ -n "$RWSERVER_CONF" ] && [ -f "$RWSERVER_CONF" ]; then
-    _rws_dir="$(dirname "$RWSERVER_CONF")"
-    if [ -f "$_rws_dir/cgicmd.dat" ]; then
-        CGICMD_DAT="$_rws_dir/cgicmd.dat"
-    elif [ -f "$_rws_dir/CGICMD.DAT" ]; then
-        CGICMD_DAT="$_rws_dir/CGICMD.DAT"
-    fi
+# =============================================================================
+# Discover configuration paths via find (paths contain dynamic version numbers
+# and server instance names; environment.conf only covers the most common ones)
+# =============================================================================
+
+# --- ReportsServerComponent dir ---
+# $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<name>/
+REPORTS_COMP_DIR=""
+_rsc_base="$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent"
+if [ -d "$_rsc_base" ]; then
+    REPORTS_COMP_DIR="$(find "$_rsc_base" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | head -1)"
 fi
 
-# cgicmd.dat (FMW installation): $FMW_HOME/reports/conf/cgicmd.dat
-# Backed up separately (category fmw) to avoid filename collision with domain copy
-FMW_CGICMD=""
-for _candidate in \
-    "${FMW_HOME}/reports/conf/cgicmd.dat" \
-    "${FMW_HOME}/reports/conf/CGICMD.DAT"; do
-    if [ -f "$_candidate" ]; then
-        FMW_CGICMD="$_candidate"
-        break
+RWSERVER_CONF_COMP=""   # ReportsServerComponent/rwserver.conf
+RWNETWORK_CONF=""        # ReportsServerComponent/rwnetwork.conf
+if [ -n "$REPORTS_COMP_DIR" ]; then
+    [ -f "$REPORTS_COMP_DIR/rwserver.conf" ]  && RWSERVER_CONF_COMP="$REPORTS_COMP_DIR/rwserver.conf"
+    [ -f "$REPORTS_COMP_DIR/rwnetwork.conf" ] && RWNETWORK_CONF="$REPORTS_COMP_DIR/rwnetwork.conf"
+fi
+# Fallback: use RWSERVER_CONF from environment.conf if component dir not found
+if [ -z "$RWSERVER_CONF_COMP" ] && [ -n "${RWSERVER_CONF:-}" ] && [ -f "$RWSERVER_CONF" ]; then
+    RWSERVER_CONF_COMP="$RWSERVER_CONF"
+fi
+
+# --- Reports WLS application dir ---
+# $DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_<version>/configuration/
+REPORTS_WLS_CONF_DIR=""
+if [ -n "${WLS_MANAGED_SERVER:-}" ]; then
+    _rapp_base="$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications"
+    if [ -d "$_rapp_base" ]; then
+        REPORTS_WLS_CONF_DIR="$(find "$_rapp_base" -maxdepth 3 -type d -name "configuration" \
+            2>/dev/null | grep -i "reports_" | head -1)"
     fi
+fi
+# Fallback: search all server dirs
+if [ -z "$REPORTS_WLS_CONF_DIR" ]; then
+    REPORTS_WLS_CONF_DIR="$(find "$DOMAIN_HOME/config/fmwconfig/servers" \
+        -maxdepth 5 -type d -name "configuration" 2>/dev/null | grep -i "reports_" | head -1)"
+fi
+
+RWSERVER_CONF_WLS=""     # In-Process WLS rwserver.conf
+RWSERVLET_PROPS=""        # rwservlet.properties
+CGICMD_DAT=""             # cgicmd.dat (domain deployment)
+if [ -n "$REPORTS_WLS_CONF_DIR" ]; then
+    [ -f "$REPORTS_WLS_CONF_DIR/rwserver.conf" ]        && RWSERVER_CONF_WLS="$REPORTS_WLS_CONF_DIR/rwserver.conf"
+    [ -f "$REPORTS_WLS_CONF_DIR/rwservlet.properties" ] && RWSERVLET_PROPS="$REPORTS_WLS_CONF_DIR/rwservlet.properties"
+    for _c in "$REPORTS_WLS_CONF_DIR/cgicmd.dat" "$REPORTS_WLS_CONF_DIR/CGICMD.DAT"; do
+        [ -f "$_c" ] && { CGICMD_DAT="$_c"; break; }
+    done
+fi
+
+# --- FMW installation cgicmd.dat ---
+# $FMW_HOME/reports/conf/cgicmd.dat  (separate backup category to avoid name collision)
+FMW_CGICMD=""
+for _c in "${FMW_HOME}/reports/conf/cgicmd.dat" "${FMW_HOME}/reports/conf/CGICMD.DAT"; do
+    [ -f "$_c" ] && { FMW_CGICMD="$_c"; break; }
 done
+
+# --- Forms WLS application dir ---
+# $DOMAIN_HOME/config/fmwconfig/servers/WLS_FORMS/applications/forms_<version>/config/
+FORMS_WLS_CONF_DIR=""
+FORMS_WLS_CONF_DIR="$(find "$DOMAIN_HOME/config/fmwconfig/servers" \
+    -maxdepth 5 -type d -name "config" 2>/dev/null | grep -i "forms_" | head -1)"
+
+FORMSWEB_CFG=""   # formsweb.cfg
+DEFAULT_ENV=""    # default.env
+if [ -n "$FORMS_WLS_CONF_DIR" ]; then
+    [ -f "$FORMS_WLS_CONF_DIR/formsweb.cfg" ] && FORMSWEB_CFG="$FORMS_WLS_CONF_DIR/formsweb.cfg"
+    [ -f "$FORMS_WLS_CONF_DIR/default.env" ]   && DEFAULT_ENV="$FORMS_WLS_CONF_DIR/default.env"
+fi
 
 # =============================================================================
 # Banner
@@ -93,16 +138,34 @@ printf "Mode    : %s\n" "$( $APPLY_MODE && echo 'APPLY (will create backup)' || 
 printf "Backup  : %s\n" "$BACKUP_DIR"
 printf "Log     : %s\n\n" "$LOG_FILE"
 
+# Show discovered paths
+printList "REPORTS_COMP_DIR"    36 "${REPORTS_COMP_DIR:-(not found)}"
+printList "REPORTS_WLS_CONF_DIR" 36 "${REPORTS_WLS_CONF_DIR:-(not found)}"
+printList "FORMS_WLS_CONF_DIR"  36 "${FORMS_WLS_CONF_DIR:-(not found)}"
+printf "\n"
+
 # =============================================================================
 # Define backup items: "category|source_path|description"
 # =============================================================================
 BACKUP_ITEMS=(
+    # Font configuration
     "fonts|${UIFONT_ALI}|Oracle Reports font alias file (uifont.ali)"
-    "server|${RWSERVER_CONF}|Oracle Reports Server configuration (rwserver.conf)"
-    "server|${CGICMD_DAT}|Reports CGI command mapping – domain deployment (cgicmd.dat)"
-    "fmw|${FMW_CGICMD}|Reports CGI command mapping – FMW installation (cgicmd.dat)"
+    # Reports Server Component (ReportsServerComponent/<name>/)
+    "reports_comp|${RWSERVER_CONF_COMP}|Reports Server Component config (rwserver.conf)"
+    "reports_comp|${RWNETWORK_CONF}|Reports Server network config (rwnetwork.conf)"
+    # Reports WLS application (reports_<version>/configuration/)
+    "reports_wls|${RWSERVER_CONF_WLS}|Reports In-Process WLS config (rwserver.conf)"
+    "reports_wls|${RWSERVLET_PROPS}|Reports servlet properties (rwservlet.properties)"
+    "reports_wls|${CGICMD_DAT}|Reports CGI command mapping – domain (cgicmd.dat)"
+    # FMW installation (separate category – same filename as domain cgicmd.dat)
+    "fmw|${FMW_CGICMD}|Reports CGI command mapping – FMW install (cgicmd.dat)"
+    # Forms WLS application (forms_<version>/config/)
+    "forms_wls|${FORMSWEB_CFG}|Forms web configuration (formsweb.cfg)"
+    "forms_wls|${DEFAULT_ENV}|Forms default environment (default.env)"
+    # Domain environment
     "domain|${SETDOMAINENV}|WebLogic domain environment script (setDomainEnv.sh)"
     "domain|${OVERRIDES_SH}|Domain environment customizations (setUserOverrides.sh)"
+    # IHateWeblogic
     "ihw|${ENV_CONF}|IHateWeblogic environment configuration (environment.conf)"
 )
 
@@ -184,7 +247,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts server fmw domain ihw; do
+for cat in fonts reports_comp reports_wls fmw forms_wls domain ihw; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary
