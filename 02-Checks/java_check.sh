@@ -115,14 +115,20 @@ if [ -z "${JAVA_HOME:-}" ]; then
 else
     printList "JAVA_HOME" 32 "$JAVA_HOME"
 
-    # Is JAVA_HOME under FMW_HOME?
+    # Is JAVA_HOME under FMW_HOME, or is it the separately installed Oracle JDK?
+    # Note: Oracle FMW 14.1.2 uses a standalone JDK (e.g. /app/oracle/java/jdk-21.0.6)
+    # which is NOT under FMW_HOME – this is the expected and correct setup.
     if [[ "$JAVA_HOME" == "${FMW_HOME}"* ]]; then
         ok "JAVA_HOME is under FMW_HOME – FMW-bundled JDK in use"
-    else
-        warn "JAVA_HOME is NOT under FMW_HOME – external or system JDK detected"
+    elif [[ "$JAVA_HOME" == */jdk* ]] || [[ "$JAVA_HOME" == */java* ]]; then
+        ok "JAVA_HOME is a standalone Oracle JDK (not under FMW_HOME – expected for FMW 14.1.2)"
         info "  FMW_HOME  : $FMW_HOME"
         info "  JAVA_HOME : $JAVA_HOME"
-        info "  Oracle FMW should use its bundled JDK to avoid compatibility issues"
+    else
+        warn "JAVA_HOME does not look like a standard JDK path"
+        info "  FMW_HOME  : $FMW_HOME"
+        info "  JAVA_HOME : $JAVA_HOME"
+        info "  Oracle FMW 14.1.2 expects JAVA_HOME to point to Oracle JDK 21"
     fi
 
     # Resolve java binary
@@ -191,11 +197,13 @@ if [ -x "${JAVA_HOME:-}/bin/java" ]; then
     printList "Major version" 32 "$JAVA_MAJOR"
 
     # Version assessment for Oracle Forms/Reports 12c / 14c
-    # Ref: Oracle FMW 14.1.2 is certified with JDK 8 and JDK 11
+    # Ref: Oracle FMW 14.1.2.0.0 install guide – JDK 21.0.6 used in production
+    # JDK 8 / 11 certified for older FMW; JDK 21 required for FMW 14.1.2
     case "${JAVA_MAJOR}" in
-        8)   ok   "Java 8 – certified for Oracle Forms/Reports 12c and 14c" ;;
+        8)   ok   "Java 8 – certified for Oracle Forms/Reports 12c and older 14c installs" ;;
         11)  ok   "Java 11 – certified for Oracle Forms 14c" ;;
         17)  warn "Java 17 – verify certification for your FMW version at support.oracle.com" ;;
+        21)  ok   "Java 21 – certified for Oracle Forms/Reports 14.1.2 (14c)" ;;
         *)
             if [ "${JAVA_MAJOR}" -lt 8 ] 2>/dev/null; then
                 fail "Java ${JAVA_MAJOR} – below minimum (JDK 8). FMW will not start."
