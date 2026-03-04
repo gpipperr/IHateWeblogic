@@ -176,7 +176,7 @@ connect(_wl_user, _wl_pwd, _wl_url)
 # Clear password from Jython namespace immediately after connect
 del _wl_pwd
 
-# Drop into interactive WLST mode – user can now issue WLST commands
+# Drop into interactive WLST mode - user can now issue WLST commands
 interact()
 PYEOF
 
