@@ -2,6 +2,12 @@
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 
+> **Work in Progress** – This library is under active development.
+> Not all scripts are fully implemented yet and the collection has not been
+> end-to-end tested on a live Oracle Forms/Reports installation.
+> Use with caution and verify output before applying any changes (`--apply`).
+> Contributions and bug reports welcome.
+
 ## First Run – Required Order
 
 Run these scripts in sequence on a fresh installation:
