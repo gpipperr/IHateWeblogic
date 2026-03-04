@@ -48,10 +48,12 @@ _detect_wls_reports_server() {
 
     domain_name="$(basename "${DOMAIN_HOME:-/}")"
 
-    # Strategy 1: running processes
+    # Strategy 1: extract server name first, then filter by name (not full cmdline).
+    # Full cmdline often contains "report" via domain path (e.g. reportPisa),
+    # which would wrongly match AdminServer.
     found="$(pgrep -a -f 'weblogic.Name=' 2>/dev/null \
-        | grep -i 'report' \
         | sed -n 's/.*-Dweblogic\.Name=\([^ ]*\).*/\1/p' \
+        | grep -i 'report' \
         | head -1)"
     [ -n "$found" ] && { printf "%s" "$found"; return 0; }
 
@@ -110,9 +112,11 @@ _parse_rwservlet_xml() {
     section "Engine Pool"
 
     local total_eng idle_eng busy_eng
-    total_eng="$(printf "%s" "$xml" | grep -c '<engine '   2>/dev/null || printf "0")"
-    idle_eng="$( printf "%s" "$xml" | grep -c 'status="idle"' 2>/dev/null || printf "0")"
-    busy_eng="$( printf "%s" "$xml" | grep -c 'status="busy"' 2>/dev/null || printf "0")"
+    # grep -c exits 1 on 0 matches but still prints "0".
+    # Using "|| var=..." here would double the zero; reset via fallback assignment instead.
+    total_eng="$(printf "%s" "$xml" | grep -c '<engine '    2>/dev/null)" || total_eng="${total_eng:-0}"
+    idle_eng="$( printf "%s" "$xml" | grep -c 'status="idle"' 2>/dev/null)" || idle_eng="${idle_eng:-0}"
+    busy_eng="$( printf "%s" "$xml" | grep -c 'status="busy"' 2>/dev/null)" || busy_eng="${busy_eng:-0}"
 
     printf "  %-26s %s\n" "Total engines (live):" "$total_eng" | tee -a "${LOG_FILE:-/dev/null}"
     printf "  %-26s %s\n" "Idle:"                 "$idle_eng"  | tee -a "${LOG_FILE:-/dev/null}"
