@@ -16,16 +16,14 @@ Run these scripts in sequence on a fresh installation:
 1.  00-Setup/env_check.sh          # Detect paths, generate environment.conf
 2.  00-Setup/weblogic_sec.sh       # Store WebLogic password (encrypted, machine-local)
 3.  02-Checks/os_check.sh          # Validate OS, kernel, ulimits
-4.  02-Checks/display_check.sh     # Check/start Xvfb (required for rwrun)
-5.  02-Checks/java_check.sh        # Verify correct JDK is used
-6.  02-Checks/lib_check.sh         # Check shared library dependencies
-7.  01-Run/rwrun_trace.sh          # Diagnose rwrun segfault
-8.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
-9.  04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
-10. 04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
-11. 02-Checks/port_check.sh        # Verify WebLogic/OHS ports
-12. 02-Checks/db_connect_check.sh  # Verify TNS/DB connectivity
-13. 00-Setup/report_env.sh         # Generate HTML summary report
+4.  02-Checks/java_check.sh        # Verify correct JDK is used
+5.  02-Checks/port_check.sh        # Verify WebLogic/OHS ports
+6.  01-Run/rwrun_trace.sh          # Diagnose rwrun segfault
+7.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
+8.  04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
+9.  04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
+10. 02-Checks/db_connect_check.sh  # Verify TNS/DB connectivity
+11. 00-Setup/report_env.sh         # Generate HTML summary report
 ```
 
 ## Script Directories
@@ -34,7 +32,7 @@ Run these scripts in sequence on a fresh installation:
 |-----------------------|------------------------------------------------------|
 | `00-Setup/`           | Environment setup, lib, password management          |
 | `01-Run/`             | Start/stop, WLST, rwrun, rwclient operations         |
-| `02-Checks/`          | OS, Java, libs, display, ports, DB, SSL checks       |
+| `02-Checks/`          | OS, Java, ports, DB connectivity, SSL checks         |
 | `03-Logs/`            | Log discovery, grep, tail, archive, cleanup          |
 | `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
 | `05-ReportsPerformance/` | Engine/cache tuning and inspection               |
@@ -74,12 +72,9 @@ IHateWeblogic/
 ├── 02-Checks/
 │   ├── os_check.sh                  – OL version, kernel, ulimits, open files;
 │   │                                   validated against Oracle certification matrix
-│   ├── lib_check.sh                 – Shared library dependencies: ldd, lsof, missing libs
-│   ├── display_check.sh             – Verify DISPLAY variable, install/start Xvfb
 │   ├── java_check.sh                – Verify JAVA_HOME uses FMW-bundled JDK (not system JDK)
+│   ├── port_check.sh                – Listen addresses and ports per component, TCP check
 │   ├── db_connect_check.sh          – TNS / JDBC connectivity test (uses weblogic_sec.sh)
-│   ├── port_check.sh                – Check WebLogic Admin, Managed Server, OHS ports
-│   ├── printer_check.sh             – Printer dependencies required by Oracle Reports
 │   └── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
 │
 ├── 03-Logs/
@@ -145,8 +140,8 @@ IHateWeblogic/
 ./00-Setup/weblogic_sec.sh
 
 # Step 3: Run checks
-./02-Checks/display_check.sh
 ./02-Checks/java_check.sh
+./02-Checks/port_check.sh
 ```
 
 ## Oracle Documentation References
