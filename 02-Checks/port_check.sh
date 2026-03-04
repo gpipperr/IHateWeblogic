@@ -198,16 +198,28 @@ else
         in_srv && /<ssl>$/    { in_ssl=1 }
         in_srv && /<\/ssl>$/  { in_ssl=0 }
         in_srv && !in_ssl {
-            if (match($0, /<name>([^<]+)<\/name>/, m))
-                name = m[1]
-            if (match($0, /<listen-port>([^<]+)<\/listen-port>/, m))
-                port = m[1]
-            if (match($0, /<listen-address>([^<]+)<\/listen-address>/, m))
-                addr = m[1]
+            if ($0 ~ /<name>/) {
+                n=$0; gsub(/.*<name>/, "", n); gsub(/<\/name>.*/, "", n)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", n)
+                if (n != "") name=n
+            }
+            if ($0 ~ /<listen-port>/) {
+                p=$0; gsub(/.*<listen-port>/, "", p); gsub(/<\/listen-port>.*/, "", p)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+                if (p != "") port=p
+            }
+            if ($0 ~ /<listen-address>/) {
+                a=$0; gsub(/.*<listen-address>/, "", a); gsub(/<\/listen-address>.*/, "", a)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", a)
+                if (a != "") addr=a
+            }
         }
         in_srv && in_ssl {
-            if (match($0, /<listen-port>([^<]+)<\/listen-port>/, m))
-                ssl = m[1]
+            if ($0 ~ /<listen-port>/) {
+                p=$0; gsub(/.*<listen-port>/, "", p); gsub(/<\/listen-port>.*/, "", p)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+                if (p != "") ssl=p
+            }
         }
     ' "$CONFIG_XML")
 
