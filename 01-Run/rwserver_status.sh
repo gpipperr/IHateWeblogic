@@ -329,18 +329,20 @@ if [ -z "$WLS_REPORTS_PORT" ]; then
         # Extract listen-port for the detected Reports WLS server from config.xml.
         # Uses plain awk (no 3-arg match) – gsub strips tags in-place.
         WLS_REPORTS_PORT="$(awk -v srv="$WLS_REPORTS_SERVER" '
-            /<server>$/   { in_srv=1; name=""; port="" }
+            /<server>$/   { in_srv=1; in_ssl=0; name=""; port="" }
             /<\/server>$/ {
                 if (in_srv && name == srv && port != "") { print port; exit }
-                in_srv=0
+                in_srv=0; in_ssl=0
             }
-            in_srv {
+            in_srv && /<ssl>$/   { in_ssl=1 }
+            in_srv && /<\/ssl>$/ { in_ssl=0 }
+            in_srv && !in_ssl {
                 if ($0 ~ /<name>/) {
                     n=$0; gsub(/.*<name>/, "", n); gsub(/<\/name>.*/, "", n)
                     gsub(/^[[:space:]]+|[[:space:]]+$/, "", n)
                     if (n != "") name=n
                 }
-                if ($0 ~ /<listen-port>/ && $0 !~ /<ssl>/) {
+                if ($0 ~ /<listen-port>/) {
                     p=$0; gsub(/.*<listen-port>/, "", p); gsub(/<\/listen-port>.*/, "", p)
                     gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
                     if (p != "") port=p
