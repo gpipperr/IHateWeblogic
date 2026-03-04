@@ -18,12 +18,11 @@ Run these scripts in sequence on a fresh installation:
 3.  02-Checks/os_check.sh          # Validate OS, kernel, ulimits
 4.  02-Checks/java_check.sh        # Verify correct JDK is used
 5.  02-Checks/port_check.sh        # Verify WebLogic/OHS ports
-6.  01-Run/rwrun_trace.sh          # Diagnose rwrun segfault
-7.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
-8.  04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
-9.  04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
-10. 02-Checks/db_connect_check.sh  # Verify TNS/DB connectivity
-11. 00-Setup/report_env.sh         # Generate HTML summary report
+6.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
+7.  04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
+8.  04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
+9.  02-Checks/db_connect_check.sh  # Verify TNS/DB connectivity
+10. 00-Setup/report_env.sh         # Generate HTML summary report
 ```
 
 ## Script Directories
@@ -31,7 +30,7 @@ Run these scripts in sequence on a fresh installation:
 | Directory             | Purpose                                              |
 |-----------------------|------------------------------------------------------|
 | `00-Setup/`           | Environment setup, lib, password management          |
-| `01-Run/`             | Start/stop, WLST, rwrun, rwclient operations         |
+| `01-Run/`             | Start/stop, WLST, Reports Server status              |
 | `02-Checks/`          | OS, Java, ports, DB connectivity, SSL checks         |
 | `03-Logs/`            | Log discovery, grep, tail, archive, cleanup          |
 | `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
@@ -64,10 +63,8 @@ IHateWeblogic/
 ├── 01-Run/
 │   ├── startStop.sh                 – Manage components: ALL | LIST | START <comp> | STOP <comp>
 │   ├── wlst_connect.sh              – Open interactive WLST shell with auto-login via weblogic_sec.sh
-│   ├── rwserver_status.sh           – Query Reports Server status without full restart
-│   │                                   (supports multiple Report Server instances)
-│   ├── rwrun_trace.sh               – Diagnose rwrun segfault: bash -x trace / strace / Xvfb
-│   └── rwclient_test.sh             – Generate a test report via rwclient (PDF / HTML / RTF)
+│   └── rwserver_status.sh           – Query Reports Server status without full restart
+│                                       (supports multiple Report Server instances)
 │
 ├── 02-Checks/
 │   ├── os_check.sh                  – OL version, kernel, ulimits, open files;

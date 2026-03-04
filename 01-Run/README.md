@@ -1,7 +1,7 @@
-# 01-Run – Start/Stop, WLST, rwrun, rwclient
+# 01-Run – Start/Stop, WLST, Reports Server
 
 Scripts for operating a running Oracle Forms/Reports domain: component
-management, interactive WLST access, Reports Server diagnostics.
+management, interactive WLST access, Reports Server status.
 
 ---
 
@@ -12,8 +12,6 @@ management, interactive WLST access, Reports Server diagnostics.
 | `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, OHS |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
 | `rwserver_status.sh` | 🔧 planned | Query Reports Server status (no restart) |
-| `rwrun_trace.sh` | 🔧 planned | Diagnose rwrun segfault: strace, Xvfb |
-| `rwclient_test.sh` | 🔧 planned | Generate a test report via rwclient |
 
 All scripts source `environment.conf`. Run `00-Setup/env_check.sh` first
 if `environment.conf` does not exist yet.
@@ -179,41 +177,6 @@ Planned checks:
 - Running `rwserver` processes and their PIDs
 - Reports engine count vs. configured min/max
 - Job queue depth (pending/running/completed)
-
----
-
-### rwrun_trace.sh
-
-Diagnose `rwrun` segfaults and display issues.
-
-```bash
-./01-Run/rwrun_trace.sh
-./01-Run/rwrun_trace.sh --apply   # run strace / Xvfb test
-```
-
-Planned checks:
-- `file $FMW_HOME/bin/rwrun` – ELF header and architecture
-- Missing shared libraries via `ldd`
-- `bash -x` trace of a minimal rwrun invocation
-- `strace` output (if `--apply`)
-- Xvfb virtual display test (if `DISPLAY` not set)
-
----
-
-### rwclient_test.sh
-
-Send a test job to the Reports Server and verify the output.
-
-```bash
-./01-Run/rwclient_test.sh --format PDF
-./01-Run/rwclient_test.sh --format HTML
-./01-Run/rwclient_test.sh --format RTF
-```
-
-Planned checks:
-- Locate `rwclient` binary
-- Submit a built-in test report (`RWTEST.rdf` or similar)
-- Verify output file was created and is non-empty
 
 ---
 
