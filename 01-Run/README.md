@@ -11,7 +11,7 @@ management, interactive WLST access, Reports Server status.
 |---|---|---|
 | `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, OHS |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
-| `rwserver_status.sh` | 🔧 planned | Query Reports Server status (no restart) |
+| `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status |
 
 All scripts source `environment.conf`. Run `00-Setup/env_check.sh` first
 if `environment.conf` does not exist yet.
@@ -162,21 +162,62 @@ exit()
 
 ---
 
-## 4. Planned scripts
+## 4. rwserver_status.sh
 
-### rwserver_status.sh
-
-Query the Oracle Reports Server status for all configured instances
-without requiring a full start/stop cycle.
+### Usage
 
 ```bash
 ./01-Run/rwserver_status.sh
+./01-Run/rwserver_status.sh --port 9002
+./01-Run/rwserver_status.sh --server rep_wls_reports
 ```
 
-Planned checks:
-- Running `rwserver` processes and their PIDs
-- Reports engine count vs. configured min/max
-- Job queue depth (pending/running/completed)
+### Options
+
+| Option | Description |
+|---|---|
+| `--port N` | WLS_REPORTS listen port (default: auto-detect from config.xml) |
+| `--server NAME` | Reports Server name (default: from rwserver.conf) |
+
+### What it shows
+
+| Section | Source | Content |
+|---|---|---|
+| Engine Configuration | `rwserver.conf` | minEngines, maxEngines, maxIdle, engineType |
+| Process Status | `pgrep` | WLS managed server PID, rwengine process count |
+| Engine Pool | rwservlet HTTP | Per-engine: ID, status (idle/busy), type, PID |
+| Job Queue | rwservlet HTTP | Pending, running, finished, failed job counts |
+
+### Two-layer design
+
+`startStop.sh` answers: **Is WLS_REPORTS up?** (JVM process / port)
+
+`rwserver_status.sh` answers: **Is the Reports engine working?**
+
+- A running `WLS_REPORTS` JVM does not guarantee a functional engine pool.
+- Failed `rwengine` spawns, misconfigured fonts, or a full job queue will
+  not appear in `startStop.sh` but are visible here.
+
+### Relation to startStop.sh
+
+| Check | startStop.sh | rwserver_status.sh |
+|---|---|---|
+| WLS_REPORTS JVM running | yes | yes (pgrep) |
+| rwengine process count | no | yes |
+| Engine idle/busy state | no | yes (HTTP) |
+| Job queue pending/failed | no | yes (HTTP) |
+| Configured min/max engines | no | yes (rwserver.conf) |
+
+### HTTP endpoint
+
+The script queries:
+```
+http://<host>:<port>/reports/rwservlet?getserverinfo&server=<name>&statusformat=xml
+```
+
+This requires `WLS_REPORTS` to be running and `curl` to be installed.
+If the endpoint is not reachable, the process section still shows
+`pgrep`-based engine counts.
 
 ---
 

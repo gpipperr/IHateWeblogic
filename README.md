@@ -63,8 +63,7 @@ IHateWeblogic/
 ├── 01-Run/
 │   ├── startStop.sh                 – Manage components: ALL | LIST | START <comp> | STOP <comp>
 │   ├── wlst_connect.sh              – Open interactive WLST shell with auto-login via weblogic_sec.sh
-│   └── rwserver_status.sh           – Query Reports Server status without full restart
-│                                       (supports multiple Report Server instances)
+│   └── rwserver_status.sh           – Engine pool, job queue, rwservlet HTTP status
 │
 ├── 02-Checks/
 │   ├── os_check.sh                  – OL version, kernel, ulimits, open files;
