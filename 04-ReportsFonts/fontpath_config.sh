@@ -1,10 +1,15 @@
 #!/bin/bash
 # =============================================================================
 # Script   : fontpath_config.sh
-# Purpose  : Check and set REPORTS_FONT_DIRECTORY / REPORTS_ENHANCED_FONTHANDLING
-#            in $DOMAIN_HOME/bin/setUserOverrides.sh so Oracle Reports finds
-#            the deployed TTF fonts at JVM startup.
-#            Also sets both variables as JVM system properties via JAVA_OPTIONS
+# Purpose  : Check and set REPORTS_FONT_DIRECTORY, REPORTS_ENHANCED_FONTHANDLING,
+#            TK_FONTALIAS, and ORACLE_FONTALIAS in
+#            $DOMAIN_HOME/bin/setUserOverrides.sh so Oracle Reports finds the
+#            deployed TTF fonts and reads the correct uifont.ali at JVM startup.
+#            TK_FONTALIAS / ORACLE_FONTALIAS force Oracle Reports to use the
+#            domain-config uifont.ali instead of the one shipped in the Oracle
+#            software installation (ReportsToolsComponent), which would otherwise
+#            be used when -Dreports.tools.product.home is set in JAVA_OPTIONS.
+#            Also sets font env vars as JVM system properties via JAVA_OPTIONS
 #            (belt-and-suspenders for Node Manager environments where the env
 #            block may not be inherited by the managed server process).
 #            Also locates rwserver.conf and setDomainEnv.sh for reference.
@@ -42,8 +47,9 @@ for arg in "$@"; do
         --help)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  Default: dry-run – show current config and what would change\n"
-            printf "  --apply: write REPORTS_FONT_DIRECTORY, REPORTS_ENHANCED_FONTHANDLING\n"
-            printf "           and both as JAVA_OPTIONS -D flags into setUserOverrides.sh\n"
+            printf "  --apply: write REPORTS_FONT_DIRECTORY, REPORTS_ENHANCED_FONTHANDLING,\n"
+            printf "           TK_FONTALIAS, ORACLE_FONTALIAS and JAVA_OPTIONS -D flags\n"
+            printf "           into setUserOverrides.sh\n"
             exit 0
             ;;
     esac
@@ -54,6 +60,10 @@ done
 # =============================================================================
 REPORTS_FONT_DIR="${REPORTS_FONT_DIR:-$DOMAIN_HOME/reports/fonts}"
 OVERRIDES_SH="$DOMAIN_HOME/bin/setUserOverrides.sh"
+
+# TK_FONTALIAS: path to uifont.ali as set by env_check.sh / environment.conf
+# Falls back to REPORTS_ADMIN path if not set in environment.conf
+UIFONT_ALI_PATH="${UIFONT_ALI:-${REPORTS_ADMIN}/uifont.ali}"
 
 # =============================================================================
 # Banner
@@ -72,6 +82,8 @@ section "Target Font Configuration"
 
 printList "REPORTS_FONT_DIRECTORY"         40 "$REPORTS_FONT_DIR"
 printList "REPORTS_ENHANCED_FONTHANDLING"  40 "yes"
+printList "TK_FONTALIAS"                   40 "$UIFONT_ALI_PATH"
+printList "ORACLE_FONTALIAS"               40 "$UIFONT_ALI_PATH"
 printList "JAVA_OPTIONS -D flags"          40 "-DREPORTS_FONT_DIRECTORY + -DREPORTS_ENHANCED_FONTHANDLING=yes"
 printList "setUserOverrides.sh"            40 "$OVERRIDES_SH"
 
@@ -101,6 +113,10 @@ else
     CURRENT_ENHANCED="$(grep -E '^[[:space:]]*(export[[:space:]]+)?REPORTS_ENHANCED_FONTHANDLING[[:space:]]*=' \
         "$OVERRIDES_SH" 2>/dev/null | tail -1)"
     CURRENT_JAVA_D="$(grep -E 'JAVA_OPTIONS.*REPORTS_FONT' "$OVERRIDES_SH" 2>/dev/null | tail -1)"
+    CURRENT_TK_FONTALIAS="$(grep -E '^[[:space:]]*(export[[:space:]]+)?TK_FONTALIAS[[:space:]]*=' \
+        "$OVERRIDES_SH" 2>/dev/null | tail -1)"
+    CURRENT_ORACLE_FONTALIAS="$(grep -E '^[[:space:]]*(export[[:space:]]+)?ORACLE_FONTALIAS[[:space:]]*=' \
+        "$OVERRIDES_SH" 2>/dev/null | tail -1)"
 
     if [ -n "$CURRENT_FONT_DIR" ]; then
         ok "  REPORTS_FONT_DIRECTORY set    : $CURRENT_FONT_DIR"
@@ -112,6 +128,18 @@ else
         ok "  REPORTS_ENHANCED_FONTHANDLING : $CURRENT_ENHANCED"
     else
         warn "  REPORTS_ENHANCED_FONTHANDLING not set in setUserOverrides.sh"
+    fi
+
+    if [ -n "$CURRENT_TK_FONTALIAS" ]; then
+        ok "  TK_FONTALIAS set              : $CURRENT_TK_FONTALIAS"
+    else
+        warn "  TK_FONTALIAS not set in setUserOverrides.sh"
+    fi
+
+    if [ -n "$CURRENT_ORACLE_FONTALIAS" ]; then
+        ok "  ORACLE_FONTALIAS set          : $CURRENT_ORACLE_FONTALIAS"
+    else
+        warn "  ORACLE_FONTALIAS not set in setUserOverrides.sh"
     fi
 
     if [ -n "$CURRENT_JAVA_D" ]; then
@@ -187,6 +215,8 @@ section "setUserOverrides.sh Update"
 
 LINE_FONT_DIR="export REPORTS_FONT_DIRECTORY=\"${REPORTS_FONT_DIR}\""
 LINE_ENHANCED='export REPORTS_ENHANCED_FONTHANDLING="yes"'
+LINE_TK_FONTALIAS="export TK_FONTALIAS=\"${UIFONT_ALI_PATH}\""
+LINE_ORACLE_FONTALIAS="export ORACLE_FONTALIAS=\"${UIFONT_ALI_PATH}\""
 LINE_JVM_FD="export JAVA_OPTIONS=\"\${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=${REPORTS_FONT_DIR}\""
 LINE_JVM_EN='export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"'
 
@@ -194,6 +224,8 @@ if ! $APPLY_MODE; then
     info "Would add/update in $OVERRIDES_SH:"
     info "  $LINE_FONT_DIR"
     info "  $LINE_ENHANCED"
+    info "  $LINE_TK_FONTALIAS"
+    info "  $LINE_ORACLE_FONTALIAS"
     info "  $LINE_JVM_FD"
     info "  $LINE_JVM_EN"
     info ""
@@ -229,12 +261,14 @@ else
             IN_BLOCK=true
             BLOCK_FOUND=true
             # Inject the new block at the position of the old one
-            printf "%s\n" "$MARKER_S"       >> "$TMPFILE"
-            printf "%s\n" "$LINE_FONT_DIR"  >> "$TMPFILE"
-            printf "%s\n" "$LINE_ENHANCED"  >> "$TMPFILE"
-            printf "%s\n" "$LINE_JVM_FD"    >> "$TMPFILE"
-            printf "%s\n" "$LINE_JVM_EN"    >> "$TMPFILE"
-            printf "%s\n" "$MARKER_E"       >> "$TMPFILE"
+            printf "%s\n" "$MARKER_S"             >> "$TMPFILE"
+            printf "%s\n" "$LINE_FONT_DIR"        >> "$TMPFILE"
+            printf "%s\n" "$LINE_ENHANCED"        >> "$TMPFILE"
+            printf "%s\n" "$LINE_TK_FONTALIAS"    >> "$TMPFILE"
+            printf "%s\n" "$LINE_ORACLE_FONTALIAS" >> "$TMPFILE"
+            printf "%s\n" "$LINE_JVM_FD"          >> "$TMPFILE"
+            printf "%s\n" "$LINE_JVM_EN"          >> "$TMPFILE"
+            printf "%s\n" "$MARKER_E"             >> "$TMPFILE"
             continue
         fi
         [ "$line" = "$MARKER_E" ] && { IN_BLOCK=false; continue; }
@@ -244,12 +278,14 @@ else
 
     if ! $BLOCK_FOUND; then
         # Append block at end of file
-        printf "\n%s\n" "$MARKER_S"     >> "$TMPFILE"
-        printf "%s\n"   "$LINE_FONT_DIR" >> "$TMPFILE"
-        printf "%s\n"   "$LINE_ENHANCED" >> "$TMPFILE"
-        printf "%s\n"   "$LINE_JVM_FD"   >> "$TMPFILE"
-        printf "%s\n"   "$LINE_JVM_EN"   >> "$TMPFILE"
-        printf "%s\n"   "$MARKER_E"      >> "$TMPFILE"
+        printf "\n%s\n" "$MARKER_S"              >> "$TMPFILE"
+        printf "%s\n"   "$LINE_FONT_DIR"          >> "$TMPFILE"
+        printf "%s\n"   "$LINE_ENHANCED"          >> "$TMPFILE"
+        printf "%s\n"   "$LINE_TK_FONTALIAS"      >> "$TMPFILE"
+        printf "%s\n"   "$LINE_ORACLE_FONTALIAS"  >> "$TMPFILE"
+        printf "%s\n"   "$LINE_JVM_FD"            >> "$TMPFILE"
+        printf "%s\n"   "$LINE_JVM_EN"            >> "$TMPFILE"
+        printf "%s\n"   "$MARKER_E"               >> "$TMPFILE"
     fi
 
     # cp preserves original file permissions and ownership
@@ -259,6 +295,8 @@ else
         ok "setUserOverrides.sh $BK_ACTION"
         info "  $LINE_FONT_DIR"
         info "  $LINE_ENHANCED"
+        info "  $LINE_TK_FONTALIAS"
+        info "  $LINE_ORACLE_FONTALIAS"
         info "  $LINE_JVM_FD"
         info "  $LINE_JVM_EN"
     else
