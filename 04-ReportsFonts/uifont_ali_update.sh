@@ -172,8 +172,10 @@ _style_to_qualifier() {
     elif (( italic && light )); then printf "..Italic.Light"
     elif (( italic ));          then printf "..Italic"
     elif (( light ));           then printf "...Light"
+    else                             printf ".."    # Regular/Book/Plain – ".." = any/default qualifier
     fi
-    # Regular/Book/Plain → empty (no qualifier)
+    # ".." is required by Oracle Reports enhanced font handler (REPORTS_ENHANCED_FONTHANDLING=yes)
+    # for the [PDF:Subset] Regular/default catch-all entry.  An entry without ".." is ignored.
 }
 
 # =============================================================================
@@ -277,46 +279,67 @@ NEW_SUBSET_LINES+=("# Format: \"PostScript font name in report\" = TTF-filename-
 NEW_SUBSET_LINES+=("# Commented lines: font TTF not deployed yet → run deploy_fonts.sh --apply")
 NEW_SUBSET_LINES+=("")
 
-# ─── Liberation Sans / Helvetica / Arial ──────────────────────────────────────
+# ─── Helvetica / Arial → Liberation Sans ─────────────────────────────────────
+# Each family gets both qualifier-based entries (..Bold etc.) AND legacy PS-name
+# exact entries (Helvetica-Bold etc.) for reports designed on older systems.
+# Qualifier entries use ".." (any qualifier / default) for the Regular catch-all.
+# More specific entries (BoldItalic, Bold, Italic) MUST precede the catch-all.
 NEW_SUBSET_LINES+=("# ─── Helvetica / Arial → Liberation Sans ─────────────────────────────────────")
-NEW_SUBSET_LINES+=("$(_subset_line "Helvetica"              "LiberationSans-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Helvetica-Bold"         "LiberationSans-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Helvetica-Oblique"      "LiberationSans-Italic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Helvetica-BoldOblique"  "LiberationSans-BoldItalic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Arial"                  "LiberationSans-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Arial Bold"             "LiberationSans-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Arial Italic"           "LiberationSans-Italic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Arial Bold Italic"      "LiberationSans-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica"            "..Italic.Bold" "LiberationSans-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica"            "...Bold"       "LiberationSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica"            "..Italic"      "LiberationSans-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica"            ".."            "LiberationSans-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica-Bold"       ""              "LiberationSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica-Oblique"    ""              "LiberationSans-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Helvetica-BoldOblique" ""             "LiberationSans-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial"                "..Italic.Bold" "LiberationSans-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial"                "...Bold"       "LiberationSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial"                "..Italic"      "LiberationSans-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial"                ".."            "LiberationSans-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial Bold"           ""              "LiberationSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial Italic"         ""              "LiberationSans-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Arial Bold Italic"    ""              "LiberationSans-BoldItalic")")
 NEW_SUBSET_LINES+=("")
 
-# ─── Liberation Serif / Times ─────────────────────────────────────────────────
+# ─── Times / Times New Roman → Liberation Serif ───────────────────────────────
 NEW_SUBSET_LINES+=("# ─── Times / Times New Roman → Liberation Serif ──────────────────────────────")
-NEW_SUBSET_LINES+=("$(_subset_line "Times-Roman"            "LiberationSerif-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times-Bold"             "LiberationSerif-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times-Italic"           "LiberationSerif-Italic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times-BoldItalic"       "LiberationSerif-BoldItalic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times New Roman"        "LiberationSerif-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times New Roman Bold"   "LiberationSerif-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Times New Roman Italic" "LiberationSerif-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      "..Italic.Bold" "LiberationSerif-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      "...Bold"       "LiberationSerif-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      "..Italic"      "LiberationSerif-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      ".."            "LiberationSerif-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman Bold"    ""           "LiberationSerif-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman Italic"  ""           "LiberationSerif-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Roman"          ""              "LiberationSerif-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Bold"           ""              "LiberationSerif-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Italic"         ""              "LiberationSerif-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times-BoldItalic"     ""              "LiberationSerif-BoldItalic")")
 NEW_SUBSET_LINES+=("")
 
-# ─── Liberation Mono / Courier ────────────────────────────────────────────────
+# ─── Courier / Courier New → Liberation Mono ──────────────────────────────────
 NEW_SUBSET_LINES+=("# ─── Courier / Courier New → Liberation Mono ─────────────────────────────────")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier"                "LiberationMono-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier-Bold"           "LiberationMono-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier-Oblique"        "LiberationMono-Italic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier-BoldOblique"    "LiberationMono-BoldItalic")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier New"            "LiberationMono-Regular")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier New Bold"       "LiberationMono-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Courier New Italic"     "LiberationMono-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier"              "..Italic.Bold" "LiberationMono-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier"              "...Bold"       "LiberationMono-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier"              "..Italic"      "LiberationMono-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier"              ".."            "LiberationMono-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier-Bold"         ""              "LiberationMono-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier-Oblique"      ""              "LiberationMono-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier-BoldOblique"  ""              "LiberationMono-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New"          "..Italic.Bold" "LiberationMono-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New"          "...Bold"       "LiberationMono-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New"          "..Italic"      "LiberationMono-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New"          ".."            "LiberationMono-Regular")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New Bold"     ""              "LiberationMono-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Courier New Italic"   ""              "LiberationMono-Italic")")
 NEW_SUBSET_LINES+=("")
 
-# ─── DejaVu Sans / Tahoma / Verdana ──────────────────────────────────────────
+# ─── Tahoma / Verdana → DejaVu Sans ──────────────────────────────────────────
 NEW_SUBSET_LINES+=("# ─── Tahoma / Verdana → DejaVu Sans (approximate metric match) ───────────────")
-NEW_SUBSET_LINES+=("$(_subset_line "Tahoma"                 "DejaVuSans")")
-NEW_SUBSET_LINES+=("$(_subset_line "Tahoma Bold"            "DejaVuSans-Bold")")
-NEW_SUBSET_LINES+=("$(_subset_line "Verdana"                "DejaVuSans")")
-NEW_SUBSET_LINES+=("$(_subset_line "Verdana Bold"           "DejaVuSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Tahoma"               "...Bold"       "DejaVuSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Tahoma"               ".."            "DejaVuSans")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Tahoma Bold"          ""              "DejaVuSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              "...Bold"       "DejaVuSans-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              ".."            "DejaVuSans")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana Bold"         ""              "DejaVuSans-Bold")")
 NEW_SUBSET_LINES+=("")
 
 # ─── Custom fonts from custom_fonts_dir/ ──────────────────────────────────────
@@ -386,14 +409,16 @@ if [ -d "$CUSTOM_FONTS_DIR" ]; then
         done < <(sort -t'|' -k1,1 -k2,2n "$_FONT_INFO")
 
         # Pass 3 – for families where the PS base name differs from the family name
-        #          (ignoring spaces and case), emit duplicate [PDF:Subset] entries
-        #          under the PS name so reports that use the old no-space PS name
-        #          (e.g. "CorpFont") are also mapped to the correct TTF.
+        #          (case-insensitive), emit duplicate [PDF:Subset] entries under
+        #          the PS name so reports that use the no-space PostScript name
+        #          (e.g. "SparkasseRg") are also mapped to the correct TTF, even
+        #          when fc-query reports the family as "Sparkasse Rg" (with space).
+        #          Comparison uses the full family string vs psbase (NOT family
+        #          stripped of spaces) so "Sparkasse Rg" != "SparkasseRg" → alias.
         for family in "${!_FAMILY_PSBASE[@]}"; do
             psbase="${_FAMILY_PSBASE[$family]}"
             [ -z "$psbase" ] && continue
-            fam_nospace="${family// /}"
-            if [ "${fam_nospace,,}" != "${psbase,,}" ]; then
+            if [ "${family,,}" != "${psbase,,}" ]; then
                 NEW_SUBSET_LINES+=("")
                 NEW_SUBSET_LINES+=("# $psbase  (PS-name alias → \"$family\")")
                 while IFS='|' read -r f _prio qualifier ttf_base _ps; do
