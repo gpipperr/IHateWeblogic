@@ -326,11 +326,12 @@ fi
 
 DET_REPORTS_ADMIN="$DET_REPORTS_COMPONENT/guicommon/tk/admin"
 DET_UIFONT_ALI="$DET_REPORTS_ADMIN/uifont.ali"
-DET_REPORTS_FONT_DIR="$DET_REPORTS_ADMIN/fonts"
+DET_REPORTS_FONT_DIR="$DET_DOMAIN_HOME/reports/fonts"
 
 printList "REPORTS_COMPONENT_HOME" 30 "$DET_REPORTS_COMPONENT"
 printList "REPORTS_ADMIN"          30 "$DET_REPORTS_ADMIN"
 printList "UIFONT_ALI"             30 "$DET_UIFONT_ALI"
+printList "REPORTS_FONT_DIR"       30 "$DET_REPORTS_FONT_DIR"
 
 [ -d "$DET_REPORTS_ADMIN" ] \
     && ok "REPORTS_ADMIN directory exists" \
@@ -338,6 +339,9 @@ printList "UIFONT_ALI"             30 "$DET_UIFONT_ALI"
 [ -f "$DET_UIFONT_ALI" ] \
     && ok "uifont.ali found" \
     || warn "uifont.ali not found: $DET_UIFONT_ALI"
+[ -d "$DET_REPORTS_FONT_DIR" ] \
+    && ok "REPORTS_FONT_DIR exists ($(find "$DET_REPORTS_FONT_DIR" -name "*.ttf" -o -name "*.TTF" 2>/dev/null | wc -l) TTF)" \
+    || warn "REPORTS_FONT_DIR not found: $DET_REPORTS_FONT_DIR (run deploy_fonts.sh --apply)"
 
 # --------------------------------------------------------------------------
 section "Detecting WLS Managed Server"
@@ -459,7 +463,7 @@ WLS_MANAGED_SERVER="${DET_WLS_MANAGED}"
 REPORTS_COMPONENT_HOME="${DET_REPORTS_COMPONENT}"
 REPORTS_ADMIN="\${REPORTS_COMPONENT_HOME}/guicommon/tk/admin"
 UIFONT_ALI="\${REPORTS_ADMIN}/uifont.ali"
-REPORTS_FONT_DIR="\${REPORTS_ADMIN}/fonts"
+REPORTS_FONT_DIR="\${DOMAIN_HOME}/reports/fonts"
 
 # --- All detected Reports instances (bash array) -----------------------------
 REPORTS_INSTANCES=(
