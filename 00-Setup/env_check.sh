@@ -331,13 +331,15 @@ DET_REPORTS_FONT_DIR="$DET_DOMAIN_HOME/reports/fonts"
 printList "REPORTS_COMPONENT_HOME" 30 "$DET_REPORTS_COMPONENT"
 printList "REPORTS_ADMIN"          30 "$DET_REPORTS_ADMIN"
 printList "UIFONT_ALI"             30 "$DET_UIFONT_ALI"
+printList "TK_FONTALIAS"           30 "$DET_UIFONT_ALI"
+printList "ORACLE_FONTALIAS"       30 "$DET_UIFONT_ALI"
 printList "REPORTS_FONT_DIR"       30 "$DET_REPORTS_FONT_DIR"
 
 [ -d "$DET_REPORTS_ADMIN" ] \
     && ok "REPORTS_ADMIN directory exists" \
     || warn "REPORTS_ADMIN not found: $DET_REPORTS_ADMIN"
 [ -f "$DET_UIFONT_ALI" ] \
-    && ok "uifont.ali found" \
+    && ok "uifont.ali found (TK_FONTALIAS / ORACLE_FONTALIAS will point here)" \
     || warn "uifont.ali not found: $DET_UIFONT_ALI"
 [ -d "$DET_REPORTS_FONT_DIR" ] \
     && ok "REPORTS_FONT_DIR exists ($(find "$DET_REPORTS_FONT_DIR" -name "*.ttf" -o -name "*.TTF" 2>/dev/null | wc -l) TTF)" \
@@ -463,6 +465,11 @@ WLS_MANAGED_SERVER="${DET_WLS_MANAGED}"
 REPORTS_COMPONENT_HOME="${DET_REPORTS_COMPONENT}"
 REPORTS_ADMIN="\${REPORTS_COMPONENT_HOME}/guicommon/tk/admin"
 UIFONT_ALI="\${REPORTS_ADMIN}/uifont.ali"
+# TK_FONTALIAS / ORACLE_FONTALIAS: override the uifont.ali search path so
+# Oracle Reports uses the domain-config file (not the one in the FMW install).
+# Also consumed by uifont_ali_update.sh to locate the file to rewrite.
+TK_FONTALIAS="\${UIFONT_ALI}"
+ORACLE_FONTALIAS="\${UIFONT_ALI}"
 REPORTS_FONT_DIR="\${DOMAIN_HOME}/reports/fonts"
 
 # --- All detected Reports instances (bash array) -----------------------------
