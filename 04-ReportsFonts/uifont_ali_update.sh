@@ -147,6 +147,69 @@ _subset_line() {
 }
 
 # =============================================================================
+# Helper: convert fc-query style string → uifont.ali qualifier (outside quotes)
+# Returns empty string for Regular/Book/Plain (= no qualifier needed).
+# Format: "FamilyName"<qualifier> = TTFbase
+#   ..Italic.Bold  → style=Italic, weight=Bold   (most specific)
+#   ...Bold        → any style,   weight=Bold
+#   ..Italic.Light → style=Italic, weight=Light
+#   ..Italic       → style=Italic, any weight
+#   ...Light       → any style,   weight=Light
+#   (empty)        → Regular/Plain                (least specific)
+# =============================================================================
+_style_to_qualifier() {
+    local s="${1,,}"   # lowercase
+    local bold=0 italic=0 light=0
+    [[ "$s" == *bold* ]]                        && bold=1
+    [[ "$s" == *italic* || "$s" == *oblique* ]] && italic=1
+    [[ "$s" == *light* ]]                       && light=1
+
+    if   (( bold && italic ));  then printf "..Italic.Bold"
+    elif (( bold ));            then printf "...Bold"
+    elif (( italic && light )); then printf "..Italic.Light"
+    elif (( italic ));          then printf "..Italic"
+    elif (( light ));           then printf "...Light"
+    fi
+    # Regular/Book/Plain → empty (no qualifier)
+}
+
+# =============================================================================
+# Helper: sort priority for fc-query style (lower = more specific → emitted first)
+# uifont.ali requires: specific entries BEFORE generic ones.
+# =============================================================================
+_style_sort_priority() {
+    local s="${1,,}"
+    local bold=0 italic=0 light=0
+    [[ "$s" == *bold* ]]                        && bold=1
+    [[ "$s" == *italic* || "$s" == *oblique* ]] && italic=1
+    [[ "$s" == *light* ]]                       && light=1
+    if   (( bold && italic ));  then printf "1"   # BoldItalic
+    elif (( bold ));            then printf "2"   # Bold
+    elif (( italic && light )); then printf "3"   # LightItalic
+    elif (( italic ));          then printf "4"   # Italic
+    elif (( light ));           then printf "5"   # Light
+    else                             printf "9"   # Regular/Book/Plain
+    fi
+}
+
+# =============================================================================
+# Helper: emit one [PDF:Subset] line – qualifier is placed OUTSIDE the quotes
+#   "FamilyName"<qualifier>  = ttf_base
+# =============================================================================
+_subset_line_q() {
+    local family="$1"
+    local qualifier="$2"
+    local ttf_base="$3"
+    local key="\"${family}\"${qualifier}"
+
+    if _font_available "$ttf_base"; then
+        printf '%-40s = %s\n' "${key}" "${ttf_base}"
+    else
+        printf '#%-39s = %s  (font not deployed)\n' "${key}" "${ttf_base}"
+    fi
+}
+
+# =============================================================================
 # Section 1: Find uifont.ali
 # =============================================================================
 section "Locate uifont.ali"
@@ -254,6 +317,12 @@ NEW_SUBSET_LINES+=("$(_subset_line "Verdana Bold"           "DejaVuSans-Bold")")
 NEW_SUBSET_LINES+=("")
 
 # ─── Custom fonts from custom_fonts_dir/ ──────────────────────────────────────
+# Two-pass approach:
+#   Pass 1: collect "family|priority|qualifier|ttf_base" for every custom TTF
+#   Pass 2: sort by family name then by specificity (most specific first),
+#           emit grouped by family with one header comment per family.
+# This prevents duplicate keys (e.g. four identical "Sparkasse Rg" entries)
+# and ensures Oracle Reports picks the right variant for Bold/Italic rendering.
 CUSTOM_ADDED=0
 if [ -d "$CUSTOM_FONTS_DIR" ]; then
     CUSTOM_TTFS=()
@@ -263,25 +332,44 @@ if [ -d "$CUSTOM_FONTS_DIR" ]; then
 
     if [ "${#CUSTOM_TTFS[@]}" -gt 0 ]; then
         NEW_SUBSET_LINES+=("# ─── Custom fonts (from custom_fonts_dir/) ────────────────────────────────────")
+        NEW_SUBSET_LINES+=("# Specific entries (BoldItalic, Bold, Italic) precede the generic (Regular)")
+
+        # Pass 1 – collect font metadata into a temp file
+        _FONT_INFO="$(mktemp)"
+
         for ttf in "${CUSTOM_TTFS[@]}"; do
             base="$(_ttf_base "$ttf")"
-            # Skip if already covered by standard Liberation/DejaVu mappings
-            case "$base" in
-                Liberation*|DejaVu*) continue ;;
-            esac
+            case "$base" in Liberation*|DejaVu*) continue ;; esac
 
-            # Use fc-query to get internal family name (for the comment)
-            family=""
+            family="" ; style=""
             if command -v fc-query >/dev/null 2>&1; then
                 family="$(fc-query --format '%{family}\n' "$ttf" 2>/dev/null | head -1)"
+                style="$(fc-query --format '%{style}\n'  "$ttf" 2>/dev/null | head -1)"
             fi
+            family="${family:-$base}"
 
-            NEW_SUBSET_LINES+=("# Custom font: $(basename "$ttf")${family:+ (internal family: '$family')}")
-            NEW_SUBSET_LINES+=("# If reports use the family name directly, add this entry:")
-            NEW_SUBSET_LINES+=("$(_subset_line "${family:-$base}" "$base")")
-            NEW_SUBSET_LINES+=("")
+            printf "%s|%s|%s|%s\n" \
+                "$family" \
+                "$(_style_sort_priority "$style")" \
+                "$(_style_to_qualifier  "$style")" \
+                "$base" >> "$_FONT_INFO"
             CUSTOM_ADDED=$(( CUSTOM_ADDED + 1 ))
         done
+
+        # Pass 2 – sort by family (col 1 alpha) then specificity (col 2 numeric),
+        #          emit grouped with one header comment per family
+        _PREV_FAMILY=""
+        while IFS='|' read -r family _prio qualifier ttf_base; do
+            if [ "$family" != "$_PREV_FAMILY" ]; then
+                [ -n "$_PREV_FAMILY" ] && NEW_SUBSET_LINES+=("")
+                NEW_SUBSET_LINES+=("# $family")
+                _PREV_FAMILY="$family"
+            fi
+            NEW_SUBSET_LINES+=("$(_subset_line_q "$family" "$qualifier" "$ttf_base")")
+        done < <(sort -t'|' -k1,1 -k2,2n "$_FONT_INFO")
+
+        rm -f "$_FONT_INFO"
+        NEW_SUBSET_LINES+=("")
     fi
 fi
 
