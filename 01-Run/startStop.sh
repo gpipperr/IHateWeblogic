@@ -373,7 +373,7 @@ _p   = os.environ.get('_IHW_WL_PWD',  '')
 _url = os.environ.get('_IHW_WL_URL',  '')
 connect(_u, _p, _url)
 del _p
-shutdown('AdminServer', 'Server', ignoreSessions=True, timeOut=60)
+shutdown('AdminServer', 'Server', ignoreSessions='true', timeOut=60)
 exit()
 PYEOF
 )" && ok "AdminServer shutdown complete" \
@@ -390,7 +390,7 @@ _p   = os.environ.get('_IHW_WL_PWD',  '')
 _url = os.environ.get('_IHW_WL_URL',  '')
 connect(_u, _p, _url)
 del _p
-shutdown('${name}', 'Server', ignoreSessions=True, timeOut=60)
+shutdown('${name}', 'Server', ignoreSessions='true', timeOut=60)
 disconnect()
 exit()
 PYEOF
