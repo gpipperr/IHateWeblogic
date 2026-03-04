@@ -290,6 +290,8 @@ Prints disk-usage totals per group at the end.
 ./03-Logs/grep_logs.sh "REP-3000"
 ./03-Logs/grep_logs.sh "REP-" --component WLS_REPORTS --since 2026-03-04
 ./03-Logs/grep_logs.sh "Exception" --context 5 --level ERROR
+./03-Logs/grep_logs.sh "Exception" --since-minutes 30
+./03-Logs/grep_logs.sh "REP-" --since-minutes 5 --component WLS_REPORTS
 ```
 
 Options:
@@ -299,8 +301,11 @@ Options:
 | `<pattern>` | Search pattern (required, supports regex) |
 | `--component AdminServer\|WLS_REPORTS\|WLS_FORMS\|all` | Limit search scope (default: all) |
 | `--since YYYY-MM-DD` | Only search files modified on or after this date |
+| `--since-minutes N` | Only search files modified within the last N minutes |
 | `--context N` | Show N lines of context around each match (default: 3) |
 | `--level ERROR\|WARNING\|INFO` | Pre-filter by severity keyword |
+
+`--since` and `--since-minutes` are mutually exclusive.
 
 Searches active logs **and** all rotated files (`*.log00001`…) and gzip-compressed
 files (`*.gz` via `zgrep`). Output includes filename and line number for every match.

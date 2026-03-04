@@ -7,10 +7,12 @@
 #            ./grep_logs.sh "REP-3000"
 #            ./grep_logs.sh "REP-" --component WLS_REPORTS --since 2026-03-04
 #            ./grep_logs.sh "Exception" --context 5 --level ERROR
-# Options  : --component  all|AdminServer|WLS_REPORTS|WLS_FORMS  (default: all)
-#            --since      YYYY-MM-DD   only files modified on/after this date
-#            --context    N            lines of context per match (default: 3)
-#            --level      ERROR|WARNING|INFO  pre-filter file by severity keyword
+#            ./grep_logs.sh "Exception" --since-minutes 30
+# Options  : --component     all|AdminServer|WLS_REPORTS|WLS_FORMS  (default: all)
+#            --since         YYYY-MM-DD   only files modified on/after this date
+#            --since-minutes N            only files modified within the last N minutes
+#            --context       N            lines of context per match (default: 3)
+#            --level         ERROR|WARNING|INFO  pre-filter file by severity keyword
 # Requires : grep, find, zgrep (for .gz files)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -40,29 +42,34 @@ init_log
 PATTERN=""
 COMPONENT="all"
 SINCE=""
+SINCE_MINUTES=""
 CONTEXT=3
 LEVEL_FILTER=""
 
 _usage() {
     printf "Usage: %s <pattern> [options]\n\n" "$(basename "$0")"
-    printf "  %-30s %s\n" "<pattern>"                 "Search pattern (required, case-insensitive)"
-    printf "  %-30s %s\n" "--component <name>"        "all|AdminServer|WLS_REPORTS|WLS_FORMS (default: all)"
-    printf "  %-30s %s\n" "--since YYYY-MM-DD"        "Only search files modified on/after this date"
-    printf "  %-30s %s\n" "--context N"               "Lines of context around each match (default: 3)"
-    printf "  %-30s %s\n" "--level ERROR|WARNING|INFO" "Only show files containing this severity keyword"
+    printf "  %-34s %s\n" "<pattern>"                  "Search pattern (required, case-insensitive)"
+    printf "  %-34s %s\n" "--component <name>"         "all|AdminServer|WLS_REPORTS|WLS_FORMS (default: all)"
+    printf "  %-34s %s\n" "--since YYYY-MM-DD"         "Only search files modified on/after this date"
+    printf "  %-34s %s\n" "--since-minutes N"          "Only search files modified within the last N minutes"
+    printf "  %-34s %s\n" "--context N"                "Lines of context around each match (default: 3)"
+    printf "  %-34s %s\n" "--level ERROR|WARNING|INFO" "Only show files containing this severity keyword"
     printf "\nExamples:\n"
     printf "  %s 'REP-3000'\n" "$(basename "$0")"
     printf "  %s 'REP-' --component WLS_REPORTS --since 2026-03-04\n" "$(basename "$0")"
     printf "  %s 'Exception' --context 10 --level ERROR\n" "$(basename "$0")"
+    printf "  %s 'Exception' --since-minutes 30\n" "$(basename "$0")"
+    printf "  %s 'REP-' --since-minutes 5 --component WLS_REPORTS\n" "$(basename "$0")"
     exit 1
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --component) COMPONENT="$2"; shift 2 ;;
-        --since)     SINCE="$2";     shift 2 ;;
-        --context)   CONTEXT="$2";   shift 2 ;;
-        --level)     LEVEL_FILTER="$2"; shift 2 ;;
+        --component)     COMPONENT="$2";      shift 2 ;;
+        --since)         SINCE="$2";          shift 2 ;;
+        --since-minutes) SINCE_MINUTES="$2";  shift 2 ;;
+        --context)       CONTEXT="$2";        shift 2 ;;
+        --level)         LEVEL_FILTER="$2";   shift 2 ;;
         --help|-h)   _usage ;;
         -*)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -91,9 +98,26 @@ if [ -z "${DOMAIN_HOME:-}" ]; then
     exit 2
 fi
 
-# Validate --since date and build find argument array
+# --since and --since-minutes are mutually exclusive
+if [ -n "$SINCE" ] && [ -n "$SINCE_MINUTES" ]; then
+    printf "\033[31mERROR\033[0m --since and --since-minutes cannot be combined.\n" >&2
+    exit 1
+fi
+
+# Validate --since-minutes: must be a positive integer
+if [ -n "$SINCE_MINUTES" ]; then
+    if ! [[ "$SINCE_MINUTES" =~ ^[1-9][0-9]*$ ]]; then
+        printf "\033[31mERROR\033[0m --since-minutes requires a positive integer, got: '%s'\n" \
+            "$SINCE_MINUTES" >&2
+        exit 1
+    fi
+fi
+
+# Build find time-filter argument array
 declare -a FIND_SINCE=()
-if [ -n "$SINCE" ]; then
+if [ -n "$SINCE_MINUTES" ]; then
+    FIND_SINCE=( -mmin "-${SINCE_MINUTES}" )
+elif [ -n "$SINCE" ]; then
     if ! date -d "$SINCE" '+%Y-%m-%d' > /dev/null 2>&1; then
         printf "\033[31mERROR\033[0m Invalid date for --since: '%s' (expected YYYY-MM-DD)\n" \
             "$SINCE" >&2
@@ -243,11 +267,18 @@ _search_dir() {
 
 printLine
 section "Log Search"
-printf "  %-16s \"%s\"\n"   "Pattern:"   "$PATTERN"                | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-16s %s\n"       "Component:" "$COMPONENT"              | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-16s %s\n"       "Since:"     "${SINCE:-(all files)}"   | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-16s %s lines\n" "Context:"   "$CONTEXT"                | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-16s %s\n"       "Level:"     "${LEVEL_FILTER:-(all)}"  | tee -a "${LOG_FILE:-/dev/null}"
+_since_label() {
+    if   [ -n "$SINCE_MINUTES" ]; then printf "last %d min" "$SINCE_MINUTES"
+    elif [ -n "$SINCE"         ]; then printf "%s" "$SINCE"
+    else                                printf "(all files)"
+    fi
+}
+
+printf "  %-16s \"%s\"\n"   "Pattern:"   "$PATTERN"          | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-16s %s\n"       "Component:" "$COMPONENT"        | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-16s %s\n"       "Since:"     "$(_since_label)"   | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-16s %s lines\n" "Context:"   "$CONTEXT"          | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-16s %s\n"       "Level:"     "${LEVEL_FILTER:-(all)}" | tee -a "${LOG_FILE:-/dev/null}"
 printLine
 
 for dir in "${SEARCH_DIRS[@]}"; do
