@@ -42,7 +42,8 @@ for arg in "$@"; do
         --help)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  Default: dry-run – show current config and what would change\n"
-            printf "  --apply: write REPORTS_FONT_DIRECTORY into setUserOverrides.sh\n"
+            printf "  --apply: write REPORTS_FONT_DIRECTORY, REPORTS_ENHANCED_FONTHANDLING\n"
+            printf "           and both as JAVA_OPTIONS -D flags into setUserOverrides.sh\n"
             exit 0
             ;;
     esac
