@@ -55,7 +55,12 @@ FONT_PKGS=(
     liberation-sans-fonts       # Liberation Sans  (Arial/Helvetica substitute)
     liberation-serif-fonts      # Liberation Serif (Times New Roman substitute)
     liberation-mono-fonts       # Liberation Mono  (Courier New substitute)
-    dejavu-fonts-all            # DejaVu (Tahoma/Verdana substitute)
+    dejavu-sans-fonts           # DejaVu Sans       (Tahoma/Verdana substitute)
+    dejavu-sans-mono-fonts      # DejaVu Sans Mono  (monospace)
+    dejavu-serif-fonts          # DejaVu Serif      (serif fallback)
+    dejavu-lgc-sans-fonts       # DejaVu LGC Sans   (Latin-Greek-Cyrillic)
+    dejavu-lgc-sans-mono-fonts  # DejaVu LGC Mono
+    dejavu-lgc-serif-fonts      # DejaVu LGC Serif
     fontconfig                  # fc-query, fc-cache, fc-list
 )
 
