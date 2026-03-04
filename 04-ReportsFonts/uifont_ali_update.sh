@@ -1,12 +1,13 @@
 #!/bin/bash
 # =============================================================================
 # Script   : uifont_ali_update.sh
-# Purpose  : Backup uifont.ali, rebuild the [PDF:Subset] section with
-#            Liberation and custom font mappings. All other sections
-#            (Global, Printer:*, Display:*, etc.) are preserved unchanged.
+# Purpose  : Backup uifont.ali and REWRITE it completely: sections before
+#            the first [PDF...] block are preserved; all [PDF:*] content is
+#            replaced by a freshly generated [PDF:Subset] section with
+#            Liberation and custom font mappings.
 #            Default: dry-run (show diff). Use --apply to write.
 # Call     : ./uifont_ali_update.sh [--apply]
-# Requires : fc-query (fontconfig), cp, python3, find
+# Requires : fc-query (fontconfig), cp, find
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
@@ -40,7 +41,9 @@ for arg in "$@"; do
         --help)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  Default: dry-run (show what would change)\n"
-            printf "  --apply: backup uifont.ali and update [PDF:Subset] section\n"
+            printf "  --apply: backup uifont.ali and rewrite the entire file\n"
+            printf "           (preserves Global/Printer/Display sections;\n"
+            printf "            replaces ALL [PDF:*] sections with a fresh [PDF:Subset])\n"
             exit 0
             ;;
     esac
@@ -379,65 +382,48 @@ for line in "${NEW_SUBSET_LINES[@]}"; do
 done
 
 # =============================================================================
-# Section 4: Diff and Apply
+# Section 4: Build complete new uifont.ali (pure bash – no python3)
+# Strategy: preserve every line of the original file that comes BEFORE the
+#           first [PDF...] section header; then append the freshly generated
+#           [PDF:Subset] block.  All existing [PDF:*] content is discarded and
+#           rewritten from scratch – no orphaned entries can survive.
 # =============================================================================
 section "$( $APPLY_MODE && echo 'Applying Changes to uifont.ali' || echo 'Preview Changes (dry-run)')"
 
-if ! command -v python3 >/dev/null 2>&1; then
-    fail "python3 not found – required for safe section replacement in uifont.ali"
+TEMP_NEW_ALI="$(mktemp /tmp/uifont_ali_new_XXXXXX.tmp)" || {
+    fail "Cannot create temp file"
     print_summary
     exit $EXIT_CODE
+}
+
+# --- Pass 1: copy pre-PDF lines from original file ---------------------------
+PRE_PDF_WRITTEN=false
+while IFS= read -r line || [ -n "$line" ]; do
+    # Stop at first [PDF...] section header (case-insensitive)
+    if [[ "${line,,}" =~ ^\[\ *pdf ]]; then
+        PRE_PDF_WRITTEN=true
+        break
+    fi
+    printf "%s\n" "$line" >> "$TEMP_NEW_ALI"
+done < "$UIFONT_ALI"
+
+# Ensure there is exactly one blank line before the PDF block
+printf "\n" >> "$TEMP_NEW_ALI"
+
+# --- Pass 2: append the newly generated [PDF:Subset] block -------------------
+printf "%s\n" "${NEW_SUBSET_LINES[@]}" >> "$TEMP_NEW_ALI"
+
+if $PRE_PDF_WRITTEN; then
+    info "Pre-PDF sections (Global/Printer/Display) preserved from original"
+else
+    info "No pre-PDF sections found in original – file contained only PDF content"
 fi
 
-# Write new [PDF:Subset] block to a temp file
-TEMP_SECTION="$(mktemp /tmp/pdf_subset_XXXXXX.tmp)"
-printf "%s\n" "${NEW_SUBSET_LINES[@]}" > "$TEMP_SECTION"
-
-# Generate the updated uifont.ali using Python (safe section replacement)
-TEMP_NEW_ALI="$(mktemp /tmp/uifont_ali_new_XXXXXX.tmp)"
-
-python3 - "$UIFONT_ALI" "$TEMP_SECTION" "$TEMP_NEW_ALI" << 'PYEOF'
-import sys, re
-
-src_file  = sys.argv[1]
-sec_file  = sys.argv[2]
-dst_file  = sys.argv[3]
-
-with open(src_file, encoding='utf-8', errors='replace') as f:
-    content = f.read()
-
-with open(sec_file, encoding='utf-8') as f:
-    new_section = f.read()
-
-# Match [PDF:Subset] section: from the section header until the next [ or EOF
-# Flags: DOTALL so . matches newline, IGNORECASE for section name
-pattern = r'\[\s*PDF\s*:\s*Subset\s*\][^\[]*'
-
-if re.search(pattern, content, re.IGNORECASE | re.DOTALL):
-    # Replace existing [PDF:Subset] section
-    updated = re.sub(pattern, new_section + '\n', content,
-                     flags=re.IGNORECASE | re.DOTALL)
-else:
-    # Append new [PDF:Subset] section
-    updated = content.rstrip('\n') + '\n\n' + new_section + '\n'
-
-with open(dst_file, 'w', encoding='utf-8') as f:
-    f.write(updated)
-PYEOF
-
-PY_RC=$?
-if [ "$PY_RC" -ne 0 ]; then
-    fail "Python section replacement failed (rc=$PY_RC)"
-    rm -f "$TEMP_SECTION" "$TEMP_NEW_ALI"
-    print_summary
-    exit $EXIT_CODE
-fi
-
-# Show diff
+# --- Show diff ---------------------------------------------------------------
 if command -v diff >/dev/null 2>&1; then
     DIFF_OUT="$(diff "$UIFONT_ALI" "$TEMP_NEW_ALI" 2>/dev/null)"
     if [ -z "$DIFF_OUT" ]; then
-        ok "No changes needed – [PDF:Subset] is already up to date"
+        ok "No changes needed – uifont.ali is already up to date"
     else
         printf "\n"
         info "Changes to uifont.ali (< = remove, > = add):"
@@ -452,15 +438,15 @@ if $APPLY_MODE; then
     backup_file "$UIFONT_ALI"
     if [ "$LAST_BACKUP" = "" ]; then
         fail "Backup failed – aborting write"
-        rm -f "$TEMP_SECTION" "$TEMP_NEW_ALI"
+        rm -f "$TEMP_NEW_ALI"
         print_summary
         exit $EXIT_CODE
     fi
 
-    # Apply new content
+    # cp preserves original file permissions and ownership
     if cp "$TEMP_NEW_ALI" "$UIFONT_ALI" 2>/dev/null; then
-        ok "uifont.ali updated: $UIFONT_ALI"
-        ok "Backup stored at : $LAST_BACKUP"
+        ok "uifont.ali rewritten : $UIFONT_ALI"
+        ok "Backup stored at     : $LAST_BACKUP"
     else
         fail "Failed to write $UIFONT_ALI"
         info "  Restoring from backup: $LAST_BACKUP"
@@ -470,8 +456,7 @@ else
     info "Run with --apply to apply the changes shown above"
 fi
 
-# Cleanup temp files
-rm -f "$TEMP_SECTION" "$TEMP_NEW_ALI"
+rm -f "$TEMP_NEW_ALI"
 
 # =============================================================================
 # Section 5: Post-update reminder
