@@ -9,7 +9,7 @@
 #            block may not be inherited by the managed server process).
 #            Also locates rwserver.conf and setDomainEnv.sh for reference.
 # Call     : ./fontpath_config.sh [--apply]
-# Requires : grep, cp, python3
+# Requires : grep, cp
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font002.htm
@@ -215,56 +215,55 @@ else
         backup_file "$OVERRIDES_SH"
     fi
 
-    # Use Python3 to safely add or replace the managed block
-    PY_ACTION="$(python3 - "$OVERRIDES_SH" "$REPORTS_FONT_DIR" <<'PYEOF'
-import sys, re
+    # Add or replace the managed block using a temp file (pure bash, no python3)
+    MARKER_S="# --- IHateWeblogic: Reports Font Configuration ---"
+    MARKER_E="# --- END IHateWeblogic: Reports Font Configuration ---"
 
-filepath  = sys.argv[1]
-font_dir  = sys.argv[2]
+    TMPFILE="$(mktemp)" || { fail "Cannot create temp file"; print_summary; exit 2; }
 
-marker_s  = "# --- IHateWeblogic: Reports Font Configuration ---\n"
-marker_e  = "# --- END IHateWeblogic: Reports Font Configuration ---\n"
-line_fd   = f'export REPORTS_FONT_DIRECTORY="{font_dir}"\n'
-line_en   = 'export REPORTS_ENHANCED_FONTHANDLING="yes"\n'
-# Also pass both as JVM system properties so Node Manager inherits them
-# even if the OS env block is not propagated to the managed server process.
-line_jd   = f'export JAVA_OPTIONS="${{JAVA_OPTIONS}} -DREPORTS_FONT_DIRECTORY=\\"{font_dir}\\""\n'
-line_je   = 'export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"\n'
-new_block = marker_s + line_fd + line_en + line_jd + line_je + marker_e
+    IN_BLOCK=false
+    BLOCK_FOUND=false
 
-with open(filepath, "r") as fh:
-    content = fh.read()
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ "$line" = "$MARKER_S" ]; then
+            IN_BLOCK=true
+            BLOCK_FOUND=true
+            # Inject the new block at the position of the old one
+            printf "%s\n" "$MARKER_S"       >> "$TMPFILE"
+            printf "%s\n" "$LINE_FONT_DIR"  >> "$TMPFILE"
+            printf "%s\n" "$LINE_ENHANCED"  >> "$TMPFILE"
+            printf "%s\n" "$LINE_JVM_FD"    >> "$TMPFILE"
+            printf "%s\n" "$LINE_JVM_EN"    >> "$TMPFILE"
+            printf "%s\n" "$MARKER_E"       >> "$TMPFILE"
+            continue
+        fi
+        [ "$line" = "$MARKER_E" ] && { IN_BLOCK=false; continue; }
+        $IN_BLOCK && continue
+        printf "%s\n" "$line" >> "$TMPFILE"
+    done < "$OVERRIDES_SH"
 
-block_re = re.compile(
-    r"# --- IHateWeblogic: Reports Font Configuration ---\n"
-    r".*?"
-    r"# --- END IHateWeblogic: Reports Font Configuration ---\n",
-    re.DOTALL,
-)
+    if ! $BLOCK_FOUND; then
+        # Append block at end of file
+        printf "\n%s\n" "$MARKER_S"     >> "$TMPFILE"
+        printf "%s\n"   "$LINE_FONT_DIR" >> "$TMPFILE"
+        printf "%s\n"   "$LINE_ENHANCED" >> "$TMPFILE"
+        printf "%s\n"   "$LINE_JVM_FD"   >> "$TMPFILE"
+        printf "%s\n"   "$LINE_JVM_EN"   >> "$TMPFILE"
+        printf "%s\n"   "$MARKER_E"      >> "$TMPFILE"
+    fi
 
-if block_re.search(content):
-    updated = block_re.sub(new_block, content)
-    action  = "updated"
-else:
-    updated = content.rstrip("\n") + "\n\n" + new_block
-    action  = "appended"
-
-with open(filepath, "w") as fh:
-    fh.write(updated)
-
-print(action)
-PYEOF
-)"
-    PY_RC=$?
-
-    if [ "$PY_RC" -eq 0 ]; then
-        ok "setUserOverrides.sh $PY_ACTION"
+    # cp preserves original file permissions and ownership
+    if cp "$TMPFILE" "$OVERRIDES_SH" 2>/dev/null; then
+        rm -f "$TMPFILE"
+        BK_ACTION="$( $BLOCK_FOUND && echo 'updated' || echo 'appended' )"
+        ok "setUserOverrides.sh $BK_ACTION"
         info "  $LINE_FONT_DIR"
         info "  $LINE_ENHANCED"
         info "  $LINE_JVM_FD"
         info "  $LINE_JVM_EN"
     else
-        fail "Failed to update setUserOverrides.sh (python3 rc=$PY_RC)"
+        fail "Failed to write setUserOverrides.sh"
+        rm -f "$TMPFILE"
     fi
 fi
 
