@@ -1,0 +1,359 @@
+# 02-Checks – System & Environment Diagnostics
+
+Diagnostic scripts that inspect the host, the Java runtime, the WebLogic
+domain, and the network configuration. All scripts are **read-only** unless
+marked otherwise – run them without `--apply` to get a safe status overview.
+
+---
+
+## 1. Overview
+
+| Script | Status | Purpose |
+|---|---|---|
+| `os_check.sh` | ✅ implemented | OS, RAM, CPU, disk, ulimits, kernel params, packages |
+| `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
+| `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
+| `display_check.sh` | 🔧 planned | DISPLAY / Xvfb – required for headless `rwrun` |
+| `lib_check.sh` | 🔧 planned | Shared library dependencies for `rwrun` and `frmweb` |
+| `db_connect_check.sh` | 🔧 planned | TNS ping and JDBC connectivity test |
+| `printer_check.sh` | 🔧 planned | CUPS / `lpstat` printer availability for Reports |
+| `ssl_check.sh` | 🔧 planned | SSL/TLS certificate inventory and expiry check |
+
+All implemented scripts source `environment.conf` and write output to both
+stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/env_check.sh` first if
+`environment.conf` does not exist yet.
+
+---
+
+## 2. Recommended Execution Order
+
+Run in this sequence when setting up a new server or diagnosing a problem:
+
+```
+Step 1 – OS baseline
+  ./02-Checks/os_check.sh
+
+Step 2 – Java runtime
+  ./02-Checks/java_check.sh
+
+Step 3 – Ports and network
+  ./02-Checks/port_check.sh
+  ./02-Checks/port_check.sh --http   # also check AdminServer console via HTTP
+
+Step 4 – Display (required before rwrun)
+  ./02-Checks/display_check.sh       # not yet implemented
+
+Step 5 – Shared libraries
+  ./02-Checks/lib_check.sh           # not yet implemented
+
+Step 6 – Database connectivity
+  ./02-Checks/db_connect_check.sh    # not yet implemented
+
+Step 7 – SSL certificates
+  ./02-Checks/ssl_check.sh           # not yet implemented
+```
+
+---
+
+## 3. Script Reference
+
+### os_check.sh
+
+```bash
+./02-Checks/os_check.sh
+```
+
+Read-only – no options needed.
+
+Checks performed:
+
+| Category | What is checked |
+|---|---|
+| OS version | Oracle Linux / RHEL release, kernel version |
+| RAM | Total / available – warns if below FMW minimum |
+| CPU | Core count, model name |
+| Disk | Free space on `/`, `/tmp`, `$DOMAIN_HOME` filesystem |
+| Ulimits | `nofile` (open files), `nproc`, `stack` per FMW recommendations |
+| Kernel params | `vm.swappiness`, `net.core.somaxconn` etc. via `sysctl` |
+| SELinux | Reports enforcing / permissive / disabled |
+| Required packages | `glibc`, `libXext`, `libXrender`, `motif`, etc. via `rpm -q` |
+| `LANG` / locale | Must be `en_US.UTF-8` for Oracle Forms/Reports |
+| `umask` | Recommended `0027` during FMW operations |
+
+Exit code 0 = all OK; non-zero = at least one FAIL detected.
+
+---
+
+### java_check.sh
+
+```bash
+./02-Checks/java_check.sh
+```
+
+Read-only – no options needed.
+
+Checks performed:
+
+| Category | What is checked |
+|---|---|
+| JAVA_HOME | Correct FMW JDK path (not the system JDK) |
+| JDK version | Must be JDK 21.0.x for FMW 14.1.2, JDK 8 for FMW 12.2.1 |
+| `java` on PATH | Whether `$JAVA_HOME/bin/java` matches `$(which java)` |
+| Running WLS JVMs | Finds `java` processes with `-Dweblogic`, shows PID, heap settings |
+| Heap settings | Extracts `-Xms` / `-Xmx` from running WLS JVM arguments |
+| Log4j CVE scan | Scans `$FMW_HOME` for `log4j*.jar`; reports CVE-2021-44228 exposure |
+
+Log4j classification:
+
+| Version | Result |
+|---|---|
+| ≥ 2.17.1 | OK – patched |
+| 2.x < 2.17.1 | FAIL – CVE-2021-44228 / CVE-2021-45046 vulnerable |
+| 1.x | WARN – EOL, CVE-2019-17571 |
+
+---
+
+### port_check.sh
+
+```bash
+./02-Checks/port_check.sh
+./02-Checks/port_check.sh --http
+./02-Checks/port_check.sh --timeout 5
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--http` | Also run HTTP GET health check on AdminServer console and version JSP |
+| `--timeout N` | TCP connect timeout in seconds (default: 3) |
+
+Read-only – no `--apply` needed.
+
+Sections in the output:
+
+**1. Network Interfaces** – all IPv4 addresses and subnet masks on the host
+(`ip addr` or `ifconfig` fallback).
+
+**2. Configured Ports** – reads `$DOMAIN_HOME/config/config.xml` and extracts
+`<server>` blocks with their `<listen-address>` and `<listen-port>` / SSL port.
+Falls back to `WL_ADMIN_URL` from `environment.conf` when `config.xml` is not
+found.
+
+**3. Node Manager** – reads `$DOMAIN_HOME/nodemanager/nodemanager.properties`
+for `ListenPort` and `ListenAddress`. Default 5556 / localhost if file not found.
+
+**4. All Listening TCP Sockets** – output of `ss -tlnp` (or `netstat -tlnp`).
+Rows with `java` / `weblogic` / `nodemanager` processes are highlighted in
+green; other system sockets are shown dimmed.
+
+> Run as root to see process names for sockets not owned by the current user.
+
+**5. Port Connectivity Cross-Check** – for every port found in config.xml and
+nodemanager.properties: shows `ss` state (LISTEN / DOWN) and a TCP connect
+result (OPEN / CLOSED). Uses `bash /dev/tcp` – no `nc` or `nmap` required.
+
+**6. HTTP Health Check** (`--http` only) – `curl` GET requests to:
+- `http://<admin>:<port>/console` – AdminServer console (HTTP 401 = expected)
+- `http://<admin>:<port>/bea_wls_internal/versionInfo.jsp` – version endpoint
+
+Typical ports for a Forms/Reports 14c domain:
+
+| Component | Default Port | Protocol |
+|---|---|---|
+| AdminServer | 7001 | T3 / HTTP |
+| AdminServer SSL | 7002 | T3S / HTTPS |
+| WLS_REPORTS | 9001 | T3 / HTTP |
+| WLS_FORMS | 9002 | T3 / HTTP |
+| Node Manager | 5556 | NM / SSL |
+| OHS (if installed) | 8890 / 4443 | HTTP / HTTPS |
+
+---
+
+### display_check.sh
+
+> **Not yet implemented** — planned functionality:
+
+```bash
+./02-Checks/display_check.sh
+./02-Checks/display_check.sh --apply   # install and start Xvfb if missing
+```
+
+Planned checks:
+
+- `DISPLAY` environment variable is set
+- X11 server reachable: `xdpyinfo` or `xdpinfo` test
+- Xvfb installed: `rpm -q xorg-x11-server-Xvfb`
+- Xvfb process running for the configured `DISPLAY` number
+- `--apply`: start Xvfb on `:99` if not running and configure `DISPLAY=:99`
+
+Background: Oracle Reports `rwrun` requires an X11 display to render reports
+even on a headless server. Missing or wrong `DISPLAY` causes segfaults and
+`REP-0069` / `REP-1070` errors.
+
+---
+
+### lib_check.sh
+
+> **Not yet implemented** — planned functionality:
+
+```bash
+./02-Checks/lib_check.sh
+```
+
+Planned checks:
+
+- `ldd $FMW_HOME/bin/rwrun` – all shared library dependencies resolved?
+- `ldd $FMW_HOME/bin/frmweb` – Forms Web binary
+- Missing `libXm.so` (Motif), `libXext.so`, `libXrender.so` → FAIL
+- `lsof -p <rwrun PID>` – libraries currently loaded by a running `rwrun`
+- Reports missing or wrong-version libs with install hint (`dnf install ...`)
+
+---
+
+### db_connect_check.sh
+
+> **Not yet implemented** — planned functionality:
+
+```bash
+./02-Checks/db_connect_check.sh
+./02-Checks/db_connect_check.sh --apply   # run actual connect test
+```
+
+Planned checks:
+
+- `tnsping <service>` – TNS connectivity to the repository database
+- `sqlplus` connect test using credentials from `weblogic_sec.sh` store
+- JDBC URL validation from `$DOMAIN_HOME` datasource XML files
+- Reports TNS_ADMIN, `tnsnames.ora` path and parsed entries
+
+Prerequisite: `00-Setup/weblogic_sec.sh --apply` must have been run to store
+database credentials.
+
+---
+
+### printer_check.sh
+
+> **Not yet implemented** — planned functionality:
+
+```bash
+./02-Checks/printer_check.sh
+```
+
+Planned checks:
+
+- CUPS daemon running: `systemctl status cups`
+- Default printer configured: `lpstat -d`
+- Printer queue list: `lpstat -a`
+- Oracle Reports printer configuration in `$REPORTS_COMPONENT_HOME`
+
+Background: Oracle Reports requires a configured printer (even a virtual one)
+for certain output formats. Missing CUPS configuration causes `REP-1800` /
+`REP-3000` on PDF/PS jobs.
+
+---
+
+### ssl_check.sh
+
+> **Not yet implemented** — planned functionality:
+
+```bash
+./02-Checks/ssl_check.sh
+./02-Checks/ssl_check.sh --warn-days 60   # warn if cert expires within 60 days
+```
+
+Planned checks:
+
+- WLS KeyStore files (`.jks` / `.p12`) in `$DOMAIN_HOME/config`
+- Certificate expiry dates via `keytool -list` and `openssl x509 -enddate`
+- Subject, issuer, SANs per certificate
+- OHS SSL configuration in `ssl.conf` (if OHS installed)
+- Self-signed vs CA-signed detection
+- Warns when a certificate expires within `--warn-days` days (default: 30)
+
+---
+
+## 4. Troubleshooting
+
+### os_check.sh – ulimit warnings
+
+```
+Symptom: WARN nofile=1024 – recommended >= 65536
+Cause:   Default OS limits are too low for WebLogic
+Fix:     Add to /etc/security/limits.conf:
+           oracle  soft  nofile  65536
+           oracle  hard  nofile  65536
+           oracle  soft  nproc   16384
+           oracle  hard  nproc   16384
+         Then re-login and re-run os_check.sh.
+```
+
+### java_check.sh – wrong JDK detected
+
+```
+Symptom: FAIL JAVA_HOME points to system JDK, not FMW JDK
+Cause:   /etc/profile.d/ or .bashrc overrides JAVA_HOME after setDomainEnv.sh
+Fix:     Set JAVA_HOME explicitly in environment.conf:
+           JAVA_HOME=/app/oracle/java/jdk-21.0.6
+         Or prepend $FMW_HOME bin to PATH before system Java.
+```
+
+### java_check.sh – Log4j FAIL
+
+```
+Symptom: FAIL log4j-core-2.14.1.jar – CVE-2021-44228 vulnerable
+Cause:   Old log4j version bundled with WLS or application
+Fix:     See https://logging.apache.org/log4j/2.x/security.html
+         Apply Oracle patch: My Oracle Support Note 2827793.1
+         Minimum safe version: log4j-core 2.17.1
+```
+
+### port_check.sh – all ports show CLOSED
+
+```
+Symptom: All WLS ports show CLOSED in connectivity check
+Cause A: WebLogic domain not started
+         → Run: $DOMAIN_HOME/bin/startWebLogic.sh  (or via Node Manager)
+Cause B: WL_ADMIN_URL in environment.conf has wrong host/port
+         → Re-run: 00-Setup/env_check.sh to regenerate environment.conf
+Cause C: Firewall blocking the port on this host
+         → Check: sudo firewall-cmd --list-ports
+         → Open:  sudo firewall-cmd --add-port=7001/tcp --permanent
+```
+
+### port_check.sh – process names missing in ss output
+
+```
+Symptom: ss -tlnp shows no process name in the Process column
+Cause:   Running as a non-root user; ss only shows process info for own processes
+Fix:     Run as root or as the oracle user that started WebLogic:
+           sudo ./02-Checks/port_check.sh
+           su - oracle -c "cd /development/IHateWeblogic && ./02-Checks/port_check.sh"
+```
+
+---
+
+## 5. Related Scripts
+
+| Script | Purpose |
+|---|---|
+| `00-Setup/env_check.sh` | Generate / validate `environment.conf` |
+| `00-Setup/weblogic_sec.sh` | Store WebLogic admin credentials (used by db_connect_check) |
+| `01-Run/rwrun_trace.sh` | Diagnose `rwrun` segfaults (depends on display_check) |
+| `03-Logs/grep_logs.sh` | Search logs for errors after a failed check |
+| `08-SSL/` | SSL certificate management (complements ssl_check.sh) |
+
+---
+
+## 6. References
+
+- Oracle FMW 14.1.2 System Requirements:
+  https://docs.oracle.com/en/middleware/fusion-middleware/fmw-infrastructure/14.1.2/infst/
+- Oracle Linux 8 Ulimits for Oracle Products:
+  https://docs.oracle.com/en/database/oracle/oracle-database/21/ladbi/
+- Oracle Reports Troubleshooting (rwrun segfault / DISPLAY):
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_troubl.htm
+- Log4j Security (CVE-2021-44228):
+  https://logging.apache.org/log4j/2.x/security.html
+- My Oracle Support Note 2827793.1 (Log4j patch for FMW):
+  https://support.oracle.com/epmos/faces/DocumentDisplay?id=2827793.1
