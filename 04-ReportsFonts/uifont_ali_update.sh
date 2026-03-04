@@ -324,8 +324,8 @@ NEW_SUBSET_LINES+=("")
 #   Pass 1: collect "family|priority|qualifier|ttf_base" for every custom TTF
 #   Pass 2: sort by family name then by specificity (most specific first),
 #           emit grouped by family with one header comment per family.
-# This prevents duplicate keys (e.g. four identical "Sparkasse Rg" entries)
-# and ensures Oracle Reports picks the right variant for Bold/Italic rendering.
+# This prevents duplicate keys and ensures Oracle Reports picks the right
+# variant for Bold/Italic rendering.
 CUSTOM_ADDED=0
 if [ -d "$CUSTOM_FONTS_DIR" ]; then
     CUSTOM_TTFS=()
@@ -338,38 +338,71 @@ if [ -d "$CUSTOM_FONTS_DIR" ]; then
         NEW_SUBSET_LINES+=("# Specific entries (BoldItalic, Bold, Italic) precede the generic (Regular)")
 
         # Pass 1 – collect font metadata into a temp file
+        # Format: family|priority|qualifier|ttf_base|psname
+        # psname = fc-query %{postscriptname} of the Regular variant (no style suffix)
+        # Used in Pass 3 to add PS-name alias entries for fonts whose fc-query family
+        # name contains spaces (e.g. "Corp Font") but reports use the no-space
+        # PostScript name (e.g. "CorpFont").
         _FONT_INFO="$(mktemp)"
 
         for ttf in "${CUSTOM_TTFS[@]}"; do
             base="$(_ttf_base "$ttf")"
             case "$base" in Liberation*|DejaVu*) continue ;; esac
 
-            family="" ; style=""
+            family="" ; style="" ; psname=""
             if command -v fc-query >/dev/null 2>&1; then
-                family="$(fc-query --format '%{family}\n' "$ttf" 2>/dev/null | head -1)"
-                style="$(fc-query --format '%{style}\n'  "$ttf" 2>/dev/null | head -1)"
+                family="$(fc-query --format '%{family}\n'         "$ttf" 2>/dev/null | head -1)"
+                style="$(fc-query  --format '%{style}\n'          "$ttf" 2>/dev/null | head -1)"
+                psname="$(fc-query --format '%{postscriptname}\n' "$ttf" 2>/dev/null | head -1)"
             fi
             family="${family:-$base}"
 
-            printf "%s|%s|%s|%s\n" \
+            printf "%s|%s|%s|%s|%s\n" \
                 "$family" \
                 "$(_style_sort_priority "$style")" \
                 "$(_style_to_qualifier  "$style")" \
-                "$base" >> "$_FONT_INFO"
+                "$base" \
+                "${psname:-}" >> "$_FONT_INFO"
             CUSTOM_ADDED=$(( CUSTOM_ADDED + 1 ))
         done
 
         # Pass 2 – sort by family (col 1 alpha) then specificity (col 2 numeric),
-        #          emit grouped with one header comment per family
+        #          emit grouped with one header comment per family.
+        #          Also track the PostScript base name per family (from Regular variant).
         _PREV_FAMILY=""
-        while IFS='|' read -r family _prio qualifier ttf_base; do
+        declare -A _FAMILY_PSBASE
+        while IFS='|' read -r family _prio qualifier ttf_base psname; do
             if [ "$family" != "$_PREV_FAMILY" ]; then
                 [ -n "$_PREV_FAMILY" ] && NEW_SUBSET_LINES+=("")
                 NEW_SUBSET_LINES+=("# $family")
                 _PREV_FAMILY="$family"
             fi
             NEW_SUBSET_LINES+=("$(_subset_line_q "$family" "$qualifier" "$ttf_base")")
+            # Capture PS base from Regular (priority=9): strip any bold/italic suffix
+            # after the first [-,] so "CorpFont-Bold" → "CorpFont"
+            if [ "$_prio" = "9" ] && [ -n "$psname" ]; then
+                _FAMILY_PSBASE["$family"]="${psname%%[-,]*}"
+            fi
         done < <(sort -t'|' -k1,1 -k2,2n "$_FONT_INFO")
+
+        # Pass 3 – for families where the PS base name differs from the family name
+        #          (ignoring spaces and case), emit duplicate [PDF:Subset] entries
+        #          under the PS name so reports that use the old no-space PS name
+        #          (e.g. "CorpFont") are also mapped to the correct TTF.
+        for family in "${!_FAMILY_PSBASE[@]}"; do
+            psbase="${_FAMILY_PSBASE[$family]}"
+            [ -z "$psbase" ] && continue
+            fam_nospace="${family// /}"
+            if [ "${fam_nospace,,}" != "${psbase,,}" ]; then
+                NEW_SUBSET_LINES+=("")
+                NEW_SUBSET_LINES+=("# $psbase  (PS-name alias → \"$family\")")
+                while IFS='|' read -r f _prio qualifier ttf_base _ps; do
+                    [ "$f" != "$family" ] && continue
+                    NEW_SUBSET_LINES+=("$(_subset_line_q "$psbase" "$qualifier" "$ttf_base")")
+                done < <(sort -t'|' -k1,1 -k2,2n "$_FONT_INFO")
+            fi
+        done
+        unset _FAMILY_PSBASE
 
         rm -f "$_FONT_INFO"
         NEW_SUBSET_LINES+=("")

@@ -262,25 +262,25 @@ PYEOF
         font_count=$(( font_count + 1 ))
         case "$status" in
             OK)
-                ok "    %-45s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub"
+                ok "$(printf "    %-45s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub")"
                 ;;
             WARN_NOSUB)
-                warn "  No subset: %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub"
+                warn "$(printf "  No subset: %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub")"
                 non_tt_embedded=$(( non_tt_embedded + 1 ))
                 file_ok=false
                 ;;
             WARN_TYPE)
-                warn "  Non-TTF:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub"
+                warn "$(printf "  Non-TTF:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub")"
                 non_tt_embedded=$(( non_tt_embedded + 1 ))
                 file_ok=false
                 ;;
             FAIL_UNEMB)
-                fail "  UNEMBED:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub"
+                fail "$(printf "  UNEMBED:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub")"
                 unembedded_count=$(( unembedded_count + 1 ))
                 file_ok=false
                 ;;
             *)
-                warn "  Unknown:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub"
+                warn "$(printf "  Unknown:   %-42s %-18s %s  %s" "$name" "$ftype" "$emb" "$sub")"
                 file_ok=false
                 ;;
         esac
