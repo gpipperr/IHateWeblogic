@@ -1,0 +1,29 @@
+# IHateWeblogic – Git Ignore
+# Generated and sensitive files – DO NOT COMMIT
+
+# Generated environment configuration
+environment.conf
+
+# Encrypted password file (machine-specific)
+*.des3
+
+# Plaintext config files (exist only briefly at runtime)
+weblogic_sec.conf
+
+# Log output directories
+log/
+
+# Backup directories (contain local config)
+07-Maintenance/ConfigBackup/*/
+
+# Font cache
+*.cache
+
+# Claude Code session data (local only)
+.claude/
+
+# Editor artifacts
+*.swp
+*.swo
+*~
+.DS_Store
