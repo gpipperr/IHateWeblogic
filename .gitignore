@@ -30,3 +30,9 @@ log/
 *.swo
 *~
 .DS_Store
+
+#RAG Sources to copy to git
+90-Source-MetaData/
+
+# Custom fonts dir – licensed/corporate TTFs (local only)
+04-ReportsFonts/custom_fonts_dir/
