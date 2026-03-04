@@ -58,12 +58,29 @@ RWSERVER_CONF="${RWSERVER_CONF:-}"
 SETDOMAINENV="${SETDOMAINENV:-$DOMAIN_HOME/bin/setDomainEnv.sh}"
 OVERRIDES_SH="$DOMAIN_HOME/bin/setUserOverrides.sh"
 
-# CGICMD.DAT lives in the same directory as rwserver.conf
+# cgicmd.dat (domain): lives in the same directory as rwserver.conf
+# Filename is lowercase on Linux – check both cases
+CGICMD_DAT=""
 if [ -n "$RWSERVER_CONF" ] && [ -f "$RWSERVER_CONF" ]; then
-    CGICMD_DAT="$(dirname "$RWSERVER_CONF")/CGICMD.DAT"
-else
-    CGICMD_DAT=""
+    _rws_dir="$(dirname "$RWSERVER_CONF")"
+    if [ -f "$_rws_dir/cgicmd.dat" ]; then
+        CGICMD_DAT="$_rws_dir/cgicmd.dat"
+    elif [ -f "$_rws_dir/CGICMD.DAT" ]; then
+        CGICMD_DAT="$_rws_dir/CGICMD.DAT"
+    fi
 fi
+
+# cgicmd.dat (FMW installation): $FMW_HOME/reports/conf/cgicmd.dat
+# Backed up separately (category fmw) to avoid filename collision with domain copy
+FMW_CGICMD=""
+for _candidate in \
+    "${FMW_HOME}/reports/conf/cgicmd.dat" \
+    "${FMW_HOME}/reports/conf/CGICMD.DAT"; do
+    if [ -f "$_candidate" ]; then
+        FMW_CGICMD="$_candidate"
+        break
+    fi
+done
 
 # =============================================================================
 # Banner
@@ -82,7 +99,8 @@ printf "Log     : %s\n\n" "$LOG_FILE"
 BACKUP_ITEMS=(
     "fonts|${UIFONT_ALI}|Oracle Reports font alias file (uifont.ali)"
     "server|${RWSERVER_CONF}|Oracle Reports Server configuration (rwserver.conf)"
-    "server|${CGICMD_DAT}|Reports CGI command mapping (CGICMD.DAT)"
+    "server|${CGICMD_DAT}|Reports CGI command mapping – domain deployment (cgicmd.dat)"
+    "fmw|${FMW_CGICMD}|Reports CGI command mapping – FMW installation (cgicmd.dat)"
     "domain|${SETDOMAINENV}|WebLogic domain environment script (setDomainEnv.sh)"
     "domain|${OVERRIDES_SH}|Domain environment customizations (setUserOverrides.sh)"
     "ihw|${ENV_CONF}|IHateWeblogic environment configuration (environment.conf)"
@@ -166,7 +184,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts server domain ihw; do
+for cat in fonts server fmw domain ihw; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary
