@@ -13,9 +13,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `os_check.sh` | ✅ implemented | OS, RAM, CPU, disk, ulimits, kernel params, packages |
 | `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
 | `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
-| `display_check.sh` | 🔧 planned | DISPLAY / Xvfb – required for headless `rwrun` |
 | `db_connect_check.sh` | 🔧 planned | TNS ping and JDBC connectivity test |
-| `printer_check.sh` | 🔧 planned | CUPS / `lpstat` printer availability for Reports |
 | `ssl_check.sh` | 🔧 planned | SSL/TLS certificate inventory and expiry check |
 
 All implemented scripts source `environment.conf` and write output to both
@@ -39,13 +37,10 @@ Step 3 – Ports and network
   ./02-Checks/port_check.sh
   ./02-Checks/port_check.sh --http   # also check AdminServer console via HTTP
 
-Step 4 – Display (required before rwrun)
-  ./02-Checks/display_check.sh       # not yet implemented
-
-Step 5 – Database connectivity
+Step 4 – Database connectivity
   ./02-Checks/db_connect_check.sh    # not yet implemented
 
-Step 6 – SSL certificates
+Step 5 – SSL certificates
   ./02-Checks/ssl_check.sh           # not yet implemented
 ```
 
@@ -166,29 +161,6 @@ Typical ports for a Forms/Reports 14c domain:
 
 ---
 
-### display_check.sh
-
-> **Not yet implemented** — planned functionality:
-
-```bash
-./02-Checks/display_check.sh
-./02-Checks/display_check.sh --apply   # install and start Xvfb if missing
-```
-
-Planned checks:
-
-- `DISPLAY` environment variable is set
-- X11 server reachable: `xdpyinfo` or `xdpinfo` test
-- Xvfb installed: `rpm -q xorg-x11-server-Xvfb`
-- Xvfb process running for the configured `DISPLAY` number
-- `--apply`: start Xvfb on `:99` if not running and configure `DISPLAY=:99`
-
-Background: Oracle Reports `rwrun` requires an X11 display to render reports
-even on a headless server. Missing or wrong `DISPLAY` causes segfaults and
-`REP-0069` / `REP-1070` errors.
-
----
-
 ### db_connect_check.sh
 
 > **Not yet implemented** — planned functionality:
@@ -207,27 +179,6 @@ Planned checks:
 
 Prerequisite: `00-Setup/weblogic_sec.sh --apply` must have been run to store
 database credentials.
-
----
-
-### printer_check.sh
-
-> **Not yet implemented** — planned functionality:
-
-```bash
-./02-Checks/printer_check.sh
-```
-
-Planned checks:
-
-- CUPS daemon running: `systemctl status cups`
-- Default printer configured: `lpstat -d`
-- Printer queue list: `lpstat -a`
-- Oracle Reports printer configuration in `$REPORTS_COMPONENT_HOME`
-
-Background: Oracle Reports requires a configured printer (even a virtual one)
-for certain output formats. Missing CUPS configuration causes `REP-1800` /
-`REP-3000` on PDF/PS jobs.
 
 ---
 
@@ -317,7 +268,7 @@ Fix:     Run as root or as the oracle user that started WebLogic:
 |---|---|
 | `00-Setup/env_check.sh` | Generate / validate `environment.conf` |
 | `00-Setup/weblogic_sec.sh` | Store WebLogic admin credentials (used by db_connect_check) |
-| `01-Run/rwrun_trace.sh` | Diagnose `rwrun` segfaults (depends on display_check) |
+| `01-Run/rwrun_trace.sh` | Diagnose `rwrun` segfaults |
 | `03-Logs/grep_logs.sh` | Search logs for errors after a failed check |
 | `08-SSL/` | SSL certificate management (complements ssl_check.sh) |
 
