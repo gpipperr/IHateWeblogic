@@ -4,6 +4,9 @@
 # Purpose  : Check and set REPORTS_FONT_DIRECTORY / REPORTS_ENHANCED_FONTHANDLING
 #            in $DOMAIN_HOME/bin/setUserOverrides.sh so Oracle Reports finds
 #            the deployed TTF fonts at JVM startup.
+#            Also sets both variables as JVM system properties via JAVA_OPTIONS
+#            (belt-and-suspenders for Node Manager environments where the env
+#            block may not be inherited by the managed server process).
 #            Also locates rwserver.conf and setDomainEnv.sh for reference.
 # Call     : ./fontpath_config.sh [--apply]
 # Requires : grep, cp, python3
@@ -68,6 +71,7 @@ section "Target Font Configuration"
 
 printList "REPORTS_FONT_DIRECTORY"         40 "$REPORTS_FONT_DIR"
 printList "REPORTS_ENHANCED_FONTHANDLING"  40 "yes"
+printList "JAVA_OPTIONS -D flags"          40 "-DREPORTS_FONT_DIRECTORY + -DREPORTS_ENHANCED_FONTHANDLING=yes"
 printList "setUserOverrides.sh"            40 "$OVERRIDES_SH"
 
 printf "\n"
@@ -95,6 +99,7 @@ else
         "$OVERRIDES_SH" 2>/dev/null | tail -1)"
     CURRENT_ENHANCED="$(grep -E '^[[:space:]]*(export[[:space:]]+)?REPORTS_ENHANCED_FONTHANDLING[[:space:]]*=' \
         "$OVERRIDES_SH" 2>/dev/null | tail -1)"
+    CURRENT_JAVA_D="$(grep -E 'JAVA_OPTIONS.*REPORTS_FONT' "$OVERRIDES_SH" 2>/dev/null | tail -1)"
 
     if [ -n "$CURRENT_FONT_DIR" ]; then
         ok "  REPORTS_FONT_DIRECTORY set    : $CURRENT_FONT_DIR"
@@ -106,6 +111,12 @@ else
         ok "  REPORTS_ENHANCED_FONTHANDLING : $CURRENT_ENHANCED"
     else
         warn "  REPORTS_ENHANCED_FONTHANDLING not set in setUserOverrides.sh"
+    fi
+
+    if [ -n "$CURRENT_JAVA_D" ]; then
+        ok "  JAVA_OPTIONS -D flag set      : $CURRENT_JAVA_D"
+    else
+        warn "  JAVA_OPTIONS -DREPORTS_FONT_DIRECTORY not set in setUserOverrides.sh"
     fi
 fi
 
@@ -175,11 +186,15 @@ section "setUserOverrides.sh Update"
 
 LINE_FONT_DIR="export REPORTS_FONT_DIRECTORY=\"${REPORTS_FONT_DIR}\""
 LINE_ENHANCED='export REPORTS_ENHANCED_FONTHANDLING="yes"'
+LINE_JVM_FD="export JAVA_OPTIONS=\"\${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=\\\"${REPORTS_FONT_DIR}\\\"\""
+LINE_JVM_EN='export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"'
 
 if ! $APPLY_MODE; then
     info "Would add/update in $OVERRIDES_SH:"
     info "  $LINE_FONT_DIR"
     info "  $LINE_ENHANCED"
+    info "  $LINE_JVM_FD"
+    info "  $LINE_JVM_EN"
     info ""
     info "Run with --apply to write"
 else
@@ -210,7 +225,11 @@ marker_s  = "# --- IHateWeblogic: Reports Font Configuration ---\n"
 marker_e  = "# --- END IHateWeblogic: Reports Font Configuration ---\n"
 line_fd   = f'export REPORTS_FONT_DIRECTORY="{font_dir}"\n'
 line_en   = 'export REPORTS_ENHANCED_FONTHANDLING="yes"\n'
-new_block = marker_s + line_fd + line_en + marker_e
+# Also pass both as JVM system properties so Node Manager inherits them
+# even if the OS env block is not propagated to the managed server process.
+line_jd   = f'export JAVA_OPTIONS="${{JAVA_OPTIONS}} -DREPORTS_FONT_DIRECTORY=\\"{font_dir}\\""\n'
+line_je   = 'export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"\n'
+new_block = marker_s + line_fd + line_en + line_jd + line_je + marker_e
 
 with open(filepath, "r") as fh:
     content = fh.read()
@@ -241,6 +260,8 @@ PYEOF
         ok "setUserOverrides.sh $PY_ACTION"
         info "  $LINE_FONT_DIR"
         info "  $LINE_ENHANCED"
+        info "  $LINE_JVM_FD"
+        info "  $LINE_JVM_EN"
     else
         fail "Failed to update setUserOverrides.sh (python3 rc=$PY_RC)"
     fi
