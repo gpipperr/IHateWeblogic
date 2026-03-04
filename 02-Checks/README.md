@@ -14,7 +14,6 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
 | `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
 | `display_check.sh` | 🔧 planned | DISPLAY / Xvfb – required for headless `rwrun` |
-| `lib_check.sh` | 🔧 planned | Shared library dependencies for `rwrun` and `frmweb` |
 | `db_connect_check.sh` | 🔧 planned | TNS ping and JDBC connectivity test |
 | `printer_check.sh` | 🔧 planned | CUPS / `lpstat` printer availability for Reports |
 | `ssl_check.sh` | 🔧 planned | SSL/TLS certificate inventory and expiry check |
@@ -43,13 +42,10 @@ Step 3 – Ports and network
 Step 4 – Display (required before rwrun)
   ./02-Checks/display_check.sh       # not yet implemented
 
-Step 5 – Shared libraries
-  ./02-Checks/lib_check.sh           # not yet implemented
-
-Step 6 – Database connectivity
+Step 5 – Database connectivity
   ./02-Checks/db_connect_check.sh    # not yet implemented
 
-Step 7 – SSL certificates
+Step 6 – SSL certificates
   ./02-Checks/ssl_check.sh           # not yet implemented
 ```
 
@@ -190,24 +186,6 @@ Planned checks:
 Background: Oracle Reports `rwrun` requires an X11 display to render reports
 even on a headless server. Missing or wrong `DISPLAY` causes segfaults and
 `REP-0069` / `REP-1070` errors.
-
----
-
-### lib_check.sh
-
-> **Not yet implemented** — planned functionality:
-
-```bash
-./02-Checks/lib_check.sh
-```
-
-Planned checks:
-
-- `ldd $FMW_HOME/bin/rwrun` – all shared library dependencies resolved?
-- `ldd $FMW_HOME/bin/frmweb` – Forms Web binary
-- Missing `libXm.so` (Motif), `libXext.so`, `libXrender.so` → FAIL
-- `lsof -p <rwrun PID>` – libraries currently loaded by a running `rwrun`
-- Reports missing or wrong-version libs with install hint (`dnf install ...`)
 
 ---
 
