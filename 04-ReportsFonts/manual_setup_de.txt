@@ -1,0 +1,272 @@
+================================================================================
+  Oracle Reports 14c – TrueType-Fonts einrichten (Manuelle Schritt-fuer-Schritt-Anleitung)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
+  Umgebung   : Oracle Linux 8 / 9, FMW 14.1.2, WebLogic 14.1.2
+  Erstellt   : 2026-03
+  Grundlage  : IHateWeblogic/04-ReportsFonts/README.md (Gunther Pipperr)
+================================================================================
+
+VORAUSSETZUNGEN
+---------------
+  - root-Zugriff fuer Paketinstallation (Schritt 1)
+  - oracle-User fuer alle weiteren Schritte
+  - Generierte uifont.ali liegt im IHateWeblogic-Backup bereit:
+      /u01/IHateWeblogic/07-Maintenance/ConfigBackup/YYYYMMDD_HHMM/fonts/uifont.ali
+  - DOMAIN_HOME bekannt, z.B. /u01/user_projects/domains/fr_domain
+
+  Wichtige Pfade (einmalig setzen, dann in allen Schritten verwenden):
+
+    export ORACLE_HOME=/u01/oracle/fmw
+    export DOMAIN_HOME=/u01/user_projects/domains/fr_domain
+    export REPORTS_FONT_DIR="${DOMAIN_HOME}/reports/fonts"
+    export BACKUP_DIR=/u01/IHateWeblogic/07-Maintenance/ConfigBackup/YYYYMMDD_HHMM
+
+    UIFONT_ALI="${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali"
+
+
+================================================================================
+IHateWeblogic BACKUP-STRUKTUR  (erstellt von 07-Maintenance/backup_config.sh)
+================================================================================
+
+  ConfigBackup/YYYYMMDD_HHMM/
+  ├── domain/          setDomainEnv.sh, setUserOverrides.sh
+  │                    → Umgebungsvariablen und Domain-Startskripte
+  ├── fmw/             cgicmd.dat  (aus $FMW_HOME/reports/conf/)
+  │                    → Globale Reports-URL-Kommando-Zuordnung (FMW-Installation)
+  ├── fonts/           uifont.ali
+  │                    → Font-Alias-Datei fuer Oracle Reports/Forms
+  │                       (generiert von uifont_ali_update.sh)
+  ├── fonts_ttf/       *.ttf / *.TTF / *.otf
+  │                    → Alle TrueType-Fonts aus REPORTS_FONT_DIR
+  │                       ($DOMAIN_HOME/reports/fonts/)
+  ├── forms_wls/       formsweb.cfg, default.env
+  │                    → Oracle Forms Web-Konfiguration
+  ├── ihw/             environment.conf
+  │                    → IHateWeblogic-Umgebungskonfiguration
+  ├── reports_comp/    rwserver.conf, rwnetwork.conf
+  │                    → ReportsServerComponent/<instanz>/
+  │                       Haupt-Konfiguration des Reports Servers
+  ├── reports_tools/   rwnetwork.conf
+  │                    → ReportsToolsComponent/<instanz>/
+  │                       Netzwerk-Konfiguration fuer Reports Tools
+  ├── reports_wls/     rwserver.conf, rwservlet.properties, cgicmd.dat
+  │                    → WLS-Deployment-Konfiguration
+  │                       ($DOMAIN_HOME/.../reports_14.x/configuration/)
+  └── manifest.txt     Protokoll aller gesicherten Dateien mit Originalpfad
+
+  Backup erstellen:  ./07-Maintenance/backup_config.sh --apply
+  Backup einspielen: ./07-Maintenance/restore_config.sh --apply
+
+  Fuer Schritt 4 dieser Anleitung wird benoetigt:
+    ConfigBackup/YYYYMMDD_HHMM/fonts/uifont.ali    (generierte Font-Alias-Datei)
+    ConfigBackup/YYYYMMDD_HHMM/fonts_ttf/*.ttf      (gesicherte TTF-Dateien, optional)
+
+
+================================================================================
+SCHRITT 1: Font-Pakete installieren  (als root)
+================================================================================
+
+  # Liberation Fonts – metrisch kompatibel zu Arial, Times New Roman, Courier New
+  dnf install -y liberation-fonts liberation-fonts-common
+
+  # DejaVu Fonts – Ersatz fuer Tahoma, Verdana, Trebuchet MS
+  dnf install -y \
+      dejavu-sans-fonts \
+      dejavu-sans-mono-fonts \
+      dejavu-serif-fonts \
+      dejavu-lgc-sans-fonts \
+      dejavu-lgc-sans-mono-fonts \
+      dejavu-lgc-serif-fonts
+
+  # fontconfig-Werkzeuge (fc-cache, fc-list, fc-query)
+  dnf install -y fontconfig
+
+  # Systemweiten Font-Cache aktualisieren
+  fc-cache -fv
+
+  # Kontrolle: sind die Fonts sichtbar?
+  fc-list | grep -i liberation
+  fc-list | grep -i dejavu
+
+
+================================================================================
+SCHRITT 2: REPORTS_FONT_DIR anlegen und Fonts kopieren  (als oracle)
+================================================================================
+
+  mkdir -p "$REPORTS_FONT_DIR"
+
+  # Liberation Fonts kopieren
+  find /usr/share/fonts -name "Liberation*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
+
+  # DejaVu Fonts kopieren
+  find /usr/share/fonts -name "DejaVu*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
+
+  # Kundeneigene / Corporate Fonts kopieren (falls vorhanden):
+  # cp /tmp/MeinFont*.ttf "$REPORTS_FONT_DIR/"
+
+  # Kontrolle
+  ls -lh "$REPORTS_FONT_DIR/"
+  echo "Anzahl TTF-Dateien: $(ls "$REPORTS_FONT_DIR"/*.ttf 2>/dev/null | wc -l)"
+
+
+================================================================================
+SCHRITT 3: Font-Cache fuer REPORTS_FONT_DIR aktualisieren  (als oracle)
+================================================================================
+
+  fc-cache -fv "$REPORTS_FONT_DIR"
+
+  # Kontrolle: sind die Fonts im fontconfig-Cache sichtbar?
+  fc-list : file | grep "$REPORTS_FONT_DIR"
+  # Mindestens eine Zeile pro kopierter TTF-Datei muss erscheinen.
+
+
+================================================================================
+SCHRITT 4: uifont.ali aus Backup einspielen  (als oracle)
+================================================================================
+
+  # Aktuelle Datei sichern
+  cp "$UIFONT_ALI" "${UIFONT_ALI}.bak_$(date +%Y%m%d_%H%M%S)"
+
+  # Generierte uifont.ali aus IHateWeblogic-Backup einspielen
+  cp "${BACKUP_DIR}/fonts/uifont.ali" "$UIFONT_ALI"
+
+  # Syntax-Pruefung mit mfontchk (kein REPORTS_FONT_DIR = reine Syntaxpruefung)
+  export LD_LIBRARY_PATH="${ORACLE_HOME}/lib:${ORACLE_HOME}/jdk/jre/lib/amd64/server"
+  "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
+  # Erwartete Ausgabe: "Schriftartaliasdatei erfolgreich geparst"
+
+  # Vollstaendige Pruefung MIT Dateiexistenz-Check:
+  REPORTS_FONT_DIRECTORY="$REPORTS_FONT_DIR" \
+      "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
+  # Ein '^' auf der RECHTEN Seite = TTF-Datei nicht in REPORTS_FONT_DIR gefunden
+  # Ein '^' auf der LINKEN Seite  = Syntaxfehler im Font-Namen
+
+  # Kritische Syntax in [PDF:Subset] – MUSS so aussehen:
+  #   "Arial"..         = "LiberationSans-Regular.ttf"   <- richtig
+  #   "Arial"...Bold    = "LiberationSans-Bold.ttf"       <- richtig
+  #   Arial..           = LiberationSans-Regular.ttf      <- FALSCH (keine Anfuehrungszeichen)
+  #   "Arial"..         = "LiberationSans-Regular"        <- FALSCH (kein .ttf)
+
+
+================================================================================
+SCHRITT 5: REPORTS_FONT_DIRECTORY in setUserOverrides.sh eintragen  (als oracle)
+================================================================================
+
+  OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
+
+  # Backup anlegen
+  cp "$OVERRIDES" "${OVERRIDES}.bak_$(date +%Y%m%d_%H%M%S)"
+
+  # Falls die Datei noch nicht existiert, anlegen:
+  [ ! -f "$OVERRIDES" ] && touch "$OVERRIDES"
+
+  # Folgende Zeilen ans Ende anhaengen (falls noch nicht vorhanden):
+  cat >> "$OVERRIDES" << 'ENVEOF'
+
+# === TrueType Font-Konfiguration fuer Oracle Reports (manuell gesetzt) ===
+export REPORTS_FONT_DIRECTORY=/u01/user_projects/domains/fr_domain/reports/fonts
+export REPORTS_ENHANCED_FONTHANDLING=1
+# === Ende Font-Konfiguration ===
+ENVEOF
+
+  # Kontrolle
+  grep -A4 "REPORTS_FONT_DIRECTORY" "$OVERRIDES"
+
+  # WICHTIG: Absoluten Pfad verwenden (keine Variablen wie $DOMAIN_HOME),
+  # da setUserOverrides.sh zu einem Zeitpunkt ausgefuehrt wird, zu dem
+  # $DOMAIN_HOME noch nicht immer gesetzt ist.
+
+
+================================================================================
+SCHRITT 6: WebLogic Reports Server neu starten
+================================================================================
+
+  # Option A: systemctl (falls als Service eingerichtet)
+  systemctl restart weblogic
+  systemctl status weblogic
+
+  # Option B: Domain-Skripte (als oracle, Node Manager muss laufen)
+  "${DOMAIN_HOME}/bin/stopComponent.sh"  WLS_REPORTS
+  "${DOMAIN_HOME}/bin/startComponent.sh" WLS_REPORTS
+
+  # Kontrolle: rwengine-Prozesse sichtbar?
+  pgrep -la rwengine
+
+  # Kontrolle: Reports Server antwortet?
+  curl -s "http://localhost:9012/reports/rwservlet/getserverinfo?statusformat=XML" | head -3
+
+  # Kontrolle: REPORTS_FONT_DIRECTORY ist in der JVM gesetzt?
+  cat /proc/$(pgrep -f WLS_REPORTS | head -1)/environ 2>/dev/null \
+      | tr '\0' '\n' \
+      | grep -i REPORTS_FONT
+
+
+================================================================================
+SCHRITT 7: PDF-Test und Verifikation
+================================================================================
+
+  # Test-PDF aus Oracle Reports erstellen und mit pdffonts pruefen.
+  # pdffonts ist Teil des Pakets poppler-utils:
+  #   dnf install -y poppler-utils
+
+  pdffonts /tmp/test_report.pdf
+
+  # Korrekte Ausgabe (TrueType, eingebettet):
+  #   name               type    emb sub uni
+  #   LiberationSans     TrueType yes yes no
+  #   LiberationSans-Bd  TrueType yes yes no
+  #
+  # Problematische Ausgabe (Type 1, nicht eingebettet):
+  #   Arial              Type 1  no  no  no
+  #   Times New Roman    Type 1  no  no  no
+  #
+  # Wenn Type 1 weiterhin erscheint: Schritt 5 und 6 pruefen.
+  # REPORTS_FONT_DIRECTORY muss in der JVM gesetzt sein (Schritt 6 Kontrolle).
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: mfontchk zeigt '^' rechts neben dem Font-Namen
+  Ursache: TTF-Datei nicht in REPORTS_FONT_DIRECTORY
+  Loesung: ls "$REPORTS_FONT_DIR" | grep -i liberation
+           Dateiname in uifont.ali muss EXAKT mit dem Dateinamen uebereinstimmen.
+
+  Problem: PDF zeigt weiterhin Type 1 nach Neustart
+  Ursache: REPORTS_FONT_DIRECTORY nicht in der JVM-Umgebung
+  Loesung: Schritt 6 Kontrolle ausfuehren.
+           Falls Variable fehlt: setUserOverrides.sh pruefen, Reports Server
+           vollstaendig stoppen und neu starten (nicht nur SIGHUP).
+
+  Problem: uifont.ali Syntaxfehler
+  Loesung: [PDF:Subset] Eintraege muessen lauten:
+             "FontName"..       = "dateiname.ttf"
+             "FontName"...Bold  = "dateiname-Bold.ttf"
+           Rechte Seite IMMER in Anfuehrungszeichen, IMMER mit .ttf-Erweiterung.
+
+  Problem: Symbol-Fonts nicht eingebettet
+  Ursache: Symbol-Font ist ein Type 1-Font ohne TrueType-Entsprechung
+  Loesung: Siehe IHateWeblogic/04-ReportsFonts/README.md, Abschnitt "Symbol font".
+
+  Problem: systemctl restart weblogic schlaegt fehl
+  Loesung: Service-Name pruefen: systemctl list-units | grep -i weblogic
+           Alternativ: Domain-Skripte (Option B in Schritt 6) verwenden.
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Ausfuehrliche Dokumentation:  IHateWeblogic/04-ReportsFonts/README.md
+  Automatisierte Variante:      IHateWeblogic/04-ReportsFonts/deploy_fonts.sh --apply
+                                IHateWeblogic/04-ReportsFonts/uifont_ali_update.sh --apply
+                                IHateWeblogic/04-ReportsFonts/fontpath_config.sh --apply
+                                IHateWeblogic/04-ReportsFonts/font_cache_reset.sh --apply
+
+  Oracle-Dokumentation:
+    Font-Konfiguration:  https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745
+    PDF-Embedding:       https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+
+================================================================================
