@@ -1,0 +1,21 @@
+# Force LF line endings for all text files in this repository.
+# This prevents CRLF from being introduced on Windows checkouts,
+# which would break Oracle mfontchk and bash scripts on Linux.
+
+* text=auto eol=lf
+
+# Explicitly enforce LF for script and config file types
+*.sh   text eol=lf
+*.ali  text eol=lf
+*.conf text eol=lf
+*.md   text eol=lf
+*.py   text eol=lf
+
+# Binary files – no line-ending conversion
+*.des3 binary
+*.p12  binary
+*.jks  binary
+*.ttf  binary
+*.TTF  binary
+*.pfb  binary
+*.pfa  binary

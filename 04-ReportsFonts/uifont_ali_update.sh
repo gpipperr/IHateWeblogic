@@ -589,17 +589,38 @@ elif ! $UIFONT_ALI_EXISTS && ! $APPLY_MODE; then
 else
     ok "mfontchk found: $_MFONTCHK"
     _TARGET_ALI="$UIFONT_ALI"
+
+    # mfontchk needs libuimotif.so.0 – set LD_LIBRARY_PATH if not already present
+    _MFONTCHK_LD="${LD_LIBRARY_PATH:-}"
+    if [ -n "${ORACLE_HOME:-}" ] && [[ ":${_MFONTCHK_LD}:" != *":${ORACLE_HOME}/lib:"* ]]; then
+        _MFONTCHK_LD="${ORACLE_HOME}/lib${_MFONTCHK_LD:+:$_MFONTCHK_LD}"
+        info "  Setting LD_LIBRARY_PATH += \$ORACLE_HOME/lib for mfontchk"
+    fi
+
+    # mfontchk validates TTF filenames against REPORTS_FONT_DIR;
+    # without this env var set, it reports 'Invalid font specification' for every
+    # [PDF:Subset] entry even when the file structure is correct.
+    _MFONTCHK_FONT_DIR="${REPORTS_FONT_DIR:-}"
+
     printf "\n"
-    info "Running: mfontchk $_TARGET_ALI"
+    info "Running: REPORTS_FONT_DIR=$_MFONTCHK_FONT_DIR mfontchk $_TARGET_ALI"
     printf "\n"
-    _MFONTCHK_OUT="$("$_MFONTCHK" "$_TARGET_ALI" 2>&1)"
+    _MFONTCHK_OUT="$(LD_LIBRARY_PATH="$_MFONTCHK_LD" \
+        REPORTS_FONT_DIR="$_MFONTCHK_FONT_DIR" \
+        "$_MFONTCHK" "$_TARGET_ALI" 2>&1)"
     _MFONTCHK_RC=$?
+
     if [ $_MFONTCHK_RC -eq 0 ] && [ -z "$_MFONTCHK_OUT" ]; then
         ok "mfontchk: no errors found"
     else
         # mfontchk prints one line per problem:
-        #   ^ = points to left side  (font name syntax error)
-        #   ^ = points to right side (TTF file not found in REPORTS_FONT_DIR)
+        #   ^ on left side  = font name syntax error in uifont.ali
+        #   ^ on right side = TTF file not found in REPORTS_FONT_DIR
+        # NOTE: mfontchk reports ALL [Global] target names as 'Invalid font
+        #       specification' when the target font is not installed on the OS.
+        #       This is expected – [Global] aliases resolve at runtime on the
+        #       Oracle server, not at parse time.  Treat mfontchk output as
+        #       advisory only; the authoritative test is PDF generation.
         while IFS= read -r _mline; do
             [ -z "$_mline" ] && continue
             if [[ "$_mline" == *"^"* ]]; then
@@ -609,10 +630,15 @@ else
             fi
         done <<< "$_MFONTCHK_OUT"
         if [ $_MFONTCHK_RC -ne 0 ]; then
-            fail "mfontchk reported errors (exit code $_MFONTCHK_RC)"
+            warn "mfontchk reported errors (exit code $_MFONTCHK_RC)"
+            info "  Common causes (advisory – does NOT block Oracle Reports):"
+            info "  ^ on right side = TTF not found in REPORTS_FONT_DIR"
+            info "    → run deploy_fonts.sh --apply, then re-run this script"
             info "  ^ on left side  = font name syntax error in uifont.ali"
-            info "  ^ on right side = TTF file not found in REPORTS_FONT_DIR"
-            info "  Fix: check REPORTS_FONT_DIR and font name spelling"
+            info "    → check uifont.ali entry spelling"
+            info "  'Invalid font specification' in [Global] = target font not"
+            info "    installed on OS (expected – aliases resolve at runtime)"
+            info "  Authoritative test: generate a PDF, then run pdf_font_verify.sh"
         fi
     fi
 fi

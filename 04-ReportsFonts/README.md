@@ -686,9 +686,17 @@ fc-cache -fv $DOMAIN_HOME/reports/fonts/
 ls -la $DOMAIN_HOME/reports/fonts/*.ttf
 
 # Validate uifont.ali with Oracle's mfontchk:
+# mfontchk needs libuimotif.so.0 and REPORTS_FONT_DIR set – otherwise it
+# reports "Invalid font specification" for every entry including [Global] aliases.
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH
+export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
 mfontchk $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali
-# ^ points to right side = TTF not found in REPORTS_FONT_DIRECTORY
-# ^ points to left  side = font name syntax error
+# ^ points to right side = TTF not found in REPORTS_FONT_DIR (deploy fonts first)
+# ^ points to left  side = font name syntax error in uifont.ali
+# NOTE: [Global] alias targets (e.g. "= helvetica") are always flagged as
+#       "Invalid font specification" because mfontchk checks OS font existence.
+#       This is expected – [Global] aliases resolve at runtime, not at parse time.
+#       The authoritative test is PDF generation + pdffonts output.
 ```
 
 ---
