@@ -1,6 +1,22 @@
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
+```
+I – Innovation
+H – Helps
+A – Admins
+T – To
+E – Enhance
+W – Weblogic
+B – Based
+L – Lifecycle
+O – Operations
+G – Governance
+I – Integration
+C – Control
+```
+Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic.md](IHateWeblogic)
+
 
 > **Work in Progress** – This library is under active development.
 > Not all scripts are fully implemented yet and the collection has not been
@@ -155,24 +171,6 @@ IHateWeblogic/
 ### Font Problems
 
 For detailed font troubleshooting see [04-ReportsFonts/README.md](04-ReportsFonts/README.md) – Section 11.
-
-#### Font not rendering / garbled output in PDF
-
-1. Run `04-ReportsFonts/font_inventory.sh` → confirm font is present
-2. Run `04-ReportsFonts/get_font_names.sh` → check `[PDF:Subset]` mapping exists
-3. Run `04-ReportsFonts/pdf_font_verify.sh` → confirm font is embedded in output PDF
-4. Check `uifont.ali` has both the Windows name (as used in report designer) and
-   the PostScript name mapped to the same TTF file
-
-#### Font cache / fc-cache
-
-After adding new fonts to the system, refresh the font cache:
-
-```bash
-04-ReportsFonts/font_cache_reset.sh --apply
-```
-
----
 
 ## Password Security Concept
 
