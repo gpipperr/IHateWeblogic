@@ -1,13 +1,15 @@
 #!/bin/bash
 # =============================================================================
 # Script   : uifont_ali_update.sh
-# Purpose  : Backup uifont.ali and REWRITE it completely: sections before
-#            the first [PDF...] block are preserved; all [PDF:*] content is
-#            replaced by a freshly generated [PDF:Subset] section with
-#            Liberation and custom font mappings.
+# Purpose  : Generate a complete uifont.ali from the shipped template
+#            (uifont_ali_template.ali), injecting a freshly built [PDF:Subset]
+#            block with Liberation, DejaVu, and custom TTF mappings at the
+#            ##PDF_SUBSET## marker.
+#            If uifont.ali does not yet exist it is created from the template.
 #            Default: dry-run (show diff). Use --apply to write.
 # Call     : ./uifont_ali_update.sh [--apply]
 # Requires : fc-query (fontconfig), cp, find
+#            mfontchk (optional – Oracle FMW tool, validates uifont.ali syntax)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
@@ -41,9 +43,9 @@ for arg in "$@"; do
         --help)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  Default: dry-run (show what would change)\n"
-            printf "  --apply: backup uifont.ali and rewrite the entire file\n"
-            printf "           (preserves Global/Printer/Display sections;\n"
-            printf "            replaces ALL [PDF:*] sections with a fresh [PDF:Subset])\n"
+            printf "  --apply: backup uifont.ali (if exists) and write the new file\n"
+            printf "           generated from uifont_ali_template.ali with a fresh\n"
+            printf "           [PDF:Subset] block injected at ##PDF_SUBSET## marker\n"
             exit 0
             ;;
     esac
@@ -54,6 +56,8 @@ done
 # =============================================================================
 CUSTOM_FONTS_DIR="$SCRIPT_DIR/custom_fonts_dir"
 REPORTS_FONT_DIR="${REPORTS_FONT_DIR:-$DOMAIN_HOME/reports/fonts}"
+UIFONT_TEMPLATE="$SCRIPT_DIR/uifont_ali_template.ali"
+TEMPLATE_MARKER="##PDF_SUBSET##"
 
 # =============================================================================
 # Banner
@@ -215,36 +219,57 @@ _subset_line_q() {
 }
 
 # =============================================================================
-# Section 1: Find uifont.ali
+# Section 1: Locate template and uifont.ali
 # =============================================================================
-section "Locate uifont.ali"
+section "Locate Template and uifont.ali"
 
+# --- Template (mandatory) ----------------------------------------------------
+if [ ! -f "$UIFONT_TEMPLATE" ]; then
+    fail "Template not found: $UIFONT_TEMPLATE"
+    info "  The template ships with the IHateWeblogic scripts."
+    info "  Restore it from git or re-clone the repository."
+    print_summary
+    exit $EXIT_CODE
+fi
+ok "Template : $UIFONT_TEMPLATE"
+
+if ! grep -q "^${TEMPLATE_MARKER}$" "$UIFONT_TEMPLATE" 2>/dev/null; then
+    fail "Marker '${TEMPLATE_MARKER}' not found in template"
+    info "  The template must contain a line with exactly: ${TEMPLATE_MARKER}"
+    print_summary
+    exit $EXIT_CODE
+fi
+ok "Marker   : ${TEMPLATE_MARKER} found in template"
+
+# --- uifont.ali (optional – will be created if missing) ----------------------
 UIFONT_ALI="$(_find_uifont_ali)"
 
 if [ -z "$UIFONT_ALI" ]; then
-    fail "uifont.ali not found"
+    warn "uifont.ali not found – will be created from template on --apply"
     info "  Searched:"
     info "    TK_FONTALIAS / ORACLE_FONTALIAS env vars"
     info "    $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/**/guicommon/tk/admin/"
     info "    $FMW_HOME/guicommon/tk/admin/"
-    info "  Verify that Oracle Reports is installed and DOMAIN_HOME is correct"
-    print_summary
-    exit $EXIT_CODE
-fi
-
-ok "Found: $UIFONT_ALI"
-printList "  Size"    32 "$(wc -c < "$UIFONT_ALI" 2>/dev/null) bytes"
-printList "  Lines"   32 "$(wc -l < "$UIFONT_ALI" 2>/dev/null)"
-
-# Show current [PDF:Subset] status
-EXISTING_SUBSET="$(awk 'tolower($0) ~ /^\[ *pdf *: *subset *\]/{found=1; next} /^\[/{found=0} found && /[^ \t#\n]/{print}' "$UIFONT_ALI" 2>/dev/null)"
-if [ -n "$EXISTING_SUBSET" ]; then
-    info "  Current [PDF:Subset] entries:"
-    echo "$EXISTING_SUBSET" | while IFS= read -r line; do
-        printList "    " 4 "$line"
-    done
+    # Set a default target path for --apply to create the file
+    UIFONT_ALI="$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali"
+    info "  Target for creation: $UIFONT_ALI"
+    UIFONT_ALI_EXISTS=false
 else
-    warn "  No [PDF:Subset] section found in current uifont.ali"
+    ok "uifont.ali: $UIFONT_ALI"
+    printList "  Size"  32 "$(wc -c < "$UIFONT_ALI" 2>/dev/null) bytes"
+    printList "  Lines" 32 "$(wc -l < "$UIFONT_ALI" 2>/dev/null)"
+    UIFONT_ALI_EXISTS=true
+
+    # Show current [PDF:Subset] status
+    EXISTING_SUBSET="$(awk 'tolower($0) ~ /^\[ *pdf *: *subset *\]/{found=1; next} /^\[/{found=0} found && /[^ \t#\n]/{print}' "$UIFONT_ALI" 2>/dev/null)"
+    if [ -n "$EXISTING_SUBSET" ]; then
+        info "  Current [PDF:Subset] entries:"
+        echo "$EXISTING_SUBSET" | while IFS= read -r line; do
+            printList "    " 4 "$line"
+        done
+    else
+        warn "  No [PDF:Subset] section found in current uifont.ali"
+    fi
 fi
 
 # =============================================================================
@@ -411,10 +436,10 @@ if [ -d "$CUSTOM_FONTS_DIR" ]; then
         # Pass 3 – for families where the PS base name differs from the family name
         #          (case-insensitive), emit duplicate [PDF:Subset] entries under
         #          the PS name so reports that use the no-space PostScript name
-        #          (e.g. "SparkasseRg") are also mapped to the correct TTF, even
-        #          when fc-query reports the family as "Sparkasse Rg" (with space).
+        #          (e.g. "CompanyRg") are also mapped to the correct TTF, even
+        #          when fc-query reports the family as "Company Rg" (with space).
         #          Comparison uses the full family string vs psbase (NOT family
-        #          stripped of spaces) so "Sparkasse Rg" != "SparkasseRg" → alias.
+        #          stripped of spaces) so "Company Rg" != "CompanyRg" → alias.
         for family in "${!_FAMILY_PSBASE[@]}"; do
             psbase="${_FAMILY_PSBASE[$family]}"
             [ -z "$psbase" ] && continue
@@ -440,11 +465,12 @@ for line in "${NEW_SUBSET_LINES[@]}"; do
 done
 
 # =============================================================================
-# Section 4: Build complete new uifont.ali (pure bash – no python3)
-# Strategy: preserve every line of the original file that comes BEFORE the
-#           first [PDF...] section header; then append the freshly generated
-#           [PDF:Subset] block.  All existing [PDF:*] content is discarded and
-#           rewritten from scratch – no orphaned entries can survive.
+# Section 4: Build complete new uifont.ali from template
+# Strategy: read template line by line; when the ##PDF_SUBSET## marker line
+#           is reached, inject the freshly generated [PDF:Subset] block.
+#           All other template content (Global/Printer/Display/PDF:Embed)
+#           is written verbatim – no parsing of any existing uifont.ali required.
+#           Orphaned entries in old files can never survive this approach.
 # =============================================================================
 section "$( $APPLY_MODE && echo 'Applying Changes to uifont.ali' || echo 'Preview Changes (dry-run)')"
 
@@ -454,31 +480,29 @@ TEMP_NEW_ALI="$(mktemp /tmp/uifont_ali_new_XXXXXX.tmp)" || {
     exit $EXIT_CODE
 }
 
-# --- Pass 1: copy pre-PDF lines from original file ---------------------------
-PRE_PDF_WRITTEN=false
+# --- Build: inject PDF:Subset block at marker position -----------------------
+MARKER_FOUND=false
 while IFS= read -r line || [ -n "$line" ]; do
-    # Stop at first [PDF...] section header (case-insensitive)
-    if [[ "${line,,}" =~ ^\[\ *pdf ]]; then
-        PRE_PDF_WRITTEN=true
-        break
+    if [ "$line" = "${TEMPLATE_MARKER}" ]; then
+        MARKER_FOUND=true
+        # Inject the generated [PDF:Subset] block
+        printf "%s\n" "${NEW_SUBSET_LINES[@]}" >> "$TEMP_NEW_ALI"
+    else
+        printf "%s\n" "$line" >> "$TEMP_NEW_ALI"
     fi
-    printf "%s\n" "$line" >> "$TEMP_NEW_ALI"
-done < "$UIFONT_ALI"
+done < "$UIFONT_TEMPLATE"
 
-# Ensure there is exactly one blank line before the PDF block
-printf "\n" >> "$TEMP_NEW_ALI"
-
-# --- Pass 2: append the newly generated [PDF:Subset] block -------------------
-printf "%s\n" "${NEW_SUBSET_LINES[@]}" >> "$TEMP_NEW_ALI"
-
-if $PRE_PDF_WRITTEN; then
-    info "Pre-PDF sections (Global/Printer/Display) preserved from original"
+if $MARKER_FOUND; then
+    ok "Template processed – [PDF:Subset] block injected at ${TEMPLATE_MARKER}"
 else
-    info "No pre-PDF sections found in original – file contained only PDF content"
+    fail "Marker ${TEMPLATE_MARKER} was not found during template processing"
+    rm -f "$TEMP_NEW_ALI"
+    print_summary
+    exit $EXIT_CODE
 fi
 
 # --- Show diff ---------------------------------------------------------------
-if command -v diff >/dev/null 2>&1; then
+if command -v diff >/dev/null 2>&1 && $UIFONT_ALI_EXISTS; then
     DIFF_OUT="$(diff "$UIFONT_ALI" "$TEMP_NEW_ALI" 2>/dev/null)"
     if [ -z "$DIFF_OUT" ]; then
         ok "No changes needed – uifont.ali is already up to date"
@@ -489,26 +513,46 @@ if command -v diff >/dev/null 2>&1; then
             printf "  %s\n" "$dline"
         done
     fi
+elif ! $UIFONT_ALI_EXISTS; then
+    info "New file will be created: $UIFONT_ALI"
 fi
 
 if $APPLY_MODE; then
-    # Backup original
-    backup_file "$UIFONT_ALI"
-    if [ "$LAST_BACKUP" = "" ]; then
-        fail "Backup failed – aborting write"
-        rm -f "$TEMP_NEW_ALI"
-        print_summary
-        exit $EXIT_CODE
+    # Backup existing file if it exists
+    if $UIFONT_ALI_EXISTS; then
+        backup_file "$UIFONT_ALI"
+        if [ "$LAST_BACKUP" = "" ]; then
+            fail "Backup failed – aborting write"
+            rm -f "$TEMP_NEW_ALI"
+            print_summary
+            exit $EXIT_CODE
+        fi
+        ok "Backup stored at: $LAST_BACKUP"
+    else
+        # Ensure target directory exists
+        _target_dir="$(dirname "$UIFONT_ALI")"
+        if [ ! -d "$_target_dir" ]; then
+            fail "Target directory does not exist: $_target_dir"
+            info "  Verify DOMAIN_HOME and that Oracle Reports is installed"
+            rm -f "$TEMP_NEW_ALI"
+            print_summary
+            exit $EXIT_CODE
+        fi
     fi
 
-    # cp preserves original file permissions and ownership
+    # cp preserves original file permissions and ownership (if file existed)
     if cp "$TEMP_NEW_ALI" "$UIFONT_ALI" 2>/dev/null; then
-        ok "uifont.ali rewritten : $UIFONT_ALI"
-        ok "Backup stored at     : $LAST_BACKUP"
+        if $UIFONT_ALI_EXISTS; then
+            ok "uifont.ali rewritten: $UIFONT_ALI"
+        else
+            ok "uifont.ali created  : $UIFONT_ALI"
+        fi
     else
         fail "Failed to write $UIFONT_ALI"
-        info "  Restoring from backup: $LAST_BACKUP"
-        cp "$LAST_BACKUP" "$UIFONT_ALI" 2>/dev/null
+        if $UIFONT_ALI_EXISTS && [ -n "${LAST_BACKUP:-}" ]; then
+            info "  Restoring from backup: $LAST_BACKUP"
+            cp "$LAST_BACKUP" "$UIFONT_ALI" 2>/dev/null
+        fi
     fi
 else
     info "Run with --apply to apply the changes shown above"
@@ -517,14 +561,71 @@ fi
 rm -f "$TEMP_NEW_ALI"
 
 # =============================================================================
-# Section 5: Post-update reminder
+# Section 5: mfontchk validation (Oracle syntax checker for uifont.ali)
+# =============================================================================
+section "uifont.ali Syntax Validation (mfontchk)"
+
+# Locate mfontchk – Oracle ships it under FMW_HOME in various locations
+_MFONTCHK=""
+for _candidate in \
+    "$FMW_HOME/oracle_common/bin/mfontchk" \
+    "$FMW_HOME/bin/mfontchk" \
+    "$ORACLE_HOME/bin/mfontchk" \
+    "$(command -v mfontchk 2>/dev/null)"; do
+    if [ -x "$_candidate" ]; then
+        _MFONTCHK="$_candidate"
+        break
+    fi
+done
+
+if [ -z "$_MFONTCHK" ]; then
+    warn "mfontchk not found – skipping syntax validation"
+    info "  mfontchk is part of Oracle FMW; typical location:"
+    info "    \$FMW_HOME/oracle_common/bin/mfontchk"
+    info "  Run manually after deployment:"
+    info "    mfontchk $UIFONT_ALI"
+elif ! $UIFONT_ALI_EXISTS && ! $APPLY_MODE; then
+    info "uifont.ali not yet created – run with --apply first, then re-run to validate"
+else
+    ok "mfontchk found: $_MFONTCHK"
+    _TARGET_ALI="$UIFONT_ALI"
+    printf "\n"
+    info "Running: mfontchk $_TARGET_ALI"
+    printf "\n"
+    _MFONTCHK_OUT="$("$_MFONTCHK" "$_TARGET_ALI" 2>&1)"
+    _MFONTCHK_RC=$?
+    if [ $_MFONTCHK_RC -eq 0 ] && [ -z "$_MFONTCHK_OUT" ]; then
+        ok "mfontchk: no errors found"
+    else
+        # mfontchk prints one line per problem:
+        #   ^ = points to left side  (font name syntax error)
+        #   ^ = points to right side (TTF file not found in REPORTS_FONT_DIR)
+        while IFS= read -r _mline; do
+            [ -z "$_mline" ] && continue
+            if [[ "$_mline" == *"^"* ]]; then
+                warn "  $_mline"
+            else
+                info "  $_mline"
+            fi
+        done <<< "$_MFONTCHK_OUT"
+        if [ $_MFONTCHK_RC -ne 0 ]; then
+            fail "mfontchk reported errors (exit code $_MFONTCHK_RC)"
+            info "  ^ on left side  = font name syntax error in uifont.ali"
+            info "  ^ on right side = TTF file not found in REPORTS_FONT_DIR"
+            info "  Fix: check REPORTS_FONT_DIR and font name spelling"
+        fi
+    fi
+fi
+
+# =============================================================================
+# Section 6: Post-update reminder
 # =============================================================================
 section "Next Steps"
 
 if $APPLY_MODE; then
     info "uifont.ali updated. Required follow-up steps:"
 fi
-info "  1. Run fontpath_config.sh --apply  → set REPORTS_FONT_DIRECTORY in rwserver.conf"
+info "  1. Run fontpath_config.sh --apply  → set REPORTS_FONT_DIRECTORY in setUserOverrides.sh"
 info "  2. Restart Reports Server          → startStop.sh STOP/START WLS_REPORTS"
 info "  3. Generate a test report as PDF"
 info "  4. Run pdf_font_verify.sh          → verify: emb=yes, type=TrueType in PDF"
@@ -533,8 +634,9 @@ if [ "$CUSTOM_ADDED" -gt 0 ]; then
     printf "\n"
     info "  Custom fonts added: $CUSTOM_ADDED font(s) from custom_fonts_dir/"
     info "  Verify the font names match what the report designer used in the report layout"
-    info "  If they differ: add a [Global] alias entry in uifont.ali:"
+    info "  If they differ: add a [Global] alias entry in the template file:"
     info '    "Name used in report design" = "Name returned by fc-query"'
+    info "  Template: $UIFONT_TEMPLATE"
 fi
 
 # =============================================================================

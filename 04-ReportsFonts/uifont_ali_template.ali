@@ -1,0 +1,213 @@
+#
+# Copyright (c) 1994, 2004, Oracle. All rights reserved.
+# All Rights Reserved.
+#
+# DESCRIPTION:
+#   uifont.ali – Oracle Reports / Forms font alias file.
+#   Generated from template by uifont_ali_update.sh.
+#   DO NOT edit the [PDF:Subset] section by hand – it is regenerated on every
+#   run of uifont_ali_update.sh.  Customer-specific [PDF:Embed] entries and
+#   [Global] aliases belong in this template file (commit it to your local repo).
+#
+# SYNTAX REFERENCE:
+#   <Face>.<Size>.<Style>.<Weight>.<Width>.<CharSet> = <target>
+#
+#   Style qualifiers (OUTSIDE quotes in [PDF:Subset]):
+#     ..Italic.Bold  = Bold Italic  (most specific – must come first in family)
+#     ...Bold        = Bold
+#     ..Italic       = Italic
+#     ...Light       = Light
+#     ..             = Regular / default catch-all (must come last)
+#
+#   [PDF:Subset] right side: TTF filename without extension, no quotes.
+#   [PDF:Embed]  right side: "file.afm file.pfa"  (Type 1 embedding).
+#
+#   Precedence within PDF sections (highest first):
+#     [PDF] aliases  >  [PDF:Subset]  >  [PDF:Embed]
+#
+#   More specific entries within a family MUST precede less specific ones.
+#
+
+#===============================================================
+# Put mappings for all surfaces here.
+#===============================================================
+[ Global ]
+# Mapping from MS Windows
+Arial             = helvetica
+
+"Times New Roman" = times
+Modern            = helvetica
+"MS Sans Serif"   = helvetica
+"MS Serif"        = times
+"Small Fonts"     = helvetica
+
+# Mapping from Macintosh
+"New Century Schlbk" = "new century schoolbook"
+"New York"        = times
+geneva            = helvetica
+
+
+#===============================================================
+# Put mappings for all printers here.
+#===============================================================
+[ Printer ]
+
+
+#===============================================================
+# Put mappings for PostScript level 1 printers here.
+#===============================================================
+[ Printer:PostScript1 ]
+
+# Sample Kanji font mappings
+...UltraLight..JEUC = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...UltraLight..SJIS = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...ExtraLight..JEUC = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...ExtraLight..SJIS = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...Light..JEUC      = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...Light..SJIS      = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...DemiLight..JEUC  = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...DemiLight..SJIS  = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+.....JEUC           = "GothicBBB-Medium-83pv-RKSJ-H"...Medium..JEUC
+.....SJIS           = "GothicBBB-Medium-83pv-RKSJ-H"...Medium..SJIS
+
+# Mapping from MS Windows
+Roman             = palatino
+Script            = "itc zapf chancery"
+FixedSys          = courier
+System            = helvetica
+
+# Mapping from Macintosh
+"Avant Garde"     = "itc avant garde gothic"
+
+# Mapping from Motif display
+fixed             = courier
+clean             = times
+lucidatypewriter  = courier
+lucidabright      = times
+
+
+#===============================================================
+# Put mappings for PostScript level 2 printers here.
+#===============================================================
+[ Printer:PostScript2 ]
+
+# Sample Kanji font mappings
+...UltraLight..JEUC = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...UltraLight..SJIS = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...ExtraLight..JEUC = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...ExtraLight..SJIS = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...Light..JEUC      = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...Light..SJIS      = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+...DemiLight..JEUC  = "Ryumin-Light-83pv-RKSJ-H"...Light..JEUC
+...DemiLight..SJIS  = "Ryumin-Light-83pv-RKSJ-H"...Light..SJIS
+.....JEUC           = "GothicBBB-Medium-83pv-RKSJ-H"...Medium..JEUC
+.....SJIS           = "GothicBBB-Medium-83pv-RKSJ-H"...Medium..SJIS
+
+# Mapping from MS Windows
+Roman             = palatino
+Script            = "itc zapf chancery"
+FixedSys          = courier
+System            = helvetica
+
+# Mapping from Macintosh
+"Avant Garde"     = "itc avant garde gothic"
+
+# Mapping from Motif display
+fixed             = courier
+clean             = times
+lucidatypewriter  = courier
+lucidabright      = times
+
+
+#===============================================================
+# Put mappings for PCL 5 printers here.
+#===============================================================
+[ Printer:PCL5 ]
+
+helvetica         = univers
+times             = "cg times"
+clean             = "antique olv"
+fixed             = courier
+lucida            = univers
+lucidabright      = "cg times"
+lucidatypewriter  = courier
+"new century schoolbook" = univers
+terminal          = "line printer"
+
+
+#===============================================================
+# Put mappings for all display surfaces here.
+#===============================================================
+[ Display ]
+
+#===============================================================
+# Put mappings for Motif displays here
+#===============================================================
+[ Display:Motif ]
+
+# Fix for bug no 778937 DO NOT MOVE!
+Roman.....sjis    = lucida.....jeuc
+Script.....sjis   = lucidabright.....jeuc
+FixedSys.....sjis = fixed.....jeuc
+System.....sjis   = lucida.....jeuc
+.....sjis         = .....jeuc
+
+# Mapping from MS Windows
+Roman             = lucida
+Script            = lucidabright
+FixedSys          = fixed
+System            = lucida
+
+# Mapping from Macintosh
+"Avant Garde"     = helvetica
+"Bookman"         = times
+
+
+#===============================================================
+# Put mappings for all CM displays here.
+#===============================================================
+[ Display:CM ]
+
+# These are DEC-specific, and may need localization
+*..Blink          = Blinking
+*..Inverted+Underline.Bold = ReverseBoldUnderline
+*..Inverted+Underline.     = UnderlineReverse
+*..Underline.Bold = UnderlineBold
+*..Inverted.Bold  = ReverseBold
+*...Bold          = Bold
+*..Underline      = Underline
+*..Inverted       = Reverse
+*                 = Plain
+
+
+#===============================================================
+# Oracle Reports PDF sections
+# [ PDF ]         - Font aliasing and Multibyte language support
+# [ PDF:Embed ]   - Type 1 font embedding (legacy, avoid on OL8/9)
+# [ PDF:Subset ]  - TrueType font subsetting (required for PDF output)
+#===============================================================
+[ PDF ]
+
+
+#===============================================================
+# Type 1 font embedding (legacy).
+# Add customer-specific Type 1 font entries here if required.
+# Format: "FontName".style.. = "fontname.afm fontname.pfa"
+# Font files must be in REPORTS_PATH.
+#
+# Example:
+#   "CompanySymbol"..... = "CompanySymbol.afm CompanySymbol.pfa"
+#===============================================================
+[ PDF:Embed ]
+# Customer-specific Type 1 font embeddings:
+# (add entries here, they are preserved across uifont_ali_update.sh runs)
+
+
+#===============================================================
+# [PDF:Subset] – TrueType font subsetting for PDF output.
+# THIS SECTION IS AUTO-GENERATED by uifont_ali_update.sh.
+# DO NOT edit between the markers – changes will be overwritten.
+# To add custom mappings: put them in the template file
+# (04-ReportsFonts/uifont_ali_template.ali) above this marker.
+#===============================================================
+##PDF_SUBSET##
