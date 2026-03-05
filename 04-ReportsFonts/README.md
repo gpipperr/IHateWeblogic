@@ -152,13 +152,21 @@ Use `font_inventory.sh` to find the active location on your system.
 
 [ PDF:Subset ]
 # TrueType font subsetting for PDF output  ← most important for PDF reports
-# Syntax: "PSFontName"[qualifier]  =  TTFbasename  (NO quotes on right side!)
-# qualifier placed OUTSIDE the quotes for style/weight:
+# Syntax (no hyphen in TTF name):
+#   "PSFontName"[qualifier]  =  TTFbasename
+# Syntax (hyphen in TTF name → right side must be quoted):
+#   "PSFontName"[qualifier]  =  "TTF-basename"
+# Rule: double-quote the right side whenever the TTF filename contains a hyphen.
+# mfontchk (and the Oracle Reports parser) treat an unquoted hyphen as a
+# font-attribute separator, similar to the dot-separated attribute format in
+# other sections. Source: Oracle Reports 12.2.1 Font Config doc (pbr_font003).
+#
+# qualifier placed OUTSIDE the left-side quotes for style/weight:
 #   ..Italic.Bold  → Bold Italic (most specific – must come first)
 #   ...Bold        → Bold
 #   ..Italic       → Italic
 #   ...Light       → Light
-#   (empty)        → Regular (least specific – must come last per family)
+#   (empty) / ..   → Regular (least specific – must come last per family)
 
 [ PDF:Embed ]
 # Type 1 font embedding: FontName=AFM_file,PFB_file
@@ -170,26 +178,36 @@ Use `font_inventory.sh` to find the active location on your system.
 ### Syntax Rules for [PDF:Subset]
 
 ```ini
-# Simple mapping: PostScript name → TTF filename (no extension, no quotes on right)
-"Helvetica"                              = LiberationSans-Regular
-"Helvetica-Bold"                         = LiberationSans-Bold
+# Mapping without hyphen in TTF filename: no quotes needed on right side
+"Helvetica"..                            = LiberationSans-Regular
+"Corp Font"..                            = CorpFont_Rg
 
-# With style/weight qualifier OUTSIDE the quotes:
+# Mapping WITH hyphen in TTF filename: right side MUST be quoted
+"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic"
+"Helvetica"...Bold                       = "LiberationSans-Bold"
+"Helvetica"..Italic                      = "LiberationSans-Italic"
+"Helvetica"..                            = "LiberationSans-Regular"
+
+# Complete example with style/weight qualifiers (most specific first):
 "Corp Font"..Italic.Bold                 = CorpFont_BdIt
 "Corp Font"...Bold                       = CorpFont_Bd
 "Corp Font"..Italic                      = CorpFont_It
-"Corp Font"                              = CorpFont_Rg
+"Corp Font"..                            = CorpFont_Rg
 
 # PostScript alias for the same font (no-space PS name → same TTF):
 "CorpFont"..Italic.Bold                  = CorpFont_BdIt
 "CorpFont"...Bold                        = CorpFont_Bd
 "CorpFont"..Italic                       = CorpFont_It
-"CorpFont"                               = CorpFont_Rg
+"CorpFont"..                             = CorpFont_Rg
 ```
 
 > **Important rules:**
-> - Font names with spaces MUST be in double quotes on the left side
-> - The right side is the **TTF filename without extension and without quotes**
+> - Font names with spaces MUST be in double quotes on the **left** side
+> - The right side is the **TTF filename without extension**
+> - **Quote the right side** whenever the TTF filename contains a hyphen (`-`):
+>   `= "LiberationSans-Bold"` not `= LiberationSans-Bold`
+>   Reason: an unquoted hyphen is treated as a font-attribute separator by the parser
+>   (ref: Oracle Reports 12.2.1 Font Configuration – [pbr_font003](https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745))
 > - More-specific entries (BoldItalic, Bold, Italic) **must precede** less-specific (Regular) within a family
 > - Use `uifont_ali_update.sh` to generate correct entries automatically
 
@@ -206,38 +224,58 @@ These entries are generated automatically by `uifont_ali_update.sh`:
 [ PDF:Subset ]
 
 # ─── Helvetica / Arial → Liberation Sans ──────────────────────────────────────
-"Helvetica"                              = LiberationSans-Regular
-"Helvetica-Bold"                         = LiberationSans-Bold
-"Helvetica-Oblique"                      = LiberationSans-Italic
-"Helvetica-BoldOblique"                  = LiberationSans-BoldItalic
-"Arial"                                  = LiberationSans-Regular
-"Arial Bold"                             = LiberationSans-Bold
-"Arial Italic"                           = LiberationSans-Italic
-"Arial Bold Italic"                      = LiberationSans-BoldItalic
+# Qualifier entries (most specific first), then legacy PS-name exact entries.
+# TTF filenames with hyphens are quoted per Oracle parser rules.
+"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic"
+"Helvetica"...Bold                       = "LiberationSans-Bold"
+"Helvetica"..Italic                      = "LiberationSans-Italic"
+"Helvetica"..                            = "LiberationSans-Regular"
+"Helvetica-Bold"                         = "LiberationSans-Bold"
+"Helvetica-Oblique"                      = "LiberationSans-Italic"
+"Helvetica-BoldOblique"                  = "LiberationSans-BoldItalic"
+"Arial"..Italic.Bold                     = "LiberationSans-BoldItalic"
+"Arial"...Bold                           = "LiberationSans-Bold"
+"Arial"..Italic                          = "LiberationSans-Italic"
+"Arial"..                                = "LiberationSans-Regular"
+"Arial Bold"                             = "LiberationSans-Bold"
+"Arial Italic"                           = "LiberationSans-Italic"
+"Arial Bold Italic"                      = "LiberationSans-BoldItalic"
 
 # ─── Times / Times New Roman → Liberation Serif ────────────────────────────────
-"Times-Roman"                            = LiberationSerif-Regular
-"Times-Bold"                             = LiberationSerif-Bold
-"Times-Italic"                           = LiberationSerif-Italic
-"Times-BoldItalic"                       = LiberationSerif-BoldItalic
-"Times New Roman"                        = LiberationSerif-Regular
-"Times New Roman Bold"                   = LiberationSerif-Bold
-"Times New Roman Italic"                 = LiberationSerif-Italic
+"Times New Roman"..Italic.Bold           = "LiberationSerif-BoldItalic"
+"Times New Roman"...Bold                 = "LiberationSerif-Bold"
+"Times New Roman"..Italic                = "LiberationSerif-Italic"
+"Times New Roman"..                      = "LiberationSerif-Regular"
+"Times New Roman Bold"                   = "LiberationSerif-Bold"
+"Times New Roman Italic"                 = "LiberationSerif-Italic"
+"Times-Roman"                            = "LiberationSerif-Regular"
+"Times-Bold"                             = "LiberationSerif-Bold"
+"Times-Italic"                           = "LiberationSerif-Italic"
+"Times-BoldItalic"                       = "LiberationSerif-BoldItalic"
 
 # ─── Courier / Courier New → Liberation Mono ───────────────────────────────────
-"Courier"                                = LiberationMono-Regular
-"Courier-Bold"                           = LiberationMono-Bold
-"Courier-Oblique"                        = LiberationMono-Italic
-"Courier-BoldOblique"                    = LiberationMono-BoldItalic
-"Courier New"                            = LiberationMono-Regular
-"Courier New Bold"                       = LiberationMono-Bold
-"Courier New Italic"                     = LiberationMono-Italic
+"Courier"..Italic.Bold                   = "LiberationMono-BoldItalic"
+"Courier"...Bold                         = "LiberationMono-Bold"
+"Courier"..Italic                        = "LiberationMono-Italic"
+"Courier"..                              = "LiberationMono-Regular"
+"Courier-Bold"                           = "LiberationMono-Bold"
+"Courier-Oblique"                        = "LiberationMono-Italic"
+"Courier-BoldOblique"                    = "LiberationMono-BoldItalic"
+"Courier New"..Italic.Bold               = "LiberationMono-BoldItalic"
+"Courier New"...Bold                     = "LiberationMono-Bold"
+"Courier New"..Italic                    = "LiberationMono-Italic"
+"Courier New"..                          = "LiberationMono-Regular"
+"Courier New Bold"                       = "LiberationMono-Bold"
+"Courier New Italic"                     = "LiberationMono-Italic"
 
 # ─── Tahoma / Verdana → DejaVu Sans (approximate metric match) ─────────────────
-"Tahoma"                                 = DejaVuSans
-"Tahoma Bold"                            = DejaVuSans-Bold
-"Verdana"                                = DejaVuSans
-"Verdana Bold"                           = DejaVuSans-Bold
+# DejaVuSans has no hyphen → no quotes needed on right side
+"Tahoma"...Bold                          = "DejaVuSans-Bold"
+"Tahoma"..                               = DejaVuSans
+"Tahoma Bold"                            = "DejaVuSans-Bold"
+"Verdana"...Bold                         = "DejaVuSans-Bold"
+"Verdana"..                              = DejaVuSans
+"Verdana Bold"                           = "DejaVuSans-Bold"
 ```
 
 **Getting the exact TTF family names:**
@@ -686,13 +724,17 @@ fc-cache -fv $DOMAIN_HOME/reports/fonts/
 ls -la $DOMAIN_HOME/reports/fonts/*.ttf
 
 # Validate uifont.ali with Oracle's mfontchk:
-# mfontchk needs libuimotif.so.0 and REPORTS_FONT_DIR set – otherwise it
-# reports "Invalid font specification" for every entry including [Global] aliases.
+# Without REPORTS_FONT_DIR: mfontchk checks syntax only (no TTF file lookup).
 export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH
-export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
 mfontchk $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali
-# ^ points to right side = TTF not found in REPORTS_FONT_DIR (deploy fonts first)
-# ^ points to left  side = font name syntax error in uifont.ali
+# → "Schriftartaliasdatei erfolgreich geparst" = syntax OK
+
+# With REPORTS_FONT_DIR: mfontchk additionally checks that TTF files exist.
+export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
+export REPORTS_FONT_DIRECTORY=$DOMAIN_HOME/reports/fonts
+mfontchk $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali
+# ^ on right side = TTF not found in REPORTS_FONT_DIR (deploy fonts first)
+# ^ on left  side = font name syntax error in uifont.ali
 # NOTE: [Global] alias targets (e.g. "= helvetica") are always flagged as
 #       "Invalid font specification" because mfontchk checks OS font existence.
 #       This is expected – [Global] aliases resolve at runtime, not at parse time.
@@ -707,10 +749,14 @@ mfontchk $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
 - Oracle Reports Font Configuration:
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font001.htm
-- Oracle Reports uifont.ali:
+- Oracle Reports uifont.ali – Font Config Files (12.2.1.3):
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
+- Oracle Reports uifont.ali – Font Config Files (12.2.1, with [PDF:Subset] syntax detail):
+  https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745
 - Oracle Reports Font Aliasing:
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font004.htm
+- Oracle Reports 11g uifont.ali [PDF:Subset] examples (with quoted filenames):
+  https://docs.oracle.com/cd/E17904_01/bi.1111/b32121/pbr_pdf003.htm#RSPUB23424
 - Liberation Fonts Project: https://github.com/liberationfonts/liberation-fonts
 - Pipperr.de – Oracle Reports 14c Install Guide:
   https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
