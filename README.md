@@ -154,30 +154,7 @@ IHateWeblogic/
 
 ### Font Problems
 
-#### Which fonts are referenced in a .rdf report file?
-
-Oracle Reports `.rdf` files are binary. Use `strings` to extract readable text and
-grep for `fontName` attributes:
-
-```bash
-# Extract all fontName values used in a report definition
-strings Testbericht.rdf | sed -n 's/.*fontName="\([^"]*\)".*/\1/p' | sort -u
-
-# Broader scan – shows all font-related strings (catches custom/unusual attribute names)
-strings Testbericht.rdf | grep -i 'font' | sort -u
-
-# Scan all .rdf files in a directory at once
-find ./reports/source -name "*.rdf" -exec bash -c \
-  'echo "=== $(basename "$1") ==="; strings "$1" | sed -n '"'"'s/.*fontName="\([^"]*\)".*/\1/p'"'"' | sort -u' \
-  _ {} \;
-```
-
-Typical output shows font names like `Arial`, `Courier New`, `Times New Roman`,
-or custom Windows font names like `New Courier`, `Arial Narrow`, `Tahoma` that
-must be mapped in `uifont.ali` to an available TTF file.
-
-**Workflow:** Scan .rdf → identify all font names used → check `uifont.ali` for
-each name → add missing mappings with `04-ReportsFonts/uifont_ali_update.sh --apply`.
+For detailed font troubleshooting see [04-ReportsFonts/README.md](04-ReportsFonts/README.md) – Section 11.
 
 #### Font not rendering / garbled output in PDF
 

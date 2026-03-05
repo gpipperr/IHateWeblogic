@@ -572,6 +572,34 @@ tail -f $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log
 find $DOMAIN_HOME/servers -name "rwEng*diagnostic.log" | xargs tail -f
 ```
 
+### Which fonts are referenced in a .rdf report definition?
+
+Oracle Reports `.rdf` files are binary. Use `strings` to extract readable text and
+grep for `fontName` attributes – this shows which fonts the report designer used
+and must therefore be available on the Linux server:
+
+```bash
+# Extract all fontName values from a single report
+strings Testbericht.rdf | sed -n 's/.*fontName="\([^"]*\)".*/\1/p' | sort -u
+
+# Broader scan – catches unusual or older attribute names
+strings Testbericht.rdf | grep -i 'font' | sort -u
+
+# Scan all .rdf files in a directory at once
+find ./reports/source -name "*.rdf" -exec bash -c \
+  'echo "=== $(basename "$1") ==="; strings "$1" | sed -n '"'"'s/.*fontName="\([^"]*\)".*/\1/p'"'"' | sort -u' \
+  _ {} \;
+```
+
+Typical output shows names like `Arial`, `Courier New`, `Times New Roman`, or
+custom Windows font names like `New Courier`, `Arial Narrow`, `Tahoma`.
+Every name found here must have a matching `[PDF:Subset]` entry in `uifont.ali`.
+
+**Workflow:** Scan `.rdf` → identify all font names used → compare against
+`uifont.ali` → add missing mappings with `uifont_ali_update.sh --apply`.
+
+---
+
 ### Verify font files and fontconfig
 
 ```bash
