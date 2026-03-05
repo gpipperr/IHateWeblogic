@@ -150,6 +150,53 @@ IHateWeblogic/
 
 - Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
 
+## Troubleshooting
+
+### Font Problems
+
+#### Which fonts are referenced in a .rdf report file?
+
+Oracle Reports `.rdf` files are binary. Use `strings` to extract readable text and
+grep for `fontName` attributes:
+
+```bash
+# Extract all fontName values used in a report definition
+strings Testbericht.rdf | sed -n 's/.*fontName="\([^"]*\)".*/\1/p' | sort -u
+
+# Broader scan – shows all font-related strings (catches custom/unusual attribute names)
+strings Testbericht.rdf | grep -i 'font' | sort -u
+
+# Scan all .rdf files in a directory at once
+find ./reports/source -name "*.rdf" -exec bash -c \
+  'echo "=== $(basename "$1") ==="; strings "$1" | sed -n '"'"'s/.*fontName="\([^"]*\)".*/\1/p'"'"' | sort -u' \
+  _ {} \;
+```
+
+Typical output shows font names like `Arial`, `Courier New`, `Times New Roman`,
+or custom Windows font names like `New Courier`, `Arial Narrow`, `Tahoma` that
+must be mapped in `uifont.ali` to an available TTF file.
+
+**Workflow:** Scan .rdf → identify all font names used → check `uifont.ali` for
+each name → add missing mappings with `04-ReportsFonts/uifont_ali_update.sh --apply`.
+
+#### Font not rendering / garbled output in PDF
+
+1. Run `04-ReportsFonts/font_inventory.sh` → confirm font is present
+2. Run `04-ReportsFonts/get_font_names.sh` → check `[PDF:Subset]` mapping exists
+3. Run `04-ReportsFonts/pdf_font_verify.sh` → confirm font is embedded in output PDF
+4. Check `uifont.ali` has both the Windows name (as used in report designer) and
+   the PostScript name mapped to the same TTF file
+
+#### Font cache / fc-cache
+
+After adding new fonts to the system, refresh the font cache:
+
+```bash
+04-ReportsFonts/font_cache_reset.sh --apply
+```
+
+---
+
 ## Password Security Concept
 
 Based on: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen
