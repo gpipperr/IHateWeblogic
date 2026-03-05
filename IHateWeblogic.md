@@ -3,6 +3,27 @@
 Author: Gunther Pipperr | https://pipperr.de
 License: Apache 2.0
 
+## Meaning of the Projekt name:
+
+
+I – Innovation
+H – Helps
+A – Admins
+T – To
+E – Enhance
+W – Weblogic
+B – Based
+L – Lifecycle
+O – Operations
+G – Governance
+I – Integration
+C – Control
+
+
+Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control.
+
+
+
 ## Intention
 
 Oracle Forms and Reports on WebLogic is powerful but notoriously difficult to diagnose.
