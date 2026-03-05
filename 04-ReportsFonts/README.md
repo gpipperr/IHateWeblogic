@@ -152,14 +152,11 @@ Use `font_inventory.sh` to find the active location on your system.
 
 [ PDF:Subset ]
 # TrueType font subsetting for PDF output  ← most important for PDF reports
-# Syntax (no hyphen in TTF name):
-#   "PSFontName"[qualifier]  =  TTFbasename
-# Syntax (hyphen in TTF name → right side must be quoted):
-#   "PSFontName"[qualifier]  =  "TTF-basename"
-# Rule: double-quote the right side whenever the TTF filename contains a hyphen.
-# mfontchk (and the Oracle Reports parser) treat an unquoted hyphen as a
-# font-attribute separator, similar to the dot-separated attribute format in
-# other sections. Source: Oracle Reports 12.2.1 Font Config doc (pbr_font003).
+# Syntax: "PSFontName"[qualifier]  =  "ttf-filename.ttf"
+# Rule: right side is ALWAYS in double quotes AND always includes the .ttf extension.
+# Example: "Tahoma".. = "DejaVuSans.ttf"
+# Source: Oracle Reports 12.2.1 Font Config doc (pbr_font003#i1009745)
+# Note: this quoting/extension rule applies ONLY to [PDF:Subset].
 #
 # qualifier placed OUTSIDE the left-side quotes for style/weight:
 #   ..Italic.Bold  → Bold Italic (most specific – must come first)
@@ -178,37 +175,33 @@ Use `font_inventory.sh` to find the active location on your system.
 ### Syntax Rules for [PDF:Subset]
 
 ```ini
-# Mapping without hyphen in TTF filename: no quotes needed on right side
-"Helvetica"..                            = LiberationSans-Regular
-"Corp Font"..                            = CorpFont_Rg
-
-# Mapping WITH hyphen in TTF filename: right side MUST be quoted
-"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic"
-"Helvetica"...Bold                       = "LiberationSans-Bold"
-"Helvetica"..Italic                      = "LiberationSans-Italic"
-"Helvetica"..                            = "LiberationSans-Regular"
+# Right side is ALWAYS in double quotes AND always includes the .ttf extension.
+# This applies to all entries – with and without hyphen in the filename.
+"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic.ttf"
+"Helvetica"...Bold                       = "LiberationSans-Bold.ttf"
+"Helvetica"..Italic                      = "LiberationSans-Italic.ttf"
+"Helvetica"..                            = "LiberationSans-Regular.ttf"
 
 # Complete example with style/weight qualifiers (most specific first):
-"Corp Font"..Italic.Bold                 = CorpFont_BdIt
-"Corp Font"...Bold                       = CorpFont_Bd
-"Corp Font"..Italic                      = CorpFont_It
-"Corp Font"..                            = CorpFont_Rg
+"Corp Font"..Italic.Bold                 = "CorpFont_BdIt.ttf"
+"Corp Font"...Bold                       = "CorpFont_Bd.ttf"
+"Corp Font"..Italic                      = "CorpFont_It.ttf"
+"Corp Font"..                            = "CorpFont_Rg.ttf"
 
 # PostScript alias for the same font (no-space PS name → same TTF):
-"CorpFont"..Italic.Bold                  = CorpFont_BdIt
-"CorpFont"...Bold                        = CorpFont_Bd
-"CorpFont"..Italic                       = CorpFont_It
-"CorpFont"..                             = CorpFont_Rg
+"CorpFont"..Italic.Bold                  = "CorpFont_BdIt.ttf"
+"CorpFont"...Bold                        = "CorpFont_Bd.ttf"
+"CorpFont"..Italic                       = "CorpFont_It.ttf"
+"CorpFont"..                             = "CorpFont_Rg.ttf"
 ```
 
 > **Important rules:**
 > - Font names with spaces MUST be in double quotes on the **left** side
-> - The right side is the **TTF filename without extension**
-> - **Quote the right side** whenever the TTF filename contains a hyphen (`-`):
->   `= "LiberationSans-Bold"` not `= LiberationSans-Bold`
->   Reason: an unquoted hyphen is treated as a font-attribute separator by the parser
+> - The right side is the **TTF filename with `.ttf` extension, always in double quotes**:
+>   `= "LiberationSans-Bold.ttf"` — both quotes and extension are mandatory
 >   (ref: Oracle Reports 12.2.1 Font Configuration – [pbr_font003](https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745))
 > - More-specific entries (BoldItalic, Bold, Italic) **must precede** less-specific (Regular) within a family
+> - This quoting rule applies **only to `[PDF:Subset]`** — other sections (`[Global]`, `[Printer]`) use different syntax
 > - Use `uifont_ali_update.sh` to generate correct entries automatically
 
 ---
@@ -222,60 +215,58 @@ These entries are generated automatically by `uifont_ali_update.sh`:
 
 ```ini
 [ PDF:Subset ]
+# Right side: always "filename.ttf" with quotes and extension – [PDF:Subset] only!
 
 # ─── Helvetica / Arial → Liberation Sans ──────────────────────────────────────
-# Qualifier entries (most specific first), then legacy PS-name exact entries.
-# TTF filenames with hyphens are quoted per Oracle parser rules.
-"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic"
-"Helvetica"...Bold                       = "LiberationSans-Bold"
-"Helvetica"..Italic                      = "LiberationSans-Italic"
-"Helvetica"..                            = "LiberationSans-Regular"
-"Helvetica-Bold"                         = "LiberationSans-Bold"
-"Helvetica-Oblique"                      = "LiberationSans-Italic"
-"Helvetica-BoldOblique"                  = "LiberationSans-BoldItalic"
-"Arial"..Italic.Bold                     = "LiberationSans-BoldItalic"
-"Arial"...Bold                           = "LiberationSans-Bold"
-"Arial"..Italic                          = "LiberationSans-Italic"
-"Arial"..                                = "LiberationSans-Regular"
-"Arial Bold"                             = "LiberationSans-Bold"
-"Arial Italic"                           = "LiberationSans-Italic"
-"Arial Bold Italic"                      = "LiberationSans-BoldItalic"
+"Helvetica"..Italic.Bold                 = "LiberationSans-BoldItalic.ttf"
+"Helvetica"...Bold                       = "LiberationSans-Bold.ttf"
+"Helvetica"..Italic                      = "LiberationSans-Italic.ttf"
+"Helvetica"..                            = "LiberationSans-Regular.ttf"
+"Helvetica-Bold"                         = "LiberationSans-Bold.ttf"
+"Helvetica-Oblique"                      = "LiberationSans-Italic.ttf"
+"Helvetica-BoldOblique"                  = "LiberationSans-BoldItalic.ttf"
+"Arial"..Italic.Bold                     = "LiberationSans-BoldItalic.ttf"
+"Arial"...Bold                           = "LiberationSans-Bold.ttf"
+"Arial"..Italic                          = "LiberationSans-Italic.ttf"
+"Arial"..                                = "LiberationSans-Regular.ttf"
+"Arial Bold"                             = "LiberationSans-Bold.ttf"
+"Arial Italic"                           = "LiberationSans-Italic.ttf"
+"Arial Bold Italic"                      = "LiberationSans-BoldItalic.ttf"
 
 # ─── Times / Times New Roman → Liberation Serif ────────────────────────────────
-"Times New Roman"..Italic.Bold           = "LiberationSerif-BoldItalic"
-"Times New Roman"...Bold                 = "LiberationSerif-Bold"
-"Times New Roman"..Italic                = "LiberationSerif-Italic"
-"Times New Roman"..                      = "LiberationSerif-Regular"
-"Times New Roman Bold"                   = "LiberationSerif-Bold"
-"Times New Roman Italic"                 = "LiberationSerif-Italic"
-"Times-Roman"                            = "LiberationSerif-Regular"
-"Times-Bold"                             = "LiberationSerif-Bold"
-"Times-Italic"                           = "LiberationSerif-Italic"
-"Times-BoldItalic"                       = "LiberationSerif-BoldItalic"
+"Times New Roman"..Italic.Bold           = "LiberationSerif-BoldItalic.ttf"
+"Times New Roman"...Bold                 = "LiberationSerif-Bold.ttf"
+"Times New Roman"..Italic                = "LiberationSerif-Italic.ttf"
+"Times New Roman"..                      = "LiberationSerif-Regular.ttf"
+"Times New Roman Bold"                   = "LiberationSerif-Bold.ttf"
+"Times New Roman Italic"                 = "LiberationSerif-Italic.ttf"
+"Times-Roman"                            = "LiberationSerif-Regular.ttf"
+"Times-Bold"                             = "LiberationSerif-Bold.ttf"
+"Times-Italic"                           = "LiberationSerif-Italic.ttf"
+"Times-BoldItalic"                       = "LiberationSerif-BoldItalic.ttf"
 
 # ─── Courier / Courier New → Liberation Mono ───────────────────────────────────
-"Courier"..Italic.Bold                   = "LiberationMono-BoldItalic"
-"Courier"...Bold                         = "LiberationMono-Bold"
-"Courier"..Italic                        = "LiberationMono-Italic"
-"Courier"..                              = "LiberationMono-Regular"
-"Courier-Bold"                           = "LiberationMono-Bold"
-"Courier-Oblique"                        = "LiberationMono-Italic"
-"Courier-BoldOblique"                    = "LiberationMono-BoldItalic"
-"Courier New"..Italic.Bold               = "LiberationMono-BoldItalic"
-"Courier New"...Bold                     = "LiberationMono-Bold"
-"Courier New"..Italic                    = "LiberationMono-Italic"
-"Courier New"..                          = "LiberationMono-Regular"
-"Courier New Bold"                       = "LiberationMono-Bold"
-"Courier New Italic"                     = "LiberationMono-Italic"
+"Courier"..Italic.Bold                   = "LiberationMono-BoldItalic.ttf"
+"Courier"...Bold                         = "LiberationMono-Bold.ttf"
+"Courier"..Italic                        = "LiberationMono-Italic.ttf"
+"Courier"..                              = "LiberationMono-Regular.ttf"
+"Courier-Bold"                           = "LiberationMono-Bold.ttf"
+"Courier-Oblique"                        = "LiberationMono-Italic.ttf"
+"Courier-BoldOblique"                    = "LiberationMono-BoldItalic.ttf"
+"Courier New"..Italic.Bold               = "LiberationMono-BoldItalic.ttf"
+"Courier New"...Bold                     = "LiberationMono-Bold.ttf"
+"Courier New"..Italic                    = "LiberationMono-Italic.ttf"
+"Courier New"..                          = "LiberationMono-Regular.ttf"
+"Courier New Bold"                       = "LiberationMono-Bold.ttf"
+"Courier New Italic"                     = "LiberationMono-Italic.ttf"
 
 # ─── Tahoma / Verdana → DejaVu Sans (approximate metric match) ─────────────────
-# DejaVuSans has no hyphen → no quotes needed on right side
-"Tahoma"...Bold                          = "DejaVuSans-Bold"
-"Tahoma"..                               = DejaVuSans
-"Tahoma Bold"                            = "DejaVuSans-Bold"
-"Verdana"...Bold                         = "DejaVuSans-Bold"
-"Verdana"..                              = DejaVuSans
-"Verdana Bold"                           = "DejaVuSans-Bold"
+"Tahoma"...Bold                          = "DejaVuSans-Bold.ttf"
+"Tahoma"..                               = "DejaVuSans.ttf"
+"Tahoma Bold"                            = "DejaVuSans-Bold.ttf"
+"Verdana"...Bold                         = "DejaVuSans-Bold.ttf"
+"Verdana"..                              = "DejaVuSans.ttf"
+"Verdana Bold"                           = "DejaVuSans-Bold.ttf"
 ```
 
 **Getting the exact TTF family names:**

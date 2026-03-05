@@ -139,6 +139,23 @@ _font_available() {
 }
 
 # =============================================================================
+# Helper: resolve TTF base name to actual filename with extension.
+# Oracle uifont.ali [PDF:Subset] requires the full filename including .ttf/.ttc
+# on the right-hand side, always in double quotes.
+# Ref: Oracle Reports 12.2.1 doc pbr_font003#i1009745
+# =============================================================================
+_ttf_with_ext() {
+    local base="$1"
+    if   [ -f "$REPORTS_FONT_DIR/${base}.ttf" ]; then printf "%s.ttf" "$base"
+    elif [ -f "$REPORTS_FONT_DIR/${base}.TTF" ]; then printf "%s.TTF" "$base"
+    elif [ -f "$REPORTS_FONT_DIR/${base}.ttc" ]; then printf "%s.ttc" "$base"
+    elif [ -f "$CUSTOM_FONTS_DIR/${base}.ttf" ]; then printf "%s.ttf" "$base"
+    elif [ -f "$CUSTOM_FONTS_DIR/${base}.TTF" ]; then printf "%s.TTF" "$base"
+    else printf "%s.ttf" "$base"   # fallback: file not yet deployed
+    fi
+}
+
+# =============================================================================
 # Helper: build one [PDF:Subset] mapping line (or a comment if font missing)
 # =============================================================================
 _subset_line() {
@@ -146,10 +163,10 @@ _subset_line() {
     local ttf_base="$2"
 
     if _font_available "$ttf_base"; then
-        printf '%-40s = %s\n' "\"${ps_name}\"" "${ttf_base}"
+        printf '%-40s = "%s"\n' "\"${ps_name}\"" "$(_ttf_with_ext "$ttf_base")"
     else
         # Comment out entries for missing fonts – shows intent but doesn't break Reports
-        printf '#%-39s = %s  (font not deployed)\n' "\"${ps_name}\"" "${ttf_base}"
+        printf '#%-39s = "%s.ttf"  (font not deployed)\n' "\"${ps_name}\"" "${ttf_base}"
     fi
 }
 
@@ -203,29 +220,20 @@ _style_sort_priority() {
 
 # =============================================================================
 # Helper: emit one [PDF:Subset] line – qualifier is placed OUTSIDE the quotes
-#   "FamilyName"<qualifier>  = ttf_base          (no hyphen → no quotes needed)
-#   "FamilyName"<qualifier>  = "ttf-base"        (hyphen → quote right side)
-# Quoting prevents mfontchk from mis-parsing '-' as a font-attribute separator.
-# Reference: Oracle Reports doc pbr_pdf003 shows right side in quotes.
+#   "FamilyName"<qualifier>  = "ttf-filename.ttf"
+# Right side is ALWAYS in double quotes and ALWAYS includes .ttf extension.
+# This is the confirmed correct Oracle [PDF:Subset] syntax (12.2.1 pbr_font003).
 # =============================================================================
 _subset_line_q() {
     local family="$1"
     local qualifier="$2"
     local ttf_base="$3"
     local key="\"${family}\"${qualifier}"
-    local rhs
-    # Quote the right side when it contains a hyphen to prevent mfontchk
-    # from treating '-' as a separator in the font specification.
-    if [[ "$ttf_base" == *-* ]]; then
-        rhs="\"${ttf_base}\""
-    else
-        rhs="${ttf_base}"
-    fi
 
     if _font_available "$ttf_base"; then
-        printf '%-40s = %s\n' "${key}" "${rhs}"
+        printf '%-40s = "%s"\n' "${key}" "$(_ttf_with_ext "$ttf_base")"
     else
-        printf '#%-39s = %s  (font not deployed)\n' "${key}" "${rhs}"
+        printf '#%-39s = "%s.ttf"  (font not deployed)\n' "${key}" "${ttf_base}"
     fi
 }
 
