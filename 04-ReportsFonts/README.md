@@ -368,11 +368,15 @@ Generated uifont.ali entries (in specificity order):
 | Courier New           | Liberation Mono           | liberation-fonts            | ✓ Exact      |
 | Calibri               | Carlito                   | google-carlito-fonts        | ✓ Exact      |
 | Cambria               | Caladea                   | google-caladea-fonts        | ✓ Exact      |
-| Tahoma                | DejaVu Sans               | dejavu-fonts-all            | ~ Close      |
-| Verdana               | DejaVu Sans               | dejavu-fonts-all            | ~ Close      |
+| Tahoma                | DejaVu Sans               | dejavu-sans-fonts           | ~ Close      |
+| Verdana               | DejaVu Sans               | dejavu-sans-fonts           | ~ Close      |
 | Georgia               | Liberation Serif          | liberation-fonts            | ~ Close      |
-| Trebuchet MS          | DejaVu Sans               | dejavu-fonts-all            | ~ Close      |
+| Trebuchet MS          | DejaVu Sans               | dejavu-sans-fonts           | ~ Close      |
 | Palatino Linotype     | Liberation Serif          | liberation-fonts            | ~ Close      |
+
+> **DejaVu package names on RHEL / Oracle Linux** (kein `dejavu-fonts-all`):
+> `dejavu-sans-fonts`, `dejavu-sans-mono-fonts`, `dejavu-serif-fonts`,
+> `dejavu-lgc-sans-fonts`, `dejavu-lgc-sans-mono-fonts`, `dejavu-lgc-serif-fonts`
 
 ### Fonts Requiring the Original TTF File
 
