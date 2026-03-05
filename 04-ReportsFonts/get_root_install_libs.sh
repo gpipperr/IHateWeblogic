@@ -198,11 +198,14 @@ else
     info "Run the following as root to install all missing packages:"
     printf "\n"
     # Print multi-line command to terminal (not via info to preserve formatting)
-    printf "  sudo dnf install -y"
+    # Single quotes required: double quotes cause bash to collapse \\+\n into
+    # a literal \n string before printf sees it, producing output with \n instead
+    # of real newlines.
+    printf "  sudo %s install -y" "$DNF_CMD"
     for pkg in "${MISSING_PKGS[@]}"; do
-        printf " \\\n    %s" "$pkg"
+        printf ' \\\n    %s' "$pkg"
     done
-    printf "\n\n"
+    printf '\n\n'
     # Also log flat version
     printf "# dnf install command: sudo %s install -y %s\n" \
         "$DNF_CMD" "${MISSING_PKGS[*]}" >> "${LOG_FILE:-/dev/null}"
