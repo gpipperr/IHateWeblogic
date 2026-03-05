@@ -102,84 +102,177 @@ _engine_attr() {
     printf "%s" "$val"
 }
 
-# Parse the rwservlet XML response and print engine pool + job queue tables.
+# Extract element value <tag>value</tag> from an XML string (not a file).
+# Usage: _xval "$xml" "tagname"
+_xval() { printf "%s" "$1" | sed -n "s|.*<${2}>\([^<]*\)</${2}>.*|\1|p" | head -1; }
+
+# Extract a named attribute from a single XML tag line.
+# Usage: _xline_attr "$line" "attrname"
+_xline_attr() { printf "%s" "$1" | sed -n "s/.*[[:space:]]${2}=\"\([^\"]*\)\".*/\1/p"; }
+
+# Extract the value of <property name="N" value="V"/> from an XML string.
+# Usage: _xprop "$xml" "propertyName"
+_xprop() { printf "%s" "$1" | grep "name=\"${2}\"" | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1; }
+
+# Parse the rwservlet XML response (getserverinfo?statusformat=XML) and display
+# four sections: Server Info, Engine Pool, Performance, Connections.
 # Must be defined before its call site.
 _parse_rwservlet_xml() {
     local xml="$1"
     [ -z "$xml" ] && return
 
+    # ─── A: Server Info ───────────────────────────────────────────────────────
+    section "Server Info"
+
+    local srv_name srv_ver srv_host srv_pid start_ms is_secure avg_auth queue_max
+    srv_name="$(  printf "%s" "$xml" | sed -n 's/.*<serverInfo[^>]*name="\([^"]*\)".*/\1/p'    | head -1)"
+    srv_ver="$(   printf "%s" "$xml" | sed -n 's/.*<serverInfo[^>]*version="\([^"]*\)".*/\1/p' | head -1)"
+    srv_host="$(  _xval "$xml" "host")"
+    srv_pid="$(   _xval "$xml" "processId")"
+    start_ms="$(  _xval "$xml" "startTime")"
+    is_secure="$( _xval "$xml" "isSecure")"
+    avg_auth="$(  _xval "$xml" "avgAuthTime")"
+    queue_max="$( printf "%s" "$xml" | sed -n 's/.*<queue[^>]*maxQueueSize="\([^"]*\)".*/\1/p' | head -1)"
+
+    # startTime is epoch-milliseconds → human readable + uptime
+    local start_human="" uptime_str=""
+    if [ -n "$start_ms" ] && [ "$start_ms" -gt 0 ] 2>/dev/null; then
+        local ep=$(( start_ms / 1000 ))
+        start_human="$(date -d "@${ep}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+        local now up d h m
+        now="$(date +%s)"
+        up=$(( now - ep ))
+        d=$(( up / 86400 ))
+        h=$(( (up % 86400) / 3600 ))
+        m=$(( (up % 3600) / 60 ))
+        uptime_str="${d}d ${h}h ${m}m"
+    fi
+
+    local secure_label
+    case "${is_secure:-}" in 1) secure_label="Yes (HTTPS)";; 0) secure_label="No (HTTP)";; *) secure_label="${is_secure:-(unknown)}";; esac
+
+    printf "  %-28s %s\n" "Server name:"    "${srv_name:-(unknown)}"
+    printf "  %-28s %s\n" "Version:"        "${srv_ver:-(unknown)}"
+    printf "  %-28s %s\n" "Host:"           "${srv_host:-(unknown)}"
+    [ -n "$srv_pid" ]     && printf "  %-28s %s\n"    "Process ID:"    "$srv_pid"
+    [ -n "$start_human" ] && printf "  %-28s %s  (up: %s)\n" "Running since:" "$start_human" "$uptime_str"
+    printf "  %-28s %s\n" "Secured:"        "$secure_label"
+    [ -n "$avg_auth" ]    && printf "  %-28s %s ms\n" "Avg auth time:" "$avg_auth"
+    [ -n "$queue_max" ]   && printf "  %-28s %s\n"    "Max queue size:" "$queue_max"
+
+    # ─── B: Engine Pool ───────────────────────────────────────────────────────
     printLine
     section "Engine Pool"
 
-    local total_eng idle_eng busy_eng
-    # grep -c exits 1 on 0 matches but still prints "0".
-    # Using "|| var=..." here would double the zero; reset via fallback assignment instead.
-    total_eng="$(printf "%s" "$xml" | grep -c '<engine '    2>/dev/null)" || total_eng="${total_eng:-0}"
-    idle_eng="$( printf "%s" "$xml" | grep -c 'status="idle"' 2>/dev/null)" || idle_eng="${idle_eng:-0}"
-    busy_eng="$( printf "%s" "$xml" | grep -c 'status="busy"' 2>/dev/null)" || busy_eng="${busy_eng:-0}"
+    local _eline
+    while IFS= read -r _eline; do
+        [ -z "$_eline" ] && continue
+        local eid eact erun ebusy eidle
+        eid="$(   _xline_attr "$_eline" "id")"
+        eact="$(  _xline_attr "$_eline" "activeEngine")"
+        erun="$(  _xline_attr "$_eline" "runningEngine")"
+        ebusy="$( _xline_attr "$_eline" "totalBusyEngines")"
+        eidle="$( _xline_attr "$_eline" "totalIdleEngines")"
+        printf "\n  Engine \033[1m%-20s\033[0m  Active:%-3s  Running:%-3s  Busy:%-3s  Idle:%-3s\n" \
+            "${eid:-(?)}" "${eact:--}" "${erun:--}" "${ebusy:--}" "${eidle:--}"
+        if [ "${ebusy:-0}" -gt 0 ] && [ "${eidle:-1}" -eq 0 ] 2>/dev/null; then
+            warn "  Engine '${eid}' – all instances busy, consider increasing maxEngine"
+        fi
+    done < <(printf "%s" "$xml" | grep '<engine ')
 
-    printf "  %-26s %s\n" "Total engines (live):" "$total_eng" | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-26s %s\n" "Idle:"                 "$idle_eng"  | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-26s %s\n" "Busy:"                 "$busy_eng"  | tee -a "${LOG_FILE:-/dev/null}"
-
-    if [ -n "${CFG_MAX_ENGINES:-}" ] && [ "$CFG_MAX_ENGINES" != "-" ]; then
-        printf "  %-26s %s / %s  (min %s)\n" \
-            "Configured:" "$total_eng" "$CFG_MAX_ENGINES" "${CFG_MIN_ENGINES:--}" \
-            | tee -a "${LOG_FILE:-/dev/null}"
+    # Per-instance detail table
+    local inst_lines
+    inst_lines="$(printf "%s" "$xml" | grep '<engineInstance')"
+    if [ -n "$inst_lines" ]; then
+        printf "\n  \033[1m%-14s %-8s %-8s %-14s %-8s %-9s %-9s %s\033[0m\n" \
+            "Instance" "PID" "Status" "Job ID" "Idle(s)" "Jobs run" "Life left" "NLS"
+        while IFS= read -r _iline; do
+            [ -z "$_iline" ] && continue
+            local iname ipid istatus ijob iidle injobs ilife inls status_str
+            iname="$(  _xline_attr "$_iline" "name")"
+            ipid="$(   _xline_attr "$_iline" "processId")"
+            istatus="$(_xline_attr "$_iline" "status")"
+            ijob="$(   _xline_attr "$_iline" "runJobId")"
+            iidle="$(  _xline_attr "$_iline" "idleTime")"
+            injobs="$( _xline_attr "$_iline" "numJobsRun")"
+            ilife="$(  _xline_attr "$_iline" "lifeLeft")"
+            inls="$(   _xline_attr "$_iline" "nls")"
+            case "$istatus" in
+                1)  status_str="IDLE" ;;
+                2)  status_str=$'\033[33mBUSY\033[0m' ;;
+                0)  status_str=$'\033[31mDEAD\033[0m' ;;
+                *)  status_str="UNK(${istatus})" ;;
+            esac
+            [ "$ijob" = "-1" ] && ijob="(none)"
+            printf "  %-14s %-8s %-8b %-14s %-8s %-9s %-9s %s\n" \
+                "${iname:--}" "${ipid:--}" "$status_str" "$ijob" \
+                "${iidle:--}" "${injobs:--}" "${ilife:--}" "${inls:--}"
+        done <<< "$inst_lines"
     fi
 
-    if   [ "$busy_eng" -gt 0 ] && [ "$total_eng" -gt 0 ] && [ "$busy_eng" -eq "$total_eng" ]; then
-        warn "All engines busy – consider increasing maxEngine in rwserver.conf"
-    elif [ "$busy_eng" -gt 0 ]; then
-        ok "${busy_eng} engine(s) processing jobs"
-    else
-        ok "All engines idle"
-    fi
-
-    # Per-engine details
-    if [ "$total_eng" -gt 0 ]; then
-        printf "\n  \033[1m%-8s  %-8s  %-14s  %s\033[0m\n" \
-            "ID" "Status" "Type" "PID" | tee -a "${LOG_FILE:-/dev/null}"
-        printf "%s" "$xml" | grep '<engine ' | while IFS= read -r line; do
-            local _id _st _ty _pid
-            _id="$( printf "%s" "$line" | sed -n 's/.*[[:space:]]id="\([^"]*\)".*/\1/p')"
-            _st="$( printf "%s" "$line" | sed -n 's/.*status="\([^"]*\)".*/\1/p')"
-            _ty="$( printf "%s" "$line" | sed -n 's/.*type="\([^"]*\)".*/\1/p')"
-            _pid="$(printf "%s" "$line" | sed -n 's/.*pid="\([^"]*\)".*/\1/p')"
-            printf "  %-8s  %-8s  %-14s  %s\n" \
-                "${_id:--}" "${_st:--}" "${_ty:--}" "${_pid:--}"
-        done | tee -a "${LOG_FILE:-/dev/null}"
-    fi
-
+    # ─── C: Performance ───────────────────────────────────────────────────────
     printLine
-    section "Job Queue"
+    section "Performance"
 
-    local pending running finished failed
-    # Format A: <jobs pending="N" running="N" finished="N" failed="N"/>
-    pending="$( printf "%s" "$xml" | sed -n 's/.*pending="\([0-9]*\)".*/\1/p'  | head -1)"
-    running="$( printf "%s" "$xml" | sed -n 's/.*running="\([0-9]*\)".*/\1/p'  | head -1)"
-    finished="$(printf "%s" "$xml" | sed -n 's/.*finished="\([0-9]*\)".*/\1/p' | head -1)"
-    failed="$(  printf "%s" "$xml" | sed -n 's/.*failed="\([0-9]*\)".*/\1/p'   | head -1)"
-    # Format B: <queue runningJobs="N" scheduledJobs="N" .../>
-    [ -z "$running"  ] && running="$( printf "%s" "$xml" | sed -n 's/.*runningJobs="\([0-9]*\)".*/\1/p'   | head -1)"
-    [ -z "$pending"  ] && pending="$( printf "%s" "$xml" | sed -n 's/.*scheduledJobs="\([0-9]*\)".*/\1/p' | head -1)"
-    [ -z "$failed"   ] && failed="$(  printf "%s" "$xml" | sed -n 's/.*failedJobs="\([0-9]*\)".*/\1/p'    | head -1)"
-    [ -z "$finished" ] && finished="$(printf "%s" "$xml" | sed -n 's/.*successJobs="\([0-9]*\)".*/\1/p'   | head -1)"
+    local p_ok p_cur p_fut p_trans p_fail p_long p_run p_resp p_elap p_queue
+    p_ok="$(    _xprop "$xml" "successfulJobs")"
+    p_cur="$(   _xprop "$xml" "currentJobs")"
+    p_fut="$(   _xprop "$xml" "futureJobs")"
+    p_trans="$( _xprop "$xml" "transferredJobs")"
+    p_fail="$(  _xprop "$xml" "failedJobs")"
+    p_long="$(  _xprop "$xml" "longRunningJobs")"
+    p_run="$(   _xprop "$xml" "potentialRunawayJobs")"
+    p_resp="$(  _xprop "$xml" "averageResponseTime")"
+    p_elap="$(  _xprop "$xml" "averageElapsedTime")"
+    p_queue="$( _xprop "$xml" "avgQueuingTime")"
 
-    printf "  %-26s %s\n" "Pending:"  "${pending:--}"  | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-26s %s\n" "Running:"  "${running:--}"  | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-26s %s\n" "Finished:" "${finished:--}" | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-26s %s\n" "Failed:"   "${failed:--}"   | tee -a "${LOG_FILE:-/dev/null}"
+    printf "  %-28s %s\n"    "Successful jobs:"        "${p_ok:--}"
+    printf "  %-28s %s\n"    "Current jobs:"           "${p_cur:--}"
+    printf "  %-28s %s\n"    "Future jobs:"            "${p_fut:--}"
+    printf "  %-28s %s\n"    "Transferred jobs:"       "${p_trans:--}"
+    printf "  %-28s %s\n"    "Failed jobs:"            "${p_fail:--}"
+    printf "  %-28s %s\n"    "Long running jobs:"      "${p_long:--}"
+    printf "  %-28s %s\n"    "Potential runaway jobs:" "${p_run:--}"
+    printf "  %-28s %s ms\n" "Avg response time:"      "${p_resp:--}"
+    printf "  %-28s %s ms\n" "Avg elapsed time:"       "${p_elap:--}"
+    printf "  %-28s %s ms\n" "Avg queuing time:"       "${p_queue:--}"
 
-    if [ -n "$failed" ] && [ "$failed" != "-" ] && [ "$failed" -gt 0 ]; then
-        warn "${failed} failed job(s) – check Reports Server logs"
-        info "Search: ./03-Logs/grep_logs.sh 'REP-'"
+    if [ -n "$p_run" ] && [ "$p_run" != "-" ] && [ "$p_run" -gt 0 ] 2>/dev/null; then
+        fail "${p_run} potential runaway job(s) – investigate immediately"
     fi
-    if [ -n "$pending" ] && [ "$pending" != "-" ] && [ "$pending" -gt 0 ]; then
-        info "${pending} job(s) waiting in queue"
+    if [ -n "$p_long" ] && [ "$p_long" != "-" ] && [ "$p_long" -gt 0 ] 2>/dev/null; then
+        warn "${p_long} long-running job(s)"
     fi
-    if [ -n "$running" ] && [ "$running" != "-" ] && [ "$running" -gt 0 ]; then
-        ok "${running} job(s) currently running"
+    if [ -n "$p_fail" ] && [ "$p_fail" != "-" ] && [ "$p_fail" -gt 0 ] 2>/dev/null; then
+        warn "${p_fail} failed job(s) – check Reports Server logs"
+        info "  Search: ./03-Logs/grep_logs.sh 'REP-'"
+    else
+        ok "No failed jobs"
+    fi
+    if [ "${p_cur:-0}" -gt 0 ] 2>/dev/null; then
+        ok "${p_cur} job(s) currently executing"
+    fi
+
+    # ─── D: Connections ───────────────────────────────────────────────────────
+    printLine
+    section "Connections"
+
+    local c_used c_avail e_maxused e_avgused
+    c_used="$(   printf "%s" "$xml" | sed -n 's/.*<connection[^>]*connectionsUsed="\([^"]*\)".*/\1/p'      | head -1)"
+    c_avail="$(  printf "%s" "$xml" | sed -n 's/.*<connection[^>]*connectionsAvailable="\([^"]*\)".*/\1/p' | head -1)"
+    e_maxused="$(printf "%s" "$xml" | sed -n 's/.*<engineInfo[^>]*maxEnginesUsed="\([^"]*\)".*/\1/p'      | head -1)"
+    e_avgused="$(printf "%s" "$xml" | sed -n 's/.*<engineInfo[^>]*avgEnginesUsed="\([^"]*\)".*/\1/p'      | head -1)"
+
+    printf "  %-28s %s\n" "Connections used:"      "${c_used:--}"
+    printf "  %-28s %s\n" "Connections available:" "${c_avail:--}"
+    printf "  %-28s %s\n" "Max engines used:"      "${e_maxused:--}"
+    printf "  %-28s %s\n" "Avg engines used:"      "${e_avgused:--}"
+
+    if [ -n "$c_avail" ] && [ "$c_avail" = "0" ] && \
+       [ -n "$c_used" ]  && [ "$c_used" -gt 0 ] 2>/dev/null; then
+        warn "Connection pool exhausted (used=${c_used}, available=0)"
+    else
+        ok "Connection pool OK"
     fi
 }
 
@@ -372,10 +465,11 @@ if ! command -v curl > /dev/null 2>&1; then
 else
     SERVLET_BASE="http://${WLS_REPORTS_HOST}:${WLS_REPORTS_PORT}/reports/rwservlet"
     if [ -n "${RS_NAME:-}" ]; then
-        STATUS_URL="${SERVLET_BASE}?getserverinfo&server=${RS_NAME}&statusformat=xml"
+        STATUS_URL="${SERVLET_BASE}/getserverinfo?server=${RS_NAME}&statusformat=XML"
     else
-        STATUS_URL="${SERVLET_BASE}?getserverinfo&statusformat=xml"
+        STATUS_URL="${SERVLET_BASE}/getserverinfo?statusformat=XML"
     fi
+    printf "  %-26s %s\n" "Status URL:" "$STATUS_URL"
 
     # Fetch XML body and HTTP status code in two calls (avoids -w/%{http_code} + body mix)
     HTTP_XML="$(curl -s --connect-timeout 5 --max-time 10 "$STATUS_URL" 2>/dev/null)"

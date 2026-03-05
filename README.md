@@ -179,3 +179,12 @@ Based on: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluessel
 The WebLogic admin password is encrypted with `openssl des3` using the machine's
 disk UUID as key. The encrypted file `weblogic_sec.conf.des3` is machine-specific
 and **must not be committed to git** (covered by `.gitignore`).
+
+## Open Items / TODO
+
+- [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):
+  `getserverinfo` is currently called without credentials (works on unsecured servlets).
+  Secured rwservlet instances require `authid=user/password` in the URL or HTTP Basic Auth.
+  Credentials must be stored encrypted using the same mechanism as the WebLogic password
+  (`openssl des3` + system UUID key via `00-Setup/weblogic_sec.sh`).
+  Until implemented: restrict `rwservlet` access via firewall or WLS security policy.
