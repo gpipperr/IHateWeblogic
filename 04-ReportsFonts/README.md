@@ -7,6 +7,33 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 
 ---
 
+## Lessons Learned
+
+Five conditions must ALL be true for Oracle Reports to embed TrueType fonts in PDFs.
+If any one is missing, the font falls back to Type 1 (non-embedded).
+
+| # | Condition | How to verify | Fix |
+|---|-----------|---------------|-----|
+| 1 | **TTF file exists in REPORTS_FONT_DIRECTORY** | `ls $DOMAIN_HOME/reports/fonts/*.ttf` | `deploy_fonts.sh --apply` |
+| 2 | **REPORTS_FONT_DIRECTORY is set in the JVM** | `cat /proc/$(pgrep -f WLS_REPORTS)/environ \| tr '\0' '\n' \| grep REPORTS` | `fontpath_config.sh --apply` + restart |
+| 3 | **Font cache is current** (fontconfig) | `fc-list \| grep <fontname>` | `fc-cache -fv $DOMAIN_HOME/reports/fonts/` |
+| 4 | **uifont.ali [PDF:Subset] mapping is correct** | `mfontchk <uifont.ali>` | `uifont_ali_update.sh --apply` |
+| 5 | **Reports Server was restarted** after every change | `rwserver_status.sh` | `startStop.sh STOP/START WLS_REPORTS` |
+
+**Critical syntax rule for uifont.ali `[PDF:Subset]`:**
+
+```ini
+"FontName"..  = "filename.ttf"    ← right side MUST be in quotes WITH .ttf extension
+"FontName"..  = filename.ttf      ← WRONG – no quotes
+"FontName"..  = "filename"        ← WRONG – no extension
+```
+
+Without the correct syntax (`"filename.ttf"` with both quotes and extension),
+mfontchk may accept the file but Oracle Reports silently skips the mapping
+and falls back to Type 1 PostScript — `pdffonts` then shows `emb=no`.
+
+---
+
 ## Table of Contents
 
 1. [The Problem in a Nutshell](#1-the-problem-in-a-nutshell)
