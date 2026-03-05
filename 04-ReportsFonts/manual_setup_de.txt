@@ -150,8 +150,13 @@ SCHRITT 4: uifont.ali aus Backup einspielen  (als oracle)
 
 
 ================================================================================
-SCHRITT 5: REPORTS_FONT_DIRECTORY in setUserOverrides.sh eintragen  (als oracle)
+SCHRITT 5: Umgebungsvariablen in setUserOverrides.sh eintragen  (als oracle)
 ================================================================================
+
+  # Die Datei setUserOverrides.sh wird von setDomainEnv.sh automatisch eingebunden
+  # und setzt Umgebungsvariablen fuer den WebLogic-Start (FMW-Standard).
+  # fontpath_config.sh --apply setzt diese Zeilen automatisch.
+  # Hier die manuellen Aequivalente:
 
   OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
 
@@ -165,17 +170,35 @@ SCHRITT 5: REPORTS_FONT_DIRECTORY in setUserOverrides.sh eintragen  (als oracle)
   cat >> "$OVERRIDES" << 'ENVEOF'
 
 # === TrueType Font-Konfiguration fuer Oracle Reports (manuell gesetzt) ===
+# 1) Verzeichnis mit den TTF-Dateien (absolute Pfadangabe, keine Variable!)
 export REPORTS_FONT_DIRECTORY=/u01/user_projects/domains/fr_domain/reports/fonts
-export REPORTS_ENHANCED_FONTHANDLING=1
+
+# 2) Erweitertes Font-Handling aktivieren (ja/1 – beides wird akzeptiert)
+export REPORTS_ENHANCED_FONTHANDLING=yes
+
+# 3) uifont.ali explizit angeben (tk-Layer und Oracle-Schicht)
+export TK_FONTALIAS=/u01/user_projects/domains/fr_domain/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali
+export ORACLE_FONTALIAS=/u01/user_projects/domains/fr_domain/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali
+
+# 4) Dieselben Werte als JVM-Systemproperties (-D) uebergeben,
+#    damit auch der In-Process-Reports-Server sie aus der JVM liest:
+export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=/u01/user_projects/domains/fr_domain/reports/fonts"
+export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"
 # === Ende Font-Konfiguration ===
 ENVEOF
 
   # Kontrolle
-  grep -A4 "REPORTS_FONT_DIRECTORY" "$OVERRIDES"
+  grep -A2 "Font-Konfiguration" "$OVERRIDES"
 
   # WICHTIG: Absoluten Pfad verwenden (keine Variablen wie $DOMAIN_HOME),
   # da setUserOverrides.sh zu einem Zeitpunkt ausgefuehrt wird, zu dem
   # $DOMAIN_HOME noch nicht immer gesetzt ist.
+  #
+  # Warum JAVA_OPTIONS zusaetzlich?
+  # Der In-Process-Reports-Server laeuft als Thread im WLS-JVM-Prozess.
+  # Umgebungsvariablen werden von der JVM beim Start gelesen – aber
+  # REPORTS_FONT_DIRECTORY wird intern auch als Java-Systemproperty
+  # (-D) ausgewertet. Beide Wege sichern die Erkennung ab.
 
 
 ================================================================================
