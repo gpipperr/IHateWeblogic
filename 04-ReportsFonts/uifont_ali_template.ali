@@ -19,7 +19,7 @@
 #     ...Light       = Light
 #     ..             = Regular / default catch-all (must come last)
 #
-#   [PDF:Subset] right side: TTF filename without extension, no quotes.
+#   [PDF:Subset] right side: "filename.ttf"  (always quoted, always with .ttf).
 #   [PDF:Embed]  right side: "file.afm file.pfa"  (Type 1 embedding).
 #
 #   Precedence within PDF sections (highest first):

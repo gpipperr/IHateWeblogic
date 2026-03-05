@@ -386,6 +386,37 @@ NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              ".."            "Dej
 NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana Bold"         ""              "DejaVuSans-Bold")")
 NEW_SUBSET_LINES+=("")
 
+# ─── Symbol / special-character fonts ─────────────────────────────────────────
+# "Symbol" in a report can be:
+#   A) PostScript Symbol font (Greek letters α β γ, math ∑ ∫ ≤)
+#   B) Windows Symbol font (decorative dingbats, arrows, checkmarks)
+#   C) A corporate symbol/icon font designed for that report
+#
+# Determine what your report actually uses:
+#   strings <report>.rdf | grep -i symbol
+#   pdffonts <report>.pdf   → check object ID, encoding
+#
+# Option A – map to DejaVuSans (covers ✓ ✗ → and common arrows via Unicode):
+#   Deploy: DejaVuSans.ttf is already covered above via Tahoma/Verdana entries.
+#   Add here if report explicitly uses font named "Symbol":
+#   "Symbol"..  = "DejaVuSans.ttf"
+#
+# Option B – deploy original Symbol.ttf from Windows (requires Windows license):
+#   cp /windows/Fonts/Symbol.ttf ./04-ReportsFonts/custom_fonts_dir/
+#   Then uncomment and add to custom_fonts_dir – auto-detected by script.
+#
+# Option C – custom corporate symbol font:
+#   Place the TTF in custom_fonts_dir/ – auto-detected and mapped by script.
+#
+# Active mapping (uncomment ONE option, or leave commented if using [Global] alias):
+NEW_SUBSET_LINES+=("# ─── Symbol / special-character fonts ────────────────────────────────────────")
+NEW_SUBSET_LINES+=("# Uncomment the appropriate mapping for your environment (see uifont_ali_update.sh):")
+# Uncomment if the report uses a font literally named "Symbol" and you have Symbol.ttf:
+# NEW_SUBSET_LINES+=("$(_subset_line_q "Symbol"              ".."            "Symbol")")
+# Uncomment if Symbol is used only for common arrows/checkmarks (no Windows TTF):
+# NEW_SUBSET_LINES+=("$(_subset_line_q "Symbol"              ".."            "DejaVuSans")")
+NEW_SUBSET_LINES+=("")
+
 # ─── Custom fonts from custom_fonts_dir/ ──────────────────────────────────────
 # Two-pass approach:
 #   Pass 1: collect "family|priority|qualifier|ttf_base" for every custom TTF
