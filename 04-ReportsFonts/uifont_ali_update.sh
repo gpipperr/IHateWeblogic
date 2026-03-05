@@ -597,9 +597,11 @@ else
         info "  Setting LD_LIBRARY_PATH += \$ORACLE_HOME/lib for mfontchk"
     fi
 
-    # mfontchk validates TTF filenames against REPORTS_FONT_DIR;
-    # without this env var set, it reports 'Invalid font specification' for every
-    # [PDF:Subset] entry even when the file structure is correct.
+    # mfontchk validates TTF filenames against the font directory.
+    # Oracle documentation uses both names:
+    #   REPORTS_FONT_DIR       – environment variable name
+    #   REPORTS_FONT_DIRECTORY – rwserver.conf parameter name
+    # mfontchk may accept either; we pass both to be safe.
     _MFONTCHK_FONT_DIR="${REPORTS_FONT_DIR:-}"
 
     printf "\n"
@@ -607,6 +609,7 @@ else
     printf "\n"
     _MFONTCHK_OUT="$(LD_LIBRARY_PATH="$_MFONTCHK_LD" \
         REPORTS_FONT_DIR="$_MFONTCHK_FONT_DIR" \
+        REPORTS_FONT_DIRECTORY="$_MFONTCHK_FONT_DIR" \
         "$_MFONTCHK" "$_TARGET_ALI" 2>&1)"
     _MFONTCHK_RC=$?
 
