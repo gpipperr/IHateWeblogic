@@ -438,6 +438,7 @@ cat /proc/$(pgrep -f WLS_REPORTS)/environ | tr '\0' '\n' | grep REPORTS
 | `uifont_ali_update.sh` | Rewrite `uifont.ali` with fresh `[PDF:Subset]` section | uifont.ali |
 | `fontpath_config.sh` | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
 | `pdf_font_verify.sh` | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
+| `font_cache_reset.sh` | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
 
 All scripts default to **dry-run** mode. Add `--apply` to write changes.
 

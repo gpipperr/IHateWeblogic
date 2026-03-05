@@ -107,6 +107,7 @@ IHateWeblogic/
 │   ├── uifont_ali_update.sh         – Backup uifont.ali, rebuild PS → TTF mappings (--apply)
 │   ├── fontpath_config.sh           – Set REPORTS_FONTPATH in rwserver.conf (--apply)
 │   ├── pdf_font_verify.sh           – Verify generated PDFs: embedded=yes, type=TrueType (pdffonts)
+│   ├── font_cache_reset.sh          – Rebuild Linux fontconfig cache (fc-cache) after font deploy (--apply)
 │   └── custom_fonts_dir/            – Drop corporate/customer font files here before deploying
 │
 ├── 05-ReportsPerformance/
@@ -126,7 +127,6 @@ IHateWeblogic/
 │   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
 │   ├── cache_clean.sh               – Clear Reports cache contents, keep directory structure (--apply)
-│   ├── font_cache_reset.sh          – Clear Linux font cache (fc-cache) + display restart hint (--apply)
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type
 │
 └── 08-SSL/

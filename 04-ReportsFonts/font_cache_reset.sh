@@ -77,7 +77,7 @@ section "Prerequisites"
 if ! command -v fc-cache >/dev/null 2>&1; then
     fail "fc-cache not found – install fontconfig"
     info "  Run: sudo dnf install -y fontconfig"
-    info "  Or:  ./04-ReportsFonts/get_root_install_libs.sh --apply"
+    info "  Or:  ./get_root_install_libs.sh --apply  (same directory)"
     print_summary
     exit $EXIT_CODE
 fi
