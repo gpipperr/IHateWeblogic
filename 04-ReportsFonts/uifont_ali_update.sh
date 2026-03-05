@@ -203,18 +203,29 @@ _style_sort_priority() {
 
 # =============================================================================
 # Helper: emit one [PDF:Subset] line – qualifier is placed OUTSIDE the quotes
-#   "FamilyName"<qualifier>  = ttf_base
+#   "FamilyName"<qualifier>  = ttf_base          (no hyphen → no quotes needed)
+#   "FamilyName"<qualifier>  = "ttf-base"        (hyphen → quote right side)
+# Quoting prevents mfontchk from mis-parsing '-' as a font-attribute separator.
+# Reference: Oracle Reports doc pbr_pdf003 shows right side in quotes.
 # =============================================================================
 _subset_line_q() {
     local family="$1"
     local qualifier="$2"
     local ttf_base="$3"
     local key="\"${family}\"${qualifier}"
+    local rhs
+    # Quote the right side when it contains a hyphen to prevent mfontchk
+    # from treating '-' as a separator in the font specification.
+    if [[ "$ttf_base" == *-* ]]; then
+        rhs="\"${ttf_base}\""
+    else
+        rhs="${ttf_base}"
+    fi
 
     if _font_available "$ttf_base"; then
-        printf '%-40s = %s\n' "${key}" "${ttf_base}"
+        printf '%-40s = %s\n' "${key}" "${rhs}"
     else
-        printf '#%-39s = %s  (font not deployed)\n' "${key}" "${ttf_base}"
+        printf '#%-39s = %s  (font not deployed)\n' "${key}" "${rhs}"
     fi
 }
 

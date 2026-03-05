@@ -49,7 +49,7 @@ _detect_wls_reports_server() {
     domain_name="$(basename "${DOMAIN_HOME:-/}")"
 
     # Strategy 1: extract server name first, then filter by name (not full cmdline).
-    # Full cmdline often contains "report" via domain path (e.g. reportPisa),
+    # Full cmdline often contains "report" via domain path (e.g. fr_domain),
     # which would wrongly match AdminServer.
     found="$(pgrep -a -f 'weblogic.Name=' 2>/dev/null \
         | sed -n 's/.*-Dweblogic\.Name=\([^ ]*\).*/\1/p' \

@@ -293,8 +293,8 @@ DET_DOMAIN_HOME="$(detect_domain_home)"
 if [ -n "$DET_DOMAIN_HOME" ] && [ -f "$DET_DOMAIN_HOME/config/config.xml" ]; then
     ok "DOMAIN_HOME detected: $DET_DOMAIN_HOME"
 else
-    warn "DOMAIN_HOME not auto-detected – using default: /u01/user_projects/domains/reportPisa"
-    DET_DOMAIN_HOME="/u01/user_projects/domains/reportPisa"
+    warn "DOMAIN_HOME not auto-detected – using default: /u01/user_projects/domains/fr_domain"
+    DET_DOMAIN_HOME="/u01/user_projects/domains/fr_domain"
 fi
 
 DET_DOMAIN_NAME="$(basename "$DET_DOMAIN_HOME")"
