@@ -590,6 +590,43 @@ Fix:    Option A – deploy original Wingdings.ttf (requires Windows license)
                    ✓ = U+2713, ✗ = U+2717, → = U+2192
 ```
 
+### Symbol font appears as Type 1 (emb=no) in pdffonts output
+
+```
+Symptom: pdffonts shows:
+           Symbol   Type 1   Symbol   no  no  no
+         The font is not embedded – it relies on the viewer/printer having Symbol installed.
+
+Cause:  No [PDF:Subset] mapping exists for "Symbol" in uifont.ali.
+        Oracle Reports falls back to the legacy PostScript Symbol font (Type 1).
+
+Step 1 – Identify what the report uses as "Symbol":
+         strings /path/to/report.rdf | grep -i 'symbol' | sort -u
+         → Look for fontName="Symbol" entries
+
+Step 2 – Choose a TTF substitute:
+         A) Arrows, checkmarks (✓ ✗ → ●) only → use DejaVuSans.ttf (already deployed)
+            Add to uifont_ali_update.sh Symbol section, uncomment:
+              NEW_SUBSET_LINES+=("$(_subset_line_q "Symbol" ".." "DejaVuSans")")
+
+         B) Greek letters (α β γ) or math symbols (∑ ∫) → deploy Symbol.ttf from Windows
+            cp /windows/Fonts/Symbol.ttf ./04-ReportsFonts/custom_fonts_dir/
+            Run deploy_fonts.sh --apply
+            Then uncomment in uifont_ali_update.sh:
+              NEW_SUBSET_LINES+=("$(_subset_line_q "Symbol" ".." "Symbol")")
+
+Step 3 – Verify the [PDF:Subset] entry uses the correct syntax:
+         The mapping MUST use double quotes AND .ttf extension on the right side:
+           "Symbol"..  = "DejaVuSans.ttf"      ← correct
+           "Symbol"..  = DejaVuSans             ← wrong (no quotes, no extension)
+           "Symbol"..  = "DejaVuSans"           ← wrong (no extension)
+         Without the correct syntax, mfontchk may accept the file but Oracle Reports
+         will not perform TTF substitution → Symbol stays as Type 1.
+
+Step 4 – Run uifont_ali_update.sh --apply and restart Reports Server.
+Step 5 – Verify with pdffonts: Symbol should now show TrueType emb=yes sub=yes.
+```
+
 ### Enable font diagnostic logging in Oracle Reports
 
 ```bash
@@ -669,6 +706,10 @@ CompanyRg,Bold                       Type 1            WinAnsi          no  no  
 **Root cause:** `REPORTS_ENHANCED_FONTHANDLING=yes` not active, or `uifont.ali`
 has no `[PDF:Subset]` mappings for these font names.
 
+> **Note on `Symbol Type 1 emb=no`:** The PostScript `Symbol` font (Greek/math glyphs)
+> appears as Type 1 non-embedded when no `[PDF:Subset]` mapping exists for it.
+> See troubleshooting section *"Symbol font appears as Type 1"* below.
+
 #### Good output (after correct TTF configuration)
 
 ```
@@ -690,7 +731,8 @@ YZABCD+CompanyRg-Bold                TrueType          WinAnsi          yes yes 
 
 **Required setup to reach this state:**
 1. TTF files for all fonts deployed to `REPORTS_FONT_DIRECTORY`
-2. `uifont.ali` `[PDF:Subset]` has entries for `Courier`, `Symbol`, `CompanyRg`, `CompanyRg,Bold`
+2. `uifont.ali` `[PDF:Subset]` has entries for every font used in the report
+   — including `Symbol` if the report uses it (see below)
 3. `REPORTS_ENHANCED_FONTHANDLING=yes` active in the JVM process
 4. Reports Server restarted
 
