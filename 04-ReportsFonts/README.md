@@ -600,6 +600,76 @@ Every name found here must have a matching `[PDF:Subset]` entry in `uifont.ali`.
 
 ---
 
+### PDF Font Embedding and Subsetting – What to Expect
+
+**Subsetting** a TrueType font in a PDF means embedding only the specific glyphs
+(characters) used in that document, not the entire font file. This reduces PDF size
+and ensures consistent rendering on any device without requiring the font to be
+installed on the recipient's system.
+
+Key characteristics of a correctly subsetted PDF font:
+
+- **Type:** `TrueType` (not `Type 1`) — Oracle Reports must use the TTF font model
+- **emb=yes** — the font is embedded in the PDF
+- **sub=yes** — only the used glyphs are embedded (subset), not the full font
+- **Name prefix:** A 6-character random tag followed by `+` (e.g. `ABCDEF+Arial`)
+  is added by the PDF generator to avoid conflicts with system fonts.
+  If the recipient edits the PDF and types a character not in the original document,
+  it will not display correctly — this is expected and by design.
+
+#### Bad output (Oracle Reports without correct font configuration)
+
+```
+pdffonts testbericht.pdf
+name                                 type              encoding         emb sub uni object ID
+------------------------------------ ----------------- ---------------- --- --- --- ---------
+Courier                              Type 1            WinAnsi          no  no  no       7  0
+Companyymbol                         Type 1            WinAnsi          no  no  no       8  0
+Symbol                               Type 1            Symbol           no  no  no      11  0
+CompanyRg                            Type 1            WinAnsi          no  no  no      12  0
+CompanyRg,Bold                       Type 1            WinAnsi          no  no  no      15  0
+```
+
+**Problems:**
+- All fonts are `Type 1` — the legacy PostScript font model is active
+- `emb=no` and `sub=no` — no fonts are embedded at all
+- No `XXXXXX+` subset prefix — fonts are referenced by name only
+- Printing on a system without these fonts will fail or produce wrong output
+- Corporate fonts (`CompanyRg`) are not embedded → layout unreproducible
+
+**Root cause:** `REPORTS_ENHANCED_FONTHANDLING=yes` not active, or `uifont.ali`
+has no `[PDF:Subset]` mappings for these font names.
+
+#### Good output (after correct TTF configuration)
+
+```
+pdffonts testbericht.pdf
+name                                 type              encoding         emb sub uni object ID
+------------------------------------ ----------------- ---------------- --- --- --- ---------
+ABCDEF+LiberationMono-Regular        TrueType          WinAnsi          yes yes no       7  0
+GHIJKL+Companyymbol                  TrueType          WinAnsi          yes yes no       8  0
+MNOPQR+Symbol                        TrueType          Symbol           yes yes no      11  0
+STUVWX+CompanyRg                     TrueType          WinAnsi          yes yes no      12  0
+YZABCD+CompanyRg-Bold                TrueType          WinAnsi          yes yes no      15  0
+```
+
+**Correct indicators:**
+- All fonts are `TrueType`
+- `emb=yes sub=yes` for every font
+- `XXXXXX+` prefix confirms proper subsetting
+- Corporate fonts (`CompanyRg`) are embedded → PDF is self-contained
+
+**Required setup to reach this state:**
+1. TTF files for all fonts deployed to `REPORTS_FONT_DIRECTORY`
+2. `uifont.ali` `[PDF:Subset]` has entries for `Courier`, `Symbol`, `CompanyRg`, `CompanyRg,Bold`
+3. `REPORTS_ENHANCED_FONTHANDLING=yes` active in the JVM process
+4. Reports Server restarted
+
+Verify with `pdf_font_verify.sh` — it parses `pdffonts` output and flags any
+`Type 1`, `emb=no`, or missing subset prefix automatically.
+
+---
+
 ### Verify font files and fontconfig
 
 ```bash
