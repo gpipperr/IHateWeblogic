@@ -62,22 +62,47 @@ OVERRIDES_SH="$DOMAIN_HOME/bin/setUserOverrides.sh"
 # =============================================================================
 
 # --- ReportsServerComponent dir ---
-# $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<name>/
+# $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/
+# Find the instance directory that actually contains rwserver.conf (not 'mbeans').
 REPORTS_COMP_DIR=""
 _rsc_base="$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent"
 if [ -d "$_rsc_base" ]; then
-    REPORTS_COMP_DIR="$(find "$_rsc_base" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | head -1)"
+    REPORTS_COMP_DIR="$(find "$_rsc_base" -mindepth 2 -maxdepth 2 \
+        -name "rwserver.conf" 2>/dev/null | xargs -I{} dirname {} 2>/dev/null | head -1)"
+    # Fallback: first non-mbeans subdirectory
+    if [ -z "$REPORTS_COMP_DIR" ]; then
+        REPORTS_COMP_DIR="$(find "$_rsc_base" -mindepth 1 -maxdepth 1 -type d \
+            ! -name "mbeans" 2>/dev/null | sort | head -1)"
+    fi
 fi
 
-RWSERVER_CONF_COMP=""   # ReportsServerComponent/rwserver.conf
-RWNETWORK_CONF=""        # ReportsServerComponent/rwnetwork.conf
+RWSERVER_CONF_COMP=""   # ReportsServerComponent/<instance>/rwserver.conf
+RWNETWORK_CONF_RSC=""   # ReportsServerComponent/<instance>/rwnetwork.conf
 if [ -n "$REPORTS_COMP_DIR" ]; then
     [ -f "$REPORTS_COMP_DIR/rwserver.conf" ]  && RWSERVER_CONF_COMP="$REPORTS_COMP_DIR/rwserver.conf"
-    [ -f "$REPORTS_COMP_DIR/rwnetwork.conf" ] && RWNETWORK_CONF="$REPORTS_COMP_DIR/rwnetwork.conf"
+    [ -f "$REPORTS_COMP_DIR/rwnetwork.conf" ] && RWNETWORK_CONF_RSC="$REPORTS_COMP_DIR/rwnetwork.conf"
 fi
 # Fallback: use RWSERVER_CONF from environment.conf if component dir not found
 if [ -z "$RWSERVER_CONF_COMP" ] && [ -n "${RWSERVER_CONF:-}" ] && [ -f "$RWSERVER_CONF" ]; then
     RWSERVER_CONF_COMP="$RWSERVER_CONF"
+fi
+
+# --- ReportsToolsComponent dir ---
+# $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/<instance>/rwnetwork.conf
+RWNETWORK_CONF_RTC=""
+_rtc_base="$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent"
+if [ -d "$_rtc_base" ]; then
+    RWNETWORK_CONF_RTC="$(find "$_rtc_base" -name "rwnetwork.conf" 2>/dev/null | sort | head -1)"
+fi
+
+# --- Reports Font Directory (TTF files to back up) ---
+REPORTS_FONT_DIR="${REPORTS_FONT_DIR:-$DOMAIN_HOME/reports/fonts}"
+TTF_FILES=()
+if [ -d "$REPORTS_FONT_DIR" ]; then
+    while IFS= read -r _ttf; do
+        TTF_FILES+=("$_ttf")
+    done < <(find "$REPORTS_FONT_DIR" -maxdepth 1 \
+        \( -name "*.ttf" -o -name "*.TTF" -o -name "*.otf" \) 2>/dev/null | sort)
 fi
 
 # --- Reports WLS application dir ---
@@ -142,6 +167,7 @@ printf "Log     : %s\n\n" "$LOG_FILE"
 printList "REPORTS_COMP_DIR"    36 "${REPORTS_COMP_DIR:-(not found)}"
 printList "REPORTS_WLS_CONF_DIR" 36 "${REPORTS_WLS_CONF_DIR:-(not found)}"
 printList "FORMS_WLS_CONF_DIR"  36 "${FORMS_WLS_CONF_DIR:-(not found)}"
+printList "REPORTS_FONT_DIR"    36 "${REPORTS_FONT_DIR}  (${#TTF_FILES[@]} TTF/OTF file(s))"
 printf "\n"
 
 # =============================================================================
@@ -150,9 +176,11 @@ printf "\n"
 BACKUP_ITEMS=(
     # Font configuration
     "fonts|${UIFONT_ALI}|Oracle Reports font alias file (uifont.ali)"
-    # Reports Server Component (ReportsServerComponent/<name>/)
+    # Reports Server Component (ReportsServerComponent/<instance>/)
     "reports_comp|${RWSERVER_CONF_COMP}|Reports Server Component config (rwserver.conf)"
-    "reports_comp|${RWNETWORK_CONF}|Reports Server network config (rwnetwork.conf)"
+    "reports_comp|${RWNETWORK_CONF_RSC}|Reports Server Component network config (rwnetwork.conf)"
+    # Reports Tools Component (ReportsToolsComponent/<instance>/)
+    "reports_tools|${RWNETWORK_CONF_RTC}|Reports Tools Component network config (rwnetwork.conf)"
     # Reports WLS application (reports_<version>/configuration/)
     "reports_wls|${RWSERVER_CONF_WLS}|Reports In-Process WLS config (rwserver.conf)"
     "reports_wls|${RWSERVLET_PROPS}|Reports servlet properties (rwservlet.properties)"
@@ -183,24 +211,37 @@ for item in "${BACKUP_ITEMS[@]}"; do
     IFS='|' read -r category src_path description <<< "$item"
 
     if [ -z "$src_path" ]; then
-        warn "  %-10s  %s  (path not set in environment.conf)" "$category" "$description"
+        warn "$(printf "  %-14s  %s  (not found – will be skipped)" "$category" "$description")"
         MISSING_COUNT=$(( MISSING_COUNT + 1 ))
         continue
     fi
 
     if [ -f "$src_path" ]; then
         sz="$(du -h "$src_path" 2>/dev/null | cut -f1)"
-        ok "  %-10s  %-35s  %s (%s)" "$category" "$(basename "$src_path")" "$src_path" "$sz"
+        ok "$(printf "  %-14s  %-35s  %s (%s)" "$category" "$(basename "$src_path")" "$src_path" "$sz")"
         ITEM_OK["$src_path"]=1
         FOUND_COUNT=$(( FOUND_COUNT + 1 ))
     else
-        warn "  %-10s  %-35s  NOT FOUND: %s" "$category" "$(basename "$src_path")" "$src_path"
+        warn "$(printf "  %-14s  %-35s  NOT FOUND: %s" "$category" "$(basename "$src_path")" "$src_path")"
         MISSING_COUNT=$(( MISSING_COUNT + 1 ))
     fi
 done
 
+# TTF fonts summary
+if [ "${#TTF_FILES[@]}" -gt 0 ]; then
+    _ttf_sz="$(du -sh "$REPORTS_FONT_DIR" 2>/dev/null | cut -f1)"
+    ok "$(printf "  %-14s  %-35s  %s (%d files, %s total)" \
+        "fonts_ttf" "*.ttf / *.TTF / *.otf" "$REPORTS_FONT_DIR" "${#TTF_FILES[@]}" "${_ttf_sz:--}")"
+    for _f in "${TTF_FILES[@]}"; do
+        info "$(printf "    %s" "$(basename "$_f")")"
+    done
+else
+    warn "$(printf "  %-14s  %s  (directory empty or not found: %s)" \
+        "fonts_ttf" "No font files found" "$REPORTS_FONT_DIR")"
+fi
+
 printf "\n"
-info "$FOUND_COUNT file(s) ready to back up, $MISSING_COUNT not found / not configured"
+info "$FOUND_COUNT config file(s) + ${#TTF_FILES[@]} font file(s) ready to back up, $MISSING_COUNT not found / not configured"
 
 # =============================================================================
 # Section 2: Existing backups overview
@@ -247,7 +288,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts reports_comp reports_wls fmw forms_wls domain ihw; do
+for cat in fonts fonts_ttf reports_comp reports_tools reports_wls fmw forms_wls domain ihw; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary
@@ -280,12 +321,31 @@ for item in "${BACKUP_ITEMS[@]}"; do
     dst="$BACKUP_DIR/$category/$fname"
 
     if cp "$src_path" "$dst" 2>/dev/null; then
-        ok "  Backed up [%-6s] %s" "$category" "$fname"
-        printf "  %-10s  %-35s  %s\n" "$category" "$fname" "$src_path" >> "$MANIFEST"
+        ok "$(printf "  Backed up [%-12s]  %s" "$category" "$fname")"
+        printf "  %-14s  %-35s  %s\n" "$category" "$fname" "$src_path" >> "$MANIFEST"
     else
         fail "  Failed to copy: $src_path → $dst"
     fi
 done
+
+# Copy TTF/OTF fonts
+if [ "${#TTF_FILES[@]}" -gt 0 ]; then
+    printf "  %-14s  %s\n" "fonts_ttf" "Copying ${#TTF_FILES[@]} font file(s) from $REPORTS_FONT_DIR ..."
+    printf "# fonts_ttf  (source: %s)\n" "$REPORTS_FONT_DIR" >> "$MANIFEST"
+    _ttf_ok=0
+    _ttf_fail=0
+    for _f in "${TTF_FILES[@]}"; do
+        _fn="$(basename "$_f")"
+        if cp "$_f" "$BACKUP_DIR/fonts_ttf/$_fn" 2>/dev/null; then
+            printf "  %-14s  %-35s  %s\n" "fonts_ttf" "$_fn" "$_f" >> "$MANIFEST"
+            _ttf_ok=$(( _ttf_ok + 1 ))
+        else
+            fail "  Failed to copy font: $_f"
+            _ttf_fail=$(( _ttf_fail + 1 ))
+        fi
+    done
+    ok "  fonts_ttf: ${_ttf_ok} font(s) backed up${_ttf_fail:+, ${_ttf_fail} failed}"
+fi
 
 ok "Manifest written: $MANIFEST"
 
