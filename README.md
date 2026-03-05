@@ -15,7 +15,7 @@ G – Governance
 I – Integration
 C – Control
 ```
-Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic.md](IHateWeblogic)
+Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic](IHateWeblogic.md)
 
 
 > **Work in Progress** – This library is under active development.
