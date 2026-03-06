@@ -13,7 +13,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `os_check.sh` | ✅ implemented | OS, RAM, CPU, disk, ulimits, kernel params, packages |
 | `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
 | `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
-| `db_connect_check.sh` | 🔧 planned | TNS ping and JDBC connectivity test |
+| `db_connect_check.sh` | ✅ implemented | 6-step DB diagnostics: DNS/Ping/TCP/TNS/Service/Login |
 | `ssl_check.sh` | 🔧 planned | SSL/TLS certificate inventory and expiry check |
 
 All implemented scripts source `environment.conf` and write output to both
@@ -38,7 +38,9 @@ Step 3 – Ports and network
   ./02-Checks/port_check.sh --http   # also check AdminServer console via HTTP
 
 Step 4 – Database connectivity
-  ./02-Checks/db_connect_check.sh    # not yet implemented
+  ./02-Checks/db_connect_check.sh --new     # first time: configure + save credentials
+  ./02-Checks/db_connect_check.sh           # check existing config (DNS/TCP/TNS/Service)
+  ./02-Checks/db_connect_check.sh --login   # full check including login test
 
 Step 5 – SSL certificates
   ./02-Checks/ssl_check.sh           # not yet implemented
@@ -163,22 +165,67 @@ Typical ports for a Forms/Reports 14c domain:
 
 ### db_connect_check.sh
 
-> **Not yet implemented** — planned functionality:
-
 ```bash
-./02-Checks/db_connect_check.sh
-./02-Checks/db_connect_check.sh --apply   # run actual connect test
+./02-Checks/db_connect_check.sh               # check existing config
+./02-Checks/db_connect_check.sh --new          # configure new connection (interactive)
+./02-Checks/db_connect_check.sh --login        # include login test
+./02-Checks/db_connect_check.sh --login --sqlplus=/path/to/sqlplus
 ```
 
-Planned checks:
+DB connection parameters are read from `environment.conf` (`DB_HOST`, `DB_PORT`,
+`DB_SERVICE`, `DB_SERVER`).  If not present, `jps-config.xml` is parsed as fallback.
+Use `--new` to configure and save parameters permanently.
 
-- `tnsping <service>` – TNS connectivity to the repository database
-- `sqlplus` connect test using credentials from `weblogic_sec.sh` store
-- JDBC URL validation from `$DOMAIN_HOME` datasource XML files
-- Reports TNS_ADMIN, `tnsnames.ora` path and parsed entries
+**First-time setup:**
 
-Prerequisite: `00-Setup/weblogic_sec.sh --apply` must have been run to store
-database credentials.
+```bash
+./02-Checks/db_connect_check.sh --new
+```
+
+Starts an interactive dialog (host, port, service, username, password).
+Writes `DB_HOST / DB_PORT / DB_SERVICE / DB_SERVER` to `environment.conf`
+and saves encrypted credentials to `db_connect.conf.des3`
+(same openssl des3 + machine-UUID mechanism as `weblogic_sec.sh`).
+
+**Diagnostic steps (sequential – stops at first FAIL):**
+
+| Step | What | Tool | Exit on FAIL |
+|---|---|---|---|
+| 1 | DNS resolution | `getent hosts` | yes – hostname wrong or DNS unreachable |
+| 2 | ICMP Ping | `ping -c3 -W2` | no – ICMP often blocked (WARN only) |
+| 3 | TCP port open | `bash /dev/tcp` / `nc` | yes – firewall or listener not started |
+| 4 | Oracle TNS Listener? | `tnsping` or Python3 TNS packet | WARN – port open but not Oracle |
+| 5 | Service/SID exists? | Python3 TNS CONNECT_DATA | ORA code → targeted hint |
+| 6 | Login test (`--login`) | `sqlplus`/`sql` Easy Connect | ORA code → precise error cause |
+
+**Service check without Oracle Client (Step 5):**
+
+A minimal TNS CONNECT packet is sent via Python3 sockets.  The Oracle Listener
+responds with a TNS REFUSE packet containing the ORA error as readable ASCII text
+(e.g. `ERR=12514`).  No tnsnames.ora, no Oracle client required.
+
+| ORA in REFUSE | Meaning |
+|---|---|
+| no error / REDIRECT | Service found and registered with listener |
+| `ORA-12514` | Listener running – service name not registered |
+| `ORA-12505` | Listener running – SID not found |
+| `ORA-12519` | Service found – but all handlers busy |
+
+**Login test (Step 6, optional):**
+
+Requires `SQLPLUS_BIN` in `environment.conf` or `--sqlplus=` flag.
+Uses Easy Connect (`//host:port/service`) – no tnsnames.ora needed.
+
+| ORA after login | Meaning |
+|---|---|
+| no ORA | Login successful |
+| `ORA-01017` | Wrong username or password |
+| `ORA-28000` | Account locked |
+| `ORA-28001` | Password expired |
+
+`SQLPLUS_BIN` options:
+- Oracle Instant Client `sqlplus` binary
+- SQLcl (`sql`) – Java-based, uses existing `$JAVA_HOME`
 
 ---
 

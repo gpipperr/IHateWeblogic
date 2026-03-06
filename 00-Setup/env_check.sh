@@ -245,6 +245,45 @@ detect_cgicmd_dat() {
     printf "%s" "${result:-$conf_dir/cgicmd.dat}"
 }
 
+# detect_db_from_jps  domain_home
+# Reads jps-config.xml and extracts Oracle DB connection parameters from the
+# first DB_ORACLE propertySet.  Sets DET_DB_HOST/PORT/SERVICE/SERVER.
+detect_db_from_jps() {
+    local domain_home="$1"
+    local jps_config="$domain_home/config/fmwconfig/jps-config.xml"
+    DET_DB_HOST="" DET_DB_PORT="1521" DET_DB_SERVICE="" DET_DB_SERVER="dedicated"
+
+    [ -f "$jps_config" ] || return 1
+
+    local in_block=0 block="" jdbc_url=""
+    while IFS= read -r line; do
+        if [[ "$line" == *"<propertySet "* ]]; then
+            in_block=1; block="${line}"$'\n'
+        elif [ "$in_block" -eq 1 ]; then
+            block+="${line}"$'\n'
+            if [[ "$line" == *"</propertySet>"* ]]; then
+                if printf "%s" "$block" | grep -q 'value="DB_ORACLE"'; then
+                    jdbc_url="$(printf "%s" "$block" \
+                        | sed -n 's/.*name="jdbc\.url"[[:space:]]*value="\([^"]*\)".*/\1/p' \
+                        | head -1)"
+                    [ -n "$jdbc_url" ] && break
+                fi
+                in_block=0; block=""
+            fi
+        fi
+    done < "$jps_config"
+
+    [ -z "$jdbc_url" ] && return 1
+
+    DET_DB_HOST="$(   printf "%s" "$jdbc_url" | sed -n 's/.*host=\([^)]*\).*/\1/p'         | head -1)"
+    DET_DB_PORT="$(   printf "%s" "$jdbc_url" | sed -n 's/.*port=\([^)]*\).*/\1/p'         | head -1)"
+    DET_DB_SERVICE="$(printf "%s" "$jdbc_url" | sed -n 's/.*service_name=\([^)]*\).*/\1/p' | head -1)"
+    DET_DB_SERVER="$( printf "%s" "$jdbc_url" | sed -n 's/.*server=\([^)]*\).*/\1/p'       | head -1)"
+    DET_DB_PORT="${DET_DB_PORT:-1521}"
+    DET_DB_SERVER="${DET_DB_SERVER:-dedicated}"
+    return 0
+}
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -415,6 +454,22 @@ else
     warn "No WebLogic/Reports processes running (domain not started?)"
 fi
 
+# --------------------------------------------------------------------------
+section "Detecting Oracle DB Connection (jps-config.xml)"
+
+DET_DB_HOST="" DET_DB_PORT="1521" DET_DB_SERVICE="" DET_DB_SERVER="dedicated"
+
+if detect_db_from_jps "$DET_DOMAIN_HOME"; then
+    ok "DB_ORACLE-Verbindung in jps-config.xml gefunden"
+    printList "DB_HOST"    30 "$DET_DB_HOST"
+    printList "DB_PORT"    30 "$DET_DB_PORT"
+    printList "DB_SERVICE" 30 "$DET_DB_SERVICE"
+    printList "DB_SERVER"  30 "$DET_DB_SERVER"
+else
+    info "Keine DB_ORACLE-Verbindung erkannt (jps-config.xml fehlt oder kein DB_ORACLE-Eintrag)"
+    info "  Manuell konfigurieren: 02-Checks/db_connect_check.sh --new"
+fi
+
 # Check DISPLAY for Xvfb (relevant for rwrun segfault)
 section "X11 Display Check"
 if [ -n "${DISPLAY:-}" ]; then
@@ -493,6 +548,15 @@ DIAG_LOG_DIR="\${ROOT_DIR}/log/\$(date +%Y%m%d)"
 # --- Security ----------------------------------------------------------------
 SEC_CONF="\${ROOT_DIR}/weblogic_sec.conf.des3"
 ORACLE_OS_USER="${DET_ORACLE_USER}"
+
+# --- Oracle DB Connection (auto-detected from jps-config.xml) ----------------
+# Configure manually: 02-Checks/db_connect_check.sh --new
+DB_HOST="${DET_DB_HOST}"
+DB_PORT="${DET_DB_PORT:-1521}"
+DB_SERVICE="${DET_DB_SERVICE}"
+DB_SERVER="${DET_DB_SERVER:-dedicated}"
+SQLPLUS_BIN=""       # optional: /path/to/sqlplus – enables login test in db_connect_check.sh
+SEC_CONF_DB="\${ROOT_DIR}/db_connect.conf.des3"
 
 # --- X11 / Display -----------------------------------------------------------
 DISPLAY_VAR=":99"
