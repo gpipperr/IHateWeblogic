@@ -14,7 +14,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
 | `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
 | `db_connect_check.sh` | ✅ implemented | 6-step DB diagnostics: DNS/Ping/TCP/TNS/Service/Login |
-| `ssl_check.sh` | 🔧 planned | SSL/TLS certificate inventory and expiry check |
+| `ssl_check.sh` | ✅ implemented | SSL architecture detection (Nginx/WLS), TLS analysis, cert expiry |
 
 All implemented scripts source `environment.conf` and write output to both
 stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/env_check.sh` first if
@@ -43,7 +43,8 @@ Step 4 – Database connectivity
   ./02-Checks/db_connect_check.sh --login   # full check including login test
 
 Step 5 – SSL certificates
-  ./02-Checks/ssl_check.sh           # not yet implemented
+  ./02-Checks/ssl_check.sh
+  ./02-Checks/ssl_check.sh --warn-days 60   # warn earlier on cert expiry
 ```
 
 ---
@@ -231,21 +232,60 @@ Uses Easy Connect (`//host:port/service`) – no tnsnames.ora needed.
 
 ### ssl_check.sh
 
-> **Not yet implemented** — planned functionality:
-
 ```bash
-./02-Checks/ssl_check.sh
-./02-Checks/ssl_check.sh --warn-days 60   # warn if cert expires within 60 days
+./02-Checks/ssl_check.sh                    # auto-detect architecture
+./02-Checks/ssl_check.sh --warn-days 60     # warn earlier on cert expiry
+./02-Checks/ssl_check.sh --host 10.0.1.5    # external host for TLS checks
+./02-Checks/ssl_check.sh --no-curl          # skip HTTP endpoint checks
 ```
 
-Planned checks:
+Detects the SSL architecture first, then analyses accordingly.
 
-- WLS KeyStore files (`.jks` / `.p12`) in `$DOMAIN_HOME/config`
-- Certificate expiry dates via `keytool -list` and `openssl x509 -enddate`
-- Subject, issuer, SANs per certificate
-- OHS SSL configuration in `ssl.conf` (if OHS installed)
-- Self-signed vs CA-signed detection
-- Warns when a certificate expires within `--warn-days` days (default: 30)
+**Supported architectures:**
+
+| Port 443 owner | Mode | Where is the certificate? |
+|---|---|---|
+| `nginx` | Nginx SSL proxy | `ssl_certificate` file in nginx config |
+| `java` (WLS) | WLS direct SSL | WLS Keystore (JKS/PKCS12) |
+| `httpd` | OHS proxy | OHS `ssl.conf` |
+| nothing | No HTTPS on 443 | WLS SSL ports (7002, 9002) checked directly |
+
+**Sections:**
+
+| Section | What |
+|---|---|
+| 1 – Voraussetzungen | openssl / curl / keytool availability |
+| 2 – Architektur | Who owns port 443? nginx/WLS/OHS/other |
+| 3 – WLS config.xml | SSL enabled/disabled per server, listen ports, keystore type |
+| 4 – Nginx config | ssl_certificate path + cert, ssl_protocols, ssl_ciphers, proxy_pass targets |
+| 5 – Live TLS analyse | Protocol (TLS 1.0–1.3), cipher strength, forward secrecy, weak protocol test |
+| 6 – HTTP endpoints | curl check on /em, /console (HTTP and HTTPS) |
+| 7 – Keystore files | keytool -list on .jks/.p12 files under DOMAIN_HOME |
+
+**TLS protocol ratings:**
+
+| Protocol | Result |
+|---|---|
+| TLS 1.3 | OK |
+| TLS 1.2 | OK |
+| TLS 1.1 | WARN – deprecated RFC 8996 |
+| TLS 1.0 | FAIL – POODLE/BEAST |
+| SSLv3 | FAIL – critical |
+
+Also explicitly tests whether old protocols (TLS 1.0/1.1) are still _accepted_
+even when the server negotiated TLS 1.2+.
+
+**Certificate checks:**
+- Subject / Issuer / SANs
+- Self-signed detection (Subject == Issuer)
+- Expiry: FAIL if expired, WARN if within `--warn-days` (default: 30)
+- Demo certificate detection (WLS `DEMO_CERTS` keystore → FAIL)
+
+**Nginx specifics:**
+- Reads config via `nginx -T` (full merged config), falls back to direct file read
+- Checks `ssl_certificate` file existence and reads cert without TLS handshake
+- Validates `ssl_protocols` and `ssl_ciphers` directives
+- Cross-checks `proxy_pass` targets against live listening ports
 
 ---
 
