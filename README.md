@@ -29,16 +29,17 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 Run these scripts in sequence on a fresh installation:
 
 ```
-1.  00-Setup/env_check.sh          # Detect paths, generate environment.conf
-2.  00-Setup/weblogic_sec.sh       # Store WebLogic password (encrypted, machine-local)
-3.  02-Checks/os_check.sh          # Validate OS, kernel, ulimits
-4.  02-Checks/java_check.sh        # Verify correct JDK is used
-5.  02-Checks/port_check.sh        # Verify WebLogic/OHS ports
-6.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
-7.  04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
-8.  04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
-9.  02-Checks/db_connect_check.sh  # Verify TNS/DB connectivity
-10. 00-Setup/report_env.sh         # Generate HTML summary report
+1.  00-Setup/env_check.sh                 # Detect paths, generate environment.conf
+2.  00-Setup/weblogic_sec.sh              # Store WebLogic password (encrypted, machine-local)
+3.  02-Checks/weblogic_performance.sh     # Check/apply SecureRandom fix + JVM heap settings
+4.  02-Checks/os_check.sh                 # Validate OS, kernel, ulimits
+5.  02-Checks/java_check.sh               # Verify correct JDK is used
+6.  02-Checks/port_check.sh               # Verify WebLogic/OHS ports
+7.  02-Checks/db_connect_check.sh         # Verify TNS/DB connectivity
+8.  02-Checks/ssl_check.sh                # Check SSL/TLS configuration and cert expiry
+9.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
+10. 04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
+11. 04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
 ```
 
 ## Script Directories
@@ -52,7 +53,7 @@ Run these scripts in sequence on a fresh installation:
 | `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
 | `05-ReportsPerformance/` | Engine/cache tuning and inspection               |
 | `06-FormsDiag/`       | Oracle Forms specific diagnostics                    |
-| `07-Maintenance/`     | Config backup/restore, cache cleanup                 |
+| `07-Maintenance/`     | Config backup/restore                                |
 | `08-SSL/`             | SSL configuration, certificate creation/analysis     |
 
 ## Repository Structure
@@ -73,8 +74,8 @@ IHateWeblogic/
 │   │                                   generate environment.conf (supports multiple Report Server instances)
 │   ├── weblogic_sec.sh              – Prompt for WebLogic password → encrypt to
 │   │                                   weblogic_sec.conf.des3 (openssl des3, machine-local key)
-│   ├── set_env.sh                   – Select active environment when multiple domains exist (symlink)
-│   └── report_env.sh                – Collect all diagnostic logs → single standalone HTML report
+│   ├── set_env.sh                   – [TODO] Select active environment when multiple domains exist
+│   └── report_env.sh                – [TODO] Collect all diagnostic logs → single standalone HTML report
 │
 ├── 01-Run/
 │   ├── startStop.sh                 – Manage components: ALL | LIST | START <comp> | STOP <comp>
@@ -87,7 +88,8 @@ IHateWeblogic/
 │   ├── java_check.sh                – Verify JAVA_HOME uses FMW-bundled JDK (not system JDK)
 │   ├── port_check.sh                – Listen addresses and ports per component, TCP check
 │   ├── db_connect_check.sh          – TNS / JDBC connectivity test (uses weblogic_sec.sh)
-│   └── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
+│   ├── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
+│   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
 │
 ├── 03-Logs/
 │   ├── get_all_logs.sh              – List all relevant log files with size and modification date
@@ -111,29 +113,23 @@ IHateWeblogic/
 │   └── custom_fonts_dir/            – Drop corporate/customer font files here before deploying
 │
 ├── 05-ReportsPerformance/
-│   ├── get_performance.sh           – Read all Reports engine/cache performance settings
-│   ├── set_performance.sh           – Apply recommended performance tuning (--apply)
-│   ├── engine_check.sh              – Running engine count vs. configured min/max
-│   └── cache_check.sh               – Cache directory: size, entry age, cleanup candidates
+│   ├── engine_perf_settings.sh      – Read/update engine+cache tuning params in rwserver.conf (--apply)
+│   └── engine_perf_analyse.sh       – Live job stats via getserverinfo XML + WLS_REPORTS log scan
 │
 ├── 06-FormsDiag/
-│   ├── forms_env_check.sh           – Forms environment: FORMS_PATH, registry.dat location/content
-│   ├── frmweb_check.sh              – frmweb process, configuration files, shared library deps
-│   ├── forms_font_check.sh          – Font configuration for Forms (uifont.ali Forms section)
-│   └── forms_servlet_check.sh       – Forms Servlet configuration in WebLogic deployment descriptors
+│   ├── forms_settings.sh            – Forms version, FORMS_PATH, config files, fonts, frmweb sessions
+│   ├── forms_perf_settings.sh       – formsweb.cfg perf params, default.env timeouts, WLS_FORMS JVM heap
+│   └── forms_perf_analyse.sh        – Session memory, HTTP response times, WLS_FORMS log scan
 │
 ├── 07-Maintenance/
 │   ├── backup_config.sh             – Backup all config files before changes:
 │   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
-│   ├── cache_clean.sh               – Clear Reports cache contents, keep directory structure (--apply)
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type
 │
 └── 08-SSL/
-    ├── ssl_config.sh                – Display SSL config for WebLogic/OHS, analyze protocols/ciphers
-    ├── ssl_prepare_cert.sh          – Create SSL certificate:
-    │                                   SELF = self-signed demo cert
-    │                                   REQUEST = generate CSR for CA signing
+    ├── ssl_config.sh                – [TODO] Display SSL config for WebLogic/OHS, analyze protocols/ciphers
+    ├── ssl_prepare_cert.sh          – [TODO] Create SSL certificate (self-signed or CSR for CA signing)
     └── ssl_cert/                    – Store certificate files here (PEM, JKS, p12)
 ```
 
@@ -188,3 +184,15 @@ and **must not be committed to git** (covered by `.gitignore`).
   Credentials must be stored encrypted using the same mechanism as the WebLogic password
   (`openssl des3` + system UUID key via `00-Setup/weblogic_sec.sh`).
   Until implemented: restrict `rwservlet` access via firewall or WLS security policy.
+
+- [ ] **`00-Setup/set_env.sh`** – Multi-domain environment switch (stub).
+  Useful when multiple FMW domains exist on the same host (e.g. prod + test).
+
+- [ ] **`00-Setup/report_env.sh`** – HTML summary report (stub).
+  Should collect all diagnostic log files into a single standalone HTML for handover.
+
+- [ ] **`08-SSL/ssl_config.sh`** – WLS/OHS SSL configuration display (stub).
+  Complements `02-Checks/ssl_check.sh`; focuses on applying SSL settings.
+
+- [ ] **`08-SSL/ssl_prepare_cert.sh`** – Certificate creation helper (stub).
+  Self-signed demo cert or CSR generation for CA signing.
