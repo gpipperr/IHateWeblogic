@@ -15,6 +15,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
 | `db_connect_check.sh` | ✅ implemented | 6-step DB diagnostics: DNS/Ping/TCP/TNS/Service/Login |
 | `ssl_check.sh` | ✅ implemented | SSL architecture detection (Nginx/WLS), TLS analysis, cert expiry |
+| `weblogic_performance.sh` | ✅ implemented | SecureRandom startup fix + JVM heap per server check/apply |
 
 All implemented scripts source `environment.conf` and write output to both
 stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/env_check.sh` first if
@@ -45,6 +46,10 @@ Step 4 – Database connectivity
 Step 5 – SSL certificates
   ./02-Checks/ssl_check.sh
   ./02-Checks/ssl_check.sh --warn-days 60   # warn earlier on cert expiry
+
+Step 6 – WebLogic performance settings
+  ./02-Checks/weblogic_performance.sh          # check current state
+  ./02-Checks/weblogic_performance.sh --apply  # apply recommended settings
 ```
 
 ---
@@ -346,6 +351,96 @@ Fix:     Run as root or as the oracle user that started WebLogic:
            sudo ./02-Checks/port_check.sh
            su - oracle -c "cd /development/IHateWeblogic && ./02-Checks/port_check.sh"
 ```
+
+### weblogic_performance.sh
+
+```bash
+./02-Checks/weblogic_performance.sh
+./02-Checks/weblogic_performance.sh --apply
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--apply` | Interactive update of both settings (backup before every write) |
+
+---
+
+#### Section 1 – java.security: SecureRandom Source
+
+Locates and reads `java.security` for the configured `JAVA_HOME`:
+
+| JDK version | Path |
+|---|---|
+| JDK 8 | `$JAVA_HOME/jre/lib/security/java.security` |
+| JDK 11 / 17 / 21 | `$JAVA_HOME/conf/security/java.security` |
+
+Checks the `securerandom.source` setting:
+
+| Value | Evaluation |
+|---|---|
+| `file:/dev/random` | **FAIL** – blocking entropy source; slows WLS startup |
+| `file:/dev/./urandom` | OK – non-blocking (recommended) |
+| `file:/dev/./random` | OK – non-blocking via `./` trick |
+| `file:/dev/urandom` | OK on JDK 17+ / newer JDK 8 builds |
+| _(not set)_ | WARN – JVM compile-time default applies (likely `/dev/random`) |
+
+**Background – Why `/dev/./urandom`?**
+
+The Oracle JVM contains a special code path: when `securerandom.source` is set to
+the literal string `file:/dev/random`, the JVM opens it as a *blocking* source and
+waits until the OS entropy pool has enough data. On a freshly booted server or inside
+a VM this can stall WebLogic startup for **30 seconds to several minutes**.
+
+The fix is the `./` path trick: `file:/dev/./urandom` resolves to the same device node
+on Linux (`/dev/urandom`) but does **not** match the JVM's hardcoded `"/dev/random"`
+string comparison, so the JVM falls through to the regular non-blocking path.
+
+```
+# Before (in java.security):
+securerandom.source=file:/dev/random
+
+# After:
+securerandom.source=file:/dev/./urandom
+```
+
+`--apply` performs: `backup_file()` → `sed` replace in-place.
+No server restart required – takes effect on next JVM startup.
+
+---
+
+#### Section 2 – setUserOverrides.sh: JVM Heap per Server
+
+Reads `$DOMAIN_HOME/bin/setUserOverrides.sh` and extracts `USER_MEM_ARGS` per
+managed server block.
+
+`setDomainEnv.sh` sources `setUserOverrides.sh` during startup – this is the
+**recommended** way to configure per-server JVM settings without modifying the
+Oracle-managed `setDomainEnv.sh` directly.
+
+Checks performed:
+
+| Check | Evaluation |
+|---|---|
+| File exists | WARN if missing |
+| `USER_MEM_ARGS` block for `AdminServer` | WARN if absent |
+| `USER_MEM_ARGS` block for `WLS_FORMS` | WARN if absent |
+| `USER_MEM_ARGS` block for `WLS_REPORTS` | WARN if absent |
+| `LOG4J_FORMAT_MSG_NO_LOOKUPS=true` | WARN if absent (CVE-2021-44228) |
+| `forms.userid.encryption.enabled=true` | INFO if absent (optional) |
+
+Typical recommended values:
+
+| Server | `-Xms` | `-Xmx` | Additional |
+|---|---|---|---|
+| AdminServer | 1024m | 1536m | `-XX:MaxMetaspaceSize=2G` |
+| WLS_FORMS | 2g | 2g | `-XX:NewSize=1g` |
+| WLS_REPORTS | 2g | 2g | `-XX:NewSize=1g` |
+
+`--apply` writes a complete `setUserOverrides.sh` with all server blocks, the
+Log4j CVE guard, and `forms.userid.encryption.enabled`.
+All managed servers must be **restarted** for heap changes to take effect.
 
 ---
 
