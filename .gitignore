@@ -31,6 +31,7 @@ log/
 *~
 .DS_Store
 
-#RAG Sources to copy to git
+# RAG source data – not committed (binary files / Oracle license terms)
+# Place documents here locally for use as RAG knowledge base
 90-Source-MetaData/
 
