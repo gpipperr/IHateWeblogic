@@ -55,6 +55,7 @@ Run these scripts in sequence on a fresh installation:
 | `06-FormsDiag/`       | Oracle Forms specific diagnostics                    |
 | `07-Maintenance/`     | Config backup/restore                                |
 | `08-SSL/`             | SSL configuration, certificate creation/analysis     |
+| `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain |
 
 ## Repository Structure
 
@@ -127,10 +128,30 @@ IHateWeblogic/
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type
 │
-└── 08-SSL/
-    ├── ssl_config.sh                – [TODO] Display SSL config for WebLogic/OHS, analyze protocols/ciphers
-    ├── ssl_prepare_cert.sh          – [TODO] Create SSL certificate (self-signed or CSR for CA signing)
-    └── ssl_cert/                    – Store certificate files here (PEM, JKS, p12)
+├── 08-SSL/
+│   ├── ssl_config.sh                – [TODO] Display SSL config for WebLogic/OHS, analyze protocols/ciphers
+│   ├── ssl_prepare_cert.sh          – [TODO] Create SSL certificate (self-signed or CSR for CA signing)
+│   └── ssl_cert/                    – Store certificate files here (PEM, JKS, p12)
+│
+└── 09-Install/
+    ├── README.md                    – Installation roadmap, architecture, script reference
+    ├── install_lib.sh               – [TODO] Shared functions (response files, OPatch helpers)
+    ├── 01-setup-interview.sh        – [TODO] Configuration interview → environment.conf
+    ├── 00-root_user_oracle.sh       – [TODO] oracle user, groups, sudo, shell limits
+    ├── 01-root_set_os_parameter.sh  – [TODO] Packages, kernel params, JDK install
+    ├── 02-root_nginx.sh             – [TODO] Nginx install + proxy config from environment.conf
+    ├── 03-root_nginx_ssl.sh         – [TODO] SSL cert binding, TLS config, nginx reload
+    ├── 04-oracle_pre_checks.sh      – [TODO] Pre-install checks (calls 02-Checks scripts)
+    ├── 04-oracle_pre_download.sh    – [TODO] MOS download via getMOSPatch.jar
+    ├── 05-oracle_install_weblogic.sh – [TODO] FMW Infrastructure silent install
+    ├── 05-oracle_patch_weblogic.sh  – [TODO] OPatch update + WLS patches
+    ├── 06-oracle_install_forms_reports.sh – [TODO] Forms/Reports silent install
+    ├── 06-oracle_patch_forms_reports.sh   – [TODO] Forms/Reports patches
+    ├── 07-oracle_setup_repository.sh – [TODO] RCU: create FMW metadata schemas
+    ├── 08-oracle_setup_domain.sh    – [TODO] Domain creation (WLST silent)
+    ├── 09-oracle_configure.sh       – [TODO] Final config using existing 00-07 scripts
+    ├── 10-oracle_validate.sh        – [TODO] Full validation report
+    └── response_files/              – Response-file templates (filled from environment.conf)
 ```
 
 ## Common Flags
