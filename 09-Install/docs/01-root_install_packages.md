@@ -184,13 +184,17 @@ dnf install -y \
 
 ### 5. JDK 21
 
-Java installation including license considerations, OpenJDK vs Oracle JDK decision,
-`alternatives` setup, `jps` tool, and SecureRandom fix is documented separately:
+JDK 21 installation is **not** part of this script.
+After all packages above are installed, continue with the dedicated Java script:
+
+```bash
+sudo bash 09-Install/02b-root_os_java.sh --apply
+```
+
+Full documentation (license considerations, Oracle JDK vs OpenJDK, `alternatives`
+setup, `jps` tool, SecureRandom fix):
 
 **→ [01-root_setup_java.md](01-root_setup_java.md)**
-
-> The script looks for a `.tar.gz` or `.rpm` JDK 21 installer in `$PATCH_STORAGE`
-> and offers to install it automatically.
 
 ---
 
