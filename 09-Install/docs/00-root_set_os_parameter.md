@@ -1,8 +1,91 @@
 # Step 01 – 01-root_os_baseline.sh
 
 **Script:** `09-Install/01-root_os_baseline.sh`
-**Runs as:** `root`
+**Runs as:** `root` or `oracle` with passwordless sudo (`NOPASSWD`)
 **Phase:** 0 – OS Preparation
+
+---
+
+## Prerequisites – sudo Configuration
+
+The script uses `sudo -n true` to detect sudo access (non-interactive, no password
+prompt). This means the `oracle` user **must** have passwordless sudo configured
+before running this script with `--apply`.
+
+### How the script checks access
+
+```bash
+# From the script (_can_sudo helper):
+sudo -n true 2>/dev/null   # returns 0 only if NOPASSWD sudo is available
+```
+
+If neither root nor NOPASSWD sudo is available the script prints:
+```
+FAIL  Root or sudo access required
+INFO  Configure: /etc/sudoers.d/oracle-fmw
+```
+
+### Option A – via wheel group (current setup on this server)
+
+Oracle Linux 9 grants full sudo to members of the `wheel` group.
+If oracle is already in `wheel`, add NOPASSWD to the group rule:
+
+```bash
+# Check current group membership
+id oracle
+# groups=...,wheel,...  ← already in wheel?
+
+# Check current wheel rule
+grep wheel /etc/sudoers
+# %wheel  ALL=(ALL)  ALL         ← requires password (not sufficient for -n)
+# %wheel  ALL=(ALL)  NOPASSWD: ALL  ← this works with sudo -n
+```
+
+To change the wheel rule to passwordless:
+```bash
+# Edit safely with visudo
+visudo
+# Change: %wheel  ALL=(ALL)  ALL
+# To:     %wheel  ALL=(ALL)  NOPASSWD: ALL
+```
+
+> **Security note:** NOPASSWD for the entire wheel group is convenient during
+> installation but should be reverted to password-required after the install phase.
+
+### Option B – targeted sudoers drop-in (recommended for production)
+
+Create `/etc/sudoers.d/oracle-fmw` with only the commands needed by the scripts:
+
+```bash
+visudo -f /etc/sudoers.d/oracle-fmw
+```
+
+Minimum required for `01-root_os_baseline.sh --apply`:
+
+```
+# Oracle FMW installation – allow oracle to run baseline OS configuration
+# Remove this file after installation is complete
+oracle ALL=(ALL) NOPASSWD: /usr/sbin/sysctl, \
+                            /usr/sbin/grubby, \
+                            /usr/bin/tee, \
+                            /usr/bin/sed, \
+                            /usr/bin/dnf, \
+                            /usr/bin/mount, \
+                            /usr/bin/mkdir, \
+                            /usr/bin/chmod, \
+                            /usr/bin/firewall-cmd, \
+                            /usr/bin/systemctl
+```
+
+### Verify sudo access before running
+
+```bash
+# As oracle – must return exit code 0 with no password prompt
+sudo -n true && echo "sudo OK" || echo "sudo FAIL – configure NOPASSWD first"
+
+# Test a specific command
+sudo -n sysctl -n kernel.shmmax
+```
 
 ---
 
