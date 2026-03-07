@@ -3,7 +3,6 @@
 Complete installation roadmap for Oracle Forms & Reports 14.1.2 (FMW 14.1.2.0.0)
 on Oracle Linux 9 – from OS configuration to a validated production environment.
 
-> **Module number:** `09-Install` (`08-` is already taken by `08-SSL`)
 >
 > **Concept:** Each installation step has a detail document in `docs/` describing what
 > would need to be done manually and what the script automates. Scripts are generated
@@ -57,11 +56,15 @@ execution if sudo is not available.
 ## 2. Installation Flow
 
 ```
-Phase 0 – Preparation (as root or with sudo)
-  00-root_user_oracle.sh        Create oracle OS user: groups, sudo rights, shell limits
-  01-root_set_os_parameter.sh   Kernel parameters, packages, JDK install
-  02-root_nginx.sh              Install Nginx, generate base config from environment.conf
-  03-root_nginx_ssl.sh          Bind SSL certificate, configure TLS, reload Nginx
+Phase 0 – OS Preparation (as root; git clone first, then hand over to oracle)
+  [root] git clone <repo> && cd IHateWeblogic
+  [root] cp environment.conf.template environment.conf  # fill in parameters
+  [root] ./09-Install/00-root_os_network.sh --apply    # hostname, hosts, chrony, SSH
+  [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
+  [root] ./09-Install/02-root_os_packages.sh --apply   # packages, JDK
+  [root] ./09-Install/03-root_user_oracle.sh --apply   # oracle user + chown repo → oracle
+  [root] ./09-Install/04-root_nginx.sh --apply         # Nginx install + proxy config
+  [root] ./09-Install/05-root_nginx_ssl.sh --apply     # SSL cert, TLS config
 
 Phase 1 – Pre-Install Checks (as oracle)
   04-oracle_pre_checks.sh       Verify all prerequisites before download
@@ -90,10 +93,12 @@ Phase 5 – Configuration & Validation (as oracle)
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| 0 | `00-root_user_oracle.sh` | oracle OS user, groups, sudo, shell limits | [→ docs](docs/00-root_user_oracle.md) |
-| 0 | `01-root_set_os_parameter.sh` | Packages, kernel params, JDK install | [→ docs](docs/01-root_set_os_parameter.md) |
-| 0 | `02-root_nginx.sh` | Nginx install + proxy config | [→ docs](docs/02-root_nginx.md) |
-| 0 | `03-root_nginx_ssl.sh` | SSL certificate binding, TLS config | [→ docs](docs/03-root_nginx_ssl.md) |
+| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/00-root_os_network.md) |
+| 0 | `01-root_os_baseline.sh` | SELinux, repos, kernel, THP, tmpfs, firewall → **REBOOT** | [→ docs](docs/01-root_os_baseline.md) |
+| 0 | `02-root_os_packages.sh` | dnf packages, NMON, JDK install | [→ docs](docs/02-root_os_packages.md) |
+| 0 | `03-root_user_oracle.sh` | oracle user, limits, sudo, dirs, repo handover to oracle | [→ docs](docs/03-root_user_oracle.md) |
+| 0 | `04-root_nginx.sh` | Nginx install + proxy config | [→ docs](docs/02-root_nginx.md) |
+| 0 | `05-root_nginx_ssl.sh` | SSL certificate binding, TLS config | [→ docs](docs/03-root_nginx_ssl.md) |
 | 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
 | 1 | `04-oracle_pre_download.sh` | MOS download via getMOSPatch.jar | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
