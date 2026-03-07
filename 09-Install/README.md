@@ -77,7 +77,8 @@ Phase 0 – OS Preparation (as root; git clone first, then hand over to oracle)
   [root] cp environment.conf.template environment.conf  # fill in parameters
   [root] ./09-Install/00-root_os_network.sh --apply    # hostname, hosts, chrony, SSH
   [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
-  [root] ./09-Install/02-root_os_packages.sh --apply   # packages, JDK
+  [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
+  [root] ./09-Install/02b-root_os_java.sh --apply      # Oracle JDK 21 + SecureRandom fix
   [root] ./09-Install/03-root_user_oracle.sh --apply   # oracle user + chown repo → oracle
   [root] ./09-Install/04-root_nginx.sh --apply         # Nginx install + proxy config
   [root] ./09-Install/05-root_nginx_ssl.sh --apply     # SSL cert, TLS config
@@ -112,7 +113,7 @@ Phase 5 – Configuration & Validation (as oracle)
 | 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | _(doc not yet written)_ |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
-| 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom check | [→ docs](docs/01-root_setup_java.md) |
+| 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
 | 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/02-root_nginx.md) |
 | 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/03-root_nginx_ssl.md) |
@@ -146,7 +147,7 @@ New parameters added by the 09-Install module (appended to existing `environment
 # === 09-INSTALL: ORACLE INSTALLATION ===
 ORACLE_BASE=/u01/app/oracle
 ORACLE_HOME=/u01/app/oracle/fmw
-JDK_HOME=/u01/app/oracle/java/jdk-21.0.6
+JDK_HOME=/u01/app/oracle/java/jdk-21
 PATCH_STORAGE=/srv/patch_storage
 
 # === DOMAIN ===
@@ -322,7 +323,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 /u01/
 ├── app/oracle/
 │   ├── fmw/                      ← ORACLE_HOME (FMW Infrastructure + Forms/Reports)
-│   ├── java/jdk-21.0.6/          ← JDK_HOME (standalone, NOT under fmw/)
+│   ├── java/jdk-21/              ← JDK_HOME symlink (→ jdk-21.0.x, NOT under fmw/)
 │   └── oraInventory/             ← OUI inventory
 └── user_projects/
     └── domains/
@@ -340,7 +341,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 01-setup-interview.sh              ← [TODO] configuration interview
 ├── 00-root_os_network.sh              ← Phase 0: hostname, hosts, IPv6, chrony, SSH
 ├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall → REBOOT
-├── 02-root_os_packages.sh             ← Phase 0: packages, JDK
+├── 02-root_os_packages.sh             ← Phase 0: OS packages (motif, gcc, numactl …)
+├── 02b-root_os_java.sh                ← Phase 0: Oracle JDK 21 + SecureRandom fix
 ├── 03-root_user_oracle.sh             ← Phase 0: oracle user, limits, dirs, repo handover
 ├── 04-root_nginx.sh                   ← Phase 0: Nginx install + proxy config
 ├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
@@ -361,8 +363,12 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   └── domain_config.py.template
 └── docs/                              ← step-by-step detail documentation
     ├── 01-setup-interview.md
-    ├── 00-root_user_oracle.md
-    ├── 01-root_set_os_parameter.md
+    ├── 00-root_set_os_parameter.md    ← 01-root_os_baseline.sh
+    ├── 00-root_os_network.md          ← 00-root_os_network.sh
+    ├── 01-root_install_packages.md    ← 02-root_os_packages.sh
+    ├── 01-root_setup_java.md          ← 02b-root_os_java.sh
+    ├── 03-root_user_oracle.md         ← 03-root_user_oracle.sh
+    ├── 20-oracle_security.md          ← post-install hardening checklist
     ├── 02-root_nginx.md
     ├── 03-root_nginx_ssl.md
     ├── 04-oracle_pre_checks.md
