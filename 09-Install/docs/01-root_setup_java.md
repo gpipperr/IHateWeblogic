@@ -189,19 +189,35 @@ ln -s /u01/app/oracle/java/jdk-21/bin/jps /usr/bin/jps
 WebLogic starts significantly slower when `securerandom.source=file:/dev/random`
 is active in `java.security` (blocking entropy source).
 
-**This fix is fully implemented — check and apply via:**
+The fix sets:
+```
+securerandom.source=file:/dev/./urandom
+```
+> `/dev/./urandom` instead of `/dev/urandom`: the JVM uses a string match to detect
+> `/dev/random` as blocking. `/dev/./urandom` resolves to the same device but bypasses
+> that check — it is the correct and documented fix.
+
+### Step 1 – Oracle JDK (this script)
+
+`02b-root_os_java.sh --apply` checks and fixes the Oracle JDK's `java.security`
+directly. This runs at installation time, before FMW is installed.
 
 ```
-02-Checks/weblogic_performance.sh  →  Section 1 – java.security: SecureRandom Source
+JDK 21:  $JDK_HOME/conf/security/java.security
+JDK 8:   $JDK_HOME/jre/lib/security/java.security
 ```
 
-Covers:
-- `java.security` path by JDK version (JDK 8: `jre/lib/security/` | JDK 11+: `conf/security/`)
-- Why `/dev/./urandom` instead of `/dev/urandom` (JVM internal path match)
-- `--apply` for automatic fix with backup
+### Step 2 – FMW embedded JDK (after FMW installation)
 
-**Run immediately after Java installation** — the script checks and sets the value
-without requiring a running WebLogic instance.
+After FMW is installed, WebLogic uses its own embedded JDK at
+`$FMW_HOME/oracle_common/jdk`. This separate `java.security` must also be fixed:
+
+```
+02-Checks/weblogic_performance.sh --apply  →  Section 1 – java.security
+```
+
+> **Both fixes are required.** The Oracle JDK fix covers the installation phase.
+> The FMW embedded JDK fix covers the running WebLogic instance.
 
 ---
 

@@ -487,12 +487,24 @@ if [ -n "$JAVA_SEC_FILE" ]; then
     printf "  %-26s %s\n" "securerandom.source:" "${SR_VAL:-(not set)}" | tee -a "${LOG_FILE:-/dev/null}"
     if printf "%s" "${SR_VAL:-}" | grep -q 'file:/dev/random$'; then
         warn "securerandom.source=file:/dev/random – blocking entropy source slows WLS startup"
-        info "  Fix: run 02-Checks/weblogic_performance.sh --apply"
+        info "  Required: file:/dev/./urandom  (non-blocking; /dev/./urandom bypasses JVM path check)"
+        if [ "$APPLY_MODE" -eq 1 ]; then
+            if askYesNo "Fix securerandom.source in $JAVA_SEC_FILE?" "y"; then
+                backup_file "$JAVA_SEC_FILE"
+                _run_root sed -i \
+                    's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
+                    "$JAVA_SEC_FILE"
+                SR_AFTER="$(grep '^securerandom.source=' "$JAVA_SEC_FILE" 2>/dev/null | head -1)"
+                ok "Fixed: $SR_AFTER"
+            fi
+        else
+            info "  Fix: re-run with --apply, or: 02-Checks/weblogic_performance.sh --apply"
+        fi
     elif printf "%s" "${SR_VAL:-}" | grep -qE 'urandom|/dev/\./'; then
         ok "securerandom.source uses non-blocking source – WebLogic startup not affected"
     else
         warn "securerandom.source not set or unrecognised – check java.security"
-        info "  Fix: run 02-Checks/weblogic_performance.sh --apply"
+        info "  Fix: re-run with --apply, or: 02-Checks/weblogic_performance.sh --apply"
     fi
 else
     if [ -x "$JDK_HOME/bin/java" ]; then
