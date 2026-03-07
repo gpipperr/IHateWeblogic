@@ -218,25 +218,16 @@ section "Kernel Parameters"
 
 SYSCTL_FILE="/etc/sysctl.d/99-oracle-fmw.conf"
 
-# Define target values for WLS
+# Define target values for WebLogic / Forms / Reports (no Oracle Database)
 declare -A SYSCTL_WANT=(
-    ["kernel.shmmax"]="4398046511104"
-    ["kernel.shmall"]="1073741824"
-    ["kernel.shmmni"]="4096"
-    ["kernel.sem"]="250 32000 100 128"
-    ["fs.file-max"]="6815744"
-    ["fs.aio-max-nr"]="1048576"
-    ["net.core.rmem_default"]="262144"
-    ["net.core.rmem_max"]="4194304"
-    ["net.core.wmem_default"]="262144"
-    ["net.core.wmem_max"]="1048576"
+    ["kernel.shmmax"]="4294967295"
+    ["kernel.shmall"]="9272480"
     ["net.ipv4.ip_local_port_range"]="9000 65500"
     ["vm.swappiness"]="10"
-    ["vm.min_free_kbytes"]="524288"
     ["kernel.panic_on_oops"]="1"
-    ["kernel.core_uses_pid"]="1"
-    ["kernel.core_pattern"]="/var/crash/coredump_%h_%t_%e.%p"
     ["fs.suid_dumpable"]="1"
+    ["kernel.core_uses_pid"]="1"
+    ["kernel.core_pattern"]="/var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e"
     ["net.ipv6.conf.all.disable_ipv6"]="1"
     ["net.ipv6.conf.default.disable_ipv6"]="1"
 )
@@ -256,37 +247,36 @@ done
 if [ "$SYSCTL_ISSUES" -gt 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Write kernel parameters to $SYSCTL_FILE?" "y"; then
         _run_root tee "$SYSCTL_FILE" > /dev/null << 'SYSCTL_EOF'
-# Oracle FMW 14.1.2 – kernel parameters
+# Oracle FMW 14.1.2 – kernel parameters for WebLogic / Forms / Reports
 # Managed by: 09-Install/01-root_os_baseline.sh
+# References:
+#   Oracle WLS 14.1.1 SYSRS: kernel.shmmax required by Oracle Universal Installer
+#   https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/sysrs/
+#   https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux
 
-# Shared memory (JVM IPC)
-kernel.shmmax         = 4398046511104
-kernel.shmall         = 1073741824
-kernel.shmmni         = 4096
-kernel.sem            = 250 32000 100 128
+# Shared memory – required by Oracle Universal Installer (WLS SYSRS)
+# Note: NOT the Oracle Database values (shmmax=4TB, shmall=1073741824)
+kernel.shmmax         = 4294967295
+kernel.shmall         = 9272480
 
-# File descriptors
-fs.file-max           = 6815744
-fs.aio-max-nr         = 1048576
-fs.suid_dumpable      = 1
-
-# Network buffers (WLS HTTP / T3 throughput)
-net.core.rmem_default = 262144
-net.core.rmem_max     = 4194304
-net.core.wmem_default = 262144
-net.core.wmem_max     = 1048576
+# Ephemeral port range (WLS / Forms / Reports use many concurrent connections)
 net.ipv4.ip_local_port_range = 9000 65500
 
-# JVM / system stability
+# JVM GC stability – reduce swap pressure on JVM heap
 vm.swappiness         = 10
-vm.min_free_kbytes    = 524288
+
+# Server stability – panic on kernel oops to force clean restart
 kernel.panic_on_oops  = 1
 
-# Core dumps (JVM crash analysis)
+# Core dumps (JVM / Oracle Forms crash analysis)
+# fs.suid_dumpable=1 required so oracle user (non-root) produces core files
+# /var/tmp/core must be chmod 777 so any uid can write there
+# Pattern fields: %h=host %s=signal %u=uid %g=gid %t=epoch %E=exe-path %e=exe-name
+fs.suid_dumpable      = 1
 kernel.core_uses_pid  = 1
-kernel.core_pattern   = /var/crash/coredump_%h_%t_%e.%p
+kernel.core_pattern   = /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
 
-# IPv6 disable (WLS listen address stability)
+# IPv6 disable (WLS Node Manager listen address stability: 127.0.0.1 vs ::1)
 net.ipv6.conf.all.disable_ipv6     = 1
 net.ipv6.conf.default.disable_ipv6 = 1
 SYSCTL_EOF
@@ -410,26 +400,48 @@ fi
 
 section "Core Dump Directory"
 
-CRASH_DIR="/var/crash"
-if [ -d "$CRASH_DIR" ]; then
-    CRASH_PERMS="$(stat -c '%a' "$CRASH_DIR" 2>/dev/null)"
-    ok "Core dump directory exists: $CRASH_DIR (mode: $CRASH_PERMS)"
-    # Check free space (warn if < 1 heap size = e.g. 4 GB)
-    CRASH_FREE_GB="$(df -BG "$CRASH_DIR" 2>/dev/null | awk 'NR==2 {gsub("G","",$4); print $4}')"
-    if [ -n "$CRASH_FREE_GB" ] && [ "$CRASH_FREE_GB" -lt 5 ]; then
-        warn "Only ${CRASH_FREE_GB}G free in $CRASH_DIR – JVM core dump needs ~heap size in free space"
+# /var/tmp/core – central core dump directory, world-writable (chmod 777)
+# Oracle Forms in particular can produce core dumps; if they land in the FMW
+# process working directory (/u01/.../bin) they silently fill up the disk.
+# Centralising via kernel.core_pattern makes them visible and manageable.
+# fs.suid_dumpable=1 is required so the oracle user (non-root) produces core files.
+# Test: su - oracle; ulimit -c unlimited; kill -s SIGSEGV $$  → check /var/tmp/core/
+CORE_DIR="/var/tmp/core"
+if [ -d "$CORE_DIR" ]; then
+    CORE_PERMS="$(stat -c '%a' "$CORE_DIR" 2>/dev/null)"
+    ok "Core dump directory exists: $CORE_DIR (mode: $CORE_PERMS)"
+    if [ "$CORE_PERMS" != "777" ]; then
+        warn "Core dump directory mode is $CORE_PERMS (expected 777 – oracle user must be able to write)"
+        [ "$APPLY_MODE" -eq 1 ] && _run_root chmod 777 "$CORE_DIR" && ok "Mode corrected to 777"
+    fi
+    # Check free space (JVM core = roughly heap size, typically 2–8 GB)
+    CORE_FREE_GB="$(df -BG "$CORE_DIR" 2>/dev/null | awk 'NR==2 {gsub("G","",$4); print $4}')"
+    if [ -n "$CORE_FREE_GB" ] && [ "$CORE_FREE_GB" -lt 5 ]; then
+        warn "Only ${CORE_FREE_GB}G free in $CORE_DIR – JVM core dump needs ~heap size in free space"
     else
-        ok "Free space in $CRASH_DIR: ${CRASH_FREE_GB:-unknown}G"
+        ok "Free space in $CORE_DIR: ${CORE_FREE_GB:-unknown}G"
     fi
 else
-    warn "Core dump directory not found: $CRASH_DIR"
+    warn "Core dump directory not found: $CORE_DIR"
+    info "  Oracle Forms may dump to FMW bin/ directory and silently fill the disk"
     if [ "$APPLY_MODE" -eq 1 ]; then
-        if askYesNo "Create $CRASH_DIR?" "y"; then
-            _run_root mkdir -p "$CRASH_DIR"
-            _run_root chmod 1777 "$CRASH_DIR"
-            ok "Created: $CRASH_DIR"
+        if askYesNo "Create $CORE_DIR with mode 777?" "y"; then
+            _run_root mkdir -p "$CORE_DIR"
+            _run_root chmod 777 "$CORE_DIR"
+            ok "Created: $CORE_DIR (mode 777)"
         fi
+    else
+        info "  Create manually: mkdir /var/tmp/core && chmod 777 /var/tmp/core"
     fi
+fi
+
+# Verify kernel.core_pattern points here (already set in sysctl block above)
+ACTUAL_PATTERN="$(sysctl -n kernel.core_pattern 2>/dev/null)"
+if printf "%s" "$ACTUAL_PATTERN" | grep -q "^/var/tmp/core/"; then
+    ok "kernel.core_pattern → $ACTUAL_PATTERN"
+else
+    warn "kernel.core_pattern = '$ACTUAL_PATTERN' (expected: /var/tmp/core/...)"
+    info "  Will be set when sysctl block is applied"
 fi
 
 # =============================================================================

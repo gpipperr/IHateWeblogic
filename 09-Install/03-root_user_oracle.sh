@@ -219,13 +219,20 @@ _check_limit() {
 }
 
 LIMITS_OK=1
-_check_limit oracle soft nofile 131072 || LIMITS_OK=0
-_check_limit oracle hard nofile 131072 || LIMITS_OK=0
-_check_limit oracle soft nproc  131072 || LIMITS_OK=0
-_check_limit oracle hard nproc  131072 || LIMITS_OK=0
-_check_limit oracle soft stack  10240  || LIMITS_OK=0
+# Oracle WLS SYSRS minimum: soft nofile=4096, hard nofile=65536
+# We set soft=hard=65536 (production practice: process starts at max, no self-raise needed)
+_check_limit oracle soft nofile 65536     || LIMITS_OK=0
+_check_limit oracle hard nofile 65536     || LIMITS_OK=0
+# Oracle WLS SYSRS minimum: soft nproc=2047, hard nproc=16384
+# We set soft=hard=16384
+_check_limit oracle soft nproc  16384     || LIMITS_OK=0
+_check_limit oracle hard nproc  16384     || LIMITS_OK=0
+_check_limit oracle soft stack  10240     || LIMITS_OK=0
+_check_limit oracle hard stack  32768     || LIMITS_OK=0
 _check_limit oracle soft core   unlimited || LIMITS_OK=0
-_check_limit oracle soft memlock 50000000 || LIMITS_OK=0
+_check_limit oracle hard core   unlimited || LIMITS_OK=0
+_check_limit oracle soft memlock unlimited || LIMITS_OK=0
+_check_limit oracle hard memlock unlimited || LIMITS_OK=0
 
 if [ "$LIMITS_OK" -eq 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Write oracle limits to $LIMITS_FILE?" "y"; then
@@ -292,6 +299,10 @@ export ORACLE_BASE=${ORACLE_BASE}
 export ORACLE_HOME=${ORACLE_HOME}
 export JAVA_HOME=${JDK_HOME}
 export PATH=\$JAVA_HOME/bin:\$ORACLE_HOME/OPatch:\$PATH
+# Unicode locale – required for Oracle Forms/Reports Unicode support
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+# Oracle NLS setting – must match the database character set (AL32UTF8)
 export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
 export TMP=/tmp
 export TMPDIR=/tmp
@@ -304,7 +315,56 @@ EOF
 fi
 
 # =============================================================================
-# 5. sudo Configuration
+# 5. Unicode / Locale
+# =============================================================================
+
+section "Unicode / Locale"
+
+# System locale (OL9 uses /etc/locale.conf, readable via localectl)
+SYS_LANG="$(grep '^LANG=' /etc/locale.conf 2>/dev/null | cut -d= -f2 | tr -d '"')"
+if printf "%s" "${SYS_LANG:-}" | grep -qi 'UTF-8'; then
+    ok "System locale: $SYS_LANG"
+else
+    warn "System locale: '${SYS_LANG:-(not set)}' – expected en_US.UTF-8 or similar UTF-8 locale"
+    info "  Set with: localectl set-locale LANG=en_US.UTF-8"
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        if askYesNo "Set system locale to en_US.UTF-8?" "y"; then
+            _run_root localectl set-locale LANG=en_US.UTF-8
+            ok "System locale set to en_US.UTF-8"
+        fi
+    fi
+fi
+
+# oracle user profile – check LANG and LC_ALL
+LOCALE_MARKER="Unicode locale"
+if [ -f "$ORACLE_PROFILE" ] && grep -q "$LOCALE_MARKER" "$ORACLE_PROFILE" 2>/dev/null; then
+    ok ".bash_profile: LANG / LC_ALL block present"
+    grep -E "^export (LANG|LC_ALL)" "$ORACLE_PROFILE" | while IFS= read -r line; do
+        info "  $line"
+    done
+else
+    warn ".bash_profile: LANG / LC_ALL not set for oracle user"
+    info "  Oracle Forms/Reports requires UTF-8 locale for correct Unicode handling"
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        if askYesNo "Add LANG / LC_ALL to $ORACLE_PROFILE?" "y"; then
+            _run_root tee -a "$ORACLE_PROFILE" > /dev/null << 'EOF'
+
+# Unicode locale – required for Oracle Forms/Reports Unicode support
+# Managed by: 09-Install/03-root_user_oracle.sh
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+EOF
+            ok ".bash_profile: LANG / LC_ALL added"
+        fi
+    else
+        info "  Add to /home/oracle/.bash_profile:"
+        info "    export LANG=en_US.UTF-8"
+        info "    export LC_ALL=en_US.UTF-8"
+    fi
+fi
+
+# =============================================================================
+# 6. sudo Configuration
 # =============================================================================
 
 section "sudo Configuration (/etc/sudoers.d/oracle-fmw)"
@@ -370,7 +430,7 @@ EOF
 fi
 
 # =============================================================================
-# 6. Directory Structure
+# 7. Directory Structure
 # =============================================================================
 
 section "Directory Structure"
@@ -446,7 +506,7 @@ else
 fi
 
 # =============================================================================
-# 7. Transfer IHateWeblogic repo ownership to oracle  (Bootstrap handover)
+# 8. Transfer IHateWeblogic repo ownership to oracle  (Bootstrap handover)
 # =============================================================================
 
 section "IHateWeblogic Repo Ownership (Bootstrap Handover)"

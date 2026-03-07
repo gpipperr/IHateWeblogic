@@ -3,6 +3,22 @@
 Complete installation roadmap for Oracle Forms & Reports 14.1.2 (FMW 14.1.2.0.0)
 on Oracle Linux 9 – from OS configuration to a validated production environment.
 
+---
+
+## Acknowledgements
+
+Special thanks to two colleagues without whom this documentation would not exist in this form:
+
+**Jürgen Menge** – for his invaluable support on countless WebLogic questions,
+for sharing his deep expertise, and for his ideas and information that have
+substantially shaped the concepts and structure of this installation guide.
+
+**Mark Eichhorst** – for his support and patience with Oracle Forms and Reports
+questions, and for the inspiration that came from the challenges and tasks he brought
+to the table.
+
+---
+
 >
 > **Concept:** Each installation step has a detail document in `docs/` describing what
 > would need to be done manually and what the script automates. Scripts are generated
@@ -214,16 +230,90 @@ otherwise display the command for manual execution.
 
 ---
 
-## 9. System Requirements (FMW 14.1.2 on OL 9)
+## 9. System Requirements (FMW 14.1.2 on OL 8 / OL 9)
 
-| Resource | Minimum | Recommended (production) |
-|---|---|---|
-| RAM | 8 GB | 16–32 GB |
-| CPU | 2 cores | 4–8 cores |
-| Disk `ORACLE_HOME` | 10 GB | 15 GB |
-| Disk `DOMAIN_HOME` | 5 GB | 10 GB |
-| Disk patch storage | 10 GB | 20 GB |
-| Swap | = RAM | 1.5× RAM |
+> IHateWeblogic targets **Oracle Linux 8 and Oracle Linux 9**.
+> OL7 is end-of-life and not covered by these scripts.
+
+### 9.1 Hardware – WebLogic / Forms / Reports server (no database on this host)
+
+| Resource | Minimum | Dev / QS / MTN | Production |
+|---|---|---|---|
+| RAM | 8 GB | 16 GB | 64 GB |
+| CPU cores | 1 core / 1 GHz | 2 cores | 4 cores |
+| Disk `ORACLE_HOME` | 10 GB | 15 GB | 15 GB |
+| Disk `DOMAIN_HOME` | 5 GB | 10 GB | 20 GB |
+| Disk patch storage | 10 GB | 20 GB | 20 GB |
+| Swap | 512 MB (OUI min) | = RAM | 1.5× RAM |
+| `/tmp` | 300 MB (OUI min) | 2 GB | 2 GB |
+
+**Production memory sizing example (WLS only):**
+```
+  8 GB  OS and other software
+  3 GB  Admin Server
++ 6 GB  Two Managed Servers (WLS_FORMS + WLS_REPORTS)
+------
+ 17 GB  minimum for WLS alone → plan 64 GB for production
+```
+
+> If the database runs on the same host, add DB RAM/CPU requirements on top.
+> For IHateWeblogic the database is on a **separate server** (see section 9.3).
+
+### 9.2 Oracle Universal Installer (OUI) minimum requirements
+
+| Resource | OUI minimum |
+|---|---|
+| CPU speed | 300 MHz |
+| Monitor | 256 colors (required for graphical installer mode) |
+| Swap | 512 MB |
+| Temp (`/tmp`) | 300 MB |
+
+The OUI can also run in silent mode (no monitor required) — all installation scripts
+use silent mode with response files.
+
+### 9.3 Repository Database requirements
+
+FMW 14.1.2 requires an Oracle Database for the FMW metadata schemas (RCU).
+The database runs on a **separate server** from WebLogic.
+
+**Certified database versions:**
+- Oracle DB 23ai ≥ 23.4.0.24
+- Oracle DB 19c ≥ 19.14.0.0
+
+**Database prerequisites:**
+
+| Requirement | Value |
+|---|---|
+| Oracle JVM | must be installed in the DB (`@?/javavm/install/initjvm.sql`) |
+| Character set | `AL32UTF8` (mandatory for Forms/Reports Unicode) |
+| Password expiry | `ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;` |
+
+**Required DB parameters (RCU prereq check):**
+
+| Parameter | Required value |
+|---|---|
+| `SHARED_POOL_SIZE` | 0 |
+| `SGA_MAX_SIZE` | 6112M |
+| `DB_BLOCK_SIZE` | 8 KB |
+| `session_cached_cursors` | 200 |
+| `processes` | 1200 |
+| `open_cursors` | 2250 |
+| `db_files` | 600 |
+
+**Verify required DB package:**
+```sql
+-- Run as SYSDBA – must return DBMS_SHARED_POOL / SYS
+SELECT object_name, owner
+FROM   sys.all_objects
+WHERE  object_name = 'DBMS_SHARED_POOL';
+```
+
+**Set password expiry (run in CDB and PDB):**
+```sql
+ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
+```
+
+→ Full RCU procedure: [docs/07-oracle_setup_repository.md](docs/07-oracle_setup_repository.md)
 
 ### Directory Layout
 
@@ -247,10 +337,13 @@ otherwise display the command for manual execution.
 ├── README.md                          ← this roadmap
 ├── install_lib.sh                     ← [TODO] shared functions
 ├── 01-setup-interview.sh              ← [TODO] configuration interview
-├── 00-root_user_oracle.sh             ← [TODO]
-├── 01-root_set_os_parameter.sh        ← [TODO]
-├── 02-root_nginx.sh                   ← [TODO]
-├── 03-root_nginx_ssl.sh               ← [TODO]
+├── 00-root_os_network.sh              ← Phase 0: hostname, hosts, IPv6, chrony, SSH
+├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall → REBOOT
+├── 02-root_os_packages.sh             ← Phase 0: packages, JDK
+├── 03-root_user_oracle.sh             ← Phase 0: oracle user, limits, dirs, repo handover
+├── 04-root_nginx.sh                   ← Phase 0: Nginx install + proxy config
+├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
+├── nginx-wls.conf.template            ← Nginx proxy config template (##VARIABLE## substitution)
 ├── 04-oracle_pre_checks.sh            ← [TODO]
 ├── 04-oracle_pre_download.sh          ← [TODO]
 ├── 05-oracle_install_weblogic.sh      ← [TODO]

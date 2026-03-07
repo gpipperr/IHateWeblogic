@@ -132,6 +132,8 @@ for PKG in \
     binutils \
     compat-openssl11 \
     cups-libs \
+    gcc \
+    gcc-c++ \
     glibc \
     glibc-devel \
     ksh \
@@ -147,8 +149,11 @@ for PKG in \
     libstdc++-devel \
     libnsl \
     make \
+    motif \
+    motif-devel \
     net-tools \
     nfs-utils \
+    numactl \
     unzip \
     wget \
     curl \

@@ -48,18 +48,37 @@ passwd oracle   # set initial password, or configure SSH key
 
 ### 3. Set shell resource limits
 
-Add to `/etc/security/limits.conf` (or create `/etc/security/limits.d/oracle-fmw.conf`):
+The script writes a drop-in file `/etc/security/limits.d/oracle-fmw.conf`
+(preferred over editing `limits.conf` directly).
 
 ```
-oracle  soft  nofile   65536
-oracle  hard  nofile   65536
-oracle  soft  nproc    16384
-oracle  hard  nproc    16384
-oracle  soft  stack    10240
-oracle  hard  stack    32768
-oracle  soft  memlock  unlimited
-oracle  hard  memlock  unlimited
+# Oracle FMW 14.1.2 – oracle user resource limits
+oracle   soft   nofile     65536
+oracle   hard   nofile     65536
+oracle   soft   nproc      16384
+oracle   hard   nproc      16384
+oracle   soft   stack      10240
+oracle   hard   stack      32768
+oracle   soft   core       unlimited
+oracle   hard   core       unlimited
+oracle   soft   memlock    unlimited
+oracle   hard   memlock    unlimited
 ```
+
+**Oracle WLS SYSRS minimum values vs. our values:**
+
+| Limit | Oracle minimum (soft) | Oracle minimum (hard) | Our value (soft=hard) |
+|---|---|---|---|
+| `nofile` | 4096 | 65536 | **65536** |
+| `nproc` | 2047 | 16384 | **16384** |
+| `stack` | 10240 | — | 10240 / 32768 |
+| `memlock` | — | — | unlimited |
+| `core` | — | — | unlimited (for JVM crash dumps) |
+
+> We set `soft = hard` for `nofile` and `nproc`. This is production practice:
+> the JVM and WLS processes start at the maximum limit without needing to
+> explicitly raise the soft limit themselves. This meets and exceeds the
+> Oracle minimum requirements.
 
 Verify that PAM loads limits:
 
@@ -97,13 +116,47 @@ export ORACLE_BASE=/u01/app/oracle
 export FMW_HOME=$ORACLE_BASE/fmw
 export JAVA_HOME=/u01/app/oracle/java/jdk-21
 export PATH=$JAVA_HOME/bin:$FMW_HOME/OPatch:$PATH
+# Unicode locale – required for Oracle Forms/Reports Unicode support
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+# Oracle NLS – must match database character set
 export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
 export TMP=/tmp
 export TMPDIR=/tmp
 umask 0022
 ```
 
-### 6. Create directory structure
+### 6. System locale (Unicode support)
+
+Oracle Forms and Reports require a UTF-8 locale for correct Unicode handling.
+Check and set the system-wide locale:
+
+```bash
+# Check current locale
+echo $LANG
+echo $LC_ALL
+localectl status
+
+# Set system locale (OL9)
+localectl set-locale LANG=en_US.UTF-8
+```
+
+> **Why both LANG and LC_ALL?**
+> - `LANG` is the base locale setting for all categories.
+> - `LC_ALL` overrides all individual `LC_*` variables — it guarantees a consistent
+>   UTF-8 environment even if individual variables are set elsewhere.
+> - `NLS_LANG` is Oracle-specific and controls how the Oracle client/forms engine
+>   encodes characters. It is independent of the POSIX locale.
+
+Verify after re-login:
+
+```bash
+su - oracle
+locale
+# Expected: all entries show en_US.UTF-8 (or LANG/LC_ALL at minimum)
+```
+
+### 7. Create directory structure
 
 ```bash
 mkdir -p /u01/app/oracle/fmw
@@ -115,7 +168,7 @@ chmod -R 755 /u01/app/oracle
 chmod 750 /u01/app/oracle/oraInventory
 ```
 
-### 7. Create Oracle Inventory pointer
+### 8. Create Oracle Inventory pointer
 
 ```bash
 cat > /etc/oraInst.loc << 'EOF'
@@ -129,7 +182,7 @@ chmod 644 /etc/oraInst.loc
 > check first. `/u01/app/oracle/oraInst.loc` is a user-space fallback used if root
 > has not created the system file.
 
-### 8. Bootstrap handover (final root step)
+### 9. Bootstrap handover (final root step)
 
 After this script completes, transfer ownership of the IHateWeblogic repository
 to the oracle user so all further scripts run under `oracle`:
@@ -179,9 +232,11 @@ id oracle
 su - oracle -c "ulimit -Hn"   # hard nofile → 65536
 su - oracle -c "ulimit -Sn"   # soft nofile → 65536
 
-# Environment
+# Environment and locale
 su - oracle -c "echo \$FMW_HOME"
 su - oracle -c "echo \$JAVA_HOME"
+su - oracle -c "locale"
+# Expected: LANG=en_US.UTF-8, LC_ALL=en_US.UTF-8
 
 # Sudo (should NOT prompt for password)
 su - oracle -c "sudo -n systemctl status nginx 2>&1 | head -1"
