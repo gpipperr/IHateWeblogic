@@ -558,6 +558,14 @@ DB_SERVER="${DET_DB_SERVER:-dedicated}"
 SQLPLUS_BIN=""       # optional: /path/to/sqlplus – enables login test in db_connect_check.sh
 SEC_CONF_DB="\${ROOT_DIR}/db_connect.conf.des3"
 
+# LOCAL_REP_DB: set to true if an Oracle Database runs on THIS host alongside WebLogic.
+# Effect on 01-root_os_baseline.sh:
+#   false (default) – oracle-database-preinstall sysctl values (shmmax=4TB, shmall=1G)
+#                     conflict with WLS OUI requirements and will be flagged for removal.
+#   true            – conflicting sysctl values are only reported (WARN), not modified,
+#                     because the local DB needs the larger shared-memory settings.
+LOCAL_REP_DB="false"
+
 # --- X11 / Display -----------------------------------------------------------
 DISPLAY_VAR=":99"
 EOF

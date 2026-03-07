@@ -244,7 +244,8 @@ declare -A SYSCTL_WANT=(
 
 SYSCTL_ISSUES=0
 for KEY in "${!SYSCTL_WANT[@]}"; do
-    CURRENT_VAL="$(sysctl -n "$KEY" 2>/dev/null)"
+    # sysctl -n may use tabs as separators (e.g. ip_local_port_range) – normalise to single space
+    CURRENT_VAL="$(sysctl -n "$KEY" 2>/dev/null | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')"
     WANT_VAL="${SYSCTL_WANT[$KEY]}"
     if [ "$CURRENT_VAL" = "$WANT_VAL" ]; then
         ok "$(printf "%-42s = %s" "$KEY" "$CURRENT_VAL")"
@@ -253,6 +254,73 @@ for KEY in "${!SYSCTL_WANT[@]}"; do
         SYSCTL_ISSUES=$((SYSCTL_ISSUES + 1))
     fi
 done
+
+# --- Conflict check: other sysctl files that override our values ---
+# /etc/sysctl.conf is loaded AFTER all sysctl.d/*.conf and therefore wins.
+# oracle-database-preinstall-* sets DB-sized shmmax/shmall that break WLS OUI.
+CONFLICT_FILES=()
+for KEY in "${!SYSCTL_WANT[@]}"; do
+    WANT_VAL="${SYSCTL_WANT[$KEY]}"
+    # Search all sysctl config files except our own
+    while IFS= read -r CONF_FILE; do
+        [ "$CONF_FILE" = "$SYSCTL_FILE" ] && continue
+        if grep -qE "^[[:space:]]*${KEY}[[:space:]]*=" "$CONF_FILE" 2>/dev/null; then
+            FILE_VAL="$(grep -E "^[[:space:]]*${KEY}[[:space:]]*=" "$CONF_FILE" \
+                | tail -1 | sed 's/.*=[[:space:]]*//')"
+            # Strip whitespace for comparison
+            FILE_VAL_NORM="$(printf "%s" "$FILE_VAL" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
+            WANT_VAL_NORM="$(printf "%s" "$WANT_VAL" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
+            if [ "$FILE_VAL_NORM" != "$WANT_VAL_NORM" ]; then
+                warn "Conflicting sysctl in $(basename "$CONF_FILE"): $KEY = $FILE_VAL_NORM (overrides our: $WANT_VAL_NORM)"
+                info "  File: $CONF_FILE"
+                CONFLICT_FILES+=("$CONF_FILE")
+            fi
+        fi
+    done < <(find /etc/sysctl.d /etc/sysctl.conf -maxdepth 1 -type f \
+        ! -name "*.bak*" ! -name "*.orig" ! -name "*.rpmsave" 2>/dev/null | sort)
+done
+
+if [ "${#CONFLICT_FILES[@]}" -gt 0 ]; then
+    # Deduplicate
+    mapfile -t CONFLICT_FILES < <(printf "%s\n" "${CONFLICT_FILES[@]}" | sort -u)
+    info "  These files are loaded after 99-oracle-fmw.conf and win the merge."
+    info "  Typical cause: oracle-database-preinstall-* RPM (DB-sized shm values)."
+
+    if [ "${LOCAL_REP_DB:-false}" = "true" ]; then
+        # Oracle DB runs on this host – it needs the large shm values; only warn, never touch.
+        warn "$(printf "%d" "${#CONFLICT_FILES[@]}") sysctl file(s) have values sized for Oracle DB (LOCAL_REP_DB=true – not modified)"
+        info "  kernel.shmmax/shmall are intentionally set for the local DB, not for WLS OUI."
+        info "  If WLS OUI fails during install, temporarily set LOCAL_REP_DB=false and re-run."
+    else
+        fail "$(printf "%d" "${#CONFLICT_FILES[@]}") external sysctl file(s) override our WebLogic parameters"
+        info "  LOCAL_REP_DB=false – no local Oracle DB; these large shm values are not needed."
+        info "  Fix: comment out the conflicting keys (--apply), or set LOCAL_REP_DB=true to skip."
+        if [ "$APPLY_MODE" -eq 1 ]; then
+            for CF in "${CONFLICT_FILES[@]}"; do
+                if askYesNo "Comment out conflicting keys in $(basename "$CF")?" "y"; then
+                backup_file "$CF"
+                for KEY in "${!SYSCTL_WANT[@]}"; do
+                    WANT_VAL="${SYSCTL_WANT[$KEY]}"
+                    if grep -qE "^[[:space:]]*${KEY}[[:space:]]*=" "$CF" 2>/dev/null; then
+                        FILE_VAL="$(grep -E "^[[:space:]]*${KEY}[[:space:]]*=" "$CF" \
+                            | tail -1 | sed 's/.*=[[:space:]]*//' \
+                            | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
+                        WANT_VAL_NORM="$(printf "%s" "$WANT_VAL" \
+                            | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
+                        if [ "$FILE_VAL" != "$WANT_VAL_NORM" ]; then
+                            _run_root sed -i \
+                                "s|^\([[:space:]]*${KEY}[[:space:]]*=\)|# [oracle-fmw] \1|" "$CF"
+                            ok "Commented out $KEY in $(basename "$CF")"
+                        fi
+                    fi
+                done
+                _run_root sysctl --system > /dev/null 2>&1
+                ok "sysctl reloaded"
+            fi
+        done
+        fi  # APPLY_MODE
+    fi  # LOCAL_REP_DB=false
+fi  # CONFLICT_FILES
 
 if [ "$SYSCTL_ISSUES" -gt 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Write kernel parameters to $SYSCTL_FILE?" "y"; then
