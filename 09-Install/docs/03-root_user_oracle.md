@@ -113,9 +113,9 @@ Add to `/home/oracle/.bash_profile`:
 ```bash
 # --- Oracle FMW Environment -------------------------------------------
 export ORACLE_BASE=/u01/app/oracle
-export FMW_HOME=$ORACLE_BASE/fmw
+export ORACLE_HOME=$ORACLE_BASE/fmw
 export JAVA_HOME=/u01/app/oracle/java/jdk-21
-export PATH=$JAVA_HOME/bin:$FMW_HOME/OPatch:$PATH
+export PATH=$JAVA_HOME/bin:$ORACLE_HOME/OPatch:$PATH
 # Unicode locale – required for Oracle Forms/Reports Unicode support
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
@@ -125,6 +125,10 @@ export TMP=/tmp
 export TMPDIR=/tmp
 umask 0022
 ```
+
+> **Note:** The script uses `ORACLE_HOME` (= `$ORACLE_BASE/fmw`) as the FMW home
+> variable. This is the standard Oracle convention. Do not confuse with a Database
+> `ORACLE_HOME` — on this host, `ORACLE_HOME` points exclusively to the FMW install.
 
 ### 6. System locale (Unicode support)
 
@@ -170,17 +174,20 @@ chmod 750 /u01/app/oracle/oraInventory
 
 ### 8. Create Oracle Inventory pointer
 
+The script creates `$ORACLE_BASE/oraInst.loc` (= `/u01/app/oracle/oraInst.loc`):
+
 ```bash
-cat > /etc/oraInst.loc << 'EOF'
+cat > /u01/app/oracle/oraInst.loc << 'EOF'
 inventory_loc=/u01/app/oracle/oraInventory
 inst_group=oinstall
 EOF
-chmod 644 /etc/oraInst.loc
 ```
 
-> Note: `/etc/oraInst.loc` is the system-wide default location that Oracle installers
-> check first. `/u01/app/oracle/oraInst.loc` is a user-space fallback used if root
-> has not created the system file.
+> **Two possible locations — the script uses the user-space path:**
+> - `/etc/oraInst.loc` — system-wide default; Oracle installers check this first
+>   (requires root write; created manually if needed for enterprise environments)
+> - `/u01/app/oracle/oraInst.loc` — user-space fallback under `ORACLE_BASE`;
+>   created by this script; sufficient for standalone FMW installations
 
 ### 9. Bootstrap handover (final root step)
 
@@ -206,7 +213,7 @@ From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
 - Creates `/etc/sudoers.d/oracle-fmw` and validates with `visudo -c`
 - Writes `~oracle/.bash_profile` FMW block (checks for existing entries, no duplicates)
 - Creates full directory tree with correct ownership
-- Creates `/etc/oraInst.loc` inventory pointer
+- Creates `$ORACLE_BASE/oraInst.loc` inventory pointer (user-space path)
 - Transfers repository ownership to `oracle:oinstall` (bootstrap handover)
 
 ---
@@ -233,7 +240,7 @@ su - oracle -c "ulimit -Hn"   # hard nofile → 65536
 su - oracle -c "ulimit -Sn"   # soft nofile → 65536
 
 # Environment and locale
-su - oracle -c "echo \$FMW_HOME"
+su - oracle -c "echo \$ORACLE_HOME"   # → /u01/app/oracle/fmw
 su - oracle -c "echo \$JAVA_HOME"
 su - oracle -c "locale"
 # Expected: LANG=en_US.UTF-8, LC_ALL=en_US.UTF-8
@@ -242,7 +249,7 @@ su - oracle -c "locale"
 su - oracle -c "sudo -n systemctl status nginx 2>&1 | head -1"
 
 # Inventory pointer
-cat /etc/oraInst.loc
+cat /u01/app/oracle/oraInst.loc
 
 # Directory ownership
 ls -la /u01/app/oracle/

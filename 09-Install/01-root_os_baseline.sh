@@ -14,7 +14,7 @@
 # NOTE     : REBOOT REQUIRED after --apply (SELinux + kernel changes)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 09-Install/docs/01-root_os_baseline.md
+# Ref      : 09-Install/docs/00-root_set_os_parameter.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -12,7 +12,7 @@
 # Runs as  : root or oracle with sudo (configured via 03-root_user_oracle.sh)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 09-Install/docs/00-root_os_network.md
+# Ref      : 09-Install/docs/00-root_os_network.md  [TODO – doc not yet written]
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

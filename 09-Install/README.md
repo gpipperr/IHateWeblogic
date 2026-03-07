@@ -109,7 +109,7 @@ Phase 5 – Configuration & Validation (as oracle)
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/concept-os-preparation.md) |
+| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | _(doc not yet written)_ |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 | _(Java setup)_ | OpenJDK vs Oracle JDK, alternatives, jps, SecureRandom | [→ docs](docs/01-root_setup_java.md) |
