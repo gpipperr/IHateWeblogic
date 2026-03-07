@@ -24,6 +24,7 @@ log/
 
 # Claude Code session data (local only)
 .claude/
+CLAUDE.md
 
 # Editor artifacts
 *.swp
