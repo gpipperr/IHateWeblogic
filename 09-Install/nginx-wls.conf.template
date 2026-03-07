@@ -1,0 +1,150 @@
+# =============================================================================
+# nginx-wls.conf.template – Nginx reverse proxy for Oracle Forms & Reports
+# =============================================================================
+# Managed by : 09-Install/04-root_nginx.sh
+# Template   : Variables are replaced by the script using ##VARIABLE## syntax
+#
+# Reference  : https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server
+#              https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9
+#
+# Variables replaced at install time:
+#   ##SERVER_NAME##        FQDN of this server (e.g. wls01.company.local)
+#   ##WLS_FORMS_PORT##     WLS_FORMS listen port  (default: 9001)
+#   ##WLS_REPORTS_PORT##   WLS_REPORTS listen port (default: 9002)
+#   ##WLS_ADMIN_PORT##     AdminServer listen port  (default: 7001)
+#   ##SSL_CERT##           Path to SSL fullchain certificate PEM file
+#   ##SSL_KEY##            Path to SSL private key PEM file
+#   ##ADMIN_IP_RANGE##     Network allowed to reach /console (e.g. 10.0.0.0/8)
+#
+# Deployment: place in /etc/nginx/conf.d/oracle-wls.conf
+# Note: no http{} block – conf.d files are included inside the http{} block
+#       of /etc/nginx/nginx.conf (standard OL9 Nginx package layout)
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Upstream targets – WebLogic listens on 127.0.0.1 only (Nginx is the gateway)
+# ---------------------------------------------------------------------------
+
+upstream wls_forms {
+    server 127.0.0.1:##WLS_FORMS_PORT##;
+    keepalive 32;
+}
+
+upstream wls_reports {
+    server 127.0.0.1:##WLS_REPORTS_PORT##;
+    keepalive 32;
+}
+
+upstream wls_admin {
+    server 127.0.0.1:##WLS_ADMIN_PORT##;
+    keepalive 16;
+}
+
+# ---------------------------------------------------------------------------
+# HTTP → HTTPS redirect (all plain HTTP requests)
+# ---------------------------------------------------------------------------
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ##SERVER_NAME## _;
+    return 301 https://$host$request_uri;
+}
+
+# ---------------------------------------------------------------------------
+# HTTPS – SSL termination + reverse proxy to WebLogic
+# ---------------------------------------------------------------------------
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ##SERVER_NAME##;
+
+    # --- SSL Certificate --------------------------------------------------
+    ssl_certificate     ##SSL_CERT##;
+    ssl_certificate_key ##SSL_KEY##;
+
+    # --- TLS protocol & ciphers (TLS 1.2 + 1.3 only) ---------------------
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256';
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # --- HSTS (enable after verifying SSL works – prevents downgrade) -----
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # --- Compression ------------------------------------------------------
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json
+               application/xml text/xml image/svg+xml;
+
+    # --- Common proxy headers (sent to all WebLogic upstreams) -----------
+    proxy_http_version      1.1;               # HTTP/1.1 for keep-alive + chunked
+    proxy_set_header        Host               $host;
+    proxy_set_header        X-Real-IP          $remote_addr;
+    proxy_set_header        X-Forwarded-For    $proxy_add_x_forwarded_for;
+    proxy_set_header        X-Forwarded-Proto  https;
+    proxy_set_header        Connection         "";  # clear Connection header for keep-alive
+    proxy_connect_timeout   60s;
+    proxy_read_timeout      120s;
+    proxy_send_timeout      120s;
+    client_max_body_size    100m;              # for Forms file upload / Reports output
+
+    # --- WebLogic-specific headers ----------------------------------------
+    proxy_set_header        WL-Proxy-Client-IP $remote_addr;
+    proxy_set_header        WL-Proxy-SSL       true;
+
+    # --- Oracle Forms (/forms) --------------------------------------------
+    location /forms/ {
+        proxy_pass http://wls_forms;
+        proxy_cookie_path /forms /forms;       # preserve cookie path for session tracking
+    }
+
+    location /forms {
+        return 301 /forms/;
+    }
+
+    # --- Oracle Reports (/reports) ----------------------------------------
+    location /reports/ {
+        proxy_pass http://wls_reports;
+        proxy_cookie_path /reports /reports;
+
+        # Reports job downloads can be large and slow
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /reports {
+        return 301 /reports/;
+    }
+
+    # --- WebLogic Admin Console (/console) --------------------------------
+    # Access restricted to admin network – adjust ##ADMIN_IP_RANGE## accordingly
+    location /console {
+        allow ##ADMIN_IP_RANGE##;
+        deny  all;
+        proxy_pass http://wls_admin;
+        proxy_set_header Connection "";
+    }
+
+    # --- WebLogic Enterprise Manager (/em) --------------------------------
+    location /em {
+        allow ##ADMIN_IP_RANGE##;
+        deny  all;
+        proxy_pass http://wls_admin;
+    }
+
+    # --- Health check endpoint (Nginx itself, no proxy) -------------------
+    location /nginx-health {
+        access_log off;
+        return 200 "OK\n";
+        add_header Content-Type text/plain;
+    }
+
+    # --- Deny hidden files ------------------------------------------------
+    location ~ /\. {
+        deny all;
+        access_log off;
+    }
+}

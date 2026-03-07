@@ -132,7 +132,144 @@ nmap --script ssl-enum-ciphers -p 443 localhost
 
 ## Notes
 
-- This script expects `02-root_nginx.sh` to have already created the Nginx config
-- In production: always use a CA-signed certificate (not self-signed)
+- This script expects `04-root_nginx.sh` to have already created the Nginx config
 - HSTS header is commented out by default — enable after confirming SSL works correctly
 - For certificate renewal: re-run with `--apply` after replacing cert files in their source location
+
+---
+
+## Certificate Options
+
+### Option A – Company / Public CA Certificate (production)
+
+The customer provides a CA-signed certificate.
+Place the files in a secure staging location, then set in `environment.conf`:
+
+```bash
+SSL_CERT_FILE=/srv/certs/fullchain.pem   # cert + intermediate chain
+SSL_KEY_FILE=/srv/certs/privkey.pem
+```
+
+`05-root_nginx_ssl.sh` validates, copies, and deploys.
+
+---
+
+### Option B – Internal CA with Easy-RSA (internal/lab environments)
+
+For environments without a public CA, Easy-RSA provides a simple way to operate
+an internal CA and issue server certificates with correct SANs.
+All certificates will be trusted by browsers/clients once the CA root is imported.
+
+Reference: https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9
+
+#### 1. Install Easy-RSA
+
+```bash
+dnf install oracle-epel-release-el9
+dnf install easy-rsa openssl
+```
+
+#### 2. Initialize CA directory
+
+```bash
+mkdir -p /srv/gpi_ca
+ln -s /usr/share/easy-rsa/3 /srv/gpi_ca/easy-rsa
+chmod 700 /srv/gpi_ca
+
+cd /srv/gpi_ca
+./easy-rsa/easyrsa init-pki
+```
+
+#### 3. Configure CA (edit `pki/vars`)
+
+```
+set_var EASYRSA_ALGO         ec           # elliptic curve (modern, smaller keys)
+set_var EASYRSA_CURVE        secp384r1
+set_var EASYRSA_CA_EXPIRE    3650         # CA valid 10 years
+set_var EASYRSA_CERT_EXPIRE  825          # server certs valid ~2 years
+set_var EASYRSA_CRL_DAYS     180
+set_var EASYRSA_AUTO_SAN     1            # auto SAN from CN (required for modern browsers)
+```
+
+#### 4. Create the CA
+
+```bash
+./easy-rsa/easyrsa build-ca
+# Prompts: CA passphrase + Common Name (e.g. "Company.local CA")
+```
+
+CA certificate created at: `pki/ca.crt` — this is the root to distribute to clients.
+
+#### 5. Create server certificate
+
+```bash
+./easy-rsa/easyrsa build-server-full wls01.company.local nopass
+```
+
+Output files:
+| File | Use |
+|---|---|
+| `pki/issued/wls01.company.local.crt` | Server certificate → `SSL_CERT_FILE` |
+| `pki/private/wls01.company.local.key` | Private key → `SSL_KEY_FILE` |
+| `pki/ca.crt` | CA root → distribute to all clients as `SSL_CHAIN_FILE` |
+
+#### 6. Verify SAN is present
+
+```bash
+openssl x509 -in pki/issued/wls01.company.local.crt -noout -text \
+    | grep -A2 "Subject Alternative Name"
+# Expected: DNS:wls01.company.local
+```
+
+Modern browsers require SAN — a certificate without SAN will show a security error
+even if the CN matches.
+
+#### 7. Distribute CA root to clients
+
+```bash
+# On each client machine (Oracle Linux):
+cp pki/ca.crt /etc/pki/ca-trust/source/anchors/company-local-ca.crt
+update-ca-trust
+
+# On Windows clients: import pki/ca.crt into Trusted Root Certification Authorities
+# via certmgr.msc or Group Policy
+```
+
+#### 8. Set in environment.conf
+
+```bash
+SSL_CERT_FILE=/srv/gpi_ca/pki/issued/wls01.company.local.crt
+SSL_KEY_FILE=/srv/gpi_ca/pki/private/wls01.company.local.key
+SSL_CHAIN_FILE=/srv/gpi_ca/pki/ca.crt
+```
+
+Then run: `./09-Install/05-root_nginx_ssl.sh --apply`
+
+#### Backup
+
+> Loss of CA private key (`pki/private/ca.key`) means all issued certificates
+> become unverifiable — back up `/srv/gpi_ca/` regularly to offline storage.
+
+---
+
+### Option C – Self-signed certificate (testing only)
+
+Quick generation for smoke testing. Browsers will show a security warning.
+
+```bash
+openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
+    -keyout /srv/certs/privkey.pem \
+    -out    /srv/certs/fullchain.pem \
+    -subj   "/CN=wls01.company.local" \
+    -addext "subjectAltName=DNS:wls01.company.local"
+```
+
+---
+
+## References
+
+| Resource | URL |
+|---|---|
+| Nginx + ORDS + APEX proxy concept | https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server |
+| Nginx + GitLab on OL 9 (SSL handling) | https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9 |
+| Easy-RSA CA on Oracle Linux 9 | https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9 |
