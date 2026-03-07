@@ -217,8 +217,8 @@ find /var/tmp/core/ -name "coredump_*" -mtime +14 -delete
 - **SELinux:** Set to `disabled` in `/etc/selinux/config` (requires reboot)
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
-- **Firewall:** Ports 80 and 443 opened; WLS ports (9001, 9002, 7001) must remain
-  closed externally (Nginx is the only external entry point)
+- **Firewall:** Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
+  port 5556 must remain closed externally (Nginx is the only external entry point)
 
 ---
 
@@ -226,12 +226,19 @@ find /var/tmp/core/ -name "coredump_*" -mtime +14 -delete
 
 ```bash
 # Kernel parameters (after applying)
-sysctl kernel.shmmax kernel.shmall net.ipv4.ip_local_port_range vm.swappiness
+sysctl kernel.shmmax kernel.shmall net.ipv4.ip_local_port_range vm.swappiness \
+       kernel.panic_on_oops fs.suid_dumpable kernel.core_uses_pid
 # Expected:
 #   kernel.shmmax = 4294967295
 #   kernel.shmall = 9272480
 #   net.ipv4.ip_local_port_range = 9000    65500
 #   vm.swappiness = 10
+#   kernel.panic_on_oops = 1
+#   fs.suid_dumpable = 1
+#   kernel.core_uses_pid = 1
+
+sysctl kernel.core_pattern
+# Expected: /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
 
 # THP status
 cat /sys/kernel/mm/transparent_hugepage/enabled
@@ -244,6 +251,10 @@ getenforce
 # Core dump directory
 ls -la /var/tmp/core/
 # Expected: drwxrwxrwx
+
+# Firewall – Nginx ports open, WLS ports closed
+firewall-cmd --list-ports
+# Expected: 80/tcp 443/tcp  (and NOT 7001 9001 9002 5556)
 ```
 
 ---
