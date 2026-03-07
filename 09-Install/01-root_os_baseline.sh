@@ -193,7 +193,10 @@ if [ "$SKIP_UPDATE" -eq 1 ]; then
     info "OS update skipped (--skip-update)"
 else
     # Check for pending updates
-    UPDATE_COUNT="$(_run_root dnf check-update --quiet 2>/dev/null | grep -c '^[a-zA-Z]' || echo 0)"
+    # grep -c always outputs a number (0..n); exit code 1 on zero matches is normal –
+    # do NOT use || echo 0 here, that appends a second "0" and breaks integer comparison.
+    UPDATE_COUNT="$(_run_root dnf check-update --quiet 2>/dev/null | grep -c '^[a-zA-Z]')"
+    UPDATE_COUNT="${UPDATE_COUNT:-0}"
     if [ "${UPDATE_COUNT:-0}" -eq 0 ]; then
         ok "System is up to date"
     else
