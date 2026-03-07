@@ -337,7 +337,7 @@ fi
 
 printLine
 if [ "$CNT_FAIL" -eq 0 ] && [ "$CNT_WARN" -eq 0 ]; then
-    info "Package installation complete – proceed to 03-root_user_oracle.sh"
+    info "Package installation complete – proceed to 02b-root_os_java.sh"
 else
     [ "$APPLY_MODE" -eq 0 ] && info "Re-run with --apply to install missing packages"
 fi
