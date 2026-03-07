@@ -112,7 +112,7 @@ Phase 5 – Configuration & Validation (as oracle)
 | 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | _(doc not yet written)_ |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
-| 0 | _(Java setup)_ | OpenJDK vs Oracle JDK, alternatives, jps, SecureRandom | [→ docs](docs/01-root_setup_java.md) |
+| 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom check | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
 | 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/02-root_nginx.md) |
 | 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/03-root_nginx_ssl.md) |
