@@ -52,7 +52,29 @@ not to whatever `alternatives` selects as the system default.
 
 ## Option A – Oracle JDK 21 (primary, for WebLogic)
 
-Download from: https://www.oracle.com/java/technologies/downloads/
+### Download URLs
+
+| File | URL |
+|---|---|
+| Installer (latest) | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz` |
+| SHA256 checksum | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256` |
+| All versions / RPM | https://www.oracle.com/java/technologies/downloads/ |
+
+> The `/latest/` URL always points to the current JDK 21 patch release.
+> SHA256 is verified automatically by `02b-root_os_java.sh`.
+
+### Installer search order in 02b-root_os_java.sh
+
+The script searches in this priority order:
+
+1. **`$PATCH_STORAGE`** – if configured in `environment.conf`, searches for `jdk-21*.tar.gz` / `*.rpm`
+2. **`/tmp`** – pre-placed installer (`scp jdk-21_linux-x64_bin.tar.gz root@server:/tmp/`)
+   — SHA256 is always verified (read-only, no `--apply` required)
+3. **Oracle CDN** – download offered interactively (default: `n`); internet access required
+   — SHA256 verified after download; on mismatch the file is deleted immediately
+
+The download itself does **not** require `--apply` (file lands in `/tmp`).
+Only the extraction requires `--apply`.
 
 ### Installation via tar.gz (recommended for FMW)
 
@@ -61,22 +83,23 @@ protected from OS package updates.
 
 ```bash
 # Extract – JDK stays INDEPENDENT of FMW_HOME
-tar xf jdk-21.0.x_linux-x64_bin.tar.gz -C /u01/app/oracle/java/
+tar xf jdk-21_linux-x64_bin.tar.gz -C /u01/app/oracle/java/
 
-# Result:
-# /u01/app/oracle/java/jdk-21.0.x/
+# Result: /u01/app/oracle/java/jdk-21.0.10/  (version depends on download date)
 ```
 
 Create a stable symlink so `JAVA_HOME` does not need to change on patch updates:
 
 ```bash
-ln -s /u01/app/oracle/java/jdk-21.0.x /u01/app/oracle/java/jdk-21
+# Script creates this automatically:
+ln -sfn /u01/app/oracle/java/jdk-21.0.10 /u01/app/oracle/java/jdk-21
+# → JAVA_HOME=/u01/app/oracle/java/jdk-21  (always stable)
 ```
 
 ### Installation via RPM (alternative)
 
 ```bash
-dnf install --nogpgcheck jdk-21.0.x_linux-x64_bin.rpm
+dnf install --nogpgcheck jdk-21_linux-x64_bin.rpm
 ```
 
 The Oracle JDK RPM automatically creates the symlink `/usr/java/latest`.
@@ -231,5 +254,7 @@ jps -m
 | Oracle Java SE license when used with Oracle products | Oracle Support Doc ID 1557737.1 |
 | Oracle Java licensing changes 2023 | https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html |
 | Oracle Java SE subscription price list | https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf |
-| Oracle JDK 21 downloads | https://www.oracle.com/java/technologies/downloads/ |
+| Oracle JDK 21 downloads (all versions) | https://www.oracle.com/java/technologies/downloads/ |
+| Oracle JDK 21 latest – direct CDN link | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz` |
+| Oracle JDK 21 latest – SHA256 checksum | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256` |
 | SecureRandom fix for WebLogic | `02-Checks/weblogic_performance.sh` – Section 1 |

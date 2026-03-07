@@ -97,6 +97,32 @@ _check_root_access() {
     fi
 }
 
+# Extract a JDK tar.gz to JDK_PARENT and create a stable JDK_HOME symlink.
+# Usage: _install_jdk_tar <tar_path>
+# Returns 0 on success, 1 on failure (fail() already called).
+_install_jdk_tar() {
+    local TAR_PATH="$1"
+    _run_root mkdir -p "$JDK_PARENT" || return 1
+    _run_root tar xf "$TAR_PATH" -C "$JDK_PARENT" || { fail "tar extraction failed: $TAR_PATH"; return 1; }
+    local EXTRACTED
+    EXTRACTED="$(tar tf "$TAR_PATH" 2>/dev/null | head -1 | cut -d/ -f1)"
+    local EXTRACTED_PATH="$JDK_PARENT/$EXTRACTED"
+    if [ -d "$EXTRACTED_PATH" ] && [ "$EXTRACTED_PATH" != "$JDK_HOME" ]; then
+        info "  Extracted: $EXTRACTED_PATH"
+        _run_root ln -sfn "$EXTRACTED_PATH" "$JDK_HOME"
+        ok "Symlink created: $JDK_HOME → $EXTRACTED_PATH"
+    elif [ -d "$JDK_HOME" ]; then
+        ok "JDK directory already at target path: $JDK_HOME"
+    fi
+    if [ -x "$JDK_HOME/bin/java" ]; then
+        ok "JDK installed: $("$JDK_HOME/bin/java" -version 2>&1 | head -1)"
+        return 0
+    else
+        fail "Extraction completed but $JDK_HOME/bin/java not executable"
+        return 1
+    fi
+}
+
 # =============================================================================
 # Banner
 # =============================================================================
@@ -217,8 +243,100 @@ else
             fi
 
         else
-            info "  No JDK 21 installer found in PATCH_STORAGE: ${PATCH_STORAGE:-(not set)}"
-            info "  Place jdk-21.x_linux-x64_bin.tar.gz or .rpm in PATCH_STORAGE and re-run"
+            # --- Fallback 1: search /tmp for pre-placed installer ---
+            JDK_TMP_TAR="$(find /tmp -maxdepth 1 -name "jdk-21*linux-x64*.tar.gz" \
+                2>/dev/null | sort | tail -1)"
+            if [ -n "$JDK_TMP_TAR" ]; then
+                info "  Installer found in /tmp: $JDK_TMP_TAR"
+                # SHA256 check is read-only – always verify, regardless of --apply
+                JDK_SHA_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256"
+                info "  Verifying SHA256 checksum ..."
+                SHA256_REMOTE="$(curl -L --fail --max-time 30 --silent \
+                    "$JDK_SHA_URL" | awk '{print $1}')"
+                SHA256_OK=0
+                if [ -z "$SHA256_REMOTE" ]; then
+                    warn "Could not retrieve SHA256 from Oracle CDN – skipping checksum check"
+                    info "  (no internet access? checksum not verified)"
+                    SHA256_OK=1  # proceed anyway – user pre-placed the file
+                else
+                    SHA256_LOCAL="$(sha256sum "$JDK_TMP_TAR" | awk '{print $1}')"
+                    if [ "$SHA256_LOCAL" = "$SHA256_REMOTE" ]; then
+                        ok "SHA256 verified: $SHA256_LOCAL"
+                        SHA256_OK=1
+                    else
+                        fail "SHA256 MISMATCH – file corrupt or wrong version"
+                        info "  Expected: $SHA256_REMOTE"
+                        info "  Got:      $SHA256_LOCAL"
+                        info "  Remove and replace: rm $JDK_TMP_TAR"
+                    fi
+                fi
+                if [ "$SHA256_OK" -eq 1 ]; then
+                    if [ "$APPLY_MODE" -eq 1 ]; then
+                        if askYesNo "Extract $JDK_TMP_TAR to $JDK_PARENT?" "y"; then
+                            _install_jdk_tar "$JDK_TMP_TAR"
+                        fi
+                    else
+                        info "  Run with --apply to extract"
+                        info "  Manual:"
+                        info "    mkdir -p $JDK_PARENT"
+                        info "    tar xf $JDK_TMP_TAR -C $JDK_PARENT"
+                        info "    ln -s $JDK_PARENT/jdk-21.0.x $JDK_HOME"
+                    fi
+                fi
+            else
+                # --- Fallback 2: download from Oracle CDN ---
+                JDK_CDN_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
+                JDK_SHA_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256"
+                JDK_DL_TARGET="/tmp/jdk-21_linux-x64_bin.tar.gz"
+
+                info "  No JDK 21 installer found in PATCH_STORAGE (${PATCH_STORAGE:-(not set)}) or /tmp"
+                info "  Options:"
+                info "    A) Copy installer manually:  scp jdk-21*linux-x64*.tar.gz root@$(hostname -s):/tmp/"
+                info "    B) Download from Oracle CDN: $JDK_CDN_URL"
+                # Download is read-only (file lands in /tmp only) – no --apply required.
+                # Extraction is gated behind --apply (handled on next run via Fallback 1).
+                if askYesNo "Download Oracle JDK 21 from Oracle CDN to /tmp? (requires internet access)" "n"; then
+                    info "  Downloading: $JDK_CDN_URL"
+                    if ! curl -L --fail --max-time 300 --progress-bar \
+                            -o "$JDK_DL_TARGET" "$JDK_CDN_URL"; then
+                        fail "Download failed – no internet access or URL changed"
+                        info "  Manual copy: scp jdk-21_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
+                        info "  Then re-run: $0 --apply"
+                    else
+                        ok "Download complete: $JDK_DL_TARGET"
+                        # SHA256 verification – Oracle publishes checksum at .sha256 URL
+                        info "  Verifying SHA256 checksum ..."
+                        SHA256_REMOTE="$(curl -L --fail --max-time 30 --silent \
+                            "$JDK_SHA_URL" | awk '{print $1}')"
+                        if [ -z "$SHA256_REMOTE" ]; then
+                            fail "Could not retrieve SHA256 from Oracle CDN – aborting"
+                            rm -f "$JDK_DL_TARGET"
+                            info "  Partial download removed. Re-run to retry."
+                        else
+                            SHA256_LOCAL="$(sha256sum "$JDK_DL_TARGET" | awk '{print $1}')"
+                            if [ "$SHA256_LOCAL" = "$SHA256_REMOTE" ]; then
+                                ok "SHA256 verified: $SHA256_LOCAL"
+                                if [ "$APPLY_MODE" -eq 1 ]; then
+                                    _install_jdk_tar "$JDK_DL_TARGET"
+                                else
+                                    ok "Installer ready in /tmp – re-run with --apply to extract"
+                                fi
+                            else
+                                fail "SHA256 MISMATCH – download corrupt or tampered"
+                                info "  Expected: $SHA256_REMOTE"
+                                info "  Got:      $SHA256_LOCAL"
+                                rm -f "$JDK_DL_TARGET"
+                                info "  Corrupt file removed. Re-run to retry download."
+                            fi
+                        fi
+                    fi
+                else
+                    info "  Download skipped."
+                    info "  Copy installer to /tmp and re-run:"
+                    info "    scp jdk-21_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
+                    info "    $0 --apply"
+                fi
+            fi
         fi
     fi
 
