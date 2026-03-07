@@ -102,8 +102,6 @@ PATCH_STORAGE="${PATCH_STORAGE:-/srv/patch_storage}"
 
 ORACLE_UID="${ORACLE_UID:-1100}"
 OINSTALL_GID="${OINSTALL_GID:-1000}"
-DBA_GID="${DBA_GID:-1001}"
-OPER_GID="${OPER_GID:-1002}"
 
 # =============================================================================
 # Banner
@@ -149,8 +147,7 @@ _check_group() {
 }
 
 _check_group oinstall "$OINSTALL_GID"
-_check_group dba      "$DBA_GID"
-_check_group oper     "$OPER_GID"
+info "Note: dba/oper groups are Oracle Database groups – not required for WebLogic/Forms/Reports"
 
 # =============================================================================
 # 2. oracle User
@@ -170,18 +167,6 @@ if id oracle > /dev/null 2>&1; then
         warn "Primary group is '$ORACLE_GRP' (expected: oinstall)"
     fi
 
-    # Check supplementary groups
-    for GRP in dba oper; do
-        if id oracle 2>/dev/null | grep -q "$GRP"; then
-            ok "Supplementary group: $GRP"
-        else
-            warn "oracle not in group: $GRP"
-            if [ "$APPLY_MODE" -eq 1 ]; then
-                _run_root usermod -aG "$GRP" oracle && ok "Added oracle to $GRP"
-            fi
-        fi
-    done
-
     # Check shell
     ORACLE_SHELL="$(getent passwd oracle | cut -d: -f7)"
     if [ "$ORACLE_SHELL" = "/bin/bash" ]; then
@@ -197,7 +182,6 @@ else
             _run_root useradd \
                 -u "$ORACLE_UID" \
                 -g oinstall \
-                -G dba,oper \
                 -s /bin/bash \
                 -d /home/oracle \
                 oracle
@@ -214,16 +198,19 @@ fi
 # 3. Shell Resource Limits
 # =============================================================================
 
-section "Shell Resource Limits (/etc/security/limits.conf)"
+section "Shell Resource Limits"
 
-LIMITS_FILE="/etc/security/limits.conf"
+# Use a drop-in file in limits.d – avoids touching the system limits.conf
+LIMITS_FILE="/etc/security/limits.d/oracle-fmw.conf"
+LIMITS_SEARCH_DIRS="/etc/security/limits.conf /etc/security/limits.d/"
 
 _check_limit() {
     local domain="$1" type="$2" item="$3" expected="$4"
-    if grep -qE "^[[:space:]]*${domain}[[:space:]]+${type}[[:space:]]+${item}[[:space:]]" \
-            "$LIMITS_FILE" 2>/dev/null; then
-        ACTUAL="$(grep -E "^[[:space:]]*${domain}[[:space:]]+${type}[[:space:]]+${item}[[:space:]]" \
-            "$LIMITS_FILE" | awk '{print $4}' | head -1)"
+    # Search both limits.conf and all limits.d files
+    if grep -rqE "^[[:space:]]*${domain}[[:space:]]+${type}[[:space:]]+${item}[[:space:]]" \
+            $LIMITS_SEARCH_DIRS 2>/dev/null; then
+        ACTUAL="$(grep -rhE "^[[:space:]]*${domain}[[:space:]]+${type}[[:space:]]+${item}[[:space:]]" \
+            $LIMITS_SEARCH_DIRS 2>/dev/null | awk '{print $4}' | head -1)"
         ok "limits: $domain $type $item = $ACTUAL"
     else
         warn "limits: $domain $type $item not set (expected: $expected)"
@@ -241,24 +228,24 @@ _check_limit oracle soft core   unlimited || LIMITS_OK=0
 _check_limit oracle soft memlock 50000000 || LIMITS_OK=0
 
 if [ "$LIMITS_OK" -eq 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
-    if askYesNo "Add oracle limits to $LIMITS_FILE?" "y"; then
-        backup_file "$LIMITS_FILE"
-        _run_root tee -a "$LIMITS_FILE" > /dev/null << 'EOF'
-
-# Oracle FMW 14.1.2 – oracle user limits
+    if askYesNo "Write oracle limits to $LIMITS_FILE?" "y"; then
+        [ -f "$LIMITS_FILE" ] && backup_file "$LIMITS_FILE"
+        _run_root tee "$LIMITS_FILE" > /dev/null << 'EOF'
+# Oracle FMW 14.1.2 – oracle user resource limits
 # Managed by: 09-Install/03-root_user_oracle.sh
-oracle   soft   nofile     131072
-oracle   hard   nofile     131072
-oracle   soft   nproc      131072
-oracle   hard   nproc      131072
+# Reference : Oracle Forms & Reports 14.1.2 Installation Guide
+oracle   soft   nofile     65536
+oracle   hard   nofile     65536
+oracle   soft   nproc      16384
+oracle   hard   nproc      16384
 oracle   soft   stack      10240
 oracle   hard   stack      32768
 oracle   soft   core       unlimited
 oracle   hard   core       unlimited
-oracle   soft   memlock    50000000
-oracle   hard   memlock    50000000
+oracle   soft   memlock    unlimited
+oracle   hard   memlock    unlimited
 EOF
-        ok "Limits added to $LIMITS_FILE"
+        ok "Limits written to $LIMITS_FILE"
     fi
 fi
 
