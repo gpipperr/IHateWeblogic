@@ -170,6 +170,62 @@ WLS recommendation from dbainsight and leaves headroom for JVM off-heap / NIO bu
 
 ---
 
+## Konflikt: oracle-database-preinstall-* überschreibt WLS-Werte
+
+Das RPM `oracle-database-preinstall-23ai` (und Vorgänger) schreibt DB-dimensionierte
+`shmmax`/`shmall`-Werte in **zwei** Dateien:
+
+```
+/etc/sysctl.conf                                        ← höchste Priorität (wird zuletzt geladen)
+/etc/sysctl.d/99-oracle-database-preinstall-23ai-sysctl.conf
+```
+
+Da `/etc/sysctl.conf` **nach** allen `sysctl.d/*.conf`-Dateien geladen wird,
+überschreibt es `99-oracle-fmw.conf` — still und lautlos.
+
+Das Skript erkennt diesen Konflikt automatisch und zeigt:
+
+```
+WARN  Conflicting sysctl in sysctl.conf: kernel.shmmax = 4398046511104 (overrides our: 4294967295)
+FAIL  2 external sysctl file(s) override our WebLogic parameters
+```
+
+### Steuerung über `LOCAL_REP_DB` (environment.conf)
+
+| Wert | Bedeutung | Verhalten im Skript |
+|---|---|---|
+| `false` *(Default)* | Kein Oracle DB auf diesem Host | **FAIL** — `--apply` bietet an, die kollidierenden Zeilen auszukommentieren (Backup wird erstellt) |
+| `true` | Oracle DB läuft auf demselben Host | Nur **WARN** — keine Änderung, da die DB die größeren Shm-Werte benötigt |
+
+```bash
+# In environment.conf einstellen:
+LOCAL_REP_DB="false"   # Standard: kein lokales Oracle DB
+LOCAL_REP_DB="true"    # Oracle DB auf diesem Host (mixed setup)
+```
+
+### Manuelle Bereinigung (ohne --apply)
+
+Kollidierenden Zeilen in `/etc/sysctl.conf` auskommentieren:
+
+```bash
+# Backup anlegen
+cp /etc/sysctl.conf /etc/sysctl.conf.bak_$(date +%Y%m%d)
+
+# Zeilen auskommentieren (Präfix [oracle-fmw] zur Nachvollziehbarkeit)
+sed -i 's/^kernel\.shmmax[[:space:]]*=/# [oracle-fmw] kernel.shmmax =/' /etc/sysctl.conf
+sed -i 's/^kernel\.shmall[[:space:]]*=/# [oracle-fmw] kernel.shmall =/' /etc/sysctl.conf
+sed -i 's/^net\.ipv4\.ip_local_port_range[[:space:]]*=/# [oracle-fmw] net.ipv4.ip_local_port_range =/' /etc/sysctl.conf
+
+# Gleiche Bereinigung für das preinstall-Drop-in:
+sed -i '...' /etc/sysctl.d/99-oracle-database-preinstall-23ai-sysctl.conf
+
+# Werte neu laden und prüfen
+sysctl --system
+sysctl kernel.shmmax   # Erwartet: 4294967295
+```
+
+---
+
 ## Kernel parameters: WebLogic / Forms / Reports (no database)
 
 Create `/etc/sysctl.d/99-oracle-fmw.conf`:
@@ -302,6 +358,9 @@ find /var/tmp/core/ -name "coredump_*" -mtime +14 -delete
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Firewall:** Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
   port 5556 must remain closed externally (Nginx is the only external entry point)
+- **Sysctl conflict detection:** The script scans all `/etc/sysctl.d/*.conf` and
+  `/etc/sysctl.conf` for values that differ from the WLS target. Behaviour is
+  controlled by `LOCAL_REP_DB` in `environment.conf` (see section above)
 
 ---
 
