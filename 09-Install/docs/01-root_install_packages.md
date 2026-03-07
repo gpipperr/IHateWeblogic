@@ -121,6 +121,8 @@ redhat-lsb-core-4.1-27.el7.x86_64
 | `motif` / `motif-devel` | ✓ **install — OUI hard requirement** | ✓ **install — OUI hard requirement** |
 | `redhat-lsb` / `redhat-lsb-core` | ✓ install (deprecated) | **removed** — not needed |
 | `openssl-1.0.1e` | use `compat-openssl11` | use `compat-openssl11` |
+| `xauth` | ✓ `xauth` | **renamed** → `xorg-x11-xauth` |
+| `nc` | ✓ `nc` | **renamed** → `nmap-ncat` (provided by nmap) |
 
 > **motif is a hard requirement for Forms/Reports.** The Oracle Universal Installer
 > checks for this package by name and exits immediately if missing:
@@ -178,9 +180,12 @@ dnf install -y \
 ```bash
 dnf install -y \
   sysstat smartmontools nmon tmux \
-  lsof strace psmisc xauth \
-  bind-utils tcpdump nc
+  lsof strace psmisc xorg-x11-xauth \
+  bind-utils tcpdump nmap-ncat
 ```
+
+> **OL9 package name changes:**
+> `xauth` → `xorg-x11-xauth` | `nc` → `nmap-ncat` (provided by nmap)
 
 ### 5. JDK 21
 

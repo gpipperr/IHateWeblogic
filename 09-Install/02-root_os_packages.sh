@@ -193,10 +193,10 @@ for PKG in \
     lsof \
     strace \
     psmisc \
-    xauth \
+    xorg-x11-xauth \
     bind-utils \
     tcpdump \
-    nc
+    nmap-ncat
 do
     _check_pkg "$PKG"
 done
