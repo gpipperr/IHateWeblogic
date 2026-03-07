@@ -109,12 +109,13 @@ Phase 5 – Configuration & Validation (as oracle)
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/00-root_os_network.md) |
-| 0 | `01-root_os_baseline.sh` | SELinux, repos, kernel, THP, tmpfs, firewall → **REBOOT** | [→ docs](docs/01-root_os_baseline.md) |
-| 0 | `02-root_os_packages.sh` | dnf packages, NMON, JDK install | [→ docs](docs/02-root_os_packages.md) |
-| 0 | `03-root_user_oracle.sh` | oracle user, limits, sudo, dirs, repo handover to oracle | [→ docs](docs/03-root_user_oracle.md) |
-| 0 | `04-root_nginx.sh` | Nginx install + proxy config | [→ docs](docs/02-root_nginx.md) |
-| 0 | `05-root_nginx_ssl.sh` | SSL certificate binding, TLS config | [→ docs](docs/03-root_nginx_ssl.md) |
+| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/concept-os-preparation.md) |
+| 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
+| 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
+| 0 | _(Java setup)_ | OpenJDK vs Oracle JDK, alternatives, jps, SecureRandom | [→ docs](docs/01-root_setup_java.md) |
+| 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
+| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/02-root_nginx.md) |
+| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/03-root_nginx_ssl.md) |
 | 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
 | 1 | `04-oracle_pre_download.sh` | MOS download via getMOSPatch.jar | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |

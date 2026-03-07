@@ -1,17 +1,19 @@
-# Steps 01 / 02 – OS Baseline and Package Installation
+# Step 01 – 01-root_os_baseline.sh
 
-This document covers two scripts that were split from the original OS preparation step:
-
-| Script | Purpose |
-|---|---|
-| `09-Install/01-root_os_baseline.sh` | Kernel parameters, THP, firewall, SELinux |
-| `09-Install/02-root_os_packages.sh` | Package installation, JDK 21 |
+**Script:** `09-Install/01-root_os_baseline.sh`
+**Runs as:** `root`
+**Phase:** 0 – OS Preparation
 
 ---
 
-## 01-root_os_baseline.sh – Kernel Parameters
+## Purpose
 
-### OL9: Use sysctl.d — not sysctl.conf
+Set kernel parameters, disable Transparent HugePages, configure core dumps,
+and open firewall ports. Requires a reboot after applying SELinux changes.
+
+---
+
+## OL9: Use sysctl.d — not sysctl.conf
 
 > **Common mistake on Oracle Linux 9:** Administrators often edit `/etc/sysctl.conf`
 > directly (as was standard on OL6/7). On OL9 this still works but is the wrong approach.
@@ -47,7 +49,7 @@ sysctl -a | grep shmmax
 
 ---
 
-### SHMMAX and SHMALL explained
+## SHMMAX and SHMALL explained
 
 **`kernel.shmmax`** – maximum size of a single shared memory segment in bytes.
 
@@ -85,7 +87,7 @@ WLS recommendation from dbainsight and leaves headroom for JVM off-heap / NIO bu
 
 ---
 
-### Kernel parameters: WebLogic / Forms / Reports (no database)
+## Kernel parameters: WebLogic / Forms / Reports (no database)
 
 Create `/etc/sysctl.d/99-oracle-fmw.conf`:
 
@@ -144,7 +146,9 @@ sysctl --system
 | `vm.min_free_kbytes` | — | **not set** | Heavy DB tuning – not needed for WLS |
 | `net.core.rmem/wmem` | — | **not set** | DB/RAC network tuning – not needed for single-server WLS |
 
-### Core Dump Setup
+---
+
+## Core Dump Setup
 
 Oracle Forms in particular can produce core dumps. Without a central directory they
 land in the FMW process working directory (e.g. `/u01/oracle/fmw/.../bin/`) and
@@ -206,93 +210,15 @@ readelf -Wa /var/tmp/core/coredump_...
 find /var/tmp/core/ -name "coredump_*" -mtime +14 -delete
 ```
 
-### Additional baseline settings (also in 01-root_os_baseline.sh)
+---
+
+## Additional baseline settings (also in 01-root_os_baseline.sh)
 
 - **SELinux:** Set to `disabled` in `/etc/selinux/config` (requires reboot)
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Firewall:** Ports 80 and 443 opened; WLS ports (9001, 9002, 7001) must remain
   closed externally (Nginx is the only external entry point)
-
----
-
-## 02-root_os_packages.sh – Package Installation
-
-### OL7 → OL9 package changes
-
-The official Oracle WLS/Forms installation guide lists packages for OL6/OL7.
-Several packages changed or disappeared for OL9 (RHEL9):
-
-| OL7 package | OL9 status | Action |
-|---|---|---|
-| `compat-libcap1` | **removed from RHEL9** | omit |
-| `compat-libstdc++-33` | **removed from RHEL9** | omit — replaced by current `libstdc++` |
-| `openssl-1.0.x` | **replaced by OpenSSL 3** | use `compat-openssl11` for 1.1 compat |
-| `redhat-lsb` / `redhat-lsb-core` | deprecated on OL9 | omit |
-| `glibc.i686` / `libgcc.i686` / `libstdc++.i686` | 32-bit | **omit** — FMW 14.1.2 is 64-bit only |
-| `motif` / `motif-devel` | ✓ available on OL9 | **required** — OUI exits with "Not found. Failed" |
-| `numactl` | ✓ available on OL9 | add — JVM NUMA memory awareness |
-| `gcc` / `gcc-c++` | ✓ available on OL9 | add — OUI checks for compiler toolchain |
-
-> **motif is critical for Forms/Reports:** The Oracle Universal Installer explicitly
-> checks for `motif-2.3.4-28.el9-x86_64` on OL9. Without it the installer exits:
-> `Checking for motif-2.3.4-28.el9-x86_64; Not found. Failed`
-
-### 1. FMW prerequisite libraries
-
-```bash
-dnf install -y \
-  binutils compat-openssl11 cups-libs \
-  gcc gcc-c++ \
-  glibc glibc-devel ksh \
-  libaio libaio-devel libX11 libXau libXi libXrender libXtst \
-  libgcc libstdc++ libstdc++-devel libnsl \
-  make motif motif-devel \
-  net-tools nfs-utils numactl \
-  unzip wget curl tar
-```
-
-### 2. Font stack (Reports PDF rendering)
-
-```bash
-dnf install -y \
-  fontconfig freetype \
-  dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
-  dejavu-lgc-sans-fonts dejavu-lgc-serif-fonts \
-  liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
-  xorg-x11-utils xorg-x11-fonts-Type1
-```
-
-### 3. Admin and monitoring tools
-
-```bash
-dnf install -y \
-  sysstat smartmontools nmon tmux \
-  lsof strace psmisc xauth \
-  bind-utils tcpdump nc
-```
-
-### 4. JDK 21
-
-Download JDK 21 from Oracle (requires Oracle account):
-
-```bash
-# Extract to JDK_HOME (NOT into FMW_HOME – JDK stays independent)
-tar xf jdk-21.0.x_linux-x64_bin.tar.gz -C /u01/app/oracle/java/
-
-# Register with alternatives (do NOT change the system default /usr/bin/java)
-alternatives --install /usr/bin/java java /u01/app/oracle/java/jdk-21/bin/java 1000
-```
-
-Verify:
-
-```bash
-/u01/app/oracle/java/jdk-21/bin/java -version
-# Expected: java version "21.x.x"
-```
-
-> The script looks for a `.tar.gz` or `.rpm` JDK 21 installer in `$PATCH_STORAGE`
-> and offers to install it automatically.
 
 ---
 
@@ -311,12 +237,13 @@ sysctl kernel.shmmax kernel.shmall net.ipv4.ip_local_port_range vm.swappiness
 cat /sys/kernel/mm/transparent_hugepage/enabled
 # Expected: always madvise [never]
 
-# Key packages
-rpm -q glibc libaio libstdc++ fontconfig
+# SELinux (requires reboot after change)
+getenforce
+# Expected: Disabled
 
-# JDK
-$JDK_HOME/bin/java -version
-# Expected: java version "21.x.x"
+# Core dump directory
+ls -la /var/tmp/core/
+# Expected: drwxrwxrwx
 ```
 
 ---
@@ -327,4 +254,3 @@ $JDK_HOME/bin/java -version
 |---|---|
 | Oracle WebLogic 14c Installation on Linux – practical guide with sysctl values | https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux |
 | Oracle WebLogic Server 14.1.1 System Requirements and Specifications (kernel.shmmax) | https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/sysrs/system-requirements-and-specifications.html#GUID-D72CDA83-940D-497C-96EF-0BEB97D3A991 |
-| Oracle Forms & Reports 14.1.2 Installation Prerequisites | https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/preparing-install.html#GUID-F657DBB3-8C18-49E0-87FF-9D32DB46B9DD |

@@ -1,0 +1,235 @@
+# Step 02b – Java Installation
+
+**Runs as:** `root`
+**Phase:** 0 – OS Preparation
+
+---
+
+## License Overview
+
+> **Rule:** Oracle JDK may be used without a paid license **only** when it is used
+> exclusively as the runtime for another Oracle product (WebLogic, Forms, Reports).
+> Any use outside of Oracle products (CLI tools, cron jobs, custom apps) requires
+> either a paid Oracle Java SE subscription or a switch to OpenJDK for those uses.
+>
+> Reference: **Oracle Support Doc ID 1557737.1**
+> _Support Entitlement for Java SE When Used As Part of Another Oracle Product_
+
+| Usage scenario | License required? |
+|---|---|
+| WebLogic uses Java internally (embedded JDK / `JAVA_HOME`) | **No** |
+| Java applications deployed on WebLogic (using it as middleware) | **No** |
+| Java used outside WebLogic (CLI tools, cron jobs, other apps on same host) | **Yes** |
+
+See also:
+- https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html
+- https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf
+
+---
+
+## Decision: Which Java for WebLogic?
+
+**For WebLogic / FMW: use Oracle JDK — not OpenJDK.**
+
+The reason is practical: Oracle Support will always ask for the Java version and
+vendor when a service request is opened. Using OpenJDK immediately triggers the
+question whether it is certified and supported in that combination. Oracle JDK
+avoids this conversation entirely.
+
+Since the FMW host uses Java exclusively for Oracle products (WebLogic, Forms,
+Reports), Oracle JDK is license-free under Doc ID 1557737.1.
+
+**OpenJDK can be installed in parallel** via `alternatives` for system tools or
+other uses, but `JAVA_HOME` for WebLogic must explicitly point to the Oracle JDK —
+not to whatever `alternatives` selects as the system default.
+
+| JDK | Used for | Managed via |
+|---|---|---|
+| Oracle JDK 21 | WebLogic / Forms / Reports | `JAVA_HOME` in oracle `.bash_profile` |
+| OpenJDK (optional) | OS tools, parallel installs | `alternatives` system default |
+
+---
+
+## Option A – Oracle JDK 21 (primary, for WebLogic)
+
+Download from: https://www.oracle.com/java/technologies/downloads/
+
+### Installation via tar.gz (recommended for FMW)
+
+Preferred: the JDK lives under `ORACLE_BASE`, independent of system paths and
+protected from OS package updates.
+
+```bash
+# Extract – JDK stays INDEPENDENT of FMW_HOME
+tar xf jdk-21.0.x_linux-x64_bin.tar.gz -C /u01/app/oracle/java/
+
+# Result:
+# /u01/app/oracle/java/jdk-21.0.x/
+```
+
+Create a stable symlink so `JAVA_HOME` does not need to change on patch updates:
+
+```bash
+ln -s /u01/app/oracle/java/jdk-21.0.x /u01/app/oracle/java/jdk-21
+```
+
+### Installation via RPM (alternative)
+
+```bash
+dnf install --nogpgcheck jdk-21.0.x_linux-x64_bin.rpm
+```
+
+The Oracle JDK RPM automatically creates the symlink `/usr/java/latest`.
+
+---
+
+## Option B – OpenJDK (parallel installation, not for WebLogic)
+
+Install via dnf if needed for other tools on the same host:
+
+```bash
+dnf install java-21-openjdk java-21-openjdk-devel
+```
+
+The `JAVA_HOME` path after installation:
+
+```
+/usr/lib/jvm/java-21-openjdk-21.x.x.x-x.el9.x86_64
+```
+
+> **Note:** OpenJDK does **not** create `/usr/java/latest`. The path must be set
+> explicitly if needed. For WebLogic, `JAVA_HOME` always points to the Oracle JDK.
+
+---
+
+## JAVA_HOME – WebLogic Configuration
+
+Set in `/home/oracle/.bash_profile` (done by `03-root_user_oracle.sh`):
+
+```bash
+export JAVA_HOME=/u01/app/oracle/java/jdk-21
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+This is **independent of the system `alternatives` default** — WebLogic always
+uses the Oracle JDK regardless of what `java` resolves to system-wide.
+
+---
+
+## alternatives – Managing Multiple Java Versions
+
+The `alternatives` system allows coexistence of multiple JDK versions for the
+OS-level `/usr/bin/java`:
+
+```bash
+# Register Oracle JDK with alternatives (priority: version digits, e.g. 21006)
+/usr/sbin/alternatives --install /usr/bin/java java /u01/app/oracle/java/jdk-21/bin/java 21006
+
+# Register OpenJDK (if installed via dnf, it registers itself automatically)
+
+# Show registered versions
+/usr/sbin/alternatives --display java
+
+# Switch interactively
+/usr/sbin/alternatives --config java
+```
+
+> **WebLogic is not affected by `alternatives`** — it always uses `$JAVA_HOME`
+> from the oracle user environment, not `/usr/bin/java`.
+
+---
+
+## jps – Java Process Status Tool
+
+`jps` is essential for WebLogic maintenance — it lists all running JVM processes
+with their main class and arguments:
+
+```bash
+jps -m
+```
+
+After a Java upgrade or `alternatives` switch, `jps` may need to be re-linked:
+
+```bash
+# Test first
+jps -m
+
+# If not found or pointing to the wrong JDK:
+rm /usr/bin/jps
+ln -s /u01/app/oracle/java/jdk-21/bin/jps /usr/bin/jps
+```
+
+---
+
+## java.security – SecureRandom (WebLogic Startup Speed)
+
+WebLogic starts significantly slower when `securerandom.source=file:/dev/random`
+is active in `java.security` (blocking entropy source).
+
+**This fix is fully implemented — check and apply via:**
+
+```
+02-Checks/weblogic_performance.sh  →  Section 1 – java.security: SecureRandom Source
+```
+
+Covers:
+- `java.security` path by JDK version (JDK 8: `jre/lib/security/` | JDK 11+: `conf/security/`)
+- Why `/dev/./urandom` instead of `/dev/urandom` (JVM internal path match)
+- `--apply` for automatic fix with backup
+
+**Run immediately after Java installation** — the script checks and sets the value
+without requiring a running WebLogic instance.
+
+---
+
+## Remove Old Java Versions
+
+Check installed versions first:
+
+```bash
+dnf list installed "java*" "jdk*"
+```
+
+Remove (example — OpenJDK 11):
+
+```bash
+dnf erase java-11-openjdk java-11-openjdk-headless
+```
+
+Check `alternatives` entries afterwards:
+
+```bash
+/usr/sbin/alternatives --display java
+```
+
+---
+
+## Verification
+
+```bash
+# Oracle JDK via JAVA_HOME (as oracle user)
+su - oracle -c "echo \$JAVA_HOME"
+su - oracle -c "\$JAVA_HOME/bin/java -version"
+# Expected: java version "21.x.x"  ← must be Oracle JDK, not OpenJDK
+
+# System default (may differ – not used by WebLogic)
+java -version
+
+# jps available
+jps -m
+
+# alternatives state
+/usr/sbin/alternatives --display java
+```
+
+---
+
+## References
+
+| Topic | Source |
+|---|---|
+| Oracle Java SE license when used with Oracle products | Oracle Support Doc ID 1557737.1 |
+| Oracle Java licensing changes 2023 | https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html |
+| Oracle Java SE subscription price list | https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf |
+| Oracle JDK 21 downloads | https://www.oracle.com/java/technologies/downloads/ |
+| SecureRandom fix for WebLogic | `02-Checks/weblogic_performance.sh` – Section 1 |
