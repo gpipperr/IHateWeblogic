@@ -1,5 +1,6 @@
 # Step 02b – Java Installation
 
+**Script:** `09-Install/02b-root_os_java.sh`
 **Runs as:** `root`
 **Phase:** 0 – OS Preparation
 
