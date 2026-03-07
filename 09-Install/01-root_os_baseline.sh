@@ -169,8 +169,15 @@ _check_repo "ol9_baseos_latest" || _check_repo "baseos" || \
     info "  Base OS repo not found – verify Oracle Linux repos are configured"
 
 EPEL_OK=0
-_check_repo "ol9_developer_EPEL" && EPEL_OK=1
-_check_repo "oracle-epel"        && EPEL_OK=1
+# ol9_developer_EPEL and oracle-epel are alternative names for the EPEL repo on OL9.
+# Check both; the first match satisfies the requirement – no WARN for the other variant.
+if dnf repolist enabled 2>/dev/null | grep -q "ol9_developer_EPEL"; then
+    ok "Repository enabled: ol9_developer_EPEL"
+    EPEL_OK=1
+elif dnf repolist enabled 2>/dev/null | grep -q "oracle-epel"; then
+    ok "Repository enabled: oracle-epel"
+    EPEL_OK=1
+fi
 
 if [ "$EPEL_OK" -eq 0 ]; then
     warn "Oracle EPEL repository not enabled (needed for NMON and other tools)"
