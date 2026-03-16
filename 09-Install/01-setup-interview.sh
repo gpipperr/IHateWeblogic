@@ -87,14 +87,16 @@ _conf_has() {
     [ -n "$val" ]
 }
 
-# _ask  var_name  label  default  [validate_func]
+# _ask  var_name  label  default  [validate_func]  [optional=false]
 # If already set in env.conf and not --reset: show and keep.
 # Otherwise: prompt, validate, set global variable via eval.
+# Pass "optional" as 5th argument to allow leaving the field empty.
 _ask() {
     local var="$1"
     local label="$2"
     local default="$3"
     local validate_func="${4:-}"
+    local optional="${5:-false}"
 
     # Already set – skip unless reset
     if _conf_has "$var" && [ "$RESET_MODE" -eq 0 ]; then
@@ -115,25 +117,31 @@ _ask() {
     while ! $valid; do
         if [ -n "$default" ]; then
             printf "  \033[1m%-30s\033[0m [%s]: " "$label" "$default"
+        elif [ "$optional" = "optional" ]; then
+            printf "  \033[1m%-30s\033[0m (optional, Enter to skip): " "$label"
         else
             printf "  \033[1m%-30s\033[0m (required): " "$label"
         fi
         read -r input
         [ -z "$input" ] && input="$default"
 
-        if [ -z "$input" ]; then
+        if [ -z "$input" ] && [ "$optional" != "optional" ]; then
             printf "  \033[31m  Required – please enter a value.\033[0m\n"
             continue
         fi
 
-        if [ -n "$validate_func" ] && ! "$validate_func" "$input"; then
+        if [ -n "$input" ] && [ -n "$validate_func" ] && ! "$validate_func" "$input"; then
             continue
         fi
         valid=true
     done
 
     eval "${var}=\"${input}\""
-    printf "  \033[32m  ✓  %s = %s\033[0m\n" "$var" "$input" | tee -a "$LOG_FILE"
+    if [ -n "$input" ]; then
+        printf "  \033[32m  ✓  %s = %s\033[0m\n" "$var" "$input" | tee -a "$LOG_FILE"
+    else
+        printf "  \033[33m  –  %s  (skipped)\033[0m\n" "$var" | tee -a "$LOG_FILE"
+    fi
 }
 
 # _ask_password  var_name  label  out_file
@@ -409,8 +417,8 @@ printf "\n"
 
 section "Block 5 – My Oracle Support"
 
-_ask MOS_USER       "MOS e-mail address"                    ""
-_ask INSTALL_PATCHES "Patch numbers (comma-sep, in order)" ""
+_ask MOS_USER        "MOS e-mail address"                   ""
+_ask INSTALL_PATCHES "Patch numbers (comma-sep, apply order)" "" "" "optional"
 
 printf "\n"
 info "MOS password → encrypted to: mos_sec.conf.des3"
