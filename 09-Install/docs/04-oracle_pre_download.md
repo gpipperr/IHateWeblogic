@@ -30,12 +30,17 @@ it contains no credentials.
 
 | Variable | Value | Description |
 |---|---|---|
-| `FMW_INFRA_ZIP` | `V1045135-01.zip` | FMW Infrastructure ZIP (eDelivery) |
+| `FMW_INFRA_EDEL_SEARCH` | `Oracle Fusion Middleware Infrastructure 14.1.2.0.0 for Linux x86-64` | eDelivery search term |
+| `FMW_INFRA_ZIP` | `V1045135-01.zip` | FMW Infrastructure ZIP (2.1 GB) |
 | `FMW_INFRA_FILENAME` | `fmw_14.1.2.0.0_infrastructure.jar` | Extracted installer name |
-| `FMW_INFRA_SHA256` | – | From README inside the ZIP |
-| `FMW_FR_ZIP` | `V1045121-01.zip` | Forms & Reports ZIP (eDelivery) |
+| `FMW_INFRA_SHA256` | `1AAE35167B…D84E68BD` | SHA-256 checksum |
+| `FMW_FR_EDEL_SEARCH` | `Oracle Forms and Reports 14.1.2.0.0` | eDelivery search term |
+| `FMW_FR_ZIP` | `V1045121-01.zip` | Forms & Reports ZIP (1.3 GB) |
 | `FMW_FR_FILENAME` | `fmw_14.1.2.0.0_fr_linux64.bin` | Extracted installer name |
-| `FMW_FR_SHA256` | – | From README inside the ZIP |
+| `FMW_FR_SHA256` | `01D7A1042F…373175B` | SHA-256 checksum |
+
+> **Note:** `V1045121-01.zip` is listed on eDelivery under both *Oracle Forms 14.1.2.0.0* and
+> *Oracle Reports 14.1.2.0.0* — it is the same file. Download it once.
 
 ### OPatch (getMOSPatch)
 
@@ -70,22 +75,40 @@ Handles both eDelivery (verification/unzip) and MOS (getMOSPatch.jar) workflows.
 ### 1. Download base installers from eDelivery
 
 ```
-https://edelivery.oracle.com
-→ Sign in → Oracle Fusion Middleware 14.1.2
-→ Download:  V1045135-01.zip  (FMW Infrastructure)
-             V1045121-01.zip  (Forms and Reports)
+https://edelivery.oracle.com  →  Sign in  →  Software Delivery Cloud
+Search: Oracle Fusion Middleware Infrastructure 14.1.2.0.0 for Linux x86-64
+  → V1045135-01.zip   Oracle Fusion Middleware 14c Infrastructure for Linux x86-64, 2.1 GB
+    SHA-1   F2FD0F9CBDEFEAB5857736609FCF65C32F0E4604
+    SHA-256 1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
+
+Search: Oracle Forms and Reports 14.1.2.0.0
+  → V1045121-01.zip   Oracle Fusion Middleware 14c Forms and Reports for Linux x86-64, 1.3 GB
+    SHA-1   FE811A063A3A51DB71CB5B1812580940147119BC
+    SHA-256 01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B
+    (same file listed under "Oracle Forms" and "Oracle Reports" – download once)
 ```
+
+Place the ZIPs in the correct PATCH_STORAGE subdirectories:
 
 ```bash
 mkdir -p $PATCH_STORAGE/wls $PATCH_STORAGE/fr
 
-# Unzip and place installers
-unzip V1045135-01.zip -d $PATCH_STORAGE/wls/
-unzip V1045121-01.zip -d $PATCH_STORAGE/fr/
+cp V1045135-01.zip $PATCH_STORAGE/wls/
+cp V1045121-01.zip $PATCH_STORAGE/fr/
 
-# Verify (checksum from README inside each ZIP)
-sha256sum $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar
-sha256sum $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin
+# Verify checksums
+sha256sum $PATCH_STORAGE/wls/V1045135-01.zip
+# expected: 1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
+
+sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
+# expected: 01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B
+```
+
+Then use `04a-edelivery_download.sh --apply` to verify and unzip, or unzip manually:
+
+```bash
+unzip $PATCH_STORAGE/wls/V1045135-01.zip -d $PATCH_STORAGE/wls/
+unzip $PATCH_STORAGE/fr/V1045121-01.zip  -d $PATCH_STORAGE/fr/
 ```
 
 ### 2. Set up getMOSPatch.jar
