@@ -2,7 +2,7 @@
 
 **Script:** `09-Install/04-oracle_pre_download.sh`
 **Runs as:** `oracle`
-**Phase:** 1 – Pre-Install Checks
+**Phase:** 1 – Pre-Install
 
 ---
 
@@ -107,30 +107,33 @@ sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
 # expected: 01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B
 ```
 
-Then use `04a-edelivery_download.sh --apply` to verify and unzip, or unzip manually:
+Then use `04-oracle_pre_download.sh --apply` to verify, or unzip manually:
 
 ```bash
 unzip $PATCH_STORAGE/wls/V1045135-01.zip -d $PATCH_STORAGE/wls/
 unzip $PATCH_STORAGE/fr/V1045121-01.zip  -d $PATCH_STORAGE/fr/
 ```
 
-### 2. Set up getMOSPatch.jar
+### 2. getMOSPatch.jar (automatic)
 
-Download from GitHub: https://github.com/MarisElsins/getMOSPatch
+The script downloads `getMOSPatch.jar` automatically from GitHub if it is not yet present:
+
+```
+https://raw.githubusercontent.com/MarisElsins/getMOSPatch/master/getMOSPatch.jar
+→ $PATCH_STORAGE/bin/getMOSPatch.jar
+```
+
+Either `wget` or `curl` must be installed. The `.getMOSPatch.cfg` is also created automatically.
+
+**Manual fallback** (if GitHub is unreachable):
 
 ```bash
 mkdir -p $PATCH_STORAGE/bin
+# download getMOSPatch.jar from https://github.com/MarisElsins/getMOSPatch
 cp getMOSPatch.jar $PATCH_STORAGE/bin/
 ```
 
-Create `$PATCH_STORAGE/bin/.getMOSPatch.cfg`:
-
-```
-226P;Linux x86-64
-4L;German (D)
-```
-
-Platform codes: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
+Platform codes in `.getMOSPatch.cfg`: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
 
 ### 3. Download OPatch
 
@@ -177,13 +180,21 @@ done
 
 ## What the Script Does
 
-- Reads `MOS_USER`, `PATCH_STORAGE` from `environment.conf`
-- Reads software versions and patch numbers from `09-Install/oracle_software_version.conf`
-- Decrypts MOS password from `mos_sec.conf.des3`
-- **eDelivery ZIPs**: checks if already unzipped, verifies SHA256, extracts if needed
-- **OPatch**: downloads via getMOSPatch if not already present, verifies version
-- **Patches**: downloads missing patches via getMOSPatch, verifies SHA256
-- Reports download summary: total size, files downloaded, files skipped
+- Reads `MOS_USER`, `PATCH_STORAGE`, `INSTALL_COMPONENTS` from `environment.conf`
+- Reads versions, filenames, patch numbers from `oracle_software_version.conf`
+- **eDelivery ZIPs** (always with `--apply`):
+  - Creates `$PATCH_STORAGE/wls/` and `$PATCH_STORAGE/fr/` directories
+  - Manual mode: prompts user to place ZIPs, then verifies ZIP magic bytes + SHA-256
+  - Wget mode (`--wget`): prompts for Bearer Token, then prompts per-file for download URL
+  - Skips files that are already present with a valid checksum
+- **getMOSPatch** (with `--mos` or `--all`):
+  - Decrypts MOS password from `mos_sec.conf.des3` (written by `01-setup-interview.sh`)
+  - Creates/verifies `$PATCH_STORAGE/bin/.getMOSPatch.cfg` (platform + language)
+  - Downloads OPatch (patch `6880880`) to `$PATCH_STORAGE/opatch/`
+  - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
+  - Skips patches already present in their target directory
+  - Clears MOS password from memory after use
+- Reports download summary: OK/WARN/FAIL counts
 
 ---
 
@@ -219,16 +230,35 @@ $PATCH_STORAGE/
 
 | Flag | Description |
 |---|---|
-| (none) | Show what would be downloaded (sizes, checksums) |
-| `--apply` | Execute downloads |
-| `--force` | Re-download even if files already exist |
+| (none) | Dry-run: show expected paths and checksums |
+| `--apply` | eDelivery: create dirs, prompt manual file placement, verify |
+| `--apply --wget` | eDelivery via Bearer Token wget instead of manual copy |
+| `--apply --mos` | eDelivery + getMOSPatch: OPatch + post-install patches |
+| `--apply --all` | Alias for `--apply --mos` |
+| `--apply --wget --mos` | Bearer Token wget + getMOSPatch (fully automated) |
 | `--help` | Show usage |
+
+### Typical workflow
+
+```bash
+# First run: dry-run to review what will be done
+./09-Install/04-oracle_pre_download.sh
+
+# eDelivery only – place ZIPs manually, then verify
+./09-Install/04-oracle_pre_download.sh --apply
+
+# eDelivery via wget + MOS patches in one go
+./09-Install/04-oracle_pre_download.sh --apply --wget --mos
+
+# MOS patches only (eDelivery ZIPs already in place)
+./09-Install/04-oracle_pre_download.sh --apply --mos
+```
 
 ---
 
 ## Notes
 
-- `getMOSPatch.jar` must be downloaded separately (open source, not bundled)
+- `getMOSPatch.jar` is downloaded automatically from GitHub on first use (`wget` or `curl` required)
 - MOS account requires an active Oracle support contract
 - eDelivery account may require a separate registration at edelivery.oracle.com
 - Always update OPatch **before** applying any patches
