@@ -461,7 +461,6 @@ printf "\n"
 section "Block 5 – My Oracle Support"
 
 _ask MOS_USER        "MOS e-mail address"                   ""
-_ask INSTALL_PATCHES "Patch numbers (comma-sep, apply order)" "" "" "optional"
 
 printf "\n"
 info "MOS password → encrypted to: mos_sec.conf.des3"
@@ -507,7 +506,7 @@ _show "DB_SCHEMA_PREFIX"     "$DB_SCHEMA_PREFIX"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "MOS_USER"             "$MOS_USER"
 _show "MOS_PWD"              "****  → $(basename "$MOS_SEC_FILE")"
-_show "INSTALL_PATCHES"      "${INSTALL_PATCHES:-<none>}"
+info "  Patch numbers / download versions → 09-Install/oracle_software_version.conf"
 printLine
 
 if [ "$APPLY_MODE" -eq 0 ]; then
@@ -585,7 +584,7 @@ LOCAL_REP_DB="false"
 # --- My Oracle Support --------------------------------------------------------
 MOS_USER="${MOS_USER}"
 # MOS_PWD → encrypted: mos_sec.conf.des3
-INSTALL_PATCHES="${INSTALL_PATCHES}"
+# Patch numbers / software versions → 09-Install/oracle_software_version.conf
 
 # === END 09-INSTALL ===
 ENVEOF
@@ -648,10 +647,10 @@ DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"
 DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
 MOS_USER="${MOS_USER}"
-INSTALL_PATCHES="${INSTALL_PATCHES}"
 # WLS_ADMIN_PWD → weblogic_sec.conf.des3
 # MOS_PWD       → mos_sec.conf.des3
 # DB_SYS_PWD    → db_sys_sec.conf.des3
+# Software versions / patch numbers → 09-Install/oracle_software_version.conf
 SETUPEOF
 
 chmod 644 "$SETUP_CONF"

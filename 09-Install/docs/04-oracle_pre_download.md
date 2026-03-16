@@ -6,6 +6,31 @@
 
 ---
 
+## Configuration File: oracle_software_version.conf
+
+Software versions, patch numbers, and download targets are defined in
+`09-Install/oracle_software_version.conf`. This file is committed to git
+and contains no credentials.
+
+| Variable | Description |
+|---|---|
+| `MOS_PLATFORM` | getMOSPatch platform code (`226P` = Linux x86-64) |
+| `MOS_LANGUAGE` | Language code (`4L` = German, `1` = English) |
+| `FMW_INFRA_PATCH_NR` | MOS patch number for `fmw_14.1.2.0.0_infrastructure.jar` |
+| `FMW_INFRA_FILENAME` | Expected installer filename |
+| `FMW_INFRA_SHA256` | SHA256 checksum from MOS README |
+| `FMW_FR_PATCH_NR` | MOS patch number for `fmw_14.1.2.0.0_fr_linux64.bin` |
+| `FMW_FR_FILENAME` | Expected installer filename |
+| `FMW_FR_SHA256` | SHA256 checksum from MOS README |
+| `OPATCH_PATCH_NR` | Always `6880880` |
+| `OPATCH_VERSION_MIN` | Minimum OPatch version (`13.9.4.0.0` for FMW 14.1.2) |
+| `INSTALL_PATCHES` | Comma-separated post-install patch numbers, in apply order |
+
+**Credentials** (MOS username and password) come from `environment.conf`
+(`MOS_USER`) and `mos_sec.conf.des3` (encrypted password).
+
+---
+
 ## Purpose
 
 Download FMW 14.1.2 installers and patches from My Oracle Support (MOS) into the
@@ -94,7 +119,8 @@ sha256sum $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin
 
 ## What the Script Does
 
-- Reads `MOS_USER`, `INSTALL_PATCHES`, `PATCH_STORAGE` from `environment.conf`
+- Reads `MOS_USER`, `PATCH_STORAGE` from `environment.conf`
+- Reads software versions and patch numbers from `09-Install/oracle_software_version.conf`
 - Decrypts MOS password from `mos_sec.conf.des3`
 - Checks if each installer already exists in `PATCH_STORAGE` (skip if present and checksum OK)
 - Downloads missing installers and patches via `getMOSPatch.jar`
