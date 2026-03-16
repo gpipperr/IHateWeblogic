@@ -40,7 +40,10 @@ it contains no credentials.
 | `FMW_FR_SHA256` | `01D7A1042F…373175B` | SHA-256 checksum |
 
 > **Note:** `V1045121-01.zip` is listed on eDelivery under both *Oracle Forms 14.1.2.0.0* and
-> *Oracle Reports 14.1.2.0.0* — it is the same file. Download it once.
+> *Oracle Reports 14.1.2.0.0* — it is the same file (1.3 GB). Download it once.
+> Total cart size: **2 distinct files, 3.4 GB** (V1045135-01.zip + V1045121-01.zip).
+
+![Oracle eDelivery – cart showing V1045121-01.zip listed twice under Forms and Reports](assets/edelivery_forms_reports_selection.png)
 
 ### OPatch (getMOSPatch)
 
