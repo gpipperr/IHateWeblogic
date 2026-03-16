@@ -80,6 +80,42 @@ grep -E "$(hostname)" /etc/hosts
 - The entry must not point to `127.0.0.1` or `::1`
 - The IP in `/etc/hosts` must match the DNS resolution (no split-brain)
 
+#### /etc/hosts Entry Order – RFC 952 Best Practice
+
+> **RFC 952** defines the first hostname after the IP address as the *Official Host Name*
+> (canonical name). On modern Linux distributions (RHEL / Oracle Linux) this canonical
+> name is treated as the result of `hostname -f`. If the short name is listed first,
+> `hostname -f` returns only the short name — with no domain part.
+
+**Wrong** (short name first — causes `hostname -f` to return bare hostname):
+
+```
+# /etc/hosts – WRONG
+192.168.1.10  orafusion01  orafusion01.pipperr.local
+```
+
+```bash
+hostname -f   →  orafusion01              # no dot → WebLogic FAIL
+hostname -a   →  orafusion01.pipperr.local
+hostname -d   →  (empty)
+```
+
+**Correct** (FQDN first — RFC 952 canonical name):
+
+```
+# /etc/hosts – CORRECT
+192.168.1.10  orafusion01.pipperr.local  orafusion01
+```
+
+```bash
+hostname -f   →  orafusion01.pipperr.local   # ✓ FQDN
+hostname -a   →  orafusion01                 # short name as alias
+hostname -d   →  pipperr.local
+```
+
+The script detects the wrong-order case: if `hostname -f` has no dot but
+`hostname -a` returns a FQDN, it reports **FAIL** with the exact reorder fix.
+
 ### Block 5 – DNS Resolver Configuration
 
 ```bash
@@ -255,9 +291,10 @@ At the end of the script, a consolidated verdict is printed:
 
 ```bash
 # Hostname checks
-hostname
-hostname -f
-hostname -d
+hostname          # short name
+hostname -f       # FQDN (canonical name per RFC 952 – must contain a dot)
+hostname -a       # aliases (should return short name when FQDN is first in /etc/hosts)
+hostname -d       # domain part (derived from hostname -f)
 
 # Forward resolution (NSS – same as JVM)
 getent hosts "$(hostname -f)"
