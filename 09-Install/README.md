@@ -24,6 +24,13 @@ to the table.
 > would need to be done manually and what the script automates. Scripts are generated
 > from these detail documents.
 
+**Before starting the installation, two documents are essential:**
+
+| Document | Purpose |
+|---|---|
+| [docs/00-environment-setup.md](docs/00-environment-setup.md) | All `environment.conf` parameters explained — what they mean, who sets them, when they are available. Reference for the entire installation. |
+| [docs/01-setup-interview.md](docs/01-setup-interview.md) | How `01-setup-interview.sh` collects parameters interactively and writes `environment.conf` before Phase 0 begins. |
+
 ---
 
 ## 1. Architecture & Security Concept
@@ -72,9 +79,13 @@ execution if sudo is not available.
 ## 2. Installation Flow
 
 ```
-Phase 0 – OS Preparation (as root; git clone first, then hand over to oracle)
-  [root] git clone <repo> && cd IHateWeblogic
-  [root] cp environment.conf.template environment.conf  # fill in parameters
+Setup – Environment Configuration (as oracle; before Phase 0)
+  [oracle] git clone <repo> && cd IHateWeblogic
+  [oracle] ./09-Install/01-setup-interview.sh --apply  # interview → writes environment.conf
+           → see docs/00-environment-setup.md for all parameters
+           → see docs/01-setup-interview.md for interview details
+
+Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
   [root] ./09-Install/00-root_os_network.sh --apply    # hostname, hosts, chrony, SSH
   [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
   [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
@@ -133,15 +144,20 @@ Phase 5 – Configuration & Validation (as oracle)
 
 ## 4. Configuration Interview: `01-setup-interview.sh`
 
-Runs before all other installation steps. Reads existing `environment.conf`, prompts
-only for missing parameters, encrypts passwords immediately, writes a reusable
-`setup.conf` template. → [Detail: docs/01-setup-interview.md](docs/01-setup-interview.md)
+Runs **before all other installation steps**. Reads existing `environment.conf`, prompts
+only for missing parameters (idempotent), encrypts passwords immediately, writes a
+reusable `setup.conf` template.
+
+- Interview blocks and all flags: → [docs/01-setup-interview.md](docs/01-setup-interview.md)
+- Full parameter reference with defaults and validation: → [docs/00-environment-setup.md](docs/00-environment-setup.md)
 
 ---
 
 ## 5. environment.conf – Installation Parameters
 
-New parameters added by the 09-Install module (appended to existing `environment.conf`):
+→ **Full parameter reference:** [docs/00-environment-setup.md](docs/00-environment-setup.md)
+
+Key parameters added by the 09-Install module (appended to existing `environment.conf`):
 
 ```bash
 # === 09-INSTALL: ORACLE INSTALLATION ===
@@ -362,6 +378,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   ├── fr_install.rsp.template
 │   └── domain_config.py.template
 └── docs/                              ← step-by-step detail documentation
+    ├── 00-environment-setup.md        ← all environment.conf parameters + init concept
     ├── 01-setup-interview.md
     ├── 00-root_set_os_parameter.md    ← 01-root_os_baseline.sh
     ├── 00-root_os_network.md          ← 00-root_os_network.sh
