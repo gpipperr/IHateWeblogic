@@ -1,239 +1,242 @@
-# Environment Setup – Konzept und Parameter
+# Environment Setup – Concept and Parameters
 
-**Ziel:** `environment.conf` erstellen, bevor oder nachdem Oracle FMW installiert wird.
+**Goal:** Create `environment.conf` before or after Oracle FMW is installed.
 
 ---
 
-## Übersicht: Wann wird `environment.conf` erstellt?
+## Overview: When is `environment.conf` created?
 
-| Situation | Tool | Methode |
+| Situation | Tool | Method |
 |---|---|---|
-| **Neu-Install** (kein FMW vorhanden) | `09-Install/01-setup-interview.sh` | Interaktives Interview, Defaults vorschlagen |
-| **Bestehende Umgebung, keine conf** | `00-Setup/env_check.sh --interview --apply` | Auto-Detect + User bestätigt/korrigiert |
-| **Bestehende Umgebung, conf vorhanden** | `00-Setup/env_check.sh --apply` | Auto-Detect, fehlende Werte ergänzen |
-| **Multi-Domain-Umgebung** | `00-Setup/set_env.sh` | Symlink auf aktive conf umschalten |
+| **New installation** (no FMW present) | `09-Install/01-setup-interview.sh` | Interactive interview, sensible defaults suggested |
+| **Existing system, no conf** | `00-Setup/env_check.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
+| **Existing system, conf present** | `00-Setup/env_check.sh --apply` | Auto-detect, append only missing values |
+| **Multi-domain environment** | `00-Setup/set_env.sh` | Switch symlink to the active conf |
 
 ---
 
-## Grundprinzipien
+## Core Principles
 
-**Idempotent:** Jedes `--apply` schreibt nur Werte die noch nicht gesetzt sind.
-Vorhandene Werte in einer bestehenden `environment.conf` werden nicht überschrieben —
-außer der User gibt beim `--interview` explizit einen anderen Wert ein.
+**Idempotent:** Every `--apply` run writes only values that are not yet set.
+Existing values in `environment.conf` are never overwritten — unless the user
+explicitly provides a different value during `--interview`.
 
-**Zwei Parameterklassen:**
+**Two parameter classes:**
 
 ```
-[Install-Parameter]     → vom Interview gesetzt, vor der Installation bekannt
-[Runtime-Parameter]     → von env_check.sh auto-detektiert, nach der Installation verfügbar
+[Install parameters]    → set by the interview before installation begins
+[Runtime parameters]    → auto-detected by env_check.sh after installation
 ```
 
-**Passwörter nie im Klartext:** Alle Passwörter werden sofort verschlüsselt
-(via `00-Setup/weblogic_sec.sh`) und nur als `*.des3`-Dateien gespeichert.
+**Passwords never in plaintext:** All passwords are encrypted immediately
+(via `00-Setup/weblogic_sec.sh`) and stored only as `*.des3` files.
 
 ---
 
-## Ablauf Neu-Installation
+## New Installation Flow
 
 ```
 1. 09-Install/01-setup-interview.sh --apply
-   → Fragt alle Install-Parameter interaktiv ab
-   → Schreibt environment.conf (nur Install-Parameter)
-   → Verschlüsselt WLS-Admin-Passwort → weblogic_sec.conf.des3
-   → Verschlüsselt MOS-Passwort      → mos_sec.conf.des3
+   → Collects all install parameters interactively
+   → Writes environment.conf (install parameters block only)
+   → Encrypts WLS Admin password  → weblogic_sec.conf.des3
+   → Encrypts MOS password        → mos_sec.conf.des3
+   → Encrypts DB SYS password     → db_sys_sec.conf.des3
 
-2. [Phase 0–1 Installation läuft durch]
+2. [Phase 0–1 installation runs through]
 
 3. 00-Setup/env_check.sh --apply
-   → Detektiert Runtime-Parameter (Pfade, Instanzen)
-   → Ergänzt environment.conf um Runtime-Abschnitt
-   → Vorhandene Install-Parameter werden nicht überschrieben
+   → Detects runtime parameters (FMW paths, instances, config files)
+   → Extends environment.conf with runtime section
+   → Existing install parameters are not overwritten
 ```
 
-## Ablauf Bestehende Umgebung (keine conf)
+## Existing System (no conf)
 
 ```
 1. 00-Setup/env_check.sh --interview --apply
-   → Scannt laufende WLS-Prozesse, FMW-Pfade, jps-config.xml
-   → Zeigt jeden erkannten Wert an, User bestätigt oder korrigiert
-   → Schreibt vollständige environment.conf
+   → Scans running WLS processes, FMW paths, jps-config.xml
+   → Shows each detected value, user confirms or overrides
+   → Writes complete environment.conf
 ```
 
 ---
 
-## Alle Parameter
+## All Parameters
 
-### Block 1 – Installations-Pfade
-*(Install-Parameter – werden von `01-setup-interview.sh` gesetzt)*
+### Block 1 – Installation Paths
+*Install parameters – set by `01-setup-interview.sh`*
 
-| Variable | Default | Beschreibung | Validation |
+| Variable | Default | Description | Validation |
 |---|---|---|---|
-| `ORACLE_BASE` | `/u01/app/oracle` | Basis-Verzeichnis für alle Oracle-Installationen | Verzeichnis schreibbar oder erstellbar |
-| `ORACLE_HOME` | `$ORACLE_BASE/fmw` | FMW-Installationsziel (= `FMW_HOME` nach Install) | Muss leer sein vor Installation |
-| `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 Symlink (von `02b-root_os_java.sh`) | `$JDK_HOME/bin/java -version` muss JDK 21 liefern |
-| `PATCH_STORAGE` | `/srv/patch_storage` | Ablage für Installer-ZIPs und Patches | ≥ 20 GB frei |
+| `ORACLE_BASE` | `/u01/app/oracle` | Base directory for all Oracle installations | Directory writable or creatable |
+| `ORACLE_HOME` | `$ORACLE_BASE/fmw` | FMW installation target (= `FMW_HOME` after install) | Must be empty before installation |
+| `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 symlink (created by `02b-root_os_java.sh`) | `$JDK_HOME/bin/java -version` must return JDK 21 |
+| `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free |
 
-### Block 2 – FMW-Laufzeit-Pfade
-*(Runtime-Parameter – von `env_check.sh` nach der Installation detektiert)*
+### Block 2 – FMW Runtime Paths
+*Runtime parameters – auto-detected by `env_check.sh` after installation*
 
-| Variable | Wert | Beschreibung |
+| Variable | Value | Description |
 |---|---|---|
-| `FMW_HOME` | `$ORACLE_HOME` | FMW-Installationsverzeichnis (nach Install = `ORACLE_HOME`) |
-| `WL_HOME` | `$FMW_HOME/wlserver` | WebLogic Server Heimat (abgeleitet) |
-| `JAVA_HOME` | `$FMW_HOME/oracle_common/jdk` | FMW-gebündeltes JDK (≠ `JDK_HOME`!) |
-| `WLST` | `$FMW_HOME/oracle_common/common/bin/wlst.sh` | WLST-Skript (abgeleitet) |
-| `RWRUN` | `$FMW_HOME/bin/rwrun` | Reports rwrun-Binary (abgeleitet) |
-| `RWCLIENT` | `$FMW_HOME/bin/rwclient` | Reports rwclient-Binary (abgeleitet) |
+| `FMW_HOME` | `$ORACLE_HOME` | FMW installation directory (after install = `ORACLE_HOME`) |
+| `WL_HOME` | `$FMW_HOME/wlserver` | WebLogic Server home (derived) |
+| `JAVA_HOME` | `$FMW_HOME/oracle_common/jdk` | FMW-bundled JDK (≠ `JDK_HOME`!) |
+| `WLST` | `$FMW_HOME/oracle_common/common/bin/wlst.sh` | WLST script (derived) |
+| `RWRUN` | `$FMW_HOME/bin/rwrun` | Reports rwrun binary (derived) |
+| `RWCLIENT` | `$FMW_HOME/bin/rwclient` | Reports rwclient binary (derived) |
 
-> **Wichtig:** `JAVA_HOME` in `environment.conf` zeigt auf das **FMW-gebündelte JDK**
-> (`oracle_common/jdk`), nicht auf `JDK_HOME`. Oracle Support fragt bei Problemen
-> immer nach dem JDK-Vendor — daher muss `.bash_profile` von `oracle` explizit
-> `JDK_HOME` setzen, unabhängig von `alternatives`.
+> **Important:** `JAVA_HOME` in `environment.conf` points to the **FMW-bundled JDK**
+> (`oracle_common/jdk`), not to `JDK_HOME`. Oracle Support always asks for the JDK
+> vendor when troubleshooting — therefore `oracle`'s `.bash_profile` must explicitly
+> set `JDK_HOME`, independent of `alternatives`.
 
 ### Block 3 – WebLogic Domain
-*(Mix: Basis vom Interview, Managed-Server-Name von env_check.sh detektiert)*
+*Mix: base values from interview, managed server name auto-detected by env_check.sh*
 
-| Variable | Default | Beschreibung |
+| Variable | Default | Description |
 |---|---|---|
-| `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | Domain-Heimat |
-| `DOMAIN_NAME` | `fr_domain` | Domain-Name (= `basename $DOMAIN_HOME`) |
-| `WL_ADMIN_URL` | `t3://localhost:7001` | T3-URL des AdminServers |
-| `WLS_ADMIN_PORT` | `7001` | AdminServer HTTP-Port |
-| `WLS_FORMS_PORT` | `9001` | WLS_FORMS Managed-Server-Port |
-| `WLS_REPORTS_PORT` | `9002` | WLS_REPORTS Managed-Server-Port |
-| `WLS_NODEMANAGER_PORT` | `5556` | NodeManager-Port |
-| `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Name des Reports Managed Servers (auto-detektiert) |
-| `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain-Environment-Skript (abgeleitet) |
+| `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | Domain home directory |
+| `DOMAIN_NAME` | `fr_domain` | Domain name (= `basename $DOMAIN_HOME`) |
+| `WL_ADMIN_URL` | `t3://localhost:7001` | T3 URL of the AdminServer |
+| `WLS_ADMIN_PORT` | `7001` | AdminServer HTTP port |
+| `WLS_FORMS_PORT` | `9001` | WLS_FORMS managed server port |
+| `WLS_REPORTS_PORT` | `9002` | WLS_REPORTS managed server port |
+| `WLS_NODEMANAGER_PORT` | `5556` | NodeManager port |
+| `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Reports managed server name (auto-detected) |
+| `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
 
-### Block 4 – Reports-Komponenten
-*(Runtime-Parameter – von env_check.sh nach der Installation detektiert)*
+### Block 4 – Reports Components
+*Runtime parameters – auto-detected by env_check.sh after installation*
 
-| Variable | Beschreibung |
+| Variable | Description |
 |---|---|
-| `REPORTS_COMPONENT_HOME` | Primäre ReportsTools-Instanz (`reptools1`) |
+| `REPORTS_COMPONENT_HOME` | Primary ReportsTools instance (`reptools1`) |
 | `REPORTS_ADMIN` | `$REPORTS_COMPONENT_HOME/guicommon/tk/admin` |
-| `UIFONT_ALI` | Pfad zur `uifont.ali` (= `TK_FONTALIAS` = `ORACLE_FONTALIAS`) |
-| `TK_FONTALIAS` | Überschreibt Oracle-Default-uifont.ali (= `UIFONT_ALI`) |
-| `ORACLE_FONTALIAS` | Wie `TK_FONTALIAS` (= `UIFONT_ALI`) |
-| `REPORTS_FONT_DIR` | `$DOMAIN_HOME/reports/fonts` – TTF-Ablage |
-| `REPORTS_INSTANCES` | Bash-Array aller `reptools*`-Instanzen |
-| `REPORTS_SERVER_NAME` | `repserver01` – Name des Reports Servers |
+| `UIFONT_ALI` | Path to `uifont.ali` (= `TK_FONTALIAS` = `ORACLE_FONTALIAS`) |
+| `TK_FONTALIAS` | Overrides Oracle default uifont.ali search path (= `UIFONT_ALI`) |
+| `ORACLE_FONTALIAS` | Same as `TK_FONTALIAS` (= `UIFONT_ALI`) |
+| `REPORTS_FONT_DIR` | `$DOMAIN_HOME/reports/fonts` – TTF font storage |
+| `REPORTS_INSTANCES` | Bash array of all `reptools*` instances |
+| `REPORTS_SERVER_NAME` | `repserver01` – Reports Server name |
 
-### Block 5 – Konfigurations-Dateien
-*(Runtime-Parameter – von env_check.sh detektiert)*
+### Block 5 – Configuration Files
+*Runtime parameters – auto-detected by env_check.sh*
 
-| Variable | Beschreibung |
+| Variable | Description |
 |---|---|
-| `RWSERVER_CONF` | `rwserver.conf` Pfad (unter `servers/WLS_REPORTS/applications/`) |
-| `CGICMD_DAT` | `cgicmd.dat` Pfad (im selben Verzeichnis wie `rwserver.conf`) |
+| `RWSERVER_CONF` | Path to `rwserver.conf` (under `servers/WLS_REPORTS/applications/`) |
+| `CGICMD_DAT` | Path to `cgicmd.dat` (same directory as `rwserver.conf`) |
 
-### Block 6 – Datenbank (RCU)
-*(Install-Parameter – vom Interview gesetzt; wird auch aus `jps-config.xml` detektiert)*
+### Block 6 – Database (RCU)
+*Install parameters – set by the interview; also auto-detected from `jps-config.xml`*
 
-| Variable | Default | Beschreibung |
+| Variable | Default | Description |
 |---|---|---|
-| `DB_HOST` | – | Datenbankserver-Hostname |
-| `DB_PORT` | `1521` | Oracle Listener-Port |
-| `DB_SERVICE` | – | Service-Name (nicht SID) |
-| `DB_SERVER` | `dedicated` | Connection-Modus: `dedicated` oder `shared` |
-| `DB_SCHEMA_PREFIX` | `DEV` | Präfix für RCU-Schemas (z.B. `DEV_MDS`, `DEV_STB`) |
-| `SQLPLUS_BIN` | leer | Optional: Pfad zu sqlplus für Login-Test |
-| `SEC_CONF_DB` | `db_connect.conf.des3` | Verschlüsselte DB-Credentials |
-| `LOCAL_REP_DB` | `false` | `true` wenn Oracle DB auf demselben Host läuft |
+| `DB_HOST` | – | Database server hostname |
+| `DB_PORT` | `1521` | Oracle listener port |
+| `DB_SERVICE` | – | Service name (not SID) |
+| `DB_SERVER` | `dedicated` | Connection mode: `dedicated` or `shared` |
+| `DB_SCHEMA_PREFIX` | `DEV` | Prefix for RCU schemas (e.g. `DEV_MDS`, `DEV_STB`) |
+| `SQLPLUS_BIN` | empty | Optional: path to sqlplus for login test |
+| `SEC_CONF_DB` | `db_connect.conf.des3` | Encrypted DB credentials |
+| `LOCAL_REP_DB` | `false` | `true` if an Oracle DB runs on the same host as WebLogic |
 
-> **`LOCAL_REP_DB`:** Steuert das Verhalten von `01-root_os_baseline.sh` bei
-> Konflikten mit `oracle-database-preinstall-*`-Sysctl-Werten.
-> `false` → konfliktierenden Sysctl-Dateien werden als FAIL markiert und bereinigt.
-> `true`  → nur WARN, keine Änderung (DB braucht die großen Shm-Werte).
+> **`LOCAL_REP_DB`:** Controls the behaviour of `01-root_os_baseline.sh` when
+> `oracle-database-preinstall-*` sysctl files conflict with WebLogic OUI requirements.
+> `false` → conflicting files are flagged as FAIL and their keys commented out.
+> `true`  → WARN only, no modification (the local DB needs the large shm values).
 
 ### Block 7 – My Oracle Support
-*(Install-Parameter – nur im Interview, werden nicht in environment.conf persistent)*
+*Install parameters – interview only; MOS_PWD is never written to environment.conf*
 
-| Variable | Beschreibung |
+| Variable | Description |
 |---|---|
-| `MOS_USER` | MOS-E-Mail-Adresse |
-| `MOS_PWD` | Verschlüsselt → `mos_sec.conf.des3` (nie in env.conf) |
-| `INSTALL_PATCHES` | Komma-separierte Patch-Nummern in Installationsreihenfolge |
+| `MOS_USER` | MOS e-mail address |
+| `MOS_PWD` | Encrypted → `mos_sec.conf.des3` (never in env.conf) |
+| `INSTALL_PATCHES` | Comma-separated patch numbers in apply order |
 | `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` |
 
-### Block 8 – Sicherheit & Betrieb
-*(Mix: Teils aus Interview, teils Defaults)*
+### Block 8 – Security and Operations
+*Mix: some from interview, some defaults*
 
-| Variable | Default | Beschreibung |
+| Variable | Default | Description |
 |---|---|---|
-| `ORACLE_OS_USER` | `oracle` | OS-User unter dem WLS läuft |
-| `SEC_CONF` | `weblogic_sec.conf.des3` | Verschlüsselte WLS-Admin-Credentials |
-| `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS-Log-Verzeichnis |
-| `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic Script-Logs |
-| `DISPLAY_VAR` | `:99` | X11-Display für rwrun / Oracle Installer |
+| `ORACLE_OS_USER` | `oracle` | OS user that runs WebLogic |
+| `SEC_CONF` | `weblogic_sec.conf.des3` | Encrypted WLS Admin credentials |
+| `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS log directory |
+| `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic script logs |
+| `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
 
 ---
 
-## Beziehung JDK_HOME ↔ JAVA_HOME
+## JDK_HOME vs. JAVA_HOME
 
 ```
-JDK_HOME  = /u01/app/oracle/java/jdk-21        (Symlink → jdk-21.0.10)
-            Gesetzt von: 02b-root_os_java.sh
-            Genutzt von: 04-oracle_pre_checks.sh, oracle .bash_profile
-            Oracle Support erwartet Oracle JDK hier
+JDK_HOME  = /u01/app/oracle/java/jdk-21        (symlink → jdk-21.0.x)
+            Set by:  02b-root_os_java.sh
+            Used by: 04-oracle_pre_checks.sh, oracle .bash_profile
+            Oracle Support expects the Oracle JDK vendor here
 
-JAVA_HOME = /u01/oracle/fmw/oracle_common/jdk   (FMW-gebündeltes JDK)
-            Gesetzt von: env_check.sh (nach FMW-Installation detektiert)
-            Genutzt von: alle Diagnose-Skripte die java aufrufen
-            Erst nach FMW-Installation vorhanden
+JAVA_HOME = /u01/oracle/fmw/oracle_common/jdk   (FMW-bundled JDK)
+            Set by:  env_check.sh (auto-detected after FMW installation)
+            Used by: all diagnostic scripts that invoke java
+            Only available after FMW installation
 ```
 
-**Phase 0/1 (vor FMW):** Nur `JDK_HOME` bekannt → `04-oracle_pre_checks.sh` nutzt `JDK_HOME`
-**Phase 2+ (nach FMW):** `JAVA_HOME` zeigt auf FMW-JDK → alle anderen Skripte nutzen `JAVA_HOME`
+**Phase 0/1 (before FMW):** Only `JDK_HOME` is known → `04-oracle_pre_checks.sh` uses `JDK_HOME`
+**Phase 2+ (after FMW):** `JAVA_HOME` points to FMW JDK → all other scripts use `JAVA_HOME`
 
 ---
 
-## Erkennungs-Reihenfolge in `env_check.sh`
+## Detection Chain in `env_check.sh`
 
 ```
 FMW_HOME:
-  1. Standard-Pfade: /u01/oracle/fmw, /u01/app/oracle/fmw, ...
-     (Nachweis: wlserver/server/lib/weblogic.jar vorhanden)
-  2. Laufender Prozess: ps -eo args | -Dwls.home=<pfad>/wlserver
-  3. Umgebungsvariablen: MW_HOME, ORACLE_HOME
-  → Fallback: /u01/oracle/fmw (für Neu-Install)
+  1. Standard paths: /u01/oracle/fmw, /u01/app/oracle/fmw, ...
+     (proof: wlserver/server/lib/weblogic.jar present)
+  2. Running process: ps -eo args | -Dwls.home=<path>/wlserver
+  3. Environment variables: MW_HOME, ORACLE_HOME
+  → Fallback: /u01/oracle/fmw (for new installs)
 
 DOMAIN_HOME:
-  1. Laufender AdminServer: -Dweblogic.RootDirectory=<pfad>
-  2. Standard-Basis-Verzeichnisse → erstes Unterverzeichnis mit config/config.xml
+  1. Running AdminServer: -Dweblogic.RootDirectory=<path>
+  2. Standard base directories → first subdirectory with config/config.xml
   → Fallback: /u01/user_projects/domains/fr_domain
 
 JAVA_HOME:
-  1. FMW-gebündeltes JDK: $FMW_HOME/oracle_common/jdk
-  2. Laufender WLS-Prozess: -Djava.home=<pfad>
-  3. System-JAVA_HOME
+  1. FMW-bundled JDK: $FMW_HOME/oracle_common/jdk
+  2. Running WLS process: -Djava.home=<path>
+  3. System JAVA_HOME
   → Fallback: $FMW_HOME/oracle_common/jdk
 
-DB-Verbindung:
-  1. jps-config.xml: erster DB_ORACLE-propertySet → JDBC-URL parsen
-  → Fallback: leer (manuelle Eingabe erforderlich)
+DB connection:
+  1. jps-config.xml: first DB_ORACLE propertySet → parse JDBC URL
+  → Fallback: empty (manual entry required)
 ```
 
 ---
 
-## Dateien im Überblick
+## File Overview
 
-| Datei | Inhalt | In Git? |
+| File | Content | In Git? |
 |---|---|---|
-| `environment.conf` | Alle Laufzeit- und Install-Parameter | **Nein** (`.gitignore`) |
-| `weblogic_sec.conf.des3` | Verschlüsseltes WLS-Admin-Passwort | **Nein** |
-| `mos_sec.conf.des3` | Verschlüsseltes MOS-Passwort | **Nein** |
-| `db_connect.conf.des3` | Verschlüsselte DB-Credentials | **Nein** |
-| `environment.conf.bak.*` | Backups vor Überschreiben | **Nein** |
+| `environment.conf` | All runtime and install parameters | **No** (`.gitignore`) |
+| `weblogic_sec.conf.des3` | Encrypted WLS Admin password | **No** |
+| `mos_sec.conf.des3` | Encrypted MOS password | **No** |
+| `db_sys_sec.conf.des3` | Encrypted DB SYS password (RCU only) | **No** |
+| `db_connect.conf.des3` | Encrypted DB runtime credentials | **No** |
+| `setup.conf` | Password-free reusable template | **No** |
+| `environment.conf.bak.*` | Backups before any overwrite | **No** |
 
 ---
 
-## Verwandte Skripte
+## Related Scripts
 
-| Skript | Zweck |
+| Script | Purpose |
 |---|---|
-| `09-Install/01-setup-interview.sh` | Neu-Install: Interview → environment.conf + Passwörter |
-| `00-Setup/env_check.sh` | Bestehend: Auto-Detect → environment.conf (ergänzend) |
-| `00-Setup/weblogic_sec.sh` | Passwort-Konzept: Verschlüsselung/Entschlüsselung |
-| `00-Setup/set_env.sh` | Multi-Domain: Symlink auf aktive conf umschalten |
-| `04-oracle_pre_checks.sh` | Phase 1: Liest Install-Parameter aus environment.conf |
+| `09-Install/01-setup-interview.sh` | New install: interview → environment.conf + encrypted passwords |
+| `00-Setup/env_check.sh` | Existing system: auto-detect → extend environment.conf |
+| `00-Setup/weblogic_sec.sh` | Password concept: encrypt/decrypt via machine UUID |
+| `00-Setup/set_env.sh` | Multi-domain: switch symlink to active conf |
+| `09-Install/04-oracle_pre_checks.sh` | Phase 1: reads install parameters from environment.conf |
