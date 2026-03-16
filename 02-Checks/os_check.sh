@@ -406,8 +406,27 @@ else
     fi
 
     # Shared memory parameters
-    _check_sysctl "kernel.shmmni" 4096    "shared memory segments"
-    _check_sysctl "kernel.shmall" 1073741824 "shared memory pages (total)"
+    _check_sysctl "kernel.shmmni" 4096 "shared memory segments"
+
+    # kernel.shmall: for pure WebLogic/FMW set to total RAM expressed in 4K pages.
+    # Oracle DB preinstall sets 1073741824 pages (= 4 TB) – a DB-only requirement, not needed here.
+    # Ref: 09-Install/01-root_os_baseline.sh – SYSCTL_WANT["kernel.shmall"] = RAM_kB / 4
+    SHMALL_VAL="$(sysctl -n kernel.shmall 2>/dev/null)"
+    if [ -n "$SHMALL_VAL" ]; then
+        printList "  kernel.shmall" 36 "$SHMALL_VAL"
+        if [ "${MEM_TOTAL_KB:-0}" -gt 0 ]; then
+            SHMALL_MIN=$(( MEM_TOTAL_KB / 4 ))    # total RAM in 4K pages
+            if [ "$SHMALL_VAL" -ge "$SHMALL_MIN" ] 2>/dev/null; then
+                ok "  kernel.shmall ${SHMALL_VAL} >= RAM pages ${SHMALL_MIN} (WLS FMW OK)"
+            else
+                warn "  kernel.shmall ${SHMALL_VAL} – recommend >= RAM pages ${SHMALL_MIN}"
+            fi
+        else
+            ok "  kernel.shmall = ${SHMALL_VAL}"
+        fi
+    else
+        warn "  Cannot read kernel.shmall"
+    fi
 
     # kernel.shmmax – must be >= half of physical RAM, per Oracle docs
     SHMMAX_VAL="$(sysctl -n kernel.shmmax 2>/dev/null)"
@@ -448,7 +467,7 @@ else
     info "    fs.aio-max-nr = 1048576"
     info "    kernel.sem = 250 32000 100 128"
     info "    kernel.shmmni = 4096"
-    info "    kernel.shmall = 1073741824"
+    info "    kernel.shmall = <total RAM in 4K pages>  e.g. $(( ${MEM_TOTAL_KB:-0} / 4 )) for this host"
     info "    kernel.shmmax = <half of physical RAM in bytes>"
     info "    net.core.rmem_default = 262144"
     info "    net.core.rmem_max = 4194304"
