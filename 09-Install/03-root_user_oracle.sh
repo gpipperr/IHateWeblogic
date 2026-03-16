@@ -374,8 +374,8 @@ SUDOERS_FILE="/etc/sudoers.d/oracle-fmw"
 
 if [ -f "$SUDOERS_FILE" ]; then
     ok "Sudoers file exists: $SUDOERS_FILE"
-    # Validate syntax
-    if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
+    # Validate syntax (needs root to read the 440 file)
+    if _run_root visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
         ok "Sudoers syntax valid"
     else
         fail "Sudoers syntax error in $SUDOERS_FILE"
@@ -421,7 +421,7 @@ oracle ALL=(root) NOPASSWD: /usr/bin/firewall-cmd *
 oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
 EOF
             _run_root chmod 440 "$SUDOERS_FILE"
-            if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
+            if _run_root visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
                 ok "Sudoers file created and validated"
             else
                 fail "Sudoers syntax error – please review $SUDOERS_FILE"
