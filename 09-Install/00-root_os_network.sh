@@ -110,11 +110,15 @@ SHORT_LABEL="${SHORT_HOST%%.*}"
 # Static hostname from hostnamectl (what is persistently configured)
 STATIC_HOSTNAME="$(hostnamectl status 2>/dev/null \
     | awk '/Static hostname:/ {print $3}')"
+# hostname -a: aliases from /etc/hosts – populated when short name is first in /etc/hosts
+# and FQDN appears as alias. If hostname -f returns the FQDN correctly, -a returns the short name.
+HOSTNAME_ALIASES="$(hostname -a 2>/dev/null)"
 
-printf "  %-26s %s\n" "hostname:"          "${SHORT_HOST:-(empty)}"     | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "hostname -f (DNS):" "${FQDN:-(empty)}"           | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "hostname -d (DNS):" "${DOMAIN:-(empty)}"         | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "hostnamectl static:" "${STATIC_HOSTNAME:-(empty)}" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "hostname:"           "${SHORT_HOST:-(empty)}"       | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "hostname -f (FQDN):" "${FQDN:-(empty)}"             | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "hostname -a (alias):" "${HOSTNAME_ALIASES:-(empty)}" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "hostname -d (domain):" "${DOMAIN:-(empty)}"          | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "hostnamectl static:"  "${STATIC_HOSTNAME:-(empty)}"  | tee -a "${LOG_FILE:-/dev/null}"
 
 # Short hostname must not be empty or a generic placeholder
 if [ -z "$SHORT_HOST" ]; then
@@ -129,11 +133,28 @@ fi
 if [ -z "$FQDN" ]; then
     fail "hostname -f returned empty – /etc/hosts or DNS missing for this host"
 elif ! printf "%s" "$FQDN" | grep -q '\.'; then
-    fail "$(printf "%-26s %s  (no domain part – bare hostname invalid for WebLogic)" \
-        "FQDN:" "$FQDN")"
-    info "  Fix: hostnamectl set-hostname ${SHORT_LABEL}.your.domain.local"
-    info "  Then verify: hostname -f && hostname -d"
-    info "  Also add to /etc/hosts: <server-ip>  ${SHORT_LABEL}.your.domain.local  $SHORT_LABEL"
+    # Check if FQDN is reachable via hostname -a (alias in /etc/hosts)
+    # This happens when /etc/hosts has the short name as first entry:
+    #   Wrong:   <ip>  orafusion01  orafusion01.pipperr.local
+    #   Correct: <ip>  orafusion01.pipperr.local  orafusion01
+    FQDN_FROM_ALIAS="$(printf "%s" "${HOSTNAME_ALIASES:-}" | tr ' ' '\n' | grep '\.' | head -1)"
+    if [ -n "$FQDN_FROM_ALIAS" ]; then
+        fail "$(printf "hostname -f returns '%s' (no domain) but FQDN '%s' found via hostname -a" \
+            "$FQDN" "$FQDN_FROM_ALIAS")"
+        info "  Cause: /etc/hosts has short name as first entry – FQDN must come first:"
+        info "    Wrong:   <ip>  $SHORT_LABEL  $FQDN_FROM_ALIAS"
+        info "    Correct: <ip>  $FQDN_FROM_ALIAS  $SHORT_LABEL"
+        info "  Fix: edit /etc/hosts and reorder the entry, then verify:"
+        info "    hostname -f  →  $FQDN_FROM_ALIAS"
+        info "    hostname -a  →  $SHORT_LABEL"
+    else
+        fail "$(printf "%-26s %s  (no domain part – bare hostname invalid for WebLogic)" \
+            "FQDN:" "$FQDN")"
+        info "  Fix: hostnamectl set-hostname ${SHORT_LABEL}.your.domain.local"
+        info "  Add to /etc/hosts: <server-ip>  ${SHORT_LABEL}.your.domain.local  $SHORT_LABEL"
+        info "  Verify: hostname -f  →  ${SHORT_LABEL}.your.domain.local"
+        info "          hostname -a  →  $SHORT_LABEL"
+    fi
 else
     ok "$(printf "%-26s %s" "FQDN:" "$FQDN")"
 fi
@@ -150,9 +171,11 @@ if [ -z "$DOMAIN" ]; then
     info "    hostname -f (DNS)  : ${FQDN:-(empty)}  ← must contain a dot"
     info "    hostname -d (DNS)  : (empty)            ← derived from hostname -f"
     info "  Fix step 1: hostnamectl set-hostname ${SHORT_LABEL}.your.domain.local"
-    info "  Fix step 2: add to /etc/hosts: <ip>  ${SHORT_LABEL}.your.domain.local  $SHORT_LABEL"
-    info "  Fix step 3: verify: hostname -f  →  ${SHORT_LABEL}.your.domain.local"
-    info "              verify: hostname -d  →  your.domain.local"
+    info "  Fix step 2: /etc/hosts – FQDN must be first: <ip>  ${SHORT_LABEL}.your.domain.local  $SHORT_LABEL"
+    info "  Fix step 3: verify:"
+    info "    hostname -f  →  ${SHORT_LABEL}.your.domain.local  (FQDN)"
+    info "    hostname -a  →  $SHORT_LABEL                      (alias)"
+    info "    hostname -d  →  your.domain.local                 (domain part)"
 else
     ok "$(printf "%-26s %s" "Domain:" "$DOMAIN")"
 fi
