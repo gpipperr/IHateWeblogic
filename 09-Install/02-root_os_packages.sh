@@ -135,6 +135,7 @@ for PKG in \
     libaio-devel \
     libX11 \
     libXau \
+    libXext \
     libXi \
     libXrender \
     libXtst \

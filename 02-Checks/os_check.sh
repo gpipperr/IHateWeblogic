@@ -508,10 +508,10 @@ section "Required OS Packages"
 
 # Ref: Oracle Forms 14c / Reports 12c Install Guide – system requirements
 # Ref: Oracle WLS 14.1.2 install guide – OS library requirements
-# Full list verified against: rpm -q binutils compat-libcap1 compat-libstdc++-33
-#   gcc gcc-c++ glibc glibc-devel libaio libaio-devel libgcc libstdc++
-#   libstdc++-devel dejavu-serif-fonts ksh make sysstat numactl numactl-devel
-#   motif motif-devel redhat-lsb redhat-lsb-core
+# Ref: Oracle Forms/Reports 14.1.2 Install Guide – system requirements (OL8/9)
+# Critical: binutils gcc gcc-c++ glibc glibc-devel libaio libaio-devel libgcc
+#   libstdc++ libstdc++-devel libX11 libXi libXtst libXext libXrender fontconfig
+#   freetype dejavu-serif-fonts ksh make numactl motif motif-devel unzip
 
 if ! command -v rpm >/dev/null 2>&1; then
     warn "rpm not available – package check skipped"
@@ -552,7 +552,6 @@ else
         "ksh"
         "make"
         "numactl"
-        "numactl-devel"
         "motif"
         "motif-devel"
         "unzip"
