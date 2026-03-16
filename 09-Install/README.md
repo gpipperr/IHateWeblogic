@@ -96,7 +96,10 @@ Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
 
 Phase 1 – Pre-Install Checks (as oracle)
   04-oracle_pre_checks.sh       Verify all prerequisites before download
-  04-oracle_pre_download.sh     Download software and patches from MOS (getMOSPatch.jar)
+  04-oracle_pre_download.sh     Download eDelivery ZIPs + MOS patches (OPatch + post-install)
+                                  --apply        manual eDelivery placement + SHA-256 verify
+                                  --apply --wget eDelivery via Bearer Token wget
+                                  --apply --mos  + getMOSPatch: OPatch + INSTALL_PATCHES
 
 Phase 2 – WebLogic Installation (as oracle)
   05-oracle_install_weblogic.sh FMW Infrastructure 14.1.2 silent install
@@ -129,7 +132,7 @@ Phase 5 – Configuration & Validation (as oracle)
 | 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/02-root_nginx.md) |
 | 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/03-root_nginx_ssl.md) |
 | 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
-| 1 | `04-oracle_pre_download.sh` | MOS download via getMOSPatch.jar | [→ docs](docs/04-oracle_pre_download.md) |
+| 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
 | 2 | `05-oracle_patch_weblogic.sh` | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
 | 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports silent install | [→ docs](docs/06-oracle_install_forms_reports.md) |
@@ -182,8 +185,10 @@ REPORTS_CUSTOMER_DIR=/app/reports/custom
 # === MOS DOWNLOADS ===
 MOS_USER=firstname.lastname@company.com
 # MOS_PWD → encrypted: mos_sec.conf.des3 (same mechanism as weblogic_sec.conf.des3)
-INSTALL_PATCHES=33735326,34374498       # comma-separated, apply order matters
 ```
+
+Software versions, patch numbers, SHA-256 checksums and OPatch regexp are defined
+in `09-Install/oracle_software_version.conf` (committed to git, no credentials).
 
 Existing parameters (`FMW_HOME`, `DOMAIN_HOME`, `REPORTS_SERVER_NAME` etc.) remain
 unchanged — all modules 00–07 continue to work without modification.
@@ -211,18 +216,30 @@ password-file handling for RCU) live in `install_lib.sh`.
 
 ---
 
-## 7. MOS Downloads (getMOSPatch.jar)
+## 7. Software Download (04-oracle_pre_download.sh)
 
 ```
 /srv/patch_storage/
 ├── bin/
-│   ├── getMOSPatch.jar           ← from GitHub: MarisElsins/getMOSPatch
-│   └── .getMOSPatch.cfg          ← platform + language (generated from environment.conf)
-├── wls/                          ← FMW Infrastructure installer
-├── fr/                           ← Forms & Reports installer
-├── opatch/                       ← OPatch (p6880880)
-└── patches/                      ← individual patches by number
+│   ├── getMOSPatch.jar           ← auto-downloaded from GitHub on first --mos run
+│   └── .getMOSPatch.cfg          ← platform + language (from oracle_software_version.conf)
+├── wls/
+│   ├── V1045135-01.zip           ← eDelivery: FMW Infrastructure 14.1.2 (manual/wget)
+│   └── fmw_14.1.2.0.0_infrastructure.jar
+├── fr/
+│   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
+│   └── fmw_14.1.2.0.0_fr_linux64.bin
+├── opatch/
+│   └── p6880880_139000_Generic.zip  ← OPatch 13.9.x for WLS/FMW (getMOSPatch)
+└── patches/
+    ├── 30970477/
+    ├── 30729380/
+    ├── 31960987/
+    └── 32097167/
 ```
+
+All versions, filenames, SHA-256 checksums and patch numbers are defined in
+`oracle_software_version.conf` (committed to git — no credentials).
 
 Platform codes: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
 
@@ -363,8 +380,9 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 04-root_nginx.sh                   ← Phase 0: Nginx install + proxy config
 ├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
 ├── nginx-wls.conf.template            ← Nginx proxy config template (##VARIABLE## substitution)
+├── oracle_software_version.conf       ← SW versions, SHA-256, patch numbers, OPatch regexp
 ├── 04-oracle_pre_checks.sh            ← [TODO]
-├── 04-oracle_pre_download.sh          ← [TODO]
+├── 04-oracle_pre_download.sh          ← eDelivery + getMOSPatch download
 ├── 05-oracle_install_weblogic.sh      ← [TODO]
 ├── 05-oracle_patch_weblogic.sh        ← [TODO]
 ├── 06-oracle_install_forms_reports.sh ← [TODO]
