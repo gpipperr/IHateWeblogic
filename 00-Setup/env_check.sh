@@ -26,7 +26,21 @@ source "$LIB_SH"
 
 # --- Arguments ----------------------------------------------------------------
 APPLY=false
-[[ "$*" == *"--apply"* ]] && APPLY=true
+INTERVIEW=false
+for _arg in "$@"; do
+    case "$_arg" in
+        --apply)    APPLY=true ;;
+        --interview) INTERVIEW=true ;;
+        --help|-h)
+            printf "Usage: %s [--apply] [--interview]\n\n" "$(basename "$0")"
+            printf "  %-20s %s\n" "--apply"     "Write environment.conf (extend existing, never overwrite)"
+            printf "  %-20s %s\n" "--interview" "Confirm each detected value interactively before writing"
+            printf "\nWithout --apply: dry-run only.\n"
+            exit 0
+            ;;
+    esac
+done
+unset _arg
 
 # --- Bootstrap log (environment.conf not yet available) ----------------------
 LOG_BOOT_DIR="$ROOT_DIR/log/$(date +%Y%m%d)"
@@ -294,7 +308,8 @@ printf "  Version : 1.0.0\n"                                   | tee -a "$LOG_FI
 printf "  Host    : %s\n" "$(_get_hostname)" | tee -a "$LOG_FILE"
 printf "  Date    : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"       | tee -a "$LOG_FILE"
 printf "  Apply   : %s\n" "$APPLY"                             | tee -a "$LOG_FILE"
-printf "  Log     : %s\n" "$LOG_FILE"                          | tee -a "$LOG_FILE"
+printf "  Interview: %s\n" "$INTERVIEW"                       | tee -a "$LOG_FILE"
+printf "  Log     : %s\n" "$LOG_FILE"                         | tee -a "$LOG_FILE"
 printLine
 
 # --------------------------------------------------------------------------
@@ -485,19 +500,138 @@ fi
 # =============================================================================
 section "Generate environment.conf"
 
-if $APPLY; then
-    # Backup existing environment.conf if present
-    if [ -f "$ENV_CONF" ]; then
-        backup_file "$ENV_CONF" "$ROOT_DIR"
+# ---------------------------------------------------------------------------
+# Helper: optionally let user confirm/override a detected value (--interview)
+# Sets the variable named $1 to either the detected or user-supplied value.
+# ---------------------------------------------------------------------------
+_confirm_val() {
+    local var="$1"
+    local detected="$2"
+    local label="${3:-$var}"
+
+    if ! $INTERVIEW; then
+        eval "${var}=\"${detected}\""
+        return 0
     fi
 
-    # Build REPORTS_INSTANCES array string for the conf file
-    INSTANCES_ARRAY_STR=""
-    for inst in "${DET_REPTOOLS_INSTANCES[@]}"; do
-        INSTANCES_ARRAY_STR="${INSTANCES_ARRAY_STR}  \"${inst}\"\n"
-    done
+    printf "  \033[1m%-30s\033[0m [%s]: " "$label" "$detected"
+    local input
+    read -r input
+    if [ -z "$input" ]; then
+        eval "${var}=\"${detected}\""
+    else
+        eval "${var}=\"${input}\""
+        printf "  \033[32m  ✓  overridden: %s = %s\033[0m\n" "$var" "$input" | tee -a "$LOG_FILE"
+    fi
+}
 
-    cat > "$ENV_CONF" <<EOF
+# ---------------------------------------------------------------------------
+# Helper: check if a key is already present in the conf file
+# ---------------------------------------------------------------------------
+_conf_has_key() {
+    local key="$1"
+    [ -f "$ENV_CONF" ] && grep -qE "^${key}=" "$ENV_CONF" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Helper: append a single key=value to env.conf only if not already present
+# ---------------------------------------------------------------------------
+_append_if_missing() {
+    local key="$1"
+    local val="$2"
+    if ! _conf_has_key "$key"; then
+        printf '%s="%s"\n' "$key" "$val" >> "$ENV_CONF"
+    fi
+}
+
+# Run interview prompts when requested
+if $INTERVIEW; then
+    printLine
+    printf "\n  Confirm detected values (Enter = keep, type to override):\n\n"
+fi
+
+_confirm_val CONF_FMW_HOME         "$DET_FMW_HOME"       "FMW_HOME"
+_confirm_val CONF_JAVA_HOME        "$DET_JAVA_HOME"       "JAVA_HOME"
+_confirm_val CONF_DOMAIN_HOME      "$DET_DOMAIN_HOME"     "DOMAIN_HOME"
+_confirm_val CONF_REPORTS_COMP     "$DET_REPORTS_COMPONENT" "REPORTS_COMPONENT_HOME"
+_confirm_val CONF_WLS_MANAGED      "$DET_WLS_MANAGED"     "WLS_MANAGED_SERVER"
+_confirm_val CONF_RWSERVER_CONF    "$DET_RWSERVER_CONF"   "RWSERVER_CONF"
+_confirm_val CONF_CGICMD_DAT       "$DET_CGICMD_DAT"      "CGICMD_DAT"
+_confirm_val CONF_ORACLE_USER      "$DET_ORACLE_USER"     "ORACLE_OS_USER"
+_confirm_val CONF_DB_HOST          "$DET_DB_HOST"         "DB_HOST"
+_confirm_val CONF_DB_PORT          "${DET_DB_PORT:-1521}"  "DB_PORT"
+_confirm_val CONF_DB_SERVICE       "$DET_DB_SERVICE"      "DB_SERVICE"
+_confirm_val CONF_DB_SERVER        "${DET_DB_SERVER:-dedicated}" "DB_SERVER"
+
+# Build REPORTS_INSTANCES array string
+INSTANCES_ARRAY_STR=""
+for inst in "${DET_REPTOOLS_INSTANCES[@]}"; do
+    INSTANCES_ARRAY_STR="${INSTANCES_ARRAY_STR}  \"${inst}\"\n"
+done
+
+# ---------------------------------------------------------------------------
+if $APPLY; then
+
+    if [ -f "$ENV_CONF" ]; then
+        # --- Extend mode: existing conf – only append missing runtime keys ---
+        backup_file "$ENV_CONF" "$ROOT_DIR"
+
+        # Add runtime section header once
+        if ! grep -q "# --- Runtime: env_check.sh" "$ENV_CONF" 2>/dev/null; then
+            {
+                printf "\n"
+                printf "# --- Runtime: env_check.sh auto-detected %s ---\n" \
+                    "$(date '+%Y-%m-%d %H:%M:%S')"
+            } >> "$ENV_CONF"
+        fi
+
+        _append_if_missing "FMW_HOME"              "$CONF_FMW_HOME"
+        _append_if_missing "WL_HOME"               "\${FMW_HOME}/wlserver"
+        _append_if_missing "JAVA_HOME"             "$CONF_JAVA_HOME"
+        _append_if_missing "DOMAIN_HOME"           "$CONF_DOMAIN_HOME"
+        _append_if_missing "DOMAIN_NAME"           "$DET_DOMAIN_NAME"
+        _append_if_missing "WL_ADMIN_URL"          "t3://localhost:7001"
+        _append_if_missing "WLS_MANAGED_SERVER"    "$CONF_WLS_MANAGED"
+        _append_if_missing "REPORTS_COMPONENT_HOME" "$CONF_REPORTS_COMP"
+        _append_if_missing "REPORTS_ADMIN"         "\${REPORTS_COMPONENT_HOME}/guicommon/tk/admin"
+        _append_if_missing "UIFONT_ALI"            "\${REPORTS_ADMIN}/uifont.ali"
+        _append_if_missing "TK_FONTALIAS"          "\${UIFONT_ALI}"
+        _append_if_missing "ORACLE_FONTALIAS"      "\${UIFONT_ALI}"
+        _append_if_missing "REPORTS_FONT_DIR"      "\${DOMAIN_HOME}/reports/fonts"
+        _append_if_missing "RWRUN"                 "\${FMW_HOME}/bin/rwrun"
+        _append_if_missing "RWCLIENT"              "\${FMW_HOME}/bin/rwclient"
+        _append_if_missing "WLST"                  "\${FMW_HOME}/oracle_common/common/bin/wlst.sh"
+        _append_if_missing "RWSERVER_CONF"         "$CONF_RWSERVER_CONF"
+        _append_if_missing "CGICMD_DAT"            "$CONF_CGICMD_DAT"
+        _append_if_missing "SETDOMAINENV"          "\${DOMAIN_HOME}/bin/setDomainEnv.sh"
+        _append_if_missing "WLS_LOG_DIR"           "\${DOMAIN_HOME}/servers/\${WLS_MANAGED_SERVER}/logs"
+        _append_if_missing "DIAG_LOG_DIR"          "\${ROOT_DIR}/log/\$(date +%Y%m%d)"
+        _append_if_missing "SEC_CONF"              "\${ROOT_DIR}/weblogic_sec.conf.des3"
+        _append_if_missing "ORACLE_OS_USER"        "$CONF_ORACLE_USER"
+        _append_if_missing "DB_HOST"               "$CONF_DB_HOST"
+        _append_if_missing "DB_PORT"               "$CONF_DB_PORT"
+        _append_if_missing "DB_SERVICE"            "$CONF_DB_SERVICE"
+        _append_if_missing "DB_SERVER"             "$CONF_DB_SERVER"
+        _append_if_missing "SQLPLUS_BIN"           ""
+        _append_if_missing "SEC_CONF_DB"           "\${ROOT_DIR}/db_connect.conf.des3"
+        _append_if_missing "LOCAL_REP_DB"          "false"
+        _append_if_missing "DISPLAY_VAR"           ":99"
+
+        # REPORTS_INSTANCES array: only add if not present
+        if ! _conf_has_key "REPORTS_INSTANCES"; then
+            {
+                printf 'REPORTS_INSTANCES=(\n'
+                printf "%b" "$INSTANCES_ARRAY_STR"
+                printf ')\n'
+            } >> "$ENV_CONF"
+        fi
+
+        chmod 600 "$ENV_CONF"
+        ok "environment.conf extended with missing runtime values: $ENV_CONF"
+
+    else
+        # --- Fresh write: no existing conf ---
+        cat > "$ENV_CONF" <<ENVEOF
 # =============================================================================
 # environment.conf – generated by 00-Setup/env_check.sh
 # Host  : $(_get_hostname)
@@ -506,30 +640,29 @@ if $APPLY; then
 # =============================================================================
 
 # --- Oracle FMW Installation -------------------------------------------------
-FMW_HOME="${DET_FMW_HOME}"
+FMW_HOME="${CONF_FMW_HOME}"
 WL_HOME="\${FMW_HOME}/wlserver"
-JAVA_HOME="${DET_JAVA_HOME}"
+JAVA_HOME="${CONF_JAVA_HOME}"
 
 # --- WebLogic Domain ---------------------------------------------------------
-DOMAIN_HOME="${DET_DOMAIN_HOME}"
+DOMAIN_HOME="${CONF_DOMAIN_HOME}"
 DOMAIN_NAME="${DET_DOMAIN_NAME}"
 WL_ADMIN_URL="t3://localhost:7001"
-WLS_MANAGED_SERVER="${DET_WLS_MANAGED}"
+WLS_MANAGED_SERVER="${CONF_WLS_MANAGED}"
 
 # --- Reports Component (primary instance) ------------------------------------
-REPORTS_COMPONENT_HOME="${DET_REPORTS_COMPONENT}"
+REPORTS_COMPONENT_HOME="${CONF_REPORTS_COMP}"
 REPORTS_ADMIN="\${REPORTS_COMPONENT_HOME}/guicommon/tk/admin"
 UIFONT_ALI="\${REPORTS_ADMIN}/uifont.ali"
-# TK_FONTALIAS / ORACLE_FONTALIAS: override the uifont.ali search path so
-# Oracle Reports uses the domain-config file (not the one in the FMW install).
-# Also consumed by uifont_ali_update.sh to locate the file to rewrite.
+# TK_FONTALIAS / ORACLE_FONTALIAS: override uifont.ali search path so Oracle
+# Reports uses the domain-config file (not the one in the FMW install tree).
 TK_FONTALIAS="\${UIFONT_ALI}"
 ORACLE_FONTALIAS="\${UIFONT_ALI}"
 REPORTS_FONT_DIR="\${DOMAIN_HOME}/reports/fonts"
 
 # --- All detected Reports instances (bash array) -----------------------------
 REPORTS_INSTANCES=(
-$(printf "%s" "$INSTANCES_ARRAY_STR"))
+$(printf "%b" "$INSTANCES_ARRAY_STR"))
 
 # --- Reports / Forms Binaries ------------------------------------------------
 RWRUN="\${FMW_HOME}/bin/rwrun"
@@ -537,8 +670,8 @@ RWCLIENT="\${FMW_HOME}/bin/rwclient"
 WLST="\${FMW_HOME}/oracle_common/common/bin/wlst.sh"
 
 # --- Configuration Files -----------------------------------------------------
-RWSERVER_CONF="${DET_RWSERVER_CONF}"
-CGICMD_DAT="${DET_CGICMD_DAT}"
+RWSERVER_CONF="${CONF_RWSERVER_CONF}"
+CGICMD_DAT="${CONF_CGICMD_DAT}"
 SETDOMAINENV="\${DOMAIN_HOME}/bin/setDomainEnv.sh"
 
 # --- Log Directories ---------------------------------------------------------
@@ -547,31 +680,30 @@ DIAG_LOG_DIR="\${ROOT_DIR}/log/\$(date +%Y%m%d)"
 
 # --- Security ----------------------------------------------------------------
 SEC_CONF="\${ROOT_DIR}/weblogic_sec.conf.des3"
-ORACLE_OS_USER="${DET_ORACLE_USER}"
+ORACLE_OS_USER="${CONF_ORACLE_USER}"
 
 # --- Oracle DB Connection (auto-detected from jps-config.xml) ----------------
 # Configure manually: 02-Checks/db_connect_check.sh --new
-DB_HOST="${DET_DB_HOST}"
-DB_PORT="${DET_DB_PORT:-1521}"
-DB_SERVICE="${DET_DB_SERVICE}"
-DB_SERVER="${DET_DB_SERVER:-dedicated}"
-SQLPLUS_BIN=""       # optional: /path/to/sqlplus – enables login test in db_connect_check.sh
+DB_HOST="${CONF_DB_HOST}"
+DB_PORT="${CONF_DB_PORT}"
+DB_SERVICE="${CONF_DB_SERVICE}"
+DB_SERVER="${CONF_DB_SERVER}"
+SQLPLUS_BIN=""       # optional: /path/to/sqlplus
 SEC_CONF_DB="\${ROOT_DIR}/db_connect.conf.des3"
 
-# LOCAL_REP_DB: set to true if an Oracle Database runs on THIS host alongside WebLogic.
-# Effect on 01-root_os_baseline.sh:
-#   false (default) – oracle-database-preinstall sysctl values (shmmax=4TB, shmall=1G)
-#                     conflict with WLS OUI requirements and will be flagged for removal.
-#   true            – conflicting sysctl values are only reported (WARN), not modified,
-#                     because the local DB needs the larger shared-memory settings.
+# LOCAL_REP_DB: true if an Oracle DB runs on THIS host alongside WebLogic.
+# false → conflicting preinstall sysctl values are flagged/removed.
+# true  → only WARN, not modified (local DB needs larger shm values).
 LOCAL_REP_DB="false"
 
 # --- X11 / Display -----------------------------------------------------------
 DISPLAY_VAR=":99"
-EOF
+ENVEOF
 
-    chmod 600 "$ENV_CONF"
-    ok "environment.conf written: $ENV_CONF"
+        chmod 600 "$ENV_CONF"
+        ok "environment.conf written (fresh): $ENV_CONF"
+    fi
+
     info "Next step: run 00-Setup/weblogic_sec.sh --apply"
 
 else
@@ -579,13 +711,15 @@ else
     info "Would write to: $ENV_CONF"
     printLine
     printf "  Preview (key values detected):\n" | tee -a "$LOG_FILE"
-    printList "  FMW_HOME"              28 "$DET_FMW_HOME"
-    printList "  DOMAIN_HOME"           28 "$DET_DOMAIN_HOME"
-    printList "  REPORTS_COMPONENT"     28 "$DET_REPORTS_COMPONENT"
-    printList "  WLS_MANAGED_SERVER"    28 "$DET_WLS_MANAGED"
-    printList "  JAVA_HOME"             28 "$DET_JAVA_HOME"
-    printList "  RWSERVER_CONF"         28 "$DET_RWSERVER_CONF"
-    printList "  ORACLE_OS_USER"        28 "$DET_ORACLE_USER"
+    printList "  FMW_HOME"              28 "$CONF_FMW_HOME"
+    printList "  DOMAIN_HOME"           28 "$CONF_DOMAIN_HOME"
+    printList "  REPORTS_COMPONENT"     28 "$CONF_REPORTS_COMP"
+    printList "  WLS_MANAGED_SERVER"    28 "$CONF_WLS_MANAGED"
+    printList "  JAVA_HOME"             28 "$CONF_JAVA_HOME"
+    printList "  RWSERVER_CONF"         28 "$CONF_RWSERVER_CONF"
+    printList "  ORACLE_OS_USER"        28 "$CONF_ORACLE_USER"
+    [ -f "$ENV_CONF" ] && \
+        info "Existing conf will be EXTENDED (missing keys only) – existing values kept"
 fi
 
 # =============================================================================
