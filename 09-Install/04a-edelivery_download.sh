@@ -121,13 +121,15 @@ _verify_sha256() {
     fi
 }
 
-# _download_one  zip_filename  dest_dir  expected_sha256  bearer_token
+# _download_one  zip_filename  dest_dir  expected_sha256  bearer_token  edel_search
 # Handles one file: skip-if-ok, prompt URL, wget, magic check, sha256 verify.
+# edel_search: product name to search for on edelivery.oracle.com (shown in prompt).
 _download_one() {
     local zip_file="$1"
     local dest_dir="$2"
     local expected_sha256="$3"
     local bearer_token="$4"
+    local edel_search="${5:-$zip_file}"
     local dest_path="$dest_dir/$zip_file"
 
     printLine
@@ -172,10 +174,13 @@ _download_one() {
 
     # --- Prompt for download URL ----------------------------------------------
     printf "\n"
-    info "Steps to get the download URL for $zip_file:"
-    info "  1. edelivery.oracle.com → select the file → WGET Options"
-    info "  2. Right-click the URL line in the wget script → copy URL"
-    info "  3. Paste below (URL contains the file-specific token)"
+    info "How to get the download URL for this file:"
+    info "  1. Go to: https://edelivery.oracle.com"
+    info "  2. Search for:"
+    printf "       \033[1m%s\033[0m\n" "$edel_search"
+    info "  3. Select the file \033[1m$zip_file\033[0m, click 'WGET Options'"
+    info "  4. In the wget script, copy the URL for $zip_file"
+    info "     (long URL starting with https://edelivery.oracle.com/osdc/softwareDownload?...)"
     printf "\n  Download URL for %s: " "$zip_file"
     local dl_url
     read -r dl_url
@@ -286,11 +291,15 @@ section "Oracle eDelivery Bearer Token"
 
 printf "\n"
 printf "  Steps:\n" | tee -a "$LOG_FILE"
-printf "    1. Open \033[1mhttps://edelivery.oracle.com\033[0m in your browser\n"
-printf "    2. Log in (2FA), select your files\n"
-printf "    3. Click  \033[1mWGET Options\033[0m  →  \033[1mGenerate Token\033[0m  →  Copy\n"
-printf "    4. Paste the token below (hidden input)\n"
-printf "    Token is valid for 1 hour.\n\n"
+printf "    1. Open \033[1mhttps://edelivery.oracle.com\033[0m → log in (2FA)\n"
+printf "    2. Search for and add to your cart:\n"
+printf "         \033[1m%s\033[0m\n" "${FMW_INFRA_EDEL_SEARCH:-Oracle Fusion Middleware Infrastructure 14.1.2.0.0 for Linux x86-64}"
+if $DOWNLOAD_FR && [ -n "${FMW_FR_ZIP:-}" ]; then
+    printf "         \033[1m%s\033[0m\n" "${FMW_FR_EDEL_SEARCH:-Oracle Forms and Reports 14.1.2.0.0}"
+fi
+printf "    3. Proceed to download page → click \033[1mWGET Options\033[0m\n"
+printf "    4. Click \033[1mGenerate Token\033[0m → \033[1mCopy\033[0m\n"
+printf "    5. Paste the token below (hidden input, valid 1 hour)\n\n"
 
 BEARER_TOKEN=""
 printf "  Bearer Token: "
@@ -314,6 +323,7 @@ _download_one "$FMW_INFRA_ZIP" \
     "$PATCH_STORAGE/wls" \
     "${FMW_INFRA_SHA256:-}" \
     "$BEARER_TOKEN" \
+    "${FMW_INFRA_EDEL_SEARCH:-Oracle Fusion Middleware Infrastructure 14.1.2.0.0 for Linux x86-64}" \
     || DOWNLOAD_ERRORS=$(( DOWNLOAD_ERRORS + 1 ))
 
 if $DOWNLOAD_FR && [ -n "${FMW_FR_ZIP:-}" ]; then
@@ -321,6 +331,7 @@ if $DOWNLOAD_FR && [ -n "${FMW_FR_ZIP:-}" ]; then
         "$PATCH_STORAGE/fr" \
         "${FMW_FR_SHA256:-}" \
         "$BEARER_TOKEN" \
+        "${FMW_FR_EDEL_SEARCH:-Oracle Forms and Reports 14.1.2.0.0}" \
         || DOWNLOAD_ERRORS=$(( DOWNLOAD_ERRORS + 1 ))
 fi
 
