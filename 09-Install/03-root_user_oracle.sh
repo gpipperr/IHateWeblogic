@@ -381,13 +381,13 @@ if [ -f "$SUDOERS_FILE" ]; then
         fail "Sudoers syntax error in $SUDOERS_FILE"
         info "  Fix: visudo -f $SUDOERS_FILE"
     fi
-    # Spot-check key entries
-    grep -q "dnf install"       "$SUDOERS_FILE" && ok  "sudo: dnf install configured" \
-                                                || warn "sudo: dnf install not found in $SUDOERS_FILE"
-    grep -q "nginx"             "$SUDOERS_FILE" && ok  "sudo: nginx configured" \
-                                                || warn "sudo: nginx not found in $SUDOERS_FILE"
-    grep -q "fc-cache"         "$SUDOERS_FILE" && ok  "sudo: fc-cache configured" \
-                                                || warn "sudo: fc-cache not found in $SUDOERS_FILE"
+    # Spot-check key entries (needs root to read the 440 file)
+    _run_root grep -q "dnf install"  "$SUDOERS_FILE" && ok  "sudo: dnf install configured" \
+                                                       || warn "sudo: dnf install not found in $SUDOERS_FILE"
+    _run_root grep -q "nginx"        "$SUDOERS_FILE" && ok  "sudo: nginx configured" \
+                                                       || warn "sudo: nginx not found in $SUDOERS_FILE"
+    _run_root grep -q "fc-cache"     "$SUDOERS_FILE" && ok  "sudo: fc-cache configured" \
+                                                       || warn "sudo: fc-cache not found in $SUDOERS_FILE"
 else
     warn "Sudoers file not found: $SUDOERS_FILE"
     info "  oracle needs sudo for: dnf, sysctl, nginx, firewall-cmd, fc-cache"
