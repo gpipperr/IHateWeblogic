@@ -372,7 +372,9 @@ section "sudo Configuration (/etc/sudoers.d/oracle-fmw)"
 
 SUDOERS_FILE="/etc/sudoers.d/oracle-fmw"
 
-if [ -f "$SUDOERS_FILE" ]; then
+# /etc/sudoers.d/ has mode 750 (root:root) – oracle cannot traverse it.
+# All existence checks and reads require _run_root.
+if _run_root test -f "$SUDOERS_FILE"; then
     ok "Sudoers file exists: $SUDOERS_FILE"
     # Validate syntax (needs root to read the 440 file)
     if _run_root visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
