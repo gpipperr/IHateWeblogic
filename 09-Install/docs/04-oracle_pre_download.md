@@ -43,7 +43,7 @@ it contains no credentials.
 > *Oracle Reports 14.1.2.0.0* — it is the same file (1.3 GB). Download it once.
 > Total cart size: **2 distinct files, 3.4 GB** (V1045135-01.zip + V1045121-01.zip).
 
-![Oracle eDelivery – cart showing V1045121-01.zip listed twice under Forms and Reports](assets/edelivery_forms_reports_selection.png)
+![Oracle eDelivery – cart showing V1045121-01.zip listed twice under Forms and Reports](assets/edelivery_download_forms_reports_weblogic.jpg)
 
 ### OPatch (getMOSPatch)
 
