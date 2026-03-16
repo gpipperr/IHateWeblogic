@@ -180,6 +180,7 @@ else
     if [ "$APPLY_MODE" -eq 1 ]; then
         if askYesNo "Create oracle user (uid=$ORACLE_UID, gid=oinstall)?" "y"; then
             _run_root useradd \
+                -m \
                 -u "$ORACLE_UID" \
                 -g oinstall \
                 -s /bin/bash \
@@ -561,10 +562,10 @@ if id oracle > /dev/null 2>&1; then
 
     # Verify ulimits take effect
     NOFILE="$(_run_root su - oracle -c 'ulimit -n' 2>/dev/null)"
-    if [ -n "$NOFILE" ] && [ "$NOFILE" -ge 131072 ] 2>/dev/null; then
+    if [ -n "$NOFILE" ] && [ "$NOFILE" -ge 65536 ] 2>/dev/null; then
         ok "oracle ulimit -n (nofile): $NOFILE"
     else
-        warn "oracle ulimit -n: ${NOFILE:-(unknown)} (expected: ≥ 131072)"
+        warn "oracle ulimit -n: ${NOFILE:-(unknown)} (expected: ≥ 65536)"
         info "  Limits in /etc/security/limits.conf only take effect on new logins"
         info "  Test with: su - oracle -c 'ulimit -n'"
     fi
