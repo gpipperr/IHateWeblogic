@@ -128,16 +128,86 @@ _run_check_script() {
 _run_check_script "$ROOT_DIR/02-Checks/os_check.sh" "OS Check (os_check.sh)"
 
 # =============================================================================
-# Check 2 – JAVA_HOME, JDK version, vendor
+# Check 2 – Oracle JDK at JDK_HOME (pre-install inline check)
 # =============================================================================
+# java_check.sh re-sources environment.conf and therefore always uses JAVA_HOME
+# (= FMW embedded JDK, not yet installed at this phase). We check JDK_HOME
+# directly instead – no delegation to java_check.sh.
 
-_run_check_script "$ROOT_DIR/02-Checks/java_check.sh" "Java Check (java_check.sh)"
+section "Oracle JDK at JDK_HOME"
+
+info "  Checking JDK_HOME=$JDK_HOME (installed by 02b-root_os_java.sh)"
+info "  Note: java_check.sh is used post-install for the FMW embedded JDK."
+
+JAVA_BIN="$JDK_HOME/bin/java"
+
+if [ ! -e "$JDK_HOME" ]; then
+    fail "JDK_HOME directory not found: $JDK_HOME"
+    info "  Run: ./09-Install/02b-root_os_java.sh --apply"
+elif [ ! -x "$JAVA_BIN" ]; then
+    fail "java binary not found or not executable: $JAVA_BIN"
+    info "  Run: ./09-Install/02b-root_os_java.sh --apply"
+else
+    ok "java binary found: $JAVA_BIN"
+
+    # Version check
+    JAVA_VER_LINE="$("$JAVA_BIN" -version 2>&1 | head -1)"
+    ok "$(printf "%-26s %s" "java -version:" "$JAVA_VER_LINE")"
+
+    JAVA_MAJOR="$(printf "%s" "$JAVA_VER_LINE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | cut -d. -f1)"
+    if [ "${JAVA_MAJOR:-0}" -eq 21 ] 2>/dev/null; then
+        ok "Java major version 21 – certified for WebLogic 14.1.2"
+    else
+        fail "$(printf "Java major version %s – WebLogic 14.1.2 requires JDK 21" "${JAVA_MAJOR:-(unknown)}")"
+    fi
+
+    # Vendor check (Oracle JDK, not OpenJDK alone)
+    JAVA_VENDOR="$("$JAVA_BIN" -version 2>&1 | grep -i vendor || "$JAVA_BIN" -XshowSettings:all -version 2>&1 | grep 'java.vendor ' | head -1)"
+    if "$JAVA_BIN" -version 2>&1 | grep -qi "java(tm) se runtime\|oracle"; then
+        ok "Vendor: Oracle JDK (required for WebLogic support – Doc ID 1557737.1)"
+    else
+        warn "Vendor not confirmed as Oracle JDK – WebLogic support requires Oracle JDK, not OpenJDK"
+        info "  Oracle JDK is license-free when used exclusively with Oracle products"
+        info "  See: 09-Install/docs/01-root_setup_java.md"
+    fi
+
+    # Symlink check
+    if [ -L "$JDK_HOME" ]; then
+        JDK_TARGET="$(readlink -f "$JDK_HOME")"
+        ok "$(printf "%-26s %s → %s" "JDK_HOME symlink:" "$JDK_HOME" "$JDK_TARGET")"
+    else
+        info "  JDK_HOME is a direct directory (no symlink)"
+    fi
+fi
 
 # =============================================================================
-# Check 3 – Port availability (7001, 9001, 9002, 5556)
+# Check 3 – WLS ports must be FREE before installation
 # =============================================================================
+# post-install: port_check.sh verifies ports are OPEN (WLS running).
+# pre-install:  we need the OPPOSITE – ports must be FREE (nothing listening).
+# Semantics are inverted → inline check with ss instead of delegating.
 
-_run_check_script "$ROOT_DIR/02-Checks/port_check.sh" "Port Check (port_check.sh)"
+section "WLS Ports Free (pre-install)"
+
+info "  Required ports must not be in use before installation starts."
+
+_check_port_free() {
+    local port="$1"
+    local label="$2"
+    if ss -tlnp 2>/dev/null | awk '{print $4}' | grep -qE ":${port}$"; then
+        fail "$(printf "Port %-5s (%s) is already in use – must be free before install" \
+            "$port" "$label")"
+        ss -tlnp 2>/dev/null | awk '{print $4, $6}' | grep ":${port}" | \
+            while IFS= read -r line; do info "    $line"; done
+    else
+        ok "$(printf "Port %-5s (%s) is free" "$port" "$label")"
+    fi
+}
+
+_check_port_free 7001 "AdminServer"
+_check_port_free 9001 "WLS_FORMS"
+_check_port_free 9002 "WLS_REPORTS"
+_check_port_free 5556 "NodeManager"
 
 # =============================================================================
 # Check 4 – Database connectivity for RCU
