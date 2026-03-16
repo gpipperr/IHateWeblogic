@@ -178,6 +178,48 @@ _ask_password() {
         "$var" "$(basename "$out_file")" | tee -a "$LOG_FILE"
 }
 
+# _ask_list  array_var  primary_var  label  default
+# Prompt for one or more string values (Enter on empty line to finish).
+# Stores all values in the bash array $array_var; first value also in $primary_var.
+# Idempotent: skips if $primary_var already set in env.conf (unless --reset).
+_ask_list() {
+    local array_var="$1"
+    local primary_var="$2"
+    local label="$3"
+    local default="$4"
+
+    if _conf_has "$primary_var" && [ "$RESET_MODE" -eq 0 ]; then
+        local existing
+        existing="$(_conf_get "$primary_var")"
+        eval "${primary_var}=\"${existing}\""
+        eval "${array_var}=(\"${existing}\")"
+        ok "$(printf "  %-30s %s  [kept]" "$primary_var" "$existing")"
+        return 0
+    fi
+
+    local items=() input _idx=1
+    while true; do
+        if [ "$_idx" -eq 1 ]; then
+            printf "  \033[1m%-30s\033[0m [%s]: " "$label" "$default"
+        else
+            printf "  %-30s  additional (Enter to finish): " " "
+        fi
+        read -r input
+        [ "$_idx" -eq 1 ] && [ -z "$input" ] && input="$default"
+        [ -z "$input" ] && break
+        items+=("$input")
+        printf "  \033[32m  ✓  added: %s\033[0m\n" "$input" | tee -a "$LOG_FILE"
+        _idx=$(( _idx + 1 ))
+    done
+    [ "${#items[@]}" -eq 0 ] && items=("$default")
+
+    eval "${primary_var}=\"${items[0]}\""
+    # shellcheck disable=SC2124
+    eval "${array_var}=($(printf '"%s" ' "${items[@]}"))"
+    printf "  \033[32m  ✓  %s: %d server(s) configured\033[0m\n" \
+        "$primary_var" "${#items[@]}" | tee -a "$LOG_FILE"
+}
+
 # _ask_menu  var_name  label  key1:desc1  key2:desc2  ...
 # Numbered menu – value set to the key part (before ':').
 _ask_menu() {
@@ -381,7 +423,8 @@ _ask WLS_ADMIN_PORT          "WLS Admin port"               "7001"        "_val_
 _ask WLS_NODEMANAGER_PORT    "NodeManager port"             "5556"        "_val_port"
 _ask WLS_FORMS_PORT          "WLS_FORMS managed port"       "9001"        "_val_port"
 _ask WLS_REPORTS_PORT        "WLS_REPORTS managed port"     "9002"        "_val_port"
-_ask REPORTS_SERVER_NAME     "Reports Server name"          "repserver01"
+_ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
+    "Reports Server name(s)"  "repserver01"
 _ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
 _ask REPORTS_CUSTOMER_DIR    "Reports customer directory"   "/app/reports/custom"
 
@@ -450,7 +493,11 @@ _show "WLS_ADMIN_PWD"        "****  → $(basename "$WLS_SEC_FILE")"
 _show "WLS_NODEMANAGER_PORT" "$WLS_NODEMANAGER_PORT"
 _show "WLS_FORMS_PORT"       "$WLS_FORMS_PORT"
 _show "WLS_REPORTS_PORT"     "$WLS_REPORTS_PORT"
-_show "REPORTS_SERVER_NAME"  "$REPORTS_SERVER_NAME"
+_show "REPORTS_SERVER_NAME"  "$REPORTS_SERVER_NAME  (primary)"
+for _s in "${REPORTS_SERVER_NAMES[@]:1}"; do
+    _show "  + additional"  "$_s"
+done
+unset _s
 _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "DB_HOST"              "$DB_HOST"
@@ -490,6 +537,13 @@ if [ "$RESET_MODE" -eq 1 ] && [ -f "$ENV_CONF" ]; then
     sed -i '/^# === 09-INSTALL/,/^# === END 09-INSTALL/d' "$ENV_CONF" 2>/dev/null || true
 fi
 
+# Build REPORTS_SERVER_NAMES array string for env.conf
+_SRV_ARRAY_STR=""
+for _s in "${REPORTS_SERVER_NAMES[@]}"; do
+    _SRV_ARRAY_STR="${_SRV_ARRAY_STR}  \"${_s}\"\n"
+done
+unset _s
+
 # Append install parameters (touch creates the file if it does not yet exist)
 touch "$ENV_CONF"
 cat >> "$ENV_CONF" <<ENVEOF
@@ -515,6 +569,8 @@ WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"
 WLS_FORMS_PORT="${WLS_FORMS_PORT}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT}"
 REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
+REPORTS_SERVER_NAMES=(
+$(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 
@@ -583,6 +639,8 @@ WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"
 WLS_FORMS_PORT="${WLS_FORMS_PORT}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT}"
 REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
+REPORTS_SERVER_NAMES=(
+$(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 DB_HOST="${DB_HOST}"
