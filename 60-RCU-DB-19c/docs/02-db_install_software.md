@@ -193,9 +193,14 @@ DB_INSTALL_ARCHIVE   # path to LINUX.X64_193000_db_home.zip
   (`uniaud_on`) covered in Step 2.
   Source: [Oracle Unified Auditing FAQ](https://www.oracle.com/security/database-security/unified-auditing/faq/)
 
+- **PDB (Pluggable Databases)**: without the Oracle Multitenant option, up to **3 PDBs**
+  per CDB are permitted for all offerings — this applies explicitly to SE2 as well.
+  One PDB for the RCU repository is well within this limit.
+  Source: [Mike Dietrich – PDB with SE2](https://mikedietrichde.com/2020/01/29/can-you-have-more-than-1-pdb-with-standard-edition-2-se2/)
+
 - Install Edition `EE` (Enterprise Edition) is required for:
-  - PDB (Pluggable Databases)
   - Partitioning (used internally by some FMW schemas)
+  - More than 3 PDBs per CDB (Oracle Multitenant option)
 - `SECURITY_UPDATES_VIA_MYORACLESUPPORT=false` + `DECLINE_SECURITY_UPDATES=true`:
   suppresses the email notification prompt in silent mode
 - The installer log is at: `$DB_BASE/oraInventory/logs/`
