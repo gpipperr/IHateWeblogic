@@ -48,13 +48,15 @@ init_log "$DIAG_LOG_DIR"
 
 # =============================================================================
 # Helper: prompt for password (twice for confirmation)
+# Usage   : _prompt_password_confirmed "Label"
 # Outputs ONLY the accepted password on stdout; all prompts go to stderr.
 # =============================================================================
 _prompt_password_confirmed() {
+    local label="${1:-Password}"
     local pw1="" pw2="x"
 
     while [ "$pw1" != "$pw2" ] || [ -z "$pw1" ]; do
-        printf "  DB SYS password: " >&2
+        printf "  %s: " "$label" >&2
         read -rs pw1
         printf "\n" >&2
 
@@ -64,7 +66,7 @@ _prompt_password_confirmed() {
             continue
         fi
 
-        printf "  Confirm password : " >&2
+        printf "  Confirm %-24s: " "$label" >&2
         read -rs pw2
         printf "\n" >&2
 
@@ -162,14 +164,14 @@ if $APPLY; then
 
     # --- DB SYS password (with confirmation) ---
     printf "  \033[1mDB SYS password (SYSDBA):\033[0m\n"
-    INPUT_SYS_PW="$(_prompt_password_confirmed)"
+    INPUT_SYS_PW="$(_prompt_password_confirmed "DB SYS password")"
     printList "DB_SYS_PWD" 30 "*** (${#INPUT_SYS_PW} chars)"
 
     printf "\n"
 
     # --- FMW schema password (with confirmation) ---
     printf "  \033[1mFMW schema password (for all %s_* schemas):\033[0m\n" "${DB_SCHEMA_PREFIX:-PREFIX}"
-    INPUT_SCHEMA_PW="$(_prompt_password_confirmed)"
+    INPUT_SCHEMA_PW="$(_prompt_password_confirmed "FMW schema password")"
     printList "DB_SCHEMA_PWD" 30 "*** (${#INPUT_SCHEMA_PW} chars)"
 
     # --- Confirm ---
