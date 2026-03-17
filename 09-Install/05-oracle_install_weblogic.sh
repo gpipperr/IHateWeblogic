@@ -214,7 +214,7 @@ Response File Version=1.0.0.0.0
 
 [GENERIC]
 ORACLE_HOME=${ORACLE_HOME}
-INSTALL_TYPE=WebLogic Server
+INSTALL_TYPE=Fusion Middleware Infrastructure
 MYORACLESUPPORT_USERNAME=
 MYORACLESUPPORT_PASSWORD=
 DECLINE_SECURITY_UPDATES=true
@@ -231,7 +231,7 @@ EOF
     || { fail "Failed to create response file: $RSP_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 printList "ORACLE_HOME"   24 "$ORACLE_HOME"
-printList "INSTALL_TYPE"  24 "WebLogic Server"
+printList "INSTALL_TYPE"  24 "Fusion Middleware Infrastructure"
 
 # =============================================================================
 # CV Override – scoped to installer run only

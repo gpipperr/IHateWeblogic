@@ -25,7 +25,7 @@ Response File Version=1.0.0.0.0
 
 [GENERIC]
 ORACLE_HOME=/u01/app/oracle/fmw
-INSTALL_TYPE=WebLogic Server
+INSTALL_TYPE=Fusion Middleware Infrastructure
 MYORACLESUPPORT_USERNAME=
 MYORACLESUPPORT_PASSWORD=
 DECLINE_SECURITY_UPDATES=true
