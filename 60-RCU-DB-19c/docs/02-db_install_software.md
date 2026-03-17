@@ -187,8 +187,13 @@ DB_INSTALL_ARCHIVE   # path to LINUX.X64_193000_db_home.zip
 
 ## Notes
 
+- **Unified Auditing** is included in **all** Oracle Database releases starting with
+  Oracle Database 12c — EE and SE2 alike.
+  Mixed mode is active by default; pure Unified Auditing requires a one-time relink
+  (`uniaud_on`) covered in Step 2.
+  Source: [Oracle Unified Auditing FAQ](https://www.oracle.com/security/database-security/unified-auditing/faq/)
+
 - Install Edition `EE` (Enterprise Edition) is required for:
-  - Unified Auditing (mixed mode disabled)
   - PDB (Pluggable Databases)
   - Partitioning (used internally by some FMW schemas)
 - `SECURITY_UPDATES_VIA_MYORACLESUPPORT=false` + `DECLINE_SECURITY_UPDATES=true`:
