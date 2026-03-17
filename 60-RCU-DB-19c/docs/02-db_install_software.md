@@ -16,22 +16,38 @@ No database is created in this step — software only.
 ## Prerequisites
 
 - `00-root_db_os_baseline.sh --apply` completed
-- Oracle 19c installation ZIP downloaded to `DB_INSTALL_ARCHIVE`
-  (e.g. `LINUX.X64_193000_db_home.zip`)
-- `environment_db.conf` configured
+- Oracle 19c installation ZIP placed at:
+  `/srv/patch_storage/database/LINUX.X64_193000_db_home.zip`
+- `environment_db.conf` configured (sources `environment.conf` for `PATCH_STORAGE`)
 - oracle user, oinstall/dba groups present (set by preinstall RPM)
-- At least 8 GB free in `DB_ORACLE_HOME` parent directory
+- At least 8 GB free under `ORACLE_BASE/product/`
 
 ---
 
 ## Download
 
 Oracle 19c software is available on eDelivery / MOS.
-Patch number for base release: **19.3** → `V982063-01.zip`
+Base release ZIP (19.3): `LINUX.X64_193000_db_home.zip` (eDelivery part number V982063-01)
 
-The same `getMOSPatch.jar` used in `09-Install/04-oracle_pre_download.sh`
-can download 19c software. Alternatively, download manually via
-`edelivery.oracle.com`.
+Place it at:
+```
+/srv/patch_storage/database/LINUX.X64_193000_db_home.zip
+```
+
+`PATCH_STORAGE=/srv/patch_storage` is defined in `environment.conf` and shared
+across all project scripts.  The `database/` subdirectory keeps DB software
+separate from FMW installers and patches:
+
+```
+/srv/patch_storage/
+├── installers/     ← FMW installers (fmw_14.1.2_wls.jar, …)
+├── patches/        ← FMW / WLS OPatch patches
+└── database/       ← Oracle 19c DB software
+    └── LINUX.X64_193000_db_home.zip
+```
+
+AutoUpgrade downloads RU patches independently to
+`ORACLE_BASE/autoupgrade/patchdir/` — those do not go into `PATCH_STORAGE`.
 
 ---
 

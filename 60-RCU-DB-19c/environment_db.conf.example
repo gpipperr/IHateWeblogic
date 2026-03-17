@@ -90,4 +90,6 @@ DB_TARGET_RU="19.CURRENT"          # or fixed RU: 19.24
 MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 
 # --- Install Archive (01-db_install_software.sh) -----------------------------
-DB_INSTALL_ARCHIVE=""              # path to LINUX.X64_193000_db_home.zip
+# PATCH_STORAGE comes from environment.conf (/srv/patch_storage).
+# Place the 19c base ZIP at: $PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip
+DB_INSTALL_ARCHIVE="${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
