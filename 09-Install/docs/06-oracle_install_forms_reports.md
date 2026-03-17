@@ -82,13 +82,16 @@ COLLECTOR_SUPPORTHUB_URL=
 ### 2. Run the installer
 
 ```bash
-$JDK_HOME/bin/java -jar $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
+$PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
     -silent \
     -responseFile $PATCH_STORAGE/fr/fr_install.rsp \
     -invPtrLoc /u01/app/oracle/oraInst.loc \
     -ignoreSysPrereqs \
     -jreLoc $JDK_HOME
 ```
+
+> The `.bin` file is a native Linux executable — **not** a JAR file.
+> Do **not** call it with `java -jar`. Run it directly (chmod +x required).
 
 Installation log: `$ORACLE_BASE/oraInventory/logs/`
 
@@ -161,7 +164,8 @@ $ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -2
 
 - Must install into the **same** `ORACLE_HOME` as FMW Infrastructure
 - Install time: approximately 10–20 minutes
-- The installer binary is a `.bin` file — called via `java -jar` (same as WLS installer)
+- The installer binary is a `.bin` file — native Linux executable, run **directly**
+  (unlike the WLS `.jar` installer which requires `java -jar`)
 - `INSTALL_COMPONENTS` is set once in the interview and controls `INSTALL_TYPE` in the
   response file — see "Installation Options" section above
 - **Cannot change** `INSTALL_TYPE` on an existing Oracle Home without deinstalling first

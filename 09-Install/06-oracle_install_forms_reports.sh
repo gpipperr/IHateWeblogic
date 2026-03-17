@@ -267,7 +267,7 @@ printLine
 printf "\n  Installation started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 printf "  Log: %s/oraInventory/logs/\n\n" "$ORACLE_BASE" | tee -a "$LOG_FILE"
 
-"$JDK_HOME/bin/java" -jar "$FR_BIN" \
+"$FR_BIN" \
     -silent \
     -responseFile "$RSP_FILE" \
     -invPtrLoc "$ORA_INST_LOC" \
