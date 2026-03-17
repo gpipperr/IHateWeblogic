@@ -13,6 +13,47 @@ as FMW Infrastructure. Must run after `05-oracle_install_weblogic.sh`.
 
 ---
 
+## Installation Options (INSTALL_COMPONENTS)
+
+Three installation variants are supported. The choice is made once during the
+setup interview (`01-setup-interview.sh`) and stored in `environment.conf`.
+
+### How it is set
+
+**During the interview** (`01-setup-interview.sh --apply`):
+```
+Block 3: What should be installed?
+  1) FORMS_AND_REPORTS  – Forms and Reports (default)
+  2) FORMS_ONLY         – Forms only
+  3) REPORTS_ONLY       – Reports only
+```
+
+**Manually** in `environment.conf`:
+```bash
+INSTALL_COMPONENTS=FORMS_AND_REPORTS   # or FORMS_ONLY / REPORTS_ONLY
+```
+
+### Mapping to installer INSTALL_TYPE
+
+| `INSTALL_COMPONENTS` | `INSTALL_TYPE` (response file) | What gets installed |
+|---|---|---|
+| `FORMS_AND_REPORTS` | `Complete` | `$ORACLE_HOME/forms/` + `$ORACLE_HOME/reports/` |
+| `FORMS_ONLY` | `Forms` | `$ORACLE_HOME/forms/` only |
+| `REPORTS_ONLY` | `Reports` | `$ORACLE_HOME/reports/` only |
+
+### Key binaries per option
+
+| Option | Binaries installed |
+|---|---|
+| Forms (Complete or FORMS_ONLY) | `$ORACLE_HOME/forms/bin/frmcmp_batch`, `frmweb`, `frmcmp` |
+| Reports (Complete or REPORTS_ONLY) | `$ORACLE_HOME/reports/bin/rwrun`, `rwclient`, `rwservlet` |
+
+> **Changing the option later** requires a full reinstall — the response file
+> `INSTALL_TYPE` cannot be changed on an existing Oracle Home without deinstalling.
+> Decide before running the installer.
+
+---
+
 ## Without the Script (manual)
 
 ### 1. Create response file
@@ -35,10 +76,8 @@ PROXY_PWD=
 COLLECTOR_SUPPORTHUB_URL=
 ```
 
-`INSTALL_TYPE` options:
-- `Complete` – installs both Forms and Reports
-- `Forms` – Forms only
-- `Reports` – Reports only
+`INSTALL_TYPE` must match the `INSTALL_COMPONENTS` value from `environment.conf`
+(see section above). The script sets this automatically.
 
 ### 2. Run the installer
 
@@ -122,8 +161,12 @@ $ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -2
 
 - Must install into the **same** `ORACLE_HOME` as FMW Infrastructure
 - Install time: approximately 10–20 minutes
-- The installer binary is a `.bin` file (not `.jar`); it is self-extracting
-- If only Reports is needed: set `INSTALL_COMPONENTS=REPORTS_ONLY` in `environment.conf`
+- The installer binary is a `.bin` file — called via `java -jar` (same as WLS installer)
+- `INSTALL_COMPONENTS` is set once in the interview and controls `INSTALL_TYPE` in the
+  response file — see "Installation Options" section above
+- **Cannot change** `INSTALL_TYPE` on an existing Oracle Home without deinstalling first
+- `-ignoreSysPrereqs` is required: the F&R installer performs stricter OS checks
+  than the WLS installer; this flag tells it to trust the already-validated WLS install
 
 ---
 
