@@ -56,6 +56,7 @@ Run these scripts in sequence on a fresh installation:
 | `07-Maintenance/`     | Config backup/restore                                |
 | `08-SSL/`             | SSL configuration, certificate creation/analysis     |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain |
+| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 
 ## Repository Structure
 
@@ -133,8 +134,20 @@ IHateWeblogic/
 │   ├── ssl_prepare_cert.sh          – [TODO] Create SSL certificate (self-signed or CSR for CA signing)
 │   └── ssl_cert/                    – Store certificate files here (PEM, JKS, p12)
 │
-└── 09-Install/
-    ├── README.md                    – Installation roadmap, architecture, script reference
+├── 09-Install/
+│   ├── README.md                    – Installation roadmap, architecture, script reference
+│   └── …
+│
+└── 60-RCU-DB-19c/
+    ├── README.md                    – DB setup roadmap (OS → install → patch → create → audit)
+    ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
+    ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
+    ├── 02-db_patch_autoupgrade.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
+    ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
+    ├── 04-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
+    ├── 05-db_fmw_tablespace.sh      – Optional FMW_DATA tablespace pre-RCU
+    ├── environment_db.conf.example  – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
+    └── docs/                        – Step-by-step detail documentation
     ├── install_lib.sh               – [TODO] Shared functions (response files, OPatch helpers)
     ├── 01-setup-interview.sh        – [TODO] Configuration interview → environment.conf
     ├── 00-root_user_oracle.sh       – [TODO] oracle user, groups, sudo, shell limits

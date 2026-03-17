@@ -109,9 +109,28 @@ Phase 3 – Forms & Reports Installation (as oracle)
   06-oracle_install_forms_reports.sh  Forms/Reports 14.1.2 silent install
   06-oracle_patch_forms_reports.sh    Apply Forms/Reports patches
 
-  ▶ ALL software + patches must be complete before Phase 4.
-    RCU only needs the database, not the Oracle Home,
-    but the convention (and this guide) installs everything first.
+  ▶ ALL FMW software + patches must be complete before continuing.
+    Phases 0–3 install and patch everything into ORACLE_HOME.
+    The Oracle Home is not touched again after this point.
+
+Phase DB – Oracle 19c RCU Database (on DB host; parallel to or after Phase 3)
+  → Full procedure: 60-RCU-DB-19c/README.md
+  [oracle/sudo] 60-RCU-DB-19c/00-root_db_os_baseline.sh --apply
+                  DB-specific OS settings (shmmax, sem, aio, preinstall RPM)
+                  auto-elevates via sudo when run as oracle
+  [oracle]       60-RCU-DB-19c/01-db_install_software.sh --apply
+                  Oracle 19c software-only install (unzip + runInstaller -silent)
+  [oracle]       60-RCU-DB-19c/02-db_patch_autoupgrade.sh --apply
+                  AutoUpgrade: download current RU, create patched ORACLE_HOME
+  [oracle]       60-RCU-DB-19c/03-db_create_database.sh --apply
+                  DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM, no archivelog)
+  [oracle]       60-RCU-DB-19c/04-db_audit_setup.sh --apply
+                  Pure Unified Auditing (uniaud_on relink + purge job)
+  [oracle]       60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
+                  Optional: create FMW_DATA tablespace (skip = RCU creates its own)
+
+  ▶ Database must be up and reachable from the FMW host before Phase 4.
+    Run 00-Setup/database_rcu_sec.sh --apply to store DB credentials.
 
 Phase 4 – Repository & Domain (as oracle)
   07-oracle_setup_repository.sh  RCU: create FMW metadata schemas in Oracle DB
@@ -357,6 +376,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ```
 
 → Full RCU procedure: [docs/07-oracle_setup_repository.md](docs/07-oracle_setup_repository.md)
+→ DB setup scripts (if DB on same or separate host): [../60-RCU-DB-19c/README.md](../60-RCU-DB-19c/README.md)
 
 ### Directory Layout
 
