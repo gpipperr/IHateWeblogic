@@ -60,6 +60,7 @@ DB_PROCESSES=500
 DB_OPEN_CURSORS=1000
 
 # --- Listener ----------------------------------------------------------------
+DB_LISTENER_HOST=""          # hostname/IP for listener.ora; empty = auto-detect (hostname -f)
 DB_LISTENER_PORT=1521
 
 # --- Character Set -----------------------------------------------------------
