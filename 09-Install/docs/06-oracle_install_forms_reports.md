@@ -35,22 +35,23 @@ INSTALL_COMPONENTS=FORMS_AND_REPORTS   # or FORMS_ONLY / REPORTS_ONLY
 
 ### Mapping to installer INSTALL_TYPE
 
-> **Note:** The Oracle 14.1.2 docs do **not** clearly document the valid `INSTALL_TYPE`
-> strings for the silent response file.
-> The values `Complete`, `Forms`, `Reports` (used in 12c) are **rejected** with
-> `INST-07546: Unable to find install type`.
-> Reference: [OUI Silent Mode – Response Files (14.1.2)](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/ouirf/using-oracle-universal-installer-silent-mode.html#GUID-5F06D02F-6D71-45B9-BF41-5D5759D31958)
->
-> **To determine the correct values:** start the graphical installer once with
-> `./fmw_14.1.2.0.0_fr_linux64.bin` — on the last screen before "Install",
-> click **Save Response File**. The generated file contains the exact
-> `INSTALL_TYPE` strings accepted by 14.1.2.
+> **14.1.2 vs. 12c:** The 12c values `Complete`, `Forms`, `Reports` are **not valid**
+> in 14.1.2 and cause `INST-07546: Unable to find install type`.
+> The correct values were discovered by running the graphical installer and saving
+> the response file (source: `90-Source-MetaData/forms_reports_both_response_file.rsp`).
 
-| `INSTALL_COMPONENTS` | `INSTALL_TYPE` (response file) | What gets installed |
+**The 14.1.2 installer always deploys both Forms and Reports binaries.**
+The distinction between Forms-only and Reports-only deployments is made later
+at **configuration time** (Configuration Wizard), not at install time.
+
+| `INSTALL_TYPE` value | Use case | `INSTALL_COMPONENTS` that trigger it |
 |---|---|---|
-| `FORMS_AND_REPORTS` | **TBD** — verify from generated response file | `$ORACLE_HOME/forms/` + `$ORACLE_HOME/reports/` |
-| `FORMS_ONLY` | **TBD** — verify from generated response file | `$ORACLE_HOME/forms/` only |
-| `REPORTS_ONLY` | **TBD** — verify from generated response file | `$ORACLE_HOME/reports/` only |
+| `Forms and Reports Deployment` | Server installation (standard) | `FORMS_AND_REPORTS`, `FORMS_ONLY`, `REPORTS_ONLY` |
+| `Standalone Forms Builder` | Developer workstation only | `STANDALONE_FORMS_BUILDER` |
+
+> **In practice:** All server installations use `Forms and Reports Deployment`.
+> `INSTALL_COMPONENTS` still controls which components are **configured** in the
+> domain (Configuration Wizard step), but the installer always lays down all binaries.
 
 ### Key binaries per option
 
@@ -67,44 +68,35 @@ INSTALL_COMPONENTS=FORMS_AND_REPORTS   # or FORMS_ONLY / REPORTS_ONLY
 
 ## Without the Script (manual)
 
-### 0. Generate response file from graphical installer (one-time)
-
-The correct `INSTALL_TYPE` strings for 14.1.2 are not documented by Oracle.
-Run the graphical installer once to discover them:
-
-```bash
-export DISPLAY=:0.0   # or use X11 forwarding: ssh -X oracle@host
-$PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin
-```
-
-On the last screen (before clicking **Install**), click **Save Response File**
-and save to `/tmp/fr_install_reference.rsp`. This file contains the exact
-`INSTALL_TYPE` value strings for 14.1.2. Then click **Cancel** (no install needed).
-
-After discovering the values, update the mapping table above and the script.
-
 ### 1. Create response file
 
 Create `$PATCH_STORAGE/fr/fr_install.rsp`:
 
 ```
 [ENGINE]
+
+#DO NOT CHANGE THIS.
 Response File Version=1.0.0.0.0
 
 [GENERIC]
+
+DECLINE_AUTO_UPDATES=true
+MOS_USERNAME=
+MOS_PASSWORD=
+SOFTWARE_UPDATES_PROXY_SERVER=
+SOFTWARE_UPDATES_PROXY_PORT=
+SOFTWARE_UPDATES_PROXY_USER=
+SOFTWARE_UPDATES_PROXY_PASSWORD=
 ORACLE_HOME=/u01/app/oracle/fmw
-INSTALL_TYPE=Complete
-DECLINE_SECURITY_UPDATES=true
-SECURITY_UPDATES_VIA_MYORACLESUPPORT=false
-PROXY_HOST=
-PROXY_PORT=
-PROXY_USER=
-PROXY_PWD=
-COLLECTOR_SUPPORTHUB_URL=
+FEDERATED_ORACLE_HOMES=
+INSTALL_TYPE=Forms and Reports Deployment
+JDK_HOME=/u01/app/oracle/java/jdk-21
 ```
 
-`INSTALL_TYPE` must match the `INSTALL_COMPONENTS` value from `environment.conf`
-(see section above). The script sets this automatically.
+> The response file format changed completely between 12c and 14.1.2.
+> Keys like `DECLINE_SECURITY_UPDATES`, `PROXY_HOST`, `COLLECTOR_SUPPORTHUB_URL`
+> no longer exist. `JDK_HOME` is now a required field.
+> Source: `90-Source-MetaData/forms_reports_both_response_file.rsp`
 
 ### 2. Run the installer
 

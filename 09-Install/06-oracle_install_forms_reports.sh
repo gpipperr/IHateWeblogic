@@ -81,10 +81,17 @@ unset _arg
 # Map INSTALL_COMPONENTS → INSTALL_TYPE
 # =============================================================================
 
+# In 14.1.2 the installer always deploys both Forms AND Reports binaries.
+# INSTALL_TYPE has two options:
+#   "Forms and Reports Deployment"  – server installation (default)
+#   "Standalone Forms Builder"      – developer workstation only
+# The INSTALL_COMPONENTS variable (FORMS_ONLY / REPORTS_ONLY) takes effect
+# later at configuration time (Configuration Wizard), not at install time.
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
-    FORMS_AND_REPORTS) INSTALL_TYPE="Complete" ;;
-    FORMS_ONLY)        INSTALL_TYPE="Forms"    ;;
-    REPORTS_ONLY)      INSTALL_TYPE="Reports"  ;;
+    FORMS_AND_REPORTS|FORMS_ONLY|REPORTS_ONLY)
+        INSTALL_TYPE="Forms and Reports Deployment" ;;
+    STANDALONE_FORMS_BUILDER)
+        INSTALL_TYPE="Standalone Forms Builder" ;;
     *)
         printf "\033[31mFATAL\033[0m: Unknown INSTALL_COMPONENTS: %s\n" \
             "$INSTALL_COMPONENTS" >&2
@@ -220,18 +227,45 @@ RSP_FILE="$FR_DIR/fr_install.rsp"
 info "Generating response file: $RSP_FILE"
 cat > "$RSP_FILE" << EOF
 [ENGINE]
+
+#DO NOT CHANGE THIS.
 Response File Version=1.0.0.0.0
 
 [GENERIC]
+
+#Set this to true if you wish to skip software updates
+DECLINE_AUTO_UPDATES=true
+
+#My Oracle Support User Name
+MOS_USERNAME=
+
+#My Oracle Support Password
+MOS_PASSWORD=
+
+#Proxy Server Name to connect to My Oracle Support
+SOFTWARE_UPDATES_PROXY_SERVER=
+
+#Proxy Server Port
+SOFTWARE_UPDATES_PROXY_PORT=
+
+#Proxy Server Username
+SOFTWARE_UPDATES_PROXY_USER=
+
+#Proxy Server Password
+SOFTWARE_UPDATES_PROXY_PASSWORD=
+
+#The oracle home location.
 ORACLE_HOME=${ORACLE_HOME}
+
+#The federated oracle home locations (leave empty for standard install)
+FEDERATED_ORACLE_HOMES=
+
+#Set this variable value to the Installation Type selected as either
+#Standalone Forms Builder OR Forms and Reports Deployment
 INSTALL_TYPE=${INSTALL_TYPE}
-DECLINE_SECURITY_UPDATES=true
-SECURITY_UPDATES_VIA_MYORACLESUPPORT=false
-PROXY_HOST=
-PROXY_PORT=
-PROXY_USER=
-PROXY_PWD=
-COLLECTOR_SUPPORTHUB_URL=
+
+#The jdk home location.
+JDK_HOME=${JDK_HOME}
 EOF
 
 [ -f "$RSP_FILE" ] \
