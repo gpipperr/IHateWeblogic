@@ -1,8 +1,10 @@
 #!/bin/bash
 # =============================================================================
 # Script   : database_rcu_sec.sh
-# Purpose  : Store/load the DB SYS password for RCU, encrypted with machine UUID.
-#            Use this to (re-)set the password outside of the full installation
+# Purpose  : Store/load DB credentials for RCU, encrypted with machine UUID:
+#              DB_SYS_PWD    – Oracle SYS password (SYSDBA, used only for RCU)
+#              DB_SCHEMA_PWD – password for all FMW metadata schemas
+#            Use this to (re-)set passwords outside of the full installation
 #            interview.
 #            Concept: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen
 # Call     : ./00-Setup/database_rcu_sec.sh [--apply]
@@ -82,7 +84,7 @@ _prompt_password_confirmed() {
 DB_SYS_SEC_FILE="${DB_SYS_SEC_FILE:-$ROOT_DIR/db_sys_sec.conf.des3}"
 
 printLine
-printf "\n\033[1m  IHateWeblogic – Database RCU SYS Credentials Setup\033[0m\n" | tee -a "$LOG_FILE"
+printf "\n\033[1m  IHateWeblogic – Database RCU Credentials Setup\033[0m\n"    | tee -a "$LOG_FILE"
 printf "  Concept : pipperr.de – openssl des3 + machine UUID key\n"           | tee -a "$LOG_FILE"
 printf "  Host    : %s\n" "$(_get_hostname)"                                   | tee -a "$LOG_FILE"
 printf "  Apply   : %s\n" "$APPLY"                                             | tee -a "$LOG_FILE"
@@ -128,7 +130,7 @@ if [ -f "$DB_SYS_SEC_FILE" ]; then
         printList "DB_PORT"   30 "${DB_PORT:-1521}"
         printList "DB_SERVICE" 30 "${DB_SERVICE:-}"
     fi
-    info "Use --apply to overwrite with new password"
+    info "Use --apply to overwrite with new passwords"
 else
     info "No encrypted file found yet"
     if $APPLY; then
@@ -141,15 +143,17 @@ fi
 # --------------------------------------------------------------------------
 if $APPLY; then
 
-    section "Enter DB SYS Password"
-    info "Only the SYS password is encrypted – connection info comes from environment.conf."
+    section "Enter DB Credentials for RCU"
+    info "DB_SYS_PWD    – SYS password (SYSDBA, one-time RCU use only)"
+    info "DB_SCHEMA_PWD – password assigned to all FMW metadata schemas (DEV_STB, DEV_MDS, …)"
+    info "Both are stored in one encrypted file; connection info comes from environment.conf."
     printf "\n" | tee -a "$LOG_FILE"
 
     # --- Show connection context from environment.conf ---
     if [ -n "${DB_HOST:-}" ]; then
-        printList "DB_HOST"       30 "$DB_HOST"
-        printList "DB_PORT"       30 "${DB_PORT:-1521}"
-        printList "DB_SERVICE"    30 "${DB_SERVICE:-}"
+        printList "DB_HOST"          30 "$DB_HOST"
+        printList "DB_PORT"          30 "${DB_PORT:-1521}"
+        printList "DB_SERVICE"       30 "${DB_SERVICE:-}"
         printList "DB_SCHEMA_PREFIX" 30 "${DB_SCHEMA_PREFIX:-}"
         printf "\n"
     else
@@ -157,50 +161,63 @@ if $APPLY; then
     fi
 
     # --- DB SYS password (with confirmation) ---
-    INPUT_PW="$(_prompt_password_confirmed)"
-    printList "DB SYS password" 30 "*** (${#INPUT_PW} chars)"
+    printf "  \033[1mDB SYS password (SYSDBA):\033[0m\n"
+    INPUT_SYS_PW="$(_prompt_password_confirmed)"
+    printList "DB_SYS_PWD" 30 "*** (${#INPUT_SYS_PW} chars)"
+
+    printf "\n"
+
+    # --- FMW schema password (with confirmation) ---
+    printf "  \033[1mFMW schema password (for all %s_* schemas):\033[0m\n" "${DB_SCHEMA_PREFIX:-PREFIX}"
+    INPUT_SCHEMA_PW="$(_prompt_password_confirmed)"
+    printList "DB_SCHEMA_PWD" 30 "*** (${#INPUT_SCHEMA_PW} chars)"
 
     # --- Confirm ---
     printf "\n"
     printLine
     printf "  About to save:\n" | tee -a "$LOG_FILE"
-    printList "  DB_SYS_PWD"  28 "*** (${#INPUT_PW} chars)"
-    printList "  Target file" 28 "$DB_SYS_SEC_FILE"
+    printList "  DB_SYS_PWD"    28 "*** (${#INPUT_SYS_PW} chars)"
+    printList "  DB_SCHEMA_PWD" 28 "*** (${#INPUT_SCHEMA_PW} chars)"
+    printList "  Target file"   28 "$DB_SYS_SEC_FILE"
     printf "\n"
 
-    if askYesNo "Save and encrypt DB SYS password?" "y"; then
+    if askYesNo "Save and encrypt DB credentials?" "y"; then
 
         # --- Backup existing file if present ---
         if [ -f "$DB_SYS_SEC_FILE" ]; then
             backup_file "$DB_SYS_SEC_FILE" "$(dirname "$DB_SYS_SEC_FILE")"
         fi
 
-        # --- Encrypt via lib function ---
-        section "Encrypting Password"
-        _write_secrets_file "$DB_SYS_SEC_FILE" "DB_SYS_PWD=$INPUT_PW"
+        # --- Encrypt both passwords via lib function ---
+        section "Encrypting Credentials"
+        _write_secrets_file "$DB_SYS_SEC_FILE" \
+            "DB_SYS_PWD=$INPUT_SYS_PW" \
+            "DB_SCHEMA_PWD=$INPUT_SCHEMA_PW"
         local_rc=$?
 
-        # Immediately clear password from memory
-        INPUT_PW="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        unset INPUT_PW
+        # Immediately clear passwords from memory
+        INPUT_SYS_PW="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        INPUT_SCHEMA_PW="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        unset INPUT_SYS_PW INPUT_SCHEMA_PW
 
         if [ "$local_rc" -eq 0 ]; then
             # --- Verify: test decryption round-trip ---
             section "Verify Decryption (round-trip test)"
-            unset DB_SYS_PWD
+            unset DB_SYS_PWD DB_SCHEMA_PWD
             if load_secrets_file "$DB_SYS_SEC_FILE"; then
-                ok "Round-trip test passed – password verified"
-                printList "  DB_SYS_PWD" 28 "*** (decrypted OK, ${#DB_SYS_PWD} chars)"
-                unset DB_SYS_PWD
+                ok "Round-trip test passed – credentials verified"
+                printList "  DB_SYS_PWD"    28 "*** (decrypted OK, ${#DB_SYS_PWD} chars)"
+                printList "  DB_SCHEMA_PWD" 28 "*** (decrypted OK, ${#DB_SCHEMA_PWD} chars)"
+                unset DB_SYS_PWD DB_SCHEMA_PWD
             else
                 fail "Round-trip decryption test failed"
             fi
         else
-            fail "Encryption failed – password NOT saved"
+            fail "Encryption failed – credentials NOT saved"
         fi
 
     else
-        info "Aborted – password NOT saved"
+        info "Aborted – credentials NOT saved"
     fi
 
 else
@@ -210,11 +227,12 @@ else
 
     if [ -f "$DB_SYS_SEC_FILE" ]; then
         info "Testing decryption on this machine..."
-        unset DB_SYS_PWD
+        unset DB_SYS_PWD DB_SCHEMA_PWD
         if load_secrets_file "$DB_SYS_SEC_FILE"; then
-            ok "Password can be decrypted on this machine"
-            printList "  DB_SYS_PWD" 28 "*** (${#DB_SYS_PWD} chars, decrypted OK)"
-            unset DB_SYS_PWD
+            ok "Credentials can be decrypted on this machine"
+            printList "  DB_SYS_PWD"    28 "*** (${#DB_SYS_PWD} chars, decrypted OK)"
+            printList "  DB_SCHEMA_PWD" 28 "*** (${#DB_SCHEMA_PWD} chars, decrypted OK)"
+            unset DB_SYS_PWD DB_SCHEMA_PWD
         else
             fail "Decryption failed – wrong machine or corrupted file?"
             info "Tip: credentials encrypted on a different machine cannot be decrypted here."

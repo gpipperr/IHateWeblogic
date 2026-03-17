@@ -109,9 +109,15 @@ Phase 3 – Forms & Reports Installation (as oracle)
   06-oracle_install_forms_reports.sh  Forms/Reports 14.1.2 silent install
   06-oracle_patch_forms_reports.sh    Apply Forms/Reports patches
 
+  ▶ ALL software + patches must be complete before Phase 4.
+    RCU only needs the database, not the Oracle Home,
+    but the convention (and this guide) installs everything first.
+
 Phase 4 – Repository & Domain (as oracle)
-  07-oracle_setup_repository.sh  RCU: create FMW metadata schemas
+  07-oracle_setup_repository.sh  RCU: create FMW metadata schemas in Oracle DB
+                                   (reads DB_SYS_PWD + DB_SCHEMA_PWD from db_sys_sec.conf.des3)
   08-oracle_setup_domain.sh      Create WebLogic domain (WLST silent mode)
+                                   (requires completed RCU schemas)
 
 Phase 5 – Configuration & Validation (as oracle)
   09-oracle_configure.sh         Final configuration using existing 00-07 scripts
@@ -230,14 +236,15 @@ password-file handling for RCU) live in `install_lib.sh`.
 ├── fr/
 │   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin
-├── opatch/
-│   └── p6880880_139000_Generic.zip  ← OPatch 13.9.x for WLS/FMW (getMOSPatch)
 └── patches/
-    ├── 30970477/
-    ├── 30729380/
-    ├── 31960987/
-    └── 32097167/
+    ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
+    │   └── p28186730_139422_Generic.zip   ← contains 6880880/opatch_generic.jar
+    └── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
+        └── p38566996_141200_Generic.zip
 ```
+
+> Patch numbers change quarterly. Current values are in `oracle_software_version.conf`.
+> See [docs/05-oracle_patch_weblogic.md](docs/05-oracle_patch_weblogic.md) for the discovery workflow.
 
 All versions, filenames, SHA-256 checksums and patch numbers are defined in
 `oracle_software_version.conf` (committed to git — no credentials).

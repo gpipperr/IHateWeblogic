@@ -433,10 +433,12 @@ _ask DB_SERVICE       "Database service name"     ""
 _ask DB_SCHEMA_PREFIX "RCU schema prefix"         "DEV"
 
 printf "\n"
-info "DB SYS password → encrypted to: db_sys_sec.conf.des3"
-info "  Used only for RCU – not written to environment.conf"
+info "DB SYS + FMW schema passwords → encrypted to: db_sys_sec.conf.des3"
+info "  DB_SYS_PWD    – SYS password, used only for RCU (one-time)"
+info "  DB_SCHEMA_PWD – assigned to all FMW schemas (DEV_STB, DEV_MDS, …)"
 DB_SYS_SEC_FILE="$ROOT_DIR/db_sys_sec.conf.des3"
-_ask_password DB_SYS_PWD "DB SYS password" "$DB_SYS_SEC_FILE"
+_ask_password DB_SYS_PWD    "DB SYS password (SYSDBA)"         "$DB_SYS_SEC_FILE"
+_ask_password DB_SCHEMA_PWD "FMW schema password (all schemas)" "$DB_SYS_SEC_FILE"
 
 printf "\n"
 
@@ -491,6 +493,7 @@ _show "DB_PORT"              "$DB_PORT"
 _show "DB_SERVICE"           "$DB_SERVICE"
 _show "DB_SCHEMA_PREFIX"     "$DB_SCHEMA_PREFIX"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
+_show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "MOS_USER"             "$MOS_USER"
 _show "MOS_PWD"              "****  → $(basename "$MOS_SEC_FILE")"
 info "  Patch numbers / download versions → 09-Install/oracle_software_version.conf"
@@ -597,8 +600,10 @@ if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
 fi
 
 if [ -n "$DB_SYS_PWD" ] && [ "$DB_SYS_PWD" != "****" ]; then
-    _write_secrets_file "$DB_SYS_SEC_FILE" "DB_SYS_PWD=$DB_SYS_PWD"
-    unset DB_SYS_PWD
+    _write_secrets_file "$DB_SYS_SEC_FILE" \
+        "DB_SYS_PWD=$DB_SYS_PWD" \
+        "DB_SCHEMA_PWD=${DB_SCHEMA_PWD:-}"
+    unset DB_SYS_PWD DB_SCHEMA_PWD
 fi
 
 # =============================================================================

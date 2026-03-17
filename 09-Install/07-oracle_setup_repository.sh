@@ -1,0 +1,335 @@
+#!/bin/bash
+# =============================================================================
+# Script   : 07-oracle_setup_repository.sh
+# Purpose  : Run RCU (Repository Creation Utility) in silent mode to create
+#            the 7 FMW metadata schemas required before domain creation.
+#            IMPORTANT: Run AFTER all software is installed and patched:
+#              05-oracle_install_weblogic.sh  → FMW Infrastructure
+#              05-oracle_patch_weblogic.sh    → WLS patches
+#              06-oracle_install_forms_reports.sh  → Forms/Reports
+#              06-oracle_patch_forms_reports.sh    → F&R patches
+#            Then: 07-oracle_setup_repository.sh  (this script)
+#            Then: 08-oracle_setup_domain.sh       (domain creation)
+# Call     : ./09-Install/07-oracle_setup_repository.sh
+#            ./09-Install/07-oracle_setup_repository.sh --apply
+#            ./09-Install/07-oracle_setup_repository.sh --drop
+#            ./09-Install/07-oracle_setup_repository.sh --help
+# Options  : (none)    Dry-run: show connection info and schema names
+#            --apply   Run RCU -createRepository
+#            --drop    Run RCU -dropRepository (CAUTION: destroys all FMW data)
+#            --help    Show usage
+# Runs as  : oracle
+# Requires : $ORACLE_HOME/oracle_common/bin/rcu, DB credentials in db_sys_sec.conf.des3
+# Author   : Gunther Pipperr | https://pipperr.de
+# License  : Apache 2.0
+# Ref      : 09-Install/docs/07-oracle_setup_repository.md
+# =============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+LIB="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
+ENV_CONF="$ROOT_DIR/environment.conf"
+DB_SYS_SEC_FILE="$ROOT_DIR/db_sys_sec.conf.des3"
+
+# --- Source library -----------------------------------------------------------
+if [ ! -f "$LIB" ]; then
+    printf "\033[31mFATAL\033[0m: Library not found: %s\n" "$LIB" >&2; exit 2
+fi
+# shellcheck source=../00-Setup/IHateWeblogic_lib.sh
+source "$LIB"
+
+# --- Source environment.conf --------------------------------------------------
+if [ ! -f "$ENV_CONF" ]; then
+    printf "\033[31mFATAL\033[0m: environment.conf not found: %s\n" "$ENV_CONF" >&2
+    printf "  Run first: 09-Install/01-setup-interview.sh --apply\n" >&2; exit 2
+fi
+# shellcheck source=../environment.conf
+source "$ENV_CONF"
+
+# --- Bootstrap log ------------------------------------------------------------
+DIAG_LOG_DIR="${DIAG_LOG_DIR:-$ROOT_DIR/log/$(date +%Y%m%d)}"
+init_log "$DIAG_LOG_DIR"
+
+# =============================================================================
+# Arguments
+# =============================================================================
+
+APPLY=false
+DROP=false
+
+_usage() {
+    printf "Usage: %s [--apply | --drop] [--help]\n\n" "$(basename "$0")"
+    printf "  %-12s %s\n" "(none)"   "Dry-run: show connection info and schema names"
+    printf "  %-12s %s\n" "--apply"  "Run RCU -createRepository (create 7 FMW schemas)"
+    printf "  %-12s %s\n" "--drop"   "Run RCU -dropRepository (CAUTION: destroys all FMW data)"
+    printf "  %-12s %s\n" "--help"   "Show this help"
+    printf "\nRuns as: oracle\n"
+    exit 0
+}
+
+for _arg in "$@"; do
+    case "$_arg" in
+        --apply)   APPLY=true ;;
+        --drop)    DROP=true  ;;
+        --help|-h) _usage ;;
+        *)
+            printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
+    esac
+done
+unset _arg
+
+if $APPLY && $DROP; then
+    printf "\033[31mERROR\033[0m --apply and --drop are mutually exclusive\n" >&2; exit 1
+fi
+
+# =============================================================================
+# RCU components (7 schemas for FMW 14.1.2 Forms/Reports)
+# =============================================================================
+
+RCU_COMPONENTS=(STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS)
+
+# =============================================================================
+# Banner
+# =============================================================================
+
+printLine
+printf "\n\033[1m  IHateWeblogic – RCU Repository Setup\033[0m\n"            | tee -a "$LOG_FILE"
+printf "  Host        : %s\n" "$(_get_hostname)"                             | tee -a "$LOG_FILE"
+printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"                 | tee -a "$LOG_FILE"
+if $DROP; then
+printf "  Mode        : \033[31mDROP (CAUTION – destroys all FMW schema data)\033[0m\n" | tee -a "$LOG_FILE"
+else
+printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY (create schemas)' || printf 'DRY-RUN')" | tee -a "$LOG_FILE"
+fi
+printf "  Log         : %s\n" "$LOG_FILE"                                    | tee -a "$LOG_FILE"
+printLine
+
+# =============================================================================
+# Pre-checks
+# =============================================================================
+
+section "Pre-checks"
+
+# --- ORACLE_HOME + rcu binary ------------------------------------------------
+[ -n "$ORACLE_HOME" ] \
+    && ok "ORACLE_HOME = $ORACLE_HOME" \
+    || { fail "ORACLE_HOME not set"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+RCU_BIN="$ORACLE_HOME/oracle_common/bin/rcu"
+[ -x "$RCU_BIN" ] \
+    && ok "rcu found: $RCU_BIN" \
+    || { fail "rcu not found: $RCU_BIN"; fail "  Run first: 05-oracle_install_weblogic.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+# --- Database connection params -----------------------------------------------
+[ -n "${DB_HOST:-}" ]          && ok "DB_HOST          = $DB_HOST"          || { fail "DB_HOST not set";          EXIT_CODE=2; }
+[ -n "${DB_PORT:-}" ]          && ok "DB_PORT          = $DB_PORT"          || { fail "DB_PORT not set";          EXIT_CODE=2; }
+[ -n "${DB_SERVICE:-}" ]       && ok "DB_SERVICE       = $DB_SERVICE"       || { fail "DB_SERVICE not set";       EXIT_CODE=2; }
+[ -n "${DB_SCHEMA_PREFIX:-}" ] && ok "DB_SCHEMA_PREFIX = $DB_SCHEMA_PREFIX" || { fail "DB_SCHEMA_PREFIX not set"; EXIT_CODE=2; }
+
+[ "$EXIT_CODE" -ne 0 ] && { info "  Run first: 09-Install/01-setup-interview.sh --apply"; print_summary; exit $EXIT_CODE; }
+
+# --- Encrypted credentials file -----------------------------------------------
+[ -f "$DB_SYS_SEC_FILE" ] \
+    && ok "DB credentials file found: $DB_SYS_SEC_FILE" \
+    || { fail "DB credentials not found: $DB_SYS_SEC_FILE"; info "  Run first: 00-Setup/database_rcu_sec.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+# =============================================================================
+# Schema summary
+# =============================================================================
+
+section "Schema Configuration"
+
+printList "Connect string"  28 "${DB_HOST}:${DB_PORT}:${DB_SERVICE}"
+printList "DB user"         28 "sys (SYSDBA)"
+printList "Schema prefix"   28 "$DB_SCHEMA_PREFIX"
+printf "\n" | tee -a "$LOG_FILE"
+info "Schemas that will be $( $DROP && printf 'DROPPED' || printf 'created' ):"
+for _c in "${RCU_COMPONENTS[@]}"; do
+    info "  $(printf "%-14s" "${DB_SCHEMA_PREFIX}_${_c}")"
+done
+unset _c
+
+# --- Dry-run exit -------------------------------------------------------------
+if ! $APPLY && ! $DROP; then
+    printf "\n" | tee -a "$LOG_FILE"
+    warn "Dry-run – use --apply to create schemas or --drop to drop them."
+    info "DB credentials will be read from: $DB_SYS_SEC_FILE"
+    print_summary
+    exit $EXIT_CODE
+fi
+
+# =============================================================================
+# Safety prompt for --drop
+# =============================================================================
+
+if $DROP; then
+    printf "\n"
+    printf "  \033[31m╔══════════════════════════════════════════════════════════╗\033[0m\n"
+    printf "  \033[31m║  WARNING: --drop will DESTROY all FMW schema data!      ║\033[0m\n"
+    printf "  \033[31m║  Schemas: %s_STB  _MDS  _OPSS  _IAU  …          ║\033[0m\n" "$DB_SCHEMA_PREFIX"
+    printf "  \033[31m╚══════════════════════════════════════════════════════════╝\033[0m\n"
+    printf "\n"
+    if ! askYesNo "Really DROP all FMW schemas? (type 'yes' to confirm)" "n"; then
+        info "Aborted."
+        print_summary; exit 0
+    fi
+fi
+
+# =============================================================================
+# Decrypt DB credentials
+# =============================================================================
+
+section "DB Credentials"
+
+unset DB_SYS_PWD DB_SCHEMA_PWD
+if ! load_secrets_file "$DB_SYS_SEC_FILE"; then
+    info "  Run first: 00-Setup/database_rcu_sec.sh --apply"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+[ -n "${DB_SYS_PWD:-}" ] \
+    && ok "DB_SYS_PWD decrypted (${#DB_SYS_PWD} chars)" \
+    || { fail "DB_SYS_PWD not found in $DB_SYS_SEC_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+[ -n "${DB_SCHEMA_PWD:-}" ] \
+    && ok "DB_SCHEMA_PWD decrypted (${#DB_SCHEMA_PWD} chars)" \
+    || { fail "DB_SCHEMA_PWD not found in $DB_SYS_SEC_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+# =============================================================================
+# Build RCU password file  (trap ensures cleanup even on error or Ctrl+C)
+# =============================================================================
+
+RCU_PW_FILE="/tmp/rcu_pw_$$.tmp"
+
+_cleanup_pw_file() {
+    if [ -f "$RCU_PW_FILE" ]; then
+        # Overwrite before delete (best-effort)
+        dd if=/dev/zero of="$RCU_PW_FILE" bs=1 count="$(stat -c '%s' "$RCU_PW_FILE" 2>/dev/null || printf 256)" 2>/dev/null
+        rm -f "$RCU_PW_FILE"
+    fi
+    # Clear passwords from memory
+    DB_SYS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    DB_SCHEMA_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    unset DB_SYS_PWD DB_SCHEMA_PWD
+}
+
+trap '_cleanup_pw_file' EXIT
+
+section "Password File"
+
+{
+    printf '%s\n' "$DB_SYS_PWD"     # Line 1: SYS / SYSDBA password
+    for _c in "${RCU_COMPONENTS[@]}"; do
+        printf '%s\n' "$DB_SCHEMA_PWD"  # One line per component (same schema password)
+    done
+    unset _c
+} > "$RCU_PW_FILE"
+chmod 600 "$RCU_PW_FILE"
+
+ok "$(printf "Password file created: %s  (%d lines, mode 600)" "$RCU_PW_FILE" "$(wc -l < "$RCU_PW_FILE")")"
+
+# =============================================================================
+# Build RCU component flags
+# =============================================================================
+
+RCU_COMP_FLAGS=()
+for _c in "${RCU_COMPONENTS[@]}"; do
+    RCU_COMP_FLAGS+=( -component "$_c" )
+done
+unset _c
+
+# =============================================================================
+# Run RCU
+# =============================================================================
+
+if $DROP; then
+    RCU_ACTION="-dropRepository"
+    section "RCU dropRepository"
+else
+    RCU_ACTION="-createRepository"
+    section "RCU createRepository"
+fi
+
+printf "\n  RCU started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+printf "  Connect    : %s:%s:%s\n" "$DB_HOST" "$DB_PORT" "$DB_SERVICE" | tee -a "$LOG_FILE"
+printf "  Prefix     : %s\n\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
+
+"$RCU_BIN" \
+    -silent \
+    "$RCU_ACTION" \
+    -connectString "${DB_HOST}:${DB_PORT}:${DB_SERVICE}" \
+    -dbUser sys \
+    -dbRole sysdba \
+    -schemaPrefix "$DB_SCHEMA_PREFIX" \
+    "${RCU_COMP_FLAGS[@]}" \
+    -f < "$RCU_PW_FILE" \
+    2>&1 | tee -a "$LOG_FILE"
+
+RCU_RC=${PIPESTATUS[0]}
+
+# trap will clean up the password file
+printf "\n  RCU finished: %s  (rc=%s)\n" \
+    "$(date '+%Y-%m-%d %H:%M:%S')" "$RCU_RC" | tee -a "$LOG_FILE"
+
+if [ "$RCU_RC" -ne 0 ]; then
+    fail "RCU exited with rc=$RCU_RC"
+    fail "  Check logs: $ORACLE_HOME/oracle_common/rcu/log/"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+ok "RCU completed successfully"
+
+# =============================================================================
+# Verification (--apply only)
+# =============================================================================
+
+if $APPLY; then
+
+    section "Verification"
+
+    info "Checking schemas in database..."
+    printf "\n" | tee -a "$LOG_FILE"
+
+    # RCU -checkRequirements gives an exit code 0 even if schemas already exist,
+    # so instead we verify via the RCU log for the Completion Summary.
+    RCU_LOG_DIR="$ORACLE_HOME/oracle_common/rcu/log"
+    if [ -d "$RCU_LOG_DIR" ]; then
+        LATEST_LOG="$(ls -t "$RCU_LOG_DIR"/rcu*.log 2>/dev/null | head -1)"
+        if [ -n "$LATEST_LOG" ]; then
+            ok "RCU log: $LATEST_LOG"
+            # Show Completion Summary from log
+            if grep -q "Completion Summary" "$LATEST_LOG" 2>/dev/null; then
+                printf "\n" | tee -a "$LOG_FILE"
+                info "RCU Completion Summary:"
+                grep -A 30 "Completion Summary" "$LATEST_LOG" \
+                    | grep -E "(Success|Failure|Component|Status)" \
+                    | while IFS= read -r _line; do
+                        info "  $_line"
+                    done
+            fi
+        fi
+    fi
+
+    # Check all expected schemas are listed in rcu log as Success
+    SCHEMA_FAILS=0
+    for _c in "${RCU_COMPONENTS[@]}"; do
+        if grep -q "Success" "$LATEST_LOG" 2>/dev/null; then
+            ok "$(printf "Schema %-30s in log" "${DB_SCHEMA_PREFIX}_${_c}")"
+        else
+            warn "$(printf "Schema %-30s not verified in log" "${DB_SCHEMA_PREFIX}_${_c}")"
+            SCHEMA_FAILS=$(( SCHEMA_FAILS + 1 ))
+        fi
+    done
+    unset _c
+
+    [ "$SCHEMA_FAILS" -gt 0 ] && warn "$SCHEMA_FAILS schema(s) not verified – check RCU log manually"
+
+    printf "\n" | tee -a "$LOG_FILE"
+    info "Next step: create WebLogic domain"
+    info "  08-oracle_setup_domain.sh --apply"
+
+fi
+
+# =============================================================================
+print_summary
+exit $EXIT_CODE
