@@ -217,50 +217,135 @@ rm -rf /tmp/opatch_upgrade
 
 ---
 
-### 8. Run conflict check before patching
+---
+
+## Patch 38566996 – UMS Bundle Patch 14.1.2.0.251022
+
+**Patch:** 38566996
+**Platform:** Generic
+**Product:** Service Delivery Platform (UMS)
+**Released:** 24-Oct-2025
+**Requires OPatch:** ≥ 13.9.4.2.17 (install 13.9.4.2.22 via Patch 28186730, see above)
+
+### Zero Downtime Patching
+
+This patch is eligible for **Zero Downtime Patching** of type `FMW_ROLLING_ORACLE_HOME`.
+ZDT allows patching without service interruption in a running cluster.
+
+> At this point in the installation sequence no domain exists yet, so the standard
+> offline procedure (stop → patch → start) applies. ZDT becomes relevant for
+> re-patching a live production system later.
+>
+> Doc ID 1942159.1 — Introduction to Zero Downtime Patching for Oracle Fusion Middleware
+
+### 8. Prerequisites
 
 ```bash
-for PATCH_NR in 30970477 30729380 31960987 32097167; do
-    echo "=== Conflict check: $PATCH_NR ==="
-    $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
-        -phBaseDir $PATCH_STORAGE/patches/$PATCH_NR \
-        -jdk $JDK_HOME
-done
+# 1. Verify OPatch version (must be ≥ 13.9.4.2.17)
+$ORACLE_HOME/OPatch/opatch version
+
+# 2. Validate inventory
+$ORACLE_HOME/OPatch/opatch lsinventory
+$ORACLE_HOME/OPatch/opatch lspatches
 ```
 
-All patches must show `OPatch succeeded` before proceeding.
-
-### 9. Apply patches in order
-
-Patches must be applied in two groups matching the OPatch minimum version
-requirements (see `oracle_software_version.conf`):
-
-| Group | Patches | Min OPatch |
-|---|---|---|
-| 1 | 30970477, 30729380 | 13.9.4.0.0 |
-| 2 | 31960987, 32097167 | 13.9.4.2.4 |
+Recommended backup before patching (no domain yet → ORACLE_HOME + inventory only):
 
 ```bash
-# Apply all patches in order
-for PATCH_NR in 30970477 30729380 31960987 32097167; do
-    echo "=== Applying patch: $PATCH_NR ==="
-    mkdir -p /tmp/patch_apply
-    unzip -q $PATCH_STORAGE/patches/$PATCH_NR/p${PATCH_NR}_*.zip \
-        -d /tmp/patch_apply
-    $ORACLE_HOME/OPatch/opatch apply \
-        /tmp/patch_apply/$PATCH_NR \
-        -silent \
-        -jdk $JDK_HOME
-    rm -rf /tmp/patch_apply
-    echo "=== Done: $PATCH_NR ==="
-done
+cp -a $ORACLE_HOME           $ORACLE_HOME.bak_$(date +%Y%m%d)
+cp -a $ORACLE_BASE/oraInventory  $ORACLE_BASE/oraInventory.bak_$(date +%Y%m%d)
 ```
 
-### 10. Verify patches
+Once a domain exists, also back up `$DOMAIN_HOME`.
+
+### 9. Prepare patch staging area
 
 ```bash
-$ORACLE_HOME/OPatch/opatch lsinventory | grep -E "Patch [0-9]+"
+MW_PATCHES=/tmp/mw_patches
+mkdir -p $MW_PATCHES
+
+# Unzip the patch (preserve permissions with -p on Linux)
+unzip -d $MW_PATCHES $PATCH_STORAGE/patches/38566996/p38566996_141200_Generic.zip
+
+ls $MW_PATCHES/38566996/
+# → patch metadata + sub-patches
+
+# Add OPatch to PATH
+export PATH=$ORACLE_HOME/OPatch:$PATH
+export ORACLE_HOME=$ORACLE_HOME   # must be set
 ```
+
+### 10. Stop all processes
+
+No domain exists at this stage — nothing to stop. For later re-patching:
+
+```bash
+# Stop Managed Servers, Admin Server, Node Manager
+# (handled by 01-Run/ scripts once domain is running)
+```
+
+### 11. Apply the patch
+
+```bash
+cd $MW_PATCHES/38566996
+opatch apply
+```
+
+OPatch will prompt for confirmation. In silent mode:
+
+```bash
+cd $MW_PATCHES/38566996
+opatch apply -silent -jdk $JDK_HOME
+```
+
+Check OPatch output for `OPatch succeeded`. Any warnings or errors are logged to
+`$ORACLE_HOME/cfgtoollogs/opatch/`.
+
+### 12. Verify patch is installed
+
+```bash
+opatch lspatches | grep 38566996
+# Expected: 38566996;Oracle UMS Bundle Patch 14.1.2.0.251022
+
+opatch lsinventory | grep -E "Patch [0-9]+"
+```
+
+### 13. Cleanup staging area
+
+```bash
+rm -rf $MW_PATCHES
+```
+
+### 14. Start all processes
+
+No domain exists at this stage — nothing to start yet.
+
+---
+
+### Deinstallation (rollback)
+
+If the patch causes problems after a domain is running:
+
+```bash
+# 1. Stop all processes
+
+# 2. Navigate to patch staging (re-unzip if cleaned up)
+mkdir -p /tmp/mw_patches
+unzip -d /tmp/mw_patches $PATCH_STORAGE/patches/38566996/p38566996_141200_Generic.zip
+
+cd /tmp/mw_patches/38566996
+opatch rollback -id 38566996
+
+# 3. Verify removal
+opatch lspatches | grep 38566996   # must return nothing
+
+# 4. Reverse any post-installation changes (none for this patch)
+
+# 5. Start all processes
+```
+
+> For a complete rollback, restore from backup: `$ORACLE_HOME` + Central Inventory
+> (+ `$DOMAIN_HOME` if a domain was created after patching).
 
 ---
 
