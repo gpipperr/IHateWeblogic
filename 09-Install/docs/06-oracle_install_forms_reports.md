@@ -124,3 +124,9 @@ $ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -2
 - Install time: approximately 10–20 minutes
 - The installer binary is a `.bin` file (not `.jar`); it is self-extracting
 - If only Reports is needed: set `INSTALL_COMPONENTS=REPORTS_ONLY` in `environment.conf`
+
+---
+
+## References
+
+- [Oracle Docs – Installing Oracle Forms in Silent Mode (14.1.2)](https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/installing-oracle-forms-silent-mode.html)
