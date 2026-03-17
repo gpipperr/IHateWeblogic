@@ -325,8 +325,8 @@ done
 unset _dir
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: update OPatch before applying patches"
-info "  06-oracle_update_opatch.sh --apply   (OPatch >= ${OPATCH_VERSION_MIN:-13.9.4.2.4})"
+info "Next step: update OPatch + apply WLS patches"
+info "  05-oracle_patch_weblogic.sh --apply   (OPatch upgrade + INSTALL_PATCHES)"
 
 # =============================================================================
 print_summary
