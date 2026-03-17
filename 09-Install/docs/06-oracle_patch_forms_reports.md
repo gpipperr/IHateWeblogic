@@ -8,62 +8,80 @@
 
 ## Purpose
 
-Apply Forms & Reports specific patches after the base Forms/Reports install.
-Some patches may affect the WLS home and the FR home — the script handles both.
+Apply Forms & Reports specific patches after the base F&R install.
+Patches are listed in `INSTALL_PATCHES_FR` in `oracle_software_version.conf`.
+
+**If `INSTALL_PATCHES_FR` is empty, the script exits OK — nothing to do.**
+
+F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
+(applied by `05-oracle_patch_weblogic.sh`) already cover the shared home.
+`INSTALL_PATCHES_FR` is only needed for patches that are F&R-specific and not
+included in the WLS CPU bundle.
+
+> **Current state (14.1.2, CPU Jan 2026):** `INSTALL_PATCHES_FR=""` — no
+> FR-specific patches needed beyond the WLS bundle patch already applied.
+
+---
+
+## INSTALL_PATCHES_FR
+
+Defined in `09-Install/oracle_software_version.conf`:
+
+```bash
+# Leave empty if no FR-specific patches are needed beyond INSTALL_PATCHES.
+INSTALL_PATCHES_FR=""
+
+# Example when FR patches are needed:
+# INSTALL_PATCHES_FR="12345678 87654321"
+```
+
+To add an FR-specific patch:
+1. Download the patch ZIP to `$PATCH_STORAGE/patches/<NR>/`
+2. Add the patch number to `INSTALL_PATCHES_FR`
+3. Run `06-oracle_patch_forms_reports.sh --check-only` first
+4. Run `06-oracle_patch_forms_reports.sh --apply`
 
 ---
 
 ## Without the Script (manual)
 
-The procedure is identical to `05-oracle_patch_weblogic.sh`.
-
-### 1. Check which home a patch affects
+### 1. Conflict check
 
 ```bash
-# After unzipping the patch:
-cat $PATCH_STORAGE/patches/<PATCH_NR>/README.txt | grep -i "oracle home"
-# or:
-$ORACLE_HOME/OPatch/opatch lsinventory -all_nodes
-```
-
-Some patches specify: "Apply to Oracle Home: FMW Infrastructure Home" — these
-need to be applied to the same `ORACLE_HOME` as WLS.
-
-### 2. Conflict check
-
-```bash
+cd $PATCH_STORAGE/patches/<PATCH_NR>/
 $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
-    -phBaseDir $PATCH_STORAGE/patches/<PATCH_NR> \
-    -jdk $JDK_HOME
+    -ph . \
+    -invPtrLoc $ORACLE_BASE/oraInst.loc
 ```
 
-### 3. Apply patch
+### 2. Apply patch
 
 ```bash
-unzip -q $PATCH_STORAGE/patches/<PATCH_NR>/p<PATCH_NR>_*.zip \
-    -d /tmp/patch_apply
+cd $PATCH_STORAGE/patches/<PATCH_NR>/
 $ORACLE_HOME/OPatch/opatch apply \
-    /tmp/patch_apply/<PATCH_NR> \
     -silent \
-    -jdk $JDK_HOME
-rm -rf /tmp/patch_apply
+    -jdk $JDK_HOME \
+    -invPtrLoc $ORACLE_BASE/oraInst.loc
 ```
 
-### 4. Verify
+### 3. Verify
 
 ```bash
-$ORACLE_HOME/OPatch/opatch lsinventory | grep <PATCH_NR>
+$ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 ```
 
 ---
 
 ## What the Script Does
 
-- Uses `INSTALL_PATCHES` from `environment.conf` (same list as WLS patches, but
-  the script identifies which patches are FR-specific vs already applied to WLS)
-- Skips patches already shown in `opatch lsinventory`
-- Applies only patches not yet applied
-- Otherwise identical logic to `05-oracle_patch_weblogic.sh`
+- Sources `INSTALL_PATCHES_FR` from `oracle_software_version.conf`
+- If empty → exits OK with info message
+- Reads current patch inventory via `opatch lspatches`
+- Skips patches already installed (idempotent)
+- For remaining patches: extract ZIP to staging, conflict check, apply
+- Cleans up staging directory after apply
+- Verifies each applied patch appears in `opatch lspatches`
+- **Does NOT upgrade OPatch** — already done in `05-oracle_patch_weblogic.sh`
 
 ---
 
@@ -71,15 +89,17 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep <PATCH_NR>
 
 | Flag | Description |
 |---|---|
-| (none) | Show pending patches |
-| `--apply` | Apply pending patches |
-| `--check-only` | Conflict check only |
+| (none) | Show pending patches from `INSTALL_PATCHES_FR` |
+| `--apply` | Apply pending patches, skip already-installed |
+| `--check-only` | Conflict check only, do not apply |
 | `--help` | Show usage |
 
 ---
 
 ## Notes
 
-- Separate `INSTALL_PATCHES_FR` can be defined in `environment.conf` for FR-specific patches
-- If `INSTALL_PATCHES_FR` is empty, this script exits OK (no FR-specific patches to apply)
-- FMW Bundle Patches often include both WLS and FR components — check the README carefully
+- `INSTALL_PATCHES_FR` is in `oracle_software_version.conf` (not `environment.conf`)
+- F&R and WLS share one `ORACLE_HOME` — OPatch operates on the whole home
+- FMW Bundle Patches often cover both WLS and F&R components; check the CPU
+  advisory whether a separate F&R patch is listed
+- OPatch upgrade is not repeated here (done in `05-oracle_patch_weblogic.sh`)
