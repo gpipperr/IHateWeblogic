@@ -26,10 +26,24 @@ No database is created in this step — software only.
 
 ## Download
 
-Oracle 19c software is available on eDelivery / MOS.
-Base release ZIP (19.3): `LINUX.X64_193000_db_home.zip` (eDelivery part number V982063-01)
+> **The Oracle 19c base ZIP cannot be downloaded automatically.**
+> Oracle eDelivery requires a browser session, license agreement acceptance, and
+> an Oracle account — no scripted/automated download is possible for base
+> software (unlike OPatch patches via getMOSPatch.jar).
 
-Place it at:
+### Manual download steps
+
+1. Log in at **https://edelivery.oracle.com** with your Oracle account
+2. Search for: `Oracle Database 19c` → Platform: `Linux x86-64`
+3. Add to cart: **Oracle Database 19.3.0.0.0 for Linux x86-64**
+   - Part number: `V982063-01`
+   - File: `LINUX.X64_193000_db_home.zip`
+   - Size: ~3 GB
+4. Accept the license agreement and download
+5. Transfer to the server (scp / sftp)
+
+### Target path on the server
+
 ```
 /srv/patch_storage/database/LINUX.X64_193000_db_home.zip
 ```
@@ -42,12 +56,19 @@ separate from FMW installers and patches:
 /srv/patch_storage/
 ├── installers/     ← FMW installers (fmw_14.1.2_wls.jar, …)
 ├── patches/        ← FMW / WLS OPatch patches
-└── database/       ← Oracle 19c DB software
+└── database/       ← Oracle 19c DB base software (manual download)
     └── LINUX.X64_193000_db_home.zip
 ```
 
-AutoUpgrade downloads RU patches independently to
-`ORACLE_BASE/autoupgrade/patchdir/` — those do not go into `PATCH_STORAGE`.
+### Why only the base ZIP — no pre-patched download?
+
+Oracle eDelivery only provides the 19.3.0 base release.  Current RU patches
+are applied by AutoUpgrade in the next step (`02-db_patch_autoupgrade.sh`),
+which downloads them automatically from MOS using `mos_sec.conf.des3`.
+
+This means:
+- **eDelivery** → base software only → manual, one-time
+- **AutoUpgrade (MOS)** → RU + OJVM patches → automated, repeatable
 
 ---
 
