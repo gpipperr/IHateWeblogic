@@ -17,6 +17,15 @@
 # Ref      : 60-RCU-DB-19c/docs/01-db_os_baseline.md
 # =============================================================================
 
+# --- Auto-elevate via sudo if not already root --------------------------------
+if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -v >/dev/null 2>&1; then
+        exec sudo "$0" "$@"
+    fi
+    printf "\033[31mFATAL\033[0m: Must run as root or have sudo rights\n" >&2
+    exit 2
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIB="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
@@ -82,9 +91,7 @@ printLine
 
 section "Pre-checks"
 
-[ "$(id -u)" -eq 0 ] \
-    && ok "Running as root" \
-    || { fail "Must run as root"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+ok "Running as: $(id -un) (uid=$(id -u))"
 
 command -v dnf > /dev/null 2>&1 \
     && ok "dnf found: $(dnf --version 2>/dev/null | head -1)" \
