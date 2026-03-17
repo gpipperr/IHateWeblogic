@@ -80,17 +80,39 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 
 ### Block 3 – Domain Configuration
 
-| Parameter | Default |
-|---|---|
-| `WLS_ADMIN_PORT` | `7001` |
-| `WLS_ADMIN_USER` | `webadmin` |
-| `WLS_ADMIN_PWD` | prompted, encrypted → `weblogic_sec.conf.des3` |
-| `WLS_NODEMANAGER_PORT` | `5556` |
-| `WLS_FORMS_PORT` | `9001` |
-| `WLS_REPORTS_PORT` | `9002` |
-| `REPORTS_SERVER_NAME` | `repserver01` |
-| `FORMS_CUSTOMER_DIR` | `/app/forms/custom` |
-| `REPORTS_CUSTOMER_DIR` | `/app/reports/custom` |
+| Parameter | Default | Notes |
+|---|---|---|
+| `WLS_ADMIN_PORT` | `7001` | – |
+| `WLS_ADMIN_USER` | `webadmin` | – |
+| `WLS_ADMIN_PWD` | prompted, encrypted → `weblogic_sec.conf.des3` | – |
+| `WLS_NODEMANAGER_PORT` | `5556` | – |
+| `WLS_FORMS_PORT` | `9001` | – |
+| `WLS_REPORTS_PORT` | `9002` | – |
+| `WLS_LISTEN_ADDRESS` | `localhost` | see below |
+| `REPORTS_SERVER_NAME` | `repserver01` | – |
+| `FORMS_CUSTOMER_DIR` | `/app/forms/custom` | – |
+| `REPORTS_CUSTOMER_DIR` | `/app/reports/custom` | – |
+
+#### WLS_LISTEN_ADDRESS
+
+Determines which network interface WebLogic (Admin Server and all Managed Servers) binds to.
+
+```
+[1] localhost  – NGINX reverse proxy handles all external access + SSL termination
+                 WebLogic is not reachable from outside the host directly.
+                 Requires: 09-Install/03-root_nginx_ssl.sh configured and running.
+                 → recommended default for this architecture
+
+[2] 0.0.0.0   – all interfaces, WebLogic exposed directly (no reverse proxy)
+                 Use only when NGINX is not deployed.
+
+[3] custom     – enter a specific hostname or IP address manually
+```
+
+> **Note:** With `localhost`, WebLogic never terminates SSL itself — all certificates
+> are managed exclusively in NGINX. This eliminates the need for a WLS keystore and
+> avoids the common failure mode of expired certificates inside the WebLogic config.
+> See `09-Install/docs/03-root_nginx_ssl.md` for NGINX SSL setup.
 
 ### Block 4 – Database (RCU)
 

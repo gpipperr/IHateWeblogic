@@ -704,6 +704,7 @@ if $APPLY; then
         _append_if_missing "DOMAIN_HOME"           "$CONF_DOMAIN_HOME"
         _append_if_missing "DOMAIN_NAME"           "$DET_DOMAIN_NAME"
         _append_if_missing "WL_ADMIN_URL"          "t3://localhost:7001"
+        _append_if_missing "WLS_LISTEN_ADDRESS"    "localhost"
         _append_if_missing "WLS_MANAGED_SERVER"    "$CONF_WLS_MANAGED"
         _append_if_missing "REPORTS_COMPONENT_HOME" "$CONF_REPORTS_COMP"
         _append_if_missing "REPORTS_ADMIN"         "\${REPORTS_COMPONENT_HOME}/guicommon/tk/admin"
@@ -761,6 +762,8 @@ JAVA_HOME="${CONF_JAVA_HOME}"
 DOMAIN_HOME="${CONF_DOMAIN_HOME}"
 DOMAIN_NAME="${DET_DOMAIN_NAME}"
 WL_ADMIN_URL="t3://localhost:7001"
+# localhost = NGINX reverse proxy (recommended); 0.0.0.0 = all interfaces (no proxy)
+WLS_LISTEN_ADDRESS="localhost"
 WLS_MANAGED_SERVER="${CONF_WLS_MANAGED}"
 
 # --- Reports Component (primary instance) ------------------------------------

@@ -423,6 +423,21 @@ _ask WLS_ADMIN_PORT          "WLS Admin port"               "7001"        "_val_
 _ask WLS_NODEMANAGER_PORT    "NodeManager port"             "5556"        "_val_port"
 _ask WLS_FORMS_PORT          "WLS_FORMS managed port"       "9001"        "_val_port"
 _ask WLS_REPORTS_PORT        "WLS_REPORTS managed port"     "9002"        "_val_port"
+
+printf "\n"
+info "WebLogic listen address – which network interface WebLogic binds to."
+info "  Option 1 (localhost) requires NGINX as reverse proxy on the same host."
+info "  Ref: 09-Install/docs/03-root_nginx_ssl.md"
+_ask_menu WLS_LISTEN_ADDRESS "WLS listen address" \
+    "localhost:localhost – NGINX handles external access + SSL (recommended)" \
+    "0.0.0.0:0.0.0.0   – all interfaces, WebLogic exposed directly (no proxy)" \
+    "custom:Custom      – enter hostname or IP manually"
+
+if [ "${WLS_LISTEN_ADDRESS:-}" = "custom" ]; then
+    _ask WLS_LISTEN_ADDRESS "WLS listen address (FQDN or IP)" "$(_get_hostname)"
+fi
+
+printf "\n"
 _ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
     "Reports Server name(s)"  "repserver01"
 _ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
@@ -492,6 +507,7 @@ _show "WLS_ADMIN_PWD"        "****  → $(basename "$WLS_SEC_FILE")"
 _show "WLS_NODEMANAGER_PORT" "$WLS_NODEMANAGER_PORT"
 _show "WLS_FORMS_PORT"       "$WLS_FORMS_PORT"
 _show "WLS_REPORTS_PORT"     "$WLS_REPORTS_PORT"
+_show "WLS_LISTEN_ADDRESS"   "$WLS_LISTEN_ADDRESS"
 _show "REPORTS_SERVER_NAME"  "$REPORTS_SERVER_NAME  (primary)"
 for _s in "${REPORTS_SERVER_NAMES[@]:1}"; do
     _show "  + additional"  "$_s"
@@ -567,6 +583,8 @@ WLS_ADMIN_PORT="${WLS_ADMIN_PORT}"
 WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"
 WLS_FORMS_PORT="${WLS_FORMS_PORT}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT}"
+# localhost = NGINX reverse proxy (recommended); 0.0.0.0 = all interfaces (no proxy)
+WLS_LISTEN_ADDRESS="${WLS_LISTEN_ADDRESS}"
 REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
 REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
@@ -637,6 +655,7 @@ WLS_ADMIN_PORT="${WLS_ADMIN_PORT}"
 WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"
 WLS_FORMS_PORT="${WLS_FORMS_PORT}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT}"
+WLS_LISTEN_ADDRESS="${WLS_LISTEN_ADDRESS}"
 REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
 REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
