@@ -35,11 +35,22 @@ INSTALL_COMPONENTS=FORMS_AND_REPORTS   # or FORMS_ONLY / REPORTS_ONLY
 
 ### Mapping to installer INSTALL_TYPE
 
+> **Note:** The Oracle 14.1.2 docs do **not** clearly document the valid `INSTALL_TYPE`
+> strings for the silent response file.
+> The values `Complete`, `Forms`, `Reports` (used in 12c) are **rejected** with
+> `INST-07546: Unable to find install type`.
+> Reference: [OUI Silent Mode – Response Files (14.1.2)](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/ouirf/using-oracle-universal-installer-silent-mode.html#GUID-5F06D02F-6D71-45B9-BF41-5D5759D31958)
+>
+> **To determine the correct values:** start the graphical installer once with
+> `./fmw_14.1.2.0.0_fr_linux64.bin` — on the last screen before "Install",
+> click **Save Response File**. The generated file contains the exact
+> `INSTALL_TYPE` strings accepted by 14.1.2.
+
 | `INSTALL_COMPONENTS` | `INSTALL_TYPE` (response file) | What gets installed |
 |---|---|---|
-| `FORMS_AND_REPORTS` | `Complete` | `$ORACLE_HOME/forms/` + `$ORACLE_HOME/reports/` |
-| `FORMS_ONLY` | `Forms` | `$ORACLE_HOME/forms/` only |
-| `REPORTS_ONLY` | `Reports` | `$ORACLE_HOME/reports/` only |
+| `FORMS_AND_REPORTS` | **TBD** — verify from generated response file | `$ORACLE_HOME/forms/` + `$ORACLE_HOME/reports/` |
+| `FORMS_ONLY` | **TBD** — verify from generated response file | `$ORACLE_HOME/forms/` only |
+| `REPORTS_ONLY` | **TBD** — verify from generated response file | `$ORACLE_HOME/reports/` only |
 
 ### Key binaries per option
 
@@ -55,6 +66,22 @@ INSTALL_COMPONENTS=FORMS_AND_REPORTS   # or FORMS_ONLY / REPORTS_ONLY
 ---
 
 ## Without the Script (manual)
+
+### 0. Generate response file from graphical installer (one-time)
+
+The correct `INSTALL_TYPE` strings for 14.1.2 are not documented by Oracle.
+Run the graphical installer once to discover them:
+
+```bash
+export DISPLAY=:0.0   # or use X11 forwarding: ssh -X oracle@host
+$PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin
+```
+
+On the last screen (before clicking **Install**), click **Save Response File**
+and save to `/tmp/fr_install_reference.rsp`. This file contains the exact
+`INSTALL_TYPE` value strings for 14.1.2. Then click **Cancel** (no install needed).
+
+After discovering the values, update the mapping table above and the script.
 
 ### 1. Create response file
 
