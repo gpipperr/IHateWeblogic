@@ -338,13 +338,13 @@ section "Verification"
 
 OPATCH="$ORACLE_HOME/OPatch/opatch"
 
-# --- OPatch inventory ---------------------------------------------------------
+# --- OPatch version (sanity check only) --------------------------------------
+# Note: opatch lsinventory in 14.1.2 lists only interim patches, not base
+# products. Forms & Reports base install is tracked in OUI inventory, not
+# OPatch. Verification is done via directory/binary checks below.
 if [ -x "$OPATCH" ]; then
-    printf "\n" | tee -a "$LOG_FILE"
-    info "Running: opatch lsinventory | grep -iE \"forms|reports\""
-    "$OPATCH" lsinventory 2>&1 \
-        | grep -iE "forms|reports|installed" \
-        | tee -a "$LOG_FILE"
+    OPATCH_VER="$("$OPATCH" version 2>/dev/null | grep 'OPatch Version' | awk '{print $NF}')"
+    ok "$(printf "%-30s %s" "OPatch version:" "$OPATCH_VER")"
 else
     warn "OPatch not found at: $OPATCH"
 fi
