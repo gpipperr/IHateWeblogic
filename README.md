@@ -135,36 +135,32 @@ IHateWeblogic/
 │   └── ssl_cert/                    – Store certificate files here (PEM, JKS, p12)
 │
 ├── 09-Install/
-│   ├── README.md                    – Installation roadmap, architecture, script reference
-│   └── …
+│   ├── README.md                    – Installation roadmap, full script reference (Phase 0–5)
+│   ├── 01-setup-interview.sh        – Configuration interview → environment.conf
+│   ├── 00-root_os_network.sh        – Phase 0: hostname, hosts, chrony, SSH
+│   ├── 01-root_os_baseline.sh       – Phase 0: SELinux, kernel, THP → REBOOT
+│   ├── 02-root_os_packages.sh       – Phase 0: OS packages
+│   ├── 02b-root_os_java.sh          – Phase 0: Oracle JDK 21 + SecureRandom fix
+│   ├── 03-root_user_oracle.sh       – Phase 0: oracle user, dirs, sudo, repo handover
+│   ├── 04-root_nginx.sh             – Phase 0: Nginx install + proxy config
+│   ├── 05-root_nginx_ssl.sh         – Phase 0: SSL cert, TLS config
+│   ├── 04-oracle_pre_download.sh    – Phase 1: eDelivery ZIPs + getMOSPatch
+│   ├── 05-oracle_install_weblogic.sh – Phase 2: FMW Infrastructure silent install
+│   ├── 05-oracle_patch_weblogic.sh  – Phase 2: OPatch upgrade + WLS patches
+│   ├── 07-oracle_setup_repository.sh – Phase 4: RCU metadata schemas
+│   ├── 08-oracle_setup_domain.sh    – Phase 4: [TODO] WebLogic domain (WLST silent)
+│   └── docs/                        – Step-by-step detail documentation
 │
 └── 60-RCU-DB-19c/
-    ├── README.md                    – DB setup roadmap (OS → install → patch → create → audit)
+    ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
     ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
     ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
     ├── 02-db_patch_autoupgrade.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
     ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
     ├── 04-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
-    ├── 05-db_fmw_tablespace.sh      – Optional FMW_DATA tablespace pre-RCU
+    ├── 05-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
     ├── environment_db.conf.example  – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
     └── docs/                        – Step-by-step detail documentation
-    ├── install_lib.sh               – [TODO] Shared functions (response files, OPatch helpers)
-    ├── 01-setup-interview.sh        – [TODO] Configuration interview → environment.conf
-    ├── 00-root_user_oracle.sh       – [TODO] oracle user, groups, sudo, shell limits
-    ├── 01-root_set_os_parameter.sh  – [TODO] Packages, kernel params, JDK install
-    ├── 02-root_nginx.sh             – [TODO] Nginx install + proxy config from environment.conf
-    ├── 03-root_nginx_ssl.sh         – [TODO] SSL cert binding, TLS config, nginx reload
-    ├── 04-oracle_pre_checks.sh      – [TODO] Pre-install checks (calls 02-Checks scripts)
-    ├── 04-oracle_pre_download.sh    – [TODO] MOS download via getMOSPatch.jar
-    ├── 05-oracle_install_weblogic.sh – [TODO] FMW Infrastructure silent install
-    ├── 05-oracle_patch_weblogic.sh  – [TODO] OPatch update + WLS patches
-    ├── 06-oracle_install_forms_reports.sh – [TODO] Forms/Reports silent install
-    ├── 06-oracle_patch_forms_reports.sh   – [TODO] Forms/Reports patches
-    ├── 07-oracle_setup_repository.sh – [TODO] RCU: create FMW metadata schemas
-    ├── 08-oracle_setup_domain.sh    – [TODO] Domain creation (WLST silent)
-    ├── 09-oracle_configure.sh       – [TODO] Final config using existing 00-07 scripts
-    ├── 10-oracle_validate.sh        – [TODO] Full validation report
-    └── response_files/              – Response-file templates (filled from environment.conf)
 ```
 
 ## Common Flags
