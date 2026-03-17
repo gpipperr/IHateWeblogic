@@ -4,6 +4,13 @@
 **Runs as:** `oracle`
 **Phase:** 2 – WebLogic Installation
 
+> **Scope: FMW 14.1.2.0.0 only.**
+> This document describes the patching procedure for Oracle Fusion Middleware
+> **14.1.2** exclusively. Instructions found elsewhere that reference SPBAT,
+> Stack Patch Bundles (SPBs), or the `napply` / `opatch_auto` tools typically
+> originate from FMW 12.2.1.x guides and **do not apply here** — see the
+> [SPBAT note](#note-on-spbat-and-stack-patch-bundles) below.
+
 ---
 
 ## How to Find the Correct Patch Numbers
@@ -217,8 +224,6 @@ rm -rf /tmp/opatch_upgrade
 
 ---
 
----
-
 ## Patch 38566996 – UMS Bundle Patch 14.1.2.0.251022
 
 **Patch:** 38566996
@@ -385,8 +390,8 @@ opatch lspatches | grep 38566996   # must return nothing
 $ORACLE_HOME/OPatch/opatch lsinventory
 # Lists all applied patches with patch number and description
 
-$ORACLE_HOME/OPatch/opatch lsinventory | grep "33735326"
-# Each patch number must appear
+$ORACLE_HOME/OPatch/opatch lspatches | grep "38566996"
+# Expected: 38566996;Oracle UMS Bundle Patch 14.1.2.0.251022
 ```
 
 ---
@@ -407,3 +412,53 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep "33735326"
   do not apply separately
 - If an OPatch upgrade fails: see Doc ID 2759112.1 and check `/tmp/OraInstall<TIMESTAMP>/`
 - If a patch apply fails: check `$ORACLE_HOME/cfgtoollogs/opatch/` for detailed logs
+
+---
+
+## Note on SPBAT and Stack Patch Bundles
+
+**SPBAT (Stack Patch Bundle Automation Tool)** and **Stack Patch Bundles (SPBs)**
+are patching concepts from the **FMW 12.2.1.x** era and are **not required for
+FMW 14.1.2**.
+
+### Background
+
+In the 12.2.1.3/12.2.1.4 timeframe, Oracle FMW installations often combined many
+components (WLS, Coherence, ADF, JRF, SOA, MDS, …) in a single ORACLE_HOME, each
+with their own patch dependencies. Oracle introduced SPBs to consolidate dozens of
+patches into one bundle, and SPBAT to automate the complex sequencing and conflict
+resolution across all components.
+
+Doc ID 2657920.1 describes SPBAT — it is primarily a 12.2.1.x document.
+
+### Why SPBAT does not apply here
+
+For FMW 14.1.2, Oracle simplified the patch delivery model:
+
+- Patches are delivered as **CPU Bundle Patches** per component (e.g., `38566996`
+  for UMS/FMW Infrastructure), not as multi-component SPBs
+- Bundle patches are **cumulative** — applying the latest CPU bundle gives you all
+  previous fixes without needing to track prior patch sets
+- The standard `opatch apply` command is the correct and complete procedure
+- No SPBAT, no `opatch napply` with a patch list, no `opatch_auto`
+
+### What to do when you find old instructions referencing SPBAT
+
+Many installation guides found on blogs, Oracle documentation portals, and community
+sites were written for 12.2.1.4 and re-used for 14.x without updating. Indicators
+of outdated instructions:
+
+| What you see | What it means |
+|---|---|
+| References to SPBAT or SPB | Written for FMW 12.2.1.x |
+| `opatch napply` with a patch list file | FMW 12.2.1.x procedure |
+| Patch numbers in the format `3xxxxx` (6 digits) | Possibly pre-12.2.1.4 era |
+| `opatch_auto` / `bsu.sh` | WLS 10.x / 12.1.x era — ignore entirely |
+
+For FMW 14.1.2: follow the CPU page → MOS Doc ID → `opatch apply` workflow
+documented above. Verify against the current CPU release notes on MOS, as Oracle
+updates the patch numbers every quarter.
+
+> If MOS explicitly references SPBAT for a specific 14.1.2 patch, follow that
+> guidance — but verify the Doc ID is current and specific to 14.1.2, not a
+> copy-paste from 12.2.1.4 documentation.
