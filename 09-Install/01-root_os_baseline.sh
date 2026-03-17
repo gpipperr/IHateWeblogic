@@ -140,7 +140,7 @@ else
 
     if [ "$APPLY_MODE" -eq 1 ] && [ "$SELINUX_FILE_VAL" != "disabled" ]; then
         if askYesNo "Set SELINUX=disabled in $SELINUX_CFG?" "y"; then
-            backup_file "$SELINUX_CFG"
+            _run_root cp "$SELINUX_CFG" "${SELINUX_CFG}.bak_$(date +%Y%m%d_%H%M%S)"
             _run_root sed -i 's/^SELINUX=.*/SELINUX=disabled/' "$SELINUX_CFG"
             ok "SELinux set to disabled in config file"
             warn "REBOOT REQUIRED for SELinux change to take effect"
@@ -298,7 +298,7 @@ if [ "${#CONFLICT_FILES[@]}" -gt 0 ]; then
         if [ "$APPLY_MODE" -eq 1 ]; then
             for CF in "${CONFLICT_FILES[@]}"; do
                 if askYesNo "Comment out conflicting keys in $(basename "$CF")?" "y"; then
-                backup_file "$CF"
+                _run_root cp "$CF" "${CF}.bak_$(date +%Y%m%d_%H%M%S)"
                 for KEY in "${!SYSCTL_WANT[@]}"; do
                     WANT_VAL="${SYSCTL_WANT[$KEY]}"
                     if grep -qE "^[[:space:]]*${KEY}[[:space:]]*=" "$CF" 2>/dev/null; then
@@ -430,7 +430,7 @@ else
     info "  Add to /etc/fstab: tmpfs /dev/shm tmpfs rw,exec,size=${SHM_WANT_MB}M 0 0"
     if [ "$APPLY_MODE" -eq 1 ]; then
         if askYesNo "Update /dev/shm size in /etc/fstab to ${SHM_WANT_MB}M?" "y"; then
-            backup_file /etc/fstab
+            _run_root cp /etc/fstab "/etc/fstab.bak_$(date +%Y%m%d_%H%M%S)"
             if grep -q '/dev/shm' /etc/fstab; then
                 _run_root sed -i \
                     "s|.*tmpfs[[:space:]]*/dev/shm.*|tmpfs /dev/shm tmpfs rw,exec,size=${SHM_WANT_MB}M 0 0|" \
@@ -530,7 +530,7 @@ else
                 _run_root swapon "$SWAPFILE"
                 # Persist across reboots
                 if ! grep -q "$SWAPFILE" /etc/fstab 2>/dev/null; then
-                    backup_file /etc/fstab
+                    _run_root cp /etc/fstab "/etc/fstab.bak_$(date +%Y%m%d_%H%M%S)"
                     printf "%s none swap sw 0 0\n" "$SWAPFILE" \
                         | _run_root tee -a /etc/fstab > /dev/null
                     ok "Swapfile added to /etc/fstab (persistent)"
