@@ -104,30 +104,123 @@ before any domain is created.
 
 ## Without the Script (manual)
 
-### 1. Check current OPatch version
+### 1. Download OPatch upgrade patch (Patch 28186730)
+
+> **Important:** Since OPatch >= 13.6, OPatch is no longer updated by a plain unzip.
+> It must be installed via its own `opatch_generic.jar` installer (OUI tooling), so
+> that the OUI metadata is updated correctly. A plain unzip will work but leaves the
+> OUI inventory out of sync, which has caused upgrade issues.
+>
+> The correct download for FMW/WLS is **Patch 28186730** (not the generic 6880880).
+> When unzipped, it contains a `6880880/` subdirectory with `opatch_generic.jar`.
+
+Download via `04-oracle_pre_download.sh --apply --mos` (add `28186730` to
+`INSTALL_PATCHES` in `oracle_software_version.conf` temporarily), or manually from
+My Oracle Support: Patch 28186730.
+
+```bash
+# Staging directory after download:
+ls $PATCH_STORAGE/patches/28186730/
+# → p28186730_139422_Generic.zip  (or similar)
+
+# Unzip to a staging area
+mkdir -p /tmp/opatch_upgrade
+unzip -q $PATCH_STORAGE/patches/28186730/p28186730_*.zip -d /tmp/opatch_upgrade
+ls /tmp/opatch_upgrade/6880880/
+# → opatch_generic.jar  (plus supporting files)
+```
+
+### 2. Check current OPatch version
 
 ```bash
 $ORACLE_HOME/OPatch/opatch version
-# Required: ≥ 13.9.4.0.0 for FMW 14.1.2
+# Required for January 2026 CPU (Patch 38566996): ≥ 13.9.4.2.17
+# Installed by this step: 13.9.4.2.22
 ```
 
-### 2. Update OPatch
+### 3. Pre-requisite: check for patch 23335292
+
+The OPatch README requires checking whether patch `23335292` is installed in
+`ORACLE_HOME`. If present it must be rolled back **before** upgrading OPatch.
+Do **not** roll it back after the upgrade.
 
 ```bash
-# Backup existing OPatch
-mv $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak
+# Check if patch 23335292 is installed
+$ORACLE_HOME/OPatch/opatch lspatches | grep 23335292
 
-# Extract new OPatch (from PATCH_STORAGE/opatch/)
-unzip $PATCH_STORAGE/opatch/p6880880_*.zip -d $ORACLE_HOME
+# If found: rollback before proceeding
+$ORACLE_HOME/OPatch/opatch rollback -id 23335292
 
-# Verify new version
+# Wait 15–30 seconds after rollback before any further opatch operations
+sleep 20
+```
+
+### 4. Backup before upgrading OPatch
+
+> **There is no rollback mechanism for OPatch.** The only way to revert is to
+> restore from backup. Always back up before proceeding.
+
+```bash
+# Backup OPatch directory
+cp -a $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak_$(date +%Y%m%d)
+
+# Backup Central Inventory
+cp -a $ORACLE_BASE/oraInventory $ORACLE_BASE/oraInventory.bak_$(date +%Y%m%d)
+```
+
+### 5. Install new OPatch via opatch_generic.jar
+
+```bash
+# Standard installation
+$JDK_HOME/bin/java -jar /tmp/opatch_upgrade/6880880/opatch_generic.jar \
+    -silent \
+    oracle_home=$ORACLE_HOME
+
+# If using a custom oraInst.loc location:
+$JDK_HOME/bin/java -jar /tmp/opatch_upgrade/6880880/opatch_generic.jar \
+    -silent \
+    oracle_home=$ORACLE_HOME \
+    -invPtrLoc $ORACLE_BASE/oraInst.loc
+
+# If /tmp is mounted noexec (common in hardened environments):
+$JDK_HOME/bin/java \
+    -Djava.io.tmpdir=$ORACLE_BASE/tmp \
+    -jar /tmp/opatch_upgrade/6880880/opatch_generic.jar \
+    -silent \
+    oracle_home=$ORACLE_HOME
+```
+
+Log locations:
+- Success: `$ORACLE_BASE/oraInventory/logs/`
+- Failure: `/tmp/OraInstall<TIMESTAMP>/`  (or custom tmpdir)
+- On any issue: see Doc ID 2759112.1
+
+### 6. Verify new OPatch version
+
+```bash
 $ORACLE_HOME/OPatch/opatch version
+# Expected: OPatch Version: 13.9.4.2.22
+
+$ORACLE_HOME/OPatch/opatch lsinventory
 ```
 
-### 3. Run conflict check before patching
+### 7. Cleanup staging area
 
 ```bash
-for PATCH_NR in 33735326 34374498; do
+rm -rf /tmp/opatch_upgrade
+```
+
+> **Note on NGINST patches:** Patches 31101362, 29137924, and 29909359 are
+> already included in OPatch 13.9.4.2.22. Do **not** attempt to apply them
+> separately — they will cause an error. If they were applied previously, they
+> will remain in the inventory harmlessly.
+
+---
+
+### 8. Run conflict check before patching
+
+```bash
+for PATCH_NR in 30970477 30729380 31960987 32097167; do
     echo "=== Conflict check: $PATCH_NR ==="
     $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
         -phBaseDir $PATCH_STORAGE/patches/$PATCH_NR \
@@ -137,12 +230,21 @@ done
 
 All patches must show `OPatch succeeded` before proceeding.
 
-### 4. Apply patches in order
+### 9. Apply patches in order
+
+Patches must be applied in two groups matching the OPatch minimum version
+requirements (see `oracle_software_version.conf`):
+
+| Group | Patches | Min OPatch |
+|---|---|---|
+| 1 | 30970477, 30729380 | 13.9.4.0.0 |
+| 2 | 31960987, 32097167 | 13.9.4.2.4 |
 
 ```bash
-# Patches must be applied in the order listed in Oracle's readme
-for PATCH_NR in 33735326 34374498; do
+# Apply all patches in order
+for PATCH_NR in 30970477 30729380 31960987 32097167; do
     echo "=== Applying patch: $PATCH_NR ==="
+    mkdir -p /tmp/patch_apply
     unzip -q $PATCH_STORAGE/patches/$PATCH_NR/p${PATCH_NR}_*.zip \
         -d /tmp/patch_apply
     $ORACLE_HOME/OPatch/opatch apply \
@@ -150,10 +252,11 @@ for PATCH_NR in 33735326 34374498; do
         -silent \
         -jdk $JDK_HOME
     rm -rf /tmp/patch_apply
+    echo "=== Done: $PATCH_NR ==="
 done
 ```
 
-### 5. Verify patches
+### 10. Verify patches
 
 ```bash
 $ORACLE_HOME/OPatch/opatch lsinventory | grep -E "Patch [0-9]+"
@@ -163,14 +266,19 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep -E "Patch [0-9]+"
 
 ## What the Script Does
 
-- Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE` from `environment.conf`
-- Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_REGEXP` from `oracle_software_version.conf`
-- Checks current OPatch version; updates if older than what's in `PATCH_STORAGE/opatch/`
-- Locates patch zips in `PATCH_STORAGE/patches/<PATCH_NR>/`
-- Runs `opatch prereq CheckConflictAgainstOHWithDetail` for all patches first
+- Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE`, `ORACLE_BASE` from `environment.conf`
+- Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR` from `oracle_software_version.conf`
+- **OPatch upgrade** (if current version < `OPATCH_VERSION_MIN`):
+  - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
+  - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_BASE/oraInventory`
+  - Unzips Patch 28186730 to a temp directory
+  - Runs `opatch_generic.jar -silent oracle_home=...` to install new OPatch via OUI tooling
+  - Verifies the installed version matches `OPATCH_VERSION_MIN`
+  - Cleans up temp directory
+- **Conflict check** for all `INSTALL_PATCHES` before any apply
 - Aborts if any conflict is found
-- Applies patches in the order they appear in `INSTALL_PATCHES`
-- Verifies each patch in `opatch lsinventory` after apply
+- **Applies patches** in the order they appear in `INSTALL_PATCHES`
+- Verifies each patch appears in `opatch lsinventory` after apply
 - Generates a patch report: which patches were applied, which were already present
 
 ---
@@ -204,4 +312,13 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep "33735326"
 - At this stage no domain exists yet, so there are no servers to stop
 - Always run the conflict check (`prereq`) before `apply` — never skip it
 - Patch apply order matters: apply in the sequence specified in Oracle's Bundle Patch readme
-- If a patch fails: check `$ORACLE_HOME/cfgtoollogs/opatch/` for detailed logs
+- **OPatch upgrade uses `opatch_generic.jar`** — not a plain unzip. Since OPatch >= 13.6
+  the OUI metadata must be updated; a plain unzip bypasses this and can cause upgrade issues
+- **No rollback for OPatch** — there is no mechanism to revert to a previous OPatch version.
+  The only recovery is restoring from backup. Always back up before upgrading
+- **Patch 23335292 pre-check** is mandatory per the OPatch README: roll it back before
+  upgrading, wait 15–30 seconds, do not roll it back after the upgrade
+- **NGINST patches** 31101362, 29137924, 29909359: already included in OPatch 13.9.4.2.22,
+  do not apply separately
+- If an OPatch upgrade fails: see Doc ID 2759112.1 and check `/tmp/OraInstall<TIMESTAMP>/`
+- If a patch apply fails: check `$ORACLE_HOME/cfgtoollogs/opatch/` for detailed logs
