@@ -259,35 +259,6 @@ _ask_menu() {
     printf "  \033[32m  ✓  %s = %s\033[0m\n" "$var" "$key_val" | tee -a "$LOG_FILE"
 }
 
-# _encrypt_to_file  plaintext  out_file
-# Encrypt using machine UUID as key (same as weblogic_sec.sh).
-_encrypt_to_file() {
-    local plaintext="$1"
-    local out_file="$2"
-
-    local sys_id
-    sys_id="$(_get_system_identifier)"
-    if [ -z "$sys_id" ]; then
-        fail "Cannot determine system identifier for encryption"
-        return 1
-    fi
-
-    local tmp
-    tmp="$(mktemp)"
-    printf "%s\n" "$plaintext" > "$tmp"
-    if openssl des3 -pbkdf2 -salt \
-        -in "$tmp" -out "$out_file" \
-        -pass pass:"${sys_id}" 2>/dev/null; then
-        chmod 600 "$out_file"
-        rm -f "$tmp"
-        return 0
-    else
-        rm -f "$tmp"
-        fail "openssl encryption failed for $(basename "$out_file")"
-        return 1
-    fi
-}
-
 # =============================================================================
 # Validation helpers
 # =============================================================================
@@ -615,21 +586,19 @@ ok "environment.conf written: $ENV_CONF"
 # =============================================================================
 
 if [ -n "$WLS_ADMIN_PWD" ] && [ "$WLS_ADMIN_PWD" != "****" ]; then
-    if _encrypt_to_file "$WLS_ADMIN_PWD" "$WLS_SEC_FILE"; then
-        ok "WLS Admin password encrypted: $WLS_SEC_FILE"
-    fi
+    WLS_ADMIN_URL="t3://localhost:${WLS_ADMIN_PORT:-7001}"
+    save_weblogic_password "$WLS_ADMIN_USER" "$WLS_ADMIN_PWD" "$WLS_ADMIN_URL" "$WLS_SEC_FILE"
+    unset WLS_ADMIN_PWD
 fi
 
 if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
-    if _encrypt_to_file "$MOS_PWD" "$MOS_SEC_FILE"; then
-        ok "MOS password encrypted: $MOS_SEC_FILE"
-    fi
+    _write_secrets_file "$MOS_SEC_FILE" "MOS_USER=$MOS_USER" "MOS_PWD=$MOS_PWD"
+    unset MOS_PWD
 fi
 
 if [ -n "$DB_SYS_PWD" ] && [ "$DB_SYS_PWD" != "****" ]; then
-    if _encrypt_to_file "$DB_SYS_PWD" "$DB_SYS_SEC_FILE"; then
-        ok "DB SYS password encrypted: $DB_SYS_SEC_FILE"
-    fi
+    _write_secrets_file "$DB_SYS_SEC_FILE" "DB_SYS_PWD=$DB_SYS_PWD"
+    unset DB_SYS_PWD
 fi
 
 # =============================================================================

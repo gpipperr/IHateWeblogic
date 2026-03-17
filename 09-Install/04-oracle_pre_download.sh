@@ -257,38 +257,6 @@ _install_one() {
 # Helpers – MOS / getMOSPatch
 # =============================================================================
 
-# _load_mos_password
-# Decrypts mos_sec.conf.des3 (written by 01-setup-interview.sh).
-# Sets MOS_PASS on success; returns 1 on failure.
-_load_mos_password() {
-    if [ ! -f "$MOS_SEC_FILE" ]; then
-        fail "MOS password file not found: $MOS_SEC_FILE"
-        info "  Run first: 09-Install/01-setup-interview.sh --apply"
-        return 1
-    fi
-
-    local sys_id
-    sys_id="$(_get_system_identifier)"
-    if [ -z "$sys_id" ]; then
-        fail "Cannot determine system identifier for decryption"
-        return 1
-    fi
-
-    local plaintext
-    plaintext="$(openssl des3 -pbkdf2 -d -salt \
-        -in "$MOS_SEC_FILE" -pass pass:"${sys_id}" 2>/dev/null)"
-    local rc=$?
-
-    if [ "$rc" -ne 0 ] || [ -z "$plaintext" ]; then
-        fail "Cannot decrypt MOS password (rc=$rc) – wrong machine or corrupted file?"
-        return 1
-    fi
-
-    MOS_PASS="$plaintext"
-    ok "MOS password decrypted (${#MOS_PASS} characters)"
-    return 0
-}
-
 # _mos_download_one  patch_nr  dest_dir  [regexp]
 # Download one patch or OPatch via getMOSPatch.jar.
 # regexp (optional): passed as regexp= to getMOSPatch to restrict which files are downloaded.
@@ -319,14 +287,14 @@ _mos_download_one() {
         if [ -n "$gmp_regexp" ]; then
             java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
                 MOSUser="$MOS_USER" \
-                MOSPass="$MOS_PASS" \
+                MOSPass="$MOS_PWD" \
                 patch="$patch_nr" \
                 regexp="$gmp_regexp" \
                 download=all
         else
             java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
                 MOSUser="$MOS_USER" \
-                MOSPass="$MOS_PASS" \
+                MOSPass="$MOS_PWD" \
                 patch="$patch_nr" \
                 download=all
         fi
@@ -386,8 +354,8 @@ if $WGET_MODE; then
 fi
 
 if $MOS_MODE; then
-    [ -n "$MOS_USER" ] && ok "MOS_USER = $MOS_USER" \
-        || { fail "MOS_USER not set in environment.conf – run 09-Install/01-setup-interview.sh"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    [ -f "$MOS_SEC_FILE" ] && ok "mos_sec.conf.des3 found: $MOS_SEC_FILE" \
+        || { fail "MOS credentials not found: $MOS_SEC_FILE"; info "  Run first: 00-Setup/mos_sec.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
     command -v java >/dev/null 2>&1 && ok "java found: $(java -version 2>&1 | head -1)" \
         || { fail "java not installed (required for --mos)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 fi
@@ -542,10 +510,19 @@ if $MOS_MODE; then
 
     # --- Decrypt MOS password -------------------------------------------------
     section "MOS Authentication"
-    MOS_PASS=""
-    if ! _load_mos_password; then
+    unset MOS_USER MOS_PWD
+    if ! load_secrets_file "$MOS_SEC_FILE"; then
+        info "  Run first: 00-Setup/mos_sec.sh --apply"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
+    if [ -z "${MOS_PWD:-}" ]; then
+        fail "MOS_PWD not found in $MOS_SEC_FILE – re-run: 00-Setup/mos_sec.sh --apply"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    # MOS_USER from secrets file (overrides environment.conf if set there too)
+    [ -n "${MOS_USER:-}" ] && ok "MOS user: $MOS_USER" \
+        || { fail "MOS_USER not set – re-run: 00-Setup/mos_sec.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    ok "MOS password decrypted (${#MOS_PWD} characters)"
 
     MOS_ERRORS=0
 
@@ -580,8 +557,8 @@ if $MOS_MODE; then
     fi
 
     # Clear MOS password from memory
-    MOS_PASS="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    unset MOS_PASS
+    MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    unset MOS_PWD
 
     [ "$MOS_ERRORS" -gt 0 ] && { fail "$MOS_ERRORS MOS download(s) failed – check: $LOG_FILE"; EXIT_CODE=1; }
 

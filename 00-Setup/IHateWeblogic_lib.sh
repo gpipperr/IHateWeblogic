@@ -284,6 +284,90 @@ _get_system_identifier() {
     printf "%s" "$uuid"
 }
 
+# =============================================================================
+# Generic secret file helpers  (pipperr.de concept – same openssl des3 key)
+# =============================================================================
+
+# _write_secrets_file  des3_file  KEY=val [KEY2=val2 ...]
+# Creates a shell-sourceable encrypted file.  Each positional argument after
+# des3_file is written as:  export KEY="val"
+# Plaintext intermediate file is deleted immediately after encryption.
+_write_secrets_file() {
+    local des3_file="$1"; shift
+    local plaintext="${des3_file%.des3}"
+
+    local sys_id
+    sys_id="$(_get_system_identifier)"
+    if [ -z "$sys_id" ]; then
+        fail "Cannot determine system identifier for encryption"
+        return 1
+    fi
+
+    # Build shell-sourceable plaintext
+    : > "$plaintext"
+    chmod 600 "$plaintext"
+    local pair key val
+    for pair in "$@"; do
+        key="${pair%%=*}"
+        val="${pair#*=}"
+        printf 'export %s="%s"\n' "$key" "$val" >> "$plaintext"
+    done
+
+    openssl des3 -pbkdf2 -salt \
+        -in  "$plaintext" \
+        -out "$des3_file" \
+        -pass pass:"${sys_id}" > /dev/null 2>&1
+    local rc=$?
+    rm -f "$plaintext"
+
+    if [ "$rc" -ne 0 ]; then
+        fail "openssl encryption failed (rc=$rc)"
+        return 1
+    fi
+
+    chmod 600 "$des3_file"
+    ok "Secrets saved (encrypted): $des3_file"
+    return 0
+}
+
+# load_secrets_file  des3_file
+# Decrypts a file written by _write_secrets_file and sources it.
+# All export KEY="val" lines become available as shell variables.
+# Plaintext intermediate file is deleted immediately after sourcing.
+load_secrets_file() {
+    local des3_file="$1"
+    local plaintext="${des3_file%.des3}"
+
+    if [ ! -f "$des3_file" ]; then
+        fail "Encrypted secrets file not found: $des3_file"
+        return 1
+    fi
+
+    local sys_id
+    sys_id="$(_get_system_identifier)"
+    if [ -z "$sys_id" ]; then
+        fail "Cannot determine system identifier for decryption"
+        return 1
+    fi
+
+    openssl des3 -pbkdf2 -d -salt \
+        -in  "$des3_file" \
+        -out "$plaintext" \
+        -pass pass:"${sys_id}" > /dev/null 2>&1
+    local rc=$?
+
+    if [ "$rc" -ne 0 ]; then
+        rm -f "$plaintext"
+        fail "Decryption failed (rc=$rc) – wrong machine or corrupted file?"
+        return 1
+    fi
+
+    # shellcheck source=/dev/null
+    source "$plaintext"
+    rm -f "$plaintext"
+    return 0
+}
+
 # save_weblogic_password  wl_user  wl_password  [wl_admin_url]  [output_des3_file]
 # Writes weblogic_sec.conf, encrypts to .des3, deletes plaintext immediately.
 save_weblogic_password() {
