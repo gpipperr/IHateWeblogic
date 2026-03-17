@@ -46,15 +46,22 @@ inst_group=oinstall
 EOF
 ```
 
-### 3. Run the installer
+### 3. Set CV override and run the installer
+
+The CV (Configuration Validation) checker in the installer does not natively
+recognise Oracle Linux 9. Setting `CV_ASSUME_DISTID=OEL8` fixes the OS detection
+without skipping all prerequisite checks. Unset immediately after the installer exits.
 
 ```bash
+export CV_ASSUME_DISTID=OEL8
+
 $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
     -silent \
     -responseFile $PATCH_STORAGE/wls/wls_install.rsp \
     -invPtrLoc /u01/app/oracle/oraInst.loc \
-    -ignoreSysPrereqs \
     -jreLoc $JDK_HOME
+
+unset CV_ASSUME_DISTID
 ```
 
 Installation log: `$ORACLE_BASE/oraInventory/logs/`
@@ -74,21 +81,23 @@ ls -la $ORACLE_HOME/oracle_common/
 ## What the Script Does
 
 - Reads `ORACLE_HOME`, `ORACLE_BASE`, `JDK_HOME`, `PATCH_STORAGE` from `environment.conf`
-- Locates the FMW Infrastructure installer jar in `PATCH_STORAGE/wls/`
-- Generates the response file from a template (substituting `ORACLE_HOME`)
-- Checks that `ORACLE_HOME` is empty (prevents overwriting an existing install)
+- Reads `CV_ASSUME_DISTID`, `FMW_INFRA_FILENAME`, `FMW_INFRA_ZIP` from `oracle_software_version.conf`
+- Locates the FMW Infrastructure JAR in `$PATCH_STORAGE/wls/`; unzips from `FMW_INFRA_ZIP` if JAR not yet extracted
+- Generates the response file inline (substituting `ORACLE_HOME`, `ORACLE_BASE`)
+- Creates `$ORACLE_BASE/oraInst.loc` if not present
+- Checks that `ORACLE_HOME` does not yet exist (prevents overwriting an existing install)
+- Exports `CV_ASSUME_DISTID` for the duration of the installer run only; unsets afterwards
 - Runs the silent installer with `$JDK_HOME/bin/java`
-- Tails the installer log to stdout so progress is visible
 - After install: runs `opatch lsinventory` to verify
 - Cleans up the response file (contains no secrets, but good practice)
 
 ---
 
-## Response File Template
+## Response File
 
-Located at: `09-Install/response_files/wls_install.rsp.template`
-
-The script fills `ORACLE_HOME` from `environment.conf` at runtime.
+Generated at runtime from a heredoc inside the script.
+Written to `$PATCH_STORAGE/wls/wls_install.rsp` and deleted after the installer exits.
+`ORACLE_HOME` and `ORACLE_BASE` are substituted from `environment.conf`.
 
 ---
 
@@ -120,9 +129,13 @@ cat $ORACLE_HOME/inventory/registry.xml | grep "WLS"
 
 ## Notes
 
-- The `-ignoreSysPrereqs` flag is used because prerequisites are validated by
-  `04-oracle_pre_checks.sh` before this step — we do not need the installer's
-  own check to run again
+- `CV_ASSUME_DISTID=OEL8` is set only for the installer run and unset immediately
+  after — it is **not** written to `.bash_profile`. The value is read from
+  `oracle_software_version.conf` so it can be adjusted if Oracle certifies OL9
+  natively in a future release.
+- The `-ignoreSysPrereqs` flag is intentionally **not** used — `CV_ASSUME_DISTID`
+  is the targeted fix for the OS detection only; all other CV checks run normally.
+  Full prerequisite validation happens in `04-oracle_pre_checks.sh` beforehand.
 - Install time: approximately 10–15 minutes depending on disk speed
 - Do not run as root — installer must run as `oracle` user
 - If installation fails: check log in `$ORACLE_BASE/oraInventory/logs/`
