@@ -160,7 +160,7 @@ Phase 5 – Configuration & Validation (as oracle)
 | 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
 | 2 | `05-oracle_patch_weblogic.sh` | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
-| 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports silent install | [→ docs](docs/06-oracle_install_forms_reports.md) |
+| 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports 14.1.2 silent install (Complete / Forms / Reports) | [→ docs](docs/06-oracle_install_forms_reports.md) |
 | 3 | `06-oracle_patch_forms_reports.sh` | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
 | 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas | [→ docs](docs/07-oracle_setup_repository.md) |
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
@@ -413,7 +413,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 04-oracle_pre_download.sh          ← eDelivery + getMOSPatch download
 ├── 05-oracle_install_weblogic.sh      ← FMW Infrastructure 14.1.2 silent install
 ├── 05-oracle_patch_weblogic.sh        ← OPatch upgrade + WLS CPU patch apply
-├── 06-oracle_install_forms_reports.sh ← [TODO]
+├── 06-oracle_install_forms_reports.sh ← Phase 3: Forms/Reports silent install
 ├── 06-oracle_patch_forms_reports.sh   ← [TODO]
 ├── 07-oracle_setup_repository.sh      ← [TODO]
 ├── 08-oracle_setup_domain.sh          ← [TODO]
