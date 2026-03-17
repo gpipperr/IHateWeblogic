@@ -409,7 +409,7 @@ $DOWNLOAD_FR \
 if $MOS_MODE; then
     printf "\n" | tee -a "$LOG_FILE"
     info "MOS downloads:"
-    info "  OPatch  : patch $OPATCH_PATCH_NR → $PATCH_STORAGE/opatch/"
+    info "  OPatch upgrade (Patch ${OPATCH_UPGRADE_PATCH_NR:-28186730}) → $PATCH_STORAGE/patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/"
     IFS=',' read -ra _patch_list <<< "${INSTALL_PATCHES:-}"
     for _p in "${_patch_list[@]}"; do
         [ -n "$_p" ] && info "  Patch   : $_p → $PATCH_STORAGE/patches/$_p/"
@@ -549,13 +549,17 @@ if $MOS_MODE; then
 
     MOS_ERRORS=0
 
-    # --- OPatch ---------------------------------------------------------------
-    section "OPatch (patch $OPATCH_PATCH_NR)"
-    info "Minimum required version: $OPATCH_VERSION_MIN"
+    # --- OPatch Upgrade Patch (28186730) -------------------------------------
+    # Since OPatch >= 13.6, OPatch is upgraded via opatch_generic.jar (OUI tooling).
+    # Patch 28186730 is the FMW/WLS-specific package containing opatch_generic.jar.
+    # It downloads to patches/$OPATCH_UPGRADE_PATCH_NR/ – where 05-oracle_patch_weblogic.sh
+    # expects it. Patch 6880880 (raw OPatch files) is NOT used by the patch script.
+    section "OPatch Upgrade (patch ${OPATCH_UPGRADE_PATCH_NR:-28186730})"
+    info "Contains opatch_generic.jar for FMW/WLS OPatch upgrade (OUI tooling)"
+    info "Target version : ${OPATCH_VERSION_INSTALL:-13.9.4.2.22}  |  minimum required: ${OPATCH_VERSION_MIN:-13.9.4.2.17}"
 
-    OPATCH_DIR="$PATCH_STORAGE/opatch"
-    [ -n "${OPATCH_REGEXP:-}" ] && info "File filter (regexp): $OPATCH_REGEXP"
-    _mos_download_one "$OPATCH_PATCH_NR" "$OPATCH_DIR" "${OPATCH_REGEXP:-}" \
+    OPATCH_UPGRADE_DL_DIR="$PATCH_STORAGE/patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}"
+    _mos_download_one "${OPATCH_UPGRADE_PATCH_NR:-28186730}" "$OPATCH_UPGRADE_DL_DIR" \
         || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
 
     # --- Post-install patches -------------------------------------------------
@@ -582,10 +586,11 @@ if $MOS_MODE; then
     [ "$MOS_ERRORS" -gt 0 ] && { fail "$MOS_ERRORS MOS download(s) failed – check: $LOG_FILE"; EXIT_CODE=1; }
 
     printf "\n" | tee -a "$LOG_FILE"
-    info "Apply order after FMW installation:"
-    info "  1. Update OPatch:  java -jar \$PATCH_STORAGE/opatch/p6880880_*.zip"
-    info "  2. Verify:         \$ORACLE_HOME/OPatch/opatch version  (>= $OPATCH_VERSION_MIN)"
-    info "  3. Apply patches:  ${INSTALL_PATCHES:-see oracle_software_version.conf}"
+    info "After FMW installation – update OPatch and apply patches:"
+    info "  05-oracle_patch_weblogic.sh --apply"
+    info "  → OPatch upgrade via: patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/opatch_generic.jar"
+    info "  → Patches: ${INSTALL_PATCHES:-see oracle_software_version.conf}"
+    info "  See: 09-Install/docs/05-oracle_patch_weblogic.md"
 
 fi
 

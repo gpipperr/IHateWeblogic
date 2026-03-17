@@ -45,23 +45,36 @@ it contains no credentials.
 
 ![Oracle eDelivery – cart showing V1045121-01.zip listed twice under Forms and Reports](assets/edelivery_download_forms_reports_weblogic.jpg)
 
-### OPatch (getMOSPatch)
+### OPatch Upgrade (getMOSPatch)
 
 | Variable | Value | Description |
 |---|---|---|
-| `OPATCH_PATCH_NR` | `6880880` | Permanent MOS patch number for OPatch |
-| `OPATCH_VERSION_MIN` | `13.9.4.2.4` | Minimum version required by highest patch group |
+| `OPATCH_UPGRADE_PATCH_NR` | `28186730` | FMW/WLS OPatch upgrade package (contains `opatch_generic.jar`) |
+| `OPATCH_VERSION_INSTALL` | `13.9.4.2.22` | OPatch version installed by Patch 28186730 |
+| `OPATCH_VERSION_MIN` | `13.9.4.2.17` | Minimum version required by current CPU |
+
+> **Why Patch 28186730, not 6880880?** Since OPatch >= 13.6, OPatch must be installed
+> via its own `opatch_generic.jar` (OUI tooling) to keep the OUI metadata in sync.
+> A plain unzip of the raw OPatch files (Patch 6880880) still works mechanically but
+> leaves the inventory inconsistent. Patch 28186730 is the FMW/WLS-specific upgrade
+> package; when unzipped it contains a `6880880/` subdirectory with `opatch_generic.jar`.
+> See [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the full procedure.
 
 ### Post-Install Patches (getMOSPatch, in apply order)
 
-| Patch | Description | Requires OPatch |
-|---|---|---|
-| `30970477` | Security Patch – WebLogic Server 12.2.1.4 | ≥ 13.9.4.0 |
-| `30729380` | Patch – Coherence 12.2.1.4 | ≥ 13.9.4.0 |
-| `31960987` | Patch Set Update – WebLogic Server 12.2.1.4 | ≥ 13.9.4.2.4 |
-| `32097167` | Overlay Patch – WebLogic Server 12.2.1.4 | ≥ 13.9.4.2.4 |
+Patch numbers are determined by the Oracle CPU release cycle.
+The procedure for finding the correct current patch numbers is documented in:
 
-`INSTALL_PATCHES="30970477,30729380,31960987,32097167"` — apply in this order.
+→ **[05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md)** – WLS/FMW Infrastructure patches
+→ **[06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)** – Forms & Reports patches
+
+Current configuration in `oracle_software_version.conf`:
+
+| Variable | Value | Description |
+|---|---|---|
+| `INSTALL_PATCHES` | `38566996` | CPU Jan 2026 – UMS Bundle Patch 14.1.2.0.251022 |
+
+`INSTALL_PATCHES="38566996"` — apply in this order after OPatch upgrade.
 Always update OPatch **before** applying patches.
 
 ---
@@ -135,45 +148,42 @@ cp getMOSPatch.jar $PATCH_STORAGE/bin/
 
 Platform codes in `.getMOSPatch.cfg`: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
 
-### 3. Download OPatch
+### 3. Download OPatch upgrade patch (Patch 28186730)
 
 ```bash
-mkdir -p $PATCH_STORAGE/opatch
-cd $PATCH_STORAGE/opatch
+mkdir -p $PATCH_STORAGE/patches/28186730
+cd $PATCH_STORAGE/patches/28186730
 java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
     MOSUser="your.email@company.com" \
     MOSPass="your-mos-password" \
-    patch=6880880 download=all
+    patch=28186730 download=all
+# → downloads p28186730_139422_Generic.zip (or similar)
 ```
 
-### 4. Download individual patches
+### 4. Download CPU patches
+
+Determine current patch numbers first — see
+[05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) (Section "How to Find the Correct Patch Numbers").
 
 ```bash
-for PATCH_NR in 30970477 30729380 31960987 32097167; do
-    mkdir -p $PATCH_STORAGE/patches/$PATCH_NR
-    cd $PATCH_STORAGE/patches/$PATCH_NR
-    java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-        MOSUser="..." MOSPass="..." \
-        patch=$PATCH_NR download=all
-done
+# Current CPU Jan 2026:
+mkdir -p $PATCH_STORAGE/patches/38566996
+cd $PATCH_STORAGE/patches/38566996
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+    MOSUser="..." MOSPass="..." \
+    patch=38566996 download=all
 ```
 
 ### 5. Apply OPatch and patches (after FMW installation)
 
+OPatch upgrade and patch apply are handled by `05-oracle_patch_weblogic.sh`.
+See [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the full manual procedure.
+
 ```bash
-# 1. Update OPatch first
-cd $ORACLE_HOME
-java -jar $PATCH_STORAGE/opatch/p6880880_*.zip   # or: opatch/opatch_generic.jar
+# Automated (recommended):
+./09-Install/05-oracle_patch_weblogic.sh --apply
 
-# 2. Verify OPatch version
-$ORACLE_HOME/OPatch/opatch version
-# Must be >= 13.9.4.2.4
-
-# 3. Apply patches in order
-for PATCH_NR in 30970477 30729380 31960987 32097167; do
-    cd $PATCH_STORAGE/patches/$PATCH_NR
-    $ORACLE_HOME/OPatch/opatch apply
-done
+# Manual procedure: see docs/05-oracle_patch_weblogic.md
 ```
 
 ---
@@ -190,7 +200,8 @@ done
 - **getMOSPatch** (with `--mos` or `--all`):
   - Decrypts MOS password from `mos_sec.conf.des3` (written by `01-setup-interview.sh`)
   - Creates/verifies `$PATCH_STORAGE/bin/.getMOSPatch.cfg` (platform + language)
-  - Downloads OPatch (patch `6880880`) to `$PATCH_STORAGE/opatch/`
+  - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
+    (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
   - Skips patches already present in their target directory
   - Clears MOS password from memory after use
@@ -203,26 +214,28 @@ done
 ```
 $PATCH_STORAGE/
 ├── bin/
-│   ├── getMOSPatch.jar
-│   └── .getMOSPatch.cfg
+│   ├── getMOSPatch.jar           ← auto-downloaded from GitHub on first --mos run
+│   └── .getMOSPatch.cfg          ← platform (226P) + language (4L)
 ├── wls/
-│   ├── V1045135-01.zip
+│   ├── V1045135-01.zip           ← eDelivery: FMW Infrastructure 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_infrastructure.jar   ← extracted
 ├── fr/
-│   ├── V1045121-01.zip
+│   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted
-├── opatch/
-│   └── p6880880_<version>_Generic.zip
 └── patches/
-    ├── 30970477/
-    │   └── p30970477_*.zip
-    ├── 30729380/
-    │   └── p30729380_*.zip
-    ├── 31960987/
-    │   └── p31960987_*.zip
-    └── 32097167/
-        └── p32097167_*.zip
+    ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
+    │   └── p28186730_139422_Generic.zip     ← contains 6880880/opatch_generic.jar
+    └── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
+        └── p38566996_141200_Generic.zip
 ```
+
+> **Note:** The `opatch/` directory from older versions of this guide no longer exists.
+> Patch 28186730 (in `patches/28186730/`) replaces the direct download of Patch 6880880.
+> The `05-oracle_patch_weblogic.sh` script unzips Patch 28186730 and uses the
+> `6880880/opatch_generic.jar` inside it for the OPatch upgrade.
+>
+> Patch numbers for future CPU releases change quarterly — see
+> [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the discovery workflow.
 
 ---
 
@@ -261,6 +274,8 @@ $PATCH_STORAGE/
 - `getMOSPatch.jar` is downloaded automatically from GitHub on first use (`wget` or `curl` required)
 - MOS account requires an active Oracle support contract
 - eDelivery account may require a separate registration at edelivery.oracle.com
-- Always update OPatch **before** applying any patches
-- Check each patch README for prerequisites and conflict checks
-- OPatch minimum versions: Group 1 (30970477, 30729380) ≥ 13.9.4.0 · Group 2 (31960987, 32097167) ≥ 13.9.4.2.4
+- Always update OPatch (Patch 28186730) **before** applying any CPU patches
+- OPatch upgrade uses `opatch_generic.jar` (OUI tooling) — not a plain unzip of Patch 6880880
+- Patch numbers for WLS/FMW patches: → [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md)
+- Patch numbers for Forms & Reports patches: → [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)
+- Current OPatch minimum for CPU Jan 2026: ≥ 13.9.4.2.17 (installed: 13.9.4.2.22 via Patch 28186730)
