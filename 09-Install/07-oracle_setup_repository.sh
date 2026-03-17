@@ -142,6 +142,19 @@ section "Schema Configuration"
 printList "Connect string"  28 "${DB_HOST}:${DB_PORT}:${DB_SERVICE}"
 printList "DB user"         28 "sys (SYSDBA)"
 printList "Schema prefix"   28 "$DB_SCHEMA_PREFIX"
+
+# --- Tablespace flags (optional) ----------------------------------------------
+RCU_TS_FLAGS=()
+if [ -n "${RCU_TABLESPACE:-}" ]; then
+    RCU_TS_FLAGS=( -tablespace "$RCU_TABLESPACE" -tempTablespace "${RCU_TEMP_TABLESPACE:-TEMP}" )
+    ok "$(printf "%-28s %s" "RCU_TABLESPACE:"      "$RCU_TABLESPACE")"
+    ok "$(printf "%-28s %s" "RCU_TEMP_TABLESPACE:" "${RCU_TEMP_TABLESPACE:-TEMP}")"
+    info "  → DBA must have pre-created tablespace '$RCU_TABLESPACE' before running RCU"
+else
+    info "RCU_TABLESPACE not set – RCU will create its own tablespaces automatically"
+    info "  (set RCU_TABLESPACE in environment.conf for a DBA-managed tablespace)"
+fi
+
 printf "\n" | tee -a "$LOG_FILE"
 info "Schemas that will be $( $DROP && printf 'DROPPED' || printf 'created' ):"
 for _c in "${RCU_COMPONENTS[@]}"; do
@@ -261,6 +274,7 @@ printf "  Prefix     : %s\n\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
     -dbUser sys \
     -dbRole sysdba \
     -schemaPrefix "$DB_SCHEMA_PREFIX" \
+    "${RCU_TS_FLAGS[@]}" \
     "${RCU_COMP_FLAGS[@]}" \
     -f < "$RCU_PW_FILE" \
     2>&1 | tee -a "$LOG_FILE"

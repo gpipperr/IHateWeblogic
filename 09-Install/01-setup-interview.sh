@@ -433,6 +433,13 @@ _ask DB_SERVICE       "Database service name"     ""
 _ask DB_SCHEMA_PREFIX "RCU schema prefix"         "DEV"
 
 printf "\n"
+info "RCU tablespace: leave empty → RCU creates its own tablespaces automatically"
+info "  Set only if DBA pre-creates a dedicated tablespace (e.g. FMW_DATA)"
+info "  See: 09-Install/docs/07-oracle_setup_repository.md"
+_ask RCU_TABLESPACE      "RCU data tablespace (optional)" "" "" "optional"
+_ask RCU_TEMP_TABLESPACE "RCU temp tablespace"            "TEMP"
+
+printf "\n"
 info "DB SYS + FMW schema passwords → encrypted to: db_sys_sec.conf.des3"
 info "  DB_SYS_PWD    – SYS password, used only for RCU (one-time)"
 info "  DB_SCHEMA_PWD – assigned to all FMW schemas (DEV_STB, DEV_MDS, …)"
@@ -492,6 +499,8 @@ _show "DB_HOST"              "$DB_HOST"
 _show "DB_PORT"              "$DB_PORT"
 _show "DB_SERVICE"           "$DB_SERVICE"
 _show "DB_SCHEMA_PREFIX"     "$DB_SCHEMA_PREFIX"
+_show "RCU_TABLESPACE"       "${RCU_TABLESPACE:-(empty – RCU auto-creates)}"
+_show "RCU_TEMP_TABLESPACE"  "$RCU_TEMP_TABLESPACE"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "MOS_USER"             "$MOS_USER"
@@ -570,7 +579,12 @@ DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"
 DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
-# DB_SYS_PWD → encrypted: db_sys_sec.conf.des3 (used only for RCU)
+# RCU_TABLESPACE: empty = RCU creates its own tablespaces automatically
+# Set to a DBA-pre-created tablespace name for enterprise/production installs
+# See: 09-Install/docs/07-oracle_setup_repository.md
+RCU_TABLESPACE="${RCU_TABLESPACE}"
+RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
+# DB_SYS_PWD + DB_SCHEMA_PWD → encrypted: db_sys_sec.conf.des3
 LOCAL_REP_DB="false"
 
 # --- My Oracle Support --------------------------------------------------------
@@ -639,10 +653,12 @@ DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"
 DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
+RCU_TABLESPACE="${RCU_TABLESPACE}"
+RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
 MOS_USER="${MOS_USER}"
-# WLS_ADMIN_PWD → weblogic_sec.conf.des3
-# MOS_PWD       → mos_sec.conf.des3
-# DB_SYS_PWD    → db_sys_sec.conf.des3
+# WLS_ADMIN_PWD  → weblogic_sec.conf.des3
+# MOS_PWD        → mos_sec.conf.des3
+# DB_SYS_PWD + DB_SCHEMA_PWD → db_sys_sec.conf.des3
 # Software versions / patch numbers → 09-Install/oracle_software_version.conf
 SETUPEOF
 

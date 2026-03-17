@@ -726,6 +726,9 @@ if $APPLY; then
         _append_if_missing "DB_PORT"               "$CONF_DB_PORT"
         _append_if_missing "DB_SERVICE"            "$CONF_DB_SERVICE"
         _append_if_missing "DB_SERVER"             "$CONF_DB_SERVER"
+        _append_if_missing "DB_SCHEMA_PREFIX"      ""
+        _append_if_missing "RCU_TABLESPACE"        ""
+        _append_if_missing "RCU_TEMP_TABLESPACE"   "TEMP"
         _append_if_missing "SQLPLUS_BIN"           ""
         _append_if_missing "SEC_CONF_DB"           "\${ROOT_DIR}/db_connect.conf.des3"
         _append_if_missing "LOCAL_REP_DB"          "false"
@@ -804,8 +807,15 @@ DB_HOST="${CONF_DB_HOST}"
 DB_PORT="${CONF_DB_PORT}"
 DB_SERVICE="${CONF_DB_SERVICE}"
 DB_SERVER="${CONF_DB_SERVER}"
+DB_SCHEMA_PREFIX=""  # prefix for FMW RCU schemas (e.g. DEV, PROD)
 SQLPLUS_BIN=""       # optional: /path/to/sqlplus
 SEC_CONF_DB="\${ROOT_DIR}/db_connect.conf.des3"
+
+# --- RCU Tablespace (07-oracle_setup_repository.sh) --------------------------
+# Leave empty → RCU creates its own tablespaces automatically (dev/test/QA).
+# Set to an existing tablespace name → all FMW schemas share it (enterprise/prod).
+RCU_TABLESPACE=""
+RCU_TEMP_TABLESPACE="TEMP"
 
 # LOCAL_REP_DB: true if an Oracle DB runs on THIS host alongside WebLogic.
 # false → conflicting preinstall sysctl values are flagged/removed.
