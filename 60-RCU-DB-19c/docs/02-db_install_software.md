@@ -34,13 +34,40 @@ No database is created in this step — software only.
 ### Manual download steps
 
 1. Log in at **https://edelivery.oracle.com** with your Oracle account
-2. Search for: `Oracle Database 19c` → Platform: `Linux x86-64`
-3. Add to cart: **Oracle Database 19.3.0.0.0 for Linux x86-64**
-   - Part number: `V982063-01`
-   - File: `LINUX.X64_193000_db_home.zip`
-   - Size: ~3 GB
-4. Accept the license agreement and download
-5. Transfer to the server (scp / sftp)
+2. Search for one of:
+   - `Oracle Database 19c Standard Edition 2 19.3.0.0.0` — sufficient for RCU-only use
+   - `Oracle Database 19c Enterprise Edition 19.3.0.0.0` — if you have an EE license
+3. Select Platform: **Linux x86-64** and add to cart
+4. Select: **Oracle Database 19.3.0.0.0 - Long Term Release**
+5. Accept the license agreement and download
+
+![Oracle eDelivery – 19c Download Queue](asset/Download_edelivery_oracle_19_base_installation.jpg)
+
+> EE and SE2 deliver **the same ZIP file** with the same checksums.
+> The edition is determined by the license, not by the binary.
+
+### File details
+
+| Field | Value |
+|---|---|
+| Part number | `V982063-01` |
+| Filename | `V982063-01.zip` → extract as `LINUX.X64_193000_db_home.zip` |
+| Size | 2.8 GB |
+| Platform | Linux x86-64 |
+| Applies to | EE 19.3.0.0.0 and SE2 19.3.0.0.0 (identical file) |
+| SHA-1 | `1F3ACEFFB3821464ED46E73A821CF07E5D2686E6` |
+| SHA-256 | `BA8329C757133DA313ED3B6D7F86C5AC42CD9970A28BF2E6233F3235233AA8D8` |
+
+Verify before installing:
+```bash
+sha256sum V982063-01.zip
+# Expected: ba8329c757133da313ed3b6d7f86c5ac42cd9970a28bf2e6233f3235233aa8d8
+```
+
+6. Transfer to the server (scp / sftp) and rename:
+```bash
+scp V982063-01.zip oracle@dbserver:/srv/patch_storage/database/LINUX.X64_193000_db_home.zip
+```
 
 ### Target path on the server
 
