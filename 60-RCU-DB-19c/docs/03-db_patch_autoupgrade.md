@@ -184,3 +184,13 @@ DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.24.0/db_home1 — target (pa
 DB_AUTOUPGRADE_HOME     # ${ORACLE_BASE}/autoupgrade
 MOS_SEC_FILE            # path to mos_sec.conf.des3 (shared with 09-Install)
 ```
+
+---
+
+## References
+
+| Document | URL |
+|---|---|
+| AutoUpgrade direct download from oracle.com | https://mikedietrichde.com/2024/11/21/download-autoupgrade-directly-from-oracle-com/ |
+| AutoUpgrade patching feature (create_home) | https://mikedietrichde.com/2024/10/28/autoupgrades-patching-the-feature-you-waited-for/ |
+| AutoUpgrade / Patch Automation 19c (pipperr.de) | https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c |
