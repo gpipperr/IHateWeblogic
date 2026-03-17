@@ -201,8 +201,9 @@ SHOW PARAMETER pga_aggregate_target;
 ## environment_db.conf Variables Used
 
 ```bash
-DB_ORACLE_HOME      # e.g. /u01/app/oracle/product/19c/dbhome_1
-DB_BASE             # e.g. /u01/app/oracle
+ORACLE_BASE         # /u01/app/oracle — shared with FMW
+DB_ORACLE_HOME      # ${ORACLE_BASE}/product/19.24.0/db_home1 — patched home
+DB_ADMIN_DIR        # ${ORACLE_BASE}/admin  — audit dump dir
 DB_DATA_DIR         # e.g. /u01/app/oracle/oradata
 DB_SID              # e.g. FMWCDB
 DB_CDB_NAME         # e.g. FMWCDB

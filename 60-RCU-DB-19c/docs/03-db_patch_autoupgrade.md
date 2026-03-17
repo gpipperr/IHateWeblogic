@@ -178,8 +178,9 @@ $DB_ORACLE_HOME/OPatch/opatch version
 ## environment_db.conf Variables Used
 
 ```bash
-DB_ORACLE_HOME          # patched target home
-DB_ORACLE_HOME_BASE     # unpatched source home (19.3 base)
-DB_BASE                 # $ORACLE_BASE — autoupgrade lives here
+ORACLE_BASE             # /u01/app/oracle — shared with FMW
+DB_ORACLE_HOME_BASE     # ${ORACLE_BASE}/product/19.3.0/db_home1  — source (unpatched)
+DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.24.0/db_home1 — target (patched)
+DB_AUTOUPGRADE_HOME     # ${ORACLE_BASE}/autoupgrade
 MOS_SEC_FILE            # path to mos_sec.conf.des3 (shared with 09-Install)
 ```

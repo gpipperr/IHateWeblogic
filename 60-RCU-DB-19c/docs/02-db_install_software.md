@@ -39,15 +39,21 @@ can download 19c software. Alternatively, download manually via
 
 ### 1. Create ORACLE_HOME directory
 
+The 19c base install goes under `ORACLE_BASE/product/19.3.0/db_home1`:
+
 ```bash
-mkdir -p "$DB_ORACLE_HOME"
-chmod 775 "$DB_ORACLE_HOME"
+# DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
+mkdir -p "$DB_ORACLE_HOME_BASE"
+chmod 775 "$DB_ORACLE_HOME_BASE"
 ```
+
+After AutoUpgrade patching (step 2), the active ORACLE_HOME becomes
+`$ORACLE_BASE/product/19.XX.0/db_home1` (`DB_ORACLE_HOME`).
 
 ### 2. Unzip into ORACLE_HOME
 
 ```bash
-unzip -q "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME"
+unzip -q "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME_BASE"
 ```
 
 The 19c ZIP extracts directly into the target directory (unlike the old
@@ -55,14 +61,18 @@ runInstaller-with-stage approach).
 
 ### 3. Run installer (software-only)
 
+> **ORACLE_HOME must be set explicitly here** — the oracle user's `.bash_profile`
+> points to `FMW_HOME`, not to the DB home.  All scripts use `DB_ORACLE_HOME_BASE`
+> to avoid any ambiguity.
+
 ```bash
-"$DB_ORACLE_HOME/runInstaller" \
+"$DB_ORACLE_HOME_BASE/runInstaller" \
     -silent \
     -ignorePrereqFailure \
     -waitforcompletion \
     oracle.install.option=INSTALL_DB_SWONLY \
-    ORACLE_BASE="$DB_BASE" \
-    ORACLE_HOME="$DB_ORACLE_HOME" \
+    ORACLE_BASE="$ORACLE_BASE" \
+    ORACLE_HOME="$DB_ORACLE_HOME_BASE" \
     ORACLE_HOME_NAME="OraDB19Home1" \
     oracle.install.db.InstallEdition=EE \
     oracle.install.db.OSDBA_GROUP=dba \
@@ -70,16 +80,19 @@ runInstaller-with-stage approach).
     oracle.install.db.OSBACKUPDBA_GROUP=dba \
     oracle.install.db.OSDGDBA_GROUP=dba \
     oracle.install.db.OSKMDBA_GROUP=dba \
-    oracle.install.db.OSRACDBA_GROUP=dba \
+    oracle.install.db.OSKMDBA_GROUP=dba \
     SECURITY_UPDATES_VIA_MYORACLESUPPORT=false \
     DECLINE_SECURITY_UPDATES=true \
     2>&1 | tee -a "$LOG_FILE"
 ```
 
+> SE2 alternative: change `InstallEdition=EE` to `InstallEdition=SE2`
+> (sufficient for a single-PDB RCU-only database; see `docs/00-concept.md`).
+
 ### 4. Run root scripts (as root)
 
 ```bash
-$DB_ORACLE_HOME/root.sh
+"$DB_ORACLE_HOME_BASE/root.sh"
 ```
 
 The script prompts for this and pauses until confirmed.
@@ -101,8 +114,8 @@ $DB_ORACLE_HOME/bin/sqlplus -V
 ## environment_db.conf Variables Used
 
 ```bash
-DB_ORACLE_HOME       # target ORACLE_HOME for 19c DB software
-DB_BASE              # ORACLE_BASE (/u01/app/oracle)
+ORACLE_BASE          # /u01/app/oracle — shared with FMW (from environment.conf)
+DB_ORACLE_HOME_BASE  # ${ORACLE_BASE}/product/19.3.0/db_home1  — base install target
 DB_INSTALL_ARCHIVE   # path to LINUX.X64_193000_db_home.zip
 ```
 

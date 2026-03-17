@@ -103,12 +103,66 @@ OLAP and Real Application Testing are never needed for FMW metadata storage.
 | `environment_db.conf` | DB-internal settings (ORACLE_HOME, SID, sizing) | 60-RCU-DB-19c scripts only |
 
 The two files share:
+- `ORACLE_BASE` (must match — both use `/u01/app/oracle`)
 - `ROOT_DIR` (project root)
 - `00-Setup/IHateWeblogic_lib.sh` (logging, ok/warn/fail)
 
-They do **not** share ORACLE_HOME.  The oracle user's `.bash_profile` continues
-to point to `FMW_HOME` as `ORACLE_HOME`.  The DB scripts source
-`environment_db.conf` and set `ORACLE_HOME` locally within the script scope.
+### ORACLE_HOME: the ambiguous variable
+
+`ORACLE_HOME` is an Oracle convention that means different things in different
+contexts.  On a host running both FMW and a DB, the oracle user has exactly
+one `$ORACLE_HOME` in `.bash_profile` — which must be set to FMW_HOME for
+the WLS scripts to work.
+
+**Rule: never use bare `$ORACLE_HOME` in the DB scripts.**
+
+The DB scripts use `DB_ORACLE_HOME` as an explicit variable (sourced from
+`environment_db.conf`).  All oracle binary calls use the full path:
+
+```bash
+# Wrong — reads oracle user's .bash_profile ORACLE_HOME (= FMW!)
+$ORACLE_HOME/bin/dbca ...
+
+# Correct — always explicit
+$DB_ORACLE_HOME/bin/dbca ...
+$DB_ORACLE_HOME/bin/sqlplus ...
+$DB_ORACLE_HOME/OPatch/opatch ...
+```
+
+The ORACLE_HOME environment variable is set **within script scope only**:
+
+```bash
+source "$SCRIPT_DIR/../environment_db.conf"
+export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
+# ... run DB commands ...
+# ORACLE_HOME reverts when script exits
+```
+
+### Directory layout on a shared host
+
+```
+ORACLE_BASE=/u01/app/oracle                 (shared — same in both conf files)
+├── fmw/                                    ← FMW_HOME  (09-Install)
+│   ├── wlserver/
+│   └── oracle_common/ forms/ reports/ ...
+├── product/
+│   ├── 19.3.0/db_home1/                   ← DB_ORACLE_HOME_BASE (base install)
+│   └── 19.24.0/db_home1/                  ← DB_ORACLE_HOME (patched, AutoUpgrade)
+├── oradata/
+│   └── FMWCDB/
+│       ├── system01.dbf  sysaux01.dbf ...  ← CDB datafiles
+│       └── FMWPDB/
+│           └── system01.dbf  ...           ← PDB datafiles
+├── admin/
+│   └── FMWCDB/adump/                      ← audit dump (traditional)
+└── diag/                                  ← Oracle ADR (automatic)
+    └── rdbms/fmwcdb/FMWCDB/
+        ├── alert/                          ← alert log
+        └── trace/                          ← trace files
+```
+
+`/u01/app/oraInventory/` is shared between FMW and DB — Oracle handles this
+automatically, no conflict.
 
 Bridge between the two: after the PDB is running, the DBA (or the install
 engineer) sets in `environment.conf`:

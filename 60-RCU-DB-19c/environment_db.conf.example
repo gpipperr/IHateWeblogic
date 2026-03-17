@@ -5,16 +5,39 @@
 # chmod 600 environment_db.conf
 #
 # This file is SEPARATE from environment.conf (FMW/WLS).
-# The two files share ROOT_DIR and the lib, but no variables overlap.
+# Both files share ORACLE_BASE and IHateWeblogic_lib.sh, nothing else.
+#
+# Directory convention (same ORACLE_BASE, separate product subtrees):
+#   ORACLE_BASE/fmw/                    ← FMW_HOME  (FMW 14.1.2 software)
+#   ORACLE_BASE/product/19.3.0/db_home1 ← DB base install (unpatched)
+#   ORACLE_BASE/product/19.XX.0/db_home1← DB patched home (DB_ORACLE_HOME)
+#   ORACLE_BASE/oradata/FMWCDB/         ← DB data files
+#   ORACLE_BASE/diag/rdbms/fmwcdb/...  ← Oracle ADR (automatic)
 #
 # Bridge to FMW: after the PDB is running, set in environment.conf:
 #   DB_HOST=...  DB_PORT=1521  DB_SERVICE=FMWPDB
 # =============================================================================
 
-# --- Oracle Base and Homes ---------------------------------------------------
-DB_BASE="/u01/app/oracle"
-DB_ORACLE_HOME="${DB_BASE}/product/19c/dbhome_1"    # patched target home
-DB_ORACLE_HOME_BASE="${DB_BASE}/product/19c/19base"  # unpatched 19.3 base home
+# --- Oracle Base (shared with FMW — must match ORACLE_BASE in environment.conf) ---
+ORACLE_BASE="/u01/app/oracle"
+
+# --- Oracle Homes -------------------------------------------------------------
+# Base install: unpatched 19.3.0 (extracted from LINUX.X64_193000_db_home.zip)
+DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
+
+# Patched home: created by AutoUpgrade -mode create_home
+# Replace 19.24.0 with the actual RU version you apply.
+DB_ORACLE_HOME="${ORACLE_BASE}/product/19.24.0/db_home1"
+
+# --- Storage (all under ORACLE_BASE for clean separation from FMW) -----------
+DB_DATA_DIR="${ORACLE_BASE}/oradata"          # datafiles:  ORACLE_BASE/oradata/FMWCDB/
+DB_ADMIN_DIR="${ORACLE_BASE}/admin"           # audit dump: ORACLE_BASE/admin/FMWCDB/adump/
+# Oracle ADR (diag/rdbms/...) is placed automatically under ORACLE_BASE
+# when DIAGNOSTIC_DEST is left at its default (= ORACLE_BASE).
+# No explicit variable needed — set automatically by Oracle.
+
+DB_FAST_RECOVERY_AREA=""                      # leave empty — NOARCHIVELOG for dev
+#DB_FAST_RECOVERY_AREA="${ORACLE_BASE}/fast_recovery_area"  # enable for production
 
 # --- Database Identity -------------------------------------------------------
 DB_SID="FMWCDB"
@@ -22,26 +45,13 @@ DB_CDB_NAME="FMWCDB"
 DB_PDB_NAME="FMWPDB"
 
 # --- Memory ------------------------------------------------------------------
-# Use SGA_TARGET + PGA_AGGREGATE_TARGET (works with and without HugePages).
+# SGA_TARGET + PGA_AGGREGATE_TARGET (works with and without HugePages).
 # Do NOT use MEMORY_TARGET (AMM) when HugePages are active.
 #
-# SGA minimum for stable RCU PL/SQL compilation: 1536 MB
-# PGA minimum for parallel RCU sessions:          512 MB
-# Total: ~2 GB RAM reserved for the database
+# Minimum for stable RCU PL/SQL compilation:
+#   SGA: 1536 MB   PGA: 512 MB   Total: ~2 GB
 DB_SGA_MB=1536
 DB_PGA_MB=512
-
-# --- Storage -----------------------------------------------------------------
-DB_DATA_DIR="${DB_BASE}/oradata"         # datafile location
-DB_FAST_RECOVERY_AREA=""                 # leave empty – archivelog OFF for dev
-
-# --- Listener ----------------------------------------------------------------
-DB_LISTENER_PORT=1521
-
-# --- Character Set -----------------------------------------------------------
-# AL32UTF8 is required by FMW – do not change
-DB_CHAR_SET="AL32UTF8"
-DB_NCHAR_SET="AL16UTF16"
 
 # --- Processes / Cursors -----------------------------------------------------
 # RCU pre-check RCU-6107 requires open_cursors >= 400; set 1000 to be safe.
@@ -49,8 +59,16 @@ DB_NCHAR_SET="AL16UTF16"
 DB_PROCESSES=500
 DB_OPEN_CURSORS=1000
 
+# --- Listener ----------------------------------------------------------------
+DB_LISTENER_PORT=1521
+
+# --- Character Set -----------------------------------------------------------
+# AL32UTF8 is required by FMW — do not change.
+DB_CHAR_SET="AL32UTF8"
+DB_NCHAR_SET="AL16UTF16"
+
 # --- Archivelog --------------------------------------------------------------
-# false for dev/test (saves disk, not needed for metadata-only DB)
+# false for dev/test (saves disk — metadata-only DB needs no point-in-time recovery)
 # true  for production (set DB_FAST_RECOVERY_AREA as well)
 DB_ARCHIVELOG=false
 
@@ -67,8 +85,8 @@ DB_FMW_TABLESPACE=""               # e.g. FMW_DATA
 DB_FMW_TABLESPACE_SIZE_MB=500      # initial size
 
 # --- AutoUpgrade / Patching (02-db_patch_autoupgrade.sh) ---------------------
-DB_AUTOUPGRADE_HOME="${DB_BASE}/autoupgrade"
-DB_TARGET_RU="19.CURRENT"          # or fixed: 19.24
+DB_AUTOUPGRADE_HOME="${ORACLE_BASE}/autoupgrade"
+DB_TARGET_RU="19.CURRENT"          # or fixed RU: 19.24
 MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 
 # --- Install Archive (01-db_install_software.sh) -----------------------------
