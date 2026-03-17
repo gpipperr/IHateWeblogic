@@ -119,3 +119,11 @@ DB_SERVICE=FMWPDB   # PDB service name
 | [docs/03-db_patch_autoupgrade.md](docs/03-db_patch_autoupgrade.md) | AutoUpgrade patch + chopt |
 | [docs/04-db_create_database.md](docs/04-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
 | [docs/05-db_audit_setup.md](docs/05-db_audit_setup.md) | Unified Auditing setup |
+
+---
+
+## References
+
+- [FMW 14.1.2 System Requirements](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html#GUID-A5BAA99B-E383-4063-9EF7-BA963CF472A1)
+- [FMW 14.1.2 RCU Guide](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD)
+- FMW Interoperability Matrix: MOS Doc ID 2605929.1

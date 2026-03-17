@@ -67,6 +67,21 @@ The relink must be repeated after every Oracle RU patch (integrated into
 Classical (mixed-mode) auditing is not configured.  The `AUDITLOG` tablespace
 holds all unified audit data.
 
+### Edition: SE2 is sufficient for a pure RCU repository
+
+Standard Edition 2 (SE2) supports CDB/PDB (up to 3 PDBs) since 19.7 and
+Unified Auditing.  For a database that holds only FMW metadata schemas with
+no application data, SE2 is adequate and reduces license cost.
+
+Use Enterprise Edition (EE) when:
+- The DB hosts application data beyond FMW schemas
+- More than 3 PDBs are needed
+- Oracle RAC, Partitioning, or Advanced Compression are required
+
+In the scripts, change `-oracle.install.db.InstallEdition=EE` to `SE2`.
+
+---
+
 ### No optional components
 
 After patching, disable unused options to reduce attack surface and binary size:
@@ -146,6 +161,19 @@ Redo logs (CDB-level): 2 groups × 50 MB = 100 MB
 Control files: 2 × 20 MB = 40 MB
 
 **Total DB files: ~2.5 GB fresh, ~4 GB with growth margin**
+
+---
+
+## References
+
+| Document | URL |
+|---|---|
+| FMW 14.1.2 System Requirements and Specifications | https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html#GUID-A5BAA99B-E383-4063-9EF7-BA963CF472A1 |
+| FMW 14.1.2 Repository Creation Utility Guide | https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD |
+| FMW Interoperability Matrix (MOS) | Doc ID 2605929.1 |
+| Oracle AutoUpgrade / Patch Automation 19c | https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c |
+| Oracle Unified Auditing Migration | https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai |
+| Oracle Linux 8 OS Baseline for Oracle DB | https://www.pipperr.de/dokuwiki/doku.php?id=linux:linux_8_system_grundeinstellungen_oracle_datenbank_rac |
 
 ---
 

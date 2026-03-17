@@ -21,12 +21,15 @@ DB_SID="FMWCDB"
 DB_CDB_NAME="FMWCDB"
 DB_PDB_NAME="FMWPDB"
 
-# --- Memory (Automatic Memory Management) ------------------------------------
-# MEMORY_TARGET controls total SGA + PGA.
-# Minimum: 1536  (1.5 GB)  – tight, for dev only
-# Recommended: 2048  (2 GB)  – comfortable for FMW domain startup
-# Note: with HugePages, use SGA_TARGET + PGA_AGGREGATE_TARGET instead of MEMORY_TARGET
-DB_MEMORY_MB=2048
+# --- Memory ------------------------------------------------------------------
+# Use SGA_TARGET + PGA_AGGREGATE_TARGET (works with and without HugePages).
+# Do NOT use MEMORY_TARGET (AMM) when HugePages are active.
+#
+# SGA minimum for stable RCU PL/SQL compilation: 1536 MB
+# PGA minimum for parallel RCU sessions:          512 MB
+# Total: ~2 GB RAM reserved for the database
+DB_SGA_MB=1536
+DB_PGA_MB=512
 
 # --- Storage -----------------------------------------------------------------
 DB_DATA_DIR="${DB_BASE}/oradata"         # datafile location
@@ -41,8 +44,10 @@ DB_CHAR_SET="AL32UTF8"
 DB_NCHAR_SET="AL16UTF16"
 
 # --- Processes / Cursors -----------------------------------------------------
-DB_PROCESSES=300
-DB_OPEN_CURSORS=300
+# RCU pre-check RCU-6107 requires open_cursors >= 400; set 1000 to be safe.
+# RCU opens many parallel connections → processes=500 minimum.
+DB_PROCESSES=500
+DB_OPEN_CURSORS=1000
 
 # --- Archivelog --------------------------------------------------------------
 # false for dev/test (saves disk, not needed for metadata-only DB)

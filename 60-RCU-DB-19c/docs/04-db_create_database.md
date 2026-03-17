@@ -53,18 +53,28 @@ Default: `LISTENER` on port `1521`.
 
 ### Design goals for minimal footprint
 
+Source: Oracle FMW 14.1.2 System Requirements (Doc ID 2605929.1) and RCU Guide.
+
 | Parameter | Value | Reason |
 |---|---|---|
-| `MEMORY_TARGET` | `1536M` (min) / `2048M` (rec) | AMM: Oracle manages SGA+PGA split |
-| `DB_BLOCK_SIZE` | `8192` | FMW default; no reason to change |
-| Character set | `AL32UTF8` | Required by FMW; mandatory |
+| `SGA_TARGET` | `1536M` | Minimum for stable PL/SQL compilation during RCU |
+| `PGA_AGGREGATE_TARGET` | `512M` | Parallel RCU sessions; sort/hash operations |
+| `DB_BLOCK_SIZE` | `8192` | FMW default; do not change |
+| Character set | `AL32UTF8` | **Mandatory** — FMW RCU fails with any other charset |
 | National char set | `AL16UTF16` | Oracle default |
-| `PROCESSES` | `300` | Sufficient for FMW domain + background |
-| `OPEN_CURSORS` | `300` | Oracle default; adequate for RCU schemas |
+| `PROCESSES` | `500` | RCU opens many parallel connections |
+| `OPEN_CURSORS` | `1000` | **RCU pre-check RCU-6107 requires ≥ 400; set 1000 to be safe** |
+| `compatible` | `19.0.0` | Required for 19c feature set |
+| `max_string_size` | `EXTENDED` | FMW extended VARCHAR support; static — needs restart |
 | Archivelog | `false` (dev) | Saves disk; not needed for metadata-only DB |
 | Redo log groups | `2` | Minimum; one is always current |
 | Redo log size | `50 MB` | Minimal for low-write workload |
 | `DB_FILES` | `100` | More than enough for this DB |
+
+> **AMM vs. SGA_TARGET:** `MEMORY_TARGET` (Automatic Memory Management) is simpler
+> but cannot be used with HugePages.  For this minimal setup, `SGA_TARGET=1536M` +
+> `PGA_AGGREGATE_TARGET=512M` is preferred — works with or without HugePages.
+> Total memory: ~2 GB.
 
 ### Tablespace sizing (initial, AUTOEXTEND ON)
 
@@ -97,8 +107,9 @@ $DB_ORACLE_HOME/bin/dbca -silent \
     -pdbName        "${DB_PDB_NAME}" \
     -pdbAdminPassword "${DB_PDB_ADMIN_PWD}" \
     -databaseType   MULTIPURPOSE \
-    -memoryMgmtType AUTO \
-    -totalMemory    "${DB_MEMORY_MB:-2048}" \
+    -memoryMgmtType CUSTOM_SGA \
+    -sga            "${DB_SGA_MB:-1536}" \
+    -pga            "${DB_PGA_MB:-512}" \
     -storageType    FS \
     -datafileDestination "${DB_DATA_DIR}" \
     -redoLogFileSize 50 \
@@ -131,23 +142,58 @@ $DB_ORACLE_HOME/bin/dbca -silent \
 
 ---
 
-## Step 4: Post-Creation Checks
+## Step 4: Post-Creation Parameter Tuning
+
+Connect to the CDB as SYSDBA and apply parameters that DBCA does not set:
 
 ```sql
--- Connect to CDB
 sqlplus / as sysdba
 
--- Verify PDB
+-- Cursor and process limits (RCU parallel sessions + pre-check RCU-6107)
+ALTER SYSTEM SET open_cursors    = 1000 SCOPE=BOTH;
+ALTER SYSTEM SET processes       = 500  SCOPE=SPFILE;
+
+-- Extended string support for FMW VARCHAR columns (static — needs restart)
+ALTER SYSTEM SET max_string_size = EXTENDED SCOPE=SPFILE;
+
+-- Compatibility level
+ALTER SYSTEM SET compatible      = '19.0.0' SCOPE=SPFILE;
+
+-- PDB auto-open after CDB restart (CRITICAL — without this the PDB stays MOUNTED)
+ALTER PLUGGABLE DATABASE ALL OPEN;
+ALTER PLUGGABLE DATABASE ALL SAVE STATE;
+
+-- Apply static changes
+SHUTDOWN IMMEDIATE;
+STARTUP;
+ALTER PLUGGABLE DATABASE ALL OPEN;
+```
+
+> `ALTER PLUGGABLE DATABASE ALL SAVE STATE` persists the PDB open mode in the
+> CDB data dictionary.  Without it, the PDB must be opened manually after every
+> CDB restart.
+
+---
+
+## Step 5: Post-Creation Checks
+
+```sql
+sqlplus / as sysdba
+
+-- Verify PDB is open
 SHOW PDBS;
 -- Expected: FMWPDB OPEN READ WRITE
 
--- Verify character set
-SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER='NLS_CHARACTERSET';
--- Expected: AL32UTF8
+-- Verify character set (must be AL32UTF8)
+SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET';
 
--- Verify memory
-SHOW PARAMETER memory_target;
+-- Verify RCU-critical parameters
+SHOW PARAMETER open_cursors;     -- expected: 1000
+SHOW PARAMETER processes;        -- expected: 500
+SHOW PARAMETER max_string_size;  -- expected: EXTENDED
+SHOW PARAMETER compatible;       -- expected: 19.0.0
 SHOW PARAMETER sga_target;
+SHOW PARAMETER pga_aggregate_target;
 ```
 
 ---
