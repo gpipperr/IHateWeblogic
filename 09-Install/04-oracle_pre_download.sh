@@ -260,10 +260,13 @@ _install_one() {
 # _mos_download_one  patch_nr  dest_dir  [regexp]
 # Download one patch or OPatch via getMOSPatch.jar.
 # regexp (optional): passed as regexp= to getMOSPatch to restrict which files are downloaded.
+# Retries up to MOS_RETRY_MAX times (default 3) on failure to handle transient DNS timeouts.
 _mos_download_one() {
     local patch_nr="$1"
     local dest_dir="$2"
     local gmp_regexp="${3:-}"
+    local retry_max="${MOS_RETRY_MAX:-3}"
+    local retry_wait="${MOS_RETRY_WAIT:-10}"
 
     if ls "$dest_dir"/p"${patch_nr}"_*.zip "$dest_dir"/p"${patch_nr}"*.zip \
            "$dest_dir"/*.zip 2>/dev/null | grep -q .; then
@@ -282,27 +285,35 @@ _mos_download_one() {
     # getMOSPatch reads .getMOSPatch.cfg from the current working directory
     cp "$PATCH_STORAGE/bin/.getMOSPatch.cfg" "$dest_dir/.getMOSPatch.cfg" 2>/dev/null
 
-    (
-        cd "$dest_dir" || exit 1
-        if [ -n "$gmp_regexp" ]; then
-            java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
-                MOSUser="$MOS_USER" \
-                MOSPass="$MOS_PWD" \
-                patch="$patch_nr" \
-                regexp="$gmp_regexp" \
-                download=all
-        else
-            java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
-                MOSUser="$MOS_USER" \
-                MOSPass="$MOS_PWD" \
-                patch="$patch_nr" \
-                download=all
-        fi
-    )
-    local rc=$?
+    local attempt rc
+    for attempt in $(seq 1 "$retry_max"); do
+        [ "$attempt" -gt 1 ] && info "$(printf "Patch %-10s retry %d/%d (DNS timeout?) – waiting %ss" \
+            "$patch_nr" "$attempt" "$retry_max" "$retry_wait")" && sleep "$retry_wait"
+
+        (
+            cd "$dest_dir" || exit 1
+            if [ -n "$gmp_regexp" ]; then
+                java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
+                    MOSUser="$MOS_USER" \
+                    MOSPass="$MOS_PWD" \
+                    patch="$patch_nr" \
+                    regexp="$gmp_regexp" \
+                    download=all
+            else
+                java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
+                    MOSUser="$MOS_USER" \
+                    MOSPass="$MOS_PWD" \
+                    patch="$patch_nr" \
+                    download=all
+            fi
+        )
+        rc=$?
+        [ "$rc" -eq 0 ] && break
+        warn "$(printf "Patch %-10s attempt %d/%d failed (rc=%d)" "$patch_nr" "$attempt" "$retry_max" "$rc")"
+    done
 
     if [ "$rc" -ne 0 ]; then
-        fail "getMOSPatch failed for patch $patch_nr (rc=$rc)"
+        fail "getMOSPatch failed for patch $patch_nr after $retry_max attempt(s) (rc=$rc)"
         return 1
     fi
 
