@@ -351,11 +351,123 @@ find /var/tmp/core/ -name "coredump_*" -mtime +14 -delete
 
 ---
 
+## Swap Space
+
+Oracle Universal Installer performs a hard prerequisite check:
+
+```
+Checking swap space: must be greater than 512 MB.   Actual 0 MB    Failed
+```
+
+**OUI refuses to continue if swap is below 512 MB.** On VMs and cloud instances swap
+is frequently zero — not because anyone deleted it, but because it was never configured.
+
+### Why swap matters here
+
+`vm.swappiness=10` (set above) means the kernel almost never touches swap under normal
+load. Swap is present purely as:
+
+1. OUI prerequisite check (hard minimum 512 MB)
+2. Emergency memory buffer if JVM heap temporarily exceeds available RAM
+
+### Thresholds
+
+| Swap total | Result |
+|---|---|
+| 0 MB | **FAIL** – OUI refuses to run |
+| 1–511 MB | **FAIL** – below OUI minimum |
+| 512 MB–2047 MB | **WARN** – OUI passes, but below recommended for WLS |
+| ≥ 2 GB | **OK** |
+
+### Check current swap
+
+```bash
+free -m          # Total/used/free – Swap line
+swapon --show    # Active swap devices and files with size and type
+```
+
+### Create a swapfile (if no swap exists)
+
+A swapfile under `$ORACLE_BASE` is the pragmatic solution on VMs:
+
+```bash
+# 1. Create the file (fallocate is instant on ext4/xfs)
+fallocate -l 2G /u01/app/oracle/swapfile
+# Fallback if fallocate fails (e.g. NFS):
+# dd if=/dev/zero of=/u01/app/oracle/swapfile bs=1M count=2048
+
+# 2. Set permissions (root-only read/write required by kernel)
+chmod 600 /u01/app/oracle/swapfile
+
+# 3. Format as swap
+mkswap /u01/app/oracle/swapfile
+
+# 4. Activate immediately
+swapon /u01/app/oracle/swapfile
+
+# 5. Verify
+free -m
+swapon --show
+```
+
+**Persist across reboots** – add to `/etc/fstab`:
+
+```
+/u01/app/oracle/swapfile   none   swap   sw   0   0
+```
+
+> **Location rationale:** Placing the swapfile under `$ORACLE_BASE` instead of `/`
+> avoids filling up a potentially small root filesystem. The Oracle disk typically
+> has the most free space.
+
+### Extend existing swap (if below minimum)
+
+If swap exists but is too small:
+
+```bash
+# Check what is active
+swapon --show
+NAME             TYPE   SIZE  USED PRIO
+/dev/sda2        partition  1G    0B   -2
+
+# Option A: Add a second swapfile (no need to touch the partition)
+fallocate -l 2G /u01/app/oracle/swapfile2
+chmod 600 /u01/app/oracle/swapfile2
+mkswap /u01/app/oracle/swapfile2
+swapon /u01/app/oracle/swapfile2
+echo "/u01/app/oracle/swapfile2 none swap sw 0 0" >> /etc/fstab
+
+# Option B: Resize a swapfile (must swapoff first)
+swapoff /u01/app/oracle/swapfile
+fallocate -l 4G /u01/app/oracle/swapfile
+mkswap /u01/app/oracle/swapfile
+swapon /u01/app/oracle/swapfile
+```
+
+### Remove swap after installation
+
+Swap is only strictly needed during OUI execution. After the installation is complete
+it can be reduced (but keep ≥ 512 MB in case of future patches or updates that invoke
+OUI/OPatch):
+
+```bash
+# Check usage before removing
+swapon --show
+# If used=0:
+swapoff /u01/app/oracle/swapfile
+rm /u01/app/oracle/swapfile
+# Remove the /etc/fstab line
+```
+
+---
+
 ## Additional baseline settings (also in 01-root_os_baseline.sh)
 
 - **SELinux:** Set to `disabled` in `/etc/selinux/config` (requires reboot)
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
+- **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB
+  swapfile under `$ORACLE_BASE/swapfile` if no swap is present (see section above)
 - **Firewall:** Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
   port 5556 must remain closed externally (Nginx is the only external entry point)
 - **Sysctl conflict detection:** The script scans all `/etc/sysctl.d/*.conf` and
@@ -393,6 +505,12 @@ getenforce
 # Core dump directory
 ls -la /var/tmp/core/
 # Expected: drwxrwxrwx
+
+# Swap space (OUI minimum 512 MB)
+free -m
+# Expected Swap: total >= 512
+swapon --show
+# Expected: at least one entry (partition or swapfile)
 
 # Firewall – Nginx ports open, WLS ports closed
 firewall-cmd --list-ports

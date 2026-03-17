@@ -473,6 +473,80 @@ EOF
 fi
 
 # =============================================================================
+# 6b. Swap Space
+# =============================================================================
+
+section "Swap Space"
+
+# OUI hard check: "Checking swap space: must be greater than 512 MB."
+# On VMs swap is often 0 MB – OUI refuses to run.
+# vm.swappiness=10 (set above) means swap is rarely used in practice;
+# it is present purely as OUI prereq and emergency memory buffer.
+
+SWAP_TOTAL_MB="$(free -m 2>/dev/null | awk '/Swap/ {print $2}')"
+SWAP_TOTAL_MB="${SWAP_TOTAL_MB:-0}"
+SWAP_OUI_MIN_MB=512
+SWAP_WANT_MB=2048
+SWAPFILE="${ORACLE_BASE:-/u01/app/oracle}/swapfile"
+
+printf "  %-26s %s MB\n" "Current swap total:"  "$SWAP_TOTAL_MB"   | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s MB\n" "OUI minimum:"          "$SWAP_OUI_MIN_MB" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s MB\n" "Recommended:"          "$SWAP_WANT_MB"    | tee -a "${LOG_FILE:-/dev/null}"
+
+SWAP_ACTIVE="$(swapon --show --noheadings 2>/dev/null)"
+if [ -n "$SWAP_ACTIVE" ]; then
+    info "Active swap devices/files:"
+    printf "%s\n" "$SWAP_ACTIVE" | while IFS= read -r _swline; do
+        printf "    %s\n" "$_swline" | tee -a "${LOG_FILE:-/dev/null}"
+    done
+else
+    info "No swap devices or files currently active"
+fi
+
+if [ "$SWAP_TOTAL_MB" -ge "$SWAP_WANT_MB" ]; then
+    ok "Swap OK: ${SWAP_TOTAL_MB} MB (>= ${SWAP_WANT_MB} MB recommended)"
+elif [ "$SWAP_TOTAL_MB" -ge "$SWAP_OUI_MIN_MB" ]; then
+    warn "Swap ${SWAP_TOTAL_MB} MB meets OUI minimum (${SWAP_OUI_MIN_MB} MB) but below recommended ${SWAP_WANT_MB} MB"
+else
+    fail "Swap ${SWAP_TOTAL_MB} MB is below OUI minimum ${SWAP_OUI_MIN_MB} MB – OUI will refuse to run"
+    info "  Swapfile location: ${SWAPFILE}  (${SWAP_WANT_MB} MB)"
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        if askYesNo "Create ${SWAP_WANT_MB}M swapfile at ${SWAPFILE}?" "y"; then
+            AVAIL_MB="$(df -m "$(dirname "$SWAPFILE")" 2>/dev/null | awk 'NR==2 {print $4}')"
+            if [ -z "$AVAIL_MB" ] || [ "$AVAIL_MB" -lt "$SWAP_WANT_MB" ]; then
+                fail "Not enough space: need ${SWAP_WANT_MB}M, have ${AVAIL_MB:-?}M in $(dirname "$SWAPFILE")"
+                info "  Free up space or adjust ORACLE_BASE in environment.conf"
+            else
+                # fallocate is instant on ext4/xfs; dd is fallback for e.g. NFS/tmpfs
+                if _run_root fallocate -l "${SWAP_WANT_MB}M" "$SWAPFILE" 2>/dev/null; then
+                    ok "Swapfile created with fallocate: $SWAPFILE"
+                else
+                    info "fallocate not supported on this filesystem – using dd (this may take a while)..."
+                    _run_root dd if=/dev/zero of="$SWAPFILE" bs=1M count="$SWAP_WANT_MB" \
+                        2>&1 | tee -a "${LOG_FILE:-/dev/null}"
+                fi
+                _run_root chmod 600 "$SWAPFILE"
+                _run_root mkswap "$SWAPFILE" 2>&1 | tee -a "${LOG_FILE:-/dev/null}"
+                _run_root swapon "$SWAPFILE"
+                # Persist across reboots
+                if ! grep -q "$SWAPFILE" /etc/fstab 2>/dev/null; then
+                    backup_file /etc/fstab
+                    printf "%s none swap sw 0 0\n" "$SWAPFILE" \
+                        | _run_root tee -a /etc/fstab > /dev/null
+                    ok "Swapfile added to /etc/fstab (persistent)"
+                fi
+                SWAP_NOW_MB="$(free -m 2>/dev/null | awk '/Swap/ {print $2}')"
+                ok "Swapfile activated – swap total now: ${SWAP_NOW_MB} MB"
+            fi
+        fi
+    else
+        info "  Run with --apply to create swapfile automatically"
+        info "  Manual: fallocate -l 2G $SWAPFILE && chmod 600 $SWAPFILE && mkswap $SWAPFILE && swapon $SWAPFILE"
+        info "  Persist: echo \"$SWAPFILE none swap sw 0 0\" >> /etc/fstab"
+    fi
+fi
+
+# =============================================================================
 # 7. Core Dump Directory
 # =============================================================================
 
