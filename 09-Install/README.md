@@ -124,7 +124,7 @@ Phase 5 – Configuration & Validation (as oracle)
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | _(doc not yet written)_ |
+| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/00-root_os_network.md) |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
@@ -175,6 +175,7 @@ WLS_ADMIN_USER=webadmin
 WLS_NODEMANAGER_PORT=5556
 WLS_FORMS_PORT=9001
 WLS_REPORTS_PORT=9002
+WLS_LISTEN_ADDRESS=localhost   # localhost = NGINX proxy (default); 0.0.0.0 = direct access
 DB_SCHEMA_PREFIX=DEV
 
 # === COMPONENTS ===
@@ -371,7 +372,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 09-Install/
 ├── README.md                          ← this roadmap
 ├── install_lib.sh                     ← [TODO] shared functions
-├── 01-setup-interview.sh              ← [TODO] configuration interview
+├── 01-setup-interview.sh              ← configuration interview
 ├── 00-root_os_network.sh              ← Phase 0: hostname, hosts, IPv6, chrony, SSH
 ├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall → REBOOT
 ├── 02-root_os_packages.sh             ← Phase 0: OS packages (motif, gcc, numactl …)
@@ -383,8 +384,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── oracle_software_version.conf       ← SW versions, SHA-256, patch numbers, OPatch regexp
 ├── 04-oracle_pre_checks.sh            ← [TODO]
 ├── 04-oracle_pre_download.sh          ← eDelivery + getMOSPatch download
-├── 05-oracle_install_weblogic.sh      ← [TODO]
-├── 05-oracle_patch_weblogic.sh        ← [TODO]
+├── 05-oracle_install_weblogic.sh      ← FMW Infrastructure 14.1.2 silent install
+├── 05-oracle_patch_weblogic.sh        ← OPatch upgrade + WLS CPU patch apply
 ├── 06-oracle_install_forms_reports.sh ← [TODO]
 ├── 06-oracle_patch_forms_reports.sh   ← [TODO]
 ├── 07-oracle_setup_repository.sh      ← [TODO]

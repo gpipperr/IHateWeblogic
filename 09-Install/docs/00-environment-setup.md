@@ -103,6 +103,7 @@ explicitly provides a different value during `--interview`.
 | `WLS_FORMS_PORT` | `9001` | WLS_FORMS managed server port |
 | `WLS_REPORTS_PORT` | `9002` | WLS_REPORTS managed server port |
 | `WLS_NODEMANAGER_PORT` | `5556` | NodeManager port |
+| `WLS_LISTEN_ADDRESS` | `localhost` | Network interface WebLogic binds to. `localhost` = NGINX proxy (recommended); `0.0.0.0` = all interfaces (no proxy); custom FQDN/IP |
 | `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Reports managed server name (auto-detected) |
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
 
