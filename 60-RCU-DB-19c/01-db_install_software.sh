@@ -378,13 +378,25 @@ _installer_log=$(ls -t "$_inv_location/logs/InstallActions"*.log 2>/dev/null | h
 [ -n "$_installer_log" ] && info "  Installer log: $_installer_log"
 
 if [ "$_install_rc" -ne 0 ]; then
-    fail "runInstaller exited with rc=$_install_rc"
-    info "  Check installer logs: $_inv_location/logs/"
-    [ -n "$_installer_log" ] && info "  Latest: $_installer_log"
-    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    # rc=252 (-4 signed) = Oracle installer internal make failure for ASM client libs.
+    # Known on OL8/OL9 with 19.3.0 base installer — ASM client (libasmclntsh19.ohso)
+    # does not link cleanly with newer glibc.  We do not use ASM; AutoUpgrade
+    # create_home will produce a fully patched home regardless of this failure.
+    # Treat rc=252 with a working sqlplus binary as a recoverable warning.
+    if [ "$_install_rc" -eq 252 ] && [ -x "$DB_ORACLE_HOME_BASE/bin/sqlplus" ]; then
+        warn "runInstaller rc=252 — ASM client library make failure (known on OL9 with 19.3.0)"
+        warn "  sqlplus binary present → core install succeeded; ASM failure is non-critical"
+        warn "  AutoUpgrade create_home (step 02) will build a clean patched home"
+        warn "  Installer log: $_installer_log"
+    else
+        fail "runInstaller exited with rc=$_install_rc"
+        info "  Check installer logs: $_inv_location/logs/"
+        [ -n "$_installer_log" ] && info "  Latest: $_installer_log"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+else
+    ok "runInstaller completed (rc=0)"
 fi
-
-ok "runInstaller completed (rc=0)"
 unset _edition _inv_location _cv_distid _ora_inst_loc _installer_log
 
 fi  # end idempotency block

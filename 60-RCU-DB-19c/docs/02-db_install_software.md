@@ -267,3 +267,54 @@ export TEMP=/u01/app/oracle/tmp
 |---|---|
 | OL 8 / RHEL 8 | 19.6.0.0 |
 | OL 9 / RHEL 9 | 19.22.0.0 |
+
+---
+
+### [FATAL] Error invoking target 'libasmclntsh19.ohso …' (rc=252) on OL9
+
+**Symptom:**
+```
+[FATAL] Error in invoking target 'libasmclntsh19.ohso libasmperl19.ohso client_sharedlib'
+        of makefile '.../rdbms/lib/ins_rdbms.mk'
+Install finished: … (rc=252)
+```
+
+**Cause:**
+
+The 19.3.0 base installer predates OL8/OL9.  On OL9 (glibc 2.34+) the ASM client
+shared libraries (`libasmclntsh19.ohso`, `libasmperl19.ohso`) fail to link because the
+older Oracle build environment is incompatible with the newer system libraries.
+The installer reports exit code −4 (= 252 unsigned).
+
+**Impact:**
+
+Only the Oracle ASM client libraries are affected.  All core database binaries
+(`sqlplus`, `oracle`, `lsnrctl`, OPatch, …) are installed correctly.  The script
+verifies `sqlplus` presence and treats rc=252 as a recoverable warning.
+
+This environment uses a **single-instance CDB/PDB without ASM** — the missing
+ASM client library is irrelevant.
+
+**Why this does not matter for the AutoUpgrade patching step:**
+
+`02-db_patch_autoupgrade.sh` uses AutoUpgrade `-mode create_home`, which creates
+a **new** patched ORACLE_HOME from scratch.  The patched home (19.30.0) is
+relinked completely during AutoUpgrade and has no dependency on ASM build
+artifacts from the 19.3.0 source home.
+
+**Verification:**
+```bash
+# Core binaries must be present despite rc=252:
+ls -la $ORACLE_BASE/product/19.3.0/db_home1/bin/sqlplus
+$ORACLE_BASE/product/19.3.0/db_home1/bin/sqlplus -V
+```
+
+**Alternative fix (apply RU during base install):**
+```bash
+# Avoids the make failure entirely by patching before the link step:
+./runInstaller -silent -applyRU /srv/patch_storage/patches/<RU_patch_number> ...
+# OL9 requires RU ≥ 19.22
+```
+
+This project defers patching to AutoUpgrade (`02-db_patch_autoupgrade.sh`), so the
+rc=252 warning is accepted and does not block the install.
