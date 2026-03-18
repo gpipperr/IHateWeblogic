@@ -211,14 +211,25 @@ if $FORCE; then
             info "Aborted — nothing deleted."
             EXIT_CODE=0; print_summary; exit $EXIT_CODE
         fi
-        # Detach from Oracle Inventory BEFORE deleting (root.sh path is read from inventory)
-        if [ -f "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
+        # Detach from Oracle Inventory BEFORE deleting.
+        # root.sh reads its helper script path from the inventory — a stale entry
+        # (e.g. from a previous Oracle installation) causes wrong paths in root.sh.
+        # Only run detachHome when the home is actually registered in the inventory.
+        _inv_xml_force="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory/ContentsXML/inventory.xml"
+        if [ -f "$_inv_xml_force" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml_force" 2>/dev/null; then
             info "Detaching home from Oracle Inventory..."
             "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" -silent -detachHome \
                 "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
-                "ORACLE_HOME_NAME=OraDB19Home1" 2>&1 | tee -a "$LOG_FILE" || true
-            ok "Inventory entry detached"
+                "ORACLE_HOME_NAME=OraDB19Home1" 2>&1 | tee -a "$LOG_FILE"
+            if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+                ok "Inventory entry detached"
+            else
+                warn "detachHome failed — removing directory anyway (inventory entry may need manual cleanup)"
+            fi
+        else
+            info "Home not in inventory — no detach needed"
         fi
+        unset _inv_xml_force
         rm -rf "$DB_ORACLE_HOME_BASE"
         ok "Deleted: $DB_ORACLE_HOME_BASE"
     else
