@@ -23,6 +23,13 @@
 # --- Oracle Base (shared with FMW — must match ORACLE_BASE in environment.conf) ---
 ORACLE_BASE="/u01/app/oracle"
 
+# --- Edition ------------------------------------------------------------------
+# EE (Enterprise Edition) is the default and recommended setting.
+# SE2 (Standard Edition 2) is sufficient for a pure RCU-only metadata database
+# but EE avoids any certification edge cases with FMW components.
+# Change to SE2 only when explicitly licensed for SE2 and cost matters.
+DB_EDITION="EE"                               # EE | SE2
+
 # --- Oracle Homes -------------------------------------------------------------
 # Base install: unpatched 19.3.0 (extracted from LINUX.X64_193000_db_home.zip)
 DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"

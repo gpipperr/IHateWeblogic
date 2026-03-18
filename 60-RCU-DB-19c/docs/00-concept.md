@@ -67,18 +67,21 @@ The relink must be repeated after every Oracle RU patch (integrated into
 Classical (mixed-mode) auditing is not configured.  The `AUDITLOG` tablespace
 holds all unified audit data.
 
-### Edition: SE2 is sufficient for a pure RCU repository
+### Edition: EE is the default
 
-Standard Edition 2 (SE2) supports CDB/PDB (up to 3 PDBs) since 19.7 and
-Unified Auditing.  For a database that holds only FMW metadata schemas with
-no application data, SE2 is adequate and reduces license cost.
+**Enterprise Edition (EE) is used by default** (`DB_EDITION=EE` in
+`environment_db.conf`).  EE avoids any certification edge cases with FMW
+components and is the safe choice for all production and development setups.
 
-Use Enterprise Edition (EE) when:
-- The DB hosts application data beyond FMW schemas
-- More than 3 PDBs are needed
-- Oracle RAC, Partitioning, or Advanced Compression are required
+SE2 (Standard Edition 2) is technically sufficient for a pure RCU metadata
+database: it supports CDB/PDB (up to 3 PDBs since 19.7) and Unified
+Auditing.  Switch to SE2 only when:
+- The license budget explicitly requires SE2, and
+- The DB will never host application data beyond FMW schemas, and
+- No RAC, Partitioning, or Advanced Compression is needed
 
-In the scripts, change `-oracle.install.db.InstallEdition=EE` to `SE2`.
+To switch: set `DB_EDITION=SE2` in `environment_db.conf` before running
+`01-db_install_software.sh`.
 
 ---
 

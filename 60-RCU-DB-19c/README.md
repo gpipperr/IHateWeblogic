@@ -63,6 +63,12 @@ future migration to a DBA-managed infrastructure database.
 > These figures apply to a **metadata-only** database (FMW RCU schemas).
 > Do not use this sizing for application data, archive logs, or production loads.
 
+**Default edition: Oracle Database 19c Enterprise Edition (EE).**
+SE2 is technically sufficient for a pure RCU repository (supports CDB/PDB + Unified Auditing)
+but EE is the default to avoid certification edge cases.
+To switch: set `DB_EDITION=SE2` in `environment_db.conf`.
+→ Details: [docs/00-concept.md – Edition](docs/00-concept.md)
+
 ---
 
 ## Script Sequence
