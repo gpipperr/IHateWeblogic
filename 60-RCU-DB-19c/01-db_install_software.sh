@@ -146,14 +146,19 @@ if [ -x "$DB_ORACLE_HOME_BASE/bin/sqlplus" ]; then
 fi
 
 # --- Disk space check ---------------------------------------------------------
-_avail_kb=$(df -k "$(dirname "$DB_ORACLE_HOME_BASE")" 2>/dev/null | awk 'NR==2 { print $4 }')
+# DB_ORACLE_HOME_BASE does not exist yet — walk up to first existing parent
+_disk_check_dir="$(dirname "$DB_ORACLE_HOME_BASE")"
+while [ ! -d "$_disk_check_dir" ] && [ "$_disk_check_dir" != "/" ]; do
+    _disk_check_dir="$(dirname "$_disk_check_dir")"
+done
+_avail_kb=$(df -k "$_disk_check_dir" 2>/dev/null | awk 'NR==2 { print $4 }')
 _required_kb=$(( 8 * 1024 * 1024 ))   # 8 GB
-if [ -n "$_avail_kb" ] && [ "$_avail_kb" -lt "$_required_kb" ]; then
-    warn "$(printf "Available disk: %d MB — minimum 8 GB recommended" "$(( _avail_kb / 1024 ))")"
+if [ -z "$_avail_kb" ] || [ "$_avail_kb" -lt "$_required_kb" ]; then
+    warn "$(printf "Available disk: %d MB in %s — minimum 8 GB recommended" "$(( ${_avail_kb:-0} / 1024 ))" "$_disk_check_dir")"
 else
-    ok "$(printf "Disk space available: %d MB in %s" "$(( _avail_kb / 1024 ))" "$(dirname "$DB_ORACLE_HOME_BASE")")"
+    ok "$(printf "Disk space available: %d MB in %s" "$(( _avail_kb / 1024 ))" "$_disk_check_dir")"
 fi
-unset _avail_kb _required_kb
+unset _avail_kb _required_kb _disk_check_dir
 
 # --- Inventory check ----------------------------------------------------------
 ORABASE_INVENTORY="$ORACLE_BASE/../oraInventory"
@@ -218,6 +223,14 @@ section "runInstaller – software-only"
 _edition="${DB_EDITION:-EE}"
 _inv_location="$(dirname "$ORACLE_BASE")/oraInventory"
 
+# Oracle 19.3.0 installer predates OL8/OL9 — supportedOSCheck throws NPE.
+# CV_ASSUME_DISTID=OEL7.6 makes the prereq check treat this as OL7.
+# Required for base 19.3.0; not needed after patching to 19.6+ via AutoUpgrade.
+# See: MOS Doc ID 2584365.1, https://www.robotron.de/unternehmen/aktuelles/blog/oracle-datenbank-19c-und-oracle-linux-8
+_cv_distid="${DB_CV_ASSUME_DISTID:-OEL7.6}"
+export CV_ASSUME_DISTID="$_cv_distid"
+info "$(printf "%-28s %s  (OL8/OL9 compat for 19.3.0 installer)" "CV_ASSUME_DISTID:" "$CV_ASSUME_DISTID")"
+
 printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
 "$DB_ORACLE_HOME_BASE/runInstaller" \
@@ -241,7 +254,9 @@ printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG
 
 _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
-unset _edition _inv_location
+unset CV_ASSUME_DISTID
+info "CV_ASSUME_DISTID unset"
+unset _edition _inv_location _cv_distid
 
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"

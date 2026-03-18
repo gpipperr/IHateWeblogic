@@ -30,6 +30,13 @@ ORACLE_BASE="/u01/app/oracle"
 # Change to SE2 only when explicitly licensed for SE2 and cost matters.
 DB_EDITION="EE"                               # EE | SE2
 
+# CV_ASSUME_DISTID for the 19.3.0 base installer on OL8/OL9.
+# 19.3.0 predates OL8 — supportedOSCheck throws NPE without this override.
+# OEL7.6 is the correct value for the unpatched 19.3.0 runInstaller.
+# After patching to 19.6+ via AutoUpgrade this is no longer needed.
+# MOS Doc ID 2584365.1 / https://www.robotron.de/unternehmen/aktuelles/blog/oracle-datenbank-19c-und-oracle-linux-8
+DB_CV_ASSUME_DISTID="OEL7.6"
+
 # --- Oracle Homes -------------------------------------------------------------
 # Base install: unpatched 19.3.0 (extracted from LINUX.X64_193000_db_home.zip)
 DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
