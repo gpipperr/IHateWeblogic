@@ -200,19 +200,23 @@ chmod 775 "$DB_ORACLE_HOME_BASE"
 ok "Directory created: $DB_ORACLE_HOME_BASE"
 
 # =============================================================================
-# 2. Unzip install archive
+# 2. Unzip install archive  (skip if already extracted)
 # =============================================================================
 
 section "Unzip Install Archive"
 
-printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-unzip -q "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME_BASE" 2>&1 | tee -a "$LOG_FILE"
-_rc=$?
-printf "  Finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_rc" | tee -a "$LOG_FILE"
-
-[ "$_rc" -eq 0 ] \
-    && ok "Archive extracted to: $DB_ORACLE_HOME_BASE" \
-    || { fail "Unzip failed (rc=$_rc)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+if [ -f "$DB_ORACLE_HOME_BASE/OPatch/opatch" ]; then
+    ok "Already extracted (OPatch/opatch found) — skipping unzip"
+else
+    printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    # -o = overwrite all without prompting (safe for re-runs with partial extract)
+    unzip -q -o "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME_BASE" 2>&1 | tee -a "$LOG_FILE"
+    _rc=$?
+    printf "  Finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_rc" | tee -a "$LOG_FILE"
+    [ "$_rc" -eq 0 ] \
+        && ok "Archive extracted to: $DB_ORACLE_HOME_BASE" \
+        || { fail "Unzip failed (rc=$_rc)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+fi
 
 # =============================================================================
 # 3. Run runInstaller (software-only, silent)
@@ -220,8 +224,29 @@ printf "  Finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_rc" | tee -
 
 section "runInstaller – software-only"
 
+# --- idempotency: skip if already registered ---------------------------------
+if [ -f "$DB_ORACLE_HOME_BASE/bin/oracle" ]; then
+    ok "Oracle binary found — runInstaller already completed, skipping"
+    ok "  $DB_ORACLE_HOME_BASE/bin/oracle"
+else
+
 _edition="${DB_EDITION:-EE}"
-_inv_location="$(dirname "$ORACLE_BASE")/oraInventory"
+_inv_location="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory"
+
+# oraInst.loc: prefer ORACLE_BASE location (created by FMW installer),
+# fall back to /etc/oraInst.loc (created by preinstall RPM),
+# create fresh one if neither exists.
+_ora_inst_loc="$ORACLE_BASE/oraInst.loc"
+if [ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ]; then
+    _ora_inst_loc="/etc/oraInst.loc"
+fi
+if [ ! -f "$_ora_inst_loc" ]; then
+    info "oraInst.loc not found — creating: $_ora_inst_loc"
+    mkdir -p "$_inv_location"
+    printf "inventory_loc=%s\ninst_group=oinstall\n" "$_inv_location" > "$_ora_inst_loc"
+fi
+ok "$(printf "%-28s %s" "oraInst.loc:" "$_ora_inst_loc")"
+ok "$(printf "%-28s %s" "Inventory:" "$_inv_location")"
 
 # Oracle 19.3.0 installer predates OL8/OL9 — supportedOSCheck throws NPE.
 # CV_ASSUME_DISTID=OEL7.6 makes the prereq check treat this as OL7.
@@ -237,6 +262,7 @@ printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG
     -silent \
     -ignorePrereqFailure \
     -waitforcompletion \
+    -invPtrLoc "$_ora_inst_loc" \
     "oracle.install.option=INSTALL_DB_SWONLY" \
     "ORACLE_BASE=$ORACLE_BASE" \
     "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
@@ -256,15 +282,17 @@ _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
 unset CV_ASSUME_DISTID
 info "CV_ASSUME_DISTID unset"
-unset _edition _inv_location _cv_distid
 
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"
-    info "  Check installer logs: $ORACLE_BASE/oraInventory/logs/"
+    info "  Check installer logs: $_inv_location/logs/"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
 ok "runInstaller completed (rc=0)"
+unset _edition _inv_location _cv_distid _ora_inst_loc
+
+fi  # end idempotency block
 
 # =============================================================================
 # 4. Prompt for root.sh
