@@ -22,10 +22,33 @@ Unified Auditing (`uniaud_on`).
 
 ### Prerequisites
 
-- Java 11 — use `$DB_ORACLE_HOME/jdk/bin/java` (bundled with 19c)
-- MOS credentials in `mos_sec.conf.des3` (same file used by 09-Install scripts)
-- Network access: `updates.oracle.com`, `login.oracle.com`,
-  `login-ext.identity.oraclecloud.com`
+**Java:**
+
+AutoUpgrade 26.x requires Java 11 (explicitly rejects Java 21).
+The script tries the Oracle 19.3.0 bundled JDK first.
+If AutoUpgrade rejects it, install the system Java 11:
+
+```bash
+# as root — also handled by 00-root_db_os_baseline.sh --apply
+dnf install java-11-openjdk
+```
+
+**expect:**
+
+The MOS keystore setup (`-load_password`) is an interactive console.
+`expect` is required to automate the credential prompts reliably:
+
+```bash
+# as root — also handled by 00-root_db_os_baseline.sh --apply
+dnf install expect       # installs tcl as dependency (~5 MB)
+```
+
+Without `expect` the script falls back to stdin pipe (unreliable for interactive consoles).
+
+**MOS credentials:** `mos_sec.conf.des3` (shared with 09-Install scripts)
+
+**Network access:** `updates.oracle.com`, `login.oracle.com`,
+`login-ext.identity.oraclecloud.com`
 
 ### Download AutoUpgrade JAR
 

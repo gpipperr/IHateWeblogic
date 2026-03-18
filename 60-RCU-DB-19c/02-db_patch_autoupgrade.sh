@@ -94,26 +94,22 @@ section "Pre-checks"
     && ok "Source home exists: $DB_ORACLE_HOME_BASE" \
     || { fail "Source home not found – run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- Java 11 (required exactly by AutoUpgrade 26.x) --------------------------
-# AutoUpgrade Patching 26.x refuses Java 8 and Java 21: "must run with Java version 11".
-# 00-root_db_os_baseline.sh installs java-11-openjdk for this purpose.
+# --- Java for AutoUpgrade -----------------------------------------------------
+# AutoUpgrade 26.x requires Java 11 (rejects Java 21: "must run with Java version 11").
+# Try Oracle 19.3.0 bundled JDK first — if AutoUpgrade rejects it, fall back to
+# system Java 11 (java-11-openjdk, installed by 00-root_db_os_baseline.sh).
 JAVA_BIN=""
 for _jbin in \
+    "$DB_ORACLE_HOME_BASE/jdk/bin/java" \
     $(ls /usr/lib/jvm/java-11-openjdk*/bin/java 2>/dev/null | head -1) \
-    "/usr/lib/jvm/java-11/bin/java" \
     "/usr/bin/java"; do
-    [ -n "$_jbin" ] && [ -x "$_jbin" ] || continue
-    _ver=$("$_jbin" -version 2>&1 | head -1)
-    if printf '%s' "$_ver" | grep -q '"11\.'; then
-        JAVA_BIN="$_jbin"; break
-    fi
+    [ -n "$_jbin" ] && [ -x "$_jbin" ] && { JAVA_BIN="$_jbin"; break; }
 done
-unset _jbin _ver
+unset _jbin
 if [ -n "$JAVA_BIN" ]; then
-    ok "Java 11 found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
+    ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
 else
-    fail "Java 11 not found — AutoUpgrade 26.x requires exactly Java 11"
-    info "  Install: dnf install java-11-openjdk  (run 00-root_db_os_baseline.sh --apply)"
+    fail "No Java found — install java-11-openjdk (run 00-root_db_os_baseline.sh --apply)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
