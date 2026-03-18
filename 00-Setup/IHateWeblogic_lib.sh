@@ -176,11 +176,20 @@ readSelection() {
 init_log() {
     local log_dir="${1:-${DIAG_LOG_DIR:-/tmp/IHateWeblogic_log}}"
 
-    mkdir -p "$log_dir" 2>/dev/null || {
-        printf "\033[31mERROR\033[0m Cannot create log directory: %s\n" "$log_dir" >&2
-        LOG_FILE="/dev/null"
-        return 1
-    }
+    mkdir -p "$log_dir" 2>/dev/null || true
+
+    # If directory exists but is not writable (e.g. created earlier by root),
+    # try sudo chmod o+w; if that also fails, fall back to /tmp.
+    if [ ! -w "$log_dir" ]; then
+        sudo chmod o+w "$log_dir" 2>/dev/null || true
+    fi
+    if [ ! -w "$log_dir" ]; then
+        local _fallback="/tmp/IHateWeblogic_$(date +%Y%m%d)"
+        printf "\033[33mWARN\033[0m  Log dir not writable: %s\n" "$log_dir" >&2
+        printf "\033[33mWARN\033[0m  Falling back to: %s\n" "$_fallback" >&2
+        mkdir -p "$_fallback" 2>/dev/null || { LOG_FILE="/dev/null"; return 1; }
+        log_dir="$_fallback"
+    fi
 
     # Derive caller script name from the call stack
     local caller_name
