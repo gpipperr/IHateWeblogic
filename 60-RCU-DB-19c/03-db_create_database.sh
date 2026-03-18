@@ -110,6 +110,11 @@ unset _kzaiang_count
 [ -n "${DB_CDB_NAME:-}" ] && ok "DB_CDB_NAME = $DB_CDB_NAME" || { fail "DB_CDB_NAME not set"; EXIT_CODE=2; }
 [ -n "${DB_PDB_NAME:-}" ] && ok "DB_PDB_NAME = $DB_PDB_NAME" || { fail "DB_PDB_NAME not set"; EXIT_CODE=2; }
 [ -n "${DB_DATA_DIR:-}" ] && ok "DB_DATA_DIR = $DB_DATA_DIR" || { fail "DB_DATA_DIR not set"; EXIT_CODE=2; }
+if [ -n "${DB_FAST_RECOVERY_AREA:-}" ]; then
+    ok "$(printf "%-28s %s  (%s MB)" "DB_FAST_RECOVERY_AREA" "$DB_FAST_RECOVERY_AREA" "${DB_RECOVERY_SIZE_MB:-4096}")"
+else
+    info "DB_FAST_RECOVERY_AREA not set – FRA disabled"
+fi
 
 [ "$EXIT_CODE" -ne 0 ] && { print_summary; exit $EXIT_CODE; }
 
@@ -146,6 +151,7 @@ printList "PGA_TARGET"        28 "${_pga_mb} MB"
 printList "Total memory"      28 "${_total_mb} MB"
 printList "Character set"     28 "${DB_CHAR_SET:-AL32UTF8}"
 printList "Data dir"          28 "$DB_DATA_DIR"
+printList "Recovery Area"     28 "${DB_FAST_RECOVERY_AREA:-(disabled)}"
 printList "Admin dir"         28 "${DB_ADMIN_DIR:-$ORACLE_BASE/admin}"
 printList "Archivelog"        28 "${DB_ARCHIVELOG:-false}"
 printList "Listener host"     28 "$_listener_host"
@@ -200,6 +206,10 @@ _adump_dir="${DB_ADMIN_DIR:-$ORACLE_BASE/admin}/${DB_CDB_NAME}/adump"
 mkdir -p "${DB_DATA_DIR}" "$_adump_dir"
 ok "Data dir : $DB_DATA_DIR"
 ok "Audit dir: $_adump_dir"
+if [ -n "${DB_FAST_RECOVERY_AREA:-}" ]; then
+    mkdir -p "${DB_FAST_RECOVERY_AREA}"
+    ok "FRA dir  : $DB_FAST_RECOVERY_AREA"
+fi
 unset _adump_dir
 
 # =============================================================================
@@ -244,6 +254,18 @@ unset _net_admin _listener_ora _lsnr_rc
 
 section "DBCA – Create CDB + PDB"
 
+# Fast Recovery Area flags (conditional — like RCU_TS_FLAGS pattern)
+_fra_flags=( -recoveryAreaDestination "" )
+if [ -n "${DB_FAST_RECOVERY_AREA:-}" ]; then
+    _fra_flags=(
+        -recoveryAreaDestination "${DB_FAST_RECOVERY_AREA}"
+        -recoveryAreaSize        "${DB_RECOVERY_SIZE_MB:-4096}"
+    )
+    ok "$(printf "%-28s %s" "Recovery Area:" "$DB_FAST_RECOVERY_AREA  (${DB_RECOVERY_SIZE_MB:-4096} MB)")"
+else
+    info "Recovery Area disabled (DB_FAST_RECOVERY_AREA not set)"
+fi
+
 printf "\n  DBCA started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
 "$DB_ORACLE_HOME/bin/dbca" -silent \
@@ -269,7 +291,7 @@ printf "\n  DBCA started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FI
     -sysPassword           "${DB_SYS_PWD}" \
     -systemPassword        "${DB_SYSTEM_PWD}" \
     -enableArchive         "${DB_ARCHIVELOG:-false}" \
-    -recoveryAreaDestination "" \
+    "${_fra_flags[@]}" \
     -useLocalUndoForPDBs   true \
     2>&1 | tee -a "$LOG_FILE"
 

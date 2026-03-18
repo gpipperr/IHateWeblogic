@@ -12,6 +12,8 @@
 #   ORACLE_BASE/product/19.3.0/db_home1 ← DB base install (unpatched)
 #   ORACLE_BASE/product/19.XX.0/db_home1← DB patched home (DB_ORACLE_HOME)
 #   ORACLE_BASE/oradata/FMWCDB/         ← DB data files
+#   ORACLE_BASE/flash_recovery_area/    ← Fast Recovery Area (FRA)
+#   ORACLE_BASE/admin/FMWCDB/adump/     ← audit dump
 #   ORACLE_BASE/diag/rdbms/fmwcdb/...  ← Oracle ADR (automatic)
 #
 # Bridge to FMW: after the PDB is running, set in environment.conf:
@@ -36,8 +38,8 @@ DB_ADMIN_DIR="${ORACLE_BASE}/admin"           # audit dump: ORACLE_BASE/admin/FM
 # when DIAGNOSTIC_DEST is left at its default (= ORACLE_BASE).
 # No explicit variable needed — set automatically by Oracle.
 
-DB_FAST_RECOVERY_AREA=""                      # leave empty — NOARCHIVELOG for dev
-#DB_FAST_RECOVERY_AREA="${ORACLE_BASE}/fast_recovery_area"  # enable for production
+DB_FAST_RECOVERY_AREA="${ORACLE_BASE}/flash_recovery_area"  # FRA: logs, backups, flashback
+DB_RECOVERY_SIZE_MB=4096                      # db_recovery_file_dest_size (default: 4 GB)
 
 # --- Database Identity -------------------------------------------------------
 DB_SID="FMWCDB"
