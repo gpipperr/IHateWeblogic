@@ -35,9 +35,38 @@ source "$ENV_CONF"
 
 # --- Source environment_db.conf -----------------------------------------------
 if [ ! -f "$ENV_DB_CONF" ]; then
-    printf "\033[31mFATAL\033[0m: environment_db.conf not found: %s\n" "$ENV_DB_CONF" >&2
-    printf "  Copy and edit: cp %s/environment_db.conf.example %s/environment_db.conf\n" \
-        "$SCRIPT_DIR" "$SCRIPT_DIR" >&2; exit 2
+    _example="$SCRIPT_DIR/environment_db.conf.example"
+    printf "\n  \033[33mWARN\033[0m  environment_db.conf not found: %s\n" "$ENV_DB_CONF" >&2
+    printf "  This file configures the Oracle 19c DB installation (ORACLE_HOME, SID, …).\n" >&2
+    if [ ! -f "$_example" ]; then
+        printf "\033[31mFATAL\033[0m: Template also missing: %s\n" "$_example" >&2; exit 2
+    fi
+    printf "\n  Template found: %s\n" "$_example" >&2
+    if [ -n "${ORACLE_BASE:-}" ] && [ "$ORACLE_BASE" != "/u01/app/oracle" ]; then
+        printf "  ORACLE_BASE from environment.conf: %s\n" "$ORACLE_BASE" >&2
+        printf "  → will replace placeholder /u01/app/oracle in the copy\n" >&2
+    fi
+    printf "\n  Create environment_db.conf from template now? [y/N] " >&2
+    read -r _yn
+    case "${_yn}" in
+        [yY]|[yY][eE][sS])
+            cp "$_example" "$ENV_DB_CONF"
+            chmod 600 "$ENV_DB_CONF"
+            if [ -n "${ORACLE_BASE:-}" ] && [ "$ORACLE_BASE" != "/u01/app/oracle" ]; then
+                sed -i "s|ORACLE_BASE=\"/u01/app/oracle\"|ORACLE_BASE=\"${ORACLE_BASE}\"|g" \
+                    "$ENV_DB_CONF"
+            fi
+            printf "\n  \033[32mOK\033[0m   Created: %s\n" "$ENV_DB_CONF" >&2
+            printf "  \033[33mWARN\033[0m Review remaining settings before proceeding:\n" >&2
+            printf "       vi %s\n\n" "$ENV_DB_CONF" >&2
+            ;;
+        *)
+            printf "\n  Aborted. Copy and edit manually:\n" >&2
+            printf "    cp %s/environment_db.conf.example \\\n" "$SCRIPT_DIR" >&2
+            printf "       %s/environment_db.conf\n\n" "$SCRIPT_DIR" >&2
+            exit 2
+            ;;
+    esac
 fi
 source "$ENV_DB_CONF"
 
