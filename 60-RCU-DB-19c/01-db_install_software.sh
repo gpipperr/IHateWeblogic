@@ -317,6 +317,27 @@ _inv_location="$(grep "^inventory_loc=" "$_ora_inst_loc" | cut -d= -f2)"
 ok "$(printf "%-28s %s" "oraInst.loc:" "$_ora_inst_loc")"
 ok "$(printf "%-28s %s  (from oraInst.loc)" "Inventory:" "$_inv_location")"
 
+# The 19c runInstaller reads ONLY /etc/oraInst.loc — it does NOT auto-discover
+# $ORACLE_BASE/oraInst.loc.  When the FMW installer placed oraInst.loc inside
+# ORACLE_BASE (not in /etc), the DB installer falls back to its computed default
+# path (parent of ORACLE_BASE), which may not exist or not be writable → INS-32031.
+# Fix: copy $ORACLE_BASE/oraInst.loc to /etc/oraInst.loc if they differ (needs sudo).
+_ora_inst_etc="/etc/oraInst.loc"
+if [ "$_ora_inst_loc" != "$_ora_inst_etc" ]; then
+    if [ ! -f "$_ora_inst_etc" ] || ! diff -q "$_ora_inst_loc" "$_ora_inst_etc" >/dev/null 2>&1; then
+        info "$(printf "Syncing %-28s → /etc/oraInst.loc  (sudo)" "$_ora_inst_loc")"
+        if sudo cp "$_ora_inst_loc" "$_ora_inst_etc" && sudo chmod 644 "$_ora_inst_etc"; then
+            ok "/etc/oraInst.loc synced → inventory: $_inv_location"
+        else
+            warn "/etc/oraInst.loc could not be updated — installer may fail with INS-32031"
+            warn "  Fix as root:  cp '$_ora_inst_loc' '$_ora_inst_etc'"
+        fi
+    else
+        ok "/etc/oraInst.loc already matches — no sync needed"
+    fi
+fi
+unset _ora_inst_etc
+
 # Oracle 19.3.0 installer predates OL8/OL9 — supportedOSCheck throws NPE.
 # CV_ASSUME_DISTID=OEL7.6 makes the prereq check treat this as OL7.
 # Required for base 19.3.0; not needed after patching to 19.6+ via AutoUpgrade.
