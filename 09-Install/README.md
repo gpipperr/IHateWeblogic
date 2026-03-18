@@ -466,6 +466,10 @@ Place the following files there manually before working on related scripts:
 
 ## 12. References
 
+- **Oracle FMW 14.1.2 – System Requirements and Specifications (PDF):**
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.pdf
+  *(Authoritative source for hardware, OS, DB, and JDK requirements — to be analysed in detail during final validation.)*
+
 - Oracle Forms & Reports 14.1.2 – Installation Guide:
   https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html
 - Oracle WebLogic Server 14.1.1 – Installation Guide:
