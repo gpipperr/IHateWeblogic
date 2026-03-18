@@ -161,7 +161,7 @@ unset _dir
 
 section "Download autoupgrade.jar"
 
-AU_DOWNLOAD_URL="https://download.oracle.com/otn-pub/otn_software/autoupgrade/autoupgrade.jar"
+AU_DOWNLOAD_URL="https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar"
 
 if [ -f "$AU_JAR" ]; then
     ok "autoupgrade.jar already present: $AU_JAR"

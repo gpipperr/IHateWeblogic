@@ -35,9 +35,16 @@ mkdir -p "$AUTOUPGRADE_HOME/bin" "$AUTOUPGRADE_HOME/logs" \
          "$AUTOUPGRADE_HOME/config" "$AUTOUPGRADE_HOME/patchdir" \
          "$AUTOUPGRADE_HOME/keystore"
 
-# Download latest autoupgrade.jar (MOS Doc ID 2485457.1)
-# Or use getMOSPatch.jar with patch 30653378
+# Download latest autoupgrade.jar directly from oracle.com (no login required)
+curl -fsSL https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar \
+    -o "$AUTOUPGRADE_HOME/bin/autoupgrade.jar"
 ```
+
+> **Note on URL stability:** Oracle periodically reorganises the download path.
+> The current URL is `https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar`
+> (path changed from `.../otn_software/autoupgrade/autoupgrade.jar` in early 2026).
+> The Oracle Upgrades page at `https://www.oracle.com/database/upgrades/` always
+> contains the authoritative current link.
 
 ### Set MOS Keystore
 
