@@ -227,35 +227,40 @@ else
 
     # Pipe layout for NEW keystore:
     #   line 1-2 : keystore encryption password (create + confirm)
-    #   line 3   : console command: switch to mos group
-    #   line 4   : console command: add MOS user
+    #   line 3   : switch to MOS group context
+    #   line 4   : add MOS user (email address)
     #   line 5-6 : MOS password (enter + confirm)
-    #   line 7   : list — verify credentials loaded
-    #   line 8   : save
-    #   line 9   : exit
+    #   line 7   : list — triggers "Connection Successful" if credentials are valid
+    #   line 8   : exit
+    #   line 9   : YES — answer the "Save before exiting [YES|NO]?" prompt
     info "Setting MOS credentials in AutoUpgrade keystore (-load_password) ..."
-    printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nsave\nexit\n' \
+    _ks_out=$(printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nexit\nYES\n' \
         "$_ks_pass" "$_ks_pass" \
         "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
         | "$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
             -jar "$AU_JAR" \
             -config "$AU_KEYSTORE_CFG" \
             -patch -load_password \
-            2>&1 | tee -a "$LOG_FILE"
-    _ks_rc=${PIPESTATUS[1]}
+            2>&1)
+    printf '%s\n' "$_ks_out" | tee -a "$LOG_FILE"
 
     # Clear MOS credentials from memory immediately
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     unset MOS_USER MOS_PWD _ks_pass
 
-    if [ "$_ks_rc" -eq 0 ]; then
+    # Verify: "Connection Successful" appears when credentials are valid and loaded
+    if printf '%s\n' "$_ks_out" | grep -qi "Connection Successful"; then
         touch "$_ks_done_flag"
-        ok "MOS keystore configured"
+        ok "MOS keystore configured (credentials verified)"
+    elif printf '%s\n' "$_ks_out" | grep -qi "successfully created\|successfully saved"; then
+        touch "$_ks_done_flag"
+        warn "MOS keystore saved but connection verification not confirmed — check output above"
     else
-        warn "MOS keystore setup rc=$_ks_rc — check output above"
-        warn "  To retry: rm -f '$_ks_done_flag' && ./02-db_patch_autoupgrade.sh --apply"
+        warn "MOS keystore setup may have failed — 'Connection Successful' not found in output"
+        warn "  Check credentials in mos_sec.conf.des3, then retry:"
+        warn "  rm -rf '${_ks_dir}'/* && ./02-db_patch_autoupgrade.sh --apply"
     fi
-    unset _ks_rc
+    unset _ks_out
 fi
 unset _ks_dir _ks_done_flag
 
