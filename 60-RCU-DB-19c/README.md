@@ -5,6 +5,22 @@ schemas only.  Goal: smallest possible footprint on disk and in memory.
 
 ---
 
+> **License Notice**
+>
+> The database hosting the FMW RCU schemas must be licensed according to
+> Oracle database licensing guidelines:
+> *"Follow the Oracle licensing guidelines for the Oracle database that hosts the repository."*
+>
+> RCU is **not** a license-free special case.
+> The underlying database requires a full Oracle license — **Enterprise Edition (EE)**
+> or **Standard Edition 2 (SE2)**.\
+> Oracle Database XE or restricted runtime editions are **not permitted** —
+> they are not certified for FMW RCU.
+>
+> → Oracle licensing reference: [MOS Doc ID 2605929.1](https://support.oracle.com/epmos/faces/DocumentDisplay?id=2605929.1) (FMW Interoperability Matrix)
+
+---
+
 ## When to use this
 
 Only needed when **no Oracle database is available** in the environment and the
