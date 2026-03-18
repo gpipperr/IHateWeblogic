@@ -72,6 +72,7 @@ curl -fsSL https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar \
 ### Set MOS Keystore
 
 MOS credentials are stored **once** in the keystore and reused on subsequent runs.
+The script automates this with `expect` (installed by `00-root_db_os_baseline.sh`).
 
 ```bash
 java -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
@@ -79,26 +80,34 @@ java -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
     -patch -load_password
 ```
 
-At the interactive prompt:
+Exact interactive prompt sequence (AutoUpgrade 26.x):
 ```
-MOS> group mos
-MOS> add -user your.email@example.com
-Enter your password:
-Re-enter your password:
-MOS> list
-MOS> save
+Creating new AutoUpgrade Patching keystore - Password required
+Enter password:                                   ← keystore encryption password
+Enter password again:                             ← keystore encryption password (confirm)
+AutoUpgrade Patching keystore was successfully created
+
+MOS> add -user your.email@example.com             ← no 'group mos' needed
+Enter your secret/Password:                       ← MOS password
+Re-enter your secret/Password:                    ← MOS password (confirm)
 MOS> exit
+Save the AutoUpgrade Patching keystore before exiting [YES|NO] ? YES
+Convert the AutoUpgrade Patching keystore to auto-login [YES|NO] ?  YES
 ```
 
-The script pipes these commands from `mos_sec.conf.des3` automatically.
-If credentials change, delete the keystore directory and re-run `--apply`.
+The script automates this sequence via `expect` using credentials from `mos_sec.conf.des3`.
+The keystore encryption password is derived deterministically from the hostname.
+If credentials change: `rm -rf $DB_AUTOUPGRADE_HOME/keystore/* && ./02-db_patch_autoupgrade.sh --apply`
 
 `keystore.cfg`:
 ```
+global.global_log_dir=$DB_BASE/autoupgrade/logs
 global.keystore=$DB_BASE/autoupgrade/keystore
 ```
 
-> **Changed in AutoUpgrade 26.x:** `-mode setmospassword` was replaced by `-load_password`.
+> **Changed in AutoUpgrade 26.x:** `-mode setmospassword` replaced by `-load_password`.
+> `group mos` is no longer needed before `add -user`.
+> Two YES/NO save prompts appear after `exit` (save + convert to auto-login).
 
 ---
 
@@ -142,18 +151,27 @@ patch1.download=YES
 ### 1. Download patches
 
 ```bash
+# Java 8 (Oracle 19.3.0 JDK): use TLSv1.2 — Java 8 does not support TLSv1.3 as JVM property
+java -Dhttps.protocols=TLSv1.2 \
+    -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
+    -config "$AUTOUPGRADE_HOME/config/db19patch.cfg" \
+    -patch -mode download
+
+# Java 11+: TLSv1.3 works
 java -Dhttps.protocols=TLSv1.3 \
     -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
     -config "$AUTOUPGRADE_HOME/config/db19patch.cfg" \
     -patch -mode download
 ```
 
+The script detects the Java version and sets `$AU_TLS` automatically.
+
 Monitor: `lsj -a 10`
 
 ### 2. Create patched ORACLE_HOME
 
 ```bash
-java -Dhttps.protocols=TLSv1.3 \
+java -Dhttps.protocols=TLSv1.2 \   # or TLSv1.3 for Java 11+
     -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
     -config "$AUTOUPGRADE_HOME/config/db19patch.cfg" \
     -patch -mode create_home
@@ -214,14 +232,16 @@ strings "$DB_ORACLE_HOME/bin/oracle" | grep -c kzaiang
 ## SSL / DNS Issues
 
 AutoUpgrade communicates with Oracle Identity Cloud (`login-ext.identity.oraclecloud.com`).
-Transient DNS failures are known in some environments.  The script retries
-with the same `MOS_RETRY_MAX` / `MOS_RETRY_WAIT` pattern used in
-`04-oracle_pre_download.sh`.
+Transient DNS failures are known in some environments.
 
-Force TLSv1.3:
-```bash
-java -Dhttps.protocols=TLSv1.3 -jar autoupgrade.jar ...
-```
+**TLS version by Java version:**
+
+| Java | `-Dhttps.protocols` | Note |
+|---|---|---|
+| Java 8 (Oracle 19.3.0 JDK) | `TLSv1.2` | TLSv1.3 throws `IllegalArgumentException` on Java 8 |
+| Java 11+ | `TLSv1.3` | Full TLS 1.3 support |
+
+The script detects the Java version and sets the flag automatically.
 
 ---
 
@@ -246,6 +266,60 @@ DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.30.0/db_home1 — target (RU
 DB_AUTOUPGRADE_HOME     # ${ORACLE_BASE}/autoupgrade
 MOS_SEC_FILE            # path to mos_sec.conf.des3 (shared with 09-Install)
 ```
+
+---
+
+## Troubleshooting
+
+### Unable to validate platform / OPatch error 73
+
+**Symptom:**
+```
+Unable to validate platform
+OPatch failed with error code 73
+LsInventorySession failed: RawInventory gets null OracleHomeInfo
+```
+
+**Cause:**
+
+`runInstaller` rc=252 (ASM make failure, see `docs/02-db_install_software.md`) stops
+before Oracle Inventory registration completes.  The DB home is not listed in the
+central inventory — OPatch cannot identify it as a known Oracle Home.
+
+**Fix:**
+
+Register the already-installed home using `attachHome`:
+
+```bash
+$ORACLE_BASE/product/19.3.0/db_home1/oui/bin/runInstaller \
+    -silent -attachHome \
+    ORACLE_HOME=$ORACLE_BASE/product/19.3.0/db_home1 \
+    ORACLE_HOME_NAME=OraDB19Home1
+```
+
+Verify:
+```bash
+$ORACLE_BASE/product/19.3.0/db_home1/OPatch/opatch lsinventory \
+    -oh $ORACLE_BASE/product/19.3.0/db_home1
+# Must list OraDB19Home1 alongside OracleHome1 (FMW)
+```
+
+`01-db_install_software.sh` runs `attachHome` automatically after rc=252 as of
+commit `ddf59d6`.  On existing installations that pre-date this fix, run the
+`attachHome` command manually before calling `02-db_patch_autoupgrade.sh --apply`.
+
+---
+
+### DB_TARGET_RU=19.CURRENT — patch parameter not supported
+
+**Symptom:**
+```
+The patch parameter for prefix patch1 includes a value that is not supported or is not in the required format
+```
+
+**Cause:** `RU:19.CURRENT` is not a valid value in AutoUpgrade 26.x.
+
+**Fix:** Set `DB_TARGET_RU="RECOMMENDED"` (or a numeric version like `19.30`) in `environment_db.conf`.
 
 ---
 
