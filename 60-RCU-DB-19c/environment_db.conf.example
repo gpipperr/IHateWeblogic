@@ -103,7 +103,8 @@ DB_FMW_TABLESPACE_SIZE_MB=500      # initial size
 
 # --- AutoUpgrade / Patching (02-db_patch_autoupgrade.sh) ---------------------
 DB_AUTOUPGRADE_HOME="${ORACLE_BASE}/autoupgrade"
-DB_TARGET_RU="19.CURRENT"          # or fixed RU: 19.24
+DB_TARGET_RU="RECOMMENDED"         # RECOMMENDED = RU+OJVM+OPATCH+DPBP+AU (latest)
+                                   # or fixed: 19.30  (specific RU, reproducible install)
 MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 
 # --- Install Archive (01-db_install_software.sh) -----------------------------

@@ -48,16 +48,34 @@ curl -fsSL https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar \
 
 ### Set MOS Keystore
 
+MOS credentials are stored **once** in the keystore and reused on subsequent runs.
+
 ```bash
 java -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
     -config "$AUTOUPGRADE_HOME/config/keystore.cfg" \
-    -patch -mode setmospassword
+    -patch -load_password
 ```
+
+At the interactive prompt:
+```
+MOS> group mos
+MOS> add -user your.email@example.com
+Enter your password:
+Re-enter your password:
+MOS> list
+MOS> save
+MOS> exit
+```
+
+The script pipes these commands from `mos_sec.conf.des3` automatically.
+If credentials change, delete the keystore directory and re-run `--apply`.
 
 `keystore.cfg`:
 ```
 global.keystore=$DB_BASE/autoupgrade/keystore
 ```
+
+> **Changed in AutoUpgrade 26.x:** `-mode setmospassword` was replaced by `-load_password`.
 
 ---
 
@@ -72,16 +90,24 @@ global.keystore=$DB_BASE/autoupgrade/keystore
 patch1.source_home=$DB_ORACLE_HOME_BASE      # unpatched 19.3 home
 patch1.target_home=$DB_ORACLE_HOME           # new patched home (19.30.0/db_home1)
 patch1.folder=$DB_BASE/autoupgrade/patchdir
-patch1.patch=RU:19.30,OPATCH,OJVM:19.30,DPBP
+patch1.patch=recommended
 patch1.target_version=19
 patch1.download=YES
 ```
 
-> **Current RU: 19.30** (= Oracle Database 19c Release Update 30, Q1 2026)
+> **`patch1.patch` values (AutoUpgrade 26.x):**
 >
-> Use `RU:19.CURRENT` to always resolve the latest available RU automatically.
-> Use a fixed version (`RU:19.30`) for reproducible, documented installs —
-> recommended for production environments.
+> | Value | Meaning |
+> |---|---|
+> | `recommended` | Latest RU + OJVM + OPatch + DPBP + AU (default for non-production) |
+> | `ru:19.30,ojvm:19.30,opatch,dpbp` | Fixed RU 30 — reproducible, for production |
+>
+> The script derives the patch spec automatically from `DB_TARGET_RU` in `environment_db.conf`:
+> - `RECOMMENDED` → `recommended`
+> - `19.30` → `ru:19.30,ojvm:19.30,opatch,dpbp`
+>
+> **Note:** `RU:19.CURRENT` is **not** a valid value in AutoUpgrade 26.x.
+> Use `RECOMMENDED` for "always latest".
 >
 > Update `DB_ORACLE_HOME` in `environment_db.conf` to match the RU version:
 > `${ORACLE_BASE}/product/19.30.0/db_home1`
