@@ -188,3 +188,12 @@ $ORACLE_HOME/oracle_common/bin/rcu \
   → use `--drop` first (CAUTION: destroys all FMW configuration data)
 - `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE`: set in `environment.conf` via
   `01-setup-interview.sh` (Block 4); leave empty to let RCU manage tablespaces
+
+---
+
+## References
+
+- Oracle FMW 14.1.2 – Repository Creation Utility Guide (Running RCU in Silent Mode):
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-22C3AC9D-2F27-49ED-B983-8F4FC94C5501
+- Oracle FMW 14.1.2 – RCU Guide (Overview):
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD
