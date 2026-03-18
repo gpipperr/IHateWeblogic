@@ -94,21 +94,28 @@ section "Pre-checks"
     && ok "Source home exists: $DB_ORACLE_HOME_BASE" \
     || { fail "Source home not found – run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- Java: prefer FMW JDK (21) — AutoUpgrade 26.x requires Java 11+ ----------
-# 19.3.0 bundled JDK is Java 8; the interactive -load_password console does not
-# work correctly with Java 8 (console loop exits prematurely).
-# JDK_HOME from environment.conf points to Oracle JDK 21 (used for WebLogic).
+# --- Java 11 (required exactly by AutoUpgrade 26.x) --------------------------
+# AutoUpgrade Patching 26.x refuses Java 8 and Java 21: "must run with Java version 11".
+# 00-root_db_os_baseline.sh installs java-11-openjdk for this purpose.
 JAVA_BIN=""
 for _jbin in \
-    "${JDK_HOME:+$JDK_HOME/bin/java}" \
-    "/u01/app/oracle/java/jdk-21/bin/java" \
-    "$DB_ORACLE_HOME_BASE/jdk/bin/java"; do
-    [ -n "$_jbin" ] && [ -x "$_jbin" ] && { JAVA_BIN="$_jbin"; break; }
+    $(ls /usr/lib/jvm/java-11-openjdk*/bin/java 2>/dev/null | head -1) \
+    "/usr/lib/jvm/java-11/bin/java" \
+    "/usr/bin/java"; do
+    [ -n "$_jbin" ] && [ -x "$_jbin" ] || continue
+    _ver=$("$_jbin" -version 2>&1 | head -1)
+    if printf '%s' "$_ver" | grep -q '"11\.'; then
+        JAVA_BIN="$_jbin"; break
+    fi
 done
-unset _jbin
-[ -n "$JAVA_BIN" ] \
-    && ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))" \
-    || { fail "Java 11+ not found (JDK_HOME=$JDK_HOME)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+unset _jbin _ver
+if [ -n "$JAVA_BIN" ]; then
+    ok "Java 11 found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
+else
+    fail "Java 11 not found — AutoUpgrade 26.x requires exactly Java 11"
+    info "  Install: dnf install java-11-openjdk  (run 00-root_db_os_baseline.sh --apply)"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
 
 # --- MOS credentials ---------------------------------------------------------
 MOS_SEC_FILE="${MOS_SEC_FILE:-$ROOT_DIR/mos_sec.conf.des3}"
@@ -220,11 +227,10 @@ global.global_log_dir=${DB_AUTOUPGRADE_HOME}/logs
 global.keystore=${DB_AUTOUPGRADE_HOME}/keystore
 KEOF
 
-# -load_password (AutoUpgrade 26.x) opens an interactive console.
-# For a NEW keystore it asks for a keystore encryption password (2x) FIRST,
-# then enters the MOS credential console.
-# We use a deterministic keystore password tied to the host (not secret — MOS
-# credentials are the actual secret; the keystore is just the on-disk container).
+# -load_password (AutoUpgrade 26.x) is an interactive console.
+# For a NEW keystore: prompts for keystore encryption password (x2), then MOS credentials.
+# Keystore encryption password: deterministic per-host (not sensitive).
+# expect handles each prompt reliably regardless of timing; stdin pipe is fallback.
 _ks_dir="${DB_AUTOUPGRADE_HOME}/keystore"
 _ks_done_flag="${_ks_dir}/.mos_configured"
 
@@ -233,43 +239,64 @@ if [ -f "$_ks_done_flag" ]; then
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     unset MOS_USER MOS_PWD
 else
-    # Keystore encryption password: deterministic, per-host, not sensitive
     _ks_pass="IHateWeblogic-$(hostname -s 2>/dev/null || printf 'oracle')"
-
-    # Pipe layout for NEW keystore:
-    #   line 1-2 : keystore encryption password (create + confirm)
-    #   line 3   : switch to MOS group context
-    #   line 4   : add MOS user (email address)
-    #   line 5-6 : MOS password (enter + confirm)
-    #   line 7   : list — triggers "Connection Successful" if credentials are valid
-    #   line 8   : exit
-    #   line 9   : YES — answer the "Save before exiting [YES|NO]?" prompt
     info "Setting MOS credentials in AutoUpgrade keystore (-load_password) ..."
-    _ks_out=$(printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nexit\nYES\n' \
-        "$_ks_pass" "$_ks_pass" \
-        "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
-        | "$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
-            -jar "$AU_JAR" \
-            -config "$AU_KEYSTORE_CFG" \
-            -patch -load_password \
-            2>&1)
-    printf '%s\n' "$_ks_out" | tee -a "$LOG_FILE"
 
-    # Clear MOS credentials from memory immediately
+    if command -v expect >/dev/null 2>&1; then
+        # Pass all values via environment — no credentials written to disk
+        export _AU_KS_BIN="$JAVA_BIN" _AU_KS_JAR="$AU_JAR" _AU_KS_CFG="$AU_KEYSTORE_CFG"
+        export _AU_KS_PASS="$_ks_pass" _AU_MOS_USER="$MOS_USER" _AU_MOS_PWD="$MOS_PWD"
+        _ks_out=$(expect << 'EXPEOF' 2>&1
+set timeout 60
+spawn $env(_AU_KS_BIN) -Dhttps.protocols=TLSv1.3 \
+      -jar $env(_AU_KS_JAR) -patch -config $env(_AU_KS_CFG) -load_password
+
+# Handle both new-keystore (2x password prompt) and existing-keystore (1x unlock)
+expect {
+    "Enter password again:" { send "$env(_AU_KS_PASS)\r"; exp_continue }
+    "Enter password:"       { send "$env(_AU_KS_PASS)\r"; exp_continue }
+    "MOS>"  { }
+    timeout { puts "TIMEOUT waiting for MOS> prompt"; exit 1 }
+    eof     { puts "EOF before MOS> prompt"; exit 1 }
+}
+send "group mos\r"
+expect "MOS>"
+send "add -user $env(_AU_MOS_USER)\r"
+expect -re {(?i)password:}
+send "$env(_AU_MOS_PWD)\r"
+expect -re {(?i)password:}
+send "$env(_AU_MOS_PWD)\r"
+expect "MOS>"
+send "list\r"
+expect "MOS>"
+send "exit\r"
+expect -re {YES|NO}
+send "YES\r"
+expect eof
+EXPEOF
+)
+        unset _AU_KS_BIN _AU_KS_JAR _AU_KS_CFG _AU_KS_PASS _AU_MOS_USER _AU_MOS_PWD
+    else
+        warn "expect not found — using stdin pipe (install expect for reliability)"
+        _ks_out=$(printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nexit\nYES\n' \
+            "$_ks_pass" "$_ks_pass" "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
+            | "$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
+                -jar "$AU_JAR" -config "$AU_KEYSTORE_CFG" -patch -load_password 2>&1)
+    fi
+
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     unset MOS_USER MOS_PWD _ks_pass
+    printf '%s\n' "$_ks_out" | tee -a "$LOG_FILE"
 
-    # Verify: "Connection Successful" appears when credentials are valid and loaded
     if printf '%s\n' "$_ks_out" | grep -qi "Connection Successful"; then
         touch "$_ks_done_flag"
-        ok "MOS keystore configured (credentials verified)"
+        ok "MOS keystore configured (Connection Successful)"
     elif printf '%s\n' "$_ks_out" | grep -qi "successfully created\|successfully saved"; then
         touch "$_ks_done_flag"
-        warn "MOS keystore saved but connection verification not confirmed — check output above"
+        warn "MOS keystore saved — connection not yet verified (MOS reachable?)"
     else
-        warn "MOS keystore setup may have failed — 'Connection Successful' not found in output"
-        warn "  Check credentials in mos_sec.conf.des3, then retry:"
-        warn "  rm -rf '${_ks_dir}'/* && ./02-db_patch_autoupgrade.sh --apply"
+        warn "MOS keystore setup may have failed — 'Connection Successful' not found"
+        warn "  Retry: rm -rf '${_ks_dir}'/* && ./02-db_patch_autoupgrade.sh --apply"
     fi
     unset _ks_out
 fi

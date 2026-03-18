@@ -153,7 +153,58 @@ else
 fi
 
 # =============================================================================
-# 2. DB-specific sysctl parameters
+# 2. Java 11 (required by AutoUpgrade 26.x — must be exactly Java 11)
+# =============================================================================
+
+section "Java 11 for AutoUpgrade"
+
+# AutoUpgrade Patching 26.x requires Java 11 specifically.
+# 19.3.0 bundles Java 8; the FMW JDK 21 is rejected ("must run with Java version 11").
+# java-11-openjdk provides /usr/lib/jvm/java-11-openjdk-amd64/bin/java (OL9).
+_j11_installed=false
+if java -version 2>&1 | grep -q '"11\.'; then
+    _j11_installed=true
+    ok "Java 11 already active: $(java -version 2>&1 | head -1)"
+elif rpm -q java-11-openjdk >/dev/null 2>&1; then
+    _j11_installed=true
+    ok "java-11-openjdk already installed"
+fi
+
+if ! $_j11_installed; then
+    info "Installing java-11-openjdk ..."
+    if dnf install -y java-11-openjdk 2>&1 | tee -a "$LOG_FILE"; then
+        ok "java-11-openjdk installed"
+    else
+        warn "java-11-openjdk installation failed — AutoUpgrade will not be able to run"
+        warn "  Install manually: dnf install java-11-openjdk"
+    fi
+fi
+unset _j11_installed
+
+# Show detected Java 11 binary path (for use in 02-db_patch_autoupgrade.sh)
+_j11_bin=$(ls /usr/lib/jvm/java-11-openjdk*/bin/java 2>/dev/null | head -1)
+[ -n "$_j11_bin" ] && ok "Java 11 binary: $_j11_bin" || warn "Java 11 binary not found under /usr/lib/jvm/"
+unset _j11_bin
+
+# =============================================================================
+# 3. expect (required for automated MOS keystore setup in AutoUpgrade)
+# =============================================================================
+
+section "expect (for AutoUpgrade MOS keystore)"
+
+if rpm -q expect >/dev/null 2>&1; then
+    ok "expect already installed: $(command -v expect)"
+else
+    info "Installing expect ..."
+    if dnf install -y expect 2>&1 | tee -a "$LOG_FILE"; then
+        ok "expect installed"
+    else
+        warn "expect installation failed — MOS keystore setup will require manual interaction"
+    fi
+fi
+
+# =============================================================================
+# 4. DB-specific sysctl parameters
 # =============================================================================
 
 section "sysctl – DB-specific parameters"
