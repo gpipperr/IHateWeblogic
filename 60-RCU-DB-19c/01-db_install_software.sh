@@ -388,6 +388,29 @@ if [ "$_install_rc" -ne 0 ]; then
         warn "  sqlplus binary present → core install succeeded; ASM failure is non-critical"
         warn "  AutoUpgrade create_home (step 02) will build a clean patched home"
         warn "  Installer log: $_installer_log"
+        # rc=252: make failure stops before Oracle Inventory registration completes.
+        # OPatch lsinventory would not find the DB home → AutoUpgrade create_home
+        # fails with "Unable to validate platform" (OPatch error 73).
+        # Fix: use attachHome to register the already-installed home in the inventory.
+        _inv_xml="${_inv_location}/ContentsXML/inventory.xml"
+        if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" 2>/dev/null; then
+            ok "DB home already registered in Oracle Inventory"
+        else
+            info "Registering DB home in Oracle Inventory via attachHome ..."
+            "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
+                -silent -attachHome \
+                "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
+                "ORACLE_HOME_NAME=OraDB19Home1" \
+                2>&1 | tee -a "$LOG_FILE"
+            _attach_rc=${PIPESTATUS[0]}
+            if [ "$_attach_rc" -eq 0 ]; then
+                ok "attachHome completed — DB home registered in Oracle Inventory"
+            else
+                warn "attachHome rc=$_attach_rc — verify with: opatch lsinventory -oh $DB_ORACLE_HOME_BASE"
+            fi
+            unset _attach_rc
+        fi
+        unset _inv_xml
     else
         fail "runInstaller exited with rc=$_install_rc"
         info "  Check installer logs: $_inv_location/logs/"
