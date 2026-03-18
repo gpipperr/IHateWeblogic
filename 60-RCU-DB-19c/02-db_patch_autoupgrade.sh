@@ -247,7 +247,7 @@ set timeout 60
 spawn $env(_AU_KS_BIN) -Dhttps.protocols=TLSv1.3 \
       -jar $env(_AU_KS_JAR) -patch -config $env(_AU_KS_CFG) -load_password
 
-# Handle both new-keystore (2x password prompt) and existing-keystore (1x unlock)
+# New keystore: "Enter password:" (x2). Existing keystore: single unlock prompt.
 expect {
     "Enter password again:" { send "$env(_AU_KS_PASS)\r"; exp_continue }
     "Enter password:"       { send "$env(_AU_KS_PASS)\r"; exp_continue }
@@ -255,19 +255,24 @@ expect {
     timeout { puts "TIMEOUT waiting for MOS> prompt"; exit 1 }
     eof     { puts "EOF before MOS> prompt"; exit 1 }
 }
-send "group mos\r"
-expect "MOS>"
+
+# No "group mos" needed — add-user works directly at the MOS> prompt
 send "add -user $env(_AU_MOS_USER)\r"
-expect -re {(?i)password:}
+expect "Enter your secret/Password:"
 send "$env(_AU_MOS_PWD)\r"
-expect -re {(?i)password:}
+expect "Re-enter your secret/Password:"
 send "$env(_AU_MOS_PWD)\r"
-expect "MOS>"
-send "list\r"
 expect "MOS>"
 send "exit\r"
+
+# Two YES/NO prompts after exit:
+# 1. "Save the AutoUpgrade Patching keystore before exiting [YES|NO] ?"
+# 2. "Convert the AutoUpgrade Patching keystore to auto-login [YES|NO] ?"
 expect -re {YES|NO}
 send "YES\r"
+expect -re {YES|NO}
+send "YES\r"
+
 expect eof
 EXPEOF
 )
