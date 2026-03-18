@@ -10,7 +10,7 @@
 # Directory convention (same ORACLE_BASE, separate product subtrees):
 #   ORACLE_BASE/fmw/                    ← FMW_HOME  (FMW 14.1.2 software)
 #   ORACLE_BASE/product/19.3.0/db_home1 ← DB base install (unpatched)
-#   ORACLE_BASE/product/19.XX.0/db_home1← DB patched home (DB_ORACLE_HOME)
+#   ORACLE_BASE/product/19.30.0/db_home1← DB patched home (DB_ORACLE_HOME, RU 30)
 #   ORACLE_BASE/oradata/FMWCDB/         ← DB data files
 #   ORACLE_BASE/flash_recovery_area/    ← Fast Recovery Area (FRA)
 #   ORACLE_BASE/admin/FMWCDB/adump/     ← audit dump
@@ -42,8 +42,8 @@ DB_CV_ASSUME_DISTID="OEL7.6"
 DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
 
 # Patched home: created by AutoUpgrade -mode create_home
-# Replace 19.24.0 with the actual RU version you apply.
-DB_ORACLE_HOME="${ORACLE_BASE}/product/19.24.0/db_home1"
+# Current RU: 19.30 (Q1 2026) — update this when applying a newer RU.
+DB_ORACLE_HOME="${ORACLE_BASE}/product/19.30.0/db_home1"
 
 # --- Storage (all under ORACLE_BASE for clean separation from FMW) -----------
 DB_DATA_DIR="${ORACLE_BASE}/oradata"          # datafiles:  ORACLE_BASE/oradata/FMWCDB/

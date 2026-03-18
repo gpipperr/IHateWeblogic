@@ -63,15 +63,21 @@ global.global_log_dir=$DB_BASE/autoupgrade/logs
 global.keystore=$DB_BASE/autoupgrade/keystore
 
 patch1.source_home=$DB_ORACLE_HOME_BASE      # unpatched 19.3 home
-patch1.target_home=$DB_ORACLE_HOME           # new patched home (same or new path)
+patch1.target_home=$DB_ORACLE_HOME           # new patched home (19.30.0/db_home1)
 patch1.folder=$DB_BASE/autoupgrade/patchdir
-patch1.patch=RU:19.CURRENT,OPATCH,OJVM:19.CURRENT,DPBP
+patch1.patch=RU:19.30,OPATCH,OJVM:19.30,DPBP
 patch1.target_version=19
 patch1.download=YES
 ```
 
-> `RU:19.CURRENT` → AutoUpgrade resolves the latest available 19c RU.
-> Set a fixed RU (e.g. `RU:19.24`) for reproducible installs.
+> **Current RU: 19.30** (= Oracle Database 19c Release Update 30, Q1 2026)
+>
+> Use `RU:19.CURRENT` to always resolve the latest available RU automatically.
+> Use a fixed version (`RU:19.30`) for reproducible, documented installs —
+> recommended for production environments.
+>
+> Update `DB_ORACLE_HOME` in `environment_db.conf` to match the RU version:
+> `${ORACLE_BASE}/product/19.30.0/db_home1`
 
 ---
 
@@ -180,7 +186,7 @@ $DB_ORACLE_HOME/OPatch/opatch version
 ```bash
 ORACLE_BASE             # /u01/app/oracle — shared with FMW
 DB_ORACLE_HOME_BASE     # ${ORACLE_BASE}/product/19.3.0/db_home1  — source (unpatched)
-DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.24.0/db_home1 — target (patched)
+DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.30.0/db_home1 — target (RU 30, patched)
 DB_AUTOUPGRADE_HOME     # ${ORACLE_BASE}/autoupgrade
 MOS_SEC_FILE            # path to mos_sec.conf.des3 (shared with 09-Install)
 ```
