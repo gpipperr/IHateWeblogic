@@ -78,12 +78,14 @@ init_log "$DIAG_LOG_DIR"
 # =============================================================================
 
 APPLY=false
+FORCE=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--help]\n\n" "$(basename "$0")"
-    printf "  %-12s %s\n" "(none)"  "Dry-run: show configuration, no install"
-    printf "  %-12s %s\n" "--apply" "Unzip + runInstaller software-only"
-    printf "  %-12s %s\n" "--help"  "Show this help"
+    printf "Usage: %s [--apply] [--force] [--help]\n\n" "$(basename "$0")"
+    printf "  %-12s %s\n" "(none)"   "Dry-run: show configuration, no install"
+    printf "  %-12s %s\n" "--apply"  "Unzip + runInstaller software-only"
+    printf "  %-12s %s\n" "--force"  "Remove DB_ORACLE_HOME_BASE and reinstall (requires --apply + confirmation)"
+    printf "  %-12s %s\n" "--help"   "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
@@ -91,11 +93,17 @@ _usage() {
 for _arg in "$@"; do
     case "$_arg" in
         --apply)   APPLY=true ;;
+        --force)   FORCE=true ;;
         --help|-h) _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
+
+if $FORCE && ! $APPLY; then
+    printf "\033[31mERROR\033[0m --force requires --apply\n" >&2
+    exit 1
+fi
 
 # =============================================================================
 # Banner
@@ -187,6 +195,28 @@ if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "Dry-run – use --apply to install."
     print_summary; exit $EXIT_CODE
+fi
+
+# =============================================================================
+# --force: remove existing ORACLE_HOME_BASE (with explicit confirmation)
+# =============================================================================
+
+if $FORCE; then
+    if [ -d "$DB_ORACLE_HOME_BASE" ]; then
+        warn "$(printf "FORCE: will delete: %s" "$DB_ORACLE_HOME_BASE")"
+        warn "  This removes all extracted files and any registered inventory entry."
+        printf "\n  Type YES to confirm deletion: " >&2
+        read -r _confirm
+        if [ "$_confirm" != "YES" ]; then
+            info "Aborted — nothing deleted."
+            EXIT_CODE=0; print_summary; exit $EXIT_CODE
+        fi
+        rm -rf "$DB_ORACLE_HOME_BASE"
+        ok "Deleted: $DB_ORACLE_HOME_BASE"
+    else
+        info "--force: directory does not exist, nothing to delete: $DB_ORACLE_HOME_BASE"
+    fi
+    unset _confirm
 fi
 
 # =============================================================================
