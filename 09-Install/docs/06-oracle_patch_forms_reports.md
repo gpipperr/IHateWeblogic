@@ -103,3 +103,38 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 - FMW Bundle Patches often cover both WLS and F&R components; check the CPU
   advisory whether a separate F&R patch is listed
 - OPatch upgrade is not repeated here (done in `05-oracle_patch_weblogic.sh`)
+
+---
+
+## How to Find the Current F&R QPR Patch Number
+
+Since January 2022 Oracle delivers Forms fixes as **Quarterly Patch Releases (QPRs)**
+on the same schedule as the CPU (January / April / July / October).
+Oracle Reports was added to this programme in **May 2025**.
+
+**Authoritative source — MOS Knowledge Article KA204:**
+
+> *Oracle Forms and Reports Quarterly Patch Information*
+> MOS → Search → Knowledge → **KA204**
+> Last updated: Feb 2026 | Applies to: Oracle Forms / Reports all versions
+
+The article contains tabs per product/version:
+
+| Tab | Relevant for this project |
+|---|---|
+| Forms 14.1.2 | **yes** — current F&R install version |
+| Reports 14.1.2 | **yes** — current F&R install version |
+| Forms 12.2.1.x | no |
+| Reports 12.2.1.x | no |
+
+**Steps to get the current patch number:**
+1. Open MOS → Knowledge → search `KA204`
+2. Click tab **Forms 14.1.2** → note the latest QPR patch number
+3. Click tab **Reports 14.1.2** → note the latest QPR patch number
+4. Download both ZIPs to `$PATCH_STORAGE/patches/<NR>/`
+5. Set `INSTALL_PATCHES_FR="<forms_nr> <reports_nr>"` in `oracle_software_version.conf`
+6. Run `06-oracle_patch_forms_reports.sh --check-only` then `--apply`
+
+> **TODO (next session):** Look up the current QPR patch numbers from KA204 tabs
+> "Forms 14.1.2" and "Reports 14.1.2", download the ZIPs, and set
+> `INSTALL_PATCHES_FR` accordingly.

@@ -146,6 +146,29 @@ patch1.download=YES
 
 ---
 
+## Gold Image Prerequisite
+
+`create_home` builds the new ORACLE_HOME by unpacking the base 19.3.0 installation ZIP
+(Gold Image).  The file **must** be present in `patch1.folder` before `create_home` runs.
+
+```bash
+# Option A: symlink from patch storage (avoids 3 GB copy)
+ln -sf "$DB_INSTALL_ARCHIVE" "$DB_AUTOUPGRADE_HOME/patchdir/LINUX.X64_193000_db_home.zip"
+
+# Option B: copy
+cp LINUX.X64_193000_db_home.zip "$DB_AUTOUPGRADE_HOME/patchdir/"
+```
+
+The script handles this automatically: it symlinks `DB_INSTALL_ARCHIVE` (from
+`environment_db.conf`) into `patchdir` before calling `create_home`.
+
+If the ZIP is missing, `create_home` fails at the EXTRACT stage:
+```
+EXTRACT stage failed: Could not find a Gold Image or usable base image
+```
+
+---
+
 ## Patch Execution
 
 ### 1. Download patches
@@ -310,6 +333,52 @@ commit `ddf59d6`.  On existing installations that pre-date this fix, run the
 
 ---
 
+### AutoUpgrade Recovery State – download mode refused
+
+**Symptom:**
+```
+Previous execution found loading latest data
+Total jobs recovered: 1
+There is an unfinished execution of a create_home mode. Run the AutoUpgrade Patching
+in create_home mode to resume from failure point
+        java -jar autoupgrade.jar -config .../db19patch.cfg -mode create_home
+```
+`download` mode exits with rc=1 — not a DNS or network error.
+
+**Cause:**
+
+A previous `create_home` run failed partway through (e.g. at INSTALL stage).
+AutoUpgrade stores recovery data and refuses to run `download` again while a
+`create_home` job is pending.
+
+**Fix A — Resume (default behaviour of the script):**
+
+The script detects "unfinished execution" in the output and automatically skips the
+download step, proceeding directly to `create_home` (which will resume from the
+failure point):
+
+```bash
+./02-db_patch_autoupgrade.sh --apply
+```
+
+**Fix B — Start completely from scratch:**
+
+```bash
+./02-db_patch_autoupgrade.sh --reset-recovery
+```
+
+This clears the AutoUpgrade recovery data (`-clear_recovery_data -jobs 1`), then
+re-runs the full cycle: download → create_home.
+
+**Manual equivalent:**
+```bash
+java -jar autoupgrade.jar -config .../db19patch.cfg -patch \
+    -clear_recovery_data -jobs 1
+java -jar autoupgrade.jar -config .../db19patch.cfg -patch -mode create_home
+```
+
+---
+
 ### DB_TARGET_RU=19.CURRENT — patch parameter not supported
 
 **Symptom:**
@@ -320,6 +389,58 @@ The patch parameter for prefix patch1 includes a value that is not supported or 
 **Cause:** `RU:19.CURRENT` is not a valid value in AutoUpgrade 26.x.
 
 **Fix:** Set `DB_TARGET_RU="RECOMMENDED"` (or a numeric version like `19.30`) in `environment_db.conf`.
+
+---
+
+### PATCH109 – patch not applicable / Invalid Home (INSTALL stage)
+
+**Symptom:**
+```
+PATCH109: AutoUpgrade Patching failed to install the new ORACLE_HOME
+          /u01/app/oracle/product/19.30.0/db_home1
+Reason: Failed during Analysis: .../38632161 is not applicable to the oracle home ...
+opatchauto FAILED on some patches.
+```
+
+OPatch sub-log (`cfgtoollogs/opatchauto/core/opatch/opatch*.log`):
+```
+[INFO]   Throwable occurred: Invalid Home : /u01/app/oracle/product/19.30.0/db_home1
+[INFO]   IMPReadService:getPatchCheckResultsCUPs, failed to get ComponentInfo from
+         inventory Invalid Home : /u01/app/oracle/product/19.30.0/db_home1
+OPatch cannot locate your -invPtrLoc '.../19.30.0/db_home1/oraInst.loc'
+OPatch failed with error code 106
+```
+
+**Cause:**
+
+AutoUpgrade EXTRACT stage unpacks the Gold Image ZIP into `target_home`, but
+`oraInst.loc` is **not included in the ZIP** — it is created by OUI during a normal
+installation.  Without `oraInst.loc`, OPatch cannot locate the central Oracle Inventory
+and all inventory-dependent prerequisite checks fail with "Invalid Home" (OPatch
+error 106).
+
+**Fix (manual / one-time):**
+
+```bash
+# 1. Copy oraInst.loc from system into the new home
+cp /etc/oraInst.loc $DB_ORACLE_HOME/oraInst.loc
+
+# 2. Register the new home in the central inventory
+$DB_ORACLE_HOME/oui/bin/runInstaller \
+    -silent -attachHome \
+    ORACLE_HOME=$DB_ORACLE_HOME \
+    ORACLE_HOME_NAME=OraDB19Home1Patched
+
+# 3. Verify — must now show Oracle Database 19c without error
+$DB_ORACLE_HOME/OPatch/opatch lsinventory -oh $DB_ORACLE_HOME 2>&1 | head -20
+
+# 4. Resume (AutoUpgrade recovery state is still active)
+./02-db_patch_autoupgrade.sh --apply
+```
+
+**Automated:** The script detects `$DB_ORACLE_HOME` exists without `oraInst.loc`
+before every `create_home` call and applies the fix automatically (copy + attachHome).
+Manual intervention is only needed on environments set up before this fix was added.
 
 ---
 

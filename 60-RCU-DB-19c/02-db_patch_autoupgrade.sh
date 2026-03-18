@@ -47,20 +47,23 @@ init_log "$DIAG_LOG_DIR"
 # =============================================================================
 
 APPLY=false
+RESET_RECOVERY=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--help]\n\n" "$(basename "$0")"
-    printf "  %-12s %s\n" "(none)"  "Dry-run: show config, no patching"
-    printf "  %-12s %s\n" "--apply" "Download patches + create_home + chopt + relink"
-    printf "  %-12s %s\n" "--help"  "Show this help"
+    printf "Usage: %s [--apply] [--reset-recovery] [--help]\n\n" "$(basename "$0")"
+    printf "  %-18s %s\n" "(none)"           "Dry-run: show config, no patching"
+    printf "  %-18s %s\n" "--apply"          "Download patches + create_home + chopt + relink"
+    printf "  %-18s %s\n" "--reset-recovery" "Clear AutoUpgrade recovery data, then run apply"
+    printf "  %-18s %s\n" "--help"           "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
 
 for _arg in "$@"; do
     case "$_arg" in
-        --apply)   APPLY=true ;;
-        --help|-h) _usage ;;
+        --apply)          APPLY=true ;;
+        --reset-recovery) APPLY=true; RESET_RECOVERY=true ;;
+        --help|-h)        _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
@@ -364,28 +367,84 @@ ok "$(printf "  patch spec: %s  (DB_TARGET_RU=%s)" "$_patch_spec" "$_target_ru")
 unset _target_ru _patch_spec
 
 # =============================================================================
-# 5. Download patches
+# 5. Download patches  (skip if AutoUpgrade recovery state exists)
 # =============================================================================
 
 section "AutoUpgrade – Download Patches"
 
+# Clear recovery data first if --reset-recovery was given.
+# This discards any incomplete create_home job so the next run starts fresh.
+if $RESET_RECOVERY; then
+    warn "--reset-recovery: clearing AutoUpgrade recovery data ..."
+    "$JAVA_BIN" $AU_TLS \
+        -jar "$AU_JAR" \
+        -config "$AU_CONFIG" \
+        -patch -clear_recovery_data -jobs 1 \
+        2>&1 | tee -a "$LOG_FILE" || true
+    ok "Recovery data cleared"
+fi
+
 printf "\n  Download started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-"$JAVA_BIN" $AU_TLS \
+_dl_out=$("$JAVA_BIN" $AU_TLS \
     -jar "$AU_JAR" \
     -config "$AU_CONFIG" \
     -patch -mode download \
-    2>&1 | tee -a "$LOG_FILE"
-
-_dl_rc=${PIPESTATUS[0]}
+    2>&1)
+_dl_rc=$?
+printf '%s\n' "$_dl_out" | tee -a "$LOG_FILE"
 printf "\n  Download finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_dl_rc" | tee -a "$LOG_FILE"
 
-[ "$_dl_rc" -eq 0 ] \
-    && ok "Patch download completed" \
-    || { fail "Patch download failed (rc=$_dl_rc)"
-         info "  Check log: $DB_AUTOUPGRADE_HOME/logs/"
-         info "  DNS issues? Try again – transient failures are known"
-         EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+# AutoUpgrade rc=1 when a previous create_home run left recovery state.
+# It refuses download mode and asks to resume via create_home — detect and skip.
+_SKIP_DOWNLOAD=false
+if [ "$_dl_rc" -ne 0 ]; then
+    if printf '%s\n' "$_dl_out" | grep -qi "unfinished execution\|create_home mode to resume"; then
+        warn "AutoUpgrade recovery state detected — previous create_home run incomplete"
+        warn "  Skipping download, proceeding directly to create_home (resume)"
+        info "  To start completely fresh: ./$(basename "$0") --reset-recovery"
+        _SKIP_DOWNLOAD=true
+    else
+        fail "Patch download failed (rc=$_dl_rc)"
+        info "  Check log: $DB_AUTOUPGRADE_HOME/logs/"
+        info "  DNS issues? Try: ./$(basename "$0") --apply"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+else
+    ok "Patch download completed"
+fi
+unset _dl_out _dl_rc
+
+# =============================================================================
+# 5b. Ensure Gold Image (LINUX.X64_193000_db_home.zip) is in patchdir
+# =============================================================================
+#
+# create_home extracts the base 19.3.0 Gold Image from patchdir to build the
+# new target_home.  Without it AutoUpgrade fails at EXTRACT stage:
+#   "Could not find a Gold Image or usable base image"
+#
+# DB_INSTALL_ARCHIVE from environment_db.conf points to the patch storage copy.
+# We place a symlink rather than a copy to avoid doubling the 3 GB.
+
+section "Gold Image in patchdir"
+
+_gold_zip="$DB_AUTOUPGRADE_HOME/patchdir/LINUX.X64_193000_db_home.zip"
+_src_zip="${DB_INSTALL_ARCHIVE:-}"
+
+if [ -f "$_gold_zip" ] || [ -L "$_gold_zip" ]; then
+    ok "Gold Image present: $_gold_zip"
+elif [ -f "$_src_zip" ]; then
+    info "Symlinking Gold Image from patch storage into patchdir ..."
+    ln -sf "$_src_zip" "$_gold_zip"
+    ok "Gold Image symlinked: $_gold_zip → $_src_zip"
+else
+    fail "Gold Image not found in patchdir and DB_INSTALL_ARCHIVE not available"
+    info "  Expected: $_gold_zip"
+    info "  Or set DB_INSTALL_ARCHIVE in environment_db.conf to the ZIP path"
+    info "  Manual fix: cp LINUX.X64_193000_db_home.zip $DB_AUTOUPGRADE_HOME/patchdir/"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+unset _gold_zip _src_zip
 
 # =============================================================================
 # 6. Create patched ORACLE_HOME
@@ -393,7 +452,36 @@ printf "\n  Download finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_
 
 section "AutoUpgrade – create_home"
 
-info "Creating patched home: $DB_ORACLE_HOME"
+$_SKIP_DOWNLOAD && info "Resuming previous create_home run (recovery state)" \
+                || info "Creating patched home: $DB_ORACLE_HOME"
+unset _SKIP_DOWNLOAD
+
+# --- Pre-flight: fix oraInst.loc if EXTRACT already ran but INSTALL failed -------
+# AutoUpgrade EXTRACT unpacks the gold image but does NOT create oraInst.loc.
+# OPatch needs oraInst.loc to locate the central inventory; without it all
+# inventory-dependent prereqs fail with "Invalid Home" (OPatch error 106).
+# Fix: copy from /etc/oraInst.loc, then register the home via attachHome.
+if [ -d "$DB_ORACLE_HOME" ] && [ ! -f "$DB_ORACLE_HOME/oraInst.loc" ]; then
+    if [ -f "/etc/oraInst.loc" ]; then
+        warn "oraInst.loc missing in target home — auto-fixing (OPatch error 106 prevention)"
+        cp /etc/oraInst.loc "$DB_ORACLE_HOME/oraInst.loc"
+        ok "oraInst.loc copied: $DB_ORACLE_HOME/oraInst.loc"
+    else
+        fail "oraInst.loc missing in target home AND in /etc — cannot auto-fix"
+        info "  Manual fix: create $DB_ORACLE_HOME/oraInst.loc with:"
+        info "    inventory_loc=<central_inventory_path>"
+        info "    inst_group=oinstall"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    info "Registering target home in Oracle Inventory (attachHome) ..."
+    "$DB_ORACLE_HOME/oui/bin/runInstaller" \
+        -silent -attachHome \
+        "ORACLE_HOME=$DB_ORACLE_HOME" \
+        "ORACLE_HOME_NAME=OraDB19Home1Patched" \
+        2>&1 | tee -a "$LOG_FILE" || true
+    ok "attachHome completed — OPatch should now recognise the target home"
+fi
+
 printf "\n  create_home started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
 "$JAVA_BIN" $AU_TLS \
@@ -409,6 +497,8 @@ printf "\n  create_home finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" 
     && ok "Patched home created: $DB_ORACLE_HOME" \
     || { fail "create_home failed (rc=$_patch_rc)"
          info "  Check log: $DB_AUTOUPGRADE_HOME/logs/"
+         info "  PATCH109/Invalid Home? Check:"
+         info "    $DB_ORACLE_HOME/cfgtoollogs/opatchauto/core/opatch/opatch*.log"
          EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # =============================================================================
