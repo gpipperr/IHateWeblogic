@@ -94,11 +94,21 @@ section "Pre-checks"
     && ok "Source home exists: $DB_ORACLE_HOME_BASE" \
     || { fail "Source home not found – run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- Java (bundled 19c JDK) --------------------------------------------------
-JAVA_BIN="$DB_ORACLE_HOME_BASE/jdk/bin/java"
-[ -x "$JAVA_BIN" ] \
+# --- Java: prefer FMW JDK (21) — AutoUpgrade 26.x requires Java 11+ ----------
+# 19.3.0 bundled JDK is Java 8; the interactive -load_password console does not
+# work correctly with Java 8 (console loop exits prematurely).
+# JDK_HOME from environment.conf points to Oracle JDK 21 (used for WebLogic).
+JAVA_BIN=""
+for _jbin in \
+    "${JDK_HOME:+$JDK_HOME/bin/java}" \
+    "/u01/app/oracle/java/jdk-21/bin/java" \
+    "$DB_ORACLE_HOME_BASE/jdk/bin/java"; do
+    [ -n "$_jbin" ] && [ -x "$_jbin" ] && { JAVA_BIN="$_jbin"; break; }
+done
+unset _jbin
+[ -n "$JAVA_BIN" ] \
     && ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))" \
-    || { fail "Java not found at $JAVA_BIN"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "Java 11+ not found (JDK_HOME=$JDK_HOME)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- MOS credentials ---------------------------------------------------------
 MOS_SEC_FILE="${MOS_SEC_FILE:-$ROOT_DIR/mos_sec.conf.des3}"
@@ -204,8 +214,9 @@ fi
 ok "MOS_USER decrypted: ${MOS_USER}"
 ok "MOS_PWD  decrypted (${#MOS_PWD} chars)"
 
-# Write keystore config
+# Write keystore config (global.global_log_dir required to avoid /tmp fallback)
 cat > "$AU_KEYSTORE_CFG" << KEOF
+global.global_log_dir=${DB_AUTOUPGRADE_HOME}/logs
 global.keystore=${DB_AUTOUPGRADE_HOME}/keystore
 KEOF
 
