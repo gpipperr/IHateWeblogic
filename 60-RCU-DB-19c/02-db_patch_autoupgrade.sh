@@ -209,23 +209,33 @@ cat > "$AU_KEYSTORE_CFG" << KEOF
 global.keystore=${DB_AUTOUPGRADE_HOME}/keystore
 KEOF
 
-# Check if keystore already populated (skip if credentials stored from a previous run)
+# -load_password (AutoUpgrade 26.x) opens an interactive console.
+# For a NEW keystore it asks for a keystore encryption password (2x) FIRST,
+# then enters the MOS credential console.
+# We use a deterministic keystore password tied to the host (not secret — MOS
+# credentials are the actual secret; the keystore is just the on-disk container).
 _ks_dir="${DB_AUTOUPGRADE_HOME}/keystore"
-_ks_populated=false
-if compgen -G "$_ks_dir"/*.jceks >/dev/null 2>&1 || compgen -G "$_ks_dir"/wallet* >/dev/null 2>&1 || \
-   [ -n "$(ls -A "$_ks_dir" 2>/dev/null)" ]; then
-    _ks_populated=true
-fi
+_ks_done_flag="${_ks_dir}/.mos_configured"
 
-if $_ks_populated; then
-    ok "MOS keystore already populated — skipping credential load"
+if [ -f "$_ks_done_flag" ]; then
+    ok "MOS keystore already configured — skipping (delete $_ks_done_flag to re-run)"
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     unset MOS_USER MOS_PWD
 else
-    # -load_password replaced -mode setmospassword in AutoUpgrade 26.x.
-    # The console reads stdin: group mos → add -user → password (x2) → save → exit
+    # Keystore encryption password: deterministic, per-host, not sensitive
+    _ks_pass="IHateWeblogic-$(hostname -s 2>/dev/null || printf 'oracle')"
+
+    # Pipe layout for NEW keystore:
+    #   line 1-2 : keystore encryption password (create + confirm)
+    #   line 3   : console command: switch to mos group
+    #   line 4   : console command: add MOS user
+    #   line 5-6 : MOS password (enter + confirm)
+    #   line 7   : list — verify credentials loaded
+    #   line 8   : save
+    #   line 9   : exit
     info "Setting MOS credentials in AutoUpgrade keystore (-load_password) ..."
-    printf 'group mos\nadd -user %s\n%s\n%s\nlist\nsave\nexit\n' \
+    printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nsave\nexit\n' \
+        "$_ks_pass" "$_ks_pass" \
         "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
         | "$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
             -jar "$AU_JAR" \
@@ -236,18 +246,18 @@ else
 
     # Clear MOS credentials from memory immediately
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    unset MOS_USER MOS_PWD
+    unset MOS_USER MOS_PWD _ks_pass
 
     if [ "$_ks_rc" -eq 0 ]; then
+        touch "$_ks_done_flag"
         ok "MOS keystore configured"
     else
         warn "MOS keystore setup rc=$_ks_rc — check output above"
-        warn "  If credentials are wrong, delete keystore dir and re-run:"
-        warn "    rm -rf ${_ks_dir} && ./02-db_patch_autoupgrade.sh --apply"
+        warn "  To retry: rm -f '$_ks_done_flag' && ./02-db_patch_autoupgrade.sh --apply"
     fi
     unset _ks_rc
 fi
-unset _ks_dir _ks_populated
+unset _ks_dir _ks_done_flag
 
 # =============================================================================
 # 4. Write patch config
@@ -263,6 +273,13 @@ _target_ru="${DB_TARGET_RU:-RECOMMENDED}"
 #   anything else        → passed through as-is (user-defined)
 case "${_target_ru^^}" in
     RECOMMENDED)
+        _patch_spec="recommended"
+        ;;
+    19.*CURRENT*|19.*LATEST*)
+        # Legacy value from older environment_db.conf — not valid in AutoUpgrade 26.x.
+        # Map to RECOMMENDED (latest RU+OJVM+OPatch+DPBP).
+        warn "DB_TARGET_RU='$_target_ru' is not valid in AutoUpgrade 26.x → using 'recommended'"
+        warn "  Update environment_db.conf:  DB_TARGET_RU=\"RECOMMENDED\"  (or e.g. 19.30)"
         _patch_spec="recommended"
         ;;
     19.*)
