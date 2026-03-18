@@ -312,11 +312,12 @@ info "$(printf "%-28s %s  (OL8/OL9 compat for 19.3.0 installer)" "CV_ASSUME_DIST
 
 printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
+# Note: 19c DBSetup installer does NOT support -invPtrLoc (OUI legacy flag).
+# It finds oraInst.loc automatically at $ORACLE_BASE/oraInst.loc or /etc/oraInst.loc.
 "$DB_ORACLE_HOME_BASE/runInstaller" \
     -silent \
     -ignorePrereqFailure \
     -waitforcompletion \
-    -invPtrLoc "$_ora_inst_loc" \
     "oracle.install.option=INSTALL_DB_SWONLY" \
     "ORACLE_BASE=$ORACLE_BASE" \
     "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
