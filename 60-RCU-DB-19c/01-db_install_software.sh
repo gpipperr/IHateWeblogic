@@ -169,13 +169,21 @@ fi
 unset _avail_kb _required_kb _disk_check_dir
 
 # --- Inventory check ----------------------------------------------------------
-ORABASE_INVENTORY="$ORACLE_BASE/../oraInventory"
-ORABASE_INVENTORY="$(cd "$ORACLE_BASE/.." && pwd)/oraInventory"
+# Read actual inventory_loc from oraInst.loc — do NOT calculate/guess the path.
+# FMW installer may place the inventory inside ORACLE_BASE, not above it.
+_ora_inst_loc_pre="$ORACLE_BASE/oraInst.loc"
+[ ! -f "$_ora_inst_loc_pre" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_pre="/etc/oraInst.loc"
+if [ -f "$_ora_inst_loc_pre" ]; then
+    ORABASE_INVENTORY="$(grep "^inventory_loc=" "$_ora_inst_loc_pre" | cut -d= -f2)"
+else
+    ORABASE_INVENTORY="$(cd "$ORACLE_BASE/.." && pwd)/oraInventory"
+fi
 if [ -d "$ORABASE_INVENTORY" ]; then
-    ok "Oracle Inventory found: $ORABASE_INVENTORY (shared with FMW)"
+    ok "Oracle Inventory found: $ORABASE_INVENTORY  (from ${_ora_inst_loc_pre})"
 else
     info "No inventory yet at $ORABASE_INVENTORY – will be created by installer"
 fi
+unset _ora_inst_loc_pre
 
 # =============================================================================
 # Summary
@@ -215,7 +223,11 @@ if $FORCE; then
         # root.sh reads its helper script path from the inventory — a stale entry
         # (e.g. from a previous Oracle installation) causes wrong paths in root.sh.
         # Only run detachHome when the home is actually registered in the inventory.
-        _inv_xml_force="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory/ContentsXML/inventory.xml"
+        _ora_inst_loc_force="$ORACLE_BASE/oraInst.loc"
+        [ ! -f "$_ora_inst_loc_force" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_force="/etc/oraInst.loc"
+        _inv_base_force="$(grep "^inventory_loc=" "$_ora_inst_loc_force" 2>/dev/null | cut -d= -f2)"
+        _inv_xml_force="${_inv_base_force:-$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory}/ContentsXML/inventory.xml"
+        unset _ora_inst_loc_force _inv_base_force
         if [ -f "$_inv_xml_force" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml_force" 2>/dev/null; then
             info "Detaching home from Oracle Inventory..."
             "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" -silent -detachHome \
@@ -276,7 +288,9 @@ section "runInstaller – software-only"
 # --- idempotency: skip if home is registered in Oracle Inventory -------------
 # bin/oracle is already present in the extracted ZIP — not a reliable indicator.
 # Only the Inventory XML entry confirms that runInstaller completed successfully.
-_inv_xml="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory/ContentsXML/inventory.xml"
+_inv_xml_loc="$ORACLE_BASE/oraInst.loc"; [ ! -f "$_inv_xml_loc" ] && [ -f "/etc/oraInst.loc" ] && _inv_xml_loc="/etc/oraInst.loc"
+_inv_xml="$(grep "^inventory_loc=" "$_inv_xml_loc" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+unset _inv_xml_loc
 if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" 2>/dev/null; then
     ok "Home already registered in Oracle Inventory — runInstaller completed, skipping"
     ok "  $(grep "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" | head -1 | sed 's/.*NAME="\([^"]*\)".*/\1/' || printf "%s" "$DB_ORACLE_HOME_BASE")"
@@ -285,22 +299,23 @@ else
 unset _inv_xml
 
 _edition="${DB_EDITION:-EE}"
-_inv_location="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory"
 
 # oraInst.loc: prefer ORACLE_BASE location (created by FMW installer),
 # fall back to /etc/oraInst.loc (created by preinstall RPM),
 # create fresh one if neither exists.
 _ora_inst_loc="$ORACLE_BASE/oraInst.loc"
-if [ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ]; then
-    _ora_inst_loc="/etc/oraInst.loc"
-fi
+[ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc="/etc/oraInst.loc"
 if [ ! -f "$_ora_inst_loc" ]; then
+    _inv_location="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory"
     info "oraInst.loc not found — creating: $_ora_inst_loc"
     mkdir -p "$_inv_location"
     printf "inventory_loc=%s\ninst_group=oinstall\n" "$_inv_location" > "$_ora_inst_loc"
 fi
+
+# Always read inventory_loc FROM the file — never calculate/guess
+_inv_location="$(grep "^inventory_loc=" "$_ora_inst_loc" | cut -d= -f2)"
 ok "$(printf "%-28s %s" "oraInst.loc:" "$_ora_inst_loc")"
-ok "$(printf "%-28s %s" "Inventory:" "$_inv_location")"
+ok "$(printf "%-28s %s  (from oraInst.loc)" "Inventory:" "$_inv_location")"
 
 # Oracle 19.3.0 installer predates OL8/OL9 — supportedOSCheck throws NPE.
 # CV_ASSUME_DISTID=OEL7.6 makes the prereq check treat this as OL7.
