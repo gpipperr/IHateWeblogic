@@ -204,12 +204,20 @@ fi
 if $FORCE; then
     if [ -d "$DB_ORACLE_HOME_BASE" ]; then
         warn "$(printf "FORCE: will delete: %s" "$DB_ORACLE_HOME_BASE")"
-        warn "  This removes all extracted files and any registered inventory entry."
+        warn "  This removes all extracted files and deregisters the inventory entry."
         printf "\n  Type YES to confirm deletion: " >&2
         read -r _confirm
         if [ "$_confirm" != "YES" ]; then
             info "Aborted — nothing deleted."
             EXIT_CODE=0; print_summary; exit $EXIT_CODE
+        fi
+        # Detach from Oracle Inventory BEFORE deleting (root.sh path is read from inventory)
+        if [ -f "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
+            info "Detaching home from Oracle Inventory..."
+            "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" -silent -detachHome \
+                "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
+                "ORACLE_HOME_NAME=OraDB19Home1" 2>&1 | tee -a "$LOG_FILE" || true
+            ok "Inventory entry detached"
         fi
         rm -rf "$DB_ORACLE_HOME_BASE"
         ok "Deleted: $DB_ORACLE_HOME_BASE"
@@ -254,11 +262,16 @@ fi
 
 section "runInstaller – software-only"
 
-# --- idempotency: skip if already registered ---------------------------------
-if [ -f "$DB_ORACLE_HOME_BASE/bin/oracle" ]; then
-    ok "Oracle binary found — runInstaller already completed, skipping"
-    ok "  $DB_ORACLE_HOME_BASE/bin/oracle"
+# --- idempotency: skip if home is registered in Oracle Inventory -------------
+# bin/oracle is already present in the extracted ZIP — not a reliable indicator.
+# Only the Inventory XML entry confirms that runInstaller completed successfully.
+_inv_xml="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory/ContentsXML/inventory.xml"
+if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" 2>/dev/null; then
+    ok "Home already registered in Oracle Inventory — runInstaller completed, skipping"
+    ok "  $(grep "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" | head -1 | sed 's/.*NAME="\([^"]*\)".*/\1/' || printf "%s" "$DB_ORACLE_HOME_BASE")"
+    unset _inv_xml
 else
+unset _inv_xml
 
 _edition="${DB_EDITION:-EE}"
 _inv_location="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory"
@@ -313,14 +326,18 @@ printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_i
 unset CV_ASSUME_DISTID
 info "CV_ASSUME_DISTID unset"
 
+_installer_log=$(ls -t "$_inv_location/logs/InstallActions"*.log 2>/dev/null | head -1)
+[ -n "$_installer_log" ] && info "  Installer log: $_installer_log"
+
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"
     info "  Check installer logs: $_inv_location/logs/"
+    [ -n "$_installer_log" ] && info "  Latest: $_installer_log"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
 ok "runInstaller completed (rc=0)"
-unset _edition _inv_location _cv_distid _ora_inst_loc
+unset _edition _inv_location _cv_distid _ora_inst_loc _installer_log
 
 fi  # end idempotency block
 
@@ -330,19 +347,24 @@ fi  # end idempotency block
 
 section "root.sh (requires root)"
 
-printf "\n" | tee -a "$LOG_FILE"
-printf "  \033[33m┌─────────────────────────────────────────────────────────┐\033[0m\n"
-printf "  \033[33m│  Run as root NOW (open a second terminal):              │\033[0m\n"
-printf "  \033[33m│                                                         │\033[0m\n"
-printf "  \033[33m│  %s/root.sh  │\033[0m\n" "$DB_ORACLE_HOME_BASE"
-printf "  \033[33m└─────────────────────────────────────────────────────────┘\033[0m\n"
-printf "\n"
-
-if askYesNo "Press Enter / type 'yes' after root.sh has completed" "y"; then
-    ok "root.sh confirmed completed"
+_root_sh="$DB_ORACLE_HOME_BASE/root.sh"
+if sudo -n "$_root_sh" 2>/dev/null; then
+    ok "root.sh executed via sudo"
 else
-    warn "root.sh not confirmed – continue manually after running root.sh"
+    printf "\n" | tee -a "$LOG_FILE"
+    printf "  \033[33m┌─────────────────────────────────────────────────────────┐\033[0m\n"
+    printf "  \033[33m│  Run as root NOW (open a second terminal):              │\033[0m\n"
+    printf "  \033[33m│                                                         │\033[0m\n"
+    printf "  \033[33m│  %-55s│\033[0m\n" "$_root_sh"
+    printf "  \033[33m└─────────────────────────────────────────────────────────┘\033[0m\n"
+    printf "\n"
+    if askYesNo "Press Enter / type 'yes' after root.sh has completed" "y"; then
+        ok "root.sh confirmed completed"
+    else
+        warn "root.sh not confirmed – continue manually after running root.sh"
+    fi
 fi
+unset _root_sh
 
 # =============================================================================
 # 5. Verify installation
