@@ -206,3 +206,64 @@ DB_INSTALL_ARCHIVE   # path to LINUX.X64_193000_db_home.zip
 - The installer log is at: `$DB_BASE/oraInventory/logs/`
 - After software install + root.sh, do NOT create a database yet — patch first
   (Step 2: `02-db_patch_autoupgrade.sh`)
+
+---
+
+## Troubleshooting
+
+### [INS-08101] Unexpected error at state 'supportedOSCheck' / NullPointerException
+
+> **Oracle Support KB76419 / MOS Doc ID 2584365.1**
+
+**Symptom:**
+```
+[WARNING] [INS-08101] Unexpected error while executing the action at state: 'supportedOSCheck'
+CAUSE: No additional information available.
+SUMMARY: java.lang.NullPointerException
+```
+
+**Causes — one of the following:**
+
+| Cause | Check |
+|---|---|
+| 19.3.0 not certified for OL8/OL9 | `cat /etc/oracle-release` — 19.3.0 only knows OL7 |
+| `cvu_prereq.xml` not updated with platform info | present in 19.3.0 base, not yet patched |
+| Minimum RU patch level not met | OL8 requires ≥ 19.6; OL9 requires ≥ 19.22 |
+| `/tmp` mounted with `noexec` | `mount \| grep /tmp \| grep noexec` |
+
+**Fix A — CV_ASSUME_DISTID (used by this script):**
+
+```bash
+export CV_ASSUME_DISTID=OEL7.6   # OL8/OL9: tell installer to treat host as OL7
+./runInstaller ...
+```
+
+The script sets `CV_ASSUME_DISTID` from `DB_CV_ASSUME_DISTID` in `environment_db.conf`
+(default: `OEL7.6`) and unsets it after the installer exits.
+
+**Fix B — apply RU during install (alternative to AutoUpgrade approach):**
+
+```bash
+./runInstaller -applyRU /srv/patch_storage/patches/<RU_patch_number>
+# OL8: RU ≥ 19.6  |  OL9: RU ≥ 19.22
+```
+
+This project uses AutoUpgrade (`02-db_patch_autoupgrade.sh`) instead — same result, more
+repeatable.
+
+**Fix C — /tmp noexec:**
+
+```bash
+mkdir -p /u01/app/oracle/tmp
+export TMPDIR=/u01/app/oracle/tmp
+export TMP=/u01/app/oracle/tmp
+export TEMP=/u01/app/oracle/tmp
+./runInstaller
+```
+
+**Certified minimum RU levels (MOS Doc ID 2584365.1):**
+
+| OS | Minimum RU |
+|---|---|
+| OL 8 / RHEL 8 | 19.6.0.0 |
+| OL 9 / RHEL 9 | 19.22.0.0 |
