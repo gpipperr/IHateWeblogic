@@ -113,6 +113,16 @@ else
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
+# TLS protocol: Java 8 (1.8.0_xxx) does not support TLSv1.3 as a JVM property —
+# forcing it throws IllegalArgumentException.  Use TLSv1.2 for Java 8, TLSv1.3 for 11+.
+if "$JAVA_BIN" -version 2>&1 | grep -q '"1\.8\.'; then
+    AU_TLS="-Dhttps.protocols=TLSv1.2"
+    ok "TLS mode: TLSv1.2  (Java 8 — TLSv1.3 not supported as JVM property)"
+else
+    AU_TLS="-Dhttps.protocols=TLSv1.3"
+    ok "TLS mode: TLSv1.3"
+fi
+
 # --- MOS credentials ---------------------------------------------------------
 MOS_SEC_FILE="${MOS_SEC_FILE:-$ROOT_DIR/mos_sec.conf.des3}"
 [ -f "$MOS_SEC_FILE" ] \
@@ -183,7 +193,6 @@ else
     info "Downloading autoupgrade.jar from oracle.com (no auth required) ..."
     info "  Source: $AU_DOWNLOAD_URL"
     if curl -fsSL \
-        -Dhttps.protocols=TLSv1.3 \
         -o "$AU_JAR" \
         "$AU_DOWNLOAD_URL" 2>&1 | tee -a "$LOG_FILE"; then
         ok "autoupgrade.jar downloaded: $AU_JAR"
@@ -242,9 +251,10 @@ else
         # Pass all values via environment — no credentials written to disk
         export _AU_KS_BIN="$JAVA_BIN" _AU_KS_JAR="$AU_JAR" _AU_KS_CFG="$AU_KEYSTORE_CFG"
         export _AU_KS_PASS="$_ks_pass" _AU_MOS_USER="$MOS_USER" _AU_MOS_PWD="$MOS_PWD"
+        export _AU_KS_TLS="$AU_TLS"
         _ks_out=$(expect << 'EXPEOF' 2>&1
 set timeout 60
-spawn $env(_AU_KS_BIN) -Dhttps.protocols=TLSv1.3 \
+spawn $env(_AU_KS_BIN) $env(_AU_KS_TLS) \
       -jar $env(_AU_KS_JAR) -patch -config $env(_AU_KS_CFG) -load_password
 
 # New keystore: "Enter password:" (x2). Existing keystore: single unlock prompt.
@@ -276,12 +286,12 @@ send "YES\r"
 expect eof
 EXPEOF
 )
-        unset _AU_KS_BIN _AU_KS_JAR _AU_KS_CFG _AU_KS_PASS _AU_MOS_USER _AU_MOS_PWD
+        unset _AU_KS_BIN _AU_KS_JAR _AU_KS_CFG _AU_KS_PASS _AU_MOS_USER _AU_MOS_PWD _AU_KS_TLS
     else
         warn "expect not found — using stdin pipe (install expect for reliability)"
-        _ks_out=$(printf '%s\n%s\ngroup mos\nadd -user %s\n%s\n%s\nlist\nexit\nYES\n' \
+        _ks_out=$(printf '%s\n%s\nadd -user %s\n%s\n%s\nexit\nYES\nYES\n' \
             "$_ks_pass" "$_ks_pass" "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
-            | "$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
+            | "$JAVA_BIN" $AU_TLS \
                 -jar "$AU_JAR" -config "$AU_KEYSTORE_CFG" -patch -load_password 2>&1)
     fi
 
@@ -361,7 +371,7 @@ section "AutoUpgrade – Download Patches"
 
 printf "\n  Download started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-"$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
+"$JAVA_BIN" $AU_TLS \
     -jar "$AU_JAR" \
     -config "$AU_CONFIG" \
     -patch -mode download \
@@ -386,7 +396,7 @@ section "AutoUpgrade – create_home"
 info "Creating patched home: $DB_ORACLE_HOME"
 printf "\n  create_home started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-"$JAVA_BIN" -Dhttps.protocols=TLSv1.3 \
+"$JAVA_BIN" $AU_TLS \
     -jar "$AU_JAR" \
     -config "$AU_CONFIG" \
     -patch -mode create_home \
