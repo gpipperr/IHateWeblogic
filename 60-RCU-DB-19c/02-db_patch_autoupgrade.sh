@@ -48,13 +48,16 @@ init_log "$DIAG_LOG_DIR"
 
 APPLY=false
 RESET_RECOVERY=false
+CLEAN=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--reset-recovery] [--help]\n\n" "$(basename "$0")"
-    printf "  %-18s %s\n" "(none)"           "Dry-run: show config, no patching"
-    printf "  %-18s %s\n" "--apply"          "Download patches + create_home + chopt + relink"
-    printf "  %-18s %s\n" "--reset-recovery" "Clear AutoUpgrade recovery data, then run apply"
-    printf "  %-18s %s\n" "--help"           "Show this help"
+    printf "Usage: %s [--apply] [--clean [--apply]] [--reset-recovery] [--help]\n\n" "$(basename "$0")"
+    printf "  %-20s %s\n" "(none)"           "Dry-run: show config, no patching"
+    printf "  %-20s %s\n" "--apply"          "Download patches + create_home + chopt + relink"
+    printf "  %-20s %s\n" "--clean"          "Dry-run: show what --clean --apply would remove"
+    printf "  %-20s %s\n" "--clean --apply"  "Remove broken home + clear AutoUpgrade state, then apply"
+    printf "  %-20s %s\n" "--reset-recovery" "Clear AutoUpgrade recovery data only, then run apply"
+    printf "  %-20s %s\n" "--help"           "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
@@ -62,6 +65,7 @@ _usage() {
 for _arg in "$@"; do
     case "$_arg" in
         --apply)          APPLY=true ;;
+        --clean)          CLEAN=true ;;
         --reset-recovery) APPLY=true; RESET_RECOVERY=true ;;
         --help|-h)        _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
@@ -157,6 +161,92 @@ printList "Patch config"       30 "$AU_CONFIG"
 printList "Target RU"          30 "${DB_TARGET_RU:-19.CURRENT}"
 printList "Source home"        30 "$DB_ORACLE_HOME_BASE"
 printList "Target home"        30 "$DB_ORACLE_HOME"
+
+# =============================================================================
+# Clean – Reset broken AutoUpgrade state
+# =============================================================================
+# Use after a failed create_home run where the target home is corrupt/missing
+# but AutoUpgrade still holds PATCH109 recovery state and the Oracle Inventory
+# may still have a stale entry for the broken home.
+#
+# Steps:
+#   1. detachHome  – removes stale Oracle Inventory entry (safe if not registered)
+#   2. rm -rf      – removes the broken target home directory
+#   3. -clear_recovery_data – resets AutoUpgrade PATCH109 job state
+#
+# Preserved (not touched):
+#   autoupgrade.jar, patchdir/ (downloaded patches + Gold Image), keystore/
+# =============================================================================
+
+if $CLEAN; then
+    section "Clean – Reset AutoUpgrade State"
+
+    if ! $APPLY; then
+        info "Dry-run: the following would be cleaned (use --clean --apply to execute):"
+        printf "\n" | tee -a "$LOG_FILE"
+        info "  1. detachHome from Oracle Inventory:"
+        info "       $DB_ORACLE_HOME/oui/bin/runInstaller -silent -detachHome"
+        info "       ORACLE_HOME=$DB_ORACLE_HOME"
+        [ -d "$DB_ORACLE_HOME" ] \
+            && warn "     (target home EXISTS on disk)" \
+            || info "     (target home already absent — detach still attempted)"
+        printf "\n" | tee -a "$LOG_FILE"
+        info "  2. Remove target home directory:"
+        info "       rm -rf $DB_ORACLE_HOME"
+        printf "\n" | tee -a "$LOG_FILE"
+        info "  3. Clear AutoUpgrade recovery data:"
+        info "       java -jar autoupgrade.jar -patch -clear_recovery_data -jobs 1"
+        printf "\n" | tee -a "$LOG_FILE"
+        info "  Preserved (not touched):"
+        info "    $AU_JAR"
+        info "    $DB_AUTOUPGRADE_HOME/patchdir/"
+        info "    $DB_AUTOUPGRADE_HOME/keystore/"
+        printf "\n" | tee -a "$LOG_FILE"
+        warn "Run --clean --apply to execute"
+        print_summary; exit $EXIT_CODE
+    fi
+
+    # --- Execute clean ---
+
+    # 1. Detach target home from Oracle Inventory (safe even if never registered)
+    info "Step 1: detachHome from Oracle Inventory ..."
+    if [ -x "$DB_ORACLE_HOME/oui/bin/runInstaller" ]; then
+        "$DB_ORACLE_HOME/oui/bin/runInstaller" \
+            -silent -detachHome \
+            "ORACLE_HOME=$DB_ORACLE_HOME" \
+            2>&1 | tee -a "$LOG_FILE" || true
+        ok "detachHome completed"
+    else
+        info "  runInstaller not found in target home — skipping detachHome"
+        info "  ($DB_ORACLE_HOME/oui/bin/runInstaller)"
+    fi
+
+    # 2. Remove broken target home directory
+    info "Step 2: removing target home directory ..."
+    if [ -d "$DB_ORACLE_HOME" ]; then
+        rm -rf "$DB_ORACLE_HOME"
+        ok "Removed: $DB_ORACLE_HOME"
+    else
+        ok "Target home already absent: $DB_ORACLE_HOME"
+    fi
+
+    # 3. Clear AutoUpgrade recovery data (removes PATCH109 job state)
+    info "Step 3: clearing AutoUpgrade recovery data ..."
+    if [ -f "$AU_JAR" ] && [ -f "$AU_CONFIG" ]; then
+        "$JAVA_BIN" $AU_TLS \
+            -jar "$AU_JAR" \
+            -config "$AU_CONFIG" \
+            -patch -clear_recovery_data -jobs 1 \
+            2>&1 | tee -a "$LOG_FILE" || true
+        ok "AutoUpgrade recovery data cleared"
+    else
+        [ -f "$AU_JAR" ]    || warn "  autoupgrade.jar not found — recovery data NOT cleared"
+        [ -f "$AU_CONFIG" ] || warn "  patch config not found  — recovery data NOT cleared"
+    fi
+
+    ok "Clean completed — continuing with --apply"
+    printf "\n" | tee -a "$LOG_FILE"
+fi
 
 if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"
