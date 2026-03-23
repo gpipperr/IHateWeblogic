@@ -278,7 +278,29 @@ chmod 1777 "$CORE_DIR"
 ok "Created: $CORE_DIR (mode 1777)"
 
 # =============================================================================
-# 5. Transparent Huge Pages check
+# 5. libpthread_nonshared.a stub (OL9/RHEL9 + Oracle 19c relink compatibility)
+# =============================================================================
+# Oracle 19c links against libpthread_nonshared.a which was removed from glibc
+# on RHEL/OL 9.x (pthreads merged into libc).  The linker still looks for the
+# static archive by name; an empty ar archive satisfies it without side-effects.
+# Without this stub: "ld: cannot find /usr/lib64/libpthread_nonshared.a" and
+# all Oracle binary relinking (relink, make ioracle, uniaud_on) fails.
+
+section "libpthread_nonshared.a (OL9 relink compatibility)"
+
+_pthread_lib="/usr/lib64/libpthread_nonshared.a"
+if [ -f "$_pthread_lib" ]; then
+    ok "libpthread_nonshared.a already present: $_pthread_lib"
+else
+    info "Creating empty stub: $_pthread_lib"
+    ar cr "$_pthread_lib"
+    chmod 644 "$_pthread_lib"
+    ok "Created: $_pthread_lib  (empty stub — satisfies Oracle 19c linker)"
+fi
+unset _pthread_lib
+
+# =============================================================================
+# 6. Transparent Huge Pages check
 # =============================================================================
 
 section "Transparent Huge Pages"

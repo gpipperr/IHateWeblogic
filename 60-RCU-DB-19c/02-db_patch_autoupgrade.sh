@@ -670,6 +670,31 @@ fi
 
 section "Disable Unused Options (chopt)"
 
+# --- Fix gold image path contamination in chopt and root.sh ------------------
+# AutoUpgrade EXTRACT unpacks the gold image verbatim.  Scripts like chopt and
+# root.sh contain ORACLE_HOME hardcoded to the path where the image was built.
+# Detect the embedded old home and replace it before invoking chopt
+# (which would otherwise reference a non-existent perl installation).
+_old_oh=$(grep '^ORACLE_HOME=' "$DB_ORACLE_HOME/bin/chopt" 2>/dev/null \
+    | head -1 | sed 's/^ORACLE_HOME=//' | tr -d '"' | tr -d "'")
+if [ -n "$_old_oh" ] && [ "$_old_oh" != "$DB_ORACLE_HOME" ]; then
+    warn "Gold image path contamination in chopt/root.sh:"
+    warn "  embedded: $_old_oh"
+    warn "  target  : $DB_ORACLE_HOME"
+    info "Patching chopt and root.sh ..."
+    for _f in "$DB_ORACLE_HOME/bin/chopt" "$DB_ORACLE_HOME/root.sh"; do
+        if [ -f "$_f" ]; then
+            sed -i "s|${_old_oh}|${DB_ORACLE_HOME}|g" "$_f" \
+                && ok "Fixed: $_f" \
+                || warn "sed failed on: $_f"
+        fi
+    done
+    unset _f
+else
+    ok "chopt ORACLE_HOME path correct: ${_old_oh:-$DB_ORACLE_HOME}"
+fi
+unset _old_oh
+
 JAVA_BIN_NEW="$DB_ORACLE_HOME/jdk/bin/java"
 [ -x "$JAVA_BIN_NEW" ] || JAVA_BIN_NEW="$JAVA_BIN"
 
@@ -688,6 +713,18 @@ unset _opt _chopt_rc JAVA_BIN_NEW
 # =============================================================================
 
 section "Unified Auditing Relink (uniaud_on)"
+
+# --- Prerequisite: libpthread_nonshared.a (removed from glibc on OL9/RHEL9) --
+# Oracle 19c relink links against this static archive.  On OL9/RHEL9 it no
+# longer ships with glibc; an empty stub is sufficient (created by
+# 00-root_db_os_baseline.sh --apply).  Without it: "ld: cannot find ...".
+if [ ! -f "/usr/lib64/libpthread_nonshared.a" ]; then
+    fail "libpthread_nonshared.a not found — required for Oracle 19c relink on OL9/RHEL9"
+    info "  Fix (as root): ar cr /usr/lib64/libpthread_nonshared.a"
+    info "  Or re-run:     00-root_db_os_baseline.sh --apply"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+ok "libpthread_nonshared.a present"
 
 info "Relinking Oracle binary with Unified Auditing support ..."
 info "  ORACLE_HOME: $DB_ORACLE_HOME"
