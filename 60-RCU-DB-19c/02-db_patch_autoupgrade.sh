@@ -184,12 +184,13 @@ if $CLEAN; then
     if ! $APPLY; then
         info "Dry-run: the following would be cleaned (use --clean --apply to execute):"
         printf "\n" | tee -a "$LOG_FILE"
-        info "  1. detachHome from Oracle Inventory:"
-        info "       $DB_ORACLE_HOME/oui/bin/runInstaller -silent -detachHome"
+        info "  1. detachHome from Oracle Inventory (via SOURCE home OUI):"
+        info "       $DB_ORACLE_HOME_BASE/oui/bin/runInstaller -silent -detachHome"
         info "       ORACLE_HOME=$DB_ORACLE_HOME"
+        info "     (source home OUI used — works even if target home is already gone)"
         [ -d "$DB_ORACLE_HOME" ] \
             && warn "     (target home EXISTS on disk)" \
-            || info "     (target home already absent — detach still attempted)"
+            || info "     (target home already absent)"
         printf "\n" | tee -a "$LOG_FILE"
         info "  2. Remove target home directory:"
         info "       rm -rf $DB_ORACLE_HOME"
@@ -209,17 +210,22 @@ if $CLEAN; then
 
     # --- Execute clean ---
 
-    # 1. Detach target home from Oracle Inventory (safe even if never registered)
-    info "Step 1: detachHome from Oracle Inventory ..."
-    if [ -x "$DB_ORACLE_HOME/oui/bin/runInstaller" ]; then
-        "$DB_ORACLE_HOME/oui/bin/runInstaller" \
+    # 1. Detach target home from Oracle Inventory.
+    # IMPORTANT: use the SOURCE home's runInstaller, not the target's.
+    # The target home may be already deleted (or broken) — its runInstaller
+    # is unavailable.  The source home's OUI can detach any registered home.
+    # This removes stale Central Inventory entries that cause OPatch "Invalid Home".
+    info "Step 1: detachHome from Oracle Inventory (via source home OUI) ..."
+    if [ -x "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
+        "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
             -silent -detachHome \
             "ORACLE_HOME=$DB_ORACLE_HOME" \
             2>&1 | tee -a "$LOG_FILE" || true
-        ok "detachHome completed"
+        ok "detachHome completed (or skipped if not registered)"
     else
-        info "  runInstaller not found in target home — skipping detachHome"
-        info "  ($DB_ORACLE_HOME/oui/bin/runInstaller)"
+        warn "Source home runInstaller not found: $DB_ORACLE_HOME_BASE/oui/bin/runInstaller"
+        warn "  Stale inventory entries may remain — check manually:"
+        warn "  grep '19.30' /u01/app/oracle/oraInventory/ContentsXML/inventory.xml"
     fi
 
     # 2. Remove broken target home directory
@@ -547,49 +553,54 @@ $_SKIP_DOWNLOAD && info "Resuming previous create_home run (recovery state)" \
                 || info "Creating patched home: $DB_ORACLE_HOME"
 unset _SKIP_DOWNLOAD
 
-# --- Pre-flight: fix oraInst.loc if EXTRACT already ran but INSTALL failed -------
-# AutoUpgrade EXTRACT unpacks the gold image but does NOT create oraInst.loc.
-# OPatch needs oraInst.loc to locate the central inventory; without it all
-# inventory-dependent prereqs fail with "Invalid Home" (OPatch error 106).
-# Fix: copy from /etc/oraInst.loc, then register the home via attachHome.
-if [ -d "$DB_ORACLE_HOME" ] && [ ! -f "$DB_ORACLE_HOME/oraInst.loc" ]; then
-    if [ -f "/etc/oraInst.loc" ]; then
-        warn "oraInst.loc missing in target home — auto-fixing (OPatch error 106 prevention)"
-        cp /etc/oraInst.loc "$DB_ORACLE_HOME/oraInst.loc"
-        ok "oraInst.loc copied: $DB_ORACLE_HOME/oraInst.loc"
+# --- Helper: register target home in Oracle Inventory -------------------------
+# Called before each create_home attempt.
+# AutoUpgrade EXTRACT unpacks the gold image to DB_ORACLE_HOME but does NOT
+# register it in the Central Inventory.  OPatch (run by AutoUpgrade INSTALL)
+# requires the home to be registered; without it: "Invalid Home" (PATCH109).
+# Using the SOURCE home's runInstaller avoids dependency on the target's OUI.
+_register_target_home() {
+    [ -d "$DB_ORACLE_HOME" ] || return 0   # home not extracted yet — nothing to do
+    info "Registering target home in Oracle Inventory (source home OUI) ..."
+    if [ -x "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
+        "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
+            -silent -attachHome \
+            "ORACLE_HOME=$DB_ORACLE_HOME" \
+            "ORACLE_HOME_NAME=OraDB19Home1Patched" \
+            2>&1 | tee -a "$LOG_FILE" || true
+        ok "attachHome via source OUI completed"
     else
-        fail "oraInst.loc missing in target home AND in /etc — cannot auto-fix"
-        info "  Manual fix: create $DB_ORACLE_HOME/oraInst.loc with:"
-        info "    inventory_loc=<central_inventory_path>"
-        info "    inst_group=oinstall"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        warn "Source home runInstaller not found — attachHome skipped"
+        warn "  $DB_ORACLE_HOME_BASE/oui/bin/runInstaller"
     fi
-    info "Registering target home in Oracle Inventory (attachHome) ..."
-    "$DB_ORACLE_HOME/oui/bin/runInstaller" \
-        -silent -attachHome \
-        "ORACLE_HOME=$DB_ORACLE_HOME" \
-        "ORACLE_HOME_NAME=OraDB19Home1Patched" \
-        2>&1 | tee -a "$LOG_FILE" || true
-    ok "attachHome completed — OPatch should now recognise the target home"
-fi
+}
 
-printf "\n  create_home started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-
-# AutoUpgrade create_home runs an interactive patch> console and does NOT exit
-# automatically — it waits for user input after the job completes (success or failure).
-# expect drives the console: waits for a job-completion indicator in the output stream,
-# then sends "exit" + "y" to leave cleanly.
-# log_file writes all spawned output to LOG_FILE in real-time (visible on terminal too).
+# --- Run create_home (expect-based, with auto-retry after PATCH109) -----------
+# AutoUpgrade create_home = EXTRACT (unpack gold image) + INSTALL (OPatch apply).
+# On a fresh run the home is not in inventory after EXTRACT → INSTALL fails.
+# Retry loop: attempt 1 may fail with PATCH109 → _register_target_home →
+# attempt 2 resumes (AutoUpgrade skips EXTRACT, re-runs INSTALL with home now
+# registered) → succeeds.
 #
-# Completion indicators in the patch> console stream:
-#   Success: "Status    [FINISHED]"
-#   Failure: "Status    [ERROR]"  (followed by another patch> prompt)
+# AutoUpgrade patch> console is interactive and does NOT auto-exit.
+# expect matches Status [FINISHED]/[ERROR], sends "exit" + "y" to leave cleanly.
 
-export _AU_CH_BIN="$JAVA_BIN" _AU_CH_TLS="$AU_TLS"
-export _AU_CH_JAR="$AU_JAR"   _AU_CH_CFG="$AU_CONFIG"
-export _AU_CH_LOG="$LOG_FILE"
+_patch_rc=1
+_attempt=0
+while [ "$_attempt" -lt 2 ]; do
+    _attempt=$(( _attempt + 1 ))
 
-expect << 'EXPEOF' 2>&1 | tee -a "$LOG_FILE"
+    # Register target home before each attempt
+    _register_target_home
+
+    printf "\n  create_home attempt %s started: %s\n" \
+        "$_attempt" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+
+    export _AU_CH_BIN="$JAVA_BIN" _AU_CH_TLS="$AU_TLS"
+    export _AU_CH_JAR="$AU_JAR"   _AU_CH_CFG="$AU_CONFIG"
+    export _AU_CH_LOG="$LOG_FILE"
+
+    expect << 'EXPEOF' 2>&1 | tee -a "$LOG_FILE"
 log_file -a $env(_AU_CH_LOG)
 set timeout 7200
 
@@ -601,29 +612,18 @@ spawn $env(_AU_CH_BIN) $env(_AU_CH_TLS) \
 set _exit_code 0
 
 expect {
-    -re {Status\s+\[FINISHED\]} {
-        set _exit_code 0
-    }
-    -re {Status\s+\[ERROR\]} {
-        set _exit_code 1
-    }
+    -re {Status\s+\[FINISHED\]} { set _exit_code 0 }
+    -re {Status\s+\[ERROR\]}    { set _exit_code 1 }
     timeout {
         puts "\nTIMEOUT (7200s) waiting for create_home to complete"
         set _exit_code 2
     }
-    eof {
-        # Process exited on its own (unexpected but handle it)
-        exit 0
-    }
+    eof { exit 0 }
 }
 
-# Job done — send exit to leave the patch> console
 catch { send "exit\r" }
 expect {
-    -re {Are you sure.*\[y\|N\]} {
-        send "y\r"
-        expect eof
-    }
+    -re {Are you sure.*\[y\|N\]} { send "y\r"; expect eof }
     eof { }
     timeout { }
 }
@@ -631,17 +631,27 @@ expect {
 exit $_exit_code
 EXPEOF
 
-_patch_rc=$?
-unset _AU_CH_BIN _AU_CH_TLS _AU_CH_JAR _AU_CH_CFG _AU_CH_LOG
+    _patch_rc=$?
+    unset _AU_CH_BIN _AU_CH_TLS _AU_CH_JAR _AU_CH_CFG _AU_CH_LOG
 
-printf "\n  create_home finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_patch_rc" | tee -a "$LOG_FILE"
+    printf "\n  create_home attempt %s finished: %s  (rc=%s)\n" \
+        "$_attempt" "$(date '+%Y-%m-%d %H:%M:%S')" "$_patch_rc" | tee -a "$LOG_FILE"
+
+    [ "$_patch_rc" -eq 0 ] && break
+
+    if [ "$_attempt" -eq 1 ] && [ -d "$DB_ORACLE_HOME" ]; then
+        warn "Attempt 1 failed — EXTRACT likely succeeded, INSTALL failed (PATCH109/Invalid Home)"
+        warn "  Auto-fixing inventory registration and retrying create_home (resume) ..."
+    else
+        break
+    fi
+done
 
 [ "$_patch_rc" -eq 0 ] \
     && ok "Patched home created: $DB_ORACLE_HOME" \
-    || { fail "create_home failed (rc=$_patch_rc)"
-         info "  Check log: $DB_AUTOUPGRADE_HOME/logs/"
-         info "  PATCH109/Invalid Home? Check:"
-         info "    $DB_ORACLE_HOME/cfgtoollogs/opatchauto/core/opatch/opatch*.log"
+    || { fail "create_home failed after $_attempt attempt(s) (rc=$_patch_rc)"
+         info "  Check: $DB_AUTOUPGRADE_HOME/logs/create_home_1/100/autoupgrade_patching_*_user.log"
+         info "  OPatch: $DB_ORACLE_HOME/cfgtoollogs/opatchauto/core/opatch/opatch*.log"
          EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # =============================================================================
