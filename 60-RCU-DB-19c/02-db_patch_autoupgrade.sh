@@ -1,19 +1,20 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 02-db_patch_autoupgrade.sh
-# Purpose  : Patch Oracle 19c ORACLE_HOME to current RU using AutoUpgrade
-#            -mode create_home (offline, new patched home, no DB needed).
+# Purpose  : Patch Oracle 19c ORACLE_HOME to current RU.
+#            AutoUpgrade is used for patch DOWNLOAD only (MOS auth + ZIP fetch).
+#            Patching itself uses cp -a + opatchauto — no create_home, no
+#            interactive console, no gold image extraction.
 #            After patching: disable unused options (chopt) and relink for
 #            Unified Auditing (uniaud_on).
 # Call     : ./60-RCU-DB-19c/02-db_patch_autoupgrade.sh
 #            ./60-RCU-DB-19c/02-db_patch_autoupgrade.sh --apply
+#            ./60-RCU-DB-19c/02-db_patch_autoupgrade.sh --clean --apply
 #            ./60-RCU-DB-19c/02-db_patch_autoupgrade.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, mos_sec.conf.des3
-#            Java 11 (bundled: DB_ORACLE_HOME_BASE/jdk/bin/java)
 # Ref      : 60-RCU-DB-19c/docs/03-db_patch_autoupgrade.md
 #            https://mikedietrichde.com/2024/11/21/download-autoupgrade-directly-from-oracle-com/
-#            https://mikedietrichde.com/2024/10/28/autoupgrades-patching-the-feature-you-waited-for/
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================
@@ -47,27 +48,24 @@ init_log "$DIAG_LOG_DIR"
 # =============================================================================
 
 APPLY=false
-RESET_RECOVERY=false
 CLEAN=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--clean [--apply]] [--reset-recovery] [--help]\n\n" "$(basename "$0")"
-    printf "  %-20s %s\n" "(none)"           "Dry-run: show config, no patching"
-    printf "  %-20s %s\n" "--apply"          "Download patches + create_home + chopt + relink"
-    printf "  %-20s %s\n" "--clean"          "Dry-run: show what --clean --apply would remove"
-    printf "  %-20s %s\n" "--clean --apply"  "Remove broken home + clear AutoUpgrade state, then apply"
-    printf "  %-20s %s\n" "--reset-recovery" "Clear AutoUpgrade recovery data only, then run apply"
-    printf "  %-20s %s\n" "--help"           "Show this help"
+    printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
+    printf "  %-20s %s\n" "(none)"          "Dry-run: show config, no patching"
+    printf "  %-20s %s\n" "--apply"         "Download patches + cp-a + opatchauto + chopt + relink"
+    printf "  %-20s %s\n" "--clean"         "Dry-run: show what --clean --apply would remove"
+    printf "  %-20s %s\n" "--clean --apply" "Remove target home + detach inventory, then apply"
+    printf "  %-20s %s\n" "--help"          "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
 
 for _arg in "$@"; do
     case "$_arg" in
-        --apply)          APPLY=true ;;
-        --clean)          CLEAN=true ;;
-        --reset-recovery) APPLY=true; RESET_RECOVERY=true ;;
-        --help|-h)        _usage ;;
+        --apply)   APPLY=true ;;
+        --clean)   CLEAN=true ;;
+        --help|-h) _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
@@ -163,19 +161,16 @@ printList "Source home"        30 "$DB_ORACLE_HOME_BASE"
 printList "Target home"        30 "$DB_ORACLE_HOME"
 
 # =============================================================================
-# Clean – Reset broken AutoUpgrade state
+# Clean – Remove target home and deregister from Oracle Inventory
 # =============================================================================
-# Use after a failed create_home run where the target home is corrupt/missing
-# but AutoUpgrade still holds PATCH109 recovery state and the Oracle Inventory
-# may still have a stale entry for the broken home.
+# Use before a fresh patching run when the target home is broken or outdated.
 #
 # Steps:
-#   1. detachHome  – removes stale Oracle Inventory entry (safe if not registered)
-#   2. rm -rf      – removes the broken target home directory
-#   3. -clear_recovery_data – resets AutoUpgrade PATCH109 job state
+#   1. detachHome  – removes Oracle Inventory entry (via source home OUI)
+#   2. rm -rf      – removes the target home directory
 #
 # Preserved (not touched):
-#   autoupgrade.jar, patchdir/ (downloaded patches + Gold Image), keystore/
+#   autoupgrade.jar, patchdir/ (downloaded patch ZIPs), keystore/
 # =============================================================================
 
 if $CLEAN; then
@@ -184,25 +179,13 @@ if $CLEAN; then
     if ! $APPLY; then
         info "Dry-run: the following would be cleaned (use --clean --apply to execute):"
         printf "\n" | tee -a "$LOG_FILE"
-        info "  1. detachHome from Oracle Inventory (via SOURCE home OUI):"
-        info "       $DB_ORACLE_HOME_BASE/oui/bin/runInstaller -silent -detachHome"
+        info "  1. detachHome from Oracle Inventory (via source home OUI):"
         info "       ORACLE_HOME=$DB_ORACLE_HOME"
-        info "     (source home OUI used — works even if target home is already gone)"
         [ -d "$DB_ORACLE_HOME" ] \
             && warn "     (target home EXISTS on disk)" \
             || info "     (target home already absent)"
-        printf "\n" | tee -a "$LOG_FILE"
-        info "  2. Remove target home directory:"
-        info "       rm -rf $DB_ORACLE_HOME"
-        printf "\n" | tee -a "$LOG_FILE"
-        info "  3. Clear AutoUpgrade recovery data (delete logs directory):"
-        info "       rm -rf $DB_AUTOUPGRADE_HOME/logs/"
-        info "     Preserved: patchdir/ (patches), keystore/ (MOS credentials)"
-        printf "\n" | tee -a "$LOG_FILE"
-        info "  Preserved (not touched):"
-        info "    $AU_JAR"
-        info "    $DB_AUTOUPGRADE_HOME/patchdir/"
-        info "    $DB_AUTOUPGRADE_HOME/keystore/"
+        info "  2. rm -rf $DB_ORACLE_HOME"
+        info "  Preserved: patchdir/ (patches), keystore/ (MOS credentials)"
         printf "\n" | tee -a "$LOG_FILE"
         warn "Run --clean --apply to execute"
         print_summary; exit $EXIT_CODE
@@ -210,46 +193,26 @@ if $CLEAN; then
 
     # --- Execute clean ---
 
-    # 1. Detach target home from Oracle Inventory.
-    # IMPORTANT: use the SOURCE home's runInstaller, not the target's.
-    # The target home may be already deleted (or broken) — its runInstaller
-    # is unavailable.  The source home's OUI can detach any registered home.
-    # This removes stale Central Inventory entries that cause OPatch "Invalid Home".
-    info "Step 1: detachHome from Oracle Inventory (via source home OUI) ..."
+    # 1. Detach via SOURCE home OUI — works even if target home is already gone
+    info "Step 1: detachHome from Oracle Inventory (source home OUI) ..."
     if [ -x "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
         "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
             -silent -detachHome \
             "ORACLE_HOME=$DB_ORACLE_HOME" \
             2>&1 | tee -a "$LOG_FILE" || true
-        ok "detachHome completed (or skipped if not registered)"
+        ok "detachHome completed"
     else
-        warn "Source home runInstaller not found: $DB_ORACLE_HOME_BASE/oui/bin/runInstaller"
-        warn "  Stale inventory entries may remain — check manually:"
-        warn "  grep '19.30' /u01/app/oracle/oraInventory/ContentsXML/inventory.xml"
+        warn "Source home runInstaller not found — skipping detachHome"
     fi
 
-    # 2. Remove broken target home directory
-    info "Step 2: removing target home directory ..."
+    # 2. Remove target home directory
+    info "Step 2: removing target home ..."
     if [ -d "$DB_ORACLE_HOME" ]; then
         rm -rf "$DB_ORACLE_HOME"
         ok "Removed: $DB_ORACLE_HOME"
     else
         ok "Target home already absent: $DB_ORACLE_HOME"
     fi
-
-    # 3. Clear AutoUpgrade recovery data by deleting the logs directory.
-    # Rationale: -clear_recovery_data -jobs N requires the exact internal job number
-    # (100, 101, …) which changes each run.  Deleting logs/ is reliable and complete.
-    # patchdir/ and keystore/ are preserved so patches and MOS credentials survive.
-    info "Step 3: clearing AutoUpgrade recovery data (delete logs directory) ..."
-    if [ -d "$DB_AUTOUPGRADE_HOME/logs" ]; then
-        rm -rf "$DB_AUTOUPGRADE_HOME/logs"
-        ok "Deleted: $DB_AUTOUPGRADE_HOME/logs/"
-    else
-        ok "AutoUpgrade logs directory already absent"
-    fi
-    mkdir -p "$DB_AUTOUPGRADE_HOME/logs"
-    ok "AutoUpgrade recovery state cleared"
 
     ok "Clean completed — continuing with --apply"
     printf "\n" | tee -a "$LOG_FILE"
@@ -464,195 +427,145 @@ ok "$(printf "  patch spec: %s  (DB_TARGET_RU=%s)" "$_patch_spec" "$_target_ru")
 unset _target_ru _patch_spec
 
 # =============================================================================
-# 5. Download patches  (skip if AutoUpgrade recovery state exists)
+# 5. Download patches via AutoUpgrade (MOS-authenticated ZIP download)
 # =============================================================================
+# AutoUpgrade downloads RU, OJVM, DPBP, OPatch ZIPs to patchdir/.
+# We use ONLY the download capability — patching itself is done with opatchauto.
 
 section "AutoUpgrade – Download Patches"
 
-# Clear recovery data first if --reset-recovery was given.
-# This discards any incomplete create_home job so the next run starts fresh.
-if $RESET_RECOVERY; then
-    warn "--reset-recovery: clearing AutoUpgrade recovery data (delete logs directory) ..."
-    if [ -d "$DB_AUTOUPGRADE_HOME/logs" ]; then
-        rm -rf "$DB_AUTOUPGRADE_HOME/logs"
-        ok "Deleted: $DB_AUTOUPGRADE_HOME/logs/"
-    fi
-    mkdir -p "$DB_AUTOUPGRADE_HOME/logs"
-    ok "Recovery data cleared"
-fi
-
 printf "\n  Download started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-_dl_out=$("$JAVA_BIN" $AU_TLS \
+"$JAVA_BIN" $AU_TLS \
     -jar "$AU_JAR" \
     -config "$AU_CONFIG" \
     -patch -mode download \
-    2>&1)
-_dl_rc=$?
-printf '%s\n' "$_dl_out" | tee -a "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE"
+
+_dl_rc=${PIPESTATUS[0]}
 printf "\n  Download finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_dl_rc" | tee -a "$LOG_FILE"
 
-# AutoUpgrade rc=1 when a previous create_home run left recovery state.
-# It refuses download mode and asks to resume via create_home — detect and skip.
-_SKIP_DOWNLOAD=false
 if [ "$_dl_rc" -ne 0 ]; then
-    if printf '%s\n' "$_dl_out" | grep -qi "unfinished execution\|create_home mode to resume"; then
-        warn "AutoUpgrade recovery state detected — previous create_home run incomplete"
-        warn "  Skipping download, proceeding directly to create_home (resume)"
-        info "  To start completely fresh: ./$(basename "$0") --reset-recovery"
-        _SKIP_DOWNLOAD=true
-    else
-        fail "Patch download failed (rc=$_dl_rc)"
-        info "  Check log: $DB_AUTOUPGRADE_HOME/logs/"
-        info "  DNS issues? Try: ./$(basename "$0") --apply"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
-    fi
-else
-    ok "Patch download completed"
-fi
-unset _dl_out _dl_rc
-
-# =============================================================================
-# 5b. Ensure Gold Image (LINUX.X64_193000_db_home.zip) is in patchdir
-# =============================================================================
-#
-# create_home extracts the base 19.3.0 Gold Image from patchdir to build the
-# new target_home.  Without it AutoUpgrade fails at EXTRACT stage:
-#   "Could not find a Gold Image or usable base image"
-#
-# DB_INSTALL_ARCHIVE from environment_db.conf points to the patch storage copy.
-# We place a symlink rather than a copy to avoid doubling the 3 GB.
-
-section "Gold Image in patchdir"
-
-_gold_zip="$DB_AUTOUPGRADE_HOME/patchdir/LINUX.X64_193000_db_home.zip"
-_src_zip="${DB_INSTALL_ARCHIVE:-}"
-
-if [ -f "$_gold_zip" ] || [ -L "$_gold_zip" ]; then
-    ok "Gold Image present: $_gold_zip"
-elif [ -f "$_src_zip" ]; then
-    info "Symlinking Gold Image from patch storage into patchdir ..."
-    ln -sf "$_src_zip" "$_gold_zip"
-    ok "Gold Image symlinked: $_gold_zip → $_src_zip"
-else
-    fail "Gold Image not found in patchdir and DB_INSTALL_ARCHIVE not available"
-    info "  Expected: $_gold_zip"
-    info "  Or set DB_INSTALL_ARCHIVE in environment_db.conf to the ZIP path"
-    info "  Manual fix: cp LINUX.X64_193000_db_home.zip $DB_AUTOUPGRADE_HOME/patchdir/"
+    fail "Patch download failed (rc=$_dl_rc)"
+    info "  Check: $DB_AUTOUPGRADE_HOME/logs/"
+    info "  DNS issue? Re-run with --apply"
+    info "  Already patched (patchdir has ZIPs)? Delete logs/ and re-run"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
-unset _gold_zip _src_zip
+ok "Patch ZIPs downloaded to: $DB_AUTOUPGRADE_HOME/patchdir/"
+unset _dl_rc
 
 # =============================================================================
 # 6. Create patched ORACLE_HOME
 # =============================================================================
 
-section "AutoUpgrade – create_home"
+# =============================================================================
+# 6. Build patched ORACLE_HOME  (cp -a + opatchauto)
+# =============================================================================
+# No AutoUpgrade create_home — avoids all Oracle Inventory / PATCH109 issues.
+# Strategy:
+#   6a. cp -a source home → target  (fast on same FS, inherits oraInst.loc)
+#   6b. Update OPatch in target home
+#   6c. Register target home in Central Inventory (attachHome via source OUI)
+#   6d. Unzip patches to staging dir, apply with opatchauto
 
-$_SKIP_DOWNLOAD && info "Resuming previous create_home run (recovery state)" \
-                || info "Creating patched home: $DB_ORACLE_HOME"
-unset _SKIP_DOWNLOAD
+AU_PATCHDIR="$DB_AUTOUPGRADE_HOME/patchdir"
 
-# --- Helper: register target home in Oracle Inventory -------------------------
-# Called before each create_home attempt.
-# AutoUpgrade EXTRACT unpacks the gold image to DB_ORACLE_HOME but does NOT
-# register it in the Central Inventory.  OPatch (run by AutoUpgrade INSTALL)
-# requires the home to be registered; without it: "Invalid Home" (PATCH109).
-# Using the SOURCE home's runInstaller avoids dependency on the target's OUI.
-_register_target_home() {
-    [ -d "$DB_ORACLE_HOME" ] || return 0   # home not extracted yet — nothing to do
-    info "Registering target home in Oracle Inventory (source home OUI) ..."
-    if [ -x "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
-        "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
-            -silent -attachHome \
-            "ORACLE_HOME=$DB_ORACLE_HOME" \
-            "ORACLE_HOME_NAME=OraDB19Home1Patched" \
-            2>&1 | tee -a "$LOG_FILE" || true
-        ok "attachHome via source OUI completed"
-    else
-        warn "Source home runInstaller not found — attachHome skipped"
-        warn "  $DB_ORACLE_HOME_BASE/oui/bin/runInstaller"
-    fi
-}
+# --- 6a. Copy source home -----------------------------------------------------
 
-# --- Run create_home (expect-based, with auto-retry after PATCH109) -----------
-# AutoUpgrade create_home = EXTRACT (unpack gold image) + INSTALL (OPatch apply).
-# On a fresh run the home is not in inventory after EXTRACT → INSTALL fails.
-# Retry loop: attempt 1 may fail with PATCH109 → _register_target_home →
-# attempt 2 resumes (AutoUpgrade skips EXTRACT, re-runs INSTALL with home now
-# registered) → succeeds.
-#
-# AutoUpgrade patch> console is interactive and does NOT auto-exit.
-# expect matches Status [FINISHED]/[ERROR], sends "exit" + "y" to leave cleanly.
+section "Copy Source Home → Target Home"
 
-_patch_rc=1
-_attempt=0
-while [ "$_attempt" -lt 2 ]; do
-    _attempt=$(( _attempt + 1 ))
+if [ -d "$DB_ORACLE_HOME" ]; then
+    fail "Target home already exists: $DB_ORACLE_HOME"
+    info "  Remove it first: ./$(basename "$0") --clean --apply"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
 
-    # Register target home before each attempt
-    _register_target_home
+info "Copying source home (this may take a few minutes) ..."
+info "  Source: $DB_ORACLE_HOME_BASE"
+info "  Target: $DB_ORACLE_HOME"
 
-    printf "\n  create_home attempt %s started: %s\n" \
-        "$_attempt" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+mkdir -p "$(dirname "$DB_ORACLE_HOME")"
+cp -a "$DB_ORACLE_HOME_BASE" "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
 
-    export _AU_CH_BIN="$JAVA_BIN" _AU_CH_TLS="$AU_TLS"
-    export _AU_CH_JAR="$AU_JAR"   _AU_CH_CFG="$AU_CONFIG"
-    export _AU_CH_LOG="$LOG_FILE"
+if [ ! -d "$DB_ORACLE_HOME" ]; then
+    fail "cp -a failed — target home not created"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+ok "Source home copied: $DB_ORACLE_HOME"
 
-    expect << 'EXPEOF' 2>&1 | tee -a "$LOG_FILE"
-log_file -a $env(_AU_CH_LOG)
-set timeout 7200
+# --- 6b. Update OPatch in target home -----------------------------------------
 
-spawn $env(_AU_CH_BIN) $env(_AU_CH_TLS) \
-      -jar $env(_AU_CH_JAR) \
-      -config $env(_AU_CH_CFG) \
-      -patch -mode create_home
+section "Update OPatch in Target Home"
 
-set _exit_code 0
+_opatch_zip=$(ls "$AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
+if [ -n "$_opatch_zip" ]; then
+    info "Updating OPatch from: $(basename "$_opatch_zip") ..."
+    unzip -q -o "$_opatch_zip" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
+    ok "OPatch updated: $("$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null | head -1)"
+else
+    warn "OPatch ZIP (p6880880_*.zip) not found in patchdir — using bundled OPatch"
+    ok "Bundled: $("$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null | head -1)"
+fi
+unset _opatch_zip
 
-expect {
-    -re {Status\s+\[FINISHED\]} { set _exit_code 0 }
-    -re {Status\s+\[ERROR\]}    { set _exit_code 1 }
-    timeout {
-        puts "\nTIMEOUT (7200s) waiting for create_home to complete"
-        set _exit_code 2
-    }
-    eof { exit 0 }
-}
+# --- 6c. Register target home in Central Inventory ----------------------------
 
-catch { send "exit\r" }
-expect {
-    -re {Are you sure.*\[y\|N\]} { send "y\r"; expect eof }
-    eof { }
-    timeout { }
-}
+section "Register Target Home in Oracle Inventory"
 
-exit $_exit_code
-EXPEOF
+# Use SOURCE home OUI — the target's OUI may still have source-home paths.
+if [ -x "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" ]; then
+    "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
+        -silent -attachHome \
+        "ORACLE_HOME=$DB_ORACLE_HOME" \
+        "ORACLE_HOME_NAME=OraDB19Home1Patched" \
+        2>&1 | tee -a "$LOG_FILE" || true
+    ok "attachHome completed"
+else
+    fail "Source home runInstaller not found: $DB_ORACLE_HOME_BASE/oui/bin/runInstaller"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
 
-    _patch_rc=$?
-    unset _AU_CH_BIN _AU_CH_TLS _AU_CH_JAR _AU_CH_CFG _AU_CH_LOG
+# --- 6d. Stage patches and apply with opatchauto ------------------------------
 
-    printf "\n  create_home attempt %s finished: %s  (rc=%s)\n" \
-        "$_attempt" "$(date '+%Y-%m-%d %H:%M:%S')" "$_patch_rc" | tee -a "$LOG_FILE"
+section "Apply Patches (opatchauto)"
 
-    [ "$_patch_rc" -eq 0 ] && break
+_stage_dir="$DB_AUTOUPGRADE_HOME/patch_stage"
+info "Staging patch ZIPs → $_stage_dir"
+rm -rf "$_stage_dir" && mkdir -p "$_stage_dir"
 
-    if [ "$_attempt" -eq 1 ] && [ -d "$DB_ORACLE_HOME" ]; then
-        warn "Attempt 1 failed — EXTRACT likely succeeded, INSTALL failed (PATCH109/Invalid Home)"
-        warn "  Auto-fixing inventory registration and retrying create_home (resume) ..."
-    else
-        break
-    fi
+_staged=0
+for _zip in "$AU_PATCHDIR"/p[0-9]*.zip; do
+    [ -f "$_zip" ] || continue
+    # Skip OPatch — already applied in 6b
+    case "$_zip" in *p6880880*) continue ;; esac
+    info "  Extracting: $(basename "$_zip") ..."
+    unzip -q -o "$_zip" -d "$_stage_dir" 2>&1 | tee -a "$LOG_FILE" \
+        || warn "  Failed to extract: $(basename "$_zip")"
+    _staged=$(( _staged + 1 ))
 done
+ok "Patches staged: $_staged ZIPs → $_stage_dir"
 
-[ "$_patch_rc" -eq 0 ] \
-    && ok "Patched home created: $DB_ORACLE_HOME" \
-    || { fail "create_home failed after $_attempt attempt(s) (rc=$_patch_rc)"
-         info "  Check: $DB_AUTOUPGRADE_HOME/logs/create_home_1/100/autoupgrade_patching_*_user.log"
-         info "  OPatch: $DB_ORACLE_HOME/cfgtoollogs/opatchauto/core/opatch/opatch*.log"
+printf "\n  opatchauto started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+
+ORACLE_HOME="$DB_ORACLE_HOME" \
+    "$DB_ORACLE_HOME/OPatch/opatchauto" apply "$_stage_dir" \
+    -oh "$DB_ORACLE_HOME" \
+    2>&1 | tee -a "$LOG_FILE"
+
+_opatch_rc=${PIPESTATUS[0]}
+printf "\n  opatchauto finished: %s  (rc=%s)\n" \
+    "$(date '+%Y-%m-%d %H:%M:%S')" "$_opatch_rc" | tee -a "$LOG_FILE"
+
+rm -rf "$_stage_dir"
+unset _stage_dir _staged _zip
+
+[ "$_opatch_rc" -eq 0 ] \
+    && ok "Patches applied: $DB_ORACLE_HOME" \
+    || { fail "opatchauto apply failed (rc=$_opatch_rc)"
+         info "  OPatch log: $DB_ORACLE_HOME/cfgtoollogs/opatchauto/"
          EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+unset _opatch_rc
 
 # =============================================================================
 # 7. Prompt for root.sh on patched home
@@ -680,11 +593,10 @@ fi
 
 section "Disable Unused Options (chopt)"
 
-# --- Fix gold image path contamination in chopt and root.sh ------------------
-# AutoUpgrade EXTRACT unpacks the gold image verbatim.  Scripts like chopt and
-# root.sh contain ORACLE_HOME hardcoded to the path where the image was built.
-# Detect the embedded old home and replace it before invoking chopt
-# (which would otherwise reference a non-existent perl installation).
+# --- Fix source home path in chopt and root.sh --------------------------------
+# cp -a copies chopt and root.sh verbatim from the source home.  Both scripts
+# have ORACLE_HOME hardcoded to the source home path (DB_ORACLE_HOME_BASE).
+# Detect and replace before invoking chopt (otherwise: wrong perl path).
 _old_oh=$(grep '^ORACLE_HOME=' "$DB_ORACLE_HOME/bin/chopt" 2>/dev/null \
     | head -1 | sed 's/^ORACLE_HOME=//' | tr -d '"' | tr -d "'")
 if [ -n "$_old_oh" ] && [ "$_old_oh" != "$DB_ORACLE_HOME" ]; then
