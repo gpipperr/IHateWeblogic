@@ -194,8 +194,9 @@ if $CLEAN; then
         info "  2. Remove target home directory:"
         info "       rm -rf $DB_ORACLE_HOME"
         printf "\n" | tee -a "$LOG_FILE"
-        info "  3. Clear AutoUpgrade recovery data:"
-        info "       java -jar autoupgrade.jar -patch -clear_recovery_data -jobs 1"
+        info "  3. Clear AutoUpgrade recovery data (delete logs directory):"
+        info "       rm -rf $DB_AUTOUPGRADE_HOME/logs/"
+        info "     Preserved: patchdir/ (patches), keystore/ (MOS credentials)"
         printf "\n" | tee -a "$LOG_FILE"
         info "  Preserved (not touched):"
         info "    $AU_JAR"
@@ -230,19 +231,19 @@ if $CLEAN; then
         ok "Target home already absent: $DB_ORACLE_HOME"
     fi
 
-    # 3. Clear AutoUpgrade recovery data (removes PATCH109 job state)
-    info "Step 3: clearing AutoUpgrade recovery data ..."
-    if [ -f "$AU_JAR" ] && [ -f "$AU_CONFIG" ]; then
-        "$JAVA_BIN" $AU_TLS \
-            -jar "$AU_JAR" \
-            -config "$AU_CONFIG" \
-            -patch -clear_recovery_data -jobs 1 \
-            2>&1 | tee -a "$LOG_FILE" || true
-        ok "AutoUpgrade recovery data cleared"
+    # 3. Clear AutoUpgrade recovery data by deleting the logs directory.
+    # Rationale: -clear_recovery_data -jobs N requires the exact internal job number
+    # (100, 101, …) which changes each run.  Deleting logs/ is reliable and complete.
+    # patchdir/ and keystore/ are preserved so patches and MOS credentials survive.
+    info "Step 3: clearing AutoUpgrade recovery data (delete logs directory) ..."
+    if [ -d "$DB_AUTOUPGRADE_HOME/logs" ]; then
+        rm -rf "$DB_AUTOUPGRADE_HOME/logs"
+        ok "Deleted: $DB_AUTOUPGRADE_HOME/logs/"
     else
-        [ -f "$AU_JAR" ]    || warn "  autoupgrade.jar not found — recovery data NOT cleared"
-        [ -f "$AU_CONFIG" ] || warn "  patch config not found  — recovery data NOT cleared"
+        ok "AutoUpgrade logs directory already absent"
     fi
+    mkdir -p "$DB_AUTOUPGRADE_HOME/logs"
+    ok "AutoUpgrade recovery state cleared"
 
     ok "Clean completed — continuing with --apply"
     printf "\n" | tee -a "$LOG_FILE"
@@ -465,12 +466,12 @@ section "AutoUpgrade – Download Patches"
 # Clear recovery data first if --reset-recovery was given.
 # This discards any incomplete create_home job so the next run starts fresh.
 if $RESET_RECOVERY; then
-    warn "--reset-recovery: clearing AutoUpgrade recovery data ..."
-    "$JAVA_BIN" $AU_TLS \
-        -jar "$AU_JAR" \
-        -config "$AU_CONFIG" \
-        -patch -clear_recovery_data -jobs 1 \
-        2>&1 | tee -a "$LOG_FILE" || true
+    warn "--reset-recovery: clearing AutoUpgrade recovery data (delete logs directory) ..."
+    if [ -d "$DB_AUTOUPGRADE_HOME/logs" ]; then
+        rm -rf "$DB_AUTOUPGRADE_HOME/logs"
+        ok "Deleted: $DB_AUTOUPGRADE_HOME/logs/"
+    fi
+    mkdir -p "$DB_AUTOUPGRADE_HOME/logs"
     ok "Recovery data cleared"
 fi
 
@@ -574,13 +575,65 @@ fi
 
 printf "\n  create_home started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-"$JAVA_BIN" $AU_TLS \
-    -jar "$AU_JAR" \
-    -config "$AU_CONFIG" \
-    -patch -mode create_home \
-    2>&1 | tee -a "$LOG_FILE"
+# AutoUpgrade create_home runs an interactive patch> console and does NOT exit
+# automatically — it waits for user input after the job completes (success or failure).
+# expect drives the console: waits for a job-completion indicator in the output stream,
+# then sends "exit" + "y" to leave cleanly.
+# log_file writes all spawned output to LOG_FILE in real-time (visible on terminal too).
+#
+# Completion indicators in the patch> console stream:
+#   Success: "Status    [FINISHED]"
+#   Failure: "Status    [ERROR]"  (followed by another patch> prompt)
 
-_patch_rc=${PIPESTATUS[0]}
+export _AU_CH_BIN="$JAVA_BIN" _AU_CH_TLS="$AU_TLS"
+export _AU_CH_JAR="$AU_JAR"   _AU_CH_CFG="$AU_CONFIG"
+export _AU_CH_LOG="$LOG_FILE"
+
+expect << 'EXPEOF' 2>&1 | tee -a "$LOG_FILE"
+log_file -a $env(_AU_CH_LOG)
+set timeout 7200
+
+spawn $env(_AU_CH_BIN) $env(_AU_CH_TLS) \
+      -jar $env(_AU_CH_JAR) \
+      -config $env(_AU_CH_CFG) \
+      -patch -mode create_home
+
+set _exit_code 0
+
+expect {
+    -re {Status\s+\[FINISHED\]} {
+        set _exit_code 0
+    }
+    -re {Status\s+\[ERROR\]} {
+        set _exit_code 1
+    }
+    timeout {
+        puts "\nTIMEOUT (7200s) waiting for create_home to complete"
+        set _exit_code 2
+    }
+    eof {
+        # Process exited on its own (unexpected but handle it)
+        exit 0
+    }
+}
+
+# Job done — send exit to leave the patch> console
+catch { send "exit\r" }
+expect {
+    -re {Are you sure.*\[y\|N\]} {
+        send "y\r"
+        expect eof
+    }
+    eof { }
+    timeout { }
+}
+
+exit $_exit_code
+EXPEOF
+
+_patch_rc=$?
+unset _AU_CH_BIN _AU_CH_TLS _AU_CH_JAR _AU_CH_CFG _AU_CH_LOG
+
 printf "\n  create_home finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_patch_rc" | tee -a "$LOG_FILE"
 
 [ "$_patch_rc" -eq 0 ] \
