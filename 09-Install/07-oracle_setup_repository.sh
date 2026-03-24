@@ -143,10 +143,8 @@ printList "Connect string"  28 "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
 printList "DB user"         28 "sys (SYSDBA)"
 printList "Schema prefix"   28 "$DB_SCHEMA_PREFIX"
 
-# --- Tablespace flags (optional) ----------------------------------------------
-RCU_TS_FLAGS=()
+# --- Tablespace info (flags are applied per-component in RCU_COMP_FLAGS) -----
 if [ -n "${RCU_TABLESPACE:-}" ]; then
-    RCU_TS_FLAGS=( -tablespace "$RCU_TABLESPACE" -tempTablespace "${RCU_TEMP_TABLESPACE:-TEMP}" )
     ok "$(printf "%-28s %s" "RCU_TABLESPACE:"      "$RCU_TABLESPACE")"
     ok "$(printf "%-28s %s" "RCU_TEMP_TABLESPACE:" "${RCU_TEMP_TABLESPACE:-TEMP}")"
     info "  → DBA must have pre-created tablespace '$RCU_TABLESPACE' before running RCU"
@@ -248,6 +246,11 @@ ok "$(printf "Password file created: %s  (%d lines, mode 600)" "$RCU_PW_FILE" "$
 RCU_COMP_FLAGS=()
 for _c in "${RCU_COMPONENTS[@]}"; do
     RCU_COMP_FLAGS+=( -component "$_c" )
+    # -tablespace must follow immediately after each -component (RCU requirement)
+    if [ -n "${RCU_TABLESPACE:-}" ]; then
+        RCU_COMP_FLAGS+=( -tablespace "$RCU_TABLESPACE" \
+                          -tempTablespace "${RCU_TEMP_TABLESPACE:-TEMP}" )
+    fi
 done
 unset _c
 
@@ -342,7 +345,6 @@ printf "  Prefix     : %s\n\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
     -dbUser sys \
     -dbRole sysdba \
     -schemaPrefix "$DB_SCHEMA_PREFIX" \
-    "${RCU_TS_FLAGS[@]}" \
     "${RCU_COMP_FLAGS[@]}" \
     -f < "$RCU_PW_FILE" \
     2>&1 | tee -a "$LOG_FILE"
