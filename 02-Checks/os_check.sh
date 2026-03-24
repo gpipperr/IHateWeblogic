@@ -208,7 +208,7 @@ fi
 printf "\n"
 
 # Disk space per relevant path
-for check_dir in "${FMW_HOME}" "${DOMAIN_HOME}" "/tmp" "/var/log"; do
+for check_dir in "${ORACLE_HOME:-${FMW_HOME}}" "${DOMAIN_HOME}" "/tmp" "/var/log"; do
     [ -d "$check_dir" ] || continue
     AVAIL_KB="$(df -k "$check_dir" 2>/dev/null | awk 'NR==2{print $4}')"
     TOTAL_KB="$(df -k "$check_dir" 2>/dev/null | awk 'NR==2{print $2}')"
@@ -219,10 +219,10 @@ for check_dir in "${FMW_HOME}" "${DOMAIN_HOME}" "/tmp" "/var/log"; do
         "avail=$(_kb_to_human "${AVAIL_KB:-0}") / total=$(_kb_to_human "${TOTAL_KB:-0}") use=${USE_PCT}%"
 
     case "$check_dir" in
-        "${FMW_HOME}")
+        "${ORACLE_HOME:-${FMW_HOME}}")
             [ "$AVAIL_GB" -lt 5 ] && \
-                fail "FMW_HOME: only ${AVAIL_GB} GB free (FMW installation needs ~30 GB)" || \
-                ok   "FMW_HOME: ${AVAIL_GB} GB free"
+                fail "ORACLE_HOME: only ${AVAIL_GB} GB free (FMW installation needs ~30 GB)" || \
+                ok   "ORACLE_HOME: ${AVAIL_GB} GB free"
             ;;
         "/tmp")
             [ "$AVAIL_GB" -lt 1 ] && \

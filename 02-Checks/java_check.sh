@@ -115,21 +115,23 @@ if [ -z "${JAVA_HOME:-}" ]; then
 else
     printList "JAVA_HOME" 32 "$JAVA_HOME"
 
-    # Is JAVA_HOME under FMW_HOME, or is it the separately installed Oracle JDK?
-    # Note: Oracle FMW 14.1.2 uses a standalone JDK (e.g. /app/oracle/java/jdk-21.0.6)
-    # which is NOT under FMW_HOME – this is the expected and correct setup.
-    if [[ "$JAVA_HOME" == "${FMW_HOME}"* ]]; then
-        ok "JAVA_HOME is under FMW_HOME – FMW-bundled JDK in use"
+    # Is JAVA_HOME under ORACLE_HOME, or is it the separately installed Oracle JDK?
+    # Note: Oracle FMW 14.1.2 uses a standalone JDK (e.g. /u01/app/oracle/java/jdk-21)
+    # which is NOT under ORACLE_HOME – this is the expected and correct setup.
+    _oracle_home="${ORACLE_HOME:-${FMW_HOME}}"
+    if [[ "$JAVA_HOME" == "${_oracle_home}"* ]]; then
+        ok "JAVA_HOME is under ORACLE_HOME – FMW-bundled JDK in use"
     elif [[ "$JAVA_HOME" == */jdk* ]] || [[ "$JAVA_HOME" == */java* ]]; then
-        ok "JAVA_HOME is a standalone Oracle JDK (not under FMW_HOME – expected for FMW 14.1.2)"
-        info "  FMW_HOME  : $FMW_HOME"
-        info "  JAVA_HOME : $JAVA_HOME"
+        ok "JAVA_HOME is a standalone Oracle JDK (not under ORACLE_HOME – expected for FMW 14.1.2)"
+        info "  ORACLE_HOME : $_oracle_home"
+        info "  JAVA_HOME   : $JAVA_HOME"
     else
         warn "JAVA_HOME does not look like a standard JDK path"
-        info "  FMW_HOME  : $FMW_HOME"
-        info "  JAVA_HOME : $JAVA_HOME"
+        info "  ORACLE_HOME : $_oracle_home"
+        info "  JAVA_HOME   : $JAVA_HOME"
         info "  Oracle FMW 14.1.2 expects JAVA_HOME to point to Oracle JDK 21"
     fi
+    unset _oracle_home
 
     # Resolve java binary
     JAVA_BIN="$JAVA_HOME/bin/java"
