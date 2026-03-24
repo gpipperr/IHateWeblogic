@@ -295,6 +295,24 @@ ok "$(printf "  ListenAddress = 127.0.0.1:%s" "$WLS_NODEMANAGER_PORT")"
 ok "$(printf "  JavaHome      = %s" "$JDK_HOME")"
 
 # =============================================================================
+# AdminServer boot.properties  (enables unattended startup without stdin prompt)
+# =============================================================================
+
+section "AdminServer boot.properties"
+
+BOOT_DIR="$DOMAIN_HOME/servers/AdminServer/security"
+BOOT_FILE="$BOOT_DIR/boot.properties"
+
+mkdir -p "$BOOT_DIR"
+chmod 750 "$BOOT_DIR"
+
+# Write plaintext – WLS encrypts the file automatically on first startup
+printf 'username=%s\npassword=%s\n' "$WL_USER" "$INTERNAL_WL_PWD" > "$BOOT_FILE"
+chmod 600 "$BOOT_FILE"
+ok "$(printf "boot.properties written: %s (mode 600)" "$BOOT_FILE")"
+info "  WLS will encrypt the password on first AdminServer startup."
+
+# =============================================================================
 # Verify domain structure
 # =============================================================================
 
@@ -305,7 +323,8 @@ for _path in \
     "$DOMAIN_HOME/config/config.xml" \
     "$DOMAIN_HOME/bin/startWebLogic.sh" \
     "$DOMAIN_HOME/bin/startManagedWebLogic.sh" \
-    "$DOMAIN_HOME/nodemanager/nodemanager.properties"
+    "$DOMAIN_HOME/nodemanager/nodemanager.properties" \
+    "$DOMAIN_HOME/servers/AdminServer/security/boot.properties"
 do
     if [ -e "$_path" ]; then
         ok "$(printf "Found: %s" "$_path")"
