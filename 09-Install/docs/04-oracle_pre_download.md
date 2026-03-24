@@ -72,10 +72,16 @@ Current configuration in `oracle_software_version.conf`:
 
 | Variable | Value | Description |
 |---|---|---|
-| `INSTALL_PATCHES` | `38566996` | CPU Jan 2026 – UMS Bundle Patch 14.1.2.0.251022 |
+| `INSTALL_PATCHES` | `38566996` | CPU Jan 2026 – UMS Bundle Patch 14.1.2.0.251022 (WLS/FMW) |
+| `INSTALL_PATCHES_FR` | `38874285 38827528` | QPR Jan 2026 – Forms 14.1.2 QPR + Reports 14.1.2 QPR (Linux-x86-64) |
 
-`INSTALL_PATCHES="38566996"` — apply in this order after OPatch upgrade.
+Both variables are **space-separated** patch number lists.
+`INSTALL_PATCHES` is applied by `05-oracle_patch_weblogic.sh`;
+`INSTALL_PATCHES_FR` is applied by `06-oracle_patch_forms_reports.sh`.
 Always update OPatch **before** applying patches.
+
+> **Forms 14.1.2 QPR Jan 2026:** no separate patch — Forms fixes are included in
+> `INSTALL_PATCHES=38566996`. See [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md) for details.
 
 ---
 
@@ -160,7 +166,7 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
 # → downloads p28186730_139422_Generic.zip (or similar)
 ```
 
-### 4. Download CPU patches
+### 4. Download CPU patches (INSTALL_PATCHES)
 
 Determine current patch numbers first — see
 [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) (Section "How to Find the Correct Patch Numbers").
@@ -174,16 +180,41 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
     patch=38566996 download=all
 ```
 
-### 5. Apply OPatch and patches (after FMW installation)
+### 5. Download Forms & Reports QPR patches (INSTALL_PATCHES_FR)
 
-OPatch upgrade and patch apply are handled by `05-oracle_patch_weblogic.sh`.
-See [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the full manual procedure.
+Determine current QPR patch numbers from MOS KA204 — see
+[06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md) (Section "How to Find the Current F&R QPR Patch Number").
+
+```bash
+# Current QPR Jan 2026 – Forms 14.1.2 (7.0 MB):
+mkdir -p $PATCH_STORAGE/patches/38874285
+cd $PATCH_STORAGE/patches/38874285
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+    MOSUser="..." MOSPass="..." \
+    patch=38874285 download=all
+# → p38874285_141200_Linux-x86-64.zip
+
+# Current QPR Jan 2026 – Reports 14.1.2 (266.9 KB):
+mkdir -p $PATCH_STORAGE/patches/38827528
+cd $PATCH_STORAGE/patches/38827528
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+    MOSUser="..." MOSPass="..." \
+    patch=38827528 download=all
+# → p38827528_141200_Linux-x86-64.zip
+```
+
+### 7. Apply OPatch and patches (after FMW installation)
+
+OPatch upgrade and WLS patch apply are handled by `05-oracle_patch_weblogic.sh`;
+F&R QPR patches by `06-oracle_patch_forms_reports.sh`.
 
 ```bash
 # Automated (recommended):
-./09-Install/05-oracle_patch_weblogic.sh --apply
+./09-Install/05-oracle_patch_weblogic.sh --apply   # OPatch upgrade + INSTALL_PATCHES
+./09-Install/06-oracle_patch_forms_reports.sh --apply  # INSTALL_PATCHES_FR
 
 # Manual procedure: see docs/05-oracle_patch_weblogic.md
+#                   see docs/06-oracle_patch_forms_reports.md
 ```
 
 ---
@@ -203,6 +234,8 @@ See [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the full manu
   - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
     (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
+  - Downloads each patch from `INSTALL_PATCHES_FR` to `$PATCH_STORAGE/patches/<nr>/`
+    (skips entirely if `INSTALL_PATCHES_FR` is empty)
   - Skips patches already present in their target directory
   - Clears MOS password from memory after use
 - Reports download summary: OK/WARN/FAIL counts
@@ -225,8 +258,12 @@ $PATCH_STORAGE/
 └── patches/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
     │   └── p28186730_139422_Generic.zip     ← contains 6880880/opatch_generic.jar
-    └── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
-        └── p38566996_141200_Generic.zip
+    ├── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
+    │   └── p38566996_141200_Generic.zip
+    ├── 38874285/                 ← QPR Jan 2026: Forms 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FR)
+    │   └── p38874285_141200_Linux-x86-64.zip
+    └── 38827528/                 ← QPR Jan 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FR)
+        └── p38827528_141200_Linux-x86-64.zip
 ```
 
 > **Note:** The `opatch/` directory from older versions of this guide no longer exists.

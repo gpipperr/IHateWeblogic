@@ -554,17 +554,29 @@ if $MOS_MODE; then
     section "Post-Install Patches"
 
     if [ -z "${INSTALL_PATCHES:-}" ]; then
-        warn "INSTALL_PATCHES not set in oracle_software_version.conf – skipping patch downloads"
+        warn "INSTALL_PATCHES not set in oracle_software_version.conf – skipping WLS patch downloads"
     else
-        IFS=',' read -ra PATCH_LIST <<< "$INSTALL_PATCHES"
-        for PATCH_NR in "${PATCH_LIST[@]}"; do
-            PATCH_NR="${PATCH_NR// /}"   # trim whitespace
-            [ -z "$PATCH_NR" ] && continue
-            PATCH_DIR="$PATCH_STORAGE/patches/$PATCH_NR"
-            _mos_download_one "$PATCH_NR" "$PATCH_DIR" \
+        for _PATCH_NR in $INSTALL_PATCHES; do
+            [ -z "$_PATCH_NR" ] && continue
+            _mos_download_one "$_PATCH_NR" "$PATCH_STORAGE/patches/$_PATCH_NR" \
                 || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
         done
-        unset PATCH_LIST PATCH_NR PATCH_DIR
+        unset _PATCH_NR
+    fi
+
+    # --- Forms & Reports QPR patches ------------------------------------------
+    section "Forms & Reports QPR Patches (INSTALL_PATCHES_FR)"
+
+    if [ -z "${INSTALL_PATCHES_FR:-}" ]; then
+        ok "INSTALL_PATCHES_FR is empty – no FR-specific patches to download"
+        info "  (Forms/Reports fixes are covered by INSTALL_PATCHES in this cycle)"
+    else
+        for _PATCH_NR in $INSTALL_PATCHES_FR; do
+            [ -z "$_PATCH_NR" ] && continue
+            _mos_download_one "$_PATCH_NR" "$PATCH_STORAGE/patches/$_PATCH_NR" \
+                || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+        done
+        unset _PATCH_NR
     fi
 
     # Clear MOS password from memory
@@ -577,8 +589,9 @@ if $MOS_MODE; then
     info "After FMW installation – update OPatch and apply patches:"
     info "  05-oracle_patch_weblogic.sh --apply"
     info "  → OPatch upgrade via: patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/opatch_generic.jar"
-    info "  → Patches: ${INSTALL_PATCHES:-see oracle_software_version.conf}"
-    info "  See: 09-Install/docs/05-oracle_patch_weblogic.md"
+    info "  → WLS patches: ${INSTALL_PATCHES:-see oracle_software_version.conf}"
+    info "  06-oracle_patch_forms_reports.sh --apply"
+    info "  → FR patches:  ${INSTALL_PATCHES_FR:-(none configured)}"
 
 fi
 

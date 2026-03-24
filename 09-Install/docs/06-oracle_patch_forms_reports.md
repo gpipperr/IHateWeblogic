@@ -25,19 +25,40 @@ included in the WLS CPU bundle.
 
 ## INSTALL_PATCHES_FR
 
-Defined in `09-Install/oracle_software_version.conf`:
+Defined in `09-Install/oracle_software_version.conf` (space-separated):
 
 ```bash
-# Leave empty if no FR-specific patches are needed beyond INSTALL_PATCHES.
-INSTALL_PATCHES_FR=""
-
-# Example when FR patches are needed:
-# INSTALL_PATCHES_FR="12345678 87654321"
+# QPR Jan 2026:
+INSTALL_PATCHES_FR="38827528"
 ```
 
-To add an FR-specific patch:
-1. Download the patch ZIP to `$PATCH_STORAGE/patches/<NR>/`
-2. Add the patch number to `INSTALL_PATCHES_FR`
+Current patches (Jan 2026):
+
+| Patch | Product | Version | Platform | Date | Size | Bugs |
+|---|---|---|---|---|---|---|
+| `38874285` | Oracle Forms | 14.1.2.0.0 | Linux x86-64 | 22-Jan-2026 | 7.0 MB | 43 |
+| `38827528` | Oracle Reports Developer | 14.1.2.0.0 | Linux x86-64 | 22-Jan-2026 | 266.9 KB | 5 |
+
+**Forms `38874285` key fixes:**
+OLE2 crash (FRM-93652), dark color scheme text visibility, Hebrew/English display,
+REST Package Designer (RPD) multiple FRM-15758 fixes, FADS deploy failures,
+Forms compiler seg fault after DB Client 23.8 upgrade (`38351061`),
+ORA-03113 on cancel query (`38477700`), authentication failure in Forms/JBean (`38743543`).
+
+**Reports `38827528` key fixes:**
+rwconverter ORA-00933 (`35740116`), Hebrew text with parenthesis (`36475147`),
+ADB 23ai SRW package registration PLS-01918 (`37548468`),
+REP-52275 in job status view (`37595589`),
+cgicmd.dat encryption for password values (`37756029`).
+
+> **Note on KA204 platform confusion:** The KA204 article lists the Forms QPR entry
+> under a "12.2.1.19" label without an OS filter. The correct Linux-x86-64/14.1.2.0.0
+> patch is `38874285` — verify on the MOS patch detail page before downloading.
+
+To add a future FR-specific patch:
+1. Download the patch ZIP via `04-oracle_pre_download.sh --apply --mos`
+   (reads `INSTALL_PATCHES_FR` automatically)
+2. Add the patch number to `INSTALL_PATCHES_FR` in `oracle_software_version.conf`
 3. Run `06-oracle_patch_forms_reports.sh --check-only` first
 4. Run `06-oracle_patch_forms_reports.sh --apply`
 
@@ -50,9 +71,11 @@ To add an FR-specific patch:
 ```bash
 cd $PATCH_STORAGE/patches/<PATCH_NR>/
 $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
-    -ph . \
-    -invPtrLoc $ORACLE_BASE/oraInst.loc
+    -ph .
 ```
+
+> `/etc/oraInst.loc` is found automatically — no `-invPtrLoc` needed.
+> Created by `03-root_user_oracle.sh` or `60-RCU-DB-19c/00-root_db_os_baseline.sh`.
 
 ### 2. Apply patch
 
@@ -60,8 +83,7 @@ $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
 cd $PATCH_STORAGE/patches/<PATCH_NR>/
 $ORACLE_HOME/OPatch/opatch apply \
     -silent \
-    -jdk $JDK_HOME \
-    -invPtrLoc $ORACLE_BASE/oraInst.loc
+    -jdk $JDK_HOME
 ```
 
 ### 3. Verify
@@ -116,25 +138,32 @@ Oracle Reports was added to this programme in **May 2025**.
 
 > *Oracle Forms and Reports Quarterly Patch Information*
 > MOS → Search → Knowledge → **KA204**
-> Last updated: Feb 2026 | Applies to: Oracle Forms / Reports all versions
+> Applies to: Oracle Forms / Reports all versions
 
-The article contains tabs per product/version:
+The article lists QPR patches per product and version.
 
-| Tab | Relevant for this project |
-|---|---|
-| Forms 14.1.2 | **yes** — current F&R install version |
-| Reports 14.1.2 | **yes** — current F&R install version |
-| Forms 12.2.1.x | no |
-| Reports 12.2.1.x | no |
-
-**Steps to get the current patch number:**
+**Steps to check for new QPR patches each CPU cycle:**
 1. Open MOS → Knowledge → search `KA204`
-2. Click tab **Forms 14.1.2** → note the latest QPR patch number
-3. Click tab **Reports 14.1.2** → note the latest QPR patch number
-4. Download both ZIPs to `$PATCH_STORAGE/patches/<NR>/`
-5. Set `INSTALL_PATCHES_FR="<forms_nr> <reports_nr>"` in `oracle_software_version.conf`
-6. Run `06-oracle_patch_forms_reports.sh --check-only` then `--apply`
+2. Note the patch numbers listed for **Forms** and **Reports**
+3. Click on the patch number → MOS shows a **list of platform-specific patches**
+   for that QPR release (Linux, Windows, Solaris, AIX, HP-UX …)
+4. Select **Linux x86-64** → verify on the patch detail page:
+   - Platform = `Linux x86-64`
+   - Product Version = `14.1.2.0.0`
+5. Note the patch number for this platform variant
+6. Update `INSTALL_PATCHES_FR` in `oracle_software_version.conf`
+7. Run `04-oracle_pre_download.sh --apply --mos` to download
+8. Run `06-oracle_patch_forms_reports.sh --check-only` then `--apply`
 
-> **TODO (next session):** Look up the current QPR patch numbers from KA204 tabs
-> "Forms 14.1.2" and "Reports 14.1.2", download the ZIPs, and set
-> `INSTALL_PATCHES_FR` accordingly.
+> **KA204 platform selection — important:**
+> After clicking a patch link in KA204 you land on a list of platform variants.
+> Oracle does **not** sort this list consistently — Linux x86-64 can appear anywhere,
+> not necessarily at the top. Scan the full list and select `Linux x86-64` explicitly.
+> Do not assume the first entry or the largest file is the correct one.
+>
+> Additionally, KA204 itself has no OS filter and may mix version labels in the same
+> table (e.g. "12.2.1.19" and "14.1.2" entries side by side). Always confirm
+> platform **and** product version on the patch detail page before updating the config.
+
+**QPR release schedule:** January / April / July / October (same as CPU).
+Oracle Reports joined the QPR programme in **May 2025**.
