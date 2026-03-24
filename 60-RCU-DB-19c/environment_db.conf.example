@@ -23,6 +23,12 @@
 # --- Oracle Base (shared with FMW — must match ORACLE_BASE in environment.conf) ---
 ORACLE_BASE="/u01/app/oracle"
 
+# --- Oracle Central Inventory (must match ORACLE_INVENTORY in environment.conf) ---
+# Keep in sync with environment.conf — both FMW and DB share one Central Inventory.
+# /etc/oraInst.loc is written by 03-root_user_oracle.sh; DB runInstaller finds it automatically.
+# Only set here for reference; the DB scripts read inventory location from /etc/oraInst.loc.
+ORACLE_INVENTORY="/u01/app/oraInventory"
+
 # --- Edition ------------------------------------------------------------------
 # EE (Enterprise Edition) is the default and recommended setting.
 # SE2 (Standard Edition 2) is sufficient for a pure RCU-only metadata database
@@ -38,10 +44,7 @@ DB_EDITION="EE"                               # EE | SE2
 DB_CV_ASSUME_DISTID="OEL7.6"
 
 # --- Oracle Homes -------------------------------------------------------------
-# Base install: unpatched 19.3.0 (extracted from LINUX.X64_193000_db_home.zip)
-DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
-
-# Patched home: created by cp -a + opatchauto (02-db_patch_db_software.sh)
+# Patched home: installed directly via runInstaller -applyRU (01-db_install_software.sh)
 # Current RU: 19.30 (Q1 2026) — update this when applying a newer RU.
 DB_ORACLE_HOME="${ORACLE_BASE}/product/19.30.0/db_home1"
 

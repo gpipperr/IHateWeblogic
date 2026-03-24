@@ -276,6 +276,16 @@ _val_dir() {
     [[ "$ans" =~ ^[Yy] ]]
 }
 
+# _derive_oracle_inventory  oracle_base
+# Derive the Central Inventory path from ORACLE_BASE parent.
+# Returns empty string when ORACLE_BASE is at depth 1 (parent = /).
+_derive_oracle_inventory() {
+    local base="$1"
+    local parent
+    parent="$(dirname "$base")"
+    [ "$parent" = "/" ] && echo "" || echo "${parent}/oraInventory"
+}
+
 _val_jdk() {
     local jdk="$1"
     if [ -x "$jdk/bin/java" ]; then
@@ -367,6 +377,30 @@ _ask ORACLE_HOME    "Oracle Home (FMW)"         "${ORACLE_BASE}/fmw"            
 _ask JDK_HOME       "JDK 21 home (symlink)"     "${ORACLE_BASE}/java/jdk-21"       "_val_jdk"
 _ask DOMAIN_HOME    "Domain directory"          "${ORACLE_BASE}/domains/fr_domain" "_val_dir"
 _ask PATCH_STORAGE  "Patch storage directory"   "/srv/patch_storage"               "_val_patch_storage"
+
+# ORACLE_INVENTORY: derive default from ORACLE_BASE parent (one level up)
+# If ORACLE_BASE is at depth 1 (e.g. /oracle → parent=/), auto-derive would put
+# the inventory at /oraInventory (root filesystem) — not acceptable.
+_inv_default="$(_derive_oracle_inventory "$ORACLE_BASE")"
+printf "\n"
+info "Oracle Central Inventory – one level ABOVE ORACLE_BASE, shared by FMW + DB."
+info "  Standard:  \$(dirname ORACLE_BASE)/oraInventory = ${_inv_default:-<cannot auto-derive>}"
+info "  Created by root (03-root_user_oracle.sh) via /etc/oraInst.loc."
+if [ -z "$_inv_default" ]; then
+    warn "ORACLE_BASE '${ORACLE_BASE}' has depth 1 — cannot auto-derive ORACLE_INVENTORY."
+    warn "  Oracle installer default would be /opt/oraInventory."
+    _ask ORACLE_INVENTORY "Oracle Central Inventory" "/opt/oraInventory" "_val_dir"
+else
+    _ask ORACLE_INVENTORY "Oracle Central Inventory" "$_inv_default"    "_val_dir"
+fi
+# Post-validation: warn if inventory is inside ORACLE_BASE
+case "$ORACLE_INVENTORY" in
+    "${ORACLE_BASE}"/*|"${ORACLE_BASE}")
+        warn "ORACLE_INVENTORY is inside ORACLE_BASE — Oracle standard requires it one level above."
+        warn "  Recommended: $(dirname "$ORACLE_BASE")/oraInventory"
+        ;;
+esac
+unset _inv_default
 
 printf "\n"
 
@@ -476,6 +510,7 @@ printf "\n  Values to write to environment.conf:\n\n"
 _show() { printf "  %-30s = %s\n" "$1" "$2" | tee -a "$LOG_FILE"; }
 
 _show "ORACLE_BASE"          "$ORACLE_BASE"
+_show "ORACLE_INVENTORY"     "$ORACLE_INVENTORY"
 _show "ORACLE_HOME"          "$ORACLE_HOME"
 _show "JDK_HOME"             "$JDK_HOME"
 _show "DOMAIN_HOME"          "$DOMAIN_HOME"
@@ -552,6 +587,9 @@ cat >> "$ENV_CONF" <<ENVEOF
 
 # --- Installation Paths -------------------------------------------------------
 ORACLE_BASE="${ORACLE_BASE}"
+# Central Oracle Inventory – one level above ORACLE_BASE (shared by FMW + DB)
+# /etc/oraInst.loc (root-owned) points here; created by 03-root_user_oracle.sh
+ORACLE_INVENTORY="${ORACLE_INVENTORY}"
 ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
@@ -633,6 +671,7 @@ cat > "$SETUP_CONF" <<SETUPEOF
 # Use as    : cp setup.conf ../new-server/environment.conf  (then re-encrypt)
 # =============================================================================
 ORACLE_BASE="${ORACLE_BASE}"
+ORACLE_INVENTORY="${ORACLE_INVENTORY}"
 ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 DOMAIN_HOME="${DOMAIN_HOME}"

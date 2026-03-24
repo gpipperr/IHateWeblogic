@@ -298,9 +298,27 @@ fi
 
 section "Oracle Inventory (oraInst.loc)"
 
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
-ORA_INVENTORY="$ORACLE_BASE/oraInventory"
+# Expected inventory location from environment.conf; derive fallback if not set
+ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
+ORA_INST_LOC="/etc/oraInst.loc"
 
+ok "$(printf "%-26s %s" "Expected ORACLE_INVENTORY:" "$ORA_INVENTORY")"
+
+# Validate ORACLE_INVENTORY position relative to ORACLE_BASE
+case "$ORA_INVENTORY" in
+    "${ORACLE_BASE}"/*|"${ORACLE_BASE}")
+        warn "ORACLE_INVENTORY is inside ORACLE_BASE — Oracle standard requires it one level above"
+        warn "  Recommended: $(dirname "$ORACLE_BASE")/oraInventory"
+        EXIT_CODE=1
+        ;;
+esac
+_inv_parent="$(dirname "$ORA_INVENTORY")"
+if [ "$_inv_parent" = "/" ]; then
+    warn "ORACLE_INVENTORY parent is root (/) — inventory at root filesystem level is unusual"
+fi
+unset _inv_parent
+
+# Check /etc/oraInst.loc (system-wide pointer, created by 03-root_user_oracle.sh as root)
 if [ -f "$ORA_INST_LOC" ]; then
     ok "oraInst.loc exists: $ORA_INST_LOC"
     INV_LOC="$(grep '^inventory_loc=' "$ORA_INST_LOC" 2>/dev/null | cut -d= -f2)"
@@ -308,13 +326,22 @@ if [ -f "$ORA_INST_LOC" ]; then
     ok "$(printf "%-26s %s" "inventory_loc:" "${INV_LOC:-(not set)}")"
     ok "$(printf "%-26s %s" "inst_group:"    "${INV_GRP:-(not set)}")"
     if [ "${INV_LOC:-}" = "$ORA_INVENTORY" ]; then
-        ok "inventory_loc matches expected path"
+        ok "inventory_loc matches ORACLE_INVENTORY"
     else
         warn "$(printf "inventory_loc='%s' expected '%s'" "${INV_LOC:-}" "$ORA_INVENTORY")"
+        info "  Fix: run 03-root_user_oracle.sh --apply to update /etc/oraInst.loc"
+        EXIT_CODE=1
+    fi
+    if [ -d "$ORA_INVENTORY" ]; then
+        ok "oraInventory directory exists: $ORA_INVENTORY"
+    else
+        warn "oraInventory directory missing: $ORA_INVENTORY"
+        info "  Will be created by 03-root_user_oracle.sh --apply"
     fi
 else
     fail "oraInst.loc not found: $ORA_INST_LOC"
-    info "  Fix: run 03-root_user_oracle.sh --apply to create oraInst.loc"
+    info "  Fix: run 03-root_user_oracle.sh --apply (requires root/sudo)"
+    EXIT_CODE=2
 fi
 
 # =============================================================================

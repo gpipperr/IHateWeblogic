@@ -153,7 +153,9 @@ OPATCH="$ORACLE_HOME/OPatch/opatch"
     || { fail "INSTALL_PATCHES not set in oracle_software_version.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- oraInst.loc – required for OPatch operations ----------------------------
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
+# /etc/oraInst.loc is the system-wide pointer (root-owned, created by 03-root_user_oracle.sh)
+ORA_INST_LOC="/etc/oraInst.loc"
+ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
 [ -f "$ORA_INST_LOC" ] \
     && ok "oraInst.loc found: $ORA_INST_LOC" \
     || warn "oraInst.loc not found: $ORA_INST_LOC  (opatch will use system default)"
@@ -251,20 +253,20 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
 
     BACKUP_TS="$(date +%Y%m%d)"
     OPATCH_BAK="$ORACLE_HOME/OPatch.bak_${BACKUP_TS}"
-    INVENTORY_BAK="$ORACLE_BASE/oraInventory.bak_${BACKUP_TS}"
+    INVENTORY_BAK="${ORA_INVENTORY}.bak_${BACKUP_TS}"
 
     info "Backing up $ORACLE_HOME/OPatch → $OPATCH_BAK"
     cp -a "$ORACLE_HOME/OPatch" "$OPATCH_BAK" \
         && ok "OPatch backup: $OPATCH_BAK" \
         || { fail "OPatch backup failed"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-    if [ -d "$ORACLE_BASE/oraInventory" ]; then
+    if [ -d "$ORA_INVENTORY" ]; then
         info "Backing up Central Inventory → $INVENTORY_BAK"
-        cp -a "$ORACLE_BASE/oraInventory" "$INVENTORY_BAK" \
+        cp -a "$ORA_INVENTORY" "$INVENTORY_BAK" \
             && ok "Inventory backup: $INVENTORY_BAK" \
             || warn "Inventory backup failed – continuing without backup"
     else
-        info "oraInventory not found at $ORACLE_BASE/oraInventory – skipping inventory backup"
+        info "oraInventory not found at $ORA_INVENTORY – skipping inventory backup"
     fi
 
     # --- Step 3: Unzip to staging and install via opatch_generic.jar ----------
@@ -324,7 +326,7 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
 
     if [ "$OPATCH_INSTALL_RC" -ne 0 ]; then
         fail "opatch_generic.jar install failed (rc=$OPATCH_INSTALL_RC)"
-        fail "  Check: $ORACLE_BASE/oraInventory/logs/"
+        fail "  Check: $ORA_INVENTORY/logs/"
         fail "  See:   $ORACLE_BASE/tmp/OraInstall*/  and Doc ID 2759112.1"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi

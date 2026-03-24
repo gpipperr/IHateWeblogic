@@ -197,11 +197,14 @@ fi
 CV_DISTID="${CV_ASSUME_DISTID:-OEL8}"
 ok "$(printf "%-22s %s  (source: oracle_software_version.conf)" "CV_ASSUME_DISTID:" "$CV_DISTID")"
 
-# --- oraInst.loc (created by WLS installer — must exist) --------------------
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
+# --- oraInst.loc (created by root in 03-root_user_oracle.sh – must exist) ---
+ORA_INST_LOC="/etc/oraInst.loc"
+ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
 [ -f "$ORA_INST_LOC" ] \
     && ok "oraInst.loc found: $ORA_INST_LOC" \
-    || warn "oraInst.loc not found: $ORA_INST_LOC – installer will create it"
+    || { fail "oraInst.loc not found: $ORA_INST_LOC"; \
+         fail "  Fix: run 03-root_user_oracle.sh --apply"; \
+         EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- Dry-run exit -------------------------------------------------------------
 if ! $APPLY; then
@@ -299,7 +302,7 @@ printList "oraInst.loc"  24 "$ORA_INST_LOC"
 printLine
 
 printf "\n  Installation started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-printf "  Log: %s/oraInventory/logs/\n\n" "$ORACLE_BASE" | tee -a "$LOG_FILE"
+printf "  Log: %s/logs/\n\n" "$ORA_INVENTORY" | tee -a "$LOG_FILE"
 
 "$FR_BIN" \
     -silent \
@@ -325,7 +328,7 @@ info "Response file removed"
 # --- Installer exit code check -----------------------------------------------
 if [ "$INSTALLER_RC" -ne 0 ]; then
     fail "Installer exited with rc=$INSTALLER_RC"
-    fail "  Check: $ORACLE_BASE/oraInventory/logs/"
+    fail "  Check: $ORA_INVENTORY/logs/"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 ok "Installer completed successfully"

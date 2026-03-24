@@ -181,22 +181,25 @@ fi
 
 section "Oracle Inventory Location"
 
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
-ORA_INVENTORY="$ORACLE_BASE/oraInventory"
+# /etc/oraInst.loc is the system-wide inventory pointer, created by root in
+# 03-root_user_oracle.sh.  This script (running as oracle) only reads it.
+ORA_INST_LOC="/etc/oraInst.loc"
+ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
 
 if [ -f "$ORA_INST_LOC" ]; then
     ok "oraInst.loc exists: $ORA_INST_LOC"
-    printList "Content" 20 "$(cat "$ORA_INST_LOC" | tr '\n' ' ')"
+    printList "Content" 20 "$(tr '\n' ' ' < "$ORA_INST_LOC")"
+    _inv_in_file="$(grep '^inventory_loc=' "$ORA_INST_LOC" 2>/dev/null | cut -d= -f2)"
+    if [ "${_inv_in_file:-}" != "$ORA_INVENTORY" ]; then
+        warn "inventory_loc='${_inv_in_file}' expected '${ORA_INVENTORY}'"
+        warn "  Check ORACLE_INVENTORY in environment.conf and re-run 03-root_user_oracle.sh"
+    fi
+    unset _inv_in_file
 else
-    info "Creating oraInst.loc: $ORA_INST_LOC"
-    mkdir -p "$ORACLE_BASE"
-    {
-        printf "inventory_loc=%s\n" "$ORA_INVENTORY"
-        printf "inst_group=oinstall\n"
-    } > "$ORA_INST_LOC"
-    ok "Created: $ORA_INST_LOC"
-    printList "inventory_loc" 20 "$ORA_INVENTORY"
-    printList "inst_group"    20 "oinstall"
+    fail "oraInst.loc not found: $ORA_INST_LOC"
+    fail "  Fix: run 03-root_user_oracle.sh --apply (requires root/sudo)"
+    fail "  oraInst.loc must be created by root before oracle can install software"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
 # =============================================================================
@@ -257,7 +260,7 @@ printList "oraInst.loc" 24 "$ORA_INST_LOC"
 printLine
 
 printf "\n  Installation started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-printf "  Log: %s/oraInventory/logs/\n\n" "$ORACLE_BASE" | tee -a "$LOG_FILE"
+printf "  Log: %s/logs/\n\n" "$ORA_INVENTORY" | tee -a "$LOG_FILE"
 
 "$JDK_HOME/bin/java" -jar "$WLS_JAR" \
     -silent \
@@ -282,7 +285,7 @@ info "Response file removed"
 # --- Installer exit code check -----------------------------------------------
 if [ "$INSTALLER_RC" -ne 0 ]; then
     fail "Installer exited with rc=$INSTALLER_RC"
-    fail "  Check: $ORACLE_BASE/oraInventory/logs/"
+    fail "  Check: $ORA_INVENTORY/logs/"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 ok "Installer completed successfully"

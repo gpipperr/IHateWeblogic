@@ -37,14 +37,22 @@ PROXY_PWD=
 COLLECTOR_SUPPORTHUB_URL=
 ```
 
-### 2. Create oraInst.loc
+### 2. Verify oraInst.loc
+
+`/etc/oraInst.loc` must already exist — created by `03-root_user_oracle.sh --apply` (root step).
+This script (running as oracle) only reads it.
 
 ```bash
-cat > /u01/app/oracle/oraInst.loc << 'EOF'
-inventory_loc=/u01/app/oracle/oraInventory
-inst_group=oinstall
-EOF
+# Verify before running the installer:
+cat /etc/oraInst.loc
+# Expected:
+#   inventory_loc=/u01/app/oraInventory
+#   inst_group=oinstall
 ```
+
+> `/etc/oraInst.loc` points to `ORACLE_INVENTORY` (one level above `ORACLE_BASE`).
+> The installer finds it automatically — no `-invPtrLoc` argument needed.
+> If `/etc/oraInst.loc` is missing, re-run `03-root_user_oracle.sh --apply`.
 
 ### 3. Set CV override and run the installer
 
@@ -58,13 +66,14 @@ export CV_ASSUME_DISTID=OEL8
 $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
     -silent \
     -responseFile $PATCH_STORAGE/wls/wls_install.rsp \
-    -invPtrLoc /u01/app/oracle/oraInst.loc \
     -jreLoc $JDK_HOME
 
 unset CV_ASSUME_DISTID
 ```
 
-Installation log: `$ORACLE_BASE/oraInventory/logs/`
+> `-invPtrLoc` is not needed: the installer finds `/etc/oraInst.loc` automatically.
+
+Installation log: `$ORACLE_INVENTORY/logs/`  (= `/u01/app/oraInventory/logs/`)
 
 ### 4. Verify installation
 
@@ -84,7 +93,7 @@ ls -la $ORACLE_HOME/oracle_common/
 - Reads `CV_ASSUME_DISTID`, `FMW_INFRA_FILENAME`, `FMW_INFRA_ZIP` from `oracle_software_version.conf`
 - Locates the FMW Infrastructure JAR in `$PATCH_STORAGE/wls/`; unzips from `FMW_INFRA_ZIP` if JAR not yet extracted
 - Generates the response file inline (substituting `ORACLE_HOME`, `ORACLE_BASE`)
-- Creates `$ORACLE_BASE/oraInst.loc` if not present
+- Verifies `/etc/oraInst.loc` exists (created by `03-root_user_oracle.sh`); aborts if missing
 - Checks that `ORACLE_HOME` does not yet exist (prevents overwriting an existing install)
 - Exports `CV_ASSUME_DISTID` for the duration of the installer run only; unsets afterwards
 - Runs the silent installer with `$JDK_HOME/bin/java`
@@ -138,4 +147,4 @@ cat $ORACLE_HOME/inventory/registry.xml | grep "WLS"
   Full prerequisite validation happens in `04-oracle_pre_checks.sh` beforehand.
 - Install time: approximately 10–15 minutes depending on disk speed
 - Do not run as root — installer must run as `oracle` user
-- If installation fails: check log in `$ORACLE_BASE/oraInventory/logs/`
+- If installation fails: check log in `$ORACLE_INVENTORY/logs/`  (= `/u01/app/oraInventory/logs/`)

@@ -130,8 +130,8 @@ ok "$(printf "%-28s %s" "OPatch version:" "${OPATCH_VER:-unknown}")"
     && ok "PATCH_STORAGE = $PATCH_STORAGE" \
     || { fail "PATCH_STORAGE not set in environment.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- oraInst.loc -------------------------------------------------------------
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
+# --- oraInst.loc (system-wide pointer, created by root in 03-root_user_oracle.sh) ---
+ORA_INST_LOC="/etc/oraInst.loc"
 INVPTR_ARGS=()
 [ -f "$ORA_INST_LOC" ] \
     && { ok "oraInst.loc found: $ORA_INST_LOC"; INVPTR_ARGS=(-invPtrLoc "$ORA_INST_LOC"); } \

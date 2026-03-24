@@ -162,32 +162,48 @@ locale
 
 ### 7. Create directory structure
 
+The Central Oracle Inventory (`ORACLE_INVENTORY`) sits **one level above** `ORACLE_BASE`,
+so it is shared between FMW and DB homes and survives a recreation of `ORACLE_BASE`.
+
+```
+ORACLE_BASE  = /u01/app/oracle       ← FMW home, DB home
+ORACLE_INVENTORY = /u01/app/oraInventory  ← one level up, shared by all Oracle products
+```
+
+Derivation rule: `$(dirname "$ORACLE_BASE")/oraInventory`
+Exception: if `ORACLE_BASE` is at depth 1 (e.g. `/oracle`), set `ORACLE_INVENTORY`
+explicitly in `environment.conf` — do not place the inventory at root level.
+
 ```bash
 mkdir -p /u01/app/oracle/fmw
 mkdir -p /u01/app/oracle/java
-mkdir -p /u01/app/oracle/oraInventory
+mkdir -p /u01/app/oraInventory      # ← one level above ORACLE_BASE
 mkdir -p /u01/user_projects/domains
 chown -R oracle:oinstall /u01
 chmod -R 755 /u01/app/oracle
-chmod 750 /u01/app/oracle/oraInventory
+chmod 750 /u01/app/oraInventory
 ```
 
 ### 8. Create Oracle Inventory pointer
 
-The script creates `$ORACLE_BASE/oraInst.loc` (= `/u01/app/oracle/oraInst.loc`):
+The script creates `/etc/oraInst.loc` (system-wide, root-owned):
 
 ```bash
-cat > /u01/app/oracle/oraInst.loc << 'EOF'
-inventory_loc=/u01/app/oracle/oraInventory
+cat > /etc/oraInst.loc << 'EOF'
+inventory_loc=/u01/app/oraInventory
 inst_group=oinstall
 EOF
 ```
 
-> **Two possible locations — the script uses the user-space path:**
-> - `/etc/oraInst.loc` — system-wide default; Oracle installers check this first
->   (requires root write; created manually if needed for enterprise environments)
-> - `/u01/app/oracle/oraInst.loc` — user-space fallback under `ORACLE_BASE`;
->   created by this script; sufficient for standalone FMW installations
+`/etc/oraInst.loc` is the **system-wide** Oracle inventory pointer.
+All Oracle installers (OUI, OPatch, `runInstaller`) check `/etc/oraInst.loc` first —
+no `-invPtrLoc` argument needed in subsequent install scripts.
+
+> **Why `/etc/oraInst.loc` and not `$ORACLE_BASE/oraInst.loc`?**
+> - Only root can write to `/etc/` — this script runs as root, so this is the right time
+> - `/etc/oraInst.loc` is Oracle's primary lookup path; it works for all Oracle products
+> - Placing it inside `ORACLE_BASE` would lose the inventory pointer if `ORACLE_BASE` is recreated
+> - `ORACLE_INVENTORY` outside `ORACLE_BASE` means FMW and DB share one inventory without conflict
 
 ### 9. Bootstrap handover (final root step)
 
@@ -212,8 +228,8 @@ From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
 - Verifies PAM loads limits (`pam_limits.so` in system-auth)
 - Creates `/etc/sudoers.d/oracle-fmw` and validates with `visudo -c`
 - Writes `~oracle/.bash_profile` FMW block (checks for existing entries, no duplicates)
-- Creates full directory tree with correct ownership
-- Creates `$ORACLE_BASE/oraInst.loc` inventory pointer (user-space path)
+- Creates full directory tree with correct ownership (`$ORACLE_BASE/*` and `$ORACLE_INVENTORY`)
+- Creates `/etc/oraInst.loc` pointing to `$ORACLE_INVENTORY` (system-wide, root-owned)
 - Transfers repository ownership to `oracle:oinstall` (bootstrap handover)
 
 ---
@@ -248,8 +264,13 @@ su - oracle -c "locale"
 # Sudo (should NOT prompt for password)
 su - oracle -c "sudo -n systemctl status nginx 2>&1 | head -1"
 
-# Inventory pointer
-cat /u01/app/oracle/oraInst.loc
+# Inventory pointer (system-wide)
+cat /etc/oraInst.loc
+# Expected:
+#   inventory_loc=/u01/app/oraInventory
+#   inst_group=oinstall
+
+ls -la /u01/app/oraInventory/
 
 # Directory ownership
 ls -la /u01/app/oracle/

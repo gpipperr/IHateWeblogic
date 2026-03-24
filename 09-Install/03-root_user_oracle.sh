@@ -474,28 +474,48 @@ _check_dir "$PATCH_STORAGE"                oracle oinstall
 _check_dir "$PATCH_STORAGE/bin"            oracle oinstall
 _check_dir "/var/crash"                    root   root
 
-# OUI inventory
-ORA_INVENTORY="$ORACLE_BASE/oraInventory"
+# OUI Central Inventory – one level above ORACLE_BASE
+# ORACLE_INVENTORY is set in environment.conf by 01-setup-interview.sh
+ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
+if [ "${ORACLE_INVENTORY:-}" != "$ORA_INVENTORY" ]; then
+    warn "ORACLE_INVENTORY not set in environment.conf – using derived default: $ORA_INVENTORY"
+fi
 _check_dir "$ORA_INVENTORY"
 
-# oraInst.loc
-ORA_INST_LOC="$ORACLE_BASE/oraInst.loc"
+# /etc/oraInst.loc – system-wide Oracle inventory pointer (root-owned)
+# Oracle installers (OUI, OPatch, runInstaller) check /etc/oraInst.loc first.
+# Do NOT place oraInst.loc inside ORACLE_BASE — it must survive ORACLE_BASE recreation.
+ORA_INST_LOC="/etc/oraInst.loc"
 if [ -f "$ORA_INST_LOC" ]; then
     ok "oraInst.loc exists: $ORA_INST_LOC"
-    grep -q "inventory_loc=$ORA_INVENTORY" "$ORA_INST_LOC" && \
-        ok "oraInst.loc: inventory_loc correct" || \
-        warn "oraInst.loc: inventory_loc unexpected value"
+    _inv_in_file="$(grep '^inventory_loc=' "$ORA_INST_LOC" 2>/dev/null | cut -d= -f2)"
+    if [ "$_inv_in_file" = "$ORA_INVENTORY" ]; then
+        ok "oraInst.loc: inventory_loc = $ORA_INVENTORY"
+    else
+        warn "oraInst.loc: inventory_loc='${_inv_in_file}' expected '${ORA_INVENTORY}'"
+        if [ "$APPLY_MODE" -eq 1 ]; then
+            if askYesNo "Update /etc/oraInst.loc to point to $ORA_INVENTORY?" "y"; then
+                _run_root tee "$ORA_INST_LOC" > /dev/null << EOF
+inventory_loc=${ORA_INVENTORY}
+inst_group=oinstall
+EOF
+                ok "Updated: $ORA_INST_LOC"
+            fi
+        fi
+    fi
+    unset _inv_in_file
 else
-    warn "oraInst.loc not found: $ORA_INST_LOC"
+    info "oraInst.loc not found: $ORA_INST_LOC"
     if [ "$APPLY_MODE" -eq 1 ]; then
-        if askYesNo "Create oraInst.loc?" "y"; then
+        if askYesNo "Create /etc/oraInst.loc?" "y"; then
             _run_root tee "$ORA_INST_LOC" > /dev/null << EOF
 inventory_loc=${ORA_INVENTORY}
 inst_group=oinstall
 EOF
-            _run_root chown oracle:oinstall "$ORA_INST_LOC"
             ok "Created: $ORA_INST_LOC"
         fi
+    else
+        info "  Will create /etc/oraInst.loc pointing to $ORA_INVENTORY"
     fi
 fi
 
