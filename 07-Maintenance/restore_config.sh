@@ -231,7 +231,7 @@ PRE_DIR="$BACKUP_BASE/$PRE_TS"
 
 info "Saving current state to: $PRE_DIR"
 
-for cat in fonts server domain ihw; do
+for cat in fonts fonts_ttf reports_comp reports_tools reports_wls fmw forms_wls domain ihw; do
     mkdir -p "$PRE_DIR/$cat" 2>/dev/null
 done
 
