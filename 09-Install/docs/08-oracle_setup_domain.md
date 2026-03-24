@@ -19,9 +19,14 @@ All servers listen on `127.0.0.1` only — Nginx is the external entry point.
 ```
 $ORACLE_HOME/wlserver/common/templates/wls/wls.jar
 $ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar
-$ORACLE_HOME/forms/common/templates/wls/oracle.forms.templates.jar
-$ORACLE_HOME/reports/common/templates/wls/oracle.reports.templates.jar
+$ORACLE_HOME/forms/common/templates/wls/forms_template.jar
+$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar
 ```
+
+> **Note:** Template names verified via `ls $ORACLE_HOME/forms/common/templates/wls/`
+> on FMW 14.1.2. The names differ from older 12.2.1.x installations.
+> `forms_template.jar` creates the `WLS_FORMS` managed server automatically.
+> `oracle.reports_app_template.jar` creates `WLS_REPORTS` automatically.
 
 ---
 
@@ -29,57 +34,55 @@ $ORACLE_HOME/reports/common/templates/wls/oracle.reports.templates.jar
 
 ### 1. Create WLST domain config script
 
-Create `$PATCH_STORAGE/domain_config.py` from template
-(see `response_files/domain_config.py.template`):
+Create from template `09-Install/response_files/domain_config.py.template`
+(the script substitutes all `##PLACEHOLDER##` values at runtime into a temp file):
 
 ```python
-# Read base domain template
+# Read base WebLogic template
 readTemplate('$ORACLE_HOME/wlserver/common/templates/wls/wls.jar')
 
-# Domain name
-set('Name', 'fr_domain')
-
-# Admin server credentials
-cd('/Security/fr_domain/User/weblogic')
+# Admin credentials – set BEFORE renaming domain (path uses 'base_domain')
+cd('/Security/base_domain/User/weblogic')
+cmo.setName('webadmin')           # rename from default 'weblogic'
 cmo.setPassword('WLS_ADMIN_PASSWORD')
 
-# Production mode
+# Domain settings
+cd('/')
+set('Name', 'fr_domain')
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')
 
-# Apply JRF template
-addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
-
-# Apply Forms template (if INSTALL_COMPONENTS includes Forms)
-addTemplate('$ORACLE_HOME/forms/common/templates/wls/oracle.forms.templates.jar')
-
-# Apply Reports template (if INSTALL_COMPONENTS includes Reports)
-addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports.templates.jar')
-
-# Configure Admin Server (listen on localhost only)
+# Admin Server listen address
 cd('/Servers/AdminServer')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 7001)
 
-# Configure WLS_FORMS managed server
-create('WLS_FORMS', 'Server')
+# JRF template (adds OPSS, MDS, JDBC data sources)
+addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
+
+# Forms template – creates WLS_FORMS managed server automatically
+addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')
+
+# Reports template – creates WLS_REPORTS managed server automatically
+addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')
+
+# Update managed server listen addresses (created by templates above)
 cd('/Servers/WLS_FORMS')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 9001)
 
-# Configure WLS_REPORTS managed server
-create('WLS_REPORTS', 'Server')
 cd('/Servers/WLS_REPORTS')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 9002)
 
-# Database (JDBC data source for FMW schemas)
+# Configure LocalSvcTblDataSource (FMW Service Table = STB schema)
+# JDBC thin URL: //host:port/service_name  (// + / = PDB service, not SID)
 cd('/JDBCSystemResources/LocalSvcTblDataSource/JdbcResource/LocalSvcTblDataSource')
 cd('JDBCDriverParams/NO_NAME_0')
-set('URL', 'jdbc:oracle:thin:@DB_HOST:DB_PORT/DB_SERVICE')
+set('URL', 'jdbc:oracle:thin:@//DB_HOST:DB_PORT/DB_SERVICE')
 set('PasswordEncrypted', 'DB_SCHEMA_PASSWORD')
 cd('Properties/NO_NAME_0/Property/user')
-set('Value', 'DB_SCHEMA_PREFIX_STB')
+set('Value', 'DEV_STB')
 
 # Write domain
 writeDomain('DOMAIN_HOME')
@@ -137,12 +140,15 @@ EOF
 ## What the Script Does
 
 - Reads all domain parameters from `environment.conf`
-- Generates `domain_config.py` from `response_files/domain_config.py.template`
-- Decrypts WLS admin password and injects into the WLST script (never writes to disk)
-- Runs `wlst.sh domain_config.py` to create the domain
-- Configures `nodemanager.properties` (localhost only, port 5556)
-- Starts AdminServer briefly to create `MonUser` and `RepRunner` via WLST
-- Verifies domain directory exists with expected structure after creation
+- Decrypts WLS admin password from `weblogic_sec.conf.des3`
+  (`load_weblogic_password` → `WL_USER`, `INTERNAL_WL_PWD`)
+- Decrypts DB schema password from `db_sys_sec.conf.des3`
+  (`load_secrets_file` → `DB_SCHEMA_PWD`)
+- Substitutes `##PLACEHOLDER##` values in `response_files/domain_config.py.template`
+  into a temp file (`/tmp/domain_cfg_PID.py`, mode 600); deleted via `trap EXIT`
+- Runs `wlst.sh /tmp/domain_cfg_PID.py` to create the domain
+- Configures `nodemanager.properties` (127.0.0.1 only, port from `WLS_NODEMANAGER_PORT`)
+- Verifies domain directory structure exists after creation
 
 ---
 
