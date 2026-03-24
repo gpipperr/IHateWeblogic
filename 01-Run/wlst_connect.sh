@@ -10,7 +10,7 @@
 # Options  : --url    T3 URL to AdminServer (overrides WL_ADMIN_URL)
 #            --user   WebLogic admin username (overrides WL_USER)
 #            --help   Show usage
-# Requires : wlst.sh ($FMW_HOME/oracle_common/common/bin/wlst.sh)
+# Requires : wlst.sh ($ORACLE_HOME/oracle_common/common/bin/wlst.sh)
 #            weblogic_sec.conf.des3 (created by 00-Setup/weblogic_sec.sh --apply)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -71,7 +71,7 @@ printLine
 section "WLST Connect – $(date '+%Y-%m-%d %H:%M:%S')"
 printf "  %-22s %s\n" "Host:"        "$(hostname -f 2>/dev/null || hostname)" | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-22s %s\n" "DOMAIN_HOME:" "${DOMAIN_HOME}"                          | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-22s %s\n" "FMW_HOME:"    "${FMW_HOME}"                             | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-22s %s\n" "ORACLE_HOME:" "${ORACLE_HOME}"                          | tee -a "${LOG_FILE:-/dev/null}"
 printLine
 
 # =============================================================================
@@ -96,16 +96,17 @@ printf "  %-22s %s\n" "User:"      "${WL_USER}"      | tee -a "${LOG_FILE:-/dev/
 
 section "Locating WLST"
 
-WLST_SH="${FMW_HOME}/oracle_common/common/bin/wlst.sh"
+local _fmw_base="${ORACLE_HOME:-${FMW_HOME}}"
+WLST_SH="${_fmw_base}/oracle_common/common/bin/wlst.sh"
 
 if [ ! -x "$WLST_SH" ]; then
     # Alternate: under WL_HOME (FMW 12.x layout)
-    _alt="${WL_HOME:-${FMW_HOME}/wlserver}/common/bin/wlst.sh"
+    _alt="${WL_HOME:-${_fmw_base}/wlserver}/common/bin/wlst.sh"
     if [ -x "$_alt" ]; then
         WLST_SH="$_alt"
     else
         fail "wlst.sh not found: $WLST_SH"
-        info "Check FMW_HOME in environment.conf – re-run 00-Setup/env_check.sh"
+        info "Check ORACLE_HOME in environment.conf"
         print_summary
         exit 2
     fi
