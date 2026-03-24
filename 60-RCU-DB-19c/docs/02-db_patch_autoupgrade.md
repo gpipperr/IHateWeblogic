@@ -1,17 +1,30 @@
-# Step 2 – 02-db_patch_autoupgrade.sh
+# Step 2 – 02-db_patch_db_software.sh  *(DEPRECATED)*
 
-**Script:** `60-RCU-DB-19c/02-db_patch_autoupgrade.sh`
+> **This script and document are deprecated.**
+> Patch download and installation are now combined in `01-db_install_software.sh`
+> using `runInstaller -applyRU`.  See `docs/01-db_install_software.md`.
+
+**Script:** `60-RCU-DB-19c/02-db_patch_db_software.sh`  *(deprecated stub — exits immediately)*
 **Runs as:** `oracle`
-**Phase:** Patch 19c software to current RU using AutoUpgrade; then disable
-unused options
+**Phase:** DEPRECATED — merged into 01-db_install_software.sh
 
 ---
 
 ## Purpose
 
-Patch the freshly installed 19c ORACLE_HOME to the current Release Update (RU)
-without an existing database.  AutoUpgrade `-mode create_home` creates a new
-patched ORACLE_HOME offline — no in-place OPatch, clean rollback possible.
+Patch the freshly installed 19c `DB_ORACLE_HOME_BASE` (19.3.0) to the current
+Release Update (RU).
+
+**Two-phase approach:**
+
+1. **AutoUpgrade** — used for patch **DOWNLOAD only** (MOS authentication + ZIP fetch
+   from Oracle support). No `create_home`, no interactive console, no gold image
+   extraction.
+
+2. **`cp -a` + `opatchauto`** — the actual installation:
+   - Clone the base home (`cp -a`) into the target directory
+   - Register the clone in Oracle Inventory (`attachHome`)
+   - Apply all downloaded patches with `opatchauto apply`
 
 After patching: disable OLAP and RAT options (`chopt`), then relink for
 Unified Auditing (`uniaud_on`).
@@ -44,6 +57,18 @@ dnf install expect       # installs tcl as dependency (~5 MB)
 ```
 
 Without `expect` the script falls back to stdin pipe (unreliable for interactive consoles).
+
+**perl-File-Copy:**
+
+`opatch napply` runs a Perl script (`update_javavm_binaries.pl`) for `javavm_refresh`.
+On OL9 minimal installs, `File::Copy` is a separate package:
+
+```bash
+# as root — also handled by 00-root_db_os_baseline.sh --apply
+dnf install perl-File-Copy
+```
+
+Without it: `Can't locate File/Copy.pm` → `javavm_refresh` fails → `opatch` aborts with rc=73.
 
 **MOS credentials:** `mos_sec.conf.des3` (shared with 09-Install scripts)
 
@@ -83,13 +108,13 @@ java -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
 Exact interactive prompt sequence (AutoUpgrade 26.x):
 ```
 Creating new AutoUpgrade Patching keystore - Password required
-Enter password:                                   ← keystore encryption password
-Enter password again:                             ← keystore encryption password (confirm)
+Enter password:                                   <- keystore encryption password
+Enter password again:                             <- keystore encryption password (confirm)
 AutoUpgrade Patching keystore was successfully created
 
-MOS> add -user your.email@example.com             ← no 'group mos' needed
-Enter your secret/Password:                       ← MOS password
-Re-enter your secret/Password:                    ← MOS password (confirm)
+MOS> add -user your.email@example.com             <- no 'group mos' needed
+Enter your secret/Password:                       <- MOS password
+Re-enter your secret/Password:                    <- MOS password (confirm)
 MOS> exit
 Save the AutoUpgrade Patching keystore before exiting [YES|NO] ? YES
 Convert the AutoUpgrade Patching keystore to auto-login [YES|NO] ?  YES
@@ -97,7 +122,7 @@ Convert the AutoUpgrade Patching keystore to auto-login [YES|NO] ?  YES
 
 The script automates this sequence via `expect` using credentials from `mos_sec.conf.des3`.
 The keystore encryption password is derived deterministically from the hostname.
-If credentials change: `rm -rf $DB_AUTOUPGRADE_HOME/keystore/* && ./02-db_patch_autoupgrade.sh --apply`
+If credentials change: `rm -rf $DB_AUTOUPGRADE_HOME/keystore/* && ./02-db_patch_db_software.sh --apply`
 
 `keystore.cfg`:
 ```
@@ -132,11 +157,11 @@ patch1.download=YES
 > | Value | Meaning |
 > |---|---|
 > | `recommended` | Latest RU + OJVM + OPatch + DPBP + AU (default for non-production) |
-> | `ru:19.30,ojvm:19.30,opatch,dpbp` | Fixed RU 30 — reproducible, for production |
+> | `ru:19.30,ojvm:19.30,opatch,dpbp` | Fixed RU 30 -- reproducible, for production |
 >
 > The script derives the patch spec automatically from `DB_TARGET_RU` in `environment_db.conf`:
-> - `RECOMMENDED` → `recommended`
-> - `19.30` → `ru:19.30,ojvm:19.30,opatch,dpbp`
+> - `RECOMMENDED` -> `recommended`
+> - `19.30` -> `ru:19.30,ojvm:19.30,opatch,dpbp`
 >
 > **Note:** `RU:19.CURRENT` is **not** a valid value in AutoUpgrade 26.x.
 > Use `RECOMMENDED` for "always latest".
@@ -146,35 +171,12 @@ patch1.download=YES
 
 ---
 
-## Gold Image Prerequisite
-
-`create_home` builds the new ORACLE_HOME by unpacking the base 19.3.0 installation ZIP
-(Gold Image).  The file **must** be present in `patch1.folder` before `create_home` runs.
-
-```bash
-# Option A: symlink from patch storage (avoids 3 GB copy)
-ln -sf "$DB_INSTALL_ARCHIVE" "$DB_AUTOUPGRADE_HOME/patchdir/LINUX.X64_193000_db_home.zip"
-
-# Option B: copy
-cp LINUX.X64_193000_db_home.zip "$DB_AUTOUPGRADE_HOME/patchdir/"
-```
-
-The script handles this automatically: it symlinks `DB_INSTALL_ARCHIVE` (from
-`environment_db.conf`) into `patchdir` before calling `create_home`.
-
-If the ZIP is missing, `create_home` fails at the EXTRACT stage:
-```
-EXTRACT stage failed: Could not find a Gold Image or usable base image
-```
-
----
-
 ## Patch Execution
 
-### 1. Download patches
+### 1. Download patches (AutoUpgrade)
 
 ```bash
-# Java 8 (Oracle 19.3.0 JDK): use TLSv1.2 — Java 8 does not support TLSv1.3 as JVM property
+# Java 8 (Oracle 19.3.0 JDK): use TLSv1.2 -- Java 8 does not support TLSv1.3 as JVM property
 java -Dhttps.protocols=TLSv1.2 \
     -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
     -config "$AUTOUPGRADE_HOME/config/db19patch.cfg" \
@@ -189,25 +191,116 @@ java -Dhttps.protocols=TLSv1.3 \
 
 The script detects the Java version and sets `$AU_TLS` automatically.
 
-Monitor: `lsj -a 10`
+After download, `patchdir` contains:
+- `p6880880_190000_Linux-x86-64.zip` -- new OPatch
+- `p<RU-number>_190000_Linux-x86-64.zip` -- Release Update
+- `p<OJVM-number>_190000_Linux-x86-64.zip` -- OJVM patch
+- (possibly additional DPBPs)
 
-### 2. Create patched ORACLE_HOME
+### 2. Clone base home
 
 ```bash
-java -Dhttps.protocols=TLSv1.2 \   # or TLSv1.3 for Java 11+
-    -jar "$AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
-    -config "$AUTOUPGRADE_HOME/config/db19patch.cfg" \
-    -patch -mode create_home
+mkdir -p "$(dirname "$DB_ORACLE_HOME")"
+cp -a "$DB_ORACLE_HOME_BASE" "$DB_ORACLE_HOME"
 ```
 
-The original `source_home` remains untouched.  The `target_home` gets the
-patched binaries.
+`cp -a` preserves all permissions and copies the working `oraInst.loc` from the source
+home. The clone starts with a known-good Oracle Inventory reference -- unlike gold image
+extraction, which does not include `oraInst.loc`.
 
-### 3. Run root.sh on new home
+### 3. Update OPatch in cloned home
+
+```bash
+_opatch_zip=$(ls "$AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
+unzip -q -o "$_opatch_zip" -d "$DB_ORACLE_HOME"
+```
+
+### 4. Fix hardcoded paths in cloned home
+
+After `cp -a`, `chopt` and `root.sh` still contain the source home path.
+The script patches them with `sed`:
+
+```bash
+_old_oh=$(grep '^ORACLE_HOME=' "$DB_ORACLE_HOME/bin/chopt" | head -1 \
+    | sed 's/^ORACLE_HOME=//' | tr -d '"' | tr -d "'")
+for _f in "$DB_ORACLE_HOME/bin/chopt" "$DB_ORACLE_HOME/root.sh"; do
+    [ -f "$_f" ] && sed -i "s|${_old_oh}|${DB_ORACLE_HOME}|g" "$_f"
+done
+```
+
+### 5. Register cloned home in Oracle Inventory
+
+Using the **source** home's OUI (always available, even if target home is incomplete):
+
+```bash
+"$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
+    -silent -attachHome \
+    "ORACLE_HOME=$DB_ORACLE_HOME" \
+    "ORACLE_HOME_NAME=OraDB19Home1Patched"
+```
+
+Verify:
+```bash
+"$DB_ORACLE_HOME/OPatch/opatch" lsinventory -oh "$DB_ORACLE_HOME"
+# Must list the home without errors
+```
+
+### 6. Apply patches with opatch napply
+
+```bash
+# Unzip all patch ZIPs (except OPatch) to a staging directory
+_stage_dir="$DB_AUTOUPGRADE_HOME/patch_stage"
+rm -rf "$_stage_dir" && mkdir -p "$_stage_dir"
+for _zip in "$AU_PATCHDIR"/p[0-9]*.zip; do
+    case "$_zip" in *p6880880*) continue ;; esac   # skip OPatch zip
+    unzip -q -o "$_zip" -d "$_stage_dir"
+done
+
+# Apply all staged patches in one pass
+# -local  : standalone SIDB — no RAC/Grid node coordination
+# -silent : no interactive prompts
+ORACLE_HOME="$DB_ORACLE_HOME" \
+    "$DB_ORACLE_HOME/OPatch/opatch" napply "$_stage_dir" \
+    -oh "$DB_ORACLE_HOME" -local -silent
+```
+
+> **Warum nicht `opatchauto`?**
+> `opatchauto` erfordert als Non-Root-User ein Oracle Wallet mit Credentials
+> (`OPATCHAUTO-72046`) und sucht nach Grid Infrastructure (`OPATCHAUTO-72083`).
+> Beides ist für eine Standalone Single-Instance DB nicht vorhanden.
+> `opatch napply -local` ist der korrekte Weg für SIDB ohne RAC/Grid.
+
+### 7. Disable Unused Options (chopt) — see below
+
+### 8. Unified Auditing Relink (uniaud_on) — see below
+
+### 8b. Relink all binaries
+
+```bash
+ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/bin/relink" as_installed
+```
+
+The gold image ships many binaries as 0-byte stubs: `sqlplus`, `lsnrctl`, `rman`,
+`exp/imp`, `tnsping`, and others. `runInstaller` would call `relink all` at the end
+of installation. Since we skip the installer (`cp -a` instead), `relink as_installed`
+replaces this step.
+
+Must run **after** `uniaud_on` so that `libknlopt.a` already contains both the
+`chopt` and `uniaud` flags. `relink` rebuilds the `oracle` binary one more time —
+with the correct `libknlopt.a` state.
+
+`as_installed`: links exactly what was installed — skips RAC/Grid components
+automatically if they are not present. Valid parameters: `all`, `as_installed`.
+
+### 9. root.sh on patched home
 
 ```bash
 "$DB_ORACLE_HOME/root.sh"
 ```
+
+**Must run LAST** — after `opatch napply`, `chopt`, and `uniaud_on`.
+Each relink replaces the `oracle` binary and loses the SUID bit.
+`root.sh` sets SUID on the final binary and updates `/etc/oratab`.
 
 Script pauses and prompts for root confirmation.
 
@@ -222,12 +315,12 @@ $DB_ORACLE_HOME/bin/chopt disable olap
 $DB_ORACLE_HOME/bin/chopt disable rat
 ```
 
-`chopt` relinks the Oracle binary — takes ~2 minutes per option.
+`chopt` relinks the Oracle binary -- takes ~2 minutes per option.
 
 | Option | Why disabled |
 |---|---|
-| `olap` | Oracle OLAP — not used by FMW metadata schemas |
-| `rat` | Real Application Testing — not needed in this environment |
+| `olap` | Oracle OLAP -- not used by FMW metadata schemas |
+| `rat` | Real Application Testing -- not needed in this environment |
 
 ---
 
@@ -247,8 +340,30 @@ strings "$DB_ORACLE_HOME/bin/oracle" | grep -c kzaiang
 ```
 
 > **This relink must be repeated after every future RU patch.**
-> `02-db_patch_autoupgrade.sh --apply` performs all three steps:
-> AutoUpgrade create_home → chopt disable → uniaud_on relink.
+> `02-db_patch_db_software.sh --apply` performs all steps:
+> download -> cp-a clone -> opatchauto -> chopt disable -> uniaud_on relink.
+
+---
+
+## OL9/RHEL9 Compatibility
+
+### libpthread_nonshared.a missing
+
+Oracle 19c relinks (`chopt`, `uniaud_on`) fail on OL9/RHEL9 with:
+```
+ld: cannot find /usr/lib64/libpthread_nonshared.a
+```
+
+`pthreads` was merged into `libc` on RHEL 9 -- the static archive no longer exists.
+The script checks for this file before relink and exits with a clear error if missing.
+
+**Fix (as root -- handled by `00-root_db_os_baseline.sh --apply`):**
+```bash
+ar cr /usr/lib64/libpthread_nonshared.a
+chmod 644 /usr/lib64/libpthread_nonshared.a
+```
+
+An empty `.a` archive satisfies the linker without any runtime effects.
 
 ---
 
@@ -283,9 +398,9 @@ $DB_ORACLE_HOME/OPatch/opatch version
 ## environment_db.conf Variables Used
 
 ```bash
-ORACLE_BASE             # /u01/app/oracle — shared with FMW
-DB_ORACLE_HOME_BASE     # ${ORACLE_BASE}/product/19.3.0/db_home1  — source (unpatched)
-DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.30.0/db_home1 — target (RU 30, patched)
+ORACLE_BASE             # /u01/app/oracle -- shared with FMW
+DB_ORACLE_HOME_BASE     # ${ORACLE_BASE}/product/19.3.0/db_home1  -- source (unpatched)
+DB_ORACLE_HOME          # ${ORACLE_BASE}/product/19.30.0/db_home1 -- target (RU 30, patched)
 DB_AUTOUPGRADE_HOME     # ${ORACLE_BASE}/autoupgrade
 MOS_SEC_FILE            # path to mos_sec.conf.des3 (shared with 09-Install)
 ```
@@ -307,7 +422,7 @@ LsInventorySession failed: RawInventory gets null OracleHomeInfo
 
 `runInstaller` rc=252 (ASM make failure, see `docs/02-db_install_software.md`) stops
 before Oracle Inventory registration completes.  The DB home is not listed in the
-central inventory — OPatch cannot identify it as a known Oracle Home.
+central inventory -- OPatch cannot identify it as a known Oracle Home.
 
 **Fix:**
 
@@ -329,57 +444,11 @@ $ORACLE_BASE/product/19.3.0/db_home1/OPatch/opatch lsinventory \
 
 `01-db_install_software.sh` runs `attachHome` automatically after rc=252 as of
 commit `ddf59d6`.  On existing installations that pre-date this fix, run the
-`attachHome` command manually before calling `02-db_patch_autoupgrade.sh --apply`.
+`attachHome` command manually before calling `02-db_patch_db_software.sh --apply`.
 
 ---
 
-### AutoUpgrade Recovery State – download mode refused
-
-**Symptom:**
-```
-Previous execution found loading latest data
-Total jobs recovered: 1
-There is an unfinished execution of a create_home mode. Run the AutoUpgrade Patching
-in create_home mode to resume from failure point
-        java -jar autoupgrade.jar -config .../db19patch.cfg -mode create_home
-```
-`download` mode exits with rc=1 — not a DNS or network error.
-
-**Cause:**
-
-A previous `create_home` run failed partway through (e.g. at INSTALL stage).
-AutoUpgrade stores recovery data and refuses to run `download` again while a
-`create_home` job is pending.
-
-**Fix A — Resume (default behaviour of the script):**
-
-The script detects "unfinished execution" in the output and automatically skips the
-download step, proceeding directly to `create_home` (which will resume from the
-failure point):
-
-```bash
-./02-db_patch_autoupgrade.sh --apply
-```
-
-**Fix B — Start completely from scratch:**
-
-```bash
-./02-db_patch_autoupgrade.sh --reset-recovery
-```
-
-This clears the AutoUpgrade recovery data (`-clear_recovery_data -jobs 1`), then
-re-runs the full cycle: download → create_home.
-
-**Manual equivalent:**
-```bash
-java -jar autoupgrade.jar -config .../db19patch.cfg -patch \
-    -clear_recovery_data -jobs 1
-java -jar autoupgrade.jar -config .../db19patch.cfg -patch -mode create_home
-```
-
----
-
-### DB_TARGET_RU=19.CURRENT — patch parameter not supported
+### DB_TARGET_RU=19.CURRENT -- patch parameter not supported
 
 **Symptom:**
 ```
@@ -392,55 +461,20 @@ The patch parameter for prefix patch1 includes a value that is not supported or 
 
 ---
 
-### PATCH109 – patch not applicable / Invalid Home (INSTALL stage)
+### PATCH109 / create_home "Invalid Home" -- background
 
-**Symptom:**
-```
-PATCH109: AutoUpgrade Patching failed to install the new ORACLE_HOME
-          /u01/app/oracle/product/19.30.0/db_home1
-Reason: Failed during Analysis: .../38632161 is not applicable to the oracle home ...
-opatchauto FAILED on some patches.
-```
-
-OPatch sub-log (`cfgtoollogs/opatchauto/core/opatch/opatch*.log`):
-```
-[INFO]   Throwable occurred: Invalid Home : /u01/app/oracle/product/19.30.0/db_home1
-[INFO]   IMPReadService:getPatchCheckResultsCUPs, failed to get ComponentInfo from
-         inventory Invalid Home : /u01/app/oracle/product/19.30.0/db_home1
-OPatch cannot locate your -invPtrLoc '.../19.30.0/db_home1/oraInst.loc'
-OPatch failed with error code 106
-```
-
-**Cause:**
+> **Note:** This error is no longer triggered by `02-db_patch_db_software.sh` which
+> does not use `create_home`.  The description below is retained for reference in case
+> AutoUpgrade patching mode is used manually.
 
 AutoUpgrade EXTRACT stage unpacks the Gold Image ZIP into `target_home`, but
-`oraInst.loc` is **not included in the ZIP** — it is created by OUI during a normal
+`oraInst.loc` is **not included in the ZIP** -- it is created by OUI during a normal
 installation.  Without `oraInst.loc`, OPatch cannot locate the central Oracle Inventory
 and all inventory-dependent prerequisite checks fail with "Invalid Home" (OPatch
 error 106).
 
-**Fix (manual / one-time):**
-
-```bash
-# 1. Copy oraInst.loc from system into the new home
-cp /etc/oraInst.loc $DB_ORACLE_HOME/oraInst.loc
-
-# 2. Register the new home in the central inventory
-$DB_ORACLE_HOME/oui/bin/runInstaller \
-    -silent -attachHome \
-    ORACLE_HOME=$DB_ORACLE_HOME \
-    ORACLE_HOME_NAME=OraDB19Home1Patched
-
-# 3. Verify — must now show Oracle Database 19c without error
-$DB_ORACLE_HOME/OPatch/opatch lsinventory -oh $DB_ORACLE_HOME 2>&1 | head -20
-
-# 4. Resume (AutoUpgrade recovery state is still active)
-./02-db_patch_autoupgrade.sh --apply
-```
-
-**Automated:** The script detects `$DB_ORACLE_HOME` exists without `oraInst.loc`
-before every `create_home` call and applies the fix automatically (copy + attachHome).
-Manual intervention is only needed on environments set up before this fix was added.
+The `cp -a` approach avoids this entirely: the clone inherits `oraInst.loc` from the
+source home and `attachHome` always succeeds on a complete home tree.
 
 ---
 
@@ -449,5 +483,5 @@ Manual intervention is only needed on environments set up before this fix was ad
 | Document | URL |
 |---|---|
 | AutoUpgrade direct download from oracle.com | https://mikedietrichde.com/2024/11/21/download-autoupgrade-directly-from-oracle-com/ |
-| AutoUpgrade patching feature (create_home) | https://mikedietrichde.com/2024/10/28/autoupgrades-patching-the-feature-you-waited-for/ |
+| AutoUpgrade patching feature | https://mikedietrichde.com/2024/10/28/autoupgrades-patching-the-feature-you-waited-for/ |
 | AutoUpgrade / Patch Automation 19c (pipperr.de) | https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c |

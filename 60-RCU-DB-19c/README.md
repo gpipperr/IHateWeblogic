@@ -79,8 +79,7 @@ Run in this order — each step must complete before the next:
 | # | Script | Runs as | What |
 |---|---|---|---|
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
-| 1 | `01-db_install_software.sh` | oracle | 19c software-only silent install |
-| 2 | `02-db_patch_db_software.sh` | oracle | AutoUpgrade download + cp-a + opatchauto + chopt |
+| 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install via -applyRU |
 | 4 | `04-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
 | 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
 | 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
@@ -139,8 +138,8 @@ DB_SERVICE=FMWPDB   # PDB service name
 |---|---|
 | [docs/00-concept.md](docs/00-concept.md) | Architecture decisions, FMW/DB separation |
 | [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
-| [docs/01-db_install_software.md](docs/01-db_install_software.md) | Silent software install |
-| [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | AutoUpgrade patch + chopt |
+| [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch via runInstaller -applyRU |
+| [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | DEPRECATED (merged into step 1) |
 | [docs/04-db_setup_listener.md](docs/04-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/05-db_create_database.md](docs/05-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
 | [docs/06-db_audit_setup.md](docs/06-db_audit_setup.md) | Unified Auditing setup |

@@ -60,9 +60,9 @@ The kernel relink (`make uniaud_on ioracle`) must happen either:
 1. Before the first database is created — zero downtime, preferred
 2. On a closed database — requires restart of all instances on the ORACLE_HOME
 
-This setup relinks in `03-db_create_database.sh` **before** calling DBCA.
+This setup relinks in `05-db_create_database.sh` **before** calling DBCA.
 The relink must be repeated after every Oracle RU patch (integrated into
-`02-db_patch_autoupgrade.sh`).
+`02-db_patch_db_software.sh`).
 
 Classical (mixed-mode) auditing is not configured.  The `AUDITLOG` tablespace
 holds all unified audit data.
@@ -149,8 +149,7 @@ ORACLE_BASE=/u01/app/oracle                 (shared — same in both conf files)
 │   ├── wlserver/
 │   └── oracle_common/ forms/ reports/ ...
 ├── product/
-│   ├── 19.3.0/db_home1/                   ← DB_ORACLE_HOME_BASE (base install)
-│   └── 19.24.0/db_home1/                  ← DB_ORACLE_HOME (patched, AutoUpgrade)
+│   └── 19.30.0/db_home1/                  ← DB_ORACLE_HOME (installed via runInstaller -applyRU)
 ├── oradata/
 │   └── FMWCDB/
 │       ├── system01.dbf  sysaux01.dbf ...  ← CDB datafiles
@@ -238,11 +237,12 @@ Control files: 2 × 20 MB = 40 MB
 
 ```
 root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits
-oracle: 01-db_install_software.sh   runInstaller -silent software-only
-oracle: 02-db_patch_autoupgrade.sh  AutoUpgrade create_home + chopt disable
-oracle: 03-db_create_database.sh    uniaud_on relink → DBCA silent CDB+PDB
-oracle: 04-db_audit_setup.sh        AUDITLOG-TS + audit policies + purge job
-oracle: 05-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
+oracle: 01-db_install_software.sh   extract base + AU download + runInstaller -applyRU + chopt disable
+oracle: 04-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
+oracle: 05-db_create_database.sh    uniaud_on relink → DBCA silent CDB+PDB
+oracle: 06-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge job
+oracle: 07-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
+oracle: 08-db_auto_start.sh         /etc/oratab :Y + oracle-db.service systemd unit
 
 → then: 09-Install/07-oracle_setup_repository.sh --apply
 ```

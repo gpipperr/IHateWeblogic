@@ -1,17 +1,34 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 01-db_install_software.sh
-# Purpose  : Install Oracle 19c Database software (software-only, no DB created).
-#            Unzips LINUX.X64_193000_db_home.zip and runs runInstaller -silent.
-#            After completion: prompts to run root.sh as root.
+# Purpose  : Download patches via AutoUpgrade and install Oracle 19c directly
+#            to the patched ORACLE_HOME using runInstaller -applyRU.
+#            AutoUpgrade is used for MOS-authenticated patch download ONLY —
+#            no create_home, no cp-a, no separate base home, no relink hacks.
+#
+#            Flow:
+#              1. Extract 19.3.0 base ZIP to a staging directory (base_stage)
+#              2. Download RU + OJVM + OPatch from MOS via AutoUpgrade
+#                 (skipped if patchdir already contains ZIPs)
+#              3. Update OPatch in staging + identify RU / OneOff patch dirs
+#              4. runInstaller -applyRU <RU> [-applyOneOffs <OJVM>] -silent
+#                 → installs directly to DB_ORACLE_HOME (19.30.0 target)
+#              5. root.sh prompt + chopt disable olap/rat
+#
+#            uniaud_on relink is NOT done here — it runs in 05-db_create_database.sh
+#            before DBCA (requires the complete DB home).
+#
 # Call     : ./60-RCU-DB-19c/01-db_install_software.sh
 #            ./60-RCU-DB-19c/01-db_install_software.sh --apply
+#            ./60-RCU-DB-19c/01-db_install_software.sh --clean [--apply]
 #            ./60-RCU-DB-19c/01-db_install_software.sh --help
 # Runs as  : oracle
-# Requires : environment.conf, environment_db.conf, DB_INSTALL_ARCHIVE
+# Requires : environment.conf, environment_db.conf
+#            DB_INSTALL_ARCHIVE  – 19.3.0 base ZIP (manual download from eDelivery)
+#            mos_sec.conf.des3   – MOS credentials (only if patch download needed)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/02-db_install_software.md
+# Ref      : 60-RCU-DB-19c/docs/01-db_install_software.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,55 +37,12 @@ LIB="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
 ENV_CONF="$ROOT_DIR/environment.conf"
 ENV_DB_CONF="$SCRIPT_DIR/environment_db.conf"
 
-# --- Source library -----------------------------------------------------------
-if [ ! -f "$LIB" ]; then
-    printf "\033[31mFATAL\033[0m: Library not found: %s\n" "$LIB" >&2; exit 2
-fi
-# shellcheck source=../00-Setup/IHateWeblogic_lib.sh
-source "$LIB"
-
-# --- Source environment.conf --------------------------------------------------
-if [ ! -f "$ENV_CONF" ]; then
-    printf "\033[31mFATAL\033[0m: environment.conf not found: %s\n" "$ENV_CONF" >&2; exit 2
-fi
-source "$ENV_CONF"
-
-# --- Source environment_db.conf -----------------------------------------------
-if [ ! -f "$ENV_DB_CONF" ]; then
-    _example="$SCRIPT_DIR/environment_db.conf.example"
-    printf "\n  \033[33mWARN\033[0m  environment_db.conf not found: %s\n" "$ENV_DB_CONF" >&2
-    printf "  This file configures the Oracle 19c DB installation (ORACLE_HOME, SID, …).\n" >&2
-    if [ ! -f "$_example" ]; then
-        printf "\033[31mFATAL\033[0m: Template also missing: %s\n" "$_example" >&2; exit 2
-    fi
-    printf "\n  Template found: %s\n" "$_example" >&2
-    if [ -n "${ORACLE_BASE:-}" ] && [ "$ORACLE_BASE" != "/u01/app/oracle" ]; then
-        printf "  ORACLE_BASE from environment.conf: %s\n" "$ORACLE_BASE" >&2
-        printf "  → will replace placeholder /u01/app/oracle in the copy\n" >&2
-    fi
-    printf "\n  Create environment_db.conf from template now? [y/N] " >&2
-    read -r _yn
-    case "${_yn}" in
-        [yY]|[yY][eE][sS])
-            cp "$_example" "$ENV_DB_CONF"
-            chmod 600 "$ENV_DB_CONF"
-            if [ -n "${ORACLE_BASE:-}" ] && [ "$ORACLE_BASE" != "/u01/app/oracle" ]; then
-                sed -i "s|ORACLE_BASE=\"/u01/app/oracle\"|ORACLE_BASE=\"${ORACLE_BASE}\"|g" \
-                    "$ENV_DB_CONF"
-            fi
-            printf "\n  \033[32mOK\033[0m   Created: %s\n" "$ENV_DB_CONF" >&2
-            printf "  \033[33mWARN\033[0m Review remaining settings before proceeding:\n" >&2
-            printf "       vi %s\n\n" "$ENV_DB_CONF" >&2
-            ;;
-        *)
-            printf "\n  Aborted. Copy and edit manually:\n" >&2
-            printf "    cp %s/environment_db.conf.example \\\n" "$SCRIPT_DIR" >&2
-            printf "       %s/environment_db.conf\n\n" "$SCRIPT_DIR" >&2
-            exit 2
-            ;;
-    esac
-fi
-source "$ENV_DB_CONF"
+source "$LIB" 2>/dev/null || { printf "\033[31mFATAL\033[0m: Library not found: %s\n" "$LIB" >&2; exit 2; }
+for _f in "$ENV_CONF" "$ENV_DB_CONF"; do
+    [ ! -f "$_f" ] && { printf "\033[31mFATAL\033[0m: Config not found: %s\n" "$_f" >&2; exit 2; }
+    source "$_f"
+done
+unset _f
 
 DIAG_LOG_DIR="${DIAG_LOG_DIR:-$ROOT_DIR/log/$(date +%Y%m%d)}"
 init_log "$DIAG_LOG_DIR"
@@ -78,43 +52,40 @@ init_log "$DIAG_LOG_DIR"
 # =============================================================================
 
 APPLY=false
-FORCE=false
+CLEAN=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--force] [--help]\n\n" "$(basename "$0")"
-    printf "  %-12s %s\n" "(none)"   "Dry-run: show configuration, no install"
-    printf "  %-12s %s\n" "--apply"  "Unzip + runInstaller software-only"
-    printf "  %-12s %s\n" "--force"  "Remove DB_ORACLE_HOME_BASE and reinstall (requires --apply + confirmation)"
-    printf "  %-12s %s\n" "--help"   "Show this help"
+    printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
+    printf "  %-20s %s\n" "(none)"          "Dry-run: show configuration, no install"
+    printf "  %-20s %s\n" "--apply"         "Extract base + download patches + install via -applyRU"
+    printf "  %-20s %s\n" "--clean"         "Dry-run: show what --clean --apply would remove"
+    printf "  %-20s %s\n" "--clean --apply" "Remove DB_ORACLE_HOME + base_stage, then install"
+    printf "  %-20s %s\n" "--help"          "Show this help"
     printf "\nRuns as: oracle\n"
+    printf "Patch ZIPs in patchdir/ are NOT removed by --clean (reused on re-runs).\n"
     exit 0
 }
 
 for _arg in "$@"; do
     case "$_arg" in
         --apply)   APPLY=true ;;
-        --force)   FORCE=true ;;
+        --clean)   CLEAN=true ;;
         --help|-h) _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
 
-if $FORCE && ! $APPLY; then
-    printf "\033[31mERROR\033[0m --force requires --apply\n" >&2
-    exit 1
-fi
-
 # =============================================================================
 # Banner
 # =============================================================================
 
 printLine
-printf "\n\033[1m  IHateWeblogic – DB Software Install (19c)\033[0m\n"   | tee -a "$LOG_FILE"
-printf "  Host        : %s\n" "$(_get_hostname)"                          | tee -a "$LOG_FILE"
-printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"             | tee -a "$LOG_FILE"
+printf "\n\033[1m  IHateWeblogic – DB Software Install + Patch (19c)\033[0m\n" | tee -a "$LOG_FILE"
+printf "  Host        : %s\n" "$(_get_hostname)"                               | tee -a "$LOG_FILE"
+printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"                  | tee -a "$LOG_FILE"
 printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY' || printf 'DRY-RUN')" | tee -a "$LOG_FILE"
-printf "  Log         : %s\n" "$LOG_FILE"                                 | tee -a "$LOG_FILE"
+printf "  Log         : %s\n" "$LOG_FILE"                                      | tee -a "$LOG_FILE"
 printLine
 
 # =============================================================================
@@ -127,182 +98,469 @@ section "Pre-checks"
     && ok "ORACLE_BASE = $ORACLE_BASE" \
     || { fail "ORACLE_BASE not set"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-[ -n "${DB_ORACLE_HOME_BASE:-}" ] \
-    && ok "DB_ORACLE_HOME_BASE = $DB_ORACLE_HOME_BASE" \
-    || { fail "DB_ORACLE_HOME_BASE not set in environment_db.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+[ -n "${DB_ORACLE_HOME:-}" ] \
+    && ok "DB_ORACLE_HOME = $DB_ORACLE_HOME" \
+    || { fail "DB_ORACLE_HOME not set in environment_db.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 [ -n "${DB_INSTALL_ARCHIVE:-}" ] \
     && ok "DB_INSTALL_ARCHIVE = $DB_INSTALL_ARCHIVE" \
     || { fail "DB_INSTALL_ARCHIVE not set in environment_db.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 [ -f "$DB_INSTALL_ARCHIVE" ] \
-    && ok "Install archive found: $DB_INSTALL_ARCHIVE ($(du -sh "$DB_INSTALL_ARCHIVE" 2>/dev/null | cut -f1))" \
+    && ok "Install archive found: $DB_INSTALL_ARCHIVE  ($(du -sh "$DB_INSTALL_ARCHIVE" 2>/dev/null | cut -f1))" \
     || { fail "Install archive not found: $DB_INSTALL_ARCHIVE"
-         info "  Download manually from eDelivery (V982063-01)"
+         info "  Manual download from eDelivery (V982063-01 / LINUX.X64_193000_db_home.zip)"
          info "  Place at: \${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
          EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- Check if already installed -----------------------------------------------
-if [ -x "$DB_ORACLE_HOME_BASE/bin/sqlplus" ]; then
-    warn "DB software already installed: $DB_ORACLE_HOME_BASE"
-    warn "  Remove the directory and re-run if a fresh install is needed."
-    info "  Skipping install – continuing with verification only."
+[ -n "${DB_AUTOUPGRADE_HOME:-}" ] \
+    && ok "DB_AUTOUPGRADE_HOME = $DB_AUTOUPGRADE_HOME" \
+    || { fail "DB_AUTOUPGRADE_HOME not set in environment_db.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+# --- Already installed? -------------------------------------------------------
+# Reliable indicator: Inventory XML entry for DB_ORACLE_HOME
+_ora_inst_loc="$ORACLE_BASE/oraInst.loc"
+[ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc="/etc/oraInst.loc"
+_inv_xml="$(grep "^inventory_loc=" "$_ora_inst_loc" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+
+if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
+    ok "DB home already registered in Oracle Inventory — installation complete"
     section "Verification"
-    ORACLE_HOME="$DB_ORACLE_HOME_BASE" "$DB_ORACLE_HOME_BASE/OPatch/opatch" lspatches 2>/dev/null \
-        | head -5 | while IFS= read -r _line; do info "  $_line"; done
+    ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null \
+        | head -10 | while IFS= read -r _line; do info "  $_line"; done
     print_summary; exit $EXIT_CODE
 fi
+unset _ora_inst_loc _inv_xml
 
-# --- Disk space check ---------------------------------------------------------
-# DB_ORACLE_HOME_BASE does not exist yet — walk up to first existing parent
-_disk_check_dir="$(dirname "$DB_ORACLE_HOME_BASE")"
+# --- Disk space ---------------------------------------------------------------
+_disk_check_dir="$(dirname "$DB_ORACLE_HOME")"
 while [ ! -d "$_disk_check_dir" ] && [ "$_disk_check_dir" != "/" ]; do
     _disk_check_dir="$(dirname "$_disk_check_dir")"
 done
 _avail_kb=$(df -k "$_disk_check_dir" 2>/dev/null | awk 'NR==2 { print $4 }')
-_required_kb=$(( 8 * 1024 * 1024 ))   # 8 GB
+_required_kb=$(( 10 * 1024 * 1024 ))   # 10 GB (base 8GB + RU overhead)
 if [ -z "$_avail_kb" ] || [ "$_avail_kb" -lt "$_required_kb" ]; then
-    warn "$(printf "Available disk: %d MB in %s — minimum 8 GB recommended" "$(( ${_avail_kb:-0} / 1024 ))" "$_disk_check_dir")"
+    warn "$(printf "Available disk: %d MB in %s — minimum 10 GB recommended" "$(( ${_avail_kb:-0} / 1024 ))" "$_disk_check_dir")"
 else
     ok "$(printf "Disk space available: %d MB in %s" "$(( _avail_kb / 1024 ))" "$_disk_check_dir")"
 fi
 unset _avail_kb _required_kb _disk_check_dir
 
-# --- Inventory check ----------------------------------------------------------
-# Read actual inventory_loc from oraInst.loc — do NOT calculate/guess the path.
-# FMW installer may place the inventory inside ORACLE_BASE, not above it.
-_ora_inst_loc_pre="$ORACLE_BASE/oraInst.loc"
-[ ! -f "$_ora_inst_loc_pre" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_pre="/etc/oraInst.loc"
-if [ -f "$_ora_inst_loc_pre" ]; then
-    ORABASE_INVENTORY="$(grep "^inventory_loc=" "$_ora_inst_loc_pre" | cut -d= -f2)"
-else
-    ORABASE_INVENTORY="$(cd "$ORACLE_BASE/.." && pwd)/oraInventory"
-fi
-if [ -d "$ORABASE_INVENTORY" ]; then
-    ok "Oracle Inventory found: $ORABASE_INVENTORY  (from ${_ora_inst_loc_pre})"
-else
-    info "No inventory yet at $ORABASE_INVENTORY – will be created by installer"
-fi
-unset _ora_inst_loc_pre
-
 # =============================================================================
-# Summary
+# Configuration Summary
 # =============================================================================
 
 section "Install Configuration"
 
-printList "ORACLE_BASE"          28 "$ORACLE_BASE"
-printList "DB_ORACLE_HOME_BASE"  28 "$DB_ORACLE_HOME_BASE"
-printList "Install archive"      28 "$DB_INSTALL_ARCHIVE"
-printList "Edition"              28 "${DB_EDITION:-EE}  (EE=Enterprise / SE2=Standard)"
+_AU_PATCHDIR="$DB_AUTOUPGRADE_HOME/patchdir"
+_AU_BASE_STAGE="$DB_AUTOUPGRADE_HOME/base_stage"
+_AU_PATCH_STAGE="$DB_AUTOUPGRADE_HOME/patch_stage"
+_AU_JAR="$DB_AUTOUPGRADE_HOME/bin/autoupgrade.jar"
+_AU_CONFIG="$DB_AUTOUPGRADE_HOME/config/db19patch.cfg"
+_AU_KEYSTORE_CFG="$DB_AUTOUPGRADE_HOME/config/keystore.cfg"
 
-printf "\n" | tee -a "$LOG_FILE"
-info "After runInstaller completes, you will be prompted to run root.sh as root."
+printList "ORACLE_BASE"         28 "$ORACLE_BASE"
+printList "DB_ORACLE_HOME"      28 "$DB_ORACLE_HOME"
+printList "Edition"             28 "${DB_EDITION:-EE}  (EE=Enterprise / SE2=Standard)"
+printList "Install archive"     28 "$DB_INSTALL_ARCHIVE"
+printList "AutoUpgrade home"    28 "$DB_AUTOUPGRADE_HOME"
+printList "Base staging dir"    28 "$_AU_BASE_STAGE"
+printList "Patch dir"           28 "$_AU_PATCHDIR"
+printList "Target RU"           28 "${DB_TARGET_RU:-RECOMMENDED}"
 
-if ! $APPLY; then
+# Check patchdir state for dry-run info
+_patch_zip_count=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
+if [ "$_patch_zip_count" -gt 0 ]; then
+    ok "$(printf "Patchdir: %d patch ZIP(s) present — download will be skipped" "$_patch_zip_count")"
+else
+    info "Patchdir: empty — AutoUpgrade will download patches (requires MOS credentials)"
+fi
+unset _patch_zip_count
+
+if ! $APPLY && ! $CLEAN; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "Dry-run – use --apply to install."
     print_summary; exit $EXIT_CODE
 fi
 
 # =============================================================================
-# --force: remove existing ORACLE_HOME_BASE (with explicit confirmation)
+# --clean: Remove DB_ORACLE_HOME + base_stage
 # =============================================================================
 
-if $FORCE; then
-    if [ -d "$DB_ORACLE_HOME_BASE" ]; then
-        warn "$(printf "FORCE: will delete: %s" "$DB_ORACLE_HOME_BASE")"
-        warn "  This removes all extracted files and deregisters the inventory entry."
-        printf "\n  Type YES to confirm deletion: " >&2
-        read -r _confirm
-        if [ "$_confirm" != "YES" ]; then
-            info "Aborted — nothing deleted."
-            EXIT_CODE=0; print_summary; exit $EXIT_CODE
-        fi
-        # Detach from Oracle Inventory BEFORE deleting.
-        # root.sh reads its helper script path from the inventory — a stale entry
-        # (e.g. from a previous Oracle installation) causes wrong paths in root.sh.
-        # Only run detachHome when the home is actually registered in the inventory.
-        _ora_inst_loc_force="$ORACLE_BASE/oraInst.loc"
-        [ ! -f "$_ora_inst_loc_force" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_force="/etc/oraInst.loc"
-        _inv_base_force="$(grep "^inventory_loc=" "$_ora_inst_loc_force" 2>/dev/null | cut -d= -f2)"
-        _inv_xml_force="${_inv_base_force:-$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory}/ContentsXML/inventory.xml"
-        unset _ora_inst_loc_force _inv_base_force
-        if [ -f "$_inv_xml_force" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml_force" 2>/dev/null; then
-            info "Detaching home from Oracle Inventory..."
-            "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" -silent -detachHome \
-                "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
-                "ORACLE_HOME_NAME=OraDB19Home1" 2>&1 | tee -a "$LOG_FILE"
-            if [ "${PIPESTATUS[0]}" -eq 0 ]; then
-                ok "Inventory entry detached"
+if $CLEAN; then
+    section "Clean – Remove Target Home and Staging"
+
+    if ! $APPLY; then
+        info "Dry-run: the following would be removed (use --clean --apply to execute):"
+        printf "\n" | tee -a "$LOG_FILE"
+        [ -d "$DB_ORACLE_HOME" ] \
+            && warn "  1. Detach from Oracle Inventory + rm -rf $DB_ORACLE_HOME" \
+            || info "  1. DB_ORACLE_HOME already absent: $DB_ORACLE_HOME"
+        [ -d "$_AU_BASE_STAGE" ] \
+            && warn "  2. rm -rf $_AU_BASE_STAGE  (re-extracted on next run)" \
+            || info "  2. base_stage already absent: $_AU_BASE_STAGE"
+        info "  Preserved: $_AU_PATCHDIR  (patch ZIPs — reused on next run)"
+        printf "\n" | tee -a "$LOG_FILE"
+        warn "Run --clean --apply to execute"
+        print_summary; exit $EXIT_CODE
+    fi
+
+    # 1. Detach DB_ORACLE_HOME from Oracle Inventory
+    _ora_inst_loc_cl="$ORACLE_BASE/oraInst.loc"
+    [ ! -f "$_ora_inst_loc_cl" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_cl="/etc/oraInst.loc"
+    _inv_xml_cl="$(grep "^inventory_loc=" "$_ora_inst_loc_cl" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+
+    if [ -d "$DB_ORACLE_HOME" ]; then
+        if [ -f "$_inv_xml_cl" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_cl" 2>/dev/null; then
+            info "Detaching home from Oracle Inventory ..."
+            if [ -x "$DB_ORACLE_HOME/oui/bin/runInstaller" ]; then
+                "$DB_ORACLE_HOME/oui/bin/runInstaller" \
+                    -silent -detachHome \
+                    "ORACLE_HOME=$DB_ORACLE_HOME" \
+                    2>&1 | tee -a "$LOG_FILE" || true
+                ok "detachHome completed"
             else
-                warn "detachHome failed — removing directory anyway (inventory entry may need manual cleanup)"
+                warn "OUI runInstaller not found in target home — skipping detachHome"
             fi
         else
-            info "Home not in inventory — no detach needed"
+            info "Home not registered in inventory — no detach needed"
         fi
-        unset _inv_xml_force
-        rm -rf "$DB_ORACLE_HOME_BASE"
-        ok "Deleted: $DB_ORACLE_HOME_BASE"
+        rm -rf "$DB_ORACLE_HOME"
+        ok "Removed: $DB_ORACLE_HOME"
     else
-        info "--force: directory does not exist, nothing to delete: $DB_ORACLE_HOME_BASE"
+        ok "DB_ORACLE_HOME already absent: $DB_ORACLE_HOME"
     fi
-    unset _confirm
+    unset _ora_inst_loc_cl _inv_xml_cl
+
+    # 2. Remove base_stage (force re-extraction of base ZIP)
+    if [ -d "$_AU_BASE_STAGE" ]; then
+        rm -rf "$_AU_BASE_STAGE"
+        ok "Removed: $_AU_BASE_STAGE"
+    else
+        ok "base_stage already absent: $_AU_BASE_STAGE"
+    fi
+
+    ok "Clean completed — continuing with install"
+    printf "\n" | tee -a "$LOG_FILE"
 fi
 
 # =============================================================================
-# 1. Create ORACLE_HOME directory
+# 1. Setup directories
 # =============================================================================
 
-section "Create ORACLE_HOME"
+section "AutoUpgrade Directories"
 
-mkdir -p "$DB_ORACLE_HOME_BASE"
-chmod 775 "$DB_ORACLE_HOME_BASE"
-ok "Directory created: $DB_ORACLE_HOME_BASE"
+for _dir in \
+    "$DB_AUTOUPGRADE_HOME/bin" \
+    "$DB_AUTOUPGRADE_HOME/logs" \
+    "$DB_AUTOUPGRADE_HOME/config" \
+    "$_AU_PATCHDIR" \
+    "$DB_AUTOUPGRADE_HOME/keystore" \
+    "$_AU_BASE_STAGE" \
+    "$_AU_PATCH_STAGE"; do
+    mkdir -p "$_dir"
+    ok "$(printf "  %-55s" "$_dir")"
+done
+unset _dir
 
 # =============================================================================
-# 2. Unzip install archive  (skip if already extracted)
+# 2. Extract 19.3.0 base ZIP to staging
 # =============================================================================
 
-section "Unzip Install Archive"
+section "Extract 19.3.0 Base ZIP → Staging"
 
-if [ -f "$DB_ORACLE_HOME_BASE/OPatch/opatch" ]; then
-    ok "Already extracted (OPatch/opatch found) — skipping unzip"
+if [ -f "$_AU_BASE_STAGE/runInstaller" ]; then
+    ok "Base already extracted (runInstaller found) — skipping unzip"
 else
+    info "Extracting: $(basename "$DB_INSTALL_ARCHIVE") ..."
     printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-    # -o = overwrite all without prompting (safe for re-runs with partial extract)
-    unzip -q -o "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME_BASE" 2>&1 | tee -a "$LOG_FILE"
-    _rc=$?
-    printf "  Finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_rc" | tee -a "$LOG_FILE"
-    [ "$_rc" -eq 0 ] \
-        && ok "Archive extracted to: $DB_ORACLE_HOME_BASE" \
-        || { fail "Unzip failed (rc=$_rc)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    unzip -q -o "$DB_INSTALL_ARCHIVE" -d "$_AU_BASE_STAGE" 2>&1 | tee -a "$LOG_FILE"
+    _unzip_rc=$?
+    printf "  Finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_unzip_rc" | tee -a "$LOG_FILE"
+    [ "$_unzip_rc" -eq 0 ] \
+        && ok "Archive extracted to: $_AU_BASE_STAGE" \
+        || { fail "Unzip failed (rc=$_unzip_rc)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    unset _unzip_rc
 fi
 
 # =============================================================================
-# 3. Run runInstaller (software-only, silent)
+# 3. Java detection (AutoUpgrade requires Java 11; DB bundled JDK used first)
 # =============================================================================
 
-section "runInstaller – software-only"
+section "Java for AutoUpgrade"
 
-# --- idempotency: skip if home is registered in Oracle Inventory -------------
-# bin/oracle is already present in the extracted ZIP — not a reliable indicator.
-# Only the Inventory XML entry confirms that runInstaller completed successfully.
-_inv_xml_loc="$ORACLE_BASE/oraInst.loc"; [ ! -f "$_inv_xml_loc" ] && [ -f "/etc/oraInst.loc" ] && _inv_xml_loc="/etc/oraInst.loc"
-_inv_xml="$(grep "^inventory_loc=" "$_inv_xml_loc" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
-unset _inv_xml_loc
-if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" 2>/dev/null; then
-    ok "Home already registered in Oracle Inventory — runInstaller completed, skipping"
-    ok "  $(grep "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" | head -1 | sed 's/.*NAME="\([^"]*\)".*/\1/' || printf "%s" "$DB_ORACLE_HOME_BASE")"
-    unset _inv_xml
+# AutoUpgrade 26.x requires Java 11 — rejects Java 21.
+# Try 19.3.0 staging JDK first, then system java-11-openjdk, then /usr/bin/java.
+JAVA_BIN=""
+for _jbin in \
+    "$_AU_BASE_STAGE/jdk/bin/java" \
+    $(ls /usr/lib/jvm/java-11-openjdk*/bin/java 2>/dev/null | head -1) \
+    "/usr/bin/java"; do
+    [ -n "$_jbin" ] && [ -x "$_jbin" ] && { JAVA_BIN="$_jbin"; break; }
+done
+unset _jbin
+
+if [ -n "$JAVA_BIN" ]; then
+    ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
 else
-unset _inv_xml
+    fail "No Java found — install java-11-openjdk (run 00-root_db_os_baseline.sh --apply)"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
 
-_edition="${DB_EDITION:-EE}"
+# TLS version: Java 8 does not support TLSv1.3 as JVM property
+if "$JAVA_BIN" -version 2>&1 | grep -q '"1\.8\.'; then
+    AU_TLS="-Dhttps.protocols=TLSv1.2"
+    ok "TLS mode: TLSv1.2  (Java 8 — TLSv1.3 not supported as JVM property)"
+else
+    AU_TLS="-Dhttps.protocols=TLSv1.3"
+    ok "TLS mode: TLSv1.3"
+fi
 
-# oraInst.loc: prefer ORACLE_BASE location (created by FMW installer),
-# fall back to /etc/oraInst.loc (created by preinstall RPM),
-# create fresh one if neither exists.
+# =============================================================================
+# 4. Check patchdir / Download patches
+# =============================================================================
+
+section "Patch Download (AutoUpgrade)"
+
+# Count non-OPatch patch ZIPs already in patchdir
+_existing_zips=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
+
+if [ "$_existing_zips" -gt 0 ]; then
+    ok "$(printf "Patchdir has %d patch ZIP(s) — skipping download" "$_existing_zips")"
+    info "  Delete $_AU_PATCHDIR/*.zip to force re-download"
+    ls "$_AU_PATCHDIR"/*.zip 2>/dev/null | while IFS= read -r _z; do
+        info "  $(basename "$_z")  ($(du -sh "$_z" 2>/dev/null | cut -f1))"
+    done
+else
+    # --- 4a. Download autoupgrade.jar -----------------------------------------
+    AU_DOWNLOAD_URL="https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar"
+
+    if [ -f "$_AU_JAR" ]; then
+        ok "autoupgrade.jar already present: $_AU_JAR"
+    else
+        info "Downloading autoupgrade.jar (no auth required) ..."
+        if curl -fsSL -o "$_AU_JAR" "$AU_DOWNLOAD_URL" 2>&1 | tee -a "$LOG_FILE"; then
+            ok "autoupgrade.jar downloaded"
+        else
+            fail "Download failed — check network or download manually:"
+            info "  curl -fsSL $AU_DOWNLOAD_URL -o $_AU_JAR"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+    fi
+    "$JAVA_BIN" -jar "$_AU_JAR" -version 2>&1 | head -2 | while IFS= read -r _line; do info "  $_line"; done
+
+    # --- 4b. MOS credentials --------------------------------------------------
+    MOS_SEC_FILE="${MOS_SEC_FILE:-$ROOT_DIR/mos_sec.conf.des3}"
+    [ -f "$MOS_SEC_FILE" ] \
+        && ok "MOS credentials file: $MOS_SEC_FILE" \
+        || { fail "MOS credentials not found: $MOS_SEC_FILE"
+             info "  Run first: 00-Setup/mos_sec.sh --apply"
+             EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+    info "Loading MOS credentials ..."
+    unset MOS_USER MOS_PWD
+    if ! load_secrets_file "$MOS_SEC_FILE"; then
+        fail "Could not decrypt MOS credentials"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    ok "MOS_USER: $MOS_USER"
+
+    # --- 4c. MOS Keystore -----------------------------------------------------
+    cat > "$_AU_KEYSTORE_CFG" << KEOF
+global.global_log_dir=${DB_AUTOUPGRADE_HOME}/logs
+global.keystore=${DB_AUTOUPGRADE_HOME}/keystore
+KEOF
+
+    _ks_dir="$DB_AUTOUPGRADE_HOME/keystore"
+    _ks_done_flag="$_ks_dir/.mos_configured"
+
+    if [ -f "$_ks_done_flag" ]; then
+        ok "MOS keystore already configured — skipping"
+        MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        unset MOS_USER MOS_PWD
+    else
+        _ks_pass="IHateWeblogic-$(hostname -s 2>/dev/null || printf 'oracle')"
+        info "Configuring MOS keystore (-load_password) ..."
+
+        if command -v expect >/dev/null 2>&1; then
+            export _AU_KS_BIN="$JAVA_BIN" _AU_KS_JAR="$_AU_JAR" _AU_KS_CFG="$_AU_KEYSTORE_CFG"
+            export _AU_KS_PASS="$_ks_pass" _AU_MOS_USER="$MOS_USER" _AU_MOS_PWD="$MOS_PWD"
+            export _AU_KS_TLS="$AU_TLS"
+            _ks_out=$(expect << 'EXPEOF' 2>&1
+set timeout 60
+spawn $env(_AU_KS_BIN) $env(_AU_KS_TLS) \
+      -jar $env(_AU_KS_JAR) -patch -config $env(_AU_KS_CFG) -load_password
+expect {
+    "Enter password again:" { send "$env(_AU_KS_PASS)\r"; exp_continue }
+    "Enter password:"       { send "$env(_AU_KS_PASS)\r"; exp_continue }
+    "MOS>"  { }
+    timeout { puts "TIMEOUT waiting for MOS> prompt"; exit 1 }
+    eof     { puts "EOF before MOS> prompt"; exit 1 }
+}
+send "add -user $env(_AU_MOS_USER)\r"
+expect "Enter your secret/Password:"
+send "$env(_AU_MOS_PWD)\r"
+expect "Re-enter your secret/Password:"
+send "$env(_AU_MOS_PWD)\r"
+expect "MOS>"
+send "exit\r"
+expect -re {YES|NO}
+send "YES\r"
+expect -re {YES|NO}
+send "YES\r"
+expect eof
+EXPEOF
+)
+            unset _AU_KS_BIN _AU_KS_JAR _AU_KS_CFG _AU_KS_PASS _AU_MOS_USER _AU_MOS_PWD _AU_KS_TLS
+        else
+            warn "expect not found — using stdin pipe (install expect for reliability)"
+            _ks_out=$(printf '%s\n%s\nadd -user %s\n%s\n%s\nexit\nYES\nYES\n' \
+                "$_ks_pass" "$_ks_pass" "$MOS_USER" "$MOS_PWD" "$MOS_PWD" \
+                | "$JAVA_BIN" $AU_TLS \
+                    -jar "$_AU_JAR" -config "$_AU_KEYSTORE_CFG" -patch -load_password 2>&1)
+        fi
+
+        MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        unset MOS_USER MOS_PWD _ks_pass
+        printf '%s\n' "$_ks_out" | tee -a "$LOG_FILE"
+
+        if printf '%s\n' "$_ks_out" | grep -qi "Connection Successful"; then
+            touch "$_ks_done_flag"
+            ok "MOS keystore configured (Connection Successful)"
+        elif printf '%s\n' "$_ks_out" | grep -qi "successfully created\|successfully saved"; then
+            touch "$_ks_done_flag"
+            warn "MOS keystore saved — connection not yet verified (MOS reachable?)"
+        else
+            warn "MOS keystore setup may have failed — 'Connection Successful' not found"
+            warn "  Retry: rm -rf '${_ks_dir}'/* && ./01-db_install_software.sh --apply"
+        fi
+        unset _ks_out
+    fi
+    unset _ks_dir _ks_done_flag
+
+    # --- 4d. Patch config (download-only) -------------------------------------
+    _target_ru="${DB_TARGET_RU:-RECOMMENDED}"
+    case "${_target_ru^^}" in
+        RECOMMENDED)
+            _patch_spec="recommended" ;;
+        19.*CURRENT*|19.*LATEST*)
+            warn "DB_TARGET_RU='$_target_ru' is not valid in AutoUpgrade 26.x → using 'recommended'"
+            warn "  Update environment_db.conf: DB_TARGET_RU=\"RECOMMENDED\"  (or e.g. 19.30)"
+            _patch_spec="recommended" ;;
+        19.*)
+            _patch_spec="ru:${_target_ru},ojvm:${_target_ru},opatch,dpbp" ;;
+        *)
+            _patch_spec="${_target_ru}" ;;
+    esac
+
+    cat > "$_AU_CONFIG" << CFGEOF
+# AutoUpgrade patch config – generated by 01-db_install_software.sh
+# $(date '+%Y-%m-%d %H:%M:%S')
+
+global.global_log_dir=${DB_AUTOUPGRADE_HOME}/logs
+global.keystore=${DB_AUTOUPGRADE_HOME}/keystore
+
+patch1.source_home=${_AU_BASE_STAGE}
+patch1.folder=${_AU_PATCHDIR}
+patch1.patch=${_patch_spec}
+patch1.target_version=19
+patch1.download=YES
+CFGEOF
+    ok "Patch config: $_AU_CONFIG  (spec: $_patch_spec)"
+    unset _target_ru _patch_spec
+
+    # --- 4e. AutoUpgrade download -m download ---------------------------------
+    printf "\n  Download started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    "$JAVA_BIN" $AU_TLS \
+        -jar "$_AU_JAR" \
+        -config "$_AU_CONFIG" \
+        -patch -mode download \
+        2>&1 | tee -a "$LOG_FILE"
+    _dl_rc=${PIPESTATUS[0]}
+    printf "\n  Download finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_dl_rc" | tee -a "$LOG_FILE"
+    if [ "$_dl_rc" -ne 0 ]; then
+        fail "Patch download failed (rc=$_dl_rc)"
+        info "  Logs: $DB_AUTOUPGRADE_HOME/logs/"
+        info "  Retry: re-run --apply (existing ZIPs are kept)"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    ok "Patch ZIPs downloaded to: $_AU_PATCHDIR"
+    unset _dl_rc
+fi
+unset _existing_zips
+
+# =============================================================================
+# 5. Identify patches and update OPatch in staging
+# =============================================================================
+
+section "Identify Patches"
+
+# Update OPatch in staging dir so the installer uses the latest OPatch for -applyRU
+_opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
+if [ -n "$_opatch_zip" ]; then
+    info "Updating OPatch in staging dir: $(basename "$_opatch_zip") ..."
+    unzip -q -o "$_opatch_zip" -d "$_AU_BASE_STAGE" 2>&1 | tee -a "$LOG_FILE"
+    ok "OPatch updated: $("$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
+else
+    warn "OPatch ZIP (p6880880_*.zip) not found in patchdir — using bundled OPatch"
+    ok "Bundled: $("$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
+fi
+unset _opatch_zip
+
+# Extract non-OPatch patch ZIPs to patch_stage and identify RU / OneOffs
+rm -rf "$_AU_PATCH_STAGE"
+mkdir -p "$_AU_PATCH_STAGE"
+
+for _zip in "$_AU_PATCHDIR"/p[0-9]*.zip; do
+    [ -f "$_zip" ] || continue
+    case "$_zip" in *p6880880*) continue ;; esac
+    info "  Extracting: $(basename "$_zip") ..."
+    unzip -q -o "$_zip" -d "$_AU_PATCH_STAGE" 2>&1 | tee -a "$LOG_FILE" \
+        || warn "  Extract failed: $(basename "$_zip")"
+done
+
+# Identify RU (contains bundle.xml) and OneOffs
+_RU_DIR=""
+_ONEOFF_LIST=""
+for _pd in "$_AU_PATCH_STAGE"/*/; do
+    [ -d "$_pd" ] || continue
+    if [ -f "${_pd}bundle.xml" ]; then
+        _RU_DIR="${_pd%/}"
+        ok "$(printf "RU identified  : %s" "$(basename "$_RU_DIR")")"
+    else
+        _ONEOFF_LIST="${_ONEOFF_LIST:+${_ONEOFF_LIST},}${_pd%/}"
+        ok "$(printf "OneOff         : %s" "$(basename "${_pd%/}")")"
+    fi
+done
+
+if [ -z "$_RU_DIR" ]; then
+    fail "No RU patch identified (no bundle.xml found in patch_stage subdirectories)"
+    info "  Expected: a patch ZIP that extracts to a dir containing bundle.xml (e.g. RU 19.30)"
+    info "  Patchdir: $_AU_PATCHDIR"
+    info "  Delete patchdir ZIPs and re-run --apply to trigger fresh download"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+ok "$(printf "RU dir         : %s" "$_RU_DIR")"
+[ -n "$_ONEOFF_LIST" ] && ok "$(printf "OneOffs        : %s" "$_ONEOFF_LIST")"
+
+# =============================================================================
+# 6. Install with runInstaller -applyRU
+# =============================================================================
+
+section "runInstaller -applyRU"
+
+if [ -d "$DB_ORACLE_HOME" ]; then
+    fail "DB_ORACLE_HOME already exists: $DB_ORACLE_HOME"
+    info "  Use --clean --apply to remove it and reinstall"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+mkdir -p "$DB_ORACLE_HOME"
+chmod 775 "$DB_ORACLE_HOME"
+
+# oraInst.loc: prefer ORACLE_BASE location, fall back to /etc/oraInst.loc.
+# Sync to /etc/oraInst.loc because the 19c runInstaller only reads /etc/oraInst.loc.
 _ora_inst_loc="$ORACLE_BASE/oraInst.loc"
 [ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc="/etc/oraInst.loc"
 if [ ! -f "$_ora_inst_loc" ]; then
@@ -311,52 +569,50 @@ if [ ! -f "$_ora_inst_loc" ]; then
     mkdir -p "$_inv_location"
     printf "inventory_loc=%s\ninst_group=oinstall\n" "$_inv_location" > "$_ora_inst_loc"
 fi
-
-# Always read inventory_loc FROM the file — never calculate/guess
 _inv_location="$(grep "^inventory_loc=" "$_ora_inst_loc" | cut -d= -f2)"
-ok "$(printf "%-28s %s" "oraInst.loc:" "$_ora_inst_loc")"
-ok "$(printf "%-28s %s  (from oraInst.loc)" "Inventory:" "$_inv_location")"
+ok "$(printf "oraInst.loc    : %s  (inventory: %s)" "$_ora_inst_loc" "$_inv_location")"
 
-# The 19c runInstaller reads ONLY /etc/oraInst.loc — it does NOT auto-discover
-# $ORACLE_BASE/oraInst.loc.  When the FMW installer placed oraInst.loc inside
-# ORACLE_BASE (not in /etc), the DB installer falls back to its computed default
-# path (parent of ORACLE_BASE), which may not exist or not be writable → INS-32031.
-# Fix: copy $ORACLE_BASE/oraInst.loc to /etc/oraInst.loc if they differ (needs sudo).
 _ora_inst_etc="/etc/oraInst.loc"
 if [ "$_ora_inst_loc" != "$_ora_inst_etc" ]; then
     if [ ! -f "$_ora_inst_etc" ] || ! diff -q "$_ora_inst_loc" "$_ora_inst_etc" >/dev/null 2>&1; then
-        info "$(printf "Syncing %-28s → /etc/oraInst.loc  (sudo)" "$_ora_inst_loc")"
+        info "Syncing oraInst.loc → /etc/oraInst.loc  (sudo)"
         if sudo cp "$_ora_inst_loc" "$_ora_inst_etc" && sudo chmod 644 "$_ora_inst_etc"; then
-            ok "/etc/oraInst.loc synced → inventory: $_inv_location"
+            ok "/etc/oraInst.loc synced"
         else
-            warn "/etc/oraInst.loc could not be updated — installer may fail with INS-32031"
+            warn "/etc/oraInst.loc could not be synced — installer may fail with INS-32031"
             warn "  Fix as root:  cp '$_ora_inst_loc' '$_ora_inst_etc'"
         fi
     else
         ok "/etc/oraInst.loc already matches — no sync needed"
     fi
 fi
-unset _ora_inst_etc
+unset _ora_inst_etc _ora_inst_loc _inv_location
 
-# Oracle 19.3.0 installer predates OL8/OL9 — supportedOSCheck throws NPE.
-# CV_ASSUME_DISTID=OEL7.6 makes the prereq check treat this as OL7.
-# Required for base 19.3.0; not needed after patching to 19.6+ via AutoUpgrade.
-# See: MOS Doc ID 2584365.1, https://www.robotron.de/unternehmen/aktuelles/blog/oracle-datenbank-19c-und-oracle-linux-8
+# Build -applyRU / -applyOneOffs arguments
+_ru_args=(-applyRU "$_RU_DIR")
+[ -n "$_ONEOFF_LIST" ] && _ru_args+=(-applyOneOffs "$_ONEOFF_LIST")
+unset _RU_DIR _ONEOFF_LIST
+
+_edition="${DB_EDITION:-EE}"
+# CV_ASSUME_DISTID: the 19.3.0 base installer predates OL8/OL9 (MOS Doc ID 2584365.1).
+# With -applyRU the RU provides updated makefiles (resolves rc=252 on OL9).
+# -ignorePrereqFailure + CV_ASSUME_DISTID together suppress the supportedOSCheck NPE.
 _cv_distid="${DB_CV_ASSUME_DISTID:-OEL7.6}"
 export CV_ASSUME_DISTID="$_cv_distid"
-info "$(printf "%-28s %s  (OL8/OL9 compat for 19.3.0 installer)" "CV_ASSUME_DISTID:" "$CV_ASSUME_DISTID")"
+info "$(printf "%-28s %s  (OL8/OL9 compat)" "CV_ASSUME_DISTID:" "$CV_ASSUME_DISTID")"
+info "$(printf "%-28s %s" "Edition:" "$_edition")"
+info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]}")"
 
-printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-# Note: 19c DBSetup installer does NOT support -invPtrLoc (OUI legacy flag).
-# It finds oraInst.loc automatically at $ORACLE_BASE/oraInst.loc or /etc/oraInst.loc.
-"$DB_ORACLE_HOME_BASE/runInstaller" \
+"$_AU_BASE_STAGE/runInstaller" \
     -silent \
     -ignorePrereqFailure \
     -waitforcompletion \
+    "${_ru_args[@]}" \
     "oracle.install.option=INSTALL_DB_SWONLY" \
     "ORACLE_BASE=$ORACLE_BASE" \
-    "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
+    "ORACLE_HOME=$DB_ORACLE_HOME" \
     "ORACLE_HOME_NAME=OraDB19Home1" \
     "oracle.install.db.InstallEdition=$_edition" \
     "oracle.install.db.OSDBA_GROUP=dba" \
@@ -372,103 +628,99 @@ printf "\n  Install started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG
 _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
 unset CV_ASSUME_DISTID
-info "CV_ASSUME_DISTID unset"
+unset _ru_args _cv_distid _edition
 
-_installer_log=$(ls -t "$_inv_location/logs/InstallActions"*.log 2>/dev/null | head -1)
+# Installer log location
+_ora_inst_loc_v="$ORACLE_BASE/oraInst.loc"
+[ ! -f "$_ora_inst_loc_v" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_v="/etc/oraInst.loc"
+_inv_loc_v="$(grep "^inventory_loc=" "$_ora_inst_loc_v" 2>/dev/null | cut -d= -f2)"
+_installer_log=$(ls -t "${_inv_loc_v}/logs/InstallActions"*.log 2>/dev/null | head -1)
 [ -n "$_installer_log" ] && info "  Installer log: $_installer_log"
+unset _ora_inst_loc_v _inv_loc_v _installer_log
 
 if [ "$_install_rc" -ne 0 ]; then
-    # rc=252 (-4 signed) = Oracle installer internal make failure for ASM client libs.
-    # Known on OL8/OL9 with 19.3.0 base installer — ASM client (libasmclntsh19.ohso)
-    # does not link cleanly with newer glibc.  We do not use ASM; AutoUpgrade
-    # create_home will produce a fully patched home regardless of this failure.
-    # Treat rc=252 with a working sqlplus binary as a recoverable warning.
-    if [ "$_install_rc" -eq 252 ] && [ -x "$DB_ORACLE_HOME_BASE/bin/sqlplus" ]; then
-        warn "runInstaller rc=252 — ASM client library make failure (known on OL9 with 19.3.0)"
-        warn "  sqlplus binary present → core install succeeded; ASM failure is non-critical"
-        warn "  AutoUpgrade create_home (step 02) will build a clean patched home"
-        warn "  Installer log: $_installer_log"
-        # rc=252: make failure stops before Oracle Inventory registration completes.
-        # OPatch lsinventory would not find the DB home → AutoUpgrade create_home
-        # fails with "Unable to validate platform" (OPatch error 73).
-        # Fix: use attachHome to register the already-installed home in the inventory.
-        _inv_xml="${_inv_location}/ContentsXML/inventory.xml"
-        if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME_BASE\"" "$_inv_xml" 2>/dev/null; then
-            ok "DB home already registered in Oracle Inventory"
-        else
-            info "Registering DB home in Oracle Inventory via attachHome ..."
-            "$DB_ORACLE_HOME_BASE/oui/bin/runInstaller" \
-                -silent -attachHome \
-                "ORACLE_HOME=$DB_ORACLE_HOME_BASE" \
-                "ORACLE_HOME_NAME=OraDB19Home1" \
-                2>&1 | tee -a "$LOG_FILE"
-            _attach_rc=${PIPESTATUS[0]}
-            if [ "$_attach_rc" -eq 0 ]; then
-                ok "attachHome completed — DB home registered in Oracle Inventory"
-            else
-                warn "attachHome rc=$_attach_rc — verify with: opatch lsinventory -oh $DB_ORACLE_HOME_BASE"
-            fi
-            unset _attach_rc
-        fi
-        unset _inv_xml
-    else
-        fail "runInstaller exited with rc=$_install_rc"
-        info "  Check installer logs: $_inv_location/logs/"
-        [ -n "$_installer_log" ] && info "  Latest: $_installer_log"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
-    fi
-else
-    ok "runInstaller completed (rc=0)"
+    fail "runInstaller exited with rc=$_install_rc"
+    info "  With -applyRU on OL9 and RU >= 19.22, rc=0 is expected."
+    info "  rc=252 from the BASE 19.3.0 installer is resolved by -applyRU (OL9 makefiles fixed in RU)."
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
-unset _edition _inv_location _cv_distid _ora_inst_loc _installer_log
+unset _install_rc
 
-fi  # end idempotency block
+ok "runInstaller -applyRU completed (rc=0)"
+
+# Cleanup patch staging dir (ZIPs in patchdir are kept for reproducibility)
+rm -rf "$_AU_PATCH_STAGE"
+ok "Patch staging dir cleaned: $_AU_PATCH_STAGE"
 
 # =============================================================================
-# 4. Prompt for root.sh
+# 7. root.sh (requires root)
 # =============================================================================
 
 section "root.sh (requires root)"
 
-_root_sh="$DB_ORACLE_HOME_BASE/root.sh"
+# root.sh must run AFTER the installer completes (sets SUID on oracle binary).
+_root_sh="$DB_ORACLE_HOME/root.sh"
 if sudo -n "$_root_sh" 2>/dev/null; then
     ok "root.sh executed via sudo"
 else
-    printf "\n" | tee -a "$LOG_FILE"
-    printf "  \033[33m┌─────────────────────────────────────────────────────────┐\033[0m\n"
-    printf "  \033[33m│  Run as root NOW (open a second terminal):              │\033[0m\n"
-    printf "  \033[33m│                                                         │\033[0m\n"
-    printf "  \033[33m│  %-55s│\033[0m\n" "$_root_sh"
-    printf "  \033[33m└─────────────────────────────────────────────────────────┘\033[0m\n"
+    printf "\n"
+    printf "  \033[33m┌──────────────────────────────────────────────────────────────┐\033[0m\n"
+    printf "  \033[33m│  Run as root NOW (open a second terminal):                   │\033[0m\n"
+    printf "  \033[33m│                                                              │\033[0m\n"
+    printf "  \033[33m│  %-62s│\033[0m\n" "$_root_sh"
+    printf "  \033[33m└──────────────────────────────────────────────────────────────┘\033[0m\n"
     printf "\n"
     if askYesNo "Press Enter / type 'yes' after root.sh has completed" "y"; then
         ok "root.sh confirmed completed"
     else
-        warn "root.sh not confirmed – continue manually after running root.sh"
+        warn "root.sh not confirmed — run it before creating the database"
+        EXIT_CODE=1
     fi
 fi
 unset _root_sh
 
 # =============================================================================
-# 5. Verify installation
+# 8. Disable unused options (chopt)
+# =============================================================================
+
+section "Disable Unused Options (chopt)"
+
+for _opt in olap rat; do
+    info "Disabling option: $_opt ..."
+    ORACLE_HOME="$DB_ORACLE_HOME" \
+        "$DB_ORACLE_HOME/bin/chopt" disable "$_opt" 2>&1 | tee -a "$LOG_FILE"
+    _chopt_rc=${PIPESTATUS[0]}
+    [ "$_chopt_rc" -eq 0 ] \
+        && ok "$(printf "chopt disable %-8s  OK" "$_opt")" \
+        || warn "$(printf "chopt disable %-8s  rc=%s (may already be disabled)" "$_opt" "$_chopt_rc")"
+    unset _chopt_rc
+done
+unset _opt
+
+# =============================================================================
+# 9. Verification
 # =============================================================================
 
 section "Verification"
 
-[ -x "$DB_ORACLE_HOME_BASE/bin/sqlplus" ] \
-    && ok "sqlplus found: $DB_ORACLE_HOME_BASE/bin/sqlplus" \
-    || { fail "sqlplus not found – installation may have failed"; EXIT_CODE=1; }
+[ -x "$DB_ORACLE_HOME/bin/sqlplus" ] \
+    && ok "sqlplus: $DB_ORACLE_HOME/bin/sqlplus" \
+    || { fail "sqlplus not found — check installer log"; EXIT_CODE=1; }
 
-if [ -x "$DB_ORACLE_HOME_BASE/OPatch/opatch" ]; then
-    ok "OPatch found"
-    ORACLE_HOME="$DB_ORACLE_HOME_BASE" \
-        "$DB_ORACLE_HOME_BASE/OPatch/opatch" lspatches 2>/dev/null \
-        | head -5 | while IFS= read -r _line; do info "  $_line"; done
+if [ -x "$DB_ORACLE_HOME/OPatch/opatch" ]; then
+    info "Installed patches:"
+    ORACLE_HOME="$DB_ORACLE_HOME" \
+        "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null \
+        | head -10 | while IFS= read -r _line; do info "  $_line"; done
+    info "OPatch version:"
+    ORACLE_HOME="$DB_ORACLE_HOME" \
+        "$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null \
+        | head -1 | while IFS= read -r _line; do info "  $_line"; done
 fi
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: patch to current RU"
-info "  02-db_patch_autoupgrade.sh --apply"
+info "Next step: configure the listener"
+info "  04-db_setup_listener.sh --apply"
 
 # =============================================================================
 print_summary
