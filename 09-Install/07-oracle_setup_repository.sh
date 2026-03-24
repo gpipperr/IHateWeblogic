@@ -139,7 +139,7 @@ RCU_BIN="$ORACLE_HOME/oracle_common/bin/rcu"
 
 section "Schema Configuration"
 
-printList "Connect string"  28 "${DB_HOST}:${DB_PORT}:${DB_SERVICE}"
+printList "Connect string"  28 "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
 printList "DB user"         28 "sys (SYSDBA)"
 printList "Schema prefix"   28 "$DB_SCHEMA_PREFIX"
 
@@ -264,13 +264,13 @@ else
 fi
 
 printf "\n  RCU started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-printf "  Connect    : %s:%s:%s\n" "$DB_HOST" "$DB_PORT" "$DB_SERVICE" | tee -a "$LOG_FILE"
+printf "  Connect    : %s:%s/%s\n" "$DB_HOST" "$DB_PORT" "$DB_SERVICE" | tee -a "$LOG_FILE"
 printf "  Prefix     : %s\n\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
 
 "$RCU_BIN" \
     -silent \
     "$RCU_ACTION" \
-    -connectString "${DB_HOST}:${DB_PORT}:${DB_SERVICE}" \
+    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys \
     -dbRole sysdba \
     -schemaPrefix "$DB_SCHEMA_PREFIX" \
@@ -324,19 +324,20 @@ if $APPLY; then
         fi
     fi
 
-    # Check all expected schemas are listed in rcu log as Success
+    # Check each schema is confirmed as Success in the RCU log
     SCHEMA_FAILS=0
     for _c in "${RCU_COMPONENTS[@]}"; do
-        if grep -q "Success" "$LATEST_LOG" 2>/dev/null; then
-            ok "$(printf "Schema %-30s in log" "${DB_SCHEMA_PREFIX}_${_c}")"
+        _schema="${DB_SCHEMA_PREFIX}_${_c}"
+        if grep -q "$_schema" "$LATEST_LOG" 2>/dev/null && grep -A2 "$_schema" "$LATEST_LOG" 2>/dev/null | grep -q "Success"; then
+            ok "$(printf "Schema %-30s confirmed in log" "$_schema")"
         else
-            warn "$(printf "Schema %-30s not verified in log" "${DB_SCHEMA_PREFIX}_${_c}")"
+            warn "$(printf "Schema %-30s not confirmed in log" "$_schema")"
             SCHEMA_FAILS=$(( SCHEMA_FAILS + 1 ))
         fi
     done
-    unset _c
+    unset _c _schema
 
-    [ "$SCHEMA_FAILS" -gt 0 ] && warn "$SCHEMA_FAILS schema(s) not verified – check RCU log manually"
+    [ "$SCHEMA_FAILS" -gt 0 ] && warn "$SCHEMA_FAILS schema(s) not confirmed – check: $ORACLE_HOME/oracle_common/rcu/log/"
 
     printf "\n" | tee -a "$LOG_FILE"
     info "Next step: create WebLogic domain"

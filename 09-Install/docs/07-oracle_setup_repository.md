@@ -33,15 +33,26 @@ Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ..
 
 ### 1. Write RCU password file
 
-Create a temporary password file (one password per line):
-- Line 1: common schema password (for all schemas)
+RCU silent mode (`-f`) reads passwords from stdin/file in this order:
+- Line 1: SYS/SYSDBA password (for the DB connection)
+- Lines 2–8: schema password, one line per component (same password repeated)
 
 ```bash
 cat > /tmp/rcu_passwords.txt << 'EOF'
-MySecureSchemaPassword123
+MySysDBAPassword
+MySchemaPassword
+MySchemaPassword
+MySchemaPassword
+MySchemaPassword
+MySchemaPassword
+MySchemaPassword
+MySchemaPassword
 EOF
 chmod 600 /tmp/rcu_passwords.txt
 ```
+
+> 8 lines total: 1 SYS + 7 schema components (STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS).
+> The script builds this file automatically from `DB_SYS_PWD` and `DB_SCHEMA_PWD`.
 
 ### 2. Run RCU
 
@@ -49,7 +60,7 @@ chmod 600 /tmp/rcu_passwords.txt
 $ORACLE_HOME/oracle_common/bin/rcu \
     -silent \
     -createRepository \
-    -connectString "${DB_HOST}:${DB_PORT}:${DB_SERVICE}" \
+    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys \
     -dbRole sysdba \
     -schemaPrefix "${DB_SCHEMA_PREFIX}" \
@@ -62,6 +73,10 @@ $ORACLE_HOME/oracle_common/bin/rcu \
     -component UCSUMS \
     -f < /tmp/rcu_passwords.txt
 ```
+
+> **Connect string format:** Use `/service_name` (slash) for PDB service names — not `:SID`
+> (colon). Colon format addresses the CDB SID; slash format targets the PDB service.
+> Example: `10.10.10.124:1521/fmwpdb`
 
 ### 3. Clean up password file
 
