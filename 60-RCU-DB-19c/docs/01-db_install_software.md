@@ -28,10 +28,11 @@ before DBCA (requires the complete DB home).
 ## Prerequisites
 
 - `00-root_db_os_baseline.sh --apply` completed
+  — creates `/etc/oraInst.loc` pointing to `ORACLE_INVENTORY`
 - Oracle 19c base ZIP placed at:
   `/srv/patch_storage/database/LINUX.X64_193000_db_home.zip`
   (manual download from eDelivery — see below)
-- `environment_db.conf` configured
+- `environment_db.conf` configured (including `ORACLE_INVENTORY`)
 - At least 10 GB free under `ORACLE_BASE/product/`
 - MOS credentials in `mos_sec.conf.des3` (for patch download)
   — skipped automatically if `patchdir/` already contains patch ZIPs
@@ -179,6 +180,23 @@ The RU patch ZIP, when extracted, contains a single directory with `bundle.xml`.
 If AutoUpgrade downloaded only individual patches (not a bundled RU), this
 check fails.  Solution: set `DB_TARGET_RU=RECOMMENDED` or a specific version
 like `19.30`, delete `patchdir/*.zip`, and re-run.
+
+### "Cannot create /etc/oraInst.loc" / INS-32031
+
+`/etc/oraInst.loc` must exist before `runInstaller` runs — the 19c installer
+reads only `/etc/oraInst.loc` (not `$ORACLE_BASE/oraInst.loc`).
+
+```bash
+# Created by 00-root_db_os_baseline.sh --apply (runs as root)
+cat /etc/oraInst.loc
+# Expected:
+#   inventory_loc=/u01/app/oraInventory   ← ORACLE_INVENTORY
+#   inst_group=oinstall
+```
+
+If missing: re-run `00-root_db_os_baseline.sh --apply`.
+`ORACLE_INVENTORY` must be set in `environment_db.conf` (or derived from
+`$(dirname "$ORACLE_BASE")/oraInventory` — the standard Oracle layout).
 
 ---
 

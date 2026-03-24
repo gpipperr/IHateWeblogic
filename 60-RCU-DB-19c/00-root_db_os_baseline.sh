@@ -341,6 +341,54 @@ else
 fi
 
 # =============================================================================
+# 9. Oracle Central Inventory – /etc/oraInst.loc
+# =============================================================================
+# On a separate DB server (no FMW installed) 03-root_user_oracle.sh has not run,
+# so /etc/oraInst.loc does not yet exist.  Create it here using ORACLE_INVENTORY
+# from environment_db.conf (or environment.conf if available).
+# On a shared host where 03-root_user_oracle.sh already ran, this is a no-op.
+
+section "Oracle Central Inventory (/etc/oraInst.loc)"
+
+# ORACLE_INVENTORY may come from environment.conf (FMW install) or
+# environment_db.conf; derive from ORACLE_BASE parent if not set.
+_ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
+printList "ORACLE_INVENTORY" 26 "$_ORA_INVENTORY"
+
+ORA_INST_ETC="/etc/oraInst.loc"
+if [ -f "$ORA_INST_ETC" ]; then
+    _inv_current="$(grep '^inventory_loc=' "$ORA_INST_ETC" 2>/dev/null | cut -d= -f2)"
+    if [ "$_inv_current" = "$_ORA_INVENTORY" ]; then
+        ok "$ORA_INST_ETC already correct (inventory_loc=$_ORA_INVENTORY)"
+    else
+        warn "$ORA_INST_ETC exists but points to '$_inv_current' — expected '$_ORA_INVENTORY'"
+        if $APPLY; then
+            backup_file "$ORA_INST_ETC" "$(dirname "$ORA_INST_ETC")" 2>/dev/null || true
+            printf "inventory_loc=%s\ninst_group=oinstall\n" "$_ORA_INVENTORY" > "$ORA_INST_ETC"
+            chmod 644 "$ORA_INST_ETC"
+            ok "Updated: $ORA_INST_ETC → inventory_loc=$_ORA_INVENTORY"
+        else
+            info "  Would update: $ORA_INST_ETC → inventory_loc=$_ORA_INVENTORY"
+        fi
+    fi
+    unset _inv_current
+else
+    info "$ORA_INST_ETC not found — will create"
+    if $APPLY; then
+        mkdir -p "$_ORA_INVENTORY"
+        chmod 750 "$_ORA_INVENTORY"
+        printf "inventory_loc=%s\ninst_group=oinstall\n" "$_ORA_INVENTORY" > "$ORA_INST_ETC"
+        chmod 644 "$ORA_INST_ETC"
+        ok "Created: $ORA_INST_ETC  (inventory: $_ORA_INVENTORY)"
+        ok "Created: $_ORA_INVENTORY"
+    else
+        info "  Would create: $ORA_INST_ETC  (inventory_loc=$_ORA_INVENTORY)"
+        info "  Would create: $_ORA_INVENTORY"
+    fi
+fi
+unset _ORA_INVENTORY ORA_INST_ETC
+
+# =============================================================================
 
 print_summary
 exit $EXIT_CODE

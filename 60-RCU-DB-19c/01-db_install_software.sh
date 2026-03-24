@@ -119,9 +119,8 @@ section "Pre-checks"
 
 # --- Already installed? -------------------------------------------------------
 # Reliable indicator: Inventory XML entry for DB_ORACLE_HOME
-_ora_inst_loc="$ORACLE_BASE/oraInst.loc"
-[ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc="/etc/oraInst.loc"
-_inv_xml="$(grep "^inventory_loc=" "$_ora_inst_loc" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+# /etc/oraInst.loc is the canonical location (created by 00-root_db_os_baseline.sh)
+_inv_xml="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
 
 if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
     ok "DB home already registered in Oracle Inventory — installation complete"
@@ -130,7 +129,7 @@ if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/nu
         | head -10 | while IFS= read -r _line; do info "  $_line"; done
     print_summary; exit $EXIT_CODE
 fi
-unset _ora_inst_loc _inv_xml
+unset _inv_xml
 
 # --- Disk space ---------------------------------------------------------------
 _disk_check_dir="$(dirname "$DB_ORACLE_HOME")"
@@ -206,9 +205,7 @@ if $CLEAN; then
     fi
 
     # 1. Detach DB_ORACLE_HOME from Oracle Inventory
-    _ora_inst_loc_cl="$ORACLE_BASE/oraInst.loc"
-    [ ! -f "$_ora_inst_loc_cl" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_cl="/etc/oraInst.loc"
-    _inv_xml_cl="$(grep "^inventory_loc=" "$_ora_inst_loc_cl" 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+    _inv_xml_cl="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
 
     if [ -d "$DB_ORACLE_HOME" ]; then
         if [ -f "$_inv_xml_cl" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_cl" 2>/dev/null; then
@@ -230,7 +227,7 @@ if $CLEAN; then
     else
         ok "DB_ORACLE_HOME already absent: $DB_ORACLE_HOME"
     fi
-    unset _ora_inst_loc_cl _inv_xml_cl
+    unset _inv_xml_cl
 
     # 2. Remove base_stage (force re-extraction of base ZIP)
     if [ -d "$_AU_BASE_STAGE" ]; then
@@ -559,34 +556,35 @@ fi
 mkdir -p "$DB_ORACLE_HOME"
 chmod 775 "$DB_ORACLE_HOME"
 
-# oraInst.loc: prefer ORACLE_BASE location, fall back to /etc/oraInst.loc.
-# Sync to /etc/oraInst.loc because the 19c runInstaller only reads /etc/oraInst.loc.
-_ora_inst_loc="$ORACLE_BASE/oraInst.loc"
-[ ! -f "$_ora_inst_loc" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc="/etc/oraInst.loc"
-if [ ! -f "$_ora_inst_loc" ]; then
-    _inv_location="$(cd "$(dirname "$ORACLE_BASE")" && pwd)/oraInventory"
-    info "oraInst.loc not found — creating: $_ora_inst_loc"
-    mkdir -p "$_inv_location"
-    printf "inventory_loc=%s\ninst_group=oinstall\n" "$_inv_location" > "$_ora_inst_loc"
-fi
-_inv_location="$(grep "^inventory_loc=" "$_ora_inst_loc" | cut -d= -f2)"
-ok "$(printf "oraInst.loc    : %s  (inventory: %s)" "$_ora_inst_loc" "$_inv_location")"
-
-_ora_inst_etc="/etc/oraInst.loc"
-if [ "$_ora_inst_loc" != "$_ora_inst_etc" ]; then
-    if [ ! -f "$_ora_inst_etc" ] || ! diff -q "$_ora_inst_loc" "$_ora_inst_etc" >/dev/null 2>&1; then
-        info "Syncing oraInst.loc → /etc/oraInst.loc  (sudo)"
-        if sudo cp "$_ora_inst_loc" "$_ora_inst_etc" && sudo chmod 644 "$_ora_inst_etc"; then
-            ok "/etc/oraInst.loc synced"
-        else
-            warn "/etc/oraInst.loc could not be synced — installer may fail with INS-32031"
-            warn "  Fix as root:  cp '$_ora_inst_loc' '$_ora_inst_etc'"
-        fi
+# /etc/oraInst.loc: canonical inventory pointer (created by 00-root_db_os_baseline.sh).
+# The 19c runInstaller reads /etc/oraInst.loc; no -invPtrLoc argument needed.
+_inv_target="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
+if [ -f "/etc/oraInst.loc" ]; then
+    _inv_current="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)"
+    if [ "$_inv_current" = "$_inv_target" ]; then
+        ok "$(printf "/etc/oraInst.loc : inventory_loc=%s" "$_inv_current")"
     else
-        ok "/etc/oraInst.loc already matches — no sync needed"
+        warn "$(printf "/etc/oraInst.loc: inventory_loc='%s' expected '%s'" "$_inv_current" "$_inv_target")"
+        warn "  Re-run 00-root_db_os_baseline.sh --apply to correct"
+    fi
+    unset _inv_current
+else
+    # DB-only server where 00-root_db_os_baseline.sh was not run with --apply
+    info "/etc/oraInst.loc not found — creating via sudo"
+    mkdir -p "$_inv_target"
+    if sudo tee /etc/oraInst.loc > /dev/null << EOF
+inventory_loc=${_inv_target}
+inst_group=oinstall
+EOF
+    then
+        sudo chmod 644 /etc/oraInst.loc
+        ok "Created: /etc/oraInst.loc  (inventory: $_inv_target)"
+    else
+        fail "Cannot create /etc/oraInst.loc — re-run 00-root_db_os_baseline.sh --apply as root"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
 fi
-unset _ora_inst_etc _ora_inst_loc _inv_location
+unset _inv_target
 
 # Build -applyRU / -applyOneOffs arguments
 _ru_args=(-applyRU "$_RU_DIR")
@@ -631,12 +629,10 @@ unset CV_ASSUME_DISTID
 unset _ru_args _cv_distid _edition
 
 # Installer log location
-_ora_inst_loc_v="$ORACLE_BASE/oraInst.loc"
-[ ! -f "$_ora_inst_loc_v" ] && [ -f "/etc/oraInst.loc" ] && _ora_inst_loc_v="/etc/oraInst.loc"
-_inv_loc_v="$(grep "^inventory_loc=" "$_ora_inst_loc_v" 2>/dev/null | cut -d= -f2)"
+_inv_loc_v="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)"
 _installer_log=$(ls -t "${_inv_loc_v}/logs/InstallActions"*.log 2>/dev/null | head -1)
 [ -n "$_installer_log" ] && info "  Installer log: $_installer_log"
-unset _ora_inst_loc_v _inv_loc_v _installer_log
+unset _inv_loc_v _installer_log
 
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"

@@ -144,27 +144,34 @@ export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
 ### Directory layout on a shared host
 
 ```
-ORACLE_BASE=/u01/app/oracle                 (shared — same in both conf files)
-├── fmw/                                    ← FMW_HOME  (09-Install)
-│   ├── wlserver/
-│   └── oracle_common/ forms/ reports/ ...
-├── product/
-│   └── 19.30.0/db_home1/                  ← DB_ORACLE_HOME (installed via runInstaller -applyRU)
-├── oradata/
-│   └── FMWCDB/
-│       ├── system01.dbf  sysaux01.dbf ...  ← CDB datafiles
-│       └── FMWPDB/
-│           └── system01.dbf  ...           ← PDB datafiles
-├── admin/
-│   └── FMWCDB/adump/                      ← audit dump (traditional)
-└── diag/                                  ← Oracle ADR (automatic)
-    └── rdbms/fmwcdb/FMWCDB/
-        ├── alert/                          ← alert log
-        └── trace/                          ← trace files
+/u01/app/
+├── oraInventory/                           ← ORACLE_INVENTORY (one level above ORACLE_BASE)
+│   └── ContentsXML/inventory.xml           ← shared by FMW and DB
+│
+└── oracle/                                 ← ORACLE_BASE (shared — same in both conf files)
+    ├── fmw/                                ← FMW_HOME  (09-Install)
+    │   ├── wlserver/
+    │   └── oracle_common/ forms/ reports/ ...
+    ├── product/
+    │   └── 19.30.0/db_home1/              ← DB_ORACLE_HOME (installed via runInstaller -applyRU)
+    ├── oradata/
+    │   └── FMWCDB/
+    │       ├── system01.dbf  sysaux01.dbf ...  ← CDB datafiles
+    │       └── FMWPDB/
+    │           └── system01.dbf  ...           ← PDB datafiles
+    ├── admin/
+    │   └── FMWCDB/adump/                  ← audit dump (traditional)
+    └── diag/                              ← Oracle ADR (automatic)
+        └── rdbms/fmwcdb/FMWCDB/
+            ├── alert/                     ← alert log
+            └── trace/                     ← trace files
 ```
 
-`/u01/app/oraInventory/` is shared between FMW and DB — Oracle handles this
-automatically, no conflict.
+`ORACLE_INVENTORY` (`/u01/app/oraInventory/`) lives **one level above** `ORACLE_BASE` and is
+shared between FMW and DB homes — Oracle handles multi-home registration automatically.
+`/etc/oraInst.loc` (root-owned) points to it; created by:
+- `09-Install/03-root_user_oracle.sh` on a shared host
+- `60-RCU-DB-19c/00-root_db_os_baseline.sh` on a separate DB server
 
 Bridge between the two: after the PDB is running, the DBA (or the install
 engineer) sets in `environment.conf`:
