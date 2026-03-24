@@ -377,43 +377,20 @@ if $APPLY; then
 
     section "Verification"
 
-    info "Checking schemas in database..."
-    printf "\n" | tee -a "$LOG_FILE"
+    # RCU wrote its full output (including Completion Summary) to $LOG_FILE via tee.
+    # Grep from there — RCU uses component display names, not schema names, in its log.
+    COMP_SUCCESS=$(grep -c "Success" "$LOG_FILE" 2>/dev/null || true)
+    COMP_FAILURE=$(grep -c "Failure" "$LOG_FILE" 2>/dev/null || true)
+    EXPECTED=${#RCU_COMPONENTS[@]}
 
-    # RCU -checkRequirements gives an exit code 0 even if schemas already exist,
-    # so instead we verify via the RCU log for the Completion Summary.
-    RCU_LOG_DIR="$ORACLE_HOME/oracle_common/rcu/log"
-    if [ -d "$RCU_LOG_DIR" ]; then
-        LATEST_LOG="$(ls -t "$RCU_LOG_DIR"/rcu*.log 2>/dev/null | head -1)"
-        if [ -n "$LATEST_LOG" ]; then
-            ok "RCU log: $LATEST_LOG"
-            # Show Completion Summary from log
-            if grep -q "Completion Summary" "$LATEST_LOG" 2>/dev/null; then
-                printf "\n" | tee -a "$LOG_FILE"
-                info "RCU Completion Summary:"
-                grep -A 30 "Completion Summary" "$LATEST_LOG" \
-                    | grep -E "(Success|Failure|Component|Status)" \
-                    | while IFS= read -r _line; do
-                        info "  $_line"
-                    done
-            fi
-        fi
+    if [ "$COMP_FAILURE" -gt 0 ]; then
+        fail "$(printf "%d component(s) failed in RCU Completion Summary – check logs above" "$COMP_FAILURE")"
+        EXIT_CODE=2
+    elif [ "$COMP_SUCCESS" -ge "$EXPECTED" ]; then
+        ok "$(printf "All %d components confirmed Success in RCU Completion Summary" "$EXPECTED")"
+    else
+        warn "$(printf "Only %d/%d Success entries found in log – verify manually" "$COMP_SUCCESS" "$EXPECTED")"
     fi
-
-    # Check each schema is confirmed as Success in the RCU log
-    SCHEMA_FAILS=0
-    for _c in "${RCU_COMPONENTS[@]}"; do
-        _schema="${DB_SCHEMA_PREFIX}_${_c}"
-        if grep -q "$_schema" "$LATEST_LOG" 2>/dev/null && grep -A2 "$_schema" "$LATEST_LOG" 2>/dev/null | grep -q "Success"; then
-            ok "$(printf "Schema %-30s confirmed in log" "$_schema")"
-        else
-            warn "$(printf "Schema %-30s not confirmed in log" "$_schema")"
-            SCHEMA_FAILS=$(( SCHEMA_FAILS + 1 ))
-        fi
-    done
-    unset _c _schema
-
-    [ "$SCHEMA_FAILS" -gt 0 ] && warn "$SCHEMA_FAILS schema(s) not confirmed – check: $ORACLE_HOME/oracle_common/rcu/log/"
 
     printf "\n" | tee -a "$LOG_FILE"
     info "Next step: create WebLogic domain"
