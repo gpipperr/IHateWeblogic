@@ -46,9 +46,17 @@ cd('/Security/base_domain/User/weblogic')
 cmo.setName('webadmin')           # rename from default 'weblogic'
 cmo.setPassword('WLS_ADMIN_PASSWORD')
 
-# Domain settings
+# Domain name
 cd('/')
 set('Name', 'fr_domain')
+
+# Add templates BEFORE setOption() calls
+# (ServerStartMode is not valid during addTemplate – causes WLSTException)
+addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
+addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')
+addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')
+
+# Domain options – set AFTER all addTemplate calls
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')
 
@@ -56,15 +64,6 @@ setOption('OverwriteDomain', 'true')
 cd('/Servers/AdminServer')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 7001)
-
-# JRF template (adds OPSS, MDS, JDBC data sources)
-addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
-
-# Forms template – creates WLS_FORMS managed server automatically
-addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')
-
-# Reports template – creates WLS_REPORTS managed server automatically
-addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')
 
 # Update managed server listen addresses (created by templates above)
 cd('/Servers/WLS_FORMS')

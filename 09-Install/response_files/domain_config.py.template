@@ -16,9 +16,21 @@ cd('/Security/base_domain/User/weblogic')
 cmo.setName('##WLS_ADMIN_USER##')
 cmo.setPassword('##WLS_ADMIN_PWD##')
 
-# --- Domain settings ---------------------------------------------------------
+# --- Domain name -------------------------------------------------------------
 cd('/')
 set('Name', '##DOMAIN_NAME##')
+
+# --- Add templates BEFORE setOption (ServerStartMode not valid mid-addTemplate) ---
+# JRF template (OPSS, MDS, ADF, JDBC data sources)
+addTemplate('##ORACLE_HOME##/oracle_common/common/templates/wls/oracle.jrf_template.jar')
+
+# Forms template (creates WLS_FORMS managed server)
+addTemplate('##ORACLE_HOME##/forms/common/templates/wls/forms_template.jar')
+
+# Reports template (creates WLS_REPORTS managed server)
+addTemplate('##ORACLE_HOME##/reports/common/templates/wls/oracle.reports_app_template.jar')
+
+# --- Domain options (set AFTER all addTemplate calls) ------------------------
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')
 
@@ -26,15 +38,6 @@ setOption('OverwriteDomain', 'true')
 cd('/Servers/AdminServer')
 set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
 set('ListenPort', ##WLS_ADMIN_PORT##)
-
-# --- JRF template (OPSS, MDS, ADF, JDBC data sources) ------------------------
-addTemplate('##ORACLE_HOME##/oracle_common/common/templates/wls/oracle.jrf_template.jar')
-
-# --- Forms template (creates WLS_FORMS managed server) -----------------------
-addTemplate('##ORACLE_HOME##/forms/common/templates/wls/forms_template.jar')
-
-# --- Reports template (creates WLS_REPORTS managed server) -------------------
-addTemplate('##ORACLE_HOME##/reports/common/templates/wls/oracle.reports_app_template.jar')
 
 # --- Managed server listen addresses (templates create the servers) ----------
 cd('/Servers/WLS_FORMS')
