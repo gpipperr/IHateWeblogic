@@ -1,20 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 03-db_create_database.sh
+# Script   : 05-db_create_database.sh
 # Purpose  : Create Oracle 19c CDB + PDB (FMWCDB / FMWPDB) via dbca -silent.
 #            Includes:
-#              - Listener creation (listener.ora)
 #              - DBCA silent with minimal FMW-RCU sizing
 #              - Post-creation parameter tuning (open_cursors, processes, …)
 #              - ALTER PLUGGABLE DATABASE ALL SAVE STATE (PDB auto-open)
-# Call     : ./60-RCU-DB-19c/03-db_create_database.sh
-#            ./60-RCU-DB-19c/03-db_create_database.sh --apply
-#            ./60-RCU-DB-19c/03-db_create_database.sh --help
+#            Requires listener running — run 04-db_setup_listener.sh first.
+# Call     : ./60-RCU-DB-19c/05-db_create_database.sh
+#            ./60-RCU-DB-19c/05-db_create_database.sh --apply
+#            ./60-RCU-DB-19c/05-db_create_database.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, db_sys_sec.conf.des3
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/04-db_create_database.md
+# Ref      : 60-RCU-DB-19c/docs/05-db_create_database.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,12 +44,15 @@ init_log "$DIAG_LOG_DIR"
 # =============================================================================
 
 APPLY=false
+CLEAN=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--help]\n\n" "$(basename "$0")"
-    printf "  %-12s %s\n" "(none)"  "Dry-run: show configuration, no DB created"
-    printf "  %-12s %s\n" "--apply" "Create listener + CDB + PDB + post-config"
-    printf "  %-12s %s\n" "--help"  "Show this help"
+    printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
+    printf "  %-22s %s\n" "(none)"          "Dry-run: show configuration, no DB created"
+    printf "  %-22s %s\n" "--apply"         "Create CDB + PDB + post-config"
+    printf "  %-22s %s\n" "--clean"         "Dry-run: show what --clean --apply would remove"
+    printf "  %-22s %s\n" "--clean --apply" "Delete existing DB + datafiles, then re-create"
+    printf "  %-22s %s\n" "--help"          "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
@@ -57,14 +60,16 @@ _usage() {
 for _arg in "$@"; do
     case "$_arg" in
         --apply)   APPLY=true ;;
+        --clean)   CLEAN=true ;;
         --help|-h) _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
 
-# Set ORACLE_HOME to DB home for this script (does NOT affect .bash_profile)
+# Set ORACLE_HOME + ORACLE_SID for sqlplus OS authentication (/ AS SYSDBA)
 export ORACLE_HOME="$DB_ORACLE_HOME"
+export ORACLE_SID="${DB_SID}"
 
 # =============================================================================
 # Banner
@@ -90,19 +95,24 @@ section "Pre-checks"
 
 [ -x "$DB_ORACLE_HOME/bin/dbca" ] \
     && ok "dbca found: $DB_ORACLE_HOME/bin/dbca" \
-    || { fail "dbca not found – run 02-db_patch_autoupgrade.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "dbca not found – run 02-db_patch_db_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 [ -x "$DB_ORACLE_HOME/bin/lsnrctl" ] \
-    && ok "lsnrctl found" \
-    || { fail "lsnrctl not found in $DB_ORACLE_HOME/bin/"; EXIT_CODE=2; }
+    && ok "lsnrctl found: $DB_ORACLE_HOME/bin/lsnrctl" \
+    || { fail "lsnrctl not found — run 02-db_patch_db_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+"$DB_ORACLE_HOME/bin/lsnrctl" status LISTENER >/dev/null 2>&1 \
+    && ok "Listener is running" \
+    || { fail "Listener is NOT running — run 03a-db_setup_listener.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- Unified Auditing relink verification ------------------------------------
+# INFO only — DB creation works with standard auditing (uniaud_off).
+# Unified Auditing is enabled in a separate step (04-db_audit_setup.sh).
 _kzaiang_count=$(strings "$DB_ORACLE_HOME/bin/oracle" 2>/dev/null | grep -c "kzaiang" || printf "0")
 if [ "$_kzaiang_count" -gt 0 ]; then
-    ok "Unified Auditing relink verified (kzaiang: $_kzaiang_count)"
+    ok "Unified Auditing: enabled in oracle binary (kzaiang: $_kzaiang_count)"
 else
-    fail "Unified Auditing relink NOT verified (run 02-db_patch_autoupgrade.sh --apply)"
-    EXIT_CODE=2
+    info "Unified Auditing: not yet enabled (standard auditing active — OK for DB creation)"
 fi
 unset _kzaiang_count
 
@@ -137,8 +147,10 @@ fi
 
 section "Database Configuration"
 
-_memory_mb="${DB_SGA_MB:-1536}"
-_pga_mb="${DB_PGA_MB:-512}"
+_memory_mb="${DB_SGA_MB:-4096}"
+_shared_pool_mb="${DB_SHARED_POOL_MB:-2048}"
+_java_pool_mb="${DB_JAVA_POOL_MB:-512}"
+_pga_mb="${DB_PGA_MB:-1024}"
 _total_mb=$(( _memory_mb + _pga_mb ))
 _listener_port="${DB_LISTENER_PORT:-1521}"
 _listener_host="${DB_LISTENER_HOST:-$(_get_hostname)}"
@@ -146,8 +158,10 @@ _listener_host="${DB_LISTENER_HOST:-$(_get_hostname)}"
 printList "CDB name"          28 "$DB_CDB_NAME"
 printList "PDB name"          28 "$DB_PDB_NAME"
 printList "SID"               28 "$DB_SID"
-printList "SGA_TARGET"        28 "${_memory_mb} MB"
-printList "PGA_TARGET"        28 "${_pga_mb} MB"
+printList "SGA_TARGET"        28 "${_memory_mb} MB  → post-install: ${DB_SGA_POST_MB:-2048} MB"
+printList "SHARED_POOL_SIZE"  28 "${_shared_pool_mb} MB  (floor for JSERVER) → 0 (auto) after install"
+printList "JAVA_POOL_SIZE"    28 "${_java_pool_mb} MB  (floor for JSERVER) → 0 (auto) after install"
+printList "PGA_TARGET"        28 "${_pga_mb} MB  → post-install: ${DB_PGA_POST_MB:-512} MB"
 printList "Total memory"      28 "${_total_mb} MB"
 printList "Character set"     28 "${DB_CHAR_SET:-AL32UTF8}"
 printList "Data dir"          28 "$DB_DATA_DIR"
@@ -197,6 +211,61 @@ _cleanup_db_passwords() {
 trap '_cleanup_db_passwords' EXIT
 
 # =============================================================================
+# Clean – Delete existing database + datafiles
+# =============================================================================
+# Use when DBCA failed partway and a fresh start is needed.
+# Steps:
+#   1. dbca -deleteDatabase   (deregisters from inventory/oratab, stops instance)
+#   2. rm -rf datafiles, admin, FRA subdirectory
+#
+# dbca -deleteDatabase may fail if the DB was never fully registered (partial
+# create).  Errors are ignored — directory cleanup follows regardless.
+
+if $CLEAN; then
+    section "Clean – Delete DB and datafiles"
+
+    _clean_data="${DB_DATA_DIR}/${DB_CDB_NAME}"
+    _clean_admin="${DB_ADMIN_DIR:-$ORACLE_BASE/admin}/${DB_CDB_NAME}"
+    _clean_fra="${DB_FAST_RECOVERY_AREA:-}/${DB_CDB_NAME}"
+
+    info "Would remove:"
+    info "  DB instance  : $DB_SID"
+    info "  Datafiles    : $_clean_data"
+    info "  Admin dir    : $_clean_admin"
+    [ -n "${DB_FAST_RECOVERY_AREA:-}" ] && info "  FRA subdir   : $_clean_fra"
+
+    if ! $APPLY; then
+        warn "Dry-run – use --clean --apply to actually delete."
+        print_summary; exit $EXIT_CODE
+    fi
+
+    info "Step 1: dbca -deleteDatabase (errors ignored if not registered) ..."
+    ORACLE_BASE="$ORACLE_BASE" ORACLE_HOME="$DB_ORACLE_HOME" \
+        "$DB_ORACLE_HOME/bin/dbca" -silent \
+        -deleteDatabase \
+        -sourceDB "$DB_SID" \
+        -sysPassword "$DB_SYS_PWD" \
+        2>&1 | tee -a "$LOG_FILE" || true
+    ok "dbca deleteDatabase done (or skipped)"
+
+    info "Step 2: removing datafile directories ..."
+    for _d in "$_clean_data" "$_clean_admin"; do
+        if [ -d "$_d" ]; then
+            rm -rf "$_d" && ok "Removed: $_d" || warn "Could not remove: $_d"
+        else
+            ok "Already absent: $_d"
+        fi
+    done
+    if [ -n "${DB_FAST_RECOVERY_AREA:-}" ] && [ -d "$_clean_fra" ]; then
+        rm -rf "$_clean_fra" && ok "Removed: $_clean_fra" || warn "Could not remove: $_clean_fra"
+    fi
+    unset _clean_data _clean_admin _clean_fra _d
+
+    ok "Clean completed — continuing with --apply"
+    printf "\n" | tee -a "$LOG_FILE"
+fi
+
+# =============================================================================
 # 1. Create directory structure
 # =============================================================================
 
@@ -213,43 +282,7 @@ fi
 unset _adump_dir
 
 # =============================================================================
-# 2. Create listener
-# =============================================================================
-
-section "Listener"
-
-_net_admin="$DB_ORACLE_HOME/network/admin"
-mkdir -p "$_net_admin"
-
-_listener_ora="$_net_admin/listener.ora"
-if [ -f "$_listener_ora" ]; then
-    backup_file "$_listener_ora" "$_net_admin"
-fi
-
-cat > "$_listener_ora" << LSNEOF
-# listener.ora – generated by 03-db_create_database.sh
-# $(date '+%Y-%m-%d %H:%M:%S')
-LISTENER =
-  (DESCRIPTION_LIST =
-    (DESCRIPTION =
-      (ADDRESS = (PROTOCOL = TCP)(HOST = ${_listener_host})(PORT = ${_listener_port}))
-      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1521))
-    )
-  )
-
-# Automatic registration — no static SID_LIST needed for 19c
-LSNEOF
-
-ok "listener.ora written: $_listener_ora"
-
-info "Starting LISTENER ..."
-"$DB_ORACLE_HOME/bin/lsnrctl" start LISTENER 2>&1 | tee -a "$LOG_FILE"
-_lsnr_rc=${PIPESTATUS[0]}
-[ "$_lsnr_rc" -eq 0 ] && ok "Listener started" || warn "lsnrctl start rc=$_lsnr_rc (may already be running)"
-unset _net_admin _listener_ora _lsnr_rc
-
-# =============================================================================
-# 3. DBCA silent – create CDB + PDB
+# 2. DBCA silent – create CDB + PDB
 # =============================================================================
 
 section "DBCA – Create CDB + PDB"
@@ -279,13 +312,12 @@ printf "\n  DBCA started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FI
     -pdbAdminPassword      "${DB_PDB_ADMIN_PWD}" \
     -databaseType          MULTIPURPOSE \
     -memoryMgmtType        CUSTOM_SGA \
-    -sga                   "${DB_SGA_MB:-1536}" \
-    -pga                   "${DB_PGA_MB:-512}" \
+    -initParams            "sga_target=${DB_SGA_MB:-4096}m,shared_pool_size=${DB_SHARED_POOL_MB:-2048}m,java_pool_size=${DB_JAVA_POOL_MB:-512}m,pga_aggregate_target=${DB_PGA_MB:-1024}m" \
     -storageType           FS \
     -datafileDestination   "${DB_DATA_DIR}" \
     -redoLogFileSize        50 \
     -emConfiguration       NONE \
-    -dbOptions             "JSERVER:false,ORACLE_TEXT:false,IMEDIA:false,CWMLITE:false,SPATIAL:false,OMS:false,APEX:false,DV:false" \
+    -dbOptions             "JSERVER:true,ORACLE_TEXT:false,IMEDIA:false,CWMLITE:false,SPATIAL:false,OMS:false,APEX:false,DV:false" \
     -characterSet          "${DB_CHAR_SET:-AL32UTF8}" \
     -nationalCharacterSet  "${DB_NCHAR_SET:-AL16UTF16}" \
     -sysPassword           "${DB_SYS_PWD}" \
@@ -314,7 +346,7 @@ section "Post-Creation Parameter Tuning"
 
 info "Applying RCU-required parameters and PDB SAVE STATE ..."
 
-"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog 2>&1 | tee -a "$LOG_FILE" << SQLEOF
+"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF 2>&1 | tee -a "$LOG_FILE"
 CONNECT / AS SYSDBA
 
 -- RCU pre-check RCU-6107 and parallel session requirements
@@ -335,27 +367,88 @@ EXIT;
 SQLEOF
 _sql_rc=${PIPESTATUS[0]}
 
-info "Restarting database to apply static parameters ..."
+# MAX_STRING_SIZE=EXTENDED requires UPGRADE mode migration (utl32k.sql).
+# Procedure:
+#   1. STARTUP UPGRADE
+#   2. @utl32k.sql in CDB$ROOT
+#   3. Open all PDBs in UPGRADE mode + run utl32k.sql
+#   4. Normal restart
+#   5. Recompile invalid objects (utlrp.sql)
 
-"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog 2>&1 | tee -a "$LOG_FILE" << SQLEOF2
+info "Restarting in UPGRADE mode for MAX_STRING_SIZE=EXTENDED migration ..."
+
+"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF2 2>&1 | tee -a "$LOG_FILE"
 CONNECT / AS SYSDBA
+SHUTDOWN IMMEDIATE;
+STARTUP UPGRADE;
+@?/rdbms/admin/utl32k.sql
+ALTER PLUGGABLE DATABASE ALL OPEN UPGRADE;
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+@?/rdbms/admin/utl32k.sql
+ALTER SESSION SET CONTAINER = CDB\$ROOT;
 SHUTDOWN IMMEDIATE;
 STARTUP;
 ALTER PLUGGABLE DATABASE ALL OPEN;
+@?/rdbms/admin/utlrp.sql
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+@?/rdbms/admin/utlrp.sql
+ALTER SESSION SET CONTAINER = CDB\$ROOT;
 SELECT NAME, OPEN_MODE FROM V\$PDBS;
-SHOW PARAMETER open_cursors;
-SHOW PARAMETER processes;
 SHOW PARAMETER max_string_size;
+SHOW PARAMETER processes;
 SHOW PARAMETER compatible;
 EXIT;
 SQLEOF2
 _restart_rc=${PIPESTATUS[0]}
 
-[ "$_restart_rc" -eq 0 ] && ok "Database restarted and PDB opened" \
-    || warn "DB restart returned rc=$_restart_rc – check log manually"
+[ "$_restart_rc" -eq 0 ] && ok "Database restarted, MAX_STRING_SIZE=EXTENDED migrated, PDB opened" \
+    || warn "DB restart/migration rc=$_restart_rc – check log manually"
 
 # =============================================================================
-# 5. Update /etc/oratab
+# 5. Post-install memory resize
+# =============================================================================
+# Installation used large SGA + explicit shared/java pool floors for JSERVER
+# class loading.  After a successful restart we shrink to production sizing:
+#   - shared_pool_size=0  → Oracle auto-tunes within sga_target
+#   - java_pool_size=0    → Oracle auto-tunes within sga_target
+#   - sga_target          → DB_SGA_POST_MB  (default 2048 MB)
+#   - pga_aggregate_target → DB_PGA_POST_MB (default 512 MB)
+# All SCOPE=BOTH — no further restart required.
+
+section "Post-Install Memory Resize"
+
+_sga_post="${DB_SGA_POST_MB:-2048}"
+_pga_post="${DB_PGA_POST_MB:-512}"
+printList "SGA_TARGET (post)"  28 "${_sga_post} MB"
+printList "PGA_TARGET (post)"  28 "${_pga_post} MB"
+printList "SHARED_POOL_SIZE"   28 "0  (auto-tune within SGA)"
+printList "JAVA_POOL_SIZE"     28 "0  (auto-tune within SGA)"
+
+"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << MEMEOF 2>&1 | tee -a "$LOG_FILE"
+CONNECT / AS SYSDBA
+-- CDB$ROOT: instance-level parameters (SGA is shared across all PDBs)
+-- Remove explicit floors first — otherwise sga_target reduction may fail
+ALTER SYSTEM SET shared_pool_size     = 0 SCOPE=BOTH;
+ALTER SYSTEM SET java_pool_size       = 0 SCOPE=BOTH;
+-- Reduce to production values (dynamic — no restart needed)
+ALTER SYSTEM SET sga_target           = ${_sga_post}m SCOPE=BOTH;
+ALTER SYSTEM SET pga_aggregate_target = ${_pga_post}m SCOPE=BOTH;
+SHOW PARAMETER sga_target;
+SHOW PARAMETER pga_aggregate_target;
+
+-- PDB: open_cursors is PDB-modifiable — set in PDB context as well
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+ALTER SYSTEM SET open_cursors = ${DB_OPEN_CURSORS:-1000} SCOPE=BOTH;
+SHOW PARAMETER open_cursors;
+EXIT;
+MEMEOF
+_mem_rc=${PIPESTATUS[0]}
+[ "$_mem_rc" -eq 0 ] && ok "Memory resized to production values" \
+    || warn "Memory resize rc=$_mem_rc – check log"
+unset _sga_post _pga_post _mem_rc
+
+# =============================================================================
+# 7. Update /etc/oratab
 # =============================================================================
 
 section "oratab"
@@ -392,7 +485,11 @@ info "  DB_HOST=${_listener_host}"
 info "  DB_PORT=${_listener_port}"
 info "  DB_SERVICE=${DB_PDB_NAME}"
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: configure Unified Auditing"
+info "Next step: RCU schema creation"
+info "  09-Install/07-oracle_setup_repository.sh --apply"
+info ""
+info "Optional (after RCU): enable Unified Auditing + custom audit tablespace"
+info "  relink uniaud_on: cd \$ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
 info "  04-db_audit_setup.sh --apply"
 
 # =============================================================================

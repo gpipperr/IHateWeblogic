@@ -80,12 +80,14 @@ Run in this order — each step must complete before the next:
 |---|---|---|---|
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
 | 1 | `01-db_install_software.sh` | oracle | 19c software-only silent install |
-| 2 | `02-db_patch_autoupgrade.sh` | oracle | AutoUpgrade create_home + chopt disable |
-| 3 | `03-db_create_database.sh` | oracle | Unified Audit relink → DBCA silent CDB+PDB |
-| 4 | `04-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
-| 5 | `05-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
+| 2 | `02-db_patch_db_software.sh` | oracle | AutoUpgrade download + cp-a + opatchauto + chopt |
+| 4 | `04-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
+| 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
+| 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
+| 7 | `07-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
+| 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
 
-After step 5, continue with:
+After step 8, continue with:
 
 ```
 09-Install/07-oracle_setup_repository.sh --apply
@@ -136,11 +138,14 @@ DB_SERVICE=FMWPDB   # PDB service name
 | Doc | Content |
 |---|---|
 | [docs/00-concept.md](docs/00-concept.md) | Architecture decisions, FMW/DB separation |
-| [docs/01-db_os_baseline.md](docs/01-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
-| [docs/02-db_install_software.md](docs/02-db_install_software.md) | Silent software install |
-| [docs/03-db_patch_autoupgrade.md](docs/03-db_patch_autoupgrade.md) | AutoUpgrade patch + chopt |
-| [docs/04-db_create_database.md](docs/04-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
-| [docs/05-db_audit_setup.md](docs/05-db_audit_setup.md) | Unified Auditing setup |
+| [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
+| [docs/01-db_install_software.md](docs/01-db_install_software.md) | Silent software install |
+| [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | AutoUpgrade patch + chopt |
+| [docs/04-db_setup_listener.md](docs/04-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
+| [docs/05-db_create_database.md](docs/05-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
+| [docs/06-db_audit_setup.md](docs/06-db_audit_setup.md) | Unified Auditing setup |
+| [docs/07-db_fmw_tablespace.md](docs/07-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
+| [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
 
 ---
 
