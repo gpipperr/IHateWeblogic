@@ -70,12 +70,12 @@ _db_url = 'jdbc:oracle:thin:@//##DB_HOST##:##DB_PORT##/##DB_SERVICE##'
 _db_pw  = '##DB_SCHEMA_PWD##'
 _pfx    = '##DB_SCHEMA_PREFIX##'
 
-# JRF data sources
+# JRF data sources (verified present in FMW 14.1.2 Forms & Reports)
 _cfg_ds('LocalSvcTblDataSource', _pfx + '_STB',         _db_url, _db_pw)
 _cfg_ds('opss-data-source',      _pfx + '_OPSS',        _db_url, _db_pw)
 _cfg_ds('opss-audit-DBDS',       _pfx + '_IAU_APPEND',  _db_url, _db_pw)
 _cfg_ds('opss-audit-viewDS',     _pfx + '_IAU_VIEWER',  _db_url, _db_pw)
-_cfg_ds('mds-owsm',              _pfx + '_MDS',         _db_url, _db_pw)
+# mds-owsm does NOT exist in Forms & Reports (no OWSM component installed)
 
 # --- Write domain ------------------------------------------------------------
 writeDomain('##DOMAIN_HOME##')
