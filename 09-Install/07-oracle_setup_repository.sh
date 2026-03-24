@@ -83,10 +83,11 @@ if $APPLY && $DROP; then
 fi
 
 # =============================================================================
-# RCU components (7 schemas for FMW 14.1.2 Forms/Reports)
+# RCU components (8 schemas for FMW 14.1.2 Forms/Reports)
+# Verified via: rcu -silent -listComponents
 # =============================================================================
 
-RCU_COMPONENTS=(STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS)
+RCU_COMPONENTS=(STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS WLS)
 
 # =============================================================================
 # Banner

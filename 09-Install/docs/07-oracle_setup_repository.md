@@ -24,8 +24,13 @@ in the Oracle database. These schemas are required before the WebLogic domain ca
 | `_IAU_APPEND` | Audit Append | Audit data insert |
 | `_IAU_VIEWER` | Audit Viewer | Audit read access |
 | `_UCSUMS` | User Messaging Service | UMS configuration |
+| `_WLS` | WebLogic Services | WLS internal metadata |
 
 Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ...).
+
+> **Note:** The component list was verified via `rcu -silent -listComponents` on FMW 14.1.2.
+> WLS (WebLogic Services) is a required component in 14.1.2 — it was not part of earlier
+> 12.2.1.x installations. Missing it causes: *Schema Password for component DEV_WLS is null*.
 
 ---
 
@@ -47,11 +52,12 @@ MySchemaPassword
 MySchemaPassword
 MySchemaPassword
 MySchemaPassword
+MySchemaPassword
 EOF
 chmod 600 /tmp/rcu_passwords.txt
 ```
 
-> 8 lines total: 1 SYS + 7 schema components (STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS).
+> 9 lines total: 1 SYS + 8 schema components (STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS WLS).
 > The script builds this file automatically from `DB_SYS_PWD` and `DB_SCHEMA_PWD`.
 
 ### 2. Run RCU
@@ -71,6 +77,7 @@ $ORACLE_HOME/oracle_common/bin/rcu \
     -component IAU_APPEND \
     -component IAU_VIEWER \
     -component UCSUMS \
+    -component WLS \
     -f < /tmp/rcu_passwords.txt
 ```
 
