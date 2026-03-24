@@ -155,11 +155,16 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 - Decrypts `DB_SYS_PWD` + `DB_SCHEMA_PWD` from `db_sys_sec.conf.des3`
   (written by `00-Setup/database_rcu_sec.sh` or `09-Install/01-setup-interview.sh`)
 - Creates `/tmp/rcu_passwords.tmp` with correct permissions (600)
+- **DB Pre-Flight Check** (before touching the database):
+  1. TCP port reachability (`bash /dev/tcp`) — fails fast if listener is down
+  2. `rcu -checkRequirements` — tests SYSDBA auth, DB version, character set,
+     and whether schemas already exist; aborts if any check fails
+  3. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
+     to confirm the tablespace was pre-created before proceeding
 - Runs `rcu -silent -createRepository` with all 7 components
 - Deletes the password file immediately via `trap cleanup EXIT`
   (cleanup runs even if RCU fails or script is interrupted)
-- Verifies schemas exist in the database after creation
-- Checks tablespace usage after creation
+- Verifies each schema is confirmed as Success in the RCU log
 
 ---
 

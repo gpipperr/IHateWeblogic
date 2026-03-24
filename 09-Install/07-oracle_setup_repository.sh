@@ -252,6 +252,63 @@ done
 unset _c
 
 # =============================================================================
+# DB Pre-Flight Check (before RCU touches the database)
+# =============================================================================
+
+section "DB Pre-Flight Check"
+
+# --- 1. TCP port reachability -------------------------------------------------
+if timeout 3 bash -c ">/dev/null </dev/tcp/${DB_HOST}/${DB_PORT}" 2>/dev/null; then
+    ok "$(printf "TCP port reachable : %s:%s" "$DB_HOST" "$DB_PORT")"
+else
+    fail "$(printf "Cannot reach %s:%s – listener not running or firewall blocking?" "$DB_HOST" "$DB_PORT")"
+    fail "  Check on DB server: lsnrctl status"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+# --- 2. RCU checkRequirements (SYSDBA auth + schema existence + DB params) ---
+info "Running rcu -checkRequirements (tests SYSDBA connection + DB prerequisites) ..."
+"$RCU_BIN" \
+    -silent \
+    -checkRequirements \
+    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
+    -dbUser sys \
+    -dbRole sysdba \
+    -schemaPrefix "$DB_SCHEMA_PREFIX" \
+    "${RCU_COMP_FLAGS[@]}" \
+    -f < "$RCU_PW_FILE" \
+    2>&1 | tee -a "$LOG_FILE"
+
+PREFLIGHT_RC=${PIPESTATUS[0]}
+
+if [ "$PREFLIGHT_RC" -ne 0 ]; then
+    fail "rcu -checkRequirements failed (rc=$PREFLIGHT_RC)"
+    fail "  Possible causes: wrong DB_HOST/DB_PORT/DB_SERVICE, wrong DB_SYS_PWD,"
+    fail "  DB character set not AL32UTF8, or schemas already exist."
+    fail "  Check: $ORACLE_HOME/oracle_common/rcu/log/"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+ok "rcu -checkRequirements passed – DB connection and prerequisites OK"
+
+# --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured) ---------------
+if [ -n "${RCU_TABLESPACE:-}" ]; then
+    printf "\n" | tee -a "$LOG_FILE"
+    warn "$(printf "RCU_TABLESPACE='%s' is set – DBA must have pre-created this tablespace." "$RCU_TABLESPACE")"
+    info "  Verify on DB server (as SYSDBA):"
+    info "    SELECT tablespace_name, status FROM dba_tablespaces"
+    info "    WHERE tablespace_name = UPPER('${RCU_TABLESPACE}');"
+    info "  If missing – run on DB server: 60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply"
+    printf "\n" | tee -a "$LOG_FILE"
+    if $APPLY; then
+        if ! askYesNo "Tablespace '${RCU_TABLESPACE}' confirmed as pre-created in the DB?" "n"; then
+            info "Aborted – create the tablespace first, then re-run."
+            print_summary; exit 0
+        fi
+        ok "Tablespace '${RCU_TABLESPACE}' confirmed by operator"
+    fi
+fi
+
+# =============================================================================
 # Run RCU
 # =============================================================================
 
