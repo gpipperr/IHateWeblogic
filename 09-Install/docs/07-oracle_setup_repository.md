@@ -25,12 +25,14 @@ in the Oracle database. These schemas are required before the WebLogic domain ca
 | `_IAU_VIEWER` | Audit Viewer | Audit read access |
 | `_UCSUMS` | User Messaging Service | UMS configuration |
 | `_WLS` | WebLogic Services | WLS internal metadata |
+| `_WLS_RUNTIME` | WebLogic Services (sub) | WLS runtime metadata (sub-schema of WLS) |
 
 Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ...).
 
 > **Note:** The component list was verified via `rcu -silent -listComponents` on FMW 14.1.2.
 > WLS (WebLogic Services) is a required component in 14.1.2 — it was not part of earlier
-> 12.2.1.x installations. Missing it causes: *Schema Password for component DEV_WLS is null*.
+> 12.2.1.x installations. WLS also has a sub-schema `WLS_RUNTIME` which requires an
+> additional password line in the RCU password file (see password file format below).
 
 ---
 
@@ -53,11 +55,13 @@ MySchemaPassword
 MySchemaPassword
 MySchemaPassword
 MySchemaPassword
+MySchemaPassword
 EOF
 chmod 600 /tmp/rcu_passwords.txt
 ```
 
-> 9 lines total: 1 SYS + 8 schema components (STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS WLS).
+> 10 lines total: 1 SYS + 8 schema components (STB MDS OPSS IAU IAU_APPEND IAU_VIEWER UCSUMS WLS)
+> + 1 extra for WLS_RUNTIME (sub-schema of WLS, requires its own password line).
 > The script builds this file automatically from `DB_SYS_PWD` and `DB_SCHEMA_PWD`.
 
 ### 2. Run RCU

@@ -233,6 +233,11 @@ section "Password File"
     printf '%s\n' "$DB_SYS_PWD"     # Line 1: SYS / SYSDBA password
     for _c in "${RCU_COMPONENTS[@]}"; do
         printf '%s\n' "$DB_SCHEMA_PWD"  # One line per component (same schema password)
+        # WLS has a sub-schema WLS_RUNTIME that requires an additional password line
+        # (RCU log: "Retrieve additional schema password [1] for: WLS")
+        if [ "$_c" = "WLS" ]; then
+            printf '%s\n' "$DB_SCHEMA_PWD"
+        fi
     done
     unset _c
 } > "$RCU_PW_FILE"
