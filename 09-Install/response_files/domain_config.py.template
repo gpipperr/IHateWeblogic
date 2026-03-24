@@ -48,15 +48,34 @@ cd('/Servers/WLS_REPORTS')
 set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
 set('ListenPort', ##WLS_REPORTS_PORT##)
 
-# --- JDBC: LocalSvcTblDataSource (FMW Service Table schema = STB) -------------
-# The JRF template creates this data source; configure it for the actual DB.
-# JDBC thin URL: //host:port/service_name  (slash = PDB service name)
-cd('/JDBCSystemResources/LocalSvcTblDataSource/JdbcResource/LocalSvcTblDataSource')
-cd('JDBCDriverParams/NO_NAME_0')
-set('URL', 'jdbc:oracle:thin:@//##DB_HOST##:##DB_PORT##/##DB_SERVICE##')
-set('PasswordEncrypted', '##DB_SCHEMA_PWD##')
-cd('Properties/NO_NAME_0/Property/user')
-set('Value', '##DB_SCHEMA_PREFIX##_STB')
+# --- JDBC data sources (created by JRF/Forms/Reports templates) --------------
+# All FMW schemas use the same password; URL uses thin @//host:port/service
+# (double-slash + slash = PDB service name, not SID).
+#
+# Helper: configure one data source (try/except: skip if DS not in this template)
+def _cfg_ds(ds_name, schema_user, url, pw):
+    try:
+        cd('/JDBCSystemResources/' + ds_name + '/JdbcResource/' + ds_name)
+        cd('JDBCDriverParams/NO_NAME_0')
+        set('URL', url)
+        set('PasswordEncrypted', pw)
+        cd('Properties/NO_NAME_0/Property/user')
+        set('Value', schema_user)
+        cd('/')
+    except Exception, e:
+        print 'WARN: could not configure ' + ds_name + ': ' + str(e)
+        cd('/')
+
+_db_url = 'jdbc:oracle:thin:@//##DB_HOST##:##DB_PORT##/##DB_SERVICE##'
+_db_pw  = '##DB_SCHEMA_PWD##'
+_pfx    = '##DB_SCHEMA_PREFIX##'
+
+# JRF data sources
+_cfg_ds('LocalSvcTblDataSource', _pfx + '_STB',         _db_url, _db_pw)
+_cfg_ds('opss-data-source',      _pfx + '_OPSS',        _db_url, _db_pw)
+_cfg_ds('opss-audit-DBDS',       _pfx + '_IAU_APPEND',  _db_url, _db_pw)
+_cfg_ds('opss-audit-viewDS',     _pfx + '_IAU_VIEWER',  _db_url, _db_pw)
+_cfg_ds('mds-owsm',              _pfx + '_MDS',         _db_url, _db_pw)
 
 # --- Write domain ------------------------------------------------------------
 writeDomain('##DOMAIN_HOME##')
