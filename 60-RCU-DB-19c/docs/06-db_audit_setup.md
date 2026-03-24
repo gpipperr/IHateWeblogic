@@ -1,6 +1,6 @@
-# Step 4 – 04-db_audit_setup.sh
+# Step 6 – 06-db_audit_setup.sh
 
-**Script:** `60-RCU-DB-19c/04-db_audit_setup.sh`
+**Script:** `60-RCU-DB-19c/06-db_audit_setup.sh`
 **Runs as:** `oracle`
 **Phase:** Configure Unified Auditing in the running database
 

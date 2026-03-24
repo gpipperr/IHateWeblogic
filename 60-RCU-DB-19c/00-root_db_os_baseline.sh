@@ -170,7 +170,27 @@ else
 fi
 
 # =============================================================================
-# 3. DB-specific sysctl parameters
+# 3. perl-File-Copy (required for opatch javavm_refresh on OL9/RHEL9)
+# =============================================================================
+# Oracle's opatch javavm_refresh make target calls a Perl script that uses
+# File::Copy.  On OL9 minimal installs this module is a separate package.
+# Without it: "Can't locate File/Copy.pm" → javavm_refresh fails → opatch aborts.
+
+section "perl-File-Copy (for opatch javavm_refresh)"
+
+if perl -MFile::Copy -e 1 >/dev/null 2>&1; then
+    ok "perl File::Copy available: $(perl -e 'use File::Copy; print $File::Copy::VERSION')"
+else
+    info "Installing perl-File-Copy ..."
+    if dnf install -y perl-File-Copy 2>&1 | tee -a "$LOG_FILE"; then
+        ok "perl-File-Copy installed"
+    else
+        warn "perl-File-Copy installation failed — opatch javavm_refresh will fail"
+    fi
+fi
+
+# =============================================================================
+# 4. DB-specific sysctl parameters
 # =============================================================================
 
 section "sysctl – DB-specific parameters"
@@ -239,7 +259,7 @@ done
 unset _param _val
 
 # =============================================================================
-# 3. User limits for oracle
+# 5. User limits for oracle
 # =============================================================================
 
 section "Security Limits – oracle user"
@@ -268,7 +288,7 @@ chmod 644 "$LIMITS_FILE"
 ok "Limits file written: $LIMITS_FILE"
 
 # =============================================================================
-# 4. Core dump directory
+# 6. Core dump directory
 # =============================================================================
 
 section "Core Dump Directory"
@@ -278,7 +298,7 @@ chmod 1777 "$CORE_DIR"
 ok "Created: $CORE_DIR (mode 1777)"
 
 # =============================================================================
-# 5. libpthread_nonshared.a stub (OL9/RHEL9 + Oracle 19c relink compatibility)
+# 7. libpthread_nonshared.a stub (OL9/RHEL9 + Oracle 19c relink compatibility)
 # =============================================================================
 # Oracle 19c links against libpthread_nonshared.a which was removed from glibc
 # on RHEL/OL 9.x (pthreads merged into libc).  The linker still looks for the
@@ -300,7 +320,7 @@ fi
 unset _pthread_lib
 
 # =============================================================================
-# 6. Transparent Huge Pages check
+# 8. Transparent Huge Pages check
 # =============================================================================
 
 section "Transparent Huge Pages"

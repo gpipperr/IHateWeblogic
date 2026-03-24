@@ -41,7 +41,7 @@ DB_CV_ASSUME_DISTID="OEL7.6"
 # Base install: unpatched 19.3.0 (extracted from LINUX.X64_193000_db_home.zip)
 DB_ORACLE_HOME_BASE="${ORACLE_BASE}/product/19.3.0/db_home1"
 
-# Patched home: created by AutoUpgrade -mode create_home
+# Patched home: created by cp -a + opatchauto (02-db_patch_db_software.sh)
 # Current RU: 19.30 (Q1 2026) — update this when applying a newer RU.
 DB_ORACLE_HOME="${ORACLE_BASE}/product/19.30.0/db_home1"
 
@@ -53,7 +53,7 @@ DB_ADMIN_DIR="${ORACLE_BASE}/admin"           # audit dump: ORACLE_BASE/admin/FM
 # No explicit variable needed — set automatically by Oracle.
 
 DB_FAST_RECOVERY_AREA="${ORACLE_BASE}/flash_recovery_area"  # FRA: logs, backups, flashback
-DB_RECOVERY_SIZE_MB=4096                      # db_recovery_file_dest_size (default: 4 GB)
+DB_RECOVERY_SIZE_MB=10960                      # db_recovery_file_dest_size (default: 10 GB)
 
 # --- Database Identity -------------------------------------------------------
 DB_SID="FMWCDB"
@@ -101,7 +101,7 @@ DB_AUDIT_RETAIN_DAYS=180           # purge records older than N days
 DB_FMW_TABLESPACE=""               # e.g. FMW_DATA
 DB_FMW_TABLESPACE_SIZE_MB=500      # initial size
 
-# --- AutoUpgrade / Patching (02-db_patch_autoupgrade.sh) ---------------------
+# --- AutoUpgrade / Patching (02-db_patch_db_software.sh) ---------------------
 DB_AUTOUPGRADE_HOME="${ORACLE_BASE}/autoupgrade"
 DB_TARGET_RU="RECOMMENDED"         # RECOMMENDED = RU+OJVM+OPATCH+DPBP+AU (latest)
                                    # or fixed: 19.30  (specific RU, reproducible install)

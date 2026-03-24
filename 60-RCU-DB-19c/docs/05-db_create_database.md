@@ -1,8 +1,9 @@
-# Step 3 – 03-db_create_database.sh
+# Step 5 – 05-db_create_database.sh
 
-**Script:** `60-RCU-DB-19c/03-db_create_database.sh`
+**Script:** `60-RCU-DB-19c/05-db_create_database.sh`
 **Runs as:** `oracle`
 **Phase:** Create the CDB + PDB
+**Requires:** Listener running — `04-db_setup_listener.sh` must have run first.
 
 ---
 
@@ -10,8 +11,7 @@
 
 1. Relink the Oracle binary for Unified Auditing (`uniaud_on`) — must happen
    before the first database is created on this ORACLE_HOME
-2. Create the listener
-3. Create the Container Database (FMWCDB) with one Pluggable Database (FMWPDB)
+2. Create the Container Database (FMWCDB) with one Pluggable Database (FMWPDB)
    via `dbca -silent`
 
 ---
@@ -32,7 +32,7 @@ strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang
 ```
 
 > This relink must be repeated after every Oracle RU patch.
-> `02-db_patch_autoupgrade.sh` performs it automatically after create_home.
+> `02-db_patch_db_software.sh` performs it automatically as part of the patch cycle.
 
 ---
 
