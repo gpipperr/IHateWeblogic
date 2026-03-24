@@ -135,7 +135,7 @@ fi
 # --- FMW installation cgicmd.dat ---
 # $FMW_HOME/reports/conf/cgicmd.dat  (separate backup category to avoid name collision)
 FMW_CGICMD=""
-for _c in "${FMW_HOME}/reports/conf/cgicmd.dat" "${FMW_HOME}/reports/conf/CGICMD.DAT"; do
+for _c in "${ORACLE_HOME:-${FMW_HOME}}/reports/conf/cgicmd.dat" "${ORACLE_HOME:-${FMW_HOME}}/reports/conf/CGICMD.DAT"; do
     [ -f "$_c" ] && { FMW_CGICMD="$_c"; break; }
 done
 

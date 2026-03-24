@@ -113,6 +113,7 @@ WLST_SH="${WLST:-}"
 # Fallback search if not set in environment.conf
 if [ -z "$WLST_SH" ] || [ ! -x "$WLST_SH" ]; then
     for _candidate in \
+        "${ORACLE_HOME:-}/oracle_common/common/bin/wlst.sh" \
         "${FMW_HOME:-}/oracle_common/common/bin/wlst.sh" \
         "/u01/oracle/fmw/oracle_common/common/bin/wlst.sh" \
         "/app/oracle/mw/oracle_common/common/bin/wlst.sh"
@@ -126,8 +127,8 @@ fi
 
 if [ -z "$WLST_SH" ] || [ ! -x "$WLST_SH" ]; then
     fail "wlst.sh not found or not executable"
-    info "Searched: \${FMW_HOME}/oracle_common/common/bin/wlst.sh"
-    info "Check FMW_HOME in environment.conf or set WLST= explicitly"
+    info "Searched: \${ORACLE_HOME}/oracle_common/common/bin/wlst.sh"
+    info "Check ORACLE_HOME in environment.conf or set WLST= explicitly"
     print_summary
     exit 2
 fi
@@ -345,7 +346,7 @@ if [ "$WLST_RC" -eq 0 ]; then
     ok "WLST completed successfully (rc=0)"
 elif [ "$WLST_RC" -eq 2 ]; then
     fail "WLST: listLoggers/setLogLevel not available – wrong wlst.sh? (rc=2)"
-    info "Required: \${FMW_HOME}/oracle_common/common/bin/wlst.sh"
+    info "Required: \${ORACLE_HOME}/oracle_common/common/bin/wlst.sh"
 else
     fail "WLST exited with rc=$WLST_RC – check output above for details"
 fi

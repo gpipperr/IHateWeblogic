@@ -359,7 +359,7 @@ fi
 section "Log4j CVE Vulnerability Scan"
 
 info "Scanning for log4j JARs under:"
-info "  FMW_HOME    : $FMW_HOME"
+info "  ORACLE_HOME : ${ORACLE_HOME:-${FMW_HOME}}"
 info "  DOMAIN_HOME : $DOMAIN_HOME"
 info "CVEs checked:"
 info "  CVE-2021-44228 (Log4Shell)        log4j 2.0 – 2.14.1"
@@ -412,7 +412,7 @@ while IFS= read -r jar; do
             ;;
     esac
 
-done < <(find "$FMW_HOME" "$DOMAIN_HOME" \
+done < <(find "${ORACLE_HOME:-${FMW_HOME}}" "$DOMAIN_HOME" \
     -name "log4j*.jar" -not -path "*/ConfigBackup/*" 2>/dev/null | sort -u)
 
 printf "\n"

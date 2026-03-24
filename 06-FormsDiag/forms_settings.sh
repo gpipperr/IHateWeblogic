@@ -61,20 +61,21 @@ done
 # Tries (in order):
 #   1. --forms-home argument
 #   2. ORACLE_FORMS_HOME from environment.conf
-#   3. $FMW_HOME/forms  (standard FMW layout)
-#   4. find frmcmp binary under FMW_HOME
+#   3. $ORACLE_HOME/forms  (standard FMW layout)
+#   4. find frmcmp binary under ORACLE_HOME
 _detect_forms_home() {
     local candidate
+    local _oh="${ORACLE_HOME:-${FMW_HOME}}"
 
     [ -n "$OVERRIDE_FORMS_HOME" ] && { printf "%s" "$OVERRIDE_FORMS_HOME"; return; }
     [ -n "${ORACLE_FORMS_HOME:-}" ] && [ -d "$ORACLE_FORMS_HOME" ] && \
         { printf "%s" "$ORACLE_FORMS_HOME"; return; }
 
-    candidate="${FMW_HOME:-}/forms"
+    candidate="${_oh}/forms"
     [ -d "$candidate" ] && { printf "%s" "$candidate"; return; }
 
     # find via binary
-    candidate="$(find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 4 -name "frmcmp" \
+    candidate="$(find "${_oh:-/u01/oracle/fmw}" -maxdepth 4 -name "frmcmp" \
         2>/dev/null | head -1 | sed 's|/bin/frmcmp||')"
     [ -n "$candidate" ] && { printf "%s" "$candidate"; return; }
 
@@ -108,8 +109,8 @@ _find_formsweb_cfg() {
     candidate="${fh}/server/formsweb.cfg"
     [ -f "$candidate" ] && { printf "%s" "$candidate"; return; }
 
-    # Generic search under FMW_HOME
-    find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 6 -name "formsweb.cfg" \
+    # Generic search under ORACLE_HOME
+    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "formsweb.cfg" \
         2>/dev/null | head -1
 }
 
@@ -125,7 +126,7 @@ _find_default_env() {
     candidate="${fh}/server/default.env"
     [ -f "$candidate" ] && { printf "%s" "$candidate"; return; }
 
-    find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 6 -name "default.env" \
+    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "default.env" \
         2>/dev/null | head -1
 }
 
@@ -136,7 +137,7 @@ _find_default_env() {
 printLine
 section "Forms Configuration Overview – $(date '+%Y-%m-%d %H:%M:%S')"
 printf "  %-26s %s\n" "Host:"        "$(hostname -f 2>/dev/null || hostname)" | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "FMW_HOME:"    "${FMW_HOME:-not set}"                   | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "ORACLE_HOME:" "${ORACLE_HOME:-${FMW_HOME:-not set}}"                   | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-26s %s\n" "DOMAIN_HOME:" "${DOMAIN_HOME}"                          | tee -a "${LOG_FILE:-/dev/null}"
 printLine
 
@@ -168,7 +169,7 @@ else
 fi
 
 # Version from FMW inventory registry
-REGISTRY_XML="${FMW_HOME:-}/oracle_common/inventory/registry.xml"
+REGISTRY_XML="${ORACLE_HOME:-${FMW_HOME}}/oracle_common/inventory/registry.xml"
 if [ -f "$REGISTRY_XML" ]; then
     FORMS_VER="$(grep -i 'oracle.forms\|FormsHome' "$REGISTRY_XML" 2>/dev/null \
         | grep -oP 'VERSION="\K[^"]+' | head -1)"

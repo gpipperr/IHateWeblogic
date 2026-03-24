@@ -59,12 +59,13 @@ done
 # =============================================================================
 
 _detect_forms_home() {
+    local _oh="${ORACLE_HOME:-${FMW_HOME}}"
     [ -n "$OVERRIDE_FORMS_HOME" ] && { printf "%s" "$OVERRIDE_FORMS_HOME"; return; }
     [ -n "${ORACLE_FORMS_HOME:-}" ] && [ -d "$ORACLE_FORMS_HOME" ] && \
         { printf "%s" "$ORACLE_FORMS_HOME"; return; }
-    local c="${FMW_HOME:-}/forms"
+    local c="${_oh}/forms"
     [ -d "$c" ] && { printf "%s" "$c"; return; }
-    find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 4 -name "frmcmp" 2>/dev/null \
+    find "${_oh:-/u01/oracle/fmw}" -maxdepth 4 -name "frmcmp" 2>/dev/null \
         | head -1 | sed 's|/bin/frmcmp||'
 }
 
@@ -73,7 +74,7 @@ _find_formsweb_cfg() {
     find "${DOMAIN_HOME}/config/fmwconfig/servers" \
         -maxdepth 5 -name "formsweb.cfg" 2>/dev/null | head -1 && return
     [ -f "${fh}/server/formsweb.cfg" ] && printf "%s" "${fh}/server/formsweb.cfg" && return
-    find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 6 -name "formsweb.cfg" 2>/dev/null | head -1
+    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "formsweb.cfg" 2>/dev/null | head -1
 }
 
 _find_default_env() {
@@ -81,7 +82,7 @@ _find_default_env() {
     find "${DOMAIN_HOME}/config/fmwconfig/servers" \
         -maxdepth 5 -name "default.env" 2>/dev/null | head -1 && return
     [ -f "${fh}/server/default.env" ] && printf "%s" "${fh}/server/default.env" && return
-    find "${FMW_HOME:-/u01/oracle/fmw}" -maxdepth 6 -name "default.env" 2>/dev/null | head -1
+    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "default.env" 2>/dev/null | head -1
 }
 
 # Read a key=value from formsweb.cfg (last occurrence wins, matches global + per-section)

@@ -196,11 +196,12 @@ fi
 # =============================================================================
 section "Legacy AFM/Type1 Fonts in FMW_HOME"
 
-FMW_AFM_DIR="${FMW_HOME}/guicommon/tk/admin/AFM"
+_oh="${ORACLE_HOME:-${FMW_HOME}}"
+FMW_AFM_DIR="${_oh}/guicommon/tk/admin/AFM"
 printList "FMW AFM directory" 32 "$FMW_AFM_DIR"
 
 if [ ! -d "$FMW_AFM_DIR" ]; then
-    info "AFM directory not found – legacy PS fonts not installed or FMW_HOME not set"
+    info "AFM directory not found – legacy PS fonts not installed or ORACLE_HOME not set"
 else
     AFM_COUNT="$(find "$FMW_AFM_DIR" -name "*.afm" -o -name "*.AFM" 2>/dev/null | wc -l)"
     ok "$AFM_COUNT AFM file(s) found"
@@ -209,7 +210,7 @@ else
 fi
 
 # Also check for Type1 .pfb / .pfa
-FMW_TYPE1_DIR="${FMW_HOME}/guicommon/tk/admin"
+FMW_TYPE1_DIR="${_oh}/guicommon/tk/admin"
 TYPE1_COUNT=0
 if [ -d "$FMW_TYPE1_DIR" ]; then
     TYPE1_COUNT="$(find "$FMW_TYPE1_DIR" -name "*.pfb" -o -name "*.pfa" 2>/dev/null | wc -l)"
@@ -246,8 +247,8 @@ _find_uifont_ali() {
         printf "%s" "$found"
         return 0
     fi
-    # 5. FMW_HOME fallback
-    found="$(find "$FMW_HOME/guicommon/tk/admin" -name "uifont.ali" 2>/dev/null | head -1)"
+    # 5. ORACLE_HOME fallback
+    found="$(find "${ORACLE_HOME:-${FMW_HOME}}/guicommon/tk/admin" -name "uifont.ali" 2>/dev/null | head -1)"
     if [ -n "$found" ]; then
         printf "%s" "$found"
         return 0

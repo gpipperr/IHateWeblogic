@@ -105,8 +105,8 @@ _find_uifont_ali() {
     fi
 
     # 4. Oracle Home fallback
-    if [ -f "$FMW_HOME/guicommon/tk/admin/uifont.ali" ]; then
-        printf "%s" "$FMW_HOME/guicommon/tk/admin/uifont.ali"
+    if [ -f "${ORACLE_HOME:-$FMW_HOME}/guicommon/tk/admin/uifont.ali" ]; then
+        printf "%s" "${ORACLE_HOME:-$FMW_HOME}/guicommon/tk/admin/uifont.ali"
         return 0
     fi
 
@@ -268,7 +268,7 @@ if [ -z "$UIFONT_ALI" ]; then
     info "  Searched:"
     info "    TK_FONTALIAS / ORACLE_FONTALIAS env vars"
     info "    $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/**/guicommon/tk/admin/"
-    info "    $FMW_HOME/guicommon/tk/admin/"
+    info "    ${ORACLE_HOME:-$FMW_HOME}/guicommon/tk/admin/"
     # Set a default target path for --apply to create the file
     UIFONT_ALI="$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali"
     info "  Target for creation: $UIFONT_ALI"
@@ -615,12 +615,12 @@ rm -f "$TEMP_NEW_ALI"
 # =============================================================================
 section "uifont.ali Syntax Validation (mfontchk)"
 
-# Locate mfontchk – Oracle ships it under FMW_HOME in various locations
+# Locate mfontchk – Oracle ships it under ORACLE_HOME in various locations
 _MFONTCHK=""
+_oh="${ORACLE_HOME:-$FMW_HOME}"
 for _candidate in \
-    "$FMW_HOME/oracle_common/bin/mfontchk" \
-    "$FMW_HOME/bin/mfontchk" \
-    "$ORACLE_HOME/bin/mfontchk" \
+    "$_oh/oracle_common/bin/mfontchk" \
+    "$_oh/bin/mfontchk" \
     "$(command -v mfontchk 2>/dev/null)"; do
     if [ -x "$_candidate" ]; then
         _MFONTCHK="$_candidate"
@@ -631,7 +631,7 @@ done
 if [ -z "$_MFONTCHK" ]; then
     warn "mfontchk not found – skipping syntax validation"
     info "  mfontchk is part of Oracle FMW; typical location:"
-    info "    \$FMW_HOME/oracle_common/bin/mfontchk"
+    info "    \$ORACLE_HOME/oracle_common/bin/mfontchk"
     info "  Run manually after deployment:"
     info "    mfontchk $UIFONT_ALI"
 elif ! $UIFONT_ALI_EXISTS && ! $APPLY_MODE; then
