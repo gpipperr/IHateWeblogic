@@ -249,9 +249,11 @@ _print_table() {
 WLST_SH=""
 
 _find_wlst() {
-    WLST_SH="${FMW_HOME}/oracle_common/common/bin/wlst.sh"
+    # ORACLE_HOME is the canonical variable in environment.conf; FMW_HOME is a legacy alias
+    local _fmw_base="${ORACLE_HOME:-${FMW_HOME}}"
+    WLST_SH="${_fmw_base}/oracle_common/common/bin/wlst.sh"
     if [ ! -x "$WLST_SH" ]; then
-        local alt="${WL_HOME:-${FMW_HOME}/wlserver}/common/bin/wlst.sh"
+        local alt="${WL_HOME:-${_fmw_base}/wlserver}/common/bin/wlst.sh"
         if [ -x "$alt" ]; then
             WLST_SH="$alt"
         else
