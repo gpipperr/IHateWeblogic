@@ -266,29 +266,40 @@ else
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
-# --- 2. RCU checkRequirements (SYSDBA auth + schema existence + DB params) ---
-info "Running rcu -checkRequirements (tests SYSDBA connection + DB prerequisites) ..."
-"$RCU_BIN" \
-    -silent \
-    -checkRequirements \
-    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
-    -dbUser sys \
-    -dbRole sysdba \
-    -schemaPrefix "$DB_SCHEMA_PREFIX" \
-    "${RCU_COMP_FLAGS[@]}" \
-    -f < "$RCU_PW_FILE" \
-    2>&1 | tee -a "$LOG_FILE"
-
-PREFLIGHT_RC=${PIPESTATUS[0]}
+# --- 2. DB connection test via rcu -listSchemas ------------------------------
+# -listSchemas is a valid RCU command (unlike -checkRequirements which does
+# not exist in 14.1.2). It tests SYSDBA auth and lists any existing schemas.
+info "Testing DB connection: rcu -listSchemas ..."
+LISTSCHEMAS_OUTPUT=$(
+    "$RCU_BIN" \
+        -silent \
+        -listSchemas \
+        -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
+        -dbUser sys \
+        -dbRole sysdba \
+        -f < "$RCU_PW_FILE" 2>&1
+)
+PREFLIGHT_RC=$?
+printf "%s\n" "$LISTSCHEMAS_OUTPUT" | tee -a "$LOG_FILE"
 
 if [ "$PREFLIGHT_RC" -ne 0 ]; then
-    fail "rcu -checkRequirements failed (rc=$PREFLIGHT_RC)"
-    fail "  Possible causes: wrong DB_HOST/DB_PORT/DB_SERVICE, wrong DB_SYS_PWD,"
-    fail "  DB character set not AL32UTF8, or schemas already exist."
+    fail "rcu -listSchemas failed (rc=$PREFLIGHT_RC)"
+    fail "  Possible causes: wrong DB_HOST/DB_PORT/DB_SERVICE, wrong DB_SYS_PWD"
     fail "  Check: $ORACLE_HOME/oracle_common/rcu/log/"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
-ok "rcu -checkRequirements passed – DB connection and prerequisites OK"
+ok "$(printf "DB connection OK – SYSDBA on %s:%s/%s" "$DB_HOST" "$DB_PORT" "$DB_SERVICE")"
+
+# Check if schemas with this prefix already exist
+if printf "%s\n" "$LISTSCHEMAS_OUTPUT" | grep -qi "${DB_SCHEMA_PREFIX}_"; then
+    warn "$(printf "Schemas with prefix '%s' already exist in the DB" "$DB_SCHEMA_PREFIX")"
+    if $APPLY && ! $DROP; then
+        fail "  Cannot create – prefix already in use. Use --drop first (CAUTION: destroys data)."
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+else
+    ok "$(printf "No existing schemas with prefix '%s' – safe to create" "$DB_SCHEMA_PREFIX")"
+fi
 
 # --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured) ---------------
 if [ -n "${RCU_TABLESPACE:-}" ]; then

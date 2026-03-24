@@ -157,8 +157,8 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 - Creates `/tmp/rcu_passwords.tmp` with correct permissions (600)
 - **DB Pre-Flight Check** (before touching the database):
   1. TCP port reachability (`bash /dev/tcp`) — fails fast if listener is down
-  2. `rcu -checkRequirements` — tests SYSDBA auth, DB version, character set,
-     and whether schemas already exist; aborts if any check fails
+  2. `rcu -listSchemas` — tests SYSDBA auth and lists existing schemas;
+     aborts if connection fails or if prefix already exists (use `--drop` first)
   3. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
      to confirm the tablespace was pre-created before proceeding
 - Runs `rcu -silent -createRepository` with all 7 components
@@ -182,15 +182,23 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 ## Verification
 
 ```bash
-# Check schemas exist
+# List schemas in the DB (tests SYSDBA connection + shows existing schemas)
+# Password file: 1 line (SYS password only)
+echo "MySysDBAPassword" > /tmp/rcu_pw_verify.txt
+chmod 600 /tmp/rcu_pw_verify.txt
+
 $ORACLE_HOME/oracle_common/bin/rcu \
     -silent \
-    -checkRequirements \
-    -connectString "${DB_HOST}:${DB_PORT}:${DB_SERVICE}" \
+    -listSchemas \
+    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys -dbRole sysdba \
-    -schemaPrefix ${DB_SCHEMA_PREFIX} \
-    -component STB
+    -f < /tmp/rcu_pw_verify.txt
+
+rm -f /tmp/rcu_pw_verify.txt
 ```
+
+Note: `-listSchemas` and `-createRepository` are the valid silent-mode commands in
+FMW 14.1.2. There is no `-checkRequirements` or `-checkPrereqs` in this version.
 
 ---
 
