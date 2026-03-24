@@ -190,5 +190,25 @@ curl -s http://127.0.0.1:7001/console/ | grep -i "weblogic"
 - Domain creation is not idempotent — if `DOMAIN_HOME` already exists, the script
   will abort unless `setOption('OverwriteDomain', 'true')` is set
 - The WLST script file containing the password is created in a temp location and
-  deleted immediately after WLST exits
+  deleted immediately after WLST exits (trap EXIT)
 - Node Manager must be started before managed servers can be started via WLST
+
+### WebLogic Admin Password Requirements
+
+WebLogic enforces a password policy during domain creation (error 60455):
+
+- **Minimum 8 characters**
+- **At least one number or special character**
+
+Example valid passwords: `Welcome1`, `Admin#2024`, `Muster01!`
+
+Set via `00-Setup/weblogic_sec.sh --apply` before running this script.
+
+### Non-ASCII Characters in Passwords
+
+WLST runs on Jython 2, which requires an explicit encoding declaration when the
+Python script file contains non-ASCII bytes (e.g. passwords with Umlauts: ä ö ü ß).
+
+The template already contains `# -*- coding: utf-8 -*-` as line 1.
+If the password contains characters outside UTF-8 (rare), change the declaration
+to `# -*- coding: latin-1 -*-` in `response_files/domain_config.py.template`.
