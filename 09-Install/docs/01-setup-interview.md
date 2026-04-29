@@ -82,6 +82,7 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 
 | Parameter | Default | Notes |
 |---|---|---|
+| `WLS_SERVER_FQDN` | `hostname -f` | External FQDN – used by Nginx SSL config and WebLogic Frontend Host |
 | `WLS_ADMIN_PORT` | `7001` | – |
 | `WLS_ADMIN_USER` | `webadmin` | – |
 | `WLS_ADMIN_PWD` | prompted, encrypted → `weblogic_sec.conf.des3` | – |

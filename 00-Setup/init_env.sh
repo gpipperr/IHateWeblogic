@@ -823,6 +823,7 @@ printList "REPORTS_FONT_DIR"       30 "$DET_REPORTS_FONT_DIR"
 # --------------------------------------------------------------------------
 section "Detecting WLS Managed Server"
 
+DET_WLS_SERVER_FQDN="$(hostname -f 2>/dev/null || hostname)"
 DET_WLS_MANAGED="$(detect_wls_reports_server "$DET_DOMAIN_HOME")"
 printList "WLS_MANAGED_SERVER" 30 "$DET_WLS_MANAGED"
 
@@ -921,6 +922,7 @@ if $INTERVIEW; then
     printf "\n  Confirm detected values (Enter = keep, type to override):\n\n"
 fi
 
+_confirm_val CONF_WLS_SERVER_FQDN "$DET_WLS_SERVER_FQDN"  "WLS_SERVER_FQDN"
 _confirm_val CONF_ORACLE_HOME    "$DET_ORACLE_HOME"       "ORACLE_HOME"
 _confirm_val CONF_JAVA_HOME      "$DET_JAVA_HOME"         "JDK_HOME"
 _confirm_val CONF_DOMAIN_HOME    "$DET_DOMAIN_HOME"       "DOMAIN_HOME"
@@ -967,6 +969,7 @@ if $APPLY; then
         _append_if_missing "DOMAIN_HOME"           "$CONF_DOMAIN_HOME"      "$ENV_CONF"
         _append_if_missing "DOMAIN_NAME"           "$DET_DOMAIN_NAME"       "$ENV_CONF"
         _append_if_missing "WL_ADMIN_URL"          "t3://localhost:7001"     "$ENV_CONF"
+        _append_if_missing "WLS_SERVER_FQDN"       "$CONF_WLS_SERVER_FQDN"  "$ENV_CONF"
         _append_if_missing "WLS_LISTEN_ADDRESS"    "localhost"               "$ENV_CONF"
         _append_if_missing "WLS_MANAGED_SERVER"    "$CONF_WLS_MANAGED"      "$ENV_CONF"
         _append_if_missing "REPORTS_COMPONENT_HOME" "$CONF_REPORTS_COMP"    "$ENV_CONF"
@@ -1029,6 +1032,8 @@ JDK_HOME="${CONF_JAVA_HOME}"
 DOMAIN_HOME="${CONF_DOMAIN_HOME}"
 DOMAIN_NAME="${DET_DOMAIN_NAME}"
 WL_ADMIN_URL="t3://localhost:7001"
+# External FQDN – used by Nginx SSL config and WebLogic Frontend Host setting
+WLS_SERVER_FQDN="${CONF_WLS_SERVER_FQDN}"
 # localhost = NGINX reverse proxy (recommended); 0.0.0.0 = all interfaces (no proxy)
 WLS_LISTEN_ADDRESS="localhost"
 WLS_MANAGED_SERVER="${CONF_WLS_MANAGED}"
@@ -1096,6 +1101,7 @@ else
     printList "  Would symlink"  28 "$ENV_LINK -> $ENV_CONF"
     printLine
     printf "  Preview (key values detected):\n" | tee -a "$LOG_FILE"
+    printList "  WLS_SERVER_FQDN"       28 "$CONF_WLS_SERVER_FQDN"
     printList "  ORACLE_HOME"           28 "$CONF_ORACLE_HOME"
     printList "  DOMAIN_HOME"           28 "$CONF_DOMAIN_HOME"
     printList "  REPORTS_COMPONENT"     28 "$CONF_REPORTS_COMP"

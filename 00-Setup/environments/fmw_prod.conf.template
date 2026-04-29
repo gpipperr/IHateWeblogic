@@ -12,6 +12,7 @@ JDK_HOME=/u01/app/oracle/java/jdk-21
 
 ORACLE_BASE=/u01/app/oracle
 
+WLS_SERVER_FQDN=wls01.company.local
 WLS_LISTEN_ADDRESS=127.0.0.1
 WLS_ADMIN_PORT=7001
 WLS_FORMS_PORT=8001
