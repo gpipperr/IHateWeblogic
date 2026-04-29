@@ -249,16 +249,14 @@ _print_table() {
 WLST_SH=""
 
 _find_wlst() {
-    # ORACLE_HOME is the canonical variable in environment.conf; FMW_HOME is a legacy alias
-    local _fmw_base="${ORACLE_HOME:-${FMW_HOME}}"
-    WLST_SH="${_fmw_base}/oracle_common/common/bin/wlst.sh"
+    WLST_SH="${ORACLE_HOME}/oracle_common/common/bin/wlst.sh"
     if [ ! -x "$WLST_SH" ]; then
-        local alt="${WL_HOME:-${_fmw_base}/wlserver}/common/bin/wlst.sh"
+        local alt="${WL_HOME:-${ORACLE_HOME}/wlserver}/common/bin/wlst.sh"
         if [ -x "$alt" ]; then
             WLST_SH="$alt"
         else
             fail "wlst.sh not found: $WLST_SH"
-            info "Check FMW_HOME in environment.conf"
+            info "Check ORACLE_HOME in environment.conf"
             return 1
         fi
     fi
@@ -318,12 +316,24 @@ _start_comp() {
         ADMIN)
             local wl_sh="$DOMAIN_HOME/bin/startWebLogic.sh"
             if [ ! -f "$wl_sh" ]; then fail "Not found: $wl_sh"; return 1; fi
+            local boot_props="$DOMAIN_HOME/servers/AdminServer/security/boot.properties"
+            if [ ! -f "$boot_props" ]; then
+                warn "boot.properties not found: $boot_props"
+                warn "WebLogic will prompt for password interactively – start may hang."
+                info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
+            fi
             nohup "$wl_sh" > "$start_log" 2>&1 &
             ok "AdminServer start initiated (PID $!) – allow ~60s to come up"
             ;;
         MANAGED)
             local mgd_sh="$DOMAIN_HOME/bin/startManagedWebLogic.sh"
             if [ ! -f "$mgd_sh" ]; then fail "Not found: $mgd_sh"; return 1; fi
+            local boot_props="$DOMAIN_HOME/servers/$name/security/boot.properties"
+            if [ ! -f "$boot_props" ]; then
+                warn "boot.properties not found: $boot_props"
+                warn "WebLogic will prompt for password interactively – start may hang."
+                info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
+            fi
             nohup "$mgd_sh" "$name" "${WL_ADMIN_URL:-t3://localhost:7001}" \
                 > "$start_log" 2>&1 &
             ok "$name start initiated (PID $!) – allow ~60s to come up"
@@ -482,9 +492,13 @@ if [ "$ACTION" = "list" ]; then
     exit "$EXIT_CODE"
 fi
 
-# ---- Actions require credentials ----
-section "Loading Credentials"
-load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" || { print_summary; exit 2; }
+# ---- Stop actions require WLST credentials; start actions use boot.properties ----
+case "$ACTION" in
+    stop|stop-all)
+        section "Loading Credentials"
+        load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" || { print_summary; exit 2; }
+        ;;
+esac
 
 if ! $APPLY; then
     printf "\n"
