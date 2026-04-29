@@ -112,6 +112,11 @@ if [ -f "$_SSL_CONF" ]; then
 fi
 unset _SSL_CONF
 
+# Resolve relative SSL paths (ssl.conf may store paths relative to project root)
+[[ "${SSL_CERT_FILE:-}"  != /* ]] && [ -n "${SSL_CERT_FILE:-}" ]  && SSL_CERT_FILE="$ROOT_DIR/$SSL_CERT_FILE"
+[[ "${SSL_KEY_FILE:-}"   != /* ]] && [ -n "${SSL_KEY_FILE:-}" ]   && SSL_KEY_FILE="$ROOT_DIR/$SSL_KEY_FILE"
+[[ "${SSL_CHAIN_FILE:-}" != /* ]] && [ -n "${SSL_CHAIN_FILE:-}" ] && SSL_CHAIN_FILE="$ROOT_DIR/$SSL_CHAIN_FILE"
+
 # =============================================================================
 # Banner
 # =============================================================================

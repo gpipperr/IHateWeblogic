@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 11-oracle_reports_users.sh
+# Script   : 12-oracle_reports_users.sh
 # Purpose  : Create WebLogic security realm users for Reports Server access
 #            and configure the corresponding Application Roles and Policies.
 #
@@ -9,7 +9,7 @@
 #              2. monPrtgUser → RW_MONITOR     (getserverinfo / monitoring tools)
 #              3. EXECREPORTS → RW_EXECREPORTS (report execution via cgicmd.dat)
 #
-# Call     : ./09-Install/11-oracle_reports_users.sh [--apply]
+# Call     : ./09-Install/12-oracle_reports_users.sh [--apply]
 #
 #            Without --apply : dry-run – show plan, no changes made
 #            With    --apply : execute all steps via WLST
@@ -64,7 +64,7 @@ unset _arg
 LOG_FILE="$ROOT_DIR/log/$(date +%Y%m%d)/reports_users_$(date +%H%M%S).log"
 mkdir -p "$(dirname "$LOG_FILE")"
 {
-    printf "# 11-oracle_reports_users.sh log\n"
+    printf "# 12-oracle_reports_users.sh log\n"
     printf "# Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"
     printf "# Host    : %s\n" "$(_get_hostname)"
     printf "# Apply   : %s\n" "$APPLY"

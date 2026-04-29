@@ -1,6 +1,6 @@
-# Step 11 – Reports Server User & Security Setup
+# Step 12 – Reports Server User & Security Setup
 
-**Script:** `09-Install/11-oracle_reports_users.sh` *(planned)*
+**Script:** `09-Install/12-oracle_reports_users.sh` *(planned)*
 **Runs as:** `oracle` (WLST) / Browser (Enterprise Manager)
 **Phase:** 5 – Configuration & Validation
 
@@ -303,7 +303,7 @@ URL:
 | File | Purpose |
 |---|---|
 | `$DOMAIN_HOME/.../cgicmd.dat` | authid parameter for report execution |
-| `09-Install/11-oracle_reports_users.sh` | Automation script for this setup |
+| `09-Install/12-oracle_reports_users.sh` | Automation script for this setup |
 | `09-Install/09-oracle_configure.sh` | Base configuration (includes cgicmd.dat setup) |
 | `09-Install/docs/09-oracle_configure.md` | Configuration steps overview |
 | `01-Run/rwserver_status.sh` | Automated status monitoring (uses getserverinfo) |

@@ -25,6 +25,9 @@ setup.conf
 # Plaintext config files (exist only briefly at runtime)
 weblogic_sec.conf
 
+# Debug helper – displays plaintext passwords (local only, never commit)
+00-Setup/getPWDs.sh
+
 # SSL certificate configuration (server-specific; template is committed)
 08-SSL/ssl.conf
 # Generated certificates and keys (never commit private keys)

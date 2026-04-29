@@ -182,6 +182,12 @@ else
     info "ssl.conf not found – using defaults (saved after confirmation)"
 fi
 
+# Resolve relative file paths to absolute (ssl.conf.template stores project-root-relative paths)
+[[ "${SSL_CERT_FILE:-}"  != /* ]] && [ -n "${SSL_CERT_FILE:-}" ]  && SSL_CERT_FILE="$ROOT_DIR/$SSL_CERT_FILE"
+[[ "${SSL_KEY_FILE:-}"   != /* ]] && [ -n "${SSL_KEY_FILE:-}" ]   && SSL_KEY_FILE="$ROOT_DIR/$SSL_KEY_FILE"
+[[ "${SSL_CHAIN_FILE:-}" != /* ]] && [ -n "${SSL_CHAIN_FILE:-}" ] && SSL_CHAIN_FILE="$ROOT_DIR/$SSL_CHAIN_FILE"
+[[ "${SSL_CSR_FILE:-}"   != /* ]] && [ -n "${SSL_CSR_FILE:-}" ]   && SSL_CSR_FILE="$ROOT_DIR/$SSL_CSR_FILE"
+
 # =============================================================================
 # Interactive parameter prompts
 # =============================================================================
