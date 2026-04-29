@@ -218,12 +218,98 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 
 ---
 
+## Oracle Documentation References
+
+### WLST OPSS Custom Commands
+
+The script uses OPSS (Oracle Platform Security Services) WLST commands to manage
+Application Roles and Application Policies programmatically.
+
+| Command | Purpose | Oracle Doc |
+|---|---|---|
+| `createAppRole` | Create a new Application Role in a stripe | *WLST Command Reference for Infrastructure Components* – Chapter: OPSS Custom WLST Commands |
+| `grantAppRole` | Assign a user or group to an Application Role | same |
+| `grantPermission` | Create an Application Policy entry with a Permission | same |
+
+**Parameters used in `grantPermission`:**
+
+| Parameter | Description |
+|---|---|
+| `appStripe` | Application stripe name – `reports` for Oracle Reports |
+| `principalClass` | `oracle.security.jps.service.policystore.ApplicationRole` for role-based policies |
+| `permClass` | Java permission class (see below) |
+| `permTarget` | Resource string passed to the permission constructor |
+| `permActions` | `ALL` grants all defined actions |
+
+Oracle doc entry point for OPSS WLST commands:
+**Securing Applications with Oracle Platform Security Services**
+→ Appendix: OPSS WLST Custom Commands
+→ Search for: `grantPermission`, `createAppRole`, `grantAppRole`
+
+Direct URL (WebLogic / FMW 14.1.2):
+`https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/`
+→ Security → *Securing Applications with Oracle Platform Security Services*
+
+---
+
+### Reports Permission Classes
+
+These Java permission classes control what a principal may do in the Reports Servlet:
+
+| Class | Controls |
+|---|---|
+| `oracle.reports.server.WebCommandPermission` | Which servlet commands a principal may call (e.g. `getserverinfo`, `showjobs`) |
+| `oracle.reports.server.ReportsPermission` | Which reports a principal may run (report, server, destype, desformat) |
+
+**Reference:** Oracle Support Doc ID **2072876.1** –
+*REP-56071 When Attempt to Access In-Process Reports Server in Reports 12c*
+
+Also documented in:
+**Oracle Reports Developer's Guide** – Chapter: Security in Oracle Reports
+→ Section: Configuring Oracle Reports Security
+→ Search for: `WebCommandPermission`, `ReportsPermission`
+
+---
+
+### WebLogic Security Realm MBean (`createUser`)
+
+The script creates Security Realm users by navigating to the
+`DefaultAuthenticator` configuration MBean and calling `createUser()`.
+
+MBean path used:
+```
+/SecurityConfiguration/<domain>/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator
+```
+
+Reference:
+**Oracle WebLogic Server MBean Reference**
+→ `DefaultAuthenticatorMBean`
+→ Method: `createUser(name, password, description)`
+
+URL:
+`https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wlmbr/mbeans/DefaultAuthenticatorMBean.html`
+
+---
+
+### WLST General Reference
+
+**WebLogic Scripting Tool Command and Variable Reference**
+`https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wlstc/`
+
+---
+
 ## Related Files
 
 | File | Purpose |
 |---|---|
 | `$DOMAIN_HOME/.../cgicmd.dat` | authid parameter for report execution |
+| `09-Install/11-oracle_reports_users.sh` | Automation script for this setup |
 | `09-Install/09-oracle_configure.sh` | Base configuration (includes cgicmd.dat setup) |
 | `09-Install/docs/09-oracle_configure.md` | Configuration steps overview |
 | `01-Run/rwserver_status.sh` | Automated status monitoring (uses getserverinfo) |
 | `00-Setup/weblogic_sec.sh` | WebLogic password concept (encrypted storage) |
+
+
+
+
+
