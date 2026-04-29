@@ -314,6 +314,20 @@ detect_reports_instances() {
     find "$reptools_base" -maxdepth 1 -mindepth 1 -type d -name "reptools*" 2>/dev/null | sort
 }
 
+# detect_reports_server_instances  domain_home
+# Returns one name per line – all instance names under ReportsServerComponent.
+detect_reports_server_instances() {
+    local domain_home="$1"
+    local repserver_base="$domain_home/config/fmwconfig/components/ReportsServerComponent"
+
+    if [ -d "$repserver_base" ]; then
+        find "$repserver_base" -maxdepth 1 -mindepth 1 -type d -name "repserver*" 2>/dev/null \
+            | xargs -I{} basename {} | sort
+    else
+        printf "repserver_ent\n"
+    fi
+}
+
 # detect_wls_reports_server  domain_home
 # Returns the name of the WLS managed server that has Reports deployed.
 detect_wls_reports_server() {
@@ -804,10 +818,28 @@ DET_REPORTS_ADMIN="$DET_REPORTS_COMPONENT/guicommon/tk/admin"
 DET_UIFONT_ALI="$DET_REPORTS_ADMIN/uifont.ali"
 DET_REPORTS_FONT_DIR="$DET_DOMAIN_HOME/reports/fonts"
 
-printList "REPORTS_COMPONENT_HOME" 30 "$DET_REPORTS_COMPONENT"
-printList "REPORTS_ADMIN"          30 "$DET_REPORTS_ADMIN"
-printList "UIFONT_ALI"             30 "$DET_UIFONT_ALI"
-printList "REPORTS_FONT_DIR"       30 "$DET_REPORTS_FONT_DIR"
+# ReportsTools instance name (basename of first detected directory)
+DET_REPORTS_TOOLS_INSTANCE="$(basename "${DET_REPTOOLS_INSTANCES[0]:-reptools_ent}")"
+
+# ReportsServer instance names (space-separated)
+mapfile -t _repserver_arr < <(detect_reports_server_instances "$DET_DOMAIN_HOME")
+DET_REPORTS_SERVER_INSTANCES="${_repserver_arr[*]:-repserver_ent}"
+unset _repserver_arr
+
+# Runtime paths – use existing conf values as baseline, fall back to defaults
+DET_REPORTS_PATH="${REPORTS_PATH:-/app/oracle/applications}"
+DET_REPORTS_TMP="${REPORTS_TMP:-/tmp/reports}"
+DET_REPORTS_BROADCAST_PORT="${REPORTS_BROADCAST_PORT:-14027}"
+
+printList "REPORTS_COMPONENT_HOME"    30 "$DET_REPORTS_COMPONENT"
+printList "REPORTS_TOOLS_INSTANCE"    30 "$DET_REPORTS_TOOLS_INSTANCE"
+printList "REPORTS_SERVER_INSTANCES"  30 "$DET_REPORTS_SERVER_INSTANCES"
+printList "REPORTS_ADMIN"             30 "$DET_REPORTS_ADMIN"
+printList "UIFONT_ALI"                30 "$DET_UIFONT_ALI"
+printList "REPORTS_FONT_DIR"          30 "$DET_REPORTS_FONT_DIR"
+printList "REPORTS_PATH"              30 "$DET_REPORTS_PATH"
+printList "REPORTS_TMP"               30 "$DET_REPORTS_TMP"
+printList "REPORTS_BROADCAST_PORT"    30 "$DET_REPORTS_BROADCAST_PORT"
 
 [ -d "$DET_REPORTS_ADMIN" ] \
     && ok "REPORTS_ADMIN directory exists" \
@@ -928,9 +960,14 @@ _confirm_val CONF_JAVA_HOME      "$DET_JAVA_HOME"         "JDK_HOME"
 _confirm_val CONF_DOMAIN_HOME    "$DET_DOMAIN_HOME"       "DOMAIN_HOME"
 _confirm_val CONF_REPORTS_COMP   "$DET_REPORTS_COMPONENT" "REPORTS_COMPONENT_HOME"
 _confirm_val CONF_WLS_MANAGED    "$DET_WLS_MANAGED"       "WLS_MANAGED_SERVER"
-_confirm_val CONF_RWSERVER_CONF  "$DET_RWSERVER_CONF"     "RWSERVER_CONF"
-_confirm_val CONF_CGICMD_DAT     "$DET_CGICMD_DAT"        "CGICMD_DAT"
-_confirm_val CONF_ORACLE_USER    "$DET_ORACLE_USER"       "ORACLE_OS_USER"
+_confirm_val CONF_RWSERVER_CONF             "$DET_RWSERVER_CONF"            "RWSERVER_CONF"
+_confirm_val CONF_CGICMD_DAT               "$DET_CGICMD_DAT"               "CGICMD_DAT"
+_confirm_val CONF_REPORTS_TOOLS_INSTANCE   "$DET_REPORTS_TOOLS_INSTANCE"   "REPORTS_TOOLS_INSTANCE"
+_confirm_val CONF_REPORTS_SERVER_INSTANCES "$DET_REPORTS_SERVER_INSTANCES" "REPORTS_SERVER_INSTANCES"
+_confirm_val CONF_REPORTS_PATH             "$DET_REPORTS_PATH"             "REPORTS_PATH"
+_confirm_val CONF_REPORTS_TMP              "$DET_REPORTS_TMP"              "REPORTS_TMP"
+_confirm_val CONF_REPORTS_BROADCAST_PORT   "$DET_REPORTS_BROADCAST_PORT"   "REPORTS_BROADCAST_PORT"
+_confirm_val CONF_ORACLE_USER              "$DET_ORACLE_USER"              "ORACLE_OS_USER"
 _confirm_val CONF_DB_HOST        "$DET_DB_HOST"           "DB_HOST"
 _confirm_val CONF_DB_PORT        "${DET_DB_PORT:-1521}"   "DB_PORT"
 _confirm_val CONF_DB_SERVICE     "$DET_DB_SERVICE"        "DB_SERVICE"
@@ -981,9 +1018,20 @@ if $APPLY; then
         _append_if_missing "RWRUN"                 "\${ORACLE_HOME}/bin/rwrun"   "$ENV_CONF"
         _append_if_missing "RWCLIENT"              "\${ORACLE_HOME}/bin/rwclient" "$ENV_CONF"
         _append_if_missing "WLST"                  "\${ORACLE_HOME}/oracle_common/common/bin/wlst.sh" "$ENV_CONF"
-        _append_if_missing "RWSERVER_CONF"         "$CONF_RWSERVER_CONF"    "$ENV_CONF"
-        _append_if_missing "CGICMD_DAT"            "$CONF_CGICMD_DAT"       "$ENV_CONF"
-        _append_if_missing "SETDOMAINENV"          "\${DOMAIN_HOME}/bin/setDomainEnv.sh" "$ENV_CONF"
+        _append_if_missing "RWSERVER_CONF"            "$CONF_RWSERVER_CONF"              "$ENV_CONF"
+        _append_if_missing "CGICMD_DAT"             "$CONF_CGICMD_DAT"                 "$ENV_CONF"
+        _append_if_missing "SETDOMAINENV"           "\${DOMAIN_HOME}/bin/setDomainEnv.sh" "$ENV_CONF"
+        _append_if_missing "REPORTS_TOOLS_INSTANCE"    "$CONF_REPORTS_TOOLS_INSTANCE"    "$ENV_CONF"
+        _append_if_missing "REPORTS_SERVER_INSTANCES"  "$CONF_REPORTS_SERVER_INSTANCES"  "$ENV_CONF"
+        _append_if_missing "REPORTS_PATH"              "$CONF_REPORTS_PATH"              "$ENV_CONF"
+        _append_if_missing "REPORTS_TMP"               "$CONF_REPORTS_TMP"               "$ENV_CONF"
+        _append_if_missing "REPORTS_BROADCAST_PORT"    "$CONF_REPORTS_BROADCAST_PORT"    "$ENV_CONF"
+        _append_if_missing "REPORTS_ENGINE_INIT"       "2"                               "$ENV_CONF"
+        _append_if_missing "REPORTS_ENGINE_MAX"        "5"                               "$ENV_CONF"
+        _append_if_missing "REPORTS_ENGINE_MIN"        "2"                               "$ENV_CONF"
+        _append_if_missing "REPORTS_MAX_CONNECT"       "300"                             "$ENV_CONF"
+        _append_if_missing "REPORTS_MAX_QUEUE"         "4000"                            "$ENV_CONF"
+        _append_if_missing "REPORTS_COOKIE_KEY"        ""                                "$ENV_CONF"
         _append_if_missing "WLS_LOG_DIR"           "\${DOMAIN_HOME}/servers/\${WLS_MANAGED_SERVER}/logs" "$ENV_CONF"
         _append_if_missing "DIAG_LOG_DIR"          "\${ROOT_DIR}/log/\$(date +%Y%m%d)" "$ENV_CONF"
         _append_if_missing "SEC_CONF"              "\${ROOT_DIR}/weblogic_sec.conf.des3" "$ENV_CONF"
@@ -1050,6 +1098,29 @@ REPORTS_FONT_DIR="\${DOMAIN_HOME}/reports/fonts"
 REPORTS_INSTANCES=(
 $(printf "%b" "$INSTANCES_ARRAY_STR"))
 
+# --- Reports Instance Names --------------------------------------------------
+# REPORTS_TOOLS_INSTANCE: always exactly one per domain
+REPORTS_TOOLS_INSTANCE="${CONF_REPORTS_TOOLS_INSTANCE}"
+# REPORTS_SERVER_INSTANCES: space-separated; multiple allowed
+REPORTS_SERVER_INSTANCES="${CONF_REPORTS_SERVER_INSTANCES}"
+
+# --- Reports Runtime Configuration -------------------------------------------
+# REPORTS_PATH: directory containing .rdf / .rep report source files
+REPORTS_PATH="${CONF_REPORTS_PATH}"
+# REPORTS_TMP: writable directory for temporary output files
+REPORTS_TMP="${CONF_REPORTS_TMP}"
+# Broadcasting port – unique per environment in the subnet (range: 14021–14030)
+# 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)
+REPORTS_BROADCAST_PORT="${CONF_REPORTS_BROADCAST_PORT}"
+# rwserver.conf engine tuning (see 09-Install/docs/13-reports-detail-settings.md)
+REPORTS_ENGINE_INIT="2"
+REPORTS_ENGINE_MAX="5"
+REPORTS_ENGINE_MIN="2"
+REPORTS_MAX_CONNECT="300"
+REPORTS_MAX_QUEUE="4000"
+# rwservlet.properties cookie encryption key – generate once, keep stable
+REPORTS_COOKIE_KEY=""
+
 # --- Reports / Forms Binaries ------------------------------------------------
 RWRUN="\${ORACLE_HOME}/bin/rwrun"
 RWCLIENT="\${ORACLE_HOME}/bin/rwclient"
@@ -1104,8 +1175,13 @@ else
     printList "  WLS_SERVER_FQDN"       28 "$CONF_WLS_SERVER_FQDN"
     printList "  ORACLE_HOME"           28 "$CONF_ORACLE_HOME"
     printList "  DOMAIN_HOME"           28 "$CONF_DOMAIN_HOME"
-    printList "  REPORTS_COMPONENT"     28 "$CONF_REPORTS_COMP"
-    printList "  WLS_MANAGED_SERVER"    28 "$CONF_WLS_MANAGED"
+    printList "  REPORTS_COMPONENT"        28 "$CONF_REPORTS_COMP"
+    printList "  REPORTS_TOOLS_INSTANCE"  28 "$CONF_REPORTS_TOOLS_INSTANCE"
+    printList "  REPORTS_SERVER_INSTANCES" 28 "$CONF_REPORTS_SERVER_INSTANCES"
+    printList "  REPORTS_PATH"            28 "$CONF_REPORTS_PATH"
+    printList "  REPORTS_TMP"             28 "$CONF_REPORTS_TMP"
+    printList "  REPORTS_BROADCAST_PORT"  28 "$CONF_REPORTS_BROADCAST_PORT"
+    printList "  WLS_MANAGED_SERVER"      28 "$CONF_WLS_MANAGED"
     printList "  JDK_HOME"              28 "$CONF_JAVA_HOME"
     printList "  RWSERVER_CONF"         28 "$CONF_RWSERVER_CONF"
     printList "  ORACLE_OS_USER"        28 "$CONF_ORACLE_USER"

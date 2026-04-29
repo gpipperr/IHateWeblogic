@@ -29,3 +29,26 @@ CGICMD_DAT=${DOMAIN_HOME}/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applica
 RWSERVER_CONF=${DOMAIN_HOME}/config/fmwconfig/components/ReportsServerComponent/repserver01/rwserver.conf
 UIFONT_ALI=${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent/reptools1/uifont.ali
 REPORTS_FONT_DIR=${DOMAIN_HOME}/reports/fonts
+
+# --- Reports Instance Names --------------------------------------------------
+# REPORTS_TOOLS_INSTANCE: always exactly one per domain
+REPORTS_TOOLS_INSTANCE=reptools_ent
+# REPORTS_SERVER_INSTANCES: space-separated; multiple allowed
+REPORTS_SERVER_INSTANCES=repserver_ent
+
+# --- Reports Runtime Configuration -------------------------------------------
+# Directory containing .rdf / .rep report source files
+REPORTS_PATH=/app/oracle/applications
+# Writable directory for temporary output files (must be accessible by Reports engines)
+REPORTS_TMP=/tmp/reports
+# Broadcasting port – unique per environment in the subnet (range: 14021–14030)
+# 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)
+REPORTS_BROADCAST_PORT=14027
+# rwserver.conf engine tuning
+REPORTS_ENGINE_INIT=2
+REPORTS_ENGINE_MAX=5
+REPORTS_ENGINE_MIN=2
+REPORTS_MAX_CONNECT=300
+REPORTS_MAX_QUEUE=4000
+# rwservlet.properties cookie encryption key – generate once, keep stable
+REPORTS_COOKIE_KEY=

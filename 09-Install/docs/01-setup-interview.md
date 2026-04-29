@@ -115,6 +115,56 @@ Determines which network interface WebLogic (Admin Server and all Managed Server
 > avoids the common failure mode of expired certificates inside the WebLogic config.
 > See `09-Install/docs/03-root_nginx_ssl.md` for NGINX SSL setup.
 
+### Block 3b – Reports Server Details
+
+Shown only when `INSTALL_COMPONENTS` includes Reports.
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `REPORTS_TOOLS_INSTANCE` | `reptools_ent` | Name of the ReportsTools component instance (exactly one per domain) |
+| `REPORTS_SERVER_INSTANCES` | `repserver_ent` | Space-separated list of ReportsServer instance names (multiple allowed) |
+| `REPORTS_PATH` | `/app/oracle/applications` | Directory containing `.rdf`/`.rep` report source files |
+| `REPORTS_TMP` | `/tmp/reports` | Writable temp directory for output files (accessible by Reports engines) |
+| `REPORTS_BROADCAST_PORT` | `14027` | UDP broadcast port – must be **unique per environment in the subnet** (range 14021–14030, Doc ID 437228.1) |
+| `REPORTS_ENGINE_INIT` | `2` | `rwserver.conf`: initial number of engine processes at startup |
+| `REPORTS_ENGINE_MAX` | `5` | `rwserver.conf`: maximum concurrent engine processes |
+| `REPORTS_ENGINE_MIN` | `2` | `rwserver.conf`: minimum engine processes kept alive |
+| `REPORTS_MAX_CONNECT` | `300` | `rwserver.conf`: max simultaneous client connections |
+| `REPORTS_MAX_QUEUE` | `4000` | `rwserver.conf`: max requests queued |
+| `REPORTS_COOKIE_KEY` | *(generated)* | `rwservlet.properties` cookie encryption key – generated once, keep stable |
+
+#### Broadcasting Port Assignment
+
+The broadcast port is subnet-wide: **all Reports Servers in the same subnet that share a port will see each other.**
+Each `environment.conf` file represents one environment, so the port is automatically isolated when using separate conf files.
+
+Recommended allocation (align with Doc ID 437228.1):
+
+| Port | Environment |
+|---|---|
+| `14027` | FMW 14.1.2.0.0 Production |
+| `14028` | FMW 14.1.2.0.0 Standby / DR |
+| `14025` | Test / QA |
+| `14021` | Development |
+
+#### Multiple Reports Server Instances
+
+`REPORTS_SERVER_INSTANCES` is a space-separated string — each name becomes a separate
+`ReportsServerComponent/<name>/` directory in the domain:
+
+```bash
+REPORTS_SERVER_INSTANCES="repserver_ent repserver_batch"
+```
+
+Scripts iterate with:
+```bash
+for inst in $REPORTS_SERVER_INSTANCES; do
+    # configure $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$inst/
+done
+```
+
+---
+
 ### Block 4 – Database (RCU)
 
 | Parameter | Default |
