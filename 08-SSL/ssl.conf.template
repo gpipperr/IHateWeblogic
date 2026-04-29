@@ -47,10 +47,10 @@ SSL_DAYS="825"
 # Paths where ssl_prepare_cert.sh writes the generated files.
 # 03-root_nginx_ssl.sh --apply reads from here and copies to /etc/nginx/ssl/.
 
-SSL_CERT_FILE="/srv/certs/server.crt"
-SSL_KEY_FILE="/srv/certs/server.key"
-SSL_CHAIN_FILE="/srv/certs/chain.crt"   # CA chain / root cert (Easy-RSA: ca.crt)
-SSL_CSR_FILE="/srv/certs/server.csr"    # CSR output (REQUEST mode only)
+SSL_CERT_FILE="08-SSL/certs/server.crt"
+SSL_KEY_FILE="08-SSL/certs/server.key"
+SSL_CHAIN_FILE="08-SSL/certs/chain.crt"   # CA chain / root cert (Easy-RSA: ca.crt)
+SSL_CSR_FILE="08-SSL/certs/server.csr"    # CSR output (REQUEST mode only)
 
 # --- Easy-RSA (mode EASYRSA only) --------------------------------------------
 

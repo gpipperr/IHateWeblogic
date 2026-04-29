@@ -27,6 +27,8 @@ weblogic_sec.conf
 
 # SSL certificate configuration (server-specific; template is committed)
 08-SSL/ssl.conf
+# Generated certificates and keys (never commit private keys)
+08-SSL/certs/
 
 # Log output directories
 log/
