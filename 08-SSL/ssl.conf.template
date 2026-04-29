@@ -1,0 +1,65 @@
+# =============================================================================
+# ssl.conf – SSL Certificate Configuration
+# =============================================================================
+# Copy this file to ssl.conf and adjust values for your environment.
+# ssl.conf is NOT committed to git (contains server-specific data).
+# ssl.conf.template IS committed as a reference.
+#
+# Used by: 08-SSL/ssl_prepare_cert.sh
+# =============================================================================
+
+# --- Certificate identity -----------------------------------------------------
+
+# Common Name: must match the external FQDN clients use to reach the server.
+# Modern browsers also require this as a SAN entry (added automatically).
+SSL_CN="wls01.company.local"
+
+# Subject Alternative Names (space-separated).
+# Format: DNS:hostname  or  IP:1.2.3.4
+# SSL_CN is always added as the first DNS SAN automatically.
+SSL_SAN="DNS:wls01.company.local DNS:wls01"
+
+# Distinguished Name fields
+SSL_COUNTRY="DE"           # 2-letter ISO country code
+SSL_STATE="Bavaria"        # State / Province
+SSL_CITY="Munich"          # City / Locality
+SSL_ORG="Company GmbH"     # Organization
+SSL_ORG_UNIT="IT"          # Organizational Unit (may be left empty)
+SSL_EMAIL=""               # E-mail in cert (optional, usually left empty)
+
+# --- Certificate parameters ---------------------------------------------------
+
+# Key algorithm: RSA or EC (elliptic curve)
+SSL_KEY_ALGO="RSA"
+
+# RSA key size (used when SSL_KEY_ALGO=RSA): 2048 or 4096
+SSL_KEY_SIZE="4096"
+
+# Elliptic curve (used when SSL_KEY_ALGO=EC): prime256v1 or secp384r1
+SSL_EC_CURVE="secp384r1"
+
+# Certificate validity in days
+# Self-signed / Easy-RSA: 825 (≈2 years, browser limit)
+# CSR for public CA: leave at 0 – CA decides the validity
+SSL_DAYS="825"
+
+# --- Output file paths --------------------------------------------------------
+# Paths where ssl_prepare_cert.sh writes the generated files.
+# 03-root_nginx_ssl.sh --apply reads from here and copies to /etc/nginx/ssl/.
+
+SSL_CERT_FILE="/srv/certs/server.crt"
+SSL_KEY_FILE="/srv/certs/server.key"
+SSL_CHAIN_FILE="/srv/certs/chain.crt"   # CA chain / root cert (Easy-RSA: ca.crt)
+SSL_CSR_FILE="/srv/certs/server.csr"    # CSR output (REQUEST mode only)
+
+# --- Easy-RSA (mode EASYRSA only) --------------------------------------------
+
+# Root directory of the Easy-RSA PKI.
+EASYRSA_PKI_DIR="/srv/gpi_ca"
+
+# CA validity in days (used only when initializing a new CA)
+EASYRSA_CA_DAYS="3650"
+
+# --- Last run (written back by ssl_prepare_cert.sh) --------------------------
+# SSL_LAST_MODE records which mode was used last; shown as default on next run.
+SSL_LAST_MODE="SELF"
