@@ -103,6 +103,15 @@ SSL_CERT_FILE="${SSL_CERT_FILE:-}"
 SSL_KEY_FILE="${SSL_KEY_FILE:-}"
 SSL_CHAIN_FILE="${SSL_CHAIN_FILE:-}"
 
+# Load 08-SSL/ssl.conf as fallback for SSL paths (set by ssl_prepare_cert.sh)
+_SSL_CONF="$ROOT_DIR/08-SSL/ssl.conf"
+if [ -f "$_SSL_CONF" ]; then
+    # shellcheck source=../08-SSL/ssl.conf
+    source "$_SSL_CONF"
+    info "SSL paths loaded from: $_SSL_CONF"
+fi
+unset _SSL_CONF
+
 # =============================================================================
 # Banner
 # =============================================================================
@@ -158,28 +167,22 @@ fi
 
 section "Certificate Source Files"
 
-# Interactive prompt if not set
-if [ "$APPLY_MODE" -eq 1 ]; then
-    if [ -z "$SSL_CERT_FILE" ]; then
-        printf "  SSL certificate file (fullchain PEM) path: " >&2
-        read -r SSL_CERT_FILE
-        # Persist to environment.conf
-        if grep -q "^SSL_CERT_FILE=" "$ENV_CONF" 2>/dev/null; then
-            sed -i "s|^SSL_CERT_FILE=.*|SSL_CERT_FILE=${SSL_CERT_FILE}|" "$ENV_CONF"
-        else
-            printf "SSL_CERT_FILE=%s\n" "$SSL_CERT_FILE" >> "$ENV_CONF"
-        fi
-    fi
-    if [ -z "$SSL_KEY_FILE" ]; then
-        printf "  SSL private key file (PEM) path: " >&2
-        read -r SSL_KEY_FILE
-        if grep -q "^SSL_KEY_FILE=" "$ENV_CONF" 2>/dev/null; then
-            sed -i "s|^SSL_KEY_FILE=.*|SSL_KEY_FILE=${SSL_KEY_FILE}|" "$ENV_CONF"
-        else
-            printf "SSL_KEY_FILE=%s\n" "$SSL_KEY_FILE" >> "$ENV_CONF"
-        fi
-    fi
-fi
+# Interactive prompt – show current value as default, allow override
+_prompt_ssl_path() {
+    local label="$1"
+    local -n _ref="$2"
+    local _cur="${_ref:-}"
+    local _input
+    printf "  %-26s [\033[36m%s\033[0m]: " "$label" "$_cur" >&2
+    read -r _input
+    _ref="${_input:-$_cur}"
+}
+
+printf "  Review certificate paths (Enter = accept):\n\n"
+_prompt_ssl_path "Certificate file (PEM)" SSL_CERT_FILE
+_prompt_ssl_path "Private key file (PEM)" SSL_KEY_FILE
+_prompt_ssl_path "CA chain file (optional)" SSL_CHAIN_FILE
+printf "\n"
 
 # Validate cert file exists and is readable
 if [ -z "$SSL_CERT_FILE" ]; then
