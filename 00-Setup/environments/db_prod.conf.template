@@ -1,0 +1,16 @@
+# ENV_TYPE=DB
+# ENV_LABEL=Production – Oracle Database 19c
+# =============================================================================
+# environment.conf – Oracle Database Home
+# Template: rename to db_prod.conf and adapt paths
+# =============================================================================
+
+ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1
+ORACLE_BASE=/u01/app/oracle
+ORACLE_SID=ORCL
+NLS_LANG=GERMAN_GERMANY.AL32UTF8
+
+# Optional: used by IHateWeblogic DB scripts
+DB_HOST=localhost
+DB_PORT=1521
+DB_SERVICE=ORCL

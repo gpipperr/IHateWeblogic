@@ -18,7 +18,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `weblogic_performance.sh` | ✅ implemented | SecureRandom startup fix + JVM heap per server check/apply |
 
 All implemented scripts source `environment.conf` and write output to both
-stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/env_check.sh` first if
+stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/init_env.sh` first if
 `environment.conf` does not exist yet.
 
 ---
@@ -336,7 +336,7 @@ Symptom: All WLS ports show CLOSED in connectivity check
 Cause A: WebLogic domain not started
          → Run: $DOMAIN_HOME/bin/startWebLogic.sh  (or via Node Manager)
 Cause B: WL_ADMIN_URL in environment.conf has wrong host/port
-         → Re-run: 00-Setup/env_check.sh to regenerate environment.conf
+         → Re-run: 00-Setup/init_env.sh to regenerate environment.conf
 Cause C: Firewall blocking the port on this host
          → Check: sudo firewall-cmd --list-ports
          → Open:  sudo firewall-cmd --add-port=7001/tcp --permanent
@@ -448,7 +448,7 @@ All managed servers must be **restarted** for heap changes to take effect.
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/env_check.sh` | Generate / validate `environment.conf` |
+| `00-Setup/init_env.sh` | Detect FMW/Domain paths, generate `environment.conf` |
 | `00-Setup/weblogic_sec.sh` | Store WebLogic admin credentials (used by db_connect_check) |
 | `01-Run/rwrun_trace.sh` | Diagnose `rwrun` segfaults |
 | `03-Logs/grep_logs.sh` | Search logs for errors after a failed check |

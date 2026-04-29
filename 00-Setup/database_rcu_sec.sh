@@ -35,7 +35,7 @@ if [ -f "$ENV_CONF" ]; then
     source "$ENV_CONF"
 else
     warn "environment.conf not found – using defaults"
-    info "Run first: 00-Setup/env_check.sh --apply"
+    info "Run first: 00-Setup/init_env.sh --apply"
 fi
 
 # --- Arguments ----------------------------------------------------------------

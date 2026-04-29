@@ -9,8 +9,8 @@
 | Situation | Tool | Method |
 |---|---|---|
 | **New installation** (no FMW present) | `09-Install/01-setup-interview.sh` | Interactive interview, sensible defaults suggested |
-| **Existing system, no conf** | `00-Setup/env_check.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
-| **Existing system, conf present** | `00-Setup/env_check.sh --apply` | Auto-detect, append only missing values |
+| **Existing system, no conf** | `00-Setup/init_env.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
+| **Existing system, conf present** | `00-Setup/init_env.sh --apply` | Auto-detect, append only missing values |
 | **Multi-domain environment** | `00-Setup/set_env.sh` | Switch symlink to the active conf |
 
 ---
@@ -25,7 +25,7 @@ explicitly provides a different value during `--interview`.
 
 ```
 [Install parameters]    → set by the interview before installation begins
-[Runtime parameters]    → auto-detected by env_check.sh after installation
+[Runtime parameters]    → auto-detected by init_env.sh after installation
 ```
 
 **Passwords never in plaintext:** All passwords are encrypted immediately
@@ -45,7 +45,7 @@ explicitly provides a different value during `--interview`.
 
 2. [Phase 0–1 installation runs through]
 
-3. 00-Setup/env_check.sh --apply
+3. 00-Setup/init_env.sh --apply
    → Detects runtime parameters (FMW paths, instances, config files)
    → Extends environment.conf with runtime section
    → Existing install parameters are not overwritten
@@ -54,7 +54,7 @@ explicitly provides a different value during `--interview`.
 ## Existing System (no conf)
 
 ```
-1. 00-Setup/env_check.sh --interview --apply
+1. 00-Setup/init_env.sh --interview --apply
    → Scans running WLS processes, FMW paths, jps-config.xml
    → Shows each detected value, user confirms or overrides
    → Writes complete environment.conf
@@ -75,7 +75,7 @@ explicitly provides a different value during `--interview`.
 | `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free |
 
 ### Block 2 – FMW Runtime Paths
-*Runtime parameters – auto-detected by `env_check.sh` after installation*
+*Runtime parameters – auto-detected by `init_env.sh` after installation*
 
 | Variable | Value | Description |
 |---|---|---|
@@ -92,7 +92,7 @@ explicitly provides a different value during `--interview`.
 > set `JDK_HOME`, independent of `alternatives`.
 
 ### Block 3 – WebLogic Domain
-*Mix: base values from interview, managed server name auto-detected by env_check.sh*
+*Mix: base values from interview, managed server name auto-detected by init_env.sh*
 
 | Variable | Default | Description |
 |---|---|---|
@@ -108,7 +108,7 @@ explicitly provides a different value during `--interview`.
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
 
 ### Block 4 – Reports Components
-*Runtime parameters – auto-detected by env_check.sh after installation*
+*Runtime parameters – auto-detected by init_env.sh after installation*
 
 | Variable | Description |
 |---|---|
@@ -122,7 +122,7 @@ explicitly provides a different value during `--interview`.
 | `REPORTS_SERVER_NAME` | `repserver01` – Reports Server name |
 
 ### Block 5 – Configuration Files
-*Runtime parameters – auto-detected by env_check.sh*
+*Runtime parameters – auto-detected by init_env.sh*
 
 | Variable | Description |
 |---|---|
@@ -180,7 +180,7 @@ JDK_HOME  = /u01/app/oracle/java/jdk-21        (symlink → jdk-21.0.x)
             Oracle Support expects the Oracle JDK vendor here
 
 JAVA_HOME = /u01/oracle/fmw/oracle_common/jdk   (FMW-bundled JDK)
-            Set by:  env_check.sh (auto-detected after FMW installation)
+            Set by:  init_env.sh (auto-detected after FMW installation)
             Used by: all diagnostic scripts that invoke java
             Only available after FMW installation
 ```
@@ -190,7 +190,7 @@ JAVA_HOME = /u01/oracle/fmw/oracle_common/jdk   (FMW-bundled JDK)
 
 ---
 
-## Detection Chain in `env_check.sh`
+## Detection Chain in `init_env.sh`
 
 ```
 FMW_HOME:
@@ -237,7 +237,7 @@ DB connection:
 | Script | Purpose |
 |---|---|
 | `09-Install/01-setup-interview.sh` | New install: interview → environment.conf + encrypted passwords |
-| `00-Setup/env_check.sh` | Existing system: auto-detect → extend environment.conf |
+| `00-Setup/init_env.sh` | Existing system: auto-detect → extend environment.conf |
 | `00-Setup/weblogic_sec.sh` | Password concept: encrypt/decrypt via machine UUID |
 | `00-Setup/set_env.sh` | Multi-domain: switch symlink to active conf |
 | `09-Install/04-oracle_pre_checks.sh` | Phase 1: reads install parameters from environment.conf |

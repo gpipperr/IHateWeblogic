@@ -46,7 +46,7 @@ RCU_TABLESPACE=FMW_DATA
 ```
 
 The script sets `RCU_TABLESPACE` automatically if the line already exists
-in `environment.conf`.  If not, run `00-Setup/env_check.sh --apply` first.
+in `environment.conf`.  If not, run `00-Setup/init_env.sh --apply` first.
 
 ---
 

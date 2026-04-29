@@ -13,7 +13,7 @@ management, interactive WLST access, Reports Server status.
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
 | `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status |
 
-All scripts source `environment.conf`. Run `00-Setup/env_check.sh` first
+All scripts source `environment.conf`. Run `00-Setup/init_env.sh` first
 if `environment.conf` does not exist yet.
 
 ---
@@ -249,7 +249,7 @@ Symptom: All components show STOPPED even though WebLogic is up
 Cause A: Running as a different user – pgrep misses processes of other users
          Fix: Run as the oracle user: su - oracle -c "..."
 Cause B: DOMAIN_HOME wrong in environment.conf
-         Fix: Re-run 00-Setup/env_check.sh to regenerate environment.conf
+         Fix: Re-run 00-Setup/init_env.sh to regenerate environment.conf
 ```
 
 ### wlst_connect.sh – "User failed to be authenticated"
@@ -265,7 +265,7 @@ Fix:     Re-run 00-Setup/weblogic_sec.sh --apply to update credentials
 ```
 Symptom: FAIL wlst.sh not found: /u01/oracle/fmw/oracle_common/common/bin/wlst.sh
 Cause:   FMW_HOME is wrong or FMW is not installed at that path
-Fix:     Correct FMW_HOME in environment.conf, then re-run env_check.sh
+Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 ```
 
 ---
@@ -274,7 +274,7 @@ Fix:     Correct FMW_HOME in environment.conf, then re-run env_check.sh
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/env_check.sh` | Generate / validate `environment.conf` |
+| `00-Setup/init_env.sh` | Detect FMW/Domain paths, generate `environment.conf` |
 | `00-Setup/weblogic_sec.sh` | Store WebLogic credentials (used by wlst_connect and startStop) |
 | `02-Checks/port_check.sh` | Verify ports before start; complements status table |
 | `03-Logs/tail_logs.sh` | Live-tail server logs during start/stop |

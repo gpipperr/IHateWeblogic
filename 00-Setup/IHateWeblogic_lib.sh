@@ -29,6 +29,27 @@ _get_hostname() {
 }
 
 # =============================================================================
+# Raw color helpers  (no prefix, no log tee – for interactive UI output)
+# Use these when building menus or selection prompts.
+# Use ok()/warn()/fail()/info() for diagnostic script output instead.
+# =============================================================================
+
+# _color_green  text  – print green text (inline, no newline appended)
+_color_green()  { printf "\033[32m%s\033[0m" "$*"; }
+
+# _color_yellow  text  – print yellow text (inline, no newline appended)
+_color_yellow() { printf "\033[33m%s\033[0m" "$*"; }
+
+# _color_red  text  – print red text (inline, no newline appended)
+_color_red()    { printf "\033[31m%s\033[0m" "$*"; }
+
+# _color_bold  text  – print bold text (inline, no newline appended)
+_color_bold()   { printf "\033[1m%s\033[0m"  "$*"; }
+
+# _color_cyan  text  – print cyan text (inline, no newline appended)
+_color_cyan()   { printf "\033[36m%s\033[0m" "$*"; }
+
+# =============================================================================
 # Global state (reset each time lib is sourced)
 # =============================================================================
 CNT_OK=0
@@ -242,7 +263,7 @@ check_env_conf() {
     fi
     if [ ! -f "$env_conf" ]; then
         printError "environment.conf not found: $env_conf"
-        printError "Run first: 00-Setup/env_check.sh --apply"
+        printError "Run first: 00-Setup/init_env.sh --apply"
         return 1
     fi
     return 0

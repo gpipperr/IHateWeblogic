@@ -24,7 +24,7 @@ Run the following in order after the domain is created:
 ### 1. Validate environment.conf
 
 ```bash
-./00-Setup/env_check.sh
+./00-Setup/init_env.sh
 ```
 
 ### 2. Apply JVM performance settings
@@ -84,7 +84,7 @@ Orchestrates the configuration sequence:
 
 | Order | Action | Script called |
 |---|---|---|
-| 1 | Validate env | `00-Setup/env_check.sh` |
+| 1 | Validate env | `00-Setup/init_env.sh` |
 | 2 | JVM settings | `02-Checks/weblogic_performance.sh --apply` |
 | 3 | Font OS libs | `04-ReportsFonts/get_root_install_libs.sh --apply` |
 | 4 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` |

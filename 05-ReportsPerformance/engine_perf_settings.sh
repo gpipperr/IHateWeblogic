@@ -117,7 +117,7 @@ fi
 
 if [ -z "$RWSERVER_CONF" ] || [ ! -f "$RWSERVER_CONF" ]; then
     fail "rwserver.conf not found under $DOMAIN_HOME/config"
-    info "Re-run: 00-Setup/env_check.sh to detect the Reports component path"
+    info "Re-run: 00-Setup/init_env.sh to detect the Reports component path"
     print_summary
     exit "$EXIT_CODE"
 fi

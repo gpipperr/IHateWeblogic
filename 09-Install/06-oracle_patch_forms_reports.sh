@@ -39,7 +39,7 @@ source "$LIB"
 # --- Source environment.conf --------------------------------------------------
 if [ ! -f "$ENV_CONF" ]; then
     printf "\033[31mFATAL\033[0m: environment.conf not found: %s\n" "$ENV_CONF" >&2
-    printf "  Run first: 00-Setup/env_check.sh --apply\n" >&2; exit 2
+    printf "  Run first: 00-Setup/init_env.sh --apply\n" >&2; exit 2
 fi
 # shellcheck source=../environment.conf
 source "$ENV_CONF"

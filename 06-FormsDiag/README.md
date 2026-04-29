@@ -259,7 +259,7 @@ Fix:    Increase -Xmx in setDomainEnv.sh for WLS_FORMS
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/env_check.sh` | Generate / validate `environment.conf` |
+| `00-Setup/init_env.sh` | Detect FMW/Domain paths, generate `environment.conf` |
 | `02-Checks/db_connect_check.sh` | Diagnose DB connection (ORA- in Forms log) |
 | `02-Checks/os_check.sh` | RAM / ulimits – prerequisites for Forms sizing |
 | `04-ReportsFonts/uifont_ali_update.sh` | Font configuration (shared with Reports) |

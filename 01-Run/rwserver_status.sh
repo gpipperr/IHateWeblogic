@@ -338,7 +338,7 @@ fi
 
 if [ -z "$RWSERVER_CONF" ] || [ ! -f "$RWSERVER_CONF" ]; then
     warn "rwserver.conf not found – configuration section skipped"
-    info "Re-run 00-Setup/env_check.sh to detect the Reports component path"
+    info "Re-run 00-Setup/init_env.sh to detect the Reports component path"
     RS_NAME=""
     CFG_MIN_ENGINES="-"
     CFG_MAX_ENGINES="-"

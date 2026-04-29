@@ -133,7 +133,7 @@ if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
     ok "JAVA_HOME: $JAVA_HOME"
 else
     warn "JAVA_HOME not set or invalid – WLST may use system JDK"
-    info "Set JAVA_HOME in environment.conf or run 00-Setup/env_check.sh"
+    info "Set JAVA_HOME in environment.conf or run 00-Setup/init_env.sh"
 fi
 
 # =============================================================================

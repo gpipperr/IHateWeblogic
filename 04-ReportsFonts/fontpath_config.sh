@@ -61,7 +61,7 @@ done
 REPORTS_FONT_DIR="${REPORTS_FONT_DIR:-$DOMAIN_HOME/reports/fonts}"
 OVERRIDES_SH="$DOMAIN_HOME/bin/setUserOverrides.sh"
 
-# TK_FONTALIAS: path to uifont.ali as set by env_check.sh / environment.conf
+# TK_FONTALIAS: path to uifont.ali as set by init_env.sh / environment.conf
 # Falls back to REPORTS_ADMIN path if not set in environment.conf
 UIFONT_ALI_PATH="${UIFONT_ALI:-${REPORTS_ADMIN}/uifont.ali}"
 

@@ -31,7 +31,7 @@ if [ -f "$ENV_CONF" ]; then
     source "$ENV_CONF"
 else
     warn "environment.conf not found – using defaults"
-    info "Run first: 00-Setup/env_check.sh --apply"
+    info "Run first: 00-Setup/init_env.sh --apply"
     SEC_CONF="$ROOT_DIR/weblogic_sec.conf.des3"
     WL_ADMIN_URL="t3://localhost:7001"
     WLS_MANAGED_SERVER="WLS_REPORTS"
