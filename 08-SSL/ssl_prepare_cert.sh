@@ -40,7 +40,7 @@ fi
 source "$LIB_SH"
 
 # --- Source environment.conf --------------------------------------------------
-check_env_conf
+check_env_conf "$ROOT_DIR/environment.conf" || exit 2
 # shellcheck source=../environment.conf
 source "$ROOT_DIR/environment.conf"
 
