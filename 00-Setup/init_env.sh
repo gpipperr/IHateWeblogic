@@ -328,6 +328,36 @@ detect_reports_server_instances() {
     fi
 }
 
+# detect_forms_instance  domain_home
+# Returns the Forms instance name (basename) from the FORMS/instances directory.
+detect_forms_instance() {
+    local domain_home="$1"
+    local forms_base="$domain_home/config/fmwconfig/components/FORMS/instances"
+    local result=""
+
+    if [ -d "$forms_base" ]; then
+        result="$(find "$forms_base" -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
+            | sort | head -1 | xargs -r basename 2>/dev/null)"
+    fi
+
+    printf "%s" "${result:-forms1}"
+}
+
+# detect_wls_forms_server  domain_home
+# Returns the name of the WLS managed server that has Forms deployed.
+detect_wls_forms_server() {
+    local domain_home="$1"
+    local result=""
+
+    if [ -f "$domain_home/config/config.xml" ]; then
+        result="$(grep -oP '(?<=<name>)[^<]+(?=</name>)' \
+            "$domain_home/config/config.xml" 2>/dev/null \
+            | grep -iE 'forms|WLS_FORM' | head -1)"
+    fi
+
+    printf "%s" "${result:-WLS_FORMS}"
+}
+
 # detect_wls_reports_server  domain_home
 # Returns the name of the WLS managed server that has Reports deployed.
 detect_wls_reports_server() {
@@ -853,6 +883,22 @@ printList "REPORTS_BROADCAST_PORT"    30 "$DET_REPORTS_BROADCAST_PORT"
     || warn "REPORTS_FONT_DIR not found (run deploy_fonts.sh --apply)"
 
 # --------------------------------------------------------------------------
+section "Detecting Forms Components"
+
+DET_FORMS_INSTANCE_NAME="$(detect_forms_instance "$DET_DOMAIN_HOME")"
+DET_WLS_FORMS_SERVER="$(detect_wls_forms_server "$DET_DOMAIN_HOME")"
+printList "FORMS_INSTANCE_NAME" 30 "$DET_FORMS_INSTANCE_NAME"
+printList "WLS_FORMS_SERVER"    30 "$DET_WLS_FORMS_SERVER"
+
+_forms_inst_dir="$DET_DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$DET_FORMS_INSTANCE_NAME"
+if [ -d "$_forms_inst_dir" ]; then
+    ok "Forms instance dir exists: $_forms_inst_dir"
+else
+    info "Forms instance dir not found (normal before 14-oracle_setup_forms.sh): $_forms_inst_dir"
+fi
+unset _forms_inst_dir
+
+# --------------------------------------------------------------------------
 section "Detecting WLS Managed Server"
 
 DET_WLS_SERVER_FQDN="$(hostname -f 2>/dev/null || hostname)"
@@ -954,6 +1000,8 @@ if $INTERVIEW; then
     printf "\n  Confirm detected values (Enter = keep, type to override):\n\n"
 fi
 
+_confirm_val CONF_FORMS_INSTANCE_NAME "$DET_FORMS_INSTANCE_NAME" "FORMS_INSTANCE_NAME"
+_confirm_val CONF_WLS_FORMS_SERVER    "$DET_WLS_FORMS_SERVER"    "WLS_FORMS_SERVER"
 _confirm_val CONF_WLS_SERVER_FQDN "$DET_WLS_SERVER_FQDN"  "WLS_SERVER_FQDN"
 _confirm_val CONF_ORACLE_HOME    "$DET_ORACLE_HOME"       "ORACLE_HOME"
 _confirm_val CONF_JAVA_HOME      "$DET_JAVA_HOME"         "JDK_HOME"
@@ -1000,6 +1048,8 @@ if $APPLY; then
             } >> "$ENV_CONF"
         fi
 
+        _append_if_missing "FORMS_INSTANCE_NAME"   "$CONF_FORMS_INSTANCE_NAME" "$ENV_CONF"
+        _append_if_missing "WLS_FORMS_SERVER"     "$CONF_WLS_FORMS_SERVER"    "$ENV_CONF"
         _append_if_missing "ORACLE_HOME"           "$CONF_ORACLE_HOME"      "$ENV_CONF"
         _append_if_missing "WL_HOME"               "\${ORACLE_HOME}/wlserver" "$ENV_CONF"
         _append_if_missing "JDK_HOME"              "$CONF_JAVA_HOME"        "$ENV_CONF"
@@ -1121,6 +1171,12 @@ REPORTS_MAX_QUEUE="4000"
 # rwservlet.properties cookie encryption key – generate once, keep stable
 REPORTS_COOKIE_KEY=""
 
+# --- Forms Components --------------------------------------------------------
+# FORMS_INSTANCE_NAME: name of the Forms system component instance (e.g. forms1)
+FORMS_INSTANCE_NAME="${CONF_FORMS_INSTANCE_NAME}"
+# WLS_FORMS_SERVER: name of the WLS managed server running Oracle Forms
+WLS_FORMS_SERVER="${CONF_WLS_FORMS_SERVER}"
+
 # --- Reports / Forms Binaries ------------------------------------------------
 RWRUN="\${ORACLE_HOME}/bin/rwrun"
 RWCLIENT="\${ORACLE_HOME}/bin/rwclient"
@@ -1181,6 +1237,8 @@ else
     printList "  REPORTS_PATH"            28 "$CONF_REPORTS_PATH"
     printList "  REPORTS_TMP"             28 "$CONF_REPORTS_TMP"
     printList "  REPORTS_BROADCAST_PORT"  28 "$CONF_REPORTS_BROADCAST_PORT"
+    printList "  FORMS_INSTANCE_NAME"     28 "$CONF_FORMS_INSTANCE_NAME"
+    printList "  WLS_FORMS_SERVER"        28 "$CONF_WLS_FORMS_SERVER"
     printList "  WLS_MANAGED_SERVER"      28 "$CONF_WLS_MANAGED"
     printList "  JDK_HOME"              28 "$CONF_JAVA_HOME"
     printList "  RWSERVER_CONF"         28 "$CONF_RWSERVER_CONF"

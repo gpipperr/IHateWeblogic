@@ -20,6 +20,12 @@ WLS_REPORTS_PORT=9001
 WLS_NODEMANAGER_PORT=5556
 WLS_MANAGED_SERVER=WLS_REPORTS
 
+# --- Forms Components --------------------------------------------------------
+# FORMS_INSTANCE_NAME: name of the Forms system component instance
+FORMS_INSTANCE_NAME=forms1
+# WLS_FORMS_SERVER: WLS managed server running Oracle Forms
+WLS_FORMS_SERVER=WLS_FORMS
+
 DB_HOST=dbserver01
 DB_PORT=1521
 DB_SERVICE=FRPRD

@@ -1,0 +1,36 @@
+# =============================================================================
+# webutil.cfg – Oracle Forms WebUtil File Transfer Configuration
+# Target : $FR_INST/server/webutil.cfg
+#          $FR_INST_ALT/server/webutil.cfg  (both locations kept in sync)
+# Managed: 09-Install/14-oracle_setup_forms.sh --apply
+# =============================================================================
+#
+# CUSTOMER SETUP:
+#   transfer.appsrv.read.N  – directories the server is allowed to read from
+#   transfer.appsrv.write.N – directories the server is allowed to write to
+#   transfer.appsrv.workAreaRoot – temp area for file operations (default: /tmp)
+#
+# The numbered entries (read.1, read.2 …) are evaluated in order.
+# Add as many as needed; remove unused entries.
+# =============================================================================
+
+# ── File Transfer ─────────────────────────────────────────────────────────────
+# NOTE: file transfer is disabled by default as a security measure.
+# Set to TRUE only for environments where WebUtil file transfer is required.
+transfer.database.enabled=TRUE
+transfer.appsrv.enabled=TRUE
+transfer.appsrv.workAreaRoot=/tmp
+transfer.appsrv.accessControl=TRUE
+
+# ── Read Directories ──────────────────────────────────────────────────────────
+# ADAPT: set to the directories your Forms application reads files from
+transfer.appsrv.read.1=/mnt/shared/import
+transfer.appsrv.read.2=/mnt/shared/export
+# Add more as needed:
+# transfer.appsrv.read.3=/another/path
+
+# ── Write Directories ─────────────────────────────────────────────────────────
+# ADAPT: set to the directories your Forms application writes output files to
+transfer.appsrv.write.1=/mnt/shared/import
+# Add more as needed:
+# transfer.appsrv.write.2=/another/path

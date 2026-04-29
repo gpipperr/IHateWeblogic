@@ -1,0 +1,148 @@
+# =============================================================================
+# formsweb.cfg – Oracle Forms Web Configuration
+# Target : $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/
+#          applications/formsapp_<version>/config/formsweb.cfg
+# Managed: 09-Install/14-oracle_setup_forms.sh --apply
+# =============================================================================
+#
+# CUSTOMER SETUP – adapt the following in [default]:
+#   form=           – default start form (.fmx filename without path)
+#   pageTitle=      – application name shown in browser tab and title bar
+#   ssoSuccessLogonURL= – full URL for SSO logout redirect (host + port)
+#   background=     – background GIF filename (optional branding)
+#   logo=           – logo GIF filename (optional branding)
+#   customColorScheme= – name of colour scheme defined in Registry.dat
+#
+# Add customer-specific application sections AFTER [default].
+# SSO sections ([*_sso]) are intentionally omitted – add when required.
+# =============================================================================
+
+[default]
+baseHTML=base.htm
+HTMLdelimiter=%
+envFile=default.env
+restrictedURLparams=pageTitle,HTMLbodyAttrs,HTMLbeforeForm,HTMLafterForm,log
+escapeparams=true
+
+# ── Application ──────────────────────────────────────────────────────────────
+# ADAPT: set to your default start form (.fmx)
+form=start.fmx
+userid=
+pageTitle=Oracle Forms
+
+# ── Connection ───────────────────────────────────────────────────────────────
+debug=no
+host=
+port=
+digitSubstitution=context
+otherparams=
+obr=no
+record=
+tracegroup=
+log=
+term=
+
+# ── URLs ─────────────────────────────────────────────────────────────────────
+serverURL=/forms/lservlet
+codebase=/forms/java
+scriptbase=/forms/frmjscript
+imageBase=codebase
+mediaBase=codebase
+
+# ── Window ───────────────────────────────────────────────────────────────────
+width=1030
+height=860
+separateFrame=true
+splashScreen=no
+CenterOnStartup=true
+AlwaysOnTop=false
+hideActivityBar=false
+disableMDIScrollbars=false
+clientDPI=
+smartBarHeight=MEDIUM
+
+# ── Security ─────────────────────────────────────────────────────────────────
+allowAlertClipboard=true
+disableValidateClipboard=false
+highContrast=false
+allow_debug=false
+allowNewConnections=true
+
+# ── Appearance ───────────────────────────────────────────────────────────────
+# ADAPT: set background/logo GIF filenames for your environment, or leave empty
+background=
+logo=
+lookAndFeel=oracle
+colorScheme=swan
+# ADAPT: set to your custom colour scheme name (defined in Registry.dat), or remove
+customColorScheme=
+
+# ── Java Archive ─────────────────────────────────────────────────────────────
+archive=frmall.jar,frmopt.jar
+cache_archive_ex=frmopt.jar;preload
+guiMode=0
+
+# ── Prestart / Performance ────────────────────────────────────────────────────
+prestartInit=5
+prestartMin=4
+prestartIncrement=1
+prestartRuntimes=true
+networkRetries=0
+networkStats=false
+
+# ── SSO (disabled by default) ─────────────────────────────────────────────────
+ssoDynamicResourceCreate=false
+ssoErrorUrl=
+ssoCancelUrl=
+ssoMode=false
+ssoLogOut=false
+ssoLogOutRedirect=
+# ADAPT: set to your host:port for SSO logout
+ssoSuccessLogonURL=http://wls01.company.local:7777/forms/java/close.htm
+ssoProxyConnect=no
+logoutTargetURLParamname=
+
+# ── WebUtil ───────────────────────────────────────────────────────────────────
+WebUtilArchive=frmwebutil.jar
+WebUtilLogging=off
+WebUtilLoggingDetail=normal
+WebUtilErrorMode=Alert
+WebUtilDispatchMonitorInterval=5
+WebUtilTrustInternal=TRUE
+WebUtilMaxTransferSize=16384
+
+# ── End User Monitoring ───────────────────────────────────────────────────────
+EndUserMonitoringEnabled=false
+EndUserMonitoringURL=
+
+# ── JVM / Lifecycle ──────────────────────────────────────────────────────────
+separate_jvm=true
+legacy_lifecycle=false
+heartBeat=
+MaxEventWait=
+idleTimeout=
+
+# ── Java Plugin (legacy applet support) ───────────────────────────────────────
+jpi_download_page=http://www.oracle.com/technetwork/java/javase/downloads
+jpi_classid=clsid:8AD9C840-044E-11D1-B3E9-00805F499D93
+jpi_codebase=
+jpi_mimetype=application/x-java-applet
+java_version=1.7+
+
+# ── Other ────────────────────────────────────────────────────────────────────
+formsMessageListener=
+recordFileName=
+serverApp=Registry
+applet_name=
+enableJavascriptEvent=true
+JavaScriptBlocksHeartBeat=false
+
+# =============================================================================
+# Add customer-specific application sections below this line.
+# Example:
+#
+# [myapp]
+# form=myapp_start.fmx
+# pageTitle=My Application
+# envFile=myapp.env
+# =============================================================================

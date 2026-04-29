@@ -1,0 +1,61 @@
+# =============================================================================
+# Registry.dat – Oracle Forms Client Registry
+# Target : $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/
+#          applications/formsapp_<version>/config/oracle/forms/registry/Registry.dat
+# Managed: 09-Install/14-oracle_setup_forms.sh --apply
+# =============================================================================
+#
+# CUSTOMER SETUP:
+#   colorScheme.<name>.*  – define a custom colour scheme
+#   Reference in formsweb.cfg: customColorScheme=<name>
+#   default.fontMap.*     – font mapping from Forms app fonts to Java fonts
+# =============================================================================
+
+# ── Default Font Settings ─────────────────────────────────────────────────────
+default.fontMap.defaultFontname=Dialog
+default.fontMap.defaultSize=900
+default.fontMap.defaultStyle=PLAIN
+default.fontMap.defaultWeight=PLAIN
+
+# ── Font Mapping: Application Font → Java Font ────────────────────────────────
+default.fontMap.appFontnames=Courier New,Courier,courier,System,Terminal,Fixed,Fixedsys,Times,Times New Roman,MS Sans Serif,Arial
+default.fontMap.javaFontnames=MonoSpaced,MonoSpaced,MonoSpaced,Dialog,MonoSpaced,Dialog,Dialog,Serif,Serif,Dialog,SansSerif
+
+# ── Icons ─────────────────────────────────────────────────────────────────────
+default.icons.iconpath=
+default.icons.iconextension=gif
+
+# ── UI Features ───────────────────────────────────────────────────────────────
+app.ui.lovButtons=false
+app.ui.requiredFieldVA=false
+app.ui.requiredFieldVABGColor=255,0,0
+
+# ── Gradient Settings ─────────────────────────────────────────────────────────
+default.gradient.redDelta=200
+default.gradient.greenDelta=200
+default.gradient.blueDelta=200
+
+# ── Custom Colour Scheme ──────────────────────────────────────────────────────
+# ADAPT: rename "MyScheme" to your colour scheme name and set the hex values.
+# Reference in formsweb.cfg: customColorScheme=MyScheme
+#
+# Colour roles:
+#   lightest  – background of lightest elements (e.g. window background)
+#   lighter   – slightly darker (e.g. panel background)
+#   light     – border / separator colour
+#   dark      – pressed button / active item
+#   darker    – disabled text / inactive border
+#   darkest   – text / foreground colour
+#   selection – selected item highlight
+#   pinstripe1/2 – alternating row colours in lists (subtle gradient)
+#
+colorScheme.MyScheme.description=Custom colour scheme
+colorScheme.MyScheme.lightest=0xFFFFFF
+colorScheme.MyScheme.lighter=0xEEEEEE
+colorScheme.MyScheme.light=0xBDBDBD
+colorScheme.MyScheme.dark=0xBDBDBD
+colorScheme.MyScheme.darker=0x848484
+colorScheme.MyScheme.darkest=0x000000
+colorScheme.MyScheme.selection=0x546E7A
+colorScheme.MyScheme.pinstripe1=0xfafafa
+colorScheme.MyScheme.pinstripe2=0xe1e1e1
