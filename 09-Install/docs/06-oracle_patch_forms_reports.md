@@ -18,8 +18,8 @@ F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
 `INSTALL_PATCHES_FR` is only needed for patches that are F&R-specific and not
 included in the WLS CPU bundle.
 
-> **Current state (14.1.2, CPU Jan 2026):** `INSTALL_PATCHES_FR=""` — no
-> FR-specific patches needed beyond the WLS bundle patch already applied.
+> **Current state (14.1.2, QPR Jan 2026):** `INSTALL_PATCHES_FR="38874285 38827528"`
+> — Forms and Reports QPR patches, in addition to the WLS bundle patch (see table below).
 
 ---
 
@@ -29,7 +29,7 @@ Defined in `09-Install/oracle_software_version.conf` (space-separated):
 
 ```bash
 # QPR Jan 2026:
-INSTALL_PATCHES_FR="38827528"
+INSTALL_PATCHES_FR="38874285 38827528"
 ```
 
 Current patches (Jan 2026):

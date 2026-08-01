@@ -357,7 +357,7 @@ _verify_dir()  { [ -d "$1" ] && ok "$(printf "%-40s exists" "$1")" || fail "$(pr
 _verify_bin()  { [ -x "$1" ] && ok "$(printf "%-40s found"  "$1")" || fail "$(printf "%-40s MISSING" "$1")"; }
 
 case "$INSTALL_TYPE" in
-    Complete|Forms)
+    "Forms and Reports Deployment")
         _verify_dir "$ORACLE_HOME/forms"
         _verify_bin "$ORACLE_HOME/forms/bin/frmcmp_batch"
         printf "\n" | tee -a "$LOG_FILE"
@@ -368,7 +368,7 @@ case "$INSTALL_TYPE" in
 esac
 
 case "$INSTALL_TYPE" in
-    Complete|Reports)
+    "Forms and Reports Deployment")
         _verify_dir "$ORACLE_HOME/reports"
         _verify_bin "$ORACLE_HOME/reports/bin/rwrun"
         ;;

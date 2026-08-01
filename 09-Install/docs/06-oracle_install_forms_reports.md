@@ -136,14 +136,16 @@ $ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -3
 ## What the Script Does
 
 - Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE`, `INSTALL_COMPONENTS` from `environment.conf`
-- Maps `INSTALL_COMPONENTS` (FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY)
-  to `INSTALL_TYPE` (Complete | Forms | Reports)
+- Maps `INSTALL_COMPONENTS` (FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY | STANDALONE_FORMS_BUILDER)
+  to `INSTALL_TYPE` (`Forms and Reports Deployment` | `Standalone Forms Builder`) —
+  see "Installation Options" above
 - Generates the response file
 - Verifies FMW Infrastructure is already installed in `ORACLE_HOME`
   (checks for `$ORACLE_HOME/wlserver/` — aborts if missing)
 - Runs the silent installer
 - Tails install log to stdout
-- Verifies `forms/` and `reports/` directories exist after install
+- If `INSTALL_TYPE` is `Forms and Reports Deployment`: verifies `forms/` and
+  `reports/` directories + key binaries exist after install
 
 ---
 
