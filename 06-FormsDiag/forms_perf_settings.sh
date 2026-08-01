@@ -265,15 +265,26 @@ if [ -n "$WLS_FORMS_PID" ]; then
         printf "  %-26s %s MB\n" "WLS_FORMS JVM RSS:" "$WLS_RSS_MB" | tee -a "${LOG_FILE:-/dev/null}"
     fi
 
-    # Session capacity estimate
+    # Session capacity estimate — based on configured -Xmx (a stable ceiling),
+    # not live RSS (which grows with active sessions and would make "max
+    # sessions" increase under load instead of representing a real limit).
     FRMWEB_COUNT="$(pgrep -f "frmweb" 2>/dev/null | wc -l | tr -d ' ')"
-    if [ "${FRMWEB_COUNT:-0}" -gt 0 ] && [ -n "$WLS_RSS" ]; then
+    if [ -n "$JVM_XMX" ]; then
+        xmx_raw="${JVM_XMX#-Xmx}"
+        xmx_unit="${xmx_raw: -1}"
+        xmx_num="${xmx_raw%[mMgG]}"
+        case "$xmx_unit" in
+            [gG]) xmx_mb=$(( xmx_num * 1024 )) ;;
+            *)    xmx_mb="$xmx_num" ;;
+        esac
         # Each frmweb session adds roughly 50–150 MB RSS to the native processes
         AVG_FRMWEB_MB=80  # conservative estimate
-        EST_MAX=$(( WLS_RSS_MB / AVG_FRMWEB_MB ))
+        EST_MAX=$(( xmx_mb / AVG_FRMWEB_MB ))
         printf "  %-26s %s (active now: %s)\n" "Est. max sessions:" \
-            "~${EST_MAX} (at ${AVG_FRMWEB_MB} MB/session)" "$FRMWEB_COUNT" \
+            "~${EST_MAX} (at ${AVG_FRMWEB_MB} MB/session, -Xmx=${xmx_mb} MB)" "$FRMWEB_COUNT" \
             | tee -a "${LOG_FILE:-/dev/null}"
+    else
+        info "Est. max sessions: unavailable (-Xmx not found in JVM cmdline)"
     fi
 
     # Check setDomainEnv.sh for Forms JVM settings
