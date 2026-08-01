@@ -313,7 +313,7 @@ else
         info "  Reports Server : $_reports_server"
         info "  default: key   → server=$_reports_server statusformat=xml"
         info "  Named keys     → see comments in $CGICMD_TEMPLATE"
-        info "  authid user    → create with: 09-Install/10-oracle_setup_reports_user.sh"
+        info "  authid user    → create with: 09-Install/12-oracle_reports_users.sh"
     fi
 fi
 
@@ -383,7 +383,7 @@ info "  3. Verify Reports Server:"
 info "       ./01-Run/rwserver_status.sh"
 info ""
 info "  4. Create Reports execution user (needed for authid in cgicmd.dat):"
-info "       ./09-Install/10-oracle_setup_reports_user.sh --apply"
+info "       ./09-Install/12-oracle_reports_users.sh --apply"
 info ""
 info "  5. Font verification after first report run:"
 info "       ./04-ReportsFonts/pdf_font_verify.sh <pdf_output_file>"

@@ -178,7 +178,7 @@ Phase 7 – Validation (as oracle) [planned]
 | 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
 | 2 | `05-oracle_patch_weblogic.sh` | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
-| 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports 14.1.2 silent install (Complete / Forms / Reports) | [→ docs](docs/06-oracle_install_forms_reports.md) |
+| 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports 14.1.2 silent install (Forms and Reports Deployment / Standalone Forms Builder) | [→ docs](docs/06-oracle_install_forms_reports.md) |
 | 3 | `06-oracle_patch_forms_reports.sh` | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
 | 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas | [→ docs](docs/07-oracle_setup_repository.md) |
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
@@ -257,8 +257,12 @@ The installation module calls existing scripts directly — no code duplication:
 | `02-Checks/db_connect_check.sh` | `01-setup-interview.sh`, `04-oracle_pre_checks.sh` |
 | `02-Checks/ssl_check.sh` | `90-oracle_validate.sh` [planned] |
 | `02-Checks/weblogic_performance.sh` | `09-oracle_configure.sh` |
+| `04-ReportsFonts/get_root_install_libs.sh` | `09-oracle_configure.sh` |
+| `04-ReportsFonts/font_cache_reset.sh` | `09-oracle_configure.sh` |
 | `04-ReportsFonts/uifont_ali_update.sh` | `09-oracle_configure.sh` |
+| `04-ReportsFonts/fontpath_config.sh` | `09-oracle_configure.sh` |
 | `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh` |
+| `09-Install/10-oracle_boot_properties.sh` | `09-oracle_configure.sh` (Step 0) |
 | `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` [planned] |
 
 Shared install functions (silent response file generation, OPatch version check,

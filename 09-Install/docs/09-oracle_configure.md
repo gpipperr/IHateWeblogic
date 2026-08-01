@@ -85,15 +85,16 @@ Orchestrates the configuration sequence:
 | Order | Action | Script called | Doc |
 |---|---|---|---|
 | 0 | boot.properties | `09-Install/10-oracle_boot_properties.sh --apply` | [10-oracle_boot_properties.md](10-oracle_boot_properties.md) |
-| 1 | Validate env | `00-Setup/init_env.sh` | |
-| 2 | JVM settings | `02-Checks/weblogic_performance.sh --apply` | |
-| 3 | Font OS libs | `04-ReportsFonts/get_root_install_libs.sh --apply` | |
-| 4 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` | |
-| 5 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` | |
-| 6 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` | |
-| 7 | cgicmd.dat | direct edit from `environment.conf` | |
-| 8 | Node Manager | validate `nodemanager.properties` | |
-| 9 | Config backup | `07-Maintenance/backup_config.sh` | |
+| 1 | JVM settings | `02-Checks/weblogic_performance.sh --apply` | |
+| 2 | Font OS libs | `04-ReportsFonts/get_root_install_libs.sh --apply` | |
+| 3 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` | |
+| 4 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` | |
+| 5 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` | |
+| 6 | cgicmd.dat | direct edit from `environment.conf` | |
+| 7 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
+| 8 | Config backup | `07-Maintenance/backup_config.sh --apply` | |
+
+> Steps 2–5 (fonts) are skipped entirely with `--skip-fonts`.
 
 Each called script reports its own OK/WARN/FAIL. The orchestrator collects exit codes
 and reports an overall summary.

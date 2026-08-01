@@ -197,8 +197,8 @@ if $SKIP_WLST; then
     info "  → NodeManager Type: Plain → Lock & Edit → Save → Activate"
 else
     # Check AdminServer port is open
-    _adm_port="${WL_ADMIN_PORT:-7001}"
-    _adm_url="${WL_ADMIN_URL:-t3://localhost:${_adm_port}}"
+    _adm_port="${WLS_ADMIN_PORT:-7001}"
+    _adm_url="${WLS_ADMIN_URL:-t3://localhost:${_adm_port}}"
 
     if ! timeout 3 bash -c "echo >/dev/tcp/localhost/${_adm_port}" 2>/dev/null; then
         warn "AdminServer not reachable on port $_adm_port"
