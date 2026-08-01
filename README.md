@@ -267,15 +267,15 @@ IHateWeblogic/
 ├── 04-ReportsFonts/
 │   ├── README.md                    – incl. Section 11: font troubleshooting
 │   ├── manual_setup_de.txt          – German DBA cookbook (manual font setup, 7 steps)
-│   ├── get_root_install_libs.sh     – Generate dnf install command (run as root) for:
-│   │                                   poppler-utils, fc-query, Liberation Fonts, base font libs;
-│   │                                   registers fonts in default Linux font paths
+│   ├── get_root_install_libs.sh     – Check/install font, PDF (poppler-utils) and general
+│   │                                   FMW OS prerequisite packages (gcc, motif, …) via dnf
 │   ├── font_inventory.sh            – Inventory all PostScript Type1 and TTF fonts (FMW + system)
 │   ├── get_font_names.sh            – Use fc-query to extract exact names → ready uifont.ali entries
-│   ├── deploy_fonts.sh              – Deploy Liberation and corporate fonts to system paths (--apply)
-│   ├── uifont_ali_update.sh         – Backup uifont.ali, rebuild PS → TTF mappings (--apply)
-│   ├── uifont_ali_template.ali      – Reference template with documented [PDF:Subset] syntax
-│   ├── fontpath_config.sh           – Set REPORTS_FONTPATH / REPORTS_FONT_DIRECTORY (--apply)
+│   ├── deploy_fonts.sh              – Deploy Liberation, DejaVu and custom fonts to REPORTS_FONT_DIR (--apply)
+│   ├── uifont_ali_update.sh         – Rebuild uifont.ali from uifont_ali_template.ali (--apply)
+│   ├── uifont_ali_template.ali      – Live template (committed): [Global]/[Printer]/[Display]/[PDF:Embed]
+│   │                                   sections + ##PDF_SUBSET## marker; edit this, not the deployed file
+│   ├── fontpath_config.sh           – Set REPORTS_FONT_DIRECTORY, TK_FONTALIAS, ORACLE_FONTALIAS (--apply)
 │   ├── pdf_font_verify.sh           – Verify generated PDFs: embedded=yes, type=TrueType (pdffonts)
 │   ├── font_cache_reset.sh          – Rebuild Linux fontconfig cache (fc-cache) after font deploy (--apply)
 │   └── custom_fonts_dir/            – Drop corporate/customer font files here before deploying
