@@ -2,7 +2,9 @@
 # =============================================================================
 # Script   : 07-oracle_setup_repository.sh
 # Purpose  : Run RCU (Repository Creation Utility) in silent mode to create
-#            the 7 FMW metadata schemas required before domain creation.
+#            the FMW metadata schemas required before domain creation
+#            (8 RCU components, 9 database schemas total — WLS also creates
+#            a WLS_RUNTIME sub-schema).
 #            IMPORTANT: Run AFTER all software is installed and patched:
 #              05-oracle_install_weblogic.sh  → FMW Infrastructure
 #              05-oracle_patch_weblogic.sh    → WLS patches
@@ -60,7 +62,7 @@ DROP=false
 _usage() {
     printf "Usage: %s [--apply | --drop] [--help]\n\n" "$(basename "$0")"
     printf "  %-12s %s\n" "(none)"   "Dry-run: show connection info and schema names"
-    printf "  %-12s %s\n" "--apply"  "Run RCU -createRepository (create 7 FMW schemas)"
+    printf "  %-12s %s\n" "--apply"  "Run RCU -createRepository (create 8 FMW component schemas)"
     printf "  %-12s %s\n" "--drop"   "Run RCU -dropRepository (CAUTION: destroys all FMW data)"
     printf "  %-12s %s\n" "--help"   "Show this help"
     printf "\nRuns as: oracle\n"

@@ -39,7 +39,7 @@ directly to:
 
 ```
 CDB: FMWCDB
- └─ PDB: FMWPDB   ← all 7 FMW RCU schemas (PREFIX_STB/MDS/OPSS/IAU/…)
+ └─ PDB: FMWPDB   ← all 9 FMW RCU schemas (PREFIX_STB/MDS/OPSS/IAU/…/WLS/WLS_RUNTIME)
 
 Listener: port 1521
 DB_SERVICE (in environment.conf) → FMWPDB  (PDB service, not CDB)

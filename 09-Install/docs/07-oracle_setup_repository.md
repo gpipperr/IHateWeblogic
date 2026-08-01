@@ -106,7 +106,7 @@ EXIT;
 EOF
 ```
 
-Expected: 7 schemas listed.
+Expected: 9 schemas listed (8 components + the WLS_RUNTIME sub-schema).
 
 ---
 
@@ -172,7 +172,8 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
      aborts if connection fails or if prefix already exists (use `--drop` first)
   3. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
      to confirm the tablespace was pre-created before proceeding
-- Runs `rcu -silent -createRepository` with all 7 components
+- Runs `rcu -silent -createRepository` with all 8 components (9 schemas total,
+  including the WLS_RUNTIME sub-schema)
 - Deletes the password file immediately via `trap cleanup EXIT`
   (cleanup runs even if RCU fails or script is interrupted)
 - Verifies each schema is confirmed as Success in the RCU log
