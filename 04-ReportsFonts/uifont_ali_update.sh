@@ -13,7 +13,7 @@
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
-#            fonts.md (this project)
+#            04-ReportsFonts/README.md (this project)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

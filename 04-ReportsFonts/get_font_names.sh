@@ -56,13 +56,14 @@ _fc_query_style() {
 
 # =============================================================================
 # Helper: build uifont.ali [PDF:Subset] entry
-# Maps PostScript name(s) to the TTF filename (without extension)
-# Oracle Reports looks for this filename in REPORTS_FONT_DIRECTORY
+# Maps PostScript name(s) to the TTF filename.
+# Right side MUST be double-quoted and include the .ttf extension - this is
+# the confirmed correct Oracle [PDF:Subset] syntax (12.2.1 pbr_font003).
 # =============================================================================
 _make_subset_entry() {
     local ps_name="$1"      # PostScript/Windows font name used in report designs
-    local ttf_file="$2"     # TTF filename (without .ttf extension) in reports/fonts/
-    printf '%-40s = %s\n' "\"${ps_name}\"" "${ttf_file}"
+    local ttf_base="$2"     # TTF filename (without .ttf extension) in reports/fonts/
+    printf '%-40s = "%s.ttf"\n' "\"${ps_name}\"" "${ttf_base}"
 }
 
 # Accumulated output for the [PDF:Subset] block
@@ -147,8 +148,8 @@ fi
 # =============================================================================
 section "Generated uifont.ali [PDF:Subset] Entries"
 
-info "Format: \"PostScript name in report\" = TTF-filename-in-reports-fonts-dir"
-info "Reference: fonts.md section 4 – uifont.ali format"
+info "Format: \"PostScript name in report\" = \"TTF-filename.ttf\" (quoted, with .ttf extension)"
+info "Reference: 04-ReportsFonts/README.md section 4 – uifont.ali format"
 printf "\n"
 
 # Collect ALL available font file base names (reports/fonts/ takes precedence)

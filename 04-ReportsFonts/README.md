@@ -39,7 +39,7 @@ and falls back to Type 1 PostScript — `pdffonts` then shows `emb=no`.
 1. [The Problem in a Nutshell](#1-the-problem-in-a-nutshell)
 2. [Font Model – Theory](#2-font-model--theory)
 3. [Font Resolution Chain (Runtime)](#3-font-resolution-chain-runtime)
-4. [uifont.ali – Format and Sections](#4-uifontalii--format-and-sections)
+4. [uifont.ali – Format and Sections](#4-uifontali--format-and-sections)
 5. [Standard PostScript → Liberation TTF Mapping](#5-standard-postscript--liberation-ttf-mapping)
 6. [Custom and Corporate Fonts](#6-custom-and-corporate-fonts)
 7. [Windows-Specific Fonts on Linux](#7-windows-specific-fonts-on-linux)
@@ -407,14 +407,16 @@ Generated uifont.ali entries (in specificity order):
 | `ORACLE_FONTALIAS`              | (optional override)           | Fallback path to `uifont.ali`                        |
 | `NLS_LANG`                      | `GERMAN_GERMANY.UTF8` (example) | Drives character set for font selection            |
 
-Both variables must reach the **JVM process** of the Reports Server. Use
-`fontpath_config.sh --apply` to write them into `setUserOverrides.sh` as both
-OS environment exports **and** JVM `-D` system properties (belt-and-suspenders
-for Node Manager environments):
+These variables must reach the **JVM process** of the Reports Server. Use
+`fontpath_config.sh --apply` to write all six lines below into
+`setUserOverrides.sh` as both OS environment exports **and** JVM `-D` system
+properties (belt-and-suspenders for Node Manager environments):
 
 ```bash
 export REPORTS_FONT_DIRECTORY="/u01/.../reports/fonts"
 export REPORTS_ENHANCED_FONTHANDLING="yes"
+export TK_FONTALIAS="/u01/.../uifont.ali"
+export ORACLE_FONTALIAS="/u01/.../uifont.ali"
 export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=\"/u01/.../reports/fonts\""
 export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"
 ```
@@ -444,12 +446,19 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 
 ### uifont_ali_update.sh – behaviour
 
-- **Rewrites the entire `uifont.ali`** from scratch on each `--apply` run
-- Preserves sections before the first `[PDF` header (`[Global]`, `[Printer]`, `[Display]`)
-- Discards all existing `[PDF:*]` content and replaces with a fresh `[PDF:Subset]`
+- **Builds the entire `uifont.ali` from `uifont_ali_template.ali`** on each `--apply`
+  run — it does **not** parse or preserve content from the currently deployed
+  `uifont.ali` at all (that file is only read for the diff preview and the backup).
+  This means: any customization must live in the **template file**
+  (`04-ReportsFonts/uifont_ali_template.ali`, committed to your repo), not edited
+  directly in the deployed `uifont.ali` — direct edits there are silently
+  discarded on the next `--apply`.
+- The template's `##PDF_SUBSET##` marker line is replaced with a freshly
+  generated `[PDF:Subset]` block; every other line of the template
+  (`[Global]`, `[Printer]`, `[Display]`, `[PDF:Embed]`, …) is copied verbatim
 - Generates entries for standard fonts (Helvetica, Arial, Times, Courier, Tahoma, Verdana)
 - Scans `custom_fonts_dir/` for corporate TTFs and generates qualified entries:
-  `"Family"..Italic.Bold`, `"Family"...Bold`, `"Family"..Italic`, `"Family"` (Regular)
+  `"Family"..Italic.Bold`, `"Family"...Bold`, `"Family"..Italic`, `"Family"..` (Regular)
 - Detects family name / PostScript name mismatch via `fc-query %{postscriptname}`
   and automatically adds alias entries for the compact PS name
 - Requires: `fc-query` (fontconfig), `diff`, `cp`, `find` — **no Python3**

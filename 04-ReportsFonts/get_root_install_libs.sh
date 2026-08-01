@@ -119,7 +119,7 @@ _check_pkg() {
     if rpm -q "$pkg" >/dev/null 2>&1; then
         local ver
         ver="$(rpm -q --queryformat '%{VERSION}-%{RELEASE}' "$pkg" 2>/dev/null)"
-        ok "  Installed : %-40s %s" "$pkg" "$ver"
+        ok "$(printf '  Installed : %-40s %s' "$pkg" "$ver")"
     else
         warn "  Missing   : $pkg"
         MISSING_PKGS+=("$pkg")
