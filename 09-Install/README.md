@@ -86,7 +86,7 @@ Setup – Environment Configuration (as oracle; before Phase 0)
            → see docs/01-setup-interview.md for interview details
 
 Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
-  [root] ./09-Install/00-root_os_network.sh --apply    # hostname, hosts, chrony, SSH
+  [root] ./09-Install/00-root_os_network.sh            # hostname, hosts, chrony, SSH (read-only check)
   [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
   [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
   [root] ./09-Install/02b-root_os_java.sh --apply      # Oracle JDK 21 + SecureRandom fix
