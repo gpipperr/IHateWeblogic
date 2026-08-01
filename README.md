@@ -231,7 +231,6 @@ IHateWeblogic/
 │   │                                   weblogic_sec.conf.des3 (openssl des3, machine-local key)
 │   ├── database_rcu_sec.sh          – Same encryption concept for the RCU/repository DB password
 │   ├── mos_sec.sh                   – Same encryption concept for My Oracle Support credentials
-│   ├── report_env.sh                – [TODO] Collect all diagnostic logs → single standalone HTML report
 │   ├── set_environment.md           – Concept doc: environment.conf symlink + environments/ folder
 │   └── environments/                – Per-environment conf files
 │       ├── README.md                – committed
@@ -408,9 +407,6 @@ and **must not be committed to git** (covered by `.gitignore`).
   Credentials must be stored encrypted using the same mechanism as the WebLogic password
   (`openssl des3` + system UUID key via `00-Setup/weblogic_sec.sh`).
   Until implemented: restrict `rwservlet` access via firewall or WLS security policy.
-
-- [ ] **`00-Setup/report_env.sh`** – stub only (`TODO: Implement`, exits immediately).
-  Should collect all diagnostic log files into a single standalone HTML for handover.
 
 - [ ] **`02-Checks/display_check.sh`** – not yet created.
   Verify/set a usable `DISPLAY` for `rwclient`/report generation that needs an X server (Xvfb).

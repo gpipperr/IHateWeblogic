@@ -33,7 +33,6 @@ secures the configuration that the rest of the library (`09-Install/`,
 | `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
 | `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
 | `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
-| `report_env.sh` | stub, not implemented | Planned: collect diagnostics into one standalone HTML report |
 | `set_environment.md` | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
 | `environments/` | directory | One conf file per environment (FMW domain or DB home) + templates |
 
@@ -229,14 +228,6 @@ avoids the well-known WLST error 60455 during later domain operations).
 both: the `SYS` password (used once, only during `07-oracle_setup_repository.sh`)
 and the schema password assigned to every `<PREFIX>_STB`, `<PREFIX>_MDS`, …
 schema created by RCU.
-
----
-
-### report_env.sh
-
-**Not implemented yet** (stub — `TODO: Implement`, exits `0` immediately).
-Planned purpose: collect all diagnostic log files from a run into one
-standalone HTML report for handover / support cases.
 
 ---
 
