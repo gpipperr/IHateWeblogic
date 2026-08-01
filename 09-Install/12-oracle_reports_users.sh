@@ -6,8 +6,8 @@
 #
 #            Three users are set up:
 #              1. weblogic → RW_ADMINISTRATOR  (Reports admin UI in EM)
-#              2. monPrtgUser → RW_MONITOR     (getserverinfo / monitoring tools)
-#              3. EXECREPORTS → RW_EXECREPORTS (report execution via cgicmd.dat)
+#              2. monUser    → RW_MONITOR     (getserverinfo / monitoring tools)
+#              3. RepRunner  → RW_EXECREPORTS (report execution via cgicmd.dat)
 #
 # Call     : ./09-Install/12-oracle_reports_users.sh [--apply]
 #
@@ -84,8 +84,8 @@ printLine
 # =============================================================================
 # Default user names (can be overridden in environment.conf)
 # =============================================================================
-REPORTS_MON_USER="${REPORTS_MON_USER:-monPrtgUser}"
-REPORTS_EXEC_USER="${REPORTS_EXEC_USER:-EXECREPORTS}"
+REPORTS_MON_USER="${REPORTS_MON_USER:-monUser}"
+REPORTS_EXEC_USER="${REPORTS_EXEC_USER:-RepRunner}"
 REPORTS_USERS_SEC="$ROOT_DIR/reports_users.conf.des3"
 
 # =============================================================================
@@ -169,8 +169,8 @@ _prompt_password() {
 if [ -f "$REPORTS_USERS_SEC" ]; then
     if load_secrets_file "$REPORTS_USERS_SEC"; then
         # load_secrets_file sources the file – variables now set
-        REPORTS_MON_USER="${REPORTS_MON_USER:-monPrtgUser}"
-        REPORTS_EXEC_USER="${REPORTS_EXEC_USER:-EXECREPORTS}"
+        REPORTS_MON_USER="${REPORTS_MON_USER:-monUser}"
+        REPORTS_EXEC_USER="${REPORTS_EXEC_USER:-RepRunner}"
         ok "Reports user credentials loaded from: $REPORTS_USERS_SEC"
         info "  Monitor user : $REPORTS_MON_USER"
         info "  Exec user    : $REPORTS_EXEC_USER"
@@ -238,9 +238,9 @@ import os, sys
 WL_USER   = os.environ.get('_IHW_WL_USER',   '')
 WL_PWD    = os.environ.get('_IHW_WL_PWD',    '')
 WL_URL    = os.environ.get('_IHW_WL_URL',    't3://localhost:7001')
-MON_USER  = os.environ.get('_IHW_MON_USER',  'monPrtgUser')
+MON_USER  = os.environ.get('_IHW_MON_USER',  'monUser')
 MON_PWD   = os.environ.get('_IHW_MON_PWD',   '')
-EXEC_USER = os.environ.get('_IHW_EXEC_USER', 'EXECREPORTS')
+EXEC_USER = os.environ.get('_IHW_EXEC_USER', 'RepRunner')
 EXEC_PWD  = os.environ.get('_IHW_EXEC_PWD',  '')
 
 APP             = 'reports'

@@ -2,7 +2,7 @@
 
 **Scripts:** `09-Install/14-oracle_setup_forms.sh`
 **Runs as:** `oracle`
-**Phase:** 8 – Forms Server Setup
+**Phase:** 6 – Forms Server Setup
 
 **Source:** `90-Source-MetaData/oracle_forms_config_ch7_8.md` (Chapters 7–8)
 → Original: *Oracle_WebLogic_Server_14.1.2.0.0_forms_install.pdf*
@@ -295,7 +295,7 @@ your application uses different function key assignments.
 
 ```bash
 # Check Forms servlet is responding
-curl -s "http://localhost:${WLS_FORMS_PORT:-8001}/forms/frmservlet"
+curl -s "http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet"
 # Expected: HTTP 200 or redirect to login
 
 # Check WLS_FORMS managed server log

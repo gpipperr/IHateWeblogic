@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 13-root_reports_fix.sh
-# Purpose  : Phase 7 – OS-level fix for Oracle Reports 14c on Oracle Linux 9
+# Purpose  : Phase 6 – OS-level fix for Oracle Reports 14c on Oracle Linux 9
 #            Creates the libnsl.so.2 symlink required by the standalone
 #            Reports Server (compiled against libnsl.so.2, OL9 ships .so.3).
 # Call     : sudo ./09-Install/13-root_reports_fix.sh

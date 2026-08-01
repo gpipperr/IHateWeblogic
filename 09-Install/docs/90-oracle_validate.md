@@ -108,6 +108,6 @@ Final summary:
 After successful validation:
 
 1. Schedule regular runs of `07-Maintenance/backup_config.sh`
-2. Set up monitoring using `MonUser` credentials
+2. Set up monitoring using `monUser` credentials
 3. Test a sample report via `01-Run/rwserver_status.sh`
 4. Run `04-ReportsFonts/pdf_font_verify.sh` to confirm fonts are embedded in PDF output

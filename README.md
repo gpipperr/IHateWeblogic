@@ -74,7 +74,7 @@ operation with proactive, AI-assisted error analysis.
 │                                                                     │
 │  09-Install/09        JVM, cgicmd.dat, base configuration           │
 │  09-Install/10–11     boot.properties, NodeManager                 │
-│  09-Install/12        Reports users (MonUser, RepRunner)            │
+│  09-Install/12        Reports users (monUser, RepRunner)            │
 │  09-Install/13        Configure Reports Server                     │
 │  09-Install/14        Configure Forms (template copy approach)     │
 │  01-Run/startStop.sh  Start AdminServer + Managed Servers           │
@@ -328,7 +328,7 @@ IHateWeblogic/
 │   ├── 09-oracle_configure.sh       – Phase 5: orchestrator – env → JVM → fonts → cgicmd → backup
 │   ├── 10-oracle_boot_properties.sh – Phase 6: boot.properties (AdminServer + NodeManager)
 │   ├── 11-oracle_nodemanager.sh     – Phase 6: NodeManager setup (plain SSL via WLST)
-│   ├── 12-oracle_reports_users.sh   – Phase 6: MonitorUser + RepRunner WebLogic users
+│   ├── 12-oracle_reports_users.sh   – Phase 6: monUser + RepRunner WebLogic users
 │   ├── 13-root_reports_fix.sh       – Phase 6 (root): libnsl.so.2 symlink for Oracle Linux 9
 │   ├── 13-oracle_setup_reports.sh   – Phase 6: Reports Server config (rwnetwork/rwservlet/rwserver)
 │   ├── 14-oracle_setup_forms.sh     – Phase 6: Forms config (template-copy approach)

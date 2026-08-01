@@ -61,8 +61,8 @@ SSL terminates entirely at Nginx; no SSL required inside WLS.
 |---|---|---|
 | `webadmin` | WLS Administrator | Full access to WLS Console and WLST |
 | `nodemanager` | Node Manager Auth | Node Manager authentication |
-| `MonUser` | Monitor | Read-only for monitoring/alerting |
-| `RepRunner` | Reports Runner | Submits Reports jobs via rwservlet |
+| `monUser` | Monitor | Read-only for monitoring/alerting (`RW_MONITOR` role) |
+| `RepRunner` | Reports Runner | Submits Reports jobs via rwservlet (`RW_EXECREPORTS` role) |
 
 All passwords stored encrypted (`openssl des3 -pbkdf2` + disk UUID as key —
 same mechanism as `00-Setup/weblogic_sec.sh`).
@@ -150,7 +150,7 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NodeManager config before first start
   → Start AdminServer + NodeManager manually
   [oracle] 11-oracle_nodemanager.sh --apply             # WLST: set NodeManagerType=Plain
-  [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users MonUser + RepRunner
+  [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users monUser + RepRunner
   [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 symlink (OL9 only)
   [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
   [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
@@ -185,7 +185,7 @@ Phase 7 – Validation (as oracle) [planned]
 | 5 | `09-oracle_configure.sh` | Final configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
 | 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
 | 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
-| 6 | `12-oracle_reports_users.sh` | Create WLS users MonUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
+| 6 | `12-oracle_reports_users.sh` | Create WLS users monUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
 | 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 (root) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
@@ -450,7 +450,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 09-oracle_configure.sh             ← Phase 5: orchestrator – calls scripts 00-07
 ├── 10-oracle_boot_properties.sh       ← Phase 6: boot.properties for AdminServer + Managed Server
 ├── 11-oracle_nodemanager.sh           ← Phase 6: configure NodeManager (plain mode, WLST)
-├── 12-oracle_reports_users.sh         ← Phase 6: create WLS users MonUser + RepRunner
+├── 12-oracle_reports_users.sh         ← Phase 6: create WLS users monUser + RepRunner
 ├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (root, OL9 only)
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain

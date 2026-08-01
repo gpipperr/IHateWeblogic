@@ -1,8 +1,8 @@
 # Step 12 – Reports Server User & Security Setup
 
-**Script:** `09-Install/12-oracle_reports_users.sh` *(planned)*
+**Script:** `09-Install/12-oracle_reports_users.sh`
 **Runs as:** `oracle` (WLST) / Browser (Enterprise Manager)
-**Phase:** 5 – Configuration & Validation
+**Phase:** 6 – Runtime Configuration
 
 **Source:** [pipperr.de – Oracle Reports 14c: Reports Servlet Admin / Monitoring and Report User Setup](https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64&s[]=boot&s[]=properties#reports_servlet_admin_oberflaeche_erlauben_-_monitoring_und_report_user_anlegen)
 
@@ -18,8 +18,8 @@ Three WebLogic users are created with distinct permission levels:
 | User | Role | Purpose |
 |---|---|---|
 | `weblogic` *(existing)* | `RW_ADMINISTRATOR` | Admin UI in EM, full Reports management |
-| `monPrtgUser` | `RW_MONITOR` | Monitoring tools (PRTG, Nagios …) – status query only |
-| `EXECREPORTS` | `RW_EXECREPORTS` | Run reports – no admin access |
+| `monUser` | `RW_MONITOR` | Monitoring tools (PRTG, Nagios …) – status query only |
+| `RepRunner` | `RW_EXECREPORTS` | Run reports – no admin access |
 
 ---
 
@@ -65,14 +65,14 @@ https://<host>/reports/rwservlet/showenv
 
 ---
 
-## 2 – Monitoring User (monPrtgUser) → RW_MONITOR
+## 2 – Monitoring User (monUser) → RW_MONITOR
 
 This user may **only** call `getserverinfo` – no reports, no admin.
 
 Monitoring URL (e.g. PRTG):
 
 ```
-http://<host>:9002/reports/rwservlet/getserverinfo?authid=monPrtgUser/<PWD>&statusformat=XML
+http://<host>:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
 ```
 
 ### 2a – Create User (Security Realm)
@@ -80,13 +80,13 @@ http://<host>:9002/reports/rwservlet/getserverinfo?authid=monPrtgUser/<PWD>&stat
 1. EM → **WebLogic Domain → Security → Security Realms**
 2. Select **myrealm**
 3. Tab **Users and Groups**
-4. **Create** → Name: `monPrtgUser`, description, set password → **OK**
+4. **Create** → Name: `monUser`, description, set password → **OK**
 
 ### 2b – Check / Create Application Role RW_MONITOR
 
 1. EM → **WebLogic Domain → Security → Application Roles**
 2. *Application Stripe* = **reports** → search (`>`)
-3. **RW_MONITOR** exists? → **Edit** → assign user `monPrtgUser` via **+ Add**
+3. **RW_MONITOR** exists? → **Edit** → assign user `monUser` via **+ Add**
 4. If not present: **Create** → Name `RW_MONITOR` → assign user
 
 ### 2c – Configure Application Policy for RW_MONITOR
@@ -107,7 +107,7 @@ http://<host>:9002/reports/rwservlet/getserverinfo?authid=monPrtgUser/<PWD>&stat
 
 ---
 
-## 3 – Report Execution User (EXECREPORTS) → RW_EXECREPORTS
+## 3 – Report Execution User (RepRunner) → RW_EXECREPORTS
 
 This user is stored in `cgicmd.dat` as the `authid=` parameter so that reports
 can be executed automatically without exposing a password in the URL.
@@ -116,14 +116,14 @@ can be executed automatically without exposing a password in the URL.
 
 1. EM → **WebLogic Domain → Security → Security Realms**
 2. **myrealm** → Tab **Users and Groups**
-3. **Create** → Name: `EXECREPORTS`, description, set a strong password → **OK**
+3. **Create** → Name: `RepRunner`, description, set a strong password → **OK**
 
 ### 3b – Create Application Role RW_EXECREPORTS
 
 1. EM → **WebLogic Domain → Security → Application Roles**
 2. *Application Stripe* = **reports** → search (`>`)
 3. **Create** → Name: `RW_EXECREPORTS`
-4. Assign user `EXECREPORTS` via **+ Add** → **OK**
+4. Assign user `RepRunner` via **+ Add** → **OK**
 
 ### 3c – Create Application Policy for RW_EXECREPORTS
 
@@ -145,7 +145,7 @@ can be executed automatically without exposing a password in the URL.
 
 ## 4 – cgicmd.dat: Adding the authid Parameter
 
-To prevent the `EXECREPORTS` password from appearing in the report call URL,
+To prevent the `RepRunner` password from appearing in the report call URL,
 store it centrally in `cgicmd.dat`.
 
 ### File Path
@@ -163,10 +163,10 @@ The `authid=` parameter is appended **after** `%2` to the existing key:
 default: server=repserver01 statusformat=xml %2
 
 # After (with authid – placed AFTER %2):
-default: server=repserver01 statusformat=xml %2 authid=EXECREPORTS/<PWD>
+default: server=repserver01 statusformat=xml %2 authid=RepRunner/<PWD>
 
 # Example with DB connection:
-SalesDEPRep: %1 userid=salesRep/<PWD>@<DBSERVICE> destype=cache desformat=pdf %2 authid=EXECREPORTS/<PWD>
+SalesDEPRep: %1 userid=salesRep/<PWD>@<DBSERVICE> destype=cache desformat=pdf %2 authid=RepRunner/<PWD>
 ```
 
 > **Security note:** `cgicmd.dat` stores the password in plaintext.
@@ -188,7 +188,7 @@ cp "$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.
 
 ```bash
 # Status query without browser (curl)
-curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?authid=monPrtgUser/<PWD>&statusformat=XML" \
+curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML" \
   | grep -E '<server|engineState|status='
 ```
 

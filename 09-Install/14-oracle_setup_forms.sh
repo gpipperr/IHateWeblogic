@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 14-oracle_setup_forms.sh
-# Purpose  : Phase 8 – Copy Oracle Forms configuration templates to the
+# Purpose  : Phase 6 – Copy Oracle Forms configuration templates to the
 #            correct domain locations:
 #              1. Check jacob.jar + WebUtil DLLs (check only)
 #              2. webutil.cfg → FR_INST/server/ AND FR_INST_ALT/server/
@@ -372,7 +372,7 @@ if $APPLY; then
     info "  \$DOMAIN_HOME/bin/startManagedWebLogic.sh $WLS_FORMS_SERVER t3://localhost:${WLS_ADMIN_PORT:-7001} &"
     info ""
     info "Verify Forms servlet:"
-    info "  curl -s http://localhost:${WLS_FORMS_PORT:-8001}/forms/frmservlet"
+    info "  curl -s http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet"
 else
     info "Re-run with --apply to copy templates to domain locations"
     info ""

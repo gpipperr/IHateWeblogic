@@ -2,7 +2,7 @@
 
 **Scripts:** `09-Install/13-root_reports_fix.sh` · `09-Install/13-oracle_setup_reports.sh`
 **Runs as:** `root` (fix step) then `oracle`
-**Phase:** 7 – Reports Server Setup
+**Phase:** 6 – Reports Server Setup
 
 **Source:** `90-Source-MetaData/oracle_reports_config_ch6.md` (Kapitel 6, Seiten 83–98)
 → Original: *Oracle_WebLogic_Server_14.1.2.0.0_setup_reports.pdf*

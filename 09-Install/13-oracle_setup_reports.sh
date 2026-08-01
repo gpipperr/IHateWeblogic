@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 13-oracle_setup_reports.sh
-# Purpose  : Phase 7 – Configure Oracle Reports Server system components:
+# Purpose  : Phase 6 – Configure Oracle Reports Server system components:
 #              1. Create ReportsTools + ReportsServer instances (WLST)
 #              2. Set unique broadcasting port in rwnetwork.conf (3 locations)
 #              3. Write rwservlet.properties (servlet → server mapping)

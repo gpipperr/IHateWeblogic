@@ -115,24 +115,12 @@ EOF
 
 ### 4. Create additional WLS users
 
-Start AdminServer, then via WLST:
-
-```bash
-$ORACLE_HOME/oracle_common/common/bin/wlst.sh << 'EOF'
-connect('webadmin', 'WLS_PASSWORD', 't3://127.0.0.1:7001')
-cd('/SecurityConfiguration/fr_domain/DefaultRealm/myrealm')
-
-# MonUser – monitor role
-cmo.createUser('MonUser', 'MonPassword123', 'Monitoring read-only user')
-cd('RoleAssignments')
-# Assign to Monitors role via WLST or console
-
-# RepRunner – reports runner
-cmo.createUser('RepRunner', 'RepPassword123', 'Reports job submission user')
-
-disconnect()
-EOF
-```
+Start AdminServer, then create the Reports monitoring and execution users with
+their Application Roles and Policies (`monUser` → `RW_MONITOR`,
+`RepRunner` → `RW_EXECREPORTS`). This is a separate, dedicated step —
+see [09-Install/12-oracle_reports_users.sh](../12-oracle_reports_users.sh) and
+[docs/12-weblogic-report-monitoring_user.md](12-weblogic-report-monitoring_user.md)
+for the full WLST/OPSS procedure (manual and scripted).
 
 ---
 
