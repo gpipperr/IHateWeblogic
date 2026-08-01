@@ -222,6 +222,8 @@ IHateWeblogic/
 ├── .gitignore                       – excludes environment.conf, *.des3, *.conf, ssl.conf, certs/, log/
 │
 ├── 00-Setup/
+│   ├── README.md                    – Full script reference + setup walkthrough (clone → params →
+│   │                                   passwords → analyze → configure)
 │   ├── IHateWeblogic_lib.sh         – Central library: output functions, password handling,
 │   │                                   parameter parsing, environment helpers (source this first)
 │   ├── init_env.sh                  – Detect FMW/Domain paths and running processes,
@@ -239,7 +241,7 @@ IHateWeblogic/
 │
 ├── 01-Run/
 │   ├── README.md
-│   ├── startStop.sh                 – Manage components: ALL | LIST | START <comp> | STOP <comp>
+│   ├── startStop.sh                 – Manage components: list | start/stop <comp> | start-all | stop-all
 │   ├── wlst_connect.sh              – Open interactive WLST shell with auto-login via weblogic_sec.sh
 │   └── rwserver_status.sh           – Engine pool, job queue, rwservlet HTTP status
 │
