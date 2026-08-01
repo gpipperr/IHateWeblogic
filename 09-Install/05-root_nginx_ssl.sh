@@ -10,7 +10,7 @@
 #            --help    Show usage
 # Requires : nginx, openssl
 # Runs as  : root or oracle with sudo
-# Ref      : 09-Install/docs/03-root_nginx_ssl.md
+# Ref      : 09-Install/docs/05-root_nginx_ssl.md
 #            https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0

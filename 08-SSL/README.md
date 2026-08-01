@@ -262,7 +262,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 
 | Script | Role |
 |---|---|
-| `09-Install/02-root_nginx.sh` | Install Nginx + generate base proxy config (upstream + location blocks) |
+| `09-Install/04-root_nginx.sh` | Install Nginx + generate base proxy config (upstream + location blocks) |
 | `09-Install/05-root_nginx_ssl.sh` | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
 | `08-SSL/ssl_prepare_cert.sh` | Create / prepare the certificate (all three cert options) |
 | `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
@@ -278,7 +278,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 | Easy-RSA internal CA | `ssl_prepare_cert.sh EASYRSA` | Internal, after CA root import | Internal / lab / dev |
 | Customer / public CA | `ssl_prepare_cert.sh REQUEST` → CA signs | Full (public) | Production |
 
-> For Easy-RSA setup details see: `09-Install/docs/03-root_nginx_ssl.md`
+> For Easy-RSA setup details see: `09-Install/docs/05-root_nginx_ssl.md`
 > – section "Option B – Internal CA with Easy-RSA"
 
 ---

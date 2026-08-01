@@ -13,7 +13,7 @@
 # Runs as  : root or oracle with sudo
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 09-Install/docs/02-root_nginx.md
+# Ref      : 09-Install/docs/04-root_nginx.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

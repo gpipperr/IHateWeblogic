@@ -432,7 +432,7 @@ _ask WLS_REPORTS_PORT        "WLS_REPORTS managed port"     "9002"        "_val_
 printf "\n"
 info "WebLogic listen address – which network interface WebLogic binds to."
 info "  Option 1 (localhost) requires NGINX as reverse proxy on the same host."
-info "  Ref: 09-Install/docs/03-root_nginx_ssl.md"
+info "  Ref: 09-Install/docs/05-root_nginx_ssl.md"
 _ask_menu WLS_LISTEN_ADDRESS "WLS listen address" \
     "localhost:localhost – NGINX handles external access + SSL (recommended)" \
     "0.0.0.0:0.0.0.0   – all interfaces, WebLogic exposed directly (no proxy)" \

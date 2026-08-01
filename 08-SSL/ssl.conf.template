@@ -45,7 +45,7 @@ SSL_DAYS="825"
 
 # --- Output file paths --------------------------------------------------------
 # Paths where ssl_prepare_cert.sh writes the generated files.
-# 03-root_nginx_ssl.sh --apply reads from here and copies to /etc/nginx/ssl/.
+# 09-Install/05-root_nginx_ssl.sh --apply reads from here and copies to /etc/nginx/ssl/.
 
 SSL_CERT_FILE="08-SSL/certs/server.crt"
 SSL_KEY_FILE="08-SSL/certs/server.key"

@@ -172,8 +172,8 @@ Phase 7 – Validation (as oracle) [planned]
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
-| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/02-root_nginx.md) |
-| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/03-root_nginx_ssl.md) |
+| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/04-root_nginx.md) |
+| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
 | 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
 | 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
@@ -469,8 +469,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 01-root_install_packages.md    ← 02-root_os_packages.sh
     ├── 01-root_setup_java.md          ← 02b-root_os_java.sh
     ├── 03-root_user_oracle.md         ← 03-root_user_oracle.sh
-    ├── 02-root_nginx.md
-    ├── 03-root_nginx_ssl.md
+    ├── 04-root_nginx.md               ← 04-root_nginx.sh
+    ├── 05-root_nginx_ssl.md            ← 05-root_nginx_ssl.sh
     ├── 04-oracle_pre_checks.md
     ├── 04-oracle_pre_download.md
     ├── 05-oracle_install_weblogic.md

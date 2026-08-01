@@ -101,7 +101,7 @@ Determines which network interface WebLogic (Admin Server and all Managed Server
 ```
 [1] localhost  – NGINX reverse proxy handles all external access + SSL termination
                  WebLogic is not reachable from outside the host directly.
-                 Requires: 09-Install/03-root_nginx_ssl.sh configured and running.
+                 Requires: 09-Install/05-root_nginx_ssl.sh configured and running.
                  → recommended default for this architecture
 
 [2] 0.0.0.0   – all interfaces, WebLogic exposed directly (no reverse proxy)
@@ -113,7 +113,7 @@ Determines which network interface WebLogic (Admin Server and all Managed Server
 > **Note:** With `localhost`, WebLogic never terminates SSL itself — all certificates
 > are managed exclusively in NGINX. This eliminates the need for a WLS keystore and
 > avoids the common failure mode of expired certificates inside the WebLogic config.
-> See `09-Install/docs/03-root_nginx_ssl.md` for NGINX SSL setup.
+> See `09-Install/docs/05-root_nginx_ssl.md` for NGINX SSL setup.
 
 ### Block 3b – Reports Server Details
 

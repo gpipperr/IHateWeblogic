@@ -58,9 +58,10 @@ elif [ -f "$SSL_CONF_TEMPLATE" ]; then
 fi
 
 # Nginx deployed cert location (always checked regardless of staging path)
-NGINX_CERT="/etc/nginx/ssl/server.crt"
-NGINX_KEY="/etc/nginx/ssl/server.key"
-NGINX_CONF="/etc/nginx/conf.d/oracle-fmw.conf"
+# Must match what 09-Install/04-root_nginx.sh + 05-root_nginx_ssl.sh actually deploy.
+NGINX_CERT="/etc/nginx/ssl/fullchain.pem"
+NGINX_KEY="/etc/nginx/ssl/privkey.pem"
+NGINX_CONF="/etc/nginx/conf.d/oracle-wls.conf"
 EXPIRY_WARN_DAYS=30
 
 # =============================================================================
@@ -167,7 +168,7 @@ section "Certificate Files"
 
 if [ ! -f "$NGINX_CERT" ]; then
     fail "Nginx cert not found: $NGINX_CERT"
-    info "  Run: ./09-Install/03-root_nginx_ssl.sh --apply"
+    info "  Run: ./09-Install/05-root_nginx_ssl.sh --apply"
 else
     ok "Nginx cert found: $NGINX_CERT"
 fi
@@ -247,7 +248,7 @@ if [ -n "$SSL_CERT_FILE" ] && [ -f "$SSL_CERT_FILE" ] && [ -f "$NGINX_CERT" ]; t
         ok "Nginx cert matches staging source (in sync)"
     else
         warn "Nginx cert differs from staging source: $SSL_CERT_FILE"
-        info "  Re-deploy: ./09-Install/03-root_nginx_ssl.sh --apply"
+        info "  Re-deploy: ./09-Install/05-root_nginx_ssl.sh --apply"
     fi
 elif [ -n "$SSL_CERT_FILE" ] && [ ! -f "$SSL_CERT_FILE" ]; then
     info "Staging cert not found ($SSL_CERT_FILE) – skipping sync check"
@@ -258,7 +259,7 @@ section "Nginx SSL Configuration"
 
 if [ ! -f "$NGINX_CONF" ]; then
     warn "Nginx config not found: $NGINX_CONF"
-    info "  Run: ./09-Install/02-root_nginx.sh --apply"
+    info "  Run: ./09-Install/04-root_nginx.sh --apply"
 else
     ok "Nginx config found: $NGINX_CONF"
 
@@ -343,7 +344,7 @@ else
         warn "Frontend Host not configured in config.xml"
         info "  WebLogic will generate redirects using localhost – broken through Nginx"
         info "  Fix: set FrontendHost for each server to: ${SSL_CN:-<FQDN>}"
-        info "  See: 09-Install/docs/03-root_nginx_ssl.md – WebLogic Frontend Host"
+        info "  See: 09-Install/docs/05-root_nginx_ssl.md – WebLogic Frontend Host"
     else
         while IFS= read -r _fh; do
             if [ -n "$SSL_CN" ] && [ "$_fh" = "$SSL_CN" ]; then

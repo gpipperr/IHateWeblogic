@@ -11,7 +11,7 @@
 #            08-SSL/ssl.conf, shown as defaults in interactive prompts, and
 #            written back after confirmation so the next run uses them again.
 #
-#            Does NOT deploy to Nginx – run 09-Install/03-root_nginx_ssl.sh
+#            Does NOT deploy to Nginx – run 09-Install/05-root_nginx_ssl.sh
 #            --apply afterwards.
 #
 # Call     : ./08-SSL/ssl_prepare_cert.sh SELF    [--apply]
@@ -357,7 +357,7 @@ _mode_self() {
         | grep -A2 "Subject Alternative" | sed 's/^/  /' | tee -a "$LOG_FILE"
 
     warn "Self-signed certificate: browsers will show a security warning."
-    info "  Next step: ./09-Install/03-root_nginx_ssl.sh --apply"
+    info "  Next step: ./09-Install/05-root_nginx_ssl.sh --apply"
 }
 
 # =============================================================================
@@ -455,7 +455,7 @@ _mode_easyrsa() {
     ok "Private key : $SSL_KEY_FILE  (mode 600)"
     ok "CA chain    : $SSL_CHAIN_FILE"
     info "  Distribute $SSL_CHAIN_FILE to all clients as Trusted Root CA"
-    info "  Next step: ./09-Install/03-root_nginx_ssl.sh --apply"
+    info "  Next step: ./09-Install/05-root_nginx_ssl.sh --apply"
 }
 
 # =============================================================================
@@ -515,7 +515,7 @@ _mode_request() {
     info "  1. Send to CA : $SSL_CSR_FILE"
     info "  2. Keep secret: $SSL_KEY_FILE  (never send to CA)"
     info "  3. After receiving signed cert: update SSL_CERT_FILE in ssl.conf"
-    info "  4. Deploy     : ./09-Install/03-root_nginx_ssl.sh --apply"
+    info "  4. Deploy     : ./09-Install/05-root_nginx_ssl.sh --apply"
 }
 
 # =============================================================================
