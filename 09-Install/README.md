@@ -407,10 +407,11 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 
 ```
 /u01/
-├── app/oracle/
-│   ├── fmw/                      ← ORACLE_HOME (FMW Infrastructure + Forms/Reports)
-│   ├── java/jdk-21/              ← JDK_HOME symlink (→ jdk-21.0.x, NOT under fmw/)
-│   └── oraInventory/             ← OUI inventory
+├── app/
+│   ├── oracle/
+│   │   ├── fmw/                  ← ORACLE_HOME (FMW Infrastructure + Forms/Reports)
+│   │   └── java/jdk-21/          ← JDK_HOME symlink (→ jdk-21.0.x, NOT under fmw/)
+│   └── oraInventory/              ← ORACLE_INVENTORY, one level above ORACLE_BASE
 └── user_projects/
     └── domains/
         └── fr_domain/            ← DOMAIN_HOME

@@ -171,8 +171,9 @@ sleep 20
 # Backup OPatch directory
 cp -a $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak_$(date +%Y%m%d)
 
-# Backup Central Inventory
-cp -a $ORACLE_BASE/oraInventory $ORACLE_BASE/oraInventory.bak_$(date +%Y%m%d)
+# Backup Central Inventory (one level above ORACLE_BASE, see 03-root_user_oracle.md)
+ORACLE_INVENTORY=${ORACLE_INVENTORY:-$(dirname $ORACLE_BASE)/oraInventory}
+cp -a $ORACLE_INVENTORY $ORACLE_INVENTORY.bak_$(date +%Y%m%d)
 ```
 
 ### 5. Install new OPatch via opatch_generic.jar
@@ -198,7 +199,7 @@ $JDK_HOME/bin/java \
 ```
 
 Log locations:
-- Success: `$ORACLE_BASE/oraInventory/logs/`
+- Success: `$ORACLE_INVENTORY/logs/`  (= `$(dirname $ORACLE_BASE)/oraInventory/logs/`)
 - Failure: `/tmp/OraInstall<TIMESTAMP>/`  (or custom tmpdir)
 - On any issue: see Doc ID 2759112.1
 
@@ -257,8 +258,8 @@ $ORACLE_HOME/OPatch/opatch lspatches
 Recommended backup before patching (no domain yet → ORACLE_HOME + inventory only):
 
 ```bash
-cp -a $ORACLE_HOME           $ORACLE_HOME.bak_$(date +%Y%m%d)
-cp -a $ORACLE_BASE/oraInventory  $ORACLE_BASE/oraInventory.bak_$(date +%Y%m%d)
+cp -a $ORACLE_HOME       $ORACLE_HOME.bak_$(date +%Y%m%d)
+cp -a $ORACLE_INVENTORY  $ORACLE_INVENTORY.bak_$(date +%Y%m%d)   # one level above ORACLE_BASE
 ```
 
 Once a domain exists, also back up `$DOMAIN_HOME`.
@@ -360,7 +361,7 @@ opatch lspatches | grep 38566996   # must return nothing
 - Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR` from `oracle_software_version.conf`
 - **OPatch upgrade** (if current version < `OPATCH_VERSION_MIN`):
   - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
-  - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_BASE/oraInventory`
+  - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_INVENTORY` (one level above `ORACLE_BASE`)
   - Unzips Patch 28186730 to a temp directory
   - Runs `opatch_generic.jar -silent oracle_home=...` to install new OPatch via OUI tooling
   - Verifies the installed version matches `OPATCH_VERSION_MIN`

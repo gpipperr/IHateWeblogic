@@ -51,7 +51,10 @@ cat /etc/oraInst.loc
 ```
 
 > `/etc/oraInst.loc` points to `ORACLE_INVENTORY` (one level above `ORACLE_BASE`).
-> The installer finds it automatically — no `-invPtrLoc` argument needed.
+> The installer would find it automatically even without `-invPtrLoc` — the script
+> passes it explicitly anyway (see step 3), for the same reason it is always passed
+> to OPatch in `05-oracle_patch_weblogic.sh`: it removes any dependency on the
+> installer's default search behavior.
 > If `/etc/oraInst.loc` is missing, re-run `03-root_user_oracle.sh --apply`.
 
 ### 3. Set CV override and run the installer
@@ -66,12 +69,14 @@ export CV_ASSUME_DISTID=OEL8
 $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
     -silent \
     -responseFile $PATCH_STORAGE/wls/wls_install.rsp \
+    -invPtrLoc /etc/oraInst.loc \
     -jreLoc $JDK_HOME
 
 unset CV_ASSUME_DISTID
 ```
 
-> `-invPtrLoc` is not needed: the installer finds `/etc/oraInst.loc` automatically.
+> `-invPtrLoc /etc/oraInst.loc` is passed explicitly even though the installer would
+> find the same file automatically — this avoids relying on default search behavior.
 
 Installation log: `$ORACLE_INVENTORY/logs/`  (= `/u01/app/oraInventory/logs/`)
 
@@ -96,7 +101,9 @@ ls -la $ORACLE_HOME/oracle_common/
 - Verifies `/etc/oraInst.loc` exists (created by `03-root_user_oracle.sh`); aborts if missing
 - Checks that `ORACLE_HOME` does not yet exist (prevents overwriting an existing install)
 - Exports `CV_ASSUME_DISTID` for the duration of the installer run only; unsets afterwards
-- Runs the silent installer with `$JDK_HOME/bin/java`
+- Runs the silent installer with `$JDK_HOME/bin/java`, passing `-invPtrLoc /etc/oraInst.loc`
+  explicitly (redundant with the installer's automatic discovery, but removes any
+  dependency on default search behavior)
 - After install: runs `opatch lsinventory` to verify
 - Cleans up the response file (contains no secrets, but good practice)
 
