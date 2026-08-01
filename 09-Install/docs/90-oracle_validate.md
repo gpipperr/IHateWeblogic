@@ -40,7 +40,7 @@ Run each check script in sequence and review the output:
 ./02-Checks/ssl_check.sh
 
 # 7. Start all servers, then check Reports Server
-./01-Run/startStop.sh start ALL --apply
+./01-Run/startStop.sh start-all --apply
 # wait for servers to start...
 ./01-Run/rwserver_status.sh
 
@@ -75,9 +75,9 @@ Calls all check scripts and aggregates results:
 | 9 | Forms config, FORMS_PATH | `06-FormsDiag/forms_settings.sh` |
 | 10 | Config backup present | direct check |
 
-Final summary:
+Final summary (via `print_summary`, same convention as every other script):
 - Total OK / WARN / FAIL counts
-- Exit code 0 if no FAIL, exit code 1 if any FAIL
+- Exit code 0 if no issues, 1 if WARN only, 2 if any FAIL
 - Full log written to `$DIAG_LOG_DIR/install_validation_<YYYYMMDD>.log`
 
 ---
