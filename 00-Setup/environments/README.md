@@ -76,8 +76,11 @@ if [ -d "$IHW_ROOT/00-Setup/environments" ]; then
     if [ "$_conf_count" -gt 1 ]; then
         # Multiple environments → show selection menu
         . "$IHW_ROOT/00-Setup/set_env.sh"
+    elif [ "$_conf_count" -eq 1 ]; then
+        # Exactly one environment → load directly without menu
+        . "$IHW_ROOT/00-Setup/set_env.sh" 1
     elif [ -f "$IHW_ROOT/environment.conf" ]; then
-        # Single environment → load directly
+        # No environments/ directory → load classic single conf
         source "$IHW_ROOT/environment.conf"
         export ORACLE_HOME DOMAIN_HOME JDK_HOME ORACLE_SID
         [ -n "${ORACLE_HOME:-}" ] && export PATH="$ORACLE_HOME/bin:$PATH"

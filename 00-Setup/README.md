@@ -33,7 +33,6 @@ secures the configuration that the rest of the library (`09-Install/`,
 | `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
 | `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
 | `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
-| `getPWDs.sh` | script, **gitignored** | Debug helper – decrypts and prints all `*.des3` files in plaintext |
 | `report_env.sh` | stub, not implemented | Planned: collect diagnostics into one standalone HTML report |
 | `set_environment.md` | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
 | `environments/` | directory | One conf file per environment (FMW domain or DB home) + templates |
@@ -233,22 +232,6 @@ schema created by RCU.
 
 ---
 
-### getPWDs.sh
-
-**Debug helper only — gitignored, never commit its output.** Decrypts and
-prints every `*.des3` file it finds under the repository root in plaintext
-to the console.
-
-```bash
-./00-Setup/getPWDs.sh
-```
-
-Use this when you need to verify what is actually stored (e.g. after a
-migration) or hand credentials to a colleague verbally. There is no
-`--apply` flag — it never writes anything, only reads and displays.
-
----
-
 ### report_env.sh
 
 **Not implemented yet** (stub — `TODO: Implement`, exits `0` immediately).
@@ -402,7 +385,6 @@ automatic activation on login.
 | `environments/*.conf` | Server-specific paths (templates and `README.md` ARE committed) |
 | `*.des3`, `*.des3.bak*` | Encrypted credentials — machine-specific key, no reason to share |
 | `weblogic_sec.conf` | Plaintext intermediate — exists only briefly at runtime, always deleted |
-| `00-Setup/getPWDs.sh` | Prints plaintext passwords — debug tool only |
 
 ---
 
