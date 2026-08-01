@@ -120,14 +120,18 @@ Phase DB – Oracle 19c RCU Database (on DB host; parallel to or after Phase 3)
                   auto-elevates via sudo when run as oracle
   [oracle]       60-RCU-DB-19c/01-db_install_software.sh --apply
                   Oracle 19c software-only install (unzip + runInstaller -silent)
-  [oracle]       60-RCU-DB-19c/02-db_patch_autoupgrade.sh --apply
+  [oracle]       60-RCU-DB-19c/02-db_patch_db_software.sh --apply
                   AutoUpgrade: download current RU, create patched ORACLE_HOME
-  [oracle]       60-RCU-DB-19c/03-db_create_database.sh --apply
+  [oracle]       60-RCU-DB-19c/04-db_setup_listener.sh --apply
+                  Configure the TNS listener
+  [oracle]       60-RCU-DB-19c/05-db_create_database.sh --apply
                   DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM, no archivelog)
-  [oracle]       60-RCU-DB-19c/04-db_audit_setup.sh --apply
+  [oracle]       60-RCU-DB-19c/06-db_audit_setup.sh --apply
                   Pure Unified Auditing (uniaud_on relink + purge job)
-  [oracle]       60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
+  [oracle]       60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
                   Optional: create FMW_DATA tablespace (skip = RCU creates its own)
+  [oracle]       60-RCU-DB-19c/08-db_auto_start.sh --apply
+                  Configure DB/listener autostart (oratab, systemd)
 
   ▶ Database must be up and reachable from the FMW host before Phase 4.
     Run 00-Setup/database_rcu_sec.sh --apply to store DB credentials.
@@ -142,18 +146,18 @@ Phase 5 – Configuration (as oracle)
   09-oracle_configure.sh         Final configuration using existing 00-07 scripts
 
 Phase 6 – Runtime Configuration (as oracle / root)
-  [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties für AdminServer + Managed Server
-  [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NM-Konfiguration vor dem ersten Start
-  → AdminServer + NodeManager manuell starten
-  [oracle] 11-oracle_nodemanager.sh --apply             # WLST: NodeManagerType=Plain setzen
-  [oracle] 12-oracle_reports_users.sh --apply           # WLS-User MonUser + RepRunner anlegen
-  [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 Symlink (nur OL9)
-  [edit]   09-Install/forms_templates/*.template        # Templates vor Forms-Setup anpassen
+  [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties for AdminServer + Managed Server
+  [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NodeManager config before first start
+  → Start AdminServer + NodeManager manually
+  [oracle] 11-oracle_nodemanager.sh --apply             # WLST: set NodeManagerType=Plain
+  [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users MonUser + RepRunner
+  [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 symlink (OL9 only)
+  [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
   [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
-  [oracle] 14-oracle_setup_forms.sh --apply             # Forms-Konfigurationstemplates in Domain kopieren
+  [oracle] 14-oracle_setup_forms.sh --apply             # Copy Forms config templates into the domain
 
-Phase 7 – Validation (as oracle) [geplant]
-  90-oracle_validate.sh          Vollständiger Validierungsbericht
+Phase 7 – Validation (as oracle) [planned]
+  90-oracle_validate.sh          Full validation report
                                    → docs/90-oracle_validate.md
 ```
 
@@ -179,13 +183,13 @@ Phase 7 – Validation (as oracle) [geplant]
 | 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas | [→ docs](docs/07-oracle_setup_repository.md) |
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
 | 5 | `09-oracle_configure.sh` | Final configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
-| 6 | `10-oracle_boot_properties.sh` | boot.properties für AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
-| 6 | `11-oracle_nodemanager.sh` | NodeManager konfigurieren (plain mode, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
-| 6 | `12-oracle_reports_users.sh` | WLS-User MonUser + RepRunner anlegen | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
-| 6 | `13-root_reports_fix.sh` | libnsl.so.2 Symlink für OL9 (root) | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `13-oracle_setup_reports.sh` | Reports Server konfigurieren (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `14-oracle_setup_forms.sh` | Forms-Konfigurationstemplates in Domain kopieren | [→ docs](docs/14-forms-detail-settings.md) |
-| 7 | `90-oracle_validate.sh` | Vollständiger Validierungsbericht [geplant] | [→ docs](docs/90-oracle_validate.md) |
+| 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
+| 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
+| 6 | `12-oracle_reports_users.sh` | Create WLS users MonUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
+| 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 (root) | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
+| 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 
 ---
@@ -251,14 +255,15 @@ The installation module calls existing scripts directly — no code duplication:
 | `02-Checks/java_check.sh` | `04-oracle_pre_checks.sh` |
 | `02-Checks/port_check.sh` | `04-oracle_pre_checks.sh` |
 | `02-Checks/db_connect_check.sh` | `01-setup-interview.sh`, `04-oracle_pre_checks.sh` |
-| `02-Checks/ssl_check.sh` | `10-oracle_validate.sh` |
+| `02-Checks/ssl_check.sh` | `90-oracle_validate.sh` [planned] |
 | `02-Checks/weblogic_performance.sh` | `09-oracle_configure.sh` |
 | `04-ReportsFonts/uifont_ali_update.sh` | `09-oracle_configure.sh` |
 | `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh` |
-| `01-Run/rwserver_status.sh` | `10-oracle_validate.sh` |
+| `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` [planned] |
 
 Shared install functions (silent response file generation, OPatch version check,
-password-file handling for RCU) live in `install_lib.sh`.
+password-file handling for RCU) are planned to live in `install_lib.sh` — not yet
+created; each script currently defines its own helpers (`_run_root`, `_can_sudo`, …).
 
 ---
 
@@ -429,22 +434,22 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
 ├── nginx-wls.conf.template            ← Nginx proxy config template (##VARIABLE## substitution)
 ├── oracle_software_version.conf       ← SW versions, SHA-256, patch numbers, OPatch regexp
-├── 04-oracle_pre_checks.sh            ← [TODO]
+├── 04-oracle_pre_checks.sh            ← Phase 1: pre-install prerequisite validation
 ├── 04-oracle_pre_download.sh          ← eDelivery + getMOSPatch download
 ├── 05-oracle_install_weblogic.sh      ← FMW Infrastructure 14.1.2 silent install
 ├── 05-oracle_patch_weblogic.sh        ← OPatch upgrade + WLS CPU patch apply
 ├── 06-oracle_install_forms_reports.sh ← Phase 3: Forms/Reports silent install
-├── 06-oracle_patch_forms_reports.sh   ← [TODO]
-├── 07-oracle_setup_repository.sh      ← [TODO]
-├── 08-oracle_setup_domain.sh          ← [TODO]
-├── 09-oracle_configure.sh             ← Phase 5: Orchestrator – ruft 00-07 Scripts auf
-├── 10-oracle_boot_properties.sh       ← Phase 6: boot.properties für AdminServer + Managed Server
-├── 11-oracle_nodemanager.sh           ← Phase 6: NodeManager konfigurieren (plain mode, WLST)
-├── 12-oracle_reports_users.sh         ← Phase 6: WLS-User MonUser + RepRunner anlegen
-├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 Symlink (root, nur OL9)
-├── 13-oracle_setup_reports.sh         ← Phase 6: Reports Server konfigurieren
-├── 14-oracle_setup_forms.sh           ← Phase 6: Forms-Konfigurationstemplates in Domain kopieren
-├── forms_templates/                   ← Forms-Konfigurationstemplates (vom Kunden editiert)
+├── 06-oracle_patch_forms_reports.sh   ← Phase 3: Forms/Reports patches
+├── 07-oracle_setup_repository.sh      ← Phase 4: RCU metadata schemas
+├── 08-oracle_setup_domain.sh          ← Phase 4: domain creation (WLST silent)
+├── 09-oracle_configure.sh             ← Phase 5: orchestrator – calls scripts 00-07
+├── 10-oracle_boot_properties.sh       ← Phase 6: boot.properties for AdminServer + Managed Server
+├── 11-oracle_nodemanager.sh           ← Phase 6: configure NodeManager (plain mode, WLST)
+├── 12-oracle_reports_users.sh         ← Phase 6: create WLS users MonUser + RepRunner
+├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (root, OL9 only)
+├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
+├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
+├── forms_templates/                   ← Forms config templates (edited by the customer)
 │   ├── README.md
 │   ├── default.env.template
 │   ├── formsweb.cfg.template
@@ -453,7 +458,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   ├── fmrweb_utf8.res.template
 │   └── fmrwebd.res.template
 ├── response_files/                    ← response file templates
-│   ├── wls_install.rsp.template
+│   ├── cgicmd.dat.template
 │   ├── fr_install.rsp.template
 │   └── domain_config.py.template
 └── docs/                              ← step-by-step detail documentation
@@ -481,7 +486,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 13-reports-detail-settings.md ← 13-root_reports_fix.sh + 13-oracle_setup_reports.sh
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist
-    └── 90-oracle_validate.md         ← 90-oracle_validate.sh [geplant]
+    └── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
 ```
 
 ---
