@@ -309,9 +309,9 @@ HEREDOC
     chmod 640 "$OVERRIDES"
     ok "setUserOverrides.sh written: $OVERRIDES"
     warn "Restart all managed servers for changes to take effect"
-    info "  ./01-Run/startStop.sh restart AdminServer --apply"
-    info "  ./01-Run/startStop.sh restart WLS_FORMS   --apply"
-    info "  ./01-Run/startStop.sh restart WLS_REPORTS --apply"
+    info "  ./01-Run/startStop.sh stop  AdminServer --apply && ./01-Run/startStop.sh start AdminServer --apply"
+    info "  ./01-Run/startStop.sh stop  WLS_FORMS   --apply && ./01-Run/startStop.sh start WLS_FORMS   --apply"
+    info "  ./01-Run/startStop.sh stop  WLS_REPORTS --apply && ./01-Run/startStop.sh start WLS_REPORTS --apply"
 fi
 
 # =============================================================================
