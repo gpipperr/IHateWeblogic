@@ -291,7 +291,7 @@ section "Live TLS Test"
 
 _ssl_port=443
 if ss -tlnp 2>/dev/null | awk '{print $4}' | grep -q ":${_ssl_port}$"; then
-    ok "Port $NGINX_CONF port 443 is listening"
+    ok "Port ${_ssl_port} is listening"
 
     info "TLS handshake test (openssl s_client) ..."
     _hs_out="$(echo | openssl s_client -connect "localhost:${_ssl_port}" \

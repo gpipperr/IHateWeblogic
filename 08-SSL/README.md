@@ -14,7 +14,7 @@ Reports installation. It covers three recurring tasks:
 | Task | Script | When |
 |---|---|---|
 | Prepare / create a certificate | `ssl_prepare_cert.sh` | Before first Nginx start and at renewal |
-| Deploy certificate to Nginx | `09-Install/03-root_nginx_ssl.sh` | Install-time (once) and at renewal |
+| Deploy certificate to Nginx | `09-Install/05-root_nginx_ssl.sh` | Install-time (once) and at renewal |
 | Audit current SSL configuration | `ssl_config.sh` | Anytime – monitoring, compliance checks |
 
 The module does **not** manage SSL inside WebLogic directly.
@@ -69,7 +69,7 @@ WebLogic (never handles TLS)
                    │
                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│  2. DEPLOY  (09-Install/03-root_nginx_ssl.sh --apply)            │
+│  2. DEPLOY  (09-Install/05-root_nginx_ssl.sh --apply)            │
 │     - Validates cert: exists, not expired, key matches           │
 │     - Copies to /etc/nginx/ssl/ (chmod 600 key, 644 cert)        │
 │     - Injects SSL directives into Nginx config                   │
@@ -121,7 +121,7 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 - Prints instructions for submitting to CA
 - Use case: production environments with a company or public CA
 
-**Does NOT deploy** → run `03-root_nginx_ssl.sh --apply` afterwards.
+**Does NOT deploy** → run `05-root_nginx_ssl.sh --apply` afterwards.
 
 ---
 
@@ -140,7 +140,7 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 |---|---|---|
 | Certificate file exists + readable | shell | OK |
 | Certificate not expired | `openssl x509 -enddate` | Valid for > 30 days |
-| Key matches certificate (modulus) | `openssl x509 / rsa -modulus` | md5 match |
+| Key matches certificate (public key) | `openssl x509 -pubkey` / `openssl pkey -pubout` | md5 match |
 | SAN present | `openssl x509 -text` | `DNS:` entry found |
 | TLS handshake succeeds | `openssl s_client` | `Verify return code: 0` |
 | Protocol: no TLS 1.0 / 1.1 | `openssl s_client -tls1` | Connection refused |
@@ -234,7 +234,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
    b. EASYRSA:  ./08-SSL/ssl_prepare_cert.sh EASYRSA --apply
    c. REQUEST:  ./08-SSL/ssl_prepare_cert.sh REQUEST --apply
                 → send CSR to CA → receive signed cert → set SSL_CERT_FILE
-3. Deploy:      ./09-Install/03-root_nginx_ssl.sh --apply
+3. Deploy:      ./09-Install/05-root_nginx_ssl.sh --apply
 4. Verify:      ./08-SSL/ssl_config.sh
 ```
 
@@ -244,7 +244,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 1. Obtain new cert (EASYRSA re-issue or new CA-signed cert)
    a. Easy-RSA: ./08-SSL/ssl_prepare_cert.sh EASYRSA --apply  (re-issues)
    b. CA cert:  copy new cert to SSL_CERT_FILE / SSL_KEY_FILE manually
-2. Deploy:      ./09-Install/03-root_nginx_ssl.sh --apply
+2. Deploy:      ./09-Install/05-root_nginx_ssl.sh --apply
 3. Verify:      ./08-SSL/ssl_config.sh
 ```
 
@@ -263,7 +263,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 | Script | Role |
 |---|---|
 | `09-Install/02-root_nginx.sh` | Install Nginx + generate base proxy config (upstream + location blocks) |
-| `09-Install/03-root_nginx_ssl.sh` | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
+| `09-Install/05-root_nginx_ssl.sh` | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
 | `08-SSL/ssl_prepare_cert.sh` | Create / prepare the certificate (all three cert options) |
 | `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
 | `00-Setup/init_env.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
@@ -285,7 +285,18 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 
 ## Open Items (TODO)
 
-- `ssl_prepare_cert.sh` – implement all three modes
-- `ssl_config.sh` – implement audit checks
-- Cron / monitoring integration for expiry alerting
-- Consider `ssl_renew_easyrsa.sh` as dedicated renewal script for Easy-RSA environments
+Both scripts are fully implemented (all three `ssl_prepare_cert.sh` modes,
+all `ssl_config.sh` audit sections). What's still missing:
+
+- **No automated cron job for expiry monitoring** — `ssl_config.sh --expiry`
+  already returns cron-friendly exit codes (0/1/2), but nothing installs it
+  as a scheduled job yet. See also `10-Monitoring/` (concept only).
+- Consider `ssl_renew_easyrsa.sh` as a dedicated renewal script for Easy-RSA
+  environments (currently: re-run `ssl_prepare_cert.sh EASYRSA --apply`,
+  which re-issues but does not automate CA rotation).
+- **Limited real-world testing so far:** only the `SELF` mode and the
+  read-only `ssl_config.sh` checks have been exercised end-to-end. The
+  `EASYRSA` mode (against a real Easy-RSA install), the `REQUEST` mode
+  (CSR → external CA → cert install round-trip), the live TLS handshake
+  checks against a running Nginx on port 443, and the WebLogic Frontend
+  Host check against a live domain still need verification on a real server.
