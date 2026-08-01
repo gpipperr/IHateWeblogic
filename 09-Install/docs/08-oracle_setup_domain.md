@@ -147,6 +147,10 @@ EOF
   into a temp file (`/tmp/domain_cfg_PID.py`, mode 600); deleted via `trap EXIT`
 - Runs `wlst.sh /tmp/domain_cfg_PID.py` to create the domain
 - Configures `nodemanager.properties` (127.0.0.1 only, port from `WLS_NODEMANAGER_PORT`)
+- Writes `servers/AdminServer/security/boot.properties` so AdminServer can be
+  started right away, without waiting for Phase 6 (`10-oracle_boot_properties.sh`
+  re-writes the same file later with identical content — harmless double-write,
+  not a bug)
 - Verifies domain directory structure exists after creation
 
 ---
@@ -186,8 +190,13 @@ curl -s http://127.0.0.1:7001/console/ | grep -i "weblogic"
 
 ## Notes
 
-- Domain creation is not idempotent — if `DOMAIN_HOME` already exists, the script
-  will abort unless `setOption('OverwriteDomain', 'true')` is set
+- Domain creation is not idempotent. The WLST template hardcodes
+  `setOption('OverwriteDomain', 'true')` — WLST itself would silently overwrite an
+  existing domain, no questions asked. The actual protection is the shell script's
+  own pre-check (`08-oracle_setup_domain.sh`, before WLST is even invoked): it aborts
+  if `$DOMAIN_HOME/config/config.xml` already exists. Running the "Without the
+  Script" WLST steps below directly does **not** have this protection — check for
+  an existing domain manually first.
 - The WLST script file containing the password is created in a temp location and
   deleted immediately after WLST exits (trap EXIT)
 - Node Manager must be started before managed servers can be started via WLST

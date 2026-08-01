@@ -16,6 +16,13 @@ typed at the console — which makes unattended or scripted starts impossible.
 
 This script must run **before the first domain start**.
 
+> **Note:** `08-oracle_setup_domain.sh` already writes AdminServer's
+> `boot.properties` right after domain creation, so it can be started
+> immediately without waiting for this step. Re-running this script overwrites
+> that file with identical content (harmless) and additionally covers the
+> managed servers (`WLS_FORMS`, `WLS_REPORTS`), which `08-oracle_setup_domain.sh`
+> does not.
+
 ---
 
 ## Background

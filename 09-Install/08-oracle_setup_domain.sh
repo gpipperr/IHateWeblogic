@@ -296,6 +296,11 @@ ok "$(printf "  JavaHome      = %s" "$JDK_HOME")"
 
 # =============================================================================
 # AdminServer boot.properties  (enables unattended startup without stdin prompt)
+#
+# Written here already so AdminServer can be started right after domain creation,
+# without waiting for Phase 6. 10-oracle_boot_properties.sh re-writes this same
+# file later (harmless – identical content) as part of its full pass over
+# AdminServer + all managed servers.
 # =============================================================================
 
 section "AdminServer boot.properties"
