@@ -292,6 +292,7 @@ IHateWeblogic/
 │   └── forms_perf_analyse.sh        – Session memory, HTTP response times, WLS_FORMS log scan
 │
 ├── 07-Maintenance/
+│   ├── README.md                    – Backup categories, manifest format, restore workflow
 │   ├── backup_config.sh             – Backup all config files before changes:
 │   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
