@@ -343,7 +343,8 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     fi
 
     ok "rwserver.conf updated: $RWSERVER_CONF"
-    info "Restart WLS_REPORTS to apply changes: ./01-Run/startStop.sh restart WLS_REPORTS --apply"
+    info "Restart WLS_REPORTS to apply changes:"
+    info "  ./01-Run/startStop.sh stop  WLS_REPORTS --apply && ./01-Run/startStop.sh start WLS_REPORTS --apply"
 fi
 
 # =============================================================================

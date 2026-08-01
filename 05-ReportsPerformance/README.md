@@ -63,7 +63,7 @@ Sections in the output:
 Evaluations:
 - `minEngine = 0` or `1` → WARN cold-start risk
 - `maxEngine < 2` → WARN single-threaded bottleneck
-- `-Xmx` vs. available RAM → WARN if > 70% of free RAM
+- `-Xmx` vs. available RAM → WARN if > 80% of free RAM
 
 **2. Cache Parameters** – reads `<cache>` block from `rwserver.conf`:
 
