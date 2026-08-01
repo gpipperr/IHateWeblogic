@@ -1,8 +1,8 @@
-# Step 5b – 10-oracle_validate.sh
+# Step 90 – 90-oracle_validate.sh
 
-**Script:** `09-Install/10-oracle_validate.sh`
+**Script:** `09-Install/90-oracle_validate.sh` *(planned)*
 **Runs as:** `oracle`
-**Phase:** 5 – Configuration & Validation
+**Phase:** 7 – Validation
 
 ---
 

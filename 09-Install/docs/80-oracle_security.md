@@ -1,131 +1,135 @@
 # Step 20 – Post-Installation Security Hardening
 
-**Phase:** 4 – Post-Installation (nach erfolgreichem WebLogic / Forms / Reports-Betrieb)
 **Runs as:** `root`
+**When:** After Phase 7 (Validation) — once WebLogic / Forms / Reports have been
+verified to run correctly. Not tied to a specific numbered install phase; this
+is a manual checklist with no corresponding automation script.
 
 ---
 
-## Übersicht
+## Overview
 
-Diese Checkliste wird **nach** Abschluss der Installation und Verifikation durchgeführt.
-Während der Installation wurden temporäre Privilegien gewährt (z. B. NOPASSWD sudo),
-die nun zurückgenommen werden müssen.
+This checklist is carried out **after** installation and verification are complete.
+During installation, temporary privileges were granted (e.g. NOPASSWD sudo) that
+must now be revoked.
 
 ---
 
-## 1 – sudo-Konfiguration zurücknehmen
+## 1 – Revert sudo Configuration
 
-### Warum
+### Why
 
-Während der Installationsphase (Skripte `01` bis `05`) wurde `oracle` NOPASSWD-sudo
-gewährt, damit die Skripte mit `sudo -n` (nicht-interaktiv) ausgeführt werden konnten.
-Das ist nach der Installation ein unnötiges Sicherheitsrisiko.
+During the installation phase (scripts `01` through `05`), `oracle` was granted
+NOPASSWD sudo so the scripts could run non-interactively via `sudo -n`. This is
+an unnecessary security risk once installation is complete.
 
-### Option A – wheel-Gruppe wieder auf Passwort-Pflicht setzen
+### Option A – Restore password requirement on the wheel group
 
-Wenn die Erleichterung über die `wheel`-Gruppe gewährt wurde:
+If the relaxation was granted via the `wheel` group:
 
 ```bash
-# Aktuellen Stand prüfen
+# Check current state
 grep wheel /etc/sudoers
-# %wheel  ALL=(ALL)  NOPASSWD: ALL   ← temporäre Installations-Einstellung
+# %wheel  ALL=(ALL)  NOPASSWD: ALL   ← temporary install-time setting
 
-# Sicher bearbeiten
+# Edit safely
 visudo
 
-# Zeile ändern von:
+# Change the line from:
 %wheel  ALL=(ALL)  NOPASSWD: ALL
-# Zu:
+# To:
 %wheel  ALL=(ALL)  ALL
 ```
 
-Verifikation:
+Verification:
 
 ```bash
-# Als oracle – muss nun nach Passwort fragen (Exit-Code ≠ 0 ohne Passwort)
+# As oracle – must now prompt for a password (exit code != 0 without one)
 sudo -n true 2>&1
-# Erwartete Ausgabe: sudo: a password is required
+# Expected output: sudo: a password is required
 ```
 
-### Option B – sudoers Drop-in entfernen
+### Option B – Remove the sudoers drop-in
 
-Wenn das Drop-in `/etc/sudoers.d/oracle-fmw` angelegt wurde:
+If the `/etc/sudoers.d/oracle-fmw` drop-in was created:
 
 ```bash
-# Inhalt prüfen
+# Check its contents
 cat /etc/sudoers.d/oracle-fmw
 
-# Entfernen
+# Remove it
 rm /etc/sudoers.d/oracle-fmw
 
-# Sicherheitscheck – kein Syntaxfehler in verbleibenden Dateien
+# Safety check – no syntax errors in the remaining files
 visudo -c
-# Erwartete Ausgabe: /etc/sudoers: parsed OK
+# Expected output: /etc/sudoers: parsed OK
 ```
 
 ---
 
-## 2 – oracle-Benutzer: sudo ganz entfernen (optional, empfohlen)
+## 2 – Remove sudo from the oracle User Entirely (optional, recommended)
 
-Wenn der `oracle`-Benutzer nach der Installation keinerlei sudo-Zugriff mehr braucht:
+If the `oracle` user needs no sudo access at all after installation:
 
 ```bash
-# Aus wheel-Gruppe entfernen
+# Remove from the wheel group
 gpasswd -d oracle wheel
 
-# Prüfen
+# Verify
 id oracle
-# groups= darf wheel nicht mehr enthalten
+# groups= must no longer contain wheel
 
 # Test
 su - oracle -c "sudo -l"
-# Erwartete Ausgabe: User oracle is not allowed to run sudo on ...
+# Expected output: User oracle is not allowed to run sudo on ...
 ```
 
-> **Hinweis:** Der WebLogic-Betrieb (NodeManager, AdminServer, ManagedServer)
-> benötigt kein sudo. Die JVMs starten als `oracle`-Benutzer ohne erhöhte Rechte.
+> **Note:** Day-to-day WebLogic operation (NodeManager, AdminServer, Managed
+> Servers) requires no sudo at all. The JVMs run as the `oracle` user without
+> elevated privileges.
 
 ---
 
-## 3 – Prüfliste nach Härtung
+## 3 – Post-Hardening Checklist
 
 ```bash
-# sudo-Konfiguration – oracle darf kein NOPASSWD haben
+# sudo configuration – oracle must have no NOPASSWD entries left
 sudo -l -U oracle | grep NOPASSWD
-# Erwartete Ausgabe: (leer)
+# Expected output: (empty)
 
-# wheel-Gruppe
+# wheel group
 grep wheel /etc/sudoers /etc/sudoers.d/* 2>/dev/null
-# Darf kein NOPASSWD: ALL mehr enthalten
+# Must no longer contain NOPASSWD: ALL
 
-# Drop-in-Datei weg
+# Drop-in file gone
 ls -la /etc/sudoers.d/
-# oracle-fmw darf nicht mehr auftauchen
+# oracle-fmw must no longer appear
 
-# oracle-Gruppen
+# oracle group membership
 id oracle
-# kein wheel, kein sudo
+# no wheel, no sudo
 ```
 
 ---
 
-## 4 – Weitere Härtungsmaßnahmen (Betrieb)
+## 4 – Further Hardening Measures (Operations)
 
-| Maßnahme | Beschreibung | Wann |
+| Measure | Description | When |
 |---|---|---|
-| sudo NOPASSWD entfernen | Siehe Abschnitt 1 + 2 | Nach Installation |
-| SELinux re-aktivieren | `SELINUX=enforcing` in `/etc/selinux/config` + Reboot | Nach Abnahme (optional) |
-| Firewall-Regeln prüfen | Nur Port 80/443 extern offen; 7001/9001/9002/5556 intern | Nach Installation |
-| WebLogic Console: HTTPS erzwingen | Admin Console nur über SSL erreichbar | Nach Zertifikats-Setup |
-| WebLogic Passwörter rotieren | `boot.properties` neu verschlüsseln | Nach Erstinstallation |
-| oracle `.bash_history` bereinigen | Passwörter aus History entfernen | Nach Erstinstallation |
+| Remove sudo NOPASSWD | See sections 1 + 2 | After installation |
+| SELinux | **Do NOT simply set `SELINUX=enforcing`** — Forms/Reports native libraries require SELinux disabled (see `01-root_os_baseline.sh` / `docs/00-root_set_os_parameter.md`). A proper, WLS-specific SELinux policy is a planned future improvement, not yet available | Not currently actionable |
+| Review firewall rules | Only ports 80/443 open externally; 7001/9001/9002/5556 internal only | After installation |
+| WebLogic Console: enforce HTTPS | Admin Console reachable only via SSL | After certificate setup |
+| Rotate WebLogic passwords | Re-encrypt `boot.properties` | After initial installation |
+| Clean up oracle `.bash_history` | Remove passwords from shell history | After initial installation |
 
 ---
 
-## Referenzen
+## References
 
-| Thema | Quelle |
+| Topic | Source |
 |---|---|
-| sudo-Konfiguration | `09-Install/docs/00-root_set_os_parameter.md` – Prerequisites-Abschnitt |
-| Firewall-Ports | `09-Install/docs/00-root_set_os_parameter.md` – Verification-Abschnitt |
-| WebLogic Password-Konzept | `00-Setup/weblogic_sec.sh` |
+| sudo configuration | `09-Install/docs/00-root_set_os_parameter.md` – Prerequisites section |
+| Firewall ports | `09-Install/docs/00-root_set_os_parameter.md` – Verification section |
+| SELinux requirement (must stay disabled) | `09-Install/01-root_os_baseline.sh` – Section 1 |
+| WebLogic password concept | `00-Setup/weblogic_sec.sh` |
