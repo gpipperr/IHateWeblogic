@@ -96,7 +96,7 @@ printf "  %-22s %s\n" "User:"      "${WL_USER}"      | tee -a "${LOG_FILE:-/dev/
 
 section "Locating WLST"
 
-local _fmw_base="${ORACLE_HOME:-${FMW_HOME}}"
+_fmw_base="${ORACLE_HOME:-${FMW_HOME}}"
 WLST_SH="${_fmw_base}/oracle_common/common/bin/wlst.sh"
 
 if [ ! -x "$WLST_SH" ]; then

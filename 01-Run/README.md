@@ -212,8 +212,9 @@ exit()
 
 The script queries:
 ```
-http://<host>:<port>/reports/rwservlet?getserverinfo&server=<name>&statusformat=xml
+http://<host>:<port>/reports/rwservlet/getserverinfo?server=<name>&statusformat=XML
 ```
+(`getserverinfo` is part of the **path**, not a query flag.)
 
 This requires `WLS_REPORTS` to be running and `curl` to be installed.
 If the endpoint is not reachable, the process section still shows
@@ -278,7 +279,7 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 | `00-Setup/weblogic_sec.sh` | Store WebLogic credentials (used by wlst_connect and startStop) |
 | `02-Checks/port_check.sh` | Verify ports before start; complements status table |
 | `03-Logs/tail_logs.sh` | Live-tail server logs during start/stop |
-| `05-ReportsPerformance/engine_check.sh` | Engine count after Reports Server start |
+| `05-ReportsPerformance/engine_perf_analyse.sh` | Engine count/queue analysis after Reports Server start |
 
 ---
 
