@@ -780,6 +780,43 @@ fi
 source "$ENV_LINK"
 
 # --------------------------------------------------------------------------
+# Everything below this point only DETECTS runtime values (paths, running
+# processes, DB connection from jps-config.xml, ...) and backfills them via
+# _append_if_missing. It never collects or backfills the install-time
+# parameters below - those are only ever asked for by 01-setup-interview.sh
+# (full guided interview) or the "no active environment" fresh-install
+# branch above. Warn here so an incomplete environment.conf (e.g. written
+# by an older init_env.sh, or never run through 01-setup-interview.sh at
+# all) doesn't silently look "done" just because this script finished
+# without errors.
+section "Checking for 09-Install Parameters"
+
+MISSING_INSTALL_KEYS=()
+for _key in \
+    ORACLE_BASE ORACLE_INVENTORY PATCH_STORAGE INSTALL_COMPONENTS \
+    WLS_ADMIN_USER WLS_ADMIN_PORT WLS_NODEMANAGER_PORT WLS_FORMS_PORT WLS_REPORTS_PORT \
+    FORMS_CUSTOMER_DIR REPORTS_CUSTOMER_DIR \
+    EXPECTED_SESSIONS ULIMIT_NOFILE ULIMIT_NPROC \
+    MOS_USER
+do
+    [ -z "${!_key:-}" ] && MISSING_INSTALL_KEYS+=("$_key")
+done
+unset _key
+
+if [ "${#MISSING_INSTALL_KEYS[@]}" -eq 0 ]; then
+    ok "All 09-Install parameters present in environment.conf"
+else
+    warn "${#MISSING_INSTALL_KEYS[@]} install parameter(s) missing from environment.conf:"
+    for _key in "${MISSING_INSTALL_KEYS[@]}"; do
+        info "  $_key"
+    done
+    unset _key
+    warn "init_env.sh only detects RUNTIME values - it does not collect these"
+    warn "install-time parameters, even in --interview mode."
+    info "Run: 09-Install/01-setup-interview.sh --apply   (full guided interview)"
+fi
+
+# --------------------------------------------------------------------------
 section "Detecting ORACLE_HOME"
 DET_ORACLE_HOME="$(detect_oracle_home)"
 
