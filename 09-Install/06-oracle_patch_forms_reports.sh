@@ -2,20 +2,24 @@
 # =============================================================================
 # Script   : 06-oracle_patch_forms_reports.sh
 # Purpose  : Apply Forms & Reports specific patches after base F&R install.
-#            Patches are listed in INSTALL_PATCHES_FR (oracle_software_version.conf).
-#            If INSTALL_PATCHES_FR is empty, the script exits OK — no FR-specific
-#            patches configured.
+#            Patches are listed in INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS
+#            (oracle_software_version.conf) and applied only for the component(s)
+#            actually present in ORACLE_HOME (Reports-only installs supported —
+#            Forms patches are skipped automatically if forms/ does not exist).
+#            Superseded QPRs (see SUPERSEDES map in this script) are rolled back
+#            automatically before the replacing patch is applied.
+#            If no applicable patch is configured, the script exits OK.
 #            OPatch upgrade is NOT repeated here (done in 05-oracle_patch_weblogic.sh).
 # Call     : ./09-Install/06-oracle_patch_forms_reports.sh
 #            ./09-Install/06-oracle_patch_forms_reports.sh --apply
 #            ./09-Install/06-oracle_patch_forms_reports.sh --check-only
 #            ./09-Install/06-oracle_patch_forms_reports.sh --help
-# Options  : (none)        Dry-run: show pending FR patches
-#            --apply       Apply INSTALL_PATCHES_FR, skip already-installed
+# Options  : (none)        Dry-run: show pending Forms/Reports patches
+#            --apply       Apply applicable patches, skip already-installed
 #            --check-only  Conflict check only, do not apply
 #            --help        Show usage
 # Runs as  : oracle
-# Requires : 06-oracle_install_forms_reports.sh completed (ORACLE_HOME/forms/ exists)
+# Requires : 06-oracle_install_forms_reports.sh completed (forms/ and/or reports/ exists)
 #            05-oracle_patch_weblogic.sh completed (OPatch already upgraded)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -64,8 +68,8 @@ CHECK_ONLY=false
 
 _usage() {
     printf "Usage: %s [--apply] [--check-only] [--help]\n\n" "$(basename "$0")"
-    printf "  %-14s %s\n" "(none)"       "Dry-run: show pending FR patches from INSTALL_PATCHES_FR"
-    printf "  %-14s %s\n" "--apply"      "Apply patches from INSTALL_PATCHES_FR, skip already-installed"
+    printf "  %-14s %s\n" "(none)"       "Dry-run: show pending Forms/Reports patches for installed components"
+    printf "  %-14s %s\n" "--apply"      "Apply applicable patches, skip already-installed"
     printf "  %-14s %s\n" "--check-only" "Conflict check only, do not apply"
     printf "  %-14s %s\n" "--help"       "Show this help"
     printf "\nRuns as: oracle\n"
@@ -108,9 +112,31 @@ section "Pre-checks"
     && ok "ORACLE_HOME = $ORACLE_HOME" \
     || { fail "ORACLE_HOME not set in environment.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-[ -d "$ORACLE_HOME/forms" ] \
-    && ok "Forms installed: $ORACLE_HOME/forms" \
-    || { fail "Forms not found – run 06-oracle_install_forms_reports.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+# Component detection: this project supports Reports-only installs, so
+# neither forms/ nor reports/ is individually mandatory – but at least one
+# of them must exist (06-oracle_install_forms_reports.sh must have run).
+HAS_FORMS=false
+[ -d "$ORACLE_HOME/forms" ] && HAS_FORMS=true
+HAS_REPORTS=false
+[ -d "$ORACLE_HOME/reports" ] && HAS_REPORTS=true
+
+if ! $HAS_FORMS && ! $HAS_REPORTS; then
+    fail "Neither forms/ nor reports/ found under $ORACLE_HOME"
+    fail "  Run 06-oracle_install_forms_reports.sh --apply first"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+
+$HAS_FORMS   && ok "Forms installed: $ORACLE_HOME/forms"   || info "Forms not installed – Forms-specific patches will be skipped"
+$HAS_REPORTS && ok "Reports installed: $ORACLE_HOME/reports" || info "Reports not installed – Reports-specific patches will be skipped"
+
+# Cross-check against the declared intent (informational only – the
+# directory check above is the authoritative source of truth)
+case "${INSTALL_COMPONENTS:-}" in
+    FORMS_ONLY)
+        $HAS_REPORTS && warn "INSTALL_COMPONENTS=FORMS_ONLY but reports/ exists in ORACLE_HOME" ;;
+    REPORTS_ONLY)
+        $HAS_FORMS && warn "INSTALL_COMPONENTS=REPORTS_ONLY but forms/ exists in ORACLE_HOME" ;;
+esac
 
 # --- OPatch binary -----------------------------------------------------------
 OPATCH="$ORACLE_HOME/OPatch/opatch"
@@ -137,13 +163,22 @@ INVPTR_ARGS=()
     && { ok "oraInst.loc found: $ORA_INST_LOC"; INVPTR_ARGS=(-invPtrLoc "$ORA_INST_LOC"); } \
     || warn "oraInst.loc not found – opatch will use system default"
 
-# --- INSTALL_PATCHES_FR -------------------------------------------------------
-printList "INSTALL_PATCHES_FR" 28 "${INSTALL_PATCHES_FR:-(empty – no FR-specific patches)}"
+# --- Compose the wanted patch list from component detection -------------------
+# INSTALL_PATCHES_REPORTS always applies (if reports/ exists); FORMS and the
+# bidi one-off only apply when their precondition is met.
+PATCHES_WANTED=""
+$HAS_REPORTS && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_REPORTS:-}"
+$HAS_FORMS   && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FORMS:-}"
+[ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FR_OPTIONAL:-}"
+PATCHES_WANTED="$(printf "%s" "$PATCHES_WANTED" | xargs)"   # normalize whitespace
 
-if [ -z "${INSTALL_PATCHES_FR:-}" ]; then
+printList "INSTALL_PATCHES_REPORTS" 28 "${INSTALL_PATCHES_REPORTS:-(empty)}"
+printList "INSTALL_PATCHES_FORMS"   28 "${INSTALL_PATCHES_FORMS:-(empty)}"
+printList "Wanted (this host)"      28 "${PATCHES_WANTED:-(none)}"
+
+if [ -z "$PATCHES_WANTED" ]; then
     printf "\n" | tee -a "$LOG_FILE"
-    ok "INSTALL_PATCHES_FR is empty – no FR-specific patches to apply."
-    info "  To add FR patches: set INSTALL_PATCHES_FR in oracle_software_version.conf"
+    ok "No Forms/Reports-specific patches apply to this host – nothing to do."
     info "  WLS patches (INSTALL_PATCHES) already cover the shared ORACLE_HOME."
     print_summary
     exit $EXIT_CODE
@@ -158,8 +193,37 @@ section "Installed Patch Inventory"
 CURRENT_PATCHES="$("$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null)"
 printf "%s\n" "$CURRENT_PATCHES" | tee -a "$LOG_FILE"
 
+# --- Automatic rollback of superseded QPRs -------------------------------------
+# A newer QPR supersedes (and conflicts with) the one it replaces – roll the
+# old one back first, same idiom as the 23335292 pre-check in
+# 05-oracle_patch_weblogic.sh.
+declare -A SUPERSEDES=(
+    [39600348]=38827528   # Reports QPR Aug 2026 supersedes Jan 2026
+    [39842516]=38874285   # Forms QPR Sep 2026 supersedes Jan 2026
+)
+for _new in $PATCHES_WANTED; do
+    _old="${SUPERSEDES[$_new]:-}"
+    [ -z "$_old" ] && continue
+    if echo "$CURRENT_PATCHES" | grep -q "^${_old};"; then
+        warn "Patch $_old is superseded by $_new – rolling back $_old first"
+        if $APPLY; then
+            "$OPATCH" rollback -id "$_old" "${INVPTR_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+            ROLLBACK_RC=${PIPESTATUS[0]}
+            if [ "$ROLLBACK_RC" -ne 0 ]; then
+                fail "Rollback of superseded patch $_old failed (rc=$ROLLBACK_RC)"
+                EXIT_CODE=2; print_summary; exit $EXIT_CODE
+            fi
+            ok "Patch $_old rolled back"
+            CURRENT_PATCHES="$("$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null)"
+        else
+            info "Would roll back patch $_old before applying $_new (use --apply)"
+        fi
+    fi
+done
+unset _new _old
+
 PATCHES_TO_APPLY=""
-for _p in $INSTALL_PATCHES_FR; do
+for _p in $PATCHES_WANTED; do
     if echo "$CURRENT_PATCHES" | grep -q "^${_p};"; then
         ok "$(printf "Patch %-12s already installed – skip" "$_p")"
     else
@@ -171,7 +235,7 @@ unset _p
 PATCHES_TO_APPLY="${PATCHES_TO_APPLY# }"
 
 if [ -z "$PATCHES_TO_APPLY" ]; then
-    ok "All patches from INSTALL_PATCHES_FR already installed – nothing to do"
+    ok "All applicable Forms/Reports patches already installed – nothing to do"
     print_summary
     exit $EXIT_CODE
 fi

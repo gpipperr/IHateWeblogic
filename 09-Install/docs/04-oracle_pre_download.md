@@ -50,8 +50,8 @@ it contains no credentials.
 | Variable | Value | Description |
 |---|---|---|
 | `OPATCH_UPGRADE_PATCH_NR` | `28186730` | FMW/WLS OPatch upgrade package (contains `opatch_generic.jar`) |
-| `OPATCH_VERSION_INSTALL` | `13.9.4.2.22` | OPatch version installed by Patch 28186730 |
-| `OPATCH_VERSION_MIN` | `13.9.4.2.17` | Minimum version required by current CPU |
+| `OPATCH_VERSION_INSTALL` | `13.9.4.2.24` | OPatch version installed by Patch 28186730 |
+| `OPATCH_VERSION_MIN` | `13.9.4.2.24` | Minimum version required by the current WLS Stack Patch Bundle |
 
 > **Why Patch 28186730, not 6880880?** Since OPatch >= 13.6, OPatch must be installed
 > via its own `opatch_generic.jar` (OUI tooling) to keep the OUI metadata in sync.
@@ -60,6 +60,17 @@ it contains no credentials.
 > package; when unzipped it contains a `6880880/` subdirectory with `opatch_generic.jar`.
 > See [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) for the full procedure.
 
+### WLS Stack Patch Bundle (getMOSPatch)
+
+| Variable | Value | Description |
+|---|---|---|
+| `WLS_SPB_PATCH_NR` | `39925660` | WLS Stack Patch Bundle 14.1.2.0.260825 (CSPU Sep 2026) |
+
+Large ZIP (several hundred MB) applied via `opatch napply`, not `opatch apply`
+— see [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md), section
+"SPB (CSPU September 2026)", for why this mechanism was reintroduced and
+what the apply script does with it.
+
 ### Post-Install Patches (getMOSPatch, in apply order)
 
 Patch numbers are determined by the Oracle CPU release cycle.
@@ -67,21 +78,22 @@ The procedure for finding the correct current patch numbers is documented in:
 
 → **[05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md)** – WLS/FMW Infrastructure patches
 → **[06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)** – Forms & Reports patches
+→ **[00-patch-references.md](00-patch-references.md)** – central list of MOS Doc IDs used to find them
 
 Current configuration in `oracle_software_version.conf`:
 
 | Variable | Value | Description |
 |---|---|---|
-| `INSTALL_PATCHES` | `38566996` | CPU Jan 2026 – UMS Bundle Patch 14.1.2.0.251022 (WLS/FMW) |
-| `INSTALL_PATCHES_FR` | `38874285 38827528` | QPR Jan 2026 – Forms 14.1.2 QPR + Reports 14.1.2 QPR (Linux-x86-64) |
+| `INSTALL_PATCHES` | `39988381 38590500 38566996` | CSPU Sep 2026 WLS SPU + PERL Security Patch, applied via plain `opatch apply` after the SPB above |
+| `INSTALL_PATCHES_REPORTS` | `39600348` | Reports 14.1.2 QPR (Aug 2026, Linux-x86-64), supersedes `38827528` |
+| `INSTALL_PATCHES_FORMS` | `39842516` | Forms 14.1.2 QPR (Sep 2026, Linux-x86-64), supersedes `38874285` — only downloaded/applied if Forms is part of this install |
 
-Both variables are **space-separated** patch number lists.
-`INSTALL_PATCHES` is applied by `05-oracle_patch_weblogic.sh`;
-`INSTALL_PATCHES_FR` is applied by `06-oracle_patch_forms_reports.sh`.
+All three variables are **space-separated** patch number lists.
+`INSTALL_PATCHES` and `WLS_SPB_PATCH_NR` are applied by
+`05-oracle_patch_weblogic.sh`; `INSTALL_PATCHES_REPORTS`/
+`INSTALL_PATCHES_FORMS` are applied by `06-oracle_patch_forms_reports.sh`,
+which also auto-detects whether Forms/Reports is actually installed.
 Always update OPatch **before** applying patches.
-
-> **Forms 14.1.2 QPR Jan 2026:** no separate patch — Forms fixes are included in
-> `INSTALL_PATCHES=38566996`. See [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md) for details.
 
 ---
 
@@ -166,52 +178,67 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
 # → downloads p28186730_139422_Generic.zip (or similar)
 ```
 
-### 4. Download CPU patches (INSTALL_PATCHES)
+### 4. Download the WLS Stack Patch Bundle (WLS_SPB_PATCH_NR)
+
+```bash
+# CSPU Sep 2026 – WLS Stack Patch Bundle (large, several hundred MB):
+mkdir -p $PATCH_STORAGE/patches/39925660
+cd $PATCH_STORAGE/patches/39925660
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+    MOSUser="..." MOSPass="..." \
+    patch=39925660 download=all
+```
+
+### 5. Download CPU patches (INSTALL_PATCHES)
 
 Determine current patch numbers first — see
 [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) (Section "How to Find the Correct Patch Numbers").
 
 ```bash
-# Current CPU Jan 2026:
-mkdir -p $PATCH_STORAGE/patches/38566996
-cd $PATCH_STORAGE/patches/38566996
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-    MOSUser="..." MOSPass="..." \
-    patch=38566996 download=all
+# Current CSPU Sep 2026, applied after the SPB above:
+for _p in 39988381 38590500 38566996; do
+    mkdir -p $PATCH_STORAGE/patches/$_p
+    cd $PATCH_STORAGE/patches/$_p
+    java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+        MOSUser="..." MOSPass="..." \
+        patch=$_p download=all
+done
 ```
 
-### 5. Download Forms & Reports QPR patches (INSTALL_PATCHES_FR)
+### 6. Download Forms & Reports QPR patches (INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS)
 
 Determine current QPR patch numbers from MOS KA204 — see
 [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md) (Section "How to Find the Current F&R QPR Patch Number").
 
 ```bash
-# Current QPR Jan 2026 – Forms 14.1.2 (7.0 MB):
-mkdir -p $PATCH_STORAGE/patches/38874285
-cd $PATCH_STORAGE/patches/38874285
+# Current QPR Aug 2026 – Reports 14.1.2 (supersedes 38827528):
+mkdir -p $PATCH_STORAGE/patches/39600348
+cd $PATCH_STORAGE/patches/39600348
 java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
     MOSUser="..." MOSPass="..." \
-    patch=38874285 download=all
-# → p38874285_141200_Linux-x86-64.zip
+    patch=39600348 download=all
+# → p39600348_141200_Linux-x86-64.zip
 
-# Current QPR Jan 2026 – Reports 14.1.2 (266.9 KB):
-mkdir -p $PATCH_STORAGE/patches/38827528
-cd $PATCH_STORAGE/patches/38827528
+# Current QPR Sep 2026 – Forms 14.1.2 (supersedes 38874285), only needed
+# if Forms is part of this install:
+mkdir -p $PATCH_STORAGE/patches/39842516
+cd $PATCH_STORAGE/patches/39842516
 java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
     MOSUser="..." MOSPass="..." \
-    patch=38827528 download=all
-# → p38827528_141200_Linux-x86-64.zip
+    patch=39842516 download=all
+# → p39842516_141200_Linux-x86-64.zip
 ```
 
 ### 7. Apply OPatch and patches (after FMW installation)
 
-OPatch upgrade and WLS patch apply are handled by `05-oracle_patch_weblogic.sh`;
-F&R QPR patches by `06-oracle_patch_forms_reports.sh`.
+OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
+`05-oracle_patch_weblogic.sh`; F&R QPR patches by
+`06-oracle_patch_forms_reports.sh`.
 
 ```bash
 # Automated (recommended):
-./09-Install/05-oracle_patch_weblogic.sh --apply   # OPatch upgrade + INSTALL_PATCHES
-./09-Install/06-oracle_patch_forms_reports.sh --apply  # INSTALL_PATCHES_FR
+./09-Install/05-oracle_patch_weblogic.sh --apply       # OPatch upgrade + SPB + INSTALL_PATCHES
+./09-Install/06-oracle_patch_forms_reports.sh --apply  # INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS
 
 # Manual procedure: see docs/05-oracle_patch_weblogic.md
 #                   see docs/06-oracle_patch_forms_reports.md
@@ -233,9 +260,13 @@ F&R QPR patches by `06-oracle_patch_forms_reports.sh`.
   - Creates/verifies `$PATCH_STORAGE/bin/.getMOSPatch.cfg` (platform + language)
   - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
     (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
+  - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`39925660`) to
+    `$PATCH_STORAGE/patches/39925660/`, if set (skips if empty)
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
-  - Downloads each patch from `INSTALL_PATCHES_FR` to `$PATCH_STORAGE/patches/<nr>/`
-    (skips entirely if `INSTALL_PATCHES_FR` is empty)
+  - Downloads each patch from `INSTALL_PATCHES_REPORTS` and
+    `INSTALL_PATCHES_FORMS` (plus `INSTALL_PATCHES_FR_OPTIONAL` if
+    `REPORTS_BIDIPARENTHESIS=YES`) to `$PATCH_STORAGE/patches/<nr>/`
+    (skips entirely if all three are empty)
   - Skips patches already present in their target directory
   - Clears MOS password from memory after use
 - Reports download summary: OK/WARN/FAIL counts
@@ -257,13 +288,17 @@ $PATCH_STORAGE/
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted
 └── patches/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
-    │   └── p28186730_139422_Generic.zip     ← contains 6880880/opatch_generic.jar
+    │   └── p28186730_139424_Generic.zip     ← contains 6880880/opatch_generic.jar
+    ├── 39925660/                 ← CSPU Sep 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
+    │   └── p39925660_141200_Generic.zip     ← applied via opatch napply, not apply
+    ├── 39988381/                 ← CSPU Sep 2026: WLS SPU CVE-2026-70748 (getMOSPatch, INSTALL_PATCHES)
+    ├── 38590500/                 ← FMW PERL Security Patch (getMOSPatch, INSTALL_PATCHES)
     ├── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
     │   └── p38566996_141200_Generic.zip
-    ├── 38874285/                 ← QPR Jan 2026: Forms 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FR)
-    │   └── p38874285_141200_Linux-x86-64.zip
-    └── 38827528/                 ← QPR Jan 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FR)
-        └── p38827528_141200_Linux-x86-64.zip
+    ├── 39600348/                 ← QPR Aug 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
+    │   └── p39600348_141200_Linux-x86-64.zip
+    └── 39842516/                 ← QPR Sep 2026: Forms 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FORMS)
+        └── p39842516_141200_Linux-x86-64.zip
 ```
 
 > **Note:** The `opatch/` directory from older versions of this guide no longer exists.
@@ -315,4 +350,5 @@ $PATCH_STORAGE/
 - OPatch upgrade uses `opatch_generic.jar` (OUI tooling) — not a plain unzip of Patch 6880880
 - Patch numbers for WLS/FMW patches: → [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md)
 - Patch numbers for Forms & Reports patches: → [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)
-- Current OPatch minimum for CPU Jan 2026: ≥ 13.9.4.2.17 (installed: 13.9.4.2.22 via Patch 28186730)
+- Central list of MOS Doc IDs: → [00-patch-references.md](00-patch-references.md)
+- Current OPatch minimum for the CSPU Sep 2026 WLS Stack Patch Bundle: ≥ 13.9.4.2.24 (installed via Patch 28186730)

@@ -18,6 +18,13 @@
 Oracle puts considerable effort into making the patching of their products as
 cumbersome as possible, and they usually succeed admirably.
 
+> The walkthrough below uses the January 2026 CPU (Patch 38566996) as a
+> worked example of the discovery process itself — it is still the correct
+> *procedure*, but the *numbers* are already out of date. For the current
+> patch set (including the CSPU September 2026 WLS Stack Patch Bundle), see
+> [`docs/00-patch-references.md`](00-patch-references.md) and
+> `oracle_software_version.conf` directly.
+
 ### Step 1 – Find the current CPU
 
 Search Google for:
@@ -358,7 +365,9 @@ opatch lspatches | grep 38566996   # must return nothing
 ## What the Script Does
 
 - Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE`, `ORACLE_BASE` from `environment.conf`
-- Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR` from `oracle_software_version.conf`
+- Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR`,
+  `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE` from
+  `oracle_software_version.conf`
 - **OPatch upgrade** (if current version < `OPATCH_VERSION_MIN`):
   - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
   - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_INVENTORY` (one level above `ORACLE_BASE`)
@@ -366,6 +375,9 @@ opatch lspatches | grep 38566996   # must return nothing
   - Runs `opatch_generic.jar -silent oracle_home=...` to install new OPatch via OUI tooling
   - Verifies the installed version matches `OPATCH_VERSION_MIN`
   - Cleans up temp directory
+- **WLS Stack Patch Bundle** (if `WLS_SPB_PATCH_NR` is set and not already
+  applied) — see "SPB (CSPU September 2026)" above for the full `opatch
+  napply` procedure; runs after the OPatch upgrade, before the patches below
 - **Conflict check** for all `INSTALL_PATCHES` before any apply
 - Aborts if any conflict is found
 - **Applies patches** in the order they appear in `INSTALL_PATCHES`
@@ -418,9 +430,15 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep "38566996"
 
 ## Note on SPBAT and Stack Patch Bundles
 
-**SPBAT (Stack Patch Bundle Automation Tool)** and **Stack Patch Bundles (SPBs)**
-are patching concepts from the **FMW 12.2.1.x** era and are **not required for
-FMW 14.1.2**.
+> **Correction (2026-10-13):** This section previously stated that SPBAT/SPBs
+> do not apply to FMW 14.1.2. That was accurate for the January 2026 CPU cycle,
+> but **Oracle changed the patch delivery model again for the CSPU September
+> 2026 cycle** — a WLS Stack Patch Bundle is back, and `05-oracle_patch_
+> weblogic.sh` now applies it via `opatch napply`. See
+> [`docs/00-patch-references.md`](00-patch-references.md) for the source
+> (KA1182, KB168467) and the "SPB (CSPU September 2026)" section below for
+> what the script actually does. Do not assume this is stable going
+> forward — check KA1182 again before every future patch cycle.
 
 ### Background
 
@@ -428,38 +446,88 @@ In the 12.2.1.3/12.2.1.4 timeframe, Oracle FMW installations often combined many
 components (WLS, Coherence, ADF, JRF, SOA, MDS, …) in a single ORACLE_HOME, each
 with their own patch dependencies. Oracle introduced SPBs to consolidate dozens of
 patches into one bundle, and SPBAT to automate the complex sequencing and conflict
-resolution across all components.
+resolution across all components. Doc ID 2657920.1 / KB168467 describes SPBAT.
 
-Doc ID 2657920.1 describes SPBAT — it is primarily a 12.2.1.x document.
+For the January 2026 CPU cycle, FMW 14.1.2 patches were delivered as plain
+**CPU Bundle Patches** per component (e.g. `38566996` for UMS/FMW
+Infrastructure), applied via plain `opatch apply` — no SPB involved. That is
+still true for the small, individual patches this project applies via
+`INSTALL_PATCHES` (see `oracle_software_version.conf`).
 
-### Why SPBAT does not apply here
+**For the CSPU September 2026 cycle, Oracle additionally reintroduced a WLS
+Stack Patch Bundle** (Patch `39925660`, version `14.1.2.0.260825`) that
+consolidates several component patches (RDA, WLS PSU, Coherence, DB client,
+JDBC, FMW Thirdparty, OPatch itself, and a few one-offs — see the full
+content table in
+`90-Source-MetaData/claude-memory/FMW14_Reports_Patch_CSPU_2026-09.md`).
+This SPB must be applied via `opatch napply` with the patch list it ships,
+**before** the simple per-patch `INSTALL_PATCHES` loop.
 
-For FMW 14.1.2, Oracle simplified the patch delivery model:
+### What to do when you find old instructions referencing SPBAT/napply
 
-- Patches are delivered as **CPU Bundle Patches** per component (e.g., `38566996`
-  for UMS/FMW Infrastructure), not as multi-component SPBs
-- Bundle patches are **cumulative** — applying the latest CPU bundle gives you all
-  previous fixes without needing to track prior patch sets
-- The standard `opatch apply` command is the correct and complete procedure
-- No SPBAT, no `opatch napply` with a patch list, no `opatch_auto`
+Not every old reference is automatically wrong anymore — verify against the
+current cycle instead of dismissing it outright:
 
-### What to do when you find old instructions referencing SPBAT
-
-Many installation guides found on blogs, Oracle documentation portals, and community
-sites were written for 12.2.1.4 and re-used for 14.x without updating. Indicators
-of outdated instructions:
-
-| What you see | What it means |
+| What you see | What to check |
 |---|---|
-| References to SPBAT or SPB | Written for FMW 12.2.1.x |
-| `opatch napply` with a patch list file | FMW 12.2.1.x procedure |
-| Patch numbers in the format `3xxxxx` (6 digits) | Possibly pre-12.2.1.4 era |
-| `opatch_auto` / `bsu.sh` | WLS 10.x / 12.1.x era — ignore entirely |
+| References to SPBAT or an SPB with a 14.1.2 version string (e.g. `14.1.2.0.260825`) | Current — this is exactly the CSPU Sep 2026 mechanism, follow it |
+| `opatch napply` with a `*_patchlist.txt` file shipped inside a `WLS_SPB_*` directory | Current — same mechanism this script now implements |
+| `opatch_auto` / `bsu.sh` | WLS 10.x / 12.1.x era — ignore entirely, not applicable to any 14.1.2 cycle |
+| Patch numbers in the 2xxxxxx-3xxxxxx range with no SPB context at all | Likely a pre-Sep-2026 plain CPU bundle (still valid procedure, just via `opatch apply`, not `napply`) |
 
-For FMW 14.1.2: follow the CPU page → MOS Doc ID → `opatch apply` workflow
-documented above. Verify against the current CPU release notes on MOS, as Oracle
-updates the patch numbers every quarter.
+For FMW 14.1.2: follow the CPU page → MOS Doc ID (KA1182) → check whether an
+SPB is listed for the current cycle. If yes, use the "SPB (CSPU September
+2026)" procedure below (or whatever Patch ID KA1182 lists for the then-current
+quarter); if no SPB is listed, plain `opatch apply` per patch is correct, as
+documented above for Patch 38566996.
 
-> If MOS explicitly references SPBAT for a specific 14.1.2 patch, follow that
-> guidance — but verify the Doc ID is current and specific to 14.1.2, not a
-> copy-paste from 12.2.1.4 documentation.
+### SPB (CSPU September 2026) — what the script does
+
+`05-oracle_patch_weblogic.sh` runs this automatically when `WLS_SPB_PATCH_NR`
+is set in `oracle_software_version.conf` (currently `39925660`), inserted
+between the OPatch-upgrade step and the `INSTALL_PATCHES` loop:
+
+1. Skip if the SPB's marker patch (`WLS_SPB_MARKER_PATCH`, currently
+   `39925694`) is already in `opatch lspatches` (idempotent)
+2. Unzip the downloaded SPB ZIP (`$PATCH_STORAGE/patches/39925660/`) to a
+   staging directory under `$ORACLE_BASE/tmp/`
+3. Locate the `WLS_SPB_*` directory inside it (the name changes with the SPB
+   version, so the script discovers it rather than hardcoding it)
+4. Run `opatch napply [-report] -oh $ORACLE_HOME -phBaseFile
+   <dir>/binary_patches/linux64_patchlist.txt` — `-report` (dry-run) for
+   `--check-only`, the real apply for `--apply`. `JAVA_HOME`/`ORACLE_HOME`
+   are unset for the duration of this call only (per the SPB's own README),
+   scoped to a subshell with no effect on the rest of the script
+5. Verify the marker patch now appears in `opatch lspatches`
+6. Remove the staging directory — the ZIP itself stays in `$PATCH_STORAGE/
+   patches/39925660/` in case a later `opatch nrollback` is needed
+
+Manual equivalent (for reference, mirrors section 4.3 Variante B of the
+source patch plan):
+
+```bash
+cd $PATCH_STAGE
+unzip -q p39925660_141200_Generic.zip
+
+cd WLS_SPB_14.1.2.0.260825/binary_patches
+unset JAVA_HOME
+unset ORACLE_HOME
+$ORACLE_HOME_SAVED/OPatch/opatch napply -report -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt   # dry-run
+$ORACLE_HOME_SAVED/OPatch/opatch napply        -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt   # real apply
+```
+
+Disk space: the SPB needs roughly 4 GB free outside `$ORACLE_HOME` to unzip.
+
+Rollback (manual only, not automated by the script): Oracle advises against
+rolling back individual patches out of an SPB.
+
+```bash
+cd WLS_SPB_14.1.2.0.260825/binary_patches
+opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
+```
+
+> If MOS explicitly references a different mechanism for a specific 14.1.2
+> patch cycle, follow that guidance — but verify the Doc ID and version
+> string are current for the cycle you are actually installing, not a
+> copy-paste from an older cycle (this document itself was wrong about this
+> once already, see the correction note above).

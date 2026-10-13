@@ -201,6 +201,14 @@ if ! $APPLY && ! $CHECK_ONLY; then
     if $OPATCH_NEEDS_UPGRADE; then
         info "Would upgrade OPatch: $OPATCH_VER_CURRENT → $OPATCH_VER_TARGET via Patch $OPATCH_UPGRADE_NR"
     fi
+    if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+        if [ -n "${WLS_SPB_MARKER_PATCH:-}" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${WLS_SPB_MARKER_PATCH};"; then
+            info "WLS Stack Patch Bundle $WLS_SPB_PATCH_NR already applied (marker $WLS_SPB_MARKER_PATCH present)"
+        else
+            info "Would apply WLS Stack Patch Bundle: $WLS_SPB_PATCH_NR (${WLS_SPB_VERSION:-see oracle_software_version.conf})"
+            info "  via: opatch napply -phBaseFile <patchlist>  (needs ~4 GB free outside \$ORACLE_HOME)"
+        fi
+    fi
     info "Would apply patches (in order):"
     for _p in $INSTALL_PATCHES; do
         info "  Patch $_p  →  $PATCH_STORAGE/patches/$_p/"
@@ -343,6 +351,115 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
 
 elif $OPATCH_NEEDS_UPGRADE && $CHECK_ONLY; then
     warn "OPatch upgrade required ($OPATCH_VER_CURRENT < $OPATCH_VER_MIN) – use --apply to upgrade"
+fi
+
+# =============================================================================
+# WLS Stack Patch Bundle (SPB) – opatch napply, applied BEFORE the simple
+# per-patch INSTALL_PATCHES loop below. Reintroduced for FMW 14.1.2 in the
+# CSPU September 2026 cycle (see docs/05-oracle_patch_weblogic.md).
+# =============================================================================
+
+if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+
+    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR)"
+
+    SPB_MARKER="${WLS_SPB_MARKER_PATCH:-}"
+    SPB_ALREADY_APPLIED=false
+    if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
+        SPB_ALREADY_APPLIED=true
+    fi
+
+    if $SPB_ALREADY_APPLIED; then
+        ok "SPB $WLS_SPB_PATCH_NR already applied (marker patch $SPB_MARKER present) – skip"
+    else
+        # Reached only with --apply or --check-only (plain dry-run exits earlier above)
+        SPB_ZIP="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
+        if [ -z "$SPB_ZIP" ]; then
+            fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
+            fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
+            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB ZIP found: $(basename "$SPB_ZIP")"
+
+        SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
+        mkdir -p "$SPB_STAGE" || {
+            fail "Cannot create SPB staging directory: $SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        info "Unzipping SPB (this can take a while, several hundred MB)..."
+        unzip -q "$SPB_ZIP" -d "$SPB_STAGE" || {
+            fail "unzip failed: $SPB_ZIP"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        # Top-level directory name changes with the SPB version – discover it,
+        # do not hardcode (e.g. WLS_SPB_14.1.2.0.260825).
+        SPB_DIR="$(find "$SPB_STAGE" -maxdepth 1 -mindepth 1 -type d -name 'WLS_SPB_*' | head -1)"
+        if [ -z "$SPB_DIR" ]; then
+            fail "Could not find WLS_SPB_* directory after unzip in: $SPB_STAGE"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB directory: $(basename "$SPB_DIR")"
+
+        SPB_PATCHLIST="$SPB_DIR/binary_patches/${WLS_SPB_PATCHLIST_FILE:-linux64_patchlist.txt}"
+        if [ ! -f "$SPB_PATCHLIST" ]; then
+            fail "SPB patch list not found: $SPB_PATCHLIST"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB patch list: $SPB_PATCHLIST"
+
+        # opatch napply README requires JAVA_HOME/ORACLE_HOME unset for this
+        # call – scoped to a subshell only, no effect on the rest of this script.
+        NAPPLY_MODE="-report"
+        $APPLY && NAPPLY_MODE=""
+
+        NAPPLY_OH="$ORACLE_HOME"   # capture before unsetting ORACLE_HOME below
+
+        printf "\n" | tee -a "$LOG_FILE"
+        info "Running: opatch napply ${NAPPLY_MODE:-(apply)} -oh $NAPPLY_OH -phBaseFile $SPB_PATCHLIST"
+        (
+            cd "$SPB_DIR/binary_patches" || exit 1
+            unset JAVA_HOME
+            unset ORACLE_HOME
+            if [ -n "$NAPPLY_MODE" ]; then
+                "$OPATCH" napply $NAPPLY_MODE -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
+            else
+                "$OPATCH" napply -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
+            fi
+        ) 2>&1 | tee -a "$LOG_FILE"
+        NAPPLY_RC=${PIPESTATUS[0]}
+
+        if [ "$NAPPLY_RC" -ne 0 ]; then
+            fail "opatch napply failed for SPB $WLS_SPB_PATCH_NR (rc=$NAPPLY_RC)"
+            fail "  Check: $ORACLE_HOME/cfgtoollogs/opatch/"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+
+        if $CHECK_ONLY; then
+            ok "SPB napply report (--check-only) completed without errors"
+        else
+            if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
+                ok "SPB $WLS_SPB_PATCH_NR applied – marker patch $SPB_MARKER confirmed"
+            else
+                fail "SPB napply reported success but marker patch $SPB_MARKER not found in lspatches"
+                rm -rf "$SPB_STAGE"
+                EXIT_CODE=2; print_summary; exit $EXIT_CODE
+            fi
+            info "Rollback (if ever needed): opatch nrollback -oh \$ORACLE_HOME -idFile $SPB_DIR/binary_patches/rollback_patchlist.txt"
+            info "  Oracle advises against rolling back individual patches from the SPB"
+        fi
+
+        rm -rf "$SPB_STAGE"
+        info "SPB staging directory removed (ZIP kept in $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/ for a future rollback)"
+    fi
+else
+    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB section"
 fi
 
 # =============================================================================

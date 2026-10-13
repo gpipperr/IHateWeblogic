@@ -8,59 +8,77 @@
 
 ## Purpose
 
-Apply Forms & Reports specific patches after the base F&R install.
-Patches are listed in `INSTALL_PATCHES_FR` in `oracle_software_version.conf`.
+Apply Forms & Reports specific patches after the base F&R install. Patches
+are listed in `INSTALL_PATCHES_REPORTS` and `INSTALL_PATCHES_FORMS` in
+`oracle_software_version.conf` and applied **only for the component(s)
+actually present** in `$ORACLE_HOME` — this project supports Reports-only
+installs, so `INSTALL_PATCHES_FORMS` is automatically skipped when
+`$ORACLE_HOME/forms` does not exist (and vice versa for a Forms-only host).
 
-**If `INSTALL_PATCHES_FR` is empty, the script exits OK — nothing to do.**
+**If neither list has an applicable patch for this host, the script exits
+OK — nothing to do.**
 
 F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
-(applied by `05-oracle_patch_weblogic.sh`) already cover the shared home.
-`INSTALL_PATCHES_FR` is only needed for patches that are F&R-specific and not
-included in the WLS CPU bundle.
+(applied by `05-oracle_patch_weblogic.sh`, including the WLS Stack Patch
+Bundle since CSPU Sep 2026) already cover the shared home.
+`INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are only needed for patches
+that are F&R-specific and not included in the WLS bundle.
 
-> **Current state (14.1.2, QPR Jan 2026):** `INSTALL_PATCHES_FR="38874285 38827528"`
-> — Forms and Reports QPR patches, in addition to the WLS bundle patch (see table below).
+A newer QPR typically **supersedes** (and OPatch-conflicts with) the one it
+replaces. The script handles this automatically via a `SUPERSEDES` map: if
+the old patch is found installed, it is rolled back before the new one is
+applied — see "What the Script Does" below.
+
+> **Current state (14.1.2, QPR Aug/Sep 2026):**
+> `INSTALL_PATCHES_REPORTS="39600348"` (supersedes `38827528`),
+> `INSTALL_PATCHES_FORMS="39842516"` (supersedes `38874285`) — see table below.
+> Source: MOS KA204, see [`docs/00-patch-references.md`](00-patch-references.md).
 
 ---
 
-## INSTALL_PATCHES_FR
+## INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS
 
-Defined in `09-Install/oracle_software_version.conf` (space-separated):
+Defined in `09-Install/oracle_software_version.conf` (space-separated lists):
 
 ```bash
-# QPR Jan 2026:
-INSTALL_PATCHES_FR="38874285 38827528"
+INSTALL_PATCHES_REPORTS="39600348"
+INSTALL_PATCHES_FORMS="39842516"
+INSTALL_PATCHES_FR_OPTIONAL="38936596"   # only if REPORTS_BIDIPARENTHESIS=YES
 ```
 
-Current patches (Jan 2026):
+Current patches (Aug/Sep 2026):
 
-| Patch | Product | Version | Platform | Date | Size | Bugs |
-|---|---|---|---|---|---|---|
-| `38874285` | Oracle Forms | 14.1.2.0.0 | Linux x86-64 | 22-Jan-2026 | 7.0 MB | 43 |
-| `38827528` | Oracle Reports Developer | 14.1.2.0.0 | Linux x86-64 | 22-Jan-2026 | 266.9 KB | 5 |
+| Patch | Product | Version | Platform | Date | Supersedes |
+|---|---|---|---|---|---|
+| `39600348` | Oracle Reports Developer | 14.1.2.0.0 | Linux x86-64 | Aug 2026 | `38827528` |
+| `39842516` | Oracle Forms | 14.1.2.0.0 | Linux x86-64 | Sep 2026 | `38874285` |
+| `38936596` | One-off (BiDi parentheses) | 14.1.2.0.0 | Linux x86-64 | — | — (complements `39600348`) |
 
-**Forms `38874285` key fixes:**
-OLE2 crash (FRM-93652), dark color scheme text visibility, Hebrew/English display,
-REST Package Designer (RPD) multiple FRM-15758 fixes, FADS deploy failures,
-Forms compiler seg fault after DB Client 23.8 upgrade (`38351061`),
-ORA-03113 on cancel query (`38477700`), authentication failure in Forms/JBean (`38743543`).
+**Reports `39600348` key fixes:** a superset of `38827528`'s fixes
+(rwconverter ORA-00933, Hebrew text with parenthesis, ADB 23ai SRW package
+registration, cgicmd.dat encryption for password values) plus additional
+fixes for this cycle — see
+`90-Source-MetaData/claude-memory/FMW14_Reports_Patch_CSPU_2026-09.md`
+section 6 for the full bug list.
 
-**Reports `38827528` key fixes:**
-rwconverter ORA-00933 (`35740116`), Hebrew text with parenthesis (`36475147`),
-ADB 23ai SRW package registration PLS-01918 (`37548468`),
-REP-52275 in job status view (`37595589`),
-cgicmd.dat encryption for password values (`37756029`).
+**Forms `39842516`:** superset of `38874285`'s fixes — only relevant if
+Forms is actually installed in this `ORACLE_HOME`.
 
-> **Note on KA204 platform confusion:** The KA204 article lists the Forms QPR entry
-> under a "12.2.1.19" label without an OS filter. The correct Linux-x86-64/14.1.2.0.0
-> patch is `38874285` — verify on the MOS patch detail page before downloading.
+> **Note on KA204 platform confusion:** the KA204 article has repeatedly
+> listed QPR entries under inconsistent version labels (e.g. "12.2.1.19")
+> without a clear OS filter. Always verify platform (`Linux x86-64`) **and**
+> product version (`14.1.2.0.0`) on the MOS patch detail page before
+> downloading — do not trust the KA204 table alone.
 
-To add a future FR-specific patch:
+To add a future Forms/Reports-specific patch:
 1. Download the patch ZIP via `04-oracle_pre_download.sh --apply --mos`
-   (reads `INSTALL_PATCHES_FR` automatically)
-2. Add the patch number to `INSTALL_PATCHES_FR` in `oracle_software_version.conf`
-3. Run `06-oracle_patch_forms_reports.sh --check-only` first
-4. Run `06-oracle_patch_forms_reports.sh --apply`
+   (reads `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` automatically)
+2. Add the patch number to the appropriate list in `oracle_software_version.conf`
+3. If it supersedes an older patch, add that mapping to the `SUPERSEDES`
+   array at the top of the "Automatic rollback of superseded QPRs" section
+   in `06-oracle_patch_forms_reports.sh`
+4. Run `06-oracle_patch_forms_reports.sh --check-only` first
+5. Run `06-oracle_patch_forms_reports.sh --apply`
 
 ---
 
@@ -96,9 +114,20 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 
 ## What the Script Does
 
-- Sources `INSTALL_PATCHES_FR` from `oracle_software_version.conf`
-- If empty → exits OK with info message
+- Detects installed components: `$ORACLE_HOME/forms` and `$ORACLE_HOME/reports`
+  (at least one must exist, or the script fails — run
+  `06-oracle_install_forms_reports.sh --apply` first). Cross-checks this
+  against `INSTALL_COMPONENTS` and warns (does not fail) on a mismatch
+- Composes the wanted patch list: `INSTALL_PATCHES_REPORTS` if `reports/`
+  exists, `INSTALL_PATCHES_FORMS` if `forms/` exists, plus
+  `INSTALL_PATCHES_FR_OPTIONAL` if `REPORTS_BIDIPARENTHESIS=YES`
+- If the composed list is empty → exits OK with info message
 - Reads current patch inventory via `opatch lspatches`
+- **Automatic rollback of superseded QPRs**: for each patch about to be
+  applied, checks a `SUPERSEDES` map (currently `39600348`→`38827528`,
+  `39842516`→`38874285`) and rolls back the old patch first if found
+  installed — same idiom as the `23335292` pre-check in
+  `05-oracle_patch_weblogic.sh`
 - Skips patches already installed (idempotent)
 - For remaining patches: extract ZIP to staging, conflict check, apply
 - Cleans up staging directory after apply
@@ -111,7 +140,7 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 
 | Flag | Description |
 |---|---|
-| (none) | Show pending patches from `INSTALL_PATCHES_FR` |
+| (none) | Show pending Forms/Reports patches for the components actually installed |
 | `--apply` | Apply pending patches, skip already-installed |
 | `--check-only` | Conflict check only, do not apply |
 | `--help` | Show usage |
@@ -120,11 +149,14 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 
 ## Notes
 
-- `INSTALL_PATCHES_FR` is in `oracle_software_version.conf` (not `environment.conf`)
+- `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are in
+  `oracle_software_version.conf` (not `environment.conf`)
 - F&R and WLS share one `ORACLE_HOME` — OPatch operates on the whole home
 - FMW Bundle Patches often cover both WLS and F&R components; check the CPU
   advisory whether a separate F&R patch is listed
 - OPatch upgrade is not repeated here (done in `05-oracle_patch_weblogic.sh`)
+- Reports-only hosts: `forms/` simply does not exist, so
+  `INSTALL_PATCHES_FORMS` is silently skipped — this is expected, not an error
 
 ---
 
@@ -151,7 +183,9 @@ The article lists QPR patches per product and version.
    - Platform = `Linux x86-64`
    - Product Version = `14.1.2.0.0`
 5. Note the patch number for this platform variant
-6. Update `INSTALL_PATCHES_FR` in `oracle_software_version.conf`
+6. Update `INSTALL_PATCHES_REPORTS` or `INSTALL_PATCHES_FORMS` (whichever
+   product the patch is for) in `oracle_software_version.conf`, and add a
+   `SUPERSEDES` entry in the script if it replaces an older patch
 7. Run `04-oracle_pre_download.sh --apply --mos` to download
 8. Run `06-oracle_patch_forms_reports.sh --check-only` then `--apply`
 

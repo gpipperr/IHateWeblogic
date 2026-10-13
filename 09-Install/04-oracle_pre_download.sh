@@ -389,11 +389,13 @@ if $MOS_MODE; then
     printf "\n" | tee -a "$LOG_FILE"
     info "MOS downloads:"
     info "  OPatch upgrade (Patch ${OPATCH_UPGRADE_PATCH_NR:-28186730}) → $PATCH_STORAGE/patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/"
-    IFS=',' read -ra _patch_list <<< "${INSTALL_PATCHES:-}"
-    for _p in "${_patch_list[@]}"; do
+    if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+        info "  WLS Stack Patch Bundle (Patch $WLS_SPB_PATCH_NR) → $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
+    fi
+    for _p in $INSTALL_PATCHES; do
         [ -n "$_p" ] && info "  Patch   : $_p → $PATCH_STORAGE/patches/$_p/"
     done
-    unset _patch_list _p
+    unset _p
 fi
 
 # --- Dry-run exit -------------------------------------------------------------
@@ -550,6 +552,15 @@ if $MOS_MODE; then
     _mos_download_one "${OPATCH_UPGRADE_PATCH_NR:-28186730}" "$OPATCH_UPGRADE_DL_DIR" \
         || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
 
+    # --- WLS Stack Patch Bundle (applied via opatch napply, see 05-script) ---
+    if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+        section "WLS Stack Patch Bundle (patch $WLS_SPB_PATCH_NR)"
+        info "This ZIP is large (several hundred MB) and contains the SPB"
+        info "applied by 05-oracle_patch_weblogic.sh via opatch napply."
+        _mos_download_one "$WLS_SPB_PATCH_NR" "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR" \
+            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+    fi
+
     # --- Post-install patches -------------------------------------------------
     section "Post-Install Patches"
 
@@ -565,13 +576,17 @@ if $MOS_MODE; then
     fi
 
     # --- Forms & Reports QPR patches ------------------------------------------
-    section "Forms & Reports QPR Patches (INSTALL_PATCHES_FR)"
+    section "Forms & Reports QPR Patches"
 
-    if [ -z "${INSTALL_PATCHES_FR:-}" ]; then
-        ok "INSTALL_PATCHES_FR is empty – no FR-specific patches to download"
-        info "  (Forms/Reports fixes are covered by INSTALL_PATCHES in this cycle)"
+    FR_PATCHES="${INSTALL_PATCHES_REPORTS:-} ${INSTALL_PATCHES_FORMS:-}"
+    [ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && FR_PATCHES="$FR_PATCHES ${INSTALL_PATCHES_FR_OPTIONAL:-}"
+    FR_PATCHES="$(printf "%s" "$FR_PATCHES" | xargs)"
+
+    if [ -z "$FR_PATCHES" ]; then
+        ok "No Forms/Reports-specific patches configured – nothing to download"
+        info "  (set INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS in oracle_software_version.conf)"
     else
-        for _PATCH_NR in $INSTALL_PATCHES_FR; do
+        for _PATCH_NR in $FR_PATCHES; do
             [ -z "$_PATCH_NR" ] && continue
             _mos_download_one "$_PATCH_NR" "$PATCH_STORAGE/patches/$_PATCH_NR" \
                 || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
@@ -589,9 +604,11 @@ if $MOS_MODE; then
     info "After FMW installation – update OPatch and apply patches:"
     info "  05-oracle_patch_weblogic.sh --apply"
     info "  → OPatch upgrade via: patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/opatch_generic.jar"
+    info "  → WLS Stack Patch Bundle: ${WLS_SPB_PATCH_NR:-(none configured)}"
     info "  → WLS patches: ${INSTALL_PATCHES:-see oracle_software_version.conf}"
     info "  06-oracle_patch_forms_reports.sh --apply"
-    info "  → FR patches:  ${INSTALL_PATCHES_FR:-(none configured)}"
+    info "  → Reports patches: ${INSTALL_PATCHES_REPORTS:-(none configured)}"
+    info "  → Forms patches:   ${INSTALL_PATCHES_FORMS:-(none configured)} (only if Forms is installed)"
 
 fi
 

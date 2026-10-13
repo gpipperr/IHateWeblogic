@@ -286,12 +286,15 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
 │   └── fmw_14.1.2.0.0_fr_linux64.bin
 └── patches/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
-    │   └── p28186730_139422_Generic.zip   ← contains 6880880/opatch_generic.jar
-    └── 38566996/                 ← CPU Jan 2026: UMS Bundle Patch (getMOSPatch, INSTALL_PATCHES)
-        └── p38566996_141200_Generic.zip
+    │   └── p28186730_139424_Generic.zip   ← contains 6880880/opatch_generic.jar
+    ├── 39925660/                 ← WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR) – applied via opatch napply
+    │   └── p39925660_141200_Generic.zip
+    └── 39600348/                 ← Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
+        └── p39600348_141200_Linux-x86-64.zip
 ```
 
-> Patch numbers change quarterly. Current values are in `oracle_software_version.conf`.
+> Patch numbers change quarterly. Current values are in `oracle_software_version.conf`,
+> central Doc-ID list in `docs/00-patch-references.md`.
 > See [docs/05-oracle_patch_weblogic.md](docs/05-oracle_patch_weblogic.md) for the discovery workflow.
 
 All versions, filenames, SHA-256 checksums and patch numbers are defined in
