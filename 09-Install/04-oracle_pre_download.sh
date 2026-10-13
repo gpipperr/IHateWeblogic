@@ -5,13 +5,20 @@
 #            PATCH_STORAGE.
 #            eDelivery path : manual file placement (primary) or Bearer Token wget.
 #            MOS path       : getMOSPatch.jar for OPatch + post-install patches.
-# Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all]
-#            (none)          – dry-run: show expected paths and checksums
-#            --apply         – eDelivery: create dirs, prompt placement, verify
-#            --apply --wget  – eDelivery via Bearer Token wget (no manual copy)
-#            --apply --mos   – eDelivery + getMOSPatch (OPatch + patches)
-#            --apply --all   – alias for --apply --mos
+# Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
+#            (none)              – dry-run: show expected paths and checksums
+#            --apply             – eDelivery: create dirs, prompt placement, verify
+#            --apply --wget      – eDelivery via Bearer Token wget (no manual copy)
+#            --apply --mos       – eDelivery + getMOSPatch (OPatch + patches)
+#            --apply --all       – alias for --apply --mos
 #            --apply --wget --mos – Bearer Token wget + getMOSPatch
+#            --apply --fresh-patches --mos – archive patches/ to patches_<timestamp>/
+#                                   first, then download into a clean patches/
+#                                   (use at the start of a new patch cycle - the
+#                                   per-patch skip-if-present check only looks for
+#                                   ANY zip in the directory, not the right version,
+#                                   so leftover builds from a previous cycle can
+#                                   get silently reused instead of re-downloaded)
 # Runs as  : oracle
 # Requires : sha256sum, od, java (--mos), wget (--wget)
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -63,24 +70,27 @@ LOG_FILE="$LOG_BOOT_DIR/oracle_pre_download_$(date +%H%M%S).log"
 APPLY=false
 WGET_MODE=false
 MOS_MODE=false
+FRESH_PATCHES=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--wget] [--mos|--all] [--help]\n\n" "$(basename "$0")"
+    printf "Usage: %s [--apply] [--wget] [--mos|--all] [--fresh-patches] [--help]\n\n" "$(basename "$0")"
     printf "  %-22s %s\n" "(none)"        "Dry-run: show expected paths and checksums"
     printf "  %-22s %s\n" "--apply"       "Create dirs, prompt placement, verify (eDelivery)"
     printf "  %-22s %s\n" "--apply --wget" "Download via Bearer Token instead of manual copy"
     printf "  %-22s %s\n" "--apply --mos"  "eDelivery + getMOSPatch (OPatch + patches)"
     printf "  %-22s %s\n" "--apply --all"  "Alias for --apply --mos"
+    printf "  %-22s %s\n" "--fresh-patches" "Archive existing patches/ to patches_<timestamp>/ first"
     printf "\nBearer Token: edelivery.oracle.com → WGET Options → Generate Token (valid 1 h)\n"
     exit 0
 }
 
 for _arg in "$@"; do
     case "$_arg" in
-        --apply)    APPLY=true ;;
-        --wget)     WGET_MODE=true ;;
-        --mos|--all) MOS_MODE=true ;;
-        --help|-h)  _usage ;;
+        --apply)          APPLY=true ;;
+        --wget)           WGET_MODE=true ;;
+        --mos|--all)      MOS_MODE=true ;;
+        --fresh-patches)  FRESH_PATCHES=true ;;
+        --help|-h)        _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
@@ -369,6 +379,38 @@ if $MOS_MODE; then
         || { fail "MOS credentials not found: $MOS_SEC_FILE"; info "  Run first: 00-Setup/mos_sec.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
     command -v java >/dev/null 2>&1 && ok "java found: $(java -version 2>&1 | head -1)" \
         || { fail "java not installed (required for --mos)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+fi
+
+# =============================================================================
+# --fresh-patches: archive existing patches/ before downloading anything new
+# =============================================================================
+# _mos_download_one's skip-if-present check only looks for ANY zip in the
+# destination directory, not whether it is the version actually needed for
+# the current cycle - a leftover build from a previous quarter (or a patch
+# that ships multiple product-version variants under the same patch number)
+# can otherwise get silently reused instead of freshly downloaded. Moving the
+# whole patches/ directory aside guarantees every patch is re-fetched clean.
+if $FRESH_PATCHES; then
+    section "Archiving patches/ (--fresh-patches)"
+
+    PATCHES_DIR="$PATCH_STORAGE/patches"
+    if [ -d "$PATCHES_DIR" ] && [ -n "$(ls -A "$PATCHES_DIR" 2>/dev/null)" ]; then
+        FRESH_PATCHES_ARCHIVE="${PATCH_STORAGE}/patches_$(date +%Y%m%d_%H%M%S)"
+        if $APPLY; then
+            if mv "$PATCHES_DIR" "$FRESH_PATCHES_ARCHIVE"; then
+                ok "Archived: $PATCHES_DIR -> $FRESH_PATCHES_ARCHIVE"
+                mkdir -p "$PATCHES_DIR"
+                ok "Fresh patches/ directory ready: $PATCHES_DIR"
+            else
+                fail "Could not archive $PATCHES_DIR -> $FRESH_PATCHES_ARCHIVE"
+                EXIT_CODE=2; print_summary; exit $EXIT_CODE
+            fi
+        else
+            warn "Dry-run: would archive $PATCHES_DIR -> $FRESH_PATCHES_ARCHIVE"
+        fi
+    else
+        ok "patches/ is empty or does not exist yet – nothing to archive"
+    fi
 fi
 
 # --- Which eDelivery files? ---------------------------------------------------

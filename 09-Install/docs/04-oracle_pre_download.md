@@ -250,6 +250,10 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
 
 - Reads `MOS_USER`, `PATCH_STORAGE`, `INSTALL_COMPONENTS` from `environment.conf`
 - Reads versions, filenames, patch numbers from `oracle_software_version.conf`
+- **`--fresh-patches`** (with `--apply`): archives `$PATCH_STORAGE/patches/` to
+  `patches_<timestamp>/` before anything else, then creates a clean, empty
+  `patches/` directory — `wls/`/`fr/` (the large eDelivery base installers)
+  are untouched, since their checksum check already guarantees freshness
 - **eDelivery ZIPs** (always with `--apply`):
   - Creates `$PATCH_STORAGE/wls/` and `$PATCH_STORAGE/fr/` directories
   - Manual mode: prompts user to place ZIPs, then verifies ZIP magic bytes + SHA-256
@@ -321,6 +325,7 @@ $PATCH_STORAGE/
 | `--apply --mos` | eDelivery + getMOSPatch: OPatch + post-install patches |
 | `--apply --all` | Alias for `--apply --mos` |
 | `--apply --wget --mos` | Bearer Token wget + getMOSPatch (fully automated) |
+| `--fresh-patches` | Archive `patches/` to `patches_<timestamp>/` first, then download into a clean directory |
 | `--help` | Show usage |
 
 ### Typical workflow
@@ -337,7 +342,19 @@ $PATCH_STORAGE/
 
 # MOS patches only (eDelivery ZIPs already in place)
 ./09-Install/04-oracle_pre_download.sh --apply --mos
+
+# Start of a new patch cycle (CPU/CSPU/QPR) – avoid mixing with leftover
+# builds from the previous cycle: archive patches/ first, then download fresh
+./09-Install/04-oracle_pre_download.sh --apply --fresh-patches --mos
 ```
+
+> **Why this matters:** the per-patch skip-if-present check only looks for
+> *any* ZIP already in a patch's destination directory, not whether it is
+> the build actually needed this cycle. A patch number can also ship several
+> product-version variants under the same number (e.g. one ZIP per
+> `12.2.1.4.0`/`14.1.1.0.0`/`14.1.2.0.0`/...) – leftover files from an older
+> run, or picking the wrong variant, are both avoided by starting from a
+> clean `patches/` directory at the start of each new patch cycle.
 
 ---
 
