@@ -240,13 +240,17 @@ done
 # =============================================================================
 section "ulimits"
 
-# Oracle WebLogic / FMW required limits (oracle-database-preinstall-19c.conf values):
-# Ref: Oracle WLS 14.1.2 install guide – section 2.1.2
+# Oracle WebLogic / FMW required limits (oracle-database-preinstall-19c.conf values).
+# nofile/nproc minimums shown here are the <100-session tier; 03-root_user_oracle.sh
+# sizes these via EXPECTED_SESSIONS (01-setup-interview.sh). memlock/core are fixed,
+# confirmed against a real 100-500-session production host (gpiwls01) — see
+# 09-Install/docs/00-root_set_os_parameter.md.
 info "Oracle FMW required ulimits (for the oracle OS user):"
-info "  nofile: soft >= 4096,      hard >= 65536"
-info "  nproc : soft >= 16384,     hard >= 16384"
+info "  nofile: soft >= 4096,      hard >= 65536  (higher if sized for more sessions)"
+info "  nproc : soft >= 16384,     hard >= 16384  (higher if sized for more sessions)"
 info "  stack : soft >= 10240 kB,  hard >= 32768 kB"
-info "  memlock: soft/hard >= 134217728 kB (128 GB cap or 90% of RAM)"
+info "  memlock: soft/hard >= 3145728 kB"
+info "  core  : soft/hard >= 2097152 (blocks)"
 info "  data  : unlimited"
 printf "\n"
 
@@ -290,10 +294,11 @@ _check_ulimit() {
     fi
 }
 
-_check_ulimit "nofile (open files)" "-n" 4096   65536
-_check_ulimit "nproc  (max procs)"  "-u" 16384  16384
-_check_ulimit "stack  (kB)"         "-s" 10240  32768
-_check_ulimit "core   (kB)"         "-c" 0      0
+_check_ulimit "nofile (open files)" "-n" 4096    65536
+_check_ulimit "nproc  (max procs)"  "-u" 16384   16384
+_check_ulimit "stack  (kB)"         "-s" 10240   32768
+_check_ulimit "memlock(kB)"         "-l" 3145728 3145728
+_check_ulimit "core   (blocks)"     "-c" 2097152 2097152
 
 printf "\n"
 
@@ -321,15 +326,18 @@ done
 
 if ! $FOUND_ORACLE_LIMITS; then
     warn "No explicit limits configured for user '${ORACLE_USER}'"
-    info "  Recommended: create /etc/security/limits.d/oracle-fmw.conf"
-    info "    ${ORACLE_USER} soft nofile  4096"
-    info "    ${ORACLE_USER} hard nofile  65536"
-    info "    ${ORACLE_USER} soft nproc   16384"
-    info "    ${ORACLE_USER} hard nproc   16384"
+    info "  Recommended: run 09-Install/03-root_user_oracle.sh --apply to create"
+    info "  /etc/security/limits.d/oracle-fmw.conf (values sized via EXPECTED_SESSIONS):"
+    info "    ${ORACLE_USER} soft nofile  ${ULIMIT_NOFILE:-65536}"
+    info "    ${ORACLE_USER} hard nofile  ${ULIMIT_NOFILE:-65536}"
+    info "    ${ORACLE_USER} soft nproc   ${ULIMIT_NPROC:-16384}"
+    info "    ${ORACLE_USER} hard nproc   ${ULIMIT_NPROC:-16384}"
     info "    ${ORACLE_USER} soft stack   10240"
     info "    ${ORACLE_USER} hard stack   32768"
-    info "    ${ORACLE_USER} soft memlock 134217728"
-    info "    ${ORACLE_USER} hard memlock 134217728"
+    info "    ${ORACLE_USER} soft core    ${ULIMIT_CORE:-2097152}"
+    info "    ${ORACLE_USER} hard core    ${ULIMIT_CORE:-2097152}"
+    info "    ${ORACLE_USER} soft memlock ${ULIMIT_MEMLOCK:-3145728}"
+    info "    ${ORACLE_USER} hard memlock ${ULIMIT_MEMLOCK:-3145728}"
     info "    ${ORACLE_USER} soft data    unlimited"
     info "    ${ORACLE_USER} hard data    unlimited"
 fi

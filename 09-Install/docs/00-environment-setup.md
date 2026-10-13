@@ -106,6 +106,11 @@ explicitly provides a different value during `--interview`.
 | `WLS_LISTEN_ADDRESS` | `localhost` | Network interface WebLogic binds to. `localhost` = NGINX proxy (recommended); `0.0.0.0` = all interfaces (no proxy); custom FQDN/IP |
 | `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Reports managed server name (auto-detected) |
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
+| `EXPECTED_SESSIONS` | `lt100` | Expected concurrent Forms/Reports sessions tier — sizes the two variables below. See `docs/01-setup-interview.md` |
+| `ULIMIT_NOFILE` | `65536` | oracle OS user `nofile` ulimit, used by `03-root_user_oracle.sh`. `81920` confirmed for 100-500 sessions (real production reference); `131072`/`262144` for the higher tiers are estimates of decreasing confidence — `262144` (`>1000`) is the least confident, a cautious doubling with no reference data behind it |
+| `ULIMIT_NPROC` | `16384` | oracle OS user `nproc` ulimit — same tiering/provenance as `ULIMIT_NOFILE` |
+| `ULIMIT_MEMLOCK` | `3145728` | oracle OS user `memlock` ulimit (KB) — fixed, not session-tiered; not asked by the interview, override manually if needed |
+| `ULIMIT_CORE` | `2097152` | oracle OS user `core` ulimit (blocks) — fixed, not session-tiered; not asked by the interview, override manually if needed |
 
 ### Block 4 – Reports Components
 *Runtime parameters – auto-detected by init_env.sh after installation*
@@ -168,6 +173,13 @@ explicitly provides a different value during `--interview`.
 | `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS log directory |
 | `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic script logs |
 | `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
+
+### Block 9 – Test Modules (Smoke Test)
+*Manual parameter — not set by the interview; add by hand if used*
+
+| Variable | Default | Description |
+|---|---|---|
+| `TEST_DB_CONNECT` | – | Plain connect string for the Forms/Reports test modules deployed by `15-deploy-test-report-forms_template.sh` (e.g. `scott/tiger@//host:port/service`). Only used for read-only demo queries (`dual`, `user_objects`) — deliberately **not** encrypted like `SEC_CONF`/`SEC_CONF_DB`, since it carries no production value. See `docs/20-forms_reports_testmodules.md`. |
 
 ---
 

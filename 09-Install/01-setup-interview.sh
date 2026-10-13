@@ -449,6 +449,31 @@ _ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
 _ask REPORTS_CUSTOMER_DIR    "Reports customer directory"   "/app/reports/custom"
 
 printf "\n"
+info "Sizes ulimits (nofile/nproc) for the oracle OS user – see"
+info "  09-Install/docs/00-root_set_os_parameter.md for the full rationale."
+info "  Only the 100-500 tier is a confirmed real-world production value;"
+info "  the others are linear estimates around it."
+_ask_menu EXPECTED_SESSIONS  "Expected concurrent Forms/Reports sessions" \
+    "lt100:< 100 sessions (nofile/nproc 65536/16384)" \
+    "100-500:100-500 sessions (nofile/nproc 81920/81920 – confirmed production reference)" \
+    "500-1000:500-1000 sessions (nofile/nproc ~131072/~131072 – estimated, unconfirmed)" \
+    "gt1000:> 1000 sessions (nofile/nproc ~262144/~262144 – lowest confidence, no real reference)"
+
+case "$EXPECTED_SESSIONS" in
+    lt100)     ULIMIT_NOFILE=65536;  ULIMIT_NPROC=16384  ;;
+    100-500)   ULIMIT_NOFILE=81920;  ULIMIT_NPROC=81920  ;;
+    500-1000)  ULIMIT_NOFILE=131072; ULIMIT_NPROC=131072 ;;
+    gt1000)
+        ULIMIT_NOFILE=262144
+        ULIMIT_NPROC=262144
+        warn "No real-world reference for >1000 sessions – 262144/262144 is a"
+        warn "  cautious doubling of the (already estimated) 500-1000 tier, not a"
+        warn "  measurement. Verify via capacity planning / load testing and"
+        warn "  adjust ULIMIT_NOFILE/ULIMIT_NPROC in environment.conf if needed."
+        ;;
+esac
+
+printf "\n"
 info "WLS Admin password → encrypted to: weblogic_sec.conf.des3"
 WLS_SEC_FILE="$ROOT_DIR/weblogic_sec.conf.des3"
 _ask_password WLS_ADMIN_PWD "WLS Admin password" "$WLS_SEC_FILE"
@@ -530,6 +555,9 @@ done
 unset _s
 _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
+_show "EXPECTED_SESSIONS"    "$EXPECTED_SESSIONS"
+_show "ULIMIT_NOFILE"        "${ULIMIT_NOFILE:-(unset – manual capacity planning)}"
+_show "ULIMIT_NPROC"         "${ULIMIT_NPROC:-(unset – manual capacity planning)}"
 _show "DB_HOST"              "$DB_HOST"
 _show "DB_PORT"              "$DB_PORT"
 _show "DB_SERVICE"           "$DB_SERVICE"
@@ -612,6 +640,13 @@ $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 
+# --- ulimits (oracle OS user) -------------------------------------------------
+# Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
+# confirmed real-world production value. See docs/00-root_set_os_parameter.md.
+EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
+ULIMIT_NOFILE="${ULIMIT_NOFILE}"
+ULIMIT_NPROC="${ULIMIT_NPROC}"
+
 # --- Database (RCU) -----------------------------------------------------------
 DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
@@ -688,6 +723,9 @@ REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
+EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
+ULIMIT_NOFILE="${ULIMIT_NOFILE}"
+ULIMIT_NPROC="${ULIMIT_NPROC}"
 DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"

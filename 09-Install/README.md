@@ -337,6 +337,16 @@ otherwise display the command for manual execution.
 | Disk patch storage | 10 GB | 20 GB | 20 GB |
 | Swap | 512 MB (OUI min) | = RAM | 1.5× RAM |
 | `/tmp` | 300 MB (OUI min) | 2 GB | 2 GB |
+| ulimit `nofile`/`nproc` (oracle user) | 65536 / 16384 | 65536 / 16384 | **81920/81920** (100-500) · ~131072/131072 (500-1000, est.) · ~262144/262144 (>1000, lowest confidence) |
+
+> ulimit values are set by `03-root_user_oracle.sh`, sized via the
+> `EXPECTED_SESSIONS` question in `01-setup-interview.sh` (< 100 / 100-500 /
+> 500-1000 / > 1000 concurrent Forms/Reports sessions). Only the 100-500
+> tier (81920/81920) is a confirmed real production value; the `500-1000`
+> and especially the `>1000` tier are estimates of decreasing confidence,
+> not measurements — see
+> [docs/00-root_set_os_parameter.md](docs/00-root_set_os_parameter.md) for
+> the full rationale and the matching sysctl kernel parameters.
 
 **Production memory sizing example (WLS only):**
 ```
@@ -346,6 +356,14 @@ otherwise display the command for manual execution.
 ------
  17 GB  minimum for WLS alone → plan 64 GB for production
 ```
+
+**Forms session RAM budget (additional, on top of the above):** Oracle
+Forms starts one dedicated `frmweb` process per active session, each using
+roughly 30-80 MB RAM. Rule of thumb: `expected sessions × ~50 MB`, e.g.
+~25 GB for 500 sessions, ~50 GB for 1000 sessions — on top of the WLS JVM
+heaps above. External sizing estimate, not independently verified against
+a specific measured host; validate with real load testing before sizing
+production hardware.
 
 > If the database runs on the same host, add DB RAM/CPU requirements on top.
 > For IHateWeblogic the database is on a **separate server** (see section 9.3).

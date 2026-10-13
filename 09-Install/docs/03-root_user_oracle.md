@@ -49,36 +49,80 @@ passwd oracle   # set initial password, or configure SSH key
 ### 3. Set shell resource limits
 
 The script writes a drop-in file `/etc/security/limits.d/oracle-fmw.conf`
-(preferred over editing `limits.conf` directly).
+(preferred over editing `limits.conf` directly). `nofile`/`nproc` are sized
+by `ULIMIT_NOFILE`/`ULIMIT_NPROC` in `environment.conf` — set by the
+`EXPECTED_SESSIONS` question in `01-setup-interview.sh` (see
+`docs/01-setup-interview.md`). `memlock`/`core` are fixed values, not
+session-tiered.
 
 ```
 # Oracle FMW 14.1.2 – oracle user resource limits
-oracle   soft   nofile     65536
-oracle   hard   nofile     65536
-oracle   soft   nproc      16384
-oracle   hard   nproc      16384
+oracle   soft   nofile     $ULIMIT_NOFILE    # e.g. 81920
+oracle   hard   nofile     $ULIMIT_NOFILE
+oracle   soft   nproc      $ULIMIT_NPROC     # e.g. 81920
+oracle   hard   nproc      $ULIMIT_NPROC
 oracle   soft   stack      10240
 oracle   hard   stack      32768
-oracle   soft   core       unlimited
-oracle   hard   core       unlimited
-oracle   soft   memlock    unlimited
-oracle   hard   memlock    unlimited
+oracle   soft   core       2097152
+oracle   hard   core       2097152
+oracle   soft   memlock    3145728
+oracle   hard   memlock    3145728
 ```
 
 **Oracle WLS SYSRS minimum values vs. our values:**
 
-| Limit | Oracle minimum (soft) | Oracle minimum (hard) | Our value (soft=hard) |
-|---|---|---|---|
-| `nofile` | 4096 | 65536 | **65536** |
-| `nproc` | 2047 | 16384 | **16384** |
-| `stack` | 10240 | — | 10240 / 32768 |
-| `memlock` | — | — | unlimited |
-| `core` | — | — | unlimited (for JVM crash dumps) |
+| Limit | Oracle minimum (soft) | Oracle minimum (hard) | Our value (soft=hard) | Provenance |
+|---|---|---|---|---|
+| `nofile` | 4096 | 65536 | **sized by `EXPECTED_SESSIONS`, 65536-131072** | `<100`/`>1000` tiers unconfirmed estimates; `100-500` (81920) confirmed |
+| `nproc` | 2047 | 16384 | **sized by `EXPECTED_SESSIONS`, 16384-131072** | same as `nofile` |
+| `stack` | 10240 | — | 10240 / 32768 | unchanged, not concurrency-driven |
+| `memlock` | — | — | **3145728** (was `unlimited`) | real production reference (see below) |
+| `core` | — | — | **2097152 blocks** (was `unlimited`) | real production reference (see below) |
 
 > We set `soft = hard` for `nofile` and `nproc`. This is production practice:
 > the JVM and WLS processes start at the maximum limit without needing to
 > explicitly raise the soft limit themselves. This meets and exceeds the
 > Oracle minimum requirements.
+
+> **Why `nproc` must scale with session count:** Oracle Forms starts one
+> dedicated `frmweb` OS process per active Forms session (not threads
+> within a shared process). `nproc` accounts for both processes and
+> threads under Linux, so WebLogic's own JVM thread pools (AdminServer +
+> WLS_FORMS + WLS_REPORTS) sit on top of that per-session process count.
+> This is also why `nofile` needs equivalent headroom: each `frmweb`
+> process independently opens DB sockets, a WebLogic Forms Servlet socket,
+> and `.fmx`/`.mmx`/`.plx`/shared-library handles.
+
+> **Provenance of the non-`<100` values:** `nofile`/`nproc` = 81920 for the
+> `100-500` session tier, and `memlock`/`core` as shown above, are taken
+> directly from `ulimit -a` on a real production Forms/Reports host running
+> 100-500 concurrent sessions (internal reference: `gpiwls01`) — not
+> Oracle's published minimum, and not a guess. The `500-1000` tier
+> (131072) is a linear estimate around this one confirmed data point; the
+> `>1000` tier (262144) is lower confidence still — a cautious doubling of
+> the `500-1000` estimate, not derived from any measurement. Neither is
+> independently validated — see `docs/00-root_set_os_parameter.md` for the
+> equivalent sysctl-side caveat.
+
+> **systemd caveat (not applicable to this project's default setup):** if
+> WebLogic/NodeManager were started via a systemd unit instead of the
+> `startWebLogic.sh`/NodeManager scripts this project uses, systemd's own
+> `LimitNOFILE`/`LimitNPROC` directives would take precedence over
+> `/etc/security/limits.d/oracle-fmw.conf` for that service, silently
+> capping it back down regardless of what's configured here. Verified this
+> project does not do this (only the RCU database side has systemd units,
+> `oracle-db.service`/`oracle-listener.service`) — but worth checking if
+> you customize the startup method.
+
+> **FMW/DB co-location risk:** if the RCU database also runs on this host,
+> `60-RCU-DB-19c/00-root_db_os_baseline.sh` writes its own
+> `/etc/security/limits.d/60-oracle-db.conf` for the same `oracle` OS user
+> with different (typically higher, e.g. 131072/131072) nofile/nproc values.
+> Because `oracle-fmw.conf` sorts after `60-oracle-db.conf` alphabetically,
+> pam_limits applies this file's values last — silently overriding the DB
+> tier. If co-located, set `ULIMIT_NOFILE`/`ULIMIT_NPROC` in
+> `environment.conf` to at least the DB script's values before running
+> `--apply`, rather than relying on both files to merge sensibly.
 
 Verify that PAM loads limits:
 
@@ -252,8 +296,8 @@ id oracle
 # Expected: uid=1100(oracle) gid=1000(oinstall) groups=1000(oinstall)
 
 # Resource limits (as oracle user)
-su - oracle -c "ulimit -Hn"   # hard nofile → 65536
-su - oracle -c "ulimit -Sn"   # soft nofile → 65536
+su - oracle -c "ulimit -Hn"   # hard nofile → $ULIMIT_NOFILE (65536 for the <100 tier)
+su - oracle -c "ulimit -Sn"   # soft nofile → $ULIMIT_NOFILE
 
 # Environment and locale
 su - oracle -c "echo \$ORACLE_HOME"   # → /u01/app/oracle/fmw

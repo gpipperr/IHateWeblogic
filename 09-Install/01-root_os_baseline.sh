@@ -228,10 +228,24 @@ section "Kernel Parameters"
 
 SYSCTL_FILE="/etc/sysctl.d/99-oracle-fmw.conf"
 
-# Define target values for WebLogic / Forms / Reports (no Oracle Database)
+# Define target values for WebLogic / Forms / Reports (no Oracle Database).
+# shmmax/shmall and the block below (kernel.sem through net.core.wmem_max)
+# are confirmed against a real 100-500-concurrent-session production host
+# (gpiwls01) — see docs/00-root_set_os_parameter.md. Previously only
+# shmmax/shmall/port_range were targeted here with different (unconfirmed)
+# values; os_check.sh already read/displayed the others without anything
+# actually setting them.
 declare -A SYSCTL_WANT=(
-    ["kernel.shmmax"]="4294967295"
-    ["kernel.shmall"]="9272480"
+    ["kernel.shmmax"]="8318808064"
+    ["kernel.shmall"]="2030959"
+    ["kernel.sem"]="250 32000 100 128"
+    ["kernel.shmmni"]="4096"
+    ["fs.file-max"]="6815744"
+    ["fs.aio-max-nr"]="1048576"
+    ["net.core.rmem_default"]="262144"
+    ["net.core.rmem_max"]="4194304"
+    ["net.core.wmem_default"]="262144"
+    ["net.core.wmem_max"]="4194304"
     ["net.ipv4.ip_local_port_range"]="9000 65500"
     ["vm.swappiness"]="10"
     ["kernel.panic_on_oops"]="1"

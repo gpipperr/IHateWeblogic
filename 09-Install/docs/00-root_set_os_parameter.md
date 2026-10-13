@@ -235,11 +235,25 @@ Create `/etc/sysctl.d/99-oracle-fmw.conf`:
 # References:
 #   Oracle WLS 14.1.1 SYSRS (kernel.shmmax explicitly required)
 #   https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux
+#   Confirmed against a real 100-500-concurrent-session production host
+#   (internal reference: gpiwls01) for shmmax/shmall/sem/shmmni/file-max/
+#   aio-max-nr/rmem/wmem — see rationale table below.
 
 # Shared memory – required by Oracle Universal Installer (WLS SYSRS)
-# Note: NOT Oracle Database values (shmmax=4TB, shmall=1073741824, sem, shmmni)
-kernel.shmmax         = 4294967295
-kernel.shmall         = 9272480
+kernel.shmmax         = 8318808064
+kernel.shmall         = 2030959
+kernel.sem            = 250 32000 100 128
+kernel.shmmni         = 4096
+
+# File handles and async I/O
+fs.file-max           = 6815744
+fs.aio-max-nr         = 1048576
+
+# Network buffers (WLS / Forms / Reports with many concurrent sessions)
+net.core.rmem_default = 262144
+net.core.rmem_max     = 4194304
+net.core.wmem_default = 262144
+net.core.wmem_max     = 4194304
 
 # Ephemeral port range (WLS / Forms / Reports use many concurrent connections)
 net.ipv4.ip_local_port_range = 9000 65500
@@ -269,13 +283,30 @@ sysctl --system
 
 ### Parameter rationale
 
+> **Provenance note:** `shmmax`, `shmall`, `sem`, `shmmni`, `file-max`,
+> `aio-max-nr`, and `rmem`/`wmem` below are taken directly from a real
+> production Forms/Reports host handling 100-500 concurrent sessions
+> (internal reference: `gpiwls01`), not from generic Oracle documentation
+> defaults. Earlier versions of this doc incorrectly labelled `kernel.sem`,
+> `kernel.shmmni`, `fs.aio-max-nr`, and `net.core.rmem/wmem` as
+> "Database only, not needed for WLS" — the real reference host (pure
+> WLS/Forms/Reports, no local database) has all of them explicitly tuned,
+> so that was wrong. See `docs/03-root_user_oracle.md` for the matching
+> ulimit values from the same host, and `docs/01-setup-interview.md` for
+> the `EXPECTED_SESSIONS`-driven nofile/nproc tiering (only nofile/nproc
+> scale with session count — the sysctl values here are a single fixed
+> target, not session-tiered).
+
 | Parameter | Value | Source | Rationale |
 |---|---|---|---|
-| `kernel.shmmax` | `4294967295` | Oracle WLS SYSRS (explicit) | Max shared memory segment size; 4 GB−1; required by OUI |
-| `kernel.shmall` | `9272480` | dbainsight / WLS practice | Total shared memory pages (~37 GB), sufficient for JVM |
-| `kernel.sem` | — | **not set** | SysV semaphores – Oracle Database only |
-| `kernel.shmmni` | — | **not set** | Shared memory segment count – Oracle Database only |
-| `fs.aio-max-nr` | — | **not set** | Async I/O – Oracle Database only |
+| `kernel.shmmax` | `8318808064` | real production host (gpiwls01) | Max shared memory segment size; required by OUI |
+| `kernel.shmall` | `2030959` | real production host | Total shared memory pages |
+| `kernel.sem` | `250 32000 100 128` | real production host | SysV semaphores — WLS/Forms/Reports native processes use these too, not DB-only |
+| `kernel.shmmni` | `4096` | real production host | Shared memory segment count |
+| `fs.file-max` | `6815744` | real production host | System-wide open file handle ceiling; `os_check.sh` already read/displayed this without anything setting it until now |
+| `fs.aio-max-nr` | `1048576` | real production host | Async I/O request limit |
+| `net.core.rmem_default` / `rmem_max` | `262144` / `4194304` | real production host | Socket receive buffer sizing for many concurrent connections |
+| `net.core.wmem_default` / `wmem_max` | `262144` / `4194304` | real production host + symmetric adjustment | Socket send buffer sizing; `wmem_max` raised to match `rmem_max` symmetrically (gpiwls01 itself has an asymmetric `1048576`, but a ~1000-session community sizing reference recommends matching `rmem_max` — adopted here as the more conservative choice) |
 | `net.ipv4.ip_local_port_range` | `9000 65500` | Best practice | WLS / HTTP connections need many ephemeral ports |
 | `vm.swappiness` | `10` | JVM best practice | Prefer RAM over swap for JVM heap |
 | `fs.suid_dumpable` | `1` | Core dump requirement | Required so oracle user (non-root) produces core files |
@@ -283,7 +314,16 @@ sysctl --system
 | `kernel.core_pattern` | `/var/tmp/core/...` | Core dump | Central directory; Forms/JVM dumps stay visible |
 | `kernel.panic_on_oops` | `1` | Server stability | Force clean restart on kernel oops |
 | `vm.min_free_kbytes` | — | **not set** | Heavy DB tuning – not needed for WLS |
-| `net.core.rmem/wmem` | — | **not set** | DB/RAC network tuning – not needed for single-server WLS |
+
+> **Not configured on purpose:** `kernel.pid_max` (process ID ceiling) and
+> `net.core.somaxconn` (listen backlog), both sometimes recommended for
+> high-session-count Forms deployments, and the `as` (virtual address
+> space) ulimit are **already at a sufficient value by default on Oracle
+> Linux 9** (`kernel.pid_max` defaults to `4194304`, `net.core.somaxconn`
+> to `4096`, and no distro caps `ulimit -v`) — verified directly on a live
+> OL9.7 host. Explicitly setting them here would be a no-op; if you're on
+> an older OS or a hardened image that lowers these, check them manually
+> rather than assuming this project's scripts cover them.
 
 ---
 

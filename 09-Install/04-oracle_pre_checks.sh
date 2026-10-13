@@ -266,34 +266,7 @@ _check_disk_gb "$ORACLE_BASE"   "$MIN_ORACLE_BASE_GB"   "ORACLE_BASE"
 _check_disk_gb "$PATCH_STORAGE" "$MIN_PATCH_STORAGE_GB" "PATCH_STORAGE"
 
 # =============================================================================
-# Check 6 – oracle user limits
-# =============================================================================
-
-section "oracle User Limits"
-
-NOFILE="$(ulimit -Hn 2>/dev/null)"
-NPROC="$(ulimit -Hu 2>/dev/null)"
-
-if [ -n "$NOFILE" ] && [ "$NOFILE" != "unlimited" ] && [ "$NOFILE" -ge 65536 ] 2>/dev/null; then
-    ok "$(printf "%-26s %s (min 65536)" "nofile (hard):" "$NOFILE")"
-elif [ "$NOFILE" = "unlimited" ]; then
-    ok "$(printf "%-26s unlimited" "nofile (hard):")"
-else
-    fail "$(printf "%-26s %s (min 65536 required)" "nofile (hard):" "${NOFILE:-(unknown)}")"
-    info "  Fix: run 03-root_user_oracle.sh --apply to set limits"
-fi
-
-if [ -n "$NPROC" ] && [ "$NPROC" != "unlimited" ] && [ "$NPROC" -ge 16384 ] 2>/dev/null; then
-    ok "$(printf "%-26s %s (min 16384)" "nproc (hard):" "$NPROC")"
-elif [ "$NPROC" = "unlimited" ]; then
-    ok "$(printf "%-26s unlimited" "nproc (hard):")"
-else
-    fail "$(printf "%-26s %s (min 16384 required)" "nproc (hard):" "${NPROC:-(unknown)}")"
-    info "  Fix: run 03-root_user_oracle.sh --apply to set limits"
-fi
-
-# =============================================================================
-# Check 7 – oraInst.loc
+# Check 6 – oraInst.loc
 # =============================================================================
 
 section "Oracle Inventory (oraInst.loc)"
@@ -345,7 +318,7 @@ else
 fi
 
 # =============================================================================
-# Check 8 – Directory ownership (oracle must own ORACLE_BASE)
+# Check 7 – Directory ownership (oracle must own ORACLE_BASE)
 # =============================================================================
 
 section "Directory Ownership"
@@ -372,7 +345,7 @@ _check_dir_owner "$ORACLE_HOME"
 _check_dir_owner "$(dirname "$JDK_HOME")"
 
 # =============================================================================
-# Check 9 – ORACLE_HOME must be empty (no existing installation)
+# Check 8 – ORACLE_HOME must be empty (no existing installation)
 # =============================================================================
 
 section "ORACLE_HOME Empty Check"

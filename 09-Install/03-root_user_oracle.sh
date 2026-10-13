@@ -219,39 +219,52 @@ _check_limit() {
     fi
 }
 
+# nofile/nproc are sized by 01-setup-interview.sh's "Expected concurrent
+# sessions" question (EXPECTED_SESSIONS); default here matches the <100
+# sessions tier in case environment.conf predates that feature or was
+# hand-edited. memlock/core are fixed, non-tiered values confirmed against
+# a real 100-500-session production host (gpiwls01) — see
+# docs/00-root_set_os_parameter.md.
+ULIMIT_NOFILE="${ULIMIT_NOFILE:-65536}"
+ULIMIT_NPROC="${ULIMIT_NPROC:-16384}"
+ULIMIT_MEMLOCK="${ULIMIT_MEMLOCK:-3145728}"
+ULIMIT_CORE="${ULIMIT_CORE:-2097152}"
+
 LIMITS_OK=1
 # Oracle WLS SYSRS minimum: soft nofile=4096, hard nofile=65536
-# We set soft=hard=65536 (production practice: process starts at max, no self-raise needed)
-_check_limit oracle soft nofile 65536     || LIMITS_OK=0
-_check_limit oracle hard nofile 65536     || LIMITS_OK=0
+# We set soft=hard (production practice: process starts at max, no self-raise needed)
+_check_limit oracle soft nofile "$ULIMIT_NOFILE"   || LIMITS_OK=0
+_check_limit oracle hard nofile "$ULIMIT_NOFILE"   || LIMITS_OK=0
 # Oracle WLS SYSRS minimum: soft nproc=2047, hard nproc=16384
-# We set soft=hard=16384
-_check_limit oracle soft nproc  16384     || LIMITS_OK=0
-_check_limit oracle hard nproc  16384     || LIMITS_OK=0
-_check_limit oracle soft stack  10240     || LIMITS_OK=0
-_check_limit oracle hard stack  32768     || LIMITS_OK=0
-_check_limit oracle soft core   unlimited || LIMITS_OK=0
-_check_limit oracle hard core   unlimited || LIMITS_OK=0
-_check_limit oracle soft memlock unlimited || LIMITS_OK=0
-_check_limit oracle hard memlock unlimited || LIMITS_OK=0
+_check_limit oracle soft nproc  "$ULIMIT_NPROC"    || LIMITS_OK=0
+_check_limit oracle hard nproc  "$ULIMIT_NPROC"    || LIMITS_OK=0
+_check_limit oracle soft stack  10240              || LIMITS_OK=0
+_check_limit oracle hard stack  32768              || LIMITS_OK=0
+_check_limit oracle soft core   "$ULIMIT_CORE"     || LIMITS_OK=0
+_check_limit oracle hard core   "$ULIMIT_CORE"     || LIMITS_OK=0
+_check_limit oracle soft memlock "$ULIMIT_MEMLOCK" || LIMITS_OK=0
+_check_limit oracle hard memlock "$ULIMIT_MEMLOCK" || LIMITS_OK=0
 
 if [ "$LIMITS_OK" -eq 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Write oracle limits to $LIMITS_FILE?" "y"; then
         [ -f "$LIMITS_FILE" ] && backup_file "$LIMITS_FILE"
-        _run_root tee "$LIMITS_FILE" > /dev/null << 'EOF'
+        _run_root tee "$LIMITS_FILE" > /dev/null << EOF
 # Oracle FMW 14.1.2 – oracle user resource limits
 # Managed by: 09-Install/03-root_user_oracle.sh
 # Reference : Oracle Forms & Reports 14.1.2 Installation Guide
-oracle   soft   nofile     65536
-oracle   hard   nofile     65536
-oracle   soft   nproc      16384
-oracle   hard   nproc      16384
+# nofile/nproc sized via EXPECTED_SESSIONS (01-setup-interview.sh);
+# memlock/core confirmed against a real production host, see
+# docs/00-root_set_os_parameter.md
+oracle   soft   nofile     $ULIMIT_NOFILE
+oracle   hard   nofile     $ULIMIT_NOFILE
+oracle   soft   nproc      $ULIMIT_NPROC
+oracle   hard   nproc      $ULIMIT_NPROC
 oracle   soft   stack      10240
 oracle   hard   stack      32768
-oracle   soft   core       unlimited
-oracle   hard   core       unlimited
-oracle   soft   memlock    unlimited
-oracle   hard   memlock    unlimited
+oracle   soft   core       $ULIMIT_CORE
+oracle   hard   core       $ULIMIT_CORE
+oracle   soft   memlock    $ULIMIT_MEMLOCK
+oracle   hard   memlock    $ULIMIT_MEMLOCK
 EOF
         ok "Limits written to $LIMITS_FILE"
     fi
@@ -584,10 +597,10 @@ if id oracle > /dev/null 2>&1; then
 
     # Verify ulimits take effect
     NOFILE="$(_run_root su - oracle -c 'ulimit -n' 2>/dev/null)"
-    if [ -n "$NOFILE" ] && [ "$NOFILE" -ge 65536 ] 2>/dev/null; then
+    if [ -n "$NOFILE" ] && [ "$NOFILE" -ge "$ULIMIT_NOFILE" ] 2>/dev/null; then
         ok "oracle ulimit -n (nofile): $NOFILE"
     else
-        warn "oracle ulimit -n: ${NOFILE:-(unknown)} (expected: ≥ 65536)"
+        warn "oracle ulimit -n: ${NOFILE:-(unknown)} (expected: >= $ULIMIT_NOFILE)"
         info "  Limits in /etc/security/limits.conf only take effect on new logins"
         info "  Test with: su - oracle -c 'ulimit -n'"
     fi

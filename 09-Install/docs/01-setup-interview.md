@@ -93,6 +93,34 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 | `REPORTS_SERVER_NAME` | `repserver01` | – |
 | `FORMS_CUSTOMER_DIR` | `/app/forms/custom` | – |
 | `REPORTS_CUSTOMER_DIR` | `/app/reports/custom` | – |
+| `EXPECTED_SESSIONS` | `lt100` | see below – sizes `ULIMIT_NOFILE`/`ULIMIT_NPROC` |
+
+#### EXPECTED_SESSIONS
+
+Sizes the `nofile`/`nproc` OS limits for the `oracle` user
+(`09-Install/03-root_user_oracle.sh`) to the expected number of concurrent
+Forms/Reports sessions.
+
+```
+[1] < 100 sessions        – nofile/nproc 65536/16384 (current project minimum)
+[2] 100-500 sessions      – nofile/nproc 81920/81920
+                             confirmed real production value (reference host "gpiwls01")
+[3] 500-1000 sessions     – nofile/nproc ~131072/~131072
+                             linear estimate — NOT independently confirmed
+[4] > 1000 sessions       – nofile/nproc ~262144/~262144
+                             LOWEST confidence: a cautious doubling of the
+                             500-1000 estimate, not a measurement or even a
+                             careful linear estimate — verify via your own
+                             capacity planning / load testing
+```
+
+> Only the 100-500 tier is backed by a real production system. The other
+> tiers are plausible estimates, not validated numbers — see
+> `09-Install/docs/00-root_set_os_parameter.md` for the full rationale and
+> the related sysctl kernel parameters sized from the same reference host.
+> Each `frmweb` process (one per active Forms session) also needs roughly
+> 30-80 MB RAM — factor `expected sessions × ~50 MB` into host sizing on
+> top of the WebLogic JVM heaps, see `09-Install/README.md` §9.1.
 
 #### WLS_LISTEN_ADDRESS
 
