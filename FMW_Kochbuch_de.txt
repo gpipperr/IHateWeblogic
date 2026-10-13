@@ -31,8 +31,16 @@ SCHRITT 1: FMW-Infrastruktur installieren  (als oracle)
   ls "$ORACLE_HOME" 2>/dev/null && echo "WARNUNG: ORACLE_HOME nicht leer!"
   cat /etc/oraInst.loc
 
-  # Silent-Install Response-Datei anlegen. DECLINE_SECURITY_UPDATES=true,
-  # da ohne MOS-Zugangsdaten keine automatischen Update-Benachrichtigungen
+  # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
+  # (Silent) ist die uebliche Wahl auf einem Server ohne dauerhafte
+  # grafische Oberflaeche, Option B (Grafisch) fuer alle, die dem
+  # Installationsassistenten lieber beim Arbeiten zusehen/Werte interaktiv
+  # pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+
+  --- Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI) --------
+
+  # Response-Datei anlegen. DECLINE_SECURITY_UPDATES=true, da ohne
+  # MOS-Zugangsdaten keine automatischen Update-Benachrichtigungen
   # moeglich/gewuenscht sind.
   cat > $PATCH_STORAGE/wls/wls_install.rsp << 'EOF'
 [ENGINE]
@@ -68,10 +76,45 @@ EOF
   unset CV_ASSUME_DISTID
   rm -f $PATCH_STORAGE/wls/wls_install.rsp
 
-  # Dauer: ca. 10-15 Minuten. Installationslog liegt unter
+  --- Option B: Grafisch (Installationsassistent, OUI-GUI) -------------------
+
+  # Voraussetzung: eine grafische Oberflaeche muss erreichbar sein - entweder
+  # per X11-Weiterleitung ueber SSH (lokaler X-Server noetig, z.B. Xming/
+  # VcXsrv unter Windows, XQuartz unter macOS, ein Linux-Desktop sonst)
+  # oder per VNC-Sitzung auf dem Server selbst.
+  #
+  #   ssh -X oracle@<hostname>          # X11-Weiterleitung aktivieren
+  #   echo $DISPLAY                     # muss gesetzt sein, z.B. localhost:10.0
+  #
+  # Falls "xauth" auf dem Server fehlt, bricht der Installer mit
+  # "No protocol specified" oder gar nicht sichtbar ab:
+  dnf install -y xorg-x11-xauth   # als root, einmalig, falls noch nicht vorhanden
+
+  export CV_ASSUME_DISTID=OEL8
+
+  # Gleicher Installer-Aufruf wie Option A, aber OHNE -silent/-responseFile -
+  # startet stattdessen den grafischen Oracle Universal Installer (OUI):
+  $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
+      -invPtrLoc /etc/oraInst.loc \
+      -jreLoc $JDK_HOME
+
+  unset CV_ASSUME_DISTID
+
+  # Im Assistenten dieselben Werte eintragen, die in Option A in der
+  # Response-Datei standen:
+  #   Oracle Home:         /u01/oracle/fmw
+  #   Installationstyp:    Fusion Middleware Infrastructure
+  #   Security Updates:    "I wish to receive security updates..." abwaehlen
+  #                        (keine MOS-Zugangsdaten hinterlegt)
+  #   Proxy-Einstellungen: leer lassen, falls kein Proxy benoetigt wird
+  #
+  # Der Assistent fuehrt am Ende dieselbe Pruefung/Installation aus wie
+  # Option A - Dauer und Ergebnis sind identisch.
+
+  # Dauer (beide Optionen): ca. 10-15 Minuten. Installationslog liegt unter
   # /u01/app/oraInventory/logs/
 
-  # Kontrolle
+  # Kontrolle (beide Optionen)
   $ORACLE_HOME/OPatch/opatch lsinventory
   ls $ORACLE_HOME/wlserver/
   ls $ORACLE_HOME/oracle_common/

@@ -60,6 +60,14 @@ SCHRITT 1: Forms & Reports Software installieren  (als oracle)
   # erst spaeter bei der Domain-Erstellung (Schritt 3) ueber die
   # tatsaechlich verwendeten Konfigurations-Templates.
 
+  # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
+  # (Silent) ist die uebliche Wahl auf einem Server ohne dauerhafte
+  # grafische Oberflaeche, Option B (Grafisch) fuer alle, die dem
+  # Installationsassistenten lieber beim Arbeiten zusehen/Werte interaktiv
+  # pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+
+  --- Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI) --------
+
   cat > $PATCH_STORAGE/fr/fr_install.rsp << 'EOF'
 [ENGINE]
 Response File Version=1.0.0.0.0
@@ -92,9 +100,41 @@ EOF
   unset CV_ASSUME_DISTID
   rm -f $PATCH_STORAGE/fr/fr_install.rsp
 
-  # Dauer: ca. 10-20 Minuten. Installationslog: /u01/app/oraInventory/logs/
+  --- Option B: Grafisch (Installationsassistent, OUI-GUI) -------------------
 
-  # Kontrolle (NUR Reports relevant)
+  # Voraussetzung: grafische Oberflaeche erreichbar - siehe
+  # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
+  # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
+
+  export CV_ASSUME_DISTID=OEL8
+
+  # Gleicher Installer-Aufruf wie Option A, aber OHNE -silent/-responseFile -
+  # startet stattdessen den grafischen Oracle Universal Installer (OUI).
+  # -ignoreSysPrereqs bleibt noetig, unabhaengig vom Silent-/GUI-Modus:
+  $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
+      -invPtrLoc /etc/oraInst.loc \
+      -ignoreSysPrereqs \
+      -jreLoc $JDK_HOME
+
+  unset CV_ASSUME_DISTID
+
+  # Im Assistenten dieselben Werte eintragen, die in Option A in der
+  # Response-Datei standen:
+  #   Oracle Home:        /u01/oracle/fmw  (bereits durch die
+  #                        FMW-Infrastruktur belegt, siehe FMW_Kochbuch_de.txt)
+  #   Installationstyp:   "Forms and Reports Deployment"
+  #                        (NICHT "Standalone Forms Builder" - das ist nur
+  #                        fuer eine Forms-Entwickler-Arbeitsstation gedacht)
+  #   MOS-Zugangsdaten:   leer lassen / Schritt ueberspringen
+  #   Proxy-Einstellungen: leer lassen, falls kein Proxy benoetigt wird
+  #
+  # Der Assistent fuehrt am Ende dieselbe Pruefung/Installation aus wie
+  # Option A - Dauer und Ergebnis sind identisch.
+
+  # Dauer (beide Optionen): ca. 10-20 Minuten. Installationslog:
+  # /u01/app/oraInventory/logs/
+
+  # Kontrolle (beide Optionen, NUR Reports relevant)
   $ORACLE_HOME/OPatch/opatch version
   ls $ORACLE_HOME/reports/
   test -x $ORACLE_HOME/reports/bin/rwrun && echo "rwrun vorhanden - OK"
