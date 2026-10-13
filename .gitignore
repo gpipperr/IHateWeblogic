@@ -42,6 +42,10 @@ log/
 # Font cache
 *.cache
 
+# Python bytecode cache (ttf2reports_afm.py)
+__pycache__/
+*.pyc
+
 # Claude Code session data (local only)
 .claude/
 CLAUDE.md
@@ -56,3 +60,5 @@ CLAUDE.md
 # Place documents here locally for use as RAG knowledge base
 90-Source-MetaData/
 
+#Core artefacts
+core_*

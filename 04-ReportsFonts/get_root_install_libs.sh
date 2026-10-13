@@ -62,6 +62,7 @@ FONT_PKGS=(
     dejavu-lgc-sans-mono-fonts  # DejaVu LGC Mono
     dejavu-lgc-serif-fonts      # DejaVu LGC Serif
     fontconfig                  # fc-query, fc-cache, fc-list
+    python3-fonttools           # ttf2reports_afm.py (paramform_afm_setup.sh)
 )
 
 # PDF verification

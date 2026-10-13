@@ -111,6 +111,13 @@ Controlled by: `REPORTS_ENHANCED_FONTHANDLING=no`
 
 ## 3. Font Resolution Chain (Runtime)
 
+> **Scope: PDF output only.** This chain (`uifont.ali` → `REPORTS_FONT_DIRECTORY`
+> → system fonts) applies to `desformat=pdf`. The HTML output and HTML parameter
+> form use a completely separate path (PPD + AFM "screen printer", `uifont.ali`
+> aliases are **not** consulted) — see
+> [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md) and
+> `paramform_afm_setup.sh`.
+
 When Oracle Reports needs to render a font at runtime, it follows this order:
 
 ```
@@ -441,6 +448,8 @@ cat /proc/$(pgrep -f WLS_REPORTS)/environ | tr '\0' '\n' | grep REPORTS
 | `fontpath_config.sh` | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
 | `pdf_font_verify.sh` | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
 | `font_cache_reset.sh` | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
+| `paramform_afm_setup.sh` | Set up AFM/PPD for the HTML output / HTML parameter form "screen printer" font path (independent of uifont.ali) | domain-local AFM dir, screenprinter.ppd |
+| `ttf2reports_afm.py` | Generate/check an AFM file from a TTF for the screen printer (called by `paramform_afm_setup.sh`) | nothing by itself (writes only to `-o <file>`) |
 
 All scripts default to **dry-run** mode. Add `--apply` to write changes.
 
@@ -469,6 +478,27 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 - Writes a managed block to `setUserOverrides.sh` (idempotent, replace-on-rerun):
   OS env exports + JAVA_OPTIONS `-D` flags for Node Manager environments
 - Requires: `grep`, `cp` — **no Python3**
+
+### paramform_afm_setup.sh – behaviour
+
+- Separate font path from the rest of this module (see section 3 note and
+  [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md)): fixes the HTML
+  output / HTML parameter form "screen printer", not `[PDF:Subset]`
+- Step A: creates `FontSpecific` copies of the standard PostScript AFMs
+  (`Helvetica*`, `Courier*`, `Times*`) from the Oracle Home AFM directory into
+  the domain-local AFM directory — never modifies the Oracle Home copies
+- Step B: generates an AFM for every TTF in `REPORTS_FONT_DIR` via
+  `ttf2reports_afm.py` (keyed `Family`/`Family-Bold`/`Family-Italic`/
+  `Family-BoldItalic` from `fc-query`), then runs `--check` on each one
+- Step C: adds the matching `*Font <key>: Standard "(001.000)" Standard ROM`
+  line to `screenprinter.ppd` for every standard and generated AFM; backs up
+  the PPD once per run before the first write
+- Idempotent: already-correct AFMs/PPD entries are left untouched and
+  reported as `OK`, not recreated
+- Optional `--scan-reports <dir>`: cross-references `face="..."` attributes
+  found in XML report sources against the PPD/AFM state (information only)
+- Must run as the Oracle software owner, **not** as root
+- Requires: `python3-fonttools`, `fc-query` (fontconfig)
 
 ---
 
@@ -539,6 +569,17 @@ Step 9 – Verify fonts in generated PDFs
 ./04-ReportsFonts/pdf_font_verify.sh /path/to/test.pdf
 
 Expected: type=TrueType  emb=yes  sub=yes  for all fonts
+
+
+Step 10 – If the HTML parameter form shows wrong glyphs (Symbol/Greek)
+─────────────────────────────────────────────────────────────────────────
+# PDF output can be correct while the HTML parameter form is still broken –
+# it uses a separate font path (PPD + AFM), not uifont.ali. See
+# HTML_ParameterForm_Fonts.md for the full root-cause background.
+./04-ReportsFonts/paramform_afm_setup.sh              # preview
+./04-ReportsFonts/paramform_afm_setup.sh --apply      # write AFM + PPD entries
+
+kill -TERM $(pgrep -f 'RWEngine name=rwEng-0')         # restart the engine
 ```
 
 ---
@@ -563,11 +604,21 @@ Fix B:   Run uifont_ali_update.sh --apply (generates both family and PS-name
 
 ```
 Symptom: Letters replaced by wrong glyphs (Symbol font substitution)
+
+PDF output (desformat=pdf):
 Cause:   Oracle Reports fell back to Symbol font – font was not found
 Fix:     1. Confirm font TTF is in REPORTS_FONT_DIRECTORY
          2. Confirm uifont.ali has correct [PDF:Subset] entry for that font name
          3. Confirm REPORTS_ENHANCED_FONTHANDLING=yes is active in JVM process
          4. Restart Reports Server
+
+HTML output / HTML parameter form (desformat=html/htmlcss, or the parameter
+screen itself) – a DIFFERENT, independent font path, uifont.ali is NOT used:
+Cause:   The "screen printer" (screenprinter.ppd + AFM files) has no AFM for
+         the requested font and falls back to *DefaultFont or Symbol
+Fix:     Run paramform_afm_setup.sh --apply (generates AFMs + *Font PPD
+         entries), then restart the Reports engine. Full root-cause writeup
+         and manual steps: HTML_ParameterForm_Fonts.md
 ```
 
 ### Font name mismatch (PS name vs fc-query family name)
