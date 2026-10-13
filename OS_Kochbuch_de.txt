@@ -1,0 +1,614 @@
+================================================================================
+  Oracle Linux 9 – Betriebssystem-Vorbereitung fuer FMW 14.1.2 (Reports)
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
+  Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports (kein Forms)
+  Erstellt   : 2026-10
+  Grundlage  : IHateWeblogic/09-Install/00-04 (Gunther Pipperr)
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  - root-Zugriff (oder oracle-User mit passwortlosem sudo) fuer alle
+    Schritte dieses Kochbuchs
+  - Diese Anleitung nutzt als Beispiel eine bestehende Referenzumgebung.
+    Werte an die eigene Installation anpassen.
+
+  Wichtige Pfade und Variablen (einmalig setzen, dann in allen Schritten
+  verwenden):
+
+    export ORACLE_BASE=/u01/oracle
+    export ORACLE_HOME=/u01/oracle/fmw
+    export JDK_HOME=/u01/oracle/java/jdk-21
+    export PATCH_STORAGE=/u01/oracle/patch_storage
+    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export DOMAIN_NAME=reportRpgpi
+    export WLS_MANAGED_SERVER=reportRpgpi
+    export WLS_SERVER_FQDN=wls01.company.local
+    export WLS_ADMIN_PORT=7001
+    export WLS_REPORTS_PORT=9002
+    export WLS_NODEMANAGER_PORT=5556
+
+  Hinweis zu WLS_MANAGED_SERVER: In vielen Oracle-Beispielen heisst der
+  Reports-Managed-Server "WLS_REPORTS". In dieser Referenzumgebung wurde
+  er bewusst wie die Domain selbst benannt ("reportRpgpi") - beide
+  Varianten sind technisch gleichwertig, wichtig ist nur Konsistenz in
+  allen folgenden Konfigurationsdateien.
+
+
+================================================================================
+SCHRITT 1: Hostname, DNS und Zeitsynchronisation  (als root)
+================================================================================
+
+  # Kurzer und vollqualifizierter Hostname muessen zusammenpassen und
+  # DNS-aufloesbar sein - WebLogic/Forms&Reports reagieren empfindlich auf
+  # falsch konfigurierte Hostnamen (T3-Verbindungsprobleme, falsche
+  # Redirect-URLs).
+  hostname
+  hostname -f
+  hostnamectl status
+
+  # /etc/hosts PRUEFEN: FQDN muss VOR dem Kurznamen stehen, sonst liefert
+  # "hostname -f" den Kurznamen zurueck.
+  #   Falsch:  192.168.1.10  wls01  wls01.company.local
+  #   Richtig: 192.168.1.10  wls01.company.local  wls01
+  grep -i "$(hostname)" /etc/hosts
+
+  # Forward-DNS pruefen (muss die eigene IP liefern, nicht leer/loopback)
+  getent hosts "$(hostname -f)"
+  dig +short "$(hostname -f)" A
+
+  # Reverse-DNS (PTR) pruefen - nur Warnung, kein Hard-Fail, wenn nicht
+  # gesetzt, aber fuer sauberen Betrieb empfohlen
+  dig -x "$(hostname -I | awk '{print $1}')" +short
+
+  # Resolver-Konfiguration pruefen: nameserver + search/domain muessen
+  # gesetzt sein
+  cat /etc/resolv.conf
+  grep '^hosts:' /etc/nsswitch.conf
+  # Erwartet: "hosts: files dns" (files VOR dns)
+
+  # IPv6 deaktivieren (WebLogic/Node Manager Listen-Adressen sind sonst
+  # instabil zwischen 127.0.0.1 und ::1)
+  sysctl -n net.ipv6.conf.all.disable_ipv6
+  cat >> /etc/sysctl.d/99-oracle-fmw.conf << 'EOF'
+net.ipv6.conf.all.disable_ipv6     = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF
+  sysctl --system
+
+  # localhost MUSS auf IPv4 (127.0.0.1) aufloesen, nicht auf ::1 - sonst
+  # binden manche JVM-Prozesse auf die falsche Adresse.
+  getent -s files hosts localhost
+  # Falls hier "::1" statt "127.0.0.1" erscheint, in /etc/hosts die Zeile
+  # fuer ::1 korrigieren:
+  #   Vorher (falsch):
+  #     ::1   localhost localhost.localdomain localhost6 localhost6.localdomain6
+  #   Nachher (richtig):
+  #     ::1   localhost6 localhost6.localdomain6
+
+  # Zeitsynchronisation (chrony) - WebLogic/OPSS-Zertifikatspruefungen
+  # reagieren empfindlich auf Zeitabweichungen zwischen Knoten.
+  dnf install -y chrony
+  systemctl enable chronyd
+
+  # Deutsche NTP-Pools eintragen
+  cat >> /etc/chrony.conf << 'EOF'
+pool 0.de.pool.ntp.org iburst
+pool 1.de.pool.ntp.org iburst
+EOF
+  systemctl restart chronyd
+
+  # Kontrolle: Synchronisation aktiv?
+  chronyc -n sources -v
+  chronyc -n tracking
+  timedatectl show --property=NTPSynchronized
+  # Hardware-Uhr einmalig nach Sync schreiben
+  hwclock -w
+
+
+================================================================================
+SCHRITT 2: OS-Basiskonfiguration  (als root)
+================================================================================
+
+  # SELinux deaktivieren (Oracle FMW 14.1.2 wird nur im permissiven/
+  # deaktivierten Modus unterstuetzt). ERFORDERT NEUSTART.
+  getenforce
+  cp /etc/selinux/config /etc/selinux/config.bak_$(date +%Y%m%d_%H%M%S)
+  sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+
+  # EPEL-Repository fuer zusaetzliche Pakete (z.B. easy-rsa fuer SSL)
+  dnf install -y oracle-epel-release-el9
+
+  # System aktualisieren (kann uebersprungen werden, wenn Patch-Level
+  # bereits freigegeben ist)
+  dnf check-update --quiet
+  dnf upgrade --refresh -y
+
+  # Kernel-Parameter fuer Oracle FMW/WebLogic setzen. Werte stammen aus
+  # einer realen, bestaetigten Produktivumgebung (100-500 gleichzeitige
+  # Sessions), nicht nur aus generischer Oracle-Dokumentation.
+  cat > /etc/sysctl.d/99-oracle-fmw.conf << 'EOF'
+# Oracle FMW 14.1.2 - Kernel-Parameter fuer WebLogic / Reports
+kernel.shmmax         = 8318808064
+kernel.shmall         = 2030959
+kernel.sem            = 250 32000 100 128
+kernel.shmmni         = 4096
+fs.file-max           = 6815744
+fs.aio-max-nr         = 1048576
+net.core.rmem_default = 262144
+net.core.rmem_max     = 4194304
+net.core.wmem_default = 262144
+net.core.wmem_max     = 4194304
+net.ipv4.ip_local_port_range = 9000 65500
+vm.swappiness         = 10
+kernel.panic_on_oops  = 1
+fs.suid_dumpable      = 1
+kernel.core_uses_pid  = 1
+kernel.core_pattern   = /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
+EOF
+  sysctl --system
+
+  # WICHTIG - Konflikt-Check: Da die Datenbank bei diesem Kunden EXTERN
+  # betrieben wird (kein lokales DB-Preinstall-RPM auf diesem Host), darf
+  # hier KEIN anderes Paket (z.B. oracle-database-preinstall-*) bereits
+  # andere shmmax/shmall-Werte gesetzt haben - diese wuerden /etc/sysctl.conf
+  # als zuletzt geladene Datei die obigen Werte sonst stillschweigend
+  # ueberschreiben. Pruefen:
+  grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null
+  # Falls ein Konflikt gefunden wird (z.B. durch ein DB-Preinstall-Paket),
+  # die abweichende Zeile sichern und auskommentieren:
+  #   cp /etc/sysctl.conf /etc/sysctl.conf.bak_$(date +%Y%m%d)
+  #   sed -i 's/^kernel\.shmmax[[:space:]]*=/# [oracle-fmw] kernel.shmmax =/' /etc/sysctl.conf
+  #   sysctl --system
+
+  # Transparent HugePages deaktivieren (kann JVM-Pausen/GC-Spitzen
+  # verursachen). ERFORDERT NEUSTART.
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+  grubby --update-kernel=ALL --args="transparent_hugepage=never"
+
+  # /dev/shm (tmpfs) muss mind. 25% des RAM gross sein (min. 2 GB) und
+  # darf NICHT "noexec" gesetzt haben (JVM braucht Exec-Rechte dort).
+  df -h /dev/shm
+  grep /dev/shm /etc/fstab
+  # Beispiel-Eintrag in /etc/fstab (N = Groesse in MB, z.B. 8192 fuer 8 GB):
+  #   tmpfs /dev/shm tmpfs rw,exec,size=8192M 0 0
+  mount -o remount /dev/shm
+
+  # Swap-Speicher (OUI verlangt mind. 512 MB, empfohlen min. 2 GB)
+  free -h
+  fallocate -l 2G /u01/oracle/swapfile
+  chmod 600 /u01/oracle/swapfile
+  mkswap /u01/oracle/swapfile
+  swapon /u01/oracle/swapfile
+  echo "/u01/oracle/swapfile none swap sw 0 0" >> /etc/fstab
+
+  # Core-Dump-Verzeichnis anlegen (777, da sowohl oracle als auch native
+  # Prozesse dorthin schreiben muessen)
+  mkdir -p /var/tmp/core
+  chmod 777 /var/tmp/core
+
+  # Firewall: HTTP/HTTPS fuer Nginx oeffnen, WebLogic-Ports NICHT extern
+  # freigeben (nur ueber den Reverse-Proxy erreichbar)
+  firewall-cmd --state
+  firewall-cmd --permanent --add-port=80/tcp
+  firewall-cmd --permanent --add-port=443/tcp
+  firewall-cmd --reload
+  # Kontrolle: 7001/9002/5556 duerfen HIER NICHT auftauchen
+  firewall-cmd --list-ports
+
+  # >>> AB HIER NEUSTART ERFORDERLICH (SELinux + THP-Kernel-Parameter) <<<
+  reboot
+
+  # Nach dem Neustart pruefen:
+  getenforce                                                   # Disabled
+  cat /sys/kernel/mm/transparent_hugepage/enabled              # [never]
+
+
+================================================================================
+SCHRITT 3: Erforderliche Pakete installieren  (als root)
+================================================================================
+
+  # 1) FMW-Basisbibliotheken (Pflicht fuer den Installer, motif/motif-devel
+  #    wird vom Installer explizit per Namen geprueft)
+  dnf install -y \
+      binutils compat-openssl11 cups-libs \
+      gcc gcc-c++ \
+      glibc glibc-devel ksh \
+      libaio libaio-devel libX11 libXau libXi libXrender libXtst \
+      libgcc libstdc++ libstdc++-devel libnsl \
+      make motif motif-devel \
+      net-tools nfs-utils numactl \
+      unzip wget curl tar
+
+  # 2) Font-Stack (fuer Reports PDF-Rendering, siehe Font_kochbuch_de.txt
+  #    fuer die eigentliche Font-Konfiguration)
+  dnf install -y \
+      fontconfig freetype \
+      dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
+      dejavu-lgc-sans-fonts dejavu-lgc-serif-fonts \
+      liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
+      xorg-x11-utils xorg-x11-fonts-Type1
+
+  # 3) Admin-/Monitoring-Werkzeuge (praktisch fuer Diagnose, nicht
+  #    zwingend vom Installer gefordert)
+  dnf install -y \
+      sysstat smartmontools nmon tmux \
+      lsof strace psmisc xorg-x11-xauth \
+      bind-utils tcpdump nmap-ncat
+
+  # Hinweis OL9 vs. aeltere Oracle Linux Versionen:
+  #   xauth -> xorg-x11-xauth, nc -> nmap-ncat
+  #   compat-libcap1 / compat-libstdc++-33 / redhat-lsb* / 32-Bit(i686)
+  #   Pakete werden auf OL9 NICHT mehr benoetigt.
+
+
+================================================================================
+SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
+================================================================================
+
+  # Oracle JDK 21 wird fuer WebLogic benoetigt (NICHT OpenJDK - Oracle
+  # Support fragt beim ersten SR immer nach dem JDK-Hersteller).
+  # Lizenzhinweis: Oracle JDK ist kostenlos, solange es ausschliesslich
+  # als Laufzeitumgebung fuer Oracle-Produkte (hier: WebLogic) verwendet
+  # wird (Doc ID 1557737.1).
+
+  mkdir -p /u01/oracle/java
+
+  # Tar.gz-Variante (empfohlen - haelt das JDK unabhaengig vom FMW_HOME):
+  tar xf jdk-21_linux-x64_bin.tar.gz -C /u01/oracle/java/
+
+  # Stabilen Symlink anlegen, damit Versions-Updates spaeter keine
+  # Pfadaenderungen in environment.conf/.bash_profile erfordern:
+  ln -sfn /u01/oracle/java/jdk-21.0.10 /u01/oracle/java/jdk-21
+
+  # Bei "alternatives" registrieren (aendert NICHT den Systemstandard -
+  # WebLogic nutzt immer explizit $JAVA_HOME, nie /usr/bin/java):
+  alternatives --install /usr/bin/java java /u01/oracle/java/jdk-21/bin/java 21000
+  alternatives --display java
+
+  # jps-Symlink (praktisch fuer Prozessdiagnose):
+  ln -sf /u01/oracle/java/jdk-21/bin/jps /usr/bin/jps
+
+  # SecureRandom-Fix: vermeidet langsamen WebLogic-Start durch
+  # blockierende Entropie-Quelle (/dev/random statt /dev/urandom).
+  sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
+      /u01/oracle/java/jdk-21/conf/security/java.security
+
+  # WICHTIG: Nach der FMW-Installation (naechstes Kochbuch) hat WebLogic
+  # eine EIGENE, eingebettete JDK mit einer EIGENEN java.security-Datei
+  # unter $ORACLE_HOME/oracle_common/jdk/. Dieser Fix muss dort WIEDERHOLT
+  # werden - siehe FMW_Kochbuch_de.txt, Abschnitt "JVM-Einstellungen".
+
+  # Kontrolle:
+  $JDK_HOME/bin/java -version
+  # Erwartet: "java version 21..." und "Java(TM) SE Runtime Environment"
+  # (NICHT "OpenJDK")
+
+
+================================================================================
+SCHRITT 5: oracle-Benutzer und Verzeichnisstruktur anlegen  (als root)
+================================================================================
+
+  # OS-Gruppe fuer die Oracle-Software
+  groupadd -g 1000 oinstall
+
+  # oracle-Betriebssystembenutzer (nur oinstall noetig - KEINE dba/oper
+  # Gruppen, da die Datenbank extern betrieben wird und hier nicht lokal
+  # administriert werden muss)
+  useradd -m -u 1100 -g oinstall -s /bin/bash -d /home/oracle oracle
+
+  # Ressourcenlimits fuer den oracle-User. NICHT direkt in limits.conf
+  # schreiben, sondern in eine eigene Datei unter limits.d/ (wird nach
+  # limits.conf geladen und ist daher wirksam).
+  cat > /etc/security/limits.d/oracle-fmw.conf << 'EOF'
+oracle   soft   nofile     65536
+oracle   hard   nofile     65536
+oracle   soft   nproc      16384
+oracle   hard   nproc      16384
+oracle   soft   stack      10240
+oracle   hard   stack      32768
+oracle   soft   core       2097152
+oracle   hard   core       2097152
+oracle   soft   memlock    3145728
+oracle   hard   memlock    3145728
+EOF
+
+  # Hinweis zur Groessenordnung: 65536/16384 ist das Minimum fuer kleine
+  # Installationen (<100 gleichzeitige Forms/Reports-Sessions). Bei einer
+  # realen Produktivumgebung mit 100-500 gleichzeitigen Sessions hat sich
+  # nofile/nproc = 81920/81920 als tragfaehiger Wert bestaetigt - bei
+  # entsprechender Nutzerzahl diese Werte stattdessen eintragen.
+
+  # Kontrolle: laedt PAM die Limits ueberhaupt?
+  grep pam_limits /etc/pam.d/system-auth
+  # Erwartet: "session required pam_limits.so"
+
+  # .bash_profile fuer oracle ergaenzen
+  cat >> /home/oracle/.bash_profile << 'EOF'
+
+# Oracle FMW Umgebung
+export ORACLE_BASE=/u01/oracle
+export ORACLE_HOME=/u01/oracle/fmw
+export JAVA_HOME=/u01/oracle/java/jdk-21
+export PATH=$JAVA_HOME/bin:$ORACLE_HOME/OPatch:$PATH
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
+export TMP=/tmp
+export TMPDIR=/tmp
+umask 0022
+EOF
+
+  # Hinweis: JAVA_HOME zeigt hier bewusst auf die STANDALONE Oracle JDK
+  # (Installationszeit). Nach der FMW-Installation nutzt WebLogic selbst
+  # intern eine ANDERE, FMW-eigene JDK unter
+  # $ORACLE_HOME/oracle_common/jdk - diese beiden Pfade nicht verwechseln.
+
+  # Systemweite Locale
+  localectl set-locale LANG=en_US.UTF-8
+
+  # sudo-Rechte fuer oracle (nur die noetigsten Befehle, passwortlos)
+  cat > /etc/sudoers.d/oracle-fmw << 'EOF'
+oracle ALL=(root) NOPASSWD: /usr/bin/dnf install *
+oracle ALL=(root) NOPASSWD: /usr/bin/dnf update *
+oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl -p *
+oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl --system
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl start nginx
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl stop nginx
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl enable nginx
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
+oracle ALL=(root) NOPASSWD: /usr/bin/firewall-cmd *
+oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
+EOF
+  chmod 440 /etc/sudoers.d/oracle-fmw
+  visudo -c
+
+  # Verzeichnisstruktur anlegen
+  mkdir -p /u01/oracle
+  mkdir -p /u01/oracle/fmw
+  mkdir -p /u01/oracle/java
+  mkdir -p /u01/user_projects/domains
+  mkdir -p /u01/oracle/patch_storage
+  mkdir -p /u01/oracle/patch_storage/bin
+  mkdir -p /var/crash
+  mkdir -p /u01/app/oraInventory
+  chown -R oracle:oinstall /u01/oracle /u01/user_projects
+  chmod 750 /u01/app/oraInventory
+
+  # Oracle-Inventory-Registrierung (wird von JEDEM Oracle-Installer und
+  # OPatch als erstes gesucht)
+  cat > /etc/oraInst.loc << 'EOF'
+inventory_loc=/u01/app/oraInventory
+inst_group=oinstall
+EOF
+
+  # Letzter root-Schritt: Besitzrechte am Skript-/Arbeitsverzeichnis
+  # uebergeben, danach als oracle weiterarbeiten
+  su - oracle
+
+
+================================================================================
+SCHRITT 6: Vorab-Pruefungen  (als oracle, rein informativ)
+================================================================================
+
+  # OS-Version
+  cat /etc/oracle-release
+  uname -r
+
+  # Arbeitsspeicher und Festplattenplatz
+  free -g
+  df -h $ORACLE_HOME $ORACLE_BASE $PATCH_STORAGE
+
+  # Java-Version
+  $JDK_HOME/bin/java -version
+
+  # Ports MUESSEN vor der Installation frei sein (umgekehrte Logik zu
+  # einem spaeteren Betriebs-Check!)
+  ss -tlnp | grep -E ':7001|:9002|:5556'
+  # Erwartet: KEINE Ausgabe
+
+  # Ressourcenlimits des oracle-Users pruefen
+  ulimit -a | grep -E "open files|max user processes"
+
+  # Datenbank-Erreichbarkeit (reiner Lesetest - die Datenbank selbst wird
+  # NICHT angelegt, sie existiert bereits extern)
+  nc -zv $DB_HOST $DB_PORT
+  # Alternativ ausfuehrlicher per tnsping/sqlplus, falls Oracle-Client
+  # lokal vorhanden:
+  #   tnsping "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
+
+
+================================================================================
+SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
+================================================================================
+
+  # Patch-/Installer-Nummern aendern sich mit jedem Quartal - die hier
+  # gezeigten sind ein Beispielstand und MUESSEN vor der Installation
+  # gegen die aktuelle Oracle-Dokumentation geprueft werden:
+  #   1. Google: "<Monat> <Jahr> Critical Patch Update (CPU) Oracle Fusion
+  #      Middleware Infrastructure 14.1.2.0.0"
+  #   2. oracle.com/security-alerts/cpu<mon><jahr>.html -> Eintrag
+  #      "Oracle WebLogic Server" -> MOS Doc ID
+  #   3. Im Patch-Readme auf MOS: Abschnitt "Prerequisites" nennt die
+  #      benoetigte OPatch-Version + deren eigene Patch-Nummer
+
+  # Verzeichnisstruktur fuer Installationsmedien
+  mkdir -p $PATCH_STORAGE/wls $PATCH_STORAGE/fr $PATCH_STORAGE/patches
+
+  # Installer-ZIPs ablegen (aus eDelivery/MOS-Download, manuell kopiert
+  # oder per sftp uebertragen) und Pruefsumme kontrollieren:
+  cp V1045135-01.zip $PATCH_STORAGE/wls/        # FMW Infrastructure
+  cp V1045121-01.zip $PATCH_STORAGE/fr/         # Forms & Reports (ein ZIP fuer beide)
+  sha256sum $PATCH_STORAGE/wls/V1045135-01.zip
+  sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
+  # Pruefsummen mit dem Wert aus dem eDelivery-Download-Portal vergleichen
+
+  # Entpacken
+  unzip $PATCH_STORAGE/wls/V1045135-01.zip -d $PATCH_STORAGE/wls/
+  unzip $PATCH_STORAGE/fr/V1045121-01.zip  -d $PATCH_STORAGE/fr/
+
+  # Patches: Download via MOS (My Oracle Support), entweder manuell im
+  # Browser oder per Kommandozeilen-Werkzeug (z.B. getMOSPatch.jar,
+  # https://github.com/MarisElsins/getMOSPatch), Beispiel:
+  #   mkdir -p $PATCH_STORAGE/patches/<PATCHNUMMER>
+  #   cd $PATCH_STORAGE/patches/<PATCHNUMMER>
+  #   java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
+  #       MOSUser="name@company.com" MOSPass="***" \
+  #       patch=<PATCHNUMMER> download=all
+
+  # Ergebnis-Verzeichnisstruktur:
+  #   $PATCH_STORAGE/
+  #   ├── bin/{getMOSPatch.jar, .getMOSPatch.cfg}
+  #   ├── wls/{V1045135-01.zip, fmw_14.1.2.0.0_infrastructure.jar}
+  #   ├── fr/{V1045121-01.zip, fmw_14.1.2.0.0_fr_linux64.bin}
+  #   └── patches/{<OPatch-Patch>/, <CPU-Patch>/, <Reports-QPR-Patch>/}
+
+
+================================================================================
+SCHRITT 8: Nginx als Reverse-Proxy installieren (ohne SSL)  (als root)
+================================================================================
+
+  # Nginx terminiert spaeter TLS vor WebLogic - WebLogic selbst laeuft
+  # nur auf localhost/127.0.0.1 ohne eigenes Zertifikat (siehe
+  # FMW_Kochbuch_de.txt fuer die SSL-Einrichtung).
+  dnf install -y nginx
+  systemctl enable nginx
+
+  mkdir -p /etc/nginx/ssl
+  chmod 700 /etc/nginx/ssl
+
+  # Default-Konfiguration deaktivieren (kollidiert sonst mit unserem
+  # eigenen Server-Block)
+  mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.disabled 2>/dev/null
+
+  # Eigene Konfiguration anlegen - NUR Reports-Location (kein /forms/-Block,
+  # da dieser Kunde ausschliesslich Reports nutzt)
+  cat > /etc/nginx/conf.d/oracle-wls.conf << EOF
+upstream wls_reports { server 127.0.0.1:${WLS_REPORTS_PORT}; keepalive 32; }
+upstream wls_admin   { server 127.0.0.1:${WLS_ADMIN_PORT}; keepalive 16; }
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${WLS_SERVER_FQDN} _;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${WLS_SERVER_FQDN};
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256';
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json application/xml text/xml image/svg+xml;
+
+    proxy_http_version      1.1;
+    proxy_set_header        Host               \$host;
+    proxy_set_header        X-Real-IP          \$remote_addr;
+    proxy_set_header        X-Forwarded-For    \$proxy_add_x_forwarded_for;
+    proxy_set_header        X-Forwarded-Proto  https;
+    proxy_set_header        Connection         "";
+    proxy_connect_timeout   60s;
+    proxy_read_timeout      120s;
+    proxy_send_timeout      120s;
+    client_max_body_size    100m;
+    proxy_set_header        WL-Proxy-Client-IP \$remote_addr;
+    proxy_set_header        WL-Proxy-SSL       true;
+
+    location /reports/ {
+        proxy_pass http://wls_reports;
+        proxy_cookie_path /reports /reports;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+    location /reports  { return 301 /reports/; }
+
+    location /console {
+        allow 10.0.0.0/8;
+        deny  all;
+        proxy_pass http://wls_admin;
+        proxy_set_header Connection "";
+    }
+    location /em {
+        allow 10.0.0.0/8;
+        deny  all;
+        proxy_pass http://wls_admin;
+    }
+    location /nginx-health { access_log off; return 200 "OK\n"; add_header Content-Type text/plain; }
+    location ~ /\. { deny all; access_log off; }
+}
+EOF
+
+  # Kontrolle (schlaegt noch fehl, solange kein Zertifikat unter
+  # /etc/nginx/ssl/ liegt - das passiert erst im FMW-Kochbuch):
+  grep -q 'include /etc/nginx/conf.d' /etc/nginx/nginx.conf
+  nginx -t
+
+  # WebLogic-Ports bleiben in der Firewall geschlossen - Zugriff nur
+  # ueber Nginx (Port 80/443). Nginx selbst wird erst gestartet, nachdem
+  # ein Zertifikat vorliegt (siehe FMW_Kochbuch_de.txt).
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: "hostname -f" liefert nur den Kurznamen
+  Ursache: /etc/hosts hat den Kurznamen VOR dem FQDN stehen
+  Loesung: Reihenfolge in /etc/hosts korrigieren (FQDN zuerst)
+
+  Problem: sysctl-Werte wirken nicht / werden nach Neustart wieder anders
+  Ursache: Ein anderes *.conf in /etc/sysctl.d/ oder /etc/sysctl.conf
+           ueberschreibt 99-oracle-fmw.conf (laedt alphabetisch, zuletzt
+           gewinnt - /etc/sysctl.conf laedt immer zuletzt)
+  Loesung: grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf
+           Konfliktzeile sichern und auskommentieren, sysctl --system
+
+  Problem: WebLogic-Start dauert sehr lange (mehrere Minuten bis zur
+           ersten Logzeile)
+  Ursache: SecureRandom liest aus /dev/random (blockierend) statt
+           /dev/urandom
+  Loesung: Schritt 4 fuer BEIDE JDKs durchfuehren (Standalone-JDK hier UND
+           die FMW-eigene JDK nach der Installation, siehe
+           FMW_Kochbuch_de.txt)
+
+  Problem: Installer bricht mit "motif not found" ab
+  Ursache: Paket motif/motif-devel fehlt (wird vom Installer per exaktem
+           Namen gesucht, keine Alternative akzeptiert)
+  Loesung: dnf install -y motif motif-devel (Schritt 3 erneut ausfuehren)
+
+  Problem: nginx -t meldet "cannot load certificate" beim ersten Test
+  Ursache: Zertifikat wird erst im naechsten Kochbuch (FMW_Kochbuch_de.txt)
+           abgelegt - an dieser Stelle normal und zu erwarten
+  Loesung: Weiter mit SSL_Kochbuch_de.txt + FMW_Kochbuch_de.txt
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Ausfuehrliche Dokumentation: IHateWeblogic/09-Install/README.md
+  Automatisierte Variante:     09-Install/00-root_os_network.sh --apply
+                                09-Install/01-root_os_baseline.sh --apply
+                                09-Install/02-root_os_packages.sh --apply
+                                09-Install/02b-root_os_java.sh --apply
+                                09-Install/03-root_user_oracle.sh --apply
+                                09-Install/04-oracle_pre_checks.sh
+                                09-Install/04-oracle_pre_download.sh --apply
+                                09-Install/04-root_nginx.sh --apply
+
+  Naechstes Kochbuch: FMW_Kochbuch_de.txt (WebLogic/FMW-Infrastruktur
+  installieren, patchen, SSL-Zertifikat ausrollen)
+
+================================================================================

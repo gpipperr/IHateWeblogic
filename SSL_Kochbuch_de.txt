@@ -1,0 +1,325 @@
+================================================================================
+  SSL-Zertifikate fuer WebLogic/Nginx erzeugen und pruefen
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
+  Umgebung   : Oracle Linux 9, Nginx als TLS-terminierender Reverse-Proxy
+  Erstellt   : 2026-10
+  Grundlage  : IHateWeblogic/08-SSL (Gunther Pipperr)
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  - Dieses Kochbuch erzeugt NUR das Zertifikat/den privaten Schluessel.
+    Das Ausrollen auf Nginx (Kopieren nach /etc/nginx/ssl/, nginx -t,
+    Neustart) steht im FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf
+    Nginx ausrollen".
+  - Architektur-Hinweis: In diesem Setup haelt WEDER WebLogic noch
+    irgendein Java-Keystore (JKS/PKCS12) das Zertifikat - TLS wird
+    AUSSCHLIESSLICH von Nginx terminiert. WebLogic selbst laeuft nur
+    lokal auf 127.0.0.1 ohne eigenes Zertifikat. Es sind daher an keiner
+    Stelle keytool- oder WLST-SSL-Befehle noetig.
+
+    export SSL_CN=wls01.company.local
+    export SSL_COUNTRY=DE
+    export SSL_STATE=Bavaria
+    export SSL_CITY=Munich
+    export SSL_ORG="Company GmbH"
+    export SSL_ORG_UNIT=IT
+    export SSL_KEY_SIZE=4096
+    export SSL_DAYS=825
+
+    export SSL_CERT_FILE=/u01/oracle/certs/server.crt
+    export SSL_KEY_FILE=/u01/oracle/certs/server.key
+    export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt
+    export SSL_CSR_FILE=/u01/oracle/certs/server.csr
+
+  Alle Befehle in diesem Kochbuch laufen als oracle-User, es sind KEINE
+  root-Rechte und keine Backup-Automatik vorhanden - vor jedem Austausch
+  eines produktiven Zertifikats daher immer erst Schritt "Backup vor
+  Zertifikatswechsel" ausfuehren.
+
+  Drei Varianten stehen zur Auswahl - je nachdem, woher das Zertifikat
+  stammen soll:
+    Option A: Selbstsigniert (schnell, aber Browser-Warnung)
+    Option B: Interne CA via Easy-RSA (fuer interne/Test-Umgebungen,
+              Clients muessen der CA vertrauen)
+    Option C: Externe/oeffentliche CA (produktionstauglich, benoetigt
+              einen manuellen Zwischenschritt bei der CA)
+
+
+================================================================================
+VORBEREITUNG: Verzeichnis anlegen  (als oracle)
+================================================================================
+
+  mkdir -p /u01/oracle/certs
+  chmod 700 /u01/oracle/certs
+
+
+================================================================================
+OPTION A: Selbstsigniertes Zertifikat  (als oracle)
+================================================================================
+
+  # Fuer Test-/Interimsbetrieb geeignet. Browser zeigen eine
+  # Sicherheitswarnung an, bis das Zertifikat manuell als vertrauenswuerdig
+  # markiert wird.
+
+  # Temporaere OpenSSL-Konfiguration mit Subject Alternative Name (SAN) -
+  # moderne Browser ignorieren den CN und verlangen SAN.
+  cat > /tmp/ssl_openssl.cnf << EOF
+[req]
+distinguished_name = dn
+x509_extensions = san_ext
+prompt = no
+
+[dn]
+C  = ${SSL_COUNTRY}
+ST = ${SSL_STATE}
+L  = ${SSL_CITY}
+O  = ${SSL_ORG}
+OU = ${SSL_ORG_UNIT}
+CN = ${SSL_CN}
+
+[san_ext]
+subjectAltName = DNS:${SSL_CN}
+keyUsage = critical, keyEncipherment, digitalSignature
+extendedKeyUsage = serverAuth
+EOF
+  chmod 600 /tmp/ssl_openssl.cnf
+
+  # Schluessel + selbstsigniertes Zertifikat in einem Schritt erzeugen
+  # (RSA 4096 Bit, 825 Tage Gueltigkeit - 825 Tage ist das von Browsern
+  # akzeptierte Maximum fuer oeffentliche Zertifikate, fuer interne
+  # Zertifikate aber ebenfalls eine sinnvolle Obergrenze)
+  openssl req -x509 \
+      -newkey rsa:${SSL_KEY_SIZE} \
+      -keyout "$SSL_KEY_FILE" \
+      -out    "$SSL_CERT_FILE" \
+      -days   "$SSL_DAYS" \
+      -nodes \
+      -config /tmp/ssl_openssl.cnf
+
+  chmod 600 "$SSL_KEY_FILE"
+  chmod 644 "$SSL_CERT_FILE"
+  rm -f /tmp/ssl_openssl.cnf
+
+  # Kontrolle: Inhalt pruefen
+  openssl x509 -noout -subject -issuer -enddate -in "$SSL_CERT_FILE"
+  openssl x509 -noout -text -in "$SSL_CERT_FILE" | grep -A2 "Subject Alternative"
+
+  # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
+  # ausrollen".
+
+
+================================================================================
+OPTION B: Interne CA mit Easy-RSA  (als oracle)
+================================================================================
+
+  # Geeignet, wenn mehrere interne Hosts/Clients demselben, selbst
+  # betriebenen Vertrauensanker folgen sollen (einmal CA-Root verteilen,
+  # danach beliebig viele Server-Zertifikate ohne Browser-Warnung).
+
+  dnf install -y easy-rsa      # ggf. vorher: dnf install -y oracle-epel-release-el9
+
+  export EASYRSA_PKI_DIR=/srv/gpi_ca
+  mkdir -p "$EASYRSA_PKI_DIR"
+  chmod 700 "$EASYRSA_PKI_DIR"
+  ln -s /usr/share/easy-rsa/3 "$EASYRSA_PKI_DIR/easy-rsa"
+
+  cd "$EASYRSA_PKI_DIR"
+  ./easy-rsa/easyrsa init-pki
+
+  # pki/vars anlegen (CA-Gueltigkeit 10 Jahre, Zertifikats-Gueltigkeit wie
+  # oben definiert, SAN automatisch aus dem CN ableiten)
+  cat > pki/vars << EOF
+set_var EASYRSA_CA_EXPIRE    3650
+set_var EASYRSA_CERT_EXPIRE  ${SSL_DAYS}
+set_var EASYRSA_REQ_COUNTRY  "${SSL_COUNTRY}"
+set_var EASYRSA_REQ_PROVINCE "${SSL_STATE}"
+set_var EASYRSA_REQ_CITY     "${SSL_CITY}"
+set_var EASYRSA_REQ_ORG      "${SSL_ORG}"
+set_var EASYRSA_REQ_OU       "${SSL_ORG_UNIT}"
+set_var EASYRSA_REQ_CN       "${SSL_ORG} CA"
+set_var EASYRSA_ALGO         ec
+set_var EASYRSA_CURVE        secp384r1
+set_var EASYRSA_AUTO_SAN     1
+EOF
+
+  # CA erzeugen (fragt interaktiv nach einer CA-Passphrase - gut merken,
+  # wird fuer jedes weitere Server-Zertifikat benoetigt)
+  ./easy-rsa/easyrsa build-ca
+
+  # Server-Zertifikat fuer den konkreten Hostnamen ausstellen
+  ./easy-rsa/easyrsa build-server-full "$SSL_CN" nopass
+
+  # In die Zielpfade kopieren
+  cp pki/issued/${SSL_CN}.crt  "$SSL_CERT_FILE"  && chmod 644 "$SSL_CERT_FILE"
+  cp pki/private/${SSL_CN}.key "$SSL_KEY_FILE"   && chmod 600 "$SSL_KEY_FILE"
+  cp pki/ca.crt                "$SSL_CHAIN_FILE" && chmod 644 "$SSL_CHAIN_FILE"
+
+  # Kontrolle
+  openssl x509 -in pki/issued/${SSL_CN}.crt -noout -text | grep -A2 "Subject Alternative Name"
+
+  # WICHTIG: Die CA-Root (ca.crt) muss auf JEDEM Client, der die Seite
+  # ohne Warnung aufrufen soll, als vertrauenswuerdig importiert werden:
+  cp pki/ca.crt /etc/pki/ca-trust/source/anchors/company-local-ca.crt
+  update-ca-trust
+
+  # Hinweis: Ist bereits ein CA-Zertifikat vorhanden (pki/ca.crt existiert),
+  # fuehrt "easyrsa build-ca" NICHTS erneut aus - zum Neuausstellen muss
+  # das PKI-Verzeichnis geloescht und neu initialisiert werden.
+
+  # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
+  # ausrollen".
+
+
+================================================================================
+OPTION C: Zertifikatsanforderung (CSR) fuer externe/oeffentliche CA
+================================================================================
+
+  # Produktionstauglich, aber nicht vollstaendig automatisierbar: Dieser
+  # Schritt erzeugt nur Schluessel + CSR. Das fertige Zertifikat kommt
+  # anschliessend manuell von der Zertifizierungsstelle zurueck.
+
+  cat > /tmp/ssl_openssl.cnf << EOF
+[req]
+distinguished_name = dn
+req_extensions = san_ext
+prompt = no
+
+[dn]
+C  = ${SSL_COUNTRY}
+ST = ${SSL_STATE}
+L  = ${SSL_CITY}
+O  = ${SSL_ORG}
+OU = ${SSL_ORG_UNIT}
+CN = ${SSL_CN}
+
+[san_ext]
+subjectAltName = DNS:${SSL_CN}
+keyUsage = critical, keyEncipherment, digitalSignature
+extendedKeyUsage = serverAuth
+EOF
+  chmod 600 /tmp/ssl_openssl.cnf
+
+  openssl req -new \
+      -newkey rsa:${SSL_KEY_SIZE} \
+      -keyout "$SSL_KEY_FILE" \
+      -out    "$SSL_CSR_FILE" \
+      -nodes \
+      -config /tmp/ssl_openssl.cnf
+
+  chmod 600 "$SSL_KEY_FILE"
+  rm -f /tmp/ssl_openssl.cnf
+
+  # Kontrolle
+  openssl req -noout -subject -in "$SSL_CSR_FILE"
+  openssl req -noout -text -in "$SSL_CSR_FILE" | grep -A2 "Subject Alternative"
+
+  # MANUELLER ZWISCHENSCHRITT (ausserhalb dieses Kochbuchs):
+  #   1. $SSL_CSR_FILE bei der Zertifizierungsstelle einreichen
+  #   2. $SSL_KEY_FILE bleibt GEHEIM, wird nicht verschickt
+  #   3. Signiertes Zertifikat von der CA zurueck nach $SSL_CERT_FILE
+  #      kopieren (ggf. Zertifikatskette/Chain nach $SSL_CHAIN_FILE)
+
+  # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
+  # ausrollen", SOBALD das signierte Zertifikat vorliegt.
+
+
+================================================================================
+AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
+================================================================================
+
+  # Diese Pruefungen nach dem Ausrollen (siehe FMW_Kochbuch_de.txt)
+  # regelmaessig wiederholen, z.B. per Cronjob.
+
+  NGINX_CERT=/etc/nginx/ssl/fullchain.pem
+  NGINX_KEY=/etc/nginx/ssl/privkey.pem
+
+  # Dateirechte des privaten Schluessels (MUSS 600 sein)
+  stat -c '%a' "$NGINX_KEY"
+
+  # Ablaufdatum
+  openssl x509 -noout -enddate -in "$NGINX_CERT"
+  openssl x509 -noout -checkend 0       -in "$NGINX_CERT"   # bereits abgelaufen?
+  openssl x509 -noout -checkend 2592000 -in "$NGINX_CERT"   # laeuft in <30 Tagen ab?
+
+  # Subject / Issuer / SAN
+  openssl x509 -noout -subject -in "$NGINX_CERT"
+  openssl x509 -noout -issuer  -in "$NGINX_CERT"
+  openssl x509 -noout -text -in "$NGINX_CERT" | grep -A2 "Subject Alternative"
+  # Falls Subject == Issuer: Zertifikat ist selbstsigniert (erwartet bei
+  # Option A, nicht bei B/C)
+
+  # Schluessel und Zertifikat muessen zusammenpassen (gleicher Public Key)
+  openssl x509 -noout -pubkey -in "$NGINX_CERT" | md5sum
+  openssl pkey -pubout -in "$NGINX_KEY" | md5sum
+  # Beide Pruefsummen MUESSEN identisch sein
+
+  # Nginx-Konfiguration: nur moderne TLS-Versionen erlaubt
+  grep "ssl_protocols" /etc/nginx/conf.d/oracle-wls.conf
+  # Darf NICHT SSLv3/TLSv1.0/TLSv1.1 enthalten
+
+  # Live-Test (nur wenn Port 443 bereits lauscht)
+  echo | openssl s_client -connect localhost:443 -brief
+  # Erwartet: "Verify return code: 0" (bei interner CA: nur wenn CA-Root
+  # lokal als vertrauenswuerdig importiert ist, siehe Option B)
+  echo | openssl s_client -connect localhost:443 -tls1
+  # Erwartet: Handshake-Fehler (TLS 1.0 darf nicht angeboten werden)
+  echo | openssl s_client -connect localhost:443 -tls1_2
+  # Erwartet: erfolgreicher Handshake
+
+
+================================================================================
+BACKUP VOR ZERTIFIKATSWECHSEL  (als root, manuell - keine Automatik!)
+================================================================================
+
+  # WICHTIG: Weder die Zertifikatserzeugung noch das Ausrollen (siehe
+  # FMW_Kochbuch_de.txt) legen automatisch ein Backup des vorherigen
+  # Zertifikats an. Vor jeder Erneuerung daher IMMER zuerst:
+
+  cp -a /etc/nginx/ssl /etc/nginx/ssl.bak-$(date +%Y%m%d_%H%M%S)
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: Browser zeigt "Zertifikat nicht vertrauenswuerdig"
+  Ursache: Selbstsigniert (Option A) oder interne CA (Option B) ohne
+           CA-Root-Import auf dem Client
+  Loesung: Bei Option B: CA-Root auf jedem Client importieren
+           (update-ca-trust / Zertifikatsspeicher des Browsers).
+           Bei Option A: kein Fix moeglich ausser Wechsel zu Option B/C.
+
+  Problem: "openssl s_client ... -tls1" schlaegt NICHT fehl
+  Ursache: ssl_protocols in der Nginx-Konfiguration zu permissiv
+  Loesung: In /etc/nginx/conf.d/oracle-wls.conf nur
+           "ssl_protocols TLSv1.2 TLSv1.3;" setzen, nginx -s reload
+
+  Problem: easyrsa build-ca tut nichts / "CA already exists"
+  Ursache: pki/ca.crt existiert bereits (idempotenter Schutz)
+  Loesung: Nur loeschen und neu initialisieren, wenn wirklich eine neue
+           CA gewuenscht ist (betrifft ALLE bisher ausgestellten
+           Zertifikate dieser CA!)
+
+  Problem: Public-Key-Pruefsummen von Zertifikat und Schluessel stimmen
+           nicht ueberein
+  Ursache: Falscher/alter Schluessel wurde ausgerollt
+  Loesung: $SSL_KEY_FILE und $SSL_CERT_FILE aus demselben
+           Erzeugungsvorgang erneut ausrollen
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Ausfuehrliche Dokumentation: IHateWeblogic/08-SSL/README.md
+  Automatisierte Variante:     08-SSL/ssl_prepare_cert.sh SELF|EASYRSA|REQUEST --apply
+                                08-SSL/ssl_config.sh (Audit)
+                                09-Install/05-root_nginx_ssl.sh --apply (Ausrollen)
+
+  Naechster Schritt: FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf
+  Nginx ausrollen"
+
+================================================================================

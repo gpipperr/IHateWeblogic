@@ -1,0 +1,601 @@
+================================================================================
+  Oracle Reports 14.1.2 installieren und konfigurieren (ohne Forms)
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
+  Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
+  Erstellt   : 2026-10
+  Grundlage  : IHateWeblogic/09-Install/06-13 (Gunther Pipperr)
+  Voraussetzung: OS_Kochbuch_de.txt + FMW_Kochbuch_de.txt vollstaendig
+                 durchgefuehrt (WebLogic/FMW-Infrastruktur installiert,
+                 gepatcht, Nginx mit SSL laeuft)
+
+  WICHTIG: Dieses Kochbuch behandelt AUSSCHLIESSLICH Oracle Reports.
+  Alle Forms-spezifischen Schritte (forms_template.jar, WLS_FORMS,
+  Forms-Patch 39842516, Forms-Detaileinstellungen) sind bewusst
+  WEGGELASSEN. Die externe Datenbank wird in keinem Schritt angelegt -
+  es werden nur Schemas in einer bereits bestehenden Datenbank
+  registriert.
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+    export ORACLE_BASE=/u01/oracle
+    export ORACLE_HOME=/u01/oracle/fmw
+    export JDK_HOME=/u01/oracle/java/jdk-21
+    export PATCH_STORAGE=/u01/oracle/patch_storage
+    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export DOMAIN_NAME=reportRpgpi
+    export WLS_MANAGED_SERVER=reportRpgpi
+    export WLS_ADMIN_URL=t3://localhost:7001
+    export WLS_ADMIN_PORT=7001
+    export WLS_REPORTS_PORT=9002
+    export WLS_NODEMANAGER_PORT=5556
+    export REPORTS_TOOLS_INSTANCE=reptools1
+    export REPORTS_SERVER_NAME=repServer01
+    export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+    export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+    export UIFONT_ALI=$REPORTS_ADMIN/uifont.ali
+    export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
+    export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+    export CGICMD_DAT=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/cgicmd.dat
+
+    # Externe, BESTEHENDE Datenbank (wird in diesem Kochbuch NICHT angelegt):
+    export DB_HOST=dbserver01.company.local
+    export DB_PORT=1521
+    export DB_SERVICE=ORCLPDB1
+    export DB_SCHEMA_PREFIX=DEV
+
+  Alle Schritte laufen als oracle-User, ausser ausdruecklich als "root"
+  markiert.
+
+
+================================================================================
+SCHRITT 1: Forms & Reports Software installieren  (als oracle)
+================================================================================
+
+  # Hinweis: Der 14.1.2-Installer liefert IMMER Forms- und
+  # Reports-Binaries gemeinsam aus - einen "Reports-only"-Installertyp
+  # gibt es auf Binaer-Ebene nicht. Die Beschraenkung auf Reports erfolgt
+  # erst spaeter bei der Domain-Erstellung (Schritt 3) ueber die
+  # tatsaechlich verwendeten Konfigurations-Templates.
+
+  cat > $PATCH_STORAGE/fr/fr_install.rsp << 'EOF'
+[ENGINE]
+Response File Version=1.0.0.0.0
+[GENERIC]
+DECLINE_AUTO_UPDATES=true
+MOS_USERNAME=
+MOS_PASSWORD=
+SOFTWARE_UPDATES_PROXY_SERVER=
+SOFTWARE_UPDATES_PROXY_PORT=
+SOFTWARE_UPDATES_PROXY_USER=
+SOFTWARE_UPDATES_PROXY_PASSWORD=
+ORACLE_HOME=/u01/oracle/fmw
+FEDERATED_ORACLE_HOMES=
+INSTALL_TYPE=Forms and Reports Deployment
+JDK_HOME=/u01/oracle/java/jdk-21
+EOF
+
+  export CV_ASSUME_DISTID=OEL8
+
+  # Natives .bin-Installerformat (NICHT "java -jar" wie bei der
+  # FMW-Infrastruktur) - -ignoreSysPrereqs ist hier Standard laut
+  # Oracle-Dokumentation fuer diesen Installer.
+  $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
+      -silent \
+      -responseFile $PATCH_STORAGE/fr/fr_install.rsp \
+      -invPtrLoc /etc/oraInst.loc \
+      -ignoreSysPrereqs \
+      -jreLoc $JDK_HOME
+
+  unset CV_ASSUME_DISTID
+  rm -f $PATCH_STORAGE/fr/fr_install.rsp
+
+  # Dauer: ca. 10-20 Minuten. Installationslog: /u01/app/oraInventory/logs/
+
+  # Kontrolle (NUR Reports relevant)
+  $ORACLE_HOME/OPatch/opatch version
+  ls $ORACLE_HOME/reports/
+  test -x $ORACLE_HOME/reports/bin/rwrun && echo "rwrun vorhanden - OK"
+
+
+================================================================================
+SCHRITT 2: Reports-Patch einspielen  (als oracle)
+================================================================================
+
+  # WICHTIG: Von den beiden aktuellen Forms&Reports-QPR-Patches wird HIER
+  # NUR der Reports-Patch eingespielt. Der zweite (Forms-QPR) wird
+  # bewusst WEGGELASSEN, da reines Forms-Patch ohne Reports-Bezug.
+  #   Reports-Patch (einspielen):      39600348  (Stand Aug 2026)
+  #   Forms-Patch (NICHT einspielen):  39842516  (Stand Sep 2026)
+  # Aktuelle Patchnummern per MOS KA204 ermitteln (aendern sich jedes
+  # Quartal) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
+  # und oracle_software_version.conf fuer den jeweils aktuellen Stand.
+
+  # Falls ein aelterer Reports-QPR bereits installiert ist (z.B. 38827528
+  # aus Januar 2026), wird er vom neuen Patch ersetzt - vorher zurueckrollen:
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 38827528
+  # falls gefunden:
+  $ORACLE_HOME/OPatch/opatch rollback -id 38827528
+
+  cd $PATCH_STORAGE/patches/39600348/
+  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
+  $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
+
+  # /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
+
+
+================================================================================
+SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
+================================================================================
+
+  # WICHTIG: Dieser Schritt legt KEINE Datenbank an und erzeugt KEINE
+  # Instanz - die Datenbank existiert bereits extern und wird von einem
+  # anderen Team betrieben. RCU registriert hier ausschliesslich Schemas
+  # (Tabellen/Benutzer) INNERHALB dieser bestehenden Datenbank.
+
+  # Erreichbarkeit vorab pruefen
+  nc -zv "$DB_HOST" "$DB_PORT"
+
+  # Optional: Falls ein eigener Tablespace gewuenscht ist (sonst legt RCU
+  # automatisch eigene Tablespaces an) - dieser SQL-Befehl muss vom
+  # Datenbank-Team der EXTERNEN Datenbank ausgefuehrt werden, nicht von
+  # uns:
+  #   CREATE TABLESPACE FMW_DATA
+  #     DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
+  #     SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
+
+  # RCU-Kennwortdatei anlegen (SYS-Kennwort + je ein Kennwort pro Schema).
+  # WICHTIG: Datei nur temporaer, danach sofort loeschen (enthaelt
+  # Klartext-Kennwoerter).
+  umask 077
+  cat > /tmp/rcu_passwords.txt << 'EOF'
+<SYS_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+<SCHEMA_PASSWORD>
+EOF
+  chmod 600 /tmp/rcu_passwords.txt
+
+  # Vorab-Test: SYSDBA-Anmeldung pruefen, bestehenden Schema-Prefix
+  # ausschliessen (Namenskonflikt vermeiden)
+  $ORACLE_HOME/oracle_common/bin/rcu -silent -listSchemas \
+      -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
+      -dbUser sys -dbRole sysdba < /tmp/rcu_passwords.txt
+
+  # RCU-Schemas anlegen. 8 Komponenten ergeben 9 Schemas (WLS hat ein
+  # Unterschema WLS_RUNTIME zusaetzlich).
+  #
+  # WICHTIG - Connect-String-Falle: IMMER "host:port/service_name" mit
+  # SCHRAEGSTRICH verwenden (adressiert einen PDB-Service). Ein
+  # Doppelpunkt ("host:port:SID") wuerde stattdessen die CDB ansprechen -
+  # das ist bei Multitenant-Datenbanken (Standard seit Oracle 12c) fast
+  # immer falsch.
+  $ORACLE_HOME/oracle_common/bin/rcu \
+      -silent \
+      -createRepository \
+      -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
+      -dbUser sys \
+      -dbRole sysdba \
+      -schemaPrefix "${DB_SCHEMA_PREFIX}" \
+      -component STB -component MDS -component OPSS -component IAU \
+      -component IAU_APPEND -component IAU_VIEWER -component UCSUMS -component WLS \
+      -f < /tmp/rcu_passwords.txt
+
+  # Kennwortdatei sofort entfernen
+  shred -u /tmp/rcu_passwords.txt 2>/dev/null || rm -f /tmp/rcu_passwords.txt
+
+  # RCU-Logs: $ORACLE_HOME/oracle_common/rcu/log/
+
+  # Verifikation GEGEN DIE BESTEHENDE DATENBANK (per sqlplus, falls
+  # Oracle-Client lokal verfuegbar, sonst vom DB-Team ausfuehren lassen):
+  #   SELECT username FROM dba_users
+  #   WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '_%'
+  #   ORDER BY username;
+  # Erwartung: 9 Zeilen (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
+  # UCSUMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
+
+
+================================================================================
+SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
+================================================================================
+
+  # WLST-Skript als Datei anlegen. Im Vergleich zu einer
+  # Forms+Reports-Standardanleitung fehlen hier BEWUSST:
+  #   - addTemplate(".../forms/common/templates/wls/forms_template.jar")
+  #   - der komplette "/Servers/WLS_FORMS"-Block
+  cat > /tmp/domain_config.py << EOF
+readTemplate('${ORACLE_HOME}/wlserver/common/templates/wls/wls.jar')
+
+cd('/Security/base_domain/User/weblogic')
+cmo.setName('weblogic')
+cmo.setPassword('<WLS_ADMIN_PASSWORD>')
+
+cd('/')
+set('Name', '${DOMAIN_NAME}')
+
+addTemplate('${ORACLE_HOME}/oracle_common/common/templates/wls/oracle.jrf_template.jar')
+addTemplate('${ORACLE_HOME}/reports/common/templates/wls/oracle.reports_app_template.jar')
+
+setOption('ServerStartMode', 'prod')
+setOption('OverwriteDomain', 'true')
+
+cd('/Servers/AdminServer')
+set('ListenAddress', 'localhost')
+set('ListenPort', ${WLS_ADMIN_PORT})
+
+cd('/Servers/${WLS_MANAGED_SERVER}')
+set('ListenAddress', 'localhost')
+set('ListenPort', ${WLS_REPORTS_PORT})
+
+# JDBC-Datenquellen (JRF-Standard, fuer OPSS/Audit/Local-Service-Table
+# gegen die bestehende externe Datenbank)
+_db_url = 'jdbc:oracle:thin:@//${DB_HOST}:${DB_PORT}/${DB_SERVICE}'
+_pfx = '${DB_SCHEMA_PREFIX}'
+
+def _cfg_ds(ds_name, schema_user, db_url, db_pw):
+    cd('/JDBCSystemResources/' + ds_name + '/JDBCResource/' + ds_name + '/JDBCDriverParams')
+    cmo.setUrl(db_url)
+    cmo.setPasswordEncrypted(db_pw)
+    cd('Properties/NONE')
+    cd('Property/user')
+    cmo.setValue(schema_user)
+
+_cfg_ds('LocalSvcTblDataSource', _pfx + '_STB',        _db_url, '<SCHEMA_PASSWORD>')
+_cfg_ds('opss-data-source',      _pfx + '_OPSS',       _db_url, '<SCHEMA_PASSWORD>')
+_cfg_ds('opss-audit-DBDS',       _pfx + '_IAU_APPEND', _db_url, '<SCHEMA_PASSWORD>')
+_cfg_ds('opss-audit-viewDS',     _pfx + '_IAU_VIEWER', _db_url, '<SCHEMA_PASSWORD>')
+
+writeDomain('${DOMAIN_HOME}')
+closeTemplate()
+EOF
+
+  # WICHTIG vor dem Ausfuehren: Falls $DOMAIN_HOME/config/config.xml
+  # bereits existiert, NICHT einfach erneut ausfuehren - OverwriteDomain
+  # wuerde die bestehende Domain stillschweigend ueberschreiben!
+  test -f $DOMAIN_HOME/config/config.xml && echo "ABBRUCH: Domain existiert bereits"
+
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/domain_config.py
+  rm -f /tmp/domain_config.py
+
+  # Node-Manager-Konfiguration
+  mkdir -p $DOMAIN_HOME/nodemanager
+  cat > $DOMAIN_HOME/nodemanager/nodemanager.properties << EOF
+ListenAddress=127.0.0.1
+ListenPort=${WLS_NODEMANAGER_PORT}
+SecureListener=false
+LogLimit=0
+PropertiesVersion=14.1.2
+AuthenticationEnabled=true
+NodeManagerHome=${DOMAIN_HOME}/nodemanager
+JavaHome=${JDK_HOME}
+LogFile=${DOMAIN_HOME}/nodemanager/nodemanager.log
+LogLevel=INFO
+EOF
+
+  # boot.properties fuer AdminServer (automatischer Start ohne
+  # interaktive Passwortabfrage - WebLogic verschluesselt die Datei beim
+  # ersten Start automatisch)
+  mkdir -p $DOMAIN_HOME/servers/AdminServer/security
+  cat > $DOMAIN_HOME/servers/AdminServer/security/boot.properties << 'EOF'
+username=weblogic
+password=<WLS_ADMIN_PASSWORD>
+EOF
+  chmod 600 $DOMAIN_HOME/servers/AdminServer/security/boot.properties
+
+  # Hinweis Kennwort-Richtlinie: mindestens 8 Zeichen, mindestens eine
+  # Ziffer ODER ein Sonderzeichen (sonst Fehler 60455).
+
+  # AdminServer erstmalig starten
+  nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
+  sleep 60
+  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_ADMIN_PORT}/console/
+  # Erwartet: 200 oder 302
+
+
+================================================================================
+SCHRITT 5: cgicmd.dat Grundkonfiguration  (als oracle)
+================================================================================
+
+  # cgicmd.dat steuert, welcher Reports-Server und welches Statusformat
+  # bei URL-Aufrufen ohne explizite Parameter verwendet wird.
+  mkdir -p "$(dirname "$CGICMD_DAT")"
+  cat > "$CGICMD_DAT" << EOF
+# --- IHateWeblogic BEGIN ---
+default: server=${REPORTS_SERVER_NAME} statusformat=xml
+# --- IHateWeblogic END ---
+EOF
+  chmod 640 "$CGICMD_DAT"
+
+
+================================================================================
+SCHRITT 6: boot.properties fuer den Reports-Managed-Server  (als oracle)
+================================================================================
+
+  # NUR AdminServer (Schritt 4) und $WLS_MANAGED_SERVER - KEIN
+  # WLS_FORMS-Eintrag, da kein Forms installiert wird.
+  mkdir -p $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security
+  cat > $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties << 'EOF'
+username=weblogic
+password=<WLS_ADMIN_PASSWORD>
+EOF
+  chmod 600 $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+
+  # Hinweis: Enthaelt die Datei bereits "{AES}" (WebLogic hat sie beim
+  # letzten Start selbst verschluesselt), NICHT erneut ueberschreiben.
+  grep -q '{AES}' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties 2>/dev/null \
+      && echo "Bereits verschluesselt - Datei unveraendert lassen"
+
+
+================================================================================
+SCHRITT 7: Node Manager konfigurieren  (als oracle)
+================================================================================
+
+  # Standardmaessig erwartet der Node Manager SSL-Verbindungen, was auf
+  # dieser rein internen Verbindung (127.0.0.1) nur unnoetige Fehler
+  # produziert (BEA-300048 / SSLException: Unrecognized SSL message).
+  sed -i 's/^SecureListener=.*/SecureListener=false/' \
+      $DOMAIN_HOME/nodemanager/nodemanager.properties
+  sed -i 's/^StartScriptEnabled=.*/StartScriptEnabled=true/' \
+      $DOMAIN_HOME/nodemanager/nodemanager.properties
+
+  # Node-Manager-Typ in der Domain-Security-Konfiguration auf "Plain"
+  # setzen (WLST, AdminServer muss bereits laufen):
+  cat > /tmp/nm_plain.py << EOF
+connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
+edit()
+startEdit()
+cd('/SecurityConfiguration/${DOMAIN_NAME}')
+cmo.setNodeManagerType('Plain')
+save()
+activate(block='true')
+disconnect()
+EOF
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/nm_plain.py
+  rm -f /tmp/nm_plain.py
+
+  # Node Manager starten
+  nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm.out 2>&1 &
+  sleep 10
+  tail -20 $DOMAIN_HOME/nodemanager/nodemanager.log
+
+
+================================================================================
+SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
+================================================================================
+
+  # Diese drei Benutzer/Rollen werden ueber die WebLogic-/EM-Konsole
+  # angelegt (https://<host>/em bzw. /console), app-stripe "reports":
+  #
+  #   Benutzer      Rolle            Zweck
+  #   weblogic      RW_ADMINISTRATOR (bereits vorhanden, nur Rolle zuweisen)
+  #   monUser       RW_MONITOR       Server-Status abfragen (showjobs, getserverinfo, ...)
+  #   RepRunner     RW_EXECREPORTS   Reports tatsaechlich ausfuehren
+  #
+  # Schritte in der EM-Konsole:
+  #   1. WebLogic Domain -> Security -> Users and Groups -> Create
+  #      -> monUser, RepRunner mit Kennwort anlegen
+  #   2. WebLogic Domain -> Security -> Application Roles -> Create
+  #      -> App-Stripe "reports", Rollen RW_MONITOR / RW_EXECREPORTS anlegen,
+  #         jeweils dem passenden Benutzer zuweisen
+  #   3. WebLogic Domain -> Security -> Application Policies -> Create
+  #      -> Permission-Klasse oracle.reports.server.WebCommandPermission
+  #         fuer RW_MONITOR:
+  #           webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*
+  #      -> Permission-Klasse oracle.reports.server.ReportsPermission
+  #         fuer RW_EXECREPORTS:
+  #           report=* server=* destype=* desformat=* allowcustomargs=true
+
+  # Abschliessend den Ausfuehrungsbenutzer in cgicmd.dat ergaenzen
+  # (ergaenzt Schritt 5 - RepRunner-Kennwort einsetzen):
+  sed -i 's/\(statusformat=xml\)/\1 %2 authid=RepRunner\/<REPRUNNER_PASSWORD>/' "$CGICMD_DAT"
+  chmod 640 "$CGICMD_DAT"
+  cat "$CGICMD_DAT"
+
+
+================================================================================
+SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
+================================================================================
+
+  # 9.1 Nur auf Oracle Linux 9 / RHEL 9 noetig (als root): symbolischer
+  #     Link fuer libnsl, da OL9 die alte libnsl.so.2-ABI nicht mehr
+  #     mitbringt, rwserver sie aber dynamisch bindet (MOS Doc ID 3069675.1)
+  ln -s /lib64/libnsl.so.3.0.0 $ORACLE_HOME/lib/libnsl.so.2
+  ldd $ORACLE_HOME/bin/rwserver | grep libnsl
+  # Erwartet: Pfadaufloesung, NICHT "not found"
+
+  # 9.2 Benoetigte Variablen fuer diesen Abschnitt
+  export REPORTS_PATH=/app/oracle/applications/source
+  export REPORTS_TMP=/tmp/reports
+  export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
+  export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
+  export TNS_ADMIN=/app/oracle/19c/network/admin
+
+  mkdir -p "$REPORTS_PATH" "$REPORTS_TMP"
+
+  # 9.3 System-Component-Instanzen anlegen (WLST, AdminServer +
+  #     Node Manager muessen laufen)
+  cat > /tmp/reports_instances.py << EOF
+connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
+createReportsToolsInstance(instanceName='${REPORTS_TOOLS_INSTANCE}', machine='AdminServerMachine')
+createReportsServerInstance(instanceName='${REPORTS_SERVER_NAME}', machine='AdminServerMachine')
+disconnect()
+EOF
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/reports_instances.py
+  rm -f /tmp/reports_instances.py
+
+  # 9.4 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
+  #     (muss je Umgebung eindeutig sein, falls mehrere Reports-Domains im
+  #     selben Netzsegment laufen)
+  for f in \
+      "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
+      "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
+      "$DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwnetwork.conf"
+  do
+      cp "$f" "${f}.bak_$(date +%Y%m%d_%H%M%S)"
+      sed -i "s/\(<cluster[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$f"
+  done
+
+  # 9.5 rwservlet.properties
+  cat > $DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwservlet.properties << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<rwservlet xmlns="http://xmlns.oracle.com/reports/rwservlet"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <server>${REPORTS_SERVER_NAME}</server>
+  <singlesignon>yes</singlesignon>
+  <inprocess>no</inprocess>
+  <webcommandaccess>L1</webcommandaccess>
+  <cookie cookieexpire="30" encryptionkey="${REPORTS_COOKIE_KEY}"/>
+</rwservlet>
+EOF
+
+  # 9.6 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
+  #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
+  cat > "$RWSERVER_CONF" << 'EOF'
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<server xmlns="http://xmlns.oracle.com/reports/server" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cache class="oracle.reports.cache.RWCache"><property name="cacheSize" value="50"/></cache>
+  <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
+          initEngine="2" maxEngine="5" minEngine="2" engLife="50" defaultEnvId="QS"/>
+  <engine id="rwURLEng" class="oracle.reports.urlengine.URLEngineImpl" maxEngine="1" minEngine="0" engLife="50"/>
+  <environment id="QS">
+    <envVariable name="REPORTS_PATH" value="/app/oracle/applications/source"/>
+    <envVariable name="REPORTS_TMP" value="/tmp/reports"/>
+    <envVariable name="NLS_LANG" value="GERMAN_GERMANY.AL32UTF8"/>
+    <envVariable name="TNS_ADMIN" value="/app/oracle/19c/network/admin"/>
+    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random"/>
+  </environment>
+  <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
+  <destination destype="ftp" class="oracle.reports.plugin.destination.ftp.DesFTP"/>
+  <destination destype="WebDav" class="oracle.reports.plugin.destination.webdav.DesWebDAV"/>
+  <!-- WICHTIG: SecurityId darf NICHT auf dem job-Element stehen -->
+  <job jobType="report" engineId="rwEng" retry="3"/>
+  <job jobType="rwurl" engineId="rwURLEng"/>
+  <notification id="mailNotify" class="oracle.reports.server.MailNotify">
+    <property name="succnotefile" value="succnote.txt"/>
+    <property name="failnotefile" value="failnote.txt"/>
+  </notification>
+  <connection maxConnect="300" idleTimeOut="15"/>
+  <queue maxQueueSize="4000"/>
+  <folderAccess><read>/app/oracle/applications/source</read><write>/tmp/reports</write></folderAccess>
+  <identifier encrypted="no">rep_admin/wls_team</identifier>
+  <proxyInfo>
+    <proxyServers><proxyServer name="$$Self.proxyHost$$" port="$$Self.proxyPort$$" protocol="all"/></proxyServers>
+    <bypassProxy><domain>$$Self.proxyByPass$$</domain></bypassProxy>
+  </proxyInfo>
+  <pluginParam name="mailServer" value="%MAILSERVER_NAME%"/>
+</server>
+EOF
+
+  # Hinweis: NLS_LANG hier auf Deutsch gesetzt (GERMAN_GERMANY.AL32UTF8) -
+  # bei Bedarf an die tatsaechliche Datenbank-Zeichensatzkonfiguration
+  # anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
+
+  # 9.7 reports.sh ergaenzen (Umgebungsvariablen fuer den Reports-Server-
+  #     Startprozess - Font-Variablen hier nur als Verweis, Details siehe
+  #     Font_kochbuch_de.txt)
+  cat >> $DOMAIN_HOME/reports/bin/reports.sh << 'EOF'
+export NLS_LANG=GERMAN_GERMANY.AL32UTF8
+REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
+REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
+EOF
+
+  # 9.8 Managed Server + Reports-Komponenten starten
+  nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} \
+      > /tmp/managed_start.log 2>&1 &
+  sleep 60
+  $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
+  $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
+
+  # 9.9 Verifikation
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
+  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+
+  # Ueber Nginx/SSL (aus FMW_Kochbuch_de.txt):
+  curl -k "https://${WLS_SERVER_FQDN}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
+
+
+================================================================================
+AUSGESCHLOSSEN AUS DIESEM KOCHBUCH
+================================================================================
+
+  Folgender Schritt der Original-Skriptreihe ist bewusst NICHT Teil
+  dieses Kochbuchs, da reines Forms-Thema:
+    09-Install/14-oracle_setup_forms.sh (Forms-Detaileinstellungen)
+
+
+================================================================================
+BEKANNTE, HARMLOSE FEHLERMELDUNGEN
+================================================================================
+
+  Folgende Meldungen koennen beim ersten Start auftreten und sind KEIN
+  Hinweis auf ein echtes Problem:
+    "Plugin not found ... METRICS"
+    "JRF is unable to determine the current application server platform"
+    "Unable to determine WLS domain name"
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: rwserver startet nicht, ldd zeigt "libnsl.so.2 => not found"
+  Ursache: OL9/RHEL9 liefert libnsl nur noch als .so.3
+  Loesung: Schritt 9.1 (Symlink) ausfuehren
+
+  Problem: RCU bricht mit "Schema already exists" ab
+  Ursache: DB_SCHEMA_PREFIX kollidiert mit einer bereits vorhandenen
+           Registrierung in der externen Datenbank
+  Loesung: Anderen Prefix waehlen, oder (nur nach Ruecksprache mit dem
+           DB-Team!) alte Schemas vorher per "rcu -silent -dropRepository"
+           entfernen
+
+  Problem: WLST-Domainerstellung ueberschreibt eine bereits bestehende
+           Domain ohne Rueckfrage
+  Ursache: setOption('OverwriteDomain', 'true') im Template
+  Loesung: VOR dem Ausfuehren immer pruefen, ob
+           $DOMAIN_HOME/config/config.xml schon existiert (siehe Hinweis
+           in Schritt 4)
+
+  Problem: Reports-Engine startet nicht / "status=0" (DEAD) im
+           getserverinfo-Status
+  Ursache: haeufig REPORTS_PATH/TNS_ADMIN falsch oder Datenbank nicht
+           erreichbar
+  Loesung: rwserver.conf-Umgebungsvariablen pruefen, DB-Konnektivitaet
+           per "nc -zv $DB_HOST $DB_PORT" erneut testen
+
+  Problem: Parameterformular / HTML-Ausgabe zeigt falsche Zeichen
+           (Symbol/griechische Glyphen)
+  Ursache: separates Font-Thema, nicht Teil dieses Kochbuchs
+  Loesung: siehe Font_kochbuch_de.txt
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Ausfuehrliche Dokumentation: IHateWeblogic/09-Install/README.md
+                                IHateWeblogic/09-Install/docs/06-oracle_patch_forms_reports.md
+                                IHateWeblogic/09-Install/docs/00-patch-references.md
+  Automatisierte Variante:     09-Install/06-oracle_install_forms_reports.sh --apply
+                                09-Install/06-oracle_patch_forms_reports.sh --apply
+                                09-Install/07-oracle_setup_repository.sh --apply
+                                09-Install/08-oracle_setup_domain.sh --apply
+                                09-Install/10-oracle_boot_properties.sh --apply
+                                09-Install/11-oracle_nodemanager.sh --apply
+                                09-Install/12-oracle_reports_users.sh --apply
+                                09-Install/13-root_reports_fix.sh --apply
+                                09-Install/13-oracle_setup_reports.sh --apply
+
+  Naechstes Kochbuch: Font_kochbuch_de.txt (TrueType-Fonts und
+  HTML-Parameterformular-Fontpfad einrichten)
+
+================================================================================

@@ -1,0 +1,376 @@
+================================================================================
+  Oracle Reports 14.1.2 – Fonts einrichten (Manuelle Schritt-fuer-Schritt-
+  Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
+  Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports
+  Erstellt   : 2026-10
+  Grundlage  : IHateWeblogic/04-ReportsFonts (Gunther Pipperr)
+  Hinweis    : Erweiterte Fassung von 04-ReportsFonts/manual_setup_de.txt -
+               deckt zusaetzlich den HTML-Parameterformular-Fontpfad
+               (Schritt 8, AFM/PPD) ab, der dort noch fehlte.
+  Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt
+                 (Reports-Server laeuft)
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  Oracle Reports kennt ZWEI voellig getrennte Font-Mechanismen:
+    1. PDF-Ausgabe (desformat=pdf): uifont.ali + TrueType-Fonts in
+       REPORTS_FONT_DIRECTORY (Schritte 1-7 unten)
+    2. HTML-Ausgabe / HTML-Parameterformular: PPD + AFM-Metrikdateien
+       ("screen printer"), uifont.ali wird hier GAR NICHT gelesen
+       (Schritt 8 unten)
+  Ein funktionierender PDF-Fontpfad bedeutet NICHT automatisch, dass auch
+  das Parameterformular korrekt aussieht - beide Mechanismen muessen
+  unabhaengig voneinander eingerichtet werden.
+
+    export ORACLE_HOME=/u01/oracle/fmw
+    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export REPORTS_TOOLS_INSTANCE=reptools1
+    export REPORTS_SERVER_NAME=repServer01
+    export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+    export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+    export REPORTS_FONT_DIR="${DOMAIN_HOME}/reports/fonts"
+    export UIFONT_ALI="${REPORTS_ADMIN}/uifont.ali"
+
+  Alle Schritte laufen als oracle-User, ausser Schritt 1 (root, nur
+  Paketinstallation).
+
+
+================================================================================
+TEIL A: PDF-FONTPFAD (uifont.ali / TrueType)
+================================================================================
+
+SCHRITT 1: Font-Pakete installieren  (als root)
+--------------------------------------------------------------------------------
+
+  # Liberation Fonts - metrisch kompatibel zu Arial, Times New Roman,
+  # Courier New (gleiche Zeichenbreiten, daher kein Layout-Versatz)
+  dnf install -y liberation-fonts liberation-fonts-common
+
+  # DejaVu Fonts - Ersatz fuer Tahoma, Verdana, Trebuchet MS
+  dnf install -y \
+      dejavu-sans-fonts \
+      dejavu-sans-mono-fonts \
+      dejavu-serif-fonts \
+      dejavu-lgc-sans-fonts \
+      dejavu-lgc-sans-mono-fonts \
+      dejavu-lgc-serif-fonts
+
+  # fontconfig-Werkzeuge (fc-cache, fc-list, fc-query)
+  dnf install -y fontconfig
+
+  # Systemweiten Font-Cache aktualisieren
+  fc-cache -fv
+
+  # Kontrolle: sind die Fonts sichtbar?
+  fc-list | grep -i liberation
+  fc-list | grep -i dejavu
+
+
+SCHRITT 2: REPORTS_FONT_DIR anlegen und Fonts kopieren  (als oracle)
+--------------------------------------------------------------------------------
+
+  mkdir -p "$REPORTS_FONT_DIR"
+
+  # Liberation Fonts kopieren
+  find /usr/share/fonts -name "Liberation*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
+
+  # DejaVu Fonts kopieren
+  find /usr/share/fonts -name "DejaVu*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
+
+  # Kundeneigene / Corporate Fonts kopieren (falls vorhanden):
+  # cp /tmp/MeinFont*.ttf "$REPORTS_FONT_DIR/"
+
+  # Kontrolle
+  ls -lh "$REPORTS_FONT_DIR/"
+  echo "Anzahl TTF-Dateien: $(ls "$REPORTS_FONT_DIR"/*.ttf 2>/dev/null | wc -l)"
+
+
+SCHRITT 3: Font-Cache fuer REPORTS_FONT_DIR aktualisieren  (als oracle)
+--------------------------------------------------------------------------------
+
+  fc-cache -fv "$REPORTS_FONT_DIR"
+
+  # Kontrolle: sind die Fonts im fontconfig-Cache sichtbar?
+  fc-list : file | grep "$REPORTS_FONT_DIR"
+  # Mindestens eine Zeile pro kopierter TTF-Datei muss erscheinen.
+
+  # WICHTIG: Dieser Cache wird nur von fc-query/fc-list genutzt. Die
+  # Oracle-Reports-JVM selbst liest die TTF-Dateien direkt und nutzt den
+  # fontconfig-Cache NICHT - ein Server-Neustart (Schritt 6) ist nach
+  # jeder Font-Aenderung trotzdem zwingend noetig.
+
+
+SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
+--------------------------------------------------------------------------------
+
+  # Aktuelle Datei sichern (falls vorhanden)
+  [ -f "$UIFONT_ALI" ] && cp "$UIFONT_ALI" "${UIFONT_ALI}.bak_$(date +%Y%m%d_%H%M%S)"
+
+  # [PDF:Subset]-Eintraege fuer die Standard-Ersatzschriften anlegen bzw.
+  # pruefen. KRITISCHE SYNTAX - rechte Seite IMMER in Anfuehrungszeichen,
+  # IMMER mit .ttf-Erweiterung:
+  #   "Arial"..         = "LiberationSans-Regular.ttf"   <- richtig
+  #   "Arial"...Bold    = "LiberationSans-Bold.ttf"       <- richtig
+  #   Arial..           = LiberationSans-Regular.ttf      <- FALSCH (keine Anfuehrungszeichen)
+  #   "Arial"..         = "LiberationSans-Regular"        <- FALSCH (kein .ttf)
+  # Spezifischere Eintraege (mit Italic/Bold-Qualifier) MUESSEN vor dem
+  # generischen ".."-Eintrag stehen.
+
+  grep -A 30 '\[PDF:Subset\]' "$UIFONT_ALI"
+
+  # Syntax-Pruefung mit mfontchk (ohne REPORTS_FONT_DIR = reine
+  # Syntaxpruefung)
+  export LD_LIBRARY_PATH="${ORACLE_HOME}/lib:${ORACLE_HOME}/jdk/jre/lib/amd64/server"
+  "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
+  # Erwartete Ausgabe: "Schriftartaliasdatei erfolgreich geparst"
+
+  # Vollstaendige Pruefung MIT Dateiexistenz-Check:
+  REPORTS_FONT_DIRECTORY="$REPORTS_FONT_DIR" \
+      "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
+  # Ein '^' auf der RECHTEN Seite = TTF-Datei nicht in REPORTS_FONT_DIR gefunden
+  # Ein '^' auf der LINKEN Seite  = Syntaxfehler im Font-Namen
+  # "[Global] Invalid font specification"-Warnungen sind an dieser Stelle
+  # normal und koennen ignoriert werden.
+
+
+SCHRITT 5: Umgebungsvariablen in setUserOverrides.sh eintragen  (als oracle)
+--------------------------------------------------------------------------------
+
+  OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
+
+  # Backup anlegen
+  [ -f "$OVERRIDES" ] && cp "$OVERRIDES" "${OVERRIDES}.bak_$(date +%Y%m%d_%H%M%S)"
+  [ ! -f "$OVERRIDES" ] && touch "$OVERRIDES"
+
+  cat >> "$OVERRIDES" << EOF
+
+# === TrueType Font-Konfiguration fuer Oracle Reports (manuell gesetzt) ===
+# 1) Verzeichnis mit den TTF-Dateien (absolute Pfadangabe, keine Variable!)
+export REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts
+
+# 2) Erweitertes Font-Handling aktivieren
+export REPORTS_ENHANCED_FONTHANDLING=yes
+
+# 3) uifont.ali explizit angeben (tk-Layer und Oracle-Schicht) - erzwingt
+#    die Domain-Konfiguration statt der im Oracle Home mitgelieferten Datei
+export TK_FONTALIAS=${UIFONT_ALI}
+export ORACLE_FONTALIAS=${UIFONT_ALI}
+
+# 4) Dieselben Werte als JVM-Systemproperties (-D), damit auch der
+#    In-Process-Reports-Server sie aus der JVM liest (Node-Manager-Umgebungen):
+export JAVA_OPTIONS="\${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
+export JAVA_OPTIONS="\${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"
+# === Ende Font-Konfiguration ===
+EOF
+
+  # Kontrolle
+  grep -A6 "Font-Konfiguration" "$OVERRIDES"
+
+  # WICHTIG: Absoluten Pfad verwenden (keine Variablen wie $DOMAIN_HOME),
+  # da setUserOverrides.sh zu einem Zeitpunkt ausgefuehrt wird, zu dem
+  # $DOMAIN_HOME noch nicht in jedem Startkontext gesetzt ist.
+
+
+SCHRITT 6: Reports Server neu starten  (als oracle)
+--------------------------------------------------------------------------------
+
+  $DOMAIN_HOME/bin/stopComponent.sh  "$REPORTS_SERVER_NAME"
+  $DOMAIN_HOME/bin/startComponent.sh "$REPORTS_SERVER_NAME"
+
+  # Kontrolle: rwengine-Prozesse sichtbar?
+  pgrep -la rwengine
+
+  # Kontrolle: REPORTS_FONT_DIRECTORY ist in der JVM gesetzt?
+  cat /proc/$(pgrep -f WLS_REPORTS | head -1)/environ 2>/dev/null \
+      | tr '\0' '\n' \
+      | grep -i REPORTS_FONT
+  # (Namensabweichung je nach WLS_MANAGED_SERVER-Name beachten - siehe
+  # Reports_kochbuch_de.txt)
+
+
+SCHRITT 7: PDF-Test und Verifikation  (als oracle)
+--------------------------------------------------------------------------------
+
+  # pdffonts ist Teil des Pakets poppler-utils: dnf install -y poppler-utils
+  pdffonts /tmp/test_report.pdf
+
+  # Korrekte Ausgabe (TrueType, eingebettet):
+  #   name               type    emb sub uni
+  #   LiberationSans     TrueType yes yes no
+  #   LiberationSans-Bd  TrueType yes yes no
+  #
+  # Problematische Ausgabe (Type 1, nicht eingebettet):
+  #   Arial              Type 1  no  no  no
+  #   Times New Roman    Type 1  no  no  no
+  #
+  # Wenn Type 1 weiterhin erscheint: Schritt 5 und 6 erneut pruefen.
+  # REPORTS_FONT_DIRECTORY muss in der JVM gesetzt sein (Schritt 6 Kontrolle).
+
+
+================================================================================
+TEIL B: HTML-PARAMETERFORMULAR-FONTPFAD (PPD + AFM, "screen printer")
+================================================================================
+
+SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
+--------------------------------------------------------------------------------
+
+  # SYMPTOM: Das HTML-Parameterformular zeigt griechische/Symbol-Zeichen
+  # statt lateinischer Schrift - OBWOHL die PDF-Ausgabe (Teil A) bereits
+  # korrekt ist. URSACHE: Das Parameterformular nutzt einen komplett
+  # eigenen "screen printer"-Mechanismus (screenprinter.ppd + AFM-Dateien),
+  # der uifont.ali ueberhaupt nicht liest. Ohne passende AFM-Datei faellt
+  # Reports auf *DefaultFont (Courier) oder - bei Zeichensatzkonflikt -
+  # auf Symbol zurueck.
+
+  export TK_ADMIN="${REPORTS_ADMIN}"
+  export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
+  export AFM_DIR="${TK_ADMIN}/AFM"
+  export PPD="${TK_ADMIN}/PPD/screenprinter.ppd"
+  export FONT_DIR="${REPORTS_FONT_DIR}"
+
+  # --- Schritt 8.1: FontSpecific-Kopien der Standard-AFMs ---
+  # EncodingScheme FontSpecific umgeht die NLS_LANG-Zeichensatzpruefung,
+  # die sonst AdobeStandardEncoding-Schriften ablehnt (MOS Doc ID 300416.1).
+  # Der Oracle-Home-Ordner selbst wird dabei NIE veraendert, nur in den
+  # Domain-eigenen Ordner kopiert.
+  mkdir -p "$AFM_DIR"
+  for f in "$OH_AFM"/Helvetica* "$OH_AFM"/Courier* "$OH_AFM"/Times*; do
+      sed 's/^EncodingScheme .*/EncodingScheme FontSpecific/' "$f" > "$AFM_DIR/$(basename "$f")"
+  done
+  grep -H '^EncodingScheme' "$AFM_DIR"/Helvetica* "$AFM_DIR"/Courier* "$AFM_DIR"/Times* 2>/dev/null
+
+  # --- Schritt 8.2: python3-fonttools installieren (fuer die
+  #     AFM-Generierung aus TTF-Dateien benoetigt) ---
+  dnf install -y python3-fonttools    # als root, falls noch nicht installiert
+
+  # --- Schritt 8.3: Je Zeichensatz/Stil eine AFM-Datei generieren ---
+  # Benennungsschema: Familienname ohne Leerzeichen, Suffix -Bold /
+  # -Italic / -BoldItalic. HIER die konkreten TTF-Dateinamen aus
+  # $REPORTS_FONT_DIR einsetzen - Beispiel fuer eine Arial-Ersatzschrift:
+  #
+  #   python3 ttf2reports_afm.py "$FONT_DIR/arial.ttf"    "Arial"            -o "$AFM_DIR/Arial"
+  #   python3 ttf2reports_afm.py "$FONT_DIR/arialbd.ttf"  "Arial-Bold"       -o "$AFM_DIR/Arial-Bold"
+  #   python3 ttf2reports_afm.py "$FONT_DIR/ariali.ttf"   "Arial-Italic"     -o "$AFM_DIR/Arial-Italic"
+  #   python3 ttf2reports_afm.py "$FONT_DIR/arialbi.ttf"  "Arial-BoldItalic" -o "$AFM_DIR/Arial-BoldItalic"
+  #
+  # --encoding (Standard: cp1252/WE8MSWIN1252) MUSS zum NLS_LANG-Zeichensatz
+  # aus rwserver.conf passen (siehe Reports_kochbuch_de.txt Schritt 9.6):
+  #   WE8ISO8859P15 -> --encoding iso8859-15
+  #   AL32UTF8      -> kein 1-Byte-Encoding passt hier sauber, siehe
+  #                    "Bekannte Probleme" unten
+
+  # Jede generierte AFM-Datei sofort pruefen:
+  python3 ttf2reports_afm.py --check "$AFM_DIR/Arial-Bold"
+  # Erwartete Ausgabe: "OK <Dateiname>" mit CapHeight/XHeight != 0,
+  # EncodingScheme FontSpecific, FontName == Dateiname, FullName ohne
+  # Sonderzeichen (z.B. "Arial Bold", NICHT lokalisiert wie "Arial Gras")
+
+  # --- Schritt 8.4: *Font-Zeilen in screenprinter.ppd ergaenzen ---
+  cp -p "$PPD" "${PPD}.bak_$(date +%Y%m%d_%H%M%S)"
+
+  # Fuer jeden neu generierten Schluessel pruefen, ob er schon existiert,
+  # und falls nicht nach der letzten bestehenden *Font-Zeile einfuegen:
+  KEY="Arial-Bold"
+  if ! grep -q "^\*Font ${KEY}:" "$PPD"; then
+      LAST_LINE=$(grep -n '^\*Font ' "$PPD" | tail -1 | cut -d: -f1)
+      sed -i "${LAST_LINE}a *Font ${KEY}: Standard \"(001.000)\" Standard ROM" "$PPD"
+  fi
+  # Diesen Block fuer jeden weiteren Schluessel (Arial, Arial-Italic,
+  # Arial-BoldItalic, ...) wiederholen.
+
+  # --- Schritt 8.5: Nur den Report-Engine-Prozess neu starten ---
+  # WICHTIG: NICHT den ganzen Reports-Server neu starten - AFM/PPD werden
+  # nur beim Start eines Engine-Prozesses gelesen, der Reports-Server
+  # selbst startet den Engine-Prozess danach automatisch neu (minEngine).
+  pgrep -af 'RWEngine name=rwEng'
+  kill -TERM $(pgrep -f 'RWEngine name=rwEng-0')
+
+  # --- Schritt 8.6: Verifikation ---
+  # Im Browser das Parameterformular aufrufen und pruefen:
+  #   - Seitenquelltext: face="arial" (oder der verwendete Fontname) ist
+  #     vorhanden, kein Darstellungsfehler
+  #   - Sonderzeichen Ä/Ö/Ü/ß/€ werden korrekt angezeigt
+  pdffonts /tmp/test_report.pdf
+  # weiterhin "TrueType emb=yes sub=yes" - der PDF-Pfad (Teil A) bleibt
+  # von diesem Schritt unberuehrt
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: mfontchk zeigt '^' rechts neben dem Font-Namen
+  Ursache: TTF-Datei nicht in REPORTS_FONT_DIRECTORY
+  Loesung: ls "$REPORTS_FONT_DIR" | grep -i liberation
+           Dateiname in uifont.ali muss EXAKT mit dem Dateinamen uebereinstimmen.
+
+  Problem: PDF zeigt weiterhin Type 1 nach Neustart
+  Ursache: REPORTS_FONT_DIRECTORY nicht in der JVM-Umgebung
+  Loesung: Schritt 6 Kontrolle ausfuehren. Falls Variable fehlt:
+           setUserOverrides.sh pruefen, Reports Server vollstaendig
+           stoppen und neu starten (nicht nur SIGHUP).
+
+  Problem: uifont.ali Syntaxfehler
+  Loesung: [PDF:Subset]-Eintraege muessen lauten:
+             "FontName"..       = "dateiname.ttf"
+             "FontName"...Bold  = "dateiname-Bold.ttf"
+           Rechte Seite IMMER in Anfuehrungszeichen, IMMER mit
+           .ttf-Erweiterung.
+
+  Problem: Parameterformular zeigt weiterhin griechische/Symbol-Zeichen
+           trotz korrektem PDF-Output
+  Ursache: Teil A (uifont.ali) und Teil B (AFM/PPD) sind VOLLSTAENDIG
+           unabhaengige Mechanismen - Teil A allein reicht nicht
+  Loesung: Schritt 8 vollstaendig durchfuehren
+
+  Problem: ttf2reports_afm.py --check meldet "FullName enthaelt
+           nicht-ASCII-Zeichen" / lokalisierter Name (z.B. "Arial Gras"
+           statt "Arial Bold")
+  Ursache: TTF-Datei hat keinen englischen Namenseintrag, oder ein
+           lokalisierter Eintrag wurde gewaehlt
+  Loesung: Andere/aktuellere TTF-Version verwenden, oder --check-Hinweis
+           als bekannte Einschraenkung akzeptieren (rein ASCII-basierte
+           lokalisierte Namen wie "Arial Gras" werden nicht automatisch
+           erkannt - Ergebnis manuell pruefen)
+
+  Problem: CapHeight/XHeight = 0 in der generierten AFM-Datei
+  Ursache: TTF hat keine modernen OS/2-Metrikfelder
+  Loesung: ttf2reports_afm.py leitet in diesem Fall die Werte aus den
+           Zeichen-Bounding-Boxen von "H"/"x" ab - meist bereits
+           automatisch geloest; bei 0 trotzdem: andere TTF-Datei pruefen
+
+  Problem: Falsche Zeichen bei AL32UTF8 (Unicode) als NLS_LANG
+  Ursache: Das AFM-Format bildet pro Byte genau EIN Zeichen ab - UTF-8 ist
+           aber mehrbytig, ein 1-Byte-Encoding kann das grundsaetzlich
+           nicht sauber abbilden
+  Loesung: Keine allgemeingueltige Loesung bekannt - dies ist ein noch
+           offener Testpunkt, siehe
+           04-ReportsFonts/HTML_ParameterForm_Fonts.md Abschnitt 9
+           (Caveats and Open Points)
+
+  Problem: Systemctl restart weblogic schlaegt fehl
+  Loesung: Service-Name pruefen: systemctl list-units | grep -i weblogic
+           Alternativ: Domain-Skripte (Schritt 6 bzw. Reports_kochbuch_de.txt)
+           verwenden.
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Ausfuehrliche Dokumentation: IHateWeblogic/04-ReportsFonts/README.md
+                                IHateWeblogic/04-ReportsFonts/HTML_ParameterForm_Fonts.md
+  Automatisierte Variante:      04-ReportsFonts/deploy_fonts.sh --apply
+                                 04-ReportsFonts/uifont_ali_update.sh --apply
+                                 04-ReportsFonts/fontpath_config.sh --apply
+                                 04-ReportsFonts/font_cache_reset.sh --apply
+                                 04-ReportsFonts/paramform_afm_setup.sh --apply
+
+  Oracle-Dokumentation:
+    Font-Konfiguration:  https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745
+    PDF-Embedding:       https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+
+================================================================================
