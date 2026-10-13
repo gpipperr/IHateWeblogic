@@ -36,6 +36,10 @@ weblogic_sec.conf
 # Log output directories
 log/
 
+# Stray log files dropped by Oracle Reports tools (rwrun/rwconverter/...)
+# when invoked from the repo root instead of a working directory
+*.log
+
 # Backup directories (contain local config)
 07-Maintenance/ConfigBackup/*/
 
