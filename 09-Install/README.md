@@ -286,7 +286,9 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
 │   └── fmw_14.1.2.0.0_fr_linux64.bin
 └── patches/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
-    │   └── p28186730_139424_Generic.zip   ← contains 6880880/opatch_generic.jar
+    │   └── p28186730_1394222_Generic.zip  ← contains 6880880/opatch_generic.jar
+    │       (confirmed on MOS: 13.9.4.2.22 – NOT .24; see caveat in
+    │        docs/05-oracle_patch_weblogic.md)
     ├── 39925660/                 ← WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR) – applied via opatch napply
     │   └── p39925660_141200_Generic.zip
     └── 39600348/                 ← Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)

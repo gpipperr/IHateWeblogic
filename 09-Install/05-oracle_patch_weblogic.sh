@@ -200,6 +200,7 @@ if ! $APPLY && ! $CHECK_ONLY; then
     warn "Dry-run – pass --apply to upgrade OPatch and apply patches, --check-only for conflict check."
     if $OPATCH_NEEDS_UPGRADE; then
         info "Would upgrade OPatch: $OPATCH_VER_CURRENT → $OPATCH_VER_TARGET via Patch $OPATCH_UPGRADE_NR"
+        [ -n "${WLS_SPB_PATCH_NR:-}" ] && info "  (preferring the build bundled inside SPB $WLS_SPB_PATCH_NR if present, else the standalone download)"
     fi
     if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
         if [ -n "${WLS_SPB_MARKER_PATCH:-}" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${WLS_SPB_MARKER_PATCH};"; then
@@ -219,6 +220,71 @@ if ! $APPLY && ! $CHECK_ONLY; then
 fi
 
 # =============================================================================
+# WLS Stack Patch Bundle (SPB) – staging only. Unzipped ONCE here (reused by
+# both the OPatch upgrade below and the napply step further down) instead of
+# twice, since the archive is multi-GB. The SPB has been observed to bundle a
+# newer opatch_generic.jar (tools/opatch/generic/) than the standalone Patch
+# 28186730 download currently offers – see the caveat in
+# docs/05-oracle_patch_weblogic.md.
+# =============================================================================
+
+SPB_DIR=""
+SPB_STAGE=""
+SPB_ALREADY_APPLIED=false
+SPB_MARKER="${WLS_SPB_MARKER_PATCH:-}"
+
+if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR) – Staging"
+
+    if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
+        SPB_ALREADY_APPLIED=true
+        ok "SPB $WLS_SPB_PATCH_NR already applied (marker patch $SPB_MARKER present) – skip staging"
+    else
+        SPB_ZIP="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
+        if [ -z "$SPB_ZIP" ]; then
+            fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
+            fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
+            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB ZIP found: $(basename "$SPB_ZIP")"
+
+        SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
+        mkdir -p "$SPB_STAGE" || {
+            fail "Cannot create SPB staging directory: $SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        info "Unzipping SPB (this can take a while, several hundred MB, needs ~4 GB free)..."
+        unzip -q "$SPB_ZIP" -d "$SPB_STAGE" || {
+            fail "unzip failed: $SPB_ZIP"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        # Top-level directory name changes with the SPB version – discover it,
+        # do not hardcode (e.g. WLS_SPB_14.1.2.0.260825).
+        SPB_DIR="$(find "$SPB_STAGE" -maxdepth 1 -mindepth 1 -type d -name 'WLS_SPB_*' | head -1)"
+        if [ -z "$SPB_DIR" ]; then
+            fail "Could not find WLS_SPB_* directory after unzip in: $SPB_STAGE"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB directory: $(basename "$SPB_DIR")"
+
+        SPB_PATCHLIST="$SPB_DIR/binary_patches/${WLS_SPB_PATCHLIST_FILE:-linux64_patchlist.txt}"
+        if [ ! -f "$SPB_PATCHLIST" ]; then
+            fail "SPB patch list not found: $SPB_PATCHLIST"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB patch list: $SPB_PATCHLIST"
+    fi
+else
+    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB staging"
+fi
+
+# =============================================================================
 # OPatch Upgrade (--apply only, if version below minimum)
 # =============================================================================
 
@@ -226,16 +292,30 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
 
     section "OPatch Upgrade – Patch $OPATCH_UPGRADE_NR"
 
-    OPATCH_UPGRADE_DIR="$PATCH_STORAGE/patches/$OPATCH_UPGRADE_NR"
-    OPATCH_UPGRADE_ZIP="$(ls "$OPATCH_UPGRADE_DIR"/p${OPATCH_UPGRADE_NR}_*.zip 2>/dev/null | head -1)"
+    OPATCH_UPGRADE_ZIP=""
+    OPATCH_SOURCE="standalone download"
+
+    # Prefer the OPatch build bundled inside the SPB (staged above) – it has
+    # been observed to be newer than the standalone Patch 28186730 download
+    # (e.g. 13.9.4.2.24 bundled vs. 13.9.4.2.22 standalone). See the caveat
+    # in docs/05-oracle_patch_weblogic.md.
+    if [ -n "$SPB_DIR" ]; then
+        OPATCH_UPGRADE_ZIP="$(ls "$SPB_DIR"/tools/opatch/generic/p${OPATCH_UPGRADE_NR}_*.zip 2>/dev/null | head -1)"
+        [ -n "$OPATCH_UPGRADE_ZIP" ] && OPATCH_SOURCE="bundled in SPB $WLS_SPB_PATCH_NR"
+    fi
 
     if [ -z "$OPATCH_UPGRADE_ZIP" ]; then
-        fail "OPatch upgrade ZIP not found in: $OPATCH_UPGRADE_DIR"
-        fail "  Expected pattern: p${OPATCH_UPGRADE_NR}_*.zip"
-        info "  Download first: 04-oracle_pre_download.sh --apply --mos"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        OPATCH_UPGRADE_DIR="$PATCH_STORAGE/patches/$OPATCH_UPGRADE_NR"
+        OPATCH_UPGRADE_ZIP="$(ls "$OPATCH_UPGRADE_DIR"/p${OPATCH_UPGRADE_NR}_*.zip 2>/dev/null | head -1)"
+
+        if [ -z "$OPATCH_UPGRADE_ZIP" ]; then
+            fail "OPatch upgrade ZIP not found in: $OPATCH_UPGRADE_DIR"
+            fail "  Expected pattern: p${OPATCH_UPGRADE_NR}_*.zip"
+            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
     fi
-    ok "OPatch upgrade ZIP found: $OPATCH_UPGRADE_ZIP"
+    ok "OPatch upgrade ZIP found ($OPATCH_SOURCE): $OPATCH_UPGRADE_ZIP"
 
     # --- Step 1: Check for patch 23335292 (must be rolled back first) ---------
     info "Checking for patch 23335292 (mandatory pre-check per OPatch README)..."
@@ -355,64 +435,21 @@ fi
 
 # =============================================================================
 # WLS Stack Patch Bundle (SPB) – opatch napply, applied BEFORE the simple
-# per-patch INSTALL_PATCHES loop below. Reintroduced for FMW 14.1.2 in the
-# CSPU September 2026 cycle (see docs/05-oracle_patch_weblogic.md).
+# per-patch INSTALL_PATCHES loop below. Reuses the directory staged earlier
+# (see "WLS Stack Patch Bundle ... – Staging" above) – no second unzip of the
+# (multi-GB) archive.
 # =============================================================================
 
 if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
 
-    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR)"
-
-    SPB_MARKER="${WLS_SPB_MARKER_PATCH:-}"
-    SPB_ALREADY_APPLIED=false
-    if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
-        SPB_ALREADY_APPLIED=true
-    fi
+    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR) – Apply"
 
     if $SPB_ALREADY_APPLIED; then
         ok "SPB $WLS_SPB_PATCH_NR already applied (marker patch $SPB_MARKER present) – skip"
+    elif [ -z "$SPB_DIR" ]; then
+        fail "SPB was not staged earlier in this run – cannot apply"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
     else
-        # Reached only with --apply or --check-only (plain dry-run exits earlier above)
-        SPB_ZIP="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
-        if [ -z "$SPB_ZIP" ]; then
-            fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
-            fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
-            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB ZIP found: $(basename "$SPB_ZIP")"
-
-        SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
-        mkdir -p "$SPB_STAGE" || {
-            fail "Cannot create SPB staging directory: $SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        }
-
-        info "Unzipping SPB (this can take a while, several hundred MB)..."
-        unzip -q "$SPB_ZIP" -d "$SPB_STAGE" || {
-            fail "unzip failed: $SPB_ZIP"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        }
-
-        # Top-level directory name changes with the SPB version – discover it,
-        # do not hardcode (e.g. WLS_SPB_14.1.2.0.260825).
-        SPB_DIR="$(find "$SPB_STAGE" -maxdepth 1 -mindepth 1 -type d -name 'WLS_SPB_*' | head -1)"
-        if [ -z "$SPB_DIR" ]; then
-            fail "Could not find WLS_SPB_* directory after unzip in: $SPB_STAGE"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB directory: $(basename "$SPB_DIR")"
-
-        SPB_PATCHLIST="$SPB_DIR/binary_patches/${WLS_SPB_PATCHLIST_FILE:-linux64_patchlist.txt}"
-        if [ ! -f "$SPB_PATCHLIST" ]; then
-            fail "SPB patch list not found: $SPB_PATCHLIST"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB patch list: $SPB_PATCHLIST"
-
         # opatch napply README requires JAVA_HOME/ORACLE_HOME unset for this
         # call – scoped to a subshell only, no effect on the rest of this script.
         NAPPLY_MODE="-report"
@@ -454,12 +491,14 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
             info "Rollback (if ever needed): opatch nrollback -oh \$ORACLE_HOME -idFile $SPB_DIR/binary_patches/rollback_patchlist.txt"
             info "  Oracle advises against rolling back individual patches from the SPB"
         fi
+    fi
 
+    [ -n "$SPB_STAGE" ] && {
         rm -rf "$SPB_STAGE"
         info "SPB staging directory removed (ZIP kept in $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/ for a future rollback)"
-    fi
+    }
 else
-    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB section"
+    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB apply"
 fi
 
 # =============================================================================
@@ -503,11 +542,21 @@ mkdir -p "$STAGING_BASE" || {
 }
 
 for _p in $PATCHES_TO_APPLY; do
-    PATCH_ZIP="$(ls "$PATCH_STORAGE/patches/$_p"/p${_p}_*.zip 2>/dev/null | head -1)"
-    if [ -z "$PATCH_ZIP" ]; then
+    PATCH_ZIP="$(_select_patch_zip "$PATCH_STORAGE/patches/$_p" "$_p")"
+    SELECT_RC=$?
+    if [ "$SELECT_RC" -eq 1 ]; then
         fail "Patch ZIP not found for patch $_p in: $PATCH_STORAGE/patches/$_p/"
         fail "  Expected: p${_p}_*.zip"
         info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+        rm -rf "$STAGING_BASE"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    elif [ "$SELECT_RC" -eq 2 ]; then
+        fail "Patch $_p has multiple product-version variants – cannot pick automatically:"
+        for _f in "$PATCH_STORAGE/patches/$_p"/p${_p}_*.zip; do
+            fail "  $(basename "$_f")"
+        done
+        unset _f
+        fail "  None or more than one matches 14.1.2 – remove the unwanted variant(s) and re-run"
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi

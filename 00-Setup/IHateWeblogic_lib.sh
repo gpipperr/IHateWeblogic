@@ -252,6 +252,40 @@ backup_file() {
     fi
 }
 
+# _select_patch_zip  patch_dir  patch_nr  [version_tag]
+# Finds the ZIP to apply for one MOS patch number. A single patch number can
+# ship several product-version variants under the same number (e.g. one ZIP
+# each for 12.2.1.4.0 / 14.1.1.0.0 / 14.1.2.0.0 / ...), distinguished only by
+# a dot-free version string embedded in the filename
+# (p<patch>_<version><datecode>_<platform>.zip, e.g.
+# p39988381_14120260823_Generic.zip for 14.1.2). version_tag defaults to
+# "1412" (14.1.2) since that is the only product line this project installs.
+# Echoes the selected path on stdout. Return codes:
+#   0 = exactly one candidate (no ambiguity, or already uniquely matched)
+#   1 = no candidate ZIP found at all
+#   2 = multiple candidates, and not exactly one matches version_tag
+#       (ambiguous - caller must not guess, resolve manually)
+_select_patch_zip() {
+    local patch_dir="$1" patch_nr="$2" version_tag="${3:-1412}"
+    local -a candidates
+    mapfile -t candidates < <(ls "${patch_dir}"/p"${patch_nr}"_*.zip 2>/dev/null)
+
+    case "${#candidates[@]}" in
+        0) return 1 ;;
+        1) printf "%s" "${candidates[0]}"; return 0 ;;
+    esac
+
+    local -a matches
+    mapfile -t matches < <(printf "%s\n" "${candidates[@]}" | grep -E "/p${patch_nr}_${version_tag}[0-9]*_")
+
+    if [ "${#matches[@]}" -eq 1 ]; then
+        printf "%s" "${matches[0]}"
+        return 0
+    fi
+
+    return 2
+}
+
 # check_env_conf  [path_to_environment.conf]
 # Returns 0 if found, 1 if missing (prints error).
 check_env_conf() {

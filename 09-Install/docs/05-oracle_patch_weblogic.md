@@ -368,16 +368,23 @@ opatch lspatches | grep 38566996   # must return nothing
 - Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR`,
   `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE` from
   `oracle_software_version.conf`
+- **WLS Stack Patch Bundle staging** (if `WLS_SPB_PATCH_NR` is set and not
+  already applied) — unzips the SPB once, before the OPatch upgrade step,
+  so both that step and the later `opatch napply` can reuse the same
+  staged directory instead of unzipping the multi-GB archive twice
 - **OPatch upgrade** (if current version < `OPATCH_VERSION_MIN`):
   - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
   - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_INVENTORY` (one level above `ORACLE_BASE`)
-  - Unzips Patch 28186730 to a temp directory
+  - Sources the upgrade ZIP from inside the staged SPB
+    (`tools/opatch/generic/p28186730_*.zip`) if present, else falls back to
+    the standalone Patch 28186730 download — see the resolved caveat above
   - Runs `opatch_generic.jar -silent oracle_home=...` to install new OPatch via OUI tooling
   - Verifies the installed version matches `OPATCH_VERSION_MIN`
-  - Cleans up temp directory
-- **WLS Stack Patch Bundle** (if `WLS_SPB_PATCH_NR` is set and not already
-  applied) — see "SPB (CSPU September 2026)" above for the full `opatch
-  napply` procedure; runs after the OPatch upgrade, before the patches below
+  - Cleans up its own temp directory (the staged SPB directory is not
+    affected, it is cleaned up after the napply step below)
+- **WLS Stack Patch Bundle apply** (`opatch napply`, reusing the staged
+  directory) — see "SPB (CSPU September 2026)" above for the full
+  procedure; runs after the OPatch upgrade, before the patches below
 - **Conflict check** for all `INSTALL_PATCHES` before any apply
 - Aborts if any conflict is found
 - **Applies patches** in the order they appear in `INSTALL_PATCHES`
@@ -520,6 +527,25 @@ Disk space: the SPB needs roughly 4 GB free outside `$ORACLE_HOME` to unzip.
 
 Rollback (manual only, not automated by the script): Oracle advises against
 rolling back individual patches out of an SPB.
+
+> **Resolved — OPatch 13.9.4.2.24 source (confirmed 2026-10-13):** the
+> standalone MOS download of Patch `28186730` (`OPATCH_UPGRADE_PATCH_NR`)
+> currently only offers builds up to **13.9.4.2.22**
+> (`p28186730_1394221_Generic.zip` / `p28186730_1394222_Generic.zip`) —
+> confirmed by actually downloading it, not assumed. The build this
+> project's `OPATCH_VERSION_MIN=13.9.4.2.24` requires was found **bundled
+> inside the SPB zip itself**, at `WLS_SPB_14.1.2.0.260825/tools/opatch/
+> generic/p28186730_1394224_Generic.zip`.
+>
+> `05-oracle_patch_weblogic.sh` now stages the SPB **before** the OPatch
+> upgrade step (new "WLS Stack Patch Bundle ... – Staging" section) and the
+> OPatch upgrade prefers the jar bundled inside that staged SPB directory
+> (`$SPB_DIR/tools/opatch/generic/p28186730_*.zip`), falling back to the
+> standalone download only if the SPB isn't configured or doesn't contain
+> one — logged either way as `OPatch upgrade ZIP found (<source>): ...`.
+> The SPB archive is unzipped only once and the same staging directory is
+> reused by the later `opatch napply` step, instead of unzipping the
+> multi-GB archive twice.
 
 ```bash
 cd WLS_SPB_14.1.2.0.260825/binary_patches

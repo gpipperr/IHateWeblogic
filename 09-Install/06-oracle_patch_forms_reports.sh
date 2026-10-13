@@ -269,11 +269,21 @@ mkdir -p "$STAGING_BASE" || {
 }
 
 for _p in $PATCHES_TO_APPLY; do
-    PATCH_ZIP="$(ls "$PATCH_STORAGE/patches/$_p"/p${_p}_*.zip 2>/dev/null | head -1)"
-    if [ -z "$PATCH_ZIP" ]; then
+    PATCH_ZIP="$(_select_patch_zip "$PATCH_STORAGE/patches/$_p" "$_p")"
+    SELECT_RC=$?
+    if [ "$SELECT_RC" -eq 1 ]; then
         fail "Patch ZIP not found for patch $_p in: $PATCH_STORAGE/patches/$_p/"
         fail "  Expected: p${_p}_*.zip"
         info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+        rm -rf "$STAGING_BASE"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    elif [ "$SELECT_RC" -eq 2 ]; then
+        fail "Patch $_p has multiple product-version variants – cannot pick automatically:"
+        for _f in "$PATCH_STORAGE/patches/$_p"/p${_p}_*.zip; do
+            fail "  $(basename "$_f")"
+        done
+        unset _f
+        fail "  None or more than one matches 14.1.2 – remove the unwanted variant(s) and re-run"
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi

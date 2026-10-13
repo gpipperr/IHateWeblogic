@@ -292,7 +292,8 @@ $PATCH_STORAGE/
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted
 └── patches/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
-    │   └── p28186730_139424_Generic.zip     ← contains 6880880/opatch_generic.jar
+    │   └── p28186730_1394222_Generic.zip    ← contains 6880880/opatch_generic.jar
+    │       (confirmed on MOS: 13.9.4.2.22, NOT .24 – see caveat below)
     ├── 39925660/                 ← CSPU Sep 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
     │   └── p39925660_141200_Generic.zip     ← applied via opatch napply, not apply
     ├── 39988381/                 ← CSPU Sep 2026: WLS SPU CVE-2026-70748 (getMOSPatch, INSTALL_PATCHES)
