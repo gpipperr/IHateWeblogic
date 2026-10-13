@@ -508,14 +508,27 @@ if $MOS_MODE; then
         ok "getMOSPatch.jar downloaded: $GMP_JAR  ($(du -sh "$GMP_JAR" | awk '{print $1}'))"
     fi
 
-    # --- .getMOSPatch.cfg: create if missing ----------------------------------
-    # Format: one entry per line – getMOSPatch reads this from the CURRENT WORKING DIR.
-    # The master copy lives in $PATCH_STORAGE/bin/; _mos_download_one copies it
-    # to each destination directory before invoking getMOSPatch.
-    if [ ! -f "$GMP_CFG" ]; then
+    # --- .getMOSPatch.cfg: create or repair ------------------------------------
+    # Format REQUIRED by getMOSPatch.jar's platforms() parser: a single line
+    # "<platform>;<language>" (semicolon-joined). getMOSPatch reads this from
+    # the CURRENT WORKING DIR. The master copy lives in $PATCH_STORAGE/bin/;
+    # _mos_download_one copies it to each destination directory before
+    # invoking getMOSPatch.
+    #
+    # A cfg written as two separate lines (platform on one line, language on
+    # the next - what this script used to write) makes getMOSPatch crash with
+    # "ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1":
+    # platforms() splits each line on ";" expecting exactly 2 parts, and a
+    # line with no ";" yields a 1-element array. Confirmed by decompiling
+    # getMOSPatch.jar (platforms() source line 481). If an old, wrongly
+    # formatted cfg already exists from before this fix, it is rewritten here
+    # rather than left in place.
+    GMP_CFG_EXPECTED="${MOS_PLATFORM:-226P};${MOS_LANGUAGE:-4L}"
+    if [ ! -f "$GMP_CFG" ] || [ "$(cat "$GMP_CFG" 2>/dev/null)" != "$GMP_CFG_EXPECTED" ]; then
+        [ -f "$GMP_CFG" ] && warn ".getMOSPatch.cfg has the wrong format (expected a single \"platform;language\" line) – rewriting"
         mkdir -p "$(dirname "$GMP_CFG")"
-        printf "%s\n%s\n" "${MOS_PLATFORM:-226P}" "${MOS_LANGUAGE:-4L}" > "$GMP_CFG"
-        ok "$(printf "Created .getMOSPatch.cfg  platform=%-6s lang=%s" \
+        printf "%s\n" "$GMP_CFG_EXPECTED" > "$GMP_CFG"
+        ok "$(printf "Wrote .getMOSPatch.cfg  platform=%-6s lang=%s" \
             "${MOS_PLATFORM:-226P}" "${MOS_LANGUAGE:-4L}")"
     else
         ok ".getMOSPatch.cfg exists: $GMP_CFG"
