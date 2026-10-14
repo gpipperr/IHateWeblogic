@@ -126,7 +126,7 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 | 2 | Show current `SecureListener` / `ListenAddress` / `StartScriptEnabled` values |
 | 3 | Backup `nodemanager.properties` with timestamp |
 | 4 | Set `SecureListener=false` and `StartScriptEnabled=true` |
-| 5 | Connect to AdminServer via WLST (if reachable) and set `NodeManagerType=Plain` |
+| 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain) |
 | 6 | Verify written values |
 | 7 | Print next-step hints |
 

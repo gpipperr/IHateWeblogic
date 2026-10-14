@@ -186,15 +186,15 @@ fi
 unset _nm_change_needed
 
 # =============================================================================
-# 3. Domain Configuration via WLST (NodeManagerType = Plain)
+# 3. Domain Configuration via WLST (Machine NodeManagerMBean NMType = Plain)
 # =============================================================================
 section "Domain NodeManager Type (WLST)"
 
 if $SKIP_WLST; then
     info "Skipping WLST step (--skip-wlst or wlst.sh not found)"
     info "  Set NodeManager type manually in EM:"
-    info "  fr_domain → WebLogic Domain → Security → General"
-    info "  → NodeManager Type: Plain → Lock & Edit → Save → Activate"
+    info "  fr_domain → WebLogic Domain → Environment → Machines → <machine>"
+    info "  → Configuration → Node Manager tab → Type: Plain → Lock & Edit → Save → Activate"
 else
     # Check AdminServer port is open
     _adm_port="${WLS_ADMIN_PORT:-7001}"
@@ -227,15 +227,27 @@ wl_pass = os.environ.get('_IHW_WL_PASS', '')
 adm_url = os.environ.get('_IHW_ADM_URL', 't3://localhost:7001')
 domain  = os.environ.get('_IHW_DOMAIN',  'fr_domain')
 
+# NOTE: NodeManagerType does NOT live on SecurityConfigurationMBean in
+# WLS 14.1.2 (confirmed live against a real 14.1.2 domain via dir(cmo) -
+# only NodeManagerUsername/NodeManagerPassword(Encrypted)/SecureMode are
+# present there, cmo.setNodeManagerType() raises AttributeError). The
+# attribute lives on the NodeManagerMBean under the domain's Machine
+# instead, and is called NMType there.
 try:
     connect(wl_user, wl_pass, adm_url)
     edit()
     startEdit()
-    cd('/SecurityConfiguration/' + domain)
-    cmo.setNodeManagerType('Plain')
+    cd('/')
+    machines = cmo.getMachines()
+    if len(machines) != 1:
+        print('IHW:FAIL:Expected exactly 1 Machine in the domain, found ' + str(len(machines)) + ' - cannot determine which one to configure automatically, set NMType=Plain manually in EM (WebLogic Domain -> Environment -> Machines -> <machine> -> Node Manager)')
+        sys.exit(1)
+    machine_name = machines[0].getName()
+    cd('/Machines/' + machine_name + '/NodeManager/' + machine_name)
+    cmo.setNMType('Plain')
     save()
     activate(block='true')
-    print('IHW:OK:NodeManagerType set to Plain')
+    print('IHW:OK:NMType set to Plain (Machine ' + machine_name + ')')
     disconnect()
 except Exception as e:
     print('IHW:FAIL:WLST error: ' + str(e))
@@ -265,7 +277,7 @@ WLST_EOF
             unset _wlst_script _wlst_out _domain_name WL_USER
 
         else
-            info "Dry-run – would connect to $_adm_url and set NodeManagerType=Plain"
+            info "Dry-run – would connect to $_adm_url and set Machine NodeManagerMBean NMType=Plain"
         fi
     fi
     unset _adm_port _adm_url

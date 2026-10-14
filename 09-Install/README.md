@@ -149,7 +149,7 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties for AdminServer + Managed Server
   [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NodeManager config before first start
   → Start AdminServer + NodeManager manually
-  [oracle] 11-oracle_nodemanager.sh --apply             # WLST: set NodeManagerType=Plain
+  [oracle] 11-oracle_nodemanager.sh --apply             # WLST: set Machine NMType=Plain
   [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users monUser + RepRunner
   [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 symlink (OL9 only)
   [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
