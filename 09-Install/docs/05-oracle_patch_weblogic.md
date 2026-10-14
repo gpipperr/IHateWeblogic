@@ -392,8 +392,16 @@ opatch lspatches | grep 38566996   # must return nothing
   rejects EBS AutoPatch artifacts and release mismatches against
   `FMW_PRODUCT_RELEASE`; aborts the whole run on failure — see "Patch
   39988381" below
-- **Conflict check** for all `INSTALL_PATCHES` before any apply
+- **Conflict check** for all `INSTALL_PATCHES` before any apply. The OPatch
+  **output** is evaluated, not only the return code: OPatch reports
+  `OPatch succeeded` (rc=0) even when `checkConflictAgainstOHWithDetail` failed.
+  A missing prerequisite that is part of the SPB (e.g. 39988381 needs the WLS
+  PSU 39919611 from SPB 39925660) is only a WARN in `--check-only` – the SPB is
+  merely simulated there; `--apply` installs it first. Everything else is a FAIL.
 - Aborts if any conflict is found
+- All OPatch calls that would ask "Do you want to proceed? [y|n]" (`napply`,
+  `rollback`, `apply`) run with `-silent` – otherwise they fail with rc=73 when
+  no terminal is attached (confirmed 2026-10-14)
 - **Applies patches** in the order they appear in `INSTALL_PATCHES`
 - Verifies each patch appears in `opatch lsinventory` after apply
 - Generates a patch report: which patches were applied, which were already present

@@ -84,7 +84,8 @@ Current configuration in `oracle_software_version.conf`:
 
 | Variable | Value | Description |
 |---|---|---|
-| `INSTALL_PATCHES` | `39988381 38590500` | CSPU Sep 2026 WLS SPU + PERL Security Patch, applied via plain `opatch apply` after the SPB above |
+| `INSTALL_PATCHES` | `39988381` | CSPU Sep 2026 WLS SPU, applied via plain `opatch apply` after the SPB above |
+| `INSTALL_PATCHES_FR_COMMON` | `38590500` | FMW PERL Security Patch – applied by `06-` once Forms/Reports is installed (its component `oracle.perlint` is not in the infrastructure home) |
 | `INSTALL_PATCHES_REPORTS` | `39600348` | Reports 14.1.2 QPR (Aug 2026, Linux-x86-64), supersedes `38827528` |
 | `INSTALL_PATCHES_FORMS` | `39842516` | Forms 14.1.2 QPR (Sep 2026, Linux-x86-64), supersedes `38874285` — only downloaded/applied if Forms is part of this install |
 
@@ -297,7 +298,7 @@ $PATCH_STORAGE/
     ├── 39925660/                 ← CSPU Sep 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
     │   └── p39925660_141200_Generic.zip     ← applied via opatch napply, not apply
     ├── 39988381/                 ← CSPU Sep 2026: WLS SPU CVE-2026-70748 (getMOSPatch, INSTALL_PATCHES)
-    ├── 38590500/                 ← FMW PERL Security Patch (getMOSPatch, INSTALL_PATCHES)
+    ├── 38590500/                 ← FMW PERL Security Patch (getMOSPatch, INSTALL_PATCHES_FR_COMMON)
     ├── 39600348/                 ← QPR Aug 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
     │   └── p39600348_141200_Linux-x86-64.zip
     └── 39842516/                 ← QPR Sep 2026: Forms 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FORMS)

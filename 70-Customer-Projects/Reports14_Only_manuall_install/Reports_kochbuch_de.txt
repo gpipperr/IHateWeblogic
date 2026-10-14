@@ -159,10 +159,31 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   # falls gefunden:
   $ORACLE_HOME/OPatch/opatch rollback -id 38827528
 
-  cd $PATCH_STORAGE/patches/39600348/
+  # Patch-ZIP zuerst entpacken - opatch arbeitet im entpackten Verzeichnis
+  unzip -q $PATCH_STORAGE/patches/39600348/p39600348_*.zip -d /tmp/mw_patches
+  cd /tmp/mw_patches/39600348
+  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
+  # Pruefen: "Prereq ... passed". Steht dort "failed", NICHT weitermachen -
+  # opatch meldet am Ende trotzdem "OPatch succeeded".
+  $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
+  cd -
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
+
+  # FMW PERL Security Patch 38590500 - gehoert HIERHER, nicht ins
+  # FMW-Kochbuch: seine Komponente (oracle.perlint) bringt erst die
+  # Reports-Installation mit. In der reinen WebLogic-Infrastruktur wuerde
+  # opatch ihn mit "none of the components from patch are present"
+  # ueberspringen (Ende: "completed with warnings", aber NICHT installiert).
+  unzip -q $PATCH_STORAGE/patches/38590500/p38590500_*.zip -d /tmp/mw_patches
+  cd /tmp/mw_patches/38590500
   $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
   $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
+  cd -
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 38590500
+  # Erwartet: eine Zeile mit 38590500. Fehlt sie und stand in der Ausgabe
+  # "none of the components from patch are present", ist Perl in diesem Home
+  # nicht installiert - dann ist der Patch hier nicht anwendbar.
+  rm -rf /tmp/mw_patches
 
   # /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
 

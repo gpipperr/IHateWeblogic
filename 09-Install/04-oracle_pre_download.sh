@@ -480,7 +480,7 @@ if ! _inv_patch "$_opatch_nr" "OPatch upgrade $_opatch_nr"; then
     fi
 fi
 
-_inv_list="${WLS_SPB_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_REPORTS:-}"
+_inv_list="${WLS_SPB_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-}"
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY) _inv_list="$_inv_list ${INSTALL_PATCHES_FORMS:-}" ;;
 esac
@@ -692,7 +692,7 @@ if $MOS_MODE; then
     # --- Forms & Reports QPR patches ------------------------------------------
     section "Forms & Reports QPR Patches"
 
-    FR_PATCHES="${INSTALL_PATCHES_REPORTS:-} ${INSTALL_PATCHES_FORMS:-}"
+    FR_PATCHES="${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-} ${INSTALL_PATCHES_FORMS:-}"
     [ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && FR_PATCHES="$FR_PATCHES ${INSTALL_PATCHES_FR_OPTIONAL:-}"
     FR_PATCHES="$(printf "%s" "$FR_PATCHES" | xargs)"
 

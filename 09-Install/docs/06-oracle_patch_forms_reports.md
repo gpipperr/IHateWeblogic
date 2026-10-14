@@ -41,10 +41,22 @@ applied — see "What the Script Does" below.
 Defined in `09-Install/oracle_software_version.conf` (space-separated lists):
 
 ```bash
+INSTALL_PATCHES_FR_COMMON="38590500"     # if Forms OR Reports is installed
 INSTALL_PATCHES_REPORTS="39600348"
 INSTALL_PATCHES_FORMS="39842516"
 INSTALL_PATCHES_FR_OPTIONAL="38936596"   # only if REPORTS_BIDIPARENTHESIS=YES
 ```
+
+`INSTALL_PATCHES_FR_COMMON` holds patches for components that only the Forms
+& Reports installer brings – currently the FMW PERL Security Patch 38590500
+(component `oracle.perlint`). In the infrastructure-only home `05-` would
+have it skipped by OPatch ("none of the components from patch are present",
+confirmed 2026-10-14). If OPatch still skips a patch here, `06-` reports it
+as **SKIPPED** (WARN), not as applied.
+
+Apply and conflict check evaluate the OPatch **output**, not only the return
+code (OPatch says "OPatch succeeded" with rc=0 even when the prereq failed or
+the patch was skipped).
 
 Current patches (Aug/Sep 2026):
 

@@ -47,7 +47,7 @@ Linux 9), Nginx as frontend.
 | 2 | 28186730 | OPatch for FMW/WLS 14.1.2.0.0 | CPU | standalone MOS download currently only offers **13.9.4.2.22** (`p28186730_1394222_Generic.zip`); **13.9.4.2.24** — the version this project's `OPATCH_VERSION_MIN` actually requires — is bundled inside the SPB (patch 39925660) at `tools/opatch/generic/p28186730_1394224_Generic.zip` instead; confirmed 2026-10-13, see the caveat in `docs/05-oracle_patch_weblogic.md` |
 | 3 | **39925660** | WLS Stack Patch Bundle 14.1.2.0.260825 | CSPU Sep 2026 | `p39925660_141200_Generic.zip` |
 | 4 | **39988381** | WLS 14.1.2 SPU for CVE-2026-70748 (in addition to the SPB) | CSPU Sep 2026 | ships 4 product-version variants under one patch number (12.2.1.4.0/14.1.1.0.0/14.1.2.0.0/15.1.1.x) — `05-/06-oracle_patch_*.sh` select the 14.1.2 one automatically via `_select_patch_zip()` in `IHateWeblogic_lib.sh` |
-| 5 | 38590500 | FMW PERL Security Patch Update 14.1.2.0.260120 | CPU Jan 2026 | `p38590500_141200_Linux-x86-64.zip` |
+| 5 | 38590500 | FMW PERL Security Patch Update 14.1.2.0.260120 – component `oracle.perlint`, comes with the Forms & Reports installer: applied by `06-` (`INSTALL_PATCHES_FR_COMMON`), not in the infrastructure-only home | CPU Jan 2026 | `p38590500_141200_Linux-x86-64.zip` |
 | 6 | **39600348** | Oracle Reports Developer QPR 14.1.2.0 | Aug 2026 | `p39600348_141200_Linux-x86-64.zip` — supersedes 38827528 |
 
 ### Patch 39988381 — same patch number, two different releases

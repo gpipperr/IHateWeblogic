@@ -167,6 +167,9 @@ INVPTR_ARGS=()
 # INSTALL_PATCHES_REPORTS always applies (if reports/ exists); FORMS and the
 # bidi one-off only apply when their precondition is met.
 PATCHES_WANTED=""
+# Patches for components that only the Forms & Reports installer brings
+# (e.g. FMW PERL oracle.perlint) – applied if Forms or Reports is installed
+{ $HAS_REPORTS || $HAS_FORMS; } && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FR_COMMON:-}"
 $HAS_REPORTS && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_REPORTS:-}"
 $HAS_FORMS   && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FORMS:-}"
 [ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FR_OPTIONAL:-}"
@@ -207,7 +210,7 @@ for _new in $PATCHES_WANTED; do
     if echo "$CURRENT_PATCHES" | grep -q "^${_old};"; then
         warn "Patch $_old is superseded by $_new – rolling back $_old first"
         if $APPLY; then
-            "$OPATCH" rollback -id "$_old" "${INVPTR_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+            "$OPATCH" rollback -silent -id "$_old" "${INVPTR_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
             ROLLBACK_RC=${PIPESTATUS[0]}
             if [ "$ROLLBACK_RC" -ne 0 ]; then
                 fail "Rollback of superseded patch $_old failed (rc=$ROLLBACK_RC)"
@@ -312,18 +315,33 @@ for _p in $PATCHES_TO_APPLY; do
 
     info "Conflict check: patch $_p"
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
-    "$OPATCH" prereq CheckConflictAgainstOHWithDetail \
-        -ph . \
-        "${INVPTR_ARGS[@]}" \
-        2>&1 | tee -a "$LOG_FILE"
-    PREREQ_RC=${PIPESTATUS[0]}
+    PREREQ_OUT="$("$OPATCH" prereq CheckConflictAgainstOHWithDetail \
+        -ph . "${INVPTR_ARGS[@]}" 2>&1)"
+    PREREQ_RC=$?
     popd > /dev/null
+    printf '%s\n' "$PREREQ_OUT" | tee -a "$LOG_FILE"
 
-    [ "$PREREQ_RC" -eq 0 ] \
-        && ok "No conflicts for patch $_p" \
-        || { fail "Conflict check failed for patch $_p (rc=$PREREQ_RC)"; CONFLICT_FOUND=true; }
+    # OPatch prints "OPatch succeeded" (rc=0) even when the prereq itself
+    # failed (conflict or missing prerequisite) – evaluate the output too.
+    if [ "$PREREQ_RC" -ne 0 ]; then
+        fail "Conflict check failed for patch $_p (rc=$PREREQ_RC)"
+        CONFLICT_FOUND=true
+    elif printf '%s' "$PREREQ_OUT" | grep -q 'Prereq "checkConflictAgainstOHWithDetail" failed'; then
+        _missing="$(printf '%s' "$PREREQ_OUT" \
+            | sed -n 's/.*requires prerequisite patch(es) \[\([0-9, ]*\)\].*/\1/p' | tr ',' ' ' | xargs)"
+        if [ -n "$_missing" ]; then
+            fail "Patch $_p needs prerequisite patch(es) not present: $_missing"
+            info "  Apply the WebLogic patches first: 05-oracle_patch_weblogic.sh --apply"
+        else
+            fail "Conflict check for patch $_p failed – see output above"
+        fi
+        CONFLICT_FOUND=true
+        unset _missing
+    else
+        ok "No conflicts for patch $_p"
+    fi
 done
-unset _p
+unset _p PREREQ_OUT
 
 if $CONFLICT_FOUND; then
     fail "Conflicts detected – aborting. Resolve conflicts before applying."
@@ -353,13 +371,15 @@ for _p in $PATCHES_TO_APPLY; do
     printf "  Apply started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
+    # Capture first, then log: PIPESTATUS of a pipe inside $( ) is not visible
+    # here – it would report tee's status instead of opatch's.
     APPLY_OUTPUT="$("$OPATCH" apply \
         -silent \
         -jdk "$JDK_HOME" \
-        "${INVPTR_ARGS[@]}" \
-        2>&1 | tee -a "$LOG_FILE")"
-    APPLY_RC=${PIPESTATUS[0]}
+        "${INVPTR_ARGS[@]}" 2>&1)"
+    APPLY_RC=$?
     popd > /dev/null
+    printf '%s\n' "$APPLY_OUTPUT" | tee -a "$LOG_FILE"
 
     printf "  Apply finished: %s  (rc=%s)\n" \
         "$(date '+%Y-%m-%d %H:%M:%S')" "$APPLY_RC" | tee -a "$LOG_FILE"
@@ -369,6 +389,14 @@ for _p in $PATCHES_TO_APPLY; do
         fail "  Check: $ORACLE_HOME/cfgtoollogs/opatch/"
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+
+    # rc=0 + "completed with warnings" also happens when OPatch SKIPS the patch
+    # because none of its components is installed in this home
+    if printf '%s' "$APPLY_OUTPUT" | grep -q "none of the components from patch are present"; then
+        warn "Patch $_p skipped by OPatch – its component is not installed in this ORACLE_HOME"
+        PATCHES_SKIPPED="${PATCHES_SKIPPED:-} $_p"
+        continue
     fi
 
     # opatch apply succeeded (rc=0) but may still print "OPatch Session
@@ -412,6 +440,10 @@ for _p in $PATCHES_APPLIED; do
     else
         fail "$(printf "Patch %-12s NOT found after apply!" "$_p")"
     fi
+done
+unset _p
+for _p in ${PATCHES_SKIPPED:-}; do
+    warn "$(printf "Patch %-12s SKIPPED – component not installed in this home" "$_p")"
 done
 unset _p
 

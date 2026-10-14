@@ -181,8 +181,14 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
 
   #     OPatch-Upgrade einspielen (ueber opatch_generic.jar, NICHT per
   #     einfachem unzip - sonst inkonsistente OUI-Metadaten). Patch 28186730
-  #     ist das FMW/WLS-spezifische OPatch-Upgrade-Paket:
-  unzip -q $PATCH_STORAGE/patches/28186730/p28186730_*.zip -d /tmp/opatch_upgrade
+  #     ist das FMW/WLS-spezifische OPatch-Upgrade-Paket.
+  #     WICHTIG: Der einzelne MOS-Download von 28186730 liefert nur
+  #     13.9.4.2.22 - die benoetigte 13.9.4.2.24 steckt im SPB 39925660.
+  #     Deshalb nur diese eine Datei (~60 MB) aus dem SPB-ZIP holen:
+  mkdir -p /tmp/opatch_upgrade
+  unzip -q -j $PATCH_STORAGE/patches/39925660/p39925660_*.zip \
+      "*/tools/opatch/generic/p28186730_*.zip" -d /tmp/opatch_upgrade
+  unzip -q /tmp/opatch_upgrade/p28186730_*.zip -d /tmp/opatch_upgrade
   mkdir -p $ORACLE_BASE/tmp
   $JDK_HOME/bin/java -Djava.io.tmpdir=$ORACLE_BASE/tmp \
       -jar /tmp/opatch_upgrade/6880880/opatch_generic.jar \
@@ -226,15 +232,20 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
 
   # 3.4 Einzelpatches NACH dem SPB (normales "opatch apply", CSPU Sep 2026):
   #     39988381  WLS 14.1.2 SPU fuer CVE-2026-70748
-  #     38590500  FMW PERL Security Patch Update (braucht DBCLIENT 23.26+
-  #               aus dem SPB - deshalb erst danach)
+  #     (38590500 FMW PERL Security Patch gehoert NICHT hierher: seine
+  #      Komponente bringt erst die Reports-Installation mit - er wird in
+  #      Reports_kochbuch_de.txt Schritt 2 eingespielt. Hier wuerde opatch
+  #      ihn mit "none of the components from patch are present" ueberspringen.)
   #     (38566996 UMS Bundle aus dem Januar-Zyklus gehoert NICHT zum
   #      September-Stand und wird nicht mehr eingespielt)
   #
   # ACHTUNG: Patch 39988381 gibt es unter derselben Nummer fuer mehrere
   # Produktversionen (12.2.1.4 / 14.1.1 / 14.1.2 / 15.1.1). Liegen mehrere
   # ZIPs im Verzeichnis, nur die 14.1.2-Variante nehmen (Dateiname mit "_1412").
-  for PATCHNR in 39988381 38590500; do
+  # 39988381 setzt die WLS-PSU 39919611 aus dem SPB voraus - deshalb erst
+  # NACH Schritt 3.3. Im prereq-Ergebnis muss "passed" stehen; bei "failed"
+  # NICHT weitermachen (opatch meldet trotzdem "OPatch succeeded").
+  for PATCHNR in 39988381; do
       PATCHZIP=$(ls $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip | grep "_1412" | head -1)
       echo "Patch $PATCHNR -> $PATCHZIP"
       unzip -d /tmp/mw_patches "$PATCHZIP"
@@ -246,7 +257,9 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   done
 
   # 3.5 Verifikation
-  opatch lspatches | grep -E "39988381|38590500"
+  opatch lspatches | grep -E "39988381|39925694"
+  # Erwartet: 39988381 und der SPB-Marker 39925694
+  rm -rf /tmp/mw_patches
 
   # 3.6 Rollback (nur falls spaeter noetig, Domain laeuft bereits)
   #     opatch rollback -id <PATCHNUMMER>

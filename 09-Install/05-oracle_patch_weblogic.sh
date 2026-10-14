@@ -271,7 +271,7 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
     info "Checking for patch 23335292 (mandatory pre-check per OPatch README)..."
     if "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^23335292"; then
         warn "Patch 23335292 found – rolling back before OPatch upgrade (required by README)"
-        "$OPATCH" rollback -id 23335292 -oh "$ORACLE_HOME" "${INVPTR_ARGS[@]}" \
+        "$OPATCH" rollback -silent -id 23335292 -oh "$ORACLE_HOME" "${INVPTR_ARGS[@]}" \
             2>&1 | tee -a "$LOG_FILE"
         ROLLBACK_RC=${PIPESTATUS[0]}
         if [ "$ROLLBACK_RC" -ne 0 ]; then
@@ -494,9 +494,9 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
             unset JAVA_HOME
             unset ORACLE_HOME
             if [ -n "$NAPPLY_MODE" ]; then
-                "$OPATCH" napply $NAPPLY_MODE -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
+                "$OPATCH" napply $NAPPLY_MODE -silent -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
             else
-                "$OPATCH" napply -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
+                "$OPATCH" napply -silent -oh "$NAPPLY_OH" -phBaseFile "$SPB_PATCHLIST" "${INVPTR_ARGS[@]}"
             fi
         ) 2>&1 | tee -a "$LOG_FILE"
         NAPPLY_RC=${PIPESTATUS[0]}
@@ -565,6 +565,15 @@ fi
 
 section "Conflict Check"
 
+# Patch IDs bundled in the SPB (subdirectories of binary_patches/<area>/<platform>/)
+SPB_PATCH_IDS=""
+if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+    _spbz="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
+    [ -n "$_spbz" ] && SPB_PATCH_IDS="$(unzip -Z1 "$_spbz" 2>/dev/null \
+        | sed -n 's|.*/binary_patches/[^/]*/[^/]*/\([0-9]\{6,\}\)/$|\1|p' | sort -u | tr '\n' ' ')"
+    unset _spbz
+fi
+
 STAGING_BASE="$ORACLE_BASE/tmp/mw_patches_$$"
 mkdir -p "$STAGING_BASE" || {
     fail "Cannot create patch staging directory: $STAGING_BASE"
@@ -619,21 +628,42 @@ for _p in $PATCHES_TO_APPLY; do
 
     info "Conflict check: patch $_p"
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
-    "$OPATCH" prereq CheckConflictAgainstOHWithDetail \
-        -ph . \
-        "${INVPTR_ARGS[@]}" \
-        2>&1 | tee -a "$LOG_FILE"
-    PREREQ_RC=${PIPESTATUS[0]}
+    PREREQ_OUT="$("$OPATCH" prereq CheckConflictAgainstOHWithDetail \
+        -ph . "${INVPTR_ARGS[@]}" 2>&1)"
+    PREREQ_RC=$?
     popd > /dev/null
+    printf '%s\n' "$PREREQ_OUT" | tee -a "$LOG_FILE"
 
+    # OPatch prints "OPatch succeeded" (rc=0) even when the prereq itself
+    # failed – the output has to be evaluated, not only the return code.
     if [ "$PREREQ_RC" -ne 0 ]; then
         fail "Conflict check failed for patch $_p (rc=$PREREQ_RC)"
         CONFLICT_FOUND=true
-    else
+    elif ! printf '%s' "$PREREQ_OUT" | grep -q 'Prereq "checkConflictAgainstOHWithDetail" failed'; then
         ok "No conflicts for patch $_p"
+    else
+        _missing="$(printf '%s' "$PREREQ_OUT" \
+            | sed -n 's/.*requires prerequisite patch(es) \[\([0-9, ]*\)\].*/\1/p' | tr ',' ' ' | xargs)"
+        if printf '%s' "$PREREQ_OUT" | grep -qiE 'conflicts? with|following patches have conflicts|superset'; then
+            fail "Patch $_p conflicts with installed patches – see output above"
+            CONFLICT_FOUND=true
+        elif [ -n "$_missing" ] && $CHECK_ONLY && ! $SPB_ALREADY_APPLIED \
+             && [ -n "$SPB_PATCH_IDS" ] \
+             && [ -z "$(for _m in $_missing; do printf '%s\n' $SPB_PATCH_IDS | grep -qx "$_m" || printf '%s ' "$_m"; done)" ]; then
+            warn "Patch $_p needs prerequisite(s) $_missing – part of SPB $WLS_SPB_PATCH_NR"
+            info "  The SPB is only simulated in --check-only; --apply installs it first,"
+            info "  so this check becomes conclusive during --apply."
+        elif [ -n "$_missing" ]; then
+            fail "Patch $_p needs prerequisite patch(es) not present: $_missing"
+            CONFLICT_FOUND=true
+        else
+            fail "Conflict check for patch $_p failed – see output above"
+            CONFLICT_FOUND=true
+        fi
+        unset _missing _m
     fi
 done
-unset _p
+unset _p PREREQ_OUT
 
 if $CONFLICT_FOUND; then
     fail "Conflicts detected – aborting. Resolve conflicts before applying."
@@ -669,13 +699,13 @@ for _p in $PATCHES_TO_APPLY; do
     printf "  Apply started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
-    "$OPATCH" apply \
+    APPLY_OUTPUT="$("$OPATCH" apply \
         -silent \
         -jdk "$JDK_HOME" \
-        "${INVPTR_ARGS[@]}" \
-        2>&1 | tee -a "$LOG_FILE"
-    APPLY_RC=${PIPESTATUS[0]}
+        "${INVPTR_ARGS[@]}" 2>&1)"
+    APPLY_RC=$?
     popd > /dev/null
+    printf '%s\n' "$APPLY_OUTPUT" | tee -a "$LOG_FILE"
 
     printf "  Apply finished: %s  (rc=%s)\n" \
         "$(date '+%Y-%m-%d %H:%M:%S')" "$APPLY_RC" | tee -a "$LOG_FILE"
@@ -686,10 +716,18 @@ for _p in $PATCHES_TO_APPLY; do
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
+    # rc=0 + "completed with warnings" also happens when OPatch SKIPS the patch
+    # because none of its components is installed in this home
+    if printf '%s' "$APPLY_OUTPUT" | grep -q "none of the components from patch are present"; then
+        warn "Patch $_p skipped by OPatch – its component is not installed in this ORACLE_HOME"
+        info "  Not applicable here (yet) – e.g. a Forms/Reports component before 06-oracle_install_forms_reports.sh"
+        PATCHES_SKIPPED="${PATCHES_SKIPPED:-} $_p"
+        continue
+    fi
     ok "Patch $_p applied successfully"
     PATCHES_APPLIED="$PATCHES_APPLIED $_p"
 done
-unset _p
+unset _p APPLY_OUTPUT
 
 # --- Cleanup staging ----------------------------------------------------------
 rm -rf "$STAGING_BASE"
@@ -733,6 +771,8 @@ for _p in $INSTALL_PATCHES; do
     if echo "$FINAL_INVENTORY" | grep -q "^${_p};"; then
         PATCH_DESC="$(echo "$FINAL_INVENTORY" | grep "^${_p};" | cut -d';' -f2)"
         ok "$(printf "  %-12s INSTALLED  %s" "$_p" "$PATCH_DESC")"
+    elif printf ' %s ' "${PATCHES_SKIPPED:-}" | grep -q " $_p "; then
+        warn "$(printf "  %-12s SKIPPED    component not installed in this home" "$_p")"
     else
         fail "$(printf "  %-12s MISSING" "$_p")"
     fi
