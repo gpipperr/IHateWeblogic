@@ -105,16 +105,17 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 # 1. Fix nodemanager.properties before first start
 ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst
 
-# 2. Start AdminServer
-$DOMAIN_HOME/bin/startWebLogic.sh &
+# 2. Start NodeManager and AdminServer
+./01-Run/startStop.sh start NodeManager --apply
+./01-Run/startStop.sh start AdminServer --apply
 
-# 3. Set domain NodeManager type via WLST (AdminServer now running)
+# 3. Set domain NodeManager type via WLST – the script waits up to
+#    ADMIN_WAIT_SECONDS (default 120) for the AdminServer port
 ./09-Install/11-oracle_nodemanager.sh --apply
-
-# 4. Start NodeManager
-nohup $DOMAIN_HOME/bin/startNodeManager.sh \
-    > $DOMAIN_HOME/nodemanager/nm.out 2>&1 &
 ```
+
+> The AdminServer needs ~30–60 s until it listens. A run 29 s after the start
+> missed RUNNING by 6 s (2026-10-15) – hence the wait loop.
 
 ---
 
@@ -125,10 +126,10 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 | 1 | Verify `DOMAIN_HOME` and `ORACLE_HOME` from `environment.conf` |
 | 2 | Show current `SecureListener` / `ListenAddress` / `StartScriptEnabled` values |
 | 3 | Backup `nodemanager.properties` with timestamp |
-| 4 | Set `SecureListener=false` and `StartScriptEnabled=true` |
+| 4 | Set `SecureListener=false`; `StartScriptEnabled` only if explicitly `false` (default is `true` since WLS 12.1.2) – restart NodeManager after a change |
 | 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain) |
 | 6 | Verify written values |
-| 7 | Print next-step hints |
+| 7 | Print next-step hints (`01-Run/startStop.sh` start/stop commands) |
 
 ---
 

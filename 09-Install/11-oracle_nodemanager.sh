@@ -157,6 +157,18 @@ else
 fi
 unset _current_secure
 
+# StartScriptEnabled: default true since WLS 12.1.2 – only an explicit
+# "false" needs a change. Before 2026-10-15 it was only written together
+# with SecureListener (08- already sets SecureListener=false, so never).
+_current_sse="$(grep -i '^StartScriptEnabled' "$NM_PROPS" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+if [ "${_current_sse,,}" = "false" ]; then
+    warn "StartScriptEnabled=false → will set to true"
+    _nm_change_needed=true
+else
+    ok "StartScriptEnabled=${_current_sse:-not set (default true)} – no change needed"
+fi
+unset _current_sse
+
 if $APPLY && $_nm_change_needed; then
     # Backup
     _backup="$NM_PROPS.bak_$(date +%Y%m%d_%H%M%S)"
@@ -178,6 +190,11 @@ if $APPLY && $_nm_change_needed; then
         printf "StartScriptEnabled=true\n" >> "$NM_PROPS"
     fi
     ok "StartScriptEnabled=true written"
+    # NodeManager reads (and rewrites) the file at startup
+    if pgrep -f "weblogic.NodeManager" > /dev/null 2>&1; then
+        warn "NodeManager is running – restart it to load the change:"
+        info "  01-Run/startStop.sh stop NodeManager --apply && 01-Run/startStop.sh start NodeManager --apply"
+    fi
 
     unset _backup
 elif ! $APPLY && $_nm_change_needed; then
@@ -201,10 +218,27 @@ else
     _adm_port="${WLS_ADMIN_PORT:-7001}"
     _adm_url="${WLS_ADMIN_URL:-t3://localhost:${_adm_port}}"
 
-    if ! timeout 3 bash -c "echo >/dev/tcp/localhost/${_adm_port}" 2>/dev/null; then
+    # The AdminServer needs ~30-60s after "startStop.sh start AdminServer"
+    # before it listens – wait instead of failing (a run 29s after the start
+    # missed RUNNING by 6s, 2026-10-15)
+    _adm_wait="${ADMIN_WAIT_SECONDS:-120}"
+    _adm_up=false
+    _waited=0
+    while :; do
+        if timeout 3 bash -c "echo >/dev/tcp/localhost/${_adm_port}" 2>/dev/null; then
+            _adm_up=true; break
+        fi
+        [ "$_waited" -ge "$_adm_wait" ] && break
+        [ "$_waited" -eq 0 ] && \
+            info "AdminServer not (yet) listening on port $_adm_port – waiting up to ${_adm_wait}s ..."
+        sleep 5; _waited=$(( _waited + 5 ))
+    done
+    unset _waited _adm_wait
+
+    if ! $_adm_up; then
         warn "AdminServer not reachable on port $_adm_port"
-        info "  Start AdminServer first, then re-run without --skip-wlst"
-        info "  Or run with --skip-wlst and set NodeManager Type manually in EM"
+        info "  Start AdminServer first, then re-run without --skip-wlst:"
+        info "    01-Run/startStop.sh start AdminServer --apply"
     else
         ok "AdminServer reachable on port $_adm_port"
 
@@ -298,10 +332,10 @@ fi
 unset _sec
 
 _sse="$(grep -i '^StartScriptEnabled' "$NM_PROPS" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
-if [ "${_sse,,}" = "true" ]; then
-    ok "nodemanager.properties: StartScriptEnabled=true"
+if [ "${_sse,,}" = "false" ]; then
+    warn "nodemanager.properties: StartScriptEnabled=false (expected true)"
 else
-    info "nodemanager.properties: StartScriptEnabled=${_sse:-not set}"
+    ok "nodemanager.properties: StartScriptEnabled=${_sse:-not set (default true)}"
 fi
 unset _sse
 
@@ -309,11 +343,23 @@ unset _sse
 # 5. Next steps
 # =============================================================================
 section "Next Steps"
-info "1. Start NodeManager:"
-info "   nohup \$DOMAIN_HOME/bin/startNodeManager.sh > \$DOMAIN_HOME/nodemanager/nm.out 2>&1 &"
-info "2. In EM verify: NodeManager Type = Plain"
-info "   fr_domain → WebLogic Domain → Security → General"
-info "3. Start managed servers via EM or startManagedWebLogic.sh"
+if $SKIP_WLST; then
+    info "1. Start NodeManager and AdminServer:"
+    info "     01-Run/startStop.sh start NodeManager --apply"
+    info "     01-Run/startStop.sh start AdminServer --apply"
+    info "2. Set Machine NMType=Plain via WLST (waits for the AdminServer):"
+    info "     09-Install/11-oracle_nodemanager.sh --apply"
+else
+    info "1. Status of all components:"
+    info "     01-Run/startStop.sh"
+    info "2. Continue: 12-oracle_reports_users.sh --apply, 13-root_reports_fix.sh (root),"
+    info "   13-oracle_setup_reports.sh --apply, 14-oracle_setup_forms.sh --apply"
+    info "3. After the first start of WLS_FORMS/WLS_REPORTS (creates servers/<name>/):"
+    info "     09-Install/10-oracle_boot_properties.sh --apply"
+fi
+info "Start / stop the whole domain later:"
+info "     01-Run/startStop.sh start-all --apply"
+info "     01-Run/startStop.sh stop-all  --apply"
 
 # =============================================================================
 print_summary
