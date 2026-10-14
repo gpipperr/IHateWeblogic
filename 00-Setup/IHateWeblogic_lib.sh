@@ -410,6 +410,83 @@ check_env_conf() {
     return 0
 }
 
+# check_wls_stopped
+# Read-only: is any WebLogic component (NodeManager, AdminServer, any
+# Managed Server) currently running? Detection mirrors the exact pgrep
+# patterns already used by 01-Run/startStop.sh's _refresh_status()/
+# _discover() - same process-matching approach, not a new one.
+# Requires DOMAIN_HOME to be set (from environment.conf) to read server
+# names from config.xml; falls back to checking just "AdminServer" if
+# config.xml is missing/unreadable.
+# Call     : check_wls_stopped
+# Sets     : WLS_RUNNING_COMPONENTS (newline-separated "name (PID n)" list,
+#            empty when nothing is running)
+# Returns  : 0 = nothing running, 1 = at least one component running
+check_wls_stopped() {
+    WLS_RUNNING_COMPONENTS=""
+    local pid
+
+    # NodeManager - same two fallback patterns as startStop.sh
+    pid="$(pgrep -f 'weblogic.nodemanager' 2>/dev/null | head -1)"
+    [ -z "$pid" ] && pid="$(pgrep -f 'NodeManager' 2>/dev/null | head -1)"
+    [ -n "$pid" ] && WLS_RUNNING_COMPONENTS="${WLS_RUNNING_COMPONENTS}NodeManager (PID $pid)
+"
+
+    # AdminServer + Managed Servers - names from config.xml, same awk
+    # extraction shape as startStop.sh::_discover() (skips <ssl> blocks and
+    # the TEMPLATE entry), falls back to just "AdminServer" if unreadable.
+    local -a names=()
+    local n
+    if [ -f "${DOMAIN_HOME:-}/config/config.xml" ]; then
+        while IFS= read -r n; do
+            [ -n "$n" ] && names+=("$n")
+        done < <(awk '
+            BEGIN { in_srv=0; in_ssl=0 }
+            /<server>$/   { in_srv=1; name="" }
+            /<\/server>$/ {
+                if (in_srv && name != "" && name != "TEMPLATE" && name != "template")
+                    print name
+                in_srv=0; in_ssl=0
+            }
+            in_srv && /<ssl>$/    { in_ssl=1 }
+            in_srv && /<\/ssl>$/  { in_ssl=0 }
+            in_srv && !in_ssl {
+                if (match($0, /<name>([^<]+)<\/name>/, m)) name = m[1]
+            }
+        ' "$DOMAIN_HOME/config/config.xml")
+    fi
+    [ "${#names[@]}" -eq 0 ] && names=("AdminServer")
+
+    for n in "${names[@]}"; do
+        pid="$(pgrep -f "Dweblogic.Name=${n}" 2>/dev/null | head -1)"
+        [ -n "$pid" ] && WLS_RUNNING_COMPONENTS="${WLS_RUNNING_COMPONENTS}${n} (PID $pid)
+"
+    done
+
+    [ -n "$WLS_RUNNING_COMPONENTS" ] && return 1
+    return 0
+}
+
+# require_wls_stopped
+# Hard-fail gate for use immediately before any patch-apply step. Prints
+# fail()/info() guidance (incrementing the FAIL counter) and returns 1 if
+# anything is still running. The caller remains responsible for
+# EXIT_CODE/print_summary/exit, same convention as every other pre-check
+# in this codebase - this function never exits by itself.
+# Call     : require_wls_stopped
+# Returns  : 0 = safe to patch, 1 = still running, do not proceed
+require_wls_stopped() {
+    if check_wls_stopped; then
+        ok "No running WebLogic components detected (NodeManager, AdminServer, Managed Servers) - safe to patch"
+        return 0
+    fi
+    fail "WebLogic components are still RUNNING - patching must not start while the domain is up"
+    printf '%s' "$WLS_RUNNING_COMPONENTS" | sed 's/^/  - /' | tee -a "${LOG_FILE:-/dev/null}"
+    info "Stop the domain first : 01-Run/startStop.sh stop-all --apply"
+    info "Verify it is stopped  : 01-Run/startStop.sh list"
+    return 1
+}
+
 # print_summary
 # Prints OK/WARN/FAIL counters and sets EXIT_CODE (0=OK, 1=WARN, 2=FAIL).
 print_summary() {

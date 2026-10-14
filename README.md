@@ -19,7 +19,7 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[██████████████░░░░░░]` ~70 % complete** – phases 1–7 are implemented, phase 8 is partial, phase 9 is concept-only.
+**`[███████████████░░░░░]` ~75 % complete** – phases 1–7 are implemented, phase 8 is mostly done, phase 9 is concept-only.
 
 | # | Phase | Status |
 |---|---|---|
@@ -30,7 +30,7 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 | 5 | Solve Font Problems | ✅ Done |
 | 6 | Check Reports Performance | ✅ Done |
 | 7 | Check Forms | ✅ Done |
-| 8 | Maintenance & Patches | 🚧 Partial (no dedicated repository-schema patch script) |
+| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; still missing: automated JDK upgrade (`80-` is read-only for now) and a dedicated repository-schema patch script |
 | 9 | Proactive Monitoring | 📝 Concept only – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -44,6 +44,11 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > **Target Version:** This library targets **Oracle Fusion Middleware (FMW) 14.1.2 and later**
 > (Oracle Forms 14c, Reports 12c codebase under 14c naming, WebLogic 14c). Earlier versions
 > (12c domains, pre-14.1.2 WebLogic) are not supported.
+
+> **Current patch numbers?** → [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md)
+> has the full, current patch list (CSPU September 2026 as of this writing) plus the MOS Doc-ID
+> reference table — check this first before a new patch cycle or when `07-Maintenance/81-`/`82-`
+> report missing patch ZIPs.
 
 ## Lifecycle Overview
 
@@ -134,11 +139,15 @@ operation with proactive, AI-assisted error analysis.
 │  PHASE 8 – MAINTENANCE & PATCHES                                    │
 │  (oracle + root, recurring)                                         │
 │                                                                     │
+│  → 09-Install/docs/00-patch-references.md     Current patch numbers │
 │  07-Maintenance/backup_config.sh              Backup before every  │
 │                                                patch                 │
-│  09-Install/05-oracle_patch_weblogic.sh        WebLogic patches     │
-│  09-Install/06-oracle_patch_forms_reports.sh   Forms/Reports patches│
+│  01-Run/startStop.sh stop-all --apply          Stop before patching │
+│  07-Maintenance/80-patch_java_os.sh            Java/OS (read-only)  │
+│  07-Maintenance/81-patch_weblogic.sh           WebLogic patches     │
+│  07-Maintenance/82-patch_forms_reports.sh      Forms/Reports patches│
 │  60-RCU-DB-19c/02-db_patch_db_software.sh      Database patches     │
+│  01-Run/startStop.sh start-all --apply         Start after patching │
 │  07-Maintenance/restore_config.sh              Rollback on issues   │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -204,11 +213,12 @@ Run these scripts in sequence on a fresh installation:
 | `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
 | `05-ReportsPerformance/` | Engine/cache tuning and inspection               |
 | `06-FormsDiag/`       | Oracle Forms specific diagnostics                    |
-| `07-Maintenance/`     | Config backup/restore                                |
+| `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `10-Monitoring/`      | Concept only – AI-assisted proactive monitoring (Claude API) |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
 
 ## Repository Structure
 
@@ -292,10 +302,16 @@ IHateWeblogic/
 │   └── forms_perf_analyse.sh        – Session memory, HTTP response times, WLS_FORMS log scan
 │
 ├── 07-Maintenance/
-│   ├── README.md                    – Backup categories, manifest format, restore workflow
+│   ├── README.md                    – Backup categories, manifest format, restore workflow,
+│   │                                   patching an already-running environment (Phase 8)
 │   ├── backup_config.sh             – Backup all config files before changes:
 │   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
+│   ├── 80-patch_java_os.sh          – Java/OS layer: read-only check + manual upgrade checklist
+│   ├── 81-patch_weblogic.sh         – WLS FMW Basis layer: wraps 09-Install/05-oracle_patch_weblogic.sh,
+│   │                                   hard-fails if WebLogic is still running
+│   ├── 82-patch_forms_reports.sh    – Forms + Reports layer: wraps 09-Install/06-oracle_patch_forms_reports.sh,
+│   │                                   same stop-check as 81-
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type (gitignored)
 │
 ├── 08-SSL/
@@ -343,20 +359,33 @@ IHateWeblogic/
 ├── 10-Monitoring/
 │   └── README.md                    – Concept only: AI-assisted proactive monitoring (Claude API)
 │
-└── 60-RCU-DB-19c/
-    ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
-    ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
-    ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
-    ├── 02-db_patch_db_software.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
-    ├── 04-db_setup_listener.sh      – Configure the TNS listener
-    ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
-    ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
-    ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
-    ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
-    ├── *.sql                        – Unified Audit policy scripts (generate/disable)
-    ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
-    ├── environment_db.conf          – gitignored – server-specific values
-    └── docs/                        – Step-by-step detail documentation
+├── 60-RCU-DB-19c/
+│   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
+│   ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
+│   ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
+│   ├── 02-db_patch_db_software.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
+│   ├── 04-db_setup_listener.sh      – Configure the TNS listener
+│   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
+│   ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
+│   ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
+│   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
+│   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
+│   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
+│   ├── environment_db.conf          – gitignored – server-specific values
+│   └── docs/                        – Step-by-step detail documentation
+│
+└── 70-Customer-Projects/            – Customer-specific manual walkthroughs, not generated from
+                                        the scripts above (no README at this level, one subfolder
+                                        per customer/scenario)
+    └── Reports14_Only_manuall_install/
+        ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
+        ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
+        ├── FMW_Kochbuch_de.txt            – WebLogic/FMW install, patch, SSL rollout to Nginx
+        ├── SSL_Kochbuch_de.txt            – Certificate creation/audit only
+        ├── Reports_kochbuch_de.txt        – Reports install, RCU, domain, Reports Server config
+        ├── Font_kochbuch_de.txt           – TrueType fonts + HTML parameter-form font path
+        └── WLS_Report_start_stop_kochbuch.txt – Simplest start/stop for day-to-day operation,
+                                                   no dependency on the IHateWeblogic lib
 ```
 
 ## Common Flags
@@ -392,7 +421,12 @@ IHateWeblogic/
 
 ### Font Problems
 
-For detailed font troubleshooting see [04-ReportsFonts/README.md](04-ReportsFonts/README.md) – Section 11.
+For detailed font troubleshooting in PDF generation see [04-ReportsFonts/README.md](04-ReportsFonts/README.md) – Section 11.
+
+For font problems in the **HTML parameter form** (e.g. text rendered in the
+Symbol font / Greek glyphs instead of the expected Latin text) see
+[04-ReportsFonts/HTML_ParameterForm_Fonts.md](04-ReportsFonts/HTML_ParameterForm_Fonts.md)
+– a separate font code path from PDF generation, with its own root cause and fix.
 
 ## Password Security Concept
 
@@ -402,6 +436,29 @@ The WebLogic admin password is encrypted with `openssl des3` using the machine's
 disk UUID as key. The encrypted file `weblogic_sec.conf.des3` is machine-specific
 and **must not be committed to git** (covered by `.gitignore`).
 
+## Report Security – Secure Invocation & Basic Hardening
+
+By default the Reports Servlet (`rwservlet`/`getserverinfo`) is **unsecured** –
+anyone who can reach the port can query server status or run reports. This is
+important to fix before going live, not just a nice-to-have.
+
+See [`09-Install/docs/12-weblogic-report-monitoring_user.md`](09-Install/docs/12-weblogic-report-monitoring_user.md)
+for the full role-based security model: a three-tier WebLogic/OPSS permission
+chain (Application Policy → Application Role → user in the Security Realm)
+separating **monitoring** (`monUser` / `RW_MONITOR` – status queries only, no
+reports) from **report execution** (`RepRunner` / `RW_EXECREPORTS` – runs
+reports via `authid=` in `cgicmd.dat`, password never appears in the report
+URL) from full **admin access** (`weblogic` / `RW_ADMINISTRATOR`). Automated
+by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
+German manual cookbook
+[`70-Customer-Projects/Reports14_Only_manuall_install/Reports_kochbuch_de.txt`](70-Customer-Projects/Reports14_Only_manuall_install/Reports_kochbuch_de.txt)
+(Schritt 8) for customers installing by hand.
+
+> This is separate from the `01-Run/rwserver_status.sh` gap in Open Items
+> below – that script's own `getserverinfo` call is unauthenticated and
+> needs `authid=` support added; the role/policy model described here is
+> what it would authenticate *against* once that's implemented.
+
 ## Open Items / TODO
 
 - [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):
@@ -410,6 +467,8 @@ and **must not be committed to git** (covered by `.gitignore`).
   Credentials must be stored encrypted using the same mechanism as the WebLogic password
   (`openssl des3` + system UUID key via `00-Setup/weblogic_sec.sh`).
   Until implemented: restrict `rwservlet` access via firewall or WLS security policy.
+  See [Report Security](#report-security--secure-invocation--basic-hardening) above for the
+  role/policy model this would authenticate against (`monUser`/`RW_MONITOR`).
 
 - [ ] **`02-Checks/display_check.sh`** – not yet created.
   Verify/set a usable `DISPLAY` for `rwclient`/report generation that needs an X server (Xvfb).

@@ -1,8 +1,16 @@
-# 07-Maintenance – Configuration Backup & Restore
+# 07-Maintenance – Maintenance & Patches (Phase 8)
 
-Backup and restore Oracle Reports/Forms configuration files before and after
-changes. All scripts source `environment.conf` and write output to
-`$DIAG_LOG_DIR/`.
+Configuration backup/restore, **and** patching an already-running,
+already-installed environment (e.g. a future CPU/CSPU cycle) — as opposed
+to `09-Install/`, which covers only the one-time initial install and
+explicitly says "The Oracle Home is not touched again after this point."
+All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
+
+> 📋 **Looking for current patch numbers?** →
+> [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md)
+> — the central MOS Doc-ID / patch-number reference, used for both initial
+> install and the maintenance workflow below. This is usually the first
+> thing you need once the environment is up and running.
 
 ---
 
@@ -12,6 +20,13 @@ changes. All scripts source `environment.conf` and write output to
 |---|---|---|
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
+| `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — read-only check + manual upgrade checklist |
+| `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
+| `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |
+
+`82-patch_forms_reports.sh` covers both the Forms and the Reports
+conceptual layer in a single call — see §3 below for why there is no
+separate Forms-only/Reports-only script.
 
 ---
 
@@ -34,7 +49,60 @@ rather than one file at a time.
 
 ---
 
-## 3. Script Reference
+## 3. Patching an Already-Running Environment (CPU/CSPU cycle)
+
+> 📋 **Current patch numbers?** →
+> [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md)
+
+`80-`/`81-`/`82-patch_*.sh` are **thin wrappers**: they add one thing that
+was previously missing — a hard check that WebLogic is actually stopped —
+then delegate 100% of the real patch logic to the unchanged, already
+idempotent `09-Install/05-` and `06-oracle_patch_*.sh` scripts (safe to
+re-run; they skip whatever is already applied). No patch logic is
+duplicated here.
+
+```
+1. Update 09-Install/oracle_software_version.conf with the new cycle's
+   patch numbers — see 09-Install/docs/00-patch-references.md
+2. 09-Install/04-oracle_pre_download.sh --apply --mos
+   (add --fresh-patches first to archive the previous cycle's ZIPs)
+3. ./07-Maintenance/backup_config.sh --apply
+4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
+5. ./07-Maintenance/80-patch_java_os.sh           # Java/OS layer (read-only)
+6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
+7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
+8. ./01-Run/startStop.sh start-all --apply
+9. ./02-Checks/java_check.sh / ./01-Run/rwserver_status.sh   # verify
+10. If something breaks: ./07-Maintenance/restore_config.sh --apply
+```
+
+**Why only 3 scripts for "4 layers"?** `06-oracle_patch_forms_reports.sh`
+already auto-detects whether `$ORACLE_HOME/forms` and `$ORACLE_HOME/reports`
+exist and only patches what's actually installed — there is exactly one
+underlying call for both, so `82-patch_forms_reports.sh` covers the Forms
+and the Reports conceptual layer together. A separate Forms-only/
+Reports-only script would need a new `--only forms|reports` scope flag on
+the delegated script first — not implemented (bundled on purpose, see
+`09-Install/docs/06-oracle_patch_forms_reports.md`).
+
+**Why `04-oracle_pre_download.sh` isn't called automatically by the
+wrappers:** updating `oracle_software_version.conf` with the new cycle's
+patch numbers (step 1) is an inherent human-judgment step (reading the new
+CPU/CSPU advisory) — it has to happen before any download anyway, and
+`05-`/`06-oracle_patch_*.sh` already print the exact download command
+whenever a required patch ZIP is missing.
+
+**Java/OS layer (step 5) is intentionally read-only in this version** —
+`80-patch_java_os.sh` runs `02-Checks/java_check.sh` and prints a manual
+JDK-upgrade checklist, but does not call `09-Install/02b-root_os_java.sh`
+automatically yet. That script's behavior when installing a newer JDK
+*alongside* an already-provisioned host (rather than a fresh one) is not
+yet verified — see the script's own header comment for the three open
+questions that need confirming on a disposable host first.
+
+---
+
+## 4. Script Reference
 
 ### backup_config.sh
 
@@ -128,7 +196,58 @@ a `WARN` rather than failing the whole restore.
 
 ---
 
-## 4. Troubleshooting
+### 80-patch_java_os.sh
+
+```bash
+./07-Maintenance/80-patch_java_os.sh    # read-only: java_check.sh + upgrade checklist
+```
+
+Options:
+
+| Option | Description |
+|---|---|
+| `--help` | Show usage |
+
+No `--apply` flag in this version — it is read-only by design (runs
+`02-Checks/java_check.sh` unchanged, then prints a manual JDK-upgrade
+checklist). Delegates to: `02-Checks/java_check.sh`. New code: the
+soft `check_wls_stopped()` pre-check only.
+
+### 81-patch_weblogic.sh
+
+```bash
+./07-Maintenance/81-patch_weblogic.sh                # dry-run
+./07-Maintenance/81-patch_weblogic.sh --check-only    # conflict check only
+./07-Maintenance/81-patch_weblogic.sh --apply         # patch (requires WLS stopped)
+```
+
+Options: same as `09-Install/05-oracle_patch_weblogic.sh` (`--apply`,
+`--check-only`, `--help`) — forwarded verbatim, no translation.
+
+Delegates to: `09-Install/05-oracle_patch_weblogic.sh` (unchanged — OPatch
+upgrade, WLS Stack Patch Bundle, `INSTALL_PATCHES` loop). New code: the
+`require_wls_stopped()` hard gate before `--apply` runs (not implemented
+anywhere before this wrapper — neither the delegated script nor OPatch
+itself actually enforces this).
+
+### 82-patch_forms_reports.sh
+
+```bash
+./07-Maintenance/82-patch_forms_reports.sh                # dry-run
+./07-Maintenance/82-patch_forms_reports.sh --check-only    # conflict check only
+./07-Maintenance/82-patch_forms_reports.sh --apply          # patch (requires WLS stopped)
+```
+
+Options: same as `09-Install/06-oracle_patch_forms_reports.sh` — forwarded
+verbatim.
+
+Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (unchanged —
+auto-detects Forms/Reports, superseded-QPR rollback, `check_patch_zip()`
+validation). New code: same `require_wls_stopped()` hard gate as `81-`.
+
+---
+
+## 5. Troubleshooting
 
 ### backup_config.sh reports most categories as "not found"
 
@@ -172,21 +291,38 @@ Fix:     Manually remove old backup sets you no longer need:
          Keep at least the most recent known-good set before deleting others.
 ```
 
+### 81-/82- wrapper: FAIL "WebLogic components are still RUNNING"
+
+```
+Symptom: Script exits immediately (EXIT_CODE=2) before the delegated
+         05-/06-oracle_patch_*.sh banner ever prints
+Cause:   Domain not stopped — new, intentional hard gate. Previously
+         neither 05- nor 06-oracle_patch_*.sh checked this at all.
+Fix:     ./01-Run/startStop.sh stop-all --apply
+         Verify: ./01-Run/startStop.sh list
+         Then re-run the wrapper with --apply.
+```
+
 ---
 
-## 5. Related Scripts
+## 6. Related Scripts
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/IHateWeblogic_lib.sh` | `backup_file()` — single-file backup used internally by most `--apply` scripts |
+| `00-Setup/IHateWeblogic_lib.sh` | `backup_file()` — single-file backup used internally by most `--apply` scripts; `check_wls_stopped()`/`require_wls_stopped()` — used by `80-`/`81-`/`82-` |
 | `04-ReportsFonts/uifont_ali_update.sh` | Backs up `uifont.ali` itself before rewriting; run `backup_config.sh` first for the full picture |
 | `04-ReportsFonts/font_cache_reset.sh` | Run after restoring fonts, to rebuild the fontconfig cache |
-| `01-Run/startStop.sh` | Restart components after a restore (or use `stopComponent.sh`/`startComponent.sh` directly) |
+| `01-Run/startStop.sh` | Stop/start the domain before and after maintenance patching (`stop-all --apply` / `start-all --apply`); also restart components after a restore |
 | `00-Setup/init_env.sh` | Re-detect paths if `backup_config.sh` reports most sources as not found |
+| `09-Install/04-oracle_pre_download.sh` | Download new patch ZIPs for a CPU/CSPU cycle before running `81-`/`82-` |
+| `09-Install/05-oracle_patch_weblogic.sh` | Delegated to by `81-patch_weblogic.sh` |
+| `09-Install/06-oracle_patch_forms_reports.sh` | Delegated to by `82-patch_forms_reports.sh` |
+| `02-Checks/java_check.sh` | Delegated to by `80-patch_java_os.sh` |
+| `09-Install/docs/00-patch-references.md` | Central MOS Doc-ID / patch-number reference for a new cycle |
 
 ---
 
-## 6. Notes
+## 7. Notes
 
 - Both scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
 - `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
