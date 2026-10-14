@@ -320,12 +320,10 @@ detect_reports_server_instances() {
     local domain_home="$1"
     local repserver_base="$domain_home/config/fmwconfig/components/ReportsServerComponent"
 
-    if [ -d "$repserver_base" ]; then
-        find "$repserver_base" -maxdepth 1 -mindepth 1 -type d -name "repserver*" 2>/dev/null \
-            | xargs -I{} basename {} | sort
-    else
-        printf "repserver_ent\n"
-    fi
+    # No default here – the caller falls back to the interview values
+    [ -d "$repserver_base" ] || return
+    find "$repserver_base" -maxdepth 1 -mindepth 1 -type d -name "repserver*" 2>/dev/null \
+        | xargs -I{} basename {} | sort
 }
 
 # detect_forms_instance  domain_home
@@ -890,11 +888,23 @@ DET_REPORTS_TOOLS_INSTANCE="$(basename "${DET_REPTOOLS_INSTANCES[0]:-reptools_en
 
 # ReportsServer instance names (space-separated)
 mapfile -t _repserver_arr < <(detect_reports_server_instances "$DET_DOMAIN_HOME")
+# Fresh install (components not created yet by 13-): use the names from the
+# setup interview (REPORTS_SERVER_NAMES / REPORTS_SERVER_NAME) – before
+# 2026-10-15 the fallback was a hard "repserver_ent" that did not match
+# REPORTS_SERVER_NAME=repserver01 from the interview
+if [ "${#_repserver_arr[@]}" -eq 0 ]; then
+    if [ "${#REPORTS_SERVER_NAMES[@]}" -gt 0 ] 2>/dev/null && [ -n "${REPORTS_SERVER_NAMES[0]:-}" ]; then
+        _repserver_arr=("${REPORTS_SERVER_NAMES[@]}")
+    elif [ -n "${REPORTS_SERVER_NAME:-}" ]; then
+        _repserver_arr=("$REPORTS_SERVER_NAME")
+    fi
+fi
 DET_REPORTS_SERVER_INSTANCES="${_repserver_arr[*]:-repserver_ent}"
 unset _repserver_arr
 
 # Runtime paths – use existing conf values as baseline, fall back to defaults
-DET_REPORTS_PATH="${REPORTS_PATH:-/app/oracle/applications}"
+# REPORTS_CUSTOMER_DIR comes from the setup interview (customer .rdf/.rep files)
+DET_REPORTS_PATH="${REPORTS_PATH:-${REPORTS_CUSTOMER_DIR:-/app/oracle/applications}}"
 DET_REPORTS_TMP="${REPORTS_TMP:-/tmp/reports}"
 DET_REPORTS_BROADCAST_PORT="${REPORTS_BROADCAST_PORT:-14027}"
 

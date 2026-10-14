@@ -30,6 +30,12 @@ addTemplate('##ORACLE_HOME##/forms/common/templates/wls/forms_template.jar')
 # Reports template (creates WLS_REPORTS managed server)
 addTemplate('##ORACLE_HOME##/reports/common/templates/wls/oracle.reports_app_template.jar')
 
+# Reports SERVER component template - NOT pulled in by the app template (that
+# one only brings "Oracle Reports Tools"). Without it the AdminServer has no
+# ReportsServerComponentManager MBean and createReportsServerInstance fails
+# ("Attribute ...Name=ReportsServerComponentManager not found", 2026-10-15)
+addTemplate('##ORACLE_HOME##/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+
 # --- Domain options (set AFTER all addTemplate calls) ------------------------
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')

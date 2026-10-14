@@ -108,6 +108,7 @@ for _var in ORACLE_HOME DOMAIN_HOME WLS_MANAGED_SERVER \
     fi
 done
 unset _var
+$_prereq_fail && info "  Runtime parameters are added by: 00-Setup/init_env.sh --apply (after 08-)"
 $_prereq_fail && { print_summary; exit "$EXIT_CODE"; }
 unset _prereq_fail
 
@@ -147,8 +148,21 @@ fi
 if [ -z "${REPORTS_COOKIE_KEY:-}" ]; then
     REPORTS_COOKIE_KEY="$(openssl rand -hex 16 2>/dev/null \
         || tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 32)"
-    warn "REPORTS_COOKIE_KEY was empty – generated: $REPORTS_COOKIE_KEY"
-    info "  Save to environment.conf: REPORTS_COOKIE_KEY=$REPORTS_COOKIE_KEY"
+    # Persist with --apply – otherwise every run generated a new key
+    # (rwservlet.properties must keep a stable one). environment.conf is a
+    # symlink into 00-Setup/environments/ – sed must follow it.
+    _env_conf="$ROOT_DIR/environment.conf"
+    if $APPLY; then
+        if grep -q '^REPORTS_COOKIE_KEY=' "$_env_conf"; then
+            sed -i --follow-symlinks "s/^REPORTS_COOKIE_KEY=.*/REPORTS_COOKIE_KEY=\"${REPORTS_COOKIE_KEY}\"/" "$_env_conf"
+        else
+            printf 'REPORTS_COOKIE_KEY="%s"\n' "$REPORTS_COOKIE_KEY" >> "$(readlink -f "$_env_conf")"
+        fi
+        ok "REPORTS_COOKIE_KEY generated and saved to environment.conf"
+    else
+        info "REPORTS_COOKIE_KEY is empty – --apply generates one and saves it to environment.conf"
+    fi
+    unset _env_conf
 fi
 
 # First entry of REPORTS_SERVER_INSTANCES is the default servlet target
@@ -201,6 +215,24 @@ else
         info "  Start AdminServer first, then re-run without --skip-wlst"
     elif $APPLY; then
         ok "AdminServer reachable on port $_adm_port"
+        # createReportsServerInstance needs the MBean ReportsServerComponentManager.
+        # The AdminServer registers it from components/ReportsServerComponent/
+        # mbeans/mbeans.xml, which only the domain template "Oracle Reports
+        # Server" (oracle.reports_server_template.jar) brings - the Reports app
+        # template only pulls in "Oracle Reports Tools" (confirmed 2026-10-15:
+        # WLS_REPORTS running did not help, the MBean was simply not defined).
+        _srv_mbeans="$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/mbeans/mbeans.xml"
+        _skip_servers=0
+        if $_wlst_servers_needed && [ ! -f "$_srv_mbeans" ]; then
+            fail "Domain lacks the template 'Oracle Reports Server' – ReportsServer instance(s) cannot be created"
+            info "  Missing: $_srv_mbeans"
+            info "  Extend the domain offline (all servers stopped), then restart and re-run this script:"
+            info "    readDomain('$DOMAIN_HOME')"
+            info "    addTemplate('$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')"
+            info "    updateDomain(); closeDomain()"
+            info "  See docs/13-reports-detail-settings.md (08- adds it since 2026-10-15)"
+            _skip_servers=1
+        fi
         if ! load_weblogic_password; then
             fail "Cannot load WebLogic credentials – run 00-Setup/weblogic_sec.sh --apply"
             print_summary; exit "$EXIT_CODE"
@@ -220,8 +252,13 @@ machine      = os.environ.get('_IHW_MACHINE', 'AdminServerMachine')
 try:
     connect(wl_user, wl_pass, adm_url)
 
-    # ReportsTools instance
+    # ReportsTools instance (skipped when it already exists - a second
+    # createReportsToolsInstance reported "Created" again, 2026-10-15)
+    if os.environ.get('_IHW_SKIP_TOOLS', '0') == '1':
+        tools_inst = ''
     try:
+        if not tools_inst:
+            raise Exception('already exists')
         createReportsToolsInstance(instanceName=tools_inst, machine=machine)
         print('IHW:OK:Created ReportsTools instance: ' + tools_inst)
     except Exception as ex:
@@ -232,7 +269,9 @@ try:
             print('IHW:FAIL:createReportsToolsInstance failed: ' + str(ex))
             sys.exit(1)
 
-    # ReportsServer instances
+    # ReportsServer instances (skipped when the domain lacks the server template)
+    if os.environ.get('_IHW_SKIP_SERVERS', '0') == '1':
+        server_insts = []
     for inst in server_insts:
         try:
             createReportsServerInstance(instanceName=inst, machine=machine)
@@ -257,10 +296,12 @@ WLST_SCRIPT
         export _IHW_TOOLS_INST="$REPORTS_TOOLS_INSTANCE"
         export _IHW_SERVER_INSTS="$REPORTS_SERVER_INSTANCES"
         export _IHW_MACHINE="AdminServerMachine"
+        export _IHW_SKIP_SERVERS="$_skip_servers"
+        export _IHW_SKIP_TOOLS="$($_wlst_tools_needed && printf 0 || printf 1)"
 
         _wlst_out="$("$WLST_SH" "$_wlst_script" 2>&1)"
 
-        unset _IHW_WL_USER _IHW_WL_PASS INTERNAL_WL_PWD
+        unset _IHW_WL_USER _IHW_WL_PASS INTERNAL_WL_PWD _IHW_SKIP_SERVERS _IHW_SKIP_TOOLS
 
         while IFS= read -r _line; do
             case "$_line" in
@@ -272,7 +313,7 @@ WLST_SCRIPT
         done <<< "$_wlst_out"
 
         rm -f "$_wlst_script"
-        unset _wlst_script _wlst_out WL_USER
+        unset _wlst_script _wlst_out WL_USER _srv_mbeans _skip_servers
     else
         ok "AdminServer reachable – dry-run would create instances via WLST"
     fi
@@ -293,8 +334,10 @@ _update_rwnetwork() {
         info "  Expected: $file"
         return 1
     fi
+    # 14.1.2: <multicast channel=".." port="14021" .../>; older releases: <cluster port=..>
+    # (the <cluster> pattern alone failed on 14.1.2, 2026-10-15)
     local current_port
-    current_port="$(sed -n 's/.*<cluster[^>]*port="\([0-9]*\)".*/\1/p' "$file" 2>/dev/null | head -1)"
+    current_port="$(sed -nE 's/.*<(multicast|cluster)[^>]*port="([0-9]*)".*/\2/p' "$file" 2>/dev/null | head -1)"
     printf "  %-52s port=%s\n" "$label" "${current_port:-(not found)}" \
         | tee -a "${LOG_FILE:-/dev/null}"
 
@@ -306,14 +349,14 @@ _update_rwnetwork() {
     warn "Port is '${current_port:-unknown}' – target: $REPORTS_BROADCAST_PORT"
     if $APPLY; then
         cp "$file" "${file}.bak_$(date +%Y%m%d_%H%M%S)"
-        sed -i "s/\(<cluster[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$file"
+        sed -i -E "s/(<(multicast|cluster)[^>]*port=\")[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$file"
         local new_port
-        new_port="$(sed -n 's/.*<cluster[^>]*port="\([0-9]*\)".*/\1/p' "$file" 2>/dev/null | head -1)"
+        new_port="$(sed -nE 's/.*<(multicast|cluster)[^>]*port="([0-9]*)".*/\2/p' "$file" 2>/dev/null | head -1)"
         if [ "$new_port" = "$REPORTS_BROADCAST_PORT" ]; then
             ok "Updated port to $REPORTS_BROADCAST_PORT in $label"
         else
             fail "sed did not update port in $label – verify XML pattern"
-            info "  Expected: <cluster ... port=\"NNNN\" .../>"
+            info "  Expected: <multicast ... port=\"NNNN\" .../> (or <cluster ...> before 14.1.2)"
             info "  File: $file"
         fi
     else

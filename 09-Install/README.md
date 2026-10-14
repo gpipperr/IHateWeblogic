@@ -147,6 +147,8 @@ Phase 5 – Configuration (as oracle)
                                    packages, validation, backup) – fonts/cgicmd.dat: 14b-
 
 Phase 6 – Runtime Configuration (as oracle / root)
+  [oracle] 00-Setup/init_env.sh --apply                 # add runtime parameters to environment.conf
+                                                        # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
   [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties for AdminServer + Managed Server
   [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NodeManager config before first start
   → Start AdminServer + NodeManager manually
@@ -154,6 +156,7 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users monUser + RepRunner
   [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 symlink (OL9 only)
   [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
+  [oracle] 01-Run/startStop.sh start WLS_REPORTS --apply  # first start creates the app dir (rwservlet.properties)
   [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
   [oracle] 14-oracle_setup_forms.sh --apply             # Copy Forms config templates into the domain
   → Start the domain once (WLS_REPORTS creates its application directory)

@@ -95,6 +95,7 @@ TPL_WLS="$ORACLE_HOME/wlserver/common/templates/wls/wls.jar"
 TPL_JRF="$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar"
 TPL_FORMS="$ORACLE_HOME/forms/common/templates/wls/forms_template.jar"
 TPL_REPORTS="$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar"
+TPL_REPSRV="$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar"
 
 # =============================================================================
 # Pre-checks
@@ -108,7 +109,7 @@ ok "$(printf "ORACLE_HOME  = %s" "$ORACLE_HOME")"
     && ok "$(printf "wlst.sh found: %s" "$WLST_BIN")" \
     || { fail "wlst.sh not found: $WLST_BIN"; EXIT_CODE=2; }
 
-for _tpl in "$TPL_WLS" "$TPL_JRF" "$TPL_FORMS" "$TPL_REPORTS"; do
+for _tpl in "$TPL_WLS" "$TPL_JRF" "$TPL_FORMS" "$TPL_REPORTS" "$TPL_REPSRV"; do
     [ -f "$_tpl" ] \
         && ok "$(printf "Template      : %s" "$(basename "$_tpl")")" \
         || { fail "$(printf "Template missing: %s" "$_tpl")"; EXIT_CODE=2; }
@@ -179,6 +180,7 @@ printList "Templates" 30 "$(basename "$TPL_WLS")"
 info "$(printf "%30s  %s" "" "$(basename "$TPL_JRF")")"
 info "$(printf "%30s  %s" "" "$(basename "$TPL_FORMS")")"
 info "$(printf "%30s  %s" "" "$(basename "$TPL_REPORTS")")"
+info "$(printf "%30s  %s" "" "$(basename "$TPL_REPSRV")")"
 
 printf "\n" | tee -a "$LOG_FILE"
 

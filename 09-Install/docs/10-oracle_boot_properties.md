@@ -95,17 +95,19 @@ relevant servers:
 
 ### Servers covered
 
-| Server | Condition |
-|---|---|
-| `AdminServer` | Always |
-| `$WLS_MANAGED_SERVER` | From `environment.conf` (default: `WLS_REPORTS`) |
-| `WLS_FORMS*` | If a server directory exists under `$DOMAIN_HOME/servers/` |
+All `<server>` entries of `$DOMAIN_HOME/config/config.xml` (AdminServer,
+WLS_FORMS, WLS_REPORTS, ...). A missing `servers/<name>/security/` directory is
+**created** – on a fresh domain it only appears with the first start, and that
+first start needs `boot.properties`: a production-mode managed server started
+via `nohup` without it dies at once (`BEA-090782 ... System Console ... not
+found`, `shutDownStatus=255`, confirmed 2026-10-15). Before that date managed
+servers were skipped until their directory existed.
 
 ### Skip logic
 
-If a `boot.properties` already contains `{AES}` (already encrypted by
-WebLogic) the file is **not overwritten** — the entry is reported as
-`OK … already encrypted`.
+If a `boot.properties` already contains `{AES` (encrypted by WebLogic –
+`{AES256}` in 14.1.2, `{AES}` in older releases) the file is **not
+overwritten** — the entry is reported as `OK … already encrypted`.
 
 ---
 

@@ -257,7 +257,7 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   #   python3 ttf2reports_afm.py "$FONT_DIR/arialbi.ttf"  "Arial-BoldItalic" -o "$AFM_DIR/Arial-BoldItalic"
   #
   # --encoding (Standard: cp1252/WE8MSWIN1252) MUSS zum NLS_LANG-Zeichensatz
-  # aus rwserver.conf passen (siehe Reports_kochbuch_de.txt Schritt 9.6):
+  # aus rwserver.conf passen (siehe Reports_kochbuch_de.txt Schritt 9.7):
   #   WE8ISO8859P15 -> --encoding iso8859-15
   #   AL32UTF8      -> kein 1-Byte-Encoding passt hier sauber, siehe
   #                    "Bekannte Probleme" unten

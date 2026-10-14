@@ -21,12 +21,18 @@ $ORACLE_HOME/wlserver/common/templates/wls/wls.jar
 $ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar
 $ORACLE_HOME/forms/common/templates/wls/forms_template.jar
 $ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar
+$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar
 ```
 
 > **Note:** Template names verified via `ls $ORACLE_HOME/forms/common/templates/wls/`
 > on FMW 14.1.2. The names differ from older 12.2.1.x installations.
 > `forms_template.jar` creates the `WLS_FORMS` managed server automatically.
 > `oracle.reports_app_template.jar` creates `WLS_REPORTS` automatically.
+> It only pulls in "Oracle Reports Tools" as a dependency – **not** "Oracle
+> Reports Server". `oracle.reports_server_template.jar` must be added explicitly,
+> otherwise `createReportsServerInstance` in `13-` fails with
+> `ReportsServerComponentManager not found` (confirmed 2026-10-15, added to `08-`
+> the same day).
 
 ---
 
@@ -55,6 +61,7 @@ set('Name', 'fr_domain')
 addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
 addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')
 addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')
+addTemplate('$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
 
 # Domain options – set AFTER all addTemplate calls
 setOption('ServerStartMode', 'prod')

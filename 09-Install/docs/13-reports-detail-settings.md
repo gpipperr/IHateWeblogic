@@ -36,7 +36,9 @@ within the WebLogic domain.  It covers:
 
 ## Required Environment Variables
 
-Add to `environment.conf` (populated by `00-Setup/init_env.sh`):
+Add to `environment.conf` (populated by `00-Setup/init_env.sh --apply` – run it once
+after `08-`; on a fresh domain it takes the Reports server name from the setup
+interview `REPORTS_SERVER_NAMES` and `REPORTS_PATH` from `REPORTS_CUSTOMER_DIR`):
 
 ```bash
 # Reports system component instance names
@@ -140,6 +142,30 @@ $DOMAIN_HOME/system_components/ReportsToolsComponent/reptools_ent/data/nodemanag
 Multiple ReportsServer instances are possible (e.g., one for interactive reports,
 one for batch jobs).  Create one instance per entry in `REPORTS_SERVER_INSTANCES`.
 
+> **The domain needs the template "Oracle Reports Server".**
+> `createReportsServerInstance` needs the MBean `ReportsServerComponentManager`,
+> which the AdminServer registers from
+> `config/fmwconfig/components/ReportsServerComponent/mbeans/mbeans.xml`. Only the
+> domain template `ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar`
+> ("Oracle Reports Server") brings it – `oracle.reports_app_template.jar` only pulls
+> in "Oracle Reports Tools". Without it:
+> `Attribute oracle.reports:Type=ReportsServerComponent,Name=ReportsServerComponentManager not found`
+> (confirmed 2026-10-15; a running WLS_REPORTS does not change that).
+> `08-oracle_setup_domain.sh` adds the template since 2026-10-15. An existing
+> domain is extended offline (stop all servers first):
+>
+> ```python
+> # wlst.sh (offline)
+> readDomain('/u01/app/oracle/domains/fr_domain')
+> addTemplate('/u01/app/oracle/fmw/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+> updateDomain()
+> closeDomain()
+> ```
+>
+> Then start AdminServer (+ WLS_REPORTS) and re-run `13-`. The first start of
+> WLS_REPORTS also creates the application directory with
+> `rwservlet.properties`, `rwnetwork.conf` and `cgicmd.dat`.
+
 ```python
 connect('weblogic', '<password>', 't3://localhost:7001')
 createReportsServerInstance(instanceName='repserver_ent', machine='AdminServerMachine')
@@ -196,14 +222,14 @@ $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/co
 
 ### Change in each `rwnetwork.conf`
 
-Locate the `<cluster>` element and change the `port` attribute:
+Locate the `<multicast>` element (14.1.2; `<cluster>` in older releases) and change the `port` attribute:
 
 ```xml
 <!-- Before -->
-<cluster port="14021" .../>
+<multicast channel="228.5.6.7" port="14021" timeout="1000"/>
 
 <!-- After (14.1.2.0.0 production) -->
-<cluster port="14027" .../>
+<multicast channel="228.5.6.7" port="14027" timeout="1000"/>
 ```
 
 ---

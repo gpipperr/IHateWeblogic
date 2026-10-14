@@ -38,7 +38,10 @@ VORAUSSETZUNGEN
     export UIFONT_ALI=$REPORTS_ADMIN/uifont.ali
     export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
     export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
-    export CGICMD_DAT=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/cgicmd.dat
+    # cgicmd.dat liest das rwservlet aus dem Anwendungsverzeichnis des Managed
+    # Servers - dieses Verzeichnis entsteht erst beim ERSTEN Start (Schritt 9.3):
+    export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
+    export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
 
     # Externe, BESTEHENDE Datenbank (wird in diesem Kochbuch NICHT angelegt):
     export DB_HOST=dbserver01.company.local
@@ -340,7 +343,8 @@ EOF
   #   WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '_%'
   #   ORDER BY username;
   # Erwartung: 9 Zeilen (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
-  # UCSUMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
+  # UMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
+  # (Achtung: die Komponente heisst UCSUMS, das Schema aber ..._UMS)
 
 
 ================================================================================
@@ -379,9 +383,20 @@ SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
   #       [x] Oracle JRF - 14.1.2.0.0   (zieht "Oracle Enterprise Manager"
   #                                      als Abhaengigkeit automatisch mit -
   #                                      wird fuer Schritt 8 gebraucht)
-  #       [x] Oracle Reports - 14.1.2.0.0
+  #       [x] Oracle Reports Application - 14.1.2.0.0
+  #       [x] Oracle Reports Server - 14.1.2.0.0   <- WICHTIG, eigenes Haekchen!
+  #       [x] Oracle Reports Tools - 14.1.2.0.0    (wird meist automatisch
+  #                                                mit angehakt)
   #     NICHT ankreuzen:
   #       [ ] Oracle Forms   <- bewusst weggelassen, reines Reports-Thema
+  #       [ ] Oracle Reports Bridge  (nur fuer Reports-Bridge-Szenarien)
+  #
+  #     "Oracle Reports Server" wird von "Oracle Reports Application" NICHT
+  #     automatisch mitgezogen. Fehlt das Haekchen, scheitert spaeter in
+  #     Schritt 9.4 createReportsServerInstance mit
+  #       "Attribute ... Name=ReportsServerComponentManager not found"
+  #     (bestaetigt 2026-10-15). Nachtraeglich reparieren: siehe Abschnitt
+  #     BEKANNTE PROBLEME UND LOESUNGEN.
   #
   #   Bildschirm "Application Location":
   #     Vorschlag uebernehmen (Standard-Pfad neben $DOMAIN_HOME)
@@ -484,23 +499,21 @@ EOF
   # AdminServer erstmalig starten
   nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
   sleep 60
-  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_ADMIN_PORT}/console/
-  # Erwartet: 200 oder 302
+  # WebLogic 14.1.2 hat KEINE Administration Console (/console) mehr -
+  # stattdessen den Readiness-Endpunkt abfragen:
+  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_ADMIN_PORT}/weblogic/ready
+  # Erwartet: 200 (Server im Zustand RUNNING). 503 = startet noch - etwas
+  # warten und wiederholen.
 
 
 ================================================================================
-SCHRITT 5: cgicmd.dat Grundkonfiguration  (als oracle)
+SCHRITT 5: (entfallen - cgicmd.dat siehe Schritt 9.8)
 ================================================================================
 
-  # cgicmd.dat steuert, welcher Reports-Server und welches Statusformat
-  # bei URL-Aufrufen ohne explizite Parameter verwendet wird.
-  mkdir -p "$(dirname "$CGICMD_DAT")"
-  cat > "$CGICMD_DAT" << EOF
-# --- IHateWeblogic BEGIN ---
-default: server=${REPORTS_SERVER_NAME} statusformat=xml
-# --- IHateWeblogic END ---
-EOF
-  chmod 640 "$CGICMD_DAT"
+  # cgicmd.dat liegt im Anwendungsverzeichnis des Managed Servers
+  # ($REPORTS_APP_CONF). Dieses Verzeichnis gibt es erst nach dem ersten
+  # Start von $WLS_MANAGED_SERVER - deshalb wird cgicmd.dat jetzt in
+  # Schritt 9.8 eingerichtet (inkl. RepRunner-authid aus Schritt 8).
 
 
 ================================================================================
@@ -509,17 +522,25 @@ SCHRITT 6: boot.properties fuer den Reports-Managed-Server  (als oracle)
 
   # NUR AdminServer (Schritt 4) und $WLS_MANAGED_SERVER - KEIN
   # WLS_FORMS-Eintrag, da kein Forms installiert wird.
+  # Ohne diese Datei stirbt der erste Start des Managed Servers sofort
+  # (Production Mode, keine Konsole fuer die Passwortabfrage):
+  #   BEA-090782 ... System Console ... was not found ... shutDownStatus=255
+  # Das Verzeichnis servers/<name>/ gibt es vor dem ersten Start noch nicht -
+  # deshalb hier selbst anlegen.
+
+  # Zuerst pruefen: Ist die Datei bereits von WebLogic verschluesselt
+  # ("{AES256}..." in 14.1.2, aeltere Versionen "{AES}...")? Dann NICHT
+  # ueberschreiben:
+  grep -q '{AES' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties 2>/dev/null \
+      && echo "Bereits verschluesselt - Datei unveraendert lassen, Rest dieses Schritts ueberspringen"
+
+  # Nur wenn NICHT "Bereits verschluesselt" erschien:
   mkdir -p $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security
   cat > $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties << 'EOF'
 username=weblogic
 password=<WLS_ADMIN_PASSWORD>
 EOF
   chmod 600 $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
-
-  # Hinweis: Enthaelt die Datei bereits "{AES}" (WebLogic hat sie beim
-  # letzten Start selbst verschluesselt), NICHT erneut ueberschreiben.
-  grep -q '{AES}' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties 2>/dev/null \
-      && echo "Bereits verschluesselt - Datei unveraendert lassen"
 
 
 ================================================================================
@@ -557,7 +578,7 @@ EOF
 
   # Hinweis: "AdminServerMachine" ist der Name der Machine, die der
   # Configuration Wizard in Schritt 4 automatisch mit AdminServer angelegt
-  # hat (derselbe Name wird in Schritt 9.3 fuer machine='AdminServerMachine'
+  # hat (derselbe Name wird in Schritt 9.4 fuer machine='AdminServerMachine'
   # wiederverwendet). Falls ein anderer Machine-Name vergeben wurde: per
   # "ls()" unter "/Machines" im WLST pruefen.
 
@@ -578,7 +599,8 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   # (REP-56071 When Attempt to Access In-Process Reports Server).
   #
   # Diese drei Benutzer/Rollen werden ueber die EM-Konsole angelegt
-  # (http://<host>:9002/em), app-stripe "reports":
+  # (http://<host>:7001/em - EM laeuft auf dem AdminServer, NICHT auf dem
+  # Reports-Managed-Server), app-stripe "reports":
   #
   #   Benutzer      Rolle            Zweck
   #   weblogic      RW_ADMINISTRATOR (bereits vorhanden, nur Rolle zuweisen)
@@ -659,12 +681,8 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #         report=* server=* destype=* desformat=* allowcustomargs=true
   #       Permission Actions: ALL -> OK -> OK
 
-  # 8.4 Ausfuehrungsbenutzer in cgicmd.dat hinterlegen (ergaenzt Schritt 5).
-  #     WICHTIG: authid muss NACH %2 stehen, nicht davor - sonst wird es
-  #     nicht ausgewertet:
-  sed -i 's/\(statusformat=xml\)/\1 %2 authid=RepRunner\/<REPRUNNER_PASSWORD>/' "$CGICMD_DAT"
-  chmod 640 "$CGICMD_DAT"
-  cat "$CGICMD_DAT"
+  # 8.4 RepRunner in cgicmd.dat hinterlegen: siehe Schritt 9.8 (die Datei
+  #     existiert erst nach dem ersten Start des Managed Servers).
 
   # Falls die neuen Rollen/Policies nicht sofort wirken (weiterhin 401/403
   # trotz korrektem authid): der Security-Cache des Managed Servers wird
@@ -672,8 +690,9 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
   #   $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
 
-  # Verifikation (monUser, ohne Kennwort in einer geteilten Shell-History -
-  # interaktiv eingeben statt fest zu verdrahten)
+  # Verifikation - ERST NACH Schritt 9.10 moeglich (der Reports-Managed-
+  # Server und repServer laufen vorher noch nicht). monUser-Kennwort
+  # interaktiv eingeben statt fest in der Shell-History zu verdrahten:
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?authid=monUser/<MONUSER_PASSWORD>&statusformat=XML"
   # Erwartet: XML-Antwort mit Server-/Engine-Status, KEIN 401/403
 
@@ -735,11 +754,23 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   mkdir -p "$REPORTS_PATH" "$REPORTS_TMP"
 
-  # 9.3 System-Component-Instanzen anlegen (WLST interaktiv, AdminServer +
-  #     Node Manager muessen laufen). Bewusst OHNE Skript-Datei - bei nur
-  #     zwei Befehlen lohnt sich kein .py-File: WLST interaktiv oeffnen und
-  #     die Befehle direkt an der Eingabeaufforderung eintippen.
-  
+  # 9.3 Reports-Managed-Server erstmalig starten
+  #     (AdminServer laeuft seit Schritt 4, Node Manager seit Schritt 7)
+  #     Der erste Start legt das Anwendungsverzeichnis $REPORTS_APP_CONF an
+  #     (rwservlet.properties, rwnetwork.conf, cgicmd.dat - gebraucht in 9.5,
+  #     9.6 und 9.8). Voraussetzung: boot.properties aus Schritt 6.
+  nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} \
+      > /tmp/managed_start.log 2>&1 &
+  sleep 90
+  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_REPORTS_PORT}/weblogic/ready
+  # Erwartet: 200. Danach muss das Anwendungsverzeichnis existieren:
+  ls -la $REPORTS_APP_CONF/
+
+  # 9.4 System-Component-Instanzen anlegen (WLST interaktiv; AdminServer,
+  #     Node Manager UND $WLS_MANAGED_SERVER muessen laufen). Bewusst OHNE
+  #     Skript-Datei - bei nur zwei Befehlen lohnt sich kein .py-File: WLST
+  #     interaktiv oeffnen und die Befehle direkt eintippen.
+
   $ORACLE_HOME/oracle_common/common/bin/wlst.sh
 
   # Ab hier an der WLST-Eingabeaufforderung (wls:/offline>) eintippen, NICHT
@@ -747,23 +778,26 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # VORAUSSETZUNGEN oben (WLS_ADMIN_URL, REPORTS_TOOLS_INSTANCE,
   # REPORTS_SERVER_NAME) von Hand eintragen, also z.B. statt
   # "${WLS_ADMIN_URL}" wirklich "t3://localhost:7001" tippen:
-  
+
   connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
   createReportsToolsInstance(instanceName='${REPORTS_TOOLS_INSTANCE}', machine='AdminServerMachine')
   createReportsServerInstance(instanceName='${REPORTS_SERVER_NAME}', machine='AdminServerMachine')
   disconnect()
   exit()
 
-  # 9.4 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
+  # 9.5 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
   #     (muss je Umgebung eindeutig sein, falls mehrere Reports-Domains im
-  #     selben Netzsegment laufen)
+  #     selben Netzsegment laufen).
+  #     In 14.1.2 steht der Port im Element <multicast ... port="14021" .../>
+  #     - NICHT mehr in <cluster ...> wie in aelteren Versionen (ein sed auf
+  #     "<cluster" aendert in 14.1.2 nichts, bestaetigt 2026-10-15).
   for f in \
       "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
       "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
-      "$DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwnetwork.conf"
+      "$REPORTS_APP_CONF/rwnetwork.conf"
   do
       cp "$f" "${f}.bak_$(date +%Y%m%d_%H%M%S)"
-      sed -i "s/\(<cluster[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$f"
+      sed -i "s/\(<multicast[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$f"
   done
 
   # Kontrolle - den Port in allen drei Dateien von Hand nachsehen, nicht
@@ -771,20 +805,23 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   for f in \
       "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
       "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
-      "$DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwnetwork.conf"
+      "$REPORTS_APP_CONF/rwnetwork.conf"
   do
       echo "--- $f ---"
-      cat "$f" | grep '<cluster'
+      grep '<multicast' "$f"
   done
   # Erwartet: in allen drei Ausgaben dieselbe Portnummer
   # (port="${REPORTS_BROADCAST_PORT}")
 
-  # 9.5 rwservlet.properties - BEWUSST zunaechst OFFEN betrieben (kein
-  #     Login, keine Rolle noetig), damit der Funktionstest in 9.9
+  # 9.6 rwservlet.properties - BEWUSST zunaechst OFFEN betrieben (kein
+  #     Login, keine Rolle noetig), damit der Funktionstest in 9.11
   #     garantiert funktioniert, auch wenn die Benutzer/Rollen/Policies aus
   #     Schritt 8 noch nicht perfekt sitzen. Haertung ist ein SEPARATER,
   #     spaeterer Schritt - siehe Hinweis direkt im Anschluss.
-  cat > $DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwservlet.properties << EOF
+  #     REPORTS_COOKIE_KEY aus 9.2 notieren und bei JEDEM spaeteren
+  #     Neuschreiben dieser Datei wiederverwenden (nicht neu erzeugen).
+  cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$(date +%Y%m%d_%H%M%S)
+  cat > $REPORTS_APP_CONF/rwservlet.properties << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <rwservlet xmlns="http://xmlns.oracle.com/reports/rwservlet"
            xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -796,7 +833,7 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 </rwservlet>
 EOF
 
-  # Haertung (SPAETER, erst wenn 9.9 erfolgreich lief UND die
+  # Haertung (SPAETER, erst wenn 9.11 erfolgreich lief UND die
   # Benutzer/Rollen/Policies aus Schritt 8 getestet funktionieren - nicht
   # vorher, sonst verhindert eine falsch konfigurierte Rolle sofort jeden
   # Zugriff und es ist nicht mehr erkennbar, ob der Server oder die
@@ -808,7 +845,7 @@ EOF
   # Erst AB DANN verlangt getserverinfo zwingend einen authid-Parameter
   # (wie in Schritt 8 vorbereitet).
 
-  # 9.6 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
+  # 9.7 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
   #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
   cat > "$RWSERVER_CONF" << 'EOF'
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -850,7 +887,24 @@ EOF
   # bei Bedarf an die tatsaechliche Datenbank-Zeichensatzkonfiguration
   # anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
 
-  # 9.7 reports.sh ergaenzen (Umgebungsvariablen fuer den Reports-Server-
+  # 9.8 cgicmd.dat - Standard-Schluessel + RepRunner-authid (frueher
+  #     Schritt 5 und 8.4). Die Datei bringt Oracle mit Beispielen mit -
+  #     deshalb ANHAENGEN (>>), nicht ueberschreiben. server= ist der Name
+  #     der Reports-Server-KOMPONENTE ($REPORTS_SERVER_NAME), NICHT der
+  #     Managed Server ($WLS_MANAGED_SERVER).
+  #     WICHTIG: authid muss NACH %2 stehen, nicht davor - sonst wird es
+  #     nicht ausgewertet.
+  cp "$CGICMD_DAT" "${CGICMD_DAT}.bak_$(date +%Y%m%d_%H%M%S)"
+  cat >> "$CGICMD_DAT" << EOF
+
+# --- IHateWeblogic BEGIN ---
+default: server=${REPORTS_SERVER_NAME} statusformat=xml %2 authid=RepRunner/<REPRUNNER_PASSWORD>
+# --- IHateWeblogic END ---
+EOF
+  chmod 640 "$CGICMD_DAT"
+  tail -5 "$CGICMD_DAT"
+
+  # 9.9 reports.sh ergaenzen (Umgebungsvariablen fuer den Reports-Server-
   #     Startprozess - Font-Variablen hier nur als Verweis, Details siehe
   #     Font_kochbuch_de.txt)
   cat >> $DOMAIN_HOME/reports/bin/reports.sh << 'EOF'
@@ -859,15 +913,18 @@ REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTO
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
 EOF
 
-  # 9.8 Managed Server + Reports-Komponenten starten
+  # 9.10 Managed Server neu starten (laedt rwservlet.properties,
+  #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
+  $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
   nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} \
       > /tmp/managed_start.log 2>&1 &
-  sleep 60
+  sleep 90
+  curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_REPORTS_PORT}/weblogic/ready
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
-  # 9.9 Verifikation - funktioniert ohne authid-Parameter, weil der Server
-  #     laut 9.5 noch offen (L0) ist; nach der spaeteren Haertung (L1) nur
+  # 9.11 Verifikation - funktioniert ohne authid-Parameter, weil der Server
+  #     laut 9.6 noch offen (L0) ist; nach der spaeteren Haertung (L1) nur
   #     noch mit "&authid=monUser/<MONUSER_PASSWORD>" (siehe Schritt 8)
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
   # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
@@ -937,6 +994,28 @@ BEKANNTE PROBLEME UND LOESUNGEN
            dem neuen createRepository muss der Tablespace neu angelegt
            werden. Beim Drop KEINE -tablespace/-tempTablespace Parameter
            angeben (sonst Abbruch mit RCU-6197).
+
+  Problem: createReportsServerInstance (Schritt 9.4) bricht ab mit
+           "Attribute oracle.reports:Type=ReportsServerComponent,
+           Name=ReportsServerComponentManager not found"
+  Ursache: Die Domain wurde ohne die Vorlage "Oracle Reports Server"
+           angelegt (in Schritt 4 nicht angehakt). "Oracle Reports
+           Application" zieht nur "Oracle Reports Tools" mit, nicht den
+           Server. Ein laufender Managed Server aendert daran nichts.
+           Pruefen: fehlt die Datei
+             $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/mbeans/mbeans.xml
+           dann fehlt die Vorlage.
+  Loesung: Domain offline erweitern (ALLE Server und Node Manager vorher
+           stoppen), danach AdminServer, Node Manager und Managed Server
+           wieder starten und Schritt 9.4 wiederholen:
+             $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+             readDomain('<DOMAIN_HOME>')
+             addTemplate('<ORACLE_HOME>/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+             updateDomain()
+             closeDomain()
+             exit()
+           (Alternativ: config.sh -> "Update an existing domain" ->
+           "Oracle Reports Server" zusaetzlich anhaken.)
 
   Problem: Domain geloescht und neu angelegt - Configuration Wizard bzw.
            WLST bricht in der Phase "OPSS Processing" ab mit

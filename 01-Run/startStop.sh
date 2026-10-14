@@ -299,6 +299,20 @@ _find_comp() {
 # Start a component
 # =============================================================================
 
+# _check_early_exit pid log name – a server that dies within the first seconds
+# (boot identity, port in use, ...) must not be reported as started; the
+# status table right after the start only sees a short-lived PID
+_check_early_exit() {
+    local pid="$1" log="$2" name="$3"
+    sleep 8
+    if ! kill -0 "$pid" 2>/dev/null; then
+        fail "$name exited right after the start – last lines of $log:"
+        tail -5 "$log" 2>/dev/null | while IFS= read -r _l; do info "    $_l"; done
+        return 1
+    fi
+    return 0
+}
+
 _start_comp() {
     local name="$1" ctype="$2"
     local start_log="${DIAG_LOG_DIR:-/tmp}/start_${name}_$(date +%H%M%S).log"
@@ -318,11 +332,16 @@ _start_comp() {
             if [ ! -f "$wl_sh" ]; then fail "Not found: $wl_sh"; return 1; fi
             local boot_props="$DOMAIN_HOME/servers/AdminServer/security/boot.properties"
             if [ ! -f "$boot_props" ]; then
-                warn "boot.properties not found: $boot_props"
-                warn "WebLogic will prompt for password interactively – start may hang."
+                # Production mode + nohup: no console for the password prompt –
+                # the server dies at once (BEA-090782, shutDownStatus=255,
+                # confirmed 2026-10-15). Do not start at all.
+                fail "boot.properties not found: $boot_props"
+                fail "  Production mode cannot prompt for the password without a console – start aborted"
                 info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
+                return 1
             fi
             nohup "$wl_sh" > "$start_log" 2>&1 &
+            _check_early_exit $! "$start_log" "AdminServer" || return 1
             ok "AdminServer start initiated (PID $!) – allow ~60s to come up"
             ;;
         MANAGED)
@@ -330,12 +349,17 @@ _start_comp() {
             if [ ! -f "$mgd_sh" ]; then fail "Not found: $mgd_sh"; return 1; fi
             local boot_props="$DOMAIN_HOME/servers/$name/security/boot.properties"
             if [ ! -f "$boot_props" ]; then
-                warn "boot.properties not found: $boot_props"
-                warn "WebLogic will prompt for password interactively – start may hang."
+                # Production mode + nohup: no console for the password prompt –
+                # the server dies at once (BEA-090782, shutDownStatus=255,
+                # confirmed 2026-10-15). Do not start at all.
+                fail "boot.properties not found: $boot_props"
+                fail "  Production mode cannot prompt for the password without a console – start aborted"
                 info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
+                return 1
             fi
             nohup "$mgd_sh" "$name" "${WL_ADMIN_URL:-t3://localhost:7001}" \
                 > "$start_log" 2>&1 &
+            _check_early_exit $! "$start_log" "$name" || return 1
             ok "$name start initiated (PID $!) – allow ~60s to come up"
             ;;
         OHS)

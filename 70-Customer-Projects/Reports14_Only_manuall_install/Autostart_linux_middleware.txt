@@ -330,7 +330,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            stopManagedWebLogic.sh wurde nicht aus dem DOMAIN_HOME aufgerufen
   Loesung: boot.properties pruefen (siehe VORAUSSETZUNGEN, ggf. nach
            Reports_kochbuch_de.txt Schritt 4/6 neu anlegen; nach dem
-           naechsten Serverstart steht dort "{AES}..."). stop_all.sh wechselt
+           naechsten Serverstart steht dort "{AES256}..."). stop_all.sh wechselt
            selbst ins DOMAIN_HOME - daran nichts aendern.
 
   Problem: startComponent.sh/stopComponent.sh fragt nach einem Passwort,

@@ -120,23 +120,17 @@ ok "Credentials ready for user: $WL_USER"
 # =============================================================================
 section "Collecting target servers"
 
-# Always include AdminServer
-BOOT_SERVERS=("AdminServer")
-
-# Always include the Reports managed server
-_ms="${WLS_MANAGED_SERVER:-WLS_REPORTS}"
-BOOT_SERVERS+=("$_ms")
-unset _ms
-
-# Add WLS_FORMS if it has a server directory
-for _srv_dir in "$DOMAIN_HOME/servers"/WLS_FORMS*; do
-    if [ -d "$_srv_dir" ]; then
-        _srv="$(basename "$_srv_dir")"
-        BOOT_SERVERS+=("$_srv")
-        info "Additional managed server found: $_srv"
-    fi
-done
-unset _srv_dir _srv
+# All servers defined in config.xml (AdminServer, WLS_FORMS, WLS_REPORTS, ...).
+# Before 2026-10-15 managed servers were only taken when servers/<name>/
+# already existed - on a fresh domain that directory only appears after the
+# first start, and a production-mode start WITHOUT boot.properties dies at once
+# (BEA-090782, "System Console ... not found", shutDownStatus=255).
+mapfile -t BOOT_SERVERS < <(awk '/<server>/{s=1;next} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");print;s=0}' \
+    "$DOMAIN_HOME/config/config.xml" 2>/dev/null)
+if [ "${#BOOT_SERVERS[@]}" -eq 0 ]; then
+    warn "No <server> entries found in config.xml – falling back to AdminServer + ${WLS_MANAGED_SERVER:-WLS_REPORTS}"
+    BOOT_SERVERS=("AdminServer" "${WLS_MANAGED_SERVER:-WLS_REPORTS}")
+fi
 
 for srv in "${BOOT_SERVERS[@]}"; do
     printList "  Server" 20 "$srv"
@@ -156,18 +150,22 @@ _write_boot_properties() {
     printList "Server" 24 "$server"
     printList "Target" 24 "$boot_file"
 
-    # Check: server directory must exist (domain is configured)
-    if [ ! -d "$DOMAIN_HOME/servers/$server" ]; then
-        warn "Server directory not found: $DOMAIN_HOME/servers/$server"
-        info "  Start AdminServer once so WebLogic creates the server directories,"
-        info "  then re-run this script."
-        return
+    # The server is defined in config.xml - its directory only appears on the
+    # first start, which needs boot.properties: create security/ ourselves
+    if [ ! -d "$sec_dir" ]; then
+        if $APPLY; then
+            mkdir -p "$sec_dir" && chmod 750 "$DOMAIN_HOME/servers/$server" "$sec_dir"
+            info "  Created: $sec_dir (server not started yet)"
+        else
+            info "  $sec_dir does not exist yet – --apply creates it"
+        fi
     fi
 
     # Check: is file already present?
     if [ -f "$boot_file" ]; then
-        # Check if already encrypted (WebLogic-encrypted lines start with {AES})
-        if grep -q '{AES}' "$boot_file" 2>/dev/null; then
+        # WebLogic-encrypted values start with {AES} (older) or {AES256} (14.1.2,
+        # confirmed 2026-10-15) – match the common prefix
+        if grep -q '{AES' "$boot_file" 2>/dev/null; then
             ok "boot.properties already encrypted by WebLogic – skipping"
             return
         fi
