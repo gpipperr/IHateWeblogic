@@ -159,6 +159,12 @@ Phase 6 – Runtime Configuration (as oracle / root)
 Phase 7 – Validation (as oracle) [planned]
   90-oracle_validate.sh          Full validation report
                                    → docs/90-oracle_validate.md
+
+Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc]
+  15-deploy-test-report-forms_template.sh  Compile a minimal Forms module +
+                                   convert a minimal Reports demo, to prove
+                                   Forms/Reports can reach the DB at all
+                                   → docs/20-forms_reports_testmodules.md
 ```
 
 ---
@@ -190,6 +196,7 @@ Phase 7 – Validation (as oracle) [planned]
 | 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
+| 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. **STATUS: partially verified**, not a full install step | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 
 ---
@@ -477,6 +484,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (root, OL9 only)
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
+├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke-test deploy (Forms+Reports), STATUS: partially verified
 ├── forms_templates/                   ← Forms config templates (edited by the customer)
 │   ├── README.md
 │   ├── default.env.template
@@ -484,7 +492,12 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   ├── webutil.cfg.template
 │   ├── Registry.dat.template
 │   ├── fmrweb_utf8.res.template
-│   └── fmrwebd.res.template
+│   ├── fmrwebd.res.template
+│   └── test_form.xml                  ← Phase 7b smoke-test Forms module (STATUS: unverified)
+├── reports_templates/                 ← Phase 7b smoke-test Reports demo reports
+│   ├── test_dual.xml                  ← no parameters, SYSDATE only (STATUS: unverified)
+│   ├── test_user_objects.xml          ← one parameter + parameter form, USER_OBJECTS (STATUS: unverified)
+│   └── REPORTS_XML_SYNTAX_REFERENCE.md ← Reports XML syntax reference (DTD-confirmed), reusable for debugging any Reports XML
 ├── response_files/                    ← response file templates
 │   ├── cgicmd.dat.template
 │   ├── fr_install.rsp.template
@@ -514,7 +527,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 13-reports-detail-settings.md ← 13-root_reports_fix.sh + 13-oracle_setup_reports.sh
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist
-    └── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
+    ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
+    └── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
 ```
 
 ---

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IHateWeblogic – Parameterized Reports Demo (smoke test)
+
+  Purpose: verify that a Reports installation can convert/run an XML report
+  definition WITH a user parameter and a parameter-entry screen, not just a
+  static query (see 09-Install/reports_templates/test_dual.xml for the
+  zero-parameter baseline). Lists objects from USER_OBJECTS, filtered by an
+  object-name pattern — no customer data, no business logic.
+
+  STATUS: UNVERIFIED. This XML source has not yet been converted/run against
+  a real Reports 14.1.2 installation. See:
+    09-Install/docs/20-forms_reports_testmodules.md (Part 2 – Reports)
+    09-Install/reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md (syntax notes)
+
+  <userParameter>/<parameterForm> syntax below is derived from a real,
+  presumably-working production report (90-Source-MetaData/TNQ.xml), not
+  written from scratch — but the actual conversion has not been tested in
+  this project yet, so treat the structure as "plausible", not "proven".
+
+  initialValue="%" lets the report run both interactively (type a filter
+  pattern) and non-interactively (default "%" matches everything, so an
+  automated smoke test needs no manual input) – same zero-interaction
+  philosophy as test_dual.xml.
+
+  DTDVersion is 9.0.2.0.10, not 9.0.2.0.0 like test_dual.xml: TNQ.xml (the
+  confirmed-working parameterized source) declares .0.10, and this is the
+  only version actually seen in use together with <userParameter>/
+  <parameterForm> in this project so far.
+
+  Deployed/converted by: 09-Install/15-deploy-test-report-forms_template.sh
+-->
+<report name="TEST_USER_OBJECTS" DTDVersion="9.0.2.0.10">
+  <data>
+    <userParameter name="P_OBJECT_NAME" datatype="character" precision="30"
+     initialValue="%" label="Object Name Filter" defaultWidth="0" defaultHeight="0">
+      <comment><![CDATA[LIKE-pattern against USER_OBJECTS.OBJECT_NAME. Default
+      "%" matches everything, so the report also runs unattended.]]></comment>
+    </userParameter>
+    <dataSource name="Q_1">
+      <select>
+      <![CDATA[select object_name, object_type, status
+from user_objects
+where object_name like upper(:P_OBJECT_NAME)
+order by object_type, object_name]]>
+      </select>
+    </dataSource>
+  </data>
+  <layout>
+    <section name="main">
+      <tabular name="M_1">
+        <labelAttribute/>
+        <field name="F_OBJECT_NAME" source="object_name" label="Object Name"/>
+        <field name="F_OBJECT_TYPE" source="object_type" label="Object Type"/>
+        <field name="F_STATUS" source="status" label="Status"/>
+      </tabular>
+    </section>
+  </layout>
+  <parameterForm width="10.00000" height="10.00000">
+    <text name="PB_P_OBJECT_NAME" pageNumber="1" minWidowLines="1">
+      <textSettings spacing="0"/>
+      <geometryInfo x="0.15813" y="2.23118" width="3.65063" height="0.37920"/>
+      <textSegment>
+        <font face="Courier New" size="11" bold="yes"/>
+        <string><![CDATA[Object Name Filter:]]></string>
+      </textSegment>
+    </text>
+    <field name="PF_P_OBJECT_NAME" source="P_OBJECT_NAME" pageNumber="1"
+     minWidowLines="1" spacing="0" alignment="start">
+      <font size="0"/>
+      <geometryInfo x="3.89000" y="2.07460" width="5.90010" height="0.66135"/>
+      <visualSettings lineWidth="1" linePattern="solid"/>
+    </field>
+  </parameterForm>
+</report>

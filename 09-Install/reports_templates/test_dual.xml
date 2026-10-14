@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IHateWeblogic – Minimal Reports Demo (smoke test)
+
+  Purpose: verify that a Reports installation can convert/run an XML report
+  definition against the database, without needing Reports Builder. Just
+  SYSDATE from DUAL — no customer data, no business logic.
+
+  STATUS: UNVERIFIED. This XML source has not yet been converted/run against
+  a real Reports 14.1.2 installation. See:
+    09-Install/docs/20-forms_reports_testmodules.md (Part 2 – Reports)
+  This part of the approach has higher confidence than the Forms side —
+  Oracle's XML Report Definition format is documented consistently from 9i
+  through 12.2.1.3 — but has not been run here yet.
+
+  Note: the column alias is "sys_datum", not "current_date" — the latter is
+  a reserved Oracle function name and breaks as a column alias.
+
+  Deployed/converted by: 09-Install/15-deploy-test-report-forms_template.sh
+-->
+<report name="TEST_DUAL" DTDVersion="9.0.2.0.0">
+  <data>
+    <dataSource name="Q_1">
+      <select>select to_char(sysdate, 'YYYY-MM-DD HH24:MI:SS') as sys_datum from dual</select>
+    </dataSource>
+  </data>
+  <layout>
+    <section name="main">
+      <tabular name="M_1">
+        <labelAttribute/>
+        <field name="F_SYS_DATUM" source="sys_datum" label="Server Date/Time"/>
+      </tabular>
+    </section>
+  </layout>
+</report>
