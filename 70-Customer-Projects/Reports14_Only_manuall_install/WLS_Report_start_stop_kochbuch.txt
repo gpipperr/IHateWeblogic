@@ -1,0 +1,216 @@
+================================================================================
+  WebLogic / Reports starten und stoppen - einfachste Variante
+  (Zwei eigene Skripte, OHNE IHateWeblogic-Skripte/Lib als Abhaengigkeit)
+================================================================================
+  Zielgruppe : Kunde / Betrieb, der den Server selbst hoch- und runterfahren
+               moechte, ohne sich mit WebLogic-Details zu beschaeftigen
+  Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
+  Erstellt   : 2026-10
+  Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt (Domain
+                 angelegt, AdminServer/Managed Server/Reports-Komponenten
+                 laufen mindestens einmal erfolgreich)
+
+  WICHTIG: Diese beiden Skripte stoppen bzw. starten IMMER ALLES zusammen,
+  in der richtigen Reihenfolge - keine Einzelsteuerung einzelner
+  Komponenten. Das ist fuer den Anfang bewusst so einfach gehalten.
+
+  Hinweis zur externen Datenbank: Die Datenbank laeuft NICHT auf dieser
+  Maschine (externe, bereits bestehende DB - siehe Reports_kochbuch_de.txt).
+  Dieses Kochbuch muss sich um die Datenbank daher nicht kuemmern.
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  Alle Schritte laufen als oracle-User.
+
+  Die folgenden Werte muessen zu der Domain passen, die mit
+  Reports_kochbuch_de.txt angelegt wurde (siehe dortige VORAUSSETZUNGEN):
+    ORACLE_HOME          /u01/oracle/fmw
+    DOMAIN_HOME          /u01/user_projects/domains/reportRpgpi
+    WLS_MANAGED_SERVER   reportRpgpi
+    WLS_ADMIN_URL        t3://localhost:7001
+    REPORTS_TOOLS_INSTANCE  reptools1
+    REPORTS_SERVER_NAME     repServer01
+
+
+================================================================================
+SCHRITT 1: Pfade dauerhaft im .bash_profile hinterlegen  (als oracle)
+================================================================================
+
+  # Diese Variablen braucht NUR dieses Kochbuch (start_wls_all.sh /
+  # stop_wls_all.sh) - unabhaengig davon, ob sie schon anderswo gesetzt
+  # sind, macht ein zweites "export" hier nichts kaputt.
+  cat >> ~/.bash_profile << 'EOF'
+
+# --- WebLogic/Reports Start-Stop (WLS_Report_start_stop_kochbuch.txt) ------
+export ORACLE_HOME=/u01/oracle/fmw
+export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+export WLS_MANAGED_SERVER=reportRpgpi
+export WLS_ADMIN_URL=t3://localhost:7001
+export REPORTS_TOOLS_INSTANCE=reptools1
+export REPORTS_SERVER_NAME=repServer01
+EOF
+
+  # Sofort fuer die aktuelle Sitzung uebernehmen (sonst erst beim naechsten
+  # Login aktiv):
+  source ~/.bash_profile
+
+  # Kontrolle
+  echo "$DOMAIN_HOME"
+  # Erwartet: /u01/user_projects/domains/reportRpgpi
+
+
+================================================================================
+SCHRITT 2: start_wls_all.sh anlegen  (als oracle)
+================================================================================
+
+  cat > $ORACLE_HOME/start_wls_all.sh << 'EOF'
+#!/bin/bash
+# Startet Node Manager, AdminServer, Managed Server und die
+# Reports-Komponenten in dieser Reihenfolge. Einfachste Variante: immer
+# alles zusammen starten, keine Einzelsteuerung.
+#
+# Benoetigt DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
+# REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME aus ~/.bash_profile.
+
+echo "=== 1/4 Node Manager starten ==="
+nohup "$DOMAIN_HOME/bin/startNodeManager.sh" \
+    > "$DOMAIN_HOME/nodemanager/nm_start.log" 2>&1 &
+sleep 10
+
+echo "=== 2/4 AdminServer starten ==="
+nohup "$DOMAIN_HOME/bin/startWebLogic.sh" \
+    > /tmp/adminserver_start.log 2>&1 &
+sleep 60
+
+echo "=== 3/4 Managed Server ($WLS_MANAGED_SERVER) starten ==="
+nohup "$DOMAIN_HOME/bin/startManagedWebLogic.sh" \
+    "$WLS_MANAGED_SERVER" "$WLS_ADMIN_URL" \
+    > /tmp/managed_start.log 2>&1 &
+sleep 60
+
+echo "=== 4/4 Reports-Komponenten starten ==="
+"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_SERVER_NAME"
+
+echo
+echo "Fertig. Logs bei Problemen:"
+echo "  $DOMAIN_HOME/nodemanager/nm_start.log"
+echo "  /tmp/adminserver_start.log"
+echo "  /tmp/managed_start.log"
+EOF
+
+  chmod +x $ORACLE_HOME/start_wls_all.sh
+
+
+================================================================================
+SCHRITT 3: stop_wls_all.sh anlegen  (als oracle)
+================================================================================
+
+  # WICHTIG: AdminServer/Managed Server lassen sich NICHT ohne
+  # WebLogic-Benutzername und -Passwort stoppen - das Skript fragt beide
+  # interaktiv ab (per "read"), speichert sie NIRGENDS und gibt das
+  # Passwort beim Tippen nicht auf dem Bildschirm aus.
+  cat > $ORACLE_HOME/stop_wls_all.sh << 'EOF'
+#!/bin/bash
+# Stoppt Reports-Komponenten, Managed Server, AdminServer und Node Manager
+# in umgekehrter Reihenfolge. Einfachste Variante: immer alles zusammen
+# stoppen, keine Einzelsteuerung.
+#
+# Benoetigt DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
+# REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME aus ~/.bash_profile.
+
+echo "Fuer AdminServer und Managed Server wird das WebLogic-Administrator-"
+echo "Kennwort benoetigt (wird nirgends gespeichert)."
+read -p "WebLogic-Benutzername [weblogic]: " WLS_USER
+WLS_USER="${WLS_USER:-weblogic}"
+read -s -p "WebLogic-Passwort: " WLS_PASS
+echo
+
+echo "=== 1/4 Reports-Komponenten stoppen ==="
+"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_SERVER_NAME"
+"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+
+echo "=== 2/4 Managed Server ($WLS_MANAGED_SERVER) stoppen ==="
+"$DOMAIN_HOME/bin/stopManagedWebLogic.sh" \
+    "$WLS_MANAGED_SERVER" "$WLS_ADMIN_URL" "$WLS_USER" "$WLS_PASS"
+
+echo "=== 3/4 AdminServer stoppen ==="
+"$DOMAIN_HOME/bin/stopWebLogic.sh" "$WLS_USER" "$WLS_PASS" "$WLS_ADMIN_URL"
+
+echo "=== 4/4 Node Manager stoppen ==="
+"$DOMAIN_HOME/bin/stopNodeManager.sh"
+
+unset WLS_USER WLS_PASS
+echo
+echo "Fertig."
+EOF
+
+  chmod +x $ORACLE_HOME/stop_wls_all.sh
+
+
+================================================================================
+SCHRITT 4: Benutzung
+================================================================================
+
+  # Alles starten (dauert insgesamt ca. 2-3 Minuten):
+  $ORACLE_HOME/start_wls_all.sh
+
+  # Status pruefen:
+  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
+  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+
+  # Alles stoppen (fragt nach WebLogic-Benutzername/-Passwort):
+  $ORACLE_HOME/stop_wls_all.sh
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: stop_wls_all.sh bricht mit "No valid username/password or
+           userConfigFile/userKeyFile provided" ab
+  Ursache: falscher Benutzername/Passwort eingegeben, oder bei der
+           Passwort-Abfrage aus Versehen Enter ohne Eingabe gedrueckt, ODER
+           das WebLogic-Passwort enthaelt ein Leerzeichen (Oracles eigenes
+           stopManagedWebLogic.sh reicht Benutzername/Passwort intern nicht
+           in Anfuehrungszeichen weiter - das ist eine Einschraenkung im
+           Oracle-Skript selbst, nicht in start_wls_all.sh/stop_wls_all.sh)
+  Loesung: Skript erneut ausfuehren, Benutzername/Passwort sorgfaeltig
+           eintippen (das Passwort wird beim Tippen nicht angezeigt - das
+           ist normal, nicht nochmal tippen); enthaelt das WebLogic-Passwort
+           ein Leerzeichen, ein neues Passwort ohne Leerzeichen vergeben
+
+  Problem: start_wls_all.sh "ist fertig", aber getserverinfo antwortet
+           nicht oder mit Fehler
+  Ursache: 60 Sekunden Wartezeit reichen auf einer langsamen Maschine
+           manchmal nicht
+  Loesung: Noch 1-2 Minuten warten, dann den curl-Befehl aus Schritt 4
+           erneut ausfuehren; bei weiterem Problem die drei Log-Dateien
+           pruefen, die start_wls_all.sh am Ende auflistet
+
+  Problem: $DOMAIN_HOME ist leer, wenn man "echo $DOMAIN_HOME" eingibt
+  Ursache: ~/.bash_profile wurde noch nicht geladen (z.B. neue SSH-Sitzung
+           nach Schritt 1, aber vor dem naechsten Login)
+  Loesung: "source ~/.bash_profile" erneut ausfuehren, oder neu einloggen
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Beide Skripte rufen ausschliesslich die von Oracle selbst mitgelieferten
+  Start-/Stop-Skripte unter $DOMAIN_HOME/bin/ auf (startNodeManager.sh,
+  startWebLogic.sh, startManagedWebLogic.sh, startComponent.sh und die
+  jeweiligen "stop*"-Gegenstuecke) - keine Abhaengigkeit zu
+  IHateWeblogic-Skripten oder deren Lib.
+
+  Feinere Steuerung (einzelne Komponente starten/stoppen, Status-Tabelle
+  aller Komponenten) bietet 01-Run/startStop.sh im IHateWeblogic-Repository
+  - fuer den Anfang reichen die beiden Skripte hier aber aus.
+
+  Naechstes Kochbuch: keines - dies ist die laufende Betriebsanleitung
+  nach erfolgreicher Installation (siehe Reports_kochbuch_de.txt und
+  Font_kochbuch_de.txt).
+
+================================================================================

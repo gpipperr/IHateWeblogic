@@ -150,6 +150,15 @@ kernel.core_pattern   = /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
 EOF
   sysctl --system
 
+
+  #Core dump dir prüfen
+  mkdir -p /var/tmp/core/
+  chmod 777 /var/tmp/core/
+
+  #aus sysctl.conf default rausnehmen??
+
+
+
   # WICHTIG - Konflikt-Check: Da die Datenbank bei diesem Kunden EXTERN
   # betrieben wird (kein lokales DB-Preinstall-RPM auf diesem Host), darf
   # hier KEIN anderes Paket (z.B. oracle-database-preinstall-*) bereits
@@ -166,6 +175,8 @@ EOF
   # Transparent HugePages deaktivieren (kann JVM-Pausen/GC-Spitzen
   # verursachen). ERFORDERT NEUSTART.
   cat /sys/kernel/mm/transparent_hugepage/enabled
+# gpi Beispiel 
+
   grubby --update-kernel=ALL --args="transparent_hugepage=never"
 
   # /dev/shm (tmpfs) muss mind. 25% des RAM gross sein (min. 2 GB) und
@@ -174,6 +185,8 @@ EOF
   grep /dev/shm /etc/fstab
   # Beispiel-Eintrag in /etc/fstab (N = Groesse in MB, z.B. 8192 fuer 8 GB):
   #   tmpfs /dev/shm tmpfs rw,exec,size=8192M 0 0
+  #GPI
+  systemctl daemon-reload
   mount -o remount /dev/shm
 
   # Swap-Speicher (OUI verlangt mind. 512 MB, empfohlen min. 2 GB)

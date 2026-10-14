@@ -492,20 +492,32 @@ SCHRITT 7: Node Manager konfigurieren  (als oracle)
   sed -i 's/^StartScriptEnabled=.*/StartScriptEnabled=true/' \
       $DOMAIN_HOME/nodemanager/nodemanager.properties
 
-  # Node-Manager-Typ in der Domain-Security-Konfiguration auf "Plain"
-  # setzen (WLST, AdminServer muss bereits laufen):
+  # Node-Manager-Typ auf "Plain" setzen (WLST, AdminServer muss bereits
+  # laufen). WICHTIG: NICHT ueber "/SecurityConfiguration/<domain>" setzen -
+  # cmo.setNodeManagerType() existiert dort in 14.1.2 nicht mehr (fuehrt zu
+  # "AttributeError: ... object has no attribute 'setNodeManagerType'",
+  # live gegen eine echte 14.1.2-Domain bestaetigt per dir(cmo) - dort sind
+  # nur noch NodeManagerUsername/NodeManagerPassword(Encrypted)/SecureMode
+  # vorhanden). Das Attribut sitzt stattdessen auf der NodeManagerMBean
+  # unterhalb der Machine und heisst dort "NMType":
   cat > /tmp/nm_plain.py << EOF
 connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
 edit()
 startEdit()
-cd('/SecurityConfiguration/${DOMAIN_NAME}')
-cmo.setNodeManagerType('Plain')
+cd('/Machines/AdminServerMachine/NodeManager/AdminServerMachine')
+cmo.setNMType('Plain')
 save()
 activate(block='true')
 disconnect()
 EOF
   $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/nm_plain.py
   rm -f /tmp/nm_plain.py
+
+  # Hinweis: "AdminServerMachine" ist der Name der Machine, die der
+  # Configuration Wizard in Schritt 4 automatisch mit AdminServer angelegt
+  # hat (derselbe Name wird in Schritt 9.3 fuer machine='AdminServerMachine'
+  # wiederverwendet). Falls ein anderer Machine-Name vergeben wurde: per
+  # "ls()" unter "/Machines" im WLST pruefen.
 
   # Node Manager starten
   nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm.out 2>&1 &
@@ -517,33 +529,111 @@ EOF
 SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
 ================================================================================
 
-  # Diese drei Benutzer/Rollen werden ueber die WebLogic-/EM-Konsole
-  # angelegt (https://<host>/em bzw. /console), app-stripe "reports":
+  # Berechtigungs-Kette in WebLogic/OPSS: Berechtigung (Application Policy)
+  # -> Rolle (Application Role) -> Benutzer (Security Realm / myrealm).
+  # Quelle: pipperr.de - Oracle Reports 14c Reports Servlet Admin Oberflaeche
+  # erlauben - Monitoring und Report User anlegen; Oracle Doc ID 2072876.1
+  # (REP-56071 When Attempt to Access In-Process Reports Server).
+  #
+  # Diese drei Benutzer/Rollen werden ueber die EM-Konsole angelegt
+  # (http://<host>:9002/em), app-stripe "reports":
   #
   #   Benutzer      Rolle            Zweck
   #   weblogic      RW_ADMINISTRATOR (bereits vorhanden, nur Rolle zuweisen)
   #   monUser       RW_MONITOR       Server-Status abfragen (showjobs, getserverinfo, ...)
   #   RepRunner     RW_EXECREPORTS   Reports tatsaechlich ausfuehren
   #
-  # Schritte in der EM-Konsole:
-  #   1. WebLogic Domain -> Security -> Users and Groups -> Create
-  #      -> monUser, RepRunner mit Kennwort anlegen
-  #   2. WebLogic Domain -> Security -> Application Roles -> Create
-  #      -> App-Stripe "reports", Rollen RW_MONITOR / RW_EXECREPORTS anlegen,
-  #         jeweils dem passenden Benutzer zuweisen
-  #   3. WebLogic Domain -> Security -> Application Policies -> Create
-  #      -> Permission-Klasse oracle.reports.server.WebCommandPermission
-  #         fuer RW_MONITOR:
-  #           webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*
-  #      -> Permission-Klasse oracle.reports.server.ReportsPermission
-  #         fuer RW_EXECREPORTS:
-  #           report=* server=* destype=* desformat=* allowcustomargs=true
+  # Menuetexte unten: Englisch (Deutsch) - die deutschen Begriffe entsprechen
+  # der ueblichen Oracle-EM-Uebersetzung, werden aber nur angezeigt, wenn die
+  # Konsole/der Browser auf Deutsch eingestellt ist. Ohne deutsches
+  # Sprachpaket/Locale erscheinen IMMER die englischen Originalbegriffe -
+  # dann nach den englischen Texten navigieren.
 
-  # Abschliessend den Ausfuehrungsbenutzer in cgicmd.dat ergaenzen
-  # (ergaenzt Schritt 5 - RepRunner-Kennwort einsetzen):
+  # 8.1 weblogic -> RW_ADMINISTRATOR (vorhandenen Admin-User fuer die
+  #     Reports-Oberflaeche berechtigen, damit Report-Jobs ueber EM verwaltet
+  #     werden koennen - NICHT ueber "Users and Groups", der User existiert
+  #     bereits, nur die Rolle fehlt):
+  #   EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #         Application Roles (Anwendungsrollen)
+  #   Application Stripe "reports" auswaehlen, mit ">" suchen
+  #   Rolle RW_ADMINISTRATOR auswaehlen -> Edit (Bearbeiten)
+  #   Bereich Members (Mitglieder) -> + Add (+ Hinzufuegen)
+  #     Type (Typ): User (Benutzer), mit ">" suchen, weblogic auswaehlen -> OK
+  #   Mit OK bestaetigen
+
+  # 8.2 monUser -> RW_MONITOR (darf NUR den Status abfragen, keine Berichte).
+  #     WICHTIG: Benutzer werden NICHT direkt unter "Users and Groups"
+  #     angelegt, sondern innerhalb eines Security Realm (hier "myrealm") -
+  #     ein haeufiger Stolperstein, wenn man den Menuepunkt direkt sucht:
+  #   Benutzer anlegen:
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Security Realms (Sicherheitsbereiche) -> myrealm
+  #     Tab Users and Groups (Benutzer und Gruppen) -> Create (Erstellen)
+  #     Name monUser, Beschreibung, Passwort vergeben -> OK
+  #   Rolle RW_MONITOR pruefen/zuweisen:
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Application Roles (Anwendungsrollen)
+  #     Application Stripe "reports" auswaehlen, mit ">" suchen
+  #     RW_MONITOR vorhanden? -> Edit (Bearbeiten) -> User monUser per
+  #       + Add (+ Hinzufuegen) zuweisen
+  #     Falls nicht vorhanden: Create (Erstellen) -> Name RW_MONITOR,
+  #       Benutzer zuweisen
+  #   Policy fuer RW_MONITOR verknuepfen:
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Application Policies (Anwendungsrichtlinien)
+  #     Application Stripe "reports" auswaehlen, mit ">" suchen
+  #     Prinzipal RW_MONITOR auswaehlen -> Edit (Bearbeiten)
+  #     Pruefen, dass Rolle RW_MONITOR bereits als Prinzipal zugeordnet ist,
+  #       sonst zuweisen
+  #     Bereich Permissions (Berechtigungen) -> + Add (+ Hinzufuegen)
+  #       Permission Class: oracle.reports.server.WebCommandPermission
+  #       mit ">" suchen, Resource auswaehlen:
+  #         webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*
+  #       Permission Actions: ALL -> OK -> OK
+
+  # 8.3 RepRunner -> RW_EXECREPORTS (fuehrt Berichte tatsaechlich aus, kein
+  #     Admin-Zugriff; dieser User wird anschliessend in cgicmd.dat
+  #     hinterlegt, damit das Kennwort nicht im Report-Aufruf/der URL steht):
+  #   Benutzer anlegen (wie 8.2 - Security Realms -> myrealm):
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Security Realms (Sicherheitsbereiche) -> myrealm
+  #     Tab Users and Groups (Benutzer und Gruppen) -> Create (Erstellen)
+  #     Name RepRunner, Beschreibung, starkes Passwort vergeben -> OK
+  #   Rolle RW_EXECREPORTS anlegen:
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Application Roles (Anwendungsrollen)
+  #     Application Stripe "reports" auswaehlen, mit ">" suchen
+  #     Create (Erstellen) -> Name RW_EXECREPORTS, Benutzer RepRunner per
+  #       + Add (+ Hinzufuegen) zuweisen -> OK
+  #   Policy fuer RW_EXECREPORTS anlegen:
+  #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #           Application Policies (Anwendungsrichtlinien)
+  #     Application Stripe "reports" auswaehlen, mit ">" suchen
+  #     Create (Erstellen) -> neuer Prinzipal RW_EXECREPORTS, Rolle
+  #       RW_EXECREPORTS als Prinzipal zuweisen
+  #     Bereich Permissions (Berechtigungen) -> + Add (+ Hinzufuegen)
+  #       Permission Class: oracle.reports.server.ReportsPermission
+  #       mit ">" suchen, Resource auswaehlen:
+  #         report=* server=* destype=* desformat=* allowcustomargs=true
+  #       Permission Actions: ALL -> OK -> OK
+
+  # 8.4 Ausfuehrungsbenutzer in cgicmd.dat hinterlegen (ergaenzt Schritt 5).
+  #     WICHTIG: authid muss NACH %2 stehen, nicht davor - sonst wird es
+  #     nicht ausgewertet:
   sed -i 's/\(statusformat=xml\)/\1 %2 authid=RepRunner\/<REPRUNNER_PASSWORD>/' "$CGICMD_DAT"
   chmod 640 "$CGICMD_DAT"
   cat "$CGICMD_DAT"
+
+  # Falls die neuen Rollen/Policies nicht sofort wirken (weiterhin 401/403
+  # trotz korrektem authid): der Security-Cache des Managed Servers wird
+  # erst nach einem Neustart aktualisiert.
+  #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+  #   $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+
+  # Verifikation (monUser, ohne Kennwort in einer geteilten Shell-History -
+  # interaktiv eingeben statt fest zu verdrahten)
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?authid=monUser/<MONUSER_PASSWORD>&statusformat=XML"
+  # Erwartet: XML-Antwort mit Server-/Engine-Status, KEIN 401/403
 
 
 ================================================================================
@@ -552,12 +642,49 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   # 9.1 Nur auf Oracle Linux 9 / RHEL 9 noetig (als root): symbolischer
   #     Link fuer libnsl, da OL9 die alte libnsl.so.2-ABI nicht mehr
-  #     mitbringt, rwserver sie aber dynamisch bindet (MOS Doc ID 3069675.1)
-  ln -s /lib64/libnsl.so.3.0.0 $ORACLE_HOME/lib/libnsl.so.2
+  #     mitbringt, rwserver sie aber dynamisch bindet (MOS Doc ID 3069675.1).
+  #     $ORACLE_HOME/lib/libnsl.so.2 loest mit den Werten aus VORAUSSETZUNGEN
+  #     zu /u01/oracle/fmw/lib/libnsl.so.2 auf - das Verzeichnis ist korrekt,
+  #     es ist das in rwserver fest einkompilierte RPATH-Verzeichnis.
+
+  #Fehler erkennenn
   ldd $ORACLE_HOME/bin/rwserver | grep libnsl
-  # Erwartet: Pfadaufloesung, NICHT "not found"
+  # Erwartet:  "not found"
+
+  # WICHTIG: NICHT die exakte Versionsdatei verlinken (z.B. "libnsl.so.3.0.0")
+  # - der genaue Dateiname haengt vom installierten libnsl2-Paketstand ab und
+  # kann sich mit einem OS-Update aendern. Stattdessen den stabilen
+  # SONAME-Link verwenden, den das Betriebssystem selbst pflegt und
+  # automatisch aktuell haelt:
+  
+  ls -la /lib64/libnsl.so.3
+  
+  # Erwartet: ein Symlink, z.B. "/lib64/libnsl.so.3 -> libnsl.so.3.0.0".
+  
+  # Falls die Datei NICHT existiert: Paket fehlt - zuerst
+  # "dnf install -y libnsl2" ausfuehren, dann diesen Schritt wiederholen.
+
+  ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2
+
+
+  # Kontrolle - WICHTIG: "ls" alleine reicht hier NICHT. "ls" zeigt einen
+  # Symlink auch dann an, wenn sein Ziel gar nicht existiert ("toter
+  # Symlink") - das sieht dann faelschlich nach Erfolg aus. "readlink -f"
+  # loest dagegen die GESAMTE Kette auf und meldet einen klaren Fehler,
+  # falls am Ende keine echte Datei steht:
+
+  readlink -f $ORACLE_HOME/lib/libnsl.so.2
+  
+  # Erwartet: ein Pfad wie "/usr/lib64/libnsl.so.3.0.0" - KEINE Fehlermeldung.
+  # Kommt stattdessen gar nichts oder ein Fehler zurueck: der Symlink zeigt
+  # ins Leere - Schritt 9.1 nochmal von vorn, genau wie oben beschrieben.
+
+  
+  ldd $ORACLE_HOME/bin/rwserver | grep libnsl
+  # Erwartet: Pfadaufloesung, Lib wird angezeigt
 
   # 9.2 Benoetigte Variablen fuer diesen Abschnitt
+
   export REPORTS_PATH=/app/oracle/applications/source
   export REPORTS_TMP=/tmp/reports
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
@@ -566,16 +693,24 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   mkdir -p "$REPORTS_PATH" "$REPORTS_TMP"
 
-  # 9.3 System-Component-Instanzen anlegen (WLST, AdminServer +
-  #     Node Manager muessen laufen)
-  cat > /tmp/reports_instances.py << EOF
-connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
-createReportsToolsInstance(instanceName='${REPORTS_TOOLS_INSTANCE}', machine='AdminServerMachine')
-createReportsServerInstance(instanceName='${REPORTS_SERVER_NAME}', machine='AdminServerMachine')
-disconnect()
-EOF
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/reports_instances.py
-  rm -f /tmp/reports_instances.py
+  # 9.3 System-Component-Instanzen anlegen (WLST interaktiv, AdminServer +
+  #     Node Manager muessen laufen). Bewusst OHNE Skript-Datei - bei nur
+  #     zwei Befehlen lohnt sich kein .py-File: WLST interaktiv oeffnen und
+  #     die Befehle direkt an der Eingabeaufforderung eintippen.
+  
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
+  # Ab hier an der WLST-Eingabeaufforderung (wls:/offline>) eintippen, NICHT
+  # in der normalen Shell. WLST liest KEINE Shell-Variablen - die Werte aus
+  # VORAUSSETZUNGEN oben (WLS_ADMIN_URL, REPORTS_TOOLS_INSTANCE,
+  # REPORTS_SERVER_NAME) von Hand eintragen, also z.B. statt
+  # "${WLS_ADMIN_URL}" wirklich "t3://localhost:7001" tippen:
+  
+  connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
+  createReportsToolsInstance(instanceName='${REPORTS_TOOLS_INSTANCE}', machine='AdminServerMachine')
+  createReportsServerInstance(instanceName='${REPORTS_SERVER_NAME}', machine='AdminServerMachine')
+  disconnect()
+  exit()
 
   # 9.4 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
   #     (muss je Umgebung eindeutig sein, falls mehrere Reports-Domains im
@@ -589,18 +724,47 @@ EOF
       sed -i "s/\(<cluster[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$f"
   done
 
-  # 9.5 rwservlet.properties
+  # Kontrolle - den Port in allen drei Dateien von Hand nachsehen, nicht
+  # blind auf "sed -i" vertrauen:
+  for f in \
+      "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
+      "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
+      "$DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwnetwork.conf"
+  do
+      echo "--- $f ---"
+      cat "$f" | grep '<cluster'
+  done
+  # Erwartet: in allen drei Ausgaben dieselbe Portnummer
+  # (port="${REPORTS_BROADCAST_PORT}")
+
+  # 9.5 rwservlet.properties - BEWUSST zunaechst OFFEN betrieben (kein
+  #     Login, keine Rolle noetig), damit der Funktionstest in 9.9
+  #     garantiert funktioniert, auch wenn die Benutzer/Rollen/Policies aus
+  #     Schritt 8 noch nicht perfekt sitzen. Haertung ist ein SEPARATER,
+  #     spaeterer Schritt - siehe Hinweis direkt im Anschluss.
   cat > $DOMAIN_HOME/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/rwservlet.properties << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <rwservlet xmlns="http://xmlns.oracle.com/reports/rwservlet"
            xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <server>${REPORTS_SERVER_NAME}</server>
-  <singlesignon>yes</singlesignon>
+  <singlesignon>no</singlesignon>
   <inprocess>no</inprocess>
-  <webcommandaccess>L1</webcommandaccess>
+  <webcommandaccess>L0</webcommandaccess>
   <cookie cookieexpire="30" encryptionkey="${REPORTS_COOKIE_KEY}"/>
 </rwservlet>
 EOF
+
+  # Haertung (SPAETER, erst wenn 9.9 erfolgreich lief UND die
+  # Benutzer/Rollen/Policies aus Schritt 8 getestet funktionieren - nicht
+  # vorher, sonst verhindert eine falsch konfigurierte Rolle sofort jeden
+  # Zugriff und es ist nicht mehr erkennbar, ob der Server oder die
+  # Security-Konfiguration die Ursache ist):
+  #   <singlesignon>yes</singlesignon>  statt no
+  #   <webcommandaccess>L1</webcommandaccess>  statt L0
+  # Datei erneut per "cat > ..." mit diesen zwei geaenderten Werten
+  # schreiben (Backup vorher), danach $WLS_MANAGED_SERVER neu starten.
+  # Erst AB DANN verlangt getserverinfo zwingend einen authid-Parameter
+  # (wie in Schritt 8 vorbereitet).
 
   # 9.6 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
   #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
@@ -660,7 +824,9 @@ EOF
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
-  # 9.9 Verifikation
+  # 9.9 Verifikation - funktioniert ohne authid-Parameter, weil der Server
+  #     laut 9.5 noch offen (L0) ist; nach der spaeteren Haertung (L1) nur
+  #     noch mit "&authid=monUser/<MONUSER_PASSWORD>" (siehe Schritt 8)
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
   # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
 
@@ -696,6 +862,18 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: OL9/RHEL9 liefert libnsl nur noch als .so.3
   Loesung: Schritt 9.1 (Symlink) ausfuehren
 
+  Problem: Schritt 9.1 wurde ausgefuehrt, "ls $ORACLE_HOME/lib/libnsl.so.2"
+           zeigt den Symlink an, aber "ldd" meldet weiterhin "not found"
+  Ursache: Der Symlink selbst existiert, zeigt aber ins Leere (toter
+           Symlink) - haeufig weil die exakte Versionsdatei (z.B.
+           "libnsl.so.3.0.0") auf diesem Host anders heisst. "ls" ohne "-l"
+           prueft NUR, ob der Symlink existiert, NICHT ob sein Ziel
+           existiert - das taeuscht faelschlich Erfolg vor
+  Loesung: "readlink -f $ORACLE_HOME/lib/libnsl.so.2" ausfuehren - kommt
+           dabei keine echte Datei zurueck, Schritt 9.1 erneut ausfuehren
+           und dabei auf den stabilen Link "/lib64/libnsl.so.3" verlinken,
+           NICHT auf die exakte Versionsdatei
+
   Problem: RCU bricht mit "Schema already exists" ab
   Ursache: DB_SCHEMA_PREFIX kollidiert mit einer bereits vorhandenen
            Registrierung in der externen Datenbank
@@ -724,6 +902,13 @@ BEKANNTE PROBLEME UND LOESUNGEN
            (Symbol/griechische Glyphen)
   Ursache: separates Font-Thema, nicht Teil dieses Kochbuchs
   Loesung: siehe Font_kochbuch_de.txt
+
+  Problem: getserverinfo liefert weiterhin 401/403, obwohl Benutzer/Rolle/
+           Policy in Schritt 8 korrekt angelegt wurden
+  Ursache: der Security-Cache des Managed Servers uebernimmt neue
+           Rollen/Policies nicht immer sofort
+  Loesung: $WLS_MANAGED_SERVER neu starten (stopManagedWebLogic.sh,
+           dann startManagedWebLogic.sh - siehe Schritt 8 Ende)
 
 
 ================================================================================
