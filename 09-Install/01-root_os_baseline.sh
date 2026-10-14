@@ -256,6 +256,24 @@ declare -A SYSCTL_WANT=(
     ["net.ipv6.conf.default.disable_ipv6"]="1"
 )
 
+# Keys where a LARGER value is always fine (a minimum, not an exact target).
+# kernel.shmmax/shmall only count as minimums when a local Oracle DB needs its
+# own larger values (LOCAL_REP_DB=true); on a pure WLS host the exact values
+# are enforced, because DB-sized shm values are what the conflict fix removes.
+SYSCTL_MIN_KEYS=" kernel.shmmni fs.file-max fs.aio-max-nr net.core.rmem_default net.core.rmem_max net.core.wmem_default net.core.wmem_max "
+[ "${LOCAL_REP_DB:-false}" = "true" ] && SYSCTL_MIN_KEYS="${SYSCTL_MIN_KEYS}kernel.shmmax kernel.shmall "
+
+# _sysctl_satisfied  key  actual  want  – 0 if actual meets the target
+_sysctl_satisfied() {
+    local key="$1" actual="$2" want="$3"
+    [ "$actual" = "$want" ] && return 0
+    case "$SYSCTL_MIN_KEYS" in
+        *" $key "*)
+            [[ "$actual" =~ ^[0-9]+$ ]] && [[ "$want" =~ ^[0-9]+$ ]] && [ "$actual" -ge "$want" ] && return 0 ;;
+    esac
+    return 1
+}
+
 SYSCTL_ISSUES=0
 for KEY in "${!SYSCTL_WANT[@]}"; do
     # sysctl -n may use tabs as separators (e.g. ip_local_port_range) – normalise to single space
@@ -263,6 +281,8 @@ for KEY in "${!SYSCTL_WANT[@]}"; do
     WANT_VAL="${SYSCTL_WANT[$KEY]}"
     if [ "$CURRENT_VAL" = "$WANT_VAL" ]; then
         ok "$(printf "%-42s = %s" "$KEY" "$CURRENT_VAL")"
+    elif _sysctl_satisfied "$KEY" "$CURRENT_VAL" "$WANT_VAL"; then
+        ok "$(printf "%-42s = %s  (>= %s, larger is fine)" "$KEY" "$CURRENT_VAL" "$WANT_VAL")"
     else
         warn "$(printf "%-42s = %s  (want: %s)" "$KEY" "${CURRENT_VAL:-(unset)}" "$WANT_VAL")"
         SYSCTL_ISSUES=$((SYSCTL_ISSUES + 1))
@@ -284,7 +304,7 @@ for KEY in "${!SYSCTL_WANT[@]}"; do
             # Strip whitespace for comparison
             FILE_VAL_NORM="$(printf "%s" "$FILE_VAL" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
             WANT_VAL_NORM="$(printf "%s" "$WANT_VAL" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
-            if [ "$FILE_VAL_NORM" != "$WANT_VAL_NORM" ]; then
+            if ! _sysctl_satisfied "$KEY" "$FILE_VAL_NORM" "$WANT_VAL_NORM"; then
                 warn "Conflicting sysctl in $(basename "$CONF_FILE"): $KEY = $FILE_VAL_NORM (overrides our: $WANT_VAL_NORM)"
                 info "  File: $CONF_FILE"
                 CONFLICT_FILES+=("$CONF_FILE")
@@ -321,7 +341,7 @@ if [ "${#CONFLICT_FILES[@]}" -gt 0 ]; then
                             | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
                         WANT_VAL_NORM="$(printf "%s" "$WANT_VAL" \
                             | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')"
-                        if [ "$FILE_VAL" != "$WANT_VAL_NORM" ]; then
+                        if ! _sysctl_satisfied "$KEY" "$FILE_VAL" "$WANT_VAL_NORM"; then
                             _run_root sed -i \
                                 "s|^\([[:space:]]*${KEY}[[:space:]]*=\)|# [oracle-fmw] \1|" "$CF"
                             ok "Commented out $KEY in $(basename "$CF")"
@@ -517,8 +537,9 @@ else
     info "No swap devices or files currently active"
 fi
 
-if [ "$SWAP_TOTAL_MB" -ge "$SWAP_WANT_MB" ]; then
-    ok "Swap OK: ${SWAP_TOTAL_MB} MB (>= ${SWAP_WANT_MB} MB recommended)"
+# A 2 GiB swapfile shows as 2047 MB in `free -m` (one header page) – allow 32 MB slack
+if [ "$SWAP_TOTAL_MB" -ge "$((SWAP_WANT_MB - 32))" ]; then
+    ok "Swap OK: ${SWAP_TOTAL_MB} MB (recommended: ${SWAP_WANT_MB} MB)"
 elif [ "$SWAP_TOTAL_MB" -ge "$SWAP_OUI_MIN_MB" ]; then
     warn "Swap ${SWAP_TOTAL_MB} MB meets OUI minimum (${SWAP_OUI_MIN_MB} MB) but below recommended ${SWAP_WANT_MB} MB"
 else
@@ -622,6 +643,8 @@ elif ! _run_root firewall-cmd --state > /dev/null 2>&1; then
     warn "firewalld is not running"
     info "  WLS is accessible without firewall but that is a security risk"
     info "  Start: systemctl enable --now firewalld"
+    [ "${LOCAL_REP_DB:-false}" = "true" ] && \
+        info "  LOCAL_REP_DB=true: open the DB listener too: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp"
 else
     ok "firewalld is running"
 
@@ -653,6 +676,17 @@ else
             ok "Firewall: WLS port $PORT/tcp correctly closed externally"
         fi
     done
+
+    # Local repository DB: its listener must stay reachable for external DB
+    # clients (report only – never opened automatically)
+    if [ "${LOCAL_REP_DB:-false}" = "true" ]; then
+        if _run_root firewall-cmd --query-port="${DB_PORT:-1521}/tcp" > /dev/null 2>&1; then
+            ok "Firewall: DB listener port ${DB_PORT:-1521}/tcp open (LOCAL_REP_DB=true)"
+        else
+            warn "Firewall: DB listener port ${DB_PORT:-1521}/tcp not open – external DB clients cannot connect"
+            info "  Open if needed: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp && firewall-cmd --reload"
+        fi
+    fi
 
     # Apply pending firewall changes
     if [ "$APPLY_MODE" -eq 1 ]; then

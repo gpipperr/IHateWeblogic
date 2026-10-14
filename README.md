@@ -326,7 +326,7 @@ IHateWeblogic/
 ├── 09-Install/
 │   ├── README.md                    – Installation roadmap, full script reference (Phase 0–6)
 │   ├── 01-setup-interview.sh        – Configuration interview → environment.conf
-│   ├── 00-root_os_network.sh        – Phase 0: hostname, hosts, chrony, SSH
+│   ├── 00-root_os_network.sh        – Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)
 │   ├── 01-root_os_baseline.sh       – Phase 0: SELinux, kernel, THP → REBOOT
 │   ├── 02-root_os_packages.sh       – Phase 0: OS packages
 │   ├── 02b-root_os_java.sh          – Phase 0: Oracle JDK 21 + SecureRandom fix
@@ -348,6 +348,8 @@ IHateWeblogic/
 │   ├── 13-root_reports_fix.sh       – Phase 6 (root): libnsl.so.2 symlink for Oracle Linux 9
 │   ├── 13-oracle_setup_reports.sh   – Phase 6: Reports Server config (rwnetwork/rwservlet/rwserver)
 │   ├── 14-oracle_setup_forms.sh     – Phase 6: Forms config (template-copy approach)
+│   ├── 99-oracle_deinstall_fmw.sh   – Teardown: remove FMW completely for a clean reinstall,
+│   │                                   keeps a database on the same host (irreversible)
 │   ├── oracle_software_version.conf – Pinned FMW/JDK/patch version numbers
 │   ├── nginx-wls.conf.template      – Nginx reverse-proxy config template
 │   ├── forms_templates/             – 6 editable Forms config templates + README

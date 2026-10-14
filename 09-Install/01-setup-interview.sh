@@ -192,7 +192,11 @@ _ask_list() {
         local existing
         existing="$(_conf_get "$primary_var")"
         eval "${primary_var}=\"${existing}\""
-        eval "${array_var}=(\"${existing}\")"
+        # Keep the full array already sourced from environment.conf; fall back
+        # to the primary value only if the array was not defined there.
+        local _cnt
+        eval "_cnt=\${#${array_var}[@]}"
+        [ "$_cnt" -eq 0 ] && eval "${array_var}=(\"${existing}\")"
         ok "$(printf "  %-30s %s  [kept]" "$primary_var" "$existing")"
         return 0
     fi
@@ -491,6 +495,37 @@ _ask DB_PORT          "Database listener port"    "1521"  "_val_port"
 _ask DB_SERVICE       "Database service name"     ""
 _ask DB_SCHEMA_PREFIX "RCU schema prefix"         "DEV"
 
+# LOCAL_REP_DB drives 01-root_os_baseline.sh: with "false" it comments out the
+# large shm sysctl values a local Oracle DB needs – so detect, don't hardcode.
+_local_db_detected="false"
+_local_db_reason="no local DB instance, DB_HOST is remote"
+if pgrep -f 'ora_pmon_' >/dev/null 2>&1; then
+    _local_db_detected="true"
+    _local_db_reason="ora_pmon running on this host"
+else
+    for _addr in localhost 127.0.0.1 "$(hostname -s 2>/dev/null)" "$(hostname -f 2>/dev/null)" \
+                 $(hostname -I 2>/dev/null); do
+        if [ -n "$_addr" ] && [ "$DB_HOST" = "$_addr" ]; then
+            _local_db_detected="true"
+            _local_db_reason="DB_HOST $DB_HOST is this host"
+            break
+        fi
+    done
+    unset _addr
+fi
+printf "\n"
+info "Local repository DB detection: $_local_db_detected ($_local_db_reason)"
+if [ "$_local_db_detected" = "true" ]; then
+    _ask_menu LOCAL_REP_DB "Does an Oracle database run on THIS host?" \
+        "true:Yes – DB on this host, keep its kernel/shm settings (detected)" \
+        "false:No – DB is on a separate server"
+else
+    _ask_menu LOCAL_REP_DB "Does an Oracle database run on THIS host?" \
+        "false:No – DB is on a separate server (detected)" \
+        "true:Yes – DB on this host, keep its kernel/shm settings"
+fi
+unset _local_db_detected _local_db_reason
+
 printf "\n"
 info "RCU tablespace: leave empty → RCU creates its own tablespaces automatically"
 info "  Set only if DBA pre-creates a dedicated tablespace (e.g. FMW_DATA)"
@@ -562,6 +597,7 @@ _show "DB_HOST"              "$DB_HOST"
 _show "DB_PORT"              "$DB_PORT"
 _show "DB_SERVICE"           "$DB_SERVICE"
 _show "DB_SCHEMA_PREFIX"     "$DB_SCHEMA_PREFIX"
+_show "LOCAL_REP_DB"         "$LOCAL_REP_DB"
 _show "RCU_TABLESPACE"       "${RCU_TABLESPACE:-(empty – RCU auto-creates)}"
 _show "RCU_TEMP_TABLESPACE"  "$RCU_TEMP_TABLESPACE"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
@@ -589,13 +625,36 @@ fi
 # Write environment.conf – append 09-INSTALL block
 # =============================================================================
 
-if [ -f "$ENV_CONF" ]; then
-    backup_file "$ENV_CONF" "$ROOT_DIR"
+# Target layout (same as 00-Setup/init_env.sh, see 00-Setup/set_environment.md):
+#   environment.conf  →  symlink to 00-Setup/environments/<basename DOMAIN_HOME>.conf
+# Writing a plain file here would later be replaced by init_env.sh's symlink,
+# silently dropping every interview value.
+ENV_CONF_DIR="$ROOT_DIR/00-Setup/environments"
+mkdir -p "$ENV_CONF_DIR"
+if [ -L "$ENV_CONF" ]; then
+    WRITE_CONF="$(readlink -f "$ENV_CONF")"
+    info "environment.conf is a symlink – writing to its target: $WRITE_CONF"
+else
+    WRITE_CONF="$ENV_CONF_DIR/$(basename "$DOMAIN_HOME").conf"
+    if [ -f "$ENV_CONF" ]; then
+        if [ -e "$WRITE_CONF" ]; then
+            fail "environment.conf is a plain file and $WRITE_CONF already exists – merge manually"
+            print_summary
+            exit 2
+        fi
+        mv "$ENV_CONF" "$WRITE_CONF" \
+            && ok "Migrated plain environment.conf → $WRITE_CONF"
+    fi
 fi
 
-# --reset: remove existing 09-INSTALL block before re-appending
-if [ "$RESET_MODE" -eq 1 ] && [ -f "$ENV_CONF" ]; then
-    sed -i '/^# === 09-INSTALL/,/^# === END 09-INSTALL/d' "$ENV_CONF" 2>/dev/null || true
+if [ -f "$WRITE_CONF" ]; then
+    backup_file "$WRITE_CONF" "$ENV_CONF_DIR"
+fi
+
+# Always replace an existing 09-INSTALL block (all its values were read and kept
+# above) – appending a second block on every --apply run caused duplicates.
+if [ -f "$WRITE_CONF" ]; then
+    sed -i '/^# === 09-INSTALL/,/^# === END 09-INSTALL/d' "$WRITE_CONF" 2>/dev/null || true
 fi
 
 # Build REPORTS_SERVER_NAMES array string for env.conf
@@ -606,8 +665,8 @@ done
 unset _s
 
 # Append install parameters (touch creates the file if it does not yet exist)
-touch "$ENV_CONF"
-cat >> "$ENV_CONF" <<ENVEOF
+touch "$WRITE_CONF"
+cat >> "$WRITE_CONF" <<ENVEOF
 
 # === 09-INSTALL: ORACLE INSTALLATION ===
 # Generated : $(date '+%Y-%m-%d %H:%M:%S') – 09-Install/01-setup-interview.sh
@@ -658,7 +717,8 @@ DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
 RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
 # DB_SYS_PWD + DB_SCHEMA_PWD → encrypted: db_sys_sec.conf.des3
-LOCAL_REP_DB="false"
+# true = Oracle DB on this host (01-root_os_baseline.sh keeps its shm/sysctl values)
+LOCAL_REP_DB="${LOCAL_REP_DB}"
 
 # --- My Oracle Support --------------------------------------------------------
 MOS_USER="${MOS_USER}"
@@ -668,8 +728,11 @@ MOS_USER="${MOS_USER}"
 # === END 09-INSTALL ===
 ENVEOF
 
-chmod 600 "$ENV_CONF"
-ok "environment.conf written: $ENV_CONF"
+chmod 600 "$WRITE_CONF"
+ok "Conf written: $WRITE_CONF"
+if [ ! -L "$ENV_CONF" ]; then
+    ln -sfn "$WRITE_CONF" "$ENV_CONF" && ok "Symlink: $ENV_CONF -> $WRITE_CONF"
+fi
 
 # =============================================================================
 # Encrypt passwords
@@ -730,6 +793,7 @@ DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"
 DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
+LOCAL_REP_DB="${LOCAL_REP_DB}"
 RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
 MOS_USER="${MOS_USER}"

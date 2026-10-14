@@ -146,7 +146,7 @@ explicitly provides a different value during `--interview`.
 | `DB_SCHEMA_PREFIX` | `DEV` | Prefix for RCU schemas (e.g. `DEV_MDS`, `DEV_STB`) |
 | `SQLPLUS_BIN` | empty | Optional: path to sqlplus for login test |
 | `SEC_CONF_DB` | `db_connect.conf.des3` | Encrypted DB credentials |
-| `LOCAL_REP_DB` | `false` | `true` if an Oracle DB runs on the same host as WebLogic |
+| `LOCAL_REP_DB` | detected | `true` if an Oracle DB runs on the same host as WebLogic. Asked in `01-setup-interview.sh` Block 4; the detected value (`ora_pmon_*` running, or `DB_HOST` is a local address) is offered as default |
 
 > **`LOCAL_REP_DB`:** Controls the behaviour of `01-root_os_baseline.sh` when
 > `oracle-database-preinstall-*` sysctl files conflict with WebLogic OUI requirements.

@@ -126,7 +126,9 @@ if [ -z "$SHORT_HOST" ]; then
 elif [ "$SHORT_HOST" = "localhost" ] || [ "$SHORT_HOST" = "localhost.localdomain" ]; then
     fail "hostname is '$SHORT_HOST' – generic placeholder, WebLogic needs a real hostname"
 else
-    ok "$(printf "%-26s %s" "Short hostname:" "$SHORT_HOST")"
+    # `hostname` may legitimately return the FQDN (OL9 default with hostnamectl),
+    # so label it as what it is and show the short label separately.
+    ok "$(printf "%-26s %s  (short: %s)" "Hostname:" "$SHORT_HOST" "$SHORT_LABEL")"
 fi
 
 # FQDN must contain at least one dot

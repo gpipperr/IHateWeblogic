@@ -203,6 +203,24 @@ LOCAL_REP_DB="false"   # Standard: kein lokales Oracle DB
 LOCAL_REP_DB="true"    # Oracle DB auf diesem Host (mixed setup)
 ```
 
+`01-setup-interview.sh` fragt `LOCAL_REP_DB` ab und schlägt den erkannten Wert
+vor (`true`, wenn ein `ora_pmon_*`-Prozess läuft oder `DB_HOST` eine lokale
+Adresse ist).
+
+**Mindestwerte statt exakter Werte:** Für `kernel.shmmni`, `fs.file-max`,
+`fs.aio-max-nr` und `net.core.rmem_*`/`wmem_*` ist ein **größerer** Wert immer
+in Ordnung und erzeugt keine Warnung und keinen Konflikt. `kernel.shmmax` und
+`kernel.shmall` zählen nur bei `LOCAL_REP_DB=true` als Mindestwerte – auf einem
+reinen WLS-Host bleiben sie exakt, weil genau die DB-großen Werte dort
+bereinigt werden sollen. `net.ipv4.ip_local_port_range` bleibt immer exakt.
+
+**Firewall bei lokaler DB:** Mit `LOCAL_REP_DB=true` prüft das Skript zusätzlich,
+ob der Listener-Port (`DB_PORT`, Standard 1521) freigegeben ist – nur als
+Hinweis, er wird nie automatisch geöffnet.
+
+**Swap:** Eine 2-GiB-Swapdatei erscheint in `free -m` als 2047 MB; die Prüfung
+toleriert 32 MB Abweichung.
+
 ### Manuelle Bereinigung (ohne --apply)
 
 Kollidierenden Zeilen in `/etc/sysctl.conf` auskommentieren:

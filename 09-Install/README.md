@@ -86,7 +86,7 @@ Setup – Environment Configuration (as oracle; before Phase 0)
            → see docs/01-setup-interview.md for interview details
 
 Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
-  [root] ./09-Install/00-root_os_network.sh            # hostname, hosts, chrony, SSH (read-only check)
+  [root] ./09-Install/00-root_os_network.sh            # hostname, DNS/hosts, IPv6, chrony (read-only check)
   [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
   [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
   [root] ./09-Install/02b-root_os_java.sh --apply      # Oracle JDK 21 + SecureRandom fix
@@ -165,6 +165,12 @@ Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc
                                    convert a minimal Reports demo, to prove
                                    Forms/Reports can reach the DB at all
                                    → docs/20-forms_reports_testmodules.md
+
+Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
+  99-oracle_deinstall_fmw.sh    Stop FMW, OUI deinstall, remove ORACLE_HOME/
+                                   DOMAIN_HOME/FMW client ADR; keeps DB, inventory,
+                                   JDK, patch storage, RCU schemas, *.des3
+                                   → docs/99-oracle_deinstall_fmw.md
 ```
 
 ---
@@ -173,7 +179,7 @@ Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| 0 | `00-root_os_network.sh` | Hostname, /etc/hosts, IPv6, chrony, SSH | [→ docs](docs/00-root_os_network.md) |
+| 0 | `00-root_os_network.sh` | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
@@ -198,6 +204,7 @@ Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. **STATUS: partially verified**, not a full install step | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
+| teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
 
 ---
 
@@ -460,7 +467,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── README.md                          ← this roadmap
 ├── install_lib.sh                     ← [TODO] shared functions
 ├── 01-setup-interview.sh              ← configuration interview
-├── 00-root_os_network.sh              ← Phase 0: hostname, hosts, IPv6, chrony, SSH
+├── 00-root_os_network.sh              ← Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)
 ├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall → REBOOT
 ├── 02-root_os_packages.sh             ← Phase 0: OS packages (motif, gcc, numactl …)
 ├── 02b-root_os_java.sh                ← Phase 0: Oracle JDK 21 + SecureRandom fix
@@ -485,6 +492,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
 ├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke-test deploy (Forms+Reports), STATUS: partially verified
+├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
 ├── forms_templates/                   ← Forms config templates (edited by the customer)
 │   ├── README.md
 │   ├── default.env.template
@@ -528,7 +536,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
-    └── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
+    ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
+    └── 99-oracle_deinstall_fmw.md    ← 99-oracle_deinstall_fmw.sh
 ```
 
 ---

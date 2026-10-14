@@ -52,6 +52,18 @@ rm mos_sec.conf
 - Encrypts all passwords via the same mechanism as `00-Setup/weblogic_sec.sh`
 - Writes a reusable `setup.conf` template (passwords stripped) for subsequent installs
 - Shows a summary of all values and asks for confirmation before writing
+- Writes the values to `00-Setup/environments/<basename DOMAIN_HOME>.conf` and
+  points the `environment.conf` symlink at it – the same layout `00-Setup/init_env.sh`
+  uses later. If `environment.conf` is already a symlink, its target is updated;
+  a legacy plain `environment.conf` is moved there first. (A plain file would
+  otherwise be replaced by `init_env.sh`'s symlink and all interview values lost.)
+- Replaces an existing `# === 09-INSTALL` block on every `--apply` instead of
+  appending a second one; values outside the block (e.g. the `init_env.sh`
+  runtime section) are preserved
+- Block 4 asks for `LOCAL_REP_DB` (Oracle DB on this host?) with a detected
+  default: `true` if an `ora_pmon_*` process runs or `DB_HOST` is a local
+  address. Must be `true` on a shared FMW+DB host – with `false`,
+  `01-root_os_baseline.sh` comments out the DB's shm/sysctl values
 
 ---
 
