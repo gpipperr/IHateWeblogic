@@ -465,6 +465,16 @@ once retested. Not yet exercised.
   above** (the script itself has not been changed yet; this doc records the
   findings first, as requested).
 
+**Plan C (preferred, in progress) — external Forms 14 developer:** asked a
+developer friend with real Oracle Forms 14 experience to build the minimal
+test form directly in Forms Builder (or export `test_form.xml` from a real,
+working Forms 14 module) instead of continuing the trial-and-error approach
+below. This would resolve Open Verification Points 1-4 above (`version`
+attribute, attribute names, `<Property>` vs. plain-attribute structure)
+directly, with a confirmed-working source instead of a guess. If/when that
+lands, it supersedes `test_form.xml` as written and items 5-6 below become
+unnecessary; until then, items 1-6 remain the fallback path.
+
 **Still open, updated after the 2026-08-01 live test:**
 1. Restart `WLS_REPORTS` and confirm free memory before the next live test
    (Finding 4).
