@@ -166,6 +166,24 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
 
   # /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
 
+  # BEKANNT UND UNKRITISCH bei 39600348 (bestaetigt 2026-10-14): Die Ausgabe
+  # endet haeufig mit "OPatch Session completed with warnings" statt "OPatch
+  # succeeded" - das ist KEIN Fehlschlag, solange vorher
+  # "Patch 39600348 successfully applied." steht. Grund sind zwei
+  # Linker-Warnungen aus dem internen Relink-Schritt (make/ld), die Oracle
+  # selbst in diesem QPR mit ausliefert:
+  #   1. "the use of `mktemp' is dangerous, better use `mkstemp'" - reine
+  #      glibc-Hinweismeldung, weil Oracle-Code (sobwv.c) noch das veraltete
+  #      mktemp() nutzt. Kein Fehler, nicht von uns behebbar.
+  #   2. "size of symbol `zrmpu_functypes' changed from 16 ... to 64 ..." -
+  #      der Linker meldet nur, dass ein Symbol in der neu gepatchten
+  #      librw.a groesser ist als ein "common"-Platzhalter in rwsjni.o
+  #      (Reports-JNI-Bridge). Waere das ein echter Konflikt, gaebe es einen
+  #      harten "multiple definition"-Fehler statt einer Warnung.
+  # Trotzdem danach kurz gezielt testen, da genau rwsjni betroffen ist:
+  # einen Report ueber rwservlet laufen lassen (PDF und HTML), rwrun von der
+  # Kommandozeile, rwconverter, showjobs.
+
 
 ================================================================================
 SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
@@ -857,6 +875,15 @@ BEKANNTE, HARMLOSE FEHLERMELDUNGEN
 ================================================================================
 BEKANNTE PROBLEME UND LOESUNGEN
 ================================================================================
+
+  Problem: "opatch apply" fuer 39600348 endet mit "OPatch Session completed
+           with warnings" statt "OPatch succeeded"
+  Ursache: zwei bekannte, harmlose Linker-Warnungen aus Oracles eigenem
+           Relink-Schritt (mktemp-Hinweis, Symbolgroessen-Hinweis zu
+           zrmpu_functypes) - siehe Schritt 2 fuer Details
+  Loesung: Kein Rollback noetig, wenn vorher "Patch 39600348 successfully
+           applied." stand. Danach gezielt testen: Report ueber rwservlet
+           (PDF/HTML), rwrun, rwconverter, showjobs
 
   Problem: rwserver startet nicht, ldd zeigt "libnsl.so.2 => not found"
   Ursache: OL9/RHEL9 liefert libnsl nur noch als .so.3

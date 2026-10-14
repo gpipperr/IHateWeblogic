@@ -347,11 +347,11 @@ for _p in $PATCHES_TO_APPLY; do
     printf "  Apply started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
-    "$OPATCH" apply \
+    APPLY_OUTPUT="$("$OPATCH" apply \
         -silent \
         -jdk "$JDK_HOME" \
         "${INVPTR_ARGS[@]}" \
-        2>&1 | tee -a "$LOG_FILE"
+        2>&1 | tee -a "$LOG_FILE")"
     APPLY_RC=${PIPESTATUS[0]}
     popd > /dev/null
 
@@ -364,6 +364,22 @@ for _p in $PATCHES_TO_APPLY; do
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
+
+    # opatch apply succeeded (rc=0) but may still print "OPatch Session
+    # completed with warnings" when the internal relink (make/ld) step
+    # emits non-fatal linker notices. This does NOT mean the patch failed -
+    # surface it explicitly instead of letting it scroll by silently.
+    # See docs/06-oracle_patch_forms_reports.md for the known patterns
+    # (confirmed harmless for patch 39600348, 2026-10-14).
+    if printf '%s' "$APPLY_OUTPUT" | grep -qi 'completed with warnings'; then
+        warn "Patch $_p: OPatch reported \"completed with warnings\" (patch itself applied OK, rc=0)"
+        printf '%s' "$APPLY_OUTPUT" | grep -qE "use of .mktemp. is dangerous" \
+            && warn "  Known-harmless: glibc mktemp() linker notice from Oracle's own relink code"
+        printf '%s' "$APPLY_OUTPUT" | grep -qE "size of symbol .* changed from .* to" \
+            && warn "  Known-harmless: linker symbol-size notice (common symbol resolved against the patched library)"
+        warn "  Full output: $LOG_FILE"
+    fi
+
     ok "Patch $_p applied successfully"
     PATCHES_APPLIED="$PATCHES_APPLIED $_p"
 done

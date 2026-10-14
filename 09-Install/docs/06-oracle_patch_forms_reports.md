@@ -133,6 +133,10 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 - Cleans up staging directory after apply
 - Verifies each applied patch appears in `opatch lspatches`
 - **Does NOT upgrade OPatch** — already done in `05-oracle_patch_weblogic.sh`
+- After a successful apply (`rc=0`), checks the `opatch apply` output for
+  `"completed with warnings"` and surfaces it as a `warn()` (not a
+  failure) — see the caveat below for what that means and which patterns
+  are already known-harmless
 
 ---
 
@@ -157,6 +161,43 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
 - OPatch upgrade is not repeated here (done in `05-oracle_patch_weblogic.sh`)
 - Reports-only hosts: `forms/` simply does not exist, so
   `INSTALL_PATCHES_FORMS` is silently skipped — this is expected, not an error
+
+---
+
+## "Completed with warnings" — Patch 39600348 (confirmed 2026-10-14)
+
+`opatch apply` for the Reports QPR `39600348` can end with
+`"OPatch Session completed with warnings"` instead of the usual
+`"OPatch succeeded"`, even though the patch itself applied correctly
+(`rc=0`, and `"Patch 39600348 successfully applied."` is printed just
+before it). The warnings come from two non-fatal linker (`ld`) notices
+emitted during this patch's internal relink step, both confirmed
+harmless:
+
+- `the use of 'mktemp' is dangerous, better use 'mkstemp' or 'mkdtemp'` —
+  a glibc linker notice, because Oracle's own `sobwv.c` still calls the
+  deprecated `mktemp()`. Not fixable from our side, not an error.
+- ``size of symbol `zrmpu_functypes' changed from 16 ... to 64 ...`` — the
+  linker is only reporting that a symbol in the freshly patched `librw.a`
+  is larger than a *common* placeholder in `rwsjni.o` (the Reports JNI
+  bridge). A real conflict here would produce a hard
+  `multiple definition` error, not a warning.
+
+`06-oracle_patch_forms_reports.sh` detects `"completed with warnings"` in
+the `opatch apply` output after a successful (`rc=0`) apply and surfaces
+it via `warn()`, calling out these two patterns by name when present —
+this does **not** change pass/fail, which is still decided purely by the
+exit code.
+
+Because the warning involves `rwsjni` specifically, test the JNI path
+after applying this patch: run a report via `rwservlet` (PDF and HTML),
+`rwrun` from the command line, `rwconverter` (fixes Bug 35740116 in this
+QPR), and `showjobs` (fixes Bug 37595589).
+
+If a *different*, unrecognized warning text appears for this or another
+patch, it is not covered by the two patterns above — check
+`$ORACLE_HOME/cfgtoollogs/opatch/` and consider an SR if anything looks
+off after testing.
 
 ---
 
