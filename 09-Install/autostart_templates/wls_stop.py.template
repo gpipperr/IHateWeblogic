@@ -1,0 +1,107 @@
+# =============================================================================
+# wls_stop.py – stop the domain components in reverse order
+# Rendered by 09-Install/30-configure_autostart.sh – called by fmw_ctl.sh:
+#   wlst.sh wls_stop.py [all|<component>]
+# System components: nmKill (same as stopComponent.sh). Managed servers and
+# AdminServer: orderly shutdown() via the AdminServer; nmKill only if that
+# fails or the server is still up afterwards.
+# =============================================================================
+import sys
+import time
+
+CTRL       = '##CTRL_DIR##'
+ADMIN      = '##ADMIN_SERVER##'
+MANAGED    = '##MANAGED_SERVERS##'.split()
+COMPONENTS = [tuple(c.split(':')) for c in '##SYSTEM_COMPONENTS##'.split()]
+TARGET     = 'all'
+if len(sys.argv) > 1:
+    TARGET = sys.argv[1]
+SHUTDOWN_WAIT = 300
+
+rc = 0
+
+def ihw(msg):
+    print('IHW:' + msg)
+
+def state(name, typ='Server'):
+    try:
+        if typ == 'Server':
+            return str(nmServerStatus(name))
+        return str(nmServerStatus(serverName=name, serverType=typ))
+    except Exception:
+        return 'UNKNOWN'
+
+def wait_down(name, seconds):
+    waited = 0
+    while waited < seconds:
+        if state(name) in ('SHUTDOWN', 'UNKNOWN', 'FAILED_NOT_RESTARTABLE'):
+            return True
+        time.sleep(5)
+        waited = waited + 5
+    return False
+
+def kill(name, typ='Server'):
+    global rc
+    try:
+        if typ == 'Server':
+            nmKill(name)
+        else:
+            nmKill(serverName=name, serverType=typ)
+        ihw(name + ' killed via Node Manager')
+    except Exception as e:
+        ihw('ERROR ' + name + ' could not be killed: ' + str(e))
+        rc = 1
+
+def stop_server(name, connected):
+    if state(name) == 'SHUTDOWN':
+        ihw(name + ' already SHUTDOWN')
+        return
+    if connected:
+        try:
+            shutdown(name, 'Server', ignoreSessions='true', timeOut=SHUTDOWN_WAIT * 1000,
+                     force='false', block='true')
+        except Exception as e:
+            # shutting down the AdminServer drops the WLST connection – expected
+            ihw('INFO shutdown(' + name + ') returned: ' + str(e).split('\n')[0])
+    if wait_down(name, SHUTDOWN_WAIT):
+        ihw(name + ' stopped')
+    else:
+        ihw('WARNING ' + name + ' still up after orderly shutdown – using nmKill')
+        kill(name)
+
+try:
+    nmConnect(userConfigFile=CTRL + '/keyfile/nm_config', userKeyFile=CTRL + '/keyfile/nm_key',
+              host='##NM_HOST##', port='##NM_PORT##', domainName='##DOMAIN_NAME##',
+              domainDir='##DOMAIN_HOME##', nmType='plain')
+except Exception as e:
+    ihw('ERROR nmConnect failed: ' + str(e))
+    exit(defaultAnswer='y', exitcode=1)
+
+# --- System components first ----------------------------------------------------
+for (name, typ) in COMPONENTS:
+    if TARGET not in ('all', name):
+        continue
+    if state(name, typ) == 'SHUTDOWN':
+        ihw(name + ' already SHUTDOWN')
+    else:
+        kill(name, typ)
+
+# --- Managed servers, then AdminServer -------------------------------------------
+servers = [m for m in MANAGED if TARGET in ('all', m)]
+if TARGET in ('all', ADMIN):
+    servers.append(ADMIN)
+
+if servers:
+    connected = False
+    if state(ADMIN) == 'RUNNING':
+        try:
+            connect(userConfigFile=CTRL + '/keyfile/admin_config',
+                    userKeyFile=CTRL + '/keyfile/admin_key', url='##ADMIN_URL##')
+            connected = True
+        except Exception as e:
+            ihw('WARNING cannot connect to the AdminServer (' + str(e).split('\n')[0] + ') – using nmKill')
+    for name in servers:
+        stop_server(name, connected)
+
+nmDisconnect()
+exit(defaultAnswer='y', exitcode=rc)

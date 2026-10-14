@@ -348,6 +348,8 @@ IHateWeblogic/
 │   ├── 13-root_reports_fix.sh       – Phase 6 (root): libnsl.so.2 symlink for Oracle Linux 9
 │   ├── 13-oracle_setup_reports.sh   – Phase 6: Reports Server config (rwnetwork/rwservlet/rwserver)
 │   ├── 14-oracle_setup_forms.sh     – Phase 6: Forms config (template-copy approach)
+│   ├── 30-configure_autostart.sh    – Autostart at boot: systemd unit + Node Manager controlled
+│   │                                   start/stop scripts (templates in autostart_templates/)
 │   ├── 99-oracle_deinstall_fmw.sh   – Teardown: remove FMW completely for a clean reinstall,
 │   │                                   keeps a database on the same host (irreversible)
 │   ├── oracle_software_version.conf – Pinned FMW/JDK/patch version numbers
@@ -387,8 +389,9 @@ IHateWeblogic/
         ├── SSL_Kochbuch_de.txt            – Certificate creation/audit only
         ├── Reports_kochbuch_de.txt        – Reports install, RCU, domain, Reports Server config
         ├── Font_kochbuch_de.txt           – TrueType fonts + HTML parameter-form font path
-        └── WLS_Report_start_stop_kochbuch.txt – Simplest start/stop for day-to-day operation,
-                                                   no dependency on the IHateWeblogic lib
+        ├── WLS_Report_start_stop_kochbuch.txt – Simplest start/stop for day-to-day operation,
+        │                                          no dependency on the IHateWeblogic lib
+        └── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
 ```
 
 ## Common Flags

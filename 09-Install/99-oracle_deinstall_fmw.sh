@@ -206,17 +206,29 @@ pgrep -x tnslsnr >/dev/null 2>&1 && ok "Listener running – will NOT be stopped
 # =============================================================================
 
 # Protected trees: never delete them, anything inside them, or any parent.
+DOMAIN_NAME="${DOMAIN_NAME:-$(basename "$DOMAIN_HOME")}"
+AUTOSTART_DIR="$ORACLE_BASE/admin/$DOMAIN_NAME"          # 30-configure_autostart.sh
+AUTOSTART_UNIT="/etc/systemd/system/fmw-${DOMAIN_NAME}.service"
+
 PROTECT_TREE=("$ROOT_DIR" "$INV_LOC" "${OTHER_HOMES[@]}"
               "$ORACLE_BASE/product" "$ORACLE_BASE/oradata" "$ORACLE_BASE/diag"
-              "$ORACLE_BASE/admin" "$ORACLE_BASE/audit" "$ORACLE_BASE/flash_recovery_area"
+              "$ORACLE_BASE/audit" "$ORACLE_BASE/flash_recovery_area"
               "$ORACLE_BASE/autoupgrade" "$ORACLE_BASE/cfgtoollogs")
+# $ORACLE_BASE/admin: every subdirectory except the domain's autostart dir is
+# protected (database admin dirs such as admin/<DB_NAME>)
+for _a in "$ORACLE_BASE"/admin/*/; do
+    [ -d "$_a" ] || continue
+    [ "${_a%/}" = "$AUTOSTART_DIR" ] || PROTECT_TREE+=("${_a%/}")
+done
+unset _a
 [ -n "${JDK_HOME:-}" ]      && PROTECT_TREE+=("$JDK_HOME")
 [ -n "${PATCH_STORAGE:-}" ] && PROTECT_TREE+=("$PATCH_STORAGE")
 # Protected nodes: never delete them or any parent (children are fine).
-PROTECT_NODE=("/" "$ORACLE_BASE" "$HOME" "/tmp" "$(dirname "$ORACLE_BASE")")
+PROTECT_NODE=("/" "$ORACLE_BASE" "$ORACLE_BASE/admin" "$HOME" "/tmp" "$(dirname "$ORACLE_BASE")")
 
 # Explicit whitelist – nothing outside this list is ever deleted.
 DELETE_TARGETS=("$ORACLE_HOME" "$DOMAIN_HOME" "$HOME/oradiag_oracle")
+[ -n "$DOMAIN_NAME" ] && DELETE_TARGETS+=("$AUTOSTART_DIR")
 case "${REPORTS_TMP:-}" in /tmp/?*) DELETE_TARGETS+=("$REPORTS_TMP") ;; esac
 for _t in /tmp/ihw_*; do [ -e "$_t" ] && DELETE_TARGETS+=("$_t"); done
 unset _t
@@ -262,6 +274,8 @@ for _k in "$INV_LOC" "${OTHER_HOMES[@]}" "$ORACLE_BASE/diag" "${JDK_HOME:-}" "${
     [ -n "$_k" ] && [ -e "$_k" ] && info "$(printf "  KEEP   %s" "$_k")"
 done
 unset _k
+
+[ -f "$AUTOSTART_UNIT" ] && info "$(printf "  REMOVE %s  (autostart unit, disabled first)" "$AUTOSTART_UNIT")"
 
 ENV_TARGET="$(readlink -f "$ROOT_DIR/environment.conf")"
 info "  ASIDE  $ENV_TARGET  → .pre_deinstall_<timestamp>"
@@ -312,6 +326,23 @@ ok "Backup: $BACKUP_DIR (incl. config.xml + environment.conf)"
 # =============================================================================
 
 section "2. Stop FMW Processes"
+
+# Autostart (30-configure_autostart.sh): disable + remove the unit first, so
+# systemd does not restart anything; the servers are stopped below as usual.
+if [ -f "$AUTOSTART_UNIT" ]; then
+    _unit="$(basename "$AUTOSTART_UNIT")"
+    if [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; then
+        _sudo=""; [ "$(id -u)" -eq 0 ] || _sudo="sudo"
+        $_sudo systemctl disable "$_unit" >/dev/null 2>&1
+        $_sudo rm -f "$AUTOSTART_UNIT" && ok "Autostart unit removed: $AUTOSTART_UNIT"
+        $_sudo systemctl daemon-reload
+        unset _sudo
+    else
+        warn "No sudo – remove the autostart unit as root afterwards:"
+        info "  systemctl disable $_unit && rm -f $AUTOSTART_UNIT && systemctl daemon-reload"
+    fi
+    unset _unit
+fi
 
 "$ROOT_DIR/01-Run/startStop.sh" stop-all --apply 2>&1 | tee -a "$LOG_FILE"
 info "startStop.sh stop-all finished (rc=${PIPESTATUS[0]})"

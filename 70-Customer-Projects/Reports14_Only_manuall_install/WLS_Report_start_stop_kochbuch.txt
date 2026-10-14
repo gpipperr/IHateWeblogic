@@ -209,8 +209,9 @@ WEITERGEHENDE INFORMATIONEN
   aller Komponenten) bietet 01-Run/startStop.sh im IHateWeblogic-Repository
   - fuer den Anfang reichen die beiden Skripte hier aber aus.
 
-  Naechstes Kochbuch: keines - dies ist die laufende Betriebsanleitung
-  nach erfolgreicher Installation (siehe Reports_kochbuch_de.txt und
-  Font_kochbuch_de.txt).
+  Naechstes Kochbuch: Autostart_linux_middleware.txt - automatischer
+  Start/Stop beim Hoch- und Herunterfahren des Servers (systemd). Ab dann
+  wird die Umgebung im Betrieb ueber "systemctl start/stop reportrpgpi"
+  statt mit den beiden Skripten hier bedient.
 
 ================================================================================

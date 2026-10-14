@@ -1,0 +1,27 @@
+#!/bin/bash
+# =============================================================================
+# fmw_env.sh – environment for the FMW autostart control scripts
+# Rendered by 09-Install/30-configure_autostart.sh from
+# autostart_templates/fmw_env.sh.template – do not edit by hand, re-run the
+# configure script instead.
+# =============================================================================
+
+export ORACLE_HOME="##ORACLE_HOME##"
+export DOMAIN_HOME="##DOMAIN_HOME##"
+export DOMAIN_NAME="##DOMAIN_NAME##"
+export CTRL_DIR="##CTRL_DIR##"
+
+NM_HOST="##NM_HOST##"
+NM_PORT="##NM_PORT##"
+ADMIN_URL="##ADMIN_URL##"
+
+# Start order: AdminServer, managed servers, system components (name:type)
+ADMIN_SERVER="##ADMIN_SERVER##"
+MANAGED_SERVERS="##MANAGED_SERVERS##"
+SYSTEM_COMPONENTS="##SYSTEM_COMPONENTS##"
+
+WLST="$ORACLE_HOME/oracle_common/common/bin/wlst.sh"
+LOG_DIR="$CTRL_DIR/log"
+
+# Upper limits in seconds (the scripts only wait as long as needed)
+WAIT_NODEMANAGER=120

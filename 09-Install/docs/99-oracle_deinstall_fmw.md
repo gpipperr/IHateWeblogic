@@ -17,8 +17,9 @@ whose state has become unclear after many experiments.
 
 | Removed (FMW) | Kept |
 |---|---|
-| `$ORACLE_HOME` – first via the Oracle deinstaller, then any leftovers | Database homes under `$ORACLE_BASE/product/`, `oradata/`, `admin/`, `audit/`, `flash_recovery_area/`, `autoupgrade/`, `cfgtoollogs/` |
+| `$ORACLE_HOME` – first via the Oracle deinstaller, then any leftovers | Database homes under `$ORACLE_BASE/product/`, `oradata/`, `admin/<DB_NAME>/`, `audit/`, `flash_recovery_area/`, `autoupgrade/`, `cfgtoollogs/` |
 | `$DOMAIN_HOME` and the parent `domains/` directory if it is then empty | `$ORACLE_BASE/diag/` – on a shared host this is the **database** ADR (`rdbms`, `tnslsnr`) |
+| Autostart (`30-configure_autostart.sh`): unit `fmw-<DOMAIN_NAME>.service` (disabled + removed before the stop) and `$ORACLE_BASE/admin/<DOMAIN_NAME>` | Every other directory under `$ORACLE_BASE/admin` (database admin dirs such as `admin/<DB_NAME>`) |
 | `~/oradiag_oracle` – client ADR of the FMW tools (`rwrun`, `rwconverter`, … crash incidents) | Central inventory – only the FMW home entry is removed (by the deinstaller) |
 | `REPORTS_TMP` and `/tmp/ihw_*` staging leftovers, if present | `JDK_HOME` (installed by root in Phase 0), `PATCH_STORAGE` (downloads are reused) |
 | | This repository incl. `*.des3` password files, `log/`, `07-Maintenance/ConfigBackup/` |

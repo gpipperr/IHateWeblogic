@@ -1,0 +1,375 @@
+================================================================================
+  WebLogic / Reports automatisch beim Systemstart starten (systemd)
+  (Eigene Skripte + eine systemd-Unit, OHNE IHateWeblogic-Skripte/Lib)
+================================================================================
+  Zielgruppe : Kunde / Betrieb
+  Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
+  Erstellt   : 2026-10
+  Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt, die
+                 Umgebung laesst sich mit WLS_Report_start_stop_kochbuch.txt
+                 von Hand starten und stoppen.
+
+  Ziel: Nach einem Serverneustart starten alle Komponenten automatisch in
+  der richtigen Reihenfolge, beim Herunterfahren werden sie sauber gestoppt.
+
+    Start:  Node Manager -> AdminServer -> Managed Server -> Reports-Komponenten
+    Stop :  Reports-Komponenten -> Managed Server -> AdminServer -> Node Manager
+
+  Statt fester Wartezeiten (sleep) warten die Skripte, bis der jeweilige
+  Server wirklich "RUNNING" meldet bzw. sein Prozess beendet ist - mit einer
+  Obergrenze, damit ein haengender Server den Systemstart nicht blockiert.
+
+  Hinweis zur externen Datenbank: Die Datenbank laeuft NICHT auf dieser
+  Maschine - die Unit muss daher auf keine lokale Datenbank warten.
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  Die folgenden Werte muessen zu der Domain aus Reports_kochbuch_de.txt
+  passen:
+    ORACLE_HOME             /u01/oracle/fmw
+    DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
+    WLS_MANAGED_SERVER      reportRpgpi
+    WLS_ADMIN_URL           t3://localhost:7001
+    REPORTS_TOOLS_INSTANCE  reptools1
+    REPORTS_SERVER_NAME     repServer01
+
+  boot.properties muss fuer BEIDE Server vorhanden sein (Reports_kochbuch_de.txt
+  Schritt 4 und 6) - darueber starten UND stoppen die Server ohne
+  Passworteingabe:
+    ls -l /u01/user_projects/domains/reportRpgpi/servers/AdminServer/security/boot.properties
+    ls -l /u01/user_projects/domains/reportRpgpi/servers/reportRpgpi/security/boot.properties
+
+  Schritt 1-5 laufen als oracle, Schritt 6-8 als root.
+
+
+================================================================================
+SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
+================================================================================
+
+  # startComponent.sh / stopComponent.sh (Reports-Komponenten) sprechen mit
+  # dem Node Manager und fragen beim ersten Aufruf nach dessen Passwort. Unter
+  # systemd kann niemand etwas eintippen - daher die Zugangsdaten EINMAL
+  # interaktiv speichern (verschluesselt unter ~/.wlst/, nicht im Klartext).
+  # Node Manager und AdminServer muessen dafuer laufen (z.B. mit
+  # start_wls_all.sh aus WLS_Report_start_stop_kochbuch.txt).
+
+  /u01/user_projects/domains/reportRpgpi/bin/startComponent.sh repServer01 storeUserConfig
+  # Fragt einmal nach dem Node-Manager-Passwort und speichert es.
+
+  # Kontrolle: die naechsten Aufrufe duerfen NICHT mehr nach einem Passwort fragen
+  /u01/user_projects/domains/reportRpgpi/bin/stopComponent.sh repServer01
+  /u01/user_projects/domains/reportRpgpi/bin/startComponent.sh repServer01
+  ls -la ~/.wlst/
+
+
+================================================================================
+SCHRITT 2: Umgebungsdatei anlegen  (als oracle)
+================================================================================
+
+  # systemd liest KEIN ~/.bash_profile - alle Werte stehen deshalb in einer
+  # eigenen Datei, die beide Skripte einlesen. Sie enthaelt auch zwei kleine
+  # Warte-Funktionen, die beide Skripte nutzen.
+
+  mkdir -p /u01/oracle/scripts
+
+  cat > /u01/oracle/scripts/report_env.sh << 'EOF'
+#!/bin/bash
+# Umgebung fuer start_all.sh / stop_all.sh (Autostart_linux_middleware.txt)
+
+export ORACLE_HOME=/u01/oracle/fmw
+export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+export WLS_MANAGED_SERVER=reportRpgpi
+export WLS_ADMIN_URL=t3://localhost:7001
+export REPORTS_TOOLS_INSTANCE=reptools1
+export REPORTS_SERVER_NAME=repServer01
+export LOG_DIR=$DOMAIN_HOME/logs
+
+# Obergrenzen in Sekunden (keine festen Pausen - es wird nur so lange
+# gewartet wie noetig)
+WAIT_NODEMANAGER=120
+WAIT_ADMIN=600
+WAIT_MANAGED=600
+WAIT_STOP=300
+
+# wait_running <logdatei> <sekunden> <name>
+# Wartet, bis WebLogic "Server state changed to RUNNING" ins Log schreibt.
+wait_running() {
+    local log="$1" max="$2" name="$3" t=0
+    until grep -q "Server state changed to RUNNING" "$log" 2>/dev/null; do
+        sleep 5; t=$((t + 5))
+        if [ "$t" -ge "$max" ]; then
+            echo "FEHLER: $name nach ${max}s nicht RUNNING - siehe $log"
+            return 1
+        fi
+    done
+    echo "$name laeuft (RUNNING nach ${t}s)"
+}
+
+# wait_stopped <prozessmuster> <sekunden> <name>
+# Wartet, bis kein Prozess mit diesem Muster mehr laeuft.
+wait_stopped() {
+    local pattern="$1" max="$2" name="$3" t=0
+    while pgrep -f "$pattern" > /dev/null; do
+        sleep 5; t=$((t + 5))
+        if [ "$t" -ge "$max" ]; then
+            echo "WARNUNG: $name laeuft nach ${max}s immer noch"
+            return 1
+        fi
+    done
+    echo "$name gestoppt"
+}
+EOF
+
+
+================================================================================
+SCHRITT 3: Start-Skript anlegen  (als oracle)
+================================================================================
+
+  cat > /u01/oracle/scripts/start_all.sh << 'EOF'
+#!/bin/bash
+# Startet Node Manager, AdminServer, Managed Server und die
+# Reports-Komponenten. Bereits laufende Teile werden uebersprungen.
+source /u01/oracle/scripts/report_env.sh
+mkdir -p "$LOG_DIR"
+cd "$DOMAIN_HOME" || exit 1
+
+echo "=== 1/4 Node Manager ==="
+if pgrep -f "weblogic.NodeManager" > /dev/null; then
+    echo "laeuft bereits"
+else
+    nohup "$DOMAIN_HOME/bin/startNodeManager.sh" > "$LOG_DIR/NodeManager.out" 2>&1 &
+    t=0
+    until ss -tln | grep -q ":5556 "; do
+        sleep 5; t=$((t + 5))
+        if [ "$t" -ge "$WAIT_NODEMANAGER" ]; then
+            echo "WARNUNG: Node-Manager-Port 5556 nach ${t}s nicht offen"
+            break
+        fi
+    done
+fi
+
+echo "=== 2/4 AdminServer ==="
+if pgrep -f "weblogic.Name=AdminServer" > /dev/null; then
+    echo "laeuft bereits"
+else
+    nohup "$DOMAIN_HOME/bin/startWebLogic.sh" > "$LOG_DIR/AdminServer.out" 2>&1 &
+    # Ohne AdminServer kann der Managed Server nicht starten -> hier abbrechen
+    wait_running "$LOG_DIR/AdminServer.out" "$WAIT_ADMIN" "AdminServer" || exit 1
+fi
+
+echo "=== 3/4 Managed Server ($WLS_MANAGED_SERVER) ==="
+if pgrep -f "weblogic.Name=$WLS_MANAGED_SERVER" > /dev/null; then
+    echo "laeuft bereits"
+else
+    nohup "$DOMAIN_HOME/bin/startManagedWebLogic.sh" "$WLS_MANAGED_SERVER" "$WLS_ADMIN_URL" \
+        > "$LOG_DIR/ManagedServer.out" 2>&1 &
+    # Nur warnen, nicht abbrechen: ein langsamer Start soll den AdminServer
+    # nicht wieder mit herunterreissen
+    wait_running "$LOG_DIR/ManagedServer.out" "$WAIT_MANAGED" "$WLS_MANAGED_SERVER"
+fi
+
+echo "=== 4/4 Reports-Komponenten ==="
+"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_SERVER_NAME"
+
+echo "Start abgeschlossen. Logs: $LOG_DIR"
+exit 0
+EOF
+
+
+================================================================================
+SCHRITT 4: Stop-Skript anlegen  (als oracle)
+================================================================================
+
+  # Die Server werden OHNE Benutzer/Passwort gestoppt: die Oracle-Skripte
+  # stopManagedWebLogic.sh / stopWebLogic.sh nutzen dann die boot.properties
+  # des jeweiligen Servers - deshalb wechselt das Skript vorher ins
+  # DOMAIN_HOME. Unbedingt in Schritt 5 von Hand testen!
+
+  cat > /u01/oracle/scripts/stop_all.sh << 'EOF'
+#!/bin/bash
+# Stoppt Reports-Komponenten, Managed Server, AdminServer und Node Manager.
+source /u01/oracle/scripts/report_env.sh
+cd "$DOMAIN_HOME" || exit 1
+
+echo "=== 1/4 Reports-Komponenten ==="
+"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_SERVER_NAME"
+"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+
+echo "=== 2/4 Managed Server ($WLS_MANAGED_SERVER) ==="
+if pgrep -f "weblogic.Name=$WLS_MANAGED_SERVER" > /dev/null; then
+    "$DOMAIN_HOME/bin/stopManagedWebLogic.sh" "$WLS_MANAGED_SERVER" "$WLS_ADMIN_URL"
+    wait_stopped "weblogic.Name=$WLS_MANAGED_SERVER" "$WAIT_STOP" "$WLS_MANAGED_SERVER"
+fi
+
+echo "=== 3/4 AdminServer ==="
+if pgrep -f "weblogic.Name=AdminServer" > /dev/null; then
+    "$DOMAIN_HOME/bin/stopWebLogic.sh"
+    wait_stopped "weblogic.Name=AdminServer" "$WAIT_STOP" "AdminServer"
+fi
+
+echo "=== 4/4 Node Manager ==="
+if pgrep -f "weblogic.NodeManager" > /dev/null; then
+    "$DOMAIN_HOME/bin/stopNodeManager.sh"
+    wait_stopped "weblogic.NodeManager" 60 "Node Manager"
+fi
+
+echo "Stop abgeschlossen."
+exit 0
+EOF
+
+  chmod 755 /u01/oracle/scripts/*.sh
+
+
+================================================================================
+SCHRITT 5: Beide Skripte von Hand testen  (als oracle)
+================================================================================
+
+  # ERST wenn beide Skripte von Hand fehlerfrei laufen, den systemd-Dienst
+  # einrichten (Schritt 6) - sonst sucht man Fehler an der falschen Stelle.
+
+  /u01/oracle/scripts/stop_all.sh
+  # Erwartet: alle vier Teile gestoppt, KEINE Frage nach Benutzer/Passwort
+  ps -ef | grep -E "weblogic.Name|NodeManager" | grep -v grep
+  # Erwartet: keine Ausgabe
+
+  /u01/oracle/scripts/start_all.sh
+  # Erwartet: "AdminServer laeuft (RUNNING ...)", "reportRpgpi laeuft
+  # (RUNNING ...)", Reports-Komponenten gestartet
+
+
+================================================================================
+SCHRITT 6: systemd-Dienst anlegen  (als root)
+================================================================================
+
+  # WICHTIG: Fuer systemd-Dienste gelten die oracle-Limits aus
+  # /etc/security/limits.d/ NICHT (die greifen nur bei einer Anmeldung).
+  # Ohne die Limit*-Zeilen liefe WebLogic mit nur 1024 offenen Dateien.
+  # Werte wie in OS_Kochbuch_de.txt (oracle-Limits) - wurden dort andere
+  # Werte gesetzt, hier dieselben eintragen.
+
+  cat > /etc/systemd/system/reportrpgpi.service << 'EOF'
+[Unit]
+Description=Oracle Reports Middleware (WebLogic Domain reportRpgpi)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=oracle
+Group=oinstall
+LimitNOFILE=65536
+LimitNPROC=16384
+LimitSTACK=10485760
+ExecStart=/u01/oracle/scripts/start_all.sh
+ExecStop=/u01/oracle/scripts/stop_all.sh
+TimeoutStartSec=1500
+TimeoutStopSec=900
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+
+
+================================================================================
+SCHRITT 7: Dienst aktivieren und starten  (als root)
+================================================================================
+
+  # Laeuft die Umgebung noch aus Schritt 5? Dann vorher stoppen, damit
+  # systemd sie selbst startet und verwaltet:
+  su - oracle -c /u01/oracle/scripts/stop_all.sh
+
+  systemctl enable reportrpgpi
+  systemctl start reportrpgpi
+  # "start" kehrt erst zurueck, wenn start_all.sh fertig ist (einige Minuten)
+
+  systemctl status reportrpgpi
+  # Erwartet: "active (exited)" - das ist bei Type=oneshot RICHTIG: der
+  # Dienst hat die Server gestartet, sie laufen im Hintergrund weiter.
+
+
+================================================================================
+SCHRITT 8: Funktions- und Neustarttest  (als root)
+================================================================================
+
+  # Ports
+  ss -tlnp | grep -E ":7001 |:5556 |:9002 "
+
+  # Prozesse
+  ps -ef | grep -E "weblogic.Name|NodeManager" | grep -v grep
+
+  # Reports-Server (wie in WLS_Report_start_stop_kochbuch.txt)
+  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repServer01&statusformat=XML"
+  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+
+  # Neustart
+  reboot
+  # Nach dem Neustart (der Start dauert einige Minuten):
+  systemctl status reportrpgpi
+  journalctl -u reportrpgpi -b
+  # danach Ports/Prozesse/curl wie oben pruefen
+
+  # Im Betrieb ab jetzt ueber systemd bedienen (statt
+  # start_wls_all.sh/stop_wls_all.sh):
+  #   systemctl stop reportrpgpi
+  #   systemctl start reportrpgpi
+  #   systemctl restart reportrpgpi
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: stop_all.sh bricht beim Managed Server oder AdminServer mit "No
+           valid username/password or userConfigFile/userKeyFile provided" ab
+  Ursache: boot.properties fehlt fuer diesen Server, oder stopWebLogic.sh/
+           stopManagedWebLogic.sh wurde nicht aus dem DOMAIN_HOME aufgerufen
+  Loesung: boot.properties pruefen (siehe VORAUSSETZUNGEN, ggf. nach
+           Reports_kochbuch_de.txt Schritt 4/6 neu anlegen; nach dem
+           naechsten Serverstart steht dort "{AES}..."). stop_all.sh wechselt
+           selbst ins DOMAIN_HOME - daran nichts aendern.
+
+  Problem: startComponent.sh/stopComponent.sh fragt nach einem Passwort,
+           oder der Dienst haengt bei den Reports-Komponenten
+  Ursache: Schritt 1 (storeUserConfig) nicht ausgefuehrt, oder als anderer
+           Benutzer als oracle
+  Loesung: Schritt 1 als oracle wiederholen
+
+  Problem: "systemctl start" endet mit "failed", AdminServer laeuft nicht
+  Ursache: AdminServer wurde innerhalb von WAIT_ADMIN (600 s) nicht RUNNING
+  Loesung: $DOMAIN_HOME/logs/AdminServer.out pruefen; auf einer langsamen
+           Maschine WAIT_ADMIN in report_env.sh erhoehen (und
+           TimeoutStartSec in der Unit entsprechend)
+
+  Problem: Managed Server "nicht RUNNING", der Dienst ist aber "active (exited)"
+  Ursache: Gewollt - ein langsamer Managed Server soll den bereits
+           laufenden AdminServer nicht mit beenden
+  Loesung: $DOMAIN_HOME/logs/ManagedServer.out pruefen, ggf. spaeter
+           "systemctl restart reportrpgpi"
+
+  Problem: Nach dem Neustart "Too many open files" in den Logs
+  Ursache: Limit*-Zeilen in der Unit fehlen oder sind zu klein
+  Loesung: Schritt 6 pruefen, danach "systemctl daemon-reload" und
+           "systemctl restart reportrpgpi"
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Die Skripte rufen ausschliesslich die von Oracle mitgelieferten Skripte
+  unter $DOMAIN_HOME/bin/ auf - keine Abhaengigkeit zu IHateWeblogic-Skripten.
+
+  Logs:  $DOMAIN_HOME/logs/NodeManager.out, AdminServer.out, ManagedServer.out
+         journalctl -u reportrpgpi
+
+  Verwandte Kochbuecher:
+    WLS_Report_start_stop_kochbuch.txt  - manuelles Starten/Stoppen
+    Reports_kochbuch_de.txt             - Domain, boot.properties, Reports-Server
+    OS_Kochbuch_de.txt                  - oracle-Limits (fuer Schritt 6)
+
+================================================================================

@@ -1,0 +1,27 @@
+# =============================================================================
+# fmw-##DOMAIN_NAME##.service – autostart of the FMW domain ##DOMAIN_NAME##
+# Rendered by 09-Install/30-configure_autostart.sh from
+# autostart_templates/fmw.service.template.
+# Type=oneshot + RemainAfterExit: the unit starts the domain and then shows
+# "active (exited)" – the server JVMs keep running under the Node Manager.
+# Limit*: systemd does not apply /etc/security/limits.d to services.
+# =============================================================================
+[Unit]
+Description=Oracle FMW Forms/Reports domain ##DOMAIN_NAME## (Node Manager controlled)
+Wants=network-online.target##DB_UNITS##
+After=network-online.target##DB_UNITS##
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=##OS_USER##
+Group=##OS_GROUP##
+LimitNOFILE=##ULIMIT_NOFILE##
+LimitNPROC=##ULIMIT_NPROC##
+ExecStart=##CTRL_DIR##/fmw_ctl.sh start all
+ExecStop=##CTRL_DIR##/fmw_ctl.sh stop all
+TimeoutStartSec=1800
+TimeoutStopSec=900
+
+[Install]
+WantedBy=multi-user.target

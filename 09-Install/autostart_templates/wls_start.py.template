@@ -1,0 +1,101 @@
+# =============================================================================
+# wls_start.py – start the domain components via Node Manager / AdminServer
+# Rendered by 09-Install/30-configure_autostart.sh – called by fmw_ctl.sh:
+#   wlst.sh wls_start.py [all|<component>]
+# AdminServer and system components: nmStart. Managed servers: start() via
+# the AdminServer (correct admin URL / startup properties), nmStart fallback.
+# =============================================================================
+import sys
+import time
+
+CTRL       = '##CTRL_DIR##'
+ADMIN      = '##ADMIN_SERVER##'
+MANAGED    = '##MANAGED_SERVERS##'.split()
+COMPONENTS = [tuple(c.split(':')) for c in '##SYSTEM_COMPONENTS##'.split()]
+TARGET     = 'all'
+if len(sys.argv) > 1:
+    TARGET = sys.argv[1]
+
+rc = 0
+
+def ihw(msg):
+    print('IHW:' + msg)
+
+def state(name, typ='Server'):
+    try:
+        if typ == 'Server':
+            return str(nmServerStatus(name))
+        return str(nmServerStatus(serverName=name, serverType=typ))
+    except Exception:
+        return 'UNKNOWN'
+
+try:
+    nmConnect(userConfigFile=CTRL + '/keyfile/nm_config', userKeyFile=CTRL + '/keyfile/nm_key',
+              host='##NM_HOST##', port='##NM_PORT##', domainName='##DOMAIN_NAME##',
+              domainDir='##DOMAIN_HOME##', nmType='plain')
+except Exception as e:
+    ihw('ERROR nmConnect failed: ' + str(e))
+    exit(defaultAnswer='y', exitcode=1)
+
+# --- AdminServer ----------------------------------------------------------------
+if TARGET in ('all', ADMIN):
+    if state(ADMIN) == 'RUNNING':
+        ihw(ADMIN + ' already RUNNING')
+    else:
+        try:
+            nmStart(ADMIN)
+            ihw(ADMIN + ' started')
+        except Exception as e:
+            ihw('ERROR ' + ADMIN + ' start failed: ' + str(e))
+            rc = 1
+            if TARGET == 'all':
+                # Without the AdminServer the managed servers cannot start
+                nmDisconnect()
+                exit(defaultAnswer='y', exitcode=1)
+
+# --- Managed servers (via AdminServer) ------------------------------------------
+todo = [m for m in MANAGED if TARGET in ('all', m)]
+if todo:
+    connected = False
+    for attempt in range(12):
+        try:
+            connect(userConfigFile=CTRL + '/keyfile/admin_config',
+                    userKeyFile=CTRL + '/keyfile/admin_key', url='##ADMIN_URL##')
+            connected = True
+            break
+        except Exception:
+            time.sleep(10)
+    if not connected:
+        ihw('WARNING cannot connect to the AdminServer – using nmStart for managed servers')
+    for m in todo:
+        if state(m) == 'RUNNING':
+            ihw(m + ' already RUNNING')
+            continue
+        try:
+            if connected:
+                start(m, 'Server', block='true')
+            else:
+                nmStart(m)
+            ihw(m + ' started')
+        except Exception as e:
+            ihw('ERROR ' + m + ' start failed: ' + str(e))
+            rc = 1
+    if connected:
+        disconnect()
+
+# --- System components (Reports server, OHS) ------------------------------------
+for (name, typ) in COMPONENTS:
+    if TARGET not in ('all', name):
+        continue
+    if state(name, typ) == 'RUNNING':
+        ihw(name + ' already RUNNING')
+        continue
+    try:
+        nmStart(serverName=name, serverType=typ)
+        ihw(name + ' started')
+    except Exception as e:
+        ihw('ERROR ' + name + ' start failed: ' + str(e))
+        rc = 1
+
+nmDisconnect()
+exit(defaultAnswer='y', exitcode=rc)

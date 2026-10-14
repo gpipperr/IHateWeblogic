@@ -1,8 +1,9 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 11-oracle_nodemanager.sh
-# Purpose  : Configure NodeManager for plain (non-SSL) communication and
-#            optionally register it as a systemd service.
+# Purpose  : Configure NodeManager for plain (non-SSL) communication.
+#            Autostart at boot (systemd, Node Manager controlled):
+#            09-Install/30-configure_autostart.sh
 #
 #            By default WebLogic configures NodeManager with SecureListener=true
 #            (SSL). For internal environments without a proper PKI this causes

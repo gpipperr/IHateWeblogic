@@ -1,0 +1,116 @@
+#!/bin/bash
+# =============================================================================
+# fmw_ctl.sh – start/stop/status of the FMW domain via the Node Manager
+# Rendered by 09-Install/30-configure_autostart.sh – called by the systemd
+# unit fmw-##DOMAIN_NAME##.service and usable by hand (as oracle).
+#
+#   fmw_ctl.sh start   [all|<component>]
+#   fmw_ctl.sh stop    [all|<component>]
+#   fmw_ctl.sh restart [all|<component>]
+#   fmw_ctl.sh status  [all|<component>]
+#
+# <component>: AdminServer, a managed server or a system component name.
+# "all" (default) also starts/stops the Node Manager itself.
+# =============================================================================
+
+source "##CTRL_DIR##/fmw_env.sh" || exit 2
+
+ACTION="${1:-}"
+TARGET="${2:-all}"
+
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/fmw_ctl_$(date +%Y%m%d).log"
+
+_log() { printf "%s  %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"; }
+
+_usage() {
+    printf "Usage: %s {start|stop|restart|status} [all|<component>]\n" "$(basename "$0")"
+    printf "Components: %s %s" "$ADMIN_SERVER" "$MANAGED_SERVERS"
+    for _c in $SYSTEM_COMPONENTS; do printf " %s" "${_c%%:*}"; done
+    printf "\n"
+    exit 2
+}
+
+_known_target() {
+    [ "$TARGET" = "all" ] && return 0
+    local c
+    for c in $ADMIN_SERVER $MANAGED_SERVERS; do [ "$TARGET" = "$c" ] && return 0; done
+    for c in $SYSTEM_COMPONENTS; do [ "$TARGET" = "${c%%:*}" ] && return 0; done
+    return 1
+}
+
+_nm_listening() { ss -tln 2>/dev/null | grep -qE "[:.]${NM_PORT}[[:space:]]"; }
+
+_start_nm() {
+    if _nm_listening; then
+        _log "Node Manager already listening on port $NM_PORT"
+        return 0
+    fi
+    _log "Starting Node Manager ..."
+    nohup "$DOMAIN_HOME/bin/startNodeManager.sh" >> "$LOG_DIR/nodemanager.out" 2>&1 &
+    local t=0
+    until _nm_listening; do
+        sleep 5; t=$((t + 5))
+        if [ "$t" -ge "$WAIT_NODEMANAGER" ]; then
+            _log "ERROR: Node Manager port $NM_PORT not open after ${t}s – see $LOG_DIR/nodemanager.out"
+            return 1
+        fi
+    done
+    _log "Node Manager is listening (after ${t}s)"
+}
+
+_stop_nm() {
+    _nm_listening || { _log "Node Manager not running"; return 0; }
+    _log "Stopping Node Manager ..."
+    "$DOMAIN_HOME/bin/stopNodeManager.sh" >> "$LOG_DIR/nodemanager.out" 2>&1
+    local t=0
+    while _nm_listening; do
+        sleep 5; t=$((t + 5))
+        [ "$t" -ge 60 ] && { _log "WARNING: Node Manager still listening after ${t}s"; return 1; }
+    done
+    _log "Node Manager stopped"
+}
+
+_wlst() {
+    local script="$1"; shift
+    # WLST prints a banner – only our IHW: lines matter for the log
+    "$WLST" "$CTRL_DIR/$script" "$@" 2>&1 | tee -a "$LOG_FILE" | grep -E "^IHW:" | sed 's/^IHW://'
+    return "${PIPESTATUS[0]}"
+}
+
+_start() {
+    _start_nm || return 1
+    _log "Starting: $TARGET"
+    _wlst wls_start.py "$TARGET"
+}
+
+_stop() {
+    _log "Stopping: $TARGET"
+    if _nm_listening; then
+        _wlst wls_stop.py "$TARGET"
+    else
+        _log "Node Manager not running – nothing to stop via WLST"
+    fi
+    [ "$TARGET" = "all" ] && _stop_nm
+    return 0
+}
+
+_status() {
+    if ! _nm_listening; then
+        _log "Node Manager not running on port $NM_PORT – all components considered DOWN"
+        return 1
+    fi
+    _wlst wls_status.py "$TARGET"
+}
+
+[ -z "$ACTION" ] && _usage
+_known_target || { printf "Unknown component: %s\n" "$TARGET"; _usage; }
+
+case "$ACTION" in
+    start)   _start ;;
+    stop)    _stop ;;
+    restart) _stop; _start ;;
+    status)  _status ;;
+    *)       _usage ;;
+esac
+exit $?

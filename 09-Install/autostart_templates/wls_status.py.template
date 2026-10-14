@@ -1,0 +1,46 @@
+# =============================================================================
+# wls_status.py – Node Manager status of every domain component
+# Rendered by 09-Install/30-configure_autostart.sh – called by fmw_ctl.sh:
+#   wlst.sh wls_status.py [all|<component>]
+# Exit code 0 = every selected component RUNNING, 1 = at least one is not.
+# =============================================================================
+import sys
+
+CTRL       = '##CTRL_DIR##'
+ADMIN      = '##ADMIN_SERVER##'
+MANAGED    = '##MANAGED_SERVERS##'.split()
+COMPONENTS = [tuple(c.split(':')) for c in '##SYSTEM_COMPONENTS##'.split()]
+TARGET     = 'all'
+if len(sys.argv) > 1:
+    TARGET = sys.argv[1]
+
+rc = 0
+
+def ihw(msg):
+    print('IHW:' + msg)
+
+try:
+    nmConnect(userConfigFile=CTRL + '/keyfile/nm_config', userKeyFile=CTRL + '/keyfile/nm_key',
+              host='##NM_HOST##', port='##NM_PORT##', domainName='##DOMAIN_NAME##',
+              domainDir='##DOMAIN_HOME##', nmType='plain')
+except Exception as e:
+    ihw('ERROR nmConnect failed: ' + str(e))
+    exit(defaultAnswer='y', exitcode=1)
+
+checks = [(s, 'Server') for s in [ADMIN] + MANAGED] + COMPONENTS
+for (name, typ) in checks:
+    if TARGET not in ('all', name):
+        continue
+    try:
+        if typ == 'Server':
+            st = str(nmServerStatus(name))
+        else:
+            st = str(nmServerStatus(serverName=name, serverType=typ))
+    except Exception:
+        st = 'UNKNOWN'
+    ihw('%-28s %-26s %s' % (name, typ, st))
+    if st != 'RUNNING':
+        rc = 1
+
+nmDisconnect()
+exit(defaultAnswer='y', exitcode=rc)

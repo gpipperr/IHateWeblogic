@@ -189,7 +189,7 @@ for the engine). Set the paths first:
 
 ```bash
 export ORACLE_HOME=/u01/oracle/fmw
-export DOMAIN_HOME=/u01/user_projects/domains/reportPisa
+export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
 export TK_ADMIN=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin
 export OH_AFM=$ORACLE_HOME/guicommon/tk/admin/AFM
 export FONT_DIR=$DOMAIN_HOME/reports/fonts

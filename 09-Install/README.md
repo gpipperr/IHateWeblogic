@@ -166,6 +166,12 @@ Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc
                                    Forms/Reports can reach the DB at all
                                    → docs/20-forms_reports_testmodules.md
 
+Phase 7c – Autostart at boot (as oracle; systemd part via sudo)
+  30-configure_autostart.sh     Render autostart_templates/ into
+                                   $ORACLE_BASE/admin/<domain>/ctrl, WLST key files,
+                                   systemd unit fmw-<domain>.service (Node Manager controlled)
+                                   → docs/30-configure_autostart.md
+
 Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
   99-oracle_deinstall_fmw.sh    Stop FMW, OUI deinstall, remove ORACLE_HOME/
                                    DOMAIN_HOME/FMW client ADR; keeps DB, inventory,
@@ -204,6 +210,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. **STATUS: partially verified**, not a full install step | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
+| 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
 | teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
 
 ---
@@ -492,7 +499,12 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
 ├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke-test deploy (Forms+Reports), STATUS: partially verified
+├── 30-configure_autostart.sh          ← Phase 7c: autostart at boot (systemd, Node Manager controlled)
 ├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
+├── autostart_templates/               ← Templates rendered by 30-configure_autostart.sh
+│   ├── fmw_env.sh.template / fmw_ctl.sh.template          (env + control wrapper)
+│   ├── wls_start.py / wls_stop.py / wls_status.py .template (WLST via Node Manager)
+│   └── fmw.service.template                                 (systemd unit)
 ├── forms_templates/                   ← Forms config templates (edited by the customer)
 │   ├── README.md
 │   ├── default.env.template
@@ -537,6 +549,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 80-oracle_security.md         ← post-install hardening checklist
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
+    ├── 30-configure_autostart.md     ← 30-configure_autostart.sh
     └── 99-oracle_deinstall_fmw.md    ← 99-oracle_deinstall_fmw.sh
 ```
 

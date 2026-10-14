@@ -25,6 +25,10 @@ und deutschen Kommentaren.
    einfachstes Starten/Stoppen der gesamten Umgebung für den laufenden
    Betrieb, über zwei eigene Skripte ohne jede Abhängigkeit zu den
    IHateWeblogic-Skripten.
+7. [Autostart_linux_middleware.txt](Autostart_linux_middleware.txt) –
+   automatischer Start/Stop beim Hoch- und Herunterfahren des Servers über
+   eine systemd-Unit (wartet auf "RUNNING" statt fester Pausen, Stop ohne
+   Passworteingabe über boot.properties).
 
 ## Hinweis
 
