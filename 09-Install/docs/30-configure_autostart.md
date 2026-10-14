@@ -68,10 +68,13 @@ prompt**: the WebLogic admin password comes from `weblogic_sec.conf.des3`
 `nmConnect()` + `storeUserConfig(nm='true')`. `WLST_PROPERTIES=-Dweblogic.management.confirmKeyfileCreation=true`
 suppresses WLST's interactive "create the key file?" question.
 
-The Node Manager login is assumed to be the WebLogic admin user/password
-(the domain is created without separate Node Manager credentials). If
-`nmConnect` fails, the script stops with a FAIL – then set the Node Manager
-credentials in the domain (EM / WLST `SecurityConfiguration`) and re-run.
+The Node Manager login must be the WebLogic admin user/password. A domain
+created by WLST offline in production mode gets **random** Node Manager
+credentials (user e.g. `o2HTp584LE`, password unknown – confirmed 2026-10-15);
+`11-oracle_nodemanager.sh --apply` sets them to the admin credentials
+(`SecurityConfiguration` `NodeManagerUsername` + `setNodeManagerPassword()`,
+then restart the Node Manager). If `nmConnect` still fails, the script stops
+with a FAIL.
 
 `servers/AdminServer/security/boot.properties` must exist – the Node Manager
 uses it for `nmStart('AdminServer')`.

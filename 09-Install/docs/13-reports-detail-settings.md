@@ -321,7 +321,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
     <envVariable name="REPORTS_TMP"         value="/tmp/reports"/>
     <envVariable name="NLS_LANG"            value="GERMAN_GERMANY.AL32UTF8"/>
     <envVariable name="TNS_ADMIN"           value="/app/oracle/19c/network/admin"/>
-    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random"/>
+    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>
   </environment>
 
   <!-- Security: JAZN-based (WebLogic security realm) -->
@@ -582,6 +582,42 @@ curl -s "http://localhost:7777/reports/rwservlet/getserverinfo?server=repserver_
 
 Expected: XML response with `<server>` element and engine status entries
 (`status="1"` = IDLE, `status="2"` = BUSY, `status="0"` = DEAD).
+
+### Engine crashes with REP-50125 NullPointerException (confirmed 2026-10-15)
+
+`rwEng-0_diagnostic.log` shows every ~60 s:
+
+```
+REP-50125 : java.lang.NullPointerException
+  at java.util.Properties.put(...)
+  at oracle.reports.utility.Utility.getOrbProperties(Utility.java:2561)
+  at oracle.reports.engine.RWEngine.init(RWEngine.java:253)
+```
+
+and `getserverinfo` answers `REP-50001 The server is initializing` forever.
+`Utility.getOrbProperties` (Reports QPR 39600348) takes
+`ORBWaitForResponseTimeout` from the environment variable
+`REPORTS_JVM_OPTIONS` (`-DORBWaitForResponseTimeout=<ms>`). If the variable is
+set **without** this option, the value is `null` and `Properties.put` throws.
+If the variable is not set at all, the default `999999999` is used.
+Fix: always add `-DORBWaitForResponseTimeout=999999999` to `REPORTS_JVM_OPTIONS`
+in `rwserver.conf` (the script does this since 2026-10-15), then restart the
+component (`stopComponent.sh` / `startComponent.sh <repserver>`).
+
+### getserverinfo returns REP-52262 "Diagnostic output is disabled" (confirmed 2026-10-15)
+
+Not a hidden error: `CommandManager.checkDiagnostic` blocks the web command.
+With `<webcommandaccess>` `no`/`L0`/`L1` and a Reports server that is **not**
+secured (no `securityId` on the `<job>` element), web commands such as
+`getserverinfo`/`showjobs` require the **server administrator** from
+`<identifier>` in `rwserver.conf` – not a WebLogic user and not `monUser`:
+
+```bash
+curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repserver01&statusformat=XML&authid=rep_admin/<identifier password>"
+```
+
+`authid=monUser/...` or `authid=webadmin/...` still return REP-52262.
+The server encrypts `<identifier>` on its first start (`encrypted="yes"`).
 
 ### Check diagnostic log for startup errors
 

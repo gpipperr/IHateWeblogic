@@ -191,8 +191,11 @@ _refresh_status() {
 
         case "$ctype" in
             NM)
-                pid="$(pgrep -f 'weblogic.nodemanager' 2>/dev/null | head -1)"
-                [ -z "$pid" ] && pid="$(pgrep -f 'NodeManager' 2>/dev/null | head -1)"
+                # Only the NM JVM (main class weblogic.NodeManager). A bare
+                # "NodeManager" pattern also matched this script's own command
+                # line ("startStop.sh stop NodeManager") and any shell running
+                # such a command -> phantom RUNNING with changing PIDs (2026-10-15)
+                pid="$(pgrep -f 'java .*weblogic\.NodeManager' 2>/dev/null | head -1)"
                 ;;
             ADMIN|MANAGED)
                 pid="$(pgrep -f "Dweblogic.Name=${name}" 2>/dev/null | head -1)"
@@ -393,8 +396,8 @@ _stop_comp() {
                     && ok "NodeManager (PID $pid) stopped" \
                     || { fail "kill $pid failed"; return 1; }
             else
-                pkill -f 'weblogic.nodemanager' 2>/dev/null \
-                    || pkill -f 'NodeManager'  2>/dev/null \
+                # never pkill a bare "NodeManager" - that can hit this script
+                pkill -f 'java .*weblogic\.NodeManager' 2>/dev/null \
                     && ok "NodeManager stopped" \
                     || { fail "NodeManager process not found"; return 1; }
             fi

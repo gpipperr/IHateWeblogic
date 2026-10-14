@@ -691,8 +691,11 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #   $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
 
   # Verifikation - ERST NACH Schritt 9.10 moeglich (der Reports-Managed-
-  # Server und repServer laufen vorher noch nicht). monUser-Kennwort
-  # interaktiv eingeben statt fest in der Shell-History zu verdrahten:
+  # Server und repServer laufen vorher noch nicht). ACHTUNG: wirkt nur, wenn
+  # der Reports-Server ueber securityId am <job>-Element abgesichert ist -
+  # sonst kommt "REP-52262 Diagnostic output is disabled", siehe 9.11.
+  # monUser-Kennwort interaktiv eingeben statt fest in der Shell-History zu
+  # verdrahten:
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?authid=monUser/<MONUSER_PASSWORD>&statusformat=XML"
   # Erwartet: XML-Antwort mit Server-/Engine-Status, KEIN 401/403
 
@@ -859,7 +862,7 @@ EOF
     <envVariable name="REPORTS_TMP" value="/tmp/reports"/>
     <envVariable name="NLS_LANG" value="GERMAN_GERMANY.AL32UTF8"/>
     <envVariable name="TNS_ADMIN" value="/app/oracle/19c/network/admin"/>
-    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random"/>
+    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>
   </environment>
   <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
   <destination destype="ftp" class="oracle.reports.plugin.destination.ftp.DesFTP"/>
@@ -923,11 +926,20 @@ EOF
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
-  # 9.11 Verifikation - funktioniert ohne authid-Parameter, weil der Server
-  #     laut 9.6 noch offen (L0) ist; nach der spaeteren Haertung (L1) nur
-  #     noch mit "&authid=monUser/<MONUSER_PASSWORD>" (siehe Schritt 8)
-  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
-  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+  # 9.11 Verifikation - getserverinfo braucht als authid den Server-
+  #      Administrator aus <identifier> in rwserver.conf (9.7, hier
+  #      rep_admin/wls_team - Kennwort vor Produktivbetrieb aendern!).
+  #      monUser oder weblogic als authid liefern "REP-52262 Diagnostic
+  #      output is disabled", solange der Reports-Server nicht ueber
+  #      securityId am <job>-Element abgesichert ist (bestaetigt 2026-10-15).
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=rep_admin/wls_team"
+  # Erwartet: XML-Antwort mit <engineInstance ... status="1"> (Engine IDLE)
+  #
+  # Bleibt die Antwort bei "REP-50001 The server is initializing" und zeigt
+  # rwEng-0_diagnostic.log alle 60 s "REP-50125 NullPointerException ...
+  # Utility.getOrbProperties": in rwserver.conf (9.7) fehlt
+  # -DORBWaitForResponseTimeout=999999999 in REPORTS_JVM_OPTIONS - ergaenzen
+  # und repServer neu starten (stopComponent.sh / startComponent.sh).
 
   # Ueber Nginx/SSL (aus FMW_Kochbuch_de.txt):
   curl -k "https://${WLS_SERVER_FQDN}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
@@ -1016,6 +1028,23 @@ BEKANNTE PROBLEME UND LOESUNGEN
              exit()
            (Alternativ: config.sh -> "Update an existing domain" ->
            "Oracle Reports Server" zusaetzlich anhaken.)
+
+  Problem: getserverinfo bleibt bei "REP-50001 The server is initializing",
+           rwEng-0_diagnostic.log zeigt alle 60 s "REP-50125
+           java.lang.NullPointerException ... Utility.getOrbProperties"
+  Ursache: REPORTS_JVM_OPTIONS in rwserver.conf ist gesetzt, enthaelt aber
+           kein -DORBWaitForResponseTimeout= (Fehler im Reports-Patch
+           39600348 - ohne diese Option wird null gesetzt)
+  Loesung: in rwserver.conf (Schritt 9.7)
+             value="-Djobid=random -DORBWaitForResponseTimeout=999999999"
+           setzen, repServer neu starten
+
+  Problem: getserverinfo/showjobs liefern "REP-52262 Diagnostic output is
+           disabled" - auch mit authid=monUser/... oder weblogic/...
+  Ursache: Web-Befehle verlangen bei einem nicht per securityId
+           abgesicherten Reports-Server den Server-Administrator aus
+           <identifier> in rwserver.conf
+  Loesung: authid=rep_admin/<identifier-Kennwort> verwenden (siehe 9.11)
 
   Problem: Domain geloescht und neu angelegt - Configuration Wizard bzw.
            WLST bricht in der Phase "OPSS Processing" ab mit

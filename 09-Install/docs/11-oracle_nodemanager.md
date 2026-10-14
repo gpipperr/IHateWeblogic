@@ -127,7 +127,7 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 | 2 | Show current `SecureListener` / `ListenAddress` / `StartScriptEnabled` values |
 | 3 | Backup `nodemanager.properties` with timestamp |
 | 4 | Set `SecureListener=false`; `StartScriptEnabled` only if explicitly `false` (default is `true` since WLS 12.1.2) – restart NodeManager after a change |
-| 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain) |
+| 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain), and set the Node Manager credentials (`SecurityConfiguration` `NodeManagerUsername` + `setNodeManagerPassword()` – a clear-text `NodeManagerPasswordEncrypted` is refused in production mode) to the admin user – a WLST-offline production domain gets random ones (e.g. user `o2HTp584LE`, password unknown; `startComponent.sh` cannot log in). Restart the NodeManager afterwards |
 | 6 | Verify written values |
 | 7 | Print next-step hints (`01-Run/startStop.sh` start/stop commands) |
 

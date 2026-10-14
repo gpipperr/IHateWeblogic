@@ -280,12 +280,30 @@ try:
     machine_name = machines[0].getName()
     cd('/Machines/' + machine_name + '/NodeManager/' + machine_name)
     cmo.setNMType('Plain')
+    # Node Manager credentials = admin credentials. A domain written by WLST
+    # offline in production mode gets RANDOM ones (user e.g. "o2HTp584LE",
+    # password unknown to anybody, confirmed 2026-10-15) - startComponent.sh,
+    # nmConnect and the autostart (30-) then cannot authenticate.
+    cd('/')
+    dom_name = cmo.getName()
+    cd('/SecurityConfiguration/' + dom_name)
+    cmo.setNodeManagerUsername(wl_user)
+    # set('NodeManagerPasswordEncrypted', <clear text>) is refused in
+    # production mode - setNodeManagerPassword() takes clear text and stores
+    # it encrypted (2026-10-15)
+    cmo.setNodeManagerPassword(wl_pass)
     save()
     activate(block='true')
     print('IHW:OK:NMType set to Plain (Machine ' + machine_name + ')')
+    print('IHW:OK:Node Manager credentials set to the admin user ' + wl_user)
     disconnect()
 except Exception as e:
     print('IHW:FAIL:WLST error: ' + str(e))
+    # do not leave the edit session locked
+    try:
+        cancelEdit('y')
+    except Exception:
+        pass
     sys.exit(1)
 WLST_EOF
 
@@ -309,10 +327,14 @@ WLST_EOF
             done <<< "$_wlst_out"
 
             rm -f "$_wlst_script"
+            if printf '%s' "$_wlst_out" | grep -q 'IHW:OK:Node Manager credentials'; then
+                info "  NodeManager reads config/nodemanager/nm_password.properties at startup – restart it:"
+                info "    01-Run/startStop.sh stop NodeManager --apply && 01-Run/startStop.sh start NodeManager --apply"
+            fi
             unset _wlst_script _wlst_out _domain_name WL_USER
 
         else
-            info "Dry-run – would connect to $_adm_url and set Machine NodeManagerMBean NMType=Plain"
+            info "Dry-run – would connect to $_adm_url, set Machine NodeManagerMBean NMType=Plain and NM credentials = admin user"
         fi
     fi
     unset _adm_port _adm_url

@@ -498,7 +498,13 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '    <envVariable name="REPORTS_TMP"         value="%s"/>\n' "$REPORTS_TMP"
             printf '    <envVariable name="NLS_LANG"            value="%s"/>\n' "$_NLS"
             [ -n "$_tns_line" ] && printf '%s\n' "$_tns_line"
-            printf '    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random"/>\n'
+            # -DORBWaitForResponseTimeout is REQUIRED as soon as REPORTS_JVM_OPTIONS
+            # is set: oracle.reports.utility.Utility.getOrbProperties (Reports QPR
+            # 39600348) reads the timeout only from this variable and puts null
+            # into Properties when it is missing -> engine NPE REP-50125 every
+            # minute, getserverinfo "The server is initializing" forever
+            # (confirmed 2026-10-15; unset variable -> default 999999999)
+            printf '    <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>\n'
             printf '  </environment>\n'
             printf '\n'
             printf '  <!-- Security: JAZN-based (WebLogic security realm) -->\n'
