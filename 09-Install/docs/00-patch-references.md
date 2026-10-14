@@ -95,6 +95,6 @@ Source: KA1182, CSPU September 2026.
 
 | Old patch | Superseded by |
 |---|---|
-| 38566996 | UMS Bundle Patch 14.1.2.0.251022 (CPU Jan 2026) — kept in `INSTALL_PATCHES` pending confirmation of a CSPU Sep 2026 successor, see `oracle_software_version.conf` |
+| 38566996 | UMS Bundle Patch 14.1.2.0.251022 (CPU Jan 2026) — removed from `INSTALL_PATCHES` (2026-10-14): not on the CSPU Sep 2026 required list above. UMS is not part of the SPB; check KA1182 for a UMS/Infrastructure patch in later cycles |
 | 38827528 | → 39600348 (Reports QPR) |
 | 38874285 | → 39842516 (Forms QPR) |

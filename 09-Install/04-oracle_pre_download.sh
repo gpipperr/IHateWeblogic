@@ -440,6 +440,65 @@ if $MOS_MODE; then
     unset _p
 fi
 
+# --- Storage inventory: what is already present? -------------------------------
+# Read-only. Answers "is everything already downloaded?" without --apply.
+section "Storage Inventory ($PATCH_STORAGE)"
+INVENTORY_MISSING=0
+
+_inv_file() {
+    local path="$1" label="$2"
+    if [ -f "$path" ]; then
+        ok "$(printf "  %-26s present  %s" "$label" "$(du -h "$path" 2>/dev/null | cut -f1)")"
+    else
+        warn "$(printf "  %-26s MISSING  %s" "$label" "$path")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+}
+
+_inv_patch() {
+    local nr="$1" label="$2" zips
+    zips="$(ls "$PATCH_STORAGE/patches/$nr"/p${nr}_*.zip 2>/dev/null | wc -l)"
+    if [ "$zips" -gt 0 ]; then
+        ok "$(printf "  %-26s present  %d ZIP(s) in patches/%s/" "$label" "$zips" "$nr")"
+        return 0
+    fi
+    return 1
+}
+
+_inv_file "$PATCH_STORAGE/wls/$FMW_INFRA_ZIP" "FMW Infrastructure ZIP"
+$DOWNLOAD_FR && _inv_file "$PATCH_STORAGE/fr/$FMW_FR_ZIP" "Forms & Reports ZIP"
+
+_spb_zip="$(ls "$PATCH_STORAGE/patches/${WLS_SPB_PATCH_NR:-none}"/p${WLS_SPB_PATCH_NR:-none}_*.zip 2>/dev/null | head -1)"
+_opatch_nr="${OPATCH_UPGRADE_PATCH_NR:-28186730}"
+if ! _inv_patch "$_opatch_nr" "OPatch upgrade $_opatch_nr"; then
+    # 05-oracle_patch_weblogic.sh prefers the copy bundled in the SPB (tools/opatch/generic/)
+    if [ -n "$_spb_zip" ] && unzip -l "$_spb_zip" 2>/dev/null | grep -q "tools/opatch/generic/p${_opatch_nr}_"; then
+        ok "$(printf "  %-26s bundled in SPB %s – no separate download needed" "OPatch upgrade $_opatch_nr" "$WLS_SPB_PATCH_NR")"
+    else
+        warn "$(printf "  %-26s MISSING  (not in patches/ and not bundled in an SPB)" "OPatch upgrade $_opatch_nr")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+fi
+
+_inv_list="${WLS_SPB_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_REPORTS:-}"
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|FORMS_ONLY) _inv_list="$_inv_list ${INSTALL_PATCHES_FORMS:-}" ;;
+esac
+[ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && _inv_list="$_inv_list ${INSTALL_PATCHES_FR_OPTIONAL:-}"
+for _p in $_inv_list; do
+    if ! _inv_patch "$_p" "Patch $_p"; then
+        warn "$(printf "  %-26s MISSING  patches/%s/" "Patch $_p" "$_p")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+done
+unset _p _inv_list _spb_zip _opatch_nr
+
+if [ "$INVENTORY_MISSING" -eq 0 ]; then
+    ok "All required installers and patches are present – no download needed"
+else
+    info "$INVENTORY_MISSING item(s) missing – download with: $(basename "$0") --apply --mos"
+fi
+
 # --- Dry-run exit -------------------------------------------------------------
 if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"

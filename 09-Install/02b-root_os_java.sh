@@ -11,6 +11,8 @@
 # Options  : --apply          Install JDK, create symlink, register alternatives
 #            --skip-oracle    Skip Oracle JDK installation check
 #            --with-openjdk   Also install OpenJDK via dnf (optional, parallel)
+#            --upgrade-jdk    Below JDK_VERSION_MIN: install Oracle's CDN 'latest'
+#                             JDK 21 next to the old one, repoint JDK_HOME
 #            --help           Show usage
 # Requires : tar or dnf, alternatives
 # Runs as  : root or oracle with sudo
@@ -45,12 +47,15 @@ init_log
 APPLY_MODE=0
 SKIP_ORACLE=0
 WITH_OPENJDK=0
+UPGRADE_JDK=0
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
     printf "  %-22s %s\n" "--apply"         "Install JDK, create symlink, register alternatives"
     printf "  %-22s %s\n" "--skip-oracle"   "Skip Oracle JDK install (already done)"
     printf "  %-22s %s\n" "--with-openjdk"  "Also install OpenJDK 21 via dnf (optional, parallel)"
+    printf "  %-22s %s\n" "--upgrade-jdk"   "If below JDK_VERSION_MIN: get Oracle's 'latest' JDK 21 from the CDN,"
+    printf "  %-22s %s\n" ""                "install it next to the old one and repoint JDK_HOME (needs --apply)"
     printf "  %-22s %s\n" "--help"          "Show this help"
     exit 1
 }
@@ -60,6 +65,7 @@ while [ $# -gt 0 ]; do
         --apply)        APPLY_MODE=1;   shift ;;
         --skip-oracle)  SKIP_ORACLE=1;  shift ;;
         --with-openjdk) WITH_OPENJDK=1; shift ;;
+        --upgrade-jdk)  UPGRADE_JDK=1;  shift ;;
         --help|-h)      _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -123,6 +129,75 @@ _install_jdk_tar() {
     fi
 }
 
+# Upgrade the JDK at JDK_HOME to Oracle's current public JDK 21 ("latest" CDN link).
+# The new JDK is extracted NEXT TO the old one and the JDK_HOME symlink is
+# repointed – the old directory stays as rollback (ln -sfn <old dir> JDK_HOME).
+# Usage: _upgrade_jdk_latest <min_version>
+_upgrade_jdk_latest() {
+    local min="$1"
+    local url="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
+    local dl_dir="${PATCH_STORAGE:-/tmp}/jdk"
+    local dl_tar="$dl_dir/jdk-21_linux-x64_bin.tar.gz"
+    local new_ver sha_remote sha_local final_tar pids
+
+    section "JDK Upgrade (Oracle CDN latest JDK 21)"
+    info "  Source: $url"
+
+    # Peek at the version on the CDN (streams only the first tar entry)
+    new_ver="$(curl -sL --max-time 60 "$url" 2>/dev/null | tar tzf - 2>/dev/null | head -1 | cut -d/ -f1 | sed 's/^jdk-//')"
+    if [ -z "$new_ver" ]; then
+        fail "Cannot determine the JDK version offered at $url (no internet access?)"
+        return 1
+    fi
+    if [ "$(printf '%s\n%s\n' "$new_ver" "$min" | sort -V | head -1)" != "$min" ]; then
+        fail "CDN 'latest' offers $new_ver – still below the minimum $min"
+        info "  Get the required update from MOS instead (see JDK_PATCH_NR in oracle_software_version.conf)"
+        return 1
+    fi
+    ok "CDN 'latest' offers JDK $new_ver (>= $min)"
+
+    if [ "$APPLY_MODE" -ne 1 ]; then
+        info "  Dry-run: would download to $dl_dir, verify SHA-256, extract next to the"
+        info "  current JDK and repoint $JDK_HOME → $(dirname "$JDK_HOME")/jdk-$new_ver"
+        return 0
+    fi
+
+    # Never swap the JDK under a running JVM (WebLogic, NodeManager, tools)
+    pids="$(pgrep -f "$(readlink -f "$JDK_HOME")/bin/java|$JDK_HOME/bin/java" 2>/dev/null | tr '\n' ' ')"
+    if [ -n "$pids" ]; then
+        fail "Java processes still run from $JDK_HOME (PID $pids) – stop them first (01-Run/startStop.sh stop-all --apply)"
+        return 1
+    fi
+
+    mkdir -p "$dl_dir" || { fail "Cannot create $dl_dir"; return 1; }
+    info "  Downloading (about 200 MB) ..."
+    if ! curl -L --fail --max-time 900 --silent --show-error -o "$dl_tar" "$url"; then
+        fail "Download failed: $url"
+        rm -f "$dl_tar"
+        return 1
+    fi
+    sha_remote="$(curl -L --fail --max-time 30 --silent "$url.sha256" | awk '{print $1}')"
+    sha_local="$(sha256sum "$dl_tar" | awk '{print $1}')"
+    if [ -z "$sha_remote" ] || [ "$sha_remote" != "$sha_local" ]; then
+        fail "SHA-256 mismatch or not retrievable (remote: ${sha_remote:-none}, local: $sha_local)"
+        rm -f "$dl_tar"
+        return 1
+    fi
+    ok "SHA-256 verified: $sha_local"
+
+    # Keep the tarball under a versioned name – also used by fresh installs
+    final_tar="$dl_dir/jdk-${new_ver}_linux-x64_bin.tar.gz"
+    mv -f "$dl_tar" "$final_tar" && ok "Stored: $final_tar"
+
+    local old_target
+    old_target="$(readlink -f "$JDK_HOME")"
+    _install_jdk_tar "$final_tar" || return 1
+    ok "JDK upgraded: $JDK_HOME → $(readlink -f "$JDK_HOME")"
+    info "  Rollback: ln -sfn $old_target $JDK_HOME   (old JDK kept)"
+    info "  SecureRandom check below runs against the new java.security"
+    return 0
+}
+
 # =============================================================================
 # Banner
 # =============================================================================
@@ -170,6 +245,28 @@ else
             warn "JDK at $JDK_HOME is not version 21: $JDK_VERSION"
             info "  FMW 14.1.2 requires Oracle JDK 21"
         fi
+
+        # Minimum update level of the current patch cycle (oracle_software_version.conf)
+        _ver_conf="$SCRIPT_DIR/oracle_software_version.conf"
+        _jdk_min="$(sed -n 's/^JDK_VERSION_MIN="\([^"]*\)".*/\1/p' "$_ver_conf" 2>/dev/null | head -1)"
+        _jdk_patch="$(sed -n 's/^JDK_PATCH_NR="\([^"]*\)".*/\1/p' "$_ver_conf" 2>/dev/null | head -1)"
+        _jdk_cur="$(printf "%s" "$JDK_VERSION" | sed -n 's/.*version "\([^"]*\)".*/\1/p')"
+        if [ -n "$_jdk_min" ] && [ -n "$_jdk_cur" ]; then
+            if [ "$(printf '%s\n%s\n' "$_jdk_cur" "$_jdk_min" | sort -V | head -1)" = "$_jdk_min" ]; then
+                ok "JDK $_jdk_cur meets the patch-cycle minimum $_jdk_min"
+            else
+                warn "JDK $_jdk_cur is below the patch-cycle minimum $_jdk_min (Patch ${_jdk_patch:-see KA1182})"
+                if [ "$UPGRADE_JDK" -eq 1 ]; then
+                    _upgrade_jdk_latest "$_jdk_min"
+                else
+                    info "  Automatic: re-run with --apply --upgrade-jdk (Oracle CDN 'latest' JDK 21)"
+                    info "  Manual   : extract the new JDK next to the old one, repoint the symlink:"
+                    info "    tar xzf <jdk-21.x_linux-x64_bin.tar.gz> -C $(dirname "$JDK_HOME")"
+                    info "    ln -sfn $(dirname "$JDK_HOME")/<extracted jdk-21.x dir> $JDK_HOME"
+                fi
+            fi
+        fi
+        unset _ver_conf _jdk_min _jdk_patch _jdk_cur
 
         # Verify it is Oracle JDK (not OpenJDK)
         if "$JDK_HOME/bin/java" -version 2>&1 | grep -qi 'openjdk'; then
@@ -496,12 +593,24 @@ if [ -n "$JAVA_SEC_FILE" ]; then
         info "  Required: file:/dev/./urandom  (non-blocking; /dev/./urandom bypasses JVM path check)"
         if [ "$APPLY_MODE" -eq 1 ]; then
             if askYesNo "Fix securerandom.source in $JAVA_SEC_FILE?" "y"; then
-                backup_file "$JAVA_SEC_FILE"
-                _run_root sed -i \
-                    's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
-                    "$JAVA_SEC_FILE"
-                SR_AFTER="$(grep '^securerandom.source=' "$JAVA_SEC_FILE" 2>/dev/null | head -1)"
-                ok "Fixed: $SR_AFTER"
+                # The JDK tree is root-owned – backup_file (runs as the calling
+                # user) cannot write there, so copy via _run_root.
+                SR_BACKUP="${JAVA_SEC_FILE}.bak_$(date +%Y%m%d_%H%M%S)"
+                if _run_root cp -p "$JAVA_SEC_FILE" "$SR_BACKUP"; then
+                    ok "Backup created: $SR_BACKUP"
+                    _run_root sed -i \
+                        's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
+                        "$JAVA_SEC_FILE"
+                    SR_AFTER="$(grep '^securerandom.source=' "$JAVA_SEC_FILE" 2>/dev/null | head -1)"
+                    if [ "$SR_AFTER" = "securerandom.source=file:/dev/./urandom" ]; then
+                        ok "Fixed: $SR_AFTER"
+                    else
+                        fail "securerandom.source not changed: ${SR_AFTER:-(not set)}"
+                    fi
+                else
+                    fail "Backup of $JAVA_SEC_FILE failed – not modified"
+                fi
+                unset SR_BACKUP
             fi
         else
             info "  Fix: re-run with --apply, or: 02-Checks/weblogic_performance.sh --apply"

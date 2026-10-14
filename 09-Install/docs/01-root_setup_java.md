@@ -97,6 +97,34 @@ ln -sfn /u01/app/oracle/java/jdk-21.0.10 /u01/app/oracle/java/jdk-21
 # → JAVA_HOME=/u01/app/oracle/java/jdk-21  (always stable)
 ```
 
+### Patch-cycle minimum and upgrade (`--upgrade-jdk`)
+
+`oracle_software_version.conf` holds the minimum JDK update of the current
+patch cycle (`JDK_VERSION_MIN`, `JDK_PATCH_NR`; CSPU Sep 2026: **21.0.12.1**,
+Patch 35702194). The script warns if the JDK at `JDK_HOME` is older.
+
+```bash
+./09-Install/02b-root_os_java.sh --upgrade-jdk           # dry-run: shows the CDN version
+./09-Install/02b-root_os_java.sh --apply --upgrade-jdk   # upgrade
+```
+
+What `--apply --upgrade-jdk` does:
+
+1. Reads the version offered at
+   `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz`
+   (first tar entry only) and stops if it is still below `JDK_VERSION_MIN` –
+   then the update has to come from MOS (`JDK_PATCH_NR`). Checked 2026-10-14:
+   the public link already serves 21.0.12.1.
+2. Refuses to run while any JVM uses this JDK (stop WebLogic first).
+3. Downloads to `$PATCH_STORAGE/jdk/`, verifies SHA-256 against the `.sha256`
+   file on the CDN, keeps the tarball as `jdk-<version>_linux-x64_bin.tar.gz`.
+4. Extracts next to the current JDK and repoints the `jdk-21` symlink. The old
+   directory stays – rollback: `ln -sfn <old jdk dir> /u01/app/oracle/java/jdk-21`.
+5. The SecureRandom section of the same run fixes the new `java.security`.
+
+`alternatives` and `/usr/bin/jps` point to `jdk-21/...` and follow the symlink
+automatically.
+
 ### Installation via RPM (alternative)
 
 ```bash

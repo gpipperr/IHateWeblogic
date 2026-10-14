@@ -228,10 +228,16 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   #     39988381  WLS 14.1.2 SPU fuer CVE-2026-70748
   #     38590500  FMW PERL Security Patch Update (braucht DBCLIENT 23.26+
   #               aus dem SPB - deshalb erst danach)
-  #     38566996  UMS Bundle Patch (offener Punkt: pruefen ob es im
-  #               aktuellen KA1182 einen Nachfolger gibt)
-  for PATCHNR in 39988381 38590500 38566996; do
-      unzip -d /tmp/mw_patches $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip
+  #     (38566996 UMS Bundle aus dem Januar-Zyklus gehoert NICHT zum
+  #      September-Stand und wird nicht mehr eingespielt)
+  #
+  # ACHTUNG: Patch 39988381 gibt es unter derselben Nummer fuer mehrere
+  # Produktversionen (12.2.1.4 / 14.1.1 / 14.1.2 / 15.1.1). Liegen mehrere
+  # ZIPs im Verzeichnis, nur die 14.1.2-Variante nehmen (Dateiname mit "_1412").
+  for PATCHNR in 39988381 38590500; do
+      PATCHZIP=$(ls $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip | grep "_1412" | head -1)
+      echo "Patch $PATCHNR -> $PATCHZIP"
+      unzip -d /tmp/mw_patches "$PATCHZIP"
       cd /tmp/mw_patches/$PATCHNR
       $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
           -ph . -invPtrLoc /etc/oraInst.loc
@@ -240,7 +246,7 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   done
 
   # 3.5 Verifikation
-  opatch lspatches | grep -E "39988381|38590500|38566996"
+  opatch lspatches | grep -E "39988381|38590500"
 
   # 3.6 Rollback (nur falls spaeter noetig, Domain laeuft bereits)
   #     opatch rollback -id <PATCHNUMMER>
