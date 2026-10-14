@@ -160,7 +160,7 @@ dnf install -y \
   libaio libaio-devel libX11 libXau libXext libXi libXrender libXtst \
   libgcc libstdc++ libstdc++-devel libnsl libnsl2 \
   make motif motif-devel \
-  net-tools nfs-utils numactl \
+  net-tools nfs-utils numactl numactl-devel \
   unzip wget curl tar
 ```
 
@@ -174,7 +174,7 @@ dnf install -y \
 dnf install -y \
   fontconfig freetype \
   dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
-  dejavu-lgc-sans-fonts dejavu-lgc-serif-fonts \
+  dejavu-lgc-sans-fonts dejavu-lgc-sans-mono-fonts dejavu-lgc-serif-fonts \
   liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
   xorg-x11-utils xorg-x11-fonts-Type1 xorg-x11-server-Xvfb
 ```

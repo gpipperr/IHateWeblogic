@@ -150,6 +150,7 @@ for PKG in \
     net-tools \
     nfs-utils \
     numactl \
+    numactl-devel \
     unzip \
     wget \
     curl \
@@ -171,6 +172,7 @@ for PKG in \
     dejavu-serif-fonts \
     dejavu-sans-mono-fonts \
     dejavu-lgc-sans-fonts \
+    dejavu-lgc-sans-mono-fonts \
     dejavu-lgc-serif-fonts \
     liberation-sans-fonts \
     liberation-serif-fonts \

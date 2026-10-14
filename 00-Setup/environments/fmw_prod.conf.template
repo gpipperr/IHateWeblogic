@@ -31,7 +31,7 @@ DB_PORT=1521
 DB_SERVICE=FRPRD
 DB_SCHEMA_PREFIX=DEV
 
-CGICMD_DAT=${DOMAIN_HOME}/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2.0.0/configuration/cgicmd.dat
+CGICMD_DAT=${DOMAIN_HOME}/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/cgicmd.dat
 RWSERVER_CONF=${DOMAIN_HOME}/config/fmwconfig/components/ReportsServerComponent/repserver01/rwserver.conf
 UIFONT_ALI=${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent/reptools1/uifont.ali
 REPORTS_FONT_DIR=${DOMAIN_HOME}/reports/fonts

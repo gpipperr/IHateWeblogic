@@ -270,7 +270,7 @@ if [ -z "$UIFONT_ALI" ]; then
     info "    $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/**/guicommon/tk/admin/"
     info "    ${ORACLE_HOME:-$FMW_HOME}/guicommon/tk/admin/"
     # Set a default target path for --apply to create the file
-    UIFONT_ALI="$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/guicommon/tk/admin/uifont.ali"
+    UIFONT_ALI="$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/${REPORTS_TOOLS_INSTANCE:-reptools1}/guicommon/tk/admin/uifont.ali"
     info "  Target for creation: $UIFONT_ALI"
     UIFONT_ALI_EXISTS=false
 else

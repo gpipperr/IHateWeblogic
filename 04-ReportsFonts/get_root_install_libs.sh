@@ -91,13 +91,21 @@ FMW_PKGS=(
     openssl
 )
 
-# i686 / compat packages (architecture-specific)
-COMPAT_PKGS=(
-    compat-libcap1
-    "glibc.i686"
-    "libgcc.i686"
-    "libstdc++.i686"
-)
+# i686 / compat packages – only up to OL8. On OL9 these are not required and
+# compat-libcap1 does not exist: one unknown name makes "dnf install" abort the
+# whole transaction (confirmed 2026-10-15). Same rule as 02-Checks/os_check.sh,
+# see 09-Install/docs/01-root_install_packages.md "Package status: OL8 vs OL9".
+OS_MAJOR="$(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_ID%%.*}")"
+if [ "${OS_MAJOR:-0}" -ge 9 ] 2>/dev/null; then
+    COMPAT_PKGS=()
+else
+    COMPAT_PKGS=(
+        compat-libcap1
+        "glibc.i686"
+        "libgcc.i686"
+        "libstdc++.i686"
+    )
+fi
 
 # =============================================================================
 # Banner
@@ -236,12 +244,21 @@ if $APPLY_MODE; then
 
         info "Running: ${INSTALL_PRE:+$INSTALL_PRE }$DNF_CMD install -y ${MISSING_PKGS[*]}"
         # shellcheck disable=SC2086
-        if ${INSTALL_PRE:+$INSTALL_PRE} $DNF_CMD install -y "${MISSING_PKGS[@]}" 2>&1 \
-            | while IFS= read -r line; do info "  $line"; done; then
+        # The exit status of "cmd | while" is the while loop's – use PIPESTATUS
+        # (dnf failed with "Unable to find a match" but was reported OK, 2026-10-15)
+        ${INSTALL_PRE:+$INSTALL_PRE} $DNF_CMD install -y "${MISSING_PKGS[@]}" 2>&1 \
+            | while IFS= read -r line; do info "  $line"; done
+        _dnf_rc=${PIPESTATUS[0]}
+        _still_missing=()
+        for _p in "${MISSING_PKGS[@]}"; do
+            rpm -q "$_p" >/dev/null 2>&1 || _still_missing+=("$_p")
+        done
+        if [ "$_dnf_rc" -eq 0 ] && [ "${#_still_missing[@]}" -eq 0 ]; then
             ok "Package installation completed"
         else
-            fail "Package installation failed – check output above"
+            fail "Package installation failed (dnf rc=$_dnf_rc) – still missing: ${_still_missing[*]:-?}"
         fi
+        unset _dnf_rc _still_missing _p
     fi
 fi
 

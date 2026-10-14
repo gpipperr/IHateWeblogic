@@ -8,12 +8,20 @@
 
 ## Purpose
 
-Apply the standard configuration to a freshly created domain by calling existing
-scripts from modules 00–07. This step bridges the installation and the operational
-state: after this script completes, the domain is ready to start.
+Apply the standard configuration to a freshly created domain **before its first
+start**: boot.properties, JVM settings (SecureRandom, heap per server), font OS
+packages, a validation of the domain artifacts and an initial backup.
 
-This script does **not implement new functionality** — it orchestrates the existing
-configuration scripts in the correct sequence.
+This script does **not implement new functionality** — it orchestrates existing
+scripts from modules 00–07.
+
+> **Split 2026-10-15:** the font configuration (`deploy_fonts`, font cache,
+> `uifont.ali`, font path) and the `cgicmd.dat` default key moved to
+> [`14b-oracle_reports_fonts.sh`](14b-oracle_reports_fonts.md). They need the
+> ReportsTools component (created by `13-oracle_setup_reports.sh`) and the
+> WLS_REPORTS application directory (exists only after the first start of
+> WLS_REPORTS). Right after `08-` none of that exists — `uifont_ali_update.sh`
+> failed with "Target directory does not exist" (confirmed 2026-10-15).
 
 ---
 
@@ -37,43 +45,26 @@ Run the following in order after the domain is created:
 #   - Log4j CVE guard (LOG4J_FORMAT_MSG_NO_LOOKUPS=true)
 ```
 
-### 3. Install and configure fonts
+### 3. Install font OS packages
 
 ```bash
 # Install OS font packages (requires root):
 ./04-ReportsFonts/get_root_install_libs.sh --apply
-
-# Rebuild font cache:
-./04-ReportsFonts/font_cache_reset.sh --apply
-
-# Update uifont.ali:
-./04-ReportsFonts/uifont_ali_update.sh --apply
-
-# Set REPORTS_FONT_DIRECTORY in setUserOverrides.sh:
-./04-ReportsFonts/fontpath_config.sh --apply
 ```
 
-### 4. Configure Reports Server
+> Font deployment, font cache, `uifont.ali`, font path and `cgicmd.dat` follow
+> later in [`14b-oracle_reports_fonts.sh`](14b-oracle_reports_fonts.md).
 
-Set cgicmd.dat for default report parameters:
-
-```bash
-CGICMD_DAT="$ORACLE_HOME/reports/conf/cgicmd.dat"
-# Add default key for batch reports:
-# default: server=repserver01 statusformat=xml
-```
-
-### 5. Take initial config backup
+### 4. Take initial config backup
 
 ```bash
 ./07-Maintenance/backup_config.sh
 ```
 
-### 6. Verify final configuration
+### 5. Verify
 
 ```bash
 ./02-Checks/weblogic_performance.sh   # verify JVM settings
-./04-ReportsFonts/font_inventory.sh   # verify fonts are visible
 ```
 
 ---
@@ -86,15 +77,16 @@ Orchestrates the configuration sequence:
 |---|---|---|---|
 | 0 | boot.properties | `09-Install/10-oracle_boot_properties.sh --apply` | [10-oracle_boot_properties.md](10-oracle_boot_properties.md) |
 | 1 | JVM settings | `02-Checks/weblogic_performance.sh --apply` | |
-| 2 | Font OS libs | `04-ReportsFonts/get_root_install_libs.sh --apply` | |
-| 3 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` | |
-| 4 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` | |
-| 5 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` | |
-| 6 | cgicmd.dat | direct edit from `environment.conf` | |
-| 7 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
-| 8 | Config backup | `07-Maintenance/backup_config.sh --apply` | |
+| 2 | Font OS packages | `04-ReportsFonts/get_root_install_libs.sh --apply` (root/sudo) | |
+| 3 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
+| 4 | Config backup | `07-Maintenance/backup_config.sh --apply` | |
+| – | Fonts, uifont.ali, cgicmd.dat | **later:** `14b-oracle_reports_fonts.sh` | [14b-oracle_reports_fonts.md](14b-oracle_reports_fonts.md) |
 
-> Steps 2–5 (fonts) are skipped entirely with `--skip-fonts`.
+> Step 2 is skipped with `--skip-fonts`.
+>
+> Expected on a fresh domain (not errors): `10-oracle_boot_properties.sh` warns
+> that `servers/WLS_REPORTS` does not exist yet (created on first start – `10-`
+> runs again in Phase 6), `weblogic_performance.sh` creates `setUserOverrides.sh`.
 
 Each called script reports its own OK/WARN/FAIL. The orchestrator collects exit codes
 and reports an overall summary.
@@ -107,7 +99,7 @@ and reports an overall summary.
 |---|---|
 | (none) | Show what would be configured |
 | `--apply` | Execute all configuration steps |
-| `--skip-fonts` | Skip font configuration (if handled separately) |
+| `--skip-fonts` | Skip the font OS package step |
 | `--help` | Show usage |
 
 ---

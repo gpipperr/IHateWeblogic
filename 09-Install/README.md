@@ -143,7 +143,8 @@ Phase 4 – Repository & Domain (as oracle)
                                    (requires completed RCU schemas)
 
 Phase 5 – Configuration (as oracle)
-  09-oracle_configure.sh         Final configuration using existing 00-07 scripts
+  09-oracle_configure.sh         Pre-start configuration (boot.properties, JVM, font OS
+                                   packages, validation, backup) – fonts/cgicmd.dat: 14b-
 
 Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties for AdminServer + Managed Server
@@ -155,6 +156,8 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
   [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
   [oracle] 14-oracle_setup_forms.sh --apply             # Copy Forms config templates into the domain
+  → Start the domain once (WLS_REPORTS creates its application directory)
+  [oracle] 14b-oracle_reports_fonts.sh --apply          # fonts, uifont.ali, cgicmd.dat, backup
 
 Phase 7 – Validation (as oracle) [planned]
   90-oracle_validate.sh          Full validation report
@@ -200,13 +203,14 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 3 | `06-oracle_patch_forms_reports.sh` | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
 | 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas | [→ docs](docs/07-oracle_setup_repository.md) |
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
-| 5 | `09-oracle_configure.sh` | Final configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
+| 5 | `09-oracle_configure.sh` | Pre-start configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
 | 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
 | 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
 | 6 | `12-oracle_reports_users.sh` | Create WLS users monUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
 | 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 (root) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
+| 6 | `14b-oracle_reports_fonts.sh` | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. **STATUS: partially verified**, not a full install step | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
@@ -279,10 +283,11 @@ The installation module calls existing scripts directly — no code duplication:
 | `02-Checks/ssl_check.sh` | `90-oracle_validate.sh` [planned] |
 | `02-Checks/weblogic_performance.sh` | `09-oracle_configure.sh` |
 | `04-ReportsFonts/get_root_install_libs.sh` | `09-oracle_configure.sh` |
-| `04-ReportsFonts/font_cache_reset.sh` | `09-oracle_configure.sh` |
-| `04-ReportsFonts/uifont_ali_update.sh` | `09-oracle_configure.sh` |
-| `04-ReportsFonts/fontpath_config.sh` | `09-oracle_configure.sh` |
-| `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh` |
+| `04-ReportsFonts/deploy_fonts.sh` | `14b-oracle_reports_fonts.sh` |
+| `04-ReportsFonts/font_cache_reset.sh` | `14b-oracle_reports_fonts.sh` |
+| `04-ReportsFonts/uifont_ali_update.sh` | `14b-oracle_reports_fonts.sh` |
+| `04-ReportsFonts/fontpath_config.sh` | `14b-oracle_reports_fonts.sh` |
+| `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh`, `14b-oracle_reports_fonts.sh` |
 | `09-Install/10-oracle_boot_properties.sh` | `09-oracle_configure.sh` (Step 0) |
 | `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` [planned] |
 
@@ -498,6 +503,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (root, OL9 only)
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
+├── 14b-oracle_reports_fonts.sh        ← Phase 6: Reports fonts, uifont.ali, cgicmd.dat
 ├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke-test deploy (Forms+Reports), STATUS: partially verified
 ├── 30-configure_autostart.sh          ← Phase 7c: autostart at boot (systemd, Node Manager controlled)
 ├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
@@ -546,6 +552,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 12-weblogic-report-monitoring_user.md  ← 12-oracle_reports_users.sh
     ├── 13-reports-detail-settings.md ← 13-root_reports_fix.sh + 13-oracle_setup_reports.sh
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
+    ├── 14b-oracle_reports_fonts.md   ← 14b-oracle_reports_fonts.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified

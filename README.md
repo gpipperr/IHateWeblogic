@@ -348,6 +348,7 @@ IHateWeblogic/
 │   ├── 13-root_reports_fix.sh       – Phase 6 (root): libnsl.so.2 symlink for Oracle Linux 9
 │   ├── 13-oracle_setup_reports.sh   – Phase 6: Reports Server config (rwnetwork/rwservlet/rwserver)
 │   ├── 14-oracle_setup_forms.sh     – Phase 6: Forms config (template-copy approach)
+│   ├── 14b-oracle_reports_fonts.sh  – Phase 6: Reports fonts, uifont.ali, cgicmd.dat (after first start)
 │   ├── 30-configure_autostart.sh    – Autostart at boot: systemd unit + Node Manager controlled
 │   │                                   start/stop scripts (templates in autostart_templates/)
 │   ├── 99-oracle_deinstall_fmw.sh   – Teardown: remove FMW completely for a clean reinstall,

@@ -2,16 +2,18 @@
 # =============================================================================
 # Script   : 09-oracle_configure.sh
 # Purpose  : Orchestrate the post-domain configuration for Oracle Forms &
-#            Reports 14.1.2.  Calls existing scripts in the correct sequence;
-#            does not implement new functionality.
-#            After this script completes the domain is ready to start.
+#            Reports 14.1.2 BEFORE the first start: boot.properties, JVM
+#            settings, font OS packages, validation, initial backup.
+#            Calls existing scripts; does not implement new functionality.
+#            Font/uifont.ali/cgicmd.dat need the Reports components and run
+#            later in 14b-oracle_reports_fonts.sh (split 2026-10-15).
 # Call     : ./09-Install/09-oracle_configure.sh
 #            ./09-Install/09-oracle_configure.sh --apply
 #            ./09-Install/09-oracle_configure.sh --apply --skip-fonts
 #            ./09-Install/09-oracle_configure.sh --help
 # Options  : (none)        Dry-run: show planned configuration steps
 #            --apply       Execute all configuration steps
-#            --skip-fonts  Skip font-related steps (3-5)
+#            --skip-fonts  Skip the font OS package step (2)
 #            --help        Show usage
 # Runs as  : oracle
 # Requires : 08-oracle_setup_domain.sh must have completed successfully
@@ -24,7 +26,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIB="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
 ENV_CONF="$ROOT_DIR/environment.conf"
-CGICMD_TEMPLATE="$SCRIPT_DIR/response_files/cgicmd.dat.template"
 
 # --- Source library -----------------------------------------------------------
 if [ ! -f "$LIB" ]; then
@@ -59,7 +60,7 @@ for _arg in "$@"; do
             printf "Usage: %s [--apply] [--skip-fonts] [--help]\n\n" "$0"
             printf "  (none)        Dry-run: show planned configuration steps\n"
             printf "  --apply       Execute all configuration steps\n"
-            printf "  --skip-fonts  Skip font installation and configuration (steps 3-5)\n"
+            printf "  --skip-fonts  Skip the font OS package step (2)\n"
             printf "  --help        Show this help\n\n"
             printf "Prerequisite: 08-oracle_setup_domain.sh must have completed successfully.\n"
             exit 0
@@ -132,10 +133,8 @@ section "Pre-checks"
 # Verify required subscripts
 for _s in \
     "$ROOT_DIR/02-Checks/weblogic_performance.sh" \
+    "$ROOT_DIR/09-Install/10-oracle_boot_properties.sh" \
     "$ROOT_DIR/04-ReportsFonts/get_root_install_libs.sh" \
-    "$ROOT_DIR/04-ReportsFonts/font_cache_reset.sh" \
-    "$ROOT_DIR/04-ReportsFonts/uifont_ali_update.sh" \
-    "$ROOT_DIR/04-ReportsFonts/fontpath_config.sh" \
     "$ROOT_DIR/07-Maintenance/backup_config.sh"
 do
     [ -f "$_s" ] \
@@ -143,27 +142,6 @@ do
         || { warn "$(printf "Script missing : %s" "$_s")"; }
 done
 unset _s
-
-# cgicmd.dat template
-[ -f "$CGICMD_TEMPLATE" ] \
-    && ok "$(printf "Template found : %s" "$(basename "$CGICMD_TEMPLATE")")" \
-    || { fail "cgicmd.dat template missing: $CGICMD_TEMPLATE"; EXIT_CODE=2; }
-
-# CGICMD_DAT from environment.conf
-if [ -z "${CGICMD_DAT:-}" ]; then
-    warn "CGICMD_DAT not set in environment.conf – cgicmd.dat step will be skipped"
-    warn "  Run: 00-Setup/init_env.sh --apply  to set CGICMD_DAT"
-elif [ ! -f "$CGICMD_DAT" ]; then
-    warn "CGICMD_DAT file not found: $CGICMD_DAT"
-    info "  File will be created from template with --apply"
-else
-    ok "$(printf "CGICMD_DAT     : %s" "$CGICMD_DAT")"
-fi
-
-# WLS_MANAGED_SERVER for Reports Server name substitution
-[ -n "${WLS_MANAGED_SERVER:-}" ] \
-    && ok "$(printf "Reports server : %s" "$WLS_MANAGED_SERVER")" \
-    || warn "WLS_MANAGED_SERVER not set in environment.conf – using 'repserver01' as fallback"
 
 [ "$EXIT_CODE" -ne 0 ] && { print_summary; exit "$EXIT_CODE"; }
 
@@ -173,37 +151,21 @@ fi
 
 section "Configuration Steps"
 
-_reports_server="${WLS_MANAGED_SERVER:-repserver01}"
 
 printf "  %-3s  %-12s  %s\n" "Nr" "Status" "Action" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "---" "------------" "------" | tee -a "$LOG_FILE"
+printf "  %-3s  %-12s  %s\n" "0" "planned" \
+    "boot.properties     → 09-Install/10-oracle_boot_properties.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "1" "planned" \
     "JVM settings        → 02-Checks/weblogic_performance.sh --apply" | tee -a "$LOG_FILE"
-if $SKIP_FONTS; then
-    printf "  %-3s  %-12s  %s\n" "2" "SKIPPED" \
-        "Font OS packages    → 04-ReportsFonts/get_root_install_libs.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "3" "SKIPPED" \
-        "Font cache rebuild  → 04-ReportsFonts/font_cache_reset.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "4" "SKIPPED" \
-        "uifont.ali update   → 04-ReportsFonts/uifont_ali_update.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "5" "SKIPPED" \
-        "Font path in domain → 04-ReportsFonts/fontpath_config.sh --apply" | tee -a "$LOG_FILE"
-else
-    printf "  %-3s  %-12s  %s\n" "2" "planned" \
-        "Font OS packages    → 04-ReportsFonts/get_root_install_libs.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "3" "planned" \
-        "Font cache rebuild  → 04-ReportsFonts/font_cache_reset.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "4" "planned" \
-        "uifont.ali update   → 04-ReportsFonts/uifont_ali_update.sh --apply" | tee -a "$LOG_FILE"
-    printf "  %-3s  %-12s  %s\n" "5" "planned" \
-        "Font path in domain → 04-ReportsFonts/fontpath_config.sh --apply" | tee -a "$LOG_FILE"
-fi
-printf "  %-3s  %-12s  %s\n" "6" "planned" \
-    "cgicmd.dat default  → append template (server: $_reports_server)" | tee -a "$LOG_FILE"
-printf "  %-3s  %-12s  %s\n" "7" "planned" \
+printf "  %-3s  %-12s  %s\n" "2" "$($SKIP_FONTS && printf 'SKIPPED' || printf 'planned')" \
+    "Font OS packages    → 04-ReportsFonts/get_root_install_libs.sh --apply" | tee -a "$LOG_FILE"
+printf "  %-3s  %-12s  %s\n" "3" "planned" \
     "Validate domain     → nodemanager.properties, setUserOverrides.sh" | tee -a "$LOG_FILE"
-printf "  %-3s  %-12s  %s\n" "8" "planned" \
+printf "  %-3s  %-12s  %s\n" "4" "planned" \
     "Initial backup      → 07-Maintenance/backup_config.sh --apply" | tee -a "$LOG_FILE"
+printf "  %-3s  %-12s  %s\n" "-" "later" \
+    "Fonts/uifont.ali/cgicmd.dat → 14b-oracle_reports_fonts.sh (after 13/14 + first start)" | tee -a "$LOG_FILE"
 printf "\n" | tee -a "$LOG_FILE"
 
 if ! $APPLY; then
@@ -226,7 +188,7 @@ _run_step "JVM Settings" \
     "$ROOT_DIR/02-Checks/weblogic_performance.sh" --apply
 
 # =============================================================================
-# Steps 2-5 – Font configuration  (skippable via --skip-fonts)
+# Step 2 – Font OS packages  (skippable via --skip-fonts)
 # =============================================================================
 
 if ! $SKIP_FONTS; then
@@ -252,75 +214,10 @@ if ! $SKIP_FONTS; then
     fi
     unset _font_lib_script
 
-    # Step 3 – Font cache rebuild
-    _run_step "Font Cache Rebuild" \
-        "$ROOT_DIR/04-ReportsFonts/font_cache_reset.sh" --apply
-
-    # Step 4 – uifont.ali update
-    _run_step "uifont.ali Update" \
-        "$ROOT_DIR/04-ReportsFonts/uifont_ali_update.sh" --apply
-
-    # Step 5 – Font path in setUserOverrides.sh
-    _run_step "Font Path (setUserOverrides.sh)" \
-        "$ROOT_DIR/04-ReportsFonts/fontpath_config.sh" --apply
-
 fi
 
 # =============================================================================
-# Step 6 – cgicmd.dat default configuration
-# =============================================================================
-
-section "Step: cgicmd.dat Default Configuration"
-
-_reports_server="${WLS_MANAGED_SERVER:-repserver01}"
-_ts="$(date '+%Y-%m-%d %H:%M:%S')"
-_marker_begin="# --- IHateWeblogic BEGIN ---"
-_marker_end="# --- IHateWeblogic END ---"
-
-if [ -z "${CGICMD_DAT:-}" ]; then
-    warn "CGICMD_DAT not set – skipping cgicmd.dat configuration"
-    info "  Set CGICMD_DAT in environment.conf and re-run this step"
-else
-    # Check if block already present (idempotent)
-    if [ -f "$CGICMD_DAT" ] && grep -qF "$_marker_begin" "$CGICMD_DAT" 2>/dev/null; then
-        ok "IHateWeblogic block already present in $CGICMD_DAT – skipping"
-        info "  Remove the block manually to re-apply"
-    else
-        # Substitute placeholders in template → temp file
-        _cgicmd_tmp="$(mktemp)" || { fail "Cannot create temp file"; EXIT_CODE=2; }
-
-        sed \
-            -e "s|##REPORTS_SERVER##|${_reports_server}|g" \
-            -e "s|##TIMESTAMP##|${_ts}|g" \
-            "$CGICMD_TEMPLATE" > "$_cgicmd_tmp"
-
-        if [ ! -f "$CGICMD_DAT" ]; then
-            # File doesn't exist yet – create it
-            info "cgicmd.dat not found – creating: $CGICMD_DAT"
-            mkdir -p "$(dirname "$CGICMD_DAT")" 2>/dev/null
-            mv "$_cgicmd_tmp" "$CGICMD_DAT"
-            chmod 640 "$CGICMD_DAT"
-            ok "cgicmd.dat created: $CGICMD_DAT"
-        else
-            # Append to existing file
-            backup_file "$CGICMD_DAT"
-            printf "\n" >> "$CGICMD_DAT"
-            cat "$_cgicmd_tmp" >> "$CGICMD_DAT"
-            rm -f "$_cgicmd_tmp"
-            ok "IHateWeblogic block appended to: $CGICMD_DAT"
-        fi
-
-        info "  Reports Server : $_reports_server"
-        info "  default: key   → server=$_reports_server statusformat=xml"
-        info "  Named keys     → see comments in $CGICMD_TEMPLATE"
-        info "  authid user    → create with: 09-Install/12-oracle_reports_users.sh"
-    fi
-fi
-
-unset _reports_server _ts _marker_begin _marker_end _cgicmd_tmp
-
-# =============================================================================
-# Step 7 – Validate domain artifacts
+# Step 3 – Validate domain artifacts
 # =============================================================================
 
 section "Step: Domain Validation"
@@ -355,7 +252,8 @@ fi
 unset _nm_props _nm_listen _nm_port _val_fails
 
 # =============================================================================
-# Step 8 – Initial configuration backup
+# Step 4 – Initial configuration backup (domain only – Reports/Forms config
+#          is backed up again by 14b- once it exists)
 # =============================================================================
 
 _run_step "Initial Config Backup" \
@@ -367,26 +265,11 @@ _run_step "Initial Config Backup" \
 
 section "Next Steps"
 
-info "Configuration complete. Recommended next steps:"
-info ""
-info "  1. Start AdminServer (no password prompt – boot.properties in place):"
-info "       \$DOMAIN_HOME/bin/startWebLogic.sh &"
-info "       # Wait ~60s, then verify:"
-info "       curl -s http://${WLS_LISTEN_ADDRESS:-localhost}:${WLS_ADMIN_PORT:-7001}/console/"
-info "       # On first start WebLogic encrypts boot.properties automatically"
-info ""
-info "  2. Start managed servers via Node Manager:"
-info "       \$DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER:-WLS_REPORTS} \\"
-info "           http://${WLS_LISTEN_ADDRESS:-localhost}:${WLS_ADMIN_PORT:-7001}"
-info ""
-info "  3. Verify Reports Server:"
-info "       ./01-Run/rwserver_status.sh"
-info ""
-info "  4. Create Reports execution user (needed for authid in cgicmd.dat):"
-info "       ./09-Install/12-oracle_reports_users.sh --apply"
-info ""
-info "  5. Font verification after first report run:"
-info "       ./04-ReportsFonts/pdf_font_verify.sh <pdf_output_file>"
+info "Pre-start configuration complete. Next steps (see 09-Install/README.md, Phase 6):"
+info "  10-oracle_boot_properties.sh, 11-oracle_nodemanager.sh, 12-oracle_reports_users.sh,"
+info "  13-root_reports_fix.sh, 13-oracle_setup_reports.sh, 14-oracle_setup_forms.sh,"
+info "  then start the domain once and run 14b-oracle_reports_fonts.sh --apply"
+info "  (fonts, uifont.ali, cgicmd.dat – need the Reports components)"
 
 # =============================================================================
 # Summary

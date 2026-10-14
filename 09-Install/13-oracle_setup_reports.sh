@@ -616,9 +616,8 @@ info ""
 info "Verify (Nginx proxy port or WLS_REPORTS port):"
 info "  curl -s \"http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet/getserverinfo?server=${_FIRST_SERVER_INST}&statusformat=XML\""
 info ""
-info "Font setup:"
-info "  04-ReportsFonts/uifont_ali_update.sh --apply"
-info "  04-ReportsFonts/font_cache_reset.sh --apply"
+info "Fonts, uifont.ali, cgicmd.dat (after 14- and the first start of WLS_REPORTS):"
+info "  09-Install/14b-oracle_reports_fonts.sh --apply"
 
 unset _REPORTS_APP_DIR _REPORTS_APP_BASE _FIRST_SERVER_INST
 unset _TOOLS_CONF_BASE _REPSERV_CONF_BASE
