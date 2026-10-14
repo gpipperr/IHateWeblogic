@@ -154,6 +154,30 @@ fi
 
 # =============================================================================
 # Helper: copy a template file with backup
+# _render_template  src  dest
+# Text templates: replace ##VAR## placeholders with environment.conf values
+# (default.env had hard-coded paths of another host layout before 2026-10-15).
+# Binary templates (*.res) are copied unchanged.
+_render_template() {
+    local src="$1" dest="$2" left
+    if ! grep -qI . "$src" 2>/dev/null; then
+        cp "$src" "$dest"; return
+    fi
+    sed -e "s|##ORACLE_HOME##|${ORACLE_HOME}|g" \
+        -e "s|##DOMAIN_HOME##|${DOMAIN_HOME}|g" \
+        -e "s|##JDK_HOME##|${JDK_HOME}|g" \
+        -e "s|##FORMS_INSTANCE_NAME##|${FORMS_INSTANCE_NAME:-forms1}|g" \
+        -e "s|##REPORTS_TOOLS_INSTANCE##|${REPORTS_TOOLS_INSTANCE:-reptools1}|g" \
+        -e "s|##FORMS_CUSTOMER_DIR##|${FORMS_CUSTOMER_DIR:-/app/forms/custom}|g" \
+        -e "s|##TNS_ADMIN##|${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}|g" \
+        "$src" > "$dest"
+    left="$(grep -oE '##[A-Z_]+##' "$dest" | sort -u | xargs)"
+    if [ -n "$left" ]; then
+        fail "Unresolved placeholders in $(basename "$dest"): $left"
+        return 1
+    fi
+}
+
 # _copy_template  src_template  dest_file  [dest_file_2]
 # =============================================================================
 
@@ -179,7 +203,7 @@ _copy_template() {
             return 1
         fi
         [ -f "$dest" ] && cp "$dest" "${dest}.bak_$(date +%Y%m%d_%H%M%S)"
-        cp "$src" "$dest"
+        _render_template "$src" "$dest" || return 1
         ok "Copied: $tname → $(basename "$dest_dir")/$(basename "$dest")"
     else
         if [ -f "$dest" ]; then
@@ -201,7 +225,7 @@ _copy_template() {
                 return 0
             fi
             [ -f "$dest2" ] && cp "$dest2" "${dest2}.bak_$(date +%Y%m%d_%H%M%S)"
-            cp "$src" "$dest2"
+            _render_template "$src" "$dest2" || return 0
             ok "Synced:  $tname → $(basename "$dest2_dir")/$(basename "$dest2")"
         else
             info "  Dry-run – would also copy to secondary location"

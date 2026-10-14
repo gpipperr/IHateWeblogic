@@ -165,7 +165,19 @@ Key parameters in `webutil.cfg.template`:
 $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_<version>/config/default.env
 ```
 
-Key parameters to adapt in `default.env.template`:
+All path values are `##...##` placeholders, filled by `14-oracle_setup_forms.sh`
+from `environment.conf` when it copies the template (`##ORACLE_HOME##`,
+`##DOMAIN_HOME##`, `##JDK_HOME##`, `##FORMS_INSTANCE_NAME##`,
+`##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##TNS_ADMIN##` – default
+`$DOMAIN_HOME/config/fmwconfig`). The script refuses to write a file with an
+unresolved placeholder. Before 2026-10-15 the template contained hard-coded paths
+of another host layout (`/u01/oracle/fmw`, `/u01/user_projects/...`, `reptools_ent`)
+and a 12c CLASSPATH (`ldapjclnt11.jar`, `jpsmanifest.jar`,
+`javax.management.j2ee.jar`, `frmopt.jar` – none of them exist in 14.1.2).
+`CLASSPATH` and `LD_LIBRARY_PATH` are written on one line each, like Oracle's own
+`default.env` (no documented line continuation).
+
+Parameters in `default.env.template`:
 
 | Parameter | Notes |
 |---|---|
@@ -182,8 +194,9 @@ Key parameters to adapt in `default.env.template`:
 
 ### CLASSPATH Assembly
 
-The `CLASSPATH` in `default.env` consists of FMW JARs under `$ORACLE_HOME`.
-When changing `ORACLE_HOME`, update all CLASSPATH entries accordingly.
+The `CLASSPATH` in `default.env` consists of FMW JARs under `$ORACLE_HOME`
+(`##ORACLE_HOME##` in the template). The list follows Oracle's 14.1.2
+`default.env` – compare with the file the domain creates before changing it.
 Key JARs:
 
 | JAR | Purpose |

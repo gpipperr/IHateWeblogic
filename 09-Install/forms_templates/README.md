@@ -28,13 +28,12 @@ The script copies each template to its target path(s) and creates a
 ## What to adapt in each template
 
 ### default.env.template
-- `ORACLE_HOME` – your FMW installation path
-- `FORMS_INSTANCE` – full path to Forms instance
-- `TNS_ADMIN` – path to Oracle Net `tnsnames.ora`
-- `FORMS_PATH` – application source directory (`.fmb` / `.fmx`)
+Paths are `##...##` placeholders filled from `environment.conf` by the script
+(`ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`, `FORMS_INSTANCE_NAME`,
+`REPORTS_TOOLS_INSTANCE`, `FORMS_CUSTOMER_DIR`, `TNS_ADMIN` – default
+`$DOMAIN_HOME/config/fmwconfig`) – do not replace them by hand. Adapt only:
+- `FORMS_PATH` – add further `.fmb` / `.fmx` directories if needed
 - `NLS_LANG`, `NLS_DATE_FORMAT` – language/character set
-- `COMPONENT_CONFIG_PATH` – path to ReportsTools instance
-- `PATH`, `LD_LIBRARY_PATH`, `LD_PRELOAD` – adjust JDK version path
 
 ### formsweb.cfg.template
 - `form=` in `[default]` – your default start form (`.fmx`)
