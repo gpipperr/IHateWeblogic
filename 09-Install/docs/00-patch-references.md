@@ -98,3 +98,5 @@ Source: KA1182, CSPU September 2026.
 | 38566996 | UMS Bundle Patch 14.1.2.0.251022 (CPU Jan 2026) — removed from `INSTALL_PATCHES` (2026-10-14): not on the CSPU Sep 2026 required list above. UMS is not part of the SPB; check KA1182 for a UMS/Infrastructure patch in later cycles |
 | 38827528 | → 39600348 (Reports QPR) |
 | 38874285 | → 39842516 (Forms QPR) |
+| 37795631 | → 39264447 (DB RU 23.26.2 for FMW DBCLIENT, in the SPB). 37795631 = RSF fix for Bug 36749613 (Forms 14.1.2 crash FRM-93656/FRM-93652 on `EXIT_FORM`, 23.5 DB RSF), MOS KB177278. Verified 2026-10-14: `opatch lsinventory -bugs_fixed` lists 36749613 as fixed by 39264447 – do **not** apply 37795631 on top of the SPB |
+| 36749613 / 37031357 | Older RSF one-offs for the same crash (KB177278) → 37795631 → 39264447 |

@@ -130,9 +130,14 @@ $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
   (at least one must exist, or the script fails — run
   `06-oracle_install_forms_reports.sh --apply` first). Cross-checks this
   against `INSTALL_COMPONENTS` and warns (does not fail) on a mismatch
-- Composes the wanted patch list: `INSTALL_PATCHES_REPORTS` if `reports/`
-  exists, `INSTALL_PATCHES_FORMS` if `forms/` exists, plus
-  `INSTALL_PATCHES_FR_OPTIONAL` if `REPORTS_BIDIPARENTHESIS=YES`
+- Composes the wanted patch list (in this order): `INSTALL_PATCHES_FR_COMMON`,
+  `INSTALL_PATCHES_FORMS` if `forms/` exists, `INSTALL_PATCHES_REPORTS` if
+  `reports/` exists, plus `INSTALL_PATCHES_FR_OPTIONAL` if
+  `REPORTS_BIDIPARENTHESIS=YES` – **Forms before Reports**, see
+  "Forms relink fails after a Reports QPR" below
+- Checks `lib/libzrc.so.0` against the glibc stubs (pre-check, before every
+  Forms patch, and once more after all patches); with `--apply` it is rebuilt
+  if needed – see the same section
 - If the composed list is empty → exits OK with info message
 - Reads current patch inventory via `opatch lspatches`
 - **Automatic rollback of superseded QPRs**: for each patch about to be
@@ -195,9 +200,14 @@ harmless:
   bridge). A real conflict here would produce a hard
   `multiple definition` error, not a warning.
 
+The Forms QPR `39842516` also ends with "completed with warnings"
+(confirmed 2026-10-14): `the use of 'tempnam' is dangerous` (iebrw.c,
+siedt.c, sdejm.c) and `ld: warning: -z lazyload ignored` (Solaris-only
+linker option) – both harmless, the relink itself succeeds.
+
 `06-oracle_patch_forms_reports.sh` detects `"completed with warnings"` in
 the `opatch apply` output after a successful (`rc=0`) apply and surfaces
-it via `warn()`, calling out these two patterns by name when present —
+it via `warn()`, calling out the known patterns by name when present —
 this does **not** change pass/fail, which is still decided purely by the
 exit code.
 
@@ -210,6 +220,87 @@ If a *different*, unrecognized warning text appears for this or another
 patch, it is not covered by the two patterns above — check
 `$ORACLE_HOME/cfgtoollogs/opatch/` and consider an SR if anything looks
 off after testing.
+
+---
+
+## Forms relink fails after a Reports QPR – libzrc.so / glibc (OL9, confirmed 2026-10-14)
+
+Order applied: `38590500` → `39600348` (Reports) → `39842516` (Forms) on
+Oracle Linux 9 (glibc 2.34). The Forms patch failed with `rc=73`:
+
+```
+Make failed to invoke "/usr/bin/make -f ins_forms.mk frmweb_install ..."
+/usr/bin/ld: /u01/app/oracle/fmw/lib//libzrc.so: undefined reference to `dlsym@GLIBC_2.34'
+Re-link fails on target "frmweb_install".
+Re-link fails on target "dejvm_install".
+OPatch failed to restore OH '/u01/app/oracle/fmw'.
+```
+
+**Cause:**
+- The Reports QPR runs `make -f ins_reports.mk zrcsharedlib` →
+  `$ORACLE_HOME/bin/genshlib zrc 0`. On Linux `genshlib` links with plain
+  `gcc -shared *.o` – against the **system** glibc. On OL9 the new
+  `lib/libzrc.so.0` therefore needs `dlsym@GLIBC_2.34`.
+- The Forms relink (`frmweb`, `dejvm`) links with `-L$ORACLE_HOME/lib/stubs`.
+  These stubs are glibc **2.28** and know no `GLIBC_2.34` → undefined reference.
+- Every Forms relink after a Reports QPR fails – also with future QPRs.
+
+**What the script does (automatic):**
+- Applies Forms patches **before** Reports patches.
+- `_fix_libzrc_glibc` checks which GLIBC versions `libzrc.so.0` needs that
+  `lib/stubs/libc.so.6`/`libdl.so.2` do not provide. Dry-run/`--check-only`
+  only report it (WARN); `--apply` rebuilds the library from `lib/libzrc.a`
+  against the stubs (backup `libzrc.so.0.glibc_<timestamp>` next to it).
+- Runs in the pre-checks, before every Forms patch and after all patches
+  (keeps the home ready for the next Forms QPR).
+
+**Manual fix (same as the script):**
+
+```bash
+export ORACLE_HOME=/u01/app/oracle/fmw
+cp -p $ORACLE_HOME/lib/libzrc.so.0 $ORACLE_HOME/lib/libzrc.so.0.glibc_$(date +%Y%m%d_%H%M%S)
+mkdir /tmp/libzrc && cd /tmp/libzrc
+ar x $ORACLE_HOME/lib/libzrc.a
+gcc -shared -Wl,-G,-hlibzrc.so.0 -L$ORACLE_HOME/lib/stubs -o libzrc.so.0 *.o -ldl
+install -m 755 libzrc.so.0 $ORACLE_HOME/lib/libzrc.so.0
+nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym     # expected: dlsym@GLIBC_2.2.5
+cd / && rm -rf /tmp/libzrc
+```
+
+**Clean-up after a failed Forms apply (seen on the test host):**
+- OPatch restored the files, but not the binaries: `bin/dejvm` was deleted
+  by `dejvm_clean`, and `inventory/oneoffs/<patch>` was left behind (the
+  patch is not in `opatch lspatches`).
+- Fix libzrc as above, remove `inventory/oneoffs/<patch>` (what OPatch's
+  `restore.sh` in `.patch_storage/NApply/<timestamp>/` does), relink:
+  ```bash
+  cd $ORACLE_HOME/procbuilder/lib && make -f ins_procbuilder.mk dejvm_install ORACLE_HOME=$ORACLE_HOME
+  cd $ORACLE_HOME/forms/lib       && make -f ins_forms.mk frmweb_install       ORACLE_HOME=$ORACLE_HOME
+  ```
+- Then apply the Forms patch again (`06-oracle_patch_forms_reports.sh --apply`).
+
+Reports-only hosts that never apply a Forms patch are not affected.
+
+**Oracle reference:** MOS **KB873815** – "ALERT: LIBZRC.SO: UNDEFINED REFERENCE
+TO `DLSYM@GLIBC_2.34` error applying Forms QPR or relinking Forms after applying
+Reports QPR on Linux 9" (last updated Sep 30, 2026).
+- Tracked as **Bug 38892485**, status "being investigated" – **no fix patch yet**.
+  (The MOS Support AI named 37795631 as fix – wrong: that patch belongs to
+  KB177278, the Forms EXIT_FORM crash FRM-93656/93652, Bug 36749613, and is
+  already covered by DB RU 39264447 from the SPB – see `00-patch-references.md`.)
+- Also affects 12.2.1.19 (Reports QPR 38617683) and 14.1.2 since Reports QPR
+  38827528 (Jan 2026).
+- Oracle's workaround: move `lib/libzrc.so` away, so the Forms relink
+  links `libzrc.a` statically, then rebuild the Reports side:
+  ```bash
+  cd $ORACLE_HOME/lib         && mv libzrc.so libzrc.so_back
+  cd $ORACLE_HOME/forms/lib   && make -f ins_forms.mk frmweb_install
+  cd $ORACLE_HOME/reports/lib && make -f ins_reports.mk install
+  make -f ins_reports.mk zrcsharedlib
+  ```
+  Difference: `zrcsharedlib` builds `libzrc.so.0` against the system glibc again,
+  so the next Forms relink hits the problem again. Our rebuild against
+  `lib/stubs` keeps the home relink-safe.
 
 ---
 

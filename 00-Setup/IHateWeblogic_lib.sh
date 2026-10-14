@@ -339,7 +339,7 @@ _select_patch_zip() {
 #       version does not match expected_release
 check_patch_zip() {
     local zip_path="$1" patch_nr="$2" expected_release="$3"
-    local listing inv_xml patch_id_found comp_block comp_count comp_version
+    local listing inv_xml patch_id_found comp_block comp_count comp_version comp_name comps_xml
 
     if [ ! -f "$zip_path" ]; then
         fail "check_patch_zip: file not found: $zip_path"
@@ -383,7 +383,16 @@ check_patch_zip() {
     if [ "$comp_count" -eq 0 ]; then
         warn "check_patch_zip: no <required_components> found in inventory.xml ($(basename "$zip_path")) - skipping release check"
     elif [ "$comp_count" -eq 1 ] && [ "$comp_version" != "$expected_release" ]; then
-        warn "check_patch_zip: patch $patch_nr has a single component at version $comp_version (expected $expected_release) - likely an embedded tool's own version, not the FMW release; release check skipped"
+        # Single component with its own version (e.g. oracle.perlint 5.38.2.0.0):
+        # fine if exactly that component/version is installed in ORACLE_HOME
+        comp_name="$(printf '%s' "$comp_block" | grep -o 'internal_name="[^"]*"' | head -1 | sed -E 's/.*="([^"]*)"/\1/')"
+        comps_xml="${ORACLE_HOME:-/nonexistent}/inventory/ContentsXML/comps.xml"
+        if [ -n "$comp_name" ] && [ -f "$comps_xml" ] \
+           && grep -q "NAME=\"${comp_name}\" VER=\"${comp_version}\"" "$comps_xml"; then
+            info "check_patch_zip: patch $patch_nr targets ${comp_name} ${comp_version} (own component version, installed in ORACLE_HOME)"
+        else
+            warn "check_patch_zip: patch $patch_nr has a single component ${comp_name:-?} at version $comp_version (expected $expected_release) - likely an embedded tool's own version, not the FMW release; release check skipped"
+        fi
     elif [ "$comp_count" -ge 2 ] && [ "$comp_version" != "$expected_release" ]; then
         fail "check_patch_zip: patch $patch_nr is release $comp_version, expected $expected_release ($(basename "$zip_path")) - wrong product-version variant downloaded"
         return 5

@@ -10,6 +10,9 @@
 #            automatically before the replacing patch is applied.
 #            If no applicable patch is configured, the script exits OK.
 #            OPatch upgrade is NOT repeated here (done in 05-oracle_patch_weblogic.sh).
+#            Forms patches are applied before Reports patches; lib/libzrc.so.0 is
+#            rebuilt against lib/stubs if a Reports QPR linked it against the
+#            system glibc (OL9 – breaks the Forms relink, see doc).
 # Call     : ./09-Install/06-oracle_patch_forms_reports.sh
 #            ./09-Install/06-oracle_patch_forms_reports.sh --apply
 #            ./09-Install/06-oracle_patch_forms_reports.sh --check-only
@@ -89,6 +92,71 @@ done
 unset _arg
 
 # =============================================================================
+# Helper: libzrc.so glibc fix (OL9, confirmed 2026-10-14)
+# =============================================================================
+# A Reports QPR (e.g. 39600348) rebuilds lib/libzrc.so.0 via bin/genshlib,
+# which on Linux links with plain "gcc -shared" against the SYSTEM glibc
+# (OL9: 2.34 → dlsym@GLIBC_2.34). The Forms relink (frmweb, dejvm) links
+# against the glibc 2.28 stubs in lib/stubs/ and then fails with
+#   libzrc.so: undefined reference to `dlsym@GLIBC_2.34'
+# → opatch apply rc=73 (and OPatch's own restore fails too).
+# Oracle: MOS KB873815 / Bug 38892485 (no fix patch yet, 2026-10).
+# Fix: rebuild libzrc.so.0 from lib/libzrc.a against the stubs.
+
+# _libzrc_bad_versions – prints the GLIBC versions libzrc.so.0 needs that the
+# stubs do not provide (empty = OK or nothing to check)
+_libzrc_bad_versions() {
+    local lib="$ORACLE_HOME/lib/libzrc.so.0" stubs="$ORACLE_HOME/lib/stubs"
+    local need have v
+    [ -f "$lib" ] && [ -f "$stubs/libc.so.6" ] || return 0
+    need="$(nm -D --undefined-only "$lib" 2>/dev/null | grep -oE 'GLIBC_[0-9.]+' | sort -u)"
+    have="$(readelf -V "$stubs"/libc.so.6 "$stubs"/libdl.so.2 2>/dev/null \
+        | grep -oE 'GLIBC_[0-9.]+' | sort -u)"
+    for v in $need; do
+        printf '%s\n' "$have" | grep -qx "$v" || printf '%s ' "$v"
+    done
+}
+
+# _fix_libzrc_glibc – check (dry-run/check-only) or rebuild (--apply)
+_fix_libzrc_glibc() {
+    local bad lib="$ORACLE_HOME/lib/libzrc.so.0" tmpd bak
+    $HAS_FORMS || return 0
+    bad="$(_libzrc_bad_versions)"
+    if [ -z "$bad" ]; then
+        ok "libzrc.so.0 links against the lib/stubs glibc (Forms relink safe)"
+        return 0
+    fi
+    warn "libzrc.so.0 needs ${bad% } – not in lib/stubs, a Forms relink would fail"
+    if ! $APPLY; then
+        info "  --apply rebuilds libzrc.so.0 from lib/libzrc.a against lib/stubs"
+        return 0
+    fi
+    [ -f "$ORACLE_HOME/lib/libzrc.a" ] || { fail "libzrc.a not found – cannot rebuild libzrc.so.0"; return 1; }
+    command -v gcc > /dev/null 2>&1 || { fail "gcc not found – cannot rebuild libzrc.so.0"; return 1; }
+    bak="${lib}.glibc_$(date +%Y%m%d_%H%M%S)"
+    cp -p "$lib" "$bak" || { fail "Backup of libzrc.so.0 failed"; return 1; }
+    info "  Backup: $bak"
+    tmpd="$(mktemp -d "${ORACLE_BASE:-/tmp}/tmp/libzrc.XXXXXX" 2>/dev/null || mktemp -d)"
+    if ( cd "$tmpd" && ar x "$ORACLE_HOME/lib/libzrc.a" \
+         && gcc -shared -Wl,-G,-hlibzrc.so.0 -L"$ORACLE_HOME/lib/stubs" \
+                -o libzrc.so.0 ./*.o -ldl ) >> "$LOG_FILE" 2>&1 \
+       && install -m 755 "$tmpd/libzrc.so.0" "$lib"; then
+        rm -rf "$tmpd"
+        bad="$(_libzrc_bad_versions)"
+        if [ -z "$bad" ]; then
+            ok "libzrc.so.0 rebuilt against lib/stubs (dlsym@GLIBC_2.2.5)"
+            return 0
+        fi
+        fail "libzrc.so.0 still needs ${bad% } after rebuild"
+    else
+        rm -rf "$tmpd"
+        fail "Rebuild of libzrc.so.0 failed – see $LOG_FILE"
+    fi
+    cp -p "$bak" "$lib" && info "  Original libzrc.so.0 restored from backup"
+    return 1
+}
+
+# =============================================================================
 # Banner
 # =============================================================================
 
@@ -163,18 +231,25 @@ INVPTR_ARGS=()
     && { ok "oraInst.loc found: $ORA_INST_LOC"; INVPTR_ARGS=(-invPtrLoc "$ORA_INST_LOC"); } \
     || warn "oraInst.loc not found – opatch will use system default"
 
+# --- libzrc.so.0 vs. lib/stubs glibc (Forms relink, OL9) ---------------------
+_fix_libzrc_glibc || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
 # --- Compose the wanted patch list from component detection -------------------
-# INSTALL_PATCHES_REPORTS always applies (if reports/ exists); FORMS and the
+# INSTALL_PATCHES_FR_COMMON applies if forms/ or reports/ exists,
+# INSTALL_PATCHES_REPORTS if reports/ exists; FORMS and the
 # bidi one-off only apply when their precondition is met.
 PATCHES_WANTED=""
 # Patches for components that only the Forms & Reports installer brings
 # (e.g. FMW PERL oracle.perlint) – applied if Forms or Reports is installed
 { $HAS_REPORTS || $HAS_FORMS; } && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FR_COMMON:-}"
-$HAS_REPORTS && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_REPORTS:-}"
+# Forms before Reports: a Reports QPR rebuilds libzrc.so.0 against the
+# system glibc, which breaks a following Forms relink (see _fix_libzrc_glibc)
 $HAS_FORMS   && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FORMS:-}"
+$HAS_REPORTS && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_REPORTS:-}"
 [ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && PATCHES_WANTED="$PATCHES_WANTED ${INSTALL_PATCHES_FR_OPTIONAL:-}"
 PATCHES_WANTED="$(printf "%s" "$PATCHES_WANTED" | xargs)"   # normalize whitespace
 
+printList "INSTALL_PATCHES_FR_COMMON" 28 "${INSTALL_PATCHES_FR_COMMON:-(empty)}"
 printList "INSTALL_PATCHES_REPORTS" 28 "${INSTALL_PATCHES_REPORTS:-(empty)}"
 printList "INSTALL_PATCHES_FORMS"   28 "${INSTALL_PATCHES_FORMS:-(empty)}"
 printList "Wanted (this host)"      28 "${PATCHES_WANTED:-(none)}"
@@ -368,6 +443,10 @@ for _p in $PATCHES_TO_APPLY; do
     printf "\n" | tee -a "$LOG_FILE"
     info "$(printf "Applying patch %-12s ..." "$_p")"
     printLine
+    # A Reports patch applied earlier in this run may have rebuilt libzrc.so.0
+    case " ${INSTALL_PATCHES_FORMS:-} " in
+        *" $_p "*) _fix_libzrc_glibc || { rm -rf "$STAGING_BASE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; } ;;
+    esac
     printf "  Apply started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
     pushd "$PATCH_EXTRACT_DIR" > /dev/null
@@ -409,6 +488,10 @@ for _p in $PATCHES_TO_APPLY; do
         warn "Patch $_p: OPatch reported \"completed with warnings\" (patch itself applied OK, rc=0)"
         printf '%s' "$APPLY_OUTPUT" | grep -qE "use of .mktemp. is dangerous" \
             && warn "  Known-harmless: glibc mktemp() linker notice from Oracle's own relink code"
+        printf '%s' "$APPLY_OUTPUT" | grep -qE "use of .tempnam. is dangerous" \
+            && warn "  Known-harmless: glibc tempnam() linker notice from Oracle's own relink code (Forms)"
+        printf '%s' "$APPLY_OUTPUT" | grep -qE "warning: -z lazyload ignored" \
+            && warn "  Known-harmless: Solaris-only linker option -z lazyload ignored by GNU ld"
         printf '%s' "$APPLY_OUTPUT" | grep -qE "size of symbol .* changed from .* to" \
             && warn "  Known-harmless: linker symbol-size notice (common symbol resolved against the patched library)"
         warn "  Full output: $LOG_FILE"
@@ -421,6 +504,9 @@ unset _p
 
 rm -rf "$STAGING_BASE"
 info "Patch staging directory removed"
+
+# Leave the home ready for later Forms relinks (next Forms QPR, relink_all)
+_fix_libzrc_glibc
 
 # =============================================================================
 # Verification
