@@ -545,7 +545,6 @@ Place the following files there manually before working on related scripts:
 |---|---|
 | `Oracle_WebLogic_Server_14.1.2.0.0_install.docx` | `05-oracle_install_weblogic.sh`, response files, OPatch |
 | `fmw-141200-certmatrix.xlsx` | `04-oracle_pre_checks.sh`, `02-Checks/os_check.sh` |
-| `Knowledge_Article_Log4J_Security_Alert_*/` | `05-oracle_patch_weblogic.sh`, Log4j guard |
 
 ---
 
