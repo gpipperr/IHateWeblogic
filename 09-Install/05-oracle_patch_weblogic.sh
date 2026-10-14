@@ -59,13 +59,16 @@ init_log "$DIAG_LOG_DIR"
 
 APPLY=false
 CHECK_ONLY=false
+OPATCH_ONLY=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--check-only] [--help]\n\n" "$(basename "$0")"
-    printf "  %-14s %s\n" "(none)"       "Dry-run: show OPatch version, list patches to apply"
-    printf "  %-14s %s\n" "--apply"      "Update OPatch (if needed) and apply INSTALL_PATCHES"
-    printf "  %-14s %s\n" "--check-only" "Run conflict check only, do not apply"
-    printf "  %-14s %s\n" "--help"       "Show this help"
+    printf "Usage: %s [--apply] [--check-only] [--opatch-only] [--help]\n\n" "$(basename "$0")"
+    printf "  %-14s %s\n" "(none)"        "Dry-run: show OPatch version, list patches to apply"
+    printf "  %-14s %s\n" "--apply"       "Update OPatch (if needed) and apply SPB + INSTALL_PATCHES"
+    printf "  %-14s %s\n" "--check-only"  "Run conflict check only, do not apply (needs the new OPatch)"
+    printf "  %-14s %s\n" "--opatch-only" "With --apply: only upgrade OPatch, then stop"
+    printf "  %-14s %s\n" "--help"        "Show this help"
+    printf "\nRecommended order: --apply --opatch-only  →  --check-only  →  --apply\n"
     printf "\nRuns as: oracle\n"
     exit 0
 }
@@ -74,6 +77,7 @@ for _arg in "$@"; do
     case "$_arg" in
         --apply)       APPLY=true ;;
         --check-only)  CHECK_ONLY=true ;;
+        --opatch-only) OPATCH_ONLY=true ;;
         --help|-h)     _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
@@ -91,6 +95,7 @@ printf "  Host        : %s\n" "$(_get_hostname)"              | tee -a "$LOG_FIL
 printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"  | tee -a "$LOG_FILE"
 printf "  Apply       : %s\n" "$APPLY"                         | tee -a "$LOG_FILE"
 printf "  Check-only  : %s\n" "$CHECK_ONLY"                    | tee -a "$LOG_FILE"
+printf "  OPatch-only : %s\n" "$OPATCH_ONLY"                   | tee -a "$LOG_FILE"
 printf "  Log         : %s\n" "$LOG_FILE"                      | tee -a "$LOG_FILE"
 printLine
 
@@ -220,71 +225,6 @@ if ! $APPLY && ! $CHECK_ONLY; then
 fi
 
 # =============================================================================
-# WLS Stack Patch Bundle (SPB) – staging only. Unzipped ONCE here (reused by
-# both the OPatch upgrade below and the napply step further down) instead of
-# twice, since the archive is multi-GB. The SPB has been observed to bundle a
-# newer opatch_generic.jar (tools/opatch/generic/) than the standalone Patch
-# 28186730 download currently offers – see the caveat in
-# docs/05-oracle_patch_weblogic.md.
-# =============================================================================
-
-SPB_DIR=""
-SPB_STAGE=""
-SPB_ALREADY_APPLIED=false
-SPB_MARKER="${WLS_SPB_MARKER_PATCH:-}"
-
-if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
-    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR) – Staging"
-
-    if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
-        SPB_ALREADY_APPLIED=true
-        ok "SPB $WLS_SPB_PATCH_NR already applied (marker patch $SPB_MARKER present) – skip staging"
-    else
-        SPB_ZIP="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
-        if [ -z "$SPB_ZIP" ]; then
-            fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
-            fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
-            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB ZIP found: $(basename "$SPB_ZIP")"
-
-        SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
-        mkdir -p "$SPB_STAGE" || {
-            fail "Cannot create SPB staging directory: $SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        }
-
-        info "Unzipping SPB (this can take a while, several hundred MB, needs ~4 GB free)..."
-        unzip -q "$SPB_ZIP" -d "$SPB_STAGE" || {
-            fail "unzip failed: $SPB_ZIP"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        }
-
-        # Top-level directory name changes with the SPB version – discover it,
-        # do not hardcode (e.g. WLS_SPB_14.1.2.0.260825).
-        SPB_DIR="$(find "$SPB_STAGE" -maxdepth 1 -mindepth 1 -type d -name 'WLS_SPB_*' | head -1)"
-        if [ -z "$SPB_DIR" ]; then
-            fail "Could not find WLS_SPB_* directory after unzip in: $SPB_STAGE"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB directory: $(basename "$SPB_DIR")"
-
-        SPB_PATCHLIST="$SPB_DIR/binary_patches/${WLS_SPB_PATCHLIST_FILE:-linux64_patchlist.txt}"
-        if [ ! -f "$SPB_PATCHLIST" ]; then
-            fail "SPB patch list not found: $SPB_PATCHLIST"
-            rm -rf "$SPB_STAGE"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
-        fi
-        ok "SPB patch list: $SPB_PATCHLIST"
-    fi
-else
-    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB staging"
-fi
-
-# =============================================================================
 # OPatch Upgrade (--apply only, if version below minimum)
 # =============================================================================
 
@@ -295,14 +235,24 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
     OPATCH_UPGRADE_ZIP=""
     OPATCH_SOURCE="standalone download"
 
-    # Prefer the OPatch build bundled inside the SPB (staged above) – it has
-    # been observed to be newer than the standalone Patch 28186730 download
-    # (e.g. 13.9.4.2.24 bundled vs. 13.9.4.2.22 standalone). See the caveat
-    # in docs/05-oracle_patch_weblogic.md.
-    if [ -n "$SPB_DIR" ]; then
-        OPATCH_UPGRADE_ZIP="$(ls "$SPB_DIR"/tools/opatch/generic/p${OPATCH_UPGRADE_NR}_*.zip 2>/dev/null | head -1)"
-        [ -n "$OPATCH_UPGRADE_ZIP" ] && OPATCH_SOURCE="bundled in SPB $WLS_SPB_PATCH_NR"
+    # Prefer the OPatch build bundled inside the SPB – it has been observed to
+    # be newer than the standalone Patch 28186730 download (e.g. 13.9.4.2.24
+    # bundled vs. 13.9.4.2.22 standalone, see docs/05-oracle_patch_weblogic.md).
+    # Only that one ZIP (~60 MB) is extracted from the SPB archive – the full
+    # multi-GB SPB is staged later, just before napply.
+    OPATCH_SRC_DIR=""
+    _spb_zip="$(ls "$PATCH_STORAGE/patches/${WLS_SPB_PATCH_NR:-none}"/p${WLS_SPB_PATCH_NR:-none}_*.zip 2>/dev/null | head -1)"
+    if [ -n "$_spb_zip" ]; then
+        _member="$(unzip -Z1 "$_spb_zip" 2>/dev/null | grep "/tools/opatch/generic/p${OPATCH_UPGRADE_NR}_.*\.zip$" | head -1)"
+        if [ -n "$_member" ]; then
+            OPATCH_SRC_DIR="$ORACLE_BASE/tmp/opatch_src_$$"
+            mkdir -p "$OPATCH_SRC_DIR" \
+                && unzip -q -j -o "$_spb_zip" "$_member" -d "$OPATCH_SRC_DIR" \
+                && OPATCH_UPGRADE_ZIP="$OPATCH_SRC_DIR/$(basename "$_member")" \
+                && OPATCH_SOURCE="bundled in SPB $WLS_SPB_PATCH_NR"
+        fi
     fi
+    unset _spb_zip _member
 
     if [ -z "$OPATCH_UPGRADE_ZIP" ]; then
         OPATCH_UPGRADE_DIR="$PATCH_STORAGE/patches/$OPATCH_UPGRADE_NR"
@@ -370,14 +320,14 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
     info "Unzipping: $(basename "$OPATCH_UPGRADE_ZIP")"
     unzip -q "$OPATCH_UPGRADE_ZIP" -d "$OPATCH_STAGE" || {
         fail "unzip failed: $OPATCH_UPGRADE_ZIP"
-        rm -rf "$OPATCH_STAGE"
+        rm -rf "$OPATCH_STAGE" "${OPATCH_SRC_DIR:-}"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     }
 
     OPATCH_GENERIC_JAR="$OPATCH_STAGE/6880880/opatch_generic.jar"
     [ -f "$OPATCH_GENERIC_JAR" ] \
         && ok "opatch_generic.jar found" \
-        || { fail "opatch_generic.jar not found after unzip: $OPATCH_GENERIC_JAR"; rm -rf "$OPATCH_STAGE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+        || { fail "opatch_generic.jar not found after unzip: $OPATCH_GENERIC_JAR"; rm -rf "$OPATCH_STAGE" "${OPATCH_SRC_DIR:-}"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
     # Use ORACLE_BASE/tmp as JVM tmpdir – avoids failures on noexec /tmp
     mkdir -p "$ORACLE_BASE/tmp"
@@ -410,6 +360,7 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
         "$(date '+%Y-%m-%d %H:%M:%S')" "$OPATCH_INSTALL_RC" | tee -a "$LOG_FILE"
 
     rm -rf "$OPATCH_STAGE"
+    [ -n "$OPATCH_SRC_DIR" ] && rm -rf "$OPATCH_SRC_DIR"
     info "Staging directory removed"
 
     if [ "$OPATCH_INSTALL_RC" -ne 0 ]; then
@@ -430,7 +381,86 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
     ok "OPatch upgraded successfully to $OPATCH_VER_CURRENT"
 
 elif $OPATCH_NEEDS_UPGRADE && $CHECK_ONLY; then
-    warn "OPatch upgrade required ($OPATCH_VER_CURRENT < $OPATCH_VER_MIN) – use --apply to upgrade"
+    # A conflict/space report from the old OPatch is not meaningful for patches
+    # that require the newer OPatch – and the SPB staging alone needs ~4 GB.
+    warn "OPatch $OPATCH_VER_CURRENT < $OPATCH_VER_MIN – the SPB/patch check needs the new OPatch first"
+    info "  Upgrade OPatch only : $(basename "$0") --apply --opatch-only"
+    info "  Then re-run         : $(basename "$0") --check-only"
+    print_summary
+    exit $EXIT_CODE
+fi
+
+if $OPATCH_ONLY; then
+    if $APPLY; then
+        ok "OPatch is at $OPATCH_VER_CURRENT – stopping here (--opatch-only)"
+        info "  Next: $(basename "$0") --check-only, then --apply"
+    else
+        warn "--opatch-only needs --apply to change anything"
+    fi
+    print_summary
+    exit $EXIT_CODE
+fi
+
+# =============================================================================
+# WLS Stack Patch Bundle (SPB) – staging for opatch napply. Runs only AFTER the
+# OPatch upgrade: the multi-GB unzip is not needed for the upgrade itself (the
+# bundled OPatch ZIP is extracted on its own), and napply needs the new OPatch.
+# =============================================================================
+
+SPB_DIR=""
+SPB_STAGE=""
+SPB_ALREADY_APPLIED=false
+SPB_MARKER="${WLS_SPB_MARKER_PATCH:-}"
+
+if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
+    section "WLS Stack Patch Bundle ($WLS_SPB_PATCH_NR) – Staging"
+
+    if [ -n "$SPB_MARKER" ] && "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${SPB_MARKER};"; then
+        SPB_ALREADY_APPLIED=true
+        ok "SPB $WLS_SPB_PATCH_NR already applied (marker patch $SPB_MARKER present) – skip staging"
+    else
+        SPB_ZIP="$(ls "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR"/p${WLS_SPB_PATCH_NR}_*.zip 2>/dev/null | head -1)"
+        if [ -z "$SPB_ZIP" ]; then
+            fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
+            fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
+            info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB ZIP found: $(basename "$SPB_ZIP")"
+
+        SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
+        mkdir -p "$SPB_STAGE" || {
+            fail "Cannot create SPB staging directory: $SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        info "Unzipping SPB (this can take a while, several hundred MB, needs ~4 GB free)..."
+        unzip -q "$SPB_ZIP" -d "$SPB_STAGE" || {
+            fail "unzip failed: $SPB_ZIP"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        }
+
+        # Top-level directory name changes with the SPB version – discover it,
+        # do not hardcode (e.g. WLS_SPB_14.1.2.0.260825).
+        SPB_DIR="$(find "$SPB_STAGE" -maxdepth 1 -mindepth 1 -type d -name 'WLS_SPB_*' | head -1)"
+        if [ -z "$SPB_DIR" ]; then
+            fail "Could not find WLS_SPB_* directory after unzip in: $SPB_STAGE"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB directory: $(basename "$SPB_DIR")"
+
+        SPB_PATCHLIST="$SPB_DIR/binary_patches/${WLS_SPB_PATCHLIST_FILE:-linux64_patchlist.txt}"
+        if [ ! -f "$SPB_PATCHLIST" ]; then
+            fail "SPB patch list not found: $SPB_PATCHLIST"
+            rm -rf "$SPB_STAGE"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "SPB patch list: $SPB_PATCHLIST"
+    fi
+else
+    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB staging"
 fi
 
 # =============================================================================

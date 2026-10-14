@@ -368,23 +368,25 @@ opatch lspatches | grep 38566996   # must return nothing
 - Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR`,
   `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE`,
   `FMW_PRODUCT_RELEASE` from `oracle_software_version.conf`
-- **WLS Stack Patch Bundle staging** (if `WLS_SPB_PATCH_NR` is set and not
-  already applied) — unzips the SPB once, before the OPatch upgrade step,
-  so both that step and the later `opatch napply` can reuse the same
-  staged directory instead of unzipping the multi-GB archive twice
-- **OPatch upgrade** (if current version < `OPATCH_VERSION_MIN`):
+- **OPatch upgrade first** (if current version < `OPATCH_VERSION_MIN`), same
+  order as the manual cookbook:
   - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
-  - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_INVENTORY` (one level above `ORACLE_BASE`)
-  - Sources the upgrade ZIP from inside the staged SPB
-    (`tools/opatch/generic/p28186730_*.zip`) if present, else falls back to
-    the standalone Patch 28186730 download — see the resolved caveat above
+  - Backs up `$ORACLE_HOME/OPatch` and `$ORACLE_INVENTORY`
+  - Extracts **only** the bundled OPatch ZIP (`tools/opatch/generic/p28186730_*.zip`,
+    ~60 MB) from the SPB archive, else falls back to the standalone Patch
+    28186730 download — see the resolved caveat above
   - Runs `opatch_generic.jar -silent oracle_home=...` to install new OPatch via OUI tooling
-  - Verifies the installed version matches `OPATCH_VERSION_MIN`
-  - Cleans up its own temp directory (the staged SPB directory is not
-    affected, it is cleaned up after the napply step below)
-- **WLS Stack Patch Bundle apply** (`opatch napply`, reusing the staged
-  directory) — see "SPB (CSPU September 2026)" above for the full
-  procedure; runs after the OPatch upgrade, before the patches below
+  - Verifies the installed version matches `OPATCH_VERSION_MIN`, cleans up its temp dirs
+- **WLS Stack Patch Bundle staging + apply** (if `WLS_SPB_PATCH_NR` is set and
+  not already applied) — only after the OPatch upgrade: unzips the multi-GB
+  SPB under `$ORACLE_BASE/tmp/` and runs `opatch napply` — see "SPB (CSPU
+  September 2026)" above; runs before the patches below
+- **`--check-only` with an outdated OPatch stops early** with a hint: a
+  `napply -report` / conflict check from the old OPatch is not meaningful for
+  patches that require the newer one (and would stage the SPB for nothing).
+  Live-tested 2026-10-14: the old-OPatch report also failed OPatch's
+  `CheckSystemSpace` prerequisite (needs ~5.6 GB free in the `ORACLE_HOME`
+  filesystem, on top of the ~4 GB SPB staging when both share one disk)
 - **Patch ZIP validation** (`check_patch_zip()`) for every `INSTALL_PATCHES`
   entry, run right after the ZIP is selected and before it is extracted —
   rejects EBS AutoPatch artifacts and release mismatches against
@@ -403,9 +405,21 @@ opatch lspatches | grep 38566996   # must return nothing
 | Flag | Description |
 |---|---|
 | (none) | Show OPatch version, list patches to apply |
-| `--apply` | Update OPatch and apply patches |
-| `--check-only` | Run conflict check only, do not apply |
+| `--apply` | Update OPatch, apply SPB and patches |
+| `--check-only` | Run conflict check only, do not apply – needs the new OPatch, stops early otherwise |
+| `--apply --opatch-only` | Only upgrade OPatch (small, separate step), then stop |
 | `--help` | Show usage |
+
+Recommended order on a fresh install:
+
+```bash
+./09-Install/05-oracle_patch_weblogic.sh --apply --opatch-only   # OPatch 13.9.4.2.17 → .24
+./09-Install/05-oracle_patch_weblogic.sh --check-only            # SPB napply -report + conflicts
+./09-Install/05-oracle_patch_weblogic.sh --apply                 # SPB + INSTALL_PATCHES
+```
+
+Disk space: OPatch requires ~5.6 GB free in the `ORACLE_HOME` filesystem for
+the SPB, plus ~4 GB for the SPB staging under `$ORACLE_BASE/tmp/`.
 
 ---
 
@@ -497,7 +511,9 @@ documented above for Patch 38566996.
 
 `05-oracle_patch_weblogic.sh` runs this automatically when `WLS_SPB_PATCH_NR`
 is set in `oracle_software_version.conf` (currently `39925660`), inserted
-between the OPatch-upgrade step and the `INSTALL_PATCHES` loop:
+between the OPatch-upgrade step and the `INSTALL_PATCHES` loop (the OPatch
+upgrade extracts only its own ZIP from the SPB archive, the full SPB is
+staged here, after the upgrade):
 
 1. Skip if the SPB's marker patch (`WLS_SPB_MARKER_PATCH`, currently
    `39925694`) is already in `opatch lspatches` (idempotent)
