@@ -50,6 +50,22 @@ Linux 9), Nginx as frontend.
 | 5 | 38590500 | FMW PERL Security Patch Update 14.1.2.0.260120 | CPU Jan 2026 | `p38590500_141200_Linux-x86-64.zip` |
 | 6 | **39600348** | Oracle Reports Developer QPR 14.1.2.0 | Aug 2026 | `p39600348_141200_Linux-x86-64.zip` — supersedes 38827528 |
 
+### Patch 39988381 — same patch number, two different releases
+
+KA1182 lists Patch 39988381 for both WLS 14.1.2.0 and WLS 15.1.1.0 — same
+patch number, different product release and prerequisite patch. Always
+confirm the downloaded ZIP's release in `etc/config/inventory.xml` before
+applying (see the pitfall note in `docs/05-oracle_patch_weblogic.md`);
+`check_patch_zip()` does this automatically before every patch in
+`INSTALL_PATCHES` is extracted.
+
+| Release | Patches | Description |
+|---|---|---|
+| WLS 14.1.2.0 | SPB **39925660** + **39988381** | WLS Stack Patch Bundle 14.1.2.0.260825 + WLS 14.1.2 SPU for CVE-2026-70748 — this project |
+| WLS 15.1.1.0 | PSU **39929333** + **39988381** | WLS Patch Set Update 15.1.1.0.260825 + WLS 15.1.1 SPU for CVE-2026-70748 — **not relevant** to this 14.1.2 project |
+
+Source: KA1182, CSPU September 2026.
+
 ### Conditional (only if the component is installed in the Oracle Home)
 
 | Patch | Description | Release | Condition |

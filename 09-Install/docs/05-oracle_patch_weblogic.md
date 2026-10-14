@@ -366,8 +366,8 @@ opatch lspatches | grep 38566996   # must return nothing
 
 - Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE`, `ORACLE_BASE` from `environment.conf`
 - Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR`,
-  `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE` from
-  `oracle_software_version.conf`
+  `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE`,
+  `FMW_PRODUCT_RELEASE` from `oracle_software_version.conf`
 - **WLS Stack Patch Bundle staging** (if `WLS_SPB_PATCH_NR` is set and not
   already applied) — unzips the SPB once, before the OPatch upgrade step,
   so both that step and the later `opatch napply` can reuse the same
@@ -385,6 +385,11 @@ opatch lspatches | grep 38566996   # must return nothing
 - **WLS Stack Patch Bundle apply** (`opatch napply`, reusing the staged
   directory) — see "SPB (CSPU September 2026)" above for the full
   procedure; runs after the OPatch upgrade, before the patches below
+- **Patch ZIP validation** (`check_patch_zip()`) for every `INSTALL_PATCHES`
+  entry, run right after the ZIP is selected and before it is extracted —
+  rejects EBS AutoPatch artifacts and release mismatches against
+  `FMW_PRODUCT_RELEASE`; aborts the whole run on failure — see "Patch
+  39988381" below
 - **Conflict check** for all `INSTALL_PATCHES` before any apply
 - Aborts if any conflict is found
 - **Applies patches** in the order they appear in `INSTALL_PATCHES`
@@ -557,3 +562,81 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 > string are current for the cycle you are actually installing, not a
 > copy-paste from an older cycle (this document itself was wrong about this
 > once already, see the correction note above).
+
+---
+
+## Patch 39988381 — Portal README Pitfall and Multi-Release Patch Numbers
+
+> **Resolved — Portal README vs. ZIP README (confirmed 2026-10-14):** the MOS
+> portal page for Patch 39988381 displays a README text referencing
+> AutoPatch and `patch_39988381.xml` ("ST Checkin description ... This patch
+> contains the following unified driver file to be applied with AutoPatch").
+> AutoPatch (`adpatch`/`adop`) is an **E-Business Suite** tool and does not
+> exist in a WebLogic/FMW Home — this portal text is a wrong template
+> placeholder. The ZIP's own `README.txt` is normal, well-formed Oracle WLS
+> patch documentation (ZDT eligibility, Prerequisites, Installation
+> Instructions) and is trustworthy; confirmed by inspecting the real
+> downloaded ZIP contents directly (`unzip -l` / `unzip -p`, read-only, all
+> 4 product-version variants). A genuine OPatch package contains
+> `etc/config/inventory.xml` + `etc/config/actions.xml`; a wrongly-attached
+> package would instead contain `patch_<nr>.xml` or `u<nr>.drv` at the root —
+> if you ever see that pattern, do not apply, open an SR.
+>
+> Separately, 39988381 is reused across two different WLS releases: for
+> 14.1.2.0 it pairs with SPB 39925660 (this project); for 15.1.1.0 it pairs
+> with PSU 39929333 (not relevant here) — see the table in
+> `docs/00-patch-references.md`. Always verify the downloaded ZIP's actual
+> release in `etc/config/inventory.xml`, not just the filename.
+>
+> `check_patch_zip()` (`00-Setup/IHateWeblogic_lib.sh`) now automates both
+> checks for every patch in `INSTALL_PATCHES`, before extraction: rejects
+> EBS-pattern artifacts, and compares the majority `version=` value across
+> `inventory.xml`'s `<required_components>` entries against
+> `FMW_PRODUCT_RELEASE` (`oracle_software_version.conf`) — a majority vote,
+> not one hardcoded component name, since the naming convention differs per
+> product (`oracle.wls.*` for WLS, `oracle.reports.*` for Reports QPRs,
+> `oracle.developer.forms.*` for Forms QPRs, confirmed against real ZIPs of
+> each). A patch with only one component (e.g. Patch 38590500's PERL fix,
+> whose sole `oracle.perlint` component is versioned by the bundled Perl
+> interpreter itself, not the FMW release) is not hard-failed on a mismatch,
+> only logged as a warning — the release check genuinely does not apply to
+> that patch. It only fits a standard OPatch one-off
+> patch — it does **not** apply to the WLS Stack Patch Bundle ZIP (39925660,
+> a bundle of many patches with its own `binary_patches/` layout) or the
+> OPatch upgrade ZIP (28186730, an OUI installer package with
+> `6880880/opatch_generic.jar`, no `inventory.xml`) — those are staged and
+> applied through their own, already-existing mechanisms described above.
+>
+> Next quarterly CPU lands 2026-10-20 — re-check KA1182 after that date for
+> renumbered patches.
+
+### New post-install hardening options (Sep/Aug/Jul 2026 editions, F41372-23)
+
+Per Oracle's "Post-Install Actions and Considerations for Oracle WebLogic
+Server Patch Set Updates" (F41372-23), the document behind KB694158 — all of
+the following are backward-compatible, default-disabled, opt-in settings.
+None require any action for this project's current 14.1.2 install; listed
+here so they are not missed if a future hardening pass is done:
+
+- **Sep 2026 edition:** new `FeatureCompatibilityMBean.
+  WorkContextClassValidationEnabled` attribute, default `false` — when
+  enabled, tightens validation of WorkContext class names/resolved classes
+  on inbound T3/JMS/IIOP paths, limiting untrusted input to WebLogic
+  built-in and product WorkContext implementations.
+- **Aug 2026 edition:** additional default-`false` `FeatureCompatibilityMBean`
+  attributes (`JNDIAdditionalFactoriesAllowListsEnabled`,
+  `JNDIBindingAuthorizationPolicyEnabled`,
+  `JNDIOutboundConnectionsAllowListEnabled`, `T3RouteOnlyToTrustedServersEnabled`)
+  plus matching `SecurityConfigurationMBean` allowlist attributes
+  (`JndiAdditionalInitialContextFactoriesAllowed`,
+  `JndiAdditionalReferenceFactoriesAllowed`, `JndiOutboundConnectionsAllowed`,
+  each defaulting to an empty string) — enforce JNDI factory/outbound-connection
+  allowlists when enabled.
+- **Jul 2026 edition:** 3 default-`false` non-WLS system properties:
+  `oracle.core.ojdl.loader.LogServerConnectionHardeningEnabled` (binds
+  LogServer to loopback only unless `-host` is given explicitly, filters
+  incoming socket log messages), `oracle.as.management.logging.LogQuery.
+  registeredLogPathValidationEnabled` (restricts log queries to registered
+  paths), `oracle.dms.collector.J2EETableGroupProvider.
+  deserializationFilterEnabled` (stricter DMS TableGroup/QueryOptions
+  deserialization).

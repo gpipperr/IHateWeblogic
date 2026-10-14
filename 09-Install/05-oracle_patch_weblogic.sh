@@ -562,6 +562,12 @@ for _p in $PATCHES_TO_APPLY; do
     fi
     ok "Patch $_p ZIP: $(basename "$PATCH_ZIP")"
 
+    check_patch_zip "$PATCH_ZIP" "$_p" "$FMW_PRODUCT_RELEASE" || {
+        fail "Patch $_p failed ZIP validation - aborting before extraction (see check_patch_zip message above)"
+        rm -rf "$STAGING_BASE"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    }
+
     info "Extracting patch $_p to staging..."
     unzip -q "$PATCH_ZIP" -d "$STAGING_BASE" || {
         fail "unzip failed: $PATCH_ZIP"

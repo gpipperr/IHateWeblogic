@@ -286,6 +286,113 @@ _select_patch_zip() {
     return 2
 }
 
+# check_patch_zip  zip_path  patch_nr  expected_release
+# Read-only validation of a downloaded OPatch patch ZIP before extraction.
+# Verifies (a) the ZIP is a genuine OPatch one-off patch, not an
+# E-Business Suite AutoPatch driver mistakenly attached to the wrong MOS
+# portal page, and (b) inventory.xml reports the expected product release
+# (a single MOS patch number can ship several product-version variants
+# under the same number, e.g. Patch 39988381 ships 12.2.1.4.0 / 14.1.1.0.0 /
+# 14.1.2.0.0 / 15.1.1.0.0 builds under one patch number). Uses only
+# "unzip -l" / "unzip -p" - never extracts to disk.
+#
+# Only fits a standard OPatch one-off patch (etc/config/inventory.xml +
+# actions.xml, one <patch_id>) - does NOT apply to the WLS Stack Patch
+# Bundle ZIP (bundle of many patches, different layout) or the OPatch
+# upgrade ZIP (OUI installer package, no inventory.xml) - those are staged
+# and applied separately and are out of scope for this function.
+#
+# Checks, in order:
+#   1. zip readable, "<patch_nr>/" root directory present in the listing
+#   2. EBS pattern: a "patch_<patch_nr>.xml" or "*.drv" entry anywhere in
+#      the listing is a hard failure (wrong package attached to the MOS page)
+#   3. OPatch structure: "<patch_nr>/etc/config/inventory.xml" AND
+#      ".../actions.xml" must both be listed
+#   4. inventory.xml's <patch_id number="..."/> must equal patch_nr
+#   5. inventory.xml's <required_components> version check: the component
+#      naming convention differs per product (oracle.wls.* for WLS,
+#      oracle.reports.* for Reports QPRs, oracle.developer.forms.* for Forms
+#      QPRs - no single name fits all), so this takes the MAJORITY version
+#      value across all <component version="..."/> entries in
+#      <required_components> instead of anchoring on one hardcoded name
+#      (verified against real 14.1.2/12.2.1.4/14.1.1/15.1.1 WLS, Reports and
+#      Forms patch ZIPs). A patch with 2+ components and a majority version
+#      that disagrees with expected_release is a hard failure (this is what
+#      catches a wrong product-release variant, e.g. 39988381's four
+#      releases). A patch with only ONE component (e.g. Patch 38590500's
+#      sole oracle.perlint component, versioned by the bundled Perl
+#      interpreter itself - 5.38.2.0.0, not the FMW release) is NOT hard
+#      failed on a mismatch, since that single version may legitimately be
+#      an embedded tool's own version rather than the FMW release; only a
+#      warn is logged and the check still passes.
+#
+# Prints ok()/warn()/fail() messages itself; caller only needs the return
+# code. Return codes:
+#   0 = all checks passed (release matched, or release check not applicable)
+#   1 = zip unreadable, or "<patch_nr>/" root dir not found in the listing
+#   2 = EBS AutoPatch artifact found (patch_<nr>.xml or *.drv) - wrong
+#       package, do not apply, open an SR
+#   3 = OPatch structure missing (no inventory.xml/actions.xml, no EBS
+#       pattern either - unexpected zip layout)
+#   4 = inventory.xml unreadable, or <patch_id> does not match patch_nr
+#   5 = required_components present with 2+ entries and their majority
+#       version does not match expected_release
+check_patch_zip() {
+    local zip_path="$1" patch_nr="$2" expected_release="$3"
+    local listing inv_xml patch_id_found comp_block comp_count comp_version
+
+    if [ ! -f "$zip_path" ]; then
+        fail "check_patch_zip: file not found: $zip_path"
+        return 1
+    fi
+
+    listing="$(unzip -l "$zip_path" 2>/dev/null)"
+    if [ -z "$listing" ] || ! printf '%s\n' "$listing" | grep -q "${patch_nr}/\$"; then
+        fail "check_patch_zip: not a readable zip or missing ${patch_nr}/ root dir: $zip_path"
+        return 1
+    fi
+
+    if printf '%s\n' "$listing" | grep -Eq "patch_${patch_nr}\.xml|\.drv\$"; then
+        fail "check_patch_zip: EBS AutoPatch artifact found in $(basename "$zip_path") (patch_${patch_nr}.xml or *.drv) - wrong package, do NOT apply, open an SR"
+        return 2
+    fi
+
+    if ! printf '%s\n' "$listing" | grep -q "${patch_nr}/etc/config/inventory.xml" \
+       || ! printf '%s\n' "$listing" | grep -q "${patch_nr}/etc/config/actions.xml"; then
+        fail "check_patch_zip: missing etc/config/inventory.xml or actions.xml in $(basename "$zip_path") - not a valid OPatch package"
+        return 3
+    fi
+
+    inv_xml="$(unzip -p "$zip_path" "${patch_nr}/etc/config/inventory.xml" 2>/dev/null)"
+    if [ -z "$inv_xml" ]; then
+        fail "check_patch_zip: could not read inventory.xml from $(basename "$zip_path")"
+        return 4
+    fi
+
+    patch_id_found="$(printf '%s' "$inv_xml" | grep -o '<patch_id number="[0-9]*"' | grep -o '[0-9]*' | head -1)"
+    if [ "$patch_id_found" != "$patch_nr" ]; then
+        fail "check_patch_zip: inventory.xml <patch_id> ($patch_id_found) does not match expected patch $patch_nr"
+        return 4
+    fi
+
+    comp_block="$(printf '%s' "$inv_xml" | sed -n '/<required_components>/,/<\/required_components>/p')"
+    comp_count="$(printf '%s' "$comp_block" | grep -o 'version="[^"]*"' | wc -l)"
+    comp_version="$(printf '%s' "$comp_block" | grep -o 'version="[^"]*"' \
+        | sort | uniq -c | sort -rn | head -1 | sed -E 's/.*version="([^"]*)"/\1/')"
+
+    if [ "$comp_count" -eq 0 ]; then
+        warn "check_patch_zip: no <required_components> found in inventory.xml ($(basename "$zip_path")) - skipping release check"
+    elif [ "$comp_count" -eq 1 ] && [ "$comp_version" != "$expected_release" ]; then
+        warn "check_patch_zip: patch $patch_nr has a single component at version $comp_version (expected $expected_release) - likely an embedded tool's own version, not the FMW release; release check skipped"
+    elif [ "$comp_count" -ge 2 ] && [ "$comp_version" != "$expected_release" ]; then
+        fail "check_patch_zip: patch $patch_nr is release $comp_version, expected $expected_release ($(basename "$zip_path")) - wrong product-version variant downloaded"
+        return 5
+    fi
+
+    ok "check_patch_zip: patch $patch_nr OK (release ${comp_version:-n/a}, OPatch structure valid)"
+    return 0
+}
+
 # check_env_conf  [path_to_environment.conf]
 # Returns 0 if found, 1 if missing (prints error).
 check_env_conf() {
