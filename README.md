@@ -36,8 +36,14 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
 > **Work in Progress** – This library is under active development.
-> Not all scripts are fully implemented yet and the collection has not been
-> end-to-end tested on a live Oracle Forms/Reports installation.
+> Not all scripts are fully implemented yet.
+> **Live-tested 2026-10-14/15:** a clean script-by-script rebuild on Oracle
+> Linux 9 (FMW 14.1.2, CSPU Sep 2026 patch level, local 19c repository DB) ran
+> the whole `09-Install/` chain end-to-end – Phase 0 through `14b-` plus the
+> autostart `30-` (domain running under systemd + Node Manager, Reports engines
+> idle, Forms servlet up). The bugs found on the way are fixed and committed;
+> what is still open is listed under [Open Items / TODO](#open-items--todo).
+> The diagnostic folders `02-`…`06-` were not part of that run.
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 
@@ -77,11 +83,14 @@ operation with proactive, AI-assisted error analysis.
 │  PHASE 2 – CONFIGURATION & FIRST START                              │
 │  (oracle)                                                            │
 │                                                                     │
-│  09-Install/09        JVM, cgicmd.dat, base configuration           │
-│  09-Install/10–11     boot.properties, NodeManager                 │
+│  09-Install/09        boot.properties, JVM, font packages, backup   │
+│  00-Setup/init_env.sh Add runtime parameters to environment.conf    │
+│  09-Install/10–11     boot.properties, NodeManager (+ NM creds)    │
 │  09-Install/12        Reports users (monUser, RepRunner)            │
 │  09-Install/13        Configure Reports Server                     │
 │  09-Install/14        Configure Forms (template copy approach)     │
+│  09-Install/14b       Reports fonts, uifont.ali, cgicmd.dat         │
+│  09-Install/30        Autostart: systemd unit + Node Manager        │
 │  01-Run/startStop.sh  Start AdminServer + Managed Servers           │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -341,7 +350,8 @@ IHateWeblogic/
 │   ├── 06-oracle_patch_forms_reports.sh   – Phase 3: Forms & Reports patches
 │   ├── 07-oracle_setup_repository.sh – Phase 4: RCU metadata schemas
 │   ├── 08-oracle_setup_domain.sh    – Phase 4: WebLogic domain creation (WLST silent)
-│   ├── 09-oracle_configure.sh       – Phase 5: orchestrator – env → JVM → fonts → cgicmd → backup
+│   ├── 09-oracle_configure.sh       – Phase 5: pre-start config – boot.properties → JVM → font OS
+│   │                                   packages → validation → backup (fonts/cgicmd.dat: 14b-)
 │   ├── 10-oracle_boot_properties.sh – Phase 6: boot.properties (AdminServer + NodeManager)
 │   ├── 11-oracle_nodemanager.sh     – Phase 6: NodeManager setup (plain SSL via WLST)
 │   ├── 12-oracle_reports_users.sh   – Phase 6: monUser + RepRunner WebLogic users
@@ -359,7 +369,10 @@ IHateWeblogic/
 │   │                                   (default.env, formsweb.cfg, webutil.cfg, Registry.dat, res files)
 │   ├── response_files/              – Silent-install response file templates
 │   │                                   (domain_config.py, fr_install.rsp, cgicmd.dat)
-│   └── docs/                        – Step-by-step detail documentation (00–14, 80-security, 90-validate)
+│   ├── 15-deploy-test-report-forms_template.sh – Smoke test: minimal Forms module + Reports demo
+│   │                                   (partially verified)
+│   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
+│                                       30-autostart, 80-security, 90-validate, 99-deinstall)
 │
 ├── 10-Monitoring/
 │   └── README.md                    – Concept only: AI-assisted proactive monitoring (Claude API)
@@ -460,31 +473,91 @@ by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
 German manual cookbook (Schritt 8) for customers installing by hand — see
 [`70-Customer-Projects/`](70-Customer-Projects/README.md).
 
+> **Live finding 2026-10-15:** as long as the Reports server is **not**
+> secured via `securityId` on the `<job>` element of `rwserver.conf`, the
+> roles above do not apply to web commands. With `<webcommandaccess>`
+> `no`/`L0`/`L1`, `getserverinfo`/`showjobs` then require the **server
+> administrator** from `<identifier>` in `rwserver.conf` as `authid`
+> (`rep_admin/...`); `authid=monUser/...` or the WebLogic admin return
+> `REP-52262 Diagnostic output is disabled` (confirmed in the
+> `CommandManager.checkDiagnostic` bytecode). See
+> `09-Install/docs/13-reports-detail-settings.md`.
+>
 > This is separate from the `01-Run/rwserver_status.sh` gap in Open Items
 > below – that script's own `getserverinfo` call is unauthenticated and
-> needs `authid=` support added; the role/policy model described here is
-> what it would authenticate *against* once that's implemented.
+> needs `authid=` support added.
 
 ## Open Items / TODO
 
+Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
+
+### Next steps on the test host (rebuild not finished yet)
+
+- [ ] **Reboot test of the autostart** (`30-configure_autostart.sh`): unit
+  `fmw-<domain>.service` is installed, enabled and starts/stops the domain
+  correctly via `systemctl` – not yet verified across a real reboot (repository
+  DB must come up first, then FMW).
+- [ ] **Smoke test `09-Install/15-deploy-test-report-forms_template.sh`** – status
+  "partially verified" since 2026-08; run it against the rebuilt domain.
+- [ ] **Customer cookbook check**: does the graphical Configuration Wizard also
+  create random Node Manager credentials (it does not show the Node Manager
+  screen unless "Node Manager" is ticked under Advanced Configuration)? If yes,
+  `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
+  fix as `11-oracle_nodemanager.sh`.
+
+### Script gaps found during the rebuild
+
+- [ ] **JDK path resolved in the domain**: WLST `createDomain`/`updateDomain`
+  write the resolved JDK directory (`jdk-21.0.12.1`) instead of the symlink
+  (`jdk-21`) into `setDomainEnv.sh`, `setNMJavaHome.sh` and
+  `nodemanager.properties`; `updateDomain` also rewrites
+  `nodemanager.properties`. `02b-root_os_java.sh --upgrade-jdk` only switches
+  the symlink → after a JDK upgrade the domain keeps running on the old JDK.
+  Fix in `08-` (post-step) and/or `02b-`/`80-`.
+- [ ] **`01-Run/startStop.sh` has no Reports system components**: `start-all` /
+  `stop-all` / status cover NodeManager, AdminServer, managed servers and OHS
+  only – `repserver*` must be started/stopped with `startComponent.sh` /
+  `stopComponent.sh` (a `stop-all` that kills the Node Manager leaves the
+  Reports server orphaned). The autostart (`30-`, `fmw_ctl.sh`) already
+  handles them.
+- [ ] **`rwserver.conf` server administrator**: `13-oracle_setup_reports.sh`
+  writes a fixed `<identifier>rep_admin/wls_team</identifier>` – generate or
+  ask for the password and store it encrypted (`*.des3`) like the other
+  credentials; needed by every authenticated `getserverinfo` call.
+- [ ] **Reports server security decision**: secure the server via `securityId`
+  on the `<job>` element (then `monUser`/`RW_MONITOR` work as designed) or keep
+  the `<identifier>` admin for web commands – see Report Security above.
+- [ ] **Reports-only installs in `08-oracle_setup_domain.sh`**: the Forms template
+  (`forms_template.jar`, `WLS_FORMS`) is still added unconditionally, also for
+  `INSTALL_COMPONENTS=REPORTS_ONLY` (same bug class already fixed in `06-`).
+- [ ] **Forms WebUtil (jacob)**: `jacob.jar` and the WebUtil DLLs
+  are a manual step (`14-` only checks them) – no download source in
+  `PATCH_STORAGE`.
+
+### Older open items
+
 - [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):
-  `getserverinfo` is currently called without credentials (works on unsecured servlets).
-  Secured rwservlet instances require `authid=user/password` in the URL or HTTP Basic Auth.
-  Credentials must be stored encrypted using the same mechanism as the WebLogic password
-  (`openssl des3` + system UUID key via `00-Setup/weblogic_sec.sh`).
-  Until implemented: restrict `rwservlet` access via firewall or WLS security policy.
-  See [Report Security](#report-security--secure-invocation--basic-hardening) above for the
-  role/policy model this would authenticate against (`monUser`/`RW_MONITOR`).
+  `getserverinfo` is called without `authid` and therefore gets `REP-52262` on
+  the rebuilt domain. Add `authid` support with credentials stored encrypted
+  (`openssl des3` + system UUID key, same mechanism as `00-Setup/weblogic_sec.sh`);
+  which user to send depends on the security decision above.
 
 - [ ] **`02-Checks/display_check.sh`** – not yet created.
   Verify/set a usable `DISPLAY` for `rwclient`/report generation that needs an X server (Xvfb).
 
 - [ ] **`01-Run/rwrun_trace.sh`** – not yet created.
-  Run a single report with `rwrun` debug tracing enabled for root-cause analysis.
+  Run a single report with `rwrun` debug tracing enabled for root-cause analysis
+  (groundwork from 2026-10-14: crash chain libjvm → environment → ReportsTools
+  instance → logon dialog, ODL `TRACE:32`; needs the ReportsTools instance that
+  the rebuild now provides).
 
 - [ ] **Repository schema patching** – no dedicated script yet.
   `60-RCU-DB-19c/02-db_patch_db_software.sh` only patches the database software (AutoUpgrade);
   RCU/repository schema patches after an FMW upgrade are still a manual step.
+
+- [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a Reports
+  QPR on OL9, `libzrc.so` vs. glibc 2.34): no fix patch yet – the workaround in
+  `06-oracle_patch_forms_reports.sh` stays until Oracle ships one.
 
 - [ ] **`10-Monitoring/`** – concept only, not implemented yet.
   See [10-Monitoring/README.md](10-Monitoring/README.md) for the planned Claude-assisted
