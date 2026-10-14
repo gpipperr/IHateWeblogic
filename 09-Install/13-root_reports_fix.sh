@@ -160,8 +160,11 @@ fi
 
 section "libnsl.so.2 Symlink"
 
-# Source library on the OS – OL9 ships libnsl.so.3.0.0
-LIBNSL_SRC="/lib64/libnsl.so.3.0.0"
+# Source library on the OS: the stable SONAME link libnsl.so.3 (package libnsl2),
+# NOT the versioned file libnsl.so.3.0.0 – its name depends on the package
+# version and can change with an OS update; the SONAME link is maintained by
+# the OS (same rule as the Reports cookbook, 2026-10-15)
+LIBNSL_SRC="/lib64/libnsl.so.3"
 LIBNSL_LINK="$ORACLE_HOME/lib/libnsl.so.2"
 
 printf "  %-26s %s\n" "Symlink target (OS):" "$LIBNSL_SRC"  | tee -a "${LOG_FILE:-/dev/null}"
@@ -216,7 +219,12 @@ elif [ -f "$LIBNSL_LINK" ]; then
 else
     # Does not exist at all
     if [ "$NEEDS_FIX" -eq 1 ]; then
-        fail "libnsl.so.2 not found in ORACLE_HOME/lib – Reports Server will fail to start"
+        # With --apply this is the state before the fix, not an error
+        if [ "$APPLY_MODE" -eq 1 ]; then
+            info "libnsl.so.2 not found in ORACLE_HOME/lib – creating symlink"
+        else
+            fail "libnsl.so.2 not found in ORACLE_HOME/lib – Reports Server will fail to start"
+        fi
         info "  Doc ID 3069675.1: ln -s $LIBNSL_SRC $LIBNSL_LINK"
 
         if [ "$APPLY_MODE" -eq 1 ]; then
@@ -259,7 +267,8 @@ if [ -f "$RWSERVER_BIN" ]; then
 
     if [ -n "$LDD_NSL" ]; then
         printf "  libnsl entry:\n" | tee -a "${LOG_FILE:-/dev/null}"
-        printf "%s" "$LDD_NSL" | while IFS= read -r _line; do
+        # trailing \n – "read" drops a last line without newline (was empty)
+        printf "%s\n" "$LDD_NSL" | while IFS= read -r _line; do
             printf "    %s\n" "$_line" | tee -a "${LOG_FILE:-/dev/null}"
         done
 

@@ -89,14 +89,18 @@ No such file or directory
 **Fix (as root):**
 
 ```bash
-ln -s /lib64/libnsl.so.3.0.0 $ORACLE_HOME/lib/libnsl.so.2
+ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2
 
 # Verify
 ls -la $ORACLE_HOME/lib/libnsl.so.2
 ```
 
 > This symlink is only required on Oracle Linux 9 / RHEL 9.
-> The target `libnsl.so.3.0.0` is present by default on OL9.
+> Link to the stable SONAME link `/lib64/libnsl.so.3` (package `libnsl2`, itself
+> a link to `libnsl.so.3.0.0`) – **not** to the versioned file: its name depends
+> on the package version and can change with an OS update.
+> Verify with `readlink -f $ORACLE_HOME/lib/libnsl.so.2` (must resolve to an
+> existing file) and `ldd $ORACLE_HOME/bin/rwserver | grep libnsl`.
 
 ---
 
@@ -567,7 +571,7 @@ grep -i "SEVERE\|error\|exception" \
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| `libnsl.so.2: cannot open shared object file` | OL9, symlink missing | Step 1: `ln -s /lib64/libnsl.so.3.0.0 $ORACLE_HOME/lib/libnsl.so.2` |
+| `libnsl.so.2: cannot open shared object file` | OL9, symlink missing | Step 1: `ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2` |
 | Reports Server not found by servlet | `rwservlet.properties <server>` wrong | Step 4: set `<server>repserver_ent</server>` |
 | Reports run in-process despite standalone server | `<inprocess>no</inprocess>` missing | Step 4: set `inprocess=no` |
 | Engine startup fails / loops | `SecurityId` attribute present in `<job>` | Step 5: remove `SecurityId` from `<job jobType="report">` |
