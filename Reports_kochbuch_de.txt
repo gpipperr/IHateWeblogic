@@ -187,6 +187,14 @@ SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
   #     DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
   #     SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
 
+  # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis (dieselben 9
+  # Schemas werden angelegt) - Option A (Silent) ist die uebliche Wahl auf
+  # einem Server ohne dauerhafte grafische Oberflaeche, Option B (Grafisch)
+  # fuer alle, die dem RCU-Assistenten lieber beim Arbeiten zusehen/Werte
+  # interaktiv pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+
+  --- Option A: Silent (Kennwortdatei, empfohlen fuer Server ohne GUI) -------
+
   # RCU-Kennwortdatei anlegen (SYS-Kennwort + je ein Kennwort pro Schema).
   # WICHTIG: Datei nur temporaer, danach sofort loeschen (enthaelt
   # Klartext-Kennwoerter).
@@ -233,7 +241,56 @@ EOF
   # Kennwortdatei sofort entfernen
   shred -u /tmp/rcu_passwords.txt 2>/dev/null || rm -f /tmp/rcu_passwords.txt
 
-  # RCU-Logs: $ORACLE_HOME/oracle_common/rcu/log/
+  --- Option B: Grafisch (RCU-Assistent) --------------------------------------
+
+  # Voraussetzung: grafische Oberflaeche erreichbar - siehe
+  # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
+  # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
+
+  # Gleiches Werkzeug wie Option A, aber OHNE -silent/-connectString/
+  # -component-Parameter - startet stattdessen den grafischen RCU-Assistenten:
+  $ORACLE_HOME/oracle_common/bin/rcu
+
+  # Im Assistenten dieselben Werte eintragen, die in Option A als
+  # Kommandozeilenparameter standen:
+  #
+  #   Bildschirm "Create Repository":
+  #     Create Repository  ->  System Load and Product Load
+  #
+  #   Bildschirm "Database Connection Details":
+  #     Database Type:  Oracle Database
+  #     Host Name:      ${DB_HOST}
+  #     Port:           ${DB_PORT}
+  #     Service Name:   ${DB_SERVICE}   <- WICHTIG: das Feld "Service Name"
+  #                     verwenden, NICHT "SID" (dieselbe Connect-String-Falle
+  #                     wie in Option A - ein SID wuerde die CDB statt der
+  #                     PDB ansprechen, bei Multitenant-Datenbanken falsch)
+  #     Username:       sys
+  #     Password:       <SYS_PASSWORD>
+  #     Role:           SYSDBA
+  #     -> Next testet die Verbindung automatisch
+  #
+  #   Bildschirm "Select Components":
+  #     Create a new Prefix: ${DB_SCHEMA_PREFIX}
+  #     Nur folgende Komponenten ankreuzen (nicht mehr, nicht weniger -
+  #     identisch zu den "-component"-Parametern in Option A):
+  #       STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER, UCSUMS, WLS
+  #
+  #   Bildschirm "Schema Passwords":
+  #     "Use same passwords for all schemas" ankreuzen, Passwort eingeben
+  #     (oder je Schema einzeln, wie in der Kennwortdatei von Option A)
+  #
+  #   Bildschirm "Map Tablespaces":
+  #     Vorschlag uebernehmen, ausser ein eigener Tablespace wurde vorab
+  #     angelegt (siehe Hinweis oben)
+  #
+  #   Bildschirm "Summary"  ->  Create
+  #   Bildschirm "Completion Summary"  ->  Close
+  #
+  # Der Assistent fuehrt am Ende dieselbe Schema-Erstellung aus wie
+  # Option A - Ergebnis ist identisch (9 Schemas mit Prefix ${DB_SCHEMA_PREFIX}_).
+
+  # RCU-Logs (beide Optionen): $ORACLE_HOME/oracle_common/rcu/log/
 
   # Verifikation GEGEN DIE BESTEHENDE DATENBANK (per sqlplus, falls
   # Oracle-Client lokal verfuegbar, sonst vom DB-Team ausfuehren lassen):
