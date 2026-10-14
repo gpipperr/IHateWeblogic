@@ -137,7 +137,10 @@ EOF
   # Kontrolle (beide Optionen, NUR Reports relevant)
   $ORACLE_HOME/OPatch/opatch version
   ls $ORACLE_HOME/reports/
-  test -x $ORACLE_HOME/reports/bin/rwrun && echo "rwrun vorhanden - OK"
+  # Die Reports-Werkzeuge liegen direkt unter $ORACLE_HOME/bin (NICHT unter
+  # $ORACLE_HOME/reports/bin):
+  test -x $ORACLE_HOME/bin/rwrun && echo "rwrun vorhanden - OK"
+  test -x $ORACLE_HOME/bin/rwconverter && echo "rwconverter vorhanden - OK"
 
 
 ================================================================================

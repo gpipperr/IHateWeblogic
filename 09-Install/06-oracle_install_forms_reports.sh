@@ -356,21 +356,19 @@ fi
 _verify_dir()  { [ -d "$1" ] && ok "$(printf "%-40s exists" "$1")" || fail "$(printf "%-40s MISSING" "$1")"; }
 _verify_bin()  { [ -x "$1" ] && ok "$(printf "%-40s found"  "$1")" || fail "$(printf "%-40s MISSING" "$1")"; }
 
+# The Forms/Reports command-line tools live directly in $ORACLE_HOME/bin
+# (confirmed on FMW 14.1.2), not in forms/bin or reports/bin. They are only
+# checked for presence – running them needs the full Forms/Reports runtime
+# environment (they can crash without it).
 case "$INSTALL_TYPE" in
     "Forms and Reports Deployment")
         _verify_dir "$ORACLE_HOME/forms"
-        _verify_bin "$ORACLE_HOME/forms/bin/frmcmp_batch"
-        printf "\n" | tee -a "$LOG_FILE"
-        info "Forms version:"
-        "$ORACLE_HOME/forms/bin/frmcmp_batch" 2>&1 \
-            | head -3 | tee -a "$LOG_FILE" || true
-        ;;
-esac
-
-case "$INSTALL_TYPE" in
-    "Forms and Reports Deployment")
+        _verify_bin "$ORACLE_HOME/bin/frmcmp_batch"
+        _verify_bin "$ORACLE_HOME/bin/frmweb"
         _verify_dir "$ORACLE_HOME/reports"
-        _verify_bin "$ORACLE_HOME/reports/bin/rwrun"
+        _verify_bin "$ORACLE_HOME/bin/rwrun"
+        _verify_bin "$ORACLE_HOME/bin/rwclient"
+        _verify_bin "$ORACLE_HOME/bin/rwconverter"
         ;;
 esac
 

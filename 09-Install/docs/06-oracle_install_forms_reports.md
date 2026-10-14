@@ -57,8 +57,13 @@ at **configuration time** (Configuration Wizard), not at install time.
 
 | Option | Binaries installed |
 |---|---|
-| Forms (Complete or FORMS_ONLY) | `$ORACLE_HOME/forms/bin/frmcmp_batch`, `frmweb`, `frmcmp` |
-| Reports (Complete or REPORTS_ONLY) | `$ORACLE_HOME/reports/bin/rwrun`, `rwclient`, `rwservlet` |
+| Forms (Complete or FORMS_ONLY) | `$ORACLE_HOME/bin/frmcmp_batch`, `frmweb`, `frmcmp` |
+| Reports (Complete or REPORTS_ONLY) | `$ORACLE_HOME/bin/rwrun`, `rwclient`, `rwconverter` |
+
+> The command-line tools live directly in **`$ORACLE_HOME/bin`** (confirmed on
+> FMW 14.1.2) – **not** in `forms/bin` / `reports/bin`. They need the full
+> Forms/Reports runtime environment to run (e.g. `rwrun` crashes without
+> `libjvm.so` on `LD_LIBRARY_PATH`), so the script only checks that they exist.
 
 > **Changing the option later** requires a full reinstall — the response file
 > `INSTALL_TYPE` cannot be changed on an existing Oracle Home without deinstalling.
@@ -121,14 +126,13 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep -iE "forms|reports"
 
 ls -la $ORACLE_HOME/forms/
 ls -la $ORACLE_HOME/reports/
-ls -la $ORACLE_HOME/forms/bin/frmcmp_batch
+ls -la $ORACLE_HOME/bin/frmcmp_batch $ORACLE_HOME/bin/rwrun
 ```
 
-Check Forms version:
+Check the installed versions (inventory, no tool start needed):
 
 ```bash
-$ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -3
-# Should show: "Oracle Forms 14.1.2.0.0 ..."
+$ORACLE_HOME/OPatch/opatch lsinventory | grep -iE "Forms|Reports"
 ```
 
 ---
@@ -171,12 +175,9 @@ Located at: `09-Install/response_files/fr_install.rsp.template`
 # Inventory
 $ORACLE_HOME/OPatch/opatch lsinventory | grep -i "forms"
 
-# Binaries exist
-ls $ORACLE_HOME/forms/bin/frmcmp_batch
-ls $ORACLE_HOME/reports/bin/rwrun
-
-# Version
-$ORACLE_HOME/forms/bin/frmcmp_batch 2>&1 | head -2
+# Binaries exist (directly in $ORACLE_HOME/bin)
+ls $ORACLE_HOME/bin/frmcmp_batch $ORACLE_HOME/bin/frmweb
+ls $ORACLE_HOME/bin/rwrun $ORACLE_HOME/bin/rwclient $ORACLE_HOME/bin/rwconverter
 ```
 
 ---
