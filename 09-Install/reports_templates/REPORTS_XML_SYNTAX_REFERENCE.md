@@ -22,13 +22,14 @@ Sources, in order of authority:
    confirms `distribution.dtd` governs a *separate* kind of XML file (output
    distribution — mail/file/printer destinations), not the report definition
    itself; see [Distribution XML](#distribution-xml--distributiondtd) below.
-4. A real, presumably-working production report (`90-Source-MetaData/TNQ.xml`)
-   — read and its structure mapped out for usage patterns the DTD alone
-   doesn't show (which attributes are actually used together in practice,
-   bind vs. lexical parameter style, parameter-form field/text layout). No
-   content from that file is reproduced here (it contains real customer
-   business logic/field names — see `CLAUDE.md`, "No customer names in
-   committed code").
+4. A real, presumably-working production report (`90-Source-MetaData/TNQ.xml`,
+   never committed — customer data, deleted again after use) — read and its
+   structure mapped out for usage patterns the DTD alone doesn't show (which
+   attributes are actually used together in practice, bind vs. lexical
+   parameter style, parameter-form field/text layout). No content from that
+   file is reproduced here (it contained real customer business logic/field
+   names — see `CLAUDE.md`, "No customer names in committed code"); the file
+   itself is no longer available in this repo or on this host.
 
 > **Status:** element/attribute names and content models below are DTD-
 > confirmed (source 1) — these will validate. Which combinations actually
@@ -285,7 +286,9 @@ distribution.dtd` (65 lines) plus Oracle's
   no parameters.
 - `09-Install/reports_templates/test_user_objects.xml` — minimal working
   example, one parameter + parameter form.
-- `90-Source-MetaData/TNQ.xml` — full production-scale example with all
-  patterns above in combination (do not copy its business-logic content).
 - `09-Install/docs/20-forms_reports_testmodules.md` — overall test-module
   status, open verification points, live test log.
+
+(The production report this reference was derived from,
+`90-Source-MetaData/TNQ.xml`, was customer data and has since been deleted —
+not available for further lookups.)

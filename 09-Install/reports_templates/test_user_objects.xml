@@ -14,9 +14,12 @@
     09-Install/reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md (syntax notes)
 
   <userParameter>/<parameterForm> syntax below is derived from a real,
-  presumably-working production report (90-Source-MetaData/TNQ.xml), not
-  written from scratch — but the actual conversion has not been tested in
-  this project yet, so treat the structure as "plausible", not "proven".
+  presumably-working production report (90-Source-MetaData/TNQ.xml, customer
+  data, never committed, since deleted again), not written from scratch —
+  but the actual conversion has not been tested in this project yet, so
+  treat the structure as "plausible", not "proven". See
+  REPORTS_XML_SYNTAX_REFERENCE.md for the generalized, DTD-cross-checked
+  writeup of what was found there.
 
   initialValue="%" lets the report run both interactively (type a filter
   pattern) and non-interactively (default "%" matches everything, so an
