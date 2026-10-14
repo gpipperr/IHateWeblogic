@@ -938,6 +938,17 @@ BEKANNTE PROBLEME UND LOESUNGEN
            werden. Beim Drop KEINE -tablespace/-tempTablespace Parameter
            angeben (sonst Abbruch mit RCU-6197).
 
+  Problem: Domain geloescht und neu angelegt - Configuration Wizard bzw.
+           WLST bricht in der Phase "OPSS Processing" ab mit
+           "The schema DEV_OPSS is already in use for security store(s)"
+  Ursache: Das OPSS-Schema ist fest an die Domain gebunden, die es zuerst
+           benutzt hat. Eine neue Domain kann es nicht uebernehmen.
+  Loesung: Neue Domain = neue RCU-Schemas. Halb angelegtes Domain-
+           Verzeichnis loeschen, Schemas per "rcu -silent -dropRepository"
+           entfernen (nur nach Ruecksprache mit dem DB-Team, siehe oben:
+           Tablespace wird mitgeloescht!), Tablespace neu anlegen, RCU
+           neu ausfuehren, dann die Domain neu anlegen.
+
   Problem: Configuration Wizard bietet trotz bestehender Domain "Create
            Domain" statt "Update Domain" an, oder bricht mit einem
            Pfad-Konflikt ab

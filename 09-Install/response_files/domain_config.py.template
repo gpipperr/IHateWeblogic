@@ -75,6 +75,11 @@ _cfg_ds('LocalSvcTblDataSource', _pfx + '_STB',         _db_url, _db_pw)
 _cfg_ds('opss-data-source',      _pfx + '_OPSS',        _db_url, _db_pw)
 _cfg_ds('opss-audit-DBDS',       _pfx + '_IAU_APPEND',  _db_url, _db_pw)
 _cfg_ds('opss-audit-viewDS',     _pfx + '_IAU_VIEWER',  _db_url, _db_pw)
+# WLS schema data sources (wls_schema.jar, pulled in via JRF). Untargeted by
+# design (config-groups default-targeting="false"), but without this their URL
+# stays at the template placeholder dbhost.example.com:1521/orcl (seen 2026-10-14)
+_cfg_ds('WLSSchemaDataSource',        _pfx + '_WLS',         _db_url, _db_pw)
+_cfg_ds('WLSRuntimeSchemaDataSource', _pfx + '_WLS_RUNTIME', _db_url, _db_pw)
 # mds-owsm does NOT exist in Forms & Reports (no OWSM component installed)
 
 # --- Write domain ------------------------------------------------------------

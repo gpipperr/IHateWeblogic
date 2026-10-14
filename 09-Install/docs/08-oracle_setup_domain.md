@@ -168,11 +168,33 @@ ls -la $DOMAIN_HOME/servers/AdminServer/
 ls -la $DOMAIN_HOME/servers/WLS_FORMS/
 ls -la $DOMAIN_HOME/servers/WLS_REPORTS/
 
-# Start AdminServer and verify
-$DOMAIN_HOME/bin/startWebLogic.sh &
-# wait ~60s
-curl -s http://127.0.0.1:7001/console/ | grep -i "weblogic"
+# All data sources point to the RCU database (none left at dbhost.example.com)
+grep -h "<url>" $DOMAIN_HOME/config/jdbc/*.xml | sort | uniq -c
 ```
+
+**Re-creating the domain needs fresh RCU schemas.** `writeDomain` binds the OPSS
+security store in `<prefix>_OPSS` to the new domain. Deleting `DOMAIN_HOME` and
+running `08` again fails with (confirmed 2026-10-15):
+
+```
+64254: Error occurred in "OPSS Processing" phase execution
+LifecycleException: The schema DEV_OPSS is already in use for security store(s).
+Please create a new schema..
+```
+
+Order: remove the (partial) `DOMAIN_HOME` → `07-oracle_setup_repository.sh --drop`
+→ re-create the tablespace if `RCU_TABLESPACE` is set
+(`60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply`, the drop removes it) →
+`07-oracle_setup_repository.sh --apply` → `08-oracle_setup_domain.sh --apply`.
+The script prints this sequence when it detects the error.
+
+The domain is not started here: next step is `09-oracle_configure.sh`
+(WLS 14.1.2 has no Administration Console under `/console` any more).
+
+> `WLSSchemaDataSource` / `WLSRuntimeSchemaDataSource` (`<prefix>_WLS`,
+> `<prefix>_WLS_RUNTIME`) come from `wls_schema.jar` and are **untargeted by
+> design** (`default-targeting="false"`). The WLST template still sets their URL
+> and user – otherwise they keep the placeholder `dbhost.example.com:1521/orcl`.
 
 ---
 

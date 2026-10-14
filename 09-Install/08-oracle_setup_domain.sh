@@ -249,6 +249,7 @@ printf "\n  WLST started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FI
 printf "  Domain     : %s\n" "$DOMAIN_HOME" | tee -a "$LOG_FILE"
 printf "  Admin user : %s\n\n" "$WL_USER" | tee -a "$LOG_FILE"
 
+_log_lines_before=$(wc -l < "$LOG_FILE")
 "$WLST_BIN" "$WLST_PY_FILE" 2>&1 | tee -a "$LOG_FILE"
 WLST_RC=${PIPESTATUS[0]}
 
@@ -257,7 +258,23 @@ printf "\n  WLST finished: %s  (rc=%s)\n" \
 
 if [ "$WLST_RC" -ne 0 ]; then
     fail "WLST exited with rc=$WLST_RC"
-    fail "  Check output above for Python/WLST error details"
+    # The OPSS security store in <prefix>_OPSS is bound to the domain that
+    # created it – a new domain cannot reuse it (confirmed 2026-10-15)
+    if tail -n +"$((_log_lines_before + 1))" "$LOG_FILE" \
+         | grep -q "is already in use for security store"; then
+        fail "  ${DB_SCHEMA_PREFIX}_OPSS still holds the security store of a previous domain"
+        info "  A new domain needs fresh RCU schemas (the old domain's OPSS data is lost anyway):"
+        info "    rm -rf $DOMAIN_HOME                                  (partial domain from this run)"
+        info "    09-Install/07-oracle_setup_repository.sh --drop"
+        [ -n "${RCU_TABLESPACE:-}" ] && \
+            info "    60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply        (drop removes ${RCU_TABLESPACE})"
+        info "    09-Install/07-oracle_setup_repository.sh --apply"
+        info "    09-Install/08-oracle_setup_domain.sh --apply"
+    else
+        fail "  Check output above for Python/WLST error details"
+    fi
+    [ -d "$DOMAIN_HOME" ] && [ ! -f "$DOMAIN_HOME/config/config.xml" ] && \
+        warn "  Partial domain directory left behind: $DOMAIN_HOME – remove it before re-running"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 ok "WLST completed successfully"
@@ -344,10 +361,10 @@ unset _path
     warn "$VERIFY_FAILS expected file(s) not found – domain may be incomplete"
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: start AdminServer and verify domain"
-info "  $DOMAIN_HOME/bin/startWebLogic.sh &"
-info "  # wait ~60s, then:"
-info "  curl -s http://${WLS_LISTEN_ADDRESS}:${WLS_ADMIN_PORT}/console/"
+# WLS 14.1.2 has no Administration Console (/console) any more – the domain is
+# configured by 09-oracle_configure.sh before the first start
+info "Next step: post-domain configuration (domain is started afterwards)"
+info "  09-Install/09-oracle_configure.sh   (dry-run, then --apply)"
 
 # =============================================================================
 print_summary
