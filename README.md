@@ -375,8 +375,9 @@ IHateWeblogic/
 │   └── docs/                        – Step-by-step detail documentation
 │
 └── 70-Customer-Projects/            – Customer-specific manual walkthroughs, not generated from
-                                        the scripts above (no README at this level, one subfolder
-                                        per customer/scenario)
+    │                                   the scripts above; see README.md for an index + further
+    │                                   German installation guides (one subfolder per customer/scenario)
+    ├── README.md
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -450,9 +451,8 @@ reports) from **report execution** (`RepRunner` / `RW_EXECREPORTS` – runs
 reports via `authid=` in `cgicmd.dat`, password never appears in the report
 URL) from full **admin access** (`weblogic` / `RW_ADMINISTRATOR`). Automated
 by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
-German manual cookbook
-[`70-Customer-Projects/Reports14_Only_manuall_install/Reports_kochbuch_de.txt`](70-Customer-Projects/Reports14_Only_manuall_install/Reports_kochbuch_de.txt)
-(Schritt 8) for customers installing by hand.
+German manual cookbook (Schritt 8) for customers installing by hand — see
+[`70-Customer-Projects/`](70-Customer-Projects/README.md).
 
 > This is separate from the `01-Run/rwserver_status.sh` gap in Open Items
 > below – that script's own `getserverinfo` call is unauthenticated and
