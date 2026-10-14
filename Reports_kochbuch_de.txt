@@ -305,63 +305,111 @@ EOF
 SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
 ================================================================================
 
-  # WLST-Skript als Datei anlegen. Im Vergleich zu einer
-  # Forms+Reports-Standardanleitung fehlen hier BEWUSST:
-  #   - addTemplate(".../forms/common/templates/wls/forms_template.jar")
-  #   - der komplette "/Servers/WLS_FORMS"-Block
-  cat > /tmp/domain_config.py << EOF
-readTemplate('${ORACLE_HOME}/wlserver/common/templates/wls/wls.jar')
+  # Voraussetzung: grafische Oberflaeche erreichbar - siehe
+  # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
+  # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
 
-cd('/Security/base_domain/User/weblogic')
-cmo.setName('weblogic')
-cmo.setPassword('<WLS_ADMIN_PASSWORD>')
+  # WICHTIG vor dem Start: Falls $DOMAIN_HOME/config/config.xml bereits
+  # existiert, im Assistenten NICHT "Create Domain" waehlen - das wuerde
+  # versuchen, am selben Pfad eine neue Domain anzulegen und schlaegt dann
+  # entweder fehl oder fragt nach einem Update. Stattdessen "Update Domain"
+  # verwenden oder vorher einen anderen DOMAIN_HOME waehlen.
+  test -f $DOMAIN_HOME/config/config.xml && echo "ACHTUNG: Domain existiert bereits"
 
-cd('/')
-set('Name', '${DOMAIN_NAME}')
+  # Fusion Middleware Configuration Wizard starten:
+  $ORACLE_HOME/oracle_common/common/bin/config.sh
 
-addTemplate('${ORACLE_HOME}/oracle_common/common/templates/wls/oracle.jrf_template.jar')
-addTemplate('${ORACLE_HOME}/reports/common/templates/wls/oracle.reports_app_template.jar')
+  # Im Assistenten folgende Werte eintragen/auswaehlen. Im Vergleich zu
+  # einer Forms+Reports-Standardanleitung wird hier BEWUSST NICHT die
+  # Vorlage "Oracle Forms" angehakt - das ist der einzige Unterschied, der
+  # aus dieser Domain eine reine Reports-Domain macht.
+  #
+  #   Bildschirm "Welcome":
+  #     Create a New Domain
+  #
+  #   Bildschirm "Create Domain":
+  #     Domain Location: ${DOMAIN_HOME}
+  #
+  #   Bildschirm "Templates":
+  #     "Create Domain Using Product Templates" (NICHT "...Using Custom
+  #     Template")
+  #     Ankreuzen:
+  #       [x] Oracle JRF - 14.1.2.0.0   (zieht "Oracle Enterprise Manager"
+  #                                      als Abhaengigkeit automatisch mit -
+  #                                      wird fuer Schritt 8 gebraucht)
+  #       [x] Oracle Reports - 14.1.2.0.0
+  #     NICHT ankreuzen:
+  #       [ ] Oracle Forms   <- bewusst weggelassen, reines Reports-Thema
+  #
+  #   Bildschirm "Application Location":
+  #     Vorschlag uebernehmen (Standard-Pfad neben $DOMAIN_HOME)
+  #
+  #   Bildschirm "Administrator Account":
+  #     Name:     weblogic
+  #     Password: <WLS_ADMIN_PASSWORD>
+  #     (Kennwort-Richtlinie: mindestens 8 Zeichen, mindestens eine Ziffer
+  #     ODER ein Sonderzeichen - sonst Fehler 60455)
+  #
+  #   Bildschirm "Domain Mode and JDK":
+  #     Domain Mode: Production
+  #     JDK:         $JDK_HOME (falls nicht automatisch erkannt, "Browse"
+  #                  verwenden)
+  #
+  #   Bildschirm "Database Configuration Type":
+  #     RCU Data  (NICHT "Manual Configuration" - "RCU Data" liest die
+  #     Schema-Infos direkt aus der in Schritt 3 angelegten STB-Tabelle in
+  #     der Datenbank und befuellt danach ALLE JRF-Datenquellen automatisch -
+  #     vollstaendiger als eine manuelle Einzelkonfiguration)
+  #       Vendor:          Oracle
+  #       Driver:          Oracle's Driver (Thin) for Service connections
+  #       Service:         ${DB_SERVICE}   <- WICHTIG: Service-Feld, nicht
+  #                        SID (dieselbe Connect-String-Falle wie in
+  #                        Schritt 3)
+  #       Host Name:       ${DB_HOST}
+  #       Port:            ${DB_PORT}
+  #       Schema Owner:    ${DB_SCHEMA_PREFIX}_STB
+  #       Schema Password: <SCHEMA_PASSWORD>  (Kennwort des STB-Schemas aus
+  #                        Schritt 3)
+  #     -> "Get RCU Configuration" klicken, danach weiter
+  #
+  #   Bildschirm "JDBC Component Schema":
+  #     Die aus "Get RCU Configuration" vorbelegten Werte pruefen, nichts
+  #     aendern (alle Schemas verwenden denselben Prefix ${DB_SCHEMA_PREFIX})
+  #
+  #   Bildschirm "JDBC Component Schema Test":
+  #     "Test All Connections" - alle Zeilen muessen auf "Success" stehen,
+  #     sonst DB-Erreichbarkeit/Kennwoerter pruefen ("nc -zv $DB_HOST $DB_PORT")
+  #
+  #   Bildschirm "Advanced Configuration":
+  #     Ankreuzen (nur diese beiden - entspricht genau dem, was eine
+  #     manuelle Konfiguration hier setzen wuerde):
+  #       [x] Administration Server
+  #       [x] Managed Servers, Clusters and Coherence
+  #
+  #   Bildschirm "Administration Server":
+  #     Server Name:     AdminServer
+  #     Listen Address:  localhost
+  #     Listen Port:     ${WLS_ADMIN_PORT}
+  #
+  #   Bildschirm "Managed Servers":
+  #     Vorhandenen Beispiel-Eintrag anpassen bzw. einen Server hinzufuegen:
+  #       Server Name:     ${WLS_MANAGED_SERVER}
+  #       Listen Address:  localhost
+  #       Listen Port:     ${WLS_REPORTS_PORT}
+  #     KEINEN zweiten Server fuer Forms hinzufuegen - das waere der
+  #     "/Servers/WLS_FORMS"-Block, den eine Forms+Reports-Standardanleitung
+  #     hier haette und den dieses Kochbuch bewusst weglaesst.
+  #
+  #   Bildschirm "Configuration Summary" -> Create
+  #   Bildschirm "Configuration Progress" -> warten bis 100%
+  #   Bildschirm "Configuration Success" -> Close
+  #
+  # Dauer: ca. 5-10 Minuten. Fortschritt/Fehler sind im Assistenten selbst
+  # ueber "View Log" einsehbar.
 
-setOption('ServerStartMode', 'prod')
-setOption('OverwriteDomain', 'true')
-
-cd('/Servers/AdminServer')
-set('ListenAddress', 'localhost')
-set('ListenPort', ${WLS_ADMIN_PORT})
-
-cd('/Servers/${WLS_MANAGED_SERVER}')
-set('ListenAddress', 'localhost')
-set('ListenPort', ${WLS_REPORTS_PORT})
-
-# JDBC-Datenquellen (JRF-Standard, fuer OPSS/Audit/Local-Service-Table
-# gegen die bestehende externe Datenbank)
-_db_url = 'jdbc:oracle:thin:@//${DB_HOST}:${DB_PORT}/${DB_SERVICE}'
-_pfx = '${DB_SCHEMA_PREFIX}'
-
-def _cfg_ds(ds_name, schema_user, db_url, db_pw):
-    cd('/JDBCSystemResources/' + ds_name + '/JDBCResource/' + ds_name + '/JDBCDriverParams')
-    cmo.setUrl(db_url)
-    cmo.setPasswordEncrypted(db_pw)
-    cd('Properties/NONE')
-    cd('Property/user')
-    cmo.setValue(schema_user)
-
-_cfg_ds('LocalSvcTblDataSource', _pfx + '_STB',        _db_url, '<SCHEMA_PASSWORD>')
-_cfg_ds('opss-data-source',      _pfx + '_OPSS',       _db_url, '<SCHEMA_PASSWORD>')
-_cfg_ds('opss-audit-DBDS',       _pfx + '_IAU_APPEND', _db_url, '<SCHEMA_PASSWORD>')
-_cfg_ds('opss-audit-viewDS',     _pfx + '_IAU_VIEWER', _db_url, '<SCHEMA_PASSWORD>')
-
-writeDomain('${DOMAIN_HOME}')
-closeTemplate()
-EOF
-
-  # WICHTIG vor dem Ausfuehren: Falls $DOMAIN_HOME/config/config.xml
-  # bereits existiert, NICHT einfach erneut ausfuehren - OverwriteDomain
-  # wuerde die bestehende Domain stillschweigend ueberschreiben!
-  test -f $DOMAIN_HOME/config/config.xml && echo "ABBRUCH: Domain existiert bereits"
-
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/domain_config.py
-  rm -f /tmp/domain_config.py
+  # Kontrolle
+  test -f $DOMAIN_HOME/config/config.xml && echo "Domain angelegt - OK"
+  grep -q "${WLS_MANAGED_SERVER}" $DOMAIN_HOME/config/config.xml && echo "Managed Server vorhanden - OK"
 
   # Node-Manager-Konfiguration
   mkdir -p $DOMAIN_HOME/nodemanager
@@ -655,12 +703,15 @@ BEKANNTE PROBLEME UND LOESUNGEN
            DB-Team!) alte Schemas vorher per "rcu -silent -dropRepository"
            entfernen
 
-  Problem: WLST-Domainerstellung ueberschreibt eine bereits bestehende
-           Domain ohne Rueckfrage
-  Ursache: setOption('OverwriteDomain', 'true') im Template
-  Loesung: VOR dem Ausfuehren immer pruefen, ob
-           $DOMAIN_HOME/config/config.xml schon existiert (siehe Hinweis
-           in Schritt 4)
+  Problem: Configuration Wizard bietet trotz bestehender Domain "Create
+           Domain" statt "Update Domain" an, oder bricht mit einem
+           Pfad-Konflikt ab
+  Ursache: $DOMAIN_HOME/config/config.xml existiert bereits - der
+           Assistent legt bei "Create Domain" eine komplett neue Domain an
+  Loesung: VOR dem Start immer pruefen, ob $DOMAIN_HOME/config/config.xml
+           schon existiert (siehe Hinweis in Schritt 4); im Assistenten
+           dann "Update Domain" statt "Create Domain" waehlen, oder einen
+           anderen DOMAIN_HOME verwenden
 
   Problem: Reports-Engine startet nicht / "status=0" (DEAD) im
            getserverinfo-Status
