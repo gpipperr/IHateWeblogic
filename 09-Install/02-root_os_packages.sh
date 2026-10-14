@@ -143,6 +143,7 @@ for PKG in \
     libstdc++ \
     libstdc++-devel \
     libnsl \
+    libnsl2 \
     make \
     motif \
     motif-devel \
@@ -175,7 +176,8 @@ for PKG in \
     liberation-serif-fonts \
     liberation-mono-fonts \
     xorg-x11-utils \
-    xorg-x11-fonts-Type1
+    xorg-x11-fonts-Type1 \
+    xorg-x11-server-Xvfb
 do
     _check_pkg "$PKG"
 done

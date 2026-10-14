@@ -451,8 +451,12 @@ fi
 
 section "Directory Structure"
 
+declare -A _CHECKED_DIRS=()
 _check_dir() {
     local dir="$1" owner="${2:-oracle}" group="${3:-oinstall}"
+    # Parent directories often coincide with ORACLE_BASE – check each path once
+    [ -n "${_CHECKED_DIRS[$dir]:-}" ] && return 0
+    _CHECKED_DIRS[$dir]=1
     if [ -d "$dir" ]; then
         ACTUAL_OWNER="$(stat -c '%U' "$dir" 2>/dev/null)"
         ACTUAL_GROUP="$(stat -c '%G' "$dir" 2>/dev/null)"

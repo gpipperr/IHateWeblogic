@@ -110,14 +110,23 @@ else
 fi
 
 # CV_ASSUME_DISTID – required on OL9 for Oracle Universal Installer
+# 09-Install/05-/06-oracle_install_*.sh export it themselves, only for the
+# installer run, from oracle_software_version.conf – a shell-wide value is not needed.
 CV_ASSUME="${CV_ASSUME_DISTID:-}"
-printList "CV_ASSUME_DISTID" 30 "${CV_ASSUME:-not set}"
-if [ -z "$CV_ASSUME" ]; then
-    warn "CV_ASSUME_DISTID not set – required on OL9 for Oracle Universal Installer"
-    info "  Add to oracle user .bash_profile: export CV_ASSUME_DISTID=RHEL8"
-else
+_cv_conf="$ROOT_DIR/09-Install/oracle_software_version.conf"
+_cv_conf_val="$(sed -n 's/^CV_ASSUME_DISTID="\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$_cv_conf" 2>/dev/null | head -1)"
+printList "CV_ASSUME_DISTID" 30 "${CV_ASSUME:-not set in shell}"
+if [ -n "$CV_ASSUME" ]; then
     ok "CV_ASSUME_DISTID=${CV_ASSUME}"
+elif [ "${OS_MAJOR:-0}" -lt 9 ] 2>/dev/null; then
+    ok "CV_ASSUME_DISTID not needed on OL${OS_MAJOR}"
+elif [ -n "$_cv_conf_val" ]; then
+    ok "CV_ASSUME_DISTID=${_cv_conf_val} is set per installer run by 09-Install/05-/06- (oracle_software_version.conf)"
+else
+    warn "CV_ASSUME_DISTID not set – required on OL9 for Oracle Universal Installer"
+    info "  Set it in 09-Install/oracle_software_version.conf (e.g. CV_ASSUME_DISTID=\"OEL8\")"
 fi
+unset _cv_conf _cv_conf_val
 
 printf "\n"
 
@@ -178,11 +187,15 @@ if [ -f /proc/meminfo ]; then
     SWAP_FREE_KB="$(awk  '/SwapFree/ {print $2}' /proc/meminfo)"
     printList "Swap Total" 30 "$(_kb_to_human "$SWAP_TOTAL_KB")"
     printList "Swap Free"  30 "$(_kb_to_human "$SWAP_FREE_KB")"
-    SWAP_TOTAL_GB=$(( SWAP_TOTAL_KB / 1048576 ))
-    if [ "$SWAP_TOTAL_GB" -lt 2 ]; then
-        warn "Swap ${SWAP_TOTAL_GB} GB – Oracle installer requires >= 512 MB; recommend >= 2 GB"
+    # MB, not whole GB: a 2 GiB swapfile reports 2047 MB and would round down to 1 GB.
+    # Same 32 MB slack as 09-Install/01-root_os_baseline.sh.
+    SWAP_TOTAL_MB=$(( SWAP_TOTAL_KB / 1024 ))
+    if [ "$SWAP_TOTAL_MB" -lt 512 ]; then
+        fail "Swap ${SWAP_TOTAL_MB} MB – Oracle installer requires >= 512 MB"
+    elif [ "$SWAP_TOTAL_MB" -lt $(( 2048 - 32 )) ]; then
+        warn "Swap ${SWAP_TOTAL_MB} MB – meets installer minimum (512 MB); recommend >= 2048 MB"
     else
-        ok "Swap ${SWAP_TOTAL_GB} GB – sufficient"
+        ok "Swap ${SWAP_TOTAL_MB} MB – sufficient"
     fi
 else
     warn "/proc/meminfo not available – cannot check RAM"
@@ -584,13 +597,18 @@ else
         "unzip"
     )
 
-    # Compatibility packages (may have different names on OL8/9 vs OL7)
-    COMPAT_PKGS=(
-        "compat-libcap1"
-        "glibc.i686"
-        "libgcc.i686"
-        "libstdc++.i686"
-    )
+    # Compatibility packages – only up to OL8. On OL9 these are not required
+    # (see 09-Install/docs/01-root_install_packages.md, "Package status: OL8 vs OL9").
+    if [ "${OS_MAJOR:-0}" -ge 9 ] 2>/dev/null; then
+        COMPAT_PKGS=()
+    else
+        COMPAT_PKGS=(
+            "compat-libcap1"
+            "glibc.i686"
+            "libgcc.i686"
+            "libstdc++.i686"
+        )
+    fi
 
     # Oracle Reports requires CUPS for print support
     REPORTS_PKGS=(
@@ -604,8 +622,13 @@ else
         "lsof"
         "sysstat"
         "xorg-x11-server-Xvfb"
-        "fonttools"
     )
+    # fontTools (used by 04-ReportsFonts/ttf2reports_afm.py) – package name differs
+    if [ "${OS_MAJOR:-0}" -ge 8 ] 2>/dev/null; then
+        DIAG_PKGS+=("python3-fonttools")
+    else
+        DIAG_PKGS+=("fonttools")
+    fi
 
     ALL_MISSING=()
 
@@ -633,6 +656,8 @@ else
     if [ "$MISSING_COMPAT" -gt 0 ]; then
         info "  Note: compat-libcap1 / compat-libstdc++ may not be available on OL9"
         info "        glibc.i686 / libgcc.i686 are required by some Oracle tools"
+    elif [ "${#COMPAT_PKGS[@]}" -eq 0 ]; then
+        ok "No 32-bit/compat packages required on OL${OS_MAJOR}"
     else
         ok "All compatibility packages present"
     fi
@@ -674,7 +699,8 @@ fi
 # =============================================================================
 section "Hostname & Network"
 
-HOSTNAME_SHORT="$(hostname 2>/dev/null)"
+# `hostname` may return the FQDN (OL9 hostnamectl default) – use -s for the short name
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null)"
 HOSTNAME_FQDN="$(hostname -f 2>/dev/null || echo 'n/a')"
 HOSTNAME_IP="$(hostname -i 2>/dev/null || echo 'n/a')"
 

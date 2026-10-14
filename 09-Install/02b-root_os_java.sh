@@ -407,9 +407,15 @@ if [ ! -x "$JPS_TARGET" ]; then
     fi
 else
     if [ -x "$JPS_LINK" ]; then
+        # JDK_HOME is usually itself a symlink (jdk-21 → jdk-21.0.x), so compare
+        # the fully resolved paths of both sides.
         CURRENT_JPS="$(readlink -f "$JPS_LINK" 2>/dev/null)"
-        if [ "$CURRENT_JPS" = "$JPS_TARGET" ]; then
+        if [ "$CURRENT_JPS" = "$(readlink -f "$JPS_TARGET" 2>/dev/null)" ]; then
             ok "jps correctly linked: $JPS_LINK → $JPS_TARGET"
+            if [ "$(readlink "$JPS_LINK" 2>/dev/null)" != "$JPS_TARGET" ]; then
+                info "  Link uses the versioned path $(readlink "$JPS_LINK") – prefer $JPS_TARGET"
+                info "  so it follows future JDK updates of the ${JDK_HOME} symlink"
+            fi
         else
             warn "jps points to wrong JDK: $CURRENT_JPS"
             info "  Expected:  $JPS_TARGET"

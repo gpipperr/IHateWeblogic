@@ -157,12 +157,16 @@ dnf install -y \
   binutils compat-openssl11 cups-libs \
   gcc gcc-c++ \
   glibc glibc-devel ksh \
-  libaio libaio-devel libX11 libXau libXi libXrender libXtst \
-  libgcc libstdc++ libstdc++-devel libnsl \
+  libaio libaio-devel libX11 libXau libXext libXi libXrender libXtst \
+  libgcc libstdc++ libstdc++-devel libnsl libnsl2 \
   make motif motif-devel \
   net-tools nfs-utils numactl \
   unzip wget curl tar
 ```
+
+> `libnsl2` provides `/usr/lib64/libnsl.so.3*`, the target of the
+> `libnsl.so.2` symlink that Reports (`rwserver`) needs on OL9 — created later by
+> `13-root_reports_fix.sh`, which only checks for the package.
 
 ### 3. Font stack (Reports PDF rendering)
 
@@ -172,8 +176,12 @@ dnf install -y \
   dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
   dejavu-lgc-sans-fonts dejavu-lgc-serif-fonts \
   liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
-  xorg-x11-utils xorg-x11-fonts-Type1
+  xorg-x11-utils xorg-x11-fonts-Type1 xorg-x11-server-Xvfb
 ```
+
+> `xorg-x11-server-Xvfb`: virtual X display for the Reports/Forms command-line
+> tools. Confirmed live (FMW 14.1.2): `rwconverter` and the Forms XML tools
+> abort without a working `DISPLAY` even in batch mode.
 
 ### 4. Admin and monitoring tools
 

@@ -106,10 +106,21 @@ _run_check_script() {
         return 1
     fi
 
-    # Run the sub-script; it prints its own output and summary.
-    # We only capture the exit code to decide whether to FAIL here.
-    "$script" "$@"
-    local rc=$?
+    # Run the sub-script (it prints its own output and summary), but keep a copy
+    # so its FAIL/WARN lines can be repeated in this script's log – otherwise the
+    # log only says "exit 2" without telling what failed.
+    local out rc
+    out="$("$script" "$@" 2>&1)"
+    rc=$?
+    printf '%s\n' "$out"
+
+    if [ "$rc" -ne 0 ]; then
+        local _line
+        while IFS= read -r _line; do
+            info "  ↳ $_line"
+        done < <(printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*m//g' \
+                 | grep -E '^(FAIL|WARN) ' | sed 's/[[:space:]]\+/ /g')
+    fi
 
     if [ "$rc" -eq 0 ]; then
         ok "$(printf "%-30s exit 0 (all OK)" "$label")"
