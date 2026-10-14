@@ -110,7 +110,11 @@ else
         if [ "$CACHED_COUNT" -gt 0 ]; then
             ok "fc-list sees $CACHED_COUNT font(s) from REPORTS_FONT_DIR"
         else
-            warn "fc-list sees 0 fonts from REPORTS_FONT_DIR – cache may be stale"
+            # fc-list only lists directories configured in fontconfig
+            # (/etc/fonts) - REPORTS_FONT_DIR is not one of them. Reports reads
+            # it via REPORTS_FONT_DIRECTORY + uifont.ali, not via fontconfig
+            # (2026-10-15: 55 TTF deployed, fc-list 0, mfontchk OK)
+            info "fc-list does not list REPORTS_FONT_DIR (not a fontconfig directory – Reports uses REPORTS_FONT_DIRECTORY)"
         fi
     fi
 fi
@@ -178,7 +182,7 @@ else
         if [ "$CACHED_AFTER" -gt 0 ]; then
             ok "fc-list now sees $CACHED_AFTER font(s) from REPORTS_FONT_DIR"
         else
-            warn "fc-list still sees 0 fonts from REPORTS_FONT_DIR"
+            info "fc-list does not list REPORTS_FONT_DIR (expected – not a fontconfig directory)"
             info "  Check: fc-list : file | grep '$REPORTS_FONT_DIR'"
         fi
     fi

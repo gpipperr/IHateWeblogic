@@ -143,7 +143,10 @@ done
 # $DOMAIN_HOME/config/fmwconfig/servers/WLS_FORMS/applications/forms_<version>/config/
 FORMS_WLS_CONF_DIR=""
 FORMS_WLS_CONF_DIR="$(find "$DOMAIN_HOME/config/fmwconfig/servers" \
-    -maxdepth 5 -type d -name "config" 2>/dev/null | grep -i "forms_" | head -1)"
+    -maxdepth 5 -type d -name "config" 2>/dev/null \
+    | grep -iE "/(formsapp|forms)_[^/]*/config$" | head -1)"
+# 14.1.2: servers/WLS_FORMS/applications/formsapp_14.1.2/config - the old
+# pattern "forms_" (12c: forms_12.2.1) never matched it (2026-10-15)
 
 FORMSWEB_CFG=""   # formsweb.cfg
 DEFAULT_ENV=""    # default.env

@@ -287,7 +287,9 @@ else
             printList "    " 4 "$line"
         done
     else
-        warn "  No [PDF:Subset] section found in current uifont.ali"
+        # Oracle's shipped uifont.ali has no [PDF:Subset] section - normal on a
+        # fresh domain, this script adds it
+        info "  No [PDF:Subset] section in current uifont.ali yet (Oracle default) – will be added"
     fi
 fi
 
