@@ -359,7 +359,7 @@ try:
     nmDisconnect()
     print('IHW:OK:Node Manager key files created (nmConnect)')
 except Exception as e:
-    print('IHW:FAIL:Node Manager key files – are the NM credentials the admin user? ' + str(e).split('\n')[0])
+    print('IHW:FAIL:Node Manager key files - are the NM credentials the admin user? ' + str(e).split('\n')[0])
     exit(defaultAnswer='y', exitcode=1)
 exit(defaultAnswer='y', exitcode=0)
 WLST_EOF

@@ -153,8 +153,8 @@ _write_boot_properties() {
     local boot_file="$sec_dir/boot.properties"
 
     printf "\n" | tee -a "$LOG_FILE"
-    printList "Server" 24 "$server" | tee -a "$LOG_FILE"
-    printList "Target" 24 "$boot_file" | tee -a "$LOG_FILE"
+    printList "Server" 24 "$server"
+    printList "Target" 24 "$boot_file"
 
     # Check: server directory must exist (domain is configured)
     if [ ! -d "$DOMAIN_HOME/servers/$server" ]; then

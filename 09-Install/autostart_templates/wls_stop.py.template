@@ -1,6 +1,6 @@
 # =============================================================================
-# wls_stop.py – stop the domain components in reverse order
-# Rendered by 09-Install/30-configure_autostart.sh – called by fmw_ctl.sh:
+# wls_stop.py - stop the domain components in reverse order
+# Rendered by 09-Install/30-configure_autostart.sh - called by fmw_ctl.sh:
 #   wlst.sh wls_stop.py [all|<component>]
 # System components: nmKill (same as stopComponent.sh). Managed servers and
 # AdminServer: orderly shutdown() via the AdminServer; nmKill only if that
@@ -61,12 +61,12 @@ def stop_server(name, connected):
             shutdown(name, 'Server', ignoreSessions='true', timeOut=SHUTDOWN_WAIT * 1000,
                      force='false', block='true')
         except Exception as e:
-            # shutting down the AdminServer drops the WLST connection – expected
+            # shutting down the AdminServer drops the WLST connection - expected
             ihw('INFO shutdown(' + name + ') returned: ' + str(e).split('\n')[0])
     if wait_down(name, SHUTDOWN_WAIT):
         ihw(name + ' stopped')
     else:
-        ihw('WARNING ' + name + ' still up after orderly shutdown – using nmKill')
+        ihw('WARNING ' + name + ' still up after orderly shutdown - using nmKill')
         kill(name)
 
 try:
@@ -99,7 +99,7 @@ if servers:
                     userKeyFile=CTRL + '/keyfile/admin_key', url='##ADMIN_URL##')
             connected = True
         except Exception as e:
-            ihw('WARNING cannot connect to the AdminServer (' + str(e).split('\n')[0] + ') – using nmKill')
+            ihw('WARNING cannot connect to the AdminServer (' + str(e).split('\n')[0] + ') - using nmKill')
     for name in servers:
         stop_server(name, connected)
 

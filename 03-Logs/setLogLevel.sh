@@ -246,12 +246,12 @@ targets = [t for t in targets_str.split() if t]
 SEP = "=" * 70
 
 print(SEP)
-print("IHateWeblogic – WLST Log Level: " + action.upper())
+print("IHateWeblogic - WLST Log Level: " + action.upper())
 print("Admin URL : " + wl_url)
 print("User      : " + wl_user)
 print(SEP)
 
-# ── Connect ───────────────────────────────────────────────────────────────────
+# -- Connect -------------------------------------------------------------------
 try:
     connect(wl_user, wl_password, wl_url)
 except Exception as conn_ex:
@@ -263,7 +263,7 @@ except Exception as conn_ex:
     print("  3. WL_ADMIN_URL correct in environment.conf")
     sys.exit(1)
 
-# ── QUERY ─────────────────────────────────────────────────────────────────────
+# -- QUERY ---------------------------------------------------------------------
 if action == 'query':
     print("\n--- Current Log Levels ---")
     for srv in targets:
@@ -281,7 +281,7 @@ if action == 'query':
             except Exception as e:
                 print("  " + pattern + "  -- not accessible: " + str(e))
 
-# ── SET ───────────────────────────────────────────────────────────────────────
+# -- SET -----------------------------------------------------------------------
 elif action == 'set':
     print("\n--- Setting Log Level: " + level + " ---")
     ok_count  = 0
@@ -303,7 +303,7 @@ elif action == 'set':
                 fail_count += 1
     print("\nResult: OK=" + str(ok_count) + "  FAIL=" + str(fail_count))
 
-# ── Disconnect ────────────────────────────────────────────────────────────────
+# -- Disconnect ----------------------------------------------------------------
 try:
     disconnect()
 except:

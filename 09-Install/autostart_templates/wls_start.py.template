@@ -1,6 +1,6 @@
 # =============================================================================
-# wls_start.py – start the domain components via Node Manager / AdminServer
-# Rendered by 09-Install/30-configure_autostart.sh – called by fmw_ctl.sh:
+# wls_start.py - start the domain components via Node Manager / AdminServer
+# Rendered by 09-Install/30-configure_autostart.sh - called by fmw_ctl.sh:
 #   wlst.sh wls_start.py [all|<component>]
 # AdminServer and system components: nmStart. Managed servers: start() via
 # the AdminServer (correct admin URL / startup properties), nmStart fallback.
@@ -66,7 +66,7 @@ if todo:
         except Exception:
             time.sleep(10)
     if not connected:
-        ihw('WARNING cannot connect to the AdminServer – using nmStart for managed servers')
+        ihw('WARNING cannot connect to the AdminServer - using nmStart for managed servers')
     for m in todo:
         if state(m) == 'RUNNING':
             ihw(m + ' already RUNNING')

@@ -246,19 +246,19 @@ printf "\n"
 # =============================================================================
 section "Confirmed Parameters"
 
-printList "Mode"         22 "$MODE"                                         | tee -a "$LOG_FILE"
-printList "CN"           22 "$SSL_CN"                                       | tee -a "$LOG_FILE"
-printList "SAN"          22 "$SSL_SAN"                                      | tee -a "$LOG_FILE"
-printList "Subject"      22 "C=$SSL_COUNTRY, ST=$SSL_STATE, L=$SSL_CITY"   | tee -a "$LOG_FILE"
-printList "Org"          22 "$SSL_ORG${SSL_ORG_UNIT:+, OU=$SSL_ORG_UNIT}"  | tee -a "$LOG_FILE"
+printList "Mode"         22 "$MODE"
+printList "CN"           22 "$SSL_CN"
+printList "SAN"          22 "$SSL_SAN"
+printList "Subject"      22 "C=$SSL_COUNTRY, ST=$SSL_STATE, L=$SSL_CITY"
+printList "Org"          22 "$SSL_ORG${SSL_ORG_UNIT:+, OU=$SSL_ORG_UNIT}"
 printList "Key"          22 "${SSL_KEY_ALGO} / ${SSL_KEY_SIZE:-$SSL_EC_CURVE}" \
                                                                              | tee -a "$LOG_FILE"
-printList "Validity"     22 "${SSL_DAYS} days"                              | tee -a "$LOG_FILE"
-printList "Cert file"    22 "$SSL_CERT_FILE"                                | tee -a "$LOG_FILE"
-printList "Key file"     22 "$SSL_KEY_FILE"                                 | tee -a "$LOG_FILE"
-[ "$MODE" = "EASYRSA" ] && printList "Chain file"  22 "$SSL_CHAIN_FILE"    | tee -a "$LOG_FILE"
-[ "$MODE" = "EASYRSA" ] && printList "EASYRSA PKI" 22 "$EASYRSA_PKI_DIR"   | tee -a "$LOG_FILE"
-[ "$MODE" = "REQUEST" ] && printList "CSR file"    22 "$SSL_CSR_FILE"      | tee -a "$LOG_FILE"
+printList "Validity"     22 "${SSL_DAYS} days"
+printList "Cert file"    22 "$SSL_CERT_FILE"
+printList "Key file"     22 "$SSL_KEY_FILE"
+[ "$MODE" = "EASYRSA" ] && printList "Chain file"  22 "$SSL_CHAIN_FILE"
+[ "$MODE" = "EASYRSA" ] && printList "EASYRSA PKI" 22 "$EASYRSA_PKI_DIR"
+[ "$MODE" = "REQUEST" ] && printList "CSR file"    22 "$SSL_CSR_FILE"
 
 # Always save parameters (even in dry-run)
 _save_ssl_conf

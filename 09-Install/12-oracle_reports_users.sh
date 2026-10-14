@@ -210,10 +210,10 @@ fi
 # =============================================================================
 section "Configuration plan"
 
-printList "Admin user"     30 "$WL_USER  →  RW_ADMINISTRATOR"  | tee -a "$LOG_FILE"
-printList "Monitor user"   30 "$REPORTS_MON_USER  →  RW_MONITOR (getserverinfo only)" | tee -a "$LOG_FILE"
-printList "Exec user"      30 "$REPORTS_EXEC_USER  →  RW_EXECREPORTS (run reports)"   | tee -a "$LOG_FILE"
-printList "cgicmd.dat key" 30 "authid=$REPORTS_EXEC_USER/<pwd>  (manual step)"        | tee -a "$LOG_FILE"
+printList "Admin user"     30 "$WL_USER  →  RW_ADMINISTRATOR"
+printList "Monitor user"   30 "$REPORTS_MON_USER  →  RW_MONITOR (getserverinfo only)"
+printList "Exec user"      30 "$REPORTS_EXEC_USER  →  RW_EXECREPORTS (run reports)"
+printList "cgicmd.dat key" 30 "authid=$REPORTS_EXEC_USER/<pwd>  (manual step)"
 
 if ! $APPLY; then
     printf "\n"
@@ -231,7 +231,7 @@ WLST_PY="$(mktemp /tmp/reports_users_XXXXXX.py)"
 chmod 600 "$WLST_PY"
 
 cat > "$WLST_PY" << 'WLST_EOF'
-# Reports Server User Setup – Jython 2.7 / WebLogic 14c
+# Reports Server User Setup - Jython 2.7 / WebLogic 14c
 # All sensitive values are passed via environment variables.
 import os, sys
 
@@ -256,6 +256,11 @@ def ihw(tag, msg):
 def create_realm_user(realm_path, username, password, description):
     ihw('STEP', 'create user: ' + username)
     try:
+        # OPSS commands (grantAppRole etc.) switch WLST to the domainRuntime
+        # tree - SecurityConfiguration only exists in serverConfig
+        # (AttributeNotFoundException ... DomainRuntime:SecurityConfiguration,
+        # 2026-10-15)
+        serverConfig()
         cd(realm_path)
         cmo.createUser(username, password, description)
         ihw('USER_CREATED', username)
@@ -333,7 +338,7 @@ try:
     # --- Step 2: Monitoring user ---
     ihw('SECTION', '2 - Monitoring user: ' + MON_USER)
     create_realm_user(realm_path, MON_USER, MON_PWD,
-                      'Reports monitoring user – getserverinfo access only')
+                      'Reports monitoring user - getserverinfo access only')
     ensure_app_role(APP, 'RW_MONITOR')
     grant_role(APP, 'RW_MONITOR', MON_USER)
     grant_perm(APP, 'RW_MONITOR',
@@ -343,7 +348,7 @@ try:
     # --- Step 3: Execution user ---
     ihw('SECTION', '3 - Execution user: ' + EXEC_USER)
     create_realm_user(realm_path, EXEC_USER, EXEC_PWD,
-                      'Report execution user – cgicmd.dat authid parameter')
+                      'Report execution user - cgicmd.dat authid parameter')
     ensure_app_role(APP, 'RW_EXECREPORTS')
     grant_role(APP, 'RW_EXECREPORTS', EXEC_USER)
     grant_perm(APP, 'RW_EXECREPORTS',
