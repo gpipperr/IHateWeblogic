@@ -158,10 +158,17 @@ fi
 
 printf "\n" | tee -a "$LOG_FILE"
 info "Schemas that will be $( $DROP && printf 'DROPPED' || printf 'created' ):"
+# Component ID ≠ schema name: UCSUMS creates <prefix>_UMS, WLS also creates
+# <prefix>_WLS_RUNTIME (confirmed via rcu -listSchemas, 2026-10-14)
 for _c in "${RCU_COMPONENTS[@]}"; do
-    info "  $(printf "%-14s" "${DB_SCHEMA_PREFIX}_${_c}")"
+    case "$_c" in
+        UCSUMS) _s="${DB_SCHEMA_PREFIX}_UMS" ;;
+        WLS)    _s="${DB_SCHEMA_PREFIX}_WLS + ${DB_SCHEMA_PREFIX}_WLS_RUNTIME" ;;
+        *)      _s="${DB_SCHEMA_PREFIX}_${_c}" ;;
+    esac
+    info "  $(printf "%-12s %s" "$_c" "$_s")"
 done
-unset _c
+unset _c _s
 
 # --- Dry-run exit -------------------------------------------------------------
 if ! $APPLY && ! $DROP; then
@@ -255,7 +262,8 @@ RCU_COMP_FLAGS=()
 for _c in "${RCU_COMPONENTS[@]}"; do
     RCU_COMP_FLAGS+=( -component "$_c" )
     # -tablespace must follow immediately after each -component (RCU requirement)
-    if [ -n "${RCU_TABLESPACE:-}" ]; then
+    # Only valid for -createRepository – -dropRepository rejects it (RCU-6197)
+    if [ -n "${RCU_TABLESPACE:-}" ] && ! $DROP; then
         RCU_COMP_FLAGS+=( -tablespace "$RCU_TABLESPACE" \
                           -tempTablespace "${RCU_TEMP_TABLESPACE:-TEMP}" )
     fi
@@ -303,17 +311,32 @@ ok "$(printf "DB connection OK – SYSDBA on %s:%s/%s" "$DB_HOST" "$DB_PORT" "$D
 
 # Check if schemas with this prefix already exist
 if printf "%s\n" "$LISTSCHEMAS_OUTPUT" | grep -qi "${DB_SCHEMA_PREFIX}_"; then
-    warn "$(printf "Schemas with prefix '%s' already exist in the DB" "$DB_SCHEMA_PREFIX")"
+    if $DROP; then
+        ok "$(printf "Schemas with prefix '%s' found – will be dropped" "$DB_SCHEMA_PREFIX")"
+        # RCU also drops the tablespace the schemas live in – including a
+        # DBA-pre-created one (confirmed 2026-10-14: "drop tablespace FMW_DATA
+        # including contents and datafiles" in the RCU log)
+        if [ -n "${RCU_TABLESPACE:-}" ]; then
+            warn "RCU -dropRepository also drops tablespace '${RCU_TABLESPACE}' INCLUDING DATAFILES"
+            warn "  Re-create it before --apply: 60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply"
+        fi
+    else
+        warn "$(printf "Schemas with prefix '%s' already exist in the DB" "$DB_SCHEMA_PREFIX")"
+    fi
     if $APPLY && ! $DROP; then
         fail "  Cannot create – prefix already in use. Use --drop first (CAUTION: destroys data)."
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
 else
+    if $DROP; then
+        ok "$(printf "No schemas with prefix '%s' in the DB – nothing to drop" "$DB_SCHEMA_PREFIX")"
+        print_summary; exit $EXIT_CODE
+    fi
     ok "$(printf "No existing schemas with prefix '%s' – safe to create" "$DB_SCHEMA_PREFIX")"
 fi
 
-# --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured) ---------------
-if [ -n "${RCU_TABLESPACE:-}" ]; then
+# --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured, create only) ---
+if [ -n "${RCU_TABLESPACE:-}" ] && ! $DROP; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "$(printf "RCU_TABLESPACE='%s' is set – DBA must have pre-created this tablespace." "$RCU_TABLESPACE")"
     info "  Verify on DB server (as SYSDBA):"
@@ -370,6 +393,39 @@ if [ "$RCU_RC" -ne 0 ]; then
 fi
 
 ok "RCU completed successfully"
+
+# =============================================================================
+# Verification (--drop): no schema with this prefix may be left
+# =============================================================================
+
+if $DROP; then
+
+    section "Verification"
+
+    LISTSCHEMAS_AFTER=$(
+        "$RCU_BIN" -silent -listSchemas \
+            -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
+            -dbUser sys -dbRole sysdba \
+            -f < "$RCU_PW_FILE" 2>&1
+    )
+    _left="$(printf '%s\n' "$LISTSCHEMAS_AFTER" \
+        | grep -oiE "\b${DB_SCHEMA_PREFIX}_[A-Z_]+" | sort -u | xargs)"
+    if [ -n "$_left" ]; then
+        fail "Schemas still present after drop: $_left"
+        EXIT_CODE=2
+    else
+        ok "$(printf "No schemas with prefix '%s' left in the DB" "$DB_SCHEMA_PREFIX")"
+        [ -n "${RCU_TABLESPACE:-}" ] && \
+            warn "Tablespace '${RCU_TABLESPACE}' was dropped by RCU – re-create it before --apply"
+        printf "\n" | tee -a "$LOG_FILE"
+        info "Next step: create the repository again"
+        [ -n "${RCU_TABLESPACE:-}" ] && \
+            info "  60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply   (tablespace ${RCU_TABLESPACE})"
+        info "  07-oracle_setup_repository.sh --apply"
+    fi
+    unset _left
+
+fi
 
 # =============================================================================
 # Verification (--apply only)

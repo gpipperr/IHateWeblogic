@@ -33,7 +33,9 @@ unset _f
 DIAG_LOG_DIR="${DIAG_LOG_DIR:-$ROOT_DIR/log/$(date +%Y%m%d)}"
 init_log "$DIAG_LOG_DIR"
 
+# Set ORACLE_HOME + ORACLE_SID for sqlplus OS authentication (/ AS SYSDBA)
 export ORACLE_HOME="$DB_ORACLE_HOME"
+export ORACLE_SID="${DB_SID}"
 SQLPLUS="$DB_ORACLE_HOME/bin/sqlplus"
 
 # =============================================================================
@@ -110,10 +112,14 @@ section "Pre-checks"
 
 _ping=$("$SQLPLUS" -S /nolog <<< "CONNECT / AS SYSDBA
 SELECT 'DB_UP' FROM DUAL;
-EXIT;" 2>/dev/null)
-printf "%s" "$_ping" | grep -q "DB_UP" \
-    && ok "Database is running" \
-    || { fail "Database is not running"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+EXIT;" 2>&1)
+if printf "%s" "$_ping" | grep -q "DB_UP"; then
+    ok "Database is running (ORACLE_SID=${ORACLE_SID})"
+else
+    fail "Cannot connect / AS SYSDBA (ORACLE_SID=${ORACLE_SID:-unset}) – database not running?"
+    printf "%s\n" "$_ping" | grep -E "ORA-|SP2-" | head -3 | while IFS= read -r _l; do fail "  $_l"; done
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
 unset _ping
 
 if ! $APPLY; then

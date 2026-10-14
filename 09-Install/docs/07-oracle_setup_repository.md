@@ -23,7 +23,7 @@ in the Oracle database. These schemas are required before the WebLogic domain ca
 | `_IAU` | Audit | Full audit trail |
 | `_IAU_APPEND` | Audit Append | Audit data insert |
 | `_IAU_VIEWER` | Audit Viewer | Audit read access |
-| `_UCSUMS` | User Messaging Service | UMS configuration |
+| `_UMS` | User Messaging Service (component ID `UCSUMS`) | UMS configuration |
 | `_WLS` | WebLogic Services | WLS internal metadata |
 | `_WLS_RUNTIME` | WebLogic Services (sub) | WLS runtime metadata (sub-schema of WLS) |
 
@@ -33,6 +33,20 @@ Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ..
 > WLS (WebLogic Services) is a required component in 14.1.2 — it was not part of earlier
 > 12.2.1.x installations. WLS also has a sub-schema `WLS_RUNTIME` which requires an
 > additional password line in the RCU password file (see password file format below).
+>
+> Component ID ≠ schema name: component `UCSUMS` creates `<prefix>_UMS` (confirmed via
+> `rcu -listSchemas`, 2026-10-14).
+>
+> **`--drop`:** `-dropRepository` only takes `-component` – `-tablespace` /
+> `-tempTablespace` are rejected with `RCU-6197 Invalid arguments` (confirmed
+> 2026-10-14). The script passes the tablespace flags for `--apply` only and
+> verifies with `rcu -listSchemas` afterwards that no `<prefix>_*` schema is left.
+>
+> **`--drop` also drops the tablespace – including a DBA-pre-created one.** The RCU
+> log shows `drop tablespace FMW_DATA including contents and datafiles` (confirmed
+> 2026-10-14). With `RCU_TABLESPACE` set, re-create it before the next `--apply`:
+> `60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply`. On a customer DB managed by a
+> DB team: agree on this before any drop – their tablespace and datafiles are gone.
 
 ---
 

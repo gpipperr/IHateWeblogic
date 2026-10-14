@@ -931,6 +931,12 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: Anderen Prefix waehlen, oder (nur nach Ruecksprache mit dem
            DB-Team!) alte Schemas vorher per "rcu -silent -dropRepository"
            entfernen
+           ACHTUNG: -dropRepository loescht auch den Tablespace der Schemas
+           MIT Datendateien ("drop tablespace FMW_DATA including contents
+           and datafiles") - auch wenn das DB-Team ihn angelegt hat! Vor
+           dem neuen createRepository muss der Tablespace neu angelegt
+           werden. Beim Drop KEINE -tablespace/-tempTablespace Parameter
+           angeben (sonst Abbruch mit RCU-6197).
 
   Problem: Configuration Wizard bietet trotz bestehender Domain "Create
            Domain" statt "Update Domain" an, oder bricht mit einem
