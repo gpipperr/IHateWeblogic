@@ -20,6 +20,7 @@ Every statement is marked by how it is backed:
 | Document | Topic |
 |---|---|
 | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) | How Reports servers, the rwservlet and the Reports tools find each other (UDP multicast, `rwnetwork.conf`), why a server stops with `REP-50600`/`REP-56040`, active search of the network with `rwdiag`/`DiagServerLocator`, hardening ideas, prerequisites and diagnosis |
+| [forms_jakob_webutil.md](forms_jakob_webutil.md) | WebUtil and JACOB (Java–COM bridge for OLE/Office automation): architecture, download source and checksums of JACOB 1.21, files and locations, `webutil.cfg` syslib list, signing, state of the test host |
 
 ## Candidates for further documents
 
