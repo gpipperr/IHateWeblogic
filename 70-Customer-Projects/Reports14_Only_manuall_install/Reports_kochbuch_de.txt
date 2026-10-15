@@ -71,7 +71,10 @@ SCHRITT 1: Forms & Reports Software installieren  (als oracle)
 
   --- Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI) --------
 
-  cat > $PATCH_STORAGE/fr/fr_install.rsp << 'EOF'
+  # Werte aus VORAUSSETZUNGEN (EOF ohne Anfuehrungszeichen -> die Shell
+  # setzt ORACLE_HOME/JDK_HOME ein; vorher kontrollieren, dass beide gesetzt
+  # sind: echo "$ORACLE_HOME $JDK_HOME")
+  cat > $PATCH_STORAGE/fr/fr_install.rsp << EOF
 [ENGINE]
 Response File Version=1.0.0.0.0
 [GENERIC]
@@ -82,10 +85,10 @@ SOFTWARE_UPDATES_PROXY_SERVER=
 SOFTWARE_UPDATES_PROXY_PORT=
 SOFTWARE_UPDATES_PROXY_USER=
 SOFTWARE_UPDATES_PROXY_PASSWORD=
-ORACLE_HOME=/u01/oracle/fmw
+ORACLE_HOME=${ORACLE_HOME}
 FEDERATED_ORACLE_HOMES=
 INSTALL_TYPE=Forms and Reports Deployment
-JDK_HOME=/u01/oracle/java/jdk-21
+JDK_HOME=${JDK_HOME}
 EOF
 
   export CV_ASSUME_DISTID=OEL8
@@ -792,6 +795,11 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
   export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
   export TNS_ADMIN=/app/oracle/19c/network/admin
+  export REPORTS_NLS_LANG=GERMAN_GERMANY.AL32UTF8   # an den DB-Zeichensatz anpassen
+  # Server-Administrator des Reports-Servers (<identifier> in rwserver.conf,
+  # authid fuer getserverinfo/showjobs - siehe 9.11). Kennwort hier SELBST
+  # festlegen, nicht den Beispielwert uebernehmen:
+  export REPORTS_IDENTIFIER=rep_admin/<IDENTIFIER_PASSWORD>
 
 
   #unter $TNS_ADMIN die Firmen tnsnames und sqlnet.ora ablegen
@@ -878,6 +886,9 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 </rwservlet>
 EOF
 
+  # Kontrolle
+ cat $REPORTS_APP_CONF/rwservlet.properties
+
   # Haertung (SPAETER, erst wenn 9.11 erfolgreich lief UND die
   # Benutzer/Rollen/Policies aus Schritt 8 getestet funktionieren - nicht
   # vorher, sonst verhindert eine falsch konfigurierte Rolle sofort jeden
@@ -892,7 +903,18 @@ EOF
 
   # 9.7 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
   #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
-  cat > "$RWSERVER_CONF" << 'EOF'
+  #     Alle Pfade/Werte kommen aus den Variablen von 9.2 - deshalb steht
+  #     EOF hier OHNE Anfuehrungszeichen (die Shell setzt die Werte ein).
+  #     Die Oracle-Platzhalter "$$Self.proxyHost$$" usw. sind deshalb mit
+  #     "\$" geschrieben, sonst ersetzt die Shell "$$" durch eine Prozessnummer.
+
+  # Kontrolle vorab - keine Zeile darf leer sein:
+  echo "RWSERVER_CONF=$RWSERVER_CONF"
+  echo "REPORTS_PATH=$REPORTS_PATH  REPORTS_TMP=$REPORTS_TMP  TNS_ADMIN=$TNS_ADMIN"
+  echo "REPORTS_NLS_LANG=$REPORTS_NLS_LANG  REPORTS_IDENTIFIER gesetzt: ${REPORTS_IDENTIFIER:+ja}"
+
+  cp "$RWSERVER_CONF" "${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)"
+  cat > "$RWSERVER_CONF" << EOF
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <server xmlns="http://xmlns.oracle.com/reports/server" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <cache class="oracle.reports.cache.RWCache"><property name="cacheSize" value="50"/></cache>
@@ -900,10 +922,10 @@ EOF
           initEngine="2" maxEngine="5" minEngine="2" engLife="50" defaultEnvId="QS"/>
   <engine id="rwURLEng" class="oracle.reports.urlengine.URLEngineImpl" maxEngine="1" minEngine="0" engLife="50"/>
   <environment id="QS">
-    <envVariable name="REPORTS_PATH" value="/app/oracle/applications/source"/>
-    <envVariable name="REPORTS_TMP" value="/tmp/reports"/>
-    <envVariable name="NLS_LANG" value="GERMAN_GERMANY.AL32UTF8"/>
-    <envVariable name="TNS_ADMIN" value="/app/oracle/19c/network/admin"/>
+    <envVariable name="REPORTS_PATH" value="${REPORTS_PATH}"/>
+    <envVariable name="REPORTS_TMP" value="${REPORTS_TMP}"/>
+    <envVariable name="NLS_LANG" value="${REPORTS_NLS_LANG}"/>
+    <envVariable name="TNS_ADMIN" value="${TNS_ADMIN}"/>
     <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>
   </environment>
   <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
@@ -918,19 +940,26 @@ EOF
   </notification>
   <connection maxConnect="300" idleTimeOut="15"/>
   <queue maxQueueSize="4000"/>
-  <folderAccess><read>/app/oracle/applications/source</read><write>/tmp/reports</write></folderAccess>
-  <identifier encrypted="no">rep_admin/wls_team</identifier>
+  <folderAccess><read>${REPORTS_PATH}</read><write>${REPORTS_TMP}</write></folderAccess>
+  <identifier encrypted="no">${REPORTS_IDENTIFIER}</identifier>
   <proxyInfo>
-    <proxyServers><proxyServer name="$$Self.proxyHost$$" port="$$Self.proxyPort$$" protocol="all"/></proxyServers>
-    <bypassProxy><domain>$$Self.proxyByPass$$</domain></bypassProxy>
+    <proxyServers><proxyServer name="\$\$Self.proxyHost\$\$" port="\$\$Self.proxyPort\$\$" protocol="all"/></proxyServers>
+    <bypassProxy><domain>\$\$Self.proxyByPass\$\$</domain></bypassProxy>
   </proxyInfo>
   <pluginParam name="mailServer" value="%MAILSERVER_NAME%"/>
 </server>
 EOF
 
-  # Hinweis: NLS_LANG hier auf Deutsch gesetzt (GERMAN_GERMANY.AL32UTF8) -
-  # bei Bedarf an die tatsaechliche Datenbank-Zeichensatzkonfiguration
-  # anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
+  # Kontrolle: Werte eingesetzt, Oracle-Platzhalter unveraendert?
+  grep -E 'REPORTS_PATH|NLS_LANG|TNS_ADMIN|folderAccess|proxyHost' "$RWSERVER_CONF"
+  # Erwartet: echte Pfade statt "${...}" und weiterhin "$$Self.proxyHost$$".
+  # Die Datei enthaelt das Identifier-Kennwort zunaechst im Klartext - der
+  # Reports Server verschluesselt es beim ersten Start selbst
+  # (danach steht dort encrypted="yes").
+
+  # Hinweis: NLS_LANG kommt aus REPORTS_NLS_LANG (9.2, Beispiel
+  # GERMAN_GERMANY.AL32UTF8) - an die tatsaechliche
+  # Datenbank-Zeichensatzkonfiguration anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
 
   # 9.8 cgicmd.dat - Standard-Schluessel + RepRunner-authid (frueher
   #     Schritt 5 und 8.4). Die Datei bringt Oracle mit Beispielen mit -
@@ -952,11 +981,24 @@ EOF
   # 9.9 reports.sh ergaenzen (Umgebungsvariablen fuer den Reports-Server-
   #     Startprozess - Font-Variablen hier nur als Verweis, Details siehe
   #     Font_kochbuch_de.txt)
-  cat >> $DOMAIN_HOME/reports/bin/reports.sh << 'EOF'
-export NLS_LANG=GERMAN_GERMANY.AL32UTF8
-REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
+  #     NLS_LANG kommt aus REPORTS_NLS_LANG (9.2, muss zur rwserver.conf
+  #     passen). "\${DOMAIN_HOME}" bleibt bewusst woertlich stehen -
+  #     reports.sh setzt DOMAIN_HOME selbst. Nur EINMAL anhaengen: steht der
+  #     Block schon drin (grep findet die Markierung), diesen Schritt
+  #     ueberspringen.
+  grep -q "IHateWeblogic reports.sh" $DOMAIN_HOME/reports/bin/reports.sh \
+      && echo "Block schon vorhanden - Schritt 9.9 ueberspringen"
+  cp $DOMAIN_HOME/reports/bin/reports.sh $DOMAIN_HOME/reports/bin/reports.sh.bak_$(date +%Y%m%d_%H%M%S)
+  cat >> $DOMAIN_HOME/reports/bin/reports.sh << EOF
+
+# --- IHateWeblogic reports.sh (Reports_kochbuch_de.txt 9.9) ---
+export NLS_LANG=${REPORTS_NLS_LANG}
+REPORTS_FONT_DIRECTORY=\${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
 EOF
+  tail -5 $DOMAIN_HOME/reports/bin/reports.sh
+  # Erwartet: "export NLS_LANG=<Wert aus 9.2>" und woertlich
+  # "REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
@@ -969,12 +1011,12 @@ EOF
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
   # 9.11 Verifikation - getserverinfo braucht als authid den Server-
-  #      Administrator aus <identifier> in rwserver.conf (9.7, hier
-  #      rep_admin/wls_team - Kennwort vor Produktivbetrieb aendern!).
+  #      Administrator aus <identifier> in rwserver.conf (9.7, Variable
+  #      REPORTS_IDENTIFIER aus 9.2).
   #      monUser oder weblogic als authid liefern "REP-52262 Diagnostic
   #      output is disabled", solange der Reports-Server nicht ueber
   #      securityId am <job>-Element abgesichert ist (bestaetigt 2026-10-15).
-  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=rep_admin/wls_team"
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=${REPORTS_IDENTIFIER}"
   # Erwartet: XML-Antwort mit <engineInstance ... status="1"> (Engine IDLE)
   #
   # Bleibt die Antwort bei "REP-50001 The server is initializing" und zeigt
