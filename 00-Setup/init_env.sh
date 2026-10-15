@@ -605,10 +605,23 @@ detect_db_from_jps() {
 
     [ -z "$jdbc_url" ] && return 1
 
-    DET_DB_HOST="$(   printf "%s" "$jdbc_url" | sed -n 's/.*host=\([^)]*\).*/\1/p'         | head -1)"
-    DET_DB_PORT="$(   printf "%s" "$jdbc_url" | sed -n 's/.*port=\([^)]*\).*/\1/p'         | head -1)"
-    DET_DB_SERVICE="$(printf "%s" "$jdbc_url" | sed -n 's/.*service_name=\([^)]*\).*/\1/p' | head -1)"
-    DET_DB_SERVER="$( printf "%s" "$jdbc_url" | sed -n 's/.*server=\([^)]*\).*/\1/p'       | head -1)"
+    if printf "%s" "$jdbc_url" | grep -qi '(host='; then
+        # TNS descriptor: jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=..)(PORT=..))(CONNECT_DATA=(SERVICE_NAME=..)))
+        DET_DB_HOST="$(   printf "%s" "$jdbc_url" | sed -n 's/.*[Hh][Oo][Ss][Tt]=\([^)]*\).*/\1/p'         | head -1)"
+        DET_DB_PORT="$(   printf "%s" "$jdbc_url" | sed -n 's/.*[Pp][Oo][Rr][Tt]=\([^)]*\).*/\1/p'         | head -1)"
+        DET_DB_SERVICE="$(printf "%s" "$jdbc_url" | sed -n 's/.*[Ss][Ee][Rr][Vv][Ii][Cc][Ee]_[Nn][Aa][Mm][Ee]=\([^)]*\).*/\1/p' | head -1)"
+        DET_DB_SERVER="$( printf "%s" "$jdbc_url" | sed -n 's/.*[Ss][Ee][Rr][Vv][Ee][Rr]=\([^)]*\).*/\1/p'       | head -1)"
+    else
+        # EZConnect, as written by 08-oracle_setup_domain.sh / the Configuration
+        # Wizard: jdbc:oracle:thin:@//host:port/service[:server] or @host:port/service.
+        # Before 2026-10-15 only the TNS form was parsed -> empty DB_HOST/DB_SERVICE.
+        local ez="${jdbc_url#*@}"; ez="${ez#//}"
+        DET_DB_HOST="${ez%%[:/]*}"
+        local rest="${ez#"$DET_DB_HOST"}"
+        case "$rest" in :[0-9]*) DET_DB_PORT="$(printf "%s" "$rest" | sed -n 's/^:\([0-9]*\).*/\1/p')" ;; esac
+        DET_DB_SERVICE="$(printf "%s" "$rest" | sed -n 's|^[^/]*/\([^:?]*\).*|\1|p')"
+        DET_DB_SERVER="$( printf "%s" "$rest" | sed -n 's|^[^/]*/[^:]*:\([A-Za-z]*\).*|\1|p')"
+    fi
     DET_DB_PORT="${DET_DB_PORT:-1521}"
     DET_DB_SERVER="${DET_DB_SERVER:-dedicated}"
     return 0

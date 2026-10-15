@@ -584,13 +584,17 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   `nmConnect()` did not; `11` sets the credentials but does not test them).
 - [ ] **A6 – live-test way B in `docs/80-oracle_security.md` 5.2** (clear text
   in `nm_password.properties`), then drop the "not live-tested" note.
-- [ ] **C5 – `00-Setup/init_env.sh`**: DB detection from `jps-config.xml`
-  returns empty `DB_HOST`/`DB_SERVICE` (harmless while only missing values are
-  appended).
-- [ ] **D2 – test host**: `~oracle/oracle-WebLogicConfig.properties` +
-  `oracle-WebLogicKey.properties` (from a `storeUserConfig()` test) are WLST's
-  default credentials and silently hide missing `boot.properties` / wrong NM
-  passwords in tests – remove or keep consciously.
+- [x] **C5 – `00-Setup/init_env.sh`**: DB detection from `jps-config.xml`
+  returned empty `DB_HOST`/`DB_SERVICE` – it only parsed a lower-case TNS
+  descriptor, but the domain stores EZConnect (`@//host:port/service`). Now
+  both forms, case-insensitive (2026-10-15); doc 00-environment-setup.
+- [x] **D2 – test host**: `~oracle/oracle-WebLogicConfig.properties` +
+  `oracle-WebLogicKey.properties` (from a `storeUserConfig()` test) were WLST's
+  default credentials and silently hid missing `boot.properties` / wrong NM
+  passwords in tests – removed 2026-10-15 (nothing in the library depends on
+  them; the autostart uses its own key files, `fmw_ctl.sh status` OK
+  afterwards). Manual `startComponent.sh` on the test host now asks for the NM
+  password again unless `storeUserConfig` is used.
 
 ### Older open items
 

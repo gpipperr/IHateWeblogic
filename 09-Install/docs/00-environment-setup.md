@@ -225,6 +225,12 @@ JAVA_HOME:
 
 DB connection:
   1. jps-config.xml: first DB_ORACLE propertySet → parse JDBC URL
+     - EZConnect  jdbc:oracle:thin:@//host:port/service[:server]  (as written
+       by 08-oracle_setup_domain.sh / the Configuration Wizard)
+     - TNS form   jdbc:oracle:thin:@(DESCRIPTION=…(HOST=…)(PORT=…)…(SERVICE_NAME=…))
+       (case-insensitive)
+     (before 2026-10-15 only a lower-case TNS form was parsed – EZConnect
+      gave an empty DB_HOST/DB_SERVICE)
   → Fallback: empty (manual entry required)
 ```
 
