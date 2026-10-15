@@ -273,6 +273,8 @@ IHateWeblogic/
 │   ├── port_check.sh                – Listen addresses and ports per component, TCP check
 │   ├── db_connect_check.sh          – TNS / JDBC connectivity test (uses weblogic_sec.sh)
 │   ├── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
+│   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
+│   │                                   servers per port (DiagServerLocator), read-only
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
 │
 ├── 03-Logs/

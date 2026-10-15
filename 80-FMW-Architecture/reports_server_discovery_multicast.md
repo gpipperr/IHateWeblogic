@@ -151,17 +151,19 @@ Channel port  = 14027
 
 | Measure | Effect | Status |
 |---|---|---|
-| unique broadcast port per environment, chosen after a scan of 14021–14030 (§4b) | environments do not see each other; no REP-56040 on equal server names | scan method confirmed, tool not yet written |
+| unique broadcast port per environment, chosen after a scan of 14021–14030 (§4b) | environments do not see each other; no REP-56040 on equal server names | `02-Checks/reports_network_scan.sh` |
 | unique server names per environment (e.g. with environment suffix) | a port clash cannot turn into REP-56040 | convention only |
 | own multicast **channel** per environment (`channel=` instead of `228.5.6.7`, all three `rwnetwork.conf`) | separates environments even on the same port | **assumption – not tested** |
 | UDP broadcast port only reachable from the own segment / host (firewall source restriction instead of an open port) | foreign hosts can neither see nor disturb the discovery | **assumption – not tested** (rich rule with source address) |
 | COS naming service instead of multicast (`<namingService>`) | no multicast at all; explicit registry | not tested (§2) |
 | keep the IPv6/NIC + firewall baseline (§5) | discovery works at all | implemented in `00-`/`01-`/`13-` |
 
-Planned tool (not implemented): `02-Checks/reports_network_scan.sh` – multicast
-self-test (moved out of `13-`), active `DiagServerLocator` scan over a port
-range, report foreign hosts on the own port (WARN, propose a free port) and
-same-name servers on other hosts (FAIL, REP-56040); read-only.
+Tool: `02-Checks/reports_network_scan.sh` (implemented 2026-10-15) – checks of
+§5, multicast self-test (moved out of `13-`), active `DiagServerLocator` scan
+over a port range (default 14021–14030), WARN for foreign hosts on the own
+port, FAIL for own server names on other hosts (REP-56040), list of ports
+without answer; read-only. Note: `DiagServerLocator` needs the full
+`reports.sh` environment (class path alone → `InvocationTargetException`).
 
 ## 5. Prerequisites on the host
 
@@ -209,7 +211,8 @@ server"). **confirmed (live)**
 |---|---|
 | `09-Install/00-root_os_network.sh` | reports IPv6 per interface + NetworkManager `ipv6.method` |
 | `09-Install/01-root_os_baseline.sh` | opens `REPORTS_BROADCAST_PORT`/udp; disables IPv6 per interface (runtime + `nmcli`) |
-| `09-Install/13-oracle_setup_reports.sh` | sets the port in all three `rwnetwork.conf` (`<multicast>` or `<cluster>`); multicast pre-check: route, `MULTICAST` flag, self-test (send + receive one datagram – skipped while a server runs), passive listen for foreign senders (hint only); firewall check |
+| `09-Install/13-oracle_setup_reports.sh` | sets the port in all three `rwnetwork.conf` (`<multicast>` or `<cluster>`); calls `reports_network_scan.sh --no-scan` for the prerequisites and the self-test |
+| `02-Checks/reports_network_scan.sh` | rwnetwork.conf consistency, route/`MULTICAST`/IPv6/firewall, send+receive self-test (skipped while a server runs), active scan for Reports servers per port (`DiagServerLocator`) |
 
 Docs: `09-Install/docs/13-reports-detail-settings.md` (REP-50600 section),
 `09-Install/docs/00-root_set_os_parameter.md` (firewall, IPv6 per interface).
@@ -218,8 +221,8 @@ Reports 9.5 + known problems).
 
 ## 8. Open points
 
-- Write `02-Checks/reports_network_scan.sh` (§4c) and try the port scan in a
-  network with several environments; test `rwdiag.sh -monitor`.
+- Try `02-Checks/reports_network_scan.sh` in a network with several
+  environments; test `rwdiag.sh -monitor`.
 - Test an own multicast channel per environment and a source-restricted
   firewall rule (§4c).
 

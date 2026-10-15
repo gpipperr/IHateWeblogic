@@ -643,7 +643,9 @@ packets; a server with the **same name** on the same channel/port gives
 3. no multicast route → `ip route get 228.5.6.7` must name the LAN interface
 
 `13-oracle_setup_reports.sh` runs a **multicast pre-check** before it writes the
-broadcast port (since 2026-10-15): route to `228.5.6.7` (not via `lo`),
+broadcast port (since 2026-10-15, via `02-Checks/reports_network_scan.sh
+--no-scan --port <port>`; the same script without `--no-scan` also scans the
+network for other Reports servers per port): route to `228.5.6.7` (not via `lo`),
 `MULTICAST` flag on that interface, and a **self-test** that sends one UDP
 datagram to `228.5.6.7:<port>` and must receive it again on this host (the
 same thing the Reports server checks – FAIL = REP-50600 expected). The

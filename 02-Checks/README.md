@@ -16,6 +16,7 @@ marked otherwise – run them without `--apply` to get a safe status overview.
 | `db_connect_check.sh` | ✅ implemented | 6-step DB diagnostics: DNS/Ping/TCP/TNS/Service/Login |
 | `ssl_check.sh` | ✅ implemented | SSL architecture detection (Nginx/WLS), TLS analysis, cert expiry |
 | `weblogic_performance.sh` | ✅ implemented | SecureRandom startup fix + JVM heap per server check/apply |
+| `reports_network_scan.sh` | ✅ implemented | Reports multicast discovery: rwnetwork.conf consistency, route/MULTICAST/firewall, send+receive self-test, active scan for Reports servers per port (DiagServerLocator) |
 
 All implemented scripts source `environment.conf` and write output to both
 stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/init_env.sh` first if
@@ -231,6 +232,31 @@ Uses Easy Connect (`//host:port/service`) – no tnsnames.ora needed.
 - SQLcl (`sql`) – Java-based, uses existing `$JAVA_HOME`
 
 ---
+
+### reports_network_scan.sh
+
+```bash
+./02-Checks/reports_network_scan.sh                       # full check + scan 14021-14030
+./02-Checks/reports_network_scan.sh --ports 14021-14040 --timeout 5
+./02-Checks/reports_network_scan.sh --port 14027 --no-scan  # used by 13-oracle_setup_reports.sh
+```
+
+Read-only. Steps:
+
+| Step | What |
+|---|---|
+| 1 | Channel/port of all `rwnetwork.conf` (ReportsTools instance, every Reports server, `WLS_REPORTS` application) – must be equal |
+| 2 | Route to the multicast group (not `lo`), `MULTICAST` flag, IPv6 on that interface, firewall `<port>/udp` (via `sudo -n` when firewalld is active) |
+| 3 | Self-test: one UDP datagram to `channel:port`, must be received again on this host – exactly what the Reports server needs at start (else `REP-50600`). Skipped while a Reports server runs (it would log `REP-50125 StreamCorruptedException`). Passive listen for foreign senders (hint only) |
+| 4 | Active scan: Oracle's `DiagServerLocator -findAll` (the class behind `rwdiag.sh`) per port of the range, with a temporary `COMPONENT_CONFIG_PATH` – nothing is written to the domain. Table port/name/type/host; WARN if a foreign host uses the own port, FAIL if one of the own server names runs on another host (`REP-56040`); lists ports without answer |
+
+- Runs in a subshell that sources `$DOMAIN_HOME/reports/bin/reports.sh` –
+  `DiagServerLocator` needs that environment (with the class path alone it
+  fails with `InvocationTargetException`).
+- About 4 s per port (JVM start + timeout).
+- Only **running** servers answer – a silent port can still belong to a
+  stopped environment.
+- Background: [`80-FMW-Architecture/reports_server_discovery_multicast.md`](../80-FMW-Architecture/reports_server_discovery_multicast.md)
 
 ### ssl_check.sh
 
