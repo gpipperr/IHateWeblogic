@@ -34,6 +34,119 @@ VORAUSSETZUNGEN
 
 
 ================================================================================
+SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
+           abfragen, stoppen  (als oracle)
+================================================================================
+
+  # Oracle liefert im Domain-Verzeichnis unter $DOMAIN_HOME/bin/ fertige
+  # Start-/Stop-Skripte mit. Mit ihnen laesst sich jede Komponente einzeln
+  # von Hand bedienen - z.B. zur Fehlersuche oder wenn nur ein Teil neu
+  # gestartet werden soll. Die Skripte aus Schritt 2/3 rufen genau diese
+  # Oracle-Skripte auf.
+  #
+  #   Komponente          Starten                     Stoppen
+  #   ------------------  --------------------------  ---------------------------
+  #   1. AdminServer      startWebLogic.sh            stopWebLogic.sh
+  #   2. Node Manager     startNodeManager.sh         stopNodeManager.sh
+  #   3. Managed Server   startManagedWebLogic.sh     stopManagedWebLogic.sh
+  #      (Reports-WLS)    <server> <admin-url>        <server> <admin-url> <user> <pw>
+  #   4. Reports Server   startComponent.sh <name>    stopComponent.sh <name>
+  #      (repServer01)    (laeuft ueber den Node      (Neustart in einem Schritt:
+  #                       Manager)                    restartComponent.sh <name>)
+  #
+  # Ein eigenes Status-Skript liefert Oracle in 14.1.2 NICHT mit - der
+  # Zustand wird unten per curl/ps abgefragt.
+  #
+  # Werte fuer die aktuelle Sitzung setzen (dauerhaft: Schritt 1):
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export WLS_MANAGED_SERVER=reportRpgpi
+  export WLS_ADMIN_URL=t3://localhost:7001
+  export REPORTS_SERVER_NAME=repServer01
+  cd $DOMAIN_HOME/bin
+
+  # WICHTIG, falls der Autostart (Autostart_linux_middleware.txt) schon
+  # eingerichtet ist: die Umgebung dann NUR noch ueber "systemctl start/stop"
+  # bedienen und nicht zusaetzlich mit den Befehlen hier - sonst kennt der
+  # Node Manager den Zustand der von Hand gestarteten Server nicht.
+
+  --- 0.1 Starten (in dieser Reihenfolge) ---------------------------------------
+
+  # 1. AdminServer - braucht $DOMAIN_HOME/servers/AdminServer/security/
+  #    boot.properties (Reports_kochbuch_de.txt Schritt 4). Ohne diese Datei
+  #    bricht ein Start im Hintergrund (nohup) sofort ab: im Production Mode
+  #    gibt es keine Konsole fuer die Passwortabfrage (BEA-090782).
+  nohup ./startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
+  # ca. 1 Minute warten, bis der Status (0.2) "200" meldet
+
+  # 2. Node Manager
+  nohup ./startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
+  # ca. 10 Sekunden
+
+  # 3. Managed Server - braucht ebenfalls boot.properties
+  #    (Reports_kochbuch_de.txt Schritt 6) und einen laufenden AdminServer
+  nohup ./startManagedWebLogic.sh $WLS_MANAGED_SERVER $WLS_ADMIN_URL \
+      > /tmp/managed_start.log 2>&1 &
+  # ca. 1 Minute warten, bis der Status (0.2) "200" meldet
+
+  # 4. Reports Server - wird ueber den Node Manager gestartet, der muss
+  #    also laufen. Laeuft im Vordergrund und meldet am Ende
+  #    "Successfully started server ...".
+  ./startComponent.sh $REPORTS_SERVER_NAME
+  # Fragt das Skript nach Node-Manager-Benutzer/-Passwort: das sind die
+  # Zugangsdaten aus der Domain (normalerweise der WebLogic-Administrator).
+  # Mit "./startComponent.sh $REPORTS_SERVER_NAME storeUserConfig" werden
+  # sie einmalig gespeichert und danach nicht mehr abgefragt.
+
+  --- 0.2 Zustand der 4 Komponenten abfragen --------------------------------------
+
+  # 1. AdminServer - Erwartet: 200 (503 = startet noch)
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:7001/weblogic/ready
+
+  # 2. Node Manager - Erwartet: eine LISTEN-Zeile auf Port 5556 und ein
+  #    Java-Prozess "weblogic.NodeManager"
+  ss -ltn | grep ':5556'
+  ps -ef | grep '[w]eblogic.NodeManager'
+
+  # 3. Managed Server - Erwartet: 200 (503 = startet noch)
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9002/weblogic/ready
+
+  # 4. Reports Server - Prozess vorhanden?
+  ps -ef | grep "[r]wserver server=$REPORTS_SERVER_NAME"
+  #    Und antwortet er? authid ist der Server-Administrator aus
+  #    <identifier> in rwserver.conf (Reports_kochbuch_de.txt Schritt 9.7),
+  #    NICHT ein WebLogic-Benutzer:
+  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=$REPORTS_SERVER_NAME&statusformat=XML&authid=rep_admin/<IDENTIFIER_PASSWORD>"
+  #    Erwartet: <engineInstance ... status="1"> (1 = Engine bereit/IDLE,
+  #    2 = beschaeftigt, 0 = tot). "REP-50001 The server is initializing"
+  #    = noch 1-2 Minuten warten.
+
+  --- 0.3 Stoppen (umgekehrte Reihenfolge) -----------------------------------------
+
+  # Reihenfolge: Reports Server -> Managed Server -> AdminServer -> Node
+  # Manager. Der Node Manager kommt zuletzt, weil der Reports Server ueber
+  # ihn gestoppt wird.
+
+  # 4. Reports Server
+  ./stopComponent.sh $REPORTS_SERVER_NAME
+
+  # 3. Managed Server - braucht WebLogic-Benutzer und -Passwort. Das Passwort
+  #    nicht direkt in die Befehlszeile tippen (steht sonst in der
+  #    Shell-History), sondern verdeckt abfragen:
+  read -s -p "WebLogic-Passwort: " WLS_PASS; echo
+  ./stopManagedWebLogic.sh $WLS_MANAGED_SERVER $WLS_ADMIN_URL weblogic "$WLS_PASS"
+
+  # 1. AdminServer
+  ./stopWebLogic.sh weblogic "$WLS_PASS" $WLS_ADMIN_URL
+  unset WLS_PASS
+
+  # 2. Node Manager
+  ./stopNodeManager.sh
+
+  # Kontrolle: alle vier Abfragen aus 0.2 liefern jetzt nichts mehr bzw.
+  # "000" (keine Verbindung).
+
+
+================================================================================
 SCHRITT 1: Pfade dauerhaft im .bash_profile hinterlegen  (als oracle)
 ================================================================================
 
@@ -156,9 +269,11 @@ SCHRITT 4: Benutzung
   # Alles starten (dauert insgesamt ca. 2-3 Minuten):
   $ORACLE_HOME/start_wls_all.sh
 
-  # Status pruefen:
-  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
-  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+  # Status pruefen (alle vier Abfragen siehe Schritt 0.2):
+  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=rep_admin/<IDENTIFIER_PASSWORD>"
+  # Erwartet: XML-Antwort mit status="1" (Engine IDLE). Ohne authid kommt
+  # "REP-52262 Diagnostic output is disabled" (siehe Reports_kochbuch_de.txt
+  # Schritt 9.11).
 
   # Alles stoppen (fragt nach WebLogic-Benutzername/-Passwort):
   $ORACLE_HOME/stop_wls_all.sh
@@ -188,6 +303,20 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: Noch 1-2 Minuten warten, dann den curl-Befehl aus Schritt 4
            erneut ausfuehren; bei weiterem Problem die drei Log-Dateien
            pruefen, die start_wls_all.sh am Ende auflistet
+
+  Problem: Ein Server startet im Hintergrund (nohup) und ist kurz danach
+           wieder weg; im Start-Log steht "BEA-090782 ... System Console
+           ... was not found" und "shutDownStatus=255"
+  Ursache: boot.properties fehlt fuer diesen Server - im Production Mode
+           kann WebLogic ohne Konsole nicht nach dem Passwort fragen
+  Loesung: boot.properties anlegen (Reports_kochbuch_de.txt Schritt 4 fuer
+           den AdminServer, Schritt 6 fuer den Managed Server), neu starten
+
+  Problem: getserverinfo antwortet mit "REP-52262 Diagnostic output is
+           disabled"
+  Ursache: authid fehlt oder ist ein WebLogic-Benutzer statt des
+           Server-Administrators aus <identifier> in rwserver.conf
+  Loesung: authid=rep_admin/<IDENTIFIER_PASSWORD> verwenden (Schritt 0.2)
 
   Problem: $DOMAIN_HOME ist leer, wenn man "echo $DOMAIN_HOME" eingibt
   Ursache: ~/.bash_profile wurde noch nicht geladen (z.B. neue SSH-Sitzung

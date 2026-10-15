@@ -493,10 +493,10 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 
 ### Next steps on the test host (rebuild not finished yet)
 
-- [ ] **Reboot test of the autostart** (`30-configure_autostart.sh`): unit
-  `fmw-<domain>.service` is installed, enabled and starts/stops the domain
-  correctly via `systemctl` – not yet verified across a real reboot (repository
-  DB must come up first, then FMW).
+- [x] **Reboot test of the autostart** (`30-configure_autostart.sh`) – passed
+  2026-10-15: after the reboot the listener and the repository DB came up first
+  (08:43:12–08:43:25), then `fmw-<domain>.service`; `fmw_ctl.sh status` showed
+  AdminServer, WLS_FORMS, WLS_REPORTS and the Reports server RUNNING.
 - [ ] **Smoke test `09-Install/15-deploy-test-report-forms_template.sh`** – status
   "partially verified" since 2026-08; run it against the rebuilt domain.
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard also
