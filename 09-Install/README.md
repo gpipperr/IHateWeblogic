@@ -556,7 +556,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 13-reports-detail-settings.md ← 13-root_reports_fix.sh + 13-oracle_setup_reports.sh
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 14b-oracle_reports_fonts.md   ← 14b-oracle_reports_fonts.sh
-    ├── 80-oracle_security.md         ← post-install hardening checklist
+    ├── 80-oracle_security.md         ← post-install hardening checklist + password recovery
     ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (analysis + plan, not implemented)
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
