@@ -586,8 +586,9 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   after a credential change in the same run `--apply` offers a Node Manager
   restart and repeats the test (customer: `connect()` worked, `nmConnect()`
   did not). Tested on the test host: OK path and wrong-password path.
-- [ ] **A6 – live-test way B in `docs/80-oracle_security.md` 5.2** (clear text
-  in `nm_password.properties`), then drop the "not live-tested" note.
+- [x] **A6 – way B in `docs/80-oracle_security.md` 5.2** (clear text in
+  `nm_password.properties`) live-tested 2026-10-15: NM hashes it at the next
+  start, `nmConnect` OK, running servers unaffected.
 - [x] **C5 – `00-Setup/init_env.sh`**: DB detection from `jps-config.xml`
   returned empty `DB_HOST`/`DB_SERVICE` – it only parsed a lower-case TNS
   descriptor, but the domain stores EZConnect (`@//host:port/service`). Now

@@ -209,8 +209,11 @@ Automated by `09-Install/11-oracle_nodemanager.sh --apply`.
 
 **B – clear text in `nm_password.properties` (AdminServer not available)** –
 the Node Manager accepts clear text there and replaces it by a hash at its
-next start (Oracle-documented procedure; **not yet live-tested on the test
-host**):
+next start (Oracle-documented procedure; **live-tested on the test host
+2026-10-15**: clear text written, NM restarted via `stopNodeManager.sh` /
+`startNodeManager.sh`, listening again after ~4 s, file contained only
+`hashed=…` afterwards, `nmConnect` OK – checked with
+`11-oracle_nodemanager.sh` – and all servers kept running):
 
 ```bash
 F=$DOMAIN_HOME/config/nodemanager/nm_password.properties
