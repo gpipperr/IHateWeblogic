@@ -619,6 +619,50 @@ curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repserver0
 `authid=monUser/...` or `authid=webadmin/...` still return REP-52262.
 The server encrypts `<identifier>` on its first start (`encrypted="yes"`).
 
+### Reports server restarts in a loop: REP-50600 "Broadcasting is disabled" (customer 2026-10-15)
+
+`nodemanager.log` shows `The server 'repserver01' ... is no longer alive` /
+`Server failed so attempting to restart` every few seconds,
+`rwserver_diagnostic.log` shows `REP-50600 : Broadcasting is disabled. Please
+enable cosnaming for Reports discovery`. In multicast mode
+`RWServer.startServer` sends a discovery packet to `228.5.6.7:<port>` and then
+requires that **any** multicast packet was received
+(`ServerPacketHandler.packetsReceived()`, at least its own) – nothing received →
+REP-50600. Not caused by other Reports servers on the same port (those would send
+packets; a server with the **same name** on the same channel/port gives
+`REP-56040` instead). Causes, in order:
+
+1. firewalld blocks UDP `<REPORTS_BROADCAST_PORT>` →
+   `firewall-cmd --permanent --add-port=<port>/udp && firewall-cmd --reload`
+   (`01-root_os_baseline.sh --apply` does this; `13-` checks it)
+2. IPv6 still active on the interface (JVMs bind via IPv6) → see
+   `docs/00-root_set_os_parameter.md`, "IPv6 per interface"
+3. no multicast route → `ip route get 228.5.6.7` must name the LAN interface
+
+`13-oracle_setup_reports.sh` runs a **multicast pre-check** before it writes the
+broadcast port (since 2026-10-15): route to `228.5.6.7` (not via `lo`),
+`MULTICAST` flag on that interface, and a **self-test** that sends one UDP
+datagram to `228.5.6.7:<port>` and must receive it again on this host (the
+same thing the Reports server checks – FAIL = REP-50600 expected). The
+self-test is skipped while a Reports server is already running on the host
+(that server would receive the datagram and log a harmless
+`REP-50125 StreamCorruptedException`; a running server proves reception
+anyway). During a 10 s passive listen it reports foreign senders on the port –
+only a hint: Reports servers send only while starting, so silence does not
+prove the port is unused in the subnet.
+
+`13-root_reports_fix.sh` checks for `/lib64/libnsl.so.3`; if it is missing it
+points out that `libnsl2` is AppStream-only and whether AppStream is enabled.
+
+Check with `tcpdump -ni <if> udp port <port>` while stopping/starting the component
+(`stopComponent.sh` + `startComponent.sh` – `restartComponent.sh` is refused by
+the Node Manager for Reports servers: "softRestart command is not supported on
+ReportsServerComponent", confirmed 2026-10-15; a Reports server sends its
+~7 discovery packets only at start, nothing while idle):
+packets from foreign IPs = other environments use the same port (choose another
+one, same value in all three `rwnetwork.conf`); own packets only = dropped
+locally (firewall); none = route/interface.
+
 ### Check diagnostic log for startup errors
 
 ```bash

@@ -51,8 +51,12 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #   3. Managed Server   startManagedWebLogic.sh     stopManagedWebLogic.sh
   #      (Reports-WLS)    <server> <admin-url>        <server> <admin-url> <user> <pw>
   #   4. Reports Server   startComponent.sh <name>    stopComponent.sh <name>
-  #      (repServer01)    (laeuft ueber den Node      (Neustart in einem Schritt:
-  #                       Manager)                    restartComponent.sh <name>)
+  #      (repServer01)    (laeuft ueber den Node Manager)
+  #
+  # Neustart des Reports Servers: stopComponent.sh, dann startComponent.sh.
+  # restartComponent.sh gibt es zwar, fuer den Reports Server lehnt der Node
+  # Manager es aber ab: "Server softRestart command is not supported on
+  # ReportsServerComponent server" (bestaetigt 2026-10-15).
   #
   # Ein eigenes Status-Skript liefert Oracle in 14.1.2 NICHT mit - der
   # Zustand wird unten per curl/ps abgefragt.

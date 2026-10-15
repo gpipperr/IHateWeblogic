@@ -364,6 +364,119 @@ _update_rwnetwork() {
     fi
 }
 
+# Multicast pre-check (A3, 2026-10-15). The Reports server discovers servers
+# via UDP multicast to <channel>:<port> from rwnetwork.conf and stops with
+# "REP-50600 Broadcasting is disabled" if it does not RECEIVE any packet - not
+# even its own (RWServer.startServer -> ServerPacketHandler.packetsReceived).
+# This self-test does the same: send one datagram to the group and receive it
+# again on this host (no root needed). Plus: route + MULTICAST flag, and a
+# short passive listen for foreign senders. A Reports server only sends
+# (~7 packets) while it STARTS - silence does not prove the port is unused.
+_MC_CHANNEL="228.5.6.7"
+_mc_dev="$(ip -o route get "$_MC_CHANNEL" 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -1)"
+if [ -z "$_mc_dev" ]; then
+    warn "No route to multicast group $_MC_CHANNEL – Reports server discovery will fail (REP-50600)"
+    info "  As root: ip route add 224.0.0.0/4 dev <LAN interface>  (persistent: nmcli +ipv4.routes)"
+elif [ "$_mc_dev" = "lo" ]; then
+    warn "Multicast group $_MC_CHANNEL is routed via 'lo' – check the default route / LAN interface"
+else
+    ok "Multicast route: $_MC_CHANNEL via $_mc_dev"
+    if ip -br link show dev "$_mc_dev" 2>/dev/null | grep -q 'MULTICAST'; then
+        ok "Interface $_mc_dev has the MULTICAST flag"
+    else
+        warn "Interface $_mc_dev has no MULTICAST flag – Reports discovery will fail (REP-50600)"
+        info "  As root: ip link set dev $_mc_dev multicast on"
+    fi
+fi
+
+_PY="$(command -v python3 || command -v /usr/libexec/platform-python)"
+if pgrep -f "rwserver server=" > /dev/null 2>&1; then
+    # A running Reports server would receive the test datagram and log
+    # "REP-50125 StreamCorruptedException: invalid stream header" (seen
+    # 2026-10-15) - and a running server already proves the reception.
+    ok "Reports server process running on this host – multicast reception works, self-test skipped"
+elif [ -z "$_PY" ]; then
+    info "python3 not found – multicast self-test skipped"
+else
+    _mc_py="$(mktemp --suffix=.py)"
+    cat > "$_mc_py" << 'MC_EOF'
+import socket, struct, sys, time
+grp, port, listen = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+r = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+r.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    r.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+except (AttributeError, OSError):
+    pass
+r.bind(('', port))
+r.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+             struct.pack('4sl', socket.inet_aton(grp), socket.INADDR_ANY))
+r.settimeout(0.5)
+w = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+w.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+w.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+token = ('IHW-MC-SELFTEST-%d' % time.time()).encode()
+w.sendto(token, (grp, port))
+own, senders, end = False, {}, time.time() + max(listen, 3)
+while time.time() < end:
+    try:
+        data, addr = r.recvfrom(65535)
+    except socket.timeout:
+        continue
+    if data == token:
+        own = True
+    else:
+        senders[addr[0]] = senders.get(addr[0], 0) + 1
+print('SELF %s' % ('ok' if own else 'missing'))
+for ip, n in sorted(senders.items()):
+    print('SENDER %s %d' % (ip, n))
+MC_EOF
+    _mc_out="$("$_PY" -I "$_mc_py" "$_MC_CHANNEL" "$REPORTS_BROADCAST_PORT" 10 2>&1)"
+    rm -f "$_mc_py"
+    if printf '%s\n' "$_mc_out" | grep -q '^SELF ok'; then
+        ok "Multicast self-test: packet to $_MC_CHANNEL:$REPORTS_BROADCAST_PORT sent and received on this host"
+    elif printf '%s\n' "$_mc_out" | grep -q '^SELF missing'; then
+        fail "Multicast self-test: own packet to $_MC_CHANNEL:$REPORTS_BROADCAST_PORT NOT received – Reports server will stop with REP-50600"
+        info "  Check: firewalld (${REPORTS_BROADCAST_PORT}/udp), IPv6 on the interface, multicast route – docs/13 'REP-50600'"
+    else
+        warn "Multicast self-test could not run: $(printf '%s' "$_mc_out" | tail -1)"
+    fi
+    _own_ips=" $(hostname -I 2>/dev/null) "
+    while read -r _tag _ip _n; do
+        [ "$_tag" = "SENDER" ] || continue
+        case "$_own_ips" in
+            *" $_ip "*) info "  Multicast packets from this host ($_ip) – own Reports server starting/searching" ;;
+            *) warn "Foreign sender $_ip uses $_MC_CHANNEL:$REPORTS_BROADCAST_PORT ($_n packets) – another environment on the same broadcast port?"
+               info "  Use a broadcast port unique in this subnet (14021-14030) – same value in all three rwnetwork.conf" ;;
+        esac
+    done <<< "$_mc_out"
+    info "  (Passive listen 10 s: Reports servers send only while starting – no foreign sender seen does not prove the port is unused)"
+    unset _mc_py _mc_out _own_ips _tag _ip _n
+fi
+unset _MC_CHANNEL _mc_dev _PY
+
+# Firewall: the Reports server needs to RECEIVE the multicast discovery
+# packets on this UDP port, otherwise it stops at once with "REP-50600
+# Broadcasting is disabled" and the Node Manager restarts it in a loop
+# (customer 2026-10-15). 01-root_os_baseline.sh opens it (as root); here only
+# a check. firewall-cmd needs root - try "sudo -n", else ask for a manual check.
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+    if sudo -n true 2>/dev/null; then
+        if sudo -n firewall-cmd --query-port="${REPORTS_BROADCAST_PORT}/udp" > /dev/null 2>&1; then
+            ok "Firewall: ${REPORTS_BROADCAST_PORT}/udp open (Reports multicast discovery)"
+        else
+            warn "Firewall: ${REPORTS_BROADCAST_PORT}/udp NOT open – Reports server will stop with REP-50600"
+            info "  As root: firewall-cmd --permanent --add-port=${REPORTS_BROADCAST_PORT}/udp && firewall-cmd --reload"
+            info "  (or 09-Install/01-root_os_baseline.sh --apply)"
+        fi
+    else
+        warn "firewalld is active – check as root that ${REPORTS_BROADCAST_PORT}/udp is open (else REP-50600):"
+        info "  firewall-cmd --query-port=${REPORTS_BROADCAST_PORT}/udp"
+    fi
+else
+    ok "firewalld not active – no UDP rule needed for port ${REPORTS_BROADCAST_PORT}"
+fi
+
 # Location 1: ReportsToolsComponent
 _update_rwnetwork \
     "$_TOOLS_CONF_BASE/$REPORTS_TOOLS_INSTANCE/rwnetwork.conf" \

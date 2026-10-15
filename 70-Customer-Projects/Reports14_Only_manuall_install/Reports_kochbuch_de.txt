@@ -1140,6 +1140,33 @@ BEKANNTE PROBLEME UND LOESUNGEN
            (Alternativ: config.sh -> "Update an existing domain" ->
            "Oracle Reports Server" zusaetzlich anhaken.)
 
+  Problem: Reports Server startet in einer Schleife neu (nodemanager.log:
+           "is no longer alive" / "Server failed so attempting to restart"),
+           rwserver_diagnostic.log: "REP-50600 Broadcasting is disabled.
+           Please enable cosnaming for Reports discovery"
+  Ursache: der Reports Server empfaengt KEIN Multicast-Paket (auch nicht sein
+           eigenes) auf 228.5.6.7:<REPORTS_BROADCAST_PORT>. NICHT ausgeloest
+           durch andere Reports Server im Netz (die wuerden Pakete schicken;
+           ein Server mit GLEICHEM Namen auf demselben Port gibt stattdessen
+           REP-56040). Beim Kunden so aufgetreten (2026-10).
+  Loesung: der Reihe nach pruefen (als root):
+           1. Firewall: "systemctl is-active firewalld" - wenn aktiv:
+              firewall-cmd --permanent --add-port=<Port>/udp
+              firewall-cmd --reload        (siehe OS_Kochbuch_de.txt Schritt 2)
+           2. IPv6 pro Netzwerkkarte aus? "sysctl -a | grep disable_ipv6" -
+              ueberall "= 1" (siehe OS_Kochbuch_de.txt Schritt 1)
+           3. Multicast-Route: "ip route get 228.5.6.7" muss die Netzwerkkarte
+              nennen
+           Diagnose: "tcpdump -ni <Karte> udp port <Port>" waehrend
+           stopComponent.sh + startComponent.sh repServer01: fremde IPs = andere Umgebung
+           nutzt denselben Port (anderen Port waehlen, in allen drei
+           rwnetwork.conf gleich); nur eigene = lokal verworfen (Firewall);
+           gar keine = Route/Netzwerkkarte.
+           Danach: $DOMAIN_HOME/bin/stopComponent.sh repServer01, dann
+           $DOMAIN_HOME/bin/startComponent.sh repServer01 (restartComponent.sh
+           lehnt der Node Manager fuer den Reports Server ab: "softRestart
+           command is not supported on ReportsServerComponent")
+
   Problem: getserverinfo bleibt bei "REP-50001 The server is initializing",
            rwEng-0_diagnostic.log zeigt alle 60 s "REP-50125
            java.lang.NullPointerException ... Utility.getOrbProperties"

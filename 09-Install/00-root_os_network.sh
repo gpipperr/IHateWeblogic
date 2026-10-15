@@ -351,9 +351,39 @@ printf "  %-40s %s\n" "net.ipv6.conf.all.disable_ipv6:" \
 printf "  %-40s %s\n" "net.ipv6.conf.default.disable_ipv6:" \
     "${IPV6_DEF_DISABLED:-(unset)}" | tee -a "${LOG_FILE:-/dev/null}"
 
-if [ "${IPV6_ALL_DISABLED:-0}" = "1" ] && [ "${IPV6_DEF_DISABLED:-0}" = "1" ]; then
+# Per interface: "default" only applies to interfaces created after it was set,
+# an existing interface keeps its own value and NetworkManager re-enables IPv6
+# per connection (customer 2026-10-15: all=1, default=1, ens33=0 + fe80::
+# address -> JVMs listened via IPv6). Check only - 01-root_os_baseline.sh fixes it.
+IPV6_IF_ACTIVE=""
+for _ifdir in /proc/sys/net/ipv6/conf/*; do
+    _if="$(basename "$_ifdir")"
+    case "$_if" in all|default|lo) continue ;; esac
+    _val="$(cat "$_ifdir/disable_ipv6" 2>/dev/null)"
+    _nm=""
+    if command -v nmcli > /dev/null 2>&1; then
+        _con="$(nmcli -g GENERAL.CONNECTION device show "$_if" 2>/dev/null | head -1)"
+        [ -n "$_con" ] && _nm="$(nmcli -g ipv6.method connection show "$_con" 2>/dev/null)"
+    fi
+    printf "  %-40s %s\n" "net.ipv6.conf.${_if}.disable_ipv6:" \
+        "${_val:-?}${_nm:+  (NM ipv6.method: $_nm)}" | tee -a "${LOG_FILE:-/dev/null}"
+    [ "$_val" = "1" ] || IPV6_IF_ACTIVE="$IPV6_IF_ACTIVE $_if"
+    if [ -n "$_nm" ] && [ "$_nm" != "disabled" ] && [ "$_nm" != "ignore" ]; then
+        warn "NetworkManager connection '$_con' (${_if}): ipv6.method=$_nm – re-enables IPv6 at the next activation"
+        info "  Fix: nmcli connection modify '$_con' ipv6.method disabled  (or 01-root_os_baseline.sh --apply)"
+    fi
+done
+unset _ifdir _if _val _nm _con
+
+if [ "${IPV6_ALL_DISABLED:-0}" = "1" ] && [ "${IPV6_DEF_DISABLED:-0}" = "1" ] && [ -z "$IPV6_IF_ACTIVE" ]; then
     ok "IPv6 disabled system-wide via sysctl (recommended for WebLogic)"
     info "  NodeManager listen address is stable (127.0.0.1, not ::1)"
+elif [ "${IPV6_ALL_DISABLED:-0}" = "1" ] && [ "${IPV6_DEF_DISABLED:-0}" = "1" ]; then
+    warn "IPv6 disabled via all/default, but still active on:${IPV6_IF_ACTIVE}"
+    info "  JVMs then bind via the IPv6 stack ([::ffff:127.0.0.1]) and the Reports"
+    info "  multicast discovery can fail (REP-50600)"
+    info "  Fix: sysctl -w net.ipv6.conf.<if>.disable_ipv6=1 + nmcli ipv6.method disabled"
+    info "       (01-root_os_baseline.sh --apply), then restart the WLS/Reports JVMs"
 else
     info "IPv6 is active – performing additional checks"
 

@@ -299,6 +299,25 @@ Apply immediately:
 sysctl --system
 ```
 
+**IPv6 per interface:** `net.ipv6.conf.default` only applies to interfaces
+created *after* it was set – an interface that already exists keeps its own
+value, and NetworkManager re-enables IPv6 on its connections (`ipv6.method`).
+Seen at a customer (2026-10-15): `all=1`, `default=1`, but `ens33=0` with an
+`fe80::` address – the JVMs listened via the IPv6 stack (`[::ffff:127.0.0.1]:5556`).
+`01-root_os_baseline.sh` therefore also checks every interface and with
+`--apply` sets it at runtime and makes it persistent via NetworkManager:
+
+```bash
+sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"   # every interface must be 1
+ip -6 addr show                                                  # no output = IPv6 really off
+sysctl -w net.ipv6.conf.<if>.disable_ipv6=1                      # runtime
+nmcli -g GENERAL.CONNECTION device show <if>                     # connection name
+nmcli connection modify "<connection>" ipv6.method disabled      # persistent (next activation/boot)
+```
+
+Restart the WLS/Reports JVMs afterwards – they bind their network stack at start.
+
+
 ### Parameter rationale
 
 > **Provenance note:** `shmmax`, `shmall`, `sem`, `shmmni`, `file-max`,
@@ -527,7 +546,14 @@ rm /u01/app/oracle/swapfile
 - **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB
   swapfile under `$ORACLE_BASE/swapfile` if no swap is present (see section above)
 - **Firewall:** Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
-  port 5556 must remain closed externally (Nginx is the only external entry point)
+  port 5556 must remain closed externally (Nginx is the only external entry point).
+  For Reports (`INSTALL_COMPONENTS` with REPORTS): **UDP `REPORTS_BROADCAST_PORT`**
+  (default 14027) is opened – the Reports server sends a multicast discovery packet
+  (`228.5.6.7`) at start and must *receive* packets, otherwise it stops with
+  `REP-50600 Broadcasting is disabled` and the Node Manager restarts it in a loop
+  (customer 2026-10-15). The port must match the one `13-oracle_setup_reports.sh`
+  writes into the three `rwnetwork.conf` files and be unique per environment in
+  the subnet (14021–14030, Doc ID 437228.1). `13-` checks it again.
 - **Sysctl conflict detection:** The script scans all `/etc/sysctl.d/*.conf` and
   `/etc/sysctl.conf` for values that differ from the WLS target. Behaviour is
   controlled by `LOCAL_REP_DB` in `environment.conf` (see section above)
@@ -570,9 +596,13 @@ free -m
 swapon --show
 # Expected: at least one entry (partition or swapfile)
 
-# Firewall – Nginx ports open, WLS ports closed
+# Firewall – Nginx ports open, WLS ports closed, Reports discovery UDP open
 firewall-cmd --list-ports
-# Expected: 80/tcp 443/tcp  (and NOT 7001 9001 9002 5556)
+# Expected: 80/tcp 443/tcp 14027/udp  (and NOT 7001 9001 9002 5556)
+
+# IPv6 off on every interface
+sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"
+# Expected: all lines "= 1" (lo may stay as is)
 ```
 
 ---

@@ -548,6 +548,44 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   are a manual step (`14-` only checks them) – no download source in
   `PATCH_STORAGE`.
 
+### Findings from the customer installation (2026-10-15)
+
+- [x] **A1 – Firewall: UDP port for the Reports multicast discovery.** With
+  firewalld active the Reports server receives no multicast packet and stops with
+  `REP-50600 Broadcasting is disabled` (Node Manager restart loop).
+  `01-root_os_baseline.sh` now checks/opens `REPORTS_BROADCAST_PORT`/udp
+  (default 14027), `13-oracle_setup_reports.sh` checks it again; docs 00/13,
+  OS + Reports cookbook (known problem REP-50600 incl. `tcpdump` diagnosis).
+  Which of the changes fixed it at the customer is not confirmed yet.
+- [x] **A2 – IPv6 per network interface.** `all`/`default` = 1 is not enough:
+  an existing interface keeps its own value and NetworkManager re-enables IPv6
+  (customer: `ens33=0` with `fe80::`, JVMs bound via `[::ffff:127.0.0.1]`).
+  `00-root_os_network.sh` reports every interface + NM `ipv6.method`,
+  `01-root_os_baseline.sh --apply` sets it at runtime and via
+  `nmcli … ipv6.method disabled`; docs 00, OS cookbook.
+- [x] **A3 – Multicast pre-check before the first Reports server start** –
+  `13-oracle_setup_reports.sh`: route to `228.5.6.7` (not `lo`), `MULTICAST`
+  flag, self-test (send + receive one datagram on the broadcast port, like the
+  Reports server does → FAIL instead of a later REP-50600; skipped while a
+  Reports server runs – it would log REP-50125), 10 s passive listen for foreign
+  senders (hint only – Reports servers send only while starting, ~7 packets,
+  confirmed 2026-10-15). Full uniqueness of the port in the subnet still cannot
+  be proven.
+- [x] **A4 – `13-root_reports_fix.sh`**: missing `libnsl.so.3` → hint that
+  `libnsl2` is AppStream-only, whether AppStream is enabled, offline RPM variant.
+- [ ] **A5 – `11-oracle_nodemanager.sh`**: verify the new Node Manager
+  credentials with `nmConnect` after the NM restart (customer: `connect()` worked,
+  `nmConnect()` did not; `11` sets the credentials but does not test them).
+- [ ] **A6 – live-test way B in `docs/80-oracle_security.md` 5.2** (clear text
+  in `nm_password.properties`), then drop the "not live-tested" note.
+- [ ] **C5 – `00-Setup/init_env.sh`**: DB detection from `jps-config.xml`
+  returns empty `DB_HOST`/`DB_SERVICE` (harmless while only missing values are
+  appended).
+- [ ] **D2 – test host**: `~oracle/oracle-WebLogicConfig.properties` +
+  `oracle-WebLogicKey.properties` (from a `storeUserConfig()` test) are WLST's
+  default credentials and silently hide missing `boot.properties` / wrong NM
+  passwords in tests – remove or keep consciously.
+
 ### Older open items
 
 - [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):

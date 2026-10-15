@@ -134,9 +134,15 @@ sysctl -n net.ipv6.conf.all.disable_ipv6
 ip -6 addr show scope global
 ```
 
-- Reports whether IPv6 is enabled or disabled system-wide
-- If **disabled** via sysctl: OK for WebLogic (matches `net.ipv6.conf.all.disable_ipv6=1`
-  from `01-root_os_baseline.sh`)
+- Reports whether IPv6 is enabled or disabled system-wide **and per interface**
+  (`net.ipv6.conf.<if>.disable_ipv6`) plus the NetworkManager `ipv6.method` of
+  the interface's connection – `default` does not change interfaces that already
+  exist, and NetworkManager re-enables IPv6 per connection (customer 2026-10-15:
+  `all=1`, `default=1`, `ens33=0` → JVMs bound via IPv6, Reports multicast
+  discovery failed). WARN when an interface still has IPv6 or a connection is not
+  `ipv6.method disabled`; the fix is done by `01-root_os_baseline.sh --apply`
+- If **disabled** via sysctl on all interfaces: OK for WebLogic (matches
+  `net.ipv6.conf.all.disable_ipv6=1` from `01-root_os_baseline.sh`)
 - If **enabled**:
   - Check whether the host has a routable IPv6 address (global scope)
   - Check whether a AAAA record exists in DNS

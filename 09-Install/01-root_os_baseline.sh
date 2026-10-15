@@ -397,6 +397,50 @@ SYSCTL_EOF
     fi
 fi
 
+# --- IPv6 per network interface -----------------------------------------------
+# net.ipv6.conf.default only applies to interfaces created AFTER it was set –
+# an interface that already exists keeps its own value, and NetworkManager
+# (ipv6.method) re-enables IPv6 on its connections at every activation.
+# Seen at a customer 2026-10-15: all=1, default=1, ens33=0 with an fe80::
+# address -> the JVMs listened via the IPv6 stack ([::ffff:127.0.0.1]:5556).
+# Runtime fix: sysctl per interface; persistent fix: nmcli ipv6.method disabled.
+IPV6_IF_ISSUES=0
+for _ifdir in /proc/sys/net/ipv6/conf/*; do
+    _if="$(basename "$_ifdir")"
+    case "$_if" in all|default|lo) continue ;; esac
+    _val="$(cat "$_ifdir/disable_ipv6" 2>/dev/null)"
+    if [ "$_val" = "1" ]; then
+        ok "$(printf "%-42s = %s" "net.ipv6.conf.${_if}.disable_ipv6" "$_val")"
+    else
+        warn "$(printf "%-42s = %s  (want: 1 – IPv6 still active on this interface)" "net.ipv6.conf.${_if}.disable_ipv6" "${_val:-?}")"
+        IPV6_IF_ISSUES=$((IPV6_IF_ISSUES + 1))
+        if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Disable IPv6 on interface ${_if} now?" "y"; then
+            _run_root sysctl -w "net.ipv6.conf.${_if}.disable_ipv6=1" > /dev/null \
+                && ok "IPv6 disabled on ${_if} (runtime)"
+        fi
+    fi
+    # NetworkManager: keep it from re-enabling IPv6 at the next activation/boot
+    if command -v nmcli > /dev/null 2>&1; then
+        _con="$(nmcli -g GENERAL.CONNECTION device show "$_if" 2>/dev/null | head -1)"
+        if [ -n "$_con" ]; then
+            _method="$(nmcli -g ipv6.method connection show "$_con" 2>/dev/null)"
+            if [ "$_method" = "disabled" ] || [ "$_method" = "ignore" ]; then
+                ok "$(printf "%-42s = %s" "NM connection '${_con}' ipv6.method" "$_method")"
+            else
+                warn "$(printf "%-42s = %s  (want: disabled)" "NM connection '${_con}' ipv6.method" "${_method:-?}")"
+                IPV6_IF_ISSUES=$((IPV6_IF_ISSUES + 1))
+                if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Set ipv6.method=disabled on NM connection '${_con}' (takes effect at next activation/boot)?" "y"; then
+                    _run_root nmcli connection modify "$_con" ipv6.method disabled \
+                        && ok "NM connection '${_con}': ipv6.method=disabled"
+                fi
+            fi
+        fi
+    fi
+done
+unset _ifdir _if _val _con _method
+[ "$IPV6_IF_ISSUES" -gt 0 ] && [ "$APPLY_MODE" -ne 1 ] && \
+    info "  Re-run with --apply; after changing it restart the WLS/Reports JVMs (they bind their stack at start)"
+
 # =============================================================================
 # 5. Transparent HugePages
 # =============================================================================
@@ -645,6 +689,9 @@ elif ! _run_root firewall-cmd --state > /dev/null 2>&1; then
     info "  Start: systemctl enable --now firewalld"
     [ "${LOCAL_REP_DB:-false}" = "true" ] && \
         info "  LOCAL_REP_DB=true: open the DB listener too: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp"
+    case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+        *REPORTS*) info "  When enabling it: also open ${REPORTS_BROADCAST_PORT:-14027}/udp (Reports multicast discovery, else REP-50600)" ;;
+    esac
 else
     ok "firewalld is running"
 
@@ -666,6 +713,36 @@ else
 
     _fw_check 80  "HTTP  → Nginx redirect"
     _fw_check 443 "HTTPS → Nginx proxy"
+
+    # Reports server discovery (multicast 228.5.6.7, UDP, port from rwnetwork.conf).
+    # The Reports server sends a multicast packet at start and requires to
+    # RECEIVE packets (at least its own) - with the UDP port blocked it dies
+    # with "REP-50600 Broadcasting is disabled" and the Node Manager restarts
+    # it in a loop (RWServer.startServer, ServerPacketHandler.packetsReceived;
+    # customer 2026-10-15). Port = REPORTS_BROADCAST_PORT, the same value
+    # 13-oracle_setup_reports.sh writes into the three rwnetwork.conf files
+    # (default 14027, unique per environment in the subnet: 14021-14030).
+    case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+        *REPORTS*)
+            _bport="${REPORTS_BROADCAST_PORT:-14027}"
+            if _run_root firewall-cmd --query-port="${_bport}/udp" > /dev/null 2>&1; then
+                ok "Firewall: port ${_bport}/udp open (Reports server discovery, multicast)"
+            else
+                warn "Firewall: port ${_bport}/udp not open – Reports server would stop with REP-50600"
+                if [ "$APPLY_MODE" -eq 1 ]; then
+                    if askYesNo "Open port ${_bport}/udp (Reports multicast discovery)?" "y"; then
+                        _run_root firewall-cmd --permanent --add-port="${_bport}/udp"
+                        ok "Port ${_bport}/udp opened"
+                    fi
+                else
+                    info "  Open: firewall-cmd --permanent --add-port=${_bport}/udp && firewall-cmd --reload"
+                fi
+            fi
+            [ -z "${REPORTS_BROADCAST_PORT:-}" ] && \
+                info "  REPORTS_BROADCAST_PORT not set yet (init_env.sh) – default 14027 used; keep both in sync"
+            unset _bport
+            ;;
+    esac
 
     # WLS ports must NOT be open externally
     for PORT in "${WLS_ADMIN_PORT:-7001}" "${WLS_FORMS_PORT:-9001}" "${WLS_REPORTS_PORT:-9002}" 5556; do

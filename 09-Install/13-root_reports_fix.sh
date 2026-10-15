@@ -170,13 +170,28 @@ LIBNSL_LINK="$ORACLE_HOME/lib/libnsl.so.2"
 printf "  %-26s %s\n" "Symlink target (OS):" "$LIBNSL_SRC"  | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-26s %s\n" "Symlink location:"    "$LIBNSL_LINK" | tee -a "${LOG_FILE:-/dev/null}"
 
+# libnsl2 (the only provider of libnsl.so.3) exists ONLY in the AppStream
+# repository - with AppStream disabled "dnf install libnsl2" finds nothing
+# (customer 2026-10-15). 02-root_os_packages.sh checks AppStream up front.
+_libnsl2_hint() {
+    info "  Install: dnf install -y libnsl2   (package from the AppStream repository)"
+    if dnf repolist --enabled -q 2>/dev/null | awk 'NR>1 {print $1}' | grep -qi 'appstream'; then
+        info "  AppStream repository is enabled"
+    else
+        warn "  AppStream repository is NOT enabled – dnf will not find libnsl2"
+        info "  Enable: dnf config-manager --set-enabled ol9_appstream  (ULN: ol9_x86_64_appstream;"
+        info "          local mirror: 'Oracle Linux 9 AppStream'), or install the RPM offline:"
+        info "          dnf install -y ./libnsl2-2.0.0-1.el9.x86_64.rpm  (from 'dnf download libnsl2' elsewhere)"
+    fi
+}
+
 # Check source library exists on OS
 if [ -f "$LIBNSL_SRC" ]; then
     ok "OS library exists: $LIBNSL_SRC"
 else
     if [ "$NEEDS_FIX" -eq 1 ]; then
         fail "OS library not found: $LIBNSL_SRC"
-        info "  Install: dnf install libnsl2"
+        _libnsl2_hint
         info "  Ref: Doc ID 3069675.1"
     else
         info "OS library not found: $LIBNSL_SRC (expected on OL8 or earlier)"
@@ -241,7 +256,7 @@ else
                 fi
             else
                 fail "Cannot create symlink – source library missing: $LIBNSL_SRC"
-                info "  Install: dnf install libnsl2"
+                _libnsl2_hint
             fi
         else
             info "  Re-run with --apply to create the symlink"

@@ -79,6 +79,20 @@ net.ipv6.conf.default.disable_ipv6 = 1
 EOF
   sysctl --system
 
+  # WICHTIG: "default" gilt nur fuer Netzwerkkarten, die DANACH angelegt
+  # werden - eine schon vorhandene Karte behaelt ihren eigenen Wert, und der
+  # NetworkManager schaltet IPv6 pro Verbindung wieder ein. Beim Kunden so
+  # aufgetreten (2026-10): all=1, default=1, aber ens33=0 mit fe80::-Adresse
+  # -> die Java-Prozesse lauschten ueber IPv6. Deshalb JEDE Karte pruefen:
+  sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"
+  # Erwartet: ueberall "= 1". Steht bei einer Karte (z.B. ens33) "= 0":
+  #   sysctl -w net.ipv6.conf.ens33.disable_ipv6=1          # sofort
+  #   nmcli -g GENERAL.CONNECTION device show ens33         # Verbindungsname
+  #   nmcli connection modify "<Verbindung>" ipv6.method disabled   # dauerhaft
+  # (nmcli wirkt bei der naechsten Aktivierung bzw. beim Reboot unten.)
+  ip -6 addr show
+  # Erwartet nach dem Reboot: keine Ausgabe (keine IPv6-Adresse mehr)
+
   # localhost MUSS auf IPv4 (127.0.0.1) aufloesen, nicht auf ::1 - sonst
   # binden manche JVM-Prozesse auf die falsche Adresse.
   getent -s files hosts localhost
@@ -208,8 +222,17 @@ EOF
   firewall-cmd --state
   firewall-cmd --permanent --add-port=80/tcp
   firewall-cmd --permanent --add-port=443/tcp
+  # Reports-Server-Erkennung (Multicast 228.5.6.7, UDP): der Reports Server
+  # schickt beim Start ein Multicast-Paket und muss Pakete EMPFANGEN koennen,
+  # sonst beendet er sich mit "REP-50600 Broadcasting is disabled" und der
+  # Node Manager startet ihn in einer Schleife neu (beim Kunden so
+  # aufgetreten, 2026-10). Port = REPORTS_BROADCAST_PORT aus
+  # Reports_kochbuch_de.txt 9.2 (Beispiel 14027, je Umgebung im Netz
+  # eindeutig, Bereich 14021-14030):
+  firewall-cmd --permanent --add-port=14027/udp
   firewall-cmd --reload
-  # Kontrolle: 7001/9002/5556 duerfen HIER NICHT auftauchen
+  # Kontrolle: 80/tcp 443/tcp 14027/udp - 7001/9002/5556 duerfen HIER NICHT
+  # auftauchen
   firewall-cmd --list-ports
 
   # >>> AB HIER NEUSTART ERFORDERLICH (SELinux + THP-Kernel-Parameter) <<<
