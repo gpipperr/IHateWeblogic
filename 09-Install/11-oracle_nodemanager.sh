@@ -50,6 +50,7 @@ source "$ROOT_DIR/environment.conf"
 # --- Arguments ----------------------------------------------------------------
 APPLY=false
 SKIP_WLST=false
+_NM_CREDS_CHANGED=false
 
 for _arg in "$@"; do
     case "$_arg" in
@@ -327,6 +328,7 @@ WLST_EOF
             done <<< "$_wlst_out"
 
             rm -f "$_wlst_script"
+            printf '%s' "$_wlst_out" | grep -q 'IHW:OK:Node Manager credentials' && _NM_CREDS_CHANGED=true
             if printf '%s' "$_wlst_out" | grep -q 'IHW:OK:Node Manager credentials'; then
                 info "  NodeManager reads config/nodemanager/nm_password.properties at startup – restart it:"
                 info "    01-Run/startStop.sh stop NodeManager --apply && 01-Run/startStop.sh start NodeManager --apply"
@@ -360,6 +362,83 @@ else
     ok "nodemanager.properties: StartScriptEnabled=${_sse:-not set (default true)}"
 fi
 unset _sse
+
+# --- nmConnect test with the admin credentials (A5, 2026-10-15) ---------------
+# connect() to the AdminServer working does NOT mean nmConnect() works: the
+# Node Manager checks its own hash in config/nodemanager/nm_password.properties
+# (customer 2026-10-15). Test exactly what startComponent.sh / the autostart
+# need. Host/port/type come from nodemanager.properties (a NM listening on
+# 127.0.0.1 refuses connections to the host name).
+_nm_host="$(grep -E '^ListenAddress=' "$NM_PROPS" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+_nm_port="$(grep -E '^ListenPort=' "$NM_PROPS" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+_nm_host="${_nm_host:-localhost}"; _nm_port="${_nm_port:-${WLS_NODEMANAGER_PORT:-5556}}"
+_nm_sec="$(grep -i '^SecureListener' "$NM_PROPS" 2>/dev/null | cut -d= -f2 | tr -d ' ')"
+_nm_type="ssl"; [ "${_nm_sec,,}" = "false" ] && _nm_type="plain"
+_nm_domain="$(grep -m1 -o '<name>[^<]*</name>' "$DOMAIN_HOME/config/config.xml" 2>/dev/null | sed 's/<[^>]*>//g')"
+_nm_domain="${_nm_domain:-$(basename "$DOMAIN_HOME")}"
+
+_nm_connect_test() {
+    local py out
+    py="$(mktemp --suffix=.py)"
+    cat > "$py" << 'NMT_EOF'
+import os
+try:
+    nmConnect(os.environ['_IHW_U'], os.environ['_IHW_P'], os.environ['_IHW_H'],
+              os.environ['_IHW_PORT'], os.environ['_IHW_D'], os.environ['_IHW_DH'],
+              os.environ['_IHW_T'])
+    print('IHW:NM_OK')
+    nmDisconnect()
+except Exception, e:
+    print('IHW:NM_FAIL:' + str(e).split('\n')[0])
+exit()
+NMT_EOF
+    out="$(_IHW_U="$WL_USER" _IHW_P="$INTERNAL_WL_PWD" _IHW_H="$_nm_host" _IHW_PORT="$_nm_port" \
+           _IHW_D="$_nm_domain" _IHW_DH="$DOMAIN_HOME" _IHW_T="$_nm_type" \
+           "$WLST_SH" "$py" 2>&1)"
+    rm -f "$py"
+    if printf '%s\n' "$out" | grep -q '^IHW:NM_OK'; then
+        ok "nmConnect as ${WL_USER} to ${_nm_host}:${_nm_port} (${_nm_type}, domain ${_nm_domain}) works"
+        return 0
+    fi
+    fail "nmConnect as ${WL_USER} to ${_nm_host}:${_nm_port} failed: $(printf '%s\n' "$out" | sed -n 's/^IHW:NM_FAIL://p' | head -1)"
+    return 1
+}
+
+if [ ! -f "$WLST_SH" ]; then
+    info "wlst.sh not found – nmConnect test skipped"
+elif ! timeout 3 bash -c "echo >/dev/tcp/${_nm_host}/${_nm_port}" 2>/dev/null; then
+    info "Node Manager not listening on ${_nm_host}:${_nm_port} – nmConnect test skipped"
+    info "  Start it, then re-run this script: 01-Run/startStop.sh start NodeManager --apply"
+elif ! load_weblogic_password > /dev/null 2>&1; then
+    warn "Cannot load WebLogic credentials – nmConnect test skipped"
+else
+    if ! _nm_connect_test; then
+        if $_NM_CREDS_CHANGED; then
+            # The NM reads nm_password.properties only at startup
+            info "  The Node Manager credentials were changed in this run – the NM still uses the old ones"
+            if $APPLY && askYesNo "Restart the Node Manager now (running servers keep running)?" "y"; then
+                "$DOMAIN_HOME/bin/stopNodeManager.sh" > /dev/null 2>&1
+                sleep 3
+                nohup "$DOMAIN_HOME/bin/startNodeManager.sh" > "$DOMAIN_HOME/nodemanager/nm_start.log" 2>&1 &
+                _w=0
+                until timeout 3 bash -c "echo >/dev/tcp/${_nm_host}/${_nm_port}" 2>/dev/null || [ "$_w" -ge 60 ]; do
+                    sleep 3; _w=$(( _w + 3 ))
+                done
+                unset _w
+                _nm_connect_test || info "  See docs/80-oracle_security.md section 5.2"
+            else
+                info "  Restart the Node Manager, then re-run this script:"
+                info "    01-Run/startStop.sh stop NodeManager --apply && 01-Run/startStop.sh start NodeManager --apply"
+            fi
+        else
+            info "  The Node Manager password differs from the WebLogic admin password."
+            info "  Fix: re-run with --apply (sets the NM credentials via WLST), restart the NM"
+            info "  Background: docs/80-oracle_security.md section 5.2"
+        fi
+    fi
+    unset INTERNAL_WL_PWD
+fi
+unset _nm_host _nm_port _nm_sec _nm_type _nm_domain
 
 # =============================================================================
 # 5. Next steps

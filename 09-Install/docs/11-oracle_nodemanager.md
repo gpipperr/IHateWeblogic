@@ -128,7 +128,7 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 | 3 | Backup `nodemanager.properties` with timestamp |
 | 4 | Set `SecureListener=false`; `StartScriptEnabled` only if explicitly `false` (default is `true` since WLS 12.1.2) – restart NodeManager after a change |
 | 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain), and set the Node Manager credentials (`SecurityConfiguration` `NodeManagerUsername` + `setNodeManagerPassword()` – a clear-text `NodeManagerPasswordEncrypted` is refused in production mode) to the admin user – a WLST-offline production domain gets random ones (e.g. user `o2HTp584LE`, password unknown; `startComponent.sh` cannot log in). Restart the NodeManager afterwards |
-| 6 | Verify written values |
+| 6 | Verify written values, then **test `nmConnect`** with the WebLogic admin credentials (host/port/type from `nodemanager.properties`, domain name from `config.xml`) – `connect()` to the AdminServer working does not mean `nmConnect()` works (customer 2026-10-15). If the test fails right after the credentials were changed in this run, `--apply` offers to restart the Node Manager (it reads `nm_password.properties` only at startup) and repeats the test. Skipped when the NM does not listen. A wrong password shows as `Access to domain '<domain>' for user '<user>' denied` |
 | 7 | Print next-step hints (`01-Run/startStop.sh` start/stop commands) |
 
 ---
