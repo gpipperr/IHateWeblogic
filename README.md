@@ -228,6 +228,7 @@ Run these scripts in sequence on a fresh installation:
 | `10-Monitoring/`      | Concept only – AI-assisted proactive monitoring (Claude API) |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally (e.g. Reports server discovery via multicast) – findings, not procedures |
 
 ## Repository Structure
 
@@ -391,6 +392,11 @@ IHateWeblogic/
 │   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
 │   ├── environment_db.conf          – gitignored – server-specific values
 │   └── docs/                        – Step-by-step detail documentation
+│
+├── 80-FMW-Architecture/             – Background knowledge: how FMW works internally (findings
+│   ├── README.md                       marked confirmed/assumption)
+│   └── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
+│                                          REP-50600 / REP-56040, prerequisites, diagnosis
 │
 └── 70-Customer-Projects/            – Customer-specific manual walkthroughs, not generated from
     │                                   the scripts above; see README.md for an index + further

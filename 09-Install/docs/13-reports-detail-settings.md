@@ -621,6 +621,9 @@ The server encrypts `<identifier>` on its first start (`encrypted="yes"`).
 
 ### Reports server restarts in a loop: REP-50600 "Broadcasting is disabled" (customer 2026-10-15)
 
+> Background (discovery modes, what the server does at start, observed
+> traffic): [`80-FMW-Architecture/reports_server_discovery_multicast.md`](../../80-FMW-Architecture/reports_server_discovery_multicast.md)
+
 `nodemanager.log` shows `The server 'repserver01' ... is no longer alive` /
 `Server failed so attempting to restart` every few seconds,
 `rwserver_diagnostic.log` shows `REP-50600 : Broadcasting is disabled. Please
