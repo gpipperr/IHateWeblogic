@@ -694,6 +694,8 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   # erst nach einem Neustart aktualisiert.
   #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
   #   $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+  #   (Stop ohne Benutzer/Passwort braucht die boot.properties des Managed
+  #   Servers aus Schritt 6 - siehe Schritt 9.10)
 
   # Verifikation - ERST NACH Schritt 9.10 moeglich (der Reports-Managed-
   # Server und repServer laufen vorher noch nicht). ACHTUNG: wirkt nur, wenn
@@ -1002,7 +1004,32 @@ EOF
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
+  #
+  #      stopManagedWebLogic.sh ohne Benutzer/Passwort meldet sich mit der
+  #      boot.properties DES ZU STOPPENDEN SERVERS am AdminServer an:
+  #        $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  #      (Schritt 6). Fehlt sie - z.B. weil Schritt 6 mit einem anderen
+  #      Servernamen ausgefuehrt wurde -, bricht der Stop ab mit
+  #        connect(... adminServerName='WLS_REPORTS') ...
+  #        "No valid username/password or userConfigFile/userKeyFile provided"
+  #        shutDownStatus=1
+  #      (beim Kunden so aufgetreten, 2026-10-15). Deshalb zuerst pruefen:
+
+  # a) Heisst der Managed Server in der Domain wirklich so?
+  grep -A1 "<server>" $DOMAIN_HOME/config/config.xml | grep "<name>"
+  # Erwartet: eine Zeile <name>WLS_REPORTS</name> (= ${WLS_MANAGED_SERVER})
+  # b) Gibt es seine boot.properties?
+  ls -l $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  # Fehlt die Datei: Schritt 6 mit dem richtigen Servernamen nachholen -
+  # ODER beim Stoppen Benutzer/Passwort mitgeben (verdeckt abfragen, nicht
+  # in die Befehlszeile tippen):
+  #   read -s -p "WebLogic-Passwort: " WLS_PASS; echo
+  #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} weblogic "$WLS_PASS"
+  #   unset WLS_PASS
+
   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+  # Erwartet am Ende: "shutDownStatus=0" ("Stopping Derby Server" /
+  # "Derby server stopped" ist eine harmlose Begleitmeldung)
   nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} \
       > /tmp/managed_start.log 2>&1 &
   sleep 90
@@ -1162,6 +1189,17 @@ BEKANNTE PROBLEME UND LOESUNGEN
            (Symbol/griechische Glyphen)
   Ursache: separates Font-Thema, nicht Teil dieses Kochbuchs
   Loesung: siehe Font_kochbuch_de.txt
+
+  Problem: stopManagedWebLogic.sh bricht ab mit "No valid username/password
+           or userConfigFile/userKeyFile provided" und "shutDownStatus=1"
+  Ursache: ohne Benutzer/Passwort meldet sich das Oracle-Skript mit der
+           boot.properties des zu stoppenden Servers an - die fehlt unter
+           $DOMAIN_HOME/servers/<Servername>/security/ (Schritt 6 nicht oder
+           mit einem anderen Servernamen ausgefuehrt; der Name muss exakt
+           dem <name> in config.xml entsprechen)
+  Loesung: Schritt 6 mit dem richtigen Namen nachholen (siehe Pruefung in
+           Schritt 9.10), oder Benutzer/Passwort als 3./4. Parameter
+           mitgeben (verdeckt per "read -s" abfragen)
 
   Problem: getserverinfo liefert weiterhin 401/403, obwohl Benutzer/Rolle/
            Policy in Schritt 8 korrekt angelegt wurden

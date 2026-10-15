@@ -505,6 +505,19 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
   fix as `11-oracle_nodemanager.sh`.
 
+### Reports servlet security – own topic (analyse in detail later)
+
+- [ ] **Web commands / `<identifier>` / `webcommandaccess`** – analysis and plan in
+  [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md):
+  with `no`/`L0`/`L1` and a server without `securityId` on `<job>`, `getserverinfo`
+  only accepts the server administrator from `<identifier>` (`monUser`, WebLogic
+  admin → `REP-52262`); `L0` is not "open" as the cookbook claims; a customer who
+  copied the cookbook from 9.7 on got an empty `<identifier>`. Open: behaviour
+  without/with empty `<identifier>`, `L2`, secured server via `securityId`
+  (tests A–D in the doc), then decide the target design (open first test →
+  separate hardening step) and align `13-`, doc 13, both cookbooks and
+  `rwserver_status.sh`. The two related items below are part of this topic.
+
 ### Script gaps found during the rebuild
 
 - [ ] **JDK path resolved in the domain**: WLST `createDomain`/`updateDomain`
@@ -521,7 +534,8 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   Reports server orphaned). The autostart (`30-`, `fmw_ctl.sh`) already
   handles them.
 - [ ] **`rwserver.conf` server administrator**: `13-oracle_setup_reports.sh`
-  writes a fixed `<identifier>rep_admin/wls_team</identifier>` – generate or
+  (part of the Reports servlet security topic above) writes a fixed
+  `<identifier>rep_admin/wls_team</identifier>` – generate or
   ask for the password and store it encrypted (`*.des3`) like the other
   credentials; needed by every authenticated `getserverinfo` call.
 - [ ] **Reports server security decision**: secure the server via `securityId`

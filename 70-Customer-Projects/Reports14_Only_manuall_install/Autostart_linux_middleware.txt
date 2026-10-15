@@ -50,17 +50,57 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
   # startComponent.sh / stopComponent.sh (Reports-Komponenten) sprechen mit
   # dem Node Manager und fragen beim ersten Aufruf nach dessen Passwort. Unter
   # systemd kann niemand etwas eintippen - daher die Zugangsdaten EINMAL
-  # interaktiv speichern (verschluesselt unter ~/.wlst/, nicht im Klartext).
-  # Node Manager und AdminServer muessen dafuer laufen (z.B. mit
-  # start_wls_all.sh aus WLS_Report_start_stop_kochbuch.txt).
+  # interaktiv speichern. Node Manager und AdminServer muessen dafuer laufen
+  # (z.B. mit start_wls_all.sh aus WLS_Report_start_stop_kochbuch.txt).
 
-  /u01/user_projects/domains/reportRpgpi/bin/startComponent.sh repServer01 storeUserConfig
-  # Fragt einmal nach dem Node-Manager-Passwort und speichert es.
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
+  # 1a) Node Manager muss LAUFEN - sonst endet startComponent.sh mit
+  #     "Connection refused. Could not connect to NodeManager ... 5556"
+  #     (unabhaengig vom Passwort; beim Kunden so aufgetreten, 2026-10-15):
+  ss -ltn | grep ':5556'
+  # Keine Ausgabe -> Node Manager starten:
+  #   nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
+  #   sleep 10; ss -ltn | grep ':5556'
+
+  # 1b) Welches Passwort ist gemeint? startComponent.sh liest den
+  #     Node-Manager-BENUTZER aus der Domain und fragt nur dessen Passwort ab:
+  grep -o "<node-manager-username>[^<]*" $DOMAIN_HOME/config/config.xml
+  #   - "weblogic" -> Node-Manager-Passwort = WebLogic-Admin-Passwort
+  #   - eine zufaellige Zeichenkette (z.B. "o2HTp584LE") -> das Passwort
+  #     kennt niemand (so legt WebLogic die Domain im Production Mode an,
+  #     wenn keine eigenen Node-Manager-Zugangsdaten vergeben wurden). Dann
+  #     einmalig per WLST auf die Admin-Zugangsdaten setzen (AdminServer
+  #     muss laufen), danach den Node Manager neu starten:
+  #       $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+  #       connect('weblogic', '<WLS_ADMIN_PASSWORD>', 't3://localhost:7001')
+  #       edit(); startEdit()
+  #       cd('/SecurityConfiguration/<DOMAIN_NAME>')
+  #       cmo.setNodeManagerUsername('weblogic')
+  #       cmo.setNodeManagerPassword('<WLS_ADMIN_PASSWORD>')
+  #       save(); activate(block='true')
+  #       disconnect(); exit()
+  #     (setNodeManagerPassword verwenden - ein Klartext-Wert fuer
+  #     "NodeManagerPasswordEncrypted" wird im Production Mode abgelehnt.)
+  #     Node Manager neu starten:
+  #       $DOMAIN_HOME/bin/stopNodeManager.sh
+  #       nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
+
+  # 1c) Passwort einmalig speichern:
+  $DOMAIN_HOME/bin/startComponent.sh repServer01 storeUserConfig
+  # Fragt einmal nach dem Node-Manager-Passwort und speichert es
+  # verschluesselt im Home-Verzeichnis des oracle-Users als
+  #   ~/oracle-WebLogicConfig.properties  (Benutzer/Passwort, verschluesselt)
+  #   ~/oracle-WebLogicKey.properties     (Schluessel dazu)
+  # (Dateiname = <OS-Benutzer>-WebLogic...; NICHT unter ~/.wlst/.)
+  # Wer beide Dateien hat, kann sich am Node Manager anmelden - Rechte
+  # pruefen, nur oracle darf sie lesen:
+  chmod 600 ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties
 
   # Kontrolle: die naechsten Aufrufe duerfen NICHT mehr nach einem Passwort fragen
   /u01/user_projects/domains/reportRpgpi/bin/stopComponent.sh repServer01
   /u01/user_projects/domains/reportRpgpi/bin/startComponent.sh repServer01
-  ls -la ~/.wlst/
+  ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties
 
 
 ================================================================================
@@ -336,8 +376,24 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Problem: startComponent.sh/stopComponent.sh fragt nach einem Passwort,
            oder der Dienst haengt bei den Reports-Komponenten
   Ursache: Schritt 1 (storeUserConfig) nicht ausgefuehrt, oder als anderer
-           Benutzer als oracle
+           Benutzer als oracle - die gespeicherten Zugangsdaten liegen als
+           ~/oracle-WebLogicConfig.properties + ~/oracle-WebLogicKey.properties
+           im Home-Verzeichnis des Benutzers, der storeUserConfig ausgefuehrt hat
   Loesung: Schritt 1 als oracle wiederholen
+
+  Problem: startComponent.sh meldet "Connection refused. Could not connect
+           to NodeManager ... localhost/127.0.0.1:5556"
+  Ursache: der Node Manager laeuft nicht (das Passwort spielt hier noch
+           keine Rolle)
+  Loesung: Node Manager starten (Schritt 1a), dann erneut versuchen
+
+  Problem: "Please enter Node Manager password" - aber kein bekanntes
+           Passwort passt
+  Ursache: die Domain hat zufaellige Node-Manager-Zugangsdaten
+           (<node-manager-username> in config.xml ist eine zufaellige
+           Zeichenkette)
+  Loesung: Schritt 1b - Node-Manager-Zugangsdaten per WLST auf den
+           WebLogic-Administrator setzen, Node Manager neu starten
 
   Problem: "systemctl start" endet mit "failed", AdminServer laeuft nicht
   Ursache: AdminServer wurde innerhalb von WAIT_ADMIN (600 s) nicht RUNNING

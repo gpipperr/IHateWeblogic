@@ -92,10 +92,18 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #    also laufen. Laeuft im Vordergrund und meldet am Ende
   #    "Successfully started server ...".
   ./startComponent.sh $REPORTS_SERVER_NAME
-  # Fragt das Skript nach Node-Manager-Benutzer/-Passwort: das sind die
-  # Zugangsdaten aus der Domain (normalerweise der WebLogic-Administrator).
-  # Mit "./startComponent.sh $REPORTS_SERVER_NAME storeUserConfig" werden
-  # sie einmalig gespeichert und danach nicht mehr abgefragt.
+  # "Connection refused ... 5556" heisst: Node Manager laeuft nicht -> erst
+  # Punkt 2 (Node Manager starten).
+  # Fragt das Skript nach dem Node-Manager-Passwort: den Benutzer liest es
+  # aus der Domain, nachsehen mit
+  #   grep -o "<node-manager-username>[^<]*" $DOMAIN_HOME/config/config.xml
+  # "weblogic" -> WebLogic-Admin-Passwort eingeben. Eine zufaellige
+  # Zeichenkette -> Passwort ist unbekannt, siehe
+  # Autostart_linux_middleware.txt Schritt 1b (per WLST auf den
+  # Administrator setzen).
+  # Mit "./startComponent.sh $REPORTS_SERVER_NAME storeUserConfig" wird das
+  # Passwort einmalig gespeichert (~/oracle-WebLogicConfig.properties +
+  # ~/oracle-WebLogicKey.properties) und danach nicht mehr abgefragt.
 
   --- 0.2 Zustand der 4 Komponenten abfragen --------------------------------------
 

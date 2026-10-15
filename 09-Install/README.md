@@ -557,6 +557,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 14b-oracle_reports_fonts.md   ← 14b-oracle_reports_fonts.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist
+    ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (analysis + plan, not implemented)
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
     ├── 30-configure_autostart.md     ← 30-configure_autostart.sh
