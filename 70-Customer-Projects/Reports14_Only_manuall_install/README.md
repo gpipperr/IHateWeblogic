@@ -22,9 +22,33 @@ und deutschen Kommentaren.
 5. [Font_kochbuch_de.txt](Font_kochbuch_de.txt) – TrueType-Fonts und den
    HTML-Parameterformular-Fontpfad für Reports einrichten.
 6. [WLS_Report_start_stop_kochbuch.txt](WLS_Report_start_stop_kochbuch.txt) –
-   einfachstes Starten/Stoppen der gesamten Umgebung für den laufenden
-   Betrieb, über zwei eigene Skripte ohne jede Abhängigkeit zu den
-   IHateWeblogic-Skripten.
+   Starten, Stoppen und Statusabfrage der Umgebung im laufenden Betrieb,
+   ohne jede Abhängigkeit zu den IHateWeblogic-Skripten:
+   - **Schritt 0 – Handbetrieb mit den Oracle-Skripten:** Übersicht der
+     Start-/Stop-Skripte, die Oracle in `$DOMAIN_HOME/bin/` mitliefert
+     (`startWebLogic.sh`, `startNodeManager.sh`, `startManagedWebLogic.sh`,
+     `startComponent.sh` und die `stop*`-Gegenstücke). Damit lassen sich
+     AdminServer, Node Manager, Managed Server und Reports Server einzeln
+     starten und in umgekehrter Reihenfolge stoppen – z.B. zur Fehlersuche
+     oder wenn nur eine Komponente neu gestartet werden soll.
+   - **Statusabfrage aller vier Komponenten:** AdminServer und Managed
+     Server über `/weblogic/ready` (HTTP 200), Node Manager über Port 5556
+     und Prozess, Reports Server über den `rwserver`-Prozess und
+     `getserverinfo` (Engine-Status `1` = bereit). Wichtig: `getserverinfo`
+     braucht als `authid` den Server-Administrator aus `<identifier>` in
+     `rwserver.conf`, nicht einen WebLogic-Benutzer.
+   - **Schritt 1–4 – alles auf einmal:** zwei eigene Skripte
+     `start_wls_all.sh` / `stop_wls_all.sh`, die die Umgebung immer
+     komplett in der richtigen Reihenfolge starten bzw. stoppen (das
+     WebLogic-Passwort wird beim Stoppen verdeckt abgefragt und nirgends
+     gespeichert).
+   - **Bekannte Probleme:** u.a. Server stirbt direkt nach dem Start
+     (fehlende `boot.properties`, `BEA-090782`), `REP-52262` bei der
+     Statusabfrage.
+
+   Sobald der Autostart (Punkt 7) eingerichtet ist, wird die Umgebung nur
+   noch über `systemctl start/stop` bedient – die Befehle aus diesem
+   Kochbuch dienen dann nur noch der Fehlersuche.
 7. [Autostart_linux_middleware.txt](Autostart_linux_middleware.txt) –
    automatischer Start/Stop beim Hoch- und Herunterfahren des Servers über
    eine systemd-Unit (wartet auf "RUNNING" statt fester Pausen, Stop ohne
