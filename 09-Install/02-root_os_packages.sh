@@ -101,6 +101,43 @@ printLine
 _check_root_access
 
 # =============================================================================
+# 0. AppStream repository
+# =============================================================================
+# More than half of the packages below (motif/motif-devel, compat-openssl11,
+# ksh, glibc-devel, libaio-devel, libnsl2, numactl-devel, fontconfig, fonts)
+# exist ONLY in the AppStream repository, not in BaseOS. With AppStream
+# disabled dnf aborts with "No match for argument" (seen at a customer,
+# 2026-10-15). Repo IDs: ol9_appstream (yum.oracle.com), ol9_x86_64_appstream
+# (ULN); local mirrors may use other IDs – match "appstream" case-insensitively.
+
+section "Repositories"
+
+_enabled_repos="$(dnf repolist --enabled -q 2>/dev/null | awk 'NR>1 {print $1}')"
+if printf '%s\n' "$_enabled_repos" | grep -qi 'appstream'; then
+    ok "AppStream repository enabled: $(printf '%s\n' "$_enabled_repos" | grep -i 'appstream' | xargs)"
+else
+    _disabled_as="$(dnf repolist --disabled -q 2>/dev/null | awk 'NR>1 {print $1}' | grep -i 'appstream' | head -1)"
+    if [ -n "$_disabled_as" ]; then
+        fail "AppStream repository is disabled: $_disabled_as – motif, libnsl2, compat-openssl11 … cannot be installed"
+        if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Enable repository $_disabled_as now?" "y"; then
+            if _run_root dnf config-manager --set-enabled "$_disabled_as"; then
+                ok "Repository enabled: $_disabled_as"
+            else
+                fail "Could not enable $_disabled_as – enable it manually, then re-run"
+            fi
+        else
+            info "  Fix: dnf config-manager --set-enabled $_disabled_as"
+        fi
+    else
+        fail "No AppStream repository configured – motif, libnsl2, compat-openssl11 … cannot be installed"
+        info "  yum.oracle.com: dnf config-manager --set-enabled ol9_appstream"
+        info "  ULN: subscribe ol9_x86_64_appstream; local mirror (OLAM/Satellite): add 'Oracle Linux 9 AppStream'"
+    fi
+    unset _disabled_as
+fi
+unset _enabled_repos
+
+# =============================================================================
 # Package check helper
 # =============================================================================
 
@@ -224,7 +261,7 @@ if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
                 ok "All packages installed"
                 # Re-check to confirm
                 for PKG in "${MISSING_PKGS[@]}"; do
-                    rpm -q "$PKG" > /dev/null 2>&1 || warn "Still missing after install: $PKG"
+                    rpm -q "$PKG" > /dev/null 2>&1 || fail "Still missing after install: $PKG"
                 done
             else
                 fail "dnf install returned an error – check output above"

@@ -223,16 +223,35 @@ EOF
 SCHRITT 3: Erforderliche Pakete installieren  (als root)
 ================================================================================
 
+  # 0) ZUERST: AppStream-Repository muss aktiv sein. Mehr als die Haelfte
+  #    der folgenden Pakete kommt NICHT aus BaseOS, sondern aus AppStream -
+  #    u.a. motif/motif-devel (vom Installer zwingend geprueft),
+  #    compat-openssl11, ksh, glibc-devel, libaio-devel, libnsl2,
+  #    numactl-devel, fontconfig und die Fonts. Ist AppStream aus, meldet
+  #    dnf "No match for argument" bzw. "Unable to find a match"
+  #    (beim Kunden so aufgetreten, 2026-10).
+  dnf repolist
+  # Erwartet in der Liste: ol9_baseos_latest UND ol9_appstream.
+  # Fehlt ol9_appstream:
+  dnf config-manager --set-enabled ol9_appstream
+  # Eigener Repo-Spiegel (OLAM/Satellite/Spacewalk/eigenes .repo) oder ULN:
+  # dort das Repo bzw. den Kanal "Oracle Linux 9 AppStream"
+  # (ULN: ol9_x86_64_appstream) freischalten lassen - die Repo-ID kann
+  # anders heissen, "dnf repolist --all" zeigt alle, auch deaktivierte.
+
   # 1) FMW-Basisbibliotheken (Pflicht fuer den Installer, motif/motif-devel
-  #    wird vom Installer explizit per Namen geprueft)
+  #    wird vom Installer explizit per Namen geprueft).
+  #    libnsl2 liefert /lib64/libnsl.so.3 - das braucht der Reports Server
+  #    (Reports_kochbuch_de.txt Schritt 9.1). NICHT verwechseln mit "libnsl"
+  #    (glibc, liefert nur das alte libnsl.so.1).
   dnf install -y \
       binutils compat-openssl11 cups-libs \
       gcc gcc-c++ \
       glibc glibc-devel ksh \
       libaio libaio-devel libX11 libXau libXi libXrender libXtst \
-      libgcc libstdc++ libstdc++-devel libnsl \
+      libgcc libstdc++ libstdc++-devel libnsl libnsl2 \
       make motif motif-devel \
-      net-tools nfs-utils numactl \
+      net-tools nfs-utils numactl numactl-devel \
       unzip wget curl tar
 
   # 2) Font-Stack (fuer Reports PDF-Rendering, siehe Font_kochbuch_de.txt
@@ -240,7 +259,7 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
   dnf install -y \
       fontconfig freetype \
       dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
-      dejavu-lgc-sans-fonts dejavu-lgc-serif-fonts \
+      dejavu-lgc-sans-fonts dejavu-lgc-sans-mono-fonts dejavu-lgc-serif-fonts \
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
       xorg-x11-utils xorg-x11-fonts-Type1
 
@@ -250,6 +269,12 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
       sysstat smartmontools nmon tmux \
       lsof strace psmisc xorg-x11-xauth \
       bind-utils tcpdump nmap-ncat
+
+  # Kontrolle: die wichtigsten Pakete muessen installiert sein - jede Zeile
+  # "is not installed" heisst: Paket fehlt (meist AppStream nicht aktiv)
+  rpm -q motif motif-devel compat-openssl11 ksh libnsl2 numactl-devel fontconfig
+  ls -la /lib64/libnsl.so.3
+  # Erwartet: "/lib64/libnsl.so.3 -> libnsl.so.3.0.0"
 
   # Hinweis OL9 vs. aeltere Oracle Linux Versionen:
   #   xauth -> xorg-x11-xauth, nc -> nmap-ncat
@@ -595,6 +620,18 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: Schritt 4 fuer BEIDE JDKs durchfuehren (Standalone-JDK hier UND
            die FMW-eigene JDK nach der Installation, siehe
            FMW_Kochbuch_de.txt)
+
+  Problem: dnf meldet bei Schritt 3 "No match for argument" / "Unable to
+           find a match" fuer motif, libnsl2, compat-openssl11, ksh u.a.
+  Ursache: das AppStream-Repository ist nicht aktiv (beim Kunden so
+           aufgetreten) - diese Pakete gibt es nur dort, nicht in BaseOS
+  Loesung: Schritt 3, Punkt 0): "dnf repolist" pruefen, AppStream mit
+           "dnf config-manager --set-enabled ol9_appstream" bzw. im
+           Repo-Spiegel/ULN freischalten, Schritt 3 wiederholen.
+           Ohne jeden Repo-Zugang: RPM auf einer anderen OL9-Maschine mit
+           "dnf download <paket>" holen (oder von yum.oracle.com, Bereich
+           "Oracle Linux 9 AppStream (x86_64)") und beim Kunden mit
+           "dnf install -y ./<paket>.rpm" installieren
 
   Problem: Installer bricht mit "motif not found" ab
   Ursache: Paket motif/motif-devel fehlt (wird vom Installer per exaktem

@@ -150,6 +150,23 @@ rpm -q \
 # Packages reporting "is not installed" need to be added
 ```
 
+### 1b. AppStream repository must be enabled
+
+More than half of the packages below exist **only in AppStream**, not in BaseOS:
+`motif`/`motif-devel` (hard installer requirement), `compat-openssl11`, `ksh`,
+`glibc-devel`, `libaio-devel`, `libnsl2`, `numactl-devel`, `fontconfig` and the
+fonts. With AppStream disabled, `dnf` stops with "No match for argument"
+(seen at a customer, 2026-10-15).
+
+```bash
+dnf repolist                                   # ol9_appstream must be listed
+dnf config-manager --set-enabled ol9_appstream # if it is missing
+```
+
+ULN: channel `ol9_x86_64_appstream`; local mirrors (OLAM/Satellite) may use other
+repo IDs – `dnf repolist --all`. `02-root_os_packages.sh` checks this first
+(section "Repositories") and offers to enable a disabled AppStream repo with `--apply`.
+
 ### 2. FMW prerequisite libraries
 
 ```bash

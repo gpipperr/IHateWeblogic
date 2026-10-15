@@ -725,8 +725,19 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   
   # Erwartet: ein Symlink, z.B. "/lib64/libnsl.so.3 -> libnsl.so.3.0.0".
   
-  # Falls die Datei NICHT existiert: Paket fehlt - zuerst
-  # "dnf install -y libnsl2" ausfuehren, dann diesen Schritt wiederholen.
+  # Falls die Datei NICHT existiert: Paket libnsl2 fehlt (eigentlich schon
+  # in OS_Kochbuch_de.txt Schritt 3 installiert). libnsl2 kommt aus dem
+  # AppStream-Repository - findet dnf es nicht, ist AppStream nicht aktiv
+  # (beim Kunden so aufgetreten). Als root:
+  #   dnf repolist                                   # ol9_appstream dabei?
+  #   dnf --enablerepo=ol9_appstream install -y libnsl2
+  # Eigener Repo-Spiegel/ULN: Repo "Oracle Linux 9 AppStream" freischalten
+  # lassen. Ohne Repo-Zugang: libnsl2-2.0.0-1.el9.x86_64.rpm auf einer
+  # anderen OL9-Maschine mit "dnf download libnsl2" holen und hier mit
+  # "dnf install -y ./libnsl2-2.0.0-1.el9.x86_64.rpm" installieren.
+  # Die Datei NICHT von einer anderen Maschine kopieren (kein rpm-Eintrag,
+  # keine Updates). Danach diesen Schritt wiederholen.
+  # bzw. dnf --enablerepo=ol9_appstream install -y libnsl2 falls repo nicht aktiv
 
   ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2
 
