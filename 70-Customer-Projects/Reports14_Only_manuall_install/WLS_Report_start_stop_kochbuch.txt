@@ -27,7 +27,7 @@ VORAUSSETZUNGEN
   Reports_kochbuch_de.txt angelegt wurde (siehe dortige VORAUSSETZUNGEN):
     ORACLE_HOME          /u01/oracle/fmw
     DOMAIN_HOME          /u01/user_projects/domains/reportRpgpi
-    WLS_MANAGED_SERVER   reportRpgpi
+    WLS_MANAGED_SERVER   WLS_REPORTS
     WLS_ADMIN_URL        t3://localhost:7001
     REPORTS_TOOLS_INSTANCE  reptools1
     REPORTS_SERVER_NAME     repServer01
@@ -59,7 +59,7 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #
   # Werte fuer die aktuelle Sitzung setzen (dauerhaft: Schritt 1):
   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-  export WLS_MANAGED_SERVER=reportRpgpi
+  export WLS_MANAGED_SERVER=WLS_REPORTS
   export WLS_ADMIN_URL=t3://localhost:7001
   export REPORTS_SERVER_NAME=repServer01
   cd $DOMAIN_HOME/bin
@@ -158,7 +158,7 @@ SCHRITT 1: Pfade dauerhaft im .bash_profile hinterlegen  (als oracle)
 # --- WebLogic/Reports Start-Stop (WLS_Report_start_stop_kochbuch.txt) ------
 export ORACLE_HOME=/u01/oracle/fmw
 export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-export WLS_MANAGED_SERVER=reportRpgpi
+export WLS_MANAGED_SERVER=WLS_REPORTS
 export WLS_ADMIN_URL=t3://localhost:7001
 export REPORTS_TOOLS_INSTANCE=reptools1
 export REPORTS_SERVER_NAME=repServer01

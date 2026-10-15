@@ -29,7 +29,7 @@ VORAUSSETZUNGEN
   passen:
     ORACLE_HOME             /u01/oracle/fmw
     DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
-    WLS_MANAGED_SERVER      reportRpgpi
+    WLS_MANAGED_SERVER      WLS_REPORTS
     WLS_ADMIN_URL           t3://localhost:7001
     REPORTS_TOOLS_INSTANCE  reptools1
     REPORTS_SERVER_NAME     repServer01
@@ -38,7 +38,7 @@ VORAUSSETZUNGEN
   Schritt 4 und 6) - darueber starten UND stoppen die Server ohne
   Passworteingabe:
     ls -l /u01/user_projects/domains/reportRpgpi/servers/AdminServer/security/boot.properties
-    ls -l /u01/user_projects/domains/reportRpgpi/servers/reportRpgpi/security/boot.properties
+    ls -l /u01/user_projects/domains/reportRpgpi/servers/WLS_REPORTS/security/boot.properties
 
   Schritt 1-5 laufen als oracle, Schritt 6-8 als root.
 
@@ -79,7 +79,7 @@ SCHRITT 2: Umgebungsdatei anlegen  (als oracle)
 
 export ORACLE_HOME=/u01/oracle/fmw
 export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-export WLS_MANAGED_SERVER=reportRpgpi
+export WLS_MANAGED_SERVER=WLS_REPORTS
 export WLS_ADMIN_URL=t3://localhost:7001
 export REPORTS_TOOLS_INSTANCE=reptools1
 export REPORTS_SERVER_NAME=repServer01
@@ -235,7 +235,7 @@ SCHRITT 5: Beide Skripte von Hand testen  (als oracle)
   # Erwartet: keine Ausgabe
 
   /u01/oracle/scripts/start_all.sh
-  # Erwartet: "AdminServer laeuft (RUNNING ...)", "reportRpgpi laeuft
+  # Erwartet: "AdminServer laeuft (RUNNING ...)", "WLS_REPORTS laeuft
   # (RUNNING ...)", Reports-Komponenten gestartet
 
 

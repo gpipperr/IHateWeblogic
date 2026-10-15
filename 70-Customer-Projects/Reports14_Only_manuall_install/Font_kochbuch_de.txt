@@ -184,10 +184,10 @@ SCHRITT 6: Reports Server neu starten  (als oracle)
   pgrep -la rwengine
 
   # Kontrolle: REPORTS_FONT_DIRECTORY ist in der JVM gesetzt?
-  cat /proc/$(pgrep -f WLS_REPORTS | head -1)/environ 2>/dev/null \
+  cat /proc/$(pgrep -f 'weblogic.Name=WLS_REPORTS' | head -1)/environ 2>/dev/null \
       | tr '\0' '\n' \
       | grep -i REPORTS_FONT
-  # (Namensabweichung je nach WLS_MANAGED_SERVER-Name beachten - siehe
+  # (WLS_REPORTS = Name des Reports-Managed-Servers, WLS_MANAGED_SERVER aus
   # Reports_kochbuch_de.txt)
 
 

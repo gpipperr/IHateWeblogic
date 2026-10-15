@@ -24,17 +24,18 @@ VORAUSSETZUNGEN
     export PATCH_STORAGE=/u01/oracle/patch_storage
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
     export DOMAIN_NAME=reportRpgpi
-    export WLS_MANAGED_SERVER=reportRpgpi
+    export WLS_MANAGED_SERVER=WLS_REPORTS
     export WLS_SERVER_FQDN=wls01.company.local
     export WLS_ADMIN_PORT=7001
     export WLS_REPORTS_PORT=9002
     export WLS_NODEMANAGER_PORT=5556
 
-  Hinweis zu WLS_MANAGED_SERVER: In vielen Oracle-Beispielen heisst der
-  Reports-Managed-Server "WLS_REPORTS". In dieser Referenzumgebung wurde
-  er bewusst wie die Domain selbst benannt ("reportRpgpi") - beide
-  Varianten sind technisch gleichwertig, wichtig ist nur Konsistenz in
-  allen folgenden Konfigurationsdateien.
+  Hinweis zu WLS_MANAGED_SERVER: Der Reports-Managed-Server heisst
+  "WLS_REPORTS" - so legt ihn die Oracle-Vorlage "Oracle Reports
+  Application" im Configuration Wizard automatisch an, er muss dort also
+  NICHT umbenannt werden. Die Domain selbst heisst weiterhin "reportRpgpi".
+  Wichtig ist nur, dass derselbe Name in allen folgenden Kochbuechern und
+  Konfigurationsdateien verwendet wird.
 
 
 ================================================================================

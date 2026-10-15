@@ -26,7 +26,7 @@ VORAUSSETZUNGEN
     export PATCH_STORAGE=/u01/oracle/patch_storage
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
     export DOMAIN_NAME=reportRpgpi
-    export WLS_MANAGED_SERVER=reportRpgpi
+    export WLS_MANAGED_SERVER=WLS_REPORTS
     export WLS_ADMIN_URL=t3://localhost:7001
     export WLS_ADMIN_PORT=7001
     export WLS_REPORTS_PORT=9002
@@ -449,7 +449,9 @@ SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
   #     Listen Port:     ${WLS_ADMIN_PORT}
   #
   #   Bildschirm "Managed Servers":
-  #     Vorhandenen Beispiel-Eintrag anpassen bzw. einen Server hinzufuegen:
+  #     Die Vorlage "Oracle Reports Application" hat den Eintrag bereits
+  #     angelegt - Namen WLS_REPORTS (= ${WLS_MANAGED_SERVER}) NICHT aendern,
+  #     nur Adresse/Port pruefen:
   #       Server Name:     ${WLS_MANAGED_SERVER}
   #       Listen Address:  localhost
   #       Listen Port:     ${WLS_REPORTS_PORT}
@@ -759,12 +761,41 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # Erwartet: Pfadaufloesung, Lib wird angezeigt
 
   # 9.2 Benoetigte Variablen fuer diesen Abschnitt
+  #     Die export-Zeilen aus VORAUSSETZUNGEN gelten nur in der Shell, in der
+  #     sie eingegeben wurden. Wird Schritt 9 in einer neuen Sitzung
+  #     ausgefuehrt, sind sie leer - dann landen z.B. rwservlet.properties
+  #     oder cgicmd.dat unter "/" statt in der Domain. Deshalb hier die fuer
+  #     Schritt 9 noetigen Werte noch einmal setzen (Werte wie in
+  #     VORAUSSETZUNGEN):
 
+  export ORACLE_HOME=/u01/oracle/fmw
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export WLS_MANAGED_SERVER=WLS_REPORTS
+  export WLS_ADMIN_URL=t3://localhost:7001
+  export WLS_REPORTS_PORT=9002
+  export REPORTS_TOOLS_INSTANCE=reptools1
+  export REPORTS_SERVER_NAME=repServer01
+  export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+  export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+  export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
+  export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
+
+  # Kontrolle - keine Zeile darf leer sein:
+  echo "DOMAIN_HOME=$DOMAIN_HOME"
+  echo "REPORTS_APP_CONF=$REPORTS_APP_CONF"
+  echo "RWSERVER_CONF=$RWSERVER_CONF"
+  echo "CGICMD_DAT=$CGICMD_DAT"
+
+  # Werte nur fuer Schritt 9:
   export REPORTS_PATH=/app/oracle/applications/source
   export REPORTS_TMP=/tmp/reports
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
   export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
   export TNS_ADMIN=/app/oracle/19c/network/admin
+
+
+  #unter $TNS_ADMIN die Firmen tnsnames und sqlnet.ora ablegen
+
 
   mkdir -p "$REPORTS_PATH" "$REPORTS_TMP"
 
