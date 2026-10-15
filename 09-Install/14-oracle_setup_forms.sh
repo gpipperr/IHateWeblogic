@@ -92,6 +92,13 @@ printLine
 
 section "Prerequisites"
 
+# Reports-only domain: 08 creates no WLS_FORMS / forms1 – nothing to configure
+if [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" = "REPORTS_ONLY" ]; then
+    info "INSTALL_COMPONENTS=REPORTS_ONLY – no Forms in this domain, step skipped"
+    print_summary
+    exit "$EXIT_CODE"
+fi
+
 _prereq_fail=false
 
 for _var in ORACLE_HOME DOMAIN_HOME FORMS_INSTANCE_NAME WLS_FORMS_SERVER; do

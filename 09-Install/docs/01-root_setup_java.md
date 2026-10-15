@@ -125,6 +125,19 @@ What `--apply --upgrade-jdk` does:
 `alternatives` and `/usr/bin/jps` point to `jdk-21/...` and follow the symlink
 automatically.
 
+**Existing domain:** WLST `createDomain` / `updateDomain` and the FMW installer
+resolve the symlink and write `jdk-21.0.x` into the domain and
+`$ORACLE_HOME/oui/` – the symlink switch alone does not reach them. `08-`
+resets this after the domain is created; after an upgrade (or any
+`updateDomain`) run as oracle and restart NM + servers:
+
+```bash
+07-Maintenance/domain_jdk_path.sh            # list files that pin jdk-21.0.x
+07-Maintenance/domain_jdk_path.sh --apply    # backup + replace with JDK_HOME
+```
+
+`--upgrade-jdk` prints this hint when `DOMAIN_HOME/config/config.xml` exists.
+
 ### Installation via RPM (alternative)
 
 ```bash

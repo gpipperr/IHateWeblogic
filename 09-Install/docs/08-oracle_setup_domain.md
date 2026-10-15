@@ -12,6 +12,23 @@ Create the WebLogic domain for Forms & Reports using WLST in silent mode.
 Configures AdminServer, WLS_FORMS, and WLS_REPORTS managed servers.
 All servers listen on `127.0.0.1` only — Nginx is the external entry point.
 
+### Components (`INSTALL_COMPONENTS`)
+
+The domain gets only the managed servers of the installed products
+(since 2026-10-15 – before, a Reports-only domain still got `WLS_FORMS` and
+the `forms1` instance):
+
+| `INSTALL_COMPONENTS` | Templates | Servers / system components |
+|---|---|---|
+| `FORMS_AND_REPORTS` (default) | wls, jrf, forms, reports_app, reports_server | AdminServer, WLS_FORMS, WLS_REPORTS, forms1 |
+| `REPORTS_ONLY` | wls, jrf, reports_app, reports_server | AdminServer, WLS_REPORTS |
+| `FORMS_ONLY` | wls, jrf, forms | AdminServer, WLS_FORMS, forms1 |
+
+Template check and WLST script follow the same selection
+(`##WITH_FORMS##` / `##WITH_REPORTS##` in the template). Verified offline with
+WLST (templates added, server list read, no `writeDomain`). With
+`REPORTS_ONLY`, `14-oracle_setup_forms.sh` skips itself.
+
 ---
 
 ## Domain Templates Used
@@ -33,6 +50,10 @@ $ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_t
 > otherwise `createReportsServerInstance` in `13-` fails with
 > `ReportsServerComponentManager not found` (confirmed 2026-10-15, added to `08-`
 > the same day).
+
+Reports-only (manual / Config Wizard): leave out `forms_template.jar`
+("Oracle Forms") – then there is no `WLS_FORMS`. The Reports templates do not
+depend on it.
 
 ---
 
@@ -59,9 +80,9 @@ set('Name', 'fr_domain')
 # Add templates BEFORE setOption() calls
 # (ServerStartMode is not valid during addTemplate – causes WLSTException)
 addTemplate('$ORACLE_HOME/oracle_common/common/templates/wls/oracle.jrf_template.jar')
-addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')
-addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')
-addTemplate('$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+addTemplate('$ORACLE_HOME/forms/common/templates/wls/forms_template.jar')        # not for Reports-only
+addTemplate('$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar')            # not for Forms-only
+addTemplate('$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')  # not for Forms-only
 
 # Domain options – set AFTER all addTemplate calls
 setOption('ServerStartMode', 'prod')
@@ -72,7 +93,8 @@ cd('/Servers/AdminServer')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 7001)
 
-# Update managed server listen addresses (created by templates above)
+# Update managed server listen addresses (created by templates above;
+# only the servers of the added templates exist)
 cd('/Servers/WLS_FORMS')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 9001)
@@ -120,6 +142,30 @@ LogFile=$DOMAIN_HOME/nodemanager/nodemanager.log
 EOF
 ```
 
+### 3b. JDK path: symlink instead of the versioned directory
+
+`writeDomain` (and every later `updateDomain` / Config Wizard run) resolves
+`JDK_HOME` (`/u01/app/oracle/java/jdk-21` → `jdk-21.0.12.1`) and writes the
+**versioned** directory into `bin/setDomainEnv.sh`, `bin/setNMJavaHome.sh`,
+`nodemanager/nodemanager.properties`, the Forms instance scripts
+(`config/fmwconfig/components/FORMS/instances/*/bin/*.sh`) and `init-info/*`
+(the templates `updateDomain` regenerates the scripts from). The FMW installer
+does the same in `$ORACLE_HOME/oui/.globalEnv.properties` (JAVA_HOME of
+`wlst.sh`, OPatch) and `oui/bin/*.sh`. A JDK upgrade that only switches the
+symlink (`02b-root_os_java.sh --upgrade-jdk`) would then not reach the domain
+(found 2026-10-15).
+
+```bash
+# show
+grep -rlE "java/jdk-21\.[0-9]" $DOMAIN_HOME --exclude-dir=servers --exclude=*.log
+# fix (backup first), then restart NM + servers
+07-Maintenance/domain_jdk_path.sh            # read-only list
+07-Maintenance/domain_jdk_path.sh --apply
+```
+
+Live-tested 2026-10-15: 22 files, after the restart NM, AdminServer,
+WLS_FORMS and WLS_REPORTS run with `/u01/app/oracle/java/jdk-21/bin/java`.
+
 ### 4. Create additional WLS users
 
 Start AdminServer, then create the Reports monitoring and execution users with
@@ -141,7 +187,11 @@ for the full WLST/OPSS procedure (manual and scripted).
 - Substitutes `##PLACEHOLDER##` values in `response_files/domain_config.py.template`
   into a temp file (`/tmp/domain_cfg_PID.py`, mode 600); deleted via `trap EXIT`
 - Runs `wlst.sh /tmp/domain_cfg_PID.py` to create the domain
+- Selects the templates by `INSTALL_COMPONENTS` (see *Components*), checks that
+  they exist, passes `##WITH_FORMS##` / `##WITH_REPORTS##` to the WLST script
 - Configures `nodemanager.properties` (127.0.0.1 only, port from `WLS_NODEMANAGER_PORT`)
+- Runs `07-Maintenance/domain_jdk_path.sh --apply`: versioned JDK directory →
+  `JDK_HOME` symlink (step 3b)
 - Writes `servers/AdminServer/security/boot.properties` so AdminServer can be
   started right away, without waiting for Phase 6 (`10-oracle_boot_properties.sh`
   re-writes the same file later with identical content — harmless double-write,
@@ -172,8 +222,11 @@ Located at: `09-Install/response_files/domain_config.py.template`
 # Domain directory exists
 ls -la $DOMAIN_HOME/config/config.xml
 ls -la $DOMAIN_HOME/servers/AdminServer/
-ls -la $DOMAIN_HOME/servers/WLS_FORMS/
-ls -la $DOMAIN_HOME/servers/WLS_REPORTS/
+ls -la $DOMAIN_HOME/servers/WLS_FORMS/      # not with REPORTS_ONLY
+ls -la $DOMAIN_HOME/servers/WLS_REPORTS/    # not with FORMS_ONLY
+
+# Domain uses the JDK_HOME symlink, not jdk-21.0.x
+07-Maintenance/domain_jdk_path.sh
 
 # All data sources point to the RCU database (none left at dbhost.example.com)
 grep -h "<url>" $DOMAIN_HOME/config/jdbc/*.xml | sort | uniq -c

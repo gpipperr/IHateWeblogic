@@ -13,9 +13,10 @@
 #                 against the CURRENT JDK_HOME - unverified whether
 #                 installing a newer version side-by-side, and repointing
 #                 `alternatives`, behaves correctly.
-#              2. It does not touch environment.conf's JDK_HOME or
-#                 $DOMAIN_HOME/bin/setDomainEnv.sh - a successful JDK
-#                 install would not make WebLogic use the new JDK by itself.
+#              2. It does not touch environment.conf's JDK_HOME or the
+#                 domain - solved for the symlink case: the domain uses the
+#                 JDK_HOME symlink after 07-Maintenance/domain_jdk_path.sh
+#                 --apply (called by 08), so repointing the symlink is enough.
 #              3. Unverified whether the SecureRandom fix in java.security
 #                 is correctly (re)applied to a newly-installed JDK sitting
 #                 next to an existing one.
@@ -84,6 +85,7 @@ info "2. Stop WebLogic: 01-Run/startStop.sh stop-all --apply"
 info "3. Run: 09-Install/02b-root_os_java.sh --apply"
 info "   NOT YET VERIFIED for an upgrade-alongside-existing-JDK scenario - see script header"
 info "4. If the JDK install path changed, update JDK_HOME in environment.conf"
+info "   Domain / oui pinned to the old jdk-21.0.x? 07-Maintenance/domain_jdk_path.sh --apply"
 info "5. Re-run this script (80-patch_java_os.sh) to confirm java_check.sh now shows the new version"
 info "6. Restart: 01-Run/startStop.sh start-all --apply"
 

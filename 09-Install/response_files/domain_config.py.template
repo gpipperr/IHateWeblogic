@@ -20,21 +20,29 @@ cmo.setPassword('##WLS_ADMIN_PWD##')
 cd('/')
 set('Name', '##DOMAIN_NAME##')
 
+# --- Components (INSTALL_COMPONENTS in environment.conf) ----------------------
+# REPORTS_ONLY: no Forms template -> no WLS_FORMS, no forms1 instance
+# FORMS_ONLY  : no Reports templates -> no WLS_REPORTS, no Reports components
+_with_forms   = ('##WITH_FORMS##' == 'true')
+_with_reports = ('##WITH_REPORTS##' == 'true')
+
 # --- Add templates BEFORE setOption (ServerStartMode not valid mid-addTemplate) ---
 # JRF template (OPSS, MDS, ADF, JDBC data sources)
 addTemplate('##ORACLE_HOME##/oracle_common/common/templates/wls/oracle.jrf_template.jar')
 
-# Forms template (creates WLS_FORMS managed server)
-addTemplate('##ORACLE_HOME##/forms/common/templates/wls/forms_template.jar')
+if _with_forms:
+    # Forms template (creates WLS_FORMS managed server)
+    addTemplate('##ORACLE_HOME##/forms/common/templates/wls/forms_template.jar')
 
-# Reports template (creates WLS_REPORTS managed server)
-addTemplate('##ORACLE_HOME##/reports/common/templates/wls/oracle.reports_app_template.jar')
+if _with_reports:
+    # Reports template (creates WLS_REPORTS managed server)
+    addTemplate('##ORACLE_HOME##/reports/common/templates/wls/oracle.reports_app_template.jar')
 
-# Reports SERVER component template - NOT pulled in by the app template (that
-# one only brings "Oracle Reports Tools"). Without it the AdminServer has no
-# ReportsServerComponentManager MBean and createReportsServerInstance fails
-# ("Attribute ...Name=ReportsServerComponentManager not found", 2026-10-15)
-addTemplate('##ORACLE_HOME##/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+    # Reports SERVER component template - NOT pulled in by the app template (that
+    # one only brings "Oracle Reports Tools"). Without it the AdminServer has no
+    # ReportsServerComponentManager MBean and createReportsServerInstance fails
+    # ("Attribute ...Name=ReportsServerComponentManager not found", 2026-10-15)
+    addTemplate('##ORACLE_HOME##/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
 
 # --- Domain options (set AFTER all addTemplate calls) ------------------------
 setOption('ServerStartMode', 'prod')
@@ -46,13 +54,15 @@ set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
 set('ListenPort', ##WLS_ADMIN_PORT##)
 
 # --- Managed server listen addresses (templates create the servers) ----------
-cd('/Servers/WLS_FORMS')
-set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
-set('ListenPort', ##WLS_FORMS_PORT##)
+if _with_forms:
+    cd('/Servers/WLS_FORMS')
+    set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
+    set('ListenPort', ##WLS_FORMS_PORT##)
 
-cd('/Servers/WLS_REPORTS')
-set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
-set('ListenPort', ##WLS_REPORTS_PORT##)
+if _with_reports:
+    cd('/Servers/WLS_REPORTS')
+    set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
+    set('ListenPort', ##WLS_REPORTS_PORT##)
 
 # --- JDBC data sources (created by JRF/Forms/Reports templates) --------------
 # All FMW schemas use the same password; URL uses thin @//host:port/service

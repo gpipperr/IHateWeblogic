@@ -21,6 +21,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — read-only check + manual upgrade checklist |
+| `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
 | `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |
 
@@ -99,6 +100,24 @@ automatically yet. That script's behavior when installing a newer JDK
 *alongside* an already-provisioned host (rather than a fresh one) is not
 yet verified — see the script's own header comment for the three open
 questions that need confirming on a disposable host first.
+
+### domain_jdk_path.sh
+
+```bash
+./07-Maintenance/domain_jdk_path.sh            # read-only: files with jdk-21.0.x
+./07-Maintenance/domain_jdk_path.sh --apply    # replace with JDK_HOME, then restart
+```
+
+WLST `createDomain` / `updateDomain` (and the Config Wizard) resolve the
+`JDK_HOME` symlink and write the versioned JDK directory into
+`setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, the Forms
+instance scripts and `init-info/*`; the installer into
+`$ORACLE_HOME/oui/.globalEnv.properties` and `oui/bin/*.sh`. A JDK upgrade
+that only repoints the symlink would not reach WebLogic. Matches `JDK_HOME`
+followed by a version suffix and the current symlink target; skips logs,
+`servers/` and backups. Backup: `ConfigBackup/jdk_path_<ts>/` with the original
+paths below it. Called by `09-Install/08-oracle_setup_domain.sh`; run it
+after every JDK upgrade and every `updateDomain`.
 
 ---
 

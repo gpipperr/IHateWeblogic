@@ -9,7 +9,7 @@ management, interactive WLST access, Reports Server status.
 
 | Script | Status | Purpose |
 |---|---|---|
-| `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, OHS |
+| `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
 | `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status |
 
@@ -31,6 +31,7 @@ if `environment.conf` does not exist yet.
 ./01-Run/startStop.sh start AdminServer  --apply
 ./01-Run/startStop.sh stop  WLS_REPORTS  --apply
 ./01-Run/startStop.sh start NodeManager  --apply
+./01-Run/startStop.sh stop  repserver01  --apply   # Reports server component
 
 # Start / stop all components in the correct sequence
 ./01-Run/startStop.sh start-all  --apply
@@ -44,11 +45,23 @@ if `environment.conf` does not exist yet.
 | `NM` | NodeManager | `bin/startNodeManager.sh` (nohup) | `kill <PID>` |
 | `ADMIN` | AdminServer | `bin/startWebLogic.sh` (nohup) | WLST `shutdown()` |
 | `MANAGED` | WLS_REPORTS, WLS_FORMS | `bin/startManagedWebLogic.sh` (nohup) | WLST `shutdown()` |
+| `REPORTS` | repserver01, … | WLST `nmConnect` + `nmStart(serverType='ReportsServerComponent')` | WLST `nmKill` (fallback: `kill <PID>` if the NM does not know the process) |
 | `OHS` | ohs1, … | `bin/startComponent.sh` | `bin/stopComponent.sh` |
+
+`REPORTS` (since 2026-10-15): the Reports server runs as a Node Manager
+system component – the NM must be running. `startComponent.sh` /
+`stopComponent.sh` do the same, but prompt for the NM password unless a WLST
+user config was stored; the script connects with the admin credentials from
+`weblogic_sec.conf.des3` (`11-oracle_nodemanager.sh` sets the NM credentials
+to the same). `restartComponent.sh` is not supported for Reports servers –
+use stop + start. Status: process `rwserver server=<name>`.
+`ReportsToolsComponent` and `FORMS` system components are configuration only
+(no own process) and are not listed.
 
 Components are discovered automatically from:
 
-- `$DOMAIN_HOME/config/config.xml` → WLS server list
+- `$DOMAIN_HOME/config/config.xml` → WLS server list, Reports server
+  system components (`<component-type>ReportsServerComponent</component-type>`)
 - `$DOMAIN_HOME/nodemanager/nodemanager.properties` → NodeManager port
 - `$DOMAIN_HOME/system_components/OHS/` → OHS instances (if present)
 
@@ -58,7 +71,8 @@ Components are discovered automatically from:
 1. NodeManager    (NM)       – wait ~15 s
 2. AdminServer    (ADMIN)    – wait ~60 s
 3. Managed servers (MANAGED) – WLS_REPORTS, WLS_FORMS, …
-4. OHS            (OHS)      – independent of WLS
+4. Reports servers (REPORTS) – via Node Manager
+5. OHS            (OHS)      – independent of WLS
 ```
 
 `start-all` skips components already `RUNNING`.
@@ -67,12 +81,22 @@ Components are discovered automatically from:
 
 ```
 1. OHS            (OHS)      – independent of WLS
-2. Managed servers (MANAGED) – shutdown via WLST (requires AdminServer up)
-3. AdminServer    (ADMIN)    – shutdown via WLST
-4. NodeManager    (NM)       – kill
+2. Reports servers (REPORTS) – nmKill via Node Manager
+3. Managed servers (MANAGED) – shutdown via WLST (requires AdminServer up)
+4. AdminServer    (ADMIN)    – shutdown via WLST
+5. NodeManager    (NM)       – kill
 ```
 
 `stop-all` skips components already `STOPPED`.
+
+> **With the systemd autostart (`09-Install/30-configure_autostart.sh`)**
+> AdminServer and managed servers must be started through the Node Manager
+> (`fmw_ctl.sh` / `systemctl`). `startStop.sh start` / `start-all` starts them
+> with the start scripts, past the NM – the NM then reports them as
+> `SHUTDOWN`, `fmw_ctl.sh stop` skips them and the next `nmStart AdminServer`
+> fails on the occupied port (seen 2026-10-15). Recovery:
+> `startStop.sh stop-all --apply`, then `sudo systemctl start fmw-<domain>`.
+> Stopping with `startStop.sh` is fine.
 
 ### Dry-run
 

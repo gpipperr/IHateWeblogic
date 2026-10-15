@@ -3,7 +3,11 @@
 # Script   : 08-oracle_setup_domain.sh
 # Purpose  : Create the WebLogic domain for Oracle Forms & Reports 14.1.2
 #            using WLST in silent/offline mode.
-#            Creates AdminServer, WLS_FORMS, WLS_REPORTS.
+#            Creates AdminServer, WLS_FORMS, WLS_REPORTS – per INSTALL_COMPONENTS
+#            only the installed half (REPORTS_ONLY: no WLS_FORMS/forms1,
+#            FORMS_ONLY: no WLS_REPORTS/Reports components).
+#            Afterwards the JDK path is reset to the JDK_HOME symlink
+#            (07-Maintenance/domain_jdk_path.sh).
 #            All servers listen on WLS_LISTEN_ADDRESS (default: 127.0.0.1).
 #            Run AFTER 07-oracle_setup_repository.sh --apply.
 # Call     : ./09-Install/08-oracle_setup_domain.sh
@@ -97,6 +101,24 @@ TPL_FORMS="$ORACLE_HOME/forms/common/templates/wls/forms_template.jar"
 TPL_REPORTS="$ORACLE_HOME/reports/common/templates/wls/oracle.reports_app_template.jar"
 TPL_REPSRV="$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar"
 
+# Components from INSTALL_COMPONENTS – the domain gets only the managed servers
+# of the installed products (Reports-only: no WLS_FORMS / forms1, 2026-10-15)
+WITH_FORMS=true
+WITH_REPORTS=true
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS) ;;
+    FORMS_ONLY)        WITH_REPORTS=false ;;
+    REPORTS_ONLY)      WITH_FORMS=false ;;
+    *)
+        fail "Unknown INSTALL_COMPONENTS: $INSTALL_COMPONENTS (FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY)"
+        print_summary; exit 2
+        ;;
+esac
+
+TEMPLATES=("$TPL_WLS" "$TPL_JRF")
+$WITH_FORMS   && TEMPLATES+=("$TPL_FORMS")
+$WITH_REPORTS && TEMPLATES+=("$TPL_REPORTS" "$TPL_REPSRV")
+
 # =============================================================================
 # Pre-checks
 # =============================================================================
@@ -109,7 +131,7 @@ ok "$(printf "ORACLE_HOME  = %s" "$ORACLE_HOME")"
     && ok "$(printf "wlst.sh found: %s" "$WLST_BIN")" \
     || { fail "wlst.sh not found: $WLST_BIN"; EXIT_CODE=2; }
 
-for _tpl in "$TPL_WLS" "$TPL_JRF" "$TPL_FORMS" "$TPL_REPORTS" "$TPL_REPSRV"; do
+for _tpl in "${TEMPLATES[@]}"; do
     [ -f "$_tpl" ] \
         && ok "$(printf "Template      : %s" "$(basename "$_tpl")")" \
         || { fail "$(printf "Template missing: %s" "$_tpl")"; EXIT_CODE=2; }
@@ -170,17 +192,20 @@ printList "DOMAIN_HOME"        30 "$DOMAIN_HOME"
 printList "ORACLE_HOME"        30 "$ORACLE_HOME"
 printList "Admin user"         30 "${WL_USER}"
 printList "Admin listen"       30 "${WLS_LISTEN_ADDRESS}:${WLS_ADMIN_PORT}"
-printList "WLS_FORMS listen"   30 "${WLS_LISTEN_ADDRESS}:${WLS_FORMS_PORT}"
-printList "WLS_REPORTS listen" 30 "${WLS_LISTEN_ADDRESS}:${WLS_REPORTS_PORT}"
+printList "INSTALL_COMPONENTS" 30 "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}"
+$WITH_FORMS   && printList "WLS_FORMS listen"   30 "${WLS_LISTEN_ADDRESS}:${WLS_FORMS_PORT}"
+$WITH_REPORTS && printList "WLS_REPORTS listen" 30 "${WLS_LISTEN_ADDRESS}:${WLS_REPORTS_PORT}"
 printList "NodeManager port"   30 "${WLS_NODEMANAGER_PORT}"
 printList "DB connect"         30 "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
 printList "Schema prefix"      30 "${DB_SCHEMA_PREFIX}"
 printf "\n" | tee -a "$LOG_FILE"
-printList "Templates" 30 "$(basename "$TPL_WLS")"
-info "$(printf "%30s  %s" "" "$(basename "$TPL_JRF")")"
-info "$(printf "%30s  %s" "" "$(basename "$TPL_FORMS")")"
-info "$(printf "%30s  %s" "" "$(basename "$TPL_REPORTS")")"
-info "$(printf "%30s  %s" "" "$(basename "$TPL_REPSRV")")"
+printList "Templates" 30 "$(basename "${TEMPLATES[0]}")"
+for _tpl in "${TEMPLATES[@]:1}"; do
+    info "$(printf "%30s  %s" "" "$(basename "$_tpl")")"
+done
+unset _tpl
+$WITH_FORMS   || info "$(printf "%30s  %s" "" "(no Forms template – INSTALL_COMPONENTS=REPORTS_ONLY)")"
+$WITH_REPORTS || info "$(printf "%30s  %s" "" "(no Reports templates – INSTALL_COMPONENTS=FORMS_ONLY)")"
 
 printf "\n" | tee -a "$LOG_FILE"
 
@@ -236,6 +261,8 @@ sed \
     -e "s|##DB_SERVICE##|${DB_SERVICE}|g" \
     -e "s|##DB_SCHEMA_PWD##|${DB_SCHEMA_PWD}|g" \
     -e "s|##DB_SCHEMA_PREFIX##|${DB_SCHEMA_PREFIX}|g" \
+    -e "s|##WITH_FORMS##|${WITH_FORMS}|g" \
+    -e "s|##WITH_REPORTS##|${WITH_REPORTS}|g" \
     "$DOMAIN_PY_TEMPLATE" > "$WLST_PY_FILE"
 
 chmod 600 "$WLST_PY_FILE"
@@ -312,6 +339,28 @@ EOF
 ok "$(printf "nodemanager.properties written: %s" "$NM_PROPS")"
 ok "$(printf "  ListenAddress = 127.0.0.1:%s" "$WLS_NODEMANAGER_PORT")"
 ok "$(printf "  JavaHome      = %s" "$JDK_HOME")"
+
+# =============================================================================
+# JDK path: symlink instead of the resolved directory
+#
+# writeDomain resolves JDK_HOME (jdk-21 -> jdk-21.0.x) and writes the versioned
+# directory into setDomainEnv.sh, setNMJavaHome.sh, the Forms instance scripts
+# and init-info/* – a later JDK upgrade by switching the symlink would not
+# reach the domain (seen 2026-10-15).
+# =============================================================================
+
+section "JDK Path"
+
+if [ -x "$ROOT_DIR/07-Maintenance/domain_jdk_path.sh" ]; then
+    if "$ROOT_DIR/07-Maintenance/domain_jdk_path.sh" --apply 2>&1 \
+         | grep -E "No file pins|OK|FAIL|Backup:" | tee -a "$LOG_FILE" | grep -q "FAIL"; then
+        warn "07-Maintenance/domain_jdk_path.sh reported errors – re-run it manually"
+    else
+        ok "$(printf "Domain uses JDK_HOME: %s" "$JDK_HOME")"
+    fi
+else
+    warn "07-Maintenance/domain_jdk_path.sh not found – domain pins $(readlink -f "$JDK_HOME")"
+fi
 
 # =============================================================================
 # AdminServer boot.properties  (enables unattended startup without stdin prompt)

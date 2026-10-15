@@ -320,6 +320,7 @@ IHateWeblogic/
 │   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
 │   ├── 80-patch_java_os.sh          – Java/OS layer: read-only check + manual upgrade checklist
+│   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
 │   ├── 81-patch_weblogic.sh         – WLS FMW Basis layer: wraps 09-Install/05-oracle_patch_weblogic.sh,
 │   │                                   hard-fails if WebLogic is still running
 │   ├── 82-patch_forms_reports.sh    – Forms + Reports layer: wraps 09-Install/06-oracle_patch_forms_reports.sh,
@@ -528,19 +529,28 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 
 ### Script gaps found during the rebuild
 
-- [ ] **JDK path resolved in the domain**: WLST `createDomain`/`updateDomain`
-  write the resolved JDK directory (`jdk-21.0.12.1`) instead of the symlink
-  (`jdk-21`) into `setDomainEnv.sh`, `setNMJavaHome.sh` and
-  `nodemanager.properties`; `updateDomain` also rewrites
-  `nodemanager.properties`. `02b-root_os_java.sh --upgrade-jdk` only switches
-  the symlink → after a JDK upgrade the domain keeps running on the old JDK.
-  Fix in `08-` (post-step) and/or `02b-`/`80-`.
-- [ ] **`01-Run/startStop.sh` has no Reports system components**: `start-all` /
-  `stop-all` / status cover NodeManager, AdminServer, managed servers and OHS
-  only – `repserver*` must be started/stopped with `startComponent.sh` /
-  `stopComponent.sh` (a `stop-all` that kills the Node Manager leaves the
-  Reports server orphaned). The autostart (`30-`, `fmw_ctl.sh`) already
-  handles them.
+- [x] **JDK path resolved in the domain** (2026-10-15): WLST
+  `createDomain`/`updateDomain` write the resolved JDK directory
+  (`jdk-21.0.12.1`) instead of the symlink (`jdk-21`) – not only into
+  `setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, but also the
+  Forms instance scripts and `init-info/*`; the installer into
+  `$ORACLE_HOME/oui/`. New `07-Maintenance/domain_jdk_path.sh` (read-only /
+  `--apply` with backup), called by `08-`; hint in `02b- --upgrade-jdk` and
+  `80-`. Live: 22 files, after the restart all JVMs run from `jdk-21/bin/java`.
+- [x] **`01-Run/startStop.sh` Reports system components** (2026-10-15): type
+  `REPORTS` from config.xml (`ReportsServerComponent`), start/stop via WLST
+  `nmConnect` + `nmStart`/`nmKill` (no password prompt), order
+  … Managed → Reports → OHS / OHS → Reports → Managed …; status via
+  `rwserver server=<name>`. Live: single stop/start, stop-all, start-all.
+  Also fixed: the status after an action used the `ss` snapshot from the
+  script start ("RUNNING port" for stopped servers).
+- [ ] **`startStop.sh` vs. systemd autostart**: `start` / `start-all` start
+  AdminServer and managed servers with the start scripts, past the Node
+  Manager. With `30-` active the NM then sees them as `SHUTDOWN`,
+  `fmw_ctl.sh stop` skips them and `systemctl restart` fails at
+  `nmStart AdminServer` (port in use, seen 2026-10-15; documented in
+  `01-Run/README.md`). Option: when the NM runs, start ADMIN/MANAGED via
+  `nmStart` too, or warn when `fmw-<domain>.service` is active.
 - [ ] **`rwserver.conf` server administrator**: `13-oracle_setup_reports.sh`
   (part of the Reports servlet security topic above) writes a fixed
   `<identifier>rep_admin/wls_team</identifier>` – generate or
@@ -549,9 +559,12 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 - [ ] **Reports server security decision**: secure the server via `securityId`
   on the `<job>` element (then `monUser`/`RW_MONITOR` work as designed) or keep
   the `<identifier>` admin for web commands – see Report Security above.
-- [ ] **Reports-only installs in `08-oracle_setup_domain.sh`**: the Forms template
-  (`forms_template.jar`, `WLS_FORMS`) is still added unconditionally, also for
-  `INSTALL_COMPONENTS=REPORTS_ONLY` (same bug class already fixed in `06-`).
+- [x] **Reports-only installs in `08-oracle_setup_domain.sh`** (2026-10-15):
+  templates and managed servers follow `INSTALL_COMPONENTS` (REPORTS_ONLY: no
+  `forms_template.jar` / `WLS_FORMS` / `forms1`; FORMS_ONLY: no Reports
+  templates / `WLS_REPORTS`); `14-` skips itself with REPORTS_ONLY. Verified
+  with WLST offline (templates + server list, no `writeDomain`); a full
+  Reports-only domain creation is still untested.
 - [ ] **Forms WebUtil (jacob)**: `jacob.jar` and the WebUtil DLLs
   are a manual step (`14-` only checks them) – no download source in
   `PATCH_STORAGE`.

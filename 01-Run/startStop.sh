@@ -11,12 +11,17 @@
 # Options  : list                Show status table (default)
 #            start <component>   Start a specific component
 #            stop  <component>   Stop a specific component
-#            start-all           Start: NM -> AdminServer -> Managed -> OHS
-#            stop-all            Stop:  OHS -> Managed -> AdminServer -> NM
+#            start-all           Start: NM -> AdminServer -> Managed -> Reports -> OHS
+#            stop-all            Stop:  OHS -> Reports -> Managed -> AdminServer -> NM
 #            --apply             Execute write operations (default: dry-run)
 #            --help              Show usage
-# Requires : ss (or netstat), pgrep, wlst.sh (for stop operations)
-#            weblogic_sec.conf.des3 (for start/stop)
+# Requires : ss (or netstat), pgrep, wlst.sh (stop; start/stop of Reports servers)
+#            weblogic_sec.conf.des3 (stop; start/stop of Reports servers)
+# Reports  : Reports server system components (config.xml component-type
+#            ReportsServerComponent) are started/stopped through the Node
+#            Manager (nmConnect with the admin credentials, nmStart / nmKill -
+#            what startComponent.sh / stopComponent.sh do, without their
+#            password prompt). restartComponent.sh is not supported for them.
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : 01-Run/README.md
@@ -51,13 +56,14 @@ _usage() {
     printf "  %-30s %s\n" "(no args) | list"        "Show component status table"
     printf "  %-30s %s\n" "start <component>"       "Start a specific component"
     printf "  %-30s %s\n" "stop  <component>"       "Stop a specific component"
-    printf "  %-30s %s\n" "start-all"               "Start all in order (NM->Admin->Managed->OHS)"
-    printf "  %-30s %s\n" "stop-all"                "Stop all in reverse (OHS->Managed->Admin->NM)"
+    printf "  %-30s %s\n" "start-all"               "Start all in order (NM->Admin->Managed->Reports->OHS)"
+    printf "  %-30s %s\n" "stop-all"                "Stop all in reverse (OHS->Reports->Managed->Admin->NM)"
     printf "  %-30s %s\n" "--apply"                 "Execute operations (default: dry-run)"
     printf "\nExamples:\n"
     printf "  %s\n"                                  "$(basename "$0")"
     printf "  %s start AdminServer --apply\n"        "$(basename "$0")"
     printf "  %s stop  WLS_REPORTS --apply\n"        "$(basename "$0")"
+    printf "  %s start repserver01 --apply   (Reports server component)\n" "$(basename "$0")"
     printf "  %s start-all --apply\n"                "$(basename "$0")"
     printf "  %s stop-all  --apply\n"                "$(basename "$0")"
     exit 1
@@ -90,7 +96,7 @@ fi
 # =============================================================================
 
 declare -a C_NAME=()    # component name
-declare -a C_TYPE=()    # NM | ADMIN | MANAGED | OHS
+declare -a C_TYPE=()    # NM | ADMIN | MANAGED | REPORTS | OHS
 declare -a C_HOST=()    # configured listen address
 declare -a C_PORT=()    # primary port
 declare -a C_STATUS=()  # RUNNING | STOPPED | UNKNOWN
@@ -162,7 +168,27 @@ _discover() {
         warn "config.xml not found – only AdminServer (from WL_ADMIN_URL) listed"
     fi
 
-    # --- 3. OHS system components (if present) ---
+    # --- 3. Reports server system components ---
+    # ReportsToolsComponent / FORMS are configuration only (no own process)
+    if [ -f "$config_xml" ]; then
+        local rep_name
+        while IFS= read -r rep_name; do
+            [ -z "$rep_name" ] && continue
+            C_NAME+=("$rep_name"); C_TYPE+=("REPORTS")
+            C_HOST+=("-");         C_PORT+=("")
+            C_STATUS+=("UNKNOWN"); C_PID+=("")
+        done < <(awk '
+            /<system-component>/   { in_sc=1; name=""; type="" }
+            in_sc && match($0, /<name>([^<]+)<\/name>/, m)                     { name = m[1] }
+            in_sc && match($0, /<component-type>([^<]+)<\/component-type>/, m) { type = m[1] }
+            /<\/system-component>/ {
+                if (type == "ReportsServerComponent" && name != "") print name
+                in_sc=0
+            }
+        ' "$config_xml")
+    fi
+
+    # --- 4. OHS system components (if present) ---
     local ohs_base="$DOMAIN_HOME/system_components/OHS"
     if [ -d "$ohs_base" ]; then
         for ohsdir in "$ohs_base"/*/; do
@@ -185,6 +211,9 @@ _discover() {
 
 _refresh_status() {
     local i
+    # New snapshot each time - the one from the script start still showed the
+    # ports of servers stopped in this run ("RUNNING port" after stop-all)
+    SS_CACHE="$(ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null)"
     for (( i=0; i < ${#C_NAME[@]}; i++ )); do
         local name="${C_NAME[$i]}" ctype="${C_TYPE[$i]}" port="${C_PORT[$i]}"
         local pid=""
@@ -199,6 +228,10 @@ _refresh_status() {
                 ;;
             ADMIN|MANAGED)
                 pid="$(pgrep -f "Dweblogic.Name=${name}" 2>/dev/null | head -1)"
+                ;;
+            REPORTS)
+                # rwserver binary started by the NM: ".../bin/rwserver server=<name> batch=yes ..."
+                pid="$(pgrep -f "rwserver server=${name}( |\$)" 2>/dev/null | head -1)"
                 ;;
             OHS)
                 pid="$(pgrep -f "OHS/${name}" 2>/dev/null | head -1)"
@@ -285,6 +318,71 @@ _run_wlst() {
     return $rc
 }
 
+# _run_nm_action start|stop <name> [log] - Reports server component via the Node
+# Manager. startComponent.sh / stopComponent.sh do the same, but prompt for
+# the NM password unless a WLST user config was stored. The NM credentials
+# are the admin credentials (09-Install/11-oracle_nodemanager.sh sets them).
+_run_nm_action() {
+    local action="$1" name="$2" out_log="${3:-/dev/null}"
+    local nm_props="$DOMAIN_HOME/nodemanager/nodemanager.properties"
+    local nm_host nm_port nm_sec nm_type="ssl" nm_domain
+
+    if [ -z "${INTERNAL_WL_PWD:-}" ]; then
+        load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" > /dev/null || return 1
+    fi
+    _find_wlst || return 1
+
+    nm_host="$(grep -i '^ListenAddress' "$nm_props" 2>/dev/null | cut -d= -f2 | tr -d ' \r')"
+    nm_port="$(grep -i '^ListenPort'    "$nm_props" 2>/dev/null | cut -d= -f2 | tr -d ' \r')"
+    nm_sec="$(grep -i '^SecureListener' "$nm_props" 2>/dev/null | cut -d= -f2 | tr -d ' \r')"
+    [ "${nm_sec,,}" = "false" ] && nm_type="plain"
+    nm_domain="$(grep -m1 -o '<name>[^<]*</name>' "$DOMAIN_HOME/config/config.xml" 2>/dev/null \
+                 | sed 's/<[^>]*>//g')"
+
+    export _IHW_NM_HOST="${nm_host:-localhost}" _IHW_NM_PORT="${nm_port:-5556}"
+    export _IHW_NM_TYPE="$nm_type" _IHW_NM_DOMAIN="${nm_domain:-$(basename "$DOMAIN_HOME")}"
+    export _IHW_DOMAIN_HOME="$DOMAIN_HOME" _IHW_COMP="$name" _IHW_ACTION="$action"
+
+    local out rc
+    out="$(_run_wlst "$(cat <<'NMEOF'
+import os
+e = os.environ
+try:
+    nmConnect(e['_IHW_WL_USER'], e['_IHW_WL_PWD'], e['_IHW_NM_HOST'], e['_IHW_NM_PORT'],
+              e['_IHW_NM_DOMAIN'], e['_IHW_DOMAIN_HOME'], e['_IHW_NM_TYPE'])
+except Exception, ex:
+    print('IHW:FAIL:nmConnect: ' + str(ex).split('\n')[0])
+    exit(exitcode=1)
+try:
+    if e['_IHW_ACTION'] == 'start':
+        nmStart(serverName=e['_IHW_COMP'], serverType='ReportsServerComponent')
+    else:
+        nmKill(serverName=e['_IHW_COMP'], serverType='ReportsServerComponent')
+    print('IHW:OK')
+except Exception, ex:
+    print('IHW:FAIL:' + str(ex).split('\n')[0])
+nmDisconnect()
+exit()
+NMEOF
+)" 2>&1)"
+    rc=$?
+    unset _IHW_NM_HOST _IHW_NM_PORT _IHW_NM_TYPE _IHW_NM_DOMAIN _IHW_DOMAIN_HOME _IHW_COMP _IHW_ACTION
+    printf '%s\n' "$out" | tee -a "$out_log" >> "${LOG_FILE:-/dev/null}"
+
+    if printf '%s\n' "$out" | grep -q '^IHW:OK'; then
+        return 0
+    fi
+    fail "$name: $(printf '%s\n' "$out" | sed -n 's/^IHW:FAIL://p' | head -1)"
+    if printf '%s\n' "$out" | grep -q 'IHW:FAIL:nmConnect'; then
+        info "  Node Manager running? NM credentials = admin credentials?"
+        info "  Check: ./09-Install/11-oracle_nodemanager.sh (nmConnect test)"
+    else
+        info "  Logs: $DOMAIN_HOME/servers/$name/logs/ and nodemanager/nodemanager.log"
+    fi
+    [ "$rc" -eq 0 ] && rc=1
+    return $rc
+}
+
 # =============================================================================
 # Find component index by name (case-insensitive)
 # =============================================================================
@@ -365,6 +463,16 @@ _start_comp() {
             _check_early_exit $! "$start_log" "$name" || return 1
             ok "$name start initiated (PID $!) – allow ~60s to come up"
             ;;
+        REPORTS)
+            if ! pgrep -f 'java .*weblogic\.NodeManager' > /dev/null 2>&1; then
+                fail "Node Manager not running - Reports servers are started through it"
+                info "  ./01-Run/startStop.sh start NodeManager --apply"
+                return 1
+            fi
+            # nmStart returns when the NM reports the component as started
+            _run_nm_action start "$name" "$start_log" || return 1
+            ok "$name started (Node Manager)"
+            ;;
         OHS)
             local start_sh="$DOMAIN_HOME/bin/startComponent.sh"
             if [ ! -f "$start_sh" ]; then fail "Not found: $start_sh"; return 1; fi
@@ -437,6 +545,21 @@ PYEOF
             || { fail "$name shutdown via WLST failed"; return 1; }
             ;;
 
+        REPORTS)
+            # Same as stopComponent.sh: nmKill through the Node Manager. A
+            # rwserver started without the NM is unknown to it -> fallback kill
+            if pgrep -f 'java .*weblogic\.NodeManager' > /dev/null 2>&1 \
+               && _run_nm_action stop "$name"; then
+                ok "$name stopped (Node Manager)"
+            elif [ -n "$pid" ] && [[ "$pid" =~ ^[0-9]+$ ]]; then
+                warn "$name: stop through the Node Manager failed - SIGTERM to PID $pid"
+                kill "$pid" 2>/dev/null && ok "$name (PID $pid) stopped" \
+                    || { fail "kill $pid failed"; return 1; }
+            else
+                return 1
+            fi
+            ;;
+
         OHS)
             local stop_sh="$DOMAIN_HOME/bin/stopComponent.sh"
             if [ ! -f "$stop_sh" ]; then fail "Not found: $stop_sh"; return 1; fi
@@ -454,12 +577,12 @@ PYEOF
 }
 
 # =============================================================================
-# Start-all: NM -> AdminServer -> Managed -> OHS
+# Start-all: NM -> AdminServer -> Managed -> Reports -> OHS
 # =============================================================================
 
 _start_all() {
     local i
-    for ctype in "NM" "ADMIN" "MANAGED" "OHS"; do
+    for ctype in "NM" "ADMIN" "MANAGED" "REPORTS" "OHS"; do
         for (( i=0; i < ${#C_NAME[@]}; i++ )); do
             [ "${C_TYPE[$i]}" != "$ctype" ] && continue
             if [ "${C_STATUS[$i]}" = "RUNNING" ]; then
@@ -478,12 +601,12 @@ _start_all() {
 }
 
 # =============================================================================
-# Stop-all: OHS -> Managed -> AdminServer -> NM
+# Stop-all: OHS -> Reports -> Managed -> AdminServer -> NM
 # =============================================================================
 
 _stop_all() {
     local i
-    for ctype in "OHS" "MANAGED" "ADMIN" "NM"; do
+    for ctype in "OHS" "REPORTS" "MANAGED" "ADMIN" "NM"; do
         for (( i=0; i < ${#C_NAME[@]}; i++ )); do
             [ "${C_TYPE[$i]}" != "$ctype" ] && continue
             if [ "${C_STATUS[$i]}" = "STOPPED" ]; then

@@ -195,6 +195,12 @@ _upgrade_jdk_latest() {
     ok "JDK upgraded: $JDK_HOME → $(readlink -f "$JDK_HOME")"
     info "  Rollback: ln -sfn $old_target $JDK_HOME   (old JDK kept)"
     info "  SecureRandom check below runs against the new java.security"
+    # The symlink switch only reaches an existing domain if it does not pin the
+    # versioned directory (WLST createDomain/updateDomain resolve the symlink)
+    if [ -n "${DOMAIN_HOME:-}" ] && [ -f "$DOMAIN_HOME/config/config.xml" ]; then
+        info "  Existing domain: as oracle, check / fix pinned JDK paths, then restart:"
+        info "    07-Maintenance/domain_jdk_path.sh --apply"
+    fi
     return 0
 }
 
