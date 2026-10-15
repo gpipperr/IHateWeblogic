@@ -174,6 +174,12 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 
 ## 8. State on the test host (2026-10-15, confirmed (live))
 
+Before the fix (first table) – after `FORMS_WEBUTIL_JACOB=true`, `04-` and
+`14- --apply` the same day: JACOB 1.21 downloaded (SHA-256 OK), jar + DLLs
+installed and served (HTTP 200, expected sizes), `webutil.cfg` is Oracle's
+file + our `transfer.*` keys (all `install.syslib` entries kept), `jacob.jar`
+**not activated** because unsigned (signing step open).
+
 | Item | State |
 |---|---|
 | `jacob.jar`, `jacob-1.21-*.dll` | missing (14 only warns) |
@@ -181,7 +187,7 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 | `webutil.cfg` of the instance | written by `14-` from `forms_templates/webutil.cfg.template` – contains only the `transfer.*` lines, **all `install.syslib.*` entries are missing** → WebUtil cannot install any native library on the client (also not `d2kwut60.dll`) |
 | `formsweb.cfg` | `WebUtilArchive=frmwebutil.jar` (without `jacob.jar`) |
 | `extensions.jnlp` | `jacob.jar` entry commented out (Oracle default) |
-| hints in `14-` / doc 14 | still refer to `jacob-1.18-M2` and SourceForge |
+| hints in `14-` / doc 14 | still refer to `jacob-1.18-M2` and SourceForge (fixed the same day) |
 
 ## Summary
 

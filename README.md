@@ -565,9 +565,19 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   templates / `WLS_REPORTS`); `14-` skips itself with REPORTS_ONLY. Verified
   with WLST offline (templates + server list, no `writeDomain`); a full
   Reports-only domain creation is still untested.
-- [ ] **Forms WebUtil (jacob)**: `jacob.jar` and the WebUtil DLLs
-  are a manual step (`14-` only checks them) – no download source in
-  `PATCH_STORAGE`.
+- [x] **Forms WebUtil (jacob) – download + install** (2026-10-15): switch
+  `FORMS_WEBUTIL_JACOB=true|false` (default false); `04-` downloads JACOB 1.21
+  from GitHub (SHA-256), `14-` installs jar + DLLs (size check). Also fixed:
+  `webutil.cfg` is now Oracle's file + template overrides – the template had
+  dropped all `install.syslib.*` entries. Background:
+  `80-FMW-Architecture/forms_jakob_webutil.md`.
+- [ ] **Forms WebUtil (jacob) – signing**: `jacob.jar` from the release is
+  unsigned, `14-` activates it (`WebUtilArchive`, `extensions.jnlp`) only when
+  `jarsigner -verify` succeeds. Open: signing step – code-signing keystore
+  (path/alias in `environment.conf`, password `*.des3`), self-signed fallback
+  for tests (clients import the cert / exception site list), verify whether
+  FSAL needs the signature too; check after Forms patches (`82-`) that
+  `jacob.jar` / `extensions.jnlp` survived; real OLE test on a Windows client.
 
 ### Findings from the customer installation (2026-10-15)
 

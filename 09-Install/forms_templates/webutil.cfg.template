@@ -5,6 +5,10 @@
 # Managed: 09-Install/14-oracle_setup_forms.sh --apply
 # =============================================================================
 #
+# OVERRIDES ONLY: 14- starts from Oracle's own webutil.cfg
+# ($ORACLE_HOME/forms/templates/config/webutil.cfg – keeps install.syslib.*,
+# logging.*) and replaces the keys set here; comments here are not copied.
+#
 # CUSTOMER SETUP:
 #   transfer.appsrv.read.N  – directories the server is allowed to read from
 #   transfer.appsrv.write.N – directories the server is allowed to write to

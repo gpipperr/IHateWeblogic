@@ -17,7 +17,7 @@ The script copies each template to its target path(s) and creates a
 |---|---|---|
 | `default.env.template` | `$DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_*/config/` | Main Forms environment file |
 | `formsweb.cfg.template` | Same config dir as `default.env` | URL-to-form mapping; add custom sections manually |
-| `webutil.cfg.template` | `$FR_INST/server/` **and** `$FR_INST_ALT/server/` | File transfer settings; copied to both locations |
+| `webutil.cfg.template` | `$FR_INST/server/` **and** `$FR_INST_ALT/server/` | File transfer settings; merged into Oracle's webutil.cfg, written to both locations |
 | `Registry.dat.template` | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
 | `fmrweb_utf8.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
 | `fmrwebd.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (non-UTF-8 fallback) |
@@ -43,6 +43,9 @@ Paths are `##...##` placeholders filled from `environment.conf` by the script
 - Add application-specific `[section]` blocks after the `[default]` section
 
 ### webutil.cfg.template
+- Overrides only – merged into Oracle's
+  `$ORACLE_HOME/forms/templates/config/webutil.cfg` (keeps the
+  `install.syslib.*` list); see `docs/14-forms-detail-settings.md` Step 2
 - `transfer.appsrv.read.N=` – directories the server may read from
 - `transfer.appsrv.write.N=` – directories the server may write to
 

@@ -103,7 +103,9 @@ ssoProxyConnect=no
 logoutTargetURLParamname=
 
 # ── WebUtil ───────────────────────────────────────────────────────────────────
-WebUtilArchive=frmwebutil.jar
+# ##WEBUTIL_ARCHIVE## is set by 14-oracle_setup_forms.sh: frmwebutil.jar, plus
+# jacob.jar when FORMS_WEBUTIL_JACOB=true and jacob.jar is signed
+WebUtilArchive=##WEBUTIL_ARCHIVE##
 WebUtilLogging=off
 WebUtilLoggingDetail=normal
 WebUtilErrorMode=Alert

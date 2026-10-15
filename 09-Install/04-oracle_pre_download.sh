@@ -5,6 +5,7 @@
 #            PATCH_STORAGE.
 #            eDelivery path : manual file placement (primary) or Bearer Token wget.
 #            MOS path       : getMOSPatch.jar for OPatch + post-install patches.
+#            GitHub         : JACOB (WebUtil OLE) if FORMS_WEBUTIL_JACOB=true.
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
 #            --apply             – eDelivery: create dirs, prompt placement, verify
@@ -493,6 +494,14 @@ for _p in $_inv_list; do
 done
 unset _p _inv_list _spb_zip _opatch_nr
 
+# JACOB (GitHub, not MOS) – only for Forms with FORMS_WEBUTIL_JACOB=true
+DOWNLOAD_JACOB=false
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|FORMS_ONLY)
+        [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] && [ -n "${JACOB_ZIP:-}" ] && DOWNLOAD_JACOB=true ;;
+esac
+$DOWNLOAD_JACOB && _inv_file "$PATCH_STORAGE/jacob/$JACOB_ZIP" "JACOB ZIP (WebUtil OLE)"
+
 if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
 else
@@ -560,6 +569,43 @@ BEARER_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 unset BEARER_TOKEN
 
 [ "$ERRORS" -gt 0 ] && { fail "$ERRORS eDelivery file(s) failed"; EXIT_CODE=1; }
+
+# =============================================================================
+# Section 1b: JACOB from GitHub (FORMS_WEBUTIL_JACOB=true only)
+# =============================================================================
+if $DOWNLOAD_JACOB; then
+    section "JACOB (WebUtil OLE) – GitHub"
+    _jacob_dir="$PATCH_STORAGE/jacob"
+    _jacob_zip="$_jacob_dir/$JACOB_ZIP"
+    mkdir -p "$_jacob_dir"
+    if [ ! -f "$_jacob_zip" ]; then
+        info "Downloading $JACOB_URL"
+        if curl -fsSL --max-time 300 -o "${_jacob_zip}.part" "$JACOB_URL"; then
+            mv -f "${_jacob_zip}.part" "$_jacob_zip"
+        else
+            rm -f "${_jacob_zip}.part"
+            fail "Download failed: $JACOB_URL"
+            info "  Manual: download $JACOB_ZIP from https://github.com/freemansoft/jacob-project/releases"
+            info "          and place it in $_jacob_dir/"
+            EXIT_CODE=1
+        fi
+    fi
+    if [ -f "$_jacob_zip" ]; then
+        _sha="$(sha256sum "$_jacob_zip" | cut -d' ' -f1)"
+        if [ -z "${JACOB_SHA256:-}" ]; then
+            warn "No JACOB_SHA256 in oracle_software_version.conf – checksum not verified ($_sha)"
+        elif [ "${_sha,,}" = "${JACOB_SHA256,,}" ]; then
+            ok "$JACOB_ZIP SHA-256 verified"
+        else
+            fail "$JACOB_ZIP SHA-256 mismatch: $_sha (expected $JACOB_SHA256)"
+            mv -f "$_jacob_zip" "${_jacob_zip}.bad_$(date +%Y%m%d_%H%M%S)"
+            info "  Moved aside – re-run to download again"
+            EXIT_CODE=1
+        fi
+        unset _sha
+    fi
+    unset _jacob_dir _jacob_zip
+fi
 
 # =============================================================================
 # Section 2: getMOSPatch – OPatch + post-install patches

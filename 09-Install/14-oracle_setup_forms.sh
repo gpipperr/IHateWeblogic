@@ -3,8 +3,10 @@
 # Script   : 14-oracle_setup_forms.sh
 # Purpose  : Phase 6 – Copy Oracle Forms configuration templates to the
 #            correct domain locations:
-#              1. Check jacob.jar + WebUtil DLLs (check only)
+#              1. JACOB (WebUtil OLE) – install jar + DLLs from PATCH_STORAGE
+#                 if FORMS_WEBUTIL_JACOB=true, activate only when signed
 #              2. webutil.cfg → FR_INST/server/ AND FR_INST_ALT/server/
+#                 (Oracle's webutil.cfg + our transfer.* settings merged)
 #              3. default.env → formsapp_*/config/
 #              4. formsweb.cfg → formsapp_*/config/
 #              5. Registry.dat → formsapp_*/config/oracle/forms/registry/
@@ -14,6 +16,7 @@
 # Options  : --apply   Copy templates to domain (default: check only)
 #            --help    Show usage
 # Requires : environment.conf with FORMS_INSTANCE_NAME + WLS_FORMS_SERVER
+#            (optional FORMS_WEBUTIL_JACOB=true + 04- download of JACOB)
 #            09-Install/forms_templates/ templates edited by customer
 #            Domain created (08-oracle_setup_domain.sh)
 # Runs as  : oracle
@@ -37,6 +40,9 @@ source "$LIB_SH"
 check_env_conf "$ROOT_DIR/environment.conf" || exit 2
 # shellcheck source=../environment.conf
 source "$ROOT_DIR/environment.conf"
+# JACOB_* (version, sizes, checksum)
+# shellcheck source=oracle_software_version.conf
+[ -f "$SCRIPT_DIR/oracle_software_version.conf" ] && source "$SCRIPT_DIR/oracle_software_version.conf"
 
 # =============================================================================
 # Arguments
@@ -177,6 +183,7 @@ _render_template() {
         -e "s|##REPORTS_TOOLS_INSTANCE##|${REPORTS_TOOLS_INSTANCE:-reptools1}|g" \
         -e "s|##FORMS_CUSTOMER_DIR##|${FORMS_CUSTOMER_DIR:-/app/forms/custom}|g" \
         -e "s|##TNS_ADMIN##|${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}|g" \
+        -e "s|##WEBUTIL_ARCHIVE##|${WEBUTIL_ARCHIVE:-frmwebutil.jar}|g" \
         "$src" > "$dest"
     left="$(grep -oE '##[A-Z_]+##' "$dest" | sort -u | xargs)"
     if [ -n "$left" ]; then
@@ -241,50 +248,218 @@ _copy_template() {
 }
 
 # =============================================================================
-# 2. jacob.jar + WebUtil DLLs (check only)
+# 2. JACOB – Java COM bridge for WebUtil OLE (FORMS_WEBUTIL_JACOB=true only)
+#
+# Only needed for CLIENT_OLE2 / Office automation. Not shipped by Oracle:
+# 04-oracle_pre_download.sh puts jacob-<ver>.zip into $PATCH_STORAGE/jacob/.
+# jacob.jar from the release is unsigned – Java Web Start refuses unsigned
+# all-permissions jars, so jacob.jar is only activated (WebUtilArchive,
+# extensions.jnlp) when it is signed. Background:
+# 80-FMW-Architecture/forms_jakob_webutil.md
 # =============================================================================
 
-section "jacob.jar + WebUtil DLLs (check only – manual install)"
+section "JACOB (WebUtil OLE / Office automation)"
 
+JACOB_ACTIVE=false
+WEBUTIL_ARCHIVE="frmwebutil.jar"
+_JACOB_VER="${JACOB_VERSION:-1.21}"
 _JACOB_JAR="$ORACLE_HOME/forms/java/jacob.jar"
-_JACOB_DLL32="$(find "$ORACLE_HOME/forms/webutil/win32/" -name 'jacob-*.dll' 2>/dev/null | head -1)"
-_JACOB_DLL64="$(find "$ORACLE_HOME/forms/webutil/win64/" -name 'jacob-*.dll' 2>/dev/null | head -1)"
+_JACOB_DLL32="$ORACLE_HOME/forms/webutil/win32/jacob-${_JACOB_VER}-x86.dll"
+_JACOB_DLL64="$ORACLE_HOME/forms/webutil/win64/jacob-${_JACOB_VER}-x64.dll"
+_EXT_JNLP="$ORACLE_HOME/forms/java/extensions.jnlp"
 
-if [ -f "$_JACOB_JAR" ]; then
-    ok "jacob.jar found: $_JACOB_JAR"
+# _jacob_signed jar – 0 if jarsigner verifies the jar
+_jacob_signed() {
+    local js="${JDK_HOME:-$ORACLE_HOME/oracle_common/jdk}/bin/jarsigner"
+    [ -x "$js" ] || js="$(command -v jarsigner 2>/dev/null)"
+    [ -n "$js" ] && "$js" -verify "$1" 2>/dev/null | grep -q '^jar verified'
+}
+
+# _jacob_install src dest – copy with backup if different
+_jacob_install() {
+    local src="$1" dest="$2"
+    if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+        ok "$(printf "  %-22s up to date  %s" "$(basename "$dest")" "$dest")"
+        return 0
+    fi
+    if ! $APPLY; then
+        info "$(printf "  %-22s dry-run – would install  %s" "$(basename "$dest")" "$dest")"
+        return 0
+    fi
+    [ -f "$dest" ] && cp -p "$dest" "${dest}.bak_$(date +%Y%m%d_%H%M%S)"
+    if cp "$src" "$dest"; then
+        ok "$(printf "  %-22s installed  %s" "$(basename "$dest")" "$dest")"
+    else
+        fail "Copy failed: $src → $dest"
+        return 1
+    fi
+}
+
+if [ "${FORMS_WEBUTIL_JACOB:-false}" != "true" ]; then
+    info "FORMS_WEBUTIL_JACOB=${FORMS_WEBUTIL_JACOB:-false} – JACOB not installed"
+    info "  Only needed for WebUtil OLE (CLIENT_OLE2, Word/Excel automation);"
+    info "  enable: FORMS_WEBUTIL_JACOB=true in environment.conf, then 04- and 14- --apply"
+    [ -f "$_JACOB_JAR" ] && info "  (jacob.jar is present anyway: $_JACOB_JAR)"
 else
-    warn "jacob.jar not found: $_JACOB_JAR"
-    info "  Manual install:"
-    info "    cp <PATCH_STORAGE>/jacob-1.18-M2/jacob.jar $ORACLE_HOME/forms/java/"
+    _zip="$PATCH_STORAGE/jacob/${JACOB_ZIP:-jacob-${_JACOB_VER}.zip}"
+    if [ ! -f "$_zip" ]; then
+        fail "JACOB ZIP not found: $_zip"
+        info "  Download: 09-Install/04-oracle_pre_download.sh --apply"
+    elif [ -n "${JACOB_SHA256:-}" ] && \
+         [ "$(sha256sum "$_zip" | cut -d' ' -f1)" != "${JACOB_SHA256,,}" ]; then
+        fail "JACOB ZIP SHA-256 mismatch: $_zip – download again with 04-"
+    else
+        ok "JACOB ZIP: $_zip"
+        _tmp="$(mktemp -d)"
+        unzip -q -o "$_zip" -d "$_tmp"
+        _src_jar="$(find "$_tmp" -name jacob.jar | head -1)"
+        _src32="$(find "$_tmp" -name "jacob-${_JACOB_VER}-x86.dll" | head -1)"
+        _src64="$(find "$_tmp" -name "jacob-${_JACOB_VER}-x64.dll" | head -1)"
+        _ok=true
+        for _f in "$_src_jar" "$_src32" "$_src64"; do
+            [ -n "$_f" ] || { fail "ZIP incomplete – jacob.jar / jacob-${_JACOB_VER}-x86|x64.dll missing"; _ok=false; break; }
+        done
+        # webutil.cfg install.syslib checks name|size – the DLLs must match exactly
+        if $_ok; then
+            for _pair in "$_src32:${JACOB_DLL_X86_SIZE:-}" "$_src64:${JACOB_DLL_X64_SIZE:-}"; do
+                _f="${_pair%%:*}"; _exp="${_pair##*:}"; _sz="$(stat -c %s "$_f")"
+                if [ -n "$_exp" ] && [ "$_sz" != "$_exp" ]; then
+                    fail "$(basename "$_f"): $_sz bytes, webutil.cfg expects $_exp"
+                    _ok=false
+                fi
+            done
+        fi
+        if $_ok; then
+            _jacob_install "$_src_jar" "$_JACOB_JAR"
+            _jacob_install "$_src32"   "$_JACOB_DLL32"
+            _jacob_install "$_src64"   "$_JACOB_DLL64"
+        fi
+        rm -rf "${_tmp:?}"
+        unset _tmp _src_jar _src32 _src64 _f _pair _exp _sz _ok
+    fi
+    unset _zip
+
+    # Activation only for a signed jar (signing step: TODO, see README)
+    if [ -f "$_JACOB_JAR" ]; then
+        if _jacob_signed "$_JACOB_JAR"; then
+            ok "jacob.jar is signed – activating it for the Forms client"
+            JACOB_ACTIVE=true
+            WEBUTIL_ARCHIVE="frmwebutil.jar,jacob.jar"
+        else
+            warn "jacob.jar is not signed – NOT activated (WebUtilArchive / extensions.jnlp unchanged)"
+            info "  Java Web Start refuses unsigned all-permissions jars; signing step is still open"
+            info "  (README TODO 'Forms WebUtil (jacob)': sign with a code-signing certificate)"
+        fi
+    elif ! $APPLY; then
+        info "  Activation is decided after the install (jacob.jar must be signed)"
+    fi
 fi
 
-if [ -n "$_JACOB_DLL32" ]; then
-    ok "win32 DLL found: $_JACOB_DLL32"
-else
-    warn "win32 jacob DLL not found in: $ORACLE_HOME/forms/webutil/win32/"
-    info "  Manual install:"
-    info "    cp <PATCH_STORAGE>/jacob-1.18-M2/jacob-1.18-M2-x86.dll $ORACLE_HOME/forms/webutil/win32/"
+# extensions.jnlp: Java Web Start loads extra jars from here (webutil.jnlp /
+# base.jnlp reference it); Oracle ships the jacob entry commented out
+if $JACOB_ACTIVE && [ -f "$_EXT_JNLP" ]; then
+    if grep -qE '^[[:space:]]*<jar href="jacob\.jar"' "$_EXT_JNLP"; then
+        ok "extensions.jnlp: jacob.jar entry active"
+    elif $APPLY; then
+        cp -p "$_EXT_JNLP" "${_EXT_JNLP}.bak_$(date +%Y%m%d_%H%M%S)"
+        sed -i 's|<!--[[:space:]]*<jar href="jacob.jar"/>[[:space:]]*-->|<jar href="jacob.jar"/>|' "$_EXT_JNLP"
+        grep -qE '^[[:space:]]*<jar href="jacob\.jar"' "$_EXT_JNLP" \
+            || sed -i 's|</resources>|<jar href="jacob.jar"/>\n</resources>|' "$_EXT_JNLP"
+        ok "extensions.jnlp: jacob.jar entry activated ($_EXT_JNLP)"
+    else
+        info "extensions.jnlp: dry-run – would activate the jacob.jar entry"
+    fi
 fi
-
-if [ -n "$_JACOB_DLL64" ]; then
-    ok "win64 DLL found: $_JACOB_DLL64"
-else
-    warn "win64 jacob DLL not found in: $ORACLE_HOME/forms/webutil/win64/"
-    info "  Manual install:"
-    info "    cp <PATCH_STORAGE>/jacob-1.18-M2/jacob-1.18-M2-x64.dll $ORACLE_HOME/forms/webutil/win64/"
-fi
-unset _JACOB_JAR _JACOB_DLL32 _JACOB_DLL64
+printList "WebUtilArchive" 22 "$WEBUTIL_ARCHIVE"
+unset _JACOB_VER _JACOB_DLL32 _JACOB_DLL64
 
 # =============================================================================
 # 3. webutil.cfg – two locations
+#
+# Base = Oracle's own webutil.cfg ($ORACLE_HOME/forms/templates/config/), our
+# template only overrides keys. Until 2026-10-15 the template replaced the
+# whole file – all install.syslib.* entries were lost, WebUtil could not
+# install any native library on the client (d2kwut60.dll, JNIsharedstubs.dll,
+# jacob DLLs).
 # =============================================================================
 
 section "webutil.cfg (two locations)"
 
-_copy_template \
-    "$TEMPLATES_DIR/webutil.cfg.template" \
-    "$FR_INST/server/webutil.cfg" \
-    "$FR_INST_ALT/server/webutil.cfg"
+WEBUTIL_BASE="$ORACLE_HOME/forms/templates/config/webutil.cfg"
+
+# _merge_webutil_cfg overlay dest – base with the keys of overlay replaced;
+# numbered transfer.appsrv.read.N / write.N of the base not in the overlay are
+# dropped (Oracle's c:\temp examples); new keys appended at the end
+_merge_webutil_cfg() {
+    local overlay="$1" dest="$2"
+    awk -v ovf="$overlay" '
+        BEGIN {
+            n = 0
+            while ((getline line < ovf) > 0) {
+                if (line ~ /^[[:space:]]*#/ || line !~ /=/) continue
+                k = line; sub(/=.*/, "", k); gsub(/[[:space:]]/, "", k)
+                v = line; sub(/^[^=]*=/, "", v)
+                if (!(k in ov)) order[++n] = k
+                ov[k] = v
+            }
+            print "# Generated by 09-Install/14-oracle_setup_forms.sh: Oracle webutil.cfg"
+            print "# + overrides from 09-Install/forms_templates/webutil.cfg.template"
+        }
+        /^[[:space:]]*#/ || !/=/ { print; next }
+        {
+            k = $0; sub(/=.*/, "", k); gsub(/[[:space:]]/, "", k)
+            if (k in ov) { print k "=" ov[k]; used[k] = 1; next }
+            if (k ~ /^transfer\.appsrv\.(read|write)\.[0-9]+$/) { print "# (IHW removed) " $0; next }
+            print
+        }
+        END {
+            hdr = 0
+            for (i = 1; i <= n; i++) if (!(order[i] in used)) {
+                if (!hdr) { print ""; print "# --- added by 14-oracle_setup_forms.sh ---"; hdr = 1 }
+                print order[i] "=" ov[order[i]]
+            }
+        }
+    ' "$WEBUTIL_BASE" > "$dest"
+}
+
+_deploy_webutil_cfg() {
+    local overlay tmp dest
+    if [ ! -f "$WEBUTIL_BASE" ]; then
+        fail "Oracle webutil.cfg not found: $WEBUTIL_BASE"
+        return 1
+    fi
+    overlay="$(mktemp)"
+    _render_template "$TEMPLATES_DIR/webutil.cfg.template" "$overlay" || { rm -f "$overlay"; return 1; }
+    # JACOB version other than Oracle's preset: syslib entries name|size|version
+    if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] && [ -n "${JACOB_DLL_X86_SIZE:-}" ]; then
+        printf 'install.syslib.0.0.7.1=jacob-%s-x86.dll|%s|%s|true\n' \
+            "${JACOB_VERSION}" "${JACOB_DLL_X86_SIZE}" "${JACOB_VERSION}" >> "$overlay"
+        printf 'install.syslib.0.1.7.1=jacob-%s-x64.dll|%s|%s|true\n' \
+            "${JACOB_VERSION}" "${JACOB_DLL_X64_SIZE}" "${JACOB_VERSION}" >> "$overlay"
+    fi
+    tmp="$(mktemp)"
+    _merge_webutil_cfg "$overlay" "$tmp"
+    rm -f "$overlay"
+    printf "  %-30s %s\n" "webutil.cfg (base)" "$WEBUTIL_BASE" | tee -a "${LOG_FILE:-/dev/null}"
+    info "$(printf "  %d install.syslib entries kept from Oracle's file" "$(grep -c '^install\.syslib' "$tmp")")"
+    for dest in "$FR_INST/server/webutil.cfg" "$FR_INST_ALT/server/webutil.cfg"; do
+        if [ ! -d "$(dirname "$dest")" ]; then
+            warn "Target directory does not exist: $(dirname "$dest")"
+            continue
+        fi
+        if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then
+            ok "$(printf "  up to date: %s" "$dest")"
+        elif $APPLY; then
+            [ -f "$dest" ] && cp "$dest" "${dest}.bak_$(date +%Y%m%d_%H%M%S)"
+            cp "$tmp" "$dest" && ok "$(printf "  written: %s" "$dest")"
+        else
+            info "$(printf "  dry-run – would write: %s" "$dest")"
+        fi
+    done
+    rm -f "$tmp"
+}
+
+_deploy_webutil_cfg
 
 # =============================================================================
 # 4. default.env
@@ -387,10 +562,20 @@ fi
 _check_target "fmrweb_utf8.res:" "$FR_INST/admin/resource/D/fmrweb_utf8.res"
 _check_target "fmrwebd.res:"     "$FR_INST/admin/resource/D/fmrwebd.res"
 
-# jacob (check only)
-[ -f "$ORACLE_HOME/forms/java/jacob.jar" ] \
-    && ok "  jacob.jar present" \
-    || warn "  jacob.jar missing (manual install required if WebUtil file transfer is used)"
+# webutil.cfg must keep Oracle's syslib list (native client libraries)
+if [ -f "$FR_INST/server/webutil.cfg" ]; then
+    grep -q '^install\.syslib\.0\.1\.9\.2=' "$FR_INST/server/webutil.cfg" \
+        && ok "  webutil.cfg contains the install.syslib entries" \
+        || warn "  webutil.cfg without install.syslib entries – re-run with --apply"
+fi
+
+# JACOB (only with FORMS_WEBUTIL_JACOB=true)
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+    [ -f "$_JACOB_JAR" ] && ok "  jacob.jar present" || warn "  jacob.jar missing"
+    $JACOB_ACTIVE && ok "  jacob.jar active (WebUtilArchive + extensions.jnlp)" \
+                  || warn "  jacob.jar not active (unsigned or not installed)"
+fi
+unset _JACOB_JAR _EXT_JNLP
 
 # =============================================================================
 # 9. Next Steps

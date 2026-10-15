@@ -1110,6 +1110,7 @@ if $APPLY; then
 
         _append_if_missing "FORMS_INSTANCE_NAME"   "$CONF_FORMS_INSTANCE_NAME" "$ENV_CONF"
         _append_if_missing "WLS_FORMS_SERVER"     "$CONF_WLS_FORMS_SERVER"    "$ENV_CONF"
+        _append_if_missing "FORMS_WEBUTIL_JACOB"  "false"                     "$ENV_CONF"
         _append_if_missing "ORACLE_HOME"           "$CONF_ORACLE_HOME"      "$ENV_CONF"
         _append_if_missing "WL_HOME"               "\${ORACLE_HOME}/wlserver" "$ENV_CONF"
         _append_if_missing "JDK_HOME"              "$CONF_JAVA_HOME"        "$ENV_CONF"
@@ -1236,6 +1237,9 @@ REPORTS_COOKIE_KEY=""
 FORMS_INSTANCE_NAME="${CONF_FORMS_INSTANCE_NAME}"
 # WLS_FORMS_SERVER: name of the WLS managed server running Oracle Forms
 WLS_FORMS_SERVER="${CONF_WLS_FORMS_SERVER}"
+# FORMS_WEBUTIL_JACOB: install JACOB for WebUtil OLE / Office automation
+# (CLIENT_OLE2) – downloaded by 04-, installed by 14- (default: false)
+FORMS_WEBUTIL_JACOB="false"
 
 # --- Reports / Forms Binaries ------------------------------------------------
 RWRUN="\${ORACLE_HOME}/bin/rwrun"

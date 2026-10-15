@@ -22,8 +22,9 @@ controls every parameter directly in the templates.
 Steps performed by `14-oracle_setup_forms.sh`:
 
 1. Detect paths (`FR_INST`, `FR_INST_ALT`, Forms app dir)
-2. Check jacob.jar + WebUtil DLLs (check only – no auto-install)
-3. Copy `webutil.cfg` to both required locations
+2. JACOB (only `FORMS_WEBUTIL_JACOB=true`): install jar + DLLs from
+   `$PATCH_STORAGE/jacob/`, activate only a signed `jacob.jar`
+3. Write `webutil.cfg` (Oracle's file + template overrides) to both locations
 4. Copy `default.env` to the Forms application config dir
 5. Copy `formsweb.cfg` to the Forms application config dir
 6. Copy `Registry.dat` to the registry subdirectory
@@ -95,36 +96,64 @@ string differences between 12.2.1.4 and 14.1.2.0.0).
 
 ---
 
-## Step 1 – jacob.jar and WebUtil DLLs
+## Step 1 – JACOB (WebUtil OLE / Office automation)
 
-**Manual step – not automated.**
+**Optional – switch `FORMS_WEBUTIL_JACOB=true|false` in `environment.conf`
+(default `false`).** JACOB (Java–COM bridge) is only needed when the Forms
+applications use WebUtil OLE (`CLIENT_OLE2`, Word/Excel automation). File
+transfer, host commands etc. work without it. Oracle does not ship JACOB
+(LGPL). Background: [80-FMW-Architecture/forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md).
 
-Oracle Forms WebUtil requires `jacob.jar` (Java-COM bridge) and platform DLLs
-for Windows-client file operations.  The script checks for their presence and
-prints the copy commands when they are missing.
+Version data in `oracle_software_version.conf`: `JACOB_VERSION=1.21` (Forms
+14.1.2 is preconfigured for it), `JACOB_URL` (GitHub release
+`Root_B-1_21`), `JACOB_SHA256`, `JACOB_DLL_X86_SIZE` / `JACOB_DLL_X64_SIZE`.
 
-**Target locations:**
+With `FORMS_WEBUTIL_JACOB=true`:
+
+1. `04-oracle_pre_download.sh --apply` downloads `jacob-1.21.zip` to
+   `$PATCH_STORAGE/jacob/` and verifies the SHA-256 (a mismatching file is
+   moved aside as `*.bad_<ts>`).
+2. `14-oracle_setup_forms.sh --apply` extracts it to a temp dir, checks the
+   DLL sizes against `JACOB_DLL_*_SIZE` (WebUtil compares name **and** size
+   from `webutil.cfg`), and installs with backup:
 
 ```
 $ORACLE_HOME/forms/java/jacob.jar
-$ORACLE_HOME/forms/webutil/win32/jacob-<version>-x86.dll
-$ORACLE_HOME/forms/webutil/win64/jacob-<version>-x64.dll
+$ORACLE_HOME/forms/webutil/win32/jacob-1.21-x86.dll
+$ORACLE_HOME/forms/webutil/win64/jacob-1.21-x64.dll
 ```
 
-**Manual installation:**
+3. **Activation only for a signed jar.** `jacob.jar` from the release is
+   unsigned; Java Web Start refuses unsigned all-permissions jars. Only if
+   `jarsigner -verify` succeeds, the script sets
+   `WebUtilArchive=frmwebutil.jar,jacob.jar` in `formsweb.cfg` and activates
+   `<jar href="jacob.jar"/>` in `$ORACLE_HOME/forms/java/extensions.jnlp`
+   (loaded by `webutil.jnlp` / `base.jnlp`; Oracle ships the entry commented
+   out). Otherwise: WARN, nothing activated. The signing step itself is
+   still open (README TODO).
+
+Manual equivalent:
 
 ```bash
-# Download jacob from https://sourceforge.net/projects/jacob-project/
-# or copy from patch storage
-
-cp <PATCH_STORAGE>/jacob-1.18-M2/jacob.jar          $ORACLE_HOME/forms/java/
-cp <PATCH_STORAGE>/jacob-1.18-M2/jacob-1.18-M2-x86.dll  $ORACLE_HOME/forms/webutil/win32/
-cp <PATCH_STORAGE>/jacob-1.18-M2/jacob-1.18-M2-x64.dll  $ORACLE_HOME/forms/webutil/win64/
+mkdir -p $PATCH_STORAGE/jacob && cd $PATCH_STORAGE/jacob
+curl -fLO https://github.com/freemansoft/jacob-project/releases/download/Root_B-1_21/jacob-1.21.zip
+sha256sum jacob-1.21.zip   # 23a006e84f41443e735cfc3d47f053b995b1454f4ed54c405e7f1e104ef2e073
+unzip -q jacob-1.21.zip
+cp jacob-1.21/jacob.jar            $ORACLE_HOME/forms/java/
+cp jacob-1.21/jacob-1.21-x86.dll   $ORACLE_HOME/forms/webutil/win32/
+cp jacob-1.21/jacob-1.21-x64.dll   $ORACLE_HOME/forms/webutil/win64/
+# after signing jacob.jar: WebUtilArchive + extensions.jnlp as in 3.
 ```
 
-> **Note:** jacob is only required if your Forms applications use WebUtil for
-> Windows client-side file operations (reading/writing local files, COM
-> automation). Forms without WebUtil do not need jacob.
+Check that the files are served (no restart needed):
+
+```bash
+curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://localhost:9001/forms/java/jacob.jar
+curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://localhost:9001/forms/webutil/win64/jacob-1.21-x64.dll
+```
+
+Live-tested 2026-10-15: download + checksum, install, sizes, HTTP 200 with
+the expected sizes; unsigned jar correctly not activated.
 
 ---
 
@@ -141,6 +170,22 @@ $FR_INST/server/webutil.cfg
 $FR_INST_ALT/server/webutil.cfg
 ```
 
+**Base is Oracle's own file** `$ORACLE_HOME/forms/templates/config/webutil.cfg`;
+`webutil.cfg.template` only overrides keys (since 2026-10-15):
+
+- keys of the template replace the same keys of Oracle's file,
+- numbered `transfer.appsrv.read.N` / `write.N` of Oracle's file that the
+  template does not set are commented out (`# (IHW removed)`, Oracle's
+  `c:\temp` examples),
+- template keys that Oracle's file does not have are appended,
+- with `FORMS_WEBUTIL_JACOB=true` the jacob `install.syslib` entries are set
+  from `JACOB_VERSION` / `JACOB_DLL_*_SIZE`.
+
+Before, the template **replaced** the whole file – all `install.syslib.*`
+entries were lost, so WebUtil could not install any native library on the
+client (`d2kwut60.dll`, `JNIsharedstubs.dll`, jacob DLLs). The verification
+step warns if `install.syslib` entries are missing.
+
 Key parameters in `webutil.cfg.template`:
 
 | Parameter | Purpose |
@@ -151,6 +196,10 @@ Key parameters in `webutil.cfg.template`:
 | `transfer.appsrv.accessControl` | Restrict access to listed directories |
 | `transfer.appsrv.read.N` | Directories the server may read from |
 | `transfer.appsrv.write.N` | Directories the server may write to |
+
+Kept from Oracle's file (do not put into the template unless needed):
+`install.syslib.location*`, `install.syslib.<os>.<arch>.<package>.<n>`
+(`name|size|version|showDownloadDialog`), `logging.*`.
 
 > Security note: set `accessControl=TRUE` and list only the directories
 > actually needed.  Never set `transfer.appsrv.enabled=TRUE` without
@@ -249,7 +298,7 @@ Key parameters:
 | `codebase=` | `/forms/java` (do not change) |
 | `separate_jvm=true` | Recommended for WebUtil; each client gets its own JVM |
 | `prestartInit` / `prestartMin` / `prestartIncrement` | Pre-started JVM tuning |
-| `WebUtilArchive=` | `frmwebutil.jar` (add `jacob.jar` when WebUtil file transfer is used) |
+| `WebUtilArchive=` | `##WEBUTIL_ARCHIVE##` – set by the script: `frmwebutil.jar`, plus `jacob.jar` when `FORMS_WEBUTIL_JACOB=true` and the jar is signed (Step 1) |
 
 > `formsweb.cfg` is **not** reloaded automatically after changes.
 > Restart WLS_FORMS to pick up changes.
@@ -331,7 +380,9 @@ grep 'FORMS_PATH\|NLS_LANG' \
 | Wrong date format displayed | `NLS_DATE_FORMAT` not set | Add `NLS_DATE_FORMAT=DD.MM.YYYY` to `default.env` |
 | Custom colour scheme not applied | Name mismatch between `Registry.dat` and `formsweb.cfg` | Verify `customColorScheme=<name>` matches `colorScheme.<name>.*` |
 | Forms loads but keyboard mapping wrong | Wrong `.res` file active | Check `NLS_LANG` → determines which `.res` file is used |
-| `jacob.jar` not found warning | WebUtil DLL missing | Copy jacob files manually (Step 1) |
+| `jacob.jar is not signed – NOT activated` | release jar is unsigned | sign `jacob.jar` (open TODO), re-run `--apply` (Step 1) |
+| JACOB ZIP not found / SHA-256 mismatch | not downloaded / damaged | `04-oracle_pre_download.sh --apply` (Step 1) |
+| WebUtil cannot install DLLs on the client | `webutil.cfg` without `install.syslib` entries (template before 2026-10-15) | re-run `14-oracle_setup_forms.sh --apply` (Step 2) |
 
 ---
 

@@ -14,6 +14,7 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 |---|---|---|
 | **eDelivery** (Oracle Software Delivery Cloud) | Base installers (V\*.zip) | Manual download, then unzip |
 | **MOS** (My Oracle Support) | OPatch + individual patches | `getMOSPatch.jar` (automated) |
+| **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
 `mos_sec.conf.des3` (encrypted password).
@@ -288,6 +289,8 @@ $PATCH_STORAGE/
 ├── wls/
 │   ├── V1045135-01.zip           ← eDelivery: FMW Infrastructure 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_infrastructure.jar   ← extracted
+├── jacob/
+│   └── jacob-1.21.zip            ← GitHub: JACOB (only FORMS_WEBUTIL_JACOB=true), installed by 14-
 ├── fr/
 │   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted
