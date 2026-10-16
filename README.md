@@ -19,13 +19,22 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[███████████████░░░░░]` ~75 % complete** – phases 1–7 are implemented, phase 8 is mostly done, phase 9 is concept-only.
+**`[████████████████░░░░]` ~80 % complete** – phases 1–7 are implemented and the
+whole install chain is live-tested end-to-end incl. the smoke test, phase 8 is
+mostly done, phase 9 is concept-only.
+
+How the ~80 % is estimated (state 2026-10-16): phases 1–7 count as done
+(7 × ~11 %), phase 8 about three quarters (backup/restore, WLS/Forms/Reports
+patching done; JDK upgrade automation and repository-schema patching missing),
+phase 9 zero; minus the remaining stubs in phases 3/6 (`display_check.sh`,
+`rwrun_trace.sh`) and the open security items (EM user search, web-command
+tests, JACOB signing, `rwserver_status.sh` without `authid`).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
-| 2 | Configuration & First Start | ✅ Done |
-| 3 | Check Logs | ✅ Done (`display_check.sh`, `rwrun_trace.sh` still stubs) |
+| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF) |
+| 3 | Check Logs | ✅ Done (`display_check.sh`, `rwrun_trace.sh` not created yet) |
 | 4 | Set Up SSL | ✅ Done |
 | 5 | Solve Font Problems | ✅ Done |
 | 6 | Check Reports Performance | ✅ Done |
@@ -43,6 +52,12 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > autostart `30-` (domain running under systemd + Node Manager, Reports engines
 > idle, Forms servlet up). The bugs found on the way are fixed and committed;
 > what is still open is listed under [Open Items / TODO](#open-items--todo).
+> **2026-10-16:** secured standalone Reports server (WebLogic users/roles via
+> the embedded LDAP, JVM fixes for the slow first request), all passwords
+> from the interview in `*.des3` files, Forms/Reports directory layout under
+> `$ORACLE_BASE`, `formsweb.cfg` keeps Oracle's 14.1.2 sections (Java Web
+> Start / FSAL), smoke test `15-` verified end-to-end, `startStop.sh` starts
+> through the Node Manager.
 > The diagnostic folders `02-`…`06-` were not part of that run.
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
@@ -91,7 +106,8 @@ operation with proactive, AI-assisted error analysis.
 │  09-Install/14        Configure Forms (template copy approach)     │
 │  09-Install/14b       Reports fonts, uifont.ali, cgicmd.dat         │
 │  09-Install/30        Autostart: systemd unit + Node Manager        │
-│  01-Run/startStop.sh  Start AdminServer + Managed Servers           │
+│  09-Install/15        Smoke test: Forms XML -> FMX, report -> PDF   │
+│  01-Run/startStop.sh  Start/stop through the Node Manager           │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -188,9 +204,9 @@ background and adds AI-assisted root-cause reasoning on top.
 
 | Phase | Gap |
 |---|---|
-| Phase 3 (Logs) | `02-Checks/display_check.sh` (DISPLAY for rwclient) is still a stub |
-| Phase 6 (Reports) | `01-Run/rwrun_trace.sh` is still a stub |
-| Phase 8 (Patches) | No dedicated script for repository schema patches after an FMW upgrade (`60-RCU-DB-19c/02-db_patch_db_software.sh` only covers DB software patches) |
+| Phase 3 (Logs) | `02-Checks/display_check.sh` not created – to be re-evaluated: since 2026-10-16 Forms/Reports tools run without X (`FORMS_API_TK_BYPASS=TRUE`, `REPORTS_DEFAULT_DISPLAY=YES`) |
+| Phase 6 (Reports) | `01-Run/rwrun_trace.sh` not created (groundwork done) |
+| Phase 8 (Patches) | No dedicated script for repository schema patches after an FMW upgrade (`60-RCU-DB-19c/02-db_patch_db_software.sh` only covers DB software patches); JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
 | Phase 9 (Monitoring) | Concept only so far — see `10-Monitoring/README.md` |
 
 ## First Run – Required Order
@@ -228,7 +244,7 @@ Run these scripts in sequence on a fresh installation:
 | `10-Monitoring/`      | Concept only – AI-assisted proactive monitoring (Claude API) |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally (e.g. Reports server discovery via multicast) – findings, not procedures |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations) – findings, not procedures |
 
 ## Repository Structure
 
@@ -239,6 +255,8 @@ IHateWeblogic/
 ├── IHateWeblogic.md                 – Background and intention of the IHateWeblogic script lib
 ├── environment.conf                 ← symlink → 00-Setup/environments/<name>.conf  (do NOT commit)
 ├── weblogic_sec.conf.des3           ← generated by 00-Setup/weblogic_sec.sh (do NOT commit)
+├── *_sec.conf.des3, *.conf.des3     ← further encrypted secrets (interview / 13- / 15-), see
+│                                       "Password Security Concept" (do NOT commit)
 ├── .gitignore                       – excludes environment.conf, *.des3, *.conf, ssl.conf, certs/, log/
 │
 ├── 00-Setup/
@@ -398,8 +416,14 @@ IHateWeblogic/
 │
 ├── 80-FMW-Architecture/             – Background knowledge: how FMW works internally (findings
 │   ├── README.md                       marked confirmed/assumption)
-│   └── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
-│                                          REP-50600 / REP-56040, prerequisites, diagnosis
+│   ├── weblogic_middleware_architecture.md – START HERE: homes, AdminServer, Node Manager,
+│   │                                      system components, EM / Remote Console, logs, sources
+│   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
+│   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
+│   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
+│   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
+│   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
+│   └── forms_jakob_webutil.md       – WebUtil + JACOB (OLE / Office automation)
 │
 └── 70-Customer-Projects/            – Customer-specific manual walkthroughs, not generated from
     │                                   the scripts above; see README.md for an index + further
@@ -445,6 +469,8 @@ IHateWeblogic/
 - SSL Weblogic : https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl
 
 - Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+- Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
+  [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
 
 ## Troubleshooting
 
@@ -465,6 +491,19 @@ The WebLogic admin password is encrypted with `openssl des3` using the machine's
 disk UUID as key. The encrypted file `weblogic_sec.conf.des3` is machine-specific
 and **must not be committed to git** (covered by `.gitignore`).
 
+The same mechanism (`_write_secrets_file` / `load_secrets_file` in the lib)
+holds all other secrets in the repository root – never in `environment.conf`:
+
+| File | Content | Written by |
+|---|---|---|
+| `weblogic_sec.conf.des3` | WebLogic admin | `01-setup-interview.sh`, `00-Setup/weblogic_sec.sh` |
+| `db_sys_sec.conf.des3` | DB SYS + RCU schema password | interview |
+| `mos_sec.conf.des3` | My Oracle Support | interview, `00-Setup/mos_sec.sh` |
+| `reports_users.conf.des3` | `monUser`, `RepRunner` | `12-oracle_reports_users.sh` |
+| `embedded_ldap_sec.conf.des3` | embedded LDAP `cn=Admin` (`REPORTS_SECURITY=ldap`) | interview (13- sets it in the domain) |
+| `reports_admin_sec.conf.des3` | Reports server admin `<identifier>` | interview, else random by `13- --apply` |
+| `test_db_sec.conf.des3` | DB user of the smoke test | `15-` (asks once) |
+
 ## Report Security – Secure Invocation & Basic Hardening
 
 By default the Reports Servlet (`rwservlet`/`getserverinfo`) is **unsecured** –
@@ -482,7 +521,16 @@ by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
 German manual cookbook (Schritt 8) for customers installing by hand — see
 [`70-Customer-Projects/`](70-Customer-Projects/README.md).
 
-> **Live finding 2026-10-15:** as long as the Reports server is **not**
+> **Since 2026-10-16 the default is a secured Reports server**
+> (`REPORTS_SECURITY=ldap`, `13-`): `securityId` on the report job + the
+> standalone server's identity store pointed to the WebLogic embedded LDAP –
+> then `monUser`/`RW_MONITOR` (`getserverinfo`) and `RepRunner`/`RW_EXECREPORTS`
+> (report jobs, via the `cgicmd.dat` key `default: … %* authid=…`) work as
+> designed; calls without login get HTTP 499. Background:
+> [`80-FMW-Architecture/reports_user_local_ldap.md`](80-FMW-Architecture/reports_user_local_ldap.md).
+>
+> **Live finding 2026-10-15** (still true for `REPORTS_SECURITY=identifier`):
+> as long as the Reports server is **not**
 > secured via `securityId` on the `<job>` element of `rwserver.conf`, the
 > roles above do not apply to web commands. With `<webcommandaccess>`
 > `no`/`L0`/`L1`, `getserverinfo`/`showjobs` then require the **server
@@ -498,9 +546,21 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
+Status 2026-10-16 after the clean rebuild 2026-10-14/15 and the follow-up
+work (details of every fix: `git log`).
 
-### Next steps on the test host (rebuild not finished yet)
+### Not yet live-tested (built, waiting for a fresh install / full restart)
+
+- [ ] `01-setup-interview.sh` interactively (new questions `REPORTS_SECURITY`,
+  embedded LDAP password, Reports server admin, `FORMS_TMP`).
+- [ ] `13-` path that sets the embedded LDAP `cn=Admin` password in a fresh
+  domain (bind fails → `setCredential` → AdminServer restart → re-run).
+- [ ] `startStop.sh start-all` / `stop-all` through `fmw_ctl.sh`, and the
+  "Node Manager running without autostart" path.
+- [ ] Start of the test form on a client with Java Web Start / FSAL (server
+  side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX).
+
+### Test host follow-ups
 
 - [x] **Reboot test of the autostart** (`30-configure_autostart.sh`) – passed
   2026-10-15: after the reboot the listener and the repository DB came up first
@@ -645,13 +705,16 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 ### Older open items
 
 - [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):
-  `getserverinfo` is called without `authid` and therefore gets `REP-52262` on
-  the rebuilt domain. Add `authid` support with credentials stored encrypted
-  (`openssl des3` + system UUID key, same mechanism as `00-Setup/weblogic_sec.sh`);
-  which user to send depends on the security decision above.
+  `getserverinfo` is called without `authid` and therefore gets `REP-52262` /
+  HTTP 499 on the rebuilt domain. Add `authid` support: with
+  `REPORTS_SECURITY=ldap` `monUser` from `reports_users.conf.des3`, with
+  `identifier` the server admin from `reports_admin_sec.conf.des3` (both
+  exist since 2026-10-16).
 
-- [ ] **`02-Checks/display_check.sh`** – not yet created.
-  Verify/set a usable `DISPLAY` for `rwclient`/report generation that needs an X server (Xvfb).
+- [ ] **`02-Checks/display_check.sh`** – not yet created; re-evaluate first:
+  the smoke test (2026-10-16) showed that the Forms tools (`FORMS_API_TK_BYPASS=TRUE`)
+  and the Reports tools (`REPORTS_DEFAULT_DISPLAY=YES`, instance wrappers) need no
+  X display – the original "needs Xvfb" reason may be obsolete.
 
 - [ ] **`01-Run/rwrun_trace.sh`** – not yet created.
   Run a single report with `rwrun` debug tracing enabled for root-cause analysis
