@@ -429,10 +429,11 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
 
   # In rwserver.conf legt <identifier> den Administrator DES REPORTS-
   # SERVERS fest (kein WebLogic-Benutzer). Er wird gebraucht fuer:
-  #   - getserverinfo / showjobs, solange der Reports-Server nicht ueber
-  #     securityId am <job>-Element abgesichert ist (sonst REP-52262
-  #     "Diagnostic output is disabled", bestaetigt 2026-10-15)
+  #   - getserverinfo / showjobs, solange der Reports-Server nicht
+  #     abgesichert ist (SCHRITT 7b; sonst REP-52262 "Diagnostic output is
+  #     disabled", bestaetigt 2026-10-15)
   #   - das Stoppen/Verwalten des Servers ueber Web-Befehle
+  #   - als Notfallzugang, auch bei abgesichertem Server (getestet)
   # Ist der Eintrag auskommentiert oder leer, ist das Verhalten nicht
   # geprueft (offener Test) - daher IMMER mit eigenem Kennwort setzen.
 
@@ -468,6 +469,38 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
 
 
 ================================================================================
+SCHRITT 7b: Reports-Server absichern - WebLogic-Benutzer und -Rollen  (als oracle)
+================================================================================
+
+  # Ohne diesen Schritt prueft der eigenstaendige Reports-Server bei
+  # Berichtsauftraegen KEINEN Benutzer (nur DB-Login und folderAccess -
+  # getestet 2026-10-16: ein Aufruf ganz ohne Anmeldung erreicht den
+  # Server), und Web-Befehle duerfen nur den <identifier>-Admin.
+  # Grund: der Reports-Server sucht Benutzer in seiner eigenen XML-Datei
+  # (jps-config-jse.xml -> system-jazn-data.xml), nicht im WebLogic-Realm.
+  #
+  # Absicherung = drei Teile, Befehle in Reports_kochbuch_de.txt:
+  #   9.7   rwserver.conf: securityId="rwJaznSec" am <job jobType="report">
+  #   9.7b  Identity Store des Reports-Servers auf das WebLogic-LDAP
+  #         umstellen (Kennwort cn=Admin, createCred, jps-config-jse.xml)
+  #   9.9 / 9.9b  JVM-Einstellungen (sonst dauert die erste Anmeldung nach
+  #         einem Start Minuten - siehe BEKANNTE PROBLEME)
+  #
+  # Ergebnis (getestet 2026-10-16):
+  #   getserverinfo als monUser (RW_MONITOR)    -> Server-Infos
+  #   getserverinfo als RepRunner               -> REP-56071 unauthorized
+  #   falsches Kennwort                         -> REP-50171
+  #   ohne authid (Web-Befehl oder Bericht)     -> HTTP 499 (Anmeldung)
+  #   Bericht ueber cmdkey=default (9.8)        -> laeuft als RepRunner
+  #   Bericht als monUser (kein RW_EXECREPORTS) -> REP-56071
+  #
+  # WICHTIG: securityId NIEMALS ohne 9.7b setzen - dann scheitert jeder
+  # Benutzer mit REP-50171 und keine Berichte laufen mehr.
+  # Abhaengigkeit: das LDAP laeuft im AdminServer - ist er gestoppt, kann
+  # der Reports-Server niemanden anmelden.
+
+
+================================================================================
 SCHRITT 8: rwservlet.properties haerten  (als oracle)
 ================================================================================
 
@@ -475,19 +508,21 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   #   <singlesignon>no</singlesignon>  <webcommandaccess>L0</webcommandaccess>
   # Fuer den Betrieb:
   #   <webcommandaccess>L1</webcommandaccess>
-  #     Web-Befehle (getserverinfo, showjobs ...) nur noch mit authid des
-  #     Reports-Server-Administrators (SCHRITT 7) bzw. - bei abgesichertem
-  #     Server - eines berechtigten Benutzers. Ausnahme: showjobid,
-  #     killjobid, showauth, getjobid fuer eigene Jobs.
+  #     Web-Befehle (getserverinfo, showjobs ...) nur noch mit authid -
+  #     beim abgesicherten Server (SCHRITT 7b) eines berechtigten Benutzers
+  #     (monUser/RW_MONITOR), sonst des Reports-Server-Administrators
+  #     (SCHRITT 7). Ausnahme: showjobid, killjobid, showauth, getjobid fuer
+  #     eigene Jobs.
   #     (Hinweis: auch L0 ist laut Oracle-Code NICHT "offen"; offen waere
   #     nur ein anderer Wert wie L2 - NICHT verwenden.)
   #   <singlesignon>yes</singlesignon>
-  #     Berichtsaufrufe verlangen eine Anmeldung (WebLogic-Benutzer mit
-  #     Rolle RW_EXECREPORTS). Automatisierte Aufrufe gehen dann ueber einen
-  #     cgicmd.dat-Schluessel mit authid=RepRunner/<KENNWORT>
-  #     (Reports_kochbuch_de.txt 9.8) - das Kennwort steht so nicht in der
-  #     URL.
-  #   ACHTUNG: singlesignon=yes aendert das Verhalten fuer ALLE Aufrufer.
+  #     Allein bewirkt das KEINE Anmeldepflicht (getestet 2026-10-16 ohne
+  #     securityId: Aufruf ohne Anmeldung erreicht den Server). Die
+  #     Anmeldung erzwingt der abgesicherte Reports-Server (SCHRITT 7b).
+  #     Automatisierte Aufrufe gehen ueber einen cgicmd.dat-Schluessel mit
+  #     "%* authid=RepRunner/<KENNWORT>" (Reports_kochbuch_de.txt 9.8) -
+  #     das Kennwort steht so nicht in der URL.
+  #   ACHTUNG: mit SCHRITT 7b brauchen ALLE Berichtsaufrufe eine Anmeldung.
   #   Vorher klaeren, wie die Anwendungen die Berichte aufrufen
   #   (mit cmdkey= aus cgicmd.dat?), und zuerst auf einer Testumgebung
   #   pruefen. Rueckweg: Sicherung zurueckkopieren, WLS_REPORTS neu starten.
@@ -505,12 +540,12 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   # Tests:
   #   a) ohne authid -> muss abgewiesen werden
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML" | grep -o "REP-[0-9]*" | head -1
-  #      Erwartet: REP-52262 (o.ae.), KEINE Server-Infos
-  #   b) mit repadmin (SCHRITT 7) -> Server-Infos
+  #      Erwartet: HTTP 499 bzw. REP-52262, KEINE Server-Infos
+  #   b) mit monUser (SCHRITT 7b) bzw. repadmin (SCHRITT 7) -> Server-Infos
   #   c) Bericht ueber cgicmd.dat-Schluessel (Schluessel aus 9.8):
-  #      curl -s -o /tmp/t.pdf -w "%{http_code}\n" "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet?cmdkey=<schluessel>&report=<bericht>.rdf"
+  #      curl -s -o /tmp/t.pdf -w "%{http_code}\n" "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet?cmdkey=default&report=<bericht>.rdf&userid=<db>&destype=cache&desformat=pdf"
   #      Erwartet: 200 und ein PDF
-  #   d) Bericht ohne Anmeldung (ohne cmdkey) -> Anmeldeseite/401
+  #   d) Bericht ohne Anmeldung (ohne cmdkey) -> HTTP 499 (nur mit SCHRITT 7b)
 
 
 ================================================================================
@@ -667,6 +702,8 @@ ABSCHLUSS-CHECKLISTE
   [ ] Persoenliche Admin-Konten, Gruppen zugewiesen              (SCHRITT 5)
   [ ] RW_ADMINISTRATOR -> Administrators, monUser, RepRunner     (SCHRITT 6)
   [ ] <identifier encrypted="yes"> in rwserver.conf              (SCHRITT 7)
+  [ ] securityId + LDAP-Identity-Store, monUser liefert XML      (SCHRITT 7b)
+  [ ] REPORTS_JVM_OPTIONS (reports.sh) + ORB-Timeout (setUserOverrides.sh)
   [ ] <folderAccess><read> nur benoetigte Verzeichnisse, ";"     (SCHRITT 7)
   [ ] webcommandaccess L1; singlesignon nach Test                (SCHRITT 8)
   [ ] boot.properties 600 und {AES}; cgicmd.dat 640              (SCHRITT 9)
@@ -684,10 +721,27 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: getserverinfo liefert "REP-52262 Diagnostic output is disabled",
            auch mit authid=monUser oder authid=<WebLogic-Admin>
-  Ursache: Reports-Server ist nicht ueber securityId am <job>-Element
-           abgesichert - dann gilt fuer Web-Befehle nur der Reports-Server-
-           Administrator aus <identifier>
-  Loesung: authid=repadmin/<KENNWORT> (SCHRITT 7) verwenden
+  Ursache: Reports-Server ist nicht abgesichert - dann gilt fuer
+           Web-Befehle nur der Reports-Server-Administrator aus <identifier>
+  Loesung: SCHRITT 7b (dann monUser), oder authid=repadmin/<KENNWORT>
+           (SCHRITT 7)
+
+  Problem: nach securityId "REP-50171 Authentication failed" fuer alle,
+           Berichte laufen nicht, im Log "user ... does not exist"
+  Ursache: Identity Store des Reports-Servers noch XML (9.7b fehlt)
+  Loesung: Reports_kochbuch_de.txt 9.7b, Reports-Server neu starten
+
+  Problem: erste Anmeldung nach einem Start dauert Minuten
+  Ursache: JDK-Thread "process reaper" stuerzt ab (StackOverflowError im
+           repServer01.out) / veraltete Adresse im rwservlet (60 s)
+  Loesung: Reports_kochbuch_de.txt 9.9 (REPORTS_JVM_OPTIONS) und 9.9b
+           (setUserOverrides.sh)
+
+  Problem: Aufruf ueber getserverinfo?autid=... bzw. Kennwort mit "#"
+  Ursache: Tippfehler (authid) bzw. "#" beendet in einer URL den Teil, der
+           zum Server geht
+  Loesung: authid=; Sonderzeichen URL-codieren (# = %23) oder
+           curl --data-urlencode verwenden
 
   Problem: Anmeldung am EM schlaegt fehl, obwohl das Kennwort stimmt
   Ursache: Konto durch die Kontosperre gesperrt (5 Fehlversuche, z.B. durch
@@ -759,9 +813,9 @@ NOCH NICHT GETESTET / OFFENE PUNKTE
 
   - Verhalten bei fehlendem oder leerem <identifier> (deshalb SCHRITT 7:
     immer setzen).
-  - Absicherung des Reports-Servers ueber securityId am <job>-Element, damit
-    monUser/RW_MONITOR fuer getserverinfo gilt - bis dahin Monitoring mit
-    dem Reports-Server-Administrator (SCHRITT 7).
+  - EM "Principal hinzufuegen" findet auch mit dem LDAP-Identity-Store des
+    Reports-Servers keine Benutzer (2026-10-16) - Workaround "Erweiterte
+    Option" / WLST grantAppRole; Analyse offen (SR-Entwurf).
   - Die EM-Menuepfade fuer Kennwort-Richtlinie und Kontosperre (SCHRITT 4
     Weg A) koennen je nach EM-Stand abweichen - Weg B ist auf 14.1.2
     geprueft (Attributnamen).

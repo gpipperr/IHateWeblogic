@@ -6,7 +6,16 @@
 #              2. Set unique broadcasting port in rwnetwork.conf (3 locations)
 #              3. Write rwservlet.properties (servlet → server mapping)
 #              4. Write rwserver.conf per ReportsServer instance (engine tuning)
-#              5. Patch reports.sh (NLS_LANG + font environment)
+#                 REPORTS_SECURITY=ldap (default): secured Reports server -
+#                 securityId on the report job, OPSS JSE identity store
+#                 (jps-config-jse.xml) = WebLogic embedded LDAP, bind user from
+#                 the credential store (createCred) - WebLogic users/roles
+#                 (RW_MONITOR, RW_EXECREPORTS) work for the standalone server
+#              5. Patch reports.sh (NLS_LANG, fonts, REPORTS_PATH,
+#                 REPORTS_JVM_OPTIONS of the rwserver: process reaper fix +
+#                 ORB connect timeout) and setUserOverrides.sh (ORB connect
+#                 timeout of WLS_REPORTS)
+#            Background: 80-FMW-Architecture/reports_user_local_ldap.md
 # Call     : ./09-Install/13-oracle_setup_reports.sh
 #            ./09-Install/13-oracle_setup_reports.sh --apply
 #            ./09-Install/13-oracle_setup_reports.sh --apply --skip-wlst
@@ -15,6 +24,9 @@
 #            --help        Show usage
 # Requires : environment.conf with Reports variables (init_env.sh --apply)
 #            weblogic_sec.conf.des3 (for WLST credential loading)
+#            embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap: password of
+#              the embedded LDAP administrator cn=Admin, set manually - see
+#              80-FMW-Architecture/reports_user_local_ldap.md 5.1)
 #            AdminServer running unless --skip-wlst
 #            13-root_reports_fix.sh done (libnsl.so.2 symlink)
 # Runs as  : oracle
@@ -496,6 +508,168 @@ done
 unset _report_dirs _rp_dirs _d
 
 # =============================================================================
+# 4c. Reports server security - OPSS JSE identity store (REPORTS_SECURITY)
+#     The standalone Reports server (rwserver, Java SE) reads OPSS from
+#     jps-config-jse.xml: policy/credential store = shared DB (OPSS schema),
+#     identity store = XML (system-jazn-data.xml) -> WebLogic users unknown.
+#     ldap: identity store -> WebLogic embedded LDAP of the AdminServer, then
+#           securityId="rwJaznSec" on the report job (5.) - users and roles
+#           of the realm work (monUser/RW_MONITOR, RepRunner/RW_EXECREPORTS).
+#     identifier: no securityId - web commands only for the <identifier>
+#           server admin, report jobs WITHOUT any user check.
+#     Tested 2026-10-16 (80-FMW-Architecture/reports_user_local_ldap.md).
+# =============================================================================
+
+section "Reports Server Security (REPORTS_SECURITY=${REPORTS_SECURITY:-ldap})"
+
+REPORTS_SECURITY="${REPORTS_SECURITY:-ldap}"
+SEC_LDAP=false
+_JSE="$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml"
+_ELDAP_SEC="$ROOT_DIR/embedded_ldap_sec.conf.des3"
+_dom="$(grep -m1 -o '<name>[^<]*</name>' "$DOMAIN_HOME/config/config.xml" 2>/dev/null | sed 's/<[^>]*>//g')"
+_dom="${_dom:-$(basename "$DOMAIN_HOME")}"
+_ldap_url="ldap://localhost:${WLS_ADMIN_PORT:-7001}"
+_ldap_base="ou=myrealm,dc=${_dom}"
+
+if [ "$REPORTS_SECURITY" != "ldap" ]; then
+    warn "REPORTS_SECURITY=$REPORTS_SECURITY - Reports server NOT secured:"
+    info "  web commands (getserverinfo) only for the <identifier> admin,"
+    info "  report jobs without user check (only DB userid + folderAccess)"
+elif [ ! -f "$_JSE" ]; then
+    fail "jps-config-jse.xml not found: $_JSE"
+elif [ ! -f "$_ELDAP_SEC" ]; then
+    warn "Password of the embedded LDAP administrator not stored: $_ELDAP_SEC"
+    info "  Manual step (once), then re-run this script:"
+    info "   1. choose a password (letters/digits), store it encrypted:"
+    info "      read -s -p 'Embedded-LDAP password: ' P; echo"
+    info "      bash -c 'source 00-Setup/IHateWeblogic_lib.sh; _write_secrets_file $_ELDAP_SEC \"EMBEDDED_LDAP_USER=cn=Admin\" \"EMBEDDED_LDAP_PWD=\$1\"' _ \"\$P\"; unset P"
+    info "   2. WLST: connect(...); edit(); startEdit(); cd('/EmbeddedLDAP/${_dom}')"
+    info "      cmo.setCredential('<password>'); save(); activate()"
+    info "   3. restart the AdminServer"
+    info "  Until then the Reports server stays unsecured (no securityId)."
+else
+    ok "$(printf "Identity store target: %s  %s" "$_ldap_url" "$_ldap_base")"
+
+    # --- a) bind user into the OPSS credential store + LDAP bind check (WLST)
+    _cred_ok=false
+    if ! $APPLY; then
+        info "Dry-run - would check the LDAP bind as cn=Admin and createCred(map='reports.idstore', key='embeddedldap')"
+        _cred_ok=true
+    elif $SKIP_WLST; then
+        warn "--skip-wlst: credential + LDAP bind not checked - re-run without --skip-wlst"
+    elif ! timeout 3 bash -c "echo >/dev/tcp/localhost/${WLS_ADMIN_PORT:-7001}" 2>/dev/null; then
+        warn "AdminServer not reachable on port ${WLS_ADMIN_PORT:-7001} - security step skipped"
+    elif load_weblogic_password > /dev/null 2>&1 && load_secrets_file "$_ELDAP_SEC" > /dev/null 2>&1; then
+        _sec_py="$(mktemp --suffix=.py)"; chmod 600 "$_sec_py"
+        cat > "$_sec_py" << 'SEC_PY'
+import os
+from java.util import Hashtable
+from javax.naming import Context
+from javax.naming.directory import InitialDirContext
+e = os.environ
+env = Hashtable()
+env.put(Context.INITIAL_CONTEXT_FACTORY, 'com.sun.jndi.ldap.LdapCtxFactory')
+env.put(Context.PROVIDER_URL, e['_IHW_LDAP_URL'])
+env.put(Context.SECURITY_AUTHENTICATION, 'simple')
+env.put(Context.SECURITY_PRINCIPAL, 'cn=Admin')
+env.put(Context.SECURITY_CREDENTIALS, e['_IHW_LDAP_PWD'])
+try:
+    InitialDirContext(env).close()
+    print('IHW:OK:LDAP bind as cn=Admin to ' + e['_IHW_LDAP_URL'])
+except Exception, ex:
+    print('IHW:FAIL:LDAP bind as cn=Admin failed: ' + str(ex).split('\n')[0])
+    exit(exitcode=1)
+try:
+    connect(e['_IHW_WL_USER'], e['_IHW_WL_PASS'], e['_IHW_ADM_URL'])
+    try:
+        createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
+                   password=e['_IHW_LDAP_PWD'], desc='Bind user of the Reports JSE identity store')
+        print('IHW:OK:createCred reports.idstore/embeddedldap')
+    except Exception, ex:
+        updateCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
+                   password=e['_IHW_LDAP_PWD'], desc='Bind user of the Reports JSE identity store')
+        print('IHW:OK:updateCred reports.idstore/embeddedldap (already existed)')
+    disconnect()
+except Exception, ex:
+    print('IHW:FAIL:credential store: ' + str(ex).split('\n')[0])
+    exit(exitcode=1)
+exit()
+SEC_PY
+        _sec_out="$(_IHW_LDAP_URL="$_ldap_url" _IHW_LDAP_PWD="$EMBEDDED_LDAP_PWD" \
+                    _IHW_WL_USER="$WL_USER" _IHW_WL_PASS="$INTERNAL_WL_PWD" \
+                    _IHW_ADM_URL="t3://localhost:${WLS_ADMIN_PORT:-7001}" \
+                    "$WLST_SH" "$_sec_py" 2>&1)"
+        rm -f "$_sec_py"
+        unset EMBEDDED_LDAP_PWD INTERNAL_WL_PWD
+        while IFS= read -r _line; do
+            case "$_line" in
+                IHW:OK:*)   ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+                IHW:FAIL:*) fail "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+            esac
+        done <<< "$_sec_out"
+        printf '%s\n' "$_sec_out" | grep -q '^IHW:OK:.*Cred' && _cred_ok=true
+        unset _sec_py _sec_out _line
+    else
+        fail "Cannot load weblogic_sec.conf.des3 / $_ELDAP_SEC"
+    fi
+
+    # --- b) identity store instance in jps-config-jse.xml (idempotent)
+    if $_cred_ok; then
+        if grep -q 'serviceInstanceRef ref="idstore.ldap.embedded"' "$_JSE"; then
+            ok "jps-config-jse.xml: identity store idstore.ldap.embedded already active"
+            SEC_LDAP=true
+        elif ! $APPLY; then
+            info "Dry-run - would add idstore.ldap.embedded to $_JSE and replace idstore.xml in the default context"
+            SEC_LDAP=true
+        else
+            cp -p "$_JSE" "${_JSE}.bak_$(date +%Y%m%d_%H%M%S)"
+            if python3 - "$_JSE" "$_ldap_url" "$_ldap_base" << 'JSE_PY'
+import sys
+p, url, base = sys.argv[1:4]
+s = open(p, encoding='utf-8').read()
+inst = """        <!-- IHateWeblogic 13-oracle_setup_reports.sh: identity store = WebLogic embedded LDAP -->
+        <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
+            <description>WebLogic embedded LDAP of the AdminServer (realm myrealm)</description>
+            <property name="idstore.type" value="OPEN_LDAP"/>
+            <property name="ldap.url" value="%s"/>
+            <property name="security.principal.alias" value="reports.idstore"/>
+            <property name="security.principal.key" value="embeddedldap"/>
+            <property name="subscriber.name" value="%s"/>
+            <property name="username.attr" value="uid"/>
+            <property name="groupname.attr" value="cn"/>
+            <extendedProperty>
+                <name>user.search.bases</name>
+                <values><value>ou=people,%s</value></values>
+            </extendedProperty>
+            <extendedProperty>
+                <name>group.search.bases</name>
+                <values><value>ou=groups,%s</value></values>
+            </extendedProperty>
+        </serviceInstance>
+""" % (url, base, base, base)
+if 'name="idstore.ldap.embedded"' not in s:
+    i = s.index('    </serviceInstances>')
+    s = s[:i] + inst + s[i:]
+old = '            <serviceInstanceRef ref="idstore.xml"/>\n'
+if s.count(old) != 1:
+    sys.exit('default context: expected exactly one active idstore.xml reference')
+s = s.replace(old, '            <!--serviceInstanceRef ref="idstore.xml"/-->\n'
+                   '            <serviceInstanceRef ref="idstore.ldap.embedded"/>\n', 1)
+open(p, 'w', encoding='utf-8').write(s)
+JSE_PY
+            then
+                ok "jps-config-jse.xml: identity store switched to idstore.ldap.embedded"
+                SEC_LDAP=true
+            else
+                fail "jps-config-jse.xml not changed - check $_JSE"
+            fi
+        fi
+    fi
+fi
+$SEC_LDAP && info "  rwserver.conf gets securityId=\"rwJaznSec\" on the report job"
+unset _JSE _ELDAP_SEC _dom _ldap_url _ldap_base _cred_ok
+
+# =============================================================================
 # 5. rwserver.conf (per ReportsServer instance)
 # =============================================================================
 
@@ -573,9 +747,19 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '  <destination destype="ftp"    class="oracle.reports.plugin.destination.ftp.DesFTP"/>\n'
             printf '  <destination destype="WebDav" class="oracle.reports.plugin.destination.webdav.DesWebDAV"/>\n'
             printf '\n'
-            printf '  <!-- IMPORTANT: SecurityId must NOT be present on job element -->\n'
+            if $SEC_LDAP; then
+                printf '  <!-- securityId: users/roles checked against the JSE identity store\n'
+                printf '       (jps-config-jse.xml -> WebLogic embedded LDAP, 13- step 4c) -->\n'
+            else
+                printf '  <!-- no securityId: the JSE identity store is XML (system-jazn-data.xml),\n'
+                printf '       WebLogic users would fail with REP-50171 (REPORTS_SECURITY=ldap secures it) -->\n'
+            fi
             printf '  <!-- (causes engine startup errors with JAZN security) -->\n'
-            printf '  <job jobType="report" engineId="rwEng" retry="3"/>\n'
+            if $SEC_LDAP; then
+                printf '  <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>\n'
+            else
+                printf '  <job jobType="report" engineId="rwEng" retry="3"/>\n'
+            fi
             printf '  <job jobType="rwurl"  engineId="rwURLEng"/>\n'
             printf '\n'
             printf '  <notification id="mailNotify" class="oracle.reports.server.MailNotify">\n'
@@ -647,6 +831,18 @@ elif grep -q 'IHateWeblogic Settings' "$_REPORTS_SH" 2>/dev/null; then
     ok "reports.sh: IHateWeblogic block already present"
     # REPORTS_PATH for the Reports server process and the tools (rwrun,
     # rwconverter) - added 2026-10-16, older blocks lack it
+    # JVM of the rwserver process (librw.so reads REPORTS_JVM_OPTIONS, default
+    # -Xmx256M): process reaper fix (first authentication waited ~4 min) +
+    # ORB connect timeout 5 s instead of 60 s (engine crash) - 2026-10-16
+    if grep -q 'processReaperUseDefaultStackSize' "$_REPORTS_SH"; then
+        ok "reports.sh: REPORTS_JVM_OPTIONS (reaper + ORB timeout) present"
+    elif $APPLY; then
+        cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
+        sed -i '/^REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING/a REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS' "$_REPORTS_SH"
+        ok "reports.sh: REPORTS_JVM_OPTIONS added (reaper + ORB timeout)"
+    else
+        info "Dry-run – would add REPORTS_JVM_OPTIONS (reaper + ORB timeout) to reports.sh"
+    fi
     if grep -qF "REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH};" "$_REPORTS_SH"; then
         ok "reports.sh: REPORTS_PATH line present"
     elif $APPLY; then
@@ -669,6 +865,8 @@ else
             printf 'REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY\n'
             printf 'REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING\n'
             printf 'REPORTS_PATH=${REPORTS_PATH}:%s; export REPORTS_PATH\n' "$REPORTS_PATH"
+            printf '# rwserver JVM: process reaper fix + ORB connect timeout (80-FMW-Architecture/reports_user_local_ldap.md)\n'
+            printf 'REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS\n'
             printf '# ────────────────────────────────────────────────────────────────────────────\n'
         } >> "$_REPORTS_SH"
         ok "reports.sh updated with NLS_LANG and font variables"
@@ -677,6 +875,41 @@ else
     fi
 fi
 unset _REPORTS_SH
+
+# =============================================================================
+# 6b. setUserOverrides.sh - ORB connect timeout of WLS_REPORTS
+#     The rwservlet keeps the CORBA reference of the Reports server; after a
+#     restart of the Reports server (new port) the ORB retries the dead port
+#     60 s (default ORBTCPConnectTimeouts 250:60000:100:5000) - 5 s with this.
+# =============================================================================
+
+section "setUserOverrides.sh (WLS_REPORTS ORB timeout)"
+
+_UO="$DOMAIN_HOME/bin/setUserOverrides.sh"
+_ORB="-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+_MS="${WLS_MANAGED_SERVER:-WLS_REPORTS}"
+if [ -f "$_UO" ] && grep -q 'ORBTCPConnectTimeouts' "$_UO"; then
+    ok "setUserOverrides.sh: ORB connect timeout present"
+elif ! $APPLY; then
+    info "Dry-run – would add $_ORB for $_MS to $_UO"
+else
+    [ -f "$_UO" ] && cp -p "$_UO" "${_UO}.bak_$(date +%Y%m%d_%H%M%S)"
+    if [ -f "$_UO" ] && grep -q "^if \[ \"\${SERVER_NAME}\" = \"${_MS}\" \]; then" "$_UO"; then
+        sed -i "/^if \[ \"\${SERVER_NAME}\" = \"${_MS}\" \]; then/a \    export EXTRA_JAVA_PROPERTIES=\"\${EXTRA_JAVA_PROPERTIES} ${_ORB}\"" "$_UO"
+    else
+        {
+            printf '\n# rwservlet ORB connect timeout (13-oracle_setup_reports.sh)\n'
+            printf 'if [ "${SERVER_NAME}" = "%s" ]; then\n' "$_MS"
+            printf '    export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} %s"\n' "$_ORB"
+            printf 'fi\n'
+        } >> "$_UO"
+        chmod 750 "$_UO"
+    fi
+    grep -q 'ORBTCPConnectTimeouts' "$_UO" \
+        && ok "setUserOverrides.sh: $_ORB for $_MS added" \
+        || fail "setUserOverrides.sh: ORB timeout not written - check $_UO"
+fi
+unset _UO _ORB _MS
 
 # =============================================================================
 # 7. Verification

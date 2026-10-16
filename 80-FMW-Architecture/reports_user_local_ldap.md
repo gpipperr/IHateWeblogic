@@ -341,13 +341,51 @@ old reference) 242 s, restart of only the Reports server 305 s – the
 difference is these ~63 s. So phase 1 only appears when the Reports server is
 restarted while WLS_REPORTS keeps running.
 
-Options (not tested yet):
+**Engines (confirmed (live), 20:14–20:17, report `test_dual.xml` as
+`RepRunner`, PDF):**
 
-- accept it – once per Reports-server-only restart, ~60 s;
-- shorter ORB connect timeout for WLS_REPORTS, e.g.
-  `-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000`
-  (`setUserOverrides.sh`, only for `WLS_REPORTS`) – affects all CORBA
-  connects of that JVM;
+| Situation | job duration |
+|---|---|
+| warm-up after restart of repserver01 | 64 s (phase 1 above) |
+| regular engine recycling, `engLife="2"`, 8 jobs, engine PIDs changing | 85–661 ms – **no** delay |
+| engine killed (`kill -9`, crash simulation), next job | **63 s** – same ORB connect timeout, this time **inside the rwserver** (it retries the dead engine) |
+| following jobs | 76 ms – 1.4 s |
+
+So regular `engLife` recycling is fine (the rwserver gets the new engine's
+reference when it registers), but the 60 s ORB connect timeout hits twice:
+WLS_REPORTS → rwserver after a Reports server restart, and rwserver → engine
+after an engine crash.
+
+**Fix for phase 1 (confirmed (live), 20:19–20:22):**
+`-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000` in
+both JVMs:
+
+```bash
+# $DOMAIN_HOME/bin/setUserOverrides.sh, inside the WLS_REPORTS block
+export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+
+# $DOMAIN_HOME/reports/bin/reports.sh (rwserver)
+REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
+```
+
+Check: `jcmd <pid> VM.system_properties | grep ORBTCPConnectTimeouts`
+(the colons are shown escaped). Restart WLS_REPORTS and the Reports server.
+
+| Situation | before | with both fixes |
+|---|---|---|
+| first job after restart of WLS_REPORTS + Reports server | 242–305 s | **1.8 s** |
+| restart of the Reports server only | 64 s | **8.3 s** |
+| engine crash (`kill -9`) | 63 s | **6.6 s** |
+| following jobs | ~0.1 s | ~0.1 s |
+
+Earlier considered alternatives (no longer needed):
+
+- accept it – once per Reports-server-only restart / engine crash, ~60 s;
+- shorter ORB connect timeout, e.g.
+  `-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000`, in
+  **both** JVMs: WLS_REPORTS (`setUserOverrides.sh`, only for `WLS_REPORTS`)
+  and the rwserver (`REPORTS_JVM_OPTIONS` in `reports.sh`) – affects all
+  CORBA connects of these JVMs;
 - restart WLS_REPORTS together with the Reports server.
 
 ### 7.4 libOVD
@@ -365,8 +403,16 @@ Options (not tested yet):
 
 ### 7.5 Open
 
-- Reaper fix: done, first request 65 s (§7.3). Phase 1 (CORBA connect,
-  ~60 s) explained: stale IOR + ORB connect timeout 60 s (§7.3); fix to decide.
+- Reaper fix + ORB connect timeout: done (§7.3) – first job 1.8 s after a
+  full restart, 8 s after a Reports server restart, 7 s after an engine crash.
+- Transferred 2026-10-16: `13-oracle_setup_reports.sh` (`REPORTS_SECURITY=ldap`,
+  steps 4c / 6 / 6b, tested `--apply` on the test host: 42 OK), `14b` /
+  `cgicmd.dat.template` (`default: server=… %* authid=RepRunner/…` – PDF via
+  `cmdkey=default`, URL `authid` does not override the key, no key → 499),
+  docs 13 / 14b / 81, Reports cookbook 9.7 / 9.7b / 9.8 / 9.9 / 9.9b / 9.11,
+  Reports_security.txt step 7b.
+- EM "Add Principal" still finds no users with the new adapter (2026-10-16)
+  – to analyse (SR draft).
 - EM "Add Principal" search with the new adapter.
 - Reaper fix also applies to the XML identity store setup (the reaper died
   there as well) – i.e. for every standalone Reports server.

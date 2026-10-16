@@ -55,6 +55,12 @@ REPORTS_IMAGE_DIR=/u01/app/oracle/reports/images
 REPORTS_PATH=/u01/app/oracle/reports/source:/u01/app/oracle/reports/images
 # Writable directory for output files (must be accessible by Reports engines)
 REPORTS_TMP=/u01/app/oracle/reports/tmp
+# Reports server security (13-oracle_setup_reports.sh):
+#   ldap       secured: securityId + JSE identity store = WebLogic embedded LDAP
+#              (WebLogic users/roles RW_MONITOR, RW_EXECREPORTS); needs
+#              embedded_ldap_sec.conf.des3 (cn=Admin password, manual step)
+#   identifier not secured: getserverinfo only for <identifier>, no user check
+REPORTS_SECURITY=ldap
 # Broadcasting port – unique per environment in the subnet (range: 14021–14030)
 # 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)
 REPORTS_BROADCAST_PORT=14027

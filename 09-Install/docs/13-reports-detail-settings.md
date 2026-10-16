@@ -332,8 +332,9 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
   <destination destype="ftp"    class="oracle.reports.plugin.destination.ftp.DesFTP"/>
   <destination destype="WebDav" class="oracle.reports.plugin.destination.webdav.DesWebDAV"/>
 
-  <!-- IMPORTANT: SecurityId attribute must NOT be present on the report job element -->
-  <job jobType="report" engineId="rwEng" retry="3"/>
+  <!-- REPORTS_SECURITY=ldap (default): securityId - users/roles checked against
+       the JSE identity store (jps-config-jse.xml -> WebLogic embedded LDAP, Step 5a) -->
+  <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>
   <job jobType="rwurl"  engineId="rwURLEng"/>
 
   <notification id="mailNotify" class="oracle.reports.server.MailNotify">
@@ -383,7 +384,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<environment id="QS">` | `QS` is the default env ID referenced by `defaultEnvId` |
 | `<envVariable NLS_LANG>` | Must match Oracle DB character set |
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections |
-| `<job … SecurityId>` | **Remove** this attribute — causes startup errors with JAZN security |
+| `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
 | `<identifier>` | Internal Reports admin; keep separate from WebLogic admin |
 | `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
@@ -400,11 +401,59 @@ EM → WebLogic Domain → System-MBean Browser → Konfigurations-MBeans
 | `Vorgänge → addEnvironment` | Create env | `QS` |
 | `ReportsServerEnvironment → QS → addEnvVariable` | Add variables | see table above |
 | `ReportsServer.Engine → rwEng` | Set engine params | `DefaultEnvId=QS`, `initEngine=2`, `MaxEngine=5`, `minEngine=2` |
-| `ReportsServer.Job → rwEngrwJaznSec` | Fix job | `Retry=3`, `SecurityId=(empty)` |
+| `ReportsServer.Job → rwEngrwJaznSec` | Fix job | `Retry=3`, `SecurityId=rwJaznSec` (only with the LDAP identity store, Step 5a) |
 | `ReportsServer.Queue → Queue` | Set queue size | `MaxQueueSize=4000` |
 | `ReportsServer.Connection → Connection` | Set connections | `maxConnect=300` |
 
 After all MBean changes: **Lock & Edit → Save → Activate Changes → restart WLS_REPORTS**.
+
+---
+
+## Step 5a – Secured Reports server: JSE identity store = WebLogic embedded LDAP
+
+`REPORTS_SECURITY` in `environment.conf`: `ldap` (default) or `identifier`.
+Background, diagrams and test run:
+[80-FMW-Architecture/reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md).
+
+The standalone Reports server (`rwserver`, Java SE) reads OPSS from
+`$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml`: policy and credential
+store are the shared DB stores, but the **identity store is XML**
+(`system-jazn-data.xml`). WebLogic users are unknown to it. With `ldap` the
+script points this identity store to the embedded LDAP of the AdminServer and
+sets `securityId="rwJaznSec"` – then `monUser`/`RW_MONITOR`
+(`getserverinfo`) and `RepRunner`/`RW_EXECREPORTS` (report jobs) work as with
+an in-process Reports server.
+
+| `REPORTS_SECURITY` | web commands (`getserverinfo`) | report jobs |
+|---|---|---|
+| `ldap` | users with `WebCommandPermission` (`RW_MONITOR`), plus `<identifier>` | users with `ReportsPermission` (`RW_EXECREPORTS`); without login HTTP 499 |
+| `identifier` | only the `<identifier>` admin (others `REP-52262`) | **no user check** – DB `userid` + `<folderAccess>` only |
+
+Steps of the script (with `--apply`, AdminServer running):
+
+1. Prerequisite (manual, once): password of the embedded LDAP administrator
+   `cn=Admin` set and stored in `embedded_ldap_sec.conf.des3` – the script
+   prints the commands if the file is missing (architecture doc §5.1).
+2. LDAP bind check as `cn=Admin` against `ldap://localhost:<admin port>`.
+3. `createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', …)`
+   (`updateCred` if it exists).
+4. `jps-config-jse.xml` (backup): new `serviceInstance idstore.ldap.embedded`
+   (`idstore.type=OPEN_LDAP`, search bases `ou=people|groups,ou=myrealm,dc=<domain>`
+   as `extendedProperty`, bind via `security.principal.alias/key`), default
+   context `idstore.xml` → `idstore.ldap.embedded`.
+5. `rwserver.conf` (Step 5) with `securityId="rwJaznSec"`.
+
+Result on the test host (2026-10-16):
+
+| Test | Result |
+|---|---|
+| `getserverinfo` as `monUser` | `serverInfo` |
+| as `RepRunner` / wrong password / no `authid` | `REP-56071` / `REP-50171` / HTTP 499 |
+| report via `cmdkey=default` (`authid=RepRunner` in the key) | PDF |
+| report without key and login | HTTP 499 |
+
+Dependency: the embedded LDAP runs inside the AdminServer – while it is
+down, the Reports server cannot authenticate anybody.
 
 ---
 
@@ -426,8 +475,38 @@ export NLS_LANG=GERMAN_GERMANY.AL32UTF8
 # Font configuration (must match rwserver.conf envVariable entries)
 REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
+REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
+REPORTS_PATH=${REPORTS_PATH}:<REPORTS_PATH of environment.conf>; export REPORTS_PATH
 # ────────────────────────────────────────────────────────────────────────────
 ```
+
+`REPORTS_JVM_OPTIONS` here is the JVM of the **rwserver process itself**
+(`librw.so` reads it; default `-Xmx256M`) – the `REPORTS_JVM_OPTIONS` in
+`rwserver.conf` `<environment>` are for the engines. Tested 2026-10-16:
+
+| Option | Why |
+|---|---|
+| `-Djdk.lang.processReaperUseDefaultStackSize=true` | the JDK "process reaper" thread died with `StackOverflowError` at every start; the first authentication then waited ~4 min in the Oracle diagnostics framework (`ADRHelper.getProcessExitValue`) |
+| `-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000` | after an engine crash the rwserver retried the dead engine 60 s (ORB default `250:60000:100:5000`) – now ~6 s |
+| `-DORBWaitForResponseTimeout=999999999` | required as soon as `REPORTS_JVM_OPTIONS` is set (see troubleshooting REP-50125) |
+| `-Xmx256M` | previous default |
+
+Check: `jcmd <rwserver pid> VM.command_line`.
+
+### Step 6b – `setUserOverrides.sh`: ORB connect timeout of WLS_REPORTS
+
+The rwservlet keeps the CORBA reference of the Reports server; after a
+restart of the Reports server (new random port) the ORB retried the dead
+port 60 s. The script adds to the `WLS_REPORTS` block of
+`$DOMAIN_HOME/bin/setUserOverrides.sh`:
+
+```bash
+export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+```
+
+First job after a full restart 1.8 s (before 242–305 s), after a restart of
+the Reports server only 8 s (before 64 s), after an engine crash 7 s (before
+63 s). Regular engine recycling (`engLife`) was never affected.
 
 > `REPORTS_ENHANCED_FONTHANDLING=YES` is the default since Reports 12c; explicit
 > setting is recommended for clarity.
@@ -686,7 +765,9 @@ grep -i "SEVERE\|error\|exception" \
 | `libnsl.so.2: cannot open shared object file` | OL9, symlink missing | Step 1: `ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2` |
 | Reports Server not found by servlet | `rwservlet.properties <server>` wrong | Step 4: set `<server>repserver_ent</server>` |
 | Reports run in-process despite standalone server | `<inprocess>no</inprocess>` missing | Step 4: set `inprocess=no` |
-| Engine startup fails / loops | `SecurityId` attribute present in `<job>` | Step 5: remove `SecurityId` from `<job jobType="report">` |
+| `REP-50171 Authentication failed`, log `LoginException: A user with the specified name does not exist` | `securityId` set, but the JSE identity store is still XML | Step 5a (`REPORTS_SECURITY=ldap`) – or remove `securityId` |
+| first request after a start takes minutes, `StackOverflowError … "process reaper"` in `repserver.out` | process reaper dies, diagnostics framework waits | Step 6: `REPORTS_JVM_OPTIONS` with `processReaperUseDefaultStackSize` |
+| first request after a Reports server restart takes ~60 s | stale CORBA reference in the rwservlet, ORB connect timeout 60 s | Step 6b |
 | Greek characters in PDF output | Font mapping incomplete | Step 7: configure `uifont.ali` `[PDF:Subset]` section |
 | Broadcasting conflict with same-name server | Wrong port in `rwnetwork.conf` | Step 3: set unique port per environment |
 | `rwserver.conf` XML parse error | Manual edit error | Check `rwserver_diagnostic.log`; restore backup |

@@ -943,8 +943,9 @@ EOF
   <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
   <destination destype="ftp" class="oracle.reports.plugin.destination.ftp.DesFTP"/>
   <destination destype="WebDav" class="oracle.reports.plugin.destination.webdav.DesWebDAV"/>
-  <!-- WICHTIG: SecurityId darf NICHT auf dem job-Element stehen -->
-  <job jobType="report" engineId="rwEng" retry="3"/>
+  <!-- securityId: Benutzer/Rollen werden gegen den Identity Store aus
+       jps-config-jse.xml geprueft - der zeigt nach 9.7b auf das WebLogic-LDAP -->
+  <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>
   <job jobType="rwurl" engineId="rwURLEng"/>
   <notification id="mailNotify" class="oracle.reports.server.MailNotify">
     <property name="succnotefile" value="succnote.txt"/>
@@ -1001,18 +1002,102 @@ EOF
   # GERMAN_GERMANY.AL32UTF8) - an die tatsaechliche
   # Datenbank-Zeichensatzkonfiguration anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
 
+  # 9.7b Reports-Server absichern: Identity Store = WebLogic-LDAP
+  #      Der eigenstaendige Reports-Server (rwserver) liest seine OPSS-
+  #      Konfiguration aus jps-config-jse.xml. Rollen/Policies (DB) teilt er
+  #      mit der Domain, die BENUTZER sucht er aber in einer XML-Datei
+  #      (system-jazn-data.xml) - dort gibt es monUser/RepRunner nicht.
+  #      Mit securityId aus 9.7 ohne diesen Schritt: REP-50171 "Authentication
+  #      failed" fuer JEDEN Benutzer, Berichte laufen nicht mehr.
+  #      Hier wird der Identity Store auf das eingebettete LDAP des
+  #      AdminServers umgestellt (dort liegen die WebLogic-Benutzer).
+  #      Getestet 2026-10-16. Hintergrund:
+  #      IHateWeblogic 80-FMW-Architecture/reports_user_local_ldap.md
+  #
+  #      Folge: laeuft der AdminServer nicht, kann der Reports-Server
+  #      niemanden anmelden.
+
+  # a) Kennwort des LDAP-Administrators cn=Admin setzen (es ist bei der
+  #    Domain-Anlage zufaellig vergeben). Kennwort waehlen (Buchstaben und
+  #    Ziffern), im Passwort-Safe ablegen. WLST interaktiv:
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+  #   connect(url='t3://localhost:7001')
+  #   dn = cmo.getName()
+  #   edit()
+  #   startEdit()
+  #   cd('/EmbeddedLDAP/' + dn)
+  #   cmo.setCredential('<LDAP_KENNWORT>')
+  #   save()
+  #   activate()
+  #   exit()
+  # Danach den AdminServer neu starten (das LDAP liest das Kennwort beim
+  # Start) - Managed Server und Reports-Server koennen weiterlaufen:
+  #   $DOMAIN_HOME/bin/stopWebLogic.sh
+  #   nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver.out 2>&1 &
+
+  # b) Bind-Benutzer im OPSS-Credential-Store hinterlegen (WLST):
+  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+  #   connect(url='t3://localhost:7001')
+  #   createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
+  #              password='<LDAP_KENNWORT>', desc='Bind user Reports identity store')
+  #   exit()
+  #   (Befehl heisst createCred, nicht createCredential; existiert der
+  #    Eintrag schon: updateCred mit denselben Parametern)
+
+  # c) jps-config-jse.xml umstellen (Domain-Name aus config.xml, hier
+  #    reportRpgpi - in den Suchbasen dc=<Domain-Name>):
+  export JPS_JSE=$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+  cp $JPS_JSE ${JPS_JSE}.bak_$(date +%Y%m%d_%H%M%S)
+  vi $JPS_JSE
+  #   1) direkt VOR der Zeile "    </serviceInstances>" einfuegen:
+  #
+  #   <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
+  #       <description>WebLogic embedded LDAP (realm myrealm)</description>
+  #       <property name="idstore.type" value="OPEN_LDAP"/>
+  #       <property name="ldap.url" value="ldap://localhost:7001"/>
+  #       <property name="security.principal.alias" value="reports.idstore"/>
+  #       <property name="security.principal.key" value="embeddedldap"/>
+  #       <property name="subscriber.name" value="ou=myrealm,dc=reportRpgpi"/>
+  #       <property name="username.attr" value="uid"/>
+  #       <property name="groupname.attr" value="cn"/>
+  #       <extendedProperty>
+  #           <name>user.search.bases</name>
+  #           <values><value>ou=people,ou=myrealm,dc=reportRpgpi</value></values>
+  #       </extendedProperty>
+  #       <extendedProperty>
+  #           <name>group.search.bases</name>
+  #           <values><value>ou=groups,ou=myrealm,dc=reportRpgpi</value></values>
+  #       </extendedProperty>
+  #   </serviceInstance>
+  #
+  #   2) im Abschnitt <jpsContext name="default"> die Zeile
+  #        <serviceInstanceRef ref="idstore.xml"/>
+  #      ersetzen durch:
+  #        <!--serviceInstanceRef ref="idstore.xml"/-->
+  #        <serviceInstanceRef ref="idstore.ldap.embedded"/>
+  #      (nur EIN Identity Store pro Kontext)
+  python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$JPS_JSE'); print('XML ok')"
+  sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE
+  # Erwartet: "XML ok", im Kontext idstore.ldap.embedded statt idstore.xml.
+  # Wirksam beim naechsten Start des Reports-Servers (9.10).
+
   # 9.8 cgicmd.dat - Standard-Schluessel + RepRunner-authid (frueher
   #     Schritt 5 und 8.4). Die Datei bringt Oracle mit Beispielen mit -
   #     deshalb ANHAENGEN (>>), nicht ueberschreiben. server= ist der Name
   #     der Reports-Server-KOMPONENTE ($REPORTS_SERVER_NAME), NICHT der
   #     Managed Server ($WLS_MANAGED_SERVER).
-  #     WICHTIG: authid muss NACH %2 stehen, nicht davor - sonst wird es
-  #     nicht ausgewertet.
+  #     %* uebernimmt alle Parameter der URL (report=, userid=, desformat=
+  #     ...) - ohne %* kommt "REP-50004 No report is specified". authid steht
+  #     NACH %*: ein authid in der URL ueberschreibt es nicht (getestet).
+  #     Aufruf: /reports/rwservlet?cmdkey=default&report=<bericht>.rdf
+  #             &userid=<db-user>/<pwd>@<db>&destype=cache&desformat=pdf
+  #     Wer den Schluessel aufrufen kann, startet Berichte als RepRunner -
+  #     /reports/ in Nginx/Firewall auf die aufrufenden Server beschraenken.
   cp "$CGICMD_DAT" "${CGICMD_DAT}.bak_$(date +%Y%m%d_%H%M%S)"
   cat >> "$CGICMD_DAT" << EOF
 
 # --- IHateWeblogic BEGIN ---
-default: server=${REPORTS_SERVER_NAME} statusformat=xml %2 authid=RepRunner/<REPRUNNER_PASSWORD>
+default: server=${REPORTS_SERVER_NAME} %* authid=RepRunner/<REPRUNNER_PASSWORD>
 # --- IHateWeblogic END ---
 EOF
   chmod 640 "$CGICMD_DAT"
@@ -1036,15 +1121,41 @@ export NLS_LANG=${REPORTS_NLS_LANG}
 REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH}:${REPORTS_IMAGE_DIR}; export REPORTS_PATH
 REPORTS_FONT_DIRECTORY=\${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
+REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
 EOF
-  tail -5 $DOMAIN_HOME/reports/bin/reports.sh
+  tail -6 $DOMAIN_HOME/reports/bin/reports.sh
   # Erwartet: "export NLS_LANG=<Wert aus 9.2>", "REPORTS_PATH=${REPORTS_PATH}:
   # <Report-Ordner>:<Bildordner>" (rwrun und die Reports-Tools lesen die
   # rwserver.conf nicht - sie brauchen den Bildordner hier) und woertlich
   # "REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
-  # Block schon vorhanden (ohne REPORTS_PATH-Zeile)? Die Zeile von Hand
-  # nach "export NLS_LANG=..." einfuegen:
+  # Block schon vorhanden (ohne REPORTS_PATH-/REPORTS_JVM_OPTIONS-Zeile)?
+  # Die Zeilen von Hand nach "export NLS_LANG=..." einfuegen:
   #   REPORTS_PATH=${REPORTS_PATH}:/u01/oracle/reports/source:/u01/oracle/reports/images; export REPORTS_PATH
+  #   REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
+  #
+  # REPORTS_JVM_OPTIONS ist hier die JVM des Reports-Server-Prozesses selbst
+  # (die Werte in rwserver.conf gelten nur fuer die Engines):
+  #   processReaperUseDefaultStackSize - sonst stuerzt der JDK-Thread
+  #     "process reaper" bei jedem Start ab (StackOverflowError in
+  #     repServer01.out) und die ERSTE Anmeldung wartet ~4 Minuten
+  #   ORBTCPConnectTimeouts - nach einem Engine-Absturz 6 s statt 60 s
+  #   ORBWaitForResponseTimeout - Pflicht, sobald die Variable gesetzt ist
+  #   -Xmx256M - bisheriger Standardwert
+  # Kontrolle nach dem Start (9.10):
+  #   jcmd $(pgrep -f "rwserver server=${REPORTS_SERVER_NAME}") VM.command_line
+
+  # 9.9b setUserOverrides.sh - ORB-Timeout des Managed Servers
+  #      Das rwservlet merkt sich die Adresse des Reports-Servers; nach einem
+  #      Neustart nur des Reports-Servers (neuer Port) versucht es 60 s den
+  #      alten Port - mit dieser Einstellung ~8 s.
+  #      Im Block fuer den Managed Server (if [ "${SERVER_NAME}" = "WLS_REPORTS" ])
+  #      ergaenzen - existiert der Block nicht, mit if/fi anlegen:
+  cp $DOMAIN_HOME/bin/setUserOverrides.sh $DOMAIN_HOME/bin/setUserOverrides.sh.bak_$(date +%Y%m%d_%H%M%S)
+  vi $DOMAIN_HOME/bin/setUserOverrides.sh
+  #   if [ "${SERVER_NAME}" = "WLS_REPORTS" ]; then
+  #       export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+  #   fi
+  grep -n ORBTCPConnectTimeouts $DOMAIN_HOME/bin/setUserOverrides.sh
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
@@ -1081,12 +1192,21 @@ EOF
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
-  # 9.11 Verifikation - getserverinfo braucht als authid den Server-
-  #      Administrator aus <identifier> in rwserver.conf (9.7, Variable
-  #      REPORTS_IDENTIFIER aus 9.2).
-  #      monUser oder weblogic als authid liefern "REP-52262 Diagnostic
-  #      output is disabled", solange der Reports-Server nicht ueber
-  #      securityId am <job>-Element abgesichert ist (bestaetigt 2026-10-15).
+  # 9.11 Verifikation - mit 9.7/9.7b ist der Reports-Server abgesichert:
+  #      getserverinfo mit monUser (Rolle RW_MONITOR, Schritt 8); der
+  #      Server-Administrator aus <identifier> geht weiterhin.
+  #      Die ERSTE Anmeldung nach einem Start dauert einige Sekunden.
+  read -s -p "monUser-Kennwort: " MPW; echo
+  curl -s -G "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo" \
+       --data-urlencode "server=${REPORTS_SERVER_NAME}" --data-urlencode "statusformat=XML" \
+       --data-urlencode "authid=monUser/${MPW}" | head -5
+  unset MPW
+  # Erwartet: <serverInfo ...> mit Engines.
+  # Gegenproben: ohne authid -> HTTP 499; RepRunner -> REP-56071
+  # "unauthorized" (darf nur Berichte ausfuehren).
+  # Berichtsaufruf ueber den Schluessel aus 9.8:
+  #   /reports/rwservlet?cmdkey=default&report=<bericht>.rdf&userid=...&destype=cache&desformat=pdf
+  # Alternativ mit dem Server-Administrator:
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=${REPORTS_IDENTIFIER}"
   # Erwartet: XML-Antwort mit <engineInstance ... status="1"> (Engine IDLE)
   #
@@ -1223,10 +1343,28 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: getserverinfo/showjobs liefern "REP-52262 Diagnostic output is
            disabled" - auch mit authid=monUser/... oder weblogic/...
-  Ursache: Web-Befehle verlangen bei einem nicht per securityId
-           abgesicherten Reports-Server den Server-Administrator aus
-           <identifier> in rwserver.conf
-  Loesung: authid=rep_admin/<identifier-Kennwort> verwenden (siehe 9.11)
+  Ursache: Reports-Server NICHT ueber securityId abgesichert - dann
+           duerfen Web-Befehle nur den Server-Administrator aus <identifier>
+  Loesung: Reports-Server absichern (9.7 securityId + 9.7b Identity Store),
+           dann monUser; oder authid=<identifier> verwenden
+
+  Problem: nach dem Setzen von securityId "REP-50171 Authentication failed"
+           fuer alle Benutzer, Berichte laufen nicht mehr; im Log
+           "LoginException: A user with the specified name does not exist"
+  Ursache: der Identity Store des Reports-Servers (jps-config-jse.xml) ist
+           noch die XML-Datei - die WebLogic-Benutzer gibt es dort nicht
+  Loesung: Schritt 9.7b ausfuehren, Reports-Server neu starten (oder
+           securityId wieder entfernen)
+
+  Problem: erster Aufruf nach einem Start des Reports-Servers dauert
+           Minuten, in repServer01.out "StackOverflowError thrown from the
+           UncaughtExceptionHandler in thread "process reaper""
+  Ursache: der JDK-Thread "process reaper" stuerzt ab, Oracles
+           Diagnose-Framework wartet beim ersten Login bis zum Timeout
+  Loesung: REPORTS_JVM_OPTIONS in reports.sh (9.9), Reports-Server neu
+           starten. Restwartezeit ~60 s nach einem Neustart nur des
+           Reports-Servers: 9.9b (setUserOverrides.sh), WLS_REPORTS neu
+           starten
 
   Problem: Domain geloescht und neu angelegt - Configuration Wizard bzw.
            WLST bricht in der Phase "OPSS Processing" ab mit

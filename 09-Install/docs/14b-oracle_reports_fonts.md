@@ -50,13 +50,27 @@ existing font scripts from `04-ReportsFonts/`.
 ./04-ReportsFonts/fontpath_config.sh --apply
 ```
 
-`cgicmd.dat` – append a default key (server = Reports server **component**,
-`REPORTS_SERVER_NAME`, not the managed server `WLS_REPORTS`):
+`cgicmd.dat` – default key for the report calls of the applications
+(server = Reports server **component**, `REPORTS_SERVER_NAME`, not the managed
+server `WLS_REPORTS`; `authid` = execution user from `12-`):
 
 ```bash
 CGICMD_DAT="$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/cgicmd.dat"
-# default: server=repserver01 statusformat=xml
+# default: server=repserver01 %* authid=RepRunner/<password>
+chmod 640 "$CGICMD_DAT"
 ```
+
+Call: `/reports/rwservlet?cmdkey=default&report=<file>.rdf&userid=<db>&destype=cache&desformat=pdf`.
+
+- `%*` passes all URL parameters – without it `REP-50004 No report is specified`
+  (tested 2026-10-16).
+- `authid` after `%*`: an `authid` in the URL does not override it (the key
+  wins – tested with `monUser`).
+- The `authid` is checked only by a secured Reports server (`13-`,
+  `REPORTS_SECURITY=ldap`); then a call without key and login gets HTTP 499.
+- Anyone who can call the key runs reports as this user – restrict
+  `/reports/` (Nginx, firewall) to the calling application servers.
+- rwservlet reads `cgicmd.dat` at start – restart `WLS_REPORTS`.
 
 Then back up and restart:
 
@@ -75,7 +89,7 @@ Then back up and restart:
 | 2 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` |
 | 3 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` |
 | 4 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` |
-| 5 | cgicmd.dat | append `response_files/cgicmd.dat.template` (marker block, idempotent) |
+| 5 | cgicmd.dat | `response_files/cgicmd.dat.template` with the `authid` from `reports_users.conf.des3` (`REPORTS_EXEC_USER/PWD`): append, or **replace** an existing IHateWeblogic block; `chmod 640`; password never logged |
 | 6 | Config backup | `07-Maintenance/backup_config.sh --apply` (now incl. Reports/Forms/font config) |
 
 - `CGICMD_DAT` comes from `environment.conf` or defaults to the path above.
@@ -98,7 +112,9 @@ Then back up and restart:
 
 ## Notes
 
-- Safe to re-run: the font scripts are idempotent, the `cgicmd.dat` block is
-  only appended once (marker `# --- IHateWeblogic BEGIN ---`).
+- Safe to re-run: the font scripts are idempotent, the `cgicmd.dat` block
+  between the markers `# --- IHateWeblogic BEGIN/END ---` is rewritten (own
+  keys belong after the END marker). Backups `cgicmd.dat.bak_*` contain the
+  password in clear text – delete them when no longer needed.
 - Restart WLS_REPORTS and the Reports components afterwards — fonts and
   `cgicmd.dat` are read at startup.

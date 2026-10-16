@@ -1,6 +1,9 @@
 # Reports Servlet Security – web commands, `<identifier>`, `webcommandaccess`
 
-**Status:** analysis + plan (2026-10-15) – **not yet verified, not yet implemented.**
+**Status:** analysis 2026-10-15; **test D done 2026-10-16** – the secured
+server works once the JSE identity store points to the WebLogic LDAP, see
+[80-FMW-Architecture/reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md)
+and `13-` Step 5a (`REPORTS_SECURITY=ldap`). Tests A–C still open.
 The findings below come from the live rebuild on Oracle Linux 9 / FMW 14.1.2
 (CSPU Sep 2026, Reports QPR 39600348) and from the bytecode of
 `oracle.reports.rwclient.CommandManager` (`reports/jlib/rwrun.jar`). The test

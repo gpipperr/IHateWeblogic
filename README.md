@@ -516,6 +516,19 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 
 ### Reports servlet security – own topic (analyse in detail later)
 
+- [x] **Secured standalone Reports server** (2026-10-16): `securityId` +
+  JSE identity store (`jps-config-jse.xml`) = WebLogic embedded LDAP –
+  `monUser`/`RW_MONITOR` and `RepRunner`/`RW_EXECREPORTS` work; JVM fixes
+  (process reaper, ORB connect timeout) for the slow first request;
+  `cgicmd.dat` key `%* authid=`. `13-` (`REPORTS_SECURITY=ldap`), `14b`,
+  docs 13/14b/81, Reports cookbook 9.7b/9.9b, `Reports_security.txt` 7b.
+  Background: [`80-FMW-Architecture/reports_user_local_ldap.md`](80-FMW-Architecture/reports_user_local_ldap.md).
+- [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
+  Reports server; still empty with the LDAP identity store; SR draft local
+  (`SR/`). Workaround: "Advanced Option" / WLST `grantAppRole`.
+- [ ] **`rwserver.conf` `<identifier>`** – `13-` still writes the fixed
+  `rep_admin/wls_team` (now only the emergency admin).
+
 - [ ] **Web commands / `<identifier>` / `webcommandaccess`** – analysis and plan in
   [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md):
   with `no`/`L0`/`L1` and a server without `securityId` on `<job>`, `getserverinfo`

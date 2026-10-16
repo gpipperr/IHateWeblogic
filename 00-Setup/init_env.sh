@@ -1141,6 +1141,7 @@ if $APPLY; then
         _append_if_missing "REPORTS_SERVER_INSTANCES"  "$CONF_REPORTS_SERVER_INSTANCES"  "$ENV_CONF"
         _append_if_missing "REPORTS_PATH"              "$CONF_REPORTS_PATH"              "$ENV_CONF"
         _append_if_missing "REPORTS_TMP"               "$CONF_REPORTS_TMP"               "$ENV_CONF"
+        _append_if_missing "REPORTS_SECURITY"          "ldap"                            "$ENV_CONF"
         _append_if_missing "REPORTS_BROADCAST_PORT"    "$CONF_REPORTS_BROADCAST_PORT"    "$ENV_CONF"
         _append_if_missing "REPORTS_ENGINE_INIT"       "2"                               "$ENV_CONF"
         _append_if_missing "REPORTS_ENGINE_MAX"        "5"                               "$ENV_CONF"
@@ -1225,6 +1226,9 @@ REPORTS_SERVER_INSTANCES="${CONF_REPORTS_SERVER_INSTANCES}"
 REPORTS_PATH="${CONF_REPORTS_PATH}"
 # REPORTS_TMP: writable directory for temporary output files (not /tmp)
 REPORTS_TMP="${CONF_REPORTS_TMP}"
+# REPORTS_SECURITY: ldap (secured, WebLogic users/roles via embedded LDAP) |
+#                   identifier (not secured) - see 09-Install/docs/13 Step 5a
+REPORTS_SECURITY="ldap"
 # Broadcasting port – unique per environment in the subnet (range: 14021–14030)
 # 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)
 REPORTS_BROADCAST_PORT="${CONF_REPORTS_BROADCAST_PORT}"

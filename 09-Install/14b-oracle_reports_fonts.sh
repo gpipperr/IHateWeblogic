@@ -188,6 +188,23 @@ else
     warn "  $WLS_MANAGED_SERVER has never been started – start it once, then re-run this script"
 fi
 
+# Execution user for the cgicmd.dat authid (rwservlet runs with
+# singlesignon=yes - every report request needs a WebLogic login). Same source
+# as 12-oracle_reports_users.sh: reports_users.conf.des3. Password never logged.
+REPORTS_USERS_SEC="$ROOT_DIR/reports_users.conf.des3"
+REPORTS_EXEC_PWD=""
+if [ -f "$REPORTS_USERS_SEC" ] && load_secrets_file "$REPORTS_USERS_SEC" > /dev/null 2>&1; then
+    REPORTS_EXEC_USER="${REPORTS_EXEC_USER:-RepRunner}"
+fi
+if [ -n "${REPORTS_EXEC_USER:-}" ] && [ -n "${REPORTS_EXEC_PWD:-}" ]; then
+    ok "$(printf "Exec user      : %s (cgicmd.dat authid, password from %s)" \
+        "$REPORTS_EXEC_USER" "$(basename "$REPORTS_USERS_SEC")")"
+else
+    CGICMD_READY=false
+    warn "Execution user/password not found in $REPORTS_USERS_SEC"
+    warn "  cgicmd.dat step skipped - run first: 09-Install/12-oracle_reports_users.sh --apply"
+fi
+
 [ "$EXIT_CODE" -ne 0 ] && { print_summary; exit "$EXIT_CODE"; }
 
 # =============================================================================
@@ -208,7 +225,7 @@ printf "  %-3s  %-12s  %s\n" "3" "$_st_fonts" \
 printf "  %-3s  %-12s  %s\n" "4" "$_st_fonts" \
     "Font path in domain → 04-ReportsFonts/fontpath_config.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "5" "$($CGICMD_READY && printf 'planned' || printf 'NOT READY')" \
-    "cgicmd.dat default  → append template (server: $_reports_server)" | tee -a "$LOG_FILE"
+    "cgicmd.dat default  → template block (server: $_reports_server, authid: ${REPORTS_EXEC_USER:-?})" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "6" "planned" \
     "Config backup       → 07-Maintenance/backup_config.sh --apply" | tee -a "$LOG_FILE"
 printf "\n" | tee -a "$LOG_FILE"
@@ -239,26 +256,44 @@ section "Step: cgicmd.dat Default Configuration"
 
 _ts="$(date '+%Y-%m-%d %H:%M:%S')"
 _marker_begin="# --- IHateWeblogic BEGIN ---"
+_marker_end="# --- IHateWeblogic END ---"
 
 if ! $CGICMD_READY; then
-    warn "cgicmd.dat directory does not exist – step skipped"
-    info "  Start $WLS_MANAGED_SERVER once, then re-run: 09-Install/14b-oracle_reports_fonts.sh --apply"
+    warn "cgicmd.dat step skipped (see pre-checks)"
+    info "  Then re-run: 09-Install/14b-oracle_reports_fonts.sh --apply --skip-fonts"
     STEP_FAILS=$(( STEP_FAILS + 1 ))
-elif [ -f "$CGICMD_DAT" ] && grep -qF "$_marker_begin" "$CGICMD_DAT" 2>/dev/null; then
-    ok "IHateWeblogic block already present in $CGICMD_DAT – skipping"
-    info "  Remove the block manually to re-apply"
 else
+    # sed replacement: escape \ & | in the user/password
+    _authid="$(printf '%s/%s' "$REPORTS_EXEC_USER" "$REPORTS_EXEC_PWD" | sed 's/[\\&|]/\\&/g')"
     _cgicmd_tmp="$(mktemp)" || { fail "Cannot create temp file"; EXIT_CODE=2; }
+    chmod 600 "$_cgicmd_tmp"
     sed \
         -e "s|##REPORTS_SERVER##|${_reports_server}|g" \
         -e "s|##TIMESTAMP##|${_ts}|g" \
+        -e "s|##REPORTS_EXEC_AUTHID##|${_authid}|g" \
         "$CGICMD_TEMPLATE" > "$_cgicmd_tmp"
+    unset _authid
 
     if [ ! -f "$CGICMD_DAT" ]; then
         info "cgicmd.dat not found – creating: $CGICMD_DAT"
         mv "$_cgicmd_tmp" "$CGICMD_DAT"
-        chmod 640 "$CGICMD_DAT"
         ok "cgicmd.dat created: $CGICMD_DAT"
+    elif grep -qF "$_marker_begin" "$CGICMD_DAT" 2>/dev/null; then
+        # Block already present (older version without authid): replace it -
+        # everything outside the markers (Oracle samples, own keys) is kept.
+        # The header comment block written before the BEGIN marker is kept
+        # unchanged (only the date in it is old).
+        backup_file "$CGICMD_DAT"
+        _new="$(mktemp)"; chmod 600 "$_new"
+        awk -v b="$_marker_begin" -v e="$_marker_end" -v blk="$_cgicmd_tmp" '
+            BEGIN { while ((getline l < blk) > 0) { if (l == b) inb = 1; if (inb) nb = nb l "\n"; if (l == e) inb = 0 } }
+            $0 == b { printf "%s", nb; skip = 1; next }
+            skip && $0 == e { skip = 0; next }
+            !skip { print }
+        ' "$CGICMD_DAT" > "$_new"
+        cat "$_new" > "$CGICMD_DAT"
+        rm -f "$_new" "$_cgicmd_tmp"
+        ok "IHateWeblogic block replaced in: $CGICMD_DAT"
     else
         backup_file "$CGICMD_DAT"
         printf "\n" >> "$CGICMD_DAT"
@@ -266,13 +301,21 @@ else
         rm -f "$_cgicmd_tmp"
         ok "IHateWeblogic block appended to: $CGICMD_DAT"
     fi
+    # Contains the RepRunner password (rwservlet encrypts it at the next start)
+    chmod 640 "$CGICMD_DAT"
+    find "$(dirname "$CGICMD_DAT")" -maxdepth 1 -name "$(basename "$CGICMD_DAT").bak_*" -exec chmod 600 {} \;
 
-    info "  Reports Server : $_reports_server"
-    info "  default: key   → server=$_reports_server statusformat=xml"
-    info "  Named keys     → see comments in $CGICMD_TEMPLATE"
-    info "  authid user    → create with: 09-Install/12-oracle_reports_users.sh"
+    if grep -qE "^default:.*%\* authid=${REPORTS_EXEC_USER}/" "$CGICMD_DAT"; then
+        ok "default key: server=$_reports_server %* authid=$REPORTS_EXEC_USER/****"
+    else
+        fail "default key with authid not found in $CGICMD_DAT"
+    fi
+    info "  Restart $WLS_MANAGED_SERVER to load cgicmd.dat (the password is encrypted then)"
+    info "  Backups contain the password in clear text - delete them when no longer needed:"
+    info "    ls -l $(dirname "$CGICMD_DAT")/$(basename "$CGICMD_DAT").bak_*"
 fi
-unset _ts _marker_begin _cgicmd_tmp
+unset _ts _marker_begin _marker_end _cgicmd_tmp _new
+REPORTS_EXEC_PWD="xxxxxxxxxxxxxxxx"; unset REPORTS_EXEC_PWD
 
 # =============================================================================
 # Step 6 – Configuration backup (now incl. Reports/Forms/font config)

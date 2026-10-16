@@ -1,41 +1,49 @@
 # =============================================================================
 # cgicmd.dat – IHateWeblogic Default Configuration Block
-# Appended by : 09-Install/09-oracle_configure.sh --apply
+# Written by  : 09-Install/14b-oracle_reports_fonts.sh --apply
 # Server      : ##REPORTS_SERVER##
 # Date        : ##TIMESTAMP##
 # Doc         : https://docs.oracle.com/en/middleware/fusion-middleware/reports/14.1.2/use-reports/
 # =============================================================================
 # --- IHateWeblogic BEGIN ---
 
-# Default key – used for server status checks and internal batch calls.
-# No authid: the Reports servlet secures this at the WebLogic container level.
-default: server=##REPORTS_SERVER## statusformat=xml
+# Default key – report calls of the applications:
+#   /reports/rwservlet?cmdkey=default&report=<file>.rdf&userid=<db>&desformat=pdf&destype=cache
+# %* passes all parameters of the URL (without %* -> REP-50004 "No report is
+# specified"). authid = execution user (role RW_EXECREPORTS, created by
+# 09-Install/12-oracle_reports_users.sh) - effective with a secured Reports
+# server (securityId on <job>, identity store = WebLogic LDAP, 13-). The
+# password is not in the URL. Anyone who can call the key runs reports as
+# this user - restrict /reports/ (Nginx, firewall) to the calling servers.
+default: server=##REPORTS_SERVER## %* authid=##REPORTS_EXEC_AUTHID##
 
 # =============================================================================
 # Named report keys – customer configuration
 # =============================================================================
 # Copy, rename, and uncomment one template below for each report group.
-# After adding keys, restart the Reports server component to reload cgicmd.dat.
+# rwservlet reads cgicmd.dat at start – restart WLS_REPORTS after changes.
+# The block between the BEGIN/END markers is rewritten by 14b – put own keys
+# AFTER the END marker.
 #
 # Parameter reference:
 #   %1, %2 ...    Positional parameters from the URL
 #                 e.g. /reports/rwservlet?cmdkey=myKey&%1=myreport.rdf
 #   report=       Report file name (alternative to positional %1)
-#   server=       Reports Server name (e.g. ##REPORTS_SERVER##)
+#   server=       Reports Server component name (e.g. ##REPORTS_SERVER##)
 #   userid=       DB connection: user/password@service
 #   destype=      cache | file | printer | mail
 #   desformat=    pdf | html | xml | spreadsheet | ...
-#   authid=       WebLogic realm user/password for secured /reports/rwservlet
-#                 Create the execution user first:
-#                   09-Install/10-oracle_setup_reports_user.sh --apply
+#   authid=       WebLogic user/password (role RW_EXECREPORTS) – required
+#                 with a secured Reports server; user from 12-oracle_reports_users.sh
+#   %*            all URL parameters (report=, userid=, desformat= ...)
 #
 # Template A – PDF report returned to browser (destype=cache)
 # Adapt: KEY, userid/password, @DBSERVICE, authid password
 #
-# SalesDEPRep: %1 userid=salesRep/Kaufmann@KostenDB01 destype=cache desformat=pdf %2 authid=EXECREPORTS/CHANGE_ME
+# SalesDEPRep: %1 userid=salesRep/<DB_PASSWORD>@<DBSERVICE> destype=cache desformat=pdf %2 authid=RepRunner/<PASSWORD>
 #
 # Template B – Report written to server-side file (destype=file)
 #
-# myBatchReport: report=%1 server=##REPORTS_SERVER## destype=file desname=/u01/reports/output/%2.pdf desformat=pdf authid=EXECREPORTS/CHANGE_ME
+# myBatchReport: report=%1 server=##REPORTS_SERVER## destype=file desname=/u01/reports/output/%2.pdf desformat=pdf authid=RepRunner/<PASSWORD>
 #
 # --- IHateWeblogic END ---
