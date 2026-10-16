@@ -89,6 +89,12 @@ Components are discovered automatically from:
 
 `stop-all` skips components already `STOPPED`.
 
+`start AdminServer` / `start-all` rename a leftover
+`$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok` (libOVD lock left by the
+Reports server) before the AdminServer starts – otherwise the EM user search in
+"Add Principal" stays empty
+([em_principal_search_libovd.md](../80-FMW-Architecture/em_principal_search_libovd.md)).
+
 > **With the systemd autostart (`09-Install/30-configure_autostart.sh`)**
 > AdminServer and managed servers must be started through the Node Manager
 > (`fmw_ctl.sh` / `systemctl`). `startStop.sh start` / `start-all` starts them

@@ -313,6 +313,19 @@ SCHRITT 5: Persoenliche Administratoren statt eines Sammelkontos  (als oracle)
   # Test: Anmeldung am EM mit adm_max. Danach den technischen Benutzer
   # nicht mehr fuer die tagtaegliche Arbeit verwenden.
 
+  # Benutzer und Gruppen anzeigen (gleiches Verzeichnis wie oben, die
+  # eingerueckten Zeilen eingerueckt tippen, nach cmo.advance(c) eine LEERE
+  # Zeile eingeben, dann cmo.close(c)):
+  #   c = cmo.listUsers('*', 0)
+  #   while cmo.haveCurrent(c):
+  #       print cmo.getCurrentName(c)
+  #       cmo.advance(c)
+  #
+  #   cmo.close(c)
+  #   # Gruppen: cmo.listGroups('*', 0)  - Mitglieder einer Gruppe:
+  #   # cmo.listGroupMembers('Administrators', '*', 0)  (gleiche Schleife)
+  #   print cmo.listMemberGroups('monUser')
+
   # Benutzer entfernen (z.B. bei Austritt):
   #   cmo.removeUser('adm_max')
   # Kennwort neu setzen (als Administrator):
@@ -340,6 +353,9 @@ SCHRITT 6: Reports-Benutzer, Rollen und Richtlinien  (als oracle)
   # umstellen.
 
   # Weg A (Oberflaeche): genau wie Reports_kochbuch_de.txt Schritt 8.1-8.3.
+  #   Bleibt im Dialog "Add Principal" (Principal hinzufuegen) die Liste der
+  #   Benutzer leer: siehe BEKANNTE PROBLEME "EM findet keine Benutzer"
+  #   (libOVD-Sperre ovd.lok) - oder Weg B verwenden.
   #   Abweichung fuer RW_ADMINISTRATOR: bei + Add (+ Hinzufuegen) als
   #   Type (Typ) "Group" (Gruppe) waehlen und "Administrators" zuweisen.
 
@@ -700,6 +716,36 @@ BEKANNTE PROBLEME UND LOESUNGEN
            "Authentication denied")
   Ursache: boot.properties enthaelt noch das alte Kennwort
   Loesung: SCHRITT 13.2
+
+  Problem: EM -> Anwendungsrolle -> "Principal hinzufuegen" (Add
+           Principal), Typ Benutzer, Suche ">" findet KEINE Benutzer, obwohl
+           sie existieren (WLST listUsers zeigt sie, grantAppRole geht)
+  Ursache: libOVD-Sperre. Der Reports-Server initialisiert beim Start
+           libOVD im selben Verzeichnis wie der AdminServer
+           ($DOMAIN_HOME/config/fmwconfig/ovd/default), schreibt
+           adapters.os_xml ohne LDAP-Adapter und laesst ovd.lok liegen.
+           Startet der AdminServer, solange ovd.lok existiert, fehlt ihm
+           der LDAP-Adapter "DefaultAuthenticator" - die Suche bleibt still
+           leer. (Nachgewiesen 2026-10-16; KEINE WebLogic-Bearbeitungs-
+           sperre.) Ein spaeterer Neustart NUR des Reports-Servers schadet
+           dem laufenden AdminServer nicht.
+  Pruefen:
+           ls -l $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok
+           grep -c '<ldap id="DefaultAuthenticator"' $DOMAIN_HOME/config/fmwconfig/ovd/default/adapters.os_xml
+             (direkt nach dem AdminServer-Start: 1 = in Ordnung)
+  Loesung: AdminServer stoppen, Sperre entfernen, AdminServer starten
+           (Managed Server und Reports-Server koennen weiterlaufen):
+             $DOMAIN_HOME/bin/stopWebLogic.sh
+             mv $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale
+             nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver.out 2>&1 &
+           Dauerhaft: die Start-Skripte entfernen die Sperre vor jedem
+           AdminServer-Start (WLS_Report_start_stop_kochbuch.txt 0.1 und
+           start_wls_all.sh, Autostart_linux_middleware.txt start_all.sh).
+           Laeuft der Autostart: Sperre entfernen, dann
+           "systemctl restart <dienst>".
+           Workaround ohne Neustart: im Dialog "Erweiterte Option"
+           (Advanced Option) anhaken und den Principal-Namen eintippen,
+           oder grantAppRole per WLST (SCHRITT 6 Weg B).
 
   Problem: REP-56132 "Access is denied to the report definition file"
   Ursache: Berichtsverzeichnis nicht in <folderAccess><read>

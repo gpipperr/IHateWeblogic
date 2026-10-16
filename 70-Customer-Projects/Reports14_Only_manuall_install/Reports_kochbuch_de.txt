@@ -689,6 +689,12 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   # 8.4 RepRunner in cgicmd.dat hinterlegen: siehe Schritt 9.8 (die Datei
   #     existiert erst nach dem ersten Start des Managed Servers).
 
+  # Bleibt im EM-Dialog "Add Principal" (Principal hinzufuegen) die
+  # Benutzerliste leer, obwohl die Benutzer existieren: libOVD-Sperre ovd.lok
+  # des Reports-Servers - siehe Reports_security.txt, BEKANNTE PROBLEME
+  # "EM findet keine Benutzer". Workaround: "Erweiterte Option" anhaken und
+  # den Namen eintippen.
+
   # Falls die neuen Rollen/Policies nicht sofort wirken (weiterhin 401/403
   # trotz korrektem authid): der Security-Cache des Managed Servers wird
   # erst nach einem Neustart aktualisiert.

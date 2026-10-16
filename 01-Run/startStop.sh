@@ -441,6 +441,15 @@ _start_comp() {
                 info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
                 return 1
             fi
+            # libOVD lock left by the Reports server (rwserver initialises libOVD
+            # in the same directory): an AdminServer started while it exists
+            # builds no DefaultAuthenticator adapter -> EM "Add Principal" finds
+            # no users (proven 2026-10-16). Not held open - safe to remove here.
+            local ovd_lok="$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok"
+            if [ -e "$ovd_lok" ]; then
+                mv -f "$ovd_lok" "${ovd_lok}.stale" \
+                    && info "Removed stale libOVD lock: $ovd_lok"
+            fi
             nohup "$wl_sh" > "$start_log" 2>&1 &
             _check_early_exit $! "$start_log" "AdminServer" || return 1
             ok "AdminServer start initiated (PID $!) – allow ~60s to come up"

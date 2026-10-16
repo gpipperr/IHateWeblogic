@@ -21,6 +21,7 @@ Every statement is marked by how it is backed:
 |---|---|
 | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) | How Reports servers, the rwservlet and the Reports tools find each other (UDP multicast, `rwnetwork.conf`), why a server stops with `REP-50600`/`REP-56040`, active search of the network with `rwdiag`/`DiagServerLocator`, hardening ideas, prerequisites and diagnosis |
 | [report_server_image_handling.md](report_server_image_handling.md) | Images in migrated reports: embedded vs. Link File vs. *Read from File*, `REPORTS_PATH` search, no fallback for Windows paths (`REP-108`), `<folderAccess>` – one `<read>`, `;`-separated, last element wins, no subdirectories (`REP-56132`, test series), migration with `rwconverter` |
+| [em_principal_search_libovd.md](em_principal_search_libovd.md) | EM "Add Principal" finds no users: the EM search goes through libOVD; the Reports server rewrites the shared libOVD config and leaves `ovd.lok`, an AdminServer started with it has no LDAP adapter – trace, test series, fix in the start scripts |
 | [forms_jakob_webutil.md](forms_jakob_webutil.md) | WebUtil and JACOB (Java–COM bridge for OLE/Office automation): architecture, download source and checksums of JACOB 1.21, files and locations, `webutil.cfg` syslib list, signing, state of the test host |
 
 ## Candidates for further documents

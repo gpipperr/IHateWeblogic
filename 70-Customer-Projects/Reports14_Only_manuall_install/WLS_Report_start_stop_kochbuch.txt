@@ -79,6 +79,10 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #    boot.properties (Reports_kochbuch_de.txt Schritt 4). Ohne diese Datei
   #    bricht ein Start im Hintergrund (nohup) sofort ab: im Production Mode
   #    gibt es keine Konsole fuer die Passwortabfrage (BEA-090782).
+  #    Vorher die libOVD-Sperre entfernen, die der Reports-Server liegen
+  #    laesst - sonst findet der EM unter "Principal hinzufuegen" keine
+  #    Benutzer (Reports_security.txt, Bekannte Probleme):
+  mv -f $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale 2>/dev/null
   nohup ./startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
   # ca. 1 Minute warten, bis der Status (0.2) "200" meldet
 
@@ -204,6 +208,9 @@ nohup "$DOMAIN_HOME/bin/startNodeManager.sh" \
 sleep 10
 
 echo "=== 2/4 AdminServer starten ==="
+# libOVD-Sperre des Reports-Servers entfernen (sonst EM-Benutzersuche leer)
+mv -f "$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok" \
+      "$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale" 2>/dev/null
 nohup "$DOMAIN_HOME/bin/startWebLogic.sh" \
     > /tmp/adminserver_start.log 2>&1 &
 sleep 60

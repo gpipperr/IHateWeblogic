@@ -193,6 +193,10 @@ echo "=== 2/4 AdminServer ==="
 if pgrep -f "weblogic.Name=AdminServer" > /dev/null; then
     echo "laeuft bereits"
 else
+    # libOVD-Sperre des Reports-Servers entfernen - sonst findet der EM
+    # unter "Principal hinzufuegen" keine Benutzer (Reports_security.txt)
+    mv -f "$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok" \
+          "$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale" 2>/dev/null
     nohup "$DOMAIN_HOME/bin/startWebLogic.sh" > "$LOG_DIR/AdminServer.out" 2>&1 &
     # Ohne AdminServer kann der Managed Server nicht starten -> hier abbrechen
     wait_running "$LOG_DIR/AdminServer.out" "$WAIT_ADMIN" "AdminServer" || exit 1

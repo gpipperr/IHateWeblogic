@@ -78,8 +78,25 @@ _wlst() {
     return "${PIPESTATUS[0]}"
 }
 
+# libOVD lock left behind by the Reports server: rwserver (Java SE, idstore.xml)
+# initialises libOVD in the same config/fmwconfig/ovd/default directory,
+# rewrites adapters.os_xml without the LDAP adapter and leaves ovd.lok. An
+# AdminServer started while it exists builds no DefaultAuthenticator adapter
+# -> EM "Add Principal" finds no users (proven 2026-10-16). The file is not
+# held open; remove it before the AdminServer starts.
+_clear_ovd_lock() {
+    local lok="$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok"
+    [ "$TARGET" = "all" ] || [ "$TARGET" = "$ADMIN_SERVER" ] || return 0
+    [ -e "$lok" ] || return 0
+    if pgrep -f "weblogic.Name=${ADMIN_SERVER}( |$)" > /dev/null 2>&1; then
+        return 0
+    fi
+    mv -f "$lok" "${lok}.stale" && _log "Removed stale libOVD lock $lok (left by the Reports server)"
+}
+
 _start() {
     _start_nm || return 1
+    _clear_ovd_lock
     _log "Starting: $TARGET"
     _wlst wls_start.py "$TARGET"
 }

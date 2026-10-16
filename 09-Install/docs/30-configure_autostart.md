@@ -119,6 +119,15 @@ journalctl -u fmw-<DOMAIN_NAME> -b
 ./09-Install/30-configure_autostart.sh --remove --apply
 ```
 
+**libOVD lock:** before the AdminServer starts (`start all` / `start AdminServer`,
+AdminServer not running), `fmw_ctl.sh` renames
+`$DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok` to `ovd.lok.stale`. The
+Reports server leaves this lock behind; an AdminServer started while it exists
+has no LDAP adapter for the `DefaultAuthenticator` and the EM user search in
+"Add Principal" stays empty (proven 2026-10-16, see
+[em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md)).
+Logged as `Removed stale libOVD lock …` in `ctrl/log/fmw_ctl_<date>.log`.
+
 **Interplay with `01-Run/startStop.sh`:** once the autostart is active, control
 the servers through `fmw_ctl.sh` / `systemctl` (Node Manager). Servers started
 outside the Node Manager show up as `UNKNOWN` in `fmw_ctl.sh status`.

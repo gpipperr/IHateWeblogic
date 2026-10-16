@@ -215,6 +215,7 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 | getserverinfo returns empty response | Reports Server not running | Check WLS_REPORTS in Admin Console |
 | Password visible in URL | authid not in cgicmd.dat | Add authid to cgicmd.dat key (section 4) |
 | Changes have no effect | Security cache not refreshed | Restart WLS_REPORTS managed server |
+| EM "Add Principal": user search returns nothing (users exist) | libOVD lock `config/fmwconfig/ovd/default/ovd.lok` left by the Reports server – the AdminServer started with it has no `DefaultAuthenticator` LDAP adapter | Stop AdminServer, move `ovd.lok` away, start AdminServer (`fmw_ctl.sh` / `startStop.sh` do this automatically since 2026-10-16); workaround: "Advanced Option" in the dialog or WLST `grantAppRole`. Background: [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md) |
 
 ---
 
