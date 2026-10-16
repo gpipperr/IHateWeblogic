@@ -562,13 +562,14 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   `rwserver server=<name>`. Live: single stop/start, stop-all, start-all.
   Also fixed: the status after an action used the `ss` snapshot from the
   script start ("RUNNING port" for stopped servers).
-- [ ] **`startStop.sh` vs. systemd autostart**: `start` / `start-all` start
-  AdminServer and managed servers with the start scripts, past the Node
-  Manager. With `30-` active the NM then sees them as `SHUTDOWN`,
-  `fmw_ctl.sh stop` skips them and `systemctl restart` fails at
-  `nmStart AdminServer` (port in use, seen 2026-10-15; documented in
-  `01-Run/README.md`). Option: when the NM runs, start ADMIN/MANAGED via
-  `nmStart` too, or warn when `fmw-<domain>.service` is active.
+- [x] **`startStop.sh` vs. systemd autostart** (2026-10-16): with the
+  autostart configured, start/stop of AdminServer, managed servers, Reports
+  servers and `start-all`/`stop-all` go through `fmw_ctl.sh` (Node Manager);
+  NM running without autostart: `nmStart` / `start()` via the AdminServer.
+  New status column `Ctrl` (`NM`/`script`) + warning for servers running
+  past the NM; those are shut down via the AdminServer first. Live:
+  WLS_FORMS `script` → stop → start → `NM`, repserver01 stop/start via
+  `fmw_ctl.sh`. Not live-tested: the "NM without autostart" path.
 - [x] **`rwserver.conf` server administrator** (2026-10-16): see
   `<identifier>` above – `reports_admin_sec.conf.des3`.
 - [x] **Reports server security decision** (2026-10-16): `REPORTS_SECURITY`

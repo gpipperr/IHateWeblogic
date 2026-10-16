@@ -40,6 +40,18 @@ if `environment.conf` does not exist yet.
 
 ### Component types
 
+Servers are started the way the Node Manager knows about them (since
+2026-10-16) – the mechanism depends on what is set up:
+
+| Situation | ADMIN / MANAGED / REPORTS start | stop | `start-all` / `stop-all` |
+|---|---|---|---|
+| **Autostart configured** (`$ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh` from `30-configure_autostart.sh`) | `fmw_ctl.sh start <name>` | `fmw_ctl.sh stop <name>` | `fmw_ctl.sh start\|stop all` (+ note on the systemd unit state) |
+| NM running, no autostart | AdminServer: `nmStart`; managed: WLST `start()` via the AdminServer (NM-controlled) | WLST `shutdown()` | per component, as below |
+| NM not running | start scripts (table below) | WLST `shutdown()` | per component |
+
+`fmw_ctl.sh` uses the encrypted WLST keyfiles of the autostart – no password
+needed. Table of the plain mechanisms (NM not running / no autostart):
+
 | Type | Components | Start mechanism | Stop mechanism |
 |---|---|---|---|
 | `NM` | NodeManager | `bin/startNodeManager.sh` (nohup) | `kill <PID>` |
@@ -95,14 +107,27 @@ Reports server) before the AdminServer starts – otherwise the EM user search i
 "Add Principal" stays empty
 ([em_principal_search_libovd.md](../80-FMW-Architecture/em_principal_search_libovd.md)).
 
-> **With the systemd autostart (`09-Install/30-configure_autostart.sh`)**
-> AdminServer and managed servers must be started through the Node Manager
-> (`fmw_ctl.sh` / `systemctl`). `startStop.sh start` / `start-all` starts them
-> with the start scripts, past the NM – the NM then reports them as
-> `SHUTDOWN`, `fmw_ctl.sh stop` skips them and the next `nmStart AdminServer`
-> fails on the occupied port (seen 2026-10-15). Recovery:
-> `startStop.sh stop-all --apply`, then `sudo systemctl start fmw-<domain>`.
-> Stopping with `startStop.sh` is fine.
+### Column `Ctrl` – started by the Node Manager?
+
+For running servers and Reports components the status table shows who
+started them: `NM` (the Node Manager JVM is an ancestor of the process) or
+`script` (started with `startWebLogic.sh` / `startManagedWebLogic.sh` past a
+running NM). For `script` the script warns:
+
+```
+WARN  Running OUTSIDE the Node Manager: WLS_FORMS
+```
+
+Such a server is `SHUTDOWN` for the NM: `fmw_ctl.sh` / `systemctl` skip it
+and the next `nmStart` fails on the occupied port (seen 2026-10-15 with the
+old `startStop.sh`). Fix: `stop <name> --apply` (shut down through the
+AdminServer – `fmw_ctl.sh` would skip it; `stop-all` does this first), then
+`start <name> --apply` (now through the NM). Tested 2026-10-16 with
+WLS_FORMS: `script` → stop → start via `fmw_ctl.sh` → `NM`.
+
+After a manual `stop-all` the systemd unit `fmw-<domain>.service` still shows
+`active (exited)` – `systemctl start` then does nothing, use
+`systemctl restart`.
 
 ### Dry-run
 

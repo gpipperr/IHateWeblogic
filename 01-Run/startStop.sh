@@ -22,6 +22,19 @@
 #            Manager (nmConnect with the admin credentials, nmStart / nmKill -
 #            what startComponent.sh / stopComponent.sh do, without their
 #            password prompt). restartComponent.sh is not supported for them.
+# Node Mgr : Servers must be started the way the Node Manager knows about
+#            them - a server started with startWebLogic.sh /
+#            startManagedWebLogic.sh is "SHUTDOWN" for the NM: fmw_ctl.sh /
+#            systemd skip it and the next nmStart fails (port in use). So:
+#            1. autostart configured (30-configure_autostart.sh,
+#               $ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh): start/stop of
+#               AdminServer, managed servers, Reports servers and
+#               start-all/stop-all are delegated to fmw_ctl.sh (= systemd way)
+#            2. NM running, no autostart: AdminServer via nmStart, managed
+#               servers via start() through the AdminServer (NM-controlled)
+#            3. NM not running: start scripts (as before)
+#            The status table shows per server "Ctrl" NM | script and warns
+#            about servers running outside the Node Manager.
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : 01-Run/README.md
@@ -101,6 +114,7 @@ declare -a C_HOST=()    # configured listen address
 declare -a C_PORT=()    # primary port
 declare -a C_STATUS=()  # RUNNING | STOPPED | UNKNOWN
 declare -a C_PID=()     # PID or ""
+declare -a C_CTRL=()    # NM | script | "" (who started a running server)
 
 # =============================================================================
 # SS/netstat snapshot (reused for all port checks)
@@ -206,6 +220,79 @@ _discover() {
 }
 
 # =============================================================================
+# Node Manager / autostart helpers
+# =============================================================================
+
+_nm_pid() { pgrep -f 'java .*weblogic\.NodeManager' 2>/dev/null | head -1; }
+
+# _under_nm pid - true if the process was started by the running Node Manager
+# (NM -> startWebLogic.sh -> java; NM -> rwserver). Started by hand:
+# startManagedWebLogic.sh -> startWebLogic.sh -> java, no NM in the chain.
+_under_nm() {
+    local p="$1" nm n
+    nm="$(_nm_pid)"
+    [ -z "$nm" ] && return 1
+    for n in 1 2 3 4; do
+        p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
+        [ -z "$p" ] || [ "$p" -le 1 ] && return 1
+        [ "$p" = "$nm" ] && return 0
+    done
+    return 1
+}
+
+# Autostart control script of 09-Install/30-configure_autostart.sh
+DOMAIN_NAME_CFG="$(grep -m1 -o '<name>[^<]*</name>' "$DOMAIN_HOME/config/config.xml" 2>/dev/null \
+                   | sed 's/<[^>]*>//g')"
+DOMAIN_NAME_CFG="${DOMAIN_NAME_CFG:-$(basename "$DOMAIN_HOME")}"
+FMW_CTL="${ORACLE_BASE:-/u01/app/oracle}/admin/${DOMAIN_NAME_CFG}/ctrl/fmw_ctl.sh"
+[ -x "$FMW_CTL" ] || FMW_CTL=""
+FMW_UNIT="fmw-${DOMAIN_NAME_CFG}.service"
+
+# _fmw_ctl start|stop all|<name> - delegate to fmw_ctl.sh (keyfiles, no password)
+_fmw_ctl() {
+    local rc
+    info "via autostart control: $(basename "$FMW_CTL") $1 $2"
+    "$FMW_CTL" "$1" "$2" 2>&1 | sed 's/^[0-9-]* [0-9:]*  /    /' | tee -a "${LOG_FILE:-/dev/null}"
+    rc=${PIPESTATUS[0]}
+    if [ "$rc" -eq 0 ]; then
+        ok "$2: $1 done (Node Manager)"
+    else
+        fail "$2: $1 failed (rc=$rc) - log: $(dirname "$FMW_CTL")/log/"
+    fi
+    return "$rc"
+}
+
+# _wls_start_via_admin <managed> - start() through the AdminServer: the
+# AdminServer asks the Node Manager of the server's machine (startup
+# properties incl. admin URL), so the NM controls the server afterwards
+_wls_start_via_admin() {
+    local name="$1" out
+    if [ -z "${INTERNAL_WL_PWD:-}" ]; then
+        load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" > /dev/null || return 1
+    fi
+    _find_wlst || return 1
+    export _IHW_SRV="$name"
+    out="$(_run_wlst "$(cat <<'STEOF'
+import os
+e = os.environ
+try:
+    connect(e['_IHW_WL_USER'], e['_IHW_WL_PWD'], e['_IHW_WL_URL'])
+    start(e['_IHW_SRV'], 'Server', block='true')
+    print('IHW:OK')
+except Exception, ex:
+    print('IHW:FAIL:' + str(ex).split('\n')[0])
+exit()
+STEOF
+)" 2>&1)"
+    unset _IHW_SRV
+    printf '%s\n' "$out" >> "${LOG_FILE:-/dev/null}"
+    printf '%s\n' "$out" | grep -q '^IHW:OK' && return 0
+    fail "$name: $(printf '%s\n' "$out" | sed -n 's/^IHW:FAIL://p' | head -1)"
+    info "  AdminServer running? Machine of $name assigned to this Node Manager?"
+    return 1
+}
+
+# =============================================================================
 # Refresh status for all components
 # =============================================================================
 
@@ -240,6 +327,10 @@ _refresh_status() {
         esac
 
         C_PID[$i]="${pid:-}"
+        C_CTRL[$i]=""
+        if [ -n "$pid" ] && [[ "$ctype" =~ ^(ADMIN|MANAGED|REPORTS)$ ]]; then
+            _under_nm "$pid" && C_CTRL[$i]="NM" || C_CTRL[$i]="script"
+        fi
 
         if [ -n "$pid" ]; then
             C_STATUS[$i]="RUNNING"
@@ -258,8 +349,8 @@ _refresh_status() {
 
 _print_table() {
     printf "\n"
-    printf "  \033[1m%-4s  %-24s  %-8s  %-10s  %-6s  %s\033[0m\n" \
-        "#" "Component" "Type" "Status" "Port" "PID" | tee -a "${LOG_FILE:-/dev/null}"
+    printf "  \033[1m%-4s  %-24s  %-8s  %-10s  %-6s  %-8s  %s\033[0m\n" \
+        "#" "Component" "Type" "Status" "Port" "PID" "Ctrl" | tee -a "${LOG_FILE:-/dev/null}"
     printLine
     local i
     for (( i=0; i < ${#C_NAME[@]}; i++ )); do
@@ -272,10 +363,24 @@ _print_table() {
         esac
         printf "  %-4s  %-24s  %-8s  " \
             "$((i+1))" "${C_NAME[$i]}" "${C_TYPE[$i]}" | tee -a "${LOG_FILE:-/dev/null}"
-        printf "${status_col}  \033[0m%-6s  %s\n" \
-            "${C_PORT[$i]:--}" "${C_PID[$i]:--}"       | tee -a "${LOG_FILE:-/dev/null}"
+        printf "${status_col}  \033[0m%-6s  %-8s  %s\n" \
+            "${C_PORT[$i]:--}" "${C_PID[$i]:--}" "${C_CTRL[$i]:--}" | tee -a "${LOG_FILE:-/dev/null}"
     done
     printLine
+}
+
+# _warn_outside_nm - servers running past a running Node Manager
+_warn_outside_nm() {
+    local i found=""
+    [ -z "$(_nm_pid)" ] && return 0
+    for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+        [ "${C_CTRL[$i]}" = "script" ] && found="$found ${C_NAME[$i]}"
+    done
+    [ -z "$found" ] && return 0
+    warn "Running OUTSIDE the Node Manager:$found"
+    info "  The NM sees them as SHUTDOWN - fmw_ctl.sh / systemctl skip them, the next"
+    info "  nmStart fails (port in use). Fix: stop <name> --apply, then start <name> --apply"
+    info "  (this script now starts through the Node Manager)."
 }
 
 # =============================================================================
@@ -323,7 +428,7 @@ _run_wlst() {
 # the NM password unless a WLST user config was stored. The NM credentials
 # are the admin credentials (09-Install/11-oracle_nodemanager.sh sets them).
 _run_nm_action() {
-    local action="$1" name="$2" out_log="${3:-/dev/null}"
+    local action="$1" name="$2" out_log="${3:-/dev/null}" stype="${4:-ReportsServerComponent}"
     local nm_props="$DOMAIN_HOME/nodemanager/nodemanager.properties"
     local nm_host nm_port nm_sec nm_type="ssl" nm_domain
 
@@ -341,7 +446,7 @@ _run_nm_action() {
 
     export _IHW_NM_HOST="${nm_host:-localhost}" _IHW_NM_PORT="${nm_port:-5556}"
     export _IHW_NM_TYPE="$nm_type" _IHW_NM_DOMAIN="${nm_domain:-$(basename "$DOMAIN_HOME")}"
-    export _IHW_DOMAIN_HOME="$DOMAIN_HOME" _IHW_COMP="$name" _IHW_ACTION="$action"
+    export _IHW_DOMAIN_HOME="$DOMAIN_HOME" _IHW_COMP="$name" _IHW_ACTION="$action" _IHW_STYPE="$stype"
 
     local out rc
     out="$(_run_wlst "$(cat <<'NMEOF'
@@ -354,10 +459,15 @@ except Exception, ex:
     print('IHW:FAIL:nmConnect: ' + str(ex).split('\n')[0])
     exit(exitcode=1)
 try:
-    if e['_IHW_ACTION'] == 'start':
-        nmStart(serverName=e['_IHW_COMP'], serverType='ReportsServerComponent')
+    if e['_IHW_STYPE'] == 'Server':
+        if e['_IHW_ACTION'] == 'start':
+            nmStart(e['_IHW_COMP'])
+        else:
+            nmKill(e['_IHW_COMP'])
+    elif e['_IHW_ACTION'] == 'start':
+        nmStart(serverName=e['_IHW_COMP'], serverType=e['_IHW_STYPE'])
     else:
-        nmKill(serverName=e['_IHW_COMP'], serverType='ReportsServerComponent')
+        nmKill(serverName=e['_IHW_COMP'], serverType=e['_IHW_STYPE'])
     print('IHW:OK')
 except Exception, ex:
     print('IHW:FAIL:' + str(ex).split('\n')[0])
@@ -366,7 +476,7 @@ exit()
 NMEOF
 )" 2>&1)"
     rc=$?
-    unset _IHW_NM_HOST _IHW_NM_PORT _IHW_NM_TYPE _IHW_NM_DOMAIN _IHW_DOMAIN_HOME _IHW_COMP _IHW_ACTION
+    unset _IHW_NM_HOST _IHW_NM_PORT _IHW_NM_TYPE _IHW_NM_DOMAIN _IHW_DOMAIN_HOME _IHW_COMP _IHW_ACTION _IHW_STYPE
     printf '%s\n' "$out" | tee -a "$out_log" >> "${LOG_FILE:-/dev/null}"
 
     if printf '%s\n' "$out" | grep -q '^IHW:OK'; then
@@ -450,6 +560,14 @@ _start_comp() {
                 mv -f "$ovd_lok" "${ovd_lok}.stale" \
                     && info "Removed stale libOVD lock: $ovd_lok"
             fi
+            if [ -n "$FMW_CTL" ]; then
+                _fmw_ctl start "$name"; return $?
+            elif [ -n "$(_nm_pid)" ]; then
+                # NM running: nmStart, otherwise the NM does not know the server
+                _run_nm_action start "$name" "$start_log" Server || return 1
+                ok "$name started (Node Manager)"
+                return 0
+            fi
             nohup "$wl_sh" > "$start_log" 2>&1 &
             _check_early_exit $! "$start_log" "AdminServer" || return 1
             ok "AdminServer start initiated (PID $!) – allow ~60s to come up"
@@ -467,6 +585,13 @@ _start_comp() {
                 info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
                 return 1
             fi
+            if [ -n "$FMW_CTL" ]; then
+                _fmw_ctl start "$name"; return $?
+            elif [ -n "$(_nm_pid)" ]; then
+                _wls_start_via_admin "$name" || return 1
+                ok "$name started (via AdminServer / Node Manager)"
+                return 0
+            fi
             nohup "$mgd_sh" "$name" "${WL_ADMIN_URL:-t3://localhost:7001}" \
                 > "$start_log" 2>&1 &
             _check_early_exit $! "$start_log" "$name" || return 1
@@ -478,6 +603,7 @@ _start_comp() {
                 info "  ./01-Run/startStop.sh start NodeManager --apply"
                 return 1
             fi
+            [ -n "$FMW_CTL" ] && { _fmw_ctl start "$name"; return $?; }
             # nmStart returns when the NM reports the component as started
             _run_nm_action start "$name" "$start_log" || return 1
             ok "$name started (Node Manager)"
@@ -502,9 +628,19 @@ _start_comp() {
 # =============================================================================
 
 _stop_comp() {
-    local name="$1" ctype="$2" pid="$3"
+    local name="$1" ctype="$2" pid="$3" ctrl="${4:-}"
 
     info "Stopping $name (type=$ctype) ..."
+
+    # Autostart configured: same orderly shutdown / nmKill as systemd. Not for
+    # a server started past the NM - fmw_ctl.sh sees it as SHUTDOWN and skips
+    # it; that one is shut down through the AdminServer (WLST) below.
+    if [ -n "$FMW_CTL" ] && [ "$ctrl" != "script" ] && [[ "$ctype" =~ ^(ADMIN|MANAGED|REPORTS)$ ]]; then
+        _fmw_ctl stop "$name"; return $?
+    fi
+    if [[ "$ctype" =~ ^(ADMIN|MANAGED)$ ]] && [ -z "${INTERNAL_WL_PWD:-}" ]; then
+        load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" > /dev/null || return 1
+    fi
 
     case "$ctype" in
         NM)
@@ -589,6 +725,15 @@ PYEOF
 # Start-all: NM -> AdminServer -> Managed -> Reports -> OHS
 # =============================================================================
 
+# systemd keeps its own view: "active (exited)" after start, independent of
+# what fmw_ctl.sh did by hand afterwards
+_systemd_note() {
+    systemctl is-enabled "$FMW_UNIT" > /dev/null 2>&1 || return 0
+    info "systemd unit $FMW_UNIT: $(systemctl is-active "$FMW_UNIT" 2>/dev/null)"
+    info "  As root the same is: systemctl start|stop $FMW_UNIT. After a manual stop-all the"
+    info "  unit still shows 'active' - 'systemctl start' then does nothing, use 'restart'."
+}
+
 _start_all() {
     local i
     for ctype in "NM" "ADMIN" "MANAGED" "REPORTS" "OHS"; do
@@ -623,7 +768,7 @@ _stop_all() {
                 continue
             fi
             section "Stopping ${C_NAME[$i]}"
-            _stop_comp "${C_NAME[$i]}" "${C_TYPE[$i]}" "${C_PID[$i]}" || true
+            _stop_comp "${C_NAME[$i]}" "${C_TYPE[$i]}" "${C_PID[$i]}" "${C_CTRL[$i]}" || true
         done
     done
 }
@@ -645,6 +790,7 @@ _refresh_status
 
 section "Component Status"
 _print_table
+_warn_outside_nm
 
 if [ "$ACTION" = "list" ]; then
     print_summary
@@ -652,15 +798,28 @@ if [ "$ACTION" = "list" ]; then
 fi
 
 # ---- Stop actions require WLST credentials; start actions use boot.properties ----
+if [ -n "$FMW_CTL" ]; then
+    info "Autostart configured: $FMW_CTL"
+    info "  start/stop of servers and Reports components go through it (Node Manager)"
+fi
+
 case "$ACTION" in
     stop|stop-all)
-        section "Loading Credentials"
-        load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" || { print_summary; exit 2; }
+        # with fmw_ctl.sh the keyfiles of the autostart are used
+        if [ -z "$FMW_CTL" ]; then
+            section "Loading Credentials"
+            load_weblogic_password "${ROOT_DIR}/weblogic_sec.conf.des3" || { print_summary; exit 2; }
+        fi
         ;;
 esac
 
 if ! $APPLY; then
     printf "\n"
+    if [ -n "$FMW_CTL" ]; then
+        info "Would run through: $FMW_CTL (Node Manager)"
+    elif [ -n "$(_nm_pid)" ]; then
+        info "Node Manager running: AdminServer via nmStart, managed servers via the AdminServer"
+    fi
     info "DRY-RUN: add --apply to execute."
     info "  Example: $(basename "$0") $ACTION${COMP_ARG:+ $COMP_ARG} --apply"
     print_summary
@@ -685,17 +844,36 @@ case "$ACTION" in
             print_summary; exit 2
         }
         section "Stopping ${C_NAME[$idx]}"
-        _stop_comp "${C_NAME[$idx]}" "${C_TYPE[$idx]}" "${C_PID[$idx]}"
+        _stop_comp "${C_NAME[$idx]}" "${C_TYPE[$idx]}" "${C_PID[$idx]}" "${C_CTRL[$idx]}"
         ;;
 
     start-all)
         section "Starting All Components"
-        _start_all
+        if [ -n "$FMW_CTL" ]; then
+            _fmw_ctl start all
+            _systemd_note
+        else
+            _start_all
+        fi
         ;;
 
     stop-all)
         section "Stopping All Components"
-        _stop_all
+        if [ -n "$FMW_CTL" ]; then
+            # servers started past the NM first - fmw_ctl.sh would skip them
+            for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+                [ "${C_CTRL[$i]}" = "script" ] && [ "${C_TYPE[$i]}" = "MANAGED" ] \
+                    && { _stop_comp "${C_NAME[$i]}" "${C_TYPE[$i]}" "${C_PID[$i]}" script || true; }
+            done
+            _fmw_ctl stop all
+            for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+                [ "${C_CTRL[$i]}" = "script" ] && [ "${C_TYPE[$i]}" = "ADMIN" ] \
+                    && { _stop_comp "${C_NAME[$i]}" ADMIN "${C_PID[$i]}" script || true; }
+            done
+            _systemd_note
+        else
+            _stop_all
+        fi
         ;;
 esac
 
