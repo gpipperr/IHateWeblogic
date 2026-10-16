@@ -450,7 +450,8 @@ printf "\n"
 _ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
     "Reports Server name(s)"  "repserver01"
 _ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
-_ask REPORTS_CUSTOMER_DIR    "Reports customer directory"   "/app/reports/custom"
+_ask REPORTS_CUSTOMER_DIR    "Reports source directory (.rdf/.rep)" "${ORACLE_BASE}/reports/source"
+_ask REPORTS_IMAGE_DIR       "Reports image directory"      "${ORACLE_BASE}/reports/images"
 
 printf "\n"
 info "Sizes ulimits (nofile/nproc) for the oracle OS user – see"
@@ -590,6 +591,7 @@ done
 unset _s
 _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
+_show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "EXPECTED_SESSIONS"    "$EXPECTED_SESSIONS"
 _show "ULIMIT_NOFILE"        "${ULIMIT_NOFILE:-(unset – manual capacity planning)}"
 _show "ULIMIT_NPROC"         "${ULIMIT_NPROC:-(unset – manual capacity planning)}"
@@ -698,6 +700,7 @@ REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
+REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 
 # --- ulimits (oracle OS user) -------------------------------------------------
 # Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
@@ -786,6 +789,7 @@ REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
+REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
 ULIMIT_NOFILE="${ULIMIT_NOFILE}"
 ULIMIT_NPROC="${ULIMIT_NPROC}"

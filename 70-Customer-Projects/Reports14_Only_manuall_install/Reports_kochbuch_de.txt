@@ -798,11 +798,11 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   echo "CGICMD_DAT=$CGICMD_DAT"
 
   # Werte nur fuer Schritt 9:
-  export REPORTS_PATH=/app/oracle/applications/source
+  export REPORTS_PATH=/u01/oracle/reports/source
   # Bilder/Grafiken der Reports (frueher unter Windows z.B. d:\graphiken) -
   # eigener Ordner, wird in 9.7 an REPORTS_PATH angehaengt und freigegeben
-  export REPORTS_IMAGE_DIR=/app/oracle/applications/graphiken
-  export REPORTS_TMP=/tmp/reports
+  export REPORTS_IMAGE_DIR=/u01/oracle/reports/images
+  export REPORTS_TMP=/u01/oracle/reports/tmp    # NICHT /tmp - wird beim Reboot geleert
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
   export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
   export TNS_ADMIN=/app/oracle/19c/network/admin
@@ -1044,7 +1044,7 @@ EOF
   # "REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
   # Block schon vorhanden (ohne REPORTS_PATH-Zeile)? Die Zeile von Hand
   # nach "export NLS_LANG=..." einfuegen:
-  #   REPORTS_PATH=${REPORTS_PATH}:/app/oracle/applications/source:/app/oracle/applications/graphiken; export REPORTS_PATH
+  #   REPORTS_PATH=${REPORTS_PATH}:/u01/oracle/reports/source:/u01/oracle/reports/images; export REPORTS_PATH
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
@@ -1264,7 +1264,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            Trennzeichen ":" / "," (gelten als ein Verzeichnisname)
   Loesung: genau EIN <read>, Verzeichnisse durch ";" getrennt, jedes
            Verzeichnis exakt (Unterverzeichnisse zaehlen nicht):
-             <read>/app/oracle/applications/source;/app/oracle/applications/graphiken</read>
+             <read>/u01/oracle/reports/source;/u01/oracle/reports/images</read>
            danach Reports-Server neu starten (stopComponent.sh +
            startComponent.sh). REPORTS_PATH bleibt mit ":" getrennt.
 

@@ -258,7 +258,7 @@ DB_SCHEMA_PREFIX=DEV
 # === COMPONENTS ===
 INSTALL_COMPONENTS=FORMS_AND_REPORTS    # FORMS_ONLY | REPORTS_ONLY | FORMS_AND_REPORTS
 FORMS_CUSTOMER_DIR=/app/forms/custom
-REPORTS_CUSTOMER_DIR=/app/reports/custom
+REPORTS_CUSTOMER_DIR=/u01/app/oracle/reports/source
 
 # === MOS DOWNLOADS ===
 MOS_USER=firstname.lastname@company.com

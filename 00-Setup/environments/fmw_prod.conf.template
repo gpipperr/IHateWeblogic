@@ -47,10 +47,14 @@ REPORTS_TOOLS_INSTANCE=reptools_ent
 REPORTS_SERVER_INSTANCES=repserver_ent
 
 # --- Reports Runtime Configuration -------------------------------------------
-# Directory containing .rdf / .rep report source files
-REPORTS_PATH=/app/oracle/applications
-# Writable directory for temporary output files (must be accessible by Reports engines)
-REPORTS_TMP=/tmp/reports
+# Report directories - default layout $ORACLE_BASE/reports/{source,images,tmp}
+# (outside ORACLE_HOME and /tmp; created by 09-Install/13-oracle_setup_reports.sh)
+REPORTS_CUSTOMER_DIR=/u01/app/oracle/reports/source
+REPORTS_IMAGE_DIR=/u01/app/oracle/reports/images
+# REPORTS_PATH: sources + images, ':'-separated (rwserver.conf <folderAccess><read> gets ';')
+REPORTS_PATH=/u01/app/oracle/reports/source:/u01/app/oracle/reports/images
+# Writable directory for output files (must be accessible by Reports engines)
+REPORTS_TMP=/u01/app/oracle/reports/tmp
 # Broadcasting port – unique per environment in the subnet (range: 14021–14030)
 # 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)
 REPORTS_BROADCAST_PORT=14027

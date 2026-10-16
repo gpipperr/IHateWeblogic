@@ -46,8 +46,9 @@ REPORTS_TOOLS_INSTANCE="reptools_ent"       # Always exactly one per domain
 REPORTS_SERVER_INSTANCES="repserver_ent"    # Space-separated; multiple allowed
 
 # Reports runtime paths
-REPORTS_PATH="/app/oracle/applications/source"   # Location of .rdf/.rep source files
-REPORTS_TMP="/tmp/reports"                        # Temporary output directory
+REPORTS_PATH="/u01/app/oracle/reports/source:/u01/app/oracle/reports/images"   # report sources + images (':')
+REPORTS_TMP="/u01/app/oracle/reports/tmp"                               # output directory (not /tmp - cleaned at reboot)
+# 13- creates these directories (750) - default layout $ORACLE_BASE/reports/{source,images,tmp}
 
 # Broadcasting port – unique per environment within the subnet (range: 14021–14030)
 # See: Oracle Support Note Doc ID 437228.1
@@ -317,8 +318,8 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
   <!-- Environment QS: variables passed to each report engine process -->
   <environment id="QS">
-    <envVariable name="REPORTS_PATH"        value="/app/oracle/applications/source"/>
-    <envVariable name="REPORTS_TMP"         value="/tmp/reports"/>
+    <envVariable name="REPORTS_PATH"        value="/u01/app/oracle/reports/source:/u01/app/oracle/reports/images"/>
+    <envVariable name="REPORTS_TMP"         value="/u01/app/oracle/reports/tmp"/>
     <envVariable name="NLS_LANG"            value="GERMAN_GERMANY.AL32UTF8"/>
     <envVariable name="TNS_ADMIN"           value="/app/oracle/19c/network/admin"/>
     <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>
@@ -354,8 +355,8 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
   <!-- folderAccess: read = report source directory, write = temp output directory -->
   <folderAccess>
-    <read>/app/oracle/applications/source</read>
-    <write>/tmp/reports</write>
+    <read>/u01/app/oracle/reports/source;/u01/app/oracle/reports/images</read>
+    <write>/u01/app/oracle/reports/tmp</write>
   </folderAccess>
 
   <!-- Internal Reports admin credentials (NOT the WebLogic admin user) -->

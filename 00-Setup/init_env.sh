@@ -917,8 +917,13 @@ unset _repserver_arr
 
 # Runtime paths – use existing conf values as baseline, fall back to defaults
 # REPORTS_CUSTOMER_DIR comes from the setup interview (customer .rdf/.rep files)
-DET_REPORTS_PATH="${REPORTS_PATH:-${REPORTS_CUSTOMER_DIR:-/app/oracle/applications}}"
-DET_REPORTS_TMP="${REPORTS_TMP:-/tmp/reports}"
+# Default layout: $ORACLE_BASE/reports/{source,images,tmp} (outside ORACLE_HOME
+# and /tmp). REPORTS_PATH = sources + images (':'-separated, also granted in
+# rwserver.conf <folderAccess><read>, there ';'-separated by 13-).
+_rep_base="${ORACLE_BASE:-${CONF_ORACLE_BASE:-/u01/app/oracle}}/reports"
+DET_REPORTS_PATH="${REPORTS_PATH:-${REPORTS_CUSTOMER_DIR:-$_rep_base/source}:${REPORTS_IMAGE_DIR:-$_rep_base/images}}"
+DET_REPORTS_TMP="${REPORTS_TMP:-$_rep_base/tmp}"
+unset _rep_base
 DET_REPORTS_BROADCAST_PORT="${REPORTS_BROADCAST_PORT:-14027}"
 
 printList "REPORTS_COMPONENT_HOME"    30 "$DET_REPORTS_COMPONENT"
@@ -1216,9 +1221,9 @@ REPORTS_TOOLS_INSTANCE="${CONF_REPORTS_TOOLS_INSTANCE}"
 REPORTS_SERVER_INSTANCES="${CONF_REPORTS_SERVER_INSTANCES}"
 
 # --- Reports Runtime Configuration -------------------------------------------
-# REPORTS_PATH: directory containing .rdf / .rep report source files
+# REPORTS_PATH: report sources (.rdf/.rep) + images, ':'-separated
 REPORTS_PATH="${CONF_REPORTS_PATH}"
-# REPORTS_TMP: writable directory for temporary output files
+# REPORTS_TMP: writable directory for temporary output files (not /tmp)
 REPORTS_TMP="${CONF_REPORTS_TMP}"
 # Broadcasting port – unique per environment in the subnet (range: 14021–14030)
 # 14027 = FMW 14.1.2.0.0 production,  14028 = standby  (Doc ID 437228.1)

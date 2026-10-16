@@ -462,6 +462,40 @@ else
 fi
 
 # =============================================================================
+# 4b. Report directories (REPORTS_PATH entries + REPORTS_TMP)
+#     Default layout (since 2026-10-16): $ORACLE_BASE/reports/source (reports),
+#     .../images (images, Link File / Read from File), .../tmp (output) - outside
+#     ORACLE_HOME and outside /tmp (cleaned at reboot). <folderAccess> grants
+#     exactly these directories (no subdirectories).
+# =============================================================================
+
+section "Report Directories"
+
+_report_dirs=()
+IFS=':' read -r -a _rp_dirs <<< "$REPORTS_PATH"
+for _d in "${_rp_dirs[@]}" "$REPORTS_TMP"; do
+    [ -n "$_d" ] && _report_dirs+=("$_d")
+done
+for _d in "${_report_dirs[@]}"; do
+    if [ -d "$_d" ]; then
+        if [ -w "$_d" ]; then
+            ok "$(printf "  exists   %s" "$_d")"
+        else
+            warn "$(printf "  exists, not writable for %s: %s" "$(id -un)" "$_d")"
+        fi
+    elif $APPLY; then
+        if mkdir -p "$_d" && chmod 750 "$_d"; then
+            ok "$(printf "  created  %s (750)" "$_d")"
+        else
+            fail "$(printf "  cannot create %s - create it as root and chown to %s" "$_d" "$(id -un)")"
+        fi
+    else
+        info "$(printf "  dry-run - would create %s (750)" "$_d")"
+    fi
+done
+unset _report_dirs _rp_dirs _d
+
+# =============================================================================
 # 5. rwserver.conf (per ReportsServer instance)
 # =============================================================================
 
@@ -611,6 +645,17 @@ if [ ! -f "$_REPORTS_SH" ]; then
     info "  Verify domain creation completed (08-oracle_setup_domain.sh)"
 elif grep -q 'IHateWeblogic Settings' "$_REPORTS_SH" 2>/dev/null; then
     ok "reports.sh: IHateWeblogic block already present"
+    # REPORTS_PATH for the Reports server process and the tools (rwrun,
+    # rwconverter) - added 2026-10-16, older blocks lack it
+    if grep -qF "REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH};" "$_REPORTS_SH"; then
+        ok "reports.sh: REPORTS_PATH line present"
+    elif $APPLY; then
+        cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
+        sed -i "/^REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING/a REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH}; export REPORTS_PATH" "$_REPORTS_SH"
+        ok "reports.sh: REPORTS_PATH line added ($REPORTS_PATH)"
+    else
+        info "Dry-run – would add REPORTS_PATH=\${REPORTS_PATH}:$REPORTS_PATH to reports.sh"
+    fi
 else
     warn "reports.sh: NLS_LANG/font block not yet added"
     if $APPLY; then
@@ -623,6 +668,7 @@ else
             printf '# Font configuration (must match rwserver.conf envVariable entries)\n'
             printf 'REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY\n'
             printf 'REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING\n'
+            printf 'REPORTS_PATH=${REPORTS_PATH}:%s; export REPORTS_PATH\n' "$REPORTS_PATH"
             printf '# ────────────────────────────────────────────────────────────────────────────\n'
         } >> "$_REPORTS_SH"
         ok "reports.sh updated with NLS_LANG and font variables"

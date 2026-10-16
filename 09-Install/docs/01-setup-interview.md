@@ -104,7 +104,8 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 | `WLS_LISTEN_ADDRESS` | `localhost` | see below |
 | `REPORTS_SERVER_NAME` | `repserver01` | – |
 | `FORMS_CUSTOMER_DIR` | `/app/forms/custom` | – |
-| `REPORTS_CUSTOMER_DIR` | `/app/reports/custom` | – |
+| `REPORTS_CUSTOMER_DIR` | `${ORACLE_BASE}/reports/source` | – |
+| `REPORTS_IMAGE_DIR` | `${ORACLE_BASE}/reports/images` | images of the reports (Link File / Read from File) |
 | `EXPECTED_SESSIONS` | `lt100` | see below – sizes `ULIMIT_NOFILE`/`ULIMIT_NPROC` |
 
 #### EXPECTED_SESSIONS
@@ -163,8 +164,8 @@ Shown only when `INSTALL_COMPONENTS` includes Reports.
 |---|---|---|
 | `REPORTS_TOOLS_INSTANCE` | `reptools_ent` | Name of the ReportsTools component instance (exactly one per domain) |
 | `REPORTS_SERVER_INSTANCES` | `repserver_ent` | Space-separated list of ReportsServer instance names (multiple allowed) |
-| `REPORTS_PATH` | `/app/oracle/applications` | Directory containing `.rdf`/`.rep` report source files |
-| `REPORTS_TMP` | `/tmp/reports` | Writable temp directory for output files (accessible by Reports engines) |
+| `REPORTS_PATH` | `<REPORTS_CUSTOMER_DIR>:<REPORTS_IMAGE_DIR>` | report sources + images, `:`-separated (13- writes `<folderAccess><read>` with `;`) |
+| `REPORTS_TMP` | `${ORACLE_BASE}/reports/tmp` | writable output directory (accessible by Reports engines; not `/tmp`, cleaned at reboot) – 13- creates all three directories |
 | `REPORTS_BROADCAST_PORT` | `14027` | UDP broadcast port – must be **unique per environment in the subnet** (range 14021–14030, Doc ID 437228.1) |
 | `REPORTS_ENGINE_INIT` | `2` | `rwserver.conf`: initial number of engine processes at startup |
 | `REPORTS_ENGINE_MAX` | `5` | `rwserver.conf`: maximum concurrent engine processes |
