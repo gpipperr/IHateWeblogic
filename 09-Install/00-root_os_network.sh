@@ -105,7 +105,7 @@ section "Hostname Consistency"
 SHORT_HOST="$(hostname 2>/dev/null)"
 FQDN="$(hostname -f 2>/dev/null)"
 DOMAIN="$(hostname -d 2>/dev/null)"
-# First label only (e.g. "orafusion01" from "orafusion01.pipperr.local")
+# First label only (e.g. "fmwhost01" from "fmwhost01.example.local")
 SHORT_LABEL="${SHORT_HOST%%.*}"
 # Static hostname from hostnamectl (what is persistently configured)
 STATIC_HOSTNAME="$(hostnamectl status 2>/dev/null \
@@ -137,8 +137,8 @@ if [ -z "$FQDN" ]; then
 elif ! printf "%s" "$FQDN" | grep -q '\.'; then
     # Check if FQDN is reachable via hostname -a (alias in /etc/hosts)
     # This happens when /etc/hosts has the short name as first entry:
-    #   Wrong:   <ip>  orafusion01  orafusion01.pipperr.local
-    #   Correct: <ip>  orafusion01.pipperr.local  orafusion01
+    #   Wrong:   <ip>  fmwhost01  fmwhost01.example.local
+    #   Correct: <ip>  fmwhost01.example.local  fmwhost01
     FQDN_FROM_ALIAS="$(printf "%s" "${HOSTNAME_ALIASES:-}" | tr ' ' '\n' | grep '\.' | head -1)"
     if [ -n "$FQDN_FROM_ALIAS" ]; then
         fail "$(printf "hostname -f returns '%s' (no domain) but FQDN '%s' found via hostname -a" \

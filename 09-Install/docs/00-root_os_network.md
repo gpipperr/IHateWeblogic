@@ -91,12 +91,12 @@ grep -E "$(hostname)" /etc/hosts
 
 ```
 # /etc/hosts – WRONG
-192.168.1.10  orafusion01  orafusion01.pipperr.local
+192.168.1.10  fmwhost01  fmwhost01.example.local
 ```
 
 ```bash
-hostname -f   →  orafusion01              # no dot → WebLogic FAIL
-hostname -a   →  orafusion01.pipperr.local
+hostname -f   →  fmwhost01              # no dot → WebLogic FAIL
+hostname -a   →  fmwhost01.example.local
 hostname -d   →  (empty)
 ```
 
@@ -104,13 +104,13 @@ hostname -d   →  (empty)
 
 ```
 # /etc/hosts – CORRECT
-192.168.1.10  orafusion01.pipperr.local  orafusion01
+192.168.1.10  fmwhost01.example.local  fmwhost01
 ```
 
 ```bash
-hostname -f   →  orafusion01.pipperr.local   # ✓ FQDN
-hostname -a   →  orafusion01                 # short name as alias
-hostname -d   →  pipperr.local
+hostname -f   →  fmwhost01.example.local   # ✓ FQDN
+hostname -a   →  fmwhost01                 # short name as alias
+hostname -d   →  example.local
 ```
 
 The script detects the wrong-order case: if `hostname -f` has no dot but

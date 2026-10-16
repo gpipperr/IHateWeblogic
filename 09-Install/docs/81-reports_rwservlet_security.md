@@ -49,7 +49,7 @@ Consequences:
 - With `no`/`L0`/`L1` and a non-secure server, web commands need the server
   administrator = `<identifier>` in `rwserver.conf`.
 
-### 2.2 Live results (orafusion01, 2026-10-15)
+### 2.2 Live results (test host, 2026-10-15)
 
 | Test | Result |
 |---|---|
