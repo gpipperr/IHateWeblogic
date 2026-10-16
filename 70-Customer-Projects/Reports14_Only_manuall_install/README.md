@@ -54,6 +54,16 @@ und deutschen Kommentaren.
    eine systemd-Unit (wartet auf "RUNNING" statt fester Pausen, Stop ohne
    Passworteingabe über boot.properties).
 
+8. [Reports_security.txt](Reports_security.txt) – Härtung der fertigen
+   Reports-/WebLogic-Umgebung (nach SSL): Ports/Firewall, Nginx (Header,
+   `/em` nur für Admins, Reports-Verwaltungsbefehle wie `showenv` von außen
+   gesperrt), Kennwort-Richtlinie und Kontosperre, persönliche
+   Admin-Konten, Reports-Benutzer/Rollen/Policies, Reports-Server-
+   Administrator `<identifier>`, `rwservlet.properties`, Dateirechte,
+   Node Manager, sudo, Patchstand, Kennwortwechsel. Benutzer und Rollen
+   jeweils über die Oberfläche (Enterprise Manager) **und** als
+   WLST-Befehle zum Selbst-Eintippen.
+
 ## Hinweis
 
 Die externe Datenbank wird in keinem dieser Kochbücher angelegt – sie

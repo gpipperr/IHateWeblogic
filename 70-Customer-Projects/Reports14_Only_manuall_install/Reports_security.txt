@@ -1,0 +1,737 @@
+================================================================================
+  Oracle Reports 14.1.2 / WebLogic 14.1.2 - Absicherung (Haertung)
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator, reine Reports-Umgebung (ohne Forms)
+  Umgebung   : Oracle Linux 9, FMW/WebLogic 14.1.2, Nginx als TLS-Proxy
+  Erstellt   : 2026-10
+  Grundlage  : IHateWeblogic (Gunther Pipperr), 09-Install/docs/12, 80, 81,
+               80-FMW-Architecture/report_server_image_handling.md
+================================================================================
+
+VORAUSSETZUNGEN
+----------------
+  - Installation nach Reports_kochbuch_de.txt ist abgeschlossen, Reports
+    laufen (Funktionstest Schritt 9.11 erfolgreich).
+  - SSL ist eingerichtet: Nginx terminiert TLS (SSL_Kochbuch_de.txt,
+    FMW_Kochbuch_de.txt). WebLogic selbst laeuft NUR auf localhost.
+  - Diese Anleitung aendert Sicherheitseinstellungen. Vor JEDEM Schritt die
+    genannte Datei sichern. Nach jedem Schritt den Funktionstest
+    (ABSCHLUSS-CHECKLISTE) machen - nicht alles auf einmal umstellen, sonst
+    ist bei einem Fehler nicht erkennbar, welche Aenderung ihn ausgeloest
+    hat.
+  - Benutzer, Rollen und Richtlinien werden je ZWEIMAL beschrieben:
+      Weg A: ueber die Oberflaeche (Enterprise Manager, /em)
+      Weg B: als WLST-Befehle zum Selbst-Eintippen (interaktive WLST-Sitzung)
+    Beide Wege fuehren zum selben Ergebnis - nur EINEN davon ausfuehren.
+  - Hinweis zu den Oberflaechen: WebLogic 14.1.2 hat KEINE klassische
+    Administration Console (/console) mehr. Die Oberflaeche fuer Benutzer
+    und Rollen ist der Enterprise Manager (Fusion Middleware Control),
+    der mit "Oracle JRF" in der Domain liegt und auf dem AdminServer
+    laeuft: http://localhost:7001/em
+  - Menuetexte: Englisch (Deutsch) - deutsche Begriffe erscheinen nur bei
+    deutscher Browser-/Konsolensprache.
+
+  Variablen fuer diese Anleitung (Werte an die Umgebung anpassen - die
+  Beispielwerte entsprechen Reports_kochbuch_de.txt):
+
+    export ORACLE_HOME=/u01/oracle/fmw
+    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export DOMAIN_NAME=reportRpgpi
+    export WLS_ADMIN_URL=t3://localhost:7001
+    export WLS_ADMIN_PORT=7001
+    export WLS_MANAGED_SERVER=WLS_REPORTS
+    export WLS_REPORTS_PORT=9002
+    export REPORTS_SERVER_NAME=repServer01
+    export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+    export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
+    export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
+  Kennwoerter: in dieser Anleitung steht immer <KENNWORT> - echte Werte
+  NIE in Dateien oder Skripte schreiben, sondern nur interaktiv eingeben
+  und im Passwort-Safe ablegen.
+
+
+================================================================================
+SCHRITT 0: Bestandsaufnahme (nur lesen, nichts aendern)  (als oracle)
+================================================================================
+
+  # 0.1 Welche Ports sind offen und auf welcher Adresse?
+  ss -tlnp | grep -E ':(7001|9002|5556|443|80)\b'
+  # Erwartet: 7001, 9002, 5556 NUR auf 127.0.0.1 bzw. [::1]/localhost,
+  #           443 und 80 (nginx) auf 0.0.0.0 bzw. *.
+  # Steht 7001/9002 auf 0.0.0.0 oder der Server-IP -> SCHRITT 1.
+
+  # 0.2 Domain im Produktionsmodus? (kein Entwicklungsmodus mit
+  #     automatischem Deployment und schwaecheren Voreinstellungen)
+  grep -n "production-mode-enabled" $DOMAIN_HOME/config/config.xml
+  # Erwartet: <production-mode-enabled>true</production-mode-enabled>
+
+  # 0.3 Firewall
+  firewall-cmd --list-ports
+  firewall-cmd --list-services
+  # Erwartet: nur 80/tcp, 443/tcp und der Reports-Broadcast-Port (UDP,
+  #           z.B. 14027/udp). KEIN 7001, 9002, 5556.
+
+  # 0.4 Reports-Server-Konfiguration
+  grep -nE "identifier|folderAccess|<read>|<write>|<job " $RWSERVER_CONF
+  cat $REPORTS_APP_CONF/rwservlet.properties
+
+  # 0.5 Dateien mit Kennwoertern (Rechte pruefen, siehe SCHRITT 9)
+  find $DOMAIN_HOME -name boot.properties -exec ls -l {} \;
+  ls -l $REPORTS_APP_CONF/cgicmd.dat $RWSERVER_CONF
+  ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties 2>/dev/null
+
+
+================================================================================
+SCHRITT 1: Netzwerk - WebLogic nur lokal erreichbar  (als root / oracle)
+================================================================================
+
+  # Ziel: von aussen ist NUR Nginx (443, 80 -> Umleitung auf 443)
+  # erreichbar. AdminServer (7001), Reports-Managed-Server (9002) und Node
+  # Manager (5556) hoeren nur auf localhost.
+
+  # 1.1 Listen-Adressen in der Domain pruefen (als oracle)
+  grep -n "<listen-address>" $DOMAIN_HOME/config/config.xml
+  grep -E "^ListenAddress" $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Erwartet: localhost oder 127.0.0.1 (leere listen-address = ALLE
+  # Adressen -> dann im EM unter Server -> Einstellungen auf localhost
+  # setzen und den Server neu starten).
+
+  # 1.2 Firewall: nur 80/443 + Reports-UDP-Port (als root)
+  firewall-cmd --permanent --remove-port=7001/tcp 2>/dev/null
+  firewall-cmd --permanent --remove-port=9002/tcp 2>/dev/null
+  firewall-cmd --permanent --remove-port=5556/tcp 2>/dev/null
+  firewall-cmd --reload
+  firewall-cmd --list-ports
+  # Der Reports-Broadcast-Port (UDP, z.B. 14027) BLEIBT offen - der
+  # Reports-Server braucht ihn zum Start (sonst REP-50600).
+
+  # 1.3 Zugriff auf AdminServer/EM fuer Administratoren: am sichersten
+  #     ueber einen SSH-Tunnel statt ueber Nginx (vom Admin-PC aus):
+  #       ssh -L 7001:127.0.0.1:7001 oracle@<server>
+  #     danach im Browser des Admin-PCs: http://localhost:7001/em
+  #     Dann kann /em in Nginx komplett gesperrt werden (SCHRITT 2.2).
+
+
+================================================================================
+SCHRITT 2: Nginx haerten  (als root)
+================================================================================
+
+  cp /etc/nginx/conf.d/oracle-wls.conf /etc/nginx/conf.d/oracle-wls.conf.bak_$(date +%Y%m%d_%H%M%S)
+  vi /etc/nginx/conf.d/oracle-wls.conf
+
+  # 2.1 Server-Version verbergen und Sicherheits-Header setzen - im
+  #     "server { listen 443 ssl; ... }"-Block oben einfuegen:
+  #
+  #     server_tokens off;
+  #     add_header Strict-Transport-Security "max-age=31536000" always;
+  #     add_header X-Content-Type-Options    "nosniff"          always;
+  #     add_header X-Frame-Options           "SAMEORIGIN"       always;
+  #
+  #   Achtung: Steht in einer location ein eigenes "add_header", gelten dort
+  #   die Header des server-Blocks NICHT (Nginx-Verhalten) - betrifft hier
+  #   nur /nginx-health, das ist unkritisch.
+  #   HSTS (Strict-Transport-Security) erst setzen, wenn das Zertifikat
+  #   dauerhaft gueltig ist - Browser merken sich die Einstellung 1 Jahr.
+
+  # 2.2 /console und /em
+  #   - /console gibt es in WebLogic 14.1.2 nicht mehr: den location-Block
+  #     "location /console { ... }" loeschen.
+  #   - /em: entweder ganz entfernen (Zugriff nur per SSH-Tunnel, 1.3) oder
+  #     auf die IP-Adressen der Administratoren beschraenken - NICHT ein
+  #     ganzes 10.0.0.0/8-Netz:
+  #
+  #     location /em {
+  #         allow 10.1.2.10;      # Admin-PC 1
+  #         allow 10.1.2.11;      # Admin-PC 2
+  #         deny  all;
+  #         proxy_pass http://wls_admin;
+  #     }
+
+  # 2.3 Reports-Verwaltungsbefehle (Web Commands) von aussen sperren.
+  #     Diese Befehle zeigen Umgebung, Jobs, Server-Interna (showenv zeigt
+  #     z.B. alle Umgebungsvariablen des Servers) oder brechen Jobs ab
+  #     (killjobid). Normale Berichtsaufrufe (/reports/rwservlet?report=...)
+  #     sind davon NICHT betroffen. VOR "location /reports/ { ... }"
+  #     einfuegen:
+  #
+  #     location ~* ^/reports/rwservlet/(showenv|showmap|showjobs|showjobid|showmyjobs|killjobid|getjobid|getserverinfo|showauth|delauth|parsequery|help) {
+  #         allow 127.0.0.1;
+  #         # allow <IP des Monitoring-Servers>;
+  #         deny  all;
+  #         proxy_pass http://wls_reports;
+  #     }
+  #
+  #   Monitoring auf dem Server selbst ruft http://localhost:9002/...
+  #   direkt auf und ist von dieser Sperre nicht betroffen.
+
+  nginx -t && systemctl reload nginx
+
+  # Kontrolle (von einem anderen Rechner aus):
+  #   curl -sI https://<fqdn>/reports/rwservlet/showenv       -> 403
+  #   curl -sI https://<fqdn>/em                              -> 403 (ausser Admin-IP)
+  #   curl -sI https://<fqdn>/ | grep -i -E "server:|strict-transport"
+  #     -> "Server: nginx" ohne Versionsnummer, HSTS-Header vorhanden
+
+
+================================================================================
+SCHRITT 3: WebLogic hinter dem Proxy - HTTPS korrekt erkennen  (als oracle)
+================================================================================
+
+  # Nginx setzt "WL-Proxy-SSL: true" (OS_Kochbuch_de.txt Schritt 8).
+  # WebLogic wertet diesen Header nur aus, wenn "WebLogic Plug-In Enabled"
+  # am Managed Server eingeschaltet ist. Sonst erzeugt WebLogic
+  # Umleitungen auf http:// und Cookies ohne "Secure"-Merkmal.
+
+  grep -n -A30 "<name>${WLS_MANAGED_SERVER}</name>" $DOMAIN_HOME/config/config.xml | grep weblogic-plugin-enabled
+  # Erwartet: <weblogic-plugin-enabled>true</weblogic-plugin-enabled>
+
+  # Falls nicht vorhanden:
+  # Weg A (Oberflaeche):
+  #   EM -> WebLogic Domain (WebLogic-Domaene) -> Environment (Umgebung) ->
+  #         Servers (Server) -> WLS_REPORTS -> Configuration -> General
+  #         (Allgemein) -> Advanced (Erweitert): "WebLogic Plug-In Enabled"
+  #         aktivieren -> Save (Speichern) -> Activate Changes
+  # Weg B (WLST):
+  $WLST
+  #   connect(url='t3://localhost:7001')
+  #   edit()
+  #   startEdit()
+  #   cd('/Servers/WLS_REPORTS')
+  #   cmo.setWeblogicPluginEnabled(True)
+  #   save()
+  #   activate()
+  #   exit()
+  # Danach WLS_REPORTS neu starten.
+
+  # Hinweis zu connect(): ohne Benutzer/Kennwort fragt WLST beides ab -
+  # AUSSER es liegen ~/oracle-WebLogicConfig.properties und
+  # ~/oracle-WebLogicKey.properties vor (Autostart, Schritt 1b) - dann
+  # meldet sich WLST damit OHNE Rueckfrage als dieser Benutzer an.
+
+
+================================================================================
+SCHRITT 4: Kennwort-Richtlinie und Kontosperre  (als oracle)
+================================================================================
+
+  # WebLogic prueft neue Kennwoerter mit dem "SystemPasswordValidator" im
+  # Security Realm "myrealm". Voreinstellung (14.1.2, gelesen 2026-10-16):
+  # mindestens 8 Zeichen, mindestens 1 Ziffer/Sonderzeichen - sonst nichts.
+  # Empfehlung: 12 Zeichen, je 1 Gross-/Kleinbuchstabe, Ziffer, Sonderzeichen,
+  # Kennwort darf den Benutzernamen nicht enthalten.
+  # Gilt nur fuer NEU gesetzte Kennwoerter - bestehende bleiben gueltig.
+
+  # Kontosperre: Voreinstellung bereits aktiv - nach 5 Fehlversuchen wird
+  # das Konto 30 Minuten gesperrt. Nur pruefen, nicht abschwaechen.
+
+  # Weg A (Oberflaeche):
+  #   EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #         Security Realms (Sicherheitsbereiche) -> myrealm
+  #     Bereich Providers -> Password Validation (Kennwortvalidierung) ->
+  #       SystemPasswordValidator -> Werte wie unten setzen -> Save
+  #     Bereich User Lockout (Benutzersperre) -> Werte pruefen
+  #   (Die Menuebezeichnungen haengen vom EM-Stand ab - ist der Punkt nicht
+  #   zu finden, Weg B verwenden.)
+
+  # Weg B (WLST, Attributnamen auf 14.1.2 geprueft):
+  $WLST
+  #   connect(url='t3://localhost:7001')
+  #   dn = cmo.getName()
+  #   edit()
+  #   startEdit()
+  #   cd('/SecurityConfiguration/' + dn + '/Realms/myrealm/PasswordValidators/SystemPasswordValidator')
+  #   cmo.setMinPasswordLength(12)
+  #   cmo.setMinUppercaseCharacters(1)
+  #   cmo.setMinLowercaseCharacters(1)
+  #   cmo.setMinNumericCharacters(1)
+  #   cmo.setMinNonAlphanumericCharacters(1)
+  #   cmo.setRejectEqualOrContainUsername(True)
+  #   cmo.setRejectEqualOrContainReverseUsername(True)
+  #   save()
+  #   activate()
+  #
+  #   # Kontosperre nur anzeigen:
+  #   serverConfig()
+  #   cd('/SecurityConfiguration/' + dn + '/Realms/myrealm/UserLockoutManager/UserLockoutManager')
+  #   print get('LockoutEnabled'), get('LockoutThreshold'), get('LockoutDuration')
+  #   # Erwartet: 1 5 30   (aktiv, 5 Versuche, 30 Minuten)
+  #   exit()
+  #
+  # Meldet activate() "restart required": AdminServer und WLS_REPORTS neu
+  # starten (WLS_Report_start_stop_kochbuch.txt).
+
+  # ACHTUNG Kontosperre und technische Benutzer: schlaegt ein Skript, der
+  # Autostart oder das Monitoring mit einem alten Kennwort fehl, sperrt
+  # WebLogic das Konto nach 5 Versuchen - auch fuer den Administrator.
+  # Nach jedem Kennwortwechsel ALLE Stellen anpassen (SCHRITT 13).
+
+
+================================================================================
+SCHRITT 5: Persoenliche Administratoren statt eines Sammelkontos  (als oracle)
+================================================================================
+
+  # Der bei der Domain-Anlage vergebene Admin-Benutzer (z.B. "weblogic")
+  # bleibt der TECHNISCHE Benutzer fuer boot.properties, Node Manager und
+  # Autostart. Menschen melden sich mit einem eigenen Konto an - so ist im
+  # Log nachvollziehbar, wer was geaendert hat.
+  #
+  # Vorhandene WebLogic-Gruppen (geprueft auf 14.1.2):
+  #   Administrators  volle Rechte
+  #   Operators       Server starten/stoppen, keine Konfiguration
+  #   Monitors        nur lesen
+  #   Deployers       Anwendungen deployen
+  # Beispiel: adm_max (Administrator), ops_eva (Betrieb)
+
+  # Weg A (Oberflaeche):
+  #   EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
+  #         Security Realms (Sicherheitsbereiche) -> myrealm
+  #   Tab Users and Groups (Benutzer und Gruppen) -> Users -> Create
+  #     (Erstellen): Name adm_max, Beschreibung, Kennwort -> OK
+  #   Benutzer adm_max oeffnen -> Tab Groups (Gruppen) -> Administrators
+  #     nach rechts (Chosen/Ausgewaehlt) -> Save (Speichern)
+  #   Genauso ops_eva -> Gruppe Operators.
+
+  # Weg B (WLST):
+  $WLST
+  #   connect(url='t3://localhost:7001')
+  #   dn = cmo.getName()
+  #   cd('/SecurityConfiguration/' + dn + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
+  #   cmo.createUser('adm_max', '<KENNWORT>', 'Administrator Max Muster')
+  #   cmo.addMemberToGroup('Administrators', 'adm_max')
+  #   cmo.createUser('ops_eva', '<KENNWORT>', 'Betrieb Eva Muster')
+  #   cmo.addMemberToGroup('Operators', 'ops_eva')
+  #   # Kontrolle:
+  #   print cmo.userExists('adm_max'), cmo.isMember('Administrators', 'adm_max', True)
+  #   # Erwartet: 1 1
+  #   exit()
+  #
+  # Benutzer anlegen braucht KEIN edit()/startEdit() - die Aenderung wirkt
+  # sofort. Das Kennwort muss der Richtlinie aus SCHRITT 4 entsprechen,
+  # sonst bricht createUser mit einer Validierungsmeldung ab.
+
+  # Test: Anmeldung am EM mit adm_max. Danach den technischen Benutzer
+  # nicht mehr fuer die tagtaegliche Arbeit verwenden.
+
+  # Benutzer entfernen (z.B. bei Austritt):
+  #   cmo.removeUser('adm_max')
+  # Kennwort neu setzen (als Administrator):
+  #   cmo.resetUserPassword('ops_eva', '<NEUES_KENNWORT>')
+
+
+================================================================================
+SCHRITT 6: Reports-Benutzer, Rollen und Richtlinien  (als oracle)
+================================================================================
+
+  # Berechtigungs-Kette (OPSS): Berechtigung (Application Policy) ->
+  # Rolle (Application Role, Application Stripe "reports") -> Benutzer
+  # bzw. Gruppe (myrealm). Quelle: Oracle Doc ID 2072876.1.
+  #
+  #   Benutzer/Gruppe   Rolle             Zweck
+  #   Administrators    RW_ADMINISTRATOR  Reports-Verwaltung fuer alle
+  #                                       WebLogic-Administratoren (Gruppe
+  #                                       statt Einzelbenutzer - neue Admins
+  #                                       aus SCHRITT 5 erben die Rolle)
+  #   monUser           RW_MONITOR        nur Status abfragen
+  #   RepRunner         RW_EXECREPORTS    Berichte ausfuehren (in cgicmd.dat)
+  #
+  # Wurden die Benutzer schon nach Reports_kochbuch_de.txt Schritt 8
+  # angelegt: nur pruefen (6.4) und ggf. RW_ADMINISTRATOR auf die Gruppe
+  # umstellen.
+
+  # Weg A (Oberflaeche): genau wie Reports_kochbuch_de.txt Schritt 8.1-8.3.
+  #   Abweichung fuer RW_ADMINISTRATOR: bei + Add (+ Hinzufuegen) als
+  #   Type (Typ) "Group" (Gruppe) waehlen und "Administrators" zuweisen.
+
+  # Weg B (WLST) - alle Befehle in EINER Sitzung, der Reihe nach:
+  $WLST
+  #   connect(url='t3://localhost:7001')
+  #   dn = cmo.getName()
+  #
+  #   # 6.1 Benutzer anlegen (Kennwort nach Richtlinie SCHRITT 4)
+  #   serverConfig()
+  #   cd('/SecurityConfiguration/' + dn + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
+  #   cmo.createUser('monUser',   '<KENNWORT>', 'Reports Monitoring')
+  #   cmo.createUser('RepRunner', '<KENNWORT>', 'Reports Ausfuehrung')
+  #
+  #   # 6.2 Rollen anlegen und zuweisen
+  #   #     (RW_ADMINISTRATOR und RW_MONITOR gibt es meist schon -
+  #   #      "already exists" ist dann kein Fehler)
+  #   createAppRole(appStripe='reports', appRoleName='RW_MONITOR')
+  #   createAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS')
+  #
+  #   grantAppRole(appStripe='reports', appRoleName='RW_ADMINISTRATOR',
+  #       principalClass='weblogic.security.principal.WLSGroupImpl',
+  #       principalName='Administrators')
+  #   grantAppRole(appStripe='reports', appRoleName='RW_MONITOR',
+  #       principalClass='weblogic.security.principal.WLSUserImpl',
+  #       principalName='monUser')
+  #   grantAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS',
+  #       principalClass='weblogic.security.principal.WLSUserImpl',
+  #       principalName='RepRunner')
+  #
+  #   # 6.3 Berechtigungen (Application Policies) an die Rollen haengen
+  #   grantPermission(appStripe='reports',
+  #       principalClass='oracle.security.jps.service.policystore.ApplicationRole',
+  #       principalName='RW_MONITOR',
+  #       permClass='oracle.reports.server.WebCommandPermission',
+  #       permTarget='webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*',
+  #       permActions='ALL')
+  #   grantPermission(appStripe='reports',
+  #       principalClass='oracle.security.jps.service.policystore.ApplicationRole',
+  #       principalName='RW_EXECREPORTS',
+  #       permClass='oracle.reports.server.ReportsPermission',
+  #       permTarget='report=* server=* destype=* desformat=* allowcustomargs=true',
+  #       permActions='ALL')
+  #
+  #   # 6.4 Kontrolle
+  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_ADMINISTRATOR')
+  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_MONITOR')
+  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_EXECREPORTS')
+  #   listPermissions(appStripe='reports', principalName='RW_EXECREPORTS',
+  #       principalClass='oracle.security.jps.service.policystore.ApplicationRole')
+  #   exit()
+  #
+  # WICHTIG: Die OPSS-Befehle (grantAppRole ...) wechseln intern in den
+  # domainRuntime-Baum. Fuer weitere Benutzer-Befehle danach zuerst wieder
+  # serverConfig() eingeben, sonst meldet cd('/SecurityConfiguration/...')
+  # "AttributeNotFoundException".
+
+  # Engere Berechtigung statt "report=*" (empfohlen, wenn bekannt ist,
+  # welche Berichte/Formate gebraucht werden), z.B.:
+  #   permTarget='report=* server=repServer01 destype=cache desformat=pdf allowcustomargs=false'
+  # Bei allowcustomargs=false sind in der URL nur die Parameter aus dem
+  # cgicmd.dat-Schluessel erlaubt - vorher mit den echten Aufrufen testen.
+
+  # Neue Rollen/Richtlinien wirken oft erst nach einem Neustart von
+  # WLS_REPORTS (Security-Cache).
+
+
+================================================================================
+SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
+================================================================================
+
+  # In rwserver.conf legt <identifier> den Administrator DES REPORTS-
+  # SERVERS fest (kein WebLogic-Benutzer). Er wird gebraucht fuer:
+  #   - getserverinfo / showjobs, solange der Reports-Server nicht ueber
+  #     securityId am <job>-Element abgesichert ist (sonst REP-52262
+  #     "Diagnostic output is disabled", bestaetigt 2026-10-15)
+  #   - das Stoppen/Verwalten des Servers ueber Web-Befehle
+  # Ist der Eintrag auskommentiert oder leer, ist das Verhalten nicht
+  # geprueft (offener Test) - daher IMMER mit eigenem Kennwort setzen.
+
+  cp $RWSERVER_CONF ${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)
+  vi $RWSERVER_CONF
+  #   Den (ggf. auskommentierten) identifier-Eintrag ersetzen durch:
+  #     <identifier encrypted="no">repadmin/<KENNWORT></identifier>
+  #   Position: direkt nach </folderAccess>.
+  #   Das Kennwort steht nur bis zum naechsten Start im Klartext - der
+  #   Reports-Server verschluesselt es dabei selbst (danach
+  #   encrypted="yes"). Kennwort im Passwort-Safe ablegen - es laesst sich
+  #   aus der Datei NICHT zurueckgewinnen.
+
+  # Reports-Server neu starten (restartComponent.sh geht NICHT):
+  $DOMAIN_HOME/bin/stopComponent.sh  $REPORTS_SERVER_NAME
+  $DOMAIN_HOME/bin/startComponent.sh $REPORTS_SERVER_NAME
+
+  grep -n identifier $RWSERVER_CONF
+  # Erwartet: <identifier encrypted="yes">...</identifier>
+
+  # Test (Kennwort NICHT in die Shell-History: vorher "read -s"):
+  read -s -p "repadmin-Kennwort: " RPW; echo
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=repadmin/${RPW}" | head -5
+  unset RPW
+  # Erwartet: XML mit <server ... und Engine-Status
+
+  # Zusaetzlich in rwserver.conf pruefen:
+  #   <folderAccess><read> enthaelt NUR die wirklich benoetigten
+  #   Verzeichnisse (Berichte, Bilder) - genau EIN <read>, mehrere
+  #   Verzeichnisse durch ";" getrennt (siehe Reports_kochbuch_de.txt 9.7).
+  #   Alles ausserhalb kann der Server nicht als Bericht oeffnen
+  #   (REP-56132) - das ist gewollt.
+
+
+================================================================================
+SCHRITT 8: rwservlet.properties haerten  (als oracle)
+================================================================================
+
+  # Reports_kochbuch_de.txt 9.6 betreibt das Servlet zunaechst mit
+  #   <singlesignon>no</singlesignon>  <webcommandaccess>L0</webcommandaccess>
+  # Fuer den Betrieb:
+  #   <webcommandaccess>L1</webcommandaccess>
+  #     Web-Befehle (getserverinfo, showjobs ...) nur noch mit authid des
+  #     Reports-Server-Administrators (SCHRITT 7) bzw. - bei abgesichertem
+  #     Server - eines berechtigten Benutzers. Ausnahme: showjobid,
+  #     killjobid, showauth, getjobid fuer eigene Jobs.
+  #     (Hinweis: auch L0 ist laut Oracle-Code NICHT "offen"; offen waere
+  #     nur ein anderer Wert wie L2 - NICHT verwenden.)
+  #   <singlesignon>yes</singlesignon>
+  #     Berichtsaufrufe verlangen eine Anmeldung (WebLogic-Benutzer mit
+  #     Rolle RW_EXECREPORTS). Automatisierte Aufrufe gehen dann ueber einen
+  #     cgicmd.dat-Schluessel mit authid=RepRunner/<KENNWORT>
+  #     (Reports_kochbuch_de.txt 9.8) - das Kennwort steht so nicht in der
+  #     URL.
+  #   ACHTUNG: singlesignon=yes aendert das Verhalten fuer ALLE Aufrufer.
+  #   Vorher klaeren, wie die Anwendungen die Berichte aufrufen
+  #   (mit cmdkey= aus cgicmd.dat?), und zuerst auf einer Testumgebung
+  #   pruefen. Rueckweg: Sicherung zurueckkopieren, WLS_REPORTS neu starten.
+
+  cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$(date +%Y%m%d_%H%M%S)
+  vi $REPORTS_APP_CONF/rwservlet.properties
+  #   nur diese zwei Zeilen aendern - cookie/encryptionkey NICHT aendern:
+  #     <singlesignon>yes</singlesignon>
+  #     <webcommandaccess>L1</webcommandaccess>
+
+  # WLS_REPORTS neu starten (liest die Datei nur beim Start):
+  $DOMAIN_HOME/bin/stopManagedWebLogic.sh  ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+  nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} > /tmp/managed_start.log 2>&1 &
+
+  # Tests:
+  #   a) ohne authid -> muss abgewiesen werden
+  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML" | grep -o "REP-[0-9]*" | head -1
+  #      Erwartet: REP-52262 (o.ae.), KEINE Server-Infos
+  #   b) mit repadmin (SCHRITT 7) -> Server-Infos
+  #   c) Bericht ueber cgicmd.dat-Schluessel (Schluessel aus 9.8):
+  #      curl -s -o /tmp/t.pdf -w "%{http_code}\n" "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet?cmdkey=<schluessel>&report=<bericht>.rdf"
+  #      Erwartet: 200 und ein PDF
+  #   d) Bericht ohne Anmeldung (ohne cmdkey) -> Anmeldeseite/401
+
+
+================================================================================
+SCHRITT 9: Dateien mit Kennwoertern schuetzen  (als oracle)
+================================================================================
+
+  # 9.1 Rechte setzen
+  find $DOMAIN_HOME/servers -name boot.properties -exec chmod 600 {} \;
+  chmod 600 $DOMAIN_HOME/security/SerializedSystemIni.dat
+  chmod 640 $REPORTS_APP_CONF/cgicmd.dat
+  chmod 640 $RWSERVER_CONF
+  chmod 600 $DOMAIN_HOME/config/nodemanager/nm_password.properties
+  chmod 600 ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties 2>/dev/null
+  chmod 750 $DOMAIN_HOME
+  #   SerializedSystemIni.dat ist der Schluessel der Domain - mit ihm und
+  #   einer Kopie der Domain lassen sich ALLE {AES}-Kennwoerter
+  #   entschluesseln. Nie mit in Tickets/Mails/unverschluesselte Backups.
+
+  # 9.2 Kontrolle
+  find $DOMAIN_HOME/servers -name boot.properties -exec ls -l {} \;
+  grep -c "{AES" $DOMAIN_HOME/servers/*/security/boot.properties
+  #   Erwartet: Rechte -rw------- und je 2 Treffer ({AES}-verschluesselt;
+  #   Klartext steht nur bis zum ersten Start darin)
+
+  # 9.3 Neue Dateien nicht fuer alle lesbar anlegen - in ~/.bash_profile
+  #     von oracle:
+  #       umask 027
+
+  # 9.4 Kennwoerter aus der Shell-History entfernen
+  history | grep -iE "passw|kennw|authid=|/.*@" | head
+  #   Einzelne Eintraege loeschen: history -d <nummer>
+  #   Kuenftig: Befehle mit Kennwort mit einem LEERZEICHEN beginnen und in
+  #   ~/.bash_profile setzen:
+  #     export HISTCONTROL=ignorespace:ignoredups
+
+  # 9.5 cgicmd.dat enthaelt das RepRunner-Kennwort im Klartext - nur so
+  #     viele Schluessel wie noetig, keine Kopien der Datei anlegen, alte
+  #     Sicherungen (*.bak_*) mit Kennwoertern loeschen:
+  ls -l $REPORTS_APP_CONF/cgicmd.dat*
+
+
+================================================================================
+SCHRITT 10: Node Manager  (als oracle)
+================================================================================
+
+  grep -E "^(ListenAddress|ListenPort|SecureListener|AuthenticationEnabled)" $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Erwartet:
+  #   ListenAddress=localhost (oder 127.0.0.1)
+  #   AuthenticationEnabled=true
+  #   SecureListener=false ist NUR in Ordnung, weil der Node Manager
+  #   ausschliesslich auf localhost hoert und Port 5556 in der Firewall
+  #   geschlossen ist (SCHRITT 1).
+
+  # Node-Manager-Zugangsdaten: werden in Autostart_linux_middleware.txt
+  # Schritt 1a-1c gesetzt (= Admin-Zugangsdaten). Nach einem Kennwortwechsel
+  # des Admin-Benutzers mitziehen (SCHRITT 13).
+
+
+================================================================================
+SCHRITT 11: Betriebssystem  (als root)
+================================================================================
+
+  # 11.1 sudo-Rechte von oracle zuruecknehmen. OS_Kochbuch_de.txt
+  #      Schritt 7 legt /etc/sudoers.d/oracle-fmw mit passwortlosen Rechten
+  #      an - u.a. "dnf install *" und "firewall-cmd *". Damit kann oracle
+  #      beliebige Pakete installieren bzw. die Firewall oeffnen - faktisch
+  #      root-Rechte. Nach der Installation:
+  cp /etc/sudoers.d/oracle-fmw /root/oracle-fmw.sudoers.bak_$(date +%Y%m%d)
+  vi /etc/sudoers.d/oracle-fmw
+  #   Nur behalten, was im Betrieb noetig ist, z.B.:
+  #     oracle ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+  #     oracle ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
+  #     oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
+  #   (Autostart: der systemd-Dienst laeuft ueber root/systemctl, nicht ueber
+  #   sudo von oracle.)
+  visudo -c
+  sudo -l -U oracle
+
+  # 11.2 oracle nicht in der Gruppe wheel
+  id oracle
+  #   Steht "wheel" in der Liste: gpasswd -d oracle wheel
+
+  # 11.3 SSH: keine direkte root-Anmeldung, oracle nur mit Schluessel
+  #      (Abstimmung mit dem Betriebssystem-Team):
+  grep -iE "^(PermitRootLogin|PasswordAuthentication)" /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf
+
+  # 11.4 SELinux: NICHT einfach auf "enforcing" stellen - die nativen
+  #      Reports-Bibliotheken laufen ohne passende Policy nicht. Eigene
+  #      Policy ist ein separates Projekt.
+
+
+================================================================================
+SCHRITT 12: Patchstand  (als oracle)
+================================================================================
+
+  # Oracle veroeffentlicht vierteljaehrlich (Jan/Apr/Jul/Okt) Critical
+  # Patch Updates. Sicherheit heisst auch: regelmaessig patchen.
+  $ORACLE_HOME/OPatch/opatch lspatches
+  ${JAVA_HOME:-/u01/oracle/java/jdk-21}/bin/java -version 2>&1 | head -1
+  #   Mit dem aktuellen Stand aus der Oracle-Patch-Matrix (CSPU) vergleichen
+  #   - Vorgehen siehe FMW_Kochbuch_de.txt / Reports_kochbuch_de.txt
+  #   Schritt 2. Auch das JDK und nginx (dnf update nginx) aktuell halten.
+
+
+================================================================================
+SCHRITT 13: Kennwort des technischen Admin-Benutzers wechseln  (als oracle)
+================================================================================
+
+  # Reihenfolge einhalten - sonst sperrt die Kontosperre (SCHRITT 4) den
+  # Benutzer, weil Autostart/Node Manager noch das alte Kennwort benutzen.
+
+  # 13.1 Kennwort aendern
+  #   Weg A: EM -> Security Realms -> myrealm -> Users and Groups ->
+  #          Benutzer -> Passwords (Kennwoerter) -> neues Kennwort -> Save
+  #   Weg B:
+  $WLST
+  #   connect(url='t3://localhost:7001')
+  #   dn = cmo.getName()
+  #   cd('/SecurityConfiguration/' + dn + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
+  #   cmo.resetUserPassword('weblogic', '<NEUES_KENNWORT>')
+  #   exit()
+
+  # 13.2 boot.properties ALLER Server neu schreiben (Klartext, wird beim
+  #      naechsten Start verschluesselt):
+  #   fuer AdminServer und WLS_REPORTS:
+  #     vi $DOMAIN_HOME/servers/AdminServer/security/boot.properties
+  #     vi $DOMAIN_HOME/servers/WLS_REPORTS/security/boot.properties
+  #   Inhalt:
+  #     username=weblogic
+  #     password=<NEUES_KENNWORT>
+  #   chmod 600 auf beide Dateien.
+
+  # 13.3 Node-Manager-Zugangsdaten und Autostart-Dateien
+  #   (~/oracle-WebLogicConfig.properties / -Key.properties) neu erzeugen:
+  #   Autostart_linux_middleware.txt Schritt 1a-1c erneut ausfuehren.
+
+  # 13.4 Alle Server neu starten und pruefen, dass der Start ohne
+  #      Kennwortabfrage durchlaeuft (WLS_Report_start_stop_kochbuch.txt).
+
+  # 13.5 Monitoring/Skripte, die den Benutzer verwenden, anpassen.
+
+
+================================================================================
+ABSCHLUSS-CHECKLISTE
+================================================================================
+
+  [ ] ss -tlnp: 7001/9002/5556 nur auf localhost                (SCHRITT 1)
+  [ ] firewall-cmd --list-ports: nur 80, 443, Reports-UDP-Port  (SCHRITT 1)
+  [ ] /reports/rwservlet/showenv von aussen: 403                 (SCHRITT 2)
+  [ ] /em von aussen: 403 bzw. nur Admin-IPs / SSH-Tunnel        (SCHRITT 2)
+  [ ] /console-Block aus Nginx entfernt                          (SCHRITT 2)
+  [ ] weblogic-plugin-enabled=true an WLS_REPORTS                (SCHRITT 3)
+  [ ] Kennwort-Richtlinie 12 Zeichen, Kontosperre aktiv          (SCHRITT 4)
+  [ ] Persoenliche Admin-Konten, Gruppen zugewiesen              (SCHRITT 5)
+  [ ] RW_ADMINISTRATOR -> Administrators, monUser, RepRunner     (SCHRITT 6)
+  [ ] <identifier encrypted="yes"> in rwserver.conf              (SCHRITT 7)
+  [ ] <folderAccess><read> nur benoetigte Verzeichnisse, ";"     (SCHRITT 7)
+  [ ] webcommandaccess L1; singlesignon nach Test                (SCHRITT 8)
+  [ ] boot.properties 600 und {AES}; cgicmd.dat 640              (SCHRITT 9)
+  [ ] History ohne Kennwoerter, umask 027                        (SCHRITT 9)
+  [ ] Node Manager nur localhost, Authentifizierung an           (SCHRITT 10)
+  [ ] sudo von oracle auf das Noetigste reduziert, kein wheel    (SCHRITT 11)
+  [ ] Patchstand dokumentiert                                    (SCHRITT 12)
+  [ ] Funktionstest: Bericht ueber https://<fqdn>/reports/... laeuft,
+      Bilder erscheinen, Monitoring-Abfrage funktioniert
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: getserverinfo liefert "REP-52262 Diagnostic output is disabled",
+           auch mit authid=monUser oder authid=<WebLogic-Admin>
+  Ursache: Reports-Server ist nicht ueber securityId am <job>-Element
+           abgesichert - dann gilt fuer Web-Befehle nur der Reports-Server-
+           Administrator aus <identifier>
+  Loesung: authid=repadmin/<KENNWORT> (SCHRITT 7) verwenden
+
+  Problem: Anmeldung am EM schlaegt fehl, obwohl das Kennwort stimmt
+  Ursache: Konto durch die Kontosperre gesperrt (5 Fehlversuche, z.B. durch
+           ein Skript mit altem Kennwort)
+  Loesung: 30 Minuten warten oder mit einem anderen Administrator anmelden;
+           Ursache (Skript/Monitoring/Autostart) beseitigen, SCHRITT 13
+
+  Problem: createUser bricht mit einer Meldung zur Kennwort-Validierung ab
+  Ursache: Kennwort erfuellt die Richtlinie aus SCHRITT 4 nicht
+  Loesung: laengeres Kennwort mit Gross-/Kleinbuchstaben, Ziffer,
+           Sonderzeichen, ohne den Benutzernamen
+
+  Problem: cd('/SecurityConfiguration/...') meldet AttributeNotFoundException
+  Ursache: nach OPSS-Befehlen (grantAppRole ...) steht WLST im
+           domainRuntime-Baum
+  Loesung: serverConfig() eingeben, dann erneut cd(...)
+
+  Problem: nach singlesignon=yes laufen Berichte aus der Anwendung nicht
+           mehr (Anmeldeseite / 401)
+  Ursache: Aufruf ohne cgicmd.dat-Schluessel mit authid
+  Loesung: Aufruf ueber cmdkey=<schluessel> umstellen oder vorerst
+           Sicherung von rwservlet.properties zurueckkopieren, WLS_REPORTS
+           neu starten
+
+  Problem: Server startet nach Kennwortwechsel nicht ("BEA-090782" /
+           "Authentication denied")
+  Ursache: boot.properties enthaelt noch das alte Kennwort
+  Loesung: SCHRITT 13.2
+
+  Problem: REP-56132 "Access is denied to the report definition file"
+  Ursache: Berichtsverzeichnis nicht in <folderAccess><read>
+  Loesung: genau EIN <read>, Verzeichnisse durch ";" getrennt
+           (Reports_kochbuch_de.txt Bekannte Probleme)
+
+
+================================================================================
+NOCH NICHT GETESTET / OFFENE PUNKTE
+================================================================================
+
+  - Verhalten bei fehlendem oder leerem <identifier> (deshalb SCHRITT 7:
+    immer setzen).
+  - Absicherung des Reports-Servers ueber securityId am <job>-Element, damit
+    monUser/RW_MONITOR fuer getserverinfo gilt - bis dahin Monitoring mit
+    dem Reports-Server-Administrator (SCHRITT 7).
+  - Die EM-Menuepfade fuer Kennwort-Richtlinie und Kontosperre (SCHRITT 4
+    Weg A) koennen je nach EM-Stand abweichen - Weg B ist auf 14.1.2
+    geprueft (Attributnamen).
+  - singlesignon=yes mit den tatsaechlichen Aufrufen der Kunden-Anwendung.
+
+
+================================================================================
+WEITERGEHENDE INFORMATIONEN
+================================================================================
+
+  Automatisierte Variante:     09-Install/12-oracle_reports_users.sh --apply
+                                09-Install/docs/80-oracle_security.md
+                                09-Install/docs/81-reports_rwservlet_security.md
+  Oracle Doc ID 2072876.1      REP-56071 / Reports-Rollen und -Policies
+  Oracle-Doku 14.1.2           "Securing Applications with Oracle Platform
+                                Security Services" (OPSS-WLST-Befehle),
+                                "Oracle WebLogic Server MBean Reference"
+                                (DefaultAuthenticatorMBean,
+                                SystemPasswordValidatorMBean)
