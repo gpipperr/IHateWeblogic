@@ -560,9 +560,14 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '  <connection maxConnect="%s" idleTimeOut="15"/>\n' "$_MAX_CONN"
             printf '  <queue maxQueueSize="%s"/>\n'                       "$_MAX_QUEUE"
             printf '\n'
-            printf '  <!-- folderAccess: read = report source dir, write = temp output dir -->\n'
+            # <read> is a single element (rwserverconf.xsd); several directories
+            # are separated by ";" - also on Linux. REPORTS_PATH uses ":" - as
+            # "dir1:dir2" in <read> every report fails with REP-56132; two <read>
+            # elements: only the last counts; subdirectories are not included
+            # (test series 2026-10-16, 80-FMW-Architecture/report_server_image_handling.md)
+            printf '  <!-- folderAccess: read = report source dirs (";"-separated, no subdirs), write = temp output dir -->\n'
             printf '  <folderAccess>\n'
-            printf '    <read>%s</read>\n'  "$REPORTS_PATH"
+            printf '    <read>%s</read>\n'  "${REPORTS_PATH//:/;}"
             printf '    <write>%s</write>\n' "$REPORTS_TMP"
             printf '  </folderAccess>\n'
             printf '\n'

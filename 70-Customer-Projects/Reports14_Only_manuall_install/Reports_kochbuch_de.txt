@@ -947,8 +947,7 @@ EOF
   <connection maxConnect="300" idleTimeOut="15"/>
   <queue maxQueueSize="4000"/>
   <folderAccess>
-    <read>${REPORTS_PATH}</read>
-    <read>${REPORTS_IMAGE_DIR}</read>
+    <read>${REPORTS_PATH};${REPORTS_IMAGE_DIR}</read>
     <write>${REPORTS_TMP}</write>
   </folderAccess>
   <identifier encrypted="no">${REPORTS_IDENTIFIER}</identifier>
@@ -970,16 +969,24 @@ EOF
   # Bilder (REPORTS_IMAGE_DIR):
   #   - REPORTS_PATH (envVariable) = WO gesucht wird: mehrere Verzeichnisse
   #     durch ":" getrennt, gesucht wird der Reihe nach.
-  #   - <folderAccess><read> = WO gelesen werden DARF: ein <read>-Element je
-  #     Verzeichnis (KEINE ":"-Liste in einem <read>). Liegt ein Bild
-  #     ausserhalb, weist der Server es ab, auch wenn REPORTS_PATH es findet.
+  #   - <folderAccess><read> = WO gelesen werden DARF: GENAU EIN
+  #     <read>-Element, mehrere Verzeichnisse durch ";" getrennt - auch unter
+  #     Linux (getestet 2026-10-16). ":" und "," gelten als EIN (falscher)
+  #     Verzeichnisname; bei zwei <read>-Elementen zaehlt nur das letzte;
+  #     Unterverzeichnisse sind NICHT mit freigegeben. Liegt der Report
+  #     ausserhalb: REP-56132 "Access is denied to the report definition
+  #     file" (siehe BEKANNTE PROBLEME).
   #   - Gefunden werden ueber REPORTS_PATH nur Bilder, die im Report OHNE
   #     Pfad eingetragen sind (Link File "Source Filename" = logo.gif).
-  #     Steht dort noch der Windows-Pfad (d:\graphiken\logo.gif), muss der
-  #     Pfad im Report entfernt werden - siehe BEKANNTE PROBLEME "Bilder".
+  #     Steht dort noch der Windows-Pfad (E:\berichte\grafiken\logo.gif),
+  #     sucht Reports genau diesen Namen - KEIN Rueckfall auf "logo.gif"
+  #     (bestaetigt 2026-10-16, REP-108). Der Pfad muss im Report entfernt
+  #     werden - siehe BEKANNTE PROBLEME "Bilder".
   #     Im Report eingebettete Bilder (Insert -> Image) brauchen keinen Pfad.
   #   - Dateinamen: Linux unterscheidet Gross-/Kleinschreibung
-  #     (Logo.GIF ist nicht logo.gif).
+  #     (Logo.GIF ist nicht logo.gif). Empfehlung: alle Bilder im
+  #     Bildverzeichnis klein schreiben; fuer abweichende Schreibweisen in
+  #     alten Reports einen Link anlegen (ln -s logo.gif Logo.GIF).
   #   - Ein spaeter ergaenztes Bildverzeichnis: rwserver.conf von Hand
   #     anpassen (Backup!), dann Reports-Server neu starten (stopComponent.sh
   #     + startComponent.sh, restartComponent.sh geht nicht).
@@ -1243,25 +1250,42 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: rwserver.conf-Umgebungsvariablen pruefen, DB-Konnektivitaet
            per "nc -zv $DB_HOST $DB_PORT" erneut testen
 
-  Problem: Bilder/Grafiken fehlen in der Ausgabe (Reports kamen von Windows,
-           Bild im Report Builder als Link File mit d:\graphiken\... )
+  Problem: REP-69 "Ein interner Fehler ist aufgetreten" + REP-56132 "Access
+           is denied to the report definition file"
+  Ursache: das Verzeichnis des Reports steht nicht in <folderAccess><read>
+           der rwserver.conf - typisch nach dem Ergaenzen eines zweiten
+           Verzeichnisses: zwei <read>-Elemente (nur das LETZTE zaehlt) oder
+           Trennzeichen ":" / "," (gelten als ein Verzeichnisname)
+  Loesung: genau EIN <read>, Verzeichnisse durch ";" getrennt, jedes
+           Verzeichnis exakt (Unterverzeichnisse zaehlen nicht):
+             <read>/app/oracle/applications/source;/app/oracle/applications/graphiken</read>
+           danach Reports-Server neu starten (stopComponent.sh +
+           startComponent.sh). REPORTS_PATH bleibt mit ":" getrennt.
+
+  Problem: Bilder/Grafiken fehlen, REP-108 "Datei E:\berichte\grafiken\
+           logo.jpg wurde nicht gefunden" (Reports kamen von Windows, Bild im
+           Report Builder als Link File mit Windows-Pfad)
   Ursache: der Windows-Pfad ist im Report gespeichert (Link File "Source
-           Filename" bzw. DB-Spalte mit "Read from File") - unter Linux
-           gibt es d:\ nicht. Ueber REPORTS_PATH sucht Reports nur Namen
-           OHNE Pfad. (Ob Reports 14 bei einem absoluten Windows-Pfad auf
-           den reinen Dateinamen zurueckfaellt, ist nicht geprueft - nicht
-           darauf verlassen.)
-  Loesung: Bilder nach $REPORTS_IMAGE_DIR (9.2/9.7), Ordner in REPORTS_PATH
-           und <folderAccess><read> (9.7) und reports.sh (9.9). Im Report
-           den Pfad entfernen (nur "logo.gif") - fuer viele Reports per
-           rwconverter ueber XML, Beispiel:
-             rwconverter.sh source=r.rdf stype=rdffile dest=r.xml dtype=xmlfile batch=yes overwrite=yes
-             grep -il 'graphiken' *.xml
-             sed -i 's#d:\\graphiken\\##Ig' r.xml
-             rwconverter.sh source=r.xml stype=xmlfile dest=r.rdf dtype=rdffile batch=yes overwrite=yes
-           (vorher Sicherung der .rdf). DB-Spalten mit Pfad: Pfad per
-           UPDATE oder in der Abfrage entfernen. Dateinamen-Schreibweise
-           beachten (Linux: Gross-/Kleinschreibung).
+           Filename" bzw. DB-Spalte mit "Read from File"). Reports faellt
+           NICHT auf den reinen Dateinamen zurueck (bestaetigt 2026-10-16) -
+           vermutlich gilt der ganze Text als ein relativer Dateiname.
+  Loesung: Bildverzeichnis in REPORTS_PATH + <folderAccess><read> (9.7) und
+           reports.sh (9.9), dann den Pfad im Report entfernen:
+           Weg A (Report Builder unter Windows, bestaetigt 2026-10-16):
+             in rwbuilder.bat vor dem Start des Builders
+               set REPORTS_PATH=d:\reports\berichte;d:\reports\images
+             (unter Windows ";" als Trenner). Report oeffnen, im Image-
+             Element bei "Source Filename" den Pfad entfernen (nur
+             "logo.jpg") - der Builder findet das Bild ueber REPORTS_PATH
+             und speichert ohne Pfad. Report auf den Server kopieren. Liegen
+             die Bilder dort klein geschrieben, Link mit der Schreibweise
+             des Reports anlegen:
+               cd $REPORTS_IMAGE_DIR && ln -s gpilogo.jpg gpiLogo.jpg
+           Weg B (alle Reports auf einmal ueber XML, Pfad weg + Name klein,
+             danach Liste vorhandener/fehlender Bilder): siehe
+             80-FMW-Architecture/report_server_image_handling.md Abschnitt 5.
+           Vorher immer Sicherung der .rdf. DB-Spalten mit Pfad: Pfad per
+           UPDATE oder in der Abfrage entfernen.
 
   Problem: Parameterformular / HTML-Ausgabe zeigt falsche Zeichen
            (Symbol/griechische Glyphen)

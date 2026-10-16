@@ -384,7 +384,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections |
 | `<job … SecurityId>` | **Remove** this attribute — causes startup errors with JAZN security |
 | `<identifier>` | Internal Reports admin; keep separate from WebLogic admin |
-| `<folderAccess><read>` | Reports Server will only read `.rdf` files from this path |
+| `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
 
 ### Alternative: Configure via Enterprise Manager MBean Browser
