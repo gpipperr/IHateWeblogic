@@ -57,7 +57,7 @@ Consequences:
 | `authid=webadmin/…` (WebLogic admin, role `RW_ADMINISTRATOR`) | `REP-52262` |
 | `authid=monUser/…` (role `RW_MONITOR` + `WebCommandPermission`) | `REP-52262` |
 | `authid=RepRunner/…` (role `RW_EXECREPORTS`) | `REP-52262` |
-| `authid=rep_admin/wls_team` (= `<identifier>` written by `13-`) | **works** – full `serverInfo` XML |
+| `authid=rep_admin/<identifier password>` (= `<identifier>` written by `13-`, at the time of the test the fixed demo password) | **works** – full `serverInfo` XML |
 
 - The Reports server encrypts `<identifier>` on its first start
   (`encrypted="yes"`) – the password cannot be read back from the file afterwards.
@@ -72,7 +72,7 @@ Consequences:
 
 | Artifact | Current content | Problem |
 |---|---|---|
-| `09-Install/13-oracle_setup_reports.sh` | writes `<identifier encrypted="no">rep_admin/wls_team</identifier>`, `rwservlet.properties` with `singlesignon=yes`, `webcommandaccess=L1` | fixed demo password in the repo; hardened from the start, no "open" first test |
+| `09-Install/13-oracle_setup_reports.sh` | writes `<identifier>` from `reports_admin_sec.conf.des3` (fixed 2026-10-16, before: fixed demo password `rep_admin/wls_team`), `rwservlet.properties` with `singlesignon=yes`, `webcommandaccess=L1` | hardened from the start, no "open" first test |
 | Reports cookbook 9.2 / 9.7 | `REPORTS_IDENTIFIER` set in 9.2, used in 9.7 | copying only from 9.7 → empty `<identifier>`; no quotes around the value (special characters) |
 | Reports cookbook 9.6 | `webcommandaccess=L0`, `singlesignon=no`, comment "open" | L0 is not open (2.1) |
 | Reports cookbook 9.11, start/stop cookbook 0.2 | `getserverinfo … authid=<identifier>` | correct for the current design, but depends on the open decision |

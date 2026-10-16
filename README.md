@@ -526,8 +526,9 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
 - [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
   Reports server; still empty with the LDAP identity store; SR draft local
   (`SR/`). Workaround: "Advanced Option" / WLST `grantAppRole`.
-- [ ] **`rwserver.conf` `<identifier>`** – `13-` still writes the fixed
-  `rep_admin/wls_team` (now only the emergency admin).
+- [x] **`rwserver.conf` `<identifier>`** (2026-10-16) – user/password from
+  `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`, else
+  generated randomly by `13- --apply`); no fixed password in the repo.
 
 - [ ] **Web commands / `<identifier>` / `webcommandaccess`** – analysis and plan in
   [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md):
@@ -564,11 +565,8 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   `nmStart AdminServer` (port in use, seen 2026-10-15; documented in
   `01-Run/README.md`). Option: when the NM runs, start ADMIN/MANAGED via
   `nmStart` too, or warn when `fmw-<domain>.service` is active.
-- [ ] **`rwserver.conf` server administrator**: `13-oracle_setup_reports.sh`
-  (part of the Reports servlet security topic above) writes a fixed
-  `<identifier>rep_admin/wls_team</identifier>` – generate or
-  ask for the password and store it encrypted (`*.des3`) like the other
-  credentials; needed by every authenticated `getserverinfo` call.
+- [x] **`rwserver.conf` server administrator** (2026-10-16): see
+  `<identifier>` above – `reports_admin_sec.conf.des3`.
 - [x] **Reports server security decision** (2026-10-16): `REPORTS_SECURITY`
   in `environment.conf`, asked by `01-setup-interview.sh` – `ldap` (default:
   `securityId` + LDAP identity store, `cn=Admin` password →

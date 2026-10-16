@@ -360,8 +360,8 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
     <write>/u01/app/oracle/reports/tmp</write>
   </folderAccess>
 
-  <!-- Internal Reports admin credentials (NOT the WebLogic admin user) -->
-  <identifier encrypted="no">rep_admin/wls_team</identifier>
+  <!-- Reports server administrator (not a WebLogic user), from reports_admin_sec.conf.des3 -->
+  <identifier encrypted="no">rep_admin/<password from reports_admin_sec.conf.des3></identifier>
 
   <proxyInfo>
     <proxyServers>
@@ -385,7 +385,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<envVariable NLS_LANG>` | Must match Oracle DB character set |
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections |
 | `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
-| `<identifier>` | Internal Reports admin; keep separate from WebLogic admin |
+| `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `rep_admin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
 | `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
 
@@ -660,7 +660,7 @@ indicate a functional problem.
 
 ```bash
 # Queue status (replace host/port/authid as needed)
-curl -s "http://localhost:7777/reports/rwservlet/showjobs?server=repserver_ent&authid=rep_admin/wls_team"
+curl -s "http://localhost:7777/reports/rwservlet/showjobs?server=repserver_ent&authid=rep_admin/<identifier password>"
 
 # Server info (no authentication required at webcommandaccess L1 for getserverinfo)
 curl -s "http://localhost:7777/reports/rwservlet/getserverinfo?server=repserver_ent&statusformat=XML"

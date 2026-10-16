@@ -698,6 +698,39 @@ _MAX_CONN="${REPORTS_MAX_CONNECT:-300}"
 _MAX_QUEUE="${REPORTS_MAX_QUEUE:-4000}"
 _NLS="${NLS_LANG:-GERMAN_GERMANY.AL32UTF8}"
 
+# Reports server administrator (<identifier>, not a WebLogic user) from
+# reports_admin_sec.conf.des3 (asked by 01-setup-interview.sh). Missing ->
+# with --apply a random password is generated and stored there.
+_RADM_SEC="$ROOT_DIR/reports_admin_sec.conf.des3"
+_RADM_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+_RADM_PWD=""
+if [ -f "$_RADM_SEC" ]; then
+    if load_secrets_file "$_RADM_SEC" > /dev/null 2>&1 && [ -n "${REPORTS_ADMIN_PWD:-}" ]; then
+        _RADM_USER="${REPORTS_ADMIN_USER:-$_RADM_USER}"
+        _RADM_PWD="$REPORTS_ADMIN_PWD"
+        ok "Reports server admin <identifier>: $_RADM_USER (password from $(basename "$_RADM_SEC"))"
+    else
+        fail "Cannot read $_RADM_SEC - re-run 01-setup-interview.sh --reset or delete the file"
+    fi
+elif $APPLY; then
+    _RADM_PWD="$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-20)"
+    if _write_secrets_file "$_RADM_SEC" "REPORTS_ADMIN_USER=$_RADM_USER" "REPORTS_ADMIN_PWD=$_RADM_PWD" > /dev/null; then
+        warn "Reports server admin password not stored - generated a random one: $(basename "$_RADM_SEC")"
+        info "  show: bash -c 'source 00-Setup/IHateWeblogic_lib.sh; load_secrets_file $_RADM_SEC; printf \"%s\\n\" \"\$REPORTS_ADMIN_PWD\"'"
+    else
+        _RADM_PWD=""
+        fail "Could not store $_RADM_SEC"
+    fi
+else
+    info "Dry-run - $(basename "$_RADM_SEC") missing: --apply generates a random <identifier> password"
+fi
+unset REPORTS_ADMIN_PWD
+case "$_RADM_USER/$_RADM_PWD" in
+    */*/*|*[\&\<\>\"\'\ ]*)
+        fail "Reports server admin user/password contains / & < > quote or blank - not usable in <identifier>"
+        _RADM_PWD="" ;;
+esac
+
 for _inst in $REPORTS_SERVER_INSTANCES; do
     _RWSERVER="$_REPSERV_CONF_BASE/$_inst/rwserver.conf"
     printf "  %-26s %s\n" "Instance:" "$_inst" | tee -a "${LOG_FILE:-/dev/null}"
@@ -805,8 +838,13 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '    <write>%s</write>\n' "$REPORTS_TMP"
             printf '  </folderAccess>\n'
             printf '\n'
-            printf '  <!-- Internal Reports admin credentials (not the WebLogic admin user) -->\n'
-            printf '  <identifier encrypted="no">rep_admin/wls_team</identifier>\n'
+            # encrypted="no": the Reports server encrypts it at the next start
+            printf '  <!-- Reports server administrator (not a WebLogic user), from reports_admin_sec.conf.des3 -->\n'
+            if [ -n "$_RADM_PWD" ]; then
+                printf '  <identifier encrypted="no">%s/%s</identifier>\n' "$_RADM_USER" "$_RADM_PWD"
+            else
+                printf '  <!-- <identifier encrypted="no">rep_admin/PASSWORD</identifier>  (reports_admin_sec.conf.des3 missing) -->\n'
+            fi
             printf '\n'
             printf '  <proxyInfo>\n'
             printf '    <proxyServers>\n'
@@ -820,6 +858,7 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '  <pluginParam name="mailServer" value="%%MAILSERVER_NAME%%"/>\n'
             printf '</server>\n'
         } > "$_RWSERVER"
+        chmod 640 "$_RWSERVER"
 
         ok "rwserver.conf written: $_inst (engines: init=$_ENG_INIT max=$_ENG_MAX min=$_ENG_MIN)"
     else

@@ -459,6 +459,7 @@ _ask REPORTS_IMAGE_DIR       "Reports image directory"      "${ORACLE_BASE}/repo
 # domain if it differs, then the AdminServer must be restarted once).
 REPORTS_SECURITY="${REPORTS_SECURITY:-}"
 EMBEDDED_LDAP_SEC_FILE="$ROOT_DIR/embedded_ldap_sec.conf.des3"
+REPORTS_ADMIN_SEC_FILE="$ROOT_DIR/reports_admin_sec.conf.des3"
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|REPORTS_ONLY)
         printf "\n"
@@ -470,6 +471,14 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
             info "  letters and digits only - 13- sets it in the domain"
             _ask_password EMBEDDED_LDAP_PWD "Embedded LDAP cn=Admin password" "$EMBEDDED_LDAP_SEC_FILE"
         fi
+        # Reports server administrator = rwserver.conf <identifier> (not a
+        # WebLogic user): web commands with REPORTS_SECURITY=identifier,
+        # emergency admin with ldap. 13- writes it from the des3 file.
+        printf "\n"
+        _ask REPORTS_ADMIN_USER "Reports server admin (<identifier>)" "rep_admin"
+        info "Reports server admin password -> encrypted to: $(basename "$REPORTS_ADMIN_SEC_FILE")"
+        info "  letters and digits only (no / & < > \" ' blank) - 13- writes it into rwserver.conf"
+        _ask_password REPORTS_ADMIN_PWD "Reports server admin password" "$REPORTS_ADMIN_SEC_FILE"
         ;;
     *) REPORTS_SECURITY="${REPORTS_SECURITY:-identifier}" ;;
 esac
@@ -614,6 +623,7 @@ _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
+_show "REPORTS_ADMIN_USER"   "${REPORTS_ADMIN_USER:-}"
 _show "EXPECTED_SESSIONS"    "$EXPECTED_SESSIONS"
 _show "ULIMIT_NOFILE"        "${ULIMIT_NOFILE:-(unset – manual capacity planning)}"
 _show "ULIMIT_NPROC"         "${ULIMIT_NPROC:-(unset – manual capacity planning)}"
@@ -725,6 +735,8 @@ REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
 REPORTS_SECURITY="${REPORTS_SECURITY}"
+# Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
+REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
 
 # --- ulimits (oracle OS user) -------------------------------------------------
 # Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
@@ -777,6 +789,12 @@ if [ -n "${EMBEDDED_LDAP_PWD:-}" ] && [ "$EMBEDDED_LDAP_PWD" != "****" ]; then
     unset EMBEDDED_LDAP_PWD
 fi
 
+if [ -n "${REPORTS_ADMIN_PWD:-}" ] && [ "$REPORTS_ADMIN_PWD" != "****" ]; then
+    _write_secrets_file "$REPORTS_ADMIN_SEC_FILE" \
+        "REPORTS_ADMIN_USER=${REPORTS_ADMIN_USER:-rep_admin}" "REPORTS_ADMIN_PWD=$REPORTS_ADMIN_PWD"
+    unset REPORTS_ADMIN_PWD
+fi
+
 if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
     _write_secrets_file "$MOS_SEC_FILE" "MOS_USER=$MOS_USER" "MOS_PWD=$MOS_PWD"
     unset MOS_PWD
@@ -822,6 +840,8 @@ REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
 REPORTS_SECURITY="${REPORTS_SECURITY}"
+# Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
+REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
 ULIMIT_NOFILE="${ULIMIT_NOFILE}"
 ULIMIT_NPROC="${ULIMIT_NPROC}"
@@ -837,6 +857,7 @@ MOS_USER="${MOS_USER}"
 # MOS_PWD        → mos_sec.conf.des3
 # DB_SYS_PWD + DB_SCHEMA_PWD → db_sys_sec.conf.des3
 # EMBEDDED_LDAP_PWD → embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap)
+# REPORTS_ADMIN_PWD → reports_admin_sec.conf.des3 (rwserver.conf <identifier>)
 # Software versions / patch numbers → 09-Install/oracle_software_version.conf
 SETUPEOF
 
