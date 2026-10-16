@@ -453,6 +453,27 @@ _ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
 _ask REPORTS_CUSTOMER_DIR    "Reports source directory (.rdf/.rep)" "${ORACLE_BASE}/reports/source"
 _ask REPORTS_IMAGE_DIR       "Reports image directory"      "${ORACLE_BASE}/reports/images"
 
+# Reports server security (13-oracle_setup_reports.sh, docs/13 Step 5a):
+# ldap = securityId + JSE identity store -> WebLogic embedded LDAP, needs the
+# password of the embedded LDAP administrator cn=Admin (13- sets it in the
+# domain if it differs, then the AdminServer must be restarted once).
+REPORTS_SECURITY="${REPORTS_SECURITY:-}"
+EMBEDDED_LDAP_SEC_FILE="$ROOT_DIR/embedded_ldap_sec.conf.des3"
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|REPORTS_ONLY)
+        printf "\n"
+        _ask_menu REPORTS_SECURITY "Reports server security" \
+            "ldap:Secured - WebLogic users/roles (RW_MONITOR, RW_EXECREPORTS) via embedded LDAP (default)" \
+            "identifier:Not secured - getserverinfo only for the <identifier> admin, no user check for reports"
+        if [ "$REPORTS_SECURITY" = "ldap" ]; then
+            info "Embedded LDAP admin (cn=Admin) password -> encrypted to: $(basename "$EMBEDDED_LDAP_SEC_FILE")"
+            info "  letters and digits only - 13- sets it in the domain"
+            _ask_password EMBEDDED_LDAP_PWD "Embedded LDAP cn=Admin password" "$EMBEDDED_LDAP_SEC_FILE"
+        fi
+        ;;
+    *) REPORTS_SECURITY="${REPORTS_SECURITY:-identifier}" ;;
+esac
+
 printf "\n"
 info "Sizes ulimits (nofile/nproc) for the oracle OS user – see"
 info "  09-Install/docs/00-root_set_os_parameter.md for the full rationale."
@@ -592,6 +613,7 @@ unset _s
 _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
+_show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
 _show "EXPECTED_SESSIONS"    "$EXPECTED_SESSIONS"
 _show "ULIMIT_NOFILE"        "${ULIMIT_NOFILE:-(unset – manual capacity planning)}"
 _show "ULIMIT_NPROC"         "${ULIMIT_NPROC:-(unset – manual capacity planning)}"
@@ -701,6 +723,8 @@ $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
+# ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
+REPORTS_SECURITY="${REPORTS_SECURITY}"
 
 # --- ulimits (oracle OS user) -------------------------------------------------
 # Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
@@ -747,6 +771,12 @@ if [ -n "$WLS_ADMIN_PWD" ] && [ "$WLS_ADMIN_PWD" != "****" ]; then
     unset WLS_ADMIN_PWD
 fi
 
+if [ -n "${EMBEDDED_LDAP_PWD:-}" ] && [ "$EMBEDDED_LDAP_PWD" != "****" ]; then
+    _write_secrets_file "$EMBEDDED_LDAP_SEC_FILE" \
+        "EMBEDDED_LDAP_USER=cn=Admin" "EMBEDDED_LDAP_PWD=$EMBEDDED_LDAP_PWD"
+    unset EMBEDDED_LDAP_PWD
+fi
+
 if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
     _write_secrets_file "$MOS_SEC_FILE" "MOS_USER=$MOS_USER" "MOS_PWD=$MOS_PWD"
     unset MOS_PWD
@@ -790,6 +820,8 @@ $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
+# ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
+REPORTS_SECURITY="${REPORTS_SECURITY}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
 ULIMIT_NOFILE="${ULIMIT_NOFILE}"
 ULIMIT_NPROC="${ULIMIT_NPROC}"
@@ -804,6 +836,7 @@ MOS_USER="${MOS_USER}"
 # WLS_ADMIN_PWD  → weblogic_sec.conf.des3
 # MOS_PWD        → mos_sec.conf.des3
 # DB_SYS_PWD + DB_SCHEMA_PWD → db_sys_sec.conf.des3
+# EMBEDDED_LDAP_PWD → embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap)
 # Software versions / patch numbers → 09-Install/oracle_software_version.conf
 SETUPEOF
 

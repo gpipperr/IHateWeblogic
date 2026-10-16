@@ -106,6 +106,8 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 | `FORMS_CUSTOMER_DIR` | `/app/forms/custom` | – |
 | `REPORTS_CUSTOMER_DIR` | `${ORACLE_BASE}/reports/source` | – |
 | `REPORTS_IMAGE_DIR` | `${ORACLE_BASE}/reports/images` | images of the reports (Link File / Read from File) |
+| `REPORTS_SECURITY` | `ldap` (Reports installs; else `identifier`) | menu: `ldap` = secured Reports server via WebLogic embedded LDAP, `identifier` = not secured (13- Step 5a) |
+| `EMBEDDED_LDAP_PWD` | only with `ldap`: prompted, encrypted → `embedded_ldap_sec.conf.des3` | password of the embedded LDAP admin `cn=Admin` (letters/digits); 13- sets it in the domain |
 | `EXPECTED_SESSIONS` | `lt100` | see below – sizes `ULIMIT_NOFILE`/`ULIMIT_NPROC` |
 
 #### EXPECTED_SESSIONS
@@ -240,6 +242,7 @@ Asks for confirmation before writing `environment.conf`.
 | `environment.conf` | All installation parameters |
 | `weblogic_sec.conf.des3` | Encrypted WebLogic admin password |
 | `mos_sec.conf.des3` | Encrypted MOS password |
+| `embedded_ldap_sec.conf.des3` | Encrypted embedded LDAP `cn=Admin` password (`REPORTS_SECURITY=ldap`) |
 | `setup.conf` | Reusable template (no passwords) |
 
 ---

@@ -431,10 +431,16 @@ an in-process Reports server.
 
 Steps of the script (with `--apply`, AdminServer running):
 
-1. Prerequisite (manual, once): password of the embedded LDAP administrator
-   `cn=Admin` set and stored in `embedded_ldap_sec.conf.des3` – the script
-   prints the commands if the file is missing (architecture doc §5.1).
+1. Prerequisite: password of the embedded LDAP administrator `cn=Admin` in
+   `embedded_ldap_sec.conf.des3` – asked by `01-setup-interview.sh`
+   (`REPORTS_SECURITY=ldap`); if the file is missing the script prints how
+   to create it by hand (architecture doc §5.1).
 2. LDAP bind check as `cn=Admin` against `ldap://localhost:<admin port>`.
+   If the bind fails (the domain still has the random password of the domain
+   creation), the script sets the stored password via WLST
+   (`/EmbeddedLDAP/<domain>` → `setCredential`, activate) and stops this
+   section with a WARN: **restart the AdminServer, then re-run 13** – the
+   embedded LDAP reads the credential only at start.
 3. `createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', …)`
    (`updateCred` if it exists).
 4. `jps-config-jse.xml` (backup): new `serviceInstance idstore.ldap.embedded`

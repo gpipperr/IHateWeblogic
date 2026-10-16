@@ -25,8 +25,9 @@
 # Requires : environment.conf with Reports variables (init_env.sh --apply)
 #            weblogic_sec.conf.des3 (for WLST credential loading)
 #            embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap: password of
-#              the embedded LDAP administrator cn=Admin, set manually - see
-#              80-FMW-Architecture/reports_user_local_ldap.md 5.1)
+#              the embedded LDAP administrator cn=Admin, asked by
+#              01-setup-interview.sh; if the domain still has the random one,
+#              13 sets it via WLST - then restart the AdminServer, re-run 13)
 #            AdminServer running unless --skip-wlst
 #            13-root_reports_fix.sh done (libnsl.so.2 symlink)
 # Runs as  : oracle
@@ -539,13 +540,11 @@ elif [ ! -f "$_JSE" ]; then
     fail "jps-config-jse.xml not found: $_JSE"
 elif [ ! -f "$_ELDAP_SEC" ]; then
     warn "Password of the embedded LDAP administrator not stored: $_ELDAP_SEC"
-    info "  Manual step (once), then re-run this script:"
+    info "  Normally asked by 09-Install/01-setup-interview.sh (REPORTS_SECURITY=ldap)."
+    info "  Or manually (once), then re-run this script - 13 sets it in the domain:"
     info "   1. choose a password (letters/digits), store it encrypted:"
     info "      read -s -p 'Embedded-LDAP password: ' P; echo"
     info "      bash -c 'source 00-Setup/IHateWeblogic_lib.sh; _write_secrets_file $_ELDAP_SEC \"EMBEDDED_LDAP_USER=cn=Admin\" \"EMBEDDED_LDAP_PWD=\$1\"' _ \"\$P\"; unset P"
-    info "   2. WLST: connect(...); edit(); startEdit(); cd('/EmbeddedLDAP/${_dom}')"
-    info "      cmo.setCredential('<password>'); save(); activate()"
-    info "   3. restart the AdminServer"
     info "  Until then the Reports server stays unsecured (no securityId)."
 else
     ok "$(printf "Identity store target: %s  %s" "$_ldap_url" "$_ldap_base")"
@@ -573,14 +572,27 @@ env.put(Context.PROVIDER_URL, e['_IHW_LDAP_URL'])
 env.put(Context.SECURITY_AUTHENTICATION, 'simple')
 env.put(Context.SECURITY_PRINCIPAL, 'cn=Admin')
 env.put(Context.SECURITY_CREDENTIALS, e['_IHW_LDAP_PWD'])
+bind_ok = 0
 try:
     InitialDirContext(env).close()
     print('IHW:OK:LDAP bind as cn=Admin to ' + e['_IHW_LDAP_URL'])
+    bind_ok = 1
 except Exception, ex:
-    print('IHW:FAIL:LDAP bind as cn=Admin failed: ' + str(ex).split('\n')[0])
-    exit(exitcode=1)
+    print('IHW:INFO:LDAP bind as cn=Admin failed (' + str(ex).split('\n')[0] + ')')
 try:
     connect(e['_IHW_WL_USER'], e['_IHW_WL_PASS'], e['_IHW_ADM_URL'])
+    if not bind_ok:
+        # the domain still has the random password of the domain creation:
+        # set the one from embedded_ldap_sec.conf.des3 (read at AdminServer start)
+        edit()
+        startEdit()
+        cd('/EmbeddedLDAP/' + e['_IHW_DOMAIN'])
+        cmo.setCredential(e['_IHW_LDAP_PWD'])
+        save()
+        activate(block='true')
+        print('IHW:RESTART:embedded LDAP password set in the domain - restart the AdminServer, then re-run this script')
+        disconnect()
+        exit()
     try:
         createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
                    password=e['_IHW_LDAP_PWD'], desc='Bind user of the Reports JSE identity store')
@@ -595,7 +607,7 @@ except Exception, ex:
     exit(exitcode=1)
 exit()
 SEC_PY
-        _sec_out="$(_IHW_LDAP_URL="$_ldap_url" _IHW_LDAP_PWD="$EMBEDDED_LDAP_PWD" \
+        _sec_out="$(_IHW_LDAP_URL="$_ldap_url" _IHW_LDAP_PWD="$EMBEDDED_LDAP_PWD" _IHW_DOMAIN="$_dom" \
                     _IHW_WL_USER="$WL_USER" _IHW_WL_PASS="$INTERNAL_WL_PWD" \
                     _IHW_ADM_URL="t3://localhost:${WLS_ADMIN_PORT:-7001}" \
                     "$WLST_SH" "$_sec_py" 2>&1)"
@@ -603,8 +615,12 @@ SEC_PY
         unset EMBEDDED_LDAP_PWD INTERNAL_WL_PWD
         while IFS= read -r _line; do
             case "$_line" in
-                IHW:OK:*)   ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
-                IHW:FAIL:*) fail "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+                IHW:OK:*)      ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+                IHW:INFO:*)    info "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+                IHW:RESTART:*) warn "$(printf '%s' "$_line" | cut -d: -f3-)"
+                               info "  e.g. \$ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh stop AdminServer && ... start AdminServer"
+                               info "  (managed servers and the Reports server keep running)" ;;
+                IHW:FAIL:*)    fail "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
             esac
         done <<< "$_sec_out"
         printf '%s\n' "$_sec_out" | grep -q '^IHW:OK:.*Cred' && _cred_ok=true

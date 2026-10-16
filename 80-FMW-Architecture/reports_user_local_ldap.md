@@ -138,6 +138,12 @@ Property names checked in the OPSS jars (**confirmed (code)**):
 
 ### 5.1 Set the password of the embedded LDAP administrator (manual, WLST)
 
+> Automated since 2026-10-16: `01-setup-interview.sh` asks the password
+> (`REPORTS_SECURITY=ldap`) and writes `embedded_ldap_sec.conf.des3`;
+> `13-oracle_setup_reports.sh --apply` sets it in the domain when the
+> `cn=Admin` bind fails (then restart the AdminServer, re-run 13). The manual
+> steps below remain the reference / fallback.
+
 The embedded LDAP administrator is `cn=Admin`; its password (`EmbeddedLDAP`
 MBean, attribute `Credential`) is generated randomly when the domain is created
 and is not known. Set it by hand (done on the test host 2026-10-16, as oracle):
