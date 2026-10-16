@@ -793,6 +793,9 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   # Werte nur fuer Schritt 9:
   export REPORTS_PATH=/app/oracle/applications/source
+  # Bilder/Grafiken der Reports (frueher unter Windows z.B. d:\graphiken) -
+  # eigener Ordner, wird in 9.7 an REPORTS_PATH angehaengt und freigegeben
+  export REPORTS_IMAGE_DIR=/app/oracle/applications/graphiken
   export REPORTS_TMP=/tmp/reports
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
   export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
@@ -807,7 +810,7 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   #unter $TNS_ADMIN die Firmen tnsnames und sqlnet.ora ablegen
 
 
-  mkdir -p "$REPORTS_PATH" "$REPORTS_TMP"
+  mkdir -p "$REPORTS_PATH" "$REPORTS_IMAGE_DIR" "$REPORTS_TMP"
 
   # 9.3 Reports-Managed-Server erstmalig starten
   #     (AdminServer laeuft seit Schritt 4, Node Manager seit Schritt 7)
@@ -913,6 +916,7 @@ EOF
   # Kontrolle vorab - keine Zeile darf leer sein:
   echo "RWSERVER_CONF=$RWSERVER_CONF"
   echo "REPORTS_PATH=$REPORTS_PATH  REPORTS_TMP=$REPORTS_TMP  TNS_ADMIN=$TNS_ADMIN"
+  echo "REPORTS_IMAGE_DIR=$REPORTS_IMAGE_DIR"
   echo "REPORTS_NLS_LANG=$REPORTS_NLS_LANG  REPORTS_IDENTIFIER gesetzt: ${REPORTS_IDENTIFIER:+ja}"
 
   cp "$RWSERVER_CONF" "${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)"
@@ -924,7 +928,7 @@ EOF
           initEngine="2" maxEngine="5" minEngine="2" engLife="50" defaultEnvId="QS"/>
   <engine id="rwURLEng" class="oracle.reports.urlengine.URLEngineImpl" maxEngine="1" minEngine="0" engLife="50"/>
   <environment id="QS">
-    <envVariable name="REPORTS_PATH" value="${REPORTS_PATH}"/>
+    <envVariable name="REPORTS_PATH" value="${REPORTS_PATH}:${REPORTS_IMAGE_DIR}"/>
     <envVariable name="REPORTS_TMP" value="${REPORTS_TMP}"/>
     <envVariable name="NLS_LANG" value="${REPORTS_NLS_LANG}"/>
     <envVariable name="TNS_ADMIN" value="${TNS_ADMIN}"/>
@@ -942,7 +946,11 @@ EOF
   </notification>
   <connection maxConnect="300" idleTimeOut="15"/>
   <queue maxQueueSize="4000"/>
-  <folderAccess><read>${REPORTS_PATH}</read><write>${REPORTS_TMP}</write></folderAccess>
+  <folderAccess>
+    <read>${REPORTS_PATH}</read>
+    <read>${REPORTS_IMAGE_DIR}</read>
+    <write>${REPORTS_TMP}</write>
+  </folderAccess>
   <identifier encrypted="no">${REPORTS_IDENTIFIER}</identifier>
   <proxyInfo>
     <proxyServers><proxyServer name="\$\$Self.proxyHost\$\$" port="\$\$Self.proxyPort\$\$" protocol="all"/></proxyServers>
@@ -953,11 +961,28 @@ EOF
 EOF
 
   # Kontrolle: Werte eingesetzt, Oracle-Platzhalter unveraendert?
-  grep -E 'REPORTS_PATH|NLS_LANG|TNS_ADMIN|folderAccess|proxyHost' "$RWSERVER_CONF"
+  grep -E 'REPORTS_PATH|NLS_LANG|TNS_ADMIN|<read>|<write>|proxyHost' "$RWSERVER_CONF"
   # Erwartet: echte Pfade statt "${...}" und weiterhin "$$Self.proxyHost$$".
   # Die Datei enthaelt das Identifier-Kennwort zunaechst im Klartext - der
   # Reports Server verschluesselt es beim ersten Start selbst
   # (danach steht dort encrypted="yes").
+
+  # Bilder (REPORTS_IMAGE_DIR):
+  #   - REPORTS_PATH (envVariable) = WO gesucht wird: mehrere Verzeichnisse
+  #     durch ":" getrennt, gesucht wird der Reihe nach.
+  #   - <folderAccess><read> = WO gelesen werden DARF: ein <read>-Element je
+  #     Verzeichnis (KEINE ":"-Liste in einem <read>). Liegt ein Bild
+  #     ausserhalb, weist der Server es ab, auch wenn REPORTS_PATH es findet.
+  #   - Gefunden werden ueber REPORTS_PATH nur Bilder, die im Report OHNE
+  #     Pfad eingetragen sind (Link File "Source Filename" = logo.gif).
+  #     Steht dort noch der Windows-Pfad (d:\graphiken\logo.gif), muss der
+  #     Pfad im Report entfernt werden - siehe BEKANNTE PROBLEME "Bilder".
+  #     Im Report eingebettete Bilder (Insert -> Image) brauchen keinen Pfad.
+  #   - Dateinamen: Linux unterscheidet Gross-/Kleinschreibung
+  #     (Logo.GIF ist nicht logo.gif).
+  #   - Ein spaeter ergaenztes Bildverzeichnis: rwserver.conf von Hand
+  #     anpassen (Backup!), dann Reports-Server neu starten (stopComponent.sh
+  #     + startComponent.sh, restartComponent.sh geht nicht).
 
   # Hinweis: NLS_LANG kommt aus REPORTS_NLS_LANG (9.2, Beispiel
   # GERMAN_GERMANY.AL32UTF8) - an die tatsaechliche
@@ -995,12 +1020,18 @@ EOF
 
 # --- IHateWeblogic reports.sh (Reports_kochbuch_de.txt 9.9) ---
 export NLS_LANG=${REPORTS_NLS_LANG}
+REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH}:${REPORTS_IMAGE_DIR}; export REPORTS_PATH
 REPORTS_FONT_DIRECTORY=\${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
 EOF
   tail -5 $DOMAIN_HOME/reports/bin/reports.sh
-  # Erwartet: "export NLS_LANG=<Wert aus 9.2>" und woertlich
+  # Erwartet: "export NLS_LANG=<Wert aus 9.2>", "REPORTS_PATH=${REPORTS_PATH}:
+  # <Report-Ordner>:<Bildordner>" (rwrun und die Reports-Tools lesen die
+  # rwserver.conf nicht - sie brauchen den Bildordner hier) und woertlich
   # "REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
+  # Block schon vorhanden (ohne REPORTS_PATH-Zeile)? Die Zeile von Hand
+  # nach "export NLS_LANG=..." einfuegen:
+  #   REPORTS_PATH=${REPORTS_PATH}:/app/oracle/applications/source:/app/oracle/applications/graphiken; export REPORTS_PATH
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
@@ -1211,6 +1242,26 @@ BEKANNTE PROBLEME UND LOESUNGEN
            erreichbar
   Loesung: rwserver.conf-Umgebungsvariablen pruefen, DB-Konnektivitaet
            per "nc -zv $DB_HOST $DB_PORT" erneut testen
+
+  Problem: Bilder/Grafiken fehlen in der Ausgabe (Reports kamen von Windows,
+           Bild im Report Builder als Link File mit d:\graphiken\... )
+  Ursache: der Windows-Pfad ist im Report gespeichert (Link File "Source
+           Filename" bzw. DB-Spalte mit "Read from File") - unter Linux
+           gibt es d:\ nicht. Ueber REPORTS_PATH sucht Reports nur Namen
+           OHNE Pfad. (Ob Reports 14 bei einem absoluten Windows-Pfad auf
+           den reinen Dateinamen zurueckfaellt, ist nicht geprueft - nicht
+           darauf verlassen.)
+  Loesung: Bilder nach $REPORTS_IMAGE_DIR (9.2/9.7), Ordner in REPORTS_PATH
+           und <folderAccess><read> (9.7) und reports.sh (9.9). Im Report
+           den Pfad entfernen (nur "logo.gif") - fuer viele Reports per
+           rwconverter ueber XML, Beispiel:
+             rwconverter.sh source=r.rdf stype=rdffile dest=r.xml dtype=xmlfile batch=yes overwrite=yes
+             grep -il 'graphiken' *.xml
+             sed -i 's#d:\\graphiken\\##Ig' r.xml
+             rwconverter.sh source=r.xml stype=xmlfile dest=r.rdf dtype=rdffile batch=yes overwrite=yes
+           (vorher Sicherung der .rdf). DB-Spalten mit Pfad: Pfad per
+           UPDATE oder in der Abfrage entfernen. Dateinamen-Schreibweise
+           beachten (Linux: Gross-/Kleinschreibung).
 
   Problem: Parameterformular / HTML-Ausgabe zeigt falsche Zeichen
            (Symbol/griechische Glyphen)
