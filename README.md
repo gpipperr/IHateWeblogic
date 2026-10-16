@@ -569,9 +569,11 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   `<identifier>rep_admin/wls_team</identifier>` – generate or
   ask for the password and store it encrypted (`*.des3`) like the other
   credentials; needed by every authenticated `getserverinfo` call.
-- [ ] **Reports server security decision**: secure the server via `securityId`
-  on the `<job>` element (then `monUser`/`RW_MONITOR` work as designed) or keep
-  the `<identifier>` admin for web commands – see Report Security above.
+- [x] **Reports server security decision** (2026-10-16): `REPORTS_SECURITY`
+  in `environment.conf`, asked by `01-setup-interview.sh` – `ldap` (default:
+  `securityId` + LDAP identity store, `cn=Admin` password →
+  `embedded_ldap_sec.conf.des3`, set in the domain by `13-`) or `identifier`
+  (not secured, web commands only for the `<identifier>` admin).
 - [x] **Reports-only installs in `08-oracle_setup_domain.sh`** (2026-10-15):
   templates and managed servers follow `INSTALL_COMPONENTS` (REPORTS_ONLY: no
   `forms_template.jar` / `WLS_FORMS` / `forms1`; FORMS_ONLY: no Reports
