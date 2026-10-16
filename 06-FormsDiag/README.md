@@ -208,7 +208,7 @@ Forms looks for `.fmx` (compiled form) and `.mmx` (compiled menu) files in
 
 Best practice:
 ```
-FORMS_PATH=/app/forms/custom:/app/forms/standard:$FORMS_HOME/forms
+FORMS_PATH=/u01/app/oracle/forms/moduls:/u01/app/oracle/forms/standard:$FORMS_HOME/forms
 ```
 - Custom forms first (allows overriding standard forms)
 - Keep `.fmx` and `.fmb` in the same directory tree (easier maintenance)

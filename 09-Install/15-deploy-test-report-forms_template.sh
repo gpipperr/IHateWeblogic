@@ -1,37 +1,43 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 15-deploy-test-report-forms_template.sh
-# Purpose  : Convert, compile and deploy the minimal Forms test module and
+# Purpose  : Smoke test of a Forms/Reports installation without Builder:
+#            convert, compile and deploy the minimal Forms test module and
 #            Reports demo report described in
-#            docs/20-forms_reports_testmodules.md, as a smoke test that this
-#            installation can compile Forms/Reports and reach the database.
-#            No customer data, no business logic — just SYSDATE and a row
+#            docs/20-forms_reports_testmodules.md, then run the report through
+#            the Reports server (rwservlet -> PDF).
+#            No customer data, no business logic - just SYSDATE and a row
 #            count from USER_OBJECTS.
 #
-#            Only deploys the component(s) actually selected in
-#            INSTALL_COMPONENTS (FORMS_ONLY | REPORTS_ONLY |
-#            FORMS_AND_REPORTS) — if only one of Forms/Reports is installed,
-#            only that half runs.
+#            Only the component(s) selected in INSTALL_COMPONENTS
+#            (FORMS_ONLY | REPORTS_ONLY | FORMS_AND_REPORTS) are tested.
 #
-#            STATUS: PARTIALLY VERIFIED (2026-08-01 live test against FMW
-#            14.1.2). The Forms XML "version" attribute and full end-to-end
-#            success are still NOT confirmed — see
-#            docs/20-forms_reports_testmodules.md Live Test Log for details.
-#            Confirmed so far: XML2Forms/frmcmp/rwconverter tool locations,
-#            that both Forms and Reports conversion need a working X
-#            display, and that "frmxml2f" is not a binary but the Java class
-#            oracle.forms.util.xmltools.XML2Forms in frmxmltools.jar.
+#            STATUS: VERIFIED end-to-end 2026-10-16 (FMW 14.1.2):
+#              Forms   XML -> FMB (XML2Forms) -> FMX (frmcmp_batch)
+#              Reports XML -> RDF (rwconverter) -> rwservlet -> PDF
+#            Findings (details in docs/20, Live Test Log 2026-10-16):
+#              - use the instance wrappers (frmxml2f.sh / frmcmp_batch.sh of
+#                the Forms instance, $DOMAIN_HOME/reports/bin/rwconverter.sh)
+#                - $ORACLE_HOME/bin/rwconverter alone aborts (SIGABRT,
+#                Reports environment missing)
+#              - Forms JDAPI needs FORMS_API_TK_BYPASS=TRUE, then no X
+#                display is needed ("_jni_initialize: Failed to create new
+#                forms context" otherwise)
+#              - Forms tools split userid at "/": EZConnect host:port/service
+#                fails silently ("Form not created") - a TNS alias is used
+#                (temporary TNS_ADMIN in the staging directory)
 #
 # Call     : ./09-Install/15-deploy-test-report-forms_template.sh
 #            ./09-Install/15-deploy-test-report-forms_template.sh --apply
 # Options  : (none)    Dry-run: show what would be compiled/deployed
-#            --apply   Convert + compile + deploy into customer directories
+#            --apply   Convert + compile + deploy + run the report
 #            --help    Show usage
-# Requires : environment.conf (ORACLE_HOME, JAVA_HOME, TEST_DB_CONNECT,
+# Requires : environment.conf (ORACLE_HOME, DOMAIN_HOME, DB_HOST/DB_PORT/
+#              DB_SERVICE or TEST_DB_HOST/TEST_DB_PORT/TEST_DB_SERVICE,
 #              FORMS_CUSTOMER_DIR, REPORTS_CUSTOMER_DIR, INSTALL_COMPONENTS)
+#            test_db_sec.conf.des3 (TEST_DB_USER, TEST_DB_PWD - asked once
+#              by this script on a terminal and stored encrypted)
 #            forms_templates/test_form.xml, reports_templates/test_dual.xml
-#            A working X display (DISPLAY + Xvfb) for both Forms and Reports
-#              conversion — confirmed required even in pure batch mode.
 # Runs as  : oracle
 # Ref      : 09-Install/docs/20-forms_reports_testmodules.md
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -43,6 +49,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIB_SH="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
 FORMS_TEMPLATE="$SCRIPT_DIR/forms_templates/test_form.xml"
 REPORTS_TEMPLATE="$SCRIPT_DIR/reports_templates/test_dual.xml"
+TEST_DB_SEC="$ROOT_DIR/test_db_sec.conf.des3"
+TNS_ALIAS="IHW_SMOKE_DB"
 
 if [ ! -f "$LIB_SH" ]; then
     printf "\033[31mFATAL\033[0m: Library not found: %s\n" "$LIB_SH" >&2
@@ -67,11 +75,10 @@ for _arg in "$@"; do
         --help|-h)
             printf "Usage: %s [--apply]\n\n" "$(basename "$0")"
             printf "  %-14s %s\n" "(none)"   "Dry-run: show what would be compiled/deployed"
-            printf "  %-14s %s\n" "--apply"  "Convert + compile + deploy into customer directories"
+            printf "  %-14s %s\n" "--apply"  "Convert + compile + deploy + run the report (PDF)"
             printf "  %-14s %s\n" "--help"   "Show this help"
-            printf "\nOnly deploys the component(s) selected in INSTALL_COMPONENTS.\n"
-            printf "Requires a working X display (DISPLAY + Xvfb) for both Forms and Reports.\n"
-            printf "STATUS: partially verified — see docs/20-forms_reports_testmodules.md\n"
+            printf "\nOnly tests the component(s) selected in INSTALL_COMPONENTS.\n"
+            printf "DB user/password: %s (asked once on a terminal).\n" "$(basename "$TEST_DB_SEC")"
             exit 0 ;;
         *) warn "Unknown argument: $_arg" ;;
     esac
@@ -96,13 +103,12 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # =============================================================================
 
 printLine
-printf "\n\033[1m  IHateWeblogic – Forms/Reports Test Module Deploy\033[0m\n" | tee -a "$LOG_FILE"
+printf "\n\033[1m  IHateWeblogic – Forms/Reports Smoke Test\033[0m\n"        | tee -a "$LOG_FILE"
 printf "  Host              : %s\n" "$(_get_hostname)"                        | tee -a "$LOG_FILE"
 printf "  INSTALL_COMPONENTS: %s\n" "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" | tee -a "$LOG_FILE"
 printf "  Apply             : %s\n" "$APPLY"                                   | tee -a "$LOG_FILE"
 printf "  Log               : %s\n" "$LOG_FILE"                                | tee -a "$LOG_FILE"
 printLine
-warn "STATUS: partially verified only – see docs/20-forms_reports_testmodules.md Live Test Log"
 
 # =============================================================================
 # Component selection
@@ -112,6 +118,7 @@ section "Component Selection"
 
 DEPLOY_FORMS=false
 DEPLOY_REPORTS=false
+FORMS_DEPLOYED=false
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_ONLY)        DEPLOY_FORMS=true ;;
     REPORTS_ONLY)      DEPLOY_REPORTS=true ;;
@@ -130,103 +137,98 @@ $DEPLOY_REPORTS \
     || info "$(printf "Reports demo report skipped  (INSTALL_COMPONENTS=%s)" "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}")"
 
 # =============================================================================
-# Helper: find the first existing/executable tool from a list of candidate
-# names. Confirmed by live test (2026-08-01) that frmcmp/rwconverter live
-# directly under $ORACLE_HOME/bin/ (not forms/bin or reports/bin) — this
-# helper is kept for robustness across installs, not because the name/path
-# is still uncertain.
-# =============================================================================
-
-_find_tool() {
-    local dir="$1"; shift
-    local name
-    for name in "$@"; do
-        if [ -x "$dir/$name" ]; then
-            printf '%s' "$dir/$name"
-            return 0
-        fi
-    done
-    return 1
-}
-
-# =============================================================================
 # Prerequisites
 # =============================================================================
 
 section "Prerequisites"
 
-[ -n "${ORACLE_HOME:-}" ] \
+[ -n "${ORACLE_HOME:-}" ] && [ -d "$ORACLE_HOME" ] \
     && ok "ORACLE_HOME = $ORACLE_HOME" \
-    || { fail "ORACLE_HOME not set in environment.conf"; EXIT_CODE=2; print_summary; exit "$EXIT_CODE"; }
+    || { fail "ORACLE_HOME not set or missing: ${ORACLE_HOME:-}"; EXIT_CODE=2; print_summary; exit "$EXIT_CODE"; }
+[ -n "${DOMAIN_HOME:-}" ] && [ -d "$DOMAIN_HOME" ] \
+    && ok "DOMAIN_HOME = $DOMAIN_HOME" \
+    || { fail "DOMAIN_HOME not set or missing: ${DOMAIN_HOME:-}"; EXIT_CODE=2; print_summary; exit "$EXIT_CODE"; }
 
-[ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ] \
-    && ok "JAVA_HOME = $JAVA_HOME" \
-    || { fail "JAVA_HOME not set or java not executable (needed for XML2Forms)"; EXIT_CODE=2; print_summary; exit "$EXIT_CODE"; }
-
-[ -n "${TEST_DB_CONNECT:-}" ] \
-    && ok "TEST_DB_CONNECT is set" \
-    || { fail "TEST_DB_CONNECT not set in environment.conf"; \
-         info "  Add e.g.: TEST_DB_CONNECT=scott/tiger@//host:port/service"; \
-         info "  See: 09-Install/docs/00-environment-setup.md"; \
-         EXIT_CODE=2; print_summary; exit "$EXIT_CODE"; }
-
-# Confirmed required (2026-08-01 live test) for both Forms and Reports
-# conversion, even in pure batch mode — without it XML2Forms fails with
-# "_jni_initialize: Failed to create new forms context" and rwconverter
-# aborts (SIGABRT) as soon as it's given real arguments.
-if [ -n "${DISPLAY:-}" ]; then
-    ok "DISPLAY = $DISPLAY"
+# --- Test database (may differ from the repository DB)
+_DB_HOST="${TEST_DB_HOST:-${DB_HOST:-}}"
+_DB_PORT="${TEST_DB_PORT:-${DB_PORT:-1521}}"
+_DB_SERVICE="${TEST_DB_SERVICE:-${DB_SERVICE:-}}"
+if [ -n "$_DB_HOST" ] && [ -n "$_DB_SERVICE" ]; then
+    ok "$(printf "Test DB = %s:%s/%s" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE")"
 else
-    warn "DISPLAY is not set – Forms/Reports conversion will likely fail"
-    info "  Start Xvfb first, e.g.: Xvfb ${DISPLAY_VAR:-:99} -screen 0 1024x768x24 &"
-    info "  Then: export DISPLAY=${DISPLAY_VAR:-:99}"
+    fail "Test DB unknown - set DB_HOST/DB_SERVICE (or TEST_DB_HOST/TEST_DB_SERVICE) in environment.conf"
+    EXIT_CODE=2
 fi
 
-# --- Forms: XML2Forms is a Java class (oracle.forms.util.xmltools.XML2Forms
-# in frmxmltools.jar), not a standalone binary — confirmed 2026-08-01.
-FRMXMLTOOL_CP=""
-FRMCMP=""
+# --- Test DB user/password (encrypted, never in environment.conf)
+TEST_DB_USER="" TEST_DB_PWD=""
+if [ -f "$TEST_DB_SEC" ]; then
+    if load_secrets_file "$TEST_DB_SEC" > /dev/null 2>&1 && [ -n "$TEST_DB_USER" ] && [ -n "$TEST_DB_PWD" ]; then
+        ok "Test DB user: $TEST_DB_USER (password from $(basename "$TEST_DB_SEC"))"
+    else
+        fail "Cannot read $TEST_DB_SEC - delete it and re-run on a terminal"
+        EXIT_CODE=2
+    fi
+elif $APPLY && [ -t 0 ]; then
+    info "Test DB user/password not stored yet -> $(basename "$TEST_DB_SEC")"
+    info "  any schema with CREATE SESSION (reads only DUAL / USER_OBJECTS)"
+    printf "  %-30s : " "Test DB user"; read -r TEST_DB_USER
+    _pw2="x"
+    while [ -n "$TEST_DB_USER" ] && { [ -z "$TEST_DB_PWD" ] || [ "$TEST_DB_PWD" != "$_pw2" ]; }; do
+        printf "  %-30s : " "Test DB password"; read -rs TEST_DB_PWD; printf "\n"
+        printf "  %-30s : " "Confirm password"; read -rs _pw2; printf "\n"
+        [ "$TEST_DB_PWD" != "$_pw2" ] && printf "  Passwords do not match. Try again.\n"
+    done
+    unset _pw2
+    if [ -n "$TEST_DB_USER" ] && [ -n "$TEST_DB_PWD" ]; then
+        _write_secrets_file "$TEST_DB_SEC" "TEST_DB_USER=$TEST_DB_USER" "TEST_DB_PWD=$TEST_DB_PWD" \
+            || EXIT_CODE=2
+    else
+        fail "No test DB user given"; EXIT_CODE=2
+    fi
+elif $APPLY; then
+    fail "$(basename "$TEST_DB_SEC") missing - run this script once on a terminal (it asks user/password)"
+    EXIT_CODE=2
+else
+    info "Dry-run - $(basename "$TEST_DB_SEC") missing: --apply on a terminal asks user/password"
+fi
+case "$TEST_DB_USER$TEST_DB_PWD" in
+    *[/@\ \"\'\\]*) fail "Test DB user/password must not contain / @ quotes, backslash or blanks"; EXIT_CODE=2 ;;
+esac
+
+# --- Tools: wrappers of the instances (set the Forms/Reports environment)
+FORMS_BIN="$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/${FORMS_INSTANCE_NAME:-forms1}/bin"
+FRMXML2F="$FORMS_BIN/frmxml2f.sh"
+FRMCMP="$FORMS_BIN/frmcmp_batch.sh"
+RWCONVERTER="$DOMAIN_HOME/reports/bin/rwconverter.sh"
+
 if $DEPLOY_FORMS; then
     [ -f "$FORMS_TEMPLATE" ] \
         && ok "Forms template found: $FORMS_TEMPLATE" \
         || { fail "Forms template missing: $FORMS_TEMPLATE"; EXIT_CODE=2; }
-
-    _frmjdapi_jar="$ORACLE_HOME/jlib/frmjdapi.jar"
-    _frmxmltools_jar="$ORACLE_HOME/jlib/frmxmltools.jar"
-    _xmlparser_jar="$ORACLE_HOME/oracle_common/modules/oracle.xdk/xmlparserv2.jar"
-    if [ -f "$_frmjdapi_jar" ] && [ -f "$_frmxmltools_jar" ] && [ -f "$_xmlparser_jar" ]; then
-        FRMXMLTOOL_CP="$_frmjdapi_jar:$_frmxmltools_jar:$_xmlparser_jar"
-        ok "XML2Forms classpath resolved (frmxmltools.jar found)"
+    if [ -x "$FRMXML2F" ] && [ -x "$FRMCMP" ]; then
+        ok "Forms tools: $FORMS_BIN/{frmxml2f,frmcmp_batch}.sh"
     else
-        warn "frmxmltools.jar / frmjdapi.jar / xmlparserv2.jar not found under $ORACLE_HOME"
-        info "  Forms may not be installed – check 06-oracle_install_forms_reports.sh"
+        fail "frmxml2f.sh / frmcmp_batch.sh not found in $FORMS_BIN"
+        info "  Forms instance missing? - check 08-oracle_setup_domain.sh / FORMS_INSTANCE_NAME"
         DEPLOY_FORMS=false
     fi
-    unset _frmjdapi_jar _frmxmltools_jar _xmlparser_jar
-
-    if $DEPLOY_FORMS; then
-        FRMCMP="$(_find_tool "$ORACLE_HOME/bin" frmcmp_batch frmcmp)" \
-            && ok "frmcmp found: $FRMCMP" \
-            || { warn "frmcmp not found under $ORACLE_HOME/bin/"; DEPLOY_FORMS=false; }
-    fi
-
     [ -n "${FORMS_CUSTOMER_DIR:-}" ] \
         && ok "FORMS_CUSTOMER_DIR = $FORMS_CUSTOMER_DIR" \
         || { fail "FORMS_CUSTOMER_DIR not set in environment.conf"; EXIT_CODE=2; }
 fi
 
-RWCONVERTER=""
 if $DEPLOY_REPORTS; then
     [ -f "$REPORTS_TEMPLATE" ] \
         && ok "Reports template found: $REPORTS_TEMPLATE" \
         || { fail "Reports template missing: $REPORTS_TEMPLATE"; EXIT_CODE=2; }
-
-    RWCONVERTER="$(_find_tool "$ORACLE_HOME/bin" rwconverter)" \
-        && ok "rwconverter found: $RWCONVERTER" \
-        || { warn "rwconverter not found under $ORACLE_HOME/bin/"; \
-             info "  Reports may not be installed – check 06-oracle_install_forms_reports.sh"; \
-             DEPLOY_REPORTS=false; }
-
+    if [ -x "$RWCONVERTER" ]; then
+        ok "Reports tool: $RWCONVERTER"
+    else
+        fail "rwconverter.sh not found: $RWCONVERTER"
+        info "  ReportsTools instance missing? - check 13-oracle_setup_reports.sh"
+        DEPLOY_REPORTS=false
+    fi
     [ -n "${REPORTS_CUSTOMER_DIR:-}" ] \
         && ok "REPORTS_CUSTOMER_DIR = $REPORTS_CUSTOMER_DIR" \
         || { fail "REPORTS_CUSTOMER_DIR not set in environment.conf"; EXIT_CODE=2; }
@@ -245,19 +247,47 @@ fi
 
 if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"
-    warn "Dry-run – use --apply to convert/compile and deploy."
-    $DEPLOY_FORMS   && info "Would compile: $FORMS_TEMPLATE -> $FORMS_CUSTOMER_DIR/test_form.fmx"
+    warn "Dry-run – use --apply to convert/compile, deploy and run."
+    $DEPLOY_FORMS   && info "Would compile: $FORMS_TEMPLATE -> $FORMS_CUSTOMER_DIR/test_form.{fmb,fmx}"
     $DEPLOY_REPORTS && info "Would convert: $REPORTS_TEMPLATE -> $REPORTS_CUSTOMER_DIR/test_dual.rdf"
+    $DEPLOY_REPORTS && info "Would run    : rwservlet report=test_dual.rdf desformat=pdf"
     print_summary
     exit "$EXIT_CODE"
 fi
 
 # =============================================================================
-# Staging area (cleaned up on exit)
+# Staging area + temporary TNS alias (cleaned up on exit)
 # =============================================================================
 
 STAGING="$(mktemp -d /tmp/ihw_testmodules_XXXXXX)"
 trap 'rm -rf "$STAGING"' EXIT
+chmod 700 "$STAGING"
+mkdir "$STAGING/tns"
+# Forms tools split userid at "/" - EZConnect does not work, use an alias.
+# Keep the aliases of the existing tnsnames.ora (same TNS_ADMIN for the tools).
+_tns_src="${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}/tnsnames.ora"
+[ -f "$_tns_src" ] && cp "$_tns_src" "$STAGING/tns/tnsnames.ora"
+printf "\n%s=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))\n" \
+    "$TNS_ALIAS" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" >> "$STAGING/tns/tnsnames.ora"
+unset _tns_src
+export TNS_ADMIN="$STAGING/tns"
+_CONNECT="$TEST_DB_USER/$TEST_DB_PWD@$TNS_ALIAS"
+
+# _deploy  src  dest_dir  - copy with backup of an existing file
+_deploy() {
+    local src="$1" dir="$2" dest
+    dest="$dir/$(basename "$src")"
+    if ! mkdir -p "$dir" 2>/dev/null; then
+        fail "Cannot create $dir - create it as root and chown to $(id -un)"
+        return 1
+    fi
+    [ -f "$dest" ] && cp "$dest" "$dest.bak_$(date +%Y%m%d_%H%M%S)"
+    if cp "$src" "$dest"; then
+        ok "Deployed: $dest"
+    else
+        fail "Copy failed: $dest"; return 1
+    fi
+}
 
 # =============================================================================
 # Forms: XML -> FMB -> FMX
@@ -268,50 +298,53 @@ if $DEPLOY_FORMS; then
 
     cp "$FORMS_TEMPLATE" "$STAGING/test_form.xml"
 
-    # XML2Forms is the real class behind "frmxml2f" (confirmed 2026-08-01).
-    # Options must precede the filename; USERID= is uppercase (tool's own
-    # usage text) and is genuinely required ("for record group queries").
-    info "Running: java oracle.forms.util.xmltools.XML2Forms OVERWRITE=YES USERID=*** test_form.xml"
-    ( cd "$STAGING" \
-      && LD_LIBRARY_PATH="$JAVA_HOME/lib/server:$ORACLE_HOME/lib" \
-         "$JAVA_HOME/bin/java" -classpath "$FRMXMLTOOL_CP" oracle.forms.util.xmltools.XML2Forms \
-             OVERWRITE=YES "USERID=$TEST_DB_CONNECT" test_form.xml ) \
-        2>&1 | tee -a "$LOG_FILE"
+    # FORMS_API_TK_BYPASS=TRUE: JDAPI without Motif/X display (2026-10-16)
+    info "Running: frmxml2f.sh OVERWRITE=YES USERID=*** test_form.xml"
+    ( cd "$STAGING" && FORMS_API_TK_BYPASS=TRUE \
+        "$FRMXML2F" OVERWRITE=YES "USERID=$_CONNECT" test_form.xml ) \
+        2>&1 | grep -v '^$' | tee -a "$LOG_FILE"
     FRMXML2F_RC=${PIPESTATUS[0]}
 
     if [ "$FRMXML2F_RC" -ne 0 ] || [ ! -f "$STAGING/test_form.fmb" ]; then
         fail "XML2Forms failed (rc=$FRMXML2F_RC) – test_form.fmb not produced"
-        fail "  This is a known unverified step (Module 'version' attribute etc.)"
-        info "  See docs/20-forms_reports_testmodules.md – Open Verification Points / JDAPI Plan B"
+        info "  See docs/20-forms_reports_testmodules.md – Troubleshooting"
     else
         ok "XML2Forms succeeded: test_form.fmb"
 
-        info "Running: frmcmp module=test_form.fmb ..."
-        ( cd "$STAGING" \
-          && LD_LIBRARY_PATH="$JAVA_HOME/lib/server:$ORACLE_HOME/lib" \
-             "$FRMCMP" module=test_form.fmb "userid=$TEST_DB_CONNECT" \
-                 module_type=form batch=yes compile_all=yes output_file=test_form.fmx ) \
-            2>&1 | tee -a "$LOG_FILE"
+        info "Running: frmcmp_batch.sh module=test_form.fmb userid=*** compile_all=yes"
+        ( cd "$STAGING" && FORMS_API_TK_BYPASS=TRUE \
+            "$FRMCMP" module=test_form.fmb "userid=$_CONNECT" \
+                module_type=form compile_all=yes output_file=test_form.fmx ) \
+            2>&1 | grep -v '^$' | tee -a "$LOG_FILE"
         FRMCMP_RC=${PIPESTATUS[0]}
 
-        if [ "$FRMCMP_RC" -ne 0 ] || [ ! -f "$STAGING/test_form.fmx" ]; then
+        # frmcmp_batch returns 0 also for "Form not created" - check the file
+        if [ ! -f "$STAGING/test_form.fmx" ]; then
             fail "frmcmp failed (rc=$FRMCMP_RC) – test_form.fmx not produced"
+            info "  'Form not created' without a message = DB logon failed (user/password/TNS)"
         else
-            ok "frmcmp succeeded: test_form.fmx"
-
-            mkdir -p "$FORMS_CUSTOMER_DIR"
-            if [ -f "$FORMS_CUSTOMER_DIR/test_form.fmx" ]; then
-                cp "$FORMS_CUSTOMER_DIR/test_form.fmx" \
-                   "$FORMS_CUSTOMER_DIR/test_form.fmx.bak_$(date +%Y%m%d_%H%M%S)"
-            fi
-            cp "$STAGING/test_form.fmx" "$FORMS_CUSTOMER_DIR/test_form.fmx"
-            ok "Deployed: $FORMS_CUSTOMER_DIR/test_form.fmx"
+            ok "frmcmp succeeded: test_form.fmx (trigger compiled against the DB)"
+            _deploy "$STAGING/test_form.fmb" "$FORMS_CUSTOMER_DIR" \
+                && _deploy "$STAGING/test_form.fmx" "$FORMS_CUSTOMER_DIR" \
+                && FORMS_DEPLOYED=true
         fi
     fi
+
+    # --- Forms servlet: config=webstart must return a JNLP (formsweb.cfg
+    # with Oracle's [webstart] section - 14- since 2026-10-16)
+    _ct="$(curl -s -o /dev/null --max-time 60 -w '%{http_code} %{content_type}' \
+             "http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet?config=webstart&form=test_form" 2>/dev/null)"
+    case "$_ct" in
+        200*jnlp*) ok "Forms servlet: config=webstart returns a JNLP (Java Web Start ready)" ;;
+        200*)      warn "Forms servlet: config=webstart returns HTML, no JNLP - [webstart] missing in formsweb.cfg"
+                   info "  Re-run 14-oracle_setup_forms.sh --apply, restart WLS_FORMS" ;;
+        *)         warn "Forms servlet not reachable on localhost:${WLS_FORMS_PORT:-9001} (${_ct:-no answer}) - WLS_FORMS running?" ;;
+    esac
+    unset _ct
 fi
 
 # =============================================================================
-# Reports: XML -> RDF
+# Reports: XML -> RDF -> run via rwservlet (PDF)
 # =============================================================================
 
 if $DEPLOY_REPORTS; then
@@ -319,38 +352,76 @@ if $DEPLOY_REPORTS; then
 
     cp "$REPORTS_TEMPLATE" "$STAGING/test_dual.xml"
 
-    info "Running: rwconverter source=test_dual.xml stype=xmlfile dtype=rdffile"
-    ( cd "$STAGING" \
-      && LD_LIBRARY_PATH="$JAVA_HOME/lib/server:$ORACLE_HOME/lib" \
-         "$RWCONVERTER" "userid=$TEST_DB_CONNECT" batch=yes overwrite=yes \
+    info "Running: rwconverter.sh userid=*** source=test_dual.xml stype=xmlfile dtype=rdffile"
+    ( cd "$STAGING" && "$RWCONVERTER" "userid=$_CONNECT" batch=yes overwrite=yes \
              source=test_dual.xml stype=xmlfile dest=test_dual.rdf dtype=rdffile ) \
-        2>&1 | tee -a "$LOG_FILE"
+        2>&1 | grep -v '^$\|REP-0004' | tee -a "$LOG_FILE"
     RWCONVERTER_RC=${PIPESTATUS[0]}
 
+    _rdf_ok=false
     if [ "$RWCONVERTER_RC" -ne 0 ] || [ ! -f "$STAGING/test_dual.rdf" ]; then
         fail "rwconverter failed (rc=$RWCONVERTER_RC) – test_dual.rdf not produced"
-        info "  See docs/20-forms_reports_testmodules.md – Open Verification Points"
+        info "  See docs/20-forms_reports_testmodules.md – Troubleshooting"
     else
         ok "rwconverter succeeded: test_dual.rdf"
-
-        mkdir -p "$REPORTS_CUSTOMER_DIR"
-        if [ -f "$REPORTS_CUSTOMER_DIR/test_dual.rdf" ]; then
-            cp "$REPORTS_CUSTOMER_DIR/test_dual.rdf" \
-               "$REPORTS_CUSTOMER_DIR/test_dual.rdf.bak_$(date +%Y%m%d_%H%M%S)"
-        fi
-        cp "$STAGING/test_dual.rdf" "$REPORTS_CUSTOMER_DIR/test_dual.rdf"
-        ok "Deployed: $REPORTS_CUSTOMER_DIR/test_dual.rdf"
+        _deploy "$STAGING/test_dual.rdf" "$REPORTS_CUSTOMER_DIR" && _rdf_ok=true
     fi
+
+    # --- Run through the Reports server. The engine resolves the DB itself
+    # (EZConnect works there). With a cgicmd.dat key "default" (14b-, carries
+    # server= and authid=) the key is used, otherwise server= directly.
+    if $_rdf_ok; then
+        _url="http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet?report=test_dual.rdf&destype=cache&desformat=pdf"
+        if [ -n "${CGICMD_DAT:-}" ] && grep -q '^default:' "$CGICMD_DAT" 2>/dev/null; then
+            _url="${_url}&cmdkey=default"
+            info "Running: rwservlet cmdkey=default report=test_dual.rdf desformat=pdf"
+        else
+            _url="${_url}&server=${REPORTS_SERVER_NAME:-repserver01}"
+            info "Running: rwservlet server=${REPORTS_SERVER_NAME:-repserver01} report=test_dual.rdf desformat=pdf"
+        fi
+        # URL with password via curl config on stdin - not in the process list
+        _http="$(printf 'url = "%s&userid=%s/%s@//%s:%s/%s"\n' "$_url" \
+                    "$TEST_DB_USER" "$TEST_DB_PWD" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" \
+                 | curl -s --max-time 180 -K - -o "$STAGING/test_dual.pdf" \
+                        -w '%{http_code} %{time_total}' 2>/dev/null)"
+        if [ "$(head -c 5 "$STAGING/test_dual.pdf" 2>/dev/null)" = "%PDF-" ]; then
+            ok "$(printf "Report run OK: PDF %s bytes (HTTP %s, %ss)" \
+                "$(wc -c < "$STAGING/test_dual.pdf")" "${_http%% *}" "${_http#* }")"
+        else
+            fail "Report run failed (HTTP ${_http%% *}) - no PDF returned"
+            _rep="$(grep -ao 'REP-[0-9]*[^<"]\{0,100\}' "$STAGING/test_dual.pdf" 2>/dev/null | head -1)"
+            [ -n "$_rep" ] && info "  $_rep"
+            info "  HTTP 499 = login required (secured server without cmdkey) - see 14b-"
+        fi
+        unset _url _http _rep
+    fi
+    unset _rdf_ok
 fi
+unset _CONNECT TEST_DB_PWD
 
 # =============================================================================
-# Next steps
+# How to start the test form (browsers have no Java plugin any more:
+# Java Web Start or the Forms Standalone Launcher FSAL)
 # =============================================================================
 
-printf "\n" | tee -a "$LOG_FILE"
-info "Next: verify manually, e.g."
-$DEPLOY_FORMS && info "  $FRMCMP module=$FORMS_CUSTOMER_DIR/test_form.fmx userid=\$TEST_DB_CONNECT module_type=form batch=yes"
-$DEPLOY_REPORTS && info "  rwclient server=<rep_server> report=$REPORTS_CUSTOMER_DIR/test_dual.rdf userid=\$TEST_DB_CONNECT destype=cache desformat=pdf"
+if ${FORMS_DEPLOYED:-false}; then
+    section "Start the Test Form"
+    # WLS_LISTEN_ADDRESS=localhost: WLS_FORMS only behind the NGINX proxy
+    if [ "${WLS_LISTEN_ADDRESS:-localhost}" = "localhost" ]; then
+        _fbase="https://${WLS_SERVER_FQDN:-$(_get_hostname)}/forms"
+    else
+        _fbase="http://${WLS_SERVER_FQDN:-$(_get_hostname)}:${WLS_FORMS_PORT:-9001}/forms"
+    fi
+    info "Login: Forms logon dialog (no userid in the URL - it would end up in history/logs)"
+    info "Java Web Start (opens a .jnlp, needs javaws / OpenWebStart on the client):"
+    info "  ${_fbase}/frmservlet?config=webstart&form=test_form"
+    info "Standalone Launcher FSAL (client: Java 8+ and frmsal.jar from ${_fbase}/html/fsal.htm):"
+    info "  java -jar frmsal.jar -url \"${_fbase}/frmservlet?config=standaloneapp&form=test_form\" -t 30000"
+    info "Browser only (needs the Java plugin - modern browsers: 'Oracle Java is required'):"
+    info "  ${_fbase}/frmservlet?form=test_form"
+    info "Expected: IT_SYSDATE = server date/time, IT_OBJ_COUNT = USER_OBJECTS count of the schema"
+    unset _fbase
+fi
 
 # =============================================================================
 print_summary

@@ -5,146 +5,42 @@
 # Managed: 09-Install/14-oracle_setup_forms.sh --apply
 # =============================================================================
 #
-# CUSTOMER SETUP – adapt the following in [default]:
-#   form=           – default start form (.fmx filename without path)
-#   pageTitle=      – application name shown in browser tab and title bar
-#   ssoSuccessLogonURL= – full URL for SSO logout redirect (host + port)
-#   background=     – background GIF filename (optional branding)
-#   logo=           – logo GIF filename (optional branding)
-#   customColorScheme= – name of colour scheme defined in Registry.dat
+# OVERRIDES ONLY for [default]: 14- starts from Oracle's own formsweb.cfg
+# ($ORACLE_HOME/forms/templates/config/formsweb.cfg – keeps serverArgs,
+# otherparams, the 14.1.2 launcher settings and the sections [webstart],
+# [standaloneapp], [webutil_*], [jnlp] ...). Keys set here replace Oracle's
+# value in [default], missing keys are added to [default]; comments here are
+# not copied. Before 2026-10-16 this file REPLACED Oracle's file (12c content:
+# no [webstart]/[standaloneapp], no serverArgs, frmopt.jar, java_version=1.7+).
 #
-# Add customer-specific application sections AFTER [default].
-# SSO sections ([*_sso]) are intentionally omitted – add when required.
+# CUSTOMER SETUP – optional keys for [default]:
+#   form=           – default start form (.fmx without path; Oracle: test.fmx)
+#   pageTitle=      – application name shown in browser tab and title bar
+#   background= / logo= – branding GIFs
+#   customColorScheme= – colour scheme defined in Registry.dat
+# Application sections ([myapp], called with config=myapp): add them in the
+# deployed file or via EM – this overlay only touches [default].
 # =============================================================================
 
-[default]
-baseHTML=base.htm
-HTMLdelimiter=%
-envFile=default.env
-restrictedURLparams=pageTitle,HTMLbodyAttrs,HTMLbeforeForm,HTMLafterForm,log
-escapeparams=true
-
-# ── Application ──────────────────────────────────────────────────────────────
-# ADAPT: set to your default start form (.fmx)
-form=start.fmx
-userid=
-pageTitle=Oracle Forms
-
-# ── Connection ───────────────────────────────────────────────────────────────
-debug=no
-host=
-port=
-digitSubstitution=context
-otherparams=
-obr=no
-record=
-tracegroup=
-log=
-term=
-
-# ── URLs ─────────────────────────────────────────────────────────────────────
-serverURL=/forms/lservlet
-codebase=/forms/java
-scriptbase=/forms/frmjscript
-imageBase=codebase
-mediaBase=codebase
-
-# ── Window ───────────────────────────────────────────────────────────────────
+# ── Window / client behaviour ────────────────────────────────────────────────
 width=1030
 height=860
 separateFrame=true
 splashScreen=no
 CenterOnStartup=true
-AlwaysOnTop=false
-hideActivityBar=false
-disableMDIScrollbars=false
-clientDPI=
-smartBarHeight=MEDIUM
 
-# ── Security ─────────────────────────────────────────────────────────────────
-allowAlertClipboard=true
-disableValidateClipboard=false
-highContrast=false
-allow_debug=false
-allowNewConnections=true
-
-# ── Appearance ───────────────────────────────────────────────────────────────
-# ADAPT: set background/logo GIF filenames for your environment, or leave empty
-background=
-logo=
-lookAndFeel=oracle
-colorScheme=swan
-# ADAPT: set to your custom colour scheme name (defined in Registry.dat), or remove
-customColorScheme=
-
-# ── Java Archive ─────────────────────────────────────────────────────────────
-archive=frmall.jar,frmopt.jar
-cache_archive_ex=frmopt.jar;preload
-guiMode=0
-
-# ── Prestart / Performance ────────────────────────────────────────────────────
+# ── Pre-started runtimes (faster first connect) ──────────────────────────────
+prestartRuntimes=true
 prestartInit=5
 prestartMin=4
 prestartIncrement=1
-prestartRuntimes=true
-networkRetries=0
-networkStats=false
 
-# ── SSO (disabled by default) ─────────────────────────────────────────────────
-ssoDynamicResourceCreate=false
-ssoErrorUrl=
-ssoCancelUrl=
-ssoMode=false
-ssoLogOut=false
-ssoLogOutRedirect=
-# ADAPT: set to your host:port for SSO logout
-ssoSuccessLogonURL=http://wls01.company.local:7777/forms/java/close.htm
-ssoProxyConnect=no
-logoutTargetURLParamname=
-
-# ── WebUtil ───────────────────────────────────────────────────────────────────
-# ##WEBUTIL_ARCHIVE## is set by 14-oracle_setup_forms.sh: frmwebutil.jar, plus
-# jacob.jar when FORMS_WEBUTIL_JACOB=true and jacob.jar is signed
+# ── WebUtil ──────────────────────────────────────────────────────────────────
+# WebUtilArchive: set by 14- (frmwebutil.jar, + jacob.jar only when signed)
 WebUtilArchive=##WEBUTIL_ARCHIVE##
 WebUtilLogging=off
 WebUtilLoggingDetail=normal
 WebUtilErrorMode=Alert
 WebUtilDispatchMonitorInterval=5
-WebUtilTrustInternal=TRUE
-WebUtilMaxTransferSize=16384
-
-# ── End User Monitoring ───────────────────────────────────────────────────────
-EndUserMonitoringEnabled=false
-EndUserMonitoringURL=
-
-# ── JVM / Lifecycle ──────────────────────────────────────────────────────────
-separate_jvm=true
-legacy_lifecycle=false
-heartBeat=
-MaxEventWait=
-idleTimeout=
-
-# ── Java Plugin (legacy applet support) ───────────────────────────────────────
-jpi_download_page=http://www.oracle.com/technetwork/java/javase/downloads
-jpi_classid=clsid:8AD9C840-044E-11D1-B3E9-00805F499D93
-jpi_codebase=
-jpi_mimetype=application/x-java-applet
-java_version=1.7+
-
-# ── Other ────────────────────────────────────────────────────────────────────
-formsMessageListener=
-recordFileName=
-serverApp=Registry
-applet_name=
-enableJavascriptEvent=true
-JavaScriptBlocksHeartBeat=false
-
-# =============================================================================
-# Add customer-specific application sections below this line.
-# Example:
-#
-# [myapp]
-# form=myapp_start.fmx
-# pageTitle=My Application
-# envFile=myapp.env
-# =============================================================================
+WebUtilTrustInternal=true
+WebUtilMaxTransferSize=24573

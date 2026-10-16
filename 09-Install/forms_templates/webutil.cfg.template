@@ -12,7 +12,7 @@
 # CUSTOMER SETUP:
 #   transfer.appsrv.read.N  – directories the server is allowed to read from
 #   transfer.appsrv.write.N – directories the server is allowed to write to
-#   transfer.appsrv.workAreaRoot – temp area for file operations (default: /tmp)
+#   transfer.appsrv.workAreaRoot – temp area for file operations (FORMS_TMP)
 #
 # The numbered entries (read.1, read.2 …) are evaluated in order.
 # Add as many as needed; remove unused entries.
@@ -23,7 +23,7 @@
 # Set to TRUE only for environments where WebUtil file transfer is required.
 transfer.database.enabled=TRUE
 transfer.appsrv.enabled=TRUE
-transfer.appsrv.workAreaRoot=/tmp
+transfer.appsrv.workAreaRoot=##FORMS_TMP##
 transfer.appsrv.accessControl=TRUE
 
 # ── Read Directories ──────────────────────────────────────────────────────────

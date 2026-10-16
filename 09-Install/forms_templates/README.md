@@ -16,7 +16,7 @@ The script copies each template to its target path(s) and creates a
 | Template | Target(s) in domain | Notes |
 |---|---|---|
 | `default.env.template` | `$DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_*/config/` | Main Forms environment file |
-| `formsweb.cfg.template` | Same config dir as `default.env` | URL-to-form mapping; add custom sections manually |
+| `formsweb.cfg.template` | Same config dir as `default.env` | `[default]` overrides merged into Oracle's formsweb.cfg (keeps `[webstart]`, `[standaloneapp]` …) |
 | `webutil.cfg.template` | `$FR_INST/server/` **and** `$FR_INST_ALT/server/` | File transfer settings; merged into Oracle's webutil.cfg, written to both locations |
 | `Registry.dat.template` | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
 | `fmrweb_utf8.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
@@ -30,17 +30,19 @@ The script copies each template to its target path(s) and creates a
 ### default.env.template
 Paths are `##...##` placeholders filled from `environment.conf` by the script
 (`ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`, `FORMS_INSTANCE_NAME`,
-`REPORTS_TOOLS_INSTANCE`, `FORMS_CUSTOMER_DIR`, `TNS_ADMIN` – default
+`REPORTS_TOOLS_INSTANCE`, `FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `TNS_ADMIN` – default
 `$DOMAIN_HOME/config/fmwconfig`) – do not replace them by hand. Adapt only:
 - `FORMS_PATH` – add further `.fmb` / `.fmx` directories if needed
 - `NLS_LANG`, `NLS_DATE_FORMAT` – language/character set
 
 ### formsweb.cfg.template
-- `form=` in `[default]` – your default start form (`.fmx`)
-- `pageTitle=` – application name shown in browser tab
-- `ssoSuccessLogonURL=` – host and port for SSO logout redirect
-- `background=`, `logo=` – customer branding GIFs (optional)
-- Add application-specific `[section]` blocks after the `[default]` section
+- Overrides for `[default]` only – merged into Oracle's
+  `$ORACLE_HOME/forms/templates/config/formsweb.cfg` (keeps `serverArgs`,
+  `[webstart]`, `[standaloneapp]`, `[webutil_*]`); see
+  `docs/14-forms-detail-settings.md` Step 4
+- optional: `form=` (default start form), `pageTitle=`, `background=`,
+  `logo=`, `customColorScheme=`
+- Application-specific `[section]` blocks: add in the deployed file / EM
 
 ### webutil.cfg.template
 - Overrides only – merged into Oracle's

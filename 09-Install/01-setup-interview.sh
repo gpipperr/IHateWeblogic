@@ -449,7 +449,8 @@ fi
 printf "\n"
 _ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
     "Reports Server name(s)"  "repserver01"
-_ask FORMS_CUSTOMER_DIR      "Forms customer directory"     "/app/forms/custom"
+_ask FORMS_CUSTOMER_DIR      "Forms module directory (.fmx/.fmb)" "${ORACLE_BASE}/forms/moduls"
+_ask FORMS_TMP               "Forms temp directory (TMPDIR)" "${ORACLE_BASE}/forms/tmp"
 _ask REPORTS_CUSTOMER_DIR    "Reports source directory (.rdf/.rep)" "${ORACLE_BASE}/reports/source"
 _ask REPORTS_IMAGE_DIR       "Reports image directory"      "${ORACLE_BASE}/reports/images"
 
@@ -620,6 +621,7 @@ for _s in "${REPORTS_SERVER_NAMES[@]:1}"; do
 done
 unset _s
 _show "FORMS_CUSTOMER_DIR"   "$FORMS_CUSTOMER_DIR"
+_show "FORMS_TMP"            "$FORMS_TMP"
 _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
@@ -731,6 +733,7 @@ REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
 REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
+FORMS_TMP="${FORMS_TMP}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
@@ -836,6 +839,7 @@ REPORTS_SERVER_NAME="${REPORTS_SERVER_NAME}"
 REPORTS_SERVER_NAMES=(
 $(printf "%b" "$_SRV_ARRAY_STR"))
 FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR}"
+FORMS_TMP="${FORMS_TMP}"
 REPORTS_CUSTOMER_DIR="${REPORTS_CUSTOMER_DIR}"
 REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)

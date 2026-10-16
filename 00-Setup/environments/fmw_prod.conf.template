@@ -25,6 +25,12 @@ WLS_MANAGED_SERVER=WLS_REPORTS
 FORMS_INSTANCE_NAME=forms1
 # WLS_FORMS_SERVER: WLS managed server running Oracle Forms
 WLS_FORMS_SERVER=WLS_FORMS
+# Forms directories - default layout $ORACLE_BASE/forms/{moduls,tmp}
+# (outside ORACLE_HOME and /tmp; created by 09-Install/14-oracle_setup_forms.sh)
+# FORMS_CUSTOMER_DIR: Forms modules (.fmx/.fmb), first entry of FORMS_PATH
+FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls
+# FORMS_TMP: TMPDIR of the Forms runtime (default.env)
+FORMS_TMP=/u01/app/oracle/forms/tmp
 # FORMS_WEBUTIL_JACOB: install JACOB (Java COM bridge) for WebUtil OLE /
 # Office automation (CLIENT_OLE2). Only needed if the Forms applications
 # drive Word/Excel; downloaded by 04-, installed by 14- (default: false)

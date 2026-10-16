@@ -103,7 +103,8 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 | `WLS_REPORTS_PORT` | `9002` | – |
 | `WLS_LISTEN_ADDRESS` | `localhost` | see below |
 | `REPORTS_SERVER_NAME` | `repserver01` | – |
-| `FORMS_CUSTOMER_DIR` | `/app/forms/custom` | – |
+| `FORMS_CUSTOMER_DIR` | `${ORACLE_BASE}/forms/moduls` | Forms modules (`.fmx`/`.fmb`), first entry of `FORMS_PATH` (14- creates it) |
+| `FORMS_TMP` | `${ORACLE_BASE}/forms/tmp` | `TMPDIR` of the Forms runtime in `default.env` (14- creates it) |
 | `REPORTS_CUSTOMER_DIR` | `${ORACLE_BASE}/reports/source` | – |
 | `REPORTS_IMAGE_DIR` | `${ORACLE_BASE}/reports/images` | images of the reports (Link File / Read from File) |
 | `REPORTS_SECURITY` | `ldap` (Reports installs; else `identifier`) | menu: `ldap` = secured Reports server via WebLogic embedded LDAP, `identifier` = not secured (13- Step 5a) |

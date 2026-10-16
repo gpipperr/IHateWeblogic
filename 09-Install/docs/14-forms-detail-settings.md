@@ -26,7 +26,7 @@ Steps performed by `14-oracle_setup_forms.sh`:
    `$PATCH_STORAGE/jacob/`, activate only a signed `jacob.jar`
 3. Write `webutil.cfg` (Oracle's file + template overrides) to both locations
 4. Copy `default.env` to the Forms application config dir
-5. Copy `formsweb.cfg` to the Forms application config dir
+5. Write `formsweb.cfg` (Oracle's file + `[default]` overrides) to the Forms application config dir
 6. Copy `Registry.dat` to the registry subdirectory
 7. Copy `fmrweb_utf8.res` and `fmrwebd.res` to the resource directory
 
@@ -49,7 +49,13 @@ ORACLE_HOME=/u01/oracle/fmw
 DOMAIN_HOME=/u01/user_projects/domains/fr_domain
 FORMS_INSTANCE_NAME=forms1        # instance name under FORMS/instances/
 WLS_FORMS_SERVER=WLS_FORMS        # managed server with Forms deployed
+FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls   # .fmx/.fmb, first FORMS_PATH entry
+FORMS_TMP=/u01/app/oracle/forms/tmp               # TMPDIR in default.env
 ```
+
+Directory layout `$ORACLE_BASE/forms/{moduls,tmp}` (outside `ORACLE_HOME` and
+`/tmp`, same idea as `$ORACLE_BASE/reports/{source,images,tmp}`). Step 2b
+creates both directories (750) if missing.
 
 ---
 
@@ -64,7 +70,7 @@ of parameters to adapt.
 | Template | Must adapt |
 |---|---|
 | `default.env.template` | `ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, `FORMS_PATH`, `NLS_LANG`, JDK path in `PATH`/`LD_LIBRARY_PATH`/`LD_PRELOAD` |
-| `formsweb.cfg.template` | `form=` (start form), `pageTitle=` |
+| `formsweb.cfg.template` | overrides for `[default]` only (window size, prestart, WebUtil); optional `form=`, `pageTitle=` |
 | `webutil.cfg.template` | `transfer.appsrv.read.N`, `transfer.appsrv.write.N` |
 | `Registry.dat.template` | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
 | `fmrweb_utf8.res.template` | Only if function key assignment differs from the standard layout |
@@ -207,6 +213,12 @@ Kept from Oracle's file (do not put into the template unless needed):
 
 ---
 
+## Step 2b – Forms directories
+
+`FORMS_CUSTOMER_DIR` (modules) and `FORMS_TMP` (runtime temp) are created with
+mode 750 when missing (`--apply`); existing directories are only checked for
+write access. Defaults: `$ORACLE_BASE/forms/moduls`, `$ORACLE_BASE/forms/tmp`.
+
 ## Step 3 – default.env
 
 **Location:**
@@ -217,7 +229,7 @@ $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_<v
 All path values are `##...##` placeholders, filled by `14-oracle_setup_forms.sh`
 from `environment.conf` when it copies the template (`##ORACLE_HOME##`,
 `##DOMAIN_HOME##`, `##JDK_HOME##`, `##FORMS_INSTANCE_NAME##`,
-`##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##TNS_ADMIN##` – default
+`##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##FORMS_TMP##` (`TMPDIR`), `##TNS_ADMIN##` – default
 `$DOMAIN_HOME/config/fmwconfig`). The script refuses to write a file with an
 unresolved placeholder. Before 2026-10-15 the template contained hard-coded paths
 of another host layout (`/u01/oracle/fmw`, `/u01/user_projects/...`, `reptools_ent`)
@@ -268,7 +280,7 @@ Minimum parameters to add via EM:
 | Parameter | Value |
 |---|---|
 | `COMPONENT_CONFIG_PATH` | path to ReportsToolsComponent instance |
-| `TMPDIR` | `/tmp` |
+| `TMPDIR` | `FORMS_TMP` (`$ORACLE_BASE/forms/tmp`) |
 | `TNS_ADMIN` | path to tnsnames.ora |
 | `NLS_LANG` | e.g. `GERMAN_GERMANY.UTF8` |
 | `NLS_LENGTH_SEMANTICS` | `CHAR` |
@@ -284,9 +296,34 @@ After all entries: **Apply → Lock icon → Activate Changes**.
 $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_<version>/config/formsweb.cfg
 ```
 
+**Base = Oracle's file** `$ORACLE_HOME/forms/templates/config/formsweb.cfg`
+(identical to the `formsweb.cfg.jmxori` of a new domain). The template only
+overrides / adds keys in `[default]`; all Oracle sections stay:
+`[sepwin]`, `[debug]`, `[webutil]`, `[jnlp]`, `[webutil_jnlp]`, **`[webstart]`**,
+`[webutil_webstart]`, **`[standaloneapp]`**, `[webutil_standaloneapp]`, plus
+`serverArgs`, `otherparams`, `java_version=1.8+`, `fsalcheck`.
+
+> **Fixed 2026-10-16:** before, the template (12c content) replaced the whole
+> file – no `[webstart]`/`[standaloneapp]`, no `serverArgs`, empty
+> `otherparams`, `frmopt.jar` (does not exist in 14.1.2), `java_version=1.7+`.
+> `config=webstart` then fell back to `[default]` and the browser showed
+> "Oracle Java is required to run this application … Consider using Java Web
+> Start or Standalone Launcher instead".
+
 The `[default]` section contains global defaults.
 Application-specific sections (e.g. `[myapp]`) **override** individual
-parameters for a specific URL parameter `config=myapp`.
+parameters for a specific URL parameter `config=myapp` – add them in the
+deployed file or via EM (the overlay only touches `[default]`).
+
+How to start a form in 14.1.2 (browsers have no Java plugin any more):
+
+| Client | URL / command | Section |
+|---|---|---|
+| Java Web Start | `https://<host>/forms/frmservlet?config=webstart&form=<module>` → `.jnlp` (`javaws` / OpenWebStart) | `[webstart]` |
+| Standalone Launcher (FSAL) | `java -jar frmsal.jar -url "https://<host>/forms/frmservlet?config=standaloneapp&form=<module>" -t 30000` – `frmsal.jar` from `https://<host>/forms/html/fsal.htm` | `[standaloneapp]` |
+| Browser + Java plugin (legacy) | `https://<host>/forms/frmservlet?form=<module>` | `[default]` |
+
+With WebUtil: `config=webutil_webstart` / `config=webutil_standaloneapp`.
 
 Key parameters:
 
@@ -296,7 +333,6 @@ Key parameters:
 | `envFile=` | Points to `default.env` (relative name, not full path) |
 | `serverURL=` | `/forms/lservlet` (do not change) |
 | `codebase=` | `/forms/java` (do not change) |
-| `separate_jvm=true` | Recommended for WebUtil; each client gets its own JVM |
 | `prestartInit` / `prestartMin` / `prestartIncrement` | Pre-started JVM tuning |
 | `WebUtilArchive=` | `##WEBUTIL_ARCHIVE##` – set by the script: `frmwebutil.jar`, plus `jacob.jar` when `FORMS_WEBUTIL_JACOB=true` and the jar is signed (Step 1) |
 

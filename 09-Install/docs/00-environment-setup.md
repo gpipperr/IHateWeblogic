@@ -179,7 +179,7 @@ explicitly provides a different value during `--interview`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `TEST_DB_CONNECT` | – | Plain connect string for the Forms/Reports test modules deployed by `15-deploy-test-report-forms_template.sh` (e.g. `scott/tiger@//host:port/service`). Only used for read-only demo queries (`dual`, `user_objects`) — deliberately **not** encrypted like `SEC_CONF`/`SEC_CONF_DB`, since it carries no production value. See `docs/20-forms_reports_testmodules.md`. |
+| `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_SERVICE` | `DB_HOST` / `DB_PORT` / `DB_SERVICE` | Optional: database for the Forms/Reports smoke test (`15-deploy-test-report-forms_template.sh`) if it differs from the repository DB. User/password are **not** stored here but encrypted in `test_db_sec.conf.des3` (asked by `15-` on first `--apply`). See `docs/20-forms_reports_testmodules.md`. |
 
 ---
 

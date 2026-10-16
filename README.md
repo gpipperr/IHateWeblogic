@@ -374,7 +374,7 @@ IHateWeblogic/
 │   ├── response_files/              – Silent-install response file templates
 │   │                                   (domain_config.py, fr_install.rsp, cgicmd.dat)
 │   ├── 15-deploy-test-report-forms_template.sh – Smoke test: minimal Forms module + Reports demo
-│   │                                   (partially verified)
+│   │                                   (verified 2026-10-16)
 │   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
 │                                       30-autostart, 80-security, 90-validate, 99-deinstall)
 │
@@ -506,8 +506,12 @@ Status after the clean rebuild 2026-10-14/15 (details of every fix: `git log`).
   2026-10-15: after the reboot the listener and the repository DB came up first
   (08:43:12–08:43:25), then `fmw-<domain>.service`; `fmw_ctl.sh status` showed
   AdminServer, WLS_FORMS, WLS_REPORTS and the Reports server RUNNING.
-- [ ] **Smoke test `09-Install/15-deploy-test-report-forms_template.sh`** – status
-  "partially verified" since 2026-08; run it against the rebuilt domain.
+- [x] **Smoke test `09-Install/15-deploy-test-report-forms_template.sh`**
+  (2026-10-16): verified end-to-end on the rebuilt domain – Forms XML → FMB →
+  FMX, Reports XML → RDF → `rwservlet` → PDF, no X display. Fixes: instance
+  wrappers, `FORMS_API_TK_BYPASS=TRUE`, TNS alias (Forms tools split `userid`
+  at `/`), schema-conform `test_form.xml`, DB credentials in
+  `test_db_sec.conf.des3`. See `09-Install/docs/20-forms_reports_testmodules.md`.
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard also
   create random Node Manager credentials (it does not show the Node Manager
   screen unless "Node Manager" is ticked under Advanced Configuration)? If yes,

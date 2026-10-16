@@ -954,6 +954,14 @@ DET_FORMS_INSTANCE_NAME="$(detect_forms_instance "$DET_DOMAIN_HOME")"
 DET_WLS_FORMS_SERVER="$(detect_wls_forms_server "$DET_DOMAIN_HOME")"
 printList "FORMS_INSTANCE_NAME" 30 "$DET_FORMS_INSTANCE_NAME"
 printList "WLS_FORMS_SERVER"    30 "$DET_WLS_FORMS_SERVER"
+# Forms directories - default layout $ORACLE_BASE/forms/{moduls,tmp}
+# (outside ORACLE_HOME and /tmp; created by 09-Install/14-oracle_setup_forms.sh)
+_frm_base="${ORACLE_BASE:-${CONF_ORACLE_BASE:-/u01/app/oracle}}/forms"
+DET_FORMS_CUSTOMER_DIR="${FORMS_CUSTOMER_DIR:-$_frm_base/moduls}"
+DET_FORMS_TMP="${FORMS_TMP:-$_frm_base/tmp}"
+unset _frm_base
+printList "FORMS_CUSTOMER_DIR"  30 "$DET_FORMS_CUSTOMER_DIR"
+printList "FORMS_TMP"           30 "$DET_FORMS_TMP"
 
 _forms_inst_dir="$DET_DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$DET_FORMS_INSTANCE_NAME"
 if [ -d "$_forms_inst_dir" ]; then
@@ -1067,6 +1075,8 @@ fi
 
 _confirm_val CONF_FORMS_INSTANCE_NAME "$DET_FORMS_INSTANCE_NAME" "FORMS_INSTANCE_NAME"
 _confirm_val CONF_WLS_FORMS_SERVER    "$DET_WLS_FORMS_SERVER"    "WLS_FORMS_SERVER"
+_confirm_val CONF_FORMS_CUSTOMER_DIR  "$DET_FORMS_CUSTOMER_DIR"  "FORMS_CUSTOMER_DIR"
+_confirm_val CONF_FORMS_TMP           "$DET_FORMS_TMP"           "FORMS_TMP"
 _confirm_val CONF_WLS_SERVER_FQDN "$DET_WLS_SERVER_FQDN"  "WLS_SERVER_FQDN"
 _confirm_val CONF_ORACLE_HOME    "$DET_ORACLE_HOME"       "ORACLE_HOME"
 _confirm_val CONF_JAVA_HOME      "$DET_JAVA_HOME"         "JDK_HOME"
@@ -1115,6 +1125,8 @@ if $APPLY; then
 
         _append_if_missing "FORMS_INSTANCE_NAME"   "$CONF_FORMS_INSTANCE_NAME" "$ENV_CONF"
         _append_if_missing "WLS_FORMS_SERVER"     "$CONF_WLS_FORMS_SERVER"    "$ENV_CONF"
+        _append_if_missing "FORMS_CUSTOMER_DIR"   "$CONF_FORMS_CUSTOMER_DIR"  "$ENV_CONF"
+        _append_if_missing "FORMS_TMP"            "$CONF_FORMS_TMP"           "$ENV_CONF"
         _append_if_missing "FORMS_WEBUTIL_JACOB"  "false"                     "$ENV_CONF"
         _append_if_missing "ORACLE_HOME"           "$CONF_ORACLE_HOME"      "$ENV_CONF"
         _append_if_missing "WL_HOME"               "\${ORACLE_HOME}/wlserver" "$ENV_CONF"
@@ -1246,6 +1258,11 @@ REPORTS_COOKIE_KEY=""
 FORMS_INSTANCE_NAME="${CONF_FORMS_INSTANCE_NAME}"
 # WLS_FORMS_SERVER: name of the WLS managed server running Oracle Forms
 WLS_FORMS_SERVER="${CONF_WLS_FORMS_SERVER}"
+# Forms directories (created by 09-Install/14-oracle_setup_forms.sh):
+# FORMS_CUSTOMER_DIR: Forms modules (.fmx/.fmb, first entry of FORMS_PATH)
+FORMS_CUSTOMER_DIR="${CONF_FORMS_CUSTOMER_DIR}"
+# FORMS_TMP: TMPDIR of the Forms runtime (default.env, not /tmp)
+FORMS_TMP="${CONF_FORMS_TMP}"
 # FORMS_WEBUTIL_JACOB: install JACOB for WebUtil OLE / Office automation
 # (CLIENT_OLE2) – downloaded by 04-, installed by 14- (default: false)
 FORMS_WEBUTIL_JACOB="false"

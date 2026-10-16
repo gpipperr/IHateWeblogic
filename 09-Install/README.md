@@ -166,10 +166,11 @@ Phase 7 – Validation (as oracle) [planned]
   90-oracle_validate.sh          Full validation report
                                    → docs/90-oracle_validate.md
 
-Phase 7b – Smoke Test Modules (as oracle) [STATUS: partially verified, see doc]
+Phase 7b – Smoke Test Modules (as oracle) [verified 2026-10-16]
   15-deploy-test-report-forms_template.sh  Compile a minimal Forms module +
                                    convert a minimal Reports demo, to prove
-                                   Forms/Reports can reach the DB at all
+                                   Forms/Reports can reach the DB at all;
+                                   runs the report via rwservlet (PDF)
                                    → docs/20-forms_reports_testmodules.md
 
 Phase 7c – Autostart at boot (as oracle; systemd part via sudo)
@@ -215,7 +216,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
 | 6 | `14b-oracle_reports_fonts.sh` | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
-| 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. **STATUS: partially verified**, not a full install step | [→ docs](docs/20-forms_reports_testmodules.md) |
+| 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 | 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
 | teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
@@ -257,7 +258,8 @@ DB_SCHEMA_PREFIX=DEV
 
 # === COMPONENTS ===
 INSTALL_COMPONENTS=FORMS_AND_REPORTS    # FORMS_ONLY | REPORTS_ONLY | FORMS_AND_REPORTS
-FORMS_CUSTOMER_DIR=/app/forms/custom
+FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls
+FORMS_TMP=/u01/app/oracle/forms/tmp
 REPORTS_CUSTOMER_DIR=/u01/app/oracle/reports/source
 
 # === MOS DOWNLOADS ===
@@ -507,7 +509,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
 ├── 14b-oracle_reports_fonts.sh        ← Phase 6: Reports fonts, uifont.ali, cgicmd.dat
-├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke-test deploy (Forms+Reports), STATUS: partially verified
+├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke test (Forms+Reports), verified 2026-10-16
 ├── 30-configure_autostart.sh          ← Phase 7c: autostart at boot (systemd, Node Manager controlled)
 ├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
 ├── autostart_templates/               ← Templates rendered by 30-configure_autostart.sh
@@ -559,7 +561,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 80-oracle_security.md         ← post-install hardening checklist + password recovery
     ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (analysis + plan, not implemented)
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
-    ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh, STATUS: partially verified
+    ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh (verified 2026-10-16)
     ├── 30-configure_autostart.md     ← 30-configure_autostart.sh
     └── 99-oracle_deinstall_fmw.md    ← 99-oracle_deinstall_fmw.sh
 ```
