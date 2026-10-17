@@ -9,7 +9,7 @@ substitute for re-verifying against MOS before each patch cycle.
 
 | Doc ID | Title | Used for |
 |---|---|---|
-| **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers each quarter |
+| **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers – check **monthly** (CPU and CSPU, see "Terms" below) |
 | **KA204** | Oracle Forms and Reports Quarterly Patch Release (QPR) Information | Current Forms/Reports QPR patch numbers |
 | CPU211 | Patch Availability Document FMW, CPU July 2026 | Historical reference for the July 2026 cycle |
 | CPU349 | CSPU September 2026 for Oracle Java SE | Current recommended JDK version/patch for the Sep 2026 cycle |
@@ -23,14 +23,109 @@ substitute for re-verifying against MOS before each patch cycle.
 
 ## How to use this table
 
-1. Before a new patch cycle, open KA1182 on MOS and compare the current
-   patch numbers against `09-Install/oracle_software_version.conf`.
+1. Every third Tuesday (CPU **or** CSPU), read the public advisory (risk
+   matrix: WLS, OPSS, Forms, "Oracle Fusion Middleware"), then open KA1182
+   on MOS and compare the current patch numbers against
+   `09-Install/oracle_software_version.conf`.
 2. If a Doc ID listed here has been superseded or renumbered by Oracle,
    update this table — do not silently start referencing a new number
    from inline comments elsewhere, this table is the single place to look.
 3. Patch numbers themselves live in `oracle_software_version.conf`, not
    here — the tables below are a point-in-time snapshot for reference,
    `oracle_software_version.conf` is the source of truth the scripts read.
+
+---
+
+## Terms – CPU, CSPU and the patch vehicles
+
+Since May 2026 Oracle publishes security fixes **every month** – two kinds of
+advisories alternate:
+
+| Term | What it is | Cadence | Source |
+|---|---|---|---|
+| **CPU** – Critical Patch Update | The classic **quarterly, cumulative** security release | Jan / Apr / Jul / Oct, third Tuesday | Oracle Security Alerts page |
+| **CSPU** – Critical Security Patch Update | "targeted, high-priority security fixes in a smaller, more focused format … Critical Security Patch Updates **complement** Oracle's existing quarterly cumulative Critical Patch Updates (CPUs)" (advisory text, Sep 2026) | Third Tuesday of the **other** months; first one May 2026 ("except the initial May CSPU release") | CSPU advisories Jun/Aug/Sep 2026 |
+| **Risk matrix** | Table per product in an advisory: CVE, component, protocol, "remote exploit without auth", CVSS, affected versions. Lists **only newly** fixed vulnerabilities – earlier ones are in the earlier CPU/CSPU advisories | per advisory | advisory |
+| **Patch Availability Document** | MOS note mapping the advisory to concrete patch numbers – for FMW **KA1182** (current and previous CPU **and** CSPU patches), Forms/Reports QPRs **KA204** | updated each release | MOS |
+| **SPB** – Stack Patch Bundle | One ZIP with WLS PSU + Coherence + JDBC + DB client RU + third-party bundle + OPatch, applied with SPBAT / `opatch napply`. Reintroduced for 14.1.2 with CSPU Sep 2026 | per CPU/CSPU | KB168467 |
+| **PSU** – Patch Set Update | Cumulative WLS patch (inside the SPB for 14.1.2, standalone for 15.1.1) | per CPU/CSPU | KA1182 |
+| **SPU** – Security Patch Update | Single security fix on top of the SPB/PSU when it was not ready for the bundle (e.g. 39988381 for CVE-2026-70748) | as needed | KA1182 |
+| **QPR** – Quarterly Patch Release | Forms / Reports bundles (bug + security fixes) – **not** part of the WLS SPB, applied by `06-` | roughly quarterly, can be referenced by a CSPU | KA204 |
+
+Consequences for this project:
+
+- **Every month** (third Tuesday) check KA1182 – not only in CPU months. A
+  CSPU can bring a CVSS 10.0 fix for WLS or Forms (September 2026: five
+  CVSS 10.0 in Fusion Middleware, see below).
+- A risk matrix lists only the new CVEs. When a cycle was skipped, read
+  **every** advisory since the last applied one.
+- Patch numbers come from KA1182 / KA204, never from the public advisory –
+  the advisory only names products, versions and CVEs.
+- Oracle Reports has no own entry in the CSPU Sep 2026 / CPU Oct 2026
+  product lists (only "Oracle Fusion Middleware" / WLS / OPSS, which are in
+  every Reports home). Forms CVEs matter for a Reports-only home only if the
+  Forms component is installed (`opatch lsinventory`, `oracle.forms*`).
+
+### Release dates (from the advisories)
+
+| Date | Type | State 2026-10-18 |
+|---|---|---|
+| 21 July 2026 | CPU | released |
+| 18 August 2026 | CSPU | released |
+| 15 September 2026 | CSPU | released – **cycle configured in this project** |
+| 20 October 2026 | CPU | pre-release announcement only (1283 patches; FMW 196, WLS 14.1.2.0.0 and "Oracle Fusion Middleware 14.1.2.0.0" affected; Java SE 21.0.12.1 affected → new JDK; Forms / Reports not in the product list) |
+| 17 November 2026 | CSPU | planned |
+| 15 December 2026 | CSPU | planned |
+| 19 January 2027 | CPU | planned |
+
+### Public advisories (no MOS login needed)
+
+All links checked 2026-10-18 (HTTP 200, title matches).
+
+| Advisory | URL |
+|---|---|
+| Overview – CPUs, CSPUs, Security Alerts and Bulletins | https://www.oracle.com/security-alerts/ |
+| CSPU September 2026 | https://www.oracle.com/security-alerts/cspusep2026.html |
+| CSPU August 2026 | https://www.oracle.com/security-alerts/cspuaug2026.html |
+| CPU July 2026 | https://www.oracle.com/security-alerts/cpujul2026.html |
+| CSPU June 2026 | https://www.oracle.com/security-alerts/cspujun2026.html |
+| CPU October 2026 (pre-release until 20 Oct) | https://www.oracle.com/security-alerts/cpuoct2026.html |
+
+Naming pattern: `cpu<mon><yyyy>.html` for CPUs, `cspu<mon><yyyy>.html` for
+CSPUs. `www.oracle.com` refuses some non-browser clients (HTTP 403) – with
+`curl -A "Mozilla/5.0"` it answers.
+
+### CVE check 2026-10-18 – CSPU September 2026
+
+From the Fusion Middleware risk matrix of the CSPU Sep 2026 advisory:
+
+| CVE | Product / component | Protocol | Remote w/o auth | CVSS 3.1 | Affected (our release) | Relevant here |
+|---|---|---|---|---|---|---|
+| **CVE-2026-83021** | Oracle WebLogic Server / Web Container | HTTP | yes | **10.0** (scope changed) | 12.2.1.4.0, 14.1.1.0.0, **14.1.2.0.0** | **yes** – every installation (WLS_REPORTS, WLS_FORMS, AdminServer) |
+| **CVE-2026-83099** | Oracle Forms / Forms Services, C/S, Charmode | HTTP | yes | **10.0** (scope changed) | 12.2.1.19.0, **14.1.2.0.0** | **yes for Forms installs**; Reports-only only if the Forms component is in the home |
+| CVE-2026-83020 | Oracle Platform Security for Java (OPSS) / Centralized Thirdparty Jars | HTTP | yes | 10.0 | 12.2.1.4.0, 14.1.2.0.0 | yes – OPSS is in every FMW infrastructure home |
+| CVE-2026-83094/95/98/100/108 | Oracle Forms / Forms Services | HTTP | yes | 9.8 | 14.1.2.0.0 | Forms installs |
+| CVE-2026-70748/56/57 | Oracle WebLogic Server / Core | T3, IIOP | yes | 9.8 | 14.1.2.0.0 | yes (T3 not exposed through Nginx, but local / internal network) |
+
+Which patch fixes which CVE is **not** in the public advisory and the patch
+READMEs name no CVE numbers (checked: SPB 39925660, SPU 39988381, QPR
+39842516, QPR 39600348). State of the configured cycle:
+
+| CVE | Expected fix in our patch set | Evidence | Status |
+|---|---|---|---|
+| CVE-2026-83021 (WLS Web Container) | SPB **39925660** (WLS PSU 14.1.2.0.260823) and/or SPU **39988381** | set taken from KA1182 "CSPU Sep 2026" on 2026-10-13; SPU README dated 2026-09-10, SPB 14.1.2.0.260825 – both before the 15 Sep release | **assumption** – confirm in KA1182 that the CVE row for WLS 14.1.2 points to 39925660 / 39988381 |
+| CVE-2026-83099 (Forms Services) | Forms QPR **39842516** (README dated 2026-08-16) | listed as "Sep 2026" in KA204 | **assumption** – confirm in KA1182 / KA204 that the Forms 14.1.2 row of the CSPU Sep 2026 names 39842516 (and no additional one-off) |
+| CVE-2026-83020 (OPSS) | SPB 39925660 (FMW Thirdparty Bundle 39916998 "Centralized Thirdparty Jars") | component name matches the third-party bundle in the SPB | **assumption** – confirm in KA1182 |
+
+Test host (2026-10-18, **confirmed (live)**, `opatch lspatches`): 39925694 (SPB
+marker 14.1.2.0.260825), 39919611 (WLS PSU 260823), 39916998 (Thirdparty
+260821), 39988381, 39842516 (Forms QPR), 39600348 (Reports QPR), 38590500,
+39864483, 39798193, 39487373, 39264447, 38391376 – i.e. the complete
+CSPU Sep 2026 set of this file.
+
+Next step: on 20 October 2026 the CPU October 2026 replaces this set – new
+KA1182 check, new JDK (Java SE 21.0.12.1 is listed as affected), update
+`oracle_software_version.conf` and the patch list below.
 
 ---
 

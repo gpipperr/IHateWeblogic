@@ -777,5 +777,8 @@ work (details of every fix: `git log`).
   `06-oracle_patch_forms_reports.sh` stays until Oracle ships one.
 
 - [ ] **`10-Monitoring/`** – concept only, not implemented yet.
+  Concept extended 2026-10-18: monthly **CVE watch** (installed components +
+  both JDKs + OS errata vs. Oracle CPU/CSPU advisories and CISA KEV, Claude
+  assesses exposure and drafts the patch-cycle update – read-only).
   See [10-Monitoring/README.md](10-Monitoring/README.md) for the planned Claude-assisted
   proactive monitoring design.

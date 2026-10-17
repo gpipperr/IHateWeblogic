@@ -85,12 +85,154 @@ findings would be "not configured yet" rather than genuine anomalies.
 
 ---
 
+## CVE Watch – installed components vs. Oracle security advisories
+
+**Status:** concept (2026-10-18). Prototype = the manual check of
+2026-10-18 in `09-Install/docs/00-patch-references.md`, section "CVE check".
+
+### Why
+
+Since May 2026 Oracle publishes security fixes **monthly** (CPU in
+Jan/Apr/Jul/Oct, CSPU in the other months, third Tuesday – see "Terms" in
+`00-patch-references.md`). A CSPU risk matrix lists only the *new* CVEs, and
+the September 2026 CSPU alone had five CVSS 10.0 entries in Fusion
+Middleware (WLS Web Container, Forms Services, OPSS …). Reading every
+advisory by hand and matching it against what is really installed on each
+server is exactly the kind of work that gets skipped – and that an agent
+can do reliably every month.
+
+### What is checked – "installed components"
+
+Collected locally, deterministically (no AI, no network):
+
+| Source | Gives | Matches advisory product |
+|---|---|---|
+| `$ORACLE_HOME/inventory/ContentsXML/comps.xml` (fast; `opatch lsinventory` is slow) | installed components + version (`oracle.as.install.wls`, `oracle.developer.forms.*`, Reports, Coherence, OHS / WebGate if present) | Oracle WebLogic Server, Oracle Forms, Oracle Coherence, Oracle HTTP Server, Oracle Fusion Middleware, Oracle Platform Security for Java, Middleware Common Libraries and Tools, Fusion Middleware Control |
+| `opatch lspatches` | applied patches (SPB marker, PSU, QPRs, SPUs) | current patch level → which cycle is applied |
+| `09-Install/oracle_software_version.conf` | configured cycle (e.g. "CSPU Sep 2026") | compared with the latest released advisory |
+| `$JDK_HOME/bin/java -version` **and** `$ORACLE_HOME/oracle_common/jdk/bin/java -version` | both JDKs – the domain JDK and the FMW-bundled one | Oracle Java SE |
+| `rpm -q nginx openssl glibc kernel …`, `dnf updateinfo list --security` | OS / Nginx security errata | Oracle Linux (ELSA) – not in the Oracle CPU/CSPU |
+| repository DB version (optional, `sqlplus` / `rcu_repository_check.sh`) | DB release + RU | Oracle Database Server matrix |
+| JACOB version (`JACOB_VERSION`), Nginx frontend exposure | third-party / exposure context | – |
+
+Live example (test host, 2026-10-18): WLS / Forms / Reports 14.1.2.0.0, the
+complete CSPU Sep 2026 patch set, `JDK_HOME` = Java 21.0.12.1 – and the
+FMW-bundled `oracle_common/jdk` still at **17.0.12 (July 2024)**. It is
+not the domain JDK, but it is on disk, and nobody would notice without an
+inventory check.
+
+### Flow
+
+```
+ third Tuesday + 1 day (systemd timer / cron), or on demand
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ 1. INVENTORY  cve_inventory.sh  (local, deterministic)              │
+│    components + versions, patches, both JDKs, OS errata             │
+│    → inventory.json  (product names only – no host / customer data) │
+└──────────────────────┬──────────────────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ 2. ADVISORIES  cve_watch.sh                                         │
+│    oracle.com/security-alerts/  → all cpu*/cspu* advisories since   │
+│    the last applied cycle (curl -A "Mozilla/5.0"; plain clients get │
+│    HTTP 403); parse the risk matrices (CVE, product, component,     │
+│    protocol, remote w/o auth, CVSS, affected versions)              │
+│    + CISA KEV feed (known exploited) + NVD (optional)               │
+│    → match product + version against inventory.json                 │
+│    → candidates.json  (deterministic match, no AI)                  │
+└──────────────────────┬──────────────────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ 3. ASSESS  Claude                                                   │
+│    - exposure: Nginx publishes only HTTPS 443 → HTTP CVEs of        │
+│      WLS / Forms are reachable, T3/IIOP only internally; Forms CVE  │
+│      only if Forms is installed / deployed                          │
+│    - is it fixed by the applied patch set? (cycle compare; KA1182   │
+│      mapping, see open items)                                       │
+│    - urgency: CVSS ≥ 9 + remote w/o auth + exposed, or KEV → CRIT   │
+│    - concrete action with our scripts: 04-oracle_pre_download.sh,   │
+│      07-Maintenance patch cycle, 02b-root_os_java.sh, dnf           │
+│    - DRAFT (never applied) for oracle_software_version.conf and the │
+│      "CVE check" section of 00-patch-references.md                  │
+└──────────────────────┬──────────────────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ 4. REPORT  reports/cve_<yyyy-mm>.md + standard SEVERITY block       │
+│    notify only on WARN / CRIT (same threshold logic as above)       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Example output (illustrative – the CPU Oct 2026 risk matrix is not published yet, numbers invented):
+
+```
+SEVERITY: CRIT
+FINDING: CPU Oct 2026 released – WLS 14.1.2.0.0 and Java SE 21.0.12.1 affected; applied cycle is CSPU Sep 2026
+ROOT_CAUSE: 3 new WLS CVEs remote w/o auth over HTTP (CVSS ≥ 9), reachable through Nginx; JDK_HOME 21.0.12.1 listed as affected
+RECOMMENDED_ACTION: KA1182 → update oracle_software_version.conf (draft attached), 04-oracle_pre_download.sh --apply --mos, 07-Maintenance patch cycle, new JDK via 02b-
+TICKET_RELEVANCE: yes
+```
+
+### Why an agent fits this job
+
+Steps 1 and 2 are plain scripts. Step 3 is where a model helps: the
+product names in the risk matrix do not map 1:1 to OPatch component names,
+the exposure depends on this installation (Nginx, which managed servers,
+Forms deployed or not), and the outcome should be a short, prioritised list
+with the matching project script – not 1283 CVE rows. Two ways to run it:
+
+| Option | How | Pros / cons |
+|---|---|---|
+| **Claude API** (`claude_analyze.sh`, as planned above) | the script sends `inventory.json` + `candidates.json`, gets the SEVERITY block back | deterministic input, small data, no tools on the server; the model cannot look anything up itself |
+| **Claude Code headless** (`claude -p` from the timer, restricted tools: read-only repo + `curl` to the advisory URLs) | the agent runs steps 2–3 itself, can read the repo docs (`00-patch-references.md`, KA notes) and write the draft | more flexible (new advisory formats, follow-up lookups); needs a tool allow-list and must never run `--apply` scripts or `opatch` |
+
+In both cases: **read-only** – the job never downloads or applies patches,
+it only reports and drafts. Applying stays a human decision (patch cycle in
+`07-Maintenance/README.md`).
+
+### Data leaving the server
+
+Only product names, versions and patch numbers – no host names, IPs,
+domain names, customer names or credentials (same rule as for commits).
+`--dry-run` shows the exact payload.
+
+### Configuration (`monitor.conf`)
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `CVE_WATCH_ENABLED` | enable the monthly job | `true` |
+| `CVE_MIN_CVSS` | report threshold | `7.0` |
+| `CVE_CRIT_CVSS` | CRIT if remote w/o auth and exposed | `9.0` |
+| `CVE_EXPOSED_PROTOCOLS` | what the frontend publishes | `HTTP` (Nginx 443) |
+| `CVE_ACCEPTED` | accepted CVEs with reason + date (allow-list) | empty |
+| `CVE_KEV_FEED` | CISA Known Exploited Vulnerabilities JSON | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` |
+
+### Open points
+
+- **Patch ↔ CVE mapping** is only in MOS KA1182 (login). Without it the
+  job can decide "newer cycle released than applied → affected
+  components" but not "this CVE is fixed by that patch". Check whether the
+  MOS credentials already used by `getMOSPatch` (`mos_sec.conf.des3`) can
+  read KA1182 in a supported way; otherwise the cycle comparison + a human
+  look into KA1182 stays the method.
+- Risk-matrix HTML format can change → parser with a self-test (known CVE
+  rows of CSPU Sep 2026 as fixture).
+- `dnf updateinfo` needs repository access (hung on the test host without
+  it) → timeout, report "not checked" instead of blocking.
+- Client side (Java on the PCs, FSAL) is out of scope – listed as a hint
+  only when Java SE is in an advisory.
+
+---
+
 ## Planned Scripts
 
 | Script | Purpose |
 |---|---|
 | `claude_monitor.sh` | Orchestrator – runs the collection step, calls `claude_analyze.sh`, handles notification. Cron-friendly (no interactive prompts). |
 | `claude_analyze.sh` | Builds the prompt from collected findings + `monitor.conf`, calls the Claude API, parses the structured response. |
+| `cve_inventory.sh` | CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
+| `cve_watch.sh` | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
 | `monitor.conf.template` | Committed template: thresholds, known-issue allow-list, notification target, run mode defaults. |
 | `monitor.conf` | **Gitignored** – server-specific config incl. API key reference. |
 
@@ -107,6 +249,7 @@ only in-memory when `claude_monitor.sh` runs.
 |---|---|---|
 | `--scheduled` | Cron, e.g. hourly | Silent unless a finding crosses the WARN/CRIT threshold |
 | `--interactive` | Manual, ad-hoc | Always prints the full report, even if everything is OK |
+| `--cve` | Monthly (third Tuesday + 1 day) or on demand | CVE watch only (see above) |
 | `--incident` | Manual, after a reported problem | Collects a wider log window + all checks, runs a deeper analysis, produces a support-case-ready summary |
 
 ---
@@ -156,6 +299,8 @@ Default plan: always write to `reports/`; email as an opt-in via `monitor.conf`.
 | Module | Role in this module |
 |---|---|
 | `02-Checks/` | Primary data source – OS, Java, SSL, port, WebLogic health |
+| `09-Install/oracle_software_version.conf`, `09-Install/docs/00-patch-references.md` | Applied / configured patch cycle; target of the CVE watch drafts |
+| `07-Maintenance/` (patch cycle) | Where a CVE watch finding leads to |
 | `01-Run/rwserver_status.sh` | Reports engine live status |
 | `05-ReportsPerformance/` | Reports engine performance findings |
 | `06-FormsDiag/` | Forms performance findings |
@@ -173,4 +318,5 @@ Default plan: always write to `reports/`; email as an opt-in via `monitor.conf`.
 - Implement `claude_analyze.sh` (prompt construction + API call + response parsing)
 - Decide on notification mechanism (see above)
 - Define retention policy for `reports/` (this directory will grow unbounded otherwise)
+- CVE watch: implement `cve_inventory.sh` (first – useful alone), `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)
