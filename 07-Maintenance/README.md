@@ -21,6 +21,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — read-only check + manual upgrade checklist |
+| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
 | `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |
@@ -54,6 +55,13 @@ rather than one file at a time.
 
 > 📋 **Current patch numbers?** →
 > [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md)
+
+> **RCU schemas and patching:** regular patches (SPB / CSPU / Forms and
+> Reports one-offs) never change the RCU schemas – only a version upgrade
+> does (Upgrade Assistant). Run `rcu_repository_check.sh` before and after a
+> patch cycle as a health check; before an upgrade or a move with `--apply`
+> (backup). Background:
+> [`80-FMW-Architecture/rcu_middleware_architecture.md`](../80-FMW-Architecture/rcu_middleware_architecture.md).
 
 `80-`/`81-`/`82-patch_*.sh` are **thin wrappers**: they add one thing that
 was previously missing — a hard check that WebLogic is actually stopped —
@@ -263,6 +271,30 @@ verbatim.
 Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (unchanged —
 auto-detects Forms/Reports, superseded-QPR rollback, `check_patch_zip()`
 validation). New code: same `require_wls_stopped()` hard gate as `81-`.
+
+### rcu_repository_check.sh
+
+```bash
+./07-Maintenance/rcu_repository_check.sh            # read-only checks
+./07-Maintenance/rcu_repository_check.sh --apply    # + Data Pump backup
+```
+
+Connects as SYSDBA over the network (`sqlplus` of the Oracle Home, password
+from `db_sys_sec.conf.des3` via stdin):
+
+| # | Check | FAIL / WARN when |
+|---|---|---|
+| 1 | `db_securefile`, registry table, **all** prefixes of the DB (own one marked `*`) | `FORCE` (WARN, ORA-43853 risk), registry missing (FAIL), orphaned registry rows (WARN) |
+| 2 | registry rows of `DB_SCHEMA_PREFIX`: version, status, upgraded, edition | status ≠ `VALID`; no edition with `RCU_DB_TYPE=EBR` |
+| 3 | schema accounts: status, profile, expiry, editions | not `OPEN`, expiry < `RCU_EXPIRY_WARN_DAYS` (30) → FAIL; profile ≠ `RCU_DB_PROFILE` → WARN |
+| 4 | data sources `config/jdbc/*-jdbc.xml`: user is a registry schema, URL = `DB_HOST/PORT/SERVICE`, login with `DB_SCHEMA_PWD` | login fails (FAIL), foreign user / URL (WARN) |
+| 5 | `<prefix>_STB.COMPONENT_SCHEMA_INFO` rows = registry rows | differ (WARN) |
+| 6 | `--apply`: `expdp` (Oracle Home, network) of all prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` into `DATA_PUMP_DIR` on the DB server | export fails |
+
+The Data Pump `userid` is written to a parameter file (mode 600, removed
+afterwards) – not in the process list. Exported as SYSDBA; on a production
+DB a DBA may prefer an own export user. Live 2026-10-17 on the test host:
+27 checks OK; export schemas 22 MB / 56 s, registry 9 rows / 16 s.
 
 ---
 

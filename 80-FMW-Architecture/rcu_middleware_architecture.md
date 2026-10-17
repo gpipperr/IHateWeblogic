@@ -526,13 +526,13 @@ the September patch.
 The open item "repository-schema patching" is **not** a recurring patch
 step. What makes sense instead:
 
-1. **Check script** (read-only), e.g. `07-Maintenance/rcu_repository_check.sh`:
+1. **Check script** (read-only) – **done 2026-10-17**: `07-Maintenance/rcu_repository_check.sh`:
    registry rows of the prefix (`VERSION`, `STATUS = VALID`, `UPGRADED`),
    registry table present, every data source of `config/jdbc` reaches its
    schema, account status, profile (`RCU_USER`?) + `EXPIRY_DATE` of the
    `<prefix>_*` users (warn before expiry), STB rows. Useful after every patch, before a move, and
    regularly from monitoring.
-2. **Backup option** of the same script (`--apply`): Data Pump export of
+2. **Backup option** of the same script (`--apply`, done 2026-10-17): Data Pump export of
    `SYSTEM.SCHEMA_VERSION_REGISTRY$` + the `<prefix>_*` schemas before an
    upgrade or a move.
 3. **Password profile** – done 2026-10-17 (section 6.1).

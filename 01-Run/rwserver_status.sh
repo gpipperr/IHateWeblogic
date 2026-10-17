@@ -7,9 +7,18 @@
 # Call     : ./rwserver_status.sh
 #            ./rwserver_status.sh --port 9012
 #            ./rwserver_status.sh --server repServer01
+#            ./rwserver_status.sh --auth admin
 # Options  : --port   N    WLS_REPORTS listen port (auto-detected from config.xml)
 #            --server NAME Reports Server name (auto-detected from rwserver.conf)
+#            --auth   MODE authid for getserverinfo: auto (default) | mon | admin | none
 #            --help        Show usage
+# Auth     : getserverinfo needs an authid on a secured / hardened server
+#            (REP-52262, HTTP 499 without). auto = REPORTS_SECURITY=ldap ->
+#            monUser (RW_MONITOR) from reports_users.conf.des3, otherwise the
+#            Reports server administrator (<identifier>) from
+#            reports_admin_sec.conf.des3; falls back to the other one. The
+#            password goes to curl via a config on stdin - not in the
+#            process list, not printed.
 # Requires : curl (for HTTP status), pgrep, sed
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -93,12 +102,23 @@ _xml_attr() {
 
 # Extract engine attribute – tries singular and plural form (minEngine / minEngines).
 # Usage: _engine_attr FILE base_name   (e.g. _engine_attr rwserver.conf minEngine)
+# Reads the attribute from the REPORT engine only - rwserver.conf also has the
+# URL engine (rwURLEng, maxEngine=1 minEngine=0), a greedy match over the
+# whole file returned its values. Engine = the one of <job jobType="report"
+# engineId=...>, else the first engine that is not the URL engine.
 _engine_attr() {
     local file="$1"
     local base="$2"
-    local val
-    val="$(_xml_attr "$file" "${base}")"
-    [ -z "$val" ] && val="$(_xml_attr "$file" "${base}s")"
+    local flat eid line val
+    flat="$(tr -d '\n' < "$file" | sed 's/</\n</g')"
+    eid="$(printf '%s\n' "$flat" | grep '^<job ' | grep 'jobType="report"' \
+           | sed -n 's/.*engineId="\([^"]*\)".*/\1/p' | head -1)"
+    if [ -n "$eid" ]; then
+        line="$(printf '%s\n' "$flat" | grep "^<engine " | grep "id=\"${eid}\"" | head -1)"
+    fi
+    [ -z "$line" ] && line="$(printf '%s\n' "$flat" | grep '^<engine ' | grep -v 'URLEngineImpl' | head -1)"
+    val="$(printf '%s' "$line" | sed -n "s/.*[[:space:]]${base}=\"\([^\"]*\)\".*/\1/p")"
+    [ -z "$val" ] && val="$(printf '%s' "$line" | sed -n "s/.*[[:space:]]${base}s=\"\([^\"]*\)\".*/\1/p")"
     printf "%s" "$val"
 }
 
@@ -282,11 +302,13 @@ _parse_rwservlet_xml() {
 
 OVERRIDE_PORT=""
 OVERRIDE_SERVER=""
+AUTH_MODE="auto"
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
     printf "  %-24s %s\n" "--port N"       "WLS_REPORTS listen port (default: auto-detect)"
     printf "  %-24s %s\n" "--server NAME"  "Reports Server name (default: from rwserver.conf)"
+    printf "  %-24s %s\n" "--auth MODE"    "authid: auto (default) | mon | admin | none"
     printf "  %-24s %s\n" "--help"         "Show this help"
     printf "\nExamples:\n"
     printf "  %s\n"              "$(basename "$0")"
@@ -298,6 +320,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --port)    OVERRIDE_PORT="$2";   shift 2 ;;
         --server)  OVERRIDE_SERVER="$2"; shift 2 ;;
+        --auth)    AUTH_MODE="${2,,}";   shift 2 ;;
         --help|-h) _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -305,6 +328,11 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+case "$AUTH_MODE" in
+    auto|mon|admin|none) ;;
+    *) printf "\033[31mERROR\033[0m --auth must be auto, mon, admin or none\n" >&2; exit 2 ;;
+esac
 
 # =============================================================================
 # Detect Reports WLS managed server (before banner so it can be shown)
@@ -329,7 +357,26 @@ printLine
 
 section "Engine Configuration (rwserver.conf)"
 
-RWSERVER_CONF="${RWSERVER_CONF:-}"
+# Standalone Reports server (system component): name = component directory,
+# its own rwserver.conf under components/ReportsServerComponent/<name>/.
+# RWSERVER_CONF from environment.conf may point to the in-process server of
+# WLS_REPORTS (applications/reports_*/configuration) - prefer the component.
+RS_COMP_NAME="${OVERRIDE_SERVER:-${REPORTS_SERVER_NAME:-}}"
+if [ -z "$RS_COMP_NAME" ] && [ -f "$DOMAIN_HOME/config/config.xml" ]; then
+    RS_COMP_NAME="$(awk '
+        /<system-component>/ { n=""; t="" }
+        /<name>/ && n=="" { n=$0; gsub(/.*<name>|<\/name>.*/, "", n) }
+        /<component-type>ReportsServerComponent</ { t="R" }
+        /<\/system-component>/ { if (t=="R") { print n; exit } }
+    ' "$DOMAIN_HOME/config/config.xml")"
+fi
+_comp_conf="$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${RS_COMP_NAME}/rwserver.conf"
+if [ -n "$RS_COMP_NAME" ] && [ -f "$_comp_conf" ]; then
+    RWSERVER_CONF="$_comp_conf"
+else
+    RWSERVER_CONF="${RWSERVER_CONF:-}"
+fi
+unset _comp_conf
 
 # Re-discover if not set or file missing
 if [ -z "$RWSERVER_CONF" ] || [ ! -f "$RWSERVER_CONF" ]; then
@@ -350,6 +397,8 @@ else
     # <server name="..."> – attribute may appear anywhere in the tag
     RS_NAME="$(sed -n 's/.*<server[^>]*name="\([^"]*\)".*/\1/p' \
         "$RWSERVER_CONF" 2>/dev/null | head -1)"
+    # 12c/14c files carry no name attribute - use the component name
+    [ -z "$RS_NAME" ] && RS_NAME="$RS_COMP_NAME"
 
     # Engine attributes: singular (maxEngine) and plural (maxEngines) both occur in the wild
     CFG_MIN_ENGINES="$(_engine_attr "$RWSERVER_CONF" "minEngine")"
@@ -384,12 +433,26 @@ else
     info "Start it first: ./01-Run/startStop.sh start ${WLS_REPORTS_SERVER} --apply"
 fi
 
-# rwengine native processes (spawned by the Reports JVM)
-RWENG_COUNT="$(pgrep -f "rwengine" 2>/dev/null | wc -l | tr -d ' ')"
-RWENG_PIDS="$(pgrep -d ',' -f "rwengine" 2>/dev/null || printf "")"
+# Standalone Reports server (system component, started by the Node Manager):
+# process "rwserver server=<name>"; its engines are Java child processes
+# (14.1.2 - there is no "rwengine" process name any more)
+RWS_PID=""
+if [ -n "${RS_NAME:-}" ]; then
+    RWS_PID="$(pgrep -f "rwserver server=${RS_NAME}( |\$)" 2>/dev/null | head -1)"
+fi
+if [ -n "$RWS_PID" ]; then
+    ok "Reports server '${RS_NAME}' process RUNNING  (PID $RWS_PID)"
+    RWENG_COUNT="$(pgrep -P "$RWS_PID" 2>/dev/null | wc -l | tr -d ' ')"
+    RWENG_PIDS="$(pgrep -d ',' -P "$RWS_PID" 2>/dev/null || printf "")"
+else
+    [ -n "${RS_NAME:-}" ] && warn "Reports server process 'rwserver server=${RS_NAME}' not found"
+    # in-process server / older releases: native rwengine processes
+    RWENG_COUNT="$(pgrep -f "rwengine" 2>/dev/null | wc -l | tr -d ' ')"
+    RWENG_PIDS="$(pgrep -d ',' -f "rwengine" 2>/dev/null || printf "")"
+fi
 
 if [ "${RWENG_COUNT:-0}" -gt 0 ]; then
-    ok "rwengine processes: ${RWENG_COUNT}  (PID: ${RWENG_PIDS})"
+    ok "Engine processes: ${RWENG_COUNT}  (PID: ${RWENG_PIDS})"
 
     if [ -n "${CFG_MAX_ENGINES:-}" ] && [ "$CFG_MAX_ENGINES" != "-" ]; then
         if [ "$RWENG_COUNT" -ge "$CFG_MAX_ENGINES" ]; then
@@ -403,10 +466,10 @@ if [ "${RWENG_COUNT:-0}" -gt 0 ]; then
     fi
 else
     if [ -n "$WLS_PID" ]; then
-        warn "No rwengine processes found – engines may still be initializing"
-        info "Check: pgrep -a -f rwengine"
+        warn "No engine processes found – engines may still be initializing"
+        info "Check: pgrep -a -P <rwserver PID>"
     else
-        info "No rwengine processes (WLS managed server not running)"
+        info "No engine processes (WLS managed server not running)"
     fi
 fi
 
@@ -471,15 +534,71 @@ else
     fi
     printf "  %-26s %s\n" "Status URL:" "$STATUS_URL"
 
-    # Fetch XML body and HTTP status code in two calls (avoids -w/%{http_code} + body mix)
-    HTTP_XML="$(curl -s --connect-timeout 5 --max-time 10 "$STATUS_URL" 2>/dev/null)"
-    HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" \
-        --connect-timeout 5 --max-time 10 "$STATUS_URL" 2>/dev/null)"
+    # --- authid (see header "Auth") ---------------------------------------------
+    AUTH_USER="" AUTH_PWD="" AUTH_SRC=""
+    _load_mon() {
+        local f="$ROOT_DIR/reports_users.conf.des3"
+        [ -f "$f" ] && load_secrets_file "$f" > /dev/null 2>&1 \
+            && [ -n "${REPORTS_MON_USER:-}" ] && [ -n "${REPORTS_MON_PWD:-}" ] || return 1
+        AUTH_USER="$REPORTS_MON_USER"; AUTH_PWD="$REPORTS_MON_PWD"
+        AUTH_SRC="monitoring user (reports_users.conf.des3)"
+    }
+    _load_admin() {
+        local f="$ROOT_DIR/reports_admin_sec.conf.des3"
+        [ -f "$f" ] && load_secrets_file "$f" > /dev/null 2>&1 \
+            && [ -n "${REPORTS_ADMIN_USER:-}" ] && [ -n "${REPORTS_ADMIN_PWD:-}" ] || return 1
+        AUTH_USER="$REPORTS_ADMIN_USER"; AUTH_PWD="$REPORTS_ADMIN_PWD"
+        AUTH_SRC="Reports server admin <identifier> (reports_admin_sec.conf.des3)"
+    }
+    case "$AUTH_MODE" in
+        mon)   _load_mon   || warn "Monitoring user not found in reports_users.conf.des3 (12-oracle_reports_users.sh)" ;;
+        admin) _load_admin || warn "Reports server admin not found in reports_admin_sec.conf.des3 (13-oracle_setup_reports.sh)" ;;
+        auto)
+            if [ "${REPORTS_SECURITY:-ldap}" = "ldap" ]; then
+                _load_mon || _load_admin
+            else
+                _load_admin || _load_mon
+            fi ;;
+    esac
+    unset REPORTS_MON_PWD REPORTS_EXEC_PWD REPORTS_ADMIN_PWD
+    if [ -n "$AUTH_USER" ]; then
+        printf "  %-26s %s  (%s)\n" "authid:" "$AUTH_USER/****" "$AUTH_SRC" | tee -a "${LOG_FILE:-/dev/null}"
+    else
+        printf "  %-26s %s\n" "authid:" "none (--auth ${AUTH_MODE})" | tee -a "${LOG_FILE:-/dev/null}"
+    fi
+
+    # One request; URL incl. authid via curl config on stdin (not in argv)
+    _tmp_body="$(mktemp)"
+    HTTP_CODE="$( {
+        printf 'url = "%s"\n' "$STATUS_URL"
+        if [ -n "$AUTH_USER" ]; then
+            printf 'get\n'
+            printf 'data-urlencode = "authid=%s/%s"\n' "$AUTH_USER" "$AUTH_PWD"
+        fi
+    } | curl -s --connect-timeout 5 --max-time 30 -K - -o "$_tmp_body" -w "%{http_code}" 2>/dev/null )"
+    HTTP_XML="$(cat "$_tmp_body" 2>/dev/null)"
+    rm -f "$_tmp_body"
+    AUTH_PWD=""
+    REP_ERR="$(printf '%s' "$HTTP_XML" | sed -n 's/.*<error code="\([0-9]*\)"[^>]*message="\([^"]*\)".*/REP-\1 \2/p' | head -1)"
+    [ -z "$REP_ERR" ] && REP_ERR="$(printf '%s' "$HTTP_XML" | grep -o 'REP-[0-9]*[^<]\{0,80\}' | head -1)"
 
     case "$HTTP_CODE" in
         200)
-            ok "rwservlet reachable (HTTP 200)"
-            _parse_rwservlet_xml "$HTTP_XML"
+            if [ -n "$REP_ERR" ]; then
+                fail "rwservlet answered with an error: $REP_ERR"
+                case "$REP_ERR" in
+                    REP-52262*) info "  Diagnostic output disabled for this user – unsecured server: use --auth admin (<identifier>); secured: monUser needs RW_MONITOR" ;;
+                    REP-50171*) info "  Authentication failed – wrong password in the .des3 file, or (securityId without LDAP identity store) see doc 13 Step 5a" ;;
+                    REP-56071*) info "  User not authorized for web commands – role RW_MONITOR / WebCommandPermission missing (12-oracle_reports_users.sh)" ;;
+                esac
+            else
+                ok "rwservlet reachable (HTTP 200)"
+                _parse_rwservlet_xml "$HTTP_XML"
+            fi
+            ;;
+        499)
+            fail "HTTP 499 – login required (secured Reports server) and no valid authid"
+            info "  Store the monitoring user: 09-Install/12-oracle_reports_users.sh"
             ;;
         000)
             warn "No response from rwservlet – WLS_REPORTS not running or port wrong?"
@@ -487,7 +606,7 @@ else
             ;;
         401|403)
             warn "HTTP ${HTTP_CODE} – Authentication required on rwservlet"
-            info "The getserverinfo command may need a secured URL or admin credentials"
+            info "  Try --auth mon / --auth admin (credentials from the *.des3 files)"
             ;;
         404)
             warn "HTTP 404 – rwservlet not found at: $STATUS_URL"

@@ -11,7 +11,8 @@ management, interactive WLST access, Reports Server status.
 |---|---|---|
 | `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
-| `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status |
+| `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status (`--auth` for secured servers) |
+| `rwrun_trace.sh` | ✅ implemented | Run one report with `rwrun` + trace (TRACEOPTS, optional ODL `TRACE:32`), collect output/trace/log excerpt/ADR incidents |
 
 All scripts source `environment.conf`. Run `00-Setup/init_env.sh` first
 if `environment.conf` does not exist yet.
@@ -224,7 +225,8 @@ exit()
 ```bash
 ./01-Run/rwserver_status.sh
 ./01-Run/rwserver_status.sh --port 9002
-./01-Run/rwserver_status.sh --server rep_wls_reports
+./01-Run/rwserver_status.sh --server repserver01
+./01-Run/rwserver_status.sh --auth admin
 ```
 
 ### Options
@@ -232,14 +234,33 @@ exit()
 | Option | Description |
 |---|---|
 | `--port N` | WLS_REPORTS listen port (default: auto-detect from config.xml) |
-| `--server NAME` | Reports Server name (default: from rwserver.conf) |
+| `--server NAME` | Reports Server name (default: `REPORTS_SERVER_NAME`, else the `ReportsServerComponent` in config.xml) |
+| `--auth MODE` | `authid` for `getserverinfo`: `auto` (default), `mon`, `admin`, `none` |
+
+### Authentication (`--auth`, since 2026-10-17)
+
+`getserverinfo` needs an `authid` on a secured/hardened Reports server –
+without it the servlet answers HTTP 499 (login) or `REP-52262`.
+
+| Mode | User | Source |
+|---|---|---|
+| `auto` with `REPORTS_SECURITY=ldap` | `monUser` (role `RW_MONITOR`), fallback admin | `reports_users.conf.des3` (`12-`) |
+| `auto` with `REPORTS_SECURITY=identifier` | Reports server admin (`<identifier>`), fallback `monUser` | `reports_admin_sec.conf.des3` (`13-`/interview) |
+| `mon` / `admin` | only that user | as above |
+| `none` | no `authid` (shows what an anonymous caller gets) | – |
+
+The password is passed to `curl` as a config on stdin (`-K -`,
+`data-urlencode`) – it never appears in the process list, the output or the
+log (output shows `user/****`). REP errors in the answer are reported with
+a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
+(monUser) and `admin` → full server info, `none` → HTTP 499.
 
 ### What it shows
 
 | Section | Source | Content |
 |---|---|---|
-| Engine Configuration | `rwserver.conf` | minEngines, maxEngines, maxIdle, engineType |
-| Process Status | `pgrep` | WLS managed server PID, rwengine process count |
+| Engine Configuration | `rwserver.conf` of the Reports server component (`components/ReportsServerComponent/<name>/`) | minEngine, maxEngine, maxIdle of the **report** engine (not the URL engine `rwURLEng`) |
+| Process Status | `pgrep` | WLS managed server PID, `rwserver server=<name>` PID, engine count = Java child processes of `rwserver` (14.1.2 has no `rwengine` process name) |
 | Engine Pool | rwservlet HTTP | Per-engine: ID, status (idle/busy), type, PID |
 | Job Queue | rwservlet HTTP | Pending, running, finished, failed job counts |
 
@@ -276,6 +297,55 @@ If the endpoint is not reachable, the process section still shows
 `pgrep`-based engine counts.
 
 ---
+
+## 4b. rwrun_trace.sh
+
+Runs **one** report in-process with `rwrun` (no Reports server, no
+rwservlet) – to find out whether a problem is in the report itself (SQL,
+PL/SQL, fonts, parameters) or in the server/servlet path.
+
+```bash
+./01-Run/rwrun_trace.sh --report test_dual.rdf
+./01-Run/rwrun_trace.sh --report /path/my.rdf --params "P_DEPT=10 P_YEAR=2026" --format pdf
+./01-Run/rwrun_trace.sh --report my.rdf --traceopts TRACE_SQL
+./01-Run/rwrun_trace.sh --report my.rdf --odl --apply     # + ODL TRACE:32
+```
+
+| Option | Meaning |
+|---|---|
+| `--report FILE` | `.rdf` / `.rep` / `.xml`, absolute or searched in `REPORTS_CUSTOMER_DIR` / `REPORTS_PATH` |
+| `--format FMT` | `desformat` (default `pdf`) |
+| `--params "..."` | report parameters `NAME=VALUE`, blank-separated |
+| `--traceopts OPT` | `TRACE_ALL` (default), `TRACE_ERR`, `TRACE_SQL`, `TRACE_PLS`, `TRACE_PRF`, `TRACE_APP`, … |
+| `--db-sec FILE` | DB credentials, default `test_db_sec.conf.des3` (`TEST_DB_USER`/`TEST_DB_PWD`) |
+| `--odl` + `--apply` | logger `oracle.reports.runtime` of the ReportsTools instance → `TRACE:32` for this run; `logging.xml` is restored afterwards (also on Ctrl+C) |
+
+How it works (findings 2026-10-14 / 16 / 17):
+
+- Uses `$DOMAIN_HOME/reports/bin/rwrun.sh` (wrapper of the ReportsTools
+  instance – sets `REPORTS_CLASSPATH`, `libjvm` path,
+  `REPORTS_DEFAULT_DISPLAY=YES`; no X display). `$ORACLE_HOME/bin/rwrun`
+  alone crashes (SIGSEGV/SIGABRT, missing environment).
+- `userid` is passed in a `cmdfile=` (mode 600, removed after the run) –
+  the password never appears on the command line / in `ps`; DB via a
+  temporary TNS alias (`TNS_ADMIN` in the work directory).
+- `LOGFILE` is deprecated in 14.1.2 (`REP-34551`) – not used; the console
+  output is kept instead.
+
+Result directory `log/<date>/rwrun_trace_<timestamp>/`:
+
+| File | Content |
+|---|---|
+| `output.<fmt>` | the report output |
+| `rwrun.trc` | rwrun trace (`TRACEOPTS`) |
+| `console.txt` | stdout/stderr of rwrun |
+| `runtime_diagnostic_excerpt.log` | new lines of `servers/<reptools>/logs/runtime_diagnostic.log` (ODL; with `--odl` full `TRACE:32` detail, stack traces, REP codes) |
+| `adr_incidents.txt` | new ADR incidents (`~/oradiag_<user>/…/incident/`) = native crash |
+
+The summary lists the `REP-`/`ORA-` messages found. Live 2026-10-17:
+`test_dual.rdf` → PDF in 3 s; with `--odl` 482 log lines (339 TRACE);
+broken SQL → `ORA-00942` / `REP-0583`, FAIL; interrupt during `--odl` →
+`logging.xml` byte-identical afterwards.
 
 ## 5. Troubleshooting
 

@@ -19,29 +19,28 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[████████████████░░░░]` ~80 % complete** – phases 1–7 are implemented and the
+**`[█████████████████░░░]` ~85 % complete** – phases 1–7 are implemented and the
 whole install chain is live-tested end-to-end incl. the smoke test, phase 8 is
-mostly done, phase 9 is concept-only.
+nearly done, phase 9 is concept-only.
 
-How the ~80 % is estimated (state 2026-10-17): phases 1–7 count as done
-(7 × ~11 %), phase 8 about three quarters (backup/restore, WLS/Forms/Reports
-patching done; repository theory clarified – regular patches never touch the
-RCU schemas –, schema profile `RCU_USER` and RCU pre-checks done; JDK upgrade
-automation and a read-only repository check script missing),
-phase 9 zero; minus the remaining stubs in phases 3/6 (`display_check.sh`,
-`rwrun_trace.sh`) and the open security items (EM user search, web-command
-tests, JACOB signing, `rwserver_status.sh` without `authid`).
+How the ~85 % is estimated (state 2026-10-17): phases 1–7 count as done
+(7 × ~11 %, no stubs left: `rwrun_trace.sh` implemented, `display_check.sh`
+dropped, `rwserver_status.sh` with `authid`), phase 8 about nine tenths
+(backup/restore, WLS/Forms/Reports patching, RCU repository theory, profile
+`RCU_USER`, pre-checks and `rcu_repository_check.sh` incl. Data Pump backup
+done; JDK upgrade automation missing), phase 9 zero; minus the open security
+items (EM user search, web-command tests, JACOB signing).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
 | 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF) |
-| 3 | Check Logs | ✅ Done (`display_check.sh`, `rwrun_trace.sh` not created yet) |
+| 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X) |
 | 4 | Set Up SSL | ✅ Done |
 | 5 | Solve Font Problems | ✅ Done |
 | 6 | Check Reports Performance | ✅ Done |
 | 7 | Check Forms | ✅ Done |
-| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks; still missing: automated JDK upgrade (`80-` is read-only for now) and a read-only repository check script |
+| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); still missing: automated JDK upgrade (`80-` is read-only for now) |
 | 9 | Proactive Monitoring | 📝 Concept only – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -211,9 +210,7 @@ background and adds AI-assisted root-cause reasoning on top.
 
 | Phase | Gap |
 |---|---|
-| Phase 3 (Logs) | `02-Checks/display_check.sh` not created – to be re-evaluated: since 2026-10-16 Forms/Reports tools run without X (`FORMS_API_TK_BYPASS=TRUE`, `REPORTS_DEFAULT_DISPLAY=YES`) |
-| Phase 6 (Reports) | `01-Run/rwrun_trace.sh` not created (groundwork done) |
-| Phase 8 (Patches) | Repository: no patch step needed for regular patches (schemas only change with the Upgrade Assistant on a version upgrade); missing a read-only check script (registry, data sources, profile/expiry) + Data Pump backup option; JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
+| Phase 8 (Patches) | JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
 | Phase 9 (Monitoring) | Concept only so far — see `10-Monitoring/README.md` |
 
 ## First Run – Required Order
@@ -288,7 +285,8 @@ IHateWeblogic/
 │   ├── README.md
 │   ├── startStop.sh                 – Manage components: list | start/stop <comp> | start-all | stop-all
 │   ├── wlst_connect.sh              – Open interactive WLST shell with auto-login via weblogic_sec.sh
-│   └── rwserver_status.sh           – Engine pool, job queue, rwservlet HTTP status
+│   ├── rwserver_status.sh           – Engine pool, job queue, rwservlet HTTP status (--auth)
+│   └── rwrun_trace.sh               – One report with rwrun + trace / ODL TRACE:32, results in log/
 │
 ├── 02-Checks/
 │   ├── README.md
@@ -346,6 +344,8 @@ IHateWeblogic/
 │   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
 │   ├── 80-patch_java_os.sh          – Java/OS layer: read-only check + manual upgrade checklist
 │   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
+│   ├── rcu_repository_check.sh      – RCU repository check (registry, accounts, data sources);
+│   │                                   --apply = Data Pump backup of schemas + registry
 │   ├── 81-patch_weblogic.sh         – WLS FMW Basis layer: wraps 09-Install/05-oracle_patch_weblogic.sh,
 │   │                                   hard-fails if WebLogic is still running
 │   ├── 82-patch_forms_reports.sh    – Forms + Reports layer: wraps 09-Install/06-oracle_patch_forms_reports.sh,
@@ -726,30 +726,30 @@ work (details of every fix: `git log`).
 
 ### Older open items
 
-- [ ] **rwservlet authentication** (`01-Run/rwserver_status.sh`):
-  `getserverinfo` is called without `authid` and therefore gets `REP-52262` /
-  HTTP 499 on the rebuilt domain. Add `authid` support: with
-  `REPORTS_SECURITY=ldap` `monUser` from `reports_users.conf.des3`, with
-  `identifier` the server admin from `reports_admin_sec.conf.des3` (both
-  exist since 2026-10-16).
+- [x] **rwservlet authentication** (`01-Run/rwserver_status.sh`, 2026-10-17):
+  `--auth auto|mon|admin|none` – `monUser` (`reports_users.conf.des3`) with
+  `REPORTS_SECURITY=ldap`, else the `<identifier>` admin
+  (`reports_admin_sec.conf.des3`); password via curl config on stdin. Also
+  fixed: engine values were read from the URL engine, engine count looked
+  for `rwengine` processes (14.1.2: Java children of `rwserver`), the
+  standalone server's own `rwserver.conf` is used.
 
-- [ ] **`02-Checks/display_check.sh`** – not yet created; re-evaluate first:
-  the smoke test (2026-10-16) showed that the Forms tools (`FORMS_API_TK_BYPASS=TRUE`)
-  and the Reports tools (`REPORTS_DEFAULT_DISPLAY=YES`, instance wrappers) need no
-  X display – the original "needs Xvfb" reason may be obsolete.
+- [x] **`02-Checks/display_check.sh`** – dropped 2026-10-17: the Forms tools
+  (`FORMS_API_TK_BYPASS=TRUE`) and the Reports tools (`REPORTS_DEFAULT_DISPLAY=YES`,
+  instance wrappers) need no X display (smoke test 2026-10-16).
 
-- [ ] **`01-Run/rwrun_trace.sh`** – not yet created.
-  Run a single report with `rwrun` debug tracing enabled for root-cause analysis
-  (groundwork from 2026-10-14: crash chain libjvm → environment → ReportsTools
-  instance → logon dialog, ODL `TRACE:32`; needs the ReportsTools instance that
-  the rebuild now provides).
+- [x] **`01-Run/rwrun_trace.sh`** (2026-10-17): one report with `rwrun.sh` of
+  the ReportsTools instance + `TRACEOPTS`, optional ODL `TRACE:32` (logging.xml
+  restored), `userid` via cmdfile; result directory with output, trace, ODL
+  excerpt, new ADR incidents.
 
-- [ ] **Repository schema patching** – theory done 2026-10-17
+- [x] **Repository schema patching** (2026-10-17) – theory
   ([`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)):
   regular patches (SPB/CSPU/one-offs, also September 2026) do **not** touch the
-  RCU schemas; only a version upgrade uses the Upgrade Assistant. Open: read-only
-  check script (registry, data sources, profile/expiry) with a Data Pump backup
-  option of `SYSTEM.SCHEMA_VERSION_REGISTRY$` + schemas before an upgrade/move.
+  RCU schemas; only a version upgrade uses the Upgrade Assistant.
+  `07-Maintenance/rcu_repository_check.sh`: read-only check of registry,
+  accounts (profile/expiry), data sources (login), service table; `--apply` =
+  Data Pump export of the schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$`.
 - [x] **Password expiry of the RCU schemas** (2026-10-17): profile `DEFAULT`
   (19c: 180 days) → own profile `RCU_USER` (no expiry, no lock):
   `60-RCU-DB-19c/07b-db_rcu_profile.sh`, `09-Install/07-` assigns it after RCU
