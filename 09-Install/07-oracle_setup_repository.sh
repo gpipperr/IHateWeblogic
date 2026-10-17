@@ -15,11 +15,27 @@
 # Call     : ./09-Install/07-oracle_setup_repository.sh
 #            ./09-Install/07-oracle_setup_repository.sh --apply
 #            ./09-Install/07-oracle_setup_repository.sh --drop
+#            ./09-Install/07-oracle_setup_repository.sh --profile
 #            ./09-Install/07-oracle_setup_repository.sh --help
 # Options  : (none)    Dry-run: show connection info and schema names
 #            --apply   Run RCU -createRepository
 #            --drop    Run RCU -dropRepository (CAUTION: destroys all FMW data)
+#            --profile Only assign the DB profile RCU_DB_PROFILE (default RCU_USER:
+#                      no password expiry, no lock) to the existing schemas
+#            --prefix P  with --profile: prefix(es) to assign (repeatable),
+#                      default DB_SCHEMA_PREFIX; all registry prefixes are shown
 #            --help    Show usage
+# Profile  : RCU creates its schemas with profile DEFAULT (19c: password
+#            expires after 180 days -> domain does not start). After
+#            -createRepository (and with --profile) this script creates/aligns
+#            RCU_DB_PROFILE and assigns it to all schemas of the prefix
+#            (60-RCU-DB-19c/rcu_user_profile.sql; DB preparation:
+#            60-RCU-DB-19c/07b-db_rcu_profile.sh).
+# DB type  : RCU_DB_TYPE (EBR | ORACLE, default EBR) is always passed as
+#            -databaseType. Without it silent RCU created EBR schemas
+#            (editions enabled) on 19c, while the GUI may preselect "Oracle
+#            Database" – one explicit type per installation instead of a
+#            tool-dependent "default" (rcu_middleware_architecture.md 4.3).
 # Runs as  : oracle
 # Requires : $ORACLE_HOME/oracle_common/bin/rcu, DB credentials in db_sys_sec.conf.des3
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -58,30 +74,50 @@ init_log "$DIAG_LOG_DIR"
 
 APPLY=false
 DROP=false
+PROFILE_ONLY=false
+PROFILE_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_user_profile.sql"
+OVERVIEW_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_registry_overview.sql"
+PREFIXES=()
+RCU_DB_PROFILE="${RCU_DB_PROFILE:-RCU_USER}"
 
 _usage() {
     printf "Usage: %s [--apply | --drop] [--help]\n\n" "$(basename "$0")"
     printf "  %-12s %s\n" "(none)"   "Dry-run: show connection info and schema names"
     printf "  %-12s %s\n" "--apply"  "Run RCU -createRepository (create 8 FMW component schemas)"
     printf "  %-12s %s\n" "--drop"   "Run RCU -dropRepository (CAUTION: destroys all FMW data)"
+    printf "  %-12s %s\n" "--profile" "Only assign DB profile ${RCU_DB_PROFILE} (no expiry/lock) to existing schemas"
+    printf "  %-12s %s\n" "--prefix P" "With --profile: prefix to assign (repeatable), default DB_SCHEMA_PREFIX"
     printf "  %-12s %s\n" "--help"   "Show this help"
     printf "\nRuns as: oracle\n"
     exit 0
 }
 
-for _arg in "$@"; do
-    case "$_arg" in
+while [ $# -gt 0 ]; do
+    case "$1" in
         --apply)   APPLY=true ;;
         --drop)    DROP=true  ;;
+        --profile) PROFILE_ONLY=true ;;
+        --prefix)
+            [[ "${2:-}" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] \
+                || { printf "\033[31mERROR\033[0m --prefix needs a prefix (letters/digits): %s\n" "${2:-}" >&2; exit 1; }
+            PREFIXES+=("${2^^}"); shift ;;
         --help|-h) _usage ;;
         *)
-            printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
+            printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 1 ;;
     esac
+    shift
 done
-unset _arg
+if [ ${#PREFIXES[@]} -gt 0 ] && ! $PROFILE_ONLY; then
+    printf "\033[31mERROR\033[0m --prefix is only valid with --profile (RCU itself uses DB_SCHEMA_PREFIX)\n" >&2; exit 1
+fi
+[ ${#PREFIXES[@]} -eq 0 ] && PREFIXES=("${DB_SCHEMA_PREFIX^^}")
+PREFIX_LIST="$(IFS=,; printf '%s' "${PREFIXES[*]}")"
 
 if $APPLY && $DROP; then
     printf "\033[31mERROR\033[0m --apply and --drop are mutually exclusive\n" >&2; exit 1
+fi
+if $PROFILE_ONLY && { $APPLY || $DROP; }; then
+    printf "\033[31mERROR\033[0m --profile cannot be combined with --apply / --drop\n" >&2; exit 1
 fi
 
 # =============================================================================
@@ -123,6 +159,14 @@ RCU_BIN="$ORACLE_HOME/oracle_common/bin/rcu"
     && ok "rcu found: $RCU_BIN" \
     || { fail "rcu not found: $RCU_BIN"; fail "  Run first: 05-oracle_install_weblogic.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
+# --- RCU database type ----------------------------------------------------------
+RCU_DB_TYPE="${RCU_DB_TYPE:-EBR}"
+RCU_DB_TYPE="${RCU_DB_TYPE^^}"
+case "$RCU_DB_TYPE" in
+    EBR|ORACLE) ok "RCU_DB_TYPE      = $RCU_DB_TYPE  (-databaseType)" ;;
+    *) fail "RCU_DB_TYPE must be EBR or ORACLE (is: $RCU_DB_TYPE)"; EXIT_CODE=2 ;;
+esac
+
 # --- Database connection params -----------------------------------------------
 [ -n "${DB_HOST:-}" ]          && ok "DB_HOST          = $DB_HOST"          || { fail "DB_HOST not set";          EXIT_CODE=2; }
 [ -n "${DB_PORT:-}" ]          && ok "DB_PORT          = $DB_PORT"          || { fail "DB_PORT not set";          EXIT_CODE=2; }
@@ -145,6 +189,7 @@ section "Schema Configuration"
 printList "Connect string"  28 "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
 printList "DB user"         28 "sys (SYSDBA)"
 printList "Schema prefix"   28 "$DB_SCHEMA_PREFIX"
+printList "Database type"   28 "$RCU_DB_TYPE  ($( [ "$RCU_DB_TYPE" = EBR ] && printf 'editions enabled, edition ORA$BASE' || printf 'no editions' ))"
 
 # --- Tablespace info (flags are applied per-component in RCU_COMP_FLAGS) -----
 if [ -n "${RCU_TABLESPACE:-}" ]; then
@@ -171,7 +216,7 @@ done
 unset _c _s
 
 # --- Dry-run exit -------------------------------------------------------------
-if ! $APPLY && ! $DROP; then
+if ! $APPLY && ! $DROP && ! $PROFILE_ONLY; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "Dry-run – use --apply to create schemas or --drop to drop them."
     info "DB credentials will be read from: $DB_SYS_SEC_FILE"
@@ -215,6 +260,74 @@ fi
 [ -n "${DB_SCHEMA_PWD:-}" ] \
     && ok "DB_SCHEMA_PWD decrypted (${#DB_SCHEMA_PWD} chars)" \
     || { fail "DB_SCHEMA_PWD not found in $DB_SYS_SEC_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+# =============================================================================
+# DB profile for the RCU schemas (RCU itself has no profile option)
+# =============================================================================
+
+# _rcu_profile - show all registry prefixes, create/align RCU_DB_PROFILE and
+# assign it to every schema of PREFIX_LIST in SYSTEM.SCHEMA_VERSION_REGISTRY$
+# (exact prefix match; foreign prefixes are only reported). SYS password via stdin.
+_rcu_profile() {
+    local sqlplus="$ORACLE_HOME/bin/sqlplus" out rc l
+    if [ ! -x "$sqlplus" ]; then
+        fail "sqlplus not found: $sqlplus – assign the profile on the DB host:"
+        info "  60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign"
+        return 1
+    fi
+    if [ ! -f "$PROFILE_SQL" ] || [ ! -f "$OVERVIEW_SQL" ]; then
+        fail "SQL script missing: $PROFILE_SQL / $OVERVIEW_SQL"; return 1
+    fi
+    out="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$sqlplus" -S -L /nolog 2>&1 <<SQLEOF
+CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
+@${OVERVIEW_SQL}
+@${PROFILE_SQL} ${RCU_DB_PROFILE} ${PREFIX_LIST}
+EXIT;
+SQLEOF
+)"
+    rc=$?
+    printf '%s\n' "$out" >> "${LOG_FILE:-/dev/null}"
+    local t pfx n miss prof st exp ebr mark p
+    info "RCU registry – all prefixes in this database (* = selected: ${PREFIX_LIST}):"
+    while IFS='|' read -r t pfx n miss prof st exp ebr; do
+        case "$t" in
+            IHW:NOREG) warn "  SYSTEM.SCHEMA_VERSION_REGISTRY\$ not found" ;;
+            IHW:PREFIX)
+                mark=" "; [[ ",${PREFIX_LIST}," == *",${pfx},"* ]] && mark="*"
+                info "$(printf "  %s %-10s schemas %-3s missing %-3s profile %-16s status %-14s expiry %-10s EBR %s" \
+                    "$mark" "$pfx" "$n" "$miss" "$prof" "$st" "$exp" "$ebr")"
+                [ "$miss" != "0" ] && warn "  ${pfx}: ${miss} registry row(s) without database user (orphaned)"
+                [ "$mark" = " " ] && [ "$prof" != "$RCU_DB_PROFILE" ] \
+                    && info "    not selected – left unchanged (--profile --prefix ${pfx} to include it)" ;;
+        esac
+    done <<< "$out"
+    for p in "${PREFIXES[@]}"; do
+        printf '%s\n' "$out" | grep -q "^IHW:PREFIX|${p}|" \
+            || warn "  selected prefix ${p} is not in the registry"
+    done
+    while IFS= read -r l; do
+        case "$l" in
+            IHW:OK:*)   ok   "${l#IHW:OK:}" ;;
+            IHW:WARN:*) warn "${l#IHW:WARN:}" ;;
+            IHW:FAIL:*) fail "${l#IHW:FAIL:}" ;;
+        esac
+    done <<< "$out"
+    if [ "$rc" -ne 0 ] || printf '%s\n' "$out" | grep -qE "ORA-|SP2-"; then
+        fail "Profile step failed (rc=$rc):"
+        printf '%s\n' "$out" | grep -E "ORA-|SP2-" | head -3 | while IFS= read -r l; do fail "  $l"; done
+        return 1
+    fi
+    return 0
+}
+
+if $PROFILE_ONLY; then
+    section "DB Profile ${RCU_DB_PROFILE}"
+    info "$(printf "Prefix(es) %s on %s:%s/%s – PASSWORD_LIFE_TIME / FAILED_LOGIN_ATTEMPTS UNLIMITED" \
+        "$PREFIX_LIST" "$DB_HOST" "$DB_PORT" "$DB_SERVICE")"
+    _rcu_profile || EXIT_CODE=2
+    unset DB_SYS_PWD DB_SCHEMA_PWD
+    print_summary; exit $EXIT_CODE
+fi
 
 # =============================================================================
 # Build RCU password file  (trap ensures cleanup even on error or Ctrl+C)
@@ -293,6 +406,7 @@ LISTSCHEMAS_OUTPUT=$(
     "$RCU_BIN" \
         -silent \
         -listSchemas \
+        -databaseType "$RCU_DB_TYPE" \
         -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
         -dbUser sys \
         -dbRole sysdba \
@@ -304,7 +418,7 @@ printf "%s\n" "$LISTSCHEMAS_OUTPUT" | tee -a "$LOG_FILE"
 if [ "$PREFLIGHT_RC" -ne 0 ]; then
     fail "rcu -listSchemas failed (rc=$PREFLIGHT_RC)"
     fail "  Possible causes: wrong DB_HOST/DB_PORT/DB_SERVICE, wrong DB_SYS_PWD"
-    fail "  Check: $ORACLE_HOME/oracle_common/rcu/log/"
+    fail "  Check: /tmp/RCU<timestamp>/logs/rcu.log (newest)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 ok "$(printf "DB connection OK – SYSDBA on %s:%s/%s" "$DB_HOST" "$DB_PORT" "$DB_SERVICE")"
@@ -333,6 +447,36 @@ else
         print_summary; exit $EXIT_CODE
     fi
     ok "$(printf "No existing schemas with prefix '%s' – safe to create" "$DB_SCHEMA_PREFIX")"
+fi
+
+# --- 2b. db_securefile (create only) -----------------------------------------
+# With db_securefile=FORCE the FIRST RCU run in a database fails: RCU creates
+# SYSTEM.SCHEMA_VERSION_REGISTRY$ (CLOB column) in the non-ASSM tablespace
+# SYSTEM -> ORA-43853. PREFERRED (default) / ALWAYS create a BasicFile there.
+# (live test 2026-10-17, rcu_middleware_architecture.md 4.2)
+if ! $DROP && [ -x "$ORACLE_HOME/bin/sqlplus" ] && [ -f "$OVERVIEW_SQL" ]; then
+    _pf="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$ORACLE_HOME/bin/sqlplus" -S -L /nolog 2>&1 <<SQLEOF
+CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
+@${OVERVIEW_SQL}
+EXIT;
+SQLEOF
+)"
+    _sf="$(printf '%s\n' "$_pf" | sed -n 's/^IHW:SECUREFILE|//p' | head -1)"
+    if [ -z "$_sf" ]; then
+        warn "db_securefile could not be read (sqlplus) – skipped"
+    elif [ "$_sf" = "FORCE" ]; then
+        if printf '%s\n' "$_pf" | grep -q '^IHW:NOREG'; then
+            fail "db_securefile=FORCE and no RCU registry in this DB – RCU would fail with ORA-43853"
+            info "  (registry SYSTEM.SCHEMA_VERSION_REGISTRY\$ has a CLOB, tablespace SYSTEM is not ASSM)"
+            info "  Fix (DBA): ALTER SYSTEM SET db_securefile=PREFERRED;  (may be reset after RCU)"
+            $APPLY && { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+        else
+            warn "db_securefile=FORCE – registry already exists, RCU should work; keep in mind for new DBs"
+        fi
+    else
+        ok "db_securefile=${_sf} – RCU registry in tablespace SYSTEM possible"
+    fi
+    unset _pf _sf
 fi
 
 # --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured, create only) ---
@@ -367,11 +511,13 @@ fi
 
 printf "\n  RCU started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 printf "  Connect    : %s:%s/%s\n" "$DB_HOST" "$DB_PORT" "$DB_SERVICE" | tee -a "$LOG_FILE"
-printf "  Prefix     : %s\n\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
+printf "  Prefix     : %s\n" "$DB_SCHEMA_PREFIX" | tee -a "$LOG_FILE"
+printf "  DB type    : %s\n\n" "$RCU_DB_TYPE" | tee -a "$LOG_FILE"
 
 "$RCU_BIN" \
     -silent \
     "$RCU_ACTION" \
+    -databaseType "$RCU_DB_TYPE" \
     -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys \
     -dbRole sysdba \
@@ -388,7 +534,7 @@ printf "\n  RCU finished: %s  (rc=%s)\n" \
 
 if [ "$RCU_RC" -ne 0 ]; then
     fail "RCU exited with rc=$RCU_RC"
-    fail "  Check logs: $ORACLE_HOME/oracle_common/rcu/log/"
+    fail "  Check logs: /tmp/RCU<timestamp>/logs/rcu.log (newest)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
@@ -403,7 +549,7 @@ if $DROP; then
     section "Verification"
 
     LISTSCHEMAS_AFTER=$(
-        "$RCU_BIN" -silent -listSchemas \
+        "$RCU_BIN" -silent -listSchemas -databaseType "$RCU_DB_TYPE" \
             -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
             -dbUser sys -dbRole sysdba \
             -f < "$RCU_PW_FILE" 2>&1
@@ -449,6 +595,14 @@ if $APPLY; then
     else
         warn "$(printf "Only %d/%d Success entries found in log – verify manually" "$COMP_SUCCESS" "$EXPECTED")"
     fi
+
+    # RCU created the schemas with profile DEFAULT (password expiry 180 days)
+    section "DB Profile ${RCU_DB_PROFILE}"
+    _rcu_profile || {
+        warn "Schemas keep profile DEFAULT – passwords expire after 180 days!"
+        info "  Retry: 07-oracle_setup_repository.sh --profile"
+        [ "$EXIT_CODE" -lt 1 ] && EXIT_CODE=1
+    }
 
     printf "\n" | tee -a "$LOG_FILE"
     info "Next step: create WebLogic domain"

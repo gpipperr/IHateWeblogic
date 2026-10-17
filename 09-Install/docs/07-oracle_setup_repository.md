@@ -184,13 +184,41 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
   1. TCP port reachability (`bash /dev/tcp`) — fails fast if listener is down
   2. `rcu -listSchemas` — tests SYSDBA auth and lists existing schemas;
      aborts if connection fails or if prefix already exists (use `--drop` first)
-  3. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
+  3. `db_securefile` (create only, via sqlplus as SYSDBA): with `FORCE` the
+     first RCU run in a database fails – the registry
+     `SYSTEM.SCHEMA_VERSION_REGISTRY$` (CLOB) is created in the non-ASSM
+     tablespace `SYSTEM` → ORA-43853. FAIL if `FORCE` and no registry yet
+     (fix: `ALTER SYSTEM SET db_securefile=PREFERRED`), WARN if `FORCE` and a
+     registry already exists. `PREFERRED`/`ALWAYS` are fine (BasicFile in
+     `SYSTEM`). Live test: architecture doc §4.2
+  4. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
      to confirm the tablespace was pre-created before proceeding
 - Runs `rcu -silent -createRepository` with all 8 components (9 schemas total,
   including the WLS_RUNTIME sub-schema)
+- **Database type** `RCU_DB_TYPE` (`EBR` | `ORACLE`, default `EBR`, asked by
+  the interview) is always passed as `-databaseType` (also to
+  `-listSchemas` / `-dropRepository`). Tested 2026-10-17: silent RCU
+  **without** `-databaseType` created EBR schemas (editions enabled, edition
+  `ORA$BASE`), `-databaseType ORACLE` creates schemas without editions; the
+  GUI may preselect "Oracle Database". One explicit type per installation;
+  the type of an existing prefix cannot be changed (drop + recreate).
+  Background: `80-FMW-Architecture/rcu_middleware_architecture.md` §4.3
 - Deletes the password file immediately via `trap cleanup EXIT`
   (cleanup runs even if RCU fails or script is interrupted)
 - Verifies each schema is confirmed as Success in the RCU log
+- **DB profile** (since 2026-10-17): RCU creates its schemas with profile
+  `DEFAULT` – in 19c `PASSWORD_LIFE_TIME 180` / `FAILED_LOGIN_ATTEMPTS 10`:
+  after 180 days the data sources and the OPSS bootstrap can no longer log in
+  and the domain does not start; a wrong password in a data source locks the
+  schema. RCU has no option for a profile, so after `-createRepository` the
+  script runs `60-RCU-DB-19c/rcu_user_profile.sql` as SYSDBA (network
+  connection, SYS password via stdin): creates/aligns `RCU_DB_PROFILE`
+  (default `RCU_USER`: `PASSWORD_LIFE_TIME UNLIMITED`,
+  `FAILED_LOGIN_ATTEMPTS UNLIMITED`) and assigns it to every schema of the
+  prefix listed in `SYSTEM.SCHEMA_VERSION_REGISTRY$`. For an existing
+  repository: `--profile`. DB preparation before RCU (on the DB host):
+  `60-RCU-DB-19c/07b-db_rcu_profile.sh`. Background:
+  [`80-FMW-Architecture/rcu_middleware_architecture.md`](../../80-FMW-Architecture/rcu_middleware_architecture.md) §6.1.
 
 ---
 
@@ -201,6 +229,8 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 | (none) | Show what would be created (connection info, schema names) |
 | `--apply` | Run RCU and create schemas |
 | `--drop` | Drop existing schemas (CAUTION: destroys data) |
+| `--profile` | Only create/align `RCU_DB_PROFILE` and assign it to the existing schemas of the prefix (no RCU run); shows all prefixes of the registry first |
+| `--prefix <P>` | With `--profile`: prefix(es) to assign (repeatable), default `DB_SCHEMA_PREFIX`; exact match, no "all" option – see `60-RCU-DB-19c/docs/07b-db_rcu_profile.md` |
 | `--help` | Show usage |
 
 ---
@@ -236,8 +266,13 @@ FMW 14.1.2. There is no `-checkRequirements` or `-checkPrereqs` in this version.
   — cleanup runs even if RCU fails or the script is interrupted with Ctrl+C
 - `DB_SYS_PWD` + `DB_SCHEMA_PWD` are stored together in `db_sys_sec.conf.des3`
   → manage with `00-Setup/database_rcu_sec.sh --apply`
-- RCU logs: `$ORACLE_HOME/oracle_common/rcu/log/`
-- If RCU fails: check `$ORACLE_HOME/oracle_common/rcu/log/` for the error
+- RCU logs: `/tmp/RCU<date_time_random>/logs/rcu.log` (one directory per
+  RCU run, also for `-listSchemas`; documented in the RCU guide "RCU Log
+  Files", confirmed 2026-10-17 – `$ORACLE_HOME/oracle_common/rcu/log/` does
+  not exist in 14.1.2)
+- If RCU fails: check the newest `/tmp/RCU*/logs/rcu.log` for the error
+- Check the profile / password expiry of the schemas:
+  `SELECT username, profile, account_status, expiry_date FROM dba_users WHERE username LIKE 'DEV\_%' ESCAPE '\';`
 - Re-running RCU with `-createRepository` fails if schemas already exist
   → use `--drop` first (CAUTION: destroys all FMW configuration data)
 - `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE`: set in `environment.conf` via

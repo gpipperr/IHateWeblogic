@@ -227,6 +227,16 @@ SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
   # Erreichbarkeit vorab pruefen
   nc -zv "$DB_HOST" "$DB_PORT"
 
+  # Vorab vom DB-Team pruefen lassen (als SYSDBA in der PDB):
+  #   SELECT value FROM v$parameter WHERE name = 'db_securefile';
+  # Steht dort FORCE ("immer SecureFile", Haertungsvorgabe), scheitert der
+  # ERSTE RCU-Lauf in dieser Datenbank mit ORA-43853: RCU legt die
+  # Registry-Tabelle SYSTEM.SCHEMA_VERSION_REGISTRY$ (mit CLOB-Spalte) im
+  # Tablespace SYSTEM an, und der kann keine SecureFiles (kein ASSM).
+  # PREFERRED (Standard) und ALWAYS sind unkritisch. Bei FORCE fuer den
+  # RCU-Lauf umstellen (danach darf es wieder FORCE sein):
+  #   ALTER SYSTEM SET db_securefile=PREFERRED;
+
   # Optional: Falls ein eigener Tablespace gewuenscht ist (sonst legt RCU
   # automatisch eigene Tablespaces an) - dieser SQL-Befehl muss vom
   # Datenbank-Team der EXTERNEN Datenbank ausgefuehrt werden, nicht von
@@ -275,9 +285,15 @@ EOF
   # Doppelpunkt ("host:port:SID") wuerde stattdessen die CDB ansprechen -
   # das ist bei Multitenant-Datenbanken (Standard seit Oracle 12c) fast
   # immer falsch.
+  #
+  # Datenbanktyp IMMER ausdruecklich angeben: EBR = "Oracle Database
+  # enabled for edition-based redefinition" (unser Standard). Ohne Angabe
+  # entscheidet das Werkzeug selbst (still: EBR, grafisch evtl. "Oracle
+  # Database") - der Typ eines Prefix laesst sich spaeter nicht aendern.
   $ORACLE_HOME/oracle_common/bin/rcu \
       -silent \
       -createRepository \
+      -databaseType EBR \
       -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
       -dbUser sys \
       -dbRole sysdba \
@@ -306,7 +322,10 @@ EOF
   #     Create Repository  ->  System Load and Product Load
   #
   #   Bildschirm "Database Connection Details":
-  #     Database Type:  Oracle Database
+  #     Database Type:  Oracle Database enabled for edition-based
+  #                     redefinition   <- WICHTIG: ausdruecklich waehlen,
+  #                     NICHT die Vorauswahl uebernehmen (identisch zu
+  #                     "-databaseType EBR" in Option A)
   #     Host Name:      ${DB_HOST}
   #     Port:           ${DB_PORT}
   #     Service Name:   ${DB_SERVICE}   <- WICHTIG: das Feld "Service Name"
@@ -338,7 +357,10 @@ EOF
   # Der Assistent fuehrt am Ende dieselbe Schema-Erstellung aus wie
   # Option A - Ergebnis ist identisch (9 Schemas mit Prefix ${DB_SCHEMA_PREFIX}_).
 
-  # RCU-Logs (beide Optionen): $ORACLE_HOME/oracle_common/rcu/log/
+  # RCU-Logs (beide Optionen): pro RCU-Aufruf ein eigenes Verzeichnis
+  #   /tmp/RCU<Datum_Uhrzeit_Zufallszahl>/logs/rcu.log
+  #   (das juengste ist das letzte; $ORACLE_HOME/oracle_common/rcu/log/
+  #   gibt es in 14.1.2 nicht)
 
   # Verifikation GEGEN DIE BESTEHENDE DATENBANK (per sqlplus, falls
   # Oracle-Client lokal verfuegbar, sonst vom DB-Team ausfuehren lassen):
@@ -348,6 +370,47 @@ EOF
   # Erwartung: 9 Zeilen (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
   # UMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
   # (Achtung: die Komponente heisst UCSUMS, das Schema aber ..._UMS)
+
+  --- Kennwort-Ablauf der Schemas verhindern (WICHTIG, vom DB-Team) --------
+
+  # RCU legt die Schemas mit dem Profil DEFAULT an. In Oracle 19c laeuft
+  # dort das Kennwort nach 180 Tagen ab (PASSWORD_LIFE_TIME 180) und nach
+  # 10 Fehlversuchen wird das Konto gesperrt (FAILED_LOGIN_ATTEMPTS 10).
+  # Dann kann sich WebLogic nicht mehr an der Datenbank anmelden - die
+  # Domain startet nicht mehr (ORA-28001 / ORA-28000 im Server-Log).
+  # RCU kennt keinen Parameter fuer ein Profil - daher NACH dem RCU-Lauf
+  # ein eigenes Profil anlegen und zuweisen (als SYSDBA in der PDB):
+  #
+  #   CREATE PROFILE RCU_USER LIMIT
+  #     PASSWORD_LIFE_TIME UNLIMITED
+  #     FAILED_LOGIN_ATTEMPTS UNLIMITED;
+  #
+  #   -- allen RCU-Schemas des Prefix zuweisen (Liste aus der RCU-Registry)
+  #   BEGIN
+  #     FOR r IN (SELECT owner FROM system.schema_version_registry$
+  #                WHERE mrc_name = UPPER('${DB_SCHEMA_PREFIX}')) LOOP
+  #       EXECUTE IMMEDIATE 'ALTER USER "' || r.owner || '" PROFILE RCU_USER';
+  #     END LOOP;
+  #   END;
+  #   /
+  #
+  #   -- Kontrolle: Profil RCU_USER, Status OPEN, kein Ablaufdatum
+  #   SELECT username, profile, account_status, expiry_date
+  #     FROM dba_users
+  #    WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '\_%' ESCAPE '\'
+  #    ORDER BY username;
+  #
+  # Hinweis: nur den EIGENEN Prefix aendern - in derselben Datenbank
+  # koennen weitere RCU-Repositories (andere Domains/Teams) liegen.
+  # Uebersicht aller Prefixe der Datenbank:
+  #   SELECT mrc_name, COUNT(*) FROM system.schema_version_registry$
+  #    GROUP BY mrc_name;
+  #
+  # Fertige Skripte dafuer im Repository:
+  #   60-RCU-DB-19c/rcu_registry_overview.sql  (alle Prefixe, Profil, Ablauf)
+  #   60-RCU-DB-19c/rcu_user_profile.sql   (@rcu_user_profile.sql RCU_USER <PREFIX>)
+  # Gilt auch fuer bereits bestehende Installationen - Ablaufdatum der
+  # Schemas pruefen, bevor es zu spaet ist!
 
 
 ================================================================================
@@ -1268,6 +1331,17 @@ BEKANNTE PROBLEME UND LOESUNGEN
            dabei keine echte Datei zurueck, Schritt 9.1 erneut ausfuehren
            und dabei auf den stabilen Link "/lib64/libnsl.so.3" verlinken,
            NICHT auf die exakte Versionsdatei
+
+  Problem: RCU bricht beim ersten Lauf ab, im RCU-Log
+           "ORA-43853: SECUREFILE lobs cannot be used in non-ASSM
+           tablespace SYSTEM" bzw. wirre Java-Fehler
+  Ursache: Datenbank-Parameter db_securefile=FORCE - die RCU-Registry
+           SYSTEM.SCHEMA_VERSION_REGISTRY$ (CLOB) muss im Tablespace SYSTEM
+           liegen, der keine SecureFiles kann (manuelle Segmentverwaltung)
+  Loesung: DB-Team: ALTER SYSTEM SET db_securefile=PREFERRED; dann RCU
+           erneut (halb angelegte Schemas vorher entfernen). Nach dem
+           RCU-Lauf darf wieder FORCE gesetzt werden. RCU-Log:
+           /tmp/RCU<Datum_Uhrzeit>/logs/rcu.log
 
   Problem: RCU bricht mit "Schema already exists" ab
   Ursache: DB_SCHEMA_PREFIX kollidiert mit einer bereits vorhandenen

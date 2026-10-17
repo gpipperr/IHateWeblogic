@@ -40,6 +40,10 @@ DB_HOST=dbserver01
 DB_PORT=1521
 DB_SERVICE=FRPRD
 DB_SCHEMA_PREFIX=DEV
+# RCU database type (09-Install/07-oracle_setup_repository.sh -databaseType):
+#   EBR    Oracle Database enabled for edition-based redefinition (default)
+#   ORACLE Oracle Database without editions
+RCU_DB_TYPE=EBR
 
 CGICMD_DAT=${DOMAIN_HOME}/config/fmwconfig/servers/${WLS_MANAGED_SERVER}/applications/reports_14.1.2/configuration/cgicmd.dat
 RWSERVER_CONF=${DOMAIN_HOME}/config/fmwconfig/components/ReportsServerComponent/repserver01/rwserver.conf

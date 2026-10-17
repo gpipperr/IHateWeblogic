@@ -224,3 +224,9 @@ DB_PDB_ADMIN_PWD    # from db_sys_sec.conf.des3
   systemd service separately if auto-start on boot is required
 - After creation, update `environment.conf` with `DB_SERVICE=FMWPDB` before
   running the RCU script
+- `db_securefile` is not set → default `PREFERRED`. Do **not** set `FORCE`
+  (hardening guides: "always SecureFile") before the first RCU run: RCU
+  creates `SYSTEM.SCHEMA_VERSION_REGISTRY$` with a CLOB in the non-ASSM
+  tablespace `SYSTEM` → ORA-43853. `ALWAYS` is harmless (BasicFile fallback).
+  See `80-FMW-Architecture/rcu_middleware_architecture.md` §4.2
+- Profile for the RCU schemas (no password expiry): `07b-db_rcu_profile.sh`

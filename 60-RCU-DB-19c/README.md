@@ -84,6 +84,7 @@ Run in this order — each step must complete before the next:
 | 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
 | 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
 | 7 | `07-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
+| 7b | `07b-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
 
 After step 8, continue with:
@@ -144,6 +145,7 @@ DB_SERVICE=FMWPDB   # PDB service name
 | [docs/05-db_create_database.md](docs/05-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
 | [docs/06-db_audit_setup.md](docs/06-db_audit_setup.md) | Unified Auditing setup |
 | [docs/07-db_fmw_tablespace.md](docs/07-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
+| [docs/07b-db_rcu_profile.md](docs/07b-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
 | [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
 
 ---

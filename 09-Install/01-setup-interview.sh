@@ -564,6 +564,10 @@ info "  Set only if DBA pre-creates a dedicated tablespace (e.g. FMW_DATA)"
 info "  See: 09-Install/docs/07-oracle_setup_repository.md"
 _ask RCU_TABLESPACE      "RCU data tablespace (optional)" "" "" "optional"
 _ask RCU_TEMP_TABLESPACE "RCU temp tablespace"            "TEMP"
+printf "\n"
+_ask_menu RCU_DB_TYPE "RCU database type" \
+    "EBR:Oracle Database enabled for edition-based redefinition (default)" \
+    "ORACLE:Oracle Database (no editions)"
 
 printf "\n"
 info "DB SYS + FMW schema passwords → encrypted to: db_sys_sec.conf.des3"
@@ -636,6 +640,7 @@ _show "DB_SCHEMA_PREFIX"     "$DB_SCHEMA_PREFIX"
 _show "LOCAL_REP_DB"         "$LOCAL_REP_DB"
 _show "RCU_TABLESPACE"       "${RCU_TABLESPACE:-(empty – RCU auto-creates)}"
 _show "RCU_TEMP_TABLESPACE"  "$RCU_TEMP_TABLESPACE"
+_show "RCU_DB_TYPE"          "${RCU_DB_TYPE:-EBR}"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "MOS_USER"             "$MOS_USER"
@@ -758,6 +763,8 @@ DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
 # See: 09-Install/docs/07-oracle_setup_repository.md
 RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
+# RCU_DB_TYPE: EBR (editions enabled, default) | ORACLE - passed as -databaseType
+RCU_DB_TYPE="${RCU_DB_TYPE:-EBR}"
 # DB_SYS_PWD + DB_SCHEMA_PWD → encrypted: db_sys_sec.conf.des3
 # true = Oracle DB on this host (01-root_os_baseline.sh keeps its shm/sysctl values)
 LOCAL_REP_DB="${LOCAL_REP_DB}"
@@ -856,6 +863,8 @@ DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
 LOCAL_REP_DB="${LOCAL_REP_DB}"
 RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
+# RCU_DB_TYPE: EBR (editions enabled, default) | ORACLE - passed as -databaseType
+RCU_DB_TYPE="${RCU_DB_TYPE:-EBR}"
 MOS_USER="${MOS_USER}"
 # WLS_ADMIN_PWD  → weblogic_sec.conf.des3
 # MOS_PWD        → mos_sec.conf.des3

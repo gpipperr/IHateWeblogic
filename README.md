@@ -23,9 +23,11 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 whole install chain is live-tested end-to-end incl. the smoke test, phase 8 is
 mostly done, phase 9 is concept-only.
 
-How the ~80 % is estimated (state 2026-10-16): phases 1–7 count as done
+How the ~80 % is estimated (state 2026-10-17): phases 1–7 count as done
 (7 × ~11 %), phase 8 about three quarters (backup/restore, WLS/Forms/Reports
-patching done; JDK upgrade automation and repository-schema patching missing),
+patching done; repository theory clarified – regular patches never touch the
+RCU schemas –, schema profile `RCU_USER` and RCU pre-checks done; JDK upgrade
+automation and a read-only repository check script missing),
 phase 9 zero; minus the remaining stubs in phases 3/6 (`display_check.sh`,
 `rwrun_trace.sh`) and the open security items (EM user search, web-command
 tests, JACOB signing, `rwserver_status.sh` without `authid`).
@@ -39,7 +41,7 @@ tests, JACOB signing, `rwserver_status.sh` without `authid`).
 | 5 | Solve Font Problems | ✅ Done |
 | 6 | Check Reports Performance | ✅ Done |
 | 7 | Check Forms | ✅ Done |
-| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; still missing: automated JDK upgrade (`80-` is read-only for now) and a dedicated repository-schema patch script |
+| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks; still missing: automated JDK upgrade (`80-` is read-only for now) and a read-only repository check script |
 | 9 | Proactive Monitoring | 📝 Concept only – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -58,6 +60,11 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > `$ORACLE_BASE`, `formsweb.cfg` keeps Oracle's 14.1.2 sections (Java Web
 > Start / FSAL), smoke test `15-` verified end-to-end, `startStop.sh` starts
 > through the Node Manager.
+> **2026-10-17:** RCU repository analysed ([`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)):
+> regular patches leave the schemas untouched; schema profile `RCU_USER`
+> against the 180-day password expiry of `DEFAULT`; explicit RCU database type
+> `RCU_DB_TYPE=EBR`; pre-check `db_securefile=FORCE` (ORA-43853 on the first
+> RCU run); prefix overview of the schema version registry.
 > The diagnostic folders `02-`…`06-` were not part of that run.
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
@@ -89,7 +96,7 @@ operation with proactive, AI-assisted error analysis.
 │  09-Install/06        Forms & Reports installation                 │
 │  60-RCU-DB-19c/       Repository DB: OS baseline, DB software,     │
 │                       listener, database creation, audit,          │
-│                       FMW tablespace, autostart                    │
+│                       FMW tablespace, RCU profile, autostart        │
 │  09-Install/07        RCU – create repository schemas in the DB    │
 │  09-Install/08        Create the domain (WLST)                     │
 └──────────────────────────────┬──────────────────────────────────────┘
@@ -206,7 +213,7 @@ background and adds AI-assisted root-cause reasoning on top.
 |---|---|
 | Phase 3 (Logs) | `02-Checks/display_check.sh` not created – to be re-evaluated: since 2026-10-16 Forms/Reports tools run without X (`FORMS_API_TK_BYPASS=TRUE`, `REPORTS_DEFAULT_DISPLAY=YES`) |
 | Phase 6 (Reports) | `01-Run/rwrun_trace.sh` not created (groundwork done) |
-| Phase 8 (Patches) | No dedicated script for repository schema patches after an FMW upgrade (`60-RCU-DB-19c/02-db_patch_db_software.sh` only covers DB software patches); JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
+| Phase 8 (Patches) | Repository: no patch step needed for regular patches (schemas only change with the Upgrade Assistant on a version upgrade); missing a read-only check script (registry, data sources, profile/expiry) + Data Pump backup option; JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
 | Phase 9 (Monitoring) | Concept only so far — see `10-Monitoring/README.md` |
 
 ## First Run – Required Order
@@ -244,7 +251,7 @@ Run these scripts in sequence on a fresh installation:
 | `10-Monitoring/`      | Concept only – AI-assisted proactive monitoring (Claude API) |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations) – findings, not procedures |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md) – findings, not procedures |
 
 ## Repository Structure
 
@@ -408,6 +415,9 @@ IHateWeblogic/
 │   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
 │   ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
 │   ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
+│   ├── 07b-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
+│   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
+│   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry
 │   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
 │   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
 │   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
@@ -418,6 +428,8 @@ IHateWeblogic/
 │   ├── README.md                       marked confirmed/assumption)
 │   ├── weblogic_middleware_architecture.md – START HERE: homes, AdminServer, Node Manager,
 │   │                                      system components, EM / Remote Console, logs, sources
+│   ├── rcu_middleware_architecture.md – RCU schemas, OPSS/JPS + LDAP, registry, passwords,
+│   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
 │   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
@@ -471,6 +483,9 @@ IHateWeblogic/
 - Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
 - Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
   [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
+- RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade
+  Assistant, OPatch, 11g Patch Set Assistant):
+  [`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)
 
 ## Troubleshooting
 
@@ -546,7 +561,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Status 2026-10-16 after the clean rebuild 2026-10-14/15 and the follow-up
+Status 2026-10-17 after the clean rebuild 2026-10-14/15 and the follow-up
 work (details of every fix: `git log`).
 
 ### Not yet live-tested (built, waiting for a fresh install / full restart)
@@ -559,6 +574,10 @@ work (details of every fix: `git log`).
   "Node Manager running without autostart" path.
 - [ ] Start of the test form on a client with Java Web Start / FSAL (server
   side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX).
+- [ ] `09-Install/07-` on a fresh database: `-databaseType EBR` with
+  `-createRepository`, profile assignment right after RCU, FAIL path of the
+  `db_securefile=FORCE` pre-check (no registry yet). Tested so far: `--profile`,
+  pre-flight with `-listSchemas -databaseType EBR`, `FORCE` + existing registry.
 
 ### Test host follow-ups
 
@@ -722,9 +741,22 @@ work (details of every fix: `git log`).
   instance → logon dialog, ODL `TRACE:32`; needs the ReportsTools instance that
   the rebuild now provides).
 
-- [ ] **Repository schema patching** – no dedicated script yet.
-  `60-RCU-DB-19c/02-db_patch_db_software.sh` only patches the database software (AutoUpgrade);
-  RCU/repository schema patches after an FMW upgrade are still a manual step.
+- [ ] **Repository schema patching** – theory done 2026-10-17
+  ([`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)):
+  regular patches (SPB/CSPU/one-offs, also September 2026) do **not** touch the
+  RCU schemas; only a version upgrade uses the Upgrade Assistant. Open: read-only
+  check script (registry, data sources, profile/expiry) with a Data Pump backup
+  option of `SYSTEM.SCHEMA_VERSION_REGISTRY$` + schemas before an upgrade/move.
+- [x] **Password expiry of the RCU schemas** (2026-10-17): profile `DEFAULT`
+  (19c: 180 days) → own profile `RCU_USER` (no expiry, no lock):
+  `60-RCU-DB-19c/07b-db_rcu_profile.sh`, `09-Install/07-` assigns it after RCU
+  (`--profile` for existing repositories), Reports cookbook step 3. Applied on
+  the test host.
+- [x] **RCU database type explicit** (2026-10-17): silent RCU without
+  `-databaseType` created EBR schemas, the GUI may preselect "Oracle Database"
+  → `RCU_DB_TYPE` (default `EBR`) in `environment.conf`/interview, always passed
+  by `09-Install/07-`; prefix overview shows EBR per prefix; `db_securefile=FORCE`
+  pre-check (ORA-43853 on the first RCU run). See the RCU architecture doc §4.2/4.3.
 
 - [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a Reports
   QPR on OL9, `libzrc.so` vs. glibc 2.34): no fix patch yet – the workaround in

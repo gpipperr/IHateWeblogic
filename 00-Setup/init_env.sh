@@ -1172,6 +1172,7 @@ if $APPLY; then
         _append_if_missing "DB_SCHEMA_PREFIX"      ""                       "$ENV_CONF"
         _append_if_missing "RCU_TABLESPACE"        ""                       "$ENV_CONF"
         _append_if_missing "RCU_TEMP_TABLESPACE"   "TEMP"                   "$ENV_CONF"
+        _append_if_missing "RCU_DB_TYPE"           "EBR"                    "$ENV_CONF"
         _append_if_missing "SQLPLUS_BIN"           ""                       "$ENV_CONF"
         _append_if_missing "SEC_CONF_DB"           "\${ROOT_DIR}/db_connect.conf.des3" "$ENV_CONF"
         _append_if_missing "LOCAL_REP_DB"          "false"                  "$ENV_CONF"
