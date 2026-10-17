@@ -430,6 +430,8 @@ IHateWeblogic/
 │   │                                      system components, EM / Remote Console, logs, sources
 │   ├── rcu_middleware_architecture.md – RCU schemas, OPSS/JPS + LDAP, registry, passwords,
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
+│   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
+│   │                                      performance parameters, history, broadcast idea
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
 │   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
