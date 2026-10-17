@@ -1,11 +1,24 @@
 ================================================================================
-  Oracle Linux 9 – Betriebssystem-Vorbereitung fuer FMW 14.1.2 (Reports)
+  Oracle Linux 9 - Betriebssystem-Vorbereitung fuer FMW 14.1.2 (Reports)
   (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
   Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports (kein Forms)
   Erstellt   : 2026-10
   Grundlage  : IHateWeblogic/09-Install/00-04 (Gunther Pipperr)
+  Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
+               /u01/oracle/tools/install.ini (Installation) und
+               /u01/oracle/tools/env.ini     (Betrieb).
+               Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
+               dann die Werte in die Sitzung laden:
+                 . /u01/oracle/tools/set_install_env.sh
+               und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
+                 [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+               Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
+               (gleiche Namen wie in install.ini).
+               Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
+               Vor dem Anlegen des oracle-Users (dieses Kochbuch): die Werte
+               aus install.ini ablesen; /u01/oracle/tools danach einrichten.
 ================================================================================
 
 VORAUSSETZUNGEN
@@ -166,7 +179,7 @@ EOF
   sysctl --system
 
 
-  #Core dump dir prüfen
+  # Core-Dump-Verzeichnis pruefen
   mkdir -p /var/tmp/core/
   chmod 777 /var/tmp/core/
 
@@ -523,10 +536,10 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
 
   # Ergebnis-Verzeichnisstruktur:
   #   $PATCH_STORAGE/
-  #   ├── bin/{getMOSPatch.jar, .getMOSPatch.cfg}
-  #   ├── wls/{V1045135-01.zip, fmw_14.1.2.0.0_infrastructure.jar}
-  #   ├── fr/{V1045121-01.zip, fmw_14.1.2.0.0_fr_linux64.bin}
-  #   └── patches/{<OPatch-Patch>/, <CPU-Patch>/, <Reports-QPR-Patch>/}
+  #   +-- bin/{getMOSPatch.jar, .getMOSPatch.cfg}
+  #   +-- wls/{V1045135-01.zip, fmw_14.1.2.0.0_infrastructure.jar}
+  #   +-- fr/{V1045121-01.zip, fmw_14.1.2.0.0_fr_linux64.bin}
+  #   +-- patches/{<OPatch-Patch>/, <CPU-Patch>/, <Reports-QPR-Patch>/}
 
 
 ================================================================================

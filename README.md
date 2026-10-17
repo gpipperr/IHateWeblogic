@@ -450,6 +450,9 @@ IHateWeblogic/
         ├── Font_kochbuch_de.txt           – TrueType fonts + HTML parameter-form font path
         ├── WLS_Report_start_stop_kochbuch.txt – Simplest start/stop for day-to-day operation,
         │                                          no dependency on the IHateWeblogic lib
+        ├── Tools_status_logs_kochbuch.txt – status.sh / show_all_logs.sh / show_errors.sh for
+        │                                    /u01/oracle/tools (no lib, data in env.ini)
+        ├── tools/                         – the scripts + env.ini (copied 1:1 to the server)
         └── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
 ```
 

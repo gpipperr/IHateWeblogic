@@ -1,5 +1,5 @@
 ================================================================================
-  Oracle Reports 14.1.2 – Fonts einrichten (Manuelle Schritt-fuer-Schritt-
+  Oracle Reports 14.1.2 - Fonts einrichten (Manuelle Schritt-fuer-Schritt-
   Anleitung, ohne IHateWeblogic-Skripte)
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
@@ -11,6 +11,17 @@
                (Schritt 8, AFM/PPD) ab, der dort noch fehlte.
   Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt
                  (Reports-Server laeuft)
+  Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
+               /u01/oracle/tools/install.ini (Installation) und
+               /u01/oracle/tools/env.ini     (Betrieb).
+               Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
+               dann die Werte in die Sitzung laden:
+                 . /u01/oracle/tools/set_install_env.sh
+               und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
+                 [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+               Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
+               (gleiche Namen wie in install.ini).
+               Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
 ================================================================================
 
 VORAUSSETZUNGEN
@@ -292,7 +303,7 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   # Im Browser das Parameterformular aufrufen und pruefen:
   #   - Seitenquelltext: face="arial" (oder der verwendete Fontname) ist
   #     vorhanden, kein Darstellungsfehler
-  #   - Sonderzeichen Ä/Ö/Ü/ß/€ werden korrekt angezeigt
+  #   - Sonderzeichen (grosse Umlaute A/O/U mit Punkten, scharfes s, Euro-Zeichen) werden korrekt angezeigt
   pdffonts /tmp/test_report.pdf
   # weiterhin "TrueType emb=yes sub=yes" - der PDF-Pfad (Teil A) bleibt
   # von diesem Schritt unberuehrt

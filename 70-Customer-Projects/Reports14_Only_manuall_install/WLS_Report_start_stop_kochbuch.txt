@@ -17,6 +17,18 @@
   Hinweis zur externen Datenbank: Die Datenbank laeuft NICHT auf dieser
   Maschine (externe, bereits bestehende DB - siehe Reports_kochbuch_de.txt).
   Dieses Kochbuch muss sich um die Datenbank daher nicht kuemmern.
+
+  Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
+               /u01/oracle/tools/install.ini (Installation) und
+               /u01/oracle/tools/env.ini     (Betrieb).
+               Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
+               dann die Werte in die Sitzung laden:
+                 . /u01/oracle/tools/set_install_env.sh
+               und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
+                 [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+               Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
+               (gleiche Namen wie in install.ini).
+               Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
 ================================================================================
 
 VORAUSSETZUNGEN
@@ -57,6 +69,10 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   # restartComponent.sh gibt es zwar, fuer den Reports Server lehnt der Node
   # Manager es aber ab: "Server softRestart command is not supported on
   # ReportsServerComponent server" (bestaetigt 2026-10-15).
+  #
+  # Fertige Status-/Log-Skripte fuer den Betrieb (Ports, Prozesse, Node-
+  # Manager-Status, Fehler in den Logs): Tools_status_logs_kochbuch.txt
+  # (/u01/oracle/tools/status.sh, show_errors.sh, show_all_logs.sh).
   #
   # Ein eigenes Status-Skript liefert Oracle in 14.1.2 NICHT mit - der
   # Zustand wird unten per curl/ps abgefragt.

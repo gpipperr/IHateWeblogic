@@ -64,6 +64,25 @@ und deutschen Kommentaren.
    jeweils über die Oberfläche (Enterprise Manager) **und** als
    WLST-Befehle zum Selbst-Eintippen.
 
+9. [Tools_status_logs_kochbuch.txt](Tools_status_logs_kochbuch.txt) –
+   kleine Betriebs-Skripte aus dem Ordner [`tools/`](tools/), abgelegt
+   unter `/u01/oracle/tools` (ohne IHateWeblogic-Lib, Daten in `env.ini`,
+   per `set_env.sh` aus der `~/.bash_profile` geladen – mit PATH auf die
+   Tools und den Kurzbefehlen `wlst` und `domain`):
+   - `status.sh` – Zustand in drei Stufen: Ports (`ss`), Prozesse (`ps`,
+     inkl. "gestartet vom Node Manager?" und Anzahl Reports-Engines),
+     Status über `/weblogic/ready` und den Node Manager (WLST mit den
+     gespeicherten storeUserConfig-Zugangsdaten); Rückgabewert 0/1/2.
+   - `show_all_logs.sh` – alle aktuellen Logs der Domain live (`tail -F`).
+   - `show_errors.sh` – nur Fehlerzeilen (`<Error>`, `REP-`, `BEA-`,
+     `JPS-`, Exceptions …), mit `-r` erst die letzten Fehler, dann live.
+   - `show_log.sh` – das aktuelle Log einer Komponente (Node Manager,
+     AdminServer, Managed Server, Reports-Server/Engines) per Auswahl-Menü
+     oder direkt (`show_log.sh reports engine`).
+   - `install.ini` + `set_install_env.sh` – alle Parameter der
+     Installations-Kochbücher an einer Stelle, für die nächste
+     Installation in die Sitzung zu laden.
+
 ## Hinweis
 
 Die externe Datenbank wird in keinem dieser Kochbücher angelegt – sie

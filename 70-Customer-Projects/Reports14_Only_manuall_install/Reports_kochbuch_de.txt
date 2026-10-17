@@ -16,10 +16,25 @@
   WEGGELASSEN. Die externe Datenbank wird in keinem Schritt angelegt -
   es werden nur Schemas in einer bereits bestehenden Datenbank
   registriert.
+
+  Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
+               /u01/oracle/tools/install.ini (Installation) und
+               /u01/oracle/tools/env.ini     (Betrieb).
+               Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
+               dann die Werte in die Sitzung laden:
+                 . /u01/oracle/tools/set_install_env.sh
+               und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
+                 [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+               Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
+               (gleiche Namen wie in install.ini).
+               Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
 ================================================================================
 
 VORAUSSETZUNGEN
 ----------------
+    # Kurzweg: alle Werte aller Kochbuecher stehen in install.ini -
+    # einlesen mit  . /u01/oracle/tools/set_install_env.sh
+    # (Tools_status_logs_kochbuch.txt SCHRITT 7). Sonst von Hand:
     export ORACLE_BASE=/u01/oracle
     export ORACLE_HOME=/u01/oracle/fmw
     export JDK_HOME=/u01/oracle/java/jdk-21

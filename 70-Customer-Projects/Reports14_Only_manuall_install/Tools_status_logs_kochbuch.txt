@@ -1,0 +1,326 @@
+================================================================================
+  Werkzeuge fuer den Betrieb: Status und Logs auf einen Blick
+  (Drei kleine Skripte, OHNE IHateWeblogic-Skripte/Lib als Abhaengigkeit)
+================================================================================
+  Zielgruppe : Kunde / Betrieb - schnell sehen, ob alles laeuft, und bei
+               Problemen die passenden Logzeilen finden
+  Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
+  Erstellt   : 2026-10
+  Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt;
+                 fuer den Node-Manager-Status: gespeicherte Zugangsdaten
+                 aus Autostart_linux_middleware.txt Schritt 1c
+
+  Die drei Skripte liegen im Repository unter
+    70-Customer-Projects/Reports14_Only_manuall_install/tools/
+  und werden unveraendert nach /u01/oracle/tools/ kopiert. Sie benutzen
+  nur Standard-Werkzeuge (bash, ss, ps, curl, find, tail, grep) und das
+  mitgelieferte wlst.sh - keine weiteren Skripte, keine Kennwoerter.
+
+  status.sh           Zustand in drei Stufen: Ports (ss), Prozesse (ps),
+                      Status ueber HTTP und den Node Manager (WLST)
+  show_log.sh         das aktuelle Log EINER Komponente (Auswahl-Menue)
+  show_all_logs.sh    alle aktuellen Logs der Domain live mitlesen
+  show_errors.sh      nur die Fehlerzeilen aus diesen Logs
+  env.ini             die Domain-Daten (Pfade, Servernamen, Ports),
+                      PATH auf die Tools, Kurzbefehle wlst / domain
+  set_env.sh          laedt env.ini in die Sitzung (fuer ~/.bash_profile)
+  install.ini         ALLE Parameter der Installations-Kochbuecher
+  set_install_env.sh  laedt install.ini in die Sitzung (fuer die naechste
+                      Installation / Kochbuch-Befehle)
+
+  Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
+               /u01/oracle/tools/install.ini (Installation) und
+               /u01/oracle/tools/env.ini     (Betrieb).
+               Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
+               dann die Werte in die Sitzung laden:
+                 . /u01/oracle/tools/set_install_env.sh
+               und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
+                 [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+               Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
+               (gleiche Namen wie in install.ini).
+               Details: Schritte 1, 2, 2b und 7 dieses Kochbuchs.
+================================================================================
+
+
+================================================================================
+SCHRITT 1: Skripte ablegen  (als oracle)
+================================================================================
+
+  mkdir -p /u01/oracle/tools
+  # Alle Dateien aus dem Ordner tools/ hierher kopieren (z.B. per scp),
+  # danach Rechte setzen:
+  cd /u01/oracle/tools
+  chmod 755 *.sh
+  chmod 640 *.ini
+  ls -l /u01/oracle/tools
+
+
+================================================================================
+SCHRITT 2: env.ini anpassen  (als oracle)
+================================================================================
+
+  vi /u01/oracle/tools/env.ini
+
+  # Pruefen bzw. anpassen (Werte aus Reports_kochbuch_de.txt):
+  #   ORACLE_HOME       /u01/oracle/fmw
+  #   DOMAIN_HOME       /u01/user_projects/domains/reportRpgpi
+  #   DOMAIN_NAME       reportRpgpi
+  #   ADMIN_PORT        7001
+  #   MANAGED_SERVERS   "WLS_REPORTS:9002"     (Name:Port, mehrere moeglich)
+  #   REPORTS_SERVERS   "repServer01"
+  #   NM_PORT           5556
+  #   EXTRA_PORTS       "80 443"   (Nginx; leer lassen, wenn nicht benoetigt)
+  #   TOOLS_HOME        /u01/oracle/tools   (fuer den PATH)
+  #
+  # Domain-Name pruefen:
+  grep -m1 -o '<name>[^<]*' $DOMAIN_HOME/config/config.xml
+  #
+  # In env.ini stehen KEINE Kennwoerter.
+
+
+================================================================================
+SCHRITT 2b: Umgebung bei jeder Anmeldung laden - ~/.bash_profile  (als oracle)
+================================================================================
+
+  # Damit nach jeder Anmeldung alles gleich zur Hand ist (DOMAIN_HOME,
+  # ORACLE_HOME ..., die Tools ohne Pfad, Kurzbefehle wlst und domain),
+  # set_env.sh einmalig in die ~/.bash_profile des oracle-Benutzers
+  # aufnehmen. set_env.sh liest env.ini ein:
+  grep -q "tools/set_env.sh" ~/.bash_profile || \
+    printf '\n# Reports-Umgebung (Tools_status_logs_kochbuch.txt)\n[ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh\n' \
+      >> ~/.bash_profile
+  tail -3 ~/.bash_profile
+
+  # Sofort in der aktuellen Sitzung laden (oder neu anmelden):
+  . /u01/oracle/tools/set_env.sh
+
+  # Danach stehen zur Verfuegung:
+  echo $DOMAIN_HOME           # alle Werte aus env.ini als Variablen
+  status.sh -q                # Tools ohne Pfad (PATH enthaelt /u01/oracle/tools)
+  domain                      # wechselt ins Domain-Verzeichnis
+  wlst                        # WLST aus oracle_common - mit den FMW-Befehlen
+                              # (createCred, grantAppRole, Reports ...)
+
+  # Hinweis: set_env.sh muss mit Punkt (bzw. "source") aufgerufen werden;
+  # ohne Punkt bricht es mit einem Hinweis ab. Die Variablen werden
+  # exportiert, PATH wird nur einmal erweitert, auch wenn die Datei
+  # mehrfach eingelesen wird.
+
+
+================================================================================
+SCHRITT 3: Zugangsdaten fuer den Node-Manager-Status pruefen  (als oracle)
+================================================================================
+
+  # status.sh fragt den echten Zustand beim Node Manager ab - mit den
+  # Zugangsdaten, die einmalig mit storeUserConfig gespeichert wurden
+  # (Autostart_linux_middleware.txt Schritt 1c):
+  ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties
+  # Beide Dateien vorhanden, Rechte -rw------- -> fertig.
+  # Fehlen sie, einmalig anlegen (fragt nach dem Node-Manager-Passwort):
+  #   $DOMAIN_HOME/bin/startComponent.sh repServer01 storeUserConfig
+  #
+  # Ohne diese Dateien laeuft status.sh trotzdem, zeigt dann aber nur
+  # Ports, Prozesse und den HTTP-Status (mit einem Hinweis).
+
+
+================================================================================
+SCHRITT 4: Status abfragen  (als oracle)
+================================================================================
+
+  /u01/oracle/tools/status.sh          # alle drei Stufen, ca. 10 Sekunden
+  /u01/oracle/tools/status.sh -q       # schnell: ohne Node-Manager-Abfrage
+
+  # Beispielausgabe (alles in Ordnung):
+  #
+  # --- Stufe 1: Ports (ss) -------------------------------------------
+  #   NodeManager      Port 5556   LISTEN   127.0.0.1:5556
+  #   AdminServer      Port 7001   LISTEN   127.0.0.1:7001
+  #   WLS_REPORTS      Port 9002   LISTEN   127.0.0.1:9002
+  #
+  # --- Stufe 2: Prozesse (ps) ----------------------------------------
+  #   Komponente       PID      Laufzeit     RAM MB   gestartet von
+  #   NodeManager      2078     01:00:50     181      -
+  #   AdminServer      2350     01:00:35     2001     Node Manager
+  #   WLS_REPORTS      3689     59:37        2278     Node Manager
+  #   repServer01      3967     59:16        416      Node Manager  Engines: 2
+  #
+  # --- Stufe 3: Status (HTTP /weblogic/ready, Node Manager) ---------
+  #   HTTP AdminServer      200 = RUNNING
+  #   HTTP WLS_REPORTS      200 = RUNNING
+  #   NM   AdminServer      RUNNING
+  #   NM   WLS_REPORTS      RUNNING
+  #   NM   repServer01      RUNNING
+  #
+  # --- Zusammenfassung -----------------------------------------------
+  #   Komponente       Port     Prozess  HTTP     NodeMgr    Ergebnis
+  #   ...
+  # Ergebnis: alles in Ordnung
+  #
+  # Was die Stufen bedeuten:
+  #   Stufe 1  Port offen?  -> der Dienst nimmt Verbindungen an
+  #   Stufe 2  Prozess da?  -> laeuft er, seit wann, wie viel Speicher;
+  #            "gestartet von Node Manager" ist richtig. "Skript (Node
+  #            Manager kennt ihn nicht!)" heisst: von Hand gestartet -
+  #            dann sieht ihn der Node Manager als SHUTDOWN (siehe
+  #            BEKANNTE PROBLEME)
+  #            Engines = Anzahl der Reports-Engine-Prozesse
+  #   Stufe 3  200 = Server meldet sich bereit, 503 = startet noch;
+  #            NM = was der Node Manager ueber den Server weiss
+  #            (RUNNING, STARTING, SHUTDOWN, FAILED_NOT_RESTARTABLE ...)
+  #
+  # Rueckgabewert (z.B. fuer eine Ueberwachung): 0 = in Ordnung,
+  # 1 = Warnung, 2 = Fehler
+  /u01/oracle/tools/status.sh -q > /dev/null; echo "Rueckgabewert: $?"
+
+
+================================================================================
+SCHRITT 4b: Das Log einer Komponente oeffnen  (als oracle)
+================================================================================
+
+  # Ohne Parameter fragt das Skript, welche Komponente und welches Log -
+  # angeboten werden nur die Komponenten aus env.ini und nur Logs, die es
+  # wirklich gibt:
+  show_log.sh
+  #   Welche Komponente?
+  #   1) NodeManager
+  #   2) AdminServer
+  #   3) WLS_REPORTS
+  #   4) repServer01
+  #   Nummer: 3
+  #   Welches Log von WLS_REPORTS?
+  #   1) log       Server-Log (WebLogic-Meldungen)
+  #   2) out       Konsolen-Ausgabe (Start, stdout/stderr)
+  #   3) diag      Diagnose-Log (FMW: Sicherheit, Reports, JRF)
+  #   4) rwservlet rwservlet-Log (Reports-Aufrufe)
+  #   Nummer: 1
+
+  # Oder direkt (Gross-/Kleinschreibung egal):
+  show_log.sh nodemanager
+  show_log.sh adminserver            # Auswahl der Logs des AdminServers
+  show_log.sh AdminServer out        # direkt die Konsolen-Ausgabe
+  show_log.sh reports                # Reports-Server (log | out | engine)
+  show_log.sh reports engine         # das zuletzt geschriebene Engine-Log
+
+  # Standard: live mitlesen (tail -F, die letzten 50 Zeilen zuerst,
+  # Strg+C beendet). Zum Blaettern und Suchen in less oeffnen:
+  show_log.sh -l reports             # less: G = Ende, /text = suchen,
+                                     #       F = live, q = beenden
+  show_log.sh -n 300 adminserver log # mit den letzten 300 Zeilen beginnen
+
+
+================================================================================
+SCHRITT 5: Logs live mitlesen  (als oracle)
+================================================================================
+
+  # Alle Logs, die in der letzten Stunde geschrieben wurden (WebLogic,
+  # Reports-Server und -Engines, Node Manager, Enterprise Manager) - erst
+  # die Liste der Dateien, dann je Datei die letzten 20 Zeilen und danach
+  # alles Neue live. Beenden mit Strg+C.
+  /u01/oracle/tools/show_all_logs.sh
+  /u01/oracle/tools/show_all_logs.sh -m 240        # letzte 4 Stunden
+  /u01/oracle/tools/show_all_logs.sh -n 100        # mehr Zeilen je Datei
+
+  # Ohne Skript - derselbe Befehl von Hand:
+  #   find $DOMAIN_HOME/servers $DOMAIN_HOME/nodemanager $DOMAIN_HOME/sysman/log \
+  #        -type f \( -name "*.log" -o -name "*.out" -o -name "*.trc" \) \
+  #        ! -name "access.log*" ! -name "*.lck" -mmin -60 -print0 \
+  #     | xargs -0 tail -F -n 20
+
+
+================================================================================
+SCHRITT 6: Nur die Fehler anzeigen  (als oracle)
+================================================================================
+
+  # Neue Fehler ab jetzt live (Strg+C beendet). Vor jedem Fehler steht,
+  # aus welcher Logdatei er kommt:
+  /u01/oracle/tools/show_errors.sh
+
+  # Erst die letzten Fehler (max. 50) der letzten Stunde, dann live weiter:
+  /u01/oracle/tools/show_errors.sh -r
+  /u01/oracle/tools/show_errors.sh -r -m 1440      # letzte 24 Stunden
+
+  # Gesucht wird nach:
+  #   <Error> <Critical>  ERROR  SEVERE  Exception  REP-nnnnn  JPS-nnnnn  BEA-nnnnnn
+  # Das Muster steht oben im Skript (PATTERN=...) und kann angepasst werden.
+  #
+  # Typischer Ablauf bei einem Problem:
+  #   1. status.sh                  -> welche Komponente hat ein Problem?
+  #   2. show_errors.sh -r          -> was steht dazu in den Logs?
+  #   3. show_all_logs.sh           -> Zusammenhang rund um den Fehler
+
+
+================================================================================
+SCHRITT 7: Fuer die naechste Installation - install.ini  (als oracle)
+================================================================================
+
+  # install.ini enthaelt ALLE Parameter, die in den Installations-
+  # Kochbuechern gesetzt werden (FMW, Reports, Fonts, SSL, Datenbank fuer
+  # das RCU, Autostart) - an einer Stelle statt in jedem VORAUSSETZUNGEN-
+  # Block. Vor einer neuen Installation einmal anpassen:
+  vi /u01/oracle/tools/install.ini
+
+  # In die Sitzung laden - danach funktionieren alle Kochbuch-Befehle mit
+  # $ORACLE_HOME, $DOMAIN_HOME, $RWSERVER_CONF, $CGICMD_DAT ... direkt:
+  . /u01/oracle/tools/set_install_env.sh
+  set_install_env_show               # alle Werte zur Kontrolle anzeigen
+
+  # Unterschied zu env.ini:
+  #   install.ini  viele Werte, gebraucht WAEHREND der Installation
+  #                (nur bei Bedarf laden, nicht in ~/.bash_profile)
+  #   env.ini      wenige Werte, gebraucht im BETRIEB (status.sh, Logs,
+  #                wlst/domain) - ueber ~/.bash_profile immer geladen
+  # In beiden Dateien stehen KEINE Kennwoerter.
+
+
+================================================================================
+BEKANNTE PROBLEME UND LOESUNGEN
+================================================================================
+
+  Problem: status.sh meldet "Node Manager: keine gespeicherten
+           Zugangsdaten gefunden"
+  Ursache: ~/oracle-WebLogicConfig.properties / ~/oracle-WebLogicKey.properties
+           fehlen oder gehoeren einem anderen Benutzer
+  Loesung: Schritt 3 (storeUserConfig) als oracle ausfuehren
+
+  Problem: status.sh meldet "Node Manager: Anmeldung fehlgeschlagen"
+           (z.B. BadPaddingException oder "Access to domain ... denied")
+  Ursache: gespeicherte Zugangsdaten passen nicht (mehr) zum Node Manager,
+           z.B. nach einer Kennwortaenderung
+  Loesung: Autostart_linux_middleware.txt Schritt 1b/1c - Zugangsdaten
+           pruefen und neu speichern
+
+  Problem: Stufe 2 zeigt "Skript (Node Manager kennt ihn nicht!)",
+           Stufe 3 NM zeigt SHUTDOWN, obwohl der Server laeuft
+  Ursache: Server wurde von Hand mit startWebLogic.sh /
+           startManagedWebLogic.sh gestartet, nicht ueber den Node Manager
+           bzw. den Autostart
+  Loesung: Server normal stoppen und ueber den Autostart starten
+           (systemctl, Autostart_linux_middleware.txt) - sonst ueberspringt
+           ihn der Node Manager beim Stoppen und ein Neustart scheitert am
+           belegten Port
+
+  Problem: Stufe 3 HTTP meldet 503
+  Ursache: Server startet noch (oder haengt im Start)
+  Loesung: 1-2 Minuten warten; bleibt es bei 503: show_errors.sh -r
+
+  Problem: show_all_logs.sh / show_errors.sh zeigen eine neue Logdatei nicht
+  Ursache: tail -F folgt nur den Dateien, die beim Aufruf schon da waren
+           (auch ueber eine Rotation hinweg) - neu angelegte Dateien, z.B.
+           nach einem Neustart, kommen nicht dazu
+  Loesung: Skript beenden (Strg+C) und neu aufrufen
+
+  Problem: "Bitte mit Punkt aufrufen" beim Aufruf von set_env.sh /
+           set_install_env.sh
+  Ursache: ohne Punkt laeuft das Skript in einer eigenen Shell - die
+           Werte waeren danach sofort wieder weg
+  Loesung: ". /u01/oracle/tools/set_env.sh" (Punkt, Leerzeichen, Pfad)
+
+  Problem: Kurzbefehl "wlst" / "domain" unbekannt
+  Ursache: set_env.sh nicht geladen (z.B. ~/.bash_profile nicht ergaenzt
+           oder noch nicht neu angemeldet)
+  Loesung: SCHRITT 2b
+
+  Problem: "Keine Logdatei in den letzten 60 Minuten geschrieben"
+  Ursache: Umgebung laeuft schon laenger ruhig, oder DOMAIN_HOME in
+           env.ini falsch
+  Loesung: Zeitraum vergroessern (-m 1440) bzw. env.ini pruefen
