@@ -29,7 +29,8 @@ dropped, `rwserver_status.sh` with `authid`), phase 8 about nine tenths
 (backup/restore, WLS/Forms/Reports patching, RCU repository theory, profile
 `RCU_USER`, pre-checks and `rcu_repository_check.sh` incl. Data Pump backup
 done; JDK upgrade automation missing), phase 9 zero; minus the open security
-items (EM user search, web-command tests, JACOB signing).
+items (EM user search, web-command tests, JACOB client test – the signing
+itself is implemented since 2026-10-17).
 
 | # | Phase | Status |
 |---|---|---|
@@ -134,6 +135,7 @@ operation with proactive, AI-assisted error analysis.
 │  (root + oracle)                                                    │
 │                                                                     │
 │  08-SSL/ssl_prepare_cert.sh          Create / request a certificate│
+│  08-SSL/ssl_local_ca.sh              Own root CA: TLS + codesigning│
 │  09-Install/05-root_nginx_ssl.sh     Deploy to Nginx                │
 │  08-SSL/ssl_config.sh                Audit + verification          │
 │  02-Checks/ssl_check.sh              Ongoing certificate checks    │
@@ -354,8 +356,10 @@ IHateWeblogic/
 │
 ├── 08-SSL/
 │   ├── README.md                    – Certificate lifecycle: prepare → deploy → verify
-│   ├── ssl_prepare_cert.sh          – Create/stage a cert: SELF (self-signed), EASYRSA (internal CA),
-│   │                                   REQUEST (CSR for a public/company CA)
+│   ├── ssl_prepare_cert.sh          – Create/stage a cert: SELF (self-signed), LOCALCA (own root CA),
+│   │                                   EASYRSA (internal CA), REQUEST (CSR for a public/company CA)
+│   ├── ssl_local_ca.sh              – Own root CA (openssl): init / server (TLS for Nginx) /
+│   │                                   codesign (PKCS12 for jacob.jar) / status
 │   ├── ssl_config.sh                – Audit SSL config: expiry, protocols, ciphers, Frontend Host
 │   ├── ssl.conf.template            – committed – documented defaults for ssl.conf
 │   ├── ssl.conf                     – gitignored – server-specific cert parameters
@@ -673,13 +677,18 @@ work (details of every fix: `git log`).
   `webutil.cfg` is now Oracle's file + template overrides – the template had
   dropped all `install.syslib.*` entries. Background:
   `80-FMW-Architecture/forms_jakob_webutil.md`.
-- [ ] **Forms WebUtil (jacob) – signing**: `jacob.jar` from the release is
-  unsigned, `14-` activates it (`WebUtilArchive`, `extensions.jnlp`) only when
-  `jarsigner -verify` succeeds. Open: signing step – code-signing keystore
-  (path/alias in `environment.conf`, password `*.des3`), self-signed fallback
-  for tests (clients import the cert / exception site list), verify whether
-  FSAL needs the signature too; check after Forms patches (`82-`) that
-  `jacob.jar` / `extensions.jnlp` survived; real OLE test on a Windows client.
+- [x] **Forms WebUtil (jacob) – signing** (2026-10-17): own root CA
+  `08-SSL/ssl_local_ca.sh` (one root for the Nginx TLS certificate and the
+  code-signing certificate, clients import only the root); `14-` signs
+  `jacob.jar` with `FORMS_SIGN_KEYSTORE` (PKCS12 from the own CA, a company CA
+  or a public CA; password `forms_sign_sec.conf.des3`, optional TSA), adds the
+  manifest security attributes, verifies, activates. `ssl_prepare_cert.sh
+  LOCALCA`; patch cycle in `07-Maintenance/README.md` re-runs `14-`.
+  Live-tested on the test host incl. Nginx deployment.
+- [ ] **Forms WebUtil (jacob) – Windows client test**: import the root
+  (`ca.cer`), FSAL with unsigned vs. signed `jacob.jar`, Java Web Start with
+  the signed jar (revocation check with a CA without CRL / OCSP?), real OLE
+  call (Excel).
 
 ### Findings from the customer installation (2026-10-15)
 

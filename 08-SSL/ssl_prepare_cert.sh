@@ -4,7 +4,9 @@
 # Purpose  : Prepare an SSL certificate for Nginx deployment.
 #            Three modes:
 #              SELF    – self-signed certificate (testing / smoke test)
-#              EASYRSA – internal CA via Easy-RSA (internal/lab environments)
+#              LOCALCA – certificate from the local root CA (ssl_local_ca.sh),
+#                        recommended for internal/lab environments
+#              EASYRSA – internal CA via Easy-RSA (alternative, needs EPEL)
 #              REQUEST – generate private key + CSR for submission to a CA
 #
 #            All parameters (CN, SAN, key size, output paths …) are read from
@@ -15,6 +17,7 @@
 #            --apply afterwards.
 #
 # Call     : ./08-SSL/ssl_prepare_cert.sh SELF    [--apply]
+#            ./08-SSL/ssl_prepare_cert.sh LOCALCA [--apply] [--renew]
 #            ./08-SSL/ssl_prepare_cert.sh EASYRSA  [--apply]
 #            ./08-SSL/ssl_prepare_cert.sh REQUEST  [--apply]
 #
@@ -70,6 +73,13 @@ SSL_CSR_FILE="$SCRIPT_DIR/certs/server.csr"
 EASYRSA_PKI_DIR="/srv/gpi_ca"
 EASYRSA_CA_DAYS="3650"
 SSL_LAST_MODE="SELF"
+# Local CA (ssl_local_ca.sh) – defaults resolved there when empty
+SSL_CA_DIR=""
+SSL_CA_CN=""
+SSL_CA_DAYS="3650"
+SSL_CA_KEY_SIZE="4096"
+SSL_CODESIGN_CN=""
+SSL_CODESIGN_DAYS="1095"
 
 _load_ssl_conf() {
     if [ -f "$SSL_CONF" ]; then
@@ -109,6 +119,12 @@ _save_ssl_conf() {
         printf "SSL_CSR_FILE=\"%s\"\n\n"    "$SSL_CSR_FILE"
         printf "EASYRSA_PKI_DIR=\"%s\"\n"   "$EASYRSA_PKI_DIR"
         printf "EASYRSA_CA_DAYS=\"%s\"\n\n" "$EASYRSA_CA_DAYS"
+        printf "SSL_CA_DIR=\"%s\"\n"        "$SSL_CA_DIR"
+        printf "SSL_CA_CN=\"%s\"\n"         "$SSL_CA_CN"
+        printf "SSL_CA_DAYS=\"%s\"\n"       "$SSL_CA_DAYS"
+        printf "SSL_CA_KEY_SIZE=\"%s\"\n"   "$SSL_CA_KEY_SIZE"
+        printf "SSL_CODESIGN_CN=\"%s\"\n"   "$SSL_CODESIGN_CN"
+        printf "SSL_CODESIGN_DAYS=\"%s\"\n\n" "$SSL_CODESIGN_DAYS"
         printf "SSL_LAST_MODE=\"%s\"\n"     "$MODE"
     } > "$SSL_CONF"
     chmod 600 "$SSL_CONF"
@@ -119,21 +135,25 @@ _save_ssl_conf() {
 # =============================================================================
 MODE=""
 APPLY=false
+RENEW=false
 
 _usage() {
     printf "Usage: %s MODE [--apply]\n\n" "$(basename "$0")"
     printf "  %-10s %s\n" "SELF"     "Generate self-signed certificate (testing only)"
+    printf "  %-10s %s\n" "LOCALCA"  "Issue certificate from the local root CA (ssl_local_ca.sh)"
     printf "  %-10s %s\n" "EASYRSA"  "Issue certificate from internal Easy-RSA CA"
     printf "  %-10s %s\n" "REQUEST"  "Generate private key + CSR for external CA"
     printf "\n  %-10s %s\n" "--apply" "Write output files (default: dry-run)"
+    printf "  %-10s %s\n"   "--renew" "LOCALCA: re-issue although a valid certificate exists"
     printf "\nParameters are read from 08-SSL/ssl.conf (created on first run).\n"
     exit 0
 }
 
 for _arg in "$@"; do
     case "${_arg^^}" in
-        SELF|EASYRSA|REQUEST) MODE="${_arg^^}" ;;
+        SELF|LOCALCA|EASYRSA|REQUEST) MODE="${_arg^^}" ;;
         --APPLY)  APPLY=true ;;
+        --RENEW)  RENEW=true ;;
         --HELP|-H) _usage ;;
         *) warn "Unknown argument: $_arg" ;;
     esac
@@ -143,7 +163,7 @@ unset _arg
 if [ -z "$MODE" ]; then
     _load_ssl_conf 2>/dev/null || true
     printf "\033[31mERROR\033[0m: No mode specified.\n" >&2
-    printf "  Usage: %s SELF|EASYRSA|REQUEST [--apply]\n" "$(basename "$0")" >&2
+    printf "  Usage: %s SELF|LOCALCA|EASYRSA|REQUEST [--apply]\n" "$(basename "$0")" >&2
     printf "  Last used mode: %s\n" "${SSL_LAST_MODE:-SELF}" >&2
     exit 1
 fi
@@ -224,6 +244,16 @@ fi
 _prompt "Validity (days)"         SSL_DAYS
 _prompt "Certificate output path" SSL_CERT_FILE
 _prompt "Private key output path" SSL_KEY_FILE
+if [ "$MODE" = "LOCALCA" ]; then
+    _prompt "CA chain output path"    SSL_CHAIN_FILE
+    [ -z "$SSL_CA_DIR" ] && SSL_CA_DIR="${ORACLE_BASE:-/u01/app/oracle}/admin/pki"
+    _prompt "Local CA directory"      SSL_CA_DIR
+    if [ ! -f "$SSL_CA_DIR/ca/ca.crt" ]; then
+        [ -z "$SSL_CA_CN" ] && SSL_CA_CN="${SSL_ORG} Root CA"
+        _prompt "Root CA name (new CA)"   SSL_CA_CN
+        _prompt "Root CA validity (days)" SSL_CA_DAYS
+    fi
+fi
 if [ "$MODE" = "EASYRSA" ]; then
     _prompt "CA chain output path"    SSL_CHAIN_FILE
     _prompt "Easy-RSA PKI directory"  EASYRSA_PKI_DIR
@@ -256,7 +286,9 @@ printList "Key"          22 "${SSL_KEY_ALGO} / ${SSL_KEY_SIZE:-$SSL_EC_CURVE}" \
 printList "Validity"     22 "${SSL_DAYS} days"
 printList "Cert file"    22 "$SSL_CERT_FILE"
 printList "Key file"     22 "$SSL_KEY_FILE"
-[ "$MODE" = "EASYRSA" ] && printList "Chain file"  22 "$SSL_CHAIN_FILE"
+[[ "$MODE" =~ ^(EASYRSA|LOCALCA)$ ]] && printList "Chain file"  22 "$SSL_CHAIN_FILE"
+[ "$MODE" = "LOCALCA" ] && printList "Local CA"    22 "$SSL_CA_DIR"
+[ "$MODE" = "LOCALCA" ] && $RENEW && printList "Renew"  22 "yes – new server certificate"
 [ "$MODE" = "EASYRSA" ] && printList "EASYRSA PKI" 22 "$EASYRSA_PKI_DIR"
 [ "$MODE" = "REQUEST" ] && printList "CSR file"    22 "$SSL_CSR_FILE"
 
@@ -357,6 +389,30 @@ _mode_self() {
         | grep -A2 "Subject Alternative" | sed 's/^/  /' | tee -a "$LOG_FILE"
 
     warn "Self-signed certificate: browsers will show a security warning."
+    info "  Next step: ./09-Install/05-root_nginx_ssl.sh --apply"
+}
+
+# =============================================================================
+# Mode: LOCALCA – local root CA (08-SSL/ssl_local_ca.sh does the work;
+# it reads the ssl.conf just saved)
+# =============================================================================
+_mode_localca() {
+    section "Local CA (ssl_local_ca.sh)"
+    local _ca_sh="$SCRIPT_DIR/ssl_local_ca.sh" _rc
+    if [ ! -f "$SSL_CA_DIR/ca/ca.crt" ]; then
+        info "No root CA yet – creating it: $SSL_CA_DIR"
+        "$_ca_sh" init --apply; _rc=$?
+        [ "$_rc" -ge 2 ] && { fail "Root CA creation failed (rc=$_rc)"; return 1; }
+    fi
+    local _args=(server --apply)
+    $RENEW && _args+=(--renew)
+    "$_ca_sh" "${_args[@]}"; _rc=$?
+    if [ "$_rc" -ge 2 ]; then
+        fail "Server certificate failed (rc=$_rc) – see the output above"
+        return 1
+    fi
+    ok "Server certificate ready: $SSL_CERT_FILE (chain: $SSL_CHAIN_FILE)"
+    info "  Clients: import $SSL_CA_DIR/ca/ca.cer (root) once"
     info "  Next step: ./09-Install/05-root_nginx_ssl.sh --apply"
 }
 
@@ -525,6 +581,7 @@ section "Executing mode: $MODE"
 
 case "$MODE" in
     SELF)    _mode_self    ;;
+    LOCALCA) _mode_localca ;;
     EASYRSA) _mode_easyrsa ;;
     REQUEST) _mode_request ;;
 esac

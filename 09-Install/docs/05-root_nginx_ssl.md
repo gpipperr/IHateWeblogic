@@ -381,7 +381,34 @@ SSL_KEY_FILE=/srv/certs/privkey.pem
 
 ---
 
-### Option B – Internal CA with Easy-RSA (internal/lab environments)
+### Option B – Local CA with openssl (`08-SSL/ssl_local_ca.sh`) – internal/lab, recommended without company PKI
+
+One own root CA signs the **server certificate** for Nginx and – for
+Forms/WebUtil – the **code-signing certificate** for `jacob.jar`. The
+clients import only the root (`ca.cer`) once; renewals under the same root
+need no change on the clients. Plain `openssl`, no EPEL package needed.
+
+```bash
+# as oracle – prompts like SELF, creates the root on the first run
+./08-SSL/ssl_prepare_cert.sh LOCALCA            # dry-run: parameters
+./08-SSL/ssl_prepare_cert.sh LOCALCA --apply    # root CA (once) + server certificate
+./08-SSL/ssl_local_ca.sh status                 # chain + expiry
+# only Forms with FORMS_WEBUTIL_JACOB=true:
+./08-SSL/ssl_local_ca.sh codesign --apply       # PKCS12 for 14-oracle_setup_forms.sh
+
+# as root
+./09-Install/05-root_nginx_ssl.sh --apply       # cert + root as fullchain into Nginx
+```
+
+`SSL_CERT_FILE` / `SSL_KEY_FILE` / `SSL_CHAIN_FILE` (= root) are written
+into `ssl.conf` – nothing to set by hand. Distribute
+`$SSL_CA_DIR/ca/ca.cer` to the clients (Windows: *Trusted Root
+Certification Authorities*, GPO) – details, CA directory, passwords and
+lifecycle: `08-SSL/README.md`, section "ssl_local_ca.sh".
+
+---
+
+### Option C – Internal CA with Easy-RSA (alternative to Option B, needs EPEL)
 
 For environments without a public CA, Easy-RSA provides a simple way to operate
 an internal CA and issue server certificates with correct SANs.
@@ -479,7 +506,7 @@ Then run: `./09-Install/05-root_nginx_ssl.sh --apply`
 
 ---
 
-### Option C – Self-signed certificate (testing only)
+### Option D – Self-signed certificate (testing only)
 
 Quick generation for smoke testing. Browsers will show a security warning.
 

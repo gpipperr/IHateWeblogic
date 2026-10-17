@@ -14,6 +14,7 @@ Reports installation. It covers three recurring tasks:
 | Task | Script | When |
 |---|---|---|
 | Prepare / create a certificate | `ssl_prepare_cert.sh` | Before first Nginx start and at renewal |
+| Own root CA + server + code-signing certificates | `ssl_local_ca.sh` | Once (CA), then at renewal; code signing for Forms/WebUtil (`jacob.jar`) |
 | Deploy certificate to Nginx | `09-Install/05-root_nginx_ssl.sh` | Install-time (once) and at renewal |
 | Audit current SSL configuration | `ssl_config.sh` | Anytime – monitoring, compliance checks |
 
@@ -60,7 +61,9 @@ WebLogic (never handles TLS)
 │  1. PREPARE  (ssl_prepare_cert.sh)                               │
 │     Choose one option:                                           │
 │       A. Self-signed      → quick test, browser warning          │
-│       B. Easy-RSA (internal CA) → trusted in internal network    │
+│       L. Local CA (openssl, ssl_local_ca.sh) → one root for TLS  │
+│          and code signing, trusted after root import (lab/int.)  │
+│       B. Easy-RSA (internal CA) → alternative to L, needs EPEL   │
 │       C. Customer / Public CA   → receive signed cert from CA    │
 │                                                                  │
 │     Result: cert + key in staging path (SSL_CERT_FILE / _KEY)    │
@@ -99,6 +102,7 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 
 ```bash
 ./08-SSL/ssl_prepare_cert.sh SELF      # self-signed (testing only)
+./08-SSL/ssl_prepare_cert.sh LOCALCA   # server cert from the local CA (ssl_local_ca.sh)
 ./08-SSL/ssl_prepare_cert.sh EASYRSA   # Easy-RSA internal CA workflow
 ./08-SSL/ssl_prepare_cert.sh REQUEST   # generate CSR for customer/public CA
 ```
@@ -108,7 +112,15 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 - Output: `SSL_CERT_FILE`, `SSL_KEY_FILE` (paths from `environment.conf`)
 - Use case: smoke test before customer cert arrives
 
-**Mode: EASYRSA** (`--apply`)
+**Mode: LOCALCA** (`--apply [--renew]`) – recommended for internal / lab
+- Same prompts as SELF, then calls `ssl_local_ca.sh init --apply` (only if
+  no CA exists yet) and `ssl_local_ca.sh server --apply [--renew]`
+- Output: `SSL_CERT_FILE`, `SSL_KEY_FILE`, `SSL_CHAIN_FILE` (= root CA)
+- Use case: lab / internal installations without a company PKI; the same
+  root also signs the code-signing certificate for `jacob.jar`
+- Details: section "ssl_local_ca.sh" below
+
+**Mode: EASYRSA** (`--apply`) – alternative to LOCALCA (needs the EPEL package)
 - Checks for existing Easy-RSA PKI at `EASYRSA_PKI_DIR` (env.conf)
 - If PKI not initialized: `easyrsa init-pki` + `easyrsa build-ca`
 - Issues server cert: `easyrsa build-server-full <fqdn> nopass`
@@ -122,6 +134,103 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 - Use case: production environments with a company or public CA
 
 **Does NOT deploy** → run `05-root_nginx_ssl.sh --apply` afterwards.
+
+---
+
+### ssl_local_ca.sh
+
+**Purpose:** a small own certificate authority built with plain `openssl`
+(no Easy-RSA, no EPEL): **one root CA**, two kinds of leaf certificates.
+
+```
+                 ┌───────────────────────────────────────┐
+                 │  Root CA   ca/ca.crt  (10 years)      │
+                 │  CA:TRUE pathlen:0, keyCertSign/cRLSign│
+                 │  ca/ca.key  AES-256, passphrase in    │
+                 │             ssl_ca_sec.conf.des3      │
+                 └──────────────┬────────────────┬───────┘
+                       signs    │                │   signs
+                                ▼                ▼
+   ┌────────────────────────────────┐  ┌────────────────────────────────┐
+   │ server/<cn>.crt   (825 days)   │  │ codesign/codesign.crt (3 years)│
+   │ EKU serverAuth, SAN            │  │ EKU codeSigning                │
+   │ key unencrypted (Nginx)        │  │ key only in codesign.p12       │
+   │ → SSL_CERT_FILE/_KEY/_CHAIN    │  │   (password forms_sign_sec.    │
+   │ → 05-root_nginx_ssl.sh --apply │  │    conf.des3)                  │
+   │ TLS of the Forms/Reports URL   │  │ → 14-oracle_setup_forms.sh     │
+   │                                │  │   signs jacob.jar (jarsigner)  │
+   └────────────────────────────────┘  └────────────────────────────────┘
+
+   Client: imports ONLY ca.crt / ca.cer once → trusts the TLS certificate
+   (browser, FSAL, Java Web Start) AND the jacob.jar signature (Web Start).
+```
+
+**Why one root for both:** the clients need exactly one trust anchor.
+Renewing the server or the code-signing certificate under the same root
+needs **no** change on the clients – with single self-signed certificates
+(mode SELF) every renewal has to be distributed again. Background on who
+checks which certificate: `80-FMW-Architecture/forms_jakob_webutil.md` §9–12.
+
+```bash
+./08-SSL/ssl_local_ca.sh status                     # read-only: CA, server, code signing, expiry, chain
+./08-SSL/ssl_local_ca.sh init     [--apply]         # create the root CA (once)
+./08-SSL/ssl_local_ca.sh server   [--apply] [--renew]   # TLS certificate for SSL_CN / SSL_SAN
+./08-SSL/ssl_local_ca.sh codesign [--apply] [--renew]   # code-signing keystore (PKCS12) for jarsigner
+```
+
+| Sub-command | Does | Idempotent |
+|---|---|---|
+| `status` | subject / issuer / expiry / days left of root, server and code-signing certificate; `openssl verify` against the root; PKCS12 opens with the des3 password; `SSL_CERT_FILE` = issued server certificate; distribution hint. Exit 0 ok / 1 warning (missing, < 30 days, root < 365 days) / 2 error (expired, broken chain) – usable in cron | read-only |
+| `init` | root key (RSA `SSL_CA_KEY_SIZE`, AES-256 encrypted) + self-signed root certificate (`SSL_CA_CN`, `SSL_CA_DAYS`); `ca.cer` (DER, for Windows / GPO); random passphrase → `ssl_ca_sec.conf.des3` | existing root is never overwritten (a new root = redistribute to every client – do it by hand: move `SSL_CA_DIR` away) |
+| `server` | key (`SSL_KEY_ALGO` / size / curve) + CSR + certificate signed by the root (EKU `serverAuth`, SAN from `SSL_SAN`, `SSL_DAYS`); copies to `SSL_CERT_FILE`, `SSL_KEY_FILE`, `SSL_CHAIN_FILE` (= `ca.crt`) | existing valid certificate for the same CN is kept; `--renew` issues a new one (old files → `*.bak_<ts>`) |
+| `codesign` | key + certificate (EKU `codeSigning`, `SSL_CODESIGN_CN`, `SSL_CODESIGN_DAYS`) → PKCS12 `FORMS_SIGN_KEYSTORE` with alias `FORMS_SIGN_ALIAS` and the root in the chain; random keystore password → `forms_sign_sec.conf.des3`; the plain key is deleted | as `server` |
+
+All writes only with `--apply`. Values come from `ssl.conf` (no prompts –
+the interactive way for the server certificate is
+`ssl_prepare_cert.sh LOCALCA`) and from `environment.conf`
+(`FORMS_SIGN_KEYSTORE`, `FORMS_SIGN_ALIAS`).
+
+**CA directory** `SSL_CA_DIR` (default `$ORACLE_BASE/admin/pki`, owner
+oracle, `chmod 700`, never in the repository, never below a web root):
+
+```
+$SSL_CA_DIR/
+├── ca/ca.key            root key, AES-256 encrypted, 600
+├── ca/ca.crt            root certificate (PEM)  → Linux / Java truststore / Nginx chain
+├── ca/ca.cer            root certificate (DER)  → Windows certificate store / GPO
+├── ca/ca.srl            serial number file
+├── server/<cn>.key|.csr|.crt
+└── codesign/codesign.crt, codesign.p12 (600)
+```
+
+**Passwords:** never on the command line. The scripts decrypt the des3 file
+(`load_secrets_file`), write the value to a temporary file (600, removed by
+`trap`) and pass it as `-passin file:` / `-passout file:` (openssl) and
+`-storepass:file` (jarsigner).
+
+| des3 file (repository root, gitignored) | Variable | Used by |
+|---|---|---|
+| `ssl_ca_sec.conf.des3` | `SSL_CA_PASS` | `ssl_local_ca.sh` (signing with the root key) |
+| `forms_sign_sec.conf.des3` | `FORMS_SIGN_STOREPASS` | `ssl_local_ca.sh codesign`, `09-Install/14-oracle_setup_forms.sh` |
+
+The des3 files are bound to this machine (key = system identifier). Back up
+`SSL_CA_DIR` **together with the plain passphrase** offline (password safe):
+without the root key no further certificate can be issued under the same
+root.
+
+**Lifecycle:**
+
+| Event | Action | Client impact |
+|---|---|---|
+| Server certificate expires (825 days) | `ssl_prepare_cert.sh LOCALCA --apply --renew` → `05-root_nginx_ssl.sh --apply` | none |
+| Code-signing certificate expires (3 years) | `ssl_local_ca.sh codesign --apply --renew` → `14-oracle_setup_forms.sh --apply` (signs again only unsigned jars; timestamped signatures stay valid) | none |
+| Root expires (10 years) / root key lost | new root (`init` after moving `SSL_CA_DIR`), re-issue both leaves | **redistribute `ca.cer` to every client** |
+
+**Distribution to the clients:** `ca.cer` into *Trusted Root Certification
+Authorities* (GPO) – used by browsers and Java Web Start; for FSAL the
+truststore of the FSAL JVM is needed (never the JRE `cacerts`, see
+`forms_jakob_webutil.md` §12). Linux test client:
+`cp ca.crt /etc/pki/ca-trust/source/anchors/ && update-ca-trust`.
 
 ---
 
@@ -206,6 +315,12 @@ the next run shows them as defaults again.
 | `SSL_CSR_FILE` | Output path for CSR (REQUEST mode) |
 | `EASYRSA_PKI_DIR` | Easy-RSA PKI root directory (EASYRSA mode) |
 | `EASYRSA_CA_DAYS` | CA certificate validity (new CA only) |
+| `SSL_CA_DIR` | Local CA directory (`ssl_local_ca.sh`), default `$ORACLE_BASE/admin/pki` |
+| `SSL_CA_CN` | Common Name of the local root CA, default `<SSL_ORG> Root CA` |
+| `SSL_CA_DAYS` | Root CA validity in days, default `3650` |
+| `SSL_CA_KEY_SIZE` | Root CA RSA key size, default `4096` |
+| `SSL_CODESIGN_CN` | Common Name of the code-signing certificate, default `<SSL_ORG> Forms Code Signing` |
+| `SSL_CODESIGN_DAYS` | Code-signing certificate validity in days, default `1095` |
 | `SSL_LAST_MODE` | Last used mode – shown as default on next run |
 
 `WLS_SERVER_FQDN` (from `environment.conf`) is used as the initial default
@@ -231,6 +346,8 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 1. set up environment.conf  (WLS_SERVER_FQDN, SSL_* paths)
 2. Choose certificate option:
    a. SELF:     ./08-SSL/ssl_prepare_cert.sh SELF --apply
+   l. LOCALCA:  ./08-SSL/ssl_prepare_cert.sh LOCALCA --apply
+                (+ Forms/WebUtil: ./08-SSL/ssl_local_ca.sh codesign --apply)
    b. EASYRSA:  ./08-SSL/ssl_prepare_cert.sh EASYRSA --apply
    c. REQUEST:  ./08-SSL/ssl_prepare_cert.sh REQUEST --apply
                 → send CSR to CA → receive signed cert → set SSL_CERT_FILE
@@ -242,6 +359,7 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 
 ```
 1. Obtain new cert (EASYRSA re-issue or new CA-signed cert)
+   l. Local CA: ./08-SSL/ssl_prepare_cert.sh LOCALCA --apply --renew
    a. Easy-RSA: ./08-SSL/ssl_prepare_cert.sh EASYRSA --apply  (re-issues)
    b. CA cert:  copy new cert to SSL_CERT_FILE / SSL_KEY_FILE manually
 2. Deploy:      ./09-Install/05-root_nginx_ssl.sh --apply
@@ -264,7 +382,9 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 |---|---|
 | `09-Install/04-root_nginx.sh` | Install Nginx + generate base proxy config (upstream + location blocks) |
 | `09-Install/05-root_nginx_ssl.sh` | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
-| `08-SSL/ssl_prepare_cert.sh` | Create / prepare the certificate (all three cert options) |
+| `08-SSL/ssl_prepare_cert.sh` | Create / prepare the certificate (all cert options) |
+| `08-SSL/ssl_local_ca.sh` | Local root CA; server + code-signing certificates |
+| `09-Install/14-oracle_setup_forms.sh` | Signs `jacob.jar` with `FORMS_SIGN_KEYSTORE` (code-signing certificate) |
 | `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
 | `00-Setup/init_env.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
 
@@ -275,15 +395,22 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 | Option | Command | Trust | Use Case |
 |---|---|---|---|
 | Self-signed | `ssl_prepare_cert.sh SELF` | None (browser warning) | Smoke test only |
-| Easy-RSA internal CA | `ssl_prepare_cert.sh EASYRSA` | Internal, after CA root import | Internal / lab / dev |
+| Local CA (openssl) | `ssl_prepare_cert.sh LOCALCA` / `ssl_local_ca.sh` | Internal, after root import (one root also for code signing) | Lab / internal, **recommended** without company PKI |
+| Easy-RSA internal CA | `ssl_prepare_cert.sh EASYRSA` | Internal, after CA root import | Alternative to LOCALCA (EPEL package) |
 | Customer / public CA | `ssl_prepare_cert.sh REQUEST` → CA signs | Full (public) | Production |
 
 > For Easy-RSA setup details see: `09-Install/docs/05-root_nginx_ssl.md`
-> – section "Option B – Internal CA with Easy-RSA"
+> – section "Option B – Local CA with openssl", "Option C – Internal CA with Easy-RSA"
 
 ---
 
 ## Open Items (TODO)
+
+- **Local CA – client side not yet tested:** Java Web Start checks
+  revocation (`deployment.security.revocation.check`, default
+  `ALL_CERTIFICATES`); the local CA publishes no CRL / OCSP. Whether Web
+  Start accepts such a chain or needs a revocation setting / a CRL served by
+  Nginx is open (Windows client test).
 
 Both scripts are fully implemented (all three `ssl_prepare_cert.sh` modes,
 all `ssl_config.sh` audit sections). What's still missing:
@@ -294,9 +421,16 @@ all `ssl_config.sh` audit sections). What's still missing:
 - Consider `ssl_renew_easyrsa.sh` as a dedicated renewal script for Easy-RSA
   environments (currently: re-run `ssl_prepare_cert.sh EASYRSA --apply`,
   which re-issues but does not automate CA rotation).
-- **Limited real-world testing so far:** only the `SELF` mode and the
-  read-only `ssl_config.sh` checks have been exercised end-to-end. The
+- **Live-tested 2026-10-17:** `ssl_local_ca.sh` (init / server / codesign /
+  status, idempotent second runs), `ssl_prepare_cert.sh LOCALCA --apply`,
+  deploy with `05-root_nginx_ssl.sh --apply`, TLS handshake against the
+  local root (`Verify return code: 0`), `ssl_config.sh` as oracle and root.
+  Fixed on the way in `ssl_config.sh`: the handshake check used
+  `s_client -brief` (prints no "Verify return code" → always FAIL), and
+  an unreadable `/etc/nginx/ssl` (700 root) was reported as "not found".
+- **Still limited real-world testing:** besides `SELF`, `LOCALCA` and the
+  `ssl_config.sh` checks, nothing has been exercised end-to-end. The
   `EASYRSA` mode (against a real Easy-RSA install), the `REQUEST` mode
-  (CSR → external CA → cert install round-trip), the live TLS handshake
-  checks against a running Nginx on port 443, and the WebLogic Frontend
-  Host check against a live domain still need verification on a real server.
+  (CSR → external CA → cert install round-trip) and the WebLogic Frontend
+  Host check (test host: "Frontend Host not configured" – WARN, open)
+  still need verification on a real server.

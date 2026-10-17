@@ -35,6 +35,16 @@ FORMS_TMP=/u01/app/oracle/forms/tmp
 # Office automation (CLIENT_OLE2). Only needed if the Forms applications
 # drive Word/Excel; downloaded by 04-, installed by 14- (default: false)
 FORMS_WEBUTIL_JACOB=false
+# Code signing of jacob.jar by 14- (empty keystore = do not sign, only check).
+# FORMS_SIGN_KEYSTORE: PKCS12 with key + code-signing certificate + chain,
+#   e.g. created by 08-SSL/ssl_local_ca.sh codesign --apply; password in
+#   forms_sign_sec.conf.des3 (FORMS_SIGN_STOREPASS)
+# FORMS_SIGN_TSA_URL: timestamp authority for jarsigner -tsa (empty = none)
+FORMS_SIGN_KEYSTORE=
+FORMS_SIGN_ALIAS=forms_codesign
+FORMS_SIGN_TSA_URL=
+# FORMS_SIGN_LOCALCA: true = 14- creates a missing keystore with the own root CA
+FORMS_SIGN_LOCALCA=false
 
 DB_HOST=dbserver01
 DB_PORT=1521

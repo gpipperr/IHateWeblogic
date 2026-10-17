@@ -80,9 +80,13 @@ duplicated here.
 5. ./07-Maintenance/80-patch_java_os.sh           # Java/OS layer (read-only)
 6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
 7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
-8. ./01-Run/startStop.sh start-all --apply
-9. ./02-Checks/java_check.sh / ./01-Run/rwserver_status.sh   # verify
-10. If something breaks: ./07-Maintenance/restore_config.sh --apply
+8. Forms only: ./09-Install/14-oracle_setup_forms.sh --apply
+   (a Forms patch can reset extensions.jnlp / formsweb.cfg – re-activates the
+   signed jacob.jar, re-signs a jacob.jar replaced by a new JACOB version)
+9. ./01-Run/startStop.sh start-all --apply
+10. ./02-Checks/java_check.sh / ./01-Run/rwserver_status.sh   # verify
+    ./08-SSL/ssl_local_ca.sh status   # own root CA: certificate expiry
+11. If something breaks: ./07-Maintenance/restore_config.sh --apply
 ```
 
 **Why only 3 scripts for "4 layers"?** `06-oracle_patch_forms_reports.sh`

@@ -4,7 +4,8 @@
 # Purpose  : Phase 6 – Copy Oracle Forms configuration templates to the
 #            correct domain locations:
 #              1. JACOB (WebUtil OLE) – install jar + DLLs from PATCH_STORAGE
-#                 if FORMS_WEBUTIL_JACOB=true, activate only when signed
+#                 if FORMS_WEBUTIL_JACOB=true, sign it with FORMS_SIGN_KEYSTORE
+#                 (if set), activate only when signed
 #              2. webutil.cfg → FR_INST/server/ AND FR_INST_ALT/server/
 #                 (Oracle's webutil.cfg + our transfer.* settings merged)
 #              3. default.env → formsapp_*/config/
@@ -255,9 +256,10 @@ _copy_template() {
 # Only needed for CLIENT_OLE2 / Office automation. Not shipped by Oracle:
 # 04-oracle_pre_download.sh puts jacob-<ver>.zip into $PATCH_STORAGE/jacob/.
 # jacob.jar from the release is unsigned – Java Web Start refuses unsigned
-# all-permissions jars, so jacob.jar is only activated (WebUtilArchive,
-# extensions.jnlp) when it is signed. Background:
-# 80-FMW-Architecture/forms_jakob_webutil.md
+# all-permissions jars. With FORMS_SIGN_KEYSTORE set (PKCS12, e.g. from
+# 08-SSL/ssl_local_ca.sh codesign) the script signs it; jacob.jar is only
+# activated (WebUtilArchive, extensions.jnlp) when it is signed.
+# Background: 80-FMW-Architecture/forms_jakob_webutil.md
 # =============================================================================
 
 section "JACOB (WebUtil OLE / Office automation)"
@@ -270,18 +272,27 @@ _JACOB_DLL32="$ORACLE_HOME/forms/webutil/win32/jacob-${_JACOB_VER}-x86.dll"
 _JACOB_DLL64="$ORACLE_HOME/forms/webutil/win64/jacob-${_JACOB_VER}-x64.dll"
 _EXT_JNLP="$ORACLE_HOME/forms/java/extensions.jnlp"
 
+_JDK_BIN="${JDK_HOME:-$ORACLE_HOME/oracle_common/jdk}/bin"
+
 # _jacob_signed jar – 0 if jarsigner verifies the jar
 _jacob_signed() {
-    local js="${JDK_HOME:-$ORACLE_HOME/oracle_common/jdk}/bin/jarsigner"
+    local js="$_JDK_BIN/jarsigner"
     [ -x "$js" ] || js="$(command -v jarsigner 2>/dev/null)"
     [ -n "$js" ] && "$js" -verify "$1" 2>/dev/null | grep -q '^jar verified'
 }
 
 # _jacob_install src dest – copy with backup if different
+# A signed jacob.jar whose unsigned original (jacob.jar.orig, kept by
+# _jacob_sign) equals the source is up to date – do not overwrite it
 _jacob_install() {
     local src="$1" dest="$2"
     if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
         ok "$(printf "  %-22s up to date  %s" "$(basename "$dest")" "$dest")"
+        return 0
+    fi
+    if [ -f "$dest" ] && [ -f "${dest}.orig" ] && cmp -s "$src" "${dest}.orig" \
+       && _jacob_signed "$dest"; then
+        ok "$(printf "  %-22s up to date (signed)  %s" "$(basename "$dest")" "$dest")"
         return 0
     fi
     if ! $APPLY; then
@@ -295,6 +306,79 @@ _jacob_install() {
         fail "Copy failed: $src → $dest"
         return 1
     fi
+}
+
+# _jacob_sign jar – sign with the code-signing keystore (doc 14, Step 1.3):
+# keep the unsigned original as jar.orig, add the security attributes to the
+# MAIN manifest section (the release has them only under "Name: com/jacob/"),
+# jarsigner with the password from forms_sign_sec.conf.des3 via a temp file,
+# verify (integrity, no -strict); on failure the original is restored
+_jacob_sign() {
+    local jar="$1" rc
+    local ks="${FORMS_SIGN_KEYSTORE}" alias="${FORMS_SIGN_ALIAS:-forms_codesign}"
+    local sec="$ROOT_DIR/forms_sign_sec.conf.des3"
+
+    if ! $APPLY; then
+        info "  dry-run – would sign $jar with $ks (alias $alias)"
+        return 0
+    fi
+    [ -f "$ks" ]  || { fail "FORMS_SIGN_KEYSTORE not found: $ks"; return 1; }
+    [ -f "$sec" ] || { fail "Keystore password file missing: $sec"; return 1; }
+    [ -x "$_JDK_BIN/jarsigner" ] && [ -x "$_JDK_BIN/jar" ] \
+        || { fail "jar / jarsigner not found in $_JDK_BIN (JDK_HOME)"; return 1; }
+
+    local tmp; tmp="$(mktemp -d)"; chmod 700 "$tmp"
+    load_secrets_file "$sec" || { rm -rf "$tmp"; return 1; }
+    if [ -z "${FORMS_SIGN_STOREPASS:-}" ]; then
+        fail "FORMS_SIGN_STOREPASS not in $sec"; rm -rf "$tmp"; return 1
+    fi
+    ( umask 077; printf '%s\n' "$FORMS_SIGN_STOREPASS" > "$tmp/ks.pw" )
+    unset FORMS_SIGN_STOREPASS
+
+    cp -p "$jar" "${jar}.orig"
+    printf 'Permissions: all-permissions\nCodebase: *\nApplication-Name: Java-Windows Bridge\n' \
+        > "$tmp/manifest.add"
+    "$_JDK_BIN/jar" ufm "$jar" "$tmp/manifest.add" >> "$LOG_FILE" 2>&1
+
+    local tsa=()
+    if [ -n "${FORMS_SIGN_TSA_URL:-}" ]; then
+        tsa=(-tsa "$FORMS_SIGN_TSA_URL")
+    else
+        warn "  FORMS_SIGN_TSA_URL empty – signature without timestamp (invalid after the certificate expires)"
+    fi
+    "$_JDK_BIN/jarsigner" -keystore "$ks" -storetype PKCS12 -storepass:file "$tmp/ks.pw" \
+        -digestalg SHA-256 "${tsa[@]}" "$jar" "$alias" >> "$LOG_FILE" 2>&1
+    rc=$?
+    rm -rf "$tmp"
+
+    if [ "$rc" -ne 0 ]; then
+        fail "jarsigner failed (rc=$rc) – original restored, see $LOG_FILE"
+        cp -p "${jar}.orig" "$jar"
+        return 1
+    fi
+
+    # Verify the signature itself (integrity, every entry signed). No -strict:
+    # with an own / company CA the server JDK's cacerts does not know the root
+    # ("PKIX path building failed") – trust is decided on the client (root
+    # imported there). "nonexistent signed entries: [com/jacob/]" comes from
+    # the per-entry manifest section of the JACOB release and is harmless.
+    local vout
+    vout="$("$_JDK_BIN/jarsigner" -verify -verbose "$jar" 2>&1)"
+    printf '%s\n' "$vout" | grep -vE '^ *(s|sm|m)? +[0-9]+ ' >> "$LOG_FILE"
+    if ! printf '%s\n' "$vout" | grep -q '^jar verified' \
+       || printf '%s\n' "$vout" | grep -q 'unsigned entries'; then
+        fail "jarsigner -verify failed after signing – original restored, see $LOG_FILE"
+        cp -p "${jar}.orig" "$jar"
+        return 1
+    fi
+    ok "$(printf "  %-22s signed (alias %s%s)" "$(basename "$jar")" "$alias" \
+        "$([ -n "${FORMS_SIGN_TSA_URL:-}" ] && printf ', timestamp')")"
+    printf '%s\n' "$vout" | grep -m1 'Signed by' | sed 's/^[ -]*/  /' | tee -a "$LOG_FILE"
+    if printf '%s\n' "$vout" | grep -q 'PKIX path building failed'; then
+        info "  chain not in the server JDK cacerts (expected for an own / company CA)"
+        info "  clients must trust the root – 08-SSL/README.md, section ssl_local_ca.sh"
+    fi
+    return 0
 }
 
 if [ "${FORMS_WEBUTIL_JACOB:-false}" != "true" ]; then
@@ -341,16 +425,53 @@ else
     fi
     unset _zip
 
-    # Activation only for a signed jar (signing step: TODO, see README)
+    # Signing (only with FORMS_SIGN_KEYSTORE) – then activation only for a signed jar
+    if [ -f "$_JACOB_JAR" ] && ! _jacob_signed "$_JACOB_JAR"; then
+        # FORMS_SIGN_LOCALCA=true (interview: keystore did not exist) – create it
+        # with the own root CA; ssl_local_ca.sh reads 08-SSL/ssl.conf + FORMS_SIGN_*
+        if [ -n "${FORMS_SIGN_KEYSTORE:-}" ] && [ ! -f "$FORMS_SIGN_KEYSTORE" ] \
+           && [ "${FORMS_SIGN_LOCALCA:-false}" = "true" ]; then
+            _ca_sh="$ROOT_DIR/08-SSL/ssl_local_ca.sh"
+            _ca_dir="$(grep -E '^SSL_CA_DIR=' "$ROOT_DIR/08-SSL/ssl.conf" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"')"
+            _ca_dir="${_ca_dir:-${ORACLE_BASE}/admin/pki}"
+            if ! $APPLY; then
+                info "  dry-run – would create the keystore with the local CA: $FORMS_SIGN_KEYSTORE"
+                [ -f "$_ca_dir/ca/ca.crt" ] || info "  dry-run – would create the root CA first: $_ca_dir"
+            else
+                info "Creating code-signing keystore with the local CA (08-SSL/ssl_local_ca.sh)"
+                if [ ! -f "$_ca_dir/ca/ca.crt" ]; then
+                    "$_ca_sh" init --apply 2>&1 | tee -a "$LOG_FILE" >/dev/null
+                    [ -f "$_ca_dir/ca/ca.crt" ] && ok "Root CA created: $_ca_dir/ca/ca.crt (distribute ca.cer to the clients)" \
+                                                || fail "Root CA creation failed – see $LOG_FILE"
+                fi
+                if [ -f "$_ca_dir/ca/ca.crt" ]; then
+                    "$_ca_sh" codesign --apply 2>&1 | tee -a "$LOG_FILE" >/dev/null
+                    [ -f "$FORMS_SIGN_KEYSTORE" ] && ok "Keystore created: $FORMS_SIGN_KEYSTORE" \
+                                                  || fail "Keystore creation failed – see $LOG_FILE"
+                fi
+            fi
+            unset _ca_sh _ca_dir
+        fi
+        if [ -n "${FORMS_SIGN_KEYSTORE:-}" ] && { [ -f "$FORMS_SIGN_KEYSTORE" ] || ! $APPLY; }; then
+            _jacob_sign "$_JACOB_JAR"
+        elif [ -n "${FORMS_SIGN_KEYSTORE:-}" ]; then
+            fail "FORMS_SIGN_KEYSTORE not found: $FORMS_SIGN_KEYSTORE"
+            info "  copy the keystore there, or create it: ./08-SSL/ssl_local_ca.sh codesign --apply"
+        else
+            info "FORMS_SIGN_KEYSTORE not set – jacob.jar is not signed by this script"
+        fi
+    fi
     if [ -f "$_JACOB_JAR" ]; then
         if _jacob_signed "$_JACOB_JAR"; then
             ok "jacob.jar is signed – activating it for the Forms client"
             JACOB_ACTIVE=true
             WEBUTIL_ARCHIVE="frmwebutil.jar,jacob.jar"
+        elif ! $APPLY && [ -n "${FORMS_SIGN_KEYSTORE:-}" ]; then
+            info "  dry-run – jacob.jar would be activated after signing"
         else
             warn "jacob.jar is not signed – NOT activated (WebUtilArchive / extensions.jnlp unchanged)"
-            info "  Java Web Start refuses unsigned all-permissions jars; signing step is still open"
-            info "  (README TODO 'Forms WebUtil (jacob)': sign with a code-signing certificate)"
+            info "  Java Web Start refuses unsigned all-permissions jars. Sign it: set"
+            info "  FORMS_SIGN_KEYSTORE (e.g. ./08-SSL/ssl_local_ca.sh codesign --apply) and run 14- --apply again"
         fi
     elif ! $APPLY; then
         info "  Activation is decided after the install (jacob.jar must be signed)"

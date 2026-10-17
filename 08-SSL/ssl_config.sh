@@ -166,14 +166,19 @@ fi
 # --- 1. Certificate file checks -----------------------------------------------
 section "Certificate Files"
 
-if [ ! -f "$NGINX_CERT" ]; then
+if [ "$(id -u)" -ne 0 ] && [ -d "$(dirname "$NGINX_CERT")" ] && [ ! -x "$(dirname "$NGINX_CERT")" ]; then
+    # /etc/nginx/ssl is 700 root – not an error, the file checks need root
+    warn "$(dirname "$NGINX_CERT") not readable as $(id -un) – file checks skipped (run as root)"
+elif [ ! -f "$NGINX_CERT" ]; then
     fail "Nginx cert not found: $NGINX_CERT"
     info "  Run: ./09-Install/05-root_nginx_ssl.sh --apply"
 else
     ok "Nginx cert found: $NGINX_CERT"
 fi
 
-if [ ! -f "$NGINX_KEY" ]; then
+if [ ! -x "$(dirname "$NGINX_KEY")" ]; then
+    :   # reported above
+elif [ ! -f "$NGINX_KEY" ]; then
     fail "Nginx key not found: $NGINX_KEY"
 else
     ok "Nginx key found: $NGINX_KEY"
@@ -295,8 +300,13 @@ if ss -tlnp 2>/dev/null | awk '{print $4}' | grep -q ":${_ssl_port}$"; then
     ok "Port ${_ssl_port} is listening"
 
     info "TLS handshake test (openssl s_client) ..."
-    _hs_out="$(echo | openssl s_client -connect "localhost:${_ssl_port}" \
-        -brief 2>&1)"
+    # No -brief: it prints "Verification: OK" instead of "Verify return code".
+    # -CAfile = root of an own CA (LOCALCA / EASYRSA) so that the chain verifies
+    _hs_args=(-connect "localhost:${_ssl_port}")
+    [ -n "$SSL_CN" ] && _hs_args+=(-servername "$SSL_CN")
+    [[ -n "$SSL_CHAIN_FILE" && "$SSL_CHAIN_FILE" != /* ]] && SSL_CHAIN_FILE="$ROOT_DIR/$SSL_CHAIN_FILE"
+    [ -n "$SSL_CHAIN_FILE" ] && [ -f "$SSL_CHAIN_FILE" ] && _hs_args+=(-CAfile "$SSL_CHAIN_FILE")
+    _hs_out="$(echo | openssl s_client "${_hs_args[@]}" 2>&1)"
     if printf '%s' "$_hs_out" | grep -q "Verify return code: 0"; then
         ok "TLS handshake successful – certificate verified"
     elif printf '%s' "$_hs_out" | grep -q "Verify return code:"; then

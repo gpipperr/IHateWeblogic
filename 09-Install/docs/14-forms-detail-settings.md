@@ -23,7 +23,8 @@ Steps performed by `14-oracle_setup_forms.sh`:
 
 1. Detect paths (`FR_INST`, `FR_INST_ALT`, Forms app dir)
 2. JACOB (only `FORMS_WEBUTIL_JACOB=true`): install jar + DLLs from
-   `$PATCH_STORAGE/jacob/`, activate only a signed `jacob.jar`
+   `$PATCH_STORAGE/jacob/`, sign it with `FORMS_SIGN_KEYSTORE` (if set),
+   activate only a signed `jacob.jar`
 3. Write `webutil.cfg` (Oracle's file + template overrides) to both locations
 4. Copy `default.env` to the Forms application config dir
 5. Write `formsweb.cfg` (Oracle's file + `[default]` overrides) to the Forms application config dir
@@ -129,14 +130,79 @@ $ORACLE_HOME/forms/webutil/win32/jacob-1.21-x86.dll
 $ORACLE_HOME/forms/webutil/win64/jacob-1.21-x64.dll
 ```
 
-3. **Activation only for a signed jar.** `jacob.jar` from the release is
-   unsigned; Java Web Start refuses unsigned all-permissions jars. Only if
-   `jarsigner -verify` succeeds, the script sets
-   `WebUtilArchive=frmwebutil.jar,jacob.jar` in `formsweb.cfg` and activates
-   `<jar href="jacob.jar"/>` in `$ORACLE_HOME/forms/java/extensions.jnlp`
-   (loaded by `webutil.jnlp` / `base.jnlp`; Oracle ships the entry commented
-   out). Otherwise: WARN, nothing activated. The signing step itself is
-   still open (README TODO).
+3. **Signing** (only if `FORMS_SIGN_KEYSTORE` is set and `jacob.jar` is not
+   yet signed). `jacob.jar` from the release is unsigned. The script signs it
+   with the customer's code-signing certificate – Oracle signs only its own
+   jars, own/third-party jars are signed by the customer
+   (`forms_jakob_webutil.md` §8):
+
+   | Variable (`environment.conf`) | Meaning | Default |
+   |---|---|---|
+   | `FORMS_SIGN_KEYSTORE` | PKCS12 keystore with key + code-signing certificate + chain | empty = do not sign (only check) |
+   | `FORMS_SIGN_ALIAS` | alias of the key in the keystore | `forms_codesign` |
+   | `FORMS_SIGN_TSA_URL` | timestamp authority for `jarsigner -tsa` | empty = no timestamp (WARN) |
+   | password | `FORMS_SIGN_STOREPASS` in `forms_sign_sec.conf.des3` (repository root) | – |
+
+   | `FORMS_SIGN_LOCALCA` | `true` = create a missing keystore with the own root CA before signing (set by the interview when the keystore did not exist) | `false` |
+
+   With `FORMS_SIGN_LOCALCA=true` and no file at `FORMS_SIGN_KEYSTORE`,
+   `--apply` first runs `08-SSL/ssl_local_ca.sh init --apply` (only if no
+   root exists) and `codesign --apply` (subject values from
+   `08-SSL/ssl.conf`, written by the interview), then signs. Otherwise a
+   missing keystore is a FAIL – nothing is created over a company / public
+   keystore that was just not copied yet.
+
+   Where the keystore comes from does not matter: local CA
+   (`08-SSL/ssl_local_ca.sh codesign --apply` creates keystore + des3 file
+   with these defaults), company CA or public CA (import the PKCS12 file
+   from the CA, write the password with the same des3 file).
+
+   Steps:
+   - `jacob.jar` → `jacob.jar.orig` (unsigned original, kept for the
+     idempotency check below)
+   - add the security attributes to the **main section** of the manifest
+     (`jar ufm`): `Permissions: all-permissions`, `Codebase: *`,
+     `Application-Name: Java-Windows Bridge`. The JACOB release has them
+     only in the per-entry section `Name: com/jacob/`; Java reads the
+     security attributes from the main section. Strictly required is
+     `Permissions` only in the **main** jar of the application ("secondary
+     JAR files and extensions are not required to have the Permissions
+     attribute"), a missing `Codebase` gives a warning in the Java console
+     (**documented**, [JAR File Manifest Attributes for Security](https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/manifest.html)).
+     We set them anyway – same as Oracle's `frmwebutil.jar` (main section:
+     `Permissions`, `Codebase`, `Application-Name`, **confirmed (live)**) –
+     so that the Java console stays clean and the security dialog shows a
+     name
+   - `jarsigner -keystore … -storetype PKCS12 -storepass:file <tmp> -digestalg SHA-256 [-tsa URL] jacob.jar ALIAS`
+     (password only in a temp file, 600, removed by `trap`)
+   - `jarsigner -verify` must report `jar verified` without unsigned
+     entries; on failure the original jar is restored. **No `-strict`:**
+     with an own or company CA the server JDK's `cacerts` does not know the
+     root ("PKIX path building failed") – trust is decided on the client,
+     where the root is imported. The warning "nonexistent signed entries:
+     [com/jacob/]" comes from the per-entry manifest section of the JACOB
+     release (a directory) and is harmless.
+
+   **Timestamp:** with `-tsa` the signature stays valid after the
+   certificate expires; without it Web Start rejects the jar from the expiry
+   date on. Production: always set `FORMS_SIGN_TSA_URL` (public TSA, e.g.
+   from the CA of the certificate – needs outbound HTTP from the server).
+
+   **Idempotency:** a signed `jacob.jar` whose `jacob.jar.orig` equals the
+   jar of the ZIP is "up to date" – a second run neither re-installs nor
+   re-signs. A new JACOB version (other jar in the ZIP) is installed and
+   signed again.
+
+4. **Activation only for a signed jar.** Only if `jarsigner -verify`
+   succeeds, the script sets `WebUtilArchive=frmwebutil.jar,jacob.jar` in
+   `formsweb.cfg` and activates `<jar href="jacob.jar"/>` in
+   `$ORACLE_HOME/forms/java/extensions.jnlp` (loaded by `webutil.jnlp` /
+   `base.jnlp`; Oracle ships the entry commented out). Otherwise: WARN,
+   nothing activated.
+
+   **After every Forms patch:** run `14-oracle_setup_forms.sh --apply` again
+   – a patch can reset `extensions.jnlp`; the script re-activates the entry
+   (the signed `jacob.jar` itself is not an Oracle file and normally stays).
 
 Manual equivalent:
 
@@ -148,7 +214,14 @@ unzip -q jacob-1.21.zip
 cp jacob-1.21/jacob.jar            $ORACLE_HOME/forms/java/
 cp jacob-1.21/jacob-1.21-x86.dll   $ORACLE_HOME/forms/webutil/win32/
 cp jacob-1.21/jacob-1.21-x64.dll   $ORACLE_HOME/forms/webutil/win64/
-# after signing jacob.jar: WebUtilArchive + extensions.jnlp as in 3.
+# sign (password typed interactively here):
+cd $ORACLE_HOME/forms/java && cp -p jacob.jar jacob.jar.orig
+printf 'Permissions: all-permissions\nCodebase: *\nApplication-Name: Java-Windows Bridge\n' > /tmp/jacob_mf.txt
+$JDK_HOME/bin/jar ufm jacob.jar /tmp/jacob_mf.txt
+$JDK_HOME/bin/jarsigner -keystore $FORMS_SIGN_KEYSTORE -storetype PKCS12 \
+    -digestalg SHA-256 -tsa http://timestamp.digicert.com jacob.jar forms_codesign
+$JDK_HOME/bin/jarsigner -verify -strict jacob.jar
+# then WebUtilArchive + extensions.jnlp as in 4.
 ```
 
 Check that the files are served (no restart needed):
@@ -160,6 +233,17 @@ curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://localhost:9001/
 
 Live-tested 2026-10-15: download + checksum, install, sizes, HTTP 200 with
 the expected sizes; unsigned jar correctly not activated.
+
+Live-tested 2026-10-17 (test host, keystore from `08-SSL/ssl_local_ca.sh
+codesign`, TSA `http://timestamp.digicert.com`): `jacob.jar` signed with
+timestamp (49846 → 61050 bytes, `jacob.jar.orig` kept), activated
+(`WebUtilArchive=frmwebutil.jar,jacob.jar`, `extensions.jnlp` entry), served
+via HTTP 200; second run "up to date (signed)", no re-signing; no password
+in log files; 2026-10-18 also the `FORMS_SIGN_LOCALCA=true` path (keystore
+missing → created by `ssl_local_ca.sh codesign` under the existing root,
+then signed). First attempt with `-verify -strict` failed on the PKIX
+check (see above) – changed to the integrity check. Client test (Windows,
+JWS/FSAL, OLE) still open.
 
 ---
 

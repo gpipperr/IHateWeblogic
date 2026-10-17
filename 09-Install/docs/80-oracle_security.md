@@ -142,6 +142,8 @@ one-way hash. Recovery always means **setting a new value** at the right place.
 | WLST stored credentials (`storeUserConfig()`, `startComponent.sh … storeUserConfig`) | `~/<os-user>-WebLogicConfig.properties` + `~/<os-user>-WebLogicKey.properties` (default), or the files given to `storeUserConfig` | encrypted + key | WLST `connect()`/`nmConnect()` **without** credentials, `startComponent.sh`/`stopComponent.sh` |
 | Autostart key files (`30-configure_autostart.sh`) | `$ORACLE_BASE/admin/<domain>/ctrl/keyfile/` | encrypted + key | `fmw_ctl.sh` / systemd unit |
 | IHateWeblogic passwords | `*.des3` in the repository root (`weblogic_sec.conf.des3`, `db_sys_sec.conf.des3`, `reports_users.conf.des3`, …) | `openssl des3`, key = system identifier | IHateWeblogic scripts (local helper `00-Setup/getPWDs.sh` displays them – gitignored) |
+| Local CA root key (`08-SSL/ssl_local_ca.sh`) | `$SSL_CA_DIR/ca/ca.key` (default `$ORACLE_BASE/admin/pki`, dir 700, file 600); passphrase `SSL_CA_PASS` in `ssl_ca_sec.conf.des3` | AES-256 encrypted key | `ssl_local_ca.sh` when issuing server / code-signing certificates. Back up `SSL_CA_DIR` **and** the passphrase offline – the des3 file only works on this machine |
+| Code-signing keystore (Forms/WebUtil `jacob.jar`) | `FORMS_SIGN_KEYSTORE` (PKCS12, 600); password `FORMS_SIGN_STOREPASS` in `forms_sign_sec.conf.des3` | PKCS12 | `ssl_local_ca.sh codesign`, `14-oracle_setup_forms.sh` (`jarsigner -storepass:file`, temp file 600, never on the command line) |
 
 > Admin password and Node Manager password are **independent**.
 > `<node-manager-username>weblogic` does not mean the NM password equals the

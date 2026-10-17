@@ -238,9 +238,16 @@ jarsigner -verify -verbose -certs jacob.jar     # "jar verified." + chain + time
 - **Always with `-tsa`** (timestamp): without it the signature becomes
   invalid when the code-signing certificate expires → every client blocks
   the jar on that day.
-- The jar's manifest already has `Permissions: all-permissions`,
-  `Codebase: *`, `Trusted-Library: true` (**confirmed (live)**) – required
-  by Java Web Start at security level HIGH for signed jars.
+- The jar's manifest has `Permissions: all-permissions`, `Codebase: *`,
+  `Trusted-Library: true` – but only in the **per-entry section**
+  `Name: com/jacob/`, not in the main section (**confirmed (live)**
+  2026-10-17; the first version of this section overlooked that). Java reads
+  these security attributes from the main section; `Permissions` is
+  required only in the main jar of the application, "secondary JAR files
+  and extensions are not required to have the Permissions attribute",
+  without `Codebase` the Java console shows a warning (**documented**, JAR
+  File Manifest Attributes for Security). `14-oracle_setup_forms.sh` adds
+  them to the main section before signing, like Oracle's `frmwebutil.jar`.
 
 ## 9. Which certificates are needed
 
@@ -256,7 +263,8 @@ Options for the code-signing certificate:
 |---|---|---|
 | **A – public CA** (DigiCert, Sectigo, …) | already trusted: the CA root is in the Java `cacerts` and the Windows store → **nothing to distribute** | costs per year; since 2023 the private key must live on a hardware token / HSM or a cloud signing service (**assumption** – CA/Browser Forum code-signing requirements, check with the CA) → the signing step is a manual or CA-tool step, not a plain script |
 | **B – internal company CA** (Windows AD CS …) | the **root of the company CA** must be trusted by the Java client: Windows store via GPO (JWS uses it by default, see 10) and/or the Java trust stores | company PKI needed; CRL/OCSP of the CA must be reachable from the clients (revocation check, see 10); renewals under the same root need **no** redistribution |
-| **C – self-signed** | every client imports that one certificate | Oracle: avoid; each new certificate = redistribute to every client – test only |
+| **B' – own root CA** (`08-SSL/ssl_local_ca.sh`, implemented) | like B, but the root is self-made: one root signs the code-signing **and** the TLS certificate of Nginx → the clients import one root once (GPO / Java trust store) | same mechanics as B without a company PKI; the root key is the crown jewel (offline backup); no CRL / OCSP published – how Java Web Start's revocation check reacts is open (**assumption**, client test); Oracle's "self-generated certificates … should be avoided" applies – lab / internal use |
+| **C – single self-signed certificate** | every client imports that one certificate | Oracle: avoid; each new certificate = redistribute to every client – test only |
 
 ## 10. Who checks the signature – and against what
 
@@ -281,6 +289,7 @@ quickly becoming the preferred approach", **documented**).
 | **Forms patch / bundle** (`07-Maintenance/82-patch_forms_reports.sh`) | Oracle replaces its own signed jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) – signed by Oracle, nothing to do; `jacob.jar` and the JACOB DLLs are not Oracle files and normally stay; **Oracle files we changed can be reset**: `extensions.jnlp` (jacob entry), `webutil.cfg` template | after every Forms patch: re-run `14-oracle_setup_forms.sh --apply` (checks `jacob.jar` present + `jarsigner -verify`, re-activates the `extensions.jnlp` entry and `WebUtilArchive`) |
 | **New JACOB version required** (release notes of a Forms patch) | new `jacob.jar` (unsigned again) and new DLLs (other sizes) | download (`04-`), sign again, adapt `install.syslib.*` size/version in `webutil.cfg` (`14-` does it), clients download the new DLL automatically |
 | **Own code-signing certificate expires** | signatures **with timestamp** stay valid; without timestamp the jar is blocked from that day | sign only with `-tsa`; renew the certificate before expiry; re-signing is needed only for new / changed jars |
+| **Own root CA (B') – leaf renewal** | new code-signing / TLS certificate under the **same root** | `ssl_local_ca.sh codesign --apply --renew` / `ssl_prepare_cert.sh LOCALCA --apply --renew`; nothing to change on the clients; already signed + timestamped jars stay valid |
 | **Certificate revoked / key compromised** | revocation check blocks every jar signed with it – also timestamped ones (**assumption** for the timestamp interplay) | new certificate, re-sign, serve |
 | **Algorithm deprecated** (e.g. SHA-1 disabled in Java updates) | old signatures rejected by new Java versions | re-sign with SHA-256 (`-digestalg SHA-256`, current `jarsigner` default) |
 | **Java update on the clients** | a JRE update replaces `lib/security/cacerts` – certificates imported **into that file** are lost (**assumption** – standard JRE update behaviour, verify per Java distribution) | never import into the JRE's `cacerts`; use the Windows store (GPO) or the system-level deployment stores outside the JRE |
@@ -328,21 +337,50 @@ Recommendation (design, to be decided with the customer):
    `%USERPROFILE%\webutil`); only in locked-down clients (AppLocker etc.)
    pre-deploy and allow the path.
 
-## 13. Open for the implementation in this repository
+## 13. Implementation in this repository (2026-10-17)
 
-- Signing step: keystore path / alias in `environment.conf`, keystore
-  password in a `*.des3` file, `jarsigner -tsa … -digestalg SHA-256`,
-  `-verify` afterwards; `14-oracle_setup_forms.sh` then activates
-  `jacob.jar` (already prepared – activation only after a successful
-  `jarsigner -verify`).
-- Test fallback: self-signed certificate on the test host (client imports
-  it) – only to verify the chain JWS → `extensions.jnlp` → `jacob.jar`.
-- Verify on a Windows client: FSAL with unsigned and signed `jacob.jar`,
-  JWS with a company-CA-signed jar, real OLE call (Excel).
-- After every Forms patch: `14- --apply` (re-activation) – add to the
-  `07-Maintenance` patch checklist.
+```
+  08-SSL/ssl_local_ca.sh  (creates)                09-Install/14-oracle_setup_forms.sh  (uses)
+  +------------------------------+                 +------------------------------------------+
+  | init     root CA             |                 | FORMS_SIGN_KEYSTORE set and jacob.jar    |
+  | server   TLS cert -> Nginx   |                 | unsigned:                                |
+  | codesign PKCS12 keystore ----+--- keystore --->|  jacob.jar -> jacob.jar.orig              |
+  |          + des3 password     |   + des3 pw     |  main manifest += Permissions/Codebase/  |
+  +------------------------------+                 |                   Application-Name       |
+     or: company CA / public CA ----- PKCS12 ----->|  jarsigner -digestalg SHA-256 [-tsa]     |
+                                                   |  jarsigner -verify -> activate           |
+                                                   |  (WebUtilArchive, extensions.jnlp)       |
+                                                   +------------------------------------------+
+```
 
-## 14. State on the test host (2026-10-15, confirmed (live))
+- **Creating** (08-SSL) and **using** (14-) are separate: 14- signs with any
+  PKCS12 keystore – from the own root CA, a company CA or a public CA.
+  Variables `FORMS_SIGN_KEYSTORE`, `FORMS_SIGN_ALIAS`, `FORMS_SIGN_TSA_URL`
+  (`environment.conf`), password `FORMS_SIGN_STOREPASS` in
+  `forms_sign_sec.conf.des3`. Details: `09-Install/docs/14-forms-detail-settings.md`
+  Step 1, `08-SSL/README.md` section "ssl_local_ca.sh".
+- Verification after signing **without `-strict`**: the server JDK does not
+  trust an own / company root ("PKIX path building failed") – trust is a
+  client matter (**confirmed (live)**).
+- Still open:
+  - Windows client: FSAL with unsigned and signed `jacob.jar`, JWS with the
+    own-root-signed jar (root imported), revocation behaviour of JWS with a
+    CA without CRL / OCSP, real OLE call (Excel).
+  - After every Forms patch: `14- --apply` (re-activation) – entry in the
+    `07-Maintenance` patch documentation done.
+
+## 14. State on the test host (confirmed (live))
+
+**2026-10-17 – signed and active:** own root CA `$ORACLE_BASE/admin/pki`
+(`ssl_local_ca.sh init`), Nginx TLS certificate from that root (deployed by
+`05-root_nginx_ssl.sh`, `openssl s_client -CAfile ca.crt` → `Verify return
+code: 0`), code-signing keystore (`codesign`); `14- --apply` signed
+`jacob.jar` with DigiCert timestamp (signer certificate until 2029-10-16,
+timestamp until 2031-11-10), `WebUtilArchive=frmwebutil.jar,jacob.jar`,
+`extensions.jnlp` entry active, jar served (HTTP 200, 61050 bytes); second
+run idempotent.
+
+History 2026-10-15:
 
 Before the fix (first table) – after `FORMS_WEBUTIL_JACOB=true`, `04-` and
 `14- --apply` the same day: JACOB 1.21 downloaded (SHA-256 OK), jar + DLLs
@@ -382,6 +420,8 @@ Oracle Forms 14.1.2 – *Working with Oracle Forms*:
   https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/releasenotes-fnr/lifecycle-management-information.html
 
 Java:
+- JAR File Manifest Attributes for Security (`Permissions` required in the
+  main jar only, `Codebase`): https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/manifest.html
 - `jarsigner` (JDK 21): https://docs.oracle.com/en/java/javase/21/docs/specs/man/jarsigner.html
 - Signing JAR Files (Java Tutorials): https://docs.oracle.com/javase/tutorial/deployment/jar/signing.html
 - Java Web Start FAQ ("all JAR files used in a JNLP file … signed by the same

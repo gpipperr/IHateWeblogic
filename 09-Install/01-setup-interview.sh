@@ -484,6 +484,104 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     *) REPORTS_SECURITY="${REPORTS_SECURITY:-identifier}" ;;
 esac
 
+# Forms WebUtil OLE (JACOB) + code signing of jacob.jar (14-oracle_setup_forms.sh,
+# docs/14 Step 1). Keystore exists -> alias + password (des3), checked here.
+# Keystore missing -> created in 14- by the local CA (08-SSL/ssl_local_ca.sh);
+# its subject values go into 08-SSL/ssl.conf (the SSL module's config).
+SSL_CONF="$ROOT_DIR/08-SSL/ssl.conf"
+FORMS_SIGN_SEC_FILE="$ROOT_DIR/forms_sign_sec.conf.des3"
+SSL_CONF_KEYS=()
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|FORMS_ONLY)
+        printf "\n"
+        _ask_menu FORMS_WEBUTIL_JACOB "WebUtil OLE / Office automation (JACOB, CLIENT_OLE2)" \
+            "false:No - not needed (default)" \
+            "true:Yes - install JACOB and sign jacob.jar"
+        ;;
+    *) FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}" ;;
+esac
+
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+    _ca_dir="${SSL_CA_DIR:-$(ENV_CONF="$SSL_CONF" _conf_get SSL_CA_DIR)}"
+    _ca_dir="${_ca_dir:-${ORACLE_BASE}/admin/pki}"
+    info "Code-signing keystore (PKCS12) for jacob.jar - existing (company / public CA)"
+    info "  or created by the own root CA in 14- if the file does not exist"
+    _ask FORMS_SIGN_KEYSTORE "Code-signing keystore (.p12)" "${_ca_dir}/codesign/codesign.p12"
+    _ask FORMS_SIGN_ALIAS    "Keystore alias"               "forms_codesign"
+
+    if [ -f "$FORMS_SIGN_KEYSTORE" ]; then
+        FORMS_SIGN_LOCALCA="false"
+        ok "$(printf "  %-30s %s" "keystore found" "$FORMS_SIGN_KEYSTORE")"
+        info "Keystore password -> encrypted to: $(basename "$FORMS_SIGN_SEC_FILE")"
+        # Check: keystore opens with the password and contains the alias
+        # (password via temp file). A typed password gets 3 attempts; a wrong
+        # one is never written to the des3 file.
+        _ks_pw="$(mktemp)"; chmod 600 "$_ks_pw"
+        _try=1
+        while :; do
+            _ask_password FORMS_SIGN_STOREPASS "Keystore password" "$FORMS_SIGN_SEC_FILE"
+            if [ "$FORMS_SIGN_STOREPASS" = "****" ]; then
+                ( load_secrets_file "$FORMS_SIGN_SEC_FILE" >/dev/null 2>&1 \
+                    && printf '%s\n' "${FORMS_SIGN_STOREPASS:-}" > "$_ks_pw" )
+            else
+                printf '%s\n' "$FORMS_SIGN_STOREPASS" > "$_ks_pw"
+            fi
+            openssl pkcs12 -in "$FORMS_SIGN_KEYSTORE" -nokeys -passin "file:$_ks_pw" \
+                -out /dev/null 2>/dev/null && break
+            if [ "$FORMS_SIGN_STOREPASS" = "****" ]; then
+                warn "Keystore does not open with the password in $(basename "$FORMS_SIGN_SEC_FILE")"
+                info "  Re-run with --reset (or delete $(basename "$FORMS_SIGN_SEC_FILE")) to enter it again"
+                break
+            fi
+            if [ "$_try" -ge 3 ]; then
+                fail "Keystore does not open with this password – password NOT saved"
+                FORMS_SIGN_STOREPASS=""
+                break
+            fi
+            warn "Keystore does not open with this password – try again ($_try/3)"
+            _try=$(( _try + 1 ))
+        done
+        if [ -n "$FORMS_SIGN_STOREPASS" ] && openssl pkcs12 -in "$FORMS_SIGN_KEYSTORE" -nokeys \
+                -passin "file:$_ks_pw" -out /dev/null 2>/dev/null; then
+            if openssl pkcs12 -in "$FORMS_SIGN_KEYSTORE" -nokeys -passin "file:$_ks_pw" 2>/dev/null \
+                    | grep -q "friendlyName: ${FORMS_SIGN_ALIAS}\$"; then
+                ok "$(printf "  %-30s %s" "keystore check" "opens, alias ${FORMS_SIGN_ALIAS} present")"
+            else
+                warn "Alias '${FORMS_SIGN_ALIAS}' not found in $FORMS_SIGN_KEYSTORE"
+                info "  List aliases: keytool -list -keystore $FORMS_SIGN_KEYSTORE -storetype PKCS12"
+            fi
+        fi
+        rm -f "$_ks_pw"; unset _ks_pw _try
+    else
+        FORMS_SIGN_LOCALCA="true"
+        info "Keystore not found - 14- creates it with the own root CA (08-SSL/ssl_local_ca.sh)."
+        info "  Subject values -> 08-SSL/ssl.conf; keystore password is generated (des3)."
+        info "  The root (ca.cer) must later be imported on every client once."
+        # Defaults/kept values come from ssl.conf (ENV_CONF redirected for _ask)
+        ENV_CONF="$SSL_CONF" _ask SSL_ORG     "Organization (certificate O=)" "Company GmbH"
+        ENV_CONF="$SSL_CONF" _ask SSL_COUNTRY "Country (2 letters)"           "DE"
+        SSL_CONF_KEYS=(SSL_ORG SSL_COUNTRY)
+        if [ ! -f "${_ca_dir}/ca/ca.crt" ]; then
+            ENV_CONF="$SSL_CONF" _ask SSL_CA_CN "Root CA name (new CA)" "${SSL_ORG} Root CA"
+            SSL_CONF_KEYS+=(SSL_CA_CN)
+        else
+            ok "$(printf "  %-30s %s" "root CA exists" "${_ca_dir}/ca/ca.crt")"
+        fi
+        ENV_CONF="$SSL_CONF" _ask SSL_CODESIGN_CN   "Code-signing certificate name" "${SSL_ORG} Forms Code Signing"
+        ENV_CONF="$SSL_CONF" _ask SSL_CODESIGN_DAYS "Code-signing validity (days)"  "1095"
+        SSL_CONF_KEYS+=(SSL_CODESIGN_CN SSL_CODESIGN_DAYS)
+    fi
+    info "Timestamp authority: signatures stay valid after the certificate expires;"
+    info "  needs outbound HTTP from this server. Empty = no timestamp (not for production)."
+    _ask FORMS_SIGN_TSA_URL "Timestamp URL (jarsigner -tsa)" "http://timestamp.digicert.com" "" "optional"
+    unset _ca_dir
+else
+    FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE:-}"
+    FORMS_SIGN_ALIAS="${FORMS_SIGN_ALIAS:-forms_codesign}"
+    FORMS_SIGN_TSA_URL="${FORMS_SIGN_TSA_URL:-}"
+    FORMS_SIGN_LOCALCA="${FORMS_SIGN_LOCALCA:-false}"
+fi
+
 printf "\n"
 info "Sizes ulimits (nofile/nproc) for the oracle OS user – see"
 info "  09-Install/docs/00-root_set_os_parameter.md for the full rationale."
@@ -630,6 +728,23 @@ _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
 _show "REPORTS_ADMIN_USER"   "${REPORTS_ADMIN_USER:-}"
+_show "FORMS_WEBUTIL_JACOB"  "${FORMS_WEBUTIL_JACOB:-false}"
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+    _show "FORMS_SIGN_KEYSTORE" "$FORMS_SIGN_KEYSTORE$([ "$FORMS_SIGN_LOCALCA" = "true" ] && printf '  (created by 14- via local CA)')"
+    _show "FORMS_SIGN_ALIAS"    "$FORMS_SIGN_ALIAS"
+    _show "FORMS_SIGN_TSA_URL"  "${FORMS_SIGN_TSA_URL:-(none - no timestamp)}"
+    if [ "$FORMS_SIGN_LOCALCA" != "true" ]; then
+        if [ -n "${FORMS_SIGN_STOREPASS:-}" ]; then
+            _show "FORMS_SIGN_STOREPASS" "****  → $(basename "$FORMS_SIGN_SEC_FILE")"
+        else
+            _show "FORMS_SIGN_STOREPASS" "(not saved – wrong password, run again)"
+        fi
+    fi
+    for _k in "${SSL_CONF_KEYS[@]}"; do
+        _show "$_k" "${!_k}  → 08-SSL/ssl.conf"
+    done
+    unset _k
+fi
 _show "EXPECTED_SESSIONS"    "$EXPECTED_SESSIONS"
 _show "ULIMIT_NOFILE"        "${ULIMIT_NOFILE:-(unset – manual capacity planning)}"
 _show "ULIMIT_NPROC"         "${ULIMIT_NPROC:-(unset – manual capacity planning)}"
@@ -746,6 +861,15 @@ REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
 REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
 
+# --- Forms WebUtil OLE (JACOB) + code signing of jacob.jar (14-) ---------------
+FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
+# PKCS12 keystore; password FORMS_SIGN_STOREPASS -> forms_sign_sec.conf.des3
+FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE}"
+FORMS_SIGN_ALIAS="${FORMS_SIGN_ALIAS}"
+FORMS_SIGN_TSA_URL="${FORMS_SIGN_TSA_URL}"
+# true = 14- creates the keystore with the own root CA (08-SSL/ssl_local_ca.sh)
+FORMS_SIGN_LOCALCA="${FORMS_SIGN_LOCALCA:-false}"
+
 # --- ulimits (oracle OS user) -------------------------------------------------
 # Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
 # confirmed real-world production value. See docs/00-root_set_os_parameter.md.
@@ -805,6 +929,33 @@ if [ -n "${REPORTS_ADMIN_PWD:-}" ] && [ "$REPORTS_ADMIN_PWD" != "****" ]; then
     unset REPORTS_ADMIN_PWD
 fi
 
+if [ -n "${FORMS_SIGN_STOREPASS:-}" ] && [ "$FORMS_SIGN_STOREPASS" != "****" ]; then
+    _write_secrets_file "$FORMS_SIGN_SEC_FILE" "FORMS_SIGN_STOREPASS=$FORMS_SIGN_STOREPASS"
+    unset FORMS_SIGN_STOREPASS
+fi
+
+# Local CA subject values -> 08-SSL/ssl.conf (replace the key or append it;
+# a new ssl.conf holds only these keys, the 08-SSL scripts default the rest)
+if [ "${#SSL_CONF_KEYS[@]}" -gt 0 ]; then
+    [ -f "$SSL_CONF" ] && backup_file "$SSL_CONF" "$(dirname "$SSL_CONF")"
+    if [ ! -f "$SSL_CONF" ]; then
+        printf "# ssl.conf – written by 09-Install/01-setup-interview.sh %s\n" \
+            "$(date '+%Y-%m-%d %H:%M:%S')" > "$SSL_CONF"
+    fi
+    chmod 600 "$SSL_CONF"
+    for _k in "${SSL_CONF_KEYS[@]}"; do
+        _line="$(printf '%s="%s"' "$_k" "${!_k}")"
+        if grep -q "^${_k}=" "$SSL_CONF"; then
+            _esc="$(printf '%s' "$_line" | sed 's/[&|\\]/\\&/g')"
+            sed -i "s|^${_k}=.*|${_esc}|" "$SSL_CONF"
+        else
+            printf '%s\n' "$_line" >> "$SSL_CONF"
+        fi
+    done
+    unset _k _line _esc
+    ok "Local CA parameters written: $SSL_CONF"
+fi
+
 if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
     _write_secrets_file "$MOS_SEC_FILE" "MOS_USER=$MOS_USER" "MOS_PWD=$MOS_PWD"
     unset MOS_PWD
@@ -853,6 +1004,11 @@ REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
 REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
+FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE}"
+FORMS_SIGN_ALIAS="${FORMS_SIGN_ALIAS}"
+FORMS_SIGN_TSA_URL="${FORMS_SIGN_TSA_URL}"
+FORMS_SIGN_LOCALCA="${FORMS_SIGN_LOCALCA:-false}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
 ULIMIT_NOFILE="${ULIMIT_NOFILE}"
 ULIMIT_NPROC="${ULIMIT_NPROC}"
@@ -871,6 +1027,7 @@ MOS_USER="${MOS_USER}"
 # DB_SYS_PWD + DB_SCHEMA_PWD → db_sys_sec.conf.des3
 # EMBEDDED_LDAP_PWD → embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap)
 # REPORTS_ADMIN_PWD → reports_admin_sec.conf.des3 (rwserver.conf <identifier>)
+# FORMS_SIGN_STOREPASS → forms_sign_sec.conf.des3 (code-signing keystore)
 # Software versions / patch numbers → 09-Install/oracle_software_version.conf
 SETUPEOF
 

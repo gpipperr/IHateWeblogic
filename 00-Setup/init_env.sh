@@ -1128,6 +1128,10 @@ if $APPLY; then
         _append_if_missing "FORMS_CUSTOMER_DIR"   "$CONF_FORMS_CUSTOMER_DIR"  "$ENV_CONF"
         _append_if_missing "FORMS_TMP"            "$CONF_FORMS_TMP"           "$ENV_CONF"
         _append_if_missing "FORMS_WEBUTIL_JACOB"  "false"                     "$ENV_CONF"
+        _append_if_missing "FORMS_SIGN_KEYSTORE"  ""                          "$ENV_CONF"
+        _append_if_missing "FORMS_SIGN_ALIAS"     "forms_codesign"            "$ENV_CONF"
+        _append_if_missing "FORMS_SIGN_TSA_URL"   ""                          "$ENV_CONF"
+        _append_if_missing "FORMS_SIGN_LOCALCA"   "false"                     "$ENV_CONF"
         _append_if_missing "ORACLE_HOME"           "$CONF_ORACLE_HOME"      "$ENV_CONF"
         _append_if_missing "WL_HOME"               "\${ORACLE_HOME}/wlserver" "$ENV_CONF"
         _append_if_missing "JDK_HOME"              "$CONF_JAVA_HOME"        "$ENV_CONF"
@@ -1267,6 +1271,15 @@ FORMS_TMP="${CONF_FORMS_TMP}"
 # FORMS_WEBUTIL_JACOB: install JACOB for WebUtil OLE / Office automation
 # (CLIENT_OLE2) – downloaded by 04-, installed by 14- (default: false)
 FORMS_WEBUTIL_JACOB="false"
+# Code signing of jacob.jar by 14- (empty keystore = do not sign).
+# Keystore: PKCS12, e.g. from 08-SSL/ssl_local_ca.sh codesign --apply
+# (\$ORACLE_BASE/admin/pki/codesign/codesign.p12); password in
+# forms_sign_sec.conf.des3. TSA URL: timestamp server (empty = no timestamp)
+FORMS_SIGN_KEYSTORE=""
+FORMS_SIGN_ALIAS="forms_codesign"
+FORMS_SIGN_TSA_URL=""
+# true = 14- creates a missing keystore with the own root CA (ssl_local_ca.sh)
+FORMS_SIGN_LOCALCA="false"
 
 # --- Reports / Forms Binaries ------------------------------------------------
 RWRUN="\${ORACLE_HOME}/bin/rwrun"

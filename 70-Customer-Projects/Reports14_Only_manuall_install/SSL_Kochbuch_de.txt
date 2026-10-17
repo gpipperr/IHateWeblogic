@@ -44,19 +44,23 @@ VORAUSSETZUNGEN
     export SSL_KEY_FILE=/u01/oracle/certs/server.key
     export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt
     export SSL_CSR_FILE=/u01/oracle/certs/server.csr
+    export SSL_CA_DIR=/u01/oracle/certs/ca          # nur Option D
+    export SSL_CA_CN="Company GmbH Root CA"         # nur Option D
 
   Alle Befehle in diesem Kochbuch laufen als oracle-User, es sind KEINE
   root-Rechte und keine Backup-Automatik vorhanden - vor jedem Austausch
   eines produktiven Zertifikats daher immer erst Schritt "Backup vor
   Zertifikatswechsel" ausfuehren.
 
-  Drei Varianten stehen zur Auswahl - je nachdem, woher das Zertifikat
+  Vier Varianten stehen zur Auswahl - je nachdem, woher das Zertifikat
   stammen soll:
     Option A: Selbstsigniert (schnell, aber Browser-Warnung)
     Option B: Interne CA via Easy-RSA (fuer interne/Test-Umgebungen,
               Clients muessen der CA vertrauen)
     Option C: Externe/oeffentliche CA (produktionstauglich, benoetigt
               einen manuellen Zwischenschritt bei der CA)
+    Option D: Eigene Root-CA nur mit openssl (wie B, ohne Zusatzpaket;
+              empfohlen, wenn es keine Firmen-PKI gibt)
 
 
 ================================================================================
@@ -238,6 +242,143 @@ EOF
 
 
 ================================================================================
+OPTION D: Eigene Root-CA mit openssl  (als oracle, ohne Zusatzpaket)
+================================================================================
+
+  # Wie Option B (ein Vertrauensanker fuer alle Clients), aber nur mit
+  # openssl - kein Easy-RSA / EPEL noetig. Dieselbe Root kann spaeter auch
+  # ein Code-Signing-Zertifikat ausstellen (nur Forms/WebUtil, siehe D.4).
+  # Die Clients importieren NUR die Root, einmalig. Neue Server-Zertifikate
+  # unter derselben Root (z.B. nach 825 Tagen) brauchen auf den Clients
+  # keine Aenderung.
+  #
+  # Aufbau:
+  #
+  #          Root-CA  ca.crt  (10 Jahre, Schluessel AES-256 verschluesselt)
+  #             |
+  #             +-- server/<cn>.crt   TLS fuer Nginx   (825 Tage)
+  #             +-- codesign.p12      Code-Signing     (3 Jahre, nur Forms)
+  #
+  # Werte aus install.ini: SSL_CA_DIR, SSL_CA_CN (+ SSL_* wie oben).
+
+  # --- D.1 Verzeichnis und Root-CA (EINMALIG) --------------------------------
+  mkdir -p "$SSL_CA_DIR"/ca "$SSL_CA_DIR"/server
+  chmod 700 "$SSL_CA_DIR" "$SSL_CA_DIR"/ca "$SSL_CA_DIR"/server
+  cd "$SSL_CA_DIR"
+
+  cat > ca/ca.cnf << CNF
+[req]
+distinguished_name = dn
+prompt = no
+
+[dn]
+C  = ${SSL_COUNTRY}
+O  = ${SSL_ORG}
+OU = ${SSL_ORG_UNIT}
+CN = ${SSL_CA_CN}
+
+[v3_ca]
+basicConstraints = critical, CA:TRUE, pathlen:0
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+CNF
+
+  # Root-Schluessel - fragt nach einer Passphrase (zweimal). Die Passphrase
+  # im Passwort-Safe ablegen: ohne sie kann unter dieser Root nie wieder
+  # ein Zertifikat ausgestellt werden.
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
+      -aes-256-cbc -out ca/ca.key
+  chmod 600 ca/ca.key
+
+  # Root-Zertifikat (selbstsigniert, 10 Jahre) - fragt nach der Passphrase
+  openssl req -x509 -new -key ca/ca.key -sha256 -days 3650 \
+      -config ca/ca.cnf -extensions v3_ca -out ca/ca.crt
+  # DER-Variante fuer Windows / Gruppenrichtlinie
+  openssl x509 -in ca/ca.crt -outform DER -out ca/ca.cer
+  chmod 644 ca/ca.crt ca/ca.cer
+
+  # Kontrolle: "CA:TRUE" und 10 Jahre
+  openssl x509 -in ca/ca.crt -noout -subject -enddate -ext basicConstraints
+
+  # --- D.2 Server-Zertifikat fuer Nginx --------------------------------------
+  cat > server/server.cnf << CNF
+[req]
+distinguished_name = dn
+prompt = no
+
+[dn]
+C  = ${SSL_COUNTRY}
+ST = ${SSL_STATE}
+L  = ${SSL_CITY}
+O  = ${SSL_ORG}
+OU = ${SSL_ORG_UNIT}
+CN = ${SSL_CN}
+
+[ext]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:${SSL_CN}
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+CNF
+
+  # Schluessel (ohne Passphrase - Nginx muss ihn beim Start lesen) + CSR
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${SSL_KEY_SIZE} \
+      -out server/${SSL_CN}.key
+  chmod 600 server/${SSL_CN}.key
+  openssl req -new -key server/${SSL_CN}.key -config server/server.cnf \
+      -out server/${SSL_CN}.csr
+
+  # Mit der Root signieren - fragt nach der Root-Passphrase
+  openssl x509 -req -in server/${SSL_CN}.csr -out server/${SSL_CN}.crt \
+      -days ${SSL_DAYS} -sha256 \
+      -CA ca/ca.crt -CAkey ca/ca.key -CAserial ca/ca.srl -CAcreateserial \
+      -extfile server/server.cnf -extensions ext
+
+  # Kontrolle: Kette und SAN
+  openssl verify -CAfile ca/ca.crt server/${SSL_CN}.crt     # -> OK
+  openssl x509 -in server/${SSL_CN}.crt -noout -ext subjectAltName
+
+  # In die Zielpfade kopieren (Chain = Root, Nginx bekommt Zertifikat + Root)
+  cp server/${SSL_CN}.crt "$SSL_CERT_FILE"  && chmod 644 "$SSL_CERT_FILE"
+  cp server/${SSL_CN}.key "$SSL_KEY_FILE"   && chmod 600 "$SSL_KEY_FILE"
+  cp ca/ca.crt            "$SSL_CHAIN_FILE" && chmod 644 "$SSL_CHAIN_FILE"
+
+  # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
+  # ausrollen". Test danach (muss "Verify return code: 0 (ok)" zeigen):
+  echo | openssl s_client -connect localhost:443 -servername "$SSL_CN" \
+      -CAfile "$SSL_CA_DIR"/ca/ca.crt 2>/dev/null | grep "Verify return code"
+
+  # --- D.3 Root an die Clients verteilen -------------------------------------
+  #   Windows : ca.cer in "Vertrauenswuerdige Stammzertifizierungsstellen"
+  #             (certmgr.msc oder per Gruppenrichtlinie fuer alle PCs)
+  #   Linux   : cp ca.crt /etc/pki/ca-trust/source/anchors/ && update-ca-trust
+  #   NIEMALS ca.key weitergeben - nur ca.crt / ca.cer.
+
+  # --- D.4 Code-Signing-Zertifikat (NUR Forms mit WebUtil/JACOB) ------------
+  #   Fuer eine reine Reports-Installation NICHT noetig - ueberspringen.
+  #   Forms: jacob.jar muss signiert sein, damit Java Web Start es laedt.
+  #   Ablauf mit derselben Root (Details: IHateWeblogic 08-SSL/README.md):
+  #     openssl genpkey ... -> codesign.key
+  #     [ext] mit "extendedKeyUsage = critical, codeSigning",
+  #           "keyUsage = critical, digitalSignature"
+  #     openssl x509 -req ... -days 1095 -> codesign.crt
+  #     openssl pkcs12 -export -inkey codesign.key -in codesign.crt \
+  #         -certfile ca/ca.crt -name forms_codesign -out codesign.p12
+  #     rm codesign.key
+  #     jarsigner -keystore codesign.p12 -storetype PKCS12 -digestalg SHA-256 \
+  #         -tsa http://timestamp.digicert.com jacob.jar forms_codesign
+
+  # --- D.5 Erneuern -----------------------------------------------------------
+  #   Server-Zertifikat laeuft ab: nur D.2 wiederholen (alte Dateien vorher
+  #   umbenennen). Root bleibt, Clients unveraendert.
+  #   Root laeuft ab (10 Jahre) oder ca.key verloren: D.1 neu + D.3 auf
+  #   ALLEN Clients wiederholen.
+
+
+================================================================================
 AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
 ================================================================================
 
@@ -313,6 +454,19 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: Nur loeschen und neu initialisieren, wenn wirklich eine neue
            CA gewuenscht ist (betrifft ALLE bisher ausgestellten
            Zertifikate dieser CA!)
+
+  Problem: "openssl verify" / s_client meldet "unable to get local issuer
+           certificate" (Option D)
+  Ursache: Root nicht angegeben bzw. auf dem Client nicht importiert
+  Loesung: Pruefen mit -CAfile "$SSL_CA_DIR"/ca/ca.crt; auf den Clients
+           D.3 ausfuehren. Nginx muss Zertifikat + Root ausliefern
+           ($SSL_CHAIN_FILE beim Ausrollen anhaengen).
+
+  Problem: "unable to load CA Private Key" / "bad decrypt" (Option D)
+  Ursache: Falsche Root-Passphrase
+  Loesung: Passphrase aus dem Passwort-Safe; ohne sie kann kein neues
+           Zertifikat unter dieser Root ausgestellt werden (dann D.1 + D.3
+           neu).
 
   Problem: Public-Key-Pruefsummen von Zertifikat und Schluessel stimmen
            nicht ueberein
