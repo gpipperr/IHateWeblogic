@@ -17,7 +17,7 @@ PDFs. Verified end-to-end on the test host 2026-10-19 (**confirmed (live)**,
 |---|-----------|---------------|-----|
 | 1 | **TTF file exists in REPORTS_FONT_DIRECTORY** | `ls $DOMAIN_HOME/reports/fonts/*.ttf` | `deploy_fonts.sh --apply` |
 | 2 | **REPORTS_FONT_DIRECTORY + REPORTS_ENHANCED_FONTHANDLING reach the engines** – the engines of the standalone Reports server render the PDF, not WLS_REPORTS | `cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ \| tr '\0' '\n' \| grep -E 'REPORTS_FONT\|ENHANCED'` | `$DOMAIN_HOME/reports/bin/reports.sh` (written by `13-`); `fontpath_config.sh` covers the WebLogic servers |
-| 3 | **Screen printer knows the font** (`screenprinter.ppd` + AFM) – every font is resolved here first; without it **every font becomes Type 1 `Symbol`** (Latin text as Greek glyphs) | `ls …/reptools1/guicommon/tk/admin/AFM/` | `paramform_afm_setup.sh --apply` |
+| 3 | **Substitute fonts only:** the screen printer knows the font (`screenprinter.ppd` + AFM). Needed when the report font is mapped to another TTF (Arial → Liberation Sans); without it such a font becomes Type 1 `Symbol` (Latin text as Greek glyphs). A font whose own TTF is deployed works without it | `ls …/reptools1/guicommon/tk/admin/AFM/` | `paramform_afm_setup.sh --apply` |
 | 4 | **uifont.ali [PDF:Subset] has the FAMILY of the resolved font** (`"Times"..`, `"Helvetica"..`, …) | `mfontchk <uifont.ali>`, then `pdffonts` | `uifont_ali_update.sh --apply` |
 | 5 | **Font cache is current** (fontconfig) | `fc-list \| grep <fontname>` | `font_cache_reset.sh --apply` |
 | 6 | **Reports server restarted** after every change – the engines read AFM / PPD / uifont.ali at start | `rwserver_status.sh` | `01-Run/startStop.sh stop repserver01 --apply` + `start …` |
@@ -27,7 +27,7 @@ Tahoma, Liberation Sans, DejaVu Sans (2026-10-19):
 
 | State | PDF (`pdffonts`) |
 |---|---|
-| fonts deployed, uifont.ali, **no AFM/PPD step** | everything `Symbol Type 1 emb=no` except the two Linux family names (`Type 1 emb=no`) |
+| fonts deployed, uifont.ali, **no AFM/PPD step** | all substitute fonts `Symbol Type 1 emb=no`; the two Linux family names (own TTF) `Type 1 emb=no` – embedded once they got own-name `[PDF:Subset]` entries |
 | + `paramform_afm_setup.sh --apply`, engines restarted | Arial/Helvetica → Liberation Sans, Courier → Liberation Mono **embedded**; Times → `Times-Roman Type 1 emb=no`; Tahoma → Liberation Mono (wrong) |
 | + `"Times"..`, own-name and `[Global] Tahoma = DejaVuSans` entries | **all fonts `CID TrueType emb=yes sub=yes`** (Liberation Sans/Serif/Mono, DejaVu Sans) |
 
@@ -122,14 +122,24 @@ Controlled by: `REPORTS_ENHANCED_FONTHANDLING=no`
 
 ## 3. Font Resolution Chain (Runtime)
 
-> **Correction 2026-10-19 (confirmed (live)):** the PDF path is **not**
-> independent of the screen printer. The engine first resolves every report
-> font through `[Global]` aliases and the screen printer (`screenprinter.ppd`
-> + AFM files); only a font found there is mapped by `[PDF:Subset]` to a TTF.
-> A font without AFM ends as Type 1 `Symbol` – in PDF and in the HTML
-> parameter form. Background: [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md).
+Which font goes which way (proven 2026-10-19, `rwrun` **and** the
+standalone Reports server, without AFM files, `pdffonts`):
 
-Resolution order as observed (strace + `pdffonts`, test host 2026-10-19):
+| Report font | Situation | PDF without the AFM/PPD step |
+|---|---|---|
+| a font whose **own TTF** is in `REPORTS_FONT_DIRECTORY` (e.g. a real `arial.ttf` – the customer case), **not** renamed by `[Global]` | direct way | **embedded TrueType** – the screen printer is not needed |
+| the same, but `[Global]` renames it (`Arial = helvetica`) | the alias wins | `Symbol Type 1` |
+| a **substitute** font: report says Arial / Helvetica / Times New Roman / Courier New / Tahoma, the server only has Liberation / DejaVu | substitution way | `Symbol Type 1` (Greek glyphs) |
+| any font, `NLS_LANG` `AL32UTF8` or `WE8MSWIN1252` | – | no difference |
+
+So the **two paths are real** (PDF: TTF in the font directory, HTML: screen
+printer); the screen-printer step (`paramform_afm_setup.sh`) is
+additionally required for PDF **when fonts are substituted** – i.e. when the
+original fonts are not on the server, which is the normal case without
+Windows font licences.
+
+Resolution of a **substitute** font as observed (strace + `pdffonts`, test
+host 2026-10-19; background: [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md)):
 
 ```
 Report font name (e.g. "Times New Roman")
@@ -518,7 +528,7 @@ cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ | tr '\0' '\n' | grep -E '
 | `fontpath_config.sh` | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
 | `pdf_font_verify.sh` | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
 | `font_cache_reset.sh` | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
-| `paramform_afm_setup.sh` | Set up AFM/PPD for the "screen printer" – **required for PDF and HTML** (every font is resolved there first) | domain-local AFM dir, screenprinter.ppd |
+| `paramform_afm_setup.sh` | Set up AFM/PPD for the "screen printer" – HTML parameter form / HTML output, and PDF **with substitute fonts** (section 3) | domain-local AFM dir, screenprinter.ppd |
 | `ttf2reports_afm.py` | Generate/check an AFM file from a TTF for the screen printer (called by `paramform_afm_setup.sh`) | nothing by itself (writes only to `-o <file>`) |
 
 All scripts default to **dry-run** mode. Add `--apply` to write changes.
@@ -552,7 +562,8 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 ### paramform_afm_setup.sh – behaviour
 
 - Fixes the "screen printer" (section 3): required for the HTML parameter
-  form **and** the PDF output (confirmed live 2026-10-19) – called by
+  form, and for the PDF output when fonts are substituted (Arial →
+  Liberation Sans …, confirmed live 2026-10-19) – called by
   `09-Install/14b-oracle_reports_fonts.sh` since then
 - Step A: creates `FontSpecific` copies of the standard PostScript AFMs
   (`Helvetica*`, `Courier*`, `Times*`) from the Oracle Home AFM directory into
@@ -624,7 +635,7 @@ Step 7 – Set REPORTS_FONT_DIRECTORY in setUserOverrides.sh
 ./04-ReportsFonts/fontpath_config.sh --apply      # write managed block
 
 
-Step 7b – Screen printer AFM/PPD (required for PDF and HTML)
+Step 7b – Screen printer AFM/PPD (HTML form; PDF with substitute fonts)
 ──────────────────────────────────────────────────────────────
 ./04-ReportsFonts/paramform_afm_setup.sh              # preview
 ./04-ReportsFonts/paramform_afm_setup.sh --apply      # AFMs + PPD entries
@@ -661,8 +672,10 @@ With the IHateWeblogic install chain steps 4–7b run in
 
 ```
 Symptom: pdf_font_verify shows Type 1 emb=no
-Cause 0: "Symbol Type 1" for (almost) every font → the screen printer has no
-         AFM for the fonts (confirmed live 2026-10-19)
+Cause 0: "Symbol Type 1" for the substituted fonts (Arial, Helvetica, Times,
+         Courier, Tahoma … mapped to Liberation / DejaVu) → the screen printer
+         has no AFM for them (confirmed live 2026-10-19); fonts with their own
+         TTF in the font directory are not affected
 Fix 0:   paramform_afm_setup.sh --apply, restart the Reports server
 Cause A: Reports Server not restarted after a change
          → engines still run with the old AFM / uifont.ali / environment
@@ -679,10 +692,12 @@ Fix B:   Run uifont_ali_update.sh --apply (generates both family and PS-name
 ```
 Symptom: Letters replaced by wrong glyphs (Symbol font substitution)
 
-PDF output and HTML output / HTML parameter form – same cause:
+HTML output / HTML parameter form – and PDF for substitute fonts:
 Cause:   The "screen printer" (screenprinter.ppd + AFM files) has no AFM for
          the requested font and falls back to Symbol (charset mismatch) or
-         *DefaultFont Courier – the PDF then carries "Symbol Type 1"
+         *DefaultFont Courier – the PDF then carries "Symbol Type 1".
+         A font whose own TTF is deployed (real arial.ttf, no [Global]
+         alias) renders correctly in the PDF without it.
 Fix:     Run paramform_afm_setup.sh --apply (generates AFMs + *Font PPD
          entries), then restart the Reports engine. Full root-cause writeup
          and manual steps: HTML_ParameterForm_Fonts.md

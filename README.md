@@ -802,8 +802,8 @@ work (details of every fix: `git log`).
   Nginx – disable them in `09-Install/08-` (offline WLST), plan in
   `09-Install/docs/08-oracle_setup_domain.md` "Open: SSL listen ports …".
 - [ ] **Font check in the smoke test `15-`** (2026-10-19): the `test_dual` PDF of
-  `15-` "passed" while every font in it was Type 1 `Symbol` (missing AFM/PPD step,
-  now in `14b-`). Add a font test report (Arial, Helvetica, Times New Roman,
+  `15-` "passed" while its (substituted) default font was Type 1 `Symbol` (missing
+  AFM/PPD step, now in `14b-`). Add a font test report (Arial, Helvetica, Times New Roman,
   Courier New, Tahoma, Liberation, DejaVu – prototype tested live 2026-10-19) and
   check it with `04-ReportsFonts/pdf_font_verify.sh`.
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports

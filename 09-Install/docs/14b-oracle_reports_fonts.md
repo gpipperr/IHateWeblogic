@@ -52,15 +52,18 @@ existing font scripts from `04-ReportsFonts/`.
 ./04-ReportsFonts/paramform_afm_setup.sh --apply
 ```
 
-**Step 5 is required for PDF too** (confirmed live 2026-10-19, rwrun and
-Reports server): the engine first resolves every font through the screen
-printer (`screenprinter.ppd` + AFM files, ReportsTools component); only a
-font found there is then mapped by `[PDF:Subset]` to a TTF and embedded.
-Without step 5 *every* font of the test report (Arial, Helvetica, Times New
-Roman, Courier New, Tahoma) came out as non-embedded **Type 1 "Symbol"** –
-Latin text shown as Greek glyphs. After step 5 + `uifont_ali_update.sh`
-all of them are embedded TrueType (Liberation / DejaVu). Restart the
-Reports server afterwards – the engines read the files at start.
+**Step 5 – HTML form, and PDF with substitute fonts** (confirmed live
+2026-10-19, rwrun and Reports server): a report font whose own TTF is in
+`REPORTS_FONT_DIRECTORY` (e.g. a real `arial.ttf`, no `[Global]` alias)
+renders in the PDF without it. A **substitute** font (Arial / Helvetica /
+Times New Roman / Courier New / Tahoma mapped to Liberation / DejaVu – the
+normal case without Windows font licences) is resolved through the screen
+printer (`screenprinter.ppd` + AFM files) first; without step 5 the test
+report showed all of them as non-embedded **Type 1 "Symbol"** (Greek
+glyphs), with step 5 + `uifont_ali_update.sh` as embedded TrueType.
+`NLS_LANG` (`AL32UTF8` / `WE8MSWIN1252`) made no difference. The script
+always runs step 5 – it does no harm when the original TTFs are present.
+Restart the Reports server afterwards – the engines read the files at start.
 
 `cgicmd.dat` – default key for the report calls of the applications
 (server = Reports server **component**, `REPORTS_SERVER_NAME`, not the managed
@@ -101,7 +104,7 @@ Then back up and restart:
 | 2 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` |
 | 3 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` |
 | 4 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` |
-| 4b | Screen-printer AFM/PPD | `04-ReportsFonts/paramform_afm_setup.sh --apply` – required for PDF **and** HTML (see above) |
+| 4b | Screen-printer AFM/PPD | `04-ReportsFonts/paramform_afm_setup.sh --apply` – HTML form; PDF with substitute fonts (see above) |
 | 5 | cgicmd.dat | `response_files/cgicmd.dat.template` with the `authid` from `reports_users.conf.des3` (`REPORTS_EXEC_USER/PWD`): append, or **replace** an existing IHateWeblogic block; `chmod 640`; password never logged |
 | 6 | Config backup | `07-Maintenance/backup_config.sh --apply` (now incl. Reports/Forms/font config) |
 

@@ -26,21 +26,26 @@
 
 VORAUSSETZUNGEN
 ----------------
-  Oracle Reports braucht ZWEI Bausteine - fuer die PDF-Ausgabe BEIDE:
-    1. "screen printer" (screenprinter.ppd + AFM-Metrikdateien, Teil B /
-       Schritt 8): JEDE Schrift eines Reports wird zuerst hier aufgeloest.
-       Gibt es keine passende AFM-Datei, wird daraus "Symbol" - im PDF wie
-       im HTML-Parameterformular erscheint lateinischer Text dann als
-       griechische Zeichen.
-    2. uifont.ali [PDF:Subset] + TrueType-Dateien in REPORTS_FONT_DIRECTORY
-       (Teil A / Schritte 1-7): bildet die gefundene Schrift fuer das PDF
-       auf eine TTF ab, die eingebettet wird.
-  Getestet am 2026-10-19 (Testsystem, rwrun und Reports Server): ohne
-  Schritt 8 wurden Arial, Helvetica, Times New Roman, Courier New und
-  Tahoma im PDF alle zu "Symbol" (Type 1, nicht eingebettet); mit Schritt 8
-  und den Eintraegen aus Schritt 4 alle zu eingebetteten TrueType-Schriften.
-  Reihenfolge daher: Schritte 1-5, dann Schritt 8, dann Neustart (Schritt 6)
-  und Test (Schritt 7).
+  Oracle Reports kennt ZWEI Font-Mechanismen:
+    1. PDF-Ausgabe (desformat=pdf): uifont.ali + TrueType-Fonts in
+       REPORTS_FONT_DIRECTORY (Teil A, Schritte 1-7)
+    2. HTML-Ausgabe / HTML-Parameterformular: "screen printer"
+       (screenprinter.ppd + AFM-Metrikdateien, Teil B, Schritt 8)
+  Liegen die Original-Schriften als TTF auf dem Server (z.B. arial.ttf aus
+  Windows), reicht fuer das PDF Teil A - so beim Kunden.
+  ABER bei ERSATZSCHRIFTEN (keine arial.ttf auf dem Server, Arial wird auf
+  Liberation Sans abgebildet) braucht auch das PDF Teil B: ohne AFM-Datei
+  wird die Schrift im PDF zu "Symbol" (Type 1, griechische Zeichen).
+  Getestet am 2026-10-19 (Testsystem, rwrun und Reports Server, ohne
+  AFM-Dateien):
+    - eigene TTF mit Familie "Arial", ohne [Global]-Alias -> eingebettet
+    - dieselbe TTF, aber "Arial = helvetica" in [Global]   -> Symbol
+    - nur Ersatzschriften (Liberation/DejaVu) fuer Arial, Helvetica,
+      Times New Roman, Courier New, Tahoma                -> Symbol
+    - NLS_LANG AL32UTF8 oder WE8MSWIN1252                 -> kein Unterschied
+  Mit Schritt 8 und den Eintraegen aus Schritt 4 wurden alle Ersatzschriften
+  eingebettet. Empfehlung: Teil B immer mit einrichten (schadet nicht);
+  Reihenfolge Schritte 1-5, Schritt 8, Neustart (6), Test (7).
 
     export ORACLE_HOME=/u01/oracle/fmw
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
@@ -257,13 +262,12 @@ TEIL B: HTML-PARAMETERFORMULAR-FONTPFAD (PPD + AFM, "screen printer")
 SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
 --------------------------------------------------------------------------------
 
-  # SYMPTOM: Griechische/Symbol-Zeichen statt lateinischer Schrift - im
-  # HTML-Parameterformular UND (am Testsystem 2026-10-19 nachgewiesen) auch
-  # im PDF. URSACHE: Jede Schrift wird zuerst ueber den "screen printer"
-  # (screenprinter.ppd + AFM-Dateien) aufgeloest. Ohne passende AFM-Datei
-  # faellt Reports auf *DefaultFont (Courier) oder - bei
-  # Zeichensatzkonflikt - auf Symbol zurueck. Dieser Schritt ist deshalb
-  # auch fuer die PDF-Ausgabe PFLICHT.
+  # SYMPTOM: Griechische/Symbol-Zeichen statt lateinischer Schrift im
+  # HTML-Parameterformular - und bei Ersatzschriften (siehe
+  # VORAUSSETZUNGEN) auch im PDF. URSACHE: Das Parameterformular nutzt den
+  # "screen printer" (screenprinter.ppd + AFM-Dateien). Ohne passende
+  # AFM-Datei faellt Reports auf *DefaultFont (Courier) oder - bei
+  # Zeichensatzkonflikt - auf Symbol zurueck.
 
   export TK_ADMIN="${REPORTS_ADMIN}"
   export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
@@ -348,8 +352,10 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: PDF zeigt "Symbol  Type 1  no no no" (Text als griechische
            Zeichen)
-  Ursache: Schrift im "screen printer" nicht gefunden - Schritt 8 (AFM/PPD)
-           fehlt, oder die Engines wurden danach nicht neu gestartet
+  Ursache: Ersatzschrift (z.B. Arial -> Liberation Sans) ohne AFM-Datei im
+           "screen printer" - Schritt 8 fehlt, oder die Engines wurden
+           danach nicht neu gestartet. (Eine Schrift mit eigener TTF ohne
+           [Global]-Alias waere davon nicht betroffen.)
   Loesung: Schritt 8 durchfuehren, Reports Server neu starten (Schritt 6)
 
   Problem: PDF zeigt eine Schrift als Type 1 ohne Einbettung (z.B.
@@ -368,8 +374,8 @@ BEKANNTE PROBLEME UND LOESUNGEN
            .ttf-Erweiterung.
 
   Problem: Parameterformular zeigt griechische/Symbol-Zeichen
-  Ursache: Schritt 8 (AFM/PPD) fehlt - Teil A allein reicht weder fuer
-           HTML noch fuer PDF
+  Ursache: Schritt 8 (AFM/PPD) fehlt - Teil A reicht fuer das
+           Parameterformular nicht
   Loesung: Schritt 8 vollstaendig durchfuehren
 
   Problem: ttf2reports_afm.py --check meldet "FullName enthaelt

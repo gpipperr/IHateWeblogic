@@ -8,8 +8,8 @@
     70-Customer-Projects/Reports14_Only_manuall_install/Font_kochbuch_de.txt
 
   Gruende (2026-10-19): die alte Fassung kannte den Schritt AFM/PPD
-  ("screen printer") nicht - ohne ihn wird am Testsystem JEDE Schrift im
-  PDF zu "Symbol" -, sie startete "WLS_REPORTS" mit stopComponent.sh (das
+  ("screen printer") nicht - ohne ihn werden Ersatzschriften (Arial ->
+  Liberation Sans usw.) auch im PDF zu "Symbol" -, sie startete "WLS_REPORTS" mit stopComponent.sh (das
   ist ein Managed Server, keine Komponente) und pruefte die Umgebung des
   falschen Prozesses (WLS_REPORTS statt der Reports-Engines).
 

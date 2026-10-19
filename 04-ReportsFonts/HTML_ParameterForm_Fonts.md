@@ -15,7 +15,7 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 |---------|-------|-----|
 | HTML parameter form shows Greek glyphs, HTML contains `<font face="symbol">` | The **screen printer** uses PPD + AFM metrics. The standard AFMs have `EncodingScheme AdobeStandardEncoding`, which does not match `NLS_LANG=...WE8MSWIN1252`. Only `Symbol` (`FontSpecific`) passes the charset check. | Copy the standard AFMs into the **domain** AFM directory and set `EncodingScheme FontSpecific` (MOS Doc ID 300416.1) |
 | After that fix every text is `Courier` | Font is not in `screenprinter.ppd` or has no AFM. Reports falls back to `*DefaultFont: Courier`. **uifont.ali aliases are not applied** here. | Generate an AFM from the TTF with `ttf2reports_afm.py`, add a `*Font` line to `screenprinter.ppd` |
-| PDF was fine at the customer | PDF maps the **resolved** font via `[PDF:Subset]` to a TTF from `REPORTS_FONT_DIRECTORY` | **Correction 2026-10-19:** on the rebuilt test host (`NLS_LANG=AMERICAN_AMERICA.AL32UTF8`) the PDF showed the same symptom – every font became non-embedded Type 1 `Symbol` until this fix was applied; afterwards all fonts were embedded TrueType. The screen-printer step is therefore required for PDF too – see section 2 |
+| PDF is fine (customer) | PDF uses the TTF of the font itself from `REPORTS_FONT_DIRECTORY` (the customer had the real Windows TTFs) – different code path | nothing to do – **unless fonts are substituted** (no `arial.ttf` on the server, Arial mapped to Liberation Sans): then the PDF gets the same `Symbol` and needs this fix too (proven 2026-10-19, section 2) |
 
 Result after the fix: `<font size="4" face="arial">` in the HTML parameter form.
 
@@ -108,18 +108,27 @@ the PPD and the metrics from AFM files. Enhanced font handling and
 engine while generating the parameter form shows that not a single `.ttf`
 file is opened.
 
-> **Correction 2026-10-19 (confirmed (live), test host, `rwrun` and the
-> standalone Reports server):** the two paths are **not** independent. The
-> engine resolves every report font through the screen printer first (PPD +
-> AFM, `[Global]` aliases of `uifont.ali` apply); `[PDF:Subset]` then maps
-> the *resolved* family to a TTF. Without the AFM/PPD fix every font of a
-> test report (Arial, Helvetica, Times New Roman, Courier New, Tahoma) was
-> written as Type 1 `Symbol`, `emb=no`; with the fix and family entries in
-> `[PDF:Subset]` (`"Times"..`, `"LiberationSans"..`, `"DejaVuSans"..`,
-> `[Global] Tahoma = DejaVuSans`) all became embedded TrueType. Why the PDF
-> was fine at the customer is open – a different `NLS_LANG` / font set is
-> the likely reason. `09-Install/14b-oracle_reports_fonts.sh` now runs
-> `paramform_afm_setup.sh` for every installation.
+> **Addition 2026-10-19 (confirmed (live), test host, `rwrun` and the
+> standalone Reports server, same results on both):** the two paths are
+> right as long as the report fonts exist as TTFs on the server (customer:
+> real Windows TTFs). They are **not** independent for **substitute fonts**:
+> a font that has no TTF of its own and is mapped to another one (Arial →
+> Liberation Sans via `[PDF:Subset]` / `[Global]`) is resolved through the
+> screen printer first – without its AFM it becomes Type 1 `Symbol` in the
+> PDF as well.
+>
+> | Report font, no AFM files | PDF |
+> |---|---|
+> | own TTF deployed (TTF family "Arial"), no `[Global]` alias | embedded TrueType |
+> | own TTF deployed, but `[Global] Arial = helvetica` | `Symbol` (the alias wins) |
+> | substitute only (Liberation / DejaVu for Arial, Helvetica, Times, Courier, Tahoma) | `Symbol` |
+> | `NLS_LANG` `AL32UTF8` vs. `WE8MSWIN1252` | no difference |
+>
+> With this fix plus family entries in `[PDF:Subset]` (`"Times"..`,
+> `"LiberationSans"..`, `"DejaVuSans"..`) and `[Global] Tahoma = DejaVuSans`
+> all substitute fonts became embedded TrueType.
+> `09-Install/14b-oracle_reports_fonts.sh` runs `paramform_afm_setup.sh` for
+> every installation – it does no harm when the original TTFs are present.
 
 ---
 
@@ -278,7 +287,7 @@ not a `rwengine` binary.
 - Open the parameter form, check the HTML source: `face="arial"` (Reports
   writes the face name in lower case), no `<tt>` around the text.
 - Check umlauts (`ÄÖÜß`) and `€` in a label.
-- Check the PDF output as well (it depends on this fix too, see section 2): `pdffonts <file>.pdf` should show
+- Check the PDF output as well (with substitute fonts it depends on this fix, section 2): `pdffonts <file>.pdf` should show
   `TrueType emb=yes sub=yes`.
 
 ---
