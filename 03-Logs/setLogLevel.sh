@@ -14,8 +14,16 @@
 #            --target SERVER      WLS_REPORTS|WLS_FORMS|AdminServer|all
 #                                 (default: $WLS_MANAGED_SERVER from environment.conf)
 #            --apply              Required to actually change levels (--level only)
+#            --persist            Also write the level into the server's
+#                                 config/fmwconfig/servers/<srv>/logging.xml
+#                                 (survives a restart) – default: runtime only
 # Requires : wlst.sh (oracle_common/common/bin/wlst.sh), weblogic_sec.conf.des3
-# Note     : Changes are runtime-only (lost on server restart).
+# Note     : Default runtime only (setLogLevel persist=0 – lost on restart).
+#            WLST's own default is persist=1: until 2026-10-19 this script
+#            wrote every level change into logging.xml (confirmed live).
+#            Scope: WebLogic servers only. The standalone Reports server and
+#            its engines log via components/ReportsServerComponent/<name>/
+#            logging.xml, rwrun via 01-Run/rwrun_trace.sh --odl.
 #            FINE/FINER/FINEST produce large log volumes – reset promptly with INFO.
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -46,6 +54,7 @@ ACTION=""          # query | set  (derived below)
 LEVEL_ARG=""
 LOGGER_ARG=""
 TARGET_ARG=""
+PERSIST=0
 APPLY=false
 
 _valid_levels="SEVERE WARNING INFO CONFIG FINE FINER FINEST"
@@ -57,6 +66,7 @@ _usage() {
     printf "  %-34s %s\n" "--logger NAME"             "Logger prefix (default: all managed loggers)"
     printf "  %-34s %s\n" "--target WLS_REPORTS|all"  "Target server(s) (default: \$WLS_MANAGED_SERVER)"
     printf "  %-34s %s\n" "--apply"                   "Required to actually change levels (--level)"
+    printf "  %-34s %s\n" "--persist"                 "Also save to logging.xml (survives restart)"
     printf "\nExamples:\n"
     printf "  %s --query\n" "$(basename "$0")"
     printf "  %s --query --logger oracle.reports --target WLS_REPORTS\n" "$(basename "$0")"
@@ -73,6 +83,7 @@ while [ $# -gt 0 ]; do
         --logger)  LOGGER_ARG="${2:-}"; shift 2 ;;
         --target)  TARGET_ARG="${2:-}"; shift 2 ;;
         --apply)   APPLY=true; shift ;;
+        --persist) PERSIST=1; shift ;;
         --help|-h) _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -173,6 +184,7 @@ printList "WLST"        30 "$WLST_SH"
 printList "Action"      30 "$ACTION"
 printList "Target(s)"   30 "$WLST_TARGETS"
 printList "Logger(s)"   30 "$WLST_LOGGERS"
+[ "$ACTION" = "set" ] && printList "Persist"   30 "$([ "$PERSIST" -eq 1 ] && echo "yes – logging.xml (survives restart)" || echo "no – runtime only")"
 [ "$ACTION" = "set" ] && printList "Level" 30 "$LEVEL_ARG"
 printList "Apply"       30 "$APPLY"
 printLine
@@ -218,6 +230,7 @@ load_weblogic_password || {
 export _IHW_WL_PWD="$INTERNAL_WL_PWD"
 export WL_USER WL_ADMIN_URL
 export WLST_ACTION="$ACTION"
+export WLST_PERSIST="$PERSIST"
 export WLST_LEVEL="${LEVEL_ARG:-INFO}"
 export WLST_LOGGERS WLST_TARGETS
 
@@ -226,7 +239,7 @@ export WLST_LOGGERS WLST_TARGETS
 # =============================================================================
 
 WLST_PY="$(mktemp /tmp/ihw_setloglevel_XXXXXX.py)"
-trap 'rm -f "$WLST_PY"; unset _IHW_WL_PWD WLST_ACTION WLST_LEVEL WLST_LOGGERS WLST_TARGETS' EXIT
+trap 'rm -f "$WLST_PY"; unset _IHW_WL_PWD WLST_ACTION WLST_LEVEL WLST_LOGGERS WLST_TARGETS WLST_PERSIST' EXIT
 
 cat > "$WLST_PY" << 'PYEOF'
 import sys
@@ -239,6 +252,9 @@ action      = os.environ.get('WLST_ACTION',    'query')
 level       = os.environ.get('WLST_LEVEL',     'INFO')
 loggers_str = os.environ.get('WLST_LOGGERS',   'oracle.reports')
 targets_str = os.environ.get('WLST_TARGETS',   'WLS_REPORTS')
+# NOT named 'persist': connect() imports the Java package weblogic.persist
+# into the global namespace as 'persist' (confirmed live 2026-10-19)
+ihw_persist = int(os.environ.get('WLST_PERSIST', '0'))
 
 loggers = [l for l in loggers_str.split() if l]
 targets = [t for t in targets_str.split() if t]
@@ -269,7 +285,9 @@ if action == 'query':
     for srv in targets:
         print("\n[" + srv + "]")
         for logger in loggers:
-            pattern = logger + '*'
+            # listLoggers takes a Java regex: 'oracle.reports*' only matched
+            # 'oracle.report(s)' -> "No loggers found" (fixed 2026-10-19)
+            pattern = logger.replace('.', '\\.') + '(\\..*)?'
             try:
                 listLoggers(pattern=pattern, target=srv)
             except NameError:
@@ -290,8 +308,10 @@ elif action == 'set':
         print("\n[" + srv + "]")
         for logger in loggers:
             try:
-                setLogLevel(logger=logger, level=level, target=srv)
-                print("  OK    " + logger + "  ->  " + level)
+                # persist must be an int: 0 = runtime only (WLST default 1
+                # writes logging.xml)
+                setLogLevel(logger=logger, level=level, target=srv, persist=ihw_persist)
+                print("  OK    " + logger + "  ->  " + level + ("  (saved to logging.xml)" if ihw_persist else "  (runtime only)"))
                 ok_count += 1
             except NameError:
                 print("  ERROR: setLogLevel() not available in this WLST.")

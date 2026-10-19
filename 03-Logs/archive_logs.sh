@@ -9,10 +9,13 @@
 #            --min-age N                Only compress files older than N days
 #                                       (default: LOG_ARCHIVE_MIN_AGE_DAYS=1)
 #            --level N                  gzip compression level 1-9 (default: 9 = --best)
-# Rules    : Active logs  (*.log no suffix, *.out) → never touched
+#            --component NAME           all|reports|forms|wls|nm|em|<server> (default: all)
+# Scope    : every log group of log_locations.sh (servers/*/logs incl. the
+#            standalone Reports server and the Reports tools, Node Manager, EM)
+# Rules    : Active logs (*.log, *.out, *.trc without rotation suffix) → never touched
 #            Already compressed (*.gz, *.bz2)      → skipped
-#            Rotated logs (*.log[0-9]*) older than min-age → compress with gzip
-#            Reports Engine logs older than min-age         → compress with gzip
+#            Rotated logs older than min-age (*.log00001, *.out00001,
+#            *-diagnostic-1.log, *.log.1)          → compress with gzip
 # Requires : gzip, find, stat, awk
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -34,6 +37,8 @@ source "$LIB"
 check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
+# shellcheck source=log_locations.sh
+source "$SCRIPT_DIR/log_locations.sh"
 
 # =============================================================================
 # Arguments
@@ -42,14 +47,16 @@ init_log
 APPLY=false
 MIN_AGE="${LOG_ARCHIVE_MIN_AGE_DAYS:-1}"
 GZIP_LEVEL=9
+COMPONENT="all"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --apply)     APPLY=true;      shift ;;
         --min-age)   MIN_AGE="$2";    shift 2 ;;
         --level)     GZIP_LEVEL="$2"; shift 2 ;;
+        --component) COMPONENT="${2:?--component needs a value}"; shift 2 ;;
         --help|-h)
-            printf "Usage: %s [--apply] [--min-age N] [--level 1-9]\n" \
+            printf "Usage: %s [--apply] [--min-age N] [--level 1-9] [--component NAME]\n" \
                 "$(basename "$0")"
             exit 1 ;;
         *)
@@ -87,69 +94,30 @@ declare -a PLAN_SIZE=()
 PLAN_COMPRESS_BYTES=0
 PLAN_SKIP_BYTES=0
 
-# _scan_dir  dir  maxdepth  include_active_log(true|false)
-# include_active_log=true: also considers plain *.log files (for Reports Engine,
-#   where each run creates a new *.log file and none is "active" long-term).
+# _scan_dir  dir  maxdepth – rotated logs older than MIN_AGE → COMPRESS,
+# already compressed → SKIP (listed), active logs are not listed at all
 _scan_dir() {
-    local dir="$1"
-    local depth="${2:-1}"
-    local include_active="${3:-false}"
-
+    local dir="$1" depth="${2:-2}" f kind sz days
     [ -d "$dir" ] || return
-
-    # Build find name expression
-    local find_names
-    if [ "$include_active" = "true" ]; then
-        find_names=( \( -name "*.log" -o -name "*.log[0-9]*" \) )
-    else
-        # Only rotated logs (numeric suffix after .log)
-        find_names=( -name "*.log[0-9]*" )
-    fi
-
     while IFS= read -r -d '' f; do
-        local sz mtime days reason action
-
+        kind="$(ihw_log_kind "$f")"
+        [ "$kind" = "active" ] && continue
         sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        mtime="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
-        days="$(_days_since_epoch "$mtime")"
-
-        # Already compressed
-        if [[ "$f" == *.gz || "$f" == *.bz2 ]]; then
+        days="$(_days_since_epoch "$(stat -c %Y "$f" 2>/dev/null || echo 0)")"
+        if [ "$kind" = "compressed" ]; then
             PLAN_FILE+=("$f"); PLAN_ACTION+=("SKIP")
             PLAN_REASON+=("already compressed"); PLAN_SIZE+=("$sz")
             PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-            continue
-        fi
-
-        # Too recent
-        if [ "$days" -lt "$MIN_AGE" ]; then
+        elif [ "$days" -lt "$MIN_AGE" ]; then
             PLAN_FILE+=("$f"); PLAN_ACTION+=("SKIP")
-            PLAN_REASON+=("${days}d old – min-age: ${MIN_AGE}d (too recent)")
-            PLAN_SIZE+=("$sz")
+            PLAN_REASON+=("${days}d old – min-age: ${MIN_AGE}d (too recent)"); PLAN_SIZE+=("$sz")
             PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-            continue
+        else
+            PLAN_FILE+=("$f"); PLAN_ACTION+=("COMPRESS")
+            PLAN_REASON+=("${days}d old → gzip -${GZIP_LEVEL}"); PLAN_SIZE+=("$sz")
+            PLAN_COMPRESS_BYTES=$(( PLAN_COMPRESS_BYTES + sz ))
         fi
-
-        PLAN_FILE+=("$f"); PLAN_ACTION+=("COMPRESS")
-        PLAN_REASON+=("${days}d old → gzip -${GZIP_LEVEL}")
-        PLAN_SIZE+=("$sz")
-        PLAN_COMPRESS_BYTES=$(( PLAN_COMPRESS_BYTES + sz ))
-
-    done < <(find "$dir" -maxdepth "$depth" \
-        "${find_names[@]}" \
-        -type f -print0 2>/dev/null | sort -z)
-
-    # Also collect existing *.gz to show in SKIP list (already compressed)
-    while IFS= read -r -d '' f; do
-        local sz
-        sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        PLAN_FILE+=("$f"); PLAN_ACTION+=("SKIP")
-        PLAN_REASON+=("already compressed (.gz)")
-        PLAN_SIZE+=("$sz")
-        PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-    done < <(find "$dir" -maxdepth "$depth" \
-        \( -name "*.gz" -o -name "*.bz2" \) \
-        -type f -print0 2>/dev/null | sort -z)
+    done < <(ihw_log_find "$dir" "$depth")
 }
 
 # =============================================================================
@@ -178,11 +146,9 @@ if ! command -v gzip > /dev/null 2>&1; then
 fi
 
 info "Scanning log directories..."
-_scan_dir "${DOMAIN_HOME}/servers/AdminServer/logs"  1 false
-_scan_dir "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"  1 false
-_scan_dir "${DOMAIN_HOME}/servers/WLS_FORMS/logs"    1 false
-# Reports Engine: each run creates a new *.log file – treat all as rotated
-_scan_dir "${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent" 4 true
+while IFS=$'\t' read -r _role _name _dir _depth; do
+    _scan_dir "$_dir" "$_depth"
+done < <(ihw_log_groups "$COMPONENT")
 
 # =============================================================================
 # Print plan

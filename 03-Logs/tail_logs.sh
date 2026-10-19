@@ -8,9 +8,13 @@
 #            ./tail_logs.sh --component WLS_REPORTS
 #            ./tail_logs.sh --component all --lines 50
 #            ./tail_logs.sh --no-tmux
-# Options  : --component  all|AdminServer|WLS_REPORTS|WLS_FORMS  (default: all)
+# Options  : --component  all|reports|forms|wls|nm|em|<server>  (default: all)
 #            --lines N    initial tail lines shown per file (default: 20)
+#            --all-files  every active log of the selected groups, not only the
+#                         main ones (<server>.log/.out/-diagnostic.log, Reports
+#                         server + engines, rwrun runtime log, nodemanager.log)
 #            --no-tmux    force plain tail mode even when tmux is available
+# Note     : tail -F (follow by name) – keeps following across WLS log rotation
 # Requires : tail (always); tmux >= 1.9 (optional, for split-pane mode)
 # Note     : Read-only monitoring tool – no --apply needed.
 #            In tmux mode press Ctrl-b d to detach, Ctrl-b & to close window.
@@ -34,6 +38,8 @@ source "$LIB"
 check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
+# shellcheck source=log_locations.sh
+source "$SCRIPT_DIR/log_locations.sh"
 
 # =============================================================================
 # Argument parsing
@@ -42,16 +48,17 @@ init_log
 COMPONENT="all"
 LINES=20
 FORCE_PLAIN=false
+ALL_FILES=false
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
-    printf "  %-34s %s\n" "--component all|AdminServer|..."  "Component filter (default: all)"
+    printf "  %-34s %s\n" "--component <name>"               "all|reports|forms|wls|nm|em|<server> (default: all)"
     printf "  %-34s %s\n" "--lines N"                        "Initial lines per file (default: 20)"
+    printf "  %-34s %s\n" "--all-files"                      "All active logs, not only the main ones"
     printf "  %-34s %s\n" "--no-tmux"                        "Plain tail mode, no tmux"
-    printf "\nComponents: all  AdminServer  WLS_REPORTS  WLS_FORMS\n"
     printf "\nExamples:\n"
     printf "  %s\n" "$(basename "$0")"
-    printf "  %s --component WLS_REPORTS\n" "$(basename "$0")"
+    printf "  %s --component reports\n" "$(basename "$0")"
     printf "  %s --component all --lines 50\n" "$(basename "$0")"
     exit 1
 }
@@ -61,6 +68,7 @@ while [ $# -gt 0 ]; do
         --component) COMPONENT="$2"; shift 2 ;;
         --lines)     LINES="$2";     shift 2 ;;
         --no-tmux)   FORCE_PLAIN=true; shift ;;
+        --all-files) ALL_FILES=true;   shift ;;
         --help|-h)   _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -73,63 +81,37 @@ done
 # Build log file list
 # =============================================================================
 
-_REPTOOLS_BASE="${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent"
-
-# _find_active_logs  dir  [maxdepth]
-# Prints paths of active (non-rotated) *.log files, most recently modified first.
-_find_active_logs() {
-    local dir="$1"
-    local depth="${2:-1}"
-    [ -d "$dir" ] || return
-    find "$dir" -maxdepth "$depth" \
-        -name "*.log" \
-        -not -name "*.[0-9]*" \
-        -type f 2>/dev/null \
-        | xargs ls -t 2>/dev/null
-}
-
-# _find_reptools_log
-# Returns the most recently modified log under ReportsToolsComponent.
-_find_reptools_log() {
-    [ -d "$_REPTOOLS_BASE" ] || return
-    find "$_REPTOOLS_BASE" -maxdepth 4 \
-        -name "*.log" \
-        -not -name "*.[0-9]*" \
-        -type f 2>/dev/null \
-        | xargs ls -t 2>/dev/null \
-        | head -1
-}
-
 declare -a LOG_FILES=()
 
-_add_logs() {
-    local dir="$1"
-    local depth="${2:-1}"
-    while IFS= read -r f; do
-        [ -f "$f" ] && LOG_FILES+=("$f")
-    done < <(_find_active_logs "$dir" "$depth")
+# _is_main role name file – the logs worth a pane when following a problem
+_is_main() {
+    local role="$1" name="$2" b
+    b="$(basename "$3")"
+    case "$role" in
+        "Admin server"|"Managed server")
+            case "$b" in "$name.log"|"$name.out"|"$name-diagnostic.log"|rwservlet_diagnostic.log) return 0 ;; esac ;;
+        "Reports server")
+            case "$b" in rwserver_diagnostic.log|rwEng-*_diagnostic.log|"$name.out") return 0 ;; esac ;;
+        "Reports tools")      [ "$b" = "runtime_diagnostic.log" ] && return 0 ;;
+        "Node Manager")       [ "$b" = "nodemanager.log" ] && return 0 ;;
+        "Enterprise Manager") [ "$b" = "emoms.log" ] && return 0 ;;
+    esac
+    return 1
 }
 
-case "${COMPONENT,,}" in
-    adminserver)
-        _add_logs "${DOMAIN_HOME}/servers/AdminServer/logs"
-        ;;
-    wls_reports)
-        _add_logs "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-        replog="$(_find_reptools_log)"
-        [ -n "$replog" ] && LOG_FILES+=("$replog")
-        ;;
-    wls_forms)
-        _add_logs "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-        ;;
-    all|*)
-        _add_logs "${DOMAIN_HOME}/servers/AdminServer/logs"
-        _add_logs "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-        _add_logs "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-        replog="$(_find_reptools_log)"
-        [ -n "$replog" ] && LOG_FILES+=("$replog")
-        ;;
-esac
+while IFS=$'\t' read -r _role _name _dir _depth; do
+    # EM only when asked for explicitly
+    [ "$_role" = "Enterprise Manager" ] && [ "${COMPONENT,,}" != "em" ] && continue
+    while IFS= read -r -d '' f; do
+        [ "$(ihw_log_kind "$f")" = "active" ] || continue
+        case "$f" in *.trc) continue ;; esac
+        if $ALL_FILES || _is_main "$_role" "$_name" "$f"; then
+            # rwservlet_diagnostic.log only where it is written (WLS_REPORTS)
+            [ "$(basename "$f")" = "rwservlet_diagnostic.log" ] && [ ! -s "$f" ] && continue
+            LOG_FILES+=("$f")
+        fi
+    done < <(ihw_log_find "$_dir" "$_depth")
+done < <(ihw_log_groups "$COMPONENT")
 
 # Remove duplicates while preserving order
 declare -a UNIQUE_FILES=()
@@ -160,6 +142,9 @@ if [ "${#LOG_FILES[@]}" -eq 0 ]; then
     exit 1
 fi
 
+if [ "${#LOG_FILES[@]}" -gt 12 ] && ! $FORCE_PLAIN && command -v tmux > /dev/null 2>&1; then
+    warn "${#LOG_FILES[@]} files – too many panes for one tmux window; narrow with --component"
+fi
 info "Log files to tail:"
 for f in "${LOG_FILES[@]}"; do
     printf "  \033[36m%s\033[0m\n" "$f" | tee -a "${LOG_FILE:-/dev/null}"
@@ -212,7 +197,7 @@ _launch_plain() {
 
     # tail -f with multiple files prints "==> file <==" headers when switching.
     # Pipe through colour filter.
-    tail -f -n "$LINES" "${LOG_FILES[@]}" | _colour_filter
+    tail -F -n "$LINES" "${LOG_FILES[@]}" 2>&1 | _colour_filter
 }
 
 # =============================================================================
@@ -225,7 +210,9 @@ _tmux_pane_cmd() {
     local file="$1"
     local n="$2"
     # Run tail; on exit (e.g. file removed) wait for a keypress before closing pane
-    printf "tail -f -n %d '%s' || { printf '\\n\\033[31m[tail exited]\\033[0m Press Enter...; read; }'" \
+    # (the old command had an unbalanced quote – the pane died at once and
+    # took the whole tmux session with it, fixed 2026-10-19)
+    printf "tail -F -n %d '%s'; printf '\\n[tail exited] Press Enter... '; read _" \
         "$n" "$file"
 }
 

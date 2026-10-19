@@ -1,600 +1,468 @@
-# Oracle FMW – Log Management Guide
+# 03-Logs – Log Management for Forms / Reports / WebLogic
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 
-> This guide describes the Oracle Forms & Reports / WebLogic logging landscape
-> and explains how to use the `03-Logs/` scripts for log discovery, search,
-> live monitoring, cleanup, and archiving.
+Where an FMW 14.1.2 Forms & Reports domain writes its logs, what to look
+for, and the `03-Logs/` scripts for inventory, search, live view, cleanup,
+archiving and log levels.
+
+**Why** the logs are spread like this – which process writes what – is
+explained in [`80-FMW-Architecture/`](../80-FMW-Architecture/README.md):
+[who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain),
+[where is what – homes, configuration, logs](../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs),
+[Reports server and engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
 
 ---
 
 ## Table of Contents
 
-1. [Log Landscape – Overview](#1-log-landscape--overview)
-2. [Log Types and Formats](#2-log-types-and-formats)
-3. [Log File Locations](#3-log-file-locations)
-4. [Key Log Files – What to Look For](#4-key-log-files--what-to-look-for)
-5. [Common Error Code Patterns](#5-common-error-code-patterns)
-6. [Log Level Configuration](#6-log-level-configuration)
-7. [Scripts Reference](#7-scripts-reference)
-8. [Step-by-Step: Fresh Diagnostic Baseline](#8-step-by-step-fresh-diagnostic-baseline)
-9. [Troubleshooting](#9-troubleshooting)
+1. [Log Landscape](#1-log-landscape)
+2. [Log Formats and Rotation](#2-log-formats-and-rotation)
+3. [Key Log Files – What to Look For](#3-key-log-files--what-to-look-for)
+4. [Error Codes](#4-error-codes)
+5. [Log Levels](#5-log-levels)
+6. [Scripts Reference](#6-scripts-reference)
+7. [Step-by-Step: Fresh Diagnostic Baseline](#7-step-by-step-fresh-diagnostic-baseline)
+8. [Troubleshooting](#8-troubleshooting)
+9. [References](#9-references)
 
 ---
 
-## 1. Log Landscape – Overview
+## 1. Log Landscape
 
-An Oracle Forms & Reports 14c installation produces logs from several independent
-subsystems. Errors may be split across multiple files and you need to know where
-to look for each component:
+Confirmed on the test host (2026-10-19, **confirmed (live)**). Every
+process writes below `$DOMAIN_HOME/servers/<name>/logs/` – WebLogic
+servers **and** the system components (standalone Reports server,
+Reports tools):
 
 ```
-WebLogic Domain ($DOMAIN_HOME)
-│
+$DOMAIN_HOME
 ├── servers/
-│   ├── AdminServer/logs/         ← Domain admin server (startup, deploy, WLST)
-│   ├── WLS_REPORTS/logs/         ← Reports managed server (REP-* errors here)
-│   └── WLS_FORMS/logs/           ← Forms managed server (FRM-* errors here)
-│
-├── diagnostics/logs/             ← ODL-format component diagnostic logs
-│   ├── AdminServer/
-│   ├── WLS_REPORTS/
-│   └── WLS_FORMS/
-│
-├── config/fmwconfig/components/
-│   └── ReportsToolsComponent/
-│       └── reptools1/            ← Reports Engine process logs (rwEng*.log)
-│
-└── nodemanager/                  ← Node Manager log (server start/stop)
+│   ├── AdminServer/logs/
+│   │   ├── AdminServer.log            WebLogic server log (BEA-*)
+│   │   ├── AdminServer-diagnostic.log ODL log (Java components, EM, OPSS)
+│   │   ├── AdminServer.out            stdout/stderr (rotated at every start: .out00001 …)
+│   │   ├── fr_domain.log              domain log (messages of all servers)
+│   │   └── access.log                 HTTP access log
+│   ├── WLS_FORMS/logs/
+│   │   ├── WLS_FORMS.log / -diagnostic.log / .out
+│   │   └── formsapp-diagnostic.log    Forms servlet (FRM-93xxx: frmweb start, sessions)
+│   ├── WLS_REPORTS/logs/
+│   │   ├── WLS_REPORTS.log / -diagnostic.log / .out
+│   │   └── reports/rwservlet_diagnostic.log   rwservlet (in-process server: also rwserver_diagnostic.log)
+│   ├── repserver01/logs/              standalone Reports server = system component
+│   │   ├── rwserver_diagnostic.log    Reports server (jobs, REP-5xxxx)
+│   │   ├── rwEng-0_diagnostic.log     one log per engine – the root cause of REP errors
+│   │   ├── rwEng-1_diagnostic.log
+│   │   └── repserver01.out            stdout of the rwserver process (Node Manager)
+│   └── reptools1/logs/
+│       └── runtime_diagnostic.log     rwrun / rwconverter / Reports Builder runtime
+├── nodemanager/
+│   └── nodemanager.log                server / component start, stop, crash, restart
+└── servers/AdminServer/sysman/log/emoms.log   Enterprise Manager (Fusion Middleware Control)
 ```
 
-> **Key insight:** The WLS managed server log (`WLS_REPORTS.log`) only shows the
-> wrapper exception (`REP-1800`). The underlying Reports Engine error (`REP-3000`,
-> `REP-0069`, `REP-1924`, etc.) is in the Reports Engine diagnostic log under
-> `config/fmwconfig/components/ReportsToolsComponent/reptools1/`.
+Not log locations (although older guides / earlier versions of these
+scripts said so): `$DOMAIN_HOME/diagnostics/logs/` does **not exist** in
+14.1.2 – the ODL logs are `servers/<srv>/logs/<srv>-diagnostic.log`;
+`config/fmwconfig/components/ReportsToolsComponent/reptools1/` holds the
+**configuration** (`rwbuilder.conf`, `logging.xml` …), not the logs.
+
+Not counted as logs, but the real disk consumers below `servers/` on the
+test host: `servers/<srv>/tmp/` (WebLogic cache, 400–800 MB each) and
+`servers/<srv>/adr/` (ADR incidents) – `get_all_logs.sh` lists them
+separately.
+
+> **Key point for Reports:** `WLS_REPORTS.log` and
+> `rwservlet_diagnostic.log` usually show only the wrapper error the user
+> got. The cause (font, file, SQL, engine crash) is in
+> `servers/<repserver>/logs/rwEng-N_diagnostic.log` and
+> `rwserver_diagnostic.log`. Batch runs via `rwrun` log to
+> `servers/reptools1/logs/runtime_diagnostic.log`
+> (deeper: `01-Run/rwrun_trace.sh`).
+
+All `03-Logs` scripts find these directories themselves
+([`log_locations.sh`](log_locations.sh)): every `servers/*/logs` with its
+role (Admin server, Managed server, Reports server, Reports tools), plus
+Node Manager and EM. No server name is hard-coded.
 
 ---
 
-## 2. Log Types and Formats
+## 2. Log Formats and Rotation
 
-### 2.1 WebLogic Server Logs (plain text)
-
-File pattern: `<ServerName>.log`, `<ServerName>.log00001`, `<ServerName>.out`
+### WebLogic server log (`<srv>.log`, `fr_domain.log`)
 
 ```
-####<Mar 4, 2026 3:00:00,000 PM CET> <Error> <oracle.reports.servlet> \
-<WLS_REPORTS> <ExecuteThread: '1'> <<WLS Kernel>> <> <> \
-<1709557200000> <BEA-000000> <REP-1800: Error running report.>
+####<Oct 19, 2026, 2:13:41,123 PM CEST> <Error> <HTTP> <host> <WLS_REPORTS> \
+<[ACTIVE] ExecuteThread: '1' …> <<WLS Kernel>> <> <…> <1760876021123> \
+<[severity-value: 8] …> <BEA-101020> <[ServletContext@…] Servlet failed …>
 ```
 
-Fields (angle-bracket separated): timestamp, severity, subsystem, server, thread,
-user, transaction, diagnostic context, timestamp (epoch), message-id, message.
+Fields in angle brackets: time, severity (`<Error>`, `<Warning>`,
+`<Notice>`, `<Info>`), subsystem, host, server, thread, user, transaction,
+diagnostic context, epoch, message id (`BEA-…`), message.
 
-### 2.2 ODL Diagnostic Logs
-
-Located in `$DOMAIN_HOME/diagnostics/logs/`. Component diagnostic logs written
-by Oracle Diagnostic Logging (ODL). More detailed than the WLS log.
+### ODL logs (`*-diagnostic.log`, `rwEng-N_diagnostic.log`, …)
 
 ```
-[2026-03-04T15:00:00.000+01:00] [WLS_REPORTS] [ERROR] [REP-3000] \
-[oracle.reports.engine] [tid: ExecuteThread: '1'] [userId: <anonymous>] \
-[ecid: ...] ... Unable to open the file ...
+[2026-10-17T10:54:12.345+02:00] [WLS_REPORTS] [ERROR] [REP-52262] \
+[oracle.reports.servlet] [tid: …] [userId: …] [ecid: …] Diagnostic output is disabled …
 ```
 
-### 2.3 Reports Engine Log
+`[time] [component] [level] [message id] [logger] [thread] [user] [ecid] message`.
+Levels: `INCIDENT_ERROR`, `ERROR`, `WARNING`, `NOTIFICATION`, `TRACE`.
+The `ecid` links the entries of one request across servlet, server and
+engine logs.
 
-File pattern: `rwEng-<PID>.log` or `repserver.log` under the
-`ReportsToolsComponent/reptools1/` path. Plain text, contains the raw Reports
-Server and Engine messages — **this is the primary log for all REP-* errors**.
+### Rotation (as configured on the test host)
 
-### 2.4 Node Manager Log
-
-`$DOMAIN_HOME/nodemanager/nodemanager.log` — plain text, records server lifecycle
-events (start, stop, crash, restart). Check here if managed servers fail to start.
-
----
-
-## 3. Log File Locations
-
-### Quick reference
-
-| Component | Active Log | Rotated Logs |
+| Log | Rotation | Source |
 |---|---|---|
-| AdminServer | `servers/AdminServer/logs/AdminServer.log` | `AdminServer.log00001` ... |
-| AdminServer stdout | `servers/AdminServer/logs/AdminServer.out` | — |
-| WLS_REPORTS | `servers/WLS_REPORTS/logs/WLS_REPORTS.log` | `WLS_REPORTS.log00001` ... |
-| WLS_REPORTS stdout | `servers/WLS_REPORTS/logs/WLS_REPORTS.out` | — |
-| WLS_FORMS | `servers/WLS_FORMS/logs/WLS_FORMS.log` | `WLS_FORMS.log00001` ... |
-| ODL / Reports | `diagnostics/logs/WLS_REPORTS/*.log` | — |
-| Reports Engine | `config/fmwconfig/components/ReportsToolsComponent/reptools1/*.log` | — |
-| Node Manager | `nodemanager/nodemanager.log` | — |
+| `<srv>.log` | WebLogic defaults – no `<log>` element in `config.xml` | Remote Console → server → Logging |
+| `<srv>.out` | by the Node Manager at **every start** → `<srv>.out00001` … (13 on the AdminServer after a week of tests) | **confirmed (live)** |
+| ODL `*-diagnostic.log` | `maxFileSize` 10 MB per file, `maxLogSize` 100 MB per log → `*-diagnostic-1.log` … | `config/fmwconfig/servers/<srv>/logging.xml`, Reports: `components/ReportsServerComponent/<name>/logging.xml` (**confirmed (live)**) |
+| `nodemanager.log` | `LogLimit=0` (unlimited), `LogCount=1` | `nodemanager.properties` |
 
-### Retrieve all log paths dynamically
+The scripts treat as **rotated**: `*.log00001`, `*.out00001`,
+`*-diagnostic-1.log`, `*.log.1`; as **compressed**: `*.gz`, `*.bz2`.
+
+---
+
+## 3. Key Log Files – What to Look For
+
+| Problem | Look first in |
+|---|---|
+| Report fails, user sees REP error | `servers/<repserver>/logs/rwEng-N_diagnostic.log` (cause), `rwserver_diagnostic.log` (job), then `WLS_REPORTS/logs/reports/rwservlet_diagnostic.log` |
+| Report via `rwrun` / batch | `servers/reptools1/logs/runtime_diagnostic.log`, `01-Run/rwrun_trace.sh` |
+| Reports server does not start / restarts | `nodemanager/nodemanager.log`, `servers/<repserver>/logs/<repserver>.out` (REP-50600 multicast, REP-56040 name in use) |
+| Forms session does not start | `WLS_FORMS/logs/formsapp-diagnostic.log` (FRM-93xxx: frmweb start, environment), `WLS_FORMS.out` |
+| Server does not start / crashes | `nodemanager/nodemanager.log`, `<srv>.out` (JVM errors, OutOfMemoryError), `<srv>.log` |
+| Deployment, data source, OPSS, SSL | `AdminServer.log`, `AdminServer-diagnostic.log` |
+| EM (Fusion Middleware Control) | `servers/AdminServer/sysman/log/emoms.log`, `AdminServer-diagnostic.log` |
+| Login / security of the Reports server | `rwserver_diagnostic.log` (identity store, `securityId`), `AdminServer-diagnostic.log` |
+
+---
+
+## 4. Error Codes
+
+Codes found in the test-host logs (2026-10-19) and from the work on this
+project:
+
+| Code | Where | Meaning / cause |
+|---|---|---|
+| `REP-50600` | `<repserver>.out` | broadcasting disabled – multicast port blocked (firewall `14027/udp`), Reports server stops – [discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md) |
+| `REP-56040` | rwserver log | a Reports server with that name already runs in the network |
+| `REP-56132` | engine log | file access outside `<folderAccess>` – [image handling](../80-FMW-Architecture/report_server_image_handling.md) |
+| `REP-108` | engine log | file (image) not found – Windows path in the report |
+| `REP-50125` | rwserver log | `StreamCorruptedException` – foreign packet on the discovery port |
+| `REP-52262` | rwservlet log | diagnostic output disabled – the user sees no details (by design) |
+| `REP-0069` | engine log | internal error – look at the lines before it |
+| `REP-501` / `REP-0501` | engine log | unable to connect to the database (data source of the report) |
+| `REP-1924` | engine log | font file not found – see `04-ReportsFonts/` |
+| `FRM-93xxx` | `formsapp-diagnostic.log` | Forms servlet / `frmweb` process start, environment (`default.env`) |
+| `BEA-000362` | `<srv>.log` | server failed to start (e.g. port in use) |
+| `ORA-12541` / `ORA-01017` / `ORA-28001` | data source / engine logs | no listener / wrong password / password expired – `02-Checks/db_connect_check.sh` |
+
+Quick scan:
 
 ```bash
-# All active WLS logs in the domain:
-find $DOMAIN_HOME/servers -name "*.log" -not -name "*.[0-9]*" | sort
-
-# Reports Engine logs only:
-find $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent \
-     -name "*.log" | sort
-
-# Largest logs first:
-find $DOMAIN_HOME -name "*.log" -o -name "*.out" 2>/dev/null \
-  | xargs du -sh 2>/dev/null | sort -rh | head -20
+./03-Logs/grep_logs.sh 'REP-[0-9]' --component reports --since-minutes 60
+./03-Logs/grep_logs.sh 'FRM-[0-9]' --component forms
+./03-Logs/grep_logs.sh 'BEA-[0-9]\|ORA-[0-9]' --level ERROR      # basic regex: \| = or
 ```
 
 ---
 
-## 4. Key Log Files – What to Look For
+## 5. Log Levels
 
-### AdminServer.log – domain-level events
+Java / ODL levels (highest to lowest):
 
-- Deployment errors for Forms/Reports applications
-- DataSource connection pool issues (DB connect failures)
-- WLST connection and script errors
-- Certificate and SSL handshake errors
+```
+SEVERE  = ERROR         errors
+WARNING = WARNING
+INFO    = NOTIFICATION  default in production
+CONFIG  = NOTIFICATION:16
+FINE    = TRACE:1       debug (large volume)
+FINER   = TRACE:16
+FINEST  = TRACE:32      maximum detail – short, targeted sessions only
+```
 
-### WLS_REPORTS.log – Reports servlet + server
+Loggers on `WLS_REPORTS` (`setLogLevel.sh --query`, **confirmed (live)**):
+`oracle.reports`, `oracle.reports.admin`, `oracle.reports.configMbeans`,
+`oracle.reports.rwclient.RWClient`, `oracle.reports.server`,
+`oracle.reports.servlet`. There is **no** `oracle.reports.engine` /
+`oracle.reports.fonts` logger in WebLogic – the engines run in the
+standalone Reports server process; their level is set in
+`config/fmwconfig/components/ReportsServerComponent/<name>/logging.xml`
+(restart of the Reports server), for `rwrun` via
+`01-Run/rwrun_trace.sh --odl`.
 
-- `REP-1800` — generic formatter error (wrapper; look deeper for root cause)
-- `REP-0050` — error connecting to Reports Server
-- `REP-0262` — cannot connect to job repository
-- Java stack traces from `oracle.reports.servlet`
-- `BEA-*` WebLogic infrastructure errors
-
-### Reports Engine log (`rwEng-*.log`, `repserver.log`)
-
-- `REP-3000` — internal rendering error (font missing, file missing)
-- `REP-0069` — engine communication error
-- `REP-1924` — font file cannot be found (TTF not in REPORTS_FONT_DIRECTORY)
-- `REP-1800` — formatter chain failure (source here, not in WLS_REPORTS.log)
-- `REP-0110` — datamodel execution error (SQL issue)
-- Segfault / core dump references (rwrun crashed)
-
-### WLS_FORMS.log – Forms servlet + server
-
-- `FRM-40735` — trigger failure
-- `FRM-41214` — memory error
-- Forms session startup and security errors
-
-### nodemanager.log – server lifecycle
-
-- `FAILED_NOT_RESTARTABLE` — server crashed and Node Manager gave up restarting
-- Process exit codes on crash
-- Startup command lines (useful for verifying JAVA_OPTIONS)
+`setLogLevel.sh` changes the level **at runtime only** by default
+(`persist=0`); `--persist` writes it into
+`config/fmwconfig/servers/<srv>/logging.xml` so that it survives a restart.
 
 ---
 
-## 5. Common Error Code Patterns
+## 6. Scripts Reference
 
-| Code | Component | Typical Cause |
-|---|---|---|
-| `REP-1800` | Reports | Generic formatter error – check Engine log for root cause |
-| `REP-3000` | Reports | Internal engine error – font/file/DB access failure |
-| `REP-1924` | Reports | Font file not found – TTF missing from REPORTS_FONT_DIRECTORY |
-| `REP-0069` | Reports | Engine unreachable – server not started or crashed |
-| `REP-0050` | Reports | Cannot connect to Reports Server – check nodemanager, ports |
-| `REP-0262` | Reports | Job repository unavailable – DB connection issue |
-| `FRM-40735` | Forms | PL/SQL trigger failure |
-| `BEA-000337` | WebLogic | Failed to deploy application |
-| `BEA-000362` | WebLogic | Server failed to bind port (port conflict) |
-| `ORA-12541` | Oracle DB | TNS: no listener – DB not running or wrong hostname |
-| `ORA-01017` | Oracle DB | Invalid username/password |
-
-### Grep patterns for quick scan
-
-```bash
-# All REP errors (excluding the wrapper REP-1800 when looking for root cause):
-grep -h "REP-[0-9]\{4\}" $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log
-
-# Java exceptions with 5 lines of context:
-grep -A5 "Exception\|Error\|SEVERE" \
-     $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log | head -100
-
-# Reports Engine – all errors today:
-find $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent \
-     -name "*.log" -newer /tmp -exec grep "REP-" {} \;
-
-# Node Manager – server restart events:
-grep "FAILED\|STARTED\|restart" $DOMAIN_HOME/nodemanager/nodemanager.log
-```
-
----
-
-## 6. Log Level Configuration
-
-WebLogic and Oracle Reports use **Java Util Logging (JUL)** / **Oracle Diagnostic
-Logging (ODL)** with the following severity levels (highest to lowest):
-
-```
-SEVERE  →  ERROR   – production errors visible in WLS log
-WARNING →  WARNING – non-fatal issues, also visible in WLS log
-INFO    →  INFO    – informational (default minimum in production)
-CONFIG  →  CONFIG  – configuration settings at startup
-FINE    →  TRACE   – low-level tracing (verbose!)
-FINER   →  TRACE16 – component internals
-FINEST  →  TRACE32 – maximum detail (use only for targeted debugging)
-```
-
-### Important loggers for Oracle Reports
-
-| Logger | Purpose | Recommended level |
-|---|---|---|
-| `oracle.reports` | All Reports components | `INFO` (production) / `FINE` (debug) |
-| `oracle.reports.engine` | Reports Engine renderer | `INFO` / `FINE` |
-| `oracle.reports.servlet` | Reports Servlet | `INFO` |
-| `oracle.reports.fonts` | Font subsystem (uifont.ali) | `FINE` (font issues) |
-| `weblogic.xml.stax` | XML parsing | `WARNING` |
-
-> **Warning:** Setting `oracle.reports` to `FINE` or `FINEST` generates several
-> hundred MB of log output per hour on an active server. Only enable for short,
-> targeted diagnostic sessions and reset immediately afterwards.
-
-### Changing log level at runtime
-
-Use `setLogLevel.sh` (requires AdminServer running + WebLogic credentials):
-
-```bash
-./03-Logs/setLogLevel.sh --query                              # Show current levels
-./03-Logs/setLogLevel.sh --level FINE --logger oracle.reports # Enable debug
-./03-Logs/setLogLevel.sh --level INFO --logger oracle.reports # Reset to normal
-```
-
-For font-related issues specifically, set the log level before generating a test
-report, then check the Reports Engine log for font resolution details.
-
-### WebLogic log rotation settings
-
-WebLogic rotates logs based on:
-- **Size** (default: 5000 KB per file, up to 7 files)
-- **Time** (e.g. daily at midnight)
-
-Configure in: Admin Console → Environment → Servers → WLS_REPORTS →
-Logging → Rotation.
-
-The active log is always the file without a number suffix (`WLS_REPORTS.log`).
-Rotated files are `WLS_REPORTS.log00001`, `WLS_REPORTS.log00002`, etc.
-
----
-
-## 7. Scripts Reference
-
-All scripts read `environment.conf` for path configuration. Scripts that modify
-files require `--apply`; without it they run in **dry-run** (preview) mode.
+All scripts read `environment.conf`; the log directories come from
+[`log_locations.sh`](log_locations.sh). `--component` accepts:
+`all` (default), `reports` (WLS_REPORTS + Reports servers + Reports tools),
+`forms`, `wls` (all WebLogic servers), `nm`, `em`, or a server name
+(`AdminServer`, `WLS_REPORTS`, `repserver01`, …).
 
 | Script | Purpose | Mode |
 |---|---|---|
-| `get_all_logs.sh` | Inventory all log files with size, age, component | read-only |
-| `grep_logs.sh` | Search pattern across all relevant logs (incl. rotated + gz) | read-only |
-| `tail_logs.sh` | Live-follow multiple logs simultaneously (tmux or plain tail) | read-only |
-| `cleanLogFiles.sh` | Truncate active logs, delete old rotated logs | `--apply` required |
-| `archive_logs.sh` | Compress rotated logs with gzip to save disk space | `--apply` required |
-| `setLogLevel.sh` | Query / set Java logger levels via WLST (server must run) | `--apply` required |
+| `get_all_logs.sh` | inventory: every log with size, date, active / rotated / compressed, totals | read-only |
+| `grep_logs.sh` | search a pattern in all logs incl. rotated and `.gz` | read-only |
+| `tail_logs.sh` | live view of the main logs (tmux split panes or plain `tail -F`) | read-only |
+| `cleanLogFiles.sh` | truncate active logs, delete old rotated / compressed ones | `--apply` |
+| `archive_logs.sh` | gzip rotated logs | `--apply` |
+| `setLogLevel.sh` | query / set WebLogic logger levels via WLST | `--apply` |
+| `log_locations.sh` | shared helper (sourced): log groups, file kind, file search | – |
 
 ### get_all_logs.sh
 
 ```bash
 ./03-Logs/get_all_logs.sh
+./03-Logs/get_all_logs.sh --component reports
 ```
 
-Lists all logs grouped by component (AdminServer, WLS_REPORTS, WLS_FORMS,
-ReportsEngine, NodeManager, ODL). Shows size and last modified date per file.
-Warns if a log exceeds `LOG_MAX_SIZE_MB` (default 500 MB) or has not been
-written to for more than `LOG_RETAIN_DAYS` days (stale rotation check).
-Prints disk-usage totals per group at the end.
+One section per log group (role – name, directory), every file with
+size, modification time and status (`active`, `rotated`, `compressed`);
+files in subdirectories shown relative (`reports/rwservlet_diagnostic.log`).
+WARN for active logs larger than `LOG_MAX_SIZE_MB` (default 500) or not
+written for `LOG_RETAIN_DAYS` (default 30) days. Summary: total size of
+the log files, plus `servers/*/tmp` and `servers/*/adr` (not logs, often the
+real disk consumers).
 
 ### grep_logs.sh
 
 ```bash
-./03-Logs/grep_logs.sh "REP-3000"
-./03-Logs/grep_logs.sh "REP-" --component WLS_REPORTS --since 2026-03-04
-./03-Logs/grep_logs.sh "Exception" --context 5 --level ERROR
-./03-Logs/grep_logs.sh "Exception" --since-minutes 30
-./03-Logs/grep_logs.sh "REP-" --since-minutes 5 --component WLS_REPORTS
+./03-Logs/grep_logs.sh 'REP-3000'
+./03-Logs/grep_logs.sh 'REP-' --component reports --since 2026-10-17
+./03-Logs/grep_logs.sh 'Exception' --context 5 --level ERROR
+./03-Logs/grep_logs.sh 'Exception' --since-minutes 30
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
-| `<pattern>` | Search pattern (required, supports regex) |
-| `--component AdminServer\|WLS_REPORTS\|WLS_FORMS\|all` | Limit search scope (default: all) |
-| `--since YYYY-MM-DD` | Only search files modified on or after this date |
-| `--since-minutes N` | Only search files modified within the last N minutes |
-| `--context N` | Show N lines of context around each match (default: 3) |
-| `--level ERROR\|WARNING\|INFO` | Pre-filter by severity keyword |
+| `<pattern>` | search pattern (basic regex, case-insensitive; `\|` for alternatives) |
+| `--component NAME` | see above (default `all`) |
+| `--since YYYY-MM-DD` | only files modified on / after this date |
+| `--since-minutes N` | only files modified within the last N minutes |
+| `--context N` | lines of context per match (default 3) |
+| `--level ERROR\|WARNING\|INFO` | only files that also contain this keyword |
 
-`--since` and `--since-minutes` are mutually exclusive.
-
-Searches active logs **and** all rotated files (`*.log00001`…) and gzip-compressed
-files (`*.gz` via `zgrep`). Output includes filename and line number for every match.
-REP-/FRM-/BEA- error codes are colour-highlighted.
+Active, rotated and compressed files (`zgrep`); file name and line number
+per match; REP- / FRM- / BEA- / ORA- codes highlighted. `--since` and
+`--since-minutes` are mutually exclusive.
 
 ### tail_logs.sh
 
 ```bash
-./03-Logs/tail_logs.sh                              # All relevant logs
-./03-Logs/tail_logs.sh --component WLS_REPORTS      # Reports Server only
-./03-Logs/tail_logs.sh --component WLS_FORMS        # Forms Server only
-./03-Logs/tail_logs.sh --component all --lines 50   # All logs, 50 initial lines
-./03-Logs/tail_logs.sh --no-tmux                    # Force plain tail (no tmux)
+./03-Logs/tail_logs.sh                       # main logs of all groups
+./03-Logs/tail_logs.sh --component reports   # WLS_REPORTS + Reports server + engines + rwrun
+./03-Logs/tail_logs.sh --component forms --lines 50
+./03-Logs/tail_logs.sh --all-files --component WLS_FORMS
+./03-Logs/tail_logs.sh --no-tmux
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
-| `--component all\|AdminServer\|WLS_REPORTS\|WLS_FORMS` | Component filter (default: all) |
-| `--lines N` | Initial lines shown per file at start (default: 20) |
-| `--no-tmux` | Force plain `tail -f` mode even when tmux is available |
+| `--component NAME` | see above (default `all`; EM only with `em`) |
+| `--lines N` | initial lines per file (default 20) |
+| `--all-files` | every active log of the selected groups, not only the main ones |
+| `--no-tmux` | plain `tail -F` even when tmux is available |
 
-If `tmux` is available, opens a new split-pane session (or window when already
-inside tmux) with one pane per log file and file names shown in pane borders
-(`tiled` layout). Press `Ctrl-b d` to detach, `Ctrl-b &` to close the window.
+Main logs per group: `<srv>.log`, `<srv>.out`, `<srv>-diagnostic.log`,
+`rwservlet_diagnostic.log` (only if written); Reports server:
+`rwserver_diagnostic.log`, `rwEng-*_diagnostic.log`, `<name>.out`; Reports
+tools: `runtime_diagnostic.log`; `nodemanager.log` (16 files for `all` on
+the test host). `tail -F` follows by name – it keeps following when
+WebLogic rotates a log.
 
-Fallback (no tmux / `--no-tmux`): `tail -f` on all files simultaneously with
-colour-filtered output: `ERROR`/`SEVERE` → red, `WARNING` → yellow, `INFO` → green,
-`REP-*`/`FRM-*` error codes → red.
+tmux: one pane per file (tiled, file name in the pane border); inside tmux
+a new window, outside a new session. `Ctrl-b d` detach, `Ctrl-b &` close.
+More than 12 files → hint to narrow with `--component`. Without tmux:
+`tail -F` with coloured output (`<Error>` / `[ERROR]` / SEVERE red,
+warnings yellow, info green).
 
 ### cleanLogFiles.sh
 
 ```bash
-./03-Logs/cleanLogFiles.sh                          # Dry-run: show what would be done
-./03-Logs/cleanLogFiles.sh --apply                  # Execute cleanup
-./03-Logs/cleanLogFiles.sh --retain-days 3 --apply  # Keep only last 3 days of rotated logs
-./03-Logs/cleanLogFiles.sh --include-out --apply    # Also truncate *.out (stdout) files
+./03-Logs/cleanLogFiles.sh                          # dry-run: plan
+./03-Logs/cleanLogFiles.sh --apply
+./03-Logs/cleanLogFiles.sh --retain-days 3 --apply
+./03-Logs/cleanLogFiles.sh --include-out --apply
+./03-Logs/cleanLogFiles.sh --component reports --apply
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
-| `--apply` | Execute the plan (default: dry-run preview) |
-| `--retain-days N` | Keep rotated logs for N days (default: `LOG_RETAIN_DAYS=7`) |
-| `--include-out` | Also truncate `*.out` stdout files (skipped by default) |
+| `--apply` | execute (default: dry-run plan) |
+| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 7) |
+| `--include-out` | also truncate `*.out` (skipped by default – may hold JVM crash output) |
+| `--component NAME` | see above |
 
-Rules applied:
-- **Active `*.log` files** (`WLS_REPORTS.log`, `AdminServer.log`, etc.) — truncated
-  to zero bytes (`truncate -s 0`). The file descriptor stays open; the running
-  server continues writing to the same (now empty) file. Never deleted.
-- **`*.out` files** (managed server stdout) — skipped by default; truncated only
-  with `--include-out`. These files may contain JVM crash info.
-- **Rotated logs** (`*.log00001`, `*.log00002`, etc.) older than `--retain-days` — deleted.
-- **Reports Engine logs** under `ReportsToolsComponent/` older than `--retain-days` — deleted
-  (engine creates a new log file per run; all are candidates for cleanup).
-- `diagnostics/` and `nodemanager/` are **never touched**.
+Rules: active `*.log` / `*.trc` → `truncate -s 0` (the server keeps
+writing into the same file); `*.out` → only with `--include-out`;
+rotated and compressed files older than `--retain-days` → delete.
+`nodemanager/` and the EM logs are **never** touched. The plan shows
+TRUNCATE / DELETE / SKIP per file and the space freed.
 
-Dry-run shows a coloured action plan (TRUNCATE / DELETE / SKIP) with sizes and
-total disk space that would be freed. Always run dry-run before `--apply`.
-
-> **Note:** Truncating an active log is irreversible.
-> Run `grep_logs.sh` first to confirm there is nothing relevant to preserve.
+> Truncating is irreversible – run `grep_logs.sh` first.
 
 ### archive_logs.sh
 
 ```bash
-./03-Logs/archive_logs.sh                        # Dry-run: show candidates + estimated savings
-./03-Logs/archive_logs.sh --apply                # Compress
-./03-Logs/archive_logs.sh --min-age 7 --apply   # Only compress files older than 7 days
-./03-Logs/archive_logs.sh --level 6 --apply     # Use gzip level 6 (faster, slightly larger)
+./03-Logs/archive_logs.sh                        # dry-run
+./03-Logs/archive_logs.sh --apply
+./03-Logs/archive_logs.sh --min-age 7 --apply
+./03-Logs/archive_logs.sh --level 6 --apply
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
-| `--apply` | Execute compression (default: dry-run preview) |
-| `--min-age N` | Only compress files older than N days (default: `LOG_ARCHIVE_MIN_AGE_DAYS=1`) |
-| `--level N` | gzip compression level 1–9 (default: 9 = `--best`) |
+| `--apply` | compress (default: dry-run) |
+| `--min-age N` | only files older than N days (default `LOG_ARCHIVE_MIN_AGE_DAYS`, 1) |
+| `--level N` | gzip level 1–9 (default 9) |
+| `--component NAME` | see above |
 
-Compresses rotated logs (`*.log[0-9]*`) and Reports Engine logs older than
-`--min-age` using `gzip`. Active logs (`*.log` without suffix, `*.out`) and
-already-compressed files (`*.gz`, `*.bz2`) are always skipped.
-
-Dry-run shows candidates with sizes and an estimated saving (~85% typical for
-WLS text logs). After `--apply`, prints actual before/after sizes and compression
-percentage per file plus totals. Compressed files remain searchable via `zgrep`
-and `grep_logs.sh`.
+Compresses **rotated** logs (`*.log00001`, `*.out00001`,
+`*-diagnostic-1.log`, …) with gzip; active and already compressed files
+are never touched. Afterwards still searchable with `grep_logs.sh` /
+`zgrep`.
 
 ### setLogLevel.sh
 
 ```bash
-./03-Logs/setLogLevel.sh --query                                      # Show current levels
-./03-Logs/setLogLevel.sh --level WARNING --apply                      # Set all managed loggers
-./03-Logs/setLogLevel.sh --level FINE   --logger oracle.reports --apply
-./03-Logs/setLogLevel.sh --level INFO   --logger oracle.reports --apply
-./03-Logs/setLogLevel.sh --query --target WLS_FORMS                   # Query specific server
-./03-Logs/setLogLevel.sh --level FINE --target all --apply            # All servers
+./03-Logs/setLogLevel.sh --query --target WLS_REPORTS --logger oracle.reports
+./03-Logs/setLogLevel.sh --level FINE --logger oracle.reports.server --target WLS_REPORTS --apply
+./03-Logs/setLogLevel.sh --level INFO --logger oracle.reports.server --target WLS_REPORTS --apply
+./03-Logs/setLogLevel.sh --level WARNING --target all --apply --persist
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
-| `--query` | Show current logger levels – no `--apply` needed |
+| `--query` | current levels (no `--apply` needed) |
 | `--level LEVEL` | `SEVERE\|WARNING\|INFO\|CONFIG\|FINE\|FINER\|FINEST` |
-| `--logger NAME` | Logger name/prefix (default: all managed loggers) |
-| `--target SERVER` | `WLS_REPORTS\|WLS_FORMS\|AdminServer\|all` (default: `$WLS_MANAGED_SERVER`) |
-| `--apply` | **Required** to actually change levels; without it shows a dry-run preview |
+| `--logger NAME` | logger and its children (default: `oracle.reports oracle.forms oracle.adf weblogic.xml.stax`) |
+| `--target SERVER` | `AdminServer\|WLS_FORMS\|WLS_REPORTS\|all` (default `$WLS_MANAGED_SERVER`) |
+| `--apply` | required to change a level (otherwise dry-run) |
+| `--persist` | also save to `logging.xml` (survives a restart) |
 
-Default managed loggers (when no `--logger` specified):
-`oracle.reports`, `oracle.forms`, `oracle.adf`, `weblogic.xml.stax`
+Needs the running AdminServer and the stored credentials
+(`00-Setup/weblogic_sec.sh`). WebLogic servers only – see section 5 for
+the Reports server / engines.
 
-Requires AdminServer to be running. Uses `load_weblogic_password()` from
-`00-Setup/IHateWeblogic_lib.sh` — run `00-Setup/weblogic_sec.sh` first if
-the password has not been stored yet.
-
-Level changes are **runtime-only** (lost on server restart). Always reset
-with `--level INFO` after a debug session.
+Fixed 2026-10-19 (**confirmed (live)**): `--query` found no loggers
+(`listLoggers` takes a regex – `oracle.reports*` only matched
+`oracle.report(s)`); every `--apply` was **persistent** although documented
+as runtime-only (WLST default `persist=1`; on top, a Python variable named
+`persist` is replaced by the Java package `weblogic.persist` after
+`connect()`).
 
 ---
 
-## 8. Step-by-Step: Fresh Diagnostic Baseline
-
-Before starting a diagnostic session it is helpful to have a clean, known-good
-log state. This avoids confusion between old and new errors.
+## 7. Step-by-Step: Fresh Diagnostic Baseline
 
 ```
-Step 1 – Inventory current log situation
-─────────────────────────────────────────
-./03-Logs/get_all_logs.sh
+Step 1 – Inventory
+  ./03-Logs/get_all_logs.sh
 
-Review sizes. If any log is > 500 MB, schedule archiving or cleanup.
+Step 2 – Save existing errors before wiping anything
+  ./03-Logs/grep_logs.sh 'REP-\|FRM-\|BEA-\|ORA-' --context 5
 
+Step 3 – Compress rotated logs
+  ./03-Logs/archive_logs.sh            # plan
+  ./03-Logs/archive_logs.sh --apply
 
-Step 2 – Search for existing errors (before wiping anything)
-──────────────────────────────────────────────────────────────
-./03-Logs/grep_logs.sh "REP-\|FRM-\|BEA-\|ORA-" --context 5
+Step 4 – Clean active logs for a fresh baseline
+  ./03-Logs/cleanLogFiles.sh           # plan
+  ./03-Logs/cleanLogFiles.sh --apply
 
-Save or review the output. This gives you the pre-baseline error state.
+Step 5 – (optional) more detail for one WebLogic logger, runtime only
+  ./03-Logs/setLogLevel.sh --level FINE --logger oracle.reports.server --target WLS_REPORTS --apply
 
+Step 6 – Watch live while reproducing the problem
+  ./03-Logs/tail_logs.sh --component reports
 
-Step 3 – Archive rotated logs to free disk space
-──────────────────────────────────────────────────
-./03-Logs/archive_logs.sh           # preview
-./03-Logs/archive_logs.sh --apply   # compress
+Step 7 – Search the result
+  ./03-Logs/grep_logs.sh 'REP-' --since-minutes 30 --context 10
 
-
-Step 4 – Clean active logs to establish a fresh baseline
-──────────────────────────────────────────────────────────
-./03-Logs/cleanLogFiles.sh          # preview what will be truncated/deleted
-./03-Logs/cleanLogFiles.sh --apply  # truncate active logs, delete old rotated logs
-
-
-Step 5 – (Optional) Enable debug logging for a targeted component
-───────────────────────────────────────────────────────────────────
-./03-Logs/setLogLevel.sh --level FINE --logger oracle.reports.fonts --apply
-
-
-Step 6 – Monitor live while reproducing the issue
-───────────────────────────────────────────────────
-./03-Logs/tail_logs.sh --component WLS_REPORTS
-# (In another terminal: trigger the failing report)
-
-
-Step 7 – Search the results
-──────────────────────────────
-./03-Logs/grep_logs.sh "REP-" --since $(date +%Y-%m-%d) --context 10
-
-
-Step 8 – Reset log level
-──────────────────────────
-./03-Logs/setLogLevel.sh --level INFO --logger oracle.reports.fonts --apply
+Step 8 – Reset the level
+  ./03-Logs/setLogLevel.sh --level INFO --logger oracle.reports.server --target WLS_REPORTS --apply
 ```
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
-### REP-1800 in WLS_REPORTS.log – root cause not visible
-
-```
-Symptom: WLS_REPORTS.log shows only "REP-1800: Error running report."
-         with a java.rmi.RemoteException stack trace
-Cause:   REP-1800 is a servlet-level wrapper. The underlying error
-         is in the Reports Engine process, which logs to a different file.
-Fix:     Search the Reports Engine log:
-           find $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent \
-                -name "*.log" -newer /tmp | xargs grep "REP-" 2>/dev/null
-         Common underlying errors: REP-1924 (font), REP-3000 (engine),
-         REP-0069 (communication), REP-0110 (SQL)
-```
-
-### Log file missing or empty at startup
+### REP error for the user – cause not visible in WLS_REPORTS.log
 
 ```
-Symptom: WLS_REPORTS.log does not exist or is 0 bytes after server start
-Cause A: Server failed to start before any logging was initialised
-         → check nodemanager/nodemanager.log for the exit reason
-Cause B: cleanLogFiles.sh truncated the file; server restarted and wrote nothing
-         → this is normal; generate a test report to produce log output
-Fix:     Check Node Manager and AdminServer logs for startup errors:
-           tail -100 $DOMAIN_HOME/nodemanager/nodemanager.log
-           tail -100 $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log
+Symptom: WLS_REPORTS.log / rwservlet_diagnostic.log show only the error the
+         user got (REP-52262 diagnostic output disabled, REP-50125 …)
+Cause:   the report runs in an engine of the standalone Reports server – a
+         different process with its own logs
+Fix:     ./03-Logs/grep_logs.sh 'REP-' --component repserver01 --since-minutes 30
+         → servers/<repserver>/logs/rwEng-N_diagnostic.log, rwserver_diagnostic.log
 ```
 
-### Log file grows without bound (no rotation happening)
+### Log file missing or empty after start
 
 ```
-Symptom: WLS_REPORTS.log is several GB in size, no rotated files exist
-Cause:   Log rotation is disabled or the rotation size threshold is not reached
-         because log entries arrive faster than the check interval
-Fix:     Admin Console → Environment → Servers → WLS_REPORTS → Logging:
-           Enable: Rotate log file on startup: Yes
-           Log file rotation type: By Size
-           Maximum log file size: 50000 KB
-           Number of files: 10
-         Or use cleanLogFiles.sh --apply for immediate relief.
+Symptom: <srv>.log missing or 0 bytes after a start
+Cause A: the server failed before logging was initialised
+         → nodemanager/nodemanager.log, servers/<srv>/logs/<srv>.out
+Cause B: cleanLogFiles.sh truncated the file, nothing logged since → normal
 ```
 
-### grep_logs.sh finds nothing in rotated logs
+### Disk full
 
 ```
-Symptom: grep_logs.sh returns no results from *.log00001 files
-Cause A: Rotated files have already been archived (*.gz)
-Fix A:   grep_logs.sh automatically searches *.gz files via zgrep when zgrep
-         is installed. If zgrep is missing, install it:
-           sudo dnf install gzip        # zgrep is included in the gzip package
-         Then re-run grep_logs.sh – it will pick up the .gz files.
-         To search manually:
-           zgrep "REP-3000" $DOMAIN_HOME/servers/WLS_REPORTS/logs/*.gz
-
-Cause B: zgrep is not installed on the system
-Fix B:   sudo dnf install gzip
+Symptom: no space left on device
+Check:   ./03-Logs/get_all_logs.sh – log totals and servers/*/tmp, servers/*/adr
+         (on the test host tmp/ was 400–800 MB per server, the logs 40 MB in all)
+Fix:     ./03-Logs/archive_logs.sh --apply
+         ./03-Logs/cleanLogFiles.sh --apply     (after grep_logs.sh)
+         servers/<srv>/tmp: only with the server stopped
 ```
 
-### setLogLevel.sh fails with connection error
+### grep_logs.sh finds nothing in compressed logs
 
 ```
-Symptom: WLST cannot connect to AdminServer
-Cause A: AdminServer is not running
-         → Start: $DOMAIN_HOME/bin/startWebLogic.sh (or via Node Manager)
-Cause B: Stored WebLogic password is wrong or expired
-         → Re-run: ./00-Setup/weblogic_sec.sh --apply
-Cause C: Admin port is not the default (7001) or SSL is required
-         → Check: grep ListenPort $DOMAIN_HOME/config/config.xml
+Cause:   zgrep missing
+Fix:     sudo dnf install gzip      (zgrep is part of gzip)
 ```
 
-### Reports Engine log is empty despite REP-1800
+### setLogLevel.sh cannot connect
 
 ```
-Symptom: No useful content in rwEng*.log or repserver.log
-Cause A: Reports Server is configured for a different diagnostic log path
-Fix A:   Find all .log files under ReportsToolsComponent:
-           find $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent \
-                -name "*.log" 2>/dev/null
-Cause B: Reports Server crashed at startup before it could log anything
-Fix B:   Check $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.out for
-         raw stderr output (JVM crash dumps, OutOfMemoryError, etc.)
+Cause A: AdminServer not running        → ./01-Run/startStop.sh start AdminServer --apply
+Cause B: stored password wrong          → ./00-Setup/weblogic_sec.sh --apply
+Cause C: WL_ADMIN_URL wrong             → environment.conf (t3://localhost:7001)
 ```
 
-### Disk full because of logs
+### setLogLevel.sh – level back after a restart / still set after a restart
 
 ```
-Symptom: Oracle Linux reports no space left on device
-Cause:   Unrotated or uncompressed WLS logs consuming all available space
-Quick fix (immediate relief):
-  1. Identify largest logs:
-       du -sh $DOMAIN_HOME/servers/*/logs/* | sort -rh | head -20
-  2. Archive rotated logs immediately:
-       ./03-Logs/archive_logs.sh --apply
-  3. Truncate active logs if server is running and logs are confirmed reviewed:
-       ./03-Logs/cleanLogFiles.sh --apply
-  4. After gaining space: configure WebLogic log rotation properly (see above)
+Default is runtime only (lost at restart). With --persist the level is in
+config/fmwconfig/servers/<srv>/logging.xml – reset with
+--level INFO … --apply --persist. Before 2026-10-19 every change was
+persisted: check logging.xml for level='TRACE…' entries left from old runs.
 ```
 
 ---
 
-## References
+## 9. References
 
-- Oracle WebLogic 14c – Logging and Diagnostic Services:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/12.2.1.4/wllog/index.html
-- Oracle Reports 12c – Troubleshooting Guide:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_troubl.htm
-- Oracle Diagnostic Logging (ODL) Format:
-  https://docs.oracle.com/middleware/12213/core/ASADM/diagnosing.htm
-- Oracle WLST Reference – Logger configuration:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/12.2.1.4/wlstg/index.html
-- Pipperr.de – Oracle Reports 14c Install Guide:
+All links checked 2026-10-19 (HTTP 200, title matches) – see below.
+
+- Configuring Log Files and Filtering Log Messages for Oracle WebLogic Server 14.1.2:
+  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wllog/index.html
+- Troubleshooting Oracle Reports Services (12.2.1.3 guide, still valid for the architecture):
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm
+- Pipperr.de – Oracle Reports 14c install guide:
   https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64

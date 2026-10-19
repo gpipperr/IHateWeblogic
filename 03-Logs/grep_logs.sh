@@ -8,7 +8,8 @@
 #            ./grep_logs.sh "REP-" --component WLS_REPORTS --since 2026-03-04
 #            ./grep_logs.sh "Exception" --context 5 --level ERROR
 #            ./grep_logs.sh "Exception" --since-minutes 30
-# Options  : --component     all|AdminServer|WLS_REPORTS|WLS_FORMS  (default: all)
+# Options  : --component     all|reports|forms|wls|nm|em|<server name>  (default: all)
+#                            log directories discovered by log_locations.sh
 #            --since         YYYY-MM-DD   only files modified on/after this date
 #            --since-minutes N            only files modified within the last N minutes
 #            --context       N            lines of context per match (default: 3)
@@ -49,7 +50,7 @@ LEVEL_FILTER=""
 _usage() {
     printf "Usage: %s <pattern> [options]\n\n" "$(basename "$0")"
     printf "  %-34s %s\n" "<pattern>"                  "Search pattern (required, case-insensitive)"
-    printf "  %-34s %s\n" "--component <name>"         "all|AdminServer|WLS_REPORTS|WLS_FORMS (default: all)"
+    printf "  %-34s %s\n" "--component <name>"         "all|reports|forms|wls|nm|em|<server> (default: all)"
     printf "  %-34s %s\n" "--since YYYY-MM-DD"         "Only search files modified on/after this date"
     printf "  %-34s %s\n" "--since-minutes N"          "Only search files modified within the last N minutes"
     printf "  %-34s %s\n" "--context N"                "Lines of context around each match (default: 3)"
@@ -130,40 +131,14 @@ fi
 # Build search directory list based on --component
 # =============================================================================
 
-_REPTOOLS_BASE="${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent"
-
-declare -a SEARCH_DIRS
-case "${COMPONENT,,}" in
-    adminserver)
-        SEARCH_DIRS=(
-            "${DOMAIN_HOME}/servers/AdminServer/logs"
-            "${DOMAIN_HOME}/diagnostics/logs/AdminServer"
-        )
-        ;;
-    wls_reports)
-        SEARCH_DIRS=(
-            "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-            "$_REPTOOLS_BASE"
-            "${DOMAIN_HOME}/diagnostics/logs/WLS_REPORTS"
-        )
-        ;;
-    wls_forms)
-        SEARCH_DIRS=(
-            "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-            "${DOMAIN_HOME}/diagnostics/logs/WLS_FORMS"
-        )
-        ;;
-    all|*)
-        SEARCH_DIRS=(
-            "${DOMAIN_HOME}/servers/AdminServer/logs"
-            "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-            "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-            "$_REPTOOLS_BASE"
-            "${DOMAIN_HOME}/diagnostics/logs"
-            "${DOMAIN_HOME}/nodemanager"
-        )
-        ;;
-esac
+# shellcheck source=log_locations.sh
+source "$SCRIPT_DIR/log_locations.sh"
+mapfile -t LOG_GROUPS < <(ihw_log_groups "$COMPONENT")
+if [ "${#LOG_GROUPS[@]}" -eq 0 ]; then
+    fail "No log directory matches --component $COMPONENT"
+    print_summary
+    exit 2
+fi
 
 # =============================================================================
 # Output helpers
@@ -235,30 +210,17 @@ _grep_file() {
     TOTAL_FILES=$(( TOTAL_FILES + 1 ))
 }
 
-# _search_dir  dir  maxdepth
+# _search_dir  dir  maxdepth – plain files with grep, compressed with zgrep
 _search_dir() {
-    local dir="$1"
-    local maxdepth="${2:-4}"
-
+    local dir="$1" maxdepth="${2:-2}" f
     [ -d "$dir" ] || return
-
-    # Plain log and stdout files (active + rotated)
     while IFS= read -r -d '' f; do
-        _grep_file "$f" false
-    done < <(find "$dir" -maxdepth "$maxdepth" \
-        \( -name "*.log" -o -name "*.log[0-9]*" -o -name "*.out" \) \
-        "${FIND_SINCE[@]}" \
-        -type f -print0 2>/dev/null | sort -z)
-
-    # Compressed logs via zgrep
-    if command -v zgrep > /dev/null 2>&1; then
-        while IFS= read -r -d '' f; do
-            _grep_file "$f" true
-        done < <(find "$dir" -maxdepth "$maxdepth" \
-            \( -name "*.gz" -o -name "*.bz2" \) \
-            "${FIND_SINCE[@]}" \
-            -type f -print0 2>/dev/null | sort -z)
-    fi
+        if [ "$(ihw_log_kind "$f")" = "compressed" ]; then
+            command -v zgrep > /dev/null 2>&1 && _grep_file "$f" true
+        else
+            _grep_file "$f" false
+        fi
+    done < <(ihw_log_find "$dir" "$maxdepth" "${FIND_SINCE[@]}")
 }
 
 # =============================================================================
@@ -281,13 +243,9 @@ printf "  %-16s %s lines\n" "Context:"   "$CONTEXT"          | tee -a "${LOG_FIL
 printf "  %-16s %s\n"       "Level:"     "${LEVEL_FILTER:-(all)}" | tee -a "${LOG_FILE:-/dev/null}"
 printLine
 
-for dir in "${SEARCH_DIRS[@]}"; do
-    [ -d "$dir" ] || continue
-    # Deeper maxdepth for components with nested log directories
-    local_depth=2
-    [[ "$dir" == *"ReportsToolsComponent"* ]] && local_depth=4
-    [[ "$dir" == *"diagnostics/logs"*      ]] && local_depth=3
-    _search_dir "$dir" "$local_depth"
+for _g in "${LOG_GROUPS[@]}"; do
+    IFS=$'\t' read -r _role _name _dir _depth <<< "$_g"
+    _search_dir "$_dir" "$_depth"
 done
 
 # =============================================================================

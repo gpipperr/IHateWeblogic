@@ -2,7 +2,10 @@
 # =============================================================================
 # Script   : get_all_logs.sh
 # Purpose  : Inventory all WebLogic/Reports/Forms log files with size, age and status
-# Call     : ./get_all_logs.sh
+#            Log directories are discovered from the domain (log_locations.sh):
+#            every server under servers/*/logs incl. the standalone Reports
+#            server + engines and the Reports tools, Node Manager, EM.
+# Call     : ./get_all_logs.sh [--component all|reports|forms|wls|nm|em|<server>]
 # Requires : find, stat, date, awk, du
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -24,6 +27,19 @@ source "$LIB"
 check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
+# shellcheck source=log_locations.sh
+source "$SCRIPT_DIR/log_locations.sh"
+
+COMPONENT="all"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --component) COMPONENT="${2:?--component needs a value}"; shift 2 ;;
+        --help|-h)
+            printf "Usage: %s [--component all|reports|forms|wls|nm|em|<server>]\n" "$(basename "$0")"
+            exit 0 ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 2 ;;
+    esac
+done
 
 # =============================================================================
 # Thresholds – override in environment.conf if needed
@@ -64,7 +80,7 @@ _print_log_row() {
     modified="$(date -d "@$mtime" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
     size_human="$(_human_size "$size_bytes")"
     size_mb=$(( size_bytes / 1048576 ))
-    fname="$(basename "$file")"
+    fname="${file#"${SCAN_DIR:-}"/}"    # relative to the group dir (logs/reports/…)
 
     case "$type" in
         active)
@@ -94,64 +110,36 @@ _print_log_row() {
 }
 
 # _scan_log_dir  label  dir  [maxdepth]
-# Lists all log/out files in dir grouped by type. Warns on threshold violations.
+# Lists all log/out/trc files in dir (active, rotated, compressed).
+# Group total = size of the log files, not of the whole directory.
 _scan_log_dir() {
-    local label="$1"
-    local dir="$2"
-    local maxdepth="${3:-2}"
-
+    local label="$1" dir="$2" maxdepth="${3:-2}"
     section "$label"
-
     if [ ! -d "$dir" ]; then
         info "Directory not found – $dir"
-        printf "\n" | tee -a "${LOG_FILE:-/dev/null}"
         return
     fi
-
-    # Column header
-    printf "  \033[1m%-50s %9s  %-16s  %s\033[0m\n" \
-        "File" "Size" "Modified" "Status" \
+    printList "Directory" 12 "$dir"
+    printf "  \033[1m%-50s %9s  %-16s  %s\033[0m\n" "File" "Size" "Modified" "Status" \
         | tee -a "${LOG_FILE:-/dev/null}"
     printLine
 
-    local found=0
+    SCAN_DIR="$dir"
+    local f kind found=0 bytes=0
+    for kind in active rotated compressed; do
+        while IFS= read -r -d '' f; do
+            [ "$(ihw_log_kind "$f")" = "$kind" ] || continue
+            _print_log_row "$f" "$kind"
+            bytes=$(( bytes + $(stat -c %s "$f" 2>/dev/null || echo 0) ))
+            found=$(( found + 1 ))
+        done < <(ihw_log_find "$dir" "$maxdepth")
+    done
+    [ "$found" -eq 0 ] && info "No log files found"
 
-    # Active logs: *.log, *.out (exact suffix, no numeric extension)
-    while IFS= read -r -d '' f; do
-        _print_log_row "$f" "active"
-        found=1
-    done < <(find "$dir" -maxdepth "$maxdepth" \
-        \( -name "*.log" -o -name "*.out" \) \
-        -type f -print0 2>/dev/null | sort -z)
-
-    # Rotated logs: *.log followed by digits (e.g. WLS_REPORTS.log00001)
-    while IFS= read -r -d '' f; do
-        _print_log_row "$f" "rotated"
-        found=1
-    done < <(find "$dir" -maxdepth "$maxdepth" \
-        -name "*.log[0-9]*" \
-        -type f -print0 2>/dev/null | sort -z)
-
-    # Compressed logs: *.gz, *.bz2
-    while IFS= read -r -d '' f; do
-        _print_log_row "$f" "compressed"
-        found=1
-    done < <(find "$dir" -maxdepth "$maxdepth" \
-        \( -name "*.gz" -o -name "*.bz2" \) \
-        -type f -print0 2>/dev/null | sort -z)
-
-    if [ "$found" -eq 0 ]; then
-        info "No log files found"
-    fi
-
-    # Group disk usage
-    local total
-    total="$(du -sh "$dir" 2>/dev/null | awk '{print $1}')"
-    printf "\n  Group total: \033[1m%s\033[0m  (%s)\n\n" \
-        "${total:-n/a}" "$dir" \
+    printf "\n  Group total: \033[1m%s\033[0m in %d file(s)\n\n" "$(_human_size "$bytes")" "$found" \
         | tee -a "${LOG_FILE:-/dev/null}"
-
-    ok "Scanned: $label"
+    TOTAL_BYTES=$(( TOTAL_BYTES + bytes ))
+    TOTAL_FILES=$(( TOTAL_FILES + found ))
 }
 
 # =============================================================================
@@ -172,33 +160,26 @@ if [ -z "${DOMAIN_HOME:-}" ]; then
     exit 2
 fi
 
-# --- WebLogic server logs ---
-_scan_log_dir "AdminServer"  "${DOMAIN_HOME}/servers/AdminServer/logs"
-_scan_log_dir "WLS_REPORTS"  "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-_scan_log_dir "WLS_FORMS"    "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-
-# --- Reports Engine logs (instance dir varies: reptools1, repserver1, ...) ---
-_REPTOOLS_BASE="${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent"
-_scan_log_dir "Reports Engine (ReportsToolsComponent)" "$_REPTOOLS_BASE" 4
-
-# --- ODL diagnostic logs ---
-_scan_log_dir "ODL / AdminServer"  "${DOMAIN_HOME}/diagnostics/logs/AdminServer"  3
-_scan_log_dir "ODL / WLS_REPORTS"  "${DOMAIN_HOME}/diagnostics/logs/WLS_REPORTS"  3
-_scan_log_dir "ODL / WLS_FORMS"    "${DOMAIN_HOME}/diagnostics/logs/WLS_FORMS"    3
-
-# --- Node Manager ---
-_scan_log_dir "Node Manager" "${DOMAIN_HOME}/nodemanager"
+TOTAL_BYTES=0
+TOTAL_FILES=0
+NGROUPS=0
+while IFS=$'\t' read -r _role _name _dir _depth; do
+    _scan_log_dir "$_role – $_name" "$_dir" "$_depth"
+    NGROUPS=$(( NGROUPS + 1 ))
+done < <(ihw_log_groups "$COMPONENT")
+[ "$NGROUPS" -eq 0 ] && warn "No log directory matches --component $COMPONENT"
 
 # =============================================================================
 # Disk usage summary
 # =============================================================================
 section "Disk Usage Summary"
-printList "servers/ (WLS logs + stdout)"       45 \
-    "$(du -sh "${DOMAIN_HOME}/servers"     2>/dev/null | awk '{print $1}' || echo 'n/a')"
-printList "diagnostics/ (ODL logs)"             45 \
-    "$(du -sh "${DOMAIN_HOME}/diagnostics" 2>/dev/null | awk '{print $1}' || echo 'n/a')"
-printList "ReportsToolsComponent/ (Engine logs)" 45 \
-    "$(du -sh "$_REPTOOLS_BASE"            2>/dev/null | awk '{print $1}' || echo 'n/a')"
+printList "Log files (all groups above)" 40 "$(_human_size "$TOTAL_BYTES") in $TOTAL_FILES file(s)"
+# Not logs, but often the real disk consumers below servers/
+for _d in "$DOMAIN_HOME"/servers/*/tmp "$DOMAIN_HOME"/servers/*/adr; do
+    [ -d "$_d" ] || continue
+    printList "${_d#"$DOMAIN_HOME"/} (not logs)" 40 "$(du -sh "$_d" 2>/dev/null | awk '{print $1}')"
+done
+ok "Inventory complete: $NGROUPS log group(s)"
 
 print_summary
 exit $EXIT_CODE

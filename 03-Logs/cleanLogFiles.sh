@@ -8,10 +8,14 @@
 # Options  : --apply                    Execute changes (default: dry-run)
 #            --retain-days N            Keep rotated logs for N days (default: LOG_RETAIN_DAYS=7)
 #            --include-out              Also truncate *.out (stdout) files
-# Rules    : Active logs  (*.log, *.out) → truncate -s 0  (file stays, server keeps writing)
-#            Rotated logs (*.log[0-9]*) older than retain-days → delete
-#            Reports Engine logs        → delete if older than retain-days (new file per run)
-#            diagnostics/ and nodemanager/ → never touched (left for Oracle Support)
+#            --component NAME           all|reports|forms|wls|<server> (default: all)
+# Scope    : servers/*/logs of every WebLogic server, the standalone Reports
+#            server (+ engines) and the Reports tools (log_locations.sh);
+#            nodemanager/ and the EM logs are never touched
+# Rules    : Active logs  (*.log, *.trc) → truncate -s 0  (file stays, server keeps writing)
+#            *.out (stdout, may hold JVM crash info) → only with --include-out
+#            Rotated (*.log00001, *.out00001, *-diagnostic-1.log) and
+#            compressed logs older than retain-days → delete
 # WARNING  : Truncation is irreversible. Run grep_logs.sh first to capture errors.
 # Requires : find, stat, truncate, du
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -34,6 +38,8 @@ source "$LIB"
 check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
+# shellcheck source=log_locations.sh
+source "$SCRIPT_DIR/log_locations.sh"
 
 # =============================================================================
 # Arguments
@@ -42,14 +48,16 @@ init_log
 APPLY=false
 RETAIN_DAYS="${LOG_RETAIN_DAYS:-7}"
 INCLUDE_OUT=false
+COMPONENT="all"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --apply)        APPLY=true; shift ;;
         --retain-days)  RETAIN_DAYS="$2"; shift 2 ;;
         --include-out)  INCLUDE_OUT=true; shift ;;
+        --component)    COMPONENT="${2:?--component needs a value}"; shift 2 ;;
         --help|-h)
-            printf "Usage: %s [--apply] [--retain-days N] [--include-out]\n" \
+            printf "Usage: %s [--apply] [--retain-days N] [--include-out] [--component NAME]\n" \
                 "$(basename "$0")"
             exit 1 ;;
         *)
@@ -88,87 +96,39 @@ PLAN_TRUNCATE_BYTES=0
 PLAN_DELETE_BYTES=0
 PLAN_SKIP_BYTES=0
 
-# _scan_server_logs  dir
-# Plans: TRUNCATE for active *.log (and *.out if INCLUDE_OUT), DELETE/SKIP for rotated.
-_scan_server_logs() {
-    local dir="$1"
-    [ -d "$dir" ] || return
-
-    # Active *.log files (no numeric suffix)
-    while IFS= read -r -d '' f; do
-        local sz
-        sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        PLAN_FILE+=("$f");    PLAN_ACTION+=("TRUNCATE")
-        PLAN_REASON+=("active log – truncate in place")
-        PLAN_SIZE+=("$sz")
-        PLAN_TRUNCATE_BYTES=$(( PLAN_TRUNCATE_BYTES + sz ))
-    done < <(find "$dir" -maxdepth 1 -name "*.log" -not -name "*.[0-9]*" \
-        -type f -print0 2>/dev/null | sort -z)
-
-    # Active *.out files
-    while IFS= read -r -d '' f; do
-        local sz
-        sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        if $INCLUDE_OUT; then
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("TRUNCATE")
-            PLAN_REASON+=("stdout log – truncate in place (--include-out)")
-            PLAN_SIZE+=("$sz")
-            PLAN_TRUNCATE_BYTES=$(( PLAN_TRUNCATE_BYTES + sz ))
-        else
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("SKIP")
-            PLAN_REASON+=("stdout log – skipped (use --include-out to truncate)")
-            PLAN_SIZE+=("$sz")
-            PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-        fi
-    done < <(find "$dir" -maxdepth 1 -name "*.out" -type f -print0 2>/dev/null | sort -z)
-
-    # Rotated *.log[0-9]* files
-    while IFS= read -r -d '' f; do
-        local sz mtime days
-        sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        mtime="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
-        days="$(_days_since_epoch "$mtime")"
-        if [ "$days" -ge "$RETAIN_DAYS" ]; then
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("DELETE")
-            PLAN_REASON+=("rotated – ${days}d old, retain: ${RETAIN_DAYS}d")
-            PLAN_SIZE+=("$sz")
-            PLAN_DELETE_BYTES=$(( PLAN_DELETE_BYTES + sz ))
-        else
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("SKIP")
-            PLAN_REASON+=("rotated – ${days}d old, retain: ${RETAIN_DAYS}d (too recent)")
-            PLAN_SIZE+=("$sz")
-            PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-        fi
-    done < <(find "$dir" -maxdepth 1 -name "*.log[0-9]*" \
-        -type f -print0 2>/dev/null | sort -z)
+# _plan file action reason – add one entry to the plan
+_plan() {
+    local sz; sz="$(stat -c %s "$1" 2>/dev/null || echo 0)"
+    PLAN_FILE+=("$1"); PLAN_ACTION+=("$2"); PLAN_REASON+=("$3"); PLAN_SIZE+=("$sz")
+    case "$2" in
+        TRUNCATE) PLAN_TRUNCATE_BYTES=$(( PLAN_TRUNCATE_BYTES + sz )) ;;
+        DELETE)   PLAN_DELETE_BYTES=$(( PLAN_DELETE_BYTES + sz )) ;;
+        SKIP)     PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz )) ;;
+    esac
 }
 
-# _scan_engine_logs  dir  maxdepth
-# Reports Engine creates a new *.log per run – all are candidates for deletion if old.
-_scan_engine_logs() {
-    local dir="$1"
-    local depth="${2:-4}"
-    [ -d "$dir" ] || return
-
+# _scan_group dir depth – plan for every log file of one server log directory
+_scan_group() {
+    local dir="$1" depth="$2" f kind days
     while IFS= read -r -d '' f; do
-        local sz mtime days
-        sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
-        mtime="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
-        days="$(_days_since_epoch "$mtime")"
-        if [ "$days" -ge "$RETAIN_DAYS" ]; then
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("DELETE")
-            PLAN_REASON+=("engine log – ${days}d old, retain: ${RETAIN_DAYS}d")
-            PLAN_SIZE+=("$sz")
-            PLAN_DELETE_BYTES=$(( PLAN_DELETE_BYTES + sz ))
-        else
-            PLAN_FILE+=("$f");  PLAN_ACTION+=("SKIP")
-            PLAN_REASON+=("engine log – ${days}d old, retain: ${RETAIN_DAYS}d (too recent)")
-            PLAN_SIZE+=("$sz")
-            PLAN_SKIP_BYTES=$(( PLAN_SKIP_BYTES + sz ))
-        fi
-    done < <(find "$dir" -maxdepth "$depth" \
-        \( -name "*.log" -o -name "*.log[0-9]*" \) \
-        -type f -print0 2>/dev/null | sort -z)
+        kind="$(ihw_log_kind "$f")"
+        days="$(_days_since_epoch "$(stat -c %Y "$f" 2>/dev/null || echo 0)")"
+        case "$kind" in
+            active)
+                case "$f" in
+                    *.out)
+                        if $INCLUDE_OUT; then _plan "$f" TRUNCATE "stdout log – truncate in place (--include-out)"
+                        else                  _plan "$f" SKIP "stdout log – skipped (--include-out to truncate)"; fi ;;
+                    *)  _plan "$f" TRUNCATE "active log – truncate in place" ;;
+                esac ;;
+            rotated|compressed)
+                if [ "$days" -ge "$RETAIN_DAYS" ]; then
+                    _plan "$f" DELETE "$kind – ${days}d old, retain: ${RETAIN_DAYS}d"
+                else
+                    _plan "$f" SKIP "$kind – ${days}d old, retain: ${RETAIN_DAYS}d (too recent)"
+                fi ;;
+        esac
+    done < <(ihw_log_find "$dir" "$depth")
 }
 
 # =============================================================================
@@ -190,10 +150,11 @@ if [ -z "${DOMAIN_HOME:-}" ]; then
 fi
 
 info "Scanning log directories..."
-_scan_server_logs "${DOMAIN_HOME}/servers/AdminServer/logs"
-_scan_server_logs "${DOMAIN_HOME}/servers/WLS_REPORTS/logs"
-_scan_server_logs "${DOMAIN_HOME}/servers/WLS_FORMS/logs"
-_scan_engine_logs "${DOMAIN_HOME}/config/fmwconfig/components/ReportsToolsComponent" 4
+while IFS=$'\t' read -r _role _name _dir _depth; do
+    # Node Manager and EM logs are never touched (left for Oracle Support)
+    case "$_role" in "Node Manager"|"Enterprise Manager") continue ;; esac
+    _scan_group "$_dir" "$_depth"
+done < <(ihw_log_groups "$COMPONENT")
 
 # =============================================================================
 # Print plan
@@ -210,8 +171,8 @@ for (( i=0; i < ${#PLAN_FILE[@]}; i++ )); do
     action="${PLAN_ACTION[$i]}"
     reason="${PLAN_REASON[$i]}"
     sz="${PLAN_SIZE[$i]}"
-    dir="$(dirname "$f")"
-    fname="$(basename "$f")"
+    dir="${f%%/logs/*}/logs"            # group header = the server log dir
+    fname="${f#"$dir"/}"                # logs/reports/… shown as reports/…
     size_human="$(_human_size "$sz")"
 
     # Print directory header when it changes
