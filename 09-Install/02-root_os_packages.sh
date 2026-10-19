@@ -238,7 +238,8 @@ for PKG in \
     xorg-x11-xauth \
     bind-utils \
     tcpdump \
-    nmap-ncat
+    nmap-ncat \
+    poppler-utils
 do
     _check_pkg "$PKG"
 done

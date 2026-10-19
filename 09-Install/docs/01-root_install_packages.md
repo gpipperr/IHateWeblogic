@@ -206,8 +206,12 @@ dnf install -y \
 dnf install -y \
   sysstat smartmontools nmon tmux \
   lsof strace psmisc xorg-x11-xauth \
-  bind-utils tcpdump nmap-ncat
+  bind-utils tcpdump nmap-ncat poppler-utils
 ```
+
+`poppler-utils` provides `pdffonts`, used by `04-ReportsFonts/pdf_font_verify.sh`
+to check that a report PDF embeds TrueType fonts (added 2026-10-19 – without
+it the check could not run on the test host).
 
 > **OL9 package name changes:**
 > `xauth` → `xorg-x11-xauth` | `nc` → `nmap-ncat` (provided by nmap)

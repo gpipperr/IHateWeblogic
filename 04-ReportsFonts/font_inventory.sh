@@ -305,22 +305,22 @@ import sys, re
 with open(sys.argv[1], "r", errors="replace") as fh:
     content = fh.read()
 
-m = re.search(
-    r'\[\s*PDF\s*:\s*Subset\s*\]([^\[]*)',
-    content, re.IGNORECASE | re.DOTALL
-)
-if not m:
-    sys.exit(0)
-
-section = m.group(1)
-for line in section.splitlines():
-    line = line.strip()
-    if not line or line.startswith("#"):
+# Section = from the [PDF:Subset] header line to the next section header
+# line. (The old regex stopped at the first "[" anywhere – also in a comment
+# like "# … [PDF:Subset] section by hand" – and found no mapping at all.)
+in_sec = False
+for raw in content.splitlines():
+    line = raw.strip()
+    if re.match(r'^\[\s*[^\]]+\]\s*$', line):
+        in_sec = bool(re.match(r'^\[\s*PDF\s*:\s*Subset\s*\]$', line, re.IGNORECASE))
         continue
-    # Format: "PS Name" = TTF_base
+    if not in_sec or not line or line.startswith("#"):
+        continue
+    # Format: "PS Name"..qualifier = "file.ttf"  (right side: quotes + .ttf)
     parts = line.split("=", 1)
     if len(parts) == 2:
-        ttf_base = parts[1].strip().strip('"')
+        ttf_base = parts[1].split("#")[0].strip().strip('"')
+        ttf_base = re.sub(r'\.(ttf|ttc)$', '', ttf_base, flags=re.IGNORECASE)
         if ttf_base:
             print(ttf_base)
 PYEOF
@@ -347,13 +347,23 @@ PYEOF
         MAPPED_SET["$base"]=1
     done
 
+    # Not an error: with REPORTS_ENHANCED_FONTHANDLING=yes a TTF in
+    # REPORTS_FONT_DIRECTORY is found by its family name without a mapping;
+    # [PDF:Subset] is only needed for report font names that differ
+    # (Arial -> Liberation Sans …). One INFO line instead of one WARN per file.
     UNREFERENCED=0
+    _unref=()
     for base in "${!REPORTS_FONT_BASES[@]}"; do
         if [ -z "${MAPPED_SET[$base]:-}" ]; then
-            warn "  In REPORTS_FONT_DIR but NOT in [PDF:Subset]: $base"
+            _unref+=("$base")
             UNREFERENCED=$(( UNREFERENCED + 1 ))
         fi
     done
+    if [ "$UNREFERENCED" -gt 0 ]; then
+        info "  TTF files without [PDF:Subset] mapping (usable by family name):"
+        printf '%s\n' "${_unref[@]}" | sort | paste -sd' ' | fold -s -w 76 | sed 's/^/      /' \
+            | tee -a "${LOG_FILE:-/dev/null}"
+    fi
 
     printf "\n"
     printf "  [PDF:Subset] entries with TTF present : %d\n" "$FOUND_IN_DIR"
@@ -361,7 +371,7 @@ PYEOF
     printf "  TTF files not in [PDF:Subset]         : %d\n" "$UNREFERENCED"
 
     if [ "$UNREFERENCED" -gt 0 ]; then
-        info "  Run uifont_ali_update.sh --apply to add unmapped fonts to [PDF:Subset]"
+        info "  Map a font only if reports use another name for it: uifont_ali_template.ali / uifont_ali_update.sh"
     fi
 fi
 

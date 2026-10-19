@@ -355,6 +355,13 @@ NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      "..Italic"      "Lib
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman"      ".."            "LiberationSerif-Regular")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman Bold"    ""           "LiberationSerif-Bold")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times New Roman Italic"  ""           "LiberationSerif-Italic")")
+# "Times New Roman" = times in [Global] -> the engine looks up the FAMILY
+# "Times" (AFM Times-Roman/-Bold/…). Without these four lines Times stayed a
+# non-embedded Type1 font (confirmed live 2026-10-19, rwrun + Reports server)
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times"                "..Italic.Bold" "LiberationSerif-BoldItalic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times"                "...Bold"       "LiberationSerif-Bold")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times"                "..Italic"      "LiberationSerif-Italic")")
+NEW_SUBSET_LINES+=("$(_subset_line_q "Times"                ".."            "LiberationSerif-Regular")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Roman"          ""              "LiberationSerif-Regular")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Bold"           ""              "LiberationSerif-Bold")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Times-Italic"         ""              "LiberationSerif-Italic")")
@@ -386,6 +393,31 @@ NEW_SUBSET_LINES+=("$(_subset_line_q "Tahoma Bold"          ""              "Dej
 NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              "...Bold"       "DejaVuSans-Bold")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              ".."            "DejaVuSans")")
 NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana Bold"         ""              "DejaVuSans-Bold")")
+NEW_SUBSET_LINES+=("")
+
+# ─── Deployed TTF families under their own names ─────────────────────────────
+# A report that uses the Linux font directly ("Liberation Sans", "DejaVu Sans")
+# is resolved via the generated AFM (paramform_afm_setup.sh) under the compact
+# family name – without these lines the PDF referenced it as a non-embedded
+# Type1 font (confirmed live 2026-10-19). Both spellings are mapped.
+for _fam in "LiberationSans:Liberation Sans" "LiberationSerif:Liberation Serif" "LiberationMono:Liberation Mono"; do
+    _k="${_fam%%:*}"; _n="${_fam#*:}"
+    NEW_SUBSET_LINES+=("# ${_n}")
+    for _key in "$_k" "$_n"; do
+        NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic.Bold" "${_k}-BoldItalic")")
+        NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "...Bold"       "${_k}-Bold")")
+        NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic"      "${_k}-Italic")")
+        NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" ".."            "${_k}-Regular")")
+    done
+done
+NEW_SUBSET_LINES+=("# DejaVu Sans (also the target of Tahoma / Verdana in [Global])")
+for _key in "DejaVuSans" "DejaVu Sans"; do
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic.Bold" "DejaVuSans-BoldOblique")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "...Bold"       "DejaVuSans-Bold")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic"      "DejaVuSans-Oblique")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" ".."            "DejaVuSans")")
+done
+unset _fam _k _n _key
 NEW_SUBSET_LINES+=("")
 
 # ─── Symbol / special-character fonts ─────────────────────────────────────────

@@ -48,7 +48,19 @@ existing font scripts from `04-ReportsFonts/`.
 ./04-ReportsFonts/uifont_ali_update.sh --apply
 # 4. REPORTS_FONT_DIRECTORY etc. in setUserOverrides.sh
 ./04-ReportsFonts/fontpath_config.sh --apply
+# 5. Screen-printer metrics: FontSpecific AFMs + AFMs for the TTFs + PPD entries
+./04-ReportsFonts/paramform_afm_setup.sh --apply
 ```
+
+**Step 5 is required for PDF too** (confirmed live 2026-10-19, rwrun and
+Reports server): the engine first resolves every font through the screen
+printer (`screenprinter.ppd` + AFM files, ReportsTools component); only a
+font found there is then mapped by `[PDF:Subset]` to a TTF and embedded.
+Without step 5 *every* font of the test report (Arial, Helvetica, Times New
+Roman, Courier New, Tahoma) came out as non-embedded **Type 1 "Symbol"** –
+Latin text shown as Greek glyphs. After step 5 + `uifont_ali_update.sh`
+all of them are embedded TrueType (Liberation / DejaVu). Restart the
+Reports server afterwards – the engines read the files at start.
 
 `cgicmd.dat` – default key for the report calls of the applications
 (server = Reports server **component**, `REPORTS_SERVER_NAME`, not the managed
@@ -89,13 +101,14 @@ Then back up and restart:
 | 2 | Font cache | `04-ReportsFonts/font_cache_reset.sh --apply` |
 | 3 | uifont.ali | `04-ReportsFonts/uifont_ali_update.sh --apply` |
 | 4 | Font path | `04-ReportsFonts/fontpath_config.sh --apply` |
+| 4b | Screen-printer AFM/PPD | `04-ReportsFonts/paramform_afm_setup.sh --apply` – required for PDF **and** HTML (see above) |
 | 5 | cgicmd.dat | `response_files/cgicmd.dat.template` with the `authid` from `reports_users.conf.des3` (`REPORTS_EXEC_USER/PWD`): append, or **replace** an existing IHateWeblogic block; `chmod 640`; password never logged |
 | 6 | Config backup | `07-Maintenance/backup_config.sh --apply` (now incl. Reports/Forms/font config) |
 
 - `CGICMD_DAT` comes from `environment.conf` or defaults to the path above.
 - `server=` in `cgicmd.dat` = `REPORTS_SERVER_NAME` (default `repserver01`).
   Before 2026-10-15 `09-` wrongly used `WLS_MANAGED_SERVER` for it.
-- Steps 1–4 are skipped with `--skip-fonts`.
+- Steps 1–4b are skipped with `--skip-fonts`.
 
 ---
 
@@ -105,7 +118,7 @@ Then back up and restart:
 |---|---|
 | (none) | Dry-run: prerequisites + planned steps |
 | `--apply` | Execute all steps |
-| `--skip-fonts` | Only cgicmd.dat + backup |
+| `--skip-fonts` | Only cgicmd.dat + backup (skips steps 1–4b) |
 | `--help` | Show usage |
 
 ---

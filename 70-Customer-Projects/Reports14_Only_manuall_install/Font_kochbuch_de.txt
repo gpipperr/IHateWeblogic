@@ -6,9 +6,9 @@
   Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports
   Erstellt   : 2026-10
   Grundlage  : IHateWeblogic/04-ReportsFonts (Gunther Pipperr)
-  Hinweis    : Erweiterte Fassung von 04-ReportsFonts/manual_setup_de.txt -
-               deckt zusaetzlich den HTML-Parameterformular-Fontpfad
-               (Schritt 8, AFM/PPD) ab, der dort noch fehlte.
+  Hinweis    : Einzige gepflegte manuelle Font-Anleitung (ersetzt
+               04-ReportsFonts/manual_setup_de.txt). Am 2026-10-19 am
+               Testsystem gegen echte PDFs geprueft (pdffonts).
   Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt
                  (Reports-Server laeuft)
   Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen gesammelt in
@@ -26,15 +26,21 @@
 
 VORAUSSETZUNGEN
 ----------------
-  Oracle Reports kennt ZWEI voellig getrennte Font-Mechanismen:
-    1. PDF-Ausgabe (desformat=pdf): uifont.ali + TrueType-Fonts in
-       REPORTS_FONT_DIRECTORY (Schritte 1-7 unten)
-    2. HTML-Ausgabe / HTML-Parameterformular: PPD + AFM-Metrikdateien
-       ("screen printer"), uifont.ali wird hier GAR NICHT gelesen
-       (Schritt 8 unten)
-  Ein funktionierender PDF-Fontpfad bedeutet NICHT automatisch, dass auch
-  das Parameterformular korrekt aussieht - beide Mechanismen muessen
-  unabhaengig voneinander eingerichtet werden.
+  Oracle Reports braucht ZWEI Bausteine - fuer die PDF-Ausgabe BEIDE:
+    1. "screen printer" (screenprinter.ppd + AFM-Metrikdateien, Teil B /
+       Schritt 8): JEDE Schrift eines Reports wird zuerst hier aufgeloest.
+       Gibt es keine passende AFM-Datei, wird daraus "Symbol" - im PDF wie
+       im HTML-Parameterformular erscheint lateinischer Text dann als
+       griechische Zeichen.
+    2. uifont.ali [PDF:Subset] + TrueType-Dateien in REPORTS_FONT_DIRECTORY
+       (Teil A / Schritte 1-7): bildet die gefundene Schrift fuer das PDF
+       auf eine TTF ab, die eingebettet wird.
+  Getestet am 2026-10-19 (Testsystem, rwrun und Reports Server): ohne
+  Schritt 8 wurden Arial, Helvetica, Times New Roman, Courier New und
+  Tahoma im PDF alle zu "Symbol" (Type 1, nicht eingebettet); mit Schritt 8
+  und den Eintraegen aus Schritt 4 alle zu eingebetteten TrueType-Schriften.
+  Reihenfolge daher: Schritte 1-5, dann Schritt 8, dann Neustart (Schritt 6)
+  und Test (Schritt 7).
 
     export ORACLE_HOME=/u01/oracle/fmw
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
@@ -129,6 +135,23 @@ SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
   #   "Arial"..         = "LiberationSans-Regular"        <- FALSCH (kein .ttf)
   # Spezifischere Eintraege (mit Italic/Bold-Qualifier) MUESSEN vor dem
   # generischen ".."-Eintrag stehen.
+  #
+  # Benoetigte Eintraege (am Testsystem nachgewiesen, 2026-10-19):
+  #   - je Ersatzschrift die FAMILIE mit Qualifier, z.B. "Helvetica"..,
+  #     "Courier".. und auch "Times".. - [Global] macht aus
+  #     "Times New Roman" die Familie "times"; ohne "Times"..-Eintraege
+  #     bleibt Times eine nicht eingebettete Type-1-Schrift
+  #   - die Linux-Schriften unter ihrem eigenen Namen, falls Reports sie
+  #     direkt verwenden: "LiberationSans".. / "Liberation Sans".. usw.,
+  #     "DejaVuSans".. / "DejaVu Sans"..
+  #   - in [Global] fuer Schriften ohne eigene AFM-Datei einen Alias auf
+  #     eine Familie mit AFM, z.B.
+  #       Tahoma  = DejaVuSans
+  #       Verdana = DejaVuSans
+  #     (ohne Alias wurde Tahoma zu Courier)
+  # Die vollstaendige, getestete Datei erzeugt IHateWeblogic mit
+  # 04-ReportsFonts/uifont_ali_update.sh - sie kann von dort uebernommen
+  # werden (Vorlage: 04-ReportsFonts/uifont_ali_template.ali).
 
   grep -A 30 '\[PDF:Subset\]' "$UIFONT_ALI"
 
@@ -191,15 +214,17 @@ SCHRITT 6: Reports Server neu starten  (als oracle)
   $DOMAIN_HOME/bin/stopComponent.sh  "$REPORTS_SERVER_NAME"
   $DOMAIN_HOME/bin/startComponent.sh "$REPORTS_SERVER_NAME"
 
-  # Kontrolle: rwengine-Prozesse sichtbar?
-  pgrep -la rwengine
+  # Kontrolle: Engine-Prozesse sichtbar? (Java-Prozesse des Reports Servers)
+  pgrep -af 'RWEngine name=rwEng' | cut -c1-120
 
-  # Kontrolle: REPORTS_FONT_DIRECTORY ist in der JVM gesetzt?
-  cat /proc/$(pgrep -f 'weblogic.Name=WLS_REPORTS' | head -1)/environ 2>/dev/null \
+  # Kontrolle: die ENGINES (sie erzeugen das PDF) haben die Font-Variablen?
+  # Sie bekommen sie aus $DOMAIN_HOME/reports/bin/reports.sh, nicht aus
+  # setUserOverrides.sh (das gilt nur fuer WebLogic-Server wie WLS_REPORTS).
+  cat /proc/$(pgrep -f 'RWEngine name=rwEng-0' | head -1)/environ 2>/dev/null \
       | tr '\0' '\n' \
-      | grep -i REPORTS_FONT
-  # (WLS_REPORTS = Name des Reports-Managed-Servers, WLS_MANAGED_SERVER aus
-  # Reports_kochbuch_de.txt)
+      | grep -iE 'REPORTS_FONT|ENHANCED'
+  # Erwartet: REPORTS_FONT_DIRECTORY=.../reports/fonts und
+  #           REPORTS_ENHANCED_FONTHANDLING=YES
 
 
 SCHRITT 7: PDF-Test und Verifikation  (als oracle)
@@ -208,17 +233,21 @@ SCHRITT 7: PDF-Test und Verifikation  (als oracle)
   # pdffonts ist Teil des Pakets poppler-utils: dnf install -y poppler-utils
   pdffonts /tmp/test_report.pdf
 
-  # Korrekte Ausgabe (TrueType, eingebettet):
-  #   name               type    emb sub uni
-  #   LiberationSans     TrueType yes yes no
-  #   LiberationSans-Bd  TrueType yes yes no
+  # Korrekte Ausgabe (so am Testsystem, 2026-10-19):
+  #   name                     type          encoding    emb sub uni
+  #   AAATCI+Liberation,Sans   CID TrueType  Identity-H  yes yes yes
+  #   AAAUCI+Liberation,Serif  CID TrueType  Identity-H  yes yes yes
+  #   AAAVCI+Liberation,Mono   CID TrueType  Identity-H  yes yes yes
   #
-  # Problematische Ausgabe (Type 1, nicht eingebettet):
-  #   Arial              Type 1  no  no  no
-  #   Times New Roman    Type 1  no  no  no
+  # Problematische Ausgabe:
+  #   Symbol                   Type 1        Symbol      no  no  no
+  #     -> Schrift im "screen printer" nicht gefunden: Schritt 8 fehlt
+  #        (oder Engines danach nicht neu gestartet)
+  #   Times-Roman              Type 1        WinAnsi     no  no  no
+  #     -> gefunden, aber kein [PDF:Subset]-Eintrag fuer die Familie
+  #        ("Times"..) - Schritt 4
   #
-  # Wenn Type 1 weiterhin erscheint: Schritt 5 und 6 erneut pruefen.
-  # REPORTS_FONT_DIRECTORY muss in der JVM gesetzt sein (Schritt 6 Kontrolle).
+  # Engines neu starten nach jeder Aenderung (Schritt 6).
 
 
 ================================================================================
@@ -228,13 +257,13 @@ TEIL B: HTML-PARAMETERFORMULAR-FONTPFAD (PPD + AFM, "screen printer")
 SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
 --------------------------------------------------------------------------------
 
-  # SYMPTOM: Das HTML-Parameterformular zeigt griechische/Symbol-Zeichen
-  # statt lateinischer Schrift - OBWOHL die PDF-Ausgabe (Teil A) bereits
-  # korrekt ist. URSACHE: Das Parameterformular nutzt einen komplett
-  # eigenen "screen printer"-Mechanismus (screenprinter.ppd + AFM-Dateien),
-  # der uifont.ali ueberhaupt nicht liest. Ohne passende AFM-Datei faellt
-  # Reports auf *DefaultFont (Courier) oder - bei Zeichensatzkonflikt -
-  # auf Symbol zurueck.
+  # SYMPTOM: Griechische/Symbol-Zeichen statt lateinischer Schrift - im
+  # HTML-Parameterformular UND (am Testsystem 2026-10-19 nachgewiesen) auch
+  # im PDF. URSACHE: Jede Schrift wird zuerst ueber den "screen printer"
+  # (screenprinter.ppd + AFM-Dateien) aufgeloest. Ohne passende AFM-Datei
+  # faellt Reports auf *DefaultFont (Courier) oder - bei
+  # Zeichensatzkonflikt - auf Symbol zurueck. Dieser Schritt ist deshalb
+  # auch fuer die PDF-Ausgabe PFLICHT.
 
   export TK_ADMIN="${REPORTS_ADMIN}"
   export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
@@ -305,8 +334,7 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   #     vorhanden, kein Darstellungsfehler
   #   - Sonderzeichen (grosse Umlaute A/O/U mit Punkten, scharfes s, Euro-Zeichen) werden korrekt angezeigt
   pdffonts /tmp/test_report.pdf
-  # weiterhin "TrueType emb=yes sub=yes" - der PDF-Pfad (Teil A) bleibt
-  # von diesem Schritt unberuehrt
+  # jetzt "CID TrueType ... yes yes" fuer alle Schriften (siehe Schritt 7)
 
 
 ================================================================================
@@ -318,11 +346,19 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: ls "$REPORTS_FONT_DIR" | grep -i liberation
            Dateiname in uifont.ali muss EXAKT mit dem Dateinamen uebereinstimmen.
 
-  Problem: PDF zeigt weiterhin Type 1 nach Neustart
-  Ursache: REPORTS_FONT_DIRECTORY nicht in der JVM-Umgebung
-  Loesung: Schritt 6 Kontrolle ausfuehren. Falls Variable fehlt:
-           setUserOverrides.sh pruefen, Reports Server vollstaendig
-           stoppen und neu starten (nicht nur SIGHUP).
+  Problem: PDF zeigt "Symbol  Type 1  no no no" (Text als griechische
+           Zeichen)
+  Ursache: Schrift im "screen printer" nicht gefunden - Schritt 8 (AFM/PPD)
+           fehlt, oder die Engines wurden danach nicht neu gestartet
+  Loesung: Schritt 8 durchfuehren, Reports Server neu starten (Schritt 6)
+
+  Problem: PDF zeigt eine Schrift als Type 1 ohne Einbettung (z.B.
+           Times-Roman, LiberationSans)
+  Ursache: Schrift gefunden, aber kein [PDF:Subset]-Eintrag fuer ihre
+           Familie ("Times"..), oder REPORTS_FONT_DIRECTORY fehlt in der
+           Umgebung der ENGINES
+  Loesung: Schritt 4 (Familien-Eintraege), Schritt 6 Kontrolle (Engines,
+           nicht WLS_REPORTS), Reports Server neu starten
 
   Problem: uifont.ali Syntaxfehler
   Loesung: [PDF:Subset]-Eintraege muessen lauten:
@@ -331,10 +367,9 @@ BEKANNTE PROBLEME UND LOESUNGEN
            Rechte Seite IMMER in Anfuehrungszeichen, IMMER mit
            .ttf-Erweiterung.
 
-  Problem: Parameterformular zeigt weiterhin griechische/Symbol-Zeichen
-           trotz korrektem PDF-Output
-  Ursache: Teil A (uifont.ali) und Teil B (AFM/PPD) sind VOLLSTAENDIG
-           unabhaengige Mechanismen - Teil A allein reicht nicht
+  Problem: Parameterformular zeigt griechische/Symbol-Zeichen
+  Ursache: Schritt 8 (AFM/PPD) fehlt - Teil A allein reicht weder fuer
+           HTML noch fuer PDF
   Loesung: Schritt 8 vollstaendig durchfuehren
 
   Problem: ttf2reports_afm.py --check meldet "FullName enthaelt

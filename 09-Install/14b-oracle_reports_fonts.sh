@@ -14,7 +14,7 @@
 #            ./09-Install/14b-oracle_reports_fonts.sh --help
 # Options  : (none)        Dry-run: show planned steps and prerequisites
 #            --apply       Execute all steps
-#            --skip-fonts  Only cgicmd.dat + backup (skip font steps 1-4)
+#            --skip-fonts  Only cgicmd.dat + backup (skip font steps 1-4b)
 #            --help        Show usage
 # Runs as  : oracle
 # Requires : 13-oracle_setup_reports.sh done (ReportsToolsComponent exists)
@@ -224,6 +224,8 @@ printf "  %-3s  %-12s  %s\n" "3" "$_st_fonts" \
     "uifont.ali update   → 04-ReportsFonts/uifont_ali_update.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "4" "$_st_fonts" \
     "Font path in domain → 04-ReportsFonts/fontpath_config.sh --apply" | tee -a "$LOG_FILE"
+printf "  %-3s  %-12s  %s\n" "4b" "$_st_fonts" \
+    "AFM/PPD (PDF+HTML)  → 04-ReportsFonts/paramform_afm_setup.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "5" "$($CGICMD_READY && printf 'planned' || printf 'NOT READY')" \
     "cgicmd.dat default  → template block (server: $_reports_server, authid: ${REPORTS_EXEC_USER:-?})" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "6" "planned" \
@@ -246,6 +248,10 @@ if ! $SKIP_FONTS; then
     _run_step "uifont.ali Update"   "$ROOT_DIR/04-ReportsFonts/uifont_ali_update.sh" --apply
     _run_step "Font Path (setUserOverrides.sh)" \
                                     "$ROOT_DIR/04-ReportsFonts/fontpath_config.sh"   --apply
+    # Screen-printer AFM/PPD: without it every font becomes Type1 "Symbol" in
+    # PDF and HTML (confirmed live 2026-10-19) – docs/14b step 5
+    _run_step "Screen-printer AFM/PPD" \
+                                    "$ROOT_DIR/04-ReportsFonts/paramform_afm_setup.sh" --apply
 fi
 
 # =============================================================================

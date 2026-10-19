@@ -15,7 +15,7 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 |---------|-------|-----|
 | HTML parameter form shows Greek glyphs, HTML contains `<font face="symbol">` | The **screen printer** uses PPD + AFM metrics. The standard AFMs have `EncodingScheme AdobeStandardEncoding`, which does not match `NLS_LANG=...WE8MSWIN1252`. Only `Symbol` (`FontSpecific`) passes the charset check. | Copy the standard AFMs into the **domain** AFM directory and set `EncodingScheme FontSpecific` (MOS Doc ID 300416.1) |
 | After that fix every text is `Courier` | Font is not in `screenprinter.ppd` or has no AFM. Reports falls back to `*DefaultFont: Courier`. **uifont.ali aliases are not applied** here. | Generate an AFM from the TTF with `ttf2reports_afm.py`, add a `*Font` line to `screenprinter.ppd` |
-| PDF is fine the whole time | PDF uses `[PDF:Subset]` + TTF files from `REPORTS_FONT_DIRECTORY` (different code path) | nothing to do |
+| PDF was fine at the customer | PDF maps the **resolved** font via `[PDF:Subset]` to a TTF from `REPORTS_FONT_DIRECTORY` | **Correction 2026-10-19:** on the rebuilt test host (`NLS_LANG=AMERICAN_AMERICA.AL32UTF8`) the PDF showed the same symptom – every font became non-embedded Type 1 `Symbol` until this fix was applied; afterwards all fonts were embedded TrueType. The screen-printer step is therefore required for PDF too – see section 2 |
 
 Result after the fix: `<font size="4" face="arial">` in the HTML parameter form.
 
@@ -107,6 +107,19 @@ the PPD and the metrics from AFM files. Enhanced font handling and
 `REPORTS_FONT_DIRECTORY` are **not** used on this path: a `strace` of the
 engine while generating the parameter form shows that not a single `.ttf`
 file is opened.
+
+> **Correction 2026-10-19 (confirmed (live), test host, `rwrun` and the
+> standalone Reports server):** the two paths are **not** independent. The
+> engine resolves every report font through the screen printer first (PPD +
+> AFM, `[Global]` aliases of `uifont.ali` apply); `[PDF:Subset]` then maps
+> the *resolved* family to a TTF. Without the AFM/PPD fix every font of a
+> test report (Arial, Helvetica, Times New Roman, Courier New, Tahoma) was
+> written as Type 1 `Symbol`, `emb=no`; with the fix and family entries in
+> `[PDF:Subset]` (`"Times"..`, `"LiberationSans"..`, `"DejaVuSans"..`,
+> `[Global] Tahoma = DejaVuSans`) all became embedded TrueType. Why the PDF
+> was fine at the customer is open – a different `NLS_LANG` / font set is
+> the likely reason. `09-Install/14b-oracle_reports_fonts.sh` now runs
+> `paramform_afm_setup.sh` for every installation.
 
 ---
 
@@ -265,7 +278,7 @@ not a `rwengine` binary.
 - Open the parameter form, check the HTML source: `face="arial"` (Reports
   writes the face name in lower case), no `<tt>` around the text.
 - Check umlauts (`ÄÖÜß`) and `€` in a label.
-- Check that PDF output is unchanged: `pdffonts <file>.pdf` should still show
+- Check the PDF output as well (it depends on this fix too, see section 2): `pdffonts <file>.pdf` should show
   `TrueType emb=yes sub=yes`.
 
 ---

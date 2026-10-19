@@ -320,7 +320,7 @@ IHateWeblogic/
 │
 ├── 04-ReportsFonts/
 │   ├── README.md                    – incl. Section 11: font troubleshooting
-│   ├── manual_setup_de.txt          – German DBA cookbook (manual font setup, 7 steps)
+│   ├── manual_setup_de.txt          – pointer only → 70-Customer-Projects/…/Font_kochbuch_de.txt
 │   ├── get_root_install_libs.sh     – Check/install font, PDF (poppler-utils) and general
 │   │                                   FMW OS prerequisite packages (gcc, motif, …) via dnf
 │   ├── font_inventory.sh            – Inventory all PostScript Type1 and TTF fonts (FMW + system)
@@ -801,6 +801,11 @@ work (details of every fix: `git log`).
   the domain templates with `DemoIdentity` (`CertGenCA`) although TLS ends at
   Nginx – disable them in `09-Install/08-` (offline WLST), plan in
   `09-Install/docs/08-oracle_setup_domain.md` "Open: SSL listen ports …".
+- [ ] **Font check in the smoke test `15-`** (2026-10-19): the `test_dual` PDF of
+  `15-` "passed" while every font in it was Type 1 `Symbol` (missing AFM/PPD step,
+  now in `14b-`). Add a font test report (Arial, Helvetica, Times New Roman,
+  Courier New, Tahoma, Liberation, DejaVu – prototype tested live 2026-10-19) and
+  check it with `04-ReportsFonts/pdf_font_verify.sh`.
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (10-Monitoring/README.md) – complements the CVE watch (code) with the
   configuration view (T3/IIOP, debug configs, rwservlet web commands, …).

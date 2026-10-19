@@ -9,16 +9,27 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 
 ## Lessons Learned
 
-Five conditions must ALL be true for Oracle Reports to embed TrueType fonts in PDFs.
-If any one is missing, the font falls back to Type 1 (non-embedded).
+Six conditions must ALL be true for Oracle Reports to embed TrueType fonts in
+PDFs. Verified end-to-end on the test host 2026-10-19 (**confirmed (live)**,
+`rwrun` and the standalone Reports server, checked with `pdffonts`).
 
 | # | Condition | How to verify | Fix |
 |---|-----------|---------------|-----|
 | 1 | **TTF file exists in REPORTS_FONT_DIRECTORY** | `ls $DOMAIN_HOME/reports/fonts/*.ttf` | `deploy_fonts.sh --apply` |
-| 2 | **REPORTS_FONT_DIRECTORY is set in the JVM** | `cat /proc/$(pgrep -f WLS_REPORTS)/environ \| tr '\0' '\n' \| grep REPORTS` | `fontpath_config.sh --apply` + restart |
-| 3 | **Font cache is current** (fontconfig) | `fc-list \| grep <fontname>` | `fc-cache -fv $DOMAIN_HOME/reports/fonts/` |
-| 4 | **uifont.ali [PDF:Subset] mapping is correct** | `mfontchk <uifont.ali>` | `uifont_ali_update.sh --apply` |
-| 5 | **Reports Server was restarted** after every change | `rwserver_status.sh` | `startStop.sh STOP/START WLS_REPORTS` |
+| 2 | **REPORTS_FONT_DIRECTORY + REPORTS_ENHANCED_FONTHANDLING reach the engines** – the engines of the standalone Reports server render the PDF, not WLS_REPORTS | `cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ \| tr '\0' '\n' \| grep -E 'REPORTS_FONT\|ENHANCED'` | `$DOMAIN_HOME/reports/bin/reports.sh` (written by `13-`); `fontpath_config.sh` covers the WebLogic servers |
+| 3 | **Screen printer knows the font** (`screenprinter.ppd` + AFM) – every font is resolved here first; without it **every font becomes Type 1 `Symbol`** (Latin text as Greek glyphs) | `ls …/reptools1/guicommon/tk/admin/AFM/` | `paramform_afm_setup.sh --apply` |
+| 4 | **uifont.ali [PDF:Subset] has the FAMILY of the resolved font** (`"Times"..`, `"Helvetica"..`, …) | `mfontchk <uifont.ali>`, then `pdffonts` | `uifont_ali_update.sh --apply` |
+| 5 | **Font cache is current** (fontconfig) | `fc-list \| grep <fontname>` | `font_cache_reset.sh --apply` |
+| 6 | **Reports server restarted** after every change – the engines read AFM / PPD / uifont.ali at start | `rwserver_status.sh` | `01-Run/startStop.sh stop repserver01 --apply` + `start …` |
+
+Test with a report using Arial, Helvetica, Times New Roman, Courier New,
+Tahoma, Liberation Sans, DejaVu Sans (2026-10-19):
+
+| State | PDF (`pdffonts`) |
+|---|---|
+| fonts deployed, uifont.ali, **no AFM/PPD step** | everything `Symbol Type 1 emb=no` except the two Linux family names (`Type 1 emb=no`) |
+| + `paramform_afm_setup.sh --apply`, engines restarted | Arial/Helvetica → Liberation Sans, Courier → Liberation Mono **embedded**; Times → `Times-Roman Type 1 emb=no`; Tahoma → Liberation Mono (wrong) |
+| + `"Times"..`, own-name and `[Global] Tahoma = DejaVuSans` entries | **all fonts `CID TrueType emb=yes sub=yes`** (Liberation Sans/Serif/Mono, DejaVu Sans) |
 
 **Critical syntax rule for uifont.ali `[PDF:Subset]`:**
 
@@ -111,12 +122,32 @@ Controlled by: `REPORTS_ENHANCED_FONTHANDLING=no`
 
 ## 3. Font Resolution Chain (Runtime)
 
-> **Scope: PDF output only.** This chain (`uifont.ali` → `REPORTS_FONT_DIRECTORY`
-> → system fonts) applies to `desformat=pdf`. The HTML output and HTML parameter
-> form use a completely separate path (PPD + AFM "screen printer", `uifont.ali`
-> aliases are **not** consulted) — see
-> [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md) and
-> `paramform_afm_setup.sh`.
+> **Correction 2026-10-19 (confirmed (live)):** the PDF path is **not**
+> independent of the screen printer. The engine first resolves every report
+> font through `[Global]` aliases and the screen printer (`screenprinter.ppd`
+> + AFM files); only a font found there is mapped by `[PDF:Subset]` to a TTF.
+> A font without AFM ends as Type 1 `Symbol` – in PDF and in the HTML
+> parameter form. Background: [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md).
+
+Resolution order as observed (strace + `pdffonts`, test host 2026-10-19):
+
+```
+Report font name (e.g. "Times New Roman")
+        │
+        ▼
+1. uifont.ali [Global] alias            "Times New Roman" = times
+        │
+        ▼
+2. Screen printer: screenprinter.ppd *Font + AFM file (family "Times")
+   → no AFM / charset mismatch → Symbol (FontSpecific) – Greek glyphs
+        │
+        ▼
+3. PDF output: uifont.ali [PDF:Subset] entry for the FAMILY ("Times"..)
+   → TTF from REPORTS_FONT_DIRECTORY, embedded as CID TrueType subset
+   → no family entry → Type 1 reference, not embedded
+```
+
+The older model from the documentation, kept for reference:
 
 When Oracle Reports needs to render a font at runtime, it follows this order:
 
@@ -163,11 +194,20 @@ PostScript name.
 
 ### Location on UNIX/Linux
 
-Oracle Reports searches for `uifont.ali` in this order:
-1. Path defined by `TK_FONTALIAS` environment variable
-2. Path defined by `ORACLE_FONTALIAS` environment variable
-3. Default: `$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/<reptools_name>/guicommon/tk/admin/uifont.ali`
-4. Fallback: `$ORACLE_HOME/guicommon/tk/admin/uifont.ali`
+Observed on the test host (2026-10-19, **confirmed (live)**, strace):
+
+- `rwrun` (Reports tools) reads
+  `$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/<reptools>/guicommon/tk/admin/uifont.ali`
+  – **also when `TK_FONTALIAS` / `ORACLE_FONTALIAS` point to another file**
+  (both were ignored in the test).
+- The engines of the standalone Reports server have no `TK_FONTALIAS` and
+  no `uifont.ali` in their own component directory – changes to the
+  ReportsTools file (and its AFM / PPD) took effect there after a restart.
+- `$ORACLE_HOME/guicommon/tk/admin/uifont.ali` does not exist in 14.1.2;
+  Oracle's template is `$ORACLE_HOME/frcommon/templates/tk/config/uifont.ali`.
+
+`TK_FONTALIAS` / `ORACLE_FONTALIAS` (set by `fontpath_config.sh` for the
+WebLogic servers) are harmless but not what makes the fonts work.
 
 Use `font_inventory.sh` to find the active location on your system.
 
@@ -278,6 +318,11 @@ These entries are generated automatically by `uifont_ali_update.sh`:
 "Times-Bold"                             = "LiberationSerif-Bold.ttf"
 "Times-Italic"                           = "LiberationSerif-Italic.ttf"
 "Times-BoldItalic"                       = "LiberationSerif-BoldItalic.ttf"
+# [Global] "Times New Roman" = times → the engine looks up the FAMILY "Times":
+"Times"..Italic.Bold                     = "LiberationSerif-BoldItalic.ttf"
+"Times"...Bold                           = "LiberationSerif-Bold.ttf"
+"Times"..Italic                          = "LiberationSerif-Italic.ttf"
+"Times"..                                = "LiberationSerif-Regular.ttf"
 
 # ─── Courier / Courier New → Liberation Mono ───────────────────────────────────
 "Courier"..Italic.Bold                   = "LiberationMono-BoldItalic.ttf"
@@ -301,6 +346,22 @@ These entries are generated automatically by `uifont_ali_update.sh`:
 "Verdana"...Bold                         = "DejaVuSans-Bold.ttf"
 "Verdana"..                              = "DejaVuSans.ttf"
 "Verdana Bold"                           = "DejaVuSans-Bold.ttf"
+
+# ─── Linux fonts under their own names (compact AFM name + spaced) ─────────────
+"LiberationSans"..                       = "LiberationSans-Regular.ttf"   (+ Bold/Italic/BoldItalic)
+"Liberation Sans"..                      = "LiberationSans-Regular.ttf"
+# … same for LiberationSerif, LiberationMono
+"DejaVuSans"..                           = "DejaVuSans.ttf"               (+ Bold/Oblique/BoldOblique)
+"DejaVu Sans"..                          = "DejaVuSans.ttf"
+```
+
+`[Global]` (template `uifont_ali_template.ali`) – fonts without an AFM of
+their own need an alias to a family that has one, otherwise they fall back
+to Courier (Tahoma did, 2026-10-19):
+
+```ini
+Tahoma            = DejaVuSans
+Verdana           = DejaVuSans
 ```
 
 **Getting the exact TTF family names:**
@@ -349,17 +410,20 @@ Generated uifont.ali entries (in specificity order):
 
 ```ini
 # Corp Font
-"Corp Font"..Italic.Bold                 = CorpFont_BdIt
-"Corp Font"...Bold                       = CorpFont_Bd
-"Corp Font"..Italic                      = CorpFont_It
-"Corp Font"                              = CorpFont_Rg
+"Corp Font"..Italic.Bold                 = "CorpFont_BdIt.ttf"
+"Corp Font"...Bold                       = "CorpFont_Bd.ttf"
+"Corp Font"..Italic                      = "CorpFont_It.ttf"
+"Corp Font"..                            = "CorpFont_Rg.ttf"
 
 # CorpFont  (PS-name alias → "Corp Font")
-"CorpFont"..Italic.Bold                  = CorpFont_BdIt
-"CorpFont"...Bold                        = CorpFont_Bd
-"CorpFont"..Italic                       = CorpFont_It
-"CorpFont"                               = CorpFont_Rg
+"CorpFont"..Italic.Bold                  = "CorpFont_BdIt.ttf"
+"CorpFont"...Bold                        = "CorpFont_Bd.ttf"
+"CorpFont"..Italic                       = "CorpFont_It.ttf"
+"CorpFont"..                             = "CorpFont_Rg.ttf"
 ```
+
+A corporate font also needs its AFM for the screen printer:
+`paramform_afm_setup.sh --apply` generates it from the TTF (condition 3).
 
 ---
 
@@ -414,10 +478,16 @@ Generated uifont.ali entries (in specificity order):
 | `ORACLE_FONTALIAS`              | (optional override)           | Fallback path to `uifont.ali`                        |
 | `NLS_LANG`                      | `GERMAN_GERMANY.UTF8` (example) | Drives character set for font selection            |
 
-These variables must reach the **JVM process** of the Reports Server. Use
-`fontpath_config.sh --apply` to write all six lines below into
-`setUserOverrides.sh` as both OS environment exports **and** JVM `-D` system
-properties (belt-and-suspenders for Node Manager environments):
+Who needs them (test host 2026-10-19, `/proc/<pid>/environ`):
+
+| Process | Gets them from | Renders PDFs |
+|---|---|---|
+| Engines `rwEng-N` + `rwserver` of the standalone Reports server | `$DOMAIN_HOME/reports/bin/reports.sh` (`REPORTS_FONT_DIRECTORY`, `REPORTS_ENHANCED_FONTHANDLING=YES`, written by `13-`) | **yes** |
+| `rwrun` / `rwconverter` (Reports tools) | same `reports.sh` | yes (batch) |
+| WebLogic servers (WLS_REPORTS …) | `setUserOverrides.sh` (`fontpath_config.sh`) | only with an in-process Reports server |
+
+`fontpath_config.sh --apply` writes the six lines below into
+`setUserOverrides.sh` as OS exports **and** JVM `-D` system properties:
 
 ```bash
 export REPORTS_FONT_DIRECTORY="/u01/.../reports/fonts"
@@ -428,10 +498,10 @@ export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_FONT_DIRECTORY=\"/u01/.../reports
 export JAVA_OPTIONS="${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"
 ```
 
-Verify the variables are active in the running process:
+Verify the variables in the process that renders the PDF – the engine:
 
 ```bash
-cat /proc/$(pgrep -f WLS_REPORTS)/environ | tr '\0' '\n' | grep REPORTS
+cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ | tr '\0' '\n' | grep -E 'REPORTS_FONT|ENHANCED'
 ```
 
 ---
@@ -448,7 +518,7 @@ cat /proc/$(pgrep -f WLS_REPORTS)/environ | tr '\0' '\n' | grep REPORTS
 | `fontpath_config.sh` | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
 | `pdf_font_verify.sh` | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
 | `font_cache_reset.sh` | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
-| `paramform_afm_setup.sh` | Set up AFM/PPD for the HTML output / HTML parameter form "screen printer" font path (independent of uifont.ali) | domain-local AFM dir, screenprinter.ppd |
+| `paramform_afm_setup.sh` | Set up AFM/PPD for the "screen printer" – **required for PDF and HTML** (every font is resolved there first) | domain-local AFM dir, screenprinter.ppd |
 | `ttf2reports_afm.py` | Generate/check an AFM file from a TTF for the screen printer (called by `paramform_afm_setup.sh`) | nothing by itself (writes only to `-o <file>`) |
 
 All scripts default to **dry-run** mode. Add `--apply` to write changes.
@@ -481,9 +551,9 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 
 ### paramform_afm_setup.sh – behaviour
 
-- Separate font path from the rest of this module (see section 3 note and
-  [HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md)): fixes the HTML
-  output / HTML parameter form "screen printer", not `[PDF:Subset]`
+- Fixes the "screen printer" (section 3): required for the HTML parameter
+  form **and** the PDF output (confirmed live 2026-10-19) – called by
+  `09-Install/14b-oracle_reports_fonts.sh` since then
 - Step A: creates `FontSpecific` copies of the standard PostScript AFMs
   (`Helvetica*`, `Courier*`, `Times*`) from the Oracle Home AFM directory into
   the domain-local AFM directory — never modifies the Oracle Home copies
@@ -554,13 +624,21 @@ Step 7 – Set REPORTS_FONT_DIRECTORY in setUserOverrides.sh
 ./04-ReportsFonts/fontpath_config.sh --apply      # write managed block
 
 
+Step 7b – Screen printer AFM/PPD (required for PDF and HTML)
+──────────────────────────────────────────────────────────────
+./04-ReportsFonts/paramform_afm_setup.sh              # preview
+./04-ReportsFonts/paramform_afm_setup.sh --apply      # AFMs + PPD entries
+
+
 Step 8 – Restart the Reports Server
 ─────────────────────────────────────
-$DOMAIN_HOME/bin/stopComponent.sh  repServer01
-$DOMAIN_HOME/bin/startComponent.sh repServer01
+./01-Run/startStop.sh stop  repserver01 --apply
+./01-Run/startStop.sh start repserver01 --apply
+# (the first report right after the start may fail – the server is still
+#  starting; retry after ~30 s)
 
-# Verify env vars are active in the JVM process:
-cat /proc/$(pgrep -f WLS_REPORTS)/environ | tr '\0' '\n' | grep REPORTS
+# Verify the env vars in the ENGINE (it renders the PDF):
+cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ | tr '\0' '\n' | grep -E 'REPORTS_FONT|ENHANCED'
 
 
 Step 9 – Verify fonts in generated PDFs
@@ -568,18 +646,11 @@ Step 9 – Verify fonts in generated PDFs
 # Generate a test PDF first, then:
 ./04-ReportsFonts/pdf_font_verify.sh /path/to/test.pdf
 
-Expected: type=TrueType  emb=yes  sub=yes  for all fonts
+Expected: CID TrueType  emb=yes  sub=yes  for all fonts
+(Symbol Type 1 → step 7b missing; Times-Roman Type 1 → family entry missing)
 
-
-Step 10 – If the HTML parameter form shows wrong glyphs (Symbol/Greek)
-─────────────────────────────────────────────────────────────────────────
-# PDF output can be correct while the HTML parameter form is still broken –
-# it uses a separate font path (PPD + AFM), not uifont.ali. See
-# HTML_ParameterForm_Fonts.md for the full root-cause background.
-./04-ReportsFonts/paramform_afm_setup.sh              # preview
-./04-ReportsFonts/paramform_afm_setup.sh --apply      # write AFM + PPD entries
-
-kill -TERM $(pgrep -f 'RWEngine name=rwEng-0')         # restart the engine
+With the IHateWeblogic install chain steps 4–7b run in
+09-Install/14b-oracle_reports_fonts.sh --apply.
 ```
 
 ---
@@ -590,9 +661,12 @@ kill -TERM $(pgrep -f 'RWEngine name=rwEng-0')         # restart the engine
 
 ```
 Symptom: pdf_font_verify shows Type 1 emb=no
-Cause A: Reports Server not restarted after fontpath_config.sh --apply
-         → REPORTS_ENHANCED_FONTHANDLING not yet active in JVM
-Fix A:   Restart Reports Server, verify via /proc/<PID>/environ
+Cause 0: "Symbol Type 1" for (almost) every font → the screen printer has no
+         AFM for the fonts (confirmed live 2026-10-19)
+Fix 0:   paramform_afm_setup.sh --apply, restart the Reports server
+Cause A: Reports Server not restarted after a change
+         → engines still run with the old AFM / uifont.ali / environment
+Fix A:   Restart, verify the ENGINE via /proc/<PID>/environ (not WLS_REPORTS)
 
 Cause B: uifont.ali [PDF:Subset] mapping key does not match the font name
          used in the report design
@@ -605,17 +679,10 @@ Fix B:   Run uifont_ali_update.sh --apply (generates both family and PS-name
 ```
 Symptom: Letters replaced by wrong glyphs (Symbol font substitution)
 
-PDF output (desformat=pdf):
-Cause:   Oracle Reports fell back to Symbol font – font was not found
-Fix:     1. Confirm font TTF is in REPORTS_FONT_DIRECTORY
-         2. Confirm uifont.ali has correct [PDF:Subset] entry for that font name
-         3. Confirm REPORTS_ENHANCED_FONTHANDLING=yes is active in JVM process
-         4. Restart Reports Server
-
-HTML output / HTML parameter form (desformat=html/htmlcss, or the parameter
-screen itself) – a DIFFERENT, independent font path, uifont.ali is NOT used:
+PDF output and HTML output / HTML parameter form – same cause:
 Cause:   The "screen printer" (screenprinter.ppd + AFM files) has no AFM for
-         the requested font and falls back to *DefaultFont or Symbol
+         the requested font and falls back to Symbol (charset mismatch) or
+         *DefaultFont Courier – the PDF then carries "Symbol Type 1"
 Fix:     Run paramform_afm_setup.sh --apply (generates AFMs + *Font PPD
          entries), then restart the Reports engine. Full root-cause writeup
          and manual steps: HTML_ParameterForm_Fonts.md
@@ -722,12 +789,14 @@ Step 5 – Verify with pdffonts: Symbol should now show TrueType emb=yes sub=yes
 ### Enable font diagnostic logging in Oracle Reports
 
 ```bash
-# In WebLogic Admin Console → Reports Server → Logging:
-# Set Oracle Diagnostic Logging Level = TRACE:32 for maximum font detail
+# The engines log the fonts they find in REPORTS_FONT_DIRECTORY at start
+# ("CEngine:FontRevamp: Font FullName : …") – check that the TTFs are there:
+grep -h "FontRevamp" $DOMAIN_HOME/servers/<repserver>/logs/rwEng-0_diagnostic.log | tail -20
+./03-Logs/tail_logs.sh --component reports
 
-# Log files to check:
-tail -f $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log
-find $DOMAIN_HOME/servers -name "rwEng*diagnostic.log" | xargs tail -f
+# More detail: level of the engine logger in
+#   config/fmwconfig/components/ReportsServerComponent/<name>/logging.xml
+# (restart of the Reports server); for rwrun: 01-Run/rwrun_trace.sh --odl
 ```
 
 ### Which fonts are referenced in a .rdf report definition?
@@ -805,15 +874,18 @@ has no `[PDF:Subset]` mappings for these font names.
 #### Good output (after correct TTF configuration)
 
 ```
-pdffonts testbericht.pdf
+pdffonts ihw_fonttest2.pdf        (test host, 2026-10-19, Reports server)
 name                                 type              encoding         emb sub uni object ID
 ------------------------------------ ----------------- ---------------- --- --- --- ---------
-ABCDEF+LiberationMono-Regular        TrueType          WinAnsi          yes yes no       7  0
-GHIJKL+Companyymbol                  TrueType          WinAnsi          yes yes no       8  0
-MNOPQR+Symbol                        TrueType          Symbol           yes yes no      11  0
-STUVWX+CompanyRg                     TrueType          WinAnsi          yes yes no      12  0
-YZABCD+CompanyRg-Bold                TrueType          WinAnsi          yes yes no      15  0
+AAATCI+Liberation,Sans               CID TrueType      Identity-H       yes yes yes      7  0
+AAAUCI+Liberation,Serif              CID TrueType      Identity-H       yes yes yes      8  0
+AAAVCI+Liberation,Mono               CID TrueType      Identity-H       yes yes yes      9  0
+AAAWCI+DejaVu,Sans                   CID TrueType      Identity-H       yes yes yes     10  0
 ```
+
+Oracle Reports 14.1.2 writes the subsets as **CID TrueType** (`Identity-H`,
+with ToUnicode → `uni=yes`); the font name is the family with a comma
+(`Liberation,Sans`). `pdf_font_verify.sh` accepts it (tested).
 
 **Correct indicators:**
 - All fonts are `TrueType`
