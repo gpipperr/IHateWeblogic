@@ -351,14 +351,15 @@ chapters before implementing):
 
 | Area | Examples |
 |---|---|
-| WebLogic | production mode; demo identity / trust keystores still in use; T3 / IIOP reachable (`HttpTunnelingEnabled`, connection filter, `RemoteAnonymousRMIT3Enabled`); sample / unused deployments (e.g. `wls-wsat`, async); admin console / EM / `/management` reachable through Nginx from outside; account lockout settings; `boot.properties` encrypted; audit provider |
+| WebLogic | production mode; demo identity / trust keystores still in use – **SSL listen ports enabled with the WebLogic demo certificate** (`CertGenCA`, `DemoCertFor_<domain>`): found 2026-10-19 on the test host, WLS_FORMS 9501 / WLS_REPORTS 9512 active although TLS ends at Nginx (bound to 127.0.0.1, behind the firewall; detected today by `02-Checks/ssl_check.sh` → FAIL) – fix: disable the SSL listen port in the domain setup (`09-Install/08-`) or own certificate in a custom keystore; T3 / IIOP reachable (`HttpTunnelingEnabled`, connection filter, `RemoteAnonymousRMIT3Enabled`); sample / unused deployments (e.g. `wls-wsat`, async); admin console / EM / `/management` reachable through Nginx from outside; account lockout settings; `boot.properties` encrypted; audit provider |
 | Forms | `formsweb.cfg`: public `debug` / test configurations, `allowNewConnections`, `userid=` accepted in the URL, test modules deployed (`test_form` from 15-); `webutil.cfg`: `transfer.appsrv.read/write` directories, host command / OLE enabled without need; signed jars (JACOB) and expiry |
 | Reports | rwservlet web commands open (`showenv`, `showjobs`, `getserverinfo`, `killjobs` – doc 81); `DIAGNOSTIC` in `rwservlet.properties`; `<identifier>` and `securityId` set (`REPORTS_SECURITY`); `cgicmd.dat` with clear-text `userid`; `folderAccess` read / write paths |
 | Nginx / TLS | protocols and ciphers (`ssl_config.sh`), only the needed locations proxied, security headers, certificate expiry (`ssl_local_ca.sh status`) |
 | OS | firewall active and only ssh / 80 / 443 / Reports UDP open, sshd hardening (`01-root_os_baseline.sh` sections 8 + 9), permissions of `*.des3`, keystores, `boot.properties`, world-readable config files |
 | External view | optional probe from a second host: what an attacker sees (open ports, reachable URLs, error pages with version strings) |
 
-Relation: `cve_inventory.sh` section 4 (active use / exposure) is the first
+Relation: `02-Checks/ssl_check.sh` already finds demo certificates on the
+WLS SSL ports (2026-10-19); `cve_inventory.sh` section 4 (active use / exposure) is the first
 building block – it already finds open sockets and the missing firewall
 (2026-10-19).
 
