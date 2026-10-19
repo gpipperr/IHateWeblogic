@@ -149,6 +149,56 @@ findings:
   the `frmweb` / `rwserver` sockets.
 - 4 open OS security advisories (Important) in the dnf cache.
 
+### Monthly run (example – not activated by any script)
+
+Oracle releases on the third Tuesday of the month (CPU or CSPU); the
+day after is always a Wednesday between the 16th and the 22nd. systemd
+expresses that directly – cron cannot (day-of-month and day-of-week are
+OR-ed in cron), it needs a guard.
+
+```ini
+# /etc/systemd/system/ihw-cve-inventory.service
+[Unit]
+Description=IHateWeblogic CVE inventory (monthly, after the Oracle security release)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=oracle
+ExecStart=/path/to/IHateWeblogic/10-Monitoring/cve_inventory.sh --online
+# exit 1 (warnings) is the normal case after a new release – not a failure
+SuccessExitStatus=1
+
+# /etc/systemd/system/ihw-cve-inventory.timer
+[Unit]
+Description=Wednesday after the third Tuesday (Oracle CPU / CSPU release day + 1)
+
+[Timer]
+OnCalendar=Wed *-*-16..22 06:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl daemon-reload && systemctl enable --now ihw-cve-inventory.timer
+systemctl list-timers ihw-cve-inventory.timer
+# checked 2026-10-19: systemd-analyze calendar 'Wed *-*-16..22 06:30'
+#   -> 2026-10-21, 2026-11-18, 2026-12-16, 2027-01-20 (= release + 1 day)
+```
+
+Cron alternative (oracle crontab – the `date` guard picks the Wednesday):
+
+```
+30 6 16-22 * * [ "$(date +\%u)" = 3 ] && /path/to/IHateWeblogic/10-Monitoring/cve_inventory.sh --online >/dev/null 2>&1
+```
+
+Result: the console log in `log/<date>/cve_inventory_*.log` and
+`10-Monitoring/reports/inventory_<date>.json`; exit code 1 = a new advisory
+is released and not yet covered by `PATCH_CYCLE`. Notification follows with
+the later steps (section "Notification").
+
 ### Why
 
 Since May 2026 Oracle publishes security fixes **monthly** (CPU in

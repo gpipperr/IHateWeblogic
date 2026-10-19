@@ -19,18 +19,23 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[█████████████████░░░]` ~85 % complete** – phases 1–7 are implemented and the
+**`[█████████████████░░░]` ~88 % complete** – phases 1–7 are implemented and the
 whole install chain is live-tested end-to-end incl. the smoke test, phase 8 is
-nearly done, phase 9 is concept-only.
+nearly done, phase 9 has its first script (`cve_inventory.sh`), host
+hardening (firewall, sshd) is live on the test host.
 
-How the ~85 % is estimated (state 2026-10-17): phases 1–7 count as done
+How the ~88 % is estimated (state 2026-10-19): phases 1–7 count as done
 (7 × ~11 %, no stubs left: `rwrun_trace.sh` implemented, `display_check.sh`
 dropped, `rwserver_status.sh` with `authid`), phase 8 about nine tenths
 (backup/restore, WLS/Forms/Reports patching, RCU repository theory, profile
 `RCU_USER`, pre-checks and `rcu_repository_check.sh` incl. Data Pump backup
-done; JDK upgrade automation missing), phase 9 zero; minus the open security
-items (EM user search, web-command tests, JACOB client test – the signing
-itself is implemented since 2026-10-17).
+done; JDK upgrade automation missing), phase 9 about a quarter (CVE watch
+step 1 `cve_inventory.sh` with patch-cycle, JDK, exposure and advisory
+checks; `cve_watch.sh`, notification and the config security scanner are
+concept); security: local CA + signed `jacob.jar` (2026-10-17), firewall +
+sshd hardening (2026-10-19); minus the open items (EM user search,
+web-command tests, JACOB client test, Reports engines on the bundled JDK,
+OHS / WebGate patches from the CPU Oct 2026 cycle).
 
 | # | Phase | Status |
 |---|---|---|
@@ -42,7 +47,7 @@ itself is implemented since 2026-10-17).
 | 6 | Check Reports Performance | ✅ Done |
 | 7 | Check Forms | ✅ Done |
 | 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); still missing: automated JDK upgrade (`80-` is read-only for now) |
-| 9 | Proactive Monitoring | 📝 Concept only – see [10-Monitoring/README.md](10-Monitoring/README.md) |
+| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
@@ -188,6 +193,8 @@ operation with proactive, AI-assisted error analysis.
 │  PHASE 9 – PROACTIVE MONITORING (new)                               │
 │  (oracle, cron / systemd timer, ongoing)                             │
 │                                                                     │
+│  10-Monitoring/cve_inventory.sh    Installed components, patch      │
+│                                     cycle, JDKs, exposure, advisory │
 │  10-Monitoring/claude_monitor.sh   Collects diagnostic data from    │
 │                                     phases 3–7 (logs, SSL, fonts,   │
 │                                     Reports/Forms performance)      │
@@ -213,7 +220,7 @@ background and adds AI-assisted root-cause reasoning on top.
 | Phase | Gap |
 |---|---|
 | Phase 8 (Patches) | JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
-| Phase 9 (Monitoring) | Concept only so far — see `10-Monitoring/README.md` |
+| Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 
 ## First Run – Required Order
 
@@ -777,7 +784,8 @@ work (details of every fix: `git log`).
   QPR on OL9, `libzrc.so` vs. glibc 2.34): no fix patch yet – the workaround in
   `06-oracle_patch_forms_reports.sh` stays until Oracle ships one.
 
-- [ ] **`10-Monitoring/`** – concept only, not implemented yet.
+- [ ] **`10-Monitoring/`** – `cve_inventory.sh` implemented (2026-10-19); `cve_watch.sh`,
+  notification and Claude analysis still concept.
   Concept extended 2026-10-18: monthly **CVE watch** (installed components +
   both JDKs + OS errata vs. Oracle CPU/CSPU advisories and CISA KEV, Claude
   assesses exposure and drafts the patch-cycle update – read-only).
@@ -799,6 +807,6 @@ work (details of every fix: `git log`).
   `--only firewall,ssh`, sshd drop-ins (`AllowUsers`, no root, no X11,
   `SSH_PASSWORD_USERS`). Live on the test host (cockpit removed). Open:
   loopback binding of `frmweb` / `rwserver` sockets (defence in depth),
-  customer cookbooks (OS cookbook: firewall + sshd chapter).
+  OS cookbook step 9 (firewall + sshd, German) added the same day.
   See [10-Monitoring/README.md](10-Monitoring/README.md) for the planned Claude-assisted
   proactive monitoring design.

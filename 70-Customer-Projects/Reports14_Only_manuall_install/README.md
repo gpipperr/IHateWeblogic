@@ -9,7 +9,8 @@ und deutschen Kommentaren.
 ## Reihenfolge
 
 1. [OS_Kochbuch_de.txt](OS_Kochbuch_de.txt) – Betriebssystem vorbereiten:
-   Pakete, Java, oracle-User, Netzwerk-Grundlagen auf Oracle Linux 9.
+   Pakete, Java, oracle-User, Netzwerk-Grundlagen auf Oracle Linux 9;
+   Schritt 9: Firewall und SSH absichern (mit Sicherheitsnetz).
 2. [FMW_Kochbuch_de.txt](FMW_Kochbuch_de.txt) – WebLogic/FMW-Infrastruktur
    installieren, patchen (CSPU September 2026) und SSL-Zertifikat auf
    Nginx ausrollen.

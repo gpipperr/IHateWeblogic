@@ -231,7 +231,10 @@ EOF
   chmod 777 /var/tmp/core
 
   # Firewall: HTTP/HTTPS fuer Nginx oeffnen, WebLogic-Ports NICHT extern
-  # freigeben (nur ueber den Reverse-Proxy erreichbar)
+  # freigeben (nur ueber den Reverse-Proxy erreichbar).
+  # Laeuft firewalld noch NICHT ("not running"): die Befehle hier
+  # ueberspringen und die Firewall erst in SCHRITT 9 mit Sicherheitsnetz
+  # einschalten (dort auch SSH-Haertung).
   firewall-cmd --state
   firewall-cmd --permanent --add-port=80/tcp
   firewall-cmd --permanent --add-port=443/tcp
@@ -636,6 +639,116 @@ EOF
 
 
 ================================================================================
+SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz)
+================================================================================
+
+  # Warum: Ohne Firewall sind alle Prozesse aus dem Netz erreichbar, die auf
+  # allen Interfaces lauschen - nicht nur Nginx. Auf dem Testsystem waren
+  # das ~50 vorgestartete Forms-Prozesse (frmweb), der Reports Server, die
+  # Reports-Engines und Coherence - alles am Nginx vorbei. Ziel:
+  #
+  #     Netz --> nur 22 (ssh), 80 + 443 (Nginx), 14027/udp (Reports)
+  #              alles andere (7001, 9001, 9002, 5556, frmweb, Engines) zu
+  #     ausgehend: unveraendert (MOS-Downloads, NTP, ...)
+  #     lo:        immer erlaubt (WebLogic -> DB auf demselben Host)
+  #
+  # WICHTIG vor dem Start:
+  #   - eine KONSOLEN-Sitzung (VMware / vSphere / iLO) als root/admin offen
+  #     halten - die bleibt erhalten, egal was mit ssh passiert
+  #   - die laufende ssh-Sitzung NICHT schliessen, bis ein NEUER Login klappt
+  #   - die Sicherheitsnetze unten (systemd-run) nehmen jede Aenderung nach
+  #     15 Minuten automatisch zurueck, wenn sie nicht bestaetigt wird
+
+  # --- 9.1 Firewall --------------------------------------------------------
+
+  systemctl is-active firewalld        # "inactive" -> weiter; "active" -> 9.1b
+  firewall-offline-cmd --get-default-zone            # meist: public
+  # ssh MUSS in der Zone stehen, sonst sperrt man sich aus:
+  firewall-offline-cmd --zone=public --query-service=ssh    # -> yes
+
+  # Sicherheitsnetz: stoppt die Firewall in 15 min wieder von selbst
+  systemd-run --on-active=15min --unit=ihw-fw-rollback systemctl stop firewalld
+
+  systemctl start firewalld
+
+  # 9.1b Freigaben (dauerhaft + sofort wirksam)
+  firewall-cmd --permanent --add-service=ssh --add-service=http --add-service=https
+  firewall-cmd --permanent --add-port=14027/udp      # REPORTS_BROADCAST_PORT
+  # cockpit (Web-Konsole, Port 9090) wird auf einem FMW-Server nicht gebraucht:
+  firewall-cmd --permanent --remove-service=cockpit
+  firewall-cmd --reload
+
+  # Kontrolle: nur ssh/http/https (+ dhcpv6-client) und 14027/udp
+  firewall-cmd --list-all
+
+  # JETZT TESTEN (vom Arbeitsplatz aus):
+  #   - neuer ssh-Login (zweites Fenster / MobaXterm / PuTTY)
+  #   - Browser: https://<server>/reports/rwservlet/getserverinfo  (Login-Seite)
+  #   - Windows PowerShell:
+  #       Test-NetConnection <server> -Port 443    -> TcpTestSucceeded True
+  #       Test-NetConnection <server> -Port 9002   -> TcpTestSucceeded False
+  # Alles ok -> dauerhaft machen und Sicherheitsnetz entfernen:
+  systemctl enable firewalld
+  systemctl stop ihw-fw-rollback.timer
+
+  # --- 9.2 SSH absichern (sshd) --------------------------------------------
+  #
+  # Nur die Benutzer, die wirklich per ssh auf den Server muessen (hier:
+  # admin + oracle), kein root-Login, kein X11 (auf einem Server wird alles
+  # per Skript gemacht), 3 Passwortversuche. Bei Anmeldung ueber AD/LDAP-
+  # Gruppen statt AllowUsers die Zeile "AllowGroups <gruppe>" verwenden -
+  # vorher mit der eigenen IT abstimmen.
+  #
+  # Unter OL9 gilt pro Einstellung der ERSTE Wert. Die Datei 10-... wird vor
+  # der Red-Hat-Datei 50-redhat.conf gelesen; der Match-Block steht in einer
+  # eigenen Datei 99-..., weil er bis zum Dateiende gilt.
+
+  cat > /etc/ssh/sshd_config.d/10-ihw-hardening.conf << 'CNF'
+# Server-Haertung - siehe OS_Kochbuch_de.txt Schritt 9.2
+PermitRootLogin no
+MaxAuthTries 3
+X11Forwarding no
+AllowUsers admin oracle
+PasswordAuthentication no
+CNF
+
+  # Passwort-Login nur fuer diese Benutzer (Notzugang ohne Schluessel);
+  # alle anderen erlaubten Benutzer brauchen ~/.ssh/authorized_keys
+  cat > /etc/ssh/sshd_config.d/99-ihw-match.conf << 'CNF'
+Match User admin,oracle
+    PasswordAuthentication yes
+CNF
+  chmod 600 /etc/ssh/sshd_config.d/10-ihw-hardening.conf \
+            /etc/ssh/sshd_config.d/99-ihw-match.conf
+
+  # Syntax pruefen - bei Fehler NICHT weitermachen, Dateien wieder loeschen
+  sshd -t && echo "sshd config OK"
+
+  # Sicherheitsnetz: entfernt die beiden Dateien in 15 min wieder
+  systemd-run --on-active=15min --unit=ihw-ssh-rollback /bin/sh -c \
+      "rm -f /etc/ssh/sshd_config.d/10-ihw-hardening.conf /etc/ssh/sshd_config.d/99-ihw-match.conf; systemctl reload sshd"
+
+  # reload (nicht restart): bestehende Sitzungen bleiben bestehen
+  systemctl reload sshd
+
+  # Kontrolle der wirksamen Werte je Benutzer:
+  for u in admin oracle root; do
+      printf '%-8s ' "$u"
+      sshd -T -C user=$u,host=x,addr=10.0.0.1 \
+        | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {printf "%s=%s ", $1, $2}'
+      echo
+  done
+  # erwartet: admin/oracle passwordauthentication=yes, root=no, x11forwarding=no
+
+  # JETZT TESTEN: neuer ssh-Login als admin UND als oracle (zweites Fenster),
+  # root muss abgewiesen werden. Alles ok -> Sicherheitsnetz entfernen:
+  systemctl stop ihw-ssh-rollback.timer
+
+  # NICHT aendern: AllowTcpForwarding (VS Code / MobaXterm-Tunnel brauchen es),
+  # LoginGraceTime 0 in /etc/ssh/sshd_config (Oracle-Schutz gegen CVE-2024-6387).
+
+
+================================================================================
 BEKANNTE PROBLEME UND LOESUNGEN
 ================================================================================
 
@@ -680,6 +793,19 @@ BEKANNTE PROBLEME UND LOESUNGEN
            abgelegt - an dieser Stelle normal und zu erwarten
   Loesung: Weiter mit SSL_Kochbuch_de.txt + FMW_Kochbuch_de.txt
 
+
+  Problem: Nach dem Einschalten der Firewall kein ssh-Login mehr moeglich
+  Ursache: Service ssh nicht in der Zone (eigene Zone ohne ssh) oder
+           Login-Benutzer nicht in AllowUsers
+  Loesung: Ueber die Konsole (VM/iLO) anmelden: systemctl stop firewalld
+           bzw. die Dateien /etc/ssh/sshd_config.d/10-ihw-hardening.conf und
+           99-ihw-match.conf loeschen, systemctl reload sshd. Mit den
+           Sicherheitsnetzen aus Schritt 9 passiert das nach 15 min von selbst.
+
+  Problem: Reports Server startet nach dem Einschalten der Firewall immer
+           wieder neu (REP-50600 Broadcasting is disabled)
+  Ursache: 14027/udp (REPORTS_BROADCAST_PORT) fehlt in der Firewall
+  Loesung: firewall-cmd --permanent --add-port=14027/udp; firewall-cmd --reload
 
 ================================================================================
 WEITERGEHENDE INFORMATIONEN

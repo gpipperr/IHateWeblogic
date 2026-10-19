@@ -73,7 +73,7 @@ Checks performed (7 sections):
 | 2 – System Resources | RAM total/available (FMW minimums: OS 8 GB / DEV-QS 16 GB / PRD 64 GB), swap (>= 2 GB recommended), CPU core count + model, disk free space on `$ORACLE_HOME`, `$DOMAIN_HOME`, `/tmp`, `/var/log` |
 | 3 – ulimits | `nofile`, `nproc`, `stack`, `core` (session limits) + configured limits in `/etc/security/limits.conf` / `limits.d/` for the oracle OS user |
 | 4 – Kernel Parameters | `fs.file-max`, `fs.aio-max-nr`, `kernel.sem`, `kernel.shmmni`, `kernel.shmall`, `kernel.shmmax`, `net.core.rmem_default/max`, `net.core.wmem_default/max`, `net.ipv4.ip_local_port_range` via `sysctl` |
-| 5 – SELinux & Firewall | SELinux runtime mode (`getenforce`) + persistent config (`/etc/selinux/config`); `firewalld` running state |
+| 5 – SELinux & Firewall | SELinux runtime mode (`getenforce`) + persistent config (`/etc/selinux/config`); `firewalld` state via `systemctl` (works as oracle – `firewall-cmd --state` needs root and used to report a running firewall as "not running", fixed 2026-10-19). Firewall active = OK, not active = **WARN** (all `frmweb` / `rwserver` / engine sockets reachable past Nginx); safe activation: `09-Install/01-root_os_baseline.sh --apply --skip-update --only firewall` |
 | 6 – Required OS Packages | 4 sub-groups via `rpm -q`: **Critical** (`glibc`, `libXext`, `libXrender`, `motif`, `gcc`, …), **Compatibility** (32-bit/compat libs), **Reports printing** (`cups`, `cups-libs`), **Diagnostic tools** (`strace`, `lsof`, `sysstat`, `xorg-x11-server-Xvfb`, `fonttools`) |
 | 7 – Hostname & Network | FQDN resolvable and different from short hostname, hostname does not resolve to loopback, relevant `/etc/hosts` entries |
 

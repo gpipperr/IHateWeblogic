@@ -87,7 +87,8 @@ Setup – Environment Configuration (as oracle; before Phase 0)
 
 Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
   [root] ./09-Install/00-root_os_network.sh            # hostname, DNS/hosts, IPv6, chrony (read-only check)
-  [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP → REBOOT
+  [root] ./09-Install/01-root_os_baseline.sh --apply   # SELinux, kernel, THP, firewall, sshd → REBOOT
+         (later, on a running system: --apply --skip-update --only firewall,ssh)
   [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
   [root] ./09-Install/02b-root_os_java.sh --apply      # Oracle JDK 21 + SecureRandom fix
   [root] ./09-Install/03-root_user_oracle.sh --apply   # oracle user + chown repo → oracle
@@ -193,7 +194,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | Phase | Script | Description | Detail |
 |---|---|---|---|
 | 0 | `00-root_os_network.sh` | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
-| 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
+| 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall (safe activation with rollback timer), sshd hardening (`SSH_ALLOW_USERS`); `--only <sections>` → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
@@ -485,7 +486,7 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── install_lib.sh                     ← [TODO] shared functions
 ├── 01-setup-interview.sh              ← configuration interview
 ├── 00-root_os_network.sh              ← Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)
-├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall → REBOOT
+├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall, sshd → REBOOT
 ├── 02-root_os_packages.sh             ← Phase 0: OS packages (motif, gcc, numactl …)
 ├── 02b-root_os_java.sh                ← Phase 0: Oracle JDK 21 + SecureRandom fix
 ├── 03-root_user_oracle.sh             ← Phase 0: oracle user, limits, dirs, repo handover
