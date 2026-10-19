@@ -41,98 +41,13 @@ check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
 
+# shellcheck source=reports_server_lib.sh
+source "$SCRIPT_DIR/reports_server_lib.sh"
+
 # =============================================================================
 # Helper functions  (defined before their call sites)
+# Shared Reports helpers (rws_*): reports_server_lib.sh
 # =============================================================================
-
-# Detect the Reports WLS managed server name.
-# Priority:
-#   1. Running process with "report" in -Dweblogic.Name=...
-#   2. config.xml server name containing "report"
-#   3. WLS_MANAGED_SERVER from environment.conf (if it differs from domain name)
-#   4. Fallback: WLS_REPORTS
-_detect_wls_reports_server() {
-    local config_xml="$DOMAIN_HOME/config/config.xml"
-    local domain_name found
-
-    domain_name="$(basename "${DOMAIN_HOME:-/}")"
-
-    # Strategy 1: extract server name first, then filter by name (not full cmdline).
-    # Full cmdline often contains "report" via domain path (e.g. fr_domain),
-    # which would wrongly match AdminServer.
-    found="$(pgrep -a -f 'weblogic.Name=' 2>/dev/null \
-        | sed -n 's/.*-Dweblogic\.Name=\([^ ]*\).*/\1/p' \
-        | grep -i 'report' \
-        | head -1)"
-    [ -n "$found" ] && { printf "%s" "$found"; return 0; }
-
-    # Strategy 2: config.xml server names
-    if [ -f "$config_xml" ]; then
-        found="$(awk '
-            /<server>$/   { in_srv=1; name="" }
-            /<\/server>$/ { in_srv=0 }
-            in_srv && /<name>/ {
-                n=$0
-                gsub(/.*<name>/, "", n); gsub(/<\/name>.*/, "", n)
-                if (tolower(n) ~ /report/) { print n; exit }
-            }
-        ' "$config_xml" 2>/dev/null)"
-        [ -n "$found" ] && { printf "%s" "$found"; return 0; }
-    fi
-
-    # Strategy 3: WLS_MANAGED_SERVER from environment.conf (if != domain name)
-    if [ -n "${WLS_MANAGED_SERVER:-}" ] && [ "${WLS_MANAGED_SERVER}" != "$domain_name" ]; then
-        printf "%s" "${WLS_MANAGED_SERVER}"
-        return 0
-    fi
-
-    # Fallback
-    printf "WLS_REPORTS"
-}
-
-# Extract an XML attribute value from a file.
-# Joins all lines first (handles multi-line elements).
-# Usage: _xml_attr FILE attribute_name
-_xml_attr() {
-    local file="$1"
-    local attr="$2"
-    { tr -d '\n' < "$file"; printf "\n"; } \
-        | sed -n "s/.*[[:space:]]${attr}=\"\([^\"]*\)\".*/\1/p"
-}
-
-# Extract engine attribute – tries singular and plural form (minEngine / minEngines).
-# Usage: _engine_attr FILE base_name   (e.g. _engine_attr rwserver.conf minEngine)
-# Reads the attribute from the REPORT engine only - rwserver.conf also has the
-# URL engine (rwURLEng, maxEngine=1 minEngine=0), a greedy match over the
-# whole file returned its values. Engine = the one of <job jobType="report"
-# engineId=...>, else the first engine that is not the URL engine.
-_engine_attr() {
-    local file="$1"
-    local base="$2"
-    local flat eid line val
-    flat="$(tr -d '\n' < "$file" | sed 's/</\n</g')"
-    eid="$(printf '%s\n' "$flat" | grep '^<job ' | grep 'jobType="report"' \
-           | sed -n 's/.*engineId="\([^"]*\)".*/\1/p' | head -1)"
-    if [ -n "$eid" ]; then
-        line="$(printf '%s\n' "$flat" | grep "^<engine " | grep "id=\"${eid}\"" | head -1)"
-    fi
-    [ -z "$line" ] && line="$(printf '%s\n' "$flat" | grep '^<engine ' | grep -v 'URLEngineImpl' | head -1)"
-    val="$(printf '%s' "$line" | sed -n "s/.*[[:space:]]${base}=\"\([^\"]*\)\".*/\1/p")"
-    [ -z "$val" ] && val="$(printf '%s' "$line" | sed -n "s/.*[[:space:]]${base}s=\"\([^\"]*\)\".*/\1/p")"
-    printf "%s" "$val"
-}
-
-# Extract element value <tag>value</tag> from an XML string (not a file).
-# Usage: _xval "$xml" "tagname"
-_xval() { printf "%s" "$1" | sed -n "s|.*<${2}>\([^<]*\)</${2}>.*|\1|p" | head -1; }
-
-# Extract a named attribute from a single XML tag line.
-# Usage: _xline_attr "$line" "attrname"
-_xline_attr() { printf "%s" "$1" | sed -n "s/.*[[:space:]]${2}=\"\([^\"]*\)\".*/\1/p"; }
-
-# Extract the value of <property name="N" value="V"/> from an XML string.
-# Usage: _xprop "$xml" "propertyName"
-_xprop() { printf "%s" "$1" | grep "name=\"${2}\"" | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1; }
 
 # Parse the rwservlet XML response (getserverinfo?statusformat=XML) and display
 # four sections: Server Info, Engine Pool, Performance, Connections.
@@ -147,11 +62,11 @@ _parse_rwservlet_xml() {
     local srv_name srv_ver srv_host srv_pid start_ms is_secure avg_auth queue_max
     srv_name="$(  printf "%s" "$xml" | sed -n 's/.*<serverInfo[^>]*name="\([^"]*\)".*/\1/p'    | head -1)"
     srv_ver="$(   printf "%s" "$xml" | sed -n 's/.*<serverInfo[^>]*version="\([^"]*\)".*/\1/p' | head -1)"
-    srv_host="$(  _xval "$xml" "host")"
-    srv_pid="$(   _xval "$xml" "processId")"
-    start_ms="$(  _xval "$xml" "startTime")"
-    is_secure="$( _xval "$xml" "isSecure")"
-    avg_auth="$(  _xval "$xml" "avgAuthTime")"
+    srv_host="$(  rws_xval "$xml" "host")"
+    srv_pid="$(   rws_xval "$xml" "processId")"
+    start_ms="$(  rws_xval "$xml" "startTime")"
+    is_secure="$( rws_xval "$xml" "isSecure")"
+    avg_auth="$(  rws_xval "$xml" "avgAuthTime")"
     queue_max="$( printf "%s" "$xml" | sed -n 's/.*<queue[^>]*maxQueueSize="\([^"]*\)".*/\1/p' | head -1)"
 
     # startTime is epoch-milliseconds → human readable + uptime
@@ -188,11 +103,11 @@ _parse_rwservlet_xml() {
     while IFS= read -r _eline; do
         [ -z "$_eline" ] && continue
         local eid eact erun ebusy eidle
-        eid="$(   _xline_attr "$_eline" "id")"
-        eact="$(  _xline_attr "$_eline" "activeEngine")"
-        erun="$(  _xline_attr "$_eline" "runningEngine")"
-        ebusy="$( _xline_attr "$_eline" "totalBusyEngines")"
-        eidle="$( _xline_attr "$_eline" "totalIdleEngines")"
+        eid="$(   rws_xline_attr "$_eline" "id")"
+        eact="$(  rws_xline_attr "$_eline" "activeEngine")"
+        erun="$(  rws_xline_attr "$_eline" "runningEngine")"
+        ebusy="$( rws_xline_attr "$_eline" "totalBusyEngines")"
+        eidle="$( rws_xline_attr "$_eline" "totalIdleEngines")"
         printf "\n  Engine \033[1m%-20s\033[0m  Active:%-3s  Running:%-3s  Busy:%-3s  Idle:%-3s\n" \
             "${eid:-(?)}" "${eact:--}" "${erun:--}" "${ebusy:--}" "${eidle:--}"
         if [ "${ebusy:-0}" -gt 0 ] && [ "${eidle:-1}" -eq 0 ] 2>/dev/null; then
@@ -209,14 +124,14 @@ _parse_rwservlet_xml() {
         while IFS= read -r _iline; do
             [ -z "$_iline" ] && continue
             local iname ipid istatus ijob iidle injobs ilife inls status_str
-            iname="$(  _xline_attr "$_iline" "name")"
-            ipid="$(   _xline_attr "$_iline" "processId")"
-            istatus="$(_xline_attr "$_iline" "status")"
-            ijob="$(   _xline_attr "$_iline" "runJobId")"
-            iidle="$(  _xline_attr "$_iline" "idleTime")"
-            injobs="$( _xline_attr "$_iline" "numJobsRun")"
-            ilife="$(  _xline_attr "$_iline" "lifeLeft")"
-            inls="$(   _xline_attr "$_iline" "nls")"
+            iname="$(  rws_xline_attr "$_iline" "name")"
+            ipid="$(   rws_xline_attr "$_iline" "processId")"
+            istatus="$(rws_xline_attr "$_iline" "status")"
+            ijob="$(   rws_xline_attr "$_iline" "runJobId")"
+            iidle="$(  rws_xline_attr "$_iline" "idleTime")"
+            injobs="$( rws_xline_attr "$_iline" "numJobsRun")"
+            ilife="$(  rws_xline_attr "$_iline" "lifeLeft")"
+            inls="$(   rws_xline_attr "$_iline" "nls")"
             case "$istatus" in
                 1)  status_str="IDLE" ;;
                 2)  status_str=$'\033[33mBUSY\033[0m' ;;
@@ -235,16 +150,16 @@ _parse_rwservlet_xml() {
     section "Performance"
 
     local p_ok p_cur p_fut p_trans p_fail p_long p_run p_resp p_elap p_queue
-    p_ok="$(    _xprop "$xml" "successfulJobs")"
-    p_cur="$(   _xprop "$xml" "currentJobs")"
-    p_fut="$(   _xprop "$xml" "futureJobs")"
-    p_trans="$( _xprop "$xml" "transferredJobs")"
-    p_fail="$(  _xprop "$xml" "failedJobs")"
-    p_long="$(  _xprop "$xml" "longRunningJobs")"
-    p_run="$(   _xprop "$xml" "potentialRunawayJobs")"
-    p_resp="$(  _xprop "$xml" "averageResponseTime")"
-    p_elap="$(  _xprop "$xml" "averageElapsedTime")"
-    p_queue="$( _xprop "$xml" "avgQueuingTime")"
+    p_ok="$(    rws_xprop "$xml" "successfulJobs")"
+    p_cur="$(   rws_xprop "$xml" "currentJobs")"
+    p_fut="$(   rws_xprop "$xml" "futureJobs")"
+    p_trans="$( rws_xprop "$xml" "transferredJobs")"
+    p_fail="$(  rws_xprop "$xml" "failedJobs")"
+    p_long="$(  rws_xprop "$xml" "longRunningJobs")"
+    p_run="$(   rws_xprop "$xml" "potentialRunawayJobs")"
+    p_resp="$(  rws_xprop "$xml" "averageResponseTime")"
+    p_elap="$(  rws_xprop "$xml" "averageElapsedTime")"
+    p_queue="$( rws_xprop "$xml" "avgQueuingTime")"
 
     printf "  %-28s %s\n"    "Successful jobs:"        "${p_ok:--}"
     printf "  %-28s %s\n"    "Current jobs:"           "${p_cur:--}"
@@ -338,7 +253,7 @@ esac
 # Detect Reports WLS managed server (before banner so it can be shown)
 # =============================================================================
 
-WLS_REPORTS_SERVER="${OVERRIDE_SERVER:-$(_detect_wls_reports_server)}"
+WLS_REPORTS_SERVER="${OVERRIDE_SERVER:-$(rws_detect_wls_server)}"
 
 # =============================================================================
 # Banner
@@ -357,31 +272,10 @@ printLine
 
 section "Engine Configuration (rwserver.conf)"
 
-# Standalone Reports server (system component): name = component directory,
-# its own rwserver.conf under components/ReportsServerComponent/<name>/.
-# RWSERVER_CONF from environment.conf may point to the in-process server of
-# WLS_REPORTS (applications/reports_*/configuration) - prefer the component.
-RS_COMP_NAME="${OVERRIDE_SERVER:-${REPORTS_SERVER_NAME:-}}"
-if [ -z "$RS_COMP_NAME" ] && [ -f "$DOMAIN_HOME/config/config.xml" ]; then
-    RS_COMP_NAME="$(awk '
-        /<system-component>/ { n=""; t="" }
-        /<name>/ && n=="" { n=$0; gsub(/.*<name>|<\/name>.*/, "", n) }
-        /<component-type>ReportsServerComponent</ { t="R" }
-        /<\/system-component>/ { if (t=="R") { print n; exit } }
-    ' "$DOMAIN_HOME/config/config.xml")"
-fi
-_comp_conf="$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${RS_COMP_NAME}/rwserver.conf"
-if [ -n "$RS_COMP_NAME" ] && [ -f "$_comp_conf" ]; then
-    RWSERVER_CONF="$_comp_conf"
-else
-    RWSERVER_CONF="${RWSERVER_CONF:-}"
-fi
-unset _comp_conf
-
-# Re-discover if not set or file missing
-if [ -z "$RWSERVER_CONF" ] || [ ! -f "$RWSERVER_CONF" ]; then
-    RWSERVER_CONF="$(find "${DOMAIN_HOME}/config" -name "rwserver.conf" 2>/dev/null | head -1)"
-fi
+# Standalone Reports server (system component) first – RWSERVER_CONF from
+# environment.conf may point to the in-process server of WLS_REPORTS
+rws_find_conf "${OVERRIDE_SERVER:-}"
+RS_COMP_NAME="$RWS_COMP_NAME"
 
 if [ -z "$RWSERVER_CONF" ] || [ ! -f "$RWSERVER_CONF" ]; then
     warn "rwserver.conf not found – configuration section skipped"
@@ -401,10 +295,10 @@ else
     [ -z "$RS_NAME" ] && RS_NAME="$RS_COMP_NAME"
 
     # Engine attributes: singular (maxEngine) and plural (maxEngines) both occur in the wild
-    CFG_MIN_ENGINES="$(_engine_attr "$RWSERVER_CONF" "minEngine")"
-    CFG_MAX_ENGINES="$(_engine_attr "$RWSERVER_CONF" "maxEngine")"
-    CFG_MAX_IDLE="$(   _xml_attr    "$RWSERVER_CONF" "maxIdle")"
-    CFG_ENGINE_TYPE="$(_xml_attr    "$RWSERVER_CONF" "engineType")"
+    CFG_MIN_ENGINES="$(rws_engine_attr "$RWSERVER_CONF" "minEngine")"
+    CFG_MAX_ENGINES="$(rws_engine_attr "$RWSERVER_CONF" "maxEngine")"
+    CFG_MAX_IDLE="$(   rws_engine_attr "$RWSERVER_CONF" "maxIdle")"
+    CFG_ENGINE_TYPE="$(rws_engine_attr "$RWSERVER_CONF" "engineType")"
 
     printf "  %-26s %s\n" "Config file:"  "$RWSERVER_CONF"           | tee -a "${LOG_FILE:-/dev/null}"
     printf "  %-26s %s\n" "Server name:"  "${RS_NAME:-(not found)}"  | tee -a "${LOG_FILE:-/dev/null}"
@@ -436,20 +330,16 @@ fi
 # Standalone Reports server (system component, started by the Node Manager):
 # process "rwserver server=<name>"; its engines are Java child processes
 # (14.1.2 - there is no "rwengine" process name any more)
-RWS_PID=""
-if [ -n "${RS_NAME:-}" ]; then
-    RWS_PID="$(pgrep -f "rwserver server=${RS_NAME}( |\$)" 2>/dev/null | head -1)"
-fi
+RWS_PID="$(rws_server_pid "${RS_NAME:-}")"
 if [ -n "$RWS_PID" ]; then
     ok "Reports server '${RS_NAME}' process RUNNING  (PID $RWS_PID)"
-    RWENG_COUNT="$(pgrep -P "$RWS_PID" 2>/dev/null | wc -l | tr -d ' ')"
-    RWENG_PIDS="$(pgrep -d ',' -P "$RWS_PID" 2>/dev/null || printf "")"
 else
     [ -n "${RS_NAME:-}" ] && warn "Reports server process 'rwserver server=${RS_NAME}' not found"
-    # in-process server / older releases: native rwengine processes
-    RWENG_COUNT="$(pgrep -f "rwengine" 2>/dev/null | wc -l | tr -d ' ')"
-    RWENG_PIDS="$(pgrep -d ',' -f "rwengine" 2>/dev/null || printf "")"
 fi
+# in-process server / older releases (no rwserver PID): native rwengine processes
+RWENG_PIDS="$(rws_engine_pids "$RWS_PID")"
+RWENG_COUNT=0
+[ -n "$RWENG_PIDS" ] && RWENG_COUNT="$(printf '%s\n' "$RWENG_PIDS" | tr ',' '\n' | wc -l)"
 
 if [ "${RWENG_COUNT:-0}" -gt 0 ]; then
     ok "Engine processes: ${RWENG_COUNT}  (PID: ${RWENG_PIDS})"
@@ -483,38 +373,7 @@ section "HTTP Engine Status (rwservlet)"
 WLS_REPORTS_PORT="${OVERRIDE_PORT:-}"
 WLS_REPORTS_HOST="localhost"
 
-if [ -z "$WLS_REPORTS_PORT" ]; then
-    CONFIG_XML="$DOMAIN_HOME/config/config.xml"
-    if [ -f "$CONFIG_XML" ]; then
-        # Extract listen-port for the detected Reports WLS server from config.xml.
-        # Uses plain awk (no 3-arg match) – gsub strips tags in-place.
-        WLS_REPORTS_PORT="$(awk -v srv="$WLS_REPORTS_SERVER" '
-            /<server>$/   { in_srv=1; in_ssl=0; name=""; port="" }
-            /<\/server>$/ {
-                if (in_srv && name == srv && port != "") { print port; exit }
-                in_srv=0; in_ssl=0
-            }
-            in_srv && /<ssl>$/   { in_ssl=1 }
-            in_srv && /<\/ssl>$/ { in_ssl=0 }
-            in_srv && !in_ssl {
-                if ($0 ~ /<name>/) {
-                    n=$0; gsub(/.*<name>/, "", n); gsub(/<\/name>.*/, "", n)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", n)
-                    if (n != "") name=n
-                }
-                if ($0 ~ /<listen-port>/) {
-                    p=$0; gsub(/.*<listen-port>/, "", p); gsub(/<\/listen-port>.*/, "", p)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
-                    if (p != "") port=p
-                }
-            }
-        ' "$CONFIG_XML" 2>/dev/null)"
-        [ -z "$WLS_REPORTS_PORT" ] && WLS_REPORTS_PORT="9002"
-    else
-        WLS_REPORTS_PORT="9002"
-        info "config.xml not found – using default port 9002"
-    fi
-fi
+[ -z "$WLS_REPORTS_PORT" ] && WLS_REPORTS_PORT="$(rws_wls_port "$WLS_REPORTS_SERVER")"
 
 printf "  %-26s %s\n" "Reports servlet URL:" \
     "http://${WLS_REPORTS_HOST}:${WLS_REPORTS_PORT}/reports/rwservlet" \
@@ -534,88 +393,17 @@ else
     fi
     printf "  %-26s %s\n" "Status URL:" "$STATUS_URL"
 
-    # --- authid (see header "Auth") ---------------------------------------------
-    AUTH_USER="" AUTH_PWD="" AUTH_SRC=""
-    _load_mon() {
-        local f="$ROOT_DIR/reports_users.conf.des3"
-        [ -f "$f" ] && load_secrets_file "$f" > /dev/null 2>&1 \
-            && [ -n "${REPORTS_MON_USER:-}" ] && [ -n "${REPORTS_MON_PWD:-}" ] || return 1
-        AUTH_USER="$REPORTS_MON_USER"; AUTH_PWD="$REPORTS_MON_PWD"
-        AUTH_SRC="monitoring user (reports_users.conf.des3)"
-    }
-    _load_admin() {
-        local f="$ROOT_DIR/reports_admin_sec.conf.des3"
-        [ -f "$f" ] && load_secrets_file "$f" > /dev/null 2>&1 \
-            && [ -n "${REPORTS_ADMIN_USER:-}" ] && [ -n "${REPORTS_ADMIN_PWD:-}" ] || return 1
-        AUTH_USER="$REPORTS_ADMIN_USER"; AUTH_PWD="$REPORTS_ADMIN_PWD"
-        AUTH_SRC="Reports server admin <identifier> (reports_admin_sec.conf.des3)"
-    }
-    case "$AUTH_MODE" in
-        mon)   _load_mon   || warn "Monitoring user not found in reports_users.conf.des3 (12-oracle_reports_users.sh)" ;;
-        admin) _load_admin || warn "Reports server admin not found in reports_admin_sec.conf.des3 (13-oracle_setup_reports.sh)" ;;
-        auto)
-            if [ "${REPORTS_SECURITY:-ldap}" = "ldap" ]; then
-                _load_mon || _load_admin
-            else
-                _load_admin || _load_mon
-            fi ;;
-    esac
-    unset REPORTS_MON_PWD REPORTS_EXEC_PWD REPORTS_ADMIN_PWD
-    if [ -n "$AUTH_USER" ]; then
-        printf "  %-26s %s  (%s)\n" "authid:" "$AUTH_USER/****" "$AUTH_SRC" | tee -a "${LOG_FILE:-/dev/null}"
+    rws_fetch_serverinfo "$STATUS_URL" "$AUTH_MODE"
+    if [ -n "$RWS_AUTH_USER" ]; then
+        printf "  %-26s %s  (%s)\n" "authid:" "$RWS_AUTH_USER/****" "$RWS_AUTH_SRC" | tee -a "${LOG_FILE:-/dev/null}"
     else
         printf "  %-26s %s\n" "authid:" "none (--auth ${AUTH_MODE})" | tee -a "${LOG_FILE:-/dev/null}"
     fi
-
-    # One request; URL incl. authid via curl config on stdin (not in argv)
-    _tmp_body="$(mktemp)"
-    HTTP_CODE="$( {
-        printf 'url = "%s"\n' "$STATUS_URL"
-        if [ -n "$AUTH_USER" ]; then
-            printf 'get\n'
-            printf 'data-urlencode = "authid=%s/%s"\n' "$AUTH_USER" "$AUTH_PWD"
-        fi
-    } | curl -s --connect-timeout 5 --max-time 30 -K - -o "$_tmp_body" -w "%{http_code}" 2>/dev/null )"
-    HTTP_XML="$(cat "$_tmp_body" 2>/dev/null)"
-    rm -f "$_tmp_body"
-    AUTH_PWD=""
-    REP_ERR="$(printf '%s' "$HTTP_XML" | sed -n 's/.*<error code="\([0-9]*\)"[^>]*message="\([^"]*\)".*/REP-\1 \2/p' | head -1)"
-    [ -z "$REP_ERR" ] && REP_ERR="$(printf '%s' "$HTTP_XML" | grep -o 'REP-[0-9]*[^<]\{0,80\}' | head -1)"
-
-    case "$HTTP_CODE" in
-        200)
-            if [ -n "$REP_ERR" ]; then
-                fail "rwservlet answered with an error: $REP_ERR"
-                case "$REP_ERR" in
-                    REP-52262*) info "  Diagnostic output disabled for this user – unsecured server: use --auth admin (<identifier>); secured: monUser needs RW_MONITOR" ;;
-                    REP-50171*) info "  Authentication failed – wrong password in the .des3 file, or (securityId without LDAP identity store) see doc 13 Step 5a" ;;
-                    REP-56071*) info "  User not authorized for web commands – role RW_MONITOR / WebCommandPermission missing (12-oracle_reports_users.sh)" ;;
-                esac
-            else
-                ok "rwservlet reachable (HTTP 200)"
-                _parse_rwservlet_xml "$HTTP_XML"
-            fi
-            ;;
-        499)
-            fail "HTTP 499 – login required (secured Reports server) and no valid authid"
-            info "  Store the monitoring user: 09-Install/12-oracle_reports_users.sh"
-            ;;
-        000)
-            warn "No response from rwservlet – WLS_REPORTS not running or port wrong?"
-            info "Check port: ss -tlnp | grep ${WLS_REPORTS_PORT}"
-            ;;
-        401|403)
-            warn "HTTP ${HTTP_CODE} – Authentication required on rwservlet"
-            info "  Try --auth mon / --auth admin (credentials from the *.des3 files)"
-            ;;
-        404)
-            warn "HTTP 404 – rwservlet not found at: $STATUS_URL"
-            info "Reports may not be deployed or the context path differs"
-            ;;
-        *)
-            warn "HTTP ${HTTP_CODE} – unexpected response from rwservlet"
-            ;;
-    esac
+    if rws_http_verdict; then
+        _parse_rwservlet_xml "$RWS_HTTP_XML"
+    elif [ "$RWS_HTTP_CODE" = "000" ]; then
+        info "Check port: ss -tlnp | grep ${WLS_REPORTS_PORT}"
+    fi
 fi
 
 # =============================================================================

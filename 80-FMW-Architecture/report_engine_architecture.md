@@ -281,6 +281,15 @@ which is for the engines). Live test 2026-10-16: regular `engLife`
 recycling costs 85–661 ms per job, a crashed engine (kill -9) is replaced
 within seconds after the ORB fix ([reports_user_local_ldap.md](reports_user_local_ldap.md) §7).
 
+On a host: `05-ReportsPerformance/engine_perf_settings.sh` checks the
+parameters of this table against these rules (report engine only, CPUs, RAM,
+drift to `environment.conf`) and changes them with `--apply`;
+`05-ReportsPerformance/engine_perf_analyse.sh` evaluates the load
+(failure rate, queuing share, `maxEnginesUsed` vs. `maxEngine`, engine logs).
+Live 2026-10-19: without `jvmOptions` the engines run with `-Xmx256M`
+(**confirmed (live)**, engine command line), and 14.1.2 reports
+`averageElapsedTime=0.0` in `getserverinfo` (**confirmed (live)**).
+
 ---
 
 ## 7. Why so complicated – the history
@@ -412,3 +421,4 @@ Related documents in this repository:
 - [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) – domain, Node Manager, consoles
 - `09-Install/docs/13-reports-detail-settings.md` – how `13-` configures the standalone server
 - `01-Run/rwserver_status.sh` – status of the Reports server and its engines; `01-Run/rwrun_trace.sh` – traced `rwrun` runs (section 5.1)
+- `05-ReportsPerformance/engine_perf_settings.sh` / `engine_perf_analyse.sh` – parameter review against section 6 and load analysis

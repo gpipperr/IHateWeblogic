@@ -40,7 +40,8 @@ documents for the **why**:
 | `02-Checks/db_connect_check.sh`, `07-Maintenance/rcu_repository_check.sh` | [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §3, §6.1 |
 | `02-Checks/ssl_check.sh`, `08-SSL/ssl_local_ca.sh` | [forms_jakob_webutil.md](forms_jakob_webutil.md) §9, §10 |
 | `02-Checks/reports_network_scan.sh` | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md), [report_engine_architecture.md](report_engine_architecture.md) §8 |
-| `01-Run/rwserver_status.sh` | [report_engine_architecture.md](report_engine_architecture.md) §5, §6 |
+| `01-Run/rwserver_status.sh`, `05-ReportsPerformance/engine_perf_settings.sh`, `05-ReportsPerformance/engine_perf_analyse.sh` (shared `01-Run/reports_server_lib.sh`) | [report_engine_architecture.md](report_engine_architecture.md) §5, §6 |
+| `01-Run/rwrun_trace.sh` | [report_engine_architecture.md](report_engine_architecture.md) §5.1 |
 
 Overview of the checks: [02-Checks/README.md](../02-Checks/README.md).
 

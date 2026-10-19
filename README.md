@@ -295,6 +295,7 @@ IHateWeblogic/
 │   ├── startStop.sh                 – Manage components: list | start/stop <comp> | start-all | stop-all
 │   ├── wlst_connect.sh              – Open interactive WLST shell with auto-login via weblogic_sec.sh
 │   ├── rwserver_status.sh           – Engine pool, job queue, rwservlet HTTP status (--auth)
+│   ├── reports_server_lib.sh        – Shared Reports helpers (sourced by rwserver_status + 05-)
 │   └── rwrun_trace.sh               – One report with rwrun + trace / ODL TRACE:32, results in log/
 │
 ├── 02-Checks/
@@ -336,8 +337,8 @@ IHateWeblogic/
 │
 ├── 05-ReportsPerformance/
 │   ├── README.md
-│   ├── engine_perf_settings.sh      – Read/update engine+cache tuning params in rwserver.conf (--apply)
-│   └── engine_perf_analyse.sh       – Live job stats via getserverinfo XML + WLS_REPORTS log scan
+│   ├── engine_perf_settings.sh      – Engine/queue/cache params vs. Oracle rules, CPUs, RAM (--apply: report engine)
+│   └── engine_perf_analyse.sh       – Load: failure rate, queuing share, pool usage, Reports server logs
 │
 ├── 06-FormsDiag/
 │   ├── README.md
@@ -643,6 +644,18 @@ work (details of every fix: `git log`).
 
 ### Script gaps found during the rebuild
 
+- [x] **05-ReportsPerformance review** (2026-10-19): both scripts evaluated the
+  in-process `rwserver.conf` of `WLS_REPORTS` and the URL engine, found no
+  engines (`rwengine`), got HTTP 499 (no `authid`) and scanned `WLS_REPORTS.log`.
+  Rebuilt on the new shared `01-Run/reports_server_lib.sh` (also used by
+  `rwserver_status.sh`); `--apply` changes only the report engine and keeps
+  `REPORTS_ENGINE_*` in `environment.conf` in line. Live-tested read-only and
+  `--apply` on a copy.
+- [ ] **13- rwserver.conf: engLife / maxIdle / engine jvmOptions** not taken
+  from `environment.conf` (engLife fixed 50) – values tuned with
+  `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
+  `13- --apply`. Proposal `REPORTS_ENGINE_LIFE`, `REPORTS_ENGINE_JVM_OPTIONS`
+  (doc 13 first); evaluate a default `engineResponseTimeOut`.
 - [x] **JDK path resolved in the domain** (2026-10-15): WLST
   `createDomain`/`updateDomain` write the resolved JDK directory
   (`jdk-21.0.12.1`) instead of the symlink (`jdk-21`) – not only into

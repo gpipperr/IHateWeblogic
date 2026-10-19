@@ -1,189 +1,180 @@
 # 05-ReportsPerformance – Oracle Reports Engine Performance
 
-Diagnostics and tuning for Oracle Reports Server engine parameters.
-All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
+Configuration review and load analysis of the **standalone Reports server**
+(system component, e.g. `repserver01`) and its engines.
+All scripts source `environment.conf`, log to `log/<date>/` and are
+read-only by default (`--apply` only in `engine_perf_settings.sh`).
+
+Background (why the server/engine split, which process uses which JDK,
+Oracle's tuning rules): [report_engine_architecture.md](../80-FMW-Architecture/report_engine_architecture.md).
 
 ---
 
-## 1. Overview
+## 1. Overview – and what is NOT here
 
-| Script | Status | Purpose |
-|---|---|---|
-| `engine_perf_settings.sh` | ✅ implemented | Read and update engine/cache tuning parameters in `rwserver.conf` |
-| `engine_perf_analyse.sh` | ✅ implemented | Live performance analysis via `getserverinfo` XML + WLS log scan |
+| Script | Question it answers |
+|---|---|
+| `engine_perf_settings.sh` | Are the engine/queue/cache parameters sensible for this host (CPUs, RAM) and in line with `environment.conf`? `--apply` changes the report engine |
+| `engine_perf_analyse.sh` | How does the server cope with its load: failure rate, queuing share, pool usage vs. `maxEngine`, engine memory, REP-/ORA- errors in the Reports server logs? |
+
+Not duplicated here – use the existing scripts:
+
+| Need | Script |
+|---|---|
+| Is the Reports server running, which engines, raw `getserverinfo` | `01-Run/rwserver_status.sh` |
+| Search all logs for an error | `03-Logs/grep_logs.sh 'REP-'` |
+| Run one report outside the server (crash / trace) | `01-Run/rwrun_trace.sh` |
+| WebLogic JVM heap / GC of `WLS_REPORTS` (the servlet, not the engines) | `02-Checks/weblogic_performance.sh` |
+
+All three Reports scripts share `01-Run/reports_server_lib.sh` (find the
+component's `rwserver.conf`, read the **report** engine, server/engine PIDs,
+`getserverinfo` with `authid`). Before 2026-10-19 the 05 scripts had their
+own older copies of these helpers and evaluated the wrong file and engine
+(see section 5).
 
 ---
 
-## 2. Recommended Execution Order
+## 2. Recommended order
 
 ```
-Step 1 – Read current settings
-  ./05-ReportsPerformance/engine_perf_settings.sh
-
-Step 2 – Analyse live performance
-  ./05-ReportsPerformance/engine_perf_analyse.sh
-  ./05-ReportsPerformance/engine_perf_analyse.sh --lines 1000   # more log history
-
-Step 3 – Apply tuning (if required)
-  ./05-ReportsPerformance/engine_perf_settings.sh --apply
+1. Is it running at all?        ./01-Run/rwserver_status.sh
+2. Configuration review         ./05-ReportsPerformance/engine_perf_settings.sh
+3. Load analysis                ./05-ReportsPerformance/engine_perf_analyse.sh
+                                (best after a period of real load – the
+                                 averages cover everything since server start)
+4. Change engine parameters     ./05-ReportsPerformance/engine_perf_settings.sh --apply
+   + restart                    ./01-Run/startStop.sh stop  repserver01 --apply
+                                ./01-Run/startStop.sh start repserver01 --apply
+5. Analyse again under load
 ```
 
 ---
 
-## 3. Script Reference
-
-### engine_perf_settings.sh
+## 3. engine_perf_settings.sh
 
 ```bash
 ./05-ReportsPerformance/engine_perf_settings.sh
 ./05-ReportsPerformance/engine_perf_settings.sh --apply
+./05-ReportsPerformance/engine_perf_settings.sh --server repserver01
 ./05-ReportsPerformance/engine_perf_settings.sh --conf /path/to/rwserver.conf
 ```
 
-Options:
-
 | Option | Description |
 |---|---|
-| `--apply` | Interactive dialog to update parameters + backup + write |
-| `--conf PATH` | Explicit path to `rwserver.conf` |
+| `--apply` | Interactive dialog, backup, write the report engine element |
+| `--server NAME` | Reports server component (default `REPORTS_SERVER_NAME`, else the `ReportsServerComponent` in `config.xml`) |
+| `--conf PATH` | Evaluate/modify another file (e.g. a copy for a test) |
 
-Sections in the output:
+File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
+`RWSERVER_CONF` in `environment.conf` points to the in-process server of
+`WLS_REPORTS` – shown as INFO, not used.
 
-**1. Engine Parameters** – reads `<engine>` block from `rwserver.conf`:
-
-| Parameter | Description | Oracle Recommendation |
-|---|---|---|
-| `minEngine` | Minimum engine instances always running | ≥ 2 to avoid cold-start delay |
-| `maxEngine` | Maximum concurrent engine instances | Tune based on CPU cores and load |
-| `engLife` | Max jobs per engine before restart | 50–500; lower = more isolation |
-| `initTime` | Max seconds to wait for engine start | 30–120; increase if cold starts timeout |
-| `maxIdle` | Max idle time (seconds) before engine is released | 120–600 |
-| `jvmOptions` | JVM flags passed to rwengine JVM (heap, GC flags) | `-Xmx` matches report workload |
-
-Evaluations:
-- `minEngine = 0` or `1` → WARN cold-start risk
-- `maxEngine < 2` → WARN single-threaded bottleneck
-- `-Xmx` vs. available RAM → WARN if > 80% of free RAM
-
-**2. Cache Parameters** – reads `<cache>` block from `rwserver.conf`:
-
-| Parameter | Description |
+| Section | Content / evaluation |
 |---|---|
-| `cacheSize` | Max report cache entries |
-| `maxJobSize` | Max size (bytes) of a cached report output |
-| `purgeTime` | Seconds before old cache entries are purged |
+| Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`; FAIL: `maxEngine < minEngine/initEngine`. INFO: no `engineResponseTimeOut`, URL engine active |
+| Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
+| Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE` – WARN on drift |
+| Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
-**3. Live Process Check** – counts `rwengine` processes vs. `minEngine`/`maxEngine`.
+The rules and Oracle's numbers behind the checks:
+[report_engine_architecture.md §6](../80-FMW-Architecture/report_engine_architecture.md#6-performance-parameters-rwserverconf).
+Live 2026-10-19: without `jvmOptions` the engines run with `-Xmx256M`
+(**confirmed (live)**, engine command line).
 
-**`--apply` mode:**
+**`--apply`** asks for `initEngine`, `minEngine`, `maxEngine`, `engLife`,
+`maxIdle` and the engine `-Xmx`, validates them (numbers, `max >= min/init`),
+shows the change list, asks for confirmation, then:
 
-Interactive dialog prompts for new values.  Before writing, a timestamped backup
-is created via `backup_file()`.  Values are updated with `sed` – no `xmllint` needed.
+1. `backup_file` of `rwserver.conf`
+2. changes **only the report engine element** (`rws_set_engine_attr`, python3;
+   missing attributes are added, `rwURLEng` stays untouched)
+3. writes `initEngine/minEngine/maxEngine` also to `environment.conf`
+   (`REPORTS_ENGINE_*`, with backup) – `09-Install/13-oracle_setup_reports.sh --apply`
+   regenerates `rwserver.conf` from these values
+4. WARN for `engLife` / `maxIdle` / `-Xmx`: not in `environment.conf`, a later
+   `13- --apply` resets them (open item, see section 6)
+5. prints the restart command – the change takes effect after a restart of
+   the Reports server component
 
 ---
 
-### engine_perf_analyse.sh
+## 4. engine_perf_analyse.sh
 
 ```bash
 ./05-ReportsPerformance/engine_perf_analyse.sh
-./05-ReportsPerformance/engine_perf_analyse.sh --port 9012
-./05-ReportsPerformance/engine_perf_analyse.sh --server repserver01
-./05-ReportsPerformance/engine_perf_analyse.sh --lines 1000
+./05-ReportsPerformance/engine_perf_analyse.sh --lines 5000
+./05-ReportsPerformance/engine_perf_analyse.sh --auth admin
 ./05-ReportsPerformance/engine_perf_analyse.sh --no-http
 ```
 
-Options:
-
 | Option | Description |
 |---|---|
-| `--port N` | WLS_REPORTS listen port (default: auto-detect from config.xml) |
-| `--server NAME` | Reports Server name (default: from rwserver.conf) |
-| `--lines N` | Last N lines of WLS_REPORTS log to scan (default: 500) |
-| `--no-http` | Skip HTTP `getserverinfo` call (only log analysis) |
+| `--server NAME` | Reports server component |
+| `--port N` | `WLS_REPORTS` listen port (default from `config.xml`) |
+| `--auth MODE` | `authid` for `getserverinfo`: `auto` (default), `mon`, `admin`, `none` – same as `rwserver_status.sh` ([01-Run/README.md §4](../01-Run/README.md)) |
+| `--lines N` | Last N lines per log file (default 1000) |
+| `--no-http` | Only processes and logs |
 
-Sections in the output:
-
-**1. Job Statistics** – from `getserverinfo` XML (`<property name="..."/>` elements):
-
-| Property | Evaluation |
+| Section | Evaluation |
 |---|---|
-| `successfulJobs` | Baseline count |
-| `failedJobs` | > 0 → WARN; > 5% of total → FAIL |
-| `currentJobs` | > 0 → OK (engines working) |
-| `potentialRunawayJobs` | > 0 → FAIL |
+| Jobs | successful/failed/current/long running/runaway; failure rate ≥ 5 % → FAIL ("failing reports, not a tuning question"), runaway > 0 → FAIL |
+| Response Times | `averageResponseTime`, `averageElapsedTime`, `avgQueuingTime`; **queuing share** = queuing / response ≥ 50 % → WARN. 14.1.2 reports `averageElapsedTime=0.0` (**confirmed (live)** 2026-10-19), so the old rule "queuing > elapsed" cannot be used |
+| Engine Pool Usage | `maxEnginesUsed` / `avgEnginesUsed` vs. `maxEngine` (pool reached → WARN), connections, per instance status/jobs/life left/current job time, DEAD → FAIL |
+| Engine Processes | RSS, `-Xmx`, uptime per engine process |
+| Reports Server Logs | `servers/<repserver>/logs/rwserver_diagnostic.log` + `rwEng-N_diagnostic.log` (found via `03-Logs/log_locations.sh`): lines with ORA-/REP-/OutOfMemoryError, the five most frequent REP codes with an example |
+| Recommendations | pool full → raise `maxEngine` (heap must fit); high queuing **without** full pool → cause is not `maxEngine` (engine start, failed jobs, retries); OOM → engine `-Xmx`; REP/failed jobs → fix the cause first; ORA → `db_connect_check.sh` |
 
-**2. Response Times** – timing analysis:
+Note: the job counters of `getserverinfo` include jobs from before the last
+restart of the Reports server (live 2026-10-19: server up 20 min, engines had
+run 1 job, counters showed 60) – **assumption**: the persisted job
+repository is counted. Judge trends, not absolute numbers.
 
-| Property | Unit | Bottleneck indicator |
+Where the logs are and why there are separate engine logs:
+[03-Logs/README.md](../03-Logs/README.md),
+[report_engine_architecture.md §5](../80-FMW-Architecture/report_engine_architecture.md#5-who-starts-what--and-what-the-consoles-show).
+Typical REP codes from images/`folderAccess` (REP-56132, REP-108):
+[report_server_image_handling.md](../80-FMW-Architecture/report_server_image_handling.md).
+Slow first request / engine replacement after a crash:
+[reports_user_local_ldap.md §7](../80-FMW-Architecture/reports_user_local_ldap.md).
+
+---
+
+## 5. Review 2026-10-19 – what was wrong before
+
+| Problem (old 05 scripts) | Effect | Now |
 |---|---|---|
-| `averageResponseTime` | ms | End-to-end client wait |
-| `averageElapsedTime` | ms | Actual engine processing time |
-| `avgQueuingTime` | ms | Time waiting for a free engine |
-
-Rule: `avgQueuingTime > avgElapsedTime` → queue bottleneck → increase `maxEngine`.
-
-**3. Engine Pool** – live idle/busy state per engine instance from `getserverinfo`.
-
-**4. Log Analysis** – scans `$DOMAIN_HOME/servers/WLS_REPORTS/logs/`:
-
-| Pattern | Meaning |
-|---|---|
-| `ORA-` | Oracle DB errors in Reports jobs → check with `db_connect_check.sh` |
-| `REP-` | Oracle Reports engine errors |
-| `Engine.*started` | Engine startup events (count vs. configured minEngine) |
-| `OutOfMemoryError` | JVM heap exhausted → increase `-Xmx` in `jvmOptions` |
-
-**5. Recommendations** – consolidated guidance based on all sections:
-- Queuing bottleneck → increase `maxEngine`
-- Heap issues → increase `-Xmx` in `jvmOptions`
-- DB errors → run `02-Checks/db_connect_check.sh`
-- Reports errors → run `03-Logs/grep_logs.sh 'REP-'`
+| Used `RWSERVER_CONF` / first `rwserver.conf` found | evaluated the in-process server of `WLS_REPORTS`, not `repserver01` | component file via `reports_server_lib.sh` |
+| Greedy attribute match over the whole file | showed `minEngine=0 maxEngine=1` of the URL engine | report engine only |
+| `--apply` with `sed …/g` | would have changed **both** engines | python, report engine element only |
+| `pgrep -f rwengine` | 14.1.2 has no `rwengine` process → "0 engines" | child processes of `rwserver` |
+| `getserverinfo` without `authid` | HTTP 499 on the secured server, all HTTP sections empty | same `--auth` logic as `rwserver_status.sh` |
+| Log scan of `WLS_REPORTS.log` | the Reports errors are in `servers/repserver01/logs/` | Reports server + engine logs |
+| Integer comparison of `2134.06` / `grep -c … \|\| printf 0` | silent wrong results, "0\n0" and a bash error | awk compare, plain `grep -c` |
+| `initTime`, `purgeTime`, `maxJobSize` | not attributes of the 14.1.2 `engine`/`cache` element | Oracle's attribute list (§6 of the architecture doc) |
+| Cache dir `servers/WLS_REPORTS/tmp/cache` | does not exist | `cacheDir` property, else `$DOMAIN_HOME/reports/cache` (**confirmed (live)**: job outputs) |
+| Restart hint `WLS_REPORTS` | the standalone server is a component | `startStop.sh stop/start <component>` |
 
 ---
 
-## 4. Performance Tuning Best Practices
+## 6. Open items
 
-### Engine Pool
-
-| Scenario | Recommendation |
-|---|---|
-| Reports start slowly (first job) | Increase `minEngine` to ≥ 2 |
-| All engines frequently busy | Increase `maxEngine` (in steps of 2) |
-| High memory consumption | Reduce `maxEngine` + increase `-Xmx` per engine |
-| Memory leak symptoms | Reduce `engLife` (e.g. 50) to recycle engines more often |
-
-### JVM Heap (`jvmOptions`)
-
-- Start with `-Xms256m -Xmx512m` per engine for standard reports
-- Complex reports with large datasets or images: `-Xmx1024m` or higher
-- Rule of thumb: `maxEngine × -Xmx` must fit in available RAM with headroom
-
-### Cache
-
-| Scenario | Recommendation |
-|---|---|
-| Reports re-run unchanged frequently | Increase `cacheSize` |
-| Large PDF/XLS output | Increase `maxJobSize` |
-| Cache fills disk | Reduce `purgeTime` or `cacheSize` |
+- `09-Install/13-oracle_setup_reports.sh` writes `engLife=50` fixed and no
+  `maxIdle` / engine `jvmOptions` – values changed with `--apply` are lost on
+  the next `13- --apply`. Proposal: `REPORTS_ENGINE_LIFE`,
+  `REPORTS_ENGINE_JVM_OPTIONS` in `environment.conf` (doc 13 first).
+- `engineResponseTimeOut` (hanging engines) is not set by 13- – evaluate a
+  default with real report run times.
+- 10-Monitoring: `engine_perf_analyse.sh` as data source for the queue/pool
+  KPIs ([10-Monitoring/README.md](../10-Monitoring/README.md)).
 
 ---
 
-## 5. Related Scripts
+## 7. References
 
-| Script | Purpose |
-|---|---|
-| `01-Run/rwserver_status.sh` | Engine health + live job status via rwservlet |
-| `02-Checks/db_connect_check.sh` | Diagnose DB connection (ORA- errors in Reports) |
-| `03-Logs/grep_logs.sh` | Search logs for REP- / ORA- error patterns |
-| `07-Maintenance/backup_config.sh` | Backup rwserver.conf before tuning |
-
----
-
-## 6. References
-
-- Oracle Reports Tuning Guide – Engine Configuration:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_tune003.htm#RSPUB23760
-- Oracle Reports Troubleshooting (rwrun segfault / engine crashes):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_troubl.htm
-- Oracle FMW 14.1.2 System Requirements:
-  https://docs.oracle.com/en/middleware/fusion-middleware/fmw-infrastructure/14.1.2/infst/
+- Oracle Reports 12.2.1.3 "Publishing Reports", 24.3 Tuning Reports Server
+  Configuration and 7.2.1.8 `engine` element – quoted and linked in
+  [report_engine_architecture.md §6 / §10](../80-FMW-Architecture/report_engine_architecture.md)
+- Related scripts: `01-Run/rwserver_status.sh`, `01-Run/reports_server_lib.sh`,
+  `03-Logs/grep_logs.sh`, `02-Checks/db_connect_check.sh`,
+  `07-Maintenance/backup_config.sh` (category `reports_comp`)

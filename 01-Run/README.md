@@ -12,6 +12,7 @@ management, interactive WLST access, Reports Server status.
 | `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
 | `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status (`--auth` for secured servers) |
+| `reports_server_lib.sh` | sourced | Shared Reports helpers (`rws_*`): component `rwserver.conf`, report engine attributes, server/engine PIDs, `getserverinfo` with `authid` – also used by `05-ReportsPerformance/` |
 | `rwrun_trace.sh` | ✅ implemented | Run one report with `rwrun` + trace (TRACEOPTS, optional ODL `TRACE:32`), collect output/trace/log excerpt/ADR incidents |
 
 All scripts source `environment.conf`. Run `00-Setup/init_env.sh` first
@@ -271,7 +272,7 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 `rwserver_status.sh` answers: **Is the Reports engine working?**
 
 - A running `WLS_REPORTS` JVM does not guarantee a functional engine pool.
-- Failed `rwengine` spawns, misconfigured fonts, or a full job queue will
+- Failed engine spawns, misconfigured fonts, or a full job queue will
   not appear in `startStop.sh` but are visible here.
 
 ### Relation to startStop.sh
@@ -279,7 +280,7 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 | Check | startStop.sh | rwserver_status.sh |
 |---|---|---|
 | WLS_REPORTS JVM running | yes | yes (pgrep) |
-| rwengine process count | no | yes |
+| engine process count | no | yes |
 | Engine idle/busy state | no | yes (HTTP) |
 | Job queue pending/failed | no | yes (HTTP) |
 | Configured min/max engines | no | yes (rwserver.conf) |
@@ -404,7 +405,8 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 | `00-Setup/weblogic_sec.sh` | Store WebLogic credentials (used by wlst_connect and startStop) |
 | `02-Checks/port_check.sh` | Verify ports before start; complements status table |
 | `03-Logs/tail_logs.sh` | Live-tail server logs during start/stop |
-| `05-ReportsPerformance/engine_perf_analyse.sh` | Engine count/queue analysis after Reports Server start |
+| `05-ReportsPerformance/engine_perf_settings.sh` | Engine parameters vs. Oracle's tuning rules, CPUs, RAM (`--apply`) |
+| `05-ReportsPerformance/engine_perf_analyse.sh` | Load analysis: failure rate, queuing share, pool usage, Reports server logs |
 
 ---
 
