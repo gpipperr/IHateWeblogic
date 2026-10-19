@@ -127,7 +127,7 @@ sharing one JVM, not quoted from Oracle):
 | Advantage | Why |
 |---|---|
 | process isolation | an engine or server crash does not touch WLS_REPORTS; Reports can be restarted alone (`startStop.sh stop/start repserver01`) |
-| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7) independent of WLS_REPORTS |
+| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7) independent of WLS_REPORTS. Also an **own JDK**: `reports.sh` puts `$ORACLE_HOME/oracle_common/jdk/bin` first in `PATH`, the engines run on the FMW-bundled JDK, not on `JDK_HOME` (**confirmed (live)** 2026-10-19 – 17.0.12 on the test host; open: supported way to update it) |
 | Node Manager control | start/stop/monitoring like the WebLogic servers (`nmStart … ReportsServerComponent`, autostart via `fmw_ctl.sh`) |
 | several servers | several standalone servers (different names / queues / settings) can serve one rwservlet farm |
 

@@ -73,24 +73,37 @@ _extract_log4j_version() {
     local jar="$1"
     local ver=""
 
-    # 1. Filename: log4j-core-2.17.1.jar or log4j-2.17.1.jar
-    ver="$(basename "$jar" .jar | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
-    [ -n "$ver" ] && { printf "%s" "$ver"; return; }
-
-    # 2. MANIFEST.MF
+    # 1. MANIFEST.MF first – the file name can mislead: log4j-1.2-api-2.25.4.jar
+    #    is the Log4j 2 bridge for the 1.2 API (version 2.25.4), not log4j 1.2
     if command -v unzip >/dev/null 2>&1; then
         ver="$(unzip -p "$jar" META-INF/MANIFEST.MF 2>/dev/null \
-            | grep -i 'Implementation-Version\|Bundle-Version' \
+            | grep -i '^Implementation-Version\|^Bundle-Version' \
             | head -1 | cut -d: -f2 | tr -d ' \r\n')"
         [ -n "$ver" ] && { printf "%s" "$ver"; return; }
 
-        # 3. pom.properties (log4j-core typically has this)
+        # 2. pom.properties (log4j-core typically has this)
         ver="$(unzip -p "$jar" 'META-INF/maven/org.apache.logging.log4j/*/pom.properties' 2>/dev/null \
             | grep '^version=' | head -1 | cut -d= -f2 | tr -d ' \r\n')"
         [ -n "$ver" ] && { printf "%s" "$ver"; return; }
     fi
 
-    printf ""
+    # 3. File name: LAST version-like token (log4j-core-2.17.1.jar, log4j-1.2.17.jar)
+    ver="$(basename "$jar" .jar | sed 's/^log4j-1\.2-api-//' \
+        | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | tail -1)"
+    printf "%s" "$ver"
+}
+
+# _log4j_pointer_jar jar – prints the Class-Path target if the jar is only a
+# manifest pointer without classes (FMW "features" jars), else returns 1
+_log4j_pointer_jar() {
+    command -v unzip >/dev/null 2>&1 || return 1
+    unzip -l "$1" 2>/dev/null | grep -q '\.class$' && return 1
+    local cp
+    cp="$(unzip -p "$1" META-INF/MANIFEST.MF 2>/dev/null | tr -d '\r' \
+          | awk '/^Class-Path:/ {sub(/^Class-Path: */,""); p=1; printf "%s", $0; next}
+                 p && /^ / {sub(/^ /,""); printf "%s", $0; next} {p=0}')"
+    [ -n "$cp" ] || return 1
+    printf "%s" "$cp"
 }
 
 # =============================================================================
@@ -292,7 +305,31 @@ fi
 # =============================================================================
 # Section 4: setDomainEnv.sh – JVM Memory Configuration
 # =============================================================================
-section "JVM Memory Settings in setDomainEnv.sh"
+# Other Oracle JVMs (not WebLogic): the Reports engines are started by
+# rwserver through $DOMAIN_HOME/reports/bin/reports.sh, which puts
+# $ORACLE_HOME/oracle_common/jdk/bin first in PATH – they do NOT run on
+# JAVA_HOME / JDK_HOME, and JDK updates there do not reach them (2026-10-19).
+_eng_pids="$(pgrep -u "$(id -u)" -f 'rwrun\.jar' 2>/dev/null | while read -r p; do
+                 [ "$(basename "$(readlink -f "/proc/$p/exe" 2>/dev/null)")" = "java" ] && printf '%s\n' "$p"
+             done)"
+if [ -n "$_eng_pids" ]; then
+    printf "\n"
+    info "Reports engines (java, started by rwserver):"
+    for _p in $_eng_pids; do
+        _exe="$(readlink -f "/proc/$_p/exe" 2>/dev/null)"
+        _ver="$("$_exe" -XshowSettings:properties -version 2>&1 | awk -F' = ' '/^ *java.version = / {v=$2} /^ *java.version.date = / {d=$2} END {print v, d}')"
+        if [ "$_exe" = "$JAVA_REAL" ]; then
+            ok "$(printf "  PID %-7s %s  (%s) – same JDK as JAVA_HOME" "$_p" "$_exe" "$_ver")"
+        else
+            warn "$(printf "  PID %-7s %s  (%s) – NOT the JAVA_HOME JDK" "$_p" "$_exe" "$_ver")"
+            info "    reports.sh puts oracle_common/jdk first in PATH – JDK_HOME updates do not reach the engines"
+        fi
+    done
+    unset _p _exe _ver
+fi
+unset _eng_pids
+
+section "JVM Memory Settings (setUserOverrides.sh / running JVMs)"
 
 # Reference values from Oracle documentation
 # Src: https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_conf013.htm
@@ -304,58 +341,55 @@ info "  Dev/Test              : -Xmx1024m"
 info "  Small production      : -Xmx1536m to -Xmx2048m"
 info "  Large production      : -Xmx2048m to -Xmx4096m  (many parallel engines)"
 info "  Rule of thumb         : heap < 60% of total physical RAM"
-warn "IMPORTANT: Changes MUST be made in setDomainEnv.sh – the WebLogic Admin"
-info "  Console does NOT apply memory settings for WLS_REPORTS!"
+info "Set heap per server in \$DOMAIN_HOME/bin/setUserOverrides.sh (USER_MEM_ARGS,"
+info "  sourced by setDomainEnv.sh) – not in setDomainEnv.sh itself, which Oracle"
+info "  rewrites on updateDomain/patches; see 02-Checks/weblogic_performance.sh --apply"
 printf "\n"
 
-SETDOMAINENV="${SETDOMAINENV:-$DOMAIN_HOME/bin/setDomainEnv.sh}"
-
-if [ ! -f "$SETDOMAINENV" ]; then
-    warn "setDomainEnv.sh not found: $SETDOMAINENV"
-    info "  Check DOMAIN_HOME in environment.conf"
-else
-    printList "setDomainEnv.sh" 32 "$SETDOMAINENV"
-
-    # Extract memory-related lines (non-comment)
-    MEM_LINES="$(grep -nE 'USER_MEM_ARGS|WLS_MEM_ARGS|MEM_ARGS|Xms[0-9]|Xmx[0-9]' \
-        "$SETDOMAINENV" | grep -v '^\s*#' | head -20)"
-
-    if [ -z "$MEM_LINES" ]; then
-        warn "No explicit memory settings found in setDomainEnv.sh"
-        info "  WebLogic applies default JVM sizing – consider setting USER_MEM_ARGS"
-    else
-        info "Memory-related settings found:"
-        while IFS= read -r line; do
-            lineno="${line%%:*}"
-            content="${line#*:}"
-            printList "  Line $lineno" 12 "$content"
-
-            # Assess Xmx values found
-            xmx_raw="$(echo "$content" | grep -oE '\-Xmx[0-9]+[mMgG]' | head -1)"
-            if [ -n "$xmx_raw" ]; then
-                # Normalize to MB
-                xmx_num="${xmx_raw//[^0-9]/}"
-                xmx_unit="${xmx_raw##*[0-9]}"
-                xmx_unit="${xmx_unit,,}"
-                [ "$xmx_unit" = "g" ] && xmx_mb=$(( xmx_num * 1024 )) || xmx_mb="$xmx_num"
-
-                if   [ "$xmx_mb" -lt 512 ];  then
-                    fail  "  -Xmx${xmx_raw#-Xmx} (${xmx_mb}m) – below minimum recommendation (512m)"
-                elif [ "$xmx_mb" -lt 1024 ]; then
-                    warn  "  -Xmx${xmx_raw#-Xmx} (${xmx_mb}m) – acceptable for dev, low for production"
-                elif [ "$xmx_mb" -le 4096 ]; then
-                    ok    "  -Xmx${xmx_raw#-Xmx} (${xmx_mb}m) – within recommended production range"
-                else
-                    warn  "  -Xmx${xmx_raw#-Xmx} (${xmx_mb}m) – very large, verify available RAM"
-                fi
-            fi
-        done <<< "$MEM_LINES"
+# _rate_xmx label value – rate one -Xmx value (e.g. -Xmx2g)
+_rate_xmx() {
+    local label="$1" xmx_raw="$2" xmx_num xmx_unit xmx_mb
+    xmx_num="${xmx_raw//[^0-9]/}"
+    xmx_unit="${xmx_raw##*[0-9]}"; xmx_unit="${xmx_unit,,}"
+    case "$xmx_unit" in g) xmx_mb=$(( xmx_num * 1024 )) ;; k) xmx_mb=$(( xmx_num / 1024 )) ;; *) xmx_mb="$xmx_num" ;; esac
+    local line; line="$(printf "  %-14s %-10s (%sm)" "$label" "$xmx_raw" "$xmx_mb")"
+    if   [ "$xmx_mb" -lt 512 ];  then fail "$line – below minimum recommendation (512m)"
+    elif [ "$xmx_mb" -lt 1024 ]; then warn "$line – acceptable for dev, low for production"
+    elif [ "$xmx_mb" -le 4096 ]; then ok   "$line – within recommended production range"
+    else                              warn "$line – very large, verify available RAM"
     fi
-fi
+}
 
-# =============================================================================
-# Section 5: Log4j CVE Scan (read-only)
-# =============================================================================
+# Effective values = the running JVMs. setDomainEnv.sh only holds Oracle's
+# defaults (WLS_MEM_ARGS -Xmx512m), overridden by USER_MEM_ARGS from
+# setUserOverrides.sh – rating those defaults gave false warnings.
+_rated=0
+for pid in $WLS_PIDS; do
+    _name="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -oE -- '-Dweblogic\.Name=[^ ]+' | cut -d= -f2)"
+    _xmx="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -oE -- '-Xmx[0-9]+[mMgGkK]' | tail -1)"
+    [ -n "$_xmx" ] || continue
+    _rate_xmx "${_name:-PID $pid}" "$_xmx"
+    _rated=$(( _rated + 1 ))
+done
+
+USER_OVR="$DOMAIN_HOME/bin/setUserOverrides.sh"
+if [ "$_rated" -eq 0 ]; then
+    info "No running WebLogic JVM – rating the configured values in $USER_OVR"
+    if [ -f "$USER_OVR" ]; then
+        while IFS= read -r _x; do
+            _rate_xmx "setUserOverrides" "$_x"
+        done < <(grep -v '^\s*#' "$USER_OVR" | grep -oE -- '-Xmx[0-9]+[mMgGkK]')
+    else
+        warn "No $USER_OVR – servers run with Oracle's defaults from setDomainEnv.sh (-Xmx512m)"
+        info "  Create it: ./02-Checks/weblogic_performance.sh --apply"
+    fi
+elif [ -f "$USER_OVR" ]; then
+    ok "Heap configured in $USER_OVR (USER_MEM_ARGS)"
+else
+    warn "No $USER_OVR – heap comes from somewhere else (start script / NM arguments)"
+fi
+unset _rated _name _xmx _x
+
 section "Log4j CVE Vulnerability Scan"
 
 info "Scanning for log4j JARs under:"
@@ -377,6 +411,15 @@ while IFS= read -r jar; do
     LOG4J_COUNT=$(( LOG4J_COUNT + 1 ))
 
     jar_name="$(basename "$jar")"
+
+    # FMW "features" jars: manifest Class-Path only, no code – the real jar
+    # it points to is scanned on its own
+    if _ptr="$(_log4j_pointer_jar "$jar")"; then
+        info "log4j pointer jar (no classes, Class-Path → $(basename "${_ptr%% *}")): $jar_name"
+        LOG4J_COUNT=$(( LOG4J_COUNT - 1 ))
+        continue
+    fi
+
     version="$(_extract_log4j_version "$jar")"
 
     if [ -z "$version" ]; then
@@ -390,7 +433,10 @@ while IFS= read -r jar; do
 
     case $rc in
         0)
-            ok "log4j $version – safe (>= 2.17.1): $jar_name"
+            case "$jar_name" in
+                log4j-1.2-api*) ok "log4j $version – safe (>= 2.17.1): $jar_name (Log4j 2 bridge for the 1.2 API, not log4j 1.x)" ;;
+                *)              ok "log4j $version – safe (>= 2.17.1): $jar_name" ;;
+            esac
             printList "  Path" 6 "$jar"
             ;;
         1)

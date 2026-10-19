@@ -27,7 +27,8 @@ Further homes of the platform:
 
 | Term | Path | Note |
 |---|---|---|
-| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`) | used by all JVMs of the domain (`setDomainEnv.sh`, `setNMJavaHome.sh`) |
+| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`) |
+| FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`). JDK updates via `JDK_HOME` do not reach it – checked by `02-Checks/java_check.sh` and `10-Monitoring/cve_inventory.sh` |
 | Inventory | `/u01/app/oracle/oraInventory` | OUI/OPatch registry of the Oracle Homes |
 | Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path) |
 | Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – `09-Install/30-configure_autostart.sh` |

@@ -186,11 +186,16 @@ fi
 _mem_args_for() {
     local file="$1"
     local srv="$2"
+    # Server name = the quoted value AFTER the comparison operator
+    # (the old greedy gsub(/.*"/) left only ' ]; then' – every block "not set")
     awk -v srv="$srv" '
-        /SERVER_NAME.*==.*"/ || /SERVER_NAME.*=.*"/ {
-            gsub(/.*"/, ""); gsub(/".*/, "")
-            current=$0
+        /SERVER_NAME/ && match($0, /(==|=)[[:space:]]*"[^"]+"/) {
+            v = substr($0, RSTART, RLENGTH)
+            sub(/^(==|=)[[:space:]]*"/, "", v); sub(/"$/, "", v)
+            current = v
+            next
         }
+        /^[[:space:]]*fi([[:space:]]|$)/ { current = "" }
         current == srv && /USER_MEM_ARGS/ {
             gsub(/.*USER_MEM_ARGS[[:space:]]*=[[:space:]]*"/, "")
             gsub(/".*/, "")
@@ -275,39 +280,62 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     [ "$OVERRIDES_EXISTS" -eq 1 ] && \
         { backup_file "$OVERRIDES" || { fail "Backup failed – aborting"; print_summary; exit 2; }; }
 
-    # Write the file
-    cat > "$OVERRIDES" << HEREDOC
-#!/bin/bash
-# =============================================================================
-# setUserOverrides.sh – WebLogic JVM performance settings
-# Managed by: 02-Checks/weblogic_performance.sh
-# Written   : $(date '+%Y-%m-%d %H:%M:%S')
-# =============================================================================
+    # Update in place – never replace the whole file: it also holds the
+    # Reports font settings (14b-), the rwservlet ORB timeout (13-) and other
+    # additions; rewriting it dropped them (same bug class as webutil.cfg /
+    # formsweb.cfg, fixed 2026-10-19).
+    if [ "$OVERRIDES_EXISTS" -ne 1 ]; then
+        printf '%s\n' "#!/bin/bash" \
+            "# setUserOverrides.sh – sourced by setDomainEnv.sh (per-server JVM settings)" \
+            "# Heap blocks maintained by 02-Checks/weblogic_performance.sh" \
+            "" "# Default heap for any server not listed below" \
+            'export USER_MEM_ARGS="-Xms256m -Xmx512m"' > "$OVERRIDES"
+    fi
 
-# Default heap for any server not listed below
-export USER_MEM_ARGS="-Xms256m -Xmx512m"
+    # _set_mem srv value – replace USER_MEM_ARGS inside the srv block, or
+    # append a new block (with the Forms user-ID encryption for Admin/Forms)
+    _set_mem() {
+        local srv="$1" val="$2" tmp
+        tmp="$(mktemp)"
+        if awk -v srv="$srv" '
+               /SERVER_NAME/ && match($0, /(==|=)[[:space:]]*"[^"]+"/) {
+                   v = substr($0, RSTART, RLENGTH); sub(/^(==|=)[[:space:]]*"/, "", v); sub(/"$/, "", v)
+                   if (v == srv) found = 1 }
+               END { exit !found }' "$OVERRIDES"; then
+            awk -v srv="$srv" -v val="$val" '
+                /SERVER_NAME/ && match($0, /(==|=)[[:space:]]*"[^"]+"/) {
+                    v = substr($0, RSTART, RLENGTH); sub(/^(==|=)[[:space:]]*"/, "", v); sub(/"$/, "", v)
+                    cur = v }
+                /^[[:space:]]*fi([[:space:]]|$)/ { cur = "" }
+                cur == srv && /USER_MEM_ARGS[[:space:]]*=/ && !done {
+                    match($0, /^[[:space:]]*/); ind = substr($0, 1, RLENGTH)
+                    print ind "export USER_MEM_ARGS=\"" val "\""; done = 1; next }
+                { print }' "$OVERRIDES" > "$tmp" && cat "$tmp" > "$OVERRIDES"
+        else
+            {
+                printf '\nif [ "${SERVER_NAME}" = "%s" ]; then\n' "$srv"
+                printf '    export USER_MEM_ARGS="%s"\n' "$val"
+                case "$srv" in AdminServer|WLS_FORMS)
+                    printf '    export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dforms.userid.encryption.enabled=true"\n' ;;
+                esac
+                printf 'fi\n'
+            } >> "$OVERRIDES"
+        fi
+        rm -f "$tmp"
+    }
+    _set_mem AdminServer "$NEW_ADMIN"
+    _set_mem WLS_FORMS   "$NEW_FORMS"
+    _set_mem WLS_REPORTS "$NEW_REPORTS"
 
-if [ "\${SERVER_NAME}" = "AdminServer" ]; then
-    export USER_MEM_ARGS="${NEW_ADMIN}"
-    export EXTRA_JAVA_PROPERTIES="\${EXTRA_JAVA_PROPERTIES} -Dforms.userid.encryption.enabled=true"
-fi
-
-if [ "\${SERVER_NAME}" = "WLS_FORMS" ]; then
-    export USER_MEM_ARGS="${NEW_FORMS}"
-    export EXTRA_JAVA_PROPERTIES="\${EXTRA_JAVA_PROPERTIES} -Dforms.userid.encryption.enabled=true"
-fi
-
-if [ "\${SERVER_NAME}" = "WLS_REPORTS" ]; then
-    export USER_MEM_ARGS="${NEW_REPORTS}"
-fi
-
-# Log4j CVE-2021-44228 / CVE-2021-45046 mitigation
-export LOG4J_FORMAT_MSG_NO_LOOKUPS=true
-export JAVA_OPTIONS="\${JAVA_OPTIONS} -Dlog4j2.formatMsgNoLookups=true"
-HEREDOC
+    # Log4j CVE-2021-44228 / CVE-2021-45046 mitigation – only if missing
+    if ! grep -q 'LOG4J_FORMAT_MSG_NO_LOOKUPS' "$OVERRIDES"; then
+        printf '%s\n' "" "# Log4j CVE-2021-44228 / CVE-2021-45046 mitigation" \
+            "export LOG4J_FORMAT_MSG_NO_LOOKUPS=true" \
+            'export JAVA_OPTIONS="${JAVA_OPTIONS} -Dlog4j2.formatMsgNoLookups=true"' >> "$OVERRIDES"
+    fi
 
     chmod 640 "$OVERRIDES"
-    ok "setUserOverrides.sh written: $OVERRIDES"
+    ok "setUserOverrides.sh updated (heap lines only, rest kept): $OVERRIDES"
     warn "Restart all managed servers for changes to take effect"
     info "  ./01-Run/startStop.sh stop  AdminServer --apply && ./01-Run/startStop.sh start AdminServer --apply"
     info "  ./01-Run/startStop.sh stop  WLS_FORMS   --apply && ./01-Run/startStop.sh start WLS_FORMS   --apply"

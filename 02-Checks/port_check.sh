@@ -379,8 +379,10 @@ if $HTTP_CHECK; then
 
         _http_check_url "AdminServer console" \
             "http://${_admin_host}:${_admin_port}/console"
-        _http_check_url "AdminServer version JSP" \
-            "http://${_admin_host}:${_admin_port}/bea_wls_internal/versionInfo.jsp"
+        # /bea_wls_internal/versionInfo.jsp no longer exists in 14.1.2 (HTTP 404) –
+        # the readiness endpoint answers 200 when the server is RUNNING
+        _http_check_url "AdminServer readiness" \
+            "http://${_admin_host}:${_admin_port}/weblogic/ready"
     fi
 fi
 

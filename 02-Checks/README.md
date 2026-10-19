@@ -1,26 +1,37 @@
 # 02-Checks – System & Environment Diagnostics
 
 Diagnostic scripts that inspect the host, the Java runtime, the WebLogic
-domain, and the network configuration. All scripts are **read-only** unless
-marked otherwise – run them without `--apply` to get a safe status overview.
+domain, the database connection, TLS and the Reports network discovery.
+All scripts are **read-only** – only `weblogic_performance.sh --apply`
+changes a file (with backup).
+
+This README describes **what** each script checks and how to read the
+result. **Why** a check exists – how the components work together – is
+explained in the background documents of
+[`80-FMW-Architecture/`](../80-FMW-Architecture/README.md), linked per script
+("Why").
 
 ---
 
 ## 1. Overview
 
-| Script | Status | Purpose |
+| Script | Purpose | Why – background |
 |---|---|---|
-| `os_check.sh` | ✅ implemented | OS, RAM, CPU, disk, ulimits, kernel params, packages |
-| `java_check.sh` | ✅ implemented | JAVA_HOME, JDK version, WLS JVM settings, Log4j CVE scan |
-| `port_check.sh` | ✅ implemented | Listen addresses and ports per WLS component, TCP check |
-| `db_connect_check.sh` | ✅ implemented | 6-step DB diagnostics: DNS/Ping/TCP/TNS/Service/Login |
-| `ssl_check.sh` | ✅ implemented | SSL architecture detection (Nginx/WLS), TLS analysis, cert expiry |
-| `weblogic_performance.sh` | ✅ implemented | SecureRandom startup fix + JVM heap per server check/apply |
-| `reports_network_scan.sh` | ✅ implemented | Reports multicast discovery: rwnetwork.conf consistency, route/MULTICAST/firewall, send+receive self-test, active scan for Reports servers per port (DiagServerLocator) |
+| [`os_check.sh`](#os_checksh) | OS release, RAM/CPU/disk, ulimits, kernel parameters, SELinux + firewall, packages, hostname | [OS parameters](../09-Install/docs/00-root_set_os_parameter.md), [firewall + sshd](../09-Install/docs/00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
+| [`java_check.sh`](#java_checksh) | `JAVA_HOME`, JDK version/vendor, JDK of every running WLS JVM **and of the Reports engines**, heap, Log4j scan | [the homes incl. both JDKs](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes), [Reports engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts) |
+| [`port_check.sh`](#port_checksh) | listen addresses/ports from `config.xml` + Node Manager, live sockets, TCP and HTTP checks | [how the parts are joined](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined), [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) |
+| [`db_connect_check.sh`](#db_connect_checksh) | 6-step DB diagnosis: DNS / ping / TCP / TNS / service / login | [who logs in where](../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where), [password expiry](../80-FMW-Architecture/rcu_middleware_architecture.md#61-password-expiry--a-real-risk) |
+| [`ssl_check.sh`](#ssl_checksh) | who terminates TLS (Nginx / WLS / OHS), live TLS analysis, certificates incl. WebLogic demo certificates, keystores | [08-SSL](../08-SSL/README.md), [which certificates are needed](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed) |
+| [`weblogic_performance.sh`](#weblogic_performancesh) | SecureRandom source in `java.security`, heap per server in `setUserOverrides.sh` (`--apply`) | [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) (`setDomainEnv.sh` → `setUserOverrides.sh`) |
+| [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/report_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
-All implemented scripts source `environment.conf` and write output to both
-stdout and `$DIAG_LOG_DIR/`. Run `00-Setup/init_env.sh` first if
+All scripts source `environment.conf` and write their output to stdout and
+`$DIAG_LOG_DIR/` (or `log/<date>/`). Run `00-Setup/init_env.sh` first if
 `environment.conf` does not exist yet.
+
+Related, outside this folder: `10-Monitoring/cve_inventory.sh` (installed
+components, patch cycle, both JDKs, exposure, Oracle advisories) and
+`08-SSL/ssl_config.sh` (Nginx TLS audit).
 
 ---
 
@@ -37,20 +48,23 @@ Step 2 – Java runtime
 
 Step 3 – Ports and network
   ./02-Checks/port_check.sh
-  ./02-Checks/port_check.sh --http   # also check AdminServer console via HTTP
+  ./02-Checks/port_check.sh --http   # also HTTP checks against the AdminServer
 
 Step 4 – Database connectivity
   ./02-Checks/db_connect_check.sh --new     # first time: configure + save credentials
   ./02-Checks/db_connect_check.sh           # check existing config (DNS/TCP/TNS/Service)
   ./02-Checks/db_connect_check.sh --login   # full check including login test
 
-Step 5 – SSL certificates
+Step 5 – SSL / TLS
   ./02-Checks/ssl_check.sh
   ./02-Checks/ssl_check.sh --warn-days 60   # warn earlier on cert expiry
 
 Step 6 – WebLogic performance settings
   ./02-Checks/weblogic_performance.sh          # check current state
-  ./02-Checks/weblogic_performance.sh --apply  # apply recommended settings
+  ./02-Checks/weblogic_performance.sh --apply  # set heap per server (in place)
+
+Step 7 – Reports server discovery (Reports installations)
+  ./02-Checks/reports_network_scan.sh
 ```
 
 ---
@@ -63,21 +77,26 @@ Step 6 – WebLogic performance settings
 ./02-Checks/os_check.sh
 ```
 
-Read-only – no options needed.
-
-Checks performed (7 sections):
+Read-only – no options. **Why:** the OS settings FMW needs and why –
+[`09-Install/docs/00-root_set_os_parameter.md`](../09-Install/docs/00-root_set_os_parameter.md);
+sizing of ulimits / sysctl by expected sessions:
+`09-Install/01-setup-interview.sh` (`EXPECTED_SESSIONS`).
 
 | Section | What is checked |
 |---|---|
-| 1 – OS Version & Kernel | Oracle Linux / RHEL release, kernel version, architecture (x86_64), `CV_ASSUME_DISTID` (required on OL9 for OUI), `LANG`/`LC_ALL` (must be `en_US.UTF-8`), `umask` (recommended `0027`) |
-| 2 – System Resources | RAM total/available (FMW minimums: OS 8 GB / DEV-QS 16 GB / PRD 64 GB), swap (>= 2 GB recommended), CPU core count + model, disk free space on `$ORACLE_HOME`, `$DOMAIN_HOME`, `/tmp`, `/var/log` |
-| 3 – ulimits | `nofile`, `nproc`, `stack`, `core` (session limits) + configured limits in `/etc/security/limits.conf` / `limits.d/` for the oracle OS user |
-| 4 – Kernel Parameters | `fs.file-max`, `fs.aio-max-nr`, `kernel.sem`, `kernel.shmmni`, `kernel.shmall`, `kernel.shmmax`, `net.core.rmem_default/max`, `net.core.wmem_default/max`, `net.ipv4.ip_local_port_range` via `sysctl` |
-| 5 – SELinux & Firewall | SELinux runtime mode (`getenforce`) + persistent config (`/etc/selinux/config`); `firewalld` state via `systemctl` (works as oracle – `firewall-cmd --state` needs root and used to report a running firewall as "not running", fixed 2026-10-19). Firewall active = OK, not active = **WARN** (all `frmweb` / `rwserver` / engine sockets reachable past Nginx); safe activation: `09-Install/01-root_os_baseline.sh --apply --skip-update --only firewall` |
-| 6 – Required OS Packages | 4 sub-groups via `rpm -q`: **Critical** (`glibc`, `libXext`, `libXrender`, `motif`, `gcc`, …), **Compatibility** (32-bit/compat libs), **Reports printing** (`cups`, `cups-libs`), **Diagnostic tools** (`strace`, `lsof`, `sysstat`, `xorg-x11-server-Xvfb`, `fonttools`) |
-| 7 – Hostname & Network | FQDN resolvable and different from short hostname, hostname does not resolve to loopback, relevant `/etc/hosts` entries |
+| 1 – OS Version & Kernel | Oracle Linux / RHEL release, kernel, architecture (x86_64), `CV_ASSUME_DISTID` (required on OL9 for OUI), `LANG`/`LC_ALL` (`en_US.UTF-8`), `umask` |
+| 2 – System Resources | RAM total/available (FMW minimums: OS 8 GB / DEV-QS 16 GB / PRD 64 GB), swap (>= 2 GB recommended), CPU cores + model, free space on `$ORACLE_HOME`, `$DOMAIN_HOME`, `/tmp`, `/var/log` |
+| 3 – ulimits | `nofile`, `nproc`, `stack`, `core` (session) + configured limits in `/etc/security/limits.conf` / `limits.d/` for the oracle user |
+| 4 – Kernel Parameters | `fs.file-max`, `fs.aio-max-nr`, `kernel.sem`, `kernel.shmmni`, `kernel.shmall`, `kernel.shmmax`, `net.core.rmem_*`, `net.core.wmem_*`, `net.ipv4.ip_local_port_range` |
+| 5 – SELinux & Firewall | SELinux runtime + persistent mode; `firewalld` state via `systemctl` (works as oracle – `firewall-cmd --state` needs root and used to report a running firewall as "not running", fixed 2026-10-19). Firewall active = OK, not active = **WARN** (all `frmweb` / `rwserver` / engine sockets reachable past Nginx); safe activation: `09-Install/01-root_os_baseline.sh --apply --skip-update --only firewall` |
+| 6 – Required OS Packages | via `rpm -q`: **critical** (`glibc`, `libXext`, `libXrender`, `motif`, `gcc`, …), **compatibility** libs, **Reports printing** (`cups`, `cups-libs`), **diagnostic tools** (`strace`, `lsof`, `sysstat`, `xorg-x11-server-Xvfb`, `fonttools`) |
+| 7 – Hostname & Network | FQDN resolvable and different from the short name, hostname not on loopback, `/etc/hosts` entries |
 
-Exit code 0 = all OK; non-zero = at least one FAIL detected.
+Exit code 0 = all OK, 1 = warnings, 2 = at least one FAIL.
+
+> **Open (2026-10-19):** the check expects `umask 027`, while
+> `09-Install/03-root_user_oracle.sh` writes `umask 0022` into the oracle
+> `.bash_profile` – one of the two has to be aligned (decision pending).
 
 ---
 
@@ -87,26 +106,36 @@ Exit code 0 = all OK; non-zero = at least one FAIL detected.
 ./02-Checks/java_check.sh
 ```
 
-Read-only – no options needed.
+Read-only – no options. **Why:** an FMW host has **two JDKs** – the
+standalone Oracle JDK (`JDK_HOME`) for WebLogic and the Node Manager, and
+the FMW-bundled `$ORACLE_HOME/oracle_common/jdk`, which the Reports engines
+use – see
+[the homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes)
+and [Reports engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
 
-Checks performed:
-
-| Category | What is checked |
+| Section | What is checked |
 |---|---|
-| JAVA_HOME | Correct FMW JDK path (not the system JDK) |
-| JDK version | Must be JDK 21.0.x for FMW 14.1.2, JDK 8 for FMW 12.2.1 |
-| `java` on PATH | Whether `$JAVA_HOME/bin/java` matches `$(which java)` |
-| Running WLS JVMs | Finds `java` processes with `-Dweblogic`, shows PID, heap settings |
-| Heap settings | Extracts `-Xms` / `-Xmx` from running WLS JVM arguments |
-| Log4j CVE scan | Scans `$FMW_HOME` for `log4j*.jar`; reports CVE-2021-44228 exposure |
+| `JAVA_HOME` | set, standalone Oracle JDK (expected for 14.1.2) or FMW-bundled; `java` in `PATH` = `JAVA_HOME` |
+| Java version & vendor | major release rating (21 = certified for 14.1.2), Oracle JDK vs. OpenJDK (Oracle Support asks for the vendor) |
+| Running WLS JVMs | per server (`-Dweblogic.Name`): java binary = `JAVA_HOME`?, runtime `-Xms` / `-Xmx` / GC |
+| Reports engines | every running engine (`rwrun.jar`): java binary + version – **WARN** if it is not the `JAVA_HOME` JDK (`reports.sh` puts `oracle_common/jdk` first in `PATH`; `JDK_HOME` updates do not reach the engines) |
+| Heap | rates the **runtime** `-Xmx` of each running server; without running servers the values in `setUserOverrides.sh`. Oracle's defaults in `setDomainEnv.sh` (`-Xmx512m`) are not rated – they are overridden |
+| Log4j scan | all `log4j*.jar` under `$ORACLE_HOME` / `$DOMAIN_HOME`; version from `MANIFEST.MF` / `pom.properties`, file name only as fallback |
 
 Log4j classification:
 
 | Version | Result |
 |---|---|
 | ≥ 2.17.1 | OK – patched |
-| 2.x < 2.17.1 | FAIL – CVE-2021-44228 / CVE-2021-45046 vulnerable |
-| 1.x | WARN – EOL, CVE-2019-17571 |
+| 2.x < 2.17.1 | FAIL – CVE-2021-44228 / -45046 / -45105 / -44832 |
+| 1.x | FAIL – EOL, CVE-2019-17571, no fix |
+
+- `log4j-1.2-api-2.x.jar` is the **Log4j 2 bridge** for the 1.2 API (version
+  2.x), not log4j 1.x – rated by its real version (until 2026-10-19 the file
+  name made it a false FAIL).
+- FMW "features" jars (`oracle_common/modules/thirdparty/features/log4j-*.jar`)
+  contain no classes, only a `Class-Path` to the real jar – listed as INFO,
+  the real jar is rated.
 
 ---
 
@@ -118,52 +147,43 @@ Log4j classification:
 ./02-Checks/port_check.sh --timeout 5
 ```
 
-Options:
-
 | Option | Description |
 |---|---|
-| `--http` | Also run HTTP GET health check on AdminServer console and version JSP |
-| `--timeout N` | TCP connect timeout in seconds (default: 3) |
+| `--http` | also HTTP checks against the AdminServer (`/console`, `/weblogic/ready`) |
+| `--timeout N` | TCP connect timeout in seconds (default 3) |
 
-Read-only – no `--apply` needed.
+**Why:** which component listens where and who talks to whom –
+[how the parts are joined](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined).
 
-Sections in the output:
+Sections:
 
-**1. Network Interfaces** – all IPv4 addresses and subnet masks on the host
-(`ip addr` or `ifconfig` fallback).
+1. **Network interfaces** – IPv4 addresses (`ip addr`).
+2. **Configured ports** – `<server>` blocks of `$DOMAIN_HOME/config/config.xml`
+   with `<listen-address>`, `<listen-port>` and SSL port; fallback
+   `WL_ADMIN_URL`.
+3. **Node Manager** – `ListenPort` / `ListenAddress` from
+   `nodemanager.properties` (default 5556 / localhost).
+4. **Listening TCP sockets** – `ss -tlnp`; Java / WebLogic / Node Manager
+   rows highlighted. Process names only for own processes (run as root to
+   see all).
+5. **Cross-check** – per configured port: `ss` state (LISTEN / DOWN) and a
+   TCP connect (`bash /dev/tcp`, no `nc` / `nmap` needed).
+6. **HTTP** (`--http`) – `/console` (14.1.2: redirect to the console welcome
+   page, HTTP 302 = OK) and `/weblogic/ready` (200 = server RUNNING). The
+   old `/bea_wls_internal/versionInfo.jsp` no longer exists in 14.1.2
+   (replaced 2026-10-19).
 
-**2. Configured Ports** – reads `$DOMAIN_HOME/config/config.xml` and extracts
-`<server>` blocks with their `<listen-address>` and `<listen-port>` / SSL port.
-Falls back to `WL_ADMIN_URL` from `environment.conf` when `config.xml` is not
-found.
+Ports of the domain in this project (`environment.conf`):
 
-**3. Node Manager** – reads `$DOMAIN_HOME/nodemanager/nodemanager.properties`
-for `ListenPort` and `ListenAddress`. Default 5556 / localhost if file not found.
-
-**4. All Listening TCP Sockets** – output of `ss -tlnp` (or `netstat -tlnp`).
-Rows with `java` / `weblogic` / `nodemanager` processes are highlighted in
-green; other system sockets are shown dimmed.
-
-> Run as root to see process names for sockets not owned by the current user.
-
-**5. Port Connectivity Cross-Check** – for every port found in config.xml and
-nodemanager.properties: shows `ss` state (LISTEN / DOWN) and a TCP connect
-result (OPEN / CLOSED). Uses `bash /dev/tcp` – no `nc` or `nmap` required.
-
-**6. HTTP Health Check** (`--http` only) – `curl` GET requests to:
-- `http://<admin>:<port>/console` – AdminServer console (HTTP 401 = expected)
-- `http://<admin>:<port>/bea_wls_internal/versionInfo.jsp` – version endpoint
-
-Typical ports for a Forms/Reports 14c domain:
-
-| Component | Default Port | Protocol |
-|---|---|---|
-| AdminServer | 7001 | T3 / HTTP |
-| AdminServer SSL | 7002 | T3S / HTTPS |
-| WLS_REPORTS | 9001 | T3 / HTTP |
-| WLS_FORMS | 9002 | T3 / HTTP |
-| Node Manager | 5556 | NM / SSL |
-| OHS (if installed) | 8890 / 4443 | HTTP / HTTPS |
+| Component | Port | Bound to | Note |
+|---|---|---|---|
+| AdminServer | 7001 | 127.0.0.1 | via Nginx `/em`, `/console` |
+| WLS_FORMS | 9001 | 127.0.0.1 | via Nginx `/forms` |
+| WLS_REPORTS | 9002 | 127.0.0.1 | via Nginx `/reports` |
+| WLS_FORMS / WLS_REPORTS SSL | 9501 / 9512 | 127.0.0.1 | enabled by the domain templates with the **WebLogic demo certificate** – not needed (TLS ends at Nginx), see `ssl_check.sh` |
+| Node Manager | 5556 | 127.0.0.1 | plain |
+| Nginx | 80 / 443 | all interfaces | the only entry from outside (firewall) |
+| Reports discovery | 14027/udp | multicast | `REPORTS_BROADCAST_PORT` |
 
 ---
 
@@ -171,149 +191,195 @@ Typical ports for a Forms/Reports 14c domain:
 
 ```bash
 ./02-Checks/db_connect_check.sh               # check existing config
-./02-Checks/db_connect_check.sh --new          # configure new connection (interactive)
-./02-Checks/db_connect_check.sh --login        # include login test
+./02-Checks/db_connect_check.sh --new         # configure a connection (interactive)
+./02-Checks/db_connect_check.sh --login       # include the login test
 ./02-Checks/db_connect_check.sh --login --sqlplus=/path/to/sqlplus
 ```
 
-DB connection parameters are read from `environment.conf` (`DB_HOST`, `DB_PORT`,
-`DB_SERVICE`, `DB_SERVER`).  If not present, `jps-config.xml` is parsed as fallback.
-Use `--new` to configure and save parameters permanently.
+**Why:** which schema logs in from where (data sources, OPSS bootstrap,
+Reports / Forms application users) –
+[who logs in where](../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where);
+locked / expired accounts after 180 days –
+[password expiry](../80-FMW-Architecture/rcu_middleware_architecture.md#61-password-expiry--a-real-risk).
 
-**First-time setup:**
+Connection parameters from `environment.conf` (`DB_HOST`, `DB_PORT`,
+`DB_SERVICE`), fallback `jps-config.xml`. `--new` asks for host, port,
+service, user and password, writes the parameters to `environment.conf`
+and the credentials encrypted to `db_connect.conf.des3` (same openssl des3
+concept as `weblogic_sec.conf.des3`).
 
-```bash
-./02-Checks/db_connect_check.sh --new
-```
+Steps (sequential – stops at the first FAIL):
 
-Starts an interactive dialog (host, port, service, username, password).
-Writes `DB_HOST / DB_PORT / DB_SERVICE / DB_SERVER` to `environment.conf`
-and saves encrypted credentials to `db_connect.conf.des3`
-(same openssl des3 + machine-UUID mechanism as `weblogic_sec.sh`).
-
-**Diagnostic steps (sequential – stops at first FAIL):**
-
-| Step | What | Tool | Exit on FAIL |
+| Step | What | Tool | On failure |
 |---|---|---|---|
-| 1 | DNS resolution | `getent hosts` | yes – hostname wrong or DNS unreachable |
-| 2 | ICMP Ping | `ping -c3 -W2` | no – ICMP often blocked (WARN only) |
-| 3 | TCP port open | `bash /dev/tcp` / `nc` | yes – firewall or listener not started |
-| 4 | Oracle TNS Listener? | `tnsping` or Python3 TNS packet | WARN – port open but not Oracle |
-| 5 | Service/SID exists? | Python3 TNS CONNECT_DATA | ORA code → targeted hint |
-| 6 | Login test (`--login`) | `sqlplus`/`sql` Easy Connect | ORA code → precise error cause |
+| 1 | DNS resolution | `getent hosts` | FAIL – host name wrong or DNS unreachable |
+| 2 | ICMP ping | `ping -c3 -W2` | WARN only – ICMP is often blocked |
+| 3 | TCP port open | `bash /dev/tcp` / `nc` | FAIL – firewall or listener down |
+| 4 | Oracle TNS listener? | `tnsping` or a Python3 TNS packet | WARN – port open but not Oracle |
+| 5 | Service / SID exists? | Python3 TNS `CONNECT_DATA` | ORA code → targeted hint |
+| 6 | Login (`--login`) | `sqlplus` / `sql` Easy Connect | ORA code → cause |
 
-**Service check without Oracle Client (Step 5):**
-
-A minimal TNS CONNECT packet is sent via Python3 sockets.  The Oracle Listener
-responds with a TNS REFUSE packet containing the ORA error as readable ASCII text
-(e.g. `ERR=12514`).  No tnsnames.ora, no Oracle client required.
+Step 5 works without an Oracle client: a minimal TNS CONNECT packet is sent
+via Python3 sockets, the listener answers with a REFUSE packet containing
+the ORA error as text.
 
 | ORA in REFUSE | Meaning |
 |---|---|
-| no error / REDIRECT | Service found and registered with listener |
-| `ORA-12514` | Listener running – service name not registered |
-| `ORA-12505` | Listener running – SID not found |
-| `ORA-12519` | Service found – but all handlers busy |
+| no error / REDIRECT | service registered with the listener |
+| `ORA-12514` | listener running – service not registered |
+| `ORA-12505` | listener running – SID not found |
+| `ORA-12519` | service found – all handlers busy |
 
-**Login test (Step 6, optional):**
-
-Requires `SQLPLUS_BIN` in `environment.conf` or `--sqlplus=` flag.
-Uses Easy Connect (`//host:port/service`) – no tnsnames.ora needed.
+Step 6 needs `SQLPLUS_BIN` in `environment.conf` or `--sqlplus=` (Instant
+Client `sqlplus` or SQLcl `sql`); Easy Connect `//host:port/service`.
 
 | ORA after login | Meaning |
 |---|---|
-| no ORA | Login successful |
-| `ORA-01017` | Wrong username or password |
-| `ORA-28000` | Account locked |
-| `ORA-28001` | Password expired |
-
-`SQLPLUS_BIN` options:
-- Oracle Instant Client `sqlplus` binary
-- SQLcl (`sql`) – Java-based, uses existing `$JAVA_HOME`
+| none | login successful |
+| `ORA-01017` | wrong user name or password |
+| `ORA-28000` | account locked |
+| `ORA-28001` | password expired → [profile `RCU_USER`](../60-RCU-DB-19c/docs/07b-db_rcu_profile.md) |
 
 ---
-
-### reports_network_scan.sh
-
-```bash
-./02-Checks/reports_network_scan.sh                       # full check + scan 14021-14030
-./02-Checks/reports_network_scan.sh --ports 14021-14040 --timeout 5
-./02-Checks/reports_network_scan.sh --port 14027 --no-scan  # used by 13-oracle_setup_reports.sh
-```
-
-Read-only. Steps:
-
-| Step | What |
-|---|---|
-| 1 | Channel/port of all `rwnetwork.conf` (ReportsTools instance, every Reports server, `WLS_REPORTS` application) – must be equal |
-| 2 | Route to the multicast group (not `lo`), `MULTICAST` flag, IPv6 on that interface, firewall `<port>/udp` (via `sudo -n` when firewalld is active) |
-| 3 | Self-test: one UDP datagram to `channel:port`, must be received again on this host – exactly what the Reports server needs at start (else `REP-50600`). Skipped while a Reports server runs (it would log `REP-50125 StreamCorruptedException`). Passive listen for foreign senders (hint only) |
-| 4 | Active scan: Oracle's `DiagServerLocator -findAll` (the class behind `rwdiag.sh`) per port of the range, with a temporary `COMPONENT_CONFIG_PATH` – nothing is written to the domain. Table port/name/type/host; WARN if a foreign host uses the own port, FAIL if one of the own server names runs on another host (`REP-56040`); lists ports without answer |
-
-- Runs in a subshell that sources `$DOMAIN_HOME/reports/bin/reports.sh` –
-  `DiagServerLocator` needs that environment (with the class path alone it
-  fails with `InvocationTargetException`).
-- About 4 s per port (JVM start + timeout).
-- Only **running** servers answer – a silent port can still belong to a
-  stopped environment.
-- Background: [`80-FMW-Architecture/reports_server_discovery_multicast.md`](../80-FMW-Architecture/reports_server_discovery_multicast.md)
 
 ### ssl_check.sh
 
 ```bash
 ./02-Checks/ssl_check.sh                    # auto-detect architecture
 ./02-Checks/ssl_check.sh --warn-days 60     # warn earlier on cert expiry
-./02-Checks/ssl_check.sh --host 10.0.1.5    # external host for TLS checks
-./02-Checks/ssl_check.sh --no-curl          # skip HTTP endpoint checks
+./02-Checks/ssl_check.sh --host 10.0.1.5    # external host for the TLS checks
+./02-Checks/ssl_check.sh --no-curl          # skip the HTTP endpoint checks
 ```
 
-Detects the SSL architecture first, then analyses accordingly.
+**Why:** in this setup TLS ends at Nginx, WebLogic listens on localhost
+only ([08-SSL](../08-SSL/README.md)); which certificates a Forms/Reports
+installation needs and who checks them –
+[certificates](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed).
 
-**Supported architectures:**
+Detects the TLS architecture first:
 
-| Port 443 owner | Mode | Where is the certificate? |
+| Port 443 owner | Mode | Certificate |
 |---|---|---|
-| `nginx` | Nginx SSL proxy | `ssl_certificate` file in nginx config |
-| `java` (WLS) | WLS direct SSL | WLS Keystore (JKS/PKCS12) |
+| `nginx` | Nginx TLS proxy | `ssl_certificate` file of the Nginx config |
+| `java` (WLS) | WLS direct SSL | WLS keystore (JKS / PKCS12) |
 | `httpd` | OHS proxy | OHS `ssl.conf` |
-| nothing | No HTTPS on 443 | WLS SSL ports (7002, 9002) checked directly |
-
-**Sections:**
+| nothing | no HTTPS on 443 | WLS SSL ports checked directly |
 
 | Section | What |
 |---|---|
-| 1 – Voraussetzungen | openssl / curl / keytool availability |
-| 2 – Architektur | Who owns port 443? nginx/WLS/OHS/other |
-| 3 – WLS config.xml | SSL enabled/disabled per server, listen ports, keystore type |
-| 4 – Nginx config | ssl_certificate path + cert, ssl_protocols, ssl_ciphers, proxy_pass targets |
-| 5 – Live TLS analyse | Protocol (TLS 1.0–1.3), cipher strength, forward secrecy, weak protocol test |
-| 6 – HTTP endpoints | curl check on /em, /console (HTTP and HTTPS) |
-| 7 – Keystore files | keytool -list on .jks/.p12 files under DOMAIN_HOME |
+| 1 – Voraussetzungen | `openssl` / `curl` / `keytool` available |
+| 2 – Architektur | who owns port 443 |
+| 3 – WLS `config.xml` | SSL enabled per server, listen ports, keystore type – demo keystore → FAIL |
+| 4 – Nginx config | `ssl_certificate` (read via `sudo -n` when `/etc/nginx/ssl` is 700 root, otherwise INFO and checked via live TLS), `ssl_protocols`, `ssl_ciphers`, `proxy_pass` targets incl. **upstream names** resolved to their port |
+| 5 – Live TLS | protocol, cipher, forward secrecy (TLS 1.3 always (EC)DHE), TLS 1.0 / 1.1 still accepted?, certificate of Nginx and of every WLS SSL port |
+| 6 – HTTP endpoints | `curl` on `/em`, `/console` (HTTP and HTTPS) |
+| 7 – Keystore files | `keytool -list` on `.jks` / `.p12` under `$DOMAIN_HOME` |
 
-**TLS protocol ratings:**
+Ratings: TLS 1.3 / 1.2 OK, TLS 1.1 WARN (RFC 8996), TLS 1.0 / SSLv3 FAIL.
+Certificates: subject / issuer / SAN, expiry (FAIL expired, WARN within
+`--warn-days`, default 30), self-signed WARN, **WebLogic demo certificate**
+(`CertGenCA`, `DemoCertFor_<domain>`, "FOR TESTING ONLY") **FAIL** – the
+private key of that CA ships with every WebLogic installation.
 
-| Protocol | Result |
+> Found 2026-10-19 on the test host: the SSL listen ports 9501 (WLS_FORMS)
+> and 9512 (WLS_REPORTS) are enabled with the demo certificate (bound to
+> 127.0.0.1, behind the firewall). Not needed – TLS ends at Nginx. Open:
+> disable them in the domain setup (`09-Install/08-`) or use an own
+> certificate; candidate for the config security scanner
+> (`10-Monitoring/README.md`).
+
+Fixed 2026-10-19 (were false findings): certificate file in the 700 root
+directory reported as "not found", `proxy_pass http://<upstream>` reported
+as "not listening", TLS 1.3 reported without forward secrecy, live
+certificates with 4096-bit keys "not readable" (PEM cut after 30 lines).
+
+---
+
+### weblogic_performance.sh
+
+```bash
+./02-Checks/weblogic_performance.sh            # check
+./02-Checks/weblogic_performance.sh --apply    # set heap per server (backup first)
+```
+
+**Why:** `setDomainEnv.sh` (rewritten by Oracle on updateDomain / patches)
+sources `setUserOverrides.sh` – the place for own JVM settings per server –
+[who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain).
+
+#### Section 1 – `java.security`: SecureRandom source
+
+`java.security` of `JAVA_HOME` (`jre/lib/security` on JDK 8,
+`conf/security` on JDK 11+), setting `securerandom.source`:
+
+| Value | Rating |
 |---|---|
-| TLS 1.3 | OK |
-| TLS 1.2 | OK |
-| TLS 1.1 | WARN – deprecated RFC 8996 |
-| TLS 1.0 | FAIL – POODLE/BEAST |
-| SSLv3 | FAIL – critical |
+| `file:/dev/random` | **FAIL** – blocking entropy source, slows the WLS start |
+| `file:/dev/./urandom` | OK – non-blocking (recommended) |
+| `file:/dev/./random` | OK – non-blocking via the `./` trick |
+| `file:/dev/urandom` | OK on JDK 17+ / newer JDK 8 builds |
+| (not set) | WARN – compile-time default applies |
 
-Also explicitly tests whether old protocols (TLS 1.0/1.1) are still _accepted_
-even when the server negotiated TLS 1.2+.
+The JVM treats the literal `file:/dev/random` as a blocking source; on a
+freshly booted VM this can stall the WebLogic start for 30 s to minutes.
+`file:/dev/./urandom` points to the same device but does not match that
+string. `--apply`: `backup_file()` + `sed`; effective at the next JVM start.
+The JDK of the Reports engines (`oracle_common/jdk`) is a separate
+`java.security` – see `java_check.sh`.
 
-**Certificate checks:**
-- Subject / Issuer / SANs
-- Self-signed detection (Subject == Issuer)
-- Expiry: FAIL if expired, WARN if within `--warn-days` (default: 30)
-- Demo certificate detection (WLS `DEMO_CERTS` keystore → FAIL)
+#### Section 2 – `setUserOverrides.sh`: heap per server
 
-**Nginx specifics:**
-- Reads config via `nginx -T` (full merged config), falls back to direct file read
-- Checks `ssl_certificate` file existence and reads cert without TLS handshake
-- Validates `ssl_protocols` and `ssl_ciphers` directives
-- Cross-checks `proxy_pass` targets against live listening ports
+Reads `USER_MEM_ARGS` per `if [ "${SERVER_NAME}" = "<name>" ]` block:
+
+| Check | Rating |
+|---|---|
+| file exists | WARN if missing |
+| block for `AdminServer` / `WLS_FORMS` / `WLS_REPORTS` | WARN if absent |
+| `LOG4J_FORMAT_MSG_NO_LOOKUPS=true` | WARN if absent (CVE-2021-44228) |
+| `-Dforms.userid.encryption.enabled=true` | INFO if absent |
+
+Typical values:
+
+| Server | `-Xms` | `-Xmx` | Additional |
+|---|---|---|---|
+| AdminServer | 1024m | 1536m | `-XX:MaxMetaspaceSize=2G` |
+| WLS_FORMS | 2g | 2g | `-XX:NewSize=1g` |
+| WLS_REPORTS | 2g | 2g | `-XX:NewSize=1g` |
+
+`--apply` asks for the three values and **updates the file in place**: the
+`USER_MEM_ARGS` line inside an existing server block is replaced, a missing
+block is appended, the Log4j guard is added only if missing. Everything
+else stays – the file also holds the Reports font settings
+(`14b-oracle_reports_fonts.sh`) and the rwservlet ORB timeout
+(`13-oracle_setup_reports.sh`). Until 2026-10-19 `--apply` rewrote the
+whole file and dropped them; the server-name parser also read every block
+as "not set". Restart the servers afterwards.
+
+---
+
+### reports_network_scan.sh
+
+```bash
+./02-Checks/reports_network_scan.sh                         # full check + scan 14021-14030
+./02-Checks/reports_network_scan.sh --ports 14021-14040 --timeout 5
+./02-Checks/reports_network_scan.sh --listen 20             # longer passive listen (default 10 s)
+./02-Checks/reports_network_scan.sh --port 14027 --no-scan  # used by 13-oracle_setup_reports.sh
+```
+
+**Why:** the standalone Reports server must find itself (and is found) via
+multicast, otherwise it stops with `REP-50600` –
+[Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md),
+[prerequisites on the host](../80-FMW-Architecture/reports_server_discovery_multicast.md#5-prerequisites-on-the-host).
+
+| Step | What |
+|---|---|
+| 1 | channel / port of all `rwnetwork.conf` (ReportsTools instance, every Reports server, `WLS_REPORTS` application) – must be equal |
+| 2 | route to the multicast group (not `lo`), `MULTICAST` flag, IPv6 on that interface, firewall `<port>/udp` (via `sudo -n` when firewalld is active) |
+| 3 | self-test: one UDP datagram to `channel:port`, must be received again on this host – what the Reports server needs at start (else `REP-50600`). Skipped while a Reports server runs (it would log `REP-50125 StreamCorruptedException`). Passive listen for foreign senders (`--listen`) |
+| 4 | active scan: Oracle's `DiagServerLocator -findAll` (behind `rwdiag.sh`) per port of the range, with a temporary `COMPONENT_CONFIG_PATH` – nothing is written to the domain. WARN if a foreign host uses the own port, FAIL if an own server name runs on another host (`REP-56040`) |
+
+- Runs in a subshell that sources `$DOMAIN_HOME/reports/bin/reports.sh`
+  (`DiagServerLocator` needs that environment).
+- About 4 s per port; only **running** servers answer.
 
 ---
 
@@ -323,147 +389,67 @@ even when the server negotiated TLS 1.2+.
 
 ```
 Symptom: WARN nofile=1024 – recommended >= 65536
-Cause:   Default OS limits are too low for WebLogic
-Fix:     Add to /etc/security/limits.conf:
+Cause:   OS default limits too low for WebLogic / Forms sessions
+Fix:     09-Install/01-root_os_baseline.sh / 03-root_user_oracle.sh --apply
+         (values sized by EXPECTED_SESSIONS), or /etc/security/limits.d/:
            oracle  soft  nofile  65536
            oracle  hard  nofile  65536
            oracle  soft  nproc   16384
            oracle  hard  nproc   16384
-         Then re-login and re-run os_check.sh.
+         Then log in again and re-run os_check.sh.
 ```
 
 ### java_check.sh – wrong JDK detected
 
 ```
-Symptom: FAIL JAVA_HOME points to system JDK, not FMW JDK
-Cause:   /etc/profile.d/ or .bashrc overrides JAVA_HOME after setDomainEnv.sh
-Fix:     Set JAVA_HOME explicitly in environment.conf:
-           JAVA_HOME=/app/oracle/java/jdk-21.0.6
-         Or prepend $FMW_HOME bin to PATH before system Java.
+Symptom: WARN PATH java differs from JAVA_HOME java
+Cause:   /etc/profile.d/ or .bashrc puts another java first in PATH
+Fix:     JAVA_HOME / JDK_HOME in environment.conf point to the symlink
+           JDK_HOME=/u01/app/oracle/java/jdk-21
+         (repointed at every JDK update, see 09-Install/docs/01-root_setup_java.md)
+```
+
+### java_check.sh – Reports engines on another JDK
+
+```
+Symptom: WARN PID <n> .../oracle_common/jdk/bin/java (17.0.12 ...) – NOT the JAVA_HOME JDK
+Cause:   $DOMAIN_HOME/reports/bin/reports.sh puts oracle_common/jdk first in PATH
+Fix:     open – supported way to update the bundled JDK / point the engines
+         to JDK_HOME is being clarified (README "Open Items")
 ```
 
 ### java_check.sh – Log4j FAIL
 
 ```
-Symptom: FAIL log4j-core-2.14.1.jar – CVE-2021-44228 vulnerable
-Cause:   Old log4j version bundled with WLS or application
-Fix:     See https://logging.apache.org/log4j/2.x/security.html
-         Apply Oracle patch: My Oracle Support Note 2827793.1
-         Minimum safe version: log4j-core 2.17.1
+Symptom: FAIL log4j-core-2.14.1.jar – VULNERABLE (Log4Shell family)
+Cause:   old log4j bundled with WLS or an application
+Fix:     apply the current Oracle patches (09-Install/docs/00-patch-references.md);
+         Log4j: https://logging.apache.org/log4j/2.x/security.html,
+         MOS Note 2827793.1; minimum safe version log4j-core 2.17.1
 ```
 
 ### port_check.sh – all ports show CLOSED
 
 ```
-Symptom: All WLS ports show CLOSED in connectivity check
-Cause A: WebLogic domain not started
-         → Run: $DOMAIN_HOME/bin/startWebLogic.sh  (or via Node Manager)
-Cause B: WL_ADMIN_URL in environment.conf has wrong host/port
-         → Re-run: 00-Setup/init_env.sh to regenerate environment.conf
-Cause C: Firewall blocking the port on this host
-         → Check: sudo firewall-cmd --list-ports
-         → Open:  sudo firewall-cmd --add-port=7001/tcp --permanent
+Symptom: all WLS ports CLOSED in the cross-check
+Cause A: domain not started
+         → ./01-Run/startStop.sh start-all --apply
+Cause B: WL_ADMIN_URL in environment.conf has the wrong host/port
+         → re-run 00-Setup/init_env.sh
+Cause C: the check runs from another host – WLS listens on 127.0.0.1 only
+         and the firewall lets only ssh / 80 / 443 through (by design);
+         check on the server itself, from outside only via Nginx
+         (never open 7001/9001/9002/5556 in the firewall)
 ```
 
 ### port_check.sh – process names missing in ss output
 
 ```
-Symptom: ss -tlnp shows no process name in the Process column
-Cause:   Running as a non-root user; ss only shows process info for own processes
-Fix:     Run as root or as the oracle user that started WebLogic:
+Symptom: ss -tlnp shows no process name
+Cause:   ss shows process info only for own processes
+Fix:     run as the oracle user that started WebLogic, or as root:
            sudo ./02-Checks/port_check.sh
-           su - oracle -c "cd /development/IHateWeblogic && ./02-Checks/port_check.sh"
 ```
-
-### weblogic_performance.sh
-
-```bash
-./02-Checks/weblogic_performance.sh
-./02-Checks/weblogic_performance.sh --apply
-```
-
-Options:
-
-| Option | Description |
-|---|---|
-| `--apply` | Interactive update of both settings (backup before every write) |
-
----
-
-#### Section 1 – java.security: SecureRandom Source
-
-Locates and reads `java.security` for the configured `JAVA_HOME`:
-
-| JDK version | Path |
-|---|---|
-| JDK 8 | `$JAVA_HOME/jre/lib/security/java.security` |
-| JDK 11 / 17 / 21 | `$JAVA_HOME/conf/security/java.security` |
-
-Checks the `securerandom.source` setting:
-
-| Value | Evaluation |
-|---|---|
-| `file:/dev/random` | **FAIL** – blocking entropy source; slows WLS startup |
-| `file:/dev/./urandom` | OK – non-blocking (recommended) |
-| `file:/dev/./random` | OK – non-blocking via `./` trick |
-| `file:/dev/urandom` | OK on JDK 17+ / newer JDK 8 builds |
-| _(not set)_ | WARN – JVM compile-time default applies (likely `/dev/random`) |
-
-**Background – Why `/dev/./urandom`?**
-
-The Oracle JVM contains a special code path: when `securerandom.source` is set to
-the literal string `file:/dev/random`, the JVM opens it as a *blocking* source and
-waits until the OS entropy pool has enough data. On a freshly booted server or inside
-a VM this can stall WebLogic startup for **30 seconds to several minutes**.
-
-The fix is the `./` path trick: `file:/dev/./urandom` resolves to the same device node
-on Linux (`/dev/urandom`) but does **not** match the JVM's hardcoded `"/dev/random"`
-string comparison, so the JVM falls through to the regular non-blocking path.
-
-```
-# Before (in java.security):
-securerandom.source=file:/dev/random
-
-# After:
-securerandom.source=file:/dev/./urandom
-```
-
-`--apply` performs: `backup_file()` → `sed` replace in-place.
-No server restart required – takes effect on next JVM startup.
-
----
-
-#### Section 2 – setUserOverrides.sh: JVM Heap per Server
-
-Reads `$DOMAIN_HOME/bin/setUserOverrides.sh` and extracts `USER_MEM_ARGS` per
-managed server block.
-
-`setDomainEnv.sh` sources `setUserOverrides.sh` during startup – this is the
-**recommended** way to configure per-server JVM settings without modifying the
-Oracle-managed `setDomainEnv.sh` directly.
-
-Checks performed:
-
-| Check | Evaluation |
-|---|---|
-| File exists | WARN if missing |
-| `USER_MEM_ARGS` block for `AdminServer` | WARN if absent |
-| `USER_MEM_ARGS` block for `WLS_FORMS` | WARN if absent |
-| `USER_MEM_ARGS` block for `WLS_REPORTS` | WARN if absent |
-| `LOG4J_FORMAT_MSG_NO_LOOKUPS=true` | WARN if absent (CVE-2021-44228) |
-| `forms.userid.encryption.enabled=true` | INFO if absent (optional) |
-
-Typical recommended values:
-
-| Server | `-Xms` | `-Xmx` | Additional |
-|---|---|---|---|
-| AdminServer | 1024m | 1536m | `-XX:MaxMetaspaceSize=2G` |
-| WLS_FORMS | 2g | 2g | `-XX:NewSize=1g` |
-| WLS_REPORTS | 2g | 2g | `-XX:NewSize=1g` |
-
-`--apply` writes a complete `setUserOverrides.sh` with all server blocks, the
-Log4j CVE guard, and `forms.userid.encryption.enabled`.
-All managed servers must be **restarted** for heap changes to take effect.
 
 ---
 
@@ -471,23 +457,31 @@ All managed servers must be **restarted** for heap changes to take effect.
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/init_env.sh` | Detect FMW/Domain paths, generate `environment.conf` |
-| `00-Setup/weblogic_sec.sh` | Store WebLogic admin credentials (used by db_connect_check) |
-| `01-Run/rwrun_trace.sh` | Diagnose `rwrun` segfaults |
-| `03-Logs/grep_logs.sh` | Search logs for errors after a failed check |
-| `08-SSL/` | SSL certificate management (complements ssl_check.sh) |
+| `00-Setup/init_env.sh` | detect FMW / domain paths, generate `environment.conf` |
+| `00-Setup/weblogic_sec.sh` | store the WebLogic admin credentials (des3) |
+| `01-Run/rwrun_trace.sh` | diagnose `rwrun` crashes |
+| `03-Logs/grep_logs.sh` | search the logs after a failed check |
+| `08-SSL/` | certificates: local CA, deployment to Nginx, `ssl_config.sh` audit |
+| `09-Install/01-root_os_baseline.sh` | fix what `os_check.sh` reports (sysctl, THP, firewall, sshd) |
+| `10-Monitoring/cve_inventory.sh` | installed components vs. patch cycle and Oracle advisories, both JDKs, exposure |
 
 ---
 
 ## 6. References
 
-- Oracle FMW 14.1.2 System Requirements:
-  https://docs.oracle.com/en/middleware/fusion-middleware/fmw-infrastructure/14.1.2/infst/
-- Oracle Linux 8 Ulimits for Oracle Products:
+All links checked 2026-10-19 (HTTP 200, title matches).
+
+- Oracle FMW 14.1.2 System Requirements and Specifications:
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html
+- Securing a Production Environment for Oracle WebLogic Server 14.1.2:
+  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html
+- Oracle Database Installation Guide 21c for Linux (ulimits / kernel
+  parameters of Oracle products):
   https://docs.oracle.com/en/database/oracle/oracle-database/21/ladbi/
-- Oracle Reports Troubleshooting (rwrun segfault / DISPLAY):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_troubl.htm
-- Log4j Security (CVE-2021-44228):
+- Troubleshooting Oracle Reports Services (12.2.1.3 guide, still valid for
+  the architecture):
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm
+- Log4j security (CVE-2021-44228):
   https://logging.apache.org/log4j/2.x/security.html
-- My Oracle Support Note 2827793.1 (Log4j patch for FMW):
+- My Oracle Support Note 2827793.1 (Log4j and FMW):
   https://support.oracle.com/epmos/faces/DocumentDisplay?id=2827793.1

@@ -159,8 +159,15 @@ _check_cert() {
         done <<< "$sans"
     fi
 
-    # Self-signed check
-    if _is_self_signed "$pem"; then
+    # WebLogic demo certificate (CertGenCA / DemoCertFor_<domain>, "FOR
+    # TESTING ONLY") – CA-signed by a CA whose key ships with every WebLogic
+    # installation: must never be used outside a test system
+    if printf '%s %s' "$subj" "$iss" | grep -qiE 'CertGenCA|DemoCertFor|FOR TESTING ONLY|DemoIdentity'; then
+        fail "$(printf "  %-26s  WebLogic-Demo-Zertifikat (CertGenCA) – nicht fuer Produktion!" "Signatur:")"
+        info "    Der private Schluessel der Demo-CA ist in jeder WLS-Installation enthalten."
+        info "    Wird der Port nicht gebraucht (TLS endet an Nginx): SSL-Listen-Port abschalten,"
+        info "    sonst eigenes Zertifikat (08-SSL/ssl_local_ca.sh) in einen Custom-Keystore."
+    elif _is_self_signed "$pem"; then
         warn "$(printf "  %-26s  Subject == Issuer → selbst-signiert" "Signatur:")"
     else
         ok "$(printf "  %-26s  CA-signiert" "Signatur:")"
@@ -227,7 +234,11 @@ _check_tls_on_port() {
         esac
 
         # Forward Secrecy
-        if printf "%s" "$cipher" | grep -qE 'DHE|ECDHE'; then
+        if [ "$proto" = "TLSv1.3" ]; then
+            # TLS 1.3 suites (TLS_AES_*, TLS_CHACHA20_*) carry no key exchange
+            # in the name – the key exchange is always (EC)DHE
+            ok "$(printf "  %-26s  ja (TLS 1.3 – immer (EC)DHE)" "Forward Secrecy:")"
+        elif printf "%s" "$cipher" | grep -qE 'DHE|ECDHE'; then
             ok "$(printf "  %-26s  ja (DHE/ECDHE erkannt)" "Forward Secrecy:")"
         else
             warn "$(printf "  %-26s  nein – kein DHE/ECDHE im Cipher" "Forward Secrecy:")"
@@ -254,9 +265,10 @@ _check_tls_on_port() {
 
     # Certificate
     local cert_pem
+    # first certificate of the chain, complete (head -30 cut 4096-bit
+    # certificates off -> "Zertifikat nicht lesbar")
     cert_pem="$(printf "%s" "$tls_out" \
-        | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' \
-        | head -30)"    # first cert in chain only
+        | awk '/-----BEGIN CERTIFICATE-----/ {p=1} p {print} /-----END CERTIFICATE-----/ && p {exit}')"
     if [ -n "$cert_pem" ]; then
         printf "\n"
         info "  Zertifikat:"
@@ -574,7 +586,16 @@ if [ "$ARCH_MODE" = "nginx" ]; then
 
         for _cert_file in "${NGINX_CERT_FILES[@]}"; do
             printf "  \033[1m── Zertifikat-Datei: %s ──\033[0m\n" "$_cert_file"
-            if [ -f "$_cert_file" ]; then
+            _cert_dir="$(dirname "$_cert_file")"
+            _cert_pem=""
+            if [ ! -x "$_cert_dir" ] && sudo -n test -f "$_cert_file" 2>/dev/null; then
+                # /etc/nginx/ssl is 700 root – read via sudo when allowed
+                ok "$(printf "  %-26s  vorhanden (gelesen per sudo)" "ssl_certificate:")"
+                _cert_pem="$(sudo -n openssl x509 -in "$_cert_file" 2>/dev/null)"
+                [ -n "$_cert_pem" ] && _check_cert "$_cert_pem" "nginx-Zertifikat"
+            elif [ ! -x "$_cert_dir" ]; then
+                info "$(printf "  %-26s  %s nicht lesbar als %s (700 root) – Pruefung ueber Live-TLS unten" "ssl_certificate:" "$_cert_dir" "$(id -un)")"
+            elif [ -f "$_cert_file" ]; then
                 ok "$(printf "  %-26s  vorhanden" "ssl_certificate:")"
                 _cert_pem="$(openssl x509 -in "$_cert_file" 2>/dev/null)"
                 if [ -n "$_cert_pem" ]; then
@@ -624,6 +645,16 @@ if [ "$ARCH_MODE" = "nginx" ]; then
         while IFS= read -r _proxy; do
             [ -z "$_proxy" ] && continue
             _proxy_port="$(printf "%s" "$_proxy" | grep -oE ':[0-9]+' | head -1 | tr -d ':')"
+            # proxy_pass http://<upstream-name> – port from the upstream block
+            if [ -z "$_proxy_port" ]; then
+                _up="$(printf "%s" "$_proxy" | sed -E 's|^[a-z]+://||; s|/.*||')"
+                _proxy_port="$(printf "%s\n" "$NGINX_FULL_CONF" \
+                    | awk -v u="$_up" '$1 == "upstream" && $2 == u {f=1; next}
+                                      f && /}/ {exit}
+                                      f && $1 == "server" {print $2; exit}' \
+                    | grep -oE ':[0-9]+' | tr -d ':')"
+                [ -n "$_proxy_port" ] && _proxy="$_proxy → upstream :$_proxy_port"
+            fi
             _proxy_live=0
             [ -n "$_proxy_port" ] && _proxy_live="$(printf "%s" "$SS_OUT" \
                 | grep -cE ":${_proxy_port}[ \t]|:${_proxy_port}$" 2>/dev/null)"

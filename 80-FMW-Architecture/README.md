@@ -28,6 +28,22 @@ Every statement is marked by how it is backed:
 | [em_principal_search_libovd.md](em_principal_search_libovd.md) | EM "Add Principal" finds no users: the EM search goes through libOVD; the Reports server rewrites the shared libOVD config and leaves `ovd.lok`, an AdminServer started with it has no LDAP adapter – trace, test series, fix in the start scripts |
 | [forms_jakob_webutil.md](forms_jakob_webutil.md) | WebUtil and JACOB (Java–COM bridge for OLE/Office automation): architecture, download source and checksums of JACOB 1.21, files and locations, `webutil.cfg` syslib list, signing, state of the test host; **signing** (how Oracle intends it, `extensions.jnlp` = own signer, code-signing / TLS certificates, who checks: Java Web Start vs. FSAL), maintenance after patches, client distribution concept (login script, software distribution, GPO) |
 
+## Where the scripts point here
+
+The script READMEs describe **what** a script checks and link to these
+documents for the **why**:
+
+| Script(s) | Background |
+|---|---|
+| `02-Checks/java_check.sh`, `10-Monitoring/cve_inventory.sh` (two JDKs – WebLogic on `JDK_HOME`, Reports engines on `oracle_common/jdk`) | [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) §1, [report_engine_architecture.md](report_engine_architecture.md) §1, §4 |
+| `02-Checks/port_check.sh`, `02-Checks/weblogic_performance.sh` | [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) §4, §6 |
+| `02-Checks/db_connect_check.sh`, `07-Maintenance/rcu_repository_check.sh` | [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §3, §6.1 |
+| `02-Checks/ssl_check.sh`, `08-SSL/ssl_local_ca.sh` | [forms_jakob_webutil.md](forms_jakob_webutil.md) §9, §10 |
+| `02-Checks/reports_network_scan.sh` | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md), [report_engine_architecture.md](report_engine_architecture.md) §8 |
+| `01-Run/rwserver_status.sh` | [report_engine_architecture.md](report_engine_architecture.md) §5, §6 |
+
+Overview of the checks: [02-Checks/README.md](../02-Checks/README.md).
+
 ## Candidates for further documents
 
 Findings already collected elsewhere that belong here as a whole:
