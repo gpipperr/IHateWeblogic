@@ -545,7 +545,7 @@ rm /u01/app/oracle/swapfile
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB
   swapfile under `$ORACLE_BASE/swapfile` if no swap is present (see section above)
-- **Firewall:** Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
+- **Firewall:** (details and the safe activation: section "Firewall and SSH hardening" below) Ports 80 and 443 opened; WLS ports (7001, 9001, 9002) and Node Manager
   port 5556 must remain closed externally (Nginx is the only external entry point).
   For Reports (`INSTALL_COMPONENTS` with REPORTS): **UDP `REPORTS_BROADCAST_PORT`**
   (default 14027) is opened – the Reports server sends a multicast discovery packet
@@ -557,6 +557,159 @@ rm /u01/app/oracle/swapfile
 - **Sysctl conflict detection:** The script scans all `/etc/sysctl.d/*.conf` and
   `/etc/sysctl.conf` for values that differ from the WLS target. Behaviour is
   controlled by `LOCAL_REP_DB` in `environment.conf` (see section above)
+
+---
+
+## Firewall and SSH hardening (01-root_os_baseline.sh, sections 8 + 9)
+
+Why (found 2026-10-19 by `10-Monitoring/cve_inventory.sh` on the test host):
+firewalld was installed but disabled. ~50 prestarted `frmweb`, `rwserver`,
+the Reports engines and WLS Coherence listen on all interfaces – without a
+host firewall they are reachable past Nginx. Patching closes known holes;
+the firewall closes everything that does not need to be reachable.
+
+### Target state
+
+```
+                 network
+                    │
+        ┌───────────┴─────────────────────────────────────────────┐
+        │ firewalld, zone public (ens…), default: drop the rest     │
+        │   ssh      22/tcp     admin + oracle only (sshd, see 9)   │
+        │   http     80/tcp  ─┐                                     │
+        │   https   443/tcp  ─┴─► Nginx ─► WLS 127.0.0.1:7001/9001/ │
+        │                                      9002                 │
+        │   14027/udp  Reports multicast discovery (REP-50600)      │
+        │   1521/tcp   only if the repository DB must be reachable  │
+        │              from other hosts (LOCAL_REP_DB=true – report │
+        │              only, never opened automatically)            │
+        │   NOT open: frmweb / rwserver / engine / Coherence ports, │
+        │             7001/9001/9002/5556, cockpit 9090             │
+        └───────────────────────────────────────────────────────────┘
+   outgoing: not filtered by firewalld (MOS downloads, CVE watch, NTP …)
+   lo:       always allowed – WLS → DB on the own host address uses lo
+```
+
+Apply only these two sections on a running system (all others stay
+check-only – no kernel / SELinux / swap questions):
+
+```bash
+./09-Install/01-root_os_baseline.sh --apply --skip-update --only firewall,ssh
+```
+
+Section keys for `--only`: `selinux,repos,update,kernel,thp,shm,swap,core,firewall,ssh`.
+
+### 8. Firewall
+
+Check (always): firewalld running/enabled, default zone, `ssh` / 80 / 443 /
+`REPORTS_BROADCAST_PORT`/udp in the zone, WLS + Node Manager ports closed,
+services that are not needed (`cockpit`).
+
+`--apply` with firewalld **not running** (question, default **no** – it is
+the step that can cut connections):
+
+1. Pre-check: `ssh` must be in the permanent default zone (it is in the OL9
+   default `public` zone) – otherwise abort.
+2. **Safety net:** `systemd-run --on-active=${FIREWALL_ROLLBACK_MIN:-10}min
+   --unit=ihw-fw-rollback systemctl stop firewalld` – if the session is
+   lost, the firewall stops by itself after 10 minutes.
+3. `systemctl start firewalld`; add `http`, `https`,
+   `REPORTS_BROADCAST_PORT/udp` **permanent and runtime**.
+4. Question "new ssh login in a second window works?" – yes: `systemctl
+   enable firewalld`, rollback timer removed. No / no answer: the timer stops
+   the firewall.
+
+`--apply` with firewalld running: as before, open missing 80/443/udp
+(question each), plus: remove `cockpit` from the zone (question, default
+no) – `FIREWALL_REMOVE_SERVICES` in `environment.conf` (default `cockpit`).
+
+### 9. SSH hardening (sshd)
+
+Only if `SSH_ALLOW_USERS` is set in `environment.conf` – otherwise check
+only. At customers admins often log in via AD / LDAP groups: there use your
+own users or switch to `AllowGroups` by hand, never activate blindly.
+
+| Variable | Meaning | Test host |
+|---|---|---|
+| `SSH_ALLOW_USERS` | users allowed to log in via ssh (`AllowUsers`) | `admin oracle` |
+| `SSH_PASSWORD_USERS` | users that keep password login (emergency access without key) – all others key only | `admin oracle` |
+
+Files (OL9 / OpenSSH 9: the **first** value of a keyword wins, the main
+`sshd_config` includes `sshd_config.d/*.conf` at the top):
+
+```
+/etc/ssh/sshd_config.d/10-ihw-hardening.conf   – before Red Hat's 50-redhat.conf
+    PermitRootLogin no
+    MaxAuthTries 3
+    X11Forwarding no            # no GUI over ssh on a server – everything by script
+    AllowUsers admin oracle
+    PasswordAuthentication no
+/etc/ssh/sshd_config.d/99-ihw-match.conf       – Match must come last
+    Match User admin,oracle
+        PasswordAuthentication yes
+```
+
+Not changed on purpose: `AllowTcpForwarding yes` (VS Code Remote-SSH
+tunnels through it), `LoginGraceTime 0` in the OL9 `sshd_config` (Oracle's
+mitigation for CVE-2024-6387 "regreSSHion"), sftp subsystem.
+
+A `Match` block in an included file ends with that file (**confirmed
+(live)** with OpenSSH 9.9, `sshd -T -C user=…`): admin gets password, oracle
+and root do not, `Subsystem sftp` from the main file stays valid.
+
+`--apply`:
+1. Pre-check: every user in `SSH_ALLOW_USERS` exists; every user **not**
+   in `SSH_PASSWORD_USERS` has `~/.ssh/authorized_keys` – otherwise abort
+   (it would lock that user out).
+2. Backup of the existing drop-ins, write both files, `sshd -t` – on error
+   the files are removed again.
+3. Safety net `systemd-run --on-active=10min --unit=ihw-ssh-rollback`
+   (removes the two files, reloads sshd), then `systemctl reload sshd` –
+   **existing sessions stay**.
+4. `sshd -T -C user=<each>` shows the effective values; question "new login
+   as every allowed user in a second window works?" – yes: timer removed.
+
+Always keep a console session (VMware / vSphere / iLO) open while testing.
+
+### Live test on the test host (2026-10-19, **confirmed (live)**)
+
+`01-root_os_baseline.sh --apply --skip-update --only firewall,ssh`, VS Code
+session and a VM console session open:
+
+- firewalld was installed but disabled; started with the 15-min rollback
+  timer; zone `public` got http, https, 14027/udp (ssh was already there).
+  From the Windows client: `Test-NetConnection … -Port 443` → True,
+  `-Port 9001` → False; Forms URL in the browser and a new ssh login
+  (MobaXterm) worked; outgoing HTTPS (Claude, MOS) unaffected; WLS
+  `/weblogic/ready` 200 on 7001/9001/9002, Reports engines IDLE, no
+  REP-50600, DB on the own host address still reachable (via `lo`).
+  Confirmed → `systemctl enable firewalld`, timer removed.
+- sshd: first run `SSH_PASSWORD_USERS=admin`, then changed to
+  `admin oracle` (oracle keeps password login too) – re-run rewrote
+  `99-ihw-match.conf` and set a new rollback timer; new logins as admin and
+  oracle worked, root refused. `sshd -T -C user=…`: admin/oracle password yes,
+  root no, X11 no for all.
+- `cockpit` removed from the zone afterwards (not needed on an FMW server; service was inactive anyway).
+- Found on the way: `02-Checks/os_check.sh` reported a running firewalld as
+  "not running" (`firewall-cmd --state` needs root) and rated "no firewall"
+  as OK – fixed (systemctl, WARN without firewall). Same fix in
+  `10-Monitoring/cve_inventory.sh`.
+
+### Manual (without the script)
+
+```bash
+# firewall – with safety net
+systemd-run --on-active=10min --unit=ihw-fw-rollback systemctl stop firewalld
+systemctl start firewalld
+firewall-cmd --permanent --add-service=http --add-service=https --add-port=14027/udp
+firewall-cmd --reload
+#   ... new ssh login in a second window ...
+systemctl enable firewalld && systemctl stop ihw-fw-rollback.timer
+
+# sshd
+sshd -t && systemctl reload sshd
+sshd -T -C user=oracle,host=x,addr=10.0.0.1 | grep -E 'passwordauth|x11|permitroot|allowusers'
+```
 
 ---
 

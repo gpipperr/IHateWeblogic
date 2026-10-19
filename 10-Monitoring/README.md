@@ -5,7 +5,7 @@
 **Phase:** Ongoing operation – the last stage of the lifecycle, after installation,
 configuration, SSL, fonts, performance tuning and Forms are all in place.
 
-**Status:** Concept only – no scripts implemented yet.
+**Status:** Concept – first script implemented: `cve_inventory.sh` (CVE watch step 1, 2026-10-19).
 
 ---
 
@@ -87,8 +87,67 @@ findings would be "not configured yet" rather than genuine anomalies.
 
 ## CVE Watch – installed components vs. Oracle security advisories
 
-**Status:** concept (2026-10-18). Prototype = the manual check of
-2026-10-18 in `09-Install/docs/00-patch-references.md`, section "CVE check".
+**Status:** step 1 implemented (`cve_inventory.sh`, 2026-10-19); steps 2–4
+concept. Prototype of the later steps = the manual check of 2026-10-18 in
+`09-Install/docs/00-patch-references.md`, section "CVE check".
+
+### cve_inventory.sh (step 1, implemented)
+
+```bash
+./10-Monitoring/cve_inventory.sh              # inventory, read-only
+./10-Monitoring/cve_inventory.sh --online     # + advisories after the configured cycle
+./10-Monitoring/cve_inventory.sh --no-os      # without the dnf errata check
+./10-Monitoring/cve_inventory.sh --json FILE  # default reports/inventory_<date>.json
+```
+
+| Section | Source | Result |
+|---|---|---|
+| 1. Components | `comps.xml` → advisory product names (WLS, JRF, OPSS, Coherence, Forms, Reports, OHS, WebGate) + libOVD jar date | version + "configured in the domain" / "binaries only" |
+| 2. Patch level | `PATCH_CYCLE*`, `WLS_SPB_MARKER_PATCH`, `INSTALL_PATCHES*` from `09-Install/oracle_software_version.conf` vs. `opatch lspatches` | FAIL per missing configured patch; SPB level with build date; OPatch vs. `OPATCH_VERSION_MIN`; WARN for OHS / WebGate binaries in the home |
+| 3. Java | `JDK_HOME` and `oracle_common/jdk` (`java.version`, `java.version.date`); which **running** JVMs use each JDK (`/proc/<pid>/exe`), domain `JavaHome` | WARN below `JDK_VERSION_MIN`, or other major release older than a year – with the list of processes that really run on it |
+| 4. Active use and exposure | running processes per product (WLS servers, Node Manager, `frmweb`, `rwserver`, Reports engines, OHS, Nginx); sockets of the oracle processes beyond loopback (`ss -ltnp`, only the process role goes into the JSON, no addresses); firewalld / nftables state | WARN for processes reachable from the network without a firewall |
+| 5. OS | `/etc/os-release`, kernel, `rpm -q nginx openssl glibc`, `dnf --cacheonly updateinfo list --security` (timeout 60 s) | open security advisories (ELSA), no repository access needed |
+| 6. Advisories (`--online`) | index of `oracle.com/security-alerts/`, release date = third Tuesday of the advisory month | WARN per CPU / CSPU released after `PATCH_CYCLE_DATE`, INFO for announced ones |
+
+**Patch scope vs. urgency:** everything on disk is patched – a component
+that is not running can still be started by an attacker who got a foothold
+(other service, stolen account) and then exploited. Active use and network
+exposure (section 4) only decide **how fast**: running + reachable = next
+maintenance window, on disk only = with the regular cycle.
+
+Exit 0 / 1 (warnings) / 2 (configured patch missing). `inventory.json`
+holds product names, versions, patch numbers and advisory names only (no
+host names, IPs or domain names). `reports/` is gitignored.
+
+Live run on the test host (2026-10-19, ~10 s, **confirmed (live)**): CSPU Sep
+2026 set complete (SPB 14.1.2.0.260825 built 2026-08-25, 39988381, both
+QPRs, PERL); CPU Oct 2026 correctly reported as "announced" (20 Oct);
+findings:
+- **Oracle HTTP Server and OAM WebGate binaries are in the Oracle Home** –
+  the Forms & Reports installer puts them there although Nginx is the
+  frontend (no OHS instance in the domain). Their CVEs apply to the files
+  on disk; KA1182 lists bundle patches for both (our patch list had them as
+  "only if installed" and assumed "not installed") – decision open.
+- **FMW-bundled JDK `oracle_common/jdk` = 17.0.12 (2024-07-16) is in use**:
+  the Reports engines run on it – Oracle's `$DOMAIN_HOME/reports/bin/reports.sh`
+  puts `oracle_common/jdk/bin` first in `PATH`. WebLogic, Node Manager and
+  the domain use `JDK_HOME` 21.0.12.1, so a JDK update via `JDK_HOME`
+  (`02b-`) never reaches the engines. (First version of this check said "not
+  used by the domain" – it only looked at the domain configuration, not at
+  the running JVMs.) Decision open: update the bundled JDK in place, or point
+  the engines to `JDK_HOME` (Oracle file `reports.sh` – supported way to be
+  checked).
+- **No firewall** (firewalld not running) and **~50 prestarted `frmweb`**
+  (`prestartRuntimes=true`, prestart per config section), `rwserver`, the
+  Reports engines and two WLS ports (Coherence on `WLS_FORMS`) listen on all
+  interfaces / the host address – reachable from the network past Nginx.
+  The September 2026 CSPU has a Forms CVE over TCP (CVE-2026-83104, 9.1).
+  **Fixed the same day:** firewalld enabled with only ssh / http / https /
+  14027/udp (`01-root_os_baseline.sh --only firewall,ssh`, see
+  `09-Install/docs/00-root_set_os_parameter.md`); the inventory now reports
+  these sockets as "filtered by firewalld". Still open: loopback binding of
+  the `frmweb` / `rwserver` sockets.
+- 4 open OS security advisories (Important) in the dnf cache.
 
 ### Why
 
@@ -225,13 +284,43 @@ domain names, customer names or credentials (same rule as for commits).
 
 ---
 
+## Idea: configuration security scanner for WebLogic / Forms / Reports
+
+**Status:** idea (2026-10-19) – not designed in detail yet.
+
+The CVE watch answers "which known holes does the installed **code**
+have?". A second, complementary job would answer "which holes does our
+**configuration** open?" – the typical findings of a penetration test on a
+Forms/Reports installation, checked by script before an auditor finds them.
+Same principles: read-only, ok / warn / fail, SEVERITY block for Claude,
+references to the project script that fixes it.
+
+Candidate checks (to be verified against Oracle's "Securing a Production
+Environment for Oracle WebLogic Server" and the Forms / Reports security
+chapters before implementing):
+
+| Area | Examples |
+|---|---|
+| WebLogic | production mode; demo identity / trust keystores still in use; T3 / IIOP reachable (`HttpTunnelingEnabled`, connection filter, `RemoteAnonymousRMIT3Enabled`); sample / unused deployments (e.g. `wls-wsat`, async); admin console / EM / `/management` reachable through Nginx from outside; account lockout settings; `boot.properties` encrypted; audit provider |
+| Forms | `formsweb.cfg`: public `debug` / test configurations, `allowNewConnections`, `userid=` accepted in the URL, test modules deployed (`test_form` from 15-); `webutil.cfg`: `transfer.appsrv.read/write` directories, host command / OLE enabled without need; signed jars (JACOB) and expiry |
+| Reports | rwservlet web commands open (`showenv`, `showjobs`, `getserverinfo`, `killjobs` – doc 81); `DIAGNOSTIC` in `rwservlet.properties`; `<identifier>` and `securityId` set (`REPORTS_SECURITY`); `cgicmd.dat` with clear-text `userid`; `folderAccess` read / write paths |
+| Nginx / TLS | protocols and ciphers (`ssl_config.sh`), only the needed locations proxied, security headers, certificate expiry (`ssl_local_ca.sh status`) |
+| OS | firewall active and only ssh / 80 / 443 / Reports UDP open, sshd hardening (`01-root_os_baseline.sh` sections 8 + 9), permissions of `*.des3`, keystores, `boot.properties`, world-readable config files |
+| External view | optional probe from a second host: what an attacker sees (open ports, reachable URLs, error pages with version strings) |
+
+Relation: `cve_inventory.sh` section 4 (active use / exposure) is the first
+building block – it already finds open sockets and the missing firewall
+(2026-10-19).
+
+---
+
 ## Planned Scripts
 
 | Script | Purpose |
 |---|---|
 | `claude_monitor.sh` | Orchestrator – runs the collection step, calls `claude_analyze.sh`, handles notification. Cron-friendly (no interactive prompts). |
 | `claude_analyze.sh` | Builds the prompt from collected findings + `monitor.conf`, calls the Claude API, parses the structured response. |
-| `cve_inventory.sh` | CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
+| `cve_inventory.sh` | **implemented** – CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
 | `cve_watch.sh` | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
 | `monitor.conf.template` | Committed template: thresholds, known-issue allow-list, notification target, run mode defaults. |
 | `monitor.conf` | **Gitignored** – server-specific config incl. API key reference. |
@@ -318,5 +407,6 @@ Default plan: always write to `reports/`; email as an opt-in via `monitor.conf`.
 - Implement `claude_analyze.sh` (prompt construction + API call + response parsing)
 - Decide on notification mechanism (see above)
 - Define retention policy for `reports/` (this directory will grow unbounded otherwise)
-- CVE watch: implement `cve_inventory.sh` (first – useful alone), `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
+- Idea: configuration security scanner for WebLogic / Forms / Reports (section above) – design + check list
+- CVE watch: `cve_inventory.sh` done (2026-10-19); next `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)

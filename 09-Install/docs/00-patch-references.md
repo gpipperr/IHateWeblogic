@@ -7,6 +7,12 @@ the currently configured cycle. Doc IDs and patch numbers change every
 quarter — this file is a starting point for the next check, not a
 substitute for re-verifying against MOS before each patch cycle.
 
+Most importend URLs'
+
+- https://www.oracle.com/security-alerts/cspusep2026.html
+- https://support.oracle.com/support/?documentId=KA1182
+
+
 | Doc ID | Title | Used for |
 |---|---|---|
 | **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers – check **monthly** (CPU and CSPU, see "Terms" below) |
@@ -30,7 +36,11 @@ substitute for re-verifying against MOS before each patch cycle.
 2. If a Doc ID listed here has been superseded or renumbered by Oracle,
    update this table — do not silently start referencing a new number
    from inline comments elsewhere, this table is the single place to look.
-3. Patch numbers themselves live in `oracle_software_version.conf`, not
+3. Set `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY` in
+   `oracle_software_version.conf` together with the patch numbers –
+   `10-Monitoring/cve_inventory.sh` compares installed patches and newer
+   advisories against them.
+4. Patch numbers themselves live in `oracle_software_version.conf`, not
    here — the tables below are a point-in-time snapshot for reference,
    `oracle_software_version.conf` is the source of truth the scripts read.
 
@@ -107,6 +117,10 @@ From the Fusion Middleware risk matrix of the CSPU Sep 2026 advisory:
 | CVE-2026-83094/95/98/100/108 | Oracle Forms / Forms Services | HTTP | yes | 9.8 | 14.1.2.0.0 | Forms installs |
 | CVE-2026-70748/56/57 | Oracle WebLogic Server / Core | T3, IIOP | yes | 9.8 | 14.1.2.0.0 | yes (T3 not exposed through Nginx, but local / internal network) |
 
+A CVE in a risk matrix means "addressed by the patches of this release"
+– the advisory has no separate "fixed" flag (the 2026-10-19 copy of the
+September advisory is unchanged, still "Rev 1. Initial Release").
+
 Which patch fixes which CVE is **not** in the public advisory and the patch
 READMEs name no CVE numbers (checked: SPB 39925660, SPU 39988381, QPR
 39842516, QPR 39600348). State of the configured cycle:
@@ -167,8 +181,9 @@ Source: KA1182, CSPU September 2026.
 |---|---|---|---|
 | 39842516 | Oracle Forms QPR 14.1.2.0 | Sep 2026 | Only if Forms is in inventory (`opatch lsinventory -details`, component `oracle.forms*`) — supersedes 38874285 |
 | 38936596 | One-off for Bug 38936596 (ewt3.jar, BiDi parentheses) | | Only if `REPORTS_BIDIPARENTHESIS=YES` (Hebrew). Per the QPR README the fix is only complete together with 39600348 |
-| 39597026 | OHS Bundle Patch 14.1.2.0.260622 | Jul 2026 | Only if OHS is in the same Home (typically not installed with an Nginx frontend). Post-install per KB559857 |
-| 39100536 | OAM WebGate Bundle Patch 14.1.2.0.260318 | Apr 2026 | Only if WebGate is installed |
+| 39597026 | OHS Bundle Patch 14.1.2.0.260622 | Jul 2026 | Only if OHS is in the same Home. **Correction 2026-10-19:** the Forms & Reports installer puts the OHS binaries (`oracle.ohs2`, `$ORACLE_HOME/ohs`) into the home even with an Nginx frontend – no OHS instance, but the files are there (`10-Monitoring/cve_inventory.sh`). Agreed 2026-10-19: patch everything on disk (not running ≠ not exploitable) – add the OHS bundle patch to the patch set from the CPU Oct 2026 cycle on. Post-install per KB559857 |
+| 39100536 | OAM WebGate Bundle Patch 14.1.2.0.260318 | Apr 2026 | Only if WebGate is installed – **it is** (`oracle.oamclient.webgate.ohs`, `$ORACLE_HOME/webgate`, comes with the Forms & Reports installer, 2026-10-19); patch it like OHS from the CPU Oct 2026 cycle on |
+| 39726399 | LIBOVD merge patch 14.1.2.0.0 ("MERGE REQUEST ON TOP OF 14.1.2.0.0 FOR BUGS 39458344 39301239", README dated 2026-08-14, `opatch apply`, ZDT-eligible) | one-off, not in a CPU/CSPU list | **Not applied, not required** (checked 2026-10-19): fixes OAM/OID TLS bugs (37331005 TLSv1.3 LDAP, 37567156 TLSv1.2 ciphers to OID, 37359866 OAM audit, 39272755); no CVE, not on the CSPU Sep 2026 list we took from KA1182. Only relevant with an external LDAP / OID identity store over TLS. libOVD itself is in every home (`oracle_common/modules/oracle.ovd`, test host: `ovd.jar` unchanged since 2024 – the SPB does not touch it). Re-check if KA1182 ever lists it, or for the EM principal search problem (libOVD) only on Oracle Support's advice |
 | WLS Proxy Plug-In | see KA1182 | | Only for IIS/Apache as a proxy — not relevant with Nginx |
 
 ### Content of SPB 39925660 (applied in full via SPBAT or `opatch napply`)

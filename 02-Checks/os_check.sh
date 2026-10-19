@@ -528,17 +528,21 @@ fi
 printf "\n"
 
 # Firewall
-if command -v firewall-cmd >/dev/null 2>&1; then
-    FW_STATE="$(firewall-cmd --state 2>/dev/null)"
-    printList "firewalld state" 30 "$FW_STATE"
-    if [ "$FW_STATE" = "running" ]; then
-        warn "firewalld is running – verify WebLogic/OHS ports are open (see port_check.sh)"
+# systemctl works without root – "firewall-cmd --state" needs root (dbus
+# policy) and returned nothing for oracle, so a running firewall was reported
+# as "not running". No firewall = every frmweb / rwserver / engine socket is
+# reachable past Nginx (found 2026-10-19).
+if command -v systemctl >/dev/null 2>&1 && systemctl cat firewalld.service >/dev/null 2>&1; then
+    FW_ACTIVE="$(systemctl is-active firewalld 2>/dev/null)"
+    printList "firewalld" 30 "${FW_ACTIVE:-unknown} ($(systemctl is-enabled firewalld 2>/dev/null))"
+    if [ "$FW_ACTIVE" = "active" ]; then
+        ok "firewalld is active – only the opened services pass (01-root_os_baseline.sh section 8)"
     else
-        ok "firewalld not running"
+        warn "firewalld is not active – all listening processes are reachable from the network"
+        info "  Enable safely: ./09-Install/01-root_os_baseline.sh --apply --skip-update --only firewall"
     fi
-elif command -v systemctl >/dev/null 2>&1; then
-    FW_ACTIVE="$(systemctl is-active firewalld 2>/dev/null || echo 'unknown')"
-    printList "firewalld (systemctl)" 30 "$FW_ACTIVE"
+else
+    warn "firewalld not installed – check for another host firewall (nftables)"
 fi
 
 # =============================================================================

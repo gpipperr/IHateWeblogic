@@ -72,3 +72,6 @@ core_*
 
 # Service-Request-Entwuerfe (Oracle Support) - lokal, nicht committen
 SR/
+
+# CVE watch / monitoring output (server-specific)
+10-Monitoring/reports/

@@ -1132,6 +1132,8 @@ if $APPLY; then
         _append_if_missing "FORMS_SIGN_ALIAS"     "forms_codesign"            "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_TSA_URL"   ""                          "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_LOCALCA"   "false"                     "$ENV_CONF"
+        _append_if_missing "SSH_ALLOW_USERS"      ""                          "$ENV_CONF"
+        _append_if_missing "SSH_PASSWORD_USERS"   ""                          "$ENV_CONF"
         _append_if_missing "ORACLE_HOME"           "$CONF_ORACLE_HOME"      "$ENV_CONF"
         _append_if_missing "WL_HOME"               "\${ORACLE_HOME}/wlserver" "$ENV_CONF"
         _append_if_missing "JDK_HOME"              "$CONF_JAVA_HOME"        "$ENV_CONF"

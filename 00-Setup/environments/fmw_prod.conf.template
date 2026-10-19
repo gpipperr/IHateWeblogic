@@ -46,6 +46,18 @@ FORMS_SIGN_TSA_URL=
 # FORMS_SIGN_LOCALCA: true = 14- creates a missing keystore with the own root CA
 FORMS_SIGN_LOCALCA=false
 
+# --- OS hardening (09-Install/01-root_os_baseline.sh, sections 8 + 9) --------
+# SSH_ALLOW_USERS: sshd AllowUsers (empty = check only, no sshd change).
+#   At customers with AD/LDAP logins: use own admin users or AllowGroups by hand.
+# SSH_PASSWORD_USERS: users keeping password login (emergency access) –
+#   all other allowed users need ~/.ssh/authorized_keys (key only).
+SSH_ALLOW_USERS=
+SSH_PASSWORD_USERS=
+# FIREWALL_REMOVE_SERVICES: firewalld services offered for removal (default cockpit)
+# FIREWALL_ROLLBACK_MIN: safety-net timer when enabling firewalld / sshd hardening
+FIREWALL_REMOVE_SERVICES=cockpit
+FIREWALL_ROLLBACK_MIN=10
+
 DB_HOST=dbserver01
 DB_PORT=1521
 DB_SERVICE=FRPRD

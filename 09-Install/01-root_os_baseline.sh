@@ -3,7 +3,8 @@
 # Script   : 01-root_os_baseline.sh
 # Purpose  : Phase 0 – OS baseline configuration for Oracle FMW 14.1.2 on OL 9
 #            SELinux disable, DNF repos, OS update, kernel parameters,
-#            Transparent HugePages disable, /dev/shm, core dumps, firewall.
+#            Transparent HugePages disable, /dev/shm, core dumps, firewall
+#            (safe activation with rollback timer), sshd hardening.
 # Call     : ./09-Install/01-root_os_baseline.sh
 #            ./09-Install/01-root_os_baseline.sh --apply
 # Options  : --apply        Write configuration changes
@@ -39,11 +40,14 @@ init_log
 
 APPLY_MODE=0
 SKIP_UPDATE=0
+ONLY_SECTIONS=""      # --only: comma list – other sections run check-only
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
     printf "  %-20s %s\n" "--apply"        "Write configuration changes (reboot required after)"
     printf "  %-20s %s\n" "--skip-update"  "Skip dnf upgrade (use for re-runs)"
+    printf "  %-20s %s\n" "--only LIST"    "Apply only these sections (others check-only):"
+    printf "  %-20s %s\n" ""               "selinux,repos,update,kernel,thp,shm,swap,core,firewall,ssh"
     printf "  %-20s %s\n" "--help"         "Show this help"
     printf "\nIMPORTANT: A system reboot is required after --apply.\n"
     exit 1
@@ -53,6 +57,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --apply)        APPLY_MODE=1;   shift ;;
         --skip-update)  SKIP_UPDATE=1;  shift ;;
+        --only)         ONLY_SECTIONS="${2:?--only needs a list}"; shift 2 ;;
         --help|-h)      _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -66,6 +71,16 @@ done
 # =============================================================================
 
 _can_sudo() { sudo -n true 2>/dev/null; }
+
+# _apply_for key – APPLY_MODE for the next section: the requested --apply,
+# or 0 (check only) when --only is given and does not list this section
+APPLY_REQUESTED=$APPLY_MODE
+_apply_for() {
+    APPLY_MODE=$APPLY_REQUESTED
+    if [ -n "$ONLY_SECTIONS" ] && [[ ",${ONLY_SECTIONS}," != *",$1,"* ]]; then
+        APPLY_MODE=0
+    fi
+}
 
 _run_root() {
     if [ "$(id -u)" -eq 0 ]; then
@@ -114,6 +129,7 @@ _check_root_access
 # 1. SELinux
 # =============================================================================
 
+_apply_for selinux
 section "SELinux"
 
 SELINUX_CFG="/etc/selinux/config"
@@ -152,6 +168,7 @@ fi
 # 2. DNF Repositories
 # =============================================================================
 
+_apply_for repos
 section "DNF Repositories"
 
 _check_repo() {
@@ -194,6 +211,7 @@ fi
 # 3. OS Update
 # =============================================================================
 
+_apply_for update
 section "OS Update"
 
 if [ "$SKIP_UPDATE" -eq 1 ]; then
@@ -224,6 +242,7 @@ fi
 # 4. Kernel Parameters
 # =============================================================================
 
+_apply_for kernel
 section "Kernel Parameters"
 
 SYSCTL_FILE="/etc/sysctl.d/99-oracle-fmw.conf"
@@ -445,6 +464,7 @@ unset _ifdir _if _val _con _method
 # 5. Transparent HugePages
 # =============================================================================
 
+_apply_for thp
 section "Transparent HugePages (THP)"
 
 THP_FILE="/sys/kernel/mm/transparent_hugepage/enabled"
@@ -489,6 +509,7 @@ fi
 # 6. /dev/shm (tmpfs)
 # =============================================================================
 
+_apply_for shm
 section "/dev/shm (tmpfs)"
 
 SHM_SIZE="$(df -m /dev/shm 2>/dev/null | awk 'NR==2 {print $2}')"
@@ -554,6 +575,7 @@ fi
 # 6b. Swap Space
 # =============================================================================
 
+_apply_for swap
 section "Swap Space"
 
 # OUI hard check: "Checking swap space: must be greater than 512 MB."
@@ -629,6 +651,7 @@ fi
 # 7. Core Dump Directory
 # =============================================================================
 
+_apply_for core
 section "Core Dump Directory"
 
 # /var/tmp/core – central core dump directory, world-writable (chmod 777)
@@ -679,40 +702,77 @@ fi
 # 8. Firewall
 # =============================================================================
 
+_apply_for firewall
 section "Firewall"
+
+# Doc: docs/00-root_set_os_parameter.md, "Firewall and SSH hardening".
+# Enabling firewalld is the step that can cut connections: question with
+# default "no", ssh pre-check, rollback timer that stops firewalld again
+# unless a new ssh login was confirmed.
+FW_ROLLBACK_MIN="${FIREWALL_ROLLBACK_MIN:-10}"
+FW_RUNNING=0
 
 if ! command -v firewall-cmd > /dev/null 2>&1; then
     warn "firewall-cmd not found – install firewalld or configure firewall manually"
-elif ! _run_root firewall-cmd --state > /dev/null 2>&1; then
-    warn "firewalld is not running"
-    info "  WLS is accessible without firewall but that is a security risk"
-    info "  Start: systemctl enable --now firewalld"
-    [ "${LOCAL_REP_DB:-false}" = "true" ] && \
-        info "  LOCAL_REP_DB=true: open the DB listener too: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp"
-    case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
-        *REPORTS*) info "  When enabling it: also open ${REPORTS_BROADCAST_PORT:-14027}/udp (Reports multicast discovery, else REP-50600)" ;;
-    esac
+elif _run_root firewall-cmd --state > /dev/null 2>&1; then
+    FW_RUNNING=1
+    ok "firewalld is running ($(_run_root systemctl is-enabled firewalld 2>/dev/null))"
 else
-    ok "firewalld is running"
-
-    # Check external-facing ports (Nginx)
-    _fw_check() {
-        local port="$1" label="$2"
-        if _run_root firewall-cmd --query-port="${port}/tcp" > /dev/null 2>&1; then
-            ok "Firewall: port $port/tcp open ($label)"
-        else
-            warn "Firewall: port $port/tcp not open ($label)"
-            if [ "$APPLY_MODE" -eq 1 ]; then
-                if askYesNo "Open port $port/tcp ($label)?" "y"; then
-                    _run_root firewall-cmd --permanent --add-port="${port}/tcp"
-                    ok "Port $port/tcp opened"
+    warn "firewalld is not running – every listening process is reachable from the network"
+    info "  (Forms frmweb / rwserver / Reports engines / Coherence listen on all interfaces)"
+    _zone="$(_run_root firewall-offline-cmd --get-default-zone 2>/dev/null)"
+    _zone="${_zone:-public}"
+    if ! _run_root firewall-offline-cmd --zone="$_zone" --query-service=ssh > /dev/null 2>&1; then
+        fail "ssh is NOT in the permanent firewalld zone '$_zone' – enabling firewalld would lock out ssh"
+        info "  Add first: firewall-offline-cmd --zone=$_zone --add-service=ssh"
+    elif [ "$APPLY_MODE" -eq 1 ]; then
+        info "  Zone '$_zone' allows ssh. Keep a console session (VM console) open."
+        if askYesNo "Enable firewalld now (rollback timer ${FW_ROLLBACK_MIN} min)?" "n"; then
+            # Safety net: stops firewalld again unless cancelled below
+            _run_root systemctl stop ihw-fw-rollback.timer > /dev/null 2>&1
+            if _run_root systemd-run --on-active="${FW_ROLLBACK_MIN}min" --unit=ihw-fw-rollback \
+                    systemctl stop firewalld > /dev/null 2>&1; then
+                ok "Rollback timer set: firewalld stops in ${FW_ROLLBACK_MIN} min unless confirmed"
+                if _run_root systemctl start firewalld; then
+                    FW_RUNNING=1
+                    FW_JUST_STARTED=1
+                    ok "firewalld started (zone $_zone)"
+                else
+                    fail "systemctl start firewalld failed"
+                    _run_root systemctl stop ihw-fw-rollback.timer > /dev/null 2>&1
                 fi
+            else
+                fail "systemd-run (rollback timer) failed – firewalld NOT started"
+            fi
+        fi
+    else
+        info "  Enable: re-run with --apply (with ${FW_ROLLBACK_MIN}-min rollback timer)"
+    fi
+    unset _zone
+fi
+
+if [ "$FW_RUNNING" -eq 1 ]; then
+    # _fw_add  firewall-cmd-args  label – permanent + runtime (no reload needed)
+    _fw_add() {
+        _run_root firewall-cmd --permanent "$1" > /dev/null 2>&1 \
+            && _run_root firewall-cmd "$1" > /dev/null 2>&1
+    }
+    # _fw_need  query-arg add-arg label  – check, open on --apply (question)
+    _fw_need() {
+        local q="$1" a="$2" label="$3"
+        if _run_root firewall-cmd --permanent "$q" > /dev/null 2>&1; then
+            ok "Firewall: $label open"
+        else
+            warn "Firewall: $label not open"
+            if [ "$APPLY_MODE" -eq 1 ] && { [ "${FW_JUST_STARTED:-0}" -eq 1 ] || askYesNo "Open $label?" "y"; }; then
+                _fw_add "$a" && ok "Firewall: $label opened" || fail "Firewall: opening $label failed"
             fi
         fi
     }
 
-    _fw_check 80  "HTTP  → Nginx redirect"
-    _fw_check 443 "HTTPS → Nginx proxy"
+    _fw_need --query-service=ssh   --add-service=ssh   "ssh (22/tcp)"
+    _fw_need --query-service=http  --add-service=http  "http (80/tcp → Nginx redirect)"
+    _fw_need --query-service=https --add-service=https "https (443/tcp → Nginx proxy)"
 
     # Reports server discovery (multicast 228.5.6.7, UDP, port from rwnetwork.conf).
     # The Reports server sends a multicast packet at start and requires to
@@ -725,19 +785,8 @@ else
     case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
         *REPORTS*)
             _bport="${REPORTS_BROADCAST_PORT:-14027}"
-            if _run_root firewall-cmd --query-port="${_bport}/udp" > /dev/null 2>&1; then
-                ok "Firewall: port ${_bport}/udp open (Reports server discovery, multicast)"
-            else
-                warn "Firewall: port ${_bport}/udp not open – Reports server would stop with REP-50600"
-                if [ "$APPLY_MODE" -eq 1 ]; then
-                    if askYesNo "Open port ${_bport}/udp (Reports multicast discovery)?" "y"; then
-                        _run_root firewall-cmd --permanent --add-port="${_bport}/udp"
-                        ok "Port ${_bport}/udp opened"
-                    fi
-                else
-                    info "  Open: firewall-cmd --permanent --add-port=${_bport}/udp && firewall-cmd --reload"
-                fi
-            fi
+            _fw_need --query-port="${_bport}/udp" --add-port="${_bport}/udp" \
+                "${_bport}/udp (Reports multicast discovery, else REP-50600)"
             [ -z "${REPORTS_BROADCAST_PORT:-}" ] && \
                 info "  REPORTS_BROADCAST_PORT not set yet (init_env.sh) – default 14027 used; keep both in sync"
             unset _bport
@@ -754,23 +803,160 @@ else
         fi
     done
 
+    # Services not needed on an FMW server (default zone of OL9 has cockpit)
+    for _svc in ${FIREWALL_REMOVE_SERVICES-cockpit}; do
+        if _run_root firewall-cmd --permanent --query-service="$_svc" > /dev/null 2>&1; then
+            warn "Firewall: service '$_svc' is open – not needed on an FMW server"
+            if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Remove service '$_svc' from the zone?" "n"; then
+                _run_root firewall-cmd --permanent --remove-service="$_svc" > /dev/null 2>&1 \
+                    && _run_root firewall-cmd --remove-service="$_svc" > /dev/null 2>&1 \
+                    && ok "Firewall: service '$_svc' removed"
+            else
+                info "  Remove: firewall-cmd --permanent --remove-service=$_svc && firewall-cmd --reload"
+            fi
+        fi
+    done
+    unset _svc
+
     # Local repository DB: its listener must stay reachable for external DB
     # clients (report only – never opened automatically)
     if [ "${LOCAL_REP_DB:-false}" = "true" ]; then
         if _run_root firewall-cmd --query-port="${DB_PORT:-1521}/tcp" > /dev/null 2>&1; then
             ok "Firewall: DB listener port ${DB_PORT:-1521}/tcp open (LOCAL_REP_DB=true)"
         else
-            warn "Firewall: DB listener port ${DB_PORT:-1521}/tcp not open – external DB clients cannot connect"
-            info "  Open if needed: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp && firewall-cmd --reload"
+            info "Firewall: DB listener ${DB_PORT:-1521}/tcp closed – local WLS → DB uses lo (fine);"
+            info "  open only if other hosts need the DB: firewall-cmd --permanent --add-port=${DB_PORT:-1521}/tcp"
         fi
     fi
 
-    # Apply pending firewall changes
-    if [ "$APPLY_MODE" -eq 1 ]; then
-        _run_root firewall-cmd --reload > /dev/null 2>&1 && \
-            ok "Firewall rules reloaded"
+    # Just enabled: confirm a NEW ssh login before the rollback timer is removed
+    if [ "${FW_JUST_STARTED:-0}" -eq 1 ]; then
+        printf "\n" >&2
+        info "Test NOW in a second window: a new ssh login (keep this session open)"
+        if askYesNo "New ssh login works – keep firewalld enabled?" "n"; then
+            _run_root systemctl enable firewalld > /dev/null 2>&1 && ok "firewalld enabled (starts at boot)"
+            _run_root systemctl stop ihw-fw-rollback.timer > /dev/null 2>&1 \
+                && ok "Rollback timer removed"
+        else
+            warn "Not confirmed – rollback timer stops firewalld within ${FW_ROLLBACK_MIN} min"
+            info "  Stop it now: systemctl stop firewalld"
+        fi
     fi
 fi
+
+# =============================================================================
+# 9. SSH hardening (sshd) – only with SSH_ALLOW_USERS set
+# =============================================================================
+
+_apply_for ssh
+section "SSH hardening (sshd)"
+
+SSHD_DROPIN="/etc/ssh/sshd_config.d/10-ihw-hardening.conf"
+SSHD_MATCH="/etc/ssh/sshd_config.d/99-ihw-match.conf"
+
+# Current effective values (sshd -T needs root)
+_sshd_eff="$(_run_root sshd -T 2>/dev/null)"
+for _k in permitrootlogin passwordauthentication x11forwarding maxauthtries allowusers allowtcpforwarding; do
+    _v="$(printf '%s\n' "$_sshd_eff" | awk -v k="$_k" '$1 == k {$1=""; sub(/^ /,""); printf "%s%s", (n++?" ":""), $0}')"
+    printList "$_k" 26 "${_v:-(not set)}"
+done
+unset _k _v
+
+if [ -z "${SSH_ALLOW_USERS:-}" ]; then
+    info "SSH_ALLOW_USERS not set in environment.conf – check only (no sshd changes)"
+    info "  Example: SSH_ALLOW_USERS=\"admin oracle\"  SSH_PASSWORD_USERS=\"admin\""
+    printf '%s\n' "$_sshd_eff" | grep -q '^permitrootlogin no' \
+        || warn "root may log in via ssh (PermitRootLogin != no)"
+    printf '%s\n' "$_sshd_eff" | grep -q '^x11forwarding yes' \
+        && warn "X11Forwarding yes – not needed on a server (installs run headless by script)"
+else
+    _ssh_ok=1
+    for _u in $SSH_ALLOW_USERS; do
+        if ! getent passwd "$_u" > /dev/null; then
+            fail "SSH_ALLOW_USERS: user '$_u' does not exist"; _ssh_ok=0; continue
+        fi
+        case " ${SSH_PASSWORD_USERS:-} " in
+            *" $_u "*) ok "$(printf "  %-10s allowed, password + key" "$_u")" ;;
+            *)
+                _home="$(getent passwd "$_u" | cut -d: -f6)"
+                if _run_root test -s "$_home/.ssh/authorized_keys"; then
+                    ok "$(printf "  %-10s allowed, key only (%s)" "$_u" "$_home/.ssh/authorized_keys")"
+                else
+                    fail "$(printf "  %-10s key only, but no %s – would be locked out" "$_u" "$_home/.ssh/authorized_keys")"
+                    info "  Add a key, or put '$_u' into SSH_PASSWORD_USERS"
+                    _ssh_ok=0
+                fi
+                ;;
+        esac
+    done
+    unset _u _home
+
+    # Desired file content
+    _want="$(printf '%s\n' \
+        "# Managed by IHateWeblogic 09-Install/01-root_os_baseline.sh – do not edit" \
+        "# docs/00-root_set_os_parameter.md \"Firewall and SSH hardening\"" \
+        "PermitRootLogin no" \
+        "MaxAuthTries 3" \
+        "X11Forwarding no" \
+        "AllowUsers ${SSH_ALLOW_USERS}" \
+        "PasswordAuthentication no")"
+    _want_match=""
+    if [ -n "${SSH_PASSWORD_USERS:-}" ]; then
+        _want_match="$(printf '%s\n' \
+            "# Managed by IHateWeblogic 09-Install/01-root_os_baseline.sh – do not edit" \
+            "# Must be the last sshd_config.d file: a Match block ends with its file" \
+            "Match User ${SSH_PASSWORD_USERS// /,}" \
+            "    PasswordAuthentication yes")"
+    fi
+
+    if [ "$(_run_root cat "$SSHD_DROPIN" 2>/dev/null)" = "$_want" ] \
+       && [ "$(_run_root cat "$SSHD_MATCH" 2>/dev/null)" = "$_want_match" ]; then
+        ok "sshd hardening in place: $SSHD_DROPIN${_want_match:+, $SSHD_MATCH}"
+    elif [ "$_ssh_ok" -eq 0 ]; then
+        fail "sshd hardening NOT applied – fix the FAIL items above first"
+    elif [ "$APPLY_MODE" -eq 0 ]; then
+        warn "sshd hardening not in place – re-run with --apply"
+    elif askYesNo "Write sshd hardening (AllowUsers ${SSH_ALLOW_USERS}) and reload sshd?" "n"; then
+        _ts="$(date +%Y%m%d_%H%M%S)"
+        for _f in "$SSHD_DROPIN" "$SSHD_MATCH"; do
+            _run_root test -f "$_f" && _run_root cp -p "$_f" "${_f}.bak_${_ts}"
+        done
+        printf '%s\n' "$_want" | _run_root tee "$SSHD_DROPIN" > /dev/null
+        if [ -n "$_want_match" ]; then
+            printf '%s\n' "$_want_match" | _run_root tee "$SSHD_MATCH" > /dev/null
+        else
+            _run_root rm -f "$SSHD_MATCH"
+        fi
+        _run_root chmod 600 "$SSHD_DROPIN" "$SSHD_MATCH" 2>/dev/null
+        if _run_root sshd -t 2>&1 | tee -a "${LOG_FILE:-/dev/null}" && [ "${PIPESTATUS[0]}" -eq 0 ]; then
+            # Safety net: remove the files again and reload unless confirmed
+            _run_root systemctl stop ihw-ssh-rollback.timer > /dev/null 2>&1
+            _run_root systemd-run --on-active="${FW_ROLLBACK_MIN}min" --unit=ihw-ssh-rollback \
+                /bin/sh -c "rm -f $SSHD_DROPIN $SSHD_MATCH; systemctl reload sshd" > /dev/null 2>&1 \
+                && ok "Rollback timer set: hardening removed in ${FW_ROLLBACK_MIN} min unless confirmed"
+            _run_root systemctl reload sshd && ok "sshd reloaded – existing sessions stay"
+            for _u in $SSH_ALLOW_USERS root; do
+                _eff="$(_run_root sshd -T -C "user=$_u,host=check,addr=10.0.0.1" 2>/dev/null \
+                        | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {printf "%s=%s ", $1, $2}')"
+                info "$(printf "  effective for %-8s %s" "$_u:" "$_eff")"
+            done
+            info "Test NOW in a second window: new ssh login as: ${SSH_ALLOW_USERS}"
+            if askYesNo "New logins work – keep the sshd hardening?" "n"; then
+                _run_root systemctl stop ihw-ssh-rollback.timer > /dev/null 2>&1 && ok "Rollback timer removed"
+            else
+                warn "Not confirmed – rollback timer removes the hardening within ${FW_ROLLBACK_MIN} min"
+            fi
+        else
+            fail "sshd -t failed – hardening files removed, sshd NOT reloaded"
+            _run_root rm -f "$SSHD_DROPIN" "$SSHD_MATCH"
+        fi
+        unset _ts _f _eff _u
+    fi
+    unset _want _want_match _ssh_ok
+fi
+unset _sshd_eff
+
+APPLY_MODE=$APPLY_REQUESTED
 
 # =============================================================================
 # Summary + reboot notice

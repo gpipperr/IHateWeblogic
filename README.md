@@ -247,7 +247,7 @@ Run these scripts in sequence on a fresh installation:
 | `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
-| `10-Monitoring/`      | Concept only – AI-assisted proactive monitoring (Claude API) |
+| `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md) – findings, not procedures |
@@ -408,7 +408,8 @@ IHateWeblogic/
 │                                       30-autostart, 80-security, 90-validate, 99-deinstall)
 │
 ├── 10-Monitoring/
-│   └── README.md                    – Concept only: AI-assisted proactive monitoring (Claude API)
+│   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
+│   └── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
@@ -780,5 +781,24 @@ work (details of every fix: `git log`).
   Concept extended 2026-10-18: monthly **CVE watch** (installed components +
   both JDKs + OS errata vs. Oracle CPU/CSPU advisories and CISA KEV, Claude
   assesses exposure and drafts the patch-cycle update – read-only).
+  Step 1 implemented 2026-10-19: `10-Monitoring/cve_inventory.sh` (components,
+  patch cycle vs. installed, both JDKs, OS errata, `--online` advisories).
+- [ ] **OHS / WebGate binaries in the Oracle Home** (found by `cve_inventory.sh`,
+  2026-10-19): the Forms & Reports installer installs them although Nginx is the
+  frontend. Agreed 2026-10-19: everything on disk gets patched (a tool that is
+  not running can still be started and exploited) – add the OHS / WebGate
+  bundle patches to the patch set from the CPU Oct 2026 cycle on.
+- [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
+  (10-Monitoring/README.md) – complements the CVE watch (code) with the
+  configuration view (T3/IIOP, debug configs, rwservlet web commands, …).
+- [ ] **Reports engines run on the old FMW-bundled JDK** (`oracle_common/jdk`
+  17.0.12 from 2024, via Oracle's `reports.sh` PATH) – not reached by `JDK_HOME`
+  updates; find the supported way (update bundled JDK / point to `JDK_HOME`).
+- [x] **Host firewall + sshd hardening** (2026-10-19): `01-root_os_baseline.sh`
+  sections 8/9 – safe firewalld activation (rollback timer, ssh pre-check),
+  `--only firewall,ssh`, sshd drop-ins (`AllowUsers`, no root, no X11,
+  `SSH_PASSWORD_USERS`). Live on the test host (cockpit removed). Open:
+  loopback binding of `frmweb` / `rwserver` sockets (defence in depth),
+  customer cookbooks (OS cookbook: firewall + sshd chapter).
   See [10-Monitoring/README.md](10-Monitoring/README.md) for the planned Claude-assisted
   proactive monitoring design.
