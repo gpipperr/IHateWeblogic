@@ -1,287 +1,156 @@
-# 06-FormsDiag – Oracle Forms Diagnostics & Performance
+# 06-FormsDiag – Oracle Forms Diagnostics
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
 [root README](../README.md)). On a new installation `09-Install/14-oracle_setup_forms.sh`
 sets the values and `09-Install/docs/90-oracle_validate.md` calls these scripts
 read-only as acceptance; `10-Monitoring/` uses them as a data source.
-Content review after the 05 pattern (duplicates with `02-Checks/`, `14-`): open.
 
-Diagnostics, configuration overview and performance analysis for Oracle Forms Server.
-All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
-
----
-
-## 1. Overview
-
-| Script | Status | Purpose |
-|---|---|---|
-| `forms_settings.sh` | ✅ implemented | Forms version, FORMS_PATH, config files, servlet config, fonts, live sessions, shared libs |
-| `forms_perf_settings.sh` | ✅ implemented | Performance parameters from `formsweb.cfg`, `default.env`, WLS_FORMS JVM heap |
-| `forms_perf_analyse.sh` | ✅ implemented | Live session memory analysis, HTTP response times, WLS_FORMS log scan |
+How Forms works on the server (servlet, listener, `frmweb` per session,
+runtime pooling, timeout chain, memory, logs):
+[forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md).
 
 ---
 
-## 2. Recommended Execution Order
+## 1. Overview – and what is NOT here
+
+| Script | Question it answers |
+|---|---|
+| `forms_settings.sh` | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit |
+| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters. `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]` |
+| `forms_perf_analyse.sh` | How does the server carry its load? `frmweb` per config section (pool vs. session), memory vs. RAM and limit, access log per section / status, Forms logs by ODL level, crash dumps |
+
+Not duplicated here:
+
+| Need | Script |
+|---|---|
+| WLS_FORMS JVM heap (servlet / listener – not the sessions) | `02-Checks/weblogic_performance.sh` |
+| Search all logs, tail | `03-Logs/grep_logs.sh 'FRM-'`, `03-Logs/tail_logs.sh` |
+| `uifont.ali` / fonts | `04-ReportsFonts/` |
+| DB connectivity (ORA-) | `02-Checks/db_connect_check.sh` |
+| Start / stop WLS_FORMS | `01-Run/startStop.sh` |
+
+Shared helpers: [forms_lib.sh](forms_lib.sh) (sourced; `frm_*`: WLS_FORMS
+server/PID, formsweb.cfg / default.env of the deployed application, value of
+a key in a section **with inheritance** from `[default]`, set/unset a key in
+one section, `frmweb` processes per section, session-timeout of the
+servlet). Also used by `09-Install/14-oracle_setup_forms.sh`.
+
+---
+
+## 2. Recommended order
 
 ```
-Step 1 – Configuration overview
-  ./06-FormsDiag/forms_settings.sh
-
-Step 2 – Performance settings check
-  ./06-FormsDiag/forms_perf_settings.sh
-
-Step 3 – Live performance analysis
-  ./06-FormsDiag/forms_perf_analyse.sh
-  ./06-FormsDiag/forms_perf_analyse.sh --lines 1000   # more log history
+1. forms_settings.sh          configuration complete?
+2. forms_perf_settings.sh     parameters coherent? (prestart, timeouts, limit)
+3. forms_perf_analyse.sh      load – best during real use
+4. fix, e.g.
+   forms_perf_settings.sh --apply --fix-prestart webstart
+   forms_perf_settings.sh --apply --section default --set maxRuntimeProcesses=200
+   + ./01-Run/startStop.sh stop WLS_FORMS --apply && ./01-Run/startStop.sh start WLS_FORMS --apply
 ```
 
 ---
 
-## 3. Script Reference
-
-### forms_settings.sh
+## 3. forms_settings.sh
 
 ```bash
 ./06-FormsDiag/forms_settings.sh
-./06-FormsDiag/forms_settings.sh --forms-home /u01/oracle/fmw/forms
+./06-FormsDiag/forms_settings.sh --cfg /path/to/formsweb.cfg
 ```
 
-Options:
+Read-only.
 
-| Option | Description |
+| Section | Checks |
 |---|---|
-| `--forms-home PATH` | Explicit Forms home directory (auto-detected otherwise) |
+| Configuration Files | `formsweb.cfg` of the deployed application (`servers/<WLS_FORMS>/applications/formsapp_*/config/`), its `envFile` (default.env), instance `forms1` with `webutil.cfg`, `ftrace.cfg`, `forms.conf` |
+| Forms Binaries | version from `inventory/registry.xml`; `frmweb`, `frmcmp_batch`, `frmbld` in `$ORACLE_HOME/bin`; `ldd frmweb` with the `LD_LIBRARY_PATH` of default.env → FAIL on missing libraries |
+| FORMS_PATH | each directory: exists, number of fmx / mmx / plx+pll; `FORMS_CUSTOMER_DIR` contained |
+| default.env | `ORACLE_HOME` = environment.conf, `TNS_ADMIN` with `tnsnames.ora`, `TMPDIR` = `FORMS_TMP` and exists, `PATH` entries exist, `NLS_LANG` (INFO for `UTF8` = old CESU-8 vs. `AL32UTF8`), `FORMS_TRACE_DIR` |
+| Config Sections | per section: `serverURL`, `form`, WebUtil, `prestartRuntimes` **own or inherited from [default]** |
+| Runtime Overview | WLS_FORMS PID, number of `frmweb` |
 
-Read-only. Sections:
-
-| Section | What is checked |
-|---|---|
-| 1 – Forms Version | `frmcmp` binary, version from FMW inventory `registry.xml` |
-| 2 – FORMS_PATH | Directories for `.fmx`/`.fmb` files – existence + file count per directory |
-| 3 – Config files | Paths to `formsweb.cfg`, `default.env`, `registry.dat` |
-| 4 – Servlet config | Key `formsweb.cfg` parameters: `serverURL`, `lookAndFeel`, `heartbeatInterval`, `separateFrame` |
-| 5 – Fonts | `TK_FONTALIAS` / `uifont.ali` path, `[PDF:Subset]` section present |
-| 6 – Live sessions | `pgrep frmweb` count + WLS_FORMS JVM PID |
-| 7 – Shared libraries | `ldd frmweb` – missing `.so` files that cause startup failures |
-
----
-
-### forms_perf_settings.sh
+## 4. forms_perf_settings.sh
 
 ```bash
 ./06-FormsDiag/forms_perf_settings.sh
-./06-FormsDiag/forms_perf_settings.sh --forms-home /u01/oracle/fmw/forms
+./06-FormsDiag/forms_perf_settings.sh --apply --fix-prestart webstart
+./06-FormsDiag/forms_perf_settings.sh --apply --section default --set maxRuntimeProcesses=200
+./06-FormsDiag/forms_perf_settings.sh --apply --section sepwin --unset heartBeat
+./06-FormsDiag/forms_perf_settings.sh --cfg /copy/formsweb.cfg --apply ...     # test on a copy
 ```
 
-Read-only. Sections:
+| Section | Rule (Oracle 14.1.2) |
+|---|---|
+| Timeout Chain | per section: `heartBeat` (minutes, default 2) < `FORMS_TIMEOUT` of its envFile (minutes, default 15, valid 3–1440) → else FAIL; `heartBeat` < WLS `session-timeout` (formsapp.ear, 120 min) → else WARN; `heartBeat` < 0.5 → WARN (network traffic) |
+| Global Parameters | `maxRuntimeProcesses` 0/unset → WARN ("vulnerable to Denial of Service"); `allowNewConnections=FALSE` → WARN; global keys set in a named section → WARN (only read from `[default]`) |
+| Runtime Pooling | table of the sections with pooling (own / from default, Init, Min, Increment, Timeout), expected number of pooled `frmweb`; `prestartRuntimes` in `[default]` → WARN with Oracle's quote; `prestartMin > prestartInit` → WARN |
+| Startup / Network | `networkRetries` (default 0), `gzipCompressApplet` (INFO: TRUE shortens start-up), `idleTimeout` |
 
-**1. formsweb.cfg – Performance Parameters:**
+`--apply` (backup with `backup_file`, python edit of one section only –
+other sections, comments and Oracle entries stay):
 
-| Parameter | Default | Recommendation |
-|---|---|---|
-| `heartbeatInterval` | 120 s | Match load balancer idle timeout; never 0 on LB environments |
-| `maxEventBunchSize` | 25 | Increase to 50–100 on fast LAN; keep low on WAN |
-| `networkRetries` | 3 | Increase to 5 on unreliable networks |
-| `lookAndFeel` | Generic | Keep Generic for lighter client-side rendering |
-| `separateFrame` | true | false = lighter HTML integration (browser-dependent) |
-| `splashScreen` | – | Set to `no` to reduce perceived startup time |
+| Option | Effect |
+|---|---|
+| `--section NAME --set KEY=VALUE` | change or add the key in that section (repeatable) |
+| `--section NAME --unset KEY` | remove the key from that section – it inherits from `[default]` again |
+| `--fix-prestart NAME` | copy the effective `prestart*` values into `[NAME]`, remove them from `[default]`; hint to set `FORMS_PRESTART_SECTION=NAME` in environment.conf so a re-installation (14-) keeps it |
 
-**2. default.env – Timeouts:**
+Pooling changes need a WLS_FORMS restart (read only at servlet start).
 
-| Variable | Description | Recommendation |
-|---|---|---|
-| `FORMS_TIMEOUT` | Session idle timeout (minutes) | ≥ 30 min; align with business requirements |
-| `TWO_TASK` | DB service name (Easy Connect) | Must resolve correctly or Forms cannot connect |
-| `TNS_ADMIN` | `tnsnames.ora` directory | Must exist; use Easy Connect to avoid tnsnames |
-
-**3. WLS_FORMS JVM Heap:**
-- Reads `-Xms`/`-Xmx` from live process cmdline and/or `setDomainEnv.sh`
-- Shows WLS_FORMS JVM RSS vs. configured `-Xmx`
-- Estimates maximum session capacity (WLS_FORMS heap / avg session overhead)
-
----
-
-### forms_perf_analyse.sh
+## 5. forms_perf_analyse.sh
 
 ```bash
 ./06-FormsDiag/forms_perf_analyse.sh
-./06-FormsDiag/forms_perf_analyse.sh --lines 1000
+./06-FormsDiag/forms_perf_analyse.sh --lines 10000
 ./06-FormsDiag/forms_perf_analyse.sh --no-log
 ```
 
-Options:
-
-| Option | Description |
+| Section | Content |
 |---|---|
-| `--lines N` | Last N log lines to analyse (default: 500) |
-| `--no-log` | Skip WLS_FORMS server log scan |
-
-Sections:
-
-**1. Active Sessions:** counts `frmweb` processes, measures RSS per session,
-estimates total Forms memory vs. available RAM.
-
-**2. HTTP Response Times (`access.log`):**
-Parses WLS HTTP access log for `/forms/frmservlet` requests.
-Extracts min/avg/max response times and HTTP status distribution.
-
-| Threshold | Evaluation |
-|---|---|
-| avg < 2000 ms | OK |
-| avg 2000–5000 ms | WARN |
-| avg > 5000 ms | FAIL |
-
-> WLS access log must be enabled: WLS Console → WLS_FORMS → Logging → HTTP → Enable.
-
-**3. Server Log Analysis:** scans `WLS_FORMS.log` for:
-
-| Pattern | Meaning |
-|---|---|
-| `ORA-` | Oracle DB error in Forms → run `db_connect_check.sh` |
-| `FRM-` | Oracle Forms application error |
-| `timeout` / `timed out` | Session timeout – check `heartbeatInterval` vs. LB idle timeout |
-| `OutOfMemoryError` | WLS_FORMS JVM heap too small |
-| `Connection refused` | DB or internal service unreachable |
-
-**4. Recommendations:** consolidated action items from all sections.
+| frmweb per Config Section | count, RSS sum / max, processes with an established TCP connection (DB) and with CPU time > 0, prestart Init of the section; pool = no DB connection and no CPU (**assumption**, see section 7); > 20 processes without a session → WARN |
+| Memory and Session Limit | RAM, WLS_FORMS RSS, frmweb RSS, average RSS of real sessions and how many fit; `maxRuntimeProcesses` unset → WARN, >= 90 % used → WARN; < 10 % RAM available → WARN |
+| HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time only with a `time-taken` field (not in the default format) |
+| Forms Logs | `WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log`, `WLS_FORMS.out`: ERROR/WARNING lines by message id (top 5), FRM `[NOTIFICATION]`s separately (runtime pool, servlet start), ORA-, OutOfMemoryError |
+| Crash Dumps | files changed in `FORMS_TRACE_DIR` (default `$DOMAIN_HOME/system_component/FORMS/<instance>/trace`) in the last 7 days |
+| Recommendations | prestart fix, session limit, memory, heap (02-Checks), FRM/ORA, 5xx, dumps |
 
 ---
 
-## 4. Performance Tuning Best Practices
+## 6. Review 2026-10-19 – what was wrong before
 
-### Session Memory Planning
+| Before | Effect | Now |
+|---|---|---|
+| `heartbeatInterval` in seconds, default 120 | parameter does not exist – real one is `heartBeat`, minutes, default 2 | Oracle name/unit, timeout chain with `FORMS_TIMEOUT` and `session-timeout` |
+| `maxEventBunchSize`, `networkRetries` default 3, `lookAndFeel`/`separateFrame` as tuning | not in the 14.1.2 parameter list / default 0 / applet desupported | removed; `networkRetries`, `gzipCompressApplet` with Oracle defaults |
+| `maxRuntimeProcesses` not checked | no session limit (Oracle: DoS risk) | WARN + `--set` |
+| prestart not checked | our own installation started 50 idle `frmweb` | WARN + `--fix-prestart`; 14- fixed (`FORMS_PRESTART_SECTION`) |
+| `pgrep frmweb` = "active sessions" | counted the pool | per section, DB connection / CPU |
+| "max sessions = WLS_FORMS -Xmx / 80 MB" | `frmweb` runs outside the JVM heap | RAM / RSS of real sessions, heap → 02-Checks |
+| `frmcmp`/`frmweb` in `$ORACLE_HOME/forms/bin` | not found → version and `ldd` silently skipped | `$ORACLE_HOME/bin`, `ldd` with default.env library path |
+| `[PDF:Subset]` check | Reports topic | removed (04-ReportsFonts) |
+| access.log "last numeric field = ms" | that field is `bytes` | columns from `#Fields`, time only with `time-taken` |
+| `WLS_FORMS.log`, "timeout" pattern, every FRM- = error | wrong file, noise, pool notifications counted as errors | diagnostic logs, ODL level |
+| copies of the file-finding helpers in each script | drifted apart | `forms_lib.sh` |
 
-Each active Forms session spawns one `frmweb` native process.
-Typical RSS per session:
-
-| Workload | Approx. RSS |
-|---|---|
-| Simple data entry forms | 50–80 MB |
-| Complex multi-block forms | 100–150 MB |
-| Forms with large LOVs / images | 150–250 MB |
-
-**Rule of thumb:** available RAM for Forms = (WLS_FORMS JVM -Xmx) + (maxSessions × avgSessionRSS)
-
-### formsweb.cfg Key Tuning Parameters
-
-**`heartbeatInterval`** (seconds, default: 120)
-- Client sends a keepalive request every N seconds when idle
-- Too small (< 30 s): unnecessary server load for idle users
-- Too large or 0: load balancer may drop idle connections mid-session
-- **Recommendation:** Set to 80–90% of load balancer idle timeout
-
-**`maxEventBunchSize`** (default: 25)
-- Number of user events sent per network round-trip to the server
-- Higher = fewer round-trips = better for high-latency WAN connections
-- **Recommendation:** 25 (LAN), 50–100 (fast internal), 10–15 (high-latency WAN)
-
-**`lookAndFeel`** (Generic / Oracle)
-- Oracle look = additional JavaScript, richer widget rendering
-- Generic = lighter, faster initial load
-- **Recommendation:** Generic unless Oracle-specific UI features are required
-
-**`separateFrame`** (true / false)
-- true = Forms runs in a separate browser window or applet frame
-- false = Forms embedded inline (requires compatible browser config)
-- **Recommendation:** Depends on browser policy; false gives smoother integration
-
-### WLS_FORMS JVM Sizing
-
-```
-Minimum (test):   -Xms256m -Xmx512m
-Production small: -Xms512m -Xmx1024m  (up to ~10 concurrent users)
-Production large: -Xms1g   -Xmx2g     (10–50 concurrent users)
-High load:        -Xms2g   -Xmx4g     (50+ concurrent users)
-```
-
-Set in `$DOMAIN_HOME/bin/setDomainEnv.sh` for the `WLS_FORMS` server.
-
-### `default.env` – Session Timeout
-
-```
-FORMS_TIMEOUT=60    # 60 minutes idle timeout – adjust to business requirements
-```
-
-Align with:
-- Load balancer session persistence timeout
-- `heartbeatInterval` (client keepalive must be shorter than FORMS_TIMEOUT)
-- SSO session timeout (if Oracle SSO / SAML is in use)
-
-### FORMS_PATH – FMX File Location
-
-Forms looks for `.fmx` (compiled form) and `.mmx` (compiled menu) files in
-`FORMS_PATH` at runtime. Missing entries cause `FRM-10043: Cannot find form`.
-
-Best practice:
-```
-FORMS_PATH=/u01/app/oracle/forms/moduls:/u01/app/oracle/forms/standard:$FORMS_HOME/forms
-```
-- Custom forms first (allows overriding standard forms)
-- Keep `.fmx` and `.fmb` in the same directory tree (easier maintenance)
-- Never put `.fmb` source files on a production server's `FORMS_PATH`
+Live after the fix on the test host: 50 → 5 `frmweb` (only `[webstart]`),
+smoke test 15- green.
 
 ---
 
-## 5. Troubleshooting
+## 7. Open items
 
-### FRM-10043: Cannot find form
-
-```
-Cause:  .fmx file not in any FORMS_PATH directory
-Fix:    Check FORMS_PATH in default.env
-        Compile .fmb → .fmx: frmcmp module=form.fmb userid=user/pass@db
-        Copy .fmx to FORMS_PATH directory
-```
-
-### FRM-40010: Cannot read form
-
-```
-Cause:  .fmx compiled with newer Oracle Forms version than runtime
-Fix:    Recompile .fmb against the correct $ORACLE_HOME version of frmcmp
-```
-
-### Session drops / disconnect after idle
-
-```
-Cause A: heartbeatInterval too large or 0 → LB drops connection
-         Fix: set heartbeatInterval < LB idle timeout in formsweb.cfg
-Cause B: FORMS_TIMEOUT too short
-         Fix: increase FORMS_TIMEOUT in default.env
-Cause C: WLS_FORMS HTTP session timeout
-         Fix: increase WLS session timeout in WebLogic Console
-```
-
-### OutOfMemoryError in WLS_FORMS
-
-```
-Cause:  WLS_FORMS JVM -Xmx too small for concurrent session count
-Fix:    Increase -Xmx in setDomainEnv.sh for WLS_FORMS
-        Calculate: -Xmx >= maxSessions × avgSessionRSS + 512m (JVM overhead)
-```
+- Pool vs. session with a real client session (JWS / FSAL from Windows) –
+  verify the DB-connection / CPU criterion, RSS of a real session for the
+  `maxRuntimeProcesses` sizing.
+- `time-taken` in the WLS_FORMS access log (extended format) – then response
+  times; candidate for a WLST `--apply`.
+- 14- / interview: proposal for `maxRuntimeProcesses` from RAM (variable in
+  `environment.conf`).
 
 ---
 
-## 6. Related Scripts
+## 8. References
 
-| Script | Purpose |
-|---|---|
-| `00-Setup/init_env.sh` | Detect FMW/Domain paths, generate `environment.conf` |
-| `02-Checks/db_connect_check.sh` | Diagnose DB connection (ORA- in Forms log) |
-| `02-Checks/os_check.sh` | RAM / ulimits – prerequisites for Forms sizing |
-| `04-ReportsFonts/uifont_ali_update.sh` | Font configuration (shared with Reports) |
-| `07-Maintenance/backup_config.sh` | Backup `formsweb.cfg` / `default.env` before changes |
-
----
-
-## 7. References
-
-- Oracle Forms 14.1.2 – Working with Oracle Forms:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/toc.htm
-- Oracle Forms 14.1.2 – Performance Tuning Considerations:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/12.2.1.19/working-forms/performance-tuning-considerations.html
-- Oracle Forms 12.2.1 – Tuning Oracle Forms Services:
-  https://docs.oracle.com/middleware/1221/formsandreports/deploy-forms/tuning.htm
-- Oracle Forms 14.1.2 – Release Notes / What's New:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/releasenotes-fnr/whats-new-this-release.html
-- Oracle Forms 14.1.2 – Documentation Home:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/index.html
+- Background + Oracle sources: [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md)
+- Installation side: [09-Install/docs/14-forms-detail-settings.md](../09-Install/docs/14-forms-detail-settings.md)
+- WebUtil / JACOB: [forms_jakob_webutil.md](../80-FMW-Architecture/forms_jakob_webutil.md)

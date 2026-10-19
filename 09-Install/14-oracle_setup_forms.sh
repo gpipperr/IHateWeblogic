@@ -45,6 +45,9 @@ source "$ROOT_DIR/environment.conf"
 # JACOB_* (version, sizes, checksum)
 # shellcheck source=oracle_software_version.conf
 [ -f "$SCRIPT_DIR/oracle_software_version.conf" ] && source "$SCRIPT_DIR/oracle_software_version.conf"
+# frm_cfg_set (key in one formsweb.cfg section) – shared with 06-FormsDiag
+# shellcheck source=../06-FormsDiag/forms_lib.sh
+source "$ROOT_DIR/06-FormsDiag/forms_lib.sh"
 
 # =============================================================================
 # Arguments
@@ -684,6 +687,21 @@ else
     _fw_ovl="$(mktemp)"; _fw_tmp="$(mktemp)"
     if _render_template "$TEMPLATES_DIR/formsweb.cfg.template" "$_fw_ovl"; then
         _merge_formsweb_cfg "$_fw_ovl" "$_fw_tmp"
+        # Runtime pooling only in FORMS_PRESTART_SECTION – Oracle: never in
+        # [default] (all sections inherit it; 2026-10-19: 50 idle frmweb)
+        if [ -n "${FORMS_PRESTART_SECTION:-}" ]; then
+            if grep -q "^\[${FORMS_PRESTART_SECTION}\]" "$_fw_tmp"; then
+                frm_cfg_set "$_fw_tmp" "$FORMS_PRESTART_SECTION" prestartRuntimes  true
+                frm_cfg_set "$_fw_tmp" "$FORMS_PRESTART_SECTION" prestartInit      "${FORMS_PRESTART_INIT:-5}"
+                frm_cfg_set "$_fw_tmp" "$FORMS_PRESTART_SECTION" prestartMin       "${FORMS_PRESTART_MIN:-4}"
+                frm_cfg_set "$_fw_tmp" "$FORMS_PRESTART_SECTION" prestartIncrement "${FORMS_PRESTART_INCREMENT:-1}"
+                info "$(printf "  runtime pooling: [%s] prestartInit=%s prestartMin=%s" "$FORMS_PRESTART_SECTION" "${FORMS_PRESTART_INIT:-5}" "${FORMS_PRESTART_MIN:-4}")"
+            else
+                warn "FORMS_PRESTART_SECTION=$FORMS_PRESTART_SECTION is not a section of formsweb.cfg – no runtime pooling"
+            fi
+        else
+            info "  runtime pooling off (FORMS_PRESTART_SECTION empty)"
+        fi
         printf "  %-30s %s\n" "formsweb.cfg (base)" "$FORMSWEB_BASE" | tee -a "${LOG_FILE:-/dev/null}"
         info "$(printf "  sections kept from Oracle's file: %s" "$(grep -o '^\[[^]]*\]' "$_fw_tmp" | tr -d '[]' | xargs)")"
         if [ -f "$_fw_dest" ] && cmp -s "$_fw_tmp" "$_fw_dest"; then

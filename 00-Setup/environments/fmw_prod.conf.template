@@ -31,6 +31,13 @@ WLS_FORMS_SERVER=WLS_FORMS
 FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls
 # FORMS_TMP: TMPDIR of the Forms runtime (default.env)
 FORMS_TMP=/u01/app/oracle/forms/tmp
+# FORMS_PRESTART_SECTION: formsweb.cfg section with runtime pooling (prestart
+# frmweb processes), e.g. webstart / standaloneapp / own app section.
+# Empty = no pooling. Never [default] – Oracle: all sections would inherit it.
+FORMS_PRESTART_SECTION=
+FORMS_PRESTART_INIT=5
+FORMS_PRESTART_MIN=4
+FORMS_PRESTART_INCREMENT=1
 # FORMS_WEBUTIL_JACOB: install JACOB (Java COM bridge) for WebUtil OLE /
 # Office automation (CLIENT_OLE2). Only needed if the Forms applications
 # drive Word/Excel; downloaded by 04-, installed by 14- (default: false)

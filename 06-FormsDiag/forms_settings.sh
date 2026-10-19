@@ -1,17 +1,23 @@
 #!/bin/bash
 # =============================================================================
 # Script   : forms_settings.sh
-# Purpose  : Configuration overview for Oracle Forms:
-#            version, FORMS_PATH, config files, servlet config, fonts,
-#            live frmweb processes, shared library dependencies.
+# Purpose  : Is the Oracle Forms configuration complete and consistent?
+#            - the files the deployed Forms application really uses
+#              (formsweb.cfg, default.env, instance forms1, webutil.cfg)
+#            - frmweb / frmcmp_batch in $ORACLE_HOME/bin, shared libraries
+#              with the LD_LIBRARY_PATH of default.env
+#            - FORMS_PATH directories and module counts
+#            - default.env against environment.conf and the file system
+#            - formsweb.cfg config sections and what each one inherits
 # Call     : ./forms_settings.sh
-#            ./forms_settings.sh --forms-home /u01/oracle/fmw/forms
-# Options  : --forms-home PATH   Explicit ORACLE_FORMS_HOME (auto-detected otherwise)
-#            --help              Show usage
-# Requires : find, pgrep, ldd (optional)
+#            ./forms_settings.sh --cfg /path/to/formsweb.cfg
+# Options  : --cfg PATH   Evaluate another formsweb.cfg (its envFile next to it)
+#            --help       Show usage
+# Read-only. Performance / session parameters: forms_perf_settings.sh
+# Requires : awk, sed, ldd (optional)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 06-FormsDiag/README.md
+# Ref      : 06-FormsDiag/README.md, 80-FMW-Architecture/forms_runtime_architecture.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,23 +36,28 @@ check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 init_log
 
+# shellcheck source=forms_lib.sh
+source "$SCRIPT_DIR/forms_lib.sh"
+
+_show() { printf "  %-26s %s\n" "$1" "$2" | tee -a "${LOG_FILE:-/dev/null}"; }
+
 # =============================================================================
 # Arguments
 # =============================================================================
 
-OVERRIDE_FORMS_HOME=""
+OVERRIDE_CFG=""
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
-    printf "  %-28s %s\n" "--forms-home PATH" "Explicit Forms home directory"
-    printf "  %-28s %s\n" "--help"            "Show this help"
+    printf "  %-20s %s\n" "--cfg PATH" "Evaluate another formsweb.cfg"
+    printf "  %-20s %s\n" "--help"     "Show this help"
     exit 1
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --forms-home) OVERRIDE_FORMS_HOME="$2"; shift 2 ;;
-        --help|-h)    _usage ;;
+        --cfg)     OVERRIDE_CFG="$2"; shift 2 ;;
+        --help|-h) _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
             _usage
@@ -54,360 +65,198 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# =============================================================================
-# Helper: detect Forms home directory
-# =============================================================================
-
-# Tries (in order):
-#   1. --forms-home argument
-#   2. ORACLE_FORMS_HOME from environment.conf
-#   3. $ORACLE_HOME/forms  (standard FMW layout)
-#   4. find frmcmp binary under ORACLE_HOME
-_detect_forms_home() {
-    local candidate
-    local _oh="${ORACLE_HOME:-${FMW_HOME}}"
-
-    [ -n "$OVERRIDE_FORMS_HOME" ] && { printf "%s" "$OVERRIDE_FORMS_HOME"; return; }
-    [ -n "${ORACLE_FORMS_HOME:-}" ] && [ -d "$ORACLE_FORMS_HOME" ] && \
-        { printf "%s" "$ORACLE_FORMS_HOME"; return; }
-
-    candidate="${_oh}/forms"
-    [ -d "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    # find via binary
-    candidate="$(find "${_oh:-/u01/oracle/fmw}" -maxdepth 4 -name "frmcmp" \
-        2>/dev/null | head -1 | sed 's|/bin/frmcmp||')"
-    [ -n "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    printf ""
-}
-
-# Helper: check file and report OK/WARN
-_check_file() {
-    local label="$1"
-    local path="$2"
-    if [ -f "$path" ]; then
-        ok "$(printf "%-30s %s" "${label}:" "$path")"
-        printf "%s" "$path"
-    else
-        warn "$(printf "%-30s NOT FOUND: %s" "${label}:" "$path")"
-        printf ""
-    fi
-}
-
-# Helper: find formsweb.cfg – checks multiple standard locations
-_find_formsweb_cfg() {
-    local fh="$1"
-    local candidate
-
-    # FMW 14c location
-    candidate="$(find "${DOMAIN_HOME}/config/fmwconfig/servers" \
-        -maxdepth 5 -name "formsweb.cfg" 2>/dev/null | head -1)"
-    [ -n "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    # Classic location under Forms home
-    candidate="${fh}/server/formsweb.cfg"
-    [ -f "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    # Generic search under ORACLE_HOME
-    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "formsweb.cfg" \
-        2>/dev/null | head -1
-}
-
-# Helper: find default.env
-_find_default_env() {
-    local fh="$1"
-    local candidate
-
-    candidate="$(find "${DOMAIN_HOME}/config/fmwconfig/servers" \
-        -maxdepth 5 -name "default.env" 2>/dev/null | head -1)"
-    [ -n "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    candidate="${fh}/server/default.env"
-    [ -f "$candidate" ] && { printf "%s" "$candidate"; return; }
-
-    find "${ORACLE_HOME:-${FMW_HOME:-/u01/oracle/fmw}}" -maxdepth 6 -name "default.env" \
-        2>/dev/null | head -1
-}
+OH="${ORACLE_HOME:-${FMW_HOME:-}}"
 
 # =============================================================================
 # Banner
 # =============================================================================
 
 printLine
-section "Forms Configuration Overview – $(date '+%Y-%m-%d %H:%M:%S')"
-printf "  %-26s %s\n" "Host:"        "$(hostname -f 2>/dev/null || hostname)" | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "ORACLE_HOME:" "${ORACLE_HOME:-${FMW_HOME:-not set}}"                   | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "DOMAIN_HOME:" "${DOMAIN_HOME}"                          | tee -a "${LOG_FILE:-/dev/null}"
+section "Forms Configuration – $(date '+%Y-%m-%d %H:%M:%S')"
+_show "Host:"        "$(hostname -f 2>/dev/null || hostname)"
+_show "ORACLE_HOME:" "${OH:-not set}"
+_show "DOMAIN_HOME:" "${DOMAIN_HOME}"
 printLine
 
-FORMS_HOME="$(_detect_forms_home)"
-if [ -n "$FORMS_HOME" ]; then
-    ok "Forms home: $FORMS_HOME"
+# =============================================================================
+# 1. Configuration files
+# =============================================================================
+
+section "Configuration Files"
+
+if ! frm_find_files "$OVERRIDE_CFG"; then
+    fail "formsweb.cfg not found (expected: \$DOMAIN_HOME/config/fmwconfig/servers/<WLS_FORMS>/applications/formsapp_*/config/)"
+    print_summary
+    exit "$EXIT_CODE"
+fi
+ok "formsweb.cfg: $FRM_CFG"
+if [ -n "$FRM_ENV" ]; then
+    ok "default.env:  $FRM_ENV  (envFile of [default])"
 else
-    warn "Forms home directory not detected – some sections may be incomplete"
-    info "  Set ORACLE_FORMS_HOME in environment.conf or use --forms-home"
+    fail "envFile of [default] not found in $FRM_CONFIG_DIR"
 fi
 
-# =============================================================================
-# 1. Forms Version
-# =============================================================================
-
-printLine
-section "Forms Version"
-
-FRMCMP="${FORMS_HOME:+${FORMS_HOME}/bin/frmcmp}"
-FRMWEB_BIN="${FORMS_HOME:+${FORMS_HOME}/bin/frmweb}"
-
-if [ -n "$FRMCMP" ] && [ -f "$FRMCMP" ]; then
-    ok "frmcmp found: $FRMCMP"
-    # frmcmp version string (may take a second, tolerate failure)
-    FRMCMP_VER="$("$FRMCMP" -help 2>&1 | grep -i 'version\|release\|Forms' | head -2 || true)"
-    [ -n "$FRMCMP_VER" ] && printf "  %s\n" "$FRMCMP_VER" | tee -a "${LOG_FILE:-/dev/null}"
-else
-    warn "frmcmp not found${FORMS_HOME:+ in $FORMS_HOME/bin}"
-fi
-
-# Version from FMW inventory registry
-REGISTRY_XML="${ORACLE_HOME:-${FMW_HOME}}/oracle_common/inventory/registry.xml"
-if [ -f "$REGISTRY_XML" ]; then
-    FORMS_VER="$(grep -i 'oracle.forms\|FormsHome' "$REGISTRY_XML" 2>/dev/null \
-        | grep -oP 'VERSION="\K[^"]+' | head -1)"
-    [ -n "$FORMS_VER" ] && \
-        printf "  %-26s %s\n" "Registry version:" "$FORMS_VER" | tee -a "${LOG_FILE:-/dev/null}"
-fi
-
-# Version from opatch lsinventory (if available and quick)
-if command -v opatch > /dev/null 2>&1; then
-    info "opatch available – run 'opatch lsinventory' for full patch list"
-fi
-
-# =============================================================================
-# 2. FORMS_PATH – where are FMX / FMB files?
-# =============================================================================
-
-printLine
-section "FORMS_PATH (FMX / FMB locations)"
-
-# FORMS_PATH may come from: environment.conf, default.env, running process, or FMW default
-FORMS_PATH_VAL="${FORMS_PATH:-}"
-
-# Try to extract from default.env if not set
-DEFAULT_ENV_FILE="$(_find_default_env "$FORMS_HOME")"
-if [ -z "$FORMS_PATH_VAL" ] && [ -n "$DEFAULT_ENV_FILE" ] && [ -f "$DEFAULT_ENV_FILE" ]; then
-    FORMS_PATH_VAL="$(grep -E '^FORMS_PATH' "$DEFAULT_ENV_FILE" 2>/dev/null \
-        | tail -1 | sed 's/^FORMS_PATH[[:space:]]*=[[:space:]]*//')"
-fi
-
-# Try running WLS_FORMS process environment
-if [ -z "$FORMS_PATH_VAL" ]; then
-    WLS_FORMS_PID="$(pgrep -f 'weblogic.Name=WLS_FORMS' 2>/dev/null | head -1)"
-    if [ -n "$WLS_FORMS_PID" ] && [ -r "/proc/${WLS_FORMS_PID}/environ" ]; then
-        FORMS_PATH_VAL="$(tr '\0' '\n' < "/proc/${WLS_FORMS_PID}/environ" 2>/dev/null \
-            | grep '^FORMS_PATH=' | sed 's/FORMS_PATH=//' | head -1)"
-    fi
-fi
-
-if [ -n "$FORMS_PATH_VAL" ]; then
-    ok "FORMS_PATH is set"
-    # Split on colon and report each directory
-    IFS=':' read -ra FP_DIRS <<< "$FORMS_PATH_VAL"
-    for fp_dir in "${FP_DIRS[@]}"; do
-        [ -z "$fp_dir" ] && continue
-        if [ -d "$fp_dir" ]; then
-            fmx_count="$(find "$fp_dir" -maxdepth 2 -name "*.fmx" 2>/dev/null | wc -l | tr -d ' ')"
-            fmb_count="$(find "$fp_dir" -maxdepth 2 -name "*.fmb" 2>/dev/null | wc -l | tr -d ' ')"
-            printf "  %-8s %s  (fmx: %s, fmb: %s)\n" "  DIR:" "$fp_dir" "$fmx_count" "$fmb_count" \
-                | tee -a "${LOG_FILE:-/dev/null}"
+FORMS_INST="$( [ -n "$FRM_ENV" ] && frm_env_get "$FRM_ENV" FORMS_INSTANCE)"
+[ -z "$FORMS_INST" ] && FORMS_INST="$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/${FORMS_INSTANCE_NAME:-forms1}"
+if [ -d "$FORMS_INST" ]; then
+    ok "Forms instance: $FORMS_INST"
+    for _f in server/webutil.cfg server/ftrace.cfg server/forms.conf; do
+        if [ -f "$FORMS_INST/$_f" ]; then
+            _show "  $_f:" "present"
         else
-            warn "FORMS_PATH entry not found: $fp_dir"
+            info "  $_f not found in the instance"
         fi
     done
 else
-    warn "FORMS_PATH not set – Forms cannot find .fmx files at runtime"
-    info "  Set FORMS_PATH in default.env or environment.conf"
-    # Attempt heuristic search
-    if [ -n "$FORMS_HOME" ]; then
-        HEURISTIC_FMX="$(find "$FORMS_HOME" "${DOMAIN_HOME}" \
-            -maxdepth 5 -name "*.fmx" 2>/dev/null | head -5)"
-        if [ -n "$HEURISTIC_FMX" ]; then
-            info "  Possible FMX locations found:"
-            printf "%s" "$HEURISTIC_FMX" | while IFS= read -r f; do
-                printf "    %s\n" "$f" | tee -a "${LOG_FILE:-/dev/null}"
-            done
-        fi
-    fi
+    fail "Forms instance directory not found: $FORMS_INST (FORMS_INSTANCE in default.env)"
 fi
 
 # =============================================================================
-# 3. Configuration Files
+# 2. Binaries
 # =============================================================================
 
 printLine
-section "Configuration Files"
+section "Forms Binaries (\$ORACLE_HOME/bin)"
 
-FORMSWEB_CFG="$(_find_formsweb_cfg "$FORMS_HOME")"
-DEFAULT_ENV_FILE="$(_find_default_env "$FORMS_HOME")"
+FORMS_VER="$(grep -o '<distribution status="installed" name="Oracle Forms Reports" version="[^"]*"' \
+    "$OH/inventory/registry.xml" 2>/dev/null | sed 's/.*version="\([^"]*\)"/\1/' | head -1)"
+_show "Forms & Reports version:" "${FORMS_VER:-(not found in inventory/registry.xml)}"
+info "  patch level: ./10-Monitoring/cve_inventory.sh or opatch lspatches"
 
-if [ -n "$FORMSWEB_CFG" ] && [ -f "$FORMSWEB_CFG" ]; then
-    ok "formsweb.cfg: $FORMSWEB_CFG"
-else
-    warn "formsweb.cfg not found"
-fi
-
-if [ -n "$DEFAULT_ENV_FILE" ] && [ -f "$DEFAULT_ENV_FILE" ]; then
-    ok "default.env:  $DEFAULT_ENV_FILE"
-else
-    warn "default.env not found"
-fi
-
-# registry.dat (Forms registry, not Windows registry)
-REGISTRY_DAT="${FORMS_HOME:+${FORMS_HOME}/resources/registry.dat}"
-if [ -n "$REGISTRY_DAT" ] && [ -f "$REGISTRY_DAT" ]; then
-    ok "registry.dat: $REGISTRY_DAT"
-else
-    info "registry.dat not found at: ${REGISTRY_DAT:-(unknown)}"
-fi
-
-# =============================================================================
-# 4. Servlet Configuration (formsweb.cfg key parameters)
-# =============================================================================
-
-printLine
-section "Servlet Configuration (formsweb.cfg)"
-
-if [ -n "$FORMSWEB_CFG" ] && [ -f "$FORMSWEB_CFG" ]; then
-    # Extract key values from the [default] or global section (non-indented keys)
-    _cfg_val() {
-        grep -E "^[[:space:]]*${1}[[:space:]]*=" "$FORMSWEB_CFG" 2>/dev/null \
-            | tail -1 | sed "s/^[[:space:]]*${1}[[:space:]]*=[[:space:]]*//"
-    }
-
-    CFG_SERVERURL="$(_cfg_val serverURL)"
-    CFG_LOOK="$(     _cfg_val lookAndFeel)"
-    CFG_HBEAT="$(    _cfg_val heartbeatInterval)"
-    CFG_USERID="$(   _cfg_val userid)"
-    CFG_MODULE="$(   _cfg_val form)"
-    CFG_COLORSCHEME="$(_cfg_val colorScheme)"
-    CFG_SEPARATEFRAME="$(_cfg_val separateFrame)"
-    CFG_WIDTH="$(    _cfg_val width)"
-    CFG_HEIGHT="$(   _cfg_val height)"
-
-    printf "  %-28s %s\n" "serverURL:"        "${CFG_SERVERURL:-(not set)}"     | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-28s %s\n" "lookAndFeel:"      "${CFG_LOOK:-(default)}"          | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-28s %s\n" "heartbeatInterval:""${CFG_HBEAT:-(default)}"         | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-28s %s\n" "separateFrame:"    "${CFG_SEPARATEFRAME:-(default)}" | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-28s %s\n" "colorScheme:"      "${CFG_COLORSCHEME:-(default)}"   | tee -a "${LOG_FILE:-/dev/null}"
-    printf "  %-28s %s\n" "width × height:"   "${CFG_WIDTH:--} × ${CFG_HEIGHT:--}" | tee -a "${LOG_FILE:-/dev/null}"
-
-    # Count named sections [sectionName]
-    SECTION_COUNT="$(grep -cE '^\[[^]]+\]' "$FORMSWEB_CFG" 2>/dev/null || printf 0)"
-    printf "  %-28s %s\n" "Named sections:"   "$SECTION_COUNT" | tee -a "${LOG_FILE:-/dev/null}"
-    ok "formsweb.cfg parsed"
-else
-    warn "formsweb.cfg not available – servlet configuration unknown"
-fi
-
-# =============================================================================
-# 5. Fonts (uifont.ali – Forms section)
-# =============================================================================
-
-printLine
-section "Font Configuration (Forms)"
-
-# TK_FONTALIAS may be set in environment.conf or default.env
-FONTALIAS="${TK_FONTALIAS:-}"
-if [ -z "$FONTALIAS" ] && [ -n "$DEFAULT_ENV_FILE" ] && [ -f "$DEFAULT_ENV_FILE" ]; then
-    FONTALIAS="$(grep -E '^TK_FONTALIAS' "$DEFAULT_ENV_FILE" 2>/dev/null \
-        | tail -1 | sed 's/^TK_FONTALIAS[[:space:]]*=[[:space:]]*//')"
-fi
-# Last resort: standard path under Forms home
-[ -z "$FONTALIAS" ] && FONTALIAS="${FORMS_HOME:+${FORMS_HOME}/resources/uifont.ali}"
-
-printf "  %-26s %s\n" "TK_FONTALIAS:" "${FONTALIAS:-(not set)}" | tee -a "${LOG_FILE:-/dev/null}"
-
-if [ -n "$FONTALIAS" ] && [ -f "$FONTALIAS" ]; then
-    ok "uifont.ali found: $FONTALIAS"
-    # Check for [PDF:Subset] and [PDF:Base14Fonts] sections
-    if grep -q '^\[PDF:Subset\]' "$FONTALIAS" 2>/dev/null; then
-        ok "[PDF:Subset] section present"
+for _b in frmweb frmcmp_batch frmbld; do
+    if [ -x "$OH/bin/$_b" ]; then
+        ok "$(printf "%-14s %s" "$_b" "$OH/bin/$_b")"
     else
-        warn "[PDF:Subset] section missing – PDF TrueType embedding may not work"
+        [ "$_b" = "frmbld" ] && info "frmbld not found (Builder, optional on a server)" \
+                             || fail "$_b not found in $OH/bin"
     fi
-    # Count alias entries
-    ALIAS_COUNT="$(grep -cE '^[[:space:]]*"' "$FONTALIAS" 2>/dev/null || printf 0)"
-    printf "  %-26s %s\n" "Alias entries:" "$ALIAS_COUNT" | tee -a "${LOG_FILE:-/dev/null}"
-else
-    warn "uifont.ali not found – Forms may use system font fallback"
-    info "  See: 04-ReportsFonts/uifont_ali_update.sh for font configuration"
-fi
+done
 
-# =============================================================================
-# 6. Live frmweb Processes
-# =============================================================================
-
-printLine
-section "Live Forms Sessions (frmweb)"
-
-FRMWEB_COUNT="$(pgrep -f "frmweb" 2>/dev/null | wc -l | tr -d ' ')"
-FRMWEB_PIDS="$( pgrep -d ',' -f "frmweb" 2>/dev/null || printf "(none)")"
-
-# WLS_FORMS JVM process
-WLS_FORMS_PID="$(pgrep -f 'weblogic.Name=WLS_FORMS' 2>/dev/null | head -1)"
-
-printf "  %-26s %s\n" "WLS_FORMS JVM PID:" "${WLS_FORMS_PID:-(not running)}" | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-26s %s\n" "Active frmweb sessions:" "$FRMWEB_COUNT"               | tee -a "${LOG_FILE:-/dev/null}"
-[ "$FRMWEB_COUNT" -gt 0 ] && \
-    printf "  %-26s %s\n" "frmweb PIDs:" "$FRMWEB_PIDS" | tee -a "${LOG_FILE:-/dev/null}"
-
-if [ -z "$WLS_FORMS_PID" ]; then
-    warn "WLS_FORMS JVM not running"
-    info "  Start: ./01-Run/startStop.sh start WLS_FORMS --apply"
-elif [ "$FRMWEB_COUNT" -eq 0 ]; then
-    ok "WLS_FORMS running – no active frmweb sessions"
-else
-    ok "$(printf "WLS_FORMS running – %s active session(s)" "$FRMWEB_COUNT")"
-fi
-
-# =============================================================================
-# 7. Shared Library Dependencies (frmweb)
-# =============================================================================
-
-printLine
-section "Shared Library Dependencies (frmweb)"
-
-FRMWEB_BIN_PATH="${FORMS_HOME:+${FORMS_HOME}/bin/frmweb}"
-
-if [ -z "$FRMWEB_BIN_PATH" ] || [ ! -f "$FRMWEB_BIN_PATH" ]; then
-    # Try to find via running process
-    if [ -n "$WLS_FORMS_PID" ]; then
-        # WLS_FORMS is the JVM – frmweb is a separate native binary spawned on demand
-        info "frmweb binary path: ${FRMWEB_BIN_PATH:-(not found)}"
+if [ -x "$OH/bin/frmweb" ] && command -v ldd > /dev/null 2>&1; then
+    # same library path as the runtime: LD_LIBRARY_PATH of default.env
+    _ldp="$( [ -n "$FRM_ENV" ] && frm_env_get "$FRM_ENV" LD_LIBRARY_PATH)"
+    MISSING="$(LD_LIBRARY_PATH="${_ldp:-$OH/lib}" ldd "$OH/bin/frmweb" 2>/dev/null \
+        | awk '/not found/ {print $1}' | sort -u)"
+    if [ -n "$MISSING" ]; then
+        fail "frmweb: shared libraries not found (LD_LIBRARY_PATH of default.env):"
+        printf '%s\n' "$MISSING" | while IFS= read -r _l; do printf "    %s\n" "$_l" | tee -a "${LOG_FILE:-/dev/null}"; done
+        info "  install the OS package (09-Install/02-root_os_packages.sh) or fix LD_LIBRARY_PATH in default.env"
     else
-        warn "frmweb binary not found – cannot check shared library dependencies"
-        info "  Set ORACLE_FORMS_HOME in environment.conf or use --forms-home"
+        ok "frmweb: all shared libraries resolved (LD_LIBRARY_PATH of default.env)"
     fi
+fi
+
+# =============================================================================
+# 3. FORMS_PATH
+# =============================================================================
+
+printLine
+section "FORMS_PATH (modules)"
+
+FP="$( [ -n "$FRM_ENV" ] && frm_env_get "$FRM_ENV" FORMS_PATH)"
+if [ -z "$FP" ]; then
+    warn "FORMS_PATH not set in default.env – Forms finds modules only by full path (FRM-40010)"
 else
-    ok "frmweb binary: $FRMWEB_BIN_PATH"
-    if command -v ldd > /dev/null 2>&1; then
-        MISSING="$(ldd "$FRMWEB_BIN_PATH" 2>/dev/null \
-            | grep 'not found' | awk '{print $1}' | sort -u)"
-        if [ -n "$MISSING" ]; then
-            fail "Missing shared libraries for frmweb:"
-            printf "%s" "$MISSING" | while IFS= read -r lib; do
-                printf "    \033[31m%s\033[0m\n" "$lib" | tee -a "${LOG_FILE:-/dev/null}"
-            done
-            info "  Install missing libs: sudo dnf install <package>"
+    IFS=':' read -ra _dirs <<< "$FP"
+    for _d in "${_dirs[@]}"; do
+        [ -z "$_d" ] && continue
+        if [ -d "$_d" ]; then
+            _fmx="$(find "$_d" -maxdepth 1 -name '*.fmx' 2>/dev/null | wc -l)"
+            _mmx="$(find "$_d" -maxdepth 1 -name '*.mmx' 2>/dev/null | wc -l)"
+            _plx="$(find "$_d" -maxdepth 1 \( -name '*.plx' -o -name '*.pll' \) 2>/dev/null | wc -l)"
+            printf "  %s\n      fmx %s, mmx %s, plx/pll %s\n" "$_d" "$_fmx" "$_mmx" "$_plx" | tee -a "${LOG_FILE:-/dev/null}"
         else
-            ok "All shared libraries resolved"
+            warn "FORMS_PATH entry does not exist: $_d"
         fi
-        # Show LD_LIBRARY_PATH
-        LD_PATH="${LD_LIBRARY_PATH:-}"
-        [ -n "$LD_PATH" ] && \
-            printf "  %-26s %s\n" "LD_LIBRARY_PATH:" "$LD_PATH" | tee -a "${LOG_FILE:-/dev/null}"
-    else
-        info "ldd not available – shared library check skipped"
+    done
+    if [ -n "${FORMS_CUSTOMER_DIR:-}" ]; then
+        case ":$FP:" in
+            *":$FORMS_CUSTOMER_DIR:"*) ok "FORMS_CUSTOMER_DIR is in FORMS_PATH" ;;
+            *) warn "FORMS_CUSTOMER_DIR ($FORMS_CUSTOMER_DIR) is not in FORMS_PATH" ;;
+        esac
     fi
+fi
+
+# =============================================================================
+# 4. default.env against environment.conf / file system
+# =============================================================================
+
+printLine
+section "default.env – Environment of the frmweb Processes"
+
+if [ -n "$FRM_ENV" ]; then
+    E_OH="$(    frm_env_get "$FRM_ENV" ORACLE_HOME)"
+    E_TNS="$(   frm_env_get "$FRM_ENV" TNS_ADMIN)"
+    E_NLS="$(   frm_env_get "$FRM_ENV" NLS_LANG)"
+    E_TMP="$(   frm_env_get "$FRM_ENV" TMPDIR)"
+    E_PATH="$(  frm_env_get "$FRM_ENV" PATH)"
+    E_TRACE="$( frm_env_get "$FRM_ENV" FORMS_TRACE_DIR)"
+    _show "ORACLE_HOME:"     "${E_OH:-(not set)}"
+    _show "TNS_ADMIN:"       "${E_TNS:-(not set)}"
+    _show "NLS_LANG:"        "${E_NLS:-(not set – client default AMERICAN_AMERICA.US7ASCII)}"
+    _show "TMPDIR:"          "${E_TMP:-(not set – /tmp)}"
+    _show "FORMS_TRACE_DIR:" "${E_TRACE:-(not set – Oracle default below the domain)}"
+
+    [ -n "$E_OH" ] && [ "$E_OH" != "$OH" ] && fail "ORACLE_HOME in default.env ($E_OH) differs from environment.conf ($OH)"
+    if [ -n "$E_TNS" ]; then
+        if [ -f "$E_TNS/tnsnames.ora" ]; then ok "TNS_ADMIN/tnsnames.ora present"
+        else warn "No tnsnames.ora in TNS_ADMIN=$E_TNS (only EZConnect strings work)"; fi
+    fi
+    if [ -n "${FORMS_TMP:-}" ] && [ "$E_TMP" != "$FORMS_TMP" ]; then
+        warn "TMPDIR in default.env (${E_TMP:-unset}) differs from FORMS_TMP in environment.conf ($FORMS_TMP)"
+    fi
+    [ -n "$E_TMP" ] && [ ! -d "$E_TMP" ] && fail "TMPDIR does not exist: $E_TMP"
+    case "$E_NLS" in
+        *.UTF8) info "NLS_LANG character set UTF8 (= old CESU-8) – AL32UTF8 is the full Unicode set; check against the DB" ;;
+    esac
+    IFS=':' read -ra _pdirs <<< "$E_PATH"
+    for _d in "${_pdirs[@]}"; do
+        [ -n "$_d" ] && [ ! -d "$_d" ] && warn "PATH entry in default.env does not exist: $_d"
+    done
+else
+    info "default.env not available"
+fi
+
+# =============================================================================
+# 5. formsweb.cfg sections
+# =============================================================================
+
+printLine
+section "formsweb.cfg – Config Sections"
+
+mapfile -t SECTIONS < <(frm_sections "$FRM_CFG")
+_show "Sections:" "${#SECTIONS[@]}  (URL parameter config=<name>)"
+printf "\n  \033[1m%-23s %-22s %-14s %-8s %s\033[0m\n" "Section" "serverURL" "form" "WebUtil" "prestartRuntimes" | tee -a "${LOG_FILE:-/dev/null}"
+for _s in "${SECTIONS[@]}"; do
+    _url="$( frm_cfg_get "$FRM_CFG" "$_s" serverURL)"
+    _form="$(frm_cfg_get "$FRM_CFG" "$_s" form)"
+    _wu="$(  frm_cfg_get "$FRM_CFG" "$_s" WebUtilArchive)"
+    _pre="$( frm_cfg_get "$FRM_CFG" "$_s" prestartRuntimes)"
+    _prew="$(frm_cfg_where "$FRM_CFG" "$_s" prestartRuntimes)"
+    printf "  %-23s %-22s %-14s %-8s %s\n" "$_s" "${_url:--}" "${_form:--}" \
+        "$( [ -n "$_wu" ] && printf 'yes' || printf '-')" \
+        "$( [ "${_pre,,}" = "true" ] && printf 'true (%s)' "$( [ "$_prew" = "$_s" ] && printf 'own' || printf 'from default')" || printf '-')" \
+        | tee -a "${LOG_FILE:-/dev/null}"
+done
+printf "\n" | tee -a "${LOG_FILE:-/dev/null}"
+info "WebUtil = WebUtilArchive set (effective). A section inherits every key it does not set from [default] – evaluation of the values: forms_perf_settings.sh"
+
+# =============================================================================
+# 6. Runtime overview
+# =============================================================================
+
+printLine
+section "Runtime Overview"
+
+WLS_FORMS_SRV="$(frm_wls_server)"
+WLS_FORMS_PID="$(frm_wls_pid "$WLS_FORMS_SRV")"
+if [ -z "$WLS_FORMS_PID" ]; then
+    warn "$WLS_FORMS_SRV not running"
+    info "  Start: ./01-Run/startStop.sh start $WLS_FORMS_SRV --apply"
+else
+    FRMWEB_N="$(frm_frmweb_list "$WLS_FORMS_PID" | wc -l)"
+    ok "$(printf "%s running (PID %s), %s frmweb process(es)" "$WLS_FORMS_SRV" "$WLS_FORMS_PID" "$FRMWEB_N")"
+    info "  per section, memory, prestart pool vs. sessions: ./06-FormsDiag/forms_perf_analyse.sh"
 fi
 
 # =============================================================================

@@ -27,7 +27,8 @@ Steps performed by `14-oracle_setup_forms.sh`:
    activate only a signed `jacob.jar`
 3. Write `webutil.cfg` (Oracle's file + template overrides) to both locations
 4. Copy `default.env` to the Forms application config dir
-5. Write `formsweb.cfg` (Oracle's file + `[default]` overrides) to the Forms application config dir
+5. Write `formsweb.cfg` (Oracle's file + `[default]` overrides, runtime pooling only in
+   `FORMS_PRESTART_SECTION`) to the Forms application config dir
 6. Copy `Registry.dat` to the registry subdirectory
 7. Copy `fmrweb_utf8.res` and `fmrwebd.res` to the resource directory
 
@@ -71,7 +72,7 @@ of parameters to adapt.
 | Template | Must adapt |
 |---|---|
 | `default.env.template` | `ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, `FORMS_PATH`, `NLS_LANG`, JDK path in `PATH`/`LD_LIBRARY_PATH`/`LD_PRELOAD` |
-| `formsweb.cfg.template` | overrides for `[default]` only (window size, prestart, WebUtil); optional `form=`, `pageTitle=` |
+| `formsweb.cfg.template` | overrides for `[default]` only (window size, WebUtil); optional `form=`, `pageTitle=` – runtime pooling is NOT set here (`FORMS_PRESTART_SECTION`) |
 | `webutil.cfg.template` | `transfer.appsrv.read.N`, `transfer.appsrv.write.N` |
 | `Registry.dat.template` | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
 | `fmrweb_utf8.res.template` | Only if function key assignment differs from the standard layout |
@@ -417,11 +418,41 @@ Key parameters:
 | `envFile=` | Points to `default.env` (relative name, not full path) |
 | `serverURL=` | `/forms/lservlet` (do not change) |
 | `codebase=` | `/forms/java` (do not change) |
-| `prestartInit` / `prestartMin` / `prestartIncrement` | Pre-started JVM tuning |
+| `prestartRuntimes` / `prestartInit` / `prestartMin` / `prestartIncrement` | Runtime pooling = pre-started **Forms runtime (`frmweb`) processes** – only in the section `FORMS_PRESTART_SECTION`, never in `[default]` (see below) |
 | `WebUtilArchive=` | `##WEBUTIL_ARCHIVE##` – set by the script: `frmwebutil.jar`, plus `jacob.jar` when `FORMS_WEBUTIL_JACOB=true` and the jar is signed (Step 1) |
 
 > `formsweb.cfg` is **not** reloaded automatically after changes.
 > Restart WLS_FORMS to pick up changes.
+
+### Runtime pooling (prestart) – one section only
+
+Oracle (*Working with Oracle Forms 14.1.2*, "Setting the prestartRuntimes
+Parameter"): "It is recommended not setting the parameter in the [default]
+section. Doing so will result in processes being started for all other
+configurations unless overridden with a value of FALSE".
+
+> **Fixed 2026-10-19:** the template set `prestartRuntimes=true` +
+> `prestartInit=5` in `[default]` – every one of the 10 Oracle sections
+> inherited it, the test host ran **50 `frmweb` processes without a user**
+> (log: `FRM-93412 There are 5 prestarted runtime processes in the runtime
+> process pool for configuration section [default]` – one line per section).
+
+Now:
+
+| Variable (`environment.conf`) | Default | Effect |
+|---|---|---|
+| `FORMS_PRESTART_SECTION` | empty | section that gets the prestart keys (the one users start, e.g. `webstart`, `standaloneapp` or an own `[myapp]`); empty = no runtime pooling (Oracle default) |
+| `FORMS_PRESTART_INIT` | `5` | `prestartInit` – runtimes started at WLS_FORMS start |
+| `FORMS_PRESTART_MIN` | `4` | `prestartMin` – kept in the pool (Oracle: must be <= Init) |
+| `FORMS_PRESTART_INCREMENT` | `1` | `prestartIncrement` |
+
+The script builds `formsweb.cfg` from Oracle's file (which has no prestart
+keys), so a re-run removes old prestart lines from `[default]` automatically,
+then sets the four keys in `FORMS_PRESTART_SECTION` (`frm_cfg_set` of
+`06-FormsDiag/forms_lib.sh`). A section name that is not in the file → WARN,
+nothing set. On an existing environment without re-installation:
+`06-FormsDiag/forms_perf_settings.sh --apply --fix-prestart <section>`.
+Background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md).
 
 ---
 

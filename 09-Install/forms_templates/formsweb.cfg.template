@@ -29,11 +29,10 @@ separateFrame=true
 splashScreen=no
 CenterOnStartup=true
 
-# ── Pre-started runtimes (faster first connect) ──────────────────────────────
-prestartRuntimes=true
-prestartInit=5
-prestartMin=4
-prestartIncrement=1
+# ── Pre-started runtimes ─────────────────────────────────────────────────────
+# NOT here: Oracle advises against prestartRuntimes in [default] (every section
+# inherits it – 10 sections x prestartInit processes). 14- sets the prestart
+# keys only in FORMS_PRESTART_SECTION (environment.conf, empty = no pooling).
 
 # ── WebUtil ──────────────────────────────────────────────────────────────────
 # WebUtilArchive: set by 14- (frmwebutil.jar, + jacob.jar only when signed)

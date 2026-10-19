@@ -1127,6 +1127,10 @@ if $APPLY; then
         _append_if_missing "WLS_FORMS_SERVER"     "$CONF_WLS_FORMS_SERVER"    "$ENV_CONF"
         _append_if_missing "FORMS_CUSTOMER_DIR"   "$CONF_FORMS_CUSTOMER_DIR"  "$ENV_CONF"
         _append_if_missing "FORMS_TMP"            "$CONF_FORMS_TMP"           "$ENV_CONF"
+        _append_if_missing "FORMS_PRESTART_SECTION" ""                        "$ENV_CONF"
+        _append_if_missing "FORMS_PRESTART_INIT"  "5"                         "$ENV_CONF"
+        _append_if_missing "FORMS_PRESTART_MIN"   "4"                         "$ENV_CONF"
+        _append_if_missing "FORMS_PRESTART_INCREMENT" "1"                     "$ENV_CONF"
         _append_if_missing "FORMS_WEBUTIL_JACOB"  "false"                     "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_KEYSTORE"  ""                          "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_ALIAS"     "forms_codesign"            "$ENV_CONF"
@@ -1270,6 +1274,12 @@ WLS_FORMS_SERVER="${CONF_WLS_FORMS_SERVER}"
 FORMS_CUSTOMER_DIR="${CONF_FORMS_CUSTOMER_DIR}"
 # FORMS_TMP: TMPDIR of the Forms runtime (default.env, not /tmp)
 FORMS_TMP="${CONF_FORMS_TMP}"
+# Forms runtime pooling (formsweb.cfg prestart*) only in this section (e.g.
+# webstart); empty = no pooling. Never [default] (Oracle) – set by 14-
+FORMS_PRESTART_SECTION=""
+FORMS_PRESTART_INIT="5"
+FORMS_PRESTART_MIN="4"
+FORMS_PRESTART_INCREMENT="1"
 # FORMS_WEBUTIL_JACOB: install JACOB for WebUtil OLE / Office automation
 # (CLIENT_OLE2) – downloaded by 04-, installed by 14- (default: false)
 FORMS_WEBUTIL_JACOB="false"

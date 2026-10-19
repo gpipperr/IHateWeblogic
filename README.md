@@ -168,9 +168,9 @@ operation with proactive, AI-assisted error analysis.
 │  PHASE 7 – CHECK FORMS                                              │
 │  (oracle)                                                            │
 │                                                                     │
-│  06-FormsDiag/forms_settings.sh        formsweb.cfg / default.env  │
-│  06-FormsDiag/forms_perf_settings.sh    Forms runtime tuning        │
-│  06-FormsDiag/forms_perf_analyse.sh     Live analysis of sessions   │
+│  06-FormsDiag/forms_settings.sh         configuration consistent?   │
+│  06-FormsDiag/forms_perf_settings.sh    timeouts, limit, prestart   │
+│  06-FormsDiag/forms_perf_analyse.sh     frmweb per section, logs    │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -359,9 +359,10 @@ IHateWeblogic/
 │
 ├── 06-FormsDiag/
 │   ├── README.md
-│   ├── forms_settings.sh            – Forms version, FORMS_PATH, config files, fonts, frmweb sessions
-│   ├── forms_perf_settings.sh       – formsweb.cfg perf params, default.env timeouts, WLS_FORMS JVM heap
-│   └── forms_perf_analyse.sh        – Session memory, HTTP response times, WLS_FORMS log scan
+│   ├── forms_lib.sh                 – Shared Forms helpers (sourced by 06- and 14-): sections with inheritance, frmweb per section
+│   ├── forms_settings.sh            – Files, binaries/ldd, FORMS_PATH, default.env vs environment.conf, config sections
+│   ├── forms_perf_settings.sh       – Timeout chain, maxRuntimeProcesses, prestart (--apply, --fix-prestart)
+│   └── forms_perf_analyse.sh        – frmweb per section (pool vs session), memory, access.log, Forms logs, dumps
 │
 ├── 07-Maintenance/
 │   ├── README.md                    – Backup categories, manifest format, restore workflow,
@@ -661,6 +662,18 @@ work (details of every fix: `git log`).
 
 ### Script gaps found during the rebuild
 
+- [x] **06-FormsDiag review + prestart fix** (2026-10-19): the scripts checked
+  parameters that do not exist in 14.1.2 (`heartbeatInterval` in seconds,
+  `maxEventBunchSize`), sized sessions by the WLS_FORMS heap, looked for
+  binaries in `forms/bin` and parsed `bytes` as response time. Rebuilt on
+  `06-FormsDiag/forms_lib.sh` against Oracle's parameter list. Found: our 14-
+  template set `prestartRuntimes` in `[default]` – 10 sections × 5 = **50 idle
+  `frmweb`** (Oracle advises against it). Now `FORMS_PRESTART_SECTION`
+  (test host: `webstart`, 5 processes), `--fix-prestart` for existing
+  environments. Background: `80-FMW-Architecture/forms_runtime_architecture.md`.
+- [ ] **Forms `maxRuntimeProcesses`** unset (Oracle: DoS risk) – 14- /
+  interview should propose a value from RAM; pool vs. session criterion and
+  RSS of a real session to verify with a Windows client session.
 - [x] **05-ReportsPerformance review** (2026-10-19): both scripts evaluated the
   in-process `rwserver.conf` of `WLS_REPORTS` and the URL engine, found no
   engines (`rwengine`), got HTTP 499 (no `authid`) and scanned `WLS_REPORTS.log`.
