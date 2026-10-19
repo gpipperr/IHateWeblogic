@@ -796,6 +796,11 @@ work (details of every fix: `git log`).
   frontend. Agreed 2026-10-19: everything on disk gets patched (a tool that is
   not running can still be started and exploited) – add the OHS / WebGate
   bundle patches to the patch set from the CPU Oct 2026 cycle on.
+- [ ] **WLS SSL listen ports with the WebLogic demo certificate** (found
+  2026-10-19 by `ssl_check.sh`): `WLS_FORMS` 9501 / `WLS_REPORTS` 9512 enabled by
+  the domain templates with `DemoIdentity` (`CertGenCA`) although TLS ends at
+  Nginx – disable them in `09-Install/08-` (offline WLST), plan in
+  `09-Install/docs/08-oracle_setup_domain.md` "Open: SSL listen ports …".
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (10-Monitoring/README.md) – complements the CVE watch (code) with the
   configuration view (T3/IIOP, debug configs, rwservlet web commands, …).

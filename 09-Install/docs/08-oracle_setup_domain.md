@@ -271,6 +271,27 @@ The domain is not started here: next step is `09-oracle_configure.sh`
   deleted immediately after WLST exits (trap EXIT)
 - Node Manager must be started before managed servers can be started via WLST
 
+### Open: SSL listen ports with the WebLogic demo certificate (TODO)
+
+Found 2026-10-19 (`02-Checks/ssl_check.sh`, test host): the Forms / Reports
+domain templates leave an **SSL listen port enabled** on the managed
+servers – `WLS_FORMS` 9501, `WLS_REPORTS` 9512 – with the **WebLogic demo
+certificate** (`DemoIdentity.p12`, issuer `CertGenCA`, "FOR TESTING ONLY";
+the private key of that CA ships with every WebLogic installation).
+In this architecture TLS ends at Nginx, the servers listen on 127.0.0.1
+behind the firewall – the ports are not needed.
+
+To be added to this step (doc first, then `08-oracle_setup_domain.sh` /
+`response_files/domain_config.py.template`), and to be decided:
+
+- default: disable the SSL listen port per managed server
+  (`cd('/Servers/<ms>/SSL/<ms>'); set('Enabled', 'false')` in the offline
+  WLST) – check that EM / Forms / Reports need nothing on it;
+- alternative, if a WLS SSL port is required: own certificate in a custom
+  identity / trust keystore (`08-SSL/ssl_local_ca.sh`), never the demo one;
+- existing domains: same change online + restart, verify with
+  `02-Checks/ssl_check.sh` (no demo FAIL) and `ss -ltn` (9501 / 9512 gone).
+
 ### WebLogic Admin Password Requirements
 
 WebLogic enforces a password policy during domain creation (error 60455):

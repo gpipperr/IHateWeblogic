@@ -84,7 +84,7 @@ sizing of ulimits / sysctl by expected sessions:
 
 | Section | What is checked |
 |---|---|
-| 1 – OS Version & Kernel | Oracle Linux / RHEL release, kernel, architecture (x86_64), `CV_ASSUME_DISTID` (required on OL9 for OUI), `LANG`/`LC_ALL` (`en_US.UTF-8`), `umask` |
+| 1 – OS Version & Kernel | Oracle Linux / RHEL release, kernel, architecture (x86_64), `CV_ASSUME_DISTID` (required on OL9 for OUI), `LANG`/`LC_ALL` (`en_US.UTF-8`), `umask` 022 (Oracle software owner default; 027 = INFO) |
 | 2 – System Resources | RAM total/available (FMW minimums: OS 8 GB / DEV-QS 16 GB / PRD 64 GB), swap (>= 2 GB recommended), CPU cores + model, free space on `$ORACLE_HOME`, `$DOMAIN_HOME`, `/tmp`, `/var/log` |
 | 3 – ulimits | `nofile`, `nproc`, `stack`, `core` (session) + configured limits in `/etc/security/limits.conf` / `limits.d/` for the oracle user |
 | 4 – Kernel Parameters | `fs.file-max`, `fs.aio-max-nr`, `kernel.sem`, `kernel.shmmni`, `kernel.shmall`, `kernel.shmmax`, `net.core.rmem_*`, `net.core.wmem_*`, `net.ipv4.ip_local_port_range` |
@@ -94,9 +94,10 @@ sizing of ulimits / sysctl by expected sessions:
 
 Exit code 0 = all OK, 1 = warnings, 2 = at least one FAIL.
 
-> **Open (2026-10-19):** the check expects `umask 027`, while
-> `09-Install/03-root_user_oracle.sh` writes `umask 0022` into the oracle
-> `.bash_profile` – one of the two has to be aligned (decision pending).
+> **umask (decided 2026-10-19):** 022 – the Oracle default for the software
+> owner, as written by `09-Install/03-root_user_oracle.sh`. The check used to
+> demand 027 without an Oracle source. Files with passwords are protected
+> explicitly (600 / 640), not via the umask.
 
 ---
 

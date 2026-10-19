@@ -146,15 +146,23 @@ fi
 
 printf "\n"
 
-# umask – Oracle requires umask 027 during FMW installation
+# umask – Oracle software owner: 022 (Oracle install guides, e.g. Database
+# "Configuring the Oracle Software Owner Environment", Oracle Utilities on
+# WebLogic 14.1.2). 09-Install/03-root_user_oracle.sh writes umask 0022 into
+# the oracle .bash_profile. The former "027 required" had no Oracle source
+# (corrected 2026-10-19); sensitive files are protected explicitly (chmod 600/640).
 UMASK_VAL="$(umask 2>/dev/null)"
 printList "umask" 30 "$UMASK_VAL"
-if [ "$UMASK_VAL" = "0027" ] || [ "$UMASK_VAL" = "027" ]; then
-    ok "umask 027 – meets Oracle FMW requirement"
-else
-    warn "umask ${UMASK_VAL} – Oracle FMW installation requires umask 027"
-    info "  Add to oracle user .bash_profile: umask 027"
-fi
+case "$UMASK_VAL" in
+    0022|022)
+        ok "umask 022 – Oracle software owner default" ;;
+    0027|027)
+        info "umask 027 – stricter than the Oracle default 022; fine for operation, but"
+        info "  installer/OPatch runs and files read by other OS users (e.g. Nginx) may need 022" ;;
+    *)
+        warn "umask ${UMASK_VAL} – expected 022 for the Oracle software owner"
+        info "  oracle .bash_profile: umask 022  (09-Install/03-root_user_oracle.sh)" ;;
+esac
 
 # =============================================================================
 # Section 2: System Resources – RAM, CPU, Disk, Swap

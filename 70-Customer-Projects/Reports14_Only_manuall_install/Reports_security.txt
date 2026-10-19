@@ -581,9 +581,11 @@ SCHRITT 9: Dateien mit Kennwoertern schuetzen  (als oracle)
   #   Erwartet: Rechte -rw------- und je 2 Treffer ({AES}-verschluesselt;
   #   Klartext steht nur bis zum ersten Start darin)
 
-  # 9.3 Neue Dateien nicht fuer alle lesbar anlegen - in ~/.bash_profile
-  #     von oracle:
-  #       umask 027
+  # 9.3 umask NICHT verschaerfen - Oracle verlangt fuer den Software-Owner
+  #     umask 022 (Installation, OPatch, Konfigurationsassistent). Dateien
+  #     mit Kennwoertern stattdessen gezielt schuetzen:
+  #       chmod 600 $DOMAIN_HOME/servers/*/security/boot.properties
+  #       chmod 600 <Datei mit Kennwort>      (z.B. cgicmd.dat, Wallets)
 
   # 9.4 Kennwoerter aus der Shell-History entfernen
   history | grep -iE "passw|kennw|authid=|/.*@" | head
@@ -718,7 +720,7 @@ ABSCHLUSS-CHECKLISTE
   [ ] <folderAccess><read> nur benoetigte Verzeichnisse, ";"     (SCHRITT 7)
   [ ] webcommandaccess L1; singlesignon nach Test                (SCHRITT 8)
   [ ] boot.properties 600 und {AES}; cgicmd.dat 640              (SCHRITT 9)
-  [ ] History ohne Kennwoerter, umask 027                        (SCHRITT 9)
+  [ ] History ohne Kennwoerter, Kennwortdateien 600 (umask 022) (SCHRITT 9)
   [ ] Node Manager nur localhost, Authentifizierung an           (SCHRITT 10)
   [ ] sudo von oracle auf das Noetigste reduziert, kein wheel    (SCHRITT 11)
   [ ] Patchstand dokumentiert                                    (SCHRITT 12)
