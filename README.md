@@ -19,35 +19,25 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[██████████████████░░]` ~90 % complete** – phases 1–7 are implemented and the
-whole install chain is live-tested end-to-end incl. the smoke test; the
-analyse + fix folders `02-`…`06-` were reviewed against the Oracle 14.1.2
-documentation and re-tested live on 2026-10-19; phase 8 is nearly done,
-phase 9 has its first script (`cve_inventory.sh`), host hardening (firewall,
-sshd) is live on the test host.
+**`[██████████████████░░]` ~90 % complete** (state 2026-10-20) – phases 1–7
+are implemented and the whole install chain is live-tested end-to-end incl.
+the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
+reviewed against the Oracle 14.1.2 documentation and re-tested live
+(2026-10-19/20); phase 8 is nearly done, phase 9 has its first script
+(`cve_inventory.sh`); host hardening (firewall, sshd) is live on the test host.
 
-How the ~90 % is estimated (state 2026-10-19 evening): phases 1–7 count as done
-(7 × ~11 %, no stubs left: `rwrun_trace.sh` implemented, `display_check.sh`
-dropped, `rwserver_status.sh` with `authid`; 02–06 reviewed, shared libraries
-instead of copies, wrong checks removed – see the 2026-10-19 note below),
-phase 8 about nine tenths
-(backup/restore, WLS/Forms/Reports patching, RCU repository theory, profile
-`RCU_USER`, pre-checks and `rcu_repository_check.sh` incl. Data Pump backup
-done; JDK upgrade automation missing), phase 9 about a quarter (CVE watch
-step 1 `cve_inventory.sh` with patch-cycle, JDK, exposure and advisory
-checks; `cve_watch.sh`, notification and the config security scanner are
-concept); security: local CA + signed `jacob.jar` (2026-10-17), firewall +
-sshd hardening (2026-10-19); minus the open items (EM user search,
-web-command tests, JACOB / Forms client test, Reports engines on the bundled
-JDK, OHS / WebGate patches from the CPU Oct 2026 cycle, Forms
-`maxRuntimeProcesses`).
+How the ~90 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
+about nine tenths (JDK upgrade automation missing), phase 9 about a quarter
+(CVE watch step 1 done; `cve_watch.sh`, notification, config security
+scanner are concept); minus the [open items](#open-items--todo) – mainly
+client-side tests, the CPU Oct 2026 cycle and a few security hardening steps.
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
 | 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF) |
 | 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
-| 4 | Set Up SSL | ✅ Done |
+| 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
 | 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs) – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
@@ -57,39 +47,14 @@ JDK, OHS / WebGate patches from the CPU Oct 2026 cycle, Forms
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
 > **Work in Progress** – This library is under active development.
-> Not all scripts are fully implemented yet.
-> **Live-tested 2026-10-14/15:** a clean script-by-script rebuild on Oracle
-> Linux 9 (FMW 14.1.2, CSPU Sep 2026 patch level, local 19c repository DB) ran
-> the whole `09-Install/` chain end-to-end – Phase 0 through `14b-` plus the
-> autostart `30-` (domain running under systemd + Node Manager, Reports engines
-> idle, Forms servlet up). The bugs found on the way are fixed and committed;
-> what is still open is listed under [Open Items / TODO](#open-items--todo).
-> **2026-10-16:** secured standalone Reports server (WebLogic users/roles via
-> the embedded LDAP, JVM fixes for the slow first request), all passwords
-> from the interview in `*.des3` files, Forms/Reports directory layout under
-> `$ORACLE_BASE`, `formsweb.cfg` keeps Oracle's 14.1.2 sections (Java Web
-> Start / FSAL), smoke test `15-` verified end-to-end, `startStop.sh` starts
-> through the Node Manager.
-> **2026-10-17:** RCU repository analysed ([`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)):
-> regular patches leave the schemas untouched; schema profile `RCU_USER`
-> against the 180-day password expiry of `DEFAULT`; explicit RCU database type
-> `RCU_DB_TYPE=EBR`; pre-check `db_securefile=FORCE` (ORA-43853 on the first
-> RCU run); prefix overview of the schema version registry.
-> **2026-10-19:** CVE inventory (`10-Monitoring/cve_inventory.sh`), host
-> firewall + sshd hardening; review of the analyse + fix folders against the
-> Oracle docs and the live test host: `02-Checks` (false findings fixed, "why"
-> links), `03-Logs` (log discovery, setLogLevel persist bug), `04-ReportsFonts`
-> (two font paths, AFM/PPD for substitute fonts), `05-ReportsPerformance` and
-> `06-FormsDiag` rebuilt on shared libraries (both had evaluated the wrong
-> files / non-existent parameters), prestart fix in `14-`; folder roles
-> written down ([Folder Roles](#folder-roles)); new background docs
-> [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md)
-> (incl. the Forms protocol history 1979–2024) and the `rwrun` section of
-> [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md).
-> `07-Maintenance` reviewed the same evening (backup completeness, restore
-> per category, patch gate sees every process from `$ORACLE_HOME`).
-> `01-Run` reviewed as well (README sections/WLST examples/dead Oracle links
-> fixed, AdminServer port) – all analyse + fix folders 01–07 are reviewed.
+> **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CSPU Sep 2026, local 19c
+> repository DB): clean script-by-script rebuild of the whole `09-Install/`
+> chain incl. autostart and smoke test (2026-10-14/16), secured standalone
+> Reports server (2026-10-16), RCU repository analysis (2026-10-17), review of
+> all analyse + fix folders and `08-SSL` against the Oracle docs (2026-10-19/20,
+> [Folder Roles](#folder-roles), background in
+> [`80-FMW-Architecture/`](80-FMW-Architecture/README.md)). Details of every
+> fix: `git log`; what is still open: [Open Items / TODO](#open-items--todo).
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 
@@ -257,6 +222,7 @@ Rules across the folders:
 |---|---|
 | Phase 8 (Patches) | JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
+| Security | WLS demo SSL ports, `frmweb`/`rwserver` loopback binding, Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
 
@@ -637,278 +603,103 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Status 2026-10-19 after the clean rebuild 2026-10-14/15, the follow-up
-work and the review of `02-`…`06-` (details of every fix: `git log`).
+Only what is still open (state 2026-10-20). Everything finished is described
+in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
+summarised in each README ("Review 2026-10-19").
 
-### Not yet live-tested (built, waiting for a fresh install / full restart)
+### Next: patch cycle CPU October 2026 (due 2026-10-20, third Tuesday)
 
-- [ ] `01-setup-interview.sh` interactively (new questions `REPORTS_SECURITY`,
+- [ ] New patch set in `09-Install/oracle_software_version.conf` +
+  [`00-patch-references.md`](09-Install/docs/00-patch-references.md),
+  download, `07-Maintenance/81-`/`82-`, smoke test `15-`.
+- [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
+  Oracle Home although Nginx is the frontend (agreed: everything on disk
+  gets patched).
+- [ ] JDK update of `JDK_HOME`; the **Reports engines run on the FMW-bundled
+  JDK** (`oracle_common/jdk` 17.0.12 via Oracle's `reports.sh`) – find the
+  supported way to update it.
+- [ ] Confirm the CVE coverage of the patches in MOS KA1182
+  (CVE-2026-83021 / 83099 / 83020 of CSPU Sep 2026).
+- [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
+
+### Tests that need a client or a fresh install
+
+- [ ] **Windows client**: Java Web Start / FSAL start of the test form,
+  root import (`ca.cer`), signed vs. unsigned `jacob.jar`, revocation check
+  of Java Web Start with a CA without CRL/OCSP, real OLE call (Excel);
+  Forms **pool vs. session** criterion and RSS of a real session
+  (`06-FormsDiag/forms_perf_analyse.sh`).
+- [ ] `01-setup-interview.sh` interactively (questions `REPORTS_SECURITY`,
   embedded LDAP password, Reports server admin, `FORMS_TMP`).
 - [ ] `13-` path that sets the embedded LDAP `cn=Admin` password in a fresh
   domain (bind fails → `setCredential` → AdminServer restart → re-run).
 - [ ] `startStop.sh start-all` / `stop-all` through `fmw_ctl.sh`, and the
   "Node Manager running without autostart" path.
-- [ ] Start of the test form on a client with Java Web Start / FSAL (server
-  side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX).
 - [ ] `09-Install/07-` on a fresh database: `-databaseType EBR` with
   `-createRepository`, profile assignment right after RCU, FAIL path of the
-  `db_securefile=FORCE` pre-check (no registry yet). Tested so far: `--profile`,
-  pre-flight with `-listSchemas -databaseType EBR`, `FORCE` + existing registry.
+  `db_securefile=FORCE` pre-check.
+- [ ] Full Reports-only domain creation (`INSTALL_COMPONENTS=REPORTS_ONLY`,
+  so far verified with WLST offline only).
+- [ ] `08-SSL` modes `EASYRSA` and `REQUEST` end-to-end.
+- [ ] HTML parameter form with `AL32UTF8` umlauts
+  ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
 
-### Test host follow-ups
+### Security hardening
 
-- [x] **Reboot test of the autostart** (`30-configure_autostart.sh`) – passed
-  2026-10-15: after the reboot the listener and the repository DB came up first
-  (08:43:12–08:43:25), then `fmw-<domain>.service`; `fmw_ctl.sh status` showed
-  AdminServer, WLS_FORMS, WLS_REPORTS and the Reports server RUNNING.
-- [x] **Smoke test `09-Install/15-deploy-test-report-forms_template.sh`**
-  (2026-10-16): verified end-to-end on the rebuilt domain – Forms XML → FMB →
-  FMX, Reports XML → RDF → `rwservlet` → PDF, no X display. Fixes: instance
-  wrappers, `FORMS_API_TK_BYPASS=TRUE`, TNS alias (Forms tools split `userid`
-  at `/`), schema-conform `test_form.xml`, DB credentials in
-  `test_db_sec.conf.des3`. See `09-Install/docs/20-forms_reports_testmodules.md`.
-- [ ] **Customer cookbook check**: does the graphical Configuration Wizard also
-  create random Node Manager credentials (it does not show the Node Manager
-  screen unless "Node Manager" is ticked under Advanced Configuration)? If yes,
+- [ ] **WLS SSL listen ports with the demo certificate** (`WLS_FORMS` 9501,
+  `WLS_REPORTS` 9512, bound to 127.0.0.1) – disable in `09-Install/08-`
+  (plan in `09-Install/docs/08-oracle_setup_domain.md`).
+- [ ] **Loopback binding** of the `frmweb` / `rwserver` sockets – every
+  `frmweb` listens on an ephemeral port on all interfaces
+  ([forms_runtime_architecture.md §1](80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts));
+  the firewall keeps them closed today.
+- [ ] **Forms `maxRuntimeProcesses`** unset (Oracle: DoS risk) – 14- /
+  interview should propose a value from RAM.
+- [ ] **Reports web commands / `<identifier>` / `webcommandaccess`** – tests
+  A–D and target design in
+  [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md),
+  then align `13-`, doc 13, both cookbooks, `rwserver_status.sh`.
+- [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
+  Reports server; SR draft local (`SR/`). Workaround: "Advanced Option" /
+  WLST `grantAppRole`
+  ([em_principal_search_libovd.md](80-FMW-Architecture/em_principal_search_libovd.md)).
+- [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
+  (T3/IIOP, debug configs, web commands, demo certificates …) –
+  [10-Monitoring/README.md](10-Monitoring/README.md).
+
+### Scripts
+
+- [ ] **JDK upgrade automation** – `07-Maintenance/80-` is read-only.
+- [ ] **13- `rwserver.conf`: `engLife` / `maxIdle` / engine `jvmOptions`**
+  not taken from `environment.conf` – values tuned with
+  `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
+  `13- --apply` (proposal `REPORTS_ENGINE_LIFE`, `REPORTS_ENGINE_JVM_OPTIONS`;
+  evaluate a default `engineResponseTimeOut`).
+- [ ] **Font check in the smoke test `15-`**: a font test report (Arial,
+  Helvetica, Times New Roman, Courier New, Tahoma, Liberation, DejaVu)
+  checked with `04-ReportsFonts/pdf_font_verify.sh`.
+- [ ] `07-Maintenance/ConfigBackup/` retention (`--keep N`); collect the
+  `*.bak_<ts>` copies our scripts leave next to Oracle files.
+- [ ] `time-taken` in the WLS_FORMS access log (response times for
+  `06-FormsDiag/forms_perf_analyse.sh`).
+
+### Monitoring (phase 9)
+
+- [ ] `10-Monitoring/cve_watch.sh` (risk matrix parser, fixture test),
+  notification, Claude analysis, uniform machine-readable output of the
+  01–07 scripts – [10-Monitoring/README.md](10-Monitoring/README.md).
+- [ ] Scheduled certificate expiry check (`08-SSL/ssl_local_ca.sh status`,
+  `ssl_config.sh --expiry` – exit codes are cron-ready).
+
+### Customer feedback / watch
+
+- [ ] **Customer cookbook check**: does the graphical Configuration Wizard
+  also create random Node Manager credentials? If yes,
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
   fix as `11-oracle_nodemanager.sh`.
-
-### Reports servlet security – own topic (analyse in detail later)
-
-- [x] **Secured standalone Reports server** (2026-10-16): `securityId` +
-  JSE identity store (`jps-config-jse.xml`) = WebLogic embedded LDAP –
-  `monUser`/`RW_MONITOR` and `RepRunner`/`RW_EXECREPORTS` work; JVM fixes
-  (process reaper, ORB connect timeout) for the slow first request;
-  `cgicmd.dat` key `%* authid=`. `13-` (`REPORTS_SECURITY=ldap`), `14b`,
-  docs 13/14b/81, Reports cookbook 9.7b/9.9b, `Reports_security.txt` 7b.
-  Background: [`80-FMW-Architecture/reports_user_local_ldap.md`](80-FMW-Architecture/reports_user_local_ldap.md).
-- [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
-  Reports server; still empty with the LDAP identity store; SR draft local
-  (`SR/`). Workaround: "Advanced Option" / WLST `grantAppRole`.
-- [x] **`rwserver.conf` `<identifier>`** (2026-10-16) – user/password from
-  `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`, else
-  generated randomly by `13- --apply`); no fixed password in the repo.
-
-- [ ] **Web commands / `<identifier>` / `webcommandaccess`** – analysis and plan in
-  [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md):
-  with `no`/`L0`/`L1` and a server without `securityId` on `<job>`, `getserverinfo`
-  only accepts the server administrator from `<identifier>` (`monUser`, WebLogic
-  admin → `REP-52262`); `L0` is not "open" as the cookbook claims; a customer who
-  copied the cookbook from 9.7 on got an empty `<identifier>`. Open: behaviour
-  without/with empty `<identifier>`, `L2`, secured server via `securityId`
-  (tests A–D in the doc), then decide the target design (open first test →
-  separate hardening step) and align `13-`, doc 13, both cookbooks and
-  `rwserver_status.sh`. The two related items below are part of this topic.
-
-### Script gaps found during the rebuild
-
-- [x] **07-Maintenance review** (2026-10-19): `backup_config.sh` missed
-  `webutil.cfg`, `Registry.dat`, `jps-config*.xml`, `config.xml`,
-  `nodemanager.properties`, `logging.xml`, `rwbuilder.conf`, screen-printer
-  PPD/AFM – added; backups now 700/600. `restore_config.sh`: `--category`,
-  only destinations below the known homes, `domain`/`security` refused while
-  the domain runs, restart hints via `startStop.sh`. `check_wls_stopped`
-  (patch gate of `81-`/`82-`) now also reports every process running a binary
-  from `$ORACLE_HOME` (Reports server, engines, `frmweb`). Open: retention,
-  `*.bak_<ts>` copies next to Oracle files.
-- [x] **06-FormsDiag review + prestart fix** (2026-10-19): the scripts checked
-  parameters that do not exist in 14.1.2 (`heartbeatInterval` in seconds,
-  `maxEventBunchSize`), sized sessions by the WLS_FORMS heap, looked for
-  binaries in `forms/bin` and parsed `bytes` as response time. Rebuilt on
-  `06-FormsDiag/forms_lib.sh` against Oracle's parameter list. Found: our 14-
-  template set `prestartRuntimes` in `[default]` – 10 sections × 5 = **50 idle
-  `frmweb`** (Oracle advises against it). Now `FORMS_PRESTART_SECTION`
-  (test host: `webstart`, 5 processes), `--fix-prestart` for existing
-  environments. Background: `80-FMW-Architecture/forms_runtime_architecture.md`.
-- [ ] **Forms `maxRuntimeProcesses`** unset (Oracle: DoS risk) – 14- /
-  interview should propose a value from RAM; pool vs. session criterion and
-  RSS of a real session to verify with a Windows client session.
-- [x] **05-ReportsPerformance review** (2026-10-19): both scripts evaluated the
-  in-process `rwserver.conf` of `WLS_REPORTS` and the URL engine, found no
-  engines (`rwengine`), got HTTP 499 (no `authid`) and scanned `WLS_REPORTS.log`.
-  Rebuilt on the new shared `01-Run/reports_server_lib.sh` (also used by
-  `rwserver_status.sh`); `--apply` changes only the report engine and keeps
-  `REPORTS_ENGINE_*` in `environment.conf` in line. Live-tested read-only and
-  `--apply` on a copy.
-- [ ] **13- rwserver.conf: engLife / maxIdle / engine jvmOptions** not taken
-  from `environment.conf` (engLife fixed 50) – values tuned with
-  `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
-  `13- --apply`. Proposal `REPORTS_ENGINE_LIFE`, `REPORTS_ENGINE_JVM_OPTIONS`
-  (doc 13 first); evaluate a default `engineResponseTimeOut`.
-- [x] **JDK path resolved in the domain** (2026-10-15): WLST
-  `createDomain`/`updateDomain` write the resolved JDK directory
-  (`jdk-21.0.12.1`) instead of the symlink (`jdk-21`) – not only into
-  `setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, but also the
-  Forms instance scripts and `init-info/*`; the installer into
-  `$ORACLE_HOME/oui/`. New `07-Maintenance/domain_jdk_path.sh` (read-only /
-  `--apply` with backup), called by `08-`; hint in `02b- --upgrade-jdk` and
-  `80-`. Live: 22 files, after the restart all JVMs run from `jdk-21/bin/java`.
-- [x] **`01-Run/startStop.sh` Reports system components** (2026-10-15): type
-  `REPORTS` from config.xml (`ReportsServerComponent`), start/stop via WLST
-  `nmConnect` + `nmStart`/`nmKill` (no password prompt), order
-  … Managed → Reports → OHS / OHS → Reports → Managed …; status via
-  `rwserver server=<name>`. Live: single stop/start, stop-all, start-all.
-  Also fixed: the status after an action used the `ss` snapshot from the
-  script start ("RUNNING port" for stopped servers).
-- [x] **`startStop.sh` vs. systemd autostart** (2026-10-16): with the
-  autostart configured, start/stop of AdminServer, managed servers, Reports
-  servers and `start-all`/`stop-all` go through `fmw_ctl.sh` (Node Manager);
-  NM running without autostart: `nmStart` / `start()` via the AdminServer.
-  New status column `Ctrl` (`NM`/`script`) + warning for servers running
-  past the NM; those are shut down via the AdminServer first. Live:
-  WLS_FORMS `script` → stop → start → `NM`, repserver01 stop/start via
-  `fmw_ctl.sh`. Not live-tested: the "NM without autostart" path.
-- [x] **`rwserver.conf` server administrator** (2026-10-16): see
-  `<identifier>` above – `reports_admin_sec.conf.des3`.
-- [x] **Reports server security decision** (2026-10-16): `REPORTS_SECURITY`
-  in `environment.conf`, asked by `01-setup-interview.sh` – `ldap` (default:
-  `securityId` + LDAP identity store, `cn=Admin` password →
-  `embedded_ldap_sec.conf.des3`, set in the domain by `13-`) or `identifier`
-  (not secured, web commands only for the `<identifier>` admin).
-- [x] **Reports-only installs in `08-oracle_setup_domain.sh`** (2026-10-15):
-  templates and managed servers follow `INSTALL_COMPONENTS` (REPORTS_ONLY: no
-  `forms_template.jar` / `WLS_FORMS` / `forms1`; FORMS_ONLY: no Reports
-  templates / `WLS_REPORTS`); `14-` skips itself with REPORTS_ONLY. Verified
-  with WLST offline (templates + server list, no `writeDomain`); a full
-  Reports-only domain creation is still untested.
-- [x] **Forms WebUtil (jacob) – download + install** (2026-10-15): switch
-  `FORMS_WEBUTIL_JACOB=true|false` (default false); `04-` downloads JACOB 1.21
-  from GitHub (SHA-256), `14-` installs jar + DLLs (size check). Also fixed:
-  `webutil.cfg` is now Oracle's file + template overrides – the template had
-  dropped all `install.syslib.*` entries. Background:
-  `80-FMW-Architecture/forms_jakob_webutil.md`.
-- [x] **Forms WebUtil (jacob) – signing** (2026-10-17): own root CA
-  `08-SSL/ssl_local_ca.sh` (one root for the Nginx TLS certificate and the
-  code-signing certificate, clients import only the root); `14-` signs
-  `jacob.jar` with `FORMS_SIGN_KEYSTORE` (PKCS12 from the own CA, a company CA
-  or a public CA; password `forms_sign_sec.conf.des3`, optional TSA), adds the
-  manifest security attributes, verifies, activates. `ssl_prepare_cert.sh
-  LOCALCA`; patch cycle in `07-Maintenance/README.md` re-runs `14-`.
-  Live-tested on the test host incl. Nginx deployment.
-- [ ] **Forms WebUtil (jacob) – Windows client test**: import the root
-  (`ca.cer`), FSAL with unsigned vs. signed `jacob.jar`, Java Web Start with
-  the signed jar (revocation check with a CA without CRL / OCSP?), real OLE
-  call (Excel).
-
-### Findings from the customer installation (2026-10-15)
-
-- [x] **A1 – Firewall: UDP port for the Reports multicast discovery.** With
-  firewalld active the Reports server receives no multicast packet and stops with
-  `REP-50600 Broadcasting is disabled` (Node Manager restart loop).
-  `01-root_os_baseline.sh` now checks/opens `REPORTS_BROADCAST_PORT`/udp
-  (default 14027), `13-oracle_setup_reports.sh` checks it again; docs 00/13,
-  OS + Reports cookbook (known problem REP-50600 incl. `tcpdump` diagnosis).
-  Which of the changes fixed it at the customer is not confirmed yet.
-- [x] **A2 – IPv6 per network interface.** `all`/`default` = 1 is not enough:
-  an existing interface keeps its own value and NetworkManager re-enables IPv6
-  (customer: `ens33=0` with `fe80::`, JVMs bound via `[::ffff:127.0.0.1]`).
-  `00-root_os_network.sh` reports every interface + NM `ipv6.method`,
-  `01-root_os_baseline.sh --apply` sets it at runtime and via
-  `nmcli … ipv6.method disabled`; docs 00, OS cookbook.
-- [x] **A3 – Multicast pre-check before the first Reports server start** –
-  `13-oracle_setup_reports.sh`: route to `228.5.6.7` (not `lo`), `MULTICAST`
-  flag, self-test (send + receive one datagram on the broadcast port, like the
-  Reports server does → FAIL instead of a later REP-50600; skipped while a
-  Reports server runs – it would log REP-50125), 10 s passive listen for foreign
-  senders (hint only – Reports servers send only while starting, ~7 packets,
-  confirmed 2026-10-15). Full uniqueness of the port in the subnet still cannot
-  be proven.
-- [x] **A4 – `13-root_reports_fix.sh`**: missing `libnsl.so.3` → hint that
-  `libnsl2` is AppStream-only, whether AppStream is enabled, offline RPM variant.
-- [x] **A5 – `11-oracle_nodemanager.sh`**: tests `nmConnect` with the admin
-  credentials at the end (host/port/type from `nodemanager.properties`);
-  after a credential change in the same run `--apply` offers a Node Manager
-  restart and repeats the test (customer: `connect()` worked, `nmConnect()`
-  did not). Tested on the test host: OK path and wrong-password path.
-- [x] **A6 – way B in `docs/80-oracle_security.md` 5.2** (clear text in
-  `nm_password.properties`) live-tested 2026-10-15: NM hashes it at the next
-  start, `nmConnect` OK, running servers unaffected.
-- [x] **C5 – `00-Setup/init_env.sh`**: DB detection from `jps-config.xml`
-  returned empty `DB_HOST`/`DB_SERVICE` – it only parsed a lower-case TNS
-  descriptor, but the domain stores EZConnect (`@//host:port/service`). Now
-  both forms, case-insensitive (2026-10-15); doc 00-environment-setup.
-- [x] **D2 – test host**: `~oracle/oracle-WebLogicConfig.properties` +
-  `oracle-WebLogicKey.properties` (from a `storeUserConfig()` test) were WLST's
-  default credentials and silently hid missing `boot.properties` / wrong NM
-  passwords in tests – removed 2026-10-15 (nothing in the library depends on
-  them; the autostart uses its own key files, `fmw_ctl.sh status` OK
-  afterwards). Manual `startComponent.sh` on the test host now asks for the NM
-  password again unless `storeUserConfig` is used.
-
-### Older open items
-
-- [x] **rwservlet authentication** (`01-Run/rwserver_status.sh`, 2026-10-17):
-  `--auth auto|mon|admin|none` – `monUser` (`reports_users.conf.des3`) with
-  `REPORTS_SECURITY=ldap`, else the `<identifier>` admin
-  (`reports_admin_sec.conf.des3`); password via curl config on stdin. Also
-  fixed: engine values were read from the URL engine, engine count looked
-  for `rwengine` processes (14.1.2: Java children of `rwserver`), the
-  standalone server's own `rwserver.conf` is used.
-
-- [x] **`02-Checks/display_check.sh`** – dropped 2026-10-17: the Forms tools
-  (`FORMS_API_TK_BYPASS=TRUE`) and the Reports tools (`REPORTS_DEFAULT_DISPLAY=YES`,
-  instance wrappers) need no X display (smoke test 2026-10-16).
-
-- [x] **`01-Run/rwrun_trace.sh`** (2026-10-17): one report with `rwrun.sh` of
-  the ReportsTools instance + `TRACEOPTS`, optional ODL `TRACE:32` (logging.xml
-  restored), `userid` via cmdfile; result directory with output, trace, ODL
-  excerpt, new ADR incidents.
-
-- [x] **Repository schema patching** (2026-10-17) – theory
-  ([`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)):
-  regular patches (SPB/CSPU/one-offs, also September 2026) do **not** touch the
-  RCU schemas; only a version upgrade uses the Upgrade Assistant.
-  `07-Maintenance/rcu_repository_check.sh`: read-only check of registry,
-  accounts (profile/expiry), data sources (login), service table; `--apply` =
-  Data Pump export of the schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$`.
-- [x] **Password expiry of the RCU schemas** (2026-10-17): profile `DEFAULT`
-  (19c: 180 days) → own profile `RCU_USER` (no expiry, no lock):
-  `60-RCU-DB-19c/07b-db_rcu_profile.sh`, `09-Install/07-` assigns it after RCU
-  (`--profile` for existing repositories), Reports cookbook step 3. Applied on
-  the test host.
-- [x] **RCU database type explicit** (2026-10-17): silent RCU without
-  `-databaseType` created EBR schemas, the GUI may preselect "Oracle Database"
-  → `RCU_DB_TYPE` (default `EBR`) in `environment.conf`/interview, always passed
-  by `09-Install/07-`; prefix overview shows EBR per prefix; `db_securefile=FORCE`
-  pre-check (ORA-43853 on the first RCU run). See the RCU architecture doc §4.2/4.3.
-
-- [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a Reports
-  QPR on OL9, `libzrc.so` vs. glibc 2.34): no fix patch yet – the workaround in
-  `06-oracle_patch_forms_reports.sh` stays until Oracle ships one.
-
-- [ ] **`10-Monitoring/`** – `cve_inventory.sh` implemented (2026-10-19); `cve_watch.sh`,
-  notification and Claude analysis still concept.
-  Concept extended 2026-10-18: monthly **CVE watch** (installed components +
-  both JDKs + OS errata vs. Oracle CPU/CSPU advisories and CISA KEV, Claude
-  assesses exposure and drafts the patch-cycle update – read-only).
-  Step 1 implemented 2026-10-19: `10-Monitoring/cve_inventory.sh` (components,
-  patch cycle vs. installed, both JDKs, OS errata, `--online` advisories).
-- [ ] **OHS / WebGate binaries in the Oracle Home** (found by `cve_inventory.sh`,
-  2026-10-19): the Forms & Reports installer installs them although Nginx is the
-  frontend. Agreed 2026-10-19: everything on disk gets patched (a tool that is
-  not running can still be started and exploited) – add the OHS / WebGate
-  bundle patches to the patch set from the CPU Oct 2026 cycle on.
-- [ ] **WLS SSL listen ports with the WebLogic demo certificate** (found
-  2026-10-19 by `ssl_check.sh`): `WLS_FORMS` 9501 / `WLS_REPORTS` 9512 enabled by
-  the domain templates with `DemoIdentity` (`CertGenCA`) although TLS ends at
-  Nginx – disable them in `09-Install/08-` (offline WLST), plan in
-  `09-Install/docs/08-oracle_setup_domain.md` "Open: SSL listen ports …".
-- [ ] **Font check in the smoke test `15-`** (2026-10-19): the `test_dual` PDF of
-  `15-` "passed" while its (substituted) default font was Type 1 `Symbol` (missing
-  AFM/PPD step, now in `14b-`). Add a font test report (Arial, Helvetica, Times New Roman,
-  Courier New, Tahoma, Liberation, DejaVu – prototype tested live 2026-10-19) and
-  check it with `04-ReportsFonts/pdf_font_verify.sh`.
-- [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
-  (10-Monitoring/README.md) – complements the CVE watch (code) with the
-  configuration view (T3/IIOP, debug configs, rwservlet web commands, …).
-- [ ] **Reports engines run on the old FMW-bundled JDK** (`oracle_common/jdk`
-  17.0.12 from 2024, via Oracle's `reports.sh` PATH) – not reached by `JDK_HOME`
-  updates; find the supported way (update bundled JDK / point to `JDK_HOME`).
-- [x] **Host firewall + sshd hardening** (2026-10-19): `01-root_os_baseline.sh`
-  sections 8/9 – safe firewalld activation (rollback timer, ssh pre-check),
-  `--only firewall,ssh`, sshd drop-ins (`AllowUsers`, no root, no X11,
-  `SSH_PASSWORD_USERS`). Live on the test host (cockpit removed). Open:
-  loopback binding of `frmweb` / `rwserver` sockets (defence in depth),
-  OS cookbook step 9 (firewall + sshd, German) added the same day.
-  See [10-Monitoring/README.md](10-Monitoring/README.md) for the planned Claude-assisted
-  proactive monitoring design.
+- [ ] Customer installation 2026-10-15: which of the changes (firewall
+  `14027/udp`, IPv6 per interface, multicast pre-check) fixed `REP-50600`
+  there is not confirmed yet.
+- [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a
+  Reports QPR on OL9, `libzrc.so` vs. glibc 2.34): workaround in
+  `06-oracle_patch_forms_reports.sh` stays until Oracle ships a fix.

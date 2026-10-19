@@ -7,7 +7,7 @@
 #            – Nginx SSL configuration (cert deployed, protocols, ciphers)
 #            – Live TLS handshake test (if port 443 is listening)
 #            – TLS protocol compliance (TLS 1.0/1.1 must be rejected)
-#            – WebLogic Frontend Host setting (config.xml)
+#            – WebLogic redirects behind Nginx (Frontend Host or weblogic-plugin-enabled)
 #
 # Call     : ./08-SSL/ssl_config.sh
 #            ./08-SSL/ssl_config.sh --expiry
@@ -350,10 +350,19 @@ elif [ ! -f "$_config_xml" ]; then
     info "  Domain not yet created or DOMAIN_HOME incorrect"
 else
     _frontend_hosts="$(grep -oP '(?<=<frontend-host>)[^<]+' "$_config_xml" 2>/dev/null)"
-    if [ -z "$_frontend_hosts" ]; then
-        warn "Frontend Host not configured in config.xml"
-        info "  WebLogic will generate redirects using localhost – broken through Nginx"
-        info "  Fix: set FrontendHost for each server to: ${SSL_CN:-<FQDN>}"
+    # Behind Nginx WebLogic builds redirect URLs from the Host header +
+    # WL-Proxy-SSL: true (nginx-wls.conf.template) when weblogic-plugin-enabled
+    # is set on the server (Forms/Reports domain templates do) – a Frontend
+    # Host is then not needed (live 2026-10-20: /forms -> https://<FQDN>/forms/)
+    _plugin_srv="$(awk '/<server>/{n=""} /<name>/{if(n=="")n=$0} /<weblogic-plugin-enabled>true</{print n}' "$_config_xml" \
+        | sed 's/<[^>]*>//g; s/^[[:space:]]*//' | paste -sd' ')"
+    if [ -z "$_frontend_hosts" ] && [ -n "$_plugin_srv" ]; then
+        ok "No Frontend Host – redirects via Host + WL-Proxy-SSL header (weblogic-plugin-enabled: $_plugin_srv)"
+        info "  Nginx must send: proxy_set_header Host \$host; WL-Proxy-SSL true (09-Install/nginx-wls.conf.template)"
+    elif [ -z "$_frontend_hosts" ]; then
+        warn "Neither Frontend Host nor weblogic-plugin-enabled in config.xml"
+        info "  WebLogic may generate redirects with http:// or the internal host through Nginx"
+        info "  Fix: weblogic-plugin-enabled=true (+ WL-Proxy-SSL header) or FrontendHost=${SSL_CN:-<FQDN>}"
         info "  See: 09-Install/docs/05-root_nginx_ssl.md – WebLogic Frontend Host"
     else
         while IFS= read -r _fh; do

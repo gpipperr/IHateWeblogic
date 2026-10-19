@@ -9,7 +9,24 @@
 ## Purpose
 
 This module manages the **SSL certificate lifecycle** for the Oracle Forms &
-Reports installation. It covers three recurring tasks:
+Reports installation – the TLS certificate of the Nginx frontend and the
+code-signing certificate for `jacob.jar` (Forms/WebUtil). Role in the
+library: certificates are **built** here (see the folder roles in the
+[root README](../README.md#folder-roles)); the host-wide TLS audit incl.
+WebLogic's own SSL ports is `02-Checks/ssl_check.sh`.
+
+Background (`80-FMW-Architecture/`):
+- where TLS ends and how Nginx, WebLogic and the Forms/Reports processes are
+  joined: [weblogic_middleware_architecture.md §6](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined)
+- which client (Java Web Start / FSAL) talks to which server process:
+  [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts)
+- code signing: [how Oracle intends it](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it),
+  [which certificates](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed),
+  [who checks the signature](../80-FMW-Architecture/forms_jakob_webutil.md#10-who-checks-the-signature--and-against-what),
+  [renewal / re-signing](../80-FMW-Architecture/forms_jakob_webutil.md#11-maintenance--patching-renewal-re-signing),
+  [client distribution](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients)
+
+It covers these recurring tasks:
 
 | Task | Script | When |
 |---|---|---|
@@ -19,7 +36,12 @@ Reports installation. It covers three recurring tasks:
 | Audit current SSL configuration | `ssl_config.sh` | Anytime – monitoring, compliance checks |
 
 The module does **not** manage SSL inside WebLogic directly.
-WebLogic listens on `127.0.0.1` only; SSL is terminated exclusively at Nginx.
+WebLogic listens on `127.0.0.1` only; SSL for clients is terminated at Nginx.
+Note: the domain templates also enable WebLogic SSL listen ports with the
+**demo certificate** (`WLS_FORMS` 9501, `WLS_REPORTS` 9512 – on the test host
+bound to `127.0.0.1`, confirmed 2026-10-20); they are not used and shall be
+disabled in `09-Install/08-` (root README open item, found by
+`02-Checks/ssl_check.sh`).
 
 ---
 
@@ -31,26 +53,30 @@ Internet / Browser
         ▼
 ┌────────────────────────────────────────────────────────┐
 │  Nginx  (SSL termination)                              │
-│  /etc/nginx/ssl/server.crt  ← deployed by 03-root_    │
-│  /etc/nginx/ssl/server.key    nginx_ssl.sh             │
+│  /etc/nginx/ssl/fullchain.pem ← deployed by            │
+│  /etc/nginx/ssl/privkey.pem     05-root_nginx_ssl.sh   │
 │                                                        │
-│  Protocols: TLSv1.2 + TLSv1.3 only                    │
+│  Protocols: TLSv1.2 + TLSv1.3 only                     │
 │  Ciphers:   ECDHE / AES-GCM only                       │
 └────────────────────────────────────────────────────────┘
         │  HTTP plain — loopback only (127.0.0.1)
         ▼
-WebLogic (never handles TLS)
+WebLogic (no client TLS)
   AdminServer   127.0.0.1:7001
-  WLS_FORMS     127.0.0.1:9001
-  WLS_REPORTS   127.0.0.1:9002
+  WLS_FORMS     127.0.0.1:9001   (+ demo SSL 127.0.0.1:9501 – unused)
+  WLS_REPORTS   127.0.0.1:9002   (+ demo SSL 127.0.0.1:9512 – unused)
 ```
 
 **Consequences:**
-- Only one certificate location: `/etc/nginx/ssl/`
-- No Java KeyStore management inside WebLogic
-- WebLogic must have **Frontend Host** set to the external FQDN so that
-  server-generated redirects use the correct HTTPS URL
-  (configured by `09-Install/08-oracle_setup_domain.sh` or manually via WLST)
+- Only one certificate location for clients: `/etc/nginx/ssl/` (`fullchain.pem`
+  = server certificate + chain, `privkey.pem`)
+- No Java KeyStore management inside WebLogic (the demo keystores of the
+  unused SSL ports aside)
+- Redirects with the correct `https://<FQDN>` URL: Nginx sends `Host` and
+  `WL-Proxy-SSL: true`, the domain templates set `weblogic-plugin-enabled` on
+  `WLS_FORMS` / `WLS_REPORTS` – no Frontend Host needed (confirmed live
+  2026-10-20; alternative and WLST commands:
+  [09-Install/docs/05-root_nginx_ssl.md](../09-Install/docs/05-root_nginx_ssl.md#weblogic-frontend-host-configuration))
 
 ---
 
@@ -85,7 +111,7 @@ WebLogic (never handles TLS)
 │     - TLS handshake test (openssl s_client)                      │
 │     - Protocol check (no TLS 1.0/1.1)                           │
 │     - Certificate expiry / subject / SAN                         │
-│     - WebLogic Frontend Host setting check                       │
+│     - WebLogic redirects (plugin-enabled / Frontend Host)        │
 │     - Nginx cipher / protocol config                             │
 └──────────────────────────────────────────────────────────────────┘
 
@@ -169,7 +195,7 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 Renewing the server or the code-signing certificate under the same root
 needs **no** change on the clients – with single self-signed certificates
 (mode SELF) every renewal has to be distributed again. Background on who
-checks which certificate: `80-FMW-Architecture/forms_jakob_webutil.md` §9–12.
+checks which certificate: [forms_jakob_webutil.md §9–12](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed).
 
 ```bash
 ./08-SSL/ssl_local_ca.sh status                     # read-only: CA, server, code signing, expiry, chain
@@ -203,6 +229,14 @@ $SSL_CA_DIR/
 └── codesign/codesign.crt, codesign.p12 (600)
 ```
 
+**Timestamp (TSA):** `FORMS_SIGN_TSA_URL` (environment.conf) adds a trusted
+timestamp to the `jacob.jar` signature – it stays valid after the
+code-signing certificate expires. Test host (confirmed 2026-10-20,
+`jarsigner -verify -verbose -certs`): signed by the local "Forms Code
+Signing" certificate (expires 2029-10-17), timestamped by DigiCert
+(timestamp valid until 2031-11-10). Without a TSA the jar becomes invalid
+for Java Web Start on the day the certificate expires.
+
 **Passwords:** never on the command line. The scripts decrypt the des3 file
 (`load_secrets_file`), write the value to a temporary file (600, removed by
 `trap`) and pass it as `-passin file:` / `-passout file:` (openssl) and
@@ -224,12 +258,13 @@ root.
 |---|---|---|
 | Server certificate expires (825 days) | `ssl_prepare_cert.sh LOCALCA --apply --renew` → `05-root_nginx_ssl.sh --apply` | none |
 | Code-signing certificate expires (3 years) | `ssl_local_ca.sh codesign --apply --renew` → `14-oracle_setup_forms.sh --apply` (signs again only unsigned jars; timestamped signatures stay valid) | none |
+| A Forms patch / new JACOB version replaces `jacob.jar` | `14-oracle_setup_forms.sh --apply` signs the new (unsigned) jar with the current certificate (`07-Maintenance/README.md` patch step 8) | none |
 | Root expires (10 years) / root key lost | new root (`init` after moving `SSL_CA_DIR`), re-issue both leaves | **redistribute `ca.cer` to every client** |
 
 **Distribution to the clients:** `ca.cer` into *Trusted Root Certification
 Authorities* (GPO) – used by browsers and Java Web Start; for FSAL the
 truststore of the FSAL JVM is needed (never the JRE `cacerts`, see
-`forms_jakob_webutil.md` §12). Linux test client:
+[forms_jakob_webutil.md §12](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients)). Linux test client:
 `cp ca.crt /etc/pki/ca-trust/source/anchors/ && update-ca-trust`.
 
 ---
@@ -255,7 +290,7 @@ truststore of the FSAL JVM is needed (never the JRE `cacerts`, see
 | Protocol: no TLS 1.0 / 1.1 | `openssl s_client -tls1` | Connection refused |
 | Protocol: TLS 1.2 + 1.3 available | `openssl s_client -tls1_2/3` | Handshake OK |
 | Nginx cipher config | `grep ssl_protocols nginx.conf` | No SSLv3/TLS1.0 |
-| WebLogic Frontend Host | WLST or REST API | Matches `WLS_SERVER_FQDN` |
+| WebLogic redirects behind Nginx | `config.xml`: `weblogic-plugin-enabled` / `frontend-host` | plugin enabled (OK) or Frontend Host = `SSL_CN`; WARN only if neither |
 | Certificate expiry warning | `openssl x509 -enddate` | Warn at < 30 days |
 
 **Output:** ok / warn / fail per check + summary.
@@ -387,6 +422,9 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 | `09-Install/14-oracle_setup_forms.sh` | Signs `jacob.jar` with `FORMS_SIGN_KEYSTORE` (code-signing certificate) |
 | `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
 | `00-Setup/init_env.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
+| `02-Checks/ssl_check.sh` | Host-wide TLS audit: who terminates TLS (Nginx / WLS / OHS), live TLS, WebLogic demo certificates / keystores |
+| `07-Maintenance/backup_config.sh` | Does **not** back up `SSL_CA_DIR` on purpose – the CA key belongs in an offline backup (see above) |
+| `10-Monitoring/` | candidate for the scheduled `ssl_local_ca.sh status` / `ssl_config.sh --expiry` run |
 
 ---
 
@@ -412,12 +450,13 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
   Start accepts such a chain or needs a revocation setting / a CRL served by
   Nginx is open (Windows client test).
 
-Both scripts are fully implemented (all three `ssl_prepare_cert.sh` modes,
-all `ssl_config.sh` audit sections). What's still missing:
+All three scripts are implemented (all four `ssl_prepare_cert.sh` modes,
+`ssl_local_ca.sh`, all `ssl_config.sh` audit sections). What's still missing:
 
 - **No automated cron job for expiry monitoring** — `ssl_config.sh --expiry`
-  already returns cron-friendly exit codes (0/1/2), but nothing installs it
-  as a scheduled job yet. See also `10-Monitoring/` (concept only).
+  and `ssl_local_ca.sh status` already return cron-friendly exit codes
+  (0/1/2), but nothing installs them as a scheduled job yet – candidate for
+  `10-Monitoring/` (systemd timer like `cve_inventory.sh`).
 - Consider `ssl_renew_easyrsa.sh` as a dedicated renewal script for Easy-RSA
   environments (currently: re-run `ssl_prepare_cert.sh EASYRSA --apply`,
   which re-issues but does not automate CA rotation).
@@ -430,7 +469,14 @@ all `ssl_config.sh` audit sections). What's still missing:
   an unreadable `/etc/nginx/ssl` (700 root) was reported as "not found".
 - **Still limited real-world testing:** besides `SELF`, `LOCALCA` and the
   `ssl_config.sh` checks, nothing has been exercised end-to-end. The
-  `EASYRSA` mode (against a real Easy-RSA install), the `REQUEST` mode
-  (CSR → external CA → cert install round-trip) and the WebLogic Frontend
-  Host check (test host: "Frontend Host not configured" – WARN, open)
-  still need verification on a real server.
+  `EASYRSA` mode (against a real Easy-RSA install) and the `REQUEST` mode
+  (CSR → external CA → cert install round-trip) still need verification on
+  a real server.
+- **Review 2026-10-20:** `ssl_local_ca.sh status` 11 OK (root until 2036,
+  server 822 days, code signing until 2029, chains verified), `ssl_config.sh`
+  (as oracle: Nginx config, TLS 1.0 rejected, 1.2 OK, handshake verified);
+  the former "Frontend Host not configured" WARN was a false finding –
+  redirects work through `WL-Proxy-SSL` + `weblogic-plugin-enabled`, the
+  check now evaluates that. README: Nginx file names (`fullchain.pem` /
+  `privkey.pem`, deployed by `05-`, not `03-`), WebLogic demo SSL ports,
+  links to the architecture docs.
