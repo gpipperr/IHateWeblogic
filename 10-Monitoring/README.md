@@ -436,12 +436,16 @@ Default plan: always write to `reports/`; email as an opt-in via `monitor.conf`.
 
 ## Relationship to Other Modules
 
+Rule (folder roles, [root README](../README.md)): this module calls the
+analyse scripts of 01–07 **read-only** – never `--apply`, no own copies of
+their logic. Repairs stay a human decision in 01–07.
+
 | Module | Role in this module |
 |---|---|
 | `02-Checks/` | Primary data source – OS, Java, SSL, port, WebLogic health |
 | `09-Install/oracle_software_version.conf`, `09-Install/docs/00-patch-references.md` | Applied / configured patch cycle; target of the CVE watch drafts |
 | `07-Maintenance/` (patch cycle) | Where a CVE watch finding leads to |
-| `01-Run/rwserver_status.sh` | Reports engine live status |
+| `01-Run/rwserver_status.sh`, `01-Run/reports_server_lib.sh` | Reports engine live status; the library is the one place that reads `getserverinfo` (with `authid`) |
 | `05-ReportsPerformance/` | Reports engine performance findings |
 | `06-FormsDiag/` | Forms performance findings |
 | `03-Logs/` | Error pattern scanning (ORA-, REP-, FRM-) |
@@ -460,4 +464,5 @@ Default plan: always write to `reports/`; email as an opt-in via `monitor.conf`.
 - Define retention policy for `reports/` (this directory will grow unbounded otherwise)
 - Idea: configuration security scanner for WebLogic / Forms / Reports (section above) – design + check list
 - CVE watch: `cve_inventory.sh` done (2026-10-19); next `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
+- Uniform machine-readable output of the 01–07 scripts (report/JSON beside `print_summary`) as input for the collector – one format for all, not per script
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)

@@ -60,6 +60,10 @@ Review output of each and resolve any FAIL items before going live.
 
 ## What the Script Does
 
+Acceptance = the analyse scripts of 01–07 (folder roles, root README) – the
+installation has no own check logic, so a check is fixed in one place and
+works the same for a fresh install and an existing environment.
+
 Calls all check scripts and aggregates results:
 
 | # | Check | Script |
@@ -71,7 +75,7 @@ Calls all check scripts and aggregates results:
 | 5 | DB connectivity | `02-Checks/db_connect_check.sh` |
 | 6 | SSL certificate, expiry, TLS versions | `02-Checks/ssl_check.sh` |
 | 7 | Reports Server engine pool, job stats | `01-Run/rwserver_status.sh` |
-| 8 | Engine pool config (min/max, heap) | `05-ReportsPerformance/engine_perf_settings.sh` |
+| 8 | Report engine parameters vs. Oracle rules / CPUs, engine heap vs. RAM, drift to `environment.conf` | `05-ReportsPerformance/engine_perf_settings.sh` |
 | 9 | Forms config, FORMS_PATH | `06-FormsDiag/forms_settings.sh` |
 | 10 | Config backup present | direct check |
 

@@ -156,7 +156,7 @@ operation with proactive, AI-assisted error analysis.
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 6 – CHECK REPORTS PERFORMANCE                                │
+│  PHASE 6 – CHECK REPORTS PERFORMANCE  (also alone, existing env.)   │
 │  (oracle)                                                            │
 │                                                                     │
 │  05-ReportsPerformance/engine_perf_settings.sh   Engine parameters  │
@@ -204,16 +204,33 @@ operation with proactive, AI-assisted error analysis.
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### Two Kinds of Folders in This Structure
+### Folder Roles
 
-| Type | Folders | Character |
+The library grew in this order: first the scripts to analyse an **existing**
+environment (01–07, customer engagements), then the installation (09), last
+the monitoring (10). The folder numbers stay; each folder has one role:
+
+| Role | Folders | Rule |
 |---|---|---|
-| **Phase folders** (run once) | `09-Install/`, `60-RCU-DB-19c/`, `08-SSL/` | Fixed order, rarely re-run after initial setup (except for renewal/patching) |
-| **Cross-cutting folders** (used repeatedly) | `00-Setup/`, `01-Run/`, `02-Checks/`, `03-Logs/`, `04-ReportsFonts/`, `05-ReportsPerformance/`, `06-FormsDiag/`, `07-Maintenance/` | Called again and again from first start through steady-state operation |
+| **Analyse + fix** a running environment (no matter who built it) | `01-Run/`, `02-Checks/`, `03-Logs/`, `04-ReportsFonts/`, `05-ReportsPerformance/`, `06-FormsDiag/`, `07-Maintenance/` | read-only by default, `--apply` repairs with backup, may be interactive |
+| **Build** (once, fixed order) | `09-Install/`, `08-SSL/`, `60-RCU-DB-19c/` | sets the values from `environment.conf`; acceptance by calling the analyse scripts (`09-Install/docs/90-oracle_validate.md`), no own check logic |
+| **Monitor** (regularly, unattended) | `10-Monitoring/` | calls the analyse scripts read-only (exit code, log), never `--apply`; own logic only for what exists nowhere else (CVE comparison, trends, AI assessment) |
+| Background / customer | `80-FMW-Architecture/`, `70-Customer-Projects/` | why it behaves that way / manual cookbooks |
 
-`10-Monitoring/` is the only folder that is **not** a manual diagnostic step
-anymore — it automates exactly these cross-cutting scripts in the
-background and adds AI-assisted root-cause reasoning on top.
+Rules across the folders:
+
+1. **Logic exists once.** Shared functions live in a sourced library of the
+   folder that owns the topic (`01-Run/reports_server_lib.sh`,
+   `03-Logs/log_locations.sh`). Build and monitor call the scripts, they do
+   not copy them. (The 05 review of 2026-10-19 found stale copies that
+   evaluated the wrong file – the reason for this rule.)
+2. **One value, one source.** Target and tuning values live in
+   `environment.conf`. The installation writes them to the Oracle files;
+   an `--apply` in 01–07 writes changed values back to `environment.conf`, so a
+   later installation run does not reset them.
+3. **Monitoring needs machine-readable output.** Exit code 0/1/2 and
+   `print_summary` exist in every script; a uniform report/JSON format is an
+   open item in [10-Monitoring/README.md](10-Monitoring/README.md).
 
 ### Known Gaps
 
@@ -249,8 +266,8 @@ Run these scripts in sequence on a fresh installation:
 | `02-Checks/`          | OS, Java, ports, DB connectivity, SSL checks         |
 | `03-Logs/`            | Log discovery, grep, tail, archive, cleanup          |
 | `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
-| `05-ReportsPerformance/` | Engine/cache tuning and inspection               |
-| `06-FormsDiag/`       | Oracle Forms specific diagnostics                    |
+| `05-ReportsPerformance/` | Reports server: analyse + fix an existing environment (parameters, load, logs) |
+| `06-FormsDiag/`       | Forms: analyse + fix an existing environment (configuration, sessions, performance) |
 | `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |

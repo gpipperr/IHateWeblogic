@@ -1,5 +1,11 @@
 # 06-FormsDiag – Oracle Forms Diagnostics & Performance
 
+**Role: analyse + fix an existing environment** (see the folder roles in the
+[root README](../README.md)). On a new installation `09-Install/14-oracle_setup_forms.sh`
+sets the values and `09-Install/docs/90-oracle_validate.md` calls these scripts
+read-only as acceptance; `10-Monitoring/` uses them as a data source.
+Content review after the 05 pattern (duplicates with `02-Checks/`, `14-`): open.
+
 Diagnostics, configuration overview and performance analysis for Oracle Forms Server.
 All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 

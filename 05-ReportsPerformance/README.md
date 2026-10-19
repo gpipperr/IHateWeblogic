@@ -1,5 +1,11 @@
 # 05-ReportsPerformance – Oracle Reports Engine Performance
 
+**Role: analyse + fix an existing environment** (see the folder roles in the
+[root README](../README.md)). On a new installation
+`09-Install/13-oracle_setup_reports.sh` sets the values and
+`09-Install/docs/90-oracle_validate.md` calls these scripts read-only as
+acceptance; `10-Monitoring/` uses them as a data source.
+
 Configuration review and load analysis of the **standalone Reports server**
 (system component, e.g. `repserver01`) and its engines.
 All scripts source `environment.conf`, log to `log/<date>/` and are
