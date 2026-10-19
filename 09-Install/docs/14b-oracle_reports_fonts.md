@@ -8,6 +8,12 @@
 
 ## Purpose
 
+Background: the Reports server engines and `rwrun` read the same
+ReportsTools font files and get their environment from `reports.sh` –
+[report_engine_architecture.md §5.1](../../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server);
+the two font paths (PDF / HTML parameter form):
+[04-ReportsFonts/README.md](../../04-ReportsFonts/README.md).
+
 Configure the Reports fonts and the `cgicmd.dat` default key once the Reports
 components exist. Split off `09-oracle_configure.sh` on 2026-10-15:
 

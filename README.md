@@ -40,7 +40,7 @@ concept); security: local CA + signed `jacob.jar` (2026-10-17), firewall +
 sshd hardening (2026-10-19); minus the open items (EM user search,
 web-command tests, JACOB / Forms client test, Reports engines on the bundled
 JDK, OHS / WebGate patches from the CPU Oct 2026 cycle, Forms
-`maxRuntimeProcesses`, review of `01-Run/`).
+`maxRuntimeProcesses`).
 
 | # | Phase | Status |
 |---|---|---|
@@ -88,7 +88,8 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md).
 > `07-Maintenance` reviewed the same evening (backup completeness, restore
 > per category, patch gate sees every process from `$ORACLE_HOME`).
-> Not yet reviewed: `01-Run/`.
+> `01-Run` reviewed as well (README sections/WLST examples/dead Oracle links
+> fixed, AdminServer port) – all analyse + fix folders 01–07 are reviewed.
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 

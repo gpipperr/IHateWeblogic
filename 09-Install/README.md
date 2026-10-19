@@ -35,6 +35,18 @@ to the table.
 
 ## 1. Architecture & Security Concept
 
+Background per step – **why** the domain looks like this (`80-FMW-Architecture/`):
+
+| Step | Background |
+|---|---|
+| `05-`/`06-` homes, two JDKs | [the four homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes) |
+| `07-` repository | [rcu_middleware_architecture.md](../80-FMW-Architecture/rcu_middleware_architecture.md) |
+| `08-` domain, servers, clusters | [building blocks](../80-FMW-Architecture/weblogic_middleware_architecture.md#3-the-building-blocks) |
+| `10-`/`11-`/`30-` boot, Node Manager, autostart | [Node Manager](../80-FMW-Architecture/weblogic_middleware_architecture.md#34-node-manager), [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) |
+| `12-`/`13-` Reports server, security | [report_engine_architecture.md](../80-FMW-Architecture/report_engine_architecture.md), [reports_user_local_ldap.md](../80-FMW-Architecture/reports_user_local_ldap.md), [multicast discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [image handling](../80-FMW-Architecture/report_server_image_handling.md) |
+| `14-` Forms | [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md) (runtime pooling / `FORMS_PRESTART_SECTION`), [forms_jakob_webutil.md](../80-FMW-Architecture/forms_jakob_webutil.md) |
+| `14b-` fonts | [`rwrun` vs. engines, same font files](../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server), [../04-ReportsFonts/README.md](../04-ReportsFonts/README.md) |
+
 ### SSL Proxy Architecture
 
 ```

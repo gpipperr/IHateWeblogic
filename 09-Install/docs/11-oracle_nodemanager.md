@@ -11,6 +11,9 @@
 Configure the WebLogic NodeManager for **plain (non-SSL) communication** with
 the AdminServer.
 
+Background – what the Node Manager controls and who starts whom:
+[weblogic_middleware_architecture.md §3.4 / §4](../../80-FMW-Architecture/weblogic_middleware_architecture.md#34-node-manager).
+
 By default WebLogic installs NodeManager with `SecureListener=true`.  For
 internal environments — where no internal PKI is in place — this causes the
 following error when attempting to start managed servers (WLS_FORMS,

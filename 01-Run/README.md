@@ -1,7 +1,15 @@
 # 01-Run – Start/Stop, WLST, Reports Server
 
 Scripts for operating a running Oracle Forms/Reports domain: component
-management, interactive WLST access, Reports Server status.
+management, interactive WLST access, Reports Server status, single report
+runs with trace.
+
+**Role: analyse + fix an existing environment** (see the folder roles in the
+[root README](../README.md#folder-roles)). Background – which process is
+started by whom (AdminServer, Node Manager, system components):
+[weblogic_middleware_architecture.md](../80-FMW-Architecture/weblogic_middleware_architecture.md);
+Reports server, engines and `rwrun`:
+[report_engine_architecture.md](../80-FMW-Architecture/report_engine_architecture.md).
 
 ---
 
@@ -17,6 +25,11 @@ management, interactive WLST access, Reports Server status.
 
 All scripts source `environment.conf`. Run `00-Setup/init_env.sh` first
 if `environment.conf` does not exist yet.
+
+Review 2026-10-19: status table, `rwserver_status.sh` (`--auth auto/none`),
+`rwrun_trace.sh` and the dry-runs re-tested live; `rwserver_status.sh` now
+uses `reports_server_lib.sh` (output unchanged); AdminServer port 7001 shown;
+README sections / WLST examples / references corrected.
 
 ---
 
@@ -154,6 +167,11 @@ The status column shows:
 Run as root or as the Oracle user to see all process names (`pgrep` may
 miss processes owned by other users).
 
+Port column: `<listen-port>` from `config.xml`; a server without it uses the
+WebLogic default **7001** (the AdminServer of our domains – shown as `-`
+before 2026-10-19). Start output of servers started by script goes to
+`log/<date>/start_<name>_<time>.log` (`$DIAG_LOG_DIR`).
+
 ---
 
 ## 3. wlst_connect.sh
@@ -185,9 +203,11 @@ miss processes owned by other users).
 1. Loads credentials from `weblogic_sec.conf.des3` via
    `load_weblogic_password()` (openssl des3 + machine UUID key).
 2. Optionally sources `$DOMAIN_HOME/bin/setDomainEnv.sh`.
-3. Writes a temp Python bootstrap (`/tmp/wlst_connect_XXXXX.py`) with
-   only the `connect()` call – the password is passed via env vars,
-   never stored in the file.
+3. Writes a temp Python bootstrap (`/tmp/wlst_connect_XXXXX.py`, mode 600)
+   with only the `connect()` call – the password is passed via env vars,
+   never stored in the file and never on the command line.
+   (`/proc/<pid>/environ` of the WLST JVM is readable only by the same user
+   and root; `startStop.sh` uses the same pattern for its WLST calls.)
 4. Pipes bootstrap to WLST stdin, then forwards terminal input.
    WLST stays interactive after the auto-connect.
 5. On exit: temp file and password env vars are removed by the EXIT trap.
@@ -200,18 +220,26 @@ normally.
 
 ### Typical WLST commands after connect
 
+Reports engines are not WLS MBeans – their state comes from
+`rwserver_status.sh` (`getserverinfo`), not from WLST.
+
 ```python
 # Domain overview
 ls()
 domainRuntime()
 ls()
 
-# Reports engine status
-cd('/AppRuntimeStateRuntime/AppRuntimeStateRuntime')
+# State of a server (also managed servers, via the AdminServer)
+state('WLS_REPORTS')
+state('WLS_FORMS')
+
+# Lifecycle of all servers
+domainRuntime()
+cd('ServerLifeCycleRuntimes')
 ls()
 
-# Thread dump
-threadDump()
+# Thread dump of a server (e.g. hanging WLS_FORMS)
+threadDump(serverName='WLS_FORMS')
 
 # Exit
 exit()
@@ -262,8 +290,16 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 |---|---|---|
 | Engine Configuration | `rwserver.conf` of the Reports server component (`components/ReportsServerComponent/<name>/`) | minEngine, maxEngine, maxIdle of the **report** engine (not the URL engine `rwURLEng`) |
 | Process Status | `pgrep` | WLS managed server PID, `rwserver server=<name>` PID, engine count = Java child processes of `rwserver` (14.1.2 has no `rwengine` process name) |
-| Engine Pool | rwservlet HTTP | Per-engine: ID, status (idle/busy), type, PID |
-| Job Queue | rwservlet HTTP | Pending, running, finished, failed job counts |
+| HTTP Engine Status | rwservlet | URL, `authid` used (`user/****`), HTTP code / REP error with hint |
+| Server Info | `getserverinfo` | name, version, PID, running since / uptime, secured, average auth time, max queue size |
+| Engine Pool | `getserverinfo` | per engine id (`rwEng`, `rwURLEng`): active / running / busy / idle; per instance: PID, status (IDLE/BUSY/DEAD), job id, idle time, jobs run, life left (`engLife`), NLS |
+| Performance | `getserverinfo` | successful / current / future / transferred / failed / long running / runaway jobs, average response / elapsed / queuing time |
+| Connections | `getserverinfo` | connections used / available, max / avg engines used |
+
+Evaluation of these numbers (failure rate, queuing share, pool at
+`maxEngine`, server logs): `05-ReportsPerformance/engine_perf_analyse.sh`.
+All `getserverinfo` / `rwserver.conf` helpers are in `reports_server_lib.sh`
+(shared with 05, see section 1).
 
 ### Two-layer design
 
@@ -280,6 +316,7 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 | Check | startStop.sh | rwserver_status.sh |
 |---|---|---|
 | WLS_REPORTS JVM running | yes | yes (pgrep) |
+| Reports server `rwserver` running | yes (type `REPORTS`) | yes |
 | engine process count | no | yes |
 | Engine idle/busy state | no | yes (HTTP) |
 | Job queue pending/failed | no | yes (HTTP) |
@@ -299,11 +336,14 @@ If the endpoint is not reachable, the process section still shows
 
 ---
 
-## 4b. rwrun_trace.sh
+## 5. rwrun_trace.sh
 
 Runs **one** report in-process with `rwrun` (no Reports server, no
 rwservlet) – to find out whether a problem is in the report itself (SQL,
-PL/SQL, fonts, parameters) or in the server/servlet path.
+PL/SQL, fonts, parameters) or in the server/servlet path. How `rwrun`
+differs from the server path (own in-process server from `rwbuilder.conf`,
+embedded JVM, reptools1 fonts and log, Oracle: "for testing purposes
+only"): [report_engine_architecture.md §5.1](../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
 
 ```bash
 ./01-Run/rwrun_trace.sh --report test_dual.rdf
@@ -327,7 +367,8 @@ How it works (findings 2026-10-14 / 16 / 17):
   instance – sets `REPORTS_CLASSPATH`, `libjvm` path,
   `REPORTS_DEFAULT_DISPLAY=YES`; no X display). `$ORACLE_HOME/bin/rwrun`
   alone crashes (SIGSEGV/SIGABRT, missing environment).
-- `userid` is passed in a `cmdfile=` (mode 600, removed after the run) –
+- `userid` is passed in a `cmdfile=` (mode 600, removed after the run, also
+  on Ctrl+C; result directory mode 700) –
   the password never appears on the command line / in `ps`; DB via a
   temporary TNS alias (`TNS_ADMIN` in the work directory).
 - `LOGFILE` is deprecated in 14.1.2 (`REP-34551`) – not used; the console
@@ -346,9 +387,10 @@ Result directory `log/<date>/rwrun_trace_<timestamp>/`:
 The summary lists the `REP-`/`ORA-` messages found. Live 2026-10-17:
 `test_dual.rdf` → PDF in 3 s; with `--odl` 482 log lines (339 TRACE);
 broken SQL → `ORA-00942` / `REP-0583`, FAIL; interrupt during `--odl` →
-`logging.xml` byte-identical afterwards.
+`logging.xml` byte-identical afterwards. Re-tested 2026-10-19: PDF 9307
+bytes, no `.cmdfile` left in the result directory.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 ### startStop.sh – managed server won't stop (AdminServer down)
 
@@ -366,7 +408,8 @@ Fix:     Stop the managed server by PID, then restart AdminServer
 Symptom: start-all hangs after "NodeManager start initiated"
 Cause:   startNodeManager.sh blocked (e.g. port 5556 already in use)
 Fix:     Check port 5556:   ss -tlnp | grep 5556
-         Check NM log:      tail $DIAG_LOG_DIR/start_NodeManager_*.log
+         Check the start output: tail log/<date>/start_NodeManager_*.log
+         NM log:            $DOMAIN_HOME/nodemanager/nodemanager.log
 ```
 
 ### startStop.sh – STOPPED for all components though domain is running
@@ -397,7 +440,7 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 
 ---
 
-## 6. Related Scripts
+## 7. Related Scripts
 
 | Script | Purpose |
 |---|---|
@@ -407,14 +450,24 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 | `03-Logs/tail_logs.sh` | Live-tail server logs during start/stop |
 | `05-ReportsPerformance/engine_perf_settings.sh` | Engine parameters vs. Oracle's tuning rules, CPUs, RAM (`--apply`) |
 | `05-ReportsPerformance/engine_perf_analyse.sh` | Load analysis: failure rate, queuing share, pool usage, Reports server logs |
+| `06-FormsDiag/forms_perf_analyse.sh` | Forms: `frmweb` per config section, memory, Forms logs |
+| `07-Maintenance/81-`/`82-patch_*.sh` | Patching: `stop-all --apply` first – the patch gate refuses while any process from `$ORACLE_HOME` runs |
+| `09-Install/30-configure_autostart.sh` | systemd unit + `fmw_ctl.sh` that `startStop.sh` delegates to |
 
 ---
 
-## 7. References
+## 8. References
 
-- Oracle WebLogic WLST Command Reference (14.1.2):
-  https://docs.oracle.com/en/middleware/developer-tools/weblogic-server/14.1.2/wlstg/
-- Oracle Reports Administration (rwserver, rwclient):
-  https://docs.oracle.com/middleware/12213/formsandreports/admin-reports/
-- Oracle Forms/Reports 14c Start/Stop:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/admin-fnr/
+All checked 2026-10-19 (HTTP 200, title matches) – the three links listed
+here before were 404.
+
+- WLST Command Reference for Oracle WebLogic Server 14c (14.1.2.0.0):
+  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wlstc/
+- Administering Node Manager for Oracle WebLogic Server 14c (14.1.2.0.0):
+  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/nodem/index.html
+- Administering Oracle Fusion Middleware 14c (14.1.2.0.0) (starting / stopping, system components):
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html
+- Publishing Reports 12.2.1.3 – Starting and Stopping Reports Server:
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt001.htm
+- Publishing Reports 12.2.1.3 – Overview of Oracle Reports Components (`rwrun`, `rwclient`):
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm

@@ -10,7 +10,8 @@ archiving and log levels.
 explained in [`80-FMW-Architecture/`](../80-FMW-Architecture/README.md):
 [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain),
 [where is what – homes, configuration, logs](../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs),
-[Reports server and engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
+[Reports server and engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts),
+[Forms logs and ODL levels](../80-FMW-Architecture/forms_runtime_architecture.md#6-logs-traces-monitoring).
 
 ---
 

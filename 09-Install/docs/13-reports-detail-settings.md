@@ -11,6 +11,11 @@
 
 ## Overview
 
+Background: in-process vs. standalone server, engines, performance
+parameters – [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md) (§2, §6); secured server –
+[reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md); discovery – [reports_server_discovery_multicast.md](../../80-FMW-Architecture/reports_server_discovery_multicast.md).
+Check / tune afterwards: `05-ReportsPerformance/`.
+
 This step creates and configures the Oracle Reports Server system components
 within the WebLogic domain.  It covers:
 

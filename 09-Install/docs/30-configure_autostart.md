@@ -8,6 +8,9 @@ cleanly at shutdown. All components are controlled through the **Node Manager**;
 a small set of control scripts is rendered from templates into a central
 directory per domain, and one systemd unit calls them.
 
+Background – the control chain systemd → Node Manager → servers / system
+components: [weblogic_middleware_architecture.md §4](../../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain).
+
 Based on the procedure in *Oracle WebLogic Server 14.1.2.0.0 install*,
 chapter 9.4 "Weblogic.service (automatisch stoppen und starten)", with these
 deliberate changes:

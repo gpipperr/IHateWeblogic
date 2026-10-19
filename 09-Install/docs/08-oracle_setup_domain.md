@@ -10,6 +10,9 @@
 
 Create the WebLogic domain for Forms & Reports using WLST in silent mode.
 Configures AdminServer, WLS_FORMS, and WLS_REPORTS managed servers.
+
+Background – domain, AdminServer, managed servers, clusters, system
+components: [weblogic_middleware_architecture.md §3](../../80-FMW-Architecture/weblogic_middleware_architecture.md#3-the-building-blocks).
 All servers listen on `127.0.0.1` only — Nginx is the external entry point.
 
 ### Components (`INSTALL_COMPONENTS`)

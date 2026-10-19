@@ -153,7 +153,8 @@ _discover() {
             local ctype="MANAGED"
             [ "$srv_name" = "AdminServer" ] && ctype="ADMIN"
             C_NAME+=("$srv_name"); C_TYPE+=("$ctype")
-            C_HOST+=("${listen_addr:-localhost}"); C_PORT+=("${listen_port:-}")
+            # no <listen-port> in config.xml = WebLogic default 7001 (AdminServer here)
+            C_HOST+=("${listen_addr:-localhost}"); C_PORT+=("${listen_port:-7001}")
             C_STATUS+=("UNKNOWN"); C_PID+=("")
         done < <(awk '
             BEGIN { in_srv=0; in_ssl=0 }

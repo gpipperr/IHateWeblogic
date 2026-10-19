@@ -588,6 +588,10 @@ the firewall closes everything that does not need to be reachable.
         └───────────────────────────────────────────────────────────┘
    outgoing: not filtered by firewalld (MOS downloads, CVE watch, NTP …)
    lo:       always allowed – WLS → DB on the own host address uses lo
+
+Background: why 14027/udp – [reports_server_discovery_multicast.md §5](../../80-FMW-Architecture/reports_server_discovery_multicast.md#5-prerequisites-on-the-host);
+why the `frmweb` ports must stay closed – every Forms runtime listens on an
+ephemeral port on all interfaces ([forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts)).
 ```
 
 Apply only these two sections on a running system (all others stay

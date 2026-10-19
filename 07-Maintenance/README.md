@@ -4,6 +4,10 @@
 [root README](../README.md#folder-roles)): backup/restore and patching of a
 running installation, no matter who built it. The patch logic itself lives
 once in `09-Install/05-`/`06-` – the `81-`/`82-` wrappers call it.
+Background: what OPatch changes (the Oracle Home, both JDKs) –
+[weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes); what must be stopped –
+[§4](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain); RCU schemas and
+patching – [rcu_middleware_architecture.md](../80-FMW-Architecture/rcu_middleware_architecture.md).
 
 Configuration backup/restore, **and** patching an already-running,
 already-installed environment (e.g. a future CPU/CSPU cycle) — as opposed
