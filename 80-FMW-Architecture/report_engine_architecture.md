@@ -21,7 +21,7 @@ Domain overview: [weblogic_middleware_architecture.md](weblogic_middleware_archi
 | **rwservlet** | HTTP entry point (`/reports/rwservlet`): takes the request, checks `cgicmd.dat` keys / SSO, hands the job to a Reports **server**, returns the output | part of the `reports` application in the managed server **WLS_REPORTS** |
 | **Reports server** | job queue, scheduling, cache of finished output, security checks (`securityId`), starts and stops the engines | **in-process**: inside the WLS_REPORTS JVM – or **standalone**: own process `rwserver server=<name>` |
 | **Engines** (`rwEng`, `rwURLEng`) | run the report: fetch data, format, write the output to the cache, report back | separate processes, started by the server; `rwEng` = reports, `rwURLEng` = URL engine (fetches a URL into the output) |
-| **ReportsTools instance** | configuration for `rwrun`, `rwconverter`, `rwbuilder` (no own process) | – |
+| **ReportsTools instance** (`reptools1`) | configuration of the command-line tools `rwrun`, `rwconverter`, `rwbuilder`: `rwbuilder.conf`, `uifont.ali`, screen-printer PPD/AFM, log directory `servers/reptools1/logs/` – the component itself has no permanently running process | each **tool call** is its own process – `rwrun` even runs a complete Reports runtime incl. engine inside it (section 5.1) |
 
 "The Reports Engine … fetches requested data from the data source, formats
 the report, sends the output to cache, and notifies the Reports Server that
@@ -174,6 +174,81 @@ the 60 s delay we fixed with `ORBTCPConnectTimeouts`), server discovery
 - Engine status therefore comes from the server itself: `getserverinfo`
   (`01-Run/rwserver_status.sh --auth …`, customer `status.sh`), or EM.
 
+### 5.1 `rwrun` – a report without rwservlet and without Reports server
+
+`rwrun` does not talk to `repserver01` at all. Oracle: "rwrun (Reports
+Runtime) runs a report by starting its own in-process server (not to be
+confused with the default in-process Reports Server), which runs in the same
+JVM as the rwrun process. The configuration file for this in-process server
+is rwbuilder.conf … It is recommended that you use rwrun for testing
+purposes only. Use rwservlet and rwclient in your production environment"
+(**documented**, Publishing Reports 12.2.1.3, A.2.2).
+
+```
+ PRODUCTION PATH                                   rwrun (batch / test)
+ browser, cgicmd key, Forms RUN_REPORT_OBJECT      shell, cron, rwrun_trace.sh
+        |                                                 |
+  WLS_REPORTS: rwservlet                           $DOMAIN_HOME/reports/bin/rwrun.sh
+        | CORBA, server found by name (multicast)         |  . reports.sh            (env: PATH, NLS_LANG,
+        v                                                 |                           REPORTS_FONT_DIRECTORY …)
+  rwserver repserver01   <- Node Manager                  |  COMPONENT_NAME=reptools1
+   rwserver.conf (component)                              |  COMPONENT_CONFIG_PATH=…/ReportsToolsComponent/reptools1
+   queue, cache, securityId, engine pool                  |  exec $ORACLE_HOME/bin/rwrun "$@"
+        | starts                                          v
+        v                                          ONE native process "rwrun"
+  rwEng-0 … rwEng-N  (own Java processes,           |  librw.so + embedded JVM
+   oracle.reports.engine.RWEngine)                  |   (oracle_common/jdk/lib/server/libjvm.so)
+                                                    |  own runtime "server" from rwbuilder.conf,
+                                                    |  engine rwEng-0 inside the same process
+                                                    v
+                                                   output file (DESTYPE=file) – no queue, no cache, no server
+```
+
+Live on the test host (2026-10-19, **confirmed (live)**: `/proc/<pid>/exe`,
+`/proc/<pid>/maps`, `pgrep -P`, strace):
+
+| | `rwrun` | Reports server path |
+|---|---|---|
+| processes | one native process `rwrun` (~25 threads), **no child process**; JVM loaded in-process | `rwserver` + Java engine processes |
+| JDK | `$ORACLE_HOME/oracle_common/jdk` (via `reports.sh` – the FMW-bundled JDK, see section 4) | same |
+| configuration | `ReportsToolsComponent/reptools1/rwbuilder.conf` (`maxEngine=1`) – log line `ServerConfig:logConf Reading server config file …/rwbuilder.conf` | `ReportsServerComponent/repserver01/rwserver.conf` |
+| fonts | `reptools1/…/tk/admin/uifont.ali` + PPD/AFM (`TK_FONTALIAS` is ignored) | the same reptools1 files (no `uifont.ali` in the server component) |
+| environment | `reports.sh` → `NLS_LANG`, `REPORTS_FONT_DIRECTORY`, `REPORTS_ENHANCED_FONTHANDLING`, `REPORTS_PATH` | `reports.sh` + `<envVariable>` of `rwserver.conf` |
+| network | none to the Reports server (only the DB connection) – no multicast, no `cgicmd.dat`, no `server=` | rwservlet → CORBA → server |
+| log | `servers/reptools1/logs/runtime_diagnostic.log` (engine `rwEng-0` of the tool runtime) | `servers/repserver01/logs/rwserver_diagnostic.log`, `rwEng-N_diagnostic.log` |
+| result | same PDF as the server path in all font tests of 2026-10-19 | – |
+
+Example (password via `cmdfile`, so it is not visible in `ps`; DB given as
+a TNS alias):
+
+```bash
+printf 'userid=%s/%s@MYDB\n' "$DB_USER" "$DB_PWD" > /tmp/rw.cmd && chmod 600 /tmp/rw.cmd
+$DOMAIN_HOME/reports/bin/rwrun.sh cmdfile=/tmp/rw.cmd \
+    report=/u01/app/oracle/reports/source/test_dual.rdf \
+    destype=file desformat=pdf desname=/tmp/test_dual.pdf batch=yes
+rm -f /tmp/rw.cmd
+```
+
+Always via the domain wrapper `$DOMAIN_HOME/reports/bin/rwrun.sh`: called
+directly, `$ORACLE_HOME/bin/rwrun` lacks the component environment and
+crashes or asks for a logon dialog (`01-Run/rwrun_trace.sh` documents the
+chain).
+
+When to use which:
+
+| Need | Use |
+|---|---|
+| report for users / applications (web, Forms) | rwservlet → Reports server |
+| batch job without the web path, but with queue, cache, security | `rwclient` – "parses and transfers a command line to the specified Reports Server" (**documented**, A.2.1) |
+| quick test of a report or of the Reports installation, crash analysis | `rwrun` (`01-Run/rwrun_trace.sh`; the `15-` smoke test uses `rwconverter` + rwservlet instead) |
+
+Consequence: a report that works with `rwrun` can still fail on the server
+(different `rwserver.conf`, `securityId`, server environment, engine JVM
+options) and vice versa – test on the path that production uses. The font
+tests of 2026-10-19 gave the same result on both because both read the
+same reptools1 font files and the same `reports.sh`
+([04-ReportsFonts/README.md](../04-ReportsFonts/README.md)).
+
 ---
 
 ## 6. Performance parameters (`rwserver.conf`)
@@ -292,7 +367,7 @@ and an open local firewall rule is still the lighter choice.
 
 ## 10. Sources
 
-All links checked 2026-10-17 (HTTP 200, title matches). The Forms & Reports
+All links checked 2026-10-17, A.2 on 2026-10-19 (HTTP 200, title matches). The Forms & Reports
 14.1.2 book list links the **12.2.1.3** Reports books.
 
 *Publishing Reports to the Web with Oracle Reports Services* 12.2.1.3:
@@ -312,6 +387,10 @@ All links checked 2026-10-17 (HTTP 200, title matches). The Forms & Reports
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm
 - 7.5 Network Configuration File (`rwnetwork.conf`, multicast, naming service):
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf005.htm
+- A.2 Overview of Oracle Reports Components (`rwclient` A.2.1, `rwrun` A.2.2:
+  own in-process server in the rwrun JVM, `rwbuilder.conf`, "for testing
+  purposes only"):
+  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm
 - 15.8 Managing Users and Security Policies (embedded ID store for
   in-process vs. `system-jazn-data.xml` for standalone):
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_sec_arch008.htm
@@ -332,4 +411,4 @@ Related documents in this repository:
 - [reports_user_local_ldap.md](reports_user_local_ldap.md) – standalone server + WebLogic users, JVM/ORB fixes
 - [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) – domain, Node Manager, consoles
 - `09-Install/docs/13-reports-detail-settings.md` – how `13-` configures the standalone server
-- `01-Run/rwserver_status.sh`, `01-Run/rwrun_trace.sh` – status and in-process test runs
+- `01-Run/rwserver_status.sh` – status of the Reports server and its engines; `01-Run/rwrun_trace.sh` – traced `rwrun` runs (section 5.1)
