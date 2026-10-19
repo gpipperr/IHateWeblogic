@@ -472,6 +472,20 @@ check_wls_stopped() {
 "
     done
 
+    # Everything else that executes a binary of the Oracle Home – OPatch
+    # replaces exactly these files: Reports server (rwserver) + its engines
+    # (java of oracle_common/jdk), frmweb, rwrun/frmcmp, OHS … (2026-10-19:
+    # the server-name check above missed the Reports system component)
+    local oh="${ORACLE_HOME:-${FMW_HOME:-}}" exe line
+    if [ -n "$oh" ] && [ -d "$oh" ]; then
+        line="$(for pid in $(pgrep -u "$(id -u)" 2>/dev/null); do
+                    exe="$(readlink "/proc/$pid/exe" 2>/dev/null)"
+                    case "$exe" in "$oh"/*) printf '%s\n' "${exe#"$oh"/}" ;; esac
+                done | sort | uniq -c | awk '{printf "%s x %s, ", $1, $2}' | sed 's/, $//')"
+        [ -n "$line" ] && WLS_RUNNING_COMPONENTS="${WLS_RUNNING_COMPONENTS}processes from \$ORACLE_HOME: ${line}
+"
+    fi
+
     [ -n "$WLS_RUNNING_COMPONENTS" ] && return 1
     return 0
 }
@@ -486,7 +500,7 @@ check_wls_stopped() {
 # Returns  : 0 = safe to patch, 1 = still running, do not proceed
 require_wls_stopped() {
     if check_wls_stopped; then
-        ok "No running WebLogic components detected (NodeManager, AdminServer, Managed Servers) - safe to patch"
+        ok "No running WebLogic components and no process from \$ORACLE_HOME detected - safe to patch"
         return 0
     fi
     fail "WebLogic components are still RUNNING - patching must not start while the domain is up"

@@ -50,6 +50,9 @@ done
 # =============================================================================
 BACKUP_BASE="$SCRIPT_DIR/ConfigBackup"
 TS="$(date '+%Y%m%d_%H%M')"
+# Backups hold rwserver.conf (<identifier>), default.env, jps-config*.xml,
+# environment.conf – owner only (dirs 700, files 600)
+umask 077
 BACKUP_DIR="$BACKUP_BASE/$TS"
 
 UIFONT_ALI="${UIFONT_ALI:-}"
@@ -101,8 +104,19 @@ TTF_FILES=()
 if [ -d "$REPORTS_FONT_DIR" ]; then
     while IFS= read -r _ttf; do
         TTF_FILES+=("$_ttf")
-    done < <(find "$REPORTS_FONT_DIR" -maxdepth 1 \
-        \( -name "*.ttf" -o -name "*.TTF" -o -name "*.otf" \) 2>/dev/null | sort)
+    done < <(find "$REPORTS_FONT_DIR" -maxdepth 1 -type f \
+        \( -iname "*.ttf" -o -iname "*.ttc" -o -iname "*.otf" \) 2>/dev/null | sort)
+fi
+
+# --- Customer / licensed font originals (04-ReportsFonts/custom_fonts_dir/) ---
+# Source for deploy_fonts.sh – gitignored (licences), so this backup is the
+# only copy next to the deployed files in REPORTS_FONT_DIR
+CUSTOM_FONTS_DIR="$ROOT_DIR/04-ReportsFonts/custom_fonts_dir"
+CUSTOM_FONT_FILES=()
+if [ -d "$CUSTOM_FONTS_DIR" ]; then
+    while IFS= read -r _cf; do CUSTOM_FONT_FILES+=("$_cf"); done \
+        < <(find "$CUSTOM_FONTS_DIR" -maxdepth 1 -type f \
+            \( -iname "*.ttf" -o -iname "*.ttc" -o -iname "*.otf" \) 2>/dev/null | sort)
 fi
 
 # --- Reports WLS application dir ---
@@ -155,6 +169,26 @@ if [ -n "$FORMS_WLS_CONF_DIR" ]; then
     [ -f "$FORMS_WLS_CONF_DIR/default.env" ]   && DEFAULT_ENV="$FORMS_WLS_CONF_DIR/default.env"
 fi
 
+# --- Files written by our own scripts (12- to 14b-, 03-Logs/setLogLevel.sh,
+#     04-ReportsFonts/paramform_afm_setup.sh) – added 2026-10-19 ---
+_frm_inst_name="${FORMS_INSTANCE_NAME:-forms1}"
+WEBUTIL_CFG="$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$_frm_inst_name/server/webutil.cfg"
+WEBUTIL_CFG_ALT="$DOMAIN_HOME/config/fmwconfig/components/FORMS/$_frm_inst_name/server/webutil.cfg"
+REGISTRY_DAT="${FORMS_WLS_CONF_DIR:+$FORMS_WLS_CONF_DIR/oracle/forms/registry/Registry.dat}"
+JPS_CONFIG="$DOMAIN_HOME/config/fmwconfig/jps-config.xml"
+JPS_CONFIG_JSE="$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml"
+CONFIG_XML="$DOMAIN_HOME/config/config.xml"
+NM_PROPS="$DOMAIN_HOME/nodemanager/nodemanager.properties"
+_rtc_inst="$(dirname "${RWNETWORK_CONF_RTC:-/x/x}")"
+RWBUILDER_CONF="$_rtc_inst/rwbuilder.conf"
+SCREEN_PPD="$_rtc_inst/guicommon/tk/admin/PPD/screenprinter.ppd"
+AFM_DIR="$_rtc_inst/guicommon/tk/admin/AFM"
+AFM_FILES=()
+if [ -d "$AFM_DIR" ]; then
+    while IFS= read -r _a; do AFM_FILES+=("$_a"); done \
+        < <(find "$AFM_DIR" -maxdepth 1 -type f 2>/dev/null | sort)
+fi
+
 # =============================================================================
 # Banner
 # =============================================================================
@@ -174,7 +208,8 @@ printList "REPORTS_FONT_DIR"    36 "${REPORTS_FONT_DIR}  (${#TTF_FILES[@]} TTF/O
 printf "\n"
 
 # =============================================================================
-# Define backup items: "category|source_path|description"
+# Define backup items: "category|source_path|description[|stored_name]"
+# stored_name: only when two sources share a file name in one category
 # =============================================================================
 BACKUP_ITEMS=(
     # Font configuration
@@ -196,9 +231,29 @@ BACKUP_ITEMS=(
     # Domain environment
     "domain|${SETDOMAINENV}|WebLogic domain environment script (setDomainEnv.sh)"
     "domain|${OVERRIDES_SH}|Domain environment customizations (setUserOverrides.sh)"
+    # Forms instance + application (14-oracle_setup_forms.sh)
+    "forms_inst|${WEBUTIL_CFG}|WebUtil configuration – instance (webutil.cfg)"
+    "forms_inst|${WEBUTIL_CFG_ALT}|WebUtil configuration – second location (webutil.cfg)|webutil_alt.cfg"
+    "forms_wls|${REGISTRY_DAT}|Forms colour schemes (Registry.dat)"
+    # Reports tools: rwrun / font metrics for the HTML parameter form (14b-)
+    "reports_tools|${RWBUILDER_CONF}|Reports tools runtime config (rwbuilder.conf)"
+    "reports_tools|${SCREEN_PPD}|Screen printer PPD (paramform_afm_setup.sh)"
+    # Security stores (13-: identity store of the standalone Reports server)
+    "security|${JPS_CONFIG}|OPSS configuration (jps-config.xml)"
+    "security|${JPS_CONFIG_JSE}|OPSS configuration Java SE (jps-config-jse.xml)"
+    # Domain configuration (restore only with the domain stopped)
+    "domain|${CONFIG_XML}|WebLogic domain configuration (config.xml)"
+    "domain|${NM_PROPS}|Node Manager configuration (nodemanager.properties)"
     # IHateWeblogic
     "ihw|${ENV_CONF}|IHateWeblogic environment configuration (environment.conf)"
 )
+# ODL logging configuration per server / Reports component (setLogLevel.sh --persist)
+for _lx in "$DOMAIN_HOME"/config/fmwconfig/servers/*/logging.xml \
+           "$DOMAIN_HOME"/config/fmwconfig/components/Reports*Component/*/logging.xml; do
+    [ -f "$_lx" ] || continue
+    _ln="$(basename "$(dirname "$_lx")")"
+    BACKUP_ITEMS+=("logging|${_lx}|ODL logging configuration ${_ln} (logging.xml)|${_ln}_logging.xml")
+done
 
 # =============================================================================
 # Section 1: Check source files
@@ -211,7 +266,7 @@ FOUND_COUNT=0
 MISSING_COUNT=0
 
 for item in "${BACKUP_ITEMS[@]}"; do
-    IFS='|' read -r category src_path description <<< "$item"
+    IFS='|' read -r category src_path description _stored <<< "$item"
 
     if [ -z "$src_path" ]; then
         warn "$(printf "  %-14s  %s  (not found – will be skipped)" "$category" "$description")"
@@ -221,7 +276,7 @@ for item in "${BACKUP_ITEMS[@]}"; do
 
     if [ -f "$src_path" ]; then
         sz="$(du -h "$src_path" 2>/dev/null | cut -f1)"
-        ok "$(printf "  %-14s  %-35s  %s (%s)" "$category" "$(basename "$src_path")" "$src_path" "$sz")"
+        ok "$(printf "  %-14s  %-35s  %s (%s)" "$category" "${_stored:-$(basename "$src_path")}" "$src_path" "$sz")"
         ITEM_OK["$src_path"]=1
         FOUND_COUNT=$(( FOUND_COUNT + 1 ))
     else
@@ -243,8 +298,18 @@ else
         "fonts_ttf" "No font files found" "$REPORTS_FONT_DIR")"
 fi
 
+if [ "${#CUSTOM_FONT_FILES[@]}" -gt 0 ]; then
+    ok "$(printf "  %-14s  %-35s  %s (%d files)" "fonts_custom" "customer font originals" "$CUSTOM_FONTS_DIR" "${#CUSTOM_FONT_FILES[@]}")"
+else
+    info "$(printf "  %-14s  %s" "fonts_custom" "no customer fonts in $CUSTOM_FONTS_DIR")"
+fi
+if [ "${#AFM_FILES[@]}" -gt 0 ]; then
+    ok "$(printf "  %-14s  %-35s  %s (%d files)" "reports_afm" "AFM metric files" "$AFM_DIR" "${#AFM_FILES[@]}")"
+fi
+
 printf "\n"
-info "$FOUND_COUNT config file(s) + ${#TTF_FILES[@]} font file(s) ready to back up, $MISSING_COUNT not found / not configured"
+info "$FOUND_COUNT config file(s) + ${#TTF_FILES[@]} font file(s) + ${#CUSTOM_FONT_FILES[@]} customer font original(s) + ${#AFM_FILES[@]} AFM file(s) ready to back up, $MISSING_COUNT not found / not configured"
+info "Not included on purpose: *.des3 secrets (machine-bound key, re-create via the interview), the own CA in \$ORACLE_BASE/admin/pki (back up offline – 08-SSL/README.md), Nginx config (root)"
 
 # =============================================================================
 # Section 2: Existing backups overview
@@ -291,7 +356,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts fonts_ttf reports_comp reports_tools reports_wls fmw forms_wls domain ihw; do
+for cat in fonts fonts_ttf fonts_custom reports_afm reports_comp reports_tools reports_wls fmw forms_wls forms_inst security logging domain ihw; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary
@@ -315,12 +380,12 @@ MANIFEST="$BACKUP_DIR/manifest.txt"
 
 # Copy each file and append to manifest
 for item in "${BACKUP_ITEMS[@]}"; do
-    IFS='|' read -r category src_path description <<< "$item"
+    IFS='|' read -r category src_path description _stored <<< "$item"
 
     [ -z "$src_path" ]                       && continue
     [ "${ITEM_OK[$src_path]:-0}" -ne 1 ]     && continue
 
-    fname="$(basename "$src_path")"
+    fname="${_stored:-$(basename "$src_path")}"
     dst="$BACKUP_DIR/$category/$fname"
 
     if cp "$src_path" "$dst" 2>/dev/null; then
@@ -347,7 +412,40 @@ if [ "${#TTF_FILES[@]}" -gt 0 ]; then
             _ttf_fail=$(( _ttf_fail + 1 ))
         fi
     done
-    ok "  fonts_ttf: ${_ttf_ok} font(s) backed up${_ttf_fail:+, ${_ttf_fail} failed}"
+    ok "  fonts_ttf: ${_ttf_ok} font(s) backed up$( [ "$_ttf_fail" -gt 0 ] && printf ", %s failed" "$_ttf_fail")"
+fi
+
+# Copy customer font originals
+if [ "${#CUSTOM_FONT_FILES[@]}" -gt 0 ]; then
+    printf "# fonts_custom  (source: %s)\n" "$CUSTOM_FONTS_DIR" >> "$MANIFEST"
+    _cf_ok=0
+    for _f in "${CUSTOM_FONT_FILES[@]}"; do
+        _fn="$(basename "$_f")"
+        if cp "$_f" "$BACKUP_DIR/fonts_custom/$_fn" 2>/dev/null; then
+            printf "  %-14s  %-35s  %s\n" "fonts_custom" "$_fn" "$_f" >> "$MANIFEST"
+            _cf_ok=$(( _cf_ok + 1 ))
+        else
+            fail "  Failed to copy customer font: $_f"
+        fi
+    done
+    ok "  fonts_custom: ${_cf_ok} file(s) backed up"
+fi
+
+# Copy AFM font metrics (files without extension, e.g. Helvetica) – HTML
+# parameter form / substitute fonts in PDF
+if [ "${#AFM_FILES[@]}" -gt 0 ]; then
+    printf "# reports_afm  (source: %s)\n" "$AFM_DIR" >> "$MANIFEST"
+    _afm_ok=0
+    for _f in "${AFM_FILES[@]}"; do
+        _fn="$(basename "$_f")"
+        if cp "$_f" "$BACKUP_DIR/reports_afm/$_fn" 2>/dev/null; then
+            printf "  %-14s  %-35s  %s\n" "reports_afm" "$_fn" "$_f" >> "$MANIFEST"
+            _afm_ok=$(( _afm_ok + 1 ))
+        else
+            fail "  Failed to copy AFM: $_f"
+        fi
+    done
+    ok "  reports_afm: ${_afm_ok} file(s) backed up"
 fi
 
 ok "Manifest written: $MANIFEST"

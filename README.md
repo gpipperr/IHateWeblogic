@@ -19,14 +19,18 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[█████████████████░░░]` ~88 % complete** – phases 1–7 are implemented and the
-whole install chain is live-tested end-to-end incl. the smoke test, phase 8 is
-nearly done, phase 9 has its first script (`cve_inventory.sh`), host
-hardening (firewall, sshd) is live on the test host.
+**`[██████████████████░░]` ~90 % complete** – phases 1–7 are implemented and the
+whole install chain is live-tested end-to-end incl. the smoke test; the
+analyse + fix folders `02-`…`06-` were reviewed against the Oracle 14.1.2
+documentation and re-tested live on 2026-10-19; phase 8 is nearly done,
+phase 9 has its first script (`cve_inventory.sh`), host hardening (firewall,
+sshd) is live on the test host.
 
-How the ~88 % is estimated (state 2026-10-19): phases 1–7 count as done
+How the ~90 % is estimated (state 2026-10-19 evening): phases 1–7 count as done
 (7 × ~11 %, no stubs left: `rwrun_trace.sh` implemented, `display_check.sh`
-dropped, `rwserver_status.sh` with `authid`), phase 8 about nine tenths
+dropped, `rwserver_status.sh` with `authid`; 02–06 reviewed, shared libraries
+instead of copies, wrong checks removed – see the 2026-10-19 note below),
+phase 8 about nine tenths
 (backup/restore, WLS/Forms/Reports patching, RCU repository theory, profile
 `RCU_USER`, pre-checks and `rcu_repository_check.sh` incl. Data Pump backup
 done; JDK upgrade automation missing), phase 9 about a quarter (CVE watch
@@ -34,19 +38,20 @@ step 1 `cve_inventory.sh` with patch-cycle, JDK, exposure and advisory
 checks; `cve_watch.sh`, notification and the config security scanner are
 concept); security: local CA + signed `jacob.jar` (2026-10-17), firewall +
 sshd hardening (2026-10-19); minus the open items (EM user search,
-web-command tests, JACOB client test, Reports engines on the bundled JDK,
-OHS / WebGate patches from the CPU Oct 2026 cycle).
+web-command tests, JACOB / Forms client test, Reports engines on the bundled
+JDK, OHS / WebGate patches from the CPU Oct 2026 cycle, Forms
+`maxRuntimeProcesses`, review of `01-Run/`).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
 | 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF) |
-| 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X) |
+| 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
 | 4 | Set Up SSL | ✅ Done |
-| 5 | Solve Font Problems | ✅ Done |
-| 6 | Check Reports Performance | ✅ Done |
-| 7 | Check Forms | ✅ Done |
-| 8 | Maintenance & Patches | 🚧 Mostly done — backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); still missing: automated JDK upgrade (`80-` is read-only for now) |
+| 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
+| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs) – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
+| 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
+| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); still missing: automated JDK upgrade (`80-` is read-only for now) |
 | 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -70,7 +75,20 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > against the 180-day password expiry of `DEFAULT`; explicit RCU database type
 > `RCU_DB_TYPE=EBR`; pre-check `db_securefile=FORCE` (ORA-43853 on the first
 > RCU run); prefix overview of the schema version registry.
-> The diagnostic folders `02-`…`06-` were not part of that run.
+> **2026-10-19:** CVE inventory (`10-Monitoring/cve_inventory.sh`), host
+> firewall + sshd hardening; review of the analyse + fix folders against the
+> Oracle docs and the live test host: `02-Checks` (false findings fixed, "why"
+> links), `03-Logs` (log discovery, setLogLevel persist bug), `04-ReportsFonts`
+> (two font paths, AFM/PPD for substitute fonts), `05-ReportsPerformance` and
+> `06-FormsDiag` rebuilt on shared libraries (both had evaluated the wrong
+> files / non-existent parameters), prestart fix in `14-`; folder roles
+> written down ([Folder Roles](#folder-roles)); new background docs
+> [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md)
+> (incl. the Forms protocol history 1979–2024) and the `rwrun` section of
+> [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md).
+> `07-Maintenance` reviewed the same evening (backup completeness, restore
+> per category, patch gate sees every process from `$ORACLE_HOME`).
+> Not yet reviewed: `01-Run/`.
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 
@@ -159,9 +177,9 @@ operation with proactive, AI-assisted error analysis.
 │  PHASE 6 – CHECK REPORTS PERFORMANCE  (also alone, existing env.)   │
 │  (oracle)                                                            │
 │                                                                     │
-│  05-ReportsPerformance/engine_perf_settings.sh   Engine parameters  │
-│  05-ReportsPerformance/engine_perf_analyse.sh    Live analysis,     │
-│                                                   queue/response     │
+│  05-ReportsPerformance/engine_perf_settings.sh   rules, CPU, RAM    │
+│  05-ReportsPerformance/engine_perf_analyse.sh    failures, queue,   │
+│                                                   pool, server logs │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -221,7 +239,7 @@ Rules across the folders:
 
 1. **Logic exists once.** Shared functions live in a sourced library of the
    folder that owns the topic (`01-Run/reports_server_lib.sh`,
-   `03-Logs/log_locations.sh`). Build and monitor call the scripts, they do
+   `03-Logs/log_locations.sh`, `06-FormsDiag/forms_lib.sh`). Build and monitor call the scripts, they do
    not copy them. (The 05 review of 2026-10-19 found stale copies that
    evaluated the wrong file – the reason for this rule.)
 2. **One value, one source.** Target and tuning values live in
@@ -274,7 +292,7 @@ Run these scripts in sequence on a fresh installation:
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md) – findings, not procedures |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
 
@@ -330,6 +348,8 @@ IHateWeblogic/
 ├── 03-Logs/
 │   ├── README.md
 │   ├── get_all_logs.sh              – List all relevant log files with size and modification date
+│   ├── log_locations.sh             – Sourced: discovers all log dirs of the domain (servers, Reports
+│   │                                   server + engines, Reports tools, NM, EM) for all 03- scripts
 │   ├── grep_logs.sh                 – Search a pattern across all log files  (param: search term)
 │   ├── tail_logs.sh                 – Live-tail multiple log files simultaneously
 │   ├── archive_logs.sh              – Compress old log files (--apply to execute)
@@ -349,6 +369,10 @@ IHateWeblogic/
 │   │                                   sections + ##PDF_SUBSET## marker; edit this, not the deployed file
 │   ├── fontpath_config.sh           – Set REPORTS_FONT_DIRECTORY, TK_FONTALIAS, ORACLE_FONTALIAS (--apply)
 │   ├── pdf_font_verify.sh           – Verify generated PDFs: embedded=yes, type=TrueType (pdffonts)
+│   ├── paramform_afm_setup.sh       – Screen-printer PPD + AFM for the HTML parameter form (and
+│   │                                   substitute fonts in PDF), uses ttf2reports_afm.py (--apply)
+│   ├── ttf2reports_afm.py           – Generate Reports-compatible AFM files from TTF fonts
+│   ├── HTML_ParameterForm_Fonts.md  – Why the HTML parameter form shows Symbol glyphs, the two font paths
 │   ├── font_cache_reset.sh          – Rebuild Linux fontconfig cache (fc-cache) after font deploy (--apply)
 │   └── custom_fonts_dir/            – Drop corporate/customer font files here before deploying
 │
@@ -367,9 +391,9 @@ IHateWeblogic/
 ├── 07-Maintenance/
 │   ├── README.md                    – Backup categories, manifest format, restore workflow,
 │   │                                   patching an already-running environment (Phase 8)
-│   ├── backup_config.sh             – Backup all config files before changes:
-│   │                                   ConfigBackup/YYYYMMDD_HH24MI/<type>/ per config type
-│   ├── restore_config.sh            – List available backups and restore a selected set (--apply)
+│   ├── backup_config.sh             – Backup all config files our scripts change (13 categories,
+│   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600)
+│   ├── restore_config.sh            – List backups, restore a set or --category (--apply), path check
 │   ├── 80-patch_java_os.sh          – Java/OS layer: read-only check + manual upgrade checklist
 │   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
 │   ├── rcu_repository_check.sh      – RCU repository check (registry, accounts, data sources);
@@ -462,7 +486,9 @@ IHateWeblogic/
 │   ├── rcu_middleware_architecture.md – RCU schemas, OPSS/JPS + LDAP, registry, passwords,
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
 │   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
-│   │                                      performance parameters, history, broadcast idea
+│   │                                      rwrun call flow (§5.1), performance parameters, history
+│   ├── forms_runtime_architecture.md – Forms servlet / listener / frmweb per session, runtime
+│   │                                      pooling, timeout chain, memory, logs, protocol history
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
 │   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
@@ -522,8 +548,21 @@ IHateWeblogic/
 - RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade
   Assistant, OPatch, 11g Patch Set Assistant):
   [`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)
+- Working with Oracle Forms 14.1.2 (Web Configuration Parameters, Environment Variables, runtime pooling):
+  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html –
+  digested with quotes in [`80-FMW-Architecture/forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md)
+- Reports server / engines / `rwrun` with Oracle sources:
+  [`80-FMW-Architecture/report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md)
 
 ## Troubleshooting
+
+### Reports / Forms performance and sessions
+
+- Reports server slow, jobs waiting, failures: `05-ReportsPerformance/engine_perf_analyse.sh`
+  ([05-ReportsPerformance/README.md](05-ReportsPerformance/README.md)).
+- Forms sessions dropped, too many `frmweb`, timeouts: `06-FormsDiag/forms_perf_settings.sh`
+  ([06-FormsDiag/README.md](06-FormsDiag/README.md), background
+  [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md)).
 
 ### Font Problems
 
@@ -591,14 +630,14 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > `CommandManager.checkDiagnostic` bytecode). See
 > `09-Install/docs/13-reports-detail-settings.md`.
 >
-> This is separate from the `01-Run/rwserver_status.sh` gap in Open Items
-> below – that script's own `getserverinfo` call is unauthenticated and
-> needs `authid=` support added.
+> `01-Run/rwserver_status.sh` and `05-ReportsPerformance/engine_perf_analyse.sh`
+> call `getserverinfo` with `authid` (`--auth`, shared
+> `01-Run/reports_server_lib.sh`, since 2026-10-17 / 2026-10-19).
 
 ## Open Items / TODO
 
-Status 2026-10-17 after the clean rebuild 2026-10-14/15 and the follow-up
-work (details of every fix: `git log`).
+Status 2026-10-19 after the clean rebuild 2026-10-14/15, the follow-up
+work and the review of `02-`…`06-` (details of every fix: `git log`).
 
 ### Not yet live-tested (built, waiting for a fresh install / full restart)
 
@@ -662,6 +701,15 @@ work (details of every fix: `git log`).
 
 ### Script gaps found during the rebuild
 
+- [x] **07-Maintenance review** (2026-10-19): `backup_config.sh` missed
+  `webutil.cfg`, `Registry.dat`, `jps-config*.xml`, `config.xml`,
+  `nodemanager.properties`, `logging.xml`, `rwbuilder.conf`, screen-printer
+  PPD/AFM – added; backups now 700/600. `restore_config.sh`: `--category`,
+  only destinations below the known homes, `domain`/`security` refused while
+  the domain runs, restart hints via `startStop.sh`. `check_wls_stopped`
+  (patch gate of `81-`/`82-`) now also reports every process running a binary
+  from `$ORACLE_HOME` (Reports server, engines, `frmweb`). Open: retention,
+  `*.bak_<ts>` copies next to Oracle files.
 - [x] **06-FormsDiag review + prestart fix** (2026-10-19): the scripts checked
   parameters that do not exist in 14.1.2 (`heartbeatInterval` in seconds,
   `maxEventBunchSize`), sized sessions by the WLS_FORMS heap, looked for

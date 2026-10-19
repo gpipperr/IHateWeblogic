@@ -1,5 +1,10 @@
 # 07-Maintenance – Maintenance & Patches (Phase 8)
 
+**Role: analyse + fix an existing environment** (see the folder roles in the
+[root README](../README.md#folder-roles)): backup/restore and patching of a
+running installation, no matter who built it. The patch logic itself lives
+once in `09-Install/05-`/`06-` – the `81-`/`82-` wrappers call it.
+
 Configuration backup/restore, **and** patching an already-running,
 already-installed environment (e.g. a future CPU/CSPU cycle) — as opposed
 to `09-Install/`, which covers only the one-time initial install and
@@ -77,6 +82,8 @@ duplicated here.
    (add --fresh-patches first to archive the previous cycle's ZIPs)
 3. ./07-Maintenance/backup_config.sh --apply
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
+   (81-/82- refuse --apply while NM, a WLS server or ANY process from
+    $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …)
 5. ./07-Maintenance/80-patch_java_os.sh           # Java/OS layer (read-only)
 6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
 7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
@@ -84,8 +91,12 @@ duplicated here.
    (a Forms patch can reset extensions.jnlp / formsweb.cfg – re-activates the
    signed jacob.jar, re-signs a jacob.jar replaced by a new JACOB version)
 9. ./01-Run/startStop.sh start-all --apply
-10. ./02-Checks/java_check.sh / ./01-Run/rwserver_status.sh   # verify
-    ./08-SSL/ssl_local_ca.sh status   # own root CA: certificate expiry
+10. verify:
+    ./09-Install/15-deploy-test-report-forms_template.sh --apply   # smoke test Forms + Reports
+    ./01-Run/rwserver_status.sh ; ./06-FormsDiag/forms_settings.sh
+    ./02-Checks/java_check.sh
+    ./10-Monitoring/cve_inventory.sh   # installed patches = PATCH_CYCLE
+    ./08-SSL/ssl_local_ca.sh status    # own root CA: certificate expiry
 11. If something breaks: ./07-Maintenance/restore_config.sh --apply
 ```
 
@@ -153,32 +164,56 @@ Options:
 `find` (they contain version numbers and instance names that vary per
 install), not hardcoded:
 
-| Category | Source | Content |
-|---|---|---|
-| `fonts` | `$UIFONT_ALI` | Oracle Reports font alias file (`uifont.ali`) |
-| `fonts_ttf` | `$REPORTS_FONT_DIR/*.ttf/.TTF/.otf` | Deployed TrueType/OpenType font files |
-| `reports_comp` | `ReportsServerComponent/<instance>/` | `rwserver.conf`, `rwnetwork.conf` |
-| `reports_tools` | `ReportsToolsComponent/<instance>/` | `rwnetwork.conf` |
-| `reports_wls` | `servers/$WLS_MANAGED_SERVER/applications/reports_*/configuration/` | `rwserver.conf` (in-process), `rwservlet.properties`, `cgicmd.dat` |
-| `fmw` | `$ORACLE_HOME/reports/conf/` | `cgicmd.dat` from the FMW install (separate category — same filename as the domain copy) |
-| `forms_wls` | `servers/*/applications/forms_*/config/` | `formsweb.cfg`, `default.env` |
-| `domain` | `$DOMAIN_HOME/bin/` | `setDomainEnv.sh`, `setUserOverrides.sh` |
-| `ihw` | project root | `environment.conf` |
+| Category | Source | Content | Written by |
+|---|---|---|---|
+| `fonts` | `$UIFONT_ALI` | Oracle Reports font alias file (`uifont.ali`) | `04-`, `14b-` |
+| `fonts_ttf` | `$REPORTS_FONT_DIR/*.ttf/.ttc/.otf` (any case) | Deployed TrueType/OpenType font files (system + customer fonts as deployed) | `04-`, `14b-` |
+| `fonts_custom` | `04-ReportsFonts/custom_fonts_dir/*.ttf/.ttc/.otf` | **Customer / licensed font originals** – source for `deploy_fonts.sh`; gitignored (licence), so this backup is their only copy besides the deployed one | customer |
+| `reports_afm` | `ReportsToolsComponent/<inst>/guicommon/tk/admin/AFM/*` | AFM font metrics (files without extension) | `paramform_afm_setup.sh` |
+| `reports_comp` | `ReportsServerComponent/<instance>/` | `rwserver.conf`, `rwnetwork.conf` | `13-`, `05-` |
+| `reports_tools` | `ReportsToolsComponent/<instance>/` | `rwnetwork.conf`, `rwbuilder.conf`, `PPD/screenprinter.ppd` | `13-`, `paramform_afm_setup.sh` |
+| `reports_wls` | `servers/$WLS_MANAGED_SERVER/applications/reports_*/configuration/` | `rwserver.conf` (in-process), `rwservlet.properties`, `cgicmd.dat` | `13-`, `14b-` |
+| `fmw` | `$ORACLE_HOME/reports/conf/` | `cgicmd.dat` from the FMW install (separate category — same filename as the domain copy) | – |
+| `forms_wls` | `servers/*/applications/formsapp_*/config/` | `formsweb.cfg`, `default.env`, `oracle/forms/registry/Registry.dat` | `14-`, `06-` |
+| `forms_inst` | `components/FORMS/instances/<inst>/server/`, `components/FORMS/<inst>/server/` | `webutil.cfg` (stored as `webutil.cfg` / `webutil_alt.cfg`) | `14-` |
+| `security` | `config/fmwconfig/` | `jps-config.xml`, `jps-config-jse.xml` (identity store of the Reports server) | `13-` |
+| `logging` | `servers/*/logging.xml`, `components/Reports*Component/*/logging.xml` | ODL logging config (stored as `<server>_logging.xml`) | `03-Logs/setLogLevel.sh --persist` |
+| `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, `domain_jdk_path.sh` |
+| `ihw` | project root | `environment.conf` | interview, `init_env.sh` |
+
+Extended 2026-10-19: before, customer font originals, `.ttc` files, `webutil.cfg`, `Registry.dat`, the OPSS files,
+`config.xml`, `nodemanager.properties`, `logging.xml`, `rwbuilder.conf` and
+the screen-printer PPD/AFM were not backed up although our own scripts
+change them.
+
+**Not backed up on purpose:**
+
+| What | Why / where instead |
+|---|---|
+| `*.des3` secret files | encrypted with a machine-bound key – useless on another host, re-created by `01-setup-interview.sh` / the scripts that ask for them |
+| own root CA `$ORACLE_BASE/admin/pki` | the CA key belongs in an **offline** backup with its passphrase ([08-SSL/README.md](../08-SSL/README.md)), not next to the configuration |
+| Nginx configuration | root-owned, written by `09-Install/04-`/`05-root_nginx*.sh` from templates |
+| keystores, `boot.properties`, `security/SerializedSystemIni.dat` | domain secrets – part of a full domain / file-system backup, not of this config snapshot |
 
 **Output structure:**
 
 ```
 07-Maintenance/ConfigBackup/YYYYMMDD_HHMM/
 ├── fonts/            uifont.ali
-├── fonts_ttf/        *.ttf / *.TTF / *.otf
+├── fonts_ttf/        *.ttf / *.ttc / *.otf (deployed)
+├── fonts_custom/     customer font originals (custom_fonts_dir)
+├── reports_afm/      AFM metric files
 ├── reports_comp/     rwserver.conf, rwnetwork.conf
-├── reports_tools/    rwnetwork.conf
+├── reports_tools/    rwnetwork.conf, rwbuilder.conf, screenprinter.ppd
 ├── reports_wls/      rwserver.conf, rwservlet.properties, cgicmd.dat
 ├── fmw/              cgicmd.dat (FMW install copy)
-├── forms_wls/        formsweb.cfg, default.env
-├── domain/           setDomainEnv.sh, setUserOverrides.sh
+├── forms_wls/        formsweb.cfg, default.env, Registry.dat
+├── forms_inst/       webutil.cfg, webutil_alt.cfg
+├── security/         jps-config.xml, jps-config-jse.xml
+├── logging/          <server>_logging.xml
+├── domain/           setDomainEnv.sh, setUserOverrides.sh, config.xml, nodemanager.properties
 ├── ihw/              environment.conf
-└── manifest.txt      category, filename, original path — one line per file
+└── manifest.txt      category, stored filename, original path — one line per file
 ```
 
 Missing sources (component not installed, path not configured) are reported
@@ -189,6 +224,12 @@ an (empty) backup directory.
 `manifest.txt` is the single source of truth `restore_config.sh` uses to
 find files again — do not rename or move files inside a backup directory.
 
+**Permissions:** `umask 077` – backup directories 700, files 600 (the set
+contains `rwserver.conf` with the encrypted `<identifier>`, `default.env`,
+the OPSS configuration and `environment.conf`). Sets created before
+2026-10-19 are 755/644 – tighten them once:
+`chmod -R go-rwx 07-Maintenance/ConfigBackup`.
+
 ---
 
 ### restore_config.sh
@@ -196,6 +237,7 @@ find files again — do not rename or move files inside a backup directory.
 ```bash
 ./07-Maintenance/restore_config.sh             # list backups + show all manifests (read-only)
 ./07-Maintenance/restore_config.sh --apply     # interactively select and restore one
+./07-Maintenance/restore_config.sh --apply --category forms_wls,forms_inst   # only these
 ```
 
 Options:
@@ -203,23 +245,34 @@ Options:
 | Option | Description |
 |---|---|
 | `--apply` | Interactively select a backup set and restore it (default: list only) |
+| `--category LIST` | Only these categories (comma separated) – recommended; a full restore also brings back an older `environment.conf` and `config.xml` |
 | `--help` | Show usage |
 
-**Without `--apply`:** lists every backup directory under `ConfigBackup/`
-with its file count, then prints the full `manifest.txt` contents of each —
-read-only, nothing is touched.
+**Without `--apply`:** lists every backup set under `ConfigBackup/` that has
+a `manifest.txt` (newest first) with its file count, then prints the full
+`manifest.txt` of each — read-only, nothing is touched. Directories without
+a manifest come from single scripts (e.g. `jdk_path_<ts>/` of
+`domain_jdk_path.sh`) and are only named.
 
 **With `--apply`:**
 
-1. Shows a numbered selection menu (skipped automatically if only one backup exists)
+1. Shows a numbered selection menu, newest first (skipped automatically if only one backup exists)
 2. Prints the manifest of the selected backup for a final visual check
+   - only destinations below `DOMAIN_HOME`, `ORACLE_HOME`, the repository or
+     `REPORTS_FONT_DIR` are accepted – the manifest is a text file, other
+     paths (or `..`) are skipped with a WARN
+   - categories `domain` / `security` are refused while WebLogic or any
+     process from `$ORACLE_HOME` runs (`check_wls_stopped`); `ihw` warns that
+     newer `environment.conf` variables are lost
 3. **Creates a pre-restore backup of the current state first** — every file
    that is about to be overwritten is saved to a new
    `ConfigBackup/<timestamp>_pre_restore/` set (with its own manifest), so a
    bad restore can itself be undone
 4. Prompts for confirmation (`askYesNo`, default **no**) before overwriting anything
 5. Copies each file from the backup back to its original path
-6. Prints next steps: rebuild the font cache, restart the Reports Server
+6. Prints next steps per restored category: font cache, restart of the
+   Reports server / `WLS_REPORTS` / `WLS_FORMS` via `01-Run/startStop.sh`,
+   `start-all` after `domain`/`security`
 
 If the destination directory for a file no longer exists (e.g. a Reports
 instance was removed since the backup was taken), that file is skipped with
@@ -330,8 +383,10 @@ Fix:     Choose a different, complete backup set. Do not restore from a
 Symptom: uifont.ali / rwserver.conf restored, but server behaves unchanged
 Cause:   Reports Server / WLS_FORMS JVM caches config at startup; a restored
          file only takes effect after a restart
-Fix:     $DOMAIN_HOME/bin/stopComponent.sh  <server_name>
-         $DOMAIN_HOME/bin/startComponent.sh <server_name>
+Fix:     ./01-Run/startStop.sh stop  repserver01 --apply   (Reports server component)
+         ./01-Run/startStop.sh start repserver01 --apply
+         WLS_FORMS / WLS_REPORTS the same way; restore_config.sh prints the
+         commands for the restored categories.
          For fonts, also run: ./04-ReportsFonts/font_cache_reset.sh --apply
 ```
 
@@ -379,6 +434,25 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 
 ## 7. Notes
 
-- Both scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
+- All scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
 - `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
 - There is currently no automatic retention policy for `ConfigBackup/` — old backup sets accumulate until manually removed.
+- `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error (2026-10-19).
+
+## 8. Review 2026-10-19
+
+Live on the test host: `backup_config.sh` (dry-run + `--apply`: 27 files,
+55 TTF, 77 AFM), `restore_config.sh` (`--category logging` restored
+unchanged files, `--category domain` refused while the domain runs, a
+manifest pointing to `/tmp` or `…/../` skipped), `domain_jdk_path.sh`,
+`80-` (dry), `81-`/`82-` (dry-run, `require_wls_stopped` now lists
+`rwserver`, Reports engines and `frmweb`), `rcu_repository_check.sh`
+(27 checks OK).
+
+Open:
+- retention for `ConfigBackup/` (`--keep N`)
+- our scripts leave `*.bak_<ts>` copies next to the Oracle files (e.g.
+  `rwserver.conf.bak_*` in the component directory) – collect them in
+  `ConfigBackup/` instead, or clean up after a successful run
+- JDK upgrade automation (`80-` read-only, see above)
+- Reports engines on the FMW-bundled JDK 17.0.12 (`80-` shows them – root README open item)

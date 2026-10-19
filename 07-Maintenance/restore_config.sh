@@ -32,17 +32,39 @@ init_log
 # Parse arguments
 # =============================================================================
 APPLY_MODE=false
-for arg in "$@"; do
-    case "$arg" in
-        --apply) APPLY_MODE=true ;;
+CATEGORIES=""      # empty = all categories of the set
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --apply) APPLY_MODE=true; shift ;;
+        --category) CATEGORIES="$2"; shift 2 ;;
         --help)
-            printf "Usage: %s [--apply]\n" "$(basename "$0")"
+            printf "Usage: %s [--apply] [--category LIST]\n" "$(basename "$0")"
             printf "  Default: list available backups and show manifest\n"
             printf "  --apply: interactively select and restore a backup set\n"
+            printf "  --category LIST: only these categories, comma separated\n"
+            printf "      (fonts,fonts_ttf,fonts_custom,reports_afm,reports_comp,reports_tools,reports_wls,\n"
+            printf "       fmw,forms_wls,forms_inst,security,logging,domain,ihw)\n"
             exit 0
             ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 2 ;;
     esac
 done
+
+# _cat_selected CATEGORY – 0 if CATEGORY is part of --category (or no filter)
+_cat_selected() { [ -z "$CATEGORIES" ] || [[ ",$CATEGORIES," == *",$1,"* ]]; }
+
+# _dest_allowed PATH – restore only below the known homes (a manifest is a
+# plain text file – never write to arbitrary paths from it)
+_dest_allowed() {
+    local d
+    for d in "${DOMAIN_HOME:-}" "${ORACLE_HOME:-${FMW_HOME:-}}" "$ROOT_DIR" "${REPORTS_FONT_DIR:-}"; do
+        [ -n "$d" ] && [[ "$1" == "$d"/* ]] && [[ "$1" != *"/../"* ]] && return 0
+    done
+    return 1
+}
+
+# Pre-restore backup and restored files: owner only
+umask 077
 
 # =============================================================================
 # Variables
@@ -74,7 +96,13 @@ fi
 BACKUP_DIRS=()
 while IFS= read -r d; do
     BACKUP_DIRS+=("$d")
-done < <(find "$BACKUP_BASE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r)
+done < <(find "$BACKUP_BASE" -mindepth 2 -maxdepth 2 -name manifest.txt -printf '%T@ %h\n' 2>/dev/null \
+          | sort -rn | cut -d' ' -f2-)
+# Only sets with a manifest.txt (backup_config.sh, pre-restore), newest first.
+# Other directories in ConfigBackup/ come from single scripts (e.g.
+# domain_jdk_path.sh jdk_path_<ts>/) and are restored by hand.
+_other="$(find "$BACKUP_BASE" -mindepth 1 -maxdepth 1 -type d ! -exec test -f '{}/manifest.txt' ';' -printf '%f ' 2>/dev/null)"
+[ -n "$_other" ] && info "Without manifest (not restorable here): $_other"
 
 if [ "${#BACKUP_DIRS[@]}" -eq 0 ]; then
     fail "No backup sets found in $BACKUP_BASE"
@@ -168,6 +196,8 @@ printf "\n"
 # (lines starting with # are comments)
 
 declare -A RESTORE_MAP   # backup_file_path → original_path
+declare -A RESTORE_CAT   # backup_file_path → category
+declare -A RESTORED_CATS # category → 1
 RESTORE_COUNT=0
 
 while IFS= read -r line; do
@@ -175,12 +205,15 @@ while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [ -z "${line// /}" ]            && continue
 
-    # Parse: "  category  filename  original_path"
-    category="$(printf "%s" "$line" | awk '{print $1}')"
-    fname="$(printf "%s" "$line" | awk '{print $2}')"
-    orig_path="$(printf "%s" "$line" | awk '{print $3}')"
+    # Parse: "  category  filename  original_path" (path = rest of the line)
+    read -r category fname orig_path <<< "$line"
 
     [ -z "$category" ] || [ -z "$fname" ] || [ -z "$orig_path" ] && continue
+    _cat_selected "$category" || continue
+    if ! _dest_allowed "$orig_path"; then
+        warn "Destination outside DOMAIN_HOME / ORACLE_HOME / repository – skipped: $orig_path"
+        continue
+    fi
 
     backup_file="$SELECTED_DIR/$category/$fname"
 
@@ -190,9 +223,23 @@ while IFS= read -r line; do
     fi
 
     RESTORE_MAP["$backup_file"]="$orig_path"
+    RESTORE_CAT["$backup_file"]="$category"
+    RESTORED_CATS[$category]=1
     RESTORE_COUNT=$(( RESTORE_COUNT + 1 ))
 
 done < "$MANIFEST"
+
+# domain / security files (config.xml, jps-config*.xml, nodemanager.properties)
+# must not be replaced under a running domain – WebLogic rewrites them
+if [ -n "${RESTORED_CATS[domain]:-}${RESTORED_CATS[security]:-}" ] && $APPLY_MODE && ! check_wls_stopped; then
+    fail "Categories domain/security selected while WebLogic runs – stop the domain first (01-Run/startStop.sh stop-all --apply)"
+    info "  or restore the other categories only: --category fonts,reports_comp,..."
+    printf '%s' "$WLS_RUNNING_COMPONENTS" | sed 's/^/  - /' | tee -a "${LOG_FILE:-/dev/null}"
+    print_summary
+    exit 2
+fi
+[ -n "${RESTORED_CATS[ihw]:-}" ] && \
+    warn "Category ihw restores an older environment.conf – variables added since that backup are lost (diff it first)"
 
 if [ "$RESTORE_COUNT" -eq 0 ]; then
     fail "No restorable files found in manifest"
@@ -231,7 +278,7 @@ PRE_DIR="$BACKUP_BASE/$PRE_TS"
 
 info "Saving current state to: $PRE_DIR"
 
-for cat in fonts fonts_ttf reports_comp reports_tools reports_wls fmw forms_wls domain ihw; do
+for cat in "${!RESTORED_CATS[@]}"; do
     mkdir -p "$PRE_DIR/$cat" 2>/dev/null
 done
 
@@ -251,10 +298,9 @@ while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [ -z "${line// /}" ]            && continue
 
-    category="$(printf "%s" "$line" | awk '{print $1}')"
-    fname="$(printf "%s" "$line" | awk '{print $2}')"
-    orig_path="$(printf "%s" "$line" | awk '{print $3}')"
+    read -r category fname orig_path <<< "$line"
     [ -z "$orig_path" ] && continue
+    [ -n "${RESTORE_MAP[$SELECTED_DIR/$category/$fname]:-}" ] || continue
 
     if [ -f "$orig_path" ]; then
         if cp "$orig_path" "$PRE_DIR/$category/$fname" 2>/dev/null; then
@@ -313,11 +359,19 @@ info "Configuration restored from: $SELECTED_LABEL"
 if [ "$FAILED" -gt 0 ]; then
     warn "  $FAILED file(s) could not be restored – check log: $LOG_FILE"
 fi
-info "  Run font_cache_reset.sh --apply  to rebuild fc-cache"
-info "  Restart Reports Server to pick up restored uifont.ali and env vars:"
-WLS_MANAGED="${WLS_MANAGED_SERVER:-<reports_server_name>}"
-info "    \$DOMAIN_HOME/bin/stopComponent.sh  $WLS_MANAGED"
-info "    \$DOMAIN_HOME/bin/startComponent.sh $WLS_MANAGED"
+info "  Restored categories: $(printf '%s ' "${!RESTORED_CATS[@]}")"
+_rs="${REPORTS_SERVER_NAME:-repserver01}"
+_restart() { info "    ./01-Run/startStop.sh stop $1 --apply && ./01-Run/startStop.sh start $1 --apply"; }
+if [ -n "${RESTORED_CATS[fonts_ttf]:-}${RESTORED_CATS[fonts_custom]:-}" ]; then
+    info "  Fonts: ./04-ReportsFonts/deploy_fonts.sh --apply (customer originals) + ./04-ReportsFonts/font_cache_reset.sh --apply"
+fi
+if [ -n "${RESTORED_CATS[fonts]:-}${RESTORED_CATS[fonts_ttf]:-}${RESTORED_CATS[reports_afm]:-}${RESTORED_CATS[reports_comp]:-}${RESTORED_CATS[reports_tools]:-}" ]; then
+    info "  Reports server (reads its config + fonts at start):"; _restart "$_rs"
+fi
+[ -n "${RESTORED_CATS[reports_wls]:-}${RESTORED_CATS[fmw]:-}" ] && { info "  Reports servlet:"; _restart "${WLS_REPORTS_SERVER:-WLS_REPORTS}"; }
+[ -n "${RESTORED_CATS[forms_wls]:-}${RESTORED_CATS[forms_inst]:-}" ] && { info "  Forms:"; _restart "${WLS_FORMS_SERVER:-WLS_FORMS}"; }
+[ -n "${RESTORED_CATS[domain]:-}${RESTORED_CATS[security]:-}${RESTORED_CATS[logging]:-}" ] && \
+    info "  Domain / security / logging: ./01-Run/startStop.sh start-all --apply (domain was stopped)"
 
 # =============================================================================
 # Summary

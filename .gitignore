@@ -75,3 +75,7 @@ SR/
 
 # CVE watch / monitoring output (server-specific)
 10-Monitoring/reports/
+
+# Customer / licensed fonts – never commit (licence); readme.txt stays
+04-ReportsFonts/custom_fonts_dir/*
+!04-ReportsFonts/custom_fonts_dir/readme.txt

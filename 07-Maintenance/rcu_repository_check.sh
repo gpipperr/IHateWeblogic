@@ -290,6 +290,8 @@ else
     dpdir="$(_sys_sql "SELECT directory_path FROM dba_directories WHERE directory_name = 'DATA_PUMP_DIR';" | head -1 | tr -d ' ')"
     printList "DATA_PUMP_DIR" 20 "${dpdir:-?} (on the DB server)"
     pf="$(mktemp)"; chmod 600 "$pf"
+    # parfile holds the SYS password – remove it also on Ctrl-C / error
+    trap 'DB_SYS_PWD=""; DB_SCHEMA_PWD=""; [ -n "${pf:-}" ] && { shred -u "$pf" 2>/dev/null || rm -f "$pf"; }' EXIT INT TERM
     # Note: Oracle recommends SYSDBA for Data Pump only when needed; on a
     # production DB a DBA may prefer an own export user.
     for job in schemas registry; do
