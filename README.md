@@ -308,6 +308,8 @@ IHateWeblogic/
 │   ├── port_check.sh                – Listen addresses and ports per component, TCP check
 │   ├── db_connect_check.sh          – TNS / JDBC connectivity test (uses weblogic_sec.sh)
 │   ├── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
+│   ├── egress_check.sh              – Outbound connections of the domain, external DTD URLs, JVM XML options,
+│   │                                   --capture (tcpdump DNS + SYN with process) – external-DTD hang risk
 │   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
 │   │                                   servers per port (DiagServerLocator), read-only
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
@@ -454,6 +456,7 @@ IHateWeblogic/
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
 │   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
 │   │                                      rwrun call flow (§5.1), performance parameters, history
+│   ├── weblogic_outbound_connections.md – what the domain sends outside, external-DTD trap
 │   ├── forms_runtime_architecture.md – Forms servlet / listener / frmweb per session, runtime
 │   │                                      pooling, timeout chain, memory, logs, protocol history
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
@@ -692,6 +695,15 @@ summarised in each README ("Review 2026-10-19").
   `ssl_config.sh --expiry` – exit codes are cron-ready).
 
 ### Customer feedback / watch
+
+- [ ] **Next customer installation:** run `09-Install/04-oracle_pre_checks.sh`
+  (check 10: does a blocked request fail fast or hang?) and
+  `02-Checks/egress_check.sh --capture 300` during the first start – which
+  components fetch external DTDs there
+  ([weblogic_outbound_connections.md](80-FMW-Architecture/weblogic_outbound_connections.md)).
+- [ ] **OAM external DTD (SR):** colleagues fill in OAM version / component /
+  XML file + customer thread dump in the local SR draft
+  (`SR/oam_external_dtd/`, reproducer without root included).
 
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard
   also create random Node Manager credentials? If yes,

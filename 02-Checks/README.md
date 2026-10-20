@@ -23,6 +23,7 @@ explained in the background documents of
 | [`db_connect_check.sh`](#db_connect_checksh) | 6-step DB diagnosis: DNS / ping / TCP / TNS / service / login | [who logs in where](../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where), [password expiry](../80-FMW-Architecture/rcu_middleware_architecture.md#61-password-expiry--a-real-risk) |
 | [`ssl_check.sh`](#ssl_checksh) | who terminates TLS (Nginx / WLS / OHS), live TLS analysis, certificates incl. WebLogic demo certificates, keystores | [08-SSL](../08-SSL/README.md), [which certificates are needed](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed) |
 | [`weblogic_performance.sh`](#weblogic_performancesh) | SecureRandom source in `java.security`, heap per server in `setUserOverrides.sh` (`--apply`) | [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) (`setDomainEnv.sh` → `setUserOverrides.sh`); WLS_FORMS heap ≠ Forms sessions – [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts) |
+| [`egress_check.sh`](#egress_checksh) | what the domain sends to other hosts: external DTD/XSD URLs in the configuration, `/etc/hosts` entries for them, XML/network JVM options, live non-local connections per process, `--capture` (tcpdump: DNS + outgoing SYN/UDP, with DNS names and process) | [outbound connections, external-DTD trap](../80-FMW-Architecture/weblogic_outbound_connections.md) |
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/report_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
@@ -381,6 +382,33 @@ multicast, otherwise it stops with `REP-50600` –
 - Runs in a subshell that sources `$DOMAIN_HOME/reports/bin/reports.sh`
   (`DiagServerLocator` needs that environment).
 - About 4 s per port; only **running** servers answer.
+
+### egress_check.sh
+
+```bash
+./02-Checks/egress_check.sh                    # static + live, read-only
+./02-Checks/egress_check.sh --capture 300      # + capture; restart a server meanwhile
+./02-Checks/egress_check.sh --capture 120 --if ens160
+```
+
+**Why:** the domain needs no internet at run time – but an XML parser that
+downloads a DTD from `http://java.sun.com/dtd/…` blocks a server start
+forever behind a firewall that accepts the connection and never answers
+([outbound connections, external-DTD trap](../80-FMW-Architecture/weblogic_outbound_connections.md)).
+
+| Section | What |
+|---|---|
+| 1 | `DOCTYPE` with an http(s) DTD in `$DOMAIN_HOME/config` per URL and file; `properties.dtd` = OK (JDK built-in via `Properties.loadFromXML`), others WARN; count of http(s) XSDs in `schemaLocation` (INFO) |
+| 2 | `/etc/hosts` entry for each DTD host (fast failure) or resolved via DNS |
+| 3 | `-Djavax.xml.accessExternal*`, `-Djdk.xml.*`, `sun.net.client` timeouts, proxy options of every WLS / Reports engine JVM |
+| 4 | established connections to non-local hosts: domain processes (WLS, Reports, `frmweb`) WARN, other processes INFO |
+| 5 | `--capture N`: `sudo tcpdump` on the default-route interface – DNS lookups, outgoing SYN/UDP to non-local networks (destination filter only), names from the DNS answers, process from an `ss` poll; pcap in `log/<date>/egress_<time>.pcap` (600) |
+
+Live 2026-10-20: full domain restart – nothing left the host; a test
+parser fetching `java.sun.com` was shown with name and destination.
+Short connections are often not seen by the `ss` poll – then the DNS name
+and the time stamp point to the process; OS timers (`dnf-makecache`) show up
+too (`journalctl`).
 
 ---
 

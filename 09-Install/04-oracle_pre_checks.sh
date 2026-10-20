@@ -382,6 +382,40 @@ else
 fi
 
 # =============================================================================
+# Check 10 – Outbound access: how does a blocked request fail?
+# An XML parser that downloads a DTD (http://java.sun.com/dtd/…) blocks a
+# server start forever behind a firewall/proxy that accepts the connection
+# and never answers. 80-FMW-Architecture/weblogic_outbound_connections.md
+# =============================================================================
+
+section "Outbound Access (external DTD risk)"
+
+_px="$(env | grep -iE '^(https?|no)_proxy=' | sed 's/=.*//' | paste -sd' ')"
+printf "  %-36s %s\n" "Proxy variables (oracle):" "${_px:-none}" | tee -a "${LOG_FILE:-/dev/null}"
+if ! command -v curl > /dev/null 2>&1; then
+    warn "curl not found – outbound check skipped"
+else
+    _url="http://java.sun.com/dtd/properties.dtd"
+    _res="$(curl -s -o /dev/null -w '%{http_code} %{time_connect} %{time_total}' \
+            --connect-timeout 10 --max-time 20 "$_url" 2>/dev/null)"; _rc=$?
+    read -r _code _tcon _ttot <<< "$_res"
+    case "$_rc" in
+        0)  info "$(printf "%-36s reachable (HTTP %s, %ss) – internet access, the DTD dependency stays hidden" "$_url" "$_code" "$_ttot")" ;;
+        6)  ok "$(printf "%-36s name not resolvable – fails fast" "java.sun.com")" ;;
+        7)  ok "$(printf "%-36s connection refused after %ss – fails fast" "$_url" "$_ttot")" ;;
+        28) if awk -v c="$_tcon" 'BEGIN{exit !(c+0>0)}'; then
+                warn "$(printf "%-36s CONNECTED but no answer within 20 s – a parser would hang forever" "$_url")"
+                info "  Silent firewall / proxy in the path. Mitigation: /etc/hosts java.sun.com -> address that refuses,"
+                info "  or a REJECT rule; after the first start: 02-Checks/egress_check.sh --capture 300"
+            else
+                warn "$(printf "%-36s connect timeout (10 s) – packets dropped, each DTD request would wait ~130 s" "$_url")"
+                info "  Mitigation: REJECT instead of DROP, or /etc/hosts java.sun.com -> address that refuses"
+            fi ;;
+        *)  info "$(printf "%-36s curl exit code %s (%ss)" "$_url" "$_rc" "${_ttot:-?}")" ;;
+    esac
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 
