@@ -678,6 +678,14 @@ summarised in each README ("Review 2026-10-19").
   tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in
   `oracle_software_version.conf`), then download in `04-` and apply in
   `06-`/`82-`. The JDK at `JDK_HOME` is done (`80-patch_java_os.sh --apply`).
+  State 2026-10-20: the Oracle Support AI knows no published patch and no
+  Doc ID; it says "Do not manually replace that JDK directory" – only a MOS
+  patch for component `oracle.jdk` / FMW 14.1.2 is supported, and points to
+  the KA1182 / CPU October 2026 patch-availability rows. **Blocked:** the
+  Oracle Support portal currently returns only empty pages – check KA1182
+  (FMW 14.1.2 / Forms and Reports / Oracle JDK rows, text search
+  `oracle.jdk`, `17.0.`) and the MOS patch search later; no row → open an
+  SR with the question (prompt in this session, ~1300 characters).
 - [ ] **13- `rwserver.conf`: `engLife` / `maxIdle` / engine `jvmOptions`**
   not taken from `environment.conf` – values tuned with
   `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
