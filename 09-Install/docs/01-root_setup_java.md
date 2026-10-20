@@ -61,8 +61,10 @@ not to whatever `alternatives` selects as the system default.
 | SHA256 checksum | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256` |
 | All versions / RPM | https://www.oracle.com/java/technologies/downloads/ |
 
-> The `/latest/` URL always points to the current JDK 21 patch release.
-> SHA256 is verified automatically by `02b-root_os_java.sh`.
+> The `/latest/` URL stays at **21.0.12.1** – the last JDK 21 release under
+> the NFTC (September 2026). Later updates: MOS Patch 35702194, see
+> "Patch-cycle minimum and upgrade" below. SHA256 is verified automatically
+> by `02b-root_os_java.sh`.
 
 ### Installer search order in 02b-root_os_java.sh
 
@@ -99,28 +101,54 @@ ln -sfn /u01/app/oracle/java/jdk-21.0.10 /u01/app/oracle/java/jdk-21
 
 ### Patch-cycle minimum and upgrade (`--upgrade-jdk`)
 
-`oracle_software_version.conf` holds the minimum JDK update of the current
-patch cycle (`JDK_VERSION_MIN`, `JDK_PATCH_NR`; CSPU Sep 2026: **21.0.12.1**,
-Patch 35702194). The script warns if the JDK at `JDK_HOME` is older.
+**Where JDK 21 updates come from (since October 2026).** Oracle's download
+page: "JDK 21 will receive updates under the NFTC, until September 2026, a
+year after the release of the next LTS. Subsequent JDK 21 updates will be
+licensed under the Java SE OTN License" (checked 2026-10-20). The public
+`/java/21/latest/` link therefore stays at **21.0.12.1** – every later update
+comes from My Oracle Support as **Patch 35702194** (`JDK_PATCH_NR`; one patch
+number for "the current JDK 21", the Linux ZIP contains
+`jdk-21.0.x_linux-x64_bin.tar.gz`, `.rpm`, `.deb`, `SHA256_VALUES` – about
+565 MB, confirmed by download 2026-10-20). Use with Oracle products only:
+Doc ID 1557737.1.
+
+**One download place:** the MOS patch is downloaded with all other patches
+by `04-oracle_pre_download.sh --apply --mos` into
+`$PATCH_STORAGE/patches/$JDK_PATCH_NR/`. `02b-` and `07-Maintenance/80-`
+never download a JDK update themselves – they only look into the patch
+repository.
+
+`oracle_software_version.conf`: `JDK_PATCH_NR`, `JDK_VERSION_MIN` (minimum
+of the current patch cycle, CSPU Sep 2026: **21.0.12.1**). The script warns
+if the JDK at `JDK_HOME` is older.
 
 ```bash
-./09-Install/02b-root_os_java.sh --upgrade-jdk           # dry-run: shows the CDN version
+./09-Install/02b-root_os_java.sh --upgrade-jdk           # dry-run: version in the patch repository
 ./09-Install/02b-root_os_java.sh --apply --upgrade-jdk   # upgrade
+./07-Maintenance/80-patch_java_os.sh --apply             # same, as maintenance step (domain stopped)
 ```
 
-What `--apply --upgrade-jdk` does:
+What `--upgrade-jdk` does:
 
-1. Reads the version offered at
-   `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz`
-   (first tar entry only) and stops if it is still below `JDK_VERSION_MIN` –
-   then the update has to come from MOS (`JDK_PATCH_NR`). Checked 2026-10-14:
-   the public link already serves 21.0.12.1.
-2. Refuses to run while any JVM uses this JDK (stop WebLogic first).
-3. Downloads to `$PATCH_STORAGE/jdk/`, verifies SHA-256 against the `.sha256`
-   file on the CDN, keeps the tarball as `jdk-<version>_linux-x64_bin.tar.gz`.
-4. Extracts next to the current JDK and repoints the `jdk-21` symlink. The old
+1. Looks for `p<JDK_PATCH_NR>_*_Linux-x86-64.zip` in
+   `$PATCH_STORAGE/patches/<JDK_PATCH_NR>/`. **Not there → WARN** with the
+   hint `04-oracle_pre_download.sh --apply --mos`, nothing else happens.
+2. Reads the JDK version from the tarball inside the ZIP. Not newer than the
+   JDK at `JDK_HOME` → OK, nothing to do (idempotent). Below
+   `JDK_VERSION_MIN` → WARN (the repository holds an old cycle – download again
+   with `--fresh-patches`).
+3. Refuses to run while any JVM uses this JDK (stop WebLogic first).
+4. Extracts the tarball to `$PATCH_STORAGE/jdk/` and verifies its SHA-256
+   against `SHA256_VALUES` of the ZIP.
+5. Extracts next to the current JDK and repoints the `jdk-21` symlink. The old
    directory stays – rollback: `ln -sfn <old jdk dir> /u01/app/oracle/java/jdk-21`.
-5. The SecureRandom section of the same run fixes the new `java.security`.
+6. The SecureRandom section of the same run fixes the new `java.security`.
+
+**First installation (bootstrap):** `02b-` runs in phase 0, before `04-` –
+and getMOSPatch itself needs a Java. A fresh host therefore still gets its
+first JDK 21 from `$PATCH_STORAGE` / `/tmp` / the public CDN (21.0.12.1,
+NFTC, see the search order above); the update to the current cycle follows
+after `04-` with `--upgrade-jdk`.
 
 `alternatives` and `/usr/bin/jps` point to `jdk-21/...` and follow the symlink
 automatically.
@@ -137,6 +165,15 @@ resets this after the domain is created; after an upgrade (or any
 ```
 
 `--upgrade-jdk` prints this hint when `DOMAIN_HOME/config/config.xml` exists.
+
+**FMW-bundled JDK (`$ORACLE_HOME/oracle_common/jdk`, 17.0.12):** not touched
+by this step. It is an OPatch component of the Oracle Home (`oracle.jdk`
+17.0.12.8.0 in `inventory/ContentsXML/comps.xml`, confirmed 2026-10-20) and
+is used by the Reports server, the Reports engines and the Forms/Reports
+tool wrappers (`reports.sh`, `rwengine.sh`, `frmcmp.sh` … hard-code
+`oracle_common/jdk`). Its update comes as an OPatch patch for that
+component – patch number still to be determined (`FMW_JDK_PATCH_NR` in
+`oracle_software_version.conf`, open item).
 
 ### Installation via RPM (alternative)
 
@@ -251,8 +288,10 @@ JDK 8:   $JDK_HOME/jre/lib/security/java.security
 
 ### Step 2 – FMW embedded JDK (after FMW installation)
 
-After FMW is installed, WebLogic uses its own embedded JDK at
-`$FMW_HOME/oracle_common/jdk`. This separate `java.security` must also be fixed:
+After FMW is installed, the Oracle Home has its own embedded JDK at
+`$ORACLE_HOME/oracle_common/jdk` – used by the Reports server, the Reports
+engines and the Forms/Reports tools (WebLogic itself runs on `JDK_HOME`).
+This separate `java.security` must also be fixed:
 
 ```
 02-Checks/weblogic_performance.sh --apply  →  Section 1 – java.security

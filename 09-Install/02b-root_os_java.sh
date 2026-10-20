@@ -11,8 +11,10 @@
 # Options  : --apply          Install JDK, create symlink, register alternatives
 #            --skip-oracle    Skip Oracle JDK installation check
 #            --with-openjdk   Also install OpenJDK via dnf (optional, parallel)
-#            --upgrade-jdk    Below JDK_VERSION_MIN: install Oracle's CDN 'latest'
-#                             JDK 21 next to the old one, repoint JDK_HOME
+#            --upgrade-jdk    Install the JDK 21 of the patch repository
+#                             ($PATCH_STORAGE/patches/<JDK_PATCH_NR>/, downloaded by
+#                             04-oracle_pre_download.sh --mos) next to the old one if
+#                             it is newer, repoint JDK_HOME; missing → WARN, no download
 #            --help           Show usage
 # Requires : tar or dnf, alternatives
 # Runs as  : root or oracle with sudo
@@ -54,8 +56,8 @@ _usage() {
     printf "  %-22s %s\n" "--apply"         "Install JDK, create symlink, register alternatives"
     printf "  %-22s %s\n" "--skip-oracle"   "Skip Oracle JDK install (already done)"
     printf "  %-22s %s\n" "--with-openjdk"  "Also install OpenJDK 21 via dnf (optional, parallel)"
-    printf "  %-22s %s\n" "--upgrade-jdk"   "If below JDK_VERSION_MIN: get Oracle's 'latest' JDK 21 from the CDN,"
-    printf "  %-22s %s\n" ""                "install it next to the old one and repoint JDK_HOME (needs --apply)"
+    printf "  %-22s %s\n" "--upgrade-jdk"   "Install the JDK 21 from patches/<JDK_PATCH_NR>/ (downloaded by 04- --mos)"
+    printf "  %-22s %s\n" ""                "next to the old one if newer, repoint JDK_HOME (needs --apply)"
     printf "  %-22s %s\n" "--help"          "Show this help"
     exit 1
 }
@@ -129,36 +131,79 @@ _install_jdk_tar() {
     fi
 }
 
-# Upgrade the JDK at JDK_HOME to Oracle's current public JDK 21 ("latest" CDN link).
-# The new JDK is extracted NEXT TO the old one and the JDK_HOME symlink is
-# repointed – the old directory stays as rollback (ln -sfn <old dir> JDK_HOME).
-# Usage: _upgrade_jdk_latest <min_version>
-_upgrade_jdk_latest() {
-    local min="$1"
-    local url="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
-    local dl_dir="${PATCH_STORAGE:-/tmp}/jdk"
-    local dl_tar="$dl_dir/jdk-21_linux-x64_bin.tar.gz"
-    local new_ver sha_remote sha_local final_tar pids
+# --- JDK from the patch repository ------------------------------------------
+# Since the NFTC for JDK 21 ended (September 2026) updates exist only as MOS
+# Patch JDK_PATCH_NR. 04-oracle_pre_download.sh --mos is the only place that
+# downloads it; this script only reads $PATCH_STORAGE/patches/<nr>/.
 
-    section "JDK Upgrade (Oracle CDN latest JDK 21)"
-    info "  Source: $url"
+# _jdk_repo_zip – the JDK patch ZIP of the patch repository (empty if missing)
+_jdk_repo_zip() {
+    [ -n "${JDK_PATCH_NR:-}" ] || return 0
+    ls -t "${PATCH_STORAGE:-/nonexistent}/patches/$JDK_PATCH_NR"/p"${JDK_PATCH_NR}"_*Linux-x86-64.zip 2>/dev/null | head -1
+}
 
-    # Peek at the version on the CDN (streams only the first tar entry)
-    new_ver="$(curl -sL --max-time 60 "$url" 2>/dev/null | tar tzf - 2>/dev/null | head -1 | cut -d/ -f1 | sed 's/^jdk-//')"
+# _jdk_zip_tarname <zip> – name of the Linux x64 JDK tarball inside the ZIP
+_jdk_zip_tarname() {
+    unzip -Z1 "$1" 2>/dev/null | grep -E '^jdk-21[^/]*_linux-x64_bin\.tar\.gz$' | head -1
+}
+
+# _jdk_repo_tar <zip> – extract the tarball to $PATCH_STORAGE/jdk/, verify it
+# against SHA256_VALUES of the ZIP, print its path
+_jdk_repo_tar() {
+    local zip="$1" dir="${PATCH_STORAGE}/jdk" name tmp sha_exp sha_act
+    name="$(_jdk_zip_tarname "$zip")"
+    [ -n "$name" ] || { fail "No jdk-21*_linux-x64_bin.tar.gz in $zip" >&2; return 1; }
+    mkdir -p "$dir" || { fail "Cannot create $dir" >&2; return 1; }
+    tmp="$(mktemp -d "$dir/.extract_XXXXXX")"
+    if ! unzip -q -o "$zip" "$name" SHA256_VALUES -d "$tmp" 2>/dev/null; then
+        rm -rf "$tmp"; fail "Cannot extract $name from $zip" >&2; return 1
+    fi
+    sha_exp="$(grep -F "$name" "$tmp/SHA256_VALUES" 2>/dev/null | grep -oE '[0-9A-Fa-f]{64}' | head -1 | tr 'A-F' 'a-f')"
+    sha_act="$(sha256sum "$tmp/$name" | awk '{print $1}')"
+    if [ -z "$sha_exp" ] || [ "$sha_exp" != "$sha_act" ]; then
+        rm -rf "$tmp"
+        fail "SHA-256 of $name does not match SHA256_VALUES (expected: ${sha_exp:-none}, actual: $sha_act)" >&2
+        return 1
+    fi
+    mv -f "$tmp/$name" "$dir/$name" && rm -rf "$tmp"
+    ok "SHA-256 verified against SHA256_VALUES: $name" >&2
+    printf '%s' "$dir/$name"
+}
+
+# _upgrade_jdk_repo <min_version> <current_version> – install the JDK of the
+# patch repository next to the current one if it is newer, repoint JDK_HOME.
+# The old directory stays as rollback (ln -sfn <old dir> JDK_HOME).
+_upgrade_jdk_repo() {
+    local min="$1" cur="$2" zip name new_ver tar pids old_target
+
+    section "JDK Upgrade from the patch repository (Patch ${JDK_PATCH_NR:-?})"
+    zip="$(_jdk_repo_zip)"
+    if [ -z "$zip" ]; then
+        warn "JDK patch ${JDK_PATCH_NR:-?} not in the patch repository: ${PATCH_STORAGE:-?}/patches/${JDK_PATCH_NR:-?}/"
+        info "  Download it with the other patches: 09-Install/04-oracle_pre_download.sh --apply --mos"
+        return 0
+    fi
+    name="$(_jdk_zip_tarname "$zip")"
+    new_ver="$(printf '%s' "$name" | sed -n 's/^jdk-\([0-9.]*\)_linux-x64_bin\.tar\.gz$/\1/p')"
     if [ -z "$new_ver" ]; then
-        fail "Cannot determine the JDK version offered at $url (no internet access?)"
+        fail "Cannot read the JDK version in $zip"
         return 1
     fi
-    if [ "$(printf '%s\n%s\n' "$new_ver" "$min" | sort -V | head -1)" != "$min" ]; then
-        fail "CDN 'latest' offers $new_ver – still below the minimum $min"
-        info "  Get the required update from MOS instead (see JDK_PATCH_NR in oracle_software_version.conf)"
-        return 1
+    info "$(printf "  %-22s %s" "Repository:" "$zip")"
+    info "$(printf "  %-22s %s  (installed: %s, minimum: %s)" "JDK in the patch:" "$new_ver" "${cur:-?}" "${min:-?}")"
+
+    if [ -n "$min" ] && [ "$(printf '%s\n%s\n' "$new_ver" "$min" | sort -V | head -1)" != "$min" ]; then
+        warn "The patch repository holds JDK $new_ver – below the cycle minimum $min (old cycle?)"
+        info "  New cycle: 04-oracle_pre_download.sh --apply --fresh-patches --mos"
     fi
-    ok "CDN 'latest' offers JDK $new_ver (>= $min)"
+    if [ -n "$cur" ] && [ "$(printf '%s\n%s\n' "$new_ver" "$cur" | sort -V | tail -1)" = "$cur" ]; then
+        ok "JDK $new_ver of the patch repository is not newer than the installed $cur – nothing to do"
+        return 0
+    fi
 
     if [ "$APPLY_MODE" -ne 1 ]; then
-        info "  Dry-run: would download to $dl_dir, verify SHA-256, extract next to the"
-        info "  current JDK and repoint $JDK_HOME → $(dirname "$JDK_HOME")/jdk-$new_ver"
+        info "  Dry-run: would extract $name (SHA-256 check), install it next to the current"
+        info "  JDK and repoint $JDK_HOME → $JDK_PARENT/jdk-$new_ver"
         return 0
     fi
 
@@ -169,29 +214,9 @@ _upgrade_jdk_latest() {
         return 1
     fi
 
-    mkdir -p "$dl_dir" || { fail "Cannot create $dl_dir"; return 1; }
-    info "  Downloading (about 200 MB) ..."
-    if ! curl -L --fail --max-time 900 --silent --show-error -o "$dl_tar" "$url"; then
-        fail "Download failed: $url"
-        rm -f "$dl_tar"
-        return 1
-    fi
-    sha_remote="$(curl -L --fail --max-time 30 --silent "$url.sha256" | awk '{print $1}')"
-    sha_local="$(sha256sum "$dl_tar" | awk '{print $1}')"
-    if [ -z "$sha_remote" ] || [ "$sha_remote" != "$sha_local" ]; then
-        fail "SHA-256 mismatch or not retrievable (remote: ${sha_remote:-none}, local: $sha_local)"
-        rm -f "$dl_tar"
-        return 1
-    fi
-    ok "SHA-256 verified: $sha_local"
-
-    # Keep the tarball under a versioned name – also used by fresh installs
-    final_tar="$dl_dir/jdk-${new_ver}_linux-x64_bin.tar.gz"
-    mv -f "$dl_tar" "$final_tar" && ok "Stored: $final_tar"
-
-    local old_target
+    tar="$(_jdk_repo_tar "$zip")" || { fail "JDK not installed – extraction / SHA-256 check of the patch failed"; return 1; }
     old_target="$(readlink -f "$JDK_HOME")"
-    _install_jdk_tar "$final_tar" || return 1
+    _install_jdk_tar "$tar" || return 1
     ok "JDK upgraded: $JDK_HOME → $(readlink -f "$JDK_HOME")"
     info "  Rollback: ln -sfn $old_target $JDK_HOME   (old JDK kept)"
     info "  SecureRandom check below runs against the new java.security"
@@ -210,6 +235,10 @@ _upgrade_jdk_latest() {
 
 JDK_HOME="${JDK_HOME:-/u01/app/oracle/java/jdk-21}"
 JDK_PARENT="$(dirname "$JDK_HOME")"
+# Java SE patch of the current cycle (oracle_software_version.conf)
+_VER_CONF="$SCRIPT_DIR/oracle_software_version.conf"
+JDK_PATCH_NR="$(sed -n 's/^JDK_PATCH_NR="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
+JDK_VERSION_MIN="$(sed -n 's/^JDK_VERSION_MIN="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
 
 printLine
 section "Java Installation – $(date '+%Y-%m-%d %H:%M:%S')"
@@ -253,26 +282,19 @@ else
         fi
 
         # Minimum update level of the current patch cycle (oracle_software_version.conf)
-        _ver_conf="$SCRIPT_DIR/oracle_software_version.conf"
-        _jdk_min="$(sed -n 's/^JDK_VERSION_MIN="\([^"]*\)".*/\1/p' "$_ver_conf" 2>/dev/null | head -1)"
-        _jdk_patch="$(sed -n 's/^JDK_PATCH_NR="\([^"]*\)".*/\1/p' "$_ver_conf" 2>/dev/null | head -1)"
+        _jdk_min="$JDK_VERSION_MIN"
         _jdk_cur="$(printf "%s" "$JDK_VERSION" | sed -n 's/.*version "\([^"]*\)".*/\1/p')"
         if [ -n "$_jdk_min" ] && [ -n "$_jdk_cur" ]; then
             if [ "$(printf '%s\n%s\n' "$_jdk_cur" "$_jdk_min" | sort -V | head -1)" = "$_jdk_min" ]; then
                 ok "JDK $_jdk_cur meets the patch-cycle minimum $_jdk_min"
             else
-                warn "JDK $_jdk_cur is below the patch-cycle minimum $_jdk_min (Patch ${_jdk_patch:-see KA1182})"
-                if [ "$UPGRADE_JDK" -eq 1 ]; then
-                    _upgrade_jdk_latest "$_jdk_min"
-                else
-                    info "  Automatic: re-run with --apply --upgrade-jdk (Oracle CDN 'latest' JDK 21)"
-                    info "  Manual   : extract the new JDK next to the old one, repoint the symlink:"
-                    info "    tar xzf <jdk-21.x_linux-x64_bin.tar.gz> -C $(dirname "$JDK_HOME")"
-                    info "    ln -sfn $(dirname "$JDK_HOME")/<extracted jdk-21.x dir> $JDK_HOME"
-                fi
+                warn "JDK $_jdk_cur is below the patch-cycle minimum $_jdk_min (Patch ${JDK_PATCH_NR:-see KA1182})"
+                [ "$UPGRADE_JDK" -eq 1 ] || \
+                    info "  Upgrade from the patch repository: re-run with --apply --upgrade-jdk"
             fi
         fi
-        unset _ver_conf _jdk_min _jdk_patch _jdk_cur
+        [ "$UPGRADE_JDK" -eq 1 ] && _upgrade_jdk_repo "$_jdk_min" "$_jdk_cur"
+        unset _jdk_min _jdk_cur
 
         # Verify it is Oracle JDK (not OpenJDK)
         if "$JDK_HOME/bin/java" -version 2>&1 | grep -qi 'openjdk'; then
@@ -290,8 +312,17 @@ else
         JDK_TAR=""
         JDK_RPM=""
         if [ -n "${PATCH_STORAGE:-}" ] && [ -d "$PATCH_STORAGE" ]; then
-            JDK_TAR="$(find "$PATCH_STORAGE" -maxdepth 3 -name "jdk-21*.tar.gz" 2>/dev/null | sort | tail -1)"
-            JDK_RPM="$(find "$PATCH_STORAGE" -maxdepth 3 -name "jdk-21*.rpm"    2>/dev/null | sort | tail -1)"
+            JDK_TAR="$(find "$PATCH_STORAGE" -maxdepth 3 -name "jdk-21*.tar.gz" 2>/dev/null | sort -V | tail -1)"
+            JDK_RPM="$(find "$PATCH_STORAGE" -maxdepth 3 -name "jdk-21*.rpm"    2>/dev/null | sort -V | tail -1)"
+            # MOS patch ZIP of the patch repository (04- --mos) – tarball inside
+            _jdk_zip="$(_jdk_repo_zip)"
+            if [ -z "$JDK_TAR" ] && [ -n "$_jdk_zip" ]; then
+                info "  JDK patch ZIP found: $_jdk_zip"
+                if [ "$APPLY_MODE" -eq 1 ]; then
+                    JDK_TAR="$(_jdk_repo_tar "$_jdk_zip")" || { fail "Extraction / SHA-256 check of $_jdk_zip failed"; JDK_TAR=""; }
+                fi
+            fi
+            unset _jdk_zip
         fi
 
         if [ -n "$JDK_TAR" ]; then

@@ -6,7 +6,11 @@
 # the AdminServer (correct admin URL / startup properties), nmStart fallback.
 # =============================================================================
 import sys
-import time
+# Helper names carry the _ihw_ prefix: after connect() WLST puts its own
+# commands (state(), shutdown() ...) and Java packages (java.time -> 'time') into
+# the global namespace and overrides same-named functions/modules - WLST's
+# state() prints and returns None, wait_down never saw SHUTDOWN (2026-10-20).
+import time as _ihw_time
 
 CTRL       = '##CTRL_DIR##'
 ADMIN      = '##ADMIN_SERVER##'
@@ -21,7 +25,7 @@ rc = 0
 def ihw(msg):
     print('IHW:' + msg)
 
-def state(name, typ='Server'):
+def _ihw_state(name, typ='Server'):
     try:
         if typ == 'Server':
             return str(nmServerStatus(name))
@@ -39,7 +43,7 @@ except Exception as e:
 
 # --- AdminServer ----------------------------------------------------------------
 if TARGET in ('all', ADMIN):
-    if state(ADMIN) == 'RUNNING':
+    if _ihw_state(ADMIN) == 'RUNNING':
         ihw(ADMIN + ' already RUNNING')
     else:
         try:
@@ -64,11 +68,11 @@ if todo:
             connected = True
             break
         except Exception:
-            time.sleep(10)
+            _ihw_time.sleep(10)
     if not connected:
         ihw('WARNING cannot connect to the AdminServer - using nmStart for managed servers')
     for m in todo:
-        if state(m) == 'RUNNING':
+        if _ihw_state(m) == 'RUNNING':
             ihw(m + ' already RUNNING')
             continue
         try:
@@ -87,7 +91,7 @@ if todo:
 for (name, typ) in COMPONENTS:
     if TARGET not in ('all', name):
         continue
-    if state(name, typ) == 'RUNNING':
+    if _ihw_state(name, typ) == 'RUNNING':
         ihw(name + ' already RUNNING')
         continue
     try:

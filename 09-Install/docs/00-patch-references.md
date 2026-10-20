@@ -152,7 +152,8 @@ Linux 9), Nginx as frontend.
 
 | # | Patch | Description | Release | File (getMOSPatch) |
 |---|---|---|---|---|
-| 1 | 35702194 | Java SE 21.0.12.1 or higher (JDK 17 alternative: Patch 33181589, 17.0.20.1+) | CSPU Sep 2026 | platform-dependent |
+| 1 | 35702194 | Java SE 21.0.12.1 or higher (JDK 17 alternative: Patch 33181589, 17.0.20.1+) – since NFTC ended (Sep 2026) the only source of JDK 21 updates; downloaded by `04-`, installed by `02b- --upgrade-jdk` / `07-Maintenance/80- --apply` | CSPU Sep 2026 | `p35702194_2100_Linux-x86-64.zip` (tar.gz/rpm/deb + SHA256_VALUES, ~565 MB) |
+| 1b | *open* | FMW-bundled JDK `oracle_common/jdk` (OPatch component `oracle.jdk` 17.0.12.8.0) – used by Reports server/engines and Forms/Reports tools; patch number to be determined (`FMW_JDK_PATCH_NR`) | – | – |
 | 2 | 28186730 | OPatch for FMW/WLS 14.1.2.0.0 | CPU | standalone MOS download currently only offers **13.9.4.2.22** (`p28186730_1394222_Generic.zip`); **13.9.4.2.24** — the version this project's `OPATCH_VERSION_MIN` actually requires — is bundled inside the SPB (patch 39925660) at `tools/opatch/generic/p28186730_1394224_Generic.zip` instead; confirmed 2026-10-13, see the caveat in `docs/05-oracle_patch_weblogic.md` |
 | 3 | **39925660** | WLS Stack Patch Bundle 14.1.2.0.260825 | CSPU Sep 2026 | `p39925660_141200_Generic.zip` |
 | 4 | **39988381** | WLS 14.1.2 SPU for CVE-2026-70748 (in addition to the SPB) | CSPU Sep 2026 | ships 4 product-version variants under one patch number (12.2.1.4.0/14.1.1.0.0/14.1.2.0.0/15.1.1.x) — `05-/06-oracle_patch_*.sh` select the 14.1.2 one automatically via `_select_patch_zip()` in `IHateWeblogic_lib.sh` |

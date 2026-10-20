@@ -436,8 +436,10 @@ check_wls_stopped() {
     local pid
 
     # NodeManager - same two fallback patterns as startStop.sh
-    pid="$(pgrep -f 'weblogic.nodemanager' 2>/dev/null | head -1)"
-    [ -z "$pid" ] && pid="$(pgrep -f 'NodeManager' 2>/dev/null | head -1)"
+    # the Node Manager JVM runs the main class weblogic.NodeManager (own argv
+    # element) – a plain 'NodeManager' pattern also matched shells / tails whose
+    # command line merely contains the word (false "still RUNNING", 2026-10-20)
+    pid="$(pgrep -f -- ' weblogic\.NodeManager( |$)' 2>/dev/null | head -1)"
     [ -n "$pid" ] && WLS_RUNNING_COMPONENTS="${WLS_RUNNING_COMPONENTS}NodeManager (PID $pid)
 "
 

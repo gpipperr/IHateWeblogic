@@ -17,7 +17,10 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 | **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
-`mos_sec.conf.des3` (encrypted password).
+`mos_sec.conf.des3` (encrypted password). getMOSPatch gets them through a
+**pseudo terminal** (it asks for user and password on its console, the
+script answers the prompts) – never as `MOSPass=` on the command line,
+where every user could read it in `ps` (fixed 2026-10-20).
 
 ---
 
@@ -71,6 +74,23 @@ Large ZIP (several hundred MB) applied via `opatch napply`, not `opatch apply`
 — see [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md), section
 "SPB (CSPU September 2026)", for why this mechanism was reintroduced and
 what the apply script does with it.
+
+### Java SE patch (getMOSPatch)
+
+| Variable | Value | Description |
+|---|---|---|
+| `JDK_PATCH_NR` | `35702194` | Oracle JDK 21 – "current JDK 21" on MOS (Linux ZIP with `jdk-21.0.x_linux-x64_bin.tar.gz/.rpm/.deb` + `SHA256_VALUES`, ~565 MB) |
+| `JDK_VERSION_MIN` | `21.0.12.1` | minimum of the current patch cycle |
+| `FMW_JDK_PATCH_NR` | *(empty)* | OPatch patch for the FMW-bundled JDK (`oracle.jdk` in the Oracle Home) – to be determined |
+
+Since October 2026 JDK 21 updates are no longer on the public download page
+(NFTC ended September 2026, see `docs/01-root_setup_java.md`). This script is
+the **only** place that downloads them; `02b-root_os_java.sh --upgrade-jdk`
+and `07-Maintenance/80-patch_java_os.sh --apply` take the ZIP from
+`$PATCH_STORAGE/patches/$JDK_PATCH_NR/` and only warn if it is missing.
+The ZIP name does not change between JDK updates
+(`p35702194_2100_Linux-x86-64.zip`) – start a new cycle with
+`--fresh-patches`.
 
 ### Post-Install Patches (getMOSPatch, in apply order)
 
@@ -173,10 +193,9 @@ Platform codes in `.getMOSPatch.cfg`: `226P` = Linux x86-64 · `233P` = Linux AR
 ```bash
 mkdir -p $PATCH_STORAGE/patches/28186730
 cd $PATCH_STORAGE/patches/28186730
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-    MOSUser="your.email@company.com" \
-    MOSPass="your-mos-password" \
-    patch=28186730 download=all
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=28186730 download=all
+# getMOSPatch asks for the MOS user and password on the console – do not pass
+# MOSPass= on the command line (visible in ps for every user)
 # → downloads p28186730_139422_Generic.zip (or similar)
 ```
 
@@ -186,9 +205,7 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
 # CSPU Sep 2026 – WLS Stack Patch Bundle (large, several hundred MB):
 mkdir -p $PATCH_STORAGE/patches/39925660
 cd $PATCH_STORAGE/patches/39925660
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-    MOSUser="..." MOSPass="..." \
-    patch=39925660 download=all
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=39925660 download=all
 ```
 
 ### 5. Download CPU patches (INSTALL_PATCHES)
@@ -201,9 +218,7 @@ Determine current patch numbers first — see
 for _p in 39988381 38590500; do
     mkdir -p $PATCH_STORAGE/patches/$_p
     cd $PATCH_STORAGE/patches/$_p
-    java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-        MOSUser="..." MOSPass="..." \
-        patch=$_p download=all
+    java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=$_p download=all
 done
 ```
 
@@ -216,18 +231,14 @@ Determine current QPR patch numbers from MOS KA204 — see
 # Current QPR Aug 2026 – Reports 14.1.2 (supersedes 38827528):
 mkdir -p $PATCH_STORAGE/patches/39600348
 cd $PATCH_STORAGE/patches/39600348
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-    MOSUser="..." MOSPass="..." \
-    patch=39600348 download=all
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=39600348 download=all
 # → p39600348_141200_Linux-x86-64.zip
 
 # Current QPR Sep 2026 – Forms 14.1.2 (supersedes 38874285), only needed
 # if Forms is part of this install:
 mkdir -p $PATCH_STORAGE/patches/39842516
 cd $PATCH_STORAGE/patches/39842516
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-    MOSUser="..." MOSPass="..." \
-    patch=39842516 download=all
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=39842516 download=all
 # → p39842516_141200_Linux-x86-64.zip
 ```
 
@@ -268,6 +279,9 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
     (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
   - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`39925660`) to
     `$PATCH_STORAGE/patches/39925660/`, if set (skips if empty)
+  - Downloads the Java SE patch **`JDK_PATCH_NR`** (`35702194`) to
+    `$PATCH_STORAGE/patches/35702194/` – source of `--upgrade-jdk` /
+    `07-Maintenance/80-patch_java_os.sh --apply`
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
   - Downloads each patch from `INSTALL_PATCHES_REPORTS` and
     `INSTALL_PATCHES_FORMS` (plus `INSTALL_PATCHES_FR_OPTIONAL` if
@@ -301,6 +315,8 @@ $PATCH_STORAGE/
     ├── 39925660/                 ← CSPU Sep 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
     │   └── p39925660_141200_Generic.zip     ← applied via opatch napply, not apply
     ├── 39988381/                 ← CSPU Sep 2026: WLS SPU CVE-2026-70748 (getMOSPatch, INSTALL_PATCHES)
+    ├── 35702194/                 ← Oracle JDK 21 (getMOSPatch, JDK_PATCH_NR) – used by --upgrade-jdk
+    │   └── p35702194_2100_Linux-x86-64.zip  ← jdk-21.0.x_linux-x64_bin.tar.gz + SHA256_VALUES
     ├── 38590500/                 ← FMW PERL Security Patch (getMOSPatch, INSTALL_PATCHES_FR_COMMON)
     ├── 39600348/                 ← QPR Aug 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
     │   └── p39600348_141200_Linux-x86-64.zip

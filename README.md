@@ -27,7 +27,7 @@ reviewed against the Oracle 14.1.2 documentation and re-tested live
 (`cve_inventory.sh`); host hardening (firewall, sshd) is live on the test host.
 
 How the ~90 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (JDK upgrade automation missing), phase 9 about a quarter
+about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
 (CVE watch step 1 done; `cve_watch.sh`, notification, config security
 scanner are concept); minus the [open items](#open-items--todo) – mainly
 client-side tests, the CPU Oct 2026 cycle and a few security hardening steps.
@@ -41,7 +41,7 @@ client-side tests, the CPU Oct 2026 cycle and a few security hardening steps.
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
 | 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs) – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
-| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); still missing: automated JDK upgrade (`80-` is read-only for now) |
+| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` |
 | 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -220,7 +220,7 @@ Rules across the folders:
 
 | Phase | Gap |
 |---|---|
-| Phase 8 (Patches) | JDK upgrade (`07-Maintenance/80-`) is read-only/checklist |
+| Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – patch number open (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 | Security | WLS demo SSL ports, `frmweb`/`rwserver` loopback binding, Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
 
@@ -618,9 +618,10 @@ summarised in each README ("Review 2026-10-19").
 - [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
   Oracle Home although Nginx is the frontend (agreed: everything on disk
   gets patched).
-- [ ] JDK update of `JDK_HOME`; the **Reports engines run on the FMW-bundled
-  JDK** (`oracle_common/jdk` 17.0.12 via Oracle's `reports.sh`) – find the
-  supported way to update it.
+- [ ] JDK 21.0.13 (CPU Oct): set `JDK_VERSION_MIN`, `04-oracle_pre_download.sh
+  --apply --fresh-patches --mos` (Patch 35702194 – check it really holds
+  21.0.13), then `07-Maintenance/80-patch_java_os.sh --apply`. The bundled JDK
+  of the Reports engines: see "FMW-bundled JDK" under Scripts.
 - [ ] Confirm the CVE coverage of the patches in MOS KA1182
   (CVE-2026-83021 / 83099 / 83020 of CSPU Sep 2026).
 - [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
@@ -672,7 +673,11 @@ summarised in each README ("Review 2026-10-19").
 
 ### Scripts
 
-- [ ] **JDK upgrade automation** – `07-Maintenance/80-` is read-only.
+- [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
+  `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
+  tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in
+  `oracle_software_version.conf`), then download in `04-` and apply in
+  `06-`/`82-`. The JDK at `JDK_HOME` is done (`80-patch_java_os.sh --apply`).
 - [ ] **13- `rwserver.conf`: `engLife` / `maxIdle` / engine `jvmOptions`**
   not taken from `environment.conf` – values tuned with
   `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next

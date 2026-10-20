@@ -29,7 +29,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 |---|---|---|
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
-| `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — read-only check + manual upgrade checklist |
+| `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
 | `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
@@ -88,7 +88,7 @@ duplicated here.
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
    (81-/82- refuse --apply while NM, a WLS server or ANY process from
     $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …)
-5. ./07-Maintenance/80-patch_java_os.sh           # Java/OS layer (read-only)
+5. ./07-Maintenance/80-patch_java_os.sh --apply   # JDK_HOME from patches/<JDK_PATCH_NR>/ (WARN if missing)
 6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
 7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
 8. Forms only: ./09-Install/14-oracle_setup_forms.sh --apply
@@ -120,13 +120,14 @@ CPU/CSPU advisory) — it has to happen before any download anyway, and
 `05-`/`06-oracle_patch_*.sh` already print the exact download command
 whenever a required patch ZIP is missing.
 
-**Java/OS layer (step 5) is intentionally read-only in this version** —
-`80-patch_java_os.sh` runs `02-Checks/java_check.sh` and prints a manual
-JDK-upgrade checklist, but does not call `09-Install/02b-root_os_java.sh`
-automatically yet. That script's behavior when installing a newer JDK
-*alongside* an already-provisioned host (rather than a fresh one) is not
-yet verified — see the script's own header comment for the three open
-questions that need confirming on a disposable host first.
+**Java/OS layer (step 5):** since October 2026 JDK 21 updates exist only
+on MOS (Patch 35702194 – the NFTC for JDK 21 ended in September 2026). The
+patch is downloaded **once**, with all other patches, by
+`04-oracle_pre_download.sh --apply --mos`; `80-patch_java_os.sh --apply` only
+looks into `$PATCH_STORAGE/patches/<JDK_PATCH_NR>/` – missing or not newer →
+WARN / OK, no download. Details: [01-root_setup_java.md](../09-Install/docs/01-root_setup_java.md#patch-cycle-minimum-and-upgrade---upgrade-jdk).
+The FMW-bundled JDK (`oracle_common/jdk`, OPatch component `oracle.jdk`)
+is patched with OPatch (`FMW_JDK_PATCH_NR`, still to be determined).
 
 ### domain_jdk_path.sh
 
@@ -287,19 +288,18 @@ a `WARN` rather than failing the whole restore.
 ### 80-patch_java_os.sh
 
 ```bash
-./07-Maintenance/80-patch_java_os.sh    # read-only: java_check.sh + upgrade checklist
+./07-Maintenance/80-patch_java_os.sh            # read-only: java_check.sh + JDK in the patch repository?
+./07-Maintenance/80-patch_java_os.sh --apply    # upgrade JDK_HOME from the patch repository
 ```
-
-Options:
 
 | Option | Description |
 |---|---|
+| `--apply` | domain must be stopped (`require_wls_stopped`); calls `09-Install/02b-root_os_java.sh --apply --upgrade-jdk` (sudo inside), then `domain_jdk_path.sh` (read-only check) and `java_check.sh` |
 | `--help` | Show usage |
 
-No `--apply` flag in this version — it is read-only by design (runs
-`02-Checks/java_check.sh` unchanged, then prints a manual JDK-upgrade
-checklist). Delegates to: `02-Checks/java_check.sh`. New code: the
-soft `check_wls_stopped()` pre-check only.
+Without `--apply`: `java_check.sh` plus `02b- --upgrade-jdk` as dry-run –
+which JDK is in the repository, would it be installed. Rollback:
+`ln -sfn <old jdk dir> $JDK_HOME` (old directory is kept).
 
 ### 81-patch_weblogic.sh
 

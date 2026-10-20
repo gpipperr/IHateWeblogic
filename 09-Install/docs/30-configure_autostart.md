@@ -63,6 +63,24 @@ Discovered from `$DOMAIN_HOME/config/config.xml` at configure time:
 Not started: `FORMS` and `ReportsToolsComponent` system components – they have
 no long-running process of their own.
 
+> **Fixed 2026-10-20 – WLST name shadowing in `wls_stop.py` / `wls_start.py`.**
+> After `connect()` WLST puts its own commands (`state()`, `shutdown()` …) and
+> Java packages (`java.time` → `time`) into the global namespace and
+> overrides same-named script functions and modules:
+> - `time.sleep()` → `AttributeError: 'javapackage' object has no attribute
+>   'sleep'` – `stop all` aborted after the first managed server and
+>   `fmw_ctl.sh` stopped the Node Manager anyway: AdminServer and `WLS_REPORTS`
+>   kept running outside the Node Manager;
+> - the script's own `state()` was replaced by WLST's `state()`, which prints
+>   "Current state of …" and returns `None` – `wait_down` never saw
+>   `SHUTDOWN`, waited 300 s per server and then tried `nmKill`.
+>
+> All helpers now carry the `_ihw_` prefix (`_ihw_state`, `_ihw_wait_down`,
+> `_ihw_kill`, `_ihw_stop_server`, `import time as _ihw_time`). Live:
+> `stop-all` 27 s (before: > 10 min / aborted), `start-all` 74 s, no
+> traceback, smoke test green. Existing hosts: re-run
+> `30-configure_autostart.sh --apply` to re-render the control scripts.
+
 ## Credentials
 
 `30-configure_autostart.sh --apply` creates the key files **without any
@@ -160,6 +178,8 @@ outside the Node Manager show up as `UNKNOWN` in `fmw_ctl.sh status`.
 ## Verification
 
 - `fmw_ctl.sh status` → every component `RUNNING`
+- `fmw_ctl.sh stop all` → log (`ctrl/log/fmw_ctl_<date>.log`) shows
+  `IHW:<server> stopped` for every server, no `Traceback`, well below 300 s
 - `systemctl stop fmw-<domain>` → all JVMs and the Node Manager gone
 - `systemctl start fmw-<domain>` → `status` all `RUNNING` again
 - Reboot → with `LOCAL_REP_DB=true` the DB starts first, then the domain

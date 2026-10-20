@@ -533,9 +533,13 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   # https://github.com/MarisElsins/getMOSPatch), Beispiel:
   #   mkdir -p $PATCH_STORAGE/patches/<PATCHNUMMER>
   #   cd $PATCH_STORAGE/patches/<PATCHNUMMER>
-  #   java -jar $PATCH_STORAGE/bin/getMOSPatch.jar \
-  #       MOSUser="name@company.com" MOSPass="***" \
-  #       patch=<PATCHNUMMER> download=all
+  #   java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=<PATCHNUMMER> download=all
+  #   (fragt MOS-Benutzer und Kennwort an der Konsole ab - KEIN MOSPass= auf
+  #    der Kommandozeile, das waere fuer jeden Benutzer in "ps" sichtbar)
+  #
+  # Java: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS
+  # (Patch 35702194, ZIP mit jdk-21.0.x_linux-x64_bin.tar.gz) - die
+  # oeffentliche Download-Seite bleibt bei 21.0.12.1 (NFTC endete 09/2026).
 
   # Ergebnis-Verzeichnisstruktur:
   #   $PATCH_STORAGE/

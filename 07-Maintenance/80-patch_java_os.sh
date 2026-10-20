@@ -1,34 +1,33 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 80-patch_java_os.sh
-# Purpose  : Phase 8 maintenance wrapper - Java/OS layer, for an
-#            ALREADY-RUNNING, already-installed environment. MVP is
-#            READ-ONLY: runs 02-Checks/java_check.sh and prints a manual
-#            JDK-upgrade checklist. Does NOT call 09-Install/02b-root_os_java.sh
-#            automatically - its behavior when installing a NEWER JDK
-#            alongside an already-provisioned, already-patched host (rather
-#            than a fresh empty host) is unverified. Three open questions
-#            before that can be wired in safely:
-#              1. Its only idempotency guard is "[ -x "$JDK_HOME/bin/java" ]"
-#                 against the CURRENT JDK_HOME - unverified whether
-#                 installing a newer version side-by-side, and repointing
-#                 `alternatives`, behaves correctly.
-#              2. It does not touch environment.conf's JDK_HOME or the
-#                 domain - solved for the symlink case: the domain uses the
-#                 JDK_HOME symlink after 07-Maintenance/domain_jdk_path.sh
-#                 --apply (called by 08), so repointing the symlink is enough.
-#              3. Unverified whether the SecureRandom fix in java.security
-#                 is correctly (re)applied to a newly-installed JDK sitting
-#                 next to an existing one.
-#            These need to be confirmed on a disposable host (not a live
-#            production-like sandbox) before this script is extended with a
-#            real --apply upgrade path. See 07-Maintenance/README.md.
-# Call     : ./07-Maintenance/80-patch_java_os.sh [--help]
-# Options  : (none)   Read-only: run java_check.sh + print checklist
-#            --help   Show usage
-# Delegates: 02-Checks/java_check.sh (unchanged, already read-only)
+# Purpose  : Phase 8 maintenance wrapper – Java layer of an ALREADY-RUNNING,
+#            already-installed environment: upgrade the Oracle JDK at JDK_HOME
+#            (outside the Oracle Home) to the JDK of the patch repository.
+#              - Since the NFTC for JDK 21 ended (September 2026) updates exist
+#                only as MOS Patch JDK_PATCH_NR (oracle_software_version.conf).
+#              - The patch is downloaded ONCE, with all other patches, by
+#                09-Install/04-oracle_pre_download.sh --apply --mos into
+#                $PATCH_STORAGE/patches/<JDK_PATCH_NR>/ – this script never
+#                downloads: patch missing → WARN, not newer → OK.
+#              - The installation logic lives once in
+#                09-Install/02b-root_os_java.sh --upgrade-jdk (new JDK next to
+#                the old one, JDK_HOME symlink repointed, SHA-256 against
+#                SHA256_VALUES of the patch, SecureRandom fix of the new
+#                java.security). This wrapper adds the hard "domain stopped"
+#                gate and the follow-up checks.
+#            The FMW-bundled JDK ($ORACLE_HOME/oracle_common/jdk, OPatch
+#            component oracle.jdk) is NOT handled here – OPatch patch
+#            FMW_JDK_PATCH_NR (to be determined) via 82-patch_forms_reports.sh.
+# Call     : ./07-Maintenance/80-patch_java_os.sh            # read-only
+#            ./07-Maintenance/80-patch_java_os.sh --apply    # upgrade (domain stopped)
+# Options  : --apply   upgrade JDK_HOME from the patch repository
+#            --help    Show usage
+# Delegates: 09-Install/02b-root_os_java.sh --upgrade-jdk, 02-Checks/java_check.sh,
+#            07-Maintenance/domain_jdk_path.sh (read-only check)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
+# Ref      : 07-Maintenance/README.md, 09-Install/docs/01-root_setup_java.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,43 +50,71 @@ init_log
 # =============================================================================
 # Parse arguments
 # =============================================================================
+APPLY=0
 for arg in "$@"; do
     case "$arg" in
+        --apply) APPLY=1 ;;
         --help)
-            printf "Usage: %s [--help]\n" "$(basename "$0")"
-            printf "  Read-only MVP: runs 02-Checks/java_check.sh, then prints a manual\n"
-            printf "  JDK-upgrade checklist. No --apply flag yet - see script header for why.\n"
+            printf "Usage: %s [--apply]\n" "$(basename "$0")"
+            printf "  (none)   java_check.sh + which JDK is in the patch repository (dry-run of 02b --upgrade-jdk)\n"
+            printf "  --apply  domain stopped → install the JDK of patches/<JDK_PATCH_NR>/ if newer\n"
+            printf "  The JDK patch is downloaded by 09-Install/04-oracle_pre_download.sh --apply --mos\n"
             exit 0
             ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$arg" >&2; exit 2 ;;
     esac
 done
+
+UPGRADE_SH="$ROOT_DIR/09-Install/02b-root_os_java.sh"
 
 # =============================================================================
 # Pre-checks
 # =============================================================================
 section "Pre-checks"
-check_wls_stopped || warn "WebLogic is currently running - fine just to view the current Java status below, but stop it first (01-Run/startStop.sh stop-all --apply) before actually performing a JDK upgrade"
+if [ "$APPLY" -eq 1 ]; then
+    require_wls_stopped || { print_summary; exit 2; }
+else
+    check_wls_stopped || warn "WebLogic is running – fine for this read-only view; --apply needs the domain stopped (01-Run/startStop.sh stop-all --apply)"
+fi
 
 # =============================================================================
-# Current Java Environment
+# JDK upgrade from the patch repository (logic in 02b-root_os_java.sh)
+# =============================================================================
+section "JDK_HOME – patch repository vs. installed"
+_old_target="$(readlink -f "${JDK_HOME:-/nonexistent}" 2>/dev/null)"
+if [ "$APPLY" -eq 1 ]; then
+    "$UPGRADE_SH" --apply --upgrade-jdk
+else
+    "$UPGRADE_SH" --upgrade-jdk
+fi
+UP_RC=$?
+_new_target="$(readlink -f "${JDK_HOME:-/nonexistent}" 2>/dev/null)"
+[ "$UP_RC" -ge 2 ] && fail "02b-root_os_java.sh --upgrade-jdk failed (rc=$UP_RC) – see the output above"
+
+# =============================================================================
+# After an upgrade: domain must not pin the old jdk-21.0.x directory
+# =============================================================================
+if [ "$APPLY" -eq 1 ] && [ -n "$_old_target" ] && [ "$_old_target" != "$_new_target" ]; then
+    section "Domain / oui pinned to the old JDK directory?"
+    ok "$(printf "JDK_HOME switched: %s → %s" "$_old_target" "$_new_target")"
+    "$SCRIPT_DIR/domain_jdk_path.sh"
+    [ $? -ne 0 ] && warn "Pinned JDK paths found – run: 07-Maintenance/domain_jdk_path.sh --apply"
+    info "Rollback: sudo ln -sfn $_old_target $JDK_HOME"
+fi
+
+# =============================================================================
+# Current Java environment
 # =============================================================================
 section "Current Java Environment"
 "$ROOT_DIR/02-Checks/java_check.sh"
 JC_RC=$?
-[ "$JC_RC" -ne 0 ] && warn "02-Checks/java_check.sh reported issues (rc=$JC_RC) - review output above"
+[ "$JC_RC" -ne 0 ] && warn "02-Checks/java_check.sh reported issues (rc=$JC_RC) – review output above"
 
-# =============================================================================
-# Manual JDK Upgrade Checklist (CPU/CSPU cycle)
-# =============================================================================
-section "Manual JDK Upgrade Checklist (CPU/CSPU cycle)"
-info "1. Download the new Oracle JDK tarball into \$PATCH_STORAGE"
-info "2. Stop WebLogic: 01-Run/startStop.sh stop-all --apply"
-info "3. Run: 09-Install/02b-root_os_java.sh --apply"
-info "   NOT YET VERIFIED for an upgrade-alongside-existing-JDK scenario - see script header"
-info "4. If the JDK install path changed, update JDK_HOME in environment.conf"
-info "   Domain / oui pinned to the old jdk-21.0.x? 07-Maintenance/domain_jdk_path.sh --apply"
-info "5. Re-run this script (80-patch_java_os.sh) to confirm java_check.sh now shows the new version"
-info "6. Restart: 01-Run/startStop.sh start-all --apply"
+if [ "$APPLY" -eq 1 ]; then
+    info "Start the domain: 01-Run/startStop.sh start-all --apply"
+fi
+info "FMW-bundled JDK (oracle_common/jdk, OPatch component oracle.jdk): not handled here –"
+info "  OPatch patch FMW_JDK_PATCH_NR (oracle_software_version.conf, still to be determined)"
 
 printLine
 print_summary

@@ -268,6 +268,42 @@ _install_one() {
 # Helpers – MOS / getMOSPatch
 # =============================================================================
 
+# _gmp_run <getMOSPatch args …> – run getMOSPatch.jar in the CURRENT directory
+# with MOS user/password typed into a pseudo terminal: getMOSPatch asks on its
+# console when MOSUser/MOSPass are not given. The password never appears on a
+# command line (MOSPass= was visible in ps for every user – fixed 2026-10-20)
+# and is masked in the output. User + password reach python via stdin.
+_gmp_run() {
+    printf '%s\n%s\n' "$MOS_USER" "$MOS_PWD" | python3 -I -c '
+import os, pty, select, sys
+user = sys.stdin.readline().rstrip("\n"); pwd = sys.stdin.readline().rstrip("\n")
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(sys.argv[1], sys.argv[1:])
+tail, sent_u, sent_p = b"", False, False
+while True:
+    r, _, _ = select.select([fd], [], [], 1800)
+    if not r:
+        break
+    try:
+        d = os.read(fd, 4096)
+    except OSError:
+        break
+    if not d:
+        break
+    tail = (tail + d)[-300:].lower()
+    if not sent_u and b"username" in tail:
+        os.write(fd, (user + "\n").encode()); sent_u, tail = True, b""
+    elif sent_u and not sent_p and b"password" in tail:
+        os.write(fd, (pwd + "\n").encode()); sent_p, tail = True, b""
+    if pwd:
+        d = d.replace(pwd.encode(), b"****")
+    sys.stdout.buffer.write(d); sys.stdout.flush()
+_, st = os.waitpid(pid, 0)
+sys.exit(os.waitstatus_to_exitcode(st))
+' java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" "$@"
+}
+
 # _mos_download_one  patch_nr  dest_dir  [regexp]
 # Download one patch or OPatch via getMOSPatch.jar.
 # regexp (optional): passed as regexp= to getMOSPatch to restrict which files are downloaded.
@@ -304,18 +340,9 @@ _mos_download_one() {
         (
             cd "$dest_dir" || exit 1
             if [ -n "$gmp_regexp" ]; then
-                java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
-                    MOSUser="$MOS_USER" \
-                    MOSPass="$MOS_PWD" \
-                    patch="$patch_nr" \
-                    regexp="$gmp_regexp" \
-                    download=all
+                _gmp_run patch="$patch_nr" regexp="$gmp_regexp" download=all
             else
-                java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" \
-                    MOSUser="$MOS_USER" \
-                    MOSPass="$MOS_PWD" \
-                    patch="$patch_nr" \
-                    download=all
+                _gmp_run patch="$patch_nr" download=all
             fi
         )
         rc=$?
@@ -481,7 +508,7 @@ if ! _inv_patch "$_opatch_nr" "OPatch upgrade $_opatch_nr"; then
     fi
 fi
 
-_inv_list="${WLS_SPB_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-}"
+_inv_list="${WLS_SPB_PATCH_NR:-} ${JDK_PATCH_NR:-} ${FMW_JDK_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-}"
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY) _inv_list="$_inv_list ${INSTALL_PATCHES_FORMS:-}" ;;
 esac
@@ -720,6 +747,18 @@ if $MOS_MODE; then
         _mos_download_one "$WLS_SPB_PATCH_NR" "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR" \
             || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
     fi
+
+    # --- Java SE (JDK 21 updates exist only on MOS since the NFTC ended) -----
+    # The only download place – 02b-root_os_java.sh --upgrade-jdk and
+    # 07-Maintenance/80-patch_java_os.sh --apply only read patches/<nr>/.
+    if [ -n "${JDK_PATCH_NR:-}" ]; then
+        section "Java SE (patch $JDK_PATCH_NR)"
+        info "Oracle JDK 21 – tar.gz/rpm/deb + SHA256_VALUES (~565 MB), installed by --upgrade-jdk"
+        _mos_download_one "$JDK_PATCH_NR" "$PATCH_STORAGE/patches/$JDK_PATCH_NR" \
+            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+    fi
+    [ -z "${FMW_JDK_PATCH_NR:-}" ] && \
+        info "FMW_JDK_PATCH_NR empty – no patch for the FMW-bundled JDK (oracle_common/jdk) configured yet"
 
     # --- Post-install patches -------------------------------------------------
     section "Post-Install Patches"
