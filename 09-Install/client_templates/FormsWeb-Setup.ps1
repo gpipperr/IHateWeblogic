@@ -27,7 +27,7 @@ param(
     [int]$Restarted = 0
 )
 
-$FormsWebSetupVersion = '1.0.0'
+$FormsWebSetupVersion = '1.0.1'
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'   # progress bar slows downloads in PS 5.1
@@ -64,8 +64,8 @@ function Show-Error([string]$msg) {
 
 function Get-Url([string]$file) { return ($script:Base.TrimEnd('/') + '/' + $file) }
 
-function Get-Remote([string]$file, [string]$target) {
-    Invoke-WebRequest -UseBasicParsing -UseDefaultCredentials -TimeoutSec 600 `
+function Get-Remote([string]$file, [string]$target, [int]$timeout = 600) {
+    Invoke-WebRequest -UseBasicParsing -UseDefaultCredentials -TimeoutSec $timeout `
         -Uri (Get-Url $file) -OutFile $target
 }
 
@@ -116,7 +116,7 @@ function Remove-Shortcuts($mf) {
 function Get-Manifest {
     $tmp = Join-Path $env:TEMP ('formsweb-manifest-{0}.json' -f $PID)
     try {
-        Get-Remote 'manifest.json' $tmp
+        Get-Remote 'manifest.json' $tmp 10     # short timeout: offline start must not hang
         $mf = Get-Content $tmp -Raw | ConvertFrom-Json
         Copy-Item $tmp $MfCache -Force
         Remove-Item $tmp -Force

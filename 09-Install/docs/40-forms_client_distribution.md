@@ -1,9 +1,11 @@
 # 40 – Forms Client Distribution via URL (Concept)
 
-**Status: concept (2026-10-22) – not implemented yet.** This document is the
-master for the later script `09-Install/40-oracle_forms_client_bundle.sh`
-and the PowerShell template `09-Install/client_templates/FormsWeb-Setup.ps1`
-(doc-as-master: doc first, then script).
+**Status 2026-10-22: server side implemented and live on the test host**
+(download `04-`, Nginx `/formsWeb/`, bundle `40-oracle_forms_client_bundle.sh`,
+client templates `09-Install/client_templates/`); **open: the Windows client
+test** (§8) and the Authenticode signature of the setup script (§12). This
+document is the master for the scripts (doc-as-master: doc first, then
+script).
 
 Markers as in `80-FMW-Architecture/`: **documented** (Oracle source),
 **confirmed (live)**, **assumption** (to be tested).
@@ -46,19 +48,19 @@ reproducible (open items "Tests that need a client" in the root README).
 ```
   Application server (Linux)                                Windows client (user scope)
  +---------------------------------------------+          +-------------------------------------------+
- | $PATCH_STORAGE/patches/<CLIENT_JDK_PATCH>/  |          | Desktop / start menu shortcut             |
+ | $PATCH_STORAGE/client/jdk/<nr>/             |          | Desktop / start menu shortcut             |
  |   Windows x64 JDK ZIP (MOS, platform 233P)  |          |   powershell -ExecutionPolicy Bypass      |
  | $ORACLE_HOME/forms/java/frmsal.jar          |          |     -File FormsWeb-Setup.ps1 -Start       |
  | $PATCH_STORAGE/jacob/jacob-1.21.zip         |          |                 |                         |
- | 08-SSL CA (TLS chain of Nginx)              |          |   1. GET manifest.json (ETag, 304)        |
+ | 08-SSL CA (TLS chain of Nginx)              |          |   1. GET manifest.json (10 s timeout)     |
  |          |                                  |          |   2. self-update of the script            |
  |          v  40-oracle_forms_client_bundle.sh|          |   3. load changed components, SHA-256     |
  | $FORMS_CLIENT_DIR  (default /srv/formsWeb)  |  HTTPS   |   4. start script / shortcut refresh      |
  |                                             | <------- |   5. start FSAL                           |
  |   manifest.json                             |  Nginx   |                 |                         |
- |   FormsWeb-Setup.ps1 (+ Authenticode sig.)  | /forms   |  %LOCALAPPDATA%\FormsWeb\                 |
- |   FormsWeb-Install.cmd (bootstrap)          |  Web/    |    java\<version>\  (jlink runtime / JDK)  |
- |   jre-<version>-win-x64.zip                 |          |    fsal\frmsal.jar                        |
+ |   FormsWeb-Setup.ps1                        | /forms   |  %LOCALAPPDATA%\FormsWeb\                 |
+ |   FormsWeb-Install.cmd (bootstrap)          |  Web/    |    java\<version>-<sha8>\ (jlink runtime)  |
+ |   jre-<version>-win-x64.zip                 |          |    fsal\frmsal-<version>.jar              |
  |   frmsal-<version>.jar                      |          |    jacob\jacob-1.21-x64.dll               |
  |   jacob-1.21-x64.dll                        |          |    state.json, logs\                      |
  +---------------------------------------------+          +-------------------|-----------------------+
@@ -71,8 +73,8 @@ reproducible (open items "Tests that need a client" in the root README).
 
 ## 3. Server Side – the Bundle
 
-Built by the later `40-oracle_forms_client_bundle.sh` (read-only by
-default, `--apply` builds) **only from sources the library already
+Built by `40-oracle_forms_client_bundle.sh` (read-only by
+default, `--apply` builds, §10) **only from sources the library already
 manages** – logic once, no own download:
 
 | Component | Source | Notes |
@@ -82,7 +84,7 @@ manages** – logic once, no own download:
 | **JACOB DLL** | `$PATCH_STORAGE/jacob/$JACOB_ZIP` (same ZIP as `14-oracle_setup_forms.sh`, SHA-256 in `oracle_software_version.conf`) | x64 DLL – bitness of the client Java (FSAL is 64-bit only); see 5.6 |
 | **Trust** | CA chain of the Nginx TLS certificate (`08-SSL/ssl_local_ca.sh` root, company CA, or nothing for a public CA) | imported with the server `keytool` into the `cacerts` of the **bundled** runtime; see 5.5 |
 | **`manifest.json`** | generated | see 3.2 |
-| **`FormsWeb-Setup.ps1`**, **`FormsWeb-Install.cmd`** | `09-Install/client_templates/` | Authenticode-signed if a code-signing keystore exists (`FORMS_SIGN_*`, `08-SSL`), see 5.1 |
+| **`FormsWeb-Setup.ps1`**, **`FormsWeb-Install.cmd`** | `09-Install/client_templates/` (§11) | unsigned today; Authenticode signature with the `FORMS_SIGN_*` keystore is open (§5.1, §12) |
 
 Location: `FORMS_CLIENT_DIR` (default `/srv/formsWeb`, next to
 `PATCH_STORAGE=/srv/patch_storage`), created by root in
@@ -148,10 +150,12 @@ Not in the interview (software versions, one source):
 - **Slim runtime with `jlink` (default):** "Forms also supports using a
   custom JRE distribution that you create using Oracle Java version 17 or
   newer … jdeps … jlink … jpackage" (**documented**, Forms 14.1.2 FSAL,
-  "Custom JRE Support"). The bundle script runs `jdeps` on `frmsal.jar` /
-  the Forms client jars and `jlink` from the server JDK 21 with the
-  `jmods` of the **Windows** JDK → a runtime of a few dozen MB instead of
-  ~300 MB. Fallback: the full JDK ZIP.
+  "Custom JRE Support"). The bundle script runs `jlink` from the server
+  JDK 21 with the `jmods` of the **Windows** JDK and a fixed module list
+  (`FORMS_CLIENT_JLINK_MODULES`, default from the `jdeps` analysis below) →
+  a runtime of about 60 MB instead of ~300 MB (ZIP 44 MB). Fallback: the
+  full JDK (`FORMS_CLIENT_RUNTIME=jdk`). Re-run `jdeps` when a Forms patch
+  brings new client jars.
 
   Theory, module list and tests in detail:
   [java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md).
@@ -191,29 +195,37 @@ Not in the interview (software versions, one source):
 
 ### 3.2 `manifest.json` – the one small file checked on every start
 
-One file of about 1–2 KB; no second "version" file is needed:
+One file of about 1.5 KB; no second "version" file is needed. As written
+by `40-` (**confirmed (live)** 2026-10-22, hashes shortened):
 
 ```json
 {
   "schemaVersion": 1,
+  "generated": "2026-10-22T21:20:00+02:00",
   "server": "https://<host>",
-  "setup":  { "version": "1.0.3", "file": "FormsWeb-Setup.ps1", "sha256": "…" },
+  "baseUrl": "https://<host>/formsWeb/",
   "components": {
-    "java":  { "version": "21.0.13.0.2", "file": "jre-21.0.13.0.2-win-x64.zip", "size": 0, "sha256": "…" },
-    "fsal":  { "version": "14.1.2.0.0-<qpr>", "file": "frmsal-14.1.2.0.0-<qpr>.jar", "size": 0, "sha256": "…" },
-    "jacob": { "version": "1.21", "file": "jacob-1.21-x64.dll", "size": 247296, "sha256": "…" }
+    "java":  { "version": "21.0.13.0.2", "file": "jre-21.0.13.0.2-win-x64.zip",
+               "size": 45609003, "sha256": "1bf2…", "source": "<fingerprint of the sources>" },
+    "fsal":  { "version": "14.1.2.0.0-bdd10648", "file": "frmsal-14.1.2.0.0-bdd10648.jar",
+               "size": 388317, "sha256": "bdd1…", "source": "bdd1…" },
+    "jacob": { "version": "1.21", "file": "jacob-1.21-x64.dll",
+               "size": 247296, "sha256": "6b44…", "source": "<sha256 of jacob-1.21.zip>" }
   },
   "start": {
     "url": "https://<host>/forms/frmservlet?config=standaloneapp",
     "fsalArgs": ["-t", "30000", "-cert_truststore", "java"],
-    "shortcutName": "Forms <application>",
-    "icon": null
-  }
+    "shortcutName": "Oracle Forms"
+  },
+  "setup": { "version": "1.0.1", "file": "FormsWeb-Setup.ps1", "sha256": "…",
+             "bootstrap": "FormsWeb-Install.cmd" }
 }
 ```
 
-Nginx serves it with `Cache-Control: no-cache` and an ETag: an unchanged
-manifest costs one request with an HTTP 304 answer. Versioned file names
+`source` is the change-check fingerprint of `40-` (no server paths – the
+manifest is public). Nginx serves it with `Cache-Control: no-cache` and an
+ETag (HTTP 304 **confirmed (live)**); the PowerShell script itself fetches
+the full file each time (§11). Versioned file names
 (`jre-<version>…`, `frmsal-<version>.jar`) let browsers / proxies cache the
 large files safely.
 
@@ -221,18 +233,15 @@ large files safely.
 
 ## 4. Nginx
 
-New location in `09-Install/nginx-wls.conf.template` (deployed by
-`04-root_nginx.sh`; change `docs/04-root_nginx.md` first):
-
-```nginx
-location <FORMS_CLIENT_URL_PATH>/ {          # default /formsWeb/
-    alias  <FORMS_CLIENT_DIR>/;               # default /srv/formsWeb/
-    autoindex off;
-    types { application/json json; application/zip zip; application/java-archive jar;
-            text/plain ps1 cmd; application/octet-stream dll; }
-    location = <FORMS_CLIENT_URL_PATH>/manifest.json { add_header Cache-Control "no-cache"; }
-}
-```
+Optional block in `09-Install/nginx-wls.conf.template`, kept by
+`04-root_nginx.sh` only with `FORMS_CLIENT_DIST=true` – the exact
+configuration is in [04-root_nginx.md](04-root_nginx.md) ("Forms client
+bundle location"): `location /formsWeb/` with `alias /srv/formsWeb/`,
+`autoindex off`, `.ps1` as `text/plain`, `.cmd` / `.dll` / everything else
+as `application/octet-stream` (the browser downloads the bootstrap), an
+exact-match location for `manifest.json` with `Cache-Control: no-cache`.
+Deployed on the test host 2026-10-22 (**confirmed (live)**: 200, 301 for
+`/formsWeb`, 403 for the directory, 304 with ETag, MIME types).
 
 Only HTTPS (same server block as `/forms/`), no directory listing, no
 access from outside the networks that may use Forms (same rules as
@@ -296,8 +305,8 @@ Design:
   FormsWeb-Setup.ps1                     current script
   manifest.json                          last manifest (offline start)
   state.json                             installed versions + hashes
-  java\21.0.13.0.2\                      runtime (versioned; previous version kept)
-  fsal\frmsal-<version>.jar
+  java\21.0.13.0.2-<sha8>\               runtime (versioned; previous version kept)
+  fsal\frmsal-14.1.2.0.0-<sha8>.jar
   jacob\jacob-1.21-x64.dll               verified copy (see 5.6)
   logs\FormsWeb-<date>.log
 ```
@@ -311,10 +320,11 @@ the runtime at every logon / logoff.
 ```
  -Start
    |
-   1. GET manifest.json  (If-None-Match, timeout ~3 s)
+   1. GET manifest.json  (timeout 10 s)
    |     unreachable -> log, use the cached manifest, continue with step 5 (offline)
    |
-   2. setup.version > own version ?
+   2. setup.version differs from own version ?  (differs, not "newer":
+   |     a server-side rollback must reach the clients too)
    |     yes -> download script to %TEMP%, SHA-256 check, replace itself,
    |            restart with the same arguments (at most once: loop guard)
    |
@@ -323,20 +333,22 @@ the runtime at every logon / logoff.
    |            versioned directory -> switch state.json only after success
    |            -> keep the previous version, delete older ones
    |
-   4. start parameters / shortcut name changed in the manifest ?
-   |     yes -> rewrite the shortcuts
+   4. place the JACOB DLL (5.6)
    |
-   5. start FSAL (javaw, no console window)
+   5. start FSAL (javaw, no console window) with start.url / start.fsalArgs
+      of the manifest
 ```
 
 `-Install` = steps 1–4 + shortcuts (desktop, start menu via
-`WScript.Shell`), `-Start` = steps 1–5, `-Uninstall` = remove the folder and
-the shortcuts, `-Rollback` = switch `state.json` to the previous version.
+`WScript.Shell`) + step 5; `-Start` (also the default without a switch) =
+steps 1–5; `-Uninstall` = remove the folder and the shortcuts; `-Rollback`
+= switch `state.json` to the previous version (both are kept on disk).
+A changed `shortcutName` takes effect with the next `-Install`.
 
 ### 5.4 Starting FSAL
 
 ```
-"%LOCALAPPDATA%\FormsWeb\java\<version>\bin\javaw.exe"
+"%LOCALAPPDATA%\FormsWeb\java\<version>-<sha8>\bin\javaw.exe"
     -jar "%LOCALAPPDATA%\FormsWeb\fsal\frmsal-<version>.jar"
     -url "https://<host>/forms/frmservlet?config=standaloneapp"
     -t 30000 -cert_truststore java
@@ -492,7 +504,7 @@ Notes:
 | # | Test | Expected |
 |---|---|---|
 | 1 | Bootstrap on a clean user profile (default policy, no admin) | runtime, jars, shortcut in place; form starts |
-| 2 | Second start without server change | one manifest request (304), no download |
+| 2 | Second start without server change | one manifest request (~1.5 KB), no other download |
 | 3 | New bundle on the server (Java + `frmsal.jar`) | client updates at the next start, previous version kept |
 | 4 | Self-update of the script | new version runs after one restart, no loop |
 | 5 | Server unreachable | start with the installed version, log entry |
@@ -505,19 +517,20 @@ Notes:
 
 ---
 
-## 9. Implementation Pieces (after approval)
+## 9. Implementation Pieces
 
 | Piece | Change |
 |---|---|
-| `09-Install/40-oracle_forms_client_bundle.sh` | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest) – **done 2026-10-22**, see §10; signing of the setup script follows with the templates |
-| `09-Install/client_templates/` | `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` – **written 2026-10-22**, see §11; Windows client test open |
+| `09-Install/40-oracle_forms_client_bundle.sh` | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest, setup scripts) – **done 2026-10-22**, see §10 |
+| `09-Install/client_templates/` | `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` – **written 2026-10-22**, served on the test host, see §11; Windows client test open |
+| Authenticode signature of `FormsWeb-Setup.ps1` | **open** (§12) |
 | `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
-| `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` |
+| `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` – **done 2026-10-22** |
 | `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
 | `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
 | `09-Install/03-root_user_oracle.sh` | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |
-| `14-oracle_setup_forms.sh` | optional `fsalJavaVersion` in `[standaloneapp]` |
-| `07-Maintenance/README.md` | "after every Java / Forms patch: `40- --apply`" |
+| `14-oracle_setup_forms.sh` | optional `fsalJavaVersion` in `[standaloneapp]` – **open** (§12) |
+| `07-Maintenance/README.md` | "after every Java / Forms patch: `40- --apply`" – **done 2026-10-22** |
 
 ---
 
@@ -565,8 +578,9 @@ Written for **Windows PowerShell 5.1** (default on Windows 10 / 11):
 
 Behaviour (§5.3), as implemented:
 
-- the manifest is fetched on every start (about 1.5 KB; no ETag handling
-  in the script – `Invoke-WebRequest` in 5.1 throws on HTTP 304);
+- the manifest is fetched on every start with a 10 s timeout (about
+  1.5 KB; no ETag handling in the script – `Invoke-WebRequest` in 5.1
+  throws on HTTP 304); the large files with 600 s;
 - offline → cached `manifest.json` and the installed version;
 - self-update with SHA-256 check and one restart (`-Restarted 1`
   = loop guard);
@@ -583,11 +597,21 @@ Behaviour (§5.3), as implemented:
 Nginx serves `.ps1` as `text/plain` and `.cmd` as `application/octet-stream`
 (the browser saves the bootstrap instead of showing it).
 
-Not yet included:
+Not yet included: see §12.
 
-- Authenticode signature of `FormsWeb-Setup.ps1` (`osslsigncode`, §5.1) –
-  needed only where a GPO enforces `AllSigned`;
-- pre-check of `fsalJavaVersion`.
+---
+
+## 12. Open points (state 2026-10-22)
+
+| # | Point | Next step |
+|---|---|---|
+| 1 | **Windows client test** – the scripts have never run on Windows (no PowerShell on the server) | test plan §8; first the CA import §5.8, then the bootstrap from `https://<host>/formsWeb/FormsWeb-Install.cmd` |
+| 2 | Cross-built runtime on Windows | part of test 1 (`java.exe` / `javaw.exe` start, TLS with the bundled `cacerts`) |
+| 3 | Module list sufficient for WebUtil / JACOB / German locale | test 9 + a form with dates / numbers |
+| 4 | Authenticode signature of `FormsWeb-Setup.ps1` | `osslsigncode` with the `FORMS_SIGN_*` keystore in `40-` (only needed under `AllSigned`) |
+| 5 | `fsalJavaVersion` in `[standaloneapp]` | `14-oracle_setup_forms.sh` option, value from the bundled runtime |
+| 6 | Licence of the jlink runtime (1557737.1) | confirm with Oracle / the customer |
+| 7 | CPU October 2026 switch | after the new client JDK download: `40- --apply` (the Windows client JDK is already 21.0.13.0.2) |
 
 ---
 
