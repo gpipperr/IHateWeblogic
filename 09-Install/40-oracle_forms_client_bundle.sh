@@ -274,6 +274,11 @@ _setup_changed=false
 if [ -f "$SETUP_PS1" ] && [ -f "$MANIFEST" ] && ! $FORCE; then
     _cur_setup="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("setup",{}).get("sha256",""))' "$MANIFEST" 2>/dev/null)"
     [ "$_cur_setup" = "$(_sha "$SETUP_PS1")" ] && _setup_changed=false || _setup_changed=true
+    # the bootstrap .cmd carries the bundle URL (@@BASE_URL@@) – compare the rendered file
+    if [ -f "$SETUP_CMD" ] && ! sed "s|@@BASE_URL@@|${BASE_URL}${URL_PATH}/|g" "$SETUP_CMD" \
+            | cmp -s - "$CLIENT_DIR/FormsWeb-Install.cmd"; then
+        _setup_changed=true
+    fi
     unset _cur_setup
 fi
 
@@ -388,8 +393,9 @@ fi
 # --- 4d Setup scripts ----------------------------------------------------------
 if [ -f "$SETUP_PS1" ] && [ -f "$SETUP_CMD" ]; then
     install -m 644 "$SETUP_PS1" "$CLIENT_DIR/FormsWeb-Setup.ps1"
-    install -m 644 "$SETUP_CMD" "$CLIENT_DIR/FormsWeb-Install.cmd"
-    ok "Setup scripts copied"
+    sed "s|@@BASE_URL@@|${BASE_URL}${URL_PATH}/|g" "$SETUP_CMD" > "$CLIENT_DIR/FormsWeb-Install.cmd"
+    chmod 644 "$CLIENT_DIR/FormsWeb-Install.cmd"
+    ok "$(printf "%-22s %s" "Setup scripts:" "FormsWeb-Setup.ps1 $(sed -n "s/^\\\$FormsWebSetupVersion *= *'\\(.*\\)'.*/\\1/p" "$SETUP_PS1" | tr -d '\r'), FormsWeb-Install.cmd -> ${BASE_URL}${URL_PATH}/")"
 fi
 
 # =============================================================================

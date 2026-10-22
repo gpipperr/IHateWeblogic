@@ -116,8 +116,9 @@ location /formsWeb/ {                        # FORMS_CLIENT_URL_PATH
     alias /srv/formsWeb/;                    # FORMS_CLIENT_DIR (oracle:oinstall 755)
     autoindex off;                           # no directory listing
     types { application/json json; application/zip zip;
-            application/java-archive jar; text/plain ps1 cmd; }
-    default_type application/octet-stream;   # dll and everything else
+            application/java-archive jar; text/plain ps1; }
+    default_type application/octet-stream;   # dll, cmd (the browser downloads
+                                             # FormsWeb-Install.cmd instead of showing it)
 }
 location = /formsWeb/manifest.json {         # checked on every client start
     alias /srv/formsWeb/manifest.json;

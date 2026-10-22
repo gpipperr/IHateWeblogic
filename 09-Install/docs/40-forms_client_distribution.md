@@ -456,7 +456,7 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 | Piece | Change |
 |---|---|
 | `09-Install/40-oracle_forms_client_bundle.sh` | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest) – **done 2026-10-22**, see §10; signing of the setup script follows with the templates |
-| `09-Install/client_templates/` | new – `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` |
+| `09-Install/client_templates/` | `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` – **written 2026-10-22**, see §11; Windows client test open |
 | `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
 | `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` |
 | `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
@@ -490,6 +490,50 @@ Runs as oracle. Only for Forms installations with `FORMS_CLIENT_DIST=true`
 
 Run it again after every Java CPU / Security Alert (`04-` downloaded a new
 client JDK), every Forms patch (new `frmsal.jar`) and every CA change.
+
+---
+
+## 11. Client templates (`09-Install/client_templates/`)
+
+| File | Content |
+|---|---|
+| `FormsWeb-Install.cmd` | bootstrap; `40-` replaces `@@BASE_URL@@` with `FORMS_CLIENT_BASE_URL` + `FORMS_CLIENT_URL_PATH` when copying it into the bundle; downloads `manifest.json` and `FormsWeb-Setup.ps1`, checks the SHA-256, runs `-Install -BaseUrl …`; CRLF line endings |
+| `FormsWeb-Setup.ps1` | the installer / starter of §5; first line of interest `$FormsWebSetupVersion = 'x.y.z'` – `40-` reads it into `setup.version` of the manifest; **raise it with every change**, otherwise clients do not self-update |
+
+Written for **Windows PowerShell 5.1** (default on Windows 10 / 11):
+
+- pure ASCII – 5.1 reads UTF-8 files without BOM as ANSI;
+- TLS 1.2 (+ 1.3 if available) forced via `ServicePointManager`;
+- `-UseBasicParsing`, `$ProgressPreference = 'SilentlyContinue'` (the
+  progress bar slows downloads in 5.1 by orders of magnitude);
+- system proxy with the user's credentials;
+- `[IO.Compression.ZipFile]::ExtractToDirectory` instead of `Expand-Archive`.
+
+Behaviour (§5.3), as implemented:
+
+- the manifest is fetched on every start (about 1.5 KB; no ETag handling
+  in the script – `Invoke-WebRequest` in 5.1 throws on HTTP 304);
+- offline → cached `manifest.json` and the installed version;
+- self-update with SHA-256 check and one restart (`-Restarted 1`
+  = loop guard);
+- components compared by SHA-256, the runtime extracted into
+  `java\<version>-<sha8>\`, `state.json` keeps `current` + `previous`,
+  everything else is removed;
+- the JACOB DLL is copied into `%USERPROFILE%\webutil\syslib\<server host>\`
+  (assumption 5.6);
+- FSAL is started with `javaw.exe -jar frmsal-….jar -url "<start.url>"
+  <start.fsalArgs>`;
+- errors are shown in a message box (the shortcut runs hidden) and logged
+  in `logs\FormsWeb-<date>.log`.
+
+Nginx serves `.ps1` as `text/plain` and `.cmd` as `application/octet-stream`
+(the browser saves the bootstrap instead of showing it).
+
+Not yet included:
+
+- Authenticode signature of `FormsWeb-Setup.ps1` (`osslsigncode`, §5.1) –
+  needed only where a GPO enforces `AllSigned`;
+- pre-check of `fsalJavaVersion`.
 
 ---
 

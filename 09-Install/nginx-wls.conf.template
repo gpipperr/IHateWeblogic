@@ -114,8 +114,8 @@ server {
         alias ##FORMS_CLIENT_DIR##/;
         autoindex off;
         types { application/json json; application/zip zip;
-                application/java-archive jar; text/plain ps1 cmd; }
-        default_type application/octet-stream;
+                application/java-archive jar; text/plain ps1; }
+        default_type application/octet-stream;        # dll, cmd (browser downloads the bootstrap)
     }
 
     location = ##FORMS_CLIENT_URL_PATH##/manifest.json {

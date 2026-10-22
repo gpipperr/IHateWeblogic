@@ -696,8 +696,10 @@ CSPU Sep 2026 state is frozen in
   (jlink Windows runtime 21.0.13.0.2 with CA, `frmsal.jar`, JACOB, `manifest.json`,
   built on the test host), first FSAL session with a Linux jlink runtime
   ([java_jlink_forms_env.md](80-FMW-Architecture/java_jlink_forms_env.md)).
-  Open: PowerShell installer (`client_templates/`), then the Windows client test
-  (makes the next item reproducible).
+  PowerShell installer `client_templates/FormsWeb-Install.cmd` +
+  `FormsWeb-Setup.ps1` (PS 5.1) written and served. Open: the Windows client
+  test (bootstrap, update, offline, rollback, JACOB), Authenticode signature
+  of the script (makes the next item reproducible).
 - [ ] **Windows client**: Java Web Start / FSAL start of the test form,
   root import (`ca.cer`), signed vs. unsigned `jacob.jar`, revocation check
   of Java Web Start with a CA without CRL/OCSP, real OLE call (Excel);
