@@ -347,7 +347,7 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
 All versions, filenames, SHA-256 checksums and patch numbers are defined in
 `oracle_software_version.conf` (committed to git — no credentials).
 
-Platform codes: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
+Platform codes: `226P` = Linux x86-64 · `541P` = Linux ARM 64-bit · `233P` = Microsoft Windows x64 (`46P` = Linux x86 32-bit – checked with getMOSPatch 2026-10-22)
 
 → [Detail: docs/04-oracle_pre_download.md](docs/04-oracle_pre_download.md)
 

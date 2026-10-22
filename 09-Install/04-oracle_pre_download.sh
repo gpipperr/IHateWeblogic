@@ -6,6 +6,8 @@
 #            eDelivery path : manual file placement (primary) or Bearer Token wget.
 #            MOS path       : getMOSPatch.jar for OPatch + post-install patches.
 #            GitHub         : JACOB (WebUtil OLE) if FORMS_WEBUTIL_JACOB=true.
+#            MOS, 2nd platform: client Java (Windows x64) if FORMS_CLIENT_DIST=true
+#                             -> $PATCH_STORAGE/client/jdk/<nr>/ (concept docs/40).
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
 #            --apply             – eDelivery: create dirs, prompt placement, verify
@@ -304,14 +306,18 @@ sys.exit(os.waitstatus_to_exitcode(st))
 ' java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" "$@"
 }
 
-# _mos_download_one  patch_nr  dest_dir  [regexp]
+# _mos_download_one  patch_nr  dest_dir  [regexp]  [platform]
 # Download one patch or OPatch via getMOSPatch.jar.
 # regexp (optional): passed as regexp= to getMOSPatch to restrict which files are downloaded.
+# platform (optional): MOS platform code for this directory only (e.g. 233P for the
+#   Windows client Java) – written as "<platform>;<language>" into the directory's
+#   .getMOSPatch.cfg instead of copying the master cfg (MOS_PLATFORM).
 # Retries up to MOS_RETRY_MAX times (default 3) on failure to handle transient DNS timeouts.
 _mos_download_one() {
     local patch_nr="$1"
     local dest_dir="$2"
     local gmp_regexp="${3:-}"
+    local gmp_platform="${4:-}"
     local retry_max="${MOS_RETRY_MAX:-3}"
     local retry_wait="${MOS_RETRY_WAIT:-10}"
 
@@ -330,7 +336,12 @@ _mos_download_one() {
     ok "$(printf "%-12s %s" "Patch $patch_nr:" "downloading to $dest_dir")"
 
     # getMOSPatch reads .getMOSPatch.cfg from the current working directory
-    cp "$PATCH_STORAGE/bin/.getMOSPatch.cfg" "$dest_dir/.getMOSPatch.cfg" 2>/dev/null
+    if [ -n "$gmp_platform" ]; then
+        printf "%s;%s\n" "$gmp_platform" "${MOS_LANGUAGE:-4L}" > "$dest_dir/.getMOSPatch.cfg"
+        info "$(printf "%-12s %s" "Patch $patch_nr:" "platform $gmp_platform (own .getMOSPatch.cfg)")"
+    else
+        cp "$PATCH_STORAGE/bin/.getMOSPatch.cfg" "$dest_dir/.getMOSPatch.cfg" 2>/dev/null
+    fi
 
     local attempt rc
     for attempt in $(seq 1 "$retry_max"); do
@@ -409,6 +420,19 @@ if $MOS_MODE; then
         || { fail "java not installed (required for --mos)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 fi
 
+# --- Client Java for the Forms client distribution (concept docs/40) ----------
+# Same JDK patch as the server, other platform -> own directory: the skip check
+# of _mos_download_one treats ANY zip in a directory as "already downloaded".
+DOWNLOAD_CLIENT_JDK=false
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|FORMS_ONLY)
+        [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && DOWNLOAD_CLIENT_JDK=true ;;
+esac
+CLIENT_JDK_NR="${CLIENT_JDK_PATCH_NR:-${JDK_PATCH_NR:-}}"
+CLIENT_JDK_PLAT="${CLIENT_JDK_PLATFORM:-233P}"
+CLIENT_JDK_DIR="$PATCH_STORAGE/client/jdk/$CLIENT_JDK_NR"
+[ -z "$CLIENT_JDK_NR" ] && DOWNLOAD_CLIENT_JDK=false
+
 # =============================================================================
 # --fresh-patches: archive existing patches/ before downloading anything new
 # =============================================================================
@@ -439,6 +463,23 @@ if $FRESH_PATCHES; then
     else
         ok "patches/ is empty or does not exist yet – nothing to archive"
     fi
+
+    # client Java (same constant ZIP name problem as the server JDK)
+    CLIENT_JDK_ROOT="$PATCH_STORAGE/client/jdk"
+    if [ -d "$CLIENT_JDK_ROOT" ] && [ -n "$(ls -A "$CLIENT_JDK_ROOT" 2>/dev/null)" ]; then
+        _cj_archive="${CLIENT_JDK_ROOT}_$(date +%Y%m%d_%H%M%S)"
+        if $APPLY; then
+            if mv "$CLIENT_JDK_ROOT" "$_cj_archive"; then
+                ok "Archived: $CLIENT_JDK_ROOT -> $_cj_archive"
+            else
+                fail "Could not archive $CLIENT_JDK_ROOT -> $_cj_archive"
+                EXIT_CODE=2; print_summary; exit $EXIT_CODE
+            fi
+        else
+            warn "Dry-run: would archive $CLIENT_JDK_ROOT -> $_cj_archive"
+        fi
+        unset _cj_archive
+    fi
 fi
 
 # --- Which eDelivery files? ---------------------------------------------------
@@ -466,6 +507,8 @@ if $MOS_MODE; then
         [ -n "$_p" ] && info "  Patch   : $_p → $PATCH_STORAGE/patches/$_p/"
     done
     unset _p
+    $DOWNLOAD_CLIENT_JDK && \
+        info "  Client Java (Patch $CLIENT_JDK_NR, platform $CLIENT_JDK_PLAT) → $CLIENT_JDK_DIR/"
 fi
 
 # --- Storage inventory: what is already present? -------------------------------
@@ -528,6 +571,20 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
         [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] && [ -n "${JACOB_ZIP:-}" ] && DOWNLOAD_JACOB=true ;;
 esac
 $DOWNLOAD_JACOB && _inv_file "$PATCH_STORAGE/jacob/$JACOB_ZIP" "JACOB ZIP (WebUtil OLE)"
+
+# Client Java (FORMS_CLIENT_DIST=true, Forms only) – must not be a Linux ZIP
+if $DOWNLOAD_CLIENT_JDK; then
+    _cj_zip="$(ls "$CLIENT_JDK_DIR"/p"${CLIENT_JDK_NR}"_*.zip 2>/dev/null | grep -v 'Linux' | head -1)"
+    if [ -n "$_cj_zip" ]; then
+        ok "$(printf "  %-26s present  %s" "Client Java ($CLIENT_JDK_PLAT)" "$(basename "$_cj_zip")")"
+    else
+        warn "$(printf "  %-26s MISSING  client/jdk/%s/" "Client Java ($CLIENT_JDK_PLAT)" "$CLIENT_JDK_NR")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+    unset _cj_zip
+elif [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
+    warn "FORMS_CLIENT_DIST=true but neither CLIENT_JDK_PATCH_NR nor JDK_PATCH_NR is set"
+fi
 
 if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
@@ -759,6 +816,18 @@ if $MOS_MODE; then
     fi
     [ -z "${FMW_JDK_PATCH_NR:-}" ] && \
         info "FMW_JDK_PATCH_NR empty – no patch for the FMW-bundled JDK (oracle_common/jdk) configured yet"
+
+    # --- Client Java for the Forms client distribution (2nd platform) --------
+    if $DOWNLOAD_CLIENT_JDK; then
+        section "Client Java (patch $CLIENT_JDK_NR, platform $CLIENT_JDK_PLAT)"
+        info "Java runtime source of the Forms client bundle (docs/40-forms_client_distribution.md)"
+        _mos_download_one "$CLIENT_JDK_NR" "$CLIENT_JDK_DIR" "" "$CLIENT_JDK_PLAT" \
+            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+        if ls "$CLIENT_JDK_DIR"/*Linux*.zip >/dev/null 2>&1; then
+            fail "Linux ZIP in $CLIENT_JDK_DIR – the platform $CLIENT_JDK_PLAT was not used"
+            MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+        fi
+    fi
 
     # --- Post-install patches -------------------------------------------------
     section "Post-Install Patches"

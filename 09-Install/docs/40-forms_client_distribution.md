@@ -47,7 +47,7 @@ reproducible (open items "Tests that need a client" in the root README).
   Application server (Linux)                                Windows client (user scope)
  +---------------------------------------------+          +-------------------------------------------+
  | $PATCH_STORAGE/patches/<CLIENT_JDK_PATCH>/  |          | Desktop / start menu shortcut             |
- |   Windows x64 JDK ZIP (MOS, platform 46P)   |          |   powershell -ExecutionPolicy Bypass      |
+ |   Windows x64 JDK ZIP (MOS, platform 233P)  |          |   powershell -ExecutionPolicy Bypass      |
  | $ORACLE_HOME/forms/java/frmsal.jar          |          |     -File FormsWeb-Setup.ps1 -Start       |
  | $PATCH_STORAGE/jacob/jacob-1.21.zip         |          |                 |                         |
  | 08-SSL CA (TLS chain of Nginx)              |          |   1. GET manifest.json (ETag, 304)        |
@@ -77,7 +77,7 @@ manages** – logic once, no own download:
 
 | Component | Source | Notes |
 |---|---|---|
-| **Java runtime** | Oracle JDK 21 for **Windows x64** – MOS Patch 35702194 ("JDK 21 latest") or the release-specific patch (CPU426: 40186074 = 21.0.13.0.2), platform **46P** | see 3.1 |
+| **Java runtime** | Oracle JDK 21 for **Windows x64** – MOS Patch 35702194 ("JDK 21 latest") or the release-specific patch (CPU426: 40186074 = 21.0.13.0.2), platform **233P** | see 3.1 |
 | **`frmsal.jar`** | `$ORACLE_HOME/forms/java/frmsal.jar` of this server | Oracle-signed; "version-specific – you cannot use frmsal.jar from one installation against another" (**documented**) → always the server's own file; replaced by Forms patches → rebuild the bundle after every Forms patch |
 | **JACOB DLL** | `$PATCH_STORAGE/jacob/$JACOB_ZIP` (same ZIP as `14-oracle_setup_forms.sh`, SHA-256 in `oracle_software_version.conf`) | x64 DLL – bitness of the client Java (FSAL is 64-bit only); see 5.6 |
 | **Trust** | CA chain of the Nginx TLS certificate (`08-SSL/ssl_local_ca.sh` root, company CA, or nothing for a public CA) | imported with the server `keytool` into the `cacerts` of the **bundled** runtime; see 5.5 |
@@ -131,9 +131,16 @@ Not in the interview (software versions, one source):
   only the current MOS patch for the Windows platform.
 - **Download:** `04-oracle_pre_download.sh` loads Patch 35702194 today only
   for `MOS_PLATFORM=226P` (Linux x86-64); getMOSPatch takes one platform per
-  run. New: a second pass for the client platform – variables
-  `CLIENT_JDK_PATCH_NR` and `CLIENT_JDK_PLATFORM="46P"` (Windows x86-64) in
-  `oracle_software_version.conf`, target `$PATCH_STORAGE/patches/<nr>/46P/`.
+  run. Second pass for the client platform (**implemented 2026-10-22**,
+  `04- --apply --mos` with `FORMS_CLIENT_DIST=true`): variables
+  `CLIENT_JDK_PATCH_NR` (empty = `JDK_PATCH_NR`) and
+  `CLIENT_JDK_PLATFORM="233P"` (Microsoft Windows x64) in
+  `oracle_software_version.conf`, target `$PATCH_STORAGE/client/jdk/<nr>/`
+  – an own directory, because the skip check of `04-` treats any ZIP in
+  `patches/<nr>/` as present ([04-oracle_pre_download.md](04-oracle_pre_download.md)).
+  First download **confirmed (live) 2026-10-22**: `p35702194_2100_MSWIN-x86-64.zip`
+  (518 MB) holds `jdk-21.0.13.0.2_windows-x64_bin.zip` (the source for
+  `jlink`), `.exe`, `.msi`, `SHA256_VALUES` – already the alert release.
   Same version target as the server (`JDK_VERSION_MIN`, CPU October 2026 +
   alert: 21.0.13.0.2).
 - **Slim runtime with `jlink` (default):** "Forms also supports using a
@@ -422,7 +429,7 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 |---|---|
 | `09-Install/40-oracle_forms_client_bundle.sh` | new – read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest, signing) |
 | `09-Install/client_templates/` | new – `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` |
-| `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` |
+| `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
 | `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` |
 | `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) |
 | `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |

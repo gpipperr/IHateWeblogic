@@ -15,6 +15,7 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 | **eDelivery** (Oracle Software Delivery Cloud) | Base installers (V\*.zip) | Manual download, then unzip |
 | **MOS** (My Oracle Support) | OPatch + individual patches | `getMOSPatch.jar` (automated) |
 | **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
+| **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`46P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
 `mos_sec.conf.des3` (encrypted password). getMOSPatch gets them through a
@@ -91,6 +92,30 @@ and `07-Maintenance/80-patch_java_os.sh --apply` take the ZIP from
 The ZIP name does not change between JDK updates
 (`p35702194_2100_Linux-x86-64.zip`) – start a new cycle with
 `--fresh-patches`.
+
+### Client Java for the Forms client distribution (getMOSPatch, second platform)
+
+| Variable | Value | Description |
+|---|---|---|
+| `CLIENT_JDK_PATCH_NR` | *(empty = `JDK_PATCH_NR`)* | MOS patch of the client Java – normally the same "JDK 21 latest" patch as the server, or a release-specific one (CPU426: 40186074 = 21.0.13.0.2) |
+| `CLIENT_JDK_PLATFORM` | `233P` | MOS platform code, Microsoft Windows x64 (64-bit) |
+
+Only downloaded when `FORMS_CLIENT_DIST=true` (`environment.conf`, asked by
+`01-setup-interview.sh`) and Forms is part of the installation – never for
+`REPORTS_ONLY`. Source of the Java runtime of the client bundle, concept
+[40-forms_client_distribution.md](40-forms_client_distribution.md) §3.1.
+
+Why an own directory `$PATCH_STORAGE/client/jdk/<nr>/` and not
+`patches/<nr>/`: the Windows ZIP has the **same patch number** as the
+server JDK, and the skip-if-present check of this script treats *any* ZIP
+in a patch directory as "already downloaded" – a Windows ZIP in
+`patches/35702194/` would silently stop the Linux download (and the other
+way round). getMOSPatch takes one platform per run from the
+`.getMOSPatch.cfg` of its working directory; for this directory the script
+writes `CLIENT_JDK_PLATFORM;MOS_LANGUAGE` instead of copying the master
+file (Linux). Every Java update is a full distribution – no base version
+is needed. `--fresh-patches` archives `client/jdk/` together with
+`patches/`.
 
 ### Post-Install Patches (getMOSPatch, in apply order)
 
@@ -186,7 +211,7 @@ mkdir -p $PATCH_STORAGE/bin
 cp getMOSPatch.jar $PATCH_STORAGE/bin/
 ```
 
-Platform codes in `.getMOSPatch.cfg`: `226P` = Linux x86-64 · `233P` = Linux ARM 64 · `46P` = Windows x86-64
+Platform codes in `.getMOSPatch.cfg`: `226P` = Linux x86-64 · `541P` = Linux ARM 64-bit · `233P` = Microsoft Windows x64 (64-bit) · `46P` = Linux x86 (32-bit). The list comes live from MOS: `java -jar getMOSPatch.jar patch=<nr> reset=yes` in an empty directory prints all codes (checked 2026-10-22 – the earlier comment "46P = Windows x86-64" was wrong, getMOSPatch answered "No files available")
 
 ### 3. Download OPatch upgrade patch (Patch 28186730)
 
@@ -264,7 +289,8 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
 - Reads `MOS_USER`, `PATCH_STORAGE`, `INSTALL_COMPONENTS` from `environment.conf`
 - Reads versions, filenames, patch numbers from `oracle_software_version.conf`
 - **`--fresh-patches`** (with `--apply`): archives `$PATCH_STORAGE/patches/` to
-  `patches_<timestamp>/` before anything else, then creates a clean, empty
+  `patches_<timestamp>/` (and `client/jdk/` to `client/jdk_<timestamp>/`)
+  before anything else, then creates a clean, empty
   `patches/` directory — `wls/`/`fr/` (the large eDelivery base installers)
   are untouched, since their checksum check already guarantees freshness
 - **eDelivery ZIPs** (always with `--apply`):
@@ -282,6 +308,10 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
   - Downloads the Java SE patch **`JDK_PATCH_NR`** (`35702194`) to
     `$PATCH_STORAGE/patches/35702194/` – source of `--upgrade-jdk` /
     `07-Maintenance/80-patch_java_os.sh --apply`
+  - With `FORMS_CLIENT_DIST=true` (Forms only): downloads the client Java
+    (`CLIENT_JDK_PATCH_NR`, default `JDK_PATCH_NR`) for platform
+    `CLIENT_JDK_PLATFORM` (`233P`, Windows x64) to
+    `$PATCH_STORAGE/client/jdk/<nr>/`
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
   - Downloads each patch from `INSTALL_PATCHES_REPORTS` and
     `INSTALL_PATCHES_FORMS` (plus `INSTALL_PATCHES_FR_OPTIONAL` if
@@ -304,7 +334,14 @@ $PATCH_STORAGE/
 │   ├── V1045135-01.zip           ← eDelivery: FMW Infrastructure 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_infrastructure.jar   ← extracted
 ├── jacob/
-│   └── jacob-1.21.zip            ← GitHub: JACOB (only FORMS_WEBUTIL_JACOB=true), installed by 14-
+│   └── jacob-1.21.zip            ← GitHub: JACOB (only FORMS_WEBUTIL_JACOB=true), installed by 14-,
+│                                    also source of the client DLL (concept 40)
+├── client/                       ← sources of the Forms client bundle (only FORMS_CLIENT_DIST=true)
+│   └── jdk/
+│       └── 35702194/             ← client Java: same patch, platform 233P (CLIENT_JDK_PLATFORM)
+│           ├── .getMOSPatch.cfg  ← "233P;<language>" written for this directory
+│           └── p35702194_2100_MSWIN-x86-64.zip  ← confirmed (live) 2026-10-22, 518 MB:
+│                 jdk-21.0.13.0.2_windows-x64_bin.zip / .exe / .msi + SHA256_VALUES + MD5_VALUES
 ├── fr/
 │   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted
@@ -344,7 +381,7 @@ $PATCH_STORAGE/
 | `--apply --mos` | eDelivery + getMOSPatch: OPatch + post-install patches |
 | `--apply --all` | Alias for `--apply --mos` |
 | `--apply --wget --mos` | Bearer Token wget + getMOSPatch (fully automated) |
-| `--fresh-patches` | Archive `patches/` to `patches_<timestamp>/` first, then download into a clean directory |
+| `--fresh-patches` | Archive `patches/` to `patches_<timestamp>/` (and `client/jdk/` to `client/jdk_<timestamp>/`) first, then download into a clean directory |
 | `--help` | Show usage |
 
 ### Typical workflow
