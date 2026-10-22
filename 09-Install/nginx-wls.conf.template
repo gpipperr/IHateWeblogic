@@ -15,6 +15,9 @@
 #   ##SSL_CERT##           Path to SSL fullchain certificate PEM file
 #   ##SSL_KEY##            Path to SSL private key PEM file
 #   ##ADMIN_IP_RANGE##     Network allowed to reach /console (e.g. 10.0.0.0/8)
+#   FORMS_CLIENT_URL_PATH / FORMS_CLIENT_DIR  Forms client bundle – the marked block
+#                          below "Forms client bundle" is kept only with
+#                          FORMS_CLIENT_DIST=true (docs/40-forms_client_distribution.md)
 #
 # Deployment: place in /etc/nginx/conf.d/oracle-wls.conf
 # Note: no http{} block – conf.d files are included inside the http{} block
@@ -104,6 +107,27 @@ server {
     location /forms {
         return 301 /forms/;
     }
+
+    #@FORMS_CLIENT_BEGIN@
+    # --- Forms client bundle (static, read-only) -----------------------------
+    location ##FORMS_CLIENT_URL_PATH##/ {
+        alias ##FORMS_CLIENT_DIR##/;
+        autoindex off;
+        types { application/json json; application/zip zip;
+                application/java-archive jar; text/plain ps1 cmd; }
+        default_type application/octet-stream;
+    }
+
+    location = ##FORMS_CLIENT_URL_PATH##/manifest.json {
+        alias ##FORMS_CLIENT_DIR##/manifest.json;
+        default_type application/json;
+        add_header Cache-Control "no-cache" always;   # revalidate, ETag -> 304
+    }
+
+    location = ##FORMS_CLIENT_URL_PATH## {
+        return 301 ##FORMS_CLIENT_URL_PATH##/;
+    }
+    #@FORMS_CLIENT_END@
 
     # --- Oracle Reports (/reports) ----------------------------------------
     location /reports/ {

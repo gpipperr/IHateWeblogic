@@ -125,7 +125,8 @@ session can act as the server – see
 [forms_jakob_webutil.md §10.1](forms_jakob_webutil.md#101-what-the-session-can-do-on-the-client--threat-model).
 
 Measures, in order: patch the **client JREs** (the server cannot enforce
-them); offer Forms only from trusted networks (internal / VPN); keep WebUtil
+them – an own `jlink` runtime rebuilt at every Java CPU makes this a server
+task: [java_jlink_forms_env.md](java_jlink_forms_env.md)); offer Forms only from trusted networks (internal / VPN); keep WebUtil
 narrow; protect the code-signing key; let users start Forms only through the
 distributed shortcut / FSAL call, never from mail links.
 
@@ -362,6 +363,11 @@ Secondary:
 
 ## 9. Open points
 
+- First real client session: **confirmed (live) 2026-10-22** with FSAL and
+  an own `jlink` runtime on Linux (Xvfb) through Nginx / HTTPS – new
+  `frmweb …,standaloneapp`, "Forms Session ID is WLS_FORMS.formsapp.2";
+  the `frmweb` of a killed client lives until `FORMS_TIMEOUT`
+  ([java_jlink_forms_env.md §4.2](java_jlink_forms_env.md#42-linux-runtime-and-a-real-forms-session--confirmed-live)).
 - Pool vs. session with a real client session (JWS / FSAL from Windows):
   DB connection and CPU time as criterion, EM "User Sessions" comparison
   (Oracle: "A user session starts when the frmweb process starts" – does EM

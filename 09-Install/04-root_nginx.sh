@@ -251,11 +251,33 @@ sed \
     -e "s|##ADMIN_IP_RANGE##|${ADMIN_IP_RANGE}|g" \
     "$TEMPLATE" > "$NGINX_CONF_TMP"
 
+# Optional Forms client bundle location (docs/40-forms_client_distribution.md):
+# keep the marked block only for Forms installs with FORMS_CLIENT_DIST=true
+_fc_dist=false
+if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "REPORTS_ONLY" ]; then
+    _fc_dist=true
+fi
+if $_fc_dist; then
+    _fc_path="${FORMS_CLIENT_URL_PATH:-/formsWeb}"; _fc_path="${_fc_path%/}"
+    _fc_dir="${FORMS_CLIENT_DIR:-/srv/formsWeb}";   _fc_dir="${_fc_dir%/}"
+    sed -i -e '/#@FORMS_CLIENT_\(BEGIN\|END\)@/d' \
+           -e "s|##FORMS_CLIENT_URL_PATH##|${_fc_path}|g" \
+           -e "s|##FORMS_CLIENT_DIR##|${_fc_dir}|g" "$NGINX_CONF_TMP"
+    ok "Forms client bundle: location ${_fc_path}/ -> ${_fc_dir}/"
+    [ -d "$_fc_dir" ] || warn "FORMS_CLIENT_DIR $_fc_dir does not exist yet (03-root_user_oracle.sh --apply)"
+    unset _fc_path _fc_dir
+else
+    sed -i '/#@FORMS_CLIENT_BEGIN@/,/#@FORMS_CLIENT_END@/d' "$NGINX_CONF_TMP"
+    info "Forms client bundle location not configured (FORMS_CLIENT_DIST != true)"
+fi
+unset _fc_dist
+
 # Check no ##PARA## placeholders remain
-REMAINING="$(grep -c '##[A-Z_]*##' "$NGINX_CONF_TMP" 2>/dev/null || echo 0)"
+# (comment lines are ignored – the template header documents the ##PARA## syntax)
+REMAINING="$(grep -v '^[[:space:]]*#' "$NGINX_CONF_TMP" 2>/dev/null | grep -c '##[A-Z_]*##')"
 if [ "$REMAINING" -gt 0 ]; then
     warn "Unreplaced placeholders in generated config:"
-    grep -o '##[A-Z_]*##' "$NGINX_CONF_TMP" | sort -u | while IFS= read -r p; do
+    grep -v '^[[:space:]]*#' "$NGINX_CONF_TMP" | grep -o '##[A-Z_]*##' | sort -u | while IFS= read -r p; do
         warn "  $p"
     done
 else

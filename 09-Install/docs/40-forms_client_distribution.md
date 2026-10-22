@@ -148,9 +148,35 @@ Not in the interview (software versions, one source):
   newer … jdeps … jlink … jpackage" (**documented**, Forms 14.1.2 FSAL,
   "Custom JRE Support"). The bundle script runs `jdeps` on `frmsal.jar` /
   the Forms client jars and `jlink` from the server JDK 21 with the
-  `jmods` of the **Windows** JDK (cross-platform linking with the same
-  version – **assumption**, test) → a runtime of a few dozen MB instead of
+  `jmods` of the **Windows** JDK → a runtime of a few dozen MB instead of
   ~300 MB. Fallback: the full JDK ZIP.
+
+  Theory, module list and tests in detail:
+  [java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md).
+  Test on the server, **confirmed (live) 2026-10-22**:
+  - Linux `jlink` 21.0.12.1 (`JDK_HOME`) with the 70 `jmods` of
+    `jdk-21.0.13.0.2_windows-x64_bin.zip` (SHA-256 checked against
+    `SHA256_VALUES`) built a Windows runtime in 8 s:
+    - 61 MB, `release` `JAVA_VERSION="21.0.13.0.2"`;
+    - `java.exe` / `javaw.exe` (PE32+ x86-64) and `keytool.exe`;
+    - `lib/security/cacerts` is PKCS12; the own root CA was imported with
+      the server `keytool` (`-storepass changeit`).
+  - Whether it starts on Windows: client test.
+
+  Modules:
+  - `jdeps --print-module-deps`: `frmsal.jar` → `java.base,java.desktop,
+    java.management,java.net.http`; `frmall.jar` adds `jdk.jsobject`;
+    `frmwebutil.jar`, `jacob.jar` → `java.base,java.desktop`.
+  - Added because they are loaded via services / at run time and
+    invisible to `jdeps` (**assumption** to be confirmed on the client):
+    - TLS / crypto: `jdk.crypto.ec`, `jdk.crypto.mscapi` (Windows key
+      store);
+    - text: `jdk.charsets`, `jdk.localedata` (German date / number
+      formats);
+    - general: `java.logging`, `java.naming`, `java.xml`, `java.prefs`,
+      `jdk.unsupported`, `jdk.zipfs`, `jdk.accessibility`.
+  - `jlink` options: `--strip-debug --no-header-files --no-man-pages
+    --compress=zip-6`.
 - **Licence:** the patch README demands a Java SE subscription; Java used
   only to run an Oracle product falls under MOS Doc ID 1557737.1 – for the
   Forms client runtime an **assumption** to be confirmed for the customer;

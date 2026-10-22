@@ -76,15 +76,18 @@ nginx -t
 
 1. Reads `environment.conf` for port and hostname values
 2. Substitutes `##VARIABLE##` placeholders in `nginx-wls.conf.template` → temp config
-3. Checks for any unresolved `##PARA##` placeholders (warns if found)
-4. Shows a 30-line preview of the generated configuration
-5. Installs Nginx via `dnf` if missing (asks for confirmation with `--apply`)
-6. Enables Nginx for autostart (`systemctl enable nginx`) — does NOT start it
-7. Creates `/etc/nginx/ssl/` directory (mode 700) for certificate storage
-8. Backs up existing `oracle-wls.conf` before overwriting
-9. Deploys generated config to `/etc/nginx/conf.d/oracle-wls.conf`
-10. Skips `nginx -t` validation if SSL certs are not yet in place
-11. Detects and disables conflicting `/etc/nginx/conf.d/default.conf`
+3. Keeps the optional block `#@FORMS_CLIENT_BEGIN@` … `#@FORMS_CLIENT_END@`
+   (Forms client bundle) only when `FORMS_CLIENT_DIST=true` and Forms is
+   installed – otherwise the whole block is removed
+4. Checks for any unresolved `##PARA##` placeholders (warns if found)
+5. Shows a 30-line preview of the generated configuration
+6. Installs Nginx via `dnf` if missing (asks for confirmation with `--apply`)
+7. Enables Nginx for autostart (`systemctl enable nginx`) — does NOT start it
+8. Creates `/etc/nginx/ssl/` directory (mode 700) for certificate storage
+9. Backs up existing `oracle-wls.conf` before overwriting
+10. Deploys generated config to `/etc/nginx/conf.d/oracle-wls.conf`
+11. Skips `nginx -t` validation if SSL certs are not yet in place
+12. Detects and disables conflicting `/etc/nginx/conf.d/default.conf`
 
 ---
 
@@ -99,6 +102,38 @@ nginx -t
 | `##SSL_CERT##` | derived | `/etc/nginx/ssl/fullchain.pem` |
 | `##SSL_KEY##` | derived | `/etc/nginx/ssl/privkey.pem` |
 | `##ADMIN_IP_RANGE##` | `ADMIN_IP_RANGE` | `10.0.0.0/8` |
+| `##FORMS_CLIENT_URL_PATH##` | `FORMS_CLIENT_URL_PATH` (only `FORMS_CLIENT_DIST=true`) | `/formsWeb` |
+| `##FORMS_CLIENT_DIR##` | `FORMS_CLIENT_DIR` (only `FORMS_CLIENT_DIST=true`) | `/srv/formsWeb` |
+
+### Forms client bundle location (`FORMS_CLIENT_DIST=true`)
+
+Static, read-only delivery of the client bundle (concept
+[40-forms_client_distribution.md](40-forms_client_distribution.md)) in the
+same HTTPS server block as `/forms/`:
+
+```nginx
+location /formsWeb/ {                        # FORMS_CLIENT_URL_PATH
+    alias /srv/formsWeb/;                    # FORMS_CLIENT_DIR (oracle:oinstall 755)
+    autoindex off;                           # no directory listing
+    types { application/json json; application/zip zip;
+            application/java-archive jar; text/plain ps1 cmd; }
+    default_type application/octet-stream;   # dll and everything else
+}
+location = /formsWeb/manifest.json {         # checked on every client start
+    alias /srv/formsWeb/manifest.json;
+    default_type application/json;
+    add_header Cache-Control "no-cache" always;   # revalidate; ETag -> HTTP 304
+}
+location = /formsWeb { return 301 /formsWeb/; }
+```
+
+- `manifest.json` has its own exact-match location instead of a nested
+  regex location – `alias` and nested regex locations do not combine
+  reliably in Nginx.
+- Nginx sends `ETag` / `Last-Modified` for static files by default, so an
+  unchanged manifest is answered with HTTP 304.
+- Nginx only reads; the bundle is written by `40-` as oracle. SELinux
+  enforcing (customer hosts): `httpd_sys_content_t` on `FORMS_CLIENT_DIR`.
 
 ---
 

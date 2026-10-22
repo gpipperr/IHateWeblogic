@@ -348,7 +348,7 @@ What a Windows client needs:
 
 | # | Item | JWS | FSAL | Changes how often |
 |---|---|---|---|---|
-| 1 | Java runtime | Oracle Java 8 (`javaws`) or OpenWebStart | Java 17+ (64 bit) | every Java CPU (quarterly) |
+| 1 | Java runtime | Oracle Java 8 (`javaws`) or OpenWebStart | Java 17+ (64 bit) – e.g. an own `jlink` runtime of ~60 MB with the CA inside ([java_jlink_forms_env.md](java_jlink_forms_env.md)) | every Java CPU (quarterly) |
 | 2 | Launcher | `.jnlp` link / `jnlp://` URL | `frmsal.jar` (+ shortcut with the URL); self-update when it does not match the server (`fsalEnableAutoUpdate`, default `TRUE`, patch updates only – **documented**, FSAL Reference) | seldom |
 | 3 | Trust: CA of the **code-signing** certificate | yes (options B/C) | no (default) | B: once (root); C: at every new certificate |
 | 4 | Trust: CA of the **TLS** certificate | yes | yes (FSAL JVM truststore) | with the TLS CA |
@@ -366,7 +366,7 @@ How customers distribute (observed practice):
 
 Recommendation (design, to be decided with the customer):
 
-1. **Prefer FSAL** (Java 17/21) – no signer trust check by default, no Java
+1. **Prefer FSAL** (Java 17/21, as own `jlink` runtime: [java_jlink_forms_env.md](java_jlink_forms_env.md)) – no signer trust check by default, no Java
    8 / Web Start dependency; sign `jacob.jar` anyway (Oracle recommendation,
    cheap once the key exists).
 2. **Code signing with a company CA (option B) or a public CA (option A)** –
