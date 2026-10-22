@@ -22,8 +22,8 @@ traceable what belonged to a cycle, and an environment can be brought
 
 | Cycle | Released | Type | Configured in this project | Status | Document |
 |---|---|---|---|---|---|
-| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – FMW patch numbers **pending** (KA1182/CPU360 not readable yet, MOS portal returned empty pages), Java known (CPU426: 21.0.13.0.2); `oracle_software_version.conf` still on CSPU Sep 2026 | this file |
-| CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; complete set live on the test host | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) |
+| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / scripts still on CSPU Sep 2026 (switch is an open item) | this file |
+| CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; set live on the test host – **incomplete**: the FMW Infrastructure bundle patches (ADF, OWSM, OPSS, UMS, …) were missing, see "Patch List" below | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) |
 
 Rule for every new cycle:
 
@@ -45,7 +45,9 @@ and apply the old ones – there is no script for a rollback.
 
 | Doc ID | Title | Used for |
 |---|---|---|
-| **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers – check **monthly** (CPU and CSPU, see "Terms" below) |
+| **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers – check **monthly** (CPU and CSPU, see "Terms" below). **Cumulative**: lists every patch still required for a home, with the CPU/CSPU release that brought it; patches are a "Minimum Requirement", bundle patches the "Latest Recommended". See "How to read KA1182" |
+| KB160118 | KA1182 – archived revisions as PDF | The official KA1182 state of earlier cycles (Sep 2026 content added on 2026-10-20) – the counterpart of our snapshots |
+| CPU289 / CPU290 | CPU October 2026 – Executive Summary / Documentation Map | Overview of all products of the CPU |
 | **CPU360** | Patch Availability Document for Fusion Middleware, CPU October 2026 | Linked from the CPU Oct 2026 advisory for every FMW product (WLS, OHS, OUI, Common Libraries, FMW Control …) – patch numbers of this cycle |
 | **CPU388** | Patch Availability Document for Java SE, CPU October 2026 | JDK 21.0.13 / 17.0.21 – **superseded for JSSE by CPU426** (21.0.13 is itself affected by CVE-2026-91403) |
 | **CPU426** | Oracle Java SE Security Alert for CVE-2026-91403 (v1.0, read 2026-10-22) | Target JDK version of this cycle: **21.0.13.0.2** (Patch 40186074, or well-known 35702194), client JRE **8u511** (Patch 40186686) – see "Special case Java" |
@@ -53,6 +55,8 @@ and apply the old ones – there is no script for a rollback.
 | CPU391 | Patch Availability Document, CPU October 2026, Enterprise Manager | Only if EM Cloud Control / FMW components of EM are used – not part of this stack |
 | CPU349 | CSPU September 2026 for Oracle Java SE | History (cycle CSPU Sep 2026) |
 | CPU211 | Patch Availability Document FMW, CPU July 2026 | History (cycle CPU Jul 2026) |
+| KB379953 | Details for FMW Third-Party Component Updates | Third-Party BP (in the SPB); PNEWS2138: the ADF bundle patch requires the Third-Party BP |
+| KB417168 | Primary Note on Coherence Patch Releases | Coherence cumulative patch (in the SPB) |
 | KB168467 | Stack Patch Bundle (SPB) with SPBAT Utility | Background on the SPB/SPBAT mechanism reintroduced for 14.1.2 in CSPU Sep 2026 — see the corrected note in `docs/05-oracle_patch_weblogic.md` |
 | KB175049 | Installing and maintaining Java SE for FMW 11g/12c/14c | JDK install/update procedure, referenced by `02b-root_os_java.sh` |
 | KB159467 | Restricting Incoming Serialized Java Objects (JEP 290) | Why an up-to-date JDK is required for the WLS PSU deserialization fixes to take effect |
@@ -63,7 +67,39 @@ and apply the old ones – there is no script for a rollback.
 
 CPU360 / CPU388 / CPU391 / CPU426 are the links in the "Patch Availability
 Document" column of the public advisory / alert (read 2026-10-22); their
-content needs a MOS login.
+content needs a MOS login. CPU360 lists only the **new** patches of a cycle,
+KA1182 the complete set – for a home always follow KA1182.
+
+## How to read KA1182
+
+KA1182 is one long web document with a tab per product suite (127 pages as
+PDF, 2026-10-22). Save it as PDF into `90-Source-MetaData/` (gitignored –
+the document is marked "Oracle Confidential", so only patch numbers, short
+names and our own assessment go into the repo, no copied text) and extract
+it with `pdftotext -layout`. Every tab starts with "This page provides …":
+
+```bash
+pdftotext -layout 90-Source-MetaData/KnowledgeArticle_KA1182.pdf /tmp/ka1182.txt
+grep -n "This page provides" /tmp/ka1182.txt      # tab index with line numbers
+```
+
+Tabs for a Forms & Reports 14.1.2 home (KA1182 Step 1: the
+"Distribution" in `$ORACLE_HOME/oui/bin/viewInventory.sh` names the tab):
+
+| Tab | What it adds |
+|---|---|
+| Forms and Reports 14.1.2.0 | Forms QPR, Reports QPR, PERL SPU, OHS + WebGate colocated – and the pointer "click the sections above" to the next two tabs |
+| FMW Infrastructure 14.1.2.0 | "If only applying the WebLogic Server SPB … apply the additional patches": ADF, WebCenter Core, OWSM, FMW Control, OAMCLIENT, UMS, OPSS, LibOVD bundle patches |
+| WebLogic Server 14.1.2.0 | DB check (CVE-2021-2351 / KB118538), Java SE, WLS SPB (option 1) or the individual patches (option 2) |
+| Oracle HTTP Server 14.1.2 | only if a separate OHS home proxies to Forms/Reports |
+
+"Never patched?" → apply everything in the tabs; "patched before?" → apply
+what is newer than the last applied cycle (column "CPU/CSPU Release").
+
+Final CPU/CSPU per release (KA1182 introduction): **14.1.2.0 – December
+2032**, 12.2.1.4 (incl. Forms/Reports 12.2.1.19) – December 2027 (Premier
+Support for 12.2.x ends December 2026, afterwards patches only with an
+Extended Support contract), 14.1.1.0 – December 2027.
 
 ## How to use this table
 
@@ -173,30 +209,32 @@ it answers.
 Filtered from the Fusion Middleware risk matrix of the CPU Oct 2026
 advisory (Rev 1): all rows whose affected versions include **14.1.2.0.0**
 and whose product is part of a Forms & Reports home. Not listed: SOA, OSB,
-BPM, ODI, WebCenter, OIM, MFT, JDeveloper and Oracle Access Manager (OAM
+BPM, ODI, WebCenter, OIM, MFT and Oracle Access Manager (OAM
 server – **not** WebGate; no WebGate row in this CPU) – not installed by
-this project. Oracle Forms, Oracle Reports, OPSS and Coherence 14.1.2 have
-**no** row in this CPU.
+this project (JDeveloper is listed because its ADF runtime is in the
+home). Oracle Forms, Oracle Reports, OPSS and Coherence 14.1.2 have **no**
+row in this CPU.
 
 | CVE | Product / component | Protocol | Remote w/o auth | CVSS 3.1 | Relevant here | Fix in patch |
 |---|---|---|---|---|---|---|
-| **CVE-2026-83399** | WebLogic Server / Core | T3, IIOP | yes | **9.8** | **yes** – every installation (T3 not exposed through Nginx, but local / internal network) | pending KA1182 (WLS SPB) |
-| **CVE-2026-91323** | WebLogic Server / Core | HTTP | yes | **9.8** | **yes** – reachable through Nginx (`/forms`, `/reports`) | pending KA1182 (WLS SPB) |
-| CVE-2026-87302 | WebLogic Server / Core | HTTP | yes | 9.1 | yes | pending KA1182 (WLS SPB) |
-| CVE-2026-91502 | WebLogic Server / Core | TLS | yes | 7.3 | low – WLS SSL listen ports (demo SSL 9501/9512) not used, loopback only; TLS terminates in Nginx | pending KA1182 (WLS SPB) |
-| CVE-2026-41855 | WebLogic Server / Core (Spring Framework); also Middleware Common Libraries and Tools / Thirdparty Patch | HTTP | yes | 8.1 | yes (library on disk) | pending KA1182 (SPB / thirdparty bundle) |
-| CVE-2023-43622 | WebLogic Server / Core (Apache HTTP Server) | HTTP/2 | yes | 7.5 | yes (component in the home) | pending KA1182 |
-| CVE-2025-7962 | WebLogic Server / Centralized Thirdparty Jars (Jakarta Mail) | SMTP | yes | 7.5 | low – no mail sessions configured; library on disk | pending KA1182 (thirdparty bundle) |
-| CVE-2026-101515 | WebLogic Server / Centralized Thirdparty Jars | HTTP | yes | 5.9 | yes | pending KA1182 (thirdparty bundle) |
-| **CVE-2026-4176** | Oracle Fusion Middleware / Centralized Thirdparty Jars (Perl) | HTTP | yes | **9.8** | yes – `oracle.perlint` comes with the Forms & Reports installer | pending KA1182 (successor of PERL SPU 38590500) |
-| **CVE-2026-47065** | Middleware Common Libraries and Tools / Third Party (Apache Mina) | HTTP | yes | **9.8** | yes (library on disk) | pending KA1182 |
-| CVE-2026-54399 / 59649 / 49844 / 64607 | Middleware Common Libraries and Tools / Third Party (HttpComponents 7.5, Bouncy Castle 7.5, Log4j 5.9, HttpClient 5.3) | HTTP(S) | yes | 5.3 – 7.5 | yes (libraries on disk) | pending KA1182 |
-| CVE-2026-91617 | Middleware Common Libraries and Tools / Remote Diagnostic Agent | None | no | 5.5 | yes – RDA is in the SPB (39798193 in Sep) | pending KA1182 (SPB) |
-| CVE-2026-54513 | Web Services Manager / Third Party (jackson-databind) | HTTP | yes | 8.1 | yes – OWSM is part of the FMW infrastructure home | pending KA1182 |
-| CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | yes – EM on the AdminServer | pending KA1182 |
-| CVE-2026-8763 / 101520 / 91776 / 59889 | Global Lifecycle Management NextGen OUI Framework / NextGen Installer (Bouncy Castle 9.1, 7.5, jackson-databind 7.5, 6.5) | HTTP(S) | mostly yes | 6.5 – 9.1 | yes – OUI/OPatch tooling in every home (exploitable only while the installer runs) | pending KA1182 (OUI/NextGen patch) |
-| **CVE-2026-87347** | Oracle HTTP Server / OSSL Module | HTTP | no | **9.6** | yes – OHS binaries are in the home (no instance, Nginx frontend); patched from this cycle on | pending KA1182 (OHS bundle) |
-| CVE-2026-87346 | Oracle HTTP Server / WebLogic Proxy Plug-in for OHS | HTTP | yes | 8.7 | as above | pending KA1182 (OHS bundle) |
+| **CVE-2026-83399** | WebLogic Server / Core | T3, IIOP | yes | **9.8** | **yes** – every installation (T3 not exposed through Nginx, but local / internal network) | SPB 40125898 (WLS PSU 40058371) |
+| **CVE-2026-91323** | WebLogic Server / Core | HTTP | yes | **9.8** | **yes** – reachable through Nginx (`/forms`, `/reports`) | SPB 40125898 (WLS PSU 40058371) |
+| CVE-2026-87302 | WebLogic Server / Core | HTTP | yes | 9.1 | yes | SPB 40125898 (WLS PSU 40058371) |
+| CVE-2026-91502 | WebLogic Server / Core | TLS | yes | 7.3 | low – WLS SSL listen ports (demo SSL 9501/9512) not used, loopback only; TLS terminates in Nginx | SPB 40125898 (WLS PSU 40058371) |
+| CVE-2026-41855 | WebLogic Server / Core (Spring Framework); also Middleware Common Libraries and Tools / Thirdparty Patch | HTTP | yes | 8.1 | yes (library on disk) | SPB 40125898 (Third-Party BP 40035655) |
+| CVE-2023-43622 | WebLogic Server / Core (Apache HTTP Server) | HTTP/2 | yes | 7.5 | yes (component in the home) | SPB 40125898 (WLS PSU 40058371) |
+| CVE-2025-7962 | WebLogic Server / Centralized Thirdparty Jars (Jakarta Mail) | SMTP | yes | 7.5 | low – no mail sessions configured; library on disk | SPB 40125898 (Third-Party BP 40035655) |
+| CVE-2026-101515 | WebLogic Server / Centralized Thirdparty Jars | HTTP | yes | 5.9 | yes | SPB 40125898 (Third-Party BP 40035655) |
+| **CVE-2026-4176** | Oracle Fusion Middleware / Centralized Thirdparty Jars (Perl) | HTTP | yes | **9.8** | yes – `oracle.perlint` comes with the Forms & Reports installer | PERL SPU **39951765** (5.42.2, replaces 38590500) |
+| **CVE-2026-47065** | Middleware Common Libraries and Tools / Third Party (Apache Mina) | HTTP | yes | **9.8** | yes (library on disk) | SPB 40125898 (Third-Party BP 40035655) |
+| CVE-2026-54399 / 59649 / 49844 / 64607 | Middleware Common Libraries and Tools / Third Party (HttpComponents 7.5, Bouncy Castle 7.5, Log4j 5.9, HttpClient 5.3) | HTTP(S) | yes | 5.3 – 7.5 | yes (libraries on disk) | SPB 40125898 (Third-Party BP 40035655) |
+| CVE-2026-91617 | Middleware Common Libraries and Tools / Remote Diagnostic Agent | None | no | 5.5 | yes – RDA is in the SPB (39798193 in Sep) | SPB 40125898 (RDA 39646824) |
+| CVE-2026-54513 | Web Services Manager / Third Party (jackson-databind) | HTTP | yes | 8.1 | yes – OWSM is part of the FMW infrastructure home | OWSM BP **40024749** (not in the SPB) |
+| CVE-2026-91318 / 91319 / 91317 / 87334 / 91320 / 91322 | JDeveloper / Security Framework, Java Business Objects, ADF Databinding, ADF Faces | HTTP / SOAP / None | partly | 3.3 – 6.5 | yes – the ADF runtime (`oracle.jrf.adfrt*`) is in every FMW infrastructure home | ADF BP **40050062** (not in the SPB) |
+| CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | yes – EM on the AdminServer | FMW Control BP **39995927** (not in the SPB) |
+| CVE-2026-8763 / 101520 / 91776 / 59889 | Global Lifecycle Management NextGen OUI Framework / NextGen Installer (Bouncy Castle 9.1, 7.5, jackson-databind 7.5, 6.5) | HTTP(S) | mostly yes | 6.5 – 9.1 | yes – OUI/OPatch tooling in every home (exploitable only while the installer runs) | OPatch 13.9.4.2.25 (only Global Lifecycle Management patch in KA1182 – assumption) |
+| **CVE-2026-87347** | Oracle HTTP Server / OSSL Module | HTTP | no | **9.6** | yes – OHS binaries are in the home (no instance, Nginx frontend); patched from this cycle on | OHS BP **39987730** |
+| CVE-2026-87346 | Oracle HTTP Server / WebLogic Proxy Plug-in for OHS | HTTP | yes | 8.7 | as above | OHS BP **39987730** |
 | CVE-2026-83379 / 87300 | WebLogic Server Proxy Plug-in for Third-Party Web Servers | HTTP | yes | 8.7 | **no** – only for IIS/Apache, Nginx uses `proxy_pass` | – |
 
 Java SE matrix of the CPU Oct 2026 (55 rows): highest score for 17/21 is
@@ -210,7 +248,10 @@ A CVE in a risk matrix means "addressed by the patches of this release"
 is **not** in the public advisory and the patch READMEs name no CVE
 numbers – the column "Fix in patch" is the expected vehicle and must be
 confirmed against KA1182 / CPU360 (same as in the September cycle, see
-the snapshot).
+the snapshot). Vehicle = the KA1182 patch whose component matches the
+risk-matrix component; the WLS SPB contains PSU, Third-Party BP, RDA,
+Coherence, DB client and JDBC – the infrastructure bundles (OWSM, FMW
+Control, ADF, OPSS …) are **not** in it.
 
 ---
 
@@ -270,7 +311,7 @@ The version compare of `02b-root_os_java.sh` (`sort -V`) orders
 | JDK | Where | Used by | Action this cycle | State 2026-10-22 |
 |---|---|---|---|---|
 | Oracle JDK 21 at `JDK_HOME` | outside the Oracle Home (`02b-root_os_java.sh`) | WebLogic servers, Node Manager, WLST | Patch **35702194** (always "current JDK 21", ZIP name does not change; release-specific alternative 40186074) – download from 23 Oct 2026 when the ZIP contains **21.0.13.0.2**: `04-oracle_pre_download.sh --apply --fresh-patches --mos`, check the `jdk-21.0.x` inside the ZIP, then `07-Maintenance/80-patch_java_os.sh --apply` (domain stopped) | target **21.0.13.0.2** (CPU426); set `JDK_VERSION_MIN="21.0.13.0.2"` in `oracle_software_version.conf` together with the download. Test host on 21.0.12.1 (affected by the CPU Oct Java matrix) |
-| FMW-bundled JDK 17 `$ORACLE_HOME/oracle_common/jdk` | inside the Oracle Home, OPatch component `oracle.jdk` 17.0.12.8.0 | Reports server/engines, Forms/Reports tools (`rwrun`, `rwconverter`, `frmcmp`, …) | OPatch patch `FMW_JDK_PATCH_NR` | **blocked** – Oracle Support AI 2026-10-20: no published patch / Doc ID known, "Do not manually replace that JDK directory", check KA1182; MOS portal returned only empty pages. 17.0.12 is behind 17.0.20.1, 17.0.21 and the alert |
+| FMW-bundled JDK 17 `$ORACLE_HOME/oracle_common/jdk` | inside the Oracle Home, OPatch component `oracle.jdk` 17.0.12.8.0 | Reports server/engines, Forms/Reports tools (`rwrun`, `rwconverter`, `frmcmp`, …) | OPatch patch `FMW_JDK_PATCH_NR` | **blocked** – Oracle Support AI 2026-10-20: no published patch / Doc ID known, "Do not manually replace that JDK directory", check KA1182; the KA1182 of October 2026 lists no patch for it either. 17.0.12 is behind 17.0.20.1, 17.0.21 and the alert |
 | Client JRE of the Forms users | user PCs (Java Web Start / FSAL standalone launcher) | Forms applet runtime, **TLS client** of the Forms session | **most important measure for CVE-2026-91403** – JSSE runs on the client; roll out the CPU426 JRE (JRE 8u511 Patch 40186686, or the JDK/JRE 11+/17/21 release the client uses) through the customer's software distribution; test that the trust of the code-signing certificate survives the JRE update (`cacerts` of the JRE is replaced, the user deployment trust store stays) | customer task – inform the customer, see the threat model |
 
 Why the client is the critical side: in this architecture TLS terminates
@@ -286,52 +327,80 @@ and [forms_jakob_webutil.md §10.1](../../80-FMW-Architecture/forms_jakob_webuti
 ## Patch List — CPU October 2026 cycle
 
 Target: Oracle Forms & Reports 14.1.2.0.0 on Linux x86-64 (Oracle Linux 9),
-Nginx as frontend.
+Nginx as frontend. Source: KA1182 "LATEST for OCTOBER 2026" (PDF of
+2026-10-22, tabs Forms and Reports / FMW Infrastructure / WebLogic Server
+14.1.2.0) and CPU426 for Java. The column "Previous (CSPU Sep 2026)" is
+what is installed now; `oracle_software_version.conf` and the scripts are
+still on the previous set – switching them is an open item (root README).
 
-**New numbers pending** except Java – KA1182 / CPU360 / KA204 were not
-readable on 2026-10-22 (MOS portal empty); CPU426 was read the same day. The column "Previous (CSPU Sep
-2026)" is what is installed now and what the new patch replaces;
-`oracle_software_version.conf` keeps the previous numbers until the whole
-set is known (no half cycle for the scripts).
+**Correction to the September set:** the Forms and Reports tab of KA1182
+points to the FMW Infrastructure tab, which demands eight infrastructure
+bundle patches whenever only the **WLS** SPB is applied. All eight
+components are in our home (`$ORACLE_HOME/inventory/ContentsXML/comps.xml`,
+test host 2026-10-22). Our CSPU Sep 2026 set had none of them – "UMS
+removed" and "LibOVD not required" in the snapshot were wrong.
 
 ### Required
 
-| # | Patch (CPU Oct 2026) | Previous (CSPU Sep 2026) | Description | Applied by |
+| # | Patch (CPU Oct 2026) | Previous (CSPU Sep 2026) | Description | KA1182 release | Applied by |
+|---|---|---|---|---|---|
+| 1 | 35702194 → **21.0.13.0.2** (release-specific 40186074) | 35702194 = 21.0.12.1 | Oracle JDK 21 at `JDK_HOME`. KA1182 demands "21.0.13 or later" (CPU388); the alert CVE-2026-91403 (CPU426) is stricter – see "Special case Java" | Oct 2026 | `04-` download, `02b- --upgrade-jdk` / `07-Maintenance/80- --apply` |
+| 1b | *blocked* | *open* | FMW-bundled JDK `oracle_common/jdk` (`oracle.jdk` 17.0.12.8.0) – KA1182 lists no patch for it | – | – |
+| 2 | 28186730 → **13.9.4.2.25** | 13.9.4.2.24 (inside SPB 39925660) | OPatch – "Upgrade OPatch before applying the below patches"; check whether the standalone download offers .25 or only the SPB carries it (see `docs/05-oracle_patch_weblogic.md`) | Oct 2026 | `05-` |
+| 3 | **40125898** | 39925660 | WLS Stack Patch Bundle 14.1.2.0.261007 (content below) | Oct 2026 | `05-` |
+| 4 | – (check) | 39988381 | WLS SPU for CVE-2026-70748 (CSPU Sep 2026) – the WLS 14.1.2 tab lists SPB 40125898 **alone** (PSU 14.1.2.0.260922 is newer than the SPU), but other tabs still pair it with their October SPB (WebCenter SPB 40141505 "+ 39988381"). Before dropping it: check the SPB 40125898 README / `opatch lsinventory -bugs_fixed` for the SPU's bug; if missing, re-apply 39988381 on top | – | `05-` (`INSTALL_PATCHES`) |
+| 5 | **39951765** | 38590500 | PERL 5.42.2 Security Update for FMW 14.1.2 (component `oracle.perlint`) – needs DBCLIENT for FMW 23.26.0.0.0 or later (comes with the SPB) | Oct 2026 | `06-` (`INSTALL_PATCHES_FR_COMMON`) |
+| 6 | 39600348 (unchanged) | 39600348 | Oracle Reports Developer QPR 14.1.2.0 | Aug 2026 | `06-` |
+| 7 | **39987730** | 39597026 (not applied) | OHS Bundle Patch 14.1.2.0.260907 – OHS binaries (`oracle.ohs2`, `oracle.ohs2.collocated`) are in the home although Nginx is the frontend. Post-install per KB559857 | Oct 2026 | `06-` |
+| 8 | 39100536 (unchanged) | 39100536 (not applied) | OAM WebGate Bundle Patch 14.1.2.0.260318 (`oracle.oamclient.webgate.ohs`) | Apr 2026 | `06-` |
+
+### FMW Infrastructure bundle patches (new in our set)
+
+Required by KA1182 tab "FMW Infrastructure 14.1.2.0" when only the WLS SPB
+or individual WLS patches are applied. None of them is part of the WLS SPB.
+
+| Patch | Description | KA1182 release | In our home (comps.xml) | Note |
 |---|---|---|---|---|
-| 1 | 35702194 (same number) → **21.0.13.0.2** per CPU426 (alternative 40186074), available by 23 Oct 2026 | 35702194 = 21.0.12.1 | Oracle JDK 21 at `JDK_HOME`, see "Special case Java" | `04-` download, `02b- --upgrade-jdk` / `07-Maintenance/80- --apply` |
-| 1b | *blocked* | *open* | FMW-bundled JDK `oracle_common/jdk` (`oracle.jdk` 17.0.12.8.0) | `06-` / `82-` once known |
-| 2 | 28186730 – version pending | 13.9.4.2.24 (inside SPB 39925660) | OPatch for FMW/WLS 14.1.2.0.0 – check whether the new SPB again carries a newer build than the standalone download (see `docs/05-oracle_patch_weblogic.md`) | `05-` |
-| 3 | **pending KA1182** | 39925660 | WLS Stack Patch Bundle 14.1.2.0.2610xx – expected to carry the WLS Core CVEs, thirdparty bundle, RDA, Coherence, JDBC, DB client | `05-` |
-| 4 | **pending KA1182** (or none) | 39988381 | WLS 14.1.2 SPU – only if KA1182 lists an SPU on top of the new SPB; otherwise 39988381 is expected to be included in the SPB | `05-` |
-| 5 | **pending KA1182** | 38590500 | FMW PERL Security Patch Update (CVE-2026-4176, 9.8) – component `oracle.perlint` | `06-` (`INSTALL_PATCHES_FR_COMMON`) |
-| 6 | **pending KA204** | 39600348 | Oracle Reports Developer QPR 14.1.2.0 – no Reports CVE in this CPU, take a new QPR only if KA204 lists one | `06-` |
-| 7 | **pending KA1182** | 39597026 (not applied) | OHS Bundle Patch 14.1.2.0.2610xx (CVE-2026-87347 9.6, -87346 8.7) – **mandatory from this cycle on**: the OHS binaries (`oracle.ohs2`) are in every Forms & Reports home (agreed 2026-10-19: patch everything on disk). Post-install per KB559857 | `06-` |
-| 8 | **pending KA1182** | 39100536 (not applied) | OAM WebGate Bundle Patch 14.1.2.0 – **mandatory from this cycle on** (`oracle.oamclient.webgate.ohs` is in the home); no WebGate CVE in this CPU, take the latest bundle listed in KA1182 | `06-` |
-| 9 | **pending KA1182** | – | OUI / NextGen Installer patch for CVE-2026-8763 (9.1) and friends – only if KA1182 lists a separate patch for 14.1.2 | `05-` |
-| 10 | **pending KA1182** | – | OWSM / FMW Control / Common Libraries one-offs (CVE-2026-54513, -91467, -47065 …) – only if not contained in the SPB | `05-` |
+| **40050062** | ADF Bundle Patch 14.1.2.0.260920 | Oct 2026 | `oracle.jrf.adfrt*`, `oracle.adfrt.view_11g` | requires the Third-Party BP (in the SPB), PNEWS2138 |
+| **40035984** | WebCenter Core Bundle Patch 14.1.2.0.260916 | Oct 2026 | `oracle.webcenter.wccore`, `oracle.webcenter.framework.composer` | installed with every FMW infrastructure, even without WebCenter |
+| **40024749** | OWSM Bundle Patch 14.1.2.0.260914 | Oct 2026 | `oracle.wsm.*` | CVE-2026-54513; includes the fix of Security Alert CVE-2026-21992 (Mar 2026) |
+| **39995927** | FMW Control Bundle Patch 14.1.2.0.260908 | Oct 2026 | `oracle.sysman.fmw.*` (EM) | CVE-2026-91467 |
+| **40057999** | OAMCLIENT Bundle Patch 14.1.2.0.260922 | Oct 2026 | `oracle.oamclient.core`, `.wls` | |
+| **39940047** | UMS Bundle Patch 14.1.2.0.260827 | Sep 2026 | `oracle.sdp.messaging` | was missing in the Sep set (successor of 38566996) |
+| **39979746** | OPSS Bundle Patch 14.1.2.0.260904 | Sep 2026 | `oracle.opss.*` | was missing in the Sep set – the Sep OPSS CVE-2026-83020 was assumed to be in the SPB |
+| **39726399** | LibOVD Bundle Patch 14.1.2.0 | Aug 2026 | `oracle_common/modules/oracle.ovd` | was "not required" in the snapshot – KA1182 lists it |
 
 ### Conditional (only if the component is installed in the Oracle Home)
 
 | Patch | Previous (CSPU Sep 2026) | Description | Condition |
 |---|---|---|---|
-| **pending KA204** | 39842516 | Oracle Forms QPR 14.1.2.0 – no Forms CVE in this CPU, take a new QPR only if KA204 lists one | Only if Forms is in inventory (`opatch lsinventory -details`, component `oracle.forms*`) |
-| 38936596 | 38936596 | One-off for Bug 38936596 (ewt3.jar, BiDi parentheses) | Only if `REPORTS_BIDIPARENTHESIS=YES` (Hebrew); check whether the new Reports QPR includes it |
-| 39726399 | not applied | LIBOVD merge patch 14.1.2.0.0 (OAM/OID TLS bugs, no CVE) | Not required – re-check only if KA1182 lists it or on Oracle Support's advice (details in the snapshot) |
+| 39842516 (unchanged) | 39842516 | Oracle Forms QPR 14.1.2.0 (Sep 2026) | Only if Forms is in inventory (`opatch lsinventory -details`, component `oracle.forms*` / `oracle.developer.forms*`) |
+| 38936596 | 38936596 | One-off for Bug 38936596 (ewt3.jar, BiDi parentheses), not in KA1182 | Only if `REPORTS_BIDIPARENTHESIS=YES` (Hebrew) |
 | WLS Proxy Plug-In | – | CVE-2026-83379 / 87300 | Only for IIS/Apache as a proxy — not relevant with Nginx |
 
-### Content of the new SPB
+### Content of SPB 40125898 (KA1182 option 2 = the individual patches)
 
-**Pending** – fill in from the SPB README once the number is known. The
-September content (SPB 39925660: marker, RDA, WLS PSU 260823, samples,
-Coherence CP9, DB client RU 23.26.2, JDBC, OPatch .24, thirdparty bundle,
-RCU fix) is in the
-[snapshot](00-patch-references_september_2026.md#content-of-spb-39925660-applied-in-full-via-spbat-or-opatch-napply).
+| Patch | Content | KA1182 release |
+|---|---|---|
+| 28186730 | OPatch 13.9.4.2.25 | Oct 2026 |
+| 40058371 | WLS PSU 14.1.2.0.260922 – post-install KB694158 | Oct 2026 |
+| 40035655 | FMW Third-Party BP 14.1.2.0.260916 (KB379953) | Oct 2026 |
+| 39984190 | Coherence 14.1.2.0 Cumulative Patch 10 (14.1.2.0.10) | Oct 2026 |
+| 39646824 | RDA 26.4.20261020 for FMW/WLS 14.1.2 | Oct 2026 |
+| 39264447 | Database Update 23.26.2 for FMW DBCLIENT | Jul 2026 |
+| 39487373 | JDBC 23.26.2 Bundle Patch 14.1.2.0.260603 | Jul 2026 |
+| 38063775 | WebLogic Samples Patch 14.1.2.0.250715 | Jul 2025 |
+| *pending* | SPB marker patch (`WLS_SPB_MARKER_PATCH`, Sep: 39925694) – read from the SPB README | – |
 
 ### Superseded (kept for context, not read by any script)
 
 | Old patch | Superseded by |
 |---|---|
-| 38566996 | UMS Bundle Patch 14.1.2.0.251022 (CPU Jan 2026) — removed from `INSTALL_PATCHES` (2026-10-14): not on the CSPU Sep 2026 required list above. UMS is not part of the SPB; check KA1182 for a UMS/Infrastructure patch in later cycles |
+| 39925660 | → 40125898 (WLS SPB 14.1.2.0.261007, CPU Oct 2026) |
+| 39988381 | WLS SPU (CSPU Sep 2026) → expected in SPB 40125898 (WLS tab lists the SPB alone) – to be verified, see row 4 of the patch list |
+| 38590500 | → 39951765 (PERL 5.42.2 Security Update) |
+| 39597026 | → 39987730 (OHS BP 14.1.2.0.260907) – the older one was never applied |
+| 38566996 | → 39940047 (UMS Bundle Patch 14.1.2.0.260827). Removing it in 2026-10 without a successor was a mistake – KA1182 lists UMS in the FMW Infrastructure tab |
 | 38827528 | → 39600348 (Reports QPR) |
 | 38874285 | → 39842516 (Forms QPR) |
 | 37795631 | → 39264447 (DB RU 23.26.2 for FMW DBCLIENT, in the SPB). 37795631 = RSF fix for Bug 36749613 (Forms 14.1.2 crash FRM-93656/FRM-93652 on `EXIT_FORM`, 23.5 DB RSF), MOS KB177278. Verified 2026-10-14: `opatch lsinventory -bugs_fixed` lists 36749613 as fixed by 39264447 – do **not** apply 37795631 on top of the SPB |

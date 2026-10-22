@@ -618,11 +618,14 @@ CSPU Sep 2026 state is frozen in
 [`00-patch-references_september_2026.md`](09-Install/docs/00-patch-references_september_2026.md)
 (one snapshot per cycle, see "Patch cycle history" there).
 
-- [ ] **Patch numbers pending** (MOS portal returned empty pages): KA1182 /
-  CPU360 (FMW), KA204 (QPR) → fill in the patch list (Java is known:
-  CPU426 read 2026-10-22),
-  then switch `09-Install/oracle_software_version.conf` as a whole set
-  (still CSPU Sep 2026), download, `07-Maintenance/81-`/`82-`, smoke test `15-`.
+- [ ] **Switch conf + scripts to October** – patch numbers are known (KA1182
+  PDF + CPU426, 2026-10-22): SPB 40125898, OPatch 13.9.4.2.25, PERL 39951765,
+  OHS 39987730, `JDK_VERSION_MIN=21.0.13.0.2`, and the **eight FMW
+  Infrastructure bundle patches** (ADF, WebCenter Core, OWSM, FMW Control,
+  OAMCLIENT, UMS, OPSS, LibOVD) that were missing in the September set –
+  needs a new patch list for `05-`/`06-` (doc first). Then download,
+  `07-Maintenance/81-`/`82-`, smoke test `15-`. Check whether SPU 39988381
+  is contained in SPB 40125898.
 - [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
   Oracle Home although Nginx is the frontend (agreed: everything on disk
   gets patched; OHS CVE-2026-87347 9.6 in this CPU).
