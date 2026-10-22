@@ -232,7 +232,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 | 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
-| concept | `40-oracle_forms_client_bundle.sh` [planned] | Forms client distribution via URL: Java runtime (jlink, MOS Windows patch) + `frmsal.jar` + JACOB DLL + trust served by Nginx, PowerShell mini installer in `%LOCALAPPDATA%` with self-update | [→ docs](docs/40-forms_client_distribution.md) |
+| 7d | `40-oracle_forms_client_bundle.sh` | Forms client bundle for Nginx `/formsWeb/`: Windows Java runtime built with jlink from the MOS client JDK (CA inside `cacerts`), `frmsal.jar`, JACOB DLL, `manifest.json` (atomic switch, `--rollback`); only `FORMS_CLIENT_DIST=true`. PowerShell installer: next step | [→ docs](docs/40-forms_client_distribution.md) |
 | teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
 
 ---

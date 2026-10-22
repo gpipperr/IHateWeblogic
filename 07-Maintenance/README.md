@@ -94,6 +94,9 @@ duplicated here.
 8. Forms only: ./09-Install/14-oracle_setup_forms.sh --apply
    (a Forms patch can reset extensions.jnlp / formsweb.cfg – re-activates the
    signed jacob.jar, re-signs a jacob.jar replaced by a new JACOB version)
+   Forms client distribution (FORMS_CLIENT_DIST=true): ./09-Install/40-oracle_forms_client_bundle.sh --apply
+   (new client Java from step 2 / new frmsal.jar from step 7 -> new bundle,
+   clients update themselves at their next start; domain may run)
 9. ./01-Run/startStop.sh start-all --apply
 10. verify:
     ./09-Install/15-deploy-test-report-forms_template.sh --apply   # smoke test Forms + Reports

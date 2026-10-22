@@ -90,8 +90,10 @@ Location: `FORMS_CLIENT_DIR` (default `/srv/formsWeb`, next to
 reads). `01-root_os_baseline.sh` disables SELinux; on a customer host with
 SELinux enforcing the directory needs the context `httpd_sys_content_t`
 (`semanage fcontext -a -t httpd_sys_content_t '/srv/formsWeb(/.*)?'` +
-`restorecon -R /srv/formsWeb`). The previous bundle stays as
-`<FORMS_CLIENT_DIR>.prev/` for a server-side rollback.
+`restorecon -R /srv/formsWeb`). No sibling directory for a rollback
+(`/srv` belongs to root): all files carry their version in the name, old
+and new set live side by side, `manifest.json` is replaced last and
+atomically (`mv`), the previous one stays as `manifest.prev.json` (see §10).
 
 ### 3.0 Parameters (`environment.conf`, asked by `01-setup-interview.sh`)
 
@@ -426,7 +428,7 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 | Forms patch (QPR) | new `frmsal.jar` / Forms jars on the server → `40- --apply` (same rule as `14- --apply` after every Forms patch, `07-Maintenance/README.md`) |
 | New JACOB version | `04-` + `14-` as today, then `40- --apply` |
 | TLS CA change | `40- --apply` (CA into the bundled runtime); the Windows store via GPO / user import |
-| Problem with a new version | server: restore `client.prev/`; client: `FormsWeb-Setup.ps1 -Rollback` |
+| Problem with a new version | server: `40-oracle_forms_client_bundle.sh --apply --rollback` (makes `manifest.prev.json` current again); client: `FormsWeb-Setup.ps1 -Rollback` |
 | Relation to the customer's software deployment | alternative to it – or the SCCM / Intune package carries only `FormsWeb-Install.cmd` |
 
 ---
@@ -453,15 +455,41 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 
 | Piece | Change |
 |---|---|
-| `09-Install/40-oracle_forms_client_bundle.sh` | new – read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest, signing) |
+| `09-Install/40-oracle_forms_client_bundle.sh` | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest) – **done 2026-10-22**, see §10; signing of the setup script follows with the templates |
 | `09-Install/client_templates/` | new – `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` |
 | `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
 | `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` |
-| `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) |
+| `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
 | `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
 | `09-Install/03-root_user_oracle.sh` | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |
 | `14-oracle_setup_forms.sh` | optional `fsalJavaVersion` in `[standaloneapp]` |
 | `07-Maintenance/README.md` | "after every Java / Forms patch: `40- --apply`" |
+
+---
+
+## 10. Script `40-oracle_forms_client_bundle.sh`
+
+```
+./09-Install/40-oracle_forms_client_bundle.sh                    # read-only: sources, current bundle, what --apply would do
+./09-Install/40-oracle_forms_client_bundle.sh --apply            # build if a source changed
+./09-Install/40-oracle_forms_client_bundle.sh --apply --force    # rebuild everything
+./09-Install/40-oracle_forms_client_bundle.sh --apply --rollback # previous manifest becomes current
+```
+
+Runs as oracle. Only for Forms installations with `FORMS_CLIENT_DIST=true`
+(otherwise exit 0 with a note).
+
+| Step | What happens |
+|---|---|
+| 1. Sources | client JDK ZIP from `$PATCH_STORAGE/client/jdk/<CLIENT_JDK_PATCH_NR or JDK_PATCH_NR>/` (no Linux ZIP), the inner `jdk-<ver>_windows-x64_bin.zip` checked against `SHA256_VALUES`; `$ORACLE_HOME/forms/java/frmsal.jar`; JACOB x64 DLL from `$PATCH_STORAGE/jacob/$JACOB_ZIP` (only `FORMS_WEBUTIL_JACOB=true`, size checked against `JACOB_DLL_X64_SIZE`); CA `FORMS_CLIENT_TRUST_CA` (optional) |
+| 2. Change check | a fingerprint per component (SHA-256 of the source, module list, runtime mode, CA) is compared with the current `manifest.json` – nothing changed → "up to date", nothing written (unless `--force`) |
+| 3. Runtime | work directory `mktemp -d`; `jlink` mode: only `jmods/` of the Windows JDK extracted, `$JDK_HOME/bin/jlink` with `FORMS_CLIENT_JLINK_MODULES` (default list of [java_jlink_forms_env.md §3](../../80-FMW-Architecture/java_jlink_forms_env.md#3-the-module-list-for-forms-1412), Windows modules included); `jdk` mode: the whole JDK; then the CA into `lib/security/cacerts` (`keytool`, alias `ihw-forms-ca`); ZIP with the runtime files at the top level → `jre-<JAVA_VERSION>-win-x64.zip` |
+| 4. Other files | `frmsal-<forms version>-<sha8>.jar`, `jacob-1.21-x64.dll`; `FormsWeb-Setup.ps1` / `FormsWeb-Install.cmd` from `09-Install/client_templates/` once they exist |
+| 5. Manifest | `manifest.json` (schema §3.2) written to a temp file in `FORMS_CLIENT_DIR`, the old one renamed to `manifest.prev.json`, the new one moved into place – the atomic switch for the clients |
+| 6. Clean-up | files referenced by neither `manifest.json` nor `manifest.prev.json` are deleted (only our own patterns `jre-*`, `frmsal-*`, `jacob-*`); files 644, owner oracle |
+
+Run it again after every Java CPU / Security Alert (`04-` downloaded a new
+client JDK), every Forms patch (new `frmsal.jar`) and every CA change.
 
 ---
 
