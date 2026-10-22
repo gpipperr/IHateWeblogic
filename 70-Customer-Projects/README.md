@@ -17,6 +17,16 @@ FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
 "Kochbuch" text files a customer can follow without using any of the
 IHateWeblogic scripts.
 
+### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
+
+→ [Forms12_reports12_patch_analyse_10_2026/README.md](Forms12_reports12_patch_analyse_10_2026/README.md)
+
+Patch list for an existing Forms & Reports 12.2.1.19 home (FMW
+Infrastructure / WebLogic 12.2.1.4) from KA1182 of October 2026 plus the
+Java Security Alert CVE-2026-91403 (server JDK 8 and client JRE), with the
+CVE background and the questions to clarify with the customer – applied by
+hand, no scripts.
+
 ## Further Installation Guides (German)
 
 Additional practical installation walkthroughs for other WebLogic-related
