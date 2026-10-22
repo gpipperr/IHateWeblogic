@@ -22,7 +22,7 @@ traceable what belonged to a cycle, and an environment can be brought
 
 | Cycle | Released | Type | Configured in this project | Status | Document |
 |---|---|---|---|---|---|
-| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers **pending** (KA1182/CPU360 not readable yet, MOS portal returned empty pages); `oracle_software_version.conf` still on CSPU Sep 2026 | this file |
+| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – FMW patch numbers **pending** (KA1182/CPU360 not readable yet, MOS portal returned empty pages), Java known (CPU426: 21.0.13.0.2); `oracle_software_version.conf` still on CSPU Sep 2026 | this file |
 | CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; complete set live on the test host | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) |
 
 Rule for every new cycle:
@@ -48,7 +48,7 @@ and apply the old ones – there is no script for a rollback.
 | **KA1182** | CPU/CSPU Patch Advisor for Oracle Fusion Middleware | Main entry point for current WLS 14.1.2 and Forms/Reports 14.1.2 patch numbers – check **monthly** (CPU and CSPU, see "Terms" below) |
 | **CPU360** | Patch Availability Document for Fusion Middleware, CPU October 2026 | Linked from the CPU Oct 2026 advisory for every FMW product (WLS, OHS, OUI, Common Libraries, FMW Control …) – patch numbers of this cycle |
 | **CPU388** | Patch Availability Document for Java SE, CPU October 2026 | JDK 21.0.13 / 17.0.21 – **superseded for JSSE by CPU426** (21.0.13 is itself affected by CVE-2026-91403) |
-| **CPU426** | Patch Availability Document for Java SE, Security Alert CVE-2026-91403 | Target JDK version of this cycle – see "Special case Java" |
+| **CPU426** | Oracle Java SE Security Alert for CVE-2026-91403 (v1.0, read 2026-10-22) | Target JDK version of this cycle: **21.0.13.0.2** (Patch 40186074, or well-known 35702194), client JRE **8u511** (Patch 40186686) – see "Special case Java" |
 | **KA204** | Oracle Forms and Reports Quarterly Patch Release (QPR) Information | Current Forms/Reports QPR patch numbers |
 | CPU391 | Patch Availability Document, CPU October 2026, Enterprise Manager | Only if EM Cloud Control / FMW components of EM are used – not part of this stack |
 | CPU349 | CSPU September 2026 for Oracle Java SE | History (cycle CSPU Sep 2026) |
@@ -118,6 +118,19 @@ Consequences for this project:
   list them per cycle).
 - Patch numbers come from KA1182 / CPU360 / KA204 / CPU426, never from the
   public advisory – the advisory only names products, versions and CVEs.
+- We prove a **patch level, not a fix**: "installed >= minimum of the patch
+  document" (`JDK_VERSION_MIN`, patch numbers from KA1182) is what the
+  scripts and `cve_inventory.sh` check. Oracle does not publish which patch
+  fixes which CVE, and fixes are known to ship silently one release before
+  they appear in an advisory – so the CVE → patch mapping stays marked as
+  *assumption* / "expected vehicle", and towards the customer we state
+  "current Oracle level per patch document X", not "CVE proven fixed".
+  When in doubt: the newest available level.
+- After a Security Alert take the **release-specific patch** (e.g. 40186074,
+  40186686), not the well-known "latest" patch (35702194, 18143322): the
+  latest patch is repointed later – recognisable by a "Last Updated" before
+  the alert date (October 2026: 18143322 updated 2026-10-20 = CPU build,
+  40186686 updated 2026-10-22 = alert build).
 - Oracle Reports has no own entry in the CSPU Sep 2026 / CPU Oct 2026
   product lists (only "Oracle Fusion Middleware" / WLS / OPSS, which are in
   every Reports home). Forms CVEs matter for a Reports-only home only if the
@@ -131,7 +144,7 @@ Consequences for this project:
 | 18 August 2026 | CSPU | released |
 | 15 September 2026 | CSPU | released – frozen in [00-patch-references_september_2026.md](00-patch-references_september_2026.md) |
 | 20 October 2026 | CPU | released (Rev 1) – **current cycle**; Fusion Middleware 206 fixes, Java SE matrix (21.0.12.1 / 17.0.20.1 affected), Forms / Reports not in the product list |
-| 21 October 2026 | Security Alert CVE-2026-91403 | released (Rev 1) – Java SE JSSE, CVSS 9.1; affected **21.0.13**, 17.0.21, 8u511 … (= the versions of the CPU one day earlier), patch document CPU426 |
+| 21 October 2026 | Security Alert CVE-2026-91403 | released (Rev 1) – Java SE JSSE, CVSS 9.1; affected **21.0.13**, 17.0.21, 8u511 … (= the versions of the CPU one day earlier); fixed releases 21.0.13.0.2 / 17.0.21.0.2 / 8u511 (new build) per CPU426, **patches available by 23 Oct 2026** |
 | 17 November 2026 | CSPU | planned |
 | 15 December 2026 | CSPU | planned |
 | 19 January 2027 | CPU | planned |
@@ -209,11 +222,56 @@ The October cycle shows why Java gets its own section: the CPU of
 **21.0.13** as affected. Target is therefore the release of **CPU426**,
 not the one of CPU388.
 
+CPU426 (v1.0, read 2026-10-22 from MOS; "Patches will be available by
+23 Oct 2026"):
+
+| Release (fix for CVE-2026-91403) | Patch | Well-known patch ("latest") | Relevant here |
+|---|---|---|---|
+| JDK **21.0.13.0.2** | 40186074 | **35702194** (JDK 21 latest) | **yes** – `JDK_HOME` |
+| JDK 17.0.21.0.2 | 40186076 | 33181589 (JDK 17 latest) | no – the bundled JDK 17 is an OPatch component, not patched with this ZIP (see below) |
+| JDK 8 Update 511 / **JRE 8 Update 511** | 40186682 / **40186686** | 18143322 (JDK 8 latest) | **yes for clients** – Forms 12c-era clients typically run JRE 8 (Web Start) |
+| JDK 11.0.33.0.2, 25.0.5.0.2, 27.0.1.0.2 | 40186080, 40186027, 40186001 | 27838191, 38306322, 39905790 | no |
+| GraalVM (EE) | TBD | – | no |
+
+Inconsistencies in CPU426 v1.0 (re-read the document when it is updated):
+
+- The patch table names "JDK **21.0.15**.0.2: Patch 40186074", the
+  release-notes list "21.0.**13**.0.2" – 21.0.15 does not exist yet, very
+  probably a typo. Check the `jdk-21.0.x` inside the downloaded ZIP.
+- JDK 8: the alert lists 8u511 as **affected**, CPU426 lists "8 Update 511"
+  as the **fix** (no `.0.2` suffix as for 11+). The public 8u511 release
+  notes (HTTP 200) are those of the CPU; distinguish by build number –
+  only the build from Patch 40186682/40186686 (available from 23 Oct)
+  counts as fixed.
+- Release notes pages `21-0-13-0-2-relnotes.html` / `17-0-21-0-2-relnotes.html`
+  return HTTP 404 on 2026-10-22 (not published yet).
+
+Java 8 clients – how to tell the builds apart: CPU and alert release are
+both called "8u511", only the build differs (`java -version` →
+`build 1.8.0_511-bNN`, or the `release` file of the JRE / file version of
+`bin\java.exe` for an inventory without starting Java). Fixed build:
+**`1.8.0_511-b??` – pending** (from the README of Patch 40186686 or by
+comparing a JRE from 18143322 of 2026-10-20 with one from 40186686). For
+JDK 11+ the version itself differs (21.0.13 vs. **21.0.13.0.2**), check
+`JAVA_RUNTIME_VERSION` in `$JDK_HOME/release`.
+
+Client JRE download: take the **JRE** (40186686, ~180 MB) not the JDK,
+platform **Microsoft Windows x64** (the JACOB DLL is x64), stay on Java 8
+for Java Web Start (`javaws` no longer exists from Java 11 on; with 11+
+only the FSAL standalone launcher works). Licence: the patch README demands
+a Java SE subscription; for Java used **only** to run an Oracle product the
+exception of Doc ID 1557737.1 applies (assumption for the Forms client JRE
+– quote the exact sentence from 1557737.1 / the FMW licensing manual to the
+customer; other Java programs on the same PCs are not covered).
+
+The version compare of `02b-root_os_java.sh` (`sort -V`) orders
+21.0.12.1 < 21.0.13 < 21.0.13.0.2 correctly – no script change needed.
+
 | JDK | Where | Used by | Action this cycle | State 2026-10-22 |
 |---|---|---|---|---|
-| Oracle JDK 21 at `JDK_HOME` | outside the Oracle Home (`02b-root_os_java.sh`) | WebLogic servers, Node Manager, WLST | Patch **35702194** (always "current JDK 21", ZIP name does not change) – only download after CPU426 is out and the ZIP contains the fixed release: `04-oracle_pre_download.sh --apply --fresh-patches --mos`, check the `jdk-21.0.x` inside the ZIP, then `07-Maintenance/80-patch_java_os.sh --apply` (domain stopped) | **pending CPU426** – fixed version number not known yet; raise `JDK_VERSION_MIN` in `oracle_software_version.conf` together with the download. Test host on 21.0.12.1 (affected by the CPU Oct Java matrix) |
+| Oracle JDK 21 at `JDK_HOME` | outside the Oracle Home (`02b-root_os_java.sh`) | WebLogic servers, Node Manager, WLST | Patch **35702194** (always "current JDK 21", ZIP name does not change; release-specific alternative 40186074) – download from 23 Oct 2026 when the ZIP contains **21.0.13.0.2**: `04-oracle_pre_download.sh --apply --fresh-patches --mos`, check the `jdk-21.0.x` inside the ZIP, then `07-Maintenance/80-patch_java_os.sh --apply` (domain stopped) | target **21.0.13.0.2** (CPU426); set `JDK_VERSION_MIN="21.0.13.0.2"` in `oracle_software_version.conf` together with the download. Test host on 21.0.12.1 (affected by the CPU Oct Java matrix) |
 | FMW-bundled JDK 17 `$ORACLE_HOME/oracle_common/jdk` | inside the Oracle Home, OPatch component `oracle.jdk` 17.0.12.8.0 | Reports server/engines, Forms/Reports tools (`rwrun`, `rwconverter`, `frmcmp`, …) | OPatch patch `FMW_JDK_PATCH_NR` | **blocked** – Oracle Support AI 2026-10-20: no published patch / Doc ID known, "Do not manually replace that JDK directory", check KA1182; MOS portal returned only empty pages. 17.0.12 is behind 17.0.20.1, 17.0.21 and the alert |
-| Client JRE of the Forms users | user PCs (Java Web Start / FSAL standalone launcher) | Forms applet runtime, **TLS client** of the Forms session | **most important measure for CVE-2026-91403** – JSSE runs on the client; roll out the CPU426 JRE through the customer's software distribution | customer task – inform the customer, see the threat model |
+| Client JRE of the Forms users | user PCs (Java Web Start / FSAL standalone launcher) | Forms applet runtime, **TLS client** of the Forms session | **most important measure for CVE-2026-91403** – JSSE runs on the client; roll out the CPU426 JRE (JRE 8u511 Patch 40186686, or the JDK/JRE 11+/17/21 release the client uses) through the customer's software distribution; test that the trust of the code-signing certificate survives the JRE update (`cacerts` of the JRE is replaced, the user deployment trust store stays) | customer task – inform the customer, see the threat model |
 
 Why the client is the critical side: in this architecture TLS terminates
 in Nginx (OpenSSL), Nginx → WLS and WLS → `frmweb` are plain connections on
@@ -230,8 +288,8 @@ and [forms_jakob_webutil.md §10.1](../../80-FMW-Architecture/forms_jakob_webuti
 Target: Oracle Forms & Reports 14.1.2.0.0 on Linux x86-64 (Oracle Linux 9),
 Nginx as frontend.
 
-**All new numbers pending** – KA1182 / CPU360 / KA204 / CPU426 were not
-readable on 2026-10-22 (MOS portal empty). The column "Previous (CSPU Sep
+**New numbers pending** except Java – KA1182 / CPU360 / KA204 were not
+readable on 2026-10-22 (MOS portal empty); CPU426 was read the same day. The column "Previous (CSPU Sep
 2026)" is what is installed now and what the new patch replaces;
 `oracle_software_version.conf` keeps the previous numbers until the whole
 set is known (no half cycle for the scripts).
@@ -240,7 +298,7 @@ set is known (no half cycle for the scripts).
 
 | # | Patch (CPU Oct 2026) | Previous (CSPU Sep 2026) | Description | Applied by |
 |---|---|---|---|---|
-| 1 | 35702194 (same number) – release **pending CPU426** | 35702194 = 21.0.12.1 | Oracle JDK 21 at `JDK_HOME`, see "Special case Java" | `04-` download, `02b- --upgrade-jdk` / `07-Maintenance/80- --apply` |
+| 1 | 35702194 (same number) → **21.0.13.0.2** per CPU426 (alternative 40186074), available by 23 Oct 2026 | 35702194 = 21.0.12.1 | Oracle JDK 21 at `JDK_HOME`, see "Special case Java" | `04-` download, `02b- --upgrade-jdk` / `07-Maintenance/80- --apply` |
 | 1b | *blocked* | *open* | FMW-bundled JDK `oracle_common/jdk` (`oracle.jdk` 17.0.12.8.0) | `06-` / `82-` once known |
 | 2 | 28186730 – version pending | 13.9.4.2.24 (inside SPB 39925660) | OPatch for FMW/WLS 14.1.2.0.0 – check whether the new SPB again carries a newer build than the standalone download (see `docs/05-oracle_patch_weblogic.md`) | `05-` |
 | 3 | **pending KA1182** | 39925660 | WLS Stack Patch Bundle 14.1.2.0.2610xx – expected to carry the WLS Core CVEs, thirdparty bundle, RDA, Coherence, JDBC, DB client | `05-` |

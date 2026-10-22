@@ -619,20 +619,23 @@ CSPU Sep 2026 state is frozen in
 (one snapshot per cycle, see "Patch cycle history" there).
 
 - [ ] **Patch numbers pending** (MOS portal returned empty pages): KA1182 /
-  CPU360 (FMW), KA204 (QPR), CPU426 (Java, alert) → fill in the patch list,
+  CPU360 (FMW), KA204 (QPR) → fill in the patch list (Java is known:
+  CPU426 read 2026-10-22),
   then switch `09-Install/oracle_software_version.conf` as a whole set
   (still CSPU Sep 2026), download, `07-Maintenance/81-`/`82-`, smoke test `15-`.
 - [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
   Oracle Home although Nginx is the frontend (agreed: everything on disk
   gets patched; OHS CVE-2026-87347 9.6 in this CPU).
-- [ ] JDK at `JDK_HOME`: target is the release of **CPU426**, not 21.0.13
-  (affected by CVE-2026-91403). Set `JDK_VERSION_MIN`,
-  `04-oracle_pre_download.sh --apply --fresh-patches --mos` (Patch 35702194 –
-  check which `jdk-21.0.x` it holds), then `07-Maintenance/80-patch_java_os.sh
+- [ ] JDK at `JDK_HOME`: target **21.0.13.0.2** (CPU426, Patch 40186074 /
+  well-known 35702194, available by 23 Oct 2026), not 21.0.13 (affected by
+  CVE-2026-91403). Set `JDK_VERSION_MIN="21.0.13.0.2"`,
+  `04-oracle_pre_download.sh --apply --fresh-patches --mos` (check that the
+  ZIP holds `jdk-21.0.13.0.2`), then `07-Maintenance/80-patch_java_os.sh
   --apply`. The bundled JDK of the Reports engines: see "FMW-bundled JDK"
   under Scripts.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
-  via the customer's software distribution – JSSE runs on the client, see
+  (JRE 8u511 Patch 40186686, fixed build from 23 Oct) via the customer's
+  software distribution, test the code-signing trust after the update – JSSE runs on the client, see
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
 - [ ] Confirm the CVE coverage of the patches in MOS KA1182 / CPU360
   (CPU Oct 2026: CVE-2026-83399 / 91323 / 4176 / 47065, all 9.8; the
