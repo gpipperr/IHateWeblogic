@@ -39,9 +39,30 @@ $JAVA_HOME/bin/java -version
 
 Also check:
 
-- **Repository database:** FMW CPUs contain the fix for CVE-2021-2351. The
-  database of the RCU schemas must be on July 2021 PSU or later with the
-  NNE settings of KB118538.
+- **Repository database:** FMW CPUs contain the fix for CVE-2021-2351
+  (Native Network Encryption). The database of the RCU schemas (and every
+  application database the Forms/Reports sessions connect to) must be on
+  July 2021 or later – [KB118538](https://support.oracle.com/support/?documentId=KB118538):
+  - Since July 2021 the DB `sqlnet.ora` knows `SQLNET.ALLOW_WEAK_CRYPTO_CLIENTS`,
+    the client `sqlnet.ora` `SQLNET.ALLOW_WEAK_CRYPTO` (both default `TRUE`).
+    `FALSE` removes DES, 3DES, RC4 and MD5 and **blocks unpatched clients**
+    (`ORA-12269`). The FMW homes are patched clients: OCI via the FMW DB
+    client (3.4), JDBC thin via the JDBC bundle patch (3.2).
+  - JDBC thin ignores `sqlnet.ora`; its switch is the connection property
+    `oracle.net.allow_weak_crypto` (default `true`). `ORA-12268` after the
+    patch means the **database server** is not patched.
+  - Only relevant if NNE is used (`SQLNET.ENCRYPTION_SERVER=REQUESTED|REQUIRED`).
+    Which ciphers the sessions really use – before switching to `FALSE`:
+
+    ```sql
+    SELECT s.username, s.program, ci.network_service_banner
+      FROM v$session_connect_info ci JOIN v$session s ON s.sid = ci.sid
+     WHERE ci.network_service_banner LIKE '%Encryption%'
+        OR ci.network_service_banner LIKE '%Crypto-checksumming%';
+    ```
+
+    No DES/3DES/RC4 and no MD5 in the result → the DB can be set to
+    `SQLNET.ALLOW_WEAK_CRYPTO_CLIENTS=FALSE` (Oracle's recommendation).
 - **Client PCs:** `java -version` on a few Forms clients (Java Web Start /
   FSAL), see section 5.
 

@@ -62,7 +62,7 @@ and apply the old ones – there is no script for a rollback.
 | KB159467 | Restricting Incoming Serialized Java Objects (JEP 290) | Why an up-to-date JDK is required for the WLS PSU deserialization fixes to take effect |
 | KB694158 | Security Advice and Post-Install for WLS PSUs | Post-install steps after applying the WLS Stack Patch Bundle / SPU |
 | KB559857 | Cumulative README Post-Install Steps for OHS 14.1.2.0 Bundle Patches | OHS bundle patch post-install – the OHS binaries are in every Forms & Reports home, patched from this cycle on |
-| KB118538 | Native Network Encryption (NNE), DB compatibility (CVE-2021-2351) | Minimum requirement for the external repository database (RCU) |
+| [KB118538](https://support.oracle.com/support/?documentId=KB118538) | Changes in Native Network Encryption (NNE) with the July 2021 CPU (CVE-2021-2351) | DB check of every FMW CPU (step 1 in KA1182): repository database (RCU) on July 2021 or later; new parameters `SQLNET.ALLOW_WEAK_CRYPTO_CLIENTS` (DB) / `SQLNET.ALLOW_WEAK_CRYPTO` (client), JDBC thin `oracle.net.allow_weak_crypto` – see the customer analysis 12.2.1.19 §1 for the check |
 | KB618392 | Zero Downtime Patching for FMW/WLS (legacy Doc ID 1942159.1) | Background on ZDT patching for a live production system (not used during initial install, no domain exists yet) |
 
 CPU360 / CPU388 / CPU391 / CPU426 are the links in the "Patch Availability
