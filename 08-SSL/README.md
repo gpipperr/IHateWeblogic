@@ -266,6 +266,11 @@ Authorities* (GPO) – used by browsers and Java Web Start; for FSAL the
 truststore of the FSAL JVM is needed (never the JRE `cacerts`, see
 [forms_jakob_webutil.md §12](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients)). Linux test client:
 `cp ca.crt /etc/pki/ca-trust/source/anchors/ && update-ca-trust`.
+Windows test client without GPO (user store, no administrator, thumbprint
+check): [40-forms_client_distribution.md §5.8](../09-Install/docs/40-forms_client_distribution.md#58-own-root-ca-on-a-test-client--manual-import-no-administrator).
+With the URL client distribution the FSAL runtime is built **with** the CA in
+its `cacerts` – an exception to "never the JRE `cacerts`", because every new
+runtime is rebuilt with the CA inside (§5.5 there).
 
 ---
 

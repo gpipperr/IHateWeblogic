@@ -399,6 +399,60 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 | Profiles | folder redirection of `%LOCALAPPDATA%` is rare; check on terminal servers (one runtime per user – consider a shared read-only path there) |
 | Disk | runtime + jars ≈ 60 MB (jlink) / 320 MB (full JDK) per user and version, previous version kept |
 
+### 5.8 Own root CA on a test client – manual import (no administrator)
+
+Needed only with the own root CA of `08-SSL/ssl_local_ca.sh` (or a company
+CA the client does not know yet) and only for the **Windows** side:
+PowerShell, the browser and the bootstrap download use the Windows
+certificate store. FSAL itself does not need it – the bundled runtime brings
+the CA in its `cacerts` (§5.5). In production the CA comes by GPO (customer
+IT); this is the way for a test client.
+
+1. **Get the certificate** – on the server `$SSL_CA_DIR/ca/ca.cer` (DER, for
+   Windows) or `ca.crt` (PEM); copy it to the client (share, mail, USB).
+   Only the public certificate – never `ca.key`.
+2. **Note the fingerprints on the server** – Windows shows the SHA-1
+   thumbprint in its confirmation dialog:
+   ```bash
+   openssl x509 -in $SSL_CA_DIR/ca/ca.crt -noout -subject -fingerprint -sha1
+   openssl x509 -in $SSL_CA_DIR/ca/ca.crt -noout -fingerprint -sha256
+   ```
+3. **Import into the user store** – one of:
+   - Explorer: double-click `ca.cer` → *Install Certificate* → *Current
+     User* → *Place all certificates in the following store* → *Trusted
+     Root Certification Authorities* → *Finish*.
+   - PowerShell (no administrator):
+     ```powershell
+     Import-Certificate -FilePath .\ca.cer -CertStoreLocation Cert:\CurrentUser\Root
+     ```
+   - Command prompt: `certutil -user -addstore Root ca.cer`
+
+   Windows then shows a **security warning** with the thumbprint – compare
+   it with step 2 and confirm with *Yes*. This dialog is the reason no
+   script can do the import silently for a user root (the chicken-and-egg
+   of §5.1: the trust has to exist before the first HTTPS download).
+4. **Check:**
+   ```powershell
+   Get-ChildItem Cert:\CurrentUser\Root | Where-Object Subject -like '*Root CA*' |
+       Format-List Subject, Thumbprint, NotAfter
+   Invoke-WebRequest -UseBasicParsing https://<host>/formsWeb/manifest.json | Select-Object StatusCode
+   ```
+   `StatusCode 200` without a certificate error → the bootstrap can run.
+5. **Remove again** (test end): `certmgr.msc` → *Trusted Root Certification
+   Authorities* → *Certificates* → delete, or
+   `Remove-Item Cert:\CurrentUser\Root\<thumbprint>`.
+
+Notes:
+
+- Edge and Chrome use the Windows store; **Firefox** keeps its own store
+  (import there, or enable `security.enterprise_roots.enabled`).
+- A root in the *user* store is trusted only for this Windows user;
+  `Cert:\LocalMachine\Root` (all users) needs an administrator.
+- For the Authenticode-signed `FormsWeb-Setup.ps1` (`AllSigned`, §5.1) the
+  signing certificate additionally goes into
+  `Cert:\CurrentUser\TrustedPublisher` – same procedure with the
+  code-signing certificate (`$SSL_CA_DIR/codesign/`).
+
 ---
 
 ## 6. Security Assessment
