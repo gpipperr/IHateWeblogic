@@ -606,24 +606,37 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-20). Everything finished is described
+Only what is still open (state 2026-10-22). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
-### Next: patch cycle CPU October 2026 (due 2026-10-20, third Tuesday)
+### Next: patch cycle CPU October 2026 (released 2026-10-20) + Security Alert CVE-2026-91403
 
-- [ ] New patch set in `09-Install/oracle_software_version.conf` +
-  [`00-patch-references.md`](09-Install/docs/00-patch-references.md),
-  download, `07-Maintenance/81-`/`82-`, smoke test `15-`.
+[`00-patch-references.md`](09-Install/docs/00-patch-references.md) is
+reworked for CPU Oct 2026 (CVE check, special case Java, patch list); the
+CSPU Sep 2026 state is frozen in
+[`00-patch-references_september_2026.md`](09-Install/docs/00-patch-references_september_2026.md)
+(one snapshot per cycle, see "Patch cycle history" there).
+
+- [ ] **Patch numbers pending** (MOS portal returned empty pages): KA1182 /
+  CPU360 (FMW), KA204 (QPR), CPU426 (Java, alert) → fill in the patch list,
+  then switch `09-Install/oracle_software_version.conf` as a whole set
+  (still CSPU Sep 2026), download, `07-Maintenance/81-`/`82-`, smoke test `15-`.
 - [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
   Oracle Home although Nginx is the frontend (agreed: everything on disk
-  gets patched).
-- [ ] JDK 21.0.13 (CPU Oct): set `JDK_VERSION_MIN`, `04-oracle_pre_download.sh
-  --apply --fresh-patches --mos` (Patch 35702194 – check it really holds
-  21.0.13), then `07-Maintenance/80-patch_java_os.sh --apply`. The bundled JDK
-  of the Reports engines: see "FMW-bundled JDK" under Scripts.
-- [ ] Confirm the CVE coverage of the patches in MOS KA1182
-  (CVE-2026-83021 / 83099 / 83020 of CSPU Sep 2026).
+  gets patched; OHS CVE-2026-87347 9.6 in this CPU).
+- [ ] JDK at `JDK_HOME`: target is the release of **CPU426**, not 21.0.13
+  (affected by CVE-2026-91403). Set `JDK_VERSION_MIN`,
+  `04-oracle_pre_download.sh --apply --fresh-patches --mos` (Patch 35702194 –
+  check which `jdk-21.0.x` it holds), then `07-Maintenance/80-patch_java_os.sh
+  --apply`. The bundled JDK of the Reports engines: see "FMW-bundled JDK"
+  under Scripts.
+- [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
+  via the customer's software distribution – JSSE runs on the client, see
+  [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
+- [ ] Confirm the CVE coverage of the patches in MOS KA1182 / CPU360
+  (CPU Oct 2026: CVE-2026-83399 / 91323 / 4176 / 47065, all 9.8; the
+  September CVEs 83021 / 83099 / 83020 are still unconfirmed too).
 - [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
 
 ### Tests that need a client or a fresh install

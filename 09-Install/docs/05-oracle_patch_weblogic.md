@@ -608,8 +608,8 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 >
 > Separately, 39988381 is reused across two different WLS releases: for
 > 14.1.2.0 it pairs with SPB 39925660 (this project); for 15.1.1.0 it pairs
-> with PSU 39929333 (not relevant here) — see the table in
-> `docs/00-patch-references.md`. Always verify the downloaded ZIP's actual
+> with PSU 39929333 (not relevant here) — see the table in the cycle
+> snapshot `docs/00-patch-references_september_2026.md`. Always verify the downloaded ZIP's actual
 > release in `etc/config/inventory.xml`, not just the filename.
 >
 > `check_patch_zip()` (`00-Setup/IHateWeblogic_lib.sh`) now automates both
