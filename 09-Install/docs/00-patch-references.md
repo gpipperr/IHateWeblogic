@@ -290,9 +290,11 @@ Inconsistencies in CPU426 v1.0 (re-read the document when it is updated):
 Java 8 clients – how to tell the builds apart: CPU and alert release are
 both called "8u511", only the build differs (`java -version` →
 `build 1.8.0_511-bNN`, or the `release` file of the JRE / file version of
-`bin\java.exe` for an inventory without starting Java). Fixed build:
-**`1.8.0_511-b??` – pending** (from the README of Patch 40186686 or by
-comparing a JRE from 18143322 of 2026-10-20 with one from 40186686). For
+`bin\java.exe` for an inventory without starting Java). Compared on
+2026-10-22 (Windows x64): JRE from 18143322 (state 2026-10-20) =
+`1.8.0_511-b25` (CPU build, affected), JRE from 40186686 =
+**`1.8.0_511-b26`** (alert build, fixed – observed, to be confirmed by the
+README; re-check after 23 Oct whether 18143322 then also delivers b26). For
 JDK 11+ the version itself differs (21.0.13 vs. **21.0.13.0.2**), check
 `JAVA_RUNTIME_VERSION` in `$JDK_HOME/release`.
 

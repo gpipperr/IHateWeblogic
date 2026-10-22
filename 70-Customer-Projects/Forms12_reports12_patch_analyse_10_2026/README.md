@@ -77,8 +77,9 @@ of an older release is still required if it is not installed yet.
 | **40186682** | JDK 8 Update 511 – **alert build** for CVE-2026-91403 (CPU426) | Alert 2026-10-21 | **take this one**: the 8u511 of the CPU (20 Oct) is listed as affected by the alert one day later; "patches available by 23 Oct 2026". 18143322 still pointed to the CPU build on 2026-10-22 (Last Updated 2026-10-20) |
 
 JDK update procedure: KB175049. Both builds are called "1.8.0_511" – only
-the build number (`java -version` → `1.8.0_511-bNN`) tells them apart; the
-fixed build number is in the README of 40186682.
+the build number (`java -version` → `1.8.0_511-bNN`) tells them apart:
+**b25** = CPU build (affected), **b26** = alert build (fixed; observed on
+2026-10-22 for the JRE, confirm with the README of 40186682).
 
 ### 3.2 OPatch and WebLogic Server 12.2.1.4
 
@@ -194,11 +195,14 @@ can act on the PC with the user's rights. Background:
 
 | Item | Recommendation |
 |---|---|
-| Patch | **40186686** – JRE 8 Update 511, alert build (CPU426), platform **Microsoft Windows x64** (64-bit JRE if a 64-bit DLL such as JACOB is used) |
+| Patch | **40186686** – JRE 8 Update 511, alert build (CPU426) = `1.8.0_511-b26`. Platform = the **bitness the clients use today** (see below) – the WebUtil DLLs (JACOB etc., `install.syslib` in `webutil.cfg`) must match the JRE bitness |
+| Current state (2026-10-22) | Software deployment rolls out a private JRE `1.8.0_241-b07` (January 2020), **32-bit** ("Client VM", under `Program Files (x86)`) – six years of Java security fixes behind, not only the alert. Either the 32-bit (Windows x86) build of 40186686, or a planned switch to 64-bit **together** with x64 WebUtil/JACOB DLLs |
+| Gap 8u241 → 8u511 | Oracle tightened the defaults in between: TLS 1.0/1.1 disabled (TLS 1.2+ needed at the web server in front of Forms), SHA-1-signed JARs and weak keys rejected. Test the own signed jars (WebUtil, JACOB, customer jars: signature algorithm, key length, timestamp, certificate expiry) and the TLS setup of the web server with the new JRE before the rollout |
 | Not | 18143322 ("JDK 8 latest") – still the CPU build on 2026-10-22, and a JDK where a JRE is enough |
 | Java version | stay on Java 8 for Java Web Start – `javaws` does not exist from Java 11 on (with 11+ only FSAL works) |
 | Verification | `java -version` → `1.8.0_511-bNN`, compare the build with the README of 40186686; without starting Java: the `release` file of the JRE or the file version of `bin\java.exe` (useful for an inventory via the software deployment) |
 | Certificates | test whether the trust of the Forms jar signature survives the update: a certificate in the JRE's `cacerts` is lost when the JRE is replaced, the user's deployment trust store usually stays |
+| Distribution | Private JRE as a folder (ZIP / file copy by the software deployment) vs. the `.exe` installer: the installer also registers in the registry (Java Control Panel, system-wide deployment config, `.jnlp` association for Web Start). A copied folder has none of that – the start script / launcher must call its `bin\javaw`/`javaws` explicitly, and certificates belong in that JRE's `lib\security\cacerts` (replaced with every update → re-import in the package) or in a deployment trust store referenced by `deployment.properties`. Keep the existing method and only swap the folder, then test |
 | Licence | the patch README demands a Java SE subscription; Java used **only** to run an Oracle product is covered by the exception of MOS Doc ID 1557737.1 – confirm the exact wording for the Forms client JRE; other Java programs on the same PCs are not covered |
 
 ---
