@@ -19,7 +19,7 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[██████████████████░░]` ~90 % complete** (state 2026-10-20) – phases 1–7
+**`[██████████████████░░]` ~90 % complete** (state 2026-10-22) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -30,7 +30,9 @@ How the ~90 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
 (CVE watch step 1 done; `cve_watch.sh`, notification, config security
 scanner are concept); minus the [open items](#open-items--todo) – mainly
-client-side tests, the CPU Oct 2026 cycle and a few security hardening steps.
+client-side tests, switching the scripts to the CPU Oct 2026 patch set (see
+[Security & Patch Status](#security--patch-status)) and a few security
+hardening steps.
 
 | # | Phase | Status |
 |---|---|---|
@@ -46,7 +48,46 @@ client-side tests, the CPU Oct 2026 cycle and a few security hardening steps.
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
+
+
+## Security & Patch Status
+
+> **Oracle now ships security fixes every month** (quarterly CPU, CSPU in
+> the other months, Security Alerts in between). Check the current cycle
+> **before every installation and every patch run**.
+
+**Current cycle: CPU October 2026 (2026-10-20) + Security Alert
+CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-22.
+
+| | |
+|---|---|
+| Current patch list (14.1.2) | [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md) – patch numbers from MOS KA1182 + CPU426, CVE check, "How to read KA1182", MOS Doc-ID table |
+| Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
+| Scripts / `oracle_software_version.conf` | **still on CSPU September 2026** (= test host) – switching to October is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
+| Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
+
+What matters in this cycle:
+
+- **WebLogic Core** CVE-2026-83399 (T3/IIOP) and CVE-2026-91323 (HTTP), Perl,
+  Apache Mina – all CVSS 9.8 → WLS SPB **40125898**, PERL **39951765**.
+- **Correction:** every FMW 14.1.2 home also needs the **eight FMW
+  Infrastructure bundle patches** (ADF, WebCenter Core, OWSM, FMW Control,
+  OAMCLIENT, UMS, OPSS, LibOVD) – they are not in the WLS SPB and were
+  missing in our September set.
+- **Java – target is the alert release, not the CPU release:** JDK 21
+  **21.0.13.0.2** (21.0.13 of the CPU is itself affected); Forms clients
+  JRE 8 **1.8.0_511-b26** (Patch 40186686; b25 = CPU build, affected). The
+  Forms client is a JSSE TLS client – the client JREs are the most
+  important measure:
+  [threat model](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
+- **FMW-bundled JDK** `oracle_common/jdk` 17.0.12: no patch in KA1182 –
+  open.
+- Oracle publishes no CVE → patch mapping: we prove the **patch level**
+  ("installed ≥ patch document"), not the fix of a single CVE.
+
+
 > **Work in Progress** – This library is under active development.
+
 > **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CSPU Sep 2026, local 19c
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
 > chain incl. autostart and smoke test (2026-10-14/16), secured standalone
@@ -62,10 +103,7 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > (Oracle Forms 14c, Reports 12c codebase under 14c naming, WebLogic 14c). Earlier versions
 > (12c domains, pre-14.1.2 WebLogic) are not supported.
 
-> **Current patch numbers?** → [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md)
-> has the full, current patch list (CSPU September 2026 as of this writing) plus the MOS Doc-ID
-> reference table — check this first before a new patch cycle or when `07-Maintenance/81-`/`82-`
-> report missing patch ZIPs.
+
 
 ## Lifecycle Overview
 
@@ -220,7 +258,7 @@ Rules across the folders:
 
 | Phase | Gap |
 |---|---|
-| Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – patch number open (`FMW_JDK_PATCH_NR`) |
+| Phase 8 (Patches) | Scripts still on the CSPU Sep 2026 set (October set incl. FMW Infrastructure bundles documented, not yet in `05-`/`06-`); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 | Security | WLS demo SSL ports, `frmweb`/`rwserver` loopback binding, Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
 
@@ -258,7 +296,7 @@ Run these scripts in sequence on a fresh installation:
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), independent of the scripts above |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files) and patch analyses (Forms & Reports 12.2.1.19), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
@@ -363,7 +401,7 @@ IHateWeblogic/
 │   ├── backup_config.sh             – Backup all config files our scripts change (13 categories,
 │   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600)
 │   ├── restore_config.sh            – List backups, restore a set or --category (--apply), path check
-│   ├── 80-patch_java_os.sh          – Java/OS layer: read-only check + manual upgrade checklist
+│   ├── 80-patch_java_os.sh          – JDK at JDK_HOME from the patch repository (--apply, domain stopped)
 │   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
 │   ├── rcu_repository_check.sh      – RCU repository check (registry, accounts, data sources);
 │   │                                   --apply = Data Pump backup of schemas + registry
@@ -470,6 +508,9 @@ IHateWeblogic/
     │                                   the scripts above; see README.md for an index + further
     │                                   German installation guides (one subfolder per customer/scenario)
     ├── README.md
+    ├── Forms12_reports12_patch_analyse_10_2026/
+    │   └── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
+    │                                         Java alert (server JDK 8, client JRE), manual
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -626,9 +667,9 @@ CSPU Sep 2026 state is frozen in
   needs a new patch list for `05-`/`06-` (doc first). Then download,
   `07-Maintenance/81-`/`82-`, smoke test `15-`. Check whether SPU 39988381
   is contained in SPB 40125898.
-- [ ] Include the **OHS / WebGate** bundle patches – the binaries are in the
-  Oracle Home although Nginx is the frontend (agreed: everything on disk
-  gets patched; OHS CVE-2026-87347 9.6 in this CPU).
+- [ ] Part of that switch: the **OHS / WebGate** bundle patches (39987730 /
+  39100536) – the binaries are in the Oracle Home although Nginx is the
+  frontend (agreed: everything on disk gets patched; OHS CVE-2026-87347 9.6).
 - [ ] JDK at `JDK_HOME`: target **21.0.13.0.2** (CPU426, Patch 40186074 /
   well-known 35702194, available by 23 Oct 2026), not 21.0.13 (affected by
   CVE-2026-91403). Set `JDK_VERSION_MIN="21.0.13.0.2"`,
@@ -637,8 +678,10 @@ CSPU Sep 2026 state is frozen in
   --apply`. The bundled JDK of the Reports engines: see "FMW-bundled JDK"
   under Scripts.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
-  (JRE 8u511 Patch 40186686, fixed build from 23 Oct) via the customer's
-  software distribution, test the code-signing trust after the update – JSSE runs on the client, see
+  (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
+  after 23 Oct whether 18143322 then also delivers b26) via the customer's
+  software distribution, same bitness as the WebUtil DLLs, test the
+  code-signing trust after the update – JSSE runs on the client, see
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
 - [ ] Confirm the CVE coverage of the patches in MOS KA1182 / CPU360
   (CPU Oct 2026: CVE-2026-83399 / 91323 / 4176 / 47065, all 9.8; the
@@ -700,11 +743,9 @@ CSPU Sep 2026 state is frozen in
   State 2026-10-20: the Oracle Support AI knows no published patch and no
   Doc ID; it says "Do not manually replace that JDK directory" – only a MOS
   patch for component `oracle.jdk` / FMW 14.1.2 is supported, and points to
-  the KA1182 / CPU October 2026 patch-availability rows. **Blocked:** the
-  Oracle Support portal currently returns only empty pages – check KA1182
-  (FMW 14.1.2 / Forms and Reports / Oracle JDK rows, text search
-  `oracle.jdk`, `17.0.`) and the MOS patch search later; no row → open an
-  SR with the question (prompt in this session, ~1300 characters).
+  the KA1182 / CPU October 2026 patch-availability rows. **State
+  2026-10-22:** the KA1182 of October 2026 (PDF) has no patch for the
+  bundled JDK (only Java SE for `JDK_HOME`) → open an SR with the question.
 - [ ] **13- `rwserver.conf`: `engLife` / `maxIdle` / engine `jvmOptions`**
   not taken from `environment.conf` – values tuned with
   `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
