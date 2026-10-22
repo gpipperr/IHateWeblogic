@@ -11,6 +11,11 @@
 *.md   text eol=lf
 *.py   text eol=lf
 
+# Windows client files served by 09-Install/40-oracle_forms_client_bundle.sh –
+# cmd.exe needs CRLF, the SHA-256 in manifest.json is taken from these bytes
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
 # Binary files – no line-ending conversion
 *.des3 binary
 *.p12  binary
