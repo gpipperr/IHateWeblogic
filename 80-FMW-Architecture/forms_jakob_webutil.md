@@ -349,7 +349,7 @@ What a Windows client needs:
 | # | Item | JWS | FSAL | Changes how often |
 |---|---|---|---|---|
 | 1 | Java runtime | Oracle Java 8 (`javaws`) or OpenWebStart | Java 17+ (64 bit) | every Java CPU (quarterly) |
-| 2 | Launcher | `.jnlp` link / `jnlp://` URL | `frmsal.jar` (+ shortcut with the URL); self-update via `fsalcheck` | seldom |
+| 2 | Launcher | `.jnlp` link / `jnlp://` URL | `frmsal.jar` (+ shortcut with the URL); self-update when it does not match the server (`fsalEnableAutoUpdate`, default `TRUE`, patch updates only – **documented**, FSAL Reference) | seldom |
 | 3 | Trust: CA of the **code-signing** certificate | yes (options B/C) | no (default) | B: once (root); C: at every new certificate |
 | 4 | Trust: CA of the **TLS** certificate | yes | yes (FSAL JVM truststore) | with the TLS CA |
 | 5 | Optional: system `deployment.config` / `deployment.properties`, `DeploymentRuleSet.jar` | yes | – | seldom |
@@ -376,6 +376,12 @@ Recommendation (design, to be decided with the customer):
    importing into the JRE's `cacerts` (lost at the next Java update).
 4. Distribute **Java + launcher** with the software distribution as one
    package; certificates via GPO – independent of the Java version.
+   Alternative (concept, not implemented yet): the application server serves
+   a jlink runtime, `frmsal.jar`, the JACOB DLL and the trust itself, a
+   PowerShell mini installer keeps them current in the user profile –
+   [09-Install/docs/40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md).
+   There the CA goes into the `cacerts` of the **bundled** runtime – no
+   contradiction to 3., every runtime comes with the CA already inside.
 5. Keep the WebUtil DLL download automatic (needs write access to
    `%USERPROFILE%\webutil`); only in locked-down clients (AppLocker etc.)
    pre-deploy and allow the path.

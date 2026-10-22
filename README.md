@@ -690,6 +690,11 @@ CSPU Sep 2026 state is frozen in
 
 ### Tests that need a client or a fresh install
 
+- [ ] **Forms client distribution via URL** (concept
+  [`09-Install/docs/40-forms_client_distribution.md`](09-Install/docs/40-forms_client_distribution.md)):
+  jlink runtime + `frmsal.jar` + JACOB + trust from Nginx, PowerShell mini
+  installer in `%LOCALAPPDATA%` with self-update – review the concept, then
+  implement `40-` and test it on a Windows client (makes the next item reproducible).
 - [ ] **Windows client**: Java Web Start / FSAL start of the test form,
   root import (`ca.cer`), signed vs. unsigned `jacob.jar`, revocation check
   of Java Web Start with a CA without CRL/OCSP, real OLE call (Excel);

@@ -291,7 +291,7 @@ started with **Java Web Start** or the **Forms Standalone Launcher (FSAL)**.
 | Client | URL / command |
 |---|---|
 | Java Web Start | `https://<host>/forms/frmservlet?config=webstart&form=test_form` – downloads a `.jnlp`, open with `javaws` (Oracle Java 8) or OpenWebStart |
-| FSAL | `java -jar frmsal.jar -url "https://<host>/forms/frmservlet?config=standaloneapp&form=test_form" -t 30000` – `frmsal.jar` from `https://<host>/forms/html/fsal.htm`, client needs Java 8+ |
+| FSAL | `java -jar frmsal.jar -url "https://<host>/forms/frmservlet?config=standaloneapp&form=test_form" -t 30000` – `frmsal.jar` from `https://<host>/forms/html/fsal.htm`, client needs **Java 17 or newer, 64-bit** (Oracle FSAL requirements 14.1.2); planned distribution of Java + FSAL via URL: [40-forms_client_distribution.md](40-forms_client_distribution.md) |
 | Browser (legacy plugin) | `https://<host>/forms/frmservlet?form=test_form` – modern browsers: *"Oracle Java is required to run this application … Consider using Java Web Start or Standalone Launcher instead"* (servlet, `formsweb.cfg` and `FORMS_PATH` work – only the client is missing) |
 
 - No `userid=` in the URL – the Forms logon dialog asks; a password in the
