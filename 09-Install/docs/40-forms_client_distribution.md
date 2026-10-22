@@ -53,11 +53,11 @@ reproducible (open items "Tests that need a client" in the root README).
  | 08-SSL CA (TLS chain of Nginx)              |          |   1. GET manifest.json (ETag, 304)        |
  |          |                                  |          |   2. self-update of the script            |
  |          v  40-oracle_forms_client_bundle.sh|          |   3. load changed components, SHA-256     |
- | $FORMS_CLIENT_DIR  ($ORACLE_BASE/forms/     |  HTTPS   |   4. start script / shortcut refresh      |
- |                     client/)                | <------- |   5. start FSAL                           |
+ | $FORMS_CLIENT_DIR  (default /srv/formsWeb)  |  HTTPS   |   4. start script / shortcut refresh      |
+ |                                             | <------- |   5. start FSAL                           |
  |   manifest.json                             |  Nginx   |                 |                         |
  |   FormsWeb-Setup.ps1 (+ Authenticode sig.)  | /forms   |  %LOCALAPPDATA%\FormsWeb\                 |
- |   FormsWeb-Install.cmd (bootstrap)          |  client/ |    java\<version>\  (jlink runtime / JDK)  |
+ |   FormsWeb-Install.cmd (bootstrap)          |  Web/    |    java\<version>\  (jlink runtime / JDK)  |
  |   jre-<version>-win-x64.zip                 |          |    fsal\frmsal.jar                        |
  |   frmsal-<version>.jar                      |          |    jacob\jacob-1.21-x64.dll               |
  |   jacob-1.21-x64.dll                        |          |    state.json, logs\                      |
@@ -84,10 +84,37 @@ manages** – logic once, no own download:
 | **`manifest.json`** | generated | see 3.2 |
 | **`FormsWeb-Setup.ps1`**, **`FormsWeb-Install.cmd`** | `09-Install/client_templates/` | Authenticode-signed if a code-signing keystore exists (`FORMS_SIGN_*`, `08-SSL`), see 5.1 |
 
-Location: `$ORACLE_BASE/forms/client/` (new variable `FORMS_CLIENT_DIR` in
-`environment.conf`), owner `oracle`, readable for Nginx (SELinux context
-`httpd_sys_content_t` – same check as `05-root_nginx_ssl.sh`). The previous
-bundle stays as `client.prev/` for a server-side rollback.
+Location: `FORMS_CLIENT_DIR` (default `/srv/formsWeb`, next to
+`PATCH_STORAGE=/srv/patch_storage`), created by root in
+`03-root_user_oracle.sh` (owner `oracle:oinstall`, mode 755 – Nginx only
+reads). `01-root_os_baseline.sh` disables SELinux; on a customer host with
+SELinux enforcing the directory needs the context `httpd_sys_content_t`
+(`semanage fcontext -a -t httpd_sys_content_t '/srv/formsWeb(/.*)?'` +
+`restorecon -R /srv/formsWeb`). The previous bundle stays as
+`<FORMS_CLIENT_DIR>.prev/` for a server-side rollback.
+
+### 3.0 Parameters (`environment.conf`, asked by `01-setup-interview.sh`)
+
+Only for `INSTALL_COMPONENTS=FORMS_AND_REPORTS` / `FORMS_ONLY` – a
+Reports-only installation has no Forms client and asks none of them.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FORMS_CLIENT_DIST` | `false` | switch – all other values only with `true` |
+| `FORMS_CLIENT_DIR` | `/srv/formsWeb` | bundle directory, Nginx `alias` source |
+| `FORMS_CLIENT_URL_PATH` | `/formsWeb` | Nginx `location` (starts with `/`, no trailing `/`, not `/forms`) |
+| `FORMS_CLIENT_BASE_URL` | `https://${WLS_SERVER_FQDN}` | server URL the clients use – may be a DNS alias, must match the TLS certificate |
+| `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section → `…/frmservlet?config=<section>` |
+| `FORMS_CLIENT_FORM` | empty | optional start form → `&form=<name>`; empty = `form=` of the section |
+| `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | name of the desktop / start menu shortcut |
+| `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` = slim runtime, `jdk` = full JDK ZIP |
+| `FORMS_CLIENT_TRUST_CA` | `${SSL_CA_DIR}/ca/ca.crt` if it exists, else empty | CA for the truststore of the bundled runtime; empty = public CA |
+
+Code signing of the setup script uses the existing `FORMS_SIGN_*`
+keystore (also asked when `FORMS_CLIENT_DIST=true`, not only for JACOB).
+Not in the interview (software versions, one source):
+`CLIENT_JDK_PATCH_NR` and `CLIENT_JDK_PLATFORM` in
+`oracle_software_version.conf`.
 
 ### 3.1 Java runtime – no "base JRE + patch"
 
@@ -163,12 +190,12 @@ New location in `09-Install/nginx-wls.conf.template` (deployed by
 `04-root_nginx.sh`; change `docs/04-root_nginx.md` first):
 
 ```nginx
-location /formsclient/ {
-    alias  <FORMS_CLIENT_DIR>/;
+location <FORMS_CLIENT_URL_PATH>/ {          # default /formsWeb/
+    alias  <FORMS_CLIENT_DIR>/;               # default /srv/formsWeb/
     autoindex off;
     types { application/json json; application/zip zip; application/java-archive jar;
             text/plain ps1 cmd; application/octet-stream dll; }
-    location = /formsclient/manifest.json { add_header Cache-Control "no-cache"; }
+    location = <FORMS_CLIENT_URL_PATH>/manifest.json { add_header Cache-Control "no-cache"; }
 }
 ```
 
@@ -202,7 +229,7 @@ Design:
    `manifest.json` and `FormsWeb-Setup.ps1` into
    `%LOCALAPPDATA%\FormsWeb\`, checks the SHA-256 of the script against the
    manifest and starts it with `-Install`. The one-liner
-   `irm https://<host>/formsclient/FormsWeb-Setup.ps1 | iex` is documented
+   `irm https://<host>/formsWeb/FormsWeb-Setup.ps1 | iex` is documented
    as an alternative only (no hash check before execution).
 2. **The shortcut calls the script, not Java:**
    `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%LOCALAPPDATA%\FormsWeb\FormsWeb-Setup.ps1" -Start`
@@ -397,8 +424,9 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 | `09-Install/client_templates/` | new – `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` |
 | `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` |
 | `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` |
-| `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location /formsclient/` |
-| `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_DIR`, application name for the shortcut, `config=` section |
+| `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) |
+| `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
+| `09-Install/03-root_user_oracle.sh` | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |
 | `14-oracle_setup_forms.sh` | optional `fsalJavaVersion` in `[standaloneapp]` |
 | `07-Maintenance/README.md` | "after every Java / Forms patch: `40- --apply`" |
 

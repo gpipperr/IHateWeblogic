@@ -334,6 +334,16 @@ _val_port() {
     return 1
 }
 
+_val_url_path() {
+    local path="$1"
+    if [[ "$path" =~ ^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] && [ "$path" != "/forms" ] \
+            && [ "$path" != "/reports" ]; then
+        return 0
+    fi
+    printf "  \033[31m  URL path must start with /, no trailing /, not /forms or /reports.\033[0m\n"
+    return 1
+}
+
 _val_host() {
     local host="$1"
     if [[ "$host" =~ ^[a-zA-Z0-9._-]+$ ]]; then return 0; fi
@@ -497,14 +507,43 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
         _ask_menu FORMS_WEBUTIL_JACOB "WebUtil OLE / Office automation (JACOB, CLIENT_OLE2)" \
             "false:No - not needed (default)" \
             "true:Yes - install JACOB and sign jacob.jar"
+        # Forms client distribution via URL (concept docs/40-forms_client_distribution.md):
+        # Nginx serves Java runtime + frmsal.jar + JACOB + trust from FORMS_CLIENT_DIR
+        printf "\n"
+        _ask_menu FORMS_CLIENT_DIST "Forms client distribution via URL (Java + FSAL, concept 40)" \
+            "false:No - clients are installed otherwise (default)" \
+            "true:Yes - serve the client bundle through Nginx"
+        if [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
+            _ask FORMS_CLIENT_DIR      "Client bundle directory (Nginx)" "/srv/formsWeb"   "_val_dir"
+            _ask FORMS_CLIENT_URL_PATH "Client bundle URL path"          "/formsWeb"       "_val_url_path"
+            _ask FORMS_CLIENT_BASE_URL "Server URL used by the clients"  \
+                "https://${WLS_SERVER_FQDN:-$(_get_hostname)}"
+            _ask FORMS_CLIENT_CONFIG   "formsweb.cfg section for FSAL"   "standaloneapp"
+            _ask FORMS_CLIENT_FORM     "Start form (empty = section)"    ""  "" "optional"
+            _ask FORMS_CLIENT_APP_NAME "Desktop shortcut name"           "Oracle Forms"
+            _ask_menu FORMS_CLIENT_RUNTIME "Java runtime for the clients" \
+                "jlink:Slim runtime built with jlink (default)" \
+                "jdk:Full JDK ZIP"
+            _ca_def="${SSL_CA_DIR:-$(ENV_CONF="$SSL_CONF" _conf_get SSL_CA_DIR)}"
+            _ca_def="${_ca_def:-${ORACLE_BASE}/admin/pki}/ca/ca.crt"
+            [ -f "$_ca_def" ] || _ca_def=""
+            info "CA certificate for the client truststore - empty = public CA (already trusted)"
+            _ask FORMS_CLIENT_TRUST_CA "Client truststore CA (.crt)"     "$_ca_def" "" "optional"
+            unset _ca_def
+        fi
         ;;
-    *) FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}" ;;
+    *)
+        FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
+        FORMS_CLIENT_DIST="false"   # Reports only: no Forms client
+        ;;
 esac
+FORMS_CLIENT_DIST="${FORMS_CLIENT_DIST:-false}"
 
-if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] || [ "$FORMS_CLIENT_DIST" = "true" ]; then
     _ca_dir="${SSL_CA_DIR:-$(ENV_CONF="$SSL_CONF" _conf_get SSL_CA_DIR)}"
     _ca_dir="${_ca_dir:-${ORACLE_BASE}/admin/pki}"
-    info "Code-signing keystore (PKCS12) for jacob.jar - existing (company / public CA)"
+    info "Code-signing keystore (PKCS12) for jacob.jar and the client setup script"
+    info "  - existing (company / public CA)"
     info "  or created by the own root CA in 14- if the file does not exist"
     _ask FORMS_SIGN_KEYSTORE "Code-signing keystore (.p12)" "${_ca_dir}/codesign/codesign.p12"
     _ask FORMS_SIGN_ALIAS    "Keystore alias"               "forms_codesign"
@@ -729,7 +768,15 @@ _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
 _show "REPORTS_ADMIN_USER"   "${REPORTS_ADMIN_USER:-}"
 _show "FORMS_WEBUTIL_JACOB"  "${FORMS_WEBUTIL_JACOB:-false}"
-if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+_show "FORMS_CLIENT_DIST"    "$FORMS_CLIENT_DIST"
+if [ "$FORMS_CLIENT_DIST" = "true" ]; then
+    for _k in FORMS_CLIENT_DIR FORMS_CLIENT_URL_PATH FORMS_CLIENT_BASE_URL FORMS_CLIENT_CONFIG \
+              FORMS_CLIENT_FORM FORMS_CLIENT_APP_NAME FORMS_CLIENT_RUNTIME FORMS_CLIENT_TRUST_CA; do
+        _show "$_k" "${!_k:-(empty)}"
+    done
+    unset _k
+fi
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] || [ "$FORMS_CLIENT_DIST" = "true" ]; then
     _show "FORMS_SIGN_KEYSTORE" "$FORMS_SIGN_KEYSTORE$([ "$FORMS_SIGN_LOCALCA" = "true" ] && printf '  (created by 14- via local CA)')"
     _show "FORMS_SIGN_ALIAS"    "$FORMS_SIGN_ALIAS"
     _show "FORMS_SIGN_TSA_URL"  "${FORMS_SIGN_TSA_URL:-(none - no timestamp)}"
@@ -870,6 +917,20 @@ FORMS_SIGN_TSA_URL="${FORMS_SIGN_TSA_URL}"
 # true = 14- creates the keystore with the own root CA (08-SSL/ssl_local_ca.sh)
 FORMS_SIGN_LOCALCA="${FORMS_SIGN_LOCALCA:-false}"
 
+# --- Forms client distribution via URL (concept docs/40-forms_client_distribution.md)
+# true = 03- creates FORMS_CLIENT_DIR, Nginx serves it under FORMS_CLIENT_URL_PATH
+FORMS_CLIENT_DIST="${FORMS_CLIENT_DIST}"
+FORMS_CLIENT_DIR="${FORMS_CLIENT_DIR:-}"
+FORMS_CLIENT_URL_PATH="${FORMS_CLIENT_URL_PATH:-}"
+FORMS_CLIENT_BASE_URL="${FORMS_CLIENT_BASE_URL:-}"
+FORMS_CLIENT_CONFIG="${FORMS_CLIENT_CONFIG:-}"
+FORMS_CLIENT_FORM="${FORMS_CLIENT_FORM:-}"
+FORMS_CLIENT_APP_NAME="${FORMS_CLIENT_APP_NAME:-}"
+# jlink = slim runtime, jdk = full JDK ZIP
+FORMS_CLIENT_RUNTIME="${FORMS_CLIENT_RUNTIME:-}"
+# empty = public CA (already in the runtime's cacerts)
+FORMS_CLIENT_TRUST_CA="${FORMS_CLIENT_TRUST_CA:-}"
+
 # --- ulimits (oracle OS user) -------------------------------------------------
 # Sized from EXPECTED_SESSIONS; only the 100-500 tier (81920/81920) is a
 # confirmed real-world production value. See docs/00-root_set_os_parameter.md.
@@ -1009,6 +1070,15 @@ FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE}"
 FORMS_SIGN_ALIAS="${FORMS_SIGN_ALIAS}"
 FORMS_SIGN_TSA_URL="${FORMS_SIGN_TSA_URL}"
 FORMS_SIGN_LOCALCA="${FORMS_SIGN_LOCALCA:-false}"
+FORMS_CLIENT_DIST="${FORMS_CLIENT_DIST}"
+FORMS_CLIENT_DIR="${FORMS_CLIENT_DIR:-}"
+FORMS_CLIENT_URL_PATH="${FORMS_CLIENT_URL_PATH:-}"
+FORMS_CLIENT_BASE_URL="${FORMS_CLIENT_BASE_URL:-}"
+FORMS_CLIENT_CONFIG="${FORMS_CLIENT_CONFIG:-}"
+FORMS_CLIENT_FORM="${FORMS_CLIENT_FORM:-}"
+FORMS_CLIENT_APP_NAME="${FORMS_CLIENT_APP_NAME:-}"
+FORMS_CLIENT_RUNTIME="${FORMS_CLIENT_RUNTIME:-}"
+FORMS_CLIENT_TRUST_CA="${FORMS_CLIENT_TRUST_CA:-}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"
 ULIMIT_NOFILE="${ULIMIT_NOFILE}"
 ULIMIT_NPROC="${ULIMIT_NPROC}"

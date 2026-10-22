@@ -113,16 +113,21 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 | `EMBEDDED_LDAP_PWD` | only with `ldap`: prompted, encrypted → `embedded_ldap_sec.conf.des3` | password of the embedded LDAP admin `cn=Admin` (letters/digits); 13- sets it in the domain |
 | `EXPECTED_SESSIONS` | `lt100` | see below – sizes `ULIMIT_NOFILE`/`ULIMIT_NPROC` |
 
-#### Forms WebUtil OLE (JACOB) and code signing – Forms installs only
+#### Forms WebUtil OLE (JACOB), client distribution and code signing – Forms installs only
 
-Asked only for `FORMS_AND_REPORTS` / `FORMS_ONLY`. Background:
+Asked only for `FORMS_AND_REPORTS` / `FORMS_ONLY` – a Reports-only
+installation gets none of these questions. Background:
 `docs/14-forms-detail-settings.md` Step 1, `08-SSL/README.md` section
-"ssl_local_ca.sh".
+"ssl_local_ca.sh", client distribution: `docs/40-forms_client_distribution.md`.
 
 ```
 FORMS_WEBUTIL_JACOB  [1] No (default)  [2] Yes
-        │ Yes
-        ▼
+FORMS_CLIENT_DIST    [1] No (default)  [2] Yes   (Forms client via URL, concept 40)
+        │ Yes → FORMS_CLIENT_DIR, _URL_PATH, _BASE_URL, _CONFIG, _FORM,
+        │       _APP_NAME, _RUNTIME, _TRUST_CA   (table below)
+        │
+        │ JACOB = Yes  or  CLIENT_DIST = Yes   (keystore signs jacob.jar
+        ▼                                        and the client setup script)
 FORMS_SIGN_KEYSTORE  (default $SSL_CA_DIR/codesign/codesign.p12)
 FORMS_SIGN_ALIAS     (default forms_codesign)
         │
@@ -151,6 +156,24 @@ FORMS_SIGN_TSA_URL   (default http://timestamp.digicert.com, Enter on an
 | `FORMS_SIGN_LOCALCA` | set by the interview | `true` = keystore did not exist; `14- --apply` runs `08-SSL/ssl_local_ca.sh init` (only without root) + `codesign` |
 | `SSL_ORG`, `SSL_COUNTRY`, `SSL_CA_CN`, `SSL_CODESIGN_CN`, `SSL_CODESIGN_DAYS` | `Company GmbH`, `DE`, `<org> Root CA`, `<org> Forms Code Signing`, `1095` | only if the keystore is missing; written into `08-SSL/ssl.conf` (key replaced or appended, backup first) – the SSL module's own config, also used later by `ssl_prepare_cert.sh` |
 | `FORMS_SIGN_TSA_URL` | `http://timestamp.digicert.com` | `jarsigner -tsa`; needs outbound HTTP from the server |
+
+Client distribution (concept, script `40-` not implemented yet –
+`docs/40-forms_client_distribution.md` §3.0):
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `FORMS_CLIENT_DIST` | `false` | menu; `true` = the following values are asked, `03-` creates `FORMS_CLIENT_DIR` |
+| `FORMS_CLIENT_DIR` | `/srv/formsWeb` | bundle directory served by Nginx (owner oracle, created by root in `03-`) |
+| `FORMS_CLIENT_URL_PATH` | `/formsWeb` | Nginx location; must start with `/`, no trailing `/`, not `/forms` |
+| `FORMS_CLIENT_BASE_URL` | `https://$WLS_SERVER_FQDN` | URL the clients use (DNS alias possible, must match the TLS certificate) |
+| `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section for FSAL |
+| `FORMS_CLIENT_FORM` | empty | optional start form |
+| `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | shortcut name |
+| `FORMS_CLIENT_RUNTIME` | `jlink` | menu: `jlink` (slim runtime) / `jdk` (full JDK) |
+| `FORMS_CLIENT_TRUST_CA` | `$SSL_CA_DIR/ca/ca.crt` if present, else empty | CA for the bundled runtime's truststore; empty = public CA |
+
+The client JDK patch / platform are software versions →
+`oracle_software_version.conf` (`CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`).
 
 A root CA created by 14- must be distributed to the clients (`ca.cer`) –
 and should be the same root that signs the Nginx TLS certificate

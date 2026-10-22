@@ -52,6 +52,20 @@ FORMS_SIGN_ALIAS=forms_codesign
 FORMS_SIGN_TSA_URL=
 # FORMS_SIGN_LOCALCA: true = 14- creates a missing keystore with the own root CA
 FORMS_SIGN_LOCALCA=false
+# FORMS_CLIENT_*: Forms client distribution via URL (concept
+# 09-Install/docs/40-forms_client_distribution.md) – Forms installs only.
+# true = 03- creates FORMS_CLIENT_DIR, Nginx serves it under FORMS_CLIENT_URL_PATH
+FORMS_CLIENT_DIST=false
+FORMS_CLIENT_DIR=/srv/formsWeb
+FORMS_CLIENT_URL_PATH=/formsWeb
+FORMS_CLIENT_BASE_URL=https://wls01.company.local
+FORMS_CLIENT_CONFIG=standaloneapp
+FORMS_CLIENT_FORM=
+FORMS_CLIENT_APP_NAME="Oracle Forms"
+# jlink = slim runtime, jdk = full JDK ZIP
+FORMS_CLIENT_RUNTIME=jlink
+# CA for the bundled runtime's truststore; empty = public CA
+FORMS_CLIENT_TRUST_CA=
 
 # --- OS hardening (09-Install/01-root_os_baseline.sh, sections 8 + 9) --------
 # SSH_ALLOW_USERS: sshd AllowUsers (empty = check only, no sshd change).

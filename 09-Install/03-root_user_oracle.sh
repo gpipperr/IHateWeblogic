@@ -489,6 +489,11 @@ _check_dir "$(dirname "$DOMAIN_HOME")"     oracle oinstall
 _check_dir "$(dirname "$(dirname "$DOMAIN_HOME")")"  oracle oinstall
 _check_dir "$PATCH_STORAGE"                oracle oinstall
 _check_dir "$PATCH_STORAGE/bin"            oracle oinstall
+# Forms client bundle served by Nginx (concept docs/40-forms_client_distribution.md)
+# – only for Forms installs with FORMS_CLIENT_DIST=true (Reports only: never)
+if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "REPORTS_ONLY" ]; then
+    _check_dir "${FORMS_CLIENT_DIR:-/srv/formsWeb}" oracle oinstall
+fi
 _check_dir "/var/crash"                    root   root
 
 # OUI Central Inventory – one level above ORACLE_BASE

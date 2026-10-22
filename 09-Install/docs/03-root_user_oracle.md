@@ -228,6 +228,14 @@ chmod -R 755 /u01/app/oracle
 chmod 750 /u01/app/oraInventory
 ```
 
+Also created (owner `oracle:oinstall`, mode 755):
+
+- `PATCH_STORAGE` (default `/srv/patch_storage`) and `$PATCH_STORAGE/bin`
+- `FORMS_CLIENT_DIR` (default `/srv/formsWeb`) – **only** for Forms
+  installations with `FORMS_CLIENT_DIST=true` (never for `REPORTS_ONLY`):
+  the client bundle Nginx serves, see
+  [40-forms_client_distribution.md](40-forms_client_distribution.md).
+
 ### 8. Create Oracle Inventory pointer
 
 The script creates `/etc/oraInst.loc` (system-wide, root-owned):
