@@ -2,7 +2,9 @@
 
 How a Forms session runs on the server: servlet, listener, `frmweb`
 processes, runtime pooling, timeouts, memory, configuration inheritance,
-logs – and where it comes from (section 8: protocol history 1979–2024). Background for `06-FormsDiag/` and `09-Install/14-oracle_setup_forms.sh`.
+logs, where TLS is spoken and who uses Java's JSSE (section 1.1), the threat
+model of a client-side TLS flaw (1.2) – and
+where it comes from (section 8: protocol history 1979–2024). Background for `06-FormsDiag/` and `09-Install/14-oracle_setup_forms.sh`.
 
 Markers: **confirmed (live)** = seen on the test host (FMW 14.1.2, OL 9),
 **documented** = Oracle documentation (sources in sections 8.2 and 10),
@@ -52,6 +54,80 @@ Markers: **confirmed (live)** = seen on the test host (FMW 14.1.2, OL 9),
   application runs in `frmweb` **outside** the JVM. Sizing sessions by
   `-Xmx` is therefore wrong – the limit is the RAM of the host and
   `maxRuntimeProcesses` (section 5).
+
+### 1.1 Where TLS is spoken – and who uses Java's JSSE
+
+JSSE (Java Secure Socket Extension) is the TLS implementation of every Java
+runtime: "a framework and an implementation for a Java version of the TLS and
+DTLS protocols" (**documented**, JSSE Reference Guide JDK 21). A Java
+process that opens or accepts an HTTPS / TLS connection uses it – a native
+process (Nginx, `frmweb`) does not. That decides which Java security fixes
+matter for which part of a Forms installation (example: Security Alert
+CVE-2026-91403, JSSE, CVSS 9.1, all Java lines – 8u511, 17.0.21, 21.0.13 and
+older; Oracle's note names Java Web Start explicitly).
+
+```
+ client PC                              server
+ +--------------------------+   HTTPS   +-------------------+  HTTP (loopback)  +------------------+  TCP (own port)  +--------+  SQL*Net
+ | JWS / FSAL client JVM    |---------->| Nginx             |------------------>| WLS_FORMS JVM    |----------------->| frmweb |---------> DB
+ | JSSE = TLS client        |  TLS 1.2+ | OpenSSL 3.5.8     |  127.0.0.1:9001   | no TLS on this   |  plain           | native |
+ | (JNLP, jars, all session |           | (no Java)         |                   | hop              |                  | C      |
+ |  traffic, WebUtil)       |           |                   |                   |                  |                  |        |
+ +--------------------------+           +-------------------+                   +------------------+                  +--------+
+```
+
+| Hop | TLS by | Java JSSE involved? |
+|---|---|---|
+| client → Nginx (start page, JNLP, `frmall.jar` / `jacob.jar` download, every Listener-servlet request of the session, WebUtil file transfer) | client: **Java of the client PC** (JWS / FSAL), server: Nginx with OpenSSL (**confirmed (live)**: `nginx -V` "running with OpenSSL 3.5.8") | **yes – on the client**: the JRE / JDK that runs Java Web Start or the Standalone Launcher (**assumption** from the mechanism: Java's HTTPS client is JSSE) |
+| Nginx → WLS_FORMS | none – plain HTTP to `127.0.0.1:9001`, Nginx sends `WL-Proxy-SSL: true` (**confirmed (live)**, [08-SSL](../08-SSL/README.md)) | no |
+| WLS_FORMS → `frmweb` | none – TCP to the listen port of the runtime (section 1) | no – `frmweb` is native |
+| `frmweb` → database | SQL*Net (native Oracle client; TCPS only if configured in `tnsnames.ora`) | no |
+| WebLogic SSL listen ports `9501` / `9512` (demo certificate, enabled by the domain templates, bound to `127.0.0.1` on the test host) | WebLogic | **yes – server side**, but unused (root README open item: disable) |
+| WebLogic → LDAP / OID / AD over LDAPS, outbound HTTPS from applications | WebLogic | **yes** – only if configured (not on the test host, `egress_check.sh`) |
+
+Consequence for a Java security fix:
+
+1. **Client PCs first** – every JRE / JDK that starts Forms via Java Web
+   Start or FSAL speaks TLS with JSSE to the server, for every request of
+   the session. The server cannot enforce the client's Java version; the
+   client rollout (GPO / software distribution, see
+   [forms_jakob_webutil.md §12](forms_jakob_webutil.md#12-distribution-concept-for-the-clients))
+   has to.
+2. **Server JDKs** – `JDK_HOME` (WebLogic) and the bundled
+   `oracle_common/jdk` (Reports engines, Forms/Reports tools) still get the
+   fix (everything on disk gets patched), but with TLS ending at Nginx their
+   JSSE is exposed only through the unused demo SSL ports and configured
+   outbound TLS connections.
+3. Nginx / OpenSSL fixes are OS errata (`dnf`), independent of Java.
+
+### 1.2 Threat model of a client-side TLS (JSSE) flaw
+
+A JSSE flaw on the client is not triggered by a correct server. Someone has
+to **be the TLS peer of the client's Java, or sit in between**:
+
+| Scenario | Realistic? | What the attacker gets |
+|---|---|---|
+| our own server sends malicious data | only if the server is already compromised | nothing extra – a compromised Forms server owns the session anyway |
+| **man in the middle** between client and Nginx (internal LAN, Wi-Fi, home office / VPN, TLS-intercepting proxy, DNS redirect) | **yes – the main case** | read and **modify** the Forms session although the client shows HTTPS |
+| **social engineering**: the user starts a foreign JNLP / FSAL URL from a mail or web page that points to the attacker's server | yes | the client's Java talks TLS to the attacker; Oracle's note for CVE-2026-91403 names Java Web Start |
+| foreign code in the Java Web Start sandbox | hardly relevant here | a Forms application with WebUtil runs with `all-permissions` – it does not rely on the sandbox |
+
+Reading of the CVSS vector of CVE-2026-91403 (network, no privileges, no
+user interaction, confidentiality and integrity **high**, availability
+**none**): it fits "TLS can be read or manipulated" rather than code
+execution inside the client JVM – **assumption**, Oracle does not publish
+details.
+
+Why WebUtil raises the stakes: the server can trigger actions on the client
+PC with the user's rights (`CLIENT_HOST`, file transfer, OLE via JACOB) and
+even pushes native DLLs to it. An attacker who can manipulate the TLS of the
+session can act as the server – see
+[forms_jakob_webutil.md §10.1](forms_jakob_webutil.md#101-what-the-session-can-do-on-the-client--threat-model).
+
+Measures, in order: patch the **client JREs** (the server cannot enforce
+them); offer Forms only from trusted networks (internal / VPN); keep WebUtil
+narrow; protect the code-signing key; let users start Forms only through the
+distributed shortcut / FSAL call, never from mail links.
 
 ## 2. Configuration files and inheritance
 
@@ -185,6 +261,11 @@ sends back the user's events, bundled per navigation; since 6i Patch 4
 these messages travel over HTTP(S) through the Listener servlet instead of
 a direct socket.
 
+On the wire today: the Java client wraps these messages in HTTPS requests to
+the Listener servlet – the TLS part is done by the client's Java (JSSE), the
+server side of TLS by Nginx (OpenSSL); behind Nginx the messages travel
+without TLS (section 1.1).
+
 A common belief: "there is CORBA in the Forms backend". There is not –
 CORBA is the **Reports** server ↔ engine protocol
 ([report_engine_architecture.md](report_engine_architecture.md)). Forms
@@ -221,7 +302,7 @@ What changed, what did not:
 | Layer | 1999 | 2026 |
 |---|---|---|
 | Client | Java applet in the browser (JInitiator / plugin) | Java Web Start or Standalone Launcher; applet desupported (`separateFrame` kept "for backward compatibility only", **documented**) |
-| Transport | direct socket, later HTTP/HTTPS tunnelled by the listener | HTTPS only, through the Listener servlet |
+| Transport | direct socket, later HTTP/HTTPS tunnelled by the listener; message encryption RC4 40-bit for socket/HTTP modes (**documented**, 6i guide) | HTTPS only, through the Listener servlet; TLS = Java JSSE on the client, OpenSSL in Nginx (section 1.1) |
 | Broker | Forms Listener process (`f60srvm`) | Listener servlet in WebLogic |
 | Runtime | `f60webm` / `ifweb60`, one per user, environment from the servlet engine, later an env file | `frmweb`, one per session, environment from `envFile` (`default.env`) – the env file came with 6i Patch 5 (**documented**) |
 | Application | FMX/PLX interpreted by the runtime, PL/SQL, triggers | the same – the IDE "has changed very little since" Forms 4.5 (Wikipedia) |
@@ -311,3 +392,10 @@ Secondary:
   https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/tracing-and-diagnostics.html
 - Forms Diagnostics Agent:
   https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/forms-diagnostics-agent.html
+
+Java (checked 2026-10-22, HTTP 200, title matches):
+
+- Java Secure Socket Extension (JSSE) Reference Guide (JDK 21):
+  https://docs.oracle.com/en/java/javase/21/security/java-secure-socket-extension-jsse-reference-guide.html
+- Oracle Security Alert Advisory – CVE-2026-91403 (JSSE, CVSS 9.1, 2026-10-21; patch document MOS CPU426):
+  https://www.oracle.com/security-alerts/alert-cve-2026-91403.html

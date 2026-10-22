@@ -282,6 +282,49 @@ Oracle Java 8 or OpenWebStart, which
 is one more reason Oracle positions FSAL ("this client configuration is
 quickly becoming the preferred approach", **documented**).
 
+### 10.1 What the session can do on the client – threat model
+
+The signature protects **code**: the client's Java verifies the signed jars
+(`frmwebutil.jar`, `jacob.jar`) independently of TLS. It does **not**
+protect what the server tells the client to do during the session. With
+WebUtil the Forms session is effectively a remote control of the client PC
+**with the rights of the logged-in user** (not administrator / root):
+
+| Server-side call | Effect on the client PC |
+|---|---|
+| `CLIENT_HOST` / `WEBUTIL_HOST` | runs operating-system commands |
+| `WEBUTIL_FILE_TRANSFER`, `CLIENT_TEXT_IO` | reads / writes files the user can access |
+| `CLIENT_OLE2` (JACOB) | drives Word / Excel and other COM objects |
+| `install.syslib.*` in `webutil.cfg` | **pushes native DLLs** (`jacob-1.21-x64.dll`, `JNIsharedstubs.dll`) to `webutil\syslib\<serverhost>\` on the client and loads them into the client JVM |
+
+The `install.syslib` entries carry only
+`name|size|version|showDownloadDialog` (e.g.
+`jacob-1.21-x64.dll|247296|1.21|true`, **confirmed (live)** in the
+test host's `webutil.cfg`) – **no hash, no signature**. The integrity of
+the DLL download from `/webutil/win64/` rests on TLS alone (plus the size).
+
+`webutil.cfg` restricts only the **server side** of file transfers
+(`transfer.appsrv.read.<n>` / `write.<n>`, `accessControl`, workAreaRoot);
+there is no switch that disables `CLIENT_HOST` or client file access – that
+is decided by the Forms code that attaches and calls WebUtil (**assumption**
+from the keys present in Oracle's `webutil.cfg` 14.1.2).
+
+Consequence: the two pillars of a WebUtil deployment are
+
+1. the **code signature** (protect the code-signing key – everything signed
+   with it runs with full user rights at the customer), and
+2. the **integrity of the session's TLS** – whoever can manipulate it can
+   act as the Forms server: trigger `CLIENT_HOST`, exchange files, swap a
+   pushed DLL of the same size.
+
+A TLS flaw in the client's Java (JSSE, e.g. CVE-2026-91403) hits pillar 2.
+Scenarios and measures:
+[forms_runtime_architecture.md §1.2](forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
+For WebUtil installations in particular: patch the client JREs first,
+keep the Forms URL inside trusted networks, use WebUtil only in the forms
+that need it, keep the `transfer.appsrv` directories minimal, and check
+whether `CLIENT_HOST` is needed at all.
+
 ## 11. Maintenance – patching, renewal, re-signing
 
 | Event | What happens | Action |
