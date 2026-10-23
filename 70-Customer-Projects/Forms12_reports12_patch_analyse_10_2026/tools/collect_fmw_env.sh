@@ -26,6 +26,7 @@
 
 set -u
 umask 077
+VERSION="2026-10-23.3"   # bump on every change – shown in 00_summary.txt
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
 while [ $# -gt 0 ]; do
@@ -35,7 +36,8 @@ while [ $# -gt 0 ]; do
         -t) OUTBASE="${2:-/tmp}"; shift ;;
         --full) FULL=true ;;
         --logs) LOGS=true ;;
-        -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,25p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
+        -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -86,6 +88,7 @@ copy() {
 fact() { printf '%-28s %s\n' "$1" "$2" >> "$SUM"; }
 say()  { printf '  %s\n' "$*"; }
 
+say "collect_fmw_env.sh version $VERSION"
 say "Output: $OUT"
 
 # --- locate ORACLE_HOME / DOMAIN_HOME ------------------------------------------
@@ -106,7 +109,7 @@ fi
 
 {
     printf 'FMW environment collection – %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
-    printf '%s\n\n' "collect_fmw_env.sh (read-only, secrets masked)"
+    printf '%s\n\n' "collect_fmw_env.sh version $VERSION (read-only, secrets masked)"
 } > "$SUM"
 fact "Host" "$(hostname -f 2>/dev/null || hostname)"
 fact "User" "$(id)"

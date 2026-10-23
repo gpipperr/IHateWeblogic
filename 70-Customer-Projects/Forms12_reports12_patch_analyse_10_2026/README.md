@@ -78,9 +78,11 @@ standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.
 
 ### 1a. Inventory of the customer home (received 2026-10-23)
 
-> **Source not confirmed yet:** it is still open whether these logs come from
-> the production Forms server or from a temporary test machine – confirm
-> (section 7, point 12) before relying on the conclusions below.
+> **Source:** the inventory and the collector run of this section come from
+> the customer's **test machine** (confirmed 2026-10-23). The production
+> machine has the same layout; its collector run needs a release by the
+> customer first – until then the conclusions are valid for test and
+> **assumed** for production (section 7, points 12 / 13).
 >
 > 2026-10-23: a **second machine** of the customer has the same layout
 > (Oracle Home `/oracle/product/mw`, JDK via `/oracle/java/jdk`) – the
@@ -418,7 +420,7 @@ can act on the PC with the user's rights. Background:
 | 9 | (for Oracle) Reports QPR 39600813: the Linux-x86-64 README (08-Jul-26) lists only 39375343 of the 20 "Fix for Bug 39375295 … 39375343" entries of the Solaris README (27-Aug-26) – are those fixes in the Linux build? Check after the apply (`opatch lsinventory -bugs_fixed`), else SR | |
 | 10 | One-offs 34290481 and 36475988 in the home – purpose? (MOS lookup / customer); check them in the conflict check of each bundle, a conflict means a merge patch from Support | 36475988 = Forms bundle one-off of April 2024, superseded by QPR 39888613; 34290481 still open (1a) |
 | 11 | Is the **Reports** component in this home although Reports does not run on this server? `opatch lsinventory -details \| grep -i reports` – if yes: apply the Reports QPR anyway (binaries on disk) and keep "Forms before Reports"; if no: OPatch skips 39600813 ("none of the components") | yes – Reports runs on this machine (`rwserver` + engines), QPR required (1a) |
-| 12 | Do the inventory logs of 1a come from the **production** Forms server (not a temporary test machine)? Hostname, domain, uptime, running servers, age of the home | |
+| 12 | Do the inventory logs of 1a come from the **production** Forms server (not a temporary test machine)? Hostname, domain, uptime, running servers, age of the home | **test machine** (confirmed 2026-10-23); production collector run pending the customer release |
 | 13 | Second machine with the same layout: role (production / test / second node)? Same patch level – `opatch version`, `opatch lspatches`, `viewInventory.sh` of both for comparison; which one is patched first (test first) | |
 | 14 | Reports engines run with the JDK **inside** the home (`oracle_common/jdk` 1.8.0_341) – not reached by the `/oracle/java/jdk` update. Patch / supported procedure for 12.2.1.19 (KA1182, MOS search "oracle_common/jdk update Forms Reports 12.2.1.19") or a supported way to point the engine JVM to `/oracle/java/jdk`? | |
 | 15 | OHS `ohs1`: is OAM WebGate (SSO) configured? Is there a load balancer in front (decides `WLStripForwardedForHeader`)? Does Forms use WebSocket? Current `SSLCipherSuite`, default `index.html` still served? (KB187736 read – 3.5b; the collector now also gathers the OHS configuration) | |

@@ -26,6 +26,9 @@ cp collect_fmw_env.sh /tmp/ && cd /tmp && chmod +x collect_fmw_env.sh
 | `--full` | large inventory output – for bug / CVE questions (`-bugs_fixed`) |
 | `--logs` | error / FRM- / REP- / ORA- lines of the server logs |
 
+Check the version first: `./collect_fmw_env.sh -V` (also the first line of
+`00_summary.txt`) – it must match the version in the repository.
+
 Result: `/tmp/fmw_collect_<host>_<timestamp>/` and `….tar.gz` (about 100 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `40_config.xml`,

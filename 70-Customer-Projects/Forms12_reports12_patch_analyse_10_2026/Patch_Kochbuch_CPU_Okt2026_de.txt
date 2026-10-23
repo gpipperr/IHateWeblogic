@@ -14,8 +14,9 @@
                als der zuletzt eingespielte CPU/CSPU).
                Abschnitte im Text wie "(README 3.2a)" verweisen auf die
                Analyse README.md.
-  Ist-Stand Kunde (Inventar vom 2026-10-23, README 1a - Quelle noch zu
-               bestaetigen: Produktionsserver oder Testmaschine?):
+  Ist-Stand Kunde (Inventar vom 2026-10-23, README 1a - Quelle: die
+               TESTMASCHINE; Produktion gleich aufgebaut, Sammellauf dort
+               steht noch aus):
                Distribution "WebLogic Server for FMW 12.2.1.4.0" +
                "Oracle Forms Reports 12.2.1.19.0", OPatch 13.9.4.2.11,
                nur 8 Patches im Home (DB Client 19.14 + One-offs) - das
