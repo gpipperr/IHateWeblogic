@@ -10,18 +10,18 @@ License: Apache 2.0
 ## Meaning of the Project Name
 
 
-I – Innovation
-H – Helps
-A – Admins
-T – To
-E – Enhance
-W – Weblogic
-B – Based
-L – Lifecycle
-O – Operations
-G – Governance
-I – Integration
-C – Control
+- **I** – Innovation
+- **H** – Helps
+- **A** – Admins
+- **T** – To
+- **E** – Enhance
+- **W** – Weblogic
+- **B** – Based
+- **L** – Lifecycle
+- **O** – Operations
+- **G** – Governance
+- **I** – Integration
+- **C** – Control
 
 
 Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control.
