@@ -15,6 +15,7 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 | **eDelivery** (Oracle Software Delivery Cloud) | Base installers (V\*.zip) | Manual download, then unzip |
 | **MOS** (My Oracle Support) | OPatch + individual patches | `getMOSPatch.jar` (automated) |
 | **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
+| **URL** (any) | shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true` and `FORMS_CLIENT_ICON` set to an `http(s)` URL | `curl` into `$PATCH_STORAGE/icon/<basename>`, must be ICO or PNG; sites with a browser check (HTTP 403) → download in the browser and place the file under the name the script prints |
 | **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`46P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
@@ -336,6 +337,7 @@ $PATCH_STORAGE/
 ├── jacob/
 │   └── jacob-1.21.zip            ← GitHub: JACOB (only FORMS_WEBUTIL_JACOB=true), installed by 14-,
 │                                    also source of the client DLL (concept 40)
+├── icon/                         ← shortcut icon of the Forms client (FORMS_CLIENT_ICON as URL)
 ├── client/                       ← sources of the Forms client bundle (only FORMS_CLIENT_DIST=true)
 │   └── jdk/
 │       └── 35702194/             ← client Java: same patch, platform 233P (CLIENT_JDK_PLATFORM)

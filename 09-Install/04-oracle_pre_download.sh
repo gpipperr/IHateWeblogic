@@ -8,6 +8,8 @@
 #            GitHub         : JACOB (WebUtil OLE) if FORMS_WEBUTIL_JACOB=true.
 #            MOS, 2nd platform: client Java (Windows x64) if FORMS_CLIENT_DIST=true
 #                             -> $PATCH_STORAGE/client/jdk/<nr>/ (concept docs/40).
+#            URL            : shortcut icon if FORMS_CLIENT_ICON is an http(s) URL
+#                             -> $PATCH_STORAGE/icon/ (forms_client_icon_path).
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
 #            --apply             – eDelivery: create dirs, prompt placement, verify
@@ -586,6 +588,21 @@ elif [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
     warn "FORMS_CLIENT_DIST=true but neither CLIENT_JDK_PATCH_NR nor JDK_PATCH_NR is set"
 fi
 
+# Shortcut icon of the Forms client (FORMS_CLIENT_ICON as URL -> $PATCH_STORAGE/icon/)
+DOWNLOAD_ICON=false
+CLIENT_ICON_FILE=""
+if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
+    case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+        FORMS_AND_REPORTS|FORMS_ONLY)
+            case "${FORMS_CLIENT_ICON:-}" in
+                http://*|https://*)
+                    DOWNLOAD_ICON=true
+                    CLIENT_ICON_FILE="$(forms_client_icon_path)"
+                    _inv_file "$CLIENT_ICON_FILE" "Client shortcut icon" ;;
+            esac ;;
+    esac
+fi
+
 if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
 else
@@ -689,6 +706,31 @@ if $DOWNLOAD_JACOB; then
         unset _sha
     fi
     unset _jacob_dir _jacob_zip
+fi
+
+# =============================================================================
+# Section 1c: shortcut icon of the Forms client (FORMS_CLIENT_ICON is a URL)
+# =============================================================================
+if $DOWNLOAD_ICON; then
+    section "Forms client shortcut icon"
+    if [ -s "$CLIENT_ICON_FILE" ]; then
+        ok "Already present: $CLIENT_ICON_FILE"
+    else
+        mkdir -p "$(dirname "$CLIENT_ICON_FILE")"
+        info "Downloading $FORMS_CLIENT_ICON"
+        if curl -fsSL --max-time 60 -A "Mozilla/5.0" -o "${CLIENT_ICON_FILE}.part" "$FORMS_CLIENT_ICON" \
+                && _magic="$(od -An -tx1 -N4 "${CLIENT_ICON_FILE}.part" | tr -d ' \n')" \
+                && { [ "$_magic" = "00000100" ] || [ "$_magic" = "89504e47" ]; }; then
+            mv -f "${CLIENT_ICON_FILE}.part" "$CLIENT_ICON_FILE"
+            ok "Icon saved: $CLIENT_ICON_FILE"
+        else
+            rm -f "${CLIENT_ICON_FILE}.part"
+            warn "Icon download failed or not an ICO/PNG (some sites demand a browser check)"
+            info "  Download it in a browser and place it as:"
+            info "    $CLIENT_ICON_FILE"
+        fi
+        unset _magic
+    fi
 fi
 
 # =============================================================================

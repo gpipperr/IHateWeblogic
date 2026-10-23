@@ -62,6 +62,9 @@ FORMS_CLIENT_BASE_URL=https://wls01.company.local
 FORMS_CLIENT_CONFIG=standaloneapp
 FORMS_CLIENT_FORM=
 FORMS_CLIENT_APP_NAME="Oracle Forms"
+# shortcut icon: .ico, or .png <= 256 px (40- wraps it into an ICO); local path or
+# http(s) URL (04- downloads it to $PATCH_STORAGE/icon/); empty = Windows default
+FORMS_CLIENT_ICON=
 # jlink = slim runtime, jdk = full JDK ZIP
 FORMS_CLIENT_RUNTIME=jlink
 # CA for the bundled runtime's truststore; empty = public CA

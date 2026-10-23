@@ -727,3 +727,21 @@ load_weblogic_password() {
     ok "Credentials loaded for user: ${WL_USER:-unknown}"
     return 0
 }
+
+# -----------------------------------------------------------------------------
+# forms_client_icon_path – local file of the Forms client shortcut icon
+# FORMS_CLIENT_ICON is a local path or an http(s) URL. For a URL the file
+# lives in $PATCH_STORAGE/icon/<sanitised basename> – downloaded there by
+# 09-Install/04-oracle_pre_download.sh, read by 40-oracle_forms_client_bundle.sh
+# (docs/40-forms_client_distribution.md). Prints nothing if no icon is set.
+# -----------------------------------------------------------------------------
+forms_client_icon_path() {
+    local v="${FORMS_CLIENT_ICON:-}" name
+    [ -n "$v" ] || return 0
+    case "$v" in
+        http://*|https://*)
+            name="$(basename "${v%%\?*}" | sed 's/[^A-Za-z0-9._-]/_/g')"
+            printf '%s/icon/%s\n' "${PATCH_STORAGE:-/srv/patch_storage}" "$name" ;;
+        *)  printf '%s\n' "$v" ;;
+    esac
+}

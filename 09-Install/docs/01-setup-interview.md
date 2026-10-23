@@ -157,8 +157,8 @@ FORMS_SIGN_TSA_URL   (default http://timestamp.digicert.com, Enter on an
 | `SSL_ORG`, `SSL_COUNTRY`, `SSL_CA_CN`, `SSL_CODESIGN_CN`, `SSL_CODESIGN_DAYS` | `Company GmbH`, `DE`, `<org> Root CA`, `<org> Forms Code Signing`, `1095` | only if the keystore is missing; written into `08-SSL/ssl.conf` (key replaced or appended, backup first) – the SSL module's own config, also used later by `ssl_prepare_cert.sh` |
 | `FORMS_SIGN_TSA_URL` | `http://timestamp.digicert.com` | `jarsigner -tsa`; needs outbound HTTP from the server |
 
-Client distribution (concept, script `40-` not implemented yet –
-`docs/40-forms_client_distribution.md` §3.0):
+Client distribution (`docs/40-forms_client_distribution.md` §3.0, bundle
+built by `40-oracle_forms_client_bundle.sh`):
 
 | Parameter | Default | Notes |
 |---|---|---|
@@ -169,6 +169,7 @@ Client distribution (concept, script `40-` not implemented yet –
 | `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section for FSAL |
 | `FORMS_CLIENT_FORM` | empty | optional start form |
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | shortcut name |
+| `FORMS_CLIENT_ICON` | empty | shortcut icon: `.ico`, or `.png` up to 256 × 256 (wrapped into an ICO by `40-`); a local path or an `http(s)` URL – a URL is downloaded by `04-` into `$PATCH_STORAGE/icon/`; empty = Windows default icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | menu: `jlink` (slim runtime) / `jdk` (full JDK) |
 | `FORMS_CLIENT_TRUST_CA` | `$SSL_CA_DIR/ca/ca.crt` if present, else empty | CA for the bundled runtime's truststore; empty = public CA |
 

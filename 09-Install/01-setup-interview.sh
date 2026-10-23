@@ -521,6 +521,9 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
             _ask FORMS_CLIENT_CONFIG   "formsweb.cfg section for FSAL"   "standaloneapp"
             _ask FORMS_CLIENT_FORM     "Start form (empty = section)"    ""  "" "optional"
             _ask FORMS_CLIENT_APP_NAME "Desktop shortcut name"           "Oracle Forms"
+            info "Shortcut icon: .ico or .png (<= 256 px), local path or https URL"
+            info "  (URL: 04-oracle_pre_download.sh loads it into \$PATCH_STORAGE/icon/)"
+            _ask FORMS_CLIENT_ICON     "Shortcut icon (path or URL)"     "" "" "optional"
             _ask_menu FORMS_CLIENT_RUNTIME "Java runtime for the clients" \
                 "jlink:Slim runtime built with jlink (default)" \
                 "jdk:Full JDK ZIP"
@@ -771,7 +774,7 @@ _show "FORMS_WEBUTIL_JACOB"  "${FORMS_WEBUTIL_JACOB:-false}"
 _show "FORMS_CLIENT_DIST"    "$FORMS_CLIENT_DIST"
 if [ "$FORMS_CLIENT_DIST" = "true" ]; then
     for _k in FORMS_CLIENT_DIR FORMS_CLIENT_URL_PATH FORMS_CLIENT_BASE_URL FORMS_CLIENT_CONFIG \
-              FORMS_CLIENT_FORM FORMS_CLIENT_APP_NAME FORMS_CLIENT_RUNTIME FORMS_CLIENT_TRUST_CA; do
+              FORMS_CLIENT_FORM FORMS_CLIENT_APP_NAME FORMS_CLIENT_ICON FORMS_CLIENT_RUNTIME FORMS_CLIENT_TRUST_CA; do
         _show "$_k" "${!_k:-(empty)}"
     done
     unset _k
@@ -926,6 +929,9 @@ FORMS_CLIENT_BASE_URL="${FORMS_CLIENT_BASE_URL:-}"
 FORMS_CLIENT_CONFIG="${FORMS_CLIENT_CONFIG:-}"
 FORMS_CLIENT_FORM="${FORMS_CLIENT_FORM:-}"
 FORMS_CLIENT_APP_NAME="${FORMS_CLIENT_APP_NAME:-}"
+# shortcut icon: .ico, or .png <= 256 px (40- wraps it into an ICO); local path or
+# http(s) URL (04- downloads it to $PATCH_STORAGE/icon/); empty = Windows default
+FORMS_CLIENT_ICON="${FORMS_CLIENT_ICON:-}"
 # jlink = slim runtime, jdk = full JDK ZIP
 FORMS_CLIENT_RUNTIME="${FORMS_CLIENT_RUNTIME:-}"
 # empty = public CA (already in the runtime's cacerts)
@@ -1077,6 +1083,7 @@ FORMS_CLIENT_BASE_URL="${FORMS_CLIENT_BASE_URL:-}"
 FORMS_CLIENT_CONFIG="${FORMS_CLIENT_CONFIG:-}"
 FORMS_CLIENT_FORM="${FORMS_CLIENT_FORM:-}"
 FORMS_CLIENT_APP_NAME="${FORMS_CLIENT_APP_NAME:-}"
+FORMS_CLIENT_ICON="${FORMS_CLIENT_ICON:-}"
 FORMS_CLIENT_RUNTIME="${FORMS_CLIENT_RUNTIME:-}"
 FORMS_CLIENT_TRUST_CA="${FORMS_CLIENT_TRUST_CA:-}"
 EXPECTED_SESSIONS="${EXPECTED_SESSIONS}"

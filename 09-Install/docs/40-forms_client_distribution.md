@@ -111,6 +111,7 @@ Reports-only installation has no Forms client and asks none of them.
 | `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section → `…/frmservlet?config=<section>` |
 | `FORMS_CLIENT_FORM` | empty | optional start form → `&form=<name>`; empty = `form=` of the section |
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | name of the desktop / start menu shortcut |
+| `FORMS_CLIENT_ICON` | empty | own shortcut icon, local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – use the customer's application / company icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` = slim runtime, `jdk` = full JDK ZIP |
 | `FORMS_CLIENT_TRUST_CA` | `${SSL_CA_DIR}/ca/ca.crt` if it exists, else empty | CA for the truststore of the bundled runtime; empty = public CA |
 
@@ -569,7 +570,7 @@ Runs as oracle. Only for Forms installations with `FORMS_CLIENT_DIST=true`
 | Step | What happens |
 |---|---|
 | 1. Sources | client JDK ZIP from `$PATCH_STORAGE/client/jdk/<CLIENT_JDK_PATCH_NR or JDK_PATCH_NR>/` (no Linux ZIP), the inner `jdk-<ver>_windows-x64_bin.zip` checked against `SHA256_VALUES`; `$ORACLE_HOME/forms/java/frmsal.jar`; JACOB x64 DLL from `$PATCH_STORAGE/jacob/$JACOB_ZIP` (only `FORMS_WEBUTIL_JACOB=true`, size checked against `JACOB_DLL_X64_SIZE`); CA `FORMS_CLIENT_TRUST_CA` (optional) |
-| 2. Change check | a fingerprint per component (SHA-256 of the source, module list, runtime mode, CA) is compared with the current `manifest.json` – nothing changed → "up to date", nothing written (unless `--force`) |
+| 2. Change check | a fingerprint per component (SHA-256 of the source, module list, runtime mode, CA), the start parameters (URL with `config=` / `form=`, shortcut name) and the icon are compared with the current `manifest.json` – nothing changed → "up to date", nothing written (unless `--force`) |
 | 3. Runtime | work directory `mktemp -d`; `jlink` mode: only `jmods/` of the Windows JDK extracted, `$JDK_HOME/bin/jlink` with `FORMS_CLIENT_JLINK_MODULES` (default list of [java_jlink_forms_env.md §3](../../80-FMW-Architecture/java_jlink_forms_env.md#3-the-module-list-for-forms-1412), Windows modules included); `jdk` mode: the whole JDK; then the CA into `lib/security/cacerts` (`keytool`, alias `ihw-forms-ca`); ZIP with the runtime files at the top level → `jre-<JAVA_VERSION>-win-x64.zip` |
 | 4. Other files | `frmsal-<forms version>-<sha8>.jar`, `jacob-1.21-x64.dll`; `FormsWeb-Setup.ps1` / `FormsWeb-Install.cmd` from `09-Install/client_templates/` once they exist |
 | 5. Manifest | `manifest.json` (schema §3.2) written to a temp file in `FORMS_CLIENT_DIR`, the old one renamed to `manifest.prev.json`, the new one moved into place – the atomic switch for the clients |

@@ -239,6 +239,51 @@ else
     info "$(printf "%-22s %s" "Truststore CA:" "none (public CA – Java's default cacerts)")"
 fi
 
+# --- Shortcut icon (optional, FORMS_CLIENT_ICON: .ico, or .png <= 256 px) ---
+# FORMS_CLIENT_ICON may be a URL – then 04- downloaded it to $PATCH_STORAGE/icon/
+ICON_SRC="$(forms_client_icon_path)"
+ICON_TMP=""
+ICON_FILE=""
+# a missing icon must not block the bundle (e.g. a Java update) – warn, build without
+if [ -n "$ICON_SRC" ] && [ ! -s "$ICON_SRC" ]; then
+    warn "Shortcut icon $ICON_SRC missing – bundle without own icon"
+    case "${FORMS_CLIENT_ICON:-}" in
+        http://*|https://*) info "  Download: 09-Install/04-oracle_pre_download.sh --apply (or place the file there by hand)" ;;
+    esac
+    ICON_SRC=""
+fi
+if [ -n "$ICON_SRC" ]; then
+    ICON_TMP="$(mktemp "${TMPDIR:-/tmp}/ihw_icon_XXXXXX.ico")"
+    # .ico is taken as it is; a PNG is wrapped into an ICO container
+    # (PNG-compressed icon entry, readable by Windows Vista and later)
+    if _imsg="$(python3 -I - "$ICON_SRC" "$ICON_TMP" <<'PYEOF'
+import struct, sys
+src, out = sys.argv[1], sys.argv[2]
+data = open(src, "rb").read()
+if data[:4] == b"\x00\x00\x01\x00":
+    open(out, "wb").write(data); print("ico"); sys.exit(0)
+if data[:8] != b"\x89PNG\r\n\x1a\n":
+    print("neither ICO nor PNG"); sys.exit(1)
+w, h = struct.unpack(">II", data[16:24])
+if w > 256 or h > 256:
+    print("PNG %dx%d is larger than 256x256" % (w, h)); sys.exit(1)
+hdr = struct.pack("<HHH", 0, 1, 1)
+ent = struct.pack("<BBBBHHII", w % 256, h % 256, 0, 0, 1, 32, len(data), 6 + 16)
+open(out, "wb").write(hdr + ent + data)
+print("png %dx%d -> ico" % (w, h))
+PYEOF
+)"; then
+        ICON_FILE="icon-$(_sha "$ICON_TMP" | cut -c1-8).ico"
+        ok "$(printf "%-22s %s" "Shortcut icon:" "$ICON_SRC ($_imsg)")"
+    else
+        fail "FORMS_CLIENT_ICON $ICON_SRC: ${_imsg:-not readable}"
+        rm -f "$ICON_TMP"; print_summary; exit 2
+    fi
+    unset _imsg
+else
+    info "$(printf "%-22s %s" "Shortcut icon:" "Windows default (FORMS_CLIENT_ICON empty)")"
+fi
+
 # --- Setup templates (Baustein 3, optional) ---------------------------------
 SETUP_PS1="$TEMPLATE_DIR/FormsWeb-Setup.ps1"
 SETUP_CMD="$TEMPLATE_DIR/FormsWeb-Install.cmd"
@@ -289,12 +334,34 @@ if $JACOB_ON; then
 fi
 [ -f "$SETUP_PS1" ] && { $_setup_changed && info "Setup script : copy" || ok "Setup script : up to date"; }
 
-if ! $NEED_JAVA && ! $NEED_FSAL && ! $NEED_JACOB && ! $_setup_changed && [ -f "$MANIFEST" ]; then
+# start parameters (URL with config= / form=, shortcut name) – compare with "start"
+START_URL="${BASE_URL}/forms/frmservlet?config=${FORMS_CLIENT_CONFIG:-standaloneapp}"
+[ -n "${FORMS_CLIENT_FORM:-}" ] && START_URL="${START_URL}&form=${FORMS_CLIENT_FORM}"
+NEED_START=false
+_cur_start="$(python3 -I -c 'import json,sys; st=json.load(open(sys.argv[1])).get("start",{}); print(st.get("url","")+"|"+st.get("shortcutName",""))' "$MANIFEST" 2>/dev/null)"
+if [ "$_cur_start" != "${START_URL}|${FORMS_CLIENT_APP_NAME:-Oracle Forms}" ]; then
+    NEED_START=true
+    info "Start parameters: ${START_URL} / \"${FORMS_CLIENT_APP_NAME:-Oracle Forms}\""
+fi
+unset _cur_start
+
+# icon: the file name carries its hash – compare with start.icon of the manifest
+_cur_icon="$(python3 -I -c 'import json,sys; print((json.load(open(sys.argv[1])).get("start",{}).get("icon") or {}).get("file",""))' "$MANIFEST" 2>/dev/null)"
+NEED_ICON=false
+if [ "$_cur_icon" != "$ICON_FILE" ] || { [ -n "$ICON_FILE" ] && [ ! -f "$CLIENT_DIR/$ICON_FILE" ]; } || $FORCE; then
+    NEED_ICON=true
+    info "Shortcut icon: ${ICON_FILE:-removed (Windows default)}"
+fi
+unset _cur_icon
+
+if ! $NEED_JAVA && ! $NEED_FSAL && ! $NEED_JACOB && ! $_setup_changed && ! $NEED_ICON && ! $NEED_START && [ -f "$MANIFEST" ]; then
+    rm -f "$ICON_TMP"
     ok "Bundle is up to date – nothing to do (--force rebuilds)"
     print_summary; exit $EXIT_CODE
 fi
 
 if ! $APPLY; then
+    rm -f "$ICON_TMP"
     info "Read-only – run with --apply to build"
     print_summary; exit $EXIT_CODE
 fi
@@ -390,6 +457,13 @@ if $JACOB_ON && $NEED_JACOB; then
     unset _jsize
 fi
 
+# --- 4c2 Shortcut icon ---------------------------------------------------------
+if [ -n "$ICON_FILE" ]; then
+    install -m 644 "$ICON_TMP" "$CLIENT_DIR/$ICON_FILE"
+    $NEED_ICON && ok "$(printf "%-22s %s" "Shortcut icon:" "$ICON_FILE")"
+fi
+rm -f "$ICON_TMP"
+
 # --- 4d Setup scripts ----------------------------------------------------------
 if [ -f "$SETUP_PS1" ] && [ -f "$SETUP_CMD" ]; then
     install -m 644 "$SETUP_PS1" "$CLIENT_DIR/FormsWeb-Setup.ps1"
@@ -402,9 +476,6 @@ fi
 # 5. Manifest (atomic switch)
 # =============================================================================
 section "manifest.json"
-
-START_URL="${BASE_URL}/forms/frmservlet?config=${FORMS_CLIENT_CONFIG:-standaloneapp}"
-[ -n "${FORMS_CLIENT_FORM:-}" ] && START_URL="${START_URL}&form=${FORMS_CLIENT_FORM}"
 
 _tmp_mf="$CLIENT_DIR/.manifest.json.tmp"
 if ! python3 -I - "$CLIENT_DIR" "$_tmp_mf" <<PYEOF
@@ -429,6 +500,10 @@ m = {
         "shortcutName": "${FORMS_CLIENT_APP_NAME:-Oracle Forms}",
     },
 }
+if "${ICON_FILE}":
+    m["start"]["icon"] = comp("${ICON_FILE}", "", "")
+    for k in ("version", "source"):
+        m["start"]["icon"].pop(k, None)
 if "${JACOB_ON}" == "true":
     m["components"]["jacob"] = comp("${JACOB_DLL_NAME}", "${JACOB_VERSION:-1.21}", "${JACOB_ZIP_SHA:-}")
 setup = os.path.join(d, "FormsWeb-Setup.ps1")
@@ -465,9 +540,10 @@ for f in sys.argv[1:]:
         continue
     for c in m.get("components", {}).values():
         print(c.get("file", ""))
+    print((m.get("start", {}).get("icon") or {}).get("file", ""))
 ' "$MANIFEST" "$MANIFEST_PREV")"
 _removed=0
-for _f in "$CLIENT_DIR"/jre-*.zip "$CLIENT_DIR"/frmsal-*.jar "$CLIENT_DIR"/jacob-*.dll; do
+for _f in "$CLIENT_DIR"/jre-*.zip "$CLIENT_DIR"/frmsal-*.jar "$CLIENT_DIR"/jacob-*.dll "$CLIENT_DIR"/icon-*.ico; do
     [ -f "$_f" ] || continue
     if ! printf '%s\n' "$_keep" | grep -qxF "$(basename "$_f")"; then
         rm -f "$_f" && info "Removed (no longer referenced): $(basename "$_f")"
