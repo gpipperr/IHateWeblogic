@@ -259,6 +259,9 @@ _set plsql.gateway.mode                   proxied
 _set feature.graphql                      "${ORDS_FEATURE_GRAPHQL:-disable_all}"
 _set security.externalSessionTrustedOrigins "$PUB_URL"
 _set security.requestValidationFunction   ords_util.authorize_plsql_gateway
+# Nginx terminates TLS: without this ORDS builds http:// links (REST catalog,
+# OpenAPI, redirects) – Nginx sends X-Forwarded-Proto https (live 2026-10-23)
+_set security.httpsHeaderCheck            "X-Forwarded-Proto: https"
 _lp="$CFG/global/logging.properties"
 mkdir -p "$CFG/global"
 _tmp="$(mktemp)"

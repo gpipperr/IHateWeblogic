@@ -263,6 +263,44 @@ alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of
 | MCP server | `feature.mcp` | `false` | default | AI agents call database tools (ORDS 26.x) |
 | MongoDB API | `mongo.enabled` | `false` (`mongo.host 0.0.0.0` when on!) | default | own listener port 27017 on all interfaces |
 | Static files | `standalone.static.*` | context `/i` | not used – Nginx serves `/srv/apex` | an ORDS image path in addition to Nginx |
+| HTTPS behind a proxy | `security.httpsHeaderCheck` | none | `X-Forwarded-Proto: https` | without it ORDS builds **`http://`** links (REST catalog, OpenAPI, redirects) although the client used HTTPS – seen live before the fix |
+
+### 6.1 APEX workspaces REST-enable their schema – with an open catalog
+
+Creating a workspace in APEX (live: workspace `GPI`, new schema `GPIDEV`,
+2026-10-23) does more on the ORDS side than one would expect
+(**confirmed (live)**):
+
+- APEX calls `ords.enable_schema(p_enabled => true, p_schema => …,
+  p_url_mapping_pattern => <workspace alias>, …)` – parsed as `GPIDEV`
+  (`v$sql`). The schema is **REST-enabled** with the alias `gpi`, and
+  `ords.enable_schema` grants the **proxy right** `ORDS_PUBLIC_USER` →
+  `GPIDEV` (`proxy_users`).
+- `auto_rest_auth = DISABLED`: the **metadata catalog and the OpenAPI
+  catalog of the schema answer without authentication** –
+  `/ords/gpi/metadata-catalog/` and `/ords/gpi/open-api-catalog/` → HTTP 200
+  for anybody who reaches Nginx. Empty today (no modules, no AutoREST
+  objects); as soon as REST modules exist, their structure is listed there.
+- The new schema gets an **own tablespace** `APEX_<number>` with **10 MB,
+  autoextend, maxsize 100 MB** (`dba_data_files`) – too small for a real
+  application; and the profile `DEFAULT` (password expiry 180 days).
+
+Rules for this library – these belong to the **installation of the
+application** (not to the ORDS / APEX instance scripts); the planned
+`12-APEX-Ords/07-check-ords-apex-security.sh` checks them
+([12-APEX-Ords README §9](../12-APEX-Ords/README.md#9-open-items)):
+- Workspace schemas for production: create the schema and its tablespace
+  beforehand (own name, sensible maxsize) and assign them to the workspace,
+  instead of letting APEX create `APEX_<number>`.
+- Protect the catalog: `ords.enable_schema(p_enabled => true, p_schema =>
+  '<SCHEMA>', p_url_mapping_type => 'BASE_PATH', p_url_mapping_pattern =>
+  '<alias>', p_auto_rest_auth => true)` – or not REST-enable a schema that
+  needs no REST at all (`ords.enable_schema(p_enabled => false, …)`).
+- Password expiry of the parsing schema: APEX parses with
+  `DBMS_SYS_SQL.parse_as_user` (no login), ORDS uses the proxy right (no
+  password) – whether an **expired** client password breaks the proxy
+  session is an **assumption** to test; a profile like `APEX_USER` for the
+  parsing schemas avoids the question.
 
 Rule of this library: everything that offers **SQL or administration over
 HTTP** is off unless a project needs it – then it is switched on by hand in
@@ -370,9 +408,10 @@ Dates before 2018 are background from the author's experience
 
 ## 11. Open
 
-- Live proof that the SQL of an **own** application runs in its parsing
-  schema (needs a workspace + app; the internal apps 4100 / 4550 run as
-  `APEX_260200`) – [apex_architecture.md](apex_architecture.md) §5a.
+- `07-check-ords-apex-security.sh` (planned, [12-APEX-Ords README §9](../12-APEX-Ords/README.md#9-open-items)):
+  check workspace schemas for `auto_rest_auth`, profile, tablespace maxsize,
+  public REST modules, feature drift; test whether an expired parsing-schema
+  password breaks the ORDS proxy session.
 - `06-patch-ords.sh` upgrade path: first real run with the next ORDS
   release (`ords install --db-only` for the repository upgrade is taken from
   `ords install --help`, not yet run).

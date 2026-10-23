@@ -1,14 +1,14 @@
 # 12-APEX-Ords – Oracle APEX and ORDS beside Oracle Forms
 
-Manual installation of **Oracle APEX 26.2** with **ORDS 26.x in standalone
-(Jetty) mode** behind the Nginx of this library – the procedure we will
-automate later (doc first, then `12-APEX-Ords/*.sh`).
+Installation of **Oracle APEX 26.2** with **ORDS 26.x in standalone (Jetty)
+mode** behind the Nginx of this library – scripts `01-` … `06-` (section 5),
+the manual procedure stays as the reference (section 5a).
 
-**Status:** manual procedure, assembled from the author's wiki guide
-(APEX / ORDS 26.1 standalone + Nginx on OL9, tested there) and a real customer
+**Status:** live on the test host since 2026-10-23 (APEX 26.2 + ORDS 26.3,
+workspace + application tested through Nginx). Sources: the author's wiki
+guide (APEX / ORDS 26.1 standalone + Nginx on OL9) and a real customer
 upgrade (ORDS 23 → 26.3, APEX 23 → 26.2, Tomcat removed, October 2026 –
-anonymised). **Not yet run with the layout of this page** – the first run on
-the test host follows; findings go back into this README.
+anonymised).
 
 ---
 
@@ -469,8 +469,27 @@ From the customer upgrade, generic:
   (config dir with wallet, versions of APEX / ORDS / SQLcl / Instant Client).
 - `01-Run/startStop.sh` / `fmw_ctl.sh` status: show `ords@ords_N` next to the
   FMW components.
-- A workspace + application on the test host to prove the parsing-schema
-  switch for an own application ([apex_architecture.md](../80-FMW-Architecture/apex_architecture.md) §5a).
+- [ ] **`07-check-ords-apex-security.sh`** (read-only check, later
+  `--apply` for the safe fixes) – security of what the **applications**
+  bring into the APEX / ORDS instance, run after every app installation and
+  regularly. Found live 2026-10-23 with workspace `GPI` / schema `GPIDEV`
+  ([ords_architecture.md §6.1](../80-FMW-Architecture/ords_architecture.md#61-apex-workspaces-rest-enable-their-schema--with-an-open-catalog)):
+  - REST-enabled schemas with **`auto_rest_auth` off** – metadata / OpenAPI
+    catalog open without login (`/ords/<alias>/metadata-catalog/`, HTTP
+    200); fix: `ords.enable_schema(p_enabled => true, p_schema => '<SCHEMA>',
+    p_url_mapping_type => 'BASE_PATH', p_url_mapping_pattern => '<alias>',
+    p_auto_rest_auth => true)`;
+  - workspace / parsing schemas with profile `DEFAULT` (password expiry) –
+    fix: profile `APEX_USER` (`apex_user_profile.sql`);
+  - workspace tablespaces `APEX_<number>` created by APEX with maxsize
+    100 MB – fill level / maxsize;
+  - REST modules without a privilege (public), AutoREST-enabled objects,
+    proxy rights of `ORDS_PUBLIC_USER` to schemas without REST modules;
+  - instance settings: risky ORDS features on (SDW, REST-enabled SQL, DB
+    API, GraphQL), `requestValidationFunction`, `standalone.binds`,
+    `httpsHeaderCheck` – the values `04-install-ords.sh` sets, drift check;
+  - APEX instance: e.g. `ADMIN` account, workspace provisioning, HTTPS-only
+    / session settings (`apex_instance_admin` parameters) – to collect.
 
 ---
 

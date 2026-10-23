@@ -881,7 +881,10 @@ CSPU Sep 2026 state is frozen in
   behind Nginx, profile `APEX_USER`), architecture in
   [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md) and
   [`ords_architecture.md`](80-FMW-Architecture/ords_architecture.md).
-- [ ] APEX / ORDS follow-ups: first real run of `03-patch-apex.sh` /
+- [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
+  (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
+  schema profile / tablespace, public REST modules, feature drift – see the
+  12-APEX-Ords README §9); first real run of `03-patch-apex.sh` /
   `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
   wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; `startStop.sh`
   shows `ords@ords_N`; move `rcu_repository_check` etc. to `ihw_sqlplus`;

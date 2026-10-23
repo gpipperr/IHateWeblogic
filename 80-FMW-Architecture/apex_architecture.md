@@ -167,9 +167,16 @@ grants – no unwrapping needed (**confirmed (live)** 2026-10-23, APEX 26.2):
   dependencies. **Confirmed (live)** with ORDS running (sign-in page,
   `v$sql`): the gateway calls run as `APEX_PUBLIC_USER`
   (`owa.init_cgi_env`, `wwv_flow.resolve_friendly_url`, `htp` buffer), the
-  engine SQL as `APEX_260200` (499 statements). Still open: the same proof
-  for an **own** application (workspace + app needed – its page SQL must
-  show the application's parsing schema; or `dbms_hprof` on one request).
+  engine SQL as `APEX_260200` (499 statements).
+- **Own application – confirmed (live)** 2026-10-23: workspace `GPI` with
+  parsing schema `GPIDEV`, app 100 (`/ords/r/gpi/ihateweblogic/home`). After
+  the login, `v$sql` shows the page processes of the app's login page
+  parsed **as `GPIDEV`** – e.g. `begin :P9999_USERNAME :=
+  apex_authentication.get_login_username_cookie; …` and the call of
+  `APEX_AUTHENTICATION.LOGIN` with `:P9999_USERNAME` / `:P9999_PASSWORD`
+  binds. The application code runs with the name resolution and privileges
+  of its parsing schema, the engine around it as `APEX_260200` – exactly the
+  switch of the chain above.
 - **Wrapped code:** the 10g+ wrap format is only encoded and compressed,
   tools exist to decode it – but the Oracle license forbids reverse
   engineering, and decoded Oracle code never belongs into this repository.
