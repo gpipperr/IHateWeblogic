@@ -37,6 +37,7 @@ secures the configuration that the rest of the library (`09-Install/`,
 | `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
 | `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
 | `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
+| `install_db_client_tools.sh` | script | Oracle Instant Client (SQL\*Plus, tools) + SQLcl, versioned, update / rollback by link |
 | `set_environment.md` | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
 | `environments/` | directory | One conf file per environment (FMW domain or DB home) + templates |
 
@@ -235,6 +236,48 @@ and the schema password assigned to every `<PREFIX>_STB`, `<PREFIX>_MDS`, …
 schema created by RCU.
 
 ---
+
+### install_db_client_tools.sh
+
+```bash
+./00-Setup/install_db_client_tools.sh                 # read-only: what is installed / available
+./00-Setup/install_db_client_tools.sh --apply         # download + install / update
+./00-Setup/install_db_client_tools.sh --rollback      # link back to the previous version (--apply)
+./00-Setup/install_db_client_tools.sh --apply --keep 2
+```
+
+Database client tools of this library – independent of a local database
+or of the FMW home (whose `bin/sqlplus` works only with the FMW
+environment):
+
+| Tool | Use | Source |
+|---|---|---|
+| **Instant Client** 23.26.x (26ai): `basic` + `sqlplus` + `tools` | SQL\*Plus for the Oracle installer scripts (APEX `apexins.sql`, `catpatch.sql`), DB checks (`02-Checks/db_connect_check.sh`, RCU repository); sqlldr, expdp / impdp | versioned OTN link `IC_URL_BASE` / `IC_VERSION` – the "latest" link still delivered 23.26.2 on 2026-10-23 while the page lists 23.26.4 |
+| **SQLcl** | `apex export` (application / workspace backup), `rest export` (ORDS REST modules – see the `ON DELETE CASCADE` warning in [apex_architecture.md §2](../80-FMW-Architecture/apex_architecture.md)), Liquibase `lb`; pure Java on `JDK_HOME` | `SQLCL_ZIP_URL` (`sqlcl-latest.zip`), version from `sqlcl/bin/version.txt` |
+
+Layout (versions side by side, the scripts use only the links):
+
+```
+$PATCH_STORAGE/instantclient/23.26.4.0.0/instantclient-{basic,sqlplus,tools}-linux.x64-23.26.4.0.0.zip
+$PATCH_STORAGE/sqlcl/26.3.0.260.1620/sqlcl-26.3.0.260.1620.zip
+$ORACLE_BASE/product/instantclient_23.26.4.0.0/    sqlplus, sqlldr, expdp, lib*.so
+$ORACLE_BASE/product/instantclient -> instantclient_23.26.4.0.0
+$ORACLE_BASE/product/sqlcl_26.3.0.260.1620/        bin/sql, lib/
+$ORACLE_BASE/product/sqlcl -> sqlcl_26.3.0.260.1620
+```
+
+`environment.conf` (written with backup): `INSTANT_CLIENT_HOME`,
+`SQLPLUS_BIN` (read by `db_connect_check.sh`), `SQLCL_HOME`, `SQLCL_BIN`.
+The lib offers `ihw_sqlplus` (SQL\*Plus with `LD_LIBRARY_PATH`, `TNS_ADMIN`,
+`NLS_LANG`) and `ihw_sql_sys ALIAS` (SQL from stdin as `SYS AS SYSDBA`, the
+password from `IHW_SYS_PWD` via stdin – never on the command line).
+
+**Update – one more component in the patch cycle:**
+- Instant Client: new `IC_VERSION` / `IC_URL_BASE` in `oracle_software_version.conf` (quarterly with the DB RU);
+- SQLcl: the latest link (quarterly releases);
+- re-run with `--apply`: the new version goes into its own directories, and the link switches only after the smoke test (`sqlplus -V`, `sql -V`);
+- `--rollback` switches the link back, `--keep N` (default 2) removes older versions;
+- prerequisite on OL9: package `libaio` (root: `dnf install libaio`).
 
 ### environments/
 

@@ -619,39 +619,10 @@ fi
 DOWNLOAD_APEX=false
 [ "${INSTALL_APEX:-false}" = "true" ] && DOWNLOAD_APEX=true
 
-# _zip_version KIND FILE – version inside an APEX / ORDS ZIP (nothing if unknown)
-#   apex: apex/images/apex_version.txt "... Version: 26.2.0" -> 26.2
-#   ords: WEB-INF/lib/ords-rest-services-<ver>.jar inside ords.war
-_zip_version() {
-    python3 -I - "$1" "$2" <<'ZIPPY' 2>/dev/null
-import re, sys, zipfile
-kind, path = sys.argv[1], sys.argv[2]
-z = zipfile.ZipFile(path)
-if kind == "apex":
-    t = z.read("apex/images/apex_version.txt").decode("utf-8", "replace")
-    m = re.search(r"(\d+)\.(\d+)(?:\.\d+)?", t)
-    print("%s.%s" % m.groups() if m else "")
-else:
-    with z.open("ords.war") as w:
-        names = zipfile.ZipFile(w).namelist()
-    for n in names:
-        m = re.search(r"ords-rest-services-([\d.]+)\.jar$", n)
-        if m:
-            print(m.group(1)); break
-ZIPPY
-}
-
-# _newest_zip BASE PATTERN – ZIP of the newest version directory under BASE
-_newest_zip() {
-    local d
-    d="$(ls -d "$1"/*/ 2>/dev/null | sed 's:/$::' | sort -V | tail -1)"
-    [ -n "$d" ] && ls "$d"/$2 2>/dev/null | head -1
-}
-
 APEX_ZIP_FILE="" ; APEX_VER="" ; ORDS_ZIP_FILE="" ; ORDS_VER=""
 if $DOWNLOAD_APEX; then
-    APEX_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
-    ORDS_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
+    APEX_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
+    ORDS_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
     [ -n "$APEX_ZIP_FILE" ] && APEX_VER="$(basename "$(dirname "$APEX_ZIP_FILE")")"
     [ -n "$ORDS_ZIP_FILE" ] && ORDS_VER="$(basename "$(dirname "$ORDS_ZIP_FILE")")"
     if [ -n "$APEX_ZIP_FILE" ]; then
@@ -824,47 +795,13 @@ fi
 # =============================================================================
 # Section 1d: APEX + ORDS from OTN (INSTALL_APEX=true) – "latest" ZIPs
 # =============================================================================
-# _otn_get KIND URL BASE SHA – download KIND (apex|ords) from URL into
-# BASE/<version>/; the "latest" links carry no version, it is read from the
-# ZIP. Skipped when the newest local ZIP has the size of the remote file.
-_otn_get() {
-    local kind="$1" url="$2" base="$3" sha="${4:-}" len cur part ver name
-    [ -n "$url" ] || { warn "$kind: no download URL configured (oracle_software_version.conf)"; return 1; }
-    len="$(curl -sIL -A 'Mozilla/5.0' --max-time 60 "$url" | tr -d '\r' | awk 'tolower($1)=="content-length:" {l=$2} END {print l}')"
-    cur="$(_newest_zip "$base" "$( [ "$kind" = apex ] && printf 'apex_*.zip' || printf 'ords-*.zip')")"
-    if [ -n "$cur" ] && [ -n "$len" ] && [ "$(stat -c %s "$cur")" = "$len" ]; then
-        ok "$(printf "%s: newest local ZIP has the remote size (%s bytes) – kept: %s" "$kind" "$len" "${cur#"$PATCH_STORAGE"/}")"
-        return 0
-    fi
-    mkdir -p "$base"
-    part="$base/.download_${kind}.part"
-    info "Downloading $url  (${len:-?} bytes)"
-    if ! curl -fsSL -A 'Mozilla/5.0' --max-time 1800 -o "$part" "$url"; then
-        rm -f "$part"; fail "$kind: download failed – $url"; return 1
-    fi
-    _is_zip "$part" || { rm -f "$part"; fail "$kind: not a ZIP – $url"; return 1; }
-    if [ -n "$sha" ]; then
-        _verify_sha256 "$part" "$sha" || { mv -f "$part" "${part%.part}.bad"; return 1; }
-    fi
-    ver="$(_zip_version "$kind" "$part")"
-    [ -n "$ver" ] || { rm -f "$part"; fail "$kind: version not found in the ZIP"; return 1; }
-    name="$( [ "$kind" = apex ] && printf 'apex_%s.zip' "$ver" || printf 'ords-%s.zip' "$ver")"
-    mkdir -p "$base/$ver"
-    if [ -f "$base/$ver/$name" ]; then
-        rm -f "$part"; ok "$kind $ver already present: ${base#"$PATCH_STORAGE"/}/$ver/$name"
-    else
-        mv -f "$part" "$base/$ver/$name" && ok "$(printf "%s %s stored: %s  (%s)" "$kind" "$ver" \
-            "${base#"$PATCH_STORAGE"/}/$ver/$name" "$(du -h "$base/$ver/$name" | cut -f1)")"
-    fi
-    return 0
-}
-
+# otn_get / otn_newest_zip / otn_zip_version: 00-Setup/IHateWeblogic_lib.sh
 if $DOWNLOAD_APEX; then
     section "APEX + ORDS (OTN, INSTALL_APEX=true)"
-    _otn_get apex "${APEX_ZIP_URL:-}" "$PATCH_STORAGE/apex" "${APEX_SHA256:-}" || EXIT_CODE=1
-    _otn_get ords "${ORDS_ZIP_URL:-}" "$PATCH_STORAGE/ords" "${ORDS_SHA256:-}" || EXIT_CODE=1
-    APEX_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
-    ORDS_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
+    otn_get apex "${APEX_ZIP_URL:-}" "$PATCH_STORAGE/apex" "${APEX_SHA256:-}" || EXIT_CODE=1
+    otn_get ords "${ORDS_ZIP_URL:-}" "$PATCH_STORAGE/ords" "${ORDS_SHA256:-}" || EXIT_CODE=1
+    APEX_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
+    ORDS_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
     APEX_VER="$( [ -n "$APEX_ZIP_FILE" ] && basename "$(dirname "$APEX_ZIP_FILE")")"
     ORDS_VER="$( [ -n "$ORDS_ZIP_FILE" ] && basename "$(dirname "$ORDS_ZIP_FILE")")"
     # Oracle: the ORDS version must be equal to or newer than the APEX version

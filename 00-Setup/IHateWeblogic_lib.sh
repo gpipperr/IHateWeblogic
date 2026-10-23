@@ -762,3 +762,138 @@ forms_client_icon_path() {
         *)  printf '%s\n' "$v" ;;
     esac
 }
+
+# -----------------------------------------------------------------------------
+# OTN downloads (no login) – APEX, ORDS, SQLcl, Instant Client
+# Used by 09-Install/04-oracle_pre_download.sh and
+# 00-Setup/install_db_client_tools.sh. Files go to <base>/<version>/.
+# -----------------------------------------------------------------------------
+
+# otn_zip_version KIND FILE – version inside a ZIP (nothing if unknown)
+#   apex : apex/images/apex_version.txt "Version: 26.2.0"   -> 26.2
+#   ords : WEB-INF/lib/ords-rest-services-<ver>.jar in ords.war
+#   sqlcl: sqlcl/bin/version.txt RELEASE=<ver>
+#   ic   : instantclient_*/*_README "Client Shared Library 64-bit - <ver>"
+otn_zip_version() {
+    python3 -I - "$1" "$2" <<'ZIPPY' 2>/dev/null
+import re, sys, zipfile
+kind, path = sys.argv[1], sys.argv[2]
+z = zipfile.ZipFile(path)
+if kind == "apex":
+    t = z.read("apex/images/apex_version.txt").decode("utf-8", "replace")
+    m = re.search(r"(\d+)\.(\d+)(?:\.\d+)?", t)
+    print("%s.%s" % m.groups() if m else "")
+elif kind == "ords":
+    with z.open("ords.war") as w:
+        for n in zipfile.ZipFile(w).namelist():
+            m = re.search(r"ords-rest-services-([\d.]+)\.jar$", n)
+            if m:
+                print(m.group(1)); break
+elif kind == "sqlcl":
+    t = z.read("sqlcl/bin/version.txt").decode("utf-8", "replace")
+    m = re.search(r"^RELEASE=([\d.]+)", t, re.M)
+    print(m.group(1) if m else "")
+elif kind == "ic":
+    for n in z.namelist():
+        if re.match(r"instantclient_[\d_]+/[A-Z_]+README$", n):
+            m = re.search(r"Client Shared Library 64-bit - ([\d.]+)", z.read(n).decode("utf-8", "replace"))
+            if m:
+                print(m.group(1)); break
+ZIPPY
+}
+
+# otn_newest_zip BASE PATTERN – ZIP of the newest version directory under BASE
+otn_newest_zip() {
+    local d
+    d="$(ls -d "$1"/*/ 2>/dev/null | sed 's:/$::' | sort -V | tail -1)"
+    [ -n "$d" ] && ls "$d"/$2 2>/dev/null | head -1
+}
+
+# otn_get KIND URL BASE [SHA256] [VERSION] – download URL into BASE/<ver>/.
+# KIND apex|ords|sqlcl names the file apex_<ver>.zip / ords-<ver>.zip /
+# sqlcl-<ver>.zip; KIND ic keeps the original file name (several packages per
+# version). Without VERSION it is read from the ZIP (otn_zip_version).
+# Skipped when the newest local ZIP of that name pattern has the remote size.
+# Sets OTN_FILE to the stored file. Returns 1 on error.
+otn_get() {
+    local kind="$1" url="$2" base="$3" sha="${4:-}" ver="${5:-}" len cur part name pat magic
+    OTN_FILE=""
+    [ -n "$url" ] || { warn "$kind: no download URL configured (oracle_software_version.conf)"; return 1; }
+    case "$kind" in
+        apex)  pat='apex_*.zip' ;;
+        ords)  pat='ords-*.zip' ;;
+        sqlcl) pat='sqlcl-*.zip' ;;
+        *)     pat="$(basename "${url%%\?*}")" ;;
+    esac
+    len="$(curl -sIL -A 'Mozilla/5.0' --max-time 60 "$url" | tr -d '\r' | awk 'tolower($1)=="content-length:" {l=$2} END {print l}')"
+    if [ -n "$ver" ]; then
+        cur="$(ls "$base/$ver"/$pat 2>/dev/null | head -1)"
+    else
+        cur="$(otn_newest_zip "$base" "$pat")"
+    fi
+    if [ -n "$cur" ] && [ -n "$len" ] && [ "$(stat -c %s "$cur")" = "$len" ]; then
+        OTN_FILE="$cur"
+        ok "$(printf "%s: local ZIP has the remote size (%s bytes) – kept: %s" "$kind" "$len" "${cur#"${PATCH_STORAGE:-}"/}")"
+        return 0
+    fi
+    mkdir -p "$base"
+    part="$base/.download_${kind}_$$.part"
+    info "Downloading $url  (${len:-?} bytes)"
+    if ! curl -fsSL -A 'Mozilla/5.0' --max-time 1800 -o "$part" "$url"; then
+        rm -f "$part"; fail "$kind: download failed – $url"; return 1
+    fi
+    magic="$(od -N4 -tx1 -An "$part" 2>/dev/null | tr -d ' \n')"
+    [ "$magic" = "504b0304" ] || { rm -f "$part"; fail "$kind: not a ZIP – $url"; return 1; }
+    if [ -n "$sha" ] && [ "$(sha256sum "$part" | cut -d' ' -f1)" != "${sha,,}" ]; then
+        mv -f "$part" "${part%.part}.bad"; fail "$kind: SHA-256 mismatch – $url"; return 1
+    fi
+    [ -n "$ver" ] || ver="$(otn_zip_version "$kind" "$part")"
+    [ -n "$ver" ] || { rm -f "$part"; fail "$kind: version not found in the ZIP"; return 1; }
+    case "$kind" in
+        apex)  name="apex_${ver}.zip" ;;
+        ords)  name="ords-${ver}.zip" ;;
+        sqlcl) name="sqlcl-${ver}.zip" ;;
+        *)     name="$pat" ;;
+    esac
+    mkdir -p "$base/$ver"
+    if [ -f "$base/$ver/$name" ]; then
+        rm -f "$part"; ok "$kind $ver already present: $base/$ver/$name"
+    else
+        mv -f "$part" "$base/$ver/$name" && ok "$(printf "%s %s stored: %s  (%s)" "$kind" "$ver" \
+            "$base/$ver/$name" "$(du -h "$base/$ver/$name" | cut -f1)")"
+    fi
+    OTN_FILE="$base/$ver/$name"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# SQL*Plus of the DB client tools (00-Setup/install_db_client_tools.sh)
+# ihw_sqlplus [sqlplus args] – Instant Client SQL*Plus with LD_LIBRARY_PATH,
+#   TNS_ADMIN, NLS_LANG; fallback: FMW $ORACLE_HOME/bin/sqlplus.
+# ihw_sql_sys ALIAS – reads SQL from stdin, runs it as SYS AS SYSDBA on ALIAS;
+#   the password comes from $IHW_SYS_PWD (never on the command line) and is
+#   sent as the first stdin line of sqlplus. Exit code = sqlplus exit code.
+# -----------------------------------------------------------------------------
+ihw_sqlplus() {
+    local bin="${SQLPLUS_BIN:-}" lib="${INSTANT_CLIENT_HOME:-}"
+    if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+        if [ -x "${ORACLE_HOME:-}/bin/sqlplus" ]; then
+            bin="$ORACLE_HOME/bin/sqlplus"; lib="$ORACLE_HOME/lib"
+        else
+            fail "No SQL*Plus – run 00-Setup/install_db_client_tools.sh --apply"; return 127
+        fi
+    fi
+    LD_LIBRARY_PATH="${lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        NLS_LANG="${IHW_NLS_LANG:-American_America.AL32UTF8}" TNS_ADMIN="${TNS_ADMIN:-}" \
+        "$bin" "$@"
+}
+
+ihw_sql_sys() {
+    local alias="$1"
+    [ -n "${IHW_SYS_PWD:-}" ] || { fail "ihw_sql_sys: IHW_SYS_PWD not set"; return 2; }
+    { printf 'connect sys/"%s"@%s as sysdba\n' "$IHW_SYS_PWD" "$alias"
+      printf 'whenever sqlerror exit sql.sqlcode\nset feedback off heading off pagesize 0 linesize 400 trimspool on serveroutput on\n'
+      cat
+      printf '\nexit\n'
+    } | ihw_sqlplus -L -S /nolog
+}
