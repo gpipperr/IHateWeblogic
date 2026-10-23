@@ -340,6 +340,32 @@ domain names, customer names or credentials (same rule as for commits).
 
 ---
 
+## Certificate expiry – cert_expiry_check.sh
+
+```bash
+./10-Monitoring/cert_expiry_check.sh                    # run the checks now
+./10-Monitoring/cert_expiry_check.sh --cron             # show the crontab line
+./10-Monitoring/cert_expiry_check.sh --cron --apply     # install it (daily 06:15)
+./10-Monitoring/cert_expiry_check.sh --cron --remove --apply
+journalctl -t ihw-cert                                  # WARN / FAIL entries
+```
+
+Monitor role: calls the read-only checks of `08-SSL` and keeps their exit
+codes, never `--apply`:
+
+| Check | What | Exit |
+|---|---|---|
+| `08-SSL/ssl_config.sh --expiry` | the certificate Nginx **serves** on `127.0.0.1:443` (the file in `/etc/nginx/ssl` is root-only) | 0 / 1 < 30 days / 2 expired |
+| `08-SSL/ssl_local_ca.sh status` | own root CA, server and code-signing certificate, chain, keystore – only if `SSL_CA_DIR/ca` exists | 0 / 1 missing, < 30 days, root < 365 days / 2 expired, broken |
+
+Exit of the wrapper = the highest of both; WARN / FAIL also go to the
+system journal (`logger -t ihw-cert`, priority warning / err) – the hook for
+a log monitor until the notification step exists. The crontab line carries
+the marker `# IHW cert_expiry_check` (install / update / remove are
+idempotent). Live 2026-10-23: both OK (server 819 days, code signing 1089,
+root 3644), same result with `env -i` (cron environment); installed in the
+oracle crontab of the test host.
+
 ## Idea: configuration security scanner for WebLogic / Forms / Reports
 
 **Status:** idea (2026-10-19) – not designed in detail yet.
@@ -378,6 +404,7 @@ building block – it already finds open sockets and the missing firewall
 | `claude_monitor.sh` | Orchestrator – runs the collection step, calls `claude_analyze.sh`, handles notification. Cron-friendly (no interactive prompts). |
 | `claude_analyze.sh` | Builds the prompt from collected findings + `monitor.conf`, calls the Claude API, parses the structured response. |
 | `cve_inventory.sh` | **implemented** – CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
+| `cert_expiry_check.sh` | **implemented** – daily certificate expiry check (cron), calls `08-SSL/ssl_config.sh --expiry` + `ssl_local_ca.sh status`, journal tag `ihw-cert` |
 | `cve_watch.sh` | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
 | `monitor.conf.template` | Committed template: thresholds, known-issue allow-list, notification target, run mode defaults. |
 | `monitor.conf` | **Gitignored** – server-specific config incl. API key reference. |
@@ -470,5 +497,6 @@ their logic. Repairs stay a human decision in 01–07.
 - Define retention policy for `reports/` (this directory will grow unbounded otherwise)
 - Idea: configuration security scanner for WebLogic / Forms / Reports (section above) – design + check list
 - CVE watch: `cve_inventory.sh` done (2026-10-19); next `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
+- ~~Scheduled certificate expiry check~~ – done 2026-10-23 (`cert_expiry_check.sh`, cron)
 - Uniform machine-readable output of the 01–07 scripts (report/JSON beside `print_summary`) as input for the collector – one format for all, not per script
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)

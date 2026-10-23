@@ -124,9 +124,24 @@ _cert_days_remaining() {
 # Check: Certificate expiry
 # =============================================================================
 _check_expiry() {
-    local cert_file="$1"
+    local cert_file="$1" served=""
 
-    if [ ! -f "$cert_file" ]; then
+    # /etc/nginx/ssl is root-only (700) - as oracle (cron) check the
+    # certificate Nginx really serves on 127.0.0.1:443 instead (2026-10-23)
+    if { [ -e "$cert_file" ] && [ ! -r "$cert_file" ]; } \
+       || { [ ! -e "$cert_file" ] && [ ! -r "$(dirname "$cert_file")" ]; }; then
+        served="$(mktemp)"
+        if echo | timeout 10 openssl s_client -connect 127.0.0.1:443 \
+                -servername "${WLS_SERVER_FQDN:-$(_get_hostname)}" 2>/dev/null \
+                | openssl x509 > "$served" 2>/dev/null && [ -s "$served" ]; then
+            info "$(printf "%s not readable as %s – checking the certificate Nginx serves on 127.0.0.1:443" "$cert_file" "$(id -un)")"
+            cert_file="$served"
+        else
+            rm -f "$served"
+            fail "Certificate not readable ($cert_file) and nothing served on 127.0.0.1:443"
+            return 2
+        fi
+    elif [ ! -f "$cert_file" ]; then
         fail "Certificate file not found: $cert_file"
         return 2
     fi
@@ -136,6 +151,7 @@ _check_expiry() {
     local end_date
     end_date="$(openssl x509 -noout -enddate -in "$cert_file" 2>/dev/null | cut -d= -f2)"
 
+    [ -n "$served" ] && rm -f "$served"
     if [ "$days" -lt 0 ]; then
         fail "$(printf "Certificate EXPIRED %d days ago (%s)" "$(( -days ))" "$end_date")"
         return 2
@@ -193,9 +209,7 @@ fi
 # --- 2. Certificate expiry ----------------------------------------------------
 section "Certificate Expiry"
 
-if [ -f "$NGINX_CERT" ]; then
-    _check_expiry "$NGINX_CERT"
-fi
+_check_expiry "$NGINX_CERT"
 
 # --- 3. Certificate details ---------------------------------------------------
 section "Certificate Details"

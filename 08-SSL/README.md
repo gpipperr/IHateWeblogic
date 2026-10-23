@@ -296,7 +296,7 @@ runtime is rebuilt with the CA inside (§5.5 there).
 | Protocol: TLS 1.2 + 1.3 available | `openssl s_client -tls1_2/3` | Handshake OK |
 | Nginx cipher config | `grep ssl_protocols nginx.conf` | No SSLv3/TLS1.0 |
 | WebLogic redirects behind Nginx | `config.xml`: `weblogic-plugin-enabled` / `frontend-host` | plugin enabled (OK) or Frontend Host = `SSL_CN`; WARN only if neither |
-| Certificate expiry warning | `openssl x509 -enddate` | Warn at < 30 days |
+| Certificate expiry warning | `openssl x509 -enddate` of `/etc/nginx/ssl/fullchain.pem`; that directory is root-only (700) – as oracle (cron) the script checks the certificate Nginx **serves** on `127.0.0.1:443` instead (`openssl s_client`, 2026-10-23; before: FAIL "file not found") | Warn at < 30 days |
 
 **Output:** ok / warn / fail per check + summary.
 Exit code 1 if expiry < 30 days, exit code 2 if expired or handshake fails.
@@ -413,6 +413,11 @@ cp 08-SSL/ssl.conf.template 08-SSL/ssl.conf
 ./08-SSL/ssl_config.sh --expiry
 # Exit 0 = OK, Exit 1 = expires in < 30 days, Exit 2 = expired
 ```
+
+Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
+`./10-Monitoring/cert_expiry_check.sh --cron --apply` – runs `ssl_config.sh
+--expiry` and `ssl_local_ca.sh status`
+([10-Monitoring/README.md](../10-Monitoring/README.md#certificate-expiry--cert_expiry_checksh)).
 
 ---
 
