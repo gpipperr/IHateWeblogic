@@ -21,7 +21,7 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[██████████████████░░]` ~92 % complete** (state 2026-10-23) – phases 1–7
+**`[██████████████████░░]` ~93 % complete** (state 2026-10-23) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -35,27 +35,32 @@ Forms session from a Windows client (alias login, test form). Since
 (an `--apply` in `05-` survives the next `13-`), backup retention
 (`backup_config.sh --keep`, `bak_cleanup.sh`) and a **loopback-only,
 clone-capable** installation (`02-Checks/clone_check.sh`, SSL demo ports off,
-Reports ORB on 127.0.0.1).
+Reports ORB on 127.0.0.1); in the evening the last own security / tuning
+items: Forms `maxRuntimeProcesses` from RAM, `engineResponseTimeOut` from
+measured run times, the Reports web-command test series (doc 81, Nginx
+block), `time-taken` in the Forms access log, a font test report in the
+smoke test and a daily certificate expiry check (cron).
 
-How the ~92 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
-(CVE watch step 1 done; `cve_watch.sh`, notification, config security
-scanner are concept); minus the [open items](#open-items--todo) – mainly
-the remaining client tests (update / offline / JACOB on Windows), switching the scripts to the CPU Oct 2026 patch set (see
-[Security & Patch Status](#security--patch-status)) and a few security
-hardening steps.
+How the ~93 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
+about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a third
+(CVE watch step 1 and the certificate expiry check done; `cve_watch.sh`,
+notification, config security scanner are concept); minus the
+[open items](#open-items--todo) – mainly switching the scripts to the CPU
+Oct 2026 patch set (see [Security & Patch Status](#security--patch-status)),
+the remaining client tests (update / offline / JACOB on Windows) and the
+questions to Oracle (bundled JDK, `frmweb` bind address).
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
-| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF); **one `TNS_ADMIN`** in `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`, `.bash_profile`, checked with `02-Checks/tns_admin_check.sh` incl. the running processes (2026-10-23); **Forms client distribution** `40-` + client templates – first Windows FSAL session 2026-10-23 ([concept 40](09-Install/docs/40-forms_client_distribution.md)) |
+| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`, web-command design tested 2026-10-23 – [doc 81](09-Install/docs/81-reports_rwservlet_security.md)), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF, font test report with `pdffonts` / `pdf_font_verify.sh`); **one `TNS_ADMIN`** in `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`, `.bash_profile`, checked with `02-Checks/tns_admin_check.sh` incl. the running processes (2026-10-23); **Forms client distribution** `40-` + client templates – first Windows FSAL session 2026-10-23 ([concept 40](09-Install/docs/40-forms_client_distribution.md)) |
 | 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
 | 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
-| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions` too) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
-| 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
+| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
+| 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
 | 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` |
-| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
+| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
@@ -234,6 +239,7 @@ operation with proactive, AI-assisted error analysis.
 │                                                                     │
 │  10-Monitoring/cve_inventory.sh    Installed components, patch      │
 │                                     cycle, JDKs, exposure, advisory │
+│  10-Monitoring/cert_expiry_check.sh Certificates, daily (cron)      │
 │  10-Monitoring/claude_monitor.sh   Collects diagnostic data from    │
 │                                     phases 3–7 (logs, SSL, fonts,   │
 │                                     Reports/Forms performance)      │
@@ -277,7 +283,7 @@ Rules across the folders:
 |---|---|
 | Phase 8 (Patches) | Scripts still on the CSPU Sep 2026 set (October set incl. FMW Infrastructure bundles documented, not yet in `05-`/`06-`); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
-| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall), Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
+| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); Nginx web-command block of the template not yet rolled out on the test host (root) – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
 
@@ -487,14 +493,15 @@ IHateWeblogic/
 │   ├── response_files/              – Silent-install response file templates
 │   │                                   (domain_config.py, fr_install.rsp, cgicmd.dat)
 │   ├── 15-deploy-test-report-forms_template.sh – Smoke test: minimal Forms module + Reports demo
-│   │                                   (verified 2026-10-16)
+│   │                                   + font test report (reports_templates/test_fonts.xml)
 │   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
 │                                       30-autostart, 40-client distribution, 80-security,
 │                                       90-validate, 99-deinstall)
 │
 ├── 10-Monitoring/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
-│   └── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
+│   ├── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
+│   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
@@ -685,6 +692,13 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > `01-Run/rwserver_status.sh` and `05-ReportsPerformance/engine_perf_analyse.sh`
 > call `getserverinfo` with `authid` (`--auth`, shared
 > `01-Run/reports_server_lib.sh`, since 2026-10-17 / 2026-10-19).
+>
+> **Test series 2026-10-23** ([doc 81 §7](09-Install/docs/81-reports_rwservlet_security.md)):
+> an **empty** `<identifier>` stops the Reports server from starting
+> (REP-50125, restart loop), a missing one locks every web command;
+> `webcommandaccess=L0` is not open, **`L2` opens every web command without
+> login – also through Nginx**. `rwserver_status.sh` checks all three; the
+> Nginx template blocks the admin web commands from outside.
 
 ## Open Items / TODO
 
@@ -772,12 +786,10 @@ CSPU Sep 2026 state is frozen in
   question to Oracle) and the Coherence cluster port + one port on the host
   IP (MOS 2420434.1 not read yet); the firewall closes them
   ([clone_golden_image.md](80-FMW-Architecture/clone_golden_image.md)).
-- [ ] **Forms `maxRuntimeProcesses`** unset (Oracle: DoS risk) – 14- /
-  interview should propose a value from RAM.
-- [ ] **Reports web commands / `<identifier>` / `webcommandaccess`** – tests
-  A–D and target design in
-  [`09-Install/docs/81-reports_rwservlet_security.md`](09-Install/docs/81-reports_rwservlet_security.md),
-  then align `13-`, doc 13, both cookbooks, `rwserver_status.sh`.
+- [ ] **Roll out the Nginx block of the admin web commands** on the test
+  host (`09-Install/04-root_nginx.sh --apply`, root) and check from outside:
+  `getserverinfo` → 403, `getjobid…` still reaches the servlet (template
+  tested with an own Nginx instance, 2026-10-23).
 - [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
   Reports server; SR draft local (`SR/`). Workaround: "Advanced Option" /
   WLST `grantAppRole`
@@ -799,23 +811,20 @@ CSPU Sep 2026 state is frozen in
   the KA1182 / CPU October 2026 patch-availability rows. **State
   2026-10-22:** the KA1182 of October 2026 (PDF) has no patch for the
   bundled JDK (only Java SE for `JDK_HOME`) → open an SR with the question.
-- [ ] **Reports `engineResponseTimeOut`** (hanging engines are never killed)
-  – evaluate a default with real report run times; engine tuning values
-  (`REPORTS_ENGINE_*` incl. `LIFE` / `MAX_IDLE` / `JVM_OPTIONS`) come from
-  `environment.conf` since 2026-10-23.
-- [ ] **Font check in the smoke test `15-`**: a font test report (Arial,
-  Helvetica, Times New Roman, Courier New, Tahoma, Liberation, DejaVu)
-  checked with `04-ReportsFonts/pdf_font_verify.sh`.
-- [ ] `time-taken` in the WLS_FORMS access log (response times for
-  `06-FormsDiag/forms_perf_analyse.sh`).
+- [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
+  both are proposals today (½ RAM / 64 MB per session; 30 min, measured
+  longest job 1 s on the test host) – re-check with
+  `06-FormsDiag/forms_perf_analyse.sh` and
+  `05-ReportsPerformance/engine_perf_analyse.sh` at the first customer.
 
 ### Monitoring (phase 9)
 
 - [ ] `10-Monitoring/cve_watch.sh` (risk matrix parser, fixture test),
   notification, Claude analysis, uniform machine-readable output of the
   01–07 scripts – [10-Monitoring/README.md](10-Monitoring/README.md).
-- [ ] Scheduled certificate expiry check (`08-SSL/ssl_local_ca.sh status`,
-  `ssl_config.sh --expiry` – exit codes are cron-ready).
+- [ ] Notification for the cron checks (`cert_expiry_check.sh` writes to
+  the journal `ihw-cert` today; mail / monitoring hook with the monitoring
+  concept).
 
 ### Customer feedback / watch
 
