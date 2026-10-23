@@ -14,22 +14,61 @@
                als der zuletzt eingespielte CPU/CSPU).
                Abschnitte im Text wie "(README 3.2a)" verweisen auf die
                Analyse README.md.
-  Ist-Stand Kunde (Inventar vom 2026-10-23, README 1a - Quelle: die
-               TESTMASCHINE; Produktion gleich aufgebaut, Sammellauf dort
-               steht noch aus):
-               Distribution "WebLogic Server for FMW 12.2.1.4.0" +
-               "Oracle Forms Reports 12.2.1.19.0", OPatch 13.9.4.2.11,
-               nur 8 Patches im Home (DB Client 19.14 + One-offs) - das
-               Home wurde seit der Installation praktisch nie gepatcht.
-               Alle Patches dieses Kochbuchs sind daher NEU fuer das Home.
-               Sammellauf 2026-10-23 (README 1a): OL 8.9 / glibc 2.28,
-               Reports laeuft auf der Maschine (QPR Pflicht), OHS ohs1 ist
-               konfiguriert (Schritt 9 Pflicht), die Reports-Engines laufen
-               mit dem JDK IM Home (oracle_common/jdk 8u341, Schritt 4).
-               Eine zweite Maschine ist gleich aufgebaut: das Kochbuch gilt
-               pro Maschine (jede hat ihr eigenes ORACLE_HOME, Inventory
-               und JDK) - nacheinander, Test zuerst, und SCHRITT 0 auf
-               jeder Maschine ausfuehren (Patchstand kann abweichen).
+================================================================================
+
+IST-STATUS TESTMASCHINE  (Sammellauf 2026-10-23 20:53, collect_fmw_env.sh
+                          2026-10-23.3, Details README.md Abschnitt 1a)
+--------------------------------------------------------------------------------
+  Produktion ist gleich aufgebaut, ihr Sammellauf steht noch aus (Freigabe).
+
+  Betriebssystem  Oracle Linux 8.9, glibc 2.28, 30 GB RAM, SELinux aus,
+                  Uptime 17 Wochen
+  Oracle Home     /oracle/product/mw - Distributionen "WebLogic Server for
+                  FMW 12.2.1.4.0" + "Oracle Forms Reports 12.2.1.19.0"
+                  -> SPB nur per napply (kein SPBAT)
+  OPatch          13.9.4.2.11 -> zu alt, Upgrade auf .25 ist Pflicht
+  Patches         nur 8 - das Home ist seit Mai 2024 nicht gepatcht:
+                    35007159 35007154 35005177 35005164  DB Client 19.14
+                        -> abgeloest durch DB Client 19.31 (39425385)
+                    36475988  Forms-Sammel-One-off April 2024
+                        -> abgeloest durch Forms-QPR 39888613
+                    33903365  LibOVD-Fix JDK 8u331 -> in LibOVD 39726402
+                    30613424  CVE-2021-2134 -> in FMW Control 39995014
+                    34290481  One-off Nov 2022 -> Zweck OFFEN
+  Komponenten     Forms; Reports (laeuft: rwserver + 2 Engines); OHS-
+                  Binaries + WebGate-Komponente; Instanz "ohs1" ist
+                  konfiguriert, laeuft aber NICHT
+  Domain          /oracle/user_projects/domains/fr_domain
+                  AdminServer 127.0.0.1:7001, WLS_FORMS 127.0.0.1:9001,
+                  WLS_REPORTS 127.0.0.1:9002, Node Manager 127.0.0.1:5556
+  Web-Tier        OS-Apache (httpd.service) UND Nginx laufen beide, Port
+                  80/443 offen - welcher Dienst Forms/Reports ausliefert
+                  und ob Apache das WebLogic-Plug-In (mod_wl_24) nutzt,
+                  ist OFFEN (Sammelskript ab 2026-10-23.4 liest es aus)
+  Java Server     /oracle/java/jdk = 1.8.0_411-b09, ein echtes
+                  Verzeichnis (kein Link) -> Schritt 4.4 Variante b
+  Java Reports    $ORACLE_HOME/oracle_common/jdk = 1.8.0_341-b10, damit
+                  laufen die Reports-Engines -> Schritt 4.7 (offen)
+  Repository-DB   lokal: Instanz REPOS, Home /oracle/product/19.32/db,
+                  Listener 127.0.0.1:1521 -> DB 19.32 ist von
+                  CVE-2026-75803 (RDBMS/OpenSSL, 9.8) betroffen -> DB RU
+                  19.33, eigener Patchlauf (nicht Teil dieses Kochbuchs)
+  ohs1-Config     bereits gehaertet: TLSv1.2, empfohlene GCM-Ciphers,
+                  ServerTokens None, HSTS, Security-Header; die Standard-
+                  index.html (mit Versionsangabe) liegt noch in htdocs
+
+  Folgen fuer dieses Kochbuch:
+  - Schritte 3-8 gelten vollstaendig (alles ist neu fuer das Home).
+  - Schritt 4: Variante b (jdk-Verzeichnis einmalig zum Link machen).
+  - Schritt 8: Reports-QPR ist Pflicht; glibc 2.28 -> KB873815 trifft
+    nicht zu.
+  - Schritt 9: OHS-Patches einspielen (Binaries liegen im Home); die
+    Haertung 9.1 nur, wenn ohs1 wieder genutzt wird.
+  - Neu zu klaeren: das Web-Tier (Apache / Nginx) - nutzt Apache das
+    WebLogic-Plug-In, gilt zusaetzlich der KA1182-Tab "WebLogic Proxy
+    Plug-In" (CVE-2026-83379 / -87300, 8.7) und die WL*-Direktiven aus
+    KB187736 auch fuer mod_wl_24.
+
 ================================================================================
 
 VORAUSSETZUNGEN

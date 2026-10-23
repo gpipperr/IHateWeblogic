@@ -26,7 +26,7 @@
 
 set -u
 umask 077
-VERSION="2026-10-23.3"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-10-23.4"   # bump on every change – shown in 00_summary.txt
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
 while [ $# -gt 0 ]; do
@@ -251,6 +251,16 @@ for d in "${TNS_ADMIN:-}" "$DH/config/fmwconfig" "$OH/network/admin"; do
 done
 runsh 60_net.txt "Web server in front (nginx / httpd / OHS)" \
     "command -v nginx httpd apachectl 2>/dev/null; ls -d /etc/nginx /etc/httpd '$DH'/config/fmwconfig/components/OHS 2>/dev/null"
+# OS web servers in front of WebLogic (configuration is usually world-readable;
+# what the oracle user cannot read is reported, not forced)
+runsh 61_webserver.txt "Versions" "nginx -v 2>&1; httpd -v 2>&1; rpm -q nginx httpd mod_ssl 2>&1"
+runsh 61_webserver.txt "Which process owns 80 / 443 (needs root to show the pid)" "ss -ltnp 2>/dev/null | grep -E ':(80|443|8080|8443|7777|4443) '"
+runsh 61_webserver.txt "WebLogic proxy plug-in for Apache (mod_wl*)" "ls -l /etc/httpd/modules/mod_wl* /usr/lib64/httpd/modules/mod_wl* 2>&1; grep -rl 'weblogic_module\|mod_wl' /etc/httpd 2>/dev/null"
+for f in /etc/httpd/conf/httpd.conf /etc/httpd/conf.d/*.conf /etc/httpd/conf.modules.d/*.conf \
+         /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf /etc/nginx/default.d/*.conf; do
+    [ -e "$f" ] || continue
+    if [ -r "$f" ]; then copy 61_webserver.txt "$f"; else printf '### not readable: %s\n' "$f" >> "$OUT/61_webserver.txt"; fi
+done
 
 # =============================================================================
 # 7. Logs (sizes always, error lines only with --logs)
