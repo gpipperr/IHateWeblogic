@@ -1,0 +1,34 @@
+# =============================================================================
+# ords@.service – one systemd template unit for all ORDS instances
+#   %i = ords_1, ords_2 (home $APEX_ORDS_BASE/%i, config %i/config)
+# Rendered by 12-APEX-Ords/04-install-ords.sh -> /etc/systemd/system/ords@.service
+#   ##ORDS_BASE##   APEX_ORDS_BASE        ##JDK_HOME##  JDK_HOME (Oracle JDK)
+#   ##HEAP##        ORDS_JAVA_HEAP        ##LOG_BASE##  ORDS_LOG_BASE
+#   ##TNS_ADMIN##   TNS_ADMIN (pool via TNS alias)
+# ORDS rotates its own logs; stdout / stderr stay almost empty.
+# Oracle's own unit (linux-support/ords.service of the ZIP) serves one
+# instance from /etc/ords/ords.conf – this template serves several.
+# =============================================================================
+[Unit]
+Description=Oracle REST Data Services %i (standalone, Jetty)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oracle
+Group=oinstall
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:##LOG_BASE##/%i/ords_stdout.log
+StandardError=append:##LOG_BASE##/%i/ords_stderr.log
+SyslogIdentifier=%i
+Environment=JAVA_HOME=##JDK_HOME##
+Environment=TNS_ADMIN=##TNS_ADMIN##
+Environment="_JAVA_OPTIONS=-Xms##HEAP## -Xmx##HEAP## -XX:+UseG1GC -Djava.util.logging.config.file=##ORDS_BASE##/%i/config/global/logging.properties"
+ExecStart=##ORDS_BASE##/%i/ords/bin/ords --config ##ORDS_BASE##/%i/config serve
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

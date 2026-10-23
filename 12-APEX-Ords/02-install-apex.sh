@@ -2,19 +2,20 @@
 # =============================================================================
 # Script   : 02-install-apex.sh
 # Purpose  : Install (or upgrade) Oracle APEX into the PDB of an ORDS instance:
-#              1. unpack apex_<ver>.zip (+ patch set bundle) from the patch
-#                 storage into $APEX_SW_BASE/APEX_<ver>
+#              1. unpack apex_<ver>.zip from the patch storage into
+#                 $APEX_SW_BASE/APEX_<ver>
 #              2. state: same version VALID = skip apexins, older = upgrade
 #                 (confirmation), none = new installation
 #              3. apexins.sql as SYS in the PDB (TS, TS, TEMP, IMAGE_PREFIX)
-#              4. patch: catpatch.sql + utlrp.sql (APEX_PATCH_NR)
+#              4. (patch set bundle: 03-patch-apex.sh)
 #              5. ADMIN (apxchpwd.sql), APEX_REST_PUBLIC_USER
 #                 (apex_rest_config.sql) – APEX 26.2: no APEX_LISTENER,
 #                 APEX_PUBLIC_USER stays without password (proxy only)
 #              6. language packs (APEX_LANGUAGES)
 #              7. images -> $APEX_WEB_DIR/APEX_<ver>/, link apex_<N>
 #            Passwords: SYS from db_sys_sec.conf.des3, ADMIN + REST user in
-#            apex_sec.conf.des3 (generated if missing) – never printed.
+#            apex_sec.conf.des3 (generated if missing, merged) – never printed.
+#            Runtime accounts get the profile APEX_DB_PROFILE (no expiry).
 # Call     : ./12-APEX-Ords/02-install-apex.sh [--apply] [--instance N] [--sys-sec FILE]
 #            [--languages] (load the language packs again)
 # Runs as  : oracle
@@ -42,6 +43,8 @@ check_env_conf "$ENV_CONF" || exit 2
 source "$ENV_CONF"
 # shellcheck source=../09-Install/oracle_software_version.conf
 [ -f "$SW_CONF" ] && source "$SW_CONF"
+# shellcheck source=apex_ords_lib.sh
+source "$SCRIPT_DIR/apex_ords_lib.sh"
 
 init_log
 
@@ -89,28 +92,8 @@ load_secrets_file "$SYS_SEC" > /dev/null 2>&1
 IHW_SYS_PWD="${DB_SYS_PWD:-}"; unset DB_SYS_PWD DB_SCHEMA_PWD
 [ -n "$IHW_SYS_PWD" ] || { fail "SYS password not found in $SYS_SEC (DB_SYS_PWD)"; print_summary; exit 2; }
 
-_q() { printf '%s\n' "$1" | ihw_sql_sys "$ALIAS" 2>&1; }
 
-# _run_sql_file DIR LOG "SQL lines" – SQL*Plus in DIR (the APEX scripts use
-# relative @@ paths), connected as SYS, with spool LOG; input after the connect
-# line comes from the third argument (answers to ACCEPT prompts included).
-# LOG "-" = no spool, output on stdout – for scripts fed with a password
-# (SQL*Plus echoes a misread input line in SP2-0734, it must not reach a file).
-# Answers: SQL*Plus skips EMPTY stdin lines at an ACCEPT – never send "" for
-# "take the default", always the value itself.
-_run_sql_file() {
-    local dir="$1" log="$2" body="$3"
-    ( cd "$dir" || exit 1
-      { printf 'connect sys/"%s"@%s as sysdba\n' "$IHW_SYS_PWD" "$ALIAS"
-        [ "$log" = "-" ] || printf 'spool %s append\n' "$log"
-        printf '%s\n' "$body"
-        [ "$log" = "-" ] || printf 'spool off\n'
-        printf 'exit\n'
-      } | if [ "$log" = "-" ]; then ihw_sqlplus -L /nolog 2>&1; else ihw_sqlplus -L /nolog > /dev/null 2>&1; fi )
-}
-
-# _sql_errors OUTPUT – only the error codes (ORA-/SP2-/PLS-), never the text
-_sql_errors() { printf '%s\n' "$1" | grep -oE '(ORA|SP2|PLS)-[0-9]+' | sort -u | tr '\n' ' '; }
+# _run_sql_file / _sql_errors: apex_ords_lib.sh
 
 # =============================================================================
 # 0. Prerequisites
@@ -166,17 +149,6 @@ else
     mkdir -p "$SW_BASE/APEX_${VER}" && unzip -q -o "$APEX_ZIP" -d "$SW_BASE/APEX_${VER}" \
         && ok "unpacked: $APEX_HOME" || { fail "unzip failed"; print_summary; exit 2; }
 fi
-PATCH_HOME=""
-if [ -n "${APEX_PATCH_NR:-}" ]; then
-    _pz="$(ls "$PATCH_STORAGE/apex/$VER/patch/$APEX_PATCH_NR"/p"${APEX_PATCH_NR}"_*.zip 2>/dev/null | head -1)"
-    if [ -n "$_pz" ]; then
-        PATCH_HOME="$SW_BASE/APEX_${VER}_patch_${APEX_PATCH_NR}"
-        [ -d "$PATCH_HOME" ] || { mkdir -p "$PATCH_HOME" && unzip -q -o "$_pz" -d "$PATCH_HOME"; }
-        ok "patch $APEX_PATCH_NR unpacked: $PATCH_HOME"
-    else
-        warn "APEX_PATCH_NR=$APEX_PATCH_NR but no ZIP – 04-oracle_pre_download.sh --apply --mos"
-    fi
-fi
 
 # =============================================================================
 # 2. apexins.sql (install / upgrade)
@@ -197,22 +169,6 @@ if [ "$MODE" = "install" ] || [ "$MODE" = "upgrade" ]; then
 fi
 
 # =============================================================================
-# 3. Patch set bundle
-# =============================================================================
-if [ -n "$PATCH_HOME" ]; then
-    section "Patch set bundle $APEX_PATCH_NR"
-    _cp="$(find "$PATCH_HOME" -maxdepth 2 -name catpatch.sql | head -1)"
-    if [ -z "$_cp" ]; then
-        warn "catpatch.sql not found in $PATCH_HOME"
-    else
-        _run_sql_file "$(dirname "$_cp")" "$SQLLOG" "@catpatch.sql
-@?/rdbms/admin/utlrp.sql"
-        _q "select 'PATCH|'||patch_version||'|'||to_char(installed_on,'YYYY-MM-DD') from apex_patches;" \
-            | sed -n 's/^PATCH|//p' | while IFS='|' read -r _pv _on; do ok "APEX patch $_pv installed $_on"; done
-    fi
-fi
-
-# =============================================================================
 # 4. Accounts (APEX 26.2): ADMIN + APEX_REST_PUBLIC_USER
 # =============================================================================
 section "Accounts"
@@ -222,7 +178,7 @@ NEW_SEC=false
 [ -n "${APEX_ADMIN_PWD:-}" ] || { APEX_ADMIN_PWD="$(_gen)"; NEW_SEC=true; warn "No APEX ADMIN password in $(basename "$APEX_SEC") – generated a random one"; }
 [ -n "${APEX_REST_PUBLIC_PWD:-}" ] || { APEX_REST_PUBLIC_PWD="Ar$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-20)7"; NEW_SEC=true; }
 if $NEW_SEC; then
-    _write_secrets_file "$APEX_SEC" "APEX_ADMIN_USER=ADMIN" "APEX_ADMIN_PWD=$APEX_ADMIN_PWD" \
+    merge_secrets_file "$APEX_SEC" "APEX_ADMIN_USER=ADMIN" "APEX_ADMIN_PWD=$APEX_ADMIN_PWD" \
         "APEX_REST_PUBLIC_PWD=$APEX_REST_PUBLIC_PWD" > /dev/null \
         && ok "passwords stored: $(basename "$APEX_SEC")" || fail "cannot write $APEX_SEC"
     info "  show: bash -c 'source 00-Setup/IHateWeblogic_lib.sh; load_secrets_file $APEX_SEC; printf \"%s\\n\" \"\$APEX_ADMIN_PWD\"'"
@@ -284,6 +240,8 @@ alter user APEX_REST_PUBLIC_USER identified by \"${APEX_REST_PUBLIC_PWD//\"/}\";
 fi
 info "APEX_PUBLIC_USER stays without password (26.2 – ORDS reaches it through the proxy right)"
 unset APEX_ADMIN_PWD APEX_REST_PUBLIC_PWD
+# runtime accounts: profile without expiry / lock-out (01-prepare-database.sh)
+apex_profile_run assign
 
 # =============================================================================
 # 5. Language packs
@@ -315,13 +273,17 @@ else
     mkdir -p "$IMG_DIR" && cp -r "$APEX_HOME/images/." "$IMG_DIR/" \
         && ok "copied: $IMG_DIR ($(du -sh "$IMG_DIR" | cut -f1))" || fail "copy to $IMG_DIR failed"
 fi
-if [ -n "$PATCH_HOME" ]; then
-    _pi="$(find "$PATCH_HOME" -maxdepth 2 -type d -name images | head -1)"
-    [ -n "$_pi" ] && cp -r "$_pi/." "$IMG_DIR/" && ok "patch images copied over $IMG_DIR"
-fi
 chmod -R u=rwX,go=rX "$IMG_DIR"
-ln -sfn "APEX_${VER}" "$WEB/apex_${INST}" && ok "link $WEB/apex_${INST} -> APEX_${VER}"
+# keep a link to a patched copy of the same release (APEX_<ver>_p<nr>, 03-)
+_cur="$(readlink "$WEB/apex_${INST}" 2>/dev/null)"
+if [[ "$_cur" == "APEX_${VER}"* ]]; then
+    ok "link $WEB/apex_${INST} -> $_cur (kept)"
+else
+    ln -sfn "APEX_${VER}" "$WEB/apex_${INST}" && ok "link $WEB/apex_${INST} -> APEX_${VER}${_cur:+ (was $_cur)}"
+fi
 info "Nginx: location ${IMGPR} { alias $WEB/apex_${INST}/; }  (12-APEX-Ords/README.md §5.7)"
+
+[ -n "${APEX_PATCH_NR:-}" ] && info "Next: 12-APEX-Ords/03-patch-apex.sh --apply (APEX_PATCH_NR=$APEX_PATCH_NR)"
 
 IHW_SYS_PWD=""
 printLine

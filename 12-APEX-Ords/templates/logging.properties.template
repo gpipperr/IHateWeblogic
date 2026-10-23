@@ -1,0 +1,15 @@
+# =============================================================================
+# java.util.logging of one ORDS instance – rendered by 04-install-ords.sh to
+# $APEX_ORDS_BASE/ords_N/config/global/logging.properties
+#   ##LOG_DIR##  ORDS_LOG_BASE/ords_N
+# FileHandler rotates itself: 5 files x 10 MB (%g = generation)
+# =============================================================================
+handlers=java.util.logging.FileHandler
+.level=WARNING
+java.util.logging.FileHandler.pattern=##LOG_DIR##/ords_sys_%g.log
+java.util.logging.FileHandler.limit=10485760
+java.util.logging.FileHandler.count=5
+java.util.logging.FileHandler.append=true
+java.util.logging.FileHandler.formatter=java.util.logging.SimpleFormatter
+java.util.logging.SimpleFormatter.format=%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$-6s %2$s %5$s%6$s%n
+oracle.dbtools.level=WARNING
