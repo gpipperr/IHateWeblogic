@@ -130,6 +130,20 @@ server {
     #@FORMS_CLIENT_END@
 
     # --- Oracle Reports (/reports) ----------------------------------------
+    # --- Reports admin web commands: localhost + admin network only -------
+    # getserverinfo / showjobs / showenv / showmap show server, job and
+    # environment details, killjobid / stopserver change state; status checks
+    # of the scripts call 127.0.0.1:<WLS_REPORTS_PORT> directly. Users keep
+    # getjobid / showjobid / showmyjobs (fetch their own results).
+    # (09-Install/docs/81-reports_rwservlet_security.md, 2026-10-23)
+    location ~* ^/reports/rwservlet/(getserverinfo|showjobs|showenv|showmap|showauth|delauth|killjobid|parsequery|stopserver) {
+        allow 127.0.0.1;
+        allow ##ADMIN_IP_RANGE##;
+        deny  all;
+        proxy_pass http://wls_reports;
+        proxy_cookie_path /reports /reports;
+    }
+
     location /reports/ {
         proxy_pass http://wls_reports;
         proxy_cookie_path /reports /reports;

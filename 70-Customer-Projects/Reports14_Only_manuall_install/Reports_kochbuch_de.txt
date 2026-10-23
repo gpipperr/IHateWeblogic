@@ -892,8 +892,11 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   export REPORTS_NLS_LANG=GERMAN_GERMANY.AL32UTF8   # an den DB-Zeichensatz anpassen
   # Server-Administrator des Reports-Servers (<identifier> in rwserver.conf,
   # authid fuer getserverinfo/showjobs - siehe 9.11). Kennwort hier SELBST
-  # festlegen, nicht den Beispielwert uebernehmen:
-  export REPORTS_IDENTIFIER=rep_admin/<IDENTIFIER_PASSWORD>
+  # festlegen, nicht den Beispielwert uebernehmen. NIE leer lassen: ein
+  # leerer <identifier> verhindert den Start des Reports-Servers (REP-50125
+  # NullPointerException, Neustart-Schleife - getestet 2026-10-23).
+  # Nur Buchstaben und Ziffern (kein / & < > " ' Leerzeichen):
+  export REPORTS_IDENTIFIER="rep_admin/<IDENTIFIER_PASSWORD>"
 
 
   # unter $TNS_ADMIN die Firmen-tnsnames.ora und sqlnet.ora ablegen, z.B.
@@ -965,11 +968,15 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # Erwartet: in allen drei Ausgaben dieselbe Portnummer
   # (port="${REPORTS_BROADCAST_PORT}")
 
-  # 9.6 rwservlet.properties - BEWUSST zunaechst OFFEN betrieben (kein
-  #     Login, keine Rolle noetig), damit der Funktionstest in 9.11
-  #     garantiert funktioniert, auch wenn die Benutzer/Rollen/Policies aus
-  #     Schritt 8 noch nicht perfekt sitzen. Haertung ist ein SEPARATER,
-  #     spaeterer Schritt - siehe Hinweis direkt im Anschluss.
+  # 9.6 rwservlet.properties - gleich mit den Betriebswerten:
+  #     singlesignon=yes, webcommandaccess=L1. Ein "offener" erster Test
+  #     ist damit nicht noetig und auch nicht moeglich (getestet 2026-10-23):
+  #       - L0 ist NICHT offen, es verhaelt sich wie L1.
+  #       - L2 oeffnet ALLE Web-Befehle (getserverinfo, showjobs, showenv,
+  #         showmap, killjobid) OHNE Anmeldung - auch ueber Nginx von
+  #         aussen. NIE verwenden.
+  #     Der Funktionstest in 9.11 laeuft mit monUser oder dem
+  #     Server-Administrator aus <identifier>.
   #     REPORTS_COOKIE_KEY aus 9.2 notieren und bei JEDEM spaeteren
   #     Neuschreiben dieser Datei wiederverwenden (nicht neu erzeugen).
   cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$(date +%Y%m%d_%H%M%S)
@@ -978,9 +985,9 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 <rwservlet xmlns="http://xmlns.oracle.com/reports/rwservlet"
            xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <server>${REPORTS_SERVER_NAME}</server>
-  <singlesignon>no</singlesignon>
+  <singlesignon>yes</singlesignon>
   <inprocess>no</inprocess>
-  <webcommandaccess>L0</webcommandaccess>
+  <webcommandaccess>L1</webcommandaccess>
   <cookie cookieexpire="30" encryptionkey="${REPORTS_COOKIE_KEY}"/>
 </rwservlet>
 EOF
@@ -988,17 +995,9 @@ EOF
   # Kontrolle
  cat $REPORTS_APP_CONF/rwservlet.properties
 
-  # Haertung (SPAETER, erst wenn 9.11 erfolgreich lief UND die
-  # Benutzer/Rollen/Policies aus Schritt 8 getestet funktionieren - nicht
-  # vorher, sonst verhindert eine falsch konfigurierte Rolle sofort jeden
-  # Zugriff und es ist nicht mehr erkennbar, ob der Server oder die
-  # Security-Konfiguration die Ursache ist):
-  #   <singlesignon>yes</singlesignon>  statt no
-  #   <webcommandaccess>L1</webcommandaccess>  statt L0
-  # Datei erneut per "cat > ..." mit diesen zwei geaenderten Werten
-  # schreiben (Backup vorher), danach $WLS_MANAGED_SERVER neu starten.
-  # Erst AB DANN verlangt getserverinfo zwingend einen authid-Parameter
-  # (wie in Schritt 8 vorbereitet).
+  # Erwartet: singlesignon yes, webcommandaccess L1. Danach
+  # $WLS_MANAGED_SERVER neu starten. getserverinfo/showjobs verlangen ab
+  # jetzt einen authid-Parameter (Schritt 8 / 9.11).
 
   # 9.7 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
   #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
@@ -1007,6 +1006,9 @@ EOF
   #     Die Oracle-Platzhalter "$$Self.proxyHost$$" usw. sind deshalb mit
   #     "\$" geschrieben, sonst ersetzt die Shell "$$" durch eine Prozessnummer.
 
+  # Pflicht: ohne REPORTS_IDENTIFIER (9.2) NICHT weitermachen - ein leerer
+  # <identifier> laesst den Reports-Server nicht starten (REP-50125):
+  : "${REPORTS_IDENTIFIER:?REPORTS_IDENTIFIER ist leer - erst Schritt 9.2 ausfuehren}"
   # Kontrolle vorab - keine Zeile darf leer sein:
   echo "RWSERVER_CONF=$RWSERVER_CONF"
   echo "REPORTS_PATH=$REPORTS_PATH  REPORTS_TMP=$REPORTS_TMP  TNS_ADMIN=$TNS_ADMIN"
@@ -1317,6 +1319,8 @@ EOF
 
   # Ueber Nginx/SSL (aus FMW_Kochbuch_de.txt):
   curl -k "https://${WLS_SERVER_FQDN}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
+  # Erwartet: HTTP 499 (Anmeldung noetig); nach Reports_security.txt 2.3
+  # (Verwaltungsbefehle von aussen gesperrt) HTTP 403 - beides richtig.
 
 
 ================================================================================
@@ -1450,6 +1454,15 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: in rwserver.conf (Schritt 9.7)
              value="-Djobid=random -DORBWaitForResponseTimeout=999999999"
            setzen, repServer neu starten
+
+  Problem: Reports-Server startet staendig neu, getserverinfo meldet
+           "REP-51002 Bind to Reports Server ... failed", im
+           rwserver_diagnostic.log "REP-50125 ... NullPointerException ...
+           Element.getFirstChild() is null" (ServerConfig.open)
+  Ursache: <identifier> in rwserver.conf ist LEER (z.B. REPORTS_IDENTIFIER
+           in 9.2 nicht gesetzt, nur ab 9.7 kopiert) - getestet 2026-10-23
+  Loesung: <identifier encrypted="no">rep_admin/<KENNWORT></identifier>
+           eintragen (9.2 + 9.7), repServer neu starten
 
   Problem: getserverinfo/showjobs liefern "REP-52262 Diagnostic output is
            disabled" - auch mit authid=monUser/... oder weblogic/...

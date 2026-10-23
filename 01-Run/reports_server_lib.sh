@@ -280,7 +280,11 @@ rws_fetch_serverinfo() {
     RWS_HTTP_XML="$(cat "$tmp" 2>/dev/null)"
     rm -f "$tmp"
     RWS_REP_ERR="$(printf '%s' "$RWS_HTTP_XML" | sed -n 's/.*<error code="\([0-9]*\)"[^>]*message="\([^"]*\)".*/REP-\1 \2/p' | head -1)"
-    [ -z "$RWS_REP_ERR" ] && RWS_REP_ERR="$(printf '%s' "$RWS_HTTP_XML" | grep -o 'REP-[0-9]*[^<]\{0,80\}' | head -1)"
+    # fallback only for answers without content - showjobs lists the REP- of
+    # old failed jobs in <status>, that is no error of the command (2026-10-23)
+    if [ -z "$RWS_REP_ERR" ] && ! printf '%s' "$RWS_HTTP_XML" | grep -q '<serverInfo\|<job '; then
+        RWS_REP_ERR="$(printf '%s' "$RWS_HTTP_XML" | grep -o 'REP-[0-9]*[^<]\{0,80\}' | head -1)"
+    fi
     return 0
 }
 
@@ -295,6 +299,7 @@ rws_http_verdict() {
                     REP-52262*) info "  Diagnostic output disabled for this user – unsecured server: use --auth admin (<identifier>); secured: monUser needs RW_MONITOR" ;;
                     REP-50171*) info "  Authentication failed – wrong password in the .des3 file, or (securityId without LDAP identity store) see doc 13 Step 5a" ;;
                     REP-56071*) info "  User not authorized for web commands – role RW_MONITOR / WebCommandPermission missing (12-oracle_reports_users.sh)" ;;
+                    REP-51002*) info "  Reports server not reachable – not started, or restarting in a loop (empty <identifier>: REP-50125 NullPointerException in rwserver_diagnostic.log)" ;;
                 esac
                 return 1
             fi

@@ -285,7 +285,7 @@ $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/co
 | `<server>` | `repserver_ent` | Name of the standalone Reports Server instance |
 | `<singlesignon>` | `yes` | Use WebLogic SSO |
 | `<inprocess>` | `no` | Use standalone server, not in-process servlet |
-| `<webcommandaccess>` | `L1` | Restrict web commands to authenticated users |
+| `<webcommandaccess>` | `L1` | Web commands only with `authid` (secured server: role, e.g. `monUser`; unsecured: the `<identifier>` admin). `L0` behaves the same; **never `L2`** – every web command without login, also through Nginx (tested 2026-10-23, [81-reports_rwservlet_security.md](81-reports_rwservlet_security.md) §7) |
 | `encryptionkey` | random string | Session cookie encryption; generate once and keep stable |
 
 ### Alternative: Configure via Enterprise Manager MBean Browser

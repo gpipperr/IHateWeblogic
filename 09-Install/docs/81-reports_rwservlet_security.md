@@ -1,9 +1,10 @@
 # Reports Servlet Security – web commands, `<identifier>`, `webcommandaccess`
 
-**Status:** analysis 2026-10-15; **test D done 2026-10-16** – the secured
-server works once the JSE identity store points to the WebLogic LDAP, see
-[80-FMW-Architecture/reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md)
-and `13-` Step 5a (`REPORTS_SECURITY=ldap`). Tests A–C still open.
+**Status:** analysis 2026-10-15; test D 2026-10-16 (secured server works
+once the JSE identity store points to the WebLogic LDAP, see
+[80-FMW-Architecture/reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md),
+`13-` Step 5a); **tests A–C and the full matrix done 2026-10-23 (section 7),
+design decided (section 6), artifacts aligned (section 3).**
 The findings below come from the live rebuild on Oracle Linux 9 / FMW 14.1.2
 (CSPU Sep 2026, Reports QPR 39600348) and from the bytecode of
 `oracle.reports.rwclient.CommandManager` (`reports/jlib/rwrun.jar`). The test
@@ -68,34 +69,46 @@ Consequences:
 
 ---
 
-## 3. Current state per artifact (to be corrected)
+## 3. State per artifact (aligned 2026-10-23)
 
-| Artifact | Current content | Problem |
-|---|---|---|
-| `09-Install/13-oracle_setup_reports.sh` | writes `<identifier>` from `reports_admin_sec.conf.des3` (fixed 2026-10-16, before: fixed demo password `rep_admin/wls_team`), `rwservlet.properties` with `singlesignon=yes`, `webcommandaccess=L1` | hardened from the start, no "open" first test |
-| Reports cookbook 9.2 / 9.7 | `REPORTS_IDENTIFIER` set in 9.2, used in 9.7 | copying only from 9.7 → empty `<identifier>`; no quotes around the value (special characters) |
-| Reports cookbook 9.6 | `webcommandaccess=L0`, `singlesignon=no`, comment "open" | L0 is not open (2.1) |
-| Reports cookbook 9.11, start/stop cookbook 0.2 | `getserverinfo … authid=<identifier>` | correct for the current design, but depends on the open decision |
-| Reports cookbook Schritt 8 (monUser verification) | `authid=monUser/…` | only works with a secure server |
-| `01-Run/rwserver_status.sh` | `getserverinfo` without `authid` | gets `REP-52262` |
+| Artifact | State |
+|---|---|
+| `09-Install/13-oracle_setup_reports.sh` | `REPORTS_SECURITY=ldap` (default): `securityId` on the report job; `<identifier>` always from `reports_admin_sec.conf.des3` (random if missing) – FAIL if no password, never an empty element; `rwservlet.properties` `singlesignon=yes`, `webcommandaccess=L1`; info "never L2" in identifier mode |
+| `01-Run/rwserver_status.sh` | `--auth auto` (monUser for ldap, else the `<identifier>` admin) since 2026-10-17; new section **Web Command Security**: `securityId`, `<identifier>` missing (WARN, test A) / empty (FAIL, test B) / encrypted, `webcommandaccess` not `no`/`L0`/`L1` (FAIL, test C); hint for `REP-51002` |
+| `01-Run/reports_server_lib.sh` | REP errors only from `<error code=…>` – the `REP-` of old failed jobs in `showjobs` no longer counts as a command error |
+| `09-Install/nginx-wls.conf.template`, doc 04 | admin web commands (`getserverinfo`, `showjobs`, `showenv`, `showmap`, `showauth`, `delauth`, `killjobid`, `parsequery`, `stopserver`) only from `127.0.0.1` + `ADMIN_IP_RANGE`; `getjobid` / `showjobid` / `showmyjobs` stay open (Forms `RUN_REPORT_OBJECT` + `WEB.SHOW_DOCUMENT`) – tested with an own Nginx instance (403 / pass) |
+| Reports cookbook 9.2 / 9.6 / 9.7 / 9.11 / Bekannte Probleme | 9.2: value quoted, "never empty"; 9.6 writes `singlesignon=yes` + `L1` directly ("L0 is not open, never L2"); 9.7 aborts on an empty `REPORTS_IDENTIFIER` (`${VAR:?}`); 9.11 Nginx check expects 499 / 403; new problem entry "empty `<identifier>`" |
+| `Reports_security.txt` (cookbook) | step 7: tested behaviour of a missing / empty `<identifier>`; step 8: L0 = L1, L2 open, monUser vs. admin; 2.3: keep `getjobid` open for Forms; open point removed |
+| start/stop cookbook 0.2 | `getserverinfo … authid=<identifier>` – correct (admin works in both modes) |
 
 ---
 
-## 4. Open questions
+## 4. Questions – answered 2026-10-23 (section 7)
 
-1. What happens when `<identifier>` is **missing** from `rwserver.conf`?
-   (No admin check? Server generates one? `REP-52262`?)
-2. What happens with an **empty** `<identifier encrypted="no"></identifier>`
-   (customer case)?
-3. Does `webcommandaccess=L2` really open all web commands without
-   authentication on 14.1.2 (bytecode says yes – verify live), and which
-   commands does that expose (`showenv`, `showmap`, `killjobid`, …)?
-4. What exactly makes the server "secure" (`m_serverSecure`) – `securityId` on
-   `<job>`? Does `monUser`/`RW_MONITOR` (`WebCommandPermission`) then work for
-   `getserverinfo`? Why does the cookbook warn against `securityId` on `<job>`
-   (source of that statement to be checked)?
-5. Interaction with `singlesignon=yes/no` and `cgicmd.dat` `authid` for report
-   execution (`RepRunner`/`RW_EXECREPORTS`).
+1. `<identifier>` **missing**: the server starts and runs reports, but no one –
+   not even with the former admin password – gets `getserverinfo`,
+   `showjobs`, `showenv`, `showmap` on an unsecured server (`REP-52262`); the
+   server does not create one (**confirmed (live)**).
+2. **Empty** `<identifier encrypted="no"></identifier>` (customer case): the
+   Reports server **does not start** – `REP-50125` `NullPointerException:
+   Cannot invoke "org.w3c.dom.Node.getNodeValue()" because the return value
+   of "org.w3c.dom.Element.getFirstChild()" is null` in
+   `ServerConfig.open`, the Node Manager restarts it in a loop, every
+   request gets `REP-51002 Bind to Reports Server failed`
+   (**confirmed (live)**).
+3. `webcommandaccess=L2` on an unsecured server: **every** web command
+   without login – `getserverinfo`, `showjobs`, `showenv` (environment of the
+   servlet), `showmap` (cgicmd.dat keys; Oracle masks the `authid` password as
+   `<PASSWORD>`) – also **through Nginx from outside** (**confirmed (live)**).
+   `L0` behaves like `L1` (not open).
+4. `securityId` on the report job makes the server secure (test D):
+   `monUser`/`RW_MONITOR` gets `getserverinfo` + `showjobs`, **not**
+   `showenv` / `showmap` (`REP-56071`); the `<identifier>` admin gets
+   everything; without login HTTP 499 – with `L1` and with `L2` alike. The old
+   cookbook warning against `securityId` on `<job>` came from the missing
+   LDAP identity store (`REP-50171`), not from `securityId` itself.
+5. `singlesignon=yes` + `cgicmd.dat` key `default: … %* authid=RepRunner/…`:
+   report runs work (smoke test `15-`, every run 2026-10-16…23).
 
 ---
 
@@ -113,19 +126,45 @@ restore the current state afterwards.
 
 ---
 
-## 6. Target design (draft, to be decided)
+## 6. Target design (decided 2026-10-23)
 
-1. **First function test open:** cookbook/script start without server-admin
-   check (variant from test A or C) so a misconfigured role cannot hide whether
-   the server itself works.
-2. **Separate hardening step afterwards:**
-   - Option 1 – server administrator: `<identifier>` with a chosen password
-     (quoted, stored in the password safe / encrypted `*.des3` like the other
-     credentials), `webcommandaccess=L1`, status checks with that `authid`.
-   - Option 2 – secured server: `securityId` on `<job>`, roles/policies from
-     step 12 (`monUser`/`RW_MONITOR` for status, `RepRunner` for reports),
-     status checks with `authid=monUser/…`.
-3. **Guard for partial copying:** 9.7 aborts if `REPORTS_IDENTIFIER` is empty
-   (only if Option 1 is chosen).
-4. Then align `13-oracle_setup_reports.sh`, doc 13, both cookbooks and
-   `01-Run/rwserver_status.sh` (`authid` from an encrypted file).
+1. **No "open" first test.** It is not possible without `L2`, and `L2` opens
+   everything to everyone (test C). The function test runs with `monUser`
+   (secured) or the `<identifier>` admin – both deterministic.
+2. **Default = secured server** (`REPORTS_SECURITY=ldap`): `securityId` on the
+   report job, JSE identity store = WebLogic LDAP, `singlesignon=yes`,
+   `webcommandaccess=L1`; status with `monUser`, reports via `cgicmd.dat`
+   key with `RepRunner`.
+3. **`<identifier>` always set, never empty** – emergency admin and
+   `stopserver` in both modes; password random or from the interview, in
+   `reports_admin_sec.conf.des3` (scripts) / the password safe (cookbook).
+4. **Never `webcommandaccess=L2`**; `L0` is not "open" either.
+5. **Nginx blocks the admin web commands** from outside (localhost + admin
+   network), user commands for own jobs stay open.
+6. `REPORTS_SECURITY=identifier` stays possible (unsecured server, web
+   commands only for the admin) – for environments without the LDAP step.
+
+---
+
+## 7. Test results 2026-10-23 (test host, reversible, restored afterwards)
+
+`getserverinfo`, `showjobs`, `showenv`, `showmap` via
+`http://localhost:9002/reports/rwservlet/…`, each without `authid`, with
+`monUser` (`RW_MONITOR`) and with the `<identifier>` admin; restart of
+`repserver01` after each `rwserver.conf` change, of `WLS_REPORTS` after each
+`rwservlet.properties` change. `singlesignon=yes` throughout.
+
+| Case | `securityId` | `<identifier>` | `webcommandaccess` | without login | monUser | admin |
+|---|---|---|---|---|---|---|
+| D (default) | yes | set | L1 | HTTP 499 | info + jobs; env/map REP-56071 | all |
+| D + L2 | yes | set | L2 | HTTP 499 | info + jobs; env/map REP-56071 | all |
+| I | no | set | L1 | REP-52262 | REP-52262 | all |
+| I + L0 | no | set | L0 | REP-52262 | REP-52262 | all |
+| **A** | no | **missing** | L1 | REP-52262 | REP-52262 | **REP-52262** |
+| **B** | no | **empty** | L1 | REP-51002 | REP-51002 | REP-51002 – server does not start (REP-50125 NPE) |
+| **C** | no | set | **L2** | **all** | all | all – also via Nginx from outside |
+
+Pitfalls of the test itself: a `REP-52262` answer is wrapped in
+`<serverQueues>`, and `showjobs` lists the `REP-` codes of old failed jobs
+in `<status>` – only `<error code=…>` is a command error (fixed in
+`reports_server_lib.sh`). `showenv` / `showmap` answer HTML, not XML.

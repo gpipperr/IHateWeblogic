@@ -290,6 +290,7 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 |---|---|---|
 | Engine Configuration | `rwserver.conf` of the Reports server component (`components/ReportsServerComponent/<name>/`) | minEngine, maxEngine, maxIdle of the **report** engine (not the URL engine `rwURLEng`) |
 | Process Status | `pgrep` | WLS managed server PID, `rwserver server=<name>` PID, engine count = Java child processes of `rwserver` (14.1.2 has no `rwengine` process name) |
+| Web Command Security | `rwserver.conf`, `rwservlet.properties` | `securityId` on the report job (secured or not); `<identifier>` missing → WARN (nobody gets web commands on an unsecured server), **empty → FAIL** (server does not start, REP-50125 / REP-51002), encrypted or not; `webcommandaccess` other than `no`/`L0`/`L1` → FAIL (L2 = everything open) – rules from [doc 81 §7](../09-Install/docs/81-reports_rwservlet_security.md) |
 | HTTP Engine Status | rwservlet | URL, `authid` used (`user/****`), HTTP code / REP error with hint |
 | Server Info | `getserverinfo` | name, version, PID, running since / uptime, secured, average auth time, max queue size |
 | Engine Pool | `getserverinfo` | per engine id (`rwEng`, `rwURLEng`): active / running / busy / idle; per instance: PID, status (IDLE/BUSY/DEAD), job id, idle time, jobs run, life left (`engLife`), NLS |

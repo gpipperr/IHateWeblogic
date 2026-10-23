@@ -311,6 +311,41 @@ else
     printf "  %-26s %s\n" "maxIdle:"      "${CFG_MAX_IDLE:--}"       | tee -a "${LOG_FILE:-/dev/null}"
 fi
 
+# =============================================================================
+# 1b. Web command security (doc 81, tests A-D 2026-10-23)
+# =============================================================================
+if [ -n "$RWSERVER_CONF" ] && [ -f "$RWSERVER_CONF" ]; then
+    section "Web Command Security (rwserver.conf / rwservlet.properties)"
+    if grep -q '<job[^>]*jobType="report"[^>]*securityId=' "$RWSERVER_CONF"; then
+        ok "  securityId on the report job – secured server (roles: monUser/RW_MONITOR for status)"
+    else
+        info "  no securityId – unsecured server: web commands only for the <identifier> admin"
+    fi
+    _idl="$(grep -m1 '<identifier' "$RWSERVER_CONF")"
+    if [ -z "$_idl" ]; then
+        warn "  <identifier> missing – nobody can use getserverinfo/showjobs/stopserver on an unsecured server (test A)"
+        info "    09-Install/13-oracle_setup_reports.sh --apply (reports_admin_sec.conf.des3)"
+    elif printf '%s' "$_idl" | grep -q '<identifier[^>]*>[[:space:]]*</identifier>'; then
+        fail "  <identifier> EMPTY – the Reports server cannot start (REP-50125 NullPointerException, restart loop, test B)"
+        info "    09-Install/13-oracle_setup_reports.sh --apply or Reports_kochbuch_de.txt 9.7"
+    elif printf '%s' "$_idl" | grep -q 'encrypted="yes"'; then
+        ok "  <identifier> set (encrypted by the server)"
+    else
+        info "  <identifier> set, still clear text – the server encrypts it at its next start"
+    fi
+    _rwp="$(ls "$DOMAIN_HOME"/config/fmwconfig/servers/*/applications/reports_*/configuration/rwservlet.properties 2>/dev/null | head -1)"
+    if [ -n "$_rwp" ]; then
+        _wca="$(sed -n 's:.*<webcommandaccess>\([^<]*\)</webcommandaccess>.*:\1:p' "$_rwp" | head -1)"
+        _sso="$(sed -n 's:.*<singlesignon>\([^<]*\)</singlesignon>.*:\1:p' "$_rwp" | head -1)"
+        case "${_wca:-no}" in
+            no|L0|L1) ok "$(printf "  webcommandaccess=%s, singlesignon=%s" "${_wca:-(default no)}" "${_sso:-(default)}")" ;;
+            *) fail "$(printf "  webcommandaccess=%s – every web command (getserverinfo, showjobs, showenv, showmap, killjobid) WITHOUT login, also through Nginx (test C)" "$_wca")"
+               info "    set L1 (09-Install/13-oracle_setup_reports.sh --apply), restart WLS_REPORTS" ;;
+        esac
+    fi
+    unset _idl _rwp _wca _sso
+fi
+
 # --server overrides the Reports Server logical name used for HTTP query
 [ -n "$OVERRIDE_SERVER" ] && RS_NAME="$OVERRIDE_SERVER"
 

@@ -105,6 +105,33 @@ nginx -t
 | `##FORMS_CLIENT_URL_PATH##` | `FORMS_CLIENT_URL_PATH` (only `FORMS_CLIENT_DIST=true`) | `/formsWeb` |
 | `##FORMS_CLIENT_DIR##` | `FORMS_CLIENT_DIR` (only `FORMS_CLIENT_DIST=true`) | `/srv/formsWeb` |
 
+### Reports admin web commands – not from outside
+
+`/reports/` is proxied as a whole (report URLs of the users), but the admin
+web commands of `rwservlet` are limited to localhost and `ADMIN_IP_RANGE`
+(test series of [81-reports_rwservlet_security.md](81-reports_rwservlet_security.md):
+with `webcommandaccess=L2` they answered **without login through Nginx**;
+with `L1` they still show server, job and environment details to anyone
+who knows a password):
+
+```nginx
+location ~* ^/reports/rwservlet/(getserverinfo|showjobs|showenv|showmap|showauth|delauth|killjobid|parsequery|stopserver) {
+    allow 127.0.0.1;
+    allow ##ADMIN_IP_RANGE##;
+    deny  all;
+    proxy_pass http://wls_reports;
+}
+```
+
+- `getjobid`, `showjobid`, `showmyjobs` stay open – users fetch the output of
+  their own jobs with them.
+- Our status checks (`01-Run/rwserver_status.sh`, `05-ReportsPerformance/`,
+  cookbooks) call `http://localhost:<WLS_REPORTS_PORT>` directly, not through
+  Nginx – not affected.
+- Existing installations: re-run `09-Install/04-root_nginx.sh --apply` (root);
+  check from outside: `curl -k https://<host>/reports/rwservlet/getserverinfo`
+  → HTTP 403.
+
 ### Forms client bundle location (`FORMS_CLIENT_DIST=true`)
 
 Static, read-only delivery of the client bundle (concept

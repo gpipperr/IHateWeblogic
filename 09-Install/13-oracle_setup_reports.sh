@@ -536,6 +536,7 @@ if [ "$REPORTS_SECURITY" != "ldap" ]; then
     warn "REPORTS_SECURITY=$REPORTS_SECURITY - Reports server NOT secured:"
     info "  web commands (getserverinfo) only for the <identifier> admin,"
     info "  report jobs without user check (only DB userid + folderAccess)"
+    info "  never webcommandaccess=L2 - opens every web command without login (doc 81)"
 elif [ ! -f "$_JSE" ]; then
     fail "jps-config-jse.xml not found: $_JSE"
 elif [ ! -f "$_ELDAP_SEC" ]; then
@@ -745,6 +746,13 @@ case "$_RADM_USER/$_RADM_PWD" in
         fail "Reports server admin user/password contains / & < > quote or blank - not usable in <identifier>"
         _RADM_PWD="" ;;
 esac
+
+# Never an empty <identifier>: the server does not start (REP-50125 NPE in
+# ServerConfig.open, restart loop); missing = no admin for web commands /
+# stopserver (doc 81 tests A/B, 2026-10-23)
+if $APPLY && [ -z "$_RADM_PWD" ]; then
+    fail "No Reports server admin password - rwserver.conf gets no <identifier> (web commands / stopserver impossible on an unsecured server)"
+fi
 
 for _inst in $REPORTS_SERVER_INSTANCES; do
     _RWSERVER="$_REPSERV_CONF_BASE/$_inst/rwserver.conf"

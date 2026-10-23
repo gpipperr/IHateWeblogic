@@ -176,6 +176,12 @@ SCHRITT 2: Nginx haerten  (als root)
   #
   #   Monitoring auf dem Server selbst ruft http://localhost:9002/...
   #   direkt auf und ist von dieser Sperre nicht betroffen.
+  #   ACHTUNG Forms: holt die Anwendung Berichte mit RUN_REPORT_OBJECT und
+  #   WEB.SHOW_DOCUMENT('/reports/rwservlet/getjobid<NR>?server=...') ab,
+  #   dann getjobid, showjobid und showmyjobs NICHT sperren (aus der Liste
+  #   oben entfernen) - die Benutzer holen damit ihr eigenes Ergebnis.
+  #   showmap zeigt cgicmd.dat-Schluessel, das authid-Kennwort maskiert
+  #   Oracle dabei als <PASSWORD> (getestet 2026-10-23).
 
   nginx -t && systemctl reload nginx
 
@@ -445,8 +451,12 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
   #     disabled", bestaetigt 2026-10-15)
   #   - das Stoppen/Verwalten des Servers ueber Web-Befehle
   #   - als Notfallzugang, auch bei abgesichertem Server (getestet)
-  # Ist der Eintrag auskommentiert oder leer, ist das Verhalten nicht
-  # geprueft (offener Test) - daher IMMER mit eigenem Kennwort setzen.
+  # Getestet 2026-10-23 - daher IMMER mit eigenem Kennwort setzen:
+  #   - Eintrag fehlt: der Server laeuft, aber getserverinfo/showjobs/
+  #     showenv gehen fuer NIEMANDEN mehr (REP-52262, auch kein Admin).
+  #   - Eintrag LEER (<identifier encrypted="no"></identifier>): der
+  #     Reports-Server startet NICHT (REP-50125 NullPointerException,
+  #     Neustart-Schleife, REP-51002 bei jedem Aufruf).
 
   cp $RWSERVER_CONF ${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)
   vi $RWSERVER_CONF
@@ -515,8 +525,9 @@ SCHRITT 7b: Reports-Server absichern - WebLogic-Benutzer und -Rollen  (als oracl
 SCHRITT 8: rwservlet.properties haerten  (als oracle)
 ================================================================================
 
-  # Reports_kochbuch_de.txt 9.6 betreibt das Servlet zunaechst mit
-  #   <singlesignon>no</singlesignon>  <webcommandaccess>L0</webcommandaccess>
+  # Reports_kochbuch_de.txt 9.6 schreibt seit 2026-10-23 bereits die
+  # Betriebswerte (aeltere Fassungen: singlesignon=no, L0). Pruefen:
+  grep -E "singlesignon|webcommandaccess" $REPORTS_APP_CONF/rwservlet.properties
   # Fuer den Betrieb:
   #   <webcommandaccess>L1</webcommandaccess>
   #     Web-Befehle (getserverinfo, showjobs ...) nur noch mit authid -
@@ -524,8 +535,11 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   #     (monUser/RW_MONITOR), sonst des Reports-Server-Administrators
   #     (SCHRITT 7). Ausnahme: showjobid, killjobid, showauth, getjobid fuer
   #     eigene Jobs.
-  #     (Hinweis: auch L0 ist laut Oracle-Code NICHT "offen"; offen waere
-  #     nur ein anderer Wert wie L2 - NICHT verwenden.)
+  #     (Getestet 2026-10-23: L0 verhaelt sich wie L1, ist also NICHT
+  #     offen. L2 oeffnet ALLE Web-Befehle ohne Anmeldung, auch ueber Nginx
+  #     von aussen - NIE verwenden. Beim abgesicherten Server darf monUser
+  #     getserverinfo/showjobs, aber nicht showenv/showmap (REP-56071);
+  #     der <identifier>-Admin darf alles.)
   #   <singlesignon>yes</singlesignon>
   #     Allein bewirkt das KEINE Anmeldepflicht (getestet 2026-10-16 ohne
   #     securityId: Aufruf ohne Anmeldung erreicht den Server). Die
@@ -824,8 +838,6 @@ BEKANNTE PROBLEME UND LOESUNGEN
 NOCH NICHT GETESTET / OFFENE PUNKTE
 ================================================================================
 
-  - Verhalten bei fehlendem oder leerem <identifier> (deshalb SCHRITT 7:
-    immer setzen).
   - EM "Principal hinzufuegen" findet auch mit dem LDAP-Identity-Store des
     Reports-Servers keine Benutzer (2026-10-16) - Workaround "Erweiterte
     Option" / WLST grantAppRole; Analyse offen (SR-Entwurf).
