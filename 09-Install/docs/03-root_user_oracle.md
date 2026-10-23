@@ -244,6 +244,10 @@ Also created (owner `oracle:oinstall`, mode 755):
   installations with `FORMS_CLIENT_DIST=true` (never for `REPORTS_ONLY`):
   the client bundle Nginx serves, see
   [40-forms_client_distribution.md](40-forms_client_distribution.md).
+- `APEX_WEB_DIR` (default `/srv/apex`) – **only** with `INSTALL_APEX=true`:
+  the copy of the APEX images Nginx serves; oracle then creates
+  `APEX_<ver>/` and the link `apex_1` in it without root
+  ([12-APEX-Ords/README.md](../../12-APEX-Ords/README.md)).
 
 ### 8. Create Oracle Inventory pointer
 

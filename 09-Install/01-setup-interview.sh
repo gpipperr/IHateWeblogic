@@ -764,6 +764,7 @@ if [ "${INSTALL_APEX:-false}" = "true" ]; then
     _ask ORDS_1_IMAGE_PREFIX "APEX image prefix of this DB"     "/i/"
     _ask ORDS_JAVA_HEAP      "ORDS Java heap (-Xms=-Xmx)"       "2G"
     _ask APEX_TABLESPACE     "APEX tablespace"                  "APEX_DATA"
+    _ask APEX_TEMP_TABLESPACE "APEX temp tablespace (empty = DB default)" "" "" "optional"
     _ask APEX_LANGUAGES      "APEX language packs (e.g. de)"    "de" "" "optional"
     info "APEX instance administrator ADMIN -> encrypted to: $(basename "$APEX_SEC_FILE")"
     info "  APEX rules: upper + lower case, digit, punctuation character"
@@ -866,7 +867,7 @@ _show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "INSTALL_APEX"         "$INSTALL_APEX"
 if [ "$INSTALL_APEX" = "true" ]; then
     for _k in APEX_ORDS_BASE APEX_SW_BASE APEX_WEB_DIR ORDS_1_DB_ALIAS ORDS_1_PORT \
-              ORDS_1_CONTEXT ORDS_1_IMAGE_PREFIX ORDS_JAVA_HEAP APEX_TABLESPACE APEX_LANGUAGES; do
+              ORDS_1_CONTEXT ORDS_1_IMAGE_PREFIX ORDS_JAVA_HEAP APEX_TABLESPACE APEX_TEMP_TABLESPACE APEX_LANGUAGES; do
         _show "$_k" "${!_k:-(empty)}"
     done
     unset _k
@@ -1043,6 +1044,7 @@ ORDS_1_CONTEXT="${ORDS_1_CONTEXT:-}"
 ORDS_1_IMAGE_PREFIX="${ORDS_1_IMAGE_PREFIX:-}"
 ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
 APEX_TABLESPACE="${APEX_TABLESPACE:-}"
+APEX_TEMP_TABLESPACE="${APEX_TEMP_TABLESPACE:-}"
 APEX_LANGUAGES="${APEX_LANGUAGES:-}"
 
 # --- My Oracle Support --------------------------------------------------------
@@ -1200,6 +1202,7 @@ ORDS_1_CONTEXT="${ORDS_1_CONTEXT:-}"
 ORDS_1_IMAGE_PREFIX="${ORDS_1_IMAGE_PREFIX:-}"
 ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
 APEX_TABLESPACE="${APEX_TABLESPACE:-}"
+APEX_TEMP_TABLESPACE="${APEX_TEMP_TABLESPACE:-}"
 APEX_LANGUAGES="${APEX_LANGUAGES:-}"
 MOS_USER="${MOS_USER}"
 # APEX_ADMIN_PWD → apex_sec.conf.des3 (INSTALL_APEX=true)

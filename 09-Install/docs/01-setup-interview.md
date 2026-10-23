@@ -311,13 +311,14 @@ download URLs are in `oracle_software_version.conf` (`APEX_*`, `ORDS_*`).
 | `INSTALL_APEX` | `false` | menu; `true` = `04-` downloads APEX / ORDS / the APEX patch, the questions below |
 | `APEX_ORDS_BASE` | `$ORACLE_BASE/product/ords` | ORDS software per version (`ords-<ver>`) + homes `ords_1/`, `ords_2/` |
 | `APEX_SW_BASE` | `$ORACLE_BASE/product/apex` | unpacked APEX zips `APEX_<ver>` (installer, SQL – private) |
-| `APEX_WEB_DIR` | `/srv/apex` | copy of the APEX images per version, read by Nginx (`/srv/apex_1` → `APEX_<ver>`); outside `$ORACLE_BASE` on purpose |
+| `APEX_WEB_DIR` | `/srv/apex` | copy of the APEX images per version, read by Nginx (`/srv/apex/apex_1` → `APEX_<ver>`); outside `$ORACLE_BASE` on purpose |
 | `ORDS_1_DB_ALIAS` | the alias of `$TNS_ADMIN/tnsnames.ora` with `DB_SERVICE`, else `DB_SERVICE` | TNS alias of the database of `ords_1` (one ORDS per DB) |
 | `ORDS_1_PORT` | `8081` | Jetty listener on `127.0.0.1` |
 | `ORDS_1_CONTEXT` | `/ords` | URL context = Nginx location |
-| `ORDS_1_IMAGE_PREFIX` | `/i/` | APEX `IMAGE_PREFIX` of this DB = Nginx alias to `/srv/apex_1` |
+| `ORDS_1_IMAGE_PREFIX` | `/i/` | APEX `IMAGE_PREFIX` of this DB = Nginx alias to `/srv/apex/apex_1` |
 | `ORDS_JAVA_HEAP` | `2G` | `-Xms` = `-Xmx` of every ORDS (dev 1–2 G, prod ≥ 4 G) |
 | `APEX_TABLESPACE` | `APEX_DATA` | `apexins.sql` tablespace (created if missing) |
+| `APEX_TEMP_TABLESPACE` | *(empty)* | temp tablespace for `apexins.sql`; empty = `DEFAULT_TEMP_TABLESPACE` of the DB (`12-APEX-Ords/01-prepare-database.sh` detects it and writes it back) |
 | `APEX_LANGUAGES` | `de` | language packs to load (`builder/<lang>/load_<lang>.sql`), space-separated, empty = English only |
 | `APEX_ADMIN_PWD` | prompted, encrypted → `apex_sec.conf.des3` | password of the APEX instance administrator `ADMIN` (`apxchpwd.sql`) – APEX rules: upper/lower case, digit, punctuation |
 

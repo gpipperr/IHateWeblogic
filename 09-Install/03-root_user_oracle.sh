@@ -525,6 +525,10 @@ _check_dir "${TNS_ADMIN:-$ORACLE_BASE/admin/tns_names}" oracle oinstall
 if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "REPORTS_ONLY" ]; then
     _check_dir "${FORMS_CLIENT_DIR:-/srv/formsWeb}" oracle oinstall
 fi
+# APEX images for Nginx (12-APEX-Ords) – only with INSTALL_APEX=true
+if [ "${INSTALL_APEX:-false}" = "true" ]; then
+    _check_dir "${APEX_WEB_DIR:-/srv/apex}" oracle oinstall
+fi
 _check_dir "/var/crash"                    root   root
 
 # OUI Central Inventory – one level above ORACLE_BASE
