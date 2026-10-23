@@ -150,6 +150,7 @@ FORMS_SIGN_TSA_URL   (default http://timestamp.digicert.com, Enter on an
 
 | Parameter | Default | Notes |
 |---|---|---|
+| `FORMS_MAX_RUNTIME_PROCESSES` | proposal: ½ RAM / 64 MB, tens, ≥ 20 | `formsweb.cfg` `[default]` `maxRuntimeProcesses` – session limit (Oracle: 0 = no limit = DoS risk); 14- writes it |
 | `FORMS_WEBUTIL_JACOB` | `false` | menu; `true` = 04- downloads, 14- installs + signs JACOB |
 | `FORMS_SIGN_KEYSTORE` | `${SSL_CA_DIR:-$ORACLE_BASE/admin/pki}/codesign/codesign.p12` | PKCS12 with key + code-signing certificate + chain |
 | `FORMS_SIGN_ALIAS` | `forms_codesign` | alias (friendly name) of the key in the keystore |

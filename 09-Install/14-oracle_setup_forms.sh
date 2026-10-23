@@ -696,6 +696,17 @@ else
     _fw_ovl="$(mktemp)"; _fw_tmp="$(mktemp)"
     if _render_template "$TEMPLATES_DIR/formsweb.cfg.template" "$_fw_ovl"; then
         _merge_formsweb_cfg "$_fw_ovl" "$_fw_tmp"
+        # Session limit (global, [default] only) - Oracle: 0 = no limit =
+        # vulnerable to Denial of Service; empty = RAM proposal of forms_lib
+        _mrp="${FORMS_MAX_RUNTIME_PROCESSES:-}"
+        if [ -z "$_mrp" ]; then
+            _mrp="$(frm_mrp_proposal)"
+            info "$(printf "  maxRuntimeProcesses=%s (RAM proposal - set FORMS_MAX_RUNTIME_PROCESSES in environment.conf to keep it)" "$_mrp")"
+        else
+            info "$(printf "  maxRuntimeProcesses=%s (FORMS_MAX_RUNTIME_PROCESSES)" "$_mrp")"
+        fi
+        frm_cfg_set "$_fw_tmp" default maxRuntimeProcesses "$_mrp"
+        unset _mrp
         # Runtime pooling only in FORMS_PRESTART_SECTION – Oracle: never in
         # [default] (all sections inherit it; 2026-10-19: 50 idle frmweb)
         if [ -n "${FORMS_PRESTART_SECTION:-}" ]; then

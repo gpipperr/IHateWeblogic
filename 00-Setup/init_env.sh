@@ -1135,6 +1135,7 @@ if $APPLY; then
         _append_if_missing "FORMS_PRESTART_INIT"  "5"                         "$ENV_CONF"
         _append_if_missing "FORMS_PRESTART_MIN"   "4"                         "$ENV_CONF"
         _append_if_missing "FORMS_PRESTART_INCREMENT" "1"                     "$ENV_CONF"
+        _append_if_missing "FORMS_MAX_RUNTIME_PROCESSES" ""                   "$ENV_CONF"
         _append_if_missing "FORMS_WEBUTIL_JACOB"  "false"                     "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_KEYSTORE"  ""                          "$ENV_CONF"
         _append_if_missing "FORMS_SIGN_ALIAS"     "forms_codesign"            "$ENV_CONF"
@@ -1293,6 +1294,8 @@ FORMS_PRESTART_SECTION=""
 FORMS_PRESTART_INIT="5"
 FORMS_PRESTART_MIN="4"
 FORMS_PRESTART_INCREMENT="1"
+# Forms session limit (maxRuntimeProcesses, 14-); empty = 14- uses the RAM proposal
+FORMS_MAX_RUNTIME_PROCESSES=""
 # FORMS_WEBUTIL_JACOB: install JACOB for WebUtil OLE / Office automation
 # (CLIENT_OLE2) – downloaded by 04-, installed by 14- (default: false)
 FORMS_WEBUTIL_JACOB="false"

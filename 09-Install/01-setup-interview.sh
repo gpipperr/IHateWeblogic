@@ -28,6 +28,8 @@ if [ ! -f "$LIB" ]; then
 fi
 # shellcheck source=../00-Setup/IHateWeblogic_lib.sh
 source "$LIB"
+# shellcheck source=../06-FormsDiag/forms_lib.sh
+source "$ROOT_DIR/06-FormsDiag/forms_lib.sh"   # frm_mrp_proposal
 
 # --- Bootstrap log (environment.conf not yet available) ----------------------
 LOG_BOOT_DIR="$ROOT_DIR/log/$(date +%Y%m%d)"
@@ -334,6 +336,14 @@ _val_port() {
     return 1
 }
 
+_val_mrp() {
+    if [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ]; then
+        return 0
+    fi
+    printf "  \033[31m  Number >= 1 (0 = no limit is not allowed here - Oracle: DoS risk).\033[0m\n"
+    return 1
+}
+
 _val_url_path() {
     local path="$1"
     if [[ "$path" =~ ^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] && [ "$path" != "/forms" ] \
@@ -507,6 +517,12 @@ FORMS_SIGN_SEC_FILE="$ROOT_DIR/forms_sign_sec.conf.des3"
 SSL_CONF_KEYS=()
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY)
+        # Session limit (formsweb.cfg [default] maxRuntimeProcesses) - Oracle:
+        # 0 = no limit = vulnerable to Denial of Service. Proposal from RAM.
+        printf "\n"
+        info "Forms session limit maxRuntimeProcesses - proposal: half of the RAM / 64 MB per session"
+        info "  (correct it later with real sessions: 06-FormsDiag/forms_perf_analyse.sh)"
+        _ask FORMS_MAX_RUNTIME_PROCESSES "Max. Forms sessions (maxRuntimeProcesses)" "$(frm_mrp_proposal)" "_val_mrp"
         printf "\n"
         _ask_menu FORMS_WEBUTIL_JACOB "WebUtil OLE / Office automation (JACOB, CLIENT_OLE2)" \
             "false:No - not needed (default)" \
@@ -777,6 +793,7 @@ _show "REPORTS_CUSTOMER_DIR" "$REPORTS_CUSTOMER_DIR"
 _show "REPORTS_IMAGE_DIR"    "$REPORTS_IMAGE_DIR"
 _show "REPORTS_SECURITY"     "$REPORTS_SECURITY"
 _show "REPORTS_ADMIN_USER"   "${REPORTS_ADMIN_USER:-}"
+_show "FORMS_MAX_RUNTIME_PROCESSES" "${FORMS_MAX_RUNTIME_PROCESSES:-(proposal by 14-)}"
 _show "FORMS_WEBUTIL_JACOB"  "${FORMS_WEBUTIL_JACOB:-false}"
 _show "FORMS_CLIENT_DIST"    "$FORMS_CLIENT_DIST"
 if [ "$FORMS_CLIENT_DIST" = "true" ]; then
@@ -920,6 +937,8 @@ REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
 REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+# Forms session limit (formsweb.cfg [default] maxRuntimeProcesses, 14-) - 0 = DoS risk
+FORMS_MAX_RUNTIME_PROCESSES="${FORMS_MAX_RUNTIME_PROCESSES:-}"
 
 # --- Forms WebUtil OLE (JACOB) + code signing of jacob.jar (14-) ---------------
 FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
@@ -1082,6 +1101,7 @@ REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
 REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+FORMS_MAX_RUNTIME_PROCESSES="${FORMS_MAX_RUNTIME_PROCESSES:-}"
 FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
 FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE}"
 FORMS_SIGN_ALIAS="${FORMS_SIGN_ALIAS}"

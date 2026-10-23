@@ -164,9 +164,13 @@ if [ -z "$MRP" ] || [ "$MRP" = "0" ]; then
     warn "maxRuntimeProcesses=0 – Oracle: no limit is not recommended, the system is vulnerable to Denial of Service"
     _avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
     info "$(printf "  size it from RAM: (MemAvailable %s MB + frmweb RSS) / RSS of a real session under load" "${_avail:--}")"
+    info "$(printf "  proposal (half of the RAM / 64 MB per session): %s -> --apply --section default --set maxRuntimeProcesses=%s" "$(frm_mrp_proposal)" "$(frm_mrp_proposal)")"
     info "  RSS per session: ./06-FormsDiag/forms_perf_analyse.sh (measure with real users, idle pool processes are small)"
 else
     ok "$(printf "maxRuntimeProcesses=%s" "$MRP")"
+fi
+if [ -n "${FORMS_MAX_RUNTIME_PROCESSES:-}" ] && [ "${MRP:-0}" != "$FORMS_MAX_RUNTIME_PROCESSES" ]; then
+    warn "$(printf "maxRuntimeProcesses=%s, environment.conf FORMS_MAX_RUNTIME_PROCESSES=%s – 14- --apply would write the environment.conf value" "${MRP:-0}" "$FORMS_MAX_RUNTIME_PROCESSES")"
 fi
 case "${ANC,,}" in
     false) warn "allowNewConnections=FALSE – no new Forms sessions are accepted (maintenance mode?)" ;;
@@ -263,6 +267,15 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     for _kv in "${SET_LIST[@]}"; do
         frm_cfg_set "$FRM_CFG" "$TARGET_SECTION" "${_kv%%=*}" "${_kv#*=}" \
             && ok "[$TARGET_SECTION] $_kv" || fail "[$TARGET_SECTION] $_kv not written"
+        # one value, one source: 14- rewrites formsweb.cfg from environment.conf
+        if [ "${_kv%%=*}" = "maxRuntimeProcesses" ] && [ "$TARGET_SECTION" = "default" ]; then
+            backup_file "$ENV_CONF" > /dev/null
+            if grep -q '^FORMS_MAX_RUNTIME_PROCESSES=' "$ENV_CONF"; then
+                sed -i --follow-symlinks "s|^FORMS_MAX_RUNTIME_PROCESSES=.*|FORMS_MAX_RUNTIME_PROCESSES=\"${_kv#*=}\"|" "$ENV_CONF"
+            else
+                printf 'FORMS_MAX_RUNTIME_PROCESSES="%s"\n' "${_kv#*=}" >> "$(readlink -f "$ENV_CONF")"
+            fi && ok "$(printf "environment.conf FORMS_MAX_RUNTIME_PROCESSES=%s" "${_kv#*=}")"
+        fi
     done
     for _k in "${UNSET_LIST[@]}"; do
         frm_cfg_unset "$FRM_CFG" "$TARGET_SECTION" "$_k" \

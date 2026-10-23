@@ -29,6 +29,7 @@
 #            frm_env_get FILE KEY           -> value of KEY=... in default.env
 #            frm_frmweb_list [WLS_PID]      -> lines: pid<TAB>section<TAB>rss_mb<TAB>etime
 #            frm_session_timeout_min        -> WLS session timeout of the Forms servlet
+#            frm_mrp_proposal [MB_PER_SESSION] -> maxRuntimeProcesses proposal from RAM
 # Keys are compared case-insensitively (heartBeat = heartbeat).
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -199,4 +200,16 @@ frm_session_timeout_min() {
         | sed -n 's/.*<timeout-secs>\([0-9]*\)<\/timeout-secs>.*/\1/p' | head -1)"
     rm -rf "$tmp"
     [ -n "$secs" ] && printf "%s" $(( secs / 60 ))
+}
+
+# frm_mrp_proposal [MB_PER_SESSION] – proposal for maxRuntimeProcesses: half of
+# MemTotal for Forms (rest: OS, WLS heaps, Reports engines, a local DB) divided
+# by the memory of one session under load (default 64 MB - assumption, an idle
+# pooled frmweb has 16 MB RSS, 2026-10-23), rounded down to tens, at least 20.
+# One formula for the interview, 14- and forms_perf_settings.sh.
+frm_mrp_proposal() {
+    local mb="${1:-64}" total
+    total="$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+    [ -n "$total" ] && [ "$total" -gt 0 ] || { printf "100"; return; }
+    awk -v t="$total" -v m="$mb" 'BEGIN { n = int(t / 2 / m / 10) * 10; if (n < 20) n = 20; print n }'
 }

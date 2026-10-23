@@ -42,6 +42,9 @@ FORMS_PRESTART_SECTION=
 FORMS_PRESTART_INIT=5
 FORMS_PRESTART_MIN=4
 FORMS_PRESTART_INCREMENT=1
+# Forms session limit, formsweb.cfg [default] maxRuntimeProcesses (14-); 0 = no
+# limit = DoS risk (Oracle). Proposal: half of the RAM / 64 MB per session
+FORMS_MAX_RUNTIME_PROCESSES=
 # FORMS_WEBUTIL_JACOB: install JACOB (Java COM bridge) for WebUtil OLE /
 # Office automation (CLIENT_OLE2). Only needed if the Forms applications
 # drive Word/Excel; downloaded by 04-, installed by 14- (default: false)

@@ -447,6 +447,27 @@ Now:
 | `FORMS_PRESTART_MIN` | `4` | `prestartMin` – kept in the pool (Oracle: must be <= Init) |
 | `FORMS_PRESTART_INCREMENT` | `1` | `prestartIncrement` |
 
+### Session limit `maxRuntimeProcesses` (global, `[default]`)
+
+Oracle: "A value of 0 (the default) indicates that there is no explicit
+limit. This default is not recommended, because it leaves the system
+vulnerable to Denial of Service attacks". The script writes
+`maxRuntimeProcesses` into `[default]` (global key, only read there):
+
+| Variable (`environment.conf`) | Default | Effect |
+|---|---|---|
+| `FORMS_MAX_RUNTIME_PROCESSES` | proposal from RAM (interview) | `maxRuntimeProcesses`; empty = the script uses the proposal and says so |
+
+Proposal (`frm_mrp_proposal` in `06-FormsDiag/forms_lib.sh`, used by the
+interview, `14-` and `forms_perf_settings.sh`): half of `MemTotal` for Forms
+(the other half: OS, AdminServer / WLS_FORMS / WLS_REPORTS heaps, Reports
+engines, a local DB) divided by **64 MB per session under load**, rounded
+down to tens, at least 20. Test host (18 GB): 140. The 64 MB is an
+**assumption** – idle pooled `frmweb` measured 16 MB RSS (2026-10-23); measure
+real sessions with `06-FormsDiag/forms_perf_analyse.sh` and correct the value.
+`06-FormsDiag/forms_perf_settings.sh --apply --set maxRuntimeProcesses=<n>`
+writes the value back to `FORMS_MAX_RUNTIME_PROCESSES`.
+
 The script builds `formsweb.cfg` from Oracle's file (which has no prestart
 keys), so a re-run removes old prestart lines from `[default]` automatically,
 then sets the four keys in `FORMS_PRESTART_SECTION` (`frm_cfg_set` of

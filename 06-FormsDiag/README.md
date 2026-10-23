@@ -82,7 +82,7 @@ Read-only.
 | Section | Rule (Oracle 14.1.2) |
 |---|---|
 | Timeout Chain | per section: `heartBeat` (minutes, default 2) < `FORMS_TIMEOUT` of its envFile (minutes, default 15, valid 3–1440) → else FAIL; `heartBeat` < WLS `session-timeout` (formsapp.ear, 120 min) → else WARN; `heartBeat` < 0.5 → WARN (network traffic) |
-| Global Parameters | `maxRuntimeProcesses` 0/unset → WARN ("vulnerable to Denial of Service"); `allowNewConnections=FALSE` → WARN; global keys set in a named section → WARN (only read from `[default]`) |
+| Global Parameters | `maxRuntimeProcesses` 0/unset → WARN ("vulnerable to Denial of Service") with the RAM proposal (`frm_mrp_proposal`); `--set maxRuntimeProcesses=` also writes `FORMS_MAX_RUNTIME_PROCESSES` back to `environment.conf`; differs from it → WARN; `allowNewConnections=FALSE` → WARN; global keys set in a named section → WARN (only read from `[default]`) |
 | Runtime Pooling | table of the sections with pooling (own / from default, Init, Min, Increment, Timeout), expected number of pooled `frmweb`; `prestartRuntimes` in `[default]` → WARN with Oracle's quote; `prestartMin > prestartInit` → WARN |
 | Startup / Network | `networkRetries` (default 0), `gzipCompressApplet` (INFO: TRUE shortens start-up), `idleTimeout` |
 
@@ -144,8 +144,6 @@ smoke test 15- green.
   `maxRuntimeProcesses` sizing.
 - `time-taken` in the WLS_FORMS access log (extended format) – then response
   times; candidate for a WLST `--apply`.
-- 14- / interview: proposal for `maxRuntimeProcesses` from RAM (variable in
-  `environment.conf`).
 
 ---
 

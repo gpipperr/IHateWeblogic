@@ -250,7 +250,10 @@ names.
   indicates that there is no explicit limit. This default is not
   recommended, because it leaves the system vulnerable to Denial of Service
   attacks" (**documented**). Size: (RAM available for Forms) / (RSS of a real
-  session under load).
+  session under load). This repository proposes ½ `MemTotal` / 64 MB
+  (`frm_mrp_proposal`, `FORMS_MAX_RUNTIME_PROCESSES`, written by `14-`); the
+  64 MB per session is an **assumption**, an idle pooled `frmweb` has 16 MB
+  RSS (**confirmed (live)** 2026-10-23).
 - `allowNewConnections=FALSE` blocks new sessions (maintenance), read on
   every request (**documented**).
 
