@@ -11,6 +11,10 @@
 #            URL            : shortcut icon if FORMS_CLIENT_ICON is an http(s) URL
 #            Repository     : default shortcut icon forms_templates/IHateWeblogic.ico
 #                             -> $PATCH_STORAGE/icon/ (forms_client_icon_path).
+#            OTN            : APEX + ORDS "latest" ZIPs if INSTALL_APEX=true
+#                             -> $PATCH_STORAGE/apex/<ver>/, ords/<ver>/ (version from the ZIP)
+#            MOS, Generic   : APEX patch set bundle (APEX_PATCH_NR, platform 2000P)
+#                             -> $PATCH_STORAGE/apex/<ver>/patch/<nr>/ (--mos)
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
 #            --apply             – eDelivery: create dirs, prompt placement, verify
@@ -611,6 +615,69 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
     esac
 fi
 
+# APEX + ORDS (OTN "latest" ZIPs, version from the ZIP) + APEX patch (MOS Generic)
+DOWNLOAD_APEX=false
+[ "${INSTALL_APEX:-false}" = "true" ] && DOWNLOAD_APEX=true
+
+# _zip_version KIND FILE – version inside an APEX / ORDS ZIP (nothing if unknown)
+#   apex: apex/images/apex_version.txt "... Version: 26.2.0" -> 26.2
+#   ords: WEB-INF/lib/ords-rest-services-<ver>.jar inside ords.war
+_zip_version() {
+    python3 -I - "$1" "$2" <<'ZIPPY' 2>/dev/null
+import re, sys, zipfile
+kind, path = sys.argv[1], sys.argv[2]
+z = zipfile.ZipFile(path)
+if kind == "apex":
+    t = z.read("apex/images/apex_version.txt").decode("utf-8", "replace")
+    m = re.search(r"(\d+)\.(\d+)(?:\.\d+)?", t)
+    print("%s.%s" % m.groups() if m else "")
+else:
+    with z.open("ords.war") as w:
+        names = zipfile.ZipFile(w).namelist()
+    for n in names:
+        m = re.search(r"ords-rest-services-([\d.]+)\.jar$", n)
+        if m:
+            print(m.group(1)); break
+ZIPPY
+}
+
+# _newest_zip BASE PATTERN – ZIP of the newest version directory under BASE
+_newest_zip() {
+    local d
+    d="$(ls -d "$1"/*/ 2>/dev/null | sed 's:/$::' | sort -V | tail -1)"
+    [ -n "$d" ] && ls "$d"/$2 2>/dev/null | head -1
+}
+
+APEX_ZIP_FILE="" ; APEX_VER="" ; ORDS_ZIP_FILE="" ; ORDS_VER=""
+if $DOWNLOAD_APEX; then
+    APEX_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
+    ORDS_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
+    [ -n "$APEX_ZIP_FILE" ] && APEX_VER="$(basename "$(dirname "$APEX_ZIP_FILE")")"
+    [ -n "$ORDS_ZIP_FILE" ] && ORDS_VER="$(basename "$(dirname "$ORDS_ZIP_FILE")")"
+    if [ -n "$APEX_ZIP_FILE" ]; then
+        ok "$(printf "  %-26s present  %s" "APEX $APEX_VER" "apex/$APEX_VER/$(basename "$APEX_ZIP_FILE")")"
+    else
+        warn "$(printf "  %-26s MISSING  apex/<ver>/ (%s)" "APEX" "${APEX_ZIP_URL:-APEX_ZIP_URL not set}")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+    if [ -n "$ORDS_ZIP_FILE" ]; then
+        ok "$(printf "  %-26s present  %s" "ORDS $ORDS_VER" "ords/$ORDS_VER/$(basename "$ORDS_ZIP_FILE")")"
+    else
+        warn "$(printf "  %-26s MISSING  ords/<ver>/ (%s)" "ORDS" "${ORDS_ZIP_URL:-ORDS_ZIP_URL not set}")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+    if [ -n "${APEX_PATCH_NR:-}" ]; then
+        if ls "$PATCH_STORAGE/apex/${APEX_VER:-none}/patch/$APEX_PATCH_NR"/p"${APEX_PATCH_NR}"_*.zip >/dev/null 2>&1; then
+            ok "$(printf "  %-26s present  apex/%s/patch/%s/" "APEX patch $APEX_PATCH_NR" "$APEX_VER" "$APEX_PATCH_NR")"
+        else
+            warn "$(printf "  %-26s MISSING  apex/%s/patch/%s/ (--mos)" "APEX patch $APEX_PATCH_NR" "${APEX_VER:-<ver>}" "$APEX_PATCH_NR")"
+            INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+        fi
+    else
+        info "$(printf "  %-26s none configured (APEX_PATCH_NR – see the APEX download page)" "APEX patch set bundle")"
+    fi
+fi
+
 if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
 else
@@ -755,6 +822,62 @@ if $DOWNLOAD_ICON; then
 fi
 
 # =============================================================================
+# Section 1d: APEX + ORDS from OTN (INSTALL_APEX=true) – "latest" ZIPs
+# =============================================================================
+# _otn_get KIND URL BASE SHA – download KIND (apex|ords) from URL into
+# BASE/<version>/; the "latest" links carry no version, it is read from the
+# ZIP. Skipped when the newest local ZIP has the size of the remote file.
+_otn_get() {
+    local kind="$1" url="$2" base="$3" sha="${4:-}" len cur part ver name
+    [ -n "$url" ] || { warn "$kind: no download URL configured (oracle_software_version.conf)"; return 1; }
+    len="$(curl -sIL -A 'Mozilla/5.0' --max-time 60 "$url" | tr -d '\r' | awk 'tolower($1)=="content-length:" {l=$2} END {print l}')"
+    cur="$(_newest_zip "$base" "$( [ "$kind" = apex ] && printf 'apex_*.zip' || printf 'ords-*.zip')")"
+    if [ -n "$cur" ] && [ -n "$len" ] && [ "$(stat -c %s "$cur")" = "$len" ]; then
+        ok "$(printf "%s: newest local ZIP has the remote size (%s bytes) – kept: %s" "$kind" "$len" "${cur#"$PATCH_STORAGE"/}")"
+        return 0
+    fi
+    mkdir -p "$base"
+    part="$base/.download_${kind}.part"
+    info "Downloading $url  (${len:-?} bytes)"
+    if ! curl -fsSL -A 'Mozilla/5.0' --max-time 1800 -o "$part" "$url"; then
+        rm -f "$part"; fail "$kind: download failed – $url"; return 1
+    fi
+    _is_zip "$part" || { rm -f "$part"; fail "$kind: not a ZIP – $url"; return 1; }
+    if [ -n "$sha" ]; then
+        _verify_sha256 "$part" "$sha" || { mv -f "$part" "${part%.part}.bad"; return 1; }
+    fi
+    ver="$(_zip_version "$kind" "$part")"
+    [ -n "$ver" ] || { rm -f "$part"; fail "$kind: version not found in the ZIP"; return 1; }
+    name="$( [ "$kind" = apex ] && printf 'apex_%s.zip' "$ver" || printf 'ords-%s.zip' "$ver")"
+    mkdir -p "$base/$ver"
+    if [ -f "$base/$ver/$name" ]; then
+        rm -f "$part"; ok "$kind $ver already present: ${base#"$PATCH_STORAGE"/}/$ver/$name"
+    else
+        mv -f "$part" "$base/$ver/$name" && ok "$(printf "%s %s stored: %s  (%s)" "$kind" "$ver" \
+            "${base#"$PATCH_STORAGE"/}/$ver/$name" "$(du -h "$base/$ver/$name" | cut -f1)")"
+    fi
+    return 0
+}
+
+if $DOWNLOAD_APEX; then
+    section "APEX + ORDS (OTN, INSTALL_APEX=true)"
+    _otn_get apex "${APEX_ZIP_URL:-}" "$PATCH_STORAGE/apex" "${APEX_SHA256:-}" || EXIT_CODE=1
+    _otn_get ords "${ORDS_ZIP_URL:-}" "$PATCH_STORAGE/ords" "${ORDS_SHA256:-}" || EXIT_CODE=1
+    APEX_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
+    ORDS_ZIP_FILE="$(_newest_zip "$PATCH_STORAGE/ords" 'ords-*.zip')"
+    APEX_VER="$( [ -n "$APEX_ZIP_FILE" ] && basename "$(dirname "$APEX_ZIP_FILE")")"
+    ORDS_VER="$( [ -n "$ORDS_ZIP_FILE" ] && basename "$(dirname "$ORDS_ZIP_FILE")")"
+    # Oracle: the ORDS version must be equal to or newer than the APEX version
+    if [ -n "$APEX_VER" ] && [ -n "$ORDS_VER" ]; then
+        if [ "$(printf '%s\n%s\n' "$APEX_VER" "${ORDS_VER%.*.*}" | sort -V | head -1)" = "$APEX_VER" ]; then
+            ok "ORDS $ORDS_VER >= APEX $APEX_VER"
+        else
+            warn "ORDS $ORDS_VER is older than APEX $APEX_VER – Oracle: ORDS must be >= APEX"
+        fi
+    fi
+fi
+
+# =============================================================================
 # Section 2: getMOSPatch – OPatch + post-install patches
 # =============================================================================
 if $MOS_MODE; then
@@ -889,6 +1012,17 @@ if $MOS_MODE; then
         if ls "$CLIENT_JDK_DIR"/*Linux*.zip >/dev/null 2>&1; then
             fail "Linux ZIP in $CLIENT_JDK_DIR – the platform $CLIENT_JDK_PLAT was not used"
             MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+        fi
+    fi
+
+    # --- APEX patch set bundle (platform Generic, own .getMOSPatch.cfg) -------
+    if $DOWNLOAD_APEX && [ -n "${APEX_PATCH_NR:-}" ]; then
+        section "APEX Patch Set Bundle (patch $APEX_PATCH_NR, platform ${APEX_PATCH_PLATFORM:-2000P})"
+        if [ -z "$APEX_VER" ]; then
+            warn "APEX base version not downloaded – patch skipped (run without --mos first)"
+        else
+            _mos_download_one "$APEX_PATCH_NR" "$PATCH_STORAGE/apex/$APEX_VER/patch/$APEX_PATCH_NR" \
+                "" "${APEX_PATCH_PLATFORM:-2000P}" || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
         fi
     fi
 

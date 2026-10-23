@@ -742,6 +742,37 @@ _ask_password DB_SCHEMA_PWD "FMW schema password (all schemas)" "$DB_SYS_SEC_FIL
 printf "\n"
 
 # =============================================================================
+# Block 4b – APEX / ORDS (optional, 12-APEX-Ords/README.md)
+# =============================================================================
+
+section "Block 4b – APEX / ORDS (optional)"
+APEX_SEC_FILE="$ROOT_DIR/apex_sec.conf.des3"
+_ask_menu INSTALL_APEX "Oracle APEX + ORDS beside Forms (12-APEX-Ords)" \
+    "false:No (default)" \
+    "true:Yes - 04- downloads APEX / ORDS, values for the first ORDS (ords_1)"
+if [ "${INSTALL_APEX:-false}" = "true" ]; then
+    info "Paths: ORDS software + homes, APEX zips (private), image copy for Nginx (/srv)"
+    _ask APEX_ORDS_BASE "ORDS base (ords-<ver>, ords_1, ords_2)" "${ORACLE_BASE}/product/ords" "_val_dir"
+    _ask APEX_SW_BASE   "APEX software base (APEX_<ver>)"     "${ORACLE_BASE}/product/apex" "_val_dir"
+    _ask APEX_WEB_DIR   "APEX images for Nginx"               "/srv/apex"                   "_val_dir"
+    # TNS alias of the APEX database: the alias with DB_SERVICE in TNS_ADMIN
+    _alias_def="$(TNS_ADMIN="${TNS_ADMIN:-}" tns_alias_for_service "${DB_SERVICE:-}")"
+    info "ords_1 - one ORDS per database, TNS alias from ${TNS_ADMIN:-TNS_ADMIN}/tnsnames.ora"
+    _ask ORDS_1_DB_ALIAS     "TNS alias of the APEX database"   "${_alias_def:-${DB_SERVICE^^}}"
+    _ask ORDS_1_PORT         "ORDS listener port (127.0.0.1)"   "8081"  "_val_port"
+    _ask ORDS_1_CONTEXT      "ORDS URL context"                 "/ords" "_val_url_path"
+    _ask ORDS_1_IMAGE_PREFIX "APEX image prefix of this DB"     "/i/"
+    _ask ORDS_JAVA_HEAP      "ORDS Java heap (-Xms=-Xmx)"       "2G"
+    _ask APEX_TABLESPACE     "APEX tablespace"                  "APEX_DATA"
+    _ask APEX_LANGUAGES      "APEX language packs (e.g. de)"    "de" "" "optional"
+    info "APEX instance administrator ADMIN -> encrypted to: $(basename "$APEX_SEC_FILE")"
+    info "  APEX rules: upper + lower case, digit, punctuation character"
+    _ask_password APEX_ADMIN_PWD "APEX ADMIN password" "$APEX_SEC_FILE"
+    unset _alias_def
+fi
+INSTALL_APEX="${INSTALL_APEX:-false}"
+
+# =============================================================================
 # Block 5 – My Oracle Support
 # =============================================================================
 
@@ -832,6 +863,15 @@ _show "RCU_TEMP_TABLESPACE"  "$RCU_TEMP_TABLESPACE"
 _show "RCU_DB_TYPE"          "${RCU_DB_TYPE:-EBR}"
 _show "DB_SYS_PWD"           "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
+_show "INSTALL_APEX"         "$INSTALL_APEX"
+if [ "$INSTALL_APEX" = "true" ]; then
+    for _k in APEX_ORDS_BASE APEX_SW_BASE APEX_WEB_DIR ORDS_1_DB_ALIAS ORDS_1_PORT \
+              ORDS_1_CONTEXT ORDS_1_IMAGE_PREFIX ORDS_JAVA_HEAP APEX_TABLESPACE APEX_LANGUAGES; do
+        _show "$_k" "${!_k:-(empty)}"
+    done
+    unset _k
+    _show "APEX_ADMIN_PWD"       "****  → $(basename "$APEX_SEC_FILE")"
+fi
 _show "MOS_USER"             "$MOS_USER"
 _show "MOS_PWD"              "****  → $(basename "$MOS_SEC_FILE")"
 info "  Patch numbers / download versions → 09-Install/oracle_software_version.conf"
@@ -989,6 +1029,22 @@ RCU_DB_TYPE="${RCU_DB_TYPE:-EBR}"
 # true = Oracle DB on this host (01-root_os_baseline.sh keeps its shm/sysctl values)
 LOCAL_REP_DB="${LOCAL_REP_DB}"
 
+# --- APEX / ORDS (12-APEX-Ords/README.md) -------------------------------------
+# Versions / download URLs -> oracle_software_version.conf (APEX_*, ORDS_*)
+# ords_1 below; a second ORDS (other DB): ORDS_2_DB_ALIAS / _PORT / _CONTEXT /
+# _IMAGE_PREFIX by hand (8082, /ords_2, /i_2/). APEX_ADMIN_PWD -> apex_sec.conf.des3
+INSTALL_APEX="${INSTALL_APEX}"
+APEX_ORDS_BASE="${APEX_ORDS_BASE:-}"
+APEX_SW_BASE="${APEX_SW_BASE:-}"
+APEX_WEB_DIR="${APEX_WEB_DIR:-}"
+ORDS_1_DB_ALIAS="${ORDS_1_DB_ALIAS:-}"
+ORDS_1_PORT="${ORDS_1_PORT:-}"
+ORDS_1_CONTEXT="${ORDS_1_CONTEXT:-}"
+ORDS_1_IMAGE_PREFIX="${ORDS_1_IMAGE_PREFIX:-}"
+ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
+APEX_TABLESPACE="${APEX_TABLESPACE:-}"
+APEX_LANGUAGES="${APEX_LANGUAGES:-}"
+
 # --- My Oracle Support --------------------------------------------------------
 MOS_USER="${MOS_USER}"
 # MOS_PWD → encrypted: mos_sec.conf.des3
@@ -1050,6 +1106,11 @@ if [ "${#SSL_CONF_KEYS[@]}" -gt 0 ]; then
     done
     unset _k _line _esc
     ok "Local CA parameters written: $SSL_CONF"
+fi
+
+if [ -n "${APEX_ADMIN_PWD:-}" ] && [ "$APEX_ADMIN_PWD" != "****" ]; then
+    _write_secrets_file "$APEX_SEC_FILE" "APEX_ADMIN_USER=ADMIN" "APEX_ADMIN_PWD=$APEX_ADMIN_PWD"
+    unset APEX_ADMIN_PWD
 fi
 
 if [ -n "$MOS_PWD" ] && [ "$MOS_PWD" != "****" ]; then
@@ -1129,7 +1190,19 @@ RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
 # RCU_DB_TYPE: EBR (editions enabled, default) | ORACLE - passed as -databaseType
 RCU_DB_TYPE="${RCU_DB_TYPE:-EBR}"
+INSTALL_APEX="${INSTALL_APEX}"
+APEX_ORDS_BASE="${APEX_ORDS_BASE:-}"
+APEX_SW_BASE="${APEX_SW_BASE:-}"
+APEX_WEB_DIR="${APEX_WEB_DIR:-}"
+ORDS_1_DB_ALIAS="${ORDS_1_DB_ALIAS:-}"
+ORDS_1_PORT="${ORDS_1_PORT:-}"
+ORDS_1_CONTEXT="${ORDS_1_CONTEXT:-}"
+ORDS_1_IMAGE_PREFIX="${ORDS_1_IMAGE_PREFIX:-}"
+ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
+APEX_TABLESPACE="${APEX_TABLESPACE:-}"
+APEX_LANGUAGES="${APEX_LANGUAGES:-}"
 MOS_USER="${MOS_USER}"
+# APEX_ADMIN_PWD → apex_sec.conf.des3 (INSTALL_APEX=true)
 # WLS_ADMIN_PWD  → weblogic_sec.conf.des3
 # MOS_PWD        → mos_sec.conf.des3
 # DB_SYS_PWD + DB_SCHEMA_PWD → db_sys_sec.conf.des3

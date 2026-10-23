@@ -48,7 +48,7 @@ A modern Forms environment is Forms **and** APEX on the same database
    (`ords_2`), its own URL (`/ords_2`) and may run another ORDS / APEX
    version.
 3. **Software versioned, homes linked:** the ORDS zip is unpacked per version
-   (`ords-26.2.2`), each home links to the version it runs (`ords_1/ords`).
+   (`ords-26.3.0`), each home links to the version it runs (`ords_1/ords`).
    Upgrade = new directory + new link, rollback = old link.
 4. **The ORDS config directory holds nothing but the config.** ORDS reads
    every file under it, whatever the extension – no backups, no notes, no
@@ -71,9 +71,9 @@ A modern Forms environment is Forms **and** APEX on the same database
 
 ```
 $ORACLE_BASE/product/ords/
-  ords-26.2.2/                 unpacked ORDS zip, one directory per version
+  ords-26.3.0/                 unpacked ORDS zip, one directory per version
   ords_1/
-    ords -> ../ords-26.2.2     software link of this ORDS
+    ords -> ../ords-26.3.0     software link of this ORDS
     config/                    ORDS config of ords_1 (databases/, global/) - nothing else
   ords_2/
     ords -> ../ords-<ver>
@@ -109,9 +109,34 @@ Manager (5556). In the steps below `N` = 1 or 2, shown for `ords_1`.
 | Nginx | from `09-Install/04-root_nginx.sh` (TLS, one host name) |
 | Accounts | SYS of the PDB (once, for the installers) |
 
-Downloads: APEX – <https://www.oracle.com/tools/downloads/apex-downloads.html>,
-ORDS – <https://www.oracle.com/database/sqldeveloper/technologies/db-actions/download/>.
-Check every zip with `sha256sum` against the value on the download page.
+**Downloads – `09-Install/04-oracle_pre_download.sh --apply`** (with
+`INSTALL_APEX=true`): the OTN "latest" ZIPs, version read from the ZIP,
+stored per version; with `--mos` also the APEX patch set bundle
+(`APEX_PATCH_NR`, platform Generic `2000P`) – see
+[docs/04](../09-Install/docs/04-oracle_pre_download.md):
+
+```
+$PATCH_STORAGE/apex/26.2/apex_26.2.zip                       (SHA-256 = download page, checked 2026-10-23)
+$PATCH_STORAGE/apex/26.2/patch/<APEX_PATCH_NR>/p<nr>_262_Generic.zip
+$PATCH_STORAGE/ords/26.3.0.272.1811/ords-26.3.0.272.1811.zip
+```
+
+**Values – `environment.conf`** (interview block 4b,
+[docs/01](../09-Install/docs/01-setup-interview.md)):
+
+| Variable | Used here as |
+|---|---|
+| `INSTALL_APEX` | `true` = this page applies |
+| `APEX_ORDS_BASE` | `$ORACLE_BASE/product/ords` (section 3) |
+| `APEX_SW_BASE` | `$ORACLE_BASE/product/apex` |
+| `APEX_WEB_DIR` | `/srv/apex` |
+| `ORDS_1_DB_ALIAS` / `_PORT` / `_CONTEXT` / `_IMAGE_PREFIX` | `<PDB_ALIAS_1>`, `8081`, `/ords`, `/i/` (ords_2: `ORDS_2_*` by hand) |
+| `ORDS_JAVA_HEAP` | `-Xms` = `-Xmx` in the systemd unit |
+| `APEX_TABLESPACE`, `APEX_LANGUAGES` | `apexins.sql`, `load_<lang>.sql` |
+| `apex_sec.conf.des3` | `APEX_ADMIN_PWD` for `apxchpwd.sql` |
+
+Background: [apex_architecture.md](../80-FMW-Architecture/apex_architecture.md)
+(request path, ORDS config directory, proxy right, REST / OAuth2).
 
 ---
 
@@ -129,17 +154,18 @@ chmod 755 /srv/apex
 ### 5.2 Software (oracle)
 
 ```bash
-cd $PATCH_STORAGE/apex            # where the zips were downloaded to
-sha256sum ords-latest.zip apex_26.2.zip      # compare with the download pages
+# ZIPs from 04-oracle_pre_download.sh (checksum checked there)
+OZ=$PATCH_STORAGE/ords/26.3.0.272.1811/ords-26.3.0.272.1811.zip
+AZ=$PATCH_STORAGE/apex/26.2/apex_26.2.zip
 
-mkdir $ORACLE_BASE/product/ords/ords-26.2.2
-unzip -q ords-latest.zip -d $ORACLE_BASE/product/ords/ords-26.2.2
+mkdir $ORACLE_BASE/product/ords/ords-26.3.0
+unzip -q $OZ -d $ORACLE_BASE/product/ords/ords-26.3.0
 mkdir -p $ORACLE_BASE/product/ords/ords_1/config
-ln -sfn ../ords-26.2.2 $ORACLE_BASE/product/ords/ords_1/ords
+ln -sfn ../ords-26.3.0 $ORACLE_BASE/product/ords/ords_1/ords
 $ORACLE_BASE/product/ords/ords_1/ords/bin/ords --config $ORACLE_BASE/product/ords/ords_1/config --version
 
 mkdir $ORACLE_BASE/product/apex/APEX_26.2
-unzip -q apex_26.2.zip -d $ORACLE_BASE/product/apex/APEX_26.2
+unzip -q $AZ -d $ORACLE_BASE/product/apex/APEX_26.2
 
 # images: copy for Nginx, link for the ORDS instance
 mkdir /srv/apex/APEX_26.2
@@ -362,6 +388,7 @@ From the customer upgrade, generic:
 | `OutOfMemoryError` | raise `-Xmx` in the unit |
 | Locked users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_LISTENER` in `dba_users` – our profile `RCU_USER` (no expiry) is a candidate for them too |
 | `ORA-00020` / `ORA-00018` | `processes` / `sessions` too small for the pools |
+| REST definitions lost | never `DELETE` in `ORDS_METADATA` by hand (`ON DELETE CASCADE` – whole interfaces vanish at once); export existing REST interfaces before every change and before every ORDS upgrade – [apex_architecture.md §2](../80-FMW-Architecture/apex_architecture.md) |
 | APEX jobs | `dba_scheduler_jobs` of the APEX schema (mail queue) running? |
 | Broken images | `/srv/apex_1` link and `IMAGE_PREFIX` match? Nginx can read `/srv/apex`? |
 
@@ -383,9 +410,9 @@ From the customer upgrade, generic:
 
 - First run of this page on the test host (DB A = the Forms PDB), findings
   back into this README.
-- Automation: `12-APEX-Ords/*.sh` (download in `04-`, install, settings,
-  systemd, Nginx block in the template), `environment.conf` variables
-  (`ORDS_INSTANCES`, ports, TNS aliases, image prefixes), interview questions.
+- Automation: `12-APEX-Ords/*.sh` (install, settings, systemd, Nginx block in
+  the template); `03-` creates `APEX_WEB_DIR` (root). **Done 2026-10-23:**
+  interview block 4b, `environment.conf` variables, download in `04-`.
 - Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` also for `/forms` / `/reports` (WebLogic reads
   `WL-Proxy-Client-IP` = `$remote_addr` already) – decide and test.

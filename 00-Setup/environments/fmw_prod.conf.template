@@ -149,3 +149,19 @@ REPORTS_COOKIE_KEY=
 # bak_cleanup.sh --apply the newest N *.bak_<ts> copies per file
 CONFIG_BACKUP_KEEP=10
 BAK_FILES_KEEP=3
+
+# --- APEX / ORDS (12-APEX-Ords/README.md) ---
+# Versions / download URLs -> 09-Install/oracle_software_version.conf (APEX_*, ORDS_*)
+# ords_1; a second ORDS (other DB): ORDS_2_DB_ALIAS / _PORT / _CONTEXT / _IMAGE_PREFIX
+# APEX_ADMIN_PWD -> apex_sec.conf.des3 (01-setup-interview.sh)
+INSTALL_APEX=false
+APEX_ORDS_BASE=/u01/app/oracle/product/ords
+APEX_SW_BASE=/u01/app/oracle/product/apex
+APEX_WEB_DIR=/srv/apex
+ORDS_1_DB_ALIAS=
+ORDS_1_PORT=8081
+ORDS_1_CONTEXT=/ords
+ORDS_1_IMAGE_PREFIX=/i/
+ORDS_JAVA_HEAP=2G
+APEX_TABLESPACE=APEX_DATA
+APEX_LANGUAGES=de

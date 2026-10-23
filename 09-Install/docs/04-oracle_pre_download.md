@@ -17,6 +17,8 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 | **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
 | **Repository** (`09-Install/forms_templates/IHateWeblogic.ico`) | default shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true`, Forms installed and `FORMS_CLIENT_ICON=$PATCH_STORAGE/icon/IHateWeblogic.ico` (interview default) | `--apply` copies the template to `$PATCH_STORAGE/icon/IHateWeblogic.ico` if missing; an existing file is kept (replace it there by the customer's own icon of the same name, or point `FORMS_CLIENT_ICON` elsewhere) |
 | **URL** (any) | own shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true` and `FORMS_CLIENT_ICON` set to an `http(s)` URL | `curl` into `$PATCH_STORAGE/icon/<basename>`, must be ICO or PNG; sites with a browser check (HTTP 403) → download in the browser and place the file under the name the script prints |
+| **OTN** (download.oracle.com, no login) | **APEX** and **ORDS** – only with `INSTALL_APEX=true` | `curl` of `APEX_ZIP_URL` / `ORDS_ZIP_URL` (default the "latest" links), version read from the ZIP, stored in `$PATCH_STORAGE/apex/<ver>/` / `$PATCH_STORAGE/ords/<ver>/`, SHA-256 against `APEX_SHA256` / `ORDS_SHA256` if set |
+| **MOS**, platform Generic | **APEX patch set bundle** (`APEX_PATCH_NR`) – only with `INSTALL_APEX=true` and `--mos` | `getMOSPatch.jar` with platform `2000P` (Generic) into `$PATCH_STORAGE/apex/<ver>/patch/<nr>/` |
 | **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`46P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
@@ -94,6 +96,42 @@ and `07-Maintenance/80-patch_java_os.sh --apply` take the ZIP from
 The ZIP name does not change between JDK updates
 (`p35702194_2100_Linux-x86-64.zip`) – start a new cycle with
 `--fresh-patches`.
+
+### APEX, ORDS and the APEX patch (`INSTALL_APEX=true`)
+
+| Variable (`oracle_software_version.conf`) | Value | Description |
+|---|---|---|
+| `APEX_ZIP_URL` | `https://download.oracle.com/otn_software/apex/apex-latest.zip` | the "latest" link of the APEX download page (or a versioned one, e.g. `…/apex_26.2.zip`) |
+| `APEX_SHA256` | SHA-256 of the download page (optional) | checked when set – it belongs to one version, empty with the "latest" link |
+| `APEX_PATCH_NR` | *(empty)* | APEX **Patch Set Bundle** (MOS) – the download page lists it under "APEX Patch Set Bundle" as soon as one exists (26.2: none yet, 2026-10-23); e.g. `39179920` = 26.1 |
+| `APEX_PATCH_PLATFORM` | `2000P` | MOS platform code **Generic** – APEX patches are platform independent (`p<nr>_<rel>_Generic.zip`) |
+| `ORDS_ZIP_URL` | `https://download.oracle.com/otn_software/java/ords/ords-latest.zip` | ORDS "latest" link (or versioned, e.g. `…/ords-26.3.0.272.1811.zip`) |
+| `ORDS_SHA256` | *(optional)* | as `APEX_SHA256` |
+
+The "latest" links have no version in the name. The script downloads to a
+temporary file and reads the version from the ZIP:
+- APEX: `apex/images/apex_version.txt`.
+- ORDS: the version in the name of the `ords-<version>` / `ords.war` entries.
+
+Then it moves the file into the version directory:
+
+```
+$PATCH_STORAGE/apex/26.2/apex_26.2.zip
+$PATCH_STORAGE/apex/26.2/patch/<APEX_PATCH_NR>/p<nr>_262_Generic.zip
+$PATCH_STORAGE/ords/26.3.0.272.1811/ords-26.3.0.272.1811.zip
+```
+
+A version that is already present is not downloaded again. The download
+only checks the size first: `curl -I` gives the Content-Length, and the
+script compares it with the ZIP of the newest version directory. **ORDS
+must be ≥ APEX** (Oracle) – the script warns when the downloaded ORDS is
+older than APEX.
+
+**getMOSPatch with platform Generic** – confirmed (live) 2026-10-23:
+`patch=39179920` with `.getMOSPatch.cfg` `2000P;4L` downloads
+`p39179920_261_Generic.zip` (64 MB). With the Linux platform of the master
+cfg (`226P`) MOS offers no file for an APEX patch, therefore the APEX
+patch directory gets its own cfg (same mechanism as the client Java).
 
 ### Client Java for the Forms client distribution (getMOSPatch, second platform)
 
@@ -346,6 +384,13 @@ $PATCH_STORAGE/
 │           ├── .getMOSPatch.cfg  ← "233P;<language>" written for this directory
 │           └── p35702194_2100_MSWIN-x86-64.zip  ← confirmed (live) 2026-10-22, 518 MB:
 │                 jdk-21.0.13.0.2_windows-x64_bin.zip / .exe / .msi + SHA256_VALUES + MD5_VALUES
+├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
+│   └── 26.2/
+│       ├── apex_26.2.zip         ← OTN apex-latest.zip, version read from apex_version.txt
+│       └── patch/<APEX_PATCH_NR>/ ← APEX Patch Set Bundle, getMOSPatch platform 2000P (Generic)
+├── ords/                         ← ORDS (only INSTALL_APEX=true), one directory per version
+│   └── 26.3.0.272.1811/
+│       └── ords-26.3.0.272.1811.zip  ← OTN ords-latest.zip
 ├── fr/
 │   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin       ← extracted

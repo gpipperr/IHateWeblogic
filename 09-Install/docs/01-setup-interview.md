@@ -297,6 +297,30 @@ done
 
 Immediate connection test via `02-Checks/db_connect_check.sh` after entry.
 
+### Block 4b – APEX / ORDS (optional)
+
+Oracle APEX + ORDS standalone beside Forms
+([`12-APEX-Ords/README.md`](../../12-APEX-Ords/README.md)). The menu comes
+first; everything else is asked only with `INSTALL_APEX=true`. Values for
+the **first** ORDS instance (`ords_1`); a second one (`ords_2`, other DB) is
+added by hand as `ORDS_2_*` in `environment.conf`. Software versions and
+download URLs are in `oracle_software_version.conf` (`APEX_*`, `ORDS_*`).
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `INSTALL_APEX` | `false` | menu; `true` = `04-` downloads APEX / ORDS / the APEX patch, the questions below |
+| `APEX_ORDS_BASE` | `$ORACLE_BASE/product/ords` | ORDS software per version (`ords-<ver>`) + homes `ords_1/`, `ords_2/` |
+| `APEX_SW_BASE` | `$ORACLE_BASE/product/apex` | unpacked APEX zips `APEX_<ver>` (installer, SQL – private) |
+| `APEX_WEB_DIR` | `/srv/apex` | copy of the APEX images per version, read by Nginx (`/srv/apex_1` → `APEX_<ver>`); outside `$ORACLE_BASE` on purpose |
+| `ORDS_1_DB_ALIAS` | the alias of `$TNS_ADMIN/tnsnames.ora` with `DB_SERVICE`, else `DB_SERVICE` | TNS alias of the database of `ords_1` (one ORDS per DB) |
+| `ORDS_1_PORT` | `8081` | Jetty listener on `127.0.0.1` |
+| `ORDS_1_CONTEXT` | `/ords` | URL context = Nginx location |
+| `ORDS_1_IMAGE_PREFIX` | `/i/` | APEX `IMAGE_PREFIX` of this DB = Nginx alias to `/srv/apex_1` |
+| `ORDS_JAVA_HEAP` | `2G` | `-Xms` = `-Xmx` of every ORDS (dev 1–2 G, prod ≥ 4 G) |
+| `APEX_TABLESPACE` | `APEX_DATA` | `apexins.sql` tablespace (created if missing) |
+| `APEX_LANGUAGES` | `de` | language packs to load (`builder/<lang>/load_<lang>.sql`), space-separated, empty = English only |
+| `APEX_ADMIN_PWD` | prompted, encrypted → `apex_sec.conf.des3` | password of the APEX instance administrator `ADMIN` (`apxchpwd.sql`) – APEX rules: upper/lower case, digit, punctuation |
+
 ### Block 5 – My Oracle Support
 
 | Parameter | Default |
@@ -323,6 +347,7 @@ Asks for confirmation before writing `environment.conf`.
 | `embedded_ldap_sec.conf.des3` | Encrypted embedded LDAP `cn=Admin` password (`REPORTS_SECURITY=ldap`) |
 | `forms_sign_sec.conf.des3` | Encrypted code-signing keystore password (existing keystore; otherwise written by `ssl_local_ca.sh`) |
 | `08-SSL/ssl.conf` | Local CA subject values (only when the code-signing keystore does not exist yet) |
+| `apex_sec.conf.des3` | Encrypted APEX instance administrator password (`INSTALL_APEX=true`) |
 | `setup.conf` | Reusable template (no passwords) |
 
 ---

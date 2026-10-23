@@ -578,6 +578,8 @@ IHateWeblogic/
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
+│   ├── apex_architecture.md         – APEX + ORDS: request path, ORDS config dir, proxy right
+│   │                                      (CONNECT THROUGH), REST / OAuth2, APEX session in REST, history
 │   ├── clone_golden_image.md        – loopback-only installation, what holds the host name, RCU
 │   │                                      local vs. external, golden-image recipe
 │   ├── java_jlink_forms_env.md      – own Java runtime for the Forms client (jlink, jmods,
@@ -861,9 +863,13 @@ CSPU Sep 2026 state is frozen in
 ### APEX / ORDS beside Forms
 
 - [ ] **ORDS + APEX 26.2** – manual procedure written
-  ([`12-APEX-Ords/README.md`](12-APEX-Ords/README.md), 2026-10-23): first run on
-  the test host, then automation (`12-APEX-Ords/*.sh`, `environment.conf`,
-  interview), `clone_check` / `backup_config` / `cve_inventory` for ORDS.
+  ([`12-APEX-Ords/README.md`](12-APEX-Ords/README.md)), architecture in
+  [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md); interview
+  block 4b + `environment.conf` + download in `04-` done 2026-10-23 (APEX 26.2,
+  ORDS 26.3.0.272.1811 in the patch storage, APEX patch via getMOSPatch
+  platform 2000P confirmed). Open: first installation on the test host, then
+  `12-APEX-Ords/*.sh`, `03-` creates `APEX_WEB_DIR`, `clone_check` /
+  `backup_config` / `cve_inventory` for ORDS.
 - [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
   customer finding with ORDS) – also for `/forms` / `/reports`?
