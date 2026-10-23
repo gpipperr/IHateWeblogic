@@ -78,6 +78,8 @@ LIST="$(
         _find "${ORACLE_HOME:-}/reports/conf"
         _find "${ORACLE_HOME:-}" 1
         _find "${ORACLE_BASE:-}/admin"
+        _find "${ORACLE_BASE:-}/reports"
+        _find "${ORACLE_BASE:-}/forms"
         _find "$ROOT_DIR" 1
         _find "$ROOT_DIR/00-Setup/environments" 1
         _find "$_home" 1

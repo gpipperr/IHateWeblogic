@@ -235,7 +235,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --port)    OVERRIDE_PORT="$2";   shift 2 ;;
         --server)  OVERRIDE_SERVER="$2"; shift 2 ;;
-        --auth)    AUTH_MODE="${2,,}";   shift 2 ;;
+        --auth)
+            # without a value "shift 2" fails and the loop never ends (found 2026-10-23)
+            [ -n "${2:-}" ] || { printf "\033[31mERROR\033[0m --auth needs a mode: auto|mon|admin|none\n" >&2; exit 2; }
+            AUTH_MODE="${2,,}"; shift 2 ;;
         --help|-h) _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2

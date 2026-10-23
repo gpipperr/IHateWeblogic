@@ -457,7 +457,10 @@ else
                 # Extract fields from block
                 _srv_name="$(printf "%s" "$current_block" \
                     | grep -oP '(?<=<name>)[^<]+' | head -1)"
+                # plain listen port: outside <ssl> (the domain templates write
+                # <ssl><listen-port> first - found 2026-10-23 after SSL off)
                 _listen_port="$(printf "%s" "$current_block" \
+                    | sed '/<ssl>/,/<\/ssl>/d' \
                     | grep -oP '(?<=<listen-port>)[^<]+' | head -1)"
                 _ssl_port="$(printf "%s" "$current_block" \
                     | grep -oP '(?<=<ssl-listen-port>)[^<]+' \

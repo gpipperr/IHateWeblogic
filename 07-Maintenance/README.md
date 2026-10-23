@@ -279,6 +279,7 @@ server encrypts it at its next start).
 
 **Searched:** `$DOMAIN_HOME`, `$ORACLE_HOME/forms/java` and
 `$ORACLE_HOME/reports/conf` (not the whole Oracle Home), `$ORACLE_BASE/admin`,
+`$ORACLE_BASE/reports` and `$ORACLE_BASE/forms` (report / form modules deployed by `15-`),
 the project root and `00-Setup/environments/` (backups of `environment.conf`),
 the oracle home directory (top level) – files only, one file system (`-xdev`).
 
