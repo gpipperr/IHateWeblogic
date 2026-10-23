@@ -2,7 +2,7 @@
 
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Script Library
 
-<p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther</p>
+<p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude</p>
 
 Author: Gunther Pipperr | https://pipperr.de
 License: Apache 2.0

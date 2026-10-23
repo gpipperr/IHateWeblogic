@@ -380,6 +380,15 @@ or individual WLS patches are applied. None of them is part of the WLS SPB.
 | 38936596 | 38936596 | One-off for Bug 38936596 (ewt3.jar, BiDi parentheses), not in KA1182 | Only if `REPORTS_BIDIPARENTHESIS=YES` (Hebrew) |
 | WLS Proxy Plug-In | – | CVE-2026-83379 / 87300 | Only for IIS/Apache as a proxy — not relevant with Nginx |
 
+### DB client tools, APEX, ORDS (own release cycles, not in KA1182)
+
+| Component | Installed by | Release cycle | Update |
+|---|---|---|---|
+| Oracle Instant Client 23.26.x (`basic`, `sqlplus`, `tools`) | `00-Setup/install_db_client_tools.sh` | follows the quarterly DB RU (23.26.x) | `IC_VERSION` / `IC_URL_BASE` in `oracle_software_version.conf`, run the script again – link switch after smoke test, `--rollback` |
+| SQLcl | `00-Setup/install_db_client_tools.sh` | quarterly OTN release (`sqlcl-latest.zip`) | run the script again |
+| APEX 26.x | `09-Install/04-oracle_pre_download.sh`, `12-APEX-Ords/02-install-apex.sh` | OTN release + patch set bundles via MOS (`APEX_PATCH_NR`, platform 2000P) | download in `04-`, `02-install-apex.sh` (upgrade / `catpatch.sql`) |
+| ORDS 26.x | `09-Install/04-oracle_pre_download.sh` | quarterly OTN release | ORDS ≥ APEX; installation script open |
+
 ### Content of SPB 40125898 (KA1182 option 2 = the individual patches)
 
 | Patch | Content | KA1182 release |

@@ -2,7 +2,7 @@
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
 
-<p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther</p>
+<p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude </p>
 
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
@@ -116,6 +116,7 @@ CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-22.
 | Current patch list (14.1.2) | [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md) – patch numbers from MOS KA1182 + CPU426, CVE check, "How to read KA1182", MOS Doc-ID table |
 | Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
 | Scripts / `oracle_software_version.conf` | **still on CSPU September 2026** (= test host) – switching to October is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
+| DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
 | Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
 
 What matters in this cycle:
@@ -384,6 +385,8 @@ IHateWeblogic/
 │   │                                   weblogic_sec.conf.des3 (openssl des3, machine-local key)
 │   ├── database_rcu_sec.sh          – Same encryption concept for the RCU/repository DB password
 │   ├── mos_sec.sh                   – Same encryption concept for My Oracle Support credentials
+│   ├── install_db_client_tools.sh   – Instant Client 23.26 (sqlplus/tools) + SQLcl into
+│   │                                   $ORACLE_BASE/product/<tool>_<ver>, link switch after smoke test
 │   ├── set_environment.md           – Concept doc: environment.conf symlink + environments/ folder
 │   └── environments/                – Per-environment conf files
 │       ├── README.md                – committed
@@ -541,8 +544,10 @@ IHateWeblogic/
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
 │
 ├── 12-APEX-Ords/
-│   └── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,
-│                                       one ORDS per DB, images copy /srv/apex, Nginx, systemd ords@.service
+│   ├── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,
+│   │                                   one ORDS per DB, images copy /srv/apex, Nginx, systemd ords@.service
+│   ├── 01-prepare-database.sh       – PDB check: APEX present?, tablespaces, ORDS_METADATA, --apply creates TS
+│   └── 02-install-apex.sh           – unpack, apexins as SYS in the PDB, ADMIN/REST user, languages, images
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
@@ -867,9 +872,11 @@ CSPU Sep 2026 state is frozen in
   [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md); interview
   block 4b + `environment.conf` + download in `04-` done 2026-10-23 (APEX 26.2,
   ORDS 26.3.0.272.1811 in the patch storage, APEX patch via getMOSPatch
-  platform 2000P confirmed). Open: first installation on the test host, then
-  `12-APEX-Ords/*.sh`, `03-` creates `APEX_WEB_DIR`, `clone_check` /
-  `backup_config` / `cve_inventory` for ORDS.
+  platform 2000P confirmed). 2026-10-23: `00-Setup/install_db_client_tools.sh` (Instant Client
+  23.26.4 + SQLcl), `01-prepare-database.sh`, `02-install-apex.sh`, `03-`
+  creates `APEX_WEB_DIR`. Open: ORDS installation + Nginx block as scripts,
+  `clone_check` / `backup_config` / `cve_inventory` for IC / SQLcl / ORDS /
+  APEX, move `rcu_repository_check` etc. to `ihw_sqlplus`.
 - [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
   customer finding with ORDS) – also for `/forms` / `/reports`?
