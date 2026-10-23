@@ -354,7 +354,7 @@ Run these scripts in sequence on a fresh installation:
 | `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
-| `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS standalone beside Forms – manual installation (automation follows) |
+| `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files) and patch analyses (Forms & Reports 12.2.1.19), independent of the scripts above |
@@ -546,8 +546,15 @@ IHateWeblogic/
 ├── 12-APEX-Ords/
 │   ├── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,
 │   │                                   one ORDS per DB, images copy /srv/apex, Nginx, systemd ords@.service
-│   ├── 01-prepare-database.sh       – PDB check: APEX present?, tablespaces, ORDS_METADATA, --apply creates TS
-│   └── 02-install-apex.sh           – unpack, apexins as SYS in the PDB, ADMIN/REST user, languages, images
+│   ├── 01-prepare-database.sh       – PDB check: APEX present?, tablespace (APEX + ORDS), profile APEX_USER
+│   ├── 02-install-apex.sh           – unpack, apexins as SYS in the PDB, ADMIN/REST user, languages, images
+│   ├── 03-patch-apex.sh             – patch set bundle: catpatch, images APEX_<ver>_p<nr> + link switch
+│   ├── 04-install-ords.sh           – ORDS home, ords install (non-interactive), config set, systemd unit
+│   ├── 05-setup-nginx.sh            – /etc/nginx/oracle-wls.d/ords_N.conf (/ords/ + /i/), HTTPS check
+│   ├── 06-patch-ords.sh             – new ORDS release beside the old one, repository upgrade, rollback
+│   ├── apex_ords_lib.sh             – shared functions (SQL as SYS, ORDS command line, versions, templates)
+│   ├── apex_user_profile.sql        – DB profile APEX_USER (no expiry / lock-out) for the runtime accounts
+│   └── templates/                   – ords@.service, logging.properties, nginx-ords.conf
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
@@ -583,7 +590,8 @@ IHateWeblogic/
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
-│   ├── apex_architecture.md         – APEX + ORDS: request path, ORDS config dir, proxy right
+│   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export
+│   ├── ords_architecture.md         – ORDS: Jetty, APEXlang compiler, config levels, proxy right, features + risks
 │   │                                      (CONNECT THROUGH), REST / OAuth2, APEX session in REST, history
 │   ├── clone_golden_image.md        – loopback-only installation, what holds the host name, RCU
 │   │                                      local vs. external, golden-image recipe
@@ -867,16 +875,17 @@ CSPU Sep 2026 state is frozen in
 
 ### APEX / ORDS beside Forms
 
-- [ ] **ORDS + APEX 26.2** – manual procedure written
-  ([`12-APEX-Ords/README.md`](12-APEX-Ords/README.md)), architecture in
-  [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md); interview
-  block 4b + `environment.conf` + download in `04-` done 2026-10-23 (APEX 26.2,
-  ORDS 26.3.0.272.1811 in the patch storage, APEX patch via getMOSPatch
-  platform 2000P confirmed). 2026-10-23: `00-Setup/install_db_client_tools.sh` (Instant Client
-  23.26.4 + SQLcl), `01-prepare-database.sh`, `02-install-apex.sh`, `03-`
-  creates `APEX_WEB_DIR`. Open: ORDS installation + Nginx block as scripts,
-  `clone_check` / `backup_config` / `cve_inventory` for IC / SQLcl / ORDS /
-  APEX, move `rcu_repository_check` etc. to `ihw_sqlplus`.
+- [x] **ORDS + APEX 26.2** – scripted and live on the test host 2026-10-23:
+  `00-Setup/install_db_client_tools.sh` (Instant Client 23.26.4 + SQLcl 26.3),
+  `12-APEX-Ords/01-` … `06-` (APEX 26.2 VALID, ORDS 26.3 on 127.0.0.1:8081
+  behind Nginx, profile `APEX_USER`), architecture in
+  [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md) and
+  [`ords_architecture.md`](80-FMW-Architecture/ords_architecture.md).
+- [ ] APEX / ORDS follow-ups: first real run of `03-patch-apex.sh` /
+  `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
+  wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; `startStop.sh`
+  shows `ords@ords_N`; move `rcu_repository_check` etc. to `ihw_sqlplus`;
+  the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
 - [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
   customer finding with ORDS) – also for `/forms` / `/reports`?

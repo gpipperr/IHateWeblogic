@@ -386,8 +386,8 @@ or individual WLS patches are applied. None of them is part of the WLS SPB.
 |---|---|---|---|
 | Oracle Instant Client 23.26.x (`basic`, `sqlplus`, `tools`) | `00-Setup/install_db_client_tools.sh` | follows the quarterly DB RU (23.26.x) | `IC_VERSION` / `IC_URL_BASE` in `oracle_software_version.conf`, run the script again – link switch after smoke test, `--rollback` |
 | SQLcl | `00-Setup/install_db_client_tools.sh` | quarterly OTN release (`sqlcl-latest.zip`) | run the script again |
-| APEX 26.x | `09-Install/04-oracle_pre_download.sh`, `12-APEX-Ords/02-install-apex.sh` | OTN release + patch set bundles via MOS (`APEX_PATCH_NR`, platform 2000P) | download in `04-`, `02-install-apex.sh` (upgrade / `catpatch.sql`) |
-| ORDS 26.x | `09-Install/04-oracle_pre_download.sh` | quarterly OTN release | ORDS ≥ APEX; installation script open |
+| APEX 26.x | `09-Install/04-oracle_pre_download.sh`, `12-APEX-Ords/02-install-apex.sh` | OTN release + patch set bundles via MOS (`APEX_PATCH_NR`, platform 2000P) | release upgrade: `02-install-apex.sh`; patch set: `12-APEX-Ords/03-patch-apex.sh` |
+| ORDS 26.x | `09-Install/04-oracle_pre_download.sh`, `12-APEX-Ords/04-install-ords.sh` | quarterly OTN release | `12-APEX-Ords/06-patch-ords.sh` (new release beside the old one, repository upgrade one-way). **ORDS ≥ APEX and the APEXlang compiler in `ords.war` ≥ APEX** – APEX 26.2 needs ORDS 26.3.0 + SQLcl 26.3.0: patch APEX, ORDS and SQLcl as one set |
 
 ### Content of SPB 40125898 (KA1182 option 2 = the individual patches)
 

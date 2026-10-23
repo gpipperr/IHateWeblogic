@@ -142,17 +142,24 @@ Background: [apex_architecture.md](../80-FMW-Architecture/apex_architecture.md)
 
 ## 5. Installation
 
-**Scripts** (status 2026-10-23 – the manual steps below stay as the reference
-and for ORDS / Nginx, which are not scripted yet):
+**Scripts** (all live-tested on the test host 2026-10-23 except the real
+patch runs of `03-` / `06-`, which need the next APEX patch / ORDS release;
+the manual steps in §5a stay as the reference). Every script is read-only
+without `--apply`; `--instance N` selects `ords_N`. Shared functions:
+`apex_ords_lib.sh`, templates in `templates/`, the DB profile in
+`apex_user_profile.sql`.
 
 | Step | Script | What |
 |---|---|---|
 | 0 | `00-Setup/install_db_client_tools.sh --apply` | Instant Client 23.26 (`sqlplus`, tools) + SQLcl – SQL\*Plus for the APEX installer, SQLcl for `apex export` / `rest export` |
 | 0 | `09-Install/04-oracle_pre_download.sh --apply [--mos]` | APEX / ORDS ZIPs, APEX patch |
 | 0 | `09-Install/03-root_user_oracle.sh --apply` (root) | creates `APEX_WEB_DIR` (`/srv/apex`, owner oracle) |
-| 1 | `12-APEX-Ords/01-prepare-database.sh [--apply]` | PDB check, APEX already installed (version, tablespace), APEX / temp tablespace – creates `APEX_TABLESPACE` |
-| 2 | `12-APEX-Ords/02-install-apex.sh [--apply]` | unpack, `apexins.sql` (+ patch), ADMIN, `apex_rest_config.sql`, language packs, images to `/srv/apex/APEX_<ver>` + link `apex_1` |
-| 3 | (manual §5.4–5.8) | ORDS install, settings, systemd, Nginx |
+| 1 | `12-APEX-Ords/01-prepare-database.sh [--apply]` | PDB check, APEX already installed (version, tablespace), tablespace for APEX **and** `ORDS_METADATA`, temp tablespace, DB profile `APEX_USER` (no expiry / lock-out) for the runtime accounts |
+| 2 | `12-APEX-Ords/02-install-apex.sh [--apply]` | new installation **or release upgrade**: unpack, `apexins.sql`, ADMIN, `apex_rest_config.sql`, profile, language packs, images to `/srv/apex/APEX_<ver>` + link `apex_1` |
+| 3 | `12-APEX-Ords/03-patch-apex.sh [--apply]` | APEX patch set bundle (`APEX_PATCH_NR`): ORDS stop, `catpatch.sql`, ORDS start, images to `/srv/apex/APEX_<ver>_p<nr>` + link switch (rollback = link back) |
+| 4 | `12-APEX-Ords/04-install-ords.sh [--apply]` | ORDS software `ords-<ver>` + home `ords_1` (config 700), `ords install` non-interactive (repository in the APEX tablespace, risky features off), `config set` with key check, systemd `ords@.service`, loopback check |
+| 5 | `12-APEX-Ords/05-setup-nginx.sh [--apply]` | `/etc/nginx/oracle-wls.d/ords_1.conf` (`/ords/` + `/i/`), image / `IMAGE_PREFIX` / SELinux checks, `nginx -t` + reload + rollback, HTTPS check |
+| 6 | `12-APEX-Ords/06-patch-ords.sh [--apply] [--rollback] [--keep N]` | new ORDS release beside the old one, link switch, repository upgrade (one-way), rollback by link while the repository is unchanged |
 
 ## 5a. Installation by hand (reference)
 
@@ -231,6 +238,23 @@ cd $ORACLE_BASE/product/ords/ords_1/ords/bin
 ./ords --config $ORDS_CONFIG install
 ```
 
+Non-interactive (what `04-install-ords.sh` runs – passwords via stdin in
+the order of the user options: SYS, then `ORDS_PUBLIC_USER`; **no**
+`--db-pool default`, ORDS 26.3 rejects it):
+
+```bash
+./ords --config $ORDS_CONFIG install --admin-user "SYS AS SYSDBA" --proxy-user \
+  --db-tns-dir $TNS_ADMIN --db-tns-alias <PDB_ALIAS_1> \
+  --schema-tablespace APEX_DATA --schema-temp-tablespace TEMP \
+  --proxy-user-tablespace APEX_DATA --proxy-user-temp-tablespace TEMP \
+  --gateway-mode proxied --gateway-user APEX_PUBLIC_USER \
+  --feature-sdw false --feature-rest-enabled-sql false --feature-db-api false \
+  --log-folder /tmp/ords_install --password-stdin <<'PWD'
+<SYS password>
+<ORDS_PUBLIC_USER password>
+PWD
+```
+
 Answers: connection type **TNS** – TNS directory `$TNS_ADMIN`, alias
 `<PDB_ALIAS_1>`; administrator `SYS`; features as needed (APEX, REST
 services; Database Actions only if wanted); **do not start** (systemd does
@@ -242,7 +266,7 @@ directory (`./logs`) – keep it outside `config/`.
 
 ```bash
 O="./ords --config $ORDS_CONFIG config set"
-$O standalone.http.host 127.0.0.1
+$O standalone.binds 127.0.0.1                    # NOT standalone.http.host – unknown key, accepted silently!
 $O standalone.http.port 8081                     # ords_2: 8082
 $O standalone.context.path /ords                 # ords_2: /ords_2
 $O standalone.access.log /var/log/ords_1
@@ -253,6 +277,7 @@ $O jdbc.MinLimit 10
 $O jdbc.MaxLimit 50
 $O security.externalSessionTrustedOrigins "https://<FQDN>"
 $O security.requestValidationFunction ords_util.authorize_plsql_gateway   # APEX 26.2 guide
+$O feature.graphql disable_all                   # ORDS default: enabled
 ./ords --config $ORDS_CONFIG config list         # check
 ```
 
@@ -307,9 +332,11 @@ Heap: dev 1–2 GB, test 2–4 GB, production ≥ 4 GB, `-Xms` = `-Xmx`.
 
 ### 5.7 Nginx (root)
 
-In the HTTPS server block of `/etc/nginx/conf.d/oracle-wls.conf`
-(`09-Install/nginx-wls.conf.template` – template change follows with the
-automation):
+Own file per instance, `/etc/nginx/oracle-wls.d/ords_1.conf` – included
+**inside the 443 server block** of `/etc/nginx/conf.d/oracle-wls.conf`
+(`include /etc/nginx/oracle-wls.d/*.conf;`, `09-Install/nginx-wls.conf.template`
+since 2026-10-23). `05-setup-nginx.sh` renders it from
+`templates/nginx-ords.conf.template`:
 
 ```nginx
 location /ords/ {
@@ -405,7 +432,7 @@ From the customer upgrade, generic:
 | HTTP 502 | ORDS not running or not on `127.0.0.1:8081` – `journalctl -u ords@ords_1` |
 | ORDS does not start | wrong `JAVA_HOME`, DB listener not reachable, wrong `--config` path, foreign files in `config/` |
 | `OutOfMemoryError` | raise `-Xmx` in the unit |
-| Locked users | `ORDS_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` in `dba_users` (`APEX_PUBLIC_USER` stays without password – proxy only) – our profile `RCU_USER` (no expiry) is a candidate for them too |
+| Locked / expired users | `ORDS_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER`, `APEX_PUBLIC_USER` – profile `APEX_USER` (no expiry / lock-out) by `01-` / `02-` / `04-`; check: `01-prepare-database.sh` (without the profile `APEX_REST_PUBLIC_USER` expired after 180 days) |
 | `ORA-00020` / `ORA-00018` | `processes` / `sessions` too small for the pools |
 | REST definitions lost | never `DELETE` in `ORDS_METADATA` by hand (`ON DELETE CASCADE` – whole interfaces vanish at once); export existing REST interfaces before every change and before every ORDS upgrade – [apex_architecture.md §2](../80-FMW-Architecture/apex_architecture.md) |
 | APEX jobs | `dba_scheduler_jobs` of the APEX schema (mail queue) running? |
@@ -420,25 +447,30 @@ From the customer upgrade, generic:
 |---|---|
 | Loopback / clone | ORDS on `127.0.0.1`; host-specific: `security.externalSessionTrustedOrigins`, Nginx `server_name` – to add to `02-Checks/clone_check.sh` |
 | Backup | `ords_N/config` (holds `cwallet.sso` – owner only) into `07-Maintenance/backup_config.sh` – to add |
-| Patching | ORDS / APEX quarterly; APEX patch sets (`catpatch.sql`) – into the patch cycle of `09-Install/docs/00-patch-references.md` |
+| Patching | APEX + ORDS + SQLcl as **one set** (APEXlang compiler in ORDS): `03-patch-apex.sh`, `06-patch-ords.sh`, `00-Setup/install_db_client_tools.sh`; cycle in `09-Install/docs/00-patch-references.md` |
 | Certificates | Nginx certificate already covered by `10-Monitoring/cert_expiry_check.sh` |
-| Java | `JDK_HOME` – the JDK upgrade of `80-` needs an ORDS restart too |
+| Java | `JDK_HOME` – the JDK upgrade of `80-` needs an ORDS restart too (`systemctl restart ords@ords_1`) |
+| DB accounts | profile `APEX_USER` (`apex_user_profile.sql`) – like `RCU_USER` for the FMW schemas |
+| Background | [ords_architecture.md](../80-FMW-Architecture/ords_architecture.md) (Jetty, APEXlang, features + risks, REST / OAuth2) |
 
 ---
 
 ## 9. Open items
 
-- First run of this page on the test host (DB A = the Forms PDB), findings
-  back into this README.
-- Automation: `12-APEX-Ords/*.sh` (install, settings, systemd, Nginx block in
-  the template); `03-` creates `APEX_WEB_DIR` (root). **Done 2026-10-23:**
-  interview block 4b, `environment.conf` variables, download in `04-`.
+- **Done 2026-10-23:** interview block 4b, `environment.conf`, download in
+  `04-`, scripts `01-` … `06-`, `03-` creates `APEX_WEB_DIR`, Nginx include
+  directory, live installation APEX 26.2 + ORDS 26.3 on the test host.
+- First real run of `03-patch-apex.sh` (next APEX 26.2 patch set bundle) and
+  of the upgrade path of `06-patch-ords.sh` (next ORDS release).
 - Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` also for `/forms` / `/reports` (WebLogic reads
   `WL-Proxy-Client-IP` = `$remote_addr` already) – decide and test.
-- `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX.
-- Silent `ords install` (no prompts) for the automation – options to be
-  verified against the ORDS 26.x install guide.
+- `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX
+  (config dir with wallet, versions of APEX / ORDS / SQLcl / Instant Client).
+- `01-Run/startStop.sh` / `fmw_ctl.sh` status: show `ords@ords_N` next to the
+  FMW components.
+- A workspace + application on the test host to prove the parsing-schema
+  switch for an own application ([apex_architecture.md](../80-FMW-Architecture/apex_architecture.md) §5a).
 
 ---
 

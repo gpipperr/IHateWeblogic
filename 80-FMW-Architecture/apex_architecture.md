@@ -1,20 +1,22 @@
 # Oracle APEX and ORDS – How a Request Reaches the Database
 
-How Oracle APEX and Oracle REST Data Services (ORDS) work together beside a
-Forms / Reports domain:
+How Oracle APEX works beside a Forms / Reports domain:
 - which parts take part in a request;
-- what lives in the ORDS configuration directory and in the database;
-- how the pool user reaches the APEX and REST schemas through the **proxy
-  right** (`CONNECT THROUGH`);
-- how REST services and OAuth2 work through ORDS.
+- the APEX database accounts of 26.2;
+- how an APEX page call becomes SQL in the application schema, and which
+  APEX objects live in SYS (removal, export / import).
+
+**ORDS in depth** – Jetty, Java base, APEXlang compiler, the two
+configuration levels, the proxy right, features and their risks, REST /
+OAuth2 / APEX session – is in [ords_architecture.md](ords_architecture.md).
+This page keeps only the key ORDS facts.
 
 The installation is in [12-APEX-Ords/README.md](../12-APEX-Ords/README.md).
 
 Markers: **documented** (source in section 9), **confirmed (live)** (test
-host, date given), **assumption** (not proven yet). APEX 26.2 is installed on
-the test host since 2026-10-23 (`12-APEX-Ords/02-install-apex.sh`, PDB on DB
-19.30) – sections 5a / 5b are checked there; ORDS is not installed yet, so
-the request path (sections 4–6) is still **documented** only.
+host, date given), **assumption** (not proven yet). APEX 26.2 + ORDS 26.3 run
+on the test host since 2026-10-23 (`12-APEX-Ords/01-` … `05-`, PDB on DB
+19.30) – request path, proxy rights and sections 5a / 5b are checked there.
 
 ---
 
@@ -48,7 +50,7 @@ the request path (sections 4–6) is still **documented** only.
 | Part | Role |
 |---|---|
 | Nginx | TLS, one host name, serves the APEX images directly (`/i/` → `/srv/apex/apex_1`), proxies `/ords/` |
-| ORDS (standalone) | Java web server (embedded Jetty); maps the URL to a pool and to an APEX page or a REST handler, runs the database call, streams the answer |
+| ORDS (standalone) | Java web server (embedded Jetty 12); maps the URL to a pool and to an APEX page or a REST handler, runs the database call, streams the answer. **Since 26.x it also carries the APEXlang compiler of APEX** – ORDS ≥ APEX is a hard rule ([ords_architecture.md §1a](ords_architecture.md)) |
 | `ORDS_PUBLIC_USER` | **runtime / pool user** – the only user ORDS logs in with; owns nothing |
 | `APEX_PUBLIC_USER` | **PL/SQL gateway user** of APEX – ORDS switches to it for APEX pages (proxy). 26.2 creates it **without authentication** – reached only through the proxy right, no password needed (section 2a) |
 | `APEX_PUBLIC_ROUTER` | **new in 26.x** – minimally privileged account an ORDS REST module uses to resolve APEX **friendly URLs** (`/ords/r/<workspace>/<app>/<page>`) |
@@ -60,76 +62,13 @@ the request path (sections 4–6) is still **documented** only.
 
 ---
 
-## 2. Two levels of ORDS configuration – files and database
+## 2. ORDS – the key facts (details: [ords_architecture.md](ords_architecture.md))
 
-ORDS keeps its configuration in **two places**. Both must fit together:
-
-```
- level 1: ON THE ORDS HOST (files)            level 2: IN THE TARGET DATABASE (repository)
- ords_1/config/                               schema ORDS_METADATA (+ ORDS_PUBLIC_USER)
-   how to REACH the database                    WHAT to serve and WHO may call it
-   - pool.xml: TNS alias, pool user,            - REST-enabled schemas + URL aliases
-     wallet with its password                   - modules / templates / handlers (SQL, PL/SQL)
-   - settings.xml: port, host, context path,    - roles, privileges (URL patterns)
-     caches, security switches                  - OAuth clients, secrets, tokens
-   - logging                                    - ORDS version of the repository
-   one per ORDS instance                        one per database (shared by every ORDS
-   changed with: ords config set                that serves this database)
-                                                changed with: ords install / ORDS PL/SQL API
-```
-
-| | Level 1 – configuration files | Level 2 – ORDS repository in the database |
-|---|---|---|
-| Where | `$APEX_ORDS_BASE/ords_N/config/` on the ORDS host | schema `ORDS_METADATA` in the target PDB |
-| Content | connection to the DB (pool), web server, caches, logging | REST services, their security, OAuth clients |
-| Created by | `ords install` (pool), `ords config set` | `ords install` (creates / **upgrades** the schema to the ORDS version) |
-| Changed by | the administrator on the host | developers: `ORDS.*` / `ORDS_SECURITY.*` PL/SQL, REST workshop in SQL Developer Web / APEX |
-| Backup | file backup of the config dir (holds the wallet) | database backup / Data Pump of the PDB |
-| On an ORDS upgrade | new software link, config stays | `ords install` upgrades `ORDS_METADATA` – one-way, DB backup first |
-| On a clone / move | host-specific (`externalSessionTrustedOrigins`, TNS alias) | moves with the database |
-
-**What the repository does:** for every REST request ORDS reads (and caches,
-`cache.metadata.*`) the definitions in `ORDS_METADATA`:
-- which schema the URL alias belongs to;
-- which module / template / handler matches the path;
-- which privilege protects it;
-- whether the caller's token or role is allowed.
-
-Only then does ORDS open the proxy session to the schema and run the
-handler. The repository holds **no business data** – only the description
-of the services and their security. Its version must match the ORDS
-software: a newer ORDS upgrades the repository with `ords install` (customer
-upgrade 23.3 → 26.3: 30 s, **documented** in the anonymised upgrade notes).
-Several ORDS instances may serve one database; they then share one
-repository – in this library it is one ORDS per database, so each
-repository has exactly one ORDS.
-
-> **Warning – never change `ORDS_METADATA` by hand (author's experience):**
->
-> - **Never delete rows in `ORDS_METADATA` with SQL.** The tables are
->   linked with **`ON DELETE CASCADE`** foreign keys – one `DELETE` on a
->   module, schema or privilege row silently takes every dependent
->   template, handler, privilege mapping and OAuth assignment with it, and
->   whole REST interfaces are gone at once, without an error.
-> - Change REST definitions only through the API (`ORDS.*`,
->   `ORDS_SECURITY.*`) or the REST workshop. **Before every change to an
->   existing REST interface, export it first** – especially before an ORDS
->   upgrade. ORDS has many bugs in this area: a "redefine" of a module, an
->   upgrade or a workshop action can drop or rewrite definitions you did
->   not touch.
-> - Ways to save the definitions, from the smallest to the largest:
->   - the export of the REST workshop (SQL Developer Web / APEX: export module);
->   - an ORDS PL/SQL export of the schema;
->   - SQLcl `rest export` into a script under version control;
->   - Data Pump of the REST-enabled schema **plus** a backup of the whole PDB – a Data Pump of `ORDS_METADATA` alone is no restore path.
->   - The exact names of the export API differ between ORDS releases – check them in the ORDS 26.3 Developer's Guide (section 9) before relying on them; **assumption**, not tested here yet.
-> - Keep the exported scripts in the repository of the application – then
->   a lost interface is re-created with one script instead of rebuilt by
->   hand.
-
-APEX keeps its own metadata (applications, workspaces, session state) in
-`APEX_260200`, not in `ORDS_METADATA`. Only the REST services of APEX
-workspaces are stored in `ORDS_METADATA`.
+- **Two configuration levels:** files on the ORDS host (`ords_N/config/`: pool, wallet, settings) and the repository `ORDS_METADATA` in the PDB (REST modules, privileges, OAuth clients) – [§3](ords_architecture.md#3-two-levels-of-configuration--files-and-database).
+- **Never `DELETE` in `ORDS_METADATA` by hand** – 54 of its 56 foreign keys are `ON DELETE CASCADE` (live); export REST interfaces before every change and every ORDS upgrade.
+- **One pool user, many schemas:** ORDS logs in only as `ORDS_PUBLIC_USER` and switches per request with the **proxy right** into `APEX_PUBLIC_USER` (APEX) or a REST-enabled schema – [§5](ords_architecture.md#5-the-proxy-right--how-one-pool-serves-many-schemas).
+- **APEX metadata is not in `ORDS_METADATA`:** applications, workspaces and session state live in `APEX_260200`; only the REST services of APEX workspaces are stored in `ORDS_METADATA`.
+- **APEXlang:** the compiler is inside `ords.war` – APEX, ORDS and SQLcl are patched as one set ([§1a](ords_architecture.md#1a-apexlang--apex-and-ords-are-coupled-since-26x)).
 
 ---
 
@@ -149,83 +88,19 @@ Database Accounts", "Configuring the APEX_PUBLIC_USER Account",
 | `APEX_260200`, `FLOWS_FILES` | release schema, files | unchanged (one schema per release; `FLOWS_FILES` always locked) |
 
 Consequences for this library (`12-APEX-Ords/02-install-apex.sh`):
-- **No password and no unlock for `APEX_PUBLIC_USER`.** Our ORDS uses `ORDS_PUBLIC_USER` + proxy right (section 4) – a passwordless gateway account cannot be used for a direct login. That is a smaller attack surface than the old "unlock with password".
+- **No password and no unlock for `APEX_PUBLIC_USER`.** Our ORDS uses `ORDS_PUBLIC_USER` + proxy right ([ords_architecture.md §5](ords_architecture.md#5-the-proxy-right--how-one-pool-serves-many-schemas)) – a passwordless gateway account cannot be used for a direct login. That is a smaller attack surface than the old "unlock with password".
 - One password less: only `APEX_REST_PUBLIC_USER` (random, `apex_sec.conf.des3`).
-- `APEX_PUBLIC_ROUTER` belongs into the profile / sessions check, like the other runtime accounts. Whether it is a further proxy client of `ORDS_PUBLIC_USER` is to be verified after the installation (`proxy_users`) – **assumption** until then.
+- `APEX_PUBLIC_ROUTER` gets the profile `APEX_USER` like the other runtime accounts. It is **no** proxy client of `ORDS_PUBLIC_USER` (**confirmed (live)**, `proxy_users` after `ords install`).
 - Old guides and scripts that unlock `APEX_PUBLIC_USER` or expect `APEX_LISTENER` are outdated for 26.2.
 - **ORDS setting recommended by the 26.2 guide:** `security.requestValidationFunction = ords_util.authorize_plsql_gateway` – only procedures allowed for the PL/SQL gateway can be called through `/ords/` (`12-APEX-Ords/README.md` §5.5).
 
 ---
 
-## 3. Level 1 in detail – the ORDS configuration directory
+## 3. / 4. ORDS configuration directory and proxy right
 
-One directory per ORDS instance (`$APEX_ORDS_BASE/ords_1/config/`), given with
-`--config` – since ORDS 22 one tree for all settings (**documented**):
-
-```
-ords_1/config/
-  databases/
-    default/                 one directory per pool (= per database / mapping)
-      pool.xml               connection (TNS alias + TNS_ADMIN, user ORDS_PUBLIC_USER),
-                             jdbc.* pool limits, plsql.gateway.mode, feature flags
-      wallet/cwallet.sso     password of ORDS_PUBLIC_USER (auto-login wallet)
-    <alias> -> default       optional second name for the same pool (/ords/<alias>/...)
-  global/
-    settings.xml             standalone.* (host 127.0.0.1, port, context path, access log),
-                             cache.*, security.*, feature switches
-    credentials              Basic-auth users of ORDS itself (if used)
-    logging.properties       java.util.logging (our addition, see 12-APEX-Ords)
-```
-
-- **ORDS reads every file below `config/`, whatever its name** – a
-  `pool.xml.bak` is read as configuration (customer finding). Backups go
-  elsewhere.
-- **Pool routing:**
-  - `/ords/...` without a pool name uses `default`;
-  - `/ords/<pool>/...` uses the pool of that name;
-  - one ORDS can serve several databases this way. **This library uses one ORDS
-    per database instead** (own version, own restart, own image prefix).
-- Change settings with `ords --config <dir> config set <key> <value>`, check
-  with `config list [--include-defaults]` – not by editing the XML.
-- The wallet makes the directory secret: owner `oracle`, mode 700 – and it
-  belongs into the backup of the configuration.
-
----
-
-## 4. The proxy right – how one pool serves many schemas
-
-ORDS keeps **one** connection pool, logged in as `ORDS_PUBLIC_USER`. For each
-request it does not log in again but opens a **proxy session** on a pooled
-connection – it acts as another database user without knowing that user's
-password. The database allows this only with the proxy right:
-
-```sql
-alter user APEX_PUBLIC_USER grant connect through ORDS_PUBLIC_USER;   -- APEX pages
-alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of <SCHEMA>
-```
-
-- **Set by the tools:**
-  - `ords install` grants it for the PL/SQL gateway user (`APEX_PUBLIC_USER`);
-  - `ords.enable_schema` grants it for a REST-enabled schema.
-  - **documented:** the ORDS guide for a customer-managed runtime user shows `ALTER USER <gateway user> GRANT CONNECT THROUGH <runtime user>`; `ORDS_ADMIN.PROVISION_RUNTIME_ROLE` with `p_proxy_enabled_schemas` "adds proxy grants for REST enabled schemas".
-- **Without the proxy right:** the guide says ORDS runs APEX / OWA / PL/SQL-gateway requests **directly as the runtime user** and logs a warning for each request. With pooled proxy rights missing, users see HTTP 503 ("not authorized to proxy", MOS 2770463.1 title).
-- **Check (test host, after the installation):**
-
-  ```sql
-  select proxy, client from proxy_users where proxy = 'ORDS_PUBLIC_USER';
-  ```
-- **Consequence for security:** the pool user can become every listed
-  client. Lock its password into the wallet only, never grant it more, and
-  do not REST-enable schemas that do not need it.
-
-```
- request /ords/r/sales/...       pool connection (ORDS_PUBLIC_USER)
-        |                                |
-        +--> ORDS: APEX request ---------+--> proxy session APEX_PUBLIC_USER
-                                         |      -> wwv_flow.show (APEX engine)
- request /ords/sales/orders/ ------------+--> proxy session SALES
-                                                -> REST handler of module "orders"
-```
+Moved to [ords_architecture.md](ords_architecture.md) §4 (configuration
+directory, `standalone.binds` pitfall) and §5 (proxy right, live
+`proxy_users`).
 
 ---
 
@@ -233,7 +108,9 @@ alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of
 
 1. Browser → Nginx `/ords/r/<app>/<page>` → ORDS `127.0.0.1:8081`.
 2. ORDS picks the pool (`default`), takes a connection, opens the proxy
-   session `APEX_PUBLIC_USER`.
+   session `APEX_PUBLIC_USER` and hands over the CGI variables
+   (`owa.init_cgi_env`); friendly URLs are resolved with
+   `wwv_flow.resolve_friendly_url` (**confirmed (live)**, `v$sql`).
 3. The APEX engine (`APEX_260200`) checks the APEX session (cookie +
    `session` in the URL), runs the page process / render PL/SQL of the
    application's parsing schema, writes the HTML via the PL/SQL web toolkit
@@ -287,9 +164,12 @@ grants – no unwrapping needed (**confirmed (live)** 2026-10-23, APEX 26.2):
   MLE in the parsing schema).
 - The bodies of `F`, `WWV_FLOW` and the SYS wrappers are **wrapped** – the
   order of calls *inside* them is an **assumption** taken from the
-  dependencies. Live proof once ORDS runs: after a page call
-  `v$sql.parsing_schema_name` shows the application schema for the page SQL
-  (or `dbms_hprof` on one request).
+  dependencies. **Confirmed (live)** with ORDS running (sign-in page,
+  `v$sql`): the gateway calls run as `APEX_PUBLIC_USER`
+  (`owa.init_cgi_env`, `wwv_flow.resolve_friendly_url`, `htp` buffer), the
+  engine SQL as `APEX_260200` (499 statements). Still open: the same proof
+  for an **own** application (workspace + app needed – its page SQL must
+  show the application's parsing schema; or `dbms_hprof` on one request).
 - **Wrapped code:** the 10g+ wrap format is only encoded and compressed,
   tools exist to decode it – but the Oracle license forbids reverse
   engineering, and decoded Oracle code never belongs into this repository.
@@ -378,34 +258,11 @@ Consequences:
 
 ## 6. REST services through ORDS
 
-Structure in `ORDS_METADATA` (**documented**):
-
-```
-schema (REST-enabled, alias in the URL)
-  └── module   base path  /orders/
-        └── template      :id
-              └── handler GET / POST / PUT / DELETE  ->  SQL query or PL/SQL block
-URL: https://<host>/ords/<schema alias>/orders/42
-```
-
-- `ords.enable_schema` (alias, auth), `ords.define_module` / `define_template`
-  / `define_handler`, or the REST workshop in SQL Developer Web / APEX.
-- **Protection:**
-  - a **role** (`ords.create_role`) and a **privilege** (`ords.define_privilege`) map URL patterns (`/import/*`) to the role – without a privilege a module is public.
-  - **OAuth2 client credentials** for machine callers (author's wiki, ORDS 26):
-    1. `ORDS_SECURITY.REGISTER_CLIENT` (grant type `client_credentials`);
-    2. `ORDS_SECURITY.GRANT_CLIENT_ROLE`;
-    3. `ORDS_SECURITY.ROTATE_CLIENT_SECRET` – shows the secret **once**;
-    4. token: `POST /ords/<schema>/oauth/token` with Basic auth `client_id:secret`, then `Authorization: Bearer <token>` (default lifetime 1 h).
-  - The older `OAUTH` / `OAUTH_ADMIN` packages are deprecated (since 24.3) – the wiki is contradictory about their state in 26.x, so check against the 26.3 guide before using them.
-- **REST call inside an APEX session** (document download from a logged-in
-  APEX page, no `Authorization` header possible):
-  - the URL carries the APEX session (`?_apex_session=<app>,<session>`);
-  - the handler checks it and runs `apex_session.attach(app, 0, session)`, so that `APP_USER` and the session state are available;
-  - it returns the document;
-  - it **always** runs `apex_session.detach` – also in the error path, because the pooled connection is reused for the next request;
-  - limits: the session id in the URL shows up in logs / `Referer` (use `Referrer-Policy: no-referrer`, short idle timeout, check the client IP).
-  - Source: the author's wiki, section 9.
+Moved to [ords_architecture.md §7](ords_architecture.md#7-rest-services-and-their-security):
+module / template / handler, roles and privileges, OAuth2 client
+credentials with `ORDS_SECURITY` (`OAUTH` / `OAUTH_ADMIN` desupported since
+ORDS 25.3), and the REST call inside an APEX session
+(`apex_session.attach` / `detach`).
 
 ---
 
@@ -416,9 +273,10 @@ URL: https://<host>/ords/<schema alias>/orders/42
 | Ports / clone | ORDS on `127.0.0.1` only, Nginx is the one door ([clone_golden_image.md](clone_golden_image.md)) |
 | Oracle Net | pool via TNS alias from `TNS_ADMIN` – the same directory as Forms / Reports |
 | Java | `JDK_HOME` (Oracle JDK 21; ORDS 26.3 supports 17, 21, 25) |
-| Versions | ORDS ≥ APEX; one APEX schema per release (`APEX_260200`); images per version in `/srv/apex/APEX_<ver>` |
+| Versions | ORDS ≥ APEX **and** the APEXlang compiler in `ords.war` ≥ APEX (APEX 26.2 needs ORDS 26.3.0 + SQLcl 26.3.0); one APEX schema per release (`APEX_260200`); images per version / patch level in `/srv/apex/APEX_<ver>[_p<nr>]` |
 | Downloads | `09-Install/04-oracle_pre_download.sh` (OTN "latest" ZIPs, APEX patch via getMOSPatch platform `2000P` Generic – confirmed live 2026-10-23) |
-| Database users | `ORDS_PUBLIC_USER`, `APEX_REST_PUBLIC_USER` (and `APEX_PUBLIC_ROUTER`) must stay open – an expiring password stops APEX (profile like `RCU_USER`, [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §6.1) |
+| Database users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` → profile **`APEX_USER`** (no expiry / lock-out, `12-APEX-Ords/apex_user_profile.sql`, like `RCU_USER` in [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §6.1) – `APEX_REST_PUBLIC_USER` would have expired after 180 days (live) |
+| Scripts | `12-APEX-Ords/01-` prepare DB, `02-` install APEX, `03-` patch APEX, `04-` install ORDS, `05-` Nginx, `06-` patch ORDS |
 
 ---
 
@@ -429,11 +287,9 @@ URL: https://<host>/ords/<schema alias>/orders/42
 | 1990s | Oracle Web Server / Web Application Server with the PL/SQL cartridge, then **mod_plsql** in Oracle HTTP Server – the PL/SQL web toolkit (`htp`, `owa_util`) that APEX still uses |
 | 2004 | **HTML DB** 1.5 (internal project "Flows" / "Marvel") – the origin of `FLOWS_FILES` and `wwv_flow` |
 | 2006 | renamed **Oracle Application Express** (APEX 2.1); access through mod_plsql or the Embedded PL/SQL Gateway (EPG, 11g) |
-| 2010 | **APEX Listener** – a Java alternative to mod_plsql (WebLogic / GlassFish / standalone) |
-| ~2014 | APEX Listener becomes **Oracle REST Data Services**: RESTful services, repository `ORDS_METADATA`; mod_plsql is deprecated in OHS 12c |
-| 2018 | year-based versions (APEX 18.1, ORDS 18.x) |
-| 2022 | ORDS 22: new `ords` command line, one configuration directory (`databases/`, `global/`), Jetty standalone as the normal mode |
-| 2026 | APEX 26.x (APEXlang, needs a matching ORDS), ORDS 26.x with MCP support; ORDS 26.4 drops Tomcat 9 (standalone unaffected) |
+| 2010 – 2014 | APEX Listener → **ORDS** (history: [ords_architecture.md §10](ords_architecture.md#10-history-short)) |
+| 2018 | year-based versions (APEX 18.1) |
+| 2026 | APEX 26.x: **APEXlang** – compiled by ORDS / SQLcl, so APEX 26.2 needs ORDS 26.3; friendly-URL account `APEX_PUBLIC_ROUTER`; `APEX_LISTENER` gone |
 
 The history rows are background from the author's experience and Oracle's
 release notes (**documented** only where a source of section 9 says so –
