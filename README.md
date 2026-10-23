@@ -22,6 +22,37 @@ C – Control
 ```
 Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic.md](IHateWeblogic.md)
 
+## Target Picture – Forms and APEX side by side
+
+A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
+APEX on the same database**, each where it is strongest:
+
+| Use | Tool | Users |
+|---|---|---|
+| **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
+| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.2**) | everyone in the company, in the browser |
+| **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
+
+```
+                 users (browser / FSAL)
+                          |  HTTPS
+              +---------- Nginx (TLS, one host name) ----------+
+              |                       |                         |
+        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.2)
+         Oracle Forms 14c       Oracle Reports              Oracle APEX 26.2
+              |                       |                         |
+              +-------------- Oracle Database --------------------+
+                     one schema, one PL/SQL business logic
+```
+
+This is the intention of a good, future-proof Oracle strategy for a Forms
+customer: keep the investment in Forms and its PL/SQL logic, open the data
+to everyone with APEX, and keep everything on the Oracle database – instead
+of replacing it piece by piece with other platforms (background and appeal:
+[IHateWeblogic.md](IHateWeblogic.md#why-forms--reports-still-matter--an-appeal)).
+Status in this library: Nginx is prepared for it; the ORDS / APEX
+installation is an [open item](#open-items--todo).
+
 ## Project Status
 
 **`[██████████████████░░]` ~93 % complete** (state 2026-10-23) – phases 1–7
@@ -819,6 +850,15 @@ CSPU Sep 2026 state is frozen in
   longest job 1 s on the test host) – re-check with
   `06-FormsDiag/forms_perf_analyse.sh` and
   `05-ReportsPerformance/engine_perf_analyse.sh` at the first customer.
+
+### APEX / ORDS beside Forms
+
+- [ ] **ORDS 26.2 + APEX 26.2** as part of the installation (target picture
+  at the top): ORDS standalone (Jetty) on `127.0.0.1` behind Nginx `/ords`,
+  APEX in the repository / application database, same TLS host name, same
+  `TNS_ADMIN`, backup / patch / clone rules as the rest – doc first (new
+  `09-Install/docs/5x-…`). Note: the ORDS version must be equal to or newer
+  than the APEX version.
 
 ### Monitoring (phase 9)
 
