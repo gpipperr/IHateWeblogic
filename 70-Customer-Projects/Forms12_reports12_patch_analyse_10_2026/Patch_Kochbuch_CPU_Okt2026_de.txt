@@ -93,6 +93,13 @@ VORAUSSETZUNGEN
 SCHRITT 0: Ist-Stand erfassen  (vor dem Wartungsfenster, System laeuft)
 ================================================================================
 
+  # Kurzweg: tools/collect_fmw_env.sh nach /tmp kopieren und als oracle
+  # ausfuehren - sammelt alles unten (und mehr) in einem Lauf, nur lesend,
+  # Passwoerter maskiert:
+  #   cd /tmp && ./collect_fmw_env.sh --full
+  #   -> /tmp/fmw_collect_<host>_<zeit>.tar.gz zur Auswertung
+  # Die Einzelbefehle folgen zur Nachvollziehbarkeit.
+
   # Distribution(en) im Home - entscheidet SPBAT oder napply (Schritt 6)
   $ORACLE_HOME/oui/bin/viewInventory.sh | grep -i distribution \
       | tee $LOGDIR/00_distribution.txt

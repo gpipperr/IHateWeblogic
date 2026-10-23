@@ -72,6 +72,10 @@ Also check:
 
 Result of the check → fill in section 7 (open points).
 
+All of this in one run: [tools/collect_fmw_env.sh](tools/collect_fmw_env.sh) –
+standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.gz`
+(see [tools/README.md](tools/README.md)).
+
 ### 1a. Inventory of the customer home (received 2026-10-23)
 
 > **Source not confirmed yet:** it is still open whether these logs come from
