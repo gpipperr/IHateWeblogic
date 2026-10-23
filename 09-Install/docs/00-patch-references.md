@@ -213,7 +213,8 @@ BPM, ODI, WebCenter, OIM, MFT and Oracle Access Manager (OAM
 server – **not** WebGate; no WebGate row in this CPU) – not installed by
 this project (JDeveloper is listed because its ADF runtime is in the
 home). Oracle Forms, Oracle Reports, OPSS and Coherence 14.1.2 have **no**
-row in this CPU.
+row in this CPU. APEX, ORDS, SQLcl and the Instant Client: own section
+[at the end](#apex-ords-sqlcl-and-instant-client--security-status-and-patching).
 
 | CVE | Product / component | Protocol | Remote w/o auth | CVSS 3.1 | Relevant here | Fix in patch |
 |---|---|---|---|---|---|---|
@@ -382,6 +383,9 @@ or individual WLS patches are applied. None of them is part of the WLS SPB.
 
 ### DB client tools, APEX, ORDS (own release cycles, not in KA1182)
 
+Security status (CVE check per CPU) and the patch procedure of each: section
+[APEX, ORDS, SQLcl and Instant Client](#apex-ords-sqlcl-and-instant-client--security-status-and-patching) at the end.
+
 | Component | Installed by | Release cycle | Update |
 |---|---|---|---|
 | Oracle Instant Client 23.26.x (`basic`, `sqlplus`, `tools`) | `00-Setup/install_db_client_tools.sh` | follows the quarterly DB RU (23.26.x) | `IC_VERSION` / `IC_URL_BASE` in `oracle_software_version.conf`, run the script again – link switch after smoke test, `--rollback` |
@@ -416,3 +420,124 @@ or individual WLS patches are applied. None of them is part of the WLS SPB.
 | 38874285 | → 39842516 (Forms QPR) |
 | 37795631 | → 39264447 (DB RU 23.26.2 for FMW DBCLIENT, in the SPB). 37795631 = RSF fix for Bug 36749613 (Forms 14.1.2 crash FRM-93656/FRM-93652 on `EXIT_FORM`, 23.5 DB RSF), MOS KB177278. Verified 2026-10-14: `opatch lsinventory -bugs_fixed` lists 36749613 as fixed by 39264447 – do **not** apply 37795631 on top of the SPB |
 | 36749613 / 37031357 | Older RSF one-offs for the same crash (KB177278) → 37795631 → 39264447 |
+
+---
+
+## APEX, ORDS, SQLcl and Instant Client – security status and patching
+
+These four components are **not** in KA1182 – they have their own risk
+matrices (APEX: "Oracle APEX"; ORDS: "Oracle REST Data Services";
+SQLcl / Oracle Net client: inside "Oracle Database Server") and their own
+download channels. Check them at every CPU (quarterly) together with the
+FMW tables above. Installed by `00-Setup/install_db_client_tools.sh` and
+`12-APEX-Ords/` – see the table "DB client tools, APEX, ORDS" in the patch
+list.
+
+**Coupling (APEXlang):** `ords.war` carries the APEXlang compiler of APEX
+(26.3.0.272: `apexlang-compiler-26.2.0.239.jar`); APEX 26.2 requires
+**ORDS 26.3.0+** and **SQLcl 26.3.0+** (APEX 26.2 installation guide).
+APEX, ORDS and SQLcl are patched as **one set** in one window – details in
+[ords_architecture.md §1a](../../80-FMW-Architecture/ords_architecture.md#1a-apexlang--apex-and-ords-are-coupled-since-26x).
+
+### CVE check 2026-10-23 – CPU October 2026
+
+Source: risk matrices of the CPU October 2026 advisory (`cpuoct2026.html`
+and the text form `cpuoct2026verbose.html`, read 2026-10-23). Installed on
+the test host (live, 2026-10-23): **APEX 26.2.0** (no patch set),
+**ORDS 26.3.0.272.1811** (repository `26.3.0.r2721811`), **SQLcl
+26.3.0.260.1620**, **Instant Client 23.26.4.0.0**; repository DB 19.30.
+
+| CVE | Component | Remote w/o auth | CVSS 3.1 | Affected versions | Installed | Status here |
+|---|---|---|---|---|---|---|
+| **CVE-2026-101521** | Oracle APEX / General – "takeover of Oracle APEX" (AV:N/AC:L/PR:N/UI:N) | **yes** | **9.8** | 24.1.0–24.1.21, 24.2.0–24.2.20, 26.1.0–26.1.4 | APEX 26.2.0 | **not affected** – 26.2 is not in the list (see below) |
+| CVE-2026-66010 | Oracle APEX / General (DOMPurify) | yes (user interaction) | 6.1 | 24.1.0–24.1.19, 24.2.0–24.2.18, 26.1.0–26.1.2 | APEX 26.2.0 | not affected |
+| 28 CVEs (CVE-2026-101359 … -101386, -101493, max **6.9** CVE-2026-101362, unauth) | Oracle REST Data Services | partly | ≤ 6.9 | 24.2.0–26.1.0 | ORDS 26.3.0 | not affected |
+| 5 CVEs (max **8.2** CVE-2026-33941, 8.1 CVE-2026-9753, CVE-2026-91609, -54515 …) | Oracle REST Data Services | no | ≤ 8.2 | 24.2.0–26.2.1 | ORDS 26.3.0 | not affected |
+| CVE-2026-91610 (**8.8**), CVE-2026-101494 (7.7) | Oracle REST Data Services | no | ≤ 8.8 | 24.2.0–26.2.2 | ORDS 26.3.0 | not affected |
+| CVE-2026-54399 | Oracle SQLcl (Apache HttpComponents) **component of Oracle Database Server** | yes | 3.1 | 19.3–19.32, 21.3–21.23, 23.4.0–23.26.3 | standalone SQLcl 26.3 | not affected – the row is about the SQLcl **inside a DB home** (19c / 23ai RU); our SQLcl is the standalone 26.3 |
+| CVE-2026-101510 | Oracle Net Services (Database Server) | no | 4.4 | 19.3–19.32, 21.3–21.23, 23.4.0–23.26.3 | Instant Client 23.26.4 | not affected (23.26.4 > 23.26.3). The matrix says "2 of these patches are applicable to client-only installations" without naming them in the notes – presumably this row and the SQLcl row (**assumption**) |
+| **CVE-2026-75803** | RDBMS (OpenSSL), TLS | **yes** | **9.8** | 19.3–19.32, 23.4.0–23.26.3 | repository DB **19.30** | **affected** – database server, not a client component: DB RU 19.33 (Oct 2026) for the repository / APEX database (`60-RCU-DB-19c/02-db_patch_db_software.sh`); further DB rows up to 8.8 (OLAP, VPD, Micronaut) same RU |
+
+**Is APEX 26.2 really safe from CVE-2026-101521?** Yes, per the advisory:
+
+- The risk matrix lists the **supported versions that are affected**. APEX
+  26.2 (released 2026-10-06, two weeks before the CPU) is a supported
+  release and is **not** in the list → not affected. The fix is already in
+  26.2.0 – the usual pattern: a fix ships in the next release before the
+  advisory names the CVE.
+- For the other release lines the fix comes as a **patch set bundle**:
+  26.1 → **26.1.5** (Patch 39179920, its README: "26.1.0 … 26.1.5" static
+  files on the CDN), 24.2 → 24.2.21, 24.1 → 24.1.22 (each "last affected +
+  1" – **assumption** for 24.x, check the bundle READMEs on the APEX
+  download page).
+- What we prove is the **level**: `dba_registry` APEX `26.2.0`, no
+  `APEX_PATCHES` row needed for this CVE. As soon as a 26.2 patch set
+  bundle appears, it is applied (`03-patch-apex.sh`) – later CVEs will name
+  "26.2.0–26.2.x".
+- The CVE ID given in a customer / news source as "CVE-2026-10152" does
+  not exist in the CPU October 2026 for APEX – the APEX row is
+  **CVE-2026-101521** (same versions, 9.8).
+
+Check on any system (read-only, SYS in the PDB):
+
+```sql
+select version, status from dba_registry where comp_id = 'APEX';            -- 26.2.0 VALID
+select patch_number, patch_version, images_version, apexlang_version
+  from apex_260200.apex_patches order by installed_on;                      -- patch sets
+select version from ords_metadata.ords_version;                              -- ORDS repository
+```
+
+```bash
+readlink $APEX_ORDS_BASE/ords_1/ords                     # ORDS software (ords-<ver>)
+grep RELEASE $SQLCL_HOME/bin/version.txt                 # SQLcl
+LD_LIBRARY_PATH=$INSTANT_CLIENT_HOME $SQLPLUS_BIN -V     # Instant Client
+```
+
+### APEX – patching
+
+| | |
+|---|---|
+| Vehicles | **Release** (26.1 → 26.2, `apexins.sql`, new schema `APEX_<ver>`) or **patch set bundle** (26.2.0 → 26.2.x, `catpatch.sql`, same schema) |
+| Source | release: `apex-latest.zip` (OTN, no login, SHA-256 on the download page); patch set: MOS, platform Generic **2000P** (`APEX_PATCH_NR` in `oracle_software_version.conf`) – both via `09-Install/04-oracle_pre_download.sh --apply [--mos]` |
+| Apply | release: `12-APEX-Ords/02-install-apex.sh --apply` (upgrade mode, ORDS stopped, DB backup); patch set: `12-APEX-Ords/03-patch-apex.sh --apply` (stops / starts ORDS, images `APEX_<ver>_p<nr>`) |
+| Before | check that the ORDS of the instance carries an APEXlang compiler ≥ the new APEX (`04-` / `06-` check it) |
+| Proof | `dba_registry` version + `APEX_PATCHES` (patch, images and **APEXlang** version) + `/i/apex_version.txt` through Nginx |
+| Rollback | release / patch set are one-way in the DB (DB backup); images: link `apex_N` back |
+| Status 2026-10-23 | APEX **26.2.0**, no patch set published yet – current, not affected by the CPU Oct 2026 APEX rows |
+
+### ORDS – patching
+
+| | |
+|---|---|
+| Vehicle | every ORDS release is a **complete new installation** (no patches); quarterly + occasional fix releases (`26.3.x`) |
+| Source | `ords-latest.zip` (OTN, no login) via `04-oracle_pre_download.sh --apply` (`ORDS_ZIP_URL`, version from the jar names in the ZIP) |
+| Apply | `12-APEX-Ords/06-patch-ords.sh --apply` – new `ords-<ver>` beside the old one, stop, link switch, `ords install --db-only` upgrades `ORDS_METADATA` (**one-way**), start, HTTP check |
+| Before | export the REST definitions (`ORDS_EXPORT` / SQLcl `rest export`) and take a DB backup – `ORDS_METADATA` has 54 of 56 FKs `ON DELETE CASCADE` |
+| Rollback | `06-patch-ords.sh --rollback` = link back – only while the repository was not upgraded; after the upgrade: DB restore |
+| Status 2026-10-23 | ORDS **26.3.0.272.1811** – newer than every affected range of the CPU Oct 2026 (highest: 26.2.2) |
+
+### SQLcl – patching
+
+| | |
+|---|---|
+| Vehicle | standalone release (Java, quarterly, `sqlcl-latest.zip`); **not** the SQLcl inside a DB home – that one is patched by the DB RU and is the one named in the "Oracle Database Server" matrix |
+| Source / apply | `00-Setup/install_db_client_tools.sh --apply` – downloads the newest ZIP to `$PATCH_STORAGE/sqlcl/<ver>/`, installs `$ORACLE_BASE/product/sqlcl_<ver>`, switches the link `sqlcl` only after the smoke test (`sql -V`) |
+| Rule | SQLcl ≥ APEX (APEXlang compiler, `apex export`) – APEX 26.2 needs SQLcl 26.3.0+ |
+| Rollback | `install_db_client_tools.sh --rollback` (link back), `--keep N` |
+| Status 2026-10-23 | SQLcl **26.3.0.260.1620** – not in any affected range |
+
+### Instant Client – patching
+
+| | |
+|---|---|
+| Vehicle | Instant Client follows the **DB release updates** (23.26.x = 26ai); the client-relevant CVEs are in the "Oracle Database Server" matrix (Oracle Net Services, "applicable to client-only installations") |
+| Source / apply | versioned URL in `oracle_software_version.conf` (`IC_VERSION`, `IC_URL_BASE` – the "latest" link lags behind, delivered 23.26.2 on 2026-10-23 while 23.26.4 was listed); `install_db_client_tools.sh --apply` installs `instantclient_<ver>`, link switch after `sqlplus -V` |
+| Rule | Instant Client ≥ the first version **after** the highest affected client row (CPU Oct 2026: > 23.26.3) |
+| Rollback | `install_db_client_tools.sh --rollback`, `--keep N` |
+| Status 2026-10-23 | Instant Client **23.26.4.0.0** – above 23.26.3, not affected |
+
+Not covered here: the **FMW DBCLIENT** inside the Oracle Home (23.26.2 via
+the WLS SPB, Patch 39264447 – patched by `05-`) and the **database
+server** itself (repository / APEX DB: DB RU, `60-RCU-DB-19c/`). The
+repository DB 19.30 of the test host is affected by CVE-2026-75803
+(OpenSSL, 9.8) → DB RU 19.33 is an open item.

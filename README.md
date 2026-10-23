@@ -881,6 +881,12 @@ CSPU Sep 2026 state is frozen in
   behind Nginx, profile `APEX_USER`), architecture in
   [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md) and
   [`ords_architecture.md`](80-FMW-Architecture/ords_architecture.md).
+- [ ] **Repository / APEX database DB RU 19.33** (CPU Oct 2026): DB 19.30 is
+  affected by CVE-2026-75803 (RDBMS OpenSSL, TLS, 9.8, unauthenticated) and
+  further DB rows up to 8.8 –
+  [00-patch-references](09-Install/docs/00-patch-references.md#apex-ords-sqlcl-and-instant-client--security-status-and-patching);
+  APEX 26.2 / ORDS 26.3 / SQLcl 26.3 / Instant Client 23.26.4 are **not**
+  affected (checked 2026-10-23, incl. APEX CVE-2026-101521, 9.8).
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
