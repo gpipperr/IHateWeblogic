@@ -1180,6 +1180,8 @@ if $APPLY; then
         _append_if_missing "REPORTS_COOKIE_KEY"        ""                                "$ENV_CONF"
         _append_if_missing "WLS_LOG_DIR"           "\${DOMAIN_HOME}/servers/\${WLS_MANAGED_SERVER}/logs" "$ENV_CONF"
         _append_if_missing "DIAG_LOG_DIR"          "\${ROOT_DIR}/log/\$(date +%Y%m%d)" "$ENV_CONF"
+        _append_if_missing "CONFIG_BACKUP_KEEP"    "10"                     "$ENV_CONF"
+        _append_if_missing "BAK_FILES_KEEP"        "3"                      "$ENV_CONF"
         _append_if_missing "SEC_CONF"              "\${ROOT_DIR}/weblogic_sec.conf.des3" "$ENV_CONF"
         _append_if_missing "ORACLE_OS_USER"        "$CONF_ORACLE_USER"      "$ENV_CONF"
         _append_if_missing "DB_HOST"               "$CONF_DB_HOST"          "$ENV_CONF"
@@ -1317,6 +1319,12 @@ SETDOMAINENV="\${DOMAIN_HOME}/bin/setDomainEnv.sh"
 # --- Log Directories ---------------------------------------------------------
 WLS_LOG_DIR="\${DOMAIN_HOME}/servers/\${WLS_MANAGED_SERVER}/logs"
 DIAG_LOG_DIR="\${ROOT_DIR}/log/\$(date +%Y%m%d)"
+
+# --- Backup retention (07-Maintenance/README.md) -----------------------------
+# backup_config.sh --apply keeps the newest N sets in ConfigBackup/,
+# bak_cleanup.sh --apply the newest N *.bak_<ts> copies per file
+CONFIG_BACKUP_KEEP="10"
+BAK_FILES_KEEP="3"
 
 # --- Security ----------------------------------------------------------------
 SEC_CONF="\${ROOT_DIR}/weblogic_sec.conf.des3"

@@ -6,7 +6,10 @@
 #            config, domain environment).  Creates a manifest.txt with original
 #            path, filename, and timestamp for each backed-up file.
 #            Run before: deploy_fonts.sh, uifont_ali_update.sh, fontpath_config.sh
-# Call     : ./backup_config.sh [--apply]
+#            Retention: --keep N (default CONFIG_BACKUP_KEEP, 10) removes the
+#            oldest sets after a successful --apply (config sets and
+#            jdk_path_* sets counted separately).
+# Call     : ./backup_config.sh [--apply] [--keep N]
 # Requires : cp, mkdir, find
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -33,17 +36,26 @@ init_log
 # Parse arguments
 # =============================================================================
 APPLY_MODE=false
-for arg in "$@"; do
-    case "$arg" in
+KEEP="${CONFIG_BACKUP_KEEP:-10}"
+while [ $# -gt 0 ]; do
+    case "$1" in
         --apply) APPLY_MODE=true ;;
+        --keep)   KEEP="${2:-}"; shift ;;
+        --keep=*) KEEP="${1#*=}" ;;
         --help)
-            printf "Usage: %s [--apply]\n" "$(basename "$0")"
+            printf "Usage: %s [--apply] [--keep N]\n" "$(basename "$0")"
             printf "  Default: dry-run – show which files would be backed up\n"
             printf "  --apply: create ConfigBackup/YYYYMMDD_HHMM/ and copy files\n"
+            printf "  --keep N: keep the N newest sets (default CONFIG_BACKUP_KEEP=%s)\n" "${CONFIG_BACKUP_KEEP:-10}"
             exit 0
             ;;
     esac
+    shift
 done
+if ! [[ "$KEEP" =~ ^[0-9]+$ ]] || [ "$KEEP" -lt 1 ]; then
+    printf "\033[31mERROR\033[0m --keep needs a number >= 1 (got '%s')\n" "$KEEP" >&2
+    exit 2
+fi
 
 # =============================================================================
 # Variables
@@ -335,6 +347,17 @@ else
     fi
 fi
 
+# _prune_candidates REGEX EXTRA – sets of one kind beyond KEEP, oldest last.
+# EXTRA=1 in the dry-run: the set the next --apply creates counts as well.
+_prune_candidates() {
+    local regex="$1" extra="$2"
+    [ -d "$BACKUP_BASE" ] || return 0
+    find "$BACKUP_BASE" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null \
+        | grep -E "$regex" | sort -r | tail -n +$(( KEEP - extra + 1 ))
+}
+SET_RE='^[0-9]{8}_[0-9]{4}(_pre_restore)?$'
+JDK_RE='^jdk_path_[0-9]{8}_[0-9]{6}$'
+
 # =============================================================================
 # Section 3: Apply – create backup
 # =============================================================================
@@ -343,6 +366,13 @@ section "Backup Execution"
 if ! $APPLY_MODE; then
     info "Dry-run complete – run with --apply to create the backup"
     info "Target directory: $BACKUP_DIR"
+    _old="$( { _prune_candidates "$SET_RE" 1; _prune_candidates "$JDK_RE" 0; } )"
+    if [ -n "$_old" ]; then
+        info "$(printf "Retention --keep %s: the next --apply removes %s set(s):" "$KEEP" "$(printf '%s\n' "$_old" | grep -c .)")"
+        printf '%s\n' "$_old" | sed 's/^/    /' | tee -a "${LOG_FILE:-/dev/null}"
+    else
+        info "Retention --keep $KEEP: nothing to remove"
+    fi
     printLine
     print_summary
     exit $EXIT_CODE
@@ -449,6 +479,28 @@ if [ "${#AFM_FILES[@]}" -gt 0 ]; then
 fi
 
 ok "Manifest written: $MANIFEST"
+
+# =============================================================================
+# Section 3b: Retention – only after a successful backup
+# =============================================================================
+section "Retention (--keep $KEEP)"
+if [ "${CNT_FAIL:-0}" -gt 0 ]; then
+    warn "Backup had errors – no old sets removed"
+else
+    _base_real="$(realpath "$BACKUP_BASE")"
+    _removed=0
+    for _d in $(_prune_candidates "$SET_RE" 0) $(_prune_candidates "$JDK_RE" 0); do
+        _p="$(realpath "$BACKUP_BASE/$_d")"
+        [ "$(dirname "$_p")" = "$_base_real" ] || { warn "Skipped (outside ConfigBackup): $_p"; continue; }
+        if rm -rf -- "$_p"; then
+            ok "Removed old set: $_d"
+            _removed=$(( _removed + 1 ))
+        else
+            fail "Cannot remove: $_p"
+        fi
+    done
+    [ "$_removed" -eq 0 ] && ok "Nothing to remove"
+fi
 
 # =============================================================================
 # Section 4: Next Steps

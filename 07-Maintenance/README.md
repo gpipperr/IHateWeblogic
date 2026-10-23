@@ -29,6 +29,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 |---|---|---|
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
+| `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
 | `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
@@ -159,6 +160,7 @@ after every JDK upgrade and every `updateDomain`.
 ```bash
 ./07-Maintenance/backup_config.sh              # dry-run: show what would be backed up
 ./07-Maintenance/backup_config.sh --apply      # create the backup
+./07-Maintenance/backup_config.sh --apply --keep 5   # create, then keep only the 5 newest sets
 ```
 
 Options:
@@ -166,7 +168,21 @@ Options:
 | Option | Description |
 |---|---|
 | `--apply` | Create `ConfigBackup/<timestamp>/` and copy all discovered files (default: dry-run) |
+| `--keep N` | Retention: keep the N newest sets, default `CONFIG_BACKUP_KEEP` from `environment.conf` (10) |
 | `--help` | Show usage |
+
+**Retention** (since 2026-10-23): after a successful `--apply` the oldest
+sets beyond N are removed – counted separately per kind:
+
+| Kind | Name | Created by |
+|---|---|---|
+| config sets | `YYYYMMDD_HHMM` and `YYYYMMDD_HHMM_pre_restore` | `backup_config.sh`, `restore_config.sh` |
+| JDK path sets | `jdk_path_YYYYMMDD_HHMMSS` | `domain_jdk_path.sh --apply` |
+
+The dry-run lists the sets that the next `--apply` would remove (the new set
+counts). Only directories directly under `ConfigBackup/` that match one of
+the names are removed; the newest set of each kind is never removed
+(`N >= 1`); other directories are left alone.
 
 **What it discovers and backs up** — all paths are located dynamically via
 `find` (they contain version numbers and instance names that vary per
@@ -237,6 +253,46 @@ contains `rwserver.conf` with the encrypted `<identifier>`, `default.env`,
 the OPSS configuration and `environment.conf`). Sets created before
 2026-10-19 are 755/644 – tighten them once:
 `chmod -R go-rwx 07-Maintenance/ConfigBackup`.
+
+---
+
+### bak_cleanup.sh
+
+```bash
+./07-Maintenance/bak_cleanup.sh                  # list the copies per file (read-only)
+./07-Maintenance/bak_cleanup.sh --apply          # delete all but the newest 3 per file
+./07-Maintenance/bak_cleanup.sh --apply --keep 1
+```
+
+Our `--apply` scripts back up a file before they change it as
+`<file>.bak_<YYYYMMDD_HHMM[SS]>` in the same directory (`backup_file` in the
+lib, `13-`, `14-` …). After some runs there are many of them next to the
+Oracle files (live 2026-10-23: about 100, ten copies each of `default.env`,
+`Registry.dat`, `fmrweb_utf8.res`), and some hold secrets (`rwserver.conf`
+right after `13-` has the Reports admin `<identifier>` in clear text until the
+server encrypts it at its next start).
+
+| Option | Description |
+|---|---|
+| `--apply` | delete the copies beyond `--keep` (default: list only) |
+| `--keep N` | copies kept per original file, newest first; default `BAK_FILES_KEEP` from `environment.conf` (3), `N >= 1` |
+
+**Searched:** `$DOMAIN_HOME`, `$ORACLE_HOME/forms/java` and
+`$ORACLE_HOME/reports/conf` (not the whole Oracle Home), `$ORACLE_BASE/admin`,
+the project root and `00-Setup/environments/` (backups of `environment.conf`),
+the oracle home directory (top level) – files only, one file system (`-xdev`).
+
+**Never deleted, only reported:**
+
+| What | Why |
+|---|---|
+| directories (`OPatch.bak_*`, inventory copies) | rollback of `09-Install/05-` – remove by hand after a successful patch |
+| `*.des3.bak_*` | copies of secret files – check by hand which key/password they hold |
+| files of another owner | root copies (`/etc/*.bak_*` of `01-` / `02b-`, Nginx) are not searched at all |
+
+The copies are grouped per original file and sorted by the timestamp in the
+name; the table shows copies / kept / removed and the size per file.
+`ConfigBackup/` is not touched (see `backup_config.sh --keep`).
 
 ---
 
@@ -400,12 +456,12 @@ Fix:     ./01-Run/startStop.sh stop  repserver01 --apply   (Reports server compo
 ### Backup directory grows large over time
 
 ```
-Symptom: 07-Maintenance/ConfigBackup/ contains many timestamped directories
-Cause:   No automatic retention/cleanup exists for this category (unlike
-         03-Logs/archive_logs.sh and cleanLogFiles.sh for logs)
-Fix:     Manually remove old backup sets you no longer need:
-           rm -rf 07-Maintenance/ConfigBackup/20260101_0900
-         Keep at least the most recent known-good set before deleting others.
+Symptom: 07-Maintenance/ConfigBackup/ contains many timestamped directories,
+         or many *.bak_<ts> files next to the Oracle configuration files
+Cause:   every --apply run creates a new set / copy
+Fix:     ./07-Maintenance/backup_config.sh --apply --keep 10   (sets)
+         ./07-Maintenance/bak_cleanup.sh --apply               (*.bak_<ts> copies)
+         Defaults: CONFIG_BACKUP_KEEP / BAK_FILES_KEEP in environment.conf.
 ```
 
 ### 81-/82- wrapper: FAIL "WebLogic components are still RUNNING"
@@ -443,7 +499,7 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 
 - All scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
 - `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
-- There is currently no automatic retention policy for `ConfigBackup/` — old backup sets accumulate until manually removed.
+- Retention: `backup_config.sh --keep N` (`CONFIG_BACKUP_KEEP`, 10 sets) and `bak_cleanup.sh` (`BAK_FILES_KEEP`, 3 copies per file) – both delete only with `--apply`.
 - `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error (2026-10-19).
 
 ## 8. Review 2026-10-19
@@ -457,9 +513,7 @@ manifest pointing to `/tmp` or `…/../` skipped), `domain_jdk_path.sh`,
 (27 checks OK).
 
 Open:
-- retention for `ConfigBackup/` (`--keep N`)
-- our scripts leave `*.bak_<ts>` copies next to the Oracle files (e.g.
-  `rwserver.conf.bak_*` in the component directory) – collect them in
-  `ConfigBackup/` instead, or clean up after a successful run
+- ~~retention for `ConfigBackup/`~~ and ~~`*.bak_<ts>` copies~~ – done
+  2026-10-23 (`backup_config.sh --keep`, `bak_cleanup.sh`)
 - JDK upgrade automation (`80-` read-only, see above)
 - Reports engines on the FMW-bundled JDK 17.0.12 (`80-` shows them – root README open item)

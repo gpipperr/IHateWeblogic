@@ -137,3 +137,9 @@ REPORTS_MAX_CONNECT=300
 REPORTS_MAX_QUEUE=4000
 # rwservlet.properties cookie encryption key – generate once, keep stable
 REPORTS_COOKIE_KEY=
+
+# --- Backup retention (07-Maintenance/README.md) ---
+# backup_config.sh --apply keeps the newest N sets in ConfigBackup/,
+# bak_cleanup.sh --apply the newest N *.bak_<ts> copies per file
+CONFIG_BACKUP_KEEP=10
+BAK_FILES_KEEP=3

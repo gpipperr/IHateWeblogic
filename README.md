@@ -30,7 +30,10 @@ reviewed against the Oracle 14.1.2 documentation and re-tested live
 New 2026-10-22/23: the **Forms client distribution via URL** (jlink Java
 runtime + FSAL + JACOB from Nginx, PowerShell installer in the user profile)
 and **one `TNS_ADMIN`** for every process – together the first complete
-Forms session from a Windows client (alias login, test form).
+Forms session from a Windows client (alias login, test form). Since
+2026-10-23 also: all Reports engine tuning values from `environment.conf`
+(an `--apply` in `05-` survives the next `13-`) and backup retention
+(`backup_config.sh --keep`, `bak_cleanup.sh`).
 
 How the ~92 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
@@ -47,9 +50,9 @@ hardening steps.
 | 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
 | 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
-| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs) – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
+| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions` too) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
-| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` |
+| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` |
 | 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -219,6 +222,7 @@ operation with proactive, AI-assisted error analysis.
 │  60-RCU-DB-19c/02-db_patch_db_software.sh      Database patches     │
 │  01-Run/startStop.sh start-all --apply         Start after patching │
 │  07-Maintenance/restore_config.sh              Rollback on issues   │
+│  07-Maintenance/bak_cleanup.sh --apply         Old *.bak_<ts> copies│
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -411,8 +415,9 @@ IHateWeblogic/
 │   ├── README.md                    – Backup categories, manifest format, restore workflow,
 │   │                                   patching an already-running environment (Phase 8)
 │   ├── backup_config.sh             – Backup all config files our scripts change (13 categories,
-│   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600)
+│   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600, --keep N)
 │   ├── restore_config.sh            – List backups, restore a set or --category (--apply), path check
+│   ├── bak_cleanup.sh               – *.bak_<ts> copies next to the Oracle files: keep newest N per file
 │   ├── 80-patch_java_os.sh          – JDK at JDK_HOME from the patch repository (--apply, domain stopped)
 │   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
 │   ├── rcu_repository_check.sh      – RCU repository check (registry, accounts, data sources);
@@ -421,7 +426,8 @@ IHateWeblogic/
 │   │                                   hard-fails if WebLogic is still running
 │   ├── 82-patch_forms_reports.sh    – Forms + Reports layer: wraps 09-Install/06-oracle_patch_forms_reports.sh,
 │   │                                   same stop-check as 81-
-│   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type (gitignored)
+│   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type (gitignored,
+│                                       retention CONFIG_BACKUP_KEEP)
 │
 ├── 08-SSL/
 │   ├── README.md                    – Certificate lifecycle: prepare → deploy → verify
@@ -782,16 +788,13 @@ CSPU Sep 2026 state is frozen in
   the KA1182 / CPU October 2026 patch-availability rows. **State
   2026-10-22:** the KA1182 of October 2026 (PDF) has no patch for the
   bundled JDK (only Java SE for `JDK_HOME`) → open an SR with the question.
-- [ ] **13- `rwserver.conf`: `engLife` / `maxIdle` / engine `jvmOptions`**
-  not taken from `environment.conf` – values tuned with
-  `05-ReportsPerformance/engine_perf_settings.sh --apply` are lost on the next
-  `13- --apply` (proposal `REPORTS_ENGINE_LIFE`, `REPORTS_ENGINE_JVM_OPTIONS`;
-  evaluate a default `engineResponseTimeOut`).
+- [ ] **Reports `engineResponseTimeOut`** (hanging engines are never killed)
+  – evaluate a default with real report run times; engine tuning values
+  (`REPORTS_ENGINE_*` incl. `LIFE` / `MAX_IDLE` / `JVM_OPTIONS`) come from
+  `environment.conf` since 2026-10-23.
 - [ ] **Font check in the smoke test `15-`**: a font test report (Arial,
   Helvetica, Times New Roman, Courier New, Tahoma, Liberation, DejaVu)
   checked with `04-ReportsFonts/pdf_font_verify.sh`.
-- [ ] `07-Maintenance/ConfigBackup/` retention (`--keep N`); collect the
-  `*.bak_<ts>` copies our scripts leave next to Oracle files.
 - [ ] `time-taken` in the WLS_FORMS access log (response times for
   `06-FormsDiag/forms_perf_analyse.sh`).
 
