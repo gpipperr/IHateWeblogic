@@ -317,7 +317,7 @@ Rules across the folders:
 |---|---|
 | Phase 8 (Patches) | Scripts still on the CSPU Sep 2026 set (October set incl. FMW Infrastructure bundles documented, not yet in `05-`/`06-`); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
-| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); Nginx web-command block of the template not yet rolled out on the test host (root) – see [Open Items](#open-items--todo) |
+| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
 
@@ -820,10 +820,10 @@ CSPU Sep 2026 state is frozen in
   question to Oracle) and the Coherence cluster port + one port on the host
   IP (MOS 2420434.1 not read yet); the firewall closes them
   ([clone_golden_image.md](80-FMW-Architecture/clone_golden_image.md)).
-- [ ] **Roll out the Nginx block of the admin web commands** on the test
-  host (`09-Install/04-root_nginx.sh --apply`, root) and check from outside:
-  `getserverinfo` → 403, `getjobid…` still reaches the servlet (template
-  tested with an own Nginx instance, 2026-10-23).
+- [ ] **`ADMIN_IP_RANGE` narrower than `10.0.0.0/8`** – it opens `/em`, `/console`
+  and the Reports admin web commands (Nginx block live since 2026-10-23) to the
+  whole private network; set the admin PCs / monitoring host only
+  (`Reports_security.txt` 2.2).
 - [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
   Reports server; SR draft local (`SR/`). Workaround: "Advanced Option" /
   WLST `grantAppRole`

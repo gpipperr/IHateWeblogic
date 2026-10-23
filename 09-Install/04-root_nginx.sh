@@ -214,8 +214,11 @@ else
     fi
 fi
 
-# Warn if cert files don't exist yet (expected – 05-root_nginx_ssl.sh places them)
-if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+# Warn if cert files don't exist yet (expected – 05-root_nginx_ssl.sh places them).
+# /etc/nginx/ssl is root-only (700) - test as root, else "as oracle with sudo"
+# always reported "not in place" and skipped nginx -t (2026-10-23)
+_certs_ok() { _run_root test -f "$SSL_CERT" 2>/dev/null && _run_root test -f "$SSL_KEY" 2>/dev/null; }
+if _certs_ok; then
     ok "SSL certificate found: $SSL_CERT"
     ok "SSL key found: $SSL_KEY"
 else
@@ -291,25 +294,42 @@ done
 
 if [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Deploy generated config to $NGINX_CONF?" "y"; then
-        # Backup existing config
-        [ -f "$NGINX_CONF" ] && backup_file "$NGINX_CONF"
+        # Backup existing config (root-owned directory -> as root)
+        _bak=""
+        if [ -f "$NGINX_CONF" ]; then
+            _bak="${NGINX_CONF}.bak_$(date +%Y%m%d_%H%M%S)"
+            _run_root cp -p "$NGINX_CONF" "$_bak" && ok "Backup created: $_bak" \
+                || { fail "Backup of $NGINX_CONF failed – nothing deployed"; _bak="FAILED"; }
+        fi
 
+        if [ "$_bak" != "FAILED" ]; then
         _run_root cp "$NGINX_CONF_TMP" "$NGINX_CONF"
         _run_root chmod 644 "$NGINX_CONF"
         ok "Configuration deployed: $NGINX_CONF"
 
-        # Validate syntax (nginx -t will fail if SSL certs don't exist yet)
-        # Use a temp nginx.conf that comments out the SSL lines for validation
-        if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+        # Validate syntax (nginx -t fails if the SSL certs don't exist yet),
+        # reload a running Nginx; a broken config is rolled back at once
+        if _certs_ok; then
             if _run_root nginx -t 2>/dev/null; then
                 ok "Nginx config syntax valid (nginx -t)"
+                if _run_root systemctl is-active --quiet nginx; then
+                    _run_root systemctl reload nginx && ok "Nginx reloaded – new configuration active" \
+                        || fail "systemctl reload nginx failed"
+                else
+                    info "Nginx not running – start it: sudo systemctl start nginx"
+                fi
             else
                 fail "Nginx config syntax error – run: sudo nginx -t"
+                if [ -n "$_bak" ]; then
+                    _run_root cp -p "$_bak" "$NGINX_CONF" && warn "Previous configuration restored from $_bak (Nginx unchanged)"
+                fi
             fi
         else
             info "Skipping nginx -t (SSL certs not yet in place)"
             info "  Full validation after 05-root_nginx_ssl.sh deploys the certificates"
         fi
+        fi
+        unset _bak
     fi
 else
     info "Run with --apply to deploy this configuration"

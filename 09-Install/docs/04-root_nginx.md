@@ -84,9 +84,16 @@ nginx -t
 6. Installs Nginx via `dnf` if missing (asks for confirmation with `--apply`)
 7. Enables Nginx for autostart (`systemctl enable nginx`) — does NOT start it
 8. Creates `/etc/nginx/ssl/` directory (mode 700) for certificate storage
-9. Backs up existing `oracle-wls.conf` before overwriting
+9. Backs up existing `oracle-wls.conf` before overwriting (as root – the
+   directory is root-owned; no backup = nothing deployed)
 10. Deploys generated config to `/etc/nginx/conf.d/oracle-wls.conf`
-11. Skips `nginx -t` validation if SSL certs are not yet in place
+11. `nginx -t` if the SSL certs are in place (checked as root – `/etc/nginx/ssl`
+    is mode 700), then **reloads a running Nginx**; a failed `nginx -t`
+    restores the backup at once (Nginx keeps running unchanged). Without
+    certs (first installation) validation and reload follow with
+    `05-root_nginx_ssl.sh`. Fixed 2026-10-23: run as oracle with sudo, the
+    cert check and the backup failed silently and the new configuration was
+    written but never loaded
 12. Detects and disables conflicting `/etc/nginx/conf.d/default.conf`
 
 ---
