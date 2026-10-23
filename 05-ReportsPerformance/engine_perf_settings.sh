@@ -299,6 +299,7 @@ _cmp "minEngine"    "${REPORTS_ENGINE_MIN:-}"  "$ENG_MIN"
 _cmp "maxEngine"    "${REPORTS_ENGINE_MAX:-}"  "$ENG_MAX"
 _cmp "maxConnect"   "${REPORTS_MAX_CONNECT:-}" "$C_MAX"
 _cmp "maxQueueSize" "${REPORTS_MAX_QUEUE:-}"   "$Q_MAX"
+_cmp "TNS_ADMIN"    "${TNS_ADMIN:-}"           "$(rws_env_var "$RWSERVER_CONF" TNS_ADMIN)"
 [ "$DRIFT" -eq 1 ] && \
     info "  09-Install/13-oracle_setup_reports.sh --apply rewrites rwserver.conf from environment.conf"
 

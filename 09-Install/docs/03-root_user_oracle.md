@@ -168,7 +168,16 @@ export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
 export TMP=/tmp
 export TMPDIR=/tmp
 umask 0022
+
+# IHW TNS_ADMIN – one Oracle Net directory for all FMW processes
+# (value: environment.conf TNS_ADMIN, default $ORACLE_BASE/admin/tns_names)
+export TNS_ADMIN=/u01/app/oracle/admin/tns_names
 ```
+
+The script also creates the `TNS_ADMIN` directory (owner `oracle:oinstall`)
+and keeps the profile line in line with `environment.conf` (own block with
+the marker `IHW TNS_ADMIN`). The other places that read Oracle Net settings:
+[02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh).
 
 > **Note:** The script uses `ORACLE_HOME` (= `$ORACLE_BASE/fmw`) as the FMW home
 > variable. This is the standard Oracle convention. Do not confuse with a Database
@@ -280,6 +289,7 @@ From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
 - Verifies PAM loads limits (`pam_limits.so` in system-auth)
 - Creates `/etc/sudoers.d/oracle-fmw` and validates with `visudo -c`
 - Writes `~oracle/.bash_profile` FMW block (checks for existing entries, no duplicates)
+- Creates the `TNS_ADMIN` directory and writes `export TNS_ADMIN=…` into `.bash_profile` (own `IHW TNS_ADMIN` block, corrected when `environment.conf` changes)
 - Creates full directory tree with correct ownership (`$ORACLE_BASE/*` and `$ORACLE_INVENTORY`)
 - Creates `/etc/oraInst.loc` pointing to `$ORACLE_INVENTORY` (system-wide, root-owned)
 - Transfers repository ownership to `oracle:oinstall` (bootstrap handover)

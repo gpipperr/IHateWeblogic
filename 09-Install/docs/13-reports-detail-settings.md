@@ -72,7 +72,7 @@ REPORTS_MAX_CONNECT="300"                   # connection maxConnect
 REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
 
 # TNS / database
-TNS_ADMIN="/app/oracle/19c/network/admin"   # Oracle Net configuration directory
+TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (interview block 1)
 ```
 
 ---
@@ -326,7 +326,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
     <envVariable name="REPORTS_PATH"        value="/u01/app/oracle/reports/source:/u01/app/oracle/reports/images"/>
     <envVariable name="REPORTS_TMP"         value="/u01/app/oracle/reports/tmp"/>
     <envVariable name="NLS_LANG"            value="GERMAN_GERMANY.AL32UTF8"/>
-    <envVariable name="TNS_ADMIN"           value="/app/oracle/19c/network/admin"/>
+    <envVariable name="TNS_ADMIN"           value="/u01/app/oracle/admin/tns_names"/>
     <envVariable name="REPORTS_JVM_OPTIONS" value="-Djobid=random -DORBWaitForResponseTimeout=999999999"/>
   </environment>
 
@@ -388,7 +388,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<engine initEngine>` | Pre-started processes; set = `minEngine` |
 | `<environment id="QS">` | `QS` is the default env ID referenced by `defaultEnvId` |
 | `<envVariable NLS_LANG>` | Must match Oracle DB character set |
-| `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections |
+| `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections – `TNS_ADMIN` of `environment.conf`; `13-` also writes `TNS_ADMIN=…; export TNS_ADMIN` into the IHW block of `reports.sh` (Reports server process, `rwrun`, `rwconverter`) – Oracle's own `reports.sh` sets it only when empty (`/etc` or `$DOMAIN_HOME/config/fmwconfig`). All places: [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
 | `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
 | `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `rep_admin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
 | `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |

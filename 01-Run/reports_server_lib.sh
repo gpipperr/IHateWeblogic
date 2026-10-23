@@ -109,6 +109,13 @@ rws_find_conf() {
 # Flatten a config file: one XML tag per line (handles multi-line elements).
 _rws_flat() { tr -d '\n' < "$1" | sed 's/</\n</g'; }
 
+# rws_env_var CONF NAME – value of <envVariable name="NAME" value="..."/> in
+# rwserver.conf (environment of the report engines), empty if not set
+rws_env_var() {
+    _rws_flat "$1" | grep -E "^<envVariable[[:space:]][^>]*name=\"${2}\"" | head -1 \
+        | sed -n 's/.*[[:space:]]value="\([^"]*\)".*/\1/p'
+}
+
 # Line of the report engine: the one of <job jobType="report" engineId=...>,
 # else the first engine that is not the URL engine.
 _rws_engine_line() {

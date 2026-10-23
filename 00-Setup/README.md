@@ -14,6 +14,10 @@ This is the foundation layer every other script in the repository depends on:
   encryption, environment helpers) that every script sources first.
 - **`environment.conf`** – the single source of truth for all paths, ports and
   instance names, generated and maintained by the scripts in this folder.
+  One central value of it: **`TNS_ADMIN`** – the one Oracle Net directory
+  (`tnsnames.ora`, `sqlnet.ora`) that Forms, Reports, WebLogic and the oracle
+  shell use; where it has to be set and the check:
+  [02-Checks/README.md – tns_admin_check.sh](../02-Checks/README.md#tns_admin_checksh).
 - **Credential storage** – WebLogic, RCU/database and My Oracle Support
   passwords, all encrypted with the same machine-local `openssl des3` concept.
 
@@ -102,8 +106,9 @@ appears). For daily switching between already-configured environments, use
 1. **No `environment.conf` symlink exists yet** (very first run on a fresh
    machine): the script cannot detect a running domain, so it collects the
    handful of **install parameters** needed by `09-Install/` (`ORACLE_BASE`,
-   `ORACLE_HOME`, `JDK_HOME`, `DOMAIN_HOME`, `PATCH_STORAGE`,
-   `INSTALL_COMPONENTS`) and writes a minimal conf. This is the read-only
+   `ORACLE_HOME`, `JDK_HOME`, `DOMAIN_HOME`, `PATCH_STORAGE`, `TNS_ADMIN`
+   (default `$ORACLE_BASE/admin/tns_names`), `INSTALL_COMPONENTS`) and writes
+   a minimal conf. This is the read-only
    *analysis* equivalent of `09-Install/01-setup-interview.sh` for people who
    skip the full guided interview.
 

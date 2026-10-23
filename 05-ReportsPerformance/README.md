@@ -31,6 +31,7 @@ Not duplicated here – use the existing scripts:
 | Search all logs for an error | `03-Logs/grep_logs.sh 'REP-'` |
 | Run one report outside the server (crash / trace) | `01-Run/rwrun_trace.sh` |
 | WebLogic JVM heap / GC of `WLS_REPORTS` (the servlet, not the engines) | `02-Checks/weblogic_performance.sh` |
+| `ORA-12154` / `ORA-12162` in reports – which `tnsnames.ora` do the engines use? | `02-Checks/tns_admin_check.sh` |
 
 All three Reports scripts share `01-Run/reports_server_lib.sh` (find the
 component's `rwserver.conf`, read the **report** engine, server/engine PIDs,
@@ -80,7 +81,7 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 | Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`; FAIL: `maxEngine < minEngine/initEngine`. INFO: no `engineResponseTimeOut`, URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
-| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE` – WARN on drift |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
 The rules and Oracle's numbers behind the checks:

@@ -2,8 +2,8 @@
 
 Diagnostic scripts that inspect the host, the Java runtime, the WebLogic
 domain, the database connection, TLS and the Reports network discovery.
-All scripts are **read-only** – only `weblogic_performance.sh --apply`
-changes a file (with backup).
+All scripts are **read-only** – only `weblogic_performance.sh --apply` and
+`tns_admin_check.sh --apply` change a file (`setUserOverrides.sh`, with backup).
 
 This README describes **what** each script checks and how to read the
 result. **Why** a check exists – how the components work together – is
@@ -24,6 +24,7 @@ explained in the background documents of
 | [`ssl_check.sh`](#ssl_checksh) | who terminates TLS (Nginx / WLS / OHS), live TLS analysis, certificates incl. WebLogic demo certificates, keystores | [08-SSL](../08-SSL/README.md), [which certificates are needed](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed) |
 | [`weblogic_performance.sh`](#weblogic_performancesh) | SecureRandom source in `java.security`, heap per server in `setUserOverrides.sh` (`--apply`) | [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) (`setDomainEnv.sh` → `setUserOverrides.sh`); WLS_FORMS heap ≠ Forms sessions – [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts) |
 | [`egress_check.sh`](#egress_checksh) | what the domain sends to other hosts: external DTD/XSD URLs in the configuration, `/etc/hosts` entries for them, XML/network JVM options, live non-local connections per process, `--capture` (tcpdump: DNS + outgoing SYN/UDP, with DNS names and process) | [outbound connections, external-DTD trap](../80-FMW-Architecture/weblogic_outbound_connections.md) |
+| [`tns_admin_check.sh`](#tns_admin_checksh) | one Oracle Net directory (`TNS_ADMIN` of `environment.conf`) in every place a Forms / Reports / WebLogic process or the oracle shell reads it; `--apply` writes the `setUserOverrides.sh` block | [Forms: `frmweb` reads `default.env`](../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias), [Reports: three places, Oracle's defaults](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin) |
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/report_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
@@ -52,6 +53,7 @@ Step 3 – Ports and network
   ./02-Checks/port_check.sh --http   # also HTTP checks against the AdminServer
 
 Step 4 – Database connectivity
+  ./02-Checks/tns_admin_check.sh            # one TNS_ADMIN everywhere (files + processes)
   ./02-Checks/db_connect_check.sh --new     # first time: configure + save credentials
   ./02-Checks/db_connect_check.sh           # check existing config (DNS/TCP/TNS/Service)
   ./02-Checks/db_connect_check.sh --login   # full check including login test
@@ -409,6 +411,42 @@ parser fetching `java.sun.com` was shown with name and destination.
 Short connections are often not seen by the `ss` poll – then the DNS name
 and the time stamp point to the process; OS timers (`dnf-makecache`) show up
 too (`journalctl`).
+
+### tns_admin_check.sh
+
+```bash
+./02-Checks/tns_admin_check.sh            # read-only: every place + running processes
+./02-Checks/tns_admin_check.sh --apply    # write the setUserOverrides.sh block (backup)
+```
+
+`TNS_ADMIN` is set **once** in `environment.conf` (interview block 1,
+default `$ORACLE_BASE/admin/tns_names`) – `tnsnames.ora` and `sqlnet.ora`
+of the company go there. Without it every component used Oracle's default
+(`$DOMAIN_HOME/config/fmwconfig`, only a sample `tnsnames.ora`): a Forms
+login with an alias failed with `ORA-12162` / `ORA-12154` (test host
+2026-10-23). Where the value has to arrive – and who writes it:
+
+| Process / reader | File | Written by | Note |
+|---|---|---|---|
+| Forms runtime (`frmweb`, one per session) | `default.env` (`TNS_ADMIN=`) | `09-Install/14-oracle_setup_forms.sh` (`##TNS_ADMIN##`) | read at every new session – no restart |
+| Reports engines | `rwserver.conf` `<environment id="QS">` `<envVariable name="TNS_ADMIN">` | `09-Install/13-oracle_setup_reports.sh` | Reports server restart |
+| Reports server process, `rwrun`, `rwconverter` | `$DOMAIN_HOME/reports/bin/reports.sh` | `13-` (IHW block, after Oracle's "set if empty" default) | Reports server restart |
+| WebLogic JVMs (`WLS_FORMS`, `WLS_REPORTS`, AdminServer: JDBC alias resolution) | `setUserOverrides.sh` – `export TNS_ADMIN` + `-Doracle.net.tns_admin` | this script `--apply` (also called by `09-oracle_configure.sh`) | sourced **after** Oracle's `setStartupEnv.sh`, which sets `$DOMAIN_HOME/config/fmwconfig` for the Reports group; server restart |
+| oracle shell (`sqlplus`, tools by hand) | `~oracle/.bash_profile` | `09-Install/03-root_user_oracle.sh` (root) | new login |
+| Smoke test / `rwrun_trace.sh` | copy the aliases of `$TNS_ADMIN/tnsnames.ora` into a temporary directory | `15-`, `01-Run/rwrun_trace.sh` | – |
+
+Live 2026-10-23 (**confirmed**): after setting the files the check showed
+the old value for every running process (8 OK / 4 WARN); after
+`startStop.sh stop-all` / `start-all` all 12 checks OK – files **and**
+`frmweb`, `rwserver`, `WLS_FORMS`, `WLS_REPORTS`.
+
+Checks: the directory (aliases in `tnsnames.ora`, `NAMES.DIRECTORY_PATH`
+of `sqlnet.ora`), every file of the table, and – the real proof – the
+environment of the running processes (`/proc/<pid>/environ` of `frmweb`,
+`rwserver`, `WLS_FORMS`, `WLS_REPORTS`). A WARN names the script that owns
+the file. Diagnosis scripts that compare one place on their own:
+`06-FormsDiag/forms_settings.sh` (default.env),
+`05-ReportsPerformance/engine_perf_settings.sh` (rwserver.conf).
 
 ---
 

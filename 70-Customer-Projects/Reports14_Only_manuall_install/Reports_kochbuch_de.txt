@@ -883,7 +883,12 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   export REPORTS_TMP=/u01/oracle/reports/tmp    # NICHT /tmp - wird beim Reboot geleert
   export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
   export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
-  export TNS_ADMIN=/app/oracle/19c/network/admin
+  # EIN Verzeichnis fuer tnsnames.ora/sqlnet.ora fuer ALLE Prozesse (Engines,
+  # Reports-Server, rwrun/rwconverter, WebLogic, Shell) - nicht das Verzeichnis
+  # eines DB-Clients (wird bei dessen Patch/Upgrade ersetzt). Ohne Wert nimmt
+  # jeder Prozess einen anderen Oracle-Standard ($DOMAIN_HOME/config/fmwconfig
+  # mit nur einer Beispiel-tnsnames.ora) -> ORA-12154 / ORA-12162 beim Login
+  export TNS_ADMIN=$ORACLE_BASE/admin/tns_names
   export REPORTS_NLS_LANG=GERMAN_GERMANY.AL32UTF8   # an den DB-Zeichensatz anpassen
   # Server-Administrator des Reports-Servers (<identifier> in rwserver.conf,
   # authid fuer getserverinfo/showjobs - siehe 9.11). Kennwort hier SELBST
@@ -891,10 +896,15 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   export REPORTS_IDENTIFIER=rep_admin/<IDENTIFIER_PASSWORD>
 
 
-  #unter $TNS_ADMIN die Firmen tnsnames und sqlnet.ora ablegen
+  # unter $TNS_ADMIN die Firmen-tnsnames.ora und sqlnet.ora ablegen, z.B.
+  #   NAMES.DIRECTORY_PATH=(TNSNAMES, EZCONNECT)     (sqlnet.ora)
+  # Wo der Wert ueberall eingetragen wird: rwserver.conf (9.7), reports.sh
+  # (9.9), setUserOverrides.sh (9.9b), ~/.bash_profile (siehe unten)
 
-
-  mkdir -p "$REPORTS_PATH" "$REPORTS_IMAGE_DIR" "$REPORTS_TMP"
+  mkdir -p "$REPORTS_PATH" "$REPORTS_IMAGE_DIR" "$REPORTS_TMP" "$TNS_ADMIN"
+  # Shell (sqlplus, rwrun von Hand) - einmalig:
+  grep -q '^export TNS_ADMIN=' ~/.bash_profile \
+      || echo "export TNS_ADMIN=$TNS_ADMIN" >> ~/.bash_profile
 
   # 9.3 Reports-Managed-Server erstmalig starten
   #     (AdminServer laeuft seit Schritt 4, Node Manager seit Schritt 7)
@@ -1199,9 +1209,10 @@ export NLS_LANG=${REPORTS_NLS_LANG}
 REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH}:${REPORTS_IMAGE_DIR}; export REPORTS_PATH
 REPORTS_FONT_DIRECTORY=\${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
+TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN
 REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
 EOF
-  tail -6 $DOMAIN_HOME/reports/bin/reports.sh
+  tail -7 $DOMAIN_HOME/reports/bin/reports.sh
   # Erwartet: "export NLS_LANG=<Wert aus 9.2>", "REPORTS_PATH=${REPORTS_PATH}:
   # <Report-Ordner>:<Bildordner>" (rwrun und die Reports-Tools lesen die
   # rwserver.conf nicht - sie brauchen den Bildordner hier) und woertlich
@@ -1209,6 +1220,10 @@ EOF
   # Block schon vorhanden (ohne REPORTS_PATH-/REPORTS_JVM_OPTIONS-Zeile)?
   # Die Zeilen von Hand nach "export NLS_LANG=..." einfuegen:
   #   REPORTS_PATH=${REPORTS_PATH}:/u01/oracle/reports/source:/u01/oracle/reports/images; export REPORTS_PATH
+  #   TNS_ADMIN=/u01/oracle/admin/tns_names; export TNS_ADMIN
+  # (Oracles eigener Teil weiter oben in reports.sh setzt TNS_ADMIN nur, wenn
+  #  es leer ist - /etc oder $DOMAIN_HOME/config/fmwconfig; unsere Zeile
+  #  steht danach und gilt)
   #   REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
   #
   # REPORTS_JVM_OPTIONS ist hier die JVM des Reports-Server-Prozesses selbst
@@ -1233,7 +1248,13 @@ EOF
   #   if [ "${SERVER_NAME}" = "WLS_REPORTS" ]; then
   #       export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
   #   fi
-  grep -n ORBTCPConnectTimeouts $DOMAIN_HOME/bin/setUserOverrides.sh
+  #  Ausserdem fuer ALLE Server (ausserhalb der if-Bloecke, am Dateiende) das
+  #  gemeinsame Oracle-Net-Verzeichnis - Oracles setStartupEnv.sh setzt fuer
+  #  WLS_REPORTS sonst $DOMAIN_HOME/config/fmwconfig (setUserOverrides.sh wird
+  #  danach gelesen und gewinnt):
+  #   export TNS_ADMIN="/u01/oracle/admin/tns_names"
+  #   export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Doracle.net.tns_admin=/u01/oracle/admin/tns_names"
+  grep -n "ORBTCPConnectTimeouts\|TNS_ADMIN" $DOMAIN_HOME/bin/setUserOverrides.sh
 
   # 9.10 Managed Server neu starten (laedt rwservlet.properties,
   #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten

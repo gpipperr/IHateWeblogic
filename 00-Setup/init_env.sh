@@ -717,6 +717,8 @@ if [ ! -f "$ENV_LINK" ]; then
     _confirm_val CONF_JDK_HOME       "$DET_JDK_HOME"                    "JDK_HOME"
     _confirm_val CONF_DOMAIN_HOME_I  "\${ORACLE_BASE}/domains/fr_domain" "DOMAIN_HOME"
     _confirm_val CONF_PATCH_STORAGE  "/srv/patch_storage"                "PATCH_STORAGE"
+    # one Oracle Net directory for all processes (02-Checks/tns_admin_check.sh)
+    _confirm_val CONF_TNS_ADMIN      "\${ORACLE_BASE}/admin/tns_names"   "TNS_ADMIN"
 
     printf "\n  What should be installed?\n"
     printf "    [1] Forms and Reports (default)\n"
@@ -755,6 +757,7 @@ if [ ! -f "$ENV_LINK" ]; then
             printf 'JDK_HOME="%s"\n'            "$CONF_JDK_HOME"
             printf 'DOMAIN_HOME="%s"\n'         "$CONF_DOMAIN_HOME_I"
             printf 'PATCH_STORAGE="%s"\n'       "$CONF_PATCH_STORAGE"
+            printf 'TNS_ADMIN="%s"\n'           "$CONF_TNS_ADMIN"
             printf 'INSTALL_COMPONENTS="%s"\n'  "$CONF_INSTALL_COMPONENTS"
             printf "# === END 09-INSTALL =========================================================\n"
         } > "$ENV_CONF"
@@ -774,6 +777,7 @@ if [ ! -f "$ENV_LINK" ]; then
         printList "  JDK_HOME"            28 "$CONF_JDK_HOME"
         printList "  DOMAIN_HOME"         28 "$CONF_DOMAIN_HOME_I"
         printList "  PATCH_STORAGE"       28 "$CONF_PATCH_STORAGE"
+        printList "  TNS_ADMIN"           28 "$CONF_TNS_ADMIN"
         printList "  INSTALL_COMPONENTS"  28 "$CONF_INSTALL_COMPONENTS"
         info "Would write to: $ENV_CONF_DIR/${ENV_NAME}.conf"
         info "Would symlink:  $ENV_LINK -> $ENV_CONF_DIR/${ENV_NAME}.conf"
@@ -804,7 +808,7 @@ section "Checking for 09-Install Parameters"
 
 MISSING_INSTALL_KEYS=()
 for _key in \
-    ORACLE_BASE ORACLE_INVENTORY PATCH_STORAGE INSTALL_COMPONENTS \
+    ORACLE_BASE ORACLE_INVENTORY PATCH_STORAGE TNS_ADMIN INSTALL_COMPONENTS \
     WLS_ADMIN_USER WLS_ADMIN_PORT WLS_NODEMANAGER_PORT WLS_FORMS_PORT WLS_REPORTS_PORT \
     FORMS_CUSTOMER_DIR REPORTS_CUSTOMER_DIR \
     EXPECTED_SESSIONS ULIMIT_NOFILE ULIMIT_NPROC \

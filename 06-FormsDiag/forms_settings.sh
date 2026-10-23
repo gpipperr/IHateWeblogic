@@ -202,6 +202,10 @@ if [ -n "$FRM_ENV" ]; then
         if [ -f "$E_TNS/tnsnames.ora" ]; then ok "TNS_ADMIN/tnsnames.ora present"
         else warn "No tnsnames.ora in TNS_ADMIN=$E_TNS (only EZConnect strings work)"; fi
     fi
+    if [ -n "${TNS_ADMIN:-}" ] && [ "${E_TNS%/}" != "${TNS_ADMIN%/}" ]; then
+        warn "TNS_ADMIN in default.env (${E_TNS:-unset}) differs from environment.conf ($TNS_ADMIN) – 09-Install/14-oracle_setup_forms.sh --apply"
+        info "  all places at once: 02-Checks/tns_admin_check.sh"
+    fi
     if [ -n "${FORMS_TMP:-}" ] && [ "$E_TMP" != "$FORMS_TMP" ]; then
         warn "TMPDIR in default.env (${E_TMP:-unset}) differs from FORMS_TMP in environment.conf ($FORMS_TMP)"
     fi

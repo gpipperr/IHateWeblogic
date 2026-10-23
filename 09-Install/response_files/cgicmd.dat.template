@@ -30,7 +30,9 @@ default: server=##REPORTS_SERVER## %* authid=##REPORTS_EXEC_AUTHID##
 #                 e.g. /reports/rwservlet?cmdkey=myKey&%1=myreport.rdf
 #   report=       Report file name (alternative to positional %1)
 #   server=       Reports Server component name (e.g. ##REPORTS_SERVER##)
-#   userid=       DB connection: user/password@service
+#   userid=       DB connection: user/password@<alias> – the alias comes from
+#                 tnsnames.ora in TNS_ADMIN (environment.conf, engines get it via
+#                 rwserver.conf); EZConnect host:port/service works without alias
 #   destype=      cache | file | printer | mail
 #   desformat=    pdf | html | xml | spreadsheet | ...
 #   authid=       WebLogic user/password (role RW_EXECREPORTS) – required

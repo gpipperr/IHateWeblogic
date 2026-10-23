@@ -27,6 +27,10 @@ FORMS_INSTANCE_NAME=forms1
 WLS_FORMS_SERVER=WLS_FORMS
 # Forms directories - default layout $ORACLE_BASE/forms/{moduls,tmp}
 # (outside ORACLE_HOME and /tmp; created by 09-Install/14-oracle_setup_forms.sh)
+# TNS_ADMIN: ONE Oracle Net directory (tnsnames.ora, sqlnet.ora) for Forms default.env,
+# Reports rwserver.conf/reports.sh, setUserOverrides.sh, oracle .bash_profile
+# (check: 02-Checks/tns_admin_check.sh)
+TNS_ADMIN=/u01/app/oracle/admin/tns_names
 # FORMS_CUSTOMER_DIR: Forms modules (.fmx/.fmb), first entry of FORMS_PATH
 FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls
 # FORMS_TMP: TMPDIR of the Forms runtime (default.env)

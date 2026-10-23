@@ -30,8 +30,8 @@ The script copies each template to its target path(s) and creates a
 ### default.env.template
 Paths are `##...##` placeholders filled from `environment.conf` by the script
 (`ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`, `FORMS_INSTANCE_NAME`,
-`REPORTS_TOOLS_INSTANCE`, `FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `TNS_ADMIN` – default
-`$DOMAIN_HOME/config/fmwconfig`) – do not replace them by hand. Adapt only:
+`REPORTS_TOOLS_INSTANCE`, `FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `TNS_ADMIN` – from
+`environment.conf`, unset = `$DOMAIN_HOME/config/fmwconfig`) – do not replace them by hand. Adapt only:
 - `FORMS_PATH` – add further `.fmb` / `.fmx` directories if needed
 - `NLS_LANG`, `NLS_DATE_FORMAT` – language/character set
 

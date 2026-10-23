@@ -623,6 +623,15 @@ if [ -n "$FORMS_APP_DIR" ]; then
     _copy_template \
         "$TEMPLATES_DIR/default.env.template" \
         "$FORMS_APP_DIR/config/default.env"
+    # TNS_ADMIN of environment.conf (one directory for all processes, check:
+    # 02-Checks/tns_admin_check.sh); fallback = Oracle's domain default
+    if [ -z "${TNS_ADMIN:-}" ]; then
+        warn "TNS_ADMIN not set in environment.conf – default.env uses \$DOMAIN_HOME/config/fmwconfig"
+    elif [ ! -f "$TNS_ADMIN/tnsnames.ora" ]; then
+        warn "No tnsnames.ora in TNS_ADMIN=$TNS_ADMIN – Forms logins work only with EZConnect (host:port/service)"
+    else
+        ok "TNS_ADMIN=$TNS_ADMIN (tnsnames.ora present)"
+    fi
 else
     warn "Skipping default.env – Forms app dir not found"
 fi

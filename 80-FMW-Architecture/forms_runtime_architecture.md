@@ -148,6 +148,28 @@ override it – the reason for section 3. Some parameters are *global system
 parameters* and are only read from `[default]` (e.g. `maxRuntimeProcesses`,
 `allowNewConnections`, **documented**, Web Configuration Parameters).
 
+### 2.1 Oracle Net – where `frmweb` finds the database alias
+
+`frmweb` is a native Oracle client: a login `user/password@ALIAS` is
+resolved with `tnsnames.ora` / `sqlnet.ora` in **`TNS_ADMIN` of
+`default.env`** – not with the environment of WLS_FORMS. Without our value
+the template default was `$DOMAIN_HOME/config/fmwconfig`, where the domain
+creation leaves only Oracle's sample `tnsnames.ora` (no alias): every alias
+login failed with `ORA-12162` (**confirmed (live)** 2026-10-23, FSAL client
+on Windows). With `TNS_ADMIN` of `environment.conf`
+(`$ORACLE_BASE/admin/tns_names`, written by `14-` into `default.env`) the
+same login `DEV_STB@RCU` opened the test form (**confirmed (live)**,
+2026-10-23). `default.env` is read for every new `frmweb` – a new session
+uses a changed value at once, only the **prestart pool** keeps the
+environment of its start until WLS_FORMS restarts (`/proc/<pid>/environ`,
+**confirmed (live)**).
+
+EZConnect (`host:port/service`) works without any `tnsnames.ora` as long as
+`sqlnet.ora` does not exclude it (`NAMES.DIRECTORY_PATH`). The same
+directory is used by Reports, WebLogic and the oracle shell – the full list
+of places and who writes them:
+[02-Checks/README.md – tns_admin_check.sh](../02-Checks/README.md#tns_admin_checksh).
+
 `09-Install/14-` builds `formsweb.cfg` from Oracle's
 `$ORACLE_HOME/forms/templates/config/formsweb.cfg` plus key overrides for
 `[default]` – it never replaces the file
@@ -249,6 +271,7 @@ Collected by `03-Logs/log_locations.sh` (group `forms`).
 | `06-FormsDiag/forms_perf_analyse.sh` | 3, 5, 6 (processes per section, pool vs. session, memory, access.log, logs, dumps) |
 | `09-Install/14-oracle_setup_forms.sh` | 2, 3 (`FORMS_PRESTART_SECTION`) |
 | `02-Checks/weblogic_performance.sh` | WLS_FORMS heap (servlet side only) |
+| `02-Checks/tns_admin_check.sh` | 2.1 (`TNS_ADMIN` in `default.env` and of every running `frmweb`) |
 
 ## 8. History – how client and runtime talk, 1979 to 2024
 
@@ -368,6 +391,10 @@ Secondary:
   `frmweb …,standaloneapp`, "Forms Session ID is WLS_FORMS.formsapp.2";
   the `frmweb` of a killed client lives until `FORMS_TIMEOUT`
   ([java_jlink_forms_env.md §4.2](java_jlink_forms_env.md#42-linux-runtime-and-a-real-forms-session--confirmed-live)).
+- First session from a **Windows** client: **confirmed (live) 2026-10-23** –
+  FSAL with the jlink runtime of the client distribution
+  ([09-Install/docs/40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md)),
+  login with a TNS alias after `TNS_ADMIN` was fixed (section 2.1).
 - Pool vs. session with a real client session (JWS / FSAL from Windows):
   DB connection and CPU time as criterion, EM "User Sessions" comparison
   (Oracle: "A user session starts when the frmweb process starts" – does EM

@@ -19,25 +19,29 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 ## Project Status
 
-**`[██████████████████░░]` ~90 % complete** (state 2026-10-22) – phases 1–7
+**`[██████████████████░░]` ~92 % complete** (state 2026-10-23) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
 (2026-10-19/20); phase 8 is nearly done, phase 9 has its first script
 (`cve_inventory.sh`); host hardening (firewall, sshd) is live on the test host.
+New 2026-10-22/23: the **Forms client distribution via URL** (jlink Java
+runtime + FSAL + JACOB from Nginx, PowerShell installer in the user profile)
+and **one `TNS_ADMIN`** for every process – together the first complete
+Forms session from a Windows client (alias login, test form).
 
-How the ~90 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
+How the ~92 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
 (CVE watch step 1 done; `cve_watch.sh`, notification, config security
 scanner are concept); minus the [open items](#open-items--todo) – mainly
-client-side tests, switching the scripts to the CPU Oct 2026 patch set (see
+the remaining client tests (update / offline / JACOB on Windows), switching the scripts to the CPU Oct 2026 patch set (see
 [Security & Patch Status](#security--patch-status)) and a few security
 hardening steps.
 
 | # | Phase | Status |
 |---|---|---|
 | 1 | Installation | ✅ Done |
-| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF) |
+| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF); **one `TNS_ADMIN`** in `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`, `.bash_profile`, checked with `02-Checks/tns_admin_check.sh` incl. the running processes (2026-10-23); **Forms client distribution** `40-` + client templates – first Windows FSAL session 2026-10-23 ([concept 40](09-Install/docs/40-forms_client_distribution.md)) |
 | 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
 | 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
@@ -93,6 +97,8 @@ What matters in this cycle:
 > chain incl. autostart and smoke test (2026-10-14/16), secured standalone
 > Reports server (2026-10-16), RCU repository analysis (2026-10-17), review of
 > all analyse + fix folders and `08-SSL` against the Oracle docs (2026-10-19/20,
+> Forms client distribution via URL + first Windows FSAL session and one
+> `TNS_ADMIN` for all processes (2026-10-22/23,
 > [Folder Roles](#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md)). Details of every
 > fix: `git log`; what is still open: [Open Items / TODO](#open-items--todo).
@@ -141,6 +147,7 @@ operation with proactive, AI-assisted error analysis.
 │  09-Install/14b       Reports fonts, uifont.ali, cgicmd.dat         │
 │  09-Install/30        Autostart: systemd unit + Node Manager        │
 │  09-Install/15        Smoke test: Forms XML -> FMX, report -> PDF   │
+│  09-Install/40        Forms client bundle via URL (jlink, FSAL)     │
 │  01-Run/startStop.sh  Start/stop through the Node Manager           │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -154,6 +161,7 @@ operation with proactive, AI-assisted error analysis.
 │  02-Checks/os_check.sh      Re-verify OS/RAM/disk/ulimits           │
 │  02-Checks/java_check.sh    JAVA_HOME, version, Log4j CVE scan      │
 │  02-Checks/port_check.sh    Port reachability                      │
+│  02-Checks/tns_admin_check.sh  One TNS_ADMIN, files + processes    │
 │  01-Run/rwserver_status.sh  Reports Server health                  │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -348,6 +356,8 @@ IHateWeblogic/
 │   ├── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
 │   ├── egress_check.sh              – Outbound connections of the domain, external DTD URLs, JVM XML options,
 │   │                                   --capture (tcpdump DNS + SYN with process) – external-DTD hang risk
+│   ├── tns_admin_check.sh           – One TNS_ADMIN everywhere: default.env, rwserver.conf, reports.sh,
+│   │                                   setUserOverrides.sh (--apply), .bash_profile, running processes
 │   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
 │   │                                   servers per port (DiagServerLocator), read-only
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
@@ -451,6 +461,10 @@ IHateWeblogic/
 │   ├── 14b-oracle_reports_fonts.sh  – Phase 6: Reports fonts, uifont.ali, cgicmd.dat (after first start)
 │   ├── 30-configure_autostart.sh    – Autostart at boot: systemd unit + Node Manager controlled
 │   │                                   start/stop scripts (templates in autostart_templates/)
+│   ├── 40-oracle_forms_client_bundle.sh – Forms client bundle for Nginx /formsWeb: jlink Windows
+│   │                                   runtime + CA, frmsal.jar, JACOB DLL, icon, manifest.json
+│   ├── client_templates/            – FormsWeb-Install.cmd (bootstrap) + FormsWeb-Setup.ps1
+│   │                                   (PS 5.1 installer/starter in %LOCALAPPDATA%, self-update)
 │   ├── 99-oracle_deinstall_fmw.sh   – Teardown: remove FMW completely for a clean reinstall,
 │   │                                   keeps a database on the same host (irreversible)
 │   ├── oracle_software_version.conf – Pinned FMW/JDK/patch version numbers
@@ -462,7 +476,8 @@ IHateWeblogic/
 │   ├── 15-deploy-test-report-forms_template.sh – Smoke test: minimal Forms module + Reports demo
 │   │                                   (verified 2026-10-16)
 │   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
-│                                       30-autostart, 80-security, 90-validate, 99-deinstall)
+│                                       30-autostart, 40-client distribution, 80-security,
+│                                       90-validate, 99-deinstall)
 │
 ├── 10-Monitoring/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
@@ -502,6 +517,8 @@ IHateWeblogic/
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
+│   ├── java_jlink_forms_env.md      – own Java runtime for the Forms client (jlink, jmods,
+│   │                                      cross-build Windows on Linux, module list)
 │   └── forms_jakob_webutil.md       – WebUtil + JACOB (OLE / Office automation)
 │
 └── 70-Customer-Projects/            – Customer-specific manual walkthroughs, not generated from
@@ -566,6 +583,15 @@ IHateWeblogic/
   [`80-FMW-Architecture/report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md)
 
 ## Troubleshooting
+
+### Database login: ORA-12154 / ORA-12162
+
+An alias login (`user/pwd@ALIAS`) in Forms or a report fails although the
+alias is in "the" `tnsnames.ora`: the process reads another directory.
+`./02-Checks/tns_admin_check.sh` compares `TNS_ADMIN` of `environment.conf`
+with `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`,
+`.bash_profile` **and** the running processes, and names the script that
+fixes each place ([02-Checks/README.md](02-Checks/README.md#tns_admin_checksh)).
 
 ### Reports / Forms performance and sessions
 
@@ -647,7 +673,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-22). Everything finished is described
+Only what is still open (state 2026-10-23). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -690,18 +716,16 @@ CSPU Sep 2026 state is frozen in
 
 ### Tests that need a client or a fresh install
 
-- [ ] **Forms client distribution via URL** (concept
-  [`09-Install/docs/40-forms_client_distribution.md`](09-Install/docs/40-forms_client_distribution.md)):
-  done 2026-10-22: Nginx `/formsWeb/` (live), `40-oracle_forms_client_bundle.sh`
-  (jlink Windows runtime 21.0.13.0.2 with CA, `frmsal.jar`, JACOB, `manifest.json`,
-  built on the test host), first FSAL session with a Linux jlink runtime
-  ([java_jlink_forms_env.md](80-FMW-Architecture/java_jlink_forms_env.md)).
-  PowerShell installer `client_templates/FormsWeb-Install.cmd` +
-  `FormsWeb-Setup.ps1` (PS 5.1) written and served. Open: the Windows client
-  test (bootstrap, update, offline, rollback, JACOB), Authenticode signature
-  of the script (makes the next item reproducible).
-- [ ] **Windows client**: Java Web Start / FSAL start of the test form,
-  root import (`ca.cer`), signed vs. unsigned `jacob.jar`, revocation check
+- [ ] **Forms client distribution via URL** – rest of the Windows test plan
+  ([concept 40 §8 / §12](09-Install/docs/40-forms_client_distribution.md)).
+  **Done 2026-10-23 on a Windows client:** CA import into the user store,
+  bootstrap `.cmd`, install into `%LOCALAPPDATA%`, shortcut with own icon,
+  FSAL start of `test_form` with alias login; fixed on the way: non-ASCII
+  profile path (`state.json` / Java arguments, setup 1.0.2).
+  Open: update and self-update round, offline start, `-Rollback`, JACOB /
+  Excel, `AllSigned` + Authenticode signature of the script.
+- [ ] **Windows client**: Java Web Start start of the test form (FSAL done
+  2026-10-23), signed vs. unsigned `jacob.jar`, revocation check
   of Java Web Start with a CA without CRL/OCSP, real OLE call (Excel);
   Forms **pool vs. session** criterion and RSS of a real session
   (`06-FormsDiag/forms_perf_analyse.sh`).

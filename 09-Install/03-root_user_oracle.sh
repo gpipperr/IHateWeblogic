@@ -377,6 +377,35 @@ EOF
     fi
 fi
 
+# oracle user profile – TNS_ADMIN (the same directory as Forms / Reports / WLS)
+TNS_MARKER="IHW TNS_ADMIN"
+_tns_dir="${TNS_ADMIN:-$ORACLE_BASE/admin/tns_names}"
+if [ -f "$ORACLE_PROFILE" ] && grep -q "$TNS_MARKER" "$ORACLE_PROFILE" 2>/dev/null; then
+    if grep -q "^export TNS_ADMIN=${_tns_dir}\$" "$ORACLE_PROFILE"; then
+        ok ".bash_profile: TNS_ADMIN=$_tns_dir"
+    else
+        warn ".bash_profile: TNS_ADMIN differs from environment.conf ($_tns_dir)"
+        if [ "$APPLY_MODE" -eq 1 ]; then
+            _run_root sed -i "s|^export TNS_ADMIN=.*|export TNS_ADMIN=${_tns_dir}|" "$ORACLE_PROFILE"
+            ok ".bash_profile: TNS_ADMIN set to $_tns_dir"
+        fi
+    fi
+else
+    warn ".bash_profile: TNS_ADMIN not set for oracle user (sqlplus, rwrun, frmcmp ...)"
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        _run_root tee -a "$ORACLE_PROFILE" > /dev/null << TNSEOF
+
+# ${TNS_MARKER} – one Oracle Net directory for all FMW processes
+# Managed by: 09-Install/03-root_user_oracle.sh (value: environment.conf)
+export TNS_ADMIN=${_tns_dir}
+TNSEOF
+        ok ".bash_profile: TNS_ADMIN added ($_tns_dir)"
+    else
+        info "  Add to $ORACLE_PROFILE:  export TNS_ADMIN=$_tns_dir"
+    fi
+fi
+unset _tns_dir
+
 # =============================================================================
 # 6. sudo Configuration
 # =============================================================================
@@ -489,6 +518,8 @@ _check_dir "$(dirname "$DOMAIN_HOME")"     oracle oinstall
 _check_dir "$(dirname "$(dirname "$DOMAIN_HOME")")"  oracle oinstall
 _check_dir "$PATCH_STORAGE"                oracle oinstall
 _check_dir "$PATCH_STORAGE/bin"            oracle oinstall
+# Oracle Net directory (tnsnames.ora / sqlnet.ora) for all processes
+_check_dir "${TNS_ADMIN:-$ORACLE_BASE/admin/tns_names}" oracle oinstall
 # Forms client bundle served by Nginx (concept docs/40-forms_client_distribution.md)
 # – only for Forms installs with FORMS_CLIENT_DIST=true (Reports only: never)
 if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "REPORTS_ONLY" ]; then

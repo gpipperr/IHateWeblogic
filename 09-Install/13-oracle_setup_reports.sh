@@ -920,6 +920,9 @@ else
             printf 'REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY\n'
             printf 'REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING\n'
             printf 'REPORTS_PATH=${REPORTS_PATH}:%s; export REPORTS_PATH\n' "$REPORTS_PATH"
+            # one Oracle Net directory (environment.conf) - overrides Oracle's
+            # default above (/etc or $DOMAIN_HOME/config/fmwconfig)
+            [ -n "${TNS_ADMIN:-}" ] && printf 'TNS_ADMIN=%s; export TNS_ADMIN\n' "$TNS_ADMIN"
             printf '# rwserver JVM: process reaper fix + ORB connect timeout (80-FMW-Architecture/reports_user_local_ldap.md)\n'
             printf 'REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS\n'
             printf '# ────────────────────────────────────────────────────────────────────────────\n'
@@ -928,6 +931,28 @@ else
     else
         info "Dry-run – would append NLS_LANG + REPORTS_FONT_DIRECTORY to reports.sh"
     fi
+fi
+# TNS_ADMIN of environment.conf for the Reports server process and the tools
+# (rwrun, rwconverter) - Oracle's block above sets it only when it is empty
+# (2026-10-23); the engines get it from rwserver.conf (envVariable, step 5)
+if [ -f "$_REPORTS_SH" ] && [ -n "${TNS_ADMIN:-}" ] && grep -q 'IHateWeblogic Settings' "$_REPORTS_SH"; then
+    if grep -qx "TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN" "$_REPORTS_SH"; then
+        ok "reports.sh: TNS_ADMIN=$TNS_ADMIN"
+    elif $APPLY; then
+        cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
+        if grep -q '^TNS_ADMIN=' "$_REPORTS_SH"; then
+            sed -i "s|^TNS_ADMIN=.*|TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN|" "$_REPORTS_SH"
+        else
+            sed -i "/^REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING/a TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN" "$_REPORTS_SH"
+        fi
+        grep -qx "TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN" "$_REPORTS_SH" \
+            && ok "reports.sh: TNS_ADMIN set ($TNS_ADMIN)" \
+            || fail "reports.sh: TNS_ADMIN not written - check $_REPORTS_SH"
+    else
+        info "Dry-run – would set TNS_ADMIN=$TNS_ADMIN in reports.sh"
+    fi
+elif [ -z "${TNS_ADMIN:-}" ]; then
+    warn "TNS_ADMIN not set in environment.conf – Oracle default (\$DOMAIN_HOME/config/fmwconfig) stays"
 fi
 unset _REPORTS_SH
 

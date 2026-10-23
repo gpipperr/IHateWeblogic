@@ -188,6 +188,13 @@ _run_step "JVM Settings" \
     "$ROOT_DIR/02-Checks/weblogic_performance.sh" --apply
 
 # =============================================================================
+# Step 1b – TNS_ADMIN for all WebLogic JVMs (setUserOverrides.sh)
+# =============================================================================
+
+_run_step "TNS_ADMIN (setUserOverrides.sh)" \
+    "$ROOT_DIR/02-Checks/tns_admin_check.sh" --apply
+
+# =============================================================================
 # Step 2 – Font OS packages  (skippable via --skip-fonts)
 # =============================================================================
 

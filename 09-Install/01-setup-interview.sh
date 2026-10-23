@@ -391,6 +391,10 @@ _ask ORACLE_HOME    "Oracle Home (FMW)"         "${ORACLE_BASE}/fmw"            
 _ask JDK_HOME       "JDK 21 home (symlink)"     "${ORACLE_BASE}/java/jdk-21"       "_val_jdk"
 _ask DOMAIN_HOME    "Domain directory"          "${ORACLE_BASE}/domains/fr_domain" "_val_dir"
 _ask PATCH_STORAGE  "Patch storage directory"   "/srv/patch_storage"               "_val_patch_storage"
+# One Oracle Net directory (tnsnames.ora / sqlnet.ora) for every process:
+# Forms default.env (14-), rwserver.conf + reports.sh (13-), setUserOverrides.sh
+# (02-Checks/tns_admin_check.sh), oracle .bash_profile (03-)
+_ask TNS_ADMIN      "Oracle Net dir (TNS_ADMIN)" "${ORACLE_BASE}/admin/tns_names"   "_val_dir"
 
 # ORACLE_INVENTORY: derive default from ORACLE_BASE parent (one level up)
 # If ORACLE_BASE is at depth 1 (e.g. /oracle → parent=/), auto-derive would put
@@ -751,6 +755,7 @@ _show "ORACLE_HOME"          "$ORACLE_HOME"
 _show "JDK_HOME"             "$JDK_HOME"
 _show "DOMAIN_HOME"          "$DOMAIN_HOME"
 _show "PATCH_STORAGE"        "$PATCH_STORAGE"
+_show "TNS_ADMIN"            "$TNS_ADMIN"
 _show "INSTALL_COMPONENTS"   "$INSTALL_COMPONENTS"
 _show "WLS_ADMIN_USER"       "$WLS_ADMIN_USER"
 _show "WLS_ADMIN_PORT"       "$WLS_ADMIN_PORT"
@@ -886,6 +891,9 @@ ORACLE_INVENTORY="${ORACLE_INVENTORY}"
 ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
+# Oracle Net configuration (tnsnames.ora, sqlnet.ora) - ONE directory for Forms,
+# Reports, WebLogic and the oracle shell; check: 02-Checks/tns_admin_check.sh
+TNS_ADMIN="${TNS_ADMIN}"
 
 # --- Component Selection ------------------------------------------------------
 INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
@@ -1053,6 +1061,7 @@ ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 DOMAIN_HOME="${DOMAIN_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
+TNS_ADMIN="${TNS_ADMIN}"
 INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
 WLS_ADMIN_USER="${WLS_ADMIN_USER}"
 WLS_ADMIN_PORT="${WLS_ADMIN_PORT}"

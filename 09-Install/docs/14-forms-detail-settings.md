@@ -314,8 +314,9 @@ $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_<v
 All path values are `##...##` placeholders, filled by `14-oracle_setup_forms.sh`
 from `environment.conf` when it copies the template (`##ORACLE_HOME##`,
 `##DOMAIN_HOME##`, `##JDK_HOME##`, `##FORMS_INSTANCE_NAME##`,
-`##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##FORMS_TMP##` (`TMPDIR`), `##TNS_ADMIN##` – default
-`$DOMAIN_HOME/config/fmwconfig`). The script refuses to write a file with an
+`##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##FORMS_TMP##` (`TMPDIR`), `##TNS_ADMIN##` – `TNS_ADMIN`
+of `environment.conf` (default `$ORACLE_BASE/admin/tns_names`, the same directory
+for all processes – [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh)); without it Oracle's `$DOMAIN_HOME/config/fmwconfig`). The script refuses to write a file with an
 unresolved placeholder. Before 2026-10-15 the template contained hard-coded paths
 of another host layout (`/u01/oracle/fmw`, `/u01/user_projects/...`, `reptools_ent`)
 and a 12c CLASSPATH (`ldapjclnt11.jar`, `jpsmanifest.jar`,

@@ -77,6 +77,7 @@ Orchestrates the configuration sequence:
 |---|---|---|---|
 | 0 | boot.properties | `09-Install/10-oracle_boot_properties.sh --apply` | [10-oracle_boot_properties.md](10-oracle_boot_properties.md) |
 | 1 | JVM settings | `02-Checks/weblogic_performance.sh --apply` | |
+| 1b | TNS_ADMIN for all WebLogic JVMs | `02-Checks/tns_admin_check.sh --apply` | `export TNS_ADMIN` + `-Doracle.net.tns_admin` in `setUserOverrides.sh` (value from `environment.conf`), [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
 | 2 | Font OS packages | `04-ReportsFonts/get_root_install_libs.sh --apply` (root/sudo) | |
 | 3 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
 | 4 | Config backup | `07-Maintenance/backup_config.sh --apply` | |

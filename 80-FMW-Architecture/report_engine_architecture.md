@@ -213,7 +213,7 @@ Live on the test host (2026-10-19, **confirmed (live)**: `/proc/<pid>/exe`,
 | JDK | `$ORACLE_HOME/oracle_common/jdk` (via `reports.sh` – the FMW-bundled JDK, see section 4) | same |
 | configuration | `ReportsToolsComponent/reptools1/rwbuilder.conf` (`maxEngine=1`) – log line `ServerConfig:logConf Reading server config file …/rwbuilder.conf` | `ReportsServerComponent/repserver01/rwserver.conf` |
 | fonts | `reptools1/…/tk/admin/uifont.ali` + PPD/AFM (`TK_FONTALIAS` is ignored) | the same reptools1 files (no `uifont.ali` in the server component) |
-| environment | `reports.sh` → `NLS_LANG`, `REPORTS_FONT_DIRECTORY`, `REPORTS_ENHANCED_FONTHANDLING`, `REPORTS_PATH` | `reports.sh` + `<envVariable>` of `rwserver.conf` |
+| environment | `reports.sh` → `NLS_LANG`, `REPORTS_FONT_DIRECTORY`, `REPORTS_ENHANCED_FONTHANDLING`, `REPORTS_PATH`, `TNS_ADMIN` | `reports.sh` + `<envVariable>` of `rwserver.conf` (section 5.2) |
 | network | none to the Reports server (only the DB connection) – no multicast, no `cgicmd.dat`, no `server=` | rwservlet → CORBA → server |
 | log | `servers/reptools1/logs/runtime_diagnostic.log` (engine `rwEng-0` of the tool runtime) | `servers/repserver01/logs/rwserver_diagnostic.log`, `rwEng-N_diagnostic.log` |
 | result | same PDF as the server path in all font tests of 2026-10-19 | – |
@@ -248,6 +248,33 @@ options) and vice versa – test on the path that production uses. The font
 tests of 2026-10-19 gave the same result on both because both read the
 same reptools1 font files and the same `reports.sh`
 ([04-ReportsFonts/README.md](../04-ReportsFonts/README.md)).
+
+### 5.2 Oracle Net – three places for one `TNS_ADMIN`
+
+A report connects with `userid=user/password@ALIAS` (URL, `cgicmd.dat` key,
+Forms `RUN_REPORT_OBJECT`). The alias is resolved in the process that runs
+the report – and the Reports processes get their environment from three
+different places (**confirmed (live)** on the test host 2026-10-23,
+`/proc/<pid>/environ`):
+
+| Process | Environment from | Oracle's default for `TNS_ADMIN` |
+|---|---|---|
+| engines `rwEng-N` (the DB connection of a report) | `<environment id="QS">` `<envVariable name="TNS_ADMIN">` of `rwserver.conf` | none in `rwserver.conf` – without the entry the engines inherit the value of the `rwserver` process (**assumption**; with both set, engines and `rwserver` showed the same directory, **confirmed (live)**) |
+| `rwserver` (Node Manager start), `rwrun`, `rwconverter` | `$DOMAIN_HOME/reports/bin/reports.sh` | set **only when empty**: `/etc` if `/etc/tnsnames.ora` exists, else `$DOMAIN_HOME/config/fmwconfig` |
+| WLS_REPORTS (rwservlet; an in-process server would run the engines here) | `setDomainEnv.sh` → `setStartupEnv.sh` (startup group `REPORTS-APP-SERVERS`), then `setUserOverrides.sh` | `$DOMAIN_HOME/config/fmwconfig` – fixed in the generated `setStartupEnv.sh` |
+
+`$DOMAIN_HOME/config/fmwconfig` holds only Oracle's sample `tnsnames.ora`
+after the domain creation – an alias works there only if somebody edits a
+file inside the domain, which a domain re-creation or `updateDomain` can
+overwrite. This repository therefore sets **one** directory
+(`TNS_ADMIN` in `environment.conf`, default `$ORACLE_BASE/admin/tns_names`)
+in all three: `13-` writes the `rwserver.conf` entry and a line in the IHW
+block of `reports.sh` (after Oracle's "if empty" block, so it wins);
+`02-Checks/tns_admin_check.sh --apply` writes `export TNS_ADMIN` +
+`-Doracle.net.tns_admin` into `setUserOverrides.sh`, which `setDomainEnv.sh`
+sources **after** `setStartupEnv.sh`. Who writes what in detail, and the
+check of the running processes:
+[02-Checks/README.md – tns_admin_check.sh](../02-Checks/README.md#tns_admin_checksh).
 
 ---
 
@@ -422,3 +449,4 @@ Related documents in this repository:
 - `09-Install/docs/13-reports-detail-settings.md` – how `13-` configures the standalone server
 - `01-Run/rwserver_status.sh` – status of the Reports server and its engines; `01-Run/rwrun_trace.sh` – traced `rwrun` runs (section 5.1)
 - `05-ReportsPerformance/engine_perf_settings.sh` / `engine_perf_analyse.sh` – parameter review against section 6 and load analysis
+- `02-Checks/tns_admin_check.sh` – `TNS_ADMIN` in `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` and of the running processes (section 5.2)
