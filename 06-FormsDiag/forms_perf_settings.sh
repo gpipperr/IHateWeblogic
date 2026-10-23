@@ -61,7 +61,7 @@ PRESTART_KEYS="prestartRuntimes prestartInit prestartMin prestartIncrement prest
 # Arguments
 # =============================================================================
 
-OVERRIDE_CFG="" APPLY_MODE=0 TARGET_SECTION="default" FIX_PRESTART=""
+OVERRIDE_CFG="" APPLY_MODE=0 TARGET_SECTION="default" FIX_PRESTART="" FIX_ACCESSLOG=0
 SET_LIST=() UNSET_LIST=()
 
 _usage() {
@@ -72,6 +72,7 @@ _usage() {
     printf "  %-24s %s\n" "--set KEY=VALUE"     "Set a key (repeatable)"
     printf "  %-24s %s\n" "--unset KEY"         "Remove a key (repeatable)"
     printf "  %-24s %s\n" "--fix-prestart NAME" "Move prestart* from [default] into section NAME"
+    printf "  %-24s %s\n" "--fix-accesslog"     "time-taken in the WLS_FORMS access log (WLST online)"
     printf "  %-24s %s\n" "--help"              "Show this help"
     exit 1
 }
@@ -84,6 +85,7 @@ while [ $# -gt 0 ]; do
         --set)          SET_LIST+=("$2");    shift 2 ;;
         --unset)        UNSET_LIST+=("$2");  shift 2 ;;
         --fix-prestart) FIX_PRESTART="$2";   shift 2 ;;
+        --fix-accesslog) FIX_ACCESSLOG=1;   shift ;;
         --help|-h)      _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -235,6 +237,29 @@ _show "idleTimeout (s):"    "${IT:-(not set = no SYSTEM_CLIENT_IDLE event)}"
 info "WLS_FORMS JVM heap (servlet + listener, NOT the frmweb sessions): ./02-Checks/weblogic_performance.sh"
 
 # =============================================================================
+# 4b. Access log format of WLS_FORMS (response times need time-taken)
+# =============================================================================
+
+printLine
+section "Access Log ($(frm_wls_server))"
+_elf="$(python3 -I - "$DOMAIN_HOME/config/config.xml" "$(frm_wls_server)" 2>/dev/null <<'ELF_PY'
+import sys, xml.etree.ElementTree as ET
+ns = {'d': 'http://xmlns.oracle.com/weblogic/domain'}
+for s in ET.parse(sys.argv[1]).getroot().findall('d:server', ns):
+    if s.findtext('d:name', '', ns) == sys.argv[2]:
+        print(s.findtext('d:web-server/d:web-server-log/d:elf-fields', '', ns))
+ELF_PY
+)"
+_show "ELF fields:" "${_elf:-(WebLogic default: common log format, no time-taken)}"
+if printf '%s' "$_elf" | grep -qw 'time-taken'; then
+    ok "time-taken logged – forms_perf_analyse.sh shows response times"
+else
+    warn "time-taken not in the access log – no response times for forms_perf_analyse.sh"
+    info "  ./06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog"
+fi
+unset _elf
+
+# =============================================================================
 # 5. Apply
 # =============================================================================
 
@@ -247,8 +272,50 @@ if [ "$APPLY_MODE" -eq 1 ]; then
             || { fail "Section [$FIX_PRESTART] not in formsweb.cfg"; print_summary; exit "$EXIT_CODE"; }
         [ "$FIX_PRESTART" = "default" ] && { fail "--fix-prestart needs a named section, not default"; print_summary; exit "$EXIT_CODE"; }
     fi
+    if [ "${FIX_ACCESSLOG:-0}" -eq 1 ]; then
+        # time-taken in the WLS_FORMS access log (WLST online, dynamic - the
+        # log is rotated and gets a new #Fields header, no restart; 2026-10-23)
+        if ! load_weblogic_password > /dev/null; then
+            fail "WebLogic password not loaded – access log unchanged"
+        else
+            _py="$(mktemp /tmp/forms_accesslog_XXXXXX.py)"; chmod 600 "$_py"
+            cat > "$_py" <<'WLST_EOF'
+import os
+connect(os.environ['_IHW_WL_USER'], os.environ['_IHW_WL_PWD'], os.environ['_IHW_WL_URL'])
+_ihw_ms = os.environ['_IHW_MS']
+edit()
+startEdit()
+cd('/Servers/' + _ihw_ms + '/WebServer/' + _ihw_ms + '/WebServerLog/' + _ihw_ms)
+set('LogFileFormat', 'extended')
+_ihw_f = get('ELFFields')
+if _ihw_f is None or str(_ihw_f).strip() == '':
+    _ihw_f = 'date time cs-method cs-uri sc-status bytes'
+if 'time-taken' not in str(_ihw_f).split():
+    set('ELFFields', str(_ihw_f) + ' time-taken')
+save()
+activate(block='true')
+cd('/Servers/' + _ihw_ms + '/WebServer/' + _ihw_ms + '/WebServerLog/' + _ihw_ms)
+print('IHW:ELF:' + str(get('ELFFields')))
+disconnect()
+WLST_EOF
+            _out="$(_IHW_WL_USER="$WL_USER" _IHW_WL_PWD="$INTERNAL_WL_PWD" _IHW_MS="$(frm_wls_server)" \
+                    _IHW_WL_URL="${WL_ADMIN_URL:-t3://${WLS_LISTEN_ADDRESS:-localhost}:${WLS_ADMIN_PORT:-7001}}" \
+                    "$ORACLE_HOME/oracle_common/common/bin/wlst.sh" "$_py" 2>&1)"
+            rm -f "$_py"; INTERNAL_WL_PWD=""
+            printf '%s\n' "$_out" >> "${LOG_FILE:-/dev/null}"
+            _elf="$(printf '%s' "$_out" | sed -n 's/^IHW:ELF://p' | tail -1)"
+            if printf '%s' "$_elf" | grep -qw 'time-taken'; then
+                ok "access log fields: $_elf"
+                info "  WebLogic rotates the log; entries appear after ~8 KB (buffer)"
+            else
+                fail "WLST failed – see $LOG_FILE (AdminServer running?)"
+            fi
+            unset _py _out _elf
+        fi
+    fi
     if [ "${#SET_LIST[@]}" -eq 0 ] && [ "${#UNSET_LIST[@]}" -eq 0 ] && [ -z "$FIX_PRESTART" ]; then
-        info "Nothing to change – use --set / --unset / --fix-prestart"
+        [ "${FIX_ACCESSLOG:-0}" -eq 1 ] && { print_summary; exit "$EXIT_CODE"; }
+        info "Nothing to change – use --set / --unset / --fix-prestart / --fix-accesslog"
         print_summary; exit "$EXIT_CODE"
     fi
     printf '%s\n' "${SECTIONS[@]}" | grep -qx "$TARGET_SECTION" \

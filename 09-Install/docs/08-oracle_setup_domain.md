@@ -307,7 +307,17 @@ host IP (not removable, firewall) – details and the whole clone picture:
 [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md).
 Not configured on purpose: an own Coherence WKA list (licence note there).
 
-**Existing domains:** `02-Checks/clone_check.sh --apply` (WLST online,
+### Access log of WLS_FORMS with `time-taken`
+
+The template also adds `time-taken` to the extended access log of
+`WLS_FORMS` (helper `_ihw_accesslog`: `LogFileFormat=extended`, the existing
+`ELFFields` + `time-taken`) – response times for
+`06-FormsDiag/forms_perf_analyse.sh` (frmservlet and the `lservlet` round
+trips of running sessions). Tested offline on a domain copy and online
+2026-10-23; existing domains: `06-FormsDiag/forms_perf_settings.sh --apply
+--fix-accesslog`.
+
+**Existing domains (SSL / Coherence):** `02-Checks/clone_check.sh --apply` (WLST online,
 backup of `config.xml`), then stop both managed servers and start them
 again. `02-Checks/ssl_check.sh` shows "SSL deaktiviert".
 

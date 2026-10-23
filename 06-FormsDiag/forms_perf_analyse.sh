@@ -196,7 +196,9 @@ if [ "$SKIP_LOG" -eq 1 ]; then
 elif [ -z "$ACCESS_LOG" ] || [ ! -f "$ACCESS_LOG" ]; then
     info "access.log of $WLS_FORMS_SRV not found (HTTP access logging off?)"
 else
-    FIELDS="$(grep -m1 '^#Fields:' "$ACCESS_LOG" | sed 's/^#Fields:[[:space:]]*//')"
+    # the LAST #Fields header counts - WebLogic writes a new one when the
+    # format changes (e.g. time-taken added by forms_perf_settings.sh)
+    FIELDS="$(grep '^#Fields:' "$ACCESS_LOG" | tail -1 | sed 's/^#Fields:[[:space:]]*//')"
     _show "Log:" "$ACCESS_LOG"
     _show "Fields:" "${FIELDS:-(no #Fields header)}"
     # column numbers from the #Fields header (tab separated, WebLogic extended format)
@@ -205,7 +207,7 @@ else
     if [ -z "$C_URI" ] || [ -z "$C_ST" ]; then
         info "cs-uri / sc-status not in the log format – analysis skipped"
     else
-        _tail="$(tail -n "$LOG_LINES" "$ACCESS_LOG" | grep -v '^#')"
+        _tail="$(awk '/^#Fields:/ { b = "" ; next } /^#/ { next } { b = b $0 "\n" } END { printf "%s", b }' "$ACCESS_LOG" | tail -n "$LOG_LINES")"
         printf "\n  Requests to frmservlet per config section:\n" | tee -a "${LOG_FILE:-/dev/null}"
         printf '%s\n' "$_tail" | awk -F'\t' -v u="$C_URI" '$u ~ /\/forms\/frmservlet/ {
                 c="default"; if (match($u, /config=[^&]*/)) c=substr($u, RSTART+7, RLENGTH-7); n[c]++ }
@@ -226,8 +228,14 @@ else
                     s+=$t; n++; if ($t>m) m=$t }
                 END { if (n) printf "  %-30s avg %.3f s, max %.3f s (%d requests)\n", "frmservlet time-taken:", s/n, m, n }' \
                 | tee -a "${LOG_FILE:-/dev/null}"
+            # lservlet = every round trip of a running session (user waits for it)
+            printf '%s\n' "$_tail" | awk -F'\t' -v t="$C_TT" -v u="$C_URI" '$u ~ /\/forms\/lservlet/ && $t ~ /^[0-9.]+$/ {
+                    s+=$t; n++; if ($t>m) m=$t; if ($t>=2) slow++ }
+                END { if (n) printf "  %-30s avg %.3f s, max %.3f s, >= 2 s: %d (%d requests)\n", "lservlet time-taken:", s/n, m, slow, n }' \
+                | tee -a "${LOG_FILE:-/dev/null}"
         else
-            info "No time-taken field – response times are not logged (WLS: server > Logging > HTTP, extended format fields 'time-taken')"
+            info "No time-taken field – response times are not logged"
+            info "  ./06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog (adds it, no restart)"
         fi
     fi
 fi

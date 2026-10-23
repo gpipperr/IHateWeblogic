@@ -262,7 +262,7 @@ names.
 | What | Where |
 |---|---|
 | Servlet / listener / pool messages (ODL) | `servers/WLS_FORMS/logs/WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log` – judge by level: `FRM-934xx` are `[NOTIFICATION]` (pool), `FRM-93654 Runtime process … is terminating due to external action` is `[ERROR]` (process killed, e.g. by a stop) (**confirmed (live)**) |
-| HTTP | `servers/WLS_FORMS/logs/access.log`, fields `date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes` – **no time-taken**, response times need the extended log format (**confirmed (live)**) |
+| HTTP | `servers/WLS_FORMS/logs/access.log`, fields `date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes` + `time-taken` (seconds) since 2026-10-23 (`08-`, `forms_perf_settings.sh --fix-accesslog`; WLST `ELFFields`, dynamic, log rotated with a new `#Fields` header – **confirmed (live)**); `lservlet` lines = round trips of running sessions |
 | frmweb crash dumps, `record=forms` traces | `FORMS_TRACE_DIR`, Oracle default `$DOMAIN_HOME/system_component/FORMS/<instance>/trace` (**documented**; not present on the test host = no crash yet) |
 | Forms Trace (events of a session) | `ftrace.cfg` of the instance, Tracing and Diagnostics chapter |
 | Sessions, metrics, kill a session | Fusion Middleware Control → Forms → User Sessions; Forms Diagnostics Agent `formsagentapp.war` (`$ORACLE_HOME/forms/j2ee/`, not deployed by us) |
@@ -407,8 +407,6 @@ Secondary:
   (Oracle: "A user session starts when the frmweb process starts" – does EM
   list pooled processes as sessions? **assumption**: yes).
 - RSS of a real session for the `maxRuntimeProcesses` sizing.
-- `time-taken` in the WLS_FORMS access log (extended format) – then
-  `forms_perf_analyse.sh` reports response times.
 - `frmweb` listens on `0.0.0.0` (section 1): can it be bound to loopback?
   (root README open item "frmweb/rwserver loopback binding").
 

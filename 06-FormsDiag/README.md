@@ -16,7 +16,7 @@ runtime pooling, timeout chain, memory, logs):
 | Script | Question it answers |
 |---|---|
 | `forms_settings.sh` | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit |
-| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters. `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]` |
+| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters. `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]`, `--fix-accesslog` adds `time-taken` to the WLS_FORMS access log |
 | `forms_perf_analyse.sh` | How does the server carry its load? `frmweb` per config section (pool vs. session), memory vs. RAM and limit, access log per section / status, Forms logs by ODL level, crash dumps |
 
 Not duplicated here:
@@ -94,6 +94,7 @@ other sections, comments and Oracle entries stay):
 | `--section NAME --set KEY=VALUE` | change or add the key in that section (repeatable) |
 | `--section NAME --unset KEY` | remove the key from that section – it inherits from `[default]` again |
 | `--fix-prestart NAME` | copy the effective `prestart*` values into `[NAME]`, remove them from `[default]`; hint to set `FORMS_PRESTART_SECTION=NAME` in environment.conf so a re-installation (14-) keeps it |
+| `--fix-accesslog` | WLST online: access log of WLS_FORMS in extended format with `time-taken` (keeps the other fields). Dynamic – WebLogic rotates `access.log` and writes a new `#Fields` header, no restart; entries appear after ~8 KB (buffer) (**confirmed (live)** 2026-10-23). New domains get it from `09-Install/08-` |
 
 Pooling changes need a WLS_FORMS restart (read only at servlet start).
 
@@ -109,7 +110,7 @@ Pooling changes need a WLS_FORMS restart (read only at servlet start).
 |---|---|
 | frmweb per Config Section | count, RSS sum / max, processes with an established TCP connection (DB) and with CPU time > 0, prestart Init of the section; pool = no DB connection and no CPU (**assumption**, see section 7); > 20 processes without a session → WARN |
 | Memory and Session Limit | RAM, WLS_FORMS RSS, frmweb RSS, average RSS of real sessions and how many fit; `maxRuntimeProcesses` unset → WARN, >= 90 % used → WARN; < 10 % RAM available → WARN |
-| HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time only with a `time-taken` field (not in the default format) |
+| HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time with a `time-taken` field (the **last** `#Fields` header counts): frmservlet avg/max, **lservlet** avg/max and requests ≥ 2 s (every round trip of a running session); field missing → hint `--fix-accesslog`. Check of the field itself: `forms_perf_settings.sh` section Access Log |
 | Forms Logs | `WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log`, `WLS_FORMS.out`: ERROR/WARNING lines by message id (top 5), FRM `[NOTIFICATION]`s separately (runtime pool, servlet start), ORA-, OutOfMemoryError |
 | Crash Dumps | files changed in `FORMS_TRACE_DIR` (default `$DOMAIN_HOME/system_component/FORMS/<instance>/trace`) in the last 7 days |
 | Recommendations | prestart fix, session limit, memory, heap (02-Checks), FRM/ORA, 5xx, dumps |
@@ -142,8 +143,6 @@ smoke test 15- green.
 - Pool vs. session with a real client session (JWS / FSAL from Windows) –
   verify the DB-connection / CPU criterion, RSS of a real session for the
   `maxRuntimeProcesses` sizing.
-- `time-taken` in the WLS_FORMS access log (extended format) – then response
-  times; candidate for a WLST `--apply`.
 
 ---
 
