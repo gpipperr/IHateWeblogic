@@ -1,4 +1,4 @@
-<p align="center"><a href="https://www.pipperr.de"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a></p>
+<p align="center"><a href="https://www.pipperr.info/"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a></p>
 
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
