@@ -119,7 +119,7 @@ RS_NAME="${OVERRIDE_SERVER:-${RWS_COMP_NAME:-}}"
 printLine
 
 # Flags for the recommendations
-REC_POOL=0 REC_FAIL=0 REC_OOM=0 REC_ORA=0 REC_REP=0 REC_DEAD=0 REC_QUEUE=0
+REC_POOL=0 REC_FAIL=0 REC_OOM=0 REC_ORA=0 REC_REP=0 REC_DEAD=0 REC_QUEUE=0 REC_ERT=0
 
 # =============================================================================
 # getserverinfo
@@ -211,6 +211,41 @@ if [ "$HTTP_OK" -eq 1 ]; then
     _fgt "$p_elap" 0 || info "averageElapsedTime is 0 – engine time not reported, judged via the queuing share instead"
 else
     info "Response times unavailable"
+fi
+
+# =============================================================================
+# 2b. Job run times (showjobs) vs. engineResponseTimeOut
+# =============================================================================
+
+printLine
+section "Job Run Times (showjobs) vs. engineResponseTimeOut"
+
+CFG_ERT="$(rws_engine_attr "${RWSERVER_CONF:-}" engineResponseTimeOut 2>/dev/null)"
+if [ "$HTTP_OK" -eq 1 ]; then
+    # all jobs only for the server admin <identifier> - monUser sees its own
+    _sj="${STATUS_URL/getserverinfo/showjobs}"
+    rws_fetch_serverinfo "$_sj" admin
+    read -r _n _max _p95 <<< "$(rws_job_runtimes "$RWS_HTTP_XML")"
+    if [ -z "${_n:-}" ]; then
+        info "No finished jobs with timing information (showjobs)"
+    else
+        _show "Past jobs:"              "$_n"
+        _show "Longest / 95 % run time:" "$(printf "%s s / %s s" "$_max" "$_p95")"
+        _show "engineResponseTimeOut:"  "${CFG_ERT:-(not set)}${CFG_ERT:+ min}"
+        _prop="$(rws_ert_proposal "$_max")"
+        if [ -z "$CFG_ERT" ]; then
+            warn "$(printf "engineResponseTimeOut not set – proposal %s min (2 x longest job, >= 5)" "$_prop")"
+            REC_ERT=1
+        elif [ "$_max" -ge $(( CFG_ERT * 60 )) ]; then
+            warn "$(printf "Longest job (%s s) >= engineResponseTimeOut (%s min) – such a job would be killed; proposal %s min" "$_max" "$CFG_ERT" "$_prop")"
+            REC_ERT=1
+        else
+            ok "$(printf "engineResponseTimeOut %s min covers the longest job (%s s); measured proposal %s min" "$CFG_ERT" "$_max" "$_prop")"
+        fi
+    fi
+    unset _sj _n _max _p95
+else
+    info "showjobs unavailable (no getserverinfo)"
 fi
 
 # =============================================================================
@@ -352,6 +387,9 @@ _xmx_cfg="$(printf "%s" "${CFG_JVM:-}" | grep -oE '\-Xmx[0-9]+[kKmMgG]?' | tail 
     "./03-Logs/grep_logs.sh 'REP-'" \
     "REP-56132 / REP-108 (images, folderAccess): 80-FMW-Architecture/report_server_image_handling.md"
 [ "$REC_ORA" -eq 1 ] && _rec "ORA- errors – database side" "./02-Checks/db_connect_check.sh"
+[ "$REC_ERT" -eq 1 ] && _rec "engineResponseTimeOut does not match the measured run times (see Job Run Times)" \
+    "./05-ReportsPerformance/engine_perf_settings.sh --apply (writes REPORTS_ENGINE_RESPONSE_TIMEOUT)" \
+    "batch reports with long run times: own Reports server (Oracle)"
 
 [ "$RECS" -eq 0 ] && ok "No performance issues detected"
 

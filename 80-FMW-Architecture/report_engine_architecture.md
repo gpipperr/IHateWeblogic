@@ -291,7 +291,7 @@ Configuration") and the `engine` element (7.2.1.8):
 | `engLife` | `engine` | 50 | jobs per engine before it is replaced – "to thwart memory leaks" |
 | `maxIdle` | `engine` | 30 (min) | idle engines above `minEngine` are stopped after this time |
 | `callbackTimeOut` | `engine` | 90000 ms | wait for a new engine to call the server back |
-| `engineResponseTimeOut` | `engine` | none | maximum time without a status update of a running job (hanging engine) |
+| `engineResponseTimeOut` | `engine` | none | minutes without a status update of a running job (hanging engine); Oracle: "set to the maximum time a report takes", batch reports better on an own server. Here: `REPORTS_ENGINE_RESPONSE_TIMEOUT=30`, `engine_perf_analyse.sh` measures the run times (`showjobs` `timingInfo`) and proposes 2 × longest job, ≥ 5 – test host 2026-10-23: 68 jobs, longest 1 s → 5 |
 | `jvmOptions` | `engine` | – | heap etc. of the **engine** JVMs |
 | `maxQueueSize` | `queue` | – | jobs kept; rate × `EXPIRATION` (10/min × 480 min → 4800) |
 | `cacheSize` | `cache` | – | `maxQueueSize` × average output size (4800 × 100 KB → 480 MB) |

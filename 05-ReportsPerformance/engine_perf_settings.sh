@@ -195,8 +195,12 @@ else
     ok "$(printf "engLife=%s jobs per engine" "$_life")"
 fi
 
-[ -z "$ENG_RESP" ] && \
-    info "engineResponseTimeOut not set – a hanging engine (job without status update) is never killed"
+if [ -z "$ENG_RESP" ]; then
+    warn "engineResponseTimeOut not set – a hanging engine (job without status update) is never killed"
+    info "  Oracle: the longest report run time (minutes) – measured: ./05-ReportsPerformance/engine_perf_analyse.sh"
+else
+    ok "$(printf "engineResponseTimeOut=%s min (job runs longer -> engine killed; check with engine_perf_analyse.sh)" "$ENG_RESP")"
+fi
 
 if rws_has_url_engine "$RWSERVER_CONF"; then
     info "URL engine (rwURLEng) active – Oracle: comment it out if URL jobs (jobType=rwurl) are not used"
@@ -300,6 +304,7 @@ _cmp "maxEngine"    "${REPORTS_ENGINE_MAX:-}"  "$ENG_MAX"
 _cmp "engLife"      "${REPORTS_ENGINE_LIFE:-}" "$ENG_LIFE"
 _cmp "maxIdle"      "${REPORTS_ENGINE_MAX_IDLE:-}"    "$ENG_IDLE"
 _cmp "jvmOptions"   "${REPORTS_ENGINE_JVM_OPTIONS:-}" "$ENG_JVM"
+_cmp "engineResponseTimeOut" "${REPORTS_ENGINE_RESPONSE_TIMEOUT:-}" "$ENG_RESP"
 _cmp "maxConnect"   "${REPORTS_MAX_CONNECT:-}" "$C_MAX"
 _cmp "maxQueueSize" "${REPORTS_MAX_QUEUE:-}"   "$Q_MAX"
 _cmp "TNS_ADMIN"    "${TNS_ADMIN:-}"           "$(rws_env_var "$RWSERVER_CONF" TNS_ADMIN)"
@@ -363,6 +368,7 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     NEW_MAX="$( _prompt_num "maxEngine"     "$ENG_MAX")"
     NEW_LIFE="$(_prompt_num "engLife"       "$ENG_LIFE")"
     NEW_IDLE="$(_prompt_num "maxIdle (min)" "$ENG_IDLE")"
+    NEW_RESP="$(_prompt_num "engineResponseTimeOut (min)" "$ENG_RESP")"
     while true; do
         printf "  %s [%s]: " "engine -Xmx (e.g. 512m, 1g; Enter = keep)" "${XMX_CFG#-Xmx}" >&2
         read -r NEW_XMX
@@ -381,6 +387,7 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     [ "$NEW_MAX"  != "$ENG_MAX"  ] && CHANGES+=("maxEngine=$NEW_MAX")
     [ "$NEW_LIFE" != "$ENG_LIFE" ] && CHANGES+=("engLife=$NEW_LIFE")
     [ "$NEW_IDLE" != "$ENG_IDLE" ] && CHANGES+=("maxIdle=$NEW_IDLE")
+    [ "$NEW_RESP" != "$ENG_RESP" ] && CHANGES+=("engineResponseTimeOut=$NEW_RESP")
     if [ -n "$NEW_XMX" ]; then
         if [ -n "$XMX_CFG" ]; then
             NEW_JVM="$(printf "%s" "$ENG_JVM" | sed "s/-Xmx[0-9][0-9]*[kKmMgG]\?/-Xmx${NEW_XMX}/")"
@@ -433,6 +440,7 @@ if [ "$APPLY_MODE" -eq 1 ]; then
             engLife)    _env_set REPORTS_ENGINE_LIFE        "${_c#*=}" ;;
             maxIdle)    _env_set REPORTS_ENGINE_MAX_IDLE    "${_c#*=}" ;;
             jvmOptions) _env_set REPORTS_ENGINE_JVM_OPTIONS "${_c#*=}" ;;
+            engineResponseTimeOut) _env_set REPORTS_ENGINE_RESPONSE_TIMEOUT "${_c#*=}" ;;
         esac
     done
 

@@ -1176,6 +1176,7 @@ if $APPLY; then
         _append_if_missing "REPORTS_ENGINE_LIFE"       "50"                              "$ENV_CONF"
         _append_if_missing "REPORTS_ENGINE_MAX_IDLE"   ""                                "$ENV_CONF"
         _append_if_missing "REPORTS_ENGINE_JVM_OPTIONS" ""                               "$ENV_CONF"
+        _append_if_missing "REPORTS_ENGINE_RESPONSE_TIMEOUT" "30"                        "$ENV_CONF"
         _append_if_missing "REPORTS_MAX_CONNECT"       "300"                             "$ENV_CONF"
         _append_if_missing "REPORTS_MAX_QUEUE"         "4000"                            "$ENV_CONF"
         _append_if_missing "REPORTS_COOKIE_KEY"        ""                                "$ENV_CONF"
@@ -1273,6 +1274,9 @@ REPORTS_ENGINE_LIFE="50"
 # maxIdle (minutes) / engine jvmOptions (e.g. "-Xmx1g"): empty = Oracle default
 REPORTS_ENGINE_MAX_IDLE=""
 REPORTS_ENGINE_JVM_OPTIONS=""
+# engineResponseTimeOut in minutes (hanging engine killed) - longest report run time,
+# measured by 05-ReportsPerformance/engine_perf_analyse.sh; empty = no timeout
+REPORTS_ENGINE_RESPONSE_TIMEOUT="30"
 REPORTS_MAX_CONNECT="300"
 REPORTS_MAX_QUEUE="4000"
 # rwservlet.properties cookie encryption key – generate once, keep stable

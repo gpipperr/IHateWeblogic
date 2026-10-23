@@ -248,6 +248,7 @@ Shown only when `INSTALL_COMPONENTS` includes Reports.
 | `REPORTS_ENGINE_LIFE` | `50` | `rwserver.conf`: `engLife` – jobs per engine before it is replaced |
 | `REPORTS_ENGINE_MAX_IDLE` | *(empty)* | `rwserver.conf`: `maxIdle` (minutes) – empty = not written, Oracle default 30 |
 | `REPORTS_ENGINE_JVM_OPTIONS` | *(empty)* | `rwserver.conf`: engine `jvmOptions` (e.g. `-Xmx1g`) – empty = not written, engines run with `-Xmx256M`; no `" & < >` |
+| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `30` | `rwserver.conf`: `engineResponseTimeOut` (minutes) – hanging engine is killed; set to the longest report run time (measured by `05-ReportsPerformance/engine_perf_analyse.sh`) |
 | `REPORTS_MAX_CONNECT` | `300` | `rwserver.conf`: max simultaneous client connections |
 | `REPORTS_MAX_QUEUE` | `4000` | `rwserver.conf`: max requests queued |
 | `REPORTS_COOKIE_KEY` | *(generated)* | `rwservlet.properties` cookie encryption key – generated once, keep stable |

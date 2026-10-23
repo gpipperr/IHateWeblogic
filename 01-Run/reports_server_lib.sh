@@ -27,6 +27,8 @@
 #            rws_server_pid NAME              -> PID of "rwserver server=NAME"
 #            rws_engine_pids SERVER_PID       -> engine PIDs (comma separated)
 #            rws_wls_port SERVER              -> listen port from config.xml (default 9002)
+#            rws_job_runtimes XML             -> "jobs max_s p95_s" of finished jobs (showjobs XML)
+#            rws_ert_proposal MAX_S           -> engineResponseTimeOut proposal in minutes
 #            rws_fetch_serverinfo URL MODE    -> sets RWS_HTTP_CODE, RWS_HTTP_XML,
 #                                                RWS_REP_ERR, RWS_AUTH_USER, RWS_AUTH_SRC
 #            rws_xval / rws_xline_attr / rws_xprop  -> XML string helpers
@@ -329,3 +331,31 @@ rws_xline_attr() { printf "%s" "$1" | sed -n "s/.*[[:space:]]${2}=\"\([^\"]*\)\"
 
 # Extract the value of <property name="N" value="V"/> from an XML string.
 rws_xprop() { printf "%s" "$1" | grep "name=\"${2}\"" | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1; }
+
+# rws_job_runtimes XML – run times of the past jobs of a showjobs XML
+# (<timingInfo><started>/<finished>, "Oct 23, 2026, 11:49:44/AM", seconds).
+# Prints "jobs max_s p95_s" (nothing if no job has both times).
+rws_job_runtimes() {
+    printf '%s' "$1" | python3 -I -c '
+import sys, re, datetime
+x = sys.stdin.read()
+fmt = "%b %d, %Y, %I:%M:%S/%p"
+d = []
+for st, fi in re.findall(r"<started>([^<]+)</started>\s*<finished>([^<]+)</finished>", x):
+    try:
+        a = datetime.datetime.strptime(st.strip(), fmt); b = datetime.datetime.strptime(fi.strip(), fmt)
+    except ValueError:
+        continue
+    d.append(max(0, int((b - a).total_seconds())))
+if d:
+    d.sort()
+    print(len(d), d[-1], d[min(len(d) - 1, int(len(d) * 0.95))])
+' 2>/dev/null
+}
+
+# rws_ert_proposal MAX_S – engineResponseTimeOut (minutes) for a longest job of
+# MAX_S seconds: Oracle "the maximum time a report takes" - twice that as a
+# margin, at least 5 minutes (Oracle's example value).
+rws_ert_proposal() {
+    awk -v s="${1:-0}" 'BEGIN { m = int((2 * s + 59) / 60); if (m < 5) m = 5; print m }'
+}

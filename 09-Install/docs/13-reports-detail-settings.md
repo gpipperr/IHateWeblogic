@@ -72,8 +72,15 @@ REPORTS_ENGINE_LIFE="50"                    # engLife: jobs per engine before it
 REPORTS_ENGINE_MAX_IDLE=""                  # maxIdle (minutes); empty = attribute omitted (Oracle default 30)
 REPORTS_ENGINE_JVM_OPTIONS=""               # jvmOptions of the ENGINE JVMs, e.g. "-Xmx1g";
                                             #   empty = omitted (engines run with -Xmx256M)
+REPORTS_ENGINE_RESPONSE_TIMEOUT="30"        # engineResponseTimeOut (minutes): a job without status
+                                            #   update for this long = hanging engine, killed;
+                                            #   empty = omitted (Oracle default: no timeout)
 REPORTS_MAX_CONNECT="300"                   # connection maxConnect
 REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
+# engineResponseTimeOut - Oracle (Tuning Reports Server Configuration): "set to the
+# maximum time a report takes", too low kills long reports; 30 = default for a new
+# installation (nothing measured yet). 05-ReportsPerformance/engine_perf_analyse.sh
+# measures the run times (showjobs) and proposes 2 x longest job, >= 5 min.
 # All engine values are written by 13- --apply on every run. Tuning with
 # 05-ReportsPerformance/engine_perf_settings.sh --apply writes them back here,
 # so a later 13- --apply keeps them. jvmOptions must not contain " & < >.
@@ -322,7 +329,8 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
   <!-- Engine configuration -->
   <!-- initEngine/maxEngine/minEngine: tune to available CPUs and load -->
-  <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set -->
+  <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set,
+       engineResponseTimeOut="30" (minutes) from REPORTS_ENGINE_RESPONSE_TIMEOUT -->
   <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
           initEngine="2" maxEngine="5" minEngine="2"
           engLife="50" defaultEnvId="QS"/>

@@ -81,7 +81,7 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 | Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`; FAIL: `maxEngine < minEngine/initEngine`. INFO: no `engineResponseTimeOut`, URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
-| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
 The rules and Oracle's numbers behind the checks:
@@ -90,7 +90,7 @@ Live 2026-10-19: without `jvmOptions` the engines run with `-Xmx256M`
 (**confirmed (live)**, engine command line).
 
 **`--apply`** asks for `initEngine`, `minEngine`, `maxEngine`, `engLife`,
-`maxIdle` and the engine `-Xmx`, validates them (numbers, `max >= min/init`),
+`maxIdle`, `engineResponseTimeOut` (minutes) and the engine `-Xmx`, validates them (numbers, `max >= min/init`),
 shows the change list, asks for confirmation, then:
 
 1. `backup_file` of `rwserver.conf`
@@ -98,7 +98,8 @@ shows the change list, asks for confirmation, then:
    missing attributes are added, `rwURLEng` stays untouched)
 3. writes every changed value also to `environment.conf` (with backup):
    `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_ENGINE_LIFE`,
-   `REPORTS_ENGINE_MAX_IDLE`, `REPORTS_ENGINE_JVM_OPTIONS` (appended if
+   `REPORTS_ENGINE_MAX_IDLE`, `REPORTS_ENGINE_JVM_OPTIONS`,
+   `REPORTS_ENGINE_RESPONSE_TIMEOUT` (appended if
    missing) – `09-Install/13-oracle_setup_reports.sh --apply` regenerates
    `rwserver.conf` from these values, the tuning survives
 4. prints the restart command – the change takes effect after a restart of
@@ -127,6 +128,7 @@ shows the change list, asks for confirmation, then:
 |---|---|
 | Jobs | successful/failed/current/long running/runaway; failure rate ≥ 5 % → FAIL ("failing reports, not a tuning question"), runaway > 0 → FAIL |
 | Response Times | `averageResponseTime`, `averageElapsedTime`, `avgQueuingTime`; **queuing share** = queuing / response ≥ 50 % → WARN. 14.1.2 reports `averageElapsedTime=0.0` (**confirmed (live)** 2026-10-19), so the old rule "queuing > elapsed" cannot be used |
+| Job Run Times | `showjobs` (always with the Reports server admin `<identifier>` – the monitoring user sees only its own jobs): number of past jobs, longest and 95th percentile run time from `timingInfo`, vs. `engineResponseTimeOut` – unset → WARN, longest job ≥ timeout → WARN (the server would kill it); proposal 2 × longest job, ≥ 5 min (`rws_ert_proposal`). Test host 2026-10-23: 68 jobs, longest 1 s → 5 |
 | Engine Pool Usage | `maxEnginesUsed` / `avgEnginesUsed` vs. `maxEngine` (pool reached → WARN), connections, per instance status/jobs/life left/current job time, DEAD → FAIL |
 | Engine Processes | RSS, `-Xmx`, uptime per engine process |
 | Reports Server Logs | `servers/<repserver>/logs/rwserver_diagnostic.log` + `rwEng-N_diagnostic.log` (found via `03-Logs/log_locations.sh`): lines with ORA-/REP-/OutOfMemoryError, the five most frequent REP codes with an example |
@@ -166,8 +168,6 @@ Slow first request / engine replacement after a crash:
 
 ## 6. Open items
 
-- `engineResponseTimeOut` (hanging engines) is not set by 13- – evaluate a
-  default with real report run times.
 - 10-Monitoring: `engine_perf_analyse.sh` as data source for the queue/pool
   KPIs ([10-Monitoring/README.md](../10-Monitoring/README.md)).
 

@@ -697,6 +697,7 @@ _ENG_MIN="${REPORTS_ENGINE_MIN:-2}"
 _ENG_LIFE="${REPORTS_ENGINE_LIFE:-50}"
 _ENG_IDLE="${REPORTS_ENGINE_MAX_IDLE:-}"        # empty = Oracle default 30 min
 _ENG_JVM="${REPORTS_ENGINE_JVM_OPTIONS:-}"      # empty = engines with -Xmx256M
+_ENG_ERT="${REPORTS_ENGINE_RESPONSE_TIMEOUT-30}" # minutes, empty = no timeout (Oracle default)
 _MAX_CONN="${REPORTS_MAX_CONNECT:-300}"
 _MAX_QUEUE="${REPORTS_MAX_QUEUE:-4000}"
 _NLS="${NLS_LANG:-GERMAN_GERMANY.AL32UTF8}"
@@ -708,8 +709,9 @@ esac
 _eng_extra=""
 [ -n "$_ENG_IDLE" ] && _eng_extra="${_eng_extra} maxIdle=\"${_ENG_IDLE}\""
 [ -n "$_ENG_JVM" ]  && _eng_extra="${_eng_extra} jvmOptions=\"${_ENG_JVM}\""
-info "$(printf "Report engine: init=%s min=%s max=%s engLife=%s maxIdle=%s jvmOptions=%s" \
-    "$_ENG_INIT" "$_ENG_MIN" "$_ENG_MAX" "$_ENG_LIFE" "${_ENG_IDLE:-(default 30)}" "${_ENG_JVM:-(default)}")"
+[ -n "$_ENG_ERT" ]  && _eng_extra="${_eng_extra} engineResponseTimeOut=\"${_ENG_ERT}\""
+info "$(printf "Report engine: init=%s min=%s max=%s engLife=%s maxIdle=%s engineResponseTimeOut=%s jvmOptions=%s" \
+    "$_ENG_INIT" "$_ENG_MIN" "$_ENG_MAX" "$_ENG_LIFE" "${_ENG_IDLE:-(default 30)}" "${_ENG_ERT:-(none)}" "${_ENG_JVM:-(default)}")"
 
 # Reports server administrator (<identifier>, not a WebLogic user) from
 # reports_admin_sec.conf.des3 (asked by 01-setup-interview.sh). Missing ->
