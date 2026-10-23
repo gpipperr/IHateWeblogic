@@ -526,8 +526,10 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
             _ask FORMS_CLIENT_FORM     "Start form (empty = section)"    ""  "" "optional"
             _ask FORMS_CLIENT_APP_NAME "Desktop shortcut name"           "Oracle Forms"
             info "Shortcut icon: .ico or .png (<= 256 px), local path or https URL"
-            info "  (URL: 04-oracle_pre_download.sh loads it into \$PATCH_STORAGE/icon/)"
-            _ask FORMS_CLIENT_ICON     "Shortcut icon (path or URL)"     "" "" "optional"
+            info "  (URL: 04-oracle_pre_download.sh loads it into \$PATCH_STORAGE/icon/;"
+            info "   default IHateWeblogic.ico is copied there by 04- from forms_templates/)"
+            _ask FORMS_CLIENT_ICON     "Shortcut icon (path or URL)"     \
+                "${PATCH_STORAGE}/icon/IHateWeblogic.ico" "" "optional"
             _ask_menu FORMS_CLIENT_RUNTIME "Java runtime for the clients" \
                 "jlink:Slim runtime built with jlink (default)" \
                 "jdk:Full JDK ZIP"

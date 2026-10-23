@@ -67,8 +67,9 @@ FORMS_CLIENT_CONFIG=standaloneapp
 FORMS_CLIENT_FORM=
 FORMS_CLIENT_APP_NAME="Oracle Forms"
 # shortcut icon: .ico, or .png <= 256 px (40- wraps it into an ICO); local path or
-# http(s) URL (04- downloads it to $PATCH_STORAGE/icon/); empty = Windows default
-FORMS_CLIENT_ICON=
+# http(s) URL (04- downloads it to $PATCH_STORAGE/icon/); empty = Windows default;
+# default IHateWeblogic.ico is copied by 04- from 09-Install/forms_templates/
+FORMS_CLIENT_ICON=/srv/patch_storage/icon/IHateWeblogic.ico
 # jlink = slim runtime, jdk = full JDK ZIP
 FORMS_CLIENT_RUNTIME=jlink
 # CA for the bundled runtime's truststore; empty = public CA

@@ -111,7 +111,7 @@ Reports-only installation has no Forms client and asks none of them.
 | `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section → `…/frmservlet?config=<section>` |
 | `FORMS_CLIENT_FORM` | empty | optional start form → `&form=<name>`; empty = `form=` of the section |
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | name of the desktop / start menu shortcut |
-| `FORMS_CLIENT_ICON` | empty | own shortcut icon, local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – use the customer's application / company icon |
+| `FORMS_CLIENT_ICON` | `${PATCH_STORAGE}/icon/IHateWeblogic.ico` | shortcut icon – the default is the project logo `09-Install/forms_templates/IHateWeblogic.ico` (16/32/48/256 px), copied there by `04- --apply` if missing; own icon: local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – for production use the customer's application / company icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` = slim runtime, `jdk` = full JDK ZIP |
 | `FORMS_CLIENT_TRUST_CA` | `${SSL_CA_DIR}/ca/ca.crt` if it exists, else empty | CA for the truststore of the bundled runtime; empty = public CA |
 

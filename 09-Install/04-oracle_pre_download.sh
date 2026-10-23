@@ -9,6 +9,7 @@
 #            MOS, 2nd platform: client Java (Windows x64) if FORMS_CLIENT_DIST=true
 #                             -> $PATCH_STORAGE/client/jdk/<nr>/ (concept docs/40).
 #            URL            : shortcut icon if FORMS_CLIENT_ICON is an http(s) URL
+#            Repository     : default shortcut icon forms_templates/IHateWeblogic.ico
 #                             -> $PATCH_STORAGE/icon/ (forms_client_icon_path).
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
@@ -588,9 +589,12 @@ elif [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
     warn "FORMS_CLIENT_DIST=true but neither CLIENT_JDK_PATCH_NR nor JDK_PATCH_NR is set"
 fi
 
-# Shortcut icon of the Forms client (FORMS_CLIENT_ICON as URL -> $PATCH_STORAGE/icon/)
+# Shortcut icon of the Forms client (FORMS_CLIENT_ICON as URL -> $PATCH_STORAGE/icon/,
+# default $PATCH_STORAGE/icon/IHateWeblogic.ico <- forms_templates/IHateWeblogic.ico)
 DOWNLOAD_ICON=false
+COPY_ICON=false
 CLIENT_ICON_FILE=""
+DEFAULT_ICON_SRC="$SCRIPT_DIR/forms_templates/IHateWeblogic.ico"
 if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
     case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
         FORMS_AND_REPORTS|FORMS_ONLY)
@@ -599,6 +603,10 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
                     DOWNLOAD_ICON=true
                     CLIENT_ICON_FILE="$(forms_client_icon_path)"
                     _inv_file "$CLIENT_ICON_FILE" "Client shortcut icon" ;;
+                */icon/IHateWeblogic.ico)
+                    COPY_ICON=true
+                    CLIENT_ICON_FILE="$(forms_client_icon_path)"
+                    _inv_file "$CLIENT_ICON_FILE" "Client icon (default)" ;;
             esac ;;
     esac
 fi
@@ -709,8 +717,21 @@ if $DOWNLOAD_JACOB; then
 fi
 
 # =============================================================================
-# Section 1c: shortcut icon of the Forms client (FORMS_CLIENT_ICON is a URL)
+# Section 1c: shortcut icon of the Forms client (FORMS_CLIENT_ICON default / URL)
 # =============================================================================
+if $COPY_ICON; then
+    section "Forms client shortcut icon"
+    if [ -s "$CLIENT_ICON_FILE" ]; then
+        ok "Already present (kept): $CLIENT_ICON_FILE"
+    elif [ -f "$DEFAULT_ICON_SRC" ]; then
+        mkdir -p "$(dirname "$CLIENT_ICON_FILE")" \
+            && cp "$DEFAULT_ICON_SRC" "$CLIENT_ICON_FILE" \
+            && ok "Default icon copied: $CLIENT_ICON_FILE" \
+            || warn "Cannot copy $DEFAULT_ICON_SRC -> $CLIENT_ICON_FILE"
+    else
+        warn "Default icon template missing: $DEFAULT_ICON_SRC"
+    fi
+fi
 if $DOWNLOAD_ICON; then
     section "Forms client shortcut icon"
     if [ -s "$CLIENT_ICON_FILE" ]; then

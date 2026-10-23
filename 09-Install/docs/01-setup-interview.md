@@ -170,7 +170,7 @@ built by `40-oracle_forms_client_bundle.sh`):
 | `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section for FSAL |
 | `FORMS_CLIENT_FORM` | empty | optional start form |
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | shortcut name |
-| `FORMS_CLIENT_ICON` | empty | shortcut icon: `.ico`, or `.png` up to 256 × 256 (wrapped into an ICO by `40-`); a local path or an `http(s)` URL – a URL is downloaded by `04-` into `$PATCH_STORAGE/icon/`; empty = Windows default icon |
+| `FORMS_CLIENT_ICON` | `$PATCH_STORAGE/icon/IHateWeblogic.ico` (project logo, copied there by `04-` from `forms_templates/`) | shortcut icon: `.ico`, or `.png` up to 256 × 256 (wrapped into an ICO by `40-`); a local path or an `http(s)` URL – a URL is downloaded by `04-` into `$PATCH_STORAGE/icon/`; empty = Windows default icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | menu: `jlink` (slim runtime) / `jdk` (full JDK) |
 | `FORMS_CLIENT_TRUST_CA` | `$SSL_CA_DIR/ca/ca.crt` if present, else empty | CA for the bundled runtime's truststore; empty = public CA |
 

@@ -21,6 +21,7 @@ The script copies each template to its target path(s) and creates a
 | `Registry.dat.template` | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
 | `fmrweb_utf8.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
 | `fmrwebd.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (non-UTF-8 fallback) |
+| `IHateWeblogic.ico` | `$PATCH_STORAGE/icon/IHateWeblogic.ico` (copied by `04-oracle_pre_download.sh --apply`) | Default shortcut icon of the Forms client distribution (`FORMS_CLIENT_ICON`, concept 40) – project logo, 16/32/48/256 px; not used by 14- |
 
 `$FR_INST`     = `$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$FORMS_INSTANCE_NAME`
 `$FR_INST_ALT` = `$DOMAIN_HOME/config/fmwconfig/components/FORMS/$FORMS_INSTANCE_NAME`

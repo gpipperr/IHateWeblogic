@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></p>
+
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Script Library
 
 Author: Gunther Pipperr | https://pipperr.de
