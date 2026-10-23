@@ -12,6 +12,10 @@ here depends on the IHateWeblogic scripts.
 | State | read 2026-10-22 |
 | Counterpart for 14.1.2 | [09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md) (same cycle, our own 14.1.2 stack) |
 
+**Cookbook for the patch run (German, plain text):**
+[Patch_Kochbuch_CPU_Okt2026_de.txt](Patch_Kochbuch_CPU_Okt2026_de.txt) – built from
+this analysis and the READMEs of all patches (sections 3.1–3.4a).
+
 Patch numbers change every month – before applying, compare against the
 current KA1182 ("patched before?" → apply what is newer than the last
 applied CPU/CSPU release).
@@ -68,6 +72,32 @@ Also check:
 
 Result of the check → fill in section 7 (open points).
 
+### 1a. Inventory of the customer home (received 2026-10-23)
+
+> **Source not confirmed yet:** it is still open whether these logs come from
+> the production Forms server or from a temporary test machine – confirm
+> (section 7, point 12) before relying on the conclusions below.
+>
+> 2026-10-23: a **second machine** of the customer has the same layout
+> (Oracle Home `/oracle/product/mw`, JDK via `/oracle/java/jdk`) – the
+> cookbook applies to every node; run it machine by machine and compare
+> `opatch lspatches` of both (section 7, point 13).
+
+| Check | Result | Consequence |
+|---|---|---|
+| `viewInventory.sh` distributions | `WebLogic Server for FMW 12.2.1.4.0` + `Oracle Forms Reports 12.2.1.19.0` | the home comes from the standalone Forms & Reports installer – **not** the "Fusion Middleware Infrastructure" or a standalone WLS distribution → **SPBAT not supported**, the SPB goes in with `opatch napply` (3.2a) |
+| `opatch version` | **13.9.4.2.11** | below 13.9.4.2.13 → no SPBAT precheck, most bundles need ≥ .13 / .17 → the OPatch upgrade to .25 is the first mandatory step; Patch 23335292 is **not** installed |
+| `opatch lspatches` | 8 entries only: 35007159, 35007154, 35005177, 35005164 (DBCLIENT patches for **19.14**), 33903365, 30613424, 34290481, 36475988 | **the home has practically never been patched** since the installation: no WLS PSU, no SPB, no Forms/Reports QPR, no infrastructure bundle → KA1182 "never patched? → apply everything in the tabs"; our list is cumulative and covers it |
+| DB client | 19.14 + the four 19.14 one-offs | 39425385 (19.31) supersedes them – OPatch should roll them back as subsets (watch the prereq); 35037811 / 34976606 / 35522383 of the README are not installed |
+| 33903365 | LibOVD one-off "FMW consoles fail after JDK 1.8.0_331 or later" | contained in LibOVD BP 39726402 (bug list) → superseded; 34065178 (named in 3.3) is **not** installed |
+| 30613424 | CVE-2021-2134 | contained in FMW Control BP 39995014 (bug list of BP 240814) → superseded |
+| 34290481, 36475988 | one-offs without description | **open** – what are they? possible conflicts with the bundles (section 7, point 10) |
+| 32720458 (old JDBC) | not installed | no rollback before `napply` needed |
+| `/etc/oraInst.loc` | `inventory_loc=/home/oracle/oraInventory`, `inst_group=oinstall`; Oracle Home `/oracle/product/mw`, domain home `/oracle/user_projects/domains/fr_domain` | the central inventory lives in the **home directory of the oracle user**, outside `/oracle` – include it explicitly in the backup (a backup of `/oracle` alone misses it) |
+| `$ORACLE_HOME/oui/.globalEnv.properties` | `JAVA_HOME=/oracle/java/jdk`, `JAVA_HOME_1_8=/oracle/java/jdk` | OPatch's JDK lies **outside** the Oracle Home (KB175049 fulfilled) and the path is version-neutral → the JDK update is a link switch `ln -sfn jdk1.8.0_511 /oracle/java/jdk` (if `jdk` is a real directory today: rename it to `jdk1.8.0_<old>` once and create the link) – no configuration file has to change; check for remaining `jdk1.8.0_` paths in `DOMAIN_HOME` (cookbook step 4). **Confirmed:** all running Java processes (`ps auxf`) start from `/oracle/java/jdk` – the servers already use the version-neutral path |
+| Products (`lsinventory -details` excerpt) | file list of the Forms components (`patches/25629864`, Forms only) | whether the **Reports** component is in the home is not visible – the customer runs Reports, but probably not on this server (section 7, point 11) |
+
+
 ---
 
 ## 2. Support status 12.2.1.x
@@ -102,6 +132,25 @@ the build number (`java -version` → `1.8.0_511-bNN`) tells them apart:
 **b25** = CPU build (affected), **b26** = alert build (fixed; observed on
 2026-10-22 for the JRE, confirm with the README of 40186682).
 
+Update 2026-10-23: 18143322 (Linux x86-64, 550.8 MB) now shows **Last
+Updated 2026-10-22 03:10** (the day before: 2026-10-20) – Oracle has
+probably repointed the "latest" patch to the alert build. The patch has
+**no README**; proof only from the content: after unpacking,
+`jdk1.8.0_511/bin/java -version` or `grep JAVA_RUNTIME_VERSION
+jdk1.8.0_511/release` must show **b26**. If b26 → 18143322 and 40186682 are
+equivalent; if b25 → take 40186682.
+
+40186682 has **no README** either – only the licence text of the support
+portal ("You must have a current commercial license or support contract
+with Oracle that includes Oracle Java SE …", links to the OTN Java readme and
+the release notes). For Java used **only** to run Oracle products the
+exception of MOS Doc ID 1557737.1 applies (same as for the client JRE,
+section 5). Install procedure: KB175049 (unpack beside the old JDK, switch
+`JAVA_HOME` in the domain scripts / `.globalEnv.properties` / Node Manager);
+proof of the alert build only from the content:
+`<jdk>/bin/java -version` → `1.8.0_511-b26`, or
+`grep JAVA_RUNTIME_VERSION <jdk>/release`.
+
 ### 3.2 OPatch and WebLogic Server 12.2.1.4
 
 | Patch | Description | KA1182 release | Note |
@@ -124,6 +173,35 @@ Option 2 instead of the SPB – the individual patches:
 | 35965629 | ADR SPU for WebLogic Server 12.2.1.4.0 (size optimized, KB496228 / KB537876) | Oct 2023 |
 | 36789759 (or minimum 33093748) | FMW Platform BP 12.2.1.4.240812 (latest recommended) / FMW Platform SPU (minimum) | Apr 2021 |
 
+#### 3.2a From the SPB README (40129641, dated 07-Oct-26, read 2026-10-23)
+
+| Topic | README says | For the patch run |
+|---|---|---|
+| Content | 12 entries: marker 40129643 / 40129696 (SPB in `lsinventory`), ADR 35965629, WLS PSU 40069416, Samples SPU 36426672, Coherence CP33 39984205 (`lspatches` shows **1221426**), FMW Platform BP 36789759, Third-Party BP 39988961, **OPatch 28186730 (13.9.4.2.25)**, JDBC 19.31 BP 39487427, RDA 39646867, OSS 19c BP 39567777, Cloning SPU 37056593 | = the table above ("option 2"); OPatch is part of the SPB ZIP (`tools/opatch/generic/`) |
+| SPBAT or `napply` | SPB / SPBAT "supported only for products installed from the Oracle Fusion Middleware Infrastructure distribution or standalone WebLogic Server distributions … If any other Oracle product installs an FMW Infrastructure, then the SPBAT would not be supported" (example: EM 13c) | decide by the **Distribution** in `viewInventory.sh` (section 1). **Recommendation: `opatch napply`** – works in every case, gives control, the same method as for our 14.1.2 homes; the SPBAT `-phase precheck` can still be run beforehand (read-only) |
+| Staging | ZIP `p40129641_122140_Generic.zip`, unpack **outside** the Oracle Home with `unzip` (keeps permissions), ≥ 4 GB free; result `WLS_SPB_12.2.1.4.261007/` – do not change it | |
+| Java | minimum JDK 1.8.0_211 (JEP 290 for the deserialization fixes, KB159467) | we install 8u511 before (3.1) |
+| `.globalEnv.properties` | `JAVA_HOME` in `$ORACLE_HOME/oui/.globalEnv.properties` must point to the JDK **outside** the Oracle Home (KB175049) – otherwise OPatch patches itself / corrupts the inventory | check and, after the JDK update, adjust to the new JDK path |
+| Backup | `DOMAIN_HOME`, `ORACLE_HOME` and the **central inventory** – "in some cases restoring from backup is the only way to roll back" | also the domain, not only the home |
+| OPatch | PSU needs ≥ 13.9.4.2.13; if Patch **23335292** is on OPatch 13.9.4.2.13, roll it back **before** the OPatch upgrade (not after); upgrade: `java -jar <dir>/6880880/opatch_generic.jar -silent oracle_home=$ORACLE_HOME` (README of 28186730) | wait 15–30 s after the rollback before the next `opatch` call |
+| Processes | AdminServer, managed servers **and Node Manager** stopped, no Java process on the home | |
+| `napply` | as the installation owner, `unset JAVA_HOME ORACLE_HOME`; roll back Patch **32720458** if present; in `binary_patches/`: `opatch napply -report -oh $ORACLE_HOME -phBaseFile linux64_patchlist.txt` (dry run), then the same without `-report` | the patch list files are in `binary_patches/`, no path needed |
+| Post-install | `opatch lspatches` against the list (components not installed are skipped – normal); KB694158 (security advice / post-install for WLS PSUs); start the servers | |
+| Rollback | `opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt` in `binary_patches/` (all patches of past and present SPBs, superseded PSU re-activated, overlay patches must be re-applied); OPatch upgrade only by restore; "do not roll back individual patches" | |
+
+#### 3.2b From the OPatch README (28186730, OPatch 13.9.4.2.25, read 2026-10-23)
+
+| Topic | README says | For the patch run |
+|---|---|---|
+| Rollback | "no mechanism to revert OPatch to an older version" – only restore of `ORACLE_HOME` + central inventory | backup **before** the OPatch upgrade |
+| Before | all processes using files of the Oracle Home stopped; Patch **23335292** rolled back first (`opatch rollback -id 23335292`), then wait 15–30 s; never roll it back after the upgrade | |
+| Install | unzip into a staging directory (→ `6880880/`), run with a **JDK** in `PATH`: `java -jar <stage>/6880880/opatch_generic.jar -silent oracle_home=$ORACLE_HOME` | custom inventory: `-invPtrLoc <path>/oraInst.loc`; `/tmp` with `noexec`: `java -Djava.io.tmpdir=<dir> -jar …` |
+| Logs | success: `<central inventory>/logs`; failure: `/tmp/OraInstall<timestamp>`; problems: KB310962 | |
+| Check | `$ORACLE_HOME/OPatch/opatch version` → 13.9.4.2.25, `opatch lsinventory` | |
+| NGINST patches | 31101362, 29137924, 29909359 are contained – do **not** apply them after the upgrade (error); if already in the inventory: harmless, cannot be rolled back | |
+| New in .25 | Bug 39905069 "prompt user when patch contains security fixes not enabled by default", Bug 39932917 new `opatch util` option to query such fixes | `napply` with `-silent` in the cookbook; after the run query disabled security fixes (`opatch util -help`) |
+| CVEs fixed | Bug 40012934: **CVE-2026-91776** (NextGen OUI, jackson-databind – CPU Oct 2026 row), plus CVE-2026-19032, -59650, -54428 | confirms the OPatch vehicle for CVE-2026-91776 (section 4); the other OUI rows (CVE-2026-8763, -101520, -59889) are not named – still assumption |
+
 ### 3.3 FMW Infrastructure 12.2.1.4 bundle patches
 
 KA1182: "if only applying the WebLogic Server SPB or individual patches …
@@ -135,12 +213,26 @@ components come with every FMW infrastructure (also with Forms & Reports).
 | 40050071 | ADF Bundle Patch 12.2.1.4.260920 | Oct 2026 | together with 34809489 |
 | 34809489 | Fix for CVE-2021-42575 | Jul 2023 | required with any ADF bundle patch, if not yet applied |
 | 40022647 | WebCenter Core BP 12.2.1.4.260914 | Oct 2026 | installed even without WebCenter products |
-| 40047683 | OWSM Bundle Patch 12.2.1.4.260918 | Oct 2026 | includes the fix of Security Alert CVE-2026-21992 (Mar 2026) |
+| 40047683 | OWSM Bundle Patch 12.2.1.4.260918 | Oct 2026 | includes the fix of Security Alert CVE-2026-21992 (Mar 2026) – confirmed by the README (BP 260304) |
 | 39995014 | FMW Control BP 12.2.1.4.260908 | Oct 2026 | Enterprise Manager on the AdminServer |
 | 40059055 | OAMCLIENT Bundle Patch 12.2.1.4.260922 | Oct 2026 | |
 | 39979941 | OPSS Bundle Patch 12.2.1.4.260904 | Sep 2026 | |
 | 39939504 | UMS Bundle Patch 12.2.1.3.260827 | Sep 2026 | UMS 12.2.1.3 is installed in a 12.2.1.4 home |
 | 39726402 | LibOVD Bundle Patch 12.2.1.4 | Aug 2026 | replaces Patch 34065178 (needed after JDK 8u331); required on all installations except WLS standalone |
+
+#### 3.3a From the bundle READMEs (read 2026-10-23)
+
+| Patch | Method | Before | Post-install | Rollback | Notes |
+|---|---|---|---|---|---|
+| **40050071** ADF BP 12.2.1.4.260920 (20-Sep-26) | in the unpacked `40050071/`: `opatch apply` (single patch, **not** `napply`) | all processes of the Oracle Home stopped, the installation owner, `ORACLE_HOME` + `PATH=$ORACLE_HOME/OPatch:$PATH`; backup `DOMAIN_HOME` / `ORACLE_HOME` / inventory; OPatch 13.9.4.2.x | `opatch lspatches` (`jdev -clean` only for a JDeveloper home – not here) | `opatch rollback -id 40050071`, then **empty the server `tmp` directories** of the domain (`$DOMAIN_HOME/servers/*/tmp/*`) | ZDT-eligible (`FMW_ROLLING_ORACLE_HOME`) – not used here. Cumulative back to 200129. **CVE mapping confirmed**: CVE-2026-91317 / -91318 / -91322 / -87334 (BP 260721), CVE-2026-91319 / -91320 (BP 260920) – all six ADF rows of section 4; also CVE-2026-91321 / -91357. The README does not mention 34809489 – KA1182 still requires it with any ADF BP |
+| **34809489** interim patch (17-Nov-2022) | `34809489/`: `opatch apply` | as above; check conflicts first: `opatch prereq CheckConflictAgainstOHWithDetail -ph ./` – if OPatch asks "patch(es) … will be rolled back … proceed? [y\|n]" answer **`n`** and request a merge patch from Oracle Support | none | `opatch rollback -id 34809489`, then empty the server `tmp` directories | bug title "PATCH CONFLICT OBSERVED BETWEEN 34647149 AND 34604561" – KA1182 lists it as "Fix for CVE-2021-42575" with any ADF BP (assumption: the conflict resolver of the ADF chain); apply it **after** 40050071. The README's `opatch lsinventory -jre $ORACLE_HOME/oracle_common/jdk/jre` is generic text – OPatch uses the JDK of `.globalEnv.properties` |
+| **40022647** WebCenter Core BP 12.2.1.4.260914 (14-Sep-26) | `40022647/`: `opatch apply` | **OPatch ≥ 13.9.4.2.17**; all processes stopped; pre-install steps: MOS 2662881.1 "Pre-Installation Instructions for WebCenter Portal 12.2.1.4 Bundle Patches" | `opatch lspatches`; post-install: MOS 2658914.1 (WebCenter **Portal**) | `opatch rollback -id 40022647`, reverse the post-install changes | the two notes are for a WebCenter **Portal** domain – a Forms & Reports home only carries the `wccore` libraries of the infrastructure, so they most likely do not apply (**assumption** – read both notes once before the window). Cumulative back to 200302; fixes WebCenter CVEs (2026-83039/-83040/-83041/-83043, -73948 … -73963, -60728 … -60733) that are not listed in section 4 (WebCenter rows); required by KA1182 because the component is in every FMW infrastructure home |
+| **40047683** OWSM BP 12.2.1.4.260918 (19-Sep-26) | `40047683/`: `opatch apply` | **OPatch ≥ 13.9.4.2.17**; all processes stopped. The additional patches of the README (38009014 OINAV, 39099526 OIM BP) are for **IDM** products only – not needed here | `opatch lspatches`, start – **no repository / MDS step** | `opatch rollback -id 40047683` | cumulative back to 210520. **Confirmed:** CVE-2026-21992 (Security Alert March 2026) in BP 260304; further CVE-2026-83334 / -83265 (260818), -71093 / -70924 / -61001 / -60737 (260707); the newest level 260918 has only bug fixes |
+| **39995014** FMW Control BP 12.2.1.4.260908 (08-Sep-26) | `39995014/`: `opatch apply` | OPatch ≥ 13.9.4.2.13; all processes stopped | `opatch lspatches`, start – no further step | `opatch rollback -id 39995014` | cumulative back to 240814. **Confirmed:** CVE-2026-91467 (section 4) in BP 260908; also CVE-2026-83346 / -83069 (260803) |
+| **40059055** OAMCLIENT BP 12.2.1.4.260922 (22-Sep-26) | `40059055/`: `opatch apply` | **OPatch ≥ 13.9.4.2.17**; all processes stopped | `opatch lspatches`, start – no further step | `opatch rollback -id 40059055` | product "Oracle Access Manager" = the OAM **client** libraries of the infrastructure (not the OAM server); fixes CVE-2026-83409 / -83407 (260922), -73958 / -73947 (260819) – none of them in section 4 (OAM rows of earlier advisories) |
+| **39979941** OPSS BP 12.2.1.4.260904 (04-Sep-26) | `39979941/`: `opatch apply` | **OPatch ≥ 13.9.4.2.17**; on a conflict prompt answer `n` and ask Support for a merge patch (as 34809489) | **none** – no policy-store / OPSS-schema step | `opatch rollback -id 39979941`, then restart AdminServer + all managed servers | "ensure that you have the exact symptoms" is the generic text for interim patches – KA1182 makes the BP mandatory. Cumulative back to 200724. **Confirmed:** CVE-2026-83020 (OPSS CVE of the CSPU Sep 2026) plus -83011 / -82996 / -82995 / -82994 in BP 260904, -60366 … -60455 / -61246 in 260629. Also fixes Bug 39969736 (credential store HTTP 500 caused by the previous OPSS BP) |
+| **39939504** UMS (On Prem) BP 12.2.1.3.260827 (27-Aug-26) | `39939504/`: `opatch apply` (ZIP `p39939504_122130_Generic.zip` – release **12.2.1.3**, correct for the UMS 12.2.1.3 component of a 12.2.1.4 home) | **OPatch ≥ 13.9.4.2.17**; all processes stopped | `opatch lspatches`, start – no further step | `opatch rollback -id 39939504` | product "Service Delivery Platform" (`oracle.sdp.messaging`). Fixes CVE-2026-83151 / -83000 … -82997 (260827), -60860 … -60865 (260722), -60374 … -60501 (260708) – UMS rows of earlier advisories, not in section 4. Also Bug 39856242 (NPE while applying the previous UMS patch 39703215) |
+| **39726402** LibOVD BP 12.2.1.4 (14-Aug-26) | `39726402/`: `opatch apply` | OPatch ≥ 13.9.4.2.13; all processes stopped. The README does **not** mention the predecessor **34065178** – the BP contains its fix (Bug 33903365 "FMW consoles fail after applying JDK 1.8.0_331 or later"), so OPatch should treat 34065178 as a subset and roll it back itself (**assumption** – `opatch prereq CheckConflictAgainstOHWithDetail` first, stop on a real conflict) | `opatch lspatches`, start – no further step | `opatch rollback -id 39726402` (then 34065178 would be missing again – with JDK ≥ 8u331 the consoles fail: re-apply it or restore) | must be in the home **before the first start with JDK 8u511** – the JDK 8u331+ fix of the FMW consoles. Bug list: 20812896, 32305678, 33368783, 33545965, 33762450, 33903365, 34113169, 39272755 |
 
 ### 3.4 Forms & Reports 12.2.1.19
 
@@ -151,6 +243,15 @@ components come with every FMW infrastructure (also with Forms & Reports).
 | 39425385 | DB Client Update 19.31 for FMW | Jul 2026 | FMW-specific DB client (based on 19.30), recommended for all security fixes, list: KB850150 |
 | **39951739** | PERL Security Patch Update for FMW 12.2.1.4.0 | Oct 2026 | needs DB client for FMW **19.29 or later** – apply after 39425385 |
 | KB243716 | SQL Developer installed with Forms & Reports 12.2.1.19: CVE-2021-4104 | Jan 2022 | upgrade to at least 21.4.2, not higher than 21.4.3 |
+
+#### 3.4a From the READMEs (read 2026-10-23)
+
+| Patch | Method | Before | Post-install | Rollback | Notes |
+|---|---|---|---|---|---|
+| **39888613** Forms QPR 12.2.1.19 (29-Aug-26) | ZIP `p39888613_1221190_Linux-x86-64.zip` (platform patch, not Generic); `39888613/`: `opatch apply` | all processes stopped; OPatch 13.9.4.2.x; `make`, `ld`, `ar`, `nm` in `PATH` (OPatch relinks `frmweb` / `dejvm` itself) | `opatch lspatches`, start – no own step; **check the OPatch log for `make` errors** ("OPatch succeeded" alone proves nothing) | `opatch rollback -id 39888613` | **Order: Forms QPR before Reports QPR.** On glibc ≥ 2.34 (OL9) the Reports QPR rebuilds `lib/libzrc.so.0` against glibc 2.34; a later Forms relink against the glibc 2.28 stubs fails with rc=73 and OPatch's own restore can fail too – MOS **KB873815** (Bug 38892485, no fix yet), seen live on 14.1.2 / OL9 (2026-10-14); for 12.2.1.19 **assumption** (same `genshlib` mechanism) – check `ldd --version` on the customer host. Notable fixes: 37641150 (input / output values removed from Forms trace files), 36442524 (linefeed in the Forms URL breaks SSO), 37464441 / 37623466 (FSAL through a proxy / with `restrictedURLparams=ALL`), 35687821 (PL/SQL error 422 after the upgrade to 12.2.1.19), 36945810 / 38098803 (FRM-93652) |
+| **39600813** Reports Developer QPR 12.2.1.19 (Linux README 08-Jul-26, Solaris README 27-Aug-26) | **platform ZIP – take `p39600813_1221190_Linux-x86-64.zip`**: the same patch number exists per platform – easy to pick the wrong variant on MOS. **The two READMEs differ:** both list the same 14 named bugs, but the Solaris-64 README (27-Aug) has 20 "Fix for Bug 39375295 … 39375343" entries, the Linux-x86-64 README (08-Jul) only **39375343** – unnamed entries of this kind are usually security fixes. Either a README difference or the Linux build predates them: after the apply check `opatch lsinventory -bugs_fixed \| grep 393753`; if they are missing, ask Oracle (open point 9). `39600813/`: `opatch apply` | as the Forms QPR; **after** the Forms QPR (KB873815) | `opatch lspatches`, start; check the OPatch log for `make` errors – OPatch relinks the Reports binaries and rebuilds `libzrc.so` (`zrcsharedlib`) itself, no own step in the README | `opatch rollback -id 39600813` | notable fixes: 37756029 (encrypted values such as passwords in `cgicmd.dat`), 36434214 (umlauts in `DESNAME` → REP-56093 with UTF8), 35363833 (e-mail distribution via Office365 SMTP with STARTTLS), 33008149 (Reports Server slow to finish jobs), 37595589 (REP-52275 in `showjobs`), 35444503 (job status repository on ADB) |
+| **39425385** DB Client 19.31 Update for FMW (21-Jul-26) | platform ZIP `p39425385_122140_Linux-x86-64.zip`; `39425385/`: `opatch apply` | the home must already have the **19c** client ("Database Client 19c 19.14 and higher" – true for 12.2.1.19, named in the README); OPatch ≥ 13.9.4.2.13; `opatch` + `unzip` in `PATH`; all processes stopped; **roll back first if present: one-offs 35037811, 34976606, 35522383** (`opatch rollback -id …`) | start – the OID relink (`ins_ldap.mk`) and the AIX one-off 34976606 do not apply here | `opatch rollback -id 39425385`, restart all servers | fixes CVE-2026-24400 (19.31); full list KB850150. Apply it **before** PERL (needs DB client ≥ 19.29) and before the QPRs, so their relinks of `frmweb` / the Reports binaries use the 19.31 client libraries (order proven live on 14.1.2: DB RU in the SPB → PERL → QPRs – **assumption** for 12.2.1.19) |
+| **39951739** PERL SPU for FMW 12.2.1.4.0 (03-Sep-26) | platform ZIP `p39951739_122140_Linux-x86-64.zip`; `39951739/`: `opatch apply` | **OPatch ≥ 13.9.4.2.17**; all processes stopped. The README does **not** name the DB client ≥ 19.29 prerequisite – only KA1182 does; fulfilled by applying 39425385 first | `opatch lspatches`, start – no further step | `opatch rollback -id 39951739` | **confirmed:** single fix CVE-2026-4176 (Perl, 9.8, Bug 39400045) |
 
 ### 3.5 Oracle HTTP Server 12.2.1.4 colocated (only if OHS is in the home)
 
@@ -181,16 +282,16 @@ matches – Oracle does not publish the exact CVE → patch mapping.
 | CVE-2026-91323 | WebLogic Server / Core | HTTP | yes | **9.8** | WLS SPB / PSU |
 | CVE-2026-87302 | WebLogic Server / Core | HTTP | yes | 9.1 | WLS SPB / PSU |
 | CVE-2026-91502 | WebLogic Server / Core | TLS | yes | 7.3 | WLS SPB / PSU |
-| CVE-2026-4176 | Oracle Fusion Middleware / Thirdparty Jars (Perl) | HTTP | yes | **9.8** | PERL SPU 39951739 |
+| CVE-2026-4176 | Oracle Fusion Middleware / Thirdparty Jars (Perl) | HTTP | yes | **9.8** | PERL SPU 39951739 – **confirmed** (README) |
 | CVE-2026-47065 | Middleware Common Libraries / Apache Mina | HTTP | yes | **9.8** | Third-Party BP 39988961 (in the SPB) |
 | CVE-2026-41855 | Middleware Common Libraries / Spring Framework | HTTP | yes | 8.1 | Third-Party BP |
 | CVE-2026-12817 / 2025-7962 / 2026-101515 | WebLogic Server / Thirdparty Jars (Bouncy Castle 8.6, Jakarta Mail 7.5, other 5.9) | HTTPS / SMTP / HTTP | yes | 5.9 – 8.6 | Third-Party BP |
 | CVE-2026-49844 | Middleware Common Libraries / Log4j | HTTP | yes | 5.9 | Third-Party BP |
 | CVE-2026-91617 / 91616 | Middleware Common Libraries / RDA | None / HTTP | no / yes | 5.5 / 3.7 | RDA 39646867 (in the SPB) |
 | CVE-2026-56741 | Coherence / Thirdparty Jars (jline) | TCP | yes | 7.5 | Coherence CP33 39984205 (in the SPB) |
-| CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | FMW Control BP 39995014 |
-| CVE-2026-91318 / 91319 / 91317 / 87334 / 91320 / 91322 | JDeveloper / ADF runtime components | HTTP / SOAP / None | partly | 3.3 – 6.5 | ADF BP 40050071 |
-| CVE-2026-8763 / 101520 / 91776 / 59889 | NextGen OUI Framework (Bouncy Castle 9.1, jackson-databind …) | HTTP(S) | mostly | 6.5 – 9.1 | OPatch 13.9.4.2.25 (assumption) |
+| CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | FMW Control BP 39995014 – **confirmed** (README) |
+| CVE-2026-91318 / 91319 / 91317 / 87334 / 91320 / 91322 | JDeveloper / ADF runtime components | HTTP / SOAP / None | partly | 3.3 – 6.5 | ADF BP 40050071 – **confirmed** (bug list of the README) |
+| CVE-2026-8763 / 101520 / 91776 / 59889 | NextGen OUI Framework (Bouncy Castle 9.1, jackson-databind …) | HTTP(S) | mostly | 6.5 – 9.1 | OPatch 13.9.4.2.25 – **confirmed for CVE-2026-91776** (OPatch README, Bug 40012934), the others assumption |
 | CVE-2026-87347 / 91419 / 91473 / 87346 | Oracle HTTP Server (OSSL module 9.6 / 7.8, web listener 7.8, proxy plug-in for OHS 8.7) | HTTP / None | partly | 7.8 – 9.6 | OHS BP 40005842 – only if OHS is in the home |
 | CVE-2026-83379 / 87300 | WebLogic Proxy Plug-In for third-party web servers | HTTP | yes | 8.7 | Proxy Plug-In tab – only for Apache/IIS as proxy |
 
@@ -234,7 +335,7 @@ can act on the PC with the user's rights. Background:
 2. Stop everything; JDK 8 alert build (3.1).
 3. OPatch 13.9.4.2.25, then WLS SPB 40129641 (3.2) and post-install KB694158.
 4. FMW Infrastructure bundles (3.3).
-5. Forms/Reports QPRs, DB client 19.31, PERL (3.4); SQL Developer if used.
+5. DB client 19.31 (roll back the one-offs 35037811 / 34976606 / 35522383 first) → PERL → Forms QPR → Reports QPR (3.4a: Forms before Reports, KB873815); SQL Developer if used.
 6. OHS bundle set (3.5) if OHS is in the home; post-install KB187736.
 7. Start, smoke test (Forms login, a report via rwservlet), `opatch lspatches` into the documentation.
 8. Client JRE rollout (5) – test on a few PCs first.
@@ -245,10 +346,16 @@ can act on the PC with the user's rights. Background:
 
 | # | Question | Answer |
 |---|---|---|
-| 1 | Output of `viewInventory.sh` / `opatch lspatches` – which of the patches above are already installed? | |
+| 1 | Output of `viewInventory.sh` / `opatch lspatches` – which of the patches above are already installed? | received 2026-10-23 – none of the CPU patches; OPatch 13.9.4.2.11; see 1a |
 | 2 | Is OHS (and WebGate) in the Forms & Reports home, or a separate OHS / Apache in front? | |
 | 3 | Which JDK runs WebLogic (path, version, build)? | |
 | 4 | Client Java: version/build, 32/64-bit, how is it distributed (software deployment, ZIP with `JAVA_HOME` in a start script)? | |
 | 5 | How are the jar-signing certificates trusted on the clients (`cacerts`, deployment trust store, GPO)? | |
 | 6 | Extended Support contract for 12.2.x after December 2026? | |
 | 7 | Maintenance window and test environment for the patch run? | |
+| 8 | OS release and glibc version (`cat /etc/os-release`, `ldd --version`) – glibc ≥ 2.34 means the Forms/Reports relink issue of KB873815 (3.4a) | |
+| 9 | (for Oracle) Reports QPR 39600813: the Linux-x86-64 README (08-Jul-26) lists only 39375343 of the 20 "Fix for Bug 39375295 … 39375343" entries of the Solaris README (27-Aug-26) – are those fixes in the Linux build? Check after the apply (`opatch lsinventory -bugs_fixed`), else SR | |
+| 10 | One-offs 34290481 and 36475988 in the home – purpose? (MOS lookup / customer); check them in the conflict check of each bundle, a conflict means a merge patch from Support | |
+| 11 | Is the **Reports** component in this home although Reports does not run on this server? `opatch lsinventory -details \| grep -i reports` – if yes: apply the Reports QPR anyway (binaries on disk) and keep "Forms before Reports"; if no: OPatch skips 39600813 ("none of the components") | |
+| 12 | Do the inventory logs of 1a come from the **production** Forms server (not a temporary test machine)? Hostname, domain, uptime, running servers, age of the home | |
+| 13 | Second machine with the same layout: role (production / test / second node)? Same patch level – `opatch version`, `opatch lspatches`, `viewInventory.sh` of both for comparison; which one is patched first (test first) | |
