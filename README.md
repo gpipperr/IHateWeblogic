@@ -50,8 +50,10 @@ customer: keep the investment in Forms and its PL/SQL logic, open the data
 to everyone with APEX, and keep everything on the Oracle database – instead
 of replacing it piece by piece with other platforms (background and appeal:
 [IHateWeblogic.md](IHateWeblogic.md#why-forms--reports-still-matter--an-appeal)).
-Status in this library: Nginx is prepared for it; the ORDS / APEX
-installation is an [open item](#open-items--todo).
+Status in this library: manual installation in
+[`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (ORDS standalone homes
+`ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
+the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
@@ -351,6 +353,7 @@ Run these scripts in sequence on a fresh installation:
 | `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
+| `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS standalone beside Forms – manual installation (automation follows) |
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files) and patch analyses (Forms & Reports 12.2.1.19), independent of the scripts above |
@@ -536,6 +539,10 @@ IHateWeblogic/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
 │   ├── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
+│
+├── 12-APEX-Ords/
+│   └── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,
+│                                       one ORDS per DB, images copy /srv/apex, Nginx, systemd ords@.service
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
@@ -853,12 +860,13 @@ CSPU Sep 2026 state is frozen in
 
 ### APEX / ORDS beside Forms
 
-- [ ] **ORDS 26.2 + APEX 26.2** as part of the installation (target picture
-  at the top): ORDS standalone (Jetty) on `127.0.0.1` behind Nginx `/ords`,
-  APEX in the repository / application database, same TLS host name, same
-  `TNS_ADMIN`, backup / patch / clone rules as the rest – doc first (new
-  `09-Install/docs/5x-…`). Note: the ORDS version must be equal to or newer
-  than the APEX version.
+- [ ] **ORDS + APEX 26.2** – manual procedure written
+  ([`12-APEX-Ords/README.md`](12-APEX-Ords/README.md), 2026-10-23): first run on
+  the test host, then automation (`12-APEX-Ords/*.sh`, `environment.conf`,
+  interview), `clone_check` / `backup_config` / `cve_inventory` for ORDS.
+- [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
+  `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
+  customer finding with ORDS) – also for `/forms` / `/reports`?
 
 ### Monitoring (phase 9)
 

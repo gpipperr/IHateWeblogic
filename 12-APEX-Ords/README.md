@@ -1,0 +1,413 @@
+# 12-APEX-Ords – Oracle APEX and ORDS beside Oracle Forms
+
+Manual installation of **Oracle APEX 26.2** with **ORDS 26.x in standalone
+(Jetty) mode** behind the Nginx of this library – the procedure we will
+automate later (doc first, then `12-APEX-Ords/*.sh`).
+
+**Status:** manual procedure, assembled from the author's wiki guide
+(APEX / ORDS 26.1 standalone + Nginx on OL9, tested there) and a real customer
+upgrade (ORDS 23 → 26.3, APEX 23 → 26.2, Tomcat removed, October 2026 –
+anonymised). **Not yet run with the layout of this page** – the first run on
+the test host follows; findings go back into this README.
+
+---
+
+## 1. Why APEX beside Forms
+
+A modern Forms environment is Forms **and** APEX on the same database
+([root README, Target Picture](../README.md#target-picture--forms-and-apex-side-by-side)):
+
+| Use | Tool |
+|---|---|
+| case processing, the proven PL/SQL logic, power users | Oracle Forms 14.1.2 |
+| data capture, self-service, occasional users, mobile | Oracle APEX 26.2 |
+| reporting for everyone (dashboards, interactive reports) | Oracle APEX (+ Oracle Reports for print) |
+
+```
+   browser / FSAL
+        |  HTTPS – one host name, one certificate
+   +--- Nginx ------------------------------------------------------------+
+   |  /forms /reports        /ords  /i/          /ords_2  /i_2/            |
+   +----|--------------------|------|--------------|-------|---------------+
+        v                    v      v              v       v
+   WLS_FORMS / WLS_REPORTS   ords_1 /srv/apex_1    ords_2  /srv/apex_2
+   127.0.0.1:9001/9002       127.0.0.1:8081        127.0.0.1:8082
+        |                    |                     |
+        +---- DB A (Forms schema + APEX) ----+     DB B (other APEX)
+```
+
+---
+
+## 2. Rules of this layout
+
+1. **ORDS in standalone mode** (embedded Jetty) – no Tomcat, no WebLogic
+   deployment. Started by systemd, listens on `127.0.0.1` only, Nginx is the
+   only door (same rule as the rest of the domain,
+   [clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md)).
+2. **One ORDS per database.** A second database gets its own ORDS home
+   (`ords_2`), its own URL (`/ords_2`) and may run another ORDS / APEX
+   version.
+3. **Software versioned, homes linked:** the ORDS zip is unpacked per version
+   (`ords-26.2.2`), each home links to the version it runs (`ords_1/ords`).
+   Upgrade = new directory + new link, rollback = old link.
+4. **The ORDS config directory holds nothing but the config.** ORDS reads
+   every file under it, whatever the extension – no backups, no notes, no
+   `*.bak` there (customer finding). Backups go to `07-Maintenance/ConfigBackup/`.
+5. **APEX images are a copy under `/srv`** (security): the APEX zip with its
+   SQL stays private under `$ORACLE_BASE`; Nginx only reads
+   `/srv/apex/APEX_<version>` through the link `/srv/apex_N` of its ORDS. Nginx
+   never needs access to `$ORACLE_BASE`.
+6. **Every APEX installation has its own image prefix** (`/i/` for DB A,
+   `/i_2/` for DB B) – two APEX versions live side by side.
+7. **Java = `JDK_HOME`** (Oracle JDK 21 of this library, patched by
+   `07-Maintenance/80-patch_java_os.sh`; free when used with Oracle
+   products, Doc ID 1557737.1).
+8. **Oracle Net = `TNS_ADMIN`** of `environment.conf` – ORDS connects with a
+   TNS alias from the one Oracle Net directory.
+
+---
+
+## 3. Directory layout and instances
+
+```
+$ORACLE_BASE/product/ords/
+  ords-26.2.2/                 unpacked ORDS zip, one directory per version
+  ords_1/
+    ords -> ../ords-26.2.2     software link of this ORDS
+    config/                    ORDS config of ords_1 (databases/, global/) - nothing else
+  ords_2/
+    ords -> ../ords-<ver>
+    config/
+$ORACLE_BASE/product/apex/
+  APEX_26.2/apex/...           unpacked apex_26.2.zip (installer, SQL) - private
+/srv/apex/                     web root for Nginx only (oracle:oinstall, 755 / 644)
+  APEX_26.2/                   copy of APEX_26.2/apex/images
+/srv/apex_1 -> /srv/apex/APEX_26.2     images of ords_1
+/srv/apex_2 -> /srv/apex/APEX_<ver>    images of ords_2
+/var/log/ords_1/, /var/log/ords_2/     ORDS access + server log, systemd stdout/stderr
+```
+
+| Instance | URL context | Listener | Images | APEX `IMAGE_PREFIX` | Database |
+|---|---|---|---|---|---|
+| `ords_1` | `/ords` | `127.0.0.1:8081` | `/i/` → `/srv/apex_1/` | `/i/` | DB A (TNS alias, e.g. the Forms PDB) |
+| `ords_2` | `/ords_2` | `127.0.0.1:8082` | `/i_2/` → `/srv/apex_2/` | `/i_2/` | DB B |
+
+Ports 8081 / 8082 are free next to WebLogic (7001, 9001, 9002) and the Node
+Manager (5556). In the steps below `N` = 1 or 2, shown for `ords_1`.
+
+---
+
+## 4. Prerequisites
+
+| Item | Value |
+|---|---|
+| APEX | 26.2 (released 2026-10-06), `apex_26.2.zip` + language packs inside |
+| ORDS | 26.x – **ORDS version ≥ APEX version** (documented for APEX 26.1: older ORDS releases do not work with it) |
+| Java | Java 21 at `JDK_HOME` |
+| Database | 19c or 26ai, PDB; APEX 26.2 is supported on both |
+| DB sizing | `processes` ≥ Σ `jdbc.MaxLimit` of all ORDS on this DB + 50–100, `sessions` ≈ processes × 1.1 (else `ORA-00020`) |
+| Nginx | from `09-Install/04-root_nginx.sh` (TLS, one host name) |
+| Accounts | SYS of the PDB (once, for the installers) |
+
+Downloads: APEX – <https://www.oracle.com/tools/downloads/apex-downloads.html>,
+ORDS – <https://www.oracle.com/database/sqldeveloper/technologies/db-actions/download/>.
+Check every zip with `sha256sum` against the value on the download page.
+
+---
+
+## 5. Installation (manual)
+
+### 5.1 Directories (root)
+
+```bash
+mkdir -p $ORACLE_BASE/product/ords $ORACLE_BASE/product/apex
+mkdir -p /srv/apex /var/log/ords_1
+chown -R oracle:oinstall $ORACLE_BASE/product/ords $ORACLE_BASE/product/apex /srv/apex /var/log/ords_1
+chmod 755 /srv/apex
+```
+
+### 5.2 Software (oracle)
+
+```bash
+cd $PATCH_STORAGE/apex            # where the zips were downloaded to
+sha256sum ords-latest.zip apex_26.2.zip      # compare with the download pages
+
+mkdir $ORACLE_BASE/product/ords/ords-26.2.2
+unzip -q ords-latest.zip -d $ORACLE_BASE/product/ords/ords-26.2.2
+mkdir -p $ORACLE_BASE/product/ords/ords_1/config
+ln -sfn ../ords-26.2.2 $ORACLE_BASE/product/ords/ords_1/ords
+$ORACLE_BASE/product/ords/ords_1/ords/bin/ords --config $ORACLE_BASE/product/ords/ords_1/config --version
+
+mkdir $ORACLE_BASE/product/apex/APEX_26.2
+unzip -q apex_26.2.zip -d $ORACLE_BASE/product/apex/APEX_26.2
+
+# images: copy for Nginx, link for the ORDS instance
+mkdir /srv/apex/APEX_26.2
+cp -r $ORACLE_BASE/product/apex/APEX_26.2/apex/images/. /srv/apex/APEX_26.2/
+ln -sfn /srv/apex/APEX_26.2 /srv/apex_1          # needs write access to /srv (root, once)
+```
+
+### 5.3 APEX into the database (oracle, SYSDBA in the PDB)
+
+```bash
+cd $ORACLE_BASE/product/apex/APEX_26.2/apex
+export NLS_LANG=American_America.AL32UTF8
+sqlplus sys@<PDB_ALIAS_1> as sysdba
+```
+
+Check first (new installation: no row in `dba_registry`; upgrade: the values
+of the existing installation are the `apexins.sql` parameters):
+
+```sql
+select comp_id, version, status, schema from dba_registry where comp_id = 'APEX';
+select property_value from database_properties where property_name = 'DEFAULT_TEMP_TABLESPACE';
+select apex_instance_admin.get_parameter('IMAGE_PREFIX') from dual;   -- only if APEX exists
+```
+
+Install (own tablespace recommended for production):
+
+```sql
+create tablespace apex_data datafile size 500m autoextend on next 100m maxsize 4g;
+spool /tmp/install_apex.log
+@apexins.sql APEX_DATA APEX_DATA TEMP /i/          -- ords_2 / DB B: /i_2/
+@apxchpwd.sql                                       -- INTERNAL admin password
+@apex_rest_config.sql                               -- APEX_LISTENER, APEX_REST_PUBLIC_USER
+alter user APEX_PUBLIC_USER account unlock;
+select status from dba_registry where comp_id = 'APEX';   -- VALID
+```
+
+German language pack (optional): `cd builder/de` and `@load_de.sql de`, then
+Manage Instance → Instance Settings → Language.
+
+### 5.4 ORDS install (oracle)
+
+```bash
+export ORDS_CONFIG=$ORACLE_BASE/product/ords/ords_1/config
+cd $ORACLE_BASE/product/ords/ords_1/ords/bin
+./ords --config $ORDS_CONFIG install
+```
+
+Answers: connection type **TNS** – TNS directory `$TNS_ADMIN`, alias
+`<PDB_ALIAS_1>`; administrator `SYS`; features as needed (APEX, REST
+services; Database Actions only if wanted); **do not start** (systemd does
+that). The installer creates `ORDS_METADATA` / `ORDS_PUBLIC_USER` and
+writes `config/databases/default/pool.xml`. Its log lands in the current
+directory (`./logs`) – keep it outside `config/`.
+
+### 5.5 ORDS settings (oracle)
+
+```bash
+O="./ords --config $ORDS_CONFIG config set"
+$O standalone.http.host 127.0.0.1
+$O standalone.http.port 8081                     # ords_2: 8082
+$O standalone.context.path /ords                 # ords_2: /ords_2
+$O standalone.access.log /var/log/ords_1
+$O cache.metadata.enabled true
+$O cache.metadata.timeout 900
+$O jdbc.InitialLimit 10
+$O jdbc.MinLimit 10
+$O jdbc.MaxLimit 50
+$O security.externalSessionTrustedOrigins "https://<FQDN>"
+./ords --config $ORDS_CONFIG config list         # check
+```
+
+No `standalone.static.*` – Nginx serves the images (rule 5).
+
+`$ORDS_CONFIG/global/logging.properties`:
+
+```ini
+handlers=java.util.logging.FileHandler
+.level=WARNING
+java.util.logging.FileHandler.pattern=/var/log/ords_1/ords_sys.log
+java.util.logging.FileHandler.formatter=java.util.logging.SimpleFormatter
+java.util.logging.SimpleFormatter.format=%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$-6s %2$s %5$s%6$s%n
+oracle.dbtools.level=WARNING
+```
+
+### 5.6 systemd – one template unit for all instances (root)
+
+`/etc/systemd/system/ords@.service` (`%i` = `ords_1`, `ords_2`; replace
+`<ORACLE_BASE>` / `<JDK_HOME>` by the values of `environment.conf`):
+
+```ini
+[Unit]
+Description=Oracle REST Data Services %i (standalone)
+After=network-online.target
+
+[Service]
+Type=simple
+User=oracle
+Group=oinstall
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/%i/ords_stdout.log
+StandardError=append:/var/log/%i/ords_stderr.log
+SyslogIdentifier=%i
+Environment=JAVA_HOME=<JDK_HOME>
+Environment="_JAVA_OPTIONS=-Xms2G -Xmx2G -XX:+UseG1GC -Djava.util.logging.config.file=<ORACLE_BASE>/product/ords/%i/config/global/logging.properties"
+ExecStart=<ORACLE_BASE>/product/ords/%i/ords/bin/ords --config <ORACLE_BASE>/product/ords/%i/config serve
+ExecStop=/bin/kill -TERM $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload
+systemctl enable --now ords@ords_1
+systemctl status ords@ords_1
+```
+
+Heap: dev 1–2 GB, test 2–4 GB, production ≥ 4 GB, `-Xms` = `-Xmx`.
+
+### 5.7 Nginx (root)
+
+In the HTTPS server block of `/etc/nginx/conf.d/oracle-wls.conf`
+(`09-Install/nginx-wls.conf.template` – template change follows with the
+automation):
+
+```nginx
+location /ords/ {
+    proxy_pass         http://127.0.0.1:8081/ords/;
+    proxy_set_header   Host              $host;
+    # client IP for APEX / owa_util: OVERWRITE, never append (see below)
+    proxy_set_header   X-Forwarded-For   $remote_addr;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-Proto https;
+    proxy_set_header   X-Forwarded-Port  443;
+    proxy_set_header   X-Forwarded-Host  $host;
+    proxy_connect_timeout 60s;
+    proxy_read_timeout    300s;
+    proxy_send_timeout    300s;
+    proxy_buffer_size       128k;
+    proxy_buffers           4 256k;
+    proxy_busy_buffers_size 256k;
+}
+location /i/ {
+    alias   /srv/apex_1/;
+    expires 7d;
+    access_log off;
+}
+# second instance: /ords_2/ -> 127.0.0.1:8082/ords_2/, /i_2/ -> /srv/apex_2/
+```
+
+**Client IP to PL/SQL (customer finding, October 2026):** with Apache the
+fix was `ProxyAddHeaders Off` plus `RequestHeader set X-Forwarded-For
+"expr=%{REMOTE_ADDR}"`. The header must be **overwritten** with the real
+client address. If it is appended, APEX / `owa_util.get_cgi_env('REMOTE_ADDR')`
+get the wrong value, and a client can forge its address by sending its own
+`X-Forwarded-For`. In Nginx that means `$remote_addr`, **not**
+`$proxy_add_x_forwarded_for`, which appends to the value the client sent.
+(Our common WebLogic headers in the template still use
+`$proxy_add_x_forwarded_for` – open item, section 9.)
+
+```bash
+nginx -t && systemctl reload nginx
+```
+
+SELinux enforcing (customer hosts; not on the test host):
+`semanage fcontext -a -t httpd_sys_content_t "/srv/apex(/.*)?"; restorecon -Rv /srv/apex`
+and `setsebool -P httpd_can_network_connect 1`.
+
+### 5.8 Verification
+
+```bash
+ss -ltnp | grep 808                                         # 127.0.0.1:8081 only
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8081/ords/_/landing
+curl -sk https://<FQDN>/i/apex_version.txt                  # 26.2
+curl -sk -o /dev/null -w '%{http_code}\n' https://<FQDN>/ords/apex
+```
+
+- Browser: `https://<FQDN>/ords/apex` – workspace `INTERNAL`, user `ADMIN`.
+- Client IP: in an APEX page or with `owa_util.get_cgi_env('REMOTE_ADDR')`
+  the real client address. A request with a forged
+  `-H 'X-Forwarded-For: 1.2.3.4'` must **not** show 1.2.3.4.
+- Reboot test: `systemctl is-enabled ords@ords_1 nginx` → `enabled`, after the
+  reboot APEX answers again.
+
+---
+
+## 6. Upgrade (ORDS and APEX) – and the second version
+
+From the customer upgrade, generic:
+
+1. **ORDS:**
+   - unpack the new zip into `ords-<new>`;
+   - `systemctl stop ords@ords_1`;
+   - `ln -sfn ../ords-<new> ords_1/ords`;
+   - `ords --config … install`, select the existing pool – this **upgrades** the ORDS repository (customer: 23.3 → 26.3 in 30 s);
+   - `config list`, start.
+2. **APEX:**
+   - unpack into `APEX_<new>`;
+   - stop ORDS (downtime);
+   - `@apexins.sql` with the parameters of the check query (tablespaces, temp, image prefix);
+   - language packs again;
+   - copy the images to `/srv/apex/APEX_<new>`, `ln -sfn` `/srv/apex_1`;
+   - start, check `/i/apex_version.txt`.
+3. **Clean-up only after acceptance:**
+   - drop the old `APEX_2x0x00` schema (check `dba_registry` first);
+   - remove the old ORDS / APEX directories;
+   - check for invalid objects.
+4. **Rollback before the clean-up:** switch the links back – but only as long as the database part was not upgraded (`apexins.sql` / ORDS repository are one-way – a database backup is needed before).
+
+---
+
+## 7. Operations and pitfalls
+
+| Topic | Note |
+|---|---|
+| Log rotation | ORDS rotates its own logs (access log, `logging.properties` handler). Only the systemd stdout / stderr files need a small logrotate rule (`copytruncate`, weekly) – they normally stay almost empty and only grow on errors |
+| HTTP 502 | ORDS not running or not on `127.0.0.1:8081` – `journalctl -u ords@ords_1` |
+| ORDS does not start | wrong `JAVA_HOME`, DB listener not reachable, wrong `--config` path, foreign files in `config/` |
+| `OutOfMemoryError` | raise `-Xmx` in the unit |
+| Locked users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_LISTENER` in `dba_users` – our profile `RCU_USER` (no expiry) is a candidate for them too |
+| `ORA-00020` / `ORA-00018` | `processes` / `sessions` too small for the pools |
+| APEX jobs | `dba_scheduler_jobs` of the APEX schema (mail queue) running? |
+| Broken images | `/srv/apex_1` link and `IMAGE_PREFIX` match? Nginx can read `/srv/apex`? |
+
+---
+
+## 8. Fit with this library
+
+| Area | What applies |
+|---|---|
+| Loopback / clone | ORDS on `127.0.0.1`; host-specific: `security.externalSessionTrustedOrigins`, Nginx `server_name` – to add to `02-Checks/clone_check.sh` |
+| Backup | `ords_N/config` (holds `cwallet.sso` – owner only) into `07-Maintenance/backup_config.sh` – to add |
+| Patching | ORDS / APEX quarterly; APEX patch sets (`catpatch.sql`) – into the patch cycle of `09-Install/docs/00-patch-references.md` |
+| Certificates | Nginx certificate already covered by `10-Monitoring/cert_expiry_check.sh` |
+| Java | `JDK_HOME` – the JDK upgrade of `80-` needs an ORDS restart too |
+
+---
+
+## 9. Open items
+
+- First run of this page on the test host (DB A = the Forms PDB), findings
+  back into this README.
+- Automation: `12-APEX-Ords/*.sh` (download in `04-`, install, settings,
+  systemd, Nginx block in the template), `environment.conf` variables
+  (`ORDS_INSTANCES`, ports, TNS aliases, image prefixes), interview questions.
+- Nginx template: `X-Forwarded-For $remote_addr` instead of
+  `$proxy_add_x_forwarded_for` also for `/forms` / `/reports` (WebLogic reads
+  `WL-Proxy-Client-IP` = `$remote_addr` already) – decide and test.
+- `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX.
+- Silent `ords install` (no prompts) for the automation – options to be
+  verified against the ORDS 26.x install guide.
+
+---
+
+## 10. Sources
+
+All checked 2026-10-23 (HTTP 200, title matches):
+
+- Gunther Pipperr – Oracle APEX 26.1 with ORDS 26.1 Standalone and NGINX on
+  Oracle Linux 9 –
+  <https://pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_26_1_ords_standalone_nginx_ol9>
+- Oracle APEX – Downloads (APEX 26.2, release date, supported databases) –
+  <https://www.oracle.com/tools/downloads/apex-downloads.html>
+- Oracle REST Data Services Download –
+  <https://www.oracle.com/database/sqldeveloper/technologies/db-actions/download/>
+- ORDS Changelog – <https://www.oracle.com/tools/ords/ords-changelog.html>
+- Oracle REST Data Services documentation (releases) –
+  <https://docs.oracle.com/en/database/oracle/oracle-rest-data-services/>
+- Customer upgrade ORDS 23 → 26.3 / APEX 23 → 26.2, October 2026
+  (anonymised; not in the repository).
