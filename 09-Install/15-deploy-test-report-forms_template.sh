@@ -25,7 +25,9 @@
 #                forms context" otherwise)
 #              - Forms tools split userid at "/": EZConnect host:port/service
 #                fails silently ("Form not created") - a TNS alias is used
-#                (temporary TNS_ADMIN in the staging directory)
+#                (alias of $TNS_ADMIN/tnsnames.ora with the test DB service;
+#                temporary TNS_ADMIN only if environment.conf has none -
+#                reports.sh of 13- overrides a temporary one for rwconverter)
 #
 # Call     : ./09-Install/15-deploy-test-report-forms_template.sh
 #            ./09-Install/15-deploy-test-report-forms_template.sh --apply
@@ -262,15 +264,30 @@ fi
 STAGING="$(mktemp -d /tmp/ihw_testmodules_XXXXXX)"
 trap 'rm -rf "$STAGING"' EXIT
 chmod 700 "$STAGING"
-mkdir "$STAGING/tns"
 # Forms tools split userid at "/" - EZConnect does not work, use an alias.
-# Keep the aliases of the existing tnsnames.ora (same TNS_ADMIN for the tools).
-_tns_src="${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}/tnsnames.ora"
-[ -f "$_tns_src" ] && cp "$_tns_src" "$STAGING/tns/tnsnames.ora"
-printf "\n%s=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))\n" \
-    "$TNS_ALIAS" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" >> "$STAGING/tns/tnsnames.ora"
-unset _tns_src
-export TNS_ADMIN="$STAGING/tns"
+if [ -n "${TNS_ADMIN:-}" ]; then
+    # One Oracle Net directory: reports.sh (13-) sets TNS_ADMIN for rwconverter
+    # itself, a temporary directory would be ignored (ORA-12162, 2026-10-23) -
+    # take the alias of the test DB service from $TNS_ADMIN/tnsnames.ora
+    TNS_ALIAS="$(tns_alias_for_service "$_DB_SERVICE")"
+    # the Forms tools (instances/<inst>/bin/frm*.sh) default to
+    # $DOMAIN_HOME/config/fmwconfig unless TNS_ADMIN is exported
+    export TNS_ADMIN
+    if [ -n "$TNS_ALIAS" ]; then
+        ok "$(printf "TNS alias %s (service %s) from %s/tnsnames.ora" "$TNS_ALIAS" "$_DB_SERVICE" "$TNS_ADMIN")"
+    else
+        fail "No alias with SERVICE_NAME=$_DB_SERVICE in $TNS_ADMIN/tnsnames.ora – add one there"
+        print_summary; exit 2
+    fi
+else
+    mkdir "$STAGING/tns"
+    _tns_src="$DOMAIN_HOME/config/fmwconfig/tnsnames.ora"
+    [ -f "$_tns_src" ] && cp "$_tns_src" "$STAGING/tns/tnsnames.ora"
+    printf "\n%s=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))\n" \
+        "$TNS_ALIAS" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" >> "$STAGING/tns/tnsnames.ora"
+    unset _tns_src
+    export TNS_ADMIN="$STAGING/tns"
+fi
 _CONNECT="$TEST_DB_USER/$TEST_DB_PWD@$TNS_ALIAS"
 
 # _deploy  src  dest_dir  - copy with backup of an existing file

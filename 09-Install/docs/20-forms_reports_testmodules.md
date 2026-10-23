@@ -61,9 +61,17 @@ The former plain `TEST_DB_CONNECT` in `environment.conf` is no longer used.
 - **Forms tools split `userid` at `/`:** EZConnect
   (`user/pwd@host:port/service` or `@//host:port/service`) fails –
   `XML2Forms` prints `_jni_connect failed`, `frmcmp_batch` only
-  `Form not created` (rc=0!). Use a **TNS alias**. The script writes a
-  temporary `tnsnames.ora` (alias `IHW_SMOKE_DB` + existing aliases) and
-  points `TNS_ADMIN` to it.
+  `Form not created` (rc=0!). Use a **TNS alias**. With `TNS_ADMIN` in
+  `environment.conf` (one Oracle Net directory) the script takes the alias of
+  `$TNS_ADMIN/tnsnames.ora` whose `SERVICE_NAME` is the test DB service –
+  none found = FAIL with the hint to add one there. A temporary `TNS_ADMIN`
+  does not work any more: `reports.sh` (written by `13-`) sets `TNS_ADMIN`
+  for `rwconverter` / `rwrun` itself (found 2026-10-23: `ORA-12162`). The
+  Forms tools (`instances/<inst>/bin/frm*.sh`) take `TNS_ADMIN` only when it
+  is **exported**, else `$DOMAIN_HOME/config/fmwconfig` (`ORA-12154`) – the
+  script exports it.
+  Without `TNS_ADMIN` in `environment.conf` it still writes a temporary
+  `tnsnames.ora` (alias `IHW_SMOKE_DB` + existing aliases).
 
 ### Step 1 — Forms XML module
 

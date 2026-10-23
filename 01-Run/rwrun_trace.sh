@@ -150,14 +150,28 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM
 
-# Reports tools resolve the DB via TNS: own alias, existing aliases kept
-_tns_src="${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}/tnsnames.ora"
-[ -f "$_tns_src" ] && cp "$_tns_src" "$OUT_DIR/tns/tnsnames.ora"
-printf "\nIHW_TRACE_DB=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))\n" \
-    "$_DBH" "$_DBP" "$_DBS" >> "$OUT_DIR/tns/tnsnames.ora"
-unset _tns_src
+# Reports tools resolve the DB via TNS. With TNS_ADMIN in environment.conf
+# reports.sh (13-) sets it for rwrun itself - a temporary directory would be
+# ignored (ORA-12162, 2026-10-23): use the alias of the service from there.
+TRACE_ALIAS="IHW_TRACE_DB"
+RUN_TNS_ADMIN="$OUT_DIR/tns"
+if [ -n "${TNS_ADMIN:-}" ]; then
+    TRACE_ALIAS="$(tns_alias_for_service "$_DBS")"
+    RUN_TNS_ADMIN="$TNS_ADMIN"
+    if [ -z "$TRACE_ALIAS" ]; then
+        fail "No alias with SERVICE_NAME=$_DBS in $TNS_ADMIN/tnsnames.ora – add one there"
+        print_summary; exit 2
+    fi
+    ok "TNS alias $TRACE_ALIAS (service $_DBS) from $TNS_ADMIN/tnsnames.ora"
+else
+    _tns_src="$DOMAIN_HOME/config/fmwconfig/tnsnames.ora"
+    [ -f "$_tns_src" ] && cp "$_tns_src" "$OUT_DIR/tns/tnsnames.ora"
+    printf "\n%s=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))\n" \
+        "$TRACE_ALIAS" "$_DBH" "$_DBP" "$_DBS" >> "$OUT_DIR/tns/tnsnames.ora"
+    unset _tns_src
+fi
 
-( umask 077; printf 'userid=%s/%s@IHW_TRACE_DB\n' "$TEST_DB_USER" "$TEST_DB_PWD" > "$CMDFILE" )
+( umask 077; printf 'userid=%s/%s@%s\n' "$TEST_DB_USER" "$TEST_DB_PWD" "$TRACE_ALIAS" > "$CMDFILE" )
 TEST_DB_PWD=""
 
 OUTPUT="$OUT_DIR/output.${FORMAT,,}"
@@ -200,7 +214,7 @@ args=( "report=$REPORT_FILE" "cmdfile=$CMDFILE" batch=yes
 
 info "rwrun.sh report=$(basename "$REPORT_FILE") desformat=$FORMAT traceopts=$TRACEOPTS ${PARAMS}"
 T0=$(date +%s)
-TNS_ADMIN="$OUT_DIR/tns" timeout 900 "$RWRUN" "${args[@]}" > "$CONSOLE" 2>&1
+TNS_ADMIN="$RUN_TNS_ADMIN" timeout 900 "$RWRUN" "${args[@]}" > "$CONSOLE" 2>&1
 RC=$?
 T1=$(date +%s)
 printList "Exit code"  20 "$RC  ($((T1 - T0)) s)"

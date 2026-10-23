@@ -729,6 +729,23 @@ load_weblogic_password() {
 }
 
 # -----------------------------------------------------------------------------
+# tns_alias_for_service SERVICE [TNSNAMES_FILE]
+# First alias of $TNS_ADMIN/tnsnames.ora whose SERVICE_NAME is SERVICE (case
+# insensitive). Prints nothing if none. Used by the tools that need an alias
+# (Forms tools split userid at "/", EZConnect fails): a temporary TNS_ADMIN
+# does not work for rwconverter / rwrun - reports.sh of 13- sets TNS_ADMIN
+# itself (ORA-12162, 2026-10-23).
+# -----------------------------------------------------------------------------
+tns_alias_for_service() {
+    local svc="$1" file="${2:-${TNS_ADMIN:-}/tnsnames.ora}"
+    [ -n "$svc" ] && [ -f "$file" ] || return 0
+    awk -v svc="$svc" '
+        /^[A-Za-z0-9_.-]+[[:space:]]*=/ { a = $0; sub(/[[:space:]]*=.*/, "", a) }
+        toupper($0) ~ "SERVICE_NAME[[:space:]]*=[[:space:]]*" toupper(svc) "[[:space:])]" && a != "" { print a; exit }
+    ' "$file"
+}
+
+# -----------------------------------------------------------------------------
 # forms_client_icon_path – local file of the Forms client shortcut icon
 # FORMS_CLIENT_ICON is a local path or an http(s) URL. For a URL the file
 # lives in $PATCH_STORAGE/icon/<sanitised basename> – downloaded there by

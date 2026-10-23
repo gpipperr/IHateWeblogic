@@ -434,7 +434,7 @@ login with an alias failed with `ORA-12162` / `ORA-12154` (test host
 | Reports server process, `rwrun`, `rwconverter` | `$DOMAIN_HOME/reports/bin/reports.sh` | `13-` (IHW block, after Oracle's "set if empty" default) | Reports server restart |
 | WebLogic JVMs (`WLS_FORMS`, `WLS_REPORTS`, AdminServer: JDBC alias resolution) | `setUserOverrides.sh` – `export TNS_ADMIN` + `-Doracle.net.tns_admin` | this script `--apply` (also called by `09-oracle_configure.sh`) | sourced **after** Oracle's `setStartupEnv.sh`, which sets `$DOMAIN_HOME/config/fmwconfig` for the Reports group; server restart |
 | oracle shell (`sqlplus`, tools by hand) | `~oracle/.bash_profile` | `09-Install/03-root_user_oracle.sh` (root) | new login |
-| Smoke test / `rwrun_trace.sh` | copy the aliases of `$TNS_ADMIN/tnsnames.ora` into a temporary directory | `15-`, `01-Run/rwrun_trace.sh` | – |
+| Smoke test / `rwrun_trace.sh` | use the alias of `$TNS_ADMIN/tnsnames.ora` with the test DB service (`tns_alias_for_service` in the lib); a temporary directory is ignored by `reports.sh` (`ORA-12162`, 2026-10-23) | `15-`, `01-Run/rwrun_trace.sh` | Forms tools need `TNS_ADMIN` **exported** |
 
 Live 2026-10-23 (**confirmed**): after setting the files the check showed
 the old value for every running process (8 OK / 4 WARN); after
