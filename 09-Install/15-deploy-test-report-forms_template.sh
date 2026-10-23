@@ -364,55 +364,98 @@ fi
 # Reports: XML -> RDF -> run via rwservlet (PDF)
 # =============================================================================
 
-if $DEPLOY_REPORTS; then
-    section "Reports Demo Report"
+# _run_report NAME – XML -> RDF (rwconverter) -> deploy -> run via rwservlet,
+# PDF in $STAGING/NAME.pdf. Returns 0 when a PDF came back.
+_run_report() {
+    local name="$1" url http rep
+    cp "$SCRIPT_DIR/reports_templates/${name}.xml" "$STAGING/${name}.xml"
 
-    cp "$REPORTS_TEMPLATE" "$STAGING/test_dual.xml"
-
-    info "Running: rwconverter.sh userid=*** source=test_dual.xml stype=xmlfile dtype=rdffile"
+    info "Running: rwconverter.sh userid=*** source=${name}.xml stype=xmlfile dtype=rdffile"
     ( cd "$STAGING" && "$RWCONVERTER" "userid=$_CONNECT" batch=yes overwrite=yes \
-             source=test_dual.xml stype=xmlfile dest=test_dual.rdf dtype=rdffile ) \
+             source="${name}.xml" stype=xmlfile dest="${name}.rdf" dtype=rdffile ) \
         2>&1 | grep -v '^$\|REP-0004' | tee -a "$LOG_FILE"
     RWCONVERTER_RC=${PIPESTATUS[0]}
-
-    _rdf_ok=false
-    if [ "$RWCONVERTER_RC" -ne 0 ] || [ ! -f "$STAGING/test_dual.rdf" ]; then
-        fail "rwconverter failed (rc=$RWCONVERTER_RC) – test_dual.rdf not produced"
+    if [ "$RWCONVERTER_RC" -ne 0 ] || [ ! -f "$STAGING/${name}.rdf" ]; then
+        fail "rwconverter failed (rc=$RWCONVERTER_RC) – ${name}.rdf not produced"
         info "  See docs/20-forms_reports_testmodules.md – Troubleshooting"
-    else
-        ok "rwconverter succeeded: test_dual.rdf"
-        _deploy "$STAGING/test_dual.rdf" "$REPORTS_CUSTOMER_DIR" && _rdf_ok=true
+        return 1
     fi
+    ok "rwconverter succeeded: ${name}.rdf"
+    _deploy "$STAGING/${name}.rdf" "$REPORTS_CUSTOMER_DIR" || return 1
 
     # --- Run through the Reports server. The engine resolves the DB itself
     # (EZConnect works there). With a cgicmd.dat key "default" (14b-, carries
     # server= and authid=) the key is used, otherwise server= directly.
-    if $_rdf_ok; then
-        _url="http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet?report=test_dual.rdf&destype=cache&desformat=pdf"
-        if [ -n "${CGICMD_DAT:-}" ] && grep -q '^default:' "$CGICMD_DAT" 2>/dev/null; then
-            _url="${_url}&cmdkey=default"
-            info "Running: rwservlet cmdkey=default report=test_dual.rdf desformat=pdf"
-        else
-            _url="${_url}&server=${REPORTS_SERVER_NAME:-repserver01}"
-            info "Running: rwservlet server=${REPORTS_SERVER_NAME:-repserver01} report=test_dual.rdf desformat=pdf"
-        fi
-        # URL with password via curl config on stdin - not in the process list
-        _http="$(printf 'url = "%s&userid=%s/%s@//%s:%s/%s"\n' "$_url" \
-                    "$TEST_DB_USER" "$TEST_DB_PWD" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" \
-                 | curl -s --max-time 180 -K - -o "$STAGING/test_dual.pdf" \
-                        -w '%{http_code} %{time_total}' 2>/dev/null)"
-        if [ "$(head -c 5 "$STAGING/test_dual.pdf" 2>/dev/null)" = "%PDF-" ]; then
-            ok "$(printf "Report run OK: PDF %s bytes (HTTP %s, %ss)" \
-                "$(wc -c < "$STAGING/test_dual.pdf")" "${_http%% *}" "${_http#* }")"
-        else
-            fail "Report run failed (HTTP ${_http%% *}) - no PDF returned"
-            _rep="$(grep -ao 'REP-[0-9]*[^<"]\{0,100\}' "$STAGING/test_dual.pdf" 2>/dev/null | head -1)"
-            [ -n "$_rep" ] && info "  $_rep"
-            info "  HTTP 499 = login required (secured server without cmdkey) - see 14b-"
-        fi
-        unset _url _http _rep
+    url="http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet?report=${name}.rdf&destype=cache&desformat=pdf"
+    if [ -n "${CGICMD_DAT:-}" ] && grep -q '^default:' "$CGICMD_DAT" 2>/dev/null; then
+        url="${url}&cmdkey=default"
+        info "Running: rwservlet cmdkey=default report=${name}.rdf desformat=pdf"
+    else
+        url="${url}&server=${REPORTS_SERVER_NAME:-repserver01}"
+        info "Running: rwservlet server=${REPORTS_SERVER_NAME:-repserver01} report=${name}.rdf desformat=pdf"
     fi
-    unset _rdf_ok
+    # URL with password via curl config on stdin - not in the process list
+    http="$(printf 'url = "%s&userid=%s/%s@//%s:%s/%s"\n' "$url" \
+                "$TEST_DB_USER" "$TEST_DB_PWD" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" \
+             | curl -s --max-time 180 -K - -o "$STAGING/${name}.pdf" \
+                    -w '%{http_code} %{time_total}' 2>/dev/null)"
+    if [ "$(head -c 5 "$STAGING/${name}.pdf" 2>/dev/null)" = "%PDF-" ]; then
+        ok "$(printf "Report run OK: %s PDF %s bytes (HTTP %s, %ss)" \
+            "$name" "$(wc -c < "$STAGING/${name}.pdf")" "${http%% *}" "${http#* }")"
+        return 0
+    fi
+    fail "Report run failed: $name (HTTP ${http%% *}) - no PDF returned"
+    rep="$(grep -ao 'REP-[0-9]*[^<"]\{0,100\}' "$STAGING/${name}.pdf" 2>/dev/null | head -1)"
+    [ -n "$rep" ] && info "  $rep"
+    info "  HTTP 499 = login required (secured server without cmdkey) - see 14b-"
+    return 1
+}
+
+if $DEPLOY_REPORTS; then
+    section "Reports Demo Report"
+    _run_report test_dual
+
+    # --- Font test: one field per family, which TTF does the engine embed?
+    # Expected mapping = uifont.ali of this repository (04-ReportsFonts);
+    # every font must be embedded TrueType (pdf_font_verify.sh).
+    section "Reports Font Test"
+    if _run_report test_fonts; then
+        if ! command -v pdffonts > /dev/null 2>&1; then
+            warn "pdffonts not found – font check skipped (04-ReportsFonts/get_root_install_libs.sh: poppler-utils)"
+        else
+            _pf="$(pdffonts "$STAGING/test_fonts.pdf" 2>/dev/null | tail -n +3)"
+            printf '%s\n' "$_pf" | sed 's/^/    /' | tee -a "${LOG_FILE:-/dev/null}"
+            # PDF names come as "AACCGD+Liberation,Mono" - compare without , - and blanks
+            _pfn="$(printf '%s\n' "$_pf" | awk '{print $1}' | sed 's/^[A-Z]*+//; s/[ ,-]//g')"
+            for _exp in "Arial|Helvetica:LiberationSans" "Times New Roman:LiberationSerif" \
+                        "Courier New:LiberationMono" "Tahoma|DejaVu Sans:DejaVuSans"; do
+                if printf '%s\n' "$_pfn" | grep -qi "^${_exp#*:}"; then
+                    ok "$(printf "  %-22s -> %s embedded" "${_exp%%:*}" "${_exp#*:}")"
+                else
+                    warn "$(printf "  %-22s -> %s NOT in the PDF – mapping missing (uifont.ali, 14b-)" "${_exp%%:*}" "${_exp#*:}")"
+                fi
+            done
+            # umlauts: the text layer must hold them (NLS_LANG / font encoding)
+            if command -v pdftotext > /dev/null 2>&1; then
+                _um="$(pdftotext -enc UTF-8 "$STAGING/test_fonts.pdf" - 2>/dev/null | grep -c 'Größe Übung ÄÖÜ äöü ß')"
+                if [ "${_um:-0}" -ge 7 ]; then
+                    ok "  umlauts readable in all 7 lines (pdftotext)"
+                else
+                    warn "$(printf "  umlauts readable in %s of 7 lines only (pdftotext) – NLS_LANG / font encoding" "${_um:-0}")"
+                fi
+            fi
+            if printf '%s\n' "$_pf" | grep -qiE 'Symbol|Courier[^N]|ZapfDingbats'; then
+                warn "  Base-14 fallback font (Courier / Symbol) in the PDF – a family has no TTF mapping"
+            fi
+            _vlog="$("$ROOT_DIR/04-ReportsFonts/pdf_font_verify.sh" "$STAGING/test_fonts.pdf" 2>&1)"
+            printf '%s\n' "$_vlog" >> "${LOG_FILE:-/dev/null}"
+            case "$(printf '%s' "$_vlog" | sed 's/\x1b\[[0-9;]*m//g' | sed -n 's/.*FAIL: *\([0-9]*\).*/\1/p' | tail -1)" in
+                0|"") ok "  pdf_font_verify.sh: every font embedded" ;;
+                *)    fail "  pdf_font_verify.sh: font(s) not embedded – see $LOG_FILE" ;;
+            esac
+            unset _pf _pfn _exp _vlog _um
+        fi
+    fi
 fi
 unset _CONNECT TEST_DB_PWD
 

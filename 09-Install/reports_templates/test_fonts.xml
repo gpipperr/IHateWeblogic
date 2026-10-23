@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IHateWeblogic – Font test report (smoke test)
+
+  Purpose: one boilerplate text per font family the customers use most, each
+  with its own <font face>, text with umlauts (fields of a generated default
+  layout ignore <font> - all came out in the default font, 2026-10-23). The PDF shows which TrueType file the
+  Reports engine embeds for each family (uifont.ali [PDF:Subset] /
+  [PDF:Embed], REPORTS_FONT_DIRECTORY) - checked by 15- with pdffonts and
+  04-ReportsFonts/pdf_font_verify.sh.
+
+  Expected on the test host (uifont.ali of this repository):
+    Arial, Helvetica   -> LiberationSans      Times New Roman -> LiberationSerif
+    Courier New        -> LiberationMono      Tahoma          -> DejaVuSans
+    Liberation Sans    -> LiberationSans      DejaVu Sans     -> DejaVuSans
+  A font that falls back to Courier / Symbol or is not embedded = mapping
+  missing (04-ReportsFonts/README.md section 11).
+
+  Deployed/converted by: 09-Install/15-deploy-test-report-forms_template.sh
+-->
+<report name="TEST_FONTS" DTDVersion="9.0.2.0.0">
+  <data>
+    <dataSource name="Q_1">
+      <select>select 1 as dummy from dual</select>
+    </dataSource>
+  </data>
+  <layout>
+    <section name="main">
+      <body>
+        <text name="B_ARIAL" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="0.50000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Arial" size="11"/>
+            <string><![CDATA[Arial: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_HELVETICA" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="0.95000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Helvetica" size="11"/>
+            <string><![CDATA[Helvetica: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_TIMES" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="1.40000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Times New Roman" size="11"/>
+            <string><![CDATA[Times New Roman: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_COURIER" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="1.85000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Courier New" size="11"/>
+            <string><![CDATA[Courier New: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_TAHOMA" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="2.30000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Tahoma" size="11"/>
+            <string><![CDATA[Tahoma: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_LIBERATION" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="2.75000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Liberation Sans" size="11"/>
+            <string><![CDATA[Liberation Sans: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_DEJAVU" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="3.20000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="DejaVu Sans" size="11"/>
+            <string><![CDATA[DejaVu Sans: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+      </body>
+    </section>
+  </layout>
+</report>

@@ -589,6 +589,15 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 
 ---
 
+### Smoke test with all fonts
+
+`09-Install/15-deploy-test-report-forms_template.sh --apply` also runs the
+font test report `09-Install/reports_templates/test_fonts.xml` (Arial,
+Helvetica, Times New Roman, Courier New, Tahoma, Liberation Sans, DejaVu Sans,
+with umlauts) and checks the PDF with `pdffonts`, `pdftotext` and
+`pdf_font_verify.sh` – the quickest end-to-end check after a font change
+([20-forms_reports_testmodules.md Step 4](../09-Install/docs/20-forms_reports_testmodules.md)).
+
 ## 10. Step-by-Step Setup
 
 Run the following scripts in sequence. All scripts default to **read-only mode**.

@@ -22,8 +22,9 @@ database and – for Reports – run through the Reports server.
 |---|---|
 | `09-Install/forms_templates/test_form.xml` | Forms XML module: control block `BL_DATA`, items `IT_SYSDATE`/`IT_OBJ_COUNT`, a `WHEN-NEW-FORM-INSTANCE` trigger populates both (`sysdate`, `user_objects`) |
 | `09-Install/reports_templates/test_dual.xml` | Reports XML: `to_char(sysdate, ...) as sys_datum from dual` (**not** `current_date` as alias — reserved word!) |
+| `09-Install/reports_templates/test_fonts.xml` | Reports XML **font test**: one boilerplate `<text>` per family (Arial, Helvetica, Times New Roman, Courier New, Tahoma, Liberation Sans, DejaVu Sans) with umlauts – which TrueType file the engine embeds |
 | `09-Install/reports_templates/test_user_objects.xml` | Reports XML: tabular listing of `object_name, object_type, status from user_objects`, filtered by a `<userParameter>` + `<parameterForm>` (object-name pattern, default `%`) — see `REPORTS_XML_SYNTAX_REFERENCE.md` |
-| `09-Install/15-deploy-test-report-forms_template.sh` | Driver script: `frmxml2f.sh` → `frmcmp_batch.sh` (Forms), `rwconverter.sh` (Reports), deploy into `FORMS_CUSTOMER_DIR` / `REPORTS_CUSTOMER_DIR`, run `test_dual.rdf` via `rwservlet` (PDF check). Only the component(s) selected in `INSTALL_COMPONENTS`. |
+| `09-Install/15-deploy-test-report-forms_template.sh` | Driver script: `frmxml2f.sh` → `frmcmp_batch.sh` (Forms), `rwconverter.sh` (Reports), deploy into `FORMS_CUSTOMER_DIR` / `REPORTS_CUSTOMER_DIR`, run `test_dual.rdf` and `test_fonts.rdf` via `rwservlet` (PDF check, font check). Only the component(s) selected in `INSTALL_COMPONENTS`. |
 
 ### Test database credentials
 
@@ -206,6 +207,23 @@ head -c 5 test_dual.pdf      # %PDF-
   otherwise HTTP 499 login page). Without the key `server=` is passed.
 - The script passes the URL to `curl` via a config on stdin (`-K -`) so the
   password does not show up in the process list.
+
+### Step 4 — Font test (`test_fonts.xml`)
+
+Same path (convert, deploy, `rwservlet`), then the PDF is checked:
+
+| Check | Tool | Expected (uifont.ali of this repository) |
+|---|---|---|
+| font per family | `pdffonts`, names compared without `,` `-` blank (`AADIGD+Liberation,Sans`) | Arial / Helvetica → LiberationSans, Times New Roman → LiberationSerif, Courier New → LiberationMono, Tahoma / DejaVu Sans → DejaVuSans; missing → WARN (mapping, `14b-`) |
+| no Base-14 fallback | `pdffonts` | no `Courier` / `Symbol` / `ZapfDingbats` – else a family has no TTF mapping → WARN |
+| umlauts in the text layer | `pdftotext -enc UTF-8` | all 7 lines contain `Größe Übung ÄÖÜ äöü ß` → else WARN (NLS_LANG / encoding) |
+| embedded | `04-ReportsFonts/pdf_font_verify.sh` | every font embedded TrueType, else FAIL |
+
+Live 2026-10-23 (**confirmed**): first version with `<font>` on the fields
+of a generated `formLike` layout – the engine **ignored** the font of the
+generated fields, the PDF held only `Liberation Mono`. Boilerplate `<text>`
+in `<body>` with `<textSegment><font face=…>` works: 5 embedded CID TrueType
+fonts (Liberation Sans / Serif / Mono, DejaVu Sans), all checks OK.
 
 ### XML Format Reference
 
