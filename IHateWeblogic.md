@@ -39,11 +39,16 @@ turn personal experience into reusable automation and tooling.
 
 This library focuses on:
 
-- Installation and configuration of an Oracle WebLogic Forms/Reports and APEX setup behind Nginx
-- Post-installation diagnosis
-- Configuration validation (against Oracle documentation)
-- Bug hunting and root cause analysis
-- Documentation generation for support cases
+- **Installation and configuration** of an Oracle WebLogic Forms/Reports and APEX
+  setup behind Nginx – scripted, repeatable, loopback-only and clone-capable
+- **Patching** – the monthly Oracle cycle (CPU / CSPU / Security Alerts) for
+  WebLogic, Forms/Reports, OPatch and the JDK, with backup and rollback
+- **Security** – hardening of WebLogic, Reports and Nginx, encrypted credentials,
+  certificate management, CVE inventory against the Oracle advisories
+- **Diagnosis** after installation and in running environments
+- **Configuration validation** against the Oracle documentation
+- **Bug hunting and root cause analysis**
+- **Documentation** for support cases and customer cookbooks
 
 ### Why Forms & Reports still matter – an appeal
 
