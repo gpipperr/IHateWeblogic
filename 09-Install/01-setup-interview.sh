@@ -766,6 +766,9 @@ if [ "${INSTALL_APEX:-false}" = "true" ]; then
     _ask APEX_TABLESPACE     "APEX tablespace"                  "APEX_DATA"
     _ask APEX_TEMP_TABLESPACE "APEX temp tablespace (empty = DB default)" "" "" "optional"
     _ask APEX_LANGUAGES      "APEX language packs (e.g. de)"    "de" "" "optional"
+    _ask APEX_DB_PROFILE     "DB profile of the APEX/ORDS runtime users (no expiry)" "APEX_USER"
+    _ask ORDS_PUBLIC_URL     "Public URL of APEX (CORS / trusted origin)" "https://${WLS_SERVER_FQDN:-$(hostname -f)}"
+    _ask APEX_ADMIN_EMAIL    "E-mail of the APEX ADMIN (empty = ADMIN)" "" "" "optional"
     info "APEX instance administrator ADMIN -> encrypted to: $(basename "$APEX_SEC_FILE")"
     info "  APEX rules: upper + lower case, digit, punctuation character"
     _ask_password APEX_ADMIN_PWD "APEX ADMIN password" "$APEX_SEC_FILE"
@@ -867,7 +870,8 @@ _show "DB_SCHEMA_PWD"        "****  → $(basename "$DB_SYS_SEC_FILE")"
 _show "INSTALL_APEX"         "$INSTALL_APEX"
 if [ "$INSTALL_APEX" = "true" ]; then
     for _k in APEX_ORDS_BASE APEX_SW_BASE APEX_WEB_DIR ORDS_1_DB_ALIAS ORDS_1_PORT \
-              ORDS_1_CONTEXT ORDS_1_IMAGE_PREFIX ORDS_JAVA_HEAP APEX_TABLESPACE APEX_TEMP_TABLESPACE APEX_LANGUAGES; do
+              ORDS_1_CONTEXT ORDS_1_IMAGE_PREFIX ORDS_JAVA_HEAP APEX_TABLESPACE APEX_TEMP_TABLESPACE APEX_LANGUAGES \
+              APEX_DB_PROFILE ORDS_PUBLIC_URL APEX_ADMIN_EMAIL; do
         _show "$_k" "${!_k:-(empty)}"
     done
     unset _k
@@ -1046,6 +1050,15 @@ ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
 APEX_TABLESPACE="${APEX_TABLESPACE:-}"
 APEX_TEMP_TABLESPACE="${APEX_TEMP_TABLESPACE:-}"
 APEX_LANGUAGES="${APEX_LANGUAGES:-}"
+APEX_DB_PROFILE="${APEX_DB_PROFILE:-APEX_USER}"
+ORDS_PUBLIC_URL="${ORDS_PUBLIC_URL:-}"
+APEX_ADMIN_EMAIL="${APEX_ADMIN_EMAIL:-}"
+# not asked (defaults): ORDS logs /var/log/ords_N; risky ORDS features off
+ORDS_LOG_BASE="${ORDS_LOG_BASE:-/var/log}"
+ORDS_FEATURE_SDW="${ORDS_FEATURE_SDW:-false}"
+ORDS_FEATURE_REST_SQL="${ORDS_FEATURE_REST_SQL:-false}"
+ORDS_FEATURE_DB_API="${ORDS_FEATURE_DB_API:-false}"
+ORDS_FEATURE_GRAPHQL="${ORDS_FEATURE_GRAPHQL:-disable_all}"
 
 # --- My Oracle Support --------------------------------------------------------
 MOS_USER="${MOS_USER}"
@@ -1111,7 +1124,8 @@ if [ "${#SSL_CONF_KEYS[@]}" -gt 0 ]; then
 fi
 
 if [ -n "${APEX_ADMIN_PWD:-}" ] && [ "$APEX_ADMIN_PWD" != "****" ]; then
-    _write_secrets_file "$APEX_SEC_FILE" "APEX_ADMIN_USER=ADMIN" "APEX_ADMIN_PWD=$APEX_ADMIN_PWD"
+    # merge: keeps APEX_REST_PUBLIC_PWD / ORDS_N_PUBLIC_PWD written by 12-APEX-Ords
+    merge_secrets_file "$APEX_SEC_FILE" "APEX_ADMIN_USER=ADMIN" "APEX_ADMIN_PWD=$APEX_ADMIN_PWD"
     unset APEX_ADMIN_PWD
 fi
 
@@ -1204,6 +1218,15 @@ ORDS_JAVA_HEAP="${ORDS_JAVA_HEAP:-}"
 APEX_TABLESPACE="${APEX_TABLESPACE:-}"
 APEX_TEMP_TABLESPACE="${APEX_TEMP_TABLESPACE:-}"
 APEX_LANGUAGES="${APEX_LANGUAGES:-}"
+APEX_DB_PROFILE="${APEX_DB_PROFILE:-APEX_USER}"
+ORDS_PUBLIC_URL="${ORDS_PUBLIC_URL:-}"
+APEX_ADMIN_EMAIL="${APEX_ADMIN_EMAIL:-}"
+# not asked (defaults): ORDS logs /var/log/ords_N; risky ORDS features off
+ORDS_LOG_BASE="${ORDS_LOG_BASE:-/var/log}"
+ORDS_FEATURE_SDW="${ORDS_FEATURE_SDW:-false}"
+ORDS_FEATURE_REST_SQL="${ORDS_FEATURE_REST_SQL:-false}"
+ORDS_FEATURE_DB_API="${ORDS_FEATURE_DB_API:-false}"
+ORDS_FEATURE_GRAPHQL="${ORDS_FEATURE_GRAPHQL:-disable_all}"
 MOS_USER="${MOS_USER}"
 # APEX_ADMIN_PWD → apex_sec.conf.des3 (INSTALL_APEX=true)
 # WLS_ADMIN_PWD  → weblogic_sec.conf.des3

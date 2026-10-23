@@ -62,7 +62,9 @@ What it provides:
 | Raw color (no log, inline) | `_color_green()`, `_color_yellow()`, `_color_red()`, `_color_bold()`, `_color_cyan()` |
 | Interactive prompts | `askYesNo "prompt" [y|n]`, `readSelection "prompt" default opt1 opt2 …` |
 | Utility | `init_log [dir]`, `backup_file file [dir]`, `check_env_conf [path]`, `print_summary` |
-| Password / secrets (pipperr.de concept) | `_get_system_identifier`, `_write_secrets_file`, `load_secrets_file`, `save_weblogic_password`, `load_weblogic_password` |
+| Password / secrets (pipperr.de concept) | `_get_system_identifier`, `_write_secrets_file`, `merge_secrets_file` (keeps the keys of other writers – e.g. `apex_sec.conf.des3`), `load_secrets_file`, `save_weblogic_password`, `load_weblogic_password` |
+| Root from an oracle script | `ihw_can_sudo`, `ihw_run_root CMD…` (root / `sudo -n`, else the command is printed) – for new scripts; the `_run_root` copies in `09-Install` move here later |
+| Database / downloads | `ihw_sqlplus`, `ihw_sql_sys ALIAS`, `otn_get`, `otn_newest_zip`, `otn_zip_version`, `tns_alias_for_service` (section "install_db_client_tools.sh") |
 
 Every script in the repository follows the same pattern at the top:
 

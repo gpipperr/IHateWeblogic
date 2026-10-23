@@ -641,6 +641,30 @@ load_secrets_file() {
     return 0
 }
 
+# merge_secrets_file  des3_file  KEY=val [KEY2=val2 ...]
+# Like _write_secrets_file, but keeps every key already in the file that is
+# not given here (one file, several writers – e.g. apex_sec.conf.des3: ADMIN
+# from the interview, REST user from 02-install-apex, ORDS user from 04-).
+merge_secrets_file() {
+    local des3_file="$1"; shift
+    local -a pairs=()
+    local line key given pair
+    if [ -f "$des3_file" ]; then
+        # read the existing keys in a subshell – nothing leaks into this shell
+        while IFS= read -r line; do
+            key="${line%%=*}"; given=false
+            for pair in "$@"; do [ "${pair%%=*}" = "$key" ] && given=true; done
+            $given || pairs+=("$line")
+        done < <( load_secrets_file "$des3_file" > /dev/null 2>&1 || exit 1
+                  for k in $(openssl des3 -pbkdf2 -d -salt -in "$des3_file" \
+                                 -pass pass:"$(_get_system_identifier)" 2>/dev/null \
+                             | sed -n 's/^export \([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
+                      printf '%s=%s\n' "$k" "${!k}"
+                  done )
+    fi
+    _write_secrets_file "$des3_file" "${pairs[@]}" "$@"
+}
+
 # save_weblogic_password  wl_user  wl_password  [wl_admin_url]  [output_des3_file]
 # Writes weblogic_sec.conf, encrypts to .des3, deletes plaintext immediately.
 save_weblogic_password() {
@@ -896,4 +920,25 @@ ihw_sql_sys() {
       cat
       printf '\nexit\n'
     } | ihw_sqlplus -L -S /nolog
+}
+
+# -----------------------------------------------------------------------------
+# Root commands from an oracle script (same logic as the _run_root copies in
+# 09-Install/*root*.sh – new scripts use these)
+# ihw_can_sudo         – 0 if root or passwordless sudo works
+# ihw_run_root CMD ... – run as root (directly or via sudo -n); otherwise warn
+#                        and print the command for the administrator
+# -----------------------------------------------------------------------------
+ihw_can_sudo() { [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; }
+
+ihw_run_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif sudo -n true 2>/dev/null; then
+        sudo -n "$@"
+    else
+        warn "No root/sudo for: $*"
+        info "  Run manually: sudo $*"
+        return 1
+    fi
 }

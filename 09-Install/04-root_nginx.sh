@@ -303,6 +303,8 @@ if [ "$APPLY_MODE" -eq 1 ]; then
         fi
 
         if [ "$_bak" != "FAILED" ]; then
+        # include directory of further applications (12-APEX-Ords/05-setup-nginx.sh)
+        _run_root mkdir -p /etc/nginx/oracle-wls.d && _run_root chmod 755 /etc/nginx/oracle-wls.d
         _run_root cp "$NGINX_CONF_TMP" "$NGINX_CONF"
         _run_root chmod 644 "$NGINX_CONF"
         ok "Configuration deployed: $NGINX_CONF"

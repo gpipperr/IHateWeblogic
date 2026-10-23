@@ -320,6 +320,11 @@ download URLs are in `oracle_software_version.conf` (`APEX_*`, `ORDS_*`).
 | `APEX_TABLESPACE` | `APEX_DATA` | `apexins.sql` tablespace (created if missing) |
 | `APEX_TEMP_TABLESPACE` | *(empty)* | temp tablespace for `apexins.sql`; empty = `DEFAULT_TEMP_TABLESPACE` of the DB (`12-APEX-Ords/01-prepare-database.sh` detects it and writes it back) |
 | `APEX_LANGUAGES` | `de` | language packs to load (`builder/<lang>/load_<lang>.sql`), space-separated, empty = English only |
+| `APEX_DB_PROFILE` | `APEX_USER` | DB profile without password expiry / lock-out for `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` – created by `12-APEX-Ords/01-prepare-database.sh` (`apex_user_profile.sql`), assigned by 01 / 02 / 04 |
+| `ORDS_PUBLIC_URL` | `https://<WLS_SERVER_FQDN>` | public URL of APEX – ORDS `security.externalSessionTrustedOrigins` (`04-install-ords.sh`) |
+| `APEX_ADMIN_EMAIL` | *(empty = `ADMIN`)* | e-mail of the instance administrator `ADMIN` |
+| *(not asked)* `ORDS_LOG_BASE` | `/var/log` | ORDS logs in `/var/log/ords_N` |
+| *(not asked)* `ORDS_FEATURE_SDW`, `ORDS_FEATURE_REST_SQL`, `ORDS_FEATURE_DB_API`, `ORDS_FEATURE_GRAPHQL` | `false` (GraphQL `disable_all`) | ORDS features Database Actions, REST-enabled SQL, Database API; `ORDS_FEATURE_GRAPHQL` = `disable_all` (ORDS default `enabled`!) – off = smallest attack surface ([ords_architecture.md](../../80-FMW-Architecture/ords_architecture.md)); set to `true` by hand only when needed |
 | `APEX_ADMIN_PWD` | prompted, encrypted → `apex_sec.conf.des3` | password of the APEX instance administrator `ADMIN` (`apxchpwd.sql`) – APEX rules: upper/lower case, digit, punctuation |
 
 ### Block 5 – My Oracle Support
@@ -348,7 +353,7 @@ Asks for confirmation before writing `environment.conf`.
 | `embedded_ldap_sec.conf.des3` | Encrypted embedded LDAP `cn=Admin` password (`REPORTS_SECURITY=ldap`) |
 | `forms_sign_sec.conf.des3` | Encrypted code-signing keystore password (existing keystore; otherwise written by `ssl_local_ca.sh`) |
 | `08-SSL/ssl.conf` | Local CA subject values (only when the code-signing keystore does not exist yet) |
-| `apex_sec.conf.des3` | Encrypted APEX instance administrator password (`INSTALL_APEX=true`) |
+| `apex_sec.conf.des3` | Encrypted APEX / ORDS passwords (`INSTALL_APEX=true`): `APEX_ADMIN_USER` / `APEX_ADMIN_PWD` (interview), `APEX_REST_PUBLIC_PWD` (`02-install-apex.sh`), `ORDS_1_PUBLIC_PWD` (`04-install-ords.sh`, also in the ORDS wallet) – every writer merges, no key is lost |
 | `setup.conf` | Reusable template (no passwords) |
 
 ---

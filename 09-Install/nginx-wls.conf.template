@@ -173,6 +173,12 @@ server {
         proxy_pass http://wls_admin;
     }
 
+    # --- Further applications in this server block (one file each) ---------
+    # e.g. APEX / ORDS: /etc/nginx/oracle-wls.d/ords_1.conf, written by
+    # 12-APEX-Ords/05-setup-nginx.sh – remove an application = delete its file.
+    # Not below conf.d/: those files are loaded at http{} level.
+    include /etc/nginx/oracle-wls.d/*.conf;
+
     # --- Health check endpoint (Nginx itself, no proxy) -------------------
     location /nginx-health {
         access_log off;

@@ -86,7 +86,12 @@ nginx -t
 8. Creates `/etc/nginx/ssl/` directory (mode 700) for certificate storage
 9. Backs up existing `oracle-wls.conf` before overwriting (as root – the
    directory is root-owned; no backup = nothing deployed)
-10. Deploys generated config to `/etc/nginx/conf.d/oracle-wls.conf`
+10. Deploys generated config to `/etc/nginx/conf.d/oracle-wls.conf` and
+    creates `/etc/nginx/oracle-wls.d/` – the template includes
+    `/etc/nginx/oracle-wls.d/*.conf` **inside the 443 server block**: one file
+    per further application (APEX / ORDS: `ords_N.conf`, written by
+    `12-APEX-Ords/05-setup-nginx.sh`). Not below `conf.d/` – those files are
+    loaded at `http{}` level, where `location` is not allowed
 11. `nginx -t` if the SSL certs are in place (checked as root – `/etc/nginx/ssl`
     is mode 700), then **reloads a running Nginx**; a failed `nginx -t`
     restores the backup at once (Nginx keeps running unchanged). Without

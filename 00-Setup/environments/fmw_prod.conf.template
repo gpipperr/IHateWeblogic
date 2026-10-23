@@ -167,3 +167,18 @@ APEX_TABLESPACE=APEX_DATA
 # empty = DEFAULT_TEMP_TABLESPACE of the DB (01-prepare-database.sh writes it back)
 APEX_TEMP_TABLESPACE=
 APEX_LANGUAGES=de
+# DB profile of ORDS_PUBLIC_USER / APEX_*_USER / APEX_PUBLIC_ROUTER (no expiry, no lock)
+APEX_DB_PROFILE=APEX_USER
+# public URL (security.externalSessionTrustedOrigins of ORDS)
+ORDS_PUBLIC_URL=https://wls01.company.local
+# e-mail of the APEX instance administrator (empty = ADMIN)
+APEX_ADMIN_EMAIL=
+# ORDS logs: ${ORDS_LOG_BASE}/ords_N (systemd stdout/err, access log, ords_sys.log)
+ORDS_LOG_BASE=/var/log
+# ORDS features – off = smallest attack surface (ords_architecture.md §7):
+# Database Actions (SQL Developer Web), REST-enabled SQL (/_/sql), Database API
+ORDS_FEATURE_SDW=false
+ORDS_FEATURE_REST_SQL=false
+ORDS_FEATURE_DB_API=false
+# GraphQL (feature.graphql, ORDS default: enabled): enabled | disable_graphiql | disable_all
+ORDS_FEATURE_GRAPHQL=disable_all
