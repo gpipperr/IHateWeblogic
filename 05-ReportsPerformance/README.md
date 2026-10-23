@@ -81,7 +81,7 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 | Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`; FAIL: `maxEngine < minEngine/initEngine`. INFO: no `engineResponseTimeOut`, URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
-| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
 The rules and Oracle's numbers behind the checks:
@@ -96,12 +96,12 @@ shows the change list, asks for confirmation, then:
 1. `backup_file` of `rwserver.conf`
 2. changes **only the report engine element** (`rws_set_engine_attr`, python3;
    missing attributes are added, `rwURLEng` stays untouched)
-3. writes `initEngine/minEngine/maxEngine` also to `environment.conf`
-   (`REPORTS_ENGINE_*`, with backup) – `09-Install/13-oracle_setup_reports.sh --apply`
-   regenerates `rwserver.conf` from these values
-4. WARN for `engLife` / `maxIdle` / `-Xmx`: not in `environment.conf`, a later
-   `13- --apply` resets them (open item, see section 6)
-5. prints the restart command – the change takes effect after a restart of
+3. writes every changed value also to `environment.conf` (with backup):
+   `REPORTS_ENGINE_INIT/MIN/MAX`, `REPORTS_ENGINE_LIFE`,
+   `REPORTS_ENGINE_MAX_IDLE`, `REPORTS_ENGINE_JVM_OPTIONS` (appended if
+   missing) – `09-Install/13-oracle_setup_reports.sh --apply` regenerates
+   `rwserver.conf` from these values, the tuning survives
+4. prints the restart command – the change takes effect after a restart of
    the Reports server component
 
 ---
@@ -166,10 +166,6 @@ Slow first request / engine replacement after a crash:
 
 ## 6. Open items
 
-- `09-Install/13-oracle_setup_reports.sh` writes `engLife=50` fixed and no
-  `maxIdle` / engine `jvmOptions` – values changed with `--apply` are lost on
-  the next `13- --apply`. Proposal: `REPORTS_ENGINE_LIFE`,
-  `REPORTS_ENGINE_JVM_OPTIONS` in `environment.conf` (doc 13 first).
 - `engineResponseTimeOut` (hanging engines) is not set by 13- – evaluate a
   default with real report run times.
 - 10-Monitoring: `engine_perf_analyse.sh` as data source for the queue/pool

@@ -694,9 +694,22 @@ section "rwserver.conf"
 _ENG_INIT="${REPORTS_ENGINE_INIT:-2}"
 _ENG_MAX="${REPORTS_ENGINE_MAX:-5}"
 _ENG_MIN="${REPORTS_ENGINE_MIN:-2}"
+_ENG_LIFE="${REPORTS_ENGINE_LIFE:-50}"
+_ENG_IDLE="${REPORTS_ENGINE_MAX_IDLE:-}"        # empty = Oracle default 30 min
+_ENG_JVM="${REPORTS_ENGINE_JVM_OPTIONS:-}"      # empty = engines with -Xmx256M
 _MAX_CONN="${REPORTS_MAX_CONNECT:-300}"
 _MAX_QUEUE="${REPORTS_MAX_QUEUE:-4000}"
 _NLS="${NLS_LANG:-GERMAN_GERMANY.AL32UTF8}"
+case "$_ENG_JVM" in
+    *[\"\&\<\>]*)
+        fail "REPORTS_ENGINE_JVM_OPTIONS contains \" & < or > - not usable in an XML attribute, ignored"
+        _ENG_JVM="" ;;
+esac
+_eng_extra=""
+[ -n "$_ENG_IDLE" ] && _eng_extra="${_eng_extra} maxIdle=\"${_ENG_IDLE}\""
+[ -n "$_ENG_JVM" ]  && _eng_extra="${_eng_extra} jvmOptions=\"${_ENG_JVM}\""
+info "$(printf "Report engine: init=%s min=%s max=%s engLife=%s maxIdle=%s jvmOptions=%s" \
+    "$_ENG_INIT" "$_ENG_MIN" "$_ENG_MAX" "$_ENG_LIFE" "${_ENG_IDLE:-(default 30)}" "${_ENG_JVM:-(default)}")"
 
 # Reports server administrator (<identifier>, not a WebLogic user) from
 # reports_admin_sec.conf.des3 (asked by 01-setup-interview.sh). Missing ->
@@ -770,7 +783,7 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '  <engine id="rwEng" class="oracle.reports.engine.EngineImpl"\n'
             printf '          initEngine="%s" maxEngine="%s" minEngine="%s"\n' \
                 "$_ENG_INIT" "$_ENG_MAX" "$_ENG_MIN"
-            printf '          engLife="50" defaultEnvId="QS"/>\n'
+            printf '          engLife="%s"%s defaultEnvId="QS"/>\n' "$_ENG_LIFE" "$_eng_extra"
             printf '  <engine id="rwURLEng" class="oracle.reports.urlengine.URLEngineImpl"\n'
             printf '          maxEngine="1" minEngine="0" engLife="50"/>\n'
             printf '\n'

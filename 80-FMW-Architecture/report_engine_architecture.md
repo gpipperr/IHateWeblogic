@@ -302,7 +302,9 @@ engine element with ID="rwURLEng"".
 
 This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
 `maxEngine=5`, `minEngine=2`, `engLife=50`, `maxConnect=300`,
-`maxQueueSize=4000` (environment.conf `REPORTS_ENGINE_*`); JVM of the
+`maxQueueSize=4000` (environment.conf `REPORTS_ENGINE_*`; `maxIdle` and
+engine `jvmOptions` only when `REPORTS_ENGINE_MAX_IDLE` /
+`REPORTS_ENGINE_JVM_OPTIONS` are set); JVM of the
 **server** via `REPORTS_JVM_OPTIONS` in `reports.sh` (not `jvmOptions`,
 which is for the engines). Live test 2026-10-16: regular `engLife`
 recycling costs 85–661 ms per job, a crashed engine (kill -9) is replaced

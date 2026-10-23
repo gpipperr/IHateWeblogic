@@ -129,6 +129,10 @@ REPORTS_BROADCAST_PORT=14027
 REPORTS_ENGINE_INIT=2
 REPORTS_ENGINE_MAX=5
 REPORTS_ENGINE_MIN=2
+REPORTS_ENGINE_LIFE=50
+# maxIdle (minutes) / engine jvmOptions (e.g. "-Xmx1g"): empty = Oracle default
+REPORTS_ENGINE_MAX_IDLE=
+REPORTS_ENGINE_JVM_OPTIONS=
 REPORTS_MAX_CONNECT=300
 REPORTS_MAX_QUEUE=4000
 # rwservlet.properties cookie encryption key – generate once, keep stable

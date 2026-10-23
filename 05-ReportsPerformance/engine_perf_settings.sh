@@ -297,6 +297,9 @@ _cmp() {
 _cmp "initEngine"   "${REPORTS_ENGINE_INIT:-}" "$ENG_INIT"
 _cmp "minEngine"    "${REPORTS_ENGINE_MIN:-}"  "$ENG_MIN"
 _cmp "maxEngine"    "${REPORTS_ENGINE_MAX:-}"  "$ENG_MAX"
+_cmp "engLife"      "${REPORTS_ENGINE_LIFE:-}" "$ENG_LIFE"
+_cmp "maxIdle"      "${REPORTS_ENGINE_MAX_IDLE:-}"    "$ENG_IDLE"
+_cmp "jvmOptions"   "${REPORTS_ENGINE_JVM_OPTIONS:-}" "$ENG_JVM"
 _cmp "maxConnect"   "${REPORTS_MAX_CONNECT:-}" "$C_MAX"
 _cmp "maxQueueSize" "${REPORTS_MAX_QUEUE:-}"   "$Q_MAX"
 _cmp "TNS_ADMIN"    "${TNS_ADMIN:-}"           "$(rws_env_var "$RWSERVER_CONF" TNS_ADMIN)"
@@ -415,19 +418,23 @@ if [ "$APPLY_MODE" -eq 1 ]; then
     # Keep environment.conf in line – 13- rewrites rwserver.conf from it
     _env_set() {
         local key="$1" val="$2"
-        grep -q "^${key}=" "$ENV_CONF" || return 0
-        sed -i --follow-symlinks "s|^${key}=.*|${key}=\"${val}\"|" "$ENV_CONF" \
-            && ok "$(printf "environment.conf %s=%s" "$key" "$val")"
+        if grep -q "^${key}=" "$ENV_CONF"; then
+            sed -i --follow-symlinks "s|^${key}=.*|${key}=\"${val}\"|" "$ENV_CONF"
+        else
+            printf '%s="%s"\n' "$key" "$val" >> "$(readlink -f "$ENV_CONF")"
+        fi && ok "$(printf "environment.conf %s=%s" "$key" "$val")"
     }
-    if [ "$NEW_INIT" != "$ENG_INIT" ] || [ "$NEW_MIN" != "$ENG_MIN" ] || [ "$NEW_MAX" != "$ENG_MAX" ]; then
-        backup_file "$ENV_CONF" > /dev/null
-        [ "$NEW_INIT" != "$ENG_INIT" ] && _env_set REPORTS_ENGINE_INIT "$NEW_INIT"
-        [ "$NEW_MIN"  != "$ENG_MIN"  ] && _env_set REPORTS_ENGINE_MIN  "$NEW_MIN"
-        [ "$NEW_MAX"  != "$ENG_MAX"  ] && _env_set REPORTS_ENGINE_MAX  "$NEW_MAX"
-    fi
-    if [ "$NEW_LIFE" != "$ENG_LIFE" ] || [ "$NEW_IDLE" != "$ENG_IDLE" ] || [ -n "$NEW_XMX" ]; then
-        warn "engLife / maxIdle / jvmOptions are not in environment.conf – 13-oracle_setup_reports.sh --apply resets them"
-    fi
+    backup_file "$ENV_CONF" > /dev/null
+    for _c in "${CHANGES[@]}"; do
+        case "${_c%%=*}" in
+            initEngine) _env_set REPORTS_ENGINE_INIT        "${_c#*=}" ;;
+            minEngine)  _env_set REPORTS_ENGINE_MIN         "${_c#*=}" ;;
+            maxEngine)  _env_set REPORTS_ENGINE_MAX         "${_c#*=}" ;;
+            engLife)    _env_set REPORTS_ENGINE_LIFE        "${_c#*=}" ;;
+            maxIdle)    _env_set REPORTS_ENGINE_MAX_IDLE    "${_c#*=}" ;;
+            jvmOptions) _env_set REPORTS_ENGINE_JVM_OPTIONS "${_c#*=}" ;;
+        esac
+    done
 
     ok "rwserver.conf updated: $RWSERVER_CONF"
     info "Restart the Reports server to apply the changes:"

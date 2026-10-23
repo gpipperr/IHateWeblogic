@@ -68,8 +68,15 @@ REPORTS_COOKIE_KEY=""                       # Encryption key for session cookie 
 REPORTS_ENGINE_INIT="2"                     # initEngine: pre-started engine processes
 REPORTS_ENGINE_MAX="5"                      # maxEngine: maximum concurrent engines
 REPORTS_ENGINE_MIN="2"                      # minEngine: minimum idle engines
+REPORTS_ENGINE_LIFE="50"                    # engLife: jobs per engine before it is replaced
+REPORTS_ENGINE_MAX_IDLE=""                  # maxIdle (minutes); empty = attribute omitted (Oracle default 30)
+REPORTS_ENGINE_JVM_OPTIONS=""               # jvmOptions of the ENGINE JVMs, e.g. "-Xmx1g";
+                                            #   empty = omitted (engines run with -Xmx256M)
 REPORTS_MAX_CONNECT="300"                   # connection maxConnect
 REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
+# All engine values are written by 13- --apply on every run. Tuning with
+# 05-ReportsPerformance/engine_perf_settings.sh --apply writes them back here,
+# so a later 13- --apply keeps them. jvmOptions must not contain " & < >.
 
 # TNS / database
 TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (interview block 1)
@@ -315,6 +322,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
   <!-- Engine configuration -->
   <!-- initEngine/maxEngine/minEngine: tune to available CPUs and load -->
+  <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set -->
   <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
           initEngine="2" maxEngine="5" minEngine="2"
           engLife="50" defaultEnvId="QS"/>
