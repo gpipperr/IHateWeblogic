@@ -1,6 +1,8 @@
-<p align="center"><a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a></p>
+
 
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Script Library
+
+<p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther</p>
 
 Author: Gunther Pipperr | https://pipperr.de
 License: Apache 2.0
@@ -42,6 +44,52 @@ This library focuses on:
 - Configuration validation (against Oracle documentation)
 - Bug hunting and root cause analysis
 - Documentation generation for support cases
+
+### Why Forms & Reports still matter – an appeal
+
+Oracle Forms and Oracle Reports have been tied to the success of the
+Oracle database from the very beginning. The database came first, in 1979,
+and its forms tools (IAF, later SQL\*Forms) followed in the early 1980s.
+Without the success of Forms, Oracle the company – and its database –
+would not be what they are today. Generations of business applications
+were built with it, and they made the database indispensable in countless
+companies.
+
+For more than twenty years Oracle has not really kept this stack in focus.
+Even so, thousands of companies still run Forms and Reports productively
+in their core processes – against every prediction of their end, and in
+spite of all the resistance. B2B technology databases alone list between
+roughly 3,100 and 12,400 companies using Oracle Forms (Landbase: 3,142;
+6sense: about 12,200; iDataLabs: 12,367 – state 2026)¹. Counting the
+in-house systems that never show up in such databases, a realistic
+estimate is several tens of thousands of active Forms applications
+worldwide. The software keeps delivering real value to
+its customers. There are no fancy bells and whistles; it often looks
+old-fashioned and can be uncomfortable to run (hence this library). But
+it works, it is paid for, and the business depends on it.
+
+So my appeal to Oracle: **keep taking these customers seriously.** The
+high license fees for the database are paid because there is a good
+application running on it. Once Forms leaves a company, the next
+competitor – SAP HANA or any other platform – is already waiting around
+the corner to replace one more Oracle database. Old soldiers never die:
+Forms will retire together with us, whether Oracle likes it or not.
+
+And my appeal to the DOAG, all Oracle user groups and every customer:
+whenever you meet an Oracle sales representative, make it clear that the
+end of Forms in a company can also mean the end of the Oracle story there –
+and that there are many alternatives. All the more so as many of Oracle's
+own business applications still rely on Forms and Reports today – the
+E-Business Suite first among them, also when run in Oracle's cloud, and the
+OPERA 5 property management system of Oracle Hospitality (formerly MICROS
+Fidelio), whose application server is a WebLogic / Forms / Reports stack.
+
+¹ Detected by web crawling, each vendor with its own method – the counts
+differ accordingly and show only what is publicly visible (checked
+2026-10-23):
+[Landbase](https://data.landbase.com/technology/oracle-forms/),
+[6sense](https://6sense.com/tech/database/oracle-forms-market-share),
+[iDataLabs](https://www.idatalabs.com/tech/products/oracle-forms).
 
 ## Target Environment
 
