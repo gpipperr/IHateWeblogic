@@ -47,6 +47,10 @@ Markers: **confirmed (live)** = seen on the test host (FMW 14.1.2, OL 9),
   2026-10-19) – the socket principle of Forms 6i (section 8), only with the
   servlet in front. Reachable from the network unless the firewall blocks
   the port range (01-root_os_baseline section 8 keeps only ssh/http/https open).
+  The bind address is **not configurable**: no `FORMS_*` variable for it in
+  `frmweb` and its libraries, none in the 14.1.2 documentation (**documented**:
+  none, 2026-10-23) – the socket holds no host name, so it is clone-neutral
+  ([clone_golden_image.md](clone_golden_image.md)).
 - The instance `forms1` (`config/fmwconfig/components/FORMS/instances/forms1/`)
   is configuration only (`webutil.cfg`, `ftrace.cfg`, `forms.conf`, tool
   scripts) – no own process ([weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) §3.5).
@@ -82,7 +86,7 @@ older; Oracle's note names Java Web Start explicitly).
 | Nginx → WLS_FORMS | none – plain HTTP to `127.0.0.1:9001`, Nginx sends `WL-Proxy-SSL: true` (**confirmed (live)**, [08-SSL](../08-SSL/README.md)) | no |
 | WLS_FORMS → `frmweb` | none – TCP to the listen port of the runtime (section 1) | no – `frmweb` is native |
 | `frmweb` → database | SQL*Net (native Oracle client; TCPS only if configured in `tnsnames.ora`) | no |
-| WebLogic SSL listen ports `9501` / `9512` (demo certificate, enabled by the domain templates, bound to `127.0.0.1` on the test host) | WebLogic | **yes – server side**, but unused (root README open item: disable) |
+| WebLogic SSL listen ports `9501` / `9512` (demo certificate, enabled by the domain templates) | WebLogic | **off** since 2026-10-23 (`08-` template, `02-Checks/clone_check.sh --apply`) |
 | WebLogic → LDAP / OID / AD over LDAPS, outbound HTTPS from applications | WebLogic | **yes** – only if configured (not on the test host, `egress_check.sh`) |
 
 Consequence for a Java security fix:

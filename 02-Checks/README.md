@@ -25,6 +25,7 @@ explained in the background documents of
 | [`weblogic_performance.sh`](#weblogic_performancesh) | SecureRandom source in `java.security`, heap per server in `setUserOverrides.sh` (`--apply`) | [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) (`setDomainEnv.sh` → `setUserOverrides.sh`); WLS_FORMS heap ≠ Forms sessions – [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts) |
 | [`egress_check.sh`](#egress_checksh) | what the domain sends to other hosts: external DTD/XSD URLs in the configuration, `/etc/hosts` entries for them, XML/network JVM options, live non-local connections per process, `--capture` (tcpdump: DNS + outgoing SYN/UDP, with DNS names and process) | [outbound connections, external-DTD trap](../80-FMW-Architecture/weblogic_outbound_connections.md) |
 | [`tns_admin_check.sh`](#tns_admin_checksh) | one Oracle Net directory (`TNS_ADMIN` of `environment.conf`) in every place a Forms / Reports / WebLogic process or the oracle shell reads it; `--apply` writes the `setUserOverrides.sh` block | [Forms: `frmweb` reads `default.env`](../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias), [Reports: three places, Oracle's defaults](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin) |
+| [`clone_check.sh`](#clone_checksh) | clone-capable / golden image: listening sockets by bind address, WebLogic listen + SSL ports + Coherence, Reports ORB, host name / IP in the domain configuration, `*.des3` secrets (disk UUID), host-specific places; `--apply` = SSL off + Coherence 127.0.0.1 (WLST online) | [clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) |
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/report_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
@@ -447,6 +448,36 @@ environment of the running processes (`/proc/<pid>/environ` of `frmweb`,
 the file. Diagnosis scripts that compare one place on their own:
 `06-FormsDiag/forms_settings.sh` (default.env),
 `05-ReportsPerformance/engine_perf_settings.sh` (rwserver.conf).
+
+---
+
+### clone_check.sh
+
+```bash
+./02-Checks/clone_check.sh            # read-only
+./02-Checks/clone_check.sh --apply    # SSL listen ports off + Coherence 127.0.0.1 (WLST online)
+```
+
+Can this installation be cloned (golden image) or moved? Target: everything
+internal on `127.0.0.1`, only Nginx and the certificate carry the host name
+([clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md)).
+
+| Section | WARN (fix before the image) | INFO (by design / after the clone) |
+|---|---|---|
+| listening sockets (`ss`) of WebLogic, NM, `rwserver`, engines, `frmweb` | java socket on all interfaces / host IP | `frmweb` (not configurable), Coherence remainder on the host IP, multicast discovery |
+| WebLogic `config.xml`, `nodemanager.properties` | listen address not loopback, SSL listen port on, Coherence unicast not 127.0.0.1 | – |
+| Reports | `reports.sh` / `setUserOverrides.sh` without `ORBServerHost=127.0.0.1` → `13- --apply` | broadcast port to change after a clone |
+| host name / IP in `$DOMAIN_HOME/config` | unknown file | JDBC / OPSS (DB host), `tokenValue.properties`, `uifont.ali` comment |
+| RCU repository | – | on this host = cloned along (OK); **external** = own prefix per clone ([§5](../80-FMW-Architecture/clone_golden_image.md#5-the-rcu-repository--where-it-lives-decides)) |
+| machine identity | – | `*.des3` secrets (disk UUID) to re-enter |
+| host-specific places | – | `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL`, Nginx certificate, `tnsnames.ora` |
+
+Result line "Clone-capable: yes / not yet" with the number of items. `--apply`
+loads the WebLogic password (`load_weblogic_password`, passed to WLST via the
+environment), backs up `config.xml` and changes WLS_FORMS / WLS_REPORTS
+online; then stop both servers and start them again. Live 2026-10-23: from 4
+items (SSL ×2, Coherence ×2) plus ORB on all interfaces to "yes" with 14
+post-clone steps.
 
 ---
 

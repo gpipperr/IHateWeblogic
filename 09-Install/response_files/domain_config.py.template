@@ -64,6 +64,33 @@ if _with_reports:
     set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
     set('ListenPort', ##WLS_REPORTS_PORT##)
 
+# --- Loopback only (80-FMW-Architecture/clone_golden_image.md) ---------------
+# SSL listen port of the managed servers off: the templates enable it with the
+# WebLogic demo certificate (9501 / 9512); TLS ends at Nginx.
+# Coherence member traffic of cluster_forms / cluster_reports on the listen
+# address instead of the routable host IP (clones must not join each other).
+def _ihw_loopback(ms):
+    try:
+        cd('/Servers/' + ms + '/SSL/' + ms)
+    except:
+        cd('/Servers/' + ms)
+        create(ms, 'SSL')
+        cd('SSL/' + ms)
+    set('Enabled', 'false')
+    try:
+        cd('/Servers/' + ms + '/CoherenceMemberConfig/' + ms)
+    except:
+        cd('/Servers/' + ms)
+        create(ms, 'CoherenceMemberConfig')
+        cd('CoherenceMemberConfig/' + ms)
+    set('UnicastListenAddress', '##WLS_LISTEN_ADDRESS##')
+    cd('/')
+
+if _with_forms:
+    _ihw_loopback('WLS_FORMS')
+if _with_reports:
+    _ihw_loopback('WLS_REPORTS')
+
 # --- JDBC data sources (created by JRF/Forms/Reports templates) --------------
 # All FMW schemas use the same password; URL uses thin @//host:port/service
 # (double-slash + slash = PDB service name, not SID).

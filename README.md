@@ -32,8 +32,10 @@ runtime + FSAL + JACOB from Nginx, PowerShell installer in the user profile)
 and **one `TNS_ADMIN`** for every process – together the first complete
 Forms session from a Windows client (alias login, test form). Since
 2026-10-23 also: all Reports engine tuning values from `environment.conf`
-(an `--apply` in `05-` survives the next `13-`) and backup retention
-(`backup_config.sh --keep`, `bak_cleanup.sh`).
+(an `--apply` in `05-` survives the next `13-`), backup retention
+(`backup_config.sh --keep`, `bak_cleanup.sh`) and a **loopback-only,
+clone-capable** installation (`02-Checks/clone_check.sh`, SSL demo ports off,
+Reports ORB on 127.0.0.1).
 
 How the ~92 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a quarter
@@ -101,11 +103,11 @@ What matters in this cycle:
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
 > chain incl. autostart and smoke test (2026-10-14/16), secured standalone
 > Reports server (2026-10-16), RCU repository analysis (2026-10-17), review of
-> all analyse + fix folders and `08-SSL` against the Oracle docs (2026-10-19/20,
-> Forms client distribution via URL + first Windows FSAL session and one
-> `TNS_ADMIN` for all processes (2026-10-22/23,
-> [Folder Roles](#folder-roles), background in
-> [`80-FMW-Architecture/`](80-FMW-Architecture/README.md)). Details of every
+> all analyse + fix folders and `08-SSL` against the Oracle docs (2026-10-19/20),
+> Forms client distribution via URL + first Windows FSAL session, one
+> `TNS_ADMIN` for all processes and the loopback-only / clone-capable domain
+> (2026-10-22/23) – [Folder Roles](#folder-roles), background in
+> [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
 > fix: `git log`; what is still open: [Open Items / TODO](#open-items--todo).
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
@@ -167,6 +169,7 @@ operation with proactive, AI-assisted error analysis.
 │  02-Checks/java_check.sh    JAVA_HOME, version, Log4j CVE scan      │
 │  02-Checks/port_check.sh    Port reachability                      │
 │  02-Checks/tns_admin_check.sh  One TNS_ADMIN, files + processes    │
+│  02-Checks/clone_check.sh   Loopback only, clone / golden image    │
 │  01-Run/rwserver_status.sh  Reports Server health                  │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -274,7 +277,7 @@ Rules across the folders:
 |---|---|
 | Phase 8 (Patches) | Scripts still on the CSPU Sep 2026 set (October set incl. FMW Infrastructure bundles documented, not yet in `05-`/`06-`); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
-| Security | WLS demo SSL ports, `frmweb`/`rwserver` loopback binding, Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
+| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall), Forms `maxRuntimeProcesses` – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
 
@@ -364,6 +367,8 @@ IHateWeblogic/
 │   │                                   --capture (tcpdump DNS + SYN with process) – external-DTD hang risk
 │   ├── tns_admin_check.sh           – One TNS_ADMIN everywhere: default.env, rwserver.conf, reports.sh,
 │   │                                   setUserOverrides.sh (--apply), .bash_profile, running processes
+│   ├── clone_check.sh               – Clone-capable / golden image: sockets by bind address, SSL ports,
+│   │                                   Coherence, Reports ORB, host refs, RCU location, secrets (--apply)
 │   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
 │   │                                   servers per port (DiagServerLocator), read-only
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
@@ -525,6 +530,8 @@ IHateWeblogic/
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
+│   ├── clone_golden_image.md        – loopback-only installation, what holds the host name, RCU
+│   │                                      local vs. external, golden-image recipe
 │   ├── java_jlink_forms_env.md      – own Java runtime for the Forms client (jlink, jmods,
 │   │                                      cross-build Windows on Linux, module list)
 │   └── forms_jakob_webutil.md       – WebUtil + JACOB (OLE / Office automation)
@@ -749,18 +756,22 @@ CSPU Sep 2026 state is frozen in
 - [ ] Full Reports-only domain creation (`INSTALL_COMPONENTS=REPORTS_ONLY`,
   so far verified with WLST offline only).
 - [ ] `08-SSL` modes `EASYRSA` and `REQUEST` end-to-end.
+- [ ] `08-` loopback block (SSL off, Coherence unicast) in a **new** domain –
+  tested offline on a domain copy and online on the existing domain only.
+- [ ] **Clone test**: golden image recipe
+  ([clone_golden_image.md §6](80-FMW-Architecture/clone_golden_image.md)) on a
+  real clone, incl. the external-RCU way (new prefix per clone).
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
 
 ### Security hardening
 
-- [ ] **WLS SSL listen ports with the demo certificate** (`WLS_FORMS` 9501,
-  `WLS_REPORTS` 9512, bound to 127.0.0.1) – disable in `09-Install/08-`
-  (plan in `09-Install/docs/08-oracle_setup_domain.md`).
-- [ ] **Loopback binding** of the `frmweb` / `rwserver` sockets – every
-  `frmweb` listens on an ephemeral port on all interfaces
-  ([forms_runtime_architecture.md §1](80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts));
-  the firewall keeps them closed today.
+- [ ] **Remaining non-loopback sockets** (2026-10-23 everything else is on
+  `127.0.0.1`, SSL ports with the demo certificate are off – `08-`,
+  `13-`, `02-Checks/clone_check.sh`): `frmweb` (no bind option – SR
+  question to Oracle) and the Coherence cluster port + one port on the host
+  IP (MOS 2420434.1 not read yet); the firewall closes them
+  ([clone_golden_image.md](80-FMW-Architecture/clone_golden_image.md)).
 - [ ] **Forms `maxRuntimeProcesses`** unset (Oracle: DoS risk) – 14- /
   interview should propose a value from RAM.
 - [ ] **Reports web commands / `<identifier>` / `webcommandaccess`** – tests

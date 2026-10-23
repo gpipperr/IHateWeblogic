@@ -494,7 +494,7 @@ export NLS_LANG=GERMAN_GERMANY.AL32UTF8
 # Font configuration (must match rwserver.conf envVariable entries)
 REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
-REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
+REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"; export REPORTS_JVM_OPTIONS
 REPORTS_PATH=${REPORTS_PATH}:<REPORTS_PATH of environment.conf>; export REPORTS_PATH
 # ────────────────────────────────────────────────────────────────────────────
 ```
@@ -508,11 +508,13 @@ REPORTS_PATH=${REPORTS_PATH}:<REPORTS_PATH of environment.conf>; export REPORTS_
 | `-Djdk.lang.processReaperUseDefaultStackSize=true` | the JDK "process reaper" thread died with `StackOverflowError` at every start; the first authentication then waited ~4 min in the Oracle diagnostics framework (`ADRHelper.getProcessExitValue`) |
 | `-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000` | after an engine crash the rwserver retried the dead engine 60 s (ORB default `250:60000:100:5000`) – now ~6 s |
 | `-DORBWaitForResponseTimeout=999999999` | required as soon as `REPORTS_JVM_OPTIONS` is set (see troubleshooting REP-50125) |
+| `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` | the ORB (GlassFish CORBA) of the server **and of the engines** (they inherit the variable) binds to `127.0.0.1` instead of all interfaces and writes it into the IOR – rwservlet on the same host still works, smoke test OK (2026-10-23, [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md)); a Reports client on **another** host cannot call this server any more |
 | `-Xmx256M` | previous default |
 
-Check: `jcmd <rwserver pid> VM.command_line`.
+Check: `jcmd <rwserver pid> VM.command_line`, `ss -ltnp` (rwserver + engines on `127.0.0.1`).
+Older `reports.sh` blocks (without `ORBServerHost`) are updated by `13- --apply`.
 
-### Step 6b – `setUserOverrides.sh`: ORB connect timeout of WLS_REPORTS
+### Step 6b – `setUserOverrides.sh`: ORB connect timeout + loopback of WLS_REPORTS
 
 The rwservlet keeps the CORBA reference of the Reports server; after a
 restart of the Reports server (new random port) the ORB retried the dead
@@ -520,8 +522,12 @@ port 60 s. The script adds to the `WLS_REPORTS` block of
 `$DOMAIN_HOME/bin/setUserOverrides.sh`:
 
 ```bash
-export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
 ```
+
+`ORBServerHost=127.0.0.1` (2026-10-23): the ORB the rwservlet opens at the
+first report request listened on all interfaces, now on `127.0.0.1`
+(`ss -ltnp` of WLS_REPORTS); an existing line without it is extended.
 
 First job after a full restart 1.8 s (before 242–305 s), after a restart of
 the Reports server only 8 s (before 64 s), after an engine crash 7 s (before

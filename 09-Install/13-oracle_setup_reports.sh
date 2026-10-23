@@ -13,7 +13,7 @@
 #                 (RW_MONITOR, RW_EXECREPORTS) work for the standalone server
 #              5. Patch reports.sh (NLS_LANG, fonts, REPORTS_PATH,
 #                 REPORTS_JVM_OPTIONS of the rwserver: process reaper fix +
-#                 ORB connect timeout) and setUserOverrides.sh (ORB connect
+#                 ORB connect timeout, ORB on 127.0.0.1) and setUserOverrides.sh (ORB connect
 #                 timeout of WLS_REPORTS)
 #            Background: 80-FMW-Architecture/reports_user_local_ldap.md
 # Call     : ./09-Install/13-oracle_setup_reports.sh
@@ -889,6 +889,12 @@ unset _inst _RWSERVER _ENG_INIT _ENG_MAX _ENG_MIN _MAX_CONN _MAX_QUEUE _NLS _tns
 
 section "reports.sh"
 
+# JVM of the rwserver process and - inherited - of the engines (librw.so reads
+# REPORTS_JVM_OPTIONS, default -Xmx256M): process reaper fix (first
+# authentication waited ~4 min) + ORB connect timeout 5 s instead of 60 s
+# (2026-10-16) + ORB (GlassFish CORBA) bound to 127.0.0.1 instead of all
+# interfaces (2026-10-23, 80-FMW-Architecture/clone_golden_image.md)
+_RWS_JVM_LINE='REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"; export REPORTS_JVM_OPTIONS'
 _REPORTS_SH="$DOMAIN_HOME/reports/bin/reports.sh"
 printf "  %-26s %s\n" "File:" "$_REPORTS_SH" | tee -a "${LOG_FILE:-/dev/null}"
 
@@ -902,14 +908,23 @@ elif grep -q 'IHateWeblogic Settings' "$_REPORTS_SH" 2>/dev/null; then
     # JVM of the rwserver process (librw.so reads REPORTS_JVM_OPTIONS, default
     # -Xmx256M): process reaper fix (first authentication waited ~4 min) +
     # ORB connect timeout 5 s instead of 60 s (engine crash) - 2026-10-16
-    if grep -q 'processReaperUseDefaultStackSize' "$_REPORTS_SH"; then
-        ok "reports.sh: REPORTS_JVM_OPTIONS (reaper + ORB timeout) present"
+    if grep -qxF "$_RWS_JVM_LINE" "$_REPORTS_SH"; then
+        ok "reports.sh: REPORTS_JVM_OPTIONS (reaper + ORB timeout + ORB on 127.0.0.1) present"
     elif $APPLY; then
         cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
-        sed -i '/^REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING/a REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS' "$_REPORTS_SH"
-        ok "reports.sh: REPORTS_JVM_OPTIONS added (reaper + ORB timeout)"
+        if grep -q '^REPORTS_JVM_OPTIONS=' "$_REPORTS_SH"; then
+            # older block without ORBServerHost (before 2026-10-23) - replace
+            _l="$_RWS_JVM_LINE" awk '/^REPORTS_JVM_OPTIONS=/ { print ENVIRON["_l"]; next } { print }' \
+                "$_REPORTS_SH" > "${_REPORTS_SH}.tmp" && cat "${_REPORTS_SH}.tmp" > "$_REPORTS_SH" && rm -f "${_REPORTS_SH}.tmp"
+        else
+            _l="$_RWS_JVM_LINE" awk '{ print } /^REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING/ { print ENVIRON["_l"] }' \
+                "$_REPORTS_SH" > "${_REPORTS_SH}.tmp" && cat "${_REPORTS_SH}.tmp" > "$_REPORTS_SH" && rm -f "${_REPORTS_SH}.tmp"
+        fi
+        grep -qxF "$_RWS_JVM_LINE" "$_REPORTS_SH" \
+            && ok "reports.sh: REPORTS_JVM_OPTIONS written (reaper + ORB timeout + ORB on 127.0.0.1) – Reports server restart" \
+            || fail "reports.sh: REPORTS_JVM_OPTIONS not written – check $_REPORTS_SH"
     else
-        info "Dry-run – would add REPORTS_JVM_OPTIONS (reaper + ORB timeout) to reports.sh"
+        info "Dry-run – would write REPORTS_JVM_OPTIONS (reaper + ORB timeout + ORB on 127.0.0.1) to reports.sh"
     fi
     if grep -qF "REPORTS_PATH=\${REPORTS_PATH}:${REPORTS_PATH};" "$_REPORTS_SH"; then
         ok "reports.sh: REPORTS_PATH line present"
@@ -937,7 +952,7 @@ else
             # default above (/etc or $DOMAIN_HOME/config/fmwconfig)
             [ -n "${TNS_ADMIN:-}" ] && printf 'TNS_ADMIN=%s; export TNS_ADMIN\n' "$TNS_ADMIN"
             printf '# rwserver JVM: process reaper fix + ORB connect timeout (80-FMW-Architecture/reports_user_local_ldap.md)\n'
-            printf 'REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS\n'
+            printf '%s\n' "$_RWS_JVM_LINE"
             printf '# ────────────────────────────────────────────────────────────────────────────\n'
         } >> "$_REPORTS_SH"
         ok "reports.sh updated with NLS_LANG and font variables"
@@ -974,17 +989,26 @@ unset _REPORTS_SH
 #     The rwservlet keeps the CORBA reference of the Reports server; after a
 #     restart of the Reports server (new port) the ORB retries the dead port
 #     60 s (default ORBTCPConnectTimeouts 250:60000:100:5000) - 5 s with this.
+#     ORBServerHost=127.0.0.1: the rwservlet ORB listens on loopback instead of
+#     all interfaces (2026-10-23, 80-FMW-Architecture/clone_golden_image.md).
 # =============================================================================
 
-section "setUserOverrides.sh (WLS_REPORTS ORB timeout)"
+section "setUserOverrides.sh (WLS_REPORTS ORB timeout + 127.0.0.1)"
 
 _UO="$DOMAIN_HOME/bin/setUserOverrides.sh"
-_ORB="-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
+_ORB="-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
 _MS="${WLS_MANAGED_SERVER:-WLS_REPORTS}"
-if [ -f "$_UO" ] && grep -q 'ORBTCPConnectTimeouts' "$_UO"; then
-    ok "setUserOverrides.sh: ORB connect timeout present"
+if [ -f "$_UO" ] && grep -qF -- "$_ORB" "$_UO"; then
+    ok "setUserOverrides.sh: ORB connect timeout + ORB on 127.0.0.1 present"
 elif ! $APPLY; then
     info "Dry-run – would add $_ORB for $_MS to $_UO"
+elif [ -f "$_UO" ] && grep -q 'ORBTCPConnectTimeouts=250:5000:100:1000"' "$_UO"; then
+    # older line without ORBServerHost (before 2026-10-23) - extend it
+    cp -p "$_UO" "${_UO}.bak_$(date +%Y%m%d_%H%M%S)"
+    sed -i 's|-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"|-Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"|' "$_UO"
+    grep -qF -- "$_ORB" "$_UO" \
+        && ok "setUserOverrides.sh: ORBServerHost=127.0.0.1 added for $_MS – server restart" \
+        || fail "setUserOverrides.sh: ORBServerHost not written - check $_UO"
 else
     [ -f "$_UO" ] && cp -p "$_UO" "${_UO}.bak_$(date +%Y%m%d_%H%M%S)"
     if [ -f "$_UO" ] && grep -q "^if \[ \"\${SERVER_NAME}\" = \"${_MS}\" \]; then" "$_UO"; then
@@ -998,7 +1022,7 @@ else
         } >> "$_UO"
         chmod 750 "$_UO"
     fi
-    grep -q 'ORBTCPConnectTimeouts' "$_UO" \
+    grep -qF -- "$_ORB" "$_UO" \
         && ok "setUserOverrides.sh: $_ORB for $_MS added" \
         || fail "setUserOverrides.sh: ORB timeout not written - check $_UO"
 fi
