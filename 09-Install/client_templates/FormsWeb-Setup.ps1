@@ -14,7 +14,9 @@
 # Served and versioned by 09-Install/40-oracle_forms_client_bundle.sh;
 # concept: 09-Install/docs/40-forms_client_distribution.md
 # Pure ASCII on purpose: Windows PowerShell 5.1 reads UTF-8 files without BOM
-# as ANSI.
+# as ANSI. Profile paths may contain non-ASCII characters (user names such as
+# "Pipperr" with an accent): state.json is written as UTF-8 and stores no
+# absolute paths, and Java only gets ASCII arguments (relative jar name).
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================
@@ -27,7 +29,7 @@ param(
     [int]$Restarted = 0
 )
 
-$FormsWebSetupVersion = '1.0.1'
+$FormsWebSetupVersion = '1.0.2'
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'   # progress bar slows downloads in PS 5.1
@@ -79,11 +81,41 @@ function Read-State {
     return [pscustomobject]@{ baseUrl = ''; current = $null; previous = $null }
 }
 
-function Save-State($st) { $st | ConvertTo-Json -Depth 6 | Set-Content -Path $StateFile -Encoding ASCII }
+function Save-State($st) { $st | ConvertTo-Json -Depth 6 | Set-Content -Path $StateFile -Encoding UTF8 }
 
-function New-Shortcuts($mf) {
+# Paths are always derived from the component data, never stored: an
+# absolute path written by an older version (or with a broken encoding)
+# can not be wrong this way.
+function Get-CompPath([string]$name, $c) {
+    if ($name -eq 'java') { return (Join-Path $Root ('java\' + $c.version + '-' + $c.sha256.Substring(0, 8))) }
+    return (Join-Path $Root ($name + '\' + $c.file))
+}
+
+# optional own icon of the shortcut (manifest start.icon)
+function Get-Icon($mf) {
+    $default = (Join-Path $env:SystemRoot 'System32\shell32.dll') + ',13'
+    $ic = $mf.start.icon
+    if (-not $ic -or -not $ic.file) { return $default }
+    $dir = Join-Path $Root 'icons'
+    $p = Join-Path $dir $ic.file
+    if ((Test-Path $p) -and (Test-Hash $p $ic.sha256)) { return ($p + ',0') }
+    if (-not $script:Online) { return $default }
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $tmp = Join-Path $env:TEMP ('formsweb-{0}-{1}' -f $PID, $ic.file)
+    Get-Remote $ic.file $tmp 60
+    if (-not (Test-Hash $tmp $ic.sha256)) { Remove-Item $tmp -Force; Write-Log 'Icon: SHA-256 mismatch - default icon'; return $default }
+    Move-Item $tmp $p -Force
+    return ($p + ',0')
+}
+
+function New-Shortcuts($mf, $st) {
     $name = $mf.start.shortcutName
     if (-not $name) { $name = 'Oracle Forms' }
+    $icon = Get-Icon $mf
+    # shortcut renamed on the server: remove the old one
+    if ($st.shortcut -and $st.shortcut.name -and ($st.shortcut.name -ne $name)) {
+        Remove-Shortcuts ([pscustomobject]@{ start = [pscustomobject]@{ shortcutName = $st.shortcut.name } })
+    }
     $shell = New-Object -ComObject WScript.Shell
     $targets = @(
         (Join-Path ([Environment]::GetFolderPath('Desktop')) ($name + '.lnk')),
@@ -94,11 +126,23 @@ function New-Shortcuts($mf) {
         $lnk.TargetPath       = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $lnk.Arguments        = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $Self + '" -Start'
         $lnk.WorkingDirectory = $Root
-        $lnk.IconLocation     = (Join-Path $env:SystemRoot 'System32\shell32.dll') + ',13'
+        $lnk.IconLocation     = $icon
         $lnk.Description      = 'Oracle Forms (FSAL) - checks for updates on every start'
         $lnk.Save()
     }
+    $iconSha = ''
+    if ($mf.start.icon) { $iconSha = $mf.start.icon.sha256 }
+    $st | Add-Member -NotePropertyName shortcut -NotePropertyValue ([pscustomobject]@{ name = $name; icon = $iconSha }) -Force
+    Save-State $st
     Write-Log ('Shortcuts written: ' + $name)
+}
+
+# rewrite the shortcuts when name or icon changed on the server
+function Update-Shortcuts($mf, $st) {
+    $name = $mf.start.shortcutName; if (-not $name) { $name = 'Oracle Forms' }
+    $iconSha = ''; if ($mf.start.icon) { $iconSha = $mf.start.icon.sha256 }
+    if ($st.shortcut -and $st.shortcut.name -eq $name -and $st.shortcut.icon -eq $iconSha) { return }
+    New-Shortcuts $mf $st
 }
 
 function Remove-Shortcuts($mf) {
@@ -169,7 +213,7 @@ function Update-Components($mf, $st) {
         if (-not $c) { continue }
         $old = $null
         if ($cur) { $old = $cur.$name }
-        if ($old -and $old.sha256 -eq $c.sha256 -and (Test-Path $old.path)) {
+        if ($old -and $old.sha256 -eq $c.sha256 -and (Test-Path (Get-CompPath $name $old))) {
             $new[$name] = $old
             continue
         }
@@ -183,22 +227,20 @@ function Update-Components($mf, $st) {
         }
         switch ($name) {
             'java' {
-                $dir = Join-Path $Root ('java\' + $c.version + '-' + $c.sha256.Substring(0, 8))
+                $dir = Get-CompPath 'java' $c
                 if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
                 Add-Type -AssemblyName System.IO.Compression.FileSystem
                 [IO.Compression.ZipFile]::ExtractToDirectory($tmp, $dir)
                 Remove-Item $tmp -Force
                 if (-not (Test-Path (Join-Path $dir 'bin\javaw.exe'))) { throw ('javaw.exe missing in ' + $c.file) }
-                $path = $dir
             }
             default {
                 $sub = Join-Path $Root $name
                 if (-not (Test-Path $sub)) { New-Item -ItemType Directory -Path $sub -Force | Out-Null }
-                $path = Join-Path $sub $c.file
-                Move-Item $tmp $path -Force
+                Move-Item $tmp (Get-CompPath $name $c) -Force
             }
         }
-        $new[$name] = [pscustomobject]@{ version = $c.version; file = $c.file; sha256 = $c.sha256; path = $path }
+        $new[$name] = [pscustomobject]@{ version = $c.version; file = $c.file; sha256 = $c.sha256 }
         Write-Log ('Installed ' + $name + ' ' + $c.version)
     }
     if ($changed) {
@@ -215,7 +257,7 @@ function Remove-Unused($st) {
     $keep = @()
     foreach ($s in @($st.current, $st.previous)) {
         if (-not $s) { continue }
-        foreach ($p in $s.PSObject.Properties) { $keep += $p.Value.path }
+        foreach ($p in $s.PSObject.Properties) { $keep += (Get-CompPath $p.Name $p.Value) }
     }
     foreach ($sub in @('java', 'fsal', 'jacob')) {
         $d = Join-Path $Root $sub
@@ -238,17 +280,20 @@ function Copy-Jacob($mf, $st) {
     $dst = Join-Path $dir $st.current.jacob.file
     if ((Test-Path $dst) -and (Test-Hash $dst $st.current.jacob.sha256)) { return }
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    Copy-Item $st.current.jacob.path $dst -Force
+    Copy-Item (Get-CompPath 'jacob' $st.current.jacob) $dst -Force
     Write-Log ('JACOB DLL placed: ' + $dst)
 }
 
 function Start-Forms($mf, $st) {
     if (-not $st.current -or -not $st.current.java) { throw 'Forms client not installed - run the installer first' }
-    $javaw = Join-Path $st.current.java.path 'bin\javaw.exe'
-    $fsal  = $st.current.fsal.path
-    $al = @('-jar', ('"' + $fsal + '"'), '-url', ('"' + $mf.start.url + '"')) + @($mf.start.fsalArgs)
+    $javaw = Join-Path (Get-CompPath 'java' $st.current.java) 'bin\javaw.exe'
+    $fsalDir = Join-Path $Root 'fsal'
+    # relative jar name + working directory: the Java launcher converts its
+    # arguments to the ANSI code page - a profile path with characters
+    # outside it would arrive as '?' ("Unable to access jarfile")
+    $al = @('-jar', $st.current.fsal.file, '-url', ('"' + $mf.start.url + '"')) + @($mf.start.fsalArgs)
     Write-Log ('Start ' + $mf.start.url + ' with Java ' + $st.current.java.version)
-    Start-Process -FilePath $javaw -ArgumentList $al -WorkingDirectory $Root
+    Start-Process -FilePath $javaw -ArgumentList $al -WorkingDirectory $fsalDir
 }
 
 # -----------------------------------------------------------------------------
@@ -293,7 +338,8 @@ try {
         $null = Update-Components $mf $st
         Copy-Jacob $mf $st
     }
-    if ($Install) { New-Shortcuts $mf }
+    if ($Install) { New-Shortcuts $mf $st }
+    elseif ($script:Online) { Update-Shortcuts $mf $st }
     if ($Start -or $Install) { Start-Forms $mf $st }
 } catch {
     Show-Error $_.Exception.Message

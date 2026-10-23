@@ -304,7 +304,8 @@ Design:
 %LOCALAPPDATA%\FormsWeb\                 (local profile, not Roaming: runtime ~50–300 MB)
   FormsWeb-Setup.ps1                     current script
   manifest.json                          last manifest (offline start)
-  state.json                             installed versions + hashes
+  state.json                             installed versions + hashes (UTF-8, no paths)
+  icons\icon-<sha8>.ico                  own shortcut icon (FORMS_CLIENT_ICON)
   java\21.0.13.0.2-<sha8>\               runtime (versioned; previous version kept)
   fsal\frmsal-14.1.2.0.0-<sha8>.jar
   jacob\jacob-1.21-x64.dll               verified copy (see 5.6)
@@ -314,6 +315,25 @@ Design:
 No administrator, no `HKLM`, no system `PATH`, no change to any machine-wide
 Java. `%LOCALAPPDATA%` instead of `%APPDATA%`: a Roaming profile would copy
 the runtime at every logon / logoff.
+
+**Profile paths with non-ASCII characters** (**confirmed (live)** 2026-10-23:
+a Windows user name taken over from a Microsoft account, `C:\Users\Pipp<è>rr`).
+Version 1.0.1 failed at the second start with *"Unable to access jarfile
+C:\Users\Pipp?rr\…"* – two causes, both fixed in 1.0.2:
+
+- `state.json` was written with `-Encoding ASCII` → `è` became `?`. Now
+  UTF-8, and **no absolute paths are stored at all** – every path is derived
+  from `%LOCALAPPDATA%` + version + hash at run time (an old, broken state
+  file heals itself).
+- The Java launcher converts its command line to the ANSI code page; a
+  character outside it would still arrive as `?`. FSAL is therefore started
+  with the **jar name only** and the `fsal\` folder as working directory –
+  Java gets ASCII arguments only. The path of `javaw.exe` itself goes
+  through `CreateProcessW` (Unicode).
+
+Still a limit (**assumption**): a profile path with characters outside the
+ANSI code page may break `java.home` detection of the launcher – then a
+short ASCII install root would be needed (not implemented).
 
 ### 5.3 Order on every start
 
@@ -349,7 +369,7 @@ A changed `shortcutName` takes effect with the next `-Install`.
 
 ```
 "%LOCALAPPDATA%\FormsWeb\java\<version>-<sha8>\bin\javaw.exe"
-    -jar "%LOCALAPPDATA%\FormsWeb\fsal\frmsal-<version>.jar"
+    -jar frmsal-<version>.jar                 (working directory: …\FormsWeb\fsal)
     -url "https://<host>/forms/frmservlet?config=standaloneapp"
     -t 30000 -cert_truststore java
 ```
@@ -592,7 +612,11 @@ Behaviour (§5.3), as implemented:
 - FSAL is started with `javaw.exe -jar frmsal-….jar -url "<start.url>"
   <start.fsalArgs>`;
 - errors are shown in a message box (the shortcut runs hidden) and logged
-  in `logs\FormsWeb-<date>.log`.
+  in `logs\FormsWeb-<date>.log`;
+- shortcuts are rewritten on `-Install` and on every online start when the
+  shortcut name or the icon (`start.icon`, SHA-256 checked, stored in
+  `icons\`) changed on the server; a renamed shortcut replaces the old one;
+- 1.0.2 (2026-10-23): non-ASCII profile paths (see §5.2), own icon.
 
 Nginx serves `.ps1` as `text/plain` and `.cmd` as `application/octet-stream`
 (the browser saves the bootstrap instead of showing it).
