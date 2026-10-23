@@ -99,6 +99,16 @@ standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.
 | 32720458 (old JDBC) | not installed | no rollback before `napply` needed |
 | `/etc/oraInst.loc` | `inventory_loc=/home/oracle/oraInventory`, `inst_group=oinstall`; Oracle Home `/oracle/product/mw`, domain home `/oracle/user_projects/domains/fr_domain` | the central inventory lives in the **home directory of the oracle user**, outside `/oracle` – include it explicitly in the backup (a backup of `/oracle` alone misses it) |
 | `$ORACLE_HOME/oui/.globalEnv.properties` | `JAVA_HOME=/oracle/java/jdk`, `JAVA_HOME_1_8=/oracle/java/jdk` | OPatch's JDK lies **outside** the Oracle Home (KB175049 fulfilled) and the path is version-neutral → the JDK update is a link switch `ln -sfn jdk1.8.0_511 /oracle/java/jdk` (if `jdk` is a real directory today: rename it to `jdk1.8.0_<old>` once and create the link) – no configuration file has to change; check for remaining `jdk1.8.0_` paths in `DOMAIN_HOME` (cookbook step 4). **Confirmed:** all running Java processes (`ps auxf`) start from `/oracle/java/jdk` – the servers already use the version-neutral path |
+| **Collector run 2026-10-23** (`tools/collect_fmw_env.sh --full --logs`, first machine) | see the rows below | archive kept outside the repository |
+| OS / glibc | Oracle Linux **8.9**, glibc **2.28**, uptime 17 weeks, 30 GB RAM | KB873815 (Forms relink after Reports QPR, glibc ≥ 2.34) does **not** apply – the order Forms before Reports stays as a good habit |
+| Role of the machine | host name ends with "t", no `frmweb` session at 20:00 | probably a **test** system – confirm (point 12) |
+| **Reports** | components `oracle.reports.{bridge,builder,core,runtime,server,tools}` in the home; `ReportsServerComponent` / `ReportsToolsComponent` in `config.xml`; `rwserver` listening on port 13411, two engines running | Reports **runs on this machine** – the Reports QPR 39600813 is required (point 11 answered) |
+| **OHS** | components `oracle.ohs2`, `oracle.ohs2.collocated`, `oracle.oamclient.webgate.ohs`; system component **`ohs1`** (type OHS) in the domain | the OHS set of 3.5 (40005842, 39114058, 38098858 + 38832179; 39567777 via the SPB) is required – READMEs still to read (point 2 answered) |
+| **JDK inside the home** | `oracle_common/jdk` = **1.8.0_341-b10** (2022); the Reports engines (`rwrun.jar`) run with it | the link switch of `/oracle/java/jdk` (8u411 → 8u511) does **not** reach the Reports engines – they stay on 8u341, affected by every Java CPU since 2022 and the alert CVE-2026-91403. Same topic as the bundled JDK of 14.1.2 (no patch in KA1182). **Open:** does KA1182 / Oracle provide an update of `oracle_common/jdk` for 12.2.1.19, or may the Reports engine JVM be pointed to `/oracle/java/jdk` (point 14) |
+| Java elsewhere | an OCI management agent with its own JDK 8u431 under `/oracle/agent` | not part of the FMW home – outside this patch run |
+| One-off **36475988** | "One-off", unique ID 25629864, created 8 Apr 2024, applied 30 May 2024; bugs 31730486, 34001741, 34565300, 34992408, 35027900, 35324055, 35504582, 35515196, 35687821, 35783672, 36442524 | all 11 bugs are in Forms QPR 39888613 → a Forms bundle one-off of April 2024, superseded by the QPR |
+| One-off **34290481** | created 17 Nov 2022, applied 29 May 2024, fixes only bug 34290481 | still unknown (point 10) – the conflict check shows whether a bundle contains it |
+| Listening ports | `WLS_FORMS` 9001 and `WLS_REPORTS` 9002 on 127.0.0.1 only; Reports server 13411 and Coherence/NM ports on all interfaces; a local DB listener on 127.0.0.1:1521 | a database runs on the same machine – repository DB? (its patch level is a separate topic, DB RU) |
 | Products (`lsinventory -details` excerpt) | file list of the Forms components (`patches/25629864`, Forms only) | whether the **Reports** component is in the home is not visible – the customer runs Reports, but probably not on this server (section 7, point 11) |
 
 
@@ -266,6 +276,53 @@ components come with every FMW infrastructure (also with Forms & Reports).
 | 39114058 | OAM WebGate DB19c BP 12.2.1.4.260323 | Apr 2026 | |
 | 38098858 + 38832179 | LIBDMS2 SPU 12.2.1.4.260120 + LIBIAU SPU 12.2.1.4.260120 | Jan 2026 | Linux only |
 
+#### 3.5a From the OHS READMEs (read 2026-10-23)
+
+| Patch | Method | Before | Post-install | Rollback | Notes |
+|---|---|---|---|---|---|
+| **40005842** OHS (Native) DB19c BP 12.2.1.4.260910 (10-Sep-26) | ZIP `p40005842_122140_Linux-x86-64.zip`; `40005842/`: `opatch apply` | only for a home whose DB client was upgraded to **19c** (KB585169 – true for 12.2.1.19); OPatch ≥ 13.9.4.2.13; **collaborative patches** per KB187736: OSS 19c BP 39567777 (in the SPB) and the DB client (OHS uses the NZ libraries of the DB 19 client RU since Bug 37569298) → apply **after** step 8; stop everything **including the OHS instance** (`ohs1`) | **MOS KB187736** "Cumulative README Post-Install Steps for OHS 12.2.1.4 Bundle Patches" – may contain configuration steps: read before the window; start WLS + OHS | `opatch rollback -id 40005842`, reverse the post-install steps | **confirmed:** CVE-2026-87347 / -87346 / -91419 / -91473 (all four OHS rows of section 4). Bugs 39902419 / 39901639 / 39901695: the **security hardening of the July and August 2026 CSPU fixes is switched OFF by default** via flags (HTTP header stripping separately) – to get it, enable the flags explicitly (assumption: documented in KB187736). Cumulative back to 221127 → for the never patched `ohs1` four years of fixes at once, incl. 34646873 "remove deprecated ciphers from OHS default configuration" – test clients with old ciphers |
+| **39114058** OAM WebGate DB19c BP 12.2.1.4.260323 | Linux x86-64, 106.7 MB, classification Security; **no README** | component `oracle.oamclient.webgate.ohs` is in the home → KA1182 applies it; whether `ohs1` actually uses WebGate (OAM SSO) is open | unknown – check the README inside the ZIP after download | `opatch rollback -id 39114058` | point 15 |
+| **38098858** LIBDMS2 SPU 12.2.1.4.260120 (bundle, 03-Jul-25) | ZIP `p38098858_122140_Linux-x86-64.zip`; `opatch apply` | OPatch 13.9.4.x; conflict prompt → `n`, merge patch | none | `opatch rollback -id 38098858`, then restart AdminServer + all managed servers | tracking bug 37564963 |
+| **38832179** LIBIAU SPU 12.2.1.4.260120 (09-Jan-26) | ZIP `p38832179_122140_Linux-x86-64.zip`; `opatch apply` | all processes stopped | `opatch lspatches` | `opatch rollback -id 38832179` | product "Oracle Platform Security for Java", bug 37616934 |
+
+#### 3.5b KB187736 – post-install steps of the OHS bundle patches (read 2026-10-23)
+
+MOS **KB187736** (updated 2026-10-20) is the cumulative extension of the OHS
+README. It is cumulative: an OHS that is patched **for the first time** (the
+customer's `ohs1`) has to review **every** item, not only the October one.
+Summary in our own words (no MOS text in the repository):
+
+| Item (cycle) | What | For `ohs1` |
+|---|---|---|
+| Collaborative patches | OHS BP together with OSS BP, DB client, WLS PSU (Node Manager), JDK | covered by steps 6 / 8 / 9 of the cookbook |
+| **Oct 2026 – hardening directives** | new directives; the July 2026 hardening is now **off by default** (legacy behaviour) – Oracle recommends enabling after a test | see the table below |
+| Jan 2025 / Apr 2024 – default `index.html` | the version disclosure fix reaches only new instances; existing ones keep the old file (KB373037) | check whether `ohs1` still serves the default `index.html` |
+| Apr 2024 – DB client 19c | required | fulfilled (12.2.1.19) |
+| **Jan 2023 – cipher suites** | remove weak ciphers from `ssl.conf`, `admin.conf` (and other `.conf`), recommended ECDHE-GCM suites matching the certificate type (KB652513) | check `SSLCipherSuite` of `ohs1` (collector) |
+| Apr 2022 – `MergeSlashes` | consecutive slashes merged by default | information only |
+| Apr 2021 – Java SSL clients | SSLv2 Client Hello fails | irrelevant with current JREs |
+| Further KBs | KB496091 (SSL), KB371238 (slow HTTP DoS), KB617786 (host header), KB381807 (X-Frame-Options), KB526727 (cookie flags), KB220767 (XSS) | hardening checklist for a later step |
+
+Our assessment of the October 2026 directives for Forms & Reports behind
+`ohs1` (all default off / legacy; enable on the test system first):
+
+| Directive (module) | Recommendation | Why |
+|---|---|---|
+| `WLStripWLProxyHeaders`, `WLStripWebLogicControlHeaders`, `WLStripPathRewriteHeaders` (mod_wl_ohs), `OHSProxyStripWLHeaders` (mod_proxy) | **On** | clients must not inject `WL-Proxy-*`, `WL-PATH-*`, `X-WebLogic-*` headers – Forms / Reports do not need them from the client |
+| `WLHeaderValidationPolicy` (mod_wl_ohs), `OHSContextSecurityPolicy` (mod_context) | **strict** | drop headers / ECID values with control characters |
+| `OraAuditSanitizationPolicy` (mod_ora_audit, global only) | **strict** | |
+| `RejectUnsafeEncodedPatterns` (core), `SSLAuthConfigHardening` (mod_ossl) | **On** | encoded traversal patterns → 400; stricter client-certificate handling |
+| `WLStripForwardedForHeader` | **On if `ohs1` faces the clients directly**; with a load balancer in front check the chain first | the client IP must be overwritten, not appended – same rule as our Nginx `X-Forwarded-For $remote_addr` |
+| `WLValidateWebSocketUpgradeResponse` | **On** | validates the back-end 101 response |
+| `WLAllowWebSocketUpgrade` | keep **On** (default) for `/forms` | Forms 12.2.1.19 can use WebSocket (`frmwebsocketjsi.jar` in the home) |
+| `EnforceTrustedCertHeaderProxy` + `TrustedCertHeaderProxy` | only if `AddCertHeader` is used | |
+| `WLRejectMaliciousPathParameters` | not for OHS (Apache / IIS plug-ins only) | |
+
+Where: in the domain configuration of the instance
+(`$DOMAIN_HOME/config/fmwconfig/components/OHS/ohs1/` – `httpd.conf`,
+`mod_wl_ohs.conf`, `ssl.conf`), not in the runtime copy under `instances/`;
+the Node Manager / AdminServer synchronise it.
+
 If a separate OHS home proxies to Forms/Reports, follow the OHS 12.2.1.4 tab
 of KA1182 for that home. The WebLogic Proxy Plug-In tab is only for
 Apache/IIS as a proxy.
@@ -296,7 +353,7 @@ matches – Oracle does not publish the exact CVE → patch mapping.
 | CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | FMW Control BP 39995014 – **confirmed** (README) |
 | CVE-2026-91318 / 91319 / 91317 / 87334 / 91320 / 91322 | JDeveloper / ADF runtime components | HTTP / SOAP / None | partly | 3.3 – 6.5 | ADF BP 40050071 – **confirmed** (bug list of the README) |
 | CVE-2026-8763 / 101520 / 91776 / 59889 | NextGen OUI Framework (Bouncy Castle 9.1, jackson-databind …) | HTTP(S) | mostly | 6.5 – 9.1 | OPatch 13.9.4.2.25 – **confirmed for CVE-2026-91776** (OPatch README, Bug 40012934), the others assumption |
-| CVE-2026-87347 / 91419 / 91473 / 87346 | Oracle HTTP Server (OSSL module 9.6 / 7.8, web listener 7.8, proxy plug-in for OHS 8.7) | HTTP / None | partly | 7.8 – 9.6 | OHS BP 40005842 – only if OHS is in the home |
+| CVE-2026-87347 / 91419 / 91473 / 87346 | Oracle HTTP Server (OSSL module 9.6 / 7.8, web listener 7.8, proxy plug-in for OHS 8.7) | HTTP / None | partly | 7.8 – 9.6 | OHS BP 40005842 – **confirmed** (README); only if OHS is in the home – the customer has `ohs1` |
 | CVE-2026-83379 / 87300 | WebLogic Proxy Plug-In for third-party web servers | HTTP | yes | 8.7 | Proxy Plug-In tab – only for Apache/IIS as proxy |
 
 Not relevant for a Forms & Reports home: Oracle Access Manager
@@ -340,7 +397,7 @@ can act on the PC with the user's rights. Background:
 3. OPatch 13.9.4.2.25, then WLS SPB 40129641 (3.2) and post-install KB694158.
 4. FMW Infrastructure bundles (3.3).
 5. DB client 19.31 (roll back the one-offs 35037811 / 34976606 / 35522383 first) → PERL → Forms QPR → Reports QPR (3.4a: Forms before Reports, KB873815); SQL Developer if used.
-6. OHS bundle set (3.5) if OHS is in the home; post-install KB187736.
+6. OHS bundle set (3.5 / 3.5a: 40005842, 39114058, 38098858, 38832179) – required at the customer (`ohs1`); after step 5 (collaborative with DB client + OSS BP); post-install KB187736, decide on the hardening flags.
 7. Start, smoke test (Forms login, a report via rwservlet), `opatch lspatches` into the documentation.
 8. Client JRE rollout (5) – test on a few PCs first.
 
@@ -351,15 +408,17 @@ can act on the PC with the user's rights. Background:
 | # | Question | Answer |
 |---|---|---|
 | 1 | Output of `viewInventory.sh` / `opatch lspatches` – which of the patches above are already installed? | received 2026-10-23 – none of the CPU patches; OPatch 13.9.4.2.11; see 1a |
-| 2 | Is OHS (and WebGate) in the Forms & Reports home, or a separate OHS / Apache in front? | |
+| 2 | Is OHS (and WebGate) in the Forms & Reports home, or a separate OHS / Apache in front? | OHS in the home and configured (system component `ohs1`) – 3.5 applies (collector 2026-10-23, 1a) |
 | 3 | Which JDK runs WebLogic (path, version, build)? | |
 | 4 | Client Java: version/build, 32/64-bit, how is it distributed (software deployment, ZIP with `JAVA_HOME` in a start script)? | |
 | 5 | How are the jar-signing certificates trusted on the clients (`cacerts`, deployment trust store, GPO)? | |
 | 6 | Extended Support contract for 12.2.x after December 2026? | |
 | 7 | Maintenance window and test environment for the patch run? | |
-| 8 | OS release and glibc version (`cat /etc/os-release`, `ldd --version`) – glibc ≥ 2.34 means the Forms/Reports relink issue of KB873815 (3.4a) | |
+| 8 | OS release and glibc version (`cat /etc/os-release`, `ldd --version`) – glibc ≥ 2.34 means the Forms/Reports relink issue of KB873815 (3.4a) | Oracle Linux 8.9, glibc 2.28 – KB873815 does not apply (1a) |
 | 9 | (for Oracle) Reports QPR 39600813: the Linux-x86-64 README (08-Jul-26) lists only 39375343 of the 20 "Fix for Bug 39375295 … 39375343" entries of the Solaris README (27-Aug-26) – are those fixes in the Linux build? Check after the apply (`opatch lsinventory -bugs_fixed`), else SR | |
-| 10 | One-offs 34290481 and 36475988 in the home – purpose? (MOS lookup / customer); check them in the conflict check of each bundle, a conflict means a merge patch from Support | |
-| 11 | Is the **Reports** component in this home although Reports does not run on this server? `opatch lsinventory -details \| grep -i reports` – if yes: apply the Reports QPR anyway (binaries on disk) and keep "Forms before Reports"; if no: OPatch skips 39600813 ("none of the components") | |
+| 10 | One-offs 34290481 and 36475988 in the home – purpose? (MOS lookup / customer); check them in the conflict check of each bundle, a conflict means a merge patch from Support | 36475988 = Forms bundle one-off of April 2024, superseded by QPR 39888613; 34290481 still open (1a) |
+| 11 | Is the **Reports** component in this home although Reports does not run on this server? `opatch lsinventory -details \| grep -i reports` – if yes: apply the Reports QPR anyway (binaries on disk) and keep "Forms before Reports"; if no: OPatch skips 39600813 ("none of the components") | yes – Reports runs on this machine (`rwserver` + engines), QPR required (1a) |
 | 12 | Do the inventory logs of 1a come from the **production** Forms server (not a temporary test machine)? Hostname, domain, uptime, running servers, age of the home | |
 | 13 | Second machine with the same layout: role (production / test / second node)? Same patch level – `opatch version`, `opatch lspatches`, `viewInventory.sh` of both for comparison; which one is patched first (test first) | |
+| 14 | Reports engines run with the JDK **inside** the home (`oracle_common/jdk` 1.8.0_341) – not reached by the `/oracle/java/jdk` update. Patch / supported procedure for 12.2.1.19 (KA1182, MOS search "oracle_common/jdk update Forms Reports 12.2.1.19") or a supported way to point the engine JVM to `/oracle/java/jdk`? | |
+| 15 | OHS `ohs1`: is OAM WebGate (SSO) configured? Is there a load balancer in front (decides `WLStripForwardedForHeader`)? Does Forms use WebSocket? Current `SSLCipherSuite`, default `index.html` still served? (KB187736 read – 3.5b; the collector now also gathers the OHS configuration) | |

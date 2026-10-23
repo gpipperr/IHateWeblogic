@@ -29,7 +29,7 @@ cp collect_fmw_env.sh /tmp/ && cd /tmp && chmod +x collect_fmw_env.sh
 Result: `/tmp/fmw_collect_<host>_<timestamp>/` and `….tar.gz` (about 100 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `40_config.xml`,
-`41_domain_scripts`, `42_forms_reports_config`, `50_processes`, `60_net`,
+`41_domain_scripts`, `42_forms_reports_config`, `43_ohs_config`, `50_processes`, `60_net`,
 `70_logs`). Runtime on the test host: about 30 s.
 
 **Read-only:** writes only into the output directory (OPatch writes its usual

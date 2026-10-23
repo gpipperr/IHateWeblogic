@@ -21,6 +21,10 @@
                nur 8 Patches im Home (DB Client 19.14 + One-offs) - das
                Home wurde seit der Installation praktisch nie gepatcht.
                Alle Patches dieses Kochbuchs sind daher NEU fuer das Home.
+               Sammellauf 2026-10-23 (README 1a): OL 8.9 / glibc 2.28,
+               Reports laeuft auf der Maschine (QPR Pflicht), OHS ohs1 ist
+               konfiguriert (Schritt 9 Pflicht), die Reports-Engines laufen
+               mit dem JDK IM Home (oracle_common/jdk 8u341, Schritt 4).
                Eine zweite Maschine ist gleich aufgebaut: das Kochbuch gilt
                pro Maschine (jede hat ihr eigenes ORACLE_HOME, Inventory
                und JDK) - nacheinander, Test zuerst, und SCHRITT 0 auf
@@ -140,9 +144,11 @@ SCHRITT 0: Ist-Stand erfassen  (vor dem Wartungsfenster, System laeuft)
   #   33903365  LibOVD-Fix "Konsolen nach JDK 8u331"
   #       -> in LibOVD 39726402 enthalten (Schritt 7)
   #   30613424  CVE-2021-2134 -> in FMW Control 39995014 enthalten (Schritt 7)
-  #   34290481, 36475988  One-offs ohne Beschreibung -> VOR dem Termin
-  #       klaeren (MOS); kollidieren sie mit einem Bundle, meldet das der
-  #       Konflikt-Check -> Merge-Patch beim Support anfragen
+  #   36475988  Forms-Sammel-One-off April 2024 (11 Bugs, alle in der
+  #       Forms-QPR 39888613) -> von 39888613 abgeloest (Schritt 8)
+  #   34290481  One-off Nov 2022, ein Bug - Zweck noch offen; kollidiert er
+  #       mit einem Bundle, meldet das der Konflikt-Check -> Merge-Patch
+  #       beim Support anfragen
 
   # Liegt die Reports-Komponente im Home (auch wenn Reports auf diesem
   # Server nicht laeuft)? Entscheidet ueber die Reports-QPR in Schritt 8.
@@ -269,6 +275,16 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (README 3.1)
 
   # 4.6 Das alte JDK bleibt liegen, bis alles laeuft. Rueckweg:
   #   ln -sfn <altes jdk-Verzeichnis> $JDK_LINK
+
+  # 4.7 ACHTUNG - zweites JDK IM Home: $ORACLE_HOME/oracle_common/jdk
+  #     (Kunde: 1.8.0_341-b10). Damit laufen die Reports-Engines (rwrun.jar)
+  #     - der Link-Wechsel oben erreicht sie NICHT.
+  $ORACLE_HOME/oracle_common/jdk/bin/java -version
+  ps -ef | grep rwrun.jar | grep -v grep | awk '{print $8}' | sort -u
+  #     Dieses JDK NICHT von Hand ersetzen (Oracle: "Do not manually replace
+  #     that JDK directory"). Ob es fuer 12.2.1.19 einen Patch / ein
+  #     unterstuetztes Verfahren gibt, ist offen (README 7, Punkt 14) -
+  #     bis dahin bleibt es auf dem bisherigen Stand.
 
 ================================================================================
 SCHRITT 5: OPatch auf 13.9.4.2.25  (README 3.2b)
@@ -409,6 +425,8 @@ SCHRITT 8: DB Client, PERL, Forms-QPR, Reports-QPR  (README 3.4 / 3.4a)
   # Reihenfolge ist wichtig:
   #   DB Client 19.31 -> PERL (braucht DB Client >= 19.29)
   #   -> Forms-QPR -> Reports-QPR
+  # (Kunde: OL 8.9 / glibc 2.28 - das folgende Relink-Problem trifft dort
+  #  nicht zu, die Reihenfolge bleibt trotzdem.)
   # Forms VOR Reports: ab glibc 2.34 baut die Reports-QPR lib/libzrc.so.0
   # gegen glibc 2.34 neu; ein spaeterer Forms-Relink gegen die 2.28-Stubs
   # scheitert dann mit rc=73 (MOS KB873815, Bug 38892485, kein Fix).
@@ -466,15 +484,82 @@ SCHRITT 8: DB Client, PERL, Forms-QPR, Reports-QPR  (README 3.4 / 3.4a)
 SCHRITT 9: OHS-Satz  (NUR wenn OHS im Forms-&-Reports-Home liegt, README 3.5)
 ================================================================================
 
-  # Ob noetig: Ausgabe von SCHRITT 0 (grep ohs|webgate). Fehlt OHS im Home
-  # (Nginx/Apache als eigener Webserver davor) -> Schritt komplett
-  # auslassen. Die READMEs dieser Patches wurden fuer dieses Kochbuch NICHT
-  # gelesen - vor dem Einspielen pruefen.
-  #   40005842  OHS DB19c Bundle 12.2.1.4.260910 (Post-Install MOS KB187736)
-  #   39567777  OSS 19c BP - ist bereits mit dem SPB (Schritt 6) drin
-  #   39114058  OAM WebGate DB19c BP 12.2.1.4.260323
-  #   38098858 + 38832179  LIBDMS2 SPU + LIBIAU SPU (Linux)
-  # Muster wie Schritt 7 (prereq, apply -silent, lspatches).
+  # Kunde (Sammellauf 2026-10-23): oracle.ohs2 / ohs2.collocated /
+  # oamclient.webgate.ohs im Home, System Component "ohs1" in der Domain
+  # -> dieser Schritt ist PFLICHT. Stoppen/Starten von ohs1 gehoert in
+  # Schritt 2 / 10 (stopComponent.sh / startComponent.sh ohs1).
+  # Ob noetig allgemein: Ausgabe von SCHRITT 0 (grep ohs|webgate). Fehlt OHS
+  # im Home (Nginx/Apache als eigener Webserver davor) -> Schritt auslassen.
+  #
+  # Reihenfolge: NACH Schritt 8. OHS 40005842 nutzt die NZ-Bibliotheken des
+  # DB Client 19.31 und braucht das OSS-BP 39567777 (kam mit dem SPB) -
+  # "collaborative patches" laut MOS KB187736.
+  # VOR dem Termin MOS KB187736 lesen (Post-Install-Schritte des OHS-BP).
+  #
+  # Neu in 40005842: die Haertungen der CSPU-Fixes Juli/August 2026 sind
+  # per Flag standardmaessig AUS (Bugs 39902419, 39901639, 39901695) -
+  # gewuenschte Haertung nach KB187736 ausdruecklich einschalten.
+  # Das Bundle ist kumulativ ab 2022 und entfernt veraltete Ciphers aus der
+  # OHS-Standardkonfiguration (34646873) - Clients danach testen.
+  #
+  # 39114058 (WebGate) hat auf MOS keine README - README.txt im ZIP lesen,
+  # bevor er eingespielt wird.
+  for P in 40005842 39114058 38098858 38832179; do
+      echo "===== Patch $P =====" | tee -a $LOGDIR/09_ohs.txt
+      cd $STAGE/$P || { echo "FEHLT: $P"; break; }
+      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
+          -ph ./ -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/09_ohs.txt
+      read -p "Prereq fuer $P ok? [j/n] " A
+      [ "$A" = "j" ] || { echo "Abbruch bei $P"; cd -; break; }
+      $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 \
+          | tee -a $LOGDIR/09_ohs.txt
+      cd -
+  done
+  $ORACLE_HOME/OPatch/opatch lspatches | grep -E '40005842|39114058|38098858|38832179'
+  # Erwartet: alle vier.
+
+  # 9.1 Post-Install nach MOS KB187736 (kumulativ - ohs1 wurde noch nie
+  #     gepatcht, daher ALLE Punkte, Bewertung in README 3.5b).
+  #     Konfiguration der Instanz immer hier aendern (nicht unter instances/):
+  OHSCFG=$DOMAIN_HOME/config/fmwconfig/components/OHS/ohs1
+  ls -l $OHSCFG
+  cp -a $OHSCFG $BACKUP/ohs1_config_vorher
+
+  # a) Ciphers (KB187736, Jan 2023): schwache Ciphers entfernen
+  grep -n "SSLCipherSuite\|SSLProtocol" $OHSCFG/ssl.conf $OHSCFG/admin.conf
+  #    Empfehlung laut KB187736 (passend zum Zertifikatstyp, KB652513):
+  #    SSLCipherSuite TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+
+  # b) Standard-index.html mit Versionsangabe (KB373037)
+  ls -l $OHSCFG/htdocs/index.html 2>/dev/null
+  grep -il "oracle http server" $OHSCFG/htdocs/index.html 2>/dev/null \
+      && echo "Standard-index.html aktiv -> nach KB373037 ersetzen"
+
+  # c) Haertung Oktober 2026 (Standard: AUS). ERST auf dem Testsystem
+  #    einschalten und Forms/Reports testen. Block z.B. ans Ende von
+  #    httpd.conf (global) - Empfehlungen siehe README 3.5b:
+  #
+  #    # --- KB187736 Oktober 2026 Haertung ---
+  #    OraAuditSanitizationPolicy strict
+  #    OHSContextSecurityPolicy strict
+  #    RejectUnsafeEncodedPatterns On
+  #    SSLAuthConfigHardening On
+  #    OHSProxyStripWLHeaders On
+  #    <IfModule weblogic_module>
+  #       WLHeaderValidationPolicy strict
+  #       WLStripWLProxyHeaders On
+  #       WLStripWebLogicControlHeaders On
+  #       WLStripPathRewriteHeaders On
+  #       WLValidateWebSocketUpgradeResponse On
+  #       # nur wenn ohs1 direkt die Clients bedient (kein Load Balancer davor):
+  #       WLStripForwardedForHeader On
+  #    </IfModule>
+  #    # WLAllowWebSocketUpgrade NICHT auf Off fuer /forms (Forms WebSocket)
+  #
+  #    Danach ohs1 neu starten, Fehler-Log pruefen, Forms-Login und einen
+  #    Report ueber ohs1 testen.
+  # Rollback: opatch rollback -id <PATCH>; nach 38098858 AdminServer und
+  # alle Managed Server neu starten.
 
 
 ================================================================================

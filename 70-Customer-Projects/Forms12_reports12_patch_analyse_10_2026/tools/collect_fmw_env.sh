@@ -212,6 +212,17 @@ if [ -n "$DH" ]; then
             copy "42_forms_reports_config.txt" "$f"
         done
     done
+    # OHS instances (domain configuration, not the runtime copy)
+    for d in "$DH"/config/fmwconfig/components/OHS/*/; do
+        [ -d "$d" ] || continue
+        case "$d" in */instances/) continue ;; esac
+        for f in httpd.conf ssl.conf admin.conf mod_wl_ohs.conf; do
+            copy 43_ohs_config.txt "$d$f"
+        done
+        for f in "$d"moduleconf/*.conf; do copy 43_ohs_config.txt "$f"; done
+        runsh 43_ohs_config.txt "default index.html in $d" \
+            "ls -l '${d}htdocs/index.html' 2>&1; grep -ic 'oracle http server' '${d}htdocs/index.html' 2>/dev/null"
+    done
     fact "Domain" "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Servers (config.xml)" "$(awk '/<server>/{s=1} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");printf "%s ",$0;s=0}' "$DH/config/config.xml")"
 fi
@@ -223,7 +234,7 @@ say "5/7 Processes"
 runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
     "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx' | grep -v grep"
 runsh 50_processes.txt "Process tree" "ps auxf"
-fact "frmweb processes" "$(pgrep -c frmweb 2>/dev/null || printf 0)"
+fact "frmweb processes" "$(pgrep -c frmweb 2>/dev/null; true)"
 fact "WLS servers running" "$(ps -eo args= | sed -n 's/.*-Dweblogic[.]Name=\([^ ]*\).*/\1/p' | sort -u | tr '\n' ' ')"
 
 # =============================================================================
