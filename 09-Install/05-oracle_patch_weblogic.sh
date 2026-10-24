@@ -531,6 +531,25 @@ else
     info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB apply"
 fi
 
+# --- Bugs expected after the SPB (WLS_SPB_CHECK_BUGS) --------------------------
+# E.g. the base bug of an SPU of the previous cycle that was an overlay on the
+# old PSU and can not be re-applied on the new one – its fix must come with
+# the new PSU. Only a WARN: the decision (overlay / SR) is manual.
+if [ -n "${WLS_SPB_CHECK_BUGS:-}" ] && ! $CHECK_ONLY; then
+    section "Bugs expected after the SPB"
+    BUGS_FIXED="$("$OPATCH" lsinventory -bugs_fixed "${INVPTR_ARGS[@]}" 2>/dev/null)"
+    for _b in $WLS_SPB_CHECK_BUGS; do
+        _line="$(printf '%s\n' "$BUGS_FIXED" | awk -v b="$_b" '$1 == b {print; exit}')"
+        if [ -n "$_line" ]; then
+            ok "$(printf "Bug %-10s fixed by patch %s" "$_b" "$(printf '%s' "$_line" | awk '{print $2}')")"
+        else
+            warn "$(printf "Bug %-10s NOT in opatch lsinventory -bugs_fixed" "$_b")"
+            info "  Fix of the previous cycle missing – look for an overlay on the new PSU (MOS / SR)"
+        fi
+    done
+    unset _b _line BUGS_FIXED
+fi
+
 # =============================================================================
 # Determine which patches still need to be applied
 # =============================================================================

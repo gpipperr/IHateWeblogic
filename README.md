@@ -81,8 +81,8 @@ How the ~93 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20; bundled-JDK patch open), phase 9 about a third
 (CVE watch step 1 and the certificate expiry check done; `cve_watch.sh`,
 notification, config security scanner are concept); minus the
-[open items](#open-items--todo) – mainly switching the scripts to the CPU
-Oct 2026 patch set (see [Security & Patch Status](#security--patch-status)),
+[open items](#open-items--todo) – mainly applying the CPU Oct 2026 patch
+set on the test host (see [Security & Patch Status](#security--patch-status)),
 the remaining client tests (update / offline / JACOB on Windows) and the
 questions to Oracle (bundled JDK, `frmweb` bind address).
 
@@ -115,7 +115,7 @@ CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-22.
 |---|---|
 | Current patch list (14.1.2) | [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md) – patch numbers from MOS KA1182 + CPU426, CVE check, "How to read KA1182", MOS Doc-ID table |
 | Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
-| Scripts / `oracle_software_version.conf` | **still on CSPU September 2026** (= test host) – switching to October is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
+| Scripts / `oracle_software_version.conf` | **switched to CPU October 2026** (2026-10-24, dry-runs OK) – the test host is still on CSPU Sep 2026; the apply run is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
 | DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
 | Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md) – analysis + step-by-step guide of the CPU Oct 2026 set (the master for the script switch) |
 | Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
@@ -781,19 +781,18 @@ CSPU Sep 2026 state is frozen in
 [`00-patch-references_september_2026.md`](09-Install/docs/00-patch-references_september_2026.md)
 (one snapshot per cycle, see "Patch cycle history" there).
 
-- [ ] **Switch conf + scripts to October** – patch numbers are known (KA1182
-  PDF + CPU426, 2026-10-22): SPB 40125898, OPatch 13.9.4.2.25, PERL 39951765,
-  OHS 39987730, `JDK_VERSION_MIN=21.0.13.0.2`, and the **eight FMW
-  Infrastructure bundle patches** (ADF, WebCenter Core, OWSM, FMW Control,
-  OAMCLIENT, UMS, OPSS, LibOVD) that were missing in the September set –
-  needs a new patch list for `05-`/`06-` (doc first). Then download,
-  `07-Maintenance/81-`/`82-`, smoke test `15-`. All patch READMEs are read
-  (2026-10-24) – the manual guide in
-  [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)
-  is the master for this switch (run it on the test host first). SPU
-  39988381 is an overlay on the Sep PSU 39919611 → drop it from
-  `INSTALL_PATCHES`, after the SPB check that `-bugs_fixed` shows its base
-  bug 39924025 under the new PSU.
+- [ ] **Apply the October set on the test host** – conf + `04-`/`05-`/`06-`
+  switched 2026-10-24 (dry-runs OK): SPB 40125898 (marker 40126042), OPatch
+  13.9.4.2.25, `JDK_VERSION_MIN=21.0.13.0.2` (ZIP downloaded and checked
+  2026-10-24), the **eight FMW Infrastructure bundle patches** in
+  `INSTALL_PATCHES` (missing in the September set), PERL 39951765 (rolls back
+  38590500) + OHS + WebGate in `INSTALL_PATCHES_FR_COMMON`; SPU 39988381
+  dropped (overlay on the Sep PSU) – `05-` checks its base bug 39924025 after
+  the SPB (`WLS_SPB_CHECK_BUGS`). Next: `04- --apply --mos` (new ZIPs), stop,
+  `07-Maintenance/80-` (JDK), `05-`/`06-` `--check-only` then `--apply`,
+  smoke test `15-`; manual reference:
+  [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
+  Then archive the September ZIPs in the patch storage.
 - [ ] Part of that switch: the **OHS / WebGate** bundle patches (39987730 /
   39100536) – the binaries are in the Oracle Home although Nginx is the
   frontend (agreed: everything on disk gets patched; OHS CVE-2026-87347 9.6,

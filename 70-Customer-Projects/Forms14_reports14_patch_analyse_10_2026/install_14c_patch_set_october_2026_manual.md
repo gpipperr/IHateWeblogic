@@ -205,7 +205,9 @@ requirement is OPatch 13.9.4.2.25 (step 6) and JDK ≥ 17.0.12 / 21.0.4.
 
 Rollback (whole SPB only): `opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt` in `binary_patches/`.
 
-Automated: `05-oracle_patch_weblogic.sh --apply` (`WLS_SPB_PATCH_NR`).
+Automated: `05-oracle_patch_weblogic.sh --apply` (`WLS_SPB_PATCH_NR`, marker
+`WLS_SPB_MARKER_PATCH`; afterwards `WLS_SPB_CHECK_BUGS="39924025"` is checked in
+`opatch lsinventory -bugs_fixed` – WARN if missing).
 
 ---
 
@@ -241,7 +243,10 @@ not deploy, `BEA-149205` for `adf.oracle.domain.webapp.nativebridge` or
 prompt "… will be rolled back … proceed?" → answer `n`, merge patch from
 Support. Per-patch facts: README section 3a (pending).
 
-Automated: not yet in the scripts (to be added to `05-` / `06-`).
+Automated: `05-oracle_patch_weblogic.sh --apply` (`INSTALL_PATCHES`, after the
+SPB, in this order; a component missing in the home → SKIPPED). Unlike the
+loop above, the script runs the conflict check for all patches first and
+aborts on any conflict – no prompt.
 
 ---
 
@@ -278,7 +283,8 @@ predecessor; the conflict check shows whether OPatch rolls it back itself
 (expected, same component). Single fix CVE-2026-4176 (README, confirmed).
 Optional 38936596 only with `REPORTS_BIDIPARENTHESIS=YES`.
 
-Automated: `06-oracle_patch_forms_reports.sh --apply` (`INSTALL_PATCHES_FR_COMMON`,
+Automated: `06-oracle_patch_forms_reports.sh --apply` (rolls back 38590500 first –
+`SUPERSEDES` map; `INSTALL_PATCHES_FR_COMMON`,
 `INSTALL_PATCHES_FORMS`, `INSTALL_PATCHES_REPORTS`; Forms before Reports and
 the `libzrc` fix are built in).
 
@@ -315,7 +321,9 @@ by step 3. The patch is cumulative and confirms CVE-2025-0725 (bundled
 libcurl); it has been in the set since April 2026 but was never applied on
 the test host.
 
-Automated: not yet in `06-` (to be added).
+Automated: `06-oracle_patch_forms_reports.sh --apply` (`INSTALL_PATCHES_FR_COMMON`
+= PERL, OHS, WebGate – applied **before** the QPRs; no dependency between
+them, the order of steps 9 / 10 here is only for reading).
 
 ---
 

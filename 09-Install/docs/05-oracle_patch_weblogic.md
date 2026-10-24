@@ -6,10 +6,15 @@
 
 > **Scope: FMW 14.1.2.0.0 only.**
 > This document describes the patching procedure for Oracle Fusion Middleware
-> **14.1.2** exclusively. Instructions found elsewhere that reference SPBAT,
-> Stack Patch Bundles (SPBs), or the `napply` / `opatch_auto` tools typically
-> originate from FMW 12.2.1.x guides and **do not apply here** — see the
-> [SPBAT note](#note-on-spbat-and-stack-patch-bundles) below.
+> **14.1.2** exclusively. SPBAT and `opatch_auto` do **not** apply here; a WLS
+> Stack Patch Bundle applied with `opatch napply` **does** again since CSPU
+> Sep 2026 – see the [SPB note](#note-on-spbat-and-stack-patch-bundles) below.
+>
+> **Current set: CPU October 2026** (+ Security Alert CVE-2026-91403):
+> OPatch 13.9.4.2.25, SPB `40125898` (marker `40126042`), then the eight FMW
+> Infrastructure bundle patches in `INSTALL_PATCHES`. Manual procedure and the
+> facts of every patch README:
+> [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
 
 ---
 
@@ -21,7 +26,8 @@ cumbersome as possible, and they usually succeed admirably.
 > The walkthrough below uses the January 2026 CPU (Patch 38566996) as a
 > worked example of the discovery process itself — it is still the correct
 > *procedure*, but the *numbers* are already out of date. For the current
-> patch set (including the CSPU September 2026 WLS Stack Patch Bundle), see
+> patch set (CPU October 2026: WLS Stack Patch Bundle + FMW Infrastructure
+> bundle patches), see
 > [`docs/00-patch-references.md`](00-patch-references.md) and
 > `oracle_software_version.conf` directly.
 
@@ -151,8 +157,13 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
   - Verifies the installed version matches `OPATCH_VERSION_MIN`, cleans up its temp dirs
 - **WLS Stack Patch Bundle staging + apply** (if `WLS_SPB_PATCH_NR` is set and
   not already applied) — only after the OPatch upgrade: unzips the multi-GB
-  SPB under `$ORACLE_BASE/tmp/` and runs `opatch napply` — see "SPB (CSPU
-  September 2026)" above; runs before the patches below
+  SPB under `$ORACLE_BASE/tmp/` and runs `opatch napply` — see "SPB –
+  what the script does" below; runs before the patches below
+- **Bugs expected after the SPB** (`WLS_SPB_CHECK_BUGS`, `--apply` only):
+  `opatch lsinventory -bugs_fixed` must list each bug, otherwise WARN. CPU Oct
+  2026: `39924025` = base bug of the Sep SPU 39988381, an overlay on the old
+  PSU 39919611 that can not stay on the new PSU 40058371 – its fix must come
+  with the new PSU
 - **`--check-only` with an outdated OPatch stops early** with a hint: a
   `napply -report` / conflict check from the old OPatch is not meaningful for
   patches that require the newer one (and would stage the SPB for nothing).
@@ -163,18 +174,26 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
   entry, run right after the ZIP is selected and before it is extracted —
   rejects EBS AutoPatch artifacts and release mismatches against
   `FMW_PRODUCT_RELEASE`; aborts the whole run on failure — see "Patch
-  39988381" below
+  39988381" below (the background of this check)
 - **Conflict check** for all `INSTALL_PATCHES` before any apply. The OPatch
   **output** is evaluated, not only the return code: OPatch reports
   `OPatch succeeded` (rc=0) even when `checkConflictAgainstOHWithDetail` failed.
-  A missing prerequisite that is part of the SPB (e.g. 39988381 needs the WLS
-  PSU 39919611 from SPB 39925660) is only a WARN in `--check-only` – the SPB is
+  A missing prerequisite that is part of the SPB (e.g. an infrastructure
+  bundle that needs the WLS PSU / Third-Party BP of the new SPB; CSPU Sep:
+  39988381 needed PSU 39919611 from SPB 39925660) is only a WARN in
+  `--check-only` – the SPB is
   merely simulated there; `--apply` installs it first. Everything else is a FAIL.
 - Aborts if any conflict is found
 - All OPatch calls that would ask "Do you want to proceed? [y|n]" (`napply`,
   `rollback`, `apply`) run with `-silent` – otherwise they fail with rc=73 when
   no terminal is attached (confirmed 2026-10-14)
-- **Applies patches** in the order they appear in `INSTALL_PATCHES`
+- **Applies patches** in the order they appear in `INSTALL_PATCHES` – CPU Oct
+  2026: ADF 40050062, WebCenter Core 40035984, OWSM 40024749, FMW Control
+  39995927, OAMCLIENT 40057999, UMS 39940047, OPSS 39979746, LibOVD 39726399
+  (KA1182 tab "FMW Infrastructure 14.1.2.0" – required whenever only the WLS
+  SPB is applied; missing in the Sep set). ADF only after the SPB (same-cycle
+  rule ADF BP + WLS PSU + Third-Party BP, MOS PNEWS2138). A patch whose
+  component is not in this home is reported as SKIPPED (WARN)
 - Verifies each patch appears in `opatch lsinventory` after apply
 - Generates a patch report: which patches were applied, which were already present
 
@@ -288,17 +307,21 @@ SPB is listed for the current cycle. If yes, use the "SPB (CSPU September
 quarter); if no SPB is listed, plain `opatch apply` per patch is correct (see the
 manual guide of the current cycle, linked under "Without the Script").
 
-### SPB (CSPU September 2026) — what the script does
+### SPB – what the script does
+
+Introduced with CSPU September 2026 (SPB `39925660`, 14.1.2.0.260825);
+current: CPU October 2026, SPB `40125898` (14.1.2.0.261007, marker
+`40126042`, WLS PSU 40058371, OPatch 13.9.4.2.25 in `tools/opatch/generic/`).
 
 `05-oracle_patch_weblogic.sh` runs this automatically when `WLS_SPB_PATCH_NR`
-is set in `oracle_software_version.conf` (currently `39925660`), inserted
+is set in `oracle_software_version.conf` (currently `40125898`), inserted
 between the OPatch-upgrade step and the `INSTALL_PATCHES` loop (the OPatch
 upgrade extracts only its own ZIP from the SPB archive, the full SPB is
 staged here, after the upgrade):
 
 1. Skip if the SPB's marker patch (`WLS_SPB_MARKER_PATCH`, currently
-   `39925694`) is already in `opatch lspatches` (idempotent)
-2. Unzip the downloaded SPB ZIP (`$PATCH_STORAGE/patches/39925660/`) to a
+   `40126042`) is already in `opatch lspatches` (idempotent)
+2. Unzip the downloaded SPB ZIP (`$PATCH_STORAGE/patches/40125898/`) to a
    staging directory under `$ORACLE_BASE/tmp/`
 3. Locate the `WLS_SPB_*` directory inside it (the name changes with the SPB
    version, so the script discovers it rather than hardcoding it)
@@ -309,16 +332,18 @@ staged here, after the upgrade):
    scoped to a subshell with no effect on the rest of the script
 5. Verify the marker patch now appears in `opatch lspatches`
 6. Remove the staging directory — the ZIP itself stays in `$PATCH_STORAGE/
-   patches/39925660/` in case a later `opatch nrollback` is needed
+   patches/40125898/` in case a later `opatch nrollback` is needed
+7. Check `WLS_SPB_CHECK_BUGS` in `opatch lsinventory -bugs_fixed` (WARN if
+   missing)
 
 Manual equivalent (for reference, mirrors section 4.3 Variante B of the
 source patch plan):
 
 ```bash
 cd $PATCH_STAGE
-unzip -q p39925660_141200_Generic.zip
+unzip -q p40125898_141200_Generic.zip
 
-cd WLS_SPB_14.1.2.0.260825/binary_patches
+cd WLS_SPB_14.1.2.0.261007/binary_patches
 unset JAVA_HOME
 unset ORACLE_HOME
 $ORACLE_HOME_SAVED/OPatch/opatch napply -report -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt   # dry-run
@@ -347,10 +372,11 @@ rolling back individual patches out of an SPB.
 > one — logged either way as `OPatch upgrade ZIP found (<source>): ...`.
 > The SPB archive is unzipped only once and the same staging directory is
 > reused by the later `opatch napply` step, instead of unzipping the
-> multi-GB archive twice.
+> multi-GB archive twice. CPU Oct 2026: the same – OPatch 13.9.4.2.25 is in
+> `WLS_SPB_14.1.2.0.261007/tools/opatch/generic/` (SPB README).
 
 ```bash
-cd WLS_SPB_14.1.2.0.260825/binary_patches
+cd WLS_SPB_14.1.2.0.261007/binary_patches
 opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 ```
 
@@ -363,6 +389,13 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 ---
 
 ## Patch 39988381 — Portal README Pitfall and Multi-Release Patch Numbers
+
+> **CPU Oct 2026:** 39988381 is no longer in `INSTALL_PATCHES`. Its ZIP README
+> (read again 2026-10-24) names it an overlay on the Sep PSU 39919611
+> (mandatory), base bug 39924025 – it can not be applied on the new PSU
+> 40058371. The script checks the base bug after the SPB
+> (`WLS_SPB_CHECK_BUGS`). The section below stays as the background of
+> `check_patch_zip()`.
 
 > **Resolved — Portal README vs. ZIP README (confirmed 2026-10-14):** the MOS
 > portal page for Patch 39988381 displays a README text referencing
@@ -404,8 +437,8 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 > `6880880/opatch_generic.jar`, no `inventory.xml`) — those are staged and
 > applied through their own, already-existing mechanisms described above.
 >
-> Next quarterly CPU lands 2026-10-20 — re-check KA1182 after that date for
-> renumbered patches.
+> CPU Oct 2026 (2026-10-20) checked against KA1182 (PDF 2026-10-22) – see
+> the current set at the top.
 
 ### New post-install hardening options (Sep/Aug/Jul 2026 editions, F41372-23)
 

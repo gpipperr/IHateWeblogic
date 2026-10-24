@@ -19,8 +19,9 @@ installs, so `INSTALL_PATCHES_FORMS` is automatically skipped when
 OK — nothing to do.**
 
 F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
-(applied by `05-oracle_patch_weblogic.sh`, including the WLS Stack Patch
-Bundle since CSPU Sep 2026) already cover the shared home.
+(applied by `05-oracle_patch_weblogic.sh`: the WLS Stack Patch Bundle and,
+since CPU Oct 2026, the eight FMW Infrastructure bundle patches) already
+cover the shared home.
 `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are only needed for patches
 that are F&R-specific and not included in the WLS bundle.
 
@@ -29,10 +30,15 @@ replaces. The script handles this automatically via a `SUPERSEDES` map: if
 the old patch is found installed, it is rolled back before the new one is
 applied — see "What the Script Does" below.
 
-> **Current state (14.1.2, QPR Aug/Sep 2026):**
+> **Current state (14.1.2, CPU Oct 2026):**
+> `INSTALL_PATCHES_FR_COMMON="39951765 39987730 39100536"` (PERL SPU
+> supersedes `38590500`, OHS BP, WebGate BP),
 > `INSTALL_PATCHES_REPORTS="39600348"` (supersedes `38827528`),
-> `INSTALL_PATCHES_FORMS="39842516"` (supersedes `38874285`) — see table below.
-> Source: MOS KA204, see [`docs/00-patch-references.md`](00-patch-references.md).
+> `INSTALL_PATCHES_FORMS="39842516"` (supersedes `38874285`) – the QPRs are
+> unchanged since Aug/Sep 2026. Source: MOS KA1182 / KA204, see
+> [`docs/00-patch-references.md`](00-patch-references.md); README facts and
+> the manual procedure:
+> [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
 
 ---
 
@@ -41,15 +47,20 @@ applied — see "What the Script Does" below.
 Defined in `09-Install/oracle_software_version.conf` (space-separated lists):
 
 ```bash
-INSTALL_PATCHES_FR_COMMON="38590500"     # if Forms OR Reports is installed
+INSTALL_PATCHES_FR_COMMON="39951765 39987730 39100536"   # if Forms OR Reports is installed
 INSTALL_PATCHES_REPORTS="39600348"
 INSTALL_PATCHES_FORMS="39842516"
 INSTALL_PATCHES_FR_OPTIONAL="38936596"   # only if REPORTS_BIDIPARENTHESIS=YES
 ```
 
 `INSTALL_PATCHES_FR_COMMON` holds patches for components that only the Forms
-& Reports installer brings – currently the FMW PERL Security Patch 38590500
-(component `oracle.perlint`). In the infrastructure-only home `05-` would
+& Reports installer brings – currently the FMW PERL SPU 39951765 (component
+`oracle.perlint`, CVE-2026-4176), the OHS bundle patch 39987730 (`oracle.ohs2*`)
+and the WebGate bundle patch 39100536 (`oracle.oamclient.webgate.ohs`). OHS and
+WebGate are patched although Nginx is the frontend – the binaries are on disk;
+their post-install (KB559857) needs nothing without an OHS instance. They are
+applied before the QPRs (no dependency between them). In the
+infrastructure-only home `05-` would
 have it skipped by OPatch ("none of the components from patch are present",
 confirmed 2026-10-14). If OPatch still skips a patch here, `06-` reports it
 as **SKIPPED** (WARN), not as applied.
@@ -130,7 +141,7 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
 - Reads current patch inventory via `opatch lspatches`
 - **Automatic rollback of superseded QPRs**: for each patch about to be
   applied, checks a `SUPERSEDES` map (currently `39600348`→`38827528`,
-  `39842516`→`38874285`) and rolls back the old patch first if found
+  `39842516`→`38874285`, PERL `39951765`→`38590500`) and rolls back the old patch first if found
   installed — same idiom as the `23335292` pre-check in
   `05-oracle_patch_weblogic.sh`
 - Skips patches already installed (idempotent)

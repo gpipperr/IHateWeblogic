@@ -2,8 +2,10 @@
 # =============================================================================
 # Script   : 06-oracle_patch_forms_reports.sh
 # Purpose  : Apply Forms & Reports specific patches after base F&R install.
-#            Patches are listed in INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS
-#            (oracle_software_version.conf) and applied only for the component(s)
+#            Patches are listed in INSTALL_PATCHES_FR_COMMON (PERL, OHS, WebGate –
+#            components only the F&R installer brings) / INSTALL_PATCHES_FORMS /
+#            INSTALL_PATCHES_REPORTS (oracle_software_version.conf) and applied
+#            only for the component(s)
 #            actually present in ORACLE_HOME (Reports-only installs supported —
 #            Forms patches are skipped automatically if forms/ does not exist).
 #            Superseded QPRs (see SUPERSEDES map in this script) are rolled back
@@ -278,6 +280,7 @@ printf "%s\n" "$CURRENT_PATCHES" | tee -a "$LOG_FILE"
 declare -A SUPERSEDES=(
     [39600348]=38827528   # Reports QPR Aug 2026 supersedes Jan 2026
     [39842516]=38874285   # Forms QPR Sep 2026 supersedes Jan 2026
+    [39951765]=38590500   # PERL SPU Sep 2026 (CPU Oct) supersedes Jan 2026 – same oracle.perlint
 )
 for _new in $PATCHES_WANTED; do
     _old="${SUPERSEDES[$_new]:-}"

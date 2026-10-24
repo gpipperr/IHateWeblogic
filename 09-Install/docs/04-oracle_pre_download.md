@@ -59,8 +59,8 @@ it contains no credentials.
 | Variable | Value | Description |
 |---|---|---|
 | `OPATCH_UPGRADE_PATCH_NR` | `28186730` | FMW/WLS OPatch upgrade package (contains `opatch_generic.jar`) |
-| `OPATCH_VERSION_INSTALL` | `13.9.4.2.24` | OPatch version installed by Patch 28186730 |
-| `OPATCH_VERSION_MIN` | `13.9.4.2.24` | Minimum version required by the current WLS Stack Patch Bundle |
+| `OPATCH_VERSION_INSTALL` | `13.9.4.2.25` | OPatch version installed by Patch 28186730 (the copy inside the SPB) |
+| `OPATCH_VERSION_MIN` | `13.9.4.2.25` | Minimum version required by the current WLS Stack Patch Bundle (CPU Oct 2026) |
 
 > **Why Patch 28186730, not 6880880?** Since OPatch >= 13.6, OPatch must be installed
 > via its own `opatch_generic.jar` (OUI tooling) to keep the OUI metadata in sync.
@@ -73,11 +73,11 @@ it contains no credentials.
 
 | Variable | Value | Description |
 |---|---|---|
-| `WLS_SPB_PATCH_NR` | `39925660` | WLS Stack Patch Bundle 14.1.2.0.260825 (CSPU Sep 2026) |
+| `WLS_SPB_PATCH_NR` | `40125898` | WLS Stack Patch Bundle 14.1.2.0.261007 (CPU Oct 2026; Sep 2026: `39925660`) |
 
 Large ZIP (several hundred MB) applied via `opatch napply`, not `opatch apply`
 — see [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md), section
-"SPB (CSPU September 2026)", for why this mechanism was reintroduced and
+"SPB – what the script does", for why this mechanism was reintroduced and
 what the apply script does with it.
 
 ### Java SE patch (getMOSPatch)
@@ -85,7 +85,7 @@ what the apply script does with it.
 | Variable | Value | Description |
 |---|---|---|
 | `JDK_PATCH_NR` | `35702194` | Oracle JDK 21 – "current JDK 21" on MOS (Linux ZIP with `jdk-21.0.x_linux-x64_bin.tar.gz/.rpm/.deb` + `SHA256_VALUES`, ~565 MB) |
-| `JDK_VERSION_MIN` | `21.0.12.1` | minimum of the current patch cycle |
+| `JDK_VERSION_MIN` | `21.0.13.0.2` | minimum of the current patch cycle (CPU Oct 2026 + alert CVE-2026-91403; the ZIP of 35702194 delivers `jdk-21.0.13.0.2` since 2026-10-22, checked 2026-10-24) |
 | `FMW_JDK_PATCH_NR` | *(empty)* | OPatch patch for the FMW-bundled JDK (`oracle.jdk` in the Oracle Home) – to be determined |
 
 Since October 2026 JDK 21 updates are no longer on the public download page
@@ -170,8 +170,8 @@ Current configuration in `oracle_software_version.conf`:
 
 | Variable | Value | Description |
 |---|---|---|
-| `INSTALL_PATCHES` | `39988381` | CSPU Sep 2026 WLS SPU, applied via plain `opatch apply` after the SPB above |
-| `INSTALL_PATCHES_FR_COMMON` | `38590500` | FMW PERL Security Patch – applied by `06-` once Forms/Reports is installed (its component `oracle.perlint` is not in the infrastructure home) |
+| `INSTALL_PATCHES` | `40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399` | CPU Oct 2026 FMW Infrastructure bundle patches (ADF, WebCenter Core, OWSM, FMW Control, OAMCLIENT, UMS, OPSS, LibOVD), applied via plain `opatch apply` after the SPB above |
+| `INSTALL_PATCHES_FR_COMMON` | `39951765 39987730 39100536` | PERL SPU, OHS BP, WebGate BP – applied by `06-` once Forms/Reports is installed (their components are not in the infrastructure home) |
 | `INSTALL_PATCHES_REPORTS` | `39600348` | Reports 14.1.2 QPR (Aug 2026, Linux-x86-64), supersedes `38827528` |
 | `INSTALL_PATCHES_FORMS` | `39842516` | Forms 14.1.2 QPR (Sep 2026, Linux-x86-64), supersedes `38874285` — only downloaded/applied if Forms is part of this install |
 
@@ -267,10 +267,10 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=28186730 download=all
 ### 4. Download the WLS Stack Patch Bundle (WLS_SPB_PATCH_NR)
 
 ```bash
-# CSPU Sep 2026 – WLS Stack Patch Bundle (large, several hundred MB):
-mkdir -p $PATCH_STORAGE/patches/39925660
-cd $PATCH_STORAGE/patches/39925660
-java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=39925660 download=all
+# CPU Oct 2026 – WLS Stack Patch Bundle (large, several GB):
+mkdir -p $PATCH_STORAGE/patches/40125898
+cd $PATCH_STORAGE/patches/40125898
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=40125898 download=all
 ```
 
 ### 5. Download CPU patches (INSTALL_PATCHES)
@@ -279,8 +279,10 @@ Determine current patch numbers first — see
 [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md) (Section "How to Find the Correct Patch Numbers").
 
 ```bash
-# Current CSPU Sep 2026, applied after the SPB above:
-for _p in 39988381 38590500; do
+# Current CPU Oct 2026, applied after the SPB above (infrastructure bundles,
+# then PERL / OHS / WebGate for the Forms & Reports home):
+for _p in 40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399 \
+          39951765 39987730 39100536; do
     mkdir -p $PATCH_STORAGE/patches/$_p
     cd $PATCH_STORAGE/patches/$_p
     java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=$_p download=all
@@ -343,8 +345,8 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
   - Creates/verifies `$PATCH_STORAGE/bin/.getMOSPatch.cfg` (platform + language)
   - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
     (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
-  - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`39925660`) to
-    `$PATCH_STORAGE/patches/39925660/`, if set (skips if empty)
+  - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`40125898`) to
+    `$PATCH_STORAGE/patches/40125898/`, if set (skips if empty)
   - Downloads the Java SE patch **`JDK_PATCH_NR`** (`35702194`) to
     `$PATCH_STORAGE/patches/35702194/` – source of `--upgrade-jdk` /
     `07-Maintenance/80-patch_java_os.sh --apply`
@@ -353,7 +355,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
     `CLIENT_JDK_PLATFORM` (`233P`, Windows x64) to
     `$PATCH_STORAGE/client/jdk/<nr>/`
   - Downloads each patch from `INSTALL_PATCHES` to `$PATCH_STORAGE/patches/<nr>/`
-  - Downloads each patch from `INSTALL_PATCHES_REPORTS` and
+  - Downloads each patch from `INSTALL_PATCHES_FR_COMMON`, `INSTALL_PATCHES_REPORTS` and
     `INSTALL_PATCHES_FORMS` (plus `INSTALL_PATCHES_FR_OPTIONAL` if
     `REPORTS_BIDIPARENTHESIS=YES`) to `$PATCH_STORAGE/patches/<nr>/`
     (skips entirely if all three are empty)
@@ -398,12 +400,12 @@ $PATCH_STORAGE/
     ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
     │   └── p28186730_1394222_Generic.zip    ← contains 6880880/opatch_generic.jar
     │       (confirmed on MOS: 13.9.4.2.22, NOT .24 – see caveat below)
-    ├── 39925660/                 ← CSPU Sep 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
-    │   └── p39925660_141200_Generic.zip     ← applied via opatch napply, not apply
-    ├── 39988381/                 ← CSPU Sep 2026: WLS SPU CVE-2026-70748 (getMOSPatch, INSTALL_PATCHES)
+    ├── 40125898/                 ← CPU Oct 2026: WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR)
+    │   └── p40125898_141200_Generic.zip     ← applied via opatch napply, not apply
+    ├── 40050062/ … 39726399/     ← CPU Oct 2026: 8 FMW Infrastructure bundle patches (INSTALL_PATCHES)
     ├── 35702194/                 ← Oracle JDK 21 (getMOSPatch, JDK_PATCH_NR) – used by --upgrade-jdk
     │   └── p35702194_2100_Linux-x86-64.zip  ← jdk-21.0.x_linux-x64_bin.tar.gz + SHA256_VALUES
-    ├── 38590500/                 ← FMW PERL Security Patch (getMOSPatch, INSTALL_PATCHES_FR_COMMON)
+    ├── 39951765/ 39987730/ 39100536/  ← PERL SPU, OHS BP, WebGate BP (INSTALL_PATCHES_FR_COMMON)
     ├── 39600348/                 ← QPR Aug 2026: Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
     │   └── p39600348_141200_Linux-x86-64.zip
     └── 39842516/                 ← QPR Sep 2026: Forms 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_FORMS)
@@ -473,4 +475,4 @@ $PATCH_STORAGE/
 - Patch numbers for WLS/FMW patches: → [05-oracle_patch_weblogic.md](05-oracle_patch_weblogic.md)
 - Patch numbers for Forms & Reports patches: → [06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)
 - Central list of MOS Doc IDs: → [00-patch-references.md](00-patch-references.md)
-- Current OPatch minimum for the CSPU Sep 2026 WLS Stack Patch Bundle: ≥ 13.9.4.2.24 (installed via Patch 28186730)
+- Current OPatch minimum for the CPU Oct 2026 WLS Stack Patch Bundle: ≥ 13.9.4.2.25 (the copy inside SPB 40125898, Patch 28186730)

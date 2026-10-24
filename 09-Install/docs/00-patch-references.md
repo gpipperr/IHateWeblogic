@@ -22,7 +22,7 @@ traceable what belonged to a cycle, and an environment can be brought
 
 | Cycle | Released | Type | Configured in this project | Status | Document | Manual guide (how, by hand) |
 |---|---|---|---|---|---|---|
-| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / scripts still on CSPU Sep 2026 (switch is an open item) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (draft, README facts being added) |
+| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / `04-`/`05-`/`06-` switched 2026-10-24 (not yet applied on the test host) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (draft, README facts being added) |
 | CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; set live on the test host – **incomplete**: the FMW Infrastructure bundle patches (ADF, OWSM, OPSS, UMS, …) were missing, see "Patch List" below | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) | – (applied by the scripts, steps in `docs/05` / `06` of that time, see git history) |
 
 Rule for every new cycle:
@@ -345,8 +345,9 @@ Target: Oracle Forms & Reports 14.1.2.0.0 on Linux x86-64 (Oracle Linux 9),
 Nginx as frontend. Source: KA1182 "LATEST for OCTOBER 2026" (PDF of
 2026-10-22, tabs Forms and Reports / FMW Infrastructure / WebLogic Server
 14.1.2.0) and CPU426 for Java. The column "Previous (CSPU Sep 2026)" is
-what is installed now; `oracle_software_version.conf` and the scripts are
-still on the previous set – switching them is an open item (root README).
+what is installed on the test host now; `oracle_software_version.conf` and
+the scripts `04-`/`05-`/`06-` are switched to this set (2026-10-24) – the
+apply run on the test host is the open item (root README).
 
 **Correction to the September set:** the Forms and Reports tab of KA1182
 points to the FMW Infrastructure tab, which demands eight infrastructure

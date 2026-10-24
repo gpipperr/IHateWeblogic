@@ -9,9 +9,9 @@ frontend.
 |---|---|
 | What / why | [09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md) – patch list, KA1182 / CPU360 / CPU426, the CVE table of this cycle (not repeated here) |
 | How – by hand | [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_october_2026_manual.md) – step by step, versioned for this cycle |
-| How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **still on CSPU Sep 2026**; switched after this guide is verified |
+| How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **switched to this set 2026-10-24** (dry-runs OK), not yet applied on the test host |
 | Counterpart 12c | [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md) (customer, F&R 12.2.1.19) |
-| State | started 2026-10-24; patch READMEs are added one by one (section 3a) |
+| State | 2026-10-24: all 17 patch READMEs read (section 3a), scripts switched; next: run on the test host (`05-`/`06-` `--check-only`, then `--apply`) |
 
 **Why one folder per cycle:** the library always follows the current CPU.
 These folders keep the **manual** procedure of every cycle – who has to stay
