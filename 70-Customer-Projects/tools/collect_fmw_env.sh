@@ -1,7 +1,8 @@
 #!/bin/bash
 # =============================================================================
 # Script   : collect_fmw_env.sh
-# Purpose  : Collect the metadata of an Oracle Forms & Reports / FMW host –
+# Purpose  : Collect the metadata of an Oracle Forms & Reports / FMW host
+#            (12.2.1.x and 14.1.2) –
 #            from the OS to Forms – into one directory + tar.gz for analysis.
 #            READ-ONLY: writes only into the output directory (OPatch itself
 #            writes its usual logs to $ORACLE_HOME/cfgtoollogs when it reads
@@ -26,7 +27,7 @@
 
 set -u
 umask 077
-VERSION="2026-10-23.4"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-10-24.1"   # bump on every change – shown in 00_summary.txt
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
 while [ $# -gt 0 ]; do

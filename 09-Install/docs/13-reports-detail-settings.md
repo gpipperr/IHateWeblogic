@@ -717,6 +717,17 @@ Fix: always add `-DORBWaitForResponseTimeout=999999999` to `REPORTS_JVM_OPTIONS`
 in `rwserver.conf` (the script does this since 2026-10-15), then restart the
 component (`stopComponent.sh` / `startComponent.sh <repserver>`).
 
+Oracle confirmed it later as **Bug 39868225** (defect introduced by QPR
+39600348), MOS **KB924687** "After July QPR 39600348 Unable to start
+Standalone Report Server – REP-50125": workaround is the same option in
+`REPORTS_JVM_OPTIONS` of the start script (the KB says `report.sh` and
+`7200000` – in 14.1.2 the file is `$DOMAIN_HOME/reports/bin/reports.sh`; any
+non-null value works). The KB also says: if `-DORBWaitForResponseTimeout` is
+set under `<jvmOptions>` in `rwserver.conf`, remove it there to avoid a
+conflict – we set it only in `<envVariable name="REPORTS_JVM_OPTIONS">` (engines)
+and in `reports.sh` (rwserver JVM). Fix expected in a later QPR – keep the
+option until a QPR README lists 39868225.
+
 ### getserverinfo returns REP-52262 "Diagnostic output is disabled" (confirmed 2026-10-15)
 
 Not a hidden error: `CommandManager.checkDiagnostic` blocks the web command.

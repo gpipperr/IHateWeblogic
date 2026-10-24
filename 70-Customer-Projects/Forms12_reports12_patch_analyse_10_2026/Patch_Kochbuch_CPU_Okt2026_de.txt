@@ -128,8 +128,7 @@ VORAUSSETZUNGEN
 
   ACHTUNG Plattform: Forms-QPR, Reports-QPR, DB Client und PERL gibt es unter
   derselben Patchnummer fuer mehrere Plattformen. Nur "*Linux-x86-64*.zip"
-  verwenden (beim Reports-QPR wurde im MOS zuerst die SOLARIS64-README
-  angezeigt). UMS hat bewusst die Release-Kennung 122130 (12.2.1.3) - das
+  verwenden . UMS hat bewusst die Release-Kennung 122130 (12.2.1.3) - das
   ist richtig, die UMS-Komponente eines 12.2.1.4-Homes ist 12.2.1.3.
 
 
@@ -137,7 +136,8 @@ VORAUSSETZUNGEN
 SCHRITT 0: Ist-Stand erfassen  (vor dem Wartungsfenster, System laeuft)
 ================================================================================
 
-  # Kurzweg: tools/collect_fmw_env.sh nach /tmp kopieren und als oracle
+  # Kurzweg: 70-Customer-Projects/tools/collect_fmw_env.sh nach /tmp
+  # kopieren und als oracle
   # ausfuehren - sammelt alles unten (und mehr) in einem Lauf, nur lesend,
   # Passwoerter maskiert:
   #   cd /tmp && ./collect_fmw_env.sh --full

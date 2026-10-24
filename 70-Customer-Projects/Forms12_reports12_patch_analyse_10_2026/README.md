@@ -72,9 +72,9 @@ Also check:
 
 Result of the check → fill in section 7 (open points).
 
-All of this in one run: [tools/collect_fmw_env.sh](tools/collect_fmw_env.sh) –
+All of this in one run: [../tools/collect_fmw_env.sh](../tools/collect_fmw_env.sh) –
 standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.gz`
-(see [tools/README.md](tools/README.md)).
+(shared collector for 12c and 14c, see [../tools/README.md](../tools/README.md)).
 
 ### 1a. Inventory of the customer home (received 2026-10-23)
 
@@ -101,7 +101,7 @@ standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.
 | 32720458 (old JDBC) | not installed | no rollback before `napply` needed |
 | `/etc/oraInst.loc` | `inventory_loc=/home/oracle/oraInventory`, `inst_group=oinstall`; Oracle Home `/oracle/product/mw`, domain home `/oracle/user_projects/domains/fr_domain` | the central inventory lives in the **home directory of the oracle user**, outside `/oracle` – include it explicitly in the backup (a backup of `/oracle` alone misses it) |
 | `$ORACLE_HOME/oui/.globalEnv.properties` | `JAVA_HOME=/oracle/java/jdk`, `JAVA_HOME_1_8=/oracle/java/jdk` | OPatch's JDK lies **outside** the Oracle Home (KB175049 fulfilled) and the path is version-neutral → the JDK update is a link switch `ln -sfn jdk1.8.0_511 /oracle/java/jdk` (if `jdk` is a real directory today: rename it to `jdk1.8.0_<old>` once and create the link) – no configuration file has to change; check for remaining `jdk1.8.0_` paths in `DOMAIN_HOME` (cookbook step 4). **Confirmed:** all running Java processes (`ps auxf`) start from `/oracle/java/jdk` – the servers already use the version-neutral path |
-| **Collector run 2026-10-23** (`tools/collect_fmw_env.sh --full --logs`, first machine) | see the rows below | archive kept outside the repository |
+| **Collector run 2026-10-23** (`../tools/collect_fmw_env.sh --full --logs`, first machine) | see the rows below | archive kept outside the repository |
 | OS / glibc | Oracle Linux **8.9**, glibc **2.28**, uptime 17 weeks, 30 GB RAM | KB873815 (Forms relink after Reports QPR, glibc ≥ 2.34) does **not** apply – the order Forms before Reports stays as a good habit |
 | Role of the machine | host name ends with "t", no `frmweb` session at 20:00 | probably a **test** system – confirm (point 12) |
 | **Reports** | components `oracle.reports.{bridge,builder,core,runtime,server,tools}` in the home; `ReportsServerComponent` / `ReportsToolsComponent` in `config.xml`; `rwserver` listening on port 13411, two engines running | Reports **runs on this machine** – the Reports QPR 39600813 is required (point 11 answered) |

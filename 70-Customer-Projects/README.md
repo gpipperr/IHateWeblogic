@@ -27,6 +27,26 @@ Java Security Alert CVE-2026-91403 (server JDK 8 and client JRE), with the
 CVE background and the questions to clarify with the customer – applied by
 hand, no scripts.
 
+### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
+
+→ [Forms14_reports14_patch_analyse_10_2026/README.md](Forms14_reports14_patch_analyse_10_2026/README.md)
+
+The reference stack of this library (Forms & Reports 14.1.2, OL9, Nginx):
+analysis of the CPU October 2026 patch set with the facts of every patch
+README, and a manual step-by-step guide
+([install_14c_patch_set_october_2026_manual.md](Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md)).
+**One folder per patch cycle** – the versioned history of the manual
+procedure, while the scripts always follow the current cycle; older folders
+are frozen. Cycle table: [09-Install/docs/00-patch-references.md](../09-Install/docs/00-patch-references.md).
+
+### tools – shared collector (12c and 14c)
+
+→ [tools/README.md](tools/README.md)
+
+`collect_fmw_env.sh`: standalone, read-only collection of OS, Java, Oracle
+Home / patches, domain, Forms / Reports / OHS / web server configuration into
+one archive for the analysis; secrets masked. Works for 12.2.1.x and 14.1.2.
+
 ## Further Installation Guides (German)
 
 Additional practical installation walkthroughs for other WebLogic-related

@@ -1,7 +1,15 @@
-# tools – metadata collection on the customer host
+# tools – metadata collection on a Forms & Reports host
 
-Standalone helpers for the patch analysis – **no** IHateWeblogic library,
-plain bash + coreutils, copy them to the host and run them there.
+Shared, standalone helpers for the patch analyses in `70-Customer-Projects/`
+– **no** IHateWeblogic library, plain bash + coreutils, copy them to the host
+and run them there. One script for all releases: it works for FMW / Forms &
+Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
+17 / 21) – tested on both (2026-10-23). Release differences are detected at
+runtime, never by a second copy of the script.
+
+Used by:
+- [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
+- [Forms14_reports14_patch_analyse_10_2026](../Forms14_reports14_patch_analyse_10_2026/README.md)
 
 ## collect_fmw_env.sh
 

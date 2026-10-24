@@ -96,31 +96,19 @@ To add a future Forms/Reports-specific patch:
 
 ## Without the Script (manual)
 
-### 1. Conflict check
+The manual procedure is versioned **per patch cycle** – one folder per cycle
+with the analysis (patch list, facts of every patch README) and a
+step-by-step guide:
 
-```bash
-cd $PATCH_STORAGE/patches/<PATCH_NR>/
-$ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
-    -ph .
-```
+- **current:** [70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md)
+  (CPU October 2026)
+- older cycles: the folders `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`
+  and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the
+  cycle table in [00-patch-references.md](00-patch-references.md)
 
-> `/etc/oraInst.loc` is found automatically — no `-invPtrLoc` needed.
-> Created by `03-root_user_oracle.sh` or `60-RCU-DB-19c/00-root_db_os_baseline.sh`.
-
-### 2. Apply patch
-
-```bash
-cd $PATCH_STORAGE/patches/<PATCH_NR>/
-$ORACLE_HOME/OPatch/opatch apply \
-    -silent \
-    -jdk $JDK_HOME
-```
-
-### 3. Verify
-
-```bash
-$ORACLE_HOME/OPatch/opatch lspatches | grep <PATCH_NR>
-```
+This section used to carry manual steps with fixed patch numbers (OPatch,
+UMS bundle of January 2026); they aged with every cycle and were removed on
+2026-10-24.
 
 ---
 

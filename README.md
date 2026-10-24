@@ -117,6 +117,7 @@ CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-22.
 | Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
 | Scripts / `oracle_software_version.conf` | **still on CSPU September 2026** (= test host) – switching to October is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
 | DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
+| Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md) – analysis + step-by-step guide of the CPU Oct 2026 set (the master for the script switch) |
 | Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
 
 What matters in this cycle:
@@ -134,7 +135,8 @@ What matters in this cycle:
   important measure:
   [threat model](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
 - **FMW-bundled JDK** `oracle_common/jdk` 17.0.12: no patch in KA1182 –
-  open.
+  open; the "alternative JAVA_HOME" fix of the Reports QPR (Bug 37866660) is
+  no way out (tools only, not certified for the engines) → SR.
 - Oracle publishes no CVE → patch mapping: we prove the **patch level**
   ("installed ≥ patch document"), not the fix of a single CVE.
 
@@ -357,7 +359,7 @@ Run these scripts in sequence on a fresh installation:
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files) and patch analyses (Forms & Reports 12.2.1.19), independent of the scripts above |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and the shared collector `tools/collect_fmw_env.sh`, independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
@@ -604,8 +606,17 @@ IHateWeblogic/
     │                                   German installation guides (one subfolder per customer/scenario)
     ├── README.md
     ├── Forms12_reports12_patch_analyse_10_2026/
-    │   └── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
-    │                                         Java alert (server JDK 8, client JRE), manual
+    │   ├── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
+    │   │                                     Java alert (server JDK 8, client JRE), manual
+    │   └── Patch_Kochbuch_CPU_Okt2026_de.txt – German patch cookbook for the customer (12 steps)
+    ├── Forms14_reports14_patch_analyse_10_2026/   – one folder per patch cycle (history of the
+    │   │                                     manual procedure; the scripts follow the current cycle)
+    │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
+    │   │                                     facts of every patch README
+    │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
+    ├── tools/
+    │   ├── README.md
+    │   └── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -776,11 +787,19 @@ CSPU Sep 2026 state is frozen in
   Infrastructure bundle patches** (ADF, WebCenter Core, OWSM, FMW Control,
   OAMCLIENT, UMS, OPSS, LibOVD) that were missing in the September set –
   needs a new patch list for `05-`/`06-` (doc first). Then download,
-  `07-Maintenance/81-`/`82-`, smoke test `15-`. Check whether SPU 39988381
-  is contained in SPB 40125898.
+  `07-Maintenance/81-`/`82-`, smoke test `15-`. All patch READMEs are read
+  (2026-10-24) – the manual guide in
+  [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)
+  is the master for this switch (run it on the test host first). SPU
+  39988381 is an overlay on the Sep PSU 39919611 → drop it from
+  `INSTALL_PATCHES`, after the SPB check that `-bugs_fixed` shows its base
+  bug 39924025 under the new PSU.
 - [ ] Part of that switch: the **OHS / WebGate** bundle patches (39987730 /
   39100536) – the binaries are in the Oracle Home although Nginx is the
-  frontend (agreed: everything on disk gets patched; OHS CVE-2026-87347 9.6).
+  frontend (agreed: everything on disk gets patched; OHS CVE-2026-87347 9.6,
+  WebGate CVE-2025-0725). Post-install KB559857: nothing to do without an
+  OHS instance – its header-stripping topic applies to our Nginx instead
+  (item under "Scripts" / Nginx template).
 - [ ] JDK at `JDK_HOME`: target **21.0.13.0.2** (CPU426, Patch 40186074 /
   well-known 35702194, available by 23 Oct 2026), not 21.0.13 (affected by
   CVE-2026-91403). Set `JDK_VERSION_MIN="21.0.13.0.2"`,
@@ -796,7 +815,8 @@ CSPU Sep 2026 state is frozen in
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
 - [ ] Confirm the CVE coverage of the patches in MOS KA1182 / CPU360
   (CPU Oct 2026: CVE-2026-83399 / 91323 / 4176 / 47065, all 9.8; the
-  September CVEs 83021 / 83099 / 83020 are still unconfirmed too).
+  September CVEs 83021 / 83099 are still unconfirmed; 83020 confirmed
+  2026-10-24 in the OPSS BP 39979746, not in the SPB).
 - [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
 
 ### Tests that need a client or a fresh install
@@ -867,6 +887,10 @@ CSPU Sep 2026 state is frozen in
   the KA1182 / CPU October 2026 patch-availability rows. **State
   2026-10-22:** the KA1182 of October 2026 (PDF) has no patch for the
   bundled JDK (only Java SE for `JDK_HOME`) → open an SR with the question.
+  **State 2026-10-24:** Reports QPR Bug 37866660 ("alternative JAVA_HOME")
+  checked – Oracle Support AI: Reports tools only, JDK 21 not certified for
+  Reports 14.1.2, `rwengine.sh` hard-codes `oracle_common/jdk` (`rwserver`
+  loads its `libjvm.so`). SR draft ready (local `SR/`, not in Git) – submit.
 - [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
   both are proposals today (½ RAM / 64 MB per session; 30 min, measured
   longest job 1 s on the test host) – re-check with
@@ -898,6 +922,10 @@ CSPU Sep 2026 state is frozen in
 - [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
   customer finding with ORDS) – also for `/forms` / `/reports`?
+  Together with the Nginx counterpart of the OHS header stripping (KB559857):
+  clear client-supplied `WL-Proxy-Client-Cert/-Keysize/-Secretkeysize/-Port`,
+  `WL-PATH-*`, `X-WebLogic-*`, `tyrus-connection-id` – see
+  70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026 open point 11.
 
 ### Monitoring (phase 9)
 
