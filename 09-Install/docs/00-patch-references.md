@@ -22,7 +22,7 @@ traceable what belonged to a cycle, and an environment can be brought
 
 | Cycle | Released | Type | Configured in this project | Status | Document | Manual guide (how, by hand) |
 |---|---|---|---|---|---|---|
-| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / `04-`/`05-`/`06-` switched 2026-10-24 (not yet applied on the test host) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (draft, README facts being added) |
+| CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / `04-`/`05-`/`06-` switched and **applied on the test host 2026-10-24** (smoke test OK) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (verified on the test host 2026-10-24) |
 | CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; set live on the test host – **incomplete**: the FMW Infrastructure bundle patches (ADF, OWSM, OPSS, UMS, …) were missing, see "Patch List" below | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) | – (applied by the scripts, steps in `docs/05` / `06` of that time, see git history) |
 
 Rule for every new cycle:
@@ -345,9 +345,9 @@ Target: Oracle Forms & Reports 14.1.2.0.0 on Linux x86-64 (Oracle Linux 9),
 Nginx as frontend. Source: KA1182 "LATEST for OCTOBER 2026" (PDF of
 2026-10-22, tabs Forms and Reports / FMW Infrastructure / WebLogic Server
 14.1.2.0) and CPU426 for Java. The column "Previous (CSPU Sep 2026)" is
-what is installed on the test host now; `oracle_software_version.conf` and
-the scripts `04-`/`05-`/`06-` are switched to this set (2026-10-24) – the
-apply run on the test host is the open item (root README).
+what was installed before; `oracle_software_version.conf` and the scripts
+`04-`/`05-`/`06-` are switched to this set and it is **applied on the test
+host (2026-10-24)** – runtimes and the live findings in the 14c folder.
 
 **Correction to the September set:** the Forms and Reports tab of KA1182
 points to the FMW Infrastructure tab, which demands eight infrastructure
@@ -364,7 +364,7 @@ removed" and "LibOVD not required" in the snapshot were wrong.
 | 1b | *blocked* | *open* | FMW-bundled JDK `oracle_common/jdk` (`oracle.jdk` 17.0.12.8.0) – KA1182 lists no patch for it | – | – |
 | 2 | 28186730 → **13.9.4.2.25** | 13.9.4.2.24 (inside SPB 39925660) | OPatch – "Upgrade OPatch before applying the below patches"; check whether the standalone download offers .25 or only the SPB carries it (see `docs/05-oracle_patch_weblogic.md`) | Oct 2026 | `05-` |
 | 3 | **40125898** | 39925660 | WLS Stack Patch Bundle 14.1.2.0.261007 (content below) | Oct 2026 | `05-` |
-| 4 | – (check) | 39988381 | WLS SPU for CVE-2026-70748 (CSPU Sep 2026) – the WLS 14.1.2 tab lists SPB 40125898 **alone** (PSU 14.1.2.0.260922 is newer than the SPU), but other tabs still pair it with their October SPB (WebCenter SPB 40141505 "+ 39988381"). Real README (inside the ZIP, read 2026-10-24 – the MOS portal README is an AutoPatch placeholder): **overlay on the Sep PSU 39919611**, base bug **39924025** (`com.oracle.weblogic.iiop.jar` NamingContextImpl) → it can not be re-applied on PSU 40058371. After the SPB: `opatch lsinventory -bugs_fixed` must show 39924025 under the new PSU; if not, an overlay for 40058371 is needed | – | `05-` (`INSTALL_PATCHES`) |
+| 4 | – (check) | 39988381 | WLS SPU for CVE-2026-70748 (CSPU Sep 2026) – the WLS 14.1.2 tab lists SPB 40125898 **alone** (PSU 14.1.2.0.260922 is newer than the SPU), but other tabs still pair it with their October SPB (WebCenter SPB 40141505 "+ 39988381"). Real README (inside the ZIP, read 2026-10-24 – the MOS portal README is an AutoPatch placeholder): **overlay on the Sep PSU 39919611**, base bug **39924025** (`com.oracle.weblogic.iiop.jar` NamingContextImpl) → it can not be re-applied on PSU 40058371. **Confirmed live 2026-10-24** (`napply -report`): "40058371 Bug Superset of 39988381 (39924025)" – rolled back by OPatch, fix in the new PSU | – | `05-` (`INSTALL_PATCHES`) |
 | 5 | **39951765** | 38590500 | PERL 5.42.2 Security Update for FMW 14.1.2 (component `oracle.perlint`) – needs DBCLIENT for FMW 23.26.0.0.0 or later (comes with the SPB) | Oct 2026 | `06-` (`INSTALL_PATCHES_FR_COMMON`) |
 | 6 | 39600348 (unchanged) | 39600348 | Oracle Reports Developer QPR 14.1.2.0 | Aug 2026 | `06-` |
 | 7 | **39987730** | 39597026 (not applied) | OHS Bundle Patch 14.1.2.0.260907 – OHS binaries (`oracle.ohs2`, `oracle.ohs2.collocated`) are in the home although Nginx is the frontend. Post-install per KB559857 | Oct 2026 | `06-` |

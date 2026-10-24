@@ -88,7 +88,13 @@ duplicated here.
 3. ./07-Maintenance/backup_config.sh --apply
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
    (81-/82- refuse --apply while NM, a WLS server or ANY process from
-    $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …)
+    $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …;
+    80- also while a JVM runs from JDK_HOME – ORDS, stopped by stop-all
+    since 2026-10-24)
+   Then each of 80-/81-/82- --apply pauses: "VM snapshot now?" – type ok to
+   continue, anything else aborts (no terminal or IHW_NO_SNAPSHOT_PROMPT=true:
+   no pause). Everything is stopped at that point, so the snapshot is
+   consistent.
 5. ./07-Maintenance/80-patch_java_os.sh --apply   # JDK_HOME from patches/<JDK_PATCH_NR>/ (WARN if missing)
 6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
 7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer

@@ -93,12 +93,16 @@ directory.
 ## 3. Stop everything
 
 ```bash
-$IHW/01-Run/startStop.sh stop-all          # or: fmw_ctl.sh stop-all (autostart)
-ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME" | grep -v grep   # expected: empty
+$IHW/01-Run/startStop.sh stop-all --apply  # also stops ORDS (since 2026-10-24)
+ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME|$JDK_HOME" | grep -v grep   # expected: empty
 ```
 
 Reports server, engines, WLS servers and the Node Manager must be gone –
-OPatch relinks binaries in steps 8 / 9.
+OPatch relinks binaries in steps 8 / 9. **ORDS** (`ords@ords_<n>.service`,
+`12-APEX-Ords`) runs on the JDK at `JDK_HOME` and blocks the JDK switch of
+step 5 – by hand: `sudo systemctl stop ords@ords_1` (live finding
+2026-10-24: `02b --upgrade-jdk` refused, PID of ORDS).
+Start afterwards: `startStop.sh start-all --apply` (ORDS last).
 
 ---
 
@@ -186,6 +190,11 @@ cd -
 $ORACLE_HOME/OPatch/opatch lspatches | tee $LOGDIR/07_lspatches_after_spb.txt
 ```
 
+`-report` on the test host (2026-10-24, live): supersets 40058371 > 39919611
++ 39988381, 40126042 > 39925694, 39984190 > 39864483, 39646824 > 39798193,
+40035655 > 39916998; duplicates skipped 39264447 / 39487373 / 38391376;
+Samples 38063775 skipped (component not in the home); "All checks passed".
+
 Expected (SPB README, documented): marker **40126042** (interim 40125902),
 WLS PSU 40058371 (14.1.2.0.260922), Third-Party BP 40035655, Coherence CP10
 39984190, RDA 39646824, JDBC 39487373, DB client RU 39264447, Samples
@@ -193,8 +202,9 @@ WLS PSU 40058371 (14.1.2.0.260922), Third-Party BP 40035655, Coherence CP10
 - **39988381** (Sep SPU) is not in the SPB list. It is an overlay on the
   Sep PSU 39919611 (base bug 39924025, README inside the ZIP – the MOS portal
   README is a placeholder), so it can **not** be re-applied on PSU 40058371.
-  Check the `-report` output for what happens to it (expected: removed with
-  the old PSU – assumption), then after the apply
+  **Confirmed live 2026-10-24** in the `-report` output: "Patch 40058371 –
+  Bug Superset of 39988381 (39924025)" – OPatch rolls it back within the
+  `napply`, the new PSU carries the fix. After the apply
   `opatch lsinventory -bugs_fixed | grep 39924025` must show the new PSU;
   if missing: no Sep overlay on top, look for an overlay on 40058371
   (open point 1);

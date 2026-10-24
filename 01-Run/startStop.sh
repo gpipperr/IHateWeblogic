@@ -11,8 +11,8 @@
 # Options  : list                Show status table (default)
 #            start <component>   Start a specific component
 #            stop  <component>   Stop a specific component
-#            start-all           Start: NM -> AdminServer -> Managed -> Reports -> OHS
-#            stop-all            Stop:  OHS -> Reports -> Managed -> AdminServer -> NM
+#            start-all           Start: NM -> AdminServer -> Managed -> Reports -> OHS -> ORDS
+#            stop-all            Stop:  ORDS -> OHS -> Reports -> Managed -> AdminServer -> NM
 #            --apply             Execute write operations (default: dry-run)
 #            --help              Show usage
 # Requires : ss (or netstat), pgrep, wlst.sh (stop; start/stop of Reports servers)
@@ -35,6 +35,11 @@
 #            3. NM not running: start scripts (as before)
 #            The status table shows per server "Ctrl" NM | script and warns
 #            about servers running outside the Node Manager.
+# ORDS     : ORDS standalone instances of 12-APEX-Ords (ORDS_<n>_PORT in
+#            environment.conf) run as systemd units ords@ords_<n>.service on
+#            the JDK at JDK_HOME - started / stopped with systemctl via sudo,
+#            also in start-all (last) / stop-all (first), so a JDK upgrade
+#            (07-Maintenance/80-) finds no JVM left on JDK_HOME.
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : 01-Run/README.md
@@ -69,14 +74,15 @@ _usage() {
     printf "  %-30s %s\n" "(no args) | list"        "Show component status table"
     printf "  %-30s %s\n" "start <component>"       "Start a specific component"
     printf "  %-30s %s\n" "stop  <component>"       "Stop a specific component"
-    printf "  %-30s %s\n" "start-all"               "Start all in order (NM->Admin->Managed->Reports->OHS)"
-    printf "  %-30s %s\n" "stop-all"                "Stop all in reverse (OHS->Reports->Managed->Admin->NM)"
+    printf "  %-30s %s\n" "start-all"               "Start all in order (NM->Admin->Managed->Reports->OHS->ORDS)"
+    printf "  %-30s %s\n" "stop-all"                "Stop all in reverse (ORDS->OHS->Reports->Managed->Admin->NM)"
     printf "  %-30s %s\n" "--apply"                 "Execute operations (default: dry-run)"
     printf "\nExamples:\n"
     printf "  %s\n"                                  "$(basename "$0")"
     printf "  %s start AdminServer --apply\n"        "$(basename "$0")"
     printf "  %s stop  WLS_REPORTS --apply\n"        "$(basename "$0")"
     printf "  %s start repserver01 --apply   (Reports server component)\n" "$(basename "$0")"
+    printf "  %s stop  ords@ords_1 --apply   (ORDS systemd unit, sudo)\n" "$(basename "$0")"
     printf "  %s start-all --apply\n"                "$(basename "$0")"
     printf "  %s stop-all  --apply\n"                "$(basename "$0")"
     exit 1
@@ -109,12 +115,12 @@ fi
 # =============================================================================
 
 declare -a C_NAME=()    # component name
-declare -a C_TYPE=()    # NM | ADMIN | MANAGED | REPORTS | OHS
+declare -a C_TYPE=()    # NM | ADMIN | MANAGED | REPORTS | OHS | ORDS
 declare -a C_HOST=()    # configured listen address
 declare -a C_PORT=()    # primary port
 declare -a C_STATUS=()  # RUNNING | STOPPED | UNKNOWN
 declare -a C_PID=()     # PID or ""
-declare -a C_CTRL=()    # NM | script | "" (who started a running server)
+declare -a C_CTRL=()    # NM | script | systemd | "" (who started a running server)
 
 # =============================================================================
 # SS/netstat snapshot (reused for all port checks)
@@ -216,6 +222,19 @@ _discover() {
             C_NAME+=("$ohs_name"); C_TYPE+=("OHS")
             C_HOST+=("*");         C_PORT+=("${ohs_port:-8890}")
             C_STATUS+=("UNKNOWN"); C_PID+=("")
+        done
+    fi
+
+    # --- 5. ORDS standalone instances (12-APEX-Ords, systemd ords@ords_<n>) ---
+    # ORDS_<n>_PORT in environment.conf = one instance; only if the template
+    # unit is installed (04-install-ords.sh)
+    if [ -f /etc/systemd/system/ords@.service ]; then
+        local v n
+        for v in $(compgen -v | grep -E '^ORDS_[0-9]+_PORT$'); do
+            n="${v#ORDS_}"; n="${n%_PORT}"
+            C_NAME+=("ords@ords_${n}"); C_TYPE+=("ORDS")
+            C_HOST+=("127.0.0.1");     C_PORT+=("${!v}")
+            C_STATUS+=("UNKNOWN");     C_PID+=("")
         done
     fi
 }
@@ -325,6 +344,10 @@ _refresh_status() {
                 pid="$(pgrep -f "OHS/${name}" 2>/dev/null | head -1)"
                 [ -z "$pid" ] && pid="$(pgrep -f "ohs/${name}" 2>/dev/null | head -1)"
                 ;;
+            ORDS)
+                pid="$(systemctl show -p MainPID --value "${name}.service" 2>/dev/null)"
+                [ "$pid" = "0" ] && pid=""
+                ;;
         esac
 
         C_PID[$i]="${pid:-}"
@@ -332,6 +355,7 @@ _refresh_status() {
         if [ -n "$pid" ] && [[ "$ctype" =~ ^(ADMIN|MANAGED|REPORTS)$ ]]; then
             _under_nm "$pid" && C_CTRL[$i]="NM" || C_CTRL[$i]="script"
         fi
+        [ "$ctype" = "ORDS" ] && C_CTRL[$i]="systemd"
 
         if [ -n "$pid" ]; then
             C_STATUS[$i]="RUNNING"
@@ -617,6 +641,11 @@ _start_comp() {
             [ "$rc" -eq 0 ] && ok "$name started" || fail "$name start failed (rc=$rc)"
             return $rc
             ;;
+        ORDS)
+            ihw_run_root systemctl start "${name}.service" \
+                && ok "$name started (systemd)" \
+                || { fail "$name start failed – systemctl status ${name}.service"; return 1; }
+            ;;
         *)
             fail "Unknown component type '$ctype'"
             return 1
@@ -715,6 +744,12 @@ PYEOF
             return $rc
             ;;
 
+        ORDS)
+            ihw_run_root systemctl stop "${name}.service" \
+                && ok "$name stopped (systemd)" \
+                || { fail "$name stop failed – systemctl status ${name}.service"; return 1; }
+            ;;
+
         *)
             fail "Unknown component type '$ctype'"
             return 1
@@ -723,7 +758,7 @@ PYEOF
 }
 
 # =============================================================================
-# Start-all: NM -> AdminServer -> Managed -> Reports -> OHS
+# Start-all: NM -> AdminServer -> Managed -> Reports -> OHS -> ORDS
 # =============================================================================
 
 # systemd keeps its own view: "active (exited)" after start, independent of
@@ -737,7 +772,7 @@ _systemd_note() {
 
 _start_all() {
     local i
-    for ctype in "NM" "ADMIN" "MANAGED" "REPORTS" "OHS"; do
+    for ctype in "NM" "ADMIN" "MANAGED" "REPORTS" "OHS" "ORDS"; do
         for (( i=0; i < ${#C_NAME[@]}; i++ )); do
             [ "${C_TYPE[$i]}" != "$ctype" ] && continue
             if [ "${C_STATUS[$i]}" = "RUNNING" ]; then
@@ -755,13 +790,28 @@ _start_all() {
     done
 }
 
+# _ords_all start|stop - the ORDS units besides fmw_ctl.sh (not part of the domain)
+_ords_all() {
+    local i
+    for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+        [ "${C_TYPE[$i]}" = "ORDS" ] || continue
+        if [ "$1" = "start" ] && [ "${C_STATUS[$i]}" != "RUNNING" ]; then
+            section "Starting ${C_NAME[$i]}"
+            _start_comp "${C_NAME[$i]}" ORDS || true
+        elif [ "$1" = "stop" ] && [ "${C_STATUS[$i]}" != "STOPPED" ]; then
+            section "Stopping ${C_NAME[$i]}"
+            _stop_comp "${C_NAME[$i]}" ORDS "${C_PID[$i]}" systemd || true
+        fi
+    done
+}
+
 # =============================================================================
-# Stop-all: OHS -> Reports -> Managed -> AdminServer -> NM
+# Stop-all: ORDS -> OHS -> Reports -> Managed -> AdminServer -> NM
 # =============================================================================
 
 _stop_all() {
     local i
-    for ctype in "OHS" "REPORTS" "MANAGED" "ADMIN" "NM"; do
+    for ctype in "ORDS" "OHS" "REPORTS" "MANAGED" "ADMIN" "NM"; do
         for (( i=0; i < ${#C_NAME[@]}; i++ )); do
             [ "${C_TYPE[$i]}" != "$ctype" ] && continue
             if [ "${C_STATUS[$i]}" = "STOPPED" ]; then
@@ -852,6 +902,7 @@ case "$ACTION" in
         section "Starting All Components"
         if [ -n "$FMW_CTL" ]; then
             _fmw_ctl start all
+            _ords_all start
             _systemd_note
         else
             _start_all
@@ -861,6 +912,7 @@ case "$ACTION" in
     stop-all)
         section "Stopping All Components"
         if [ -n "$FMW_CTL" ]; then
+            _ords_all stop
             # servers started past the NM first - fmw_ctl.sh would skip them
             for (( i=0; i < ${#C_NAME[@]}; i++ )); do
                 [ "${C_CTRL[$i]}" = "script" ] && [ "${C_TYPE[$i]}" = "MANAGED" ] \

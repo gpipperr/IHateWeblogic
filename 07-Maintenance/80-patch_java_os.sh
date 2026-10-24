@@ -77,6 +77,35 @@ else
     check_wls_stopped || warn "WebLogic is running – fine for this read-only view; --apply needs the domain stopped (01-Run/startStop.sh stop-all --apply)"
 fi
 
+# Other JVMs on JDK_HOME, outside the domain – startStop.sh does not stop them
+# (e.g. ORDS standalone, 12-APEX-Ords, own systemd unit). 02b refuses to swap
+# the JDK under a running JVM; name the service here (found 2026-10-24).
+JDK_PIDS="$(pgrep -f "$(readlink -f "${JDK_HOME:-/nonexistent}")/bin/java|${JDK_HOME:-/nonexistent}/bin/java" 2>/dev/null)"
+for _pid in $JDK_PIDS; do
+    _unit="$(ps -o unit= -p "$_pid" 2>/dev/null | xargs)"
+    if tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null | grep -q 'oracle.dbtools.cmdline.home'; then
+        _what="ORDS"
+    else
+        _what="$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null | cut -c1-80)"
+    fi
+    _msg="$(printf "JVM on JDK_HOME: %s (PID %s%s)" "$_what" "$_pid" "${_unit:+, unit $_unit}")"
+    if [ "$APPLY" -eq 1 ]; then
+        fail "$_msg – stop it before the JDK upgrade"
+        case "$_unit" in
+            *.service) info "  sudo systemctl stop $_unit   (start it again after the upgrade)" ;;
+        esac
+    else
+        warn "$_msg – --apply needs it stopped"
+    fi
+done
+if [ "$APPLY" -eq 1 ] && [ -n "$JDK_PIDS" ]; then
+    print_summary; exit 2
+fi
+unset _pid _unit _what _msg
+if [ "$APPLY" -eq 1 ]; then
+    confirm_snapshot || { print_summary; exit 2; }
+fi
+
 # =============================================================================
 # JDK upgrade from the patch repository (logic in 02b-root_os_java.sh)
 # =============================================================================

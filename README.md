@@ -81,7 +81,8 @@ and documented in a versioned manual guide per cycle
 ([`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)),
 `oracle_software_version.conf` + `04-`/`05-`/`06-` switched to that set
 (incl. the eight FMW Infrastructure bundles), JDK 21.0.13.0.2 downloaded;
-the apply run on the test host is next.
+applied on the test host the same day with `07-Maintenance/80-`/`81-`/`82-` (0 FAIL, smoke test OK);
+`startStop.sh` now also handles ORDS, and the patch scripts pause for a VM snapshot.
 
 How the ~93 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (JDK upgrade from the patch repository done 2026-10-20, scripts on CPU Oct 2026 since 2026-10-24; bundled-JDK patch open), phase 9 about a third
@@ -121,7 +122,7 @@ CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-24.
 |---|---|
 | Current patch list (14.1.2) | [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md) – patch numbers from MOS KA1182 + CPU426, CVE check, "How to read KA1182", MOS Doc-ID table |
 | Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
-| Scripts / `oracle_software_version.conf` | **switched to CPU October 2026** (2026-10-24, dry-runs OK) – the test host is still on CSPU Sep 2026; the apply run is the first [open item](#next-patch-cycle-cpu-october-2026-released-2026-10-20--security-alert-cve-2026-91403) |
+| Scripts / `oracle_software_version.conf` | **CPU October 2026** – switched and applied on the test host 2026-10-24 (smoke test OK, runtimes in the 14c folder) |
 | DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
 | Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md) – analysis (facts of all 17 patch READMEs) + step-by-step guide of the CPU Oct 2026 set – the master for the scripts |
 | Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
@@ -326,7 +327,7 @@ Rules across the folders:
 
 | Phase | Gap |
 |---|---|
-| Phase 8 (Patches) | CPU Oct 2026 set in conf + `05-`/`06-` (2026-10-24), not yet applied on the test host; FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
+| Phase 8 (Patches) | CPU Oct 2026 applied on the test host (2026-10-24); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
 
@@ -787,31 +788,23 @@ CSPU Sep 2026 state is frozen in
 [`00-patch-references_september_2026.md`](09-Install/docs/00-patch-references_september_2026.md)
 (one snapshot per cycle, see "Patch cycle history" there).
 
-- [ ] **Apply the October set on the test host** – conf + `04-`/`05-`/`06-`
-  switched 2026-10-24 (dry-runs OK): SPB 40125898 (marker 40126042), OPatch
-  13.9.4.2.25, `JDK_VERSION_MIN=21.0.13.0.2` (ZIP downloaded and checked
-  2026-10-24), the **eight FMW Infrastructure bundle patches** in
-  `INSTALL_PATCHES` (missing in the September set), PERL 39951765 (rolls back
-  38590500) + OHS + WebGate in `INSTALL_PATCHES_FR_COMMON`; SPU 39988381
-  dropped (overlay on the Sep PSU) – `05-` checks its base bug 39924025 after
-  the SPB (`WLS_SPB_CHECK_BUGS`). Next on the running test host:
-  `04-oracle_pre_download.sh --apply --mos` (new ZIPs), backup,
-  `01-Run/startStop.sh stop-all --apply`, `07-Maintenance/80-` (JDK),
-  `81-` / `82-` (= `05-` / `06-` with the patch gate) `--check-only` then
-  `--apply`, start, smoke test `15-`, `cve_inventory.sh`; manual reference:
+- [x] **October set applied on the test host 2026-10-24** – conf +
+  `04-`/`05-`/`06-` switched, run with `07-Maintenance/80-`/`81-`/`82-`
+  (0 FAIL, start + smoke test `15-` OK): JDK 21.0.13.0.2, OPatch 13.9.4.2.25,
+  SPB 40125898 (SPU 39988381 superseded by PSU 40058371 – confirmed live), the
+  eight FMW Infrastructure bundles, PERL 39951765, OHS, WebGate. Runtimes and
+  findings:
   [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
-  Then archive the September ZIPs in the patch storage.
-  Included: the **OHS / WebGate** bundle patches (39987730 / 39100536,
-  `INSTALL_PATCHES_FR_COMMON`) – the binaries are in the Oracle Home
-  although Nginx is the frontend (OHS CVE-2026-87347 9.6, WebGate
-  CVE-2025-0725); post-install KB559857: nothing to do without an OHS
-  instance – its header-stripping topic applies to our Nginx instead (item
-  under "APEX / ORDS" / Nginx template).
-- [ ] JDK at `JDK_HOME`: **21.0.13.0.2** (CPU426; 21.0.13 is affected by
-  CVE-2026-91403) – `JDK_VERSION_MIN` set and the ZIP of 35702194 downloaded
-  and checked 2026-10-24 (`jdk-21.0.13.0.2`, Windows client ZIP too); left:
-  `07-Maintenance/80-patch_java_os.sh --apply` on the test host. The bundled
-  JDK of the Reports engines: see "FMW-bundled JDK" under Scripts.
+- [ ] Archive the September ZIPs in the patch storage:
+  `04-oracle_pre_download.sh --apply --fresh-patches --mos` (moves `patches/`
+  to `patches_<timestamp>/`, loads the current set again), delete the old
+  folder later.
+- [ ] Forms client bundle with the new client Java 21.0.13.0.2:
+  `09-Install/40-oracle_forms_client_bundle.sh --apply` (clients update at
+  their next start).
+- [ ] Open points 9 / 10 of the 14c folder: Jackson CVE number (-54513 vs.
+  -54515) and the 2.16.1 copies of the DB client (`jlib/`, `sqlcl/lib/`);
+  UMS `MESSAGE` / `STATUS` views in the EBR schema (SQL check).
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's
@@ -922,8 +915,7 @@ CSPU Sep 2026 state is frozen in
   schema profile / tablespace, public REST modules, feature drift – see the
   12-APEX-Ords README §9); first real run of `03-patch-apex.sh` /
   `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
-  wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; `startStop.sh`
-  shows `ords@ords_N`; move `rcu_repository_check` etc. to `ihw_sqlplus`;
+  wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; move `rcu_repository_check` etc. to `ihw_sqlplus`;
   the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
 - [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
   `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –

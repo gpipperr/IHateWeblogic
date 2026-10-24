@@ -17,7 +17,7 @@ Reports server, engines and `rwrun`:
 
 | Script | Status | Purpose |
 |---|---|---|
-| `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS |
+| `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS, ORDS (systemd units of `12-APEX-Ords`) |
 | `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
 | `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status (`--auth` for secured servers) |
 | `reports_server_lib.sh` | sourced | Shared Reports helpers (`rws_*`): component `rwserver.conf`, report engine attributes, server/engine PIDs, `getserverinfo` with `authid` – also used by `05-ReportsPerformance/` |
@@ -74,6 +74,7 @@ needed. Table of the plain mechanisms (NM not running / no autostart):
 | `MANAGED` | WLS_REPORTS, WLS_FORMS | `bin/startManagedWebLogic.sh` (nohup) | WLST `shutdown()` |
 | `REPORTS` | repserver01, … | WLST `nmConnect` + `nmStart(serverType='ReportsServerComponent')` | WLST `nmKill` (fallback: `kill <PID>` if the NM does not know the process) |
 | `OHS` | ohs1, … | `bin/startComponent.sh` | `bin/stopComponent.sh` |
+| `ORDS` | ords@ords_1, … | `sudo systemctl start ords@ords_<n>.service` | `sudo systemctl stop ords@ords_<n>.service` |
 
 `REPORTS` (since 2026-10-15): the Reports server runs as a Node Manager
 system component – the NM must be running. `startComponent.sh` /
@@ -85,12 +86,24 @@ use stop + start. Status: process `rwserver server=<name>`.
 `ReportsToolsComponent` and `FORMS` system components are configuration only
 (no own process) and are not listed.
 
+`ORDS` (since 2026-10-24): the ORDS standalone instances of `12-APEX-Ords`
+run as systemd units `ords@ords_<n>.service` on the JDK at `JDK_HOME` –
+outside the domain, so neither `fmw_ctl.sh` nor the Node Manager knows them.
+The script starts / stops them with `systemctl` through `sudo` (no sudo →
+the command is printed), also within `start-all` (last) / `stop-all`
+(first), with and without autostart. Status: `MainPID` of the unit, column
+"Ctrl" = `systemd`. Why in `stop-all`: a JDK upgrade
+(`07-Maintenance/80-patch_java_os.sh --apply`) refuses while any JVM runs from
+`JDK_HOME` – found 2026-10-24 when ORDS kept the old JDK busy.
+
 Components are discovered automatically from:
 
 - `$DOMAIN_HOME/config/config.xml` → WLS server list, Reports server
   system components (`<component-type>ReportsServerComponent</component-type>`)
 - `$DOMAIN_HOME/nodemanager/nodemanager.properties` → NodeManager port
 - `$DOMAIN_HOME/system_components/OHS/` → OHS instances (if present)
+- `ORDS_<n>_PORT` in `environment.conf` → ORDS instance `ords@ords_<n>`
+  (only if `/etc/systemd/system/ords@.service` exists)
 
 ### Start sequence
 
@@ -100,6 +113,7 @@ Components are discovered automatically from:
 3. Managed servers (MANAGED) – WLS_REPORTS, WLS_FORMS, …
 4. Reports servers (REPORTS) – via Node Manager
 5. OHS            (OHS)      – independent of WLS
+6. ORDS           (ORDS)     – systemd, needs only the database
 ```
 
 `start-all` skips components already `RUNNING`.
@@ -107,11 +121,12 @@ Components are discovered automatically from:
 ### Stop sequence
 
 ```
-1. OHS            (OHS)      – independent of WLS
-2. Reports servers (REPORTS) – nmKill via Node Manager
-3. Managed servers (MANAGED) – shutdown via WLST (requires AdminServer up)
-4. AdminServer    (ADMIN)    – shutdown via WLST
-5. NodeManager    (NM)       – kill
+1. ORDS           (ORDS)     – systemctl stop (sudo)
+2. OHS            (OHS)      – independent of WLS
+3. Reports servers (REPORTS) – nmKill via Node Manager
+4. Managed servers (MANAGED) – shutdown via WLST (requires AdminServer up)
+5. AdminServer    (ADMIN)    – shutdown via WLST
+6. NodeManager    (NM)       – kill
 ```
 
 `stop-all` skips components already `STOPPED`.
@@ -452,7 +467,7 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run init_env.sh
 | `05-ReportsPerformance/engine_perf_settings.sh` | Engine parameters vs. Oracle's tuning rules, CPUs, RAM (`--apply`) |
 | `05-ReportsPerformance/engine_perf_analyse.sh` | Load analysis: failure rate, queuing share, pool usage, Reports server logs |
 | `06-FormsDiag/forms_perf_analyse.sh` | Forms: `frmweb` per config section, memory, Forms logs |
-| `07-Maintenance/81-`/`82-patch_*.sh` | Patching: `stop-all --apply` first – the patch gate refuses while any process from `$ORACLE_HOME` runs |
+| `07-Maintenance/80-`/`81-`/`82-patch_*.sh` | Patching: `stop-all --apply` first – the patch gate refuses while any process from `$ORACLE_HOME` runs, `80-` (JDK) also while a JVM runs from `JDK_HOME` (ORDS) |
 | `09-Install/30-configure_autostart.sh` | systemd unit + `fmw_ctl.sh` that `startStop.sh` delegates to |
 
 ---

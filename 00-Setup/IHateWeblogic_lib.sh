@@ -512,6 +512,44 @@ require_wls_stopped() {
     return 1
 }
 
+# confirm_snapshot
+# Pause right before a patch run (07-Maintenance/8x --apply, after the stop
+# gate): with everything stopped a VM snapshot is consistent - last chance to
+# take one. Continues only on "ok" (y/yes/j/ja accepted); anything else aborts.
+# No terminal (cron, systemd, pipe) or IHW_NO_SNAPSHOT_PROMPT=true: WARN/INFO
+# and continue - never blocks an unattended run.
+# Call     : confirm_snapshot || { print_summary; exit 2; }
+# Returns  : 0 = continue, 1 = aborted by the user
+confirm_snapshot() {
+    local ans
+    if [ "${IHW_NO_SNAPSHOT_PROMPT:-false}" = "true" ]; then
+        info "Snapshot prompt skipped (IHW_NO_SNAPSHOT_PROMPT=true)"
+        return 0
+    fi
+    if [ ! -t 0 ] || ! { : < /dev/tty; } 2>/dev/null; then
+        warn "No terminal – snapshot prompt skipped; take the VM snapshot / backup before an unattended patch run"
+        return 0
+    fi
+    section "Snapshot / Backup"
+    info "Everything is stopped – a VM snapshot taken NOW is consistent."
+    info "  Last chance before the patch run changes ORACLE_HOME / JDK_HOME:"
+    info "  - VM snapshot (hypervisor / cloud console)"
+    info "  - configuration backup: 07-Maintenance/backup_config.sh --apply"
+    printf "  Type \"ok\" to continue, anything else aborts: " | tee -a "${LOG_FILE:-/dev/null}"
+    read -r ans < /dev/tty
+    printf "%s\n" "$ans" >> "${LOG_FILE:-/dev/null}"
+    case "${ans,,}" in
+        ok|y|yes|j|ja)
+            ok "Snapshot / backup confirmed – continuing"
+            return 0
+            ;;
+        *)
+            fail "Aborted by the user before patching – nothing changed"
+            return 1
+            ;;
+    esac
+}
+
 # print_summary
 # Prints OK/WARN/FAIL counters and sets EXIT_CODE (0=OK, 1=WARN, 2=FAIL).
 print_summary() {

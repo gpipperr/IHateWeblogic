@@ -760,16 +760,19 @@ section "Verification"
 
 printf "\n" | tee -a "$LOG_FILE"
 info "Running: opatch lspatches"
-"$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
-VERIFY_RC=${PIPESTATUS[0]}
+# One call, reused below and in the patch report: each lspatches takes ~25 s
+# on a home of this size (16 calls = 7 min after the last apply, 2026-10-24)
+FINAL_INVENTORY="$("$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>&1)"
+VERIFY_RC=$?
+printf '%s\n' "$FINAL_INVENTORY" | tee -a "$LOG_FILE"
 
 [ "$VERIFY_RC" -eq 0 ] \
     && ok "opatch lspatches successful" \
     || warn "opatch lspatches returned rc=$VERIFY_RC"
 
 for _p in $PATCHES_APPLIED; do
-    if "$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep -q "^${_p};"; then
-        PATCH_DESC="$("$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null | grep "^${_p};" | cut -d';' -f2)"
+    if printf '%s\n' "$FINAL_INVENTORY" | grep -q "^${_p};"; then
+        PATCH_DESC="$(printf '%s\n' "$FINAL_INVENTORY" | grep "^${_p};" | cut -d';' -f2)"
         ok "$(printf "Patch %-12s confirmed: %s" "$_p" "$PATCH_DESC")"
     else
         fail "$(printf "Patch %-12s NOT found in opatch lspatches after apply!" "$_p")"
@@ -784,7 +787,6 @@ unset _p
 section "Patch Report"
 
 printf "\n  Patches from INSTALL_PATCHES:\n" | tee -a "$LOG_FILE"
-FINAL_INVENTORY="$("$OPATCH" lspatches "${INVPTR_ARGS[@]}" 2>/dev/null)"
 
 for _p in $INSTALL_PATCHES; do
     if echo "$FINAL_INVENTORY" | grep -q "^${_p};"; then

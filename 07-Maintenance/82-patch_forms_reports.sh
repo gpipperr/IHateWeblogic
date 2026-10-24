@@ -67,6 +67,7 @@ section "Pre-checks"
 
 if $APPLY; then
     require_wls_stopped || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    confirm_snapshot    || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 else
     check_wls_stopped || warn "WebLogic is currently running - fine for dry-run/--check-only, but --apply will hard-fail until the domain is stopped (01-Run/startStop.sh stop-all --apply)"
 fi

@@ -9,9 +9,9 @@ frontend.
 |---|---|
 | What / why | [09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md) – patch list, KA1182 / CPU360 / CPU426, the CVE table of this cycle (not repeated here) |
 | How – by hand | [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_october_2026_manual.md) – step by step, versioned for this cycle |
-| How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **switched to this set 2026-10-24** (dry-runs OK), not yet applied on the test host |
+| How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **switched to this set and applied on the test host 2026-10-24** (smoke test OK) |
 | Counterpart 12c | [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md) (customer, F&R 12.2.1.19) |
-| State | 2026-10-24: all 17 patch READMEs read (section 3a), scripts switched; next: run on the test host (`05-`/`06-` `--check-only`, then `--apply`) |
+| State | **2026-10-24: applied on the test host** with `07-Maintenance/80-`/`81-`/`82-` – 0 FAIL, start + smoke test `15-` OK (runtimes: section 8). All 17 patch READMEs read (section 3a); open: points 5, 9, 10, 11 (section 7) |
 
 **Why one folder per cycle:** the library always follows the current CPU.
 These folders keep the **manual** procedure of every cycle – who has to stay
@@ -118,7 +118,7 @@ Details: [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_oc
 
 | # | Question | Answer |
 |---|---|---|
-| 1 | WLS SPU 39988381 (CSPU Sep) – contained in SPB 40125898 (PSU 14.1.2.0.260922)? `opatch lsinventory -bugs_fixed` after the SPB / SPB README | SPB README (2026-10-24): **not** in the SPB list. SPU README (in the ZIP, 2026-10-24): overlay on PSU 39919611, base bug **39924025**. So it can **not** be re-applied on PSU 40058371 – expected: the `napply` removes it together with the old PSU (assumption, check the `-report` output). After the apply: `opatch lsinventory -bugs_fixed \| grep 39924025` must show PSU 40058371; if missing → look for an overlay of 39924025 on 40058371 on MOS / SR |
+| 1 | WLS SPU 39988381 (CSPU Sep) – contained in SPB 40125898 (PSU 14.1.2.0.260922)? `opatch lsinventory -bugs_fixed` after the SPB / SPB README | SPB README (2026-10-24): **not** in the SPB list. SPU README (in the ZIP, 2026-10-24): overlay on PSU 39919611, base bug **39924025**. So it can **not** be re-applied on PSU 40058371 – expected: the `napply` removes it together with the old PSU (assumption, check the `-report` output). After the apply: `opatch lsinventory -bugs_fixed \| **answered 2026-10-24 (live, `napply -report` on the test host):** "Patch 40058371 – Bug Superset of 39988381, super set bugs: 39924025" – the new PSU contains the fix, OPatch rolls the SPU back automatically within the `napply`. No overlay / SR needed; `05-` checks 39924025 after the apply (`WLS_SPB_CHECK_BUGS`) |
 | 2 | OPatch 13.9.4.2.25: does the standalone 28186730 deliver .25, or only the SPB (in Sep only the SPB carried .24)? | the SPB carries .25 in `tools/opatch/generic/` (SPB README) – use that copy; the standalone download is not needed |
 | 3 | RCU fix 38391376 came with the Sep SPB – still in 40125898, or does `napply` leave it as it is? | yes – entry 10 of the SPB list (SPB README) |
 | 4 | SPB marker patch number of 40125898 (`WLS_SPB_MARKER_PATCH`) – from the SPB README | **40126042** (interim patch 40125902) |
@@ -127,5 +127,50 @@ Details: [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_oc
 | 11 | Nginx counterpart of the KB559857 header stripping: `nginx-wls.conf.template` overwrites `WL-Proxy-Client-IP` and `WL-Proxy-SSL`, but forwards client-supplied `WL-Proxy-Client-Cert/-Keysize/-Secretkeysize/-Port`, `WL-PATH-TRIM/-PREPEND`, `X-WebLogic-*` and `tyrus-connection-id` unchanged; `X-Forwarded-For` is appended, not overwritten (root README TODO). With `weblogic-plugin-enabled=true` WebLogic trusts the `WL-Proxy-*` headers | open – clear them with `proxy_set_header <name> "";` (`X-WebLogic-*` has no wildcard in Nginx – list the known names), then live test Forms (WebSocket?) / Reports / EM |
 | 7 | Reports QPR 39600348 fixes Bug 37866660 "Reports tools does not support alternative JAVA_HOME location" – can the Reports tools / engines be pointed to `JDK_HOME` (21.0.13.0.2) instead of the bundled `oracle_common/jdk` 17.0.12 (open point 5, blocked)? How is it configured (MOS note of the bug), does it cover the engines of the Reports server (`rwengine`) or only the tools (`rwrun`, `rwconverter`)? Test on the test host | **answered 2026-10-24 – no.** MOS AI (3 prompts): no bug note / KB documents how the fix is configured; scope per README wording = Reports **tools** only, not `rwengine` / Reports server. Engines are started by `$DOMAIN_HOME/reports/bin/rwengine.sh` (`exec $ORACLE_HOME/oracle_common/jdk/bin/java …`, hard-coded, also `reports.sh` PATH / LD_LIBRARY_PATH) – `rwserver.conf` does not select the JVM. WebLogic certification of JDK 21.0.13 does **not** certify it for Reports 14.1.2; do not replace / repoint `oracle_common/jdk` – stay on the bundled JDK until Oracle states a Reports certification. Own check of the QPR ZIP: no start script shipped; the template `startscript.xml` changes only add `-Dreports.userid.encryption.enabled=true …` to `setDomainEnv` (already in ours); the tools JVM start is native (`librw.a` `zruji.o`, no `JAVA_HOME` string). Side hit: **KB924687** "After July QPR 39600348 Unable to start Standalone Report Server – REP-50125" = **Bug 39868225** (defect of the QPR, fix "in a later QPR"); workaround `-DORBWaitForResponseTimeout` in `REPORTS_JVM_OPTIONS` – found and fixed by us on 2026-10-15 (`13-`, `docs/13` troubleshooting), therefore not hit. → no way around point 5 |
 | 8 | ADF BP 40050062: what does MOS **Doc ID 3093394.1** require after the apply (domain library references for GraalVM-all, `setDomainEnv`, redeploy?) – needed for step 8 of the guide; also its rollback part | **answered 2026-10-24:** = KB PNEWS2138, no post-install command, only the rule "ADF BP + WLS PSU (+ Third-Party BP) from the same cycle" – met by SPB first, then ADF; log check in guide step 11. Rollback: roll back ADF together with the SPB, never leave a newer ADF on an older PSU |
-| 9 | CVE-2026-54513 (OWSM / jackson-databind, 8.1): the OWSM BP README does not name it (only unnamed 39927140), the OPatch README names it for OPatch .24 (Bug 39621052). After the apply: compare the jackson-databind version under `$ORACLE_HOME/oracle_common/modules` before / after (`find … -name 'jackson-databind*.jar'`) | |
-| 10 | UMS BP 39940047 fixes 38005346 "MESSAGE, STATUS views are missing in EBR schema" – our RCU schemas are EBR. After the apply: are the views in the existing `<prefix>_UMS` schema (`select view_name from dba_views where owner = '<PREFIX>_UMS' and view_name in ('MESSAGE','STATUS')`)? If not – MOS note of the bug / Support | |
+| 9 | CVE-2026-54513 (OWSM / jackson-databind, 8.1): the OWSM BP README does not name it (only unnamed 39927140), the OPatch README names it for OPatch .24 (Bug 39621052). After the apply: compare the jackson-databind version under `$ORACLE_HOME/oracle_common/modules` before / after (`find … -name 'jackson-databind*.jar'`) | **partly answered 2026-10-24 (live `lsinventory -bugs_fixed` after the apply):** OWSM 39927140 installed (no description). The Third-Party BP 40035655 (in the SPB) carries Bug 39863385 "Upgrade jackson-databind to 2.21.5 – **CVE-2026-54515**" (not -54513 – check the CVE number against the Oct risk matrix: two Jackson CVEs or a typo in our list); `oracle_common/modules/thirdparty/jackson-databind-2.21.5.jar` ✓. **Still 2.16.1:** `$ORACLE_HOME/jlib/jackson-databind.jar` and `$ORACLE_HOME/sqlcl/lib/jackson-databind.jar` (from the DB client RU 39264447, Bug 37326206) – whether 2.16.1 is affected needs the CVE details; open |
+| 10 | UMS BP 39940047 fixes 38005346 "MESSAGE, STATUS views are missing in EBR schema" – our RCU schemas are EBR. After the apply: are the views in the existing `<prefix>_UMS` schema (`select view_name from dba_views where owner = '<PREFIX>_UMS' and view_name in ('MESSAGE','STATUS')`)? If not – MOS note of the bug / Support | **patch side done 2026-10-24:** Bug 38005346 is in `lsinventory -bugs_fixed` (39940047). Open: the SQL check whether `MESSAGE` / `STATUS` exist in the existing `<prefix>_UMS` schema (the README names no SQL step – the fix may only apply to new schemas) |
+
+## 8. Runtimes on the test host (2026-10-24)
+
+Measured with the scripts (`07-Maintenance/80-` … `82-`), times from the
+logs. Test host: one VM, 4 vCPU class, local disk, 19c repository DB on the
+same host – a customer system with slower storage or a remote inventory
+takes longer. **Plan the downtime from step 3 (stop) to step 11 (start).**
+
+| Step | What | Start – end | Duration |
+|---|---|---|---|
+| 2 | `04- --apply --mos`: SPB 40125898 (2.8 GB) + 11 patches | 15:56 – 15:59 | ~3 min (download rate dependent) |
+| 3 | `startStop.sh stop-all --apply` | 16:00 | < 1 min |
+| 4 | `backup_config.sh --apply` (configuration only) | 15:59 | < 1 min |
+| 5 | JDK 21.0.13.0.2 (`80-`, unpack + link switch) | 16:07:16 – 16:07:29 | **13 s** |
+| 6 | OPatch 13.9.4.2.25 from the SPB (`81- --apply --opatch-only`) | 16:09:48 – 16:10:37 | ~1 min |
+| 7 | `81- --check-only`: unpack SPB + `napply -report` + 8 conflict checks | 16:11:47 – 16:16:31 | ~5 min |
+| 7 | `81- --apply`: unpack SPB | 16:17:44 – 16:18:43 | ~1 min |
+| 7 | `opatch napply` SPB (5 patches applied, 3 duplicates skipped) | 16:18:43 – 16:23:49 | **~5 min** |
+| 7 | bug check 39924025 + unpack / conflict-check the 8 bundles | 16:23:49 – 16:25:55 | ~2 min |
+| 8 | 8 infrastructure bundles, `opatch apply` each | 16:25:55 – 16:56:36 | **~31 min** (ADF 2 min, the others ~4 min each) |
+| 8 | verification (`lspatches` per patch – fixed afterwards, now one call) | 16:56:36 – 17:03:29 | ~7 min → now < 1 min |
+| 9/10 | `82- --check-only`: unpack + 3 conflict checks | 17:26:44 – 17:29:08 | ~2.5 min |
+| 9/10 | `82- --apply`: snapshot pause, rollback PERL 38590500 + unpack / conflict check | 17:33:43 – 17:38:01 | ~4 min (incl. the pause) |
+| 9 | PERL 39951765 | 17:38:01 – 17:42:37 | ~4.5 min |
+| 10 | OHS 39987730 | 17:42:37 – 17:46:10 | ~3.5 min |
+| 10 | WebGate 39100536 | 17:46:10 – 17:49:45 | ~3.5 min |
+| 9/10 | verification (one `lspatches`) | 17:49:45 – 17:50:29 | < 1 min |
+| 11 | `startStop.sh start-all --apply` (NM, Admin, 2 managed, Reports, ORDS) | 18:28:54 – 18:31:17 | ~2.5 min |
+| 11 | smoke test `15- --apply` (Forms compile against the DB, 2 reports → PDF, font check) | 18:43:33 – 18:43:39 | 6 s |
+
+**Total downtime** (stop 16:00 → start done 18:31) was ~2.5 h incl. the
+check-only runs and pauses; the pure patch work (JDK + OPatch + SPB + 8
+bundles + PERL / OHS / WebGate, without `--check-only`) was ~70 min.
+
+Observations:
+- The SPB itself is fast; the time goes into the **single `opatch apply`
+  per infrastructure bundle** (~4 min each – OPatch inventory load + backup
+  per call, even for a 0.5 MB patch like LibOVD). Eight bundles ≈ half an
+  hour. `opatch napply` of several one-offs in one call could shorten this
+  (not tested – the bundles' READMEs name `opatch apply`).
+- Every `opatch lspatches` takes ~25 s on this home – scripts must call it
+  once and reuse the output (fixed in `05-` 2026-10-24).
+- The snapshot pause of `80-`/`81-`/`82-` (since 2026-10-24) adds the time
+  of the VM snapshot itself.
+

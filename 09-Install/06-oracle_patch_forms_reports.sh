@@ -537,9 +537,14 @@ done
 unset _p
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: create FMW repository schemas"
-info "  00-Setup/database_rcu_sec.sh --apply  (if not already done)"
-info "  09-Install/07-oracle_setup_repository.sh --apply"
+if [ -f "${DOMAIN_HOME:-/nonexistent}/config/config.xml" ]; then
+    # existing domain = maintenance run (07-Maintenance/82-)
+    info "Next step: 01-Run/startStop.sh start-all --apply, then smoke test 09-Install/15-"
+else
+    info "Next step: create FMW repository schemas"
+    info "  00-Setup/database_rcu_sec.sh --apply  (if not already done)"
+    info "  09-Install/07-oracle_setup_repository.sh --apply"
+fi
 
 # =============================================================================
 print_summary
