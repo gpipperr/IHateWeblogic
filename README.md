@@ -799,9 +799,6 @@ CSPU Sep 2026 state is frozen in
   `04-oracle_pre_download.sh --apply --fresh-patches --mos` (moves `patches/`
   to `patches_<timestamp>/`, loads the current set again), delete the old
   folder later.
-- [ ] Forms client bundle with the new client Java 21.0.13.0.2:
-  `09-Install/40-oracle_forms_client_bundle.sh --apply` (clients update at
-  their next start).
 - [ ] Open points 9 / 10 of the 14c folder: Jackson CVE number (-54513 vs.
   -54515) and the 2.16.1 copies of the DB client (`jlib/`, `sqlcl/lib/`);
   UMS `MESSAGE` / `STATUS` views in the EBR schema (SQL check).

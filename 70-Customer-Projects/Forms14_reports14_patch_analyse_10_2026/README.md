@@ -11,7 +11,7 @@ frontend.
 | How – by hand | [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_october_2026_manual.md) – step by step, versioned for this cycle |
 | How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **switched to this set and applied on the test host 2026-10-24** (smoke test OK) |
 | Counterpart 12c | [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md) (customer, F&R 12.2.1.19) |
-| State | **2026-10-24: applied on the test host** with `07-Maintenance/80-`/`81-`/`82-` – 0 FAIL, start + smoke test `15-` OK (runtimes: section 8). All 17 patch READMEs read (section 3a); open: points 5, 9, 10, 11 (section 7) |
+| State | **2026-10-24: applied on the test host** with `07-Maintenance/80-`/`81-`/`82-` – 0 FAIL, start + smoke test `15-` OK, Forms session from a Windows PC OK (runtimes: section 8). All 17 patch READMEs read (section 3a); open: points 5, 9, 10, 11 (section 7) |
 
 **Why one folder per cycle:** the library always follows the current CPU.
 These folders keep the **manual** procedure of every cycle – who has to stay
@@ -158,6 +158,8 @@ takes longer. **Plan the downtime from step 3 (stop) to step 11 (start).**
 | 9/10 | verification (one `lspatches`) | 17:49:45 – 17:50:29 | < 1 min |
 | 11 | `startStop.sh start-all --apply` (NM, Admin, 2 managed, Reports, ORDS) | 18:28:54 – 18:31:17 | ~2.5 min |
 | 11 | smoke test `15- --apply` (Forms compile against the DB, 2 reports → PDF, font check) | 18:43:33 – 18:43:39 | 6 s |
+| 11 | Forms session from the Windows PC (FSAL, client Java 21.0.13.0.2 – in the bundle since 2026-10-22, the Windows ZIP of 35702194 was updated before the Linux one) | ~18:50 | OK |
+| – | `40-oracle_forms_client_bundle.sh --apply`: change check | 20:39:49 – 20:39:50 | 1 s, "up to date" (Java + `frmsal.jar` unchanged) |
 
 **Total downtime** (stop 16:00 → start done 18:31) was ~2.5 h incl. the
 check-only runs and pauses; the pure patch work (JDK + OPatch + SPB + 8
