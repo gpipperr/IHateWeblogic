@@ -154,6 +154,12 @@ What matters in this cycle:
   `jackson-databind` 2.16.1 in `jlib/` / `sqlcl/lib/` is not loaded – assessment
   and scanner answer in `00-patch-references.md` ("FMW DBCLIENT – known
   residual"), question added to the SR draft.
+- **Security Alert CVE-2026-114820** (2026-10-24, Java, eMudhra CA incident:
+  intermediate CAs with 8-bit keys) + OS `ca-certificates` (ELSA-2026-88459):
+  OS updated on the test host; JDK 21.0.13.0.2 already blocks the compromised
+  intermediates (next build removes the roots); the **bundled JDK 17.0.12
+  trusts them** (live-tested) – no mitigation inside it, argument for the SR.
+  Details: [00-patch-references.md – eMudhra](09-Install/docs/00-patch-references.md#emudhra-ca-incident--cve-2026-114820-state-2026-10-26).
 - Oracle publishes no CVE → patch mapping: we prove the **patch level**
   ("installed ≥ patch document"), not the fix of a single CVE.
 

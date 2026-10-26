@@ -22,6 +22,7 @@ traceable what belonged to a cycle, and an environment can be brought
 
 | Cycle | Released | Type | Configured in this project | Status | Document | Manual guide (how, by hand) |
 |---|---|---|---|---|---|---|
+| Security Alert CVE-2026-114820 (Java, eMudhra CAs) + OS `ca-certificates` (ELSA-2026-88459 / CVE-2026-111943) | 2026-10-24 / 2026-10-22 | Alert | 2026-10-26 | **open (Java)** – OS fixed on the test host 2026-10-26; JDK 21.0.13.0.2 already blocks the compromised intermediates, next JDK build removes the roots; bundled JDK 17.0.12 still trusts them – see [Special case Java](#emudhra-ca-incident--cve-2026-114820-state-2026-10-26) | this file | – |
 | CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / `04-`/`05-`/`06-` switched and **applied on the test host 2026-10-24** (smoke test OK) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (verified on the test host 2026-10-24) |
 | CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; set live on the test host – **incomplete**: the FMW Infrastructure bundle patches (ADF, OWSM, OPSS, UMS, …) were missing, see "Patch List" below | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) | – (applied by the scripts, steps in `docs/05` / `06` of that time, see git history) |
 
@@ -336,6 +337,57 @@ Forms client JRE is a JSSE TLS client, and a manipulated Forms/WebUtil
 session can control the client with user rights. Details:
 [forms_runtime_architecture.md §1.1 / §1.2](../../80-FMW-Architecture/forms_runtime_architecture.md#11-where-tls-is-spoken--and-who-uses-javas-jsse)
 and [forms_jakob_webutil.md §10.1](../../80-FMW-Architecture/forms_jakob_webutil.md#101-what-the-session-can-do-on-the-client--threat-model).
+
+### eMudhra CA incident – CVE-2026-114820 (state 2026-10-26)
+
+**What happened:** the CA eMudhra generated the private keys of eight
+intermediate CAs (EC-384) with 8-bit values (0–255) – anybody could
+compute them and issue valid TLS certificates for any domain (reported
+2026-10-17; heise, "Vorfall bei Zertifizierungsstelle eMudhra – Acht
+CA-Zertifikate kompromittiert"). An attack additionally needs control over
+DNS or routing (man in the middle). Some of the intermediates are also
+cross-signed by Comodo/Sectigo **"AAA Certificate Services"**.
+
+| Advisory | Scope | Fix |
+|---|---|---|
+| Oracle Security Alert **CVE-2026-114820** (2026-10-24, JSSE, CVSS 9.1, AV:N/PR:N) | Java SE 8u511-b32, 11.0.33.0.2, 17.0.21.0.2, **21.0.13.0.2**, 25.0.5.0.2, 27.0.1.0.2, GraalVM | Java update that removes the eMudhra roots, or the mitigations of `https://ops.java/emudhra` (page down on 2026-10-26) |
+| OS trust store, CVE-2026-111943 (Go, Python certifi, NetBSD, Linux distributions) | `/etc/pki/ca-trust` | Oracle Linux 9: **ELSA-2026-88459** (Critical), `ca-certificates-2026.2.92_v9.0.319-90.3.el9_8` – removes emSign Root CA C1, ECC G3 (TLS) and AAA / emSign code-signing entries |
+
+**Live test 2026-10-26** against `https://<chain>.we-have-a-problem.com`
+(test sites with certificates of the compromised chains: `dv|ov|ev-g3b|g3c-emudhra`
+and the `*-aaa-emudhra` variants over the AAA cross-signature) – OS with
+`curl` (rejected = rc 60), Java with a small `HttpClient` probe
+(`java TlsProbe.java <names>`; "CONNECTED" = trusted):
+
+| Trust store | Result |
+|---|---|
+| OS `ca-certificates` 2025.2.80 (before) | 6 emSign roots, emSign Root CA G1 still in `tls-ca-bundle.pem` |
+| OS `ca-certificates` **2026.2.92** (after `dnf update`) | all 12 test sites **rejected** ✓ |
+| **JDK 21.0.13.0.2** (`JDK_HOME`, build 2026-10-21) | all **rejected** ✓ – "Untrusted certificate: CN=EM DV TLS CA - G3B": the build already blocks the intermediates in `lib/security/blocked.certs` (87 entries, +48 vs. 21.0.12.1); the 3 emSign roots (G1, G2, ECC G3) are still in `cacerts` → the alert lists the version, the next build removes them |
+| JDK 21.0.12.1 (rollback copy next to `JDK_HOME`) | **trusted** ⚠ – not in use |
+| **FMW-bundled JDK 17.0.12** (`oracle_common/jdk`, Reports server / engines, tools) | **trusted** ⚠ (`blocked.certs` from 2024, 39 entries) |
+| bundled JDK 17.0.12 with a `cacerts` copy **without** the 3 emSign roots (`-Djavax.net.ssl.trustStore`) | direct chains rejected, the **`aaa` chains still trusted** – removing roots is no complete mitigation; removing `comodoaaaca` would also hit older Sectigo chains |
+
+Assessment and actions:
+
+- **`JDK_HOME`** – practically protected; take the next JDK 21 build of
+  35702194 as soon as MOS has it (`04- --apply --fresh-patches --mos`,
+  `07-Maintenance/80- --apply`, then `40- --apply` for the Forms client
+  bundle, which carries the same 21.0.13.0.2 runtime).
+- **OS** – `dnf update ca-certificates` (ELSA-2026-88459), no service
+  restart needed; done on the test host 2026-10-26.
+- **Bundled JDK 17.0.12** – exposed only if Reports itself opens outbound
+  TLS (mail destination over SMTPS, WebDAV destination, images / XML data
+  from `https://` URLs) **and** an attacker sits in the middle; this domain
+  makes no outbound calls (egress check 2026-10-20) → low risk here, but
+  one more reason for the SR on the bundled JDK (draft `SR/`). No supported
+  mitigation inside the bundled JDK (`blocked.certs` is part of the JDK).
+- **Rollback JDK 21.0.12.1** – remove once the new build runs (clean-up
+  script idea, root README).
+- **Customer homes with JDK 8** (server JDK, FMW-bundled JDK 8, client JREs):
+  blocklists older than October 2026 – expect "trusted"; fix = 8u511-b32 or
+  newer. Check with the same probe (compile it first, Java 8 cannot run a
+  source file) and `dnf updateinfo list --available ca-certificates`.
 
 ---
 
