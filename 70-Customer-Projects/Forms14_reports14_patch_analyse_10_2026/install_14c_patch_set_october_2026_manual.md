@@ -11,7 +11,8 @@ guide is the master for that automation (doc-as-master).
 | Cycle | CPU October 2026 (2026-10-20) + Security Alert CVE-2026-91403 (2026-10-21) |
 | Starting point | CSPU September 2026 (the test host, section 1a of the [README](README.md)) |
 | Sources | KA1182 (PDF 2026-10-22), CPU360, CPU426, the patch READMEs ([README](README.md) section 3a), [00-patch-references.md](../../09-Install/docs/00-patch-references.md) |
-| Status | **draft 2026-10-24** – the steps are written from KA1182 and the September run; the README facts are added one by one; **not yet run on the test host** |
+| Status | **verified 2026-10-24** – applied on the test host with the scripts that automate each step (`07-Maintenance/80-` / `81-` / `82-`), 0 FAIL, start + smoke test + Forms session from a Windows PC OK; all 17 patch READMEs read ([README](README.md) section 3a); runtimes: [README](README.md) section 8 (patch work ~70 min, downtime incl. checks ~2.5 h). Updated 2026-10-26 (eMudhra alert, Nginx, RCU check) |
+| Automated (running system) | `07-Maintenance/80-patch_java_os.sh` (step 5), `81-patch_weblogic.sh` (= `05-`, steps 6–8), `82-patch_forms_reports.sh` (= `06-`, steps 9–10) – each with the stop gate and a VM-snapshot pause on `--apply`; fresh install: `09-Install/05-` / `06-` |
 | Markers | **documented** (README / KA1182), **confirmed (live)** (test host, date), **assumption** |
 
 Target state:
@@ -68,6 +69,14 @@ ldd --version | head -1                                   # glibc 2.34 on OL9
 readlink -f $JDK_HOME
 ```
 
+Invalid objects of the RCU schemas – record them now, compare in step 11
+(only new ones are caused by the patches; the test host has 69 invalid
+objects since the RCU run – IAU synonyms, OPSS ORA-00942):
+
+```bash
+$IHW/07-Maintenance/rcu_repository_check.sh | tee $LOGDIR/01_rcu_check.txt   # check 6
+```
+
 Or everything in one run: [../tools/collect_fmw_env.sh](../tools/collect_fmw_env.sh) `--full`.
 Expected on the test host: see [README](README.md) section 1a.
 
@@ -119,6 +128,11 @@ Restoring these three is the only rollback for the OPatch upgrade and the
 safest one for the SPB. Configuration backup in addition:
 `07-Maintenance/backup_config.sh --apply`.
 
+**VM snapshot now** – everything is stopped, so the snapshot is consistent
+(it does not replace the tar backup). `80-` / `81-` / `82-` pause for it on
+`--apply` and continue only on `ok` (since 2026-10-24 – the snapshot had been
+forgotten on the first run).
+
 ---
 
 ## 5. JDK 21.0.13.0.2 at `JDK_HOME`
@@ -129,7 +143,8 @@ Target: the **alert release** of CPU426, not the CPU release 21.0.13
 
 The patch has no README and the ZIP name never changes
 (`p35702194_2100_Linux-x86-64.zip`) – check the version **inside** before
-using it (a copy downloaded on 2026-10-20 still contained 21.0.12.1):
+using it (a copy downloaded on 2026-10-20 still contained 21.0.12.1; the
+download of 2026-10-24 contains 21.0.13.0.2 – **confirmed live**):
 
 ```bash
 unzip -l $PATCH_STORAGE/patches/35702194/p35702194_*.zip | grep -o 'jdk-21[^_]*'   # must be jdk-21.0.13.0.2
@@ -147,7 +162,16 @@ the link (known pattern) – `07-Maintenance/domain_jdk_path.sh` lists them,
 The bundled JDK 17.0.12 in `$ORACLE_HOME/oracle_common/jdk` stays – KA1182
 lists no patch; do not replace it by hand.
 
-Automated: `07-Maintenance/80-patch_java_os.sh --apply` (`JDK_PATCH_NR`).
+Live 2026-10-24: unpack + SHA-256 check + link switch 13 s; no domain file
+pinned the old version. **Follow-up alert CVE-2026-114820** (2026-10-24,
+eMudhra CA incident): lists 21.0.13.0.2 as affected because the emSign roots
+are still in `cacerts`; the build already blocks the compromised
+intermediates (`blocked.certs`, tested 2026-10-26) – take the next JDK 21
+build of 35702194 as soon as MOS has it (same steps). The bundled 17.0.12
+trusts them – [00-patch-references.md – eMudhra](../../09-Install/docs/00-patch-references.md#emudhra-ca-incident--cve-2026-114820-state-2026-10-26).
+
+Automated: `07-Maintenance/80-patch_java_os.sh --apply` (`JDK_PATCH_NR`;
+refuses while any JVM runs from `JDK_HOME`, names e.g. the ORDS unit).
 Rollback: `ln -sfn <old jdk> $JDK_HOME`.
 
 ---
@@ -168,7 +192,13 @@ No rollback except the restore of step 4. The NGINST patches 31101362,
 29137924, 29909359 are contained – never apply them afterwards. OPatch .25
 is in the SPB (`tools/opatch/generic/`, SPB README) – no separate download.
 
-Automated: `05-oracle_patch_weblogic.sh` (prefers the copy inside the SPB).
+Live 2026-10-24: `p28186730_1394225_Generic.zip` from the SPB, 23335292 not
+present, ~1 min, `opatch version` 13.9.4.2.25.
+
+Automated: `81-patch_weblogic.sh --apply --opatch-only` first (prefers the
+copy inside the SPB, backs up `OPatch/` and the inventory) – a
+`--check-only` with the old OPatch stops early on purpose, the SPB report
+needs .25. Then `81- --check-only`, then `81- --apply`.
 
 ---
 
@@ -205,13 +235,16 @@ WLS PSU 40058371 (14.1.2.0.260922), Third-Party BP 40035655, Coherence CP10
   **Confirmed live 2026-10-24** in the `-report` output: "Patch 40058371 –
   Bug Superset of 39988381 (39924025)" – OPatch rolls it back within the
   `napply`, the new PSU carries the fix. After the apply
-  `opatch lsinventory -bugs_fixed | grep 39924025` must show the new PSU;
-  if missing: no Sep overlay on top, look for an overlay on 40058371
-  (open point 1);
+  `opatch lsinventory -bugs_fixed | grep 39924025` shows 40058371
+  (**confirmed live 2026-10-24**);
 - post-install: MOS **KB694158**.
 
 Unlike 12c no patch has to be rolled back before the `napply`; the
 requirement is OPatch 13.9.4.2.25 (step 6) and JDK ≥ 17.0.12 / 21.0.4.
+
+Live 2026-10-24: unpack ~1 min, `napply` ~5 min (5 patches applied, 3
+duplicates skipped), marker 40126042 in `lspatches`. Every `opatch
+lspatches` takes ~25 s on this home.
 
 Rollback (whole SPB only): `opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt` in `binary_patches/`.
 
@@ -251,7 +284,11 @@ not deploy, `BEA-149205` for `adf.oracle.domain.webapp.nativebridge` or
 "Unresolved Webapp Library references … `adf.oracle.domain.webapp.graal-bundle`"
 (check in step 11). A conflict
 prompt "… will be rolled back … proceed?" → answer `n`, merge patch from
-Support. Per-patch facts: README section 3a (pending).
+Support. Per-patch facts: README section 3a.
+
+Live 2026-10-24: no conflict for any of the eight, each `apply` rc=0, ADF
+~2 min, the others ~4 min each (OPatch inventory load + backup per call,
+even for 0.5 MB) – **~31 min** in total.
 
 Automated: `05-oracle_patch_weblogic.sh --apply` (`INSTALL_PATCHES`, after the
 SPB, in this order; a component missing in the home → SKIPPED). Unlike the
@@ -289,9 +326,16 @@ cd -
 ```
 
 It replaces 38590500 (5.40.2) – the README does not mention the
-predecessor; the conflict check shows whether OPatch rolls it back itself
-(expected, same component). Single fix CVE-2026-4176 (README, confirmed).
-Optional 38936596 only with `REPORTS_BIDIPARENTHESIS=YES`.
+predecessor. Live 2026-10-24: the conflict check reports no conflict even
+with 38590500 still installed (OPatch would treat it as a subset); the
+tested way is the explicit rollback first, as the script does:
+
+```bash
+$ORACLE_HOME/OPatch/opatch rollback -id 38590500 -silent -invPtrLoc $INV_PTR
+```
+
+Then apply 39951765 (~4.5 min). Single fix CVE-2026-4176 (README,
+confirmed). Optional 38936596 only with `REPORTS_BIDIPARENTHESIS=YES`.
 
 Automated: `06-oracle_patch_forms_reports.sh --apply` (rolls back 38590500 first –
 `SUPERSEDES` map; `INSTALL_PATCHES_FR_COMMON`,
@@ -319,8 +363,9 @@ Post-install: MOS **KB559857** (the 14.1.2 counterpart of KB187736, read
 2026-10-24) – **nothing to do without an OHS instance**: the KB has no
 command, only hardening directives for an OHS instance / the Apache plug-in
 (all off by default). If an instance is created later, use the directive
-list of the 12c analysis (section 3.5b). The same header-spoofing class is
-open for our Nginx frontend (README open point 11). The OHS BP
+list of the 12c analysis (section 3.5b). The same header-spoofing class
+was closed for our Nginx frontend on 2026-10-26 (README open point 11,
+`09-Install/nginx-wls.conf.template`). The OHS BP
 README (documented) confirms CVE-2026-87347 / -87346 and switches the
 July / August 2026 CSPU hardening off by default (flags) – relevant only for
 an OHS instance.
@@ -329,7 +374,8 @@ The WebGate BP release notes (documented) ask to stop Node Manager and the
 OHS component before `apply` – with no OHS instance that is already covered
 by step 3. The patch is cumulative and confirms CVE-2025-0725 (bundled
 libcurl); it has been in the set since April 2026 but was never applied on
-the test host.
+the test host. Live 2026-10-24: OHS ~3.5 min, WebGate ~3.5 min, rc=0, no
+"completed with warnings".
 
 Automated: `06-oracle_patch_forms_reports.sh --apply` (`INSTALL_PATCHES_FR_COMMON`
 = PERL, OHS, WebGate – applied **before** the QPRs; no dependency between
@@ -342,19 +388,27 @@ them, the order of steps 9 / 10 here is only for reading).
 ```bash
 $ORACLE_HOME/OPatch/opatch lspatches | tee $LOGDIR/11_lspatches_after.txt
 diff $LOGDIR/01_lspatches_before.txt $LOGDIR/11_lspatches_after.txt
-$IHW/01-Run/startStop.sh start-all
-$IHW/09-Install/15-deploy-test-report-forms_template.sh        # smoke test Forms + Reports
+$IHW/01-Run/startStop.sh start-all --apply                     # ORDS last
+$IHW/09-Install/15-deploy-test-report-forms_template.sh --apply # smoke test (without --apply: dry run only)
+$IHW/07-Maintenance/rcu_repository_check.sh | tee $LOGDIR/11_rcu_check.txt
+diff <(grep -A20 '6. Invalid' $LOGDIR/01_rcu_check.txt) <(grep -A20 '6. Invalid' $LOGDIR/11_rcu_check.txt)
 $IHW/10-Monitoring/cve_inventory.sh                            # patch level vs. cycle
 ```
 
 Check the AdminServer log for JEP 290 warnings (must not appear with JDK
 21.0.13.0.2, KB159467) and the PSU post-install items of KB694158. ADF /
-GraalVM coordination (PNEWS2138, step 8) – no hits allowed:
+GraalVM coordination (PNEWS2138, step 8) – **errors** only; the
+`BEA-160151 Registered library … nativebridge` info lines are normal:
 
 ```bash
-grep -E 'BEA-149205|graal-bundle|nativebridge' \
-     $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log
+grep -E 'BEA-149205|Unresolved Webapp Library' \
+     $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log      # expected: empty
 ```
+
+Live 2026-10-24: `start-all` ~2.5 min, no `<Error>` / `<Critical>` in the
+AdminServer / WLS_FORMS / WLS_REPORTS logs, EM answers, smoke test 30 OK
+(6 s), Forms session from the Windows PC OK, `rcu_repository_check.sh`: no
+object invalidated by the patches.
 
 ---
 
@@ -369,7 +423,8 @@ grep -E 'BEA-149205|graal-bundle|nativebridge' \
 
 To go back to the September level by hand: the frozen
 [00-patch-references_september_2026.md](../../09-Install/docs/00-patch-references_september_2026.md)
-names its patches.
+names its patches; their ZIPs are archived in
+`$PATCH_STORAGE/patches_20261026_112527/` (`04- --fresh-patches`).
 
 ---
 
@@ -382,6 +437,9 @@ names its patches.
 | OPatch patches its own JDK / inventory damage | `JAVA_HOME` in `$ORACLE_HOME/oui/.globalEnv.properties` inside the home – must point to `JDK_HOME` (KB175049) |
 | Domain still on the old JDK after the link switch | WLST resolved the link into domain files – `07-Maintenance/domain_jdk_path.sh --apply` |
 | Reports QPR "completed with warnings" | known, harmless – `09-Install/docs/06` |
+| JDK switch refused: "Java processes still run from `JDK_HOME`" | a JVM outside the domain uses the JDK – on the test host the ORDS unit `ords@ords_1` (live 2026-10-24); `startStop.sh stop-all` stops it since then |
+| `81- --check-only` stops with "OPatch … < 13.9.4.2.25" | intended – `81- --apply --opatch-only` first, then `--check-only` |
+| Wrapper script prints a syntax error at its very end | the script file was edited while it ran (bash reads incrementally) – the patch run itself is fine; never edit a running script |
 | Reports server / engines do not start, `REP-50125 java.lang.NullPointerException` in `Utility.getOrbProperties` | Bug 39868225 from QPR 39600348 (KB924687): `REPORTS_JVM_OPTIONS` set without `-DORBWaitForResponseTimeout` – our `13-` sets it in `reports.sh` and `rwserver.conf` (`09-Install/docs/13` troubleshooting) |
 
 MOS: KA1182, CPU360, CPU426, KB694158, KB559857, KB175049, KB159467,
