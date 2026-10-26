@@ -78,6 +78,20 @@ x64 (64-bit)“, getMOSPatch `233P`). JDK 21.0.13.0.2 aus MOS-Patch 35702194
 (Windows). Builder und Server sollen **denselben Patchstand** haben – ein mit
 einem neueren Builder gespeicherter Bericht muss auf dem Server laufen.
 
+## Fakten aus den Windows-Patch-READMEs
+
+Generic-Patches (OPatch 28186730, SPB 40125898, die acht
+Infrastruktur-Bundles) haben dieselbe README wie unter Linux – Fakten im
+[14c-README, Abschnitt 3a](../Forms14_reports14_patch_analyse_10_2026/README.md).
+Plattformabhängig (Windows x64):
+
+| Patch | Gelesen | Installation | Voraussetzung / Windows-Hinweise | Bugs / Anmerkungen |
+|---|---|---|---|---|
+| **39600348** Reports-QPR (README 10-Aug-26, `MSWIN-x86-64`) | 2026-10-26 | entpacken, `opatch apply` im Verzeichnis `39600348`; Rollback `opatch rollback -id 39600348` | alle Prozesse des Homes gestoppt, gleicher Benutzer wie bei der Installation; OPatch-Mindestversion nur als Platzhalter „13.9.4.2.XXXX“ angegeben (wir haben .25); Patch-Verzeichnis im Wurzelverzeichnis (`C:\MW_PATCHES`, 256-Zeichen-Grenze), bei „path too long“ mit `%JDK_HOME%in\jar -xvf` entpacken; Virenschutz anhalten; kein Relink (`make`/`ld` nur Unix) | 31 Bugs, identisch zu Linux: u. a. 37866660 (alternatives JAVA_HOME für die Tools), 38617264 (ENHANCEDSPREADSHEET REP-56048), 38872838 (`RUN_REPORT_OBJECT` nach 30 min), 37756029 (`cgicmd.dat` verschlüsselt), 36434214 (Umlaute in `DESNAME`), 35740116 (`rwconverter` ORA-00933), 35363833 (Office365 STARTTLS), 37548468 (SRW-Paket in ADB 23ai) + 20× „Fix for Bug 39375xxx“ |
+| **39951765** PERL SPU (README 03-Sep-26, Windows x64) | 2026-10-26 | entpacken, `opatch apply` im Verzeichnis `39951765`; Rollback `opatch rollback -id 39951765` | **OPatch ≥ 13.9.4.2.17**; alle Prozesse gestoppt, gleicher Benutzer; gleiche Windows-Hinweise wie oben (`C:\MW_PATCHES`, `jar -xvf`, Virenschutz). Die README nennt den DB-Client nicht; unter Linux verlangt KA1182 DBCLIENT ≥ 23.26 – kommt mit dem SPB (`dbclient/windows64`), also **nach** dem SPB einspielen. Vorgänger 38590500 gibt es bei einer Neuinstallation nicht | einziger Fix **CVE-2026-4176** (Bug 39400045) – identisch zur Linux-Variante |
+| **39987730** OHS (Native) BP 14.1.2.0.260907 (README 08-Sep-26, Windows x64) | 2026-10-26 | entpacken, `opatch apply` im Verzeichnis `39987730`; Rollback `opatch rollback -id 39987730` | **OPatch ≥ 13.9.4.2.17**; alle Prozesse gestoppt, gleicher Benutzer; Windows-Hinweise wie oben. Post-Install: MOS **KB559857** – ohne OHS-Instanz (Builder-Domain hat kein OHS) **nichts zu tun** | kumulativ seit 250320, gleiche Bugliste wie Linux: **CVE-2026-87347 / -87346** (260907), Juli-/August-Härtung per Default aus (39902419 / 39901639 / 39901695) u. v. m. – nur Binaries, Patchen damit Scanner sie nicht melden |
+| **39100536** WebGate BP 14.1.2.0.260318 (Release Notes G14589-06, Apr 2026, alle Plattformen) | 2026-10-26 | entpacken, `opatch apply` im Verzeichnis `39100536`; kumulativ, ein älteres BP muss nicht entfernt werden; Rollback `opatch rollback -id 39100536` | neuestes OPatch; Node Manager und OHS-Komponente vorher stoppen (Builder-Domain: beides läuft nicht); **Mindest-OS Windows 2022** – Windows Server 2022/2025 passt | **CVE-2025-0725** (libcurl), dazu Windows-Fixes 38141444 (IIS-Modul) und 38381381 (`webgate.log` unter Windows) – nur Binaries, kein OAM im Einsatz |
+
 ## Offene Punkte für den Kunden
 
 | # | Frage |
@@ -87,7 +101,7 @@ einem neueren Builder gespeicherter Bericht muss auf dem Server laufen.
 | 3 | Wie viele gleichzeitige RDP-Entwickler? (RAM: grob 0,5–1 GB pro Builder-Sitzung, Basis 8 GB – Annahme, im Betrieb messen) |
 | 4 | Ablage der Berichtsquellen (Netzlaufwerk, Git?) und Weg auf den Linux-Server (Freigabe, sftp, Deployment-Skript) |
 | 5 | Virenschutz: Ausnahmen für das Oracle Home während Installation und Patchen |
-| 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). **Auffällig:** der Windows-Reports-QPR heißt „MERGE REQUEST ON TOP OF 14.1.2.0.0 FOR BUGS 38991174 37866660 39375353“ – nur 3 Bugs, die Linux-Variante listet 12. Nach dem Einspielen mit `opatch lsinventory -bugs_fixed` vergleichen; fehlende Fixes ggf. beim Support erfragen. |
+| 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). Der MOS-Titel des Reports-QPR („MERGE REQUEST … FOR BUGS 38991174 37866660 39375353“) nennt nur die Bugs des Merge-Antrags – die **Windows-README listet 31 Bugs**, identisch mit dem Inventar des Linux-Testhosts (`lsinventory -bugs_fixed`, verglichen 2026-10-26). Builder und Server haben damit denselben Reports-Stand. |
 
 Status: **dokumentiert 2026-10-26**, live auf dem Kunden-Server zu prüfen –
 im Kochbuch sind die Schritte entsprechend markiert.
