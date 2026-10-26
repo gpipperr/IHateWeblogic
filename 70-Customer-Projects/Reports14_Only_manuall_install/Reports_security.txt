@@ -217,10 +217,17 @@ SCHRITT 3: WebLogic hinter dem Proxy - HTTPS korrekt erkennen  (als oracle)
   #   startEdit()
   #   cd('/Servers/WLS_REPORTS')
   #   cmo.setWeblogicPluginEnabled(True)
+  #   cd('/Servers/AdminServer')
+  #   cmo.setWeblogicPluginEnabled(True)
   #   save()
   #   activate()
   #   exit()
-  # Danach WLS_REPORTS neu starten.
+  # Danach WLS_REPORTS und den AdminServer neu starten (Einstellung ist
+  # nicht dynamisch). Der AdminServer braucht sie auch: ohne sie leiten /em
+  # und /console erst auf http:// um (getestet 2026-10-26). Sicher, weil
+  # Nginx die vom Client mitgeschickten WL-Proxy-*-Header entfernt
+  # (OS_Kochbuch_de.txt Schritt 8).
+  grep -n -A30 "<name>AdminServer</name>" $DOMAIN_HOME/config/config.xml | grep weblogic-plugin-enabled
 
   # Hinweis zu connect(): ohne Benutzer/Kennwort fragt WLST beides ab -
   # AUSSER es liegen ~/oracle-WebLogicConfig.properties und
@@ -668,13 +675,31 @@ SCHRITT 11: Betriebssystem  (als root)
 SCHRITT 12: Patchstand  (als oracle)
 ================================================================================
 
-  # Oracle veroeffentlicht vierteljaehrlich (Jan/Apr/Jul/Okt) Critical
-  # Patch Updates. Sicherheit heisst auch: regelmaessig patchen.
+  # Oracle liefert inzwischen MONATLICH: Critical Patch Update (CPU) im
+  # Quartal (Jan/Apr/Jul/Okt), Critical Security Patch Update (CSPU) in
+  # den Monaten dazwischen, dazu Security Alerts. Sicherheit heisst auch:
+  # regelmaessig patchen. Stand dieser Kochbuecher: CPU Oktober 2026.
   $ORACLE_HOME/OPatch/opatch lspatches
   ${JAVA_HOME:-/u01/oracle/java/jdk-21}/bin/java -version 2>&1 | head -1
-  #   Mit dem aktuellen Stand aus der Oracle-Patch-Matrix (CSPU) vergleichen
-  #   - Vorgehen siehe FMW_Kochbuch_de.txt / Reports_kochbuch_de.txt
-  #   Schritt 2. Auch das JDK und nginx (dnf update nginx) aktuell halten.
+  #   Mit dem aktuellen Stand aus MOS KA1182 vergleichen - Vorgehen siehe
+  #   FMW_Kochbuch_de.txt Schritt 3 / Reports_kochbuch_de.txt Schritt 2.
+  #   Erwartet (CPU Okt 2026) u.a.: 40126042 (SPB), 40058371 (WLS-PSU),
+  #   die acht Infrastruktur-Bundles, 39951765 (PERL), 39987730 (OHS),
+  #   39100536 (WebGate), 39600348 (Reports-QPR); JDK 21.0.13.0.2 oder neuer.
+  #   Auch nginx und ca-certificates (dnf update) aktuell halten.
+
+  # Vertrauenswuerdige Zertifizierungsstellen (Beispiel eMudhra-Vorfall,
+  # Oktober 2026, Security Alert CVE-2026-114820): stehen die betroffenen
+  # emSign-Wurzeln noch im Java-Truststore bzw. im Betriebssystem?
+  ${JAVA_HOME:-/u01/oracle/java/jdk-21}/bin/keytool -list -cacerts \
+      -storepass changeit 2>/dev/null | grep -ci emsign
+  grep -c '^[0-9A-F]' ${JAVA_HOME:-/u01/oracle/java/jdk-21}/lib/security/blocked.certs
+  rpm -q ca-certificates
+  #   Hinweis: Das JDK IM Home ($ORACLE_HOME/oracle_common/jdk, 17.0.12)
+  #   betreibt die Reports-Engines und hat keinen Patch - es vertraut den
+  #   gefaelschten eMudhra-Zertifikaten (getestet 2026-10-26). Relevant nur,
+  #   wenn Reports selbst ausgehend TLS spricht (Mail ueber SMTPS, WebDAV,
+  #   https-Bilder / -XML-Quellen).
 
 
 ================================================================================
@@ -724,7 +749,7 @@ ABSCHLUSS-CHECKLISTE
   [ ] /reports/rwservlet/showenv von aussen: 403                 (SCHRITT 2)
   [ ] /em von aussen: 403 bzw. nur Admin-IPs / SSH-Tunnel        (SCHRITT 2)
   [ ] /console-Block aus Nginx entfernt                          (SCHRITT 2)
-  [ ] weblogic-plugin-enabled=true an WLS_REPORTS                (SCHRITT 3)
+  [ ] weblogic-plugin-enabled=true an WLS_REPORTS + AdminServer  (SCHRITT 3)
   [ ] Kennwort-Richtlinie 12 Zeichen, Kontosperre aktiv          (SCHRITT 4)
   [ ] Persoenliche Admin-Konten, Gruppen zugewiesen              (SCHRITT 5)
   [ ] RW_ADMINISTRATOR -> Administrators, monUser, RepRunner     (SCHRITT 6)
@@ -737,7 +762,7 @@ ABSCHLUSS-CHECKLISTE
   [ ] History ohne Kennwoerter, Kennwortdateien 600 (umask 022) (SCHRITT 9)
   [ ] Node Manager nur localhost, Authentifizierung an           (SCHRITT 10)
   [ ] sudo von oracle auf das Noetigste reduziert, kein wheel    (SCHRITT 11)
-  [ ] Patchstand dokumentiert                                    (SCHRITT 12)
+  [ ] Patchstand dokumentiert, ca-certificates aktuell          (SCHRITT 12)
   [ ] Funktionstest: Bericht ueber https://<fqdn>/reports/... laeuft,
       Bilder erscheinen, Monitoring-Abfrage funktioniert
 

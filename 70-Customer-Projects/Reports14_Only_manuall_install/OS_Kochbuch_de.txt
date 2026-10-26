@@ -154,6 +154,14 @@ SCHRITT 2: OS-Basiskonfiguration  (als root)
   dnf check-update --quiet
   dnf upgrade --refresh -y
 
+  # Mindestens die Zertifikatsliste des Betriebssystems aktuell halten -
+  # auch wenn sonst nichts aktualisiert wird. Beispiel Oktober 2026: die CA
+  # eMudhra hatte Zwischen-CAs mit 8-Bit-Schluesseln (gefaelschte
+  # Zertifikate fuer beliebige Domains moeglich); ELSA-2026-88459 entfernt
+  # das Vertrauen. Kein Neustart der Dienste noetig.
+  dnf updateinfo list --available ca-certificates
+  dnf update -y ca-certificates
+
   # Kernel-Parameter fuer Oracle FMW/WebLogic setzen. Werte stammen aus
   # einer realen, bestaetigten Produktivumgebung (100-500 gleichzeitige
   # Sessions), nicht nur aus generischer Oracle-Dokumentation.
@@ -334,12 +342,22 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
 
   mkdir -p /u01/oracle/java
 
+  # Quelle: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS,
+  # Patch 35702194 ("Oracle JDK 21" latest, ZIP-Name bleibt immer gleich:
+  # p35702194_2100_Linux-x86-64.zip). Die Version steht nur IM ZIP -
+  # vorher pruefen (Stand CPU Oktober 2026: jdk-21.0.13.0.2, Alert-Build zu
+  # CVE-2026-91403; die 21.0.13 des CPU selbst ist betroffen):
+  unzip -l p35702194_2100_Linux-x86-64.zip | grep -o 'jdk-21[^_]*'
+  unzip -j p35702194_2100_Linux-x86-64.zip '*_linux-x64_bin.tar.gz' -d /tmp
+
   # Tar.gz-Variante (empfohlen - haelt das JDK unabhaengig vom FMW_HOME):
-  tar xf jdk-21_linux-x64_bin.tar.gz -C /u01/oracle/java/
+  tar xf /tmp/jdk-21.0.13.0.2_linux-x64_bin.tar.gz -C /u01/oracle/java/
 
   # Stabilen Symlink anlegen, damit Versions-Updates spaeter keine
-  # Pfadaenderungen in environment.conf/.bash_profile erfordern:
-  ln -sfn /u01/oracle/java/jdk-21.0.10 /u01/oracle/java/jdk-21
+  # Pfadaenderungen in environment.conf/.bash_profile erfordern - ein
+  # spaeteres JDK-Update ist dann nur: neues JDK daneben auspacken, alle
+  # Java-Prozesse stoppen, Link umsetzen:
+  ln -sfn /u01/oracle/java/jdk-21.0.13.0.2 /u01/oracle/java/jdk-21
 
   # Bei "alternatives" registrieren (aendert NICHT den Systemstandard -
   # WebLogic nutzt immer explizit $JAVA_HOME, nie /usr/bin/java):
@@ -540,6 +558,10 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   # Java: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS
   # (Patch 35702194, ZIP mit jdk-21.0.x_linux-x64_bin.tar.gz) - die
   # oeffentliche Download-Seite bleibt bei 21.0.12.1 (NFTC endete 09/2026).
+  # Stand CPU Oktober 2026: 21.0.13.0.2 - der Security Alert
+  # CVE-2026-114820 (eMudhra, 2026-10-24) nennt auch diese Version; der
+  # Build sperrt die betroffenen Zwischen-CAs aber schon - den naechsten
+  # Build nehmen, sobald MOS ihn liefert.
 
   # Ergebnis-Verzeichnisstruktur:
   #   $PATCH_STORAGE/
@@ -598,7 +620,7 @@ server {
     proxy_http_version      1.1;
     proxy_set_header        Host               \$host;
     proxy_set_header        X-Real-IP          \$remote_addr;
-    proxy_set_header        X-Forwarded-For    \$proxy_add_x_forwarded_for;
+    proxy_set_header        X-Forwarded-For    \$remote_addr;
     proxy_set_header        X-Forwarded-Proto  https;
     proxy_set_header        Connection         "";
     proxy_connect_timeout   60s;
@@ -607,6 +629,25 @@ server {
     client_max_body_size    100m;
     proxy_set_header        WL-Proxy-Client-IP \$remote_addr;
     proxy_set_header        WL-Proxy-SSL       true;
+    # Vom Client mitgeschickte WebLogic-Steuer-Header entfernen ("" = nicht
+    # weitergeben) - WebLogic vertraut ihnen bei weblogic-plugin-enabled
+    # (Gegenstueck zur OHS-Haertung des CPU Oktober 2026, MOS KB559857;
+    # getestet 2026-10-26 mit tcpdump)
+    proxy_set_header        WL-Proxy-Client-Cert          "";
+    proxy_set_header        WL-Proxy-Client-Keysize       "";
+    proxy_set_header        WL-Proxy-Client-Secretkeysize "";
+    proxy_set_header        WL-Proxy-Client-Port          "";
+    proxy_set_header        WL-PATH-TRIM                  "";
+    proxy_set_header        WL-PATH-PREPEND               "";
+    proxy_set_header        X-WebLogic-KeepAliveSecs      "";
+    proxy_set_header        X-WebLogic-Force-JVMID        "";
+    proxy_set_header        X-WebLogic-JVMID              "";
+    proxy_set_header        X-WebLogic-Request-ClusterInfo "";
+    proxy_set_header        X-WebLogic-Cluster-List       "";
+    proxy_set_header        X-WebLogic-Cluster-Hash       "";
+    proxy_set_header        tyrus-connection-id           "";
+    # WICHTIG: in den location-Bloecken unten KEIN eigenes proxy_set_header -
+    # Nginx erbt die Header oben nur, wenn die location selbst keines setzt.
 
     location /reports/ {
         proxy_pass http://wls_reports;
@@ -620,7 +661,6 @@ server {
         allow 10.0.0.0/8;
         deny  all;
         proxy_pass http://wls_admin;
-        proxy_set_header Connection "";
     }
     location /em {
         allow 10.0.0.0/8;

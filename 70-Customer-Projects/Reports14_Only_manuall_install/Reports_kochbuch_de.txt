@@ -173,8 +173,15 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   # bewusst WEGGELASSEN, da reines Forms-Patch ohne Reports-Bezug.
   #   Reports-Patch (einspielen):      39600348  (Stand Aug 2026)
   #   Forms-Patch (NICHT einspielen):  39842516  (Stand Sep 2026)
-  # Aktuelle Patchnummern per MOS KA204 ermitteln (aendern sich jedes
-  # Quartal) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
+  # Beide sind auch im CPU Oktober 2026 unveraendert aktuell (KA1182).
+  # Dazu kommen Patches fuer Komponenten, die erst die Forms-&-Reports-
+  # Installation mitbringt (Stand CPU Oktober 2026, auf dem Testsystem
+  # am 2026-10-24 eingespielt):
+  #   39951765  FMW PERL SPU 14.1.2 (ersetzt 38590500)       ~4,5 min
+  #   39987730  OHS Bundle 14.1.2.0.260907 (nur Binaries)     ~3,5 min
+  #   39100536  WebGate Bundle 14.1.2.0.260318 (nur Binaries) ~3,5 min
+  # Aktuelle Patchnummern per MOS KA1182 / KA204 ermitteln (aendern sich
+  # monatlich) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
   # und oracle_software_version.conf fuer den jeweils aktuellen Stand.
 
   # Falls ein aelterer Reports-QPR bereits installiert ist (z.B. 38827528
@@ -193,20 +200,40 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   cd -
   $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
 
-  # FMW PERL Security Patch 38590500 - gehoert HIERHER, nicht ins
+  # FMW PERL SPU 39951765 (CVE-2026-4176) - gehoert HIERHER, nicht ins
   # FMW-Kochbuch: seine Komponente (oracle.perlint) bringt erst die
   # Reports-Installation mit. In der reinen WebLogic-Infrastruktur wuerde
   # opatch ihn mit "none of the components from patch are present"
   # ueberspringen (Ende: "completed with warnings", aber NICHT installiert).
-  unzip -q $PATCH_STORAGE/patches/38590500/p38590500_*.zip -d /tmp/mw_patches
-  cd /tmp/mw_patches/38590500
+  # Braucht den DB-Client >= 23.26 aus dem SPB (FMW-Kochbuch Schritt 3).
+  # Der Vorgaenger 38590500 (September-Stand) wird vorher entfernt:
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 38590500
+  # falls gefunden:
+  $ORACLE_HOME/OPatch/opatch rollback -id 38590500 -silent
+  unzip -q $PATCH_STORAGE/patches/39951765/p39951765_*.zip -d /tmp/mw_patches
+  cd /tmp/mw_patches/39951765
   $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
   $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
   cd -
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 38590500
-  # Erwartet: eine Zeile mit 38590500. Fehlt sie und stand in der Ausgabe
-  # "none of the components from patch are present", ist Perl in diesem Home
-  # nicht installiert - dann ist der Patch hier nicht anwendbar.
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 39951765
+  # Erwartet: "PERL 5.42.2 patch for FMW 14.1.2.0.0". Fehlt die Zeile und
+  # stand "none of the components from patch are present" in der Ausgabe,
+  # ist Perl in diesem Home nicht installiert - dann nicht anwendbar.
+
+  # OHS- und WebGate-Bundle: die Binaries liegen in jedem Forms-&-Reports-
+  # Home, auch wenn Nginx davor steht und keine OHS-Instanz existiert -
+  # alles, was auf der Platte liegt, wird gepatcht (Scanner melden es sonst).
+  # Ohne OHS-Instanz ist laut MOS KB559857 nach dem Einspielen nichts zu tun.
+  for PATCHNR in 39987730 39100536; do
+      unzip -q -o $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip -d /tmp/mw_patches
+      cd /tmp/mw_patches/$PATCHNR
+      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
+      $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
+      cd -
+  done
+  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39987730|39100536"
+  # Erwartet: "OHS (NATIVE) BUNDLE PATCH 14.1.2.0.260907" und
+  #           "OAM WEBGATE BUNDLE PATCH 14.1.2.0.260318"
   rm -rf /tmp/mw_patches
 
   # /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
@@ -1450,7 +1477,10 @@ BEKANNTE PROBLEME UND LOESUNGEN
            java.lang.NullPointerException ... Utility.getOrbProperties"
   Ursache: REPORTS_JVM_OPTIONS in rwserver.conf ist gesetzt, enthaelt aber
            kein -DORBWaitForResponseTimeout= (Fehler im Reports-Patch
-           39600348 - ohne diese Option wird null gesetzt)
+           39600348 - ohne diese Option wird null gesetzt). Von Oracle
+           bestaetigt als Bug 39868225, MOS KB924687 (Workaround = genau
+           diese Option; Fix "in einem spaeteren QPR" - die Option so lange
+           drin lassen)
   Loesung: in rwserver.conf (Schritt 9.7)
              value="-Djobid=random -DORBWaitForResponseTimeout=999999999"
            setzen, repServer neu starten

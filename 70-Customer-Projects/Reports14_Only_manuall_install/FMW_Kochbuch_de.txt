@@ -167,40 +167,61 @@ SCHRITT 2: JVM-Einstellungen fuer die FMW-eigene JDK  (als oracle)
 SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
 ================================================================================
 
-  # WICHTIG - Patch-Modell aendert sich zwischen den Quartalen: Fuer den
-  # Patch-Zyklus Januar 2026 war ein einfaches "opatch apply" pro Patch
-  # ausreichend, kein Stack Patch Bundle (SPB) noetig. Seit dem CSPU-Zyklus
-  # September 2026 hat Oracle fuer FMW 14.1.2 ein WLS Stack Patch Bundle
-  # wieder eingefuehrt, das per "opatch napply" mit einer mitgelieferten
-  # Patch-Liste eingespielt wird (anders als ein einzelner CPU-Patch).
-  # Vor jedem Patch-Lauf im aktuellen KA1182 pruefen, ob fuer den laufenden
-  # Zyklus ein SPB gelistet ist - die folgenden Schritte zeigen den Stand
-  # CSPU September 2026 (WLS SPB 39925660).
+  # Stand: CPU Oktober 2026 + Security Alert CVE-2026-91403 (Patchnummern
+  # aus MOS KA1182, PDF 2026-10-22). Auf dem Testsystem am 2026-10-24
+  # eingespielt und getestet. Vor JEDEM Patch-Lauf im aktuellen KA1182
+  # pruefen, ob sich Nummern geaendert haben - Oracle liefert inzwischen
+  # monatlich (CPU im Quartal, CSPU in den Monaten dazwischen, Alerts).
+  # Aktueller Stand und Historie: IHateWeblogic/09-Install/docs/
+  # 00-patch-references.md, Ablauf mit Laufzeiten: 70-Customer-Projects/
+  # Forms14_reports14_patch_analyse_10_2026/.
+  #
+  # Patch-Modell 14.1.2 (Distribution "WebLogic Server for FMW"):
+  #   - OPatch-Upgrade (steckt im SPB)
+  #   - WLS Stack Patch Bundle (SPB) per "opatch napply" - KEIN SPBAT
+  #   - danach die FMW-Infrastruktur-Bundles einzeln per "opatch apply"
+  #     (KA1182, Reiter "FMW Infrastructure 14.1.2.0": Pflicht, sobald nur
+  #     das WLS-SPB eingespielt wird - im September-Stand fehlten sie)
+  #   - PERL / OHS / WebGate / Reports-QPR erst nach der Reports-
+  #     Installation: Reports_kochbuch_de.txt Schritt 2
+  #
+  # Benoetigte ZIPs (in $PATCH_STORAGE/patches/<nr>/, alle "Generic"):
+  #   40125898  WLS Stack Patch Bundle 14.1.2.0.261007 (ca. 2,8 GB, darin
+  #             auch OPatch 13.9.4.2.25)
+  #   40050062  ADF BP              40035984  WebCenter Core BP
+  #   40024749  OWSM BP             39995927  FMW Control (EM) BP
+  #   40057999  OAMCLIENT BP        39940047  UMS BP
+  #   39979746  OPSS BP             39726399  LibOVD BP
+  #
+  # Laufzeiten auf dem Testsystem: OPatch 1 min, SPB entpacken 1 min,
+  # SPB napply 5 min, je Bundle ca. 4 min (zusammen ca. 31 min).
+  # Jeder "opatch lspatches"-Aufruf dauert ca. 25 s.
 
-  # 3.1 OPatch-Version pruefen (aktueller Zyklus verlangt mindestens
-  #     eine bestimmte Mindestversion - im Patch-Readme auf MOS nachsehen)
+  # 3.0 Vorher: alles gestoppt (bei einer Neuinstallation laeuft noch
+  #     nichts) - und JETZT einen VM-Snapshot anlegen: konsistent, weil
+  #     nichts laeuft. Bei einer bestehenden Umgebung zusaetzlich
+  #     ORACLE_HOME, Inventory und DOMAIN_HOME per tar sichern.
+
+  # 3.1 OPatch-Version pruefen - der aktuelle Zyklus verlangt 13.9.4.2.25
+  #     (behebt Bug 40105335: GDR-Bibliotheken bei 14.1.2 - VOR dem SPB)
   $ORACLE_HOME/OPatch/opatch version
-  # CSPU Sep 2026: Mindestversion 13.9.4.2.24
 
-  # 3.2 Falls ein OPatch-Upgrade noetig ist:
-  #     Vorher Patch 23335292 zurueckrollen (Pflichtschritt laut
-  #     OPatch-Readme):
+  # 3.2 OPatch-Upgrade auf 13.9.4.2.25
+  #     Vorher Patch 23335292 zurueckrollen, falls vorhanden (Pflichtschritt
+  #     laut OPatch-Readme):
   $ORACLE_HOME/OPatch/opatch lspatches | grep 23335292
-  $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -oh $ORACLE_HOME
-  sleep 20
+  #   falls gefunden:
+  #   $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -silent; sleep 30
 
   #     Backup (OPatch selbst hat keinen Rollback-Mechanismus fuer sich):
   cp -a $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak_$(date +%Y%m%d)
   cp -a /u01/app/oraInventory /u01/app/oraInventory.bak_$(date +%Y%m%d)
 
-  #     OPatch-Upgrade einspielen (ueber opatch_generic.jar, NICHT per
-  #     einfachem unzip - sonst inkonsistente OUI-Metadaten). Patch 28186730
-  #     ist das FMW/WLS-spezifische OPatch-Upgrade-Paket.
-  #     WICHTIG: Der einzelne MOS-Download von 28186730 liefert nur
-  #     13.9.4.2.22 - die benoetigte 13.9.4.2.24 steckt im SPB 39925660.
-  #     Deshalb nur diese eine Datei (~60 MB) aus dem SPB-ZIP holen:
+  #     OPatch-Upgrade ueber opatch_generic.jar (NICHT per unzip - sonst
+  #     inkonsistente OUI-Metadaten). Die benoetigte 13.9.4.2.25 steckt im
+  #     SPB 40125898 - nur diese eine Datei aus dem SPB-ZIP holen:
   mkdir -p /tmp/opatch_upgrade
-  unzip -q -j $PATCH_STORAGE/patches/39925660/p39925660_*.zip \
+  unzip -q -j $PATCH_STORAGE/patches/40125898/p40125898_*.zip \
       "*/tools/opatch/generic/p28186730_*.zip" -d /tmp/opatch_upgrade
   unzip -q /tmp/opatch_upgrade/p28186730_*.zip -d /tmp/opatch_upgrade
   mkdir -p $ORACLE_BASE/tmp
@@ -209,17 +230,18 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
       -silent oracle_home=$ORACLE_HOME -invPtrLoc /etc/oraInst.loc
 
   $ORACLE_HOME/OPatch/opatch version
-  # Erwartet: 13.9.4.2.24
+  # Erwartet: 13.9.4.2.25
+  rm -rf /tmp/opatch_upgrade
 
-  # 3.3 WLS Stack Patch Bundle (SPB 39925660, CSPU Sep 2026) einspielen -
-  #     NICHT ueber "opatch apply", sondern ueber "opatch napply" mit der
-  #     im SPB mitgelieferten Patch-Liste. Braucht ca. 4 GB freien Platz
+  # 3.3 WLS Stack Patch Bundle 40125898 (14.1.2.0.261007) einspielen -
+  #     NICHT ueber "opatch apply", sondern "opatch napply" mit der im SPB
+  #     mitgelieferten Patch-Liste. Braucht ca. 4 GB freien Platz
   #     ausserhalb von $ORACLE_HOME zum Entpacken.
-  unzip -q $PATCH_STORAGE/patches/39925660/p39925660_*.zip -d /tmp/wls_spb
-  cd /tmp/wls_spb/WLS_SPB_14.1.2.0.260825/binary_patches
+  unzip -q $PATCH_STORAGE/patches/40125898/p40125898_*.zip -d /tmp/wls_spb
+  cd /tmp/wls_spb/WLS_SPB_14.1.2.0.261007/binary_patches
 
   # Laut SPB-Readme: JAVA_HOME und ORACLE_HOME fuer den napply-Aufruf
-  # unsetten (nur in dieser Shell/Subshell, nicht dauerhaft):
+  # unsetten (nur in dieser Shell, danach wieder setzen):
   ORACLE_HOME_SAVED=$ORACLE_HOME
   unset JAVA_HOME
   unset ORACLE_HOME
@@ -227,56 +249,66 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   # Trockenlauf (zeigt an, was passieren wuerde, aendert nichts):
   $ORACLE_HOME_SAVED/OPatch/opatch napply -report \
       -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt
+  # Bei einem Update von September 2026 zeigt der Bericht u.a.
+  # "Patch 40058371 - Bug Superset of 39988381": der September-Einzelpatch
+  # 39988381 wird von der neuen PSU ersetzt und automatisch entfernt.
 
   # Tatsaechlich einspielen:
-  $ORACLE_HOME_SAVED/OPatch/opatch napply \
+  $ORACLE_HOME_SAVED/OPatch/opatch napply -silent \
       -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt
 
   export ORACLE_HOME=$ORACLE_HOME_SAVED
+  export JAVA_HOME=$JDK_HOME
   cd -
 
-  # Verifikation: Marker-Patch 39925694 macht das SPB in lspatches sichtbar
-  opatch lspatches | grep 39925694
+  # Verifikation: Marker-Patch 40126042 macht das SPB in lspatches sichtbar
+  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "40126042|40058371"
+  # Erwartet: 40126042 (WLS STACK PATCH BUNDLE 14.1.2.0.261007) und
+  #           40058371 (WLS PATCH SET UPDATE 14.1.2.0.260922)
   rm -rf /tmp/wls_spb
 
-  # Rollback des SPB (nur im Notfall - Oracle raet von Einzel-Rollbacks
-  # aus dem SPB ab):
-  #   cd /tmp/wls_spb/WLS_SPB_14.1.2.0.260825/binary_patches
+  # Rollback des SPB (nur im Notfall, nur komplett):
+  #   cd <entpacktes SPB>/WLS_SPB_14.1.2.0.261007/binary_patches
   #   opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 
-  # 3.4 Einzelpatches NACH dem SPB (normales "opatch apply", CSPU Sep 2026):
-  #     39988381  WLS 14.1.2 SPU fuer CVE-2026-70748
-  #     (38590500 FMW PERL Security Patch gehoert NICHT hierher: seine
-  #      Komponente bringt erst die Reports-Installation mit - er wird in
-  #      Reports_kochbuch_de.txt Schritt 2 eingespielt. Hier wuerde opatch
-  #      ihn mit "none of the components from patch are present" ueberspringen.)
-  #     (38566996 UMS Bundle aus dem Januar-Zyklus gehoert NICHT zum
-  #      September-Stand und wird nicht mehr eingespielt)
-  #
-  # ACHTUNG: Patch 39988381 gibt es unter derselben Nummer fuer mehrere
-  # Produktversionen (12.2.1.4 / 14.1.1 / 14.1.2 / 15.1.1). Liegen mehrere
-  # ZIPs im Verzeichnis, nur die 14.1.2-Variante nehmen (Dateiname mit "_1412").
-  # 39988381 setzt die WLS-PSU 39919611 aus dem SPB voraus - deshalb erst
-  # NACH Schritt 3.3. Im prereq-Ergebnis muss "passed" stehen; bei "failed"
-  # NICHT weitermachen (opatch meldet trotzdem "OPatch succeeded").
-  for PATCHNR in 39988381; do
-      PATCHZIP=$(ls $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip | grep "_1412" | head -1)
-      echo "Patch $PATCHNR -> $PATCHZIP"
-      unzip -d /tmp/mw_patches "$PATCHZIP"
+  # 3.4 FMW-Infrastruktur-Bundles NACH dem SPB (normales "opatch apply").
+  #     ADF zwingend erst NACH dem SPB: ADF-Bundle, Third-Party-Bundle und
+  #     WLS-PSU teilen sich GraalVM-Bibliotheken und muessen aus demselben
+  #     Zyklus stammen (MOS PNEWS2138) - sonst startet EM nicht.
+  #     Im prereq-Ergebnis muss "passed" stehen; bei "failed" NICHT
+  #     weitermachen (opatch meldet trotzdem "OPatch succeeded").
+  mkdir -p /tmp/mw_patches
+  for PATCHNR in 40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399; do
+      echo "===== Patch $PATCHNR ====="
+      unzip -q -o $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip -d /tmp/mw_patches
       cd /tmp/mw_patches/$PATCHNR
       $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
           -ph . -invPtrLoc /etc/oraInst.loc
-      opatch apply -silent -jdk $JDK_HOME -invPtrLoc /etc/oraInst.loc
+      read -p "Prereq von $PATCHNR passed, kein Konflikt? [j/n] " A
+      [ "$A" = j ] || { cd -; break; }
+      $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME -invPtrLoc /etc/oraInst.loc
       cd -
   done
+  # Meldet ein Bundle "none of the components from patch are present",
+  # ist seine Komponente in diesem Home nicht installiert - dann ist es hier
+  # nicht anwendbar (kein Fehler).
 
   # 3.5 Verifikation
-  opatch lspatches | grep -E "39988381|39925694"
-  # Erwartet: 39988381 und der SPB-Marker 39925694
+  $ORACLE_HOME/OPatch/opatch lspatches
+  # Erwartet u.a.: 40126042, 40058371, 40035655 (Third-Party), 39984190
+  # (Coherence), 40050062, 40035984, 40024749, 39995927, 40057999,
+  # 39940047, 39979746, 39726399
+  $ORACLE_HOME/OPatch/opatch lsinventory -bugs_fixed | grep 39924025
+  # Erwartet: eine Zeile mit 40058371 (Fix des September-Einzelpatches
+  # 39988381 steckt in der neuen PSU)
   rm -rf /tmp/mw_patches
 
-  # 3.6 Rollback (nur falls spaeter noetig, Domain laeuft bereits)
-  #     opatch rollback -id <PATCHNUMMER>
+  # NICHT mehr einspielen (September-Stand): 39988381 (von der PSU
+  # 40058371 abgeloest), SPB 39925660. Den UMS-Januar-Patch 38566996 ersetzt
+  # das UMS-Bundle 39940047.
+
+  # 3.6 Rollback eines Bundles (nur falls spaeter noetig)
+  #     opatch rollback -id <PATCHNUMMER> -silent
   #     opatch lspatches | grep <PATCHNUMMER>   # muss leer sein
 
 

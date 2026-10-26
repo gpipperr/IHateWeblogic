@@ -12,14 +12,16 @@ und deutschen Kommentaren.
    Pakete, Java, oracle-User, Netzwerk-Grundlagen auf Oracle Linux 9;
    Schritt 9: Firewall und SSH absichern (mit Sicherheitsnetz).
 2. [FMW_Kochbuch_de.txt](FMW_Kochbuch_de.txt) – WebLogic/FMW-Infrastruktur
-   installieren, patchen (CSPU September 2026) und SSL-Zertifikat auf
-   Nginx ausrollen.
+   installieren, patchen (CPU Oktober 2026: OPatch 13.9.4.2.25, WLS Stack
+   Patch Bundle 40125898, acht FMW-Infrastruktur-Bundles) und
+   SSL-Zertifikat auf Nginx ausrollen.
 3. [SSL_Kochbuch_de.txt](SSL_Kochbuch_de.txt) – SSL-Zertifikat erzeugen und
    prüfen (nur Zertifikatserstellung/-kontrolle, das Ausrollen selbst steht
    im FMW-Kochbuch).
 4. [Reports_kochbuch_de.txt](Reports_kochbuch_de.txt) – Oracle Reports
-   installieren, RCU-Schema registrieren, WebLogic-Domain anlegen und den
-   Reports-Server konfigurieren (bewusst ohne Forms).
+   installieren und patchen (Reports-QPR, PERL, OHS-/WebGate-Binaries),
+   RCU-Schema registrieren, WebLogic-Domain anlegen und den Reports-Server
+   konfigurieren (bewusst ohne Forms).
 5. [Font_kochbuch_de.txt](Font_kochbuch_de.txt) – TrueType-Fonts und den
    HTML-Parameterformular-Fontpfad für Reports einrichten.
 6. [WLS_Report_start_stop_kochbuch.txt](WLS_Report_start_stop_kochbuch.txt) –
@@ -83,6 +85,17 @@ und deutschen Kommentaren.
    - `install.ini` + `set_install_env.sh` – alle Parameter der
      Installations-Kochbücher an einer Stelle, für die nächste
      Installation in die Sitzung zu laden.
+
+## Patchstand
+
+Alle Kochbücher stehen auf **CPU Oktober 2026** (+ Security Alert
+CVE-2026-91403), auf dem Testsystem am 24.10.2026 eingespielt und
+getestet; Nachträge vom 26.10.2026: Nginx entfernt vom Client
+mitgeschickte WebLogic-Header, `weblogic-plugin-enabled` auch am
+AdminServer, eMudhra-Vorfall (`ca-certificates`, Java-Truststore). Den
+jeweils aktuellen Stand und die Historie führt
+`IHateWeblogic/09-Install/docs/00-patch-references.md`; Oracle liefert
+inzwischen monatlich – vor jeder Installation in MOS KA1182 prüfen.
 
 ## Hinweis
 
