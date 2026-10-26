@@ -83,10 +83,16 @@ server {
                application/xml text/xml image/svg+xml;
 
     # --- Common proxy headers (sent to all WebLogic upstreams) -----------
+    # Inherited by a location ONLY if that location sets no proxy_set_header
+    # of its own – never add a single proxy_set_header to a WebLogic location
+    # (it would drop Host, WL-Proxy-* and the stripping below; /console had
+    # that bug until 2026-10-26).
     proxy_http_version      1.1;               # HTTP/1.1 for keep-alive + chunked
     proxy_set_header        Host               $host;
     proxy_set_header        X-Real-IP          $remote_addr;
-    proxy_set_header        X-Forwarded-For    $proxy_add_x_forwarded_for;
+    # Overwrite, not append: Nginx faces the clients directly – a client-supplied
+    # chain ($proxy_add_x_forwarded_for) could fake the client IP in WLS logs
+    proxy_set_header        X-Forwarded-For    $remote_addr;
     proxy_set_header        X-Forwarded-Proto  https;
     proxy_set_header        Connection         "";  # clear Connection header for keep-alive
     proxy_connect_timeout   60s;
@@ -97,6 +103,28 @@ server {
     # --- WebLogic-specific headers ----------------------------------------
     proxy_set_header        WL-Proxy-Client-IP $remote_addr;
     proxy_set_header        WL-Proxy-SSL       true;
+
+    # --- Strip client-supplied WebLogic proxy / control headers -----------
+    # Nginx counterpart of the OHS / mod_wl hardening of the CPU Oct 2026
+    # (MOS KB559857: WLStripWLProxyHeaders, WLStripPathRewriteHeaders,
+    # WLStripWebLogicControlHeaders, WLStripTyrusConnectionHeader). With
+    # weblogic-plugin-enabled=true WebLogic trusts these headers; only a proxy
+    # may set them. "" = header is not passed. X-WebLogic-* has no wildcard in
+    # Nginx – the known names of the plug-in protocol are listed.
+    # Live-tested 2026-10-26 (tcpdump on the loopback).
+    proxy_set_header        WL-Proxy-Client-Cert          "";
+    proxy_set_header        WL-Proxy-Client-Keysize       "";
+    proxy_set_header        WL-Proxy-Client-Secretkeysize "";
+    proxy_set_header        WL-Proxy-Client-Port          "";
+    proxy_set_header        WL-PATH-TRIM                  "";
+    proxy_set_header        WL-PATH-PREPEND               "";
+    proxy_set_header        X-WebLogic-KeepAliveSecs      "";
+    proxy_set_header        X-WebLogic-Force-JVMID        "";
+    proxy_set_header        X-WebLogic-JVMID              "";
+    proxy_set_header        X-WebLogic-Request-ClusterInfo "";
+    proxy_set_header        X-WebLogic-Cluster-List       "";
+    proxy_set_header        X-WebLogic-Cluster-Hash       "";
+    proxy_set_header        tyrus-connection-id           "";
 
     # --- Oracle Forms (/forms) --------------------------------------------
     location /forms/ {
@@ -163,7 +191,7 @@ server {
         allow ##ADMIN_IP_RANGE##;
         deny  all;
         proxy_pass http://wls_admin;
-        proxy_set_header Connection "";
+        # no proxy_set_header here – it would drop the inherited headers
     }
 
     # --- WebLogic Enterprise Manager (/em) --------------------------------

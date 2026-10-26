@@ -40,6 +40,17 @@ Key design decisions to apply manually:
 - `proxy_set_header WL-Proxy-Client-IP $remote_addr` → WebLogic identifies the real client
 - `proxy_set_header WL-Proxy-SSL true` → tells WLS the request came in via HTTPS
 - `proxy_set_header X-Forwarded-Proto https` → used by WLS URL rewriting
+- `proxy_set_header X-Forwarded-For $remote_addr` → overwrite, not append
+  (`$proxy_add_x_forwarded_for` would keep a client-supplied chain)
+- **Strip client-supplied WebLogic headers** (`proxy_set_header <name> "";`):
+  `WL-Proxy-Client-Cert/-Keysize/-Secretkeysize/-Port`, `WL-PATH-TRIM/-PREPEND`,
+  the known `X-WebLogic-*` control headers, `tyrus-connection-id` – the Nginx
+  counterpart of the OHS / mod_wl hardening of CPU Oct 2026 (MOS KB559857);
+  with `weblogic-plugin-enabled` WebLogic trusts these headers
+- **No `proxy_set_header` inside a WebLogic `location`** – Nginx inherits the
+  server-level headers only if the location sets none; one line drops all of
+  them (the `/console` location had this bug until 2026-10-26: `Host` =
+  upstream name, client-supplied `WL-Proxy-Client-IP` passed through)
 - `/console` and `/em` locations: restrict to admin IP range (`allow 10.0.0.0/8; deny all;`)
 - `/forms/` cookie path rewriting: `proxy_cookie_path /forms /forms;` (session tracking)
 - `/reports/` extended timeouts: `proxy_read_timeout 300s;` (large job output)
@@ -213,6 +224,15 @@ ls /etc/nginx/conf.d/
 - Run `05-root_nginx_ssl.sh --apply` to deploy certificates, validate, and start Nginx
 - WebLogic `WL-Proxy-*` headers are required for correct client IP tracking and
   SSL-aware URL generation inside WebLogic (forms redirect URLs, cookie domains)
+- Live test 2026-10-26 (spoofed headers via `curl`, `tcpdump -i lo` on the
+  upstream ports): before the change every client-supplied `WL-*` /
+  `X-WebLogic-*` / `tyrus-connection-id` header reached WebLogic and
+  `X-Forwarded-For` was `6.6.6.6, <client>`; after it only `Host`,
+  `WL-Proxy-Client-IP`, `WL-Proxy-SSL`, `X-Forwarded-For`, `X-Real-IP` with the
+  real client address arrive on `/forms`, `/reports`, `/console`, `/em`.
+- The AdminServer has no `weblogic-plugin-enabled` – `/console` / `/em`
+  redirect to `http://` first, the port-80 block sends them on to `https://`
+  (works, one extra hop)
 - `HSTS` header is commented out in the template — enable only after verifying SSL works
   to avoid locking out users if the cert is replaced incorrectly
 

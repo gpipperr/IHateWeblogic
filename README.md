@@ -930,13 +930,14 @@ CSPU Sep 2026 state is frozen in
   `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
   wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; move `rcu_repository_check` etc. to `ihw_sqlplus`;
   the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
-- [ ] Nginx template: `X-Forwarded-For $remote_addr` instead of
-  `$proxy_add_x_forwarded_for` (client IP must be overwritten, not appended –
-  customer finding with ORDS) – also for `/forms` / `/reports`?
-  Together with the Nginx counterpart of the OHS header stripping (KB559857):
-  clear client-supplied `WL-Proxy-Client-Cert/-Keysize/-Secretkeysize/-Port`,
-  `WL-PATH-*`, `X-WebLogic-*`, `tyrus-connection-id` – see
-  70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026 open point 11.
+- [x] Nginx template: `X-Forwarded-For $remote_addr` (overwrite) and the
+  client-supplied WebLogic headers stripped (`WL-Proxy-Client-Cert/…`,
+  `WL-PATH-*`, `X-WebLogic-*`, `tyrus-connection-id` – KB559857 counterpart);
+  `/console` lost all inherited headers through its own `proxy_set_header`
+  (fixed). Live-tested 2026-10-26 with `tcpdump` on the loopback.
+- [ ] AdminServer without `weblogic-plugin-enabled`: `/console` / `/em`
+  redirect to `http://` first (port 80 forwards to `https://`) – set it on the
+  AdminServer too (safe now that Nginx strips client `WL-Proxy-*` headers).
 
 ### Monitoring (phase 9)
 

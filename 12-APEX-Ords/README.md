@@ -462,9 +462,9 @@ From the customer upgrade, generic:
   directory, live installation APEX 26.2 + ORDS 26.3 on the test host.
 - First real run of `03-patch-apex.sh` (next APEX 26.2 patch set bundle) and
   of the upgrade path of `06-patch-ords.sh` (next ORDS release).
-- Nginx template: `X-Forwarded-For $remote_addr` instead of
-  `$proxy_add_x_forwarded_for` also for `/forms` / `/reports` (WebLogic reads
-  `WL-Proxy-Client-IP` = `$remote_addr` already) – decide and test.
+- ~~Nginx template: `X-Forwarded-For $remote_addr` also for `/forms` /
+  `/reports`~~ – done 2026-10-26 in `09-Install/nginx-wls.conf.template`
+  together with stripping the client-supplied WebLogic headers (live-tested).
 - `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX
   (config dir with wallet, versions of APEX / ORDS / SQLcl / Instant Client).
 - `01-Run/startStop.sh` / `fmw_ctl.sh` status: show `ords@ords_N` next to the
