@@ -307,6 +307,27 @@ host IP (not removable, firewall) – details and the whole clone picture:
 [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md).
 Not configured on purpose: an own Coherence WKA list (licence note there).
 
+### AdminServer: `weblogic-plugin-enabled` (since 2026-10-26)
+
+The Forms / Reports templates set `weblogic-plugin-enabled=true` only on
+`WLS_FORMS` / `WLS_REPORTS`. The template now sets it on the AdminServer too:
+behind Nginx WebLogic then builds redirects from `Host` + `WL-Proxy-SSL: true`
+– `/console` and `/em` redirect to `https://<FQDN>/…` directly instead of
+`http://` and the port-80 hop. Safe because Nginx strips every client-supplied
+`WL-Proxy-*` header (`nginx-wls.conf.template`, 2026-10-26). Not dynamic –
+existing domains (live 2026-10-26 on the test host):
+
+```python
+connect('<admin user>', '<password>', 't3://127.0.0.1:7001')
+edit(); startEdit()
+cd('/Servers/AdminServer')
+set('WeblogicPluginEnabled', 'true')
+save(); activate(block='true')     # isRestartRequired() = True
+disconnect()
+```
+then restart the AdminServer only: `01-Run/startStop.sh stop AdminServer --apply`
+and `start AdminServer --apply` (managed servers keep running).
+
 ### Access log of WLS_FORMS with `time-taken`
 
 The template also adds `time-taken` to the extended access log of

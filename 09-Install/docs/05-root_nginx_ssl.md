@@ -190,7 +190,9 @@ the browser cannot reach `localhost` from the outside.
 **How it works in this installation (confirmed live 2026-10-20):** no
 Frontend Host is set. Nginx sends `Host: $host` and `WL-Proxy-SSL: true`
 (`09-Install/nginx-wls.conf.template`), and the Forms/Reports domain templates
-set `weblogic-plugin-enabled=true` on `WLS_FORMS` / `WLS_REPORTS` – WebLogic
+set `weblogic-plugin-enabled=true` on `WLS_FORMS` / `WLS_REPORTS`, our
+`domain_config.py.template` also on the AdminServer (since 2026-10-26, for
+`/console` / `/em`) – WebLogic
 then builds redirects from the header: `https://<FQDN>/forms` →
 `301 https://<FQDN>/forms/`. `08-SSL/ssl_config.sh` checks exactly this
 (OK when `weblogic-plugin-enabled` is set, WARN only if neither it nor a

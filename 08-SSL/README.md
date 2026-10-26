@@ -74,7 +74,8 @@ WebLogic (no client TLS)
   unused SSL ports aside)
 - Redirects with the correct `https://<FQDN>` URL: Nginx sends `Host` and
   `WL-Proxy-SSL: true`, the domain templates set `weblogic-plugin-enabled` on
-  `WLS_FORMS` / `WLS_REPORTS` – no Frontend Host needed (confirmed live
+  `WLS_FORMS` / `WLS_REPORTS` and our domain template on the AdminServer
+  (since 2026-10-26: `/console`, `/em` → `https://` directly) – no Frontend Host needed (confirmed live
   2026-10-20; alternative and WLST commands:
   [09-Install/docs/05-root_nginx_ssl.md](../09-Install/docs/05-root_nginx_ssl.md#weblogic-frontend-host-configuration))
 

@@ -935,9 +935,9 @@ CSPU Sep 2026 state is frozen in
   `WL-PATH-*`, `X-WebLogic-*`, `tyrus-connection-id` – KB559857 counterpart);
   `/console` lost all inherited headers through its own `proxy_set_header`
   (fixed). Live-tested 2026-10-26 with `tcpdump` on the loopback.
-- [ ] AdminServer without `weblogic-plugin-enabled`: `/console` / `/em`
-  redirect to `http://` first (port 80 forwards to `https://`) – set it on the
-  AdminServer too (safe now that Nginx strips client `WL-Proxy-*` headers).
+- [x] AdminServer `weblogic-plugin-enabled` (2026-10-26: domain template +
+  WLST online + AdminServer restart on the test host) – `/console` / `/em`
+  redirect to `https://` directly.
 
 ### Monitoring (phase 9)
 

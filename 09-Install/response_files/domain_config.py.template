@@ -52,6 +52,10 @@ setOption('OverwriteDomain', 'true')
 cd('/Servers/AdminServer')
 set('ListenAddress', '##WLS_LISTEN_ADDRESS##')
 set('ListenPort', ##WLS_ADMIN_PORT##)
+# Behind Nginx: build redirects from Host + WL-Proxy-SSL (https) like the
+# managed servers (their templates set it) - else /console and /em redirect
+# to http:// first. Safe: Nginx strips client-supplied WL-Proxy-* headers.
+set('WeblogicPluginEnabled', 'true')
 
 # --- Managed server listen addresses (templates create the servers) ----------
 if _with_forms:

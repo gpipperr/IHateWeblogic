@@ -230,9 +230,10 @@ ls /etc/nginx/conf.d/
   `X-Forwarded-For` was `6.6.6.6, <client>`; after it only `Host`,
   `WL-Proxy-Client-IP`, `WL-Proxy-SSL`, `X-Forwarded-For`, `X-Real-IP` with the
   real client address arrive on `/forms`, `/reports`, `/console`, `/em`.
-- The AdminServer has no `weblogic-plugin-enabled` – `/console` / `/em`
-  redirect to `http://` first, the port-80 block sends them on to `https://`
-  (works, one extra hop)
+- AdminServer `weblogic-plugin-enabled` (set 2026-10-26, domain template +
+  live): `/console` / `/em` now redirect to `https://<FQDN>/…` directly –
+  before, the AdminServer ignored `WL-Proxy-SSL` and redirected to `http://`
+  first ([docs/08](08-oracle_setup_domain.md#adminserver-weblogic-plugin-enabled-since-2026-10-26))
 - `HSTS` header is commented out in the template — enable only after verifying SSL works
   to avoid locking out users if the cert is replaced incorrectly
 
