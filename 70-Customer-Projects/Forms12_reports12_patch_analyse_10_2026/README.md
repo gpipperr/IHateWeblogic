@@ -173,6 +173,22 @@ proof of the alert build only from the content:
 `<jdk>/bin/java -version` → `1.8.0_511-b26`, or
 `grep JAVA_RUNTIME_VERSION <jdk>/release`.
 
+**Update 2026-10-26:** b26 is the **minimum**, not the target. The Security
+Alert **CVE-2026-114820** (2026-10-24, eMudhra CA incident – JSSE, CVSS 9.1)
+already lists **8u511-b32** as the current build and as affected: eMudhra
+issued eight intermediate CAs with 8-bit private keys, anybody can issue
+TLS certificates for any domain with them (attack needs a man in the
+middle). Oracle removes the eMudhra roots in the next Java builds → take the
+newest 8u511 build MOS offers (≥ b26; newer than b32 once available). Live
+test on our 14c host (details in `09-Install/docs/00-patch-references.md`,
+"eMudhra CA incident"): JDK 21.0.13.0.2 already blocks the compromised
+intermediates (`blocked.certs`), the old FMW-bundled JDK trusts them – also
+over the cross-signature of "AAA Certificate Services", so deleting the
+emSign roots from `cacerts` is no complete mitigation. Expect the same for
+the customer's JDK 8u411 / bundled 8u341 / client JRE 8u241 (assumption –
+check, cookbook step 4.8). The OS trust store needs its own update
+(`ca-certificates`, Oracle Linux errata of 2026-10-22, CVE-2026-111943).
+
 ### 3.2 OPatch and WebLogic Server 12.2.1.4
 
 | Patch | Description | KA1182 release | Note |
@@ -386,7 +402,7 @@ can act on the PC with the user's rights. Background:
 
 | Item | Recommendation |
 |---|---|
-| Patch | **40186686** – JRE 8 Update 511, alert build (CPU426) = `1.8.0_511-b26`. Platform = the **bitness the clients use today** (see below) – the WebUtil DLLs (JACOB etc., `install.syslib` in `webutil.cfg`) must match the JRE bitness |
+| Patch | **40186686** – JRE 8 Update 511, alert build (CPU426) = `1.8.0_511-b26` **or newer** (eMudhra Alert CVE-2026-114820 of 2026-10-24 lists b32 as affected – take the newest build). Platform = the **bitness the clients use today** (see below) – the WebUtil DLLs (JACOB etc., `install.syslib` in `webutil.cfg`) must match the JRE bitness |
 | Current state (2026-10-22) | Software deployment rolls out a private JRE `1.8.0_241-b07` (January 2020), **32-bit** ("Client VM", under `Program Files (x86)`) – six years of Java security fixes behind, not only the alert. Either the 32-bit (Windows x86) build of 40186686, or a planned switch to 64-bit **together** with x64 WebUtil/JACOB DLLs |
 | Gap 8u241 → 8u511 | Oracle tightened the defaults in between: TLS 1.0/1.1 disabled (TLS 1.2+ needed at the web server in front of Forms), SHA-1-signed JARs and weak keys rejected. Test the own signed jars (WebUtil, JACOB, customer jars: signature algorithm, key length, timestamp, certificate expiry) and the TLS setup of the web server with the new JRE before the rollout |
 | Not | 18143322 ("JDK 8 latest") – still the CPU build on 2026-10-22, and a JDK where a JRE is enough |
@@ -432,3 +448,6 @@ can act on the PC with the user's rights. Background:
 | 15 | OHS `ohs1`: is OAM WebGate (SSO) configured? Is there a load balancer in front (decides `WLStripForwardedForHeader`)? Does Forms use WebSocket? Current `SSLCipherSuite`, default `index.html` still served? (KB187736 read – 3.5b; the collector now also gathers the OHS configuration) | |
 | 16 | Web tier: does OS Apache or Nginx serve Forms / Reports (ports 80 / 443)? Does Apache load the WebLogic plug-in `mod_wl_24` (then the Proxy Plug-In tab of KA1182 + KB187736 WL* directives)? Next collector run (≥ 2026-10-23.4) | |
 | 17 | Repository DB `REPOS` (19.32, same host): DB RU 19.33 for CVE-2026-75803 (9.8) – who patches the database, when? | |
+| 18 | **eMudhra CA incident** (Alert CVE-2026-114820, 2026-10-24): which Java 8 builds trust the compromised intermediates – server JDK, bundled `oracle_common/jdk` 8u341, client JRE? (`keytool -list … \| grep -ci emsign`, count of `blocked.certs`, cookbook step 4.8). OS: `dnf updateinfo list --available ca-certificates` on the OL 8 hosts. Does Reports open outbound TLS (mail destination SMTPS, WebDAV, `https` images / XML)? | found 2026-10-26 on our 14c host: bundled JDK trusts, current JDK 21 blocks |
+| 19 | **Invalid objects in the RCU schemas** – record before the patch run and compare afterwards (cookbook steps 0 / 10.6); only new invalid objects are caused by the patches. Our 14c host had 69 invalid objects right after the RCU run (IAU synonyms, OPSS ORA-00942). | |
+| 20 | Scanner findings for files that are only part of the FMW home's DB client (e.g. `jackson-databind` in `jlib/`): check whether they are loaded at runtime (`/proc/<pid>/maps`) before treating them as exposure – the FMW DB client is only updated through Oracle's FMW patches, never with a regular DB client RU (assessment for 14c: `09-Install/docs/00-patch-references.md`, "FMW DBCLIENT – known residual") | |

@@ -108,7 +108,8 @@ VORAUSSETZUNGEN
     Patch      Datei                                     Inhalt
     ---------  ----------------------------------------  -----------------------
     40186682   p40186682_180511_Linux-x86-64.zip *       JDK 8u511 Alert-Build
-               (oder 18143322 "JDK 8 latest", wenn Build b26 - Schritt 4)
+               (oder 18143322 "JDK 8 latest", wenn Build >= b26 - Schritt 4;
+               Stand 2026-10-24: b32 vorhanden, siehe 4.3 / 4.8 eMudhra)
     28186730   (steckt auch im SPB unter tools/opatch)    OPatch 13.9.4.2.25
     40129641   p40129641_122140_Generic.zip              WLS Stack Patch Bundle
     40050071   p40050071_122140_Generic.zip              ADF Bundle 260920
@@ -194,6 +195,24 @@ SCHRITT 0: Ist-Stand erfassen  (vor dem Wartungsfenster, System laeuft)
   # Server nicht laeuft)? Entscheidet ueber die Reports-QPR in Schritt 8.
   grep -iE 'oracle\.reports|reports developer' $LOGDIR/00_lsinventory_vorher.txt | head
 
+  # Ungueltige Objekte der RCU-Schemas VORHER festhalten (als DBA in der
+  # Repository-DB, <PREFIX> = RCU-Praefix der Domain). Vergleich in 10.6 -
+  # nur NEU ungueltige Objekte gehen auf den Patchlauf zurueck. Auf unserem
+  # 14c-Testhost waren nach der RCU-Anlage schon 69 Objekte ungueltig
+  # (IAU-Synonyme, OPSS ORA-00942) - das ist kein Patchfehler.
+  #   SET PAGESIZE 200 LINESIZE 200
+  #   SPOOL /tmp/00_invalid_vorher.txt
+  #   SELECT owner, object_type, object_name FROM dba_objects
+  #    WHERE owner LIKE '<PREFIX>\_%' ESCAPE '\' AND status <> 'VALID'
+  #    ORDER BY 1,2,3;
+  #   SPOOL OFF
+
+  # Vertrauensspeicher des Betriebssystems (eMudhra-Vorfall, Oktober 2026):
+  # gibt es ein ca-certificates-Update? Unabhaengig vom Wartungsfenster
+  # einspielbar (als root, kein Neustart der Dienste noetig).
+  dnf updateinfo list --available ca-certificates
+  rpm -q ca-certificates
+
 
 ================================================================================
 SCHRITT 1: Patches entpacken und pruefen  (vor dem Wartungsfenster)
@@ -234,10 +253,22 @@ SCHRITT 2: Alles stoppen  (Beginn Wartungsfenster)
   ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME" | grep -v grep
   # Erwartet: leer. Sonst die Prozesse sauber beenden, nicht weiter.
 
+  # ... und KEIN anderes Programm mehr auf dem Server-JDK (Schritt 4 tauscht
+  # den Link darunter). Auch Java-Programme ausserhalb der Domain zaehlen
+  # (z.B. ORDS, eigene Tools, Monitoring-Agenten) - auf unserem Testhost hat
+  # ein vergessener ORDS-Dienst den JDK-Wechsel blockiert (2026-10-24).
+  ps -ef | grep -E "$JDK_LINK|$(readlink -f $JDK_LINK)" | grep -v grep
+  # Erwartet: leer.
+
 
 ================================================================================
 SCHRITT 3: Sicherung  (Pflicht - einziger Rueckweg fuer OPatch und SPB)
 ================================================================================
+
+  # JETZT ist der richtige Moment fuer einen VM-Snapshot: alles ist
+  # gestoppt, der Snapshot ist konsistent. Snapshot UND Datei-Sicherung -
+  # der Snapshot ersetzt die tar-Sicherung nicht (Rueckweg fuer einzelne
+  # Verzeichnisse, Aufbewahrung nach dem Loeschen des Snapshots).
 
   # Laut SPB- und OPatch-README ist die Wiederherstellung aus der Sicherung
   # in manchen Faellen der EINZIGE Rollback (OPatch-Upgrade ist nicht
@@ -289,11 +320,15 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (README 3.1)
   tar -xzf $STAGE/<jdk-8u511-linux-x64.tar.gz>
   export NEW_JDK=$NEW_JDK_BASE/jdk1.8.0_511
 
-  # 4.3 Build pruefen - MUSS b26 (Alert-Build) sein
+  # 4.3 Build pruefen - MUSS mindestens b26 (Alert-Build) sein
   $NEW_JDK/bin/java -version
   grep JAVA_RUNTIME_VERSION $NEW_JDK/release
-  # Erwartet: 1.8.0_511-b26. Bei b25 STOP: das ist der CPU-Build
+  # Erwartet: 1.8.0_511-b26 ODER NEUER. Bei b25 STOP: das ist der CPU-Build
   # (betroffen) - Patch 40186682 statt 18143322 nehmen.
+  # Stand 2026-10-24: Oracle nennt 8u511-b32 als aktuellen Build - und im
+  # Security Alert CVE-2026-114820 (eMudhra, siehe 4.8) als betroffen. Den
+  # neuesten Build nehmen, den MOS liefert; ist er neuer als b32, umso
+  # besser.
 
   # 4.4 Umschalten (Home gestoppt, Schritt 2)
   # Variante a) Link vorhanden:
@@ -304,7 +339,7 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (README 3.1)
   #   mv $JDK_LINK $NEW_JDK_BASE/jdk$OLD_VER         # z.B. jdk1.8.0_241
   #   ln -s jdk1.8.0_511 $JDK_LINK
   ls -l $JDK_LINK
-  $JDK_LINK/bin/java -version            # 1.8.0_511-b26
+  $JDK_LINK/bin/java -version            # 1.8.0_511-b26 oder neuer
 
   # 4.5 Pruefen, ob noch irgendwo ein ALTER, versionsbehafteter JDK-Pfad
   #     statt des Links steht (dort zieht der Link-Wechsel nicht):
@@ -325,6 +360,31 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (README 3.1)
   #     that JDK directory"). Ob es fuer 12.2.1.19 einen Patch / ein
   #     unterstuetztes Verfahren gibt, ist offen (README 7, Punkt 14) -
   #     bis dahin bleibt es auf dem bisherigen Stand.
+
+  # 4.8 eMudhra-Vorfall - Security Alert CVE-2026-114820 (2026-10-24)
+  #     Die CA eMudhra hat acht Zwischen-CAs mit 8-Bit-Schluesseln erzeugt -
+  #     jeder kann damit TLS-Zertifikate fuer beliebige Domains ausstellen
+  #     (Angriff braucht zusaetzlich Man-in-the-Middle). Oracle entfernt die
+  #     eMudhra-Wurzeln aus cacerts; betroffen u.a. 8u511-b32, 17.0.21.0.2,
+  #     21.0.13.0.2. Auf unserem 14c-Testhost (2026-10-26):
+  #       - JDK 21.0.13.0.2 lehnt die gefaelschten Zertifikate schon ab
+  #         (Sperrliste lib/security/blocked.certs um 48 Eintraege erweitert)
+  #       - das alte gebuendelte JDK im Home VERTRAUT ihnen - auch ueber die
+  #         Cross-Signatur von "AAA Certificate Services"; Wurzeln aus
+  #         cacerts loeschen allein hilft deshalb nicht
+  #     Pruefen (Java 8: Sicherheitsdateien unter jre/lib/security):
+  for J in $NEW_JDK $ORACLE_HOME/oracle_common/jdk; do
+      echo "== $J"; $J/bin/java -version 2>&1 | head -1
+      $J/bin/keytool -list -keystore $J/jre/lib/security/cacerts \
+          -storepass changeit 2>/dev/null | grep -ci emsign
+      grep -c '^[0-9A-F]' $J/jre/lib/security/blocked.certs
+  done
+  # Bewertung: eMudhra-Eintraege in cacerts + kurze Sperrliste = vertraut
+  # den gefaelschten Zertifikaten. Relevant nur fuer Java, das selbst als
+  # TLS-Client nach aussen geht (Server-JDK, Reports-Engines bei https-
+  # Quellen / SMTPS / WebDAV, vor allem die Client-JREs - Schritt 11).
+  # Abhilfe: neuester JDK/JRE-Build von MOS (siehe 4.3); fuer das
+  # gebuendelte JDK gibt es keine - README 7, Punkt 18.
 
 ================================================================================
 SCHRITT 5: OPatch auf 13.9.4.2.25  (README 3.2b)
@@ -630,19 +690,28 @@ SCHRITT 10: Starten und pruefen
 
   # 10.5 Post-Install WLS: Schritte aus MOS KB694158 abschliessen.
 
+  # 10.6 Ungueltige Objekte der RCU-Schemas NACHHER - gleiche Abfrage wie
+  #      in Schritt 0, SPOOL /tmp/10_invalid_nachher.txt, dann:
+  diff /tmp/00_invalid_vorher.txt /tmp/10_invalid_nachher.txt
+  # Erwartet: keine NEUEN Eintraege. Neue ungueltige Objekte -> erst
+  # UTL_RECOMP / Recompile nur nach Pruefung der Fehler (DBA_ERRORS),
+  # nicht blind.
+
 
 ================================================================================
 SCHRITT 11: Client-JRE der Forms-Anwender  (README Abschnitt 5)
 ================================================================================
 
   # CVE-2026-91403 trifft vor allem den Client (Forms-Client = JSSE-TLS-
-  # Client). Patch 40186686 = JRE 8u511 Alert-Build (1.8.0_511-b26), in der
+  # Client). Patch 40186686 = JRE 8u511 Alert-Build (1.8.0_511-b26 oder
+  # neuer - eMudhra-Alert CVE-2026-114820: neuesten Build nehmen), in der
   # Bitness, die die Clients heute nutzen (heute 32 Bit -> Windows x86;
   # WebUtil-/JACOB-DLLs muessen zur Bitness passen).
   # Vorher auf wenigen PCs testen: TLS 1.2 am Webserver, Signatur der
   # eigenen Jars (kein SHA-1, Schluessellaenge, Zeitstempel), Vertrauen der
   # Jar-Signatur nach dem JRE-Tausch (cacerts wird ersetzt).
-  # Nachweis: java -version -> 1.8.0_511-b26.
+  # Nachweis: java -version -> 1.8.0_511-b26 oder neuer. eMudhra-Pruefung
+  # wie in 4.8 (keytool ... | grep -ci emsign, blocked.certs).
 
 
 ================================================================================
