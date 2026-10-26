@@ -86,6 +86,12 @@ und deutschen Kommentaren.
      Installations-Kochbücher an einer Stelle, für die nächste
      Installation in die Sitzung zu laden.
 
+## Entwicklungsumgebung (Reports Builder)
+
+Der Reports Builder für diesen Server läuft auf einem eigenen Windows Server
+(Entwickler per RDP) – Analyse und Kochbuch:
+[../Reports14_ReportBuilder_MS_Windows/](../Reports14_ReportBuilder_MS_Windows/README.md).
+
 ## Patchstand
 
 Alle Kochbücher stehen auf **CPU Oktober 2026** (+ Security Alert

@@ -1,0 +1,380 @@
+================================================================================
+  Oracle Reports Builder 14.1.2 unter Windows Server einrichten
+  (minimale Entwicklungsumgebung - Builder-Domain OHNE Reports-Server)
+================================================================================
+  Zielgruppe : Windows-/Oracle-Administrator beim Kunden
+  Umgebung   : Windows Server 2022 (zertifiziert; 2025 nur getestet),
+               FMW 14.1.2.0.0, Oracle Reports 14.1.2, Patchstand CPU Okt 2026
+  Erstellt   : 2026-10-26
+  Grundlage  : Oracle-Doku Forms 14.1.2 Kap. 5 + Reports-Installation 12.2.1.3
+               (gilt laut Oracle unveraendert fuer 14.1.2), pipperr.de
+               "Oracle Reports 14c unter Windows", IHateWeblogic 70-Customer-
+               Projects/Reports14_Only_manuall_install (Linux-Server, gleicher
+               Kunde). Hintergrund und Entscheidung: README.md in diesem Ordner.
+  Status     : DOKUMENTIERT - beim Kunden live zu pruefen. Jeder Schritt ist
+               markiert: [Doku] = aus der Oracle-Doku / dem Linux-Server
+               uebernommen, [live] = auf einem Windows-System bestaetigt.
+
+  Ziel       : Entwickler starten per RDP den Reports Builder
+               (rwbuilder.bat). Es laeuft KEIN WebLogic, kein Windows-Dienst,
+               kein SSL. Die Berichte laufen zum Testen auf dem
+               Linux-Reports-Server.
+  Warum eine Domain trotzdem: Der Builder braucht eine Reports-Tools-
+               Instanz ("One ReportsTools component is compulsory"); das
+               Template "Oracle Reports Tools" verlangt Oracle JRF + EM ->
+               RCU-Schemas in einer Datenbank sind Pflicht. Einen
+               "Standalone Reports Builder" wie bei Forms gibt es nicht.
+================================================================================
+
+VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
+---------------------------------------------------------
+  Alle Befehle in einer "cmd"-Shell mit "Als Administrator ausfuehren"
+  (Oracle: sonst schlaegt die Konfiguration still fehl). Installiert wird mit
+  EINEM lokalen Administrator-Konto (z.B. ORASYSTEM) - immer mit demselben.
+
+    set ORACLE_BASE=E:\oracle
+    set ORACLE_HOME=E:\oracle\fmw
+    set JDK_HOME=E:\Java\jdk-21
+    set JAVA_HOME=%JDK_HOME%
+    set PATCH_STORAGE=E:\oracle\patch_storage
+    set DOMAIN_HOME=E:\oracle\user_projects\domains\rwbuilder_domain
+    set STAGE=E:\oracle\stage
+    rem RCU-Datenbank (bestehende DB des Kunden) und eigenes Praefix:
+    set DB_HOST=<db-host>
+    set DB_PORT=1521
+    set DB_SERVICE=<pdb-service>
+    set DB_SCHEMA_PREFIX=RWDEV
+
+  Regeln:
+  - Pfade OHNE Leerzeichen und kurz halten (Windows: lange
+    Umgebungsvariablen brechen Reports - Oracle Install 12.2.1.3 Anhang B.3).
+  - Rechnername und IP nach der Installation NICHT mehr aendern.
+  - Englisches Windows bevorzugen (Fehlermeldungen fuer Oracle Support).
+  - Virenschutz: Ausnahme fuer E:\oracle waehrend Installation und Patchen
+    (Patch-READMEs: "anti-virus software should be temporarily stopped").
+
+  Benoetigte Software (in %PATCH_STORAGE%):
+    V1045135-01.zip  FMW Infrastructure 14.1.2.0.0 (Linux UND Windows, generic)
+                     SHA-256 1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
+    V1045122-01.zip  Forms and Reports 14.1.2.0.0 for Microsoft Windows x64
+                     SHA-256 26478C4DC2EDB4A897226F07D7AEC6F675754853F00495D4BAF2AAC1D9B8D2CE
+    p35702194_2100_MSWIN-x86-64.zip  Oracle JDK 21 (MOS, Plattform Windows x64)
+    Patches CPU Oktober 2026 (MOS, Schritt 4) - plattformabhaengige ZIPs in
+    der Variante "Microsoft Windows x64 (64-bit)" (getMOSPatch: 233P)
+    Microsoft Visual C++ Redistributable x64 UND x86 (sonst meldet der
+    Builder "MSVCP100.dll nicht gefunden"):
+      https://aka.ms/vs/17/release/vc_redist.x64.exe
+      https://aka.ms/vs/17/release/vc_redist.x86.exe
+
+  Platz: ca. 10 GB fuer Oracle Home + Domain, zusaetzlich ca. 6 GB beim
+  Patchen (SPB entpacken). RAM: 8 GB Basis, je gleichzeitiger
+  Builder-Sitzung grob 0,5-1 GB (Annahme - im Betrieb messen).
+
+
+================================================================================
+SCHRITT 1: Windows vorbereiten und JDK installieren  [Doku]
+================================================================================
+
+  rem 1.1 Visual C++ Runtime (x64 und x86) installieren, dann:
+  mkdir E:\temp E:\oracle E:\Java %PATCH_STORAGE% %STAGE%
+
+  rem 1.2 JDK aus MOS-Patch 35702194 - die Version steht NUR im ZIP
+  rem     (Stand CPU Okt 2026: jdk-21.0.13.0.2; der Alert-Build, die
+  rem     21.0.13 des CPU selbst ist betroffen)
+  cd %PATCH_STORAGE%
+  tar -tf p35702194_2100_MSWIN-x86-64.zip | findstr /i "jdk-21"
+  tar -xf p35702194_2100_MSWIN-x86-64.zip -C %STAGE%
+  tar -xf %STAGE%\jdk-21.0.13.0.2_windows-x64_bin.zip -C E:\Java
+
+  rem 1.3 Versionsneutraler Pfad als Verzeichnis-Verbindung (Junction) -
+  rem     ein spaeteres JDK-Update ist dann nur: neues JDK daneben,
+  rem     Builder schliessen, Junction neu setzen
+  mklink /J E:\Java\jdk-21 E:\Java\jdk-21.0.13.0.2
+  E:\Java\jdk-21\bin\java -version
+
+  rem 1.4 JAVA_HOME systemweit (neue cmd-Shell danach oeffnen)
+  setx /M JAVA_HOME E:\Java\jdk-21
+
+  rem 1.5 SecureRandom-Fix (schnellerer WebLogic-Start; unter Windows
+  rem     unkritisch, aber wie auf dem Linux-Server einheitlich)
+  rem     E:\Java\jdk-21\conf\security\java.security:
+  rem       securerandom.source=file:/dev/./urandom
+
+  rem 1.6 Datenbank erreichbar? (vom Windows Server aus)
+  powershell -Command "Test-NetConnection %DB_HOST% -Port %DB_PORT%"
+
+
+================================================================================
+SCHRITT 2: FMW Infrastructure installieren  [Doku]
+================================================================================
+
+  cd %PATCH_STORAGE%
+  powershell -Command "Get-FileHash -Algorithm SHA256 .\V1045135-01.zip"
+  tar -xf V1045135-01.zip -C %STAGE%
+
+  rem Grafisch (empfohlen beim ersten Mal):
+  %JDK_HOME%\bin\java -jar %STAGE%\fmw_14.1.2.0.0_infrastructure.jar
+  rem   Oracle Home       : E:\oracle\fmw
+  rem   Installation Type : Fusion Middleware Infrastructure
+  rem   Auto Updates      : Skip
+  rem   Nur Software installieren - KEINE Domain im Anschluss anlegen.
+
+  rem Inventory unter Windows: C:\Program Files\Oracle\Inventory
+  %ORACLE_HOME%\OPatch\opatch.bat lsinventory
+
+
+================================================================================
+SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [Doku]
+================================================================================
+
+  cd %PATCH_STORAGE%
+  powershell -Command "Get-FileHash -Algorithm SHA256 .\V1045122-01.zip"
+  tar -xf V1045122-01.zip -C %STAGE%
+  %STAGE%\setup_fmw_14.1.2.0.0_fr_win64.exe -jreLoc %JDK_HOME%
+
+  rem   Oracle Home       : E:\oracle\fmw  (dasselbe wie in Schritt 2)
+  rem   Installation Type : Forms and Reports Deployment
+  rem                       (NICHT "Standalone Forms Builder" - der enthaelt
+  rem                        keinen Reports Builder)
+  rem   Prerequisite-Check zu Windows Server 2025: ggf. "Skip"
+  rem   Am Ende: KEINE Konfiguration starten
+
+  rem Kontrolle - die Reports-Werkzeuge liegen unter %ORACLE_HOME%\bin
+  dir %ORACLE_HOME%\bin\rwbuilder.exe %ORACLE_HOME%\bin\rwconverter.exe
+
+
+================================================================================
+SCHRITT 4: Patchen - CPU Oktober 2026  [Doku, Windows-Varianten pruefen]
+================================================================================
+
+  rem Gleicher Patchstand wie der Linux-Reports-Server (FMW_Kochbuch_de.txt
+  rem Schritt 3 + Reports_kochbuch_de.txt Schritt 2 im Ordner
+  rem Reports14_Only_manuall_install). Builder und Server sollen gleich
+  rem stehen. Vor dem Lauf in MOS KA1182 pruefen, ob sich Nummern geaendert
+  rem haben (Oracle liefert monatlich).
+  rem Alle Oracle-Prozesse dieses Homes beendet, Virenschutz pausiert,
+  rem VM-Snapshot JETZT.
+
+  rem 4.1 OPatch 13.9.4.2.25 - steckt im SPB 40125898
+  cd %STAGE%
+  tar -xf %PATCH_STORAGE%\p40125898_141200_Generic.zip
+  rem (Verzeichnis WLS_SPB_14.1.2.0.261007)
+  mkdir %STAGE%\opatch
+  tar -xf %STAGE%\WLS_SPB_14.1.2.0.261007\tools\opatch\generic\p28186730_1394225_Generic.zip -C %STAGE%\opatch
+  %JDK_HOME%\bin\java -Djava.io.tmpdir=E:\temp -jar %STAGE%\opatch\6880880\opatch_generic.jar ^
+      -silent oracle_home=%ORACLE_HOME%
+  %ORACLE_HOME%\OPatch\opatch.bat version
+  rem Erwartet: 13.9.4.2.25
+
+  rem 4.2 WLS Stack Patch Bundle per napply - Windows-Patchliste!
+  cd %STAGE%\WLS_SPB_14.1.2.0.261007\binary_patches
+  set OH=%ORACLE_HOME%
+  set ORACLE_HOME=
+  set JAVA_HOME=
+  %OH%\OPatch\opatch.bat napply -report -oh %OH% -phBaseFile windows64_patchlist.txt
+  %OH%\OPatch\opatch.bat napply -silent -oh %OH% -phBaseFile windows64_patchlist.txt
+  set ORACLE_HOME=%OH%
+  set JAVA_HOME=%JDK_HOME%
+  %ORACLE_HOME%\OPatch\opatch.bat lspatches | findstr "40126042 40058371"
+  rem Erwartet: 40126042 (SPB-Marker) und 40058371 (WLS-PSU 14.1.2.0.260922)
+
+  rem 4.3 FMW-Infrastruktur-Bundles (alle "Generic", normales apply,
+  rem     ADF erst NACH dem SPB - MOS PNEWS2138)
+  for %%P in (40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399) do (
+      tar -xf %PATCH_STORAGE%\p%%P_141200_Generic.zip -C %STAGE%
+      pushd %STAGE%\%%P
+      %ORACLE_HOME%\OPatch\opatch.bat apply -silent
+      popd
+  )
+  rem (in einer interaktiven Shell statt %%P nur %P schreiben)
+  rem Vorher je Patch moeglich:
+  rem   opatch.bat prereq CheckConflictAgainstOHWithDetail -ph .
+
+  rem 4.4 Plattformabhaengige Patches - Variante "Microsoft Windows x64":
+  rem     39600348  Reports-QPR 14.1.2 (Reports Builder!)
+  rem     39951765  PERL SPU (falls Perl im Home - sonst meldet opatch
+  rem               "none of the components ... present")
+  rem     39987730  OHS Bundle,  39100536  WebGate Bundle (nur Binaries)
+  rem     Forms-QPR 39842516: nur noetig, wenn auch Forms entwickelt wird.
+  rem     ACHTUNG: Ob es fuer jeden dieser Patches eine Windows-Variante auf
+  rem     MOS gibt, ist vor dem Termin zu pruefen (README offener Punkt 6).
+  rem     Je Patch: entpacken, pushd, opatch.bat apply -silent, popd
+
+  rem 4.5 Kontrolle
+  %ORACLE_HOME%\OPatch\opatch.bat lspatches
+
+
+================================================================================
+SCHRITT 5: RCU-Schemas in der bestehenden Datenbank anlegen  [Doku]
+================================================================================
+
+  rem Legt KEINE Datenbank an - nur Schemas mit eigenem Praefix (z.B.
+  rem RWDEV) in der bestehenden DB. Gleiche Komponenten wie beim
+  rem Linux-Server (Reports_kochbuch_de.txt Schritt 3), Typ EBR.
+  %ORACLE_HOME%\oracle_common\bin\rcu.bat
+  rem   Create Repository -> System Load and Product Load
+  rem   Database Type     : Oracle Database enabled for edition-based
+  rem                       redefinition (ausdruecklich waehlen)
+  rem   Host/Port/Service : %DB_HOST% / %DB_PORT% / %DB_SERVICE%
+  rem                       (Feld "Service Name", NICHT SID)
+  rem   User sys, Role SYSDBA (oder ein DBA mit den RCU-Rechten)
+  rem   Create new Prefix : RWDEV
+  rem   Komponenten       : STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
+  rem                       UCSUMS, WLS
+  rem   Kennwort notieren (Schema-Kennwort fuer Schritt 6)
+
+  rem Danach vom DB-Team: die RWDEV_*-Schemas in das Profil ohne
+  rem Kennwortablauf (RCU_USER) haengen - sonst laeuft nach 180 Tagen das
+  rem Kennwort ab und der Builder (OPSS) laesst sich nicht mehr starten
+  rem (Reports_kochbuch_de.txt Schritt 3, "Kennwort-Ablauf").
+
+
+================================================================================
+SCHRITT 6: Builder-Domain anlegen - nur JRF + EM + Reports Tools  [Doku]
+================================================================================
+
+  %ORACLE_HOME%\oracle_common\common\bin\config.cmd
+
+  rem   Create a new domain   : E:\oracle\user_projects\domains\rwbuilder_domain
+  rem   Templates             : NUR "Oracle Reports Tools - 14.1.2.0.0"
+  rem                           ankreuzen (zieht Oracle JRF und Oracle
+  rem                           Enterprise Manager automatisch nach).
+  rem                           NICHT: Reports Server, Reports Application,
+  rem                           Reports Bridge, OHS, Forms
+  rem   Administrator Account : weblogic / <Kennwort> (nur fuer Schritt 7)
+  rem   Domain Mode           : Development  (kein Secure Mode, kein t3s,
+  rem                           keine Demo-Zertifikate)
+  rem   JDK                   : E:\Java\jdk-21
+  rem   Database Configuration: RCU Data, Service %DB_SERVICE%, Host, Port,
+  rem                           Schema Owner RWDEV_STB, Kennwort ->
+  rem                           "Get RCU Configuration" -> erfolgreich
+  rem   JDBC Component Schema Test: alle gruen
+  rem   Advanced Configuration: Administration Server, Node Manager,
+  rem                           Topology
+  rem   Administration Server : Listen Address 127.0.0.1 (nur lokal),
+  rem                           Port 7001, SSL aus
+  rem   Node Manager          : Per Domain Default Location (wird nicht
+  rem                           gestartet, nur fuer die Machine noetig)
+  rem   Managed Servers       : KEINE anlegen
+  rem   Machines              : eine Machine "AdminServerMachine" anlegen,
+  rem                           AdminServer zuordnen
+  rem   -> Create
+
+
+================================================================================
+SCHRITT 7: Reports-Tools-Instanz anlegen (einmalig)  [Doku]
+================================================================================
+
+  rem 7.1 AdminServer EINMAL im Vordergrund starten (eigenes Fenster),
+  rem     warten bis "RUNNING"
+  %DOMAIN_HOME%\bin\startWebLogic.cmd
+
+  rem 7.2 In einer zweiten cmd-Shell:
+  %ORACLE_HOME%\oracle_common\common\bin\wlst.cmd
+  rem   connect('weblogic', '<Kennwort>', 't3://127.0.0.1:7001')
+  rem   createReportsToolsInstance(instanceName='reptools1', machine='AdminServerMachine')
+  rem   exit()
+
+  rem 7.3 AdminServer wieder stoppen (Strg+C im ersten Fenster oder):
+  %DOMAIN_HOME%\bin\stopWebLogic.cmd
+
+  rem Ergebnis (ab jetzt laeuft fuer den Builder nichts mehr):
+  dir %DOMAIN_HOME%\reports\bin\rwbuilder.bat
+  dir %DOMAIN_HOME%\config\fmwconfig\components\ReportsToolsComponent\reptools1
+
+
+================================================================================
+SCHRITT 8: Builder fuer die Entwickler einrichten  [Doku]
+================================================================================
+
+  rem 8.1 Datenbankverbindungen: tnsnames.ora + sqlnet.ora nach
+  rem     %DOMAIN_HOME%\config\fmwconfig - reports.bat setzt TNS_ADMIN
+  rem     dorthin (pipperr.de). Eintraege identisch zum Linux-Server halten.
+  findstr /i TNS_ADMIN %DOMAIN_HOME%\reports\bin\reports.bat
+
+  rem 8.2 Berichtsquellen: gemeinsames Verzeichnis, z.B. E:\reports\src
+  rem     (oder Arbeitskopie einer Versionsverwaltung je Entwickler).
+  rem     REPORTS_PATH (Suchpfad fuer Berichte, Bibliotheken, Bilder) in
+  rem     reports.bat ergaenzen - vorher sichern:
+  copy %DOMAIN_HOME%\reports\bin\reports.bat %DOMAIN_HOME%\reports\bin\reports.bat.orig
+  findstr /i REPORTS_PATH %DOMAIN_HOME%\reports\bin\reports.bat
+  rem   Verzeichnis vorne an die bestehende REPORTS_PATH-Zeile anhaengen
+  rem   (Stelle in der Datei pruefen - [live] bestaetigen)
+
+  rem 8.3 Fonts: dieselben TrueType-Fonts wie auf dem Linux-Server (als
+  rem     Administrator fuer ALLE Benutzer installieren) und dieselbe
+  rem     uifont.ali - sonst weicht die Vorschau von der Server-Ausgabe ab.
+  rem     uifont.ali der Tools-Instanz:
+  rem       %DOMAIN_HOME%\config\fmwconfig\components\ReportsToolsComponent\
+  rem         reptools1\tools\COMMON\uifont.ali
+  rem     (Details: Reports14_Only_manuall_install\Font_kochbuch_de.txt)
+
+  rem 8.4 Verknuepfung fuer alle RDP-Benutzer:
+  rem     C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle Reports Builder.lnk
+  rem     Ziel     : %DOMAIN_HOME%\reports\bin\rwbuilder.bat
+  rem     Ausfuehren in: %DOMAIN_HOME%\reports\bin
+  rem     Die Entwickler brauchen Lese-/Ausfuehrrechte auf E:\oracle und
+  rem     Schreibrechte auf das Quellverzeichnis und ihr TEMP.
+
+
+================================================================================
+SCHRITT 9: Test  [Doku]
+================================================================================
+
+  rem 9.1 Builder starten (als normaler Entwickler per RDP)
+  %DOMAIN_HOME%\reports\bin\rwbuilder.bat
+  rem   Help -> About: Version 14.1.2.0.0
+  rem   Verbinden ("Stecker"-Symbol) mit einem tnsnames-Alias
+  rem   Report Wizard: z.B. "select * from <tabelle>" -> Paper Layout ->
+  rem   Vorschau, speichern als E:\reports\src\test_builder.rdf
+
+  rem 9.2 Kommandozeile (Kompilieren ohne GUI):
+  %DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\reports\src\test_builder.rdf ^
+      stype=rdffile dest=E:\temp\test_builder.rep dtype=repfile batch=yes ^
+      userid=<user>/<kennwort>@<alias>
+
+  rem 9.3 Auf dem Linux-Reports-Server testen: .rdf in dessen sourceDir
+  rem     bzw. REPORTS_PATH kopieren (Freigabe / sftp) und aufrufen:
+  rem       https://<linux-server>/reports/rwservlet?report=test_builder.rdf
+  rem          &destype=cache&desformat=pdf&userid=...
+  rem     (auf dem Linux-Server mit cmdkey aus cgicmd.dat, kein Kennwort in
+  rem      der URL - Reports_security.txt)
+
+
+================================================================================
+SCHRITT 10: Betrieb, Patchen, bekannte Probleme
+================================================================================
+
+  Patchen: bei jedem Patchzyklus dieselben Nummern wie auf dem
+  Linux-Server, in der Windows-Variante (Schritt 4). Vorher alle
+  Builder-Sitzungen beenden. JDK-Update: neues JDK nach E:\Java,
+  Junction E:\Java\jdk-21 umsetzen (Schritt 1.3).
+
+  Der AdminServer muss im Alltag NICHT laufen. Er wird nur gebraucht, um
+  eine weitere Tools-Instanz anzulegen oder die Domain zu aendern.
+
+  Problem: "MSVCP100.dll wurde nicht gefunden" beim Start des Builders
+  Loesung: Visual C++ Redistributable x64 UND x86 installieren (Schritt 1)
+
+  Problem: Builder startet nicht, Fehler zu OPSS / Datenbank
+  Ursache: Kennwort eines RWDEV_*-Schemas abgelaufen oder Konto gesperrt
+  Loesung: DB-Team: Profil RCU_USER, Konto entsperren (Schritt 5)
+
+  Problem: Vorschau im Builder sieht anders aus als die PDF vom Server
+  Ursache: andere Fonts / uifont.ali als auf dem Linux-Server
+  Loesung: Schritt 8.3, Font_kochbuch_de.txt
+
+  Problem: Reports-Fehler wegen zu langer Pfade / Umgebungsvariablen
+  Ursache: Windows-Grenze fuer Umgebungsvariablen (Oracle Install 12.2.1.3
+           Anhang B.3)
+  Loesung: kurze Pfade ohne Leerzeichen, PATH nicht unnoetig verlaengern
+
+  Problem: Bericht laeuft im Builder, auf dem Server nicht
+  Ursache: unterschiedlicher Patchstand Builder / Server, andere
+           Verbindungs-Aliase, Bilder/Bibliotheken nicht im REPORTS_PATH des
+           Servers
+  Loesung: lspatches beider Seiten vergleichen; tnsnames und Pfade abgleichen
+
+================================================================================
+  Ende
+================================================================================

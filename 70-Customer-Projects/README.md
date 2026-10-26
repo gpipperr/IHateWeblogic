@@ -17,6 +17,16 @@ FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
 "Kochbuch" text files a customer can follow without using any of the
 IHateWeblogic scripts.
 
+### Oracle Reports Builder 14.1.2 on Windows – Development Environment (German)
+
+→ [Reports14_ReportBuilder_MS_Windows/README.md](Reports14_ReportBuilder_MS_Windows/README.md)
+
+Same customer as the Reports-only Linux install: a minimal **Reports Builder**
+environment on a central Windows Server (developers via RDP). Analysis of the
+Oracle docs (no "Standalone Reports Builder" like for Forms – the Reports Tools
+template needs JRF + EM + RCU) and a cookbook for a builder-only domain without
+Reports server, Windows services or SSL; reports are tested on the Linux server.
+
 ### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
 
 → [Forms12_reports12_patch_analyse_10_2026/README.md](Forms12_reports12_patch_analyse_10_2026/README.md)
