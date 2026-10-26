@@ -96,9 +96,9 @@ Plattformabhängig (Windows x64):
 
 | # | Frage |
 |---|---|
-| 1 | Windows Server 2022 (zertifiziert) oder 2025 (nur getestet, nicht zertifiziert)? Englisches OS? |
+| 1 | ~~Windows-Version?~~ **Geklärt 2026-10-26: Windows Server 2025.** FMW / Reports 14.1.2 sind nach letztem Stand nur für 2022 zertifiziert (vor der Installation in der [Certification Matrix](https://www.oracle.com/middleware/technologies/fusion-certification.html) neu prüfen); 2025 ist auf pipperr.de erfolgreich getestet (Installation, Builder startet). Folgen: der Installer-Prerequisite-Check kann 2025 bemängeln (dann „Skip“ bzw. `-ignoreSysPrereqs`), und Oracle Support kann bei einem SR auf eine zertifizierte Plattform verweisen. WebGate-BP: Mindest-OS 2022 – passt. Offen: englisches OS? |
 | 2 | Datenbank für das RCU-Präfix (Host/Service, DBA für RCU) – dieselbe wie für den Linux-Server? Präfix-Name? |
-| 3 | Wie viele gleichzeitige RDP-Entwickler? (RAM: grob 0,5–1 GB pro Builder-Sitzung, Basis 8 GB – Annahme, im Betrieb messen) |
+| 3 | ~~Wie viele Entwickler?~~ **Geklärt 2026-10-26: 2 Entwickler** (gleichzeitig per RDP). RAM: 8 GB Basis + grob 0,5–1 GB je Builder-Sitzung → **12 GB** reichen mit Reserve (Annahme, im Betrieb messen); Windows Server 2025 erlaubt 2 gleichzeitige Admin-RDP-Sitzungen ohne RDS-Lizenzen – für normale Benutzerkonten als Entwickler die RDS-Lizenzierung des Kunden klären. |
 | 4 | Ablage der Berichtsquellen (Netzlaufwerk, Git?) und Weg auf den Linux-Server (Freigabe, sftp, Deployment-Skript) |
 | 5 | Virenschutz: Ausnahmen für das Oracle Home während Installation und Patchen |
 | 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). Der MOS-Titel des Reports-QPR („MERGE REQUEST … FOR BUGS 38991174 37866660 39375353“) nennt nur die Bugs des Merge-Antrags – die **Windows-README listet 31 Bugs**, identisch mit dem Inventar des Linux-Testhosts (`lsinventory -bugs_fixed`, verglichen 2026-10-26). Builder und Server haben damit denselben Reports-Stand. |

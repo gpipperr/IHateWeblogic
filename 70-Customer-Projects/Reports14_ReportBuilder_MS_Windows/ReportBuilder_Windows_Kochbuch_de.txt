@@ -3,7 +3,9 @@
   (minimale Entwicklungsumgebung - Builder-Domain OHNE Reports-Server)
 ================================================================================
   Zielgruppe : Windows-/Oracle-Administrator beim Kunden
-  Umgebung   : Windows Server 2022 (zertifiziert; 2025 nur getestet),
+  Umgebung   : Windows Server 2025 (Kunde; FMW 14.1.2 nach letztem Stand nur
+               fuer 2022 zertifiziert - Certification Matrix vor der
+               Installation pruefen; 2025 von pipperr.de erfolgreich getestet),
                FMW 14.1.2.0.0, Oracle Reports 14.1.2, Patchstand CPU Okt 2026
   Erstellt   : 2026-10-26
   Grundlage  : Oracle-Doku Forms 14.1.2 Kap. 5 + Reports-Installation 12.2.1.3
@@ -68,7 +70,11 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
 
   Platz: ca. 10 GB fuer Oracle Home + Domain, zusaetzlich ca. 6 GB beim
   Patchen (SPB entpacken). RAM: 8 GB Basis, je gleichzeitiger
-  Builder-Sitzung grob 0,5-1 GB (Annahme - im Betrieb messen).
+  Builder-Sitzung grob 0,5-1 GB (Annahme - im Betrieb messen); beim Kunden
+  2 Entwickler -> 12 GB.
+  RDP: Windows Server erlaubt 2 gleichzeitige Admin-Sitzungen ohne
+  RDS-Lizenzen; arbeiten die Entwickler mit normalen Benutzerkonten, ist
+  das ein Remote-Desktop-Session-Host-Thema (Lizenzierung beim Kunden).
 
 
 ================================================================================
@@ -117,6 +123,8 @@ SCHRITT 2: FMW Infrastructure installieren  [Doku]
   rem   Oracle Home       : E:\oracle\fmw
   rem   Installation Type : Fusion Middleware Infrastructure
   rem   Auto Updates      : Skip
+  rem   Prerequisite-Check: Windows Server 2025 ggf. als nicht unterstuetzt
+  rem   gemeldet -> "Skip" (wie in Schritt 3)
   rem   Nur Software installieren - KEINE Domain im Anschluss anlegen.
 
   rem Inventory unter Windows: C:\Program Files\Oracle\Inventory
@@ -136,7 +144,9 @@ SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [Doku]
   rem   Installation Type : Forms and Reports Deployment
   rem                       (NICHT "Standalone Forms Builder" - der enthaelt
   rem                        keinen Reports Builder)
-  rem   Prerequisite-Check zu Windows Server 2025: ggf. "Skip"
+  rem   Prerequisite-Check zu Windows Server 2025: meldet er das OS als
+  rem   nicht unterstuetzt -> "Skip" (silent: -ignoreSysPrereqs). Bei einem
+  rem   SR kann Oracle Support auf eine zertifizierte Plattform verweisen.
   rem   Am Ende: KEINE Konfiguration starten
 
   rem Kontrolle - die Reports-Werkzeuge liegen unter %ORACLE_HOME%\bin
