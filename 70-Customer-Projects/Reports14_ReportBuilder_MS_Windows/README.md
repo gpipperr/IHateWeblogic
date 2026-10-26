@@ -87,7 +87,7 @@ einem neueren Builder gespeicherter Bericht muss auf dem Server laufen.
 | 3 | Wie viele gleichzeitige RDP-Entwickler? (RAM: grob 0,5–1 GB pro Builder-Sitzung, Basis 8 GB – Annahme, im Betrieb messen) |
 | 4 | Ablage der Berichtsquellen (Netzlaufwerk, Git?) und Weg auf den Linux-Server (Freigabe, sftp, Deployment-Skript) |
 | 5 | Virenschutz: Ausnahmen für das Oracle Home während Installation und Patchen |
-| 6 | Sind die Windows-Varianten aller plattformabhängigen Patches auf MOS verfügbar (Reports-QPR 39600348, PERL 39951765, OHS 39987730, WebGate 39100536)? |
+| 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). **Auffällig:** der Windows-Reports-QPR heißt „MERGE REQUEST ON TOP OF 14.1.2.0.0 FOR BUGS 38991174 37866660 39375353“ – nur 3 Bugs, die Linux-Variante listet 12. Nach dem Einspielen mit `opatch lsinventory -bugs_fixed` vergleichen; fehlende Fixes ggf. beim Support erfragen. |
 
 Status: **dokumentiert 2026-10-26**, live auf dem Kunden-Server zu prüfen –
 im Kochbuch sind die Schritte entsprechend markiert.

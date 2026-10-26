@@ -190,14 +190,18 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [Doku, Windows-Varianten pruefen]
   rem Vorher je Patch moeglich:
   rem   opatch.bat prereq CheckConflictAgainstOHWithDetail -ph .
 
-  rem 4.4 Plattformabhaengige Patches - Variante "Microsoft Windows x64":
-  rem     39600348  Reports-QPR 14.1.2 (Reports Builder!)
+  rem 4.4 Plattformabhaengige Patches - Variante "Microsoft Windows x64"
+  rem     (auf MOS vorhanden, geprueft 2026-10-26):
+  rem     39600348  Reports-QPR 14.1.2 (Reports Builder!)   3,5 MB
+  rem               ACHTUNG: die Windows-Variante ist ein "MERGE REQUEST ...
+  rem               FOR BUGS 38991174 37866660 39375353" - nur 3 Bugs, die
+  rem               Linux-Variante enthaelt 12. Nach dem Einspielen pruefen:
+  rem                 opatch.bat lsinventory -bugs_fixed | findstr 39600348
   rem     39951765  PERL SPU (falls Perl im Home - sonst meldet opatch
-  rem               "none of the components ... present")
-  rem     39987730  OHS Bundle,  39100536  WebGate Bundle (nur Binaries)
+  rem               "none of the components ... present")       38,4 MB
+  rem     39987730  OHS Bundle (nur Binaries)                     20,3 MB
+  rem     39100536  WebGate Bundle (nur Binaries)                 11,1 MB
   rem     Forms-QPR 39842516: nur noetig, wenn auch Forms entwickelt wird.
-  rem     ACHTUNG: Ob es fuer jeden dieser Patches eine Windows-Variante auf
-  rem     MOS gibt, ist vor dem Termin zu pruefen (README offener Punkt 6).
   rem     Je Patch: entpacken, pushd, opatch.bat apply -silent, popd
 
   rem 4.5 Kontrolle
