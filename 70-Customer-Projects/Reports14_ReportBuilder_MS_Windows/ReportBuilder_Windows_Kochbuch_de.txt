@@ -55,18 +55,55 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
   - Virenschutz: Ausnahme fuer E:\oracle waehrend Installation und Patchen
     (Patch-READMEs: "anti-virus software should be temporarily stopped").
 
-  Benoetigte Software (in %PATCH_STORAGE%):
-    V1045135-01.zip  FMW Infrastructure 14.1.2.0.0 (Linux UND Windows, generic)
-                     SHA-256 1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
-    V1045122-01.zip  Forms and Reports 14.1.2.0.0 for Microsoft Windows x64
-                     SHA-256 26478C4DC2EDB4A897226F07D7AEC6F675754853F00495D4BAF2AAC1D9B8D2CE
-    p35702194_2100_MSWIN-x86-64.zip  Oracle JDK 21 (MOS, Plattform Windows x64)
-    Patches CPU Oktober 2026 (MOS, Schritt 4) - plattformabhaengige ZIPs in
-    der Variante "Microsoft Windows x64 (64-bit)" (getMOSPatch: 233P)
-    Microsoft Visual C++ Redistributable x64 UND x86 (sonst meldet der
-    Builder "MSVCP100.dll nicht gefunden"):
-      https://aka.ms/vs/17/release/vc_redist.x64.exe
-      https://aka.ms/vs/17/release/vc_redist.x86.exe
+  DOWNLOAD-CHECKLISTE  (alles nach %PATCH_STORAGE%, Stand CPU Oktober 2026)
+  ---------------------------------------------------------------------------
+  Vor dem Termin herunterladen und abhaken. Bei MOS-Patches immer die
+  richtige Plattform waehlen: "Generic" = ein ZIP fuer alle Plattformen,
+  sonst "Microsoft Windows x64 (64-bit)" (getMOSPatch: Plattform 233P).
+  Vorher in MOS KA1182 pruefen, ob sich Nummern geaendert haben.
+
+  a) Oracle Software Delivery Cloud (edelivery.oracle.com)
+  [ ] V1045135-01.zip   FMW Infrastructure 14.1.2.0.0 (Linux + Windows)  2,1 GB  Schritt 2
+                        SHA-256 1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
+  [ ] V1045122-01.zip   Forms and Reports 14.1.2.0.0 for MS Windows x64   1,2 GB  Schritt 3
+                        SHA-256 26478C4DC2EDB4A897226F07D7AEC6F675754853F00495D4BAF2AAC1D9B8D2CE
+
+  b) My Oracle Support - Java
+  [ ] 35702194  p35702194_2100_MSWIN-x86-64.zip   Oracle JDK 21 (Windows)  ~520 MB  Schritt 1
+                Inhalt pruefen: jdk-21.0.13.0.2_windows-x64_bin.zip (oder neuer)
+
+  c) My Oracle Support - WebLogic / FMW Infrastructure (alle "Generic")
+  [ ] 40125898  p40125898_141200_Generic.zip  WLS Stack Patch Bundle     2,8 GB   Schritt 4.1/4.2
+                14.1.2.0.261007 (enthaelt OPatch 13.9.4.2.25 - kein
+                eigener Download von 28186730 noetig)
+  [ ] 40050062  p40050062_141200_Generic.zip  ADF Bundle                 22 MB    Schritt 4.3
+  [ ] 40035984  p40035984_141200_Generic.zip  WebCenter Core Bundle      81 MB    Schritt 4.3
+  [ ] 40024749  p40024749_141200_Generic.zip  OWSM Bundle               5,5 MB    Schritt 4.3
+  [ ] 39995927  p39995927_141200_Generic.zip  FMW Control (EM) Bundle    13 MB    Schritt 4.3
+  [ ] 40057999  p40057999_141200_Generic.zip  OAMCLIENT Bundle          2,5 MB    Schritt 4.3
+  [ ] 39940047  p39940047_141200_Generic.zip  UMS Bundle                4,5 MB    Schritt 4.3
+  [ ] 39979746  p39979746_141200_Generic.zip  OPSS Bundle               1,6 MB    Schritt 4.3
+  [ ] 39726399  p39726399_141200_Generic.zip  LibOVD Bundle             0,6 MB    Schritt 4.3
+
+  d) My Oracle Support - Forms & Reports (Plattform Microsoft Windows x64)
+  [ ] 39600348  p39600348_141200_MSWIN-x86-64.zip  Reports-QPR 14.1.2    3,5 MB   Schritt 4.4
+  [ ] 39951765  p39951765_141200_MSWIN-x86-64.zip  PERL SPU             38,4 MB   Schritt 4.4
+  [ ] 39987730  p39987730_141200_MSWIN-x86-64.zip  OHS Bundle           20,3 MB   Schritt 4.4
+  [ ] 39100536  p39100536_141200_MSWIN-x86-64.zip  WebGate Bundle       11,1 MB   Schritt 4.4
+      optional: 39842516 Forms-QPR (nur wenn auch Forms entwickelt wird)
+
+  e) Microsoft (Visual C++ Redistributable, x64 UND x86 - sonst meldet der
+     Builder "MSVCP100.dll nicht gefunden")                                Schritt 1
+  [ ] https://aka.ms/vs/17/release/vc_redist.x64.exe
+  [ ] https://aka.ms/vs/17/release/vc_redist.x86.exe
+
+  Summe: ca. 7 GB. Die Dateinamen der MOS-Patches koennen im Release-Teil
+  abweichen (z.B. _141200_ / _1412xx_) - massgeblich sind Patch-Nummer und
+  Plattform. Liegen fuer eine Nummer mehrere Varianten vor, nur die fuer
+  14.1.2 und Windows x64 bzw. Generic verwenden.
+  Tipp: Mit getMOSPatch geht der Download in einem Lauf (Plattform 233P fuer
+  d) und b), Generic fuer c)) - siehe OS_Kochbuch_de.txt Schritt 7 im Ordner
+  Reports14_Only_manuall_install.
 
   Platz: ca. 10 GB fuer Oracle Home + Domain, zusaetzlich ca. 6 GB beim
   Patchen (SPB entpacken). RAM: 8 GB Basis, je gleichzeitiger
