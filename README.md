@@ -869,6 +869,18 @@ CSPU Sep 2026 state is frozen in
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (T3/IIOP, debug configs, web commands, demo certificates …) –
   [10-Monitoring/README.md](10-Monitoring/README.md).
+- [ ] **Idea: clean-up script for old patch artefacts** (`07-Maintenance/`,
+  read-only by default, `--apply` removes) – external security scanners
+  report vulnerable jars / libraries that only lie in rollback copies:
+  `$ORACLE_HOME/.patch_storage/<patch>_<date>/` of superseded patches (e.g.
+  the Sep PSU 39919611 / SPU 39988381 after CPU Oct 2026), `OPatch.bak_*`,
+  `oraInventory.bak_*`, the previous JDK next to `JDK_HOME`
+  (`jdk-21.0.12.1`), `patches_<timestamp>/` of `04- --fresh-patches`.
+  Check first what Oracle supports for `.patch_storage` (`opatch util
+  cleanup` / `opatch util deleteinactivepatches` – to verify for FMW 14.1.2
+  and OPatch 13.9.4.2.25) instead of deleting by hand; keep the rollback
+  copy of the **current** set until the next cycle is applied and tested;
+  run only with the domain stopped and after a backup / VM snapshot.
 
 ### Scripts
 
