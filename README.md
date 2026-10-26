@@ -57,7 +57,7 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[██████████████████░░]` ~93 % complete** (state 2026-10-24) – phases 1–7
+**`[██████████████████░░]` ~94 % complete** (state 2026-10-26) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -83,15 +83,20 @@ and documented in a versioned manual guide per cycle
 (incl. the eight FMW Infrastructure bundles), JDK 21.0.13.0.2 downloaded;
 applied on the test host the same day with `07-Maintenance/80-`/`81-`/`82-` (0 FAIL, smoke test OK);
 `startStop.sh` now also handles ORDS, and the patch scripts pause for a VM snapshot.
+New 2026-10-26: Nginx strips client-supplied WebLogic headers and overwrites
+`X-Forwarded-For` (live-tested, `/console` header bug fixed), the AdminServer
+redirects to `https://` directly (`weblogic-plugin-enabled`),
+`rcu_repository_check.sh` reports invalid objects, the Jackson / FMW DBCLIENT
+scanner findings are assessed (`00-patch-references.md`).
 
 How the ~93 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (JDK upgrade from the patch repository done 2026-10-20, scripts on CPU Oct 2026 since 2026-10-24; bundled-JDK patch open), phase 9 about a third
+about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about a third
 (CVE watch step 1 and the certificate expiry check done; `cve_watch.sh`,
 notification, config security scanner are concept); minus the
-[open items](#open-items--todo) – mainly applying the CPU Oct 2026 patch
-set on the test host (see [Security & Patch Status](#security--patch-status)),
-the remaining client tests (update / offline / JACOB on Windows) and the
-questions to Oracle (bundled JDK, `frmweb` bind address).
+[open items](#open-items--todo) – mainly the questions to Oracle (bundled
+JDK 17 + FMW DBCLIENT SR, `frmweb` bind address, invalid RCU objects), the
+remaining client tests (update / offline / JACOB on Windows) and tests on a
+fresh installation.
 
 | # | Phase | Status |
 |---|---|---|
@@ -102,7 +107,7 @@ questions to Oracle (bundled JDK, `frmweb` bind address).
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
 | 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
-| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` (2026-10-24, manual guide per cycle in `70-Customer-Projects/`), apply on the test host pending; open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
+| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
 | 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
@@ -116,7 +121,7 @@ Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 > **before every installation and every patch run**.
 
 **Current cycle: CPU October 2026 (2026-10-20) + Security Alert
-CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-24.
+CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-26.
 
 | | |
 |---|---|
@@ -144,13 +149,18 @@ What matters in this cycle:
 - **FMW-bundled JDK** `oracle_common/jdk` 17.0.12: no patch in KA1182 –
   open; the "alternative JAVA_HOME" fix of the Reports QPR (Bug 37866660) is
   no way out (tools only, not certified for the engines) → SR.
+- **FMW DBCLIENT** 23.26.2 inside the Oracle Home (only updated through the
+  WLS SPB) is formally in the range of CVE-2026-101510 / -54399 (CVSS ≤ 4.4);
+  `jackson-databind` 2.16.1 in `jlib/` / `sqlcl/lib/` is not loaded – assessment
+  and scanner answer in `00-patch-references.md` ("FMW DBCLIENT – known
+  residual"), question added to the SR draft.
 - Oracle publishes no CVE → patch mapping: we prove the **patch level**
   ("installed ≥ patch document"), not the fix of a single CVE.
 
 
 > **Work in Progress** – This library is under active development.
 
-> **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CSPU Sep 2026, local 19c
+> **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CPU Oct 2026, local 19c
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
 > chain incl. autostart and smoke test (2026-10-14/16), secured standalone
 > Reports server (2026-10-16), RCU repository analysis (2026-10-17), review of
@@ -327,7 +337,7 @@ Rules across the folders:
 
 | Phase | Gap |
 |---|---|
-| Phase 8 (Patches) | CPU Oct 2026 applied on the test host (2026-10-24); FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`) |
+| Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
 | Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
 
@@ -776,57 +786,41 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-24). Everything finished is described
+Only what is still open (state 2026-10-26). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
-### Next: patch cycle CPU October 2026 (released 2026-10-20) + Security Alert CVE-2026-91403
+### Patch cycle CPU October 2026 – remaining
 
-[`00-patch-references.md`](09-Install/docs/00-patch-references.md) is
-reworked for CPU Oct 2026 (CVE check, special case Java, patch list); the
-CSPU Sep 2026 state is frozen in
-[`00-patch-references_september_2026.md`](09-Install/docs/00-patch-references_september_2026.md)
-(one snapshot per cycle, see "Patch cycle history" there).
+Applied on the test host 2026-10-24 (details, runtimes, answered open points:
+[`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)).
+Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
-- [x] **October set applied on the test host 2026-10-24** – conf +
-  `04-`/`05-`/`06-` switched, run with `07-Maintenance/80-`/`81-`/`82-`
-  (0 FAIL, start + smoke test `15-` OK): JDK 21.0.13.0.2, OPatch 13.9.4.2.25,
-  SPB 40125898 (SPU 39988381 superseded by PSU 40058371 – confirmed live), the
-  eight FMW Infrastructure bundles, PERL 39951765, OHS, WebGate. Runtimes and
-  findings:
-  [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
-- [x] September ZIPs archived 2026-10-26 (`04- --apply --fresh-patches --mos`
-  → `patches_20261026_112527/`, `client/jdk_20261026_112527/`); delete them
-  once the test host has run stable for a while.
 - [ ] **Invalid objects in the RCU schemas** (found 2026-10-26 with point 10 of
   the 14c folder – the UMS views themselves are fine): 69 objects invalid
   since the RCU run (IAU synonyms, `DEV_OPSS` packages / triggers with
   ORA-00942, `DEV_UMS.DRIVERPROPERTIES`) – reported since 2026-10-26 by
   `07-Maintenance/rcu_repository_check.sh` (check 6, WARN / FAIL if
   invalidated after the RCU run); open: MOS note on invalid objects after
-  RCU 14.1.2 with EBR before any recompile, same check at the customer. (Points 9 / 10
-  answered 2026-10-26.)
+  RCU 14.1.2 with EBR before any recompile, same check at the customer.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's
   software distribution, same bitness as the WebUtil DLLs, test the
   code-signing trust after the update – JSSE runs on the client, see
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
-- [ ] Confirm the CVE coverage of the patches in MOS KA1182 / CPU360
-  (CPU Oct 2026: CVE-2026-83399 / 91323 / 4176 / 47065, all 9.8; the
-  September CVEs 83021 / 83099 are still unconfirmed; 83020 confirmed
-  2026-10-24 in the OPSS BP 39979746, not in the SPB).
+- [ ] Confirm the remaining CVE coverage (CPU Oct 2026: CVE-2026-83399 /
+  91323 / 47065, 9.8; September 83021 / 83099). Confirmed from the READMEs:
+  4176 (PERL), OHS 87347 / 87346, ADF, FMW Control 91467, OPSS 83020, Jackson
+  54512–54515 (Third-Party BP), WebGate CVE-2025-0725.
 - [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
 
 ### Tests that need a client or a fresh install
 
 - [ ] **Forms client distribution via URL** – rest of the Windows test plan
-  ([concept 40 §8 / §12](09-Install/docs/40-forms_client_distribution.md)).
-  **Done 2026-10-23 on a Windows client:** CA import into the user store,
-  bootstrap `.cmd`, install into `%LOCALAPPDATA%`, shortcut with own icon,
-  FSAL start of `test_form` with alias login; fixed on the way: non-ASCII
-  profile path (`state.json` / Java arguments, setup 1.0.2).
-  Open: update and self-update round, offline start, `-Rollback`, JACOB /
+  ([concept 40 §8 / §12](09-Install/docs/40-forms_client_distribution.md))
+  – install + FSAL start work since 2026-10-23. Open: update and self-update
+  round (next cycle or `40- --force`), offline start, `-Rollback`, JACOB /
   Excel, `AllSigned` + Authenticode signature of the script.
 - [ ] **Windows client**: Java Web Start start of the test form (FSAL done
   2026-10-23), signed vs. unsigned `jacob.jar`, revocation check
@@ -837,8 +831,9 @@ CSPU Sep 2026 state is frozen in
   embedded LDAP password, Reports server admin, `FORMS_TMP`).
 - [ ] `13-` path that sets the embedded LDAP `cn=Admin` password in a fresh
   domain (bind fails → `setCredential` → AdminServer restart → re-run).
-- [ ] `startStop.sh start-all` / `stop-all` through `fmw_ctl.sh`, and the
-  "Node Manager running without autostart" path.
+- [ ] `startStop.sh`: the "Node Manager running without autostart" path
+  (`start-all` / `stop-all` through `fmw_ctl.sh` incl. ORDS ran live
+  2026-10-24/26).
 - [ ] `09-Install/07-` on a fresh database: `-databaseType EBR` with
   `-createRepository`, profile assignment right after RCU, FAIL path of the
   `db_securefile=FORCE` pre-check.
@@ -898,11 +893,11 @@ CSPU Sep 2026 state is frozen in
   patch for component `oracle.jdk` / FMW 14.1.2 is supported, and points to
   the KA1182 / CPU October 2026 patch-availability rows. **State
   2026-10-22:** the KA1182 of October 2026 (PDF) has no patch for the
-  bundled JDK (only Java SE for `JDK_HOME`) → open an SR with the question.
-  **State 2026-10-24:** Reports QPR Bug 37866660 ("alternative JAVA_HOME")
-  checked – Oracle Support AI: Reports tools only, JDK 21 not certified for
-  Reports 14.1.2, `rwengine.sh` hard-codes `oracle_common/jdk` (`rwserver`
-  loads its `libjvm.so`). SR draft ready (local `SR/`, not in Git) – submit.
+  bundled JDK (only Java SE for `JDK_HOME`). **State 2026-10-24:** Reports
+  QPR Bug 37866660 ("alternative JAVA_HOME") is no way out (tools only, JDK 21
+  not certified for Reports 14.1.2, `rwengine.sh` hard-codes
+  `oracle_common/jdk`). **SR draft ready** (local `SR/sr_bundled_jdk17.txt`,
+  incl. the FMW DBCLIENT question since 2026-10-26) – submit.
 - [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
   both are proposals today (½ RAM / 64 MB per session; 30 min, measured
   longest job 1 s on the test host) – re-check with
@@ -911,12 +906,6 @@ CSPU Sep 2026 state is frozen in
 
 ### APEX / ORDS beside Forms
 
-- [x] **ORDS + APEX 26.2** – scripted and live on the test host 2026-10-23:
-  `00-Setup/install_db_client_tools.sh` (Instant Client 23.26.4 + SQLcl 26.3),
-  `12-APEX-Ords/01-` … `06-` (APEX 26.2 VALID, ORDS 26.3 on 127.0.0.1:8081
-  behind Nginx, profile `APEX_USER`), architecture in
-  [`apex_architecture.md`](80-FMW-Architecture/apex_architecture.md) and
-  [`ords_architecture.md`](80-FMW-Architecture/ords_architecture.md).
 - [ ] **Repository / APEX database DB RU 19.33** (CPU Oct 2026): DB 19.30 is
   affected by CVE-2026-75803 (RDBMS OpenSSL, TLS, 9.8, unauthenticated) and
   further DB rows up to 8.8 –
@@ -930,14 +919,6 @@ CSPU Sep 2026 state is frozen in
   `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
   wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; move `rcu_repository_check` etc. to `ihw_sqlplus`;
   the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
-- [x] Nginx template: `X-Forwarded-For $remote_addr` (overwrite) and the
-  client-supplied WebLogic headers stripped (`WL-Proxy-Client-Cert/…`,
-  `WL-PATH-*`, `X-WebLogic-*`, `tyrus-connection-id` – KB559857 counterpart);
-  `/console` lost all inherited headers through its own `proxy_set_header`
-  (fixed). Live-tested 2026-10-26 with `tcpdump` on the loopback.
-- [x] AdminServer `weblogic-plugin-enabled` (2026-10-26: domain template +
-  WLST online + AdminServer restart on the test host) – `/console` / `/em`
-  redirect to `https://` directly.
 
 ### Monitoring (phase 9)
 
