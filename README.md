@@ -798,10 +798,14 @@ CSPU Sep 2026 state is frozen in
 - [x] September ZIPs archived 2026-10-26 (`04- --apply --fresh-patches --mos`
   → `patches_20261026_112527/`, `client/jdk_20261026_112527/`); delete them
   once the test host has run stable for a while.
-- [ ] Open point 10 of the 14c folder: UMS `MESSAGE` / `STATUS` views in the
-  EBR schema (SQL check). (Point 9 answered 2026-10-26: CVE-2026-54513 is
-  covered by the CVE-2026-54515 fix = jackson-databind 2.21.5; the 2.16.1
-  copies of the DB client are not loaded at runtime.)
+- [ ] **Invalid objects in the RCU schemas** (found 2026-10-26 with point 10 of
+  the 14c folder – the UMS views themselves are fine): 69 objects invalid
+  since the RCU run (IAU synonyms, `DEV_OPSS` packages / triggers with
+  ORA-00942, `DEV_UMS.DRIVERPROPERTIES`) – reported since 2026-10-26 by
+  `07-Maintenance/rcu_repository_check.sh` (check 6, WARN / FAIL if
+  invalidated after the RCU run); open: MOS note on invalid objects after
+  RCU 14.1.2 with EBR before any recompile, same check at the customer. (Points 9 / 10
+  answered 2026-10-26.)
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's

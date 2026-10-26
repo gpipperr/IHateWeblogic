@@ -31,7 +31,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
 | `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
-| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
+| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
 | `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |
@@ -416,7 +416,8 @@ from `db_sys_sec.conf.des3` via stdin):
 | 3 | schema accounts: status, profile, expiry, editions | not `OPEN`, expiry < `RCU_EXPIRY_WARN_DAYS` (30) → FAIL; profile ≠ `RCU_DB_PROFILE` → WARN |
 | 4 | data sources `config/jdbc/*-jdbc.xml`: user is a registry schema, URL = `DB_HOST/PORT/SERVICE`, login with `DB_SCHEMA_PWD` | login fails (FAIL), foreign user / URL (WARN) |
 | 5 | `<prefix>_STB.COMPONENT_SCHEMA_INFO` rows = registry rows | differ (WARN) |
-| 6 | `--apply`: `expdp` (Oracle Home, network) of all prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` into `DATA_PUMP_DIR` on the DB server | export fails |
+| 6 | invalid objects in the `<prefix>_*` schemas, grouped per owner / type, first line of `DBA_ERRORS` (since 2026-10-26) | invalid since the RCU run (last DDL ≤ user creation + 1 h) → WARN, invalidated later (patch / upgrade) → FAIL; no automatic recompile |
+| 7 | `--apply`: `expdp` (Oracle Home, network) of all prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` into `DATA_PUMP_DIR` on the DB server | export fails |
 
 The Data Pump `userid` is written to a parameter file (mode 600, removed
 afterwards) – not in the process list. Exported as SYSDBA; on a production
@@ -507,6 +508,10 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 - All scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
 - `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
 - Retention: `backup_config.sh --keep N` (`CONFIG_BACKUP_KEEP`, 10 sets) and `bak_cleanup.sh` (`BAK_FILES_KEEP`, 3 copies per file) – both delete only with `--apply`.
+- `rcu_repository_check.sh`: new check 6 "invalid objects" (2026-10-26) – the
+  test host shows 69 objects invalid since the RCU 14.1.2 EBR run (62 IAU
+  synonyms, `DEV_OPSS` packages / triggers – `OPSS_SYNCHRONIZATION` ORA-00942,
+  `DEV_UMS.DRIVERPROPERTIES`); not caused by the CPU Oct 2026 patch run.
 - `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error (2026-10-19).
 
 ## 8. Review 2026-10-19

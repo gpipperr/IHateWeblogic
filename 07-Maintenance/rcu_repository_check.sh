@@ -15,6 +15,11 @@
 #                 an RCU schema of the prefix, URL = DB_HOST/DB_PORT/DB_SERVICE,
 #                 login with DB_SCHEMA_PWD works
 #              5. service table <prefix>_STB: one row per registry entry
+#              6. invalid objects in the <prefix>_* schemas, with the first
+#                 DBA_ERRORS line: invalid since the RCU run (user creation
+#                 + 1 h) = WARN, invalidated later (e.g. by a patch) = FAIL.
+#                 No recompile - check MOS first (found 2026-10-26: 69
+#                 objects invalid since RCU 14.1.2 EBR, OPSS ORA-00942)
 #            --apply: Data Pump export (expdp of the Oracle Home, over the
 #              network into DATA_PUMP_DIR on the DB server) of all schemas of
 #              the prefix + SYSTEM.SCHEMA_VERSION_REGISTRY$ (Oracle requires
@@ -54,7 +59,8 @@ for arg in "$@"; do
         --help)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  Default: read-only checks of the RCU repository (registry, schema\n"
-            printf "           accounts, profile/expiry, data sources, service table)\n"
+            printf "           accounts, profile/expiry, data sources, service table,\n"
+            printf "           invalid objects)\n"
             printf "  --apply: additionally Data Pump export of the prefix schemas and\n"
             printf "           SYSTEM.SCHEMA_VERSION_REGISTRY\$ into DATA_PUMP_DIR (DB server)\n"
             exit 0
@@ -117,11 +123,21 @@ SELECT 'USR|' || u.username || '|' || u.account_status || '|' || u.profile || '|
   FROM dba_users u
  WHERE u.username IN (SELECT owner FROM system.schema_version_registry\$ WHERE mrc_name = '${PFX}')
  ORDER BY u.username;
-SELECT 'STB|' || COUNT(*) FROM dba_tables WHERE owner = '${PFX}_STB' AND table_name = 'COMPONENT_SCHEMA_INFO';")"
+SELECT 'STB|' || COUNT(*) FROM dba_tables WHERE owner = '${PFX}_STB' AND table_name = 'COMPONENT_SCHEMA_INFO';
+SELECT 'INV|' || o.owner || '|' || o.object_type || '|' || o.object_name || '|'
+       || TO_CHAR(o.last_ddl_time,'YYYY-MM-DD HH24:MI') || '|'
+       || CASE WHEN o.last_ddl_time <= u.created + 1/24 THEN 'RCU' ELSE 'LATER' END || '|'
+       || REPLACE((SELECT MIN(e.text) KEEP (DENSE_RANK FIRST ORDER BY e.sequence)
+                     FROM dba_errors e
+                    WHERE e.owner = o.owner AND e.name = o.object_name AND e.type = o.object_type), '|', '/')
+  FROM dba_objects o JOIN dba_users u ON u.username = o.owner
+ WHERE o.owner LIKE '${PFX}\_%' ESCAPE '\' AND o.status <> 'VALID'
+ ORDER BY o.owner, o.object_type, o.object_name;")"
 
-if printf '%s\n' "$OUT" | grep -qE "ORA-|SP2-"; then
+# INV| rows carry DBA_ERRORS text (ORA-…) as data – not an error of this SQL
+if printf '%s\n' "$OUT" | grep -v '^INV|' | grep -qE "ORA-|SP2-"; then
     fail "SQL as SYSDBA failed:"
-    printf '%s\n' "$OUT" | grep -E "ORA-|SP2-" | head -3 | while IFS= read -r _l; do fail "  $_l"; done
+    printf '%s\n' "$OUT" | grep -v '^INV|' | grep -E "ORA-|SP2-" | head -3 | while IFS= read -r _l; do fail "  $_l"; done
     print_summary; exit 2
 fi
 
@@ -273,9 +289,44 @@ else
 fi
 
 # =============================================================================
-# 6. Backup (--apply): Data Pump export
+# 6. Invalid objects in the schemas of the prefix
 # =============================================================================
-section "6. Backup (Data Pump)"
+section "6. Invalid objects (${PFX}_* schemas)"
+
+INV_LINES="$(printf '%s\n' "$OUT" | grep '^INV|')"
+if [ -z "$INV_LINES" ]; then
+    ok "No invalid objects in the ${PFX}_* schemas"
+else
+    # summary per owner / type / origin (RCU run or later)
+    while IFS='|' read -r cnt owner otype origin first last; do
+        line="$(printf "%-18s %-14s %4s x  last DDL %s .. %s" "$owner" "$otype" "$cnt" "$first" "$last")"
+        if [ "$origin" = "RCU" ]; then
+            warn "  $line  (invalid since the RCU run)"
+        else
+            fail "  $line  (invalidated AFTER the RCU run – patch / upgrade?)"
+        fi
+    done < <(printf '%s\n' "$INV_LINES" | awk -F'|' '
+        { k = $2 "|" $3 "|" $6; n[k]++
+          if (!(k in lo) || $5 < lo[k]) lo[k] = $5
+          if (!(k in hi) || $5 > hi[k]) hi[k] = $5 }
+        END { for (k in n) { split(k, a, "|"); print n[k] "|" a[1] "|" a[2] "|" a[3] "|" lo[k] "|" hi[k] } }' \
+        | sort -t'|' -k2,3)
+    # objects with a compile error (synonyms / never compiled views have none)
+    _err="$(printf '%s\n' "$INV_LINES" | awk -F'|' '$7 != "" { printf "%s.%s (%s): %s\n", $2, $4, $3, $7 }')"
+    if [ -n "$_err" ]; then
+        info "  Compile errors (first line of DBA_ERRORS):"
+        printf '%s\n' "$_err" | head -10 | while IFS= read -r _l; do info "    $_l"; done
+    fi
+    info "  No automatic recompile: look for a MOS note on invalid objects after RCU"
+    info "  (EBR) first – a missing table (ORA-00942) is not fixed by a recompile."
+    unset _err
+fi
+unset INV_LINES
+
+# =============================================================================
+# 7. Backup (--apply): Data Pump export
+# =============================================================================
+section "7. Backup (Data Pump)"
 
 if ! $APPLY; then
     info "Read-only run – with --apply: Data Pump export of the ${PFX}_* schemas"
