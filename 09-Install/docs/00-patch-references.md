@@ -242,7 +242,7 @@ row in this CPU. APEX, ORDS, SQLcl and the Instant Client: own section
 | **CVE-2026-47065** | Middleware Common Libraries and Tools / Third Party (Apache Mina) | HTTP | yes | **9.8** | yes (library on disk) | SPB 40125898 (Third-Party BP 40035655) |
 | CVE-2026-54399 / 59649 / 49844 / 64607 | Middleware Common Libraries and Tools / Third Party (HttpComponents 7.5, Bouncy Castle 7.5, Log4j 5.9, HttpClient 5.3) | HTTP(S) | yes | 5.3 – 7.5 | yes (libraries on disk) | SPB 40125898 (Third-Party BP 40035655) |
 | CVE-2026-91617 | Middleware Common Libraries and Tools / Remote Diagnostic Agent | None | no | 5.5 | yes – RDA is in the SPB (39798193 in Sep) | SPB 40125898 (RDA 39646824) |
-| CVE-2026-54513 | Web Services Manager / Third Party (jackson-databind) | HTTP | yes | 8.1 | yes – OWSM is part of the FMW infrastructure home | OWSM BP **40024749** (not in the SPB) – **not confirmed**: the OWSM README does not name this CVE (only the unnamed Bug 39927140); the OPatch README lists CVE-2026-54513 for OPatch .24 (Bug 39621052, OPatch's own jackson) – check the jackson-databind version in `oracle_common/modules` after the apply |
+| CVE-2026-54513 | Web Services Manager / Third Party (jackson-databind) | HTTP | yes | 8.1 | yes – OWSM is part of the FMW infrastructure home | Third-Party BP **40035655** (in the SPB, jackson-databind 2.21.5) – **confirmed 2026-10-26**: the advisory states that the patch for CVE-2026-54515 also addresses CVE-2026-54512 / -54513 / -54514; Bug 39863385 (CVE-2026-54515) is in `lsinventory -bugs_fixed`. KA1182 names the OWSM BP 40024749 (installed too). The DB-client copies 2.16.1 (`jlib/`, `sqlcl/lib/`) are not loaded at runtime (checked 2026-10-26) |
 | CVE-2026-91318 / 91319 / 91317 / 87334 / 91320 / 91322 | JDeveloper / Security Framework, Java Business Objects, ADF Databinding, ADF Faces | HTTP / SOAP / None | partly | 3.3 – 6.5 | yes – the ADF runtime (`oracle.jrf.adfrt*`) is in every FMW infrastructure home | ADF BP **40050062** (not in the SPB) – **confirmed** (README: all six in BP 260721 / 260920) |
 | CVE-2026-91467 | Fusion Middleware Control / Framework | None | no | 6.6 | yes – EM on the AdminServer | FMW Control BP **39995927** (not in the SPB) – **confirmed** (README, BP 260908) |
 | CVE-2026-8763 / 101520 / 91776 / 59889 | Global Lifecycle Management NextGen OUI Framework / NextGen Installer (Bouncy Castle 9.1, 7.5, jackson-databind 7.5, 6.5) | HTTP(S) | mostly yes | 6.5 – 9.1 | yes – OUI/OPatch tooling in every home (exploitable only while the installer runs) | OPatch 13.9.4.2.25 – **confirmed for CVE-2026-91776** (OPatch README: Bug 40012934), the other three assumption (only Global Lifecycle Management patch in KA1182) |
@@ -421,6 +421,41 @@ Security status (CVE check per CPU) and the patch procedure of each: section
 | **40126042** | SPB marker patch (`WLS_SPB_MARKER_PATCH`, Sep: 39925694; interim 40125902) – SPB README read 2026-10-24 | Oct 2026 |
 | 38391376 | RCU fix "RCU prereq steps fail while validating the DB connection" – still part of the SPB | – |
 
+### FMW DBCLIENT – known residual (state 2026-10-26)
+
+The Oracle Home carries its own database client ("FMW DBCLIENT", 23.26.2 –
+Patch 39264447, `binary_patches/dbclient/linux64/` of the SPB). The October
+SPB still ships the same RU (OPatch skipped it as a duplicate) – Oracle
+delivers **no newer FMW DBCLIENT** in this cycle, and KA1182 names no
+separate one.
+
+| Finding | Assessment |
+|---|---|
+| CVE-2026-101510 (Oracle Net Services, CVSS 4.4) and CVE-2026-54399 (SQLcl / Apache HttpComponents, 3.1) – both "applicable to client-only installations", affected 23.4.0–23.26.3 | the FMW DBCLIENT 23.26.2 (and `$ORACLE_HOME/sqlcl/`) is formally in the range. Net Services is really used: `frmweb`, `rwserver` and the Reports engines connect to the database through it |
+| `jackson-databind` 2.16.1 in `$ORACLE_HOME/jlib/` and `$ORACLE_HOME/sqlcl/lib/` (Bug 37326206 of the DB client RU) | not loaded by any running process (checked 2026-10-26); the runtime uses `oracle_common/modules/thirdparty/jackson-databind-2.21.5.jar` (CVE-2026-54515 fix, also covers -54512 / -54513 / -54514) |
+
+Why **no** regular Oracle Database 23ai client RU is applied to this home:
+
+- the DB client inside the FMW home mixes DB 23 components (`oracle.client`,
+  `oracle.network.client`, `oracle.rdbms.*`, `oracle.odbc` 23.0.0.0.0) with
+  FMW components (`oracle.bali.*` 12.2.1) – it is an FMW variant, not a
+  client installation;
+- a DB RU normally needs the DB OPatch (6880880, 12.2.0.1.x), the FMW home
+  runs the OUI-based FMW OPatch 13.9.4.2.x;
+- only RUs titled "… for FMW DBCLIENT" are certified together with WLS,
+  Forms and Reports; `frmweb`, `rwserver` and the engines are linked against
+  the client libraries – a foreign RU can break the relink (compare the
+  `libzrc` / glibc case, KB873815) and leaves SPB, DB client and JDBC bundle
+  out of step for the next `napply`.
+
+Rule: the FMW DBCLIENT is updated **only** through the WLS SPB or an RU
+"for FMW DBCLIENT" that KA1182 lists. Every cycle: check whether the new SPB
+carries a newer DBCLIENT RU (SPB content table above) and re-assess the
+client rows of the DB risk matrix. Answer for an external scanner: "component
+of the FMW database client, updated exclusively by Oracle's WLS SPB – current
+level SPB CPU Oct 2026 (40125898); the Jackson copies are not loaded at
+runtime."
+
 ### Superseded (kept for context, not read by any script)
 
 | Old patch | Superseded by |
@@ -551,7 +586,8 @@ LD_LIBRARY_PATH=$INSTANT_CLIENT_HOME $SQLPLUS_BIN -V     # Instant Client
 | Status 2026-10-23 | Instant Client **23.26.4.0.0** – above 23.26.3, not affected |
 
 Not covered here: the **FMW DBCLIENT** inside the Oracle Home (23.26.2 via
-the WLS SPB, Patch 39264447 – patched by `05-`) and the **database
+the WLS SPB, Patch 39264447 – patched by `05-`; formally in the range of the
+client rows above – see "FMW DBCLIENT – known residual") and the **database
 server** itself (repository / APEX DB: DB RU, `60-RCU-DB-19c/`). The
 repository DB 19.30 of the test host is affected by CVE-2026-75803
 (OpenSSL, 9.8) → DB RU 19.33 is an open item.

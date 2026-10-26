@@ -795,13 +795,13 @@ CSPU Sep 2026 state is frozen in
   eight FMW Infrastructure bundles, PERL 39951765, OHS, WebGate. Runtimes and
   findings:
   [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
-- [ ] Archive the September ZIPs in the patch storage:
-  `04-oracle_pre_download.sh --apply --fresh-patches --mos` (moves `patches/`
-  to `patches_<timestamp>/`, loads the current set again), delete the old
-  folder later.
-- [ ] Open points 9 / 10 of the 14c folder: Jackson CVE number (-54513 vs.
-  -54515) and the 2.16.1 copies of the DB client (`jlib/`, `sqlcl/lib/`);
-  UMS `MESSAGE` / `STATUS` views in the EBR schema (SQL check).
+- [x] September ZIPs archived 2026-10-26 (`04- --apply --fresh-patches --mos`
+  → `patches_20261026_112527/`, `client/jdk_20261026_112527/`); delete them
+  once the test host has run stable for a while.
+- [ ] Open point 10 of the 14c folder: UMS `MESSAGE` / `STATUS` views in the
+  EBR schema (SQL check). (Point 9 answered 2026-10-26: CVE-2026-54513 is
+  covered by the CVE-2026-54515 fix = jackson-databind 2.21.5; the 2.16.1
+  copies of the DB client are not loaded at runtime.)
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's
