@@ -99,39 +99,40 @@ Download auf dem Testsystem vom 26.10.2026.
 
 **a) Oracle Software Delivery Cloud** (edelivery.oracle.com)
 
-| ✓ | Datei | Inhalt | Größe | Ziel | Kochbuch |
-|---|---|---|---|---|---|
-| [ ] | `V1045135-01.zip` | FMW Infrastructure 14.1.2.0.0 – SHA-256 `1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD` | 2,1 GB | `wls/` | FMW Schritt 1 |
-| [ ] | `V1045121-01.zip` | Forms and Reports 14.1.2.0.0 for Linux x86-64 – SHA-256 `01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B` | 1,3 GB | `fr/` | Reports Schritt 1 |
+- [ ] `V1045135-01.zip` – FMW Infrastructure 14.1.2.0.0 · 2,1 GB · nach `wls/` · FMW Schritt 1
+- [ ] `V1045121-01.zip` – Forms and Reports 14.1.2.0.0 Linux x86-64 · 1,3 GB · nach `fr/` · Reports Schritt 1
+
+Prüfsummen (SHA-256, nach dem Download mit `sha256sum` vergleichen):
+
+```
+V1045135-01.zip  1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
+V1045121-01.zip  01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B
+```
 
 **b) My Oracle Support – Java**
 
-| ✓ | Patch | Datei | Inhalt | Größe | Kochbuch |
-|---|---|---|---|---|---|
-| [ ] | 35702194 | `p35702194_2100_Linux-x86-64.zip` | Oracle JDK 21 – im ZIP prüfen: `jdk-21.0.13.0.2_linux-x64_bin.tar.gz` (oder neuer) | 539 MB | OS Schritt 4 |
+- [ ] **35702194** `p35702194_2100_Linux-x86-64.zip` – Oracle JDK 21 · 539 MB · OS Schritt 4
+  (im ZIP prüfen: `jdk-21.0.13.0.2_linux-x64_bin.tar.gz` oder neuer)
 
 **c) My Oracle Support – WebLogic / FMW Infrastructure** (alle *Generic*)
 
-| ✓ | Patch | Datei | Inhalt | Größe | Kochbuch |
-|---|---|---|---|---|---|
-| [ ] | 40125898 | `p40125898_141200_Generic.zip` | WLS Stack Patch Bundle 14.1.2.0.261007 – enthält OPatch 13.9.4.2.25 (kein eigener Download von 28186730 nötig) | 2,8 GB | FMW Schritt 3.2/3.3 |
-| [ ] | 40050062 | `p40050062_141200_Generic.zip` | ADF Bundle | 22 MB | FMW Schritt 3.4 |
-| [ ] | 40035984 | `p40035984_141200_Generic.zip` | WebCenter Core Bundle | 80 MB | FMW Schritt 3.4 |
-| [ ] | 40024749 | `p40024749_141200_Generic.zip` | OWSM Bundle | 5,4 MB | FMW Schritt 3.4 |
-| [ ] | 39995927 | `p39995927_141200_Generic.zip` | FMW Control (EM) Bundle | 13 MB | FMW Schritt 3.4 |
-| [ ] | 40057999 | `p40057999_141200_Generic.zip` | OAMCLIENT Bundle | 2,4 MB | FMW Schritt 3.4 |
-| [ ] | 39940047 | `p39940047_141200_Generic.zip` | UMS Bundle | 4,5 MB | FMW Schritt 3.4 |
-| [ ] | 39979746 | `p39979746_141200_Generic.zip` | OPSS Bundle | 1,5 MB | FMW Schritt 3.4 |
-| [ ] | 39726399 | `p39726399_141200_Generic.zip` | LibOVD Bundle | 0,5 MB | FMW Schritt 3.4 |
+- [ ] **40125898** `p40125898_141200_Generic.zip` – WLS Stack Patch Bundle 14.1.2.0.261007 · 2,8 GB · FMW Schritt 3.2/3.3
+  (enthält OPatch 13.9.4.2.25 – kein eigener Download von 28186730 nötig)
+- [ ] **40050062** `p40050062_141200_Generic.zip` – ADF Bundle · 22 MB · FMW Schritt 3.4
+- [ ] **40035984** `p40035984_141200_Generic.zip` – WebCenter Core Bundle · 80 MB · FMW Schritt 3.4
+- [ ] **40024749** `p40024749_141200_Generic.zip` – OWSM Bundle · 5,4 MB · FMW Schritt 3.4
+- [ ] **39995927** `p39995927_141200_Generic.zip` – FMW Control (EM) Bundle · 13 MB · FMW Schritt 3.4
+- [ ] **40057999** `p40057999_141200_Generic.zip` – OAMCLIENT Bundle · 2,4 MB · FMW Schritt 3.4
+- [ ] **39940047** `p39940047_141200_Generic.zip` – UMS Bundle · 4,5 MB · FMW Schritt 3.4
+- [ ] **39979746** `p39979746_141200_Generic.zip` – OPSS Bundle · 1,5 MB · FMW Schritt 3.4
+- [ ] **39726399** `p39726399_141200_Generic.zip` – LibOVD Bundle · 0,5 MB · FMW Schritt 3.4
 
 **d) My Oracle Support – Reports-Home** (Plattform *Linux x86-64*)
 
-| ✓ | Patch | Datei | Inhalt | Größe | Kochbuch |
-|---|---|---|---|---|---|
-| [ ] | 39600348 | `p39600348_141200_Linux-x86-64.zip` | Reports-QPR 14.1.2 | 0,5 MB | Reports Schritt 2 |
-| [ ] | 39951765 | `p39951765_141200_Linux-x86-64.zip` | PERL SPU (ersetzt 38590500) | 29 MB | Reports Schritt 2 |
-| [ ] | 39987730 | `p39987730_141200_Linux-x86-64.zip` | OHS Bundle (nur Binaries) | 17 MB | Reports Schritt 2 |
-| [ ] | 39100536 | `p39100536_141200_Linux-x86-64.zip` | WebGate Bundle (nur Binaries) | 21 MB | Reports Schritt 2 |
+- [ ] **39600348** `p39600348_141200_Linux-x86-64.zip` – Reports-QPR 14.1.2 · 0,5 MB · Reports Schritt 2
+- [ ] **39951765** `p39951765_141200_Linux-x86-64.zip` – PERL SPU (ersetzt 38590500) · 29 MB · Reports Schritt 2
+- [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS Bundle (nur Binaries) · 17 MB · Reports Schritt 2
+- [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate Bundle (nur Binaries) · 21 MB · Reports Schritt 2
 
 Nicht nötig: Forms-QPR 39842516 (reine Reports-Installation). Optional:
 One-off 38936596 nur bei hebräischer Klammer-Darstellung
