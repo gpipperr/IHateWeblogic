@@ -57,7 +57,7 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[██████████████████░░]` ~94 % complete** (state 2026-10-26) – phases 1–7
+**`[███████████████████░]` ~95 % complete** (state 2026-10-27) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -88,11 +88,26 @@ New 2026-10-26: Nginx strips client-supplied WebLogic headers and overwrites
 redirects to `https://` directly (`weblogic-plugin-enabled`),
 `rcu_repository_check.sh` reports invalid objects, the Jackson / FMW DBCLIENT
 scanner findings are assessed (`00-patch-references.md`).
+New 2026-10-27: the **patch-cycle analysis with Claude**
+(`10-Monitoring/patch_cycle_analysis.sh` + skill, customer / maintainer mode,
+`update_plan.md` as the prompt for switching the lib) on a **hardened Claude
+Code setup** (`setup_claude.md`, `claude_setup_check.sh`, guard hook, new
+parameter `IHW_ENV_TYPE` – never on production); the **RCU database
+requirements** for 19c / 26ai documented and checked
+(`07-oracle_setup_repository.sh --check`, Oracle parameter minimums in
+`60-RCU-DB-19c` and on the test DB, licence: separately licensed DB),
+`local_listener` without the DBCA alias, a host pre-check with the standalone
+**CVU** (`60-RCU-DB-19c/00b-`); the **Reports Builder on Windows** cookbook
+was run live at the customer and worked as written (developers need local
+admin accounts), with an architecture article incl. the development workflow
+and the image search paths per side; measured: the Reports tools do not use
+the RCU schemas at runtime.
 
-How the ~93 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about a third
-(CVE watch step 1 and the certificate expiry check done; `cve_watch.sh`,
-notification, config security scanner are concept); minus the
+How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
+about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about two fifths
+(CVE watch step 1, the certificate expiry check and the Claude patch-cycle
+analysis done; `cve_watch.sh`, notification, log analysis, config security
+scanner are concept); minus the
 [open items](#open-items--todo) – mainly the questions to Oracle (bundled
 JDK 17 + FMW DBCLIENT SR, `frmweb` bind address, invalid RCU objects), the
 remaining client tests (update / offline / JACOB on Windows) and tests on a
@@ -201,8 +216,8 @@ operation with proactive, AI-assisted error analysis.
 │  09-Install/00–03     OS baseline, packages, Java, "oracle" user    │
 │  09-Install/04–05     Nginx (optional), WebLogic installation       │
 │  09-Install/06        Forms & Reports installation                 │
-│  60-RCU-DB-19c/       Repository DB: OS baseline, DB software,     │
-│                       listener, database creation, audit,          │
+│  60-RCU-DB-19c/       Repository DB: OS baseline, CVU pre-check,   │
+│                       DB software, listener, database, audit,      │
 │                       FMW tablespace, RCU profile, autostart        │
 │  09-Install/07        RCU – create repository schemas in the DB    │
 │  09-Install/08        Create the domain (WLST)                     │
@@ -344,7 +359,7 @@ Rules across the folders:
 | Phase | Gap |
 |---|---|
 | Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
-| Phase 9 (Monitoring) | `cve_inventory.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh` implemented, rest concept — see `10-Monitoring/README.md` |
+| Phase 9 (Monitoring) | `cve_inventory.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
@@ -381,7 +396,7 @@ Run these scripts in sequence on a fresh installation:
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`), patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: AI-assisted monitoring + CVE watch |
-| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
+| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → CVU pre-check → install → patch (AutoUpgrade) → create DB (RCU requirements checked) → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and the shared collector `tools/collect_fmw_env.sh`, independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
@@ -589,15 +604,18 @@ IHateWeblogic/
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
 │   ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
+│   ├── 00b-db_cvu_check.sh          – host pre-check with the standalone CVU (patch 30839369, cluvfy -r 19)
 │   ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
 │   ├── 02-db_patch_db_software.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
 │   ├── 04-db_setup_listener.sh      – Configure the TNS listener
-│   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM)
+│   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
+│   │                                   local_listener without alias, requirement check)
 │   ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
 │   ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
 │   ├── 07b-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
 │   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry
+│   ├── rcu_db_requirements.sql      – FMW 14.1.2 DB requirements (version, edition, AL32UTF8, JVM, parameters)
 │   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
 │   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
 │   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
@@ -799,7 +817,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-26). Everything finished is described
+Only what is still open (state 2026-10-27). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -979,6 +997,10 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   also create random Node Manager credentials? If yes,
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
   fix as `11-oracle_nodemanager.sh`.
+- [ ] **Reports Builder Windows (customer, 2026-10-27):** start the Builder
+  once with the own RCU database service stopped and run a preview – the
+  tools runtime was measured without RCU use (`strace`), the Builder GUI not
+  yet ([report_rwbuilder.md §3.2](80-FMW-Architecture/report_rwbuilder.md#32-what-the-builder-still-needs-at-runtime)).
 - [ ] Customer installation 2026-10-15: which of the changes (firewall
   `14027/udp`, IPv6 per interface, multicast pre-check) fixed `REP-50600`
   there is not confirmed yet.
