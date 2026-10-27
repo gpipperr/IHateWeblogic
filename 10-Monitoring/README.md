@@ -64,7 +64,7 @@ findings would be "not configured yet" rather than genuine anomalies.
                        │  structured findings (ok/warn/fail + details)
                        ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│  2. ANALYSE                                                       │
+│  2. ANALYSE   (Claude sandbox of setup_claude.md)                  │
 │     claude_analyze.sh builds a prompt from:                       │
 │       - installation context (environment.conf, no secrets)       │
 │       - collected findings from step 1                           │
@@ -397,6 +397,52 @@ building block – it already finds open sockets and the missing firewall
 
 ---
 
+## Claude Code setup – setup_claude.md
+
+Precondition for every Claude-based script here: [setup_claude.md](setup_claude.md)
+– never on a production host (`IHW_ENV_TYPE=prod`), managed settings with
+sandbox, secret deny rules and the guard hook [claude/ihw_guard.sh](claude/ihw_guard.sh);
+check and install commands: `./10-Monitoring/claude_setup_check.sh [--profile maintainer] [--apply]`.
+The same sandbox is the base for the proactive log analysis below.
+
+## Patch-cycle analysis – patch_cycle_analysis.sh
+
+Standardised analysis of every Oracle cycle (CPU, CSPU, Security Alert) with
+Claude Code. Procedure, rules and the registry "where the cycle lives in the
+lib": [patch_cycle_analysis_skill.md](patch_cycle_analysis_skill.md); the
+Claude Code skill `/patch-cycle-analysis` (`.claude/skills/`) points to it.
+
+```
+1 ANALYSE  prepare: public Oracle sources      -> readme_list.md (what to download)
+           analyse: READMEs + collector archive -> analysis README + manual guide
+2 MANUAL   apply by hand (manual guide) or with the released lib (07-Maintenance 80-82)
+3 UPDATE   maintainer only: update_plan.md = the prompt that switches the lib
+```
+
+```bash
+./10-Monitoring/patch_cycle_analysis.sh                       # status: cycle, newer advisories, Patch-Doku
+./10-Monitoring/patch_cycle_analysis.sh prepare --apply       # next cycle (index or calendar), start Claude
+#   -> download the documents of readme_list.md into Patch-Doku/<yyyy-mm>_<cycle>/readmes/
+./10-Monitoring/patch_cycle_analysis.sh analyse --env /tmp/fmw_env_full.tgz --apply           # customer
+./10-Monitoring/patch_cycle_analysis.sh analyse --mode maintainer --apply                       # we
+./10-Monitoring/patch_cycle_analysis.sh analyse --print-prompt                                  # prompt only
+claude "$(cat 70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/update_plan.md)" # stage 3
+```
+
+| Mode | Writes | End of the cycle |
+|---|---|---|
+| `customer` (default) | only `10-Monitoring/Patch-Doku/<cycle>/result/` – the repo stays untouched | patches by hand; for automation pull the current release of the lib |
+| `maintainer` | snapshot + new `09-Install/docs/00-patch-references.md`, new 70 folder, `update_plan.md` | after the live run: session with `update_plan.md`, commit, `git tag <cycle>` |
+
+`Patch-Doku/` is gitignored (Oracle documents, customer data). The script
+never runs as root and needs `claude` in `PATH`; without `--apply` it only
+shows what it would do. Claude needs permission for `curl` to
+`www.oracle.com` and for writing into `Patch-Doku/` – grant it at the first
+prompt or in `.claude/settings.json`. The cycle detection
+(`ihw_oracle_advisories`, third Tuesday) is shared with `cve_inventory.sh`
+section 6; before the release the next cycle comes from the calendar (CPU in
+Jan/Apr/Jul/Oct, CSPU in the months between).
+
 ## Planned Scripts
 
 | Script | Purpose |
@@ -404,6 +450,8 @@ building block – it already finds open sockets and the missing firewall
 | `claude_monitor.sh` | Orchestrator – runs the collection step, calls `claude_analyze.sh`, handles notification. Cron-friendly (no interactive prompts). |
 | `claude_analyze.sh` | Builds the prompt from collected findings + `monitor.conf`, calls the Claude API, parses the structured response. |
 | `cve_inventory.sh` | **implemented** – CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
+| `claude_setup_check.sh` | **implemented** – Claude Code sandbox / managed settings / guard hook / `IHW_ENV_TYPE` check, `--apply` renders the managed settings ([setup_claude.md](setup_claude.md)) |
+| `patch_cycle_analysis.sh` | **implemented** – starts the Claude patch-cycle analysis (prepare / analyse, customer / maintainer), see above |
 | `cert_expiry_check.sh` | **implemented** – daily certificate expiry check (cron), calls `08-SSL/ssl_config.sh --expiry` + `ssl_local_ca.sh status`, journal tag `ihw-cert` |
 | `cve_watch.sh` | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
 | `monitor.conf.template` | Committed template: thresholds, known-issue allow-list, notification target, run mode defaults. |

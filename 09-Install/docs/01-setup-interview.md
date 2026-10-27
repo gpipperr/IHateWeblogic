@@ -78,6 +78,7 @@ rm mos_sec.conf
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | `java -version` check |
 | `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | – |
 | `PATCH_STORAGE` | `/srv/patch_storage` | disk space ≥ 20 GB |
+| `IHW_ENV_TYPE` | `prod` | `test` or `prod` – `prod` = Claude Code is never used on this host; `test` = allowed with sandbox + guard hook ([10-Monitoring/setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 | `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | **one** Oracle Net directory (`tnsnames.ora`, `sqlnet.ora`) for Forms, Reports, WebLogic and the oracle shell – written into `default.env` (14-), `rwserver.conf` + `reports.sh` (13-), `setUserOverrides.sh` + checked by [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh), `.bash_profile` (03-) |
 
 ### Block 2 – Component Selection

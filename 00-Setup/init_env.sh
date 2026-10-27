@@ -1081,6 +1081,8 @@ _confirm_val CONF_FORMS_INSTANCE_NAME "$DET_FORMS_INSTANCE_NAME" "FORMS_INSTANCE
 _confirm_val CONF_WLS_FORMS_SERVER    "$DET_WLS_FORMS_SERVER"    "WLS_FORMS_SERVER"
 _confirm_val CONF_FORMS_CUSTOMER_DIR  "$DET_FORMS_CUSTOMER_DIR"  "FORMS_CUSTOMER_DIR"
 _confirm_val CONF_FORMS_TMP           "$DET_FORMS_TMP"           "FORMS_TMP"
+# no silent default: empty = claude_setup_check.sh warns until test|prod is set
+_confirm_val CONF_IHW_ENV_TYPE        "${IHW_ENV_TYPE:-}"        "IHW_ENV_TYPE (test|prod)"
 _confirm_val CONF_WLS_SERVER_FQDN "$DET_WLS_SERVER_FQDN"  "WLS_SERVER_FQDN"
 _confirm_val CONF_ORACLE_HOME    "$DET_ORACLE_HOME"       "ORACLE_HOME"
 _confirm_val CONF_JAVA_HOME      "$DET_JAVA_HOME"         "JDK_HOME"
@@ -1131,6 +1133,7 @@ if $APPLY; then
         _append_if_missing "WLS_FORMS_SERVER"     "$CONF_WLS_FORMS_SERVER"    "$ENV_CONF"
         _append_if_missing "FORMS_CUSTOMER_DIR"   "$CONF_FORMS_CUSTOMER_DIR"  "$ENV_CONF"
         _append_if_missing "FORMS_TMP"            "$CONF_FORMS_TMP"           "$ENV_CONF"
+        _append_if_missing "IHW_ENV_TYPE"         "$CONF_IHW_ENV_TYPE"        "$ENV_CONF"
         _append_if_missing "FORMS_PRESTART_SECTION" ""                        "$ENV_CONF"
         _append_if_missing "FORMS_PRESTART_INIT"  "5"                         "$ENV_CONF"
         _append_if_missing "FORMS_PRESTART_MIN"   "4"                         "$ENV_CONF"
@@ -1221,6 +1224,10 @@ if $APPLY; then
 # Date  : $(date '+%Y-%m-%d %H:%M:%S')
 # DO NOT check into git!
 # =============================================================================
+
+# --- Environment type (10-Monitoring/setup_claude.md) -------------------------
+# test | prod - prod = Claude Code is never used on this host
+IHW_ENV_TYPE="${CONF_IHW_ENV_TYPE}"
 
 # --- Oracle FMW Installation -------------------------------------------------
 ORACLE_HOME="${CONF_ORACLE_HOME}"

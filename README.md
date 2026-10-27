@@ -108,7 +108,7 @@ fresh installation.
 | 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
 | 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
-| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
+| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`), `patch_cycle_analysis.sh` (Claude patch-cycle analysis, skill doc + `update_plan.md`), `claude_setup_check.sh` (Claude sandbox / managed settings / guard hook, [setup_claude.md](10-Monitoring/setup_claude.md)); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
@@ -344,7 +344,7 @@ Rules across the folders:
 | Phase | Gap |
 |---|---|
 | Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
-| Phase 9 (Monitoring) | `cve_inventory.sh` implemented, rest concept — see `10-Monitoring/README.md` |
+| Phase 9 (Monitoring) | `cve_inventory.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh` implemented, rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
 
 ## First Run – Required Order
@@ -380,7 +380,7 @@ Run these scripts in sequence on a fresh installation:
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
-| `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`); concept: AI-assisted monitoring + CVE watch |
+| `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`), patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → install → patch (AutoUpgrade) → create DB → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and the shared collector `tools/collect_fmw_env.sh`, independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
@@ -566,6 +566,11 @@ IHateWeblogic/
 ├── 10-Monitoring/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
 │   ├── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
+│   ├── patch_cycle_analysis.sh      – Claude patch-cycle analysis: prepare (README list) / analyse (docs, update_plan)
+│   ├── patch_cycle_analysis_skill.md – the procedure Claude follows + registry "where the cycle lives"
+│   ├── setup_claude.md              – Claude Code on an FMW host: placement (never prod), sandbox, guard, data protection
+│   ├── claude_setup_check.sh        – checks that setup, --apply renders the managed settings + root commands
+│   ├── claude/                      – managed-settings.json.template, ihw_guard.sh (PreToolUse hook)
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
 │
 ├── 12-APEX-Ords/
@@ -928,6 +933,19 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ### Monitoring (phase 9)
 
+- [ ] **CSPU November 2026** (release 2026-11-17) = first real run of
+  `10-Monitoring/patch_cycle_analysis.sh` (prepare → analyse --mode
+  maintainer → live run → `update_plan.md` → `git tag`); check the
+  registry of the skill doc against what really changed.
+- [ ] **Claude sandbox rollout on the test host:** `IHW_ENV_TYPE=test`,
+  `claude_setup_check.sh --profile maintainer --apply` → root: bubblewrap +
+  socat, `/etc/claude-code/`; verify `/status`, guard ask/deny, `.des3`
+  denied, curl `www.oracle.com` in the sandbox, `localhost` entries
+  ([setup_claude.md](10-Monitoring/setup_claude.md)).
+- [ ] **Proactive log analysis** on that sandbox (headless `claude -p`,
+  read-only inputs, only the unusual entries – normal checks stay with
+  Nagios / Prometheus); open: read-only mount of the production log dirs on
+  the analysis host – to decide.
 - [ ] `10-Monitoring/cve_watch.sh` (risk matrix parser, fixture test),
   notification, Claude analysis, uniform machine-readable output of the
   01–07 scripts – [10-Monitoring/README.md](10-Monitoring/README.md).

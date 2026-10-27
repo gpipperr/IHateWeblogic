@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//**/*.des3)",
+      "Read(//**/weblogic_sec.conf)",
+      "Read(//**/boot.properties)",
+      "Read(//**/SerializedSystemIni.dat)",
+      "Read(//**/cwallet.sso)",
+      "Read(//**/ewallet.p12)",
+      "Read(//**/*.jks)",
+      "Read(//**/.getMOSPatch.cfg)",
+      "Read(~/.ssh/**)",
+      "Edit(//@IHW_ROOT@/environment.conf)",
+      "Edit(//@ENV_CONF_TARGET@)"
+    ],
+    "ask": [
+      "Bash(git push *)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedHooksOnly": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/etc/claude-code/ihw_guard.sh --env-type @IHW_ENV_TYPE@ --conf @IHW_ROOT@/environment.conf",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "www.oracle.com"
+      ]
+    }
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1"
+  }
+}

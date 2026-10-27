@@ -980,3 +980,37 @@ ihw_run_root() {
         return 1
     fi
 }
+
+# -----------------------------------------------------------------------------
+# Oracle security advisories (https://www.oracle.com/security-alerts/)
+# Used by 10-Monitoring/cve_inventory.sh (--online) and
+# 10-Monitoring/patch_cycle_analysis.sh.
+# ihw_third_tuesday YYYY MM        – release day of a CPU / CSPU (YYYY-MM-DD)
+# ihw_oracle_advisories INDEX AFTER
+#     INDEX = downloaded index page, AFTER = YYYY-MM-DD (e.g. PATCH_CYCLE_DATE)
+#     prints one line per CPU / CSPU advisory released after AFTER:
+#       TYPE NAME RELEASE URL STATE      (STATE = released | announced)
+#     oracle.com answers plain WebFetch-style clients with 403 - fetch the
+#     index with  curl -sfL -A "Mozilla/5.0"
+# -----------------------------------------------------------------------------
+ihw_third_tuesday() {
+    local first dow
+    first="$(date -d "$1-$2-01" +%u)"          # 1=Mon … 7=Sun
+    dow=$(( (2 - first + 7) % 7 + 1 + 14 ))
+    printf '%s-%s-%02d' "$1" "$2" "$dow"
+}
+
+ihw_oracle_advisories() {
+    local idx="$1" after="$2" today a name type mon yr mm rel state
+    today="$(date +%F)"
+    for a in $(grep -oE 'c(s)?pu[a-z]{3}[0-9]{4}\.html' "$idx" | sort -u); do
+        name="${a%.html}"; type="CPU"; [[ "$name" == cspu* ]] && type="CSPU"
+        mon="${name: -7:3}"; yr="${name: -4}"
+        mm="$(date -d "1 $mon $yr" +%m 2>/dev/null)" || continue
+        rel="$(ihw_third_tuesday "$yr" "$mm")"
+        [[ "$rel" > "$after" ]] || continue
+        state="released"; [[ "$rel" > "$today" ]] && state="announced"
+        printf '%s %s %s https://www.oracle.com/security-alerts/%s %s\n' \
+            "$type" "$name" "$rel" "$a" "$state"
+    done | sort -k3
+}

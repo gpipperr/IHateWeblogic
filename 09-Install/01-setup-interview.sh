@@ -336,6 +336,12 @@ _val_port() {
     return 1
 }
 
+_val_env_type() {
+    case "$1" in test|prod) return 0 ;; esac
+    printf "  \033[31m  Environment type must be test or prod.\033[0m\n"
+    return 1
+}
+
 _val_mrp() {
     if [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ]; then
         return 0
@@ -401,6 +407,8 @@ _ask ORACLE_HOME    "Oracle Home (FMW)"         "${ORACLE_BASE}/fmw"            
 _ask JDK_HOME       "JDK 21 home (symlink)"     "${ORACLE_BASE}/java/jdk-21"       "_val_jdk"
 _ask DOMAIN_HOME    "Domain directory"          "${ORACLE_BASE}/domains/fr_domain" "_val_dir"
 _ask PATCH_STORAGE  "Patch storage directory"   "/srv/patch_storage"               "_val_patch_storage"
+# test = Claude Code may run here (guarded); prod = never (10-Monitoring/setup_claude.md)
+_ask IHW_ENV_TYPE   "Environment type (test|prod)" "prod"                          "_val_env_type"
 # One Oracle Net directory (tnsnames.ora / sqlnet.ora) for every process:
 # Forms default.env (14-), rwserver.conf + reports.sh (13-), setUserOverrides.sh
 # (02-Checks/tns_admin_check.sh), oracle .bash_profile (03-)
@@ -958,6 +966,9 @@ PATCH_STORAGE="${PATCH_STORAGE}"
 # Oracle Net configuration (tnsnames.ora, sqlnet.ora) - ONE directory for Forms,
 # Reports, WebLogic and the oracle shell; check: 02-Checks/tns_admin_check.sh
 TNS_ADMIN="${TNS_ADMIN}"
+# Environment type: test | prod - prod = Claude Code is never used on this host
+# (10-Monitoring/setup_claude.md, claude_setup_check.sh, guard hook)
+IHW_ENV_TYPE="${IHW_ENV_TYPE}"
 
 # --- Component Selection ------------------------------------------------------
 INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"

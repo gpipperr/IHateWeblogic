@@ -438,14 +438,6 @@ fi
 # =============================================================================
 section "6. Oracle security advisories after the configured cycle"
 
-# third Tuesday of month (YYYY MM) -> YYYY-MM-DD
-_third_tuesday() {
-    local first dow
-    first="$(date -d "$1-$2-01" +%u)"          # 1=Mon … 7=Sun
-    dow=$(( (2 - first + 7) % 7 + 1 + 14 ))
-    printf '%s-%s-%02d' "$1" "$2" "$dow"
-}
-
 if ! $ONLINE; then
     info "Skipped – run with --online to compare with https://www.oracle.com/security-alerts/"
 elif [ -z "${PATCH_CYCLE_DATE:-}" ]; then
@@ -455,16 +447,9 @@ else
     if ! curl -sfL -m 30 -A "Mozilla/5.0" -o "$_idx" https://www.oracle.com/security-alerts/; then
         warn "https://www.oracle.com/security-alerts/ not reachable – advisories not checked"
     else
-        _today="$(date +%F)"
         _newer=0
-        for _a in $(grep -oE 'c(s)?pu[a-z]{3}[0-9]{4}\.html' "$_idx" | sort -u); do
-            _name="${_a%.html}"; _type="CPU"; [[ "$_name" == cspu* ]] && _type="CSPU"
-            _mon="${_name: -7:3}"; _yr="${_name: -4}"
-            _mm="$(date -d "1 $_mon $_yr" +%m 2>/dev/null)" || continue
-            _rel="$(_third_tuesday "$_yr" "$_mm")"
-            [[ "$_rel" > "$PATCH_CYCLE_DATE" ]] || continue
-            _url="https://www.oracle.com/security-alerts/$_a"
-            if [[ "$_rel" > "$_today" ]]; then
+        while read -r _type _name _rel _url _state; do
+            if [ "$_state" = "announced" ]; then
                 info "$(printf "  %-5s %s  %s  announced (pre-release) – %s" "$_type" "$_name" "$_rel" "$_url")"
                 _rec advisory "$_name" "announced" "$_rel"
             else
@@ -472,7 +457,7 @@ else
                 _rec advisory "$_name" "released" "$_rel"
                 _newer=$(( _newer + 1 ))
             fi
-        done
+        done < <(ihw_oracle_advisories "$_idx" "$PATCH_CYCLE_DATE")
         [ "$_newer" -eq 0 ] && ok "No advisory released after $PATCH_CYCLE ($PATCH_CYCLE_DATE)"
         [ "$_newer" -gt 0 ] && info "  Next: KA1182 → oracle_software_version.conf, 09-Install/docs/00-patch-references.md"
     fi

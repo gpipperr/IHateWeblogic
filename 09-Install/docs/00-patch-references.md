@@ -28,6 +28,10 @@ traceable what belonged to a cycle, and an environment can be brought
 
 Rule for every new cycle:
 
+0. Start with `10-Monitoring/patch_cycle_analysis.sh` (`prepare`, then
+   `analyse --mode maintainer`) – Claude follows
+   [patch_cycle_analysis_skill.md](../../10-Monitoring/patch_cycle_analysis_skill.md)
+   and does steps 1–4 below, plus `update_plan.md` for the lib switch.
 1. Copy this file to `00-patch-references_<month>_<year>.md` (cycle name,
    e.g. `_october_2026`), add the "Frozen snapshot … Do not edit" header,
    nothing else.

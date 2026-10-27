@@ -53,8 +53,9 @@ log/
 __pycache__/
 *.pyc
 
-# Claude Code session data (local only)
-.claude/
+# Claude Code session data (local only) – except the project skills
+.claude/*
+!.claude/skills/
 CLAUDE.md
 
 # Editor artifacts
@@ -75,6 +76,7 @@ SR/
 
 # CVE watch / monitoring output (server-specific)
 10-Monitoring/reports/
+10-Monitoring/Patch-Doku/
 
 # Customer / licensed fonts – never commit (licence); readme.txt stays
 04-ReportsFonts/custom_fonts_dir/*
