@@ -48,6 +48,11 @@ If `DB_LISTENER_HOST` resolves to `127.x.x.x`, the script warns that
 remote connections (FMW, RCU) will not work.
 Set `DB_LISTENER_HOST` to the external hostname or IP in `environment_db.conf`.
 
+The instance registers with this listener through `local_listener`, which
+`05-db_create_database.sh` sets to the explicit address (not the DBCA alias
+`LISTENER_<SID>`) – see
+[05-db_create_database.md](05-db_create_database.md#step-4-post-creation-parameter-tuning).
+
 ---
 
 ## systemd Unit

@@ -357,6 +357,14 @@ ALTER SYSTEM SET processes              = ${DB_PROCESSES:-1000}              SCO
 ALTER SYSTEM SET session_cached_cursors = ${DB_SESSION_CACHED_CURSORS:-100}  SCOPE=SPFILE;
 ALTER SYSTEM SET db_files               = ${DB_FILES:-600}                   SCOPE=SPFILE;
 
+-- Listener registration without a tnsnames alias: DBCA sets
+-- local_listener=LISTENER_<SID>, an alias that exists only in the tnsnames.ora
+-- of the DB home - an instance started from a shell with the shared TNS_ADMIN
+-- (\$ORACLE_BASE/admin/tns_names) cannot resolve it and does not register
+-- (ORA-12514, "listener supports no services"; live 2026-10-27)
+ALTER SYSTEM SET local_listener = '(ADDRESS=(PROTOCOL=TCP)(HOST=${_listener_host})(PORT=${_listener_port}))' SCOPE=BOTH;
+ALTER SYSTEM REGISTER;
+
 -- Extended string support for FMW VARCHAR columns (static)
 ALTER SYSTEM SET max_string_size = EXTENDED SCOPE=SPFILE;
 

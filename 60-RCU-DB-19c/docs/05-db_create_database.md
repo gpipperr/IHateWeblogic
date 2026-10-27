@@ -155,9 +155,15 @@ Connect to the CDB as SYSDBA and apply parameters that DBCA does not set:
 ```sql
 sqlplus / as sysdba
 
--- Cursor and process limits (RCU parallel sessions + pre-check RCU-6107)
-ALTER SYSTEM SET open_cursors    = 1000 SCOPE=BOTH;
-ALTER SYSTEM SET processes       = 500  SCOPE=SPFILE;
+-- RCU minimums of FMW 14.1.2 (rcu_middleware_architecture.md 9.2)
+ALTER SYSTEM SET open_cursors           = 1600 SCOPE=BOTH;
+ALTER SYSTEM SET processes              = 1000 SCOPE=SPFILE;
+ALTER SYSTEM SET session_cached_cursors = 100  SCOPE=SPFILE;
+ALTER SYSTEM SET db_files               = 600  SCOPE=SPFILE;
+
+-- Listener registration with the explicit address instead of the DBCA alias
+ALTER SYSTEM SET local_listener = '(ADDRESS=(PROTOCOL=TCP)(HOST=<DB_LISTENER_HOST>)(PORT=1521))' SCOPE=BOTH;
+ALTER SYSTEM REGISTER;
 
 -- Extended string support for FMW VARCHAR columns (static — needs restart)
 ALTER SYSTEM SET max_string_size = EXTENDED SCOPE=SPFILE;
@@ -178,6 +184,17 @@ ALTER PLUGGABLE DATABASE ALL OPEN;
 > `ALTER PLUGGABLE DATABASE ALL SAVE STATE` persists the PDB open mode in the
 > CDB data dictionary.  Without it, the PDB must be opened manually after every
 > CDB restart.
+
+> **`local_listener` – no alias.** DBCA sets `local_listener=LISTENER_<SID>`,
+> an alias that exists only in `$DB_ORACLE_HOME/network/admin/tnsnames.ora`.
+> An instance started from a shell whose `TNS_ADMIN` points to the shared
+> directory (`$ORACLE_BASE/admin/tns_names`, one `TNS_ADMIN` for Forms /
+> Reports / WebLogic) cannot resolve it and does **not register** with the
+> listener: `lsnrctl status` shows "The listener supports no services",
+> clients get ORA-12514, the AdminServer hangs in OPSS `JpsStartup` retries
+> (live 2026-10-27, test host). The script therefore sets the explicit
+> address. Existing database:
+> `ALTER SYSTEM SET local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=<host>)(PORT=1521))' SCOPE=BOTH; ALTER SYSTEM REGISTER;`
 
 ---
 
