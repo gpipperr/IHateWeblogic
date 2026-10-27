@@ -17,6 +17,12 @@ schemas only.  Goal: smallest possible footprint on disk and in memory.
 > Oracle Database XE or restricted runtime editions are **not permitted** —
 > they are not certified for FMW RCU.
 >
+> Audit note: the FMW / Forms & Reports licence and RCU do **not** include a
+> free use of the Oracle Database (EE or SE2) – the RCU metadata schemas need a
+> separately licensed database (Oracle Fusion Middleware Licensing Information
+> User Manual, E56762-96). Wording for compliance documents (EN / DE):
+> [rcu_middleware_architecture.md §9.4](../80-FMW-Architecture/rcu_middleware_architecture.md#94-licence--separately-licensed-database-decision-2026-10-27)
+>
 > → Oracle licensing reference: [MOS Doc ID 2605929.1](https://support.oracle.com/epmos/faces/DocumentDisplay?id=2605929.1) (FMW Interoperability Matrix)
 
 ---

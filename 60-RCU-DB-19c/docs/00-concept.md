@@ -87,8 +87,9 @@ Switch to SE2 only when:
 - The DB will never host application data beyond FMW schemas, and
 - No RAC, Partitioning, or Advanced Compression is needed
 
-Licence of the repository DB (own full licence vs. restricted use with the
-FMW licence): **open, to be checked** – §9.4 of the same document.
+Licence of the repository DB: **separately licensed** – the FMW / Forms &
+Reports licence does not include the database (audit wording in §9.4 of the
+same document).
 
 To switch: set `DB_EDITION=SE2` in `environment_db.conf` before running
 `01-db_install_software.sh`.

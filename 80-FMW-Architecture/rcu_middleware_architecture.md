@@ -604,22 +604,46 @@ The existing test DB keeps its values until it is changed by hand
   technically sufficient" in `60-RCU-DB-19c/docs/00-concept.md` is corrected
   (2026-10-27) – SE2 only with the patches above and a test RCU run.
 
-### 9.4 Licence – **open, must be checked**
+### 9.4 Licence – separately licensed database (decision 2026-10-27)
 
-Open question (2026-10-27): is the Enterprise Edition of the repository
-database covered by the WebLogic / Forms & Reports licence (restricted-use
-licence for the FMW repository), or does it need its own full database
-licence?
+Question: is the Enterprise Edition of the repository database covered by
+the WebLogic / Forms & Reports licence? **Answer used by this repository:
+no** – the RCU metadata schemas need a **separately licensed Oracle
+Database** (EE, or SE2 with the restrictions of 9.3).
 
-- This repository says so far: **own full licence** (EE or SE2) – no
-  licence-free special case (`60-RCU-DB-19c/README.md`, licence notice).
-- Not verified: the *Oracle Fusion Middleware Licensing Information User
-  Manual* 14.1.2 (restricted-use rights) could not be read on 2026-10-27; the
-  system requirements say nothing about licences.
-- To do: read the licensing manual (section on restricted-use licences /
-  Oracle Database), and the customer's contract / Oracle licence
-  management; then record the result here and in `60-RCU-DB-19c/README.md`.
-  Until then no licence statement beyond "check".
+Wording for compliance / system documentation (audit note):
+
+> **Licence evidence / audit note:** According to the *Oracle Fusion
+> Middleware Licensing Information User Manual* (section Oracle Forms and
+> Reports / restricted-use licenses), the licence for Oracle Fusion
+> Middleware / Forms & Reports and the use of the Repository Creation
+> Utility (RCU) do **not** entitle to a free use of the Oracle Database
+> (Enterprise or Standard Edition). Operating the RCU metadata schemas
+> requires a separately licensed Oracle Database on the host.
+> Reference: Oracle Fusion Middleware Licensing Information User Manual
+> (document ID E56762-96).
+
+German version (customer documents):
+
+> **Lizenznachweis / Audit-Hinweis:** Gemaess dem Oracle Fusion Middleware
+> Licensing Information User Manual (Abschnitt Oracle Forms and Reports /
+> Restricted-Use Licenses) berechtigt die Lizenz fuer Oracle Fusion
+> Middleware / Forms & Reports sowie der Einsatz des Repository Creation
+> Utility (RCU) nicht zur kostenfreien Nutzung der Oracle Database
+> (Enterprise oder Standard Edition). Der Betrieb der RCU-Metadaten-Schemata
+> setzt eine separat lizenzierte Oracle Datenbank auf dem Host voraus.
+> Referenz: Oracle Fusion Middleware Licensing Information User Manual
+> (Dokumenten-ID: E56762-96).
+
+- Source of the wording: compliance statement provided by the author
+  2026-10-27 – the conservative ("safe side") reading. The manual text
+  itself was not opened from this repository; the exact section / revision
+  should be quoted from the current manual in an audit.
+- Consistent with the licence notice in `60-RCU-DB-19c/README.md` (no
+  licence-free special case for RCU). Oracle Database XE is not an option
+  (not certified for RCU).
+- This is no legal advice – the customer's contract and Oracle licence
+  management decide.
 
 ### 9.5 Checks (implemented 2026-10-27)
 
@@ -679,8 +703,9 @@ All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
 - dbi-services, "Oracle FMW 14 installation: ORA-00439 feature not enabled:
   Fine-grained access control" (SE2, patch 37506854, MOS Doc ID 3083393.1):
   https://www.dbi-services.com/blog/oracle-fmw-14-installation-ora-00439-feature-not-enabled-fine-grained-access-control/
-- Licence: *Oracle Fusion Middleware Licensing Information User Manual* –
-  **to be read** (section 9.4)
+- Licence: *Oracle Fusion Middleware Licensing Information User Manual*
+  (E56762-96), section Oracle Forms and Reports / restricted-use licenses –
+  referenced by the audit wording of 9.4 (manual text not opened here)
 
 **Current (14.1.2)**
 
