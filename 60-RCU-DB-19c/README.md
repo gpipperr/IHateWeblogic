@@ -79,6 +79,7 @@ Run in this order — each step must complete before the next:
 | # | Script | Runs as | What |
 |---|---|---|---|
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
+| 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install via -applyRU |
 | 4 | `04-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
 | 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
@@ -139,6 +140,7 @@ DB_SERVICE=FMWPDB   # PDB service name
 |---|---|
 | [docs/00-concept.md](docs/00-concept.md) | Architecture decisions, FMW/DB separation |
 | [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
+| [docs/00b-db_cvu_check.md](docs/00b-db_cvu_check.md) | Standalone CVU: download (04- `--mos`), checks, fixups, expected findings |
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch via runInstaller -applyRU |
 | [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | DEPRECATED (merged into step 1) |
 | [docs/04-db_setup_listener.md](docs/04-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
@@ -155,3 +157,4 @@ DB_SERVICE=FMWPDB   # PDB service name
 - [FMW 14.1.2 System Requirements](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html#GUID-A5BAA99B-E383-4063-9EF7-BA963CF472A1)
 - [FMW 14.1.2 RCU Guide](https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD)
 - FMW Interoperability Matrix: MOS Doc ID 2605929.1
+- [Cluster Verification Utility downloads](https://www.oracle.com/database/technologies/cvu-downloads.html) – standalone CVU = MOS patch 30839369 (step 0b)

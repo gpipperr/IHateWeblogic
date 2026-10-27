@@ -15,6 +15,8 @@
 #                             -> $PATCH_STORAGE/apex/<ver>/, ords/<ver>/ (version from the ZIP)
 #            MOS, Generic   : APEX patch set bundle (APEX_PATCH_NR, platform 2000P)
 #                             -> $PATCH_STORAGE/apex/<ver>/patch/<nr>/ (--mos)
+#            MOS, Linux     : standalone CVU (DB_CVU_PATCH_NR, only LOCAL_REP_DB=true)
+#                             -> $PATCH_STORAGE/database/cvu/ (--mos)
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
 #            --apply             – eDelivery: create dirs, prompt placement, verify
@@ -615,6 +617,10 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
     esac
 fi
 
+# Standalone CVU for the local RCU database (60-RCU-DB-19c/00b-db_cvu_check.sh)
+DOWNLOAD_CVU=false
+[ "${LOCAL_REP_DB:-false}" = "true" ] && [ -n "${DB_CVU_PATCH_NR:-}" ] && DOWNLOAD_CVU=true
+
 # APEX + ORDS (OTN "latest" ZIPs, version from the ZIP) + APEX patch (MOS Generic)
 DOWNLOAD_APEX=false
 [ "${INSTALL_APEX:-false}" = "true" ] && DOWNLOAD_APEX=true
@@ -646,6 +652,15 @@ if $DOWNLOAD_APEX; then
         fi
     else
         info "$(printf "  %-26s none configured (APEX_PATCH_NR – see the APEX download page)" "APEX patch set bundle")"
+    fi
+fi
+
+if $DOWNLOAD_CVU; then
+    if ls "$PATCH_STORAGE/database/cvu"/p"${DB_CVU_PATCH_NR}"_*.zip >/dev/null 2>&1; then
+        ok "$(printf "  %-26s present  database/cvu/" "CVU $DB_CVU_PATCH_NR (local DB)")"
+    else
+        warn "$(printf "  %-26s MISSING  database/cvu/ (--mos)" "CVU $DB_CVU_PATCH_NR (local DB)")"
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
 fi
 
@@ -950,6 +965,16 @@ if $MOS_MODE; then
             fail "Linux ZIP in $CLIENT_JDK_DIR – the platform $CLIENT_JDK_PLAT was not used"
             MOS_ERRORS=$(( MOS_ERRORS + 1 ))
         fi
+    fi
+
+    # --- Standalone CVU (only local RCU DB) -------------------------------------
+    section "Standalone CVU (patch ${DB_CVU_PATCH_NR:-?}, local RCU DB)"
+    if $DOWNLOAD_CVU; then
+        info "Pre-install check of the 19c host: 60-RCU-DB-19c/00b-db_cvu_check.sh"
+        _mos_download_one "$DB_CVU_PATCH_NR" "$PATCH_STORAGE/database/cvu" "${DB_CVU_REGEXP:-}" \
+            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+    else
+        info "Skipped – LOCAL_REP_DB=${LOCAL_REP_DB:-false} (RCU database on another server)"
     fi
 
     # --- APEX patch set bundle (platform Generic, own .getMOSPatch.cfg) -------

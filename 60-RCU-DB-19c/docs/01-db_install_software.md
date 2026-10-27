@@ -29,6 +29,8 @@ before DBCA (requires the complete DB home).
 
 - `00-root_db_os_baseline.sh --apply` completed
   — creates `/etc/oraInst.loc` pointing to `ORACLE_INVENTORY`
+- Recommended: `00b-db_cvu_check.sh --apply` (standalone CVU, `cluvfy comp sys -r 19`)
+  without unexpected FAILED items — [00b-db_cvu_check.md](00b-db_cvu_check.md)
 - Oracle 19c base ZIP placed at:
   `/srv/patch_storage/database/LINUX.X64_193000_db_home.zip`
   (manual download from eDelivery — see below)

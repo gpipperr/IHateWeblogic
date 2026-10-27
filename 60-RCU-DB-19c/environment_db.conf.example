@@ -114,3 +114,9 @@ MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 # PATCH_STORAGE comes from environment.conf (/srv/patch_storage).
 # Place the 19c base ZIP at: $PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip
 DB_INSTALL_ARCHIVE="${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
+
+# --- Standalone CVU (00b-db_cvu_check.sh) -------------------------------------
+# MOS patch DB_CVU_PATCH_NR (09-Install/oracle_software_version.conf), downloaded
+# by 09-Install/04-oracle_pre_download.sh --apply --mos when LOCAL_REP_DB=true
+DB_CVU_DIR="${PATCH_STORAGE}/database/cvu"
+DB_CVU_HOME="${ORACLE_BASE}/cvu"           # CV home, >= 500 MB

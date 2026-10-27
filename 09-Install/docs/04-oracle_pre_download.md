@@ -133,6 +133,20 @@ older than APEX.
 cfg (`226P`) MOS offers no file for an APEX patch, therefore the APEX
 patch directory gets its own cfg (same mechanism as the client Java).
 
+### Standalone CVU for the local RCU database (`LOCAL_REP_DB=true`)
+
+| Variable | Value | Description |
+|---|---|---|
+| `DB_CVU_PATCH_NR` | `30839369` | MOS "Standalone CVU Platform-specific package supports 21c and 19c" – platform of the master cfg (Linux x86-64) |
+| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
+
+Downloaded with `--mos` only when the RCU database runs on this host
+(`LOCAL_REP_DB=true` from `01-setup-interview.sh`) into
+`$PATCH_STORAGE/database/cvu/`; used by
+[60-RCU-DB-19c/00b-db_cvu_check.sh](../../60-RCU-DB-19c/docs/00b-db_cvu_check.md)
+before the 19c installation. With a remote database the section says
+"skipped".
+
 ### Client Java for the Forms client distribution (getMOSPatch, second platform)
 
 | Variable | Value | Description |
@@ -386,6 +400,9 @@ $PATCH_STORAGE/
 │           ├── .getMOSPatch.cfg  ← "233P;<language>" written for this directory
 │           └── p35702194_2100_MSWIN-x86-64.zip  ← confirmed (live) 2026-10-22, 518 MB:
 │                 jdk-21.0.13.0.2_windows-x64_bin.zip / .exe / .msi + SHA256_VALUES + MD5_VALUES
+├── database/                     ← local RCU DB (60-RCU-DB-19c, only LOCAL_REP_DB=true)
+│   ├── LINUX.X64_193000_db_home.zip  ← 19c base (eDelivery, manual – 01-db_install_software.sh)
+│   └── cvu/                      ← standalone CVU, getMOSPatch DB_CVU_PATCH_NR (00b-db_cvu_check.sh)
 ├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
 │   └── 26.2/
 │       ├── apex_26.2.zip         ← OTN apex-latest.zip, version read from apex_version.txt
