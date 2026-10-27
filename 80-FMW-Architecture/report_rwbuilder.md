@@ -112,17 +112,49 @@ work, the Builder starts from `DOMAIN_HOME\reports\bin\rwbuilder.bat`.
   developers) and `REPORTS_PATH` (sources, libraries, images).
   **confirmed (live)**.
 - **The application database** via SQL*Net (the developer's connect).
-- **The RCU schemas:** whether the Builder itself opens the OPSS / RCU
-  connection at start (e.g. through the domain's `jps-config-jse.xml`) is
-  **not verified** – the cookbook keeps the RCU accounts in the profile
-  without password expiry (`RCU_USER`) to be on the safe side
-  (**assumption**: an expired `RWDEV_*` password stops the Builder).
+- **Not the RCU schemas.** The Reports tools do not touch the repository
+  at runtime – **confirmed (live)** 2026-10-27 on the Linux test host with
+  `strace` (`-e trace=openat,connect`) on `rwconverter` (`rdf → xml`), which
+  uses the same tools runtime and the same `reptools1` instance as the
+  Builder:
+
+  | Run | Network connections | OPSS / wallet files |
+  |---|---|---|
+  | without `userid` (stops at the logon) | **none** – only local Unix sockets | no `jps-config*.xml`, no `cwallet.sso` / bootstrap wallet opened |
+  | with `userid` (test user) | **exactly one** TCP connection to port 1521 = the report's own logon | none |
+
+  Read from the domain: only files of the ReportsTools instance
+  (`tools/admin/prefs.ora`, AFM / PPD of `guicommon`); no connection to the
+  AdminServer (7001). The OPSS / JDBC JARs are on the class path, but
+  nothing opens the OPSS store.
+  The **Builder GUI** itself could not be traced on the test host (no
+  display) – **assumption** with high confidence (same runtime); test at
+  the customer: stop the RCU database service, start `rwbuilder.bat`,
+  connect to the application DB, run a preview.
+
+### 3.3 What the RCU database is still needed for
+
+| Task | Needs the RCU DB (+ AdminServer) |
+|---|---|
+| daily Builder work (`rwbuilder`, `rwconverter`, `rwrun`) | **no** (3.2) |
+| OPatch patches of the Oracle Home | **no** – they change only the Oracle Home ([rcu_middleware_architecture.md §7](rcu_middleware_architecture.md#7-patching-and-the-schemas--how-oracle-intends-it)) |
+| change the domain, create another ReportsTools instance, start the AdminServer (OPSS lives in `<prefix>_OPSS`) | **yes** |
+| version upgrade (14.1.2 → next release): Upgrade Assistant upgrades schemas **and** domain | **yes** – without the schemas an upgrade means a new installation |
+
+Consequence for a builder server with its **own** RCU database: keep the
+schemas and the database installation, but the database service does not
+have to run during daily work – start type "manual", started only for
+domain changes and upgrades; saves memory for the RDP sessions. Keep the
+`RWDEV_*` accounts in the profile without password expiry (`RCU_USER`)
+anyway – an expired account surfaces only when the AdminServer is needed
+again, i.e. at the worst moment.
 
 ## 4. Windows specifics
 
 | Topic | Fact | Marker |
 |---|---|---|
 | **Developer accounts** | A normal user cannot start the Builder: the Oracle installer **breaks the ACL inheritance** under the Oracle base (`E:\oracle`), a group granted on `E:\oracle` does not reach the subfolders; setting ACLs folder by folder is error-prone and has to be repeated after patches (**assumption** for patches). Decision: one personal account per developer in the local group "Administrators" | **confirmed (live)** 2026-10-27 |
+| Own RCU database on the builder server | only needed for domain changes and upgrades (3.3) – service start type "manual" | **confirmed (live)** for the tools runtime (`strace`), Builder GUI test open |
 | RDP sessions | Windows Server allows **2 concurrent administrative RDP sessions without RDS licences** – fits 2 developers with admin accounts; from the third concurrent user the customer needs Remote Desktop Services licensing | **documented** (Windows Server) |
 | One installation account | install and patch always with the same local admin account (OPatch: "same user as the installation"), `cmd` "Run as administrator" | **documented** (patch READMEs) |
 | Visual C++ runtime | x64 **and** x86 redistributable, otherwise "MSVCP100.dll not found" | **documented** (pipperr.de), part of the cookbook |

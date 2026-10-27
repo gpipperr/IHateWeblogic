@@ -310,8 +310,10 @@ SCHRITT 5: RCU-Schemas in der bestehenden Datenbank anlegen  [live 2026-10-27]
 
   rem Danach vom DB-Team: die RWDEV_*-Schemas in das Profil ohne
   rem Kennwortablauf (RCU_USER) haengen - sonst laeuft nach 180 Tagen das
-  rem Kennwort ab und der Builder (OPSS) laesst sich nicht mehr starten
-  rem (Reports_kochbuch_de.txt Schritt 3, "Kennwort-Ablauf").
+  rem Kennwort ab und der AdminServer (OPSS) startet nicht mehr, wenn er
+  rem fuer eine Domain-Aenderung oder ein Upgrade gebraucht wird
+  rem (Reports_kochbuch_de.txt Schritt 3, "Kennwort-Ablauf"). Der Builder
+  rem selbst nutzt die RCU-Schemas im Alltag nicht (Schritt 10).
 
 
 ================================================================================
@@ -465,6 +467,28 @@ SCHRITT 10: Betrieb, Patchen, bekannte Probleme
   Der AdminServer muss im Alltag NICHT laufen. Er wird nur gebraucht, um
   eine weitere Tools-Instanz anzulegen oder die Domain zu aendern.
 
+  RCU-Datenbank im Alltag  [gemessen 2026-10-27, Builder-GUI beim Kunden pruefen]
+  - Die Reports-Werkzeuge nutzen die RCU-Schemas zur Laufzeit NICHT:
+    Messung mit strace auf dem Linux-Testsystem (rwconverter, gleiche
+    Laufzeit und gleiche Tools-Instanz wie der Builder) - keine OPSS-/
+    Wallet-Datei geoeffnet, keine Verbindung zum AdminServer, als einzige
+    DB-Verbindung die Anmeldung des Berichts selbst.
+  - Gebraucht wird die RCU-Datenbank nur fuer: Domain aendern, weitere
+    Tools-Instanz anlegen, AdminServer starten - und fuer ein spaeteres
+    Versions-Upgrade (Upgrade Assistant aktualisiert Schemas UND Domain;
+    ohne Schemas = Neuinstallation). OPatch-Patches brauchen sie nicht.
+  - Eigene RCU-DB auf diesem Server: Schemas und DB behalten, den
+    DB-Dienst aber auf Starttyp "Manuell" stellen - spart RAM fuer die
+    RDP-Sitzungen. Nur fuer Domain-Aenderungen / Upgrade starten:
+      sc config OracleService<SID> start= demand
+      net stop OracleService<SID>        (bzw. net start ... bei Bedarf)
+  - Einmal pruefen (Builder-GUI ist noch nicht gemessen): DB-Dienst
+    stoppen, rwbuilder.bat starten, mit der Anwendungs-DB verbinden,
+    Vorschau erzeugen. Klappt das, ist es bestaetigt.
+  - Profil RCU_USER (kein Kennwortablauf) fuer RWDEV_* trotzdem setzen -
+    ein abgelaufenes Konto faellt sonst erst auf, wenn der AdminServer
+    gebraucht wird.
+
   Problem: Builder startet mit einem normalen Benutzerkonto nicht, auch
            wenn eine Gruppe auf E:\oracle Lese-/Ausfuehrrechte hat
   Ursache: der Oracle-Installer bricht die Rechte-Vererbung unter E:\oracle
@@ -477,9 +501,12 @@ SCHRITT 10: Betrieb, Patchen, bekannte Probleme
   Problem: "MSVCP100.dll wurde nicht gefunden" beim Start des Builders
   Loesung: Visual C++ Redistributable x64 UND x86 installieren (Schritt 1)
 
-  Problem: Builder startet nicht, Fehler zu OPSS / Datenbank
-  Ursache: Kennwort eines RWDEV_*-Schemas abgelaufen oder Konto gesperrt
-  Loesung: DB-Team: Profil RCU_USER, Konto entsperren (Schritt 5)
+  Problem: AdminServer startet nicht (fuer Domain-Aenderung / Upgrade),
+           Fehler zu OPSS / Datenbank
+  Ursache: RCU-DB-Dienst nicht gestartet, Kennwort eines RWDEV_*-Schemas
+           abgelaufen oder Konto gesperrt
+  Loesung: DB-Dienst starten; DB-Team: Profil RCU_USER, Konto entsperren
+           (Schritt 5)
 
   Problem: Vorschau im Builder sieht anders aus als die PDF vom Server
   Ursache: andere Fonts / uifont.ali als auf dem Linux-Server
