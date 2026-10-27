@@ -7,18 +7,25 @@
                fuer 2022 zertifiziert - Certification Matrix vor der
                Installation pruefen; 2025 von pipperr.de erfolgreich getestet),
                FMW 14.1.2.0.0, Oracle Reports 14.1.2, Patchstand CPU Okt 2026
-  Erstellt   : 2026-10-26
+  Erstellt   : 2026-10-26, ergaenzt 2026-10-27 (Benutzerrechte, live)
   Grundlage  : Oracle-Doku Forms 14.1.2 Kap. 5 + Reports-Installation 12.2.1.3
                (gilt laut Oracle unveraendert fuer 14.1.2), pipperr.de
                "Oracle Reports 14c unter Windows", IHateWeblogic 70-Customer-
                Projects/Reports14_Only_manuall_install (Linux-Server, gleicher
                Kunde). Hintergrund und Entscheidung: README.md in diesem Ordner.
-  Status     : DOKUMENTIERT - beim Kunden live zu pruefen. Jeder Schritt ist
-               markiert: [Doku] = aus der Oracle-Doku / dem Linux-Server
-               uebernommen, [live] = auf einem Windows-System bestaetigt.
+  Status     : LIVE BESTAETIGT 2026-10-27 beim Kunden (Windows Server 2025,
+               CPU Okt 2026): alle Schritte 1-9 genau so durchgespielt und
+               erfolgreich. Markierung je Schritt: [live 2026-10-27].
+               Einzige Ergaenzung aus dem Lauf: Entwickler-Konten mit lokalen
+               Admin-Rechten ("Benutzerkonten" unten).
+               Fuer das naechste Mal: Die MOS-Patches einzeln zu laden dauert
+               zu lange - ein Download-Skript mit Liste ist als TODO notiert
+               (README.md dieses Ordners, offener Punkt 7).
 
   Ziel       : Entwickler starten per RDP den Reports Builder
-               (rwbuilder.bat). Es laeuft KEIN WebLogic, kein Windows-Dienst,
+               (rwbuilder.bat) - mit einem Konto mit LOKALEN
+               ADMINISTRATOR-RECHTEN (siehe "Benutzerkonten" unten, live
+               bestaetigt 2026-10-27). Es laeuft KEIN WebLogic, kein Windows-Dienst,
                kein SSL. Die Berichte laufen zum Testen auf dem
                Linux-Reports-Server.
   Warum eine Domain trotzdem: Der Builder braucht eine Reports-Tools-
@@ -46,6 +53,29 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
     set DB_PORT=1521
     set DB_SERVICE=<pdb-service>
     set DB_SCHEMA_PREFIX=RWDEV
+
+  BENUTZERKONTEN DER ENTWICKLER  [live 2026-10-27]
+  ------------------------------------------------
+  Mit einem normalen Benutzerkonto (ohne Admin-Rechte) laesst sich der
+  Builder nach der Installation NICHT starten:
+  - Der Oracle-Installer bricht beim Installieren die Rechte-Vererbung
+    unter E:\oracle (setzt eigene, explizite Rechte auf die Unterordner).
+  - Eine Gruppe, die man auf E:\oracle berechtigt (z.B. "Reports-
+    Entwickler", Lesen/Ausfuehren), kommt deshalb in den Unterordnern
+    nicht an.
+  - Die Rechte muessten Ordner fuer Ordner von Hand gesetzt werden - sehr
+    aufwendig, fehleranfaellig und nach Patches erneut zu pruefen
+    (Annahme: OPatch legt Dateien mit den Rechten des Installationskontos
+    an).
+  Entscheidung: Die Entwickler arbeiten per RDP mit einem Konto mit
+  LOKALEN ADMINISTRATOR-RECHTEN auf diesem Server.
+  - Je Entwickler ein EIGENES Konto (persoenlich, nicht ORASYSTEM teilen),
+    Mitglied der lokalen Gruppe "Administratoren".
+  - Der Server dient nur der Builder-Entwicklung (keine Produktion, keine
+    weiteren Dienste); Zugriff nur per RDP aus dem Admin-/Entwicklernetz.
+  - Lizenz-Nebeneffekt: Windows Server erlaubt 2 gleichzeitige
+    Admin-RDP-Sitzungen OHNE RDS-Lizenzen - passt fuer 2 Entwickler; ab dem
+    dritten gleichzeitigen Benutzer RDS-Lizenzierung beim Kunden klaeren.
 
   Regeln:
   - Pfade OHNE Leerzeichen und kurz halten (Windows: lange
@@ -110,12 +140,12 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
   Builder-Sitzung grob 0,5-1 GB (Annahme - im Betrieb messen); beim Kunden
   2 Entwickler -> 12 GB.
   RDP: Windows Server erlaubt 2 gleichzeitige Admin-Sitzungen ohne
-  RDS-Lizenzen; arbeiten die Entwickler mit normalen Benutzerkonten, ist
-  das ein Remote-Desktop-Session-Host-Thema (Lizenzierung beim Kunden).
+  RDS-Lizenzen - die Entwickler arbeiten mit lokalen Admin-Konten (siehe
+  "Benutzerkonten"), fuer 2 Entwickler reicht das.
 
 
 ================================================================================
-SCHRITT 1: Windows vorbereiten und JDK installieren  [Doku]
+SCHRITT 1: Windows vorbereiten und JDK installieren  [live 2026-10-27]
 ================================================================================
 
   rem 1.1 Visual C++ Runtime (x64 und x86) installieren, dann:
@@ -148,7 +178,7 @@ SCHRITT 1: Windows vorbereiten und JDK installieren  [Doku]
 
 
 ================================================================================
-SCHRITT 2: FMW Infrastructure installieren  [Doku]
+SCHRITT 2: FMW Infrastructure installieren  [live 2026-10-27]
 ================================================================================
 
   cd %PATCH_STORAGE%
@@ -169,7 +199,7 @@ SCHRITT 2: FMW Infrastructure installieren  [Doku]
 
 
 ================================================================================
-SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [Doku]
+SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [live 2026-10-27]
 ================================================================================
 
   cd %PATCH_STORAGE%
@@ -191,7 +221,7 @@ SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [Doku]
 
 
 ================================================================================
-SCHRITT 4: Patchen - CPU Oktober 2026  [Doku, Windows-Varianten pruefen]
+SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
 ================================================================================
 
   rem Gleicher Patchstand wie der Linux-Reports-Server (FMW_Kochbuch_de.txt
@@ -260,7 +290,7 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [Doku, Windows-Varianten pruefen]
 
 
 ================================================================================
-SCHRITT 5: RCU-Schemas in der bestehenden Datenbank anlegen  [Doku]
+SCHRITT 5: RCU-Schemas in der bestehenden Datenbank anlegen  [live 2026-10-27]
 ================================================================================
 
   rem Legt KEINE Datenbank an - nur Schemas mit eigenem Praefix (z.B.
@@ -285,7 +315,7 @@ SCHRITT 5: RCU-Schemas in der bestehenden Datenbank anlegen  [Doku]
 
 
 ================================================================================
-SCHRITT 6: Builder-Domain anlegen - nur JRF + EM + Reports Tools  [Doku]
+SCHRITT 6: Builder-Domain anlegen - nur JRF + EM + Reports Tools  [live 2026-10-27]
 ================================================================================
 
   %ORACLE_HOME%\oracle_common\common\bin\config.cmd
@@ -317,7 +347,7 @@ SCHRITT 6: Builder-Domain anlegen - nur JRF + EM + Reports Tools  [Doku]
 
 
 ================================================================================
-SCHRITT 7: Reports-Tools-Instanz anlegen (einmalig)  [Doku]
+SCHRITT 7: Reports-Tools-Instanz anlegen (einmalig)  [live 2026-10-27]
 ================================================================================
 
   rem 7.1 AdminServer EINMAL im Vordergrund starten (eigenes Fenster),
@@ -339,7 +369,7 @@ SCHRITT 7: Reports-Tools-Instanz anlegen (einmalig)  [Doku]
 
 
 ================================================================================
-SCHRITT 8: Builder fuer die Entwickler einrichten  [Doku]
+SCHRITT 8: Builder fuer die Entwickler einrichten  [live 2026-10-27]
 ================================================================================
 
   rem 8.1 Datenbankverbindungen: tnsnames.ora + sqlnet.ora nach
@@ -354,7 +384,7 @@ SCHRITT 8: Builder fuer die Entwickler einrichten  [Doku]
   copy %DOMAIN_HOME%\reports\bin\reports.bat %DOMAIN_HOME%\reports\bin\reports.bat.orig
   findstr /i REPORTS_PATH %DOMAIN_HOME%\reports\bin\reports.bat
   rem   Verzeichnis vorne an die bestehende REPORTS_PATH-Zeile anhaengen
-  rem   (Stelle in der Datei pruefen - [live] bestaetigen)
+  rem   (Stelle in der Datei pruefen - beim Kunden 2026-10-27 so umgesetzt)
 
   rem 8.3 Fonts: dieselben TrueType-Fonts wie auf dem Linux-Server (als
   rem     Administrator fuer ALLE Benutzer installieren) und dieselbe
@@ -368,15 +398,25 @@ SCHRITT 8: Builder fuer die Entwickler einrichten  [Doku]
   rem     C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle Reports Builder.lnk
   rem     Ziel     : %DOMAIN_HOME%\reports\bin\rwbuilder.bat
   rem     Ausfuehren in: %DOMAIN_HOME%\reports\bin
-  rem     Die Entwickler brauchen Lese-/Ausfuehrrechte auf E:\oracle und
-  rem     Schreibrechte auf das Quellverzeichnis und ihr TEMP.
+  rem     Die Entwickler-Konten sind lokale Administratoren (siehe
+  rem     "Benutzerkonten" in den Voraussetzungen) - ein normales Konto mit
+  rem     nur Lese-/Ausfuehrrechten auf E:\oracle reicht NICHT, weil der
+  rem     Installer die Rechte-Vererbung unter E:\oracle gebrochen hat.
+  rem     Konten anlegen (Beispiel, als Administrator):
+  rem       net user rwdev1 * /add
+  rem       net localgroup Administratoren rwdev1 /add
+  rem       (englisches Windows: Gruppe "Administrators")
+  rem     Schreibrechte auf das Quellverzeichnis (E:\reports\src) haben
+  rem     Administratoren damit ohnehin.
 
 
 ================================================================================
-SCHRITT 9: Test  [Doku]
+SCHRITT 9: Test  [live 2026-10-27]
 ================================================================================
 
-  rem 9.1 Builder starten (als normaler Entwickler per RDP)
+  rem 9.1 Builder starten (als Entwickler per RDP - Konto mit lokalen
+  rem     Admin-Rechten, NICHT als ORASYSTEM)  [live 2026-10-27: mit einem
+  rem     normalen Benutzerkonto startet er nicht]
   %DOMAIN_HOME%\reports\bin\rwbuilder.bat
   rem   Help -> About: Version 14.1.2.0.0
   rem   Verbinden ("Stecker"-Symbol) mit einem tnsnames-Alias
@@ -407,6 +447,15 @@ SCHRITT 10: Betrieb, Patchen, bekannte Probleme
 
   Der AdminServer muss im Alltag NICHT laufen. Er wird nur gebraucht, um
   eine weitere Tools-Instanz anzulegen oder die Domain zu aendern.
+
+  Problem: Builder startet mit einem normalen Benutzerkonto nicht, auch
+           wenn eine Gruppe auf E:\oracle Lese-/Ausfuehrrechte hat
+  Ursache: der Oracle-Installer bricht die Rechte-Vererbung unter E:\oracle
+           (explizite Rechte je Unterordner) - die Gruppe kommt unten nicht
+           an  [live 2026-10-27]
+  Loesung: Entwickler-Konten als lokale Administratoren (Voraussetzungen,
+           "Benutzerkonten"); Rechte von Hand je Ordner zu setzen ist nicht
+           empfohlen (aufwendig, nach Patches erneut)
 
   Problem: "MSVCP100.dll wurde nicht gefunden" beim Start des Builders
   Loesung: Visual C++ Redistributable x64 UND x86 installieren (Schritt 1)

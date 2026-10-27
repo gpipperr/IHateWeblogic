@@ -26,6 +26,9 @@ environment on a central Windows Server (developers via RDP). Analysis of the
 Oracle docs (no "Standalone Reports Builder" like for Forms – the Reports Tools
 template needs JRF + EM + RCU) and a cookbook for a builder-only domain without
 Reports server, Windows services or SSL; reports are tested on the Linux server.
+**Live-confirmed 2026-10-27** at the customer (Windows Server 2025, CPU
+October 2026) – developers need local admin accounts (the installer breaks the
+ACL inheritance under the Oracle base).
 
 ### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
 
