@@ -10,6 +10,9 @@ ausgeführt und getestet.
 → Schritt-für-Schritt-Anleitung:
 [ReportBuilder_Windows_Kochbuch_de.txt](ReportBuilder_Windows_Kochbuch_de.txt)
 
+→ Architektur und Idee (englisch):
+[80-FMW-Architecture/report_rwbuilder.md](../../80-FMW-Architecture/report_rwbuilder.md)
+
 ## Die Frage: geht der Reports Builder ohne den kompletten FMW-Stack?
 
 Für Forms gibt es die Installationsart **„Standalone Forms Builder“** – ein

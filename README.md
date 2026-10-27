@@ -612,6 +612,8 @@ IHateWeblogic/
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
 │   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
 │   │                                      rwrun call flow (§5.1), performance parameters, history
+│   ├── report_rwbuilder.md          – Reports Builder minimal setup on Windows (RDP): builder-only
+│   │                                      domain, no running server stack, local-admin finding
 │   ├── weblogic_outbound_connections.md – what the domain sends outside, external-DTD trap
 │   ├── forms_runtime_architecture.md – Forms servlet / listener / frmweb per session, runtime
 │   │                                      pooling, timeout chain, memory, logs, protocol history

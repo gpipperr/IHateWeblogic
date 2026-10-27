@@ -57,6 +57,35 @@ Only the last two need attention after a migration.
   – if the image then appears, the assumption is confirmed. Diagnosis only,
   not a solution (unreadable names, one copy per distinct path).
 
+### 2.1 Who searches where – and with which separator
+
+The same report runs in three places; each reads its search path from a
+different file, and the separators differ:
+
+| Who | Reads the search path from | Variable / element | Separator | Marker |
+|---|---|---|---|---|
+| **Reports Builder on Windows** (`rwbuilder.bat`, also `rwconverter.bat`) | `DOMAIN_HOME\reports\bin\reports.bat` | `REPORTS_PATH` | **`;`** (Windows path list; `E:` contains a colon itself) | **documented** (Windows convention), Builder cookbook 8.2 |
+| **Engines of the Linux Reports server** | `rwserver.conf` → `<environment>` → `<envVariable name="REPORTS_PATH">` | `REPORTS_PATH` | **`:`** (Linux environment variable) | **confirmed (live)** 2026-10-16 |
+| **Reports tools on Linux** (`rwrun`, `rwconverter`, Builder) | `$DOMAIN_HOME/reports/bin/reports.sh` (+ shell) – they do **not** read `rwserver.conf` | `REPORTS_PATH` | **`:`** | **confirmed (live)** |
+| **Permission of the Linux Reports server** (where it may *read* report files) | `rwserver.conf` → `<folderAccess>` | **one** `<read>` element | **`;` – also on Linux** (`:` and `,` are taken as part of one wrong directory name; a second `<read>` overrides the first; no subdirectories) | **confirmed (live)** 2026-10-16, section 3 |
+
+Rules that make one `.rdf` work everywhere:
+
+- image references carry the **file name only** (`logo.gif`) – a path is
+  searched literally, on Linux a Windows path never resolves (`REP-108`,
+  above);
+- the image directory is part of **every** search path above (Windows
+  `reports.bat`, Linux `rwserver.conf` + `reports.sh`) **and** of
+  `<folderAccess><read>` on the server;
+- the same file names on both sides, **lower case** – Windows finds
+  `Logo.GIF` as `logo.gif`, Linux does not;
+- after changing `rwserver.conf` the Reports server has to be restarted
+  (stop + start, section 3); `reports.bat` / `reports.sh` take effect with
+  the next tool start.
+
+Development workflow with this (copy old report → remove paths → Git → DEV
+server): [report_rwbuilder.md §6](report_rwbuilder.md#6-development-workflow--from-the-old-report-to-the-linux-dev-server).
+
 ## 3. `<folderAccess>` – where the server may read
 
 `REPORTS_PATH` says **where to search**, `<folderAccess>` says **where the

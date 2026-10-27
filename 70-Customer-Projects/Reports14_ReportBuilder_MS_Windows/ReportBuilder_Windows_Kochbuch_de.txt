@@ -379,12 +379,29 @@ SCHRITT 8: Builder fuer die Entwickler einrichten  [live 2026-10-27]
 
   rem 8.2 Berichtsquellen: gemeinsames Verzeichnis, z.B. E:\reports\src
   rem     (oder Arbeitskopie einer Versionsverwaltung je Entwickler).
+  rem     Bilder: eigenes Bildverzeichnis, z.B. E:\reports\images - das
+  rem     Gegenstueck zu REPORTS_IMAGE_DIR auf dem Linux-Server, mit
+  rem     DENSELBEN Dateinamen, klein geschrieben (Linux unterscheidet
+  rem     Gross-/Kleinschreibung, Windows nicht - ein Bild, das unter
+  rem     Windows als "Logo.GIF" gefunden wird, fehlt sonst auf dem Server).
   rem     REPORTS_PATH (Suchpfad fuer Berichte, Bibliotheken, Bilder) in
   rem     reports.bat ergaenzen - vorher sichern:
+  mkdir E:\reports\src E:\reports\images
   copy %DOMAIN_HOME%\reports\bin\reports.bat %DOMAIN_HOME%\reports\bin\reports.bat.orig
   findstr /i REPORTS_PATH %DOMAIN_HOME%\reports\bin\reports.bat
-  rem   Verzeichnis vorne an die bestehende REPORTS_PATH-Zeile anhaengen
+  rem   Beide Verzeichnisse VORNE an die bestehende REPORTS_PATH-Zeile
+  rem   anhaengen, Trennzeichen unter Windows ";" (NICHT ":" wie unter
+  rem   Linux - "E:" enthaelt selbst einen Doppelpunkt). Den bisherigen
+  rem   Wert der Zeile hinten stehen lassen, z.B.:
+  rem     set REPORTS_PATH=E:\reports\src;E:\reports\images;<bisheriger Wert>
   rem   (Stelle in der Datei pruefen - beim Kunden 2026-10-27 so umgesetzt)
+  rem   Kontrolle in einer neuen cmd-Shell:
+  rem     call %DOMAIN_HOME%\reports\bin\reports.bat && echo %REPORTS_PATH%
+  rem   Im Bericht nur den DATEINAMEN des Bildes eintragen (logo.gif),
+  rem   keinen Pfad - gefunden wird ueber REPORTS_PATH, unter Windows wie
+  rem   auf dem Linux-Server (dort sonst REP-108, kein Rueckfall auf den
+  rem   Dateinamen). Uebersicht wer wo sucht:
+  rem   80-FMW-Architecture/report_server_image_handling.md, Abschnitt 2.1
 
   rem 8.3 Fonts: dieselben TrueType-Fonts wie auf dem Linux-Server (als
   rem     Administrator fuer ALLE Benutzer installieren) und dieselbe
