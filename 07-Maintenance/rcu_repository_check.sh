@@ -35,6 +35,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_CONF="$ROOT_DIR/environment.conf"
 DB_SYS_SEC_FILE="$ROOT_DIR/db_sys_sec.conf.des3"
 OVERVIEW_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_registry_overview.sql"
+REQ_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_db_requirements.sql"
 
 LIB="$ROOT_DIR/00-Setup/IHateWeblogic_lib.sh"
 if [ ! -f "$LIB" ]; then
@@ -114,6 +115,7 @@ SQLEOF
 }
 
 OUT="$(_sys_sql "@${OVERVIEW_SQL}
+@${REQ_SQL}
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 400
 SELECT 'REG|' || comp_id || '|' || owner || '|' || version || '|' || status || '|' || upgraded || '|' || NVL(edition,'-')
   FROM system.schema_version_registry\$ WHERE mrc_name = '${PFX}' ORDER BY owner;
@@ -168,6 +170,9 @@ while IFS='|' read -r t p n miss prof st exp ebr; do
 done <<< "$OUT"
 info "  * = this domain (DB_SCHEMA_PREFIX); other prefixes are only reported"
 unset _sf
+
+info "Database requirements (FMW 14.1.2, rcu_middleware_architecture.md 9):"
+rcu_db_req_eval "$OUT"
 
 # =============================================================================
 # 2. Registry rows of the prefix

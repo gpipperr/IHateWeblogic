@@ -75,8 +75,10 @@ init_log "$DIAG_LOG_DIR"
 APPLY=false
 DROP=false
 PROFILE_ONLY=false
+CHECK_ONLY=false
 PROFILE_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_user_profile.sql"
 OVERVIEW_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_registry_overview.sql"
+REQ_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_db_requirements.sql"
 PREFIXES=()
 RCU_DB_PROFILE="${RCU_DB_PROFILE:-RCU_USER}"
 
@@ -85,6 +87,7 @@ _usage() {
     printf "  %-12s %s\n" "(none)"   "Dry-run: show connection info and schema names"
     printf "  %-12s %s\n" "--apply"  "Run RCU -createRepository (create 8 FMW component schemas)"
     printf "  %-12s %s\n" "--drop"   "Run RCU -dropRepository (CAUTION: destroys all FMW data)"
+    printf "  %-12s %s\n" "--check"  "Only check the DB requirements (version, edition, AL32UTF8, JVM, parameters) – read-only"
     printf "  %-12s %s\n" "--profile" "Only assign DB profile ${RCU_DB_PROFILE} (no expiry/lock) to existing schemas"
     printf "  %-12s %s\n" "--prefix P" "With --profile: prefix to assign (repeatable), default DB_SCHEMA_PREFIX"
     printf "  %-12s %s\n" "--help"   "Show this help"
@@ -97,6 +100,7 @@ while [ $# -gt 0 ]; do
         --apply)   APPLY=true ;;
         --drop)    DROP=true  ;;
         --profile) PROFILE_ONLY=true ;;
+        --check)   CHECK_ONLY=true ;;
         --prefix)
             [[ "${2:-}" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] \
                 || { printf "\033[31mERROR\033[0m --prefix needs a prefix (letters/digits): %s\n" "${2:-}" >&2; exit 1; }
@@ -115,6 +119,9 @@ PREFIX_LIST="$(IFS=,; printf '%s' "${PREFIXES[*]}")"
 
 if $APPLY && $DROP; then
     printf "\033[31mERROR\033[0m --apply and --drop are mutually exclusive\n" >&2; exit 1
+fi
+if $CHECK_ONLY && { $APPLY || $DROP || $PROFILE_ONLY; }; then
+    printf "\033[31mERROR\033[0m --check cannot be combined with --apply / --drop / --profile\n" >&2; exit 1
 fi
 if $PROFILE_ONLY && { $APPLY || $DROP; }; then
     printf "\033[31mERROR\033[0m --profile cannot be combined with --apply / --drop\n" >&2; exit 1
@@ -216,10 +223,11 @@ done
 unset _c _s
 
 # --- Dry-run exit -------------------------------------------------------------
-if ! $APPLY && ! $DROP && ! $PROFILE_ONLY; then
+if ! $APPLY && ! $DROP && ! $PROFILE_ONLY && ! $CHECK_ONLY; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "Dry-run – use --apply to create schemas or --drop to drop them."
     info "DB credentials will be read from: $DB_SYS_SEC_FILE"
+    info "Read-only DB requirement check: $(basename "$0") --check"
     print_summary
     exit $EXIT_CODE
 fi
@@ -319,6 +327,21 @@ SQLEOF
     fi
     return 0
 }
+
+if $CHECK_ONLY; then
+    section "Database requirements (FMW 14.1.2) – ${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
+    _req="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$ORACLE_HOME/bin/sqlplus" -S -L /nolog 2>&1 <<SQLEOF
+CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
+@${REQ_SQL}
+EXIT;
+SQLEOF
+)"
+    unset DB_SYS_PWD DB_SCHEMA_PWD
+    printf '%s\n' "$_req" >> "$LOG_FILE"
+    rcu_db_req_eval "$_req"
+    info "Requirements: 80-FMW-Architecture/rcu_middleware_architecture.md section 9"
+    print_summary; exit $EXIT_CODE
+fi
 
 if $PROFILE_ONLY; then
     section "DB Profile ${RCU_DB_PROFILE}"
@@ -458,9 +481,20 @@ if ! $DROP && [ -x "$ORACLE_HOME/bin/sqlplus" ] && [ -f "$OVERVIEW_SQL" ]; then
     _pf="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$ORACLE_HOME/bin/sqlplus" -S -L /nolog 2>&1 <<SQLEOF
 CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
 @${OVERVIEW_SQL}
+@${REQ_SQL}
 EXIT;
 SQLEOF
 )"
+    # FMW 14.1.2 DB requirements (rcu_middleware_architecture.md 9): version,
+    # edition, AL32UTF8, Oracle JVM, parameter minimums
+    info "Database requirements (FMW 14.1.2, ${DB_SERVICE}):"
+    _cnt_fail_before=$CNT_FAIL
+    rcu_db_req_eval "$_pf"
+    if [ "$CNT_FAIL" -gt "$_cnt_fail_before" ] && $APPLY; then
+        fail "Database does not meet the RCU requirements – fix the FAIL items first"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    unset _cnt_fail_before
     _sf="$(printf '%s\n' "$_pf" | sed -n 's/^IHW:SECUREFILE|//p' | head -1)"
     if [ -z "$_sf" ]; then
         warn "db_securefile could not be read (sqlplus) – skipped"

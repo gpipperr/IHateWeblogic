@@ -73,12 +73,22 @@ holds all unified audit data.
 `environment_db.conf`).  EE avoids any certification edge cases with FMW
 components and is the safe choice for all production and development setups.
 
-SE2 (Standard Edition 2) is technically sufficient for a pure RCU metadata
-database: it supports CDB/PDB (up to 3 PDBs since 19.7) and Unified
-Auditing.  Switch to SE2 only when:
+SE2 (Standard Edition 2) supports CDB/PDB (up to 3 PDBs since 19.7) and
+Unified Auditing, but **RCU 14.1.2 uses Enterprise-Edition features**: on
+SE2 it fails with ORA-00439 "feature not enabled: Fine-grained access
+control" (VPD – workaround patch 37506854, MOS Doc ID 3083393.1) and
+ORA-00439 Partitioning with EBR / UMS (bugs 37603856 / 37555123, UMS bundle
+patch) – see
+[rcu_middleware_architecture.md §9.3](../../80-FMW-Architecture/rcu_middleware_architecture.md#93-edition--ee-se2-only-with-workaround-patches).
+Switch to SE2 only when:
 - The license budget explicitly requires SE2, and
+- the workaround patches are applied to the FMW home and a test RCU run
+  succeeded, and
 - The DB will never host application data beyond FMW schemas, and
 - No RAC, Partitioning, or Advanced Compression is needed
+
+Licence of the repository DB (own full licence vs. restricted use with the
+FMW licence): **open, to be checked** – §9.4 of the same document.
 
 To switch: set `DB_EDITION=SE2` in `environment_db.conf` before running
 `01-db_install_software.sh`.

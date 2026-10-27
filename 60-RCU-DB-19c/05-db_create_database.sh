@@ -170,8 +170,10 @@ printList "Admin dir"         28 "${DB_ADMIN_DIR:-$ORACLE_BASE/admin}"
 printList "Archivelog"        28 "${DB_ARCHIVELOG:-false}"
 printList "Listener host"     28 "$_listener_host"
 printList "Listener port"     28 "$_listener_port"
-printList "PROCESSES"         28 "${DB_PROCESSES:-500}"
-printList "OPEN_CURSORS"      28 "${DB_OPEN_CURSORS:-1000}"
+printList "PROCESSES"         28 "${DB_PROCESSES:-1000}"
+printList "OPEN_CURSORS"      28 "${DB_OPEN_CURSORS:-1600}"
+printList "SESSION_CACHED_CURSORS" 28 "${DB_SESSION_CACHED_CURSORS:-100}"
+printList "DB_FILES"          28 "${DB_FILES:-600}"
 
 if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"
@@ -349,9 +351,11 @@ info "Applying RCU-required parameters and PDB SAVE STATE ..."
 "$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF 2>&1 | tee -a "$LOG_FILE"
 CONNECT / AS SYSDBA
 
--- RCU pre-check RCU-6107 and parallel session requirements
-ALTER SYSTEM SET open_cursors    = ${DB_OPEN_CURSORS:-1000} SCOPE=BOTH;
-ALTER SYSTEM SET processes       = ${DB_PROCESSES:-500}     SCOPE=SPFILE;
+-- RCU minimums of FMW 14.1.2 (System Requirements, rcu_middleware_architecture.md 9.2)
+ALTER SYSTEM SET open_cursors           = ${DB_OPEN_CURSORS:-1600}           SCOPE=BOTH;
+ALTER SYSTEM SET processes              = ${DB_PROCESSES:-1000}              SCOPE=SPFILE;
+ALTER SYSTEM SET session_cached_cursors = ${DB_SESSION_CACHED_CURSORS:-100}  SCOPE=SPFILE;
+ALTER SYSTEM SET db_files               = ${DB_FILES:-600}                   SCOPE=SPFILE;
 
 -- Extended string support for FMW VARCHAR columns (static)
 ALTER SYSTEM SET max_string_size = EXTENDED SCOPE=SPFILE;
@@ -438,7 +442,7 @@ SHOW PARAMETER pga_aggregate_target;
 
 -- PDB: open_cursors is PDB-modifiable — set in PDB context as well
 ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
-ALTER SYSTEM SET open_cursors = ${DB_OPEN_CURSORS:-1000} SCOPE=BOTH;
+ALTER SYSTEM SET open_cursors = ${DB_OPEN_CURSORS:-1600} SCOPE=BOTH;
 SHOW PARAMETER open_cursors;
 EXIT;
 MEMEOF
@@ -474,10 +478,22 @@ section "Verification"
 CONNECT / AS SYSDBA
 SELECT 'CDB: ' || NAME || '  DB_UNIQUE_NAME: ' || DB_UNIQUE_NAME FROM V\$DATABASE;
 SELECT NAME, OPEN_MODE, RESTRICTED FROM V\$PDBS;
-SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET';
 SELECT VALUE FROM V\$OPTION WHERE PARAMETER = 'Unified Auditing';
 EXIT;
 VERIFYEOF
+
+# FMW 14.1.2 requirements in the PDB (version, edition, AL32UTF8, JVM, RCU minimums)
+section "RCU database requirements (PDB ${DB_PDB_NAME})"
+_req="$("$DB_ORACLE_HOME/bin/sqlplus" -S /nolog 2>&1 <<REQEOF
+CONNECT / AS SYSDBA
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+@${SCRIPT_DIR}/rcu_db_requirements.sql
+EXIT;
+REQEOF
+)"
+printf '%s\n' "$_req" >> "$LOG_FILE"
+rcu_db_req_eval "$_req"
+unset _req
 
 printf "\n" | tee -a "$LOG_FILE"
 info "Update environment.conf with DB connection:"

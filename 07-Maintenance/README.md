@@ -31,7 +31,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
 | `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
-| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
+| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
 | `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |

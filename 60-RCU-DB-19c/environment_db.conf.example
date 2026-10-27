@@ -72,11 +72,14 @@ DB_PDB_NAME="FMWPDB"
 DB_SGA_MB=1536
 DB_PGA_MB=512
 
-# --- Processes / Cursors -----------------------------------------------------
-# RCU pre-check RCU-6107 requires open_cursors >= 400; set 1000 to be safe.
-# RCU opens many parallel connections → processes=500 minimum.
-DB_PROCESSES=500
-DB_OPEN_CURSORS=1000
+# --- Processes / Cursors / Files ---------------------------------------------
+# Minimums of the FMW 14.1.2 System Requirements ("RCU Requirements for Oracle
+# Databases") – 80-FMW-Architecture/rcu_middleware_architecture.md 9.2.
+# processes / session_cached_cursors / db_files are static (restart).
+DB_PROCESSES=1000
+DB_OPEN_CURSORS=1600
+DB_SESSION_CACHED_CURSORS=100
+DB_FILES=600
 
 # --- Listener ----------------------------------------------------------------
 DB_LISTENER_HOST=""          # hostname/IP for listener.ora; empty = auto-detect (hostname -f)

@@ -1014,3 +1014,72 @@ ihw_oracle_advisories() {
             "$type" "$name" "$rel" "$a" "$state"
     done | sort -k3
 }
+
+# rcu_db_req_eval <sqlplus output of 60-RCU-DB-19c/rcu_db_requirements.sql>
+# FMW 14.1.2 database requirements for RCU as OK / WARN / FAIL
+# (80-FMW-Architecture/rcu_middleware_architecture.md section 9):
+#   version 19c >= 19.14.0.0, 23ai/26ai >= 23.4.0.24 (26ai: RCU patch 38391376),
+#   AL32UTF8 (our rule: mandatory), Oracle JVM VALID, db_block_size 8K,
+#   parameter minimums (WARN), Enterprise Edition (SE2: ORA-00439 -> WARN)
+RCU_DB_MIN_PROCESSES=1000
+RCU_DB_MIN_OPEN_CURSORS=1600
+RCU_DB_MIN_SESSION_CACHED_CURSORS=100
+RCU_DB_MIN_DB_FILES=600
+rcu_db_req_eval() {
+    local out="$1" t k n v min
+    if ! printf '%s\n' "$out" | grep -q '^IHW:REQ|VERSION|'; then
+        warn "DB requirements could not be read (rcu_db_requirements.sql)"
+        return 0
+    fi
+    while IFS='|' read -r t k n v; do
+        [ "$t" = "IHW:REQ" ] || continue
+        case "$k" in
+            VERSION)
+                case "$n" in
+                    19.*) if [ "$(printf '%s\n%s\n' 19.14.0.0 "$n" | sort -V | head -1)" = "19.14.0.0" ]; then
+                              ok "$(printf "  %-24s %s (19c >= 19.14.0.0)" "Version" "$n")"
+                          else fail "$(printf "  %-24s %s – 19c below 19.14.0.0" "Version" "$n")"; fi ;;
+                    23.*) if [ "$(printf '%s\n%s\n' 23.4.0.24.0 "$n" | sort -V | head -1)" = "23.4.0.24.0" ]; then
+                              ok "$(printf "  %-24s %s (23ai / 26ai >= 23.4.0.24)" "Version" "$n")"
+                              info "    26ai: RCU needs patch 38391376 in the FMW home (part of the WLS SPB since CSPU Sep 2026)"
+                          else fail "$(printf "  %-24s %s – 23ai below 23.4.0.24" "Version" "$n")"; fi ;;
+                    *)    warn "$(printf "  %-24s %s – not 19c / 23ai / 26ai, check the certification matrix" "Version" "$n")" ;;
+                esac ;;
+            EDITION)
+                if [[ "$n" == *"Enterprise Edition"* ]]; then
+                    ok "$(printf "  %-24s Enterprise Edition" "Edition")"
+                else
+                    warn "$(printf "  %-24s %s" "Edition" "${n:0:60}")"
+                    info "    not EE: RCU hits ORA-00439 (fine-grained access control / partitioning) – patch 37506854"
+                fi ;;
+            CHARSET)
+                [ "$n" = "AL32UTF8" ] && ok "$(printf "  %-24s %s" "Character set" "$n")" \
+                    || fail "$(printf "  %-24s %s – AL32UTF8 required (RCU only warns; mandatory here)" "Character set" "$n")" ;;
+            NCHARSET)
+                info "$(printf "  %-24s %s" "National character set" "$n")" ;;
+            JAVAVM)
+                [ "$n" = "VALID" ] && ok "$(printf "  %-24s %s" "Oracle JVM" "$n")" \
+                    || fail "$(printf "  %-24s %s – Oracle JVM required (initjvm.sql)" "Oracle JVM" "$n")" ;;
+            PARAM)
+                case "$n" in
+                    processes)              min=$RCU_DB_MIN_PROCESSES ;;
+                    open_cursors)           min=$RCU_DB_MIN_OPEN_CURSORS ;;
+                    session_cached_cursors) min=$RCU_DB_MIN_SESSION_CACHED_CURSORS ;;
+                    db_files)               min=$RCU_DB_MIN_DB_FILES ;;
+                    db_block_size)
+                        [ "$v" = "8192" ] && ok "$(printf "  %-24s %s" "$n" "$v")" \
+                            || fail "$(printf "  %-24s %s – 8192 required" "$n" "$v")"
+                        continue ;;
+                    *)  info "$(printf "  %-24s %s" "$n" "$v")"; continue ;;
+                esac
+                if [ "${v:-0}" -ge "$min" ] 2>/dev/null; then
+                    ok "$(printf "  %-24s %s (>= %s)" "$n" "$v" "$min")"
+                else
+                    warn "$(printf "  %-24s %s – below the RCU minimum %s" "$n" "$v" "$min")"
+                fi ;;
+            OPTION)
+                [ "$v" = "TRUE" ] || warn "$(printf "  %-24s %s – RCU 14.1.2 uses it (ORA-00439)" "$n" "$v")" ;;
+        esac
+    done <<< "$out"
+    return 0
+}

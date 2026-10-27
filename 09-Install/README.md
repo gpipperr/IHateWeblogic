@@ -444,19 +444,23 @@ The database runs on a **separate server** from WebLogic.
 | Requirement | Value |
 |---|---|
 | Oracle JVM | must be installed in the DB (`@?/javavm/install/initjvm.sql`) |
-| Character set | `AL32UTF8` (mandatory for Forms/Reports Unicode) |
+| Version | 19c ≥ 19.14.0.0, 23ai / 26ai ≥ 23.4.0.24 (26ai: RCU patch 38391376 – in the WLS SPB) |
+| Edition | Enterprise Edition (SE2: RCU hits ORA-00439 – fine-grained access control / partitioning) |
+| Character set | `AL32UTF8` (RCU only warns; mandatory here for Forms/Reports Unicode) |
 | Password expiry | `ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;` |
 
-**Required DB parameters (RCU prereq check):**
+**Required DB parameters** (minimums of the FMW 14.1.2 System Requirements,
+"RCU Requirements for Oracle Databases" – check: `07-oracle_setup_repository.sh --check`,
+details: [rcu_middleware_architecture.md §9](../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai)):
 
-| Parameter | Required value |
+| Parameter | Minimum |
 |---|---|
-| `SHARED_POOL_SIZE` | 0 |
-| `SGA_MAX_SIZE` | 6112M |
+| `SHARED_POOL_SIZE` | 147,456 KB (ASMM / `0` is fine) |
+| `SGA_MAX_SIZE` | 147,456 KB |
 | `DB_BLOCK_SIZE` | 8 KB |
-| `session_cached_cursors` | 200 |
-| `processes` | 1200 |
-| `open_cursors` | 2250 |
+| `session_cached_cursors` | 100 |
+| `processes` | 1000 |
+| `open_cursors` | 1600 |
 | `db_files` | 600 |
 
 **Verify required DB package:**

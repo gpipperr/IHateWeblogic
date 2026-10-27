@@ -14,7 +14,7 @@ more since 12c.
 
 Markers as in [README.md](README.md): **confirmed (live)** = test domain
 2026-10-17 (prefix `DEV`, Oracle 19c PDB), **documented** = Oracle
-documentation ([Sources](#9-sources)), **assumption** = not verified.
+documentation ([Sources](#10-sources)), **assumption** = not verified.
 Overview of the domain itself: [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md).
 
 ---
@@ -544,9 +544,143 @@ step. What makes sense instead:
 
 ---
 
-## 9. Sources
+## 9. Database requirements for the repository (19c / 26ai)
 
-All links checked 2026-10-17 (HTTP 200, title matches).
+What the database behind the RCU schemas must look like for FMW 14.1.2 –
+checked 2026-10-27 against the Oracle documentation ([sources](#10-sources),
+"Database requirements") and against the test DB (19.30 EE, CDB `FMWCDB`,
+read live as SYSDBA).
+
+### 9.1 Version, character set, components
+
+| Requirement | Oracle (FMW 14.1.2) | Test DB 2026-10-27 | Marker |
+|---|---|---|---|
+| Version 19c | ≥ **19.14.0.0** | 19.30.0.0 | **documented** / **confirmed (live)** |
+| Version 23ai / **26ai** | ≥ **23.4.0.24.0** for 23ai; 26ai (= 23.26.x) certified for WebLogic 14.1.1 / 14.1.2 / 15.1.1 – RCU needs **patch 38391376** | – (38391376 is part of the WLS SPB since CSPU Sep 2026, confirmed (live) with `opatch lspatches`, section 1) | **documented** (Oracle WebLogic blog); certification matrix row not yet read |
+| Character set | **AL32UTF8** – listed as requirement; RCU only **warns** otherwise ("Oracle strongly recommends using the AL32UTF8 character set … User can proceed with this warning") | `AL32UTF8`, national `AL16UTF16` | **documented** / **confirmed (live)** |
+| Oracle JVM | "Database is installed with Oracle JVM enabled" | `JAVAVM` + `CATJAVA` `VALID` | **documented** / **confirmed (live)** |
+| MDS privileges | RCU user needs `EXECUTE … WITH GRANT OPTION` on `DBMS_OUTPUT`, `DBMS_STATS`, `DBMS_LOB` (or run RCU as SYSDBA – our 07- does) | SYSDBA | **documented** |
+| `db_securefile` | not `FORCE` for the first RCU run | `PREFERRED` | section 4.2 |
+| Certification | always the certification matrix of 14.1.2 (Supported System Configurations) – RCU may warn about a newer, already certified DB version, which can then be ignored | – | **documented** |
+
+Rule for this repository: **AL32UTF8 is mandatory** (Forms/Reports Unicode,
+APEX in the same DB) – the RCU warning is not taken as "allowed".
+
+### 9.2 Initialisation parameters
+
+| Parameter | Oracle minimum (RCU, 14.1.2) | `60-RCU-DB-19c` today (`environment_db.conf` / docs) | Test DB 2026-10-27 | Status |
+|---|---|---|---|---|
+| `processes` | **1000** | `DB_PROCESSES=500` | 500 | **below** minimum |
+| `open_cursors` | **1600** | `DB_OPEN_CURSORS=1000` | 1000 | **below** minimum |
+| `session_cached_cursors` | **100** | not set (default) | 50 | **below** minimum |
+| `db_files` | **600** | 100 (05 doc) | 200 | **below** minimum |
+| `shared_pool_size` | 147,456 KB (144 MB) | ASMM (0) | 0, `sga_target` 2 GB | ok – ASMM sizes the pool |
+| `sga_max_size` | 147,456 KB | 2 GB | 2 GB | ok |
+| `db_block_size` | 8 KB | 8 KB | 8192 | ok |
+
+The domain runs on the test DB with the lower values (metadata only, one
+domain) – they are nevertheless below Oracle's RCU minimum. **Done
+2026-10-27:** `60-RCU-DB-19c` sets the minimums for new databases
+(`DB_PROCESSES` 1000, `DB_OPEN_CURSORS` 1600, `DB_SESSION_CACHED_CURSORS` 100,
+`DB_FILES` 600); the table in `09-Install/README.md` (before: 1200 / 2250 /
+200, `SGA_MAX_SIZE` 6112M – not from the Oracle documentation) is aligned.
+The existing test DB keeps its values until it is changed by hand
+(`processes`, `session_cached_cursors`, `db_files` are static – restart).
+
+### 9.3 Edition – EE, SE2 only with workaround patches
+
+- The FMW 14.1.2 system requirements name **no edition**.
+- In practice RCU 14.1.2 hits Enterprise-Edition-only features on **SE2**:
+  - **ORA-00439 "feature not enabled: Fine-grained access control"** when
+    RCU sets up VPD policies – workaround patch **37506854** (MOS Doc ID
+    3083393.1) on the Oracle Home, then re-run RCU (dbi-services, see
+    sources; **documented** by a third party, not tested here).
+  - **ORA-00439 Partitioning** with EBR / UMS on SE2 – bugs 37603856 /
+    37555123, fixed in the UMS bundle patch (README of 39940047, see the
+    October 2026 analysis).
+- Test DB: **Enterprise Edition**, options `Fine-grained access control` and
+  `Partitioning` = `TRUE` (**confirmed (live)**).
+- Consequence: `60-RCU-DB-19c` keeps **EE as default**; the statement "SE2 is
+  technically sufficient" in `60-RCU-DB-19c/docs/00-concept.md` is corrected
+  (2026-10-27) – SE2 only with the patches above and a test RCU run.
+
+### 9.4 Licence – **open, must be checked**
+
+Open question (2026-10-27): is the Enterprise Edition of the repository
+database covered by the WebLogic / Forms & Reports licence (restricted-use
+licence for the FMW repository), or does it need its own full database
+licence?
+
+- This repository says so far: **own full licence** (EE or SE2) – no
+  licence-free special case (`60-RCU-DB-19c/README.md`, licence notice).
+- Not verified: the *Oracle Fusion Middleware Licensing Information User
+  Manual* 14.1.2 (restricted-use rights) could not be read on 2026-10-27; the
+  system requirements say nothing about licences.
+- To do: read the licensing manual (section on restricted-use licences /
+  Oracle Database), and the customer's contract / Oracle licence
+  management; then record the result here and in `60-RCU-DB-19c/README.md`.
+  Until then no licence statement beyond "check".
+
+### 9.5 Checks (implemented 2026-10-27)
+
+`60-RCU-DB-19c/rcu_db_requirements.sql` reads the values (one `IHW:REQ|…`
+line each), `rcu_db_req_eval` in `00-Setup/IHateWeblogic_lib.sh` evaluates
+them: version / AL32UTF8 / JVM / `db_block_size` → FAIL, edition not EE,
+option missing, parameter below minimum → WARN. Used by:
+
+| Script | When |
+|---|---|
+| `09-Install/07-oracle_setup_repository.sh --check` | read-only, any (customer) DB before RCU |
+| `09-Install/07-oracle_setup_repository.sh --apply` | automatically before `-createRepository` – a FAIL stops RCU |
+| `60-RCU-DB-19c/05-db_create_database.sh` | after DBCA, in the PDB |
+| `07-Maintenance/rcu_repository_check.sh` | section 1, regularly |
+
+Live 2026-10-27 (test DB): version, EE, AL32UTF8, JVM, block size OK; the
+four parameters of 9.2 WARN.
+
+Check (as DBA, in the PDB):
+
+```sql
+SELECT version_full FROM v$instance;
+SELECT banner_full  FROM v$version;                       -- Enterprise / Standard Edition 2
+SELECT parameter, value FROM nls_database_parameters
+ WHERE parameter IN ('NLS_CHARACTERSET','NLS_NCHAR_CHARACTERSET');
+SELECT comp_id, status FROM dba_registry WHERE comp_id IN ('JAVAVM','CATJAVA');
+SELECT name, value FROM v$parameter
+ WHERE name IN ('processes','open_cursors','session_cached_cursors','db_files',
+                'db_block_size','shared_pool_size','sga_max_size','sga_target','db_securefile');
+SELECT parameter, value FROM v$option
+ WHERE parameter IN ('Fine-grained access control','Partitioning');
+```
+
+---
+
+## 10. Sources
+
+All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
+2026-10-27.
+
+**Database requirements (section 9, 2026-10-27)**
+
+- *System Requirements and Specifications* 14c (14.1.2), "RCU Requirements
+  for Oracle Databases" (versions 19.14 / 23.4.0.24, AL32UTF8 + warning text,
+  Oracle JVM, parameter minimums, MDS privileges):
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html
+- *Creating Schemas with the Repository Creation Utility* 14c, "Finding a
+  Certified Database", "Database Requirements for RCU":
+  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html
+- Oracle Fusion Middleware Supported System Configurations (certification
+  matrix 14.1.2 – the authoritative list of databases):
+  https://www.oracle.com/middleware/technologies/fusion-certification.html
+- Oracle WebLogic Server blog, "Announcing WebLogic Server certification with
+  Oracle AI Database 26ai" (WLS 14.1.1 / 14.1.2 / 15.1.1, RCU patch
+  38391376):
+  https://blogs.oracle.com/weblogicserver/announcing-weblogic-server-certification-with-oracle-ai-database-26ai
+- dbi-services, "Oracle FMW 14 installation: ORA-00439 feature not enabled:
+  Fine-grained access control" (SE2, patch 37506854, MOS Doc ID 3083393.1):
+  https://www.dbi-services.com/blog/oracle-fmw-14-installation-ora-00439-feature-not-enabled-fine-grained-access-control/
+- Licence: *Oracle Fusion Middleware Licensing Information User Manual* –
+  **to be read** (section 9.4)
 
 **Current (14.1.2)**
 

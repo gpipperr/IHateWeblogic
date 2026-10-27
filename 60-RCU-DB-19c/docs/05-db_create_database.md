@@ -60,16 +60,22 @@ Source: Oracle FMW 14.1.2 System Requirements (Doc ID 2605929.1) and RCU Guide.
 | `SGA_TARGET` | `1536M` | Minimum for stable PL/SQL compilation during RCU |
 | `PGA_AGGREGATE_TARGET` | `512M` | Parallel RCU sessions; sort/hash operations |
 | `DB_BLOCK_SIZE` | `8192` | FMW default; do not change |
-| Character set | `AL32UTF8` | **Mandatory** — FMW RCU fails with any other charset |
+| Character set | `AL32UTF8` | **Mandatory here** — RCU itself only warns ("strongly recommends"), Forms/Reports Unicode and APEX need it |
 | National char set | `AL16UTF16` | Oracle default |
-| `PROCESSES` | `500` | RCU opens many parallel connections |
-| `OPEN_CURSORS` | `1000` | **RCU pre-check RCU-6107 requires ≥ 400; set 1000 to be safe** |
+| `PROCESSES` | `1000` | RCU minimum of FMW 14.1.2 (static) |
+| `OPEN_CURSORS` | `1600` | RCU minimum of FMW 14.1.2 (CDB and PDB) |
+| `SESSION_CACHED_CURSORS` | `100` | RCU minimum of FMW 14.1.2 (static) |
 | `compatible` | `19.0.0` | Required for 19c feature set |
 | `max_string_size` | `EXTENDED` | FMW extended VARCHAR support; static — needs restart |
 | Archivelog | `false` (dev) | Saves disk; not needed for metadata-only DB |
 | Redo log groups | `2` | Minimum; one is always current |
 | Redo log size | `50 MB` | Minimal for low-write workload |
-| `DB_FILES` | `100` | More than enough for this DB |
+| `DB_FILES` | `600` | RCU minimum of FMW 14.1.2 (static) |
+
+Source of the minimums and the full requirement list (version, edition,
+JVM): [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai).
+After DBCA the script checks them in the PDB (`rcu_db_requirements.sql`,
+OK / WARN / FAIL).
 
 > **AMM vs. SGA_TARGET:** `MEMORY_TARGET` (Automatic Memory Management) is simpler
 > but cannot be used with HugePages.  For this minimal setup, `SGA_TARGET=1536M` +
