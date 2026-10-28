@@ -398,7 +398,7 @@ Run these scripts in sequence on a fresh installation:
 | `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`), patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: AI-assisted monitoring + CVE watch |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → CVU pre-check → install → patch (AutoUpgrade) → create DB (RCU requirements checked) → Unified Audit |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and the shared collector `tools/collect_fmw_env.sh`, independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
 
@@ -631,6 +631,8 @@ IHateWeblogic/
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
 │   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
 │   │                                      rwrun call flow (§5.1), performance parameters, history
+│   ├── certificates_trust_stores.md – certificates / keys / trust stores: terms, CA quality, inventory,
+│   │                                      who needs what, customer PKI + interception, central trust concept
 │   ├── report_rwbuilder.md          – Reports Builder minimal setup on Windows (RDP): builder-only
 │   │                                      domain, no running server stack, local-admin finding
 │   ├── weblogic_outbound_connections.md – what the domain sends outside, external-DTD trap
@@ -938,6 +940,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   not certified for Reports 14.1.2, `rwengine.sh` hard-codes
   `oracle_common/jdk`). **SR draft ready** (local `SR/sr_bundled_jdk17.txt`,
   incl. the FMW DBCLIENT question since 2026-10-26) – submit.
+- [ ] **Trust-store check / sync script** (`08-SSL/`): central trust-anchor
+  directory (customer root + intermediates, interception CA, local CA) →
+  OS `anchors/` + `update-ca-trust`, server JDK `cacerts` as symlink to the
+  OS-generated store (re-link after JDK updates) or `keytool` import,
+  `NODE_EXTRA_CA_CERTS`; read-only check of presence, links, expiry, quality
+  (SHA-1 / MD5) and interception – concept in
+  [certificates_trust_stores.md §7 / §8](80-FMW-Architecture/certificates_trust_stores.md#7-centralising-the-java-trust-stores--options).
 - [ ] **Patch download script for manual / customer installations** (next
   customer appointment): `70-Customer-Projects/tools/` script that downloads
   a patch list (number, MOS platform – e.g. `233P` Windows x64 / `2000P`

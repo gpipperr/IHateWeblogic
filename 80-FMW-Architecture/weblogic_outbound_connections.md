@@ -1,5 +1,7 @@
 # Outbound connections of an FMW domain – what leaves the host, and the external-DTD trap
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 Which connections a Forms & Reports 14.1.2 domain opens to other hosts, how
 to measure that, and why an XML parser that downloads a DTD can block a
 server start forever behind a firewall. Background for

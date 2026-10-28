@@ -1,5 +1,7 @@
 # 10-Monitoring – AI-Assisted Proactive Monitoring
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Module:** `10-Monitoring/`
 **Runs as:** `oracle` (cron / systemd timer)
 **Phase:** Ongoing operation – the last stage of the lifecycle, after installation,

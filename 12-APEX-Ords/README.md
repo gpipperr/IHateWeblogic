@@ -1,5 +1,7 @@
 # 12-APEX-Ords – Oracle APEX and ORDS beside Oracle Forms
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 Installation of **Oracle APEX 26.2** with **ORDS 26.x in standalone (Jetty)
 mode** behind the Nginx of this library – scripts `01-` … `06-` (section 5),
 the manual procedure stays as the reference (section 5a).

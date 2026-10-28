@@ -1,5 +1,7 @@
 # Clone-Capable Installation – Loopback Only, One Host Name at the Edge
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 What a Forms / Reports 14.1.2 host binds to, which files hold its host
 name, IP or machine identity, and what has to change after the machine is
 cloned. Goal: everything internal runs over `127.0.0.1`, only Nginx (and the

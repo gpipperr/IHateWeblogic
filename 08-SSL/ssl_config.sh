@@ -45,9 +45,11 @@ SSL_CONF="$SCRIPT_DIR/ssl.conf"
 SSL_CONF_TEMPLATE="$SCRIPT_DIR/ssl.conf.template"
 
 SSL_CN="${WLS_SERVER_FQDN:-}"
-SSL_CERT_FILE="/etc/nginx/ssl/server.crt"
-SSL_KEY_FILE="/etc/nginx/ssl/server.key"
-SSL_CHAIN_FILE=""
+# staging paths (ssl.conf.template defaults) - the deployed Nginx files are
+# NGINX_CERT / NGINX_KEY below
+SSL_CERT_FILE="08-SSL/certs/server.crt"
+SSL_KEY_FILE="08-SSL/certs/server.key"
+SSL_CHAIN_FILE="08-SSL/certs/chain.crt"
 
 if [ -f "$SSL_CONF" ]; then
     # shellcheck source=ssl.conf
@@ -56,6 +58,11 @@ elif [ -f "$SSL_CONF_TEMPLATE" ]; then
     source "$SSL_CONF_TEMPLATE"
     SSL_CN="${WLS_SERVER_FQDN:-$SSL_CN}"
 fi
+
+# relative staging paths are relative to the repository root (as in 05-root_nginx_ssl.sh)
+[[ "${SSL_CERT_FILE:-}"  != /* ]] && [ -n "${SSL_CERT_FILE:-}" ]  && SSL_CERT_FILE="$ROOT_DIR/$SSL_CERT_FILE"
+[[ "${SSL_KEY_FILE:-}"   != /* ]] && [ -n "${SSL_KEY_FILE:-}" ]   && SSL_KEY_FILE="$ROOT_DIR/$SSL_KEY_FILE"
+[[ "${SSL_CHAIN_FILE:-}" != /* ]] && [ -n "${SSL_CHAIN_FILE:-}" ] && SSL_CHAIN_FILE="$ROOT_DIR/$SSL_CHAIN_FILE"
 
 # Nginx deployed cert location (always checked regardless of staging path)
 # Must match what 09-Install/04-root_nginx.sh + 05-root_nginx_ssl.sh actually deploy.

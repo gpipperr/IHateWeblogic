@@ -1,5 +1,7 @@
 # MOS Reference Documents – FMW 14.1.2 Patching – CPU October 2026 (current)
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 Central lookup of My Oracle Support (MOS) Doc IDs used across the patch
 scripts (`05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`,
 `04-oracle_pre_download.sh`) and their docs, plus the full patch list for

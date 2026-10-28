@@ -1,5 +1,7 @@
 # 07-Maintenance – Maintenance & Patches (Phase 8)
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Role: analyse + fix an existing environment** (see the folder roles in the
 [root README](../README.md#folder-roles)): backup/restore and patching of a
 running installation, no matter who built it. The patch logic itself lives

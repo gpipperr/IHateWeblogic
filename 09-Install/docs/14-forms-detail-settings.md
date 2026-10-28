@@ -1,5 +1,7 @@
 # Step 14 – Oracle Forms Server Detail Configuration
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Scripts:** `09-Install/14-oracle_setup_forms.sh`
 **Runs as:** `oracle`
 **Phase:** 6 – Forms Server Setup

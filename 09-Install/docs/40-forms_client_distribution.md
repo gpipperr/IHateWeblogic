@@ -1,5 +1,7 @@
 # 40 – Forms Client Distribution via URL (Concept)
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Status 2026-10-22: server side implemented and live on the test host**
 (download `04-`, Nginx `/formsWeb/`, bundle `40-oracle_forms_client_bundle.sh`,
 client templates `09-Install/client_templates/`); **open: the Windows client

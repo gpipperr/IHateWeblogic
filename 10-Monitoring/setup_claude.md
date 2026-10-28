@@ -1,5 +1,7 @@
 # Claude Code on an FMW host – setup and hardening
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 How Claude Code is installed and locked down for the Claude-based parts of
 the lib: the patch-cycle analysis
 ([patch_cycle_analysis.sh](patch_cycle_analysis.sh)) now, the proactive log

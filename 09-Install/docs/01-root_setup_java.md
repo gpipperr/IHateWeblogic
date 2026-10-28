@@ -1,5 +1,7 @@
 # Step 02b – Java Installation
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Script:** `09-Install/02b-root_os_java.sh`
 **Runs as:** `root`
 **Phase:** 0 – OS Preparation

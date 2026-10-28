@@ -1,5 +1,7 @@
 # Oracle REST Data Services (ORDS) – How It Works
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 ORDS is the Java web server between Nginx and the database for APEX and for
 REST services. This page explains:
 - what is inside the ORDS software (Jetty, JDBC, APEXlang compiler, features);

@@ -1,5 +1,7 @@
 # RCU and the FMW repository – what it is, who uses it, how it is patched
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 Theory collection for phase 8 ("repository-schema patching"): what the
 Repository Creation Utility (RCU) creates in the database, which processes
 log in to which schema, where the schema passwords are stored, what the

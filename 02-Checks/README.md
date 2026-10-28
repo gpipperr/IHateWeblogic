@@ -1,5 +1,7 @@
 # 02-Checks – System & Environment Diagnostics
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 Diagnostic scripts that inspect the host, the Java runtime, the WebLogic
 domain, the database connection, TLS and the Reports network discovery.
 All scripts are **read-only** – only `weblogic_performance.sh --apply` and

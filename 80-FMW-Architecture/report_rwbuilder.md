@@ -1,5 +1,7 @@
 # Reports Builder minimal setup – a builder-only Windows server
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 How to give report developers the **Oracle Reports Builder 14.1.2** with as
 little Fusion Middleware as possible: one central Windows Server, developers
 work via RDP, the reports are designed there and executed on the existing

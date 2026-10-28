@@ -1,5 +1,7 @@
 # Step 04 – 04-root_nginx.sh
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Script:** `09-Install/04-root_nginx.sh`
 **Template:** `09-Install/nginx-wls.conf.template`
 **Runs as:** `root` or `oracle` with sudo

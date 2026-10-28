@@ -1,5 +1,7 @@
 # Oracle Forms 14.1.2 – runtime architecture
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 How a Forms session runs on the server: servlet, listener, `frmweb`
 processes, runtime pooling, timeouts, memory, configuration inheritance,
 logs, where TLS is spoken and who uses Java's JSSE (section 1.1), the threat

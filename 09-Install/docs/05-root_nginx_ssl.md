@@ -1,5 +1,7 @@
 # Step 05 – 05-root_nginx_ssl.sh
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Script:** `09-Install/05-root_nginx_ssl.sh`
 **Runs as:** `root` or `oracle` with sudo
 **Phase:** 0 – OS Preparation

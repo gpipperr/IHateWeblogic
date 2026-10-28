@@ -1,5 +1,7 @@
 # 08-SSL – SSL Certificate Management
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+
 **Module:** `08-SSL/`
 **Runs as:** `root` (cert deployment) / `oracle` (audit + CSR)
 **Phase:** Operational – before initial start and on every certificate renewal
@@ -464,10 +466,11 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 All three scripts are implemented (all four `ssl_prepare_cert.sh` modes,
 `ssl_local_ca.sh`, all `ssl_config.sh` audit sections). What's still missing:
 
-- **No automated cron job for expiry monitoring** — `ssl_config.sh --expiry`
-  and `ssl_local_ca.sh status` already return cron-friendly exit codes
-  (0/1/2), but nothing installs them as a scheduled job yet – candidate for
-  `10-Monitoring/` (systemd timer like `cve_inventory.sh`).
+- **Trust-store distribution / check script** (customer root + intermediates,
+  TLS-interception CA, both server JDKs, OS trust) – concept in
+  [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+  §8; not implemented yet. (Expiry monitoring is done:
+  `10-Monitoring/cert_expiry_check.sh`, daily cron.)
 - Consider `ssl_renew_easyrsa.sh` as a dedicated renewal script for Easy-RSA
   environments (currently: re-run `ssl_prepare_cert.sh EASYRSA --apply`,
   which re-issues but does not automate CA rotation).

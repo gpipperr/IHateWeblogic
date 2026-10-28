@@ -1,5 +1,7 @@
 # Oracle Forms 14 – WebUtil and JACOB Architecture
 
+> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
+
 Background for the WebUtil/JACOB step of `09-Install/14-oracle_setup_forms.sh`
 (`docs/14-forms-detail-settings.md`, step 1).
 
