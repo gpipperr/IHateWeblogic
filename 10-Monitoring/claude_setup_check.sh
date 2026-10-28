@@ -140,6 +140,24 @@ if command -v claude > /dev/null 2>&1; then
     else
         warn "  Auto-update on – updates should be deliberate (managed settings env DISABLE_AUTOUPDATER)"
     fi
+    # Node.js runtime: supported LTS with the Brotli fix CVE-2026-111497
+    # (22.23.4 / 24.22.1 / 26.12.1; 20 and older = end of life, no fix)
+    _nv="$(node --version 2>/dev/null | tr -d v)"
+    if [ -z "$_nv" ]; then
+        info "  node not in PATH (native Claude Code build?)"
+    else
+        case "${_nv%%.*}" in
+            22) _min=22.23.4 ;; 24) _min=24.22.1 ;; 26) _min=26.12.1 ;; *) _min="" ;;
+        esac
+        if [ -z "$_min" ]; then
+            warn "  node $_nv – not a supported LTS line with the Brotli fix (CVE-2026-111497) – use 22 / 24 / 26"
+        elif [ "$(printf '%s\n%s\n' "$_min" "$_nv" | sort -V | head -1)" = "$_min" ]; then
+            ok "  node $_nv (>= $_min, Brotli CVE-2026-111497 fixed)"
+        else
+            warn "  node $_nv – below $_min (Brotli CVE-2026-111497) – update"
+        fi
+    fi
+    unset _nv _min
 else
     info "  claude not in PATH – nothing runs here (fine for a production host)"
 fi

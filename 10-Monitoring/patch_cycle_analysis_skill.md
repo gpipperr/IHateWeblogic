@@ -4,7 +4,10 @@ How a patch cycle (CPU quarterly, CSPU in the months between, Security Alerts)
 is analysed and documented with Claude. Written from the CPU October 2026 run
 (2026-10-22 … 26). Started by
 [`patch_cycle_analysis.sh`](patch_cycle_analysis.sh) or directly with the
-Claude Code skill `/patch-cycle-analysis` (`.claude/skills/patch-cycle-analysis/`).
+Claude Code skill `/patch-cycle-analysis` (`.claude/skills/patch-cycle-analysis/`,
+local – `.claude/` is not in Git; template
+[`claude/skills/patch-cycle-analysis/SKILL.md`](claude/skills/patch-cycle-analysis/SKILL.md),
+install: `mkdir -p .claude/skills && cp -r 10-Monitoring/claude/skills/patch-cycle-analysis .claude/skills/`).
 
 Precondition: Claude Code set up as in [setup_claude.md](setup_claude.md)
 (`claude_setup_check.sh` OK, never on a host with `IHW_ENV_TYPE=prod`).

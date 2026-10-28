@@ -42,7 +42,7 @@ first rollout.
 ## 2. Installation (as the analysis user, not root)
 
 ```bash
-node --version                      # Node.js as required by Claude Code (test host: v20)
+node --version                      # a SUPPORTED Node.js LTS (22 / 24) - not 20 (EOL, see below)
 npm config set prefix ~/.npm-global # no root, as on our test host
 npm install -g @anthropic-ai/claude-code@<version>   # pin a version
 export PATH="$HOME/.npm-global/bin:$PATH"            # .bash_profile
@@ -50,6 +50,13 @@ claude --version
 claude                              # first start: login (claude.ai account or API key)
 ```
 
+- **Node.js:** only a supported, patched LTS line. Node.js 20 is end of
+  life and bundles a vulnerable Brotli decoder (**CVE-2026-111497**, fixed
+  only in 22.23.4 / 24.22.1 / 26.12.1 – Claude Code decodes HTTP responses,
+  WebFetch from arbitrary servers). Test host state 2026-10-28:
+  `nodejs-20.20.2` (nodesource) → switch the nodesource repo to 22 or 24 and
+  update (details: `09-Install/docs/00-patch-references.md`, "Brotli").
+  `claude_setup_check.sh` check 1 shows the Node version.
 - **Account:** the customer's own Claude account / API key, never ours, never
   in a file of the repo. Which account is used at the customer is agreed
   before the first session (section 7).
@@ -164,7 +171,7 @@ journalctl -t ihw-claude                                   # guard decisions (as
 
 | # | Check | FAIL / WARN when |
 |---|---|---|
-| 1 | Claude CLI, auto-update | auto-update on |
+| 1 | Claude CLI, auto-update, Node.js version | auto-update on; Node.js not a supported LTS with the Brotli fix (CVE-2026-111497) |
 | 2 | `IHW_ENV_TYPE` | `prod` (FAIL), not set (WARN), profile maintainer without `test` (FAIL) |
 | 3 | WebLogic processes | running and the host is not `test` |
 | 4 | managed settings | missing, not readable (FAIL), not root 0644, not equal to the rendering |

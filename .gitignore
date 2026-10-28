@@ -53,9 +53,8 @@ log/
 __pycache__/
 *.pyc
 
-# Claude Code session data (local only) – except the project skills
-.claude/*
-!.claude/skills/
+# Claude Code session data and local settings/skills (local only)
+.claude/
 CLAUDE.md
 
 # Editor artifacts

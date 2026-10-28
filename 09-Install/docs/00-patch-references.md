@@ -23,6 +23,7 @@ traceable what belonged to a cycle, and an environment can be brought
 | Cycle | Released | Type | Configured in this project | Status | Document | Manual guide (how, by hand) |
 |---|---|---|---|---|---|---|
 | Security Alert CVE-2026-114820 (Java, eMudhra CAs) + OS `ca-certificates` (ELSA-2026-88459 / CVE-2026-111943) | 2026-10-24 / 2026-10-22 | Alert | 2026-10-26 | **open (Java)** – OS fixed on the test host 2026-10-26; JDK 21.0.13.0.2 already blocks the compromised intermediates, next JDK build removes the roots; bundled JDK 17.0.12 still trusts them – see [Special case Java](#emudhra-ca-incident--cve-2026-114820-state-2026-10-26) | this file | – |
+| OS / third-party: Google Brotli decoder **CVE-2026-111497** ("HTTP2Shell", CISA KEV 2026-10-27) | 2026-10-22 | OS errata | 2026-10-28 | **open (OS update)** – not reachable through Forms / Reports / WebLogic / Nginx; OS fix **ELSA-2026-500513** to install, Reports processes restart; Node.js 20 of Claude Code EOL – see [Brotli](#brotli-decoder--cve-2026-111497-state-2026-10-28) | this file | – |
 | CPU October 2026 + Security Alert CVE-2026-91403 | 2026-10-20 / 2026-10-21 | CPU + Alert | from 2026-10-22 | **current** – patch numbers from KA1182 (PDF of 2026-10-22) and CPU426; `oracle_software_version.conf` / `04-`/`05-`/`06-` switched and **applied on the test host 2026-10-24** (smoke test OK) | this file | [Forms14_reports14_patch_analyse_10_2026](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md) (verified on the test host 2026-10-24) |
 | CSPU September 2026 | 2026-09-15 | CSPU | 2026-10-13 – 2026-10-22 | frozen; set live on the test host – **incomplete**: the FMW Infrastructure bundle patches (ADF, OWSM, OPSS, UMS, …) were missing, see "Patch List" below | [00-patch-references_september_2026.md](00-patch-references_september_2026.md) | – (applied by the scripts, steps in `docs/05` / `06` of that time, see git history) |
 
@@ -394,6 +395,50 @@ Assessment and actions:
   source file) and `dnf updateinfo list --available ca-certificates`.
 
 ---
+
+### Brotli decoder – CVE-2026-111497 (state 2026-10-28)
+
+**What it is:** out-of-bounds write in the **C decoder of Google Brotli**
+(`c/dec/decode.c`), versions 1.0.3 – 1.2.0, fixed in 1.0.10 / 1.1.1 /
+1.2.1 (CVE record 2026-10-22; CVSS 4.0 9.2, Red Hat CVSS 3.1 8.1 Important;
+CISA KEV since 2026-10-27). Reachable wherever attacker-controlled
+Brotli data is decoded – e.g. HTTP bodies with `Content-Encoding: br`
+(request side: Envoy, Express 5; response side: clients that send
+`Accept-Encoding: br`). Not an HTTP/2 protocol flaw despite the nickname.
+Products with an own copy (Node.js, Bun, Envoy, …) need their own fix.
+
+**Forms & Reports 14.1.2 stack – checked on the test host 2026-10-28
+(confirmed (live)):**
+
+| Component | Finding | Assessment |
+|---|---|---|
+| **Nginx** (`nginx-core-1.20.1` OL9) | not linked against libbrotli, no `ngx_brotli` module, no `load_module` | **not affected** – passes `br` bodies through without decoding |
+| **WebLogic / JDKs / ORDS** | no native libbrotli in the Oracle Home, `JDK_HOME`, bundled JDK, ORDS homes; `httpclient5-5.6.4.jar` (and `oamcfgtool.jar`) only contain Brotli wrapper classes – the Java decoder `org.brotli.dec` is **not** on any class path | **not affected** |
+| **Reports** (`rwserver`, engine JVMs) | map `/usr/lib64/libbrotlidec.so.1.0.9` – loaded through **`libfreetype`** (font rendering; FreeType decodes Brotli only for WOFF2 web fonts) | vulnerable library **loaded but not reachable remotely** (Reports reads local TTF fonts); fixed with the OS update + restart |
+| **OS packages** | `brotli`, `libbrotli`, `python3-brotli`, `brotli-devel` `1.0.9-10.el9_8`; `libcurl` links libbrotli (`curl --compressed`) | **affected** – OS fix below |
+| **Node.js of Claude Code** (`10-Monitoring/`, nodesource `nodejs-20.20.2`) | bundles its own **Brotli 1.1.0** | **affected, no fix** – Node.js 20 is end of life; fixed lines 22.23.4 / 24.22.1 / 26.12.1. Claude Code decodes HTTP responses (WebFetch: arbitrary servers) – see [setup_claude.md](../../10-Monitoring/setup_claude.md) |
+
+**OS fix:** Oracle Linux 9 **ELSA-2026-500513** (Important, 2026-10-26):
+`brotli-1.0.9-10.0.1.el9_8` – Oracle backported the fix into 1.0.9 (the
+`.0.1` release counts, not the upstream version number);
+`dnf updateinfo list --cve CVE-2026-111497` lists it.
+
+```bash
+# as root (or with the regular OS update)
+dnf update brotli libbrotli python3-brotli brotli-devel
+# processes that still map the old library -> restart (Reports server + engines)
+grep -l 'libbrotli.*(deleted)' /proc/[0-9]*/maps 2>/dev/null
+dnf needs-restarting
+01-Run/startStop.sh stop-all --apply && 01-Run/startStop.sh start-all --apply   # as oracle
+```
+
+Not part of the Oracle CPU / CSPU – OS errata only; check again with the
+next `10-Monitoring/cve_inventory.sh` run (OS errata section).
+
+Sources: CVE record https://www.cve.org/CVERecord?id=CVE-2026-111497 ·
+https://brandefense.io/blog/http2shell-brotli-cve-2026-111497/ ·
+https://linux.oracle.com/errata/ELSA-2026-500513.html ·
+https://nodejs.org/en/blog/vulnerability/october-2026-security-releases
 
 ## Patch List — CPU October 2026 cycle
 

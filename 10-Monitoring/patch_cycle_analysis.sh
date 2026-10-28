@@ -257,7 +257,7 @@ fi
 [ -f "$ROOT_DIR/$SKILL_DOC" ] && ok "Skill document: $SKILL_DOC" || fail "Skill document missing: $SKILL_DOC"
 [ -f "$ROOT_DIR/.claude/skills/patch-cycle-analysis/SKILL.md" ] \
     && ok "Claude Code skill: .claude/skills/patch-cycle-analysis/SKILL.md" \
-    || warn "Claude Code skill missing – the prompt still names the skill document"
+    || warn "Claude Code skill missing – the prompt still names the skill document (install: mkdir -p .claude/skills && cp -r 10-Monitoring/claude/skills/patch-cycle-analysis .claude/skills/)"
 
 # Claude setup (10-Monitoring/setup_claude.md): never on prod, sandbox + guard
 case "${IHW_ENV_TYPE:-}" in

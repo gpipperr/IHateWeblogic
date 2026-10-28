@@ -585,7 +585,8 @@ IHateWeblogic/
 │   ├── patch_cycle_analysis_skill.md – the procedure Claude follows + registry "where the cycle lives"
 │   ├── setup_claude.md              – Claude Code on an FMW host: placement (never prod), sandbox, guard, data protection
 │   ├── claude_setup_check.sh        – checks that setup, --apply renders the managed settings + root commands
-│   ├── claude/                      – managed-settings.json.template, ihw_guard.sh (PreToolUse hook)
+│   ├── claude/                      – managed-settings.json.template, ihw_guard.sh (PreToolUse hook),
+│   │                                   skills/ template of the Claude Code skill (copied to the untracked .claude/)
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
 │
 ├── 12-APEX-Ords/
@@ -826,6 +827,14 @@ summarised in each README ("Review 2026-10-19").
 Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
+
+- [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable
+  through Forms / Reports / WebLogic / Nginx; install OS fix
+  **ELSA-2026-500513** (`brotli-1.0.9-10.0.1.el9_8`, as root), then
+  `stop-all` / `start-all` (Reports server + engines map the old
+  `libbrotlidec` via `libfreetype`); move Node.js of Claude Code from 20
+  (EOL, bundled Brotli 1.1.0) to 22 / 24 LTS –
+  [00-patch-references.md, Brotli](09-Install/docs/00-patch-references.md#brotli-decoder--cve-2026-111497-state-2026-10-28).
 
 - [ ] **Invalid objects in the RCU schemas** (found 2026-10-26 with point 10 of
   the 14c folder – the UMS views themselves are fine): 69 objects invalid

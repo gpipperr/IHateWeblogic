@@ -410,7 +410,10 @@ The same sandbox is the base for the proactive log analysis below.
 Standardised analysis of every Oracle cycle (CPU, CSPU, Security Alert) with
 Claude Code. Procedure, rules and the registry "where the cycle lives in the
 lib": [patch_cycle_analysis_skill.md](patch_cycle_analysis_skill.md); the
-Claude Code skill `/patch-cycle-analysis` (`.claude/skills/`) points to it.
+Claude Code skill `/patch-cycle-analysis` points to it – template
+[claude/skills/patch-cycle-analysis/SKILL.md](claude/skills/patch-cycle-analysis/SKILL.md),
+copied once into the local, untracked `.claude/skills/` (`.claude/` is not in Git):
+`mkdir -p .claude/skills && cp -r 10-Monitoring/claude/skills/patch-cycle-analysis .claude/skills/`.
 
 ```
 1 ANALYSE  prepare: public Oracle sources      -> readme_list.md (what to download)
