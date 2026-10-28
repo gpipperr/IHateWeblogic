@@ -327,6 +327,9 @@ _mos_download_one() {
     local dest_dir="$2"
     local gmp_regexp="${3:-}"
     local gmp_platform="${4:-}"
+    # getMOSPatch matches the regexp (String.matches) against the file name
+    # WITHOUT ".zip" (checked in the class 2026-10-28) – strip a trailing \.zip
+    gmp_regexp="${gmp_regexp%\\.zip}"; gmp_regexp="${gmp_regexp%.zip}"
     local retry_max="${MOS_RETRY_MAX:-3}"
     local retry_wait="${MOS_RETRY_WAIT:-10}"
 

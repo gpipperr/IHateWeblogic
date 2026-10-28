@@ -138,7 +138,7 @@ patch directory gets its own cfg (same mechanism as the client Java).
 | Variable | Value | Description |
 |---|---|---|
 | `DB_CVU_PATCH_NR` | `30839369` | MOS "Standalone CVU Platform-specific package supports 21c and 19c" – platform of the master cfg (Linux x86-64) |
-| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
+| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: `_mos_download_one` strips the trailing `\.zip` – getMOSPatch compares the regexp with `String.matches()` against the file name **without** `.zip` (checked 2026-10-28; before, the filter never matched); the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
 
 Downloaded with `--mos` only when the RCU database runs on this host
 (`LOCAL_REP_DB=true` from `01-setup-interview.sh`) into

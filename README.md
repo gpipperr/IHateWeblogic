@@ -973,15 +973,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `NODE_EXTRA_CA_CERTS`; read-only check of presence, links, expiry, quality
   (SHA-1 / MD5) and interception – concept in
   [certificates_trust_stores.md §7 / §8](80-FMW-Architecture/certificates_trust_stores.md#7-centralising-the-java-trust-stores--options).
-- [ ] **Patch download script for manual / customer installations** (next
-  customer appointment): `70-Customer-Projects/tools/` script that downloads
-  a patch list (number, MOS platform – e.g. `233P` Windows x64 / `2000P`
-  Generic / `226P` Linux –, expected file, checksum) in one run with
-  getMOSPatch, outside the lib's environment (reuse `_mos_download_one` of
-  `09-Install/04-oracle_pre_download.sh`); the lists = download checklists of
-  the Reports Builder Windows / Reports14 Linux cookbooks. Reason: the Reports
-  Builder Windows installation 2026-10-27 worked exactly as documented, but
-  loading ~15 MOS patches one by one took too long.
+- [x] **Patch download script for manual / customer installations** (done
+  2026-10-28): [70-Customer-Projects/tools/mos_patch_download.sh](70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+  – standalone, reads a CSV (patch, MOS platform, file regexp, required,
+  step) and downloads with getMOSPatch in one run, `unzip -t` + SHA-256.
+  First list: [12c CPU Oct 2026](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv);
+  CSVs for the Reports Builder Windows / Reports14 Linux checklists when
+  they are needed next.
 - [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
   both are proposals today (½ RAM / 64 MB per session; 30 min, measured
   longest job 1 s on the test host) – re-check with

@@ -127,6 +127,20 @@ VORAUSSETZUNGEN
     39600813   p39600813_1221190_Linux-x86-64.zip        Reports QPR 12.2.1.19
     * genauen Dateinamen im MOS-Download pruefen
 
+  Download in EINEM Lauf (statt jeden Patch einzeln im Browser):
+    Liste   : patches_cpu_oct2026.csv (neben diesem Kochbuch, inkl. OHS-Satz
+              aus Schritt 9: 40005842 39114058 38098858 38832179)
+    Skript  : 70-Customer-Projects/tools/mos_patch_download.sh
+              (ohne IHateWeblogic-Lib, getMOSPatch.jar von Hand daneben legen,
+              Beschreibung: 70-Customer-Projects/tools/README.md)
+
+    cd /oracle/install/cpu_okt2026
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR            # nur Plan
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --apply    # Download
+    # MOS-Passwort wird einmal (verdeckt) abgefragt; Ergebnis je Patch in
+    # $PATCH_DIR/<patchnr>/, Pruefsummen in $PATCH_DIR/patches_sha256.txt,
+    # Exit 0 = alle Pflicht-Patches da. Zweiter Lauf laedt nur, was fehlt.
+
   ACHTUNG Plattform: Forms-QPR, Reports-QPR, DB Client und PERL gibt es unter
   derselben Patchnummer fuer mehrere Plattformen. Nur "*Linux-x86-64*.zip"
   verwenden . UMS hat bewusst die Release-Kennung 122130 (12.2.1.3) - das
@@ -221,7 +235,10 @@ SCHRITT 1: Patches entpacken und pruefen  (vor dem Wartungsfenster)
   # Jeder Patch in ein eigenes Verzeichnis unter $STAGE. unzip erhaelt die
   # Dateirechte (README-Vorgabe fuer UNIX).
   cd $STAGE
-  for Z in $PATCH_DIR/p*.zip; do
+  # $PATCH_DIR/p*.zip (Browser-Download) oder $PATCH_DIR/<nr>/p*.zip
+  # (mos_patch_download.sh) - beides wird gefunden
+  for Z in $PATCH_DIR/p*.zip $PATCH_DIR/*/p*.zip; do
+      [ -f "$Z" ] || continue
       case "$Z" in *SOLARIS*|*AIX*|*MSWIN*|*HPUX*)
           echo "FALSCHE PLATTFORM: $Z"; continue ;; esac
       unzip -q -o "$Z" -d $STAGE

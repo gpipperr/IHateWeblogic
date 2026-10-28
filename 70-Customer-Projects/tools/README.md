@@ -1,4 +1,4 @@
-# tools – metadata collection on a Forms & Reports host
+# tools – metadata collection and patch download for a Forms & Reports host
 
 Shared, standalone helpers for the patch analyses in `70-Customer-Projects/`
 – **no** IHateWeblogic library, plain bash + coreutils, copy them to the host
@@ -7,8 +7,14 @@ Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
 17 / 21) – tested on both (2026-10-23). Release differences are detected at
 runtime, never by a second copy of the script.
 
+| Script | Purpose |
+|---|---|
+| [collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
+| [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
+
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
+  (patch list [patches_cpu_oct2026.csv](../Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv))
 - [Forms14_reports14_patch_analyse_10_2026](../Forms14_reports14_patch_analyse_10_2026/README.md)
 
 ## collect_fmw_env.sh
@@ -53,3 +59,117 @@ arguments are replaced by `***MASKED***` before anything is written.
 Host names, IP addresses and paths stay in the output – they are needed for
 the analysis. Check the files before sending; never commit the output to a
 repository.
+
+## mos_patch_download.sh
+
+Downloads all patches of a CSV list from My Oracle Support with
+[getMOSPatch](https://github.com/MarisElsins/getMOSPatch) – per patch the
+right platform and only the needed file, then `unzip -t` and SHA-256 of every
+ZIP. Standalone like `collect_fmw_env.sh`: bash + coreutils + Java +
+python (only for the password terminal), no IHateWeblogic library.
+
+### Place getMOSPatch on the host
+
+1. On a machine with internet: download `getMOSPatch.jar` from the GitHub
+   page above (Releases), copy it to the host – next to the script, into the
+   target directory, or anywhere (`-j`).
+2. Java 8 or newer (the Oracle Home's JDK is fine:
+   `export JAVA_HOME=<ORACLE_HOME>/oracle_common/jdk` or the server JDK, or
+   `--java <path>`).
+3. **No `.getMOSPatch.cfg` to prepare:** getMOSPatch reads the platform /
+   language from `.getMOSPatch.cfg` in the *current working directory*; the
+   script writes one per patch directory (`<platform>;4L`, 4L = American
+   English) from the CSV.
+4. MOS account with download rights for the product (Extended Support for
+   12.2.1.x patches). The user is `-u` / `$MOS_USER` or asked; the password
+   is asked **once** (hidden) and typed into getMOSPatch through a pseudo
+   terminal – never on a command line, never stored, masked in the log.
+5. Outbound HTTPS to `login.oracle.com`, `updates.oracle.com` and the Akamai
+   download hosts. Behind a proxy: `--proxy host:port`. With TLS interception
+   the company root CA must be in the `cacerts` of the Java used – see
+   [certificates_trust_stores.md §6](../../80-FMW-Architecture/certificates_trust_stores.md).
+
+```bash
+# as any user with write access to the target directory (oracle is fine)
+cd /oracle/install/cpu_okt2026
+cp <repo>/70-Customer-Projects/tools/mos_patch_download.sh .
+cp <repo>/70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv .
+# getMOSPatch.jar placed here by hand
+./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip                      # plan only
+./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip -u me@example.com --apply
+./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip --only 39888613,39600813 --apply
+```
+
+| Option | Meaning |
+|---|---|
+| `-c FILE` | patch list (CSV, format below) |
+| `-d DIR` | target directory; one sub-directory per patch: `DIR/<patch>/p<patch>_*.zip` |
+| `-j JAR` | getMOSPatch.jar (default: `./`, then `DIR/`, then the script directory) |
+| `-u USER` | MOS user (default `$MOS_USER`, else asked) |
+| `--all` | also the rows with `required=optional` |
+| `--only N,N` | only these patch numbers (optional rows included) |
+| `--java JAVA` | Java binary (default `$JAVA_HOME/bin/java`, then `java` in `PATH`) |
+| `--proxy H:P` | HTTPS proxy for getMOSPatch |
+| `--apply` | download – without it the plan is printed (which patch, platform, file, already present) |
+
+Checks first: Java, jar, `unzip`, `sha256sum`, python (`python3`, then
+`/usr/libexec/platform-python` – always present on OL8 / OL9; without python
+getMOSPatch asks for user / password itself for every patch), free space
+(WARN below 15 GB – a full 12c CPU set has ~6 GB). A ZIP already present is
+skipped – a second run only loads what is missing. Up to 3 attempts per
+patch and platform.
+
+Result: `DIR/<patch>/…zip`, `DIR/patches_sha256.txt` (compare with the
+SHA-256 shown on the MOS download page), `DIR/mos_patch_download_<ts>.log`.
+Exit code 0 = all required patches present, 1 = an optional one missing,
+2 = a required one missing / prerequisite missing.
+
+### CSV format
+
+`;`-separated, `#` = comment, one header line:
+
+```
+patch;platform;file_regexp;required;step;description
+40129641;2000P;p40129641_122140_Generic\.zip;yes;6;WLS Stack Patch Bundle 12.2.1.4.261007
+39888613;226P;p39888613_1221190_Linux-x86-64\.zip;yes;8;Oracle Forms QPR 12.2.1.19
+40186682;226P;p40186682_.*_Linux-x86-64\.zip;yes;4;JDK 8u511 (file name not fixed)
+```
+
+| Column | Meaning |
+|---|---|
+| `patch` | MOS patch number |
+| `platform` | MOS platform code; alternatives with `\|` (`2000P\|226P`) are tried in order when MOS has no file for the first |
+| `file_regexp` | Java regex of the **whole file name** (incl. `\.zip`); empty = all files of the platform. The script strips a trailing `\.zip` before passing it to getMOSPatch – getMOSPatch compares with `String.matches()` against the file name **without** `.zip` (`p38832179_122140_Linux-x86-64`), a regexp ending in `\.zip` never matches there (checked in the class, 2026-10-28) |
+| `required` | `yes` or `optional` (only with `--all` / `--only`) |
+| `step` | step of the cookbook that applies the patch (information only) |
+| `description` | free text |
+
+Platform codes (checked 2026-10-22):
+
+| Code | Platform |
+|---|---|
+| `226P` | Linux x86-64 |
+| `2000P` | Generic (all platforms – most FMW bundle patches) |
+| `233P` | Microsoft Windows x64 (64-bit) |
+| `46P` | Linux x86 (32-bit) |
+| `541P` | Linux ARM 64-bit |
+
+All codes of a patch: in an empty directory without `.getMOSPatch.cfg`
+`java -jar getMOSPatch.jar patch=<nr> reset=yes` – getMOSPatch lists the
+platforms / languages the patch exists for and writes a new
+`.getMOSPatch.cfg` there.
+
+### Troubleshooting
+
+| Message | Cause / action |
+|---|---|
+| `No files available` / `There's nothing to download!` | no file for this platform – check the code (`reset=yes`), or the regexp does not match the file name (without `.zip`!); remove the regexp and look at the offered list |
+| `Invalid credentials` | MOS user / password wrong, or the account is locked – log in once in the browser |
+| `ERROR: …403…` / no download right | the MOS account (CSI) has no support / Extended Support for the product |
+| `PKIX path building failed` | TLS interception – company root CA into the Java `cacerts` (see above) |
+| hangs at the start | no outbound HTTPS – proxy (`--proxy`) or firewall |
+| `unzip -t` FAIL | download broken – delete the ZIP, run again (skips the good ones) |
+
+Live-tested 2026-10-28 on the test host (OL9, Java 21, getMOSPatch from the
+patch repository): `--only 38832179` → ZIP, `unzip -t`, SHA-256 OK; password
+not in the log.
