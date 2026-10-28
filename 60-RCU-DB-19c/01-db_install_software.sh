@@ -117,7 +117,8 @@ _fs_free_gb() {   # free GB of the file system that will hold $1
 }
 _fs_dev() { local d="$1"; while [ ! -d "$d" ] && [ "$d" != "/" ]; do d="$(dirname "$d")"; done
     df -P "$d" 2>/dev/null | awk 'NR==2 { print $1 }'; }
-_home_min="${DB_HOME_MIN_FREE_GB:-6}";   _home_rec="${DB_HOME_REC_FREE_GB:-10}"
+# (19.33 gold image unpacked + OneOffs = 11 GB, live 2026-10-28)
+_home_min="${DB_HOME_MIN_FREE_GB:-12}";  _home_rec="${DB_HOME_REC_FREE_GB:-15}"
 _stage_min="${DB_STAGE_MIN_FREE_GB:-8}"; _stage_rec="${DB_STAGE_REC_FREE_GB:-14}"
 [ -f "$DB_AUTOUPGRADE_HOME/base_stage/runInstaller" ] && { _stage_min=$(( _stage_min - 6 )); _stage_rec=$(( _stage_rec - 6 )); }
 [ "$_stage_min" -lt 2 ] && _stage_min=2; [ "$_stage_rec" -lt 4 ] && _stage_rec=4
@@ -311,7 +312,12 @@ unset _dir
 
 section "Extract 19.3.0 Base ZIP → Staging"
 
-if [ -f "$_AU_BASE_STAGE/runInstaller" ]; then
+# A gold image in patchdir (downloaded before) is a complete home - the 19.3
+# base stage (~6.6 GB) is not needed then
+_GOLD_PRESENT="$(ls -1 "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
+if [ -n "$_GOLD_PRESENT" ] && ! $FRESH_PATCHES; then
+    ok "Gold image present ($(basename "$_GOLD_PRESENT")) – base ZIP not needed, skipping unzip"
+elif [ -f "$_AU_BASE_STAGE/runInstaller" ]; then
     ok "Base already extracted (runInstaller found) — skipping unzip"
 else
     info "Extracting: $(basename "$DB_INSTALL_ARCHIVE") ..."
@@ -324,6 +330,7 @@ else
         || { fail "Unzip failed (rc=$_unzip_rc)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
     unset _unzip_rc
 fi
+unset _GOLD_PRESENT
 
 # =============================================================================
 # 3. Java detection (AutoUpgrade requires Java 11; DB bundled JDK used first)
@@ -342,6 +349,8 @@ for _jbin in \
 done
 unset _jbin
 
+# no base stage (gold image case): the JDK of the running DB home works too
+[ -z "$JAVA_BIN" ] && [ -x "${DB_ORACLE_HOME_CURRENT}/jdk/bin/java" ] && JAVA_BIN="${DB_ORACLE_HOME_CURRENT}/jdk/bin/java"
 if [ -n "$JAVA_BIN" ]; then
     ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
 else
@@ -566,13 +575,15 @@ section "Identify Patches"
 
 # Update OPatch in staging dir so the installer uses the latest OPatch for -applyRU
 _opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
-if [ -n "$_opatch_zip" ]; then
+if [ ! -d "$_AU_BASE_STAGE/OPatch" ]; then
+    info "No base stage (gold image) – OPatch is updated in the new home"
+elif [ -n "$_opatch_zip" ]; then
     info "Updating OPatch in staging dir: $(basename "$_opatch_zip") ..."
     unzip -q -o "$_opatch_zip" -d "$_AU_BASE_STAGE" 2>&1 | tee -a "$LOG_FILE"
-    ok "OPatch updated: $("$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
+    ok "OPatch updated: $(ORACLE_HOME="$_AU_BASE_STAGE" "$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
 else
     warn "OPatch ZIP (p6880880_*.zip) not found in patchdir — using bundled OPatch"
-    ok "Bundled: $("$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
+    ok "Bundled: $(ORACLE_HOME="$_AU_BASE_STAGE" "$_AU_BASE_STAGE/OPatch/opatch" version 2>/dev/null | head -1)"
 fi
 unset _opatch_zip
 
@@ -602,7 +613,13 @@ for _pd in "$_AU_PATCH_STAGE"/*/; do
     fi
 done
 
-if [ -z "$_RU_DIR" ]; then
+# Gold image (AutoUpgrade 26.6 "recommended" for 19.33, live 2026-10-28): a
+# complete, already patched home (RU + OCW RU inside) instead of an RU ZIP ->
+# unzip it as the new home and run ITS runInstaller with the OneOffs only
+_GOLD_ZIP="$(ls -1t "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
+if [ -z "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
+    ok "$(printf "Gold image     : %s  (%s)" "$(basename "$_GOLD_ZIP")" "$(du -sh "$_GOLD_ZIP" 2>/dev/null | cut -f1)")"
+elif [ -z "$_RU_DIR" ]; then
     fail "No RU patch identified (no bundle.xml found in patch_stage subdirectories)"
     info "  Expected: a patch ZIP that extracts to a dir containing bundle.xml (e.g. RU 19.30)"
     info "  Patchdir: $_AU_PATCHDIR"
@@ -610,7 +627,7 @@ if [ -z "$_RU_DIR" ]; then
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
-ok "$(printf "RU dir         : %s" "$_RU_DIR")"
+[ -n "$_RU_DIR" ] && ok "$(printf "RU dir         : %s" "$_RU_DIR")"
 [ -n "$_ONEOFF_LIST" ] && ok "$(printf "OneOffs        : %s" "$_ONEOFF_LIST")"
 
 # =============================================================================
@@ -619,7 +636,7 @@ ok "$(printf "RU dir         : %s" "$_RU_DIR")"
 
 section "runInstaller -applyRU"
 
-if [ -d "$DB_ORACLE_HOME" ]; then
+if [ -d "$DB_ORACLE_HOME" ] && [ -n "$(ls -A "$DB_ORACLE_HOME" 2>/dev/null)" ]; then
     fail "DB_ORACLE_HOME already exists: $DB_ORACLE_HOME"
     info "  Use --clean --apply to remove it and reinstall"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
@@ -659,9 +676,34 @@ fi
 unset _inv_target
 
 # Build -applyRU / -applyOneOffs arguments
-_ru_args=(-applyRU "$_RU_DIR")
-[ -n "$_ONEOFF_LIST" ] && _ru_args+=(-applyOneOffs "$_ONEOFF_LIST")
-unset _RU_DIR _ONEOFF_LIST
+_INSTALLER="$_AU_BASE_STAGE/runInstaller"
+_ru_args=()
+if [ -n "$_RU_DIR" ]; then
+    _ru_args=(-applyRU "$_RU_DIR")
+else
+    # gold image: unpack it as the new home, newest OPatch into it, then its runInstaller
+    info "Unpacking gold image into $DB_ORACLE_HOME ..."
+    printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    unzip -q -o "$_GOLD_ZIP" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
+    [ -x "$DB_ORACLE_HOME/runInstaller" ] \
+        || { fail "Gold image unzip failed – no runInstaller in $DB_ORACLE_HOME"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    printf "  Finished: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    _opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
+    [ -n "$_opatch_zip" ] && unzip -q -o "$_opatch_zip" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
+    ok "Gold image unpacked, $(ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null | head -1)"
+    _INSTALLER="$DB_ORACLE_HOME/runInstaller"
+    unset _opatch_zip
+fi
+# -applyOneOffs only with -applyRU: with a gold image runInstaller rejected the
+# OJVM RU as "not applicable" (checkComponents not executed, live 2026-10-28) -
+# there the OneOffs are applied with opatch after the installation (below)
+_POST_ONEOFFS=""
+if [ -n "$_RU_DIR" ]; then
+    [ -n "$_ONEOFF_LIST" ] && _ru_args+=(-applyOneOffs "$_ONEOFF_LIST")
+else
+    _POST_ONEOFFS="$_ONEOFF_LIST"
+fi
+unset _RU_DIR _ONEOFF_LIST _GOLD_ZIP
 
 _edition="${DB_EDITION:-EE}"
 # Oracle home name: unique in the central inventory - first install OraDB19Home1,
@@ -688,7 +730,7 @@ info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]}")"
 
 printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-"$_AU_BASE_STAGE/runInstaller" \
+ORACLE_HOME="$DB_ORACLE_HOME" "$_INSTALLER" \
     -silent \
     -ignorePrereqFailure \
     -waitforcompletion \
@@ -711,7 +753,7 @@ printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LO
 _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
 unset CV_ASSUME_DISTID
-unset _ru_args _cv_distid _edition _home_name
+unset _ru_args _cv_distid _edition _home_name _INSTALLER
 
 # Installer log location
 _inv_loc_v="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)"
@@ -719,6 +761,12 @@ _installer_log=$(ls -t "${_inv_loc_v}/logs/InstallActions"*.log 2>/dev/null | he
 [ -n "$_installer_log" ] && info "  Installer log: $_installer_log"
 unset _inv_loc_v _installer_log
 
+# rc=6 = "Successfully Setup Software with warning(s)" (optional prerequisites,
+# e.g. INS-13014 / INS-32056 inventory under ORACLE_BASE) - success (live 2026-10-28)
+if [ "$_install_rc" -eq 6 ]; then
+    warn "runInstaller rc=6 – software set up with warnings (optional prerequisites, see the installer log)"
+    _install_rc=0
+fi
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"
     info "  With -applyRU on OL9 and RU >= 19.22, rc=0 is expected."
@@ -727,7 +775,29 @@ if [ "$_install_rc" -ne 0 ]; then
 fi
 unset _install_rc
 
-ok "runInstaller -applyRU completed (rc=0)"
+ok "runInstaller completed (rc=0)"
+
+# Gold image: OneOffs (OJVM RU, Data Pump bundle, JDK bundle) with opatch into the
+# registered home - OPatch "succeeded" is not enough, a SKIPPED patch is a failure
+if [ -n "$_POST_ONEOFFS" ]; then
+    section "OneOffs with opatch apply (gold image)"
+    IFS=',' read -r -a _po <<< "$_POST_ONEOFFS"
+    for _pd in "${_po[@]}"; do
+        info "opatch apply $(basename "$_pd") ..."
+        _out="$(cd "$_pd" && ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME" 2>&1)"
+        printf '%s\n' "$_out" >> "$LOG_FILE"
+        if printf '%s\n' "$_out" | grep -q 'OPatch succeeded' \
+           && ! printf '%s\n' "$_out" | grep -qiE 'skipped|not applicable|Prerequisite check .* failed'; then
+            ok "  $(basename "$_pd") applied"
+        else
+            fail "  $(basename "$_pd"): $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
+            EXIT_CODE=2
+        fi
+    done
+    unset _po _pd _out
+    [ "$EXIT_CODE" -ge 2 ] && { info "  Logs: $DB_ORACLE_HOME/cfgtoollogs/opatch/"; print_summary; exit $EXIT_CODE; }
+fi
+unset _POST_ONEOFFS
 
 # Cleanup patch staging dir (ZIPs in patchdir are kept for reproducibility)
 rm -rf "$_AU_PATCH_STAGE"

@@ -131,11 +131,20 @@ the running one; `09-db_patch_rcu.sh` then moves the instance
 ./60-RCU-DB-19c/01-db_install_software.sh --target-home $ORACLE_BASE/product/19.33.0/db_home1 --fresh-patches --apply
 ```
 
+**Gold image (AutoUpgrade 26.6, 19.33, live 2026-10-28):** `recommended` now
+delivers `db_goldimage_19_<ru>_*.zip` – a complete home with RU and OCW RU –
+instead of an RU ZIP. `01-` then unpacks it as the new home (newest OPatch
+into it), runs its `runInstaller` without patches (rc 6 = success with
+warnings) and applies the OneOffs (OJVM, Data Pump bundle, JDK bundle) with
+`opatch apply` – `-applyOneOffs` rejected the OJVM RU as "not applicable" on
+the gold image. The 19.3 base stage is not needed in this case. Unpacked
+19.33 home + OneOffs: 11 GB.
+
 `--target-home` keeps `DB_ORACLE_HOME` / `environment_db.conf` unchanged and
 names the home `OraDB19Home_<version dir>`; `--fresh-patches` moves the old
 patch ZIPs to `patchdir_<timestamp>/`. The **disk space check runs first**
 (also in the dry-run): home + staging on one file system min 14 /
-recommended 24 GB.
+recommended 24 GB (home min 12 / rec 15 GB since the gold image).
 
 ## Installation: runInstaller -applyRU
 

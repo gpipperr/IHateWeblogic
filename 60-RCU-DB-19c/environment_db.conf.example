@@ -120,8 +120,8 @@ DB_INSTALL_ARCHIVE="${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
 
 # --- Disk space checks (01-db_install_software.sh, checked first) --------------
 # new home min / recommended, AutoUpgrade staging (base_stage + patch ZIPs + patch_stage)
-DB_HOME_MIN_FREE_GB=6
-DB_HOME_REC_FREE_GB=10
+DB_HOME_MIN_FREE_GB=12   # 19.33 gold image unpacked + OneOffs = 11 GB (2026-10-28)
+DB_HOME_REC_FREE_GB=15
 DB_STAGE_MIN_FREE_GB=8
 DB_STAGE_REC_FREE_GB=14
 # DB_ORACLE_HOME_PREV is written by 09-db_patch_rcu.sh (previous home, --rollback)

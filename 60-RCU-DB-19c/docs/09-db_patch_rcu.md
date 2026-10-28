@@ -98,11 +98,33 @@ Last resort: Data Pump dumps of step 2 + VM snapshot.
 | `OPATCH_XML_INV` / QOpatch directory objects point to a wrong path (PATCH112) | check before; recreate the directory objects |
 | not enough space | checked first in `01-` and `09-` |
 
-## Status
+## Status – live run 19.30 → 19.33 (test host, 2026-10-28)
 
-Scripts written 2026-10-28; dry-runs on the test host OK (checks, plan).
-Live run 19.30 → 19.33 on the test host: **open** – runtimes and findings
-are added here after the run.
+**Done, confirmed (live).** Result: `version_full` 19.33.0.0.0, PMON from the
+new home, datapatch `SUCCESS` in CDB$ROOT, PDB$SEED and FMWPDB (APPLY RU
+39915792, OJVM 39803650, Data Pump 40057600; ROLLBACK of the 19.30 OJVM / Data
+Pump patches), `utlrp` OK, FMW requirements OK, domain up, all data sources
+log in (`rcu_repository_check.sh` rc 0).
+
+| Phase | Time | Duration |
+|---|---|---|
+| `01-` download (AutoUpgrade 26.6, gold image 4.9 GB at ~2 MB/s) | 15:22 – 16:03 | 41 min (domain running) |
+| `01-` gold image unpack + runInstaller + 3 × `opatch apply` | 16:11 – 16:25 | ~14 min (domain running) |
+| `root.sh` (root) | 16:37 | – |
+| `09-` checks + Data Pump + config backup | 16:38 – 16:41 | 3 min |
+| **domain down**: stop, move, uniaud relink, start, datapatch, utlrp, start-all | 16:41 – 17:02 | **~22 min** (datapatch + utlrp the largest part) |
+
+Findings of the run (fixed in the scripts):
+
+| Finding | Fix |
+|---|---|
+| AutoUpgrade 26.6 `recommended` delivers a **gold image** (`db_goldimage_19_33_*.zip`, complete home with RU + OCW RU) instead of an RU ZIP | `01-` installs from the gold image (unzip as the new home, its `runInstaller`) |
+| `runInstaller -applyOneOffs` with the gold image rejected the OJVM RU ("not applicable", `checkComponents` not executed) and detached the home | OneOffs (OJVM, Data Pump, JDK) with `opatch apply` after the installation, "skipped" = failure |
+| `runInstaller` rc 6 = "Successfully Setup Software with warning(s)" | rc 6 → WARN |
+| disk: the unpacked 19.33 home has **11 GB** (estimate was 8) – `/` reached 98 % | thresholds raised (home min 12 / rec 15 GB); in the gold-image case the 19.3 base stage (6.6 GB) is not needed and skipped |
+| `sed -i /etc/oratab` fails (temp file in `/etc` not writable for oracle although oratab is) | write back through a temp file in `/tmp` |
+| systemd unit files readable by root only → "no reference" was reported | unreadable units are treated as "to change", root commands printed |
+| PDB$SEED could not be opened before (ORA-14696) | repaired the same day ([05-db_create_database.md](05-db_create_database.md)) |
 
 ## References
 

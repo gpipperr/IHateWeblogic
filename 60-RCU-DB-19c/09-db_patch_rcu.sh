@@ -165,6 +165,12 @@ else
     info "  Build it: 01-db_install_software.sh --target-home $TO_HOME --fresh-patches --apply"
 fi
 [ "$TO_HOME" = "$FROM_HOME" ] && fail "Target home = running home"
+# root.sh of the target home writes install/root_<host>_<timestamp>.log
+if ls "$TO_HOME"/install/root_*.log >/dev/null 2>&1; then
+    ok "root.sh of the target home has run"
+else
+    fail "root.sh of the target home has not run – as root: $TO_HOME/root.sh"
+fi
 # RU versions
 _ru_from="$(_ru_of "$FROM_HOME")"; _ru_to="$(_ru_of "$TO_HOME")"
 info "$(printf "  RU from: %-20s to: %s" "${_ru_from:-?}" "${_ru_to:-?}")"
@@ -307,8 +313,15 @@ unset _ua_from _ua_to
 
 section "6. oratab / environment_db.conf / systemd"
 if grep -q "^${SID}:" /etc/oratab 2>/dev/null; then
-    sed -i "s#^${SID}:[^:]*:#${SID}:${TO_HOME}:#" /etc/oratab \
-        && ok "/etc/oratab: ${SID}:${TO_HOME}" || warn "/etc/oratab not writable – set ${SID}:${TO_HOME}:Y by hand"
+    # no sed -i: it needs write access to /etc for its temp file (oratab itself
+    # is writable for oracle) - write back through a temp file in /tmp
+    _t="$(mktemp)"
+    if sed "s#^${SID}:[^:]*:#${SID}:${TO_HOME}:#" /etc/oratab > "$_t" && cat "$_t" > /etc/oratab; then
+        ok "/etc/oratab: ${SID}:${TO_HOME}"
+    else
+        warn "/etc/oratab not writable – set ${SID}:${TO_HOME}:Y by hand"
+    fi
+    rm -f "$_t"; unset _t
 else
     warn "/etc/oratab has no entry for $SID"
 fi
@@ -322,7 +335,9 @@ fi
 ok "environment_db.conf: DB_ORACLE_HOME=$TO_HOME, DB_ORACLE_HOME_PREV=$FROM_HOME"
 _units=""
 for _u in /etc/systemd/system/oracle-listener.service /etc/systemd/system/oracle-db.service; do
-    grep -q "$FROM_HOME" "$_u" 2>/dev/null && _units="$_units $_u"
+    [ -e "$_u" ] || continue
+    # unit files are often readable by root only - then assume they need the change
+    if [ ! -r "$_u" ] || grep -q "$FROM_HOME" "$_u" 2>/dev/null; then _units="$_units $_u"; fi
 done
 if [ -n "$_units" ]; then
     warn "systemd units still point to the old home – as root:"

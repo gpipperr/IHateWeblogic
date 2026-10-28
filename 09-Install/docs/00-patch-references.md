@@ -608,7 +608,7 @@ the test host (live, 2026-10-23): **APEX 26.2.0** (no patch set),
 | CVE-2026-91610 (**8.8**), CVE-2026-101494 (7.7) | Oracle REST Data Services | no | ≤ 8.8 | 24.2.0–26.2.2 | ORDS 26.3.0 | not affected |
 | CVE-2026-54399 | Oracle SQLcl (Apache HttpComponents) **component of Oracle Database Server** | yes | 3.1 | 19.3–19.32, 21.3–21.23, 23.4.0–23.26.3 | standalone SQLcl 26.3 | not affected – the row is about the SQLcl **inside a DB home** (19c / 23ai RU); our SQLcl is the standalone 26.3 |
 | CVE-2026-101510 | Oracle Net Services (Database Server) | no | 4.4 | 19.3–19.32, 21.3–21.23, 23.4.0–23.26.3 | Instant Client 23.26.4 | not affected (23.26.4 > 23.26.3). The matrix says "2 of these patches are applicable to client-only installations" without naming them in the notes – presumably this row and the SQLcl row (**assumption**) |
-| **CVE-2026-75803** | RDBMS (OpenSSL), TLS | **yes** | **9.8** | 19.3–19.32, 23.4.0–23.26.3 | repository DB **19.30** | **affected** – database server, not a client component: DB RU 19.33 (Oct 2026) for the repository / APEX database (`60-RCU-DB-19c/02-db_patch_db_software.sh`); further DB rows up to 8.8 (OLAP, VPD, Micronaut) same RU |
+| **CVE-2026-75803** | RDBMS (OpenSSL), TLS | **yes** | **9.8** | 19.3–19.32, 23.4.0–23.26.3 | repository DB **19.30** → **19.33** | **fixed on the test host 2026-10-28** – DB RU 19.33 (+ OJVM, Data Pump, JDK bundle) out-of-place with `60-RCU-DB-19c/01- --target-home` + `09-db_patch_rcu.sh` ([09-db_patch_rcu.md](../../60-RCU-DB-19c/docs/09-db_patch_rcu.md)); further DB rows up to 8.8 (OLAP, VPD, Micronaut) same RU |
 
 **Is APEX 26.2 really safe from CVE-2026-101521?** Yes, per the advisory:
 

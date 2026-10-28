@@ -61,11 +61,14 @@ future migration to a DBA-managed infrastructure database.
 | Resource | Minimum | Recommended |
 |---|---|---|
 | RAM | 2 GB | 4 GB |
-| Disk – DB software | 8 GB | 8 GB |
-| Disk – DB files | 4 GB | 8 GB |
-| Disk – total | **12 GB** | **16 GB** |
+| Disk – DB software | 12 GB (one patched home) | **24 GB** (2 homes during an out-of-place patch) |
+| Disk – DB files | 8 GB | 15 GB |
+| Disk – AutoUpgrade staging | 8 GB (gold image) | 18 GB (first install: + 19.3 base ZIP and base stage) |
+| Disk – total | **30 GB** | **60 GB** (+ OS) |
 | CPU | 1 core | 2 cores |
 
+> Measured 2026-10-28 (19.33 home = 11–12 GB); details and the whole-host
+> view: root README, [Disk Sizing Guide](../README.md#disk-sizing-guide).
 > These figures apply to a **metadata-only** database (FMW RCU schemas).
 > Do not use this sizing for application data, archive logs, or production loads.
 

@@ -200,6 +200,38 @@ What matters in this cycle:
 
 
 
+## Disk Sizing Guide
+
+Measured on the test host on 2026-10-28. That host runs everything on one server and one 99 GB file system: Forms + Reports domain, local RCU database 19c, APEX + ORDS, patch storage. It is **92 GB full** right after the out-of-place DB patch, with the old and the new DB home side by side. Plan for the **peak during patching**, not for the steady state.
+
+| Area | Path (default) | Measured | Plan for | Why |
+|---|---|---|---|---|
+| **FMW Oracle Home** (WLS + Forms & Reports, patched) | `$ORACLE_HOME` (`$ORACLE_BASE/fmw`) | 6.8 GB | **12 GB** | OPatch keeps roll-back copies in `.patch_storage` – grows with every cycle (SPB, bundles, QPRs) |
+| FMW patching workspace | SPB unpacked outside the home | – | **+5 GB** temporary | WLS Stack Patch Bundle README: ≥ 4 GB outside the Oracle Home |
+| **Domain** | `$DOMAIN_HOME` | 2.0 GB | **5 GB** | server logs, Reports cache / output, Forms temp; rotation in `07-Maintenance` |
+| JDK | `$ORACLE_BASE/java` | 1.0 GB | **2 GB** | old + new JDK side by side during an update (junction / symlink switch) |
+| **RCU DB home** | `$ORACLE_BASE/product/<ru>/db_home1` | 12 GB per home | **2 × 12 = 24 GB** | out-of-place patch: new home (19.33 gold image + OJVM / Data Pump / JDK = 11 GB) next to the running one until the old one is removed ([09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)) |
+| DB data files | `DB_DATA_DIR` (`$ORACLE_BASE/oradata`) | 9.3 GB | **15 GB** | CDB + PDB + RCU schemas (67 MB) + APEX; datapatch / `utlrp` grow SYSTEM / SYSAUX |
+| DB admin / diag / FRA | `admin`, `diag`, `flash_recovery_area` | 0.6 GB | **3 GB** | Data Pump dumps before a patch, audit, alert / trace; FRA only with ARCHIVELOG (then much more) |
+| **AutoUpgrade staging** | `DB_AUTOUPGRADE_HOME` | 7.9 GB | **8 GB**, first install **+10 GB** | gold image 4.9 GB + OneOffs + OPatch; the first install also unpacks the 19.3 base ZIP (3 GB ZIP + 6.6 GB `base_stage`) |
+| APEX / ORDS / Instant Client | `product/apex`, `ords_*`, `instantclient*` | 1.6 GB | **3 GB** | two ORDS homes for an ORDS switch |
+| **Patch storage** | `PATCH_STORAGE` (`/srv/patch_storage`) | 20 GB | **30 GB** | base installers (WLS 4.2, F&R 2.7 GB), current patch set 3.8 GB **+ archived previous set** (6.5 GB, `04- --fresh-patches`), client Java 1.1 GB, APEX / ORDS / SQLcl |
+| OS / swap / tmp | `/`, `swapfile`, `/tmp` | ~15 GB | **20 GB** | swap file 2 GB, `/tmp` for installers and OPatch |
+
+**Totals:**
+
+| Setup | Plan for |
+|---|---|
+| FMW only (RCU DB on another server) | **~75 GB**: FMW 12 + 5 workspace + domain 5 + JDK 2 + patch storage 30 + OS 20 – the patch storage can be shared or on a separate disk |
+| RCU DB server only | **~80 GB**: 2 homes 24 + data 15 + admin 3 + AutoUpgrade 18 + OS 20 |
+| **Everything on one host** (like the test host) | **≥ 140 GB** (sum of the plan column: 137 GB). Better split: `/u01` ≥ 90 GB, `/srv/patch_storage` 30–40 GB, OS 20 GB. 100 GB is already too tight while a DB patch runs. |
+
+Rules:
+
+- Check free space **before** every patch run. `01-db_install_software.sh` and `09-db_patch_rcu.sh` check it first and stop on FAIL; the FMW patch scripts `81-` / `82-` need the SPB workspace.
+- Each cycle: remove the old DB home after a few days of stable operation (`deinstall`, about 12 GB). Archived patch sets in `PATCH_STORAGE` older than one cycle can go too. Clean up `.patch_storage` of the FMW home only with `opatch util cleanup` (never by hand).
+- Logs and backups grow without limit unless rotated: `07-Maintenance` (`backup_config.sh --keep`, `bak_cleanup.sh`), the domain log rotation and the Data Pump dumps of `rcu_repository_check.sh --apply`.
+
 ## Lifecycle Overview
 
 The numbered folders in this repository follow the lifecycle of a real
@@ -831,13 +863,6 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
-- [ ] **RCU database RU 19.30 → 19.33** (CPU Oct 2026, CVE-2026-75803) on the
-  test host – first live run of the new out-of-place path:
-  `60-RCU-DB-19c/01-db_install_software.sh --target-home … --fresh-patches --apply`
-  + `09-db_patch_rcu.sh --new-home … --apply` (domain downtime); before:
-  19.3 base ZIP to `PATCH_STORAGE/database/` (today in
-  `autoupgrade/patchdir/`), `PDB$SEED` open READ ONLY
-  ([docs/09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)).
 - [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable
   through Forms / Reports / WebLogic / Nginx; install OS fix
   **ELSA-2026-500513** (`brotli-1.0.9-10.0.1.el9_8`, as root), then
