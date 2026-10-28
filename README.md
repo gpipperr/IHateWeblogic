@@ -57,7 +57,7 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[███████████████████░]` ~95 % complete** (state 2026-10-27) – phases 1–7
+**`[███████████████████░]` ~95 % complete** (state 2026-10-28) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -102,6 +102,13 @@ was run live at the customer and worked as written (developers need local
 admin accounts), with an architecture article incl. the development workflow
 and the image search paths per side; measured: the Reports tools do not use
 the RCU schemas at runtime.
+New 2026-10-28: the **RCU database patched out-of-place 19.30 → 19.33**
+(`60-RCU-DB-19c/01- --target-home` from the AutoUpgrade gold image +
+`09-db_patch_rcu.sh`, domain down ~22 min, datapatch in every container,
+rollback path), the PDB$SEED MAX_STRING_SIZE fix in `05-`, a **disk sizing
+guide**, the central article on **certificates and trust stores**, and a
+standalone **MOS patch download tool** (`70-Customer-Projects/tools/mos_patch_download.sh`,
+CSV list per cycle – first for the customer's 12c CPU October 2026 run).
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about two fifths
@@ -853,7 +860,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-27). Everything finished is described
+Only what is still open (state 2026-10-28). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -973,13 +980,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `NODE_EXTRA_CA_CERTS`; read-only check of presence, links, expiry, quality
   (SHA-1 / MD5) and interception – concept in
   [certificates_trust_stores.md §7 / §8](80-FMW-Architecture/certificates_trust_stores.md#7-centralising-the-java-trust-stores--options).
-- [x] **Patch download script for manual / customer installations** (done
-  2026-10-28): [70-Customer-Projects/tools/mos_patch_download.sh](70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
-  – standalone, reads a CSV (patch, MOS platform, file regexp, required,
-  step) and downloads with getMOSPatch in one run, `unzip -t` + SHA-256.
-  First list: [12c CPU Oct 2026](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv);
-  CSVs for the Reports Builder Windows / Reports14 Linux checklists when
-  they are needed next.
 - [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
   both are proposals today (½ RAM / 64 MB per session; 30 min, measured
   longest job 1 s on the test host) – re-check with
@@ -988,12 +988,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ### APEX / ORDS beside Forms
 
-- [ ] **Repository / APEX database DB RU 19.33** (CPU Oct 2026): DB 19.30 is
-  affected by CVE-2026-75803 (RDBMS OpenSSL, TLS, 9.8, unauthenticated) and
-  further DB rows up to 8.8 –
-  [00-patch-references](09-Install/docs/00-patch-references.md#apex-ords-sqlcl-and-instant-client--security-status-and-patching);
-  APEX 26.2 / ORDS 26.3 / SQLcl 26.3 / Instant Client 23.26.4 are **not**
-  affected (checked 2026-10-23, incl. APEX CVE-2026-101521, 9.8).
+- [ ] **RCU / APEX database after the 19.33 patch** (out-of-place
+  19.30 → 19.33 live 2026-10-28,
+  [09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)): after some
+  days of stable operation deinstall the old 19.30 home
+  (`deinstall -checkonly` / `-silent`), remove the stale inventory entry
+  `OraDB19Home1` of the 19.3 `db_home1`, delete the Data Pump dumps of the
+  patch run.
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
