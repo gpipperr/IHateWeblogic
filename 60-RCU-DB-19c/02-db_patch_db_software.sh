@@ -9,6 +9,9 @@
 #
 # See: 60-RCU-DB-19c/01-db_install_software.sh
 #      60-RCU-DB-19c/docs/01-db_install_software.md
+# Patching a RUNNING database (next RU): out-of-place with
+#      01-db_install_software.sh --target-home <new home> --fresh-patches --apply
+#      09-db_patch_rcu.sh --new-home <new home> --apply   (docs/09-db_patch_rcu.md)
 # =============================================================================
 
 printf "\033[33mWARN\033[0m  02-db_patch_db_software.sh is DEPRECATED.\n"

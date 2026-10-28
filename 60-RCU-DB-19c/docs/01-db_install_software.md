@@ -100,6 +100,43 @@ DB_AUTOUPGRADE_HOME/
 
 ---
 
+## DB home JDK patch and AutoUpgrade version
+
+The DB RU also replaces `$ORACLE_HOME/jdk` – but with the JDK of the
+**previous** quarter (confirmed (live) 2026-10-28: RU 19.30 of January 2026
+→ `1.8.0_471-b09`; the RU's `actions.xml` contains ~2,000 actions under
+`jdk/`). The current JDK comes with the separate **JDK bundle patch**, which
+AutoUpgrade downloads with the keyword **`jdk`** – it is **not** part of
+`recommended` (our March 2026 download with AutoUpgrade 26.2: RU, OJVM, DPBP,
+OPatch only). `01-` therefore uses `recommended,jdk` (or
+`ru:<v>,ojvm:<v>,opatch,dpbp,jdk`); the JDK patch lands in `patchdir/` and is
+applied as a OneOff of `runInstaller -applyOneOffs`.
+
+| Item | Value (CPU Oct 2026, checked 2026-10-28) |
+|---|---|
+| AutoUpgrade | **26.6.260925** – `01-` downloads the newest `autoupgrade.jar` before every patch download and keeps the previous one as `autoupgrade.jar.<version>` (keywords change between releases) |
+| `jdk` → | patch **39902051** "JDK BUNDLE PATCH 19.0.0.0.261020" (`p39902051_190000_Linux-x86-64.zip`, SHA-256 `8F9D82C0…53ED51`) – tested: AutoUpgrade 26.6 with `patch=jdk` / `opatch,jdk` |
+| Content | JDK `1.8.0_511-b09` (own build line of Oracle homes – not comparable with the b-numbers of the public JRE); files 2026-09-22 → CPU level; **not** the level of the Java alerts of 21 / 24 Oct 2026 (`cacerts` still with the emSign roots, `blacklisted.certs` = list of 2024) |
+| OPatch | `opatch` → 12.2.0.1.55 (Oct 2026); the JDK patch needs ≥ 12.2.0.1.52 |
+| Existing home | `cd <dir>/<nr>; $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./; opatch apply` – **no** database shutdown needed (README); rollback `opatch rollback -id <nr>`; with Examples installed first `chmod -R 755 $ORACLE_HOME/jdk` |
+| Each cycle | AutoUpgrade takes the newest revision automatically; check its content (emSign roots gone from `cacerts` = alert level) |
+
+## Additional home for patching (`--target-home`)
+
+For the next RU of a **running** database `01-` builds a second home next to
+the running one; `09-db_patch_rcu.sh` then moves the instance
+([09-db_patch_rcu.md](09-db_patch_rcu.md)):
+
+```bash
+./60-RCU-DB-19c/01-db_install_software.sh --target-home $ORACLE_BASE/product/19.33.0/db_home1 --fresh-patches --apply
+```
+
+`--target-home` keeps `DB_ORACLE_HOME` / `environment_db.conf` unchanged and
+names the home `OraDB19Home_<version dir>`; `--fresh-patches` moves the old
+patch ZIPs to `patchdir_<timestamp>/`. The **disk space check runs first**
+(also in the dry-run): home + staging on one file system min 14 /
+recommended 24 GB.
+
 ## Installation: runInstaller -applyRU
 
 The 19.3.0 staging directory (`base_stage`) provides the `runInstaller` binary.

@@ -93,6 +93,7 @@ Run in this order — each step must complete before the next:
 | 7 | `07-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
 | 7b | `07b-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
+| 9 | `09-db_patch_rcu.sh` | oracle | **Patch a running DB out-of-place:** new home with `01- --target-home <dir> --fresh-patches`, then move the instance (spfile, orapw, network, oratab, env), datapatch, utlrp, domain stop / start; `--rollback` |
 
 After step 8, continue with:
 
@@ -155,6 +156,7 @@ DB_SERVICE=FMWPDB   # PDB service name
 | [docs/07-db_fmw_tablespace.md](docs/07-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
 | [docs/07b-db_rcu_profile.md](docs/07b-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
 | [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
+| [docs/09-db_patch_rcu.md](docs/09-db_patch_rcu.md) | Out-of-place patching of the running RCU DB (new home + move + datapatch, rollback) |
 
 ---
 

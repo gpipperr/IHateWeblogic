@@ -618,6 +618,7 @@ IHateWeblogic/
 │   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry
 │   ├── rcu_db_requirements.sql      – FMW 14.1.2 DB requirements (version, edition, AL32UTF8, JVM, parameters)
 │   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
+│   ├── 09-db_patch_rcu.sh           – patch the running DB out-of-place (new home via 01- --target-home, move, datapatch, rollback)
 │   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
 │   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
 │   ├── environment_db.conf          – gitignored – server-specific values
@@ -830,6 +831,13 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
+- [ ] **RCU database RU 19.30 → 19.33** (CPU Oct 2026, CVE-2026-75803) on the
+  test host – first live run of the new out-of-place path:
+  `60-RCU-DB-19c/01-db_install_software.sh --target-home … --fresh-patches --apply`
+  + `09-db_patch_rcu.sh --new-home … --apply` (domain downtime); before:
+  19.3 base ZIP to `PATCH_STORAGE/database/` (today in
+  `autoupgrade/patchdir/`), `PDB$SEED` open READ ONLY
+  ([docs/09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)).
 - [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable
   through Forms / Reports / WebLogic / Nginx; install OS fix
   **ELSA-2026-500513** (`brotli-1.0.9-10.0.1.el9_8`, as root), then

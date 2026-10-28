@@ -157,6 +157,7 @@ patch1.download=YES
 > | Value | Meaning |
 > |---|---|
 > | `recommended` | Latest RU + OJVM + OPatch + DPBP + AU (default for non-production) |
+> | `jdk` | JDK bundle patch of the DB home – **not** in `recommended`; `01-` uses `recommended,jdk` (tested with AutoUpgrade 26.6, 2026-10-28) |
 > | `ru:19.30,ojvm:19.30,opatch,dpbp` | Fixed RU 30 -- reproducible, for production |
 >
 > The script derives the patch spec automatically from `DB_TARGET_RU` in `environment_db.conf`:

@@ -118,6 +118,14 @@ MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 # Place the 19c base ZIP at: $PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip
 DB_INSTALL_ARCHIVE="${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
 
+# --- Disk space checks (01-db_install_software.sh, checked first) --------------
+# new home min / recommended, AutoUpgrade staging (base_stage + patch ZIPs + patch_stage)
+DB_HOME_MIN_FREE_GB=6
+DB_HOME_REC_FREE_GB=10
+DB_STAGE_MIN_FREE_GB=8
+DB_STAGE_REC_FREE_GB=14
+# DB_ORACLE_HOME_PREV is written by 09-db_patch_rcu.sh (previous home, --rollback)
+
 # --- Standalone CVU (00b-db_cvu_check.sh) -------------------------------------
 # MOS patch DB_CVU_PATCH_NR (09-Install/oracle_software_version.conf), downloaded
 # by 09-Install/04-oracle_pre_download.sh --apply --mos when LOCAL_REP_DB=true

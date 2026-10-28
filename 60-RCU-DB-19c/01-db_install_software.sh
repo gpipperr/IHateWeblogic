@@ -8,10 +8,11 @@
 #
 #            Flow:
 #              1. Extract 19.3.0 base ZIP to a staging directory (base_stage)
-#              2. Download RU + OJVM + OPatch from MOS via AutoUpgrade
-#                 (skipped if patchdir already contains ZIPs)
+#              2. Download RU + OJVM + DPBP + OPatch + DB home JDK from MOS via
+#                 AutoUpgrade (refreshed to the newest autoupgrade.jar first;
+#                 skipped if patchdir already contains ZIPs)
 #              3. Update OPatch in staging + identify RU / OneOff patch dirs
-#              4. runInstaller -applyRU <RU> [-applyOneOffs <OJVM>] -silent
+#              4. runInstaller -applyRU <RU> [-applyOneOffs <OJVM>,<DPBP>,<JDK>] -silent
 #                 → installs directly to DB_ORACLE_HOME (19.30.0 target)
 #              5. root.sh prompt + chopt disable olap/rat
 #
@@ -20,6 +21,8 @@
 #
 # Call     : ./60-RCU-DB-19c/01-db_install_software.sh
 #            ./60-RCU-DB-19c/01-db_install_software.sh --apply
+#            ./60-RCU-DB-19c/01-db_install_software.sh --target-home <dir> --fresh-patches --apply
+#              (additional patched home for an existing DB -> 09-db_patch_rcu.sh)
 #            ./60-RCU-DB-19c/01-db_install_software.sh --clean [--apply]
 #            ./60-RCU-DB-19c/01-db_install_software.sh --help
 # Runs as  : oracle
@@ -53,6 +56,8 @@ init_log "$DIAG_LOG_DIR"
 
 APPLY=false
 CLEAN=false
+TARGET_HOME_ARG=""
+FRESH_PATCHES=false
 
 _usage() {
     printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
@@ -60,21 +65,36 @@ _usage() {
     printf "  %-20s %s\n" "--apply"         "Extract base + download patches + install via -applyRU"
     printf "  %-20s %s\n" "--clean"         "Dry-run: show what --clean --apply would remove"
     printf "  %-20s %s\n" "--clean --apply" "Remove DB_ORACLE_HOME + base_stage, then install"
+    printf "  %-20s %s\n" "--target-home DIR" "Install into DIR instead of DB_ORACLE_HOME (new home for 09-db_patch_rcu.sh)"
+    printf "  %-20s %s\n" "--fresh-patches" "Move patchdir ZIPs to patchdir_<timestamp> first -> download the current set"
     printf "  %-20s %s\n" "--help"          "Show this help"
     printf "\nRuns as: oracle\n"
     printf "Patch ZIPs in patchdir/ are NOT removed by --clean (reused on re-runs).\n"
     exit 0
 }
 
-for _arg in "$@"; do
-    case "$_arg" in
-        --apply)   APPLY=true ;;
-        --clean)   CLEAN=true ;;
-        --help|-h) _usage ;;
-        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --apply)         APPLY=true ;;
+        --clean)         CLEAN=true ;;
+        --target-home)   shift; TARGET_HOME_ARG="${1:?--target-home needs a directory}" ;;
+        --fresh-patches) FRESH_PATCHES=true ;;
+        --help|-h)       _usage ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 1 ;;
     esac
+    shift
 done
-unset _arg
+
+# --target-home: build an ADDITIONAL home (out-of-place patching, 09-db_patch_rcu.sh)
+# - everything below installs into DB_ORACLE_HOME, so it is redirected here;
+# the running home stays in DB_ORACLE_HOME_CURRENT (environment_db.conf is not changed)
+DB_ORACLE_HOME_CURRENT="$DB_ORACLE_HOME"
+if [ -n "$TARGET_HOME_ARG" ]; then
+    case "$TARGET_HOME_ARG" in /*) ;; *) printf "\033[31mERROR\033[0m --target-home must be absolute\n" >&2; exit 1 ;; esac
+    [ "$TARGET_HOME_ARG" = "$DB_ORACLE_HOME_CURRENT" ] && {
+        printf "\033[31mERROR\033[0m --target-home is the running home (%s)\n" "$DB_ORACLE_HOME_CURRENT" >&2; exit 1; }
+    DB_ORACLE_HOME="$TARGET_HOME_ARG"
+fi
 
 # =============================================================================
 # Banner
@@ -87,6 +107,43 @@ printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"                  | 
 printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY' || printf 'DRY-RUN')" | tee -a "$LOG_FILE"
 printf "  Log         : %s\n" "$LOG_FILE"                                      | tee -a "$LOG_FILE"
 printLine
+
+# --- Disk space (first: before any download / unzip) -------------------------
+# home: patched 19c home ~8 GB incl. RU / OJVM / JDK; staging (AutoUpgrade home):
+# base_stage ~6.5 GB unpacked + patch ZIPs ~3 GB + patch_stage unpacked ~4 GB
+_fs_free_gb() {   # free GB of the file system that will hold $1
+    local d="$1"; while [ ! -d "$d" ] && [ "$d" != "/" ]; do d="$(dirname "$d")"; done
+    df -Pk "$d" 2>/dev/null | awk 'NR==2 { printf "%d", $4 / 1048576 }'
+}
+_fs_dev() { local d="$1"; while [ ! -d "$d" ] && [ "$d" != "/" ]; do d="$(dirname "$d")"; done
+    df -P "$d" 2>/dev/null | awk 'NR==2 { print $1 }'; }
+_home_min="${DB_HOME_MIN_FREE_GB:-6}";   _home_rec="${DB_HOME_REC_FREE_GB:-10}"
+_stage_min="${DB_STAGE_MIN_FREE_GB:-8}"; _stage_rec="${DB_STAGE_REC_FREE_GB:-14}"
+[ -f "$DB_AUTOUPGRADE_HOME/base_stage/runInstaller" ] && { _stage_min=$(( _stage_min - 6 )); _stage_rec=$(( _stage_rec - 6 )); }
+[ "$_stage_min" -lt 2 ] && _stage_min=2; [ "$_stage_rec" -lt 4 ] && _stage_rec=4
+_disk_fail=false
+_disk_row() {   # label dir min rec
+    local free; free="$(_fs_free_gb "$2")"
+    local msg; msg="$(printf "  %-22s %4s GB free  (min %s, recommended %s GB)  %s" "$1" "${free:-?}" "$3" "$4" "$2")"
+    if [ "${free:-0}" -lt "$3" ]; then fail "$msg"; _disk_fail=true
+    elif [ "${free:-0}" -lt "$4" ]; then warn "$msg"
+    else ok "$msg"; fi
+}
+section "Disk space"
+if [ -z "${DB_ORACLE_HOME:-}" ] || [ -z "${DB_AUTOUPGRADE_HOME:-}" ]; then
+    fail "DB_ORACLE_HOME / DB_AUTOUPGRADE_HOME not set in environment_db.conf"; print_summary; exit 2
+fi
+if [ "$(_fs_dev "$DB_ORACLE_HOME")" = "$(_fs_dev "$DB_AUTOUPGRADE_HOME")" ]; then
+    _disk_row "home + staging (same fs)" "$DB_ORACLE_HOME" $(( _home_min + _stage_min )) $(( _home_rec + _stage_rec ))
+else
+    _disk_row "new home" "$DB_ORACLE_HOME" "$_home_min" "$_home_rec"
+    _disk_row "staging (AutoUpgrade)" "$DB_AUTOUPGRADE_HOME" "$_stage_min" "$_stage_rec"
+fi
+if $_disk_fail && $APPLY; then
+    fail "Not enough disk space – free space first (or move DB_AUTOUPGRADE_HOME)"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+unset _home_min _home_rec _stage_min _stage_rec _disk_fail
 
 # =============================================================================
 # Pre-checks
@@ -131,20 +188,6 @@ if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/nu
 fi
 unset _inv_xml
 
-# --- Disk space ---------------------------------------------------------------
-_disk_check_dir="$(dirname "$DB_ORACLE_HOME")"
-while [ ! -d "$_disk_check_dir" ] && [ "$_disk_check_dir" != "/" ]; do
-    _disk_check_dir="$(dirname "$_disk_check_dir")"
-done
-_avail_kb=$(df -k "$_disk_check_dir" 2>/dev/null | awk 'NR==2 { print $4 }')
-_required_kb=$(( 10 * 1024 * 1024 ))   # 10 GB (base 8GB + RU overhead)
-if [ -z "$_avail_kb" ] || [ "$_avail_kb" -lt "$_required_kb" ]; then
-    warn "$(printf "Available disk: %d MB in %s — minimum 10 GB recommended" "$(( ${_avail_kb:-0} / 1024 ))" "$_disk_check_dir")"
-else
-    ok "$(printf "Disk space available: %d MB in %s" "$(( _avail_kb / 1024 ))" "$_disk_check_dir")"
-fi
-unset _avail_kb _required_kb _disk_check_dir
-
 # =============================================================================
 # Configuration Summary
 # =============================================================================
@@ -159,7 +202,7 @@ _AU_CONFIG="$DB_AUTOUPGRADE_HOME/config/db19patch.cfg"
 _AU_KEYSTORE_CFG="$DB_AUTOUPGRADE_HOME/config/keystore.cfg"
 
 printList "ORACLE_BASE"         28 "$ORACLE_BASE"
-printList "DB_ORACLE_HOME"      28 "$DB_ORACLE_HOME"
+printList "DB_ORACLE_HOME"      28 "$DB_ORACLE_HOME$([ -n "$TARGET_HOME_ARG" ] && printf '  (--target-home; running home: %s)' "$DB_ORACLE_HOME_CURRENT")"
 printList "Edition"             28 "${DB_EDITION:-EE}  (EE=Enterprise / SE2=Standard)"
 printList "Install archive"     28 "$DB_INSTALL_ARCHIVE"
 printList "AutoUpgrade home"    28 "$DB_AUTOUPGRADE_HOME"
@@ -169,7 +212,9 @@ printList "Target RU"           28 "${DB_TARGET_RU:-RECOMMENDED}"
 
 # Check patchdir state for dry-run info
 _patch_zip_count=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
-if [ "$_patch_zip_count" -gt 0 ]; then
+if [ "$_patch_zip_count" -gt 0 ] && $FRESH_PATCHES; then
+    info "$(printf "Patchdir: %d patch ZIP(s) – --fresh-patches moves them to patchdir_<timestamp>, then fresh download" "$_patch_zip_count")"
+elif [ "$_patch_zip_count" -gt 0 ]; then
     ok "$(printf "Patchdir: %d patch ZIP(s) present — download will be skipped" "$_patch_zip_count")"
 else
     info "Patchdir: empty — AutoUpgrade will download patches (requires MOS credentials)"
@@ -319,6 +364,17 @@ fi
 
 section "Patch Download (AutoUpgrade)"
 
+# --fresh-patches: keep the previous patch set (rebuild of the old home), download anew
+# (only the patch ZIPs p<nr>_*.zip - the 19.3 base ZIP may live in patchdir too)
+if $FRESH_PATCHES && ls "$_AU_PATCHDIR"/p[0-9]*.zip >/dev/null 2>&1; then
+    _arch="${_AU_PATCHDIR}_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$_arch" && mv "$_AU_PATCHDIR"/p[0-9]*.zip "$_arch"/ \
+        && { [ -f "$_AU_PATCHDIR/patches_info.json" ] && mv "$_AU_PATCHDIR/patches_info.json" "$_arch"/; true; } \
+        && ok "Previous patch set moved to: $_arch" \
+        || { fail "Could not move the patch ZIPs to $_arch"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    unset _arch
+fi
+
 # Count non-OPatch patch ZIPs already in patchdir
 _existing_zips=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
 
@@ -332,17 +388,32 @@ else
     # --- 4a. Download autoupgrade.jar -----------------------------------------
     AU_DOWNLOAD_URL="https://download.oracle.com/otn-pub/otn_software/autoupgrade.jar"
 
-    if [ -f "$_AU_JAR" ]; then
-        ok "autoupgrade.jar already present: $_AU_JAR"
-    else
-        info "Downloading autoupgrade.jar (no auth required) ..."
-        if curl -fsSL -o "$_AU_JAR" "$AU_DOWNLOAD_URL" 2>&1 | tee -a "$LOG_FILE"; then
-            ok "autoupgrade.jar downloaded"
+    # Always the newest AutoUpgrade: the patch keywords change between releases
+    # (26.2 of Feb 2026 had no "jdk" in RECOMMENDED; 26.6 loads the JDK bundle
+    # patch with "jdk" - tested 2026-10-28). Keep the old jar as fallback.
+    _au_ver() { "$JAVA_BIN" -jar "$1" -version 2>/dev/null | sed -n 's/^build.version[[:space:]]*//p' | head -1; }
+    mkdir -p "$(dirname "$_AU_JAR")"
+    info "Checking for the newest autoupgrade.jar (no auth required) ..."
+    if curl -fsSL -m 300 -o "${_AU_JAR}.new" "$AU_DOWNLOAD_URL" 2>&1 | tee -a "$LOG_FILE" \
+       && [ -n "$(_au_ver "${_AU_JAR}.new")" ]; then
+        _new_v="$(_au_ver "${_AU_JAR}.new")"; _old_v="$( [ -f "$_AU_JAR" ] && _au_ver "$_AU_JAR")"
+        if [ -z "$_old_v" ] || [ "$(printf '%s\n%s\n' "$_old_v" "$_new_v" | sort -V | tail -1)" != "$_old_v" ]; then
+            [ -f "$_AU_JAR" ] && cp -p "$_AU_JAR" "${_AU_JAR}.${_old_v:-old}"
+            mv -f "${_AU_JAR}.new" "$_AU_JAR"
+            ok "autoupgrade.jar ${_old_v:+$_old_v -> }$_new_v"
         else
-            fail "Download failed — check network or download manually:"
-            info "  curl -fsSL $AU_DOWNLOAD_URL -o $_AU_JAR"
-            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+            rm -f "${_AU_JAR}.new"
+            ok "autoupgrade.jar up to date: $_old_v"
         fi
+        unset _new_v _old_v
+    elif [ -f "$_AU_JAR" ]; then
+        rm -f "${_AU_JAR}.new"
+        warn "Download of the newest autoupgrade.jar failed – using $(_au_ver "$_AU_JAR")"
+    else
+        rm -f "${_AU_JAR}.new"
+        fail "Download failed — check network or download manually:"
+        info "  curl -fsSL $AU_DOWNLOAD_URL -o $_AU_JAR"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
     "$JAVA_BIN" -jar "$_AU_JAR" -version 2>&1 | head -2 | while IFS= read -r _line; do info "  $_line"; done
 
@@ -438,14 +509,15 @@ EXPEOF
     # --- 4d. Patch config (download-only) -------------------------------------
     _target_ru="${DB_TARGET_RU:-RECOMMENDED}"
     case "${_target_ru^^}" in
+        # + jdk: current JDK bundle patch of the DB home (not part of RECOMMENDED)
         RECOMMENDED)
-            _patch_spec="recommended" ;;
+            _patch_spec="recommended,jdk" ;;
         19.*CURRENT*|19.*LATEST*)
             warn "DB_TARGET_RU='$_target_ru' is not valid in AutoUpgrade 26.x → using 'recommended'"
             warn "  Update environment_db.conf: DB_TARGET_RU=\"RECOMMENDED\"  (or e.g. 19.30)"
-            _patch_spec="recommended" ;;
+            _patch_spec="recommended,jdk" ;;
         19.*)
-            _patch_spec="ru:${_target_ru},ojvm:${_target_ru},opatch,dpbp" ;;
+            _patch_spec="ru:${_target_ru},ojvm:${_target_ru},opatch,dpbp,jdk" ;;
         *)
             _patch_spec="${_target_ru}" ;;
     esac
@@ -592,6 +664,19 @@ _ru_args=(-applyRU "$_RU_DIR")
 unset _RU_DIR _ONEOFF_LIST
 
 _edition="${DB_EDITION:-EE}"
+# Oracle home name: unique in the central inventory - first install OraDB19Home1,
+# an additional home (--target-home) OraDB19Home_<version dir>, e.g. OraDB19Home_19_33_0
+if [ -n "$TARGET_HOME_ARG" ]; then
+    _home_name="OraDB19Home_$(basename "$(dirname "$DB_ORACLE_HOME")" | tr -c 'A-Za-z0-9\n' '_')"
+else
+    _home_name="OraDB19Home1"
+fi
+_inv_xml_n="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+if grep -q "NAME=\"$_home_name\"" "$_inv_xml_n" 2>/dev/null; then
+    _home_name="${_home_name}_$(date +%Y%m%d)"
+fi
+unset _inv_xml_n
+info "$(printf "%-28s %s" "Oracle home name:" "$_home_name")"
 # CV_ASSUME_DISTID: the 19.3.0 base installer predates OL8/OL9 (MOS Doc ID 2584365.1).
 # With -applyRU the RU provides updated makefiles (resolves rc=252 on OL9).
 # -ignorePrereqFailure + CV_ASSUME_DISTID together suppress the supportedOSCheck NPE.
@@ -611,7 +696,7 @@ printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LO
     "oracle.install.option=INSTALL_DB_SWONLY" \
     "ORACLE_BASE=$ORACLE_BASE" \
     "ORACLE_HOME=$DB_ORACLE_HOME" \
-    "ORACLE_HOME_NAME=OraDB19Home1" \
+    "ORACLE_HOME_NAME=$_home_name" \
     "oracle.install.db.InstallEdition=$_edition" \
     "oracle.install.db.OSDBA_GROUP=dba" \
     "oracle.install.db.OSOPER_GROUP=oper" \
@@ -626,7 +711,7 @@ printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LO
 _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
 unset CV_ASSUME_DISTID
-unset _ru_args _cv_distid _edition
+unset _ru_args _cv_distid _edition _home_name
 
 # Installer log location
 _inv_loc_v="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)"
@@ -715,8 +800,13 @@ if [ -x "$DB_ORACLE_HOME/OPatch/opatch" ]; then
 fi
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: configure the listener"
-info "  04-db_setup_listener.sh --apply"
+if [ -n "$TARGET_HOME_ARG" ]; then
+    info "Next step: move the database into the new home (datapatch)"
+    info "  09-db_patch_rcu.sh --new-home $DB_ORACLE_HOME          (dry-run first)"
+else
+    info "Next step: configure the listener"
+    info "  04-db_setup_listener.sh --apply"
+fi
 
 # =============================================================================
 print_summary
