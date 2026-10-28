@@ -65,7 +65,7 @@ one-offs) and keeps every step visible.
 | 5 | unified auditing | old home linked `uniaud_on` (`libknlopt.a` contains `kzaiang`) → `make -f ins_rdbms.mk uniaud_on ioracle` in the new home |
 | 6 | switch | `/etc/oratab` `<SID>:<new>:Y`; `environment_db.conf`: `DB_ORACLE_HOME=<new>`, `DB_ORACLE_HOME_PREV=<old>` (backup first); systemd units `oracle-listener.service` / `oracle-db.service` – the root commands (`sed` + `daemon-reload`) are printed |
 | 7 | start | listener + `STARTUP` from the new home (`TNS_ADMIN` = the home's `network/admin`), `ALTER SYSTEM REGISTER`, wait ≤ 120 s until the PDB service is registered |
-| 8 | datapatch | `OPatch/datapatch -verbose` (CDB + PDBs), result per container from `cdb_registry_sqlpatch` (`SUCCESS`); `utlrp` in all containers via `catcon.pl`; error → stop, logs `cfgtoollogs/sqlpatch/`, domain stays down |
+| 8 | datapatch | `OPatch/datapatch -verbose` (CDB + PDBs), result per container from `cdb_registry_sqlpatch` (`SUCCESS`); `utlrp` in all containers via `catcon.pl` (needs `sqlplus` in `PATH`); error → stop, logs `cfgtoollogs/sqlpatch/`, domain stays down |
 | 9 | verify / start | `version_full`, PMON binary from the new home, FMW requirements, `startStop.sh start-all`, `rcu_repository_check.sh` (data sources log in) |
 
 ## Rollback
@@ -93,7 +93,7 @@ Last resort: Data Pump dumps of step 2 + VM snapshot.
 | Pitfall | Handling |
 |---|---|
 | service not registered after the start (`local_listener` alias only in the old home's `tnsnames.ora`, or the shared `TNS_ADMIN`) | `local_listener` is the explicit address since 2026-10-28 (`05-`); `09-` starts with the home's own `TNS_ADMIN` and waits for the registration |
-| `PDB$SEED` MOUNTED (seen on the test host after a restart) | `ALTER PLUGGABLE DATABASE PDB$SEED OPEN READ ONLY` – never READ WRITE |
+| `PDB$SEED` MOUNTED | `ALTER PLUGGABLE DATABASE PDB$SEED OPEN READ ONLY` – never READ WRITE. If that fails with **ORA-14696** the MAX_STRING_SIZE migration is missing in the seed (old `05-`, test host until 2026-10-28) – repair first ([05-db_create_database.md](05-db_create_database.md#max_string_sizeextended--migrate-every-container-incl-pdbseed)) |
 | `db_securefile=FORCE` (hardening) → ORA-43853 in RU scripts | `PREFERRED` with `SCOPE=MEMORY` for the patch, back afterwards ([rcu_middleware_architecture.md §4.2](../../80-FMW-Architecture/rcu_middleware_architecture.md)) |
 | `OPATCH_XML_INV` / QOpatch directory objects point to a wrong path (PATCH112) | check before; recreate the directory objects |
 | not enough space | checked first in `01-` and `09-` |

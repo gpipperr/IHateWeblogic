@@ -514,6 +514,11 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
   test host shows 69 objects invalid since the RCU 14.1.2 EBR run (62 IAU
   synonyms, `DEV_OPSS` packages / triggers – `OPSS_SYNCHRONIZATION` ORA-00942,
   `DEV_UMS.DRIVERPROPERTIES`); not caused by the CPU Oct 2026 patch run.
+  **Resolved 2026-10-28:** `utlrp.sql` via `catcon.pl` in all containers
+  (run while fixing the `PDB$SEED` MAX_STRING_SIZE migration, see
+  `60-RCU-DB-19c/docs/05-db_create_database.md`) recompiled all of them –
+  check 6 shows 0 invalid objects, all data sources log in. A recompile in
+  the PDB is enough; no MOS note needed.
 - `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error (2026-10-19).
 
 ## 8. Review 2026-10-19

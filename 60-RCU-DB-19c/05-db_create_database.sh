@@ -381,30 +381,47 @@ _sql_rc=${PIPESTATUS[0]}
 
 # MAX_STRING_SIZE=EXTENDED requires UPGRADE mode migration (utl32k.sql).
 # Procedure:
-#   1. STARTUP UPGRADE
-#   2. @utl32k.sql in CDB$ROOT
-#   3. Open all PDBs in UPGRADE mode + run utl32k.sql
+#   1. STARTUP UPGRADE (PDB$SEED opens in MIGRATE mode by itself)
+#   2. Open all PDBs in UPGRADE mode
+#   3. utl32k.sql in EVERY container incl. PDB$SEED via catcon.pl - before
+#      2026-10-28 only CDB$ROOT + the application PDB were migrated, PDB$SEED
+#      then stayed MOUNTED with ORA-14696 (no new PDB, datapatch at risk)
 #   4. Normal restart
-#   5. Recompile invalid objects (utlrp.sql)
+#   5. Recompile invalid objects (utlrp.sql) in every container via catcon.pl
 
 info "Restarting in UPGRADE mode for MAX_STRING_SIZE=EXTENDED migration ..."
+
+# catcon.pl needs sqlplus in PATH and runs as / AS SYSDBA
+_catcon() {   # base-name script
+    ( cd "$DB_ORACLE_HOME/rdbms/admin" && \
+      PATH="$DB_ORACLE_HOME/bin:$DB_ORACLE_HOME/perl/bin:$PATH" ORACLE_SID="${DB_SID}" \
+      perl catcon.pl -n 1 -d "$DB_ORACLE_HOME/rdbms/admin" -l "$(dirname "$LOG_FILE")" -b "$1" "$2" ) \
+      2>&1 | tee -a "$LOG_FILE" | grep -E 'completed successfully|Unexpected error|ORA-' | tail -2
+}
 
 "$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF2 2>&1 | tee -a "$LOG_FILE"
 CONNECT / AS SYSDBA
 SHUTDOWN IMMEDIATE;
 STARTUP UPGRADE;
-@?/rdbms/admin/utl32k.sql
 ALTER PLUGGABLE DATABASE ALL OPEN UPGRADE;
-ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
-@?/rdbms/admin/utl32k.sql
-ALTER SESSION SET CONTAINER = CDB\$ROOT;
+SELECT NAME, OPEN_MODE FROM V\$PDBS;
+EXIT;
+SQLEOF2
+info "utl32k.sql in all containers incl. PDB\$SEED (catcon) ..."
+_catcon utl32k utl32k.sql
+
+"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF2 2>&1 | tee -a "$LOG_FILE"
+CONNECT / AS SYSDBA
 SHUTDOWN IMMEDIATE;
 STARTUP;
 ALTER PLUGGABLE DATABASE ALL OPEN;
-@?/rdbms/admin/utlrp.sql
-ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
-@?/rdbms/admin/utlrp.sql
-ALTER SESSION SET CONTAINER = CDB\$ROOT;
+EXIT;
+SQLEOF2
+info "utlrp.sql in all containers (catcon) ..."
+_catcon utlrp utlrp.sql
+
+"$DB_ORACLE_HOME/bin/sqlplus" -S /nolog << SQLEOF2 2>&1 | tee -a "$LOG_FILE"
+CONNECT / AS SYSDBA
 SELECT NAME, OPEN_MODE FROM V\$PDBS;
 SHOW PARAMETER max_string_size;
 SHOW PARAMETER processes;

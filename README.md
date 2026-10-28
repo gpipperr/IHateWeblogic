@@ -109,7 +109,7 @@ about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK
 analysis done; `cve_watch.sh`, notification, log analysis, config security
 scanner are concept); minus the
 [open items](#open-items--todo) – mainly the questions to Oracle (bundled
-JDK 17 + FMW DBCLIENT SR, `frmweb` bind address, invalid RCU objects), the
+JDK 17 + FMW DBCLIENT SR, `frmweb` bind address), the
 remaining client tests (update / offline / JACOB on Windows) and tests on a
 fresh installation.
 
@@ -846,13 +846,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   (EOL, bundled Brotli 1.1.0) to 22 / 24 LTS –
   [00-patch-references.md, Brotli](09-Install/docs/00-patch-references.md#brotli-decoder--cve-2026-111497-state-2026-10-28).
 
-- [ ] **Invalid objects in the RCU schemas** (found 2026-10-26 with point 10 of
-  the 14c folder – the UMS views themselves are fine): 69 objects invalid
-  since the RCU run (IAU synonyms, `DEV_OPSS` packages / triggers with
-  ORA-00942, `DEV_UMS.DRIVERPROPERTIES`) – reported since 2026-10-26 by
-  `07-Maintenance/rcu_repository_check.sh` (check 6, WARN / FAIL if
-  invalidated after the RCU run); open: MOS note on invalid objects after
-  RCU 14.1.2 with EBR before any recompile, same check at the customer.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's

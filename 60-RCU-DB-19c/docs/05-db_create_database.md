@@ -66,7 +66,7 @@ Source: Oracle FMW 14.1.2 System Requirements (Doc ID 2605929.1) and RCU Guide.
 | `OPEN_CURSORS` | `1600` | RCU minimum of FMW 14.1.2 (CDB and PDB) |
 | `SESSION_CACHED_CURSORS` | `100` | RCU minimum of FMW 14.1.2 (static) |
 | `compatible` | `19.0.0` | Required for 19c feature set |
-| `max_string_size` | `EXTENDED` | FMW extended VARCHAR support; static — needs restart |
+| `max_string_size` | `EXTENDED` | FMW extended VARCHAR support; static — needs restart and the `utl32k.sql` migration in **every** container incl. `PDB$SEED` (see below) |
 | Archivelog | `false` (dev) | Saves disk; not needed for metadata-only DB |
 | Redo log groups | `2` | Minimum; one is always current |
 | Redo log size | `50 MB` | Minimal for low-write workload |
@@ -197,6 +197,42 @@ ALTER PLUGGABLE DATABASE ALL OPEN;
 > `ALTER SYSTEM SET local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=<host>)(PORT=1521))' SCOPE=BOTH; ALTER SYSTEM REGISTER;`
 
 ---
+
+### MAX_STRING_SIZE=EXTENDED – migrate every container (incl. PDB$SEED)
+
+`STARTUP UPGRADE`, `ALTER PLUGGABLE DATABASE ALL OPEN UPGRADE`, then
+`utl32k.sql` through `catcon.pl` (all containers – `PDB$SEED` is in MIGRATE
+mode after `STARTUP UPGRADE` and `catcon` includes it), normal restart,
+`utlrp.sql` through `catcon.pl`. `catcon.pl` needs `sqlplus` in `PATH`.
+
+**Bug until 2026-10-28:** the script ran `utl32k.sql` only in `CDB$ROOT` and
+the application PDB (`ALL OPEN UPGRADE` does not include the seed). Result,
+**confirmed (live)**: `PDB$SEED` stays MOUNTED and cannot be opened –
+`ORA-14696: MAX_STRING_SIZE migration is incomplete for pluggable database
+PDB$SEED` (no new PDB from the seed, datapatch at risk). Repair of an
+existing database (domain stopped, ~10 min):
+
+```sql
+SHUTDOWN IMMEDIATE
+STARTUP UPGRADE                         -- PDB$SEED -> MIGRATE
+```
+```bash
+cd $ORACLE_HOME/rdbms/admin
+PATH=$ORACLE_HOME/bin:$ORACLE_HOME/perl/bin:$PATH \
+  perl catcon.pl -n 1 -c 'PDB$SEED' -d $ORACLE_HOME/rdbms/admin -l /tmp -b utl32k_seed utl32k.sql
+```
+```sql
+SHUTDOWN IMMEDIATE
+STARTUP                                 -- PDB$SEED READ ONLY again
+```
+```bash
+PATH=$ORACLE_HOME/bin:$ORACLE_HOME/perl/bin:$PATH \
+  perl catcon.pl -n 1 -d $ORACLE_HOME/rdbms/admin -l /tmp -b utlrp utlrp.sql
+```
+
+Done on the test host 2026-10-28: `PDB$SEED` READ ONLY; the `utlrp` over all
+containers also recompiled the 69 objects of the RCU schemas that had been
+invalid since the RCU run (`rcu_repository_check.sh`: 0 invalid).
 
 ## Step 5: Post-Creation Checks
 

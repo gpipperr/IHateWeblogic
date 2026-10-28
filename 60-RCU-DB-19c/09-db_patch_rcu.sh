@@ -182,7 +182,10 @@ if [ -n "$_run_home" ]; then
     # PDB$SEED READ ONLY, db_securefile, OPATCH_XML_INV (datapatch prerequisites)
     _seed="$(_sql "$FROM_HOME" "SELECT open_mode FROM v\$pdbs WHERE name='PDB\$SEED';" | grep -E 'READ|MOUNT' | head -1 | xargs)"
     if [ "$_seed" = "READ ONLY" ]; then ok "PDB\$SEED: READ ONLY"
-    else warn "PDB\$SEED: ${_seed:-?} – before the patch: ALTER PLUGGABLE DATABASE PDB\$SEED OPEN READ ONLY (never READ WRITE)"; fi
+    else
+        warn "PDB\$SEED: ${_seed:-?} – before the patch: ALTER PLUGGABLE DATABASE PDB\$SEED OPEN READ ONLY (never READ WRITE)"
+        info "  ORA-14696 on that = MAX_STRING_SIZE migration missing in the seed – docs/09-db_patch_rcu.md, pitfalls"
+    fi
     for _c in 'CDB$ROOT' "$PDB"; do
         [ -z "$_c" ] && continue
         _sf="$(_sql "$FROM_HOME" "ALTER SESSION SET CONTAINER=$_c;
@@ -371,6 +374,7 @@ fi
 ok "datapatch completed (rc=0)"
 info "utlrp in all containers (catcon) ..."
 ( cd "$TO_HOME/rdbms/admin" && ORACLE_HOME="$TO_HOME" ORACLE_SID="$SID" \
+    PATH="$TO_HOME/bin:$TO_HOME/perl/bin:$PATH" TNS_ADMIN="$TO_HOME/network/admin" \
     "$TO_HOME/perl/bin/perl" catcon.pl -n 1 -d "$TO_HOME/rdbms/admin" -l "$BACKUP_DIR" -b utlrp utlrp.sql ) >> "$LOG_FILE" 2>&1 \
     && ok "utlrp done" || warn "utlrp reported problems – see $BACKUP_DIR/utlrp*.log"
 unset _dp_rc _sp
