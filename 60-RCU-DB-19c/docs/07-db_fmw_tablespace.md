@@ -24,9 +24,11 @@ RCU schema storage.
 Use this step only when a DBA wants to control tablespace placement,
 sizing, or encryption separately from the RCU defaults.
 
-Skip it when running RCU on a dev/test environment — RCU auto-creates
-its tablespaces in the `USERS` tablespace which is fine for metadata-only
-workloads.
+Skip it otherwise – RCU creates its own tablespaces per component
+(`<PREFIX>_STB`, `<PREFIX>_IAS_OPSS`, `<PREFIX>_IAS_AUDIT` …, see
+[07-oracle_setup_repository.md](../../09-Install/docs/07-oracle_setup_repository.md#default-rcu-creates-its-own-tablespaces)),
+which is fine for the metadata workload. Which schemas live there and who uses
+them: [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
 
 ---
 
@@ -46,12 +48,15 @@ RCU_TABLESPACE=FMW_DATA
 ```
 
 The script sets `RCU_TABLESPACE` automatically if the line already exists
-in `environment.conf`.  If not, run `00-Setup/init_env.sh --apply` first.
+in `environment.conf` – `09-Install/01-setup-interview.sh` writes it (block 4,
+empty by default).
 
 ---
 
 ## Next step
 
 ```
-09-Install/07-oracle_setup_repository.sh --apply
+60-RCU-DB-19c/07b-db_rcu_profile.sh --apply      # profile RCU_USER (no password expiry)
+60-RCU-DB-19c/08-db_auto_start.sh --apply        # autostart
+09-Install/07-oracle_setup_repository.sh --apply  # RCU
 ```
