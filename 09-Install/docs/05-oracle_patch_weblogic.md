@@ -16,6 +16,12 @@
 > facts of every patch README:
 > [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
 
+Background – what OPatch patches (components of the Oracle Home, the central
+inventory, the JDK in `.globalEnv.properties`) and why all processes of the
+home must be down: [weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs);
+the same set on a running system: `07-Maintenance/80-` … `82-`
+([07-Maintenance/README.md](../../07-Maintenance/README.md)).
+
 ---
 
 ## How to Find the Correct Patch Numbers
@@ -100,6 +106,9 @@ number for the patch-installer patch:
 
 > **Patch 28186730: OPATCH 13.9.4.2.22 FOR EM 13.5/24.1 AND FMW/WLS 12.2.1.4.0,
 > 14.1.1.0.0, 14.1.2.0.0 AND IDM 14.1.2.1**
+
+(Example title from 2026-10-13 – the standalone download stopped at .22; the
+current OPatch 13.9.4.2.25 comes inside the SPB, `tools/opatch/generic/`.)
 
 Open the OPatch Readme (it is a plain text file). It explains that you must first
 check whether a previously installed OPatch version needs to be rolled back before
