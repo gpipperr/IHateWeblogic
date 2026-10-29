@@ -44,11 +44,18 @@ On the **first successful start** WebLogic rewrites the file with AES-encrypted
 values:
 
 ```
-username={AES}abc123...
-password={AES}xyz789...
+username={AES256}abc123...
+password={AES256}xyz789...
 ```
 
-After that the plaintext is gone and the file is safe to keep on disk.
+(FMW 14.1.2 writes `{AES256}`, 12c `{AES}` – the script checks for the prefix
+`{AES`.) After that the plaintext is gone and the file is safe to keep on
+disk. The key is the domain's `security/SerializedSystemIni.dat` – the
+encrypted values work only in this domain.
+
+Without `boot.properties` a server started by the Node Manager / `startStop.sh`
+dies at once (`BEA-090782`) – why the Node Manager needs it:
+[who starts whom](../../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain).
 
 ---
 
