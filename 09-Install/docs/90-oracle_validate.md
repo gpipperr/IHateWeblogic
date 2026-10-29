@@ -52,6 +52,22 @@ Run each check script in sequence and review the output:
 
 # 10. Config backup exists
 ls -la ./07-Maintenance/ConfigBackup/
+
+# 11. One TNS_ADMIN everywhere (files + running processes)
+./02-Checks/tns_admin_check.sh
+
+# 12. Loopback-only / clone-capable, no outbound calls
+./02-Checks/clone_check.sh
+./02-Checks/egress_check.sh
+
+# 13. RCU repository: data sources log in, invalid objects, profile
+./07-Maintenance/rcu_repository_check.sh
+
+# 14. Smoke test: Forms XML -> FMX, report -> PDF via rwservlet, font test
+./09-Install/15-deploy-test-report-forms_template.sh --apply
+
+# 15. Certificate expiry check scheduled
+./10-Monitoring/cert_expiry_check.sh --cron
 ```
 
 Review output of each and resolve any FAIL items before going live.
@@ -78,6 +94,14 @@ Calls all check scripts and aggregates results:
 | 8 | Report engine parameters vs. Oracle rules / CPUs, engine heap vs. RAM, drift to `environment.conf` | `05-ReportsPerformance/engine_perf_settings.sh` |
 | 9 | Forms files, binaries/libraries, FORMS_PATH, default.env vs. environment.conf, config sections | `06-FormsDiag/forms_settings.sh` (+ `forms_perf_settings.sh`: timeouts, limit, prestart) |
 | 10 | Config backup present | direct check |
+| 11 | `TNS_ADMIN` in every file and running process | `02-Checks/tns_admin_check.sh` |
+| 12 | Loopback-only sockets, no outbound connections | `02-Checks/clone_check.sh`, `02-Checks/egress_check.sh` |
+| 13 | RCU repository (data source logins, invalid objects, profile) | `07-Maintenance/rcu_repository_check.sh` |
+| 14 | Smoke test Forms / Reports / fonts | `09-Install/15-deploy-test-report-forms_template.sh --apply` |
+| 15 | Certificate expiry cron present | `10-Monitoring/cert_expiry_check.sh --cron` |
+
+Background for every check – how the parts work together:
+[80-FMW-Architecture/README.md](../../80-FMW-Architecture/README.md).
 
 Final summary (via `print_summary`, same convention as every other script):
 - Total OK / WARN / FAIL counts
