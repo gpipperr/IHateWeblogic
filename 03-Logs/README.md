@@ -255,7 +255,7 @@ One section per log group (role – name, directory), every file with
 size, modification time and status (`active`, `rotated`, `compressed`);
 files in subdirectories shown relative (`reports/rwservlet_diagnostic.log`).
 WARN for active logs larger than `LOG_MAX_SIZE_MB` (default 500) or not
-written for `LOG_RETAIN_DAYS` (default 30) days. Summary: total size of
+written for `LOG_RETAIN_DAYS` (default 14) days. Summary: total size of
 the log files, plus `servers/*/tmp` and `servers/*/adr` (not logs, often the
 real disk consumers).
 
@@ -325,7 +325,7 @@ warnings yellow, info green).
 | Option | Description |
 |---|---|
 | `--apply` | execute (default: dry-run plan) |
-| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 7 – note: `get_all_logs.sh` uses the same variable with the default 30 for its "not written for N days" warning) |
+| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 14 – the same value `get_all_logs.sh` uses for its "not written for N days" warning) |
 | `--include-out` | also truncate `*.out` (skipped by default – may hold JVM crash output) |
 | `--component NAME` | see above |
 

@@ -279,12 +279,14 @@ $ORACLE_HOME/oracle_common/jdk                  (FMW-bundled JDK, part of the ho
 
 Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
 
-> **`init_env.sh` without an existing conf** (taking over a system): the JDK
-> proposal for `JDK_HOME` checks `$ORACLE_HOME/oracle_common/jdk` **first**,
-> then running processes – on a host that has a standalone JDK, correct the
-> value in `--interview` to the standalone JDK (the one in
-> `$ORACLE_HOME/oui/.globalEnv.properties`). With an existing conf the value is
-> never overwritten.
+> **`init_env.sh` without an existing conf** (taking over a system) proposes
+> `JDK_HOME` in this order (since 2026-10-29; before, the bundled JDK came
+> first and became `JDK_HOME`): `JAVA_HOME` of
+> `$ORACLE_HOME/oui/.globalEnv.properties` → java of a running WebLogic server /
+> Node Manager → standard paths / `alternatives` → `$JAVA_HOME` of the shell –
+> each only outside `ORACLE_HOME`, a version-neutral symlink (`jdk-21`) is
+> preferred. Only if none exists the bundled JDK is proposed, with a WARN.
+> With an existing conf the value is never overwritten.
 
 ---
 
@@ -308,11 +310,13 @@ DOMAIN_HOME:
   → Fallback: /u01/user_projects/domains/fr_domain
   (the interview default for a new installation is $ORACLE_BASE/domains/fr_domain)
 
-JDK_HOME (proposal, see the note above):
-  1. FMW-bundled JDK: $ORACLE_HOME/oracle_common/jdk (then …/jdk, ../jdk)
-  2. Running WLS process
-  3. System JAVA_HOME
-  → Fallback: $ORACLE_HOME/oracle_common/jdk
+JDK_HOME (proposal, see the note above; each candidate outside ORACLE_HOME,
+          version-neutral symlink preferred):
+  1. JAVA_HOME= of $ORACLE_HOME/oui/.globalEnv.properties
+  2. java binary of a running weblogic.Server / NodeManager (/proc/<pid>/exe)
+  3. Standard paths (/u01/app/oracle/java/jdk-21 …) / alternatives
+  4. JAVA_HOME of the shell
+  → Fallback: $ORACLE_HOME/oracle_common/jdk + WARN
 
 DB connection:
   1. jps-config.xml: first DB_ORACLE propertySet → parse JDBC URL

@@ -45,7 +45,7 @@ done
 # Thresholds – override in environment.conf if needed
 # =============================================================================
 LOG_MAX_SIZE_MB="${LOG_MAX_SIZE_MB:-500}"
-LOG_RETAIN_DAYS="${LOG_RETAIN_DAYS:-30}"
+LOG_RETAIN_DAYS="${LOG_RETAIN_DAYS:-14}"
 
 # =============================================================================
 # Helpers

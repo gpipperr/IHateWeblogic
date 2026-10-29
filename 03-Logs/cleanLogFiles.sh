@@ -6,7 +6,7 @@
 # Call     : ./cleanLogFiles.sh               # dry-run: show what would be done
 #            ./cleanLogFiles.sh --apply        # execute truncation + deletion
 # Options  : --apply                    Execute changes (default: dry-run)
-#            --retain-days N            Keep rotated logs for N days (default: LOG_RETAIN_DAYS=7)
+#            --retain-days N            Keep rotated logs for N days (default: LOG_RETAIN_DAYS=14)
 #            --include-out              Also truncate *.out (stdout) files
 #            --component NAME           all|reports|forms|wls|ords|<server> (default: all)
 # Scope    : servers/*/logs of every WebLogic server, the standalone Reports
@@ -46,7 +46,7 @@ source "$SCRIPT_DIR/log_locations.sh"
 # =============================================================================
 
 APPLY=false
-RETAIN_DAYS="${LOG_RETAIN_DAYS:-7}"
+RETAIN_DAYS="${LOG_RETAIN_DAYS:-14}"
 INCLUDE_OUT=false
 COMPONENT="all"
 

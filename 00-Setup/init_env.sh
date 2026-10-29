@@ -381,33 +381,45 @@ detect_wls_reports_server() {
     printf "%s" "${result:-WLS_REPORTS}"
 }
 
-# detect_java_home  oracle_home
-# Checks FMW bundled JDK first, then running processes, then system JAVA_HOME.
-detect_java_home() {
-    local oracle_home="$1"
-    local result=""
+# _jdk_prefer_link dir – a version-neutral symlink next to dir that points to
+# it (jdk-21 -> jdk-21.0.13.0.2) is preferred: JDK updates switch the link only
+_jdk_prefer_link() {
+    local d="$1" l
+    for l in "$(dirname "$d")"/*; do
+        [ -L "$l" ] && [ "$(readlink -f "$l")" = "$(readlink -f "$d")" ] && { printf "%s" "$l"; return; }
+    done
+    printf "%s" "$d"
+}
 
-    for jdk_path in \
-        "$oracle_home/oracle_common/jdk" \
-        "$oracle_home/jdk" \
-        "$oracle_home/../jdk"; do
-        if [ -x "${jdk_path}/bin/java" ]; then
-            result="$(realpath "$jdk_path" 2>/dev/null || printf "%s" "$jdk_path")"
-            break
+# detect_java_home  oracle_home  ->  "<source><TAB><path>"
+# JDK_HOME = the standalone Oracle JDK of WebLogic / Node Manager / OPatch,
+# NOT the FMW-bundled $ORACLE_HOME/oracle_common/jdk (that one belongs to the
+# home and runs the Reports engines). Order (changed 2026-10-29 – the bundled
+# JDK used to come first and became JDK_HOME on a takeover):
+#   1. JAVA_HOME of $ORACLE_HOME/oui/.globalEnv.properties (outside the home)
+#   2. java binary of a running WebLogic server / Node Manager (outside the home)
+#   3. standard paths / alternatives (detect_jdk_home_os)
+#   4. $JAVA_HOME of the shell (outside the home)
+#   5. fallback: the bundled JDK (caller warns)
+detect_java_home() {
+    local oracle_home="$1" p exe
+    p="$(sed -n 's/^JAVA_HOME=//p' "$oracle_home/oui/.globalEnv.properties" 2>/dev/null | head -1)"
+    if [ -n "$p" ] && [ -x "$p/bin/java" ] && [[ "$p" != "$oracle_home"/* ]]; then
+        printf "globalEnv\t%s" "$(_jdk_prefer_link "$p")"; return
+    fi
+    for p in $(pgrep -f 'weblogic\.(Server|NodeManager)' 2>/dev/null); do
+        exe="$(readlink -f "/proc/$p/exe" 2>/dev/null)" || continue
+        exe="${exe%/bin/java}"; exe="${exe%/jre}"
+        if [ -x "$exe/bin/java" ] && [[ "$exe" != "$(readlink -f "$oracle_home")"/* ]]; then
+            printf "process\t%s" "$(_jdk_prefer_link "$exe")"; return
         fi
     done
-
-    if [ -z "$result" ]; then
-        result="$(ps -eo args 2>/dev/null \
-            | grep -oP '(?<=-Djava\.home=)[^ ]+' \
-            | head -1)"
+    p="$(detect_jdk_home_os)"
+    [ -n "$p" ] && [[ "$p" != "$oracle_home"/* ]] && { printf "standard\t%s" "$p"; return; }
+    if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ] && [[ "$JAVA_HOME" != "$oracle_home"/* ]]; then
+        printf "shell\t%s" "$JAVA_HOME"; return
     fi
-
-    if [ -z "$result" ] && [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
-        result="$JAVA_HOME"
-    fi
-
-    printf "%s" "$result"
+    [ -x "$oracle_home/oracle_common/jdk/bin/java" ] && printf "bundled\t%s" "$oracle_home/oracle_common/jdk"
 }
 
 # detect_oracle_user
@@ -1007,9 +1019,14 @@ printList "SETDOMAINENV"  30 "$DET_SETDOMAINENV"
 # --------------------------------------------------------------------------
 section "Detecting Java"
 
-DET_JAVA_HOME="$(detect_java_home "$DET_ORACLE_HOME")"
-[ -n "$DET_JAVA_HOME" ] || DET_JAVA_HOME="$DET_ORACLE_HOME/oracle_common/jdk"
-printList "JDK_HOME" 30 "$DET_JAVA_HOME"
+IFS=$'\t' read -r DET_JAVA_SOURCE DET_JAVA_HOME <<< "$(detect_java_home "$DET_ORACLE_HOME")"
+[ -n "$DET_JAVA_HOME" ] || { DET_JAVA_SOURCE="bundled"; DET_JAVA_HOME="$DET_ORACLE_HOME/oracle_common/jdk"; }
+printList "JDK_HOME" 30 "$DET_JAVA_HOME  (source: $DET_JAVA_SOURCE)"
+if [ "$DET_JAVA_SOURCE" = "bundled" ]; then
+    warn "No standalone Oracle JDK found – proposal is the FMW-bundled JDK (oracle_common/jdk)"
+    info "  JDK_HOME should be the standalone Oracle JDK of WebLogic / OPatch (09-Install/02b-root_os_java.sh);"
+    info "  correct it with --interview"
+fi
 
 if [ -x "$DET_JAVA_HOME/bin/java" ]; then
     DET_JAVA_VERSION="$("$DET_JAVA_HOME/bin/java" -version 2>&1 | head -1)"
