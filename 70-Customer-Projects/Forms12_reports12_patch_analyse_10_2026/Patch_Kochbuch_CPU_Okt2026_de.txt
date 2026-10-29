@@ -73,46 +73,86 @@ IST-STATUS TESTMASCHINE  (Sammellauf 2026-10-23 20:53, collect_fmw_env.sh
 
 VORAUSSETZUNGEN
 ----------------
-  # Kurzweg: 70-Customer-Projects/tools/fmw_patch_env.sh ermittelt die
-  # Werte unten aus der Umgebung (laufende Domain, domain-registry.xml,
-  # oraInst.loc, .globalEnv.properties) und setzt sie - GESOURCT aufrufen:
-  #   cd /oracle/install/cpu_okt2026
-  #   ./fmw_patch_env.sh                 # nur anzeigen und pruefen
-  #   . ./fmw_patch_env.sh --apply       # setzen + Verzeichnisse anlegen
-  #   . /oracle/install/cpu_okt2026/patch_env.sh   # zweites Terminal
-  # Danach die Ausgabe mit den Werten unten vergleichen. Die exports von
-  # Hand bleiben der Weg ohne Skript.
-  # Werte EINMALIG an die eigene Umgebung anpassen. ORACLE_HOME, DOMAIN_HOME,
-  # INV_PTR und JDK_LINK sind die Pfade der Kundenumgebung (2026-10-23),
-  # PATCH_DIR / STAGE / BACKUP sind Beispielwerte:
-  export ORACLE_HOME=/oracle/product/mw               # Forms-&-Reports-Home
-  export DOMAIN_HOME=/oracle/user_projects/domains/fr_domain
-  export INV_PTR=/etc/oraInst.loc                     # Kundenumgebung: zeigt auf
-                                                      # inventory_loc=/home/oracle/oraInventory
-                                                      # inst_group=oinstall
-  export JDK_LINK=/oracle/java/jdk                    # Kundenumgebung: JAVA_HOME
-                                                      # (und JAVA_HOME_1_8) in
-                                                      # .globalEnv.properties
-  export NEW_JDK_BASE=/oracle/java                    # dort landet 8u511
-  export PATCH_DIR=/oracle/install/cpu_okt2026/zip    # die heruntergeladenen ZIPs
-  export STAGE=/oracle/install/cpu_okt2026/stage      # Entpack-Verzeichnis (>= 6 GB)
-  export BACKUP=/oracle/backup/cpu_okt2026            # Ziel der Sicherung
-  # PATCH_DIR / STAGE / BACKUP: ausserhalb von ORACLE_HOME und DOMAIN_HOME;
-  # BACKUP moeglichst auf einem anderen Dateisystem als /oracle (df -h).
-  export LOGDIR=$STAGE/logs
-  mkdir -p $STAGE $BACKUP $LOGDIR
+  Ablauf der Vorbereitung (vor dem Wartungsfenster, System laeuft):
 
-  Regeln fuer den ganzen Lauf:
-  - Alle Schritte als der Software-Owner (der User, der ORACLE_HOME
-    installiert hat), NICHT als root.
-  - STAGE und PATCH_DIR liegen AUSSERHALB von ORACLE_HOME; STAGE braucht
-    mindestens 6 GB frei (SPB allein ca. 4 GB).
-  - Alle Prozesse des Homes sind waehrend der Schritte 4-9 gestoppt.
-  - "OPatch succeeded" allein ist KEIN Beweis: nach jedem Patch die Ausgabe
-    auf "Prerequisite check ... failed", "skipped", "make" und "error"
-    durchsehen.
+    V.1  Arbeitsverzeichnis anlegen, Werkzeuge hineinlegen
+    V.2  Variablen setzen + Verzeichnisse anlegen  (fmw_patch_env.sh)
+    V.3  Patches herunterladen                     (mos_patch_download.sh)
+    V.4  ZIPs gegen die Tabelle pruefen
+    dann SCHRITT 0 (Ist-Stand) und SCHRITT 1 (nach $STAGE entpacken)
 
-  Benoetigte ZIPs in $PATCH_DIR (Plattform beachten!):
+  Was wo landet:
+
+    /oracle/install/cpu_okt2026/        Arbeitsverzeichnis (= Basis, V.1)
+      fmw_patch_env.sh                  aus 70-Customer-Projects/tools/
+      mos_patch_download.sh             aus 70-Customer-Projects/tools/
+      patches_cpu_oct2026.csv           neben diesem Kochbuch
+      getMOSPatch.jar                   von Hand (github.com/MarisElsins/getMOSPatch)
+      patch_env.sh                      <- V.2 (Variablen fuer weitere Terminals)
+      zip/                              $PATCH_DIR  <- V.3
+        <patchnr>/p<patchnr>_*.zip      ein Verzeichnis je Patch
+        <patchnr>/.getMOSPatch.cfg      Hilfsdatei des Downloads (Plattform),
+                                        wird nicht gebraucht und nicht entpackt
+        patches_sha256.txt, mos_patch_download_<zeit>.log
+      stage/                            $STAGE  <- SCHRITT 1 (entpackt, >= 6 GB)
+        WLS_SPB_12.2.1.4.261007/  40050071/  39888613/ ...
+        logs/                           $LOGDIR (alle tee-Ausgaben der Schritte)
+    /oracle/backup/cpu_okt2026/         $BACKUP  <- SCHRITT 3 (anderes Dateisystem
+                                        als /oracle, wenn moeglich)
+
+  V.1 Arbeitsverzeichnis
+  ----------------------
+    mkdir -p /oracle/install/cpu_okt2026 && cd /oracle/install/cpu_okt2026
+    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_oct2026.csv und
+    # getMOSPatch.jar hierher kopieren, dann:
+    chmod +x fmw_patch_env.sh mos_patch_download.sh
+
+  V.2 Variablen setzen (GESOURCT - nur so landen sie in dieser Shell)
+  -------------------------------------------------------------------
+    cd /oracle/install/cpu_okt2026
+    ./fmw_patch_env.sh                   # nur anzeigen und pruefen
+    . ./fmw_patch_env.sh --apply         # setzen + zip/ stage/ stage/logs
+                                         # + $BACKUP anlegen + patch_env.sh
+    . /oracle/install/cpu_okt2026/patch_env.sh   # in jedem weiteren Terminal
+    # Ermittelt ORACLE_HOME, DOMAIN_HOME, INV_PTR, JDK_LINK aus der
+    # laufenden Umgebung; PATCH_DIR / STAGE / LOGDIR / BACKUP aus dem
+    # Arbeitsverzeichnis. Ausgabe mit den Kundenwerten unten vergleichen.
+
+    Ohne Skript - dieselben Werte von Hand (Kundenumgebung 2026-10-23):
+    export ORACLE_HOME=/oracle/product/mw               # Forms-&-Reports-Home
+    export DOMAIN_HOME=/oracle/user_projects/domains/fr_domain
+    export INV_PTR=/etc/oraInst.loc                     # Kundenumgebung: zeigt auf
+                                                        # inventory_loc=/home/oracle/oraInventory
+                                                        # inst_group=oinstall
+    export JDK_LINK=/oracle/java/jdk                    # Kundenumgebung: JAVA_HOME
+                                                        # (und JAVA_HOME_1_8) in
+                                                        # .globalEnv.properties
+    export NEW_JDK_BASE=/oracle/java                    # dort landet 8u511
+    export PATCH_DIR=/oracle/install/cpu_okt2026/zip    # die heruntergeladenen ZIPs
+    export STAGE=/oracle/install/cpu_okt2026/stage      # Entpack-Verzeichnis (>= 6 GB)
+    export BACKUP=/oracle/backup/cpu_okt2026            # Ziel der Sicherung
+    export LOGDIR=$STAGE/logs
+    mkdir -p $PATCH_DIR $STAGE $BACKUP $LOGDIR
+
+  V.3 Patches herunterladen (alle in EINEM Lauf)
+  ----------------------------------------------
+    cd /oracle/install/cpu_okt2026
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR            # nur Plan
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --apply    # Download
+    # MOS-Passwort wird einmal (verdeckt) abgefragt; Ergebnis je Patch in
+    # $PATCH_DIR/<patchnr>/, Pruefsummen in $PATCH_DIR/patches_sha256.txt,
+    # Exit 0 = alle Pflicht-Patches da. Zweiter Lauf laedt nur, was fehlt.
+    # Die Liste enthaelt auch den OHS-Satz aus Schritt 9 (40005842 39114058
+    # 38098858 38832179). Beschreibung: 70-Customer-Projects/tools/README.md.
+    # Ohne Skript: jeden Patch im Browser laden und in $PATCH_DIR legen -
+    # SCHRITT 1 findet $PATCH_DIR/p*.zip und $PATCH_DIR/<nr>/p*.zip.
+
+  V.4 ZIPs pruefen
+  ----------------
+    ls -l $PATCH_DIR/*/p*.zip           # je Patch eine ZIP, Plattform im Namen
+    cat $PATCH_DIR/patches_sha256.txt   # mit den SHA-256-Werten auf MOS vergleichen
+
+    Benoetigte ZIPs in $PATCH_DIR/<nr>/ (Plattform beachten!):
 
     Patch      Datei                                     Inhalt
     ---------  ----------------------------------------  -----------------------
@@ -136,24 +176,21 @@ VORAUSSETZUNGEN
     39600813   p39600813_1221190_Linux-x86-64.zip        Reports QPR 12.2.1.19
     * genauen Dateinamen im MOS-Download pruefen
 
-  Download in EINEM Lauf (statt jeden Patch einzeln im Browser):
-    Liste   : patches_cpu_oct2026.csv (neben diesem Kochbuch, inkl. OHS-Satz
-              aus Schritt 9: 40005842 39114058 38098858 38832179)
-    Skript  : 70-Customer-Projects/tools/mos_patch_download.sh
-              (ohne IHateWeblogic-Lib, getMOSPatch.jar von Hand daneben legen,
-              Beschreibung: 70-Customer-Projects/tools/README.md)
-
-    cd /oracle/install/cpu_okt2026
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR            # nur Plan
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --apply    # Download
-    # MOS-Passwort wird einmal (verdeckt) abgefragt; Ergebnis je Patch in
-    # $PATCH_DIR/<patchnr>/, Pruefsummen in $PATCH_DIR/patches_sha256.txt,
-    # Exit 0 = alle Pflicht-Patches da. Zweiter Lauf laedt nur, was fehlt.
-
   ACHTUNG Plattform: Forms-QPR, Reports-QPR, DB Client und PERL gibt es unter
   derselben Patchnummer fuer mehrere Plattformen. Nur "*Linux-x86-64*.zip"
   verwenden . UMS hat bewusst die Release-Kennung 122130 (12.2.1.3) - das
   ist richtig, die UMS-Komponente eines 12.2.1.4-Homes ist 12.2.1.3.
+
+
+  Regeln fuer den ganzen Lauf:
+  - Alle Schritte als der Software-Owner (der User, der ORACLE_HOME
+    installiert hat), NICHT als root.
+  - STAGE und PATCH_DIR liegen AUSSERHALB von ORACLE_HOME; STAGE braucht
+    mindestens 6 GB frei (SPB allein ca. 4 GB).
+  - Alle Prozesse des Homes sind waehrend der Schritte 4-9 gestoppt.
+  - "OPatch succeeded" allein ist KEIN Beweis: nach jedem Patch die Ausgabe
+    auf "Prerequisite check ... failed", "skipped", "make" und "error"
+    durchsehen.
 
 
 ================================================================================
