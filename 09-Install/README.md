@@ -113,6 +113,12 @@ Phase 1 – Pre-Install Checks (as oracle)
                                   --apply        manual eDelivery placement + SHA-256 verify
                                   --apply --wget eDelivery via Bearer Token wget
                                   --apply --mos  + getMOSPatch: OPatch + INSTALL_PATCHES
+                                                 (+ JDK 21 patch, CVU for a local RCU DB)
+  [root] 02b-root_os_java.sh --apply --upgrade-jdk
+                                JDK 21 of the current patch cycle (JDK_PATCH_NR from
+                                  the patch repository) – BEFORE 05-: phase 0 only
+                                  installs the bootstrap JDK (NFTC 21.0.12.1); the
+                                  FMW installer and createDomain write its path
 
 Phase 2 – WebLogic Installation (as oracle)
   05-oracle_install_weblogic.sh FMW Infrastructure 14.1.2 silent install
@@ -126,34 +132,47 @@ Phase 3 – Forms & Reports Installation (as oracle)
     Phases 0–3 install and patch everything into ORACLE_HOME.
     The Oracle Home is not touched again after this point.
 
-Phase DB – Oracle 19c RCU Database (on DB host; parallel to or after Phase 3)
+Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
+           LOCAL_REP_DB=true; parallel to or after Phase 3)
   → Full procedure: 60-RCU-DB-19c/README.md
   [oracle/sudo] 60-RCU-DB-19c/00-root_db_os_baseline.sh --apply
                   DB-specific OS settings (shmmax, sem, aio, preinstall RPM)
                   auto-elevates via sudo when run as oracle
+  [oracle]       60-RCU-DB-19c/00b-db_cvu_check.sh
+                  host pre-check with the standalone CVU (downloaded by 04- --mos)
   [oracle]       60-RCU-DB-19c/01-db_install_software.sh --apply
-                  Oracle 19c software-only install (unzip + runInstaller -silent)
-  [oracle]       60-RCU-DB-19c/02-db_patch_db_software.sh --apply
-                  AutoUpgrade: download current RU, create patched ORACLE_HOME
+                  19c software-only install, patched in one go: AutoUpgrade
+                  downloads RU + OJVM + Data Pump + JDK (gold image possible),
+                  runInstaller -applyRU (02-db_patch_db_software.sh is DEPRECATED)
   [oracle]       60-RCU-DB-19c/04-db_setup_listener.sh --apply
                   Configure the TNS listener
   [oracle]       60-RCU-DB-19c/05-db_create_database.sh --apply
-                  DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, AMM, no archivelog)
+                  DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, no archivelog,
+                  MAX_STRING_SIZE=EXTENDED in every container incl. PDB$SEED)
   [oracle]       60-RCU-DB-19c/06-db_audit_setup.sh --apply
                   Pure Unified Auditing (uniaud_on relink + purge job)
   [oracle]       60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
                   Optional: create FMW_DATA tablespace (skip = RCU creates its own)
+  [oracle]       60-RCU-DB-19c/07b-db_rcu_profile.sh --apply
+                  DB profile RCU_USER (no password expiry / lock for the schemas)
   [oracle]       60-RCU-DB-19c/08-db_auto_start.sh --apply
                   Configure DB/listener autostart (oratab, systemd)
+  later:         60-RCU-DB-19c/09-db_patch_rcu.sh – next DB RU out-of-place
 
   ▶ Database must be up and reachable from the FMW host before Phase 4.
     Run 00-Setup/database_rcu_sec.sh --apply to store DB credentials.
 
 Phase 4 – Repository & Domain (as oracle)
+  07-oracle_setup_repository.sh --check
+                                 RCU DB requirements (parameters, JVM, charset,
+                                   edition, db_securefile) – nothing is created
   07-oracle_setup_repository.sh  RCU: create FMW metadata schemas in Oracle DB
                                    (reads DB_SYS_PWD + DB_SCHEMA_PWD from db_sys_sec.conf.des3)
   08-oracle_setup_domain.sh      Create WebLogic domain (WLST silent mode)
-                                   (requires completed RCU schemas)
+                                   (requires completed RCU schemas; loopback only:
+                                   SSL demo ports off, Coherence on the listen
+                                   address; resets the resolved JDK path in the
+                                   domain to the jdk-21 link)
 
 Phase 5 – Configuration (as oracle)
   09-oracle_configure.sh         Pre-start configuration (boot.properties, JVM, font OS
@@ -172,8 +191,9 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] 01-Run/startStop.sh start WLS_REPORTS --apply  # first start creates the app dir (rwservlet.properties)
   [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
   [oracle] 14-oracle_setup_forms.sh --apply             # Copy Forms config templates into the domain
-  → Start the domain once (WLS_REPORTS creates its application directory)
+  [oracle] 01-Run/startStop.sh stop-all / start-all     # restart: 13-/14- changes become active
   [oracle] 14b-oracle_reports_fonts.sh --apply          # fonts, uifont.ali, cgicmd.dat, backup
+                                                        # (needs the WLS_REPORTS app dir of the first start)
 
 Phase 7 – Validation (as oracle) [planned]
   90-oracle_validate.sh          Full validation report
@@ -192,6 +212,17 @@ Phase 7c – Autostart at boot (as oracle; systemd part via sudo)
                                    systemd unit fmw-<domain>.service (Node Manager controlled)
                                    → docs/30-configure_autostart.md
 
+Phase 7d – Forms client distribution (as oracle; only FORMS_CLIENT_DIST=true)
+  40-oracle_forms_client_bundle.sh --apply
+                                Windows Java runtime (jlink) + FSAL + JACOB for
+                                   Nginx /formsWeb/, PowerShell installer from
+                                   client_templates/ → docs/40-forms_client_distribution.md
+
+Final checks (as oracle, read-only)
+  02-Checks/tns_admin_check.sh  one TNS_ADMIN for every process (incl. running ones)
+  02-Checks/clone_check.sh      loopback-only / clone-capable installation
+  10-Monitoring/cert_expiry_check.sh --cron --apply   daily certificate expiry check (cron)
+
 Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
   99-oracle_deinstall_fmw.sh    Stop FMW, OUI deinstall, remove ORACLE_HOME/
                                    DOMAIN_HOME/FMW client ADR; keeps DB, inventory,
@@ -208,7 +239,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 0 | `00-root_os_network.sh` | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall (safe activation with rollback timer), sshd hardening (`SSH_ALLOW_USERS`); `--only <sections>` → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
-| 0 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix | [→ docs](docs/01-root_setup_java.md) |
+| 0 / 1 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix; after `04-` `--upgrade-jdk` = JDK of the current patch cycle | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
 | 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/04-root_nginx.md) |
 | 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
@@ -218,7 +249,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 2 | `05-oracle_patch_weblogic.sh` | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
 | 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports 14.1.2 silent install (Forms and Reports Deployment / Standalone Forms Builder) | [→ docs](docs/06-oracle_install_forms_reports.md) |
 | 3 | `06-oracle_patch_forms_reports.sh` | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
-| 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas | [→ docs](docs/07-oracle_setup_repository.md) |
+| 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas; `--check` = DB requirements only | [→ docs](docs/07-oracle_setup_repository.md) |
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
 | 5 | `09-oracle_configure.sh` | Pre-start configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
 | 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
@@ -232,7 +263,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 | 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
-| 7d | `40-oracle_forms_client_bundle.sh` | Forms client bundle for Nginx `/formsWeb/`: Windows Java runtime built with jlink from the MOS client JDK (CA inside `cacerts`), `frmsal.jar`, JACOB DLL, `manifest.json` (atomic switch, `--rollback`); only `FORMS_CLIENT_DIST=true`. PowerShell installer: next step | [→ docs](docs/40-forms_client_distribution.md) |
+| 7d | `40-oracle_forms_client_bundle.sh` | Forms client bundle for Nginx `/formsWeb/`: Windows Java runtime built with jlink from the MOS client JDK (CA inside `cacerts`), `frmsal.jar`, JACOB DLL, `manifest.json` (atomic switch, `--rollback`); only `FORMS_CLIENT_DIST=true`. PowerShell installer `client_templates/FormsWeb-Setup.ps1` (first Windows FSAL session 2026-10-23) | [→ docs](docs/40-forms_client_distribution.md) |
 | teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
 
 ---
@@ -329,20 +360,22 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
 ├── fr/
 │   ├── V1045121-01.zip           ← eDelivery: Forms & Reports 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_fr_linux64.bin
-└── patches/
-    ├── 28186730/                 ← OPatch upgrade package (getMOSPatch, OPATCH_UPGRADE_PATCH_NR)
-    │   └── p28186730_1394222_Generic.zip  ← contains 6880880/opatch_generic.jar
-    │       (confirmed on MOS: 13.9.4.2.22 – NOT .24; see caveat in
-    │        docs/05-oracle_patch_weblogic.md)
-    ├── 39925660/                 ← WLS Stack Patch Bundle (getMOSPatch, WLS_SPB_PATCH_NR) – applied via opatch napply
-    │   └── p39925660_141200_Generic.zip
-    └── 39600348/                 ← Reports 14.1.2 QPR (getMOSPatch, INSTALL_PATCHES_REPORTS)
-        └── p39600348_141200_Linux-x86-64.zip
+├── jdk/                          ← JDK 21 tarballs extracted by 02b- --upgrade-jdk
+├── database/cvu/                 ← standalone CVU (only LOCAL_REP_DB=true)
+└── patches/<patch nr>/p<nr>_*.zip  ← getMOSPatch, one directory per patch, e.g. (CPU Oct 2026):
+    ├── 28186730/                 ← OPatch 13.9.4.2.25 (OPATCH_UPGRADE_PATCH_NR; also inside the SPB)
+    ├── 40125898/                 ← WLS Stack Patch Bundle 14.1.2.0.261007 (WLS_SPB_PATCH_NR) – opatch napply
+    ├── 35702194/                 ← Oracle JDK 21 (JDK_PATCH_NR)
+    ├── 40050062/ …               ← FMW Infrastructure bundles (INSTALL_PATCHES)
+    ├── 39951765/ …               ← Forms & Reports common (INSTALL_PATCHES_FR_COMMON)
+    ├── 39842516/                 ← Forms 14.1.2 QPR (INSTALL_PATCHES_FORMS)
+    └── 39600348/                 ← Reports 14.1.2 QPR (INSTALL_PATCHES_REPORTS)
 ```
 
-> Patch numbers change quarterly. Current values are in `oracle_software_version.conf`,
+> Patch numbers change every month (CPU quarterly, CSPU in between). Current values are in `oracle_software_version.conf`,
 > central Doc-ID list in `docs/00-patch-references.md`.
 > See [docs/05-oracle_patch_weblogic.md](docs/05-oracle_patch_weblogic.md) for the discovery workflow.
+> New cycle: `04-oracle_pre_download.sh --apply --fresh-patches --mos` (old ZIPs moved to `patches_<ts>/`).
 
 All versions, filenames, SHA-256 checksums and patch numbers are defined in
 `oracle_software_version.conf` (committed to git — no credentials).
@@ -358,12 +391,14 @@ Platform codes: `226P` = Linux x86-64 · `541P` = Linux ARM 64-bit · `233P` = M
 Root operations run via selective sudo — no full root shell required:
 
 ```
-/etc/sudoers.d/oracle-fmw:
-oracle ALL=(root) NOPASSWD: /usr/bin/dnf install *
-oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl -p
-oracle ALL=(root) NOPASSWD: /usr/bin/systemctl start|stop|reload|enable nginx
+/etc/sudoers.d/oracle-fmw   (written by 03-root_user_oracle.sh, checked with visudo -c):
+oracle ALL=(root) NOPASSWD: /usr/bin/dnf install *, /usr/bin/dnf update *
+oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl -p *, /usr/sbin/sysctl --system
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl start|stop|reload|enable|status nginx   (one line each)
 oracle ALL=(root) NOPASSWD: /bin/cp /etc/sysctl.d/*.conf /etc/sysctl.d/
 oracle ALL=(root) NOPASSWD: /bin/cp /etc/security/limits.conf /etc/security/limits.conf
+oracle ALL=(root) NOPASSWD: /usr/bin/firewall-cmd *
+oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
 ```
 
 Scripts check `sudo -n <cmd> 2>/dev/null` — if oracle has sudo, execute directly;
@@ -415,8 +450,8 @@ heaps above. External sizing estimate, not independently verified against
 a specific measured host; validate with real load testing before sizing
 production hardware.
 
-> If the database runs on the same host, add DB RAM/CPU requirements on top.
-> For IHateWeblogic the database is on a **separate server** (see section 9.3).
+> If the database runs on the same host (`LOCAL_REP_DB=true`), add DB RAM/CPU
+> requirements on top – disk: [Disk Sizing Guide](../README.md#disk-sizing-guide).
 
 ### 9.2 Oracle Universal Installer (OUI) minimum requirements
 
@@ -433,7 +468,9 @@ use silent mode with response files.
 ### 9.3 Repository Database requirements
 
 FMW 14.1.2 requires an Oracle Database for the FMW metadata schemas (RCU).
-The database runs on a **separate server** from WebLogic.
+Recommended on a **separate server**; on the same host with
+`LOCAL_REP_DB=true` (built with `60-RCU-DB-19c/`). The RCU database needs its
+own DB licence – details [rcu_middleware_architecture.md §9.4](../80-FMW-Architecture/rcu_middleware_architecture.md).
 
 **Certified database versions:**
 - Oracle DB 23ai ≥ 23.4.0.24
@@ -483,15 +520,19 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 
 ```
 /u01/
-├── app/
-│   ├── oracle/
-│   │   ├── fmw/                  ← ORACLE_HOME (FMW Infrastructure + Forms/Reports)
-│   │   └── java/jdk-21/          ← JDK_HOME symlink (→ jdk-21.0.x, NOT under fmw/)
-│   └── oraInventory/              ← ORACLE_INVENTORY, one level above ORACLE_BASE
-└── user_projects/
-    └── domains/
-        └── fr_domain/            ← DOMAIN_HOME
+└── app/
+    ├── oracle/                   ← ORACLE_BASE
+    │   ├── fmw/                  ← ORACLE_HOME (FMW Infrastructure + Forms/Reports)
+    │   ├── java/jdk-21           ← JDK_HOME symlink (→ jdk-21.0.x, NOT under fmw/)
+    │   ├── domains/fr_domain/    ← DOMAIN_HOME (interview default ${ORACLE_BASE}/domains/fr_domain)
+    │   ├── forms/{moduls,tmp}    ← FORMS_CUSTOMER_DIR / FORMS_TMP
+    │   └── reports/source        ← REPORTS_CUSTOMER_DIR
+    └── oraInventory/             ← ORACLE_INVENTORY (interview default: one level above ORACLE_BASE)
+/srv/patch_storage/               ← PATCH_STORAGE (own file system recommended)
 ```
+
+Disk space per area (FMW only ~75 GB, with a local RCU DB ≥ 140 GB): root
+README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 
 ---
 
@@ -529,11 +570,13 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 ├── 14b-oracle_reports_fonts.sh        ← Phase 6: Reports fonts, uifont.ali, cgicmd.dat
 ├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke test (Forms+Reports), verified 2026-10-16
 ├── 30-configure_autostart.sh          ← Phase 7c: autostart at boot (systemd, Node Manager controlled)
+├── 40-oracle_forms_client_bundle.sh   ← Phase 7d: Forms client bundle for Nginx /formsWeb/
 ├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
 ├── autostart_templates/               ← Templates rendered by 30-configure_autostart.sh
 │   ├── fmw_env.sh.template / fmw_ctl.sh.template          (env + control wrapper)
 │   ├── wls_start.py / wls_stop.py / wls_status.py .template (WLST via Node Manager)
 │   └── fmw.service.template                                 (systemd unit)
+├── client_templates/                  ← Windows client installer (FormsWeb-Setup.ps1, FormsWeb-Install.cmd)
 ├── forms_templates/                   ← Forms config templates (edited by the customer)
 │   ├── README.md
 │   ├── default.env.template
@@ -542,10 +585,10 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   ├── Registry.dat.template
 │   ├── fmrweb_utf8.res.template
 │   ├── fmrwebd.res.template
-│   └── test_form.xml                  ← Phase 7b smoke-test Forms module (STATUS: unverified)
+│   └── test_form.xml                  ← Phase 7b smoke-test Forms module (verified 2026-10-16)
 ├── reports_templates/                 ← Phase 7b smoke-test Reports demo reports
-│   ├── test_dual.xml                  ← no parameters, SYSDATE only (STATUS: unverified)
-│   ├── test_user_objects.xml          ← one parameter + parameter form, USER_OBJECTS (STATUS: unverified)
+│   ├── test_dual.xml                  ← no parameters, SYSDATE only (verified 2026-10-16)
+│   ├── test_user_objects.xml          ← one parameter + parameter form, USER_OBJECTS
 │   └── REPORTS_XML_SYNTAX_REFERENCE.md ← Reports XML syntax reference (DTD-confirmed), reusable for debugging any Reports XML
 ├── response_files/                    ← response file templates
 │   ├── cgicmd.dat.template
@@ -553,6 +596,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 │   └── domain_config.py.template
 └── docs/                              ← step-by-step detail documentation
     ├── 00-environment-setup.md        ← all environment.conf parameters + init concept
+    ├── 00-patch-references.md         ← current patch cycle: Doc IDs, patch numbers, CVE assessment
+    ├── 00-patch-references_september_2026.md ← frozen snapshot of the previous cycle
     ├── 01-setup-interview.md
     ├── 00-root_set_os_parameter.md    ← 01-root_os_baseline.sh
     ├── 00-root_os_network.md          ← 00-root_os_network.sh
@@ -577,10 +622,11 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
     ├── 14-forms-detail-settings.md   ← 14-oracle_setup_forms.sh
     ├── 14b-oracle_reports_fonts.md   ← 14b-oracle_reports_fonts.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist + password recovery
-    ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (analysis + plan, not implemented)
+    ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (tests A–D done 2026-10-23)
     ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh (verified 2026-10-16)
     ├── 30-configure_autostart.md     ← 30-configure_autostart.sh
+    ├── 40-forms_client_distribution.md ← 40-oracle_forms_client_bundle.sh + Windows installer
     └── 99-oracle_deinstall_fmw.md    ← 99-oracle_deinstall_fmw.sh
 ```
 
