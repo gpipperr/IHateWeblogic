@@ -430,7 +430,8 @@ From the customer upgrade, generic:
 
 | Topic | Note |
 |---|---|
-| Log rotation | ORDS rotates its own logs (access log, `logging.properties` handler). Only the systemd stdout / stderr files need a small logrotate rule (`copytruncate`, weekly) – they normally stay almost empty and only grow on errors |
+| Log rotation | ORDS rotates its own server log (`logging.properties` handler, 5 × 10 MB); the access log is **one file per day** (`ords_<yyyy_mm_dd>.log`) – old days are removed by `03-Logs/cleanLogFiles.sh --component ords --apply` (older than `LOG_RETAIN_DAYS`, 14) and compressed by `archive_logs.sh`. The systemd stdout / stderr files (owner root) need a small logrotate rule (`copytruncate`, weekly) – they normally stay almost empty |
+| Logs | `03-Logs/` group `ords` (since 2026-10-29): `get_all_logs.sh` / `grep_logs.sh` / `tail_logs.sh --component ords` |
 | HTTP 502 | ORDS not running or not on `127.0.0.1:8081` – `journalctl -u ords@ords_1` |
 | ORDS does not start | wrong `JAVA_HOME`, DB listener not reachable, wrong `--config` path, foreign files in `config/` |
 | `OutOfMemoryError` | raise `-Xmx` in the unit |
@@ -469,8 +470,9 @@ From the customer upgrade, generic:
   together with stripping the client-supplied WebLogic headers (live-tested).
 - `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX
   (config dir with wallet, versions of APEX / ORDS / SQLcl / Instant Client).
-- `01-Run/startStop.sh` / `fmw_ctl.sh` status: show `ords@ords_N` next to the
-  FMW components.
+- ~~`01-Run/startStop.sh`: show / start / stop `ords@ords_N`~~ – done
+  2026-10-24 (`start-all` / `stop-all` incl. ORDS); open: `fmw_ctl.sh` of the
+  autostart does not know ORDS (own systemd unit, started at boot anyway).
 - [ ] **`07-check-ords-apex-security.sh`** (read-only check, later
   `--apply` for the safe fixes) – security of what the **applications**
   bring into the APEX / ORDS instance, run after every app installation and
