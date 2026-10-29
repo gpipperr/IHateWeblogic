@@ -80,6 +80,7 @@ rm mos_sec.conf
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | `java -version` check |
 | `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | – |
 | `PATCH_STORAGE` | `/srv/patch_storage` | disk space ≥ 20 GB |
+| `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` when `ORACLE_BASE` has depth 1) | WARN if inside `ORACLE_BASE`; on a host with an existing inventory (local RCU DB, reinstall) enter that one – `03-` writes `/etc/oraInst.loc` |
 | `IHW_ENV_TYPE` | `prod` | `test` or `prod` – `prod` = Claude Code is never used on this host; `test` = allowed with sandbox + guard hook ([10-Monitoring/setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 | `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | **one** Oracle Net directory (`tnsnames.ora`, `sqlnet.ora`) for Forms, Reports, WebLogic and the oracle shell – written into `default.env` (14-), `rwserver.conf` + `reports.sh` (13-), `setUserOverrides.sh` + checked by [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh), `.bash_profile` (03-) |
 
@@ -236,12 +237,19 @@ Determines which network interface WebLogic (Admin Server and all Managed Server
 
 ### Block 3b – Reports Server Details
 
-Shown only when `INSTALL_COMPONENTS` includes Reports.
+The interview itself asks only `REPORTS_SERVER_NAMES` (list, default
+`repserver01`; the first one is `REPORTS_SERVER_NAME`), the customer
+directories (`FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `REPORTS_CUSTOMER_DIR`,
+`REPORTS_IMAGE_DIR`) and `REPORTS_SECURITY`. The values of the table below are
+written by **`00-Setup/init_env.sh --apply` after the installation** (Phase 6,
+before `13-`) – detected from the domain, otherwise the defaults shown.
+Background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md),
+[discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md).
 
 | Parameter | Default | Notes |
 |---|---|---|
-| `REPORTS_TOOLS_INSTANCE` | `reptools_ent` | Name of the ReportsTools component instance (exactly one per domain) |
-| `REPORTS_SERVER_INSTANCES` | `repserver_ent` | Space-separated list of ReportsServer instance names (multiple allowed) |
+| `REPORTS_TOOLS_INSTANCE` | detected (`reptools1` from `08-`), fallback `reptools_ent` | Name of the ReportsTools component instance (exactly one per domain) |
+| `REPORTS_SERVER_INSTANCES` | `REPORTS_SERVER_NAMES` of the interview, fallback `repserver_ent` | Space-separated list of ReportsServer instance names (multiple allowed) |
 | `REPORTS_PATH` | `<REPORTS_CUSTOMER_DIR>:<REPORTS_IMAGE_DIR>` | report sources + images, `:`-separated (13- writes `<folderAccess><read>` with `;`) |
 | `REPORTS_TMP` | `${ORACLE_BASE}/reports/tmp` | writable output directory (accessible by Reports engines; not `/tmp`, cleaned at reboot) – 13- creates all three directories |
 | `REPORTS_BROADCAST_PORT` | `14027` | UDP broadcast port – must be **unique per environment in the subnet** (range 14021–14030, Doc ID 437228.1) |
@@ -296,7 +304,14 @@ done
 | `DB_PORT` | `1521` |
 | `DB_SERVICE` | – |
 | `DB_SCHEMA_PREFIX` | `DEV` |
-| DB SYS password | prompted, encrypted → used only for RCU, not persisted |
+| DB SYS password | prompted, encrypted → `db_sys_sec.conf.des3` (with the schema password), used by RCU (`07-`) |
+| `LOCAL_REP_DB` | detected (`ora_pmon_*` running or `DB_HOST` local) |
+| `RCU_TABLESPACE` | empty – RCU creates its own tablespaces |
+| `RCU_TEMP_TABLESPACE` | `TEMP` |
+| `RCU_DB_TYPE` | `EBR` (editions enabled, default) or `ORACLE` |
+
+Background – which schemas RCU creates, who logs in, password expiry:
+[rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
 
 Immediate connection test via `02-Checks/db_connect_check.sh` after entry.
 
