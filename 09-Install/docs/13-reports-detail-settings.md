@@ -25,8 +25,25 @@ within the WebLogic domain.  It covers:
 4. Configuring `rwservlet.properties` (servlet → server mapping)
 5. Configuring `rwserver.conf` (engine, environment, queue, folder access)
 6. Configuring `reports.sh` (font and locale environment variables)
-7. Starting and stopping system components
-8. Font and Unicode configuration (`uifont.ali`)
+7. Font and Unicode configuration (`uifont.ali`) – **manual reference only**:
+   the script part moved to `14b-oracle_reports_fonts.sh` (after the first
+   start of `WLS_REPORTS`, [doc 14b](14b-oracle_reports_fonts.md))
+8. Starting and stopping system components
+
+Script call (`13-oracle_setup_reports.sh`):
+
+```bash
+./09-Install/13-root_reports_fix.sh --apply            # root, OL9: libnsl.so.2 symlink (Step 1)
+./09-Install/13-oracle_setup_reports.sh                # dry-run
+./09-Install/13-oracle_setup_reports.sh --apply        # Steps 2–6b
+./09-Install/13-oracle_setup_reports.sh --apply --skip-wlst   # AdminServer down: files only, no WLST instance creation
+```
+
+Besides the steps below, `--apply` creates the report directories – every
+directory of `REPORTS_PATH` (default `REPORTS_CUSTOMER_DIR:REPORTS_IMAGE_DIR`)
+and `REPORTS_TMP`, mode 750, as the running user (else FAIL: create as root)
+and writes `TNS_ADMIN` into `rwserver.conf` and `reports.sh`
+([02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh)).
 
 **Prerequisites:**
 
@@ -547,6 +564,10 @@ the Reports server only 8 s (before 64 s), after an engine crash 7 s (before
 ---
 
 ## Step 7 – Font and Unicode Configuration
+
+> **Automated by `14b-oracle_reports_fonts.sh`**, not by `13-` – this section
+> stays as the manual reference. Why two font paths and the same files for the
+> engines and `rwrun`: [report_engine_architecture.md §5.1](../../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
 
 > **See also:** `04-ReportsFonts/uifont_ali_update.sh` and `04-ReportsFonts/font_cache_reset.sh`
 
