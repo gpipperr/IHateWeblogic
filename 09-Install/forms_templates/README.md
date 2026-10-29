@@ -21,6 +21,7 @@ The script copies each template to its target path(s) and creates a
 | `Registry.dat.template` | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
 | `fmrweb_utf8.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
 | `fmrwebd.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (non-UTF-8 fallback) |
+| `test_form.xml` | not copied – compiled by `15-deploy-test-report-forms_template.sh` into `FORMS_CUSTOMER_DIR` | smoke-test Forms module (`select sysdate from dual`), verified 2026-10-16 |
 | `IHateWeblogic.ico` | `$PATCH_STORAGE/icon/IHateWeblogic.ico` (copied by `04-oracle_pre_download.sh --apply`) | Default shortcut icon of the Forms client distribution (`FORMS_CLIENT_ICON`, concept 40) – project logo, 16/32/48/256 px; not used by 14- |
 
 `$FR_INST`     = `$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$FORMS_INSTANCE_NAME`
@@ -44,6 +45,11 @@ Paths are `##...##` placeholders filled from `environment.conf` by the script
 - optional: `form=` (default start form), `pageTitle=`, `background=`,
   `logo=`, `customColorScheme=`
 - Application-specific `[section]` blocks: add in the deployed file / EM
+- **Not in the template:** session limit `maxRuntimeProcesses` and runtime
+  pooling (prestart) – both come from `environment.conf`
+  (`FORMS_MAX_RUNTIME_PROCESSES`, `FORMS_PRESTART_*`) and are written by
+  `14-` into `[default]` / the prestart section
+  ([forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md))
 
 ### webutil.cfg.template
 - Overrides only – merged into Oracle's
