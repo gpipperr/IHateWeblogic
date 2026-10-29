@@ -71,6 +71,10 @@ Run the following in order after the domain is created:
 
 ## What the Script Does
 
+Background – why own JVM settings and `TNS_ADMIN` go into
+`setUserOverrides.sh` (sourced by Oracle's `setDomainEnv.sh`, which patches
+and `updateDomain` rewrite): [who starts whom](../../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain).
+
 Orchestrates the configuration sequence:
 
 | Order | Action | Script called | Doc |
