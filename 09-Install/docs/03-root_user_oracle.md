@@ -14,6 +14,12 @@ environment variables, and directory structure.
 
 ---
 
+Background – the four homes and who runs as `oracle`:
+[weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes);
+why `JAVA_HOME` = `JDK_HOME` and not the bundled JDK: same document, §1;
+why one `TNS_ADMIN`: [forms_runtime_architecture.md §2.1](../../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias),
+[report_engine_architecture.md §5.2](../../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin).
+
 ## Groups: FMW vs. Database
 
 For a **WebLogic / Forms / Reports** installation (no Oracle Database on this host),
@@ -135,15 +141,38 @@ grep pam_limits /etc/pam.d/system-auth
 
 Create `/etc/sudoers.d/oracle-fmw`:
 
+Exactly what the script writes (checked 2026-10-29):
+
 ```
-# Oracle FMW maintenance – allow oracle to manage Nginx and system tools
+# Oracle FMW 14.1.2 – oracle user sudo rights
+# Managed by: 09-Install/03-root_user_oracle.sh
+
+# Package management
+oracle ALL=(root) NOPASSWD: /usr/bin/dnf install *
+oracle ALL=(root) NOPASSWD: /usr/bin/dnf update *
+
+# Kernel parameters
+oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl -p *
+oracle ALL=(root) NOPASSWD: /usr/sbin/sysctl --system
+
+# Nginx management
 oracle ALL=(root) NOPASSWD: /usr/bin/systemctl start nginx
 oracle ALL=(root) NOPASSWD: /usr/bin/systemctl stop nginx
 oracle ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
-oracle ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 oracle ALL=(root) NOPASSWD: /usr/bin/systemctl enable nginx
-oracle ALL=(root) NOPASSWD: /usr/bin/nginx -t
+oracle ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
+
+# Config files (scoped paths only)
+oracle ALL=(root) NOPASSWD: /bin/cp /etc/sysctl.d/*.conf /etc/sysctl.d/
+oracle ALL=(root) NOPASSWD: /bin/cp /etc/security/limits.conf /etc/security/limits.conf
+oracle ALL=(root) NOPASSWD: /usr/bin/firewall-cmd *
+
+# Font cache
+oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
 ```
+
+Scripts that need further root steps (`nginx -t`, systemd units, `13-root`)
+print the command when `sudo -n` is not allowed (`ihw_run_root`).
 
 ```bash
 chmod 440 /etc/sudoers.d/oracle-fmw
