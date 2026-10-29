@@ -201,7 +201,8 @@ _find() {   # _find role-base – first existing file of base.{crt,cert,cer,pem,
 printLine
 section "Customer certificates – $(date '+%Y-%m-%d %H:%M:%S')"
 printList "Inbox"       20 "$INBOX"
-printList "Server name" 20 "${WLS_SERVER_FQDN:-?}  (SSL_CN ${SSL_CN:-?})"
+_HOSTNAME_F="$(hostname -f 2>/dev/null || hostname)"
+printList "Server name" 20 "${WLS_SERVER_FQDN:-(not set)}  (host name: $_HOSTNAME_F)"
 printList "Target"      20 "$CUST_DIR (root, codesign, interception), $(dirname "$SSL_CERT_FILE") (server)"
 printList "Mode"        20 "$($APPLY && printf 'APPLY – import' || printf 'check only (--apply imports)')"
 if [ ! -d "$INBOX" ]; then fail "Inbox not found: $INBOX"; print_summary; exit "$EXIT_CODE"; fi
@@ -299,10 +300,18 @@ if _want server && { [ -f "$INBOX/server.p12" ] || [ -f "$INBOX/server.pfx" ] ||
             fi
         fi
         _san="$(_ext "$_leaf" subjectAltName)"
-        for _n in $(printf '%s\n' ${WLS_SERVER_FQDN:-} ${SSL_CN:-} | sort -u); do
-            [[ ",$_san," == *",DNS:${_n},"* ]] && ok "  SAN contains $_n" \
-                || { fail "  SAN does not contain $_n (SAN: ${_san:-none}) – browsers reject it"; _sok=1; }
-        done
+        # The certificate must name the PUBLIC server name (WLS_SERVER_FQDN); the
+        # host name may differ (cloud host behind a DNS alias) – SSL_CN only
+        # matters for self-made certificates
+        _san=" ${_san//,/ } "; _san="${_san//  / }"
+        _pub="${WLS_SERVER_FQDN:-$_HOSTNAME_F}"
+        [ -n "${WLS_SERVER_FQDN:-}" ] || warn "  WLS_SERVER_FQDN not set – checking the host name $_HOSTNAME_F (set the public name: 09-Install/01-setup-interview.sh)"
+        if [[ "$_san" == *" DNS:${_pub} "* ]]; then ok "  SAN contains $_pub"
+        elif [[ "$_san" == *" DNS:*.${_pub#*.} "* ]]; then ok "  SAN wildcard *.${_pub#*.} covers $_pub"
+        else fail "  SAN does not contain $_pub (SAN:${_san:- none}) – browsers reject it"; _sok=1; fi
+        if [ "$_HOSTNAME_F" != "$_pub" ] && [[ "$_san" != *" DNS:${_HOSTNAME_F} "* ]]; then
+            info "  host name $_HOSTNAME_F not in the certificate – fine, the users use $_pub"
+        fi
         _eku="$(_ext "$_leaf" extendedKeyUsage)"
         if [ -z "$_eku" ]; then warn "  no extendedKeyUsage – usually accepted, serverAuth recommended"
         elif [[ "$_eku" == *"TLSWebServerAuthentication"* ]]; then ok "  EKU serverAuth"
@@ -325,6 +334,7 @@ if _want server && { [ -f "$INBOX/server.p12" ] || [ -f "$INBOX/server.pfx" ] ||
         _put "$_key"  "$SSL_KEY_FILE"  600
         [ -s "$WORK_DIR/chain.pem" ] && _put "$WORK_DIR/chain.pem" "$SSL_CHAIN_FILE" 644
         _set_conf "$SSL_CONF" SSL_LAST_MODE CUSTOMER
+        _set_conf "$SSL_CONF" SSL_CN "$_pub"
         NEXT+=("Deploy to Nginx (root): ./09-Install/05-root_nginx_ssl.sh --apply")
     elif [ "$_sok" -eq 0 ]; then
         info "  would write $SSL_CERT_FILE, $SSL_KEY_FILE (600)$([ -s "$WORK_DIR/chain.pem" ] && printf ', %s' "$SSL_CHAIN_FILE")"

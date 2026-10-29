@@ -94,6 +94,8 @@ execution if sudo is not available.
 Setup – Environment Configuration (as oracle; before Phase 0)
   [oracle] git clone <repo> && cd IHateWeblogic
   [oracle] ./09-Install/01-setup-interview.sh --apply  # interview → writes environment.conf
+           → WLS_SERVER_FQDN = PUBLIC name (URL of the users, certificate SAN) – in the
+             cloud / with a DNS alias NOT the host name (host.subnet.vcn.oraclevcn.com)
            → see docs/00-environment-setup.md for all parameters
            → see docs/01-setup-interview.md for interview details
 

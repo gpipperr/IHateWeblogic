@@ -99,7 +99,7 @@ Sets `INSTALL_COMPONENTS=FORMS_AND_REPORTS | FORMS_ONLY | REPORTS_ONLY`
 
 | Parameter | Default | Notes |
 |---|---|---|
-| `WLS_SERVER_FQDN` | `hostname -f` | External FQDN – used by Nginx SSL config and WebLogic Frontend Host |
+| `WLS_SERVER_FQDN` | `hostname -f` | **Public** server name (URL of the users, certificate SAN) – Nginx `server_name`, 08-SSL, default of `FORMS_CLIENT_BASE_URL` / `ORDS_PUBLIC_URL`. Cloud host / DNS alias: enter the alias (`forms.company.com`), not the `…oraclevcn.com` host name. Asked first in Block 3 (before 2026-10-29 never asked – phase-0 scripts fell back to `hostname -f`) |
 | `WLS_ADMIN_PORT` | `7001` | – |
 | `WLS_ADMIN_USER` | `webadmin` | – |
 | `WLS_ADMIN_PWD` | prompted, encrypted → `weblogic_sec.conf.des3` | – |

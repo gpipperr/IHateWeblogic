@@ -33,7 +33,10 @@ by the script (hidden) – never put them into a file here.
 
 **Server certificate**
 - Subject Alternative Name (SAN) = the **external host name** the users type
-  (`WLS_SERVER_FQDN`, e.g. `forms.company.com`), plus further names if used.
+  (`WLS_SERVER_FQDN`, e.g. `forms.company.com`, a wildcard `*.company.com` is
+  accepted), plus further names if used. The internal host name (cloud:
+  `host.subnet.vcn.oraclevcn.com`) does not have to be in it – the check only
+  demands `WLS_SERVER_FQDN` (interview Block 3).
   The CN alone is not enough – browsers and Java check the SAN.
 - Extended Key Usage `serverAuth`; RSA ≥ 2048 bit (4096 recommended) or EC
   P-256 / P-384; signature SHA-256 or better (no SHA-1 / MD5).

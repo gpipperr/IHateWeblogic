@@ -459,6 +459,10 @@ printf "\n"
 
 section "Block 3 – Domain Configuration"
 
+info "Public server name – the name the users type in the URL; it must be in the"
+info "  certificate (SAN). Differs from the host name in the cloud / with a DNS alias"
+info "  (host.subnet.vcn.oraclevcn.com vs. forms.company.com) – Nginx, SSL, client + ORDS URLs"
+_ask WLS_SERVER_FQDN         "Public server name (URL / certificate)" "$(hostname -f 2>/dev/null || _get_hostname)" "_val_host"
 _ask WLS_ADMIN_USER          "WLS Admin username"           "webadmin"
 _ask WLS_ADMIN_PORT          "WLS Admin port"               "7001"        "_val_port"
 _ask WLS_NODEMANAGER_PORT    "NodeManager port"             "5556"        "_val_port"
@@ -844,6 +848,7 @@ _show "DOMAIN_HOME"          "$DOMAIN_HOME"
 _show "PATCH_STORAGE"        "$PATCH_STORAGE"
 _show "TNS_ADMIN"            "$TNS_ADMIN"
 _show "INSTALL_COMPONENTS"   "$INSTALL_COMPONENTS"
+_show "WLS_SERVER_FQDN"      "$WLS_SERVER_FQDN"
 _show "WLS_ADMIN_USER"       "$WLS_ADMIN_USER"
 _show "WLS_ADMIN_PORT"       "$WLS_ADMIN_PORT"
 _show "WLS_ADMIN_PWD"        "****  → $(basename "$WLS_SEC_FILE")"
@@ -964,6 +969,9 @@ fi
 # above) – appending a second block on every --apply run caused duplicates.
 if [ -f "$WRITE_CONF" ]; then
     sed -i '/^# === 09-INSTALL/,/^# === END 09-INSTALL/d' "$WRITE_CONF" 2>/dev/null || true
+    # WLS_SERVER_FQDN now lives in the block – drop a copy appended by hand /
+    # by init_env.sh outside of it (its value was read and kept above)
+    sed -i '/^WLS_SERVER_FQDN=/d' "$WRITE_CONF" 2>/dev/null || true
 fi
 
 # Build REPORTS_SERVER_NAMES array string for env.conf
@@ -1001,6 +1009,9 @@ INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
 
 # --- WebLogic Domain ----------------------------------------------------------
 DOMAIN_HOME="${DOMAIN_HOME}"
+# Public server name (URL the users type, certificate SAN) – Nginx server_name,
+# 08-SSL, FORMS_CLIENT_BASE_URL / ORDS_PUBLIC_URL; may differ from hostname -f
+WLS_SERVER_FQDN="${WLS_SERVER_FQDN}"
 WLS_ADMIN_USER="${WLS_ADMIN_USER}"
 WLS_ADMIN_PORT="${WLS_ADMIN_PORT}"
 WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"
@@ -1198,6 +1209,7 @@ DOMAIN_HOME="${DOMAIN_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
 TNS_ADMIN="${TNS_ADMIN}"
 INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
+WLS_SERVER_FQDN="${WLS_SERVER_FQDN}"
 WLS_ADMIN_USER="${WLS_ADMIN_USER}"
 WLS_ADMIN_PORT="${WLS_ADMIN_PORT}"
 WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT}"

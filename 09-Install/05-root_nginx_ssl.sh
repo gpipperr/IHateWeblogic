@@ -420,6 +420,8 @@ fi
 section "SSL Live Test"
 
 SERVER_NAME="${WLS_SERVER_FQDN:-$(hostname -f 2>/dev/null)}"
+[ -n "${WLS_SERVER_FQDN:-}" ] || warn "WLS_SERVER_FQDN not set – TLS test uses the host name $SERVER_NAME (public name: 01-setup-interview.sh)"
+# 127.0.0.1 + SNI: works even when the public name does not resolve on the host
 
 if systemctl is-active nginx > /dev/null 2>&1; then
     # Quick TLS handshake test

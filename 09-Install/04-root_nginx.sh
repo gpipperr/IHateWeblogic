@@ -106,7 +106,12 @@ NGINX_CONF_DIR="/etc/nginx/conf.d"
 NGINX_CONF="$NGINX_CONF_DIR/oracle-wls.conf"
 NGINX_SSL_DIR="/etc/nginx/ssl"
 
-SERVER_NAME="${WLS_SERVER_FQDN:-$(hostname -f 2>/dev/null)}"
+# Public server name (interview: WLS_SERVER_FQDN) – may differ from the host
+# name (cloud host behind a DNS alias); then both names go into server_name
+HOST_FQDN="$(hostname -f 2>/dev/null || hostname)"
+SERVER_NAME="${WLS_SERVER_FQDN:-$HOST_FQDN}"
+NGINX_SERVER_NAMES="$SERVER_NAME"
+[ "$HOST_FQDN" != "$SERVER_NAME" ] && NGINX_SERVER_NAMES="$SERVER_NAME $HOST_FQDN"
 WLS_FORMS_PORT="${WLS_FORMS_PORT:-9001}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT:-9002}"
 WLS_ADMIN_PORT="${WLS_ADMIN_PORT:-7001}"
@@ -209,6 +214,15 @@ printLine
 
 _check_root_access
 
+if [ -z "${WLS_SERVER_FQDN:-}" ]; then
+    warn "WLS_SERVER_FQDN not set – server_name falls back to the host name $HOST_FQDN"
+    info "  Users / certificate use another name (cloud, DNS alias)? Set the public name:"
+    info "  09-Install/01-setup-interview.sh --apply (Block 3), then re-run this script"
+elif [ "$HOST_FQDN" != "$SERVER_NAME" ]; then
+    info "Public name $SERVER_NAME differs from the host name $HOST_FQDN (cloud / DNS alias)"
+    info "  server_name: both names; the certificate must contain $SERVER_NAME"
+fi
+
 [ "$_ADMIN_SAVE" -eq 1 ] && _save_admin_range "$ADMIN_IP_RANGE"
 if [ "$ADMIN_IP_RANGE" = "any" ]; then
     warn "ADMIN_IP_RANGE=any – /console and /em reachable from every network (WebLogic login only)"
@@ -231,7 +245,7 @@ ok "Template found: $TEMPLATE"
 
 # Show which variables will be substituted
 printf "\n  Substitutions:\n" | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-28s → %s\n" "##SERVER_NAME##"        "$SERVER_NAME"      | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-28s → %s\n" "##SERVER_NAME##"        "$NGINX_SERVER_NAMES" | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-28s → %s\n" "##WLS_FORMS_PORT##"     "$WLS_FORMS_PORT"   | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-28s → %s\n" "##WLS_REPORTS_PORT##"   "$WLS_REPORTS_PORT" | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-28s → %s\n" "##WLS_ADMIN_PORT##"     "$WLS_ADMIN_PORT"   | tee -a "${LOG_FILE:-/dev/null}"
@@ -337,7 +351,7 @@ fi
 NGINX_CONF_TMP="$(mktemp /tmp/nginx-wls-XXXXXX.conf)"
 
 sed \
-    -e "s|##SERVER_NAME##|${SERVER_NAME}|g" \
+    -e "s|##SERVER_NAME##|${NGINX_SERVER_NAMES}|g" \
     -e "s|##WLS_FORMS_PORT##|${WLS_FORMS_PORT}|g" \
     -e "s|##WLS_REPORTS_PORT##|${WLS_REPORTS_PORT}|g" \
     -e "s|##WLS_ADMIN_PORT##|${WLS_ADMIN_PORT}|g" \

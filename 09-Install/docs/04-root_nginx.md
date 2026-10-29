@@ -126,7 +126,7 @@ nginx -t
 
 | Placeholder | Source | Default |
 |---|---|---|
-| `##SERVER_NAME##` | `WLS_SERVER_FQDN` | `hostname -f` |
+| `##SERVER_NAME##` | `WLS_SERVER_FQDN` (public name) + `hostname -f` if different (cloud / DNS alias – both names answer, the certificate needs the public one) | `hostname -f` (WARN when `WLS_SERVER_FQDN` is unset) |
 | `##WLS_FORMS_PORT##` | `WLS_FORMS_PORT` | `9001` |
 | `##WLS_REPORTS_PORT##` | `WLS_REPORTS_PORT` | `9002` |
 | `##WLS_ADMIN_PORT##` | `WLS_ADMIN_PORT` | `7001` |

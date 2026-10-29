@@ -990,7 +990,8 @@ unset _forms_inst_dir
 # --------------------------------------------------------------------------
 section "Detecting WLS Managed Server"
 
-DET_WLS_SERVER_FQDN="$(hostname -f 2>/dev/null || hostname)"
+# public server name (interview) wins over the host name – cloud / DNS alias
+DET_WLS_SERVER_FQDN="${WLS_SERVER_FQDN:-$(hostname -f 2>/dev/null || hostname)}"
 DET_WLS_MANAGED="$(detect_wls_reports_server "$DET_DOMAIN_HOME")"
 printList "WLS_MANAGED_SERVER" 30 "$DET_WLS_MANAGED"
 
