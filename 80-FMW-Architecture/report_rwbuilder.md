@@ -254,8 +254,9 @@ Prerequisites on both sides:
 - **AdminServer:** only needed again to create another ReportsTools instance
   or to change the domain.
 - **Next time:** the MOS downloads (about 15 patches, ~7 GB) took too long
-  one by one – a download script with a patch list is an open item (root
-  README, "Scripts").
+  one by one – since 2026-10-28 they come in one run with
+  [70-Customer-Projects/tools/mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+  and a CSV list (platform `233P` for the Windows ZIPs).
 
 ## 9. Status
 
