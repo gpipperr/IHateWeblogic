@@ -8,6 +8,9 @@
 
 ## Purpose
 
+Background – what the RCU database must offer (version, edition,
+parameters) beyond the OS check: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai).
+
 Validate the host with Oracle's own checker before `runInstaller` runs,
 instead of finding missing packages, kernel parameters or limits only during
 the installation. The **Cluster Verification Utility (CVU)** is built for
@@ -51,7 +54,10 @@ getMOSPatch takes all of them):
 
 `DB_CVU_REGEXP` (`p30839369_[0-9]+_Linux-x86-64\.zip`) restricts getMOSPatch to
 the 26ai kit; the script picks the same file (newest version) and falls back
-to `cvupack_linux_ol7*.zip` only when it is missing.
+to `cvupack_linux_ol7*.zip` only when it is missing. getMOSPatch compares the
+regexp with the file name **without** `.zip` – `04-` strips the trailing
+`\.zip` before the call (fixed 2026-10-28; before, the filter never matched and
+the download relied on the directory being filled otherwise).
 By hand: MOS → patch 30839369 → platform Linux x86-64 → into
 `DB_CVU_DIR` (`environment_db.conf`, default `$PATCH_STORAGE/database/cvu`).
 
