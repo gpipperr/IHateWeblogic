@@ -555,7 +555,18 @@ rm /u01/app/oracle/swapfile
   `dnf upgrade --refresh` (reboot after a kernel update). `--skip-update` skips
   the section – use it on a running system (e.g. `--only firewall,ssh`)
 - **/dev/shm (tmpfs):** minimum size checked; `--apply` offers to write
-  `tmpfs /dev/shm tmpfs rw,exec,size=<n>M 0 0` into `/etc/fstab` and remounts
+  `tmpfs /dev/shm tmpfs rw,nosuid,nodev,exec,size=<n>M 0 0` into `/etc/fstab` and remounts.
+  **`noexec`** (CIS hardening of cloud images) = FAIL – the JVM needs exec there.
+  `--apply` (or `--apply --only shm`) replaces `noexec` by `exec` on the
+  `/dev/shm` fstab line (`nosuid`, `nodev` stay; backup `/etc/fstab.bak_<ts>`)
+  and runs `mount -o remount,exec /dev/shm` – no reboot. By hand:
+  ```bash
+  sed -i -E '/^[^#]*[[:space:]]\/dev\/shm[[:space:]]/ s/(^|[[:space:],])noexec([,[:space:]]|$)/\1exec\2/' /etc/fstab
+  systemctl daemon-reload && mount -o remount,exec /dev/shm && findmnt /dev/shm
+  ```
+  `/tmp` with `noexec` (same CIS item) is only reported (WARN): OUI / OPatch run
+  extracted helpers from the temp dir → use `TMPDIR=$ORACLE_BASE/tmp` and
+  `-Djava.io.tmpdir=$ORACLE_BASE/tmp` (as `05-oracle_patch_weblogic.sh` does).
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB

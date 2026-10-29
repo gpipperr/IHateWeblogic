@@ -560,10 +560,10 @@ else
             _run_root cp /etc/fstab "/etc/fstab.bak_$(date +%Y%m%d_%H%M%S)"
             if grep -q '/dev/shm' /etc/fstab; then
                 _run_root sed -i \
-                    "s|.*tmpfs[[:space:]]*/dev/shm.*|tmpfs /dev/shm tmpfs rw,exec,size=${SHM_WANT_MB}M 0 0|" \
+                    "s|.*tmpfs[[:space:]]*/dev/shm.*|tmpfs /dev/shm tmpfs rw,nosuid,nodev,exec,size=${SHM_WANT_MB}M 0 0|" \
                     /etc/fstab
             else
-                printf "tmpfs /dev/shm tmpfs rw,exec,size=%sM 0 0\n" "$SHM_WANT_MB" \
+                printf "tmpfs /dev/shm tmpfs rw,nosuid,nodev,exec,size=%sM 0 0\n" "$SHM_WANT_MB" \
                     | _run_root tee -a /etc/fstab > /dev/null
             fi
             _run_root mount -o remount /dev/shm
@@ -572,13 +572,48 @@ else
     fi
 fi
 
-# exec flag check (required for JVM)
+# exec flag check (required for JVM). noexec on /dev/shm is a CIS hardening
+# item – hardened cloud images set it in /etc/fstab. Fix: replace noexec by
+# exec on the fstab line (nosuid/nodev stay), remount – no reboot needed.
 SHM_OPTS="$(findmnt -n -o OPTIONS /dev/shm 2>/dev/null)"
-if printf "%s" "$SHM_OPTS" | grep -q "noexec"; then
-    fail "/dev/shm is mounted noexec – JVM requires exec"
-    info "  Remove noexec from /dev/shm mount options"
+if printf "%s" "$SHM_OPTS" | grep -qw "noexec"; then
+    fail "/dev/shm is mounted noexec – JVM requires exec (current: $SHM_OPTS)"
+    info "  Typical source: CIS hardening of the image (/etc/fstab) – nosuid,nodev stay set"
+    _shm_fstab="$(grep -E '^[^#]*[[:space:]]/dev/shm[[:space:]]' /etc/fstab 2>/dev/null | head -1)"
+    [ -n "$_shm_fstab" ] && info "  fstab: $_shm_fstab"
+    if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Remove noexec from /dev/shm (fstab + remount)?" "y"; then
+        _run_root cp /etc/fstab "/etc/fstab.bak_$(date +%Y%m%d_%H%M%S)"
+        if [ -n "$_shm_fstab" ]; then
+            _run_root sed -i -E '/^[^#]*[[:space:]]\/dev\/shm[[:space:]]/ s/(^|[[:space:],])noexec([,[:space:]]|$)/\1exec\2/' /etc/fstab
+        else
+            printf "tmpfs /dev/shm tmpfs rw,nosuid,nodev,exec 0 0\n" | _run_root tee -a /etc/fstab > /dev/null
+        fi
+        _run_root systemctl daemon-reload > /dev/null 2>&1
+        _run_root mount -o remount,exec /dev/shm
+        SHM_OPTS="$(findmnt -n -o OPTIONS /dev/shm 2>/dev/null)"
+        if printf "%s" "$SHM_OPTS" | grep -qw "noexec"; then
+            fail "/dev/shm still noexec after remount: $SHM_OPTS – check systemd mount units (systemctl cat dev-shm.mount)"
+        else
+            ok "/dev/shm remounted with exec: $SHM_OPTS (fstab updated, persistent)"
+        fi
+    else
+        info "  Fix: re-run with --apply --only shm, or by hand:"
+        info "    fstab: replace noexec by exec on the /dev/shm line; mount -o remount,exec /dev/shm"
+    fi
+    unset _shm_fstab
 else
     ok "/dev/shm: exec flag OK"
+fi
+
+# /tmp noexec (same CIS item): the OUI / OPatch extract to java.io.tmpdir and
+# execute from there. Not changed here (hardening policy) – report only.
+TMP_OPTS="$(findmnt -n -o OPTIONS /tmp 2>/dev/null)"
+if printf "%s" "$TMP_OPTS" | grep -qw "noexec"; then
+    warn "/tmp is mounted noexec ($TMP_OPTS) – OUI / OPatch run their extracted helpers from the temp dir"
+    info "  05-oracle_patch_weblogic.sh already uses -Djava.io.tmpdir=\$ORACLE_BASE/tmp; for a manual"
+    info "  installer run: export TMPDIR=\$ORACLE_BASE/tmp and -Djava.io.tmpdir=\$ORACLE_BASE/tmp"
+elif [ -n "$TMP_OPTS" ]; then
+    ok "/tmp: exec flag OK"
 fi
 
 # Temp file cleanup configuration
