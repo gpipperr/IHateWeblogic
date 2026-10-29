@@ -63,6 +63,20 @@ $DOMAIN_HOME
 └── servers/AdminServer/sysman/log/emoms.log   Enterprise Manager (Fusion Middleware Control)
 ```
 
+Outside `$DOMAIN_HOME` (Nginx and the access log analysis are not covered by the `03-Logs` scripts; the ORDS logs are – group `ords`):
+
+| Log | Where | Note |
+|---|---|---|
+| Nginx access / error | `/var/log/nginx/` | root-readable; the only entry from outside – first place for HTTP 4xx / 5xx and TLS errors |
+| Forms response times | `servers/WLS_FORMS/logs/access.log` | `time-taken` column only after `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`; analysed by `06-FormsDiag/forms_perf_analyse.sh` |
+| IHateWeblogic scripts | `log/<yyyymmdd>/` in the repository | `DIAG_LOG_DIR` |
+| ORDS access log (APEX / REST requests) | `/var/log/ords_N/ords_<yyyy_mm_dd>.log` | one file per day, NCSA format (`standalone.access.log`); the Nginx log shows the same request from outside |
+| ORDS server log | `/var/log/ords_N/ords_sys_<n>.log` | `java.util.logging`, level WARNING, 5 × 10 MB (`config/global/logging.properties`, written by `12-APEX-Ords/04-install-ords.sh`) |
+| ORDS start / crash | `/var/log/ords_N/ords_stdout.log`, `ords_stderr.log`; `journalctl -u ords@ords_N` | systemd `append:` (owner root), normally almost empty – grows only on errors (Java, DB pool) |
+
+Directory `/var/log/ords_N/` (`oracle:oinstall`, 750; `ORDS_LOG_BASE`) –
+layout and rotation: [12-APEX-Ords/README.md §3 / §7](../12-APEX-Ords/README.md#7-operations-and-pitfalls).
+
 Not log locations (although older guides / earlier versions of these
 scripts said so): `$DOMAIN_HOME/diagnostics/logs/` does **not exist** in
 14.1.2 – the ODL logs are `servers/<srv>/logs/<srv>-diagnostic.log`;
@@ -85,7 +99,8 @@ separately.
 All `03-Logs` scripts find these directories themselves
 ([`log_locations.sh`](log_locations.sh)): every `servers/*/logs` with its
 role (Admin server, Managed server, Reports server, Reports tools), plus
-Node Manager and EM. No server name is hard-coded.
+Node Manager, EM and every ORDS log directory `${ORDS_LOG_BASE:-/var/log}/ords_N`
+(role `ORDS`, also without a domain). No server name is hard-coded.
 
 ---
 
@@ -141,6 +156,8 @@ The scripts treat as **rotated**: `*.log00001`, `*.out00001`,
 | Deployment, data source, OPSS, SSL | `AdminServer.log`, `AdminServer-diagnostic.log` |
 | EM (Fusion Middleware Control) | `servers/AdminServer/sysman/log/emoms.log`, `AdminServer-diagnostic.log` |
 | Login / security of the Reports server | `rwserver_diagnostic.log` (identity store, `securityId`), `AdminServer-diagnostic.log` |
+| APEX / ORDS: HTTP 502, page does not load | `/var/log/nginx/error.log` (upstream `127.0.0.1:8081` refused → ORDS down), `journalctl -u ords@ords_1`, `ords_stderr.log` |
+| APEX / ORDS: error page, REST call fails | `ords_sys_<n>.log` (pool / `ORA-` errors, e.g. locked `ORDS_PUBLIC_USER`), `ords_<date>.log` (status code per request) |
 
 ---
 
@@ -209,8 +226,13 @@ standalone Reports server process; their level is set in
 All scripts read `environment.conf`; the log directories come from
 [`log_locations.sh`](log_locations.sh). `--component` accepts:
 `all` (default), `reports` (WLS_REPORTS + Reports servers + Reports tools),
-`forms`, `wls` (all WebLogic servers), `nm`, `em`, or a server name
-(`AdminServer`, `WLS_REPORTS`, `repserver01`, …).
+`forms`, `wls` (all WebLogic servers), `nm`, `em`, `ords` (all ORDS
+instances), or a server / instance name (`AdminServer`, `WLS_REPORTS`,
+`repserver01`, `ords_1`, …).
+
+ORDS logs: the access log `ords_<yyyy_mm_dd>.log` counts as **active** only
+for today, older days as **rotated**; `ords_sys_0.log` is active,
+`ords_sys_1.log` … rotated (`java.util.logging` generations).
 
 | Script | Purpose | Mode |
 |---|---|---|
@@ -280,7 +302,8 @@ Main logs per group: `<srv>.log`, `<srv>.out`, `<srv>-diagnostic.log`,
 `rwservlet_diagnostic.log` (only if written); Reports server:
 `rwserver_diagnostic.log`, `rwEng-*_diagnostic.log`, `<name>.out`; Reports
 tools: `runtime_diagnostic.log`; `nodemanager.log` (16 files for `all` on
-the test host). `tail -F` follows by name – it keeps following when
+the test host); ORDS: today's access log, `ords_sys_0.log`, `ords_stderr.log`
+(the access log of today – a new day needs a restart of `tail_logs.sh`). `tail -F` follows by name – it keeps following when
 WebLogic rotates a log.
 
 tmux: one pane per file (tiled, file name in the pane border); inside tmux
@@ -302,14 +325,17 @@ warnings yellow, info green).
 | Option | Description |
 |---|---|
 | `--apply` | execute (default: dry-run plan) |
-| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 7) |
+| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 7 – note: `get_all_logs.sh` uses the same variable with the default 30 for its "not written for N days" warning) |
 | `--include-out` | also truncate `*.out` (skipped by default – may hold JVM crash output) |
 | `--component NAME` | see above |
 
 Rules: active `*.log` / `*.trc` → `truncate -s 0` (the server keeps
 writing into the same file); `*.out` → only with `--include-out`;
 rotated and compressed files older than `--retain-days` → delete.
-`nodemanager/` and the EM logs are **never** touched. The plan shows
+`nodemanager/` and the EM logs are **never** touched. ORDS: active files
+are never truncated (`java.util.logging` does not write in append mode,
+`ords_stdout/stderr.log` belong to root) – only old days / generations
+older than `--retain-days` are deleted. The plan shows
 TRUNCATE / DELETE / SKIP per file and the space freed.
 
 > Truncating is irreversible – run `grep_logs.sh` first.

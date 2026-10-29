@@ -9,7 +9,7 @@
 #            --min-age N                Only compress files older than N days
 #                                       (default: LOG_ARCHIVE_MIN_AGE_DAYS=1)
 #            --level N                  gzip compression level 1-9 (default: 9 = --best)
-#            --component NAME           all|reports|forms|wls|nm|em|<server> (default: all)
+#            --component NAME           all|reports|forms|wls|nm|em|ords|<server> (default: all)
 # Scope    : every log group of log_locations.sh (servers/*/logs incl. the
 #            standalone Reports server and the Reports tools, Node Manager, EM)
 # Rules    : Active logs (*.log, *.out, *.trc without rotation suffix) → never touched

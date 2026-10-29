@@ -71,6 +71,13 @@ Step 6 – WebLogic performance settings
 
 Step 7 – Reports server discovery (Reports installations)
   ./02-Checks/reports_network_scan.sh
+
+Step 8 – Outbound connections (new installation / firewall questions)
+  ./02-Checks/egress_check.sh
+  ./02-Checks/egress_check.sh --capture 300   # restart a server meanwhile
+
+Step 9 – Loopback-only / clone-capable (after the installation)
+  ./02-Checks/clone_check.sh
 ```
 
 ---
@@ -187,7 +194,9 @@ Ports of the domain in this project (`environment.conf`):
 | AdminServer | 7001 | 127.0.0.1 | via Nginx `/em`, `/console` |
 | WLS_FORMS | 9001 | 127.0.0.1 | via Nginx `/forms` |
 | WLS_REPORTS | 9002 | 127.0.0.1 | via Nginx `/reports` |
-| WLS_FORMS / WLS_REPORTS SSL | 9501 / 9512 | 127.0.0.1 | enabled by the domain templates with the **WebLogic demo certificate** – not needed (TLS ends at Nginx), see `ssl_check.sh` |
+| WLS_FORMS / WLS_REPORTS SSL | 9501 / 9512 | – | **off**: the domain templates enable them with the **WebLogic demo certificate**; `09-Install/08-` (new domains) and `clone_check.sh --apply` (existing ones) switch them off – TLS ends at Nginx |
+| Coherence (cluster_forms / cluster_reports) | unicast | 127.0.0.1 | `08-` / `clone_check.sh --apply`; a remainder stays on the host IP (firewall) |
+| Reports ORB | dynamic | 127.0.0.1 | `ORBServerHost` set by `13-oracle_setup_reports.sh` |
 | Node Manager | 5556 | 127.0.0.1 | plain |
 | Nginx | 80 / 443 | all interfaces | the only entry from outside (firewall) |
 | Reports discovery | 14027/udp | multicast | `REPORTS_BROADCAST_PORT` |
@@ -289,11 +298,12 @@ Certificates: subject / issuer / SAN, expiry (FAIL expired, WARN within
 private key of that CA ships with every WebLogic installation.
 
 > Found 2026-10-19 on the test host: the SSL listen ports 9501 (WLS_FORMS)
-> and 9512 (WLS_REPORTS) are enabled with the demo certificate (bound to
-> 127.0.0.1, behind the firewall). Not needed – TLS ends at Nginx. Open:
-> disable them in the domain setup (`09-Install/08-`) or use an own
-> certificate; candidate for the config security scanner
-> (`10-Monitoring/README.md`).
+> and 9512 (WLS_REPORTS) were enabled with the demo certificate. **Fixed
+> 2026-10-23:** `09-Install/08-oracle_setup_domain.sh` creates new domains
+> without them ([doc 08, loopback only](../09-Install/docs/08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address)),
+> `clone_check.sh --apply` switches them off in an existing domain (test host:
+> `<enabled>false</enabled>` for both). If `ssl_check.sh` still reports them,
+> the domain is older than that fix.
 
 Fixed 2026-10-19 (were false findings): certificate file in the 700 root
 directory reported as "not found", `proxy_pass http://<upstream>` reported
@@ -564,6 +574,8 @@ Fix:     run as the oracle user that started WebLogic, or as root:
 | `08-SSL/` | certificates: local CA, deployment to Nginx, `ssl_config.sh` audit |
 | `09-Install/01-root_os_baseline.sh` | fix what `os_check.sh` reports (sysctl, THP, firewall, sshd) |
 | `10-Monitoring/cve_inventory.sh` | installed components vs. patch cycle and Oracle advisories, both JDKs, exposure |
+| `10-Monitoring/cert_expiry_check.sh` | daily certificate expiry check (cron, `--cron --apply`) |
+| `09-Install/04-oracle_pre_checks.sh` | pre-install checks – calls `os_check.sh`, `java_check.sh`, `port_check.sh`, `db_connect_check.sh` |
 
 ---
 

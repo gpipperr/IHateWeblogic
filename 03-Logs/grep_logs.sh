@@ -8,7 +8,7 @@
 #            ./grep_logs.sh "REP-" --component WLS_REPORTS --since 2026-03-04
 #            ./grep_logs.sh "Exception" --context 5 --level ERROR
 #            ./grep_logs.sh "Exception" --since-minutes 30
-# Options  : --component     all|reports|forms|wls|nm|em|<server name>  (default: all)
+# Options  : --component     all|reports|forms|wls|nm|em|ords|<server name>  (default: all)
 #                            log directories discovered by log_locations.sh
 #            --since         YYYY-MM-DD   only files modified on/after this date
 #            --since-minutes N            only files modified within the last N minutes
@@ -50,7 +50,7 @@ LEVEL_FILTER=""
 _usage() {
     printf "Usage: %s <pattern> [options]\n\n" "$(basename "$0")"
     printf "  %-34s %s\n" "<pattern>"                  "Search pattern (required, case-insensitive)"
-    printf "  %-34s %s\n" "--component <name>"         "all|reports|forms|wls|nm|em|<server> (default: all)"
+    printf "  %-34s %s\n" "--component <name>"         "all|reports|forms|wls|nm|em|ords|<server> (default: all)"
     printf "  %-34s %s\n" "--since YYYY-MM-DD"         "Only search files modified on/after this date"
     printf "  %-34s %s\n" "--since-minutes N"          "Only search files modified within the last N minutes"
     printf "  %-34s %s\n" "--context N"                "Lines of context around each match (default: 3)"

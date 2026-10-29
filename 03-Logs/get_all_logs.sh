@@ -5,7 +5,7 @@
 #            Log directories are discovered from the domain (log_locations.sh):
 #            every server under servers/*/logs incl. the standalone Reports
 #            server + engines and the Reports tools, Node Manager, EM.
-# Call     : ./get_all_logs.sh [--component all|reports|forms|wls|nm|em|<server>]
+# Call     : ./get_all_logs.sh [--component all|reports|forms|wls|nm|em|ords|<server>]
 # Requires : find, stat, date, awk, du
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --component) COMPONENT="${2:?--component needs a value}"; shift 2 ;;
         --help|-h)
-            printf "Usage: %s [--component all|reports|forms|wls|nm|em|<server>]\n" "$(basename "$0")"
+            printf "Usage: %s [--component all|reports|forms|wls|nm|em|ords|<server>]\n" "$(basename "$0")"
             exit 0 ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 2 ;;
     esac

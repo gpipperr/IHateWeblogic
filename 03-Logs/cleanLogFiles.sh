@@ -8,7 +8,7 @@
 # Options  : --apply                    Execute changes (default: dry-run)
 #            --retain-days N            Keep rotated logs for N days (default: LOG_RETAIN_DAYS=7)
 #            --include-out              Also truncate *.out (stdout) files
-#            --component NAME           all|reports|forms|wls|<server> (default: all)
+#            --component NAME           all|reports|forms|wls|ords|<server> (default: all)
 # Scope    : servers/*/logs of every WebLogic server, the standalone Reports
 #            server (+ engines) and the Reports tools (log_locations.sh);
 #            nodemanager/ and the EM logs are never touched
@@ -107,14 +107,20 @@ _plan() {
     esac
 }
 
-# _scan_group dir depth – plan for every log file of one server log directory
+# _scan_group dir depth [role] – plan for every log file of one log directory
 _scan_group() {
-    local dir="$1" depth="$2" f kind days
+    local dir="$1" depth="$2" role="${3:-}" f kind days
     while IFS= read -r -d '' f; do
         kind="$(ihw_log_kind "$f")"
         days="$(_days_since_epoch "$(stat -c %Y "$f" 2>/dev/null || echo 0)")"
         case "$kind" in
             active)
+                # ORDS: never truncate (java.util.logging writes without append,
+                # stdout/stderr belong to root) – only old files are deleted
+                if [ "$role" = "ORDS" ]; then
+                    _plan "$f" SKIP "ORDS active log – not truncated (old days / generations are deleted)"
+                    continue
+                fi
                 case "$f" in
                     *.out)
                         if $INCLUDE_OUT; then _plan "$f" TRUNCATE "stdout log – truncate in place (--include-out)"
@@ -153,7 +159,7 @@ info "Scanning log directories..."
 while IFS=$'\t' read -r _role _name _dir _depth; do
     # Node Manager and EM logs are never touched (left for Oracle Support)
     case "$_role" in "Node Manager"|"Enterprise Manager") continue ;; esac
-    _scan_group "$_dir" "$_depth"
+    _scan_group "$_dir" "$_depth" "$_role"
 done < <(ihw_log_groups "$COMPONENT")
 
 # =============================================================================
@@ -172,6 +178,7 @@ for (( i=0; i < ${#PLAN_FILE[@]}; i++ )); do
     reason="${PLAN_REASON[$i]}"
     sz="${PLAN_SIZE[$i]}"
     dir="${f%%/logs/*}/logs"            # group header = the server log dir
+    [ "$dir" = "$f/logs" ] && dir="$(dirname "$f")"   # no /logs/ in the path (ORDS)
     fname="${f#"$dir"/}"                # logs/reports/… shown as reports/…
     size_human="$(_human_size "$sz")"
 

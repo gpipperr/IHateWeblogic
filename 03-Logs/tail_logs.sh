@@ -8,7 +8,7 @@
 #            ./tail_logs.sh --component WLS_REPORTS
 #            ./tail_logs.sh --component all --lines 50
 #            ./tail_logs.sh --no-tmux
-# Options  : --component  all|reports|forms|wls|nm|em|<server>  (default: all)
+# Options  : --component  all|reports|forms|wls|nm|em|ords|<server>  (default: all)
 #            --lines N    initial tail lines shown per file (default: 20)
 #            --all-files  every active log of the selected groups, not only the
 #                         main ones (<server>.log/.out/-diagnostic.log, Reports
@@ -52,7 +52,7 @@ ALL_FILES=false
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
-    printf "  %-34s %s\n" "--component <name>"               "all|reports|forms|wls|nm|em|<server> (default: all)"
+    printf "  %-34s %s\n" "--component <name>"               "all|reports|forms|wls|nm|em|ords|<server> (default: all)"
     printf "  %-34s %s\n" "--lines N"                        "Initial lines per file (default: 20)"
     printf "  %-34s %s\n" "--all-files"                      "All active logs, not only the main ones"
     printf "  %-34s %s\n" "--no-tmux"                        "Plain tail mode, no tmux"
@@ -95,6 +95,8 @@ _is_main() {
         "Reports tools")      [ "$b" = "runtime_diagnostic.log" ] && return 0 ;;
         "Node Manager")       [ "$b" = "nodemanager.log" ] && return 0 ;;
         "Enterprise Manager") [ "$b" = "emoms.log" ] && return 0 ;;
+        # today's access log, server log, systemd stderr (ihw_log_kind: active only)
+        "ORDS") case "$b" in ords_[0-9]*.log|ords_sys_0.log|ords_stderr.log) return 0 ;; esac ;;
     esac
     return 1
 }

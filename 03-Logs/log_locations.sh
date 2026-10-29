@@ -8,6 +8,9 @@
 #                                                 Reports server, Reports tools
 #              $DOMAIN_HOME/nodemanager           Node Manager
 #              $DOMAIN_HOME/servers/AdminServer/sysman/log   Enterprise Manager
+#              ${ORDS_LOG_BASE:-/var/log}/ords_N  ORDS standalone (12-APEX-Ords):
+#                 ords_<yyyy_mm_dd>.log access log (one per day), ords_sys_<n>.log
+#                 (java.util.logging, 5 x 10 MB), ords_stdout/stderr.log (systemd)
 #
 # Verified live 2026-10-19 (test host): there is NO $DOMAIN_HOME/diagnostics/
 # and no log below config/fmwconfig/components/ReportsToolsComponent – the
@@ -23,7 +26,7 @@
 # Component filter (case-insensitive): all (default), a server name
 #            (AdminServer, WLS_REPORTS, repserver01 …), or a role alias:
 #            reports (WLS_REPORTS + Reports servers + Reports tools),
-#            forms (WLS_FORMS), wls (all WebLogic servers), nm, em
+#            forms (WLS_FORMS), wls (all WebLogic servers), nm, em, ords
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================
@@ -50,17 +53,17 @@ _ihw_match() {
         wls)     [[ "$role" == "Admin server" || "$role" == "Managed server" ]] ;;
         nm)      [ "$role" = "Node Manager" ] ;;
         em)      [ "$role" = "Enterprise Manager" ] ;;
+        ords)    [ "$role" = "ORDS" ] ;;
         *)       [ "${name,,}" = "$f" ] ;;
     esac
 }
 
 # ihw_log_groups [component] – role<TAB>name<TAB>dir<TAB>depth, AdminServer
-# first, then managed servers, Reports servers / tools, Node Manager, EM
+# first, then managed servers, Reports servers / tools, Node Manager, EM, ORDS
 ihw_log_groups() {
     local filter="${1:-all}" d n role
-    [ -n "${DOMAIN_HOME:-}" ] && [ -d "$DOMAIN_HOME/servers" ] || return 0
     {
-        for d in "$DOMAIN_HOME"/servers/*/logs; do
+        for d in "${DOMAIN_HOME:-/nonexistent}"/servers/*/logs; do
             [ -d "$d" ] || continue
             n="$(basename "$(dirname "$d")")"
             role="$(_ihw_role "$n")"
@@ -73,10 +76,15 @@ ihw_log_groups() {
             # depth 2: logs/reports/, logs/owsm/ … (rwservlet_diagnostic.log)
             printf '\t%s\t%s\t%s\t%s\n' "$role" "$n" "$d" 2
         done
-        [ -d "$DOMAIN_HOME/nodemanager" ] && \
+        [ -n "${DOMAIN_HOME:-}" ] && [ -d "$DOMAIN_HOME/nodemanager" ] && \
             printf '5\t%s\t%s\t%s\t%s\n' "Node Manager" "nodemanager" "$DOMAIN_HOME/nodemanager" 1
-        [ -d "$DOMAIN_HOME/servers/AdminServer/sysman/log" ] && \
+        [ -n "${DOMAIN_HOME:-}" ] && [ -d "$DOMAIN_HOME/servers/AdminServer/sysman/log" ] && \
             printf '6\t%s\t%s\t%s\t%s\n' "Enterprise Manager" "em" "$DOMAIN_HOME/servers/AdminServer/sysman/log" 1
+        # ORDS standalone instances (12-APEX-Ords/04-install-ords.sh: ords_1, ords_2 …)
+        for d in "${ORDS_LOG_BASE:-/var/log}"/ords_*; do
+            [ -d "$d" ] && [ -r "$d" ] || continue
+            printf '7\t%s\t%s\t%s\t%s\n' "ORDS" "$(basename "$d")" "$d" 1
+        done
     } | sort -t$'\t' -k1,1 -k3,3 | cut -f2- | while IFS=$'\t' read -r role n d depth; do
         _ihw_match "$role" "$n" "$filter" && printf '%s\t%s\t%s\t%s\n' "$role" "$n" "$d" "$depth"
     done
@@ -84,10 +92,15 @@ ihw_log_groups() {
 
 # ihw_log_kind file – active | rotated | compressed
 #   rotated: WLS  X.log00001 / X.out00001, ODL  X-diagnostic-1.log,
-#            java.util.logging  X.log.1
+#            java.util.logging  X.log.1, ORDS ords_sys_1.log … (0 = active)
+#   ORDS access log ords_<yyyy_mm_dd>.log: active only for today
 ihw_log_kind() {
     local b; b="$(basename "$1")"
     case "$b" in
+        ords_[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9].log)
+            [ "$b" = "ords_$(date +%Y_%m_%d).log" ] && printf 'active' || printf 'rotated' ;;
+        ords_sys_0.log)               printf 'active' ;;
+        ords_sys_[0-9]*.log)          printf 'rotated' ;;
         *.gz|*.bz2|*.xz|*.zip)        printf 'compressed' ;;
         *.log[0-9]*|*.out[0-9]*)      printf 'rotated' ;;
         *.log.[0-9]*|*.out.[0-9]*)    printf 'rotated' ;;
