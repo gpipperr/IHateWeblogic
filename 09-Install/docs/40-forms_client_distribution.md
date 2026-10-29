@@ -2,10 +2,13 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
-**Status 2026-10-22: server side implemented and live on the test host**
-(download `04-`, Nginx `/formsWeb/`, bundle `40-oracle_forms_client_bundle.sh`,
-client templates `09-Install/client_templates/`); **open: the Windows client
-test** (§8) and the Authenticode signature of the setup script (§12). This
+**Status 2026-10-23: server side live on the test host** (download `04-`,
+Nginx `/formsWeb/`, bundle `40-oracle_forms_client_bundle.sh`, client templates
+`09-Install/client_templates/`) **and first Windows client run OK** –
+installation from the URL and the FSAL start of the test form work
+(`FormsWeb-Setup.ps1` 1.0.2, Windows client JDK platform `233P` = Windows x64).
+Open (§8 / §12): update and self-update round, offline start, `-Rollback`,
+JACOB / Excel, `AllSigned` + Authenticode signature of the setup script. This
 document is the master for the scripts (doc-as-master: doc first, then
 script).
 
@@ -628,12 +631,12 @@ Not yet included: see §12.
 
 ---
 
-## 12. Open points (state 2026-10-22)
+## 12. Open points (state 2026-10-29)
 
 | # | Point | Next step |
 |---|---|---|
-| 1 | **Windows client test** – the scripts have never run on Windows (no PowerShell on the server) | test plan §8; first the CA import §5.8, then the bootstrap from `https://<host>/formsWeb/FormsWeb-Install.cmd` |
-| 2 | Cross-built runtime on Windows | part of test 1 (`java.exe` / `javaw.exe` start, TLS with the bundled `cacerts`) |
+| 1 | **Windows client test** – install + FSAL start **done 2026-10-23**; open: update / self-update round (next cycle or `40- --force`), offline start, `-Rollback` | rest of test plan §8 |
+| 2 | Cross-built runtime on Windows | **done 2026-10-23** (`javaw.exe` start, TLS with the bundled `cacerts`) |
 | 3 | Module list sufficient for WebUtil / JACOB / German locale | test 9 + a form with dates / numbers |
 | 4 | Authenticode signature of `FormsWeb-Setup.ps1` | `osslsigncode` with the `FORMS_SIGN_*` keystore in `40-` (only needed under `AllSigned`) |
 | 5 | `fsalJavaVersion` in `[standaloneapp]` | `14-oracle_setup_forms.sh` option, value from the bundled runtime |
