@@ -116,6 +116,19 @@ ORACLE_SID=FMWCDB sqlplus / as sysdba <<< "SELECT NAME, OPEN_MODE FROM V\$PDBS;"
 
 Boot order: `oracle-listener.service` → `oracle-db.service`
 
+**After an out-of-place patch** (`09-db_patch_rcu.sh`, new `DB_ORACLE_HOME`):
+both units contain the home path (`ExecStart`, `Environment=ORACLE_HOME`) and
+`/etc/oratab` the `SID:home:Y` line. `09-` rewrites `/etc/oratab` and prints
+the root commands for the units (`sed` + `systemctl daemon-reload`) – run them
+before the next reboot, otherwise the old home starts
+([09-db_patch_rcu.md](09-db_patch_rcu.md), step 6). The unit files are
+readable by root only on some hosts; `09-` then treats them as "to change".
+
+**FMW domain on the same host:** with `LOCAL_REP_DB=true`
+`09-Install/30-configure_autostart.sh` orders `fmw-<domain>.service`
+(`Wants=` / `After=`) after `oracle-listener.service` and `oracle-db.service`
+– the data sources and the OPSS store need the RCU schemas at the first start ([rcu_middleware_architecture.md §3](../../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where)).
+
 ---
 
 ## Next step
