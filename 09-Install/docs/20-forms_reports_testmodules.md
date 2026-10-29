@@ -16,6 +16,11 @@ database and – for Reports – run through the Reports server.
 
 ---
 
+Background – what the test touches: Forms tools / `frmweb` and the Oracle Net
+alias ([forms_runtime_architecture.md §2.1](../../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias)),
+`rwconverter` / `rwrun` without and the rwservlet path with the Reports server
+([report_engine_architecture.md §5.1 / §5.2](../../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server)).
+
 ## Testkit Layout
 
 | File | Purpose |
@@ -333,6 +338,8 @@ started with **Java Web Start** or the **Forms Standalone Launcher (FSAL)**.
 
 ## Open Items
 
-- Interactive start of the form with Java Web Start / FSAL on a client
-  (server side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX).
+- Interactive start of the form with **Java Web Start** on a client (server
+  side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX). FSAL is done: first
+  Windows FSAL session with the test form 2026-10-23 (client distribution
+  `40-`, [doc 40](40-forms_client_distribution.md)).
 - `test_user_objects.xml` (parameter form) is not part of the script run.
