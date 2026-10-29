@@ -115,7 +115,7 @@ Consequences to keep in mind:
   via localhost (listen address `localhost`, firewall closed).
 - **Assumption:** the Reports server then pushes an LDAP identity store into
   libOVD instead of the XML one – this may also cure the empty EM user search
-  ([em_principal_search_libovd.md](em_principal_search_libovd.md)). To verify.
+  ([em_principal_search_libovd.md](em_principal_search_libovd.md) – analysed 2026-10-16, SR draft).
 
 ## 4. Configuration elements
 
@@ -417,9 +417,11 @@ Earlier considered alternatives (no longer needed):
   `cmdkey=default`, URL `authid` does not override the key, no key → 499),
   docs 13 / 14b / 81, Reports cookbook 9.7 / 9.7b / 9.8 / 9.9 / 9.9b / 9.11,
   Reports_security.txt step 7b.
-- EM "Add Principal" still finds no users with the new adapter (2026-10-16)
-  – to analyse (SR draft).
-- EM "Add Principal" search with the new adapter.
+- EM "Add Principal" finds no users with the new adapter – analysed: the
+  Reports server rewrites the shared libOVD configuration and leaves
+  `ovd.lok`; lock removal before the AdminServer start as workaround, not
+  fixed by the LibOVD BP of CPU Oct 2026, SR draft –
+  [em_principal_search_libovd.md](em_principal_search_libovd.md).
 - Reaper fix also applies to the XML identity store setup (the reaper died
   there as well) – i.e. for every standalone Reports server.
 - Customer: with `securityId` set but the XML identity store the customer
