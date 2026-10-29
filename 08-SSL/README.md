@@ -40,10 +40,11 @@ It covers these recurring tasks:
 The module does **not** manage SSL inside WebLogic directly.
 WebLogic listens on `127.0.0.1` only; SSL for clients is terminated at Nginx.
 Note: the domain templates also enable WebLogic SSL listen ports with the
-**demo certificate** (`WLS_FORMS` 9501, `WLS_REPORTS` 9512 – on the test host
-bound to `127.0.0.1`, confirmed 2026-10-20); they are not used and shall be
-disabled in `09-Install/08-` (root README open item, found by
-`02-Checks/ssl_check.sh`).
+**demo certificate** (`WLS_FORMS` 9501, `WLS_REPORTS` 9512, found by
+`02-Checks/ssl_check.sh` 2026-10-20). **Switched off since 2026-10-23:**
+`09-Install/08-oracle_setup_domain.sh` creates new domains without them,
+`02-Checks/clone_check.sh --apply` disables them in an existing domain
+([doc 08](../09-Install/docs/08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address)).
 
 ---
 
@@ -437,7 +438,7 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 | `00-Setup/init_env.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
 | `02-Checks/ssl_check.sh` | Host-wide TLS audit: who terminates TLS (Nginx / WLS / OHS), live TLS, WebLogic demo certificates / keystores |
 | `07-Maintenance/backup_config.sh` | Does **not** back up `SSL_CA_DIR` on purpose – the CA key belongs in an offline backup (see above) |
-| `10-Monitoring/` | candidate for the scheduled `ssl_local_ca.sh status` / `ssl_config.sh --expiry` run |
+| `10-Monitoring/cert_expiry_check.sh` | the scheduled run (daily cron, `--cron --apply`) of `ssl_config.sh` / `ssl_local_ca.sh status` – done 2026-10-23 |
 
 ---
 
