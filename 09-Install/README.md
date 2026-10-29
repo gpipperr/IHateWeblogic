@@ -131,25 +131,25 @@ Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
           holds a server certificate that is not imported yet)
 
 Phase 1 – Pre-Install Checks (as oracle)
-  04-oracle_pre_checks.sh       Verify all prerequisites before download
-  04-oracle_pre_download.sh     Download eDelivery ZIPs + MOS patches (OPatch + post-install)
-                                  --apply        manual eDelivery placement + SHA-256 verify
-                                  --apply --wget eDelivery via Bearer Token wget
-                                  --apply --mos  + getMOSPatch: OPatch + INSTALL_PATCHES
-                                                 (+ JDK 21 patch, CVU for a local RCU DB)
-  [root] 02b-root_os_java.sh --apply --upgrade-jdk
-                                JDK 21 of the current patch cycle (JDK_PATCH_NR from
-                                  the patch repository) – BEFORE 05-: phase 0 only
-                                  installs the bootstrap JDK (NFTC 21.0.12.1); the
-                                  FMW installer and createDomain write its path
+  [oracle] ./09-Install/04-oracle_pre_checks.sh        # verify all prerequisites before download
+  [oracle] ./09-Install/04-oracle_pre_download.sh      # eDelivery ZIPs + MOS patches (OPatch + post-install)
+             --apply          manual eDelivery placement + SHA-256 verify
+             --apply --wget   eDelivery via Bearer Token wget
+             --apply --mos    + getMOSPatch: OPatch + INSTALL_PATCHES
+                              (+ JDK 21 patch, CVU for a local RCU DB)
+  [root]   ./09-Install/02b-root_os_java.sh --apply --upgrade-jdk
+                                                       # JDK 21 of the current patch cycle (JDK_PATCH_NR
+                                                       # from the patch repository) – BEFORE 05-: phase 0
+                                                       # only installs the bootstrap JDK (NFTC 21.0.12.1);
+                                                       # the FMW installer and createDomain write its path
 
 Phase 2 – WebLogic Installation (as oracle)
-  05-oracle_install_weblogic.sh FMW Infrastructure 14.1.2 silent install
-  05-oracle_patch_weblogic.sh   Update OPatch + apply WLS patches
+  [oracle] ./09-Install/05-oracle_install_weblogic.sh --apply   # FMW Infrastructure 14.1.2 silent install
+  [oracle] ./09-Install/05-oracle_patch_weblogic.sh --apply     # update OPatch + apply WLS patches
 
 Phase 3 – Forms & Reports Installation (as oracle)
-  06-oracle_install_forms_reports.sh  Forms/Reports 14.1.2 silent install
-  06-oracle_patch_forms_reports.sh    Apply Forms/Reports patches
+  [oracle] ./09-Install/06-oracle_install_forms_reports.sh --apply  # Forms/Reports 14.1.2 silent install
+  [oracle] ./09-Install/06-oracle_patch_forms_reports.sh --apply    # apply Forms/Reports patches
 
   ▶ ALL FMW software + patches must be complete before continuing.
     Phases 0–3 install and patch everything into ORACLE_HOME.
@@ -158,99 +158,103 @@ Phase 3 – Forms & Reports Installation (as oracle)
 Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
            LOCAL_REP_DB=true; parallel to or after Phase 3)
   → Full procedure: 60-RCU-DB-19c/README.md
-  [oracle/sudo] 60-RCU-DB-19c/00-root_db_os_baseline.sh --apply
+  [oracle/sudo] ./60-RCU-DB-19c/00-root_db_os_baseline.sh --apply
                   DB-specific OS settings (shmmax, sem, aio, preinstall RPM)
                   auto-elevates via sudo when run as oracle
-  [oracle]       60-RCU-DB-19c/00b-db_cvu_check.sh
+  [oracle]      ./60-RCU-DB-19c/00b-db_cvu_check.sh
                   host pre-check with the standalone CVU (downloaded by 04- --mos)
-  [oracle]       60-RCU-DB-19c/01-db_install_software.sh --apply
+  [oracle]      ./60-RCU-DB-19c/01-db_install_software.sh --apply
                   19c software-only install, patched in one go: AutoUpgrade
                   downloads RU + OJVM + Data Pump + JDK (gold image possible),
                   runInstaller -applyRU (02-db_patch_db_software.sh is DEPRECATED)
-  [oracle]       60-RCU-DB-19c/04-db_setup_listener.sh --apply
-                  Configure the TNS listener
-  [oracle]       60-RCU-DB-19c/05-db_create_database.sh --apply
+  [oracle]      ./60-RCU-DB-19c/04-db_setup_listener.sh --apply
+                  configure the TNS listener
+  [oracle]      ./60-RCU-DB-19c/05-db_create_database.sh --apply
                   DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, no archivelog,
                   MAX_STRING_SIZE=EXTENDED in every container incl. PDB$SEED)
-  [oracle]       60-RCU-DB-19c/06-db_audit_setup.sh --apply
+  [oracle]      ./60-RCU-DB-19c/06-db_audit_setup.sh --apply
                   Pure Unified Auditing (uniaud_on relink + purge job)
-  [oracle]       60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
-                  Optional: create FMW_DATA tablespace (skip = RCU creates its own)
-  [oracle]       60-RCU-DB-19c/07b-db_rcu_profile.sh --apply
+  [oracle]      ./60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
+                  optional: create FMW_DATA tablespace (skip = RCU creates its own)
+  [oracle]      ./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply
                   DB profile RCU_USER (no password expiry / lock for the schemas)
-  [oracle]       60-RCU-DB-19c/08-db_auto_start.sh --apply
-                  Configure DB/listener autostart (oratab, systemd)
-  later:         60-RCU-DB-19c/09-db_patch_rcu.sh – next DB RU out-of-place
+  [oracle]      ./60-RCU-DB-19c/08-db_auto_start.sh --apply
+                  configure DB/listener autostart (oratab, systemd)
+  later:        ./60-RCU-DB-19c/09-db_patch_rcu.sh – next DB RU out-of-place
 
   ▶ Database must be up and reachable from the FMW host before Phase 4.
-    Run 00-Setup/database_rcu_sec.sh --apply to store DB credentials.
+  [oracle] ./00-Setup/database_rcu_sec.sh --apply      # store the DB credentials (encrypted)
 
 Phase 4 – Repository & Domain (as oracle)
-  07-oracle_setup_repository.sh --check
-                                 RCU DB requirements (parameters, JVM, charset,
-                                   edition, db_securefile) – nothing is created
-  07-oracle_setup_repository.sh  RCU: create FMW metadata schemas in Oracle DB
-                                   (reads DB_SYS_PWD + DB_SCHEMA_PWD from db_sys_sec.conf.des3)
-  08-oracle_setup_domain.sh      Create WebLogic domain (WLST silent mode)
-                                   (requires completed RCU schemas; loopback only:
-                                   SSL demo ports off, Coherence on the listen
-                                   address; resets the resolved JDK path in the
-                                   domain to the jdk-21 link)
+  [oracle] ./09-Install/07-oracle_setup_repository.sh --check
+                                                       # RCU DB requirements (parameters, JVM, charset,
+                                                       # edition, db_securefile) – nothing is created
+  [oracle] ./09-Install/07-oracle_setup_repository.sh --apply
+                                                       # RCU: create the FMW metadata schemas
+                                                       # (DB_SYS_PWD + DB_SCHEMA_PWD from db_sys_sec.conf.des3)
+  [oracle] ./09-Install/08-oracle_setup_domain.sh --apply
+                                                       # create the WebLogic domain (WLST silent; needs
+                                                       # the RCU schemas; loopback only: SSL demo ports
+                                                       # off, Coherence on the listen address; resets
+                                                       # the resolved JDK path to the jdk-21 link)
 
 Phase 5 – Configuration (as oracle)
-  09-oracle_configure.sh         Pre-start configuration (boot.properties, JVM, font OS
-                                   packages, validation, backup) – fonts/cgicmd.dat: 14b-
+  [oracle] ./09-Install/09-oracle_configure.sh --apply # pre-start configuration (boot.properties, JVM,
+                                                       # font OS packages, validation, backup)
+                                                       # – fonts/cgicmd.dat: 14b-
 
 Phase 6 – Runtime Configuration (as oracle / root)
-  [oracle] 00-Setup/init_env.sh --apply                 # add runtime parameters to environment.conf
-                                                        # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
-  [oracle] 10-oracle_boot_properties.sh --apply         # boot.properties for AdminServer + Managed Server
-  [oracle] 11-oracle_nodemanager.sh --apply --skip-wlst # NodeManager config before first start
+  [oracle] ./00-Setup/init_env.sh --apply                          # add runtime parameters to environment.conf
+                                                                   # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
+  [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties for AdminServer + Managed Server
+  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst  # NodeManager config before first start
   → Start AdminServer + NodeManager manually
-  [oracle] 11-oracle_nodemanager.sh --apply             # WLST: set Machine NMType=Plain
-  [oracle] 12-oracle_reports_users.sh --apply           # Create WLS users monUser + RepRunner
-  [root]   13-root_reports_fix.sh --apply               # libnsl.so.2 symlink (OL9 only)
-  [edit]   09-Install/forms_templates/*.template        # Adapt templates before Forms setup
-  [oracle] 01-Run/startStop.sh start WLS_REPORTS --apply  # first start creates the app dir (rwservlet.properties)
-  [oracle] 13-oracle_setup_reports.sh --apply           # rwnetwork.conf, rwservlet, rwserver.conf
-  [oracle] 14-oracle_setup_forms.sh --apply             # Copy Forms config templates into the domain
-  [oracle] 01-Run/startStop.sh stop-all / start-all     # restart: 13-/14- changes become active
-  [oracle] 14b-oracle_reports_fonts.sh --apply          # fonts, uifont.ali, cgicmd.dat, backup
-                                                        # (needs the WLS_REPORTS app dir of the first start)
+  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: set Machine NMType=Plain
+  [oracle] ./09-Install/12-oracle_reports_users.sh --apply         # create WLS users monUser + RepRunner
+  [root]   ./09-Install/13-root_reports_fix.sh --apply             # libnsl.so.2 symlink (OL9 only)
+  [edit]   09-Install/forms_templates/*.template                   # adapt templates before the Forms setup
+  [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # first start creates the app dir (rwservlet.properties)
+  [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
+  [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # copy Forms config templates into the domain
+  [oracle] ./01-Run/startStop.sh stop-all --apply                  # restart: 13-/14- changes become active
+  [oracle] ./01-Run/startStop.sh start-all --apply
+  [oracle] ./09-Install/14b-oracle_reports_fonts.sh --apply        # fonts, uifont.ali, cgicmd.dat, backup
+                                                                   # (needs the WLS_REPORTS app dir of the first start)
 
 Phase 7 – Validation (as oracle) [planned]
-  90-oracle_validate.sh          Full validation report
-                                   → docs/90-oracle_validate.md
+  [oracle] ./09-Install/90-oracle_validate.sh          # full validation report → docs/90-oracle_validate.md
 
 Phase 7b – Smoke Test Modules (as oracle) [verified 2026-10-16]
-  15-deploy-test-report-forms_template.sh  Compile a minimal Forms module +
-                                   convert a minimal Reports demo, to prove
-                                   Forms/Reports can reach the DB at all;
-                                   runs the report via rwservlet (PDF)
-                                   → docs/20-forms_reports_testmodules.md
+  [oracle] ./09-Install/15-deploy-test-report-forms_template.sh --apply
+                                                       # compile a minimal Forms module + convert a minimal
+                                                       # Reports demo, to prove Forms/Reports reach the DB;
+                                                       # runs the report via rwservlet (PDF)
+                                                       # → docs/20-forms_reports_testmodules.md
 
 Phase 7c – Autostart at boot (as oracle; systemd part via sudo)
-  30-configure_autostart.sh     Render autostart_templates/ into
-                                   $ORACLE_BASE/admin/<domain>/ctrl, WLST key files,
-                                   systemd unit fmw-<domain>.service (Node Manager controlled)
-                                   → docs/30-configure_autostart.md
+  [oracle] ./09-Install/30-configure_autostart.sh --apply
+                                                       # render autostart_templates/ into
+                                                       # $ORACLE_BASE/admin/<domain>/ctrl, WLST key files,
+                                                       # systemd unit fmw-<domain>.service (Node Manager
+                                                       # controlled) → docs/30-configure_autostart.md
 
 Phase 7d – Forms client distribution (as oracle; only FORMS_CLIENT_DIST=true)
-  40-oracle_forms_client_bundle.sh --apply
-                                Windows Java runtime (jlink) + FSAL + JACOB for
-                                   Nginx /formsWeb/, PowerShell installer from
-                                   client_templates/ → docs/40-forms_client_distribution.md
+  [oracle] ./09-Install/40-oracle_forms_client_bundle.sh --apply
+                                                       # Windows Java runtime (jlink) + FSAL + JACOB for
+                                                       # Nginx /formsWeb/, PowerShell installer from
+                                                       # client_templates/ → docs/40-forms_client_distribution.md
 
 Final checks (as oracle, read-only)
-  02-Checks/tns_admin_check.sh  one TNS_ADMIN for every process (incl. running ones)
-  02-Checks/clone_check.sh      loopback-only / clone-capable installation
-  10-Monitoring/cert_expiry_check.sh --cron --apply   daily certificate expiry check (cron)
+  [oracle] ./02-Checks/tns_admin_check.sh              # one TNS_ADMIN for every process (incl. running ones)
+  [oracle] ./02-Checks/clone_check.sh                  # loopback-only / clone-capable installation
+  [oracle] ./10-Monitoring/cert_expiry_check.sh --cron --apply   # daily certificate expiry check (cron)
 
 Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
-  99-oracle_deinstall_fmw.sh    Stop FMW, OUI deinstall, remove ORACLE_HOME/
-                                   DOMAIN_HOME/FMW client ADR; keeps DB, inventory,
-                                   JDK, patch storage, RCU schemas, *.des3
-                                   → docs/99-oracle_deinstall_fmw.md
+  [oracle] ./09-Install/99-oracle_deinstall_fmw.sh --apply
+                                                       # stop FMW, OUI deinstall, remove ORACLE_HOME/
+                                                       # DOMAIN_HOME/FMW client ADR; keeps DB, inventory,
+                                                       # JDK, patch storage, RCU schemas, *.des3
+                                                       # → docs/99-oracle_deinstall_fmw.md
 ```
 
 ---
