@@ -468,6 +468,7 @@ if [ -n "$_DL_HOSTS" ] && command -v curl >/dev/null 2>&1; then
     if [ "$_dl_down" -eq 1 ]; then
         info "  Proxy: export https_proxy=http://<proxy>:<port> (curl/wget; getMOSPatch gets it as -Dhttps.proxyHost)"
         info "  OCI private subnet: NAT gateway needed – the Service Gateway does not reach eDelivery/MOS"
+        info "  Other sites work (github.com)? Egress allow-list – ask for *.oracle.com + login-ext.identity.oraclecloud.com"
         info "  Offline: run this script on a host WITH internet access (same oracle_software_version.conf),"
         info "  copy PATCH_STORAGE here (rsync -a <host>:$PATCH_STORAGE/ $PATCH_STORAGE/), then"
         info "  re-run without --wget/--mos – present files are verified and skipped"

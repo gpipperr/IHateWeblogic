@@ -413,6 +413,25 @@ Typical causes:
   shell variables).
 - **Firewall that drops silently:** see pre-check 10 in
   [04-oracle_pre_checks.md](04-oracle_pre_checks.md).
+- **Egress allow-list** (some sites work, e.g. github.com, others not): a
+  domain/SNI filter (OCI Network Firewall, customer egress proxy) – the Oracle
+  download hosts must be added to the list:
+
+  | Host | Used for |
+  |---|---|
+  | `edelivery.oracle.com` | eDelivery portal, WGET URLs |
+  | `epd-akam-intl.oracle.com` | eDelivery file download (CDN, redirect target) |
+  | `updates.oracle.com` | MOS patch search + download (getMOSPatch) |
+  | `login-ext.identity.oraclecloud.com` | Oracle SSO for MOS / eDelivery |
+  | `download.oracle.com` | JDK archive, APEX, ORDS, SQLcl, Instant Client |
+  | `raw.githubusercontent.com` | getMOSPatch.jar (only when not yet in `PATCH_STORAGE/bin`) |
+
+  MOS hands the patch file itself to a CDN host (`*.oracle.com`); simplest rule:
+  `*.oracle.com` + `login-ext.identity.oraclecloud.com`.
+  How the filter answers (`curl -v https://<host>/`): connect timeout = IP/DROP
+  rule, reset right after the TLS ClientHello = SNI filter, HTTP 403 / own page =
+  proxy. If the certificate issuer of a working site is a customer CA (TLS
+  inspection), java – getMOSPatch – needs that CA in its trust store.
 
 **Offline route** (no change on the network side):
 
