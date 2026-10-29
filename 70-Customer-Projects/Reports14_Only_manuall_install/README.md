@@ -143,7 +143,11 @@ Termin): Betriebssystem-Pakete, Nginx und `ca-certificates`
 ([OS_Kochbuch_de.txt](OS_Kochbuch_de.txt) Schritte 2–3 und 8).
 Optional für den MOS-Download per Kommandozeile:
 [getMOSPatch.jar](https://github.com/MarisElsins/getMOSPatch) (OS-Kochbuch
-Schritt 7).
+Schritt 7) – oder alle MOS-Patches in einem Lauf mit
+[tools/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
+einer CSV-Liste (Vorlage:
+[patches_cpu_oct2026.csv](../Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv)
+des 12c-Projekts; eine CSV für diese Liste wird beim nächsten Termin erstellt).
 
 **Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
 nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche
