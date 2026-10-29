@@ -4,7 +4,27 @@
 
 **Script:** `09-Install/02b-root_os_java.sh`
 **Runs as:** `root`
-**Phase:** 0 – OS Preparation
+**Phase:** 0 – OS Preparation (bootstrap JDK); again after `04-oracle_pre_download.sh --mos`
+with `--upgrade-jdk` – **before** `05-` (the FMW installer and `createDomain`
+write the JDK path)
+
+```bash
+./09-Install/02b-root_os_java.sh                          # check only
+./09-Install/02b-root_os_java.sh --apply                  # phase 0: install JDK 21, alternatives, jps, SecureRandom
+./09-Install/02b-root_os_java.sh --apply --upgrade-jdk    # JDK of the patch cycle from patches/<JDK_PATCH_NR>/
+```
+
+| Option | Effect |
+|---|---|
+| `--apply` | install JDK, create the `jdk-21` symlink, register `alternatives`, `jps`, SecureRandom fix |
+| `--upgrade-jdk` | install the JDK 21 of `JDK_PATCH_NR` from the patch repository next to the old one if newer, repoint `JDK_HOME` (needs `--apply`) |
+| `--skip-oracle` | skip the Oracle JDK part (already installed) |
+| `--with-openjdk` | additionally install OpenJDK 21 via dnf (parallel, not for WebLogic) |
+
+Background – two JDKs on an FMW host (`JDK_HOME` for WebLogic / Node Manager /
+OPatch, `oracle_common/jdk` for the Reports engines and tools):
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes),
+[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
 
 ---
 
