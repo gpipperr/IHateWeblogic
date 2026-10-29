@@ -399,7 +399,7 @@ Rules across the folders:
 |---|---|
 | Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
 | Phase 9 (Monitoring) | `cve_inventory.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
-| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` still the broad default `10.0.0.0/8` – see [Open Items](#open-items--todo) |
+| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` optional (asked by `04-root_nginx.sh`, `any` where there is no admin network) |
 
 ## First Run – Required Order
 
@@ -931,10 +931,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   question to Oracle) and the Coherence cluster port + one port on the host
   IP (MOS 2420434.1 not read yet); the firewall closes them
   ([clone_golden_image.md](80-FMW-Architecture/clone_golden_image.md)).
-- [ ] **`ADMIN_IP_RANGE` narrower than `10.0.0.0/8`** – it opens `/em`, `/console`
-  and the Reports admin web commands (Nginx block live since 2026-10-23) to the
-  whole private network; set the admin PCs / monitoring host only
-  (`Reports_security.txt` 2.2).
 - [ ] **EM "Add Principal" finds no users** – libOVD config overwritten by the
   Reports server; SR draft local (`SR/`) – the LibOVD BP 39726399 of CPU Oct
   2026 does not fix it (README read 2026-10-24). Workaround: "Advanced Option" /

@@ -186,6 +186,25 @@ _prompt_ssl_path() {
     _ref="${_input:-$_cur}"
 }
 
+# Customer inbox 08-SSL/user_certs/ holds the raw files (DER / PKCS#12 /
+# encrypted key) – Nginx gets the files imported by ssl_customer_certs.sh into
+# 08-SSL/certs/. Warn when the inbox has a server certificate not imported yet.
+_UC_SRV="$(ls -t "$ROOT_DIR"/08-SSL/user_certs/server.{crt,cert,cer,pem,der,p7b,p12,pfx} 2>/dev/null | head -1)"
+if [ -n "$_UC_SRV" ]; then
+    info "Customer inbox: $_UC_SRV"
+    if [ -z "$SSL_CERT_FILE" ] || [ ! -f "$SSL_CERT_FILE" ] || [ "$_UC_SRV" -nt "$SSL_CERT_FILE" ]; then
+        warn "Customer server certificate in 08-SSL/user_certs/ not imported yet (or newer than ${SSL_CERT_FILE:-SSL_CERT_FILE})"
+        info "  Import first, as oracle: ./08-SSL/ssl_customer_certs.sh --apply"
+        info "  (checks + converts, writes 08-SSL/certs/server.crt/.key/chain.crt and ssl.conf)"
+        info "  The paths below are the imported files – never the raw inbox files"
+    else
+        ok "Customer certificate imported from the inbox: $SSL_CERT_FILE"
+    fi
+elif [ "${SSL_CERT_SOURCE:-}" = "customer" ]; then
+    info "SSL_CERT_SOURCE=customer, inbox empty (deleted after the import) – using $SSL_CERT_FILE"
+fi
+unset _UC_SRV
+
 printf "  Review certificate paths (Enter = accept):\n\n"
 _prompt_ssl_path "Certificate file (PEM)" SSL_CERT_FILE
 _prompt_ssl_path "Private key file (PEM)" SSL_KEY_FILE

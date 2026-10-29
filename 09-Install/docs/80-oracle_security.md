@@ -135,7 +135,7 @@ Already applied by the library (check, do not redo):
 | Every internal socket on `127.0.0.1` (WebLogic, Node Manager, Reports ORB, Coherence), Nginx the only entry | `08-`, `13-`, `02-Checks/clone_check.sh` | [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md) |
 | WebLogic SSL demo listen ports (demo certificate) off | `08-`, `clone_check.sh --apply` | [doc 08](08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address) |
 | Client-supplied WebLogic proxy headers stripped, `X-Forwarded-For` overwritten | `09-Install/nginx-wls.conf.template` | [doc 05-root_nginx_ssl](05-root_nginx_ssl.md) |
-| `/console`, `/em`, Reports admin web commands only from `ADMIN_IP_RANGE` | Nginx template (default `10.0.0.0/8` – narrow it, open item) | [doc 81](81-reports_rwservlet_security.md) |
+| `/console`, `/em`, Reports admin web commands only from `ADMIN_IP_RANGE` (optional – `any` where there is no admin network; admin web commands then localhost only) | Nginx template, asked by `04-root_nginx.sh` ([doc 04](04-root_nginx.md#admin-network-admin_ip_range--optional)) | [doc 81](81-reports_rwservlet_security.md) |
 | Secured Reports server (`REPORTS_SECURITY=ldap`), web-command rights | `12-`, `13-` | [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md) |
 | Firewall + sshd hardening | `01-root_os_baseline.sh` | [doc 00-root_set_os_parameter](00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
 | No outbound calls of the domain, external-DTD trap | `04-oracle_pre_checks.sh` (check 10), `02-Checks/egress_check.sh` | [weblogic_outbound_connections.md](../../80-FMW-Architecture/weblogic_outbound_connections.md) |

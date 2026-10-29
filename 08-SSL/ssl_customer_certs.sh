@@ -192,9 +192,9 @@ _anchor() {
     fi
 }
 
-_find() {   # _find role-base – first existing file of base.{crt,cer,pem,der,p7b}
+_find() {   # _find role-base – first existing file of base.{crt,cert,cer,pem,der,p7b}
     local b="$1" e
-    for e in crt cer pem der p7b; do [ -f "$INBOX/$b.$e" ] && { printf '%s' "$INBOX/$b.$e"; return 0; }; done
+    for e in crt cert cer pem der p7b; do [ -f "$INBOX/$b.$e" ] && { printf '%s' "$INBOX/$b.$e"; return 0; }; done
     return 1
 }
 

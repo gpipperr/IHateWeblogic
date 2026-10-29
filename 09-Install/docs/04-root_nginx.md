@@ -132,14 +132,39 @@ nginx -t
 | `##WLS_ADMIN_PORT##` | `WLS_ADMIN_PORT` | `7001` |
 | `##SSL_CERT##` | derived | `/etc/nginx/ssl/fullchain.pem` |
 | `##SSL_KEY##` | derived | `/etc/nginx/ssl/privkey.pem` |
-| `##ADMIN_IP_RANGE##` | `ADMIN_IP_RANGE` | `10.0.0.0/8` |
+| `##ADMIN_IP_RANGE##` | `ADMIN_IP_RANGE` | asked by `04-` – see [Admin network](#admin-network-admin_ip_range--optional) |
 | `##FORMS_CLIENT_URL_PATH##` | `FORMS_CLIENT_URL_PATH` (only `FORMS_CLIENT_DIST=true`) | `/formsWeb` |
 | `##FORMS_CLIENT_DIR##` | `FORMS_CLIENT_DIR` (only `FORMS_CLIENT_DIST=true`) | `/srv/formsWeb` |
+
+### Admin network (`ADMIN_IP_RANGE`) – optional
+
+`/console`, `/em` and the Reports admin web commands can be limited to the
+admin network. That only helps where the admin PCs really sit in their own
+network – many customer networks have no clean separation, so the
+restriction is **optional**. It is asked by `04-` itself (not in the
+interview, which stays short) and saved in `environment.conf`:
+
+```bash
+./09-Install/04-root_nginx.sh --apply                                   # ADMIN_IP_RANGE not set → menu
+./09-Install/04-root_nginx.sh --apply --admin-range 10.1.2.0/24,10.1.9.15  # set / change directly
+./09-Install/04-root_nginx.sh --apply --admin-range any                 # no IP restriction
+```
+
+| Menu choice | `ADMIN_IP_RANGE` | Effect |
+|---|---|---|
+| 1 Host network only (default) | network(s) of the interface with the default route, e.g. `10.1.2.0/24` | admin URLs only from the server's own subnet |
+| 2 Own list | `CIDR/IP,CIDR/IP` (IPv4 / IPv6) | one `allow` line per entry |
+| 3 `any` | `any` | `/console`, `/em`: no `allow`/`deny` (WebLogic login only) – WARN; Reports admin web commands: **localhost only** (`allow 127.0.0.1; deny all`) |
+
+Without `--apply` the preview uses the host network (or the stored value).
+An invalid value (not CIDR / IP / `any`) stops the script. Installations
+before 2026-10-29 had the silent default `10.0.0.0/8` – a re-run of
+`04- --apply` asks once and stores the answer.
 
 ### Reports admin web commands – not from outside
 
 `/reports/` is proxied as a whole (report URLs of the users), but the admin
-web commands of `rwservlet` are limited to localhost and `ADMIN_IP_RANGE`
+web commands of `rwservlet` are limited to localhost and `ADMIN_IP_RANGE` (with `any`: localhost only)
 (test series of [81-reports_rwservlet_security.md](81-reports_rwservlet_security.md):
 with `webcommandaccess=L2` they answered **without login through Nginx**;
 with `L1` they still show server, job and environment details to anyone
@@ -202,6 +227,7 @@ location = /formsWeb { return 301 /formsWeb/; }
 |---|---|
 | (none) | Show substituted config preview, make no changes |
 | `--apply` | Install Nginx, deploy config, enable service |
+| `--admin-range <list>\|any` | set `ADMIN_IP_RANGE` (saved in `environment.conf`), see [Admin network](#admin-network-admin_ip_range--optional) |
 | `--help` | Show usage |
 
 ---

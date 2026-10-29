@@ -7,8 +7,12 @@
 #            must be in place first (05-root_nginx_ssl.sh).
 # Call     : ./09-Install/04-root_nginx.sh
 #            ./09-Install/04-root_nginx.sh --apply
-# Options  : --apply   Install Nginx and write configuration
-#            --help    Show usage
+# Options  : --apply               Install Nginx and write configuration
+#            --admin-range <list>  Admin networks for /console, /em and the Reports
+#                                  admin web commands ("10.1.2.0/24,10.1.9.15") or
+#                                  "any" (no IP restriction) – saved in environment.conf.
+#                                  Not set: asked here (not in the interview)
+#            --help                Show usage
 # Requires : dnf, nginx
 # Runs as  : root or oracle with sudo
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -37,11 +41,14 @@ init_log
 # =============================================================================
 
 APPLY_MODE=0
+ARG_ADMIN_RANGE=""
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
-    printf "  %-16s %s\n" "--apply" "Install Nginx and deploy proxy configuration"
-    printf "  %-16s %s\n" "--help"  "Show this help"
+    printf "  %-22s %s\n" "--apply"               "Install Nginx and deploy proxy configuration"
+    printf "  %-22s %s\n" "--admin-range <list>"  "Admin networks (CIDR/IP, comma separated) or \"any\""
+    printf "  %-22s %s\n" ""                      "for /console, /em, Reports admin web commands"
+    printf "  %-22s %s\n" "--help"                "Show this help"
     printf "\nNote: Nginx is NOT started after this script.\n"
     printf "      Run 05-root_nginx_ssl.sh to install SSL certs and start Nginx.\n"
     exit 1
@@ -50,6 +57,9 @@ _usage() {
 while [ $# -gt 0 ]; do
     case "$1" in
         --apply)   APPLY_MODE=1; shift ;;
+        --admin-range)
+            [ -n "${2:-}" ] || { printf "\033[31mERROR\033[0m --admin-range needs a value\n" >&2; _usage; }
+            ARG_ADMIN_RANGE="$2"; shift 2 ;;
         --help|-h) _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -100,11 +110,85 @@ SERVER_NAME="${WLS_SERVER_FQDN:-$(hostname -f 2>/dev/null)}"
 WLS_FORMS_PORT="${WLS_FORMS_PORT:-9001}"
 WLS_REPORTS_PORT="${WLS_REPORTS_PORT:-9002}"
 WLS_ADMIN_PORT="${WLS_ADMIN_PORT:-7001}"
-ADMIN_IP_RANGE="${ADMIN_IP_RANGE:-10.0.0.0/8}"
 
 # SSL cert paths (will be created by 05-root_nginx_ssl.sh)
 SSL_CERT="${NGINX_SSL_DIR}/fullchain.pem"
 SSL_KEY="${NGINX_SSL_DIR}/privkey.pem"
+
+# =============================================================================
+# Admin network (ADMIN_IP_RANGE) – optional
+# =============================================================================
+# /console, /em and the Reports admin web commands are limited to the admin
+# network – only useful where the admin PCs have their own network. Without
+# a clean separation: "any" (no IP restriction for /console + /em; they keep
+# their WebLogic login; Reports admin web commands then localhost only).
+# Asked here instead of the interview; the answer goes to environment.conf.
+
+# _host_subnets – IPv4 networks of the interface with the default route
+_host_subnets() {
+    local dev
+    dev="$(ip -4 route show default 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+    [ -n "$dev" ] || return 0
+    ip -o -4 route show scope link dev "$dev" 2>/dev/null | awk '{print $1}' | paste -sd, -
+}
+
+# _admin_range_valid <list> – "any" or comma/space separated IPv4/IPv6 [/prefix]
+_admin_range_valid() {
+    local e
+    [ "$1" = "any" ] && return 0
+    [ -n "$1" ] || return 1
+    for e in ${1//,/ }; do
+        printf '%s' "$e" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$|^[0-9A-Fa-f:]+:[0-9A-Fa-f:]*(/[0-9]{1,3})?$' \
+            || return 1
+    done
+}
+
+# _save_admin_range <value> – write ADMIN_IP_RANGE to environment.conf (backup)
+_save_admin_range() {
+    local f="$ENV_CONF"
+    if [ "$APPLY_MODE" -ne 1 ]; then
+        info "  Dry-run: --apply writes ADMIN_IP_RANGE=\"$1\" to environment.conf"
+        return 0
+    fi
+    backup_file "$(readlink -f "$f")" > /dev/null 2>&1
+    if grep -q '^ADMIN_IP_RANGE=' "$f"; then
+        sed -i --follow-symlinks "s|^ADMIN_IP_RANGE=.*|ADMIN_IP_RANGE=\"$1\"|" "$f"
+    else
+        printf '# Admin networks for /console, /em, Reports admin web commands ("any" = no IP restriction) – 04-root_nginx.sh\nADMIN_IP_RANGE="%s"\n' "$1" \
+            >> "$(readlink -f "$f")"
+    fi
+    ok "environment.conf: ADMIN_IP_RANGE=\"$1\""
+}
+
+_ADMIN_PROPOSAL="$(_host_subnets)"
+if [ -n "$ARG_ADMIN_RANGE" ]; then
+    ADMIN_IP_RANGE="$ARG_ADMIN_RANGE"
+    _ADMIN_SAVE=1
+elif [ -z "${ADMIN_IP_RANGE:-}" ]; then
+    _ADMIN_SAVE=1
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        readSelection "ADMIN_IP_RANGE not set – who may reach /console, /em and the Reports admin web commands?" 1 \
+            "Host network only: ${_ADMIN_PROPOSAL:-(not detected)}" \
+            "Own list (admin PCs / admin network, CIDR, comma separated)" \
+            "any – no IP restriction (no separate admin network)"
+        case "$SELECTION_IDX" in
+            1) ADMIN_IP_RANGE="$_ADMIN_PROPOSAL" ;;
+            2) printf "  Admin networks (e.g. 10.1.2.0/24,10.1.9.15): " >&2
+               read -r ADMIN_IP_RANGE ;;
+            3) ADMIN_IP_RANGE="any" ;;
+        esac
+    else
+        ADMIN_IP_RANGE="${_ADMIN_PROPOSAL:-any}"
+        info "ADMIN_IP_RANGE not set – preview with \"$ADMIN_IP_RANGE\"; --apply asks (or --admin-range <list>|any)"
+    fi
+else
+    _ADMIN_SAVE=0
+fi
+ADMIN_IP_RANGE="$(printf '%s' "$ADMIN_IP_RANGE" | tr -s ' ,' ',' | sed 's/^,//; s/,$//')"
+if ! _admin_range_valid "$ADMIN_IP_RANGE"; then
+    fail "ADMIN_IP_RANGE invalid: \"$ADMIN_IP_RANGE\" – CIDR/IP list (comma separated) or \"any\""
+    print_summary; exit 2
+fi
 
 # =============================================================================
 # Banner
@@ -124,6 +208,13 @@ printf "  %-26s %s\n" "Target config:"    "$NGINX_CONF"       | tee -a "${LOG_FI
 printLine
 
 _check_root_access
+
+[ "$_ADMIN_SAVE" -eq 1 ] && _save_admin_range "$ADMIN_IP_RANGE"
+if [ "$ADMIN_IP_RANGE" = "any" ]; then
+    warn "ADMIN_IP_RANGE=any – /console and /em reachable from every network (WebLogic login only)"
+    info "  Reports admin web commands (showjobs, killjobid, stopserver …) stay localhost only"
+    info "  Narrow later: $0 --apply --admin-range 10.1.2.0/24"
+fi
 
 # =============================================================================
 # 1. Template
@@ -146,7 +237,8 @@ printf "  %-28s → %s\n" "##WLS_REPORTS_PORT##"   "$WLS_REPORTS_PORT" | tee -a 
 printf "  %-28s → %s\n" "##WLS_ADMIN_PORT##"     "$WLS_ADMIN_PORT"   | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-28s → %s\n" "##SSL_CERT##"           "$SSL_CERT"         | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-28s → %s\n" "##SSL_KEY##"            "$SSL_KEY"          | tee -a "${LOG_FILE:-/dev/null}"
-printf "  %-28s → %s\n" "##ADMIN_IP_RANGE##"     "$ADMIN_IP_RANGE"   | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-28s → %s\n" "##ADMIN_IP_RANGE##"     "$ADMIN_IP_RANGE (one allow line each; any = no IP restriction)" \
+    | tee -a "${LOG_FILE:-/dev/null}"
 
 # Check for unset ##PARA## (SERVER_NAME must be a valid FQDN)
 if ! printf "%s" "$SERVER_NAME" | grep -qE '\.' ; then
@@ -251,8 +343,23 @@ sed \
     -e "s|##WLS_ADMIN_PORT##|${WLS_ADMIN_PORT}|g" \
     -e "s|##SSL_CERT##|${SSL_CERT}|g" \
     -e "s|##SSL_KEY##|${SSL_KEY}|g" \
-    -e "s|##ADMIN_IP_RANGE##|${ADMIN_IP_RANGE}|g" \
     "$TEMPLATE" > "$NGINX_CONF_TMP"
+
+# "allow ##ADMIN_IP_RANGE##;" → one allow line per network. "any": line removed,
+# plus the "deny all;" right after it when it was the only allow of the block
+# (/console, /em); the Reports admin web commands keep "allow 127.0.0.1; deny all".
+_admin_tmp="$(mktemp /tmp/nginx-wls-XXXXXX.conf)"
+awk -v list="$ADMIN_IP_RANGE" '
+    /^[[:space:]]*allow ##ADMIN_IP_RANGE##;/ {
+        ind = $0; sub(/allow.*/, "", ind)
+        if (list == "any") { if (prev !~ /^[[:space:]]*allow /) skipdeny = 1; next }
+        n = split(list, a, ","); for (i = 1; i <= n; i++) print ind "allow " a[i] ";"
+        prev = $0; next
+    }
+    skipdeny && /^[[:space:]]*deny[[:space:]]+all;/ { skipdeny = 0; next }
+    { skipdeny = 0; print; prev = $0 }
+' "$NGINX_CONF_TMP" > "$_admin_tmp" && mv "$_admin_tmp" "$NGINX_CONF_TMP"
+unset _admin_tmp
 
 # Optional Forms client bundle location (docs/40-forms_client_distribution.md):
 # keep the marked block only for Forms installs with FORMS_CLIENT_DIST=true

@@ -103,9 +103,30 @@ Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
          (later, on a running system: --apply --skip-update --only firewall,ssh)
   [root] ./09-Install/02-root_os_packages.sh --apply   # OS packages (motif, gcc, numactl …)
   [root] ./09-Install/02b-root_os_java.sh --apply      # Oracle JDK 21 + SecureRandom fix
+         (no JDK found: bootstrap 21.0.12.1 from the CDN archive – curl hangs behind a
+          firewall → download in a browser + scp to /tmp, docs/01-root_setup_java.md)
   [root] ./09-Install/03-root_user_oracle.sh --apply   # oracle user + chown repo → oracle
   [root] ./09-Install/04-root_nginx.sh --apply         # Nginx install + proxy config
-  [root] ./09-Install/05-root_nginx_ssl.sh --apply     # SSL cert, TLS config
+         (asks ADMIN_IP_RANGE once: host network / own list / any = no admin network,
+          or --admin-range <list>|any – docs/04-root_nginx.md#admin-network-admin_ip_range--optional)
+
+  Server certificate (as oracle – SSL_CERT_SOURCE from the interview), BEFORE 05-:
+    customer PKI (SSL_CERT_SOURCE=customer):
+      customer files → 08-SSL/user_certs/   server.crt|.cert + server.key (or server.p12),
+                                            chain.crt, root.crt, codesign.p12 (role names:
+                                            08-SSL/user_certs/README.md – gitignored)
+      [oracle] ./08-SSL/ssl_customer_certs.sh           # check only: key ↔ cert, SAN, chain, expiry
+      [oracle] ./08-SSL/ssl_customer_certs.sh --apply   # import → 08-SSL/certs/ + ssl.conf
+                                                        # (encrypted key / PFX: password asked)
+      then delete the files in 08-SSL/user_certs/
+    own root CA (SSL_CERT_SOURCE=localca, default):
+      [oracle] ./08-SSL/ssl_prepare_cert.sh LOCALCA --apply   # root CA (once) + server cert
+    → docs/05-root_nginx_ssl.md "Certificate Options"
+
+  [root] ./09-Install/05-root_nginx_ssl.sh --apply     # deploy 08-SSL/certs/ → /etc/nginx/ssl,
+                                                       # nginx -t, start Nginx, TLS test
+         (prompts show the IMPORTED files in 08-SSL/certs/; warns if user_certs/
+          holds a server certificate that is not imported yet)
 
 Phase 1 – Pre-Install Checks (as oracle)
   04-oracle_pre_checks.sh       Verify all prerequisites before download
@@ -241,8 +262,8 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
 | 0 / 1 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix; after `04-` `--upgrade-jdk` = JDK of the current patch cycle | [→ docs](docs/01-root_setup_java.md) |
 | 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
-| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template | [→ docs](docs/04-root_nginx.md) |
-| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy, TLS config, start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
+| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template; optional admin network `ADMIN_IP_RANGE` (asked once, `--admin-range`) | [→ docs](docs/04-root_nginx.md) |
+| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy (from `08-SSL/certs/` – customer files imported first with `08-SSL/ssl_customer_certs.sh`), start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
 | 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
 | 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
 | 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |

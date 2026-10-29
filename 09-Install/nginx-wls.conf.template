@@ -14,7 +14,9 @@
 #   ##WLS_ADMIN_PORT##     AdminServer listen port  (default: 7001)
 #   ##SSL_CERT##           Path to SSL fullchain certificate PEM file
 #   ##SSL_KEY##            Path to SSL private key PEM file
-#   ##ADMIN_IP_RANGE##     Network allowed to reach /console (e.g. 10.0.0.0/8)
+#   ##ADMIN_IP_RANGE##     Admin networks for /console, /em, Reports admin web commands –
+#                          04- writes one "allow" line per entry; "any" removes the line
+#                          (and the "deny all" of /console + /em); asked by 04- if unset
 #   FORMS_CLIENT_URL_PATH / FORMS_CLIENT_DIR  Forms client bundle – the marked block
 #                          below "Forms client bundle" is kept only with
 #                          FORMS_CLIENT_DIST=true (docs/40-forms_client_distribution.md)
@@ -186,7 +188,7 @@ server {
     }
 
     # --- WebLogic Admin Console (/console) --------------------------------
-    # Access restricted to admin network – adjust ##ADMIN_IP_RANGE## accordingly
+    # Access restricted to the admin network (ADMIN_IP_RANGE, "any" = no restriction)
     location /console {
         allow ##ADMIN_IP_RANGE##;
         deny  all;

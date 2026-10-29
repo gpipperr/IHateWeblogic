@@ -18,13 +18,13 @@ in `08-SSL/certs/` and `$SSL_CA_DIR/customer/`. Background:
 
 | File | Role | Imported to |
 |---|---|---|
-| `server.crt` + `server.key` – or `server.p12` / `server.pfx` | TLS certificate of the web server (Nginx) | `08-SSL/certs/server.crt`, `server.key` (600, unencrypted – Nginx cannot ask for a passphrase), then `09-Install/05-root_nginx_ssl.sh --apply` (root) |
+| `server.crt` (or `server.cert`, `.cer`, `.pem`) + `server.key` – or `server.p12` / `server.pfx` | TLS certificate of the web server (Nginx) | `08-SSL/certs/server.crt`, `server.key` (600, unencrypted – Nginx cannot ask for a passphrase), then `09-Install/05-root_nginx_ssl.sh --apply` (root) |
 | `chain.crt` | intermediate CA(s) of the server certificate (any order) | `08-SSL/certs/chain.crt`, sorted server → root |
 | `root.crt` | company root CA | `$SSL_CA_DIR/customer/root.crt`, `FORMS_CLIENT_TRUST_CA` (Forms client bundle), OS trust anchors |
 | `codesign.p12` (or `.pfx`) | code-signing certificate + key (`jacob.jar`, client setup script) | `$SSL_CA_DIR/customer/codesign.p12`, `FORMS_SIGN_KEYSTORE` / `FORMS_SIGN_ALIAS`, password → `forms_sign_sec.conf.des3` |
 | `interception.crt` | CA of a TLS-interception proxy / firewall (if outbound HTTPS is inspected) | `$SSL_CA_DIR/customer/interception.crt`, OS trust anchors; the `keytool` command for the Java `cacerts` is printed |
 
-Extensions `.crt`, `.cer`, `.pem`, `.der`, `.p7b` are accepted for the
+Extensions `.crt`, `.cert`, `.cer`, `.pem`, `.der`, `.p7b` are accepted for the
 certificates; PEM, DER and PKCS#7 are detected by content and converted to
 PEM. Passwords of `server.key`, `server.p12` and `codesign.p12` are asked
 by the script (hidden) – never put them into a file here.

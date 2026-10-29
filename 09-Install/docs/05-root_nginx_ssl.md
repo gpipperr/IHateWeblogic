@@ -368,8 +368,8 @@ curl -sk https://localhost/reports/rwservlet/getserverinfo?statusformat=XML | he
   `ssl_customer_certs.sh --apply`), then re-run `05-root_nginx_ssl.sh --apply` –
   it detects the changed chain and redeploys
 - `/console`, `/em` and the Reports admin web commands are restricted to
-  `ADMIN_IP_RANGE` (template, set by `04-`); narrow the default `10.0.0.0/8`
-  to the admin PCs (root README, open items)
+  `ADMIN_IP_RANGE` (optional, asked by `04-`, `any` = no IP restriction –
+  [doc 04](04-root_nginx.md#admin-network-admin_ip_range--optional))
 - No Frontend Host needed: `WL-Proxy-SSL: true` + `weblogic-plugin-enabled`
   make WebLogic build `https://` redirects (section above)
 
@@ -384,6 +384,11 @@ into `08-SSL/user_certs/` (`server.crt` + `server.key` or `server.p12`,
 `chain.crt`, `root.crt`) and run `./08-SSL/ssl_customer_certs.sh --apply` –
 it checks key, SAN, chain, validity and signature and writes
 `08-SSL/certs/` ([08-SSL README – Customer certificates](../../08-SSL/README.md#customer-certificates)).
+The prompts of `05-` therefore show the **imported** files in `08-SSL/certs/`,
+never the raw inbox (DER / PKCS#12 / encrypted key – Nginx cannot read
+them). If `user_certs/` holds a `server.*` that is newer than
+`SSL_CERT_FILE` (or nothing was imported yet), `05-` warns before the prompts
+and names the import command.
 Manual alternative – place the files in a secure staging location and set
 the paths in `08-SSL/ssl.conf` (it wins over `environment.conf`) or enter
 them at the prompts of `05-`:
