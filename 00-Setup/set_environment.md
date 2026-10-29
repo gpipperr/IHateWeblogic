@@ -11,10 +11,10 @@ side by side.
 A typical Oracle server hosts several environments simultaneously:
 
 ```
-/u01/oracle/fmw                             ← FMW 14.1.2 (ORACLE_HOME)
-/u01/user_projects/domains/fr_domain        ← WebLogic production domain
-/u01/user_projects/domains/fr_test          ← WebLogic test domain
-/u01/app/oracle/product/19c/dbhome_1        ← Oracle DB 19c (ORACLE_HOME)
+/u01/app/oracle/fmw                          ← FMW 14.1.2 (ORACLE_HOME)
+/u01/app/oracle/domains/fr_domain            ← WebLogic production domain
+/u01/app/oracle/domains/fr_test              ← WebLogic test domain
+/u01/app/oracle/product/19.33.0/db_home1     ← Oracle DB 19c (ORACLE_HOME, local RCU DB)
 ```
 
 All IHateWeblogic scripts read their paths from `environment.conf` in the
@@ -186,6 +186,18 @@ export PATH="$ORACLE_HOME/bin:$PATH"
 ```
 
 `$ORACLE_HOME/bin` provides `sqlplus`, `rman`, `expdp`, and related tools.
+
+Not exported by `set_env.sh`: `TNS_ADMIN` and `JAVA_HOME` – both come from
+`~oracle/.bash_profile`, written by `09-Install/03-root_user_oracle.sh`
+(`JAVA_HOME=$JDK_HOME`, the one `TNS_ADMIN` of `environment.conf`). Why
+`JDK_HOME` and not the bundled JDK: [weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+
+> **Selecting a DB environment also switches the `environment.conf`
+> symlink** (checked 2026-10-29) – the FMW scripts (`01-Run/`, `02-Checks/`, …)
+> then read the DB conf and miss `DOMAIN_HOME`. Select the FMW environment
+> again before running them. (`init_env.sh --db --apply` does **not** touch
+> the symlink.) The local RCU database of `60-RCU-DB-19c/` is not managed here
+> at all – it has its own `60-RCU-DB-19c/environment_db.conf`.
 
 ---
 
