@@ -414,9 +414,10 @@ Recommendation (design, to be decided with the customer):
   trust an own / company root ("PKIX path building failed") – trust is a
   client matter (**confirmed (live)**).
 - Still open:
-  - Windows client: FSAL with unsigned and signed `jacob.jar`, JWS with the
-    own-root-signed jar (root imported), revocation behaviour of JWS with a
-    CA without CRL / OCSP, real OLE call (Excel).
+  - Windows client: FSAL start itself works (2026-10-23, URL client
+    distribution); open: FSAL with unsigned and signed `jacob.jar`, JWS with
+    the own-root-signed jar (root imported), revocation behaviour of JWS with
+    a CA without CRL / OCSP, real OLE call (Excel).
   - After every Forms patch: `14- --apply` (re-activation) – entry in the
     `07-Maintenance` patch documentation done.
 
