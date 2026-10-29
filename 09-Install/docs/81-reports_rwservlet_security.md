@@ -112,6 +112,11 @@ Consequences:
    LDAP identity store (`REP-50171`), not from `securityId` itself.
 5. `singlesignon=yes` + `cgicmd.dat` key `default: … %* authid=RepRunner/…`:
    report runs work (smoke test `15-`, every run 2026-10-16…23).
+   The `RepRunner` password stays in **clear text** in `cgicmd.dat`: the
+   rwservlet encrypts only `userid=` values at its start (Reports QPR
+   39600348, bug 37756029, `-Dreports.userid.encryption.enabled=true` from
+   Oracle's `setDomainEnv.sh`), not `authid=` (**confirmed (code / live)**
+   2026-10-29) – [fmw_pwd_handling.md §4a](../../80-FMW-Architecture/fmw_pwd_handling.md#4a-cgicmddat--userid-encrypted-authid-not).
 
 ---
 

@@ -159,11 +159,60 @@ On the test host, `WLS_FORMS`, one step at a time:
 | OPSS credential store / keystore service | `_OPSS` schema in the RCU DB; `config/fmwconfig/cwallet.sso`, `security/cwallet.sso` | encrypted in the DB / auto-login wallet | [rcu_middleware_architecture.md](rcu_middleware_architecture.md) |
 | RCU schema passwords | `_STB` service table (encrypted) | DB | [rcu_middleware_architecture.md §5 / §6](rcu_middleware_architecture.md#6-where-the-schema-passwords-are-stored) |
 | Reports server `<identifier>` (admin of the web commands) | `rwserver.conf` `<identifier encrypted="yes">` | encrypted by the Reports server at its first start | written in clear text by `13-`, encrypted at the start (**confirmed (live)**) |
-| Reports `authid` of `cgicmd.dat` keys | `…/reports_14.1.2/configuration/cgicmd.dat` | **clear text** (`authid=RepRunner/<password>`, mode `640`) | Oracle has no encrypted form for key-map entries; protect the file, use a user that may only run reports (`RW_EXECREPORTS`), [doc 81](../09-Install/docs/81-reports_rwservlet_security.md) |
+| Reports key map `cgicmd.dat` | `…/reports_14.1.2/configuration/cgicmd.dat` (mode `640`) | `userid=` **encrypted** by rwservlet (`{AES}…`), `authid=` **clear text** | section 4a |
 | Forms `userid=` in `formsweb.cfg` (if used) | domain config | **clear text** | avoid – let the user log in, or use SSO / a proxy user |
 | WLST stored credentials / autostart key files | `~/<user>-WebLogicConfig.properties` + `…Key.properties`, `$ORACLE_BASE/admin/<domain>/ctrl/keyfile/` (dir `700`) | encrypted + key file next to it | same model: key next to the value |
 | ORDS (`ORDS_PUBLIC_USER`) | `ords_N/config/databases/default/wallet/cwallet.sso` | auto-login wallet | backed up by `backup_config.sh` category `ords` (set mode 600) |
 | IHateWeblogic | `*.des3` in the repository | `openssl des3`, key from the machine | [SECURITY.md](../SECURITY.md#password-encryption-is-obfuscation-not-protection) |
+
+### 4a. `cgicmd.dat` – `userid=` encrypted, `authid=` not
+
+The Reports QPR **39600348** lists in its README the fixed bug
+**37756029** "CGICMD.DAT FILE DOES NOT ACCEPT ENCRYPTION FOR VALUES LIKE
+PASSWORD". What the code does (**confirmed (code)**, `reports/jlib/rwrun.jar`
+`oracle.reports.rwclient.KeyMapParser`, `jlib/zrclient.jar`
+`oracle.reports.utility.Utility` / `EncryptionUtil`, test host with the QPR,
+2026-10-29):
+
+- **Switch:** JVM property `-Dreports.userid.encryption.enabled=true`
+  (`true` or `1`). Oracle's own `setDomainEnv.sh` of the 14.1.2 domain sets
+  it for every WebLogic JVM (**confirmed (live)**: AdminServer, WLS_FORMS,
+  WLS_REPORTS run with it) – the counterpart of
+  `-Dforms.userid.encryption.enabled=true` for Forms.
+- **When:** at its initialisation the rwservlet (`KeyMapParser.init()` →
+  `writeEncryptionString`) reads `cgicmd.dat` line by line, skips comments
+  (`#`, `;`), encrypts every **`userid=`** value and writes the file back
+  (via `tmpoutput.txt` in the configuration directory, then rename). Reading
+  a key decrypts it again (`returnDecryptedUserIdPassword`).
+- **What:** only `userid=` – the **whole** value (`user/password@db`) becomes
+  `userid={AES}<base64>`. **`authid=` is not touched**: the call passes the
+  constant `userid=` only.
+- **Key:** AES (128 / 256 bit, `-Dreports.userid.encryp.strength`), kept in
+  the **OPSS keystore service** – stripe `reportsapp`, keystore `reportsks`,
+  alias `reportskey` (created on first use, `EncryptionUtil.createKeyStore`),
+  i.e. in the `_OPSS` schema of the RCU database, **not** next to the file.
+  An encrypted `cgicmd.dat` therefore works only in its own domain / OPSS
+  store; copied into another domain the `userid=` values cannot be decrypted.
+
+**Live on the test host** (**confirmed (live)**): `cgicmd.dat` was rewritten
+at the start of WLS_REPORTS (2026-10-28 17:02); Oracle's sample keys
+(`breakbparam`, `express`) carry `userid={AES}…`, our key
+`default: server=repserver01 %* authid=RepRunner/<password>` keeps the
+password in **clear text**.
+
+Consequences:
+
+- `userid=` passwords in key-map entries are safe to write in clear text –
+  they are encrypted at the next WLS_REPORTS start (same pattern as
+  `boot.properties`: clear text until the next start).
+- `authid=` (WebLogic user of a secured Reports server) stays readable for
+  everybody who can read the file (`oracle`, group `oinstall` with 640) –
+  use a user with `RW_EXECREPORTS` only, keep the file `640`/`600`; whether
+  an `authid` can be replaced by an encrypted form is open (SR question).
+- `14b-oracle_reports_fonts.sh` / `restore_config.sh` write the file in
+  clear text again; the next WLS_REPORTS start encrypts the `userid=` values
+  once more. A `cgicmd.dat` restored into **another** domain needs its
+  `userid=` values in clear text.
 
 ## 5. What to observe for security
 
@@ -191,7 +240,7 @@ On the test host, `WLS_FORMS`, one step at a time:
    credentials and autostart key files (`30-configure_autostart.sh --apply`)
    → `weblogic_sec.conf.des3` (`00-Setup/weblogic_sec.sh --apply`).
    Steps: [doc 80 §5.3 / §5.4](../09-Install/docs/80-oracle_security.md#53-bootproperties-server-dies-at-start--stop-script-cannot-log-in).
-6. **Clear-text exceptions** (`cgicmd.dat` `authid`, `formsweb.cfg` `userid`):
+6. **Clear-text exceptions** (`cgicmd.dat` `authid` – unlike `userid=`, see 4a; `formsweb.cfg` `userid`):
    least-privilege users, file mode 640 / 600, never in a repository.
 7. **Demo trust in the cache** (`TrustKeyStore=DemoTrust`): harmless while
    every WebLogic port is on `127.0.0.1` and TLS ends at Nginx; with own
