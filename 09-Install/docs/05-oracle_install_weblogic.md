@@ -11,6 +11,17 @@
 Silent installation of Oracle FMW Infrastructure 14.1.2.0.0 (includes WebLogic Server).
 This is the base layer required before Forms & Reports can be installed.
 
+**JDK first:** the installer resolves the `JDK_HOME` symlink and writes the
+versioned path (`jdk-21.0.x`) into `$ORACLE_HOME/oui/.globalEnv.properties`
+(the JDK of OPatch / `wlst.sh`). Install the JDK of the current patch cycle
+**before** this step (`02b-root_os_java.sh --apply --upgrade-jdk` after
+`04- --mos`); later JDK updates need `07-Maintenance/domain_jdk_path.sh` to put
+the link back in. The installer also brings the second, bundled JDK
+`oracle_common/jdk` (used by the Reports engines).
+
+Background – Oracle Home, Middleware Home, the two JDKs and the building
+blocks this layer provides: [weblogic_middleware_architecture.md §1 / §3](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+
 ---
 
 ## Without the Script (manual)
