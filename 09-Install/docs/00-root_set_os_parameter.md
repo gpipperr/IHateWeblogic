@@ -170,76 +170,76 @@ WLS recommendation from dbainsight and leaves headroom for JVM off-heap / NIO bu
 
 ---
 
-## Konflikt: oracle-database-preinstall-* überschreibt WLS-Werte
+## Conflict: oracle-database-preinstall-* overrides the WLS values
 
-Das RPM `oracle-database-preinstall-23ai` (und Vorgänger) schreibt DB-dimensionierte
-`shmmax`/`shmall`-Werte in **zwei** Dateien:
+The RPM `oracle-database-preinstall-23ai` (and its predecessors) writes
+DB-sized `shmmax` / `shmall` values into **two** files:
 
 ```
-/etc/sysctl.conf                                        ← höchste Priorität (wird zuletzt geladen)
+/etc/sysctl.conf                                        <- highest priority (loaded last)
 /etc/sysctl.d/99-oracle-database-preinstall-23ai-sysctl.conf
 ```
 
-Da `/etc/sysctl.conf` **nach** allen `sysctl.d/*.conf`-Dateien geladen wird,
-überschreibt es `99-oracle-fmw.conf` — still und lautlos.
+Because `/etc/sysctl.conf` is loaded **after** all `sysctl.d/*.conf` files,
+it silently overrides `99-oracle-fmw.conf`.
 
-Das Skript erkennt diesen Konflikt automatisch und zeigt:
+The script detects the conflict and shows:
 
 ```
 WARN  Conflicting sysctl in sysctl.conf: kernel.shmmax = 4398046511104 (overrides our: 4294967295)
 FAIL  2 external sysctl file(s) override our WebLogic parameters
 ```
 
-### Steuerung über `LOCAL_REP_DB` (environment.conf)
+### Controlled by `LOCAL_REP_DB` (environment.conf)
 
-| Wert | Bedeutung | Verhalten im Skript |
+| Value | Meaning | Script behaviour |
 |---|---|---|
-| `false` *(Default)* | Kein Oracle DB auf diesem Host | **FAIL** — `--apply` bietet an, die kollidierenden Zeilen auszukommentieren (Backup wird erstellt) |
-| `true` | Oracle DB läuft auf demselben Host | Nur **WARN** — keine Änderung, da die DB die größeren Shm-Werte benötigt |
+| `false` *(default)* | no Oracle DB on this host | **FAIL** – `--apply` offers to comment out the conflicting lines (backup first) |
+| `true` | Oracle DB runs on the same host | **WARN** only – no change, the DB needs the larger shm values |
 
 ```bash
-# In environment.conf einstellen:
-LOCAL_REP_DB="false"   # Standard: kein lokales Oracle DB
-LOCAL_REP_DB="true"    # Oracle DB auf diesem Host (mixed setup)
+# in environment.conf:
+LOCAL_REP_DB="false"   # default: no local Oracle DB
+LOCAL_REP_DB="true"    # Oracle DB on this host (mixed setup, 60-RCU-DB-19c/)
 ```
 
-`01-setup-interview.sh` fragt `LOCAL_REP_DB` ab und schlägt den erkannten Wert
-vor (`true`, wenn ein `ora_pmon_*`-Prozess läuft oder `DB_HOST` eine lokale
-Adresse ist).
+`01-setup-interview.sh` asks for `LOCAL_REP_DB` and proposes the detected
+value (`true` when an `ora_pmon_*` process runs or `DB_HOST` is a local
+address).
 
-**Mindestwerte statt exakter Werte:** Für `kernel.shmmni`, `fs.file-max`,
-`fs.aio-max-nr` und `net.core.rmem_*`/`wmem_*` ist ein **größerer** Wert immer
-in Ordnung und erzeugt keine Warnung und keinen Konflikt. `kernel.shmmax` und
-`kernel.shmall` zählen nur bei `LOCAL_REP_DB=true` als Mindestwerte – auf einem
-reinen WLS-Host bleiben sie exakt, weil genau die DB-großen Werte dort
-bereinigt werden sollen. `net.ipv4.ip_local_port_range` bleibt immer exakt.
+**Minimums instead of exact values:** for `kernel.shmmni`, `fs.file-max`,
+`fs.aio-max-nr` and `net.core.rmem_*` / `wmem_*` a **larger** value is always
+fine – no warning, no conflict. `kernel.shmmax` and `kernel.shmall` count as
+minimums only with `LOCAL_REP_DB=true`; on a pure WLS host they stay exact,
+because exactly the DB-sized values are to be cleaned up there.
+`net.ipv4.ip_local_port_range` is always exact.
 
-**Firewall bei lokaler DB:** Mit `LOCAL_REP_DB=true` prüft das Skript zusätzlich,
-ob der Listener-Port (`DB_PORT`, Standard 1521) freigegeben ist – nur als
-Hinweis, er wird nie automatisch geöffnet.
+**Firewall with a local DB:** with `LOCAL_REP_DB=true` the script also checks
+whether the listener port (`DB_PORT`, default 1521) is open – as a hint only,
+it is never opened automatically.
 
-**Swap:** Eine 2-GiB-Swapdatei erscheint in `free -m` als 2047 MB; die Prüfung
-toleriert 32 MB Abweichung.
+**Swap:** a 2 GiB swap file shows up in `free -m` as 2047 MB; the check
+tolerates 32 MB.
 
-### Manuelle Bereinigung (ohne --apply)
+### Manual clean-up (without --apply)
 
-Kollidierenden Zeilen in `/etc/sysctl.conf` auskommentieren:
+Comment out the conflicting lines in `/etc/sysctl.conf`:
 
 ```bash
-# Backup anlegen
+# backup
 cp /etc/sysctl.conf /etc/sysctl.conf.bak_$(date +%Y%m%d)
 
-# Zeilen auskommentieren (Präfix [oracle-fmw] zur Nachvollziehbarkeit)
+# comment out (prefix [oracle-fmw] for traceability)
 sed -i 's/^kernel\.shmmax[[:space:]]*=/# [oracle-fmw] kernel.shmmax =/' /etc/sysctl.conf
 sed -i 's/^kernel\.shmall[[:space:]]*=/# [oracle-fmw] kernel.shmall =/' /etc/sysctl.conf
 sed -i 's/^net\.ipv4\.ip_local_port_range[[:space:]]*=/# [oracle-fmw] net.ipv4.ip_local_port_range =/' /etc/sysctl.conf
 
-# Gleiche Bereinigung für das preinstall-Drop-in:
+# same clean-up for the preinstall drop-in:
 sed -i '...' /etc/sysctl.d/99-oracle-database-preinstall-23ai-sysctl.conf
 
-# Werte neu laden und prüfen
+# reload and check
 sysctl --system
-sysctl kernel.shmmax   # Erwartet: 4294967295
+sysctl kernel.shmmax   # expected: 4294967295
 ```
 
 ---
@@ -541,6 +541,14 @@ rm /u01/app/oracle/swapfile
 ## Additional baseline settings (also in 01-root_os_baseline.sh)
 
 - **SELinux:** Set to `disabled` in `/etc/selinux/config` (requires reboot)
+- **DNF repositories:** checks that the Oracle Linux base / AppStream repos and
+  Oracle EPEL (`oracle-epel-release-el9`, for NMON and other tools) are enabled –
+  hint only, nothing is enabled automatically
+- **OS update:** `dnf check-update`; with `--apply` it asks for
+  `dnf upgrade --refresh` (reboot after a kernel update). `--skip-update` skips
+  the section – use it on a running system (e.g. `--only firewall,ssh`)
+- **/dev/shm (tmpfs):** minimum size checked; `--apply` offers to write
+  `tmpfs /dev/shm tmpfs rw,exec,size=<n>M 0 0` into `/etc/fstab` and remounts
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB
@@ -561,6 +569,12 @@ rm /u01/app/oracle/swapfile
 ---
 
 ## Firewall and SSH hardening (01-root_os_baseline.sh, sections 8 + 9)
+
+Background – why only Nginx is reachable from outside and every internal
+socket is on 127.0.0.1: [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md),
+[how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined);
+the Reports UDP port: [discovery – prerequisites on the host](../../80-FMW-Architecture/reports_server_discovery_multicast.md#5-prerequisites-on-the-host);
+`frmweb` has no bind option: [forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts).
 
 Why (found 2026-10-19 by `10-Monitoring/cve_inventory.sh` on the test host):
 firewalld was installed but disabled. ~50 prestarted `frmweb`, `rwserver`,
