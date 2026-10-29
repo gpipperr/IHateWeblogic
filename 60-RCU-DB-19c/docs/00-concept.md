@@ -2,6 +2,9 @@
 
 ## Goal
 
+Background – what FMW stores in this database and who logs in:
+[rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
+
 The smallest possible Oracle 19c database that satisfies the FMW 14.1.2 RCU
 requirements.  Nothing more.
 
@@ -60,9 +63,15 @@ The kernel relink (`make uniaud_on ioracle`) must happen either:
 1. Before the first database is created — zero downtime, preferred
 2. On a closed database — requires restart of all instances on the ORACLE_HOME
 
-This setup relinks in `05-db_create_database.sh` **before** calling DBCA.
-The relink must be repeated after every Oracle RU patch (integrated into
-`02-db_patch_db_software.sh`).
+**State 2026-10-29 (checked against the scripts):** `05-db_create_database.sh`
+only **reports** whether the binary is linked with `uniaud_on` (`kzaiang`) and
+prints the relink command; the relink itself is a manual step with database
+and listener stopped ([06-db_audit_setup.md](06-db_audit_setup.md#prerequisites)),
+and `06-db_audit_setup.sh` stops with FAIL until it is done. An out-of-place
+patch keeps it: `09-db_patch_rcu.sh` relinks the new home when the old one has
+`uniaud_on`. (The original plan – relink in `05-` before DBCA, repeated after
+every RU in `02-db_patch_db_software.sh` – is not implemented; `02-` is
+deprecated.)
 
 Classical (mixed-mode) auditing is not configured.  The `AUDITLOG` tablespace
 holds all unified audit data.
@@ -164,7 +173,10 @@ export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
     │   ├── wlserver/
     │   └── oracle_common/ forms/ reports/ ...
     ├── product/
-    │   └── 19.30.0/db_home1/              ← DB_ORACLE_HOME (installed via runInstaller -applyRU)
+    │   ├── 19.33.0/db_home1/              ← DB_ORACLE_HOME (one versioned home per RU,
+    │   │                                     01- -applyRU or gold image)
+    │   └── 19.30.0/db_home1/              ← DB_ORACLE_HOME_PREV after 09-db_patch_rcu.sh
+    │                                         (rollback path, deinstall after some days)
     ├── oradata/
     │   └── FMWCDB/
     │       ├── system01.dbf  sysaux01.dbf ...  ← CDB datafiles
@@ -236,6 +248,10 @@ Control files: 2 × 20 MB = 40 MB
 
 **Total DB files: ~2.5 GB fresh, ~4 GB with growth margin**
 
+Homes and staging come on top: one patched 19c home ≈ 11–12 GB, two of them
+during an out-of-place patch, plus the AutoUpgrade patch directory – host
+totals in the root README [Disk Sizing Guide](../../README.md#disk-sizing-guide).
+
 ---
 
 ## References
@@ -254,13 +270,21 @@ Control files: 2 × 20 MB = 40 MB
 ## Script Sequence Summary
 
 ```
-root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits
-oracle: 01-db_install_software.sh   extract base + AU download + runInstaller -applyRU + chopt disable
+root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits, oraInst.loc
+oracle: 00b-db_cvu_check.sh         host pre-check with the standalone CVU
+oracle: 01-db_install_software.sh   base + AutoUpgrade download (RU/OJVM/DPBP/jdk, gold image)
+                                    + runInstaller -applyRU + chopt disable
 oracle: 04-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
-oracle: 05-db_create_database.sh    uniaud_on relink → DBCA silent CDB+PDB
-oracle: 06-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge job
+oracle: 05-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
+                                    local_listener = explicit address (uniaud_on: reported only)
+manual: uniaud_on relink            DB + listener down (06-db_audit_setup.md)
+oracle: 06-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge jobs
 oracle: 07-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
+oracle: 07b-db_rcu_profile.sh       profile RCU_USER (no password expiry / lock)
 oracle: 08-db_auto_start.sh         /etc/oratab :Y + oracle-db.service systemd unit
 
 → then: 09-Install/07-oracle_setup_repository.sh --apply
+
+Later, every DB RU: 01- --target-home <new> --fresh-patches, then
+09-db_patch_rcu.sh --new-home <new> --apply (out-of-place, rollback path)
 ```
