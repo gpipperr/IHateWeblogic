@@ -128,6 +128,9 @@ printf "  %-26s %s\n" "SSL directory:"   "$NGINX_SSL_DIR"              | tee -a 
 printf "  %-26s %s\n" "SSL_CERT_FILE:"   "${SSL_CERT_FILE:-(not set)}" | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-26s %s\n" "SSL_KEY_FILE:"    "${SSL_KEY_FILE:-(not set)}"  | tee -a "${LOG_FILE:-/dev/null}"
 printf "  %-26s %s\n" "SSL_CHAIN_FILE:"  "${SSL_CHAIN_FILE:-(not set)}"| tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-26s %s\n" "Certificate source:" \
+    "${SSL_CERT_SOURCE:-localca}$([ "${SSL_CERT_SOURCE:-}" = "customer" ] && printf ' (customer PKI, imported by 08-SSL/ssl_customer_certs.sh)')" \
+    | tee -a "${LOG_FILE:-/dev/null}"
 [ "$APPLY_MODE" -eq 1 ] && \
     printf "  %-26s %s\n" "Mode:" "APPLY (will deploy certificate and start Nginx)" \
         | tee -a "${LOG_FILE:-/dev/null}"
@@ -245,16 +248,20 @@ else
     ok "Certificate is valid and not expiring within 30 days"
 fi
 
-# Key matches certificate (modulus comparison)
-CERT_MODULUS="$(openssl x509 -noout -modulus -in "$SSL_CERT_FILE" 2>/dev/null | md5sum)"
-KEY_MODULUS="$(openssl rsa   -noout -modulus -in "$SSL_KEY_FILE"  2>/dev/null | md5sum)"
+# Key matches certificate – compare the public keys (RSA and EC; the former
+# "openssl rsa -modulus" rejected every correct EC pair, 2026-10-29)
+CERT_PUB="$(openssl x509 -noout -pubkey -in "$SSL_CERT_FILE" 2>/dev/null | md5sum)"
+KEY_PUB="$(openssl pkey -pubout -in "$SSL_KEY_FILE" -passin pass: 2>/dev/null | md5sum)"
+EMPTY_MD5="$(printf '' | md5sum)"
 
-if [ "$CERT_MODULUS" = "$KEY_MODULUS" ]; then
-    ok "Certificate and key match (modulus check)"
+if [ "$KEY_PUB" = "$EMPTY_MD5" ]; then
+    fail "Private key unreadable or encrypted: $SSL_KEY_FILE"
+    info "  Nginx needs an unencrypted key – 08-SSL/ssl_customer_certs.sh --apply decrypts it"
+    print_summary; exit 2
+elif [ "$CERT_PUB" = "$KEY_PUB" ]; then
+    ok "Certificate and key match (public key check)"
 else
     fail "Certificate and private key do NOT match"
-    info "  Certificate modulus: $(printf "%s" "$CERT_MODULUS" | cut -c1-16)..."
-    info "  Key modulus:         $(printf "%s" "$KEY_MODULUS"  | cut -c1-16)..."
     print_summary; exit 2
 fi
 
@@ -280,10 +287,15 @@ fi
 
 section "Deploy Certificate to Nginx"
 
-# Check current state
-if [ -f "$NGINX_CERT" ]; then
-    CURRENT_FINGERPRINT="$(openssl x509 -noout -fingerprint -in "$NGINX_CERT" 2>/dev/null)"
-    SOURCE_FINGERPRINT="$(openssl x509 -noout -fingerprint -in "$SSL_CERT_FILE" 2>/dev/null)"
+# Check current state – compare the whole chain (leaf + intermediates), not
+# only the leaf: a changed intermediate must be deployed as well
+# _chain_fps – md5 over all certificates of a PEM bundle read from stdin
+_chain_fps() { openssl crl2pkcs7 -nocrl -certfile /dev/stdin 2>/dev/null \
+    | openssl pkcs7 -print_certs 2>/dev/null | grep -vE '^(subject|issuer)=|^$' | md5sum; }
+# /etc/nginx/ssl is 700 root – read the deployed file as root
+if _run_root test -f "$NGINX_CERT"; then
+    CURRENT_FINGERPRINT="$(_run_root cat "$NGINX_CERT" | _chain_fps)"
+    SOURCE_FINGERPRINT="$({ cat "$SSL_CERT_FILE"; [ -n "$SSL_CHAIN_FILE" ] && [ -f "$SSL_CHAIN_FILE" ] && cat "$SSL_CHAIN_FILE"; } | _chain_fps)"
     if [ "$CURRENT_FINGERPRINT" = "$SOURCE_FINGERPRINT" ]; then
         ok "Certificate already deployed and up to date: $NGINX_CERT"
         CERT_DEPLOYED=1
@@ -333,7 +345,8 @@ fi
 
 section "Nginx Configuration Validation"
 
-if [ -f "$NGINX_CERT" ] && [ -f "$NGINX_KEY" ]; then
+# as root: /etc/nginx/ssl is 700 – a plain [ -f ] as oracle never sees the files
+if _run_root test -f "$NGINX_CERT" && _run_root test -f "$NGINX_KEY"; then
     # Full nginx -t validation
     if _run_root nginx -t 2>/tmp/nginx_test_output; then
         ok "Nginx config valid (nginx -t)"
@@ -364,7 +377,7 @@ if [ "$NGINX_ACTIVE" = "active" ]; then
     fi
 else
     warn "Nginx is not running (state: $NGINX_ACTIVE)"
-    if [ "$APPLY_MODE" -eq 1 ] && [ -f "$NGINX_CERT" ] && [ -f "$NGINX_KEY" ]; then
+    if [ "$APPLY_MODE" -eq 1 ] && _run_root test -f "$NGINX_CERT" && _run_root test -f "$NGINX_KEY"; then
         if askYesNo "Start Nginx now?" "y"; then
             _run_root systemctl start nginx
             sleep 2
@@ -376,7 +389,7 @@ else
                 print_summary; exit 2
             fi
         fi
-    elif [ -z "$NGINX_CERT" ] || [ ! -f "$NGINX_CERT" ]; then
+    elif ! _run_root test -f "$NGINX_CERT"; then
         info "Nginx will start after SSL certificate is deployed (--apply)"
     fi
 fi
@@ -391,10 +404,11 @@ SERVER_NAME="${WLS_SERVER_FQDN:-$(hostname -f 2>/dev/null)}"
 
 if systemctl is-active nginx > /dev/null 2>&1; then
     # Quick TLS handshake test
+    # -brief writes to stderr; keep the result lines (protocol, cipher, peer, verify)
     SSL_TEST="$(echo | timeout 5 openssl s_client \
         -connect "127.0.0.1:443" \
         -servername "$SERVER_NAME" \
-        -brief 2>/dev/null | head -5)"
+        -brief 2>&1 | grep -E '^(Protocol version|Ciphersuite|Peer certificate|Verification|verify error)')"
 
     if [ -n "$SSL_TEST" ]; then
         ok "TLS handshake successful"
