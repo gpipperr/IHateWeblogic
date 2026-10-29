@@ -52,6 +52,19 @@ documents for the **why**:
 | `01-Run/rwrun_trace.sh` | [report_engine_architecture.md](report_engine_architecture.md) §5.1 |
 | `02-Checks/egress_check.sh`, `09-Install/04-oracle_pre_checks.sh` (check 10) | [weblogic_outbound_connections.md](weblogic_outbound_connections.md) |
 | `06-FormsDiag/forms_settings.sh`, `forms_perf_settings.sh`, `forms_perf_analyse.sh` (shared `06-FormsDiag/forms_lib.sh`), `09-Install/14-` prestart | [forms_runtime_architecture.md](forms_runtime_architecture.md) |
+| `02-Checks/tns_admin_check.sh` (one `TNS_ADMIN`) | [forms_runtime_architecture.md](forms_runtime_architecture.md) §2.1, [report_engine_architecture.md](report_engine_architecture.md) §5.2 |
+| `02-Checks/clone_check.sh`, `09-Install/08-` loopback block, `13-` `ORBServerHost` | [clone_golden_image.md](clone_golden_image.md) |
+| `02-Checks/ssl_check.sh`, `08-SSL/`, `10-Monitoring/cert_expiry_check.sh`, `40-` client `cacerts` | [certificates_trust_stores.md](certificates_trust_stores.md) |
+| `01-Run/startStop.sh` / `fmw_ctl.sh` (`ovd.lok` removal), `09-Install/12-` | [em_principal_search_libovd.md](em_principal_search_libovd.md), [reports_user_local_ldap.md](reports_user_local_ldap.md) |
+| `09-Install/13-` `REPORTS_SECURITY`, `<folderAccess>` / `REPORTS_PATH` | [reports_user_local_ldap.md](reports_user_local_ldap.md), [report_server_image_handling.md](report_server_image_handling.md) |
+| `09-Install/40-oracle_forms_client_bundle.sh`, `client_templates/` | [java_jlink_forms_env.md](java_jlink_forms_env.md), [forms_jakob_webutil.md](forms_jakob_webutil.md) |
+| `09-Install/14-` JACOB / signing, `08-SSL/ssl_local_ca.sh codesign` | [forms_jakob_webutil.md](forms_jakob_webutil.md) |
+| `12-APEX-Ords/01-` … `06-`, `03-Logs` group `ords` | [apex_architecture.md](apex_architecture.md), [ords_architecture.md](ords_architecture.md) |
+| `09-Install/07-oracle_setup_repository.sh --check`, `60-RCU-DB-19c/` | [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §9 |
+| `70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/` | [report_rwbuilder.md](report_rwbuilder.md) |
+
+The installation steps link here per step: [09-Install/README.md §1](../09-Install/README.md#1-architecture--security-concept)
+and every `09-Install/docs/*.md` (reviewed 2026-10-29).
 
 Overview of the checks: [02-Checks/README.md](../02-Checks/README.md).
 
@@ -63,7 +76,8 @@ Findings already collected elsewhere that belong here as a whole:
   `nm_password.properties` hash), random credentials of WLST-offline domains
   (today in `09-Install/docs/80-oracle_security.md` §5)
 - rwservlet web commands – `webcommandaccess`, `<identifier>`,
-  `checkDiagnostic` (today in `09-Install/docs/81-reports_rwservlet_security.md`)
+  `checkDiagnostic` (today in `09-Install/docs/81-reports_rwservlet_security.md`,
+  design and tests done 2026-10-23)
 - Which configuration file is effective (domain `config/fmwconfig/…` vs. the
   staged `servers/<ms>/tmp/_WL_user/…` copy vs. `$ORACLE_HOME/…/conf` templates)
 - WLST credential resolution (`connect()` without arguments → default
