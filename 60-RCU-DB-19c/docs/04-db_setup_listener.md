@@ -55,6 +55,21 @@ The instance registers with this listener through `local_listener`, which
 
 ---
 
+## Two Oracle Net directories on a shared host
+
+| Directory | Read by | Content |
+|---|---|---|
+| `$DB_ORACLE_HOME/network/admin` | listener, the DB instance, `sqlplus` with the DB home environment | `listener.ora`, `sqlnet.ora`, `tnsnames.ora` of this script |
+| `TNS_ADMIN` of `environment.conf` (`$ORACLE_BASE/admin/tns_names`) | Forms, Reports, WebLogic, the oracle shell | the aliases the FMW side uses – the PDB alias must be there too |
+
+Lesson of 2026-10-27/28: an instance started with the **shared** `TNS_ADMIN`
+did not find the `LISTENER_<SID>` alias of `local_listener` and never
+registered its services – hence the explicit address in `local_listener`
+(`05-`), and `09-db_patch_rcu.sh` starts the instance with the home's own
+`network/admin` and copies these three files into a new home. Background:
+[report_engine_architecture.md §5.2](../../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin),
+[02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh).
+
 ## systemd Unit
 
 The unit file is written to `/tmp/oracle-listener-XXXXXX.service` and must
@@ -66,3 +81,7 @@ cp /tmp/oracle-listener-XXXXXX.service /etc/systemd/system/oracle-listener.servi
 systemctl daemon-reload
 systemctl enable --now oracle-listener
 ```
+
+The unit contains the home path – after an out-of-place patch see
+[08-db_auto_start.md](08-db_auto_start.md) / [09-db_patch_rcu.md](09-db_patch_rcu.md).
+
