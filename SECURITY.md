@@ -60,7 +60,9 @@ The real security boundary is the host: who may log in (SSH), who may become
 `oracle` or `root` (sudo policy), file permissions (`*.des3` are written
 mode 600), and keeping the repository and its backups on trusted systems.
 WebLogic itself stores its credentials the same way (`boot.properties`
-encrypted with the domain's `SerializedSystemIni.dat`).
+encrypted with the domain's `SerializedSystemIni.dat`) – details, every
+credential store of the domain and what to observe:
+[80-FMW-Architecture/fmw_pwd_handling.md](80-FMW-Architecture/fmw_pwd_handling.md).
 
 ## Using the scripts safely
 

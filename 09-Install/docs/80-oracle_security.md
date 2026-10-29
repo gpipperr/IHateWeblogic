@@ -148,12 +148,15 @@ Already applied by the library (check, do not redo):
 Passwords cannot be "looked up" in a WebLogic domain – they are stored either
 encrypted with the domain key (`security/SerializedSystemIni.dat`) or only as a
 one-way hash. Recovery always means **setting a new value** at the right place.
+Background – the key model, every store, the Node Manager cache and what to
+observe for security: [fmw_pwd_handling.md](../../80-FMW-Architecture/fmw_pwd_handling.md).
 
 ### 5.1 Where the credentials live
 
 | Credential | Location | Form | Read by |
 |---|---|---|---|
 | WebLogic admin user | embedded LDAP of the AdminServer (`servers/AdminServer/data/ldap/`) | hash | AdminServer (login, `connect()`) |
+| Server boot identity – Node Manager cache | `servers/<ms>/data/nodemanager/boot.properties` (+ `startup.properties`), written by the NM when the AdminServer starts the server | `{AES256}…` (mode 640) | NM restarts / `nmStart` – **old identity after a password change**: delete it (server stopped) and start once via the AdminServer – [fmw_pwd_handling.md §3](../../80-FMW-Architecture/fmw_pwd_handling.md#3-the-node-managers-own-copy--datanodemanagerbootproperties) |
 | Server boot identity | `servers/<server>/security/boot.properties` | cleartext until the first start, then `{AES256}…` (14.1.2; older releases `{AES}`) | server start via `startWebLogic.sh`/`startManagedWebLogic.sh`; `stopWebLogic.sh`/`stopManagedWebLogic.sh` without user/password |
 | Node Manager user/password (domain side) | `config/config.xml` → `<security-configuration>`: `<node-manager-username>` (cleartext), `<node-manager-password-encrypted>{AES256}…` | encrypted | AdminServer, WLST; `startComponent.sh` takes the **user name** from here |
 | Node Manager user/password (NM side) | `config/nodemanager/nm_password.properties` | `hashed=…` (one-way) | **the Node Manager itself** at every `nmConnect` |
