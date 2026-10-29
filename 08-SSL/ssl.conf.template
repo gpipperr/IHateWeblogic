@@ -81,3 +81,9 @@ SSL_CODESIGN_DAYS="1095"
 # --- Last run (written back by ssl_prepare_cert.sh) --------------------------
 # SSL_LAST_MODE records which mode was used last; shown as default on next run.
 SSL_LAST_MODE="SELF"
+
+# --- Certificate source ------------------------------------------------------
+# localca  = own root CA of this library (ssl_local_ca.sh) – default
+# customer = customer PKI, files in 08-SSL/user_certs/, imported by
+#            ssl_customer_certs.sh --apply (asked by 01-setup-interview.sh)
+SSL_CERT_SOURCE="localca"

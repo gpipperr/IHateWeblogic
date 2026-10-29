@@ -36,6 +36,9 @@ weblogic_sec.conf
 08-SSL/ssl.conf
 # Generated certificates and keys (never commit private keys)
 08-SSL/certs/
+# Customer certificates inbox (keys / PFX) – only the README is committed
+08-SSL/user_certs/*
+!08-SSL/user_certs/README.md
 
 # Log output directories
 log/

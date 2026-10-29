@@ -156,7 +156,8 @@ FORMS_SIGN_TSA_URL   (default http://timestamp.digicert.com, Enter on an
 |---|---|---|
 | `FORMS_MAX_RUNTIME_PROCESSES` | proposal: ½ RAM / 64 MB, tens, ≥ 20 | `formsweb.cfg` `[default]` `maxRuntimeProcesses` – session limit (Oracle: 0 = no limit = DoS risk); 14- writes it |
 | `FORMS_WEBUTIL_JACOB` | `false` | menu; `true` = 04- downloads, 14- installs + signs JACOB |
-| `FORMS_SIGN_KEYSTORE` | `${SSL_CA_DIR:-$ORACLE_BASE/admin/pki}/codesign/codesign.p12` | PKCS12 with key + code-signing certificate + chain |
+| `SSL_CERT_SOURCE` (→ `08-SSL/ssl.conf`, asked always) | `localca` | `localca` = own root CA of this library; `customer` = customer PKI – files in `08-SSL/user_certs/`, imported by `08-SSL/ssl_customer_certs.sh --apply`; changes the keystore / client-CA defaults below to `$SSL_CA_DIR/customer/` and never creates a local CA |
+| `FORMS_SIGN_KEYSTORE` | `${SSL_CA_DIR:-$ORACLE_BASE/admin/pki}/codesign/codesign.p12` (customer: `…/customer/codesign.p12`) | PKCS12 with key + code-signing certificate + chain |
 | `FORMS_SIGN_ALIAS` | `forms_codesign` | alias (friendly name) of the key in the keystore |
 | `FORMS_SIGN_STOREPASS` | only if the keystore exists: prompted, encrypted → `forms_sign_sec.conf.des3` | checked against the keystore with `openssl pkcs12` |
 | `FORMS_SIGN_LOCALCA` | set by the interview | `true` = keystore did not exist; `14- --apply` runs `08-SSL/ssl_local_ca.sh init` (only without root) + `codesign` |

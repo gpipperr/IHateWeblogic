@@ -139,7 +139,7 @@ All values **confirmed (live)** 2026-10-28 on the test host unless marked.
 | **Nginx identity** | `/etc/nginx/ssl/fullchain.pem`, `privkey.pem` | PEM | root, dir `700`, key `600` – root only | server leaf + chain, private key | `09-Install/05-root_nginx_ssl.sh` | Nginx |
 | **Staging** | `08-SSL/certs/server.crt`, `server.key`, `chain.crt` | PEM | oracle, key `600` (gitignored) | what will be deployed | `08-SSL/ssl_prepare_cert.sh`, `ssl_local_ca.sh` | `05-root_nginx_ssl.sh`, `ssl_config.sh` |
 | **Local CA** | `$ORACLE_BASE/admin/pki/ca/` (`ca.key`, `ca.crt`, `ca.cer`, `ca.srl`), `server/`, `codesign/` | PEM / DER / PKCS#8 | oracle, dirs `700`, keys `600` | root key (AES-256, passphrase in `ssl_ca_sec.conf.des3`), root certificate, issued certificates | `08-SSL/ssl_local_ca.sh` | the scripts above; `ca.crt` / `ca.cer` are distributed to clients |
-| **Code signing** | `$ORACLE_BASE/admin/pki/codesign/codesign.p12` (`FORMS_SIGN_KEYSTORE`) | PKCS#12 | oracle `600` | signing key + chain (password in `forms_sign_sec.conf.des3`) | `ssl_local_ca.sh codesign` or the customer CA | `09-Install/14-oracle_setup_forms.sh` (`jarsigner`) |
+| **Code signing** | `$ORACLE_BASE/admin/pki/codesign/codesign.p12` (`FORMS_SIGN_KEYSTORE`; customer PKI: `…/pki/customer/codesign.p12`) | PKCS#12 | oracle `600` | signing key + chain (password in `forms_sign_sec.conf.des3`) | `ssl_local_ca.sh codesign` or the customer CA | `09-Install/14-oracle_setup_forms.sh` (`jarsigner`) |
 | **Server JDK trust** | `$JDK_HOME/lib/security/cacerts` | PKCS#12, `changeit` | `644` | **110** Oracle JDK roots | Oracle (JDK update replaces it) | WLST, getMOSPatch (`java` in `PATH`), our Java tools |
 | **Bundled JDK trust** | `$ORACLE_HOME/oracle_common/jdk/lib/security/cacerts` | PKCS#12, `changeit` | oracle `640` | **110** roots of 2024 (17.0.12) | only an Oracle FMW patch (component `oracle.jdk`) | WebLogic servers, Reports server / engines, Forms / Reports tools |
 | **JDK blocklists** | `lib/security/blocked.certs`, `java.security` (`disabledAlgorithms`) | text | JDK | distrusted certificates / algorithms | JDK update | every JVM of that JDK |
@@ -207,6 +207,11 @@ interception sub-CA. Problems appear in both directions:
   clients via `anchors/`;
 - quality check of the customer chain (section 2) **before** it is used –
   SHA-1 / MD5 in the chain breaks Java clients.
+
+In this library: drop the customer files into `08-SSL/user_certs/`
+(server, chain, root, code-signing PFX, interception CA – fixed role names)
+and run `08-SSL/ssl_customer_certs.sh` – it checks all of the above and
+imports with `--apply` ([08-SSL README – Customer certificates](../08-SSL/README.md#customer-certificates)).
 
 **Outbound** – interception re-signs every external TLS connection:
 
@@ -298,6 +303,7 @@ adds itself here and links back to this article.
 | Where | What it does with which store |
 |---|---|
 | [08-SSL/ssl_local_ca.sh](../08-SSL/README.md) | own root CA, server and code-signing certificates in `$ORACLE_BASE/admin/pki` |
+| [08-SSL/ssl_customer_certs.sh](../08-SSL/README.md#customer-certificates) | checks and imports the customer's certificates from the inbox `08-SSL/user_certs/` (server, chain, root, code-signing PFX, interception CA) into `08-SSL/certs/` and `$ORACLE_BASE/admin/pki/customer/` |
 | [08-SSL/ssl_prepare_cert.sh](../08-SSL/README.md) | staging certificate: self-signed / local CA / Easy-RSA / CSR for an external CA |
 | `08-SSL/ssl.conf.template` | all `SSL_*` variables (paths, key algorithm, lifetimes) |
 | [09-Install/04-root_nginx.sh](../09-Install/docs/04-root_nginx.md) | creates `/etc/nginx/ssl` (700) |

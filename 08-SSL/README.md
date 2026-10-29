@@ -34,6 +34,7 @@ It covers these recurring tasks:
 |---|---|---|
 | Prepare / create a certificate | `ssl_prepare_cert.sh` | Before first Nginx start and at renewal |
 | Own root CA + server + code-signing certificates | `ssl_local_ca.sh` | Once (CA), then at renewal; code signing for Forms/WebUtil (`jacob.jar`) |
+| Check + import the **customer's** certificates (inbox `user_certs/`) | `ssl_customer_certs.sh` | Customer PKI instead of the own root CA – see [Customer certificates](#customer-certificates) |
 | Deploy certificate to Nginx | `09-Install/05-root_nginx_ssl.sh` | Install-time (once) and at renewal |
 | Audit current SSL configuration | `ssl_config.sh` | Anytime – monitoring, compliance checks |
 
@@ -307,6 +308,48 @@ Exit code 1 if expiry < 30 days, exit code 2 if expired or handshake fails.
 
 ---
 
+## Customer certificates
+
+When the customer has an own PKI, its certificates replace those of the own
+root CA. The switch is `SSL_CERT_SOURCE` in `ssl.conf` (`localca` default |
+`customer`), asked by `09-Install/01-setup-interview.sh`.
+
+```
+08-SSL/user_certs/               inbox, gitignored except the README
+  server.crt + server.key        (or server.p12)  TLS certificate for Nginx
+  chain.crt                      intermediate CA(s)
+  root.crt                       company root CA
+  codesign.p12                   code signing (jacob.jar, client setup script)
+  interception.crt               CA of a TLS-interception proxy
+        |  ./08-SSL/ssl_customer_certs.sh            check (read-only)
+        |  ./08-SSL/ssl_customer_certs.sh --apply    check + import
+        v
+08-SSL/certs/server.crt / server.key (600) / chain.crt   -> 09-Install/05-root_nginx_ssl.sh --apply (root)
+$SSL_CA_DIR/customer/root.crt          -> FORMS_CLIENT_TRUST_CA (40-), OS trust anchors
+$SSL_CA_DIR/customer/codesign.p12      -> FORMS_SIGN_KEYSTORE / _ALIAS, forms_sign_sec.conf.des3
+                                          -> re-sign jacob.jar (jacob.jar.orig back, 14- --apply)
+$SSL_CA_DIR/customer/interception.crt  -> OS trust anchors; keytool command for JDK_HOME cacerts
+ssl.conf: SSL_CERT_SOURCE=customer, SSL_LAST_MODE=CUSTOMER
+```
+
+What to request from the customer and the file names in detail:
+[user_certs/README.md](user_certs/README.md). Checks per role: key ↔
+certificate, SAN contains `WLS_SERVER_FQDN`, EKU (serverAuth /
+codeSigning), validity, signature (no SHA-1 / MD5), key size, chain up to
+`root.crt`, `CA:TRUE`; formats PEM / DER / PKCS#7 / PKCS#12 are converted.
+A role with a FAIL is not imported; replaced files are kept as
+`*.bak_<ts>`; passwords (key, PFX) are asked hidden. OS trust anchors are
+written with root / sudo (`ihw_run_root`), otherwise the command is printed.
+
+**Back to the own root CA:** `./08-SSL/ssl_prepare_cert.sh LOCALCA --apply`
+(server) and `./08-SSL/ssl_local_ca.sh codesign --apply` (code signing),
+`SSL_CERT_SOURCE=localca` in `ssl.conf`, then `05-root_nginx_ssl.sh --apply`.
+
+Tested 2026-10-29 with a test PKI (root, intermediate, server certificate
+with encrypted key, DER chain, code-signing PFX, interception CA): all checks
+OK; a SHA-1 / 1024-bit certificate without SAN and with a foreign key gave 5
+FAIL + 1 WARN; the import itself in a copy of the repository.
+
 ## Configuration: ssl.conf
 
 SSL certificate parameters are stored in a dedicated `08-SSL/ssl.conf` file –
@@ -365,7 +408,8 @@ the next run shows them as defaults again.
 | `SSL_CA_KEY_SIZE` | Root CA RSA key size, default `4096` |
 | `SSL_CODESIGN_CN` | Common Name of the code-signing certificate, default `<SSL_ORG> Forms Code Signing` |
 | `SSL_CODESIGN_DAYS` | Code-signing certificate validity in days, default `1095` |
-| `SSL_LAST_MODE` | Last used mode – shown as default on next run |
+| `SSL_LAST_MODE` | Last used mode – shown as default on next run (`CUSTOMER` after `ssl_customer_certs.sh --apply`) |
+| `SSL_CERT_SOURCE` | `localca` (own root CA, default) or `customer` (customer PKI via `user_certs/`) – interview question |
 
 `WLS_SERVER_FQDN` (from `environment.conf`) is used as the initial default
 for `SSL_CN` when `ssl.conf` does not yet exist.
@@ -450,6 +494,7 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 | Local CA (openssl) | `ssl_prepare_cert.sh LOCALCA` / `ssl_local_ca.sh` | Internal, after root import (one root also for code signing) | Lab / internal, **recommended** without company PKI |
 | Easy-RSA internal CA | `ssl_prepare_cert.sh EASYRSA` | Internal, after CA root import | Alternative to LOCALCA (EPEL package) |
 | Customer / public CA | `ssl_prepare_cert.sh REQUEST` → CA signs | Full (public) | Production |
+| Customer PKI (files delivered) | `user_certs/` + `ssl_customer_certs.sh --apply` | Customer root (GPO) | Production with company PKI – also code signing / interception CA |
 
 > For Easy-RSA setup details see: `09-Install/docs/05-root_nginx_ssl.md`
 > – section "Option B – Local CA with openssl", "Option C – Internal CA with Easy-RSA"

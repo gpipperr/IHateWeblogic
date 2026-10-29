@@ -352,8 +352,12 @@ curl -sk https://localhost/reports/rwservlet/getserverinfo?statusformat=XML | he
 
 ### Option A – Company / Public CA Certificate (production)
 
-The customer provides a CA-signed certificate.
-Place the files in a secure staging location, then set in `environment.conf`:
+The customer provides a CA-signed certificate. **Recommended:** put the files
+into `08-SSL/user_certs/` (`server.crt` + `server.key` or `server.p12`,
+`chain.crt`, `root.crt`) and run `./08-SSL/ssl_customer_certs.sh --apply` –
+it checks key, SAN, chain, validity and signature and writes
+`08-SSL/certs/` ([08-SSL README – Customer certificates](../../08-SSL/README.md#customer-certificates)).
+Manual alternative – place the files in a secure staging location, then set:
 
 ```bash
 SSL_CERT_FILE=/srv/certs/fullchain.pem   # cert + intermediate chain

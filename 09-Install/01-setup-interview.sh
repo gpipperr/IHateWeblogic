@@ -523,6 +523,18 @@ esac
 SSL_CONF="$ROOT_DIR/08-SSL/ssl.conf"
 FORMS_SIGN_SEC_FILE="$ROOT_DIR/forms_sign_sec.conf.des3"
 SSL_CONF_KEYS=()
+# Certificate source (08-SSL/ssl.conf): own root CA of this library or the
+# customer's PKI (files in 08-SSL/user_certs/, 08-SSL/ssl_customer_certs.sh)
+printf "\n"
+info "Certificates for Nginx (TLS) and code signing: own root CA or the customer's PKI"
+ENV_CONF="$SSL_CONF" _ask_menu SSL_CERT_SOURCE "Certificate source" \
+    "localca:Own root CA of this library (08-SSL/ssl_local_ca.sh) - lab / internal (default)" \
+    "customer:Customer PKI - files in 08-SSL/user_certs/, import: 08-SSL/ssl_customer_certs.sh --apply"
+SSL_CONF_KEYS+=(SSL_CERT_SOURCE)
+if [ "$SSL_CERT_SOURCE" = "customer" ]; then
+    info "  Put the customer files into 08-SSL/user_certs/ (README there: names, what to request),"
+    info "  then: ./08-SSL/ssl_customer_certs.sh  (check)  and  --apply  (import)"
+fi
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY)
         # Session limit (formsweb.cfg [default] maxRuntimeProcesses) - Oracle:
@@ -558,8 +570,12 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
                 "jlink:Slim runtime built with jlink (default)" \
                 "jdk:Full JDK ZIP"
             _ca_def="${SSL_CA_DIR:-$(ENV_CONF="$SSL_CONF" _conf_get SSL_CA_DIR)}"
-            _ca_def="${_ca_def:-${ORACLE_BASE}/admin/pki}/ca/ca.crt"
-            [ -f "$_ca_def" ] || _ca_def=""
+            if [ "$SSL_CERT_SOURCE" = "customer" ]; then
+                _ca_def="${_ca_def:-${ORACLE_BASE}/admin/pki}/customer/root.crt"   # written by ssl_customer_certs.sh
+            else
+                _ca_def="${_ca_def:-${ORACLE_BASE}/admin/pki}/ca/ca.crt"
+                [ -f "$_ca_def" ] || _ca_def=""
+            fi
             info "CA certificate for the client truststore - empty = public CA (already trusted)"
             _ask FORMS_CLIENT_TRUST_CA "Client truststore CA (.crt)"     "$_ca_def" "" "optional"
             unset _ca_def
@@ -578,10 +594,20 @@ if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] || [ "$FORMS_CLIENT_DIST" = "tru
     info "Code-signing keystore (PKCS12) for jacob.jar and the client setup script"
     info "  - existing (company / public CA)"
     info "  or created by the own root CA in 14- if the file does not exist"
-    _ask FORMS_SIGN_KEYSTORE "Code-signing keystore (.p12)" "${_ca_dir}/codesign/codesign.p12"
+    if [ "$SSL_CERT_SOURCE" = "customer" ]; then
+        _ask FORMS_SIGN_KEYSTORE "Code-signing keystore (.p12)" "${_ca_dir}/customer/codesign.p12"
+    else
+        _ask FORMS_SIGN_KEYSTORE "Code-signing keystore (.p12)" "${_ca_dir}/codesign/codesign.p12"
+    fi
     _ask FORMS_SIGN_ALIAS    "Keystore alias"               "forms_codesign"
 
-    if [ -f "$FORMS_SIGN_KEYSTORE" ]; then
+    if [ ! -f "$FORMS_SIGN_KEYSTORE" ] && [ "$SSL_CERT_SOURCE" = "customer" ]; then
+        # customer PKI: the PFX comes from 08-SSL/user_certs/codesign.p12 –
+        # ssl_customer_certs.sh --apply copies it here and stores alias + password
+        FORMS_SIGN_LOCALCA="false"
+        info "Keystore not imported yet - put codesign.p12 into 08-SSL/user_certs/ and run"
+        info "  ./08-SSL/ssl_customer_certs.sh --only codesign --apply (sets alias + password)"
+    elif [ -f "$FORMS_SIGN_KEYSTORE" ]; then
         FORMS_SIGN_LOCALCA="false"
         ok "$(printf "  %-30s %s" "keystore found" "$FORMS_SIGN_KEYSTORE")"
         info "Keystore password -> encrypted to: $(basename "$FORMS_SIGN_SEC_FILE")"
@@ -632,7 +658,7 @@ if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] || [ "$FORMS_CLIENT_DIST" = "tru
         # Defaults/kept values come from ssl.conf (ENV_CONF redirected for _ask)
         ENV_CONF="$SSL_CONF" _ask SSL_ORG     "Organization (certificate O=)" "Company GmbH"
         ENV_CONF="$SSL_CONF" _ask SSL_COUNTRY "Country (2 letters)"           "DE"
-        SSL_CONF_KEYS=(SSL_ORG SSL_COUNTRY)
+        SSL_CONF_KEYS+=(SSL_ORG SSL_COUNTRY)
         if [ ! -f "${_ca_dir}/ca/ca.crt" ]; then
             ENV_CONF="$SSL_CONF" _ask SSL_CA_CN "Root CA name (new CA)" "${SSL_ORG} Root CA"
             SSL_CONF_KEYS+=(SSL_CA_CN)
