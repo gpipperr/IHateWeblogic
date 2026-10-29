@@ -312,7 +312,21 @@ while True:
     sys.stdout.buffer.write(d); sys.stdout.flush()
 _, st = os.waitpid(pid, 0)
 sys.exit(os.waitstatus_to_exitcode(st))
-' java -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" "$@"
+' java $(_java_proxy_opts) -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" "$@"
+}
+
+# _java_proxy_opts – https_proxy/http_proxy/no_proxy as JVM system properties:
+# java ignores the shell variables, curl and wget use them
+_java_proxy_opts() {
+    local p="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}" hp host port
+    [ -z "$p" ] && return 0
+    hp="${p#*://}"; hp="${hp#*@}"; hp="${hp%%/*}"
+    host="${hp%%:*}"; port=80
+    [ "$hp" != "$host" ] && port="${hp##*:}"
+    printf -- "-Dhttps.proxyHost=%s -Dhttps.proxyPort=%s -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s" \
+        "$host" "$port" "$host" "$port"
+    local np="${no_proxy:-${NO_PROXY:-}}"
+    [ -n "$np" ] && printf -- " -Dhttp.nonProxyHosts=%s" "$(printf '%s' "$np" | tr ',' '|' | tr -d ' ')"
 }
 
 # _mos_download_one  patch_nr  dest_dir  [regexp]  [platform]
@@ -431,6 +445,38 @@ if $MOS_MODE; then
     command -v java >/dev/null 2>&1 && ok "java found: $(java -version 2>&1 | head -1)" \
         || { fail "java not installed (required for --mos)"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 fi
+
+# --- Download sources reachable? ----------------------------------------------
+# A cloud VM in a private subnet (OCI: no NAT gateway – a Service Gateway only
+# reaches the Oracle Services Network, e.g. Object Storage and the regional yum
+# mirror, NOT eDelivery/MOS) or a silent-DROP firewall lets wget/getMOSPatch
+# hang for minutes per file (seen at a customer, 2026-10-29). Test first, with
+# a short connect timeout; curl honours https_proxy.
+_DL_HOSTS=""
+$WGET_MODE && _DL_HOSTS="$_DL_HOSTS edelivery.oracle.com"
+$MOS_MODE  && _DL_HOSTS="$_DL_HOSTS updates.oracle.com login-ext.identity.oraclecloud.com"
+if [ -n "$_DL_HOSTS" ] && command -v curl >/dev/null 2>&1; then
+    _dl_down=0
+    for _h in $_DL_HOSTS; do
+        curl -s -o /dev/null --connect-timeout 10 --max-time 20 "https://$_h/" 2>/dev/null
+        case $? in
+            0|22|35|60) ok "$(printf "%-24s reachable" "$_h")" ;;
+            6)  fail "$(printf "%-24s name not resolvable" "$_h")"; _dl_down=1 ;;
+            *)  fail "$(printf "%-24s not reachable (no route / firewall / no proxy)" "$_h")"; _dl_down=1 ;;
+        esac
+    done
+    if [ "$_dl_down" -eq 1 ]; then
+        info "  Proxy: export https_proxy=http://<proxy>:<port> (curl/wget; getMOSPatch gets it as -Dhttps.proxyHost)"
+        info "  OCI private subnet: NAT gateway needed – the Service Gateway does not reach eDelivery/MOS"
+        info "  Offline: run this script on a host WITH internet access (same oracle_software_version.conf),"
+        info "  copy PATCH_STORAGE here (rsync -a <host>:$PATCH_STORAGE/ $PATCH_STORAGE/), then"
+        info "  re-run without --wget/--mos – present files are verified and skipped"
+        info "  See: 09-Install/docs/04-oracle_pre_download.md \"Host without internet access\""
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    unset _h _dl_down
+fi
+unset _DL_HOSTS
 
 # --- Client Java for the Forms client distribution (concept docs/40) ----------
 # Same JDK patch as the server, other platform -> own directory: the skip check

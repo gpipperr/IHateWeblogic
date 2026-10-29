@@ -429,6 +429,20 @@ else
             fi ;;
         *)  info "$(printf "%-36s curl exit code %s (%ss)" "$_url" "$_rc" "${_ttot:-?}")" ;;
     esac
+
+    # Oracle download sources for 04-oracle_pre_download.sh (--wget / --mos).
+    # Cloud VM in a private subnet (OCI without NAT gateway) or no proxy: none
+    # reachable – not an install blocker, the downloads are then made on another
+    # host and PATCH_STORAGE is copied here (docs/04-oracle_pre_download.md)
+    for _h in edelivery.oracle.com updates.oracle.com login-ext.identity.oraclecloud.com; do
+        curl -s -o /dev/null --connect-timeout 10 --max-time 20 "https://$_h/" 2>/dev/null
+        case $? in
+            0|22|35|60) ok "$(printf "%-36s reachable (download source)" "$_h")" ;;
+            *)  warn "$(printf "%-36s not reachable – download eDelivery/MOS files on another host" "$_h")"
+                info "  Proxy (https_proxy) or NAT gateway (OCI), else: copy PATCH_STORAGE (docs/04-oracle_pre_download.md)" ;;
+        esac
+    done
+    unset _h
 fi
 
 # =============================================================================

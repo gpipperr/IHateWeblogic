@@ -389,6 +389,50 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
 
 ---
 
+## Host without internet access (cloud VM, proxy, firewall)
+
+Before any `--wget` / `--mos` download the script tests the sources with a 10 s
+connect timeout and stops with FAIL when one is not reachable (instead of
+letting wget / getMOSPatch hang for minutes per file):
+
+| Mode | Hosts |
+|---|---|
+| `--wget` | `edelivery.oracle.com` |
+| `--mos` | `updates.oracle.com` (getMOSPatch), `login-ext.identity.oraclecloud.com` (Oracle SSO behind MOS) |
+
+Typical causes:
+
+- **OCI VM in a private subnet:** `dnf` works, eDelivery / MOS do not. The
+  Service Gateway reaches only the Oracle Services Network (Object Storage, the
+  regional yum mirror `yum.<region>.oci.oraclecloud.com`), not the public
+  Oracle download sites. A NAT gateway in the route table of the subnet (or a
+  proxy) is needed – a matter for the customer's cloud team.
+- **Corporate proxy:** `export https_proxy=http://proxy.company.com:3128`
+  (and `no_proxy`) before the call. curl and wget use it; for getMOSPatch the
+  script passes it as `-Dhttps.proxyHost/-Dhttps.proxyPort` (java ignores the
+  shell variables).
+- **Firewall that drops silently:** see pre-check 10 in
+  [04-oracle_pre_checks.md](04-oracle_pre_checks.md).
+
+**Offline route** (no change on the network side):
+
+```bash
+# 1. on a Linux host WITH internet access: repo + the same
+#    oracle_software_version.conf / environment.conf values, MOS credentials
+[oracle@inet] ./09-Install/04-oracle_pre_download.sh --apply --mos
+# 2. copy the patch storage to the target host
+[oracle@inet] rsync -a --progress $PATCH_STORAGE/ oracle@<target>:$PATCH_STORAGE/
+# 3. on the target host: present files are verified (SHA-256) and skipped
+[oracle] ./09-Install/04-oracle_pre_download.sh --apply
+```
+
+The eDelivery ZIPs can also be downloaded in a browser and copied with `scp`
+into the target directories the script shows (manual mode). MOS patches are
+skipped when a ZIP is already in `patches/<nr>/` – same layout as on the
+download host (see "Patch Storage Layout").
+
+---
+
 ## Patch Storage Layout
 
 ```

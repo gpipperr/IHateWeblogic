@@ -139,7 +139,7 @@ Runs the following checks in sequence and reports OK/WARN/FAIL for each:
 | 7 | oraInst.loc exists and is valid | direct check |
 | 8 | Directory ownership (oracle owns ORACLE_BASE) | direct check |
 | 9 | ORACLE_HOME is empty (not an existing install) | direct check |
-| 10 | Outbound access: proxy variables; `http://java.sun.com/dtd/properties.dtd` – reachable / fast failure / connect timeout / **connected but silent** (WARN – external-DTD hang risk) | direct check (`curl`, 10 s connect / 20 s total) |
+| 10 | Outbound access: proxy variables; `http://java.sun.com/dtd/properties.dtd` – reachable / fast failure / connect timeout / **connected but silent** (WARN – external-DTD hang risk) ; Oracle download sources `edelivery.oracle.com`, `updates.oracle.com`, `login-ext.identity.oraclecloud.com` (WARN if not reachable – download on another host) | direct check (`curl`, 10 s connect / 20 s total) |
 
 Exits with code 2 if any FAIL. Continues past WARNs.
 
