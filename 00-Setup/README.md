@@ -62,9 +62,13 @@ What it provides:
 | Raw color (no log, inline) | `_color_green()`, `_color_yellow()`, `_color_red()`, `_color_bold()`, `_color_cyan()` |
 | Interactive prompts | `askYesNo "prompt" [y|n]`, `readSelection "prompt" default opt1 opt2 …` |
 | Utility | `init_log [dir]`, `backup_file file [dir]`, `check_env_conf [path]`, `print_summary` |
+| Patch runs | `check_patch_zip` (OPatch ZIP layout, `patch_id`, component release – not for SPB / OPatch ZIPs), `_select_patch_zip` (one ZIP per patch, variant by version tag), `check_wls_stopped`, `require_wls_stopped` (patch gate: no WebLogic / `frmweb` / Reports process on the home), `confirm_snapshot` (pause for a VM snapshot) |
+| Patch cycle | `ihw_third_tuesday` (CPU / CSPU release date), `ihw_oracle_advisories` (public advisory list), `rcu_db_req_eval` (RCU DB requirement evaluation, `07- --check`) |
+| Forms | `forms_client_icon_path` (icon for the Forms client distribution) |
 | Password / secrets (pipperr.de concept) | `_get_system_identifier`, `_write_secrets_file`, `merge_secrets_file` (keeps the keys of other writers – e.g. `apex_sec.conf.des3`), `load_secrets_file`, `save_weblogic_password`, `load_weblogic_password` |
 | Root from an oracle script | `ihw_can_sudo`, `ihw_run_root CMD…` (root / `sudo -n`, else the command is printed) – for new scripts; the `_run_root` copies in `09-Install` move here later |
 | Database / downloads | `ihw_sqlplus`, `ihw_sql_sys ALIAS`, `otn_get`, `otn_newest_zip`, `otn_zip_version`, `tns_alias_for_service` (section "install_db_client_tools.sh") |
+| Host helper | `_get_hostname` |
 
 Every script in the repository follows the same pattern at the top:
 
@@ -131,6 +135,11 @@ Detection covers (non-exhaustive): `ORACLE_HOME`, `DOMAIN_HOME`,
 `FORMS_INSTANCE_NAME` + `WLS_FORMS_SERVER`, `WLS_MANAGED_SERVER`,
 `RWSERVER_CONF`, `CGICMD_DAT`, `JDK_HOME`, the OS user running WebLogic, and
 the DB connection parameters used by JRF (`DB_HOST`/`DB_PORT`/`DB_SERVICE`).
+`--interview` also asks **`IHW_ENV_TYPE`** (`test` | `prod`, no silent
+default): on `prod` `10-Monitoring/claude_setup_check.sh` and
+`patch_cycle_analysis.sh` refuse to run and the Claude guard hook denies every
+changing command ([setup_claude.md](../10-Monitoring/setup_claude.md));
+`09-Install/01-setup-interview.sh` asks it with the default `prod`.
 
 Without `--apply` every mode is a pure dry-run/preview — nothing is written.
 This makes `./00-Setup/init_env.sh` (no flags) the standard way to **analyze
@@ -202,6 +211,21 @@ identical command pattern — only the stored fields differ:
 | `weblogic_sec.sh` | `weblogic_sec.conf.des3` | `WL_USER`, `WL_PASSWORD`, `WL_ADMIN_URL` |
 | `database_rcu_sec.sh` | `db_sys_sec.conf.des3` | `DB_SYS_PWD` (SYSDBA, RCU only), `DB_SCHEMA_PWD` (all FMW schemas) |
 | `mos_sec.sh` | `mos_sec.conf.des3` | `MOS_USER`, `MOS_PWD` |
+
+Further `*.des3` files of the same concept – written by the step that needs
+them (and partly by `09-Install/01-setup-interview.sh`), read with
+`load_secrets_file`:
+
+| Encrypted file | Content | Written by |
+|---|---|---|
+| `embedded_ldap_sec.conf.des3` | embedded LDAP `cn=Admin` password | interview, `09-Install/13-` |
+| `reports_admin_sec.conf.des3` | Reports server admin (`<identifier>`) | interview, `09-Install/13-` |
+| `reports_users.conf.des3` | `monUser` / `RepRunner` | `09-Install/12-` |
+| `forms_sign_sec.conf.des3` | keystore password of the Forms jar signing | interview, `08-SSL/ssl_local_ca.sh` |
+| `ssl_ca_sec.conf.des3` | passphrase of the local root CA | `08-SSL/ssl_local_ca.sh` |
+| `apex_sec.conf.des3` | APEX `ADMIN` / ORDS passwords (`merge_secrets_file`) | interview, `12-APEX-Ords/` |
+| `db_connect.conf.des3` | DB login for `02-Checks/db_connect_check.sh` | `db_connect_check.sh` (asks once; path `SEC_CONF_DB` from `init_env.sh`) |
+| `test_db_sec.conf.des3` | DB user of the smoke test / `rwrun_trace.sh` | `09-Install/15-` |
 
 ```bash
 ./00-Setup/weblogic_sec.sh          # read-only: test decryption on this machine
@@ -371,8 +395,9 @@ same pipperr.de concept (`openssl des3` + machine UUID key):
 ./00-Setup/mos_sec.sh --apply             # My Oracle Support credentials
 ```
 
-(`09-Install/01-setup-interview.sh --apply` already calls the first two of
-these as part of the guided interview — run them individually only when you
+(`09-Install/01-setup-interview.sh --apply` already stores the WebLogic, RCU
+and MOS passwords – plus embedded LDAP, Reports admin, Forms signing and APEX –
+as part of the guided interview; run the scripts individually only when you
 need to rotate a single credential later.)
 
 Verify at any time, without changing anything:
@@ -426,6 +451,8 @@ automatic activation on login.
 | `environments/*.conf` | Server-specific paths (templates and `README.md` ARE committed) |
 | `*.des3`, `*.des3.bak*` | Encrypted credentials — machine-specific key, no reason to share |
 | `weblogic_sec.conf` | Plaintext intermediate — exists only briefly at runtime, always deleted |
+| `environment.conf.bak*`, `*.conf.pre_deinstall_*` | Backups of the conf (`init_env.sh`, `99-oracle_deinstall_fmw.sh`) |
+| `00-Setup/getPWDs.sh` | Local debug helper that prints every decrypted `*.des3` – never committed, never on a customer host |
 
 ---
 
@@ -437,4 +464,7 @@ automatic activation on login.
 | `02-Checks/*` | Read `environment.conf` for all detected paths |
 | `01-Run/wlst_connect.sh` | Uses `load_weblogic_password` from the library to auto-login |
 | `07-Maintenance/backup_config.sh` | Backs up `environment.conf` under the `ihw` category |
-| `08-SSL/*` | Uses the same credential-encryption pattern for `ssl.conf` |
+| `08-SSL/*` | Same credential-encryption concept for the local CA and the Forms signing keystore (`ssl_ca_sec`, `forms_sign_sec`) |
+| `09-Install/*` | Read `environment.conf` + the `*.des3` files; `01-setup-interview.sh` writes both |
+| `60-RCU-DB-19c/*` | Own `environment_db.conf` (no overlap with `environment.conf`); share the lib and `db_sys_sec.conf.des3` |
+| `10-Monitoring/*` | `IHW_ENV_TYPE` decides whether Claude tooling may run on the host |

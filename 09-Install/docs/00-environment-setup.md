@@ -173,6 +173,7 @@ explicitly provides a different value during `--interview`.
 | `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS log directory |
 | `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic script logs |
 | `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
+| `IHW_ENV_TYPE` | interview: `prod`; `init_env.sh`: none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 
 ### Block 9 – Test Modules (Smoke Test)
 *Manual parameter — not set by the interview; add by hand if used*
