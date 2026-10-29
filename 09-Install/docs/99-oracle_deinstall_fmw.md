@@ -25,8 +25,17 @@ whose state has become unclear after many experiments.
 | | This repository incl. `*.des3` password files, `log/`, `07-Maintenance/ConfigBackup/` |
 | | Nginx, OS settings, `FORMS_CUSTOMER_DIR`/`REPORTS_CUSTOMER_DIR` (customer data) |
 | | RCU schemas in the database (see [Reinstall](#reinstall-afterwards)) |
+| | ORDS / APEX (`$ORACLE_BASE/product/ords`, `product/apex`, `/srv/apex`, units `ords@ords_N`, `/var/log/ords_N`) – under `product/`, never touched; ORDS keeps running |
+| | Forms client bundle `FORMS_CLIENT_DIR` (`/srv/formsWeb`), the `TNS_ADMIN` directory (`$ORACLE_BASE/admin/tns_names`), the local CA (`$ORACLE_BASE/admin/pki`) |
+| | crontab of `oracle` (e.g. `10-Monitoring/cert_expiry_check.sh`) – remove with `--cron --remove --apply` if the host is retired |
 
 ## Why the database needs special care
+
+Background – which RCU schemas the domain uses and why the OPSS store is bound
+to this domain: [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md);
+inventory, homes and what lives where:
+[weblogic_middleware_architecture.md §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs);
+the local RCU DB itself: [60-RCU-DB-19c/README.md](../../60-RCU-DB-19c/README.md).
 
 On a host where the repository database runs locally (e.g. built with
 `60-RCU-DB-19c/`), FMW and DB **share one central inventory**. Deleting the
