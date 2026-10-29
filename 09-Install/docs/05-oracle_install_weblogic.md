@@ -76,8 +76,9 @@ without skipping all prerequisite checks. Unset immediately after the installer 
 
 ```bash
 export CV_ASSUME_DISTID=OEL8
+mkdir -p $ORACLE_BASE/tmp && export TMP=$ORACLE_BASE/tmp TMPDIR=$ORACLE_BASE/tmp
 
-$JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
+$JDK_HOME/bin/java -Djava.io.tmpdir=$ORACLE_BASE/tmp -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
     -silent \
     -responseFile $PATCH_STORAGE/wls/wls_install.rsp \
     -invPtrLoc /etc/oraInst.loc \
@@ -85,6 +86,11 @@ $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
 
 unset CV_ASSUME_DISTID
 ```
+
+> **Temp dir:** the script runs the installer with `TMP`/`TMPDIR` and
+> `java.io.tmpdir` = `$ORACLE_BASE/tmp` – OUI extracts and executes helpers in
+> its temp dir, which fails on a `noexec` `/tmp` (CIS-hardened images;
+> `01-root_os_baseline.sh` reports it). Same as `05-oracle_patch_weblogic.sh`.
 
 > `-invPtrLoc /etc/oraInst.loc` is passed explicitly even though the installer would
 > find the same file automatically — this avoids relying on default search behavior.

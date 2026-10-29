@@ -253,16 +253,24 @@ export CV_ASSUME_DISTID="$CV_DISTID"
 
 section "FMW Infrastructure Silent Installation"
 
+# Temp dir of the installer: $ORACLE_BASE/tmp instead of /tmp – OUI extracts
+# and executes helpers there, which fails on a noexec /tmp (CIS-hardened image;
+# 01-root_os_baseline.sh reports it). Same as 05-oracle_patch_weblogic.sh.
+INSTALL_TMP="${ORACLE_BASE:-/u01/app/oracle}/tmp"
+mkdir -p "$INSTALL_TMP" || { fail "Cannot create installer temp dir: $INSTALL_TMP"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+export TMP="$INSTALL_TMP" TMPDIR="$INSTALL_TMP"
+
 printList "Installer" 24 "$WLS_JAR"
 printList "ORACLE_HOME" 24 "$ORACLE_HOME"
 printList "JDK_HOME"   24 "$JDK_HOME"
 printList "oraInst.loc" 24 "$ORA_INST_LOC"
+printList "Temp dir"    24 "$INSTALL_TMP"
 printLine
 
 printf "\n  Installation started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 printf "  Log: %s/logs/\n\n" "$ORA_INVENTORY" | tee -a "$LOG_FILE"
 
-"$JDK_HOME/bin/java" -jar "$WLS_JAR" \
+"$JDK_HOME/bin/java" -Djava.io.tmpdir="$INSTALL_TMP" -jar "$WLS_JAR" \
     -silent \
     -responseFile "$RSP_FILE" \
     -invPtrLoc "$ORA_INST_LOC" \

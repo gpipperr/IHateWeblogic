@@ -113,13 +113,21 @@ JDK_HOME=/u01/app/oracle/java/jdk-21
 ### 2. Run the installer
 
 ```bash
+mkdir -p $ORACLE_BASE/tmp && export TMP=$ORACLE_BASE/tmp TMPDIR=$ORACLE_BASE/tmp
+
 $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
     -silent \
     -responseFile $PATCH_STORAGE/fr/fr_install.rsp \
-    -invPtrLoc /u01/app/oracle/oraInst.loc \
+    -invPtrLoc /etc/oraInst.loc \
     -ignoreSysPrereqs \
-    -jreLoc $JDK_HOME
+    -jreLoc $JDK_HOME \
+    -J-Djava.io.tmpdir=$ORACLE_BASE/tmp
 ```
+
+> **Temp dir:** the script runs the installer with `TMP`/`TMPDIR` and
+> `-J-Djava.io.tmpdir` = `$ORACLE_BASE/tmp` – OUI extracts and executes helpers in
+> its temp dir, which fails on a `noexec` `/tmp` (CIS-hardened images;
+> `01-root_os_baseline.sh` reports it). Same as `05-oracle_patch_weblogic.sh`.
 
 > The `.bin` file is a native Linux executable — **not** a JAR file.
 > Do **not** call it with `java -jar`. Run it directly (chmod +x required).
