@@ -11,6 +11,7 @@ runtime, never by a second copy of the script.
 |---|---|
 | [collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
 | [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
+| [fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
@@ -173,3 +174,39 @@ platforms / languages the patch exists for and writes a new
 Live-tested 2026-10-28 on the test host (OL9, Java 21, getMOSPatch from the
 patch repository): `--only 38832179` → ZIP, `unzip -t`, SHA-256 OK; password
 not in the log.
+
+## fmw_patch_env.sh
+
+Replaces the hand-edited `export` block **VORAUSSETZUNGEN** of the manual
+patch cookbooks (`Patch_Kochbuch_*_de.txt`): detects the values on the host
+and sets them. Standalone like the other tools.
+
+```bash
+cd /oracle/install/cpu_okt2026                 # base directory of the patch run
+./fmw_patch_env.sh                             # show only (a script cannot set variables of its caller)
+. ./fmw_patch_env.sh                           # SOURCED: exports the variables into this shell
+. ./fmw_patch_env.sh --apply                   # + creates the directories, writes ./patch_env.sh
+. /oracle/install/cpu_okt2026/patch_env.sh     # 2nd terminal / new login: same values
+```
+
+| Variable | Detected from |
+|---|---|
+| `ORACLE_HOME` | `-o`, `$ORACLE_HOME`, running WebLogic (`-Dweblogic.home`), default paths (`/oracle/product/mw`, `/u01/app/oracle/fmw` …) |
+| `DOMAIN_HOME` | `-d`, `$DOMAIN_HOME`, `$ORACLE_HOME/domain-registry.xml` (WARN with more than one domain), running AdminServer |
+| `INV_PTR` / `INVENTORY` | `/etc/oraInst.loc`, else `$ORACLE_HOME/oraInst.loc`; `inventory_loc` |
+| `JDK_LINK` / `NEW_JDK_BASE` | `JAVA_HOME` of `$ORACLE_HOME/oui/.globalEnv.properties` (the JDK of OPatch and the servers) / its parent |
+| `PATCH_DIR` / `STAGE` / `LOGDIR` | `-b` (default: current directory) + `/zip`, `/stage`, `/stage/logs` – `PATCH_DIR` = the `-d` of `mos_patch_download.sh` |
+| `BACKUP` | `-k`; default `<prefix>/backup/<name>` for `<prefix>/install/<name>` (cookbook layout), else `<base>/backup` |
+
+Shown as well (the cookbook decides on them): JDK build and link or real
+directory (step 4.4 variant a / b), bundled JDK `oracle_common/jdk` (4.7),
+OPatch version, glibc (Forms before Reports QPR from 2.34), OHS instances
+(step 9), number of ZIPs in `PATCH_DIR`, running WebLogic / Forms / Reports
+processes, free space of `STAGE` / `BACKUP`.
+
+FAIL (rc 2): Oracle Home, domain, inventory or JDK not found, JDK inside
+`ORACLE_HOME` (KB175049), base directory inside the Oracle / Domain Home.
+WARN (rc 1): `BACKUP` on the file system of `ORACLE_HOME`, more than one
+domain, run as root. Read-only without `--apply`; with it only the four
+directories and `patch_env.sh` in the base directory are created.
+Tested 2026-10-29 on the 14c test host (executed, sourced, `--apply`).

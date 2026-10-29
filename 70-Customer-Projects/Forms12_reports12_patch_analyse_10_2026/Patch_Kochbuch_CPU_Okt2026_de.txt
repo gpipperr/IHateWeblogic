@@ -73,6 +73,15 @@ IST-STATUS TESTMASCHINE  (Sammellauf 2026-10-23 20:53, collect_fmw_env.sh
 
 VORAUSSETZUNGEN
 ----------------
+  # Kurzweg: 70-Customer-Projects/tools/fmw_patch_env.sh ermittelt die
+  # Werte unten aus der Umgebung (laufende Domain, domain-registry.xml,
+  # oraInst.loc, .globalEnv.properties) und setzt sie - GESOURCT aufrufen:
+  #   cd /oracle/install/cpu_okt2026
+  #   ./fmw_patch_env.sh                 # nur anzeigen und pruefen
+  #   . ./fmw_patch_env.sh --apply       # setzen + Verzeichnisse anlegen
+  #   . /oracle/install/cpu_okt2026/patch_env.sh   # zweites Terminal
+  # Danach die Ausgabe mit den Werten unten vergleichen. Die exports von
+  # Hand bleiben der Weg ohne Skript.
   # Werte EINMALIG an die eigene Umgebung anpassen. ORACLE_HOME, DOMAIN_HOME,
   # INV_PTR und JDK_LINK sind die Pfade der Kundenumgebung (2026-10-23),
   # PATCH_DIR / STAGE / BACKUP sind Beispielwerte:
