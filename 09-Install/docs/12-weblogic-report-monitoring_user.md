@@ -17,11 +17,28 @@ Three WebLogic users are created with distinct permission levels:
 
 | User | Role | Purpose |
 |---|---|---|
-| `weblogic` *(existing)* | `RW_ADMINISTRATOR` | Admin UI in EM, full Reports management |
+| WebLogic admin *(existing – `WL_USER` of `weblogic_sec.conf.des3`, `webadmin` in this library; `weblogic` in older guides)* | `RW_ADMINISTRATOR` | Admin UI in EM, full Reports management |
 | `monUser` | `RW_MONITOR` | Monitoring tools (PRTG, Nagios …) – status query only |
 | `RepRunner` | `RW_EXECREPORTS` | Run reports – no admin access |
 
 ---
+
+## With the Script
+
+```bash
+./09-Install/12-oracle_reports_users.sh           # dry-run: plan, nothing changed
+./09-Install/12-oracle_reports_users.sh --apply   # WLST: users, app roles, policies
+```
+
+Needs the running AdminServer and `weblogic_sec.conf.des3`; the passwords of
+`monUser` / `RepRunner` are asked on the first run and stored in
+`reports_users.conf.des3` (read later by `01-Run/rwserver_status.sh --auth`,
+`14b-` for `cgicmd.dat`). Idempotent – existing users / grants are kept.
+
+Background – how a secured Reports server checks users (JSE identity store →
+WebLogic embedded LDAP) and the web-command rights:
+[reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md),
+[doc 81](81-reports_rwservlet_security.md).
 
 ## Background – Permission Chain
 
