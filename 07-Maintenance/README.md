@@ -226,6 +226,8 @@ change them.
 | own root CA `$ORACLE_BASE/admin/pki` | the CA key belongs in an **offline** backup with its passphrase ([08-SSL/README.md](../08-SSL/README.md)), not next to the configuration |
 | Nginx configuration | root-owned, written by `09-Install/04-`/`05-root_nginx*.sh` from templates |
 | keystores, `boot.properties`, `security/SerializedSystemIni.dat` | domain secrets – part of a full domain / file-system backup, not of this config snapshot |
+| ORDS configuration `$ORACLE_BASE/product/ords/ords_N/config` (incl. `cwallet.sso`) | **not yet** – open item of [12-APEX-Ords](../12-APEX-Ords/README.md#9-open-items); until then part of the file-system backup |
+| `TNS_ADMIN` directory (`tnsnames.ora`, `sqlnet.ora`) | company files, maintained outside this library – include it in the file-system backup |
 
 **Output structure:**
 
@@ -534,5 +536,9 @@ manifest pointing to `/tmp` or `…/../` skipped), `domain_jdk_path.sh`,
 Open:
 - ~~retention for `ConfigBackup/`~~ and ~~`*.bak_<ts>` copies~~ – done
   2026-10-23 (`backup_config.sh --keep`, `bak_cleanup.sh`)
-- JDK upgrade automation (`80-` read-only, see above)
-- Reports engines on the FMW-bundled JDK 17.0.12 (`80-` shows them – root README open item)
+- ~~JDK upgrade automation~~ – done: `80-patch_java_os.sh --apply` upgrades
+  `JDK_HOME` from the patch repository (live 2026-10-20, CPU Oct 2026 run
+  2026-10-24)
+- ORDS configuration in `backup_config.sh` (see "Not backed up")
+- Reports engines on the FMW-bundled JDK 17.0.12 (`80-` shows them – root
+  README open item, no Oracle patch yet, SR prepared)
