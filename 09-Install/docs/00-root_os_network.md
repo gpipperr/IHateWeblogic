@@ -22,14 +22,18 @@ This script is **read-only**: it checks and reports, but makes no changes.
 
 ## Why Network Matters for WebLogic
 
-| WebLogic Component | Network Dependency |
+| Component | Network Dependency |
 |---|---|
-| Admin Server ListenAddress | Must forward-resolve to a routable IP |
-| Node Manager | Binds to hostname; must not resolve to 127.0.0.1 |
-| Cluster communication | Requires symmetric forward + reverse DNS |
+| AdminServer / managed servers / Node Manager | In this library they listen on **127.0.0.1** on purpose (Nginx is the only entry, `WLS_LISTEN_ADDRESS=localhost`) – `localhost` must resolve to 127.0.0.1, not `::1`. Only with a listen address on the host name (`0.0.0.0` / FQDN) must the FQDN forward-resolve to the routable IP |
+| Host name (FQDN) | Must **not** map to a loopback address: Nginx `server_name`, the certificate, client URLs (`WLS_SERVER_FQDN`) and a WebLogic bound to the host name use it |
+| Reports multicast discovery | Route to the multicast group over the real interface (not `lo`), IPv4 – else `REP-50600` |
 | SSL certificates | FQDN in cert must match `hostname -f` |
-| JDBC data sources | `localhost` must resolve to 127.0.0.1, not `::1` |
-| In-process Reports Server | JVM uses OS DNS stack (NSS); same rules apply |
+| JDBC data sources | DB host resolvable; `localhost` → 127.0.0.1 for a local RCU DB |
+| Reverse DNS | Symmetric forward + reverse DNS avoids slow lookups / log noise |
+
+Background: [loopback-only, clone-capable layout](../../80-FMW-Architecture/clone_golden_image.md),
+[how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined),
+[Reports discovery – prerequisites on the host](../../80-FMW-Architecture/reports_server_discovery_multicast.md#5-prerequisites-on-the-host).
 
 ---
 
