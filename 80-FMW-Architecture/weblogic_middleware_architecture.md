@@ -27,8 +27,8 @@ Further homes of the platform:
 
 | Term | Path | Note |
 |---|---|---|
-| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`) |
-| FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`). JDK updates via `JDK_HOME` do not reach it – checked by `02-Checks/java_check.sh` and `10-Monitoring/cve_inventory.sh` |
+| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`, symlink → `jdk-21.0.x`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`), by OPatch / `wlst.sh` (`$ORACLE_HOME/oui/.globalEnv.properties`) and by ORDS. Updated by switching the link (`02b- --upgrade-jdk` / `07-Maintenance/80-`); installer and `createDomain` write the resolved path – `07-Maintenance/domain_jdk_path.sh` puts the link back |
+| FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`); since 2026-10-24 `JDK_HOME` = 21.0.13.0.2 (CPU Oct 2026), the bundled JDK is still 17.0.12 – no Oracle patch for it yet (SR). JDK updates via `JDK_HOME` do not reach it – checked by `02-Checks/java_check.sh` and `10-Monitoring/cve_inventory.sh` |
 | Inventory | `/u01/app/oracle/oraInventory` | OUI/OPatch registry of the Oracle Homes |
 | Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path) |
 | Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – `09-Install/30-configure_autostart.sh` |
@@ -110,6 +110,15 @@ Middleware Concepts", 14c Understanding Oracle Fusion Middleware)
   `DEV_WLS_RUNTIME`.
 - WebLogic listens on `localhost` only (`WLS_LISTEN_ADDRESS=localhost`) –
   clients reach it only through NGINX (`09-Install/docs/00-root_os_network.md`).
+  Since 2026-10-23 also the rest is loopback-only: the SSL demo listen ports
+  9501 / 9512 are off, Coherence and the Reports ORB use `127.0.0.1`
+  ([clone_golden_image.md](clone_golden_image.md), `02-Checks/clone_check.sh`);
+  only `frmweb` (no bind option) and a Coherence remainder stay on the host IP
+  behind the firewall.
+- Outside the domain, same NGINX: **ORDS / APEX** (`/ords`, `/i/`) as
+  standalone Jetty on `127.0.0.1:8081`, systemd `ords@ords_1` on `JDK_HOME`
+  ([ords_architecture.md](ords_architecture.md)), and the Forms client
+  bundle `/formsWeb/` (static files, [java_jlink_forms_env.md](java_jlink_forms_env.md)).
 
 ---
 
@@ -292,11 +301,12 @@ Consequences:
 | AdminServer ↔ managed servers | t3 (admin URL), configuration download at start, change distribution, runtime MBeans | `config.xml` (listen address/port), `startup.properties` |
 | AdminServer / WLST → Node Manager | NM protocol, `plain` on `localhost:5556`, NM credentials | `config.xml` machine `<node-manager>`, `nodemanager.properties`, `nm_password.properties` |
 | Node Manager → servers | starts `startWebLogic.sh` / `rwserver.sh`, watches the process | `servers/<name>/data/nodemanager/` |
-| NGINX → WebLogic | HTTP proxy `localhost:7001/9001/9002`, forwards Host / X-Forwarded-* | `/etc/nginx/conf.d/oracle-wls.conf` |
+| NGINX → WebLogic | HTTP proxy `localhost:7001/9001/9002`, forwards Host, `X-Forwarded-For` **overwritten** with the client address, `WL-Proxy-SSL` / `WL-Proxy-Client-IP` set, client-supplied `WL-Proxy-*` / `X-WebLogic-*` headers stripped (since 2026-10-26); the AdminServer trusts them via `weblogic-plugin-enabled` | `/etc/nginx/conf.d/oracle-wls.conf` (template `09-Install/nginx-wls.conf.template`) |
+| NGINX → ORDS | HTTP proxy `127.0.0.1:8081` (`/ords/`), APEX images served by NGINX itself (`/i/` → `/srv/apex/apex_1`) | `/etc/nginx/oracle-wls.d/ords_1.conf` |
 | frmservlet → frmweb | WLS_FORMS spawns `frmweb` per session, Listener Servlet relays the client traffic | `formsweb.cfg`, `default.env` (`$DOMAIN_HOME/config/fmwconfig/servers/WLS_FORMS/applications/formsapp_14.1.2/config/`) |
 | rwservlet → rwserver | CORBA/IIOP, server found by name via UDP multicast (`rwnetwork.conf`, port 14027 here) | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) |
 | all JVMs → OPSS | `jps-config.xml` (WebLogic) / `jps-config-jse.xml` (standalone Reports server) → `opss-data-source` | `$DOMAIN_HOME/config/fmwconfig/` |
-| frmweb / Reports engines → application DB | SQL*Net (`TNS_ADMIN`) | `default.env`, report `userid=` |
+| frmweb / Reports engines → application DB | SQL*Net – **one** `TNS_ADMIN` for every process (`environment.conf`) | `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` – checked by `02-Checks/tns_admin_check.sh`; report `userid=` |
 
 ---
 
@@ -317,6 +327,8 @@ Consequences:
 | Reports tools `reptools1` | `O/bin/rwrun`, `rwconverter` … | `D/config/fmwconfig/components/ReportsToolsComponent/reptools1/` (`rwbuilder.conf`, `rwnetwork.conf`), wrappers `D/reports/bin/*.sh` | per call (`~/oradiag_<user>/` ADR for crashes) |
 | OPSS | `O/oracle_common/modules/oracle.jps` | `D/config/fmwconfig/jps-config.xml`, `jps-config-jse.xml`, DB schema `_OPSS` | in the server logs (`*-diagnostic.log`) |
 | Autostart (this repo) | – | `$ORACLE_BASE/admin/fr_domain/ctrl/` (`fmw_env.sh`, keyfiles) | `$ORACLE_BASE/admin/fr_domain/ctrl/log/` |
+| NGINX (OS) | `nginx` RPM | `/etc/nginx/conf.d/oracle-wls.conf`, `/etc/nginx/oracle-wls.d/*.conf` | `/var/log/nginx/` (root) |
+| ORDS (outside the domain) | `$ORACLE_BASE/product/ords/ords-<ver>` | `$ORACLE_BASE/product/ords/ords_1/config/` (only config, wallet) | `/var/log/ords_1/` (`03-Logs --component ords`) |
 
 Log families:
 
