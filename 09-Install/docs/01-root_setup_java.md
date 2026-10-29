@@ -107,6 +107,35 @@ The script searches in this priority order:
 The download itself does **not** require `--apply` (file lands in `/tmp`).
 Only the extraction requires `--apply`.
 
+### Manual download (browser + scp) – no or blocked internet on the server
+
+At the first customer installation (2026-10-29) the `curl` download from the
+server hung (outbound HTTPS silently dropped by the firewall – see
+[`egress_check.sh`](../../02-Checks/README.md#egress_checksh)). The script now aborts after
+15 s without connection or 60 s without data; the reliable way on such hosts
+is the browser on the admin workstation:
+
+1. Download both files in the browser (no Oracle login needed for the archive):
+   - https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz
+   - https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256
+2. Copy the tarball to the server:
+   ```bash
+   scp jdk-21.0.12.1_linux-x64_bin.tar.gz oracle@<server>:/tmp/
+   ```
+3. Compare the checksum by hand (the script cannot fetch the `.sha256`
+   without internet and only WARNs):
+   ```bash
+   sha256sum /tmp/jdk-21.0.12.1_linux-x64_bin.tar.gz
+   # must equal the content of the .sha256 file:
+   # 12f870b21301b42292558a3f872ce543affa2b86cb6458591c78388c41ddb111
+   ```
+4. Install: `./09-Install/02b-root_os_java.sh --apply` (finds the file in `/tmp`).
+
+Keep the file name as downloaded (`jdk-21.0.12.1_…`) – the script derives the
+checksum URL from it. 21.0.12.1 is only the bootstrap JDK: after
+`04-oracle_pre_download.sh --apply --mos` update it with
+`02b-root_os_java.sh --apply --upgrade-jdk` (MOS Patch 35702194).
+
 ### Installation via tar.gz (recommended for FMW)
 
 Preferred: the JDK lives under `ORACLE_BASE`, independent of system paths and
