@@ -113,9 +113,10 @@ Consequences to keep in mind:
   Reports server cannot authenticate anybody.
 - The embedded LDAP is plain LDAP on the admin port; it must only be reached
   via localhost (listen address `localhost`, firewall closed).
-- **Assumption:** the Reports server then pushes an LDAP identity store into
-  libOVD instead of the XML one – this may also cure the empty EM user search
-  ([em_principal_search_libovd.md](em_principal_search_libovd.md) – analysed 2026-10-16, SR draft).
+- The Reports server then pushes an LDAP identity store into libOVD instead
+  of the XML one. The hope that this also cures the empty EM user search did
+  **not** come true (live 2026-10-16) – the cause is the rewrite of the shared
+  libOVD configuration itself ([em_principal_search_libovd.md](em_principal_search_libovd.md), SR draft).
 
 ## 4. Configuration elements
 
