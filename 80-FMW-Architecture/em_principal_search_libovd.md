@@ -129,6 +129,12 @@ Implemented in:
 | `70-Customer-Projects/…/Autostart_linux_middleware.txt` | `start_all.sh` |
 | `70-Customer-Projects/…/Reports_security.txt` | known problem, check, manual fix, workaround |
 
+State 2026-10-29: the **LibOVD bundle patch 39726399 of CPU October 2026
+does not fix it** (README read 2026-10-24, no matching bug); the lock removal
+above stays the workaround, an SR draft is prepared (local `SR/`, not in git).
+Workaround without the lock removal: "Advanced Option" in the dialog or WLST
+`grantAppRole`.
+
 Open (**assumption**, untested): keep the Reports server away from the shared
 libOVD config – candidate is `DO_NOT_PUSH_DATA_LIBOVD` (logged by `LibOvdUtil`
 in `repserver01.out`; whether it is a JVM property for the Reports server and
