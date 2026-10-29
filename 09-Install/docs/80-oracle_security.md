@@ -87,6 +87,11 @@ su - oracle -c "sudo -l"
 > **Note:** Day-to-day WebLogic operation (NodeManager, AdminServer, Managed
 > Servers) requires no sudo at all. The JVMs run as the `oracle` user without
 > elevated privileges.
+>
+> Without sudo, the library scripts that need a root step later (`fc-cache` in
+> the font scripts, `firewall-cmd` checks, systemd units of `30-` / ORDS,
+> `13-root_reports_fix.sh`) do not fail – they **print the root command**
+> (`ihw_run_root`) for an administrator to run.
 
 ---
 
@@ -122,6 +127,19 @@ id oracle
 | WebLogic Console: enforce HTTPS | Admin Console reachable only via SSL | After certificate setup |
 | Rotate WebLogic passwords | Re-encrypt `boot.properties` | After initial installation |
 | Clean up oracle `.bash_history` | Remove passwords from shell history | After initial installation |
+
+Already applied by the library (check, do not redo):
+
+| Measure | Where | Background |
+|---|---|---|
+| Every internal socket on `127.0.0.1` (WebLogic, Node Manager, Reports ORB, Coherence), Nginx the only entry | `08-`, `13-`, `02-Checks/clone_check.sh` | [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md) |
+| WebLogic SSL demo listen ports (demo certificate) off | `08-`, `clone_check.sh --apply` | [doc 08](08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address) |
+| Client-supplied WebLogic proxy headers stripped, `X-Forwarded-For` overwritten | `09-Install/nginx-wls.conf.template` | [doc 05-root_nginx_ssl](05-root_nginx_ssl.md) |
+| `/console`, `/em`, Reports admin web commands only from `ADMIN_IP_RANGE` | Nginx template (default `10.0.0.0/8` – narrow it, open item) | [doc 81](81-reports_rwservlet_security.md) |
+| Secured Reports server (`REPORTS_SECURITY=ldap`), web-command rights | `12-`, `13-` | [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md) |
+| Firewall + sshd hardening | `01-root_os_baseline.sh` | [doc 00-root_set_os_parameter](00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
+| No outbound calls of the domain, external-DTD trap | `04-oracle_pre_checks.sh` (check 10), `02-Checks/egress_check.sh` | [weblogic_outbound_connections.md](../../80-FMW-Architecture/weblogic_outbound_connections.md) |
+| Certificate expiry, CA quality | `10-Monitoring/cert_expiry_check.sh --cron --apply`, `02-Checks/ssl_check.sh` | [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md) |
 
 ---
 
