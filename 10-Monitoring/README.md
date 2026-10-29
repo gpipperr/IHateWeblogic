@@ -553,3 +553,17 @@ their logic. Repairs stay a human decision in 01–07.
 - ~~Scheduled certificate expiry check~~ – done 2026-10-23 (`cert_expiry_check.sh`, cron)
 - Uniform machine-readable output of the 01–07 scripts (report/JSON beside `print_summary`) as input for the collector – one format for all, not per script
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)
+- **CSPU November 2026** (release 2026-11-17) = first real run of
+  `patch_cycle_analysis.sh` (prepare → analyse `--mode maintainer` → live run
+  → `update_plan.md`)
+- **Claude sandbox rollout on the test host** (`IHW_ENV_TYPE=test`,
+  `claude_setup_check.sh --profile maintainer --apply`, root: bubblewrap +
+  socat, `/etc/claude-code/`) – [setup_claude.md](setup_claude.md); Node.js of
+  Claude Code from 20 (EOL) to 22 / 24 LTS
+- **Proactive log analysis** on that sandbox (headless `claude -p`, read-only
+  inputs; the logs now include the ORDS group of `03-Logs/log_locations.sh`);
+  open: read-only mount of the production log directories on the analysis host
+- Notification of the cron checks (`cert_expiry_check.sh` writes only to the
+  journal tag `ihw-cert` today)
+
+Same list, project-wide: root [README.md – Open Items, Monitoring](../README.md#monitoring-phase-9).
