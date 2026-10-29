@@ -557,7 +557,7 @@ read live as SYSDBA).
 
 | Requirement | Oracle (FMW 14.1.2) | Test DB 2026-10-27 | Marker |
 |---|---|---|---|
-| Version 19c | ≥ **19.14.0.0** | 19.30.0.0 | **documented** / **confirmed (live)** |
+| Version 19c | ≥ **19.14.0.0** | 19.30.0.0 (2026-10-27), **19.33.0.0** since the out-of-place patch 2026-10-28 ([09-db_patch_rcu.md](../60-RCU-DB-19c/docs/09-db_patch_rcu.md)) | **documented** / **confirmed (live)** |
 | Version 23ai / **26ai** | ≥ **23.4.0.24.0** for 23ai; 26ai (= 23.26.x) certified for WebLogic 14.1.1 / 14.1.2 / 15.1.1 – RCU needs **patch 38391376** | – (38391376 is part of the WLS SPB since CSPU Sep 2026, confirmed (live) with `opatch lspatches`, section 1) | **documented** (Oracle WebLogic blog); certification matrix row not yet read |
 | Character set | **AL32UTF8** – listed as requirement; RCU only **warns** otherwise ("Oracle strongly recommends using the AL32UTF8 character set … User can proceed with this warning") | `AL32UTF8`, national `AL16UTF16` | **documented** / **confirmed (live)** |
 | Oracle JVM | "Database is installed with Oracle JVM enabled" | `JAVAVM` + `CATJAVA` `VALID` | **documented** / **confirmed (live)** |
