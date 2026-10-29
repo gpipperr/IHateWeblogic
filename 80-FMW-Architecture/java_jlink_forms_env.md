@@ -199,8 +199,11 @@ MODULES="… 18 modules …"
 ```
 
 `bin/` contains `java.exe`, `javaw.exe` (PE32+ x86-64, GUI subsystem) and
-`keytool.exe`. Built with the Linux `jlink` 21.0.12.1. Whether it starts on
-Windows is open: the Windows client test.
+`keytool.exe`. Built with the Linux `jlink` 21.0.12.1. **Confirmed (live)
+2026-10-23:** the cross-built runtime starts on Windows and runs the first FSAL
+session against the test host (installed by `FormsWeb-Setup.ps1` 1.0.2 from
+`/formsWeb/`, TLS with the CA inside its `cacerts`) –
+[40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md).
 
 ### 4.2 Linux runtime and a real Forms session – confirmed (live)
 
