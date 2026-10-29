@@ -8,6 +8,16 @@
 
 ## Download Sources
 
+Background per download: the two JDKs –
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes);
+JACOB / WebUtil – [forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md);
+client Java (jlink) – [java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md);
+CVU / RCU database – [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai);
+APEX / ORDS – [apex_architecture.md](../../80-FMW-Architecture/apex_architecture.md).
+Without this library (customer host, manual cookbook): the same getMOSPatch
+mechanism as a standalone script with a CSV list –
+[70-Customer-Projects/tools/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh).
+
 FMW 14.1.2 software comes from **two different sources** — the script handles both:
 
 | Source | What | How |
