@@ -14,7 +14,7 @@
 # Runs as  : root
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/01-db_os_baseline.md
+# Ref      : 60-RCU-DB-19c/docs/00-db_os_baseline.md
 # =============================================================================
 
 # --- Auto-elevate via sudo if not already root --------------------------------
@@ -202,7 +202,7 @@ cat > "$SYSCTL_FILE" << SYSCTLEOF
 # =============================================================================
 # Oracle Database 19c – DB-specific kernel parameters
 # Managed by: IHateWeblogic/60-RCU-DB-19c/00-root_db_os_baseline.sh
-# Reference : 60-RCU-DB-19c/docs/01-db_os_baseline.md
+# Reference : 60-RCU-DB-19c/docs/00-db_os_baseline.md
 # DO NOT EDIT manually – re-run the script to regenerate.
 # =============================================================================
 
@@ -271,7 +271,7 @@ cat > "$LIMITS_FILE" << LIMITSEOF
 # =============================================================================
 # Oracle Database 19c – oracle user limits
 # Managed by: IHateWeblogic/60-RCU-DB-19c/00-root_db_os_baseline.sh
-# Reference : 60-RCU-DB-19c/docs/01-db_os_baseline.md
+# Reference : 60-RCU-DB-19c/docs/00-db_os_baseline.md
 # =============================================================================
 oracle  soft  nofile    131072
 oracle  hard  nofile    131072

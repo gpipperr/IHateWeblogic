@@ -1,8 +1,13 @@
 # Step 0 – 00-root_db_os_baseline.sh
 
 **Script:** `60-RCU-DB-19c/00-root_db_os_baseline.sh`
-**Runs as:** `root`
-**Phase:** OS preparation — run before any Oracle software installation
+**Runs as:** `root` – started as `oracle` it re-runs itself via `sudo`
+**Phase:** OS preparation — before `01-db_install_software.sh`; on a shared
+FMW + DB host after the FMW software install (`09-Install/05-`/`06-`)
+
+Next step: `00b-db_cvu_check.sh` – host pre-check with the standalone CVU
+([00b-db_cvu_check.md](00b-db_cvu_check.md)). Background – the RCU database and
+what the FMW schemas need: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai).
 
 ---
 
@@ -151,14 +156,26 @@ Switch to: `SGA_TARGET=1536M` + `PGA_AGGREGATE_TARGET=512M`.
 
 ## What the Script Does
 
-1. Install `oracle-database-preinstall-19c` RPM (creates oracle user, groups,
+1. Pre-checks (root, `dnf`); calculate shmmax/shmall from the actual RAM
+2. Install `oracle-database-preinstall-19c` RPM (creates oracle user, groups,
    base limits, most sysctl params)
-2. Calculate shmmax/shmall from actual RAM
-3. Write `/etc/sysctl.d/60-oracle-db.conf` (DB-specific additions + overrides)
-4. Apply: `sysctl --system`
-5. Write `/etc/security/limits.d/60-oracle-db.conf` (oracle user DB limits)
-6. Create `/var/tmp/core` with correct permissions
-7. Check and report THP status
+3. Install `expect` – AutoUpgrade's MOS keystore setup (`01-` download) is
+   scripted with it
+4. Install `perl-File-Copy` – OL9 minimal: `opatch` / OJVM `javavm_refresh`
+   fails without the Perl module `File::Copy`
+5. Write `/etc/sysctl.d/60-oracle-db.conf` (DB-specific additions + overrides),
+   `sysctl --system`
+6. Write `/etc/security/limits.d/60-oracle-db.conf` (oracle user DB limits)
+7. Create `/var/tmp/core` with correct permissions
+8. OL9: create an empty stub `libpthread_nonshared.a` if missing – the 19c
+   relink (`make … ioracle`, e.g. `uniaud_on` in `06-` / `09-`) links against it;
+   glibc 2.34 merged libpthread into libc and dropped the archive
+9. Check and report THP status
+10. Central inventory: `/etc/oraInst.loc` with `inventory_loc=<ORACLE_INVENTORY>`
+    (from `environment.conf` / `environment_db.conf`, else derived from
+    `ORACLE_BASE`). On a shared host it must point to the **same** inventory
+    as the FMW home – a different value is reported (WARN) and corrected
+    with `--apply`
 
 ---
 
