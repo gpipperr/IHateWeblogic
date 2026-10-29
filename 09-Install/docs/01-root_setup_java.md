@@ -79,24 +79,30 @@ not to whatever `alternatives` selects as the system default.
 
 | File | URL |
 |---|---|
-| Installer (latest) | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz` |
-| SHA256 checksum | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256` |
-| All versions / RPM | https://www.oracle.com/java/technologies/downloads/ |
+| Installer (last NFTC build) | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz` |
+| SHA256 checksum | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256` |
+| Current update (21.0.13+) | MOS Patch 35702194 – `04-oracle_pre_download.sh --apply --mos` |
 
-> The `/latest/` URL stays at **21.0.12.1** – the last JDK 21 release under
-> the NFTC (September 2026). Later updates: MOS Patch 35702194, see
-> "Patch-cycle minimum and upgrade" below. SHA256 is verified automatically
-> by `02b-root_os_java.sh`.
+> **`/java/21/latest/` is gone** (HTTP 404, checked 2026-10-29) and JDK 21 is
+> no longer offered on https://www.oracle.com/java/technologies/downloads/
+> (only JDK 25+). The CDN **archive** still holds the NFTC releases up to
+> **21.0.12.1** (September 2026) – `02b-` uses it as bootstrap fallback
+> (`JDK_CDN_ARCHIVE` / `JDK_NFTC_LAST` in the script). Every later update:
+> MOS Patch 35702194, see "Patch-cycle minimum and upgrade" below. SHA256 is
+> verified automatically by `02b-root_os_java.sh`.
 
 ### Installer search order in 02b-root_os_java.sh
 
 The script searches in this priority order:
 
 1. **`$PATCH_STORAGE`** – if configured in `environment.conf`, searches for `jdk-21*.tar.gz` / `*.rpm`
-2. **`/tmp`** – pre-placed installer (`scp jdk-21_linux-x64_bin.tar.gz root@server:/tmp/`)
-   — SHA256 is always verified (read-only, no `--apply` required)
-3. **Oracle CDN** – download offered interactively (default: `n`); internet access required
-   — SHA256 verified after download; on mismatch the file is deleted immediately
+2. **`/tmp`** – pre-placed installer (`scp jdk-21*_linux-x64_bin.tar.gz root@server:/tmp/`)
+   — SHA256 verified against `<archive>/<file name>.sha256` (read-only, no `--apply`
+   required); a tarball taken out of the MOS patch has no public checksum → WARN, skipped
+3. **Oracle CDN archive** – download of 21.0.12.1 offered interactively (default: `n`);
+   internet access required — SHA256 verified after download; on mismatch the file is
+   deleted immediately. It is below the cycle minimum: after `04- --mos` run
+   `--apply --upgrade-jdk`
 
 The download itself does **not** require `--apply` (file lands in `/tmp`).
 Only the extraction requires `--apply`.
@@ -108,7 +114,7 @@ protected from OS package updates.
 
 ```bash
 # Extract – JDK stays INDEPENDENT of FMW_HOME
-tar xf jdk-21_linux-x64_bin.tar.gz -C /u01/app/oracle/java/
+tar xf jdk-21.0.x_linux-x64_bin.tar.gz -C /u01/app/oracle/java/   # CDN archive or out of the MOS patch ZIP
 
 # Result: /u01/app/oracle/java/jdk-21.0.10/  (version depends on download date)
 ```
@@ -126,8 +132,9 @@ ln -sfn /u01/app/oracle/java/jdk-21.0.10 /u01/app/oracle/java/jdk-21
 **Where JDK 21 updates come from (since October 2026).** Oracle's download
 page: "JDK 21 will receive updates under the NFTC, until September 2026, a
 year after the release of the next LTS. Subsequent JDK 21 updates will be
-licensed under the Java SE OTN License" (checked 2026-10-20). The public
-`/java/21/latest/` link therefore stays at **21.0.12.1** – every later update
+licensed under the Java SE OTN License" (checked 2026-10-20). Since then the
+public `/java/21/latest/` link returns 404 (2026-10-29); the CDN archive ends
+at **21.0.12.1** – every later update
 comes from My Oracle Support as **Patch 35702194** (`JDK_PATCH_NR`; one patch
 number for "the current JDK 21", the Linux ZIP contains
 `jdk-21.0.x_linux-x64_bin.tar.gz`, `.rpm`, `.deb`, `SHA256_VALUES` – about
@@ -168,7 +175,7 @@ What `--upgrade-jdk` does:
 
 **First installation (bootstrap):** `02b-` runs in phase 0, before `04-` –
 and getMOSPatch itself needs a Java. A fresh host therefore still gets its
-first JDK 21 from `$PATCH_STORAGE` / `/tmp` / the public CDN (21.0.12.1,
+first JDK 21 from `$PATCH_STORAGE` / `/tmp` / the public CDN archive (21.0.12.1,
 NFTC, see the search order above); the update to the current cycle follows
 after `04-` with `--upgrade-jdk`.
 
@@ -200,7 +207,7 @@ component – patch number still to be determined (`FMW_JDK_PATCH_NR` in
 ### Installation via RPM (alternative)
 
 ```bash
-dnf install --nogpgcheck jdk-21_linux-x64_bin.rpm
+dnf install --nogpgcheck jdk-21.0.x_linux-x64_bin.rpm   # also in the MOS patch ZIP
 ```
 
 The Oracle JDK RPM automatically creates the symlink `/usr/java/latest`.
@@ -373,7 +380,8 @@ jps -m
 | Oracle Java SE license when used with Oracle products | Oracle Support Doc ID 1557737.1 |
 | Oracle Java licensing changes 2023 | https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html |
 | Oracle Java SE subscription price list | https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf |
-| Oracle JDK 21 downloads (all versions) | https://www.oracle.com/java/technologies/downloads/ |
-| Oracle JDK 21 latest – direct CDN link | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz` |
-| Oracle JDK 21 latest – SHA256 checksum | `https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256` |
+| Oracle Java downloads (JDK 25+, JDK 21 no longer listed) | https://www.oracle.com/java/technologies/downloads/ |
+| Oracle JDK 21 updates after the NFTC | MOS Patch 35702194 |
+| Oracle JDK 21.0.12.1 (last NFTC) – CDN archive | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz` |
+| Oracle JDK 21.0.12.1 – SHA256 checksum | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256` |
 | SecureRandom fix for WebLogic | `02-Checks/weblogic_performance.sh` – Section 1 |

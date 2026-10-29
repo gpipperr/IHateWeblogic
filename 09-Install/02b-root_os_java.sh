@@ -239,6 +239,11 @@ JDK_PARENT="$(dirname "$JDK_HOME")"
 _VER_CONF="$SCRIPT_DIR/oracle_software_version.conf"
 JDK_PATCH_NR="$(sed -n 's/^JDK_PATCH_NR="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
 JDK_VERSION_MIN="$(sed -n 's/^JDK_VERSION_MIN="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
+# Public CDN: /java/21/latest/ is gone (404 since the NFTC ended, September 2026);
+# the archive keeps the NFTC releases, the last one is the bootstrap fallback.
+# Every later JDK 21 update: MOS Patch JDK_PATCH_NR (--upgrade-jdk).
+JDK_CDN_ARCHIVE="https://download.oracle.com/java/21/archive"
+JDK_NFTC_LAST="21.0.12.1"
 
 printLine
 section "Java Installation – $(date '+%Y-%m-%d %H:%M:%S')"
@@ -306,7 +311,9 @@ else
 
     else
         fail "Oracle JDK not found at JDK_HOME: $JDK_HOME"
-        info "  Download JDK 21 from: https://www.oracle.com/java/technologies/downloads/"
+        info "  JDK 21 is no longer on oracle.com/java/technologies/downloads (NFTC ended 09/2026):"
+        info "    current update: MOS Patch ${JDK_PATCH_NR:-35702194} (04-oracle_pre_download.sh --apply --mos)"
+        info "    last NFTC build: $JDK_CDN_ARCHIVE/jdk-${JDK_NFTC_LAST}_linux-x64_bin.tar.gz"
 
         # --- Search PATCH_STORAGE for installer ---
         JDK_TAR=""
@@ -383,14 +390,16 @@ else
             if [ -n "$JDK_TMP_TAR" ]; then
                 info "  Installer found in /tmp: $JDK_TMP_TAR"
                 # SHA256 check is read-only – always verify, regardless of --apply
-                JDK_SHA_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256"
+                # Checksum of the same file name in the CDN archive (NFTC builds only;
+                # a tarball taken out of the MOS patch has no public .sha256)
+                JDK_SHA_URL="$JDK_CDN_ARCHIVE/$(basename "$JDK_TMP_TAR").sha256"
                 info "  Verifying SHA256 checksum ..."
                 SHA256_REMOTE="$(curl -L --fail --max-time 30 --silent \
-                    "$JDK_SHA_URL" | awk '{print $1}')"
+                    "$JDK_SHA_URL" | awk '{print $1}' | grep -E '^[0-9a-f]{64}$')"
                 SHA256_OK=0
                 if [ -z "$SHA256_REMOTE" ]; then
-                    warn "Could not retrieve SHA256 from Oracle CDN – skipping checksum check"
-                    info "  (no internet access? checksum not verified)"
+                    warn "Could not retrieve SHA256 from the Oracle CDN archive – skipping checksum check"
+                    info "  (no internet access, or not an NFTC build: $JDK_SHA_URL)"
                     SHA256_OK=1  # proceed anyway – user pre-placed the file
                 else
                     SHA256_LOCAL="$(sha256sum "$JDK_TMP_TAR" | awk '{print $1}')"
@@ -419,22 +428,24 @@ else
                 fi
             else
                 # --- Fallback 2: download from Oracle CDN ---
-                JDK_CDN_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
-                JDK_SHA_URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz.sha256"
-                JDK_DL_TARGET="/tmp/jdk-21_linux-x64_bin.tar.gz"
+                JDK_CDN_URL="$JDK_CDN_ARCHIVE/jdk-${JDK_NFTC_LAST}_linux-x64_bin.tar.gz"
+                JDK_SHA_URL="${JDK_CDN_URL}.sha256"
+                JDK_DL_TARGET="/tmp/jdk-${JDK_NFTC_LAST}_linux-x64_bin.tar.gz"
 
                 info "  No JDK 21 installer found in PATCH_STORAGE (${PATCH_STORAGE:-(not set)}) or /tmp"
                 info "  Options:"
                 info "    A) Copy installer manually:  scp jdk-21*linux-x64*.tar.gz root@$(hostname -s):/tmp/"
                 info "    B) Download from Oracle CDN: $JDK_CDN_URL"
+                info "       (last NFTC build $JDK_NFTC_LAST – below the cycle minimum ${JDK_VERSION_MIN:-?};"
+                info "        after 04- --mos: re-run with --apply --upgrade-jdk)"
                 # Download is read-only (file lands in /tmp only) – no --apply required.
                 # Extraction is gated behind --apply (handled on next run via Fallback 1).
-                if askYesNo "Download Oracle JDK 21 from Oracle CDN to /tmp? (requires internet access)" "n"; then
+                if askYesNo "Download Oracle JDK $JDK_NFTC_LAST from Oracle CDN to /tmp? (requires internet access)" "n"; then
                     info "  Downloading: $JDK_CDN_URL"
                     if ! curl -L --fail --max-time 300 --progress-bar \
                             -o "$JDK_DL_TARGET" "$JDK_CDN_URL"; then
                         fail "Download failed – no internet access or URL changed"
-                        info "  Manual copy: scp jdk-21_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
+                        info "  Manual copy: scp jdk-21*_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
                         info "  Then re-run: $0 --apply"
                     else
                         ok "Download complete: $JDK_DL_TARGET"
@@ -467,7 +478,7 @@ else
                 else
                     info "  Download skipped."
                     info "  Copy installer to /tmp and re-run:"
-                    info "    scp jdk-21_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
+                    info "    scp jdk-21*_linux-x64_bin.tar.gz root@$(hostname -s):/tmp/"
                     info "    $0 --apply"
                 fi
             fi
