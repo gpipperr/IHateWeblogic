@@ -42,8 +42,10 @@ Templates:
 
 ## How it works
 
-`set_env.sh` updates the symlink in the project root and, when sourced,
-exports the appropriate variables + adjusts `PATH`:
+`set_env.sh` updates the symlink in the project root (for **both** types –
+after selecting a DB conf the FMW scripts miss `DOMAIN_HOME`, select the FMW
+conf again) and, when sourced, exports the appropriate variables + adjusts
+`PATH`:
 
 **FMW:** `ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`
 → PATH gets `$ORACLE_HOME/bin`, `$ORACLE_HOME/oracle_common/common/bin`, `$JDK_HOME/bin`
@@ -96,4 +98,15 @@ unset IHW_ROOT
 ## .gitignore
 
 The actual `*.conf` files contain server-specific paths and are excluded
-from Git. Only `*.template` files and this `README.md` are committed.
+from Git, together with their backups (`*.conf.bak*` of `init_env.sh`,
+`*.conf.pre_deinstall_*` of `09-Install/99-oracle_deinstall_fmw.sh`). Only
+`*.template` files and this `README.md` are committed.
+
+Typical content on a host (`init_env.sh --apply` names the file after the
+domain, e.g. `fr_domain.conf`): the active conf and dated backups.
+`07-Maintenance/bak_cleanup.sh --apply` keeps the newest `BAK_FILES_KEEP` (3)
+`*.conf.bak_<ts>` copies per file here as well; `environment.conf.bak_*`
+and `*.pre_deinstall_*` (other name patterns) are removed by hand.
+
+Full concept: [../set_environment.md](../set_environment.md); every
+parameter: [09-Install/docs/00-environment-setup.md](../../09-Install/docs/00-environment-setup.md).
