@@ -8,6 +8,12 @@
 
 ## Purpose
 
+Background – the QPRs relink native binaries (`frmweb` per Forms session,
+`rwserver` / engines / `rwrun`), so every process of the home must be down:
+[forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts),
+[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts);
+the same patches on a running system: `07-Maintenance/82-`.
+
 Apply Forms & Reports specific patches after the base F&R install. Patches
 are listed in `INSTALL_PATCHES_REPORTS` and `INSTALL_PATCHES_FORMS` in
 `oracle_software_version.conf` and applied **only for the component(s)
