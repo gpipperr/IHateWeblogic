@@ -542,8 +542,15 @@ rm /u01/app/oracle/swapfile
 
 - **SELinux:** Set to `disabled` in `/etc/selinux/config` (requires reboot)
 - **DNF repositories:** checks that the Oracle Linux base / AppStream repos and
-  Oracle EPEL (`oracle-epel-release-el9`, for NMON and other tools) are enabled –
-  hint only, nothing is enabled automatically
+  Oracle EPEL (`ol9_developer_EPEL`, for `nmon`) are enabled. EPEL with
+  `--apply` (question): a configured but disabled EPEL repo (cloud images) is
+  enabled with `dnf config-manager --set-enabled`, a missing one is added with
+  `oracle-epel-release-el<N>`. `02-root_os_packages.sh` offers the same if this
+  step was skipped, and no longer aborts when `nmon` is unavailable.
+- **Kernel parameters file:** `--apply` writes exactly the block above (same
+  values as the script's check). Until 2026-10-29 the script wrote an older
+  block (`shmmax=4294967295`, without `sem`/`shmmni`/`file-max`/`aio-max-nr`/
+  `rmem`/`wmem`) – hosts installed before: re-run `--apply --only kernel`.
 - **OS update:** `dnf check-update`; with `--apply` it asks for
   `dnf upgrade --refresh` (reboot after a kernel update). `--skip-update` skips
   the section – use it on a running system (e.g. `--only firewall,ssh`)

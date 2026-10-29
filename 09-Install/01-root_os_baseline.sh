@@ -197,14 +197,26 @@ elif dnf repolist enabled 2>/dev/null | grep -q "oracle-epel"; then
 fi
 
 if [ "$EPEL_OK" -eq 0 ]; then
-    warn "Oracle EPEL repository not enabled (needed for NMON and other tools)"
-    info "  Install: dnf install oracle-epel-release-el9"
-    if [ "$APPLY_MODE" -eq 1 ]; then
-        if askYesNo "Install oracle-epel-release-el9?" "y"; then
-            _run_root dnf install -y oracle-epel-release-el9 && \
+    # Two cases: release package missing (repo not configured), or installed
+    # but the repo is disabled (cloud images) – then installing the release
+    # package again changes nothing, the repo has to be enabled
+    _el="$(rpm -E %rhel 2>/dev/null)"; _el="${_el:-9}"
+    _epel_off="$(dnf repolist --disabled -q 2>/dev/null | awk 'NR>1 {print $1}' | grep -i 'epel' | head -1)"
+    warn "Oracle EPEL repository not enabled (needed for nmon – 02-root_os_packages.sh)"
+    if [ -n "$_epel_off" ]; then
+        info "  Configured but disabled: $_epel_off – enable: dnf config-manager --set-enabled $_epel_off"
+        if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Enable repository $_epel_off?" "y"; then
+            _run_root dnf config-manager --set-enabled "$_epel_off" \
+                && ok "EPEL repository enabled: $_epel_off" || warn "Enabling $_epel_off failed – continue manually"
+        fi
+    else
+        info "  Install: dnf install oracle-epel-release-el${_el}"
+        if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Install oracle-epel-release-el${_el}?" "y"; then
+            _run_root dnf install -y "oracle-epel-release-el${_el}" && \
                 ok "EPEL repository enabled" || warn "EPEL install failed – continue manually"
         fi
     fi
+    unset _el _epel_off
 fi
 
 # =============================================================================
@@ -377,18 +389,34 @@ fi  # CONFLICT_FILES
 
 if [ "$SYSCTL_ISSUES" -gt 0 ] && [ "$APPLY_MODE" -eq 1 ]; then
     if askYesNo "Write kernel parameters to $SYSCTL_FILE?" "y"; then
+        # File content = doc block (docs/00-root_set_os_parameter.md) = the
+        # SYSCTL_WANT values above. Until 2026-10-29 an older heredoc wrote
+        # shmmax=4294967295 and no sem/shmmni/file-max/aio-max-nr/rmem/wmem –
+        # on a pure FMW host (no DB preinstall RPM) they were never set.
         _run_root tee "$SYSCTL_FILE" > /dev/null << 'SYSCTL_EOF'
 # Oracle FMW 14.1.2 – kernel parameters for WebLogic / Forms / Reports
-# Managed by: 09-Install/01-root_os_baseline.sh
+# Managed by: 09-Install/01-root_os_baseline.sh (docs/00-root_set_os_parameter.md)
 # References:
-#   Oracle WLS 14.1.1 SYSRS: kernel.shmmax required by Oracle Universal Installer
-#   https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/sysrs/
+#   Oracle WLS 14.1.1 SYSRS (kernel.shmmax explicitly required)
 #   https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux
+#   Confirmed against a real 100-500-concurrent-session production host
+#   for shmmax/shmall/sem/shmmni/file-max/aio-max-nr/rmem/wmem.
 
 # Shared memory – required by Oracle Universal Installer (WLS SYSRS)
-# Note: NOT the Oracle Database values (shmmax=4TB, shmall=1073741824)
-kernel.shmmax         = 4294967295
-kernel.shmall         = 9272480
+kernel.shmmax         = 8318808064
+kernel.shmall         = 2030959
+kernel.sem            = 250 32000 100 128
+kernel.shmmni         = 4096
+
+# File handles and async I/O
+fs.file-max           = 6815744
+fs.aio-max-nr         = 1048576
+
+# Network buffers (WLS / Forms / Reports with many concurrent sessions)
+net.core.rmem_default = 262144
+net.core.rmem_max     = 4194304
+net.core.wmem_default = 262144
+net.core.wmem_max     = 4194304
 
 # Ephemeral port range (WLS / Forms / Reports use many concurrent connections)
 net.ipv4.ip_local_port_range = 9000 65500
@@ -399,7 +427,7 @@ vm.swappiness         = 10
 # Server stability – panic on kernel oops to force clean restart
 kernel.panic_on_oops  = 1
 
-# Core dumps (JVM / Oracle Forms crash analysis)
+# Core dumps – centralise to /var/tmp/core (Oracle Forms dumps frequently)
 # fs.suid_dumpable=1 required so oracle user (non-root) produces core files
 # /var/tmp/core must be chmod 777 so any uid can write there
 # Pattern fields: %h=host %s=signal %u=uid %g=gid %t=epoch %E=exe-path %e=exe-name
