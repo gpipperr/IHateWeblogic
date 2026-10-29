@@ -2,6 +2,10 @@
 
 **Goal:** Create `environment.conf` before or after Oracle FMW is installed.
 
+Background – which home, configuration and process a parameter belongs to:
+[weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs);
+`environment.conf` as the one source of every value: [00-Setup/README.md](../../00-Setup/README.md).
+
 ---
 
 ## Overview: When is `environment.conf` created?
@@ -29,7 +33,8 @@ explicitly provides a different value during `--interview`.
 ```
 
 **Passwords never in plaintext:** All passwords are encrypted immediately
-(via `00-Setup/weblogic_sec.sh`) and stored only as `*.des3` files.
+(same `openssl des3` concept as `00-Setup/weblogic_sec.sh`) and stored only as
+`*.des3` files – list of all files: [00-Setup/README.md](../../00-Setup/README.md#credential-scripts-weblogic_secsh--database_rcu_secsh--mos_secsh).
 
 ---
 
@@ -42,6 +47,8 @@ explicitly provides a different value during `--interview`.
    → Encrypts WLS Admin password  → weblogic_sec.conf.des3
    → Encrypts MOS password        → mos_sec.conf.des3
    → Encrypts DB SYS password     → db_sys_sec.conf.des3
+   → Encrypts embedded LDAP / Reports admin / Forms signing / APEX passwords
+     (only when the matching option is chosen)
 
 2. [Phase 0–1 installation runs through]
 
@@ -73,23 +80,25 @@ explicitly provides a different value during `--interview`.
 | `ORACLE_HOME` | `$ORACLE_BASE/fmw` | FMW installation target (= `FMW_HOME` after install) | Must be empty before installation |
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 symlink (created by `02b-root_os_java.sh`) | `$JDK_HOME/bin/java -version` must return JDK 21 |
 | `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free |
+| `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` if that is not possible) | Central inventory, written to `/etc/oraInst.loc` by `03-root_user_oracle.sh`. On a host with an existing inventory (local RCU DB, reinstall) enter **that** one | directory |
+| `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | The one Oracle Net directory for every process – [02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) | directory |
+| `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` | menu |
 
 ### Block 2 – FMW Runtime Paths
 *Runtime parameters – auto-detected by `init_env.sh` after installation*
 
 | Variable | Value | Description |
 |---|---|---|
-| `FMW_HOME` | `$ORACLE_HOME` | FMW installation directory (after install = `ORACLE_HOME`) |
-| `WL_HOME` | `$FMW_HOME/wlserver` | WebLogic Server home (derived) |
-| `JAVA_HOME` | `$FMW_HOME/oracle_common/jdk` | FMW-bundled JDK (≠ `JDK_HOME`!) |
-| `WLST` | `$FMW_HOME/oracle_common/common/bin/wlst.sh` | WLST script (derived) |
-| `RWRUN` | `$FMW_HOME/bin/rwrun` | Reports rwrun binary (derived) |
-| `RWCLIENT` | `$FMW_HOME/bin/rwclient` | Reports rwclient binary (derived) |
+| `WL_HOME` | `${ORACLE_HOME}/wlserver` | WebLogic Server home (derived) |
+| `WLST` | `${ORACLE_HOME}/oracle_common/common/bin/wlst.sh` | WLST script (derived) |
+| `RWRUN` | `${ORACLE_HOME}/bin/rwrun` | Reports rwrun binary (derived) |
+| `RWCLIENT` | `${ORACLE_HOME}/bin/rwclient` | Reports rwclient binary (derived) |
 
-> **Important:** `JAVA_HOME` in `environment.conf` points to the **FMW-bundled JDK**
-> (`oracle_common/jdk`), not to `JDK_HOME`. Oracle Support always asks for the JDK
-> vendor when troubleshooting — therefore `oracle`'s `.bash_profile` must explicitly
-> set `JDK_HOME`, independent of `alternatives`.
+> **No `FMW_HOME` / `JAVA_HOME` in `environment.conf`** (checked 2026-10-29):
+> the scripts use `ORACLE_HOME` and `JDK_HOME`; `JAVA_HOME` comes from the
+> process environment (`.bash_profile` sets it to `JDK_HOME`). The second JDK,
+> `$ORACLE_HOME/oracle_common/jdk`, is not a parameter – it belongs to the home
+> (Reports engines, OPatch fallback), see [JDK_HOME vs. the bundled JDK](#jdk_home-vs-the-bundled-jdk).
 
 ### Block 3 – WebLogic Domain
 *Mix: base values from interview, managed server name auto-detected by init_env.sh*
@@ -104,7 +113,10 @@ explicitly provides a different value during `--interview`.
 | `WLS_REPORTS_PORT` | `9002` | WLS_REPORTS managed server port |
 | `WLS_NODEMANAGER_PORT` | `5556` | NodeManager port |
 | `WLS_LISTEN_ADDRESS` | `localhost` | Network interface WebLogic binds to. `localhost` = NGINX proxy (recommended); `0.0.0.0` = all interfaces (no proxy); custom FQDN/IP |
+| `WLS_ADMIN_USER` | `webadmin` | WebLogic admin user (password → `weblogic_sec.conf.des3`) |
+| `WLS_SERVER_FQDN` | detected | Host name of the server – Nginx `server_name`, certificate, client URLs |
 | `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Reports managed server name (auto-detected) |
+| `WLS_FORMS_SERVER` | `WLS_FORMS` | Forms managed server name (auto-detected) |
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
 | `EXPECTED_SESSIONS` | `lt100` | Expected concurrent Forms/Reports sessions tier — sizes the two variables below. See `docs/01-setup-interview.md` |
 | `ULIMIT_NOFILE` | `65536` | oracle OS user `nofile` ulimit, used by `03-root_user_oracle.sh`. `81920` confirmed for 100-500 sessions (real production reference); `131072`/`262144` for the higher tiers are estimates of decreasing confidence — `262144` (`>1000`) is the least confident, a cautious doubling with no reference data behind it |
@@ -124,7 +136,24 @@ explicitly provides a different value during `--interview`.
 | `ORACLE_FONTALIAS` | Same as `TK_FONTALIAS` (= `UIFONT_ALI`) |
 | `REPORTS_FONT_DIR` | `$DOMAIN_HOME/reports/fonts` – TTF font storage |
 | `REPORTS_INSTANCES` | Bash array of all `reptools*` instances |
-| `REPORTS_SERVER_NAME` | `repserver01` – Reports Server name |
+| `REPORTS_SERVER_NAME` | `repserver01` – Reports Server name (first of `REPORTS_SERVER_NAMES`, interview list) |
+| `REPORTS_SERVER_INSTANCES` | standalone Reports servers created by `13-` (from `REPORTS_SERVER_NAMES`) |
+| `REPORTS_TOOLS_INSTANCE` | `reptools1` – ReportsTools instance (`rwrun`, `rwconverter`, Builder) |
+| `REPORTS_BROADCAST_PORT` | multicast discovery port (`rwnetwork.conf`, `14027` on the test host) – [discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md) |
+| `REPORTS_PATH` / `REPORTS_TMP` | `REPORTS_PATH` and temp directory of the engines (default from `REPORTS_CUSTOMER_DIR`) |
+| `REPORTS_CUSTOMER_DIR` | `$ORACLE_BASE/reports/source` – `.rdf` / `.rep` sources (interview) |
+| `REPORTS_IMAGE_DIR` | `$ORACLE_BASE/reports/images` – images, `<folderAccess>` – [image handling](../../80-FMW-Architecture/report_server_image_handling.md) |
+| `REPORTS_SECURITY` | `ldap` (secured server, WebLogic embedded LDAP) or `identifier` – [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md); passwords → `embedded_ldap_sec` / `reports_admin_sec.conf.des3` |
+| `REPORTS_ADMIN_USER` | `rep_admin` – Reports server admin (`<identifier>`) |
+| `REPORTS_COOKIE_KEY` | generated once by `13-` (persisted) |
+| `REPORTS_ENGINE_MIN` / `_INIT` / `_MAX` | `2` / `2` / `5` – engines per server |
+| `REPORTS_ENGINE_LIFE` / `_MAX_IDLE` | `50` jobs / empty (Oracle default) – engine recycling |
+| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `30` minutes – proposal from the measured run times (`05-ReportsPerformance`) |
+| `REPORTS_ENGINE_JVM_OPTIONS` | extra engine JVM options (empty) |
+| `REPORTS_MAX_CONNECT` / `REPORTS_MAX_QUEUE` | `300` / `4000` |
+
+All engine values are written by `13-` / `05-ReportsPerformance --apply` into
+`rwserver.conf` – background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md).
 
 ### Block 5 – Configuration Files
 *Runtime parameters – auto-detected by init_env.sh*
@@ -133,6 +162,36 @@ explicitly provides a different value during `--interview`.
 |---|---|
 | `RWSERVER_CONF` | Path to `rwserver.conf` (under `servers/WLS_REPORTS/applications/`) |
 | `CGICMD_DAT` | Path to `cgicmd.dat` (same directory as `rwserver.conf`) |
+
+### Block 4b – Forms
+*Interview + defaults; written into the domain by `14-oracle_setup_forms.sh` –
+background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `FORMS_INSTANCE_NAME` | detected | Forms instance (`forms1`) |
+| `FORMS_CUSTOMER_DIR` | `$ORACLE_BASE/forms/moduls` | `.fmx` / `.fmb` directory (`FORMS_PATH`) |
+| `FORMS_TMP` | `$ORACLE_BASE/forms/tmp` | `TMPDIR` in `default.env`, WebUtil work area |
+| `FORMS_MAX_RUNTIME_PROCESSES` | proposal from RAM (`frm_mrp_proposal`) | `maxRuntimeProcesses` – upper limit of `frmweb` sessions |
+| `FORMS_PRESTART_SECTION` / `_INIT` / `_MIN` / `_INCREMENT` | empty / `5` / `4` / `1` | runtime pooling (prestart) – empty section = off |
+| `FORMS_WEBUTIL_JACOB` | `false` | WebUtil OLE / Office automation – [forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md) |
+| `FORMS_SIGN_KEYSTORE` / `FORMS_SIGN_ALIAS` | `<CA dir>/codesign/codesign.p12` / `forms_codesign` | code signing of `jacob.jar` (password → `forms_sign_sec.conf.des3`) |
+| `FORMS_SIGN_TSA_URL` | `http://timestamp.digicert.com` | timestamp server for `jarsigner` |
+| `FORMS_SIGN_LOCALCA` | `false` | `true` = certificate from the local CA (`08-SSL/ssl_local_ca.sh`) |
+
+### Block 4c – Forms client distribution (`40-`)
+*Only with `FORMS_CLIENT_DIST=true` – [docs/40](40-forms_client_distribution.md),
+[java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `FORMS_CLIENT_DIST` | `false` | Forms client (Java + FSAL) via URL |
+| `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` (own runtime) or `jdk` |
+| `FORMS_CLIENT_DIR` / `FORMS_CLIENT_URL_PATH` | `/srv/formsWeb` / `/formsWeb` | bundle directory for Nginx / URL |
+| `FORMS_CLIENT_BASE_URL` | `https://<WLS_SERVER_FQDN>` | server URL used by the clients |
+| `FORMS_CLIENT_CONFIG` / `FORMS_CLIENT_FORM` | `standaloneapp` / empty | `formsweb.cfg` section / start form |
+| `FORMS_CLIENT_APP_NAME` / `FORMS_CLIENT_ICON` | `Oracle Forms` / – | desktop shortcut |
+| `FORMS_CLIENT_TRUST_CA` | local CA if present | CA certificate put into the client `cacerts` |
 
 ### Block 6 – Database (RCU)
 *Install parameters – set by the interview; also auto-detected from `jps-config.xml`*
@@ -146,6 +205,8 @@ explicitly provides a different value during `--interview`.
 | `DB_SCHEMA_PREFIX` | `DEV` | Prefix for RCU schemas (e.g. `DEV_MDS`, `DEV_STB`) |
 | `SQLPLUS_BIN` | empty | Optional: path to sqlplus for login test |
 | `SEC_CONF_DB` | `db_connect.conf.des3` | Encrypted DB credentials |
+| `RCU_DB_TYPE` | `EBR` | `EBR` (editions enabled, Oracle's default for 14.1.2) or `ORACLE` – [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md) |
+| `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE` | empty (RCU creates its own) / `TEMP` | tablespaces for the RCU schemas |
 | `LOCAL_REP_DB` | detected | `true` if an Oracle DB runs on the same host as WebLogic. Asked in `01-setup-interview.sh` Block 4; the detected value (`ora_pmon_*` running, or `DB_HOST` is a local address) is offered as default |
 
 > **`LOCAL_REP_DB`:** Controls the behaviour of `01-root_os_baseline.sh` when
@@ -160,8 +221,22 @@ explicitly provides a different value during `--interview`.
 |---|---|
 | `MOS_USER` | MOS e-mail address |
 | `MOS_PWD` | Encrypted → `mos_sec.conf.des3` (never in env.conf) |
-| `INSTALL_PATCHES` | Comma-separated patch numbers in apply order |
-| `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` |
+
+Patch numbers (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR` …) are
+**not** in `environment.conf` – they live in `09-Install/oracle_software_version.conf`
+(committed, one set per patch cycle).
+
+### Block 7b – APEX / ORDS
+*Only with `INSTALL_APEX=true` – [12-APEX-Ords/README.md](../../12-APEX-Ords/README.md),
+[apex_architecture.md](../../80-FMW-Architecture/apex_architecture.md), [ords_architecture.md](../../80-FMW-Architecture/ords_architecture.md)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `INSTALL_APEX` | `false` | APEX + ORDS beside Forms |
+| `APEX_ORDS_BASE` / `APEX_SW_BASE` | `$ORACLE_BASE/product/ords` / `$ORACLE_BASE/product/apex` | software + homes |
+| `APEX_WEB_DIR` | `/srv/apex` | APEX images for Nginx |
+| `ORDS_1_DB_ALIAS` / `_PORT` / `_CONTEXT` / `_IMAGE_PREFIX` | TNS alias / `8081` / `/ords` / `/i/` | first ORDS instance |
+| `ORDS_JAVA_HEAP` | `2G` | `-Xms` = `-Xmx` of the systemd unit |
 
 ### Block 8 – Security and Operations
 *Mix: some from interview, some defaults*
@@ -173,6 +248,8 @@ explicitly provides a different value during `--interview`.
 | `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS log directory |
 | `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic script logs |
 | `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
+| `SSH_ALLOW_USERS` / `SSH_PASSWORD_USERS` | empty | sshd hardening of `01-root_os_baseline.sh` (`AllowUsers`, password login only for these) |
+| `CONFIG_BACKUP_KEEP` / `BAK_FILES_KEEP` | `10` / `3` | retention of `backup_config.sh` runs / `*.bak_<ts>` copies (`bak_cleanup.sh`) |
 | `IHW_ENV_TYPE` | interview: `prod`; `init_env.sh`: none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 
 ### Block 9 – Test Modules (Smoke Test)
@@ -184,22 +261,30 @@ explicitly provides a different value during `--interview`.
 
 ---
 
-## JDK_HOME vs. JAVA_HOME
+## JDK_HOME vs. the bundled JDK
 
 ```
 JDK_HOME  = /u01/app/oracle/java/jdk-21        (symlink → jdk-21.0.x)
-            Set by:  02b-root_os_java.sh
-            Used by: 04-oracle_pre_checks.sh, oracle .bash_profile
+            Set by:  02b-root_os_java.sh (root), updated by --upgrade-jdk /
+                     07-Maintenance/80-patch_java_os.sh
+            Used by: WebLogic, Node Manager, OPatch (.globalEnv.properties),
+                     ORDS, all scripts; oracle .bash_profile: JAVA_HOME=$JDK_HOME
             Oracle Support expects the Oracle JDK vendor here
 
-JAVA_HOME = /u01/oracle/fmw/oracle_common/jdk   (FMW-bundled JDK)
-            Set by:  init_env.sh (auto-detected after FMW installation)
-            Used by: all diagnostic scripts that invoke java
-            Only available after FMW installation
+$ORACLE_HOME/oracle_common/jdk                  (FMW-bundled JDK, part of the home)
+            Not a parameter – used by the Reports engines (reports.sh puts it
+            first in PATH) and the Forms / Reports tools
+            Updated only by an Oracle patch (component oracle.jdk) – open item
 ```
 
-**Phase 0/1 (before FMW):** Only `JDK_HOME` is known → `04-oracle_pre_checks.sh` uses `JDK_HOME`
-**Phase 2+ (after FMW):** `JAVA_HOME` points to FMW JDK → all other scripts use `JAVA_HOME`
+Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+
+> **`init_env.sh` without an existing conf** (taking over a system): the JDK
+> proposal for `JDK_HOME` checks `$ORACLE_HOME/oracle_common/jdk` **first**,
+> then running processes – on a host that has a standalone JDK, correct the
+> value in `--interview` to the standalone JDK (the one in
+> `$ORACLE_HOME/oui/.globalEnv.properties`). With an existing conf the value is
+> never overwritten.
 
 ---
 
@@ -212,17 +297,22 @@ FMW_HOME:
   2. Running process: ps -eo args | -Dwls.home=<path>/wlserver
   3. Environment variables: MW_HOME, ORACLE_HOME
   → Fallback: /u01/oracle/fmw (for new installs)
+  (standard paths: /u01/oracle/fmw, /u01/app/oracle/fmw, /opt/oracle/fmw,
+   /oracle/fmw, /home/oracle/fmw)
 
 DOMAIN_HOME:
   1. Running AdminServer: -Dweblogic.RootDirectory=<path>
-  2. Standard base directories → first subdirectory with config/config.xml
+  2. Standard base directories (/u01/user_projects/domains,
+     /u01/app/oracle/user_projects/domains, /home/oracle/…, /opt/oracle/…)
+     → first subdirectory with config/config.xml
   → Fallback: /u01/user_projects/domains/fr_domain
+  (the interview default for a new installation is $ORACLE_BASE/domains/fr_domain)
 
-JAVA_HOME:
-  1. FMW-bundled JDK: $FMW_HOME/oracle_common/jdk
-  2. Running WLS process: -Djava.home=<path>
+JDK_HOME (proposal, see the note above):
+  1. FMW-bundled JDK: $ORACLE_HOME/oracle_common/jdk (then …/jdk, ../jdk)
+  2. Running WLS process
   3. System JAVA_HOME
-  → Fallback: $FMW_HOME/oracle_common/jdk
+  → Fallback: $ORACLE_HOME/oracle_common/jdk
 
 DB connection:
   1. jps-config.xml: first DB_ORACLE propertySet → parse JDBC URL
@@ -246,6 +336,8 @@ DB connection:
 | `mos_sec.conf.des3` | Encrypted MOS password | **No** |
 | `db_sys_sec.conf.des3` | Encrypted DB SYS password (RCU only) | **No** |
 | `db_connect.conf.des3` | Encrypted DB runtime credentials | **No** |
+| further `*.des3` | LDAP, Reports admin / users, Forms signing, CA, APEX, test DB – [00-Setup/README.md](../../00-Setup/README.md) | **No** |
+| `09-Install/oracle_software_version.conf` | Software versions, patch numbers, SHA-256 | **Yes** |
 | `setup.conf` | Password-free reusable template | **No** |
 | `environment.conf.bak.*` | Backups before any overwrite | **No** |
 
