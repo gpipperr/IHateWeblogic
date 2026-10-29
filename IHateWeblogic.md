@@ -99,8 +99,12 @@ differ accordingly and show only what is publicly visible (checked
 ## Target Environment
 
 - Oracle Forms 14c / Reports 12c (technically 14c naming but Reports is still 12c codebase)
-- Oracle WebLogic 14c (FMW 14.1.2)
-- Oracle Linux 8 / 9
+- Oracle WebLogic 14c (FMW 14.1.2), Oracle JDK 21
+- Oracle Linux 8 / 9, Nginx as the only entry
+- Repository database Oracle 19c (local, `60-RCU-DB-19c/`) or 26ai
+- Oracle APEX + ORDS beside Forms (`12-APEX-Ords/`)
+- Existing 12.2.1.x installations: analysis and manual patch cookbooks with
+  standalone tools (`70-Customer-Projects/`)
 
 ## Philosophy
 
