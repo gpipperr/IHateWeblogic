@@ -127,7 +127,7 @@ sharing one JVM, not quoted from Oracle):
 | Advantage | Why |
 |---|---|
 | process isolation | an engine or server crash does not touch WLS_REPORTS; Reports can be restarted alone (`startStop.sh stop/start repserver01`) |
-| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7; ORB of server + engines on `127.0.0.1` via `ORBServerHost` – [clone_golden_image.md](clone_golden_image.md)) independent of WLS_REPORTS. Also an **own JDK**: `reports.sh` puts `$ORACLE_HOME/oracle_common/jdk/bin` first in `PATH`, the engines run on the FMW-bundled JDK, not on `JDK_HOME` (**confirmed (live)** 2026-10-19 – 17.0.12 on the test host; open: supported way to update it) |
+| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7; ORB of server + engines on `127.0.0.1` via `ORBServerHost` – [clone_golden_image.md](clone_golden_image.md)) independent of WLS_REPORTS. Also an **own JDK**: `reports.sh` puts `$ORACLE_HOME/oracle_common/jdk/bin` first in `PATH`, the engines run on the FMW-bundled JDK, not on `JDK_HOME` (**confirmed (live)** 2026-10-19 – 17.0.12 on the test host, unchanged after the CPU Oct 2026 run; open: supported way to update it – KA1182 lists no patch for `oracle.jdk`, Reports QPR bug 37866660 "alternative JAVA_HOME" covers the tools only, `rwengine.sh` hard-codes `oracle_common/jdk`; SR prepared) |
 | Node Manager control | start/stop/monitoring like the WebLogic servers (`nmStart … ReportsServerComponent`, autostart via `fmw_ctl.sh`) |
 | several servers | several standalone servers (different names / queues / settings) can serve one rwservlet farm |
 
@@ -302,9 +302,13 @@ engine element with ID="rwURLEng"".
 
 This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
 `maxEngine=5`, `minEngine=2`, `engLife=50`, `maxConnect=300`,
-`maxQueueSize=4000` (environment.conf `REPORTS_ENGINE_*`; `maxIdle` and
-engine `jvmOptions` only when `REPORTS_ENGINE_MAX_IDLE` /
-`REPORTS_ENGINE_JVM_OPTIONS` are set); JVM of the
+`maxQueueSize=4000`, `engineResponseTimeOut=30` (environment.conf
+`REPORTS_ENGINE_*`; `maxIdle` and engine `jvmOptions` only when
+`REPORTS_ENGINE_MAX_IDLE` / `REPORTS_ENGINE_JVM_OPTIONS` are set). Since
+2026-10-23 **every** engine value comes from `environment.conf` – `13-` and
+`05-ReportsPerformance/engine_perf_settings.sh --apply` write the same
+values, so an `--apply` survives the next `13-`; `engineResponseTimeOut` is
+proposed from the measured run times (`engine_perf_analyse.sh`, `showjobs`); JVM of the
 **server** via `REPORTS_JVM_OPTIONS` in `reports.sh` (not `jvmOptions`,
 which is for the engines). Live test 2026-10-16: regular `engLife`
 recycling costs 85–661 ms per job, a crashed engine (kill -9) is replaced
