@@ -2,7 +2,7 @@
 -- generate_unified_audit_policy.sql
 -- Generiert ein CREATE AUDIT POLICY Statement aus den aktuell aktiven
 -- klassischen Audit-Optionen (DBA_STMT_AUDIT_OPTS / DBA_PRIV_AUDIT_OPTS).
--- Das Ergebnis als Ausgangsbasis für fmw_rcu_audit_policies.sql verwenden.
+-- Das Ergebnis als Ausgangsbasis für gpiconsult_audit_policies.sql / fmw_rcu_audit_policies.sql verwenden.
 -- Ausführen als: SYS oder DBA-User
 -- Verwendung  : @generate_unified_audit_policy.sql
 -- Quelle      : Gunther Pipperr | https://pipperr.de

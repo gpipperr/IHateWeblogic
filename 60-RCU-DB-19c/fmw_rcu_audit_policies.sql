@@ -3,7 +3,7 @@
 -- FMW/RCU Sicherheits-Audit-Policies für Oracle 19c CDB.
 -- Ausführen als: SYS (CDB$ROOT)
 -- Verwendung  : @fmw_rcu_audit_policies.sql
--- Vorlage     : Audit-Policy eines Kundenprojekts (anonymisiert)
+-- Vorlage     : gpiconsult_audit_policies.sql
 -- Quelle      : Gunther Pipperr | https://pipperr.de
 -- =============================================================================
 
