@@ -575,7 +575,7 @@ Fix:     run as the oracle user that started WebLogic, or as root:
 | `09-Install/01-root_os_baseline.sh` | fix what `os_check.sh` reports (sysctl, THP, firewall, sshd) |
 | `10-Monitoring/cve_inventory.sh` | installed components vs. patch cycle and Oracle advisories, both JDKs, exposure |
 | `10-Monitoring/cert_expiry_check.sh` | daily certificate expiry check (cron, `--cron --apply`) |
-| `09-Install/04-oracle_pre_checks.sh` | pre-install checks – calls `os_check.sh`, `java_check.sh`, `port_check.sh`, `db_connect_check.sh` |
+| `09-Install/04-oracle_pre_checks.sh` | pre-install checks – calls `os_check.sh` and `db_connect_check.sh`; JDK at `JDK_HOME` and free ports are checked there directly |
 
 ---
 

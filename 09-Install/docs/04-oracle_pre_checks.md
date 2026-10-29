@@ -122,16 +122,20 @@ that refuses the connection, or a REJECT rule instead of a silent proxy.
 
 ## What the Script Does
 
+Background – why the ports must be free and only on 127.0.0.1 later:
+[how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined);
+the two JDKs: [§1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+
 Runs the following checks in sequence and reports OK/WARN/FAIL for each:
 
 | # | Check | Source |
 |---|---|---|
-| 1 | OS version, kernel, RAM, disk | → calls `02-Checks/os_check.sh` |
-| 2 | JAVA_HOME, JDK version, not system JDK | → calls `02-Checks/java_check.sh` |
-| 3 | Ports 7001, 9001, 9002, 5556 free | → calls `02-Checks/port_check.sh` |
-| 4 | DB connectivity for RCU | → calls `02-Checks/db_connect_check.sh` |
-| 5 | Disk space in ORACLE_HOME, DOMAIN_HOME, PATCH_STORAGE | direct check |
-| 6 | oracle user limits (nofile, nproc) | direct check |
+| 1 | OS version, kernel, RAM, disk, ulimits (nofile, nproc), packages | → calls `02-Checks/os_check.sh` |
+| 2 | Oracle JDK at `JDK_HOME` (version, vendor) | direct check – `java_check.sh` re-reads `environment.conf` and is meant for the installed system (both JDKs, running JVMs) |
+| 3 | Ports 7001, 9001, 9002, 5556 **free** | direct check – `port_check.sh` checks the opposite (ports open, WLS running) after the installation |
+| 4 | DB connectivity for RCU (skipped with `--skip-db`) | → calls `02-Checks/db_connect_check.sh` |
+| 5 | Disk space in ORACLE_HOME, DOMAIN_HOME, PATCH_STORAGE – sizing: [Disk Sizing Guide](../../README.md#disk-sizing-guide) | direct check |
+| 6 | – (ulimits: part of check 1) | – |
 | 7 | oraInst.loc exists and is valid | direct check |
 | 8 | Directory ownership (oracle owns ORACLE_BASE) | direct check |
 | 9 | ORACLE_HOME is empty (not an existing install) | direct check |
