@@ -42,6 +42,13 @@ cp collect_fmw_env.sh /tmp/ && cd /tmp && chmod +x collect_fmw_env.sh
 | `--full` | large inventory output – for bug / CVE questions (`-bugs_fixed`) |
 | `--logs` | error / FRM- / REP- / ORA- lines of the server logs |
 
+Since 2026-10-29.1 also: the Reports / Forms components of `comps.xml`
+(the home inventory OPatch uses – Reports binaries **without** these entries
+are never patched, `00_summary.txt` then shows `!! Reports NOT REGISTERED`)
+and the binary (`/proc/<pid>/exe`) of every WebLogic / Forms / Reports
+process (`Processes outside ORACLE_HOME / JDK` – a process from another home
+must be patched there).
+
 Check the version first: `./collect_fmw_env.sh -V` (also the first line of
 `00_summary.txt`) – it must match the version in the repository.
 

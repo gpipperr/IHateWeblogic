@@ -216,7 +216,45 @@ SCHRITT 0: Ist-Stand erfassen  (vor dem Wartungsfenster, System laeuft)
 
   # Liegt die Reports-Komponente im Home (auch wenn Reports auf diesem
   # Server nicht laeuft)? Entscheidet ueber die Reports-QPR in Schritt 8.
+  # Hinweis: das ZENTRALE Inventory (oraInventory/ContentsXML/inventory.xml)
+  # kennt nur Homes, nie Produkte - dort taucht Reports nie auf. viewInventory
+  # zeigt Forms und Reports als EINE Distribution "Oracle Forms Reports".
+  #
+  # 0.a Im Home-Inventory registriert? (das zaehlt fuer OPatch)
   grep -iE 'oracle\.reports|reports developer' $LOGDIR/00_lsinventory_vorher.txt | head
+  grep -o 'COMP NAME="oracle\.reports[^"]*" VER="[^"]*"' \
+      $ORACLE_HOME/inventory/ContentsXML/comps.xml | sort -u
+  ls $ORACLE_HOME/inventory/Components | grep -i reports
+  # Kunde (Sammellauf 2026-10-23): oracle.reports.{bridge,builder,core,
+  # runtime,server,tools} sind registriert.
+  #
+  # 0.b Liegt Reports auf der Platte, und laeuft es aus DIESEM Home?
+  ls -l $ORACLE_HOME/bin/rwserver $ORACLE_HOME/bin/rwrun \
+        $ORACLE_HOME/reports/jlib/rwrun.jar
+  for P in $(pgrep -f 'rwserver|rwEng|frmweb|weblogic.Name'); do
+      readlink -f /proc/$P/exe; done | sort -u
+  # Alle Pfade muessen unter $ORACLE_HOME bzw. $JDK_LINK liegen. Ein Pfad
+  # in einem ANDEREN Oracle Home -> Reports laeuft von dort, dann gilt
+  # dieser Schritt fuer jenes Home (Homes: grep '<HOME ' im zentralen
+  # inventory.xml).
+  #
+  # 0.c Wuerde OPatch die Reports-QPR anwenden? (nach Schritt 1, aendert
+  #     nichts - die eigentliche Entscheidung)
+  #   cd $STAGE/39600813
+  #   $ORACLE_HOME/OPatch/opatch prereq CheckApplicable -ph ./ -invPtrLoc $INV_PTR
+  # "passed" = Komponente registriert, die QPR greift.
+  #
+  # Auswertung:
+  #   registriert + Binaries da          -> Normalfall, QPR einspielen
+  #   nicht registriert, keine Binaries  -> nicht installiert, QPR wird zu
+  #                                         Recht uebersprungen (Schritt 8)
+  #   NICHT registriert, aber Binaries da / Prozess laeuft aus diesem Home
+  #                                      -> Dateien ohne Installer ins Home
+  #                                         gekommen (Kopie, Clone ohne
+  #                                         Attach, Restore): OPatch patcht
+  #                                         Reports NIE -> STOP, nicht von
+  #                                         Hand reparieren, SR bei Oracle
+  #   Prozess laeuft aus anderem Home    -> dort patchen
 
   # Ungueltige Objekte der RCU-Schemas VORHER festhalten (als DBA in der
   # Repository-DB, <PREFIX> = RCU-Praefix der Domain). Vergleich in 10.6 -

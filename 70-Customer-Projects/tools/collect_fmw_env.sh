@@ -27,7 +27,7 @@
 
 set -u
 umask 077
-VERSION="2026-10-24.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-10-29.1"   # bump on every change – shown in 00_summary.txt
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
 while [ $# -gt 0 ]; do
@@ -190,6 +190,15 @@ if [ -n "$OH" ]; then
     fact "OPatch" "$("$OP" version 2>/dev/null | sed -n 's/^OPatch Version: //p')"
     fact "Patches (lspatches)" "$("$OP" lspatches 2>/dev/null | grep -c '^[0-9]')"
     fact "Reports component in home" "$(ls "$OH"/inventory/Components 2>/dev/null | grep -ciE 'reports') entries"
+    # comps.xml = the home inventory OPatch uses; Reports binaries on disk
+    # without these entries are never patched by OPatch (2026-10-29)
+    runsh 30_inventory.txt "Reports / Forms components in comps.xml (OPatch view)" \
+        "grep -o 'COMP NAME=\"oracle\\.\\(reports\\|forms\\|developer\\)[^\"]*\" VER=\"[^\"]*\"' '$OH/inventory/ContentsXML/comps.xml' | sort -u"
+    _rc="$(grep -o 'COMP NAME="oracle\.reports[^"]*"' "$OH/inventory/ContentsXML/comps.xml" 2>/dev/null | sort -u | wc -l)"
+    _rb="$(ls "$OH/bin/rwserver" "$OH/bin/rwrun" 2>/dev/null | wc -l)"
+    fact "Reports comps.xml / binaries" "$_rc component(s) / $_rb of rwserver,rwrun"
+    [ "$_rc" -eq 0 ] && [ "$_rb" -gt 0 ] && \
+        fact "!! Reports NOT REGISTERED" "binaries in the home but no oracle.reports component – OPatch would never patch them"
     fact "OHS component in home" "$(ls "$OH"/inventory/Components 2>/dev/null | grep -ciE 'ohs') entries"
 fi
 
@@ -239,6 +248,13 @@ runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
     "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx' | grep -v grep"
 runsh 50_processes.txt "Process tree" "ps auxf"
 fact "frmweb processes" "$(pgrep -c frmweb 2>/dev/null; true)"
+# Which home do the running FMW processes come from? (2026-10-29)
+runsh 50_processes.txt "Binary (/proc/<pid>/exe) of WLS / Forms / Reports processes" \
+    "for p in \$(pgrep -f 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwEng|rwengine'); do printf '%s %s\n' \$p \"\$(readlink -f /proc/\$p/exe 2>/dev/null)\"; done | grep -E '/(java|frmweb|rwserver|rwrun|rwengine)\$'"
+_jdk="$(sed -n 's/^JAVA_HOME=//p' "${OH:-/x}/oui/.globalEnv.properties" 2>/dev/null | head -1)"
+_foreign="$(for p in $(pgrep -f 'weblogic\.(Server|NodeManager)|frmweb|rwserver|rwEng|rwengine' 2>/dev/null); do readlink -f "/proc/$p/exe" 2>/dev/null; done \
+    | grep -E '/(java|frmweb|rwserver|rwrun|rwengine)$' | sort -u | grep -v "^$(readlink -f "${OH:-/nonexistent}")/" | grep -v "^$(readlink -f "${_jdk:-/nonexistent}")/" | tr '\n' ' ')"
+fact "Processes outside ORACLE_HOME / JDK" "${_foreign:-none}"
 fact "WLS servers running" "$(ps -eo args= | sed -n 's/.*-Dweblogic[.]Name=\([^ ]*\).*/\1/p' | sort -u | tr '\n' ' ')"
 
 # =============================================================================
