@@ -20,6 +20,12 @@ SSL termination happens at Nginx; WebLogic sees plain HTTP internally.
 This script **does not start Nginx** — SSL certificates must be in place first.
 Start happens in `05-root_nginx_ssl.sh`.
 
+Background: [how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined),
+[consoles – who provides what](../../80-FMW-Architecture/weblogic_middleware_architecture.md#5-consoles--who-provides-what)
+(`/console`, `/em` behind `ADMIN_IP_RANGE`), [loopback-only layout](../../80-FMW-Architecture/clone_golden_image.md),
+Reports web commands – [doc 81](81-reports_rwservlet_security.md), ORDS / APEX
+include directory `oracle-wls.d/` – [apex_architecture.md](../../80-FMW-Architecture/apex_architecture.md).
+
 ---
 
 ## Without the Script (manual)
