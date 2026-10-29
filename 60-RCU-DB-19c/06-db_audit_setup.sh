@@ -106,7 +106,7 @@ if [ "$_ua_val" = "TRUE" ]; then
     ok "Unified Auditing is active (V\$OPTION: TRUE)"
 else
     fail "Unified Auditing is NOT active (V\$OPTION: ${_ua_val:-empty})"
-    fail "  Run 02-db_patch_db_software.sh --apply to relink with uniaud_on"
+    fail "  Relink: DB + listener down, cd $ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle (docs/06-db_audit_setup.md)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 unset _ua_val

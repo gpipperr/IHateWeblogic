@@ -95,19 +95,19 @@ section "Pre-checks"
 
 [ -x "$DB_ORACLE_HOME/bin/dbca" ] \
     && ok "dbca found: $DB_ORACLE_HOME/bin/dbca" \
-    || { fail "dbca not found – run 02-db_patch_db_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "dbca not found – run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 [ -x "$DB_ORACLE_HOME/bin/lsnrctl" ] \
     && ok "lsnrctl found: $DB_ORACLE_HOME/bin/lsnrctl" \
-    || { fail "lsnrctl not found — run 02-db_patch_db_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "lsnrctl not found — run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 "$DB_ORACLE_HOME/bin/lsnrctl" status LISTENER >/dev/null 2>&1 \
     && ok "Listener is running" \
-    || { fail "Listener is NOT running — run 03a-db_setup_listener.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "Listener is NOT running — run 04-db_setup_listener.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- Unified Auditing relink verification ------------------------------------
 # INFO only — DB creation works with standard auditing (uniaud_off).
-# Unified Auditing is enabled in a separate step (04-db_audit_setup.sh).
+# Unified Auditing is enabled in a separate step (06-db_audit_setup.sh).
 _kzaiang_count=$(strings "$DB_ORACLE_HOME/bin/oracle" 2>/dev/null | grep -c "kzaiang" || printf "0")
 if [ "$_kzaiang_count" -gt 0 ]; then
     ok "Unified Auditing: enabled in oracle binary (kzaiang: $_kzaiang_count)"
@@ -531,7 +531,7 @@ info "  09-Install/07-oracle_setup_repository.sh --apply"
 info ""
 info "Optional (after RCU): enable Unified Auditing + custom audit tablespace"
 info "  relink uniaud_on: cd \$ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
-info "  04-db_audit_setup.sh --apply"
+info "  06-db_audit_setup.sh --apply"
 
 # =============================================================================
 print_summary

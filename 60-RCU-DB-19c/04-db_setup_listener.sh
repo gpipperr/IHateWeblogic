@@ -86,7 +86,7 @@ section "Pre-checks"
 
 [ -x "$DB_ORACLE_HOME/bin/lsnrctl" ] \
     && ok "lsnrctl: $DB_ORACLE_HOME/bin/lsnrctl" \
-    || { fail "lsnrctl not found — run 02-db_patch_db_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "lsnrctl not found — run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # Resolve listener host
 _listener_host="${DB_LISTENER_HOST:-}"
@@ -135,7 +135,7 @@ info "Writing: $_listener_ora"
 cat > "$_listener_ora" << LSNEOF
 # =============================================================================
 # listener.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/03a-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
 # DO NOT EDIT manually — re-run the script to regenerate.
 # =============================================================================
 
@@ -167,7 +167,7 @@ info "Writing: $_sqlnet_ora"
 cat > "$_sqlnet_ora" << SQLEOF
 # =============================================================================
 # sqlnet.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/03a-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
 # =============================================================================
 
 NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
@@ -193,7 +193,7 @@ info "Writing: $_tnsnames_ora"
 cat > "$_tnsnames_ora" << TNSEOF
 # =============================================================================
 # tnsnames.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/03a-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
 # =============================================================================
 
 # CDB (admin / SYS access)
@@ -261,7 +261,7 @@ _unit_tmp="$(mktemp /tmp/oracle-listener-XXXXXX.service)"
 cat > "$_unit_tmp" << UNITEOF
 # =============================================================================
 # ${_unit_name}
-# Managed by: IHateWeblogic/60-RCU-DB-19c/03a-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
 # Install  : cp ${_unit_tmp} ${_unit_target}
 #            systemctl daemon-reload
 #            systemctl enable ${_unit_name}

@@ -3,7 +3,7 @@
 -- FMW/RCU Sicherheits-Audit-Policies für Oracle 19c CDB.
 -- Ausführen als: SYS (CDB$ROOT)
 -- Verwendung  : @fmw_rcu_audit_policies.sql
--- Vorlage     : viper_audit_policies.sql
+-- Vorlage     : Audit-Policy eines Kundenprojekts (anonymisiert)
 -- Quelle      : Gunther Pipperr | https://pipperr.de
 -- =============================================================================
 
@@ -81,7 +81,7 @@ CREATE AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC
 -- =============================================================================
 
 -- Aktivierung in CDB$ROOT (gilt nur für Root selbst).
--- In der PDB separat aktivieren: Block 2 in 04-db_audit_setup.sh.
+-- In der PDB separat aktivieren: Block 2 in 06-db_audit_setup.sh.
 AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT;
 AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC;
 

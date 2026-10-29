@@ -2,148 +2,117 @@
 
 **Script:** `60-RCU-DB-19c/06-db_audit_setup.sh`
 **Runs as:** `oracle`
-**Phase:** Configure Unified Auditing in the running database
+**Phase:** Configure Unified Auditing in the running database (after `05-`,
+best after the RCU run `09-Install/07-`)
+
+```bash
+./60-RCU-DB-19c/06-db_audit_setup.sh            # dry-run: checks + plan
+./60-RCU-DB-19c/06-db_audit_setup.sh --apply    # policies, AUDITLOG, purge jobs
+```
+
+Checked against the script 2026-10-29. Background (author's wiki):
+[pipperr.de – Unified Auditing migration 23ai](https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai);
+which FMW schemas log in to this database:
+[rcu_middleware_architecture.md §3](../../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where).
 
 ---
 
 ## Purpose
 
-Set up Unified Auditing in the freshly created PDB:
-1. Create a dedicated `AUDITLOG` tablespace in `FMWPDB`
-2. Move the unified audit trail to `AUDITLOG`
-3. Create an automated purge job (keeps the tablespace bounded)
-4. Define a minimal security audit policy
+Pure Unified Auditing for the RCU database:
+
+1. Two security policies in `CDB$ROOT` (`fmw_rcu_audit_policies.sql`)
+2. Default policy `ORA_SECURECONFIG` off (too verbose for a small metadata DB)
+3. Dedicated `AUDITLOG` tablespace in the PDB; **all three** trails
+   (standard, FGA, unified) moved there
+4. Retention: daily archive-timestamp job + one purge job per trail
 
 ---
 
 ## Prerequisites
 
-- Database running: `FMWCDB` open, `FMWPDB` open READ WRITE
-- Unified Auditing relink completed (`uniaud_on` in step 3)
-- Verify: `SELECT VALUE FROM V$OPTION WHERE PARAMETER='Unified Auditing';`
-  → must return `TRUE`
+- Database running: CDB open, PDB (`DB_PDB_NAME`) open READ WRITE –
+  checked by the script
+- **Oracle binary linked with `uniaud_on`** – checked via
+  `V$OPTION 'Unified Auditing' = TRUE`; FAIL stops the script.
+  `05-db_create_database.sh` only reports the state (`kzaiang` in the binary)
+  and prints the relink command; the relink is **manual**, with database and
+  listener stopped:
+
+  ```bash
+  # as oracle, DB_ORACLE_HOME from environment_db.conf
+  sqlplus / as sysdba <<< "shutdown immediate"
+  lsnrctl stop
+  cd $ORACLE_HOME/rdbms/lib && make -f ins_rdbms.mk uniaud_on ioracle
+  lsnrctl start
+  sqlplus / as sysdba <<< "startup"
+  ```
+
+  An out-of-place patch keeps it: `09-db_patch_rcu.sh` relinks the new home
+  with `uniaud_on` when the old one has it.
+
+Parameters (`environment_db.conf`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DB_AUDIT_TS_SIZE_MB` | `100` | initial size of `AUDITLOG` |
+| `DB_AUDIT_TS_MAX_MB` | `4000` | `MAXSIZE` (autoextend next 120 MB) |
+| `DB_AUDIT_RETAIN_DAYS` | `180` | retention of all three trails |
+
+Idempotent: when all three trails already point to `AUDITLOG` the script
+stops with OK (re-run: drop `AUDITLOG` first).
 
 ---
 
-## Step 1: AUDITLOG Tablespace
+## Block 1 – CDB$ROOT: policies
 
-Connect to `FMWPDB`:
+`@fmw_rcu_audit_policies.sql` as SYS in `CDB$ROOT` (drop + create, then
+`AUDIT POLICY …` – active in the root):
+
+| Policy | Content |
+|---|---|
+| `FMW_RCU_DB_MIN_SEC_AUDIT` | privileges `CREATE EXTERNAL JOB`, `CREATE JOB`, `CREATE ANY JOB`; actions on users, roles, profiles, synonyms, DB links, procedures, triggers, table DDL, `RENAME`, `GRANT` / `REVOKE`, `ALTER SYSTEM`, `ALTER DATABASE`, tablespaces, directories, `DELETE` / `UPDATE ON AUDSYS.AUD$UNIFIED`, `LOGON` / `LOGOFF` |
+| `FMW_RCU_SEC_AUDIT_TRUNC` | `TRUNCATE TABLE` on `AUDSYS.AUD$UNIFIED` (tamper protection) |
+
+Then `NOAUDIT POLICY ORA_SECURECONFIG;` (19c: no `CONTAINER` clause for `NOAUDIT`).
+`generate_unified_audit_policy.sql` helps to derive an own policy from the
+traditional audit settings of an existing database.
+
+## Block 2 – PDB: AUDITLOG, trails, retention
+
+In the PDB (`ALTER SESSION SET CONTAINER = <PDB>`):
 
 ```sql
-ALTER SESSION SET CONTAINER = FMWPDB;
-
-CREATE SMALLFILE TABLESPACE "AUDITLOG"
-  LOGGING
-  DATAFILE '$DB_DATA_DIR/FMWCDB/FMWPDB/auditlog01.dbf'
-  SIZE 100M
-  AUTOEXTEND ON NEXT 120M
-  MAXSIZE 4000M
+-- 1. tablespace (only if missing)
+CREATE SMALLFILE TABLESPACE "AUDITLOG" LOGGING
+  DATAFILE '<DB_DATA_DIR>/<CDB>/<PDB>/auditlog01.dbf'
+  SIZE 100M AUTOEXTEND ON NEXT 120M MAXSIZE 4000M
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M;
-```
 
-Max size 4 GB: the purge job keeps actual usage well below this.
-Raise if the DB is used for longer retention periods.
-
----
-
-## Step 2: Move Unified Audit Trail to AUDITLOG
-
-```sql
+-- 2. all three trails into AUDITLOG
 BEGIN
-  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(
-    audit_trail_type         => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
-    audit_trail_location_value => 'AUDITLOG');
-END;
-/
-```
-
----
-
-## Step 3: Initialize Cleanup
-
-```sql
-BEGIN
-  DBMS_AUDIT_MGMT.INIT_CLEANUP(
-    audit_trail_type       => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
-    default_cleanup_interval => 24);
-END;
-/
-```
-
----
-
-## Step 4: Purge Job
-
-Retain 180 days of audit data; purge daily.
-
-```sql
--- Update archive timestamp daily (defines the retention window)
-BEGIN
-  DBMS_SCHEDULER.CREATE_JOB(
-    job_name        => 'AUDIT_ARCHIVE_TIMESTAMP',
-    job_type        => 'PLSQL_BLOCK',
-    job_action      => 'BEGIN
-      DBMS_AUDIT_MGMT.SET_LAST_ARCHIVE_TIMESTAMP(
-        audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
-        last_archive_time => SYSTIMESTAMP - 180);
-      DBMS_STATS.GATHER_TABLE_STATS(''AUDSYS'', ''AUD$UNIFIED'');
-    END;',
-    repeat_interval => 'FREQ=DAILY;BYHOUR=2;BYMINUTE=0',
-    enabled         => TRUE,
-    comments        => 'Update unified audit archive timestamp (180 day retention)');
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_AUD_STD, 'AUDITLOG');
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_FGA_STD, 'AUDITLOG');
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED, 'AUDITLOG');
 END;
 /
 
--- Purge records older than archive timestamp
+-- 3. cleanup infrastructure (19c: AUDIT_TRAIL_ALL works here)
 BEGIN
-  DBMS_AUDIT_MGMT.CREATE_PURGE_JOB(
-    audit_trail_type          => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
-    audit_trail_purge_interval => 24,
-    audit_trail_purge_name    => 'PURGE_UNIFIED_AUDIT',
-    use_last_arch_timestamp   => TRUE);
-END;
-/
-```
-
-For a minimal FMW RCU database with low activity, 180 days fits easily
-within the 4 GB AUDITLOG tablespace.  Adjust `SYSTIMESTAMP - N` in the
-scheduler job for shorter or longer retention.
-
----
-
-## Step 5: Audit Policy
-
-Disable the verbose default Oracle policy, define a focused minimal policy:
-
-```sql
--- Disable default policy (too verbose for a small metadata DB)
-NOAUDIT POLICY ORA_SECURECONFIG;
-
--- Drop if exists from previous run
-BEGIN
-  EXECUTE IMMEDIATE 'DROP AUDIT POLICY FMW_DB_MIN_SEC_AUDIT';
-EXCEPTION WHEN OTHERS THEN NULL;
+  DBMS_AUDIT_MGMT.INIT_CLEANUP(DBMS_AUDIT_MGMT.AUDIT_TRAIL_ALL, 24);
 END;
 /
 
--- Minimal security policy: user management, privilege changes, system changes
-CREATE AUDIT POLICY FMW_DB_MIN_SEC_AUDIT
-  PRIVILEGES
-    CREATE EXTERNAL JOB,
-    CREATE ANY JOB,
-    CREATE JOB
-  ACTIONS
-    CREATE USER,   ALTER USER,   DROP USER,
-    CREATE ROLE,   ALTER ROLE,   DROP ROLE,
-    CREATE PROCEDURE, ALTER PROCEDURE, DROP PROCEDURE,
-    GRANT,  REVOKE,
-    ALTER SYSTEM,
-    DELETE ON AUDSYS.AUD$UNIFIED,
-    UPDATE ON AUDSYS.AUD$UNIFIED,
-    LOGON, LOGOFF;
+-- 4. archive timestamp, daily 02:00, for all three trails
+--    job FMW_AUDIT_ARCHIVE_TS: SET_LAST_ARCHIVE_TIMESTAMP(<trail>, SYSTIMESTAMP - 180)
 
--- Activate for the entire CDB (applies in all PDBs)
-AUDIT POLICY FMW_DB_MIN_SEC_AUDIT CONTAINER=ALL;
+-- 5. one purge job per trail (19c: CREATE_PURGE_JOB does NOT accept AUDIT_TRAIL_ALL)
+--    PURGE_STD_AUDIT, PURGE_FGA_AUDIT, PURGE_UNIFIED_AUDIT
+--    (audit_trail_purge_interval => 24, use_last_arch_timestamp => TRUE)
+
+-- 6. activate the policies in the PDB
+AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT;
+AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC;
 ```
 
 ---
@@ -151,39 +120,26 @@ AUDIT POLICY FMW_DB_MIN_SEC_AUDIT CONTAINER=ALL;
 ## Verification
 
 ```sql
--- Unified Auditing active
-SELECT VALUE FROM V$OPTION WHERE PARAMETER='Unified Auditing';
--- Expected: TRUE
+SELECT VALUE FROM V$OPTION WHERE PARAMETER = 'Unified Auditing';      -- TRUE
 
--- Audit trail location
-SELECT AUDIT_TRAIL, TABLESPACE_NAME
-FROM   DBA_AUDIT_MGMT_CONFIG_PARAMS
-WHERE  AUDIT_TRAIL = 'UNIFIED AUDIT TRAIL';
--- Expected: AUDITLOG
+ALTER SESSION SET CONTAINER = <PDB>;
+SELECT AUDIT_TRAIL, PARAMETER_VALUE FROM DBA_AUDIT_MGMT_CONFIG_PARAMS
+ WHERE PARAMETER_NAME = 'DB AUDIT TABLESPACE';                        -- 3 rows AUDITLOG
 
--- Purge job status
-SELECT JOB_NAME, JOB_STATUS
-FROM   DBA_AUDIT_MGMT_CLEANUP_JOBS;
+SELECT JOB_NAME, JOB_STATUS FROM DBA_AUDIT_MGMT_CLEANUP_JOBS;          -- 3 purge jobs
+SELECT JOB_NAME, ENABLED, STATE FROM DBA_SCHEDULER_JOBS
+ WHERE JOB_NAME = 'FMW_AUDIT_ARCHIVE_TS';
 
--- Scheduler jobs
-SELECT JOB_NAME, ENABLED, STATE
-FROM   DBA_SCHEDULER_JOBS
-WHERE  JOB_NAME IN ('AUDIT_ARCHIVE_TIMESTAMP', 'PURGE_UNIFIED_AUDIT');
-
--- Active policies
-SELECT POLICY_NAME, ENABLED_OPT
-FROM   AUDIT_UNIFIED_ENABLED_POLICIES;
+SELECT POLICY_NAME, ENABLED_OPT FROM AUDIT_UNIFIED_ENABLED_POLICIES;  -- the two FMW_RCU_* policies
 ```
 
 ---
 
 ## Notes
 
-- `CONTAINER=ALL` on the audit policy: applies from CDB to all PDBs — simpler
-  than activating per PDB
-- The AUDITLOG tablespace is in `FMWPDB`; CDB-level audit (`LOGON` in the
-  policy) writes to the CDB AUDSYS.AUD$UNIFIED — if this matters, create a
-  matching AUDITLOG tablespace in the CDB root as well
-- The `FMW_DB_MIN_SEC_AUDIT` policy name matches the `GPI_DB_MIN_SEC_AUDIT`
-  pattern from `pipperr.de/dba:unified_auditing_oracle_migration_23ai`
-  (adapted prefix)
+- `AUDITLOG` lives in the PDB; audit records of the root (e.g. `LOGON` of
+  SYS) go to the root's `AUD$UNIFIED` in `SYSAUX` – add a matching tablespace
+  in the root if that matters.
+- 180 days fit easily into 4 GB for a metadata database with low activity.
+- RCU schema users log on many times (data source pools) – `LOGON` /
+  `LOGOFF` is the largest share of the records; the purge jobs keep it bounded.
