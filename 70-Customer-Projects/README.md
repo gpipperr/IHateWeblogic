@@ -38,7 +38,10 @@ Patch list for an existing Forms & Reports 12.2.1.19 home (FMW
 Infrastructure / WebLogic 12.2.1.4) from KA1182 of October 2026 plus the
 Java Security Alert CVE-2026-91403 (server JDK 8 and client JRE), with the
 CVE background and the questions to clarify with the customer – applied by
-hand, no scripts.
+hand with the German cookbook `Patch_Kochbuch_CPU_Okt2026_de.txt` (manual run
+at the customer 2026-10-29). Download list
+[patches_cpu_oct2026.csv](Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv)
+for `tools/mos_patch_download.sh`.
 
 ### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
 
@@ -52,13 +55,17 @@ README, and a manual step-by-step guide
 procedure, while the scripts always follow the current cycle; older folders
 are frozen. Cycle table: [09-Install/docs/00-patch-references.md](../09-Install/docs/00-patch-references.md).
 
-### tools – shared collector (12c and 14c)
+### tools – standalone helpers for customer hosts (12c and 14c)
 
 → [tools/README.md](tools/README.md)
 
-`collect_fmw_env.sh`: standalone, read-only collection of OS, Java, Oracle
-Home / patches, domain, Forms / Reports / OHS / web server configuration into
-one archive for the analysis; secrets masked. Works for 12.2.1.x and 14.1.2.
+No IHateWeblogic library needed – copy the script to the host:
+
+| Script | Purpose |
+|---|---|
+| `collect_fmw_env.sh` | read-only collection of OS, Java, Oracle Home / patches, domain, Forms / Reports / OHS / web server configuration into one archive for the analysis; secrets masked |
+| `mos_patch_download.sh` | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
+| `fmw_patch_env.sh` | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
 
 ## Further Installation Guides (German)
 
