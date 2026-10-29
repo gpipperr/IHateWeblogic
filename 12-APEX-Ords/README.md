@@ -449,7 +449,7 @@ From the customer upgrade, generic:
 | Area | What applies |
 |---|---|
 | Loopback / clone | ORDS on `127.0.0.1`; host-specific: `security.externalSessionTrustedOrigins`, Nginx `server_name` – to add to `02-Checks/clone_check.sh` |
-| Backup | `ords_N/config` (holds `cwallet.sso` – owner only) into `07-Maintenance/backup_config.sh` – to add |
+| Backup | `ords_N/config` (incl. `cwallet.sso`) – `07-Maintenance/backup_config.sh` category `ords` (since 2026-10-29, set mode 600, outside the config directory); restore with `restore_config.sh --category ords --apply`, then restart `ords@ords_<n>` |
 | Patching | APEX + ORDS + SQLcl as **one set** (APEXlang compiler in ORDS): `03-patch-apex.sh`, `06-patch-ords.sh`, `00-Setup/install_db_client_tools.sh`; cycle in `09-Install/docs/00-patch-references.md` |
 | Certificates | Nginx certificate already covered by `10-Monitoring/cert_expiry_check.sh` |
 | Java | `JDK_HOME` – the JDK upgrade of `80-` needs an ORDS restart too (`systemctl restart ords@ords_1`) |
@@ -468,8 +468,9 @@ From the customer upgrade, generic:
 - ~~Nginx template: `X-Forwarded-For $remote_addr` also for `/forms` /
   `/reports`~~ – done 2026-10-26 in `09-Install/nginx-wls.conf.template`
   together with stripping the client-supplied WebLogic headers (live-tested).
-- `clone_check.sh` / `backup_config.sh` / `cve_inventory.sh` know ORDS and APEX
-  (config dir with wallet, versions of APEX / ORDS / SQLcl / Instant Client).
+- `clone_check.sh` / `cve_inventory.sh` know ORDS and APEX (versions of APEX /
+  ORDS / SQLcl / Instant Client) – `backup_config.sh` done 2026-10-29
+  (category `ords`, config dir with wallet).
 - ~~`01-Run/startStop.sh`: show / start / stop `ords@ords_N`~~ – done
   2026-10-24 (`start-all` / `stop-all` incl. ORDS); open: `fmw_ctl.sh` of the
   autostart does not know ORDS (own systemd unit, started at boot anyway).

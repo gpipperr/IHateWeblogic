@@ -217,6 +217,7 @@ printList "REPORTS_COMP_DIR"    36 "${REPORTS_COMP_DIR:-(not found)}"
 printList "REPORTS_WLS_CONF_DIR" 36 "${REPORTS_WLS_CONF_DIR:-(not found)}"
 printList "FORMS_WLS_CONF_DIR"  36 "${FORMS_WLS_CONF_DIR:-(not found)}"
 printList "REPORTS_FONT_DIR"    36 "${REPORTS_FONT_DIR}  (${#TTF_FILES[@]} TTF/OTF file(s))"
+printList "ORDS config"         36 "${APEX_ORDS_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product/ords}/ords_*/config"
 printf "\n"
 
 # =============================================================================
@@ -265,6 +266,23 @@ for _lx in "$DOMAIN_HOME"/config/fmwconfig/servers/*/logging.xml \
     [ -f "$_lx" ] || continue
     _ln="$(basename "$(dirname "$_lx")")"
     BACKUP_ITEMS+=("logging|${_lx}|ODL logging configuration ${_ln} (logging.xml)|${_ln}_logging.xml")
+done
+
+# ORDS standalone instances (12-APEX-Ords): the whole config directory of
+# every ords_N – pool.xml, global/settings.xml, logging.properties and the
+# wallet cwallet.sso (credentials of ORDS_PUBLIC_USER; the backup set is
+# written with umask 077). Stored as <inst>__<path with / -> __> because the
+# file names repeat per instance. Added 2026-10-29.
+ORDS_BASE_DIR="${APEX_ORDS_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product/ords}"
+ORDS_FILE_COUNT=0
+for _oc in "$ORDS_BASE_DIR"/ords_*/config; do
+    [ -d "$_oc" ] || continue
+    _oi="$(basename "$(dirname "$_oc")")"
+    while IFS= read -r _of; do
+        _rel="${_of#"$_oc"/}"
+        BACKUP_ITEMS+=("ords|${_of}|ORDS ${_oi} configuration (${_rel})|${_oi}__${_rel//\//__}")
+        ORDS_FILE_COUNT=$(( ORDS_FILE_COUNT + 1 ))
+    done < <(find "$_oc" -type f 2>/dev/null | sort)
 done
 
 # =============================================================================
@@ -386,7 +404,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts fonts_ttf fonts_custom reports_afm reports_comp reports_tools reports_wls fmw forms_wls forms_inst security logging domain ihw; do
+for cat in fonts fonts_ttf fonts_custom reports_afm reports_comp reports_tools reports_wls fmw forms_wls forms_inst security logging domain ihw ords; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary

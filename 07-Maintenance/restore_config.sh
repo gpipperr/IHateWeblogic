@@ -43,7 +43,7 @@ while [ $# -gt 0 ]; do
             printf "  --apply: interactively select and restore a backup set\n"
             printf "  --category LIST: only these categories, comma separated\n"
             printf "      (fonts,fonts_ttf,fonts_custom,reports_afm,reports_comp,reports_tools,reports_wls,\n"
-            printf "       fmw,forms_wls,forms_inst,security,logging,domain,ihw)\n"
+            printf "       fmw,forms_wls,forms_inst,security,logging,domain,ihw,ords)\n"
             exit 0
             ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 2 ;;
@@ -57,7 +57,8 @@ _cat_selected() { [ -z "$CATEGORIES" ] || [[ ",$CATEGORIES," == *",$1,"* ]]; }
 # plain text file – never write to arbitrary paths from it)
 _dest_allowed() {
     local d
-    for d in "${DOMAIN_HOME:-}" "${ORACLE_HOME:-${FMW_HOME:-}}" "$ROOT_DIR" "${REPORTS_FONT_DIR:-}"; do
+    for d in "${DOMAIN_HOME:-}" "${ORACLE_HOME:-${FMW_HOME:-}}" "$ROOT_DIR" "${REPORTS_FONT_DIR:-}" \
+             "${APEX_ORDS_BASE:-${ORACLE_BASE:+$ORACLE_BASE/product/ords}}"; do
         [ -n "$d" ] && [[ "$1" == "$d"/* ]] && [[ "$1" != *"/../"* ]] && return 0
     done
     return 1
@@ -370,6 +371,8 @@ if [ -n "${RESTORED_CATS[fonts]:-}${RESTORED_CATS[fonts_ttf]:-}${RESTORED_CATS[r
 fi
 [ -n "${RESTORED_CATS[reports_wls]:-}${RESTORED_CATS[fmw]:-}" ] && { info "  Reports servlet:"; _restart "${WLS_REPORTS_SERVER:-WLS_REPORTS}"; }
 [ -n "${RESTORED_CATS[forms_wls]:-}${RESTORED_CATS[forms_inst]:-}" ] && { info "  Forms:"; _restart "${WLS_FORMS_SERVER:-WLS_FORMS}"; }
+[ -n "${RESTORED_CATS[ords]:-}" ] && \
+    info "  ORDS (reads its config at start): sudo systemctl restart ords@ords_<n>  (or ./01-Run/startStop.sh stop/start ords@ords_<n> --apply)"
 [ -n "${RESTORED_CATS[domain]:-}${RESTORED_CATS[security]:-}${RESTORED_CATS[logging]:-}" ] && \
     info "  Domain / security / logging: ./01-Run/startStop.sh start-all --apply (domain was stopped)"
 
