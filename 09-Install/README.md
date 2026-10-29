@@ -132,6 +132,8 @@ Phase 0 – OS Preparation (as root; hand over repo to oracle at end of phase)
 
 Phase 1 – Pre-Install Checks (as oracle)
   [oracle] ./09-Install/04-oracle_pre_checks.sh        # verify all prerequisites before download
+             --skip-db        remote RCU DB not reachable yet (local DB with LOCAL_REP_DB=true
+                              that is not built yet is skipped automatically)
   [oracle] ./09-Install/04-oracle_pre_download.sh      # eDelivery ZIPs + MOS patches (OPatch + post-install)
              --apply          manual eDelivery placement + SHA-256 verify
              --apply --wget   eDelivery via Bearer Token wget

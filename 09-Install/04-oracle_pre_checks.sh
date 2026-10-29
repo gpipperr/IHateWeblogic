@@ -7,6 +7,7 @@
 #            Read-only – no changes are made.
 # Call     : ./09-Install/04-oracle_pre_checks.sh
 #            ./09-Install/04-oracle_pre_checks.sh --skip-db
+#            (LOCAL_REP_DB=true and no local DB running yet: DB check skipped automatically)
 #            ./09-Install/04-oracle_pre_checks.sh --help
 # Options  : --skip-db   Skip database connectivity check (no DB access yet)
 #            --help      Show usage
@@ -224,9 +225,24 @@ _check_port_free 5556 "NodeManager"
 # Check 4 – Database connectivity for RCU
 # =============================================================================
 
+# LOCAL_REP_DB=true: the RCU database is built on THIS host with 60-RCU-DB-19c/
+# (parallel to or after phase 3) – in phase 1 it usually does not exist yet.
+# No running instance and no listener on DB_PORT → skip instead of FAIL.
+_local_db_missing=0
+if [ "$SKIP_DB" -eq 0 ] && [ "${LOCAL_REP_DB:-false}" = "true" ]; then
+    if ! pgrep -f '^ora_pmon_' > /dev/null 2>&1 && \
+       ! ss -tln 2>/dev/null | awk '{print $4}' | grep -qE ":${DB_PORT:-1521}$"; then
+        _local_db_missing=1
+    fi
+fi
+
 if [ "$SKIP_DB" -eq 1 ]; then
     section "DB Connectivity Check (db_connect_check.sh)"
     info "Skipped via --skip-db"
+elif [ "$_local_db_missing" -eq 1 ]; then
+    section "DB Connectivity Check (db_connect_check.sh)"
+    info "$(printf "Skipped – LOCAL_REP_DB=true, no local DB running yet (no ora_pmon_*, port %s not listening)" "${DB_PORT:-1521}")"
+    info "  Build the RCU database first: 60-RCU-DB-19c/README.md – then re-run this check before 07-oracle_setup_repository.sh (RCU)"
 else
     _run_check_script "$ROOT_DIR/02-Checks/db_connect_check.sh" \
         "DB Connectivity (db_connect_check.sh)"
