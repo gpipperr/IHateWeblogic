@@ -135,6 +135,30 @@ else
     fi
     unset _disabled_as
 fi
+
+# EPEL (Oracle: ol9_developer_EPEL / ol8_developer_EPEL) – only for nmon; not
+# under Oracle Linux support, therefore only asked when nmon is missing
+if ! rpm -q nmon > /dev/null 2>&1; then
+    if printf '%s\n' "$_enabled_repos" | grep -qi 'epel'; then
+        ok "EPEL repository enabled: $(printf '%s\n' "$_enabled_repos" | grep -i 'epel' | xargs)"
+    else
+        _epel="$(dnf repolist --disabled -q 2>/dev/null | awk 'NR>1 {print $1}' | grep -i 'epel' | head -1)"
+        if [ -n "$_epel" ]; then
+            info "EPEL repository disabled: $_epel – needed only for nmon (optional, developer repo, no Oracle support)"
+            if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Enable repository $_epel for nmon?" "y"; then
+                _run_root dnf config-manager --set-enabled "$_epel" \
+                    && ok "Repository enabled: $_epel" \
+                    || warn "Could not enable $_epel – nmon stays missing (optional)"
+            else
+                info "  Enable: dnf config-manager --set-enabled $_epel"
+            fi
+        else
+            info "No EPEL repository configured – nmon (optional) cannot be installed"
+            info "  Oracle Linux: dnf install oracle-epel-release-el\$(rpm -E %rhel) (adds ol*_developer_EPEL)"
+        fi
+        unset _epel
+    fi
+fi
 unset _enabled_repos
 
 # =============================================================================
@@ -143,10 +167,18 @@ unset _enabled_repos
 
 MISSING_PKGS=()
 
+# Optional packages: not in BaseOS/AppStream (nmon = EPEL, ol9_developer_EPEL).
+# A missing optional package must not stop the others – dnf aborts the whole
+# transaction on one "No match for argument" (seen at a customer, 2026-10-29).
+OPTIONAL_PKGS=" nmon "
+
 _check_pkg() {
     local pkg="$1"
     if rpm -q "$pkg" > /dev/null 2>&1; then
         ok "Installed: $pkg"
+    elif [[ "$OPTIONAL_PKGS" == *" $pkg "* ]]; then
+        info "Missing:   $pkg (optional – EPEL repository)"
+        MISSING_PKGS+=("$pkg")
     else
         warn "Missing:   $pkg"
         MISSING_PKGS+=("$pkg")
@@ -216,7 +248,8 @@ for PKG in \
     liberation-mono-fonts \
     xorg-x11-utils \
     xorg-x11-fonts-Type1 \
-    xorg-x11-server-Xvfb
+    xorg-x11-server-Xvfb \
+    python3-fonttools
 do
     _check_pkg "$PKG"
 done
@@ -257,16 +290,24 @@ if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
 
     if [ "$APPLY_MODE" -eq 1 ]; then
         if askYesNo "Install all missing packages?" "y"; then
-            _run_root dnf install -y "${MISSING_PKGS[@]}"
-            if [ $? -eq 0 ]; then
-                ok "All packages installed"
-                # Re-check to confirm
-                for PKG in "${MISSING_PKGS[@]}"; do
-                    rpm -q "$PKG" > /dev/null 2>&1 || fail "Still missing after install: $PKG"
-                done
-            else
-                fail "dnf install returned an error – check output above"
-            fi
+            # strict=0: packages that no enabled repository offers are skipped,
+            # the rest is installed – result is checked package by package below
+            _run_root dnf install -y --setopt=strict=0 "${MISSING_PKGS[@]}" \
+                || warn "dnf install returned an error – check output above"
+            _still=0
+            for PKG in "${MISSING_PKGS[@]}"; do
+                if rpm -q "$PKG" > /dev/null 2>&1; then
+                    ok "Installed now: $PKG"
+                elif [[ "$OPTIONAL_PKGS" == *" $PKG "* ]]; then
+                    warn "Not installed (optional): $PKG – no repository offers it"
+                    info "  EPEL: dnf config-manager --set-enabled ol9_developer_EPEL && dnf install -y $PKG"
+                else
+                    fail "Still missing after install: $PKG – no enabled repository offers it (AppStream? see above)"
+                    _still=1
+                fi
+            done
+            [ "$_still" -eq 0 ] && ok "All required packages installed"
+            unset _still
         fi
     else
         info "Run with --apply to install missing packages"

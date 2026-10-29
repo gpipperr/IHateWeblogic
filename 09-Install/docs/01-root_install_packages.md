@@ -202,12 +202,19 @@ dnf install -y \
   dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
   dejavu-lgc-sans-fonts dejavu-lgc-sans-mono-fonts dejavu-lgc-serif-fonts \
   liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
-  xorg-x11-utils xorg-x11-fonts-Type1 xorg-x11-server-Xvfb
+  xorg-x11-utils xorg-x11-fonts-Type1 xorg-x11-server-Xvfb \
+  python3-fonttools
 ```
 
 > `xorg-x11-server-Xvfb`: virtual X display for the Reports/Forms command-line
 > tools. Confirmed live (FMW 14.1.2): `rwconverter` and the Forms XML tools
 > abort without a working `DISPLAY` even in batch mode.
+>
+> `python3-fonttools`: AFM generation for the Reports fonts
+> (`04-ReportsFonts/ttf2reports_afm.py`); installed here so that
+> `04-oracle_pre_checks.sh` (→ `02-Checks/os_check.sh`) does not warn in phase 1.
+> `cups-libs` is enough for Reports; the CUPS server `cups` only for
+> `DESTYPE=printer` (os_check shows it as INFO).
 
 ### 4. Admin and monitoring tools
 
@@ -217,6 +224,14 @@ dnf install -y \
   lsof strace psmisc xorg-x11-xauth \
   bind-utils tcpdump nmap-ncat poppler-utils
 ```
+
+`nmon` exists only in **EPEL** (`ol9_developer_EPEL`, developer repo without
+Oracle support) – it is optional: `02-` offers to enable a configured but
+disabled EPEL repository (`--apply`), and installs with `--setopt=strict=0`, so
+a package no repository offers is skipped instead of aborting the whole `dnf`
+transaction (customer 2026-10-29: missing `nmon` left gcc-c++, ksh, motif …
+uninstalled). Every package is re-checked afterwards: missing required
+package = FAIL, missing `nmon` = WARN.
 
 `poppler-utils` provides `pdffonts`, used by `04-ReportsFonts/pdf_font_verify.sh`
 to check that a report PDF embeds TrueType fonts (added 2026-10-19 – without

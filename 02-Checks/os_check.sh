@@ -176,15 +176,18 @@ if [ -f /proc/meminfo ]; then
     MEM_TOTAL_KB="$(awk '/MemTotal/    {print $2}' /proc/meminfo)"
     MEM_FREE_KB="$(awk  '/MemAvailable/{print $2}' /proc/meminfo)"
     MEM_TOTAL_GB=$(( MEM_TOTAL_KB / 1048576 ))
+    # MemTotal is below the booked VM size (kernel, crashkernel, firmware
+    # reserve): a 16 GB cloud VM shows ~15.2 GB – compare with 10 % tolerance
+    _ram_ge() { [ "$MEM_TOTAL_KB" -ge $(( $1 * 1048576 * 9 / 10 )) ]; }
 
     printList "Total RAM"     30 "$(_kb_to_human "$MEM_TOTAL_KB")"
     printList "Available RAM" 30 "$(_kb_to_human "$MEM_FREE_KB")"
 
-    if   [ "$MEM_TOTAL_GB" -lt 8 ]; then
+    if   ! _ram_ge 8; then
         fail "RAM ${MEM_TOTAL_GB} GB – below OS minimum 8 GB for Oracle FMW"
-    elif [ "$MEM_TOTAL_GB" -lt 16 ]; then
+    elif ! _ram_ge 16; then
         warn "RAM ${MEM_TOTAL_GB} GB – OS minimum met; DEV/QS requires >= 16 GB"
-    elif [ "$MEM_TOTAL_GB" -lt 64 ]; then
+    elif ! _ram_ge 64; then
         ok   "RAM ${MEM_TOTAL_GB} GB – meets DEV/QS requirement (PRD needs >= 64 GB incl. DB)"
     else
         ok   "RAM ${MEM_TOTAL_GB} GB – meets production requirement (>= 64 GB)"
@@ -622,9 +625,10 @@ else
         )
     fi
 
-    # Oracle Reports requires CUPS for print support
+    # Oracle Reports needs the CUPS client libraries (installed by
+    # 09-Install/02-root_os_packages.sh); the CUPS server package "cups" (lp,
+    # cupsd) only when reports are printed directly to printers (DESTYPE=printer)
     REPORTS_PKGS=(
-        "cups"
         "cups-libs"
     )
 
@@ -685,6 +689,9 @@ else
         fi
     done
     [ "$MISSING_REPORTS" -eq 0 ] && ok "All Reports printer packages present"
+    if ! rpm -q cups >/dev/null 2>&1; then
+        info "  cups (server, lp) not installed – only needed for DESTYPE=printer (PDF/cache output works without)"
+    fi
 
     printf "\n"
     info "-- Diagnostic tools (used by IHateWeblogic scripts) --"
