@@ -3,6 +3,9 @@
 > **This script and document are deprecated.**
 > Patch download and installation are now combined in `01-db_install_software.sh`
 > using `runInstaller -applyRU`.  See `docs/01-db_install_software.md`.
+> Patching a **running** database (next RU): out-of-place with
+> `01- --target-home` + `09-db_patch_rcu.sh` – [09-db_patch_rcu.md](09-db_patch_rcu.md).
+> The text below is kept as background (AutoUpgrade keystore, download).
 
 **Script:** `60-RCU-DB-19c/02-db_patch_db_software.sh`  *(deprecated stub — exits immediately)*
 **Runs as:** `oracle`
