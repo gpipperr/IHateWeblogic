@@ -65,6 +65,7 @@ No IHateWeblogic library needed – copy the script to the host:
 |---|---|
 | `collect_fmw_env.sh` | read-only collection of OS, Java, Oracle Home / patches, domain, Forms / Reports / OHS / web server configuration into one archive for the analysis; secrets masked |
 | `mos_patch_download.sh` | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
+| `clone_check_fmw.sh` | read-only check whether the installation is clone-capable (golden image) – e.g. after the 12c patch run |
 | `fmw_patch_env.sh` | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
 
 ## Further Installation Guides (German)

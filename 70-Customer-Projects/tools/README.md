@@ -11,6 +11,7 @@ runtime, never by a second copy of the script.
 |---|---|
 | [collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
 | [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
+| [clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 
 Used by:
@@ -210,3 +211,37 @@ WARN (rc 1): `BACKUP` on the file system of `ORACLE_HOME`, more than one
 domain, run as root. Read-only without `--apply`; with it only the four
 directories and `patch_env.sh` in the base directory are created.
 Tested 2026-10-29 on the 14c test host (executed, sourced, `--apply`).
+
+## clone_check_fmw.sh
+
+Standalone, read-only version of `02-Checks/clone_check.sh` for customer
+hosts (12.2.1.x and 14.1.2): could this installation become a **golden
+image** / be moved to another host? Target: everything internal on
+`127.0.0.1`, only the web tier (OHS / Apache / Nginx) and the certificate
+carry the host name. Background and recipe:
+[clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md).
+
+```bash
+cp clone_check_fmw.sh /tmp/ && cd /tmp && chmod +x clone_check_fmw.sh
+./clone_check_fmw.sh                     # auto-detect ORACLE_HOME / DOMAIN_HOME
+./clone_check_fmw.sh -d /oracle/user_projects/domains/fr_domain -t /tmp
+```
+
+| Section | FIX (before an image) | STEP (after cloning) / INFO |
+|---|---|---|
+| 1 listening sockets (`ss`) | java / `rwserver` socket on all interfaces or the host IP | web tier (`httpd`, `nginx`) by design; `frmweb` (no bind option); Coherence remainder; multicast discovery |
+| 2 `config.xml`, `nodemanager.properties` | listen address not loopback, SSL listen port on, Coherence unicast not `127.0.0.1` | – |
+| 3 Reports | no `ORBServerHost=127.0.0.1` in `reports.sh` / `setUserOverrides.sh` | discovery port / server name per clone |
+| 4 host name / IP in `$DOMAIN_HOME/config` | unknown file | JDBC / OPSS (DB host), OHS config; RCU repository local (cloned along) or **external** (own prefix per clone) |
+| 5 machine identity | – | domain key travels with the clone, stored WLST credentials |
+| 6 by design | – | OHS `ServerName` / `Listen`, Apache / Nginx `server_name` + certificate, `tnsnames.ora` hosts |
+
+Nothing is changed: for SSL / Coherence the needed WLST online commands are
+printed at the end (run them with the AdminServer up, then restart the
+managed servers). Needs `ss`; python (`python3`, else
+`/usr/libexec/platform-python`) to parse `config.xml` – without it section 2
+is reported as not checked. As `oracle` only the own sockets show a process
+name; as root all. Exit 0 = clone-capable, 1 = items to fix, 2 = no domain.
+Log: `<-t>/clone_check_<host>_<ts>.log` (contains host names / IPs – keep it
+out of repositories). Tested 2026-10-29 on the 14c test host: same verdict
+as `02-Checks/clone_check.sh` ("yes").

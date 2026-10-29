@@ -723,6 +723,14 @@ SCHRITT 10: Starten und pruefen
   # UTL_RECOMP / Recompile nur nach Pruefung der Fehler (DBA_ERRORS),
   # nicht blind.
 
+  # 10.7 (optional) Golden-Image-Faehigkeit pruefen - nur lesend, aendert
+  #      nichts: liegt alles Interne auf 127.0.0.1, wo steht der Hostname?
+  #      70-Customer-Projects/tools/clone_check_fmw.sh nach /tmp kopieren:
+  #   cd /tmp && ./clone_check_fmw.sh
+  # Ergebnis: "Clone-capable: yes / NOT YET", FIX = vor einem Image
+  # aendern (WLST-Befehle stehen am Ende), STEP = nach dem Klonen anpassen.
+  # Log: /tmp/clone_check_<host>_<zeit>.log -> mit zur Auswertung.
+
 
 ================================================================================
 SCHRITT 11: Client-JRE der Forms-Anwender  (README Abschnitt 5)
