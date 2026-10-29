@@ -278,6 +278,10 @@ Control, ADF, OPSS …) are **not** in it.
 
 ## Special case Java – two JDKs, one alert
 
+Background – why an FMW host has two JDKs and who runs on which:
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes),
+[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
+
 The October cycle shows why Java gets its own section: the CPU of
 20 October fixes Java with **21.0.13**, the Security Alert of 21 October
 (CVE-2026-91403, JSSE, CVSS 9.1, AV:N/AC:L/PR:N/UI:N) lists exactly this
@@ -691,6 +695,24 @@ LD_LIBRARY_PATH=$INSTANT_CLIENT_HOME $SQLPLUS_BIN -V     # Instant Client
 Not covered here: the **FMW DBCLIENT** inside the Oracle Home (23.26.2 via
 the WLS SPB, Patch 39264447 – patched by `05-`; formally in the range of the
 client rows above – see "FMW DBCLIENT – known residual") and the **database
-server** itself (repository / APEX DB: DB RU, `60-RCU-DB-19c/`). The
-repository DB 19.30 of the test host is affected by CVE-2026-75803
-(OpenSSL, 9.8) → DB RU 19.33 is an open item.
+server** itself (repository / APEX DB: DB RU, `60-RCU-DB-19c/`) – next
+section.
+
+## Repository database (local RCU DB, `60-RCU-DB-19c/`) – CPU October 2026
+
+Only when the RCU / APEX database runs on a host of this library
+(`LOCAL_REP_DB=true`); a customer DB is patched by its DBA.
+
+| Item | Patch / version | How it is obtained / applied |
+|---|---|---|
+| DB RU 19.33 (fixes CVE-2026-75803, OpenSSL 9.8, and the further DB rows up to 8.8) | RU **39915792** | AutoUpgrade 26.6 keyword `recommended` (delivered as a **gold image** 19.33) – `60-RCU-DB-19c/01-db_install_software.sh --target-home <new> --fresh-patches` |
+| OJVM RU / Data Pump bundle | **39803650** / **40057600** | same AutoUpgrade run, applied with `opatch apply` after the gold-image install |
+| JDK of the DB home (→ 8u511) | **39902051** | AutoUpgrade keyword `jdk` |
+| datapatch / move of the instance | – | `60-RCU-DB-19c/09-db_patch_rcu.sh --new-home <new> --apply` (out-of-place, rollback path) |
+| Standalone CVU (host pre-check) | **30839369** (`DB_CVU_PATCH_NR`, 26ai kit) | `04-oracle_pre_download.sh --mos`, `60-RCU-DB-19c/00b-db_cvu_check.sh` |
+
+Status: test host **19.30 → 19.33 done 2026-10-28** (datapatch SUCCESS in
+CDB, PDB$SEED and PDB, domain down ~22 min) –
+[09-db_patch_rcu.md](../../60-RCU-DB-19c/docs/09-db_patch_rcu.md). Background
+(who uses which schema, why the DB version matters):
+[rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
