@@ -112,9 +112,9 @@ CSV list per cycle – first for the customer's 12c CPU October 2026 run).
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about two fifths
-(CVE watch step 1, the certificate expiry check and the Claude patch-cycle
-analysis done; `cve_watch.sh`, notification, log analysis, config security
-scanner are concept); minus the
+(CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
+the certificate expiry check and the Claude patch-cycle analysis done;
+notification, log analysis, config security scanner are concept); minus the
 [open items](#open-items--todo) – mainly the questions to Oracle (bundled
 JDK 17 + FMW DBCLIENT SR, `frmweb` bind address), the
 remaining client tests (update / offline / JACOB on Windows) and tests on a
@@ -1014,9 +1014,12 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   read-only inputs, only the unusual entries – normal checks stay with
   Nagios / Prometheus); open: read-only mount of the production log dirs on
   the analysis host – to decide.
-- [ ] `10-Monitoring/cve_watch.sh` (risk matrix parser, fixture test),
-  notification, Claude analysis, uniform machine-readable output of the
-  01–07 scripts – [10-Monitoring/README.md](10-Monitoring/README.md).
+- [x] `10-Monitoring/cve_watch.sh` – early warning between the Oracle
+  releases (Oracle alerts page, NVD Oracle CNA records, OSV for the jars,
+  KEV, EPSS, heise), state + fixture self-test (2026-10-30).
+- [ ] CVE watch steps 3–4: notification, Claude assessment, uniform
+  machine-readable output of the 01–07 scripts –
+  [10-Monitoring/README.md](10-Monitoring/README.md).
 - [ ] Notification for the cron checks (`cert_expiry_check.sh` writes to
   the journal `ihw-cert` today; mail / monitoring hook with the monitoring
   concept).

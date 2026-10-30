@@ -89,8 +89,9 @@ findings would be "not configured yet" rather than genuine anomalies.
 
 ## CVE Watch – installed components vs. Oracle security advisories
 
-**Status:** step 1 implemented (`cve_inventory.sh`, 2026-10-19); steps 2–4
-concept. Prototype of the later steps = the manual check of 2026-10-18 in
+**Status:** step 1 implemented (`cve_inventory.sh`, 2026-10-19), step 2
+implemented (`cve_watch.sh`, 2026-10-30 – early warning between the Oracle
+releases); steps 3–4 concept. Prototype of the later steps = the manual check of 2026-10-18 in
 `09-Install/docs/00-patch-references.md`, section "CVE check".
 
 ### cve_inventory.sh (step 1, implemented)
@@ -206,6 +207,67 @@ Result: the console log in `log/<date>/cve_inventory_*.log` and
 `10-Monitoring/reports/inventory_<date>.json`; exit code 1 = a new advisory
 is released and not yet covered by `PATCH_CYCLE`. Notification follows with
 the later steps (section "Notification").
+
+### cve_watch.sh (step 2, implemented) – early warning between the releases
+
+```bash
+./10-Monitoring/cve_watch.sh                       # newest reports/inventory_*.json
+./10-Monitoring/cve_watch.sh --with-inventory      # on the server: inventory first
+./10-Monitoring/cve_watch.sh --inventory /path/inventory_kunde.json --state-dir /path/kunde/
+./10-Monitoring/cve_watch.sh --cron [--apply]      # daily 07:10, marker "# IHW cve_watch"
+journalctl -t ihw-cve                              # new WARN / CRIT
+```
+
+Read-only. Input is the `inventory.json` of `cve_inventory.sh` (products,
+versions, both JDKs and – since 2026-10-30 – the **third-party jars** of the
+Oracle Home as Maven coordinates, paths relative to `ORACLE_HOME`; no host
+data). So the watcher runs on any host with internet: customer servers
+without egress (OCI) run `cve_inventory.sh`, the admin / share host runs
+`cve_watch.sh --inventory … --state-dir …` (one state directory per
+installation).
+
+**Why not just poll NVD by CPE?** For Oracle's own code (WebLogic, Forms,
+Reports, OPSS, Java SE) Oracle is the CNA and publishes the CVE in the same
+minute as the CPU / CSPU / Security Alert – before the patch there is nothing
+in NVD, and the NVD CPE (`cpe:2.3:a:oracle:weblogic_server:14.1.2.0.0`) is
+added days to weeks **later** (records stay "Awaiting Analysis"). A CPE
+search is the slowest source, not an early one. The CNA record itself carries
+an `affected` block (product + versions) – the watcher matches that on
+release day. The real head start comes from the third-party libraries in the
+home (their CVEs are public long before Oracle bundles the fix), from KEV
+(exploited) and from out-of-band Security Alerts.
+
+| Source | What | Match / level |
+|---|---|---|
+| `oracle.com/security-alerts/` (`curl -A "Mozilla/5.0"`) | CPU / CSPU released after `PATCH_CYCLE_DATE`; Security Alerts by revision | released, not applied → WARN; an alert's CVE is looked up in NVD and matched |
+| NVD API 2.0, `sourceIdentifier=secalert_us@oracle.com` | all Oracle CNA records since the last run (first run 119 days, API limit 120) | CNA product + exact version (FMW 14.1.2.0.0 / 12.2.1.x); Java SE: installed ≤ listed version of the same major; published ≤ `PATCH_CYCLE_DATE` = covered by the applied cycle (INFO). Records of our product families are kept in the state and re-matched every run – a JDK upgrade or a newer cycle clears them |
+| OSV.dev `querybatch` | jar coordinate + version → GHSA / CVE | CVSS ≥ `CVE_MIN_CVSS` → WARN; Oracle builds (`5.3.49.INTERNAL_90`, five-part versions) → INFO, the fix may be backported |
+| CISA KEV | known exploited | an affected, not covered finding in KEV → CRIT |
+| FIRST EPSS | exploit probability | shown for WARN / CRIT |
+| heise security feed (`/security/feed.xml`) | articles on WebLogic, Forms, Reports, Fusion Middleware, Java SE, Oracle + Lücke / Exploit | INFO; WARN when a CVE in the article matches a finding |
+
+Levels: CRIT = KEV, or Oracle CVE with CVSS ≥ `CVE_CRIT_CVSS` (9.0), remote
+without authentication and a protocol in `CVE_EXPOSED_PROTOCOLS` (`HTTP
+HTTPS` – Nginx publishes only HTTPS; T3 / IIOP CVEs stay WARN); WARN ≥
+`CVE_MIN_CVSS` (7.0). Alerts (console FAIL / WARN, journal `ihw-cve`, exit
+2 / 1) only for **new or escalated** findings – the first run is the
+baseline; the console and `reports/cve_watch_<date>.md` (SEVERITY block)
+also list the open known ones. Accepted risks: `reports/cve_accepted.txt`
+(`CVE;reason;date` → INFO). `NVD_API_KEY` (free) raises the NVD limit from
+5 to 50 requests per 30 s. Self-test: `--save-fixtures DIR` once, then
+`--offline DIR --state-dir <scratch>` with a changed inventory.
+
+Live 2026-10-30 (test host, CPU Oct 2026 applied): 3710 Oracle records in
+119 days, 283 matches – 233 covered by the applied cycle; open: Java SE
+CVEs of the FMW-bundled JDK 17.0.12 and the eMudhra alert CVE-2026-114820
+also for `JDK_HOME` 21.0.13.0.2 (known, see 00-patch-references.md), 22
+library findings (jackson-databind / -core 2.16.1 in `jlib/` + `sqlcl/lib/`,
+jackson-core 2.21.5 in `oracle_common` – current Oracle copy –, httpcore5,
+jline telnet in SQLcl, OpenJPA 1.1.1 …); Security Alert CVE-2026-109618
+(PHP, in KEV) correctly INFO – no installed product. Simulated older
+inventory (CSPU Sep, JDK 21.0.12.1): CRIT CVE-2026-91323 (WLS HTTP), WARN
+CVE-2026-83399 (T3 / IIOP), WARN "cpuoct2026 not applied" – the result of
+the manual check of 2026-10-22. Runtime about 60 s.
 
 ### Why
 

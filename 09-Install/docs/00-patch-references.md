@@ -136,7 +136,9 @@ Extended Support contract), 14.1.1.0 – December 2027.
    `oracle_software_version.conf` together with the patch numbers in
    `download/patches_fmw.csv` (DB repository: `download/patches_db.csv`) –
    `10-Monitoring/cve_inventory.sh` compares installed patches and newer
-   advisories against them.
+   advisories against them; `10-Monitoring/cve_watch.sh` uses
+   `PATCH_CYCLE_DATE` as "covered by the applied cycle" for the daily
+   early warning (NVD, OSV, KEV).
 5. Patch numbers themselves live in `download/patches_fmw.csv`, not
    here — the tables below are a point-in-time snapshot for reference,
    `oracle_software_version.conf` is the source of truth the scripts read.
