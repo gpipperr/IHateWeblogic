@@ -436,6 +436,42 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=39842516 download=all
 # → p39842516_141200_Linux-x86-64.zip
 ```
 
+### 6b. Download Oracle JDK 21 – server (Linux) and Forms client (Windows x64)
+
+Same MOS patch `35702194` ("current JDK 21") for two platforms – each into
+its **own** directory (the ZIP names differ only in the platform part):
+
+| For | Platform (MOS) | File | Target |
+|---|---|---|---|
+| server, `02b- --upgrade-jdk` / `07-Maintenance/80-` | Linux x86-64 (`226P`) | `p35702194_2100_Linux-x86-64.zip` | `$PATCH_STORAGE/patches/35702194/` |
+| Forms client bundle (`FORMS_CLIENT_DIST=true`, `40-`) | **Microsoft Windows x64 (64-bit)** (`233P`) | `p35702194_2100_MSWIN-x86-64.zip` | `$PATCH_STORAGE/client/jdk/35702194/` |
+
+Browser: support.oracle.com → *Patches & Updates* → patch `35702194` →
+choose the platform → download (~540 MB Linux, ~520 MB Windows). With
+getMOSPatch the platform comes from `.getMOSPatch.cfg` in the working
+directory:
+
+```bash
+# server JDK (Linux)
+mkdir -p $PATCH_STORAGE/patches/35702194 && cd $PATCH_STORAGE/patches/35702194
+printf '226P;4L\n' > .getMOSPatch.cfg
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=35702194 regexp=p35702194_2100_Linux-x86-64 download=all
+
+# client JDK (Windows x64) for the Forms client distribution
+mkdir -p $PATCH_STORAGE/client/jdk/35702194 && cd $PATCH_STORAGE/client/jdk/35702194
+printf '233P;4L\n' > .getMOSPatch.cfg
+java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=35702194 regexp=p35702194_2100_MSWIN-x86-64 download=all
+```
+
+Never put the Windows ZIP into `patches/35702194/` (or the Linux ZIP into
+`client/jdk/`) – `40-oracle_forms_client_bundle.sh` takes the Windows JDK
+only from `client/jdk/<nr>/`. Both ZIPs keep their name with every JDK
+update: start a new cycle with `--fresh-patches` (archives both
+directories). Further optional files: CVU (`database/cvu/`, section
+"Standalone CVU" above), Reports one-off `38936596` (Generic,
+`patches/38936596/`, only `REPORTS_BIDIPARENTHESIS=YES`) – all rows with
+platform, file and target: [download/patches_fmw.csv](../download/patches_fmw.csv).
+
 ### 7. Apply OPatch and patches (after FMW installation)
 
 OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
