@@ -423,6 +423,15 @@ _archive_then_rm() {   # copy to the archive, verify, delete local
 
 _clean() {
     section "Clean – free local files of finished steps"
+    # name the directories first: deleted is only the LOCAL copy, never the archive
+    info "$(printf "  %-26s %s" "Clean from dir (local)" "PATCH_STORAGE  $PS")"
+    info "$(printf "  %-26s %s" "Clean from dir (local)" "staging        ${ORACLE_BASE:-/u01/app/oracle}/tmp")"
+    if [ -n "$PA" ]; then
+        info "$(printf "  %-26s %s" "Archive (never deleted)" "PATCH_ARCHIVE  $PA")"
+    else
+        info "$(printf "  %-26s %s" "Archive" "PATCH_ARCHIVE  (none) – deleted files must be downloaded again")"
+    fi
+    printLine
     $APPLY || info "Show only – add --apply (and answer per file, or --yes for the proposals)"
     local it p a freed=0 choices
     for it in "${ITEMS[@]}"; do
