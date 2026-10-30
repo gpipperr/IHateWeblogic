@@ -143,11 +143,11 @@ and copy it:
 rsync -a <share>/patch_storage/database/ oracle@<target>:$PATCH_STORAGE/database/
 ```
 
-`01-` copies `$PATCH_STORAGE/database/patches/*/p*.zip` into an **empty**
-AutoUpgrade `patchdir` and skips the download. Open: the RU row of the
-cycle (AutoUpgrade `RECOMMENDED` delivered a gold image without a patch
-number for 19.33) – see the header of `patches_db.csv`. The 19.3 base ZIP
-comes from eDelivery as before.
+`01-` links `$PATCH_STORAGE/database/patches/*/p*.zip` into an **empty**
+AutoUpgrade `patchdir` (symlinks, no second copy on the staging file system)
+and skips the download. The list holds the DB RU too (19.33 = **39915792**,
+2.2 GB) – online AutoUpgrade `RECOMMENDED` delivers a gold image instead. The
+19.3 base ZIP comes from eDelivery as before.
 
 ---
 

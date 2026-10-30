@@ -15,7 +15,7 @@ read by
 | File | Content | Maintained |
 |---|---|---|
 | [patches_fmw.csv](patches_fmw.csv) | OPatch, WLS Stack Patch Bundle, FMW Infrastructure bundles, Forms/Reports QPRs + common patches, JDK (server + Windows client), standalone CVU, APEX patch | every CPU / CSPU / Security Alert ([patch-cycle analysis](../../10-Monitoring/patch_cycle_analysis_skill.md)) |
-| [patches_db.csv](patches_db.csv) | 19c RCU repository: OPatch, OJVM, Data Pump bundle, DB-home JDK (RU row: open, see header) | DB RU cycle – only needed for the offline route; online AutoUpgrade loads the set itself |
+| [patches_db.csv](patches_db.csv) | 19c RCU repository: OPatch, OJVM, Data Pump bundle, DB-home JDK, DB RU (19.33 = 39915792) | DB RU cycle – only needed for the offline route; online AutoUpgrade loads the set itself |
 
 The **base software** (eDelivery `V*.zip`, 19c base ZIP) is not in a CSV:
 eDelivery cannot be scripted with getMOSPatch, and it changes only per

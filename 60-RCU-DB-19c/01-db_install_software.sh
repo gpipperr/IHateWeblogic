@@ -393,14 +393,16 @@ fi
 _csv_zips="$(ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip 2>/dev/null)"
 if [ -n "$_csv_zips" ] && ! ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -qv 'p6880880'; then
     info "Patchdir empty – patch ZIPs from \$PATCH_STORAGE/database/patches/ (09-Install/download/patches_db.csv):"
+    # symlink, no copy: the RU alone is 2.2 GB and the staging file system is
+    # usually the tight one (customer 2026-10-30)
     if $APPLY; then
         mkdir -p "$_AU_PATCHDIR"
         while IFS= read -r _z; do
-            cp -p "$_z" "$_AU_PATCHDIR"/ && info "  copied $(basename "$_z")" \
-                || { fail "Could not copy $_z"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+            ln -sfn "$_z" "$_AU_PATCHDIR/$(basename "$_z")" && info "  linked $(basename "$_z")" \
+                || { fail "Could not link $_z"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
         done <<< "$_csv_zips"
     else
-        printf '%s\n' "$_csv_zips" | while IFS= read -r _z; do info "  would copy $(basename "$_z")"; done
+        printf '%s\n' "$_csv_zips" | while IFS= read -r _z; do info "  would link $(basename "$_z")"; done
     fi
 fi
 unset _csv_zips _z
@@ -612,13 +614,45 @@ unset _opatch_zip
 rm -rf "$_AU_PATCH_STAGE"
 mkdir -p "$_AU_PATCH_STAGE"
 
+# Space check BEFORE extracting: unpacked size of the ZIPs (zipinfo total) on
+# the staging file system, plus the new home when it is on the same one – a
+# full disk during unzip left the RU without bundle.xml (customer 2026-10-30)
+_need_kb=0
+for _zip in "$_AU_PATCHDIR"/p[0-9]*.zip; do
+    [ -f "$_zip" ] || continue
+    case "$_zip" in *p6880880*) continue ;; esac
+    _b="$(zipinfo -t "$_zip" 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($(i+1) == "bytes" && $(i+2) == "uncompressed,") print $i }')"
+    _need_kb=$(( _need_kb + ${_b:-0} / 1024 ))
+done
+_free_kb="$(df -Pk "$_AU_PATCH_STAGE" | awk 'NR == 2 { print $4 }')"
+_home_kb=0
+[ "$(_fs_dev "$DB_ORACLE_HOME")" = "$(_fs_dev "$_AU_PATCH_STAGE")" ] && _home_kb=$(( ${DB_HOME_MIN_FREE_GB:-12} * 1048576 ))
+_msg="$(printf "patch_stage needs %s GB unpacked%s, free %s GB on %s" \
+    "$(( _need_kb / 1048576 + 1 ))" \
+    "$( [ "$_home_kb" -gt 0 ] && printf ' + new home %s GB (same fs)' "${DB_HOME_MIN_FREE_GB:-12}")" \
+    "$(( ${_free_kb:-0} / 1048576 ))" "$(_fs_dev "$_AU_PATCH_STAGE")")"
+if [ "${_free_kb:-0}" -lt $(( _need_kb + _need_kb / 10 + _home_kb )) ]; then
+    fail "Not enough disk space: $_msg"
+    info "  Free space first: 70-Customer-Projects/tools/check_disk_space.sh (sudo) shows the space eaters;"
+    info "  patch ZIPs from PATCH_STORAGE are linked, not copied; or move DB_AUTOUPGRADE_HOME to a bigger fs"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+ok "Disk space: $_msg"
+unset _need_kb _free_kb _home_kb _b _msg
+
 for _zip in "$_AU_PATCHDIR"/p[0-9]*.zip; do
     [ -f "$_zip" ] || continue
     case "$_zip" in *p6880880*) continue ;; esac
     info "  Extracting: $(basename "$_zip") ..."
-    unzip -q -o "$_zip" -d "$_AU_PATCH_STAGE" 2>&1 | tee -a "$LOG_FILE" \
-        || warn "  Extract failed: $(basename "$_zip")"
+    unzip -q -o "$_zip" -d "$_AU_PATCH_STAGE" 2>&1 | tee -a "$LOG_FILE"
+    # rc of unzip, not of tee – a failed extract (disk full) used to go unnoticed
+    _uz_rc=${PIPESTATUS[0]}
+    if [ "$_uz_rc" -ne 0 ]; then
+        fail "Extract failed (unzip rc=$_uz_rc): $(basename "$_zip") – disk full? $(df -h "$_AU_PATCH_STAGE" | awk 'NR == 2 { print $4 " free on " $6 }')"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
 done
+unset _uz_rc
 
 # Identify RU (contains bundle.xml) and OneOffs
 _RU_DIR=""
@@ -642,7 +676,11 @@ if [ -z "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
     ok "$(printf "Gold image     : %s  (%s)" "$(basename "$_GOLD_ZIP")" "$(du -sh "$_GOLD_ZIP" 2>/dev/null | cut -f1)")"
 elif [ -z "$_RU_DIR" ]; then
     fail "No RU patch identified (no bundle.xml found in patch_stage subdirectories)"
-    info "  Expected: a patch ZIP that extracts to a dir containing bundle.xml (e.g. RU 19.30)"
+    info "  Expected: a patch ZIP that extracts to a dir containing bundle.xml (DB RU 19.33 = 39915792, 2.2 GB)"
+    for _pd in "$_AU_PATCH_STAGE"/*/; do
+        [ -d "$_pd" ] && info "$(printf "    %-10s %6s  %s" "$(basename "$_pd")" "$(du -sh "$_pd" 2>/dev/null | cut -f1)" \
+            "$(sed -n 's/.*<title>\(.*\)<\/title>.*/\1/p' "${_pd}README.html" 2>/dev/null | head -1)")"
+    done
     info "  Patchdir: $_AU_PATCHDIR"
     info "  Delete patchdir ZIPs and re-run --apply to trigger fresh download"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE

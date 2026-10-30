@@ -229,10 +229,21 @@ succeeds and rc=0 is expected.
 
 ### "No RU identified (no bundle.xml)"
 
-The RU patch ZIP, when extracted, contains a single directory with `bundle.xml`.
-If AutoUpgrade downloaded only individual patches (not a bundled RU), this
-check fails.  Solution: set `DB_TARGET_RU=RECOMMENDED` or a specific version
-like `19.30`, delete `patchdir/*.zip`, and re-run.
+The RU patch ZIP, when extracted, contains a single directory with `bundle.xml`
+(DB RU 19.33 = patch **39915792**, 2.2 GB, about 5 GB unpacked). Causes:
+
+- **Disk full while unzipping** (customer 2026-10-30: 10 GB free on the staging
+  file system) – the RU directory exists but is incomplete. Since 2026-10-30
+  `01-` checks the unpacked size of all ZIPs (`zipinfo -t`) plus the new home
+  (same file system) **before** extracting, and stops on an `unzip` error
+  (the old pipe `unzip | tee` hid it). The FAIL lists every extracted
+  directory with size and README title.
+- AutoUpgrade downloaded only individual patches (not a bundled RU): set
+  `DB_TARGET_RU=RECOMMENDED` or a specific version like `19.30`, delete
+  `patchdir/*.zip`, and re-run.
+- Offline route: the RU row is in `09-Install/download/patches_db.csv`;
+  the ZIPs are **linked** from `$PATCH_STORAGE/database/patches/` into
+  `patchdir` (no second copy).
 
 ### "Cannot create /etc/oraInst.loc" / INS-32031
 

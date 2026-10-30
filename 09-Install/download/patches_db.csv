@@ -9,12 +9,13 @@
 # (2026-10-28), docs 60-RCU-DB-19c/docs/01-db_install_software.md.
 # Columns: see patches_fmw.csv (patch;platform;file_regexp;required;step;description;dir;sha256)
 #   step: db_ru ojvm db_opatch dpbp db_jdk
-# OPEN: the DB RU 19.33 itself - AutoUpgrade "RECOMMENDED" delivered the gold
-#   image db_goldimage_19_33_*.zip (4.9 GB, no MOS patch number) instead of the
-#   RU ZIP. For the offline route add the RU row from the DB RU KA of the cycle:
-#   <nr>;226P;p<nr>_190000_Linux-x86-64\.zip;yes;db_ru;Database Release Update 19.33.0.0.0;database/patches/<nr>;
+# DB RU: AutoUpgrade "RECOMMENDED" delivers a gold image (db_goldimage_19_33_*.zip,
+#   4.9 GB, no MOS patch number) instead of the RU ZIP - the offline route needs the
+#   RU row below (39915792 = DATABASE RELEASE UPDATE 19.33.0.0.0, 2.2 GB, SHA-256
+#   from MOS 2026-10-30; 01- finds it by bundle.xml after unzip, unpacked ~5 GB).
 patch;platform;file_regexp;required;step;description;dir;sha256
 6880880;226P;p6880880_190000_Linux-x86-64\.zip;yes;db_opatch;OPatch 12.2.0.1.55 for DB 19c (same file name every release);database/patches/6880880;8fd0d738032626d4455a8a67004c6576ef0bb62870b49758a1b1fb4b34046fde
+39915792;226P;p39915792_190000_Linux-x86-64\.zip;yes;db_ru;Database Release Update 19.33.0.0.0 (offline route; AutoUpgrade online uses a gold image);database/patches/39915792;48622ec346168e9d3bed96d1abdeca43feb691c94df8de6168c8dadf8129dc0a
 39803650;226P;p39803650_190000_Linux-x86-64\.zip;yes;ojvm;OJVM Release Update 19.33.0.0.0;database/patches/39803650;d7f01ac27d13ca9d6ab261a8699d276daded1bfce7efd24068dd0509ab3f161b
 40057600;226P|2000P;p40057600_1933000DBRU_Generic\.zip;yes;dpbp;Data Pump Bundle Patch 19.33.0.0.0;database/patches/40057600;a26a37844042956d0c0cdd421f1f63473039580a37b456abc879ff52c3d10c45
 39902051;226P;p39902051_190000_Linux-x86-64\.zip;yes;db_jdk;JDK Bundle Patch 19.0.0.0.261020 (DB home JDK 8u511);database/patches/39902051;8f9d82c088dbeb3ff15c44ce8a44efcb1eb25e321e2882ad18f24d1ef953ed51

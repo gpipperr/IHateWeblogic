@@ -634,7 +634,7 @@ $PATCH_STORAGE/
 │   ├── LINUX.X64_193000_db_home.zip  ← 19c base (oracle.com download page / eDelivery V982063-01.zip – see
 │   │                                    "Oracle Database 19c base"; read by 01-db_install_software.sh)
 │   ├── cvu/                      ← standalone CVU, role cvu (00b-db_cvu_check.sh)
-│   └── patches/<nr>/             ← offline route only: download/patches_db.csv (01- copies into patchdir)
+│   └── patches/<nr>/             ← offline route only: download/patches_db.csv (01- links into patchdir)
 ├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
 │   └── 26.2/
 │       ├── apex_26.2.zip         ← OTN apex_26.2.zip (APEX_ZIP_URL), version read from apex_version.txt
