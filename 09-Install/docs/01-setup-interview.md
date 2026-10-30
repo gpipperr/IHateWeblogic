@@ -80,6 +80,7 @@ rm mos_sec.conf
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | `java -version` check |
 | `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | – |
 | `PATCH_STORAGE` | `/srv/patch_storage` | disk space ≥ 20 GB |
+| `PATCH_ARCHIVE` | *(empty = none)* | optional NFS/ZFS master copy of installers + patches (same layout); readable directory, not `PATCH_STORAGE` – `07-Maintenance/patch_storage.sh pull/clean` |
 | `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` when `ORACLE_BASE` has depth 1) | WARN if inside `ORACLE_BASE`; on a host with an existing inventory (local RCU DB, reinstall) enter that one – `03-` writes `/etc/oraInst.loc` |
 | `IHW_ENV_TYPE` | `prod` | `test` or `prod` – `prod` = Claude Code is never used on this host; `test` = allowed with sandbox + guard hook ([10-Monitoring/setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 | `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | **one** Oracle Net directory (`tnsnames.ora`, `sqlnet.ora`) for Forms, Reports, WebLogic and the oracle shell – written into `default.env` (14-), `rwserver.conf` + `reports.sh` (13-), `setUserOverrides.sh` + checked by [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh), `.bash_profile` (03-) |

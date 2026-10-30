@@ -595,6 +595,13 @@ rsync -a --progress <share>/patch_storage/ oracle@<target>:$PATCH_STORAGE/
 [oracle] ./09-Install/04-oracle_pre_download.sh
 ```
 
+**Small local disk + patch archive** (`PATCH_ARCHIVE`, NFS/ZFS mount): use the
+archive as the `-d` target in step 1 instead of copying everything; the
+inventory of this script then shows those files as *in archive*, and
+`07-Maintenance/patch_storage.sh pull <step> --apply` copies only the files of
+the next step to local disk (`clean --apply` frees them after a successful run)
+– [07-Maintenance/README.md](../../07-Maintenance/README.md#patch_storagesh).
+
 The eDelivery ZIPs can also be downloaded in a browser and copied with `scp`
 into the target directories the script shows (manual mode). MOS patches are
 skipped when a ZIP is already in `patches/<nr>/` – same layout as on the

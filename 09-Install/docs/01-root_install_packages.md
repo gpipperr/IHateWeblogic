@@ -222,7 +222,7 @@ dnf install -y \
 dnf install -y \
   sysstat smartmontools nmon tmux \
   lsof strace psmisc xorg-x11-xauth \
-  bind-utils tcpdump nmap-ncat poppler-utils
+  bind-utils tcpdump nmap-ncat poppler-utils rsync
 ```
 
 `nmon` exists only in **EPEL** (`ol9_developer_EPEL`, developer repo without
@@ -232,6 +232,11 @@ a package no repository offers is skipped instead of aborting the whole `dnf`
 transaction (customer 2026-10-29: missing `nmon` left gcc-c++, ksh, motif …
 uninstalled). Every package is re-checked afterwards: missing required
 package = FAIL, missing `nmon` = WARN.
+
+`rsync` copies installers / patches between the patch archive and the local
+`PATCH_STORAGE` (`07-Maintenance/patch_storage.sh pull|clean`, resumable with
+`--partial`) and for the offline route (copy of a downloaded `PATCH_STORAGE`);
+without it `patch_storage.sh` falls back to `cp` (added 2026-10-30).
 
 `poppler-utils` provides `pdffonts`, used by `04-ReportsFonts/pdf_font_verify.sh`
 to check that a report PDF embeds TrueType fonts (added 2026-10-19 – without

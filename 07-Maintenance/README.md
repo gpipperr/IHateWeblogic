@@ -31,6 +31,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 |---|---|---|
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
+| `patch_storage.sh` | ✅ implemented | Local `PATCH_STORAGE` as working copy of a patch archive (`PATCH_ARCHIVE`, NFS/ZFS): `status`, `pull <step>` before a step, `clean` after it – done steps from the run history `log/run_history.csv` |
 | `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
 | `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
@@ -304,6 +305,76 @@ the oracle home directory (top level) – files only, one file system (`-xdev`).
 The copies are grouped per original file and sorted by the timestamp in the
 name; the table shows copies / kept / removed and the size per file.
 `ConfigBackup/` is not touched (see `backup_config.sh --keep`).
+
+---
+
+### patch_storage.sh
+
+Small local disk, big but slow archive (customer 2026-10-30: installing from
+the ZFS share is far too slow, the local disk cannot hold every installer and
+patch at once). `PATCH_ARCHIVE` (interview, optional) is the **master copy**
+with the layout of `PATCH_STORAGE` – the share host with MOS access downloads
+straight into it (`mos_patch_download.sh -c patches_fmw.csv -d <archive> --all
+--apply`, eDelivery ZIPs by browser into `wls/`, `fr/`). The local
+`PATCH_STORAGE` only holds what the next step needs.
+
+```bash
+./07-Maintenance/patch_storage.sh                                         # status
+./07-Maintenance/patch_storage.sh pull 05-oracle_patch_weblogic.sh         # show what would be copied + space check
+./07-Maintenance/patch_storage.sh pull 05-oracle_patch_weblogic.sh --apply # copy archive -> local
+./07-Maintenance/patch_storage.sh pull spb --apply                         # or by CSV role
+./07-Maintenance/patch_storage.sh clean                                    # what could be freed
+./07-Maintenance/patch_storage.sh clean --apply                            # ask per file
+./07-Maintenance/patch_storage.sh clean --apply --yes                      # take every proposal
+./07-Maintenance/patch_storage.sh history                                  # last run per script
+```
+
+**Items** – no own list: every row of `09-Install/download/patches_fmw.csv`
+(+ `patches_db.csv` with `LOCAL_REP_DB=true`) the installation needs (same role
+rules as `04-`), the eDelivery ZIPs + their extracted installers of
+`oracle_software_version.conf`, the 19c base (`DB_INSTALL_ARCHIVE`, when below
+`PATCH_STORAGE`), APEX/ORDS version directories.
+
+**Which run frees what** (last `--apply` run with rc 0 or 1 in the run history):
+
+| Files | Freed by a successful |
+|---|---|
+| `wls/` ZIP + `fmw_*_infrastructure.jar` | `09-Install/05-oracle_install_weblogic.sh` |
+| `fr/` ZIP + `fmw_*_fr_linux64.bin` | `09-Install/06-oracle_install_forms_reports.sh` |
+| roles `opatch`, `spb`, `wls` | `09-Install/05-oracle_patch_weblogic.sh` or `81-patch_weblogic.sh` (not `--opatch-only`) |
+| roles `fr_common`, `reports`, `forms`, `fr_optional` | `09-Install/06-oracle_patch_forms_reports.sh` or `82-patch_forms_reports.sh` |
+| role `jdk` | `09-Install/02b-root_os_java.sh --upgrade-jdk` or `80-patch_java_os.sh` |
+| role `client_jdk` | `09-Install/40-oracle_forms_client_bundle.sh` |
+| role `cvu` / 19c base + `patches_db.csv` | `60-RCU-DB-19c/00b-` / `01-db_install_software.sh` |
+| role `apex`, APEX / ORDS directories | `12-APEX-Ords/03-` / `02-` / `04-` |
+
+**Proposals** (`status`, `clean`): `pull` = only in the archive, step not done
+yet; `keep` = step not done; `free` = step done and the archive holds the same
+size (or an extracted installer – re-created from the ZIP); `archive` = step
+done, file only local → copy into the archive, verify SHA-256, then delete
+locally; without an archive only *delete* or *keep* (proposal *keep* – deleted
+means downloading again). Also offered by `clean`: `patches_<ts>/` +
+`client/jdk_<ts>/` of `--fresh-patches`, staging directories of finished runs
+in `$ORACLE_BASE/tmp` (`mw_patches_<pid>`, `fr_patches_<pid>`, `wls_spb_<pid>`,
+`opatch_*_<pid>` – only when that PID no longer runs). Info only:
+`$ORACLE_HOME/.patch_storage` (OPatch rollback data, `opatch util cleanup`).
+
+`pull` checks the free space first (size + 10 %), copies with `rsync -a
+--partial` (resumable; without `rsync` `cp` via a `.part` name), compares the
+size and the SHA-256 of the CSV (soft check, WARN). `04-oracle_pre_download.sh`
+shows files that are only in the archive as *in archive* (not MISSING); the
+"ZIP not found" messages of `05-`, `06-`, `02b-`, `40-` name the `pull`
+command when `PATCH_ARCHIVE` is set.
+
+**Run history** – `00-Setup/IHateWeblogic_lib.sh` (`print_summary` →
+`run_history_record`) appends one row per run of every script in `09-Install`,
+`07-Maintenance`, `08-SSL`, `12-APEX-Ords`, `60-RCU-DB-19c` to
+`log/run_history.csv` (`IHW_RUN_HISTORY` overrides the path):
+`timestamp;host;user;script;args;apply;rc;ok;warn;fail;log`. `rc` = the
+OK/WARN/FAIL result of `print_summary` (a wrapper that raises its exit code
+afterwards, e.g. `81-` after `05-`, is recorded with its own summary; the
+delegated `05-` has its own row). Root scripts of phase 0 hand a new file to
+the repository owner.
 
 ---
 

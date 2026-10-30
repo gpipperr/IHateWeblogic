@@ -160,6 +160,15 @@ Phase 3 – Forms & Reports Installation (as oracle)
     Phases 0–3 install and patch everything into ORACLE_HOME.
     The Oracle Home is not touched again after this point.
 
+  Small local disk + patch archive (PATCH_ARCHIVE, NFS/ZFS master copy):
+    before each step  [oracle] ./07-Maintenance/patch_storage.sh pull <step script> --apply
+                      e.g. pull 05-oracle_install_weblogic.sh / 05-oracle_patch_weblogic.sh /
+                           06-oracle_install_forms_reports.sh / 06-oracle_patch_forms_reports.sh
+    after the step    [oracle] ./07-Maintenance/patch_storage.sh clean --apply
+                      frees the files of steps whose last --apply run succeeded
+                      (run history log/run_history.csv) – they stay in the archive
+    overview          [oracle] ./07-Maintenance/patch_storage.sh   (status: what is where)
+
 Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
            LOCAL_REP_DB=true; parallel to or after Phase 3)
   → Full procedure: 60-RCU-DB-19c/README.md

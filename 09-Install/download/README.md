@@ -87,6 +87,12 @@ rsync -a <share>/patch_storage/ oracle@<target>:$PATCH_STORAGE/
 ./09-Install/04-oracle_pre_download.sh
 ```
 
+**Patch archive** (`PATCH_ARCHIVE`, NFS/ZFS, too slow to install from): let
+the share host download straight into the archive (`-d <archive>`), then the
+target host pulls each step's files right before the step and frees them
+after it – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean
+--apply` ([07-Maintenance/README.md](../../07-Maintenance/README.md#patch_storagesh)).
+
 `--all` takes the optional rows too (client Java, CVU, opatch) – without it
 only `required=yes`. The tool writes `patches_sha256.txt`/`.csv` and its log
 into the `-d` directory.

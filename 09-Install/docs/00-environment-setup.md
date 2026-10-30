@@ -79,7 +79,8 @@ explicitly provides a different value during `--interview`.
 | `ORACLE_BASE` | `/u01/app/oracle` | Base directory for all Oracle installations | Directory writable or creatable |
 | `ORACLE_HOME` | `$ORACLE_BASE/fmw` | FMW installation target (= `FMW_HOME` after install) | Must be empty before installation |
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 symlink (created by `02b-root_os_java.sh`) | `$JDK_HOME/bin/java -version` must return JDK 21 |
-| `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free |
+| `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free (less with `PATCH_ARCHIVE`: only the current step) |
+| `PATCH_ARCHIVE` | *(empty)* | Optional NFS/ZFS archive = master copy, same layout; `07-Maintenance/patch_storage.sh` pulls a step's files to `PATCH_STORAGE` and frees them after the step | readable (writable for `clean` archiving) |
 | `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` if that is not possible) | Central inventory, written to `/etc/oraInst.loc` by `03-root_user_oracle.sh`. On a host with an existing inventory (local RCU DB, reinstall) enter **that** one | directory |
 | `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | The one Oracle Net directory for every process – [02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) | directory |
 | `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` | menu |
