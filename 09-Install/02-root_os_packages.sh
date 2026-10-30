@@ -272,7 +272,8 @@ for PKG in \
     bind-utils \
     tcpdump \
     nmap-ncat \
-    poppler-utils
+    poppler-utils \
+    rsync
 do
     _check_pkg "$PKG"
 done

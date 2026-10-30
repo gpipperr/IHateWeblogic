@@ -327,6 +327,20 @@ _val_patch_storage() {
     return 0
 }
 
+_val_patch_archive() {
+    local dir="$1"
+    if [ ! -d "$dir" ] || [ ! -r "$dir" ]; then
+        printf "  \033[31m  Not a readable directory: %s (mount the NFS/ZFS share first).\033[0m\n" "$dir"
+        return 1
+    fi
+    if [ "$(cd "$dir" && pwd -P)" = "$(cd "${PATCH_STORAGE:-/nonexistent}" 2>/dev/null && pwd -P)" ]; then
+        printf "  \033[31m  Same directory as PATCH_STORAGE – the archive must be another place.\033[0m\n"
+        return 1
+    fi
+    [ -w "$dir" ] || printf "  \033[33m  Not writable – pull works, clean cannot move files into it.\033[0m\n"
+    return 0
+}
+
 _val_port() {
     local port="$1"
     if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1024 ] && [ "$port" -le 65535 ]; then
@@ -407,6 +421,12 @@ _ask ORACLE_HOME    "Oracle Home (FMW)"         "${ORACLE_BASE}/fmw"            
 _ask JDK_HOME       "JDK 21 home (symlink)"     "${ORACLE_BASE}/java/jdk-21"       "_val_jdk"
 _ask DOMAIN_HOME    "Domain directory"          "${ORACLE_BASE}/domains/fr_domain" "_val_dir"
 _ask PATCH_STORAGE  "Patch storage directory"   "/srv/patch_storage"               "_val_patch_storage"
+# Optional archive (NFS / ZFS, same layout as PATCH_STORAGE) = master copy of all
+# installers + patches; PATCH_STORAGE is then only the fast local working copy:
+# 07-Maintenance/patch_storage.sh pull <step> before, clean after a step
+info "  Patch archive: NFS/ZFS mount holding ALL installers/patches (too slow to install from)."
+info "  Empty = no archive, everything stays in PATCH_STORAGE."
+_ask PATCH_ARCHIVE  "Patch archive (NFS/ZFS)"   ""                                 "_val_patch_archive" "optional"
 # test = Claude Code may run here (guarded); prod = never (10-Monitoring/setup_claude.md)
 _ask IHW_ENV_TYPE   "Environment type (test|prod)" "prod"                          "_val_env_type"
 # One Oracle Net directory (tnsnames.ora / sqlnet.ora) for every process:
@@ -846,6 +866,7 @@ _show "ORACLE_HOME"          "$ORACLE_HOME"
 _show "JDK_HOME"             "$JDK_HOME"
 _show "DOMAIN_HOME"          "$DOMAIN_HOME"
 _show "PATCH_STORAGE"        "$PATCH_STORAGE"
+_show "PATCH_ARCHIVE"        "${PATCH_ARCHIVE:-(none)}"
 _show "TNS_ADMIN"            "$TNS_ADMIN"
 _show "INSTALL_COMPONENTS"   "$INSTALL_COMPONENTS"
 _show "WLS_SERVER_FQDN"      "$WLS_SERVER_FQDN"
@@ -972,6 +993,7 @@ if [ -f "$WRITE_CONF" ]; then
     # WLS_SERVER_FQDN now lives in the block – drop a copy appended by hand /
     # by init_env.sh outside of it (its value was read and kept above)
     sed -i '/^WLS_SERVER_FQDN=/d' "$WRITE_CONF" 2>/dev/null || true
+    sed -i '/^PATCH_ARCHIVE=/d' "$WRITE_CONF" 2>/dev/null || true
 fi
 
 # Build REPORTS_SERVER_NAMES array string for env.conf
@@ -997,6 +1019,9 @@ ORACLE_INVENTORY="${ORACLE_INVENTORY}"
 ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
+# Optional NFS/ZFS archive (master of installers + patches), PATCH_STORAGE = local
+# working copy: 07-Maintenance/patch_storage.sh status | pull <step> | clean
+PATCH_ARCHIVE="${PATCH_ARCHIVE}"
 # Oracle Net configuration (tnsnames.ora, sqlnet.ora) - ONE directory for Forms,
 # Reports, WebLogic and the oracle shell; check: 02-Checks/tns_admin_check.sh
 TNS_ADMIN="${TNS_ADMIN}"
@@ -1207,6 +1232,7 @@ ORACLE_HOME="${ORACLE_HOME}"
 JDK_HOME="${JDK_HOME}"
 DOMAIN_HOME="${DOMAIN_HOME}"
 PATCH_STORAGE="${PATCH_STORAGE}"
+PATCH_ARCHIVE="${PATCH_ARCHIVE}"
 TNS_ADMIN="${TNS_ADMIN}"
 INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
 WLS_SERVER_FQDN="${WLS_SERVER_FQDN}"

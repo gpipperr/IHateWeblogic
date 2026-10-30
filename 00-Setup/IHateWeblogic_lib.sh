@@ -58,6 +58,12 @@ CNT_FAIL=0
 EXIT_CODE=0
 LOG_FILE=""
 LAST_BACKUP=""
+# Run history (run_history_record): repository root of this library and the
+# arguments of the calling script – "source lib" without arguments keeps the
+# caller's positional parameters, so "$*" here are the script's arguments.
+IHW_LIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IHW_RUN_ARGS="$*"
+IHW_RUN_RECORDED=""
 SELECTION=""
 SELECTION_IDX=0
 
@@ -597,7 +603,86 @@ print_summary() {
     fi
 
     EXIT_CODE=$exit_code
+    run_history_record "$exit_code"
     return $exit_code
+}
+
+# =============================================================================
+# Run history – one CSV row per run of an install / maintenance script
+# =============================================================================
+# Written by print_summary (every script ends with it), read by
+# 07-Maintenance/patch_storage.sh: a step whose last --apply run ended with
+# rc 0/1 is done, its installers / patches may leave the local PATCH_STORAGE.
+# File: ${IHW_RUN_HISTORY:-<repo>/log/run_history.csv} (log/ is gitignored).
+# Only scripts of the folders in IHW_RUN_HISTORY_DIRS – status tools that run
+# from cron would fill it with noise.
+IHW_RUN_HISTORY_HEADER="timestamp;host;user;script;args;apply;rc;ok;warn;fail;log"
+IHW_RUN_HISTORY_DIRS="${IHW_RUN_HISTORY_DIRS:-09-Install 07-Maintenance 08-SSL 12-APEX-Ords 60-RCU-DB-19c}"
+
+# run_history_file – path of the history file
+run_history_file() {
+    printf '%s' "${IHW_RUN_HISTORY:-$IHW_LIB_ROOT/log/run_history.csv}"
+}
+
+# run_history_record RC – append the row of this run (once per process)
+run_history_record() {
+    [ -n "$IHW_RUN_RECORDED" ] && return 0
+    IHW_RUN_RECORDED=1
+    local rc="${1:-${EXIT_CODE:-0}}" f d script rel apply new=0 dirnew=0 x hit=0
+    script="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+    rel="${script#"$IHW_LIB_ROOT"/}"
+    for x in $IHW_RUN_HISTORY_DIRS; do
+        case "$rel" in "$x"/*) hit=1 ;; esac
+    done
+    [ "$hit" -eq 1 ] || return 0
+    apply="no"; [[ " $IHW_RUN_ARGS " == *" --apply "* ]] && apply="yes"
+    f="$(run_history_file)"; d="$(dirname "$f")"
+    [ -d "$d" ] || { mkdir -p "$d" 2>/dev/null && dirnew=1; }
+    [ -f "$f" ] || new=1
+    {
+        [ "$new" -eq 1 ] && printf '%s\n' "$IHW_RUN_HISTORY_HEADER"
+        printf '%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n' \
+            "$(date '+%Y-%m-%d %H:%M:%S')" "$(hostname -s 2>/dev/null)" "$(id -un)" \
+            "$rel" "$(printf '%s' "$IHW_RUN_ARGS" | tr ';\n' ', ')" "$apply" "$rc" \
+            "${CNT_OK:-0}" "${CNT_WARN:-0}" "${CNT_FAIL:-0}" "${LOG_FILE:-}"
+    } >> "$f" 2>/dev/null || return 0
+    # created by root (phase 0 scripts): hand it to the repository owner,
+    # otherwise the oracle scripts could not append later
+    if [ "$(id -u)" -eq 0 ]; then
+        [ "$new" -eq 1 ]    && chown --reference="$IHW_LIB_ROOT" "$f" 2>/dev/null
+        [ "$dirnew" -eq 1 ] && chown --reference="$IHW_LIB_ROOT" "$d" 2>/dev/null
+    fi
+    return 0
+}
+
+# run_history_last SCRIPT – "rc;timestamp" of the last --apply run of SCRIPT
+# (path relative to the repository, e.g. 09-Install/05-oracle_patch_weblogic.sh);
+# empty when it never ran with --apply
+run_history_last() {
+    local f; f="$(run_history_file)"
+    [ -f "$f" ] || return 0
+    awk -F';' -v s="$1" '$4 == s && $6 == "yes" { last = $7 ";" $1 } END { if (last != "") print last }' "$f"
+}
+
+# archive_pull_hint STEP – with a patch archive (PATCH_ARCHIVE, NFS/ZFS master
+# copy) the missing file is probably only not pulled to local disk yet
+archive_pull_hint() {
+    [ -n "${PATCH_ARCHIVE:-}" ] || return 0
+    info "  Patch archive set: pull it first – 07-Maintenance/patch_storage.sh pull ${1:-$(basename "$0")} --apply"
+}
+
+# patch_row_zip ROW [BASE] – path of the ZIP of one patch-list row
+# (download/patches_fmw.csv: file regexp in the row's dir below BASE,
+# default PATCH_STORAGE), or "" (return 1)
+patch_row_zip() {
+    local nr re dir f b base="${2:-$PATCH_STORAGE}"
+    IFS=';' read -r nr _ re _ _ _ dir _ <<< "$1"
+    for f in "$base/${dir:-$nr}"/*.zip; do
+        [ -f "$f" ] || continue; b="$(basename "$f")"
+        if [ -n "$re" ]; then [[ "$b" =~ ^$re$ ]] && { printf '%s' "$f"; return 0; }
+        else [[ "$b" == p"$nr"_* ]] && { printf '%s' "$f"; return 0; }; fi
+    done
+    return 1
 }
 
 # =============================================================================
