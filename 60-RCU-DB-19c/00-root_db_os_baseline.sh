@@ -119,6 +119,9 @@ printList "shmall"     30 "$SHMALL pages"
 SYSCTL_FILE="/etc/sysctl.d/60-oracle-db.conf"
 LIMITS_FILE="/etc/security/limits.d/60-oracle-db.conf"
 CORE_DIR="/var/tmp/core"
+# OSDBA / OSOPER groups of the 19c response file (01-db_install_software.sh:
+# OSDBA, OSBACKUPDBA, OSDGDBA, OSKMDBA, OSRACDBA = dba, OSOPER = oper)
+DB_OS_GROUPS="dba oper"
 
 # =============================================================================
 # Dry-run exit
@@ -126,6 +129,13 @@ CORE_DIR="/var/tmp/core"
 
 if ! $APPLY; then
     printf "\n" | tee -a "$LOG_FILE"
+    _ora_user="${ORACLE_OS_USER:-oracle}"
+    for _grp in $DB_OS_GROUPS; do
+        id -nG "$_ora_user" 2>/dev/null | tr ' ' '\n' | grep -qx "$_grp" \
+            && ok "$_ora_user already in group $_grp" \
+            || info "Would add $_ora_user to group $_grp (OSDBA/OSOPER of 01-db_install_software.sh)"
+    done
+    unset _ora_user _grp
     warn "Dry-run – use --apply to apply settings."
     info "Would write: $SYSCTL_FILE"
     info "Would write: $LIMITS_FILE"
@@ -151,6 +161,39 @@ else
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
 fi
+
+# =============================================================================
+# 1b. oracle user in the DB groups
+# =============================================================================
+# The preinstall RPM creates the groups, but adds the oracle user to them only
+# when it creates the user itself. On an FMW host 03-root_user_oracle.sh created
+# oracle before (oinstall only) -> CVU PRVF-7566 "Group Membership: dba",
+# OS authentication (sqlplus / as sysdba) fails.
+
+section "oracle user – DB groups ($DB_OS_GROUPS)"
+
+_ora_user="${ORACLE_OS_USER:-oracle}"
+if ! id "$_ora_user" > /dev/null 2>&1; then
+    warn "User $_ora_user not found – 03-root_user_oracle.sh / preinstall RPM first"
+else
+    _added=0
+    for _grp in $DB_OS_GROUPS; do
+        if ! getent group "$_grp" > /dev/null 2>&1; then
+            groupadd "$_grp" && ok "Group created: $_grp" || { fail "groupadd $_grp failed"; continue; }
+        fi
+        if id -nG "$_ora_user" | tr ' ' '\n' | grep -qx "$_grp"; then
+            ok "$_ora_user already in group $_grp"
+        elif usermod -aG "$_grp" "$_ora_user"; then
+            ok "$_ora_user added to group $_grp"
+            _added=1
+        else
+            fail "usermod -aG $_grp $_ora_user failed"
+        fi
+    done
+    [ "$_added" -eq 1 ] && warn "New group membership is active only in a NEW login of $_ora_user – log out/in before 00b-/01-"
+    unset _added _grp
+fi
+unset _ora_user
 
 # =============================================================================
 # 2. expect (required for automated MOS keystore setup in AutoUpgrade)

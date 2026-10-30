@@ -217,6 +217,16 @@ while IFS= read -r _line; do
                 continue ;;
         esac
     fi
+    # real finding with a known fix: oracle created before the preinstall RPM
+    if [ "$_res" = "FAILED" ]; then
+        case "$_item" in
+            "Group Membership: "*)
+                fail "$_msg"; _unexpected=$((_unexpected + 1))
+                info "    fix: sudo ./60-RCU-DB-19c/00-root_db_os_baseline.sh --apply (adds $(id -un) to dba/oper),"
+                info "    then log out/in as $(id -un) and re-run this check"
+                continue ;;
+        esac
+    fi
     case "$_res" in
         PASSED)  ok "$_msg" ;;
         WARNING) warn "$_msg" ;;

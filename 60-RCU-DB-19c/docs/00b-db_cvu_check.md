@@ -107,6 +107,12 @@ failures to fix").
 Real errors are everything else: missing kernel parameters / limits (→
 `00-root_db_os_baseline.sh --apply`), groups, disk space.
 
+Seen at a customer (2026-10-30): **`Group Membership: dba` FAILED
+(PRVF-7566)** – oracle was created by `03-root_user_oracle.sh` (FMW, `oinstall`
+only) before the preinstall RPM, which does not change an existing user. Fix:
+`00-root_db_os_baseline.sh --apply` (adds oracle to `dba` + `oper`), log out /
+in as oracle, re-run `00b-`. The script prints this hint with the FAIL.
+
 ## No post-install check
 
 `cluvfy comp software -d <DB home>` (attributes of the files of an installed

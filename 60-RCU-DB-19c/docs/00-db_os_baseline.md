@@ -159,6 +159,12 @@ Switch to: `SGA_TARGET=1536M` + `PGA_AGGREGATE_TARGET=512M`.
 1. Pre-checks (root, `dnf`); calculate shmmax/shmall from the actual RAM
 2. Install `oracle-database-preinstall-19c` RPM (creates oracle user, groups,
    base limits, most sysctl params)
+2b. Add the oracle user to the groups `dba` + `oper` (OSDBA / OSOPER of the
+   `01-` response file; groups created if missing). The RPM adds the user to
+   them only when it creates the user itself – on an FMW host
+   `03-root_user_oracle.sh` created oracle before with `oinstall` only
+   (CVU PRVF-7566 "Group Membership: dba", OS authentication fails). The new
+   membership is active only in a **new login** of oracle
 3. Install `expect` – AutoUpgrade's MOS keystore setup (`01-` download) is
    scripted with it
 4. Install `perl-File-Copy` – OL9 minimal: `opatch` / OJVM `javavm_refresh`
