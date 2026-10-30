@@ -13,6 +13,7 @@ runtime, never by a second copy of the script.
 | [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
 | [clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
+| [check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
@@ -268,3 +269,52 @@ name; as root all. Exit 0 = clone-capable, 1 = items to fix, 2 = no domain.
 Log: `<-t>/clone_check_<host>_<ts>.log` (contains host names / IPs – keep it
 out of repositories). Tested 2026-10-29 on the 14c test host: same verdict
 as `02-Checks/clone_check.sh` ("yes").
+
+## check_disk_space.sh
+
+Where is the space of the **local** disks? Read-only – deletes nothing, prints
+the clean command per finding. Network file systems (NFS, CIFS, sshfs … – e.g.
+the NFS-mounted ZFS patch archive) are read from `/proc/self/mounts` and
+**never scanned**, also not when they are mounted below a local directory
+(`du -x` / `find -xdev` per local file system).
+
+```bash
+sudo ./check_disk_space.sh                 # as root: complete picture
+sudo ./check_disk_space.sh --big 1000      # single files >= 1 GB only
+sudo ./check_disk_space.sh --min 500       # tree: directories >= 500 MB only
+```
+
+| Option | Meaning |
+|---|---|
+| `--min MB` | smallest directory in the usage tree (default 100) |
+| `--big MB` | smallest single file in section 5 (default 500) |
+| `--top N` | at most N entries per tree level (default 15) |
+| `-t DIR` | directory of the report file (default `/tmp`) |
+
+Sections:
+
+1. **File systems** – local (scanned, WARN >= 85 %, FULL >= 95 %) and network
+   (listed, not scanned).
+2. **Usage tree** – 2 levels below each local mount point; mount points of
+   other file systems are marked. df used much larger than the du sum
+   (> 1 GB and > 5 %) = hidden space: deleted but open files (section 4) or
+   files written **under** a mount point before the NFS / disk was mounted –
+   the bind-mount command to see them is printed.
+3. **Known space eaters**, largest first, each with its clean command: dnf
+   cache, journal, rotated logs, old kernels, crash / core dumps (our
+   `core_pattern` writes to `/var/tmp/core`), `/tmp`, `/var/tmp`; Oracle homes
+   of the central inventory – **in use** (process, `/etc/oratab`, registered
+   domain) or **not in use** (old home after an out-of-place patch →
+   `deinstall`), `.patch_storage` (`opatch util cleanup`), AutoUpgrade
+   `patchdir` (gold image, base ZIP), ADR (`adrci purge`), audit files, FRA,
+   unlinked JDKs below `$ORACLE_BASE/java`, CVU home, OUI leftovers,
+   `PATCH_STORAGE` (→ `07-Maintenance/patch_storage.sh clean`), WebLogic logs
+   / tmp / cache, IHateWeblogic logs and config backups. Locations come from
+   the environment, the repository's `environment.conf` (when run from the
+   repository) or the defaults.
+4. **Deleted but still open files** (`/proc/*/fd`) – the space comes back only
+   when the process ends.
+5. **Single files >= `--big`** with date and owner.
+
+Exit code: 0 = all local file systems < 85 %, 1 = one >= 85 %, 2 = one >= 95 %.
+Runtime on the test host (100 GB disk, 92 GB used): about 40 s.
