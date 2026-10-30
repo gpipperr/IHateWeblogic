@@ -4,7 +4,11 @@
 # Purpose  : Download FMW 14.1.2 base installers and MOS patches into
 #            PATCH_STORAGE.
 #            eDelivery path : manual file placement (primary) or Bearer Token wget.
-#            MOS path       : getMOSPatch.jar for OPatch + post-install patches.
+#            MOS path       : patch list download/patches_fmw.csv (one row per file,
+#                             role per row), downloaded by the standalone
+#                             70-Customer-Projects/tools/mos_patch_download.sh
+#                             (getMOSPatch.jar) – the same tool + list run on a
+#                             host without this library (offline route).
 #            GitHub         : JACOB (WebUtil OLE) if FORMS_WEBUTIL_JACOB=true.
 #            MOS, 2nd platform: client Java (Windows x64) if FORMS_CLIENT_DIST=true
 #                             -> $PATCH_STORAGE/client/jdk/<nr>/ (concept docs/40).
@@ -13,9 +17,9 @@
 #                             -> $PATCH_STORAGE/icon/ (forms_client_icon_path).
 #            OTN            : APEX + ORDS "latest" ZIPs if INSTALL_APEX=true
 #                             -> $PATCH_STORAGE/apex/<ver>/, ords/<ver>/ (version from the ZIP)
-#            MOS, Generic   : APEX patch set bundle (APEX_PATCH_NR, platform 2000P)
-#                             -> $PATCH_STORAGE/apex/<ver>/patch/<nr>/ (--mos)
-#            MOS, Linux     : standalone CVU (DB_CVU_PATCH_NR, only LOCAL_REP_DB=true)
+#            MOS, Generic   : APEX patch set bundle (role apex, platform 2000P)
+#                             -> $PATCH_STORAGE/apex/patch/<nr>/ (--mos)
+#            MOS, Linux     : standalone CVU (role cvu, only LOCAL_REP_DB=true)
 #                             -> $PATCH_STORAGE/database/cvu/ (--mos)
 # Call     : ./09-Install/04-oracle_pre_download.sh [--apply] [--wget] [--mos|--all] [--fresh-patches]
 #            (none)              – dry-run: show expected paths and checksums
@@ -26,11 +30,9 @@
 #            --apply --wget --mos – Bearer Token wget + getMOSPatch
 #            --apply --fresh-patches --mos – archive patches/ to patches_<timestamp>/
 #                                   first, then download into a clean patches/
-#                                   (use at the start of a new patch cycle - the
-#                                   per-patch skip-if-present check only looks for
-#                                   ANY zip in the directory, not the right version,
-#                                   so leftover builds from a previous cycle can
-#                                   get silently reused instead of re-downloaded)
+#                                   (use at the start of a new patch cycle - a ZIP
+#                                   whose name never changes (JDK 35702194) or a
+#                                   re-released ZIP would otherwise be reused)
 # Runs as  : oracle
 # Requires : sha256sum, od, java (--mos), wget (--wget)
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -276,132 +278,23 @@ _install_one() {
 }
 
 # =============================================================================
-# Helpers – MOS / getMOSPatch
+# Helpers – MOS patches (list: download/patches_fmw.csv, loaded by
+# oracle_software_version.conf into IHW_PATCH_ROWS)
 # =============================================================================
+# The download itself is done by the standalone tool – the same one that runs
+# on a host without this library (share host with MOS access):
+MOS_TOOL="$ROOT_DIR/70-Customer-Projects/tools/mos_patch_download.sh"
 
-# _gmp_run <getMOSPatch args …> – run getMOSPatch.jar in the CURRENT directory
-# with MOS user/password typed into a pseudo terminal: getMOSPatch asks on its
-# console when MOSUser/MOSPass are not given. The password never appears on a
-# command line (MOSPass= was visible in ps for every user – fixed 2026-10-20)
-# and is masked in the output. User + password reach python via stdin.
-_gmp_run() {
-    printf '%s\n%s\n' "$MOS_USER" "$MOS_PWD" | python3 -I -c '
-import os, pty, select, sys
-user = sys.stdin.readline().rstrip("\n"); pwd = sys.stdin.readline().rstrip("\n")
-pid, fd = pty.fork()
-if pid == 0:
-    os.execvp(sys.argv[1], sys.argv[1:])
-tail, sent_u, sent_p = b"", False, False
-while True:
-    r, _, _ = select.select([fd], [], [], 1800)
-    if not r:
-        break
-    try:
-        d = os.read(fd, 4096)
-    except OSError:
-        break
-    if not d:
-        break
-    tail = (tail + d)[-300:].lower()
-    if not sent_u and b"username" in tail:
-        os.write(fd, (user + "\n").encode()); sent_u, tail = True, b""
-    elif sent_u and not sent_p and b"password" in tail:
-        os.write(fd, (pwd + "\n").encode()); sent_p, tail = True, b""
-    if pwd:
-        d = d.replace(pwd.encode(), b"****")
-    sys.stdout.buffer.write(d); sys.stdout.flush()
-_, st = os.waitpid(pid, 0)
-sys.exit(os.waitstatus_to_exitcode(st))
-' java $(_java_proxy_opts) -jar "$PATCH_STORAGE/bin/getMOSPatch.jar" "$@"
-}
-
-# _java_proxy_opts – https_proxy/http_proxy/no_proxy as JVM system properties:
-# java ignores the shell variables, curl and wget use them
-_java_proxy_opts() {
-    local p="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}" hp host port
-    [ -z "$p" ] && return 0
-    hp="${p#*://}"; hp="${hp#*@}"; hp="${hp%%/*}"
-    host="${hp%%:*}"; port=80
-    [ "$hp" != "$host" ] && port="${hp##*:}"
-    printf -- "-Dhttps.proxyHost=%s -Dhttps.proxyPort=%s -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s" \
-        "$host" "$port" "$host" "$port"
-    local np="${no_proxy:-${NO_PROXY:-}}"
-    [ -n "$np" ] && printf -- " -Dhttp.nonProxyHosts=%s" "$(printf '%s' "$np" | tr ',' '|' | tr -d ' ')"
-}
-
-# _mos_download_one  patch_nr  dest_dir  [regexp]  [platform]
-# Download one patch or OPatch via getMOSPatch.jar.
-# regexp (optional): passed as regexp= to getMOSPatch to restrict which files are downloaded.
-# platform (optional): MOS platform code for this directory only (e.g. 233P for the
-#   Windows client Java) – written as "<platform>;<language>" into the directory's
-#   .getMOSPatch.cfg instead of copying the master cfg (MOS_PLATFORM).
-# Retries up to MOS_RETRY_MAX times (default 3) on failure to handle transient DNS timeouts.
-_mos_download_one() {
-    local patch_nr="$1"
-    local dest_dir="$2"
-    local gmp_regexp="${3:-}"
-    local gmp_platform="${4:-}"
-    # getMOSPatch matches the regexp (String.matches) against the file name
-    # WITHOUT ".zip" (checked in the class 2026-10-28) – strip a trailing \.zip
-    gmp_regexp="${gmp_regexp%\\.zip}"; gmp_regexp="${gmp_regexp%.zip}"
-    local retry_max="${MOS_RETRY_MAX:-3}"
-    local retry_wait="${MOS_RETRY_WAIT:-10}"
-
-    if ls "$dest_dir"/p"${patch_nr}"_*.zip "$dest_dir"/p"${patch_nr}"*.zip \
-           "$dest_dir"/*.zip 2>/dev/null | grep -q .; then
-        ok "$(printf "%-12s %s" "Patch $patch_nr:" "already present in $dest_dir – skipping")"
-        return 0
-    fi
-
-    if ! $APPLY; then
-        warn "Dry-run: patch $patch_nr not yet in $dest_dir"
-        return 0
-    fi
-
-    mkdir -p "$dest_dir"
-    ok "$(printf "%-12s %s" "Patch $patch_nr:" "downloading to $dest_dir")"
-
-    # getMOSPatch reads .getMOSPatch.cfg from the current working directory
-    if [ -n "$gmp_platform" ]; then
-        printf "%s;%s\n" "$gmp_platform" "${MOS_LANGUAGE:-4L}" > "$dest_dir/.getMOSPatch.cfg"
-        info "$(printf "%-12s %s" "Patch $patch_nr:" "platform $gmp_platform (own .getMOSPatch.cfg)")"
-    else
-        cp "$PATCH_STORAGE/bin/.getMOSPatch.cfg" "$dest_dir/.getMOSPatch.cfg" 2>/dev/null
-    fi
-
-    local attempt rc
-    for attempt in $(seq 1 "$retry_max"); do
-        [ "$attempt" -gt 1 ] && info "$(printf "Patch %-10s retry %d/%d (DNS timeout?) – waiting %ss" \
-            "$patch_nr" "$attempt" "$retry_max" "$retry_wait")" && sleep "$retry_wait"
-
-        (
-            cd "$dest_dir" || exit 1
-            if [ -n "$gmp_regexp" ]; then
-                _gmp_run patch="$patch_nr" regexp="$gmp_regexp" download=all
-            else
-                _gmp_run patch="$patch_nr" download=all
-            fi
-        )
-        rc=$?
-        [ "$rc" -eq 0 ] && break
-        warn "$(printf "Patch %-10s attempt %d/%d failed (rc=%d)" "$patch_nr" "$attempt" "$retry_max" "$rc")"
+# _row_zip ROW – path of the ZIP of one CSV row (regexp in the row's dir), or ""
+_row_zip() {
+    local nr re dir f b
+    IFS=';' read -r nr _ re _ _ _ dir _ <<< "$1"
+    for f in "$PATCH_STORAGE/${dir:-$nr}"/*.zip; do
+        [ -f "$f" ] || continue; b="$(basename "$f")"
+        if [ -n "$re" ]; then [[ "$b" =~ ^$re$ ]] && { printf '%s' "$f"; return 0; }
+        else [[ "$b" == p"$nr"_* ]] && { printf '%s' "$f"; return 0; }; fi
     done
-
-    if [ "$rc" -ne 0 ]; then
-        fail "getMOSPatch failed for patch $patch_nr after $retry_max attempt(s) (rc=$rc)"
-        return 1
-    fi
-
-    # Verify at least one ZIP was created
-    if ! ls "$dest_dir"/*.zip 2>/dev/null | grep -q .; then
-        fail "No ZIP found in $dest_dir after download – getMOSPatch may have failed silently"
-        return 1
-    fi
-
-    local size
-    size="$(du -sh "$dest_dir" 2>/dev/null | awk '{print $1}')"
-    ok "$(printf "Patch %-12s downloaded  %s  (%s)" "$patch_nr" "$dest_dir" "$size")"
-    return 0
+    return 1
 }
 
 # =============================================================================
@@ -480,8 +373,8 @@ fi
 unset _DL_HOSTS
 
 # --- Client Java for the Forms client distribution (concept docs/40) ----------
-# Same JDK patch as the server, other platform -> own directory: the skip check
-# of _mos_download_one treats ANY zip in a directory as "already downloaded".
+# Same JDK patch as the server, other platform -> own directory client/jdk/<nr>/
+# (column "dir" of the CSV; the file regexp keeps Linux and Windows apart).
 DOWNLOAD_CLIENT_JDK=false
 case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY)
@@ -489,17 +382,32 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
 esac
 CLIENT_JDK_NR="${CLIENT_JDK_PATCH_NR:-${JDK_PATCH_NR:-}}"
 CLIENT_JDK_PLAT="${CLIENT_JDK_PLATFORM:-233P}"
-CLIENT_JDK_DIR="$PATCH_STORAGE/client/jdk/$CLIENT_JDK_NR"
 [ -z "$CLIENT_JDK_NR" ] && DOWNLOAD_CLIENT_JDK=false
+
+# Standalone CVU for the local RCU database (60-RCU-DB-19c/00b-db_cvu_check.sh)
+DOWNLOAD_CVU=false
+[ "${LOCAL_REP_DB:-false}" = "true" ] && [ -n "${DB_CVU_PATCH_NR:-}" ] && DOWNLOAD_CVU=true
+
+# APEX + ORDS (OTN "latest" ZIPs, version from the ZIP) + APEX patch (MOS Generic)
+DOWNLOAD_APEX=false
+[ "${INSTALL_APEX:-false}" = "true" ] && DOWNLOAD_APEX=true
+
+# Roles of download/patches_fmw.csv this installation needs (column "step")
+MOS_STEPS="opatch spb wls fr_common reports jdk"
+case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
+    FORMS_AND_REPORTS|FORMS_ONLY) MOS_STEPS="$MOS_STEPS forms" ;;
+esac
+[ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && MOS_STEPS="$MOS_STEPS fr_optional"
+$DOWNLOAD_CLIENT_JDK && MOS_STEPS="$MOS_STEPS client_jdk"
+$DOWNLOAD_CVU        && MOS_STEPS="$MOS_STEPS cvu"
+$DOWNLOAD_APEX       && MOS_STEPS="$MOS_STEPS apex"
 
 # =============================================================================
 # --fresh-patches: archive existing patches/ before downloading anything new
 # =============================================================================
-# _mos_download_one's skip-if-present check only looks for ANY zip in the
-# destination directory, not whether it is the version actually needed for
-# the current cycle - a leftover build from a previous quarter (or a patch
-# that ships multiple product-version variants under the same patch number)
-# can otherwise get silently reused instead of freshly downloaded. Moving the
+# The skip-if-present check matches the file regexp of the CSV, but a patch
+# whose ZIP name never changes (JDK 35702194) or a re-released ZIP would be
+# reused from the previous cycle. Moving the
 # whole patches/ directory aside guarantees every patch is re-fetched clean.
 if $FRESH_PATCHES; then
     section "Archiving patches/ (--fresh-patches)"
@@ -567,7 +475,7 @@ if $MOS_MODE; then
     done
     unset _p
     $DOWNLOAD_CLIENT_JDK && \
-        info "  Client Java (Patch $CLIENT_JDK_NR, platform $CLIENT_JDK_PLAT) → $CLIENT_JDK_DIR/"
+        info "  Client Java (Patch $CLIENT_JDK_NR, platform $CLIENT_JDK_PLAT) → $PATCH_STORAGE/client/jdk/$CLIENT_JDK_NR/"
 fi
 
 # --- Storage inventory: what is already present? -------------------------------
@@ -598,30 +506,26 @@ _inv_patch() {
 _inv_file "$PATCH_STORAGE/wls/$FMW_INFRA_ZIP" "FMW Infrastructure ZIP"
 $DOWNLOAD_FR && _inv_file "$PATCH_STORAGE/fr/$FMW_FR_ZIP" "Forms & Reports ZIP"
 
-_spb_zip="$(ls "$PATCH_STORAGE/patches/${WLS_SPB_PATCH_NR:-none}"/p${WLS_SPB_PATCH_NR:-none}_*.zip 2>/dev/null | head -1)"
-_opatch_nr="${OPATCH_UPGRADE_PATCH_NR:-28186730}"
-if ! _inv_patch "$_opatch_nr" "OPatch upgrade $_opatch_nr"; then
-    # 05-oracle_patch_weblogic.sh prefers the copy bundled in the SPB (tools/opatch/generic/)
-    if [ -n "$_spb_zip" ] && unzip -l "$_spb_zip" 2>/dev/null | grep -q "tools/opatch/generic/p${_opatch_nr}_"; then
-        ok "$(printf "  %-26s bundled in SPB %s – no separate download needed" "OPatch upgrade $_opatch_nr" "$WLS_SPB_PATCH_NR")"
+# MOS patches: every CSV row of the needed roles, file regexp in its dir
+_spb_zip="$(_row_zip "$(printf '%s' "$IHW_PATCH_ROWS" | awk -F';' '$5 == "spb"' | head -1)")"
+while IFS= read -r _row; do
+    [ -z "$_row" ] && continue
+    IFS=';' read -r _nr _ _re _ _st _ _dir _ <<< "$_row"
+    [[ " $MOS_STEPS " == *" $_st "* ]] || continue
+    _z="$(_row_zip "$_row")"
+    if [ -n "$_z" ]; then
+        ok "$(printf "  %-26s present  %s/%s" "$_st $_nr" "${_dir:-$_nr}" "$(basename "$_z")")"
+    elif [ "$_st" = "opatch" ] && [ -n "$_spb_zip" ] && \
+         unzip -l "$_spb_zip" 2>/dev/null | grep -q "tools/opatch/generic/p${_nr}_"; then
+        # 05-oracle_patch_weblogic.sh prefers the copy bundled in the SPB
+        ok "$(printf "  %-26s bundled in SPB %s – no separate download needed" "opatch $_nr" "$WLS_SPB_PATCH_NR")"
     else
-        warn "$(printf "  %-26s MISSING  (not in patches/ and not bundled in an SPB)" "OPatch upgrade $_opatch_nr")"
+        warn "$(printf "  %-26s MISSING  %s/ (%s)" "$_st $_nr" "${_dir:-$_nr}" "${_re:-p${_nr}_*}")"
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
-fi
-
-_inv_list="${WLS_SPB_PATCH_NR:-} ${JDK_PATCH_NR:-} ${FMW_JDK_PATCH_NR:-} ${INSTALL_PATCHES:-} ${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-}"
-case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
-    FORMS_AND_REPORTS|FORMS_ONLY) _inv_list="$_inv_list ${INSTALL_PATCHES_FORMS:-}" ;;
-esac
-[ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && _inv_list="$_inv_list ${INSTALL_PATCHES_FR_OPTIONAL:-}"
-for _p in $_inv_list; do
-    if ! _inv_patch "$_p" "Patch $_p"; then
-        warn "$(printf "  %-26s MISSING  patches/%s/" "Patch $_p" "$_p")"
-        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
-    fi
-done
-unset _p _inv_list _spb_zip _opatch_nr
+done <<< "$IHW_PATCH_ROWS"
+[ -z "$IHW_PATCH_ROWS" ] && { warn "  No patches in $IHW_PATCH_CSV"; INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 )); }
+unset _row _nr _re _st _dir _z _spb_zip
 
 # JACOB (GitHub, not MOS) – only for Forms with FORMS_WEBUTIL_JACOB=true
 DOWNLOAD_JACOB=false
@@ -631,18 +535,9 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
 esac
 $DOWNLOAD_JACOB && _inv_file "$PATCH_STORAGE/jacob/$JACOB_ZIP" "JACOB ZIP (WebUtil OLE)"
 
-# Client Java (FORMS_CLIENT_DIST=true, Forms only) – must not be a Linux ZIP
-if $DOWNLOAD_CLIENT_JDK; then
-    _cj_zip="$(ls "$CLIENT_JDK_DIR"/p"${CLIENT_JDK_NR}"_*.zip 2>/dev/null | grep -v 'Linux' | head -1)"
-    if [ -n "$_cj_zip" ]; then
-        ok "$(printf "  %-26s present  %s" "Client Java ($CLIENT_JDK_PLAT)" "$(basename "$_cj_zip")")"
-    else
-        warn "$(printf "  %-26s MISSING  client/jdk/%s/" "Client Java ($CLIENT_JDK_PLAT)" "$CLIENT_JDK_NR")"
-        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
-    fi
-    unset _cj_zip
-elif [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
-    warn "FORMS_CLIENT_DIST=true but neither CLIENT_JDK_PATCH_NR nor JDK_PATCH_NR is set"
+# Client Java (FORMS_CLIENT_DIST=true, Forms only): CSV role client_jdk, above
+if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
+    warn "FORMS_CLIENT_DIST=true but download/patches_fmw.csv has no client_jdk / jdk row"
 fi
 
 # Shortcut icon of the Forms client (FORMS_CLIENT_ICON as URL -> $PATCH_STORAGE/icon/,
@@ -667,14 +562,6 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
     esac
 fi
 
-# Standalone CVU for the local RCU database (60-RCU-DB-19c/00b-db_cvu_check.sh)
-DOWNLOAD_CVU=false
-[ "${LOCAL_REP_DB:-false}" = "true" ] && [ -n "${DB_CVU_PATCH_NR:-}" ] && DOWNLOAD_CVU=true
-
-# APEX + ORDS (OTN "latest" ZIPs, version from the ZIP) + APEX patch (MOS Generic)
-DOWNLOAD_APEX=false
-[ "${INSTALL_APEX:-false}" = "true" ] && DOWNLOAD_APEX=true
-
 APEX_ZIP_FILE="" ; APEX_VER="" ; ORDS_ZIP_FILE="" ; ORDS_VER=""
 if $DOWNLOAD_APEX; then
     APEX_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
@@ -693,25 +580,8 @@ if $DOWNLOAD_APEX; then
         warn "$(printf "  %-26s MISSING  ords/<ver>/ (%s)" "ORDS" "${ORDS_ZIP_URL:-ORDS_ZIP_URL not set}")"
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
-    if [ -n "${APEX_PATCH_NR:-}" ]; then
-        if ls "$PATCH_STORAGE/apex/${APEX_VER:-none}/patch/$APEX_PATCH_NR"/p"${APEX_PATCH_NR}"_*.zip >/dev/null 2>&1; then
-            ok "$(printf "  %-26s present  apex/%s/patch/%s/" "APEX patch $APEX_PATCH_NR" "$APEX_VER" "$APEX_PATCH_NR")"
-        else
-            warn "$(printf "  %-26s MISSING  apex/%s/patch/%s/ (--mos)" "APEX patch $APEX_PATCH_NR" "${APEX_VER:-<ver>}" "$APEX_PATCH_NR")"
-            INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
-        fi
-    else
-        info "$(printf "  %-26s none configured (APEX_PATCH_NR – see the APEX download page)" "APEX patch set bundle")"
-    fi
-fi
-
-if $DOWNLOAD_CVU; then
-    if ls "$PATCH_STORAGE/database/cvu"/p"${DB_CVU_PATCH_NR}"_*.zip >/dev/null 2>&1; then
-        ok "$(printf "  %-26s present  database/cvu/" "CVU $DB_CVU_PATCH_NR (local DB)")"
-    else
-        warn "$(printf "  %-26s MISSING  database/cvu/ (--mos)" "CVU $DB_CVU_PATCH_NR (local DB)")"
-        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
-    fi
+    [ -z "${APEX_PATCH_NR:-}" ] && \
+        info "$(printf "  %-26s none in the CSV (role apex – see the APEX download page)" "APEX patch set bundle")"
 fi
 
 if [ "$INVENTORY_MISSING" -eq 0 ]; then
@@ -888,7 +758,6 @@ if $MOS_MODE; then
 
     # --- getMOSPatch.jar check ------------------------------------------------
     GMP_JAR="$PATCH_STORAGE/bin/getMOSPatch.jar"
-    GMP_CFG="$PATCH_STORAGE/bin/.getMOSPatch.cfg"
 
     GMP_GITHUB_URL="https://raw.githubusercontent.com/MarisElsins/getMOSPatch/master/getMOSPatch.jar"
 
@@ -927,33 +796,7 @@ if $MOS_MODE; then
         ok "getMOSPatch.jar downloaded: $GMP_JAR  ($(du -sh "$GMP_JAR" | awk '{print $1}'))"
     fi
 
-    # --- .getMOSPatch.cfg: create or repair ------------------------------------
-    # Format REQUIRED by getMOSPatch.jar's platforms() parser: a single line
-    # "<platform>;<language>" (semicolon-joined). getMOSPatch reads this from
-    # the CURRENT WORKING DIR. The master copy lives in $PATCH_STORAGE/bin/;
-    # _mos_download_one copies it to each destination directory before
-    # invoking getMOSPatch.
-    #
-    # A cfg written as two separate lines (platform on one line, language on
-    # the next - what this script used to write) makes getMOSPatch crash with
-    # "ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1":
-    # platforms() splits each line on ";" expecting exactly 2 parts, and a
-    # line with no ";" yields a 1-element array. Confirmed by decompiling
-    # getMOSPatch.jar (platforms() source line 481). If an old, wrongly
-    # formatted cfg already exists from before this fix, it is rewritten here
-    # rather than left in place.
-    GMP_CFG_EXPECTED="${MOS_PLATFORM:-226P};${MOS_LANGUAGE:-4L}"
-    if [ ! -f "$GMP_CFG" ] || [ "$(cat "$GMP_CFG" 2>/dev/null)" != "$GMP_CFG_EXPECTED" ]; then
-        [ -f "$GMP_CFG" ] && warn ".getMOSPatch.cfg has the wrong format (expected a single \"platform;language\" line) – rewriting"
-        mkdir -p "$(dirname "$GMP_CFG")"
-        printf "%s\n" "$GMP_CFG_EXPECTED" > "$GMP_CFG"
-        ok "$(printf "Wrote .getMOSPatch.cfg  platform=%-6s lang=%s" \
-            "${MOS_PLATFORM:-226P}" "${MOS_LANGUAGE:-4L}")"
-    else
-        ok ".getMOSPatch.cfg exists: $GMP_CFG"
-    fi
-
-    # --- Decrypt MOS password -------------------------------------------------
+    # --- MOS password ---------------------------------------------------------
     section "MOS Authentication"
     unset MOS_USER MOS_PWD
     if ! load_secrets_file "$MOS_SEC_FILE"; then
@@ -964,125 +807,43 @@ if $MOS_MODE; then
         fail "MOS_PWD not found in $MOS_SEC_FILE – re-run: 00-Setup/mos_sec.sh --apply"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
-    # MOS_USER from secrets file (overrides environment.conf if set there too)
     [ -n "${MOS_USER:-}" ] && ok "MOS user: $MOS_USER" \
         || { fail "MOS_USER not set – re-run: 00-Setup/mos_sec.sh --apply"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
-    ok "MOS password decrypted (${#MOS_PWD} characters)"
 
-    MOS_ERRORS=0
-
-    # --- OPatch Upgrade Patch (28186730) -------------------------------------
-    # Since OPatch >= 13.6, OPatch is upgraded via opatch_generic.jar (OUI tooling).
-    # Patch 28186730 is the FMW/WLS-specific package containing opatch_generic.jar.
-    # It downloads to patches/$OPATCH_UPGRADE_PATCH_NR/ – where 05-oracle_patch_weblogic.sh
-    # expects it. Patch 6880880 (raw OPatch files) is NOT used by the patch script.
-    section "OPatch Upgrade (patch ${OPATCH_UPGRADE_PATCH_NR:-28186730})"
-    info "Contains opatch_generic.jar for FMW/WLS OPatch upgrade (OUI tooling)"
-    info "Target version : ${OPATCH_VERSION_INSTALL:-13.9.4.2.22}  |  minimum required: ${OPATCH_VERSION_MIN:-13.9.4.2.17}"
-
-    OPATCH_UPGRADE_DL_DIR="$PATCH_STORAGE/patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}"
-    _mos_download_one "${OPATCH_UPGRADE_PATCH_NR:-28186730}" "$OPATCH_UPGRADE_DL_DIR" \
-        || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-
-    # --- WLS Stack Patch Bundle (applied via opatch napply, see 05-script) ---
-    if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
-        section "WLS Stack Patch Bundle (patch $WLS_SPB_PATCH_NR)"
-        info "This ZIP is large (several hundred MB) and contains the SPB"
-        info "applied by 05-oracle_patch_weblogic.sh via opatch napply."
-        _mos_download_one "$WLS_SPB_PATCH_NR" "$PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR" \
-            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
+    # --- Download: standalone tool, list download/patches_fmw.csv ------------
+    # Same tool and list as on a host without this library (offline route).
+    # Roles = MOS_STEPS (from environment.conf), files by regexp into the
+    # library layout (column "dir" relative to PATCH_STORAGE), unzip -t +
+    # SHA-256 soft check. Password via stdin – never on a command line.
+    section "MOS Patches (mos_patch_download.sh, $(basename "$IHW_PATCH_CSV"))"
+    info "Roles: $MOS_STEPS"
+    if [ ! -x "$MOS_TOOL" ]; then
+        fail "Download tool not found: $MOS_TOOL"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
-
-    # --- Java SE (JDK 21 updates exist only on MOS since the NFTC ended) -----
-    # The only download place – 02b-root_os_java.sh --upgrade-jdk and
-    # 07-Maintenance/80-patch_java_os.sh --apply only read patches/<nr>/.
-    if [ -n "${JDK_PATCH_NR:-}" ]; then
-        section "Java SE (patch $JDK_PATCH_NR)"
-        info "Oracle JDK 21 – tar.gz/rpm/deb + SHA256_VALUES (~565 MB), installed by --upgrade-jdk"
-        _mos_download_one "$JDK_PATCH_NR" "$PATCH_STORAGE/patches/$JDK_PATCH_NR" \
-            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-    fi
-    [ -z "${FMW_JDK_PATCH_NR:-}" ] && \
-        info "FMW_JDK_PATCH_NR empty – no patch for the FMW-bundled JDK (oracle_common/jdk) configured yet"
-
-    # --- Client Java for the Forms client distribution (2nd platform) --------
-    if $DOWNLOAD_CLIENT_JDK; then
-        section "Client Java (patch $CLIENT_JDK_NR, platform $CLIENT_JDK_PLAT)"
-        info "Java runtime source of the Forms client bundle (docs/40-forms_client_distribution.md)"
-        _mos_download_one "$CLIENT_JDK_NR" "$CLIENT_JDK_DIR" "" "$CLIENT_JDK_PLAT" \
-            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-        if ls "$CLIENT_JDK_DIR"/*Linux*.zip >/dev/null 2>&1; then
-            fail "Linux ZIP in $CLIENT_JDK_DIR – the platform $CLIENT_JDK_PLAT was not used"
-            MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-        fi
-    fi
-
-    # --- Standalone CVU (only local RCU DB) -------------------------------------
-    section "Standalone CVU (patch ${DB_CVU_PATCH_NR:-?}, local RCU DB)"
-    if $DOWNLOAD_CVU; then
-        info "Pre-install check of the 19c host: 60-RCU-DB-19c/00b-db_cvu_check.sh"
-        _mos_download_one "$DB_CVU_PATCH_NR" "$PATCH_STORAGE/database/cvu" "${DB_CVU_REGEXP:-}" \
-            || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-    else
-        info "Skipped – LOCAL_REP_DB=${LOCAL_REP_DB:-false} (RCU database on another server)"
-    fi
-
-    # --- APEX patch set bundle (platform Generic, own .getMOSPatch.cfg) -------
-    if $DOWNLOAD_APEX && [ -n "${APEX_PATCH_NR:-}" ]; then
-        section "APEX Patch Set Bundle (patch $APEX_PATCH_NR, platform ${APEX_PATCH_PLATFORM:-2000P})"
-        if [ -z "$APEX_VER" ]; then
-            warn "APEX base version not downloaded – patch skipped (run without --mos first)"
-        else
-            _mos_download_one "$APEX_PATCH_NR" "$PATCH_STORAGE/apex/$APEX_VER/patch/$APEX_PATCH_NR" \
-                "" "${APEX_PATCH_PLATFORM:-2000P}" || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-        fi
-    fi
-
-    # --- Post-install patches -------------------------------------------------
-    section "Post-Install Patches"
-
-    if [ -z "${INSTALL_PATCHES:-}" ]; then
-        warn "INSTALL_PATCHES not set in oracle_software_version.conf – skipping WLS patch downloads"
-    else
-        for _PATCH_NR in $INSTALL_PATCHES; do
-            [ -z "$_PATCH_NR" ] && continue
-            _mos_download_one "$_PATCH_NR" "$PATCH_STORAGE/patches/$_PATCH_NR" \
-                || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-        done
-        unset _PATCH_NR
-    fi
-
-    # --- Forms & Reports QPR patches ------------------------------------------
-    section "Forms & Reports QPR Patches"
-
-    FR_PATCHES="${INSTALL_PATCHES_FR_COMMON:-} ${INSTALL_PATCHES_REPORTS:-} ${INSTALL_PATCHES_FORMS:-}"
-    [ "${REPORTS_BIDIPARENTHESIS:-}" = "YES" ] && FR_PATCHES="$FR_PATCHES ${INSTALL_PATCHES_FR_OPTIONAL:-}"
-    FR_PATCHES="$(printf "%s" "$FR_PATCHES" | xargs)"
-
-    if [ -z "$FR_PATCHES" ]; then
-        ok "No Forms/Reports-specific patches configured – nothing to download"
-        info "  (set INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS in oracle_software_version.conf)"
-    else
-        for _PATCH_NR in $FR_PATCHES; do
-            [ -z "$_PATCH_NR" ] && continue
-            _mos_download_one "$_PATCH_NR" "$PATCH_STORAGE/patches/$_PATCH_NR" \
-                || MOS_ERRORS=$(( MOS_ERRORS + 1 ))
-        done
-        unset _PATCH_NR
-    fi
-
-    # Clear MOS password from memory
+    _java_bin="$(command -v java)"
+    [ -x "${JDK_HOME:-}/bin/java" ] && _java_bin="$JDK_HOME/bin/java"
+    printf '%s\n' "$MOS_PWD" | "$MOS_TOOL" -c "$IHW_PATCH_CSV" -d "$PATCH_STORAGE" \
+        -j "$GMP_JAR" -u "$MOS_USER" --java "$_java_bin" \
+        --steps "$(printf '%s' "$MOS_STEPS" | tr ' ' ',')" --password-stdin --apply 2>&1 \
+        | tee -a "$LOG_FILE"
+    _tool_rc=${PIPESTATUS[1]}
     MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    unset MOS_PWD
-
-    [ "$MOS_ERRORS" -gt 0 ] && { fail "$MOS_ERRORS MOS download(s) failed – check: $LOG_FILE"; EXIT_CODE=1; }
+    unset MOS_PWD _java_bin
+    case "$_tool_rc" in
+        0) ok "All MOS patches present and checked" ;;
+        1) warn "MOS download: optional patch missing or SHA-256 differs from the list – see above" ;;
+        *) fail "MOS download incomplete (rc=$_tool_rc) – see above / $LOG_FILE"; EXIT_CODE=2 ;;
+    esac
+    [ "$_tool_rc" -eq 1 ] && [ "$EXIT_CODE" -lt 1 ] && EXIT_CODE=1
+    unset _tool_rc
 
     printf "\n" | tee -a "$LOG_FILE"
     info "After FMW installation – update OPatch and apply patches:"
     info "  05-oracle_patch_weblogic.sh --apply"
     info "  → OPatch upgrade via: patches/${OPATCH_UPGRADE_PATCH_NR:-28186730}/opatch_generic.jar"
     info "  → WLS Stack Patch Bundle: ${WLS_SPB_PATCH_NR:-(none configured)}"
-    info "  → WLS patches: ${INSTALL_PATCHES:-see oracle_software_version.conf}"
+    info "  → WLS patches: ${INSTALL_PATCHES:-see download/patches_fmw.csv}"
     info "  06-oracle_patch_forms_reports.sh --apply"
     info "  → Reports patches: ${INSTALL_PATCHES_REPORTS:-(none configured)}"
     info "  → Forms patches:   ${INSTALL_PATCHES_FORMS:-(none configured)} (only if Forms is installed)"

@@ -137,8 +137,11 @@ Phase 1 – Pre-Install Checks (as oracle)
   [oracle] ./09-Install/04-oracle_pre_download.sh      # eDelivery ZIPs + MOS patches (OPatch + post-install)
              --apply          manual eDelivery placement + SHA-256 verify
              --apply --wget   eDelivery via Bearer Token wget
-             --apply --mos    + getMOSPatch: OPatch + INSTALL_PATCHES
+             --apply --mos    + MOS patches of download/patches_fmw.csv
                               (+ JDK 21 patch, CVU for a local RCU DB)
+         (no MOS access from this host: download on another host with
+          70-Customer-Projects/tools/mos_patch_download.sh -c patches_fmw.csv,
+          rsync PATCH_STORAGE – see 09-Install/download/README.md)
   [root]   ./09-Install/02b-root_os_java.sh --apply --upgrade-jdk
                                                        # JDK 21 of the current patch cycle (JDK_PATCH_NR
                                                        # from the patch repository) – BEFORE 05-: phase 0
@@ -580,7 +583,10 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 ├── 04-root_nginx.sh                   ← Phase 0: Nginx install + proxy config
 ├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
 ├── nginx-wls.conf.template            ← Nginx proxy config template (##VARIABLE## substitution)
-├── oracle_software_version.conf       ← SW versions, SHA-256, patch numbers, OPatch regexp
+├── oracle_software_version.conf       ← SW versions, SHA-256, cycle values; loads download/patches_fmw.csv
+├── download/                          ← per-cycle patch lists (CSV) – library + mos_patch_download.sh
+│   ├── patches_fmw.csv / patches_db.csv
+│   └── README.md
 ├── 04-oracle_pre_checks.sh            ← Phase 1: pre-install prerequisite validation
 ├── 04-oracle_pre_download.sh          ← eDelivery + getMOSPatch download
 ├── 05-oracle_install_weblogic.sh      ← FMW Infrastructure 14.1.2 silent install

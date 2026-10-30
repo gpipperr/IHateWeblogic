@@ -14,9 +14,12 @@ JACOB / WebUtil – [forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jak
 client Java (jlink) – [java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md);
 CVU / RCU database – [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai);
 APEX / ORDS – [apex_architecture.md](../../80-FMW-Architecture/apex_architecture.md).
-Without this library (customer host, manual cookbook): the same getMOSPatch
-mechanism as a standalone script with a CSV list –
-[70-Customer-Projects/tools/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh).
+**Patch list:** [`09-Install/download/patches_fmw.csv`](../download/README.md) –
+one row per patch file, used by this script **and** by the standalone
+[70-Customer-Projects/tools/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+(the `--mos` part of this script calls that tool). A host without MOS access
+downloads with the tool somewhere else and copies `PATCH_STORAGE` – see
+"Host without internet access" below.
 
 FMW 14.1.2 software comes from **two different sources** — the script handles both:
 
@@ -39,11 +42,15 @@ where every user could read it in `ps` (fixed 2026-10-20).
 
 ---
 
-## Configuration File: oracle_software_version.conf
+## Configuration: oracle_software_version.conf + download/patches_fmw.csv
 
-All versions, filenames, and patch numbers are defined in
-`09-Install/oracle_software_version.conf`. This file is committed to git —
-it contains no credentials.
+Base software (eDelivery file names, SHA-256), cycle values and versions are
+in `09-Install/oracle_software_version.conf`; **patch numbers** are in
+[`09-Install/download/patches_fmw.csv`](../download/README.md) – the conf
+loads the CSV and sets the variables below by the role column (`opatch`,
+`spb`, `wls`, `fr_common`, `reports`, `forms`, `fr_optional`, `jdk`,
+`client_jdk`, `cvu`, `apex`). The variable names in the tables below are
+those derived values. Both files are committed to git – no credentials.
 
 ### Base Installers (eDelivery)
 
@@ -171,13 +178,11 @@ Only downloaded when `FORMS_CLIENT_DIST=true` (`environment.conf`, asked by
 
 Why an own directory `$PATCH_STORAGE/client/jdk/<nr>/` and not
 `patches/<nr>/`: the Windows ZIP has the **same patch number** as the
-server JDK, and the skip-if-present check of this script treats *any* ZIP
-in a patch directory as "already downloaded" – a Windows ZIP in
-`patches/35702194/` would silently stop the Linux download (and the other
-way round). getMOSPatch takes one platform per run from the
-`.getMOSPatch.cfg` of its working directory; for this directory the script
-writes `CLIENT_JDK_PLATFORM;MOS_LANGUAGE` instead of copying the master
-file (Linux). Every Java update is a full distribution – no base version
+server JDK – two CSV rows (`jdk` 226P, `client_jdk` 233P) with their own
+file regexp and `dir`, kept apart so the bundle script `40-` finds only the
+Windows ZIP. getMOSPatch takes one platform per run from the
+`.getMOSPatch.cfg` of its working directory; the tool writes
+`<platform of the row>;4L` there. Every Java update is a full distribution – no base version
 is needed. `--fresh-patches` archives `client/jdk/` together with
 `patches/`.
 
@@ -265,7 +270,7 @@ https://raw.githubusercontent.com/MarisElsins/getMOSPatch/master/getMOSPatch.jar
 → $PATCH_STORAGE/bin/getMOSPatch.jar
 ```
 
-Either `wget` or `curl` must be installed. The `.getMOSPatch.cfg` is also created automatically.
+Either `wget` or `curl` must be installed. No `.getMOSPatch.cfg` to prepare: `mos_patch_download.sh` writes one per patch directory (`<platform from the CSV>;4L`).
 
 **Manual fallback** (if GitHub is unreachable):
 
@@ -364,9 +369,17 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
   - Manual mode: prompts user to place ZIPs, then verifies ZIP magic bytes + SHA-256
   - Wget mode (`--wget`): prompts for Bearer Token, then prompts per-file for download URL
   - Skips files that are already present with a valid checksum
-- **getMOSPatch** (with `--mos` or `--all`):
+- **MOS patches** (with `--mos` or `--all`):
   - Decrypts MOS password from `mos_sec.conf.des3` (written by `01-setup-interview.sh`)
-  - Creates/verifies `$PATCH_STORAGE/bin/.getMOSPatch.cfg` (platform + language)
+  - Builds the role list from `environment.conf` (`forms` only with Forms,
+    `client_jdk` only `FORMS_CLIENT_DIST=true`, `cvu` only `LOCAL_REP_DB=true`,
+    `apex` only `INSTALL_APEX=true`, `fr_optional` only `REPORTS_BIDIPARENTHESIS=YES`)
+    and calls `70-Customer-Projects/tools/mos_patch_download.sh -c download/patches_fmw.csv
+    -d $PATCH_STORAGE --steps <roles> --password-stdin --apply` – the password
+    goes through stdin into the tool's pseudo terminal, never on a command line;
+    each file by its regexp into the row's `dir`, `unzip -t`, SHA-256 soft check
+    (different digest = WARN, Oracle re-releases ZIPs under the same number)
+  - Result per role (target = column `dir` of the CSV):
   - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
     (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
   - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`40125898`) to
@@ -383,7 +396,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
     `INSTALL_PATCHES_FORMS` (plus `INSTALL_PATCHES_FR_OPTIONAL` if
     `REPORTS_BIDIPARENTHESIS=YES`) to `$PATCH_STORAGE/patches/<nr>/`
     (skips entirely if all three are empty)
-  - Skips patches already present in their target directory
+  - Skips patches whose file (regexp) is already present in their target directory
   - Clears MOS password from memory after use
 - Reports download summary: OK/WARN/FAIL counts
 
@@ -433,16 +446,19 @@ Typical causes:
   proxy. If the certificate issuer of a working site is a customer CA (TLS
   inspection), java – getMOSPatch – needs that CA in its trust store.
 
-**Offline route** (no change on the network side):
+**Offline route** (no change on the network side) – the download host needs
+**no library**, only Java, `getMOSPatch.jar`, a MOS account and the two files
+`mos_patch_download.sh` + `patches_fmw.csv`:
 
 ```bash
-# 1. on a Linux host WITH internet access: repo + the same
-#    oracle_software_version.conf / environment.conf values, MOS credentials
-[oracle@inet] ./09-Install/04-oracle_pre_download.sh --apply --mos
-# 2. copy the patch storage to the target host
-[oracle@inet] rsync -a --progress $PATCH_STORAGE/ oracle@<target>:$PATCH_STORAGE/
-# 3. on the target host: present files are verified (SHA-256) and skipped
-[oracle] ./09-Install/04-oracle_pre_download.sh --apply
+# 1. on a host WITH MOS access (share, admin workstation)
+./mos_patch_download.sh -c patches_fmw.csv -d <share>/patch_storage --all            # plan
+./mos_patch_download.sh -c patches_fmw.csv -d <share>/patch_storage --all --apply    # download
+#    (19c repository, LOCAL_REP_DB=true: -c patches_db.csv – see download/README.md)
+# 2. copy to the target host – same layout as PATCH_STORAGE (patches/<nr>/, client/jdk/<nr>/, database/cvu/)
+rsync -a --progress <share>/patch_storage/ oracle@<target>:$PATCH_STORAGE/
+# 3. on the target host: inventory – every row of the needed roles must say "present"
+[oracle] ./09-Install/04-oracle_pre_download.sh
 ```
 
 The eDelivery ZIPs can also be downloaded in a browser and copied with `scp`
@@ -458,7 +474,7 @@ download host (see "Patch Storage Layout").
 $PATCH_STORAGE/
 ├── bin/
 │   ├── getMOSPatch.jar           ← auto-downloaded from GitHub on first --mos run
-│   └── .getMOSPatch.cfg          ← platform (226P) + language (4L)
+│   └── .getMOSPatch.cfg          ← older versions only (now one per patch directory, written by the tool)
 ├── wls/
 │   ├── V1045135-01.zip           ← eDelivery: FMW Infrastructure 14.1.2 (manual/wget)
 │   └── fmw_14.1.2.0.0_infrastructure.jar   ← extracted
@@ -470,7 +486,7 @@ $PATCH_STORAGE/
 ├── client/                       ← sources of the Forms client bundle (only FORMS_CLIENT_DIST=true)
 │   └── jdk/
 │       └── 35702194/             ← client Java: same patch, platform 233P (CLIENT_JDK_PLATFORM)
-│           ├── .getMOSPatch.cfg  ← "233P;<language>" written for this directory
+│           ├── .getMOSPatch.cfg  ← "233P;4L" written for this directory (CSV platform)
 │           └── p35702194_2100_MSWIN-x86-64.zip  ← confirmed (live) 2026-10-22, 518 MB:
 │                 jdk-21.0.13.0.2_windows-x64_bin.zip / .exe / .msi + SHA256_VALUES + MD5_VALUES
 ├── database/                     ← local RCU DB (60-RCU-DB-19c, only LOCAL_REP_DB=true)
@@ -479,7 +495,7 @@ $PATCH_STORAGE/
 ├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
 │   └── 26.2/
 │       ├── apex_26.2.zip         ← OTN apex-latest.zip, version read from apex_version.txt
-│       └── patch/<APEX_PATCH_NR>/ ← APEX Patch Set Bundle, getMOSPatch platform 2000P (Generic)
+│       └── patch/<APEX_PATCH_NR>/ ← older downloads; new: apex/patch/<nr>/ (CSV dir column)
 ├── ords/                         ← ORDS (only INSTALL_APEX=true), one directory per version
 │   └── 26.3.0.272.1811/
 │       └── ords-26.3.0.272.1811.zip  ← OTN ords-latest.zip
@@ -516,7 +532,7 @@ $PATCH_STORAGE/
 
 | Flag | Description |
 |---|---|
-| (none) | Dry-run: show expected paths and a **storage inventory** – for every required installer and patch whether it is already in `PATCH_STORAGE` (the OPatch upgrade counts as present when it is bundled in the WLS SPB under `tools/opatch/generic/`) |
+| (none) | Dry-run: show expected paths and a **storage inventory** – for every required installer and every CSV row of the needed roles whether its file (regexp) is already in `PATCH_STORAGE` (the OPatch upgrade counts as present when it is bundled in the WLS SPB under `tools/opatch/generic/`) |
 | `--apply` | eDelivery: create dirs, prompt manual file placement, verify |
 | `--apply --wget` | eDelivery via Bearer Token wget instead of manual copy |
 | `--apply --mos` | eDelivery + getMOSPatch: OPatch + post-install patches |
@@ -545,13 +561,11 @@ $PATCH_STORAGE/
 ./09-Install/04-oracle_pre_download.sh --apply --fresh-patches --mos
 ```
 
-> **Why this matters:** the per-patch skip-if-present check only looks for
-> *any* ZIP already in a patch's destination directory, not whether it is
-> the build actually needed this cycle. A patch number can also ship several
-> product-version variants under the same number (e.g. one ZIP per
-> `12.2.1.4.0`/`14.1.1.0.0`/`14.1.2.0.0`/...) – leftover files from an older
-> run, or picking the wrong variant, are both avoided by starting from a
-> clean `patches/` directory at the start of each new patch cycle.
+> **Why this matters:** the skip-if-present check matches the file regexp of
+> the CSV (it picks the right product-version variant of a patch number), but
+> a ZIP whose name never changes (JDK `p35702194_2100_Linux-x86-64.zip`) or a
+> ZIP Oracle re-released under the same name would be reused from the last
+> cycle – start each new cycle from a clean `patches/` directory.
 
 ---
 

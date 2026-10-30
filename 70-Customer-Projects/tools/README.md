@@ -93,8 +93,10 @@ python (only for the password terminal), no IHateWeblogic library.
    12.2.1.x patches). The user is `-u` / `$MOS_USER` or asked; the password
    is asked **once** (hidden) and typed into getMOSPatch through a pseudo
    terminal – never on a command line, never stored, masked in the log.
-5. Outbound HTTPS to `login.oracle.com`, `updates.oracle.com` and the Akamai
-   download hosts. Behind a proxy: `--proxy host:port`. With TLS interception
+5. Outbound HTTPS to `updates.oracle.com`, the Oracle SSO
+   `login-ext.identity.oraclecloud.com` and the Akamai download hosts
+   (`*.oracle.com`). Behind a proxy: `--proxy host:port`, default
+   `$https_proxy`. With TLS interception
    the company root CA must be in the `cacerts` of the Java used – see
    [certificates_trust_stores.md §6](../../80-FMW-Architecture/certificates_trust_stores.md).
 
@@ -107,18 +109,24 @@ cp <repo>/70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_c
 ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip                      # plan only
 ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip -u me@example.com --apply
 ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip --only 39888613,39600813 --apply
+
+# patch list of the library (14.1.2) on a host without the library - result in
+# the PATCH_STORAGE layout (column dir), then rsync to the target host:
+./mos_patch_download.sh -c patches_fmw.csv -d /share/patch_storage --all --apply
 ```
 
 | Option | Meaning |
 |---|---|
 | `-c FILE` | patch list (CSV, format below) |
-| `-d DIR` | target directory; one sub-directory per patch: `DIR/<patch>/p<patch>_*.zip` |
+| `-d DIR` | target directory; one sub-directory per patch: `DIR/<dir>/p<patch>_*.zip` (`<dir>` = column `dir`, default `<patch>`) |
 | `-j JAR` | getMOSPatch.jar (default: `./`, then `DIR/`, then the script directory) |
 | `-u USER` | MOS user (default `$MOS_USER`, else asked) |
 | `--all` | also the rows with `required=optional` |
 | `--only N,N` | only these patch numbers (optional rows included) |
+| `--steps S,S` | only rows with these values in column `step` (optional rows included) – the library passes its roles (`spb,wls,jdk,…`) |
+| `--password-stdin` | read the MOS password from the first line of stdin instead of asking (caller: `09-Install/04-oracle_pre_download.sh --mos`); needs `-u` / `$MOS_USER` |
 | `--java JAVA` | Java binary (default `$JAVA_HOME/bin/java`, then `java` in `PATH`) |
-| `--proxy H:P` | HTTPS proxy for getMOSPatch |
+| `--proxy H:P` | HTTPS proxy for getMOSPatch (default: `$https_proxy` / `$HTTPS_PROXY`) |
 | `--apply` | download – without it the plan is printed (which patch, platform, file, already present) |
 
 Checks first: Java, jar, `unzip`, `sha256sum`, python (`python3`, then
@@ -128,17 +136,20 @@ getMOSPatch asks for user / password itself for every patch), free space
 skipped – a second run only loads what is missing. Up to 3 attempts per
 patch and platform.
 
-Result: `DIR/<patch>/…zip`, `DIR/patches_sha256.txt` (compare with the
-SHA-256 shown on the MOS download page), `DIR/mos_patch_download_<ts>.log`.
-Exit code 0 = all required patches present, 1 = an optional one missing,
-2 = a required one missing / prerequisite missing.
+Result: `DIR/<dir>/…zip`, `DIR/patches_sha256.txt` (compare with the
+SHA-256 shown on the MOS download page), `DIR/patches_sha256.csv`
+(`patch;step;file;sha256` – to fill the `sha256` column after an analysis),
+`DIR/mos_patch_download_<ts>.log`.
+Exit code 0 = all required patches present, 1 = an optional one missing or a
+SHA-256 differs from the list, 2 = a required one missing / damaged ZIP /
+prerequisite missing.
 
 ### CSV format
 
 `;`-separated, `#` = comment, one header line:
 
 ```
-patch;platform;file_regexp;required;step;description
+patch;platform;file_regexp;required;step;description[;dir[;sha256]]
 40129641;2000P;p40129641_122140_Generic\.zip;yes;6;WLS Stack Patch Bundle 12.2.1.4.261007
 39888613;226P;p39888613_1221190_Linux-x86-64\.zip;yes;8;Oracle Forms QPR 12.2.1.19
 40186682;226P;p40186682_.*_Linux-x86-64\.zip;yes;4;JDK 8u511 (file name not fixed)
@@ -150,8 +161,10 @@ patch;platform;file_regexp;required;step;description
 | `platform` | MOS platform code; alternatives with `\|` (`2000P\|226P`) are tried in order when MOS has no file for the first |
 | `file_regexp` | Java regex of the **whole file name** (incl. `\.zip`); empty = all files of the platform. The script strips a trailing `\.zip` before passing it to getMOSPatch – getMOSPatch compares with `String.matches()` against the file name **without** `.zip` (`p38832179_122140_Linux-x86-64`), a regexp ending in `\.zip` never matches there (checked in the class, 2026-10-28) |
 | `required` | `yes` or `optional` (only with `--all` / `--only`) |
-| `step` | step of the cookbook that applies the patch (information only) |
+| `step` | step of the cookbook that applies the patch (information only); in the library list `09-Install/download/patches_fmw.csv` the **role** (`spb`, `wls`, `jdk`, … – [download/README.md](../../09-Install/download/README.md)), filter with `--steps` |
 | `description` | free text |
+| `dir` | optional: target below `-d` (default `<patch>`) – e.g. `patches/40125898`, `client/jdk/35702194`, `database/cvu` |
+| `sha256` | optional: SHA-256 of the analysed file – **soft check**: a different value is a WARN (exit 1), never a FAIL – Oracle re-releases patches under the same number (the JDK patch with every update); `unzip -t` stays the hard check |
 
 Platform codes (checked 2026-10-22):
 
@@ -181,7 +194,10 @@ platforms / languages the patch exists for and writes a new
 
 Live-tested 2026-10-28 on the test host (OL9, Java 21, getMOSPatch from the
 patch repository): `--only 38832179` → ZIP, `unzip -t`, SHA-256 OK; password
-not in the log.
+not in the log. 2026-10-30 (version 2026-10-30.1): `patches_fmw.csv` with
+`--password-stdin --only 39726399,39600348` → `patches/<nr>/`, digests equal
+to the CSV; wrong digest → WARN / exit 1, damaged ZIP → FAIL / exit 2; called
+by `04-oracle_pre_download.sh --apply --mos` (all present, plumbing).
 
 ## fmw_patch_env.sh
 
