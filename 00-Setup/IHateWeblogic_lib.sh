@@ -201,9 +201,21 @@ readSelection() {
 # init_log  [log_dir]
 # Creates log directory and sets LOG_FILE.  Must be called after DIAG_LOG_DIR is set.
 init_log() {
-    local log_dir="${1:-${DIAG_LOG_DIR:-/tmp/IHateWeblogic_log}}"
+    # Default = central repo log: a fresh environment.conf written by the
+    # interview has no DIAG_LOG_DIR yet (init_env.sh adds it later)
+    local log_dir="${1:-${DIAG_LOG_DIR:-$IHW_LIB_ROOT/log/$(date +%Y%m%d)}}"
+    local _dirnew=0
 
+    [ -d "$log_dir" ] || _dirnew=1
     mkdir -p "$log_dir" 2>/dev/null || true
+    # created by root (phase 0 scripts): hand log/ and the day dir to the
+    # repository owner, otherwise the oracle scripts could not write later
+    if [ "$_dirnew" -eq 1 ] && [ "$(id -u)" -eq 0 ] && [ -d "$log_dir" ]; then
+        case "$log_dir" in
+            "$IHW_LIB_ROOT"/log|"$IHW_LIB_ROOT"/log/*)
+                chown --reference="$IHW_LIB_ROOT" "$IHW_LIB_ROOT/log" "$log_dir" 2>/dev/null ;;
+        esac
+    fi
 
     # If directory exists but is not writable (e.g. created earlier by root),
     # try sudo chmod o+w; if that also fails, fall back to /tmp.
