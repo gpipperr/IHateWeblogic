@@ -655,7 +655,7 @@ LD_LIBRARY_PATH=$INSTANT_CLIENT_HOME $SQLPLUS_BIN -V     # Instant Client
 | | |
 |---|---|
 | Vehicles | **Release** (26.1 → 26.2, `apexins.sql`, new schema `APEX_<ver>`) or **patch set bundle** (26.2.0 → 26.2.x, `catpatch.sql`, same schema) |
-| Source | release: `apex-latest.zip` (OTN, no login, SHA-256 on the download page); patch set: MOS, platform Generic **2000P** (`APEX_PATCH_NR` = role `apex` in `download/patches_fmw.csv`) – both via `09-Install/04-oracle_pre_download.sh --apply [--mos]` |
+| Source | release: `apex_26.2.zip` (OTN, no login, pinned in `APEX_ZIP_URL` with the SHA-256 of the download page since 2026-10-30; `apex-latest.zip` = newest); patch set: MOS, platform Generic **2000P** (`APEX_PATCH_NR` = role `apex` in `download/patches_fmw.csv`) – both via `09-Install/04-oracle_pre_download.sh --apply [--mos]` |
 | Apply | release: `12-APEX-Ords/02-install-apex.sh --apply` (upgrade mode, ORDS stopped, DB backup); patch set: `12-APEX-Ords/03-patch-apex.sh --apply` (stops / starts ORDS, images `APEX_<ver>_p<nr>`) |
 | Before | check that the ORDS of the instance carries an APEXlang compiler ≥ the new APEX (`04-` / `06-` check it) |
 | Proof | `dba_registry` version + `APEX_PATCHES` (patch, images and **APEXlang** version) + `/i/apex_version.txt` through Nginx |

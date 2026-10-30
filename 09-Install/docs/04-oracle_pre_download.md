@@ -120,14 +120,15 @@ The ZIP name does not change between JDK updates
 
 | Variable (`oracle_software_version.conf`) | Value | Description |
 |---|---|---|
-| `APEX_ZIP_URL` | `https://download.oracle.com/otn_software/apex/apex-latest.zip` | the "latest" link of the APEX download page (or a versioned one, e.g. `…/apex_26.2.zip`) |
-| `APEX_SHA256` | SHA-256 of the download page (optional) | checked when set – it belongs to one version, empty with the "latest" link |
+| `APEX_ZIP_URL` | `https://download.oracle.com/otn_software/apex/apex_26.2.zip` | **pinned to APEX 26.2** (2026-10-30) – versioned link of the [APEX download page](https://www.oracle.com/tools/downloads/apex-downloads/) ("All languages"); `…/apex-latest.zip` would follow every new release silently |
+| `APEX_SHA256` | `50e27e5451435aa79205acbcd22ee44353d36d96768634695eb01b93fa02d782` | SHA-256 of the download page for `apex_26.2.zip` – checked after a new download; belongs to this one version (empty with the "latest" link) |
 | `APEX_PATCH_NR` | *(empty)* | APEX **Patch Set Bundle** (MOS) – the download page lists it under "APEX Patch Set Bundle" as soon as one exists (26.2: none yet, 2026-10-23); e.g. `39179920` = 26.1 |
 | `APEX_PATCH_PLATFORM` | `2000P` | MOS platform code **Generic** – APEX patches are platform independent (`p<nr>_<rel>_Generic.zip`) |
 | `ORDS_ZIP_URL` | `https://download.oracle.com/otn_software/java/ords/ords-latest.zip` | ORDS "latest" link (or versioned, e.g. `…/ords-26.3.0.272.1811.zip`) |
 | `ORDS_SHA256` | *(optional)* | as `APEX_SHA256` |
 
-The "latest" links have no version in the name. The script downloads to a
+The "latest" links have no version in the name (ORDS; APEX is pinned to a
+versioned link, the version is read the same way). The script downloads to a
 temporary file and reads the version from the ZIP:
 - APEX: `apex/images/apex_version.txt`.
 - ORDS: the version in the name of the `ords-<version>` / `ords.war` entries.
@@ -593,7 +594,7 @@ $PATCH_STORAGE/
 │   └── patches/<nr>/             ← offline route only: download/patches_db.csv (01- copies into patchdir)
 ├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
 │   └── 26.2/
-│       ├── apex_26.2.zip         ← OTN apex-latest.zip, version read from apex_version.txt
+│       ├── apex_26.2.zip         ← OTN apex_26.2.zip (APEX_ZIP_URL), version read from apex_version.txt
 │       └── patch/<APEX_PATCH_NR>/ ← older downloads; new: apex/patch/<nr>/ (CSV dir column)
 ├── ords/                         ← ORDS (only INSTALL_APEX=true), one directory per version
 │   └── 26.3.0.272.1811/
