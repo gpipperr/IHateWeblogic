@@ -14,6 +14,8 @@
 #              5. OS: release, kernel, Nginx/OpenSSL/glibc, security errata
 #              6. --online: Oracle advisories (CPU/CSPU) released after the
 #                 configured cycle -> not yet covered
+#              7. third-party Java libraries in the Oracle Home (Maven
+#                 coordinates + version) – checked by cve_watch.sh (OSV.dev)
 #            Patch scope = everything on disk (a tool that is not running can
 #            still be started and exploited); active use / exposure only
 #            decides the urgency.
@@ -464,6 +466,83 @@ else
 fi
 
 # =============================================================================
+# 7. Third-party Java libraries (jar inventory for cve_watch.sh / OSV)
+# =============================================================================
+section "7. Third-party Java libraries in the Oracle Home (jar inventory)"
+
+# Maven coordinates from META-INF/maven/*/pom.properties; jars without it by a
+# short file-name map (Bouncy Castle, Spring, Groovy …). Oracle's own jars are
+# skipped – their CVEs come with the Oracle advisories. Paths relative to
+# ORACLE_HOME (no host layout in the JSON).
+_jars="$WORK_DIR/jars.tsv"
+if python3 -I - "$ORACLE_HOME" > "$_jars" 2>/dev/null <<'PYEOF'
+import os, re, sys, zipfile
+root = sys.argv[1]
+SKIP_DIRS = ("/.patch_storage", "/inventory/backup", "/oui/", "/OPatch/")
+NAME_MAP = [   # file name (without .jar) -> group:artifact, version group
+    (r"(bc(?:prov|pkix|pg|util|mail|tls))-(jdk\w+)-(\d[\w.]*)", lambda m: ("org.bouncycastle:%s-%s" % (m[1], m[2]), m[3])),
+    (r"(spring-[a-z-]+?)-(\d[\w.]*)", lambda m: ("org.springframework:" + m[1], m[2])),
+    (r"(groovy(?:-[a-z0-9-]+?)?)-(\d[\w.]*)", lambda m: ("org.codehaus.groovy:" + m[1], m[2])),
+    (r"(poi(?:-[a-z]+)?)-(\d[\w.]*)", lambda m: ("org.apache.poi:" + m[1], m[2])),
+    (r"dom4j-(\d[\w.]*)", lambda m: ("org.dom4j:dom4j", m[1])),
+    (r"(asm(?:-[a-z]+)?)-(\d[\d.]*)", lambda m: ("org.ow2.asm:" + m[1], m[2])),
+    (r"xercesImpl-(\d[\w.]*)", lambda m: ("xerces:xercesImpl", m[1])),
+    (r"mysql-connector-j-(\d[\w.]*)", lambda m: ("com.mysql:mysql-connector-j", m[1])),
+    (r"batik-all-(\d[\w.]*)", lambda m: ("org.apache.xmlgraphics:batik-all", m[1])),
+    (r"(log4j-(?:api|core|1\.2-api))-(\d[\w.]*)", lambda m: ("org.apache.logging.log4j:" + m[1], m[2])),
+    (r"(httpclient5(?:-cache|-fluent)?)-(\d[\w.]*)", lambda m: ("org.apache.httpcomponents.client5:" + m[1], m[2])),
+    (r"(httpcore5(?:-h2)?)-(\d[\w.]*)", lambda m: ("org.apache.httpcomponents.core5:" + m[1], m[2])),
+    (r"(commons-(?:lang3|text|compress|configuration2|collections4))-(\d[\w.-]*)", lambda m: ("org.apache.commons:" + m[1], m[2])),
+    (r"(commons-(?:io|beanutils|cli|codec|fileupload|logging|collections))-(\d[\w.-]*)", lambda m: ("%s:%s" % (m[1], m[1]), m[2])),
+    (r"guava-(\d[\w.-]*)", lambda m: ("com.google.guava:guava", m[1])),
+]
+seen = {}
+for d, dirs, files in os.walk(root):
+    rel_d = d[len(root):] + "/"
+    if any(s in rel_d for s in SKIP_DIRS):
+        dirs[:] = []
+        continue
+    for f in files:
+        if not f.endswith(".jar"):
+            continue
+        p = os.path.join(d, f)
+        coords = []
+        try:
+            with zipfile.ZipFile(p) as z:
+                for x in z.namelist():
+                    if x.startswith("META-INF/maven/") and x.endswith("/pom.properties"):
+                        kv = dict(l.split("=", 1) for l in z.read(x).decode("latin1").splitlines()
+                                  if "=" in l and not l.startswith("#"))
+                        g, a, v = (kv.get(k, "").strip() for k in ("groupId", "artifactId", "version"))
+                        if g and a and v:
+                            coords.append(("%s:%s" % (g, a), v))
+        except Exception:
+            continue
+        if not coords:
+            for rx, fn in NAME_MAP:
+                m = re.fullmatch(rx, f[:-4])
+                if m:
+                    coords.append(fn(m))
+                    break
+        for c, v in coords:
+            if c.startswith(("com.oracle", "oracle.", "com.bea", "weblogic")):
+                continue
+            seen.setdefault((c, v), []).append(p[len(root):].lstrip("/"))
+for (c, v), paths in sorted(seen.items()):
+    print("jar\t%s\t%s\t%s" % (c, v, ";".join(sorted(paths)[:5])))
+PYEOF
+then
+    cat "$_jars" >> "$REC"
+    _jn="$(grep -c . "$_jars")"
+    _jv="$(awk -F'\t' '$3 ~ /INTERNAL|[Oo]racle/' "$_jars" | grep -c .)"
+    ok "$(printf "%s third-party library versions (Maven coordinates) – %s of them Oracle builds (INTERNAL / oracle)" "$_jn" "$_jv")"
+    info "  checked against OSV.dev by 10-Monitoring/cve_watch.sh (not here – no network in the inventory)"
+else
+    warn "Jar inventory failed (python3 / unreadable Oracle Home)"
+fi
+unset _jars _jn _jv
+
+# =============================================================================
 # JSON for the next CVE-watch steps
 # =============================================================================
 mkdir -p "$(dirname "$JSON_FILE")"
@@ -486,6 +565,7 @@ for line in open(rec, encoding="utf-8"):
     elif kind == "active":  doc.setdefault("active", []).append({"what": key, "state": val, "details": extra})
     elif kind == "exposed": doc.setdefault("exposed_processes", []).append({"process": key, "sockets": val})
     elif kind == "firewall": doc["firewall"] = {"type": key, "state": val}
+    elif kind == "jar":     doc.setdefault("jars", []).append({"coord": key, "version": val, "paths": extra.split(";")})
 json.dump(doc, open(out, "w", encoding="utf-8"), indent=2)
 PYEOF
 then
