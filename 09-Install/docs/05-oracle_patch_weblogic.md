@@ -287,7 +287,7 @@ For the January 2026 CPU cycle, FMW 14.1.2 patches were delivered as plain
 **CPU Bundle Patches** per component (e.g. `38566996` for UMS/FMW
 Infrastructure), applied via plain `opatch apply` — no SPB involved. That is
 still true for the small, individual patches this project applies via
-`INSTALL_PATCHES` (see `oracle_software_version.conf`).
+`INSTALL_PATCHES` (role `wls` in `download/patches_fmw.csv`).
 
 **For the CSPU September 2026 cycle, Oracle additionally reintroduced a WLS
 Stack Patch Bundle** (Patch `39925660`, version `14.1.2.0.260825`) that
@@ -323,7 +323,7 @@ current: CPU October 2026, SPB `40125898` (14.1.2.0.261007, marker
 `40126042`, WLS PSU 40058371, OPatch 13.9.4.2.25 in `tools/opatch/generic/`).
 
 `05-oracle_patch_weblogic.sh` runs this automatically when `WLS_SPB_PATCH_NR`
-is set in `oracle_software_version.conf` (currently `40125898`), inserted
+is set (role `spb` in `download/patches_fmw.csv`, currently `40125898`), inserted
 between the OPatch-upgrade step and the `INSTALL_PATCHES` loop (the OPatch
 upgrade extracts only its own ZIP from the SPB archive, the full SPB is
 staged here, after the upgrade):

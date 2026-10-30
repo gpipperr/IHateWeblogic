@@ -39,7 +39,7 @@ Separate DB server (`LOCAL_REP_DB=false` on the FMW host): 04- skips the CVU –
 download it by hand on the DB host, or temporarily with
 `LOCAL_REP_DB=true`, and copy the ZIP into `DB_CVU_DIR` there.
 
-Patch number: `DB_CVU_PATCH_NR` in `09-Install/oracle_software_version.conf`.
+Patch number: `DB_CVU_PATCH_NR` = role `cvu` in `09-Install/download/patches_fmw.csv`.
 
 **The Linux patch holds five ZIPs** (confirmed live 2026-10-27 – 810 MB when
 getMOSPatch takes all of them):

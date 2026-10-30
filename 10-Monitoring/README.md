@@ -111,7 +111,7 @@ later collector reads come from `05-`/`06-`, explained in
 | Section | Source | Result |
 |---|---|---|
 | 1. Components | `comps.xml` → advisory product names (WLS, JRF, OPSS, Coherence, Forms, Reports, OHS, WebGate) + libOVD jar date | version + "configured in the domain" / "binaries only" |
-| 2. Patch level | `PATCH_CYCLE*`, `WLS_SPB_MARKER_PATCH`, `INSTALL_PATCHES*` from `09-Install/oracle_software_version.conf` vs. `opatch lspatches` | FAIL per missing configured patch; SPB level with build date; OPatch vs. `OPATCH_VERSION_MIN`; WARN for OHS / WebGate binaries in the home |
+| 2. Patch level | `PATCH_CYCLE*`, `WLS_SPB_MARKER_PATCH`, `INSTALL_PATCHES*` from `09-Install/oracle_software_version.conf` (patch numbers: `download/patches_fmw.csv`) vs. `opatch lspatches` | FAIL per missing configured patch; SPB level with build date; OPatch vs. `OPATCH_VERSION_MIN`; WARN for OHS / WebGate binaries in the home |
 | 3. Java | `JDK_HOME` and `oracle_common/jdk` (`java.version`, `java.version.date`); which **running** JVMs use each JDK (`/proc/<pid>/exe`), domain `JavaHome` | WARN below `JDK_VERSION_MIN`, or other major release older than a year – with the list of processes that really run on it |
 | 4. Active use and exposure | running processes per product (WLS servers, Node Manager, `frmweb`, `rwserver`, Reports engines, OHS, Nginx); sockets of the oracle processes beyond loopback (`ss -ltnp`, only the process role goes into the JSON, no addresses); firewalld / nftables state | WARN for processes reachable from the network without a firewall |
 | 5. OS | `/etc/os-release`, kernel, `rpm -q nginx openssl glibc`, `dnf --cacheonly updateinfo list --security` (timeout 60 s) | open security advisories (ELSA), no repository access needed |
@@ -287,7 +287,7 @@ Example output (illustrative – the CPU Oct 2026 risk matrix is not published y
 SEVERITY: CRIT
 FINDING: CPU Oct 2026 released – WLS 14.1.2.0.0 and Java SE 21.0.12.1 affected; applied cycle is CSPU Sep 2026
 ROOT_CAUSE: 3 new WLS CVEs remote w/o auth over HTTP (CVSS ≥ 9), reachable through Nginx; JDK_HOME 21.0.12.1 listed as affected
-RECOMMENDED_ACTION: KA1182 → update oracle_software_version.conf (draft attached), 04-oracle_pre_download.sh --apply --mos, 07-Maintenance patch cycle, new JDK via 02b-
+RECOMMENDED_ACTION: KA1182 → update oracle_software_version.conf + download/patches_fmw.csv (draft attached), 04-oracle_pre_download.sh --apply --mos, 07-Maintenance patch cycle, new JDK via 02b-
 TICKET_RELEVANCE: yes
 ```
 

@@ -341,7 +341,8 @@ DB connection:
 | `db_sys_sec.conf.des3` | Encrypted DB SYS password (RCU only) | **No** |
 | `db_connect.conf.des3` | Encrypted DB runtime credentials | **No** |
 | further `*.des3` | LDAP, Reports admin / users, Forms signing, CA, APEX, test DB – [00-Setup/README.md](../../00-Setup/README.md) | **No** |
-| `09-Install/oracle_software_version.conf` | Software versions, patch numbers, SHA-256 | **Yes** |
+| `09-Install/oracle_software_version.conf` | Software versions, SHA-256, cycle values | **Yes** |
+| `09-Install/download/patches_fmw.csv` / `patches_db.csv` | Patch numbers per cycle (library + `mos_patch_download.sh`) | **Yes** |
 | `setup.conf` | Password-free reusable template | **No** |
 | `environment.conf.bak.*` | Backups before any overwrite | **No** |
 

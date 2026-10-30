@@ -126,17 +126,18 @@ Extended Support contract), 14.1.1.0 – December 2027.
 1. Every third Tuesday (CPU **or** CSPU) **and** whenever a Security Alert
    appears, read the public advisory (risk matrix: WLS, OPSS, Forms,
    "Oracle Fusion Middleware", Java SE), then open KA1182 on MOS and compare
-   the current patch numbers against `09-Install/oracle_software_version.conf`.
+   the current patch numbers against `09-Install/download/patches_fmw.csv`.
 2. New cycle → first freeze this file (see "Patch cycle history"), then
    rework it.
 3. If a Doc ID listed here has been superseded or renumbered by Oracle,
    update this table — do not silently start referencing a new number
    from inline comments elsewhere, this table is the single place to look.
 4. Set `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY` in
-   `oracle_software_version.conf` together with the patch numbers –
+   `oracle_software_version.conf` together with the patch numbers in
+   `download/patches_fmw.csv` (DB repository: `download/patches_db.csv`) –
    `10-Monitoring/cve_inventory.sh` compares installed patches and newer
    advisories against them.
-5. Patch numbers themselves live in `oracle_software_version.conf`, not
+5. Patch numbers themselves live in `download/patches_fmw.csv`, not
    here — the tables below are a point-in-time snapshot for reference,
    `oracle_software_version.conf` is the source of truth the scripts read.
 
@@ -654,7 +655,7 @@ LD_LIBRARY_PATH=$INSTANT_CLIENT_HOME $SQLPLUS_BIN -V     # Instant Client
 | | |
 |---|---|
 | Vehicles | **Release** (26.1 → 26.2, `apexins.sql`, new schema `APEX_<ver>`) or **patch set bundle** (26.2.0 → 26.2.x, `catpatch.sql`, same schema) |
-| Source | release: `apex-latest.zip` (OTN, no login, SHA-256 on the download page); patch set: MOS, platform Generic **2000P** (`APEX_PATCH_NR` in `oracle_software_version.conf`) – both via `09-Install/04-oracle_pre_download.sh --apply [--mos]` |
+| Source | release: `apex-latest.zip` (OTN, no login, SHA-256 on the download page); patch set: MOS, platform Generic **2000P** (`APEX_PATCH_NR` = role `apex` in `download/patches_fmw.csv`) – both via `09-Install/04-oracle_pre_download.sh --apply [--mos]` |
 | Apply | release: `12-APEX-Ords/02-install-apex.sh --apply` (upgrade mode, ORDS stopped, DB backup); patch set: `12-APEX-Ords/03-patch-apex.sh --apply` (stops / starts ORDS, images `APEX_<ver>_p<nr>`) |
 | Before | check that the ORDS of the instance carries an APEXlang compiler ≥ the new APEX (`04-` / `06-` check it) |
 | Proof | `dba_registry` version + `APEX_PATCHES` (patch, images and **APEXlang** version) + `/i/apex_version.txt` through Nginx |

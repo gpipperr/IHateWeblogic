@@ -100,9 +100,13 @@ Forms is actually installed in this `ORACLE_HOME`.
 > downloading — do not trust the KA204 table alone.
 
 To add a future Forms/Reports-specific patch:
-1. Download the patch ZIP via `04-oracle_pre_download.sh --apply --mos`
-   (reads `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` automatically)
-2. Add the patch number to the appropriate list in `oracle_software_version.conf`
+1. Add a row to `09-Install/download/patches_fmw.csv` (role `reports` /
+   `forms` / `fr_common`, exact file regexp, `dir` `patches/<nr>`, sha256
+   after the first download) – the conf derives `INSTALL_PATCHES_REPORTS` /
+   `INSTALL_PATCHES_FORMS` from it
+2. Download the patch ZIP via `04-oracle_pre_download.sh --apply --mos`
+   (or `mos_patch_download.sh` on a host with MOS access, see
+   [download/README.md](../download/README.md))
 3. If it supersedes an older patch, add that mapping to the `SUPERSEDES`
    array at the top of the "Automatic rollback of superseded QPRs" section
    in `06-oracle_patch_forms_reports.sh`

@@ -384,6 +384,25 @@ if $FRESH_PATCHES && ls "$_AU_PATCHDIR"/p[0-9]*.zip >/dev/null 2>&1; then
     unset _arch
 fi
 
+# Offline route: patches downloaded on another host with
+# 70-Customer-Projects/tools/mos_patch_download.sh -c 09-Install/download/patches_db.csv
+# -d $PATCH_STORAGE (layout database/patches/<nr>/) and copied here – used
+# instead of the AutoUpgrade download when patchdir has no patch ZIPs yet.
+_csv_zips="$(ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip 2>/dev/null)"
+if [ -n "$_csv_zips" ] && ! ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -qv 'p6880880'; then
+    info "Patchdir empty – patch ZIPs from \$PATCH_STORAGE/database/patches/ (09-Install/download/patches_db.csv):"
+    if $APPLY; then
+        mkdir -p "$_AU_PATCHDIR"
+        while IFS= read -r _z; do
+            cp -p "$_z" "$_AU_PATCHDIR"/ && info "  copied $(basename "$_z")" \
+                || { fail "Could not copy $_z"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+        done <<< "$_csv_zips"
+    else
+        printf '%s\n' "$_csv_zips" | while IFS= read -r _z; do info "  would copy $(basename "$_z")"; done
+    fi
+fi
+unset _csv_zips _z
+
 # Count non-OPatch patch ZIPs already in patchdir
 _existing_zips=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
 

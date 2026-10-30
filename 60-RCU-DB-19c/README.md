@@ -129,6 +129,26 @@ DB_PORT=1521
 DB_SERVICE=FMWPDB   # PDB service name
 ```
 
+### Host without MOS access (offline patches)
+
+`01-db_install_software.sh` lets AutoUpgrade download the patch set from MOS.
+Without MOS access (OCI private subnet, egress allow-list) download the list
+[09-Install/download/patches_db.csv](../09-Install/download/patches_db.csv)
+on a host that may, with the standalone
+[mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh),
+and copy it:
+
+```bash
+./mos_patch_download.sh -c patches_db.csv -d <share>/patch_storage --apply
+rsync -a <share>/patch_storage/database/ oracle@<target>:$PATCH_STORAGE/database/
+```
+
+`01-` copies `$PATCH_STORAGE/database/patches/*/p*.zip` into an **empty**
+AutoUpgrade `patchdir` and skips the download. Open: the RU row of the
+cycle (AutoUpgrade `RECOMMENDED` delivered a gold image without a patch
+number for 19.33) – see the header of `patches_db.csv`. The 19.3 base ZIP
+comes from eDelivery as before.
+
 ---
 
 ## Same Host vs. Separate DB Server

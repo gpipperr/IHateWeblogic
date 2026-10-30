@@ -181,7 +181,7 @@ built by `40-oracle_forms_client_bundle.sh`):
 | `FORMS_CLIENT_TRUST_CA` | `$SSL_CA_DIR/ca/ca.crt` if present, else empty | CA for the bundled runtime's truststore; empty = public CA |
 
 The client JDK patch / platform are software versions →
-`oracle_software_version.conf` (`CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`).
+`download/patches_fmw.csv` (role `client_jdk` = `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`).
 
 A root CA created by 14- must be distributed to the clients (`ca.cer`) –
 and should be the same root that signs the Nginx TLS certificate

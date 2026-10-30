@@ -551,7 +551,7 @@ Notes:
 | `09-Install/client_templates/` | `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` – **written 2026-10-22**, served on the test host, see §11; Windows client test open |
 | Authenticode signature of `FormsWeb-Setup.ps1` | **open** (§12) |
 | `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
-| `09-Install/oracle_software_version.conf` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` – **done 2026-10-22** |
+| `09-Install/download/patches_fmw.csv` | role `client_jdk` (`CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`) – **done 2026-10-22**, CSV since 2026-10-30 |
 | `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
 | `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
 | `09-Install/03-root_user_oracle.sh` | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |

@@ -176,7 +176,8 @@ by `04-oracle_pre_download.sh --apply --mos` into
 never download a JDK update themselves – they only look into the patch
 repository.
 
-`oracle_software_version.conf`: `JDK_PATCH_NR`, `JDK_VERSION_MIN` (minimum
+`download/patches_fmw.csv` (role `jdk` = `JDK_PATCH_NR`) and
+`oracle_software_version.conf`: `JDK_VERSION_MIN` (minimum
 of the current patch cycle, CSPU Sep 2026: **21.0.12.1**). The script warns
 if the JDK at `JDK_HOME` is older.
 

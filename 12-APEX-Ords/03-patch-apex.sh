@@ -3,7 +3,7 @@
 # Script   : 03-patch-apex.sh
 # Purpose  : Apply an APEX patch set bundle (APEX_PATCH_NR) to the PDB of an
 #            ORDS instance – patch README "Patch Installation Instructions":
-#              1. patch ZIP from $PATCH_STORAGE/apex/<ver>/patch/<nr>/
+#              1. patch ZIP from $PATCH_STORAGE/apex/patch/<nr>/ (or apex/<ver>/patch/<nr>/)
 #                 (04-oracle_pre_download.sh --apply --mos, platform 2000P)
 #              2. already in APEX_PATCHES -> nothing to do; base release check
 #              3. stop ORDS (no access during the patch), catpatch.sql as SYS
@@ -15,7 +15,7 @@
 #            80-FMW-Architecture/ords_architecture.md).
 # Call     : ./12-APEX-Ords/03-patch-apex.sh [--apply] [--instance N] [--sys-sec FILE]
 # Runs as  : oracle (ORDS stop/start via sudo, else the commands are printed)
-# Requires : 02-install-apex.sh, APEX_PATCH_NR in oracle_software_version.conf
+# Requires : 02-install-apex.sh, APEX_PATCH_NR (09-Install/download/patches_fmw.csv, role apex)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : 12-APEX-Ords/README.md §6, apex_architecture.md
@@ -65,7 +65,7 @@ UNIT="ords@ords_${INST}.service"
 
 printLine
 section "APEX patch set bundle – ords_${INST} ($(date '+%Y-%m-%d %H:%M:%S'))"
-printList "APEX_PATCH_NR" 20 "${NR:-(not set – 09-Install/oracle_software_version.conf)}"
+printList "APEX_PATCH_NR" 20 "${NR:-(not set – 09-Install/download/patches_fmw.csv, role apex)}"
 printList "TNS alias"     20 "${ALIAS:-($_av not set)}"
 if [ -z "$NR" ]; then
     info "No patch set bundle configured – nothing to do"
@@ -98,9 +98,11 @@ else
     DB_DONE=false
 fi
 
-PZ="$(ls "$PATCH_STORAGE/apex/$VER/patch/$NR"/p"${NR}"_*.zip 2>/dev/null | head -1)"
+# apex/patch/<nr>/ = layout of download/patches_fmw.csv (role apex, written by
+# mos_patch_download.sh); apex/<ver>/patch/<nr>/ = older downloads
+PZ="$(ls "$PATCH_STORAGE/apex/$VER/patch/$NR"/p"${NR}"_*.zip "$PATCH_STORAGE/apex/patch/$NR"/p"${NR}"_*.zip 2>/dev/null | head -1)"
 if [ -z "$PZ" ]; then
-    $DB_DONE || { fail "No patch ZIP in $PATCH_STORAGE/apex/$VER/patch/$NR/ – 09-Install/04-oracle_pre_download.sh --apply --mos"; print_summary; exit 2; }
+    $DB_DONE || { fail "No patch ZIP in $PATCH_STORAGE/apex/patch/$NR/ (or apex/$VER/patch/$NR/) – 09-Install/04-oracle_pre_download.sh --apply --mos"; print_summary; exit 2; }
 else
     ok "Patch ZIP: $PZ"
     # base release of the bundle = <ver> in p<nr>_<261>_Generic.zip -> 26.1
