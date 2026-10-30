@@ -81,7 +81,7 @@ Current patches (Aug/Sep 2026):
 |---|---|---|---|---|---|
 | `39600348` | Oracle Reports Developer | 14.1.2.0.0 | Linux x86-64 | Aug 2026 | `38827528` |
 | `39842516` | Oracle Forms | 14.1.2.0.0 | Linux x86-64 | Sep 2026 | `38874285` |
-| `38936596` | One-off (BiDi parentheses) | 14.1.2.0.0 | Linux x86-64 | — | — (complements `39600348`) |
+| `38936596` | One-off (BiDi parentheses) | 14.1.2.0.0 | Generic (`p38936596_141200_Generic.zip`, MOS 2026-10-30) | — | — (complements `39600348`) |
 
 **Reports `39600348` key fixes:** a superset of `38827528`'s fixes
 (rwconverter ORA-00933, Hebrew text with parenthesis, ADB 23ai SRW package

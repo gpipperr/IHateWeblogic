@@ -32,7 +32,7 @@ patch;platform;file_regexp;required;step;description;dir;sha256
 39100536;226P;p39100536_141200_Linux-x86-64\.zip;yes;fr_common;OAM WebGate Bundle Patch 14.1.2.0.260318;patches/39100536;e29ac71bf8b4fbcf09a437a18750d897685477b42f727387b0103b63f84010da
 39600348;226P;p39600348_141200_Linux-x86-64\.zip;yes;reports;Oracle Reports 14.1.2 QPR (Aug 2026);patches/39600348;e6c42fc5f2e587791db94982b6955abab3c592c67fc0654b181bb14fee7a5466
 39842516;226P;p39842516_141200_Linux-x86-64\.zip;yes;forms;Oracle Forms 14.1.2 QPR (Sep 2026) - only with Forms installed;patches/39842516;4907661f9017079c75b5c91bc7d049f01675934fdd115de978e0985fb065dcdb
-38936596;226P;p38936596_141200_Linux-x86-64\.zip;optional;fr_optional;Reports one-off bidi parenthesis (only REPORTS_BIDIPARENTHESIS=YES);patches/38936596;
+38936596;2000P;p38936596_141200_Generic\.zip;optional;fr_optional;Reports one-off bidi parenthesis (only REPORTS_BIDIPARENTHESIS=YES) - Generic only (MOS 2026-10-30);patches/38936596;a6088b2b08377012ca26b03cee96da4189ebb2b033d04f156c0f374221d7a9ee
 35702194;226P;p35702194_2100_Linux-x86-64\.zip;yes;jdk;Oracle JDK 21 latest (21.0.13.0.2) - server, --upgrade-jdk;patches/35702194;4e50b3ccdaf1d7185ff4228482977f93db1699ee96edd766ea732fcc48424cff
 35702194;233P;p35702194_2100_MSWIN-x86-64\.zip;optional;client_jdk;Oracle JDK 21 latest Windows x64 - Forms client bundle (FORMS_CLIENT_DIST=true);client/jdk/35702194;741c4d0307602fc9b8e7f87202f2f7c51efa7133273d870c1dee5c3605bad4f3
 30839369;226P;p30839369_[0-9]+_Linux-x86-64\.zip;optional;cvu;Standalone CVU 26ai kit - local RCU DB only (LOCAL_REP_DB=true);database/cvu;23da73fed4b9403f933a5bbb8e75e9b6931ed5fd33fd1dbfc6503227de70bdc8
