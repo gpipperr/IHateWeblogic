@@ -190,6 +190,7 @@ else
     fail "  Expected BIN: $FR_BIN"
     fail "  Expected ZIP: $FR_ZIP"
     info "  Run first: 04-oracle_pre_download.sh --apply"
+    archive_pull_hint
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 

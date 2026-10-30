@@ -356,6 +356,7 @@ for _p in $PATCHES_TO_APPLY; do
         fail "Patch ZIP not found for patch $_p in: $PATCH_STORAGE/patches/$_p/"
         fail "  Expected: p${_p}_*.zip"
         info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+        archive_pull_hint
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     elif [ "$SELECT_RC" -eq 2 ]; then

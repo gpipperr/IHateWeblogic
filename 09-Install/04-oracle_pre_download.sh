@@ -285,17 +285,8 @@ _install_one() {
 # on a host without this library (share host with MOS access):
 MOS_TOOL="$ROOT_DIR/70-Customer-Projects/tools/mos_patch_download.sh"
 
-# _row_zip ROW – path of the ZIP of one CSV row (regexp in the row's dir), or ""
-_row_zip() {
-    local nr re dir f b
-    IFS=';' read -r nr _ re _ _ _ dir _ <<< "$1"
-    for f in "$PATCH_STORAGE/${dir:-$nr}"/*.zip; do
-        [ -f "$f" ] || continue; b="$(basename "$f")"
-        if [ -n "$re" ]; then [[ "$b" =~ ^$re$ ]] && { printf '%s' "$f"; return 0; }
-        else [[ "$b" == p"$nr"_* ]] && { printf '%s' "$f"; return 0; }; fi
-    done
-    return 1
-}
+# _row_zip ROW – path of the ZIP of one CSV row (lib: patch_row_zip)
+_row_zip() { patch_row_zip "$1"; }
 
 # _row_manual ROW – how to fetch one CSV row by hand (browser download on any
 # host with MOS access, then copy into PATCH_STORAGE)
@@ -509,6 +500,8 @@ _inv_file() {
     local path="$1" label="$2"
     if [ -f "$path" ]; then
         ok "$(printf "  %-26s present  %s" "$label" "$(du -h "$path" 2>/dev/null | cut -f1)")"
+    elif [ -n "${PATCH_ARCHIVE:-}" ] && [ -f "$PATCH_ARCHIVE/${path#"$PATCH_STORAGE"/}" ]; then
+        ok "$(printf "  %-26s in archive – before the step: 07-Maintenance/patch_storage.sh pull <step> --apply" "$label")"
     else
         warn "$(printf "  %-26s MISSING  %s" "$label" "$path")"
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
@@ -537,6 +530,10 @@ while IFS= read -r _row; do
     _z="$(_row_zip "$_row")"
     if [ -n "$_z" ]; then
         ok "$(printf "  %-26s present  %s/%s" "$_st $_nr" "${_dir:-$_nr}" "$(basename "$_z")")"
+    elif [ -n "${PATCH_ARCHIVE:-}" ] && _az="$(patch_row_zip "$_row" "$PATCH_ARCHIVE")"; then
+        # in the archive (NFS/ZFS master copy) – pulled to local disk right before its step
+        ok "$(printf "  %-26s in archive %s – before the step: 07-Maintenance/patch_storage.sh pull %s --apply" \
+            "$_st $_nr" "${_az#"$PATCH_ARCHIVE"/}" "$_st")"
     elif [ "$_st" = "opatch" ] && [ -n "$_spb_zip" ] && \
          unzip -l "$_spb_zip" 2>/dev/null | grep -q "tools/opatch/generic/p${_nr}_"; then
         # 05-oracle_patch_weblogic.sh prefers the copy bundled in the SPB
@@ -548,7 +545,7 @@ while IFS= read -r _row; do
     fi
 done <<< "$IHW_PATCH_ROWS"
 [ -z "$IHW_PATCH_ROWS" ] && { warn "  No patches in $IHW_PATCH_CSV"; INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 )); }
-unset _row _nr _re _st _dir _z _spb_zip
+unset _row _nr _re _st _dir _z _az _spb_zip
 
 # JACOB (GitHub, not MOS) – only for Forms with FORMS_WEBUTIL_JACOB=true
 DOWNLOAD_JACOB=false

@@ -262,6 +262,7 @@ if $OPATCH_NEEDS_UPGRADE && $APPLY; then
             fail "OPatch upgrade ZIP not found in: $OPATCH_UPGRADE_DIR"
             fail "  Expected pattern: p${OPATCH_UPGRADE_NR}_*.zip"
             info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            archive_pull_hint
             EXIT_CODE=2; print_summary; exit $EXIT_CODE
         fi
     fi
@@ -424,6 +425,7 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
             fail "SPB ZIP not found for patch $WLS_SPB_PATCH_NR in: $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/"
             fail "  Expected: p${WLS_SPB_PATCH_NR}_*.zip"
             info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+            archive_pull_hint
             EXIT_CODE=2; print_summary; exit $EXIT_CODE
         fi
         ok "SPB ZIP found: $(basename "$SPB_ZIP")"
@@ -607,6 +609,7 @@ for _p in $PATCHES_TO_APPLY; do
         fail "Patch ZIP not found for patch $_p in: $PATCH_STORAGE/patches/$_p/"
         fail "  Expected: p${_p}_*.zip"
         info "  Download first: 04-oracle_pre_download.sh --apply --mos"
+        archive_pull_hint
         rm -rf "$STAGING_BASE"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     elif [ "$SELECT_RC" -eq 2 ]; then

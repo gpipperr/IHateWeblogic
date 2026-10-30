@@ -181,6 +181,7 @@ _upgrade_jdk_repo() {
     if [ -z "$zip" ]; then
         warn "JDK patch ${JDK_PATCH_NR:-?} not in the patch repository: ${PATCH_STORAGE:-?}/patches/${JDK_PATCH_NR:-?}/"
         info "  Download it with the other patches: 09-Install/04-oracle_pre_download.sh --apply --mos"
+        archive_pull_hint
         return 0
     fi
     name="$(_jdk_zip_tarname "$zip")"

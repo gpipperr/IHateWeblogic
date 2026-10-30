@@ -186,6 +186,7 @@ CJ_ZIP=""
 if [ -z "$CJ_ZIP" ]; then
     fail "No client JDK ZIP in $CJ_DIR"
     info "  Download: 09-Install/04-oracle_pre_download.sh --apply --mos"
+    archive_pull_hint
     print_summary; exit 2
 fi
 CJ_INNER="$(unzip -Z1 "$CJ_ZIP" 2>/dev/null | grep -E '^jdk-[0-9.]+_windows-x64_bin\.zip$' | head -1)"
