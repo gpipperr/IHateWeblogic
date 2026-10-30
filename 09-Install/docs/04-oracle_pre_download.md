@@ -32,7 +32,9 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 | **URL** (any) | own shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true` and `FORMS_CLIENT_ICON` set to an `http(s)` URL | `curl` into `$PATCH_STORAGE/icon/<basename>`, must be ICO or PNG; sites with a browser check (HTTP 403) → download in the browser and place the file under the name the script prints |
 | **OTN** (download.oracle.com, no login) | **APEX** and **ORDS** – only with `INSTALL_APEX=true` | `curl` of `APEX_ZIP_URL` / `ORDS_ZIP_URL` (default the "latest" links), version read from the ZIP, stored in `$PATCH_STORAGE/apex/<ver>/` / `$PATCH_STORAGE/ords/<ver>/`, SHA-256 against `APEX_SHA256` / `ORDS_SHA256` if set |
 | **MOS**, platform Generic | **APEX patch set bundle** (`APEX_PATCH_NR`) – only with `INSTALL_APEX=true` and `--mos` | `getMOSPatch.jar` with platform `2000P` (Generic) into `$PATCH_STORAGE/apex/<ver>/patch/<nr>/` |
-| **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`46P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
+| **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`233P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
+| **oracle.com** (login) or eDelivery | **Oracle Database 19c base** `LINUX.X64_193000_db_home.zip` – only for a local RCU database (`LOCAL_REP_DB=true`, `60-RCU-DB-19c/`) | **not handled by this script** – browser download, placed as `$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip`; see [Oracle Database 19c base](#oracle-database-19c-base-local-rcu-database-local_rep_dbtrue) |
+| **MOS** (AutoUpgrade) | 19c RU / OJVM / OPatch / Data Pump bundle / DB-home JDK | online: `60-RCU-DB-19c/01-db_install_software.sh` (AutoUpgrade); offline: [download/patches_db.csv](../download/README.md) with `mos_patch_download.sh` |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
 `mos_sec.conf.des3` (encrypted password). getMOSPatch gets them through a
@@ -164,6 +166,63 @@ Downloaded with `--mos` only when the RCU database runs on this host
 before the 19c installation. With a remote database the section says
 "skipped".
 
+### Oracle Database 19c base (local RCU database, `LOCAL_REP_DB=true`)
+
+Only when the RCU repository database runs on this host
+([60-RCU-DB-19c/](../../60-RCU-DB-19c/README.md)). A customer database on
+another server is installed by its DBA – nothing to download here.
+
+**Not downloaded by this script** – eDelivery needs a browser session and
+the license acceptance (as for the FMW ZIPs in manual mode), and
+`04-oracle_pre_download.sh` does not check the file either; it is read by
+`60-RCU-DB-19c/01-db_install_software.sh` from `DB_INSTALL_ARCHIVE`
+(`60-RCU-DB-19c/environment_db.conf`, default
+`$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip`).
+
+**Simplest source – the database download page** (Oracle account login,
+no cart): **https://www.oracle.com/database/technologies/oracle19c-linux-downloads.html**
+→ *Oracle Database 19c (19.3) for Linux x86-64*, ZIP → accept the license →
+the file is already called **`LINUX.X64_193000_db_home.zip`** – no renaming.
+The page also shows the SHA-256.
+
+**Alternative – eDelivery** (same content, other name):
+
+1. Log in at **https://edelivery.oracle.com**
+2. Search: `Oracle Database 19c Enterprise Edition` (or *Standard Edition 2* –
+   the same ZIP; the edition is a matter of the license), release
+   **19.3.0.0.0**
+3. Platform **Linux x86-64** → add to cart → accept the license → download
+   only **`V982063-01.zip`** (*Oracle Database 19.3.0.0.0 for Linux x86-64*);
+   the other files of the release (Grid, Client, Examples, Gateways) are not
+   needed – store it as `LINUX.X64_193000_db_home.zip`
+
+| Field | Value |
+|---|---|
+| File | `LINUX.X64_193000_db_home.zip` (oracle.com) = `V982063-01.zip` (eDelivery) |
+| Size | 2.8 GB |
+| SHA-256 | `BA8329C757133DA313ED3B6D7F86C5AC42CD9970A28BF2E6233F3235233AA8D8` (checked on the test host 2026-10-30) |
+| Target | `$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip` (or `DB_INSTALL_ARCHIVE`) |
+
+![Oracle eDelivery – Oracle Database 19c 19.3.0.0.0 for Linux x86-64](../../60-RCU-DB-19c/docs/asset/Download_edelivery_oracle_19_base_installation.jpg)
+
+```bash
+sha256sum LINUX.X64_193000_db_home.zip      # BA8329C7…233AA8D8 (same for V982063-01.zip)
+mkdir -p $PATCH_STORAGE/database
+scp LINUX.X64_193000_db_home.zip oracle@<host>:$PATCH_STORAGE/database/
+# eDelivery file: scp V982063-01.zip oracle@<host>:$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip
+```
+
+**19c patches** (Release Update, OJVM, OPatch, Data Pump bundle, DB-home
+JDK) are not in this script either: online `01-db_install_software.sh` lets
+AutoUpgrade load the current set from MOS (`DB_TARGET_RU`, `RECOMMENDED` =
+gold image); host without MOS access → [download/patches_db.csv](../download/README.md)
+with `mos_patch_download.sh` on another host into
+`$PATCH_STORAGE/database/patches/<nr>/` – `01-` copies them into its empty
+AutoUpgrade `patchdir`. Full procedure:
+[60-RCU-DB-19c/docs/01-db_install_software.md](../../60-RCU-DB-19c/docs/01-db_install_software.md).
+The standalone CVU for the pre-check of the host is the only DB file of
+`--mos` (section above).
+
 ### Client Java for the Forms client distribution (getMOSPatch, second platform)
 
 | Variable | Value | Description |
@@ -253,6 +312,11 @@ sha256sum $PATCH_STORAGE/wls/V1045135-01.zip
 sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
 # expected: 01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175B
 ```
+
+Local RCU database (`LOCAL_REP_DB=true`): also the 19c base `LINUX.X64_193000_db_home.zip`
+(oracle.com database download page, or `V982063-01.zip` from eDelivery) →
+`$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip` – see
+[Oracle Database 19c base](#oracle-database-19c-base-local-rcu-database-local_rep_dbtrue).
 
 Then use `04-oracle_pre_download.sh --apply` to verify, or unzip manually:
 
@@ -490,8 +554,10 @@ $PATCH_STORAGE/
 │           └── p35702194_2100_MSWIN-x86-64.zip  ← confirmed (live) 2026-10-22, 518 MB:
 │                 jdk-21.0.13.0.2_windows-x64_bin.zip / .exe / .msi + SHA256_VALUES + MD5_VALUES
 ├── database/                     ← local RCU DB (60-RCU-DB-19c, only LOCAL_REP_DB=true)
-│   ├── LINUX.X64_193000_db_home.zip  ← 19c base (eDelivery, manual – 01-db_install_software.sh)
-│   └── cvu/                      ← standalone CVU, getMOSPatch DB_CVU_PATCH_NR (00b-db_cvu_check.sh)
+│   ├── LINUX.X64_193000_db_home.zip  ← 19c base (oracle.com download page / eDelivery V982063-01.zip – see
+│   │                                    "Oracle Database 19c base"; read by 01-db_install_software.sh)
+│   ├── cvu/                      ← standalone CVU, role cvu (00b-db_cvu_check.sh)
+│   └── patches/<nr>/             ← offline route only: download/patches_db.csv (01- copies into patchdir)
 ├── apex/                         ← APEX (only INSTALL_APEX=true), one directory per version
 │   └── 26.2/
 │       ├── apex_26.2.zip         ← OTN apex-latest.zip, version read from apex_version.txt

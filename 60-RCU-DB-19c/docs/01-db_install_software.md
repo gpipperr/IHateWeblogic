@@ -48,6 +48,11 @@ before DBCA (requires the complete DB home).
 
 ### Manual download steps
 
+Simplest: **https://www.oracle.com/database/technologies/oracle19c-linux-downloads.html**
+(Oracle account login) → *Oracle Database 19c (19.3) for Linux x86-64*, ZIP –
+the file is already called `LINUX.X64_193000_db_home.zip`, same SHA-256 as
+below. Alternative eDelivery:
+
 1. Log in at **https://edelivery.oracle.com** with your Oracle account
 2. Search for: `Oracle Database 19c Enterprise Edition 19.3.0.0.0`
    (or SE2 — the ZIP file is identical)
