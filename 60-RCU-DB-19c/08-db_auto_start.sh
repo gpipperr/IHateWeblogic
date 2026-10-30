@@ -25,7 +25,9 @@ ENV_DB_CONF="$SCRIPT_DIR/environment_db.conf"
 
 source "$LIB" 2>/dev/null || { printf "\033[31mFATAL\033[0m: Library not found: %s\n" "$LIB" >&2; exit 2; }
 for _f in "$ENV_CONF" "$ENV_DB_CONF"; do
-    [ ! -f "$_f" ] && { printf "\033[31mFATAL\033[0m: Config not found: %s\n" "$_f" >&2; exit 2; }
+    [ ! -f "$_f" ] && { printf "\033[31mFATAL\033[0m: Config not found: %s\n" "$_f" >&2
+        [ "$_f" = "$ENV_DB_CONF" ] && printf "  Create it from the template, then edit it (60-RCU-DB-19c/README.md, Configuration):\n    cp %s.example %s && chmod 600 %s\n" "$_f" "$_f" "$_f" >&2
+        exit 2; }
     source "$_f"
 done
 unset _f

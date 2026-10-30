@@ -172,6 +172,9 @@ Phase 3 – Forms & Reports Installation (as oracle)
 Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
            LOCAL_REP_DB=true; parallel to or after Phase 3)
   → Full procedure: 60-RCU-DB-19c/README.md
+  [oracle]      cd 60-RCU-DB-19c && cp environment_db.conf.example environment_db.conf
+                  && chmod 600 environment_db.conf – then edit (ORACLE_BASE, DB_ORACLE_HOME,
+                  SGA/PGA, edition); gitignored, needed from 00b- on
   [oracle/sudo] ./60-RCU-DB-19c/00-root_db_os_baseline.sh --apply
                   DB-specific OS settings (shmmax, sem, aio, preinstall RPM)
                   auto-elevates via sudo when run as oracle

@@ -243,6 +243,15 @@ elif [ "$_local_db_missing" -eq 1 ]; then
     section "DB Connectivity Check (db_connect_check.sh)"
     info "$(printf "Skipped – LOCAL_REP_DB=true, no local DB running yet (no ora_pmon_*, port %s not listening)" "${DB_PORT:-1521}")"
     info "  Build the RCU database first: 60-RCU-DB-19c/README.md – then re-run this check before 07-oracle_setup_repository.sh (RCU)"
+    # the 60- scripts (from 00b- on) need their own config – gitignored, only the template is in the repo
+    _db_conf="$ROOT_DIR/60-RCU-DB-19c/environment_db.conf"
+    if [ -f "$_db_conf" ]; then
+        ok "60-RCU-DB-19c/environment_db.conf present"
+    else
+        warn "60-RCU-DB-19c/environment_db.conf missing – needed by 60-RCU-DB-19c/00b- and later"
+        info "  cp $_db_conf.example $_db_conf && chmod 600 $_db_conf – then edit (ORACLE_BASE, DB_ORACLE_HOME, SGA/PGA, edition)"
+    fi
+    unset _db_conf
 else
     _run_check_script "$ROOT_DIR/02-Checks/db_connect_check.sh" \
         "DB Connectivity (db_connect_check.sh)"
