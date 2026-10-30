@@ -57,12 +57,13 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[███████████████████░]` ~95 % complete** (state 2026-10-28) – phases 1–7
+**`[███████████████████░]` ~96 % complete** (state 2026-10-30) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
 (2026-10-19/20); phase 8 is nearly done, phase 9 has its first script
-(`cve_inventory.sh`); host hardening (firewall, sshd) is live on the test host.
+(`cve_inventory.sh`, since 2026-10-30 `cve_watch.sh`); host hardening
+(firewall, sshd) is live on the test host.
 New 2026-10-22/23: the **Forms client distribution via URL** (jlink Java
 runtime + FSAL + JACOB from Nginx, PowerShell installer in the user profile)
 and **one `TNS_ADMIN`** for every process – together the first complete
@@ -109,9 +110,30 @@ rollback path), the PDB$SEED MAX_STRING_SIZE fix in `05-`, a **disk sizing
 guide**, the central article on **certificates and trust stores**, and a
 standalone **MOS patch download tool** (`70-Customer-Projects/tools/mos_patch_download.sh`,
 CSV list per cycle – first for the customer's 12c CPU October 2026 run).
+New 2026-10-29: review of every `09-Install/docs` file against its script
+(one commit each, architecture links), `fmw_patch_env.sh` and
+`clone_check_fmw.sh` as standalone customer tools, customer certificates via
+an inbox (`08-SSL/ssl_customer_certs.sh`), `WLS_SERVER_FQDN` as the public
+server name, optional `ADMIN_IP_RANGE` in Nginx, and the fixes from the
+**first real customer installation** (OCI, CIS image): `/dev/shm` / `/tmp`
+noexec, installer temp in `$ORACLE_BASE/tmp`, EPEL / missing packages no
+longer abort, reachability test of the Oracle download hosts.
+New 2026-10-30 (same customer – `*.oracle.com` blocked, small local disk,
+ZFS store via NFS): the **patch numbers per cycle in CSV lists**
+(`09-Install/download/patches_fmw.csv` + `patches_db.csv`, SHA-256 as soft
+check) downloaded by the standalone tool on a share host; a **patch archive**
+(`PATCH_ARCHIVE`, NFS/ZFS master) with `07-Maintenance/patch_storage.sh`
+(`pull` per step, `clean` after a successful step) driven by a **run
+history** every install / maintenance script writes (`log/run_history.csv`);
+root scripts log centrally from the first step on; `60-RCU-DB-19c` adds
+oracle to `dba` / `oper` (CVU PRVF-7566 at the customer);
+`70-Customer-Projects/tools/check_disk_space.sh` (where is the space, NFS
+never scanned); and the **CVE early warning** `10-Monitoring/cve_watch.sh`
+(Oracle CNA records on release day instead of the late NVD CPE, OSV for the
+third-party jars of the home, KEV, EPSS, heise).
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about two fifths
+about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
 (CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
 the certificate expiry check and the Claude patch-cycle analysis done;
 notification, log analysis, config security scanner are concept); minus the
@@ -129,8 +151,8 @@ fresh installation.
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
 | 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
-| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
-| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`), `patch_cycle_analysis.sh` (Claude patch-cycle analysis, skill doc + `update_plan.md`), `claude_setup_check.sh` (Claude sandbox / managed settings / guard hook, [setup_claude.md](10-Monitoring/setup_claude.md)); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
+| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); since 2026-10-30 patch numbers in `09-Install/download/patches_fmw.csv` (one list per cycle, also for the standalone download tool) and `patch_storage.sh` for a small local disk (`PATCH_ARCHIVE` on NFS/ZFS = master, local = cache per step, run history `log/run_history.csv`); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
+| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories, third-party jars), `cve_watch.sh` (step 2, daily early warning: Oracle alerts page, NVD Oracle CNA records, OSV, KEV, EPSS, heise – alerts only new findings, journal `ihw-cve`), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`), `patch_cycle_analysis.sh` (Claude patch-cycle analysis, skill doc + `update_plan.md`), `claude_setup_check.sh` (Claude sandbox / managed settings / guard hook, [setup_claude.md](10-Monitoring/setup_claude.md)); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
 
 Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
 
@@ -237,6 +259,7 @@ Rules:
 
 - Check free space **before** every patch run. `01-db_install_software.sh` and `09-db_patch_rcu.sh` check it first and stop on FAIL; the FMW patch scripts `81-` / `82-` need the SPB workspace.
 - Each cycle: remove the old DB home after a few days of stable operation (`deinstall`, about 12 GB). Archived patch sets in `PATCH_STORAGE` older than one cycle can go too. Clean up `.patch_storage` of the FMW home only with `opatch util cleanup` (never by hand).
+- Small local disk: keep the patches in an NFS/ZFS archive (`PATCH_ARCHIVE`) and pull only the next step's files – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean --apply`; find the space eaters with `70-Customer-Projects/tools/check_disk_space.sh`.
 - Logs and backups grow without limit unless rotated: `07-Maintenance` (`backup_config.sh --keep`, `bak_cleanup.sh`), the domain log rotation and the Data Pump dumps of `rcu_repository_check.sh --apply`.
 
 ## Lifecycle Overview
@@ -347,6 +370,7 @@ operation with proactive, AI-assisted error analysis.
 │  01-Run/startStop.sh start-all --apply         Start after patching │
 │  07-Maintenance/restore_config.sh              Rollback on issues   │
 │  07-Maintenance/bak_cleanup.sh --apply         Old *.bak_<ts> copies│
+│  07-Maintenance/patch_storage.sh clean --apply Free patch ZIPs      │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -355,6 +379,7 @@ operation with proactive, AI-assisted error analysis.
 │                                                                     │
 │  10-Monitoring/cve_inventory.sh    Installed components, patch      │
 │                                     cycle, JDKs, exposure, advisory │
+│  10-Monitoring/cve_watch.sh        New CVEs / alerts, daily (cron)  │
 │  10-Monitoring/cert_expiry_check.sh Certificates, daily (cron)      │
 │  10-Monitoring/claude_monitor.sh   Collects diagnostic data from    │
 │                                     phases 3–7 (logs, SSL, fonts,   │
@@ -398,7 +423,7 @@ Rules across the folders:
 | Phase | Gap |
 |---|---|
 | Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
-| Phase 9 (Monitoring) | `cve_inventory.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
+| Phase 9 (Monitoring) | `cve_inventory.sh`, `cve_watch.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` optional (asked by `04-root_nginx.sh`, `any` where there is no admin network) |
 
 ## First Run – Required Order
@@ -434,9 +459,9 @@ Run these scripts in sequence on a fresh installation:
 | `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
-| `10-Monitoring/`      | CVE inventory (`cve_inventory.sh`), patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: AI-assisted monitoring + CVE watch |
+| `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → CVU pre-check → install → patch (AutoUpgrade) → create DB (RCU requirements checked) → Unified Audit |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and the shared collector `tools/collect_fmw_env.sh`, independent of the scripts above |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/`: collector, MOS download, clone check, cookbook variables, disk space), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
@@ -548,6 +573,8 @@ IHateWeblogic/
 │   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600, --keep N)
 │   ├── restore_config.sh            – List backups, restore a set or --category (--apply), path check
 │   ├── bak_cleanup.sh               – *.bak_<ts> copies next to the Oracle files: keep newest N per file
+│   ├── patch_storage.sh             – patch archive (PATCH_ARCHIVE, NFS/ZFS) as master, local PATCH_STORAGE
+│   │                                   as cache: status / pull <step> / clean (run history) / history
 │   ├── 80-patch_java_os.sh          – JDK at JDK_HOME from the patch repository (--apply, domain stopped)
 │   ├── domain_jdk_path.sh           – Domain + oui/ pinned to jdk-21.0.x → JDK_HOME symlink (--apply)
 │   ├── rcu_repository_check.sh      – RCU repository check (registry, accounts, data sources);
@@ -619,7 +646,9 @@ IHateWeblogic/
 │
 ├── 10-Monitoring/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
-│   ├── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories
+│   ├── cve_inventory.sh             – CVE watch step 1: components, patch cycle, JDKs, OS errata, advisories, jars
+│   ├── cve_watch.sh                 – CVE watch step 2: daily early warning (Oracle alerts, NVD CNA, OSV, KEV,
+│   │                                   EPSS, heise), only new findings alert, --state-dir per inventory, --cron
 │   ├── patch_cycle_analysis.sh      – Claude patch-cycle analysis: prepare (README list) / analyse (docs, update_plan)
 │   ├── patch_cycle_analysis_skill.md – the procedure Claude follows + registry "where the cycle lives"
 │   ├── setup_claude.md              – Claude Code on an FMW host: placement (never prod), sandbox, guard, data protection
@@ -707,7 +736,11 @@ IHateWeblogic/
     │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
     ├── tools/
     │   ├── README.md
-    │   └── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
+    │   ├── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
+    │   ├── mos_patch_download.sh         – MOS download of a patch CSV with getMOSPatch (share host)
+    │   ├── clone_check_fmw.sh            – read-only golden-image / clone check (12c + 14c)
+    │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
+    │   └── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -860,7 +893,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-28). Everything finished is described
+Only what is still open (state 2026-10-30). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -888,7 +921,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   91323 / 47065, 9.8; September 83021 / 83099). Confirmed from the READMEs:
   4176 (PERL), OHS 87347 / 87346, ADF, FMW Control 91467, OPSS 83020, Jackson
   54512–54515 (Third-Party BP), WebGate CVE-2025-0725.
-- [ ] `10-Monitoring/cve_inventory.sh --online` against the new advisory.
 
 ### Tests that need a client or a fresh install
 
@@ -939,8 +971,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (T3/IIOP, debug configs, web commands, demo certificates …) –
   [10-Monitoring/README.md](10-Monitoring/README.md).
-- [ ] **Idea: clean-up script for old patch artefacts** (`07-Maintenance/`,
-  read-only by default, `--apply` removes) – external security scanners
+- [ ] **Clean-up of old patch artefacts** – partly done 2026-10-30:
+  `07-Maintenance/patch_storage.sh clean` frees the ZIPs of finished steps,
+  `patches_<timestamp>/` of `--fresh-patches` and staging leftovers;
+  `check_disk_space.sh` lists `.patch_storage`, unlinked JDKs and old homes
+  with the clean command. Open: the rollback copies themselves – external security scanners
   report vulnerable jars / libraries that only lie in rollback copies:
   `$ORACLE_HOME/.patch_storage/<patch>_<date>/` of superseded patches (e.g.
   the Sep PSU 39919611 / SPU 39988381 after CPU Oct 2026), `OPatch.bak_*`,
@@ -987,7 +1022,8 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **RCU / APEX database after the 19.33 patch** (out-of-place
   19.30 → 19.33 live 2026-10-28,
   [09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)): after some
-  days of stable operation deinstall the old 19.30 home
+  days of stable operation deinstall the old 19.30 home (11.2 GB, reported
+  "NOT in use" by `check_disk_space.sh` 2026-10-30)
   (`deinstall -checkonly` / `-silent`), remove the stale inventory entry
   `OraDB19Home1` of the 19.3 `db_home1`, delete the Data Pump dumps of the
   patch run.
@@ -1014,9 +1050,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   read-only inputs, only the unusual entries – normal checks stay with
   Nagios / Prometheus); open: read-only mount of the production log dirs on
   the analysis host – to decide.
-- [x] `10-Monitoring/cve_watch.sh` – early warning between the Oracle
-  releases (Oracle alerts page, NVD Oracle CNA records, OSV for the jars,
-  KEV, EPSS, heise), state + fixture self-test (2026-10-30).
+- [ ] **`cve_watch.sh` in daily operation:** `--cron --apply` on the test
+  host; assess the open library findings of the baseline (jackson-databind /
+  -core 2.16.1 in `jlib/` + `sqlcl/lib/`, jackson-core 2.21.5 in
+  `oracle_common` – current Oracle copy –, httpcore5, OpenJPA 1.1.1, jline
+  telnet in SQLcl) → `cve_accepted.txt` or SR / next CPU; at the customer:
+  inventory on the server, watch on the share host (`--inventory`,
+  `--state-dir`).
 - [ ] CVE watch steps 3–4: notification, Claude assessment, uniform
   machine-readable output of the 01–07 scripts –
   [10-Monitoring/README.md](10-Monitoring/README.md).
@@ -1026,6 +1066,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ### Customer feedback / watch
 
+- [ ] **Customer installation 2026-10-29/30 (OCI, no `*.oracle.com`, NFS/ZFS
+  store):** first live runs of `07-Maintenance/patch_storage.sh` with a real
+  `PATCH_ARCHIVE` on NFS, `check_disk_space.sh` with an NFS mount (must be
+  listed as "not scanned"), `60-RCU-DB-19c/00-root_db_os_baseline.sh --apply`
+  adding oracle to `dba` / `oper` (then re-login, `00b-`). Confirmed there:
+  the run history file created by a root script belongs to the repository
+  owner.
 - [ ] **Next customer installation:** run `09-Install/04-oracle_pre_checks.sh`
   (check 10: does a blocked request fail fast or hang?) and
   `02-Checks/egress_check.sh --capture 300` during the first start – which
