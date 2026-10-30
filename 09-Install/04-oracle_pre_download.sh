@@ -297,6 +297,28 @@ _row_zip() {
     return 1
 }
 
+# _row_manual ROW – how to fetch one CSV row by hand (browser download on any
+# host with MOS access, then copy into PATCH_STORAGE)
+_row_manual() {
+    local nr plat re st dir pn p
+    IFS=';' read -r nr plat re _ st _ dir _ <<< "$1"
+    pn=""
+    for p in ${plat//|/ }; do
+        case "$p" in
+            226P)  pn="${pn:+$pn or }Linux x86-64" ;;
+            2000P) pn="${pn:+$pn or }Generic" ;;
+            233P)  pn="${pn:+$pn or }Microsoft Windows x64 (64-bit)" ;;
+            *)     pn="${pn:+$pn or }$p" ;;
+        esac
+    done
+    info "$(printf "    by hand: support.oracle.com → Patches & Updates → patch %s, platform %s" "$nr" "$pn")"
+    info "$(printf "             file %s → %s/" "$(printf '%s' "${re:-p${nr}_*.zip}" | sed 's/\\//g')" "$PATCH_STORAGE/${dir:-$nr}")"
+    if [ "$st" = "cvu" ]; then
+        info "             the patch lists FIVE files – take only the 26ai kit p${nr}_<ver>_Linux-x86-64.zip"
+        info "             (~133 MB) – not p${nr}_<ver>OCWRU_..., not cvupack_*.zip (21c/18c kits, 00b- only as fallback)"
+    fi
+}
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -521,6 +543,7 @@ while IFS= read -r _row; do
         ok "$(printf "  %-26s bundled in SPB %s – no separate download needed" "opatch $_nr" "$WLS_SPB_PATCH_NR")"
     else
         warn "$(printf "  %-26s MISSING  %s/ (%s)" "$_st $_nr" "${_dir:-$_nr}" "${_re:-p${_nr}_*}")"
+        $MOS_MODE || _row_manual "$_row"
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
 done <<< "$IHW_PATCH_ROWS"
@@ -588,6 +611,8 @@ if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
 else
     info "$INVENTORY_MISSING item(s) missing – download with: $(basename "$0") --apply --mos"
+    info "  no MOS access here: download on another host (mos_patch_download.sh -c $(basename "$IHW_PATCH_CSV"),"
+    info "  see 09-Install/download/README.md) or by hand as shown above, then copy into PATCH_STORAGE"
 fi
 
 # --- Dry-run exit -------------------------------------------------------------

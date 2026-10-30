@@ -157,7 +157,7 @@ patch directory gets its own cfg (same mechanism as the client Java).
 | Variable | Value | Description |
 |---|---|---|
 | `DB_CVU_PATCH_NR` | `30839369` | MOS "Standalone CVU Platform-specific package supports 21c and 19c" – platform of the master cfg (Linux x86-64) |
-| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: `_mos_download_one` strips the trailing `\.zip` – getMOSPatch compares the regexp with `String.matches()` against the file name **without** `.zip` (checked 2026-10-28; before, the filter never matched); the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
+| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: `mos_patch_download.sh` strips the trailing `\.zip` – getMOSPatch compares the regexp with `String.matches()` against the file name **without** `.zip` (checked 2026-10-28; before, the filter never matched); the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
 
 Downloaded with `--mos` only when the RCU database runs on this host
 (`LOCAL_REP_DB=true` from `01-setup-interview.sh`) into
@@ -165,6 +165,39 @@ Downloaded with `--mos` only when the RCU database runs on this host
 [60-RCU-DB-19c/00b-db_cvu_check.sh](../../60-RCU-DB-19c/docs/00b-db_cvu_check.md)
 before the 19c installation. With a remote database the section says
 "skipped".
+
+**By hand** (host without MOS access – the dry-run inventory prints the same
+hints for every missing patch):
+
+1. **https://support.oracle.com** → *Patches & Updates* → *Patch Name or
+   Number* `30839369`, platform **Linux x86-64** → *Search*
+2. The patch lists **five files** (live 2026-10-27) – download only the
+   first one:
+
+   | File | Size | Use |
+   |---|---|---|
+   | `p30839369_2326000_Linux-x86-64.zip` | 133 MB | **this one** – CVU 26ai (23.26) standalone kit, checks 19c with `-r 19` |
+   | `p30839369_2326000OCWRU_Linux-x86-64.zip` | 68 MB | not needed (OCW RU homes) |
+   | `cvupack_linux_ol7_x86_64.zip` | 241 MB | 21c kit – `00b-` uses it only as fallback |
+   | `cvupack_host.zip` / `cvupack_linux_ol6_x86_64.zip` | 143 / 263 MB | not needed |
+
+   The version in the name (`2326000`) changes with new CVU releases – the
+   CSV regexp `p30839369_[0-9]+_Linux-x86-64\.zip` matches every release
+   and excludes the OCWRU file.
+3. Copy the ZIP as it is (do not unpack) into `$PATCH_STORAGE/database/cvu/` (or
+   `DB_CVU_DIR` of `environment_db.conf`):
+
+   ```bash
+   mkdir -p $PATCH_STORAGE/database/cvu
+   scp p30839369_2326000_Linux-x86-64.zip oracle@<host>:$PATCH_STORAGE/database/cvu/
+   ```
+4. Check: `./09-Install/04-oracle_pre_download.sh` (inventory `cvu 30839369
+   present`), then `./60-RCU-DB-19c/00b-db_cvu_check.sh` – it unpacks the
+   ZIP itself.
+
+Or with the tool on a host with MOS access: `mos_patch_download.sh -c
+patches_fmw.csv -d <share>/patch_storage --steps cvu --apply` – it writes
+exactly this file into `database/cvu/`.
 
 ### Oracle Database 19c base (local RCU database, `LOCAL_REP_DB=true`)
 
