@@ -235,9 +235,11 @@ _upgrade_jdk_repo() {
 
 JDK_HOME="${JDK_HOME:-/u01/app/oracle/java/jdk-21}"
 JDK_PARENT="$(dirname "$JDK_HOME")"
-# Java SE patch of the current cycle (oracle_software_version.conf)
+# Java SE patch of the current cycle (download/patches_fmw.csv, role "jdk";
+# read as text – root does not source the conf)
 _VER_CONF="$SCRIPT_DIR/oracle_software_version.conf"
-JDK_PATCH_NR="$(sed -n 's/^JDK_PATCH_NR="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
+JDK_PATCH_NR="$(awk -F';' '$5 == "jdk" && $1 ~ /^[0-9]+$/ { print $1; exit }' \
+    "$SCRIPT_DIR/download/patches_fmw.csv" 2>/dev/null)"
 JDK_VERSION_MIN="$(sed -n 's/^JDK_VERSION_MIN="\([^"]*\)".*/\1/p' "$_VER_CONF" 2>/dev/null | head -1)"
 # Public CDN: /java/21/latest/ is gone (404 since the NFTC ended, September 2026);
 # the archive keeps the NFTC releases, the last one is the bootstrap fallback.

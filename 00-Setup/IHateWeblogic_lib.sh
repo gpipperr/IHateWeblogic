@@ -335,6 +335,34 @@ _select_patch_zip() {
 #   3 = OPatch structure missing (no inventory.xml/actions.xml, no EBS
 #       pattern either - unexpected zip layout)
 #   4 = inventory.xml unreadable, or <patch_id> does not match patch_nr
+# -----------------------------------------------------------------------------
+# patch_zip_sha_check ZIP NR – SHA-256 soft check against the patch list
+# (09-Install/download/patches_fmw.csv, column sha256; rows in IHW_PATCH_ROWS
+# from oracle_software_version.conf). Oracle re-releases patches under the
+# same number (JDK 35702194: every update), so a different value only WARNs –
+# never blocks an apply. No row / no value = nothing printed. Return 0 always.
+# -----------------------------------------------------------------------------
+patch_zip_sha_check() {
+    local zip="$1" nr="$2" b row re sha is _r_nr
+    [ -f "$zip" ] && [ -n "${IHW_PATCH_ROWS:-}" ] || return 0
+    b="$(basename "$zip")"
+    while IFS= read -r row; do
+        IFS=';' read -r _r_nr _ re _ _ _ _ sha <<< "$row"
+        [ "$_r_nr" = "$nr" ] && [ -n "$sha" ] || continue
+        if [ -n "$re" ]; then [[ "$b" =~ ^$re$ ]] || continue; fi
+        is="$(sha256sum "$zip" 2>/dev/null | awk '{print tolower($1)}')"
+        if [ "$is" = "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ]; then
+            ok "$(printf "Patch %s SHA-256 matches the patch list" "$nr")"
+        else
+            warn "$(printf "Patch %s SHA-256 differs from the patch list (%s… vs. %s…)" "$nr" "${is:0:12}" "${sha:0:12}")"
+            info "  Oracle may have re-released the ZIP under the same number – compare the digest on MOS,"
+            info "  then update download/patches_fmw.csv. Not blocking: the OPatch checks follow."
+        fi
+        return 0
+    done <<< "$IHW_PATCH_ROWS"
+    return 0
+}
+
 #   5 = required_components present with 2+ entries and their majority
 #       version does not match expected_release
 check_patch_zip() {

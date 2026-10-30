@@ -2,7 +2,7 @@
 # =============================================================================
 # Script   : 05-oracle_patch_weblogic.sh
 # Purpose  : Update OPatch to the required version, then apply all WLS patches
-#            listed in INSTALL_PATCHES (oracle_software_version.conf).
+#            listed in INSTALL_PATCHES (download/patches_fmw.csv, role wls).
 #            Must run after 05-oracle_install_weblogic.sh.
 # Call     : ./09-Install/05-oracle_patch_weblogic.sh
 #            ./09-Install/05-oracle_patch_weblogic.sh --apply
@@ -155,7 +155,7 @@ OPATCH="$ORACLE_HOME/OPatch/opatch"
 # --- INSTALL_PATCHES ----------------------------------------------------------
 [ -n "$INSTALL_PATCHES" ] \
     && ok "INSTALL_PATCHES = $INSTALL_PATCHES" \
-    || { fail "INSTALL_PATCHES not set in oracle_software_version.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "INSTALL_PATCHES empty – no role wls in download/patches_fmw.csv"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- oraInst.loc – required for OPatch operations ----------------------------
 # /etc/oraInst.loc is the system-wide pointer (root-owned, created by 03-root_user_oracle.sh)
@@ -427,6 +427,7 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
             EXIT_CODE=2; print_summary; exit $EXIT_CODE
         fi
         ok "SPB ZIP found: $(basename "$SPB_ZIP")"
+        patch_zip_sha_check "$SPB_ZIP" "$WLS_SPB_PATCH_NR"
 
         SPB_STAGE="$ORACLE_BASE/tmp/wls_spb_$$"
         mkdir -p "$SPB_STAGE" || {
@@ -460,7 +461,7 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
         ok "SPB patch list: $SPB_PATCHLIST"
     fi
 else
-    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB staging"
+    info "WLS_SPB_PATCH_NR empty (no role spb in download/patches_fmw.csv) – skipping SPB staging"
 fi
 
 # =============================================================================
@@ -528,7 +529,7 @@ if [ -n "${WLS_SPB_PATCH_NR:-}" ]; then
         info "SPB staging directory removed (ZIP kept in $PATCH_STORAGE/patches/$WLS_SPB_PATCH_NR/ for a future rollback)"
     }
 else
-    info "WLS_SPB_PATCH_NR not set in oracle_software_version.conf – skipping SPB apply"
+    info "WLS_SPB_PATCH_NR empty (no role spb in download/patches_fmw.csv) – skipping SPB apply"
 fi
 
 # --- Bugs expected after the SPB (WLS_SPB_CHECK_BUGS) --------------------------
@@ -619,6 +620,7 @@ for _p in $PATCHES_TO_APPLY; do
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
     ok "Patch $_p ZIP: $(basename "$PATCH_ZIP")"
+    patch_zip_sha_check "$PATCH_ZIP" "$_p"
 
     check_patch_zip "$PATCH_ZIP" "$_p" "$FMW_PRODUCT_RELEASE" || {
         fail "Patch $_p failed ZIP validation - aborting before extraction (see check_patch_zip message above)"

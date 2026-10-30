@@ -5,7 +5,7 @@
 #            already-installed environment: upgrade the Oracle JDK at JDK_HOME
 #            (outside the Oracle Home) to the JDK of the patch repository.
 #              - Since the NFTC for JDK 21 ended (September 2026) updates exist
-#                only as MOS Patch JDK_PATCH_NR (oracle_software_version.conf).
+#                only as MOS Patch JDK_PATCH_NR (download/patches_fmw.csv).
 #              - The patch is downloaded ONCE, with all other patches, by
 #                09-Install/04-oracle_pre_download.sh --apply --mos into
 #                $PATCH_STORAGE/patches/<JDK_PATCH_NR>/ – this script never

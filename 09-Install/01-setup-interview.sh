@@ -1284,7 +1284,7 @@ MOS_USER="${MOS_USER}"
 # EMBEDDED_LDAP_PWD → embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap)
 # REPORTS_ADMIN_PWD → reports_admin_sec.conf.des3 (rwserver.conf <identifier>)
 # FORMS_SIGN_STOREPASS → forms_sign_sec.conf.des3 (code-signing keystore)
-# Software versions / patch numbers → 09-Install/oracle_software_version.conf
+# Software versions → 09-Install/oracle_software_version.conf, patch numbers → 09-Install/download/patches_fmw.csv
 SETUPEOF
 
 chmod 644 "$SETUP_CONF"

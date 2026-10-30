@@ -4,7 +4,7 @@
 # Purpose  : Apply Forms & Reports specific patches after base F&R install.
 #            Patches are listed in INSTALL_PATCHES_FR_COMMON (PERL, OHS, WebGate –
 #            components only the F&R installer brings) / INSTALL_PATCHES_FORMS /
-#            INSTALL_PATCHES_REPORTS (oracle_software_version.conf) and applied
+#            INSTALL_PATCHES_REPORTS (download/patches_fmw.csv) and applied
 #            only for the component(s)
 #            actually present in ORACLE_HOME (Reports-only installs supported —
 #            Forms patches are skipped automatically if forms/ does not exist).
@@ -369,6 +369,7 @@ for _p in $PATCHES_TO_APPLY; do
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
     ok "Patch $_p ZIP: $(basename "$PATCH_ZIP")"
+    patch_zip_sha_check "$PATCH_ZIP" "$_p"
 
     check_patch_zip "$PATCH_ZIP" "$_p" "$FMW_PRODUCT_RELEASE" || {
         fail "Patch $_p failed ZIP validation - aborting before extraction (see check_patch_zip message above)"
