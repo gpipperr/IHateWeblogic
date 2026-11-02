@@ -87,6 +87,7 @@ Run in this order — each step must complete before the next:
 
 | # | Script | Runs as | What |
 |---|---|---|---|
+| 0a | `00a-db_env_interview.sh` | oracle | Create / maintain `environment_db.conf` from the template, consistency check (`--check`) |
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
 | 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install via -applyRU |
@@ -109,13 +110,22 @@ After step 8, continue with:
 
 ## Configuration
 
-Copy the template and edit before running any script:
+Create it with the interview (from the template, after
+`09-Install/01-setup-interview.sh`) before running any other script:
 
 ```bash
-cp environment_db.conf.example environment_db.conf
-chmod 600 environment_db.conf
-vi environment_db.conf
+./60-RCU-DB-19c/00a-db_env_interview.sh            # dry-run: questions + diff
+./60-RCU-DB-19c/00a-db_env_interview.sh --apply    # write (backup, mode 600)
+./60-RCU-DB-19c/00a-db_env_interview.sh --check    # consistency check only
 ```
+
+It asks only what differs per installation (DB home named after the RU of
+`09-Install/download/patches_db.csv`, edition, SID / CDB, PDB = `DB_SERVICE`,
+listener port = `DB_PORT`, SGA / PGA from RAM, data / FRA, archivelog, audit
+retention, FMW tablespace = `RCU_TABLESPACE`), adds template keys an older
+file misses, and replaces fixed `ORACLE_BASE` / `ORACLE_INVENTORY` values by
+the inherited form – details: [docs/00a-db_env_interview.md](docs/00a-db_env_interview.md).
+`cp environment_db.conf.example environment_db.conf` + `vi` still works.
 
 `environment_db.conf` is **separate from** `environment.conf` (FMW/WLS).
 It is read **after** `environment.conf`: `ORACLE_BASE` and `ORACLE_INVENTORY`

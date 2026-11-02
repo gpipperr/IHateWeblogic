@@ -142,7 +142,7 @@ STEPS=(
 "2|oracle|09-Install/05-oracle_patch_weblogic.sh|apply|-|-|--apply"
 "3|oracle|09-Install/06-oracle_install_forms_reports.sh|apply|-|_p_fr|--apply"
 "3|oracle|09-Install/06-oracle_patch_forms_reports.sh|apply|-|-|--apply"
-"DB|oracle|60-RCU-DB-19c/environment_db.conf|manual|_c_db|_p_dbconf|cp environment_db.conf.example environment_db.conf"
+"DB|oracle|60-RCU-DB-19c/00a-db_env_interview.sh|apply|_c_db|_p_dbconf|--apply"
 "DB|root|60-RCU-DB-19c/00-root_db_os_baseline.sh|apply|_c_db|_p_dbos|--apply"
 "DB|oracle|60-RCU-DB-19c/00b-db_cvu_check.sh|apply|_c_db|-|--apply"
 "DB|oracle|60-RCU-DB-19c/01-db_install_software.sh|apply|_c_db|_p_dbhome|--apply"

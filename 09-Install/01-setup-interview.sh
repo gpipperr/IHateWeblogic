@@ -1327,6 +1327,10 @@ info "    ./09-Install/02b-root_os_java.sh --apply"
 info "    ./09-Install/03-root_user_oracle.sh --apply"
 info "  As oracle:"
 info "    ./09-Install/04-oracle_pre_checks.sh"
+if [ "${LOCAL_REP_DB:-false}" = "true" ]; then
+    info "  Local RCU database (LOCAL_REP_DB=true), as oracle:"
+    info "    ./60-RCU-DB-19c/00a-db_env_interview.sh --apply   (environment_db.conf: DB home, PDB = DB_SERVICE, memory)"
+fi
 printLine
 
 print_summary

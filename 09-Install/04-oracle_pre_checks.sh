@@ -249,7 +249,7 @@ elif [ "$_local_db_missing" -eq 1 ]; then
         ok "60-RCU-DB-19c/environment_db.conf present"
     else
         warn "60-RCU-DB-19c/environment_db.conf missing – needed by 60-RCU-DB-19c/00b- and later"
-        info "  cp $_db_conf.example $_db_conf && chmod 600 $_db_conf – then edit (ORACLE_BASE, DB_ORACLE_HOME, SGA/PGA, edition)"
+        info "  Create it: ./60-RCU-DB-19c/00a-db_env_interview.sh --apply (interview from the template)"
     fi
     unset _db_conf
 else

@@ -673,6 +673,7 @@ IHateWeblogic/
 │
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
+│   ├── 00a-db_env_interview.sh      – environment_db.conf from the template (interview, --check)
 │   ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
 │   ├── 00b-db_cvu_check.sh          – host pre-check with the standalone CVU (patch 30839369, cluvfy -r 19)
 │   ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
