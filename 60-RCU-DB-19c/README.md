@@ -48,7 +48,7 @@ CDB: FMWCDB
  └─ PDB: FMWPDB   ← all 9 FMW RCU schemas (PREFIX_STB/MDS/OPSS/IAU/…/WLS/WLS_RUNTIME)
 
 Listener: port 1521
-DB_SERVICE (in environment.conf) → FMWPDB  (PDB service, not CDB)
+DB_SERVICE (in environment.conf) → FMWPDB  (PDB service = DB_PDB_NAME, not CDB)
 ```
 
 Pluggable database from day 1 — required for Oracle 21c+ and simplifies
@@ -63,7 +63,7 @@ future migration to a DBA-managed infrastructure database.
 | RAM | 2 GB | 4 GB |
 | Disk – DB software | 12 GB (one patched home) | **24 GB** (2 homes during an out-of-place patch) |
 | Disk – DB files | 8 GB | 15 GB |
-| Disk – AutoUpgrade staging | 8 GB (gold image) | 18 GB (first install: + 19.3 base ZIP and base stage) |
+| Disk – AutoUpgrade staging | 2 GB (patch set local / gold image) | 14 GB (AutoUpgrade download: + base stage 6.6 GB) |
 | Disk – total | **30 GB** | **60 GB** (+ OS) |
 | CPU | 1 core | 2 cores |
 
@@ -92,8 +92,9 @@ Run in this order — each step must complete before the next:
 | 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
 | 2 | `02-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
-| 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
-| 4 | `04-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
+| 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config (`--clean` = drop and re-create) |
+| – | manual | oracle | `uniaud_on` relink, DB + listener down ([docs/04-db_audit_setup.md](docs/04-db_audit_setup.md#prerequisites)) |
+| 4 | `04-db_audit_setup.sh` | oracle | common audit policies (all containers) + AUDITLOG tablespace + purge jobs |
 | 5 | `05-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
 | 6 | `06-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
@@ -125,7 +126,8 @@ listener port = `DB_PORT`, SGA / PGA from RAM, data / FRA, archivelog, audit
 retention, FMW tablespace = `RCU_TABLESPACE`), adds template keys an older
 file misses, and replaces fixed `ORACLE_BASE` / `ORACLE_INVENTORY` values by
 the inherited form – details: [docs/00a-db_env_interview.md](docs/00a-db_env_interview.md).
-`cp environment_db.conf.example environment_db.conf` + `vi` still works.
+`cp environment_db.conf.example environment_db.conf` + `vi` still works
+(then `--check`).
 
 `environment_db.conf` is **separate from** `environment.conf` (FMW/WLS).
 It is read **after** `environment.conf`: `ORACLE_BASE` and `ORACLE_INVENTORY`
@@ -170,8 +172,10 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 
 **Same host (FMW + DB on one machine):**
 - Run `09-Install` phase 0–3 (FMW software install) first, then this section
-- `00-root_db_os_baseline.sh` will upgrade shmmax/shmall to DB-sized values —
-  this is safe at runtime; only WLS OUI needs the smaller values during install
+- `00-root_db_os_baseline.sh` writes its own `/etc/sysctl.d/60-oracle-db.conf`;
+  the 99- files of the FMW baseline / preinstall RPM are loaded later and win
+  for the same keys – check the effective values
+  ([docs/00-db_os_baseline.md](docs/00-db_os_baseline.md#effective-values-the-last-file-wins))
 
 **Separate DB server:**
 - Run only `00-root_db_os_baseline.sh` through `08-db_auto_start.sh` here
@@ -189,7 +193,7 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
 | [docs/02-db_setup_listener.md](docs/02-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/03-db_create_database.md](docs/03-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
-| [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup |
+| [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup (manual `uniaud_on` relink, common policies, retention jobs) |
 | [docs/05-db_fmw_tablespace.md](docs/05-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
 | [docs/06-db_rcu_profile.md](docs/06-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
 | [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
