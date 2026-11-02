@@ -65,7 +65,7 @@ ASSIGN=false
 PREFIXES=()
 
 _usage() {
-    printf "Usage: %s [--apply] [--assign] [--help]\n\n" "$(basename "$0")"
+    printf "Usage: %s [--apply] [--assign] [--prefix P]... [--help]\n\n" "$(basename "$0")"
     printf "  %-12s %s\n" "(none)"   "Dry-run: show profile and current state"
     printf "  %-12s %s\n" "--apply"  "Create / align profile ${RCU_DB_PROFILE}"
     printf "  %-12s %s\n" "--assign" "With --apply: also assign it to the existing RCU schemas of the prefix(es)"
@@ -186,12 +186,30 @@ SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 200
 SELECT 'PROFILE|' || resource_name || '|' || limit FROM dba_profiles
  WHERE profile = UPPER('${RCU_DB_PROFILE}') AND resource_name IN ('PASSWORD_LIFE_TIME','FAILED_LOGIN_ATTEMPTS');
 @${OVERVIEW_SQL}
-SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 200
-SELECT 'USER|' || username || '|' || profile || '|' || account_status || '|' || TO_CHAR(expiry_date,'YYYY-MM-DD')
-  FROM dba_users
- WHERE username IN (SELECT owner FROM system.schema_version_registry\$
-                     WHERE INSTR(',' || '${PREFIX_LIST:-#}' || ',', ',' || mrc_name || ',') > 0)
- ORDER BY username;
+SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 200 SERVEROUTPUT ON
+-- USER lines only when the registry exists (dynamic SQL - before the first RCU
+-- run a static reference fails to compile, the dry-run stopped, 2026-11-02)
+DECLARE
+    v_reg NUMBER;
+    v_l   VARCHAR2(400);
+    c     SYS_REFCURSOR;
+BEGIN
+    SELECT COUNT(*) INTO v_reg FROM dba_tables
+     WHERE owner = 'SYSTEM' AND table_name = 'SCHEMA_VERSION_REGISTRY\$';
+    IF v_reg = 0 THEN RETURN; END IF;
+    OPEN c FOR q'[SELECT 'USER|' || username || '|' || profile || '|' || account_status || '|' || TO_CHAR(expiry_date,'YYYY-MM-DD')
+                    FROM dba_users
+                   WHERE username IN (SELECT owner FROM system.schema_version_registry\$
+                                       WHERE INSTR(',' || :p || ',', ',' || mrc_name || ',') > 0)
+                   ORDER BY username]' USING '${PREFIX_LIST:-#}';
+    LOOP
+        FETCH c INTO v_l;
+        EXIT WHEN c%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(v_l);
+    END LOOP;
+    CLOSE c;
+END;
+/
 EXIT;
 SQLEOF
 )

@@ -48,7 +48,8 @@ prefix match is exact (`MRC_NAME = 'DEV'`; `DEV2`, `DE` or a foreign user
 
 - Default: `DB_SCHEMA_PREFIX` from `environment.conf` (our own domain).
 - `--prefix <P>` (repeatable): select prefixes explicitly, e.g. when several
-  domains of the same customer move together.
+  domains of the same customer move together. Without `--assign` it only
+  marks the prefixes in the overview.
 - There is deliberately **no "all prefixes"** switch: one database often
   holds further repositories (TEST/PROD, a second domain, SOA/OBIEE of
   another team) whose accounts may follow another password policy.
@@ -62,9 +63,21 @@ prefix match is exact (`MRC_NAME = 'DEV'`; `DEV2`, `DE` or a foreign user
 ```
 === RCU registry – all prefixes in this database ===
   OK  db_securefile=PREFERRED (RCU registry in tablespace SYSTEM possible)
-      Prefix     Schemas Missing Profile(s)             Status             Earliest expiry
-   *  DEV        9       0       RCU_USER               OPEN               -
+      Prefix     Schemas Missing Profile(s)             Status             Earliest expiry  EBR
+   *  DEV        9       0       RCU_USER               OPEN               -                Y
 ```
+
+`EBR` = `EDITIONS_ENABLED` of the schemas (Y = RCU database type EBR, N =
+ORACLE); mixed values within a prefix are warned about. The dry-run then
+lists the schemas of the selected prefixes (ok = target profile, warn =
+other profile).
+
+**Before RCU** the registry does not exist yet: the overview reports
+`IHW:NOREG` and the script only creates the profile (registry access is
+dynamic SQL since 2026-11-02 – before, the static reference failed to
+compile and the dry-run stopped with "Cannot query the PDB"; checked
+read-only in `CDB$ROOT`, which has no registry). `--assign` without a
+registry is a FAIL (`IHW:FAIL`, no RCU repository).
 
 The overview also reports `db_securefile`: with `FORCE` and no registry
 yet the first RCU run fails (ORA-43853, registry CLOB in the non-ASSM
@@ -73,7 +86,7 @@ architecture doc §4.2.
 
 | Variable | Source | Default |
 |---|---|---|
-| `RCU_DB_PROFILE` | `environment.conf` (optional) | `RCU_USER` |
+| `RCU_DB_PROFILE` | `environment.conf` (optional – not written by `init_env.sh` / the interview; set it by hand only for another name) | `RCU_USER` |
 | `DB_SCHEMA_PREFIX` | `environment.conf` | – (needed for `--assign`) |
 | `DB_ORACLE_HOME`, `DB_SID`, `DB_PDB_NAME` | `environment_db.conf` | – |
 
@@ -93,11 +106,22 @@ Output lines `IHW:OK:` / `IHW:WARN:` / `IHW:FAIL:` are mapped to
 ## Verification
 
 ```sql
-SELECT username, profile, account_status, expiry_date
-  FROM dba_users
- WHERE username LIKE 'DEV\_%' ESCAPE '\'
- ORDER BY username;
+ALTER SESSION SET CONTAINER = FMWPDB;
+SELECT u.username, u.profile, u.account_status, u.expiry_date
+  FROM dba_users u
+ WHERE u.username IN (SELECT owner FROM system.schema_version_registry$ WHERE mrc_name = 'DEV')
+ ORDER BY u.username;
 -- expected: profile RCU_USER, OPEN, expiry_date empty
+```
+
+## Manual call
+
+```sql
+cd 60-RCU-DB-19c; sqlplus / as sysdba
+ALTER SESSION SET CONTAINER = FMWPDB;
+@rcu_registry_overview.sql
+@rcu_user_profile.sql RCU_USER -          -- before RCU: profile only
+@rcu_user_profile.sql RCU_USER DEV        -- after RCU: + assign (prefixes comma-separated)
 ```
 
 Live 2026-10-17 (test host): `DEFAULT` → `RCU_USER` for all nine schemas,
@@ -119,6 +143,13 @@ DB has only `DEV`).
   them; restrict the listener to the FMW hosts.
 - `rcu -dropRepository` drops the users – the profile stays in the PDB and
   is reused by the next RCU run.
+
+## Next step
+
+```bash
+./60-RCU-DB-19c/08-db_auto_start.sh --apply
+./09-Install/07-oracle_setup_repository.sh --apply   # assigns the profile after RCU
+```
 
 ## References
 

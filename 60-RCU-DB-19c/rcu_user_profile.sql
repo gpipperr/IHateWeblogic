@@ -43,8 +43,11 @@ END;
 /
 
 DECLARE
-    v_reg NUMBER;
-    v_n   NUMBER := 0;
+    v_reg  NUMBER;
+    v_n    NUMBER := 0;
+    v_user VARCHAR2(128);
+    v_prof VARCHAR2(128);
+    c      SYS_REFCURSOR;
 BEGIN
     IF '&rcu_prefix' = '-' THEN
         RETURN;
@@ -55,20 +58,24 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE('IHW:FAIL:SYSTEM.SCHEMA_VERSION_REGISTRY$ not found - no RCU repository in this DB');
         RETURN;
     END IF;
-    FOR r IN (SELECT u.username, u.profile
-                FROM dba_users u
-               WHERE u.username IN (SELECT owner FROM system.schema_version_registry$
-                                     WHERE INSTR(',' || UPPER('&rcu_prefix') || ',',
-                                                 ',' || mrc_name || ',') > 0)
-               ORDER BY u.username) LOOP
-        IF r.profile <> UPPER('&rcu_profile') THEN
-            EXECUTE IMMEDIATE 'ALTER USER "' || r.username || '" PROFILE "' || UPPER('&rcu_profile') || '"';
-            DBMS_OUTPUT.PUT_LINE('IHW:OK:' || r.username || ' profile ' || r.profile || ' -> ' || UPPER('&rcu_profile'));
+    -- dynamic SQL: the registry does not exist before the first RCU run
+    OPEN c FOR q'[SELECT u.username, u.profile
+                    FROM dba_users u
+                   WHERE u.username IN (SELECT owner FROM system.schema_version_registry$
+                                         WHERE INSTR(',' || :p || ',', ',' || mrc_name || ',') > 0)
+                   ORDER BY u.username]' USING UPPER('&rcu_prefix');
+    LOOP
+        FETCH c INTO v_user, v_prof;
+        EXIT WHEN c%NOTFOUND;
+        IF v_prof <> UPPER('&rcu_profile') THEN
+            EXECUTE IMMEDIATE 'ALTER USER "' || v_user || '" PROFILE "' || UPPER('&rcu_profile') || '"';
+            DBMS_OUTPUT.PUT_LINE('IHW:OK:' || v_user || ' profile ' || v_prof || ' -> ' || UPPER('&rcu_profile'));
         ELSE
-            DBMS_OUTPUT.PUT_LINE('IHW:OK:' || r.username || ' already has profile ' || UPPER('&rcu_profile'));
+            DBMS_OUTPUT.PUT_LINE('IHW:OK:' || v_user || ' already has profile ' || UPPER('&rcu_profile'));
         END IF;
         v_n := v_n + 1;
     END LOOP;
+    CLOSE c;
     IF v_n = 0 THEN
         DBMS_OUTPUT.PUT_LINE('IHW:WARN:no schemas with prefix(es) &rcu_prefix in the registry');
     END IF;
@@ -85,8 +92,27 @@ COLUMN account_status FORMAT A16
 SELECT resource_name, limit FROM dba_profiles
  WHERE profile = UPPER('&rcu_profile')
    AND resource_name IN ('PASSWORD_LIFE_TIME','FAILED_LOGIN_ATTEMPTS');
-SELECT username, profile, account_status, TO_CHAR(expiry_date,'YYYY-MM-DD') expiry
-  FROM dba_users
- WHERE username IN (SELECT owner FROM system.schema_version_registry$
-                     WHERE INSTR(',' || UPPER('&rcu_prefix') || ',', ',' || mrc_name || ',') > 0)
- ORDER BY username;
+-- schemas of the prefix(es) - only when the registry exists (dynamic SQL)
+SET SERVEROUTPUT ON
+DECLARE
+    v_reg NUMBER;
+    v_l   VARCHAR2(400);
+    c     SYS_REFCURSOR;
+BEGIN
+    SELECT COUNT(*) INTO v_reg FROM dba_tables
+     WHERE owner = 'SYSTEM' AND table_name = 'SCHEMA_VERSION_REGISTRY$';
+    IF v_reg = 0 OR '&rcu_prefix' = '-' THEN RETURN; END IF;
+    OPEN c FOR q'[SELECT RPAD(username, 21) || RPAD(profile, 13) || RPAD(account_status, 17)
+                         || TO_CHAR(expiry_date, 'YYYY-MM-DD')
+                    FROM dba_users
+                   WHERE username IN (SELECT owner FROM system.schema_version_registry$
+                                       WHERE INSTR(',' || :p || ',', ',' || mrc_name || ',') > 0)
+                   ORDER BY username]' USING UPPER('&rcu_prefix');
+    LOOP
+        FETCH c INTO v_l;
+        EXIT WHEN c%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(v_l);
+    END LOOP;
+    CLOSE c;
+END;
+/

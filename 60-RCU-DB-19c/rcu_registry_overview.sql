@@ -18,9 +18,14 @@
 -- =============================================================================
 SET SERVEROUTPUT ON FEEDBACK OFF VERIFY OFF HEADING OFF PAGESIZE 0 LINESIZE 300
 
+-- Registry access only through dynamic SQL: before the first RCU run the table
+-- does not exist and a static reference fails at compile time (ORA-06550 /
+-- ORA-00942) - IHW:NOREG would never be printed (fixed 2026-11-02)
 DECLARE
-    v_reg NUMBER;
-    v_sf  VARCHAR2(30);
+    v_reg  NUMBER;
+    v_sf   VARCHAR2(30);
+    v_line VARCHAR2(4000);
+    c      SYS_REFCURSOR;
 BEGIN
     SELECT value INTO v_sf FROM v$parameter WHERE name = 'db_securefile';
     DBMS_OUTPUT.PUT_LINE('IHW:SECUREFILE|' || UPPER(v_sf));
@@ -30,14 +35,14 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE('IHW:NOREG');
         RETURN;
     END IF;
-    FOR r IN (
+    OPEN c FOR q'[
         SELECT 'IHW:PREFIX|' || x.mrc_name
                || '|' || x.schemas
                || '|' || x.missing
                || '|' || NVL(x.profiles, '-')
                || '|' || NVL(x.status, '-')
                || '|' || NVL(TO_CHAR(x.min_expiry, 'YYYY-MM-DD'), '-')
-               || '|' || NVL(x.ebr, '-') AS line
+               || '|' || NVL(x.ebr, '-')
           FROM (SELECT g.mrc_name,
                        COUNT(*) schemas,
                        SUM(CASE WHEN u.username IS NULL THEN 1 ELSE 0 END) missing,
@@ -48,8 +53,12 @@ BEGIN
                   FROM system.schema_version_registry$ g
                   LEFT JOIN dba_users u ON u.username = g.owner
                  GROUP BY g.mrc_name) x
-         ORDER BY x.mrc_name) LOOP
-        DBMS_OUTPUT.PUT_LINE(r.line);
+         ORDER BY x.mrc_name]';
+    LOOP
+        FETCH c INTO v_line;
+        EXIT WHEN c%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(v_line);
     END LOOP;
+    CLOSE c;
 END;
 /
