@@ -174,7 +174,7 @@ export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
     │   └── oracle_common/ forms/ reports/ ...
     ├── product/
     │   ├── 19.33.0/db_home1/              ← DB_ORACLE_HOME (one versioned home per RU,
-    │   │                                     01- -applyRU or gold image)
+    │   │                                     01- gold image or base + opatch RU)
     │   └── 19.30.0/db_home1/              ← DB_ORACLE_HOME_PREV after 09-db_patch_rcu.sh
     │                                         (rollback path, deinstall after some days)
     ├── oradata/
@@ -273,7 +273,7 @@ totals in the root README [Disk Sizing Guide](../../README.md#disk-sizing-guide)
 root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits, oraInst.loc
 oracle: 00b-db_cvu_check.sh         host pre-check with the standalone CVU
 oracle: 01-db_install_software.sh   base + AutoUpgrade download (RU/OJVM/DPBP/jdk, gold image)
-                                    + runInstaller -applyRU + chopt disable
+                                    + gold image, or base install + opatch RU + relink; chopt disable
 oracle: 04-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
 oracle: 05-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
                                     local_listener = explicit address (uniaud_on: reported only)

@@ -90,7 +90,7 @@ Run in this order — each step must complete before the next:
 | 0a | `00a-db_env_interview.sh` | oracle | Create / maintain `environment_db.conf` from the template, consistency check (`--check`) |
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
 | 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
-| 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install via -applyRU |
+| 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
 | 4 | `04-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
 | 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
 | 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
@@ -186,7 +186,7 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/00-concept.md](docs/00-concept.md) | Architecture decisions, FMW/DB separation |
 | [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
 | [docs/00b-db_cvu_check.md](docs/00b-db_cvu_check.md) | Standalone CVU: download (04- `--mos`), checks, fixups, expected findings |
-| [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch via runInstaller -applyRU |
+| [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
 | [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | DEPRECATED (merged into step 1) |
 | [docs/04-db_setup_listener.md](docs/04-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/05-db_create_database.md](docs/05-db_create_database.md) | DBCA silent, sizing, CDB/PDB |

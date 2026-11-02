@@ -16,7 +16,7 @@ the way back.
 
 ```
  01-db_install_software.sh --target-home <new> --fresh-patches --apply
-   AutoUpgrade (newest jar): RU + OJVM + DPBP + OPatch + jdk  ->  runInstaller -applyRU
+   AutoUpgrade (newest jar): RU + OJVM + DPBP + OPatch + jdk  ->  gold image / base + opatch
                                    |
  09-db_patch_rcu.sh --new-home <new> --apply
    1 checks (disk FIRST)  2 backup (Data Pump + config)  3 stop domain / DB / listener
@@ -31,8 +31,8 @@ Why not AutoUpgrade `create_home` + `deploy` (pipperr.de, 26ai): `deploy`
 sets a guaranteed restore point and needs **ARCHIVELOG** – the RCU database
 runs without (`DB_ARCHIVELOG=false`); listener, oratab and systemd stay
 manual anyway; known traps (PATCH112 QOpatch directory, PATCH114 binary
-options, `db_securefile=FORCE`). Our way reuses `01-` (download, `-applyRU`,
-one-offs) and keeps every step visible.
+options, `db_securefile=FORCE`). Our way reuses `01-` (download, gold image or
+base install + `opatch`, one-offs) and keeps every step visible.
 
 ## Step 1 – build the new home
 
@@ -130,5 +130,5 @@ Findings of the run (fixed in the scripts):
 
 - pipperr.de – AutoUpgrade patch automation 26ai (download, keystore,
   create_home / deploy, pitfalls): https://pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_26ai
-- [01-db_install_software.md](01-db_install_software.md) – AutoUpgrade download, `-applyRU`, `jdk`
+- [01-db_install_software.md](01-db_install_software.md) – AutoUpgrade download, install routes, `jdk`
 - [07-Maintenance/rcu_repository_check.sh](../../07-Maintenance/README.md) – Data Pump backup

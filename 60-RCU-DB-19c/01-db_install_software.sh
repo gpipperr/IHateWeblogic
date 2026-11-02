@@ -1,10 +1,10 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 01-db_install_software.sh
-# Purpose  : Download patches via AutoUpgrade and install Oracle 19c directly
-#            to the patched ORACLE_HOME using runInstaller -applyRU.
+# Purpose  : Download patches via AutoUpgrade and install Oracle 19c into a
+#            patched ORACLE_HOME (gold image, or 19.3 base + RU with opatch).
 #            AutoUpgrade is used for MOS-authenticated patch download ONLY —
-#            no create_home, no cp-a, no separate base home, no relink hacks.
+#            no create_home, no cp-a, no separate base home.
 #
 #            Flow:
 #              1. Extract 19.3.0 base ZIP to a staging directory (base_stage)
@@ -12,8 +12,15 @@
 #                 AutoUpgrade (refreshed to the newest autoupgrade.jar first;
 #                 skipped if patchdir already contains ZIPs)
 #              3. Update OPatch in staging + identify RU / OneOff patch dirs
-#              4. runInstaller -applyRU <RU> [-applyOneOffs <OJVM>,<DPBP>,<JDK>] -silent
-#                 → installs directly to DB_ORACLE_HOME (19.30.0 target)
+#              4. Route (in this order):
+#                 a) gold image in patchdir: unzip as the home, runInstaller,
+#                    OneOffs with opatch apply
+#                 b) RU ZIP (default): 19.3 base into the home, runInstaller
+#                    WITHOUT patches (rc=252 on OL9 tolerated), then RU + OneOffs
+#                    with opatch apply, relink all – same home, no DB uses it yet
+#                 c) --apply-ru-installer: runInstaller -applyRU <RU>
+#                    -applyOneOffs … (fails on FMW hosts with a shared inventory,
+#                    "Invalid Home" – kept for research)
 #              5. root.sh prompt + chopt disable olap/rat
 #
 #            uniaud_on relink is NOT done here — it runs in 05-db_create_database.sh
@@ -60,11 +67,13 @@ APPLY=false
 CLEAN=false
 TARGET_HOME_ARG=""
 FRESH_PATCHES=false
+USE_APPLYRU=false
 
 _usage() {
     printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
     printf "  %-20s %s\n" "(none)"          "Dry-run: show configuration, no install"
-    printf "  %-20s %s\n" "--apply"         "Extract base + download patches + install via -applyRU"
+    printf "  %-20s %s\n" "--apply"         "Extract base + download patches + install (gold image, or base + opatch RU)"
+    printf "  %-20s %s\n" "--apply-ru-installer" "RU via runInstaller -applyRU (fails on FMW hosts - research only)"
     printf "  %-20s %s\n" "--clean"         "Dry-run: show what --clean --apply would remove"
     printf "  %-20s %s\n" "--clean --apply" "Remove DB_ORACLE_HOME + base_stage, then install"
     printf "  %-20s %s\n" "--target-home DIR" "Install into DIR instead of DB_ORACLE_HOME (new home for 09-db_patch_rcu.sh)"
@@ -81,6 +90,7 @@ while [ $# -gt 0 ]; do
         --clean)         CLEAN=true ;;
         --target-home)   shift; TARGET_HOME_ARG="${1:?--target-home needs a directory}" ;;
         --fresh-patches) FRESH_PATCHES=true ;;
+        --apply-ru-installer) USE_APPLYRU=true ;;
         --help|-h)       _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 1 ;;
     esac
@@ -212,6 +222,7 @@ printList "AutoUpgrade home"    28 "$DB_AUTOUPGRADE_HOME"
 printList "Base staging dir"    28 "$_AU_BASE_STAGE"
 printList "Patch dir"           28 "$_AU_PATCHDIR"
 printList "Target RU"           28 "${DB_TARGET_RU:-RECOMMENDED}"
+printList "RU route"            28 "$($USE_APPLYRU && printf 'runInstaller -applyRU (--apply-ru-installer)' || printf 'gold image if present, else base install + opatch apply')"
 
 # Check patchdir state for dry-run info
 _patch_zip_count=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
@@ -681,7 +692,7 @@ _GOLD_ZIP="$(ls -1t "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
 # test host 2026-03 and customer 2026-11-02, cause open) – the gold image
 # route is the proven one (live 2026-10-28)
 if [ -n "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
-    info "$(printf "Gold image found – RU %s is NOT used (-applyRU route unproven on FMW hosts, see docs)" "$(basename "$_RU_DIR")")"
+    info "$(printf "Gold image found – RU %s is NOT used (gold image preferred, see docs)" "$(basename "$_RU_DIR")")"
     _RU_DIR=""
 fi
 if [ -z "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
@@ -697,14 +708,15 @@ elif [ -z "$_RU_DIR" ]; then
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
-[ -n "$_RU_DIR" ] && ok "$(printf "RU dir         : %s" "$_RU_DIR")"
+[ -n "$_RU_DIR" ] && ok "$(printf "RU dir         : %s  (%s)" "$_RU_DIR" \
+    "$($USE_APPLYRU && printf 'runInstaller -applyRU' || printf 'base install, then opatch apply')")"
 [ -n "$_ONEOFF_LIST" ] && ok "$(printf "OneOffs        : %s" "$_ONEOFF_LIST")"
 
 # =============================================================================
-# 6. Install with runInstaller -applyRU
+# 6. Install with runInstaller
 # =============================================================================
 
-section "runInstaller -applyRU"
+section "runInstaller"
 
 if [ -d "$DB_ORACLE_HOME" ] && [ -n "$(ls -A "$DB_ORACLE_HOME" 2>/dev/null)" ]; then
     fail "DB_ORACLE_HOME already exists: $DB_ORACLE_HOME"
@@ -749,13 +761,20 @@ EOF
 fi
 unset _inv_target
 
-# Build -applyRU / -applyOneOffs arguments. 19c is image-based: runInstaller
+# Unpack the home. 19c is image-based: runInstaller
 # must run FROM the new home ("The Oracle home is the location from where
 # setup script is executed", customer 2026-11-02 with base_stage/runInstaller)
 # -> the 19.3 base ZIP is unpacked into DB_ORACLE_HOME first, like the gold image
 _ru_args=()
+_BASE_ONLY=false
+_RU_ID=""
 if [ -n "$_RU_DIR" ]; then
-    _ru_args=(-applyRU "$_RU_DIR")
+    _RU_ID="$(basename "$_RU_DIR")"
+    if $USE_APPLYRU; then
+        _ru_args=(-applyRU "$_RU_DIR")
+    else
+        _BASE_ONLY=true
+    fi
     info "Unpacking the 19.3 base ZIP into $DB_ORACLE_HOME (runInstaller runs from the home) ..."
     printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
     unzip -q -o "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
@@ -765,7 +784,7 @@ if [ -n "$_RU_DIR" ]; then
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
     printf "  Finished: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
-    # -applyRU needs the OPatch of the RU README (12.2.0.1.55 for 19.33) in the home
+    # the RU needs the OPatch of its README (12.2.0.1.55 for 19.33) in the home
     _opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
     [ -n "$_opatch_zip" ] && { rm -rf "$DB_ORACLE_HOME/OPatch"; unzip -q -o "$_opatch_zip" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"; }
     ok "Base unpacked, $(ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null | head -1)"
@@ -787,9 +806,12 @@ else
 fi
 # -applyOneOffs only with -applyRU: with a gold image runInstaller rejected the
 # OJVM RU as "not applicable" (checkComponents not executed, live 2026-10-28) -
-# there the OneOffs are applied with opatch after the installation (below)
+# there the OneOffs are applied with opatch after the installation (below).
+# Base route: the RU first, then the OneOffs - all with opatch apply
 _POST_ONEOFFS=""
-if [ -n "$_RU_DIR" ]; then
+if $_BASE_ONLY; then
+    _POST_ONEOFFS="$_RU_DIR${_ONEOFF_LIST:+,$_ONEOFF_LIST}"
+elif [ -n "$_RU_DIR" ]; then
     [ -n "$_ONEOFF_LIST" ] && _ru_args+=(-applyOneOffs "$_ONEOFF_LIST")
 else
     _POST_ONEOFFS="$_ONEOFF_LIST"
@@ -811,13 +833,14 @@ fi
 unset _inv_xml_n
 info "$(printf "%-28s %s" "Oracle home name:" "$_home_name")"
 # CV_ASSUME_DISTID: the 19.3.0 base installer predates OL8/OL9 (MOS Doc ID 2584365.1).
-# With -applyRU the RU provides updated makefiles (resolves rc=252 on OL9).
+# The 19.3 makefiles fail on OL9 (rc=252, ASM client lib) - fixed by the RU:
+# -applyRU, or opatch apply of the RU + relink all on the base route.
 # -ignorePrereqFailure + CV_ASSUME_DISTID together suppress the supportedOSCheck NPE.
 _cv_distid="${DB_CV_ASSUME_DISTID:-OEL7.6}"
 export CV_ASSUME_DISTID="$_cv_distid"
 info "$(printf "%-28s %s  (OL8/OL9 compat)" "CV_ASSUME_DISTID:" "$CV_ASSUME_DISTID")"
 info "$(printf "%-28s %s" "Edition:" "$_edition")"
-info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]}")"
+info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]:-(none – patches with opatch after the install)}")"
 
 printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
@@ -858,27 +881,43 @@ if [ "$_install_rc" -eq 6 ]; then
     warn "runInstaller rc=6 – software set up with warnings (optional prerequisites, see the installer log)"
     _install_rc=0
 fi
+# Base route: the 19.3 installer fails to link on OL9 (rc=252) - expected, the
+# RU brings the fixed makefiles and relink all runs after it. The home must be
+# registered in the inventory though, opatch needs that
+if $_BASE_ONLY && [ "$_install_rc" -eq 252 ]; then
+    _inv_xml_b="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+    if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_b" 2>/dev/null; then
+        warn "runInstaller rc=252 – link error of the 19.3 base on OL9 (expected), relink after the RU"
+        _install_rc=0
+    else
+        fail "runInstaller rc=252 and the home is not registered in $_inv_xml_b"
+    fi
+    unset _inv_xml_b
+fi
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"
-    info "  With -applyRU on OL9 and RU >= 19.22, rc=0 is expected."
-    info "  rc=252 from the BASE 19.3.0 installer is resolved by -applyRU (OL9 makefiles fixed in RU)."
+    $USE_APPLYRU && info "  -applyRU on an FMW host (shared inventory): \"Invalid Home\" – run without --apply-ru-installer"
+    info "  rc=252 = link error of the 19.3 base on OL9 – fixed by the RU makefiles"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 unset _install_rc
 
-ok "runInstaller completed (rc=0)"
+ok "runInstaller completed"
 
 # Gold image: OneOffs (OJVM RU, Data Pump bundle, JDK bundle) with opatch into the
-# registered home - OPatch "succeeded" is not enough, a SKIPPED patch is a failure
+# registered home; base route: the RU first, then the OneOffs (how the 19.30
+# home of March 2026 was built) - OPatch "succeeded" is not enough, a SKIPPED
+# patch is a failure
 if [ -n "$_POST_ONEOFFS" ]; then
-    section "OneOffs with opatch apply (gold image)"
+    section "Patches with opatch apply ($($_BASE_ONLY && printf 'base install' || printf 'gold image'))"
     IFS=',' read -r -a _po <<< "$_POST_ONEOFFS"
     for _pd in "${_po[@]}"; do
         info "opatch apply $(basename "$_pd") ..."
         _out="$(cd "$_pd" && ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME" 2>&1)"
         printf '%s\n' "$_out" >> "$LOG_FILE"
         if printf '%s\n' "$_out" | grep -q 'OPatch succeeded' \
-           && ! printf '%s\n' "$_out" | grep -qiE 'skipped|not applicable|Prerequisite check .* failed'; then
+           && ! printf '%s\n' "$_out" | grep -v 're-links will eventually be skipped' \
+                | grep -qiE 'skipped|not applicable|Prerequisite check .* failed'; then
             ok "  $(basename "$_pd") applied"
         else
             fail "  $(basename "$_pd"): $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
@@ -889,6 +928,30 @@ if [ -n "$_POST_ONEOFFS" ]; then
     [ "$EXIT_CODE" -ge 2 ] && { info "  Logs: $DB_ORACLE_HOME/cfgtoollogs/opatch/"; print_summary; exit $EXIT_CODE; }
 fi
 unset _POST_ONEOFFS
+
+if $_BASE_ONLY; then
+    # RU really in the home? (opatch rc / text alone is no proof)
+    if ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null | grep -q "^${_RU_ID};"; then
+        ok "RU $_RU_ID registered in the home (opatch lspatches)"
+    else
+        fail "RU $_RU_ID not in opatch lspatches of $DB_ORACLE_HOME"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    # the base install failed to link on OL9 - link everything with the RU makefiles
+    info "relink all (RU makefiles) ..."
+    _rl_out="$(ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/bin/relink" all 2>&1)"
+    _rl_rc=$?
+    printf '%s\n' "$_rl_out" >> "$LOG_FILE"
+    if [ "$_rl_rc" -eq 0 ] && ! printf '%s\n' "$_rl_out" | grep -qiE 'error in invoking target|make: \*\*\*'; then
+        ok "relink all completed"
+    else
+        fail "relink all failed (rc=$_rl_rc): $(printf '%s\n' "$_rl_out" | grep -iE 'error' | head -1)"
+        info "  Log: $DB_ORACLE_HOME/install/relinkActions*.log"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    unset _rl_out _rl_rc
+fi
+unset _BASE_ONLY _RU_ID
 
 # Cleanup patch staging dir (ZIPs in patchdir are kept for reproducibility)
 rm -rf "$_AU_PATCH_STAGE"

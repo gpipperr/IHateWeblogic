@@ -8,16 +8,23 @@
 
 ## Purpose
 
-Install Oracle 19c directly to the **patched** `DB_ORACLE_HOME` (e.g. 19.30.0)
-using `runInstaller -applyRU`.  No separate patching step, no `cp -a`.
+Install Oracle 19c into the **patched** `DB_ORACLE_HOME` (e.g. 19.33.0) in one
+run: from a gold image, or from the 19.3 base with the RU applied by `opatch`
+into the same, still unused home. No separate patching step, no `cp -a`, no
+second home.
 
 Flow:
 1. Extract the 19.3.0 base ZIP to a staging directory (`base_stage`)
 2. Download RU + OJVM + OPatch ZIPs from MOS via AutoUpgrade
    (download is skipped if `patchdir/` already contains ZIPs)
 3. Update OPatch in staging; identify the RU dir (`bundle.xml` of a system patch, or `etc/config/inventory.xml` "Database Release Update" of the single DB RU) and OneOffs
-4. `runInstaller -applyRU <RU_dir> [-applyOneOffs <OJVM_dir>] -silent`
-   → installs directly to `DB_ORACLE_HOME`
+4. Install route (details in [Installation](#installation-routes)):
+   - **gold image** in `patchdir` → unpack as the home, `runInstaller`,
+     OneOffs with `opatch apply`
+   - **RU ZIP** (default) → 19.3 base into the home, `runInstaller` without
+     patches, then RU + OneOffs with `opatch apply`, `relink all`
+   - `--apply-ru-installer` → `runInstaller -applyRU … -applyOneOffs …`
+     (fails on FMW hosts – research only)
 5. `root.sh` prompt + `chopt disable olap rat`
 
 `uniaud_on` relink is NOT done here — it runs in `05-db_create_database.sh`
@@ -146,7 +153,8 @@ instead of an RU ZIP. `01-` then unpacks it as the new home (newest OPatch
 into it), runs its `runInstaller` without patches (rc 6 = success with
 warnings) and applies the OneOffs (OJVM, Data Pump bundle, JDK bundle) with
 `opatch apply` – `-applyOneOffs` rejected the OJVM RU as "not applicable" on
-the gold image. The 19.3 base stage is not needed in this case. Unpacked
+the gold image. The 19.3 base stage is not needed in this case. Without a
+gold image `--target-home` takes the base + `opatch` route (below). Unpacked
 19.33 home + OneOffs: 11 GB.
 
 `--target-home` keeps `DB_ORACLE_HOME` / `environment_db.conf` unchanged and
@@ -155,7 +163,58 @@ patch ZIPs to `patchdir_<timestamp>/`. The **disk space check runs first**
 (also in the dry-run): home + staging on one file system min 14 /
 recommended 24 GB (home min 12 / rec 15 GB since the gold image).
 
-## Installation: runInstaller -applyRU
+## Installation routes
+
+19c is an **image-based** install: `runInstaller` must run from the home it
+installs (`base_stage/runInstaller` with `ORACLE_HOME=<new home>` stops with
+rc=1 "The Oracle home is the location from where setup script is executed",
+customer 2026-11-02). `01-` therefore always unpacks into `DB_ORACLE_HOME`
+first and puts the newest OPatch (p6880880, 12.2.0.1.55 for 19.33) into it.
+
+| `patchdir` contains | Route | State |
+|---|---|---|
+| `db_goldimage_*.zip` (RU ZIP too or not) | gold image | live 2026-10-28 (19.33) |
+| RU ZIP, no gold image | base install + `opatch apply` (default) | manual 2026-03 (19.30), script since 2026-11-02 |
+| RU ZIP + `--apply-ru-installer` | `runInstaller -applyRU` | **fails on FMW hosts** |
+
+### Base install + opatch (default without a gold image)
+
+For a fresh install no database uses the home yet – patching it in place is
+safe, a second home (19.3.0 → clone → 19.33.0) would only cost 8 GB more and
+an extra attach/detach. The home directory gets the target name right away
+(`product/19.33.0/db_home1`).
+
+```bash
+unzip -q LINUX.X64_193000_db_home.zip -d "$DB_ORACLE_HOME"
+unzip -q -o p6880880_190000_Linux-x86-64.zip -d "$DB_ORACLE_HOME"   # OPatch 12.2.0.1.55
+cd "$DB_ORACLE_HOME"
+CV_ASSUME_DISTID=OEL7.6 ./runInstaller -silent -ignorePrereqFailure -waitforcompletion \
+    oracle.install.option=INSTALL_DB_SWONLY ORACLE_BASE="$ORACLE_BASE" \
+    ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1 ...
+# rc=252 on OL9 = link error of the 19.3 makefiles (ASM client lib) – expected,
+# as long as the home is registered in the central inventory
+cd <patch_stage>/39915792 && "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME"   # RU first
+# then OJVM RU, Data Pump bundle, JDK bundle the same way
+"$DB_ORACLE_HOME/OPatch/opatch" lspatches     # RU must be listed
+"$DB_ORACLE_HOME/bin/relink" all              # link with the RU makefiles
+```
+
+`01-` checks each `opatch apply` on its output (a "SKIPPED" / "not
+applicable" patch is a failure, the benign "re-links will eventually be
+skipped because they are duplicates" is ignored), then that the RU is listed
+in `opatch lspatches`, then `relink all`. Unlike the gold image this home has
+no OCW RU – not needed for a single instance without GI/ASM.
+
+### Gold image
+
+See [Additional home](#additional-home-for-patching---target-home): the gold
+image is a complete patched home (RU + OCW RU), `01-` unpacks it, runs its
+`runInstaller` without patches (rc 6 = success with warnings) and applies the
+OneOffs with `opatch apply` (`-applyOneOffs` rejected the OJVM RU as "not
+applicable" on the gold image). It is preferred when present and can be
+copied from another host.
+
+### runInstaller -applyRU (`--apply-ru-installer`, research only)
 
 > **State 2026-11-02: this route is NOT working on an FMW host with a shared
 > central inventory.** `runInstaller -applyRU` attaches the unpacked home
@@ -168,42 +227,15 @@ recommended 24 GB (home min 12 / rec 15 GB since the gold image).
 > temporary script …/orainstRoot.sh`) and at the customer 2026-11-02 (RU
 > 19.33 = 39915792, OPatch 12.2.0.1.55). Cause not confirmed yet – to be
 > researched on a test host (AttachHome log, inventory permissions).
-> **Working routes:** the gold image (below – `01-` prefers it when a
-> `db_goldimage_*.zip` lies in `patchdir` next to an RU ZIP; it can be copied
-> from a host where AutoUpgrade built it, it is not host-specific), or base
-> install + `opatch napply` (how the 19.30 home of March was made).
-
-
-19c is an **image-based** install: `runInstaller` must run from the home it
-installs. `01-` unpacks the 19.3 base ZIP (`DB_INSTALL_ARCHIVE`) into
-`DB_ORACLE_HOME`, puts the newest OPatch (p6880880) into it and runs **that**
-`runInstaller` with the extracted RU via `-applyRU` and the OneOffs via
-`-applyOneOffs` (`base_stage` only provides the Java for AutoUpgrade and the
-OPatch for the patch check). Until 2026-11-02 the script ran
-`base_stage/runInstaller` with `ORACLE_HOME=<new home>` – the installer stops
-with rc=1: "The installer has detected that the Oracle home location provided
-in the command line is not correct. The Oracle home is the location from where
-setup script is executed." (customer, first run of the RU route; the gold-image
-route always unpacked into the home).
 
 ```bash
-unzip -q LINUX.X64_193000_db_home.zip -d "$DB_ORACLE_HOME"
-unzip -q -o p6880880_190000_Linux-x86-64.zip -d "$DB_ORACLE_HOME"   # OPatch 12.2.0.1.55
-cd "$DB_ORACLE_HOME"
-CV_ASSUME_DISTID=OEL7.6 \
-./runInstaller \
-    -silent -ignorePrereqFailure -waitforcompletion \
-    -applyRU   /path/to/RU_patch_dir \
-    -applyOneOffs /path/to/OJVM_dir \
-    oracle.install.option=INSTALL_DB_SWONLY \
-    ORACLE_BASE="$ORACLE_BASE" \
-    ORACLE_HOME="$DB_ORACLE_HOME" \
-    ...
+CV_ASSUME_DISTID=OEL7.6 ./runInstaller -silent -ignorePrereqFailure -waitforcompletion \
+    -applyRU /path/to/RU_patch_dir -applyOneOffs /path/to/OJVM_dir,... \
+    oracle.install.option=INSTALL_DB_SWONLY ...
 ```
 
-`CV_ASSUME_DISTID=OEL7.6` suppresses the `supportedOSCheck` NPE (MOS Doc ID 2584365.1).
-The `-applyRU` approach resolves the `rc=252` ASM build failure on OL9 because
-the RU contains updated makefiles.
+`CV_ASSUME_DISTID=OEL7.6` suppresses the `supportedOSCheck` NPE (MOS Doc ID
+2584365.1) on all routes.
 
 ---
 
@@ -233,7 +265,7 @@ $DB_ORACLE_HOME/bin/sqlplus -V
 
 ```bash
 ORACLE_BASE            # shared with FMW (from environment.conf)
-DB_ORACLE_HOME         # target patched home, e.g. product/19.30.0/db_home1
+DB_ORACLE_HOME         # target patched home, e.g. product/19.33.0/db_home1
 DB_EDITION             # EE | SE2
 DB_INSTALL_ARCHIVE     # path to LINUX.X64_193000_db_home.zip
 DB_AUTOUPGRADE_HOME    # AutoUpgrade work dir (patchdir, base_stage, …)
@@ -253,10 +285,11 @@ The 19.3.0 installer predates OL8/OL9.  Fixed by:
 
 ### rc=252 on OL9
 
-With the old (cp-a + opatchauto) approach, the 19.3.0 base installer returned
-rc=252 on OL9 due to an ASM client library build failure.  The `-applyRU`
-approach resolves this: the RU contains OL9-compatible makefiles, so the build
-succeeds and rc=0 is expected.
+The 19.3.0 base installer returns rc=252 on OL9: the ASM client library
+(`libasmclntsh19.ohso`) does not link with the 19.3 makefiles. The RU brings
+OL9-compatible makefiles. Base route: `01-` accepts rc=252 when the home is
+registered in the central inventory, and runs `relink all` after the RU; a
+failing `relink all` is a FAIL (log `$DB_ORACLE_HOME/install/relinkActions*.log`).
 
 ### "No RU identified"
 

@@ -190,7 +190,7 @@ Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
   [oracle]      ./60-RCU-DB-19c/01-db_install_software.sh --apply
                   19c software-only install, patched in one go: AutoUpgrade
                   downloads RU + OJVM + Data Pump + JDK (gold image possible),
-                  runInstaller -applyRU (02-db_patch_db_software.sh is DEPRECATED)
+                  gold image, else 19.3 base + RU with opatch (02- is DEPRECATED)
   [oracle]      ./60-RCU-DB-19c/04-db_setup_listener.sh --apply
                   configure the TNS listener
   [oracle]      ./60-RCU-DB-19c/05-db_create_database.sh --apply
