@@ -57,7 +57,7 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[███████████████████░]` ~96 % complete** (state 2026-10-30) – phases 1–7
+**`[███████████████████░]` ~96 % complete** (state 2026-11-02) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -106,7 +106,7 @@ the RCU schemas at runtime.
 New 2026-10-28: the **RCU database patched out-of-place 19.30 → 19.33**
 (`60-RCU-DB-19c/01- --target-home` from the AutoUpgrade gold image +
 `09-db_patch_rcu.sh`, domain down ~22 min, datapatch in every container,
-rollback path), the PDB$SEED MAX_STRING_SIZE fix in `05-`, a **disk sizing
+rollback path), the PDB$SEED MAX_STRING_SIZE fix in `03-` (then `05-`), a **disk sizing
 guide**, the central article on **certificates and trust stores**, and a
 standalone **MOS patch download tool** (`70-Customer-Projects/tools/mos_patch_download.sh`,
 CSV list per cycle – first for the customer's 12c CPU October 2026 run).
@@ -131,6 +131,20 @@ oracle to `dba` / `oper` (CVU PRVF-7566 at the customer);
 never scanned); and the **CVE early warning** `10-Monitoring/cve_watch.sh`
 (Oracle CNA records on release day instead of the late NVD CPE, OSV for the
 third-party jars of the home, KEV, EPSS, heise).
+New 2026-11-02 (customer DB install + review of every `60-RCU-DB-19c` doc
+against its script, one commit each): `00a-db_env_interview.sh` writes
+`environment_db.conf` from the template; `09-Install/00-install-status.sh`
+shows the progress from the run history; the RCU DB home is built **patch
+first, then install** (19.3 image + `opatch` RU / OneOffs, then
+`runInstaller` – the 19.3 installer cannot link on OL9 and stopped before
+instantiating its scripts; `-applyRU` fails on FMW hosts with "Invalid Home"),
+the gold image stays preferred; steps renumbered (`02-` listener, `03-`
+DBCA, `04-` audit, `05-` FMW tablespace, `06-` RCU profile; the old `02-`
+stub removed); fixes found by the review: the audit policies were root-local
+(not effective in the PDB with the RCU schemas) – now common; the registry
+queries of `06-` / `09-Install/07-` failed before the first RCU run; `02-`
+started the listener with the shared `TNS_ADMIN`; every DB doc now has the
+manual way in the script's order.
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
@@ -242,7 +256,7 @@ Measured on the test host on 2026-10-28. That host runs everything on one server
 | **RCU DB home** | `$ORACLE_BASE/product/<ru>/db_home1` | 12 GB per home | **2 × 12 = 24 GB** | out-of-place patch: new home (19.33 gold image + OJVM / Data Pump / JDK = 11 GB) next to the running one until the old one is removed ([09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)) |
 | DB data files | `DB_DATA_DIR` (`$ORACLE_BASE/oradata`) | 9.3 GB | **15 GB** | CDB + PDB + RCU schemas (67 MB) + APEX; datapatch / `utlrp` grow SYSTEM / SYSAUX |
 | DB admin / diag / FRA | `admin`, `diag`, `flash_recovery_area` | 0.6 GB | **3 GB** | Data Pump dumps before a patch, audit, alert / trace; FRA only with ARCHIVELOG (then much more) |
-| **AutoUpgrade staging** | `DB_AUTOUPGRADE_HOME` | 7.9 GB | **8 GB**, first install **+10 GB** | gold image 4.9 GB + OneOffs + OPatch; the first install also unpacks the 19.3 base ZIP (3 GB ZIP + 6.6 GB `base_stage`) |
+| **AutoUpgrade staging** | `DB_AUTOUPGRADE_HOME` | 7.9 GB | **8 GB**, AutoUpgrade download **+10 GB** | gold image 4.9 GB + OneOffs + OPatch; only an AutoUpgrade download also unpacks the 19.3 base ZIP (3 GB ZIP + 6.6 GB `base_stage`) – with the patch set local (offline route / gold image) no `base_stage` |
 | APEX / ORDS / Instant Client | `product/apex`, `ords_*`, `instantclient*` | 1.6 GB | **3 GB** | two ORDS homes for an ORDS switch |
 | **Patch storage** | `PATCH_STORAGE` (`/srv/patch_storage`) | 20 GB | **30 GB** | base installers (WLS 4.2, F&R 2.7 GB), current patch set 3.8 GB **+ archived previous set** (6.5 GB, `04- --fresh-patches`), client Java 1.1 GB, APEX / ORDS / SQLcl |
 | OS / swap / tmp | `/`, `swapfile`, `/tmp` | ~15 GB | **20 GB** | swap file 2 GB, `/tmp` for installers and OPatch |
@@ -460,7 +474,7 @@ Run these scripts in sequence on a fresh installation:
 | `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
-| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: OS baseline → CVU pre-check → install → patch (AutoUpgrade) → create DB (RCU requirements checked) → Unified Audit |
+| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/`: collector, MOS download, clone check, cookbook variables, disk space), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
@@ -678,10 +692,11 @@ IHateWeblogic/
 │   ├── 00b-db_cvu_check.sh          – host pre-check with the standalone CVU (patch 30839369, cluvfy -r 19)
 │   ├── 01-db_install_software.sh    – 19c software-only install, patched in one run (gold image or
 │   │                                   base + opatch RU); --target-home = new home for 09-
-│   ├── 02-db_setup_listener.sh      – Configure the TNS listener
+│   ├── 02-db_setup_listener.sh      – listener.ora / sqlnet.ora / tnsnames.ora, listener, oracle-listener.service
 │   ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
 │   │                                   local_listener without alias, requirement check)
-│   ├── 04-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
+│   ├── 04-db_audit_setup.sh         – common audit policies, AUDITLOG tablespace, archive + purge jobs
+│   │                                   (uniaud_on relink before it: manual)
 │   ├── 05-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
 │   ├── 06-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
@@ -895,7 +910,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-10-30). Everything finished is described
+Only what is still open (state 2026-11-02). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -956,6 +971,15 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   real clone, incl. the external-RCU way (new prefix per clone).
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
+- [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**:
+  `04-db_audit_setup.sh --apply` with the **common** audit policies on the
+  test DB (the DB change was not run in the review session) and check
+  `AUDIT_UNIFIED_ENABLED_POLICIES` in the PDB; `06-` / `09-Install/07-` on a
+  PDB **before** RCU (registry missing – checked read-only in `CDB$ROOT`
+  only); first customer run of the new `01-` "patch first, then install"
+  route (live on the test host with `--target-home`); research why
+  `runInstaller -applyRU` fails with "Invalid Home" on FMW hosts
+  (AttachHome log, inventory permissions).
 
 ### Security hardening
 
