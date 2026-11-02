@@ -374,7 +374,8 @@ command when `PATCH_ARCHIVE` is set.
 OK/WARN/FAIL result of `print_summary` (a wrapper that raises its exit code
 afterwards, e.g. `81-` after `05-`, is recorded with its own summary; the
 delegated `05-` has its own row). Root scripts of phase 0 hand a new file to
-the repository owner.
+the repository owner. The installation progress built from it:
+`09-Install/00-install-status.sh` (every step, its state, the next step).
 
 ---
 

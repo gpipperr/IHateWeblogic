@@ -599,6 +599,7 @@ IHateWeblogic/
 │
 ├── 09-Install/
 │   ├── README.md                    – Installation roadmap, full script reference (Phase 0–6)
+│   ├── 00-install-status.sh         – Installation progress from log/run_history.csv + probes, next step
 │   ├── 01-setup-interview.sh        – Configuration interview → environment.conf
 │   ├── 00-root_os_network.sh        – Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)
 │   ├── 01-root_os_baseline.sh       – Phase 0: SELinux, kernel, THP → REBOOT

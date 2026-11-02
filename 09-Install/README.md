@@ -90,6 +90,12 @@ execution if sudo is not available.
 
 ## 2. Installation Flow
 
+Where am I? `./09-Install/00-install-status.sh` lists every step below with
+its state (DONE / FAILED / DRY-RUN / PRESENT / OPEN / SKIP) from the run
+history `log/run_history.csv` plus a short probe on the system, and prints
+the next step. Read-only, any time, as oracle or root (`--runs N` adds the
+last N history rows).
+
 ```
 Setup – Environment Configuration (as oracle; before Phase 0)
   [oracle] git clone <repo> && cd IHateWeblogic
@@ -280,6 +286,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
+| any | `00-install-status.sh` | Installation progress: every step of the flow with its state from `log/run_history.csv` (last `--apply` run, rc) + a probe on the system (result present?), SKIP by `environment.conf` (local DB, APEX, client distribution, components, certificate source), progress bar and the next step; steps without a run before the last done step = "not recorded" (done before the history existed) | – |
 | 0 | `00-root_os_network.sh` | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
 | 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall (safe activation with rollback timer), sshd hardening (`SSH_ALLOW_USERS`); `--only <sections>` → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
 | 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
@@ -586,6 +593,7 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 09-Install/
 ├── README.md                          ← this roadmap
 ├── install_lib.sh                     ← [TODO] shared functions
+├── 00-install-status.sh               ← where am I: state of every step + next step (run history)
 ├── 01-setup-interview.sh              ← configuration interview
 ├── 00-root_os_network.sh              ← Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)
 ├── 01-root_os_baseline.sh             ← Phase 0: SELinux, kernel, THP, firewall, sshd → REBOOT
