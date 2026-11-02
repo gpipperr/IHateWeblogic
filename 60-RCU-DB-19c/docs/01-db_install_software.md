@@ -191,8 +191,10 @@ cd "$DB_ORACLE_HOME"
 CV_ASSUME_DISTID=OEL7.6 ./runInstaller -silent -ignorePrereqFailure -waitforcompletion \
     oracle.install.option=INSTALL_DB_SWONLY ORACLE_BASE="$ORACLE_BASE" \
     ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1 ...
-# rc=252 on OL9 = link error of the 19.3 makefiles (ASM client lib) – expected,
-# as long as the home is registered in the central inventory
+# rc=252 on OL9 = link error of the 19.3 makefiles – expected. The installer
+# stops in the link phase BEFORE registering the home -> attach it:
+"$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
+    ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1
 cd <patch_stage>/39915792 && "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME"   # RU first
 # then OJVM RU, Data Pump bundle, JDK bundle the same way
 "$DB_ORACLE_HOME/OPatch/opatch" lspatches     # RU must be listed
@@ -285,11 +287,21 @@ The 19.3.0 installer predates OL8/OL9.  Fixed by:
 
 ### rc=252 on OL9
 
-The 19.3.0 base installer returns rc=252 on OL9: the ASM client library
-(`libasmclntsh19.ohso`) does not link with the 19.3 makefiles. The RU brings
-OL9-compatible makefiles. Base route: `01-` accepts rc=252 when the home is
-registered in the central inventory, and runs `relink all` after the RU; a
-failing `relink all` is a FAIL (log `$DB_ORACLE_HOME/install/relinkActions*.log`).
+The 19.3.0 base installer returns rc=252 on OL9 ("Error in invoking target"):
+on the test host (2026-03) target `client_sharedlib` (`libasmclntsh19.ohso`),
+at the customer (2026-11-02) target `all_no_orcl` / `orion` with
+`libnnzst19.a(ccme_ck_rand_load_fileS1.o): undefined reference to 'stat'` –
+the 19.3 objects/stubs predate glibc 2.33/2.34. The RU brings OL9-compatible
+libraries and makefiles.
+
+The installer stops in the link phase **before** it registers the home in the
+central inventory (test host 2026-03: the home was attached by hand later,
+"'AttachHome' was successful"). Base route: on rc=252 `01-` checks the
+inventory, runs `oui/bin/runInstaller -silent -attachHome` if the home is
+missing, then applies the RU with `opatch` and runs `relink all`; a failing
+attach or `relink all` is a FAIL (logs `<inventory>/logs/AttachHome*.log`,
+`$DB_ORACLE_HOME/install/relinkActions*.log`). A half-installed home from a
+failed run: `01- --clean --apply` (detach if registered, remove, reinstall).
 
 ### "No RU identified"
 

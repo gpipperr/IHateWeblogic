@@ -867,7 +867,7 @@ ORACLE_HOME="$DB_ORACLE_HOME" "$_INSTALLER" \
 _install_rc=${PIPESTATUS[0]}
 printf "\n  Install finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$_install_rc" | tee -a "$LOG_FILE"
 unset CV_ASSUME_DISTID
-unset _ru_args _cv_distid _edition _home_name _INSTALLER
+unset _ru_args _cv_distid _edition _INSTALLER
 
 # Installer log location
 _inv_loc_v="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)"
@@ -881,16 +881,28 @@ if [ "$_install_rc" -eq 6 ]; then
     warn "runInstaller rc=6 – software set up with warnings (optional prerequisites, see the installer log)"
     _install_rc=0
 fi
-# Base route: the 19.3 installer fails to link on OL9 (rc=252) - expected, the
-# RU brings the fixed makefiles and relink all runs after it. The home must be
-# registered in the inventory though, opatch needs that
+# Base route: the 19.3 installer fails to link on OL9 (rc=252, "Error in
+# invoking target" – client_sharedlib on the test host 2026-03, all_no_orcl /
+# orion "undefined reference to stat" at the customer 2026-11-02) - expected,
+# the RU brings the fixed makefiles and relink all runs after it. The installer
+# stops BEFORE it registers the home in the central inventory -> attachHome
+# (as done by hand in March 2026, "'AttachHome' was successful"); opatch needs it
 if $_BASE_ONLY && [ "$_install_rc" -eq 252 ]; then
+    warn "runInstaller rc=252 – link error of the 19.3 base on OL9 (expected), relink after the RU"
     _inv_xml_b="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
     if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_b" 2>/dev/null; then
-        warn "runInstaller rc=252 – link error of the 19.3 base on OL9 (expected), relink after the RU"
+        ok "Home registered in $_inv_xml_b"
         _install_rc=0
     else
-        fail "runInstaller rc=252 and the home is not registered in $_inv_xml_b"
+        info "Home not registered (installer stopped in the link phase) – attachHome as $_home_name ..."
+        "$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
+            "ORACLE_HOME=$DB_ORACLE_HOME" "ORACLE_HOME_NAME=$_home_name" 2>&1 | tee -a "$LOG_FILE"
+        if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_b" 2>/dev/null; then
+            ok "attachHome: $DB_ORACLE_HOME registered as $_home_name"
+            _install_rc=0
+        else
+            fail "attachHome failed – $DB_ORACLE_HOME not in $_inv_xml_b (log: $(dirname "$(dirname "$_inv_xml_b")")/logs/AttachHome*.log)"
+        fi
     fi
     unset _inv_xml_b
 fi
@@ -951,7 +963,7 @@ if $_BASE_ONLY; then
     fi
     unset _rl_out _rl_rc
 fi
-unset _BASE_ONLY _RU_ID
+unset _BASE_ONLY _RU_ID _home_name
 
 # Cleanup patch staging dir (ZIPs in patchdir are kept for reproducibility)
 rm -rf "$_AU_PATCH_STAGE"
