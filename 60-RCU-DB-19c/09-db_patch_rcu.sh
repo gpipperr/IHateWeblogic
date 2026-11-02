@@ -6,8 +6,9 @@
 #            patched home and run datapatch.
 #            The new home is built before with
 #              01-db_install_software.sh --target-home <new home> --fresh-patches --apply
-#            (AutoUpgrade download of the current RU + OJVM + DPBP + OPatch + JDK,
-#            runInstaller -applyRU). Flow with --apply:
+#            (AutoUpgrade download of the current RU + OJVM + DPBP + OPatch + JDK;
+#            gold image preferred, otherwise the 19.3 base image is patched with
+#            opatch first and then installed). Flow with --apply:
 #              1  checks: disk space FIRST, homes, RU versions, DB state,
 #                 PDB$SEED, db_securefile, FMW requirements
 #              2  backup: Data Pump of the RCU schemas (rcu_repository_check.sh
@@ -344,7 +345,8 @@ done
 if [ -n "$_units" ]; then
     warn "systemd units still point to the old home – as root:"
     info "    sed -i 's#${FROM_HOME}#${TO_HOME}#g'${_units}"
-    info "    systemctl daemon-reload"
+    info "    systemctl daemon-reload; systemctl reset-failed oracle-listener oracle-db"
+    _units_todo="$_units"
 else
     ok "systemd units: no reference to the old home"
 fi
@@ -420,6 +422,12 @@ else
 fi
 
 section "Next steps"
+if [ -n "${_units_todo:-}" ]; then
+    warn "  systemd units still to change – as root BEFORE the next reboot:"
+    info "    sed -i 's#${FROM_HOME}#${TO_HOME}#g'${_units_todo}"
+    info "    systemctl daemon-reload; systemctl reset-failed oracle-listener oracle-db"
+fi
+unset _units_todo
 info "  Old home kept: $FROM_HOME  (way back: $(basename "$0") --rollback --apply)"
 info "  After some days of stable operation remove it:"
 info "    $FROM_HOME/deinstall/deinstall -checkonly   then   -silent"
