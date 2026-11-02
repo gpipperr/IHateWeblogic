@@ -197,13 +197,17 @@ _ask_db() {
     printf "  \033[32m  ✓  %s = %s\033[0m\n" "$k" "$input" | tee -a "$LOG_FILE"
 }
 _ask_menu_db() {   # KEY LABEL OPT1 OPT2 … (value:description)
-    local k="$1" label="$2" cur sel i=1; shift 2
+    local k="$1" label="$2" cur sel i=1 def=1; shift 2
     cur="$(_raw "$k")"
     if ! $NEW_FILE && ! $RESET; then ok "$(printf "  %-26s %s  [kept]" "$k" "$cur")"; return 0; fi
     printf "  \033[1m%s\033[0m\n" "$label"
-    for o in "$@"; do printf "    [%d] %s%s\n" "$i" "${o#*:}" "$( [ "${o%%:*}" = "$cur" ] && printf '  (current)')"; i=$(( i + 1 )); done
+    # default = the current value (--reset + Enter keeps it), else option 1
+    for o in "$@"; do
+        [ "${o%%:*}" = "$cur" ] && def=$i
+        printf "    [%d] %s%s\n" "$i" "${o#*:}" "$( [ "${o%%:*}" = "$cur" ] && printf '  (current)')"; i=$(( i + 1 ))
+    done
     while true; do
-        printf "  Selection [1]: "; read -r sel; sel="${sel:-1}"
+        printf "  Selection [%s]: " "$def"; read -r sel; sel="${sel:-$def}"
         [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le $# ] && break
     done
     eval "o=\"\${$sel}\""

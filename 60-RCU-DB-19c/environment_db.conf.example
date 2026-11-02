@@ -1,15 +1,14 @@
 # =============================================================================
 # environment_db.conf  –  Oracle 19c RCU Database configuration
 # =============================================================================
-# Copy to environment_db.conf and edit before running any 60-RCU-DB-19c script.
+# Create with ./60-RCU-DB-19c/00a-db_env_interview.sh --apply (or copy + edit, then --check).
 # chmod 600 environment_db.conf
 #
 # This file is SEPARATE from environment.conf (FMW/WLS).
-# Both files share ORACLE_BASE and IHateWeblogic_lib.sh, nothing else.
+# Both files share ORACLE_BASE, ORACLE_INVENTORY, PATCH_STORAGE, ROOT_DIR and the lib.
 #
 # Directory convention (same ORACLE_BASE, separate product subtrees):
 #   ORACLE_BASE/fmw/                    ← FMW_HOME  (FMW 14.1.2 software)
-#   ORACLE_BASE/product/19.3.0/db_home1 ← DB base install (unpatched)
 #   ORACLE_BASE/product/19.33.0/db_home1← DB patched home (DB_ORACLE_HOME, RU 33)
 #   ORACLE_BASE/oradata/FMWCDB/         ← DB data files
 #   ORACLE_BASE/flash_recovery_area/    ← Fast Recovery Area (FRA)
@@ -41,13 +40,13 @@ DB_EDITION="EE"                               # EE | SE2
 
 # CV_ASSUME_DISTID for the 19.3.0 base installer on OL8/OL9.
 # 19.3.0 predates OL8 — supportedOSCheck throws NPE without this override.
-# OEL7.6 is the correct value for the unpatched 19.3.0 runInstaller.
-# After patching to 19.6+ via AutoUpgrade this is no longer needed.
+# OEL7.6 is the correct value; 01-db_install_software.sh exports it on every
+# route (19.3 image, patched image, gold image installer).
 # MOS Doc ID 2584365.1 / https://www.robotron.de/unternehmen/aktuelles/blog/oracle-datenbank-19c-und-oracle-linux-8
 DB_CV_ASSUME_DISTID="OEL7.6"
 
 # --- Oracle Homes -------------------------------------------------------------
-# Patched home: installed directly via runInstaller -applyRU (01-db_install_software.sh)
+# Patched home: gold image, else 19.3 base + opatch RU, then runInstaller (01-db_install_software.sh)
 # Current RU: 19.33 (Oct 2026) — the directory names the RU; a newer RU = new home (09-db_patch_rcu.sh).
 DB_ORACLE_HOME="${ORACLE_BASE}/product/19.33.0/db_home1"
 
@@ -59,7 +58,7 @@ DB_ADMIN_DIR="${ORACLE_BASE}/admin"           # audit dump: ORACLE_BASE/admin/FM
 # No explicit variable needed — set automatically by Oracle.
 
 DB_FAST_RECOVERY_AREA="${ORACLE_BASE}/flash_recovery_area"  # FRA: logs, backups, flashback
-DB_RECOVERY_SIZE_MB=10960                      # db_recovery_file_dest_size (default: 10 GB)
+DB_RECOVERY_SIZE_MB=10960                      # db_recovery_file_dest_size (~10.7 GB; 03- default without this line: 4096)
 
 # --- Database Identity -------------------------------------------------------
 DB_SID="FMWCDB"
@@ -110,10 +109,10 @@ DB_AUDIT_RETAIN_DAYS=180           # purge records older than N days
 DB_FMW_TABLESPACE=""               # e.g. FMW_DATA
 DB_FMW_TABLESPACE_SIZE_MB=500      # initial size
 
-# --- AutoUpgrade / Patching (02-db_patch_db_software.sh) ---------------------
+# --- AutoUpgrade / Patching (01-db_install_software.sh) ----------------------
 DB_AUTOUPGRADE_HOME="${ORACLE_BASE}/autoupgrade"
-DB_TARGET_RU="RECOMMENDED"         # RECOMMENDED = RU+OJVM+OPATCH+DPBP+AU (latest)
-                                   # or fixed: 19.30  (specific RU, reproducible install)
+DB_TARGET_RU="RECOMMENDED"         # RECOMMENDED = recommended,jdk (gold image + OJVM + DPBP + JDK + OPatch)
+                                   # or fixed: 19.33  (ru/ojvm 19.33 + opatch,dpbp,jdk – reproducible)
 MOS_SEC_FILE="${ROOT_DIR}/mos_sec.conf.des3"   # shared with 09-Install
 
 # --- Install Archive (01-db_install_software.sh) -----------------------------

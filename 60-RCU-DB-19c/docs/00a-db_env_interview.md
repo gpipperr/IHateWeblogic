@@ -8,9 +8,12 @@
 ```bash
 ./60-RCU-DB-19c/00a-db_env_interview.sh            # dry-run: questions + diff, nothing written
 ./60-RCU-DB-19c/00a-db_env_interview.sh --apply    # write environment_db.conf (backup, mode 600)
-./60-RCU-DB-19c/00a-db_env_interview.sh --reset --apply   # ask every value again
+./60-RCU-DB-19c/00a-db_env_interview.sh --reset --apply   # ask every value again (current = default)
 ./60-RCU-DB-19c/00a-db_env_interview.sh --check    # read-only consistency check
 ```
+
+`--check` evaluates the existing file as it is (no template merge, no
+`ORACLE_BASE` replacement, no questions); without a file it is a FAIL (exit 2).
 
 ---
 
@@ -45,14 +48,14 @@ the diff, `--apply` writes it (backup `environment_db.conf.bak_<ts>`,
 
 | Key | Default | Re-asked when |
 |---|---|---|
-| `DB_ORACLE_HOME` | `${ORACLE_BASE}/product/<RU>/db_home1`, RU from the `db_ru` row of `09-Install/download/patches_db.csv` (19.33 → `19.33.0`) | the directory does not name that RU and the home is not installed yet |
-| `DB_EDITION` | menu EE / SE2 (licence) | – |
+| `DB_ORACLE_HOME` | `${ORACLE_BASE}/product/<RU>/db_home1`, RU from the `db_ru` row of `09-Install/download/patches_db.csv` (19.33 → `19.33.0`; no row: `19.33.0`) | the directory does not name that RU and the home is not installed yet |
+| `DB_EDITION` | menu EE / SE2 (licence); default = current value | – |
 | `DB_SID`, `DB_CDB_NAME` | template (`FMWCDB`) | – (not asked when the DB exists in `/etc/oratab`) |
 | `DB_PDB_NAME` | `DB_SERVICE` of `environment.conf`, upper case | it differs from `DB_SERVICE` (case-insensitive) and the DB does not exist yet |
 | `DB_LISTENER_PORT` | `DB_PORT` | it differs from `DB_PORT` |
-| `DB_SGA_MB` / `DB_PGA_MB` | new file: 15 % of RAM (1536 … 4096 MB) / a third of it (≥ 512) – the DB shares the host with WebLogic, Forms, Reports | – |
+| `DB_SGA_MB` / `DB_PGA_MB` | new file: 15 % of RAM (1536 … 4096 MB, 256 MB steps) / a third of it (≥ 512, 128 MB steps) – the DB shares the host with WebLogic, Forms, Reports; `03-` creates the DB with them and lowers them afterwards to `DB_SGA_POST_MB` / `DB_PGA_POST_MB` | – |
 | `DB_DATA_DIR`, `DB_FAST_RECOVERY_AREA`, `DB_RECOVERY_SIZE_MB` | template (under `ORACLE_BASE`); free space shown | – |
-| `DB_ARCHIVELOG` | menu false (test) / true (production) | – |
+| `DB_ARCHIVELOG` | menu false (test) / true (production); default = current value | – |
 | `DB_AUDIT_RETAIN_DAYS` | 180 | – |
 | `DB_FMW_TABLESPACE` | `RCU_TABLESPACE` of `environment.conf` | it differs from `RCU_TABLESPACE` |
 
@@ -67,8 +70,23 @@ thresholds – edit the file for those.
    re-point it); `DB_PDB_NAME` = `DB_SERVICE`; `DB_LISTENER_PORT` = `DB_PORT`;
    `DB_HOST` is this host; DB home installed, or named after the RU and ~20 GB
    free; SGA + PGA ≤ half of the RAM; `AL32UTF8`; `DB_FMW_TABLESPACE` =
-   `RCU_TABLESPACE`; 19.3 base ZIP present. An existing database (oratab) is
-   reported – changing SID / PDB / data dir in the file would not move it.
+   `RCU_TABLESPACE`; 19.3 base ZIP present (INFO; `01-` checks it on every
+   route, also with a gold image; skipped when the home is installed). An
+   existing database (oratab) is reported – changing SID / PDB / data dir in
+   the file would not move it.
+
+## By hand
+
+```bash
+cp 60-RCU-DB-19c/environment_db.conf.example 60-RCU-DB-19c/environment_db.conf
+chmod 600 60-RCU-DB-19c/environment_db.conf
+vi 60-RCU-DB-19c/environment_db.conf
+#   DB_ORACLE_HOME directory = RU of patches_db.csv (db_ru row), e.g. product/19.33.0/db_home1
+#   DB_PDB_NAME = DB_SERVICE (upper case), DB_LISTENER_PORT = DB_PORT,
+#   DB_FMW_TABLESPACE = RCU_TABLESPACE (all from environment.conf)
+#   leave ORACLE_BASE / ORACLE_INVENTORY in the template form ${ORACLE_BASE:-…}
+./60-RCU-DB-19c/00a-db_env_interview.sh --check
+```
 
 ## Related
 
