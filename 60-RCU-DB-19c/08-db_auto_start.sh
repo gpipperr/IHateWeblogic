@@ -109,19 +109,30 @@ if [ ! -f "$_oratab" ]; then
 elif grep -q "^${DB_SID}:" "$_oratab"; then
     _existing=$(grep "^${DB_SID}:" "$_oratab")
     ok "oratab entry found: $_existing"
+    # home of the entry = DB_ORACLE_HOME? (after 09- / a manual change it may differ)
+    _ot_home=$(printf "%s" "$_existing" | cut -d: -f2)
+    if [ "$_ot_home" != "$DB_ORACLE_HOME" ]; then
+        warn "oratab home '$_ot_home' differs from DB_ORACLE_HOME '$DB_ORACLE_HOME' – dbstart uses the oratab home"
+        EXIT_CODE=1
+    fi
+    unset _ot_home
     # Check if auto-start flag is Y
     _flag=$(printf "%s" "$_existing" | cut -d: -f3 | tr -d ' \r')
     if [ "$_flag" != "Y" ]; then
         warn "Auto-start flag is '$_flag' (not Y) — dbstart will skip this DB"
+        # the regex without padding (before: %-14s made it '^FMWCDB    :' - never matched)
+        _sed_cmd="$(printf "sed -i 's|^%s:.*|%s|' /etc/oratab" "${DB_SID}" "${_oratab_entry}")"
         printf "\n"
         printf "  \033[33m┌──────────────────────────────────────────────────────────────┐\033[0m\n"
-        printf "  \033[33m│  Run as root NOW to set the auto-start flag to Y:            │\033[0m\n"
-        printf "  \033[33m│                                                              │\033[0m\n"
-        printf "  \033[33m│  sed -i 's|^%-14s:.*|%-34s|' /etc/oratab │\033[0m\n" \
-            "${DB_SID}" "${_oratab_entry}"
+        printf "  \033[33m│  Run as root to set the auto-start flag to Y:                │\033[0m\n"
         printf "  \033[33m└──────────────────────────────────────────────────────────────┘\033[0m\n"
-        printf "\n"
-        if askYesNo "Press Enter / type 'yes' after flag has been set to Y" "y"; then
+        printf "  %s\n\n" "$_sed_cmd"
+        printf "%s\n" "$_sed_cmd" >> "$LOG_FILE"
+        unset _sed_cmd
+        if ! $APPLY; then
+            info "  Dry-run: no prompt – run the command, then 08- --apply"
+            EXIT_CODE=1
+        elif askYesNo "Press Enter / type 'yes' after flag has been set to Y" "y"; then
             _flag_after=$(grep "^${DB_SID}:" "$_oratab" | cut -d: -f3 | tr -d ' \r')
             if [ "$_flag_after" = "Y" ]; then
                 ok "Auto-start flag now: Y"
@@ -196,7 +207,7 @@ cat > "$_unit_tmp" << UNITEOF
 # Managed by: IHateWeblogic/60-RCU-DB-19c/08-db_auto_start.sh
 # Install  : cp ${_unit_tmp} ${_unit_target}
 #            systemctl daemon-reload
-#            systemctl enable ${_unit_name}
+#            systemctl enable --now ${_unit_name}
 # =============================================================================
 [Unit]
 Description=Oracle Database CDB (${DB_SID})
@@ -224,6 +235,22 @@ UNITEOF
 
 info "systemd unit written to: $_unit_tmp"
 
+# installed unit identical (apart from the header comment with the temp path)?
+_strip() { grep -v '^#' "$1" 2>/dev/null; }
+if [ -r "$_unit_target" ] && [ "$(_strip "$_unit_target")" = "$(_strip "$_unit_tmp")" ] \
+   && systemctl is-enabled "$_unit_name" >/dev/null 2>&1; then
+    ok "$_unit_target already installed, unchanged and enabled ($(systemctl is-active "$_unit_name" 2>/dev/null))"
+    rm -f "$_unit_tmp"
+    unset _unit_name _unit_target _unit_tmp
+    unset -f _strip
+    printf "\n" | tee -a "$LOG_FILE"
+    info "Next step: 09-Install/07-oracle_setup_repository.sh --apply (RCU)"
+    print_summary; exit $EXIT_CODE
+elif [ -r "$_unit_target" ]; then
+    warn "$_unit_target differs from the generated unit (e.g. old home after 09-) – install the new one"
+fi
+unset -f _strip
+
 printf "\n"
 printf "  \033[33m┌──────────────────────────────────────────────────────────────┐\033[0m\n"
 printf "  \033[33m│  Run as root NOW to install the systemd DB unit:             │\033[0m\n"
@@ -249,6 +276,9 @@ else
 fi
 
 unset _unit_name _unit_target _unit_tmp _oratab _oratab_entry
+
+printf "\n" | tee -a "$LOG_FILE"
+info "Next step: 09-Install/07-oracle_setup_repository.sh --apply (RCU)"
 
 # =============================================================================
 print_summary

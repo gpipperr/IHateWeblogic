@@ -10,9 +10,14 @@
 
 Ensure the Oracle CDB starts automatically after a system reboot:
 
-1. Verify or add the `/etc/oratab` entry for the CDB (required by `dbstart`/`dbshut`)
-2. Write `oracle-db.service` systemd unit to `/tmp/`, print root install commands
-3. Confirm the unit is enabled
+1. Verify or add the `/etc/oratab` entry for the CDB (required by `dbstart`/`dbshut`):
+   entry with `DB_ORACLE_HOME` (a different home → WARN) and flag `Y`
+   (flag `N` → the root `sed` command is printed; the confirmation prompt
+   only with `--apply`). Dry-run ends after this check
+2. Write `oracle-db.service` systemd unit to `/tmp/` – an installed unit with
+   the same content that is enabled → OK, nothing to do; a different one
+   (e.g. old home after `09-`) → WARN; otherwise print the root install commands
+3. Confirm the unit is enabled; next-step hint (RCU)
 
 PDB auto-open is **not** handled here — it relies on
 `ALTER PLUGGABLE DATABASE ALL SAVE STATE` which was set in `03-db_create_database.sh`.
@@ -30,8 +35,14 @@ $SID:$ORACLE_HOME:Y
 
 The `:Y` flag tells `dbstart` to start this instance.  `:N` means skip.
 
-DBCA normally creates this entry automatically during DB creation.
-This script verifies the entry exists with `:Y` and adds it if missing.
+DBCA normally creates this entry automatically during DB creation (flag `N`).
+This script verifies the entry exists with the current `DB_ORACLE_HOME` and
+`:Y`, and adds it if missing. Flag `N` → as root:
+
+```bash
+sed -i 's|^FMWCDB:.*|FMWCDB:<DB_ORACLE_HOME>:Y|' /etc/oratab
+```
+(a missing entry: `echo 'FMWCDB:<DB_ORACLE_HOME>:Y' >> /etc/oratab`)
 
 **Permissions:** `/etc/oratab` is typically owned by `root:oinstall` with mode `664`,
 so the `oracle` user (member of `oinstall`) can append to it directly.
@@ -40,6 +51,8 @@ If it is `644` or owned differently, the script will print the manual root comma
 ---
 
 ## systemd Unit: oracle-db.service
+
+As root `cat > /etc/systemd/system/oracle-db.service` (example values):
 
 ```ini
 [Unit]
@@ -52,11 +65,12 @@ Requires=oracle-listener.service
 Type=forking
 User=oracle
 Group=oinstall
-Environment=ORACLE_HOME=...
-Environment=ORACLE_BASE=...
-Environment=ORACLE_SID=...
-ExecStart=$ORACLE_HOME/bin/dbstart  $ORACLE_HOME
-ExecStop=$ORACLE_HOME/bin/dbshut   $ORACLE_HOME
+Environment=ORACLE_HOME=/u01/app/oracle/product/19.33.0/db_home1
+Environment=ORACLE_BASE=/u01/app/oracle
+Environment=ORACLE_SID=FMWCDB
+# dbstart/dbshut read /etc/oratab — entry must exist with :Y flag
+ExecStart=/u01/app/oracle/product/19.33.0/db_home1/bin/dbstart  /u01/app/oracle/product/19.33.0/db_home1
+ExecStop=/u01/app/oracle/product/19.33.0/db_home1/bin/dbshut   /u01/app/oracle/product/19.33.0/db_home1
 RemainAfterExit=yes
 TimeoutStartSec=180
 TimeoutStopSec=120
@@ -64,6 +78,11 @@ TimeoutStopSec=120
 [Install]
 WantedBy=multi-user.target
 ```
+
+`Requires=oracle-listener.service` needs the unit of `02-` – without it
+`oracle-db` does not start. `dbstart` / `dbshut` with the home argument also
+start / stop `LISTENER` of that home (`ORACLE_HOME_LISTNR`): harmless at the
+start (already running), at the stop the listener goes down with the database.
 
 **`Requires=oracle-listener.service`** — systemd starts the listener first,
 then the database.  Without the listener, PMON cannot register the PDB service
