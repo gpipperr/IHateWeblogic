@@ -3,7 +3,7 @@
 # AutoUpgrade download the current set itself (DB_TARGET_RU="RECOMMENDED").
 # Host without MOS access: download on a host that may, copy PATCH_STORAGE:
 #   mos_patch_download.sh -c patches_db.csv -d $PATCH_STORAGE --apply
-#   -> $PATCH_STORAGE/database/patches/<nr>/ ; 01- copies them into an empty
+#   -> $PATCH_STORAGE/database/patches/<nr>/ ; 01- links (ln -s) them into an empty
 #      AutoUpgrade patchdir instead of downloading.
 # Source: AutoUpgrade 26.6 patches_info.json of the live 19.30 -> 19.33 run
 # (2026-10-28), docs 60-RCU-DB-19c/docs/01-db_install_software.md.

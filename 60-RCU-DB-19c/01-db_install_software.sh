@@ -74,7 +74,7 @@ FRESH_PATCHES=false
 USE_APPLYRU=false
 
 _usage() {
-    printf "Usage: %s [--apply] [--clean [--apply]] [--help]\n\n" "$(basename "$0")"
+    printf "Usage: %s [--apply] [--clean] [--target-home DIR] [--fresh-patches] [--apply-ru-installer] [--help]\n\n" "$(basename "$0")"
     printf "  %-20s %s\n" "(none)"          "Dry-run: show configuration, no install"
     printf "  %-20s %s\n" "--apply"         "Extract base + download patches + install (gold image, or base + opatch RU)"
     printf "  %-20s %s\n" "--apply-ru-installer" "RU via runInstaller -applyRU (fails on FMW hosts - research only)"
@@ -244,14 +244,18 @@ printList "Target RU"           28 "${DB_TARGET_RU:-RECOMMENDED}"
 printList "RU route"            28 "$($USE_APPLYRU && printf 'runInstaller -applyRU (--apply-ru-installer)' || printf 'gold image if present, else base install + opatch apply')"
 
 # Check patchdir state for dry-run info
-_patch_zip_count=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
+_patch_zip_count=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
+_ps_zip_count=$(ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip 2>/dev/null | wc -l)
 if [ "$_patch_zip_count" -gt 0 ] && $FRESH_PATCHES; then
-    info "$(printf "Patchdir: %d patch ZIP(s) – --fresh-patches moves them to patchdir_<timestamp>, then fresh download" "$_patch_zip_count")"
+    info "$(printf "Patchdir: %d patch ZIP(s) / gold image – --fresh-patches moves them to patchdir_<timestamp>, then fresh download" "$_patch_zip_count")"
 elif [ "$_patch_zip_count" -gt 0 ]; then
-    ok "$(printf "Patchdir: %d patch ZIP(s) present — download will be skipped" "$_patch_zip_count")"
+    ok "$(printf "Patchdir: %d patch ZIP(s) / gold image present — download will be skipped" "$_patch_zip_count")"
+elif [ "$_ps_zip_count" -gt 0 ]; then
+    ok "$(printf "Patchdir empty – %d ZIP(s) in \$PATCH_STORAGE/database/patches/ will be linked (offline route, no download)" "$_ps_zip_count")"
 else
     info "Patchdir: empty — AutoUpgrade will download patches (requires MOS credentials)"
 fi
+unset _ps_zip_count
 unset _patch_zip_count
 
 if ! $APPLY && ! $CLEAN; then
@@ -268,7 +272,7 @@ if $CLEAN; then
     section "Clean – Remove Target Home and Staging"
 
     # Processes running FROM the home: a database instance -> never remove the
-    # home (FAIL); the listener (04-) -> stopped first, its listener.ora lives in
+    # home (FAIL); the listener (02-) -> stopped first, its listener.ora lives in
     # <home>/network/admin and is removed with the home -> 02- again afterwards
     _home_procs() {   # prints "pid name" of processes whose binary is in DB_ORACLE_HOME
         local p e
@@ -418,12 +422,12 @@ fi
 unset _GOLD_PRESENT
 
 # =============================================================================
-# 3. Java detection (AutoUpgrade requires Java 11; DB bundled JDK used first)
+# 3. Java detection (only for the AutoUpgrade download; JDK of the 19.3 base first)
 # =============================================================================
 
 section "Java for AutoUpgrade"
 
-# AutoUpgrade 26.x requires Java 11 — rejects Java 21.
+# AutoUpgrade 26.x runs on Java 8 (19.3 base JDK, TLSv1.2) or 11 – not on Java 21.
 # Try 19.3.0 staging JDK first, then system java-11-openjdk, then /usr/bin/java.
 JAVA_BIN=""
 for _jbin in \
@@ -442,7 +446,7 @@ elif ! $_NEED_DOWNLOAD; then
     info "No Java for AutoUpgrade – not needed, no download"
     JAVA_BIN=/bin/false
 else
-    fail "No Java found — install java-11-openjdk (run 00-root_db_os_baseline.sh --apply)"
+    fail "No Java found – needed for the AutoUpgrade download: base_stage/jdk (19.3 base ZIP) or dnf install java-11-openjdk-headless"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 unset _NEED_DOWNLOAD
@@ -466,9 +470,10 @@ section "Patch Download (AutoUpgrade)"
 
 # --fresh-patches: keep the previous patch set (rebuild of the old home), download anew
 # (only the patch ZIPs p<nr>_*.zip - the 19.3 base ZIP may live in patchdir too)
-if $FRESH_PATCHES && ls "$_AU_PATCHDIR"/p[0-9]*.zip >/dev/null 2>&1; then
+# + an old gold image: the newest db_goldimage_*.zip would win over the new download
+if $FRESH_PATCHES && ls "$_AU_PATCHDIR"/p[0-9]*.zip "$_AU_PATCHDIR"/db_goldimage_*.zip >/dev/null 2>&1; then
     _arch="${_AU_PATCHDIR}_$(date +%Y%m%d_%H%M%S)"
-    mkdir -p "$_arch" && mv "$_AU_PATCHDIR"/p[0-9]*.zip "$_arch"/ \
+    mkdir -p "$_arch" && mv $(ls "$_AU_PATCHDIR"/p[0-9]*.zip "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null) "$_arch"/ \
         && { [ -f "$_AU_PATCHDIR/patches_info.json" ] && mv "$_AU_PATCHDIR/patches_info.json" "$_arch"/; true; } \
         && ok "Previous patch set moved to: $_arch" \
         || { fail "Could not move the patch ZIPs to $_arch"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
@@ -497,7 +502,8 @@ fi
 unset _csv_zips _z
 
 # Count non-OPatch patch ZIPs already in patchdir
-_existing_zips=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
+# (a gold image counts: it is the RU of the set - no download then)
+_existing_zips=$(ls "$_AU_PATCHDIR"/p[0-9]*.zip "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | grep -v 'p6880880' | wc -l)
 
 if [ "$_existing_zips" -gt 0 ]; then
     ok "$(printf "Patchdir has %d patch ZIP(s) — skipping download" "$_existing_zips")"
@@ -621,7 +627,7 @@ EXPEOF
             warn "MOS keystore saved — connection not yet verified (MOS reachable?)"
         else
             warn "MOS keystore setup may have failed — 'Connection Successful' not found"
-            warn "  Retry: rm -rf '${_ks_dir}'/* && ./01-db_install_software.sh --apply"
+            warn "  Retry: rm -rf '${_ks_dir}' && ./01-db_install_software.sh --apply   (incl. the flag .mos_configured)"
         fi
         unset _ks_out
     fi
