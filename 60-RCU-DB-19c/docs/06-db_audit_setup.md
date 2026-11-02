@@ -2,7 +2,7 @@
 
 **Script:** `60-RCU-DB-19c/06-db_audit_setup.sh`
 **Runs as:** `oracle`
-**Phase:** Configure Unified Auditing in the running database (after `05-`,
+**Phase:** Configure Unified Auditing in the running database (after `03-`,
 best after the RCU run `09-Install/07-`)
 
 ```bash
@@ -35,7 +35,7 @@ Pure Unified Auditing for the RCU database:
   checked by the script
 - **Oracle binary linked with `uniaud_on`** – checked via
   `V$OPTION 'Unified Auditing' = TRUE`; FAIL stops the script.
-  `05-db_create_database.sh` only reports the state (`kzaiang` in the binary)
+  `03-db_create_database.sh` only reports the state (`kzaiang` in the binary)
   and prints the relink command; the relink is **manual**, with database and
   listener stopped:
 

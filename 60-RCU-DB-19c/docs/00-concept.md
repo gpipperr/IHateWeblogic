@@ -63,15 +63,15 @@ The kernel relink (`make uniaud_on ioracle`) must happen either:
 1. Before the first database is created — zero downtime, preferred
 2. On a closed database — requires restart of all instances on the ORACLE_HOME
 
-**State 2026-10-29 (checked against the scripts):** `05-db_create_database.sh`
+**State 2026-10-29 (checked against the scripts):** `03-db_create_database.sh`
 only **reports** whether the binary is linked with `uniaud_on` (`kzaiang`) and
 prints the relink command; the relink itself is a manual step with database
 and listener stopped ([06-db_audit_setup.md](06-db_audit_setup.md#prerequisites)),
 and `06-db_audit_setup.sh` stops with FAIL until it is done. An out-of-place
 patch keeps it: `09-db_patch_rcu.sh` relinks the new home when the old one has
-`uniaud_on`. (The original plan – relink in `05-` before DBCA, repeated after
-every RU in `02-db_patch_db_software.sh` – is not implemented; `02-` is
-deprecated.)
+`uniaud_on`. (The original plan – relink in `03-` (then `05-`) before DBCA, repeated after
+every RU in the former `02-db_patch_db_software.sh` – was not implemented;
+`02-` was removed 2026-11-02.)
 
 Classical (mixed-mode) auditing is not configured.  The `AUDITLOG` tablespace
 holds all unified audit data.
@@ -274,8 +274,8 @@ root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits, oraInst.
 oracle: 00b-db_cvu_check.sh         host pre-check with the standalone CVU
 oracle: 01-db_install_software.sh   base + AutoUpgrade download (RU/OJVM/DPBP/jdk, gold image)
                                     + gold image, or base install + opatch RU + relink; chopt disable
-oracle: 04-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
-oracle: 05-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
+oracle: 02-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
+oracle: 03-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
                                     local_listener = explicit address (uniaud_on: reported only)
 manual: uniaud_on relink            DB + listener down (06-db_audit_setup.md)
 oracle: 06-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge jobs

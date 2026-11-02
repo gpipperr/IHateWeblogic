@@ -191,9 +191,9 @@ Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
                   19c software-only install, patched in one go: AutoUpgrade
                   downloads RU + OJVM + Data Pump + JDK (gold image possible),
                   gold image, else 19.3 base + RU with opatch (02- is DEPRECATED)
-  [oracle]      ./60-RCU-DB-19c/04-db_setup_listener.sh --apply
+  [oracle]      ./60-RCU-DB-19c/02-db_setup_listener.sh --apply
                   configure the TNS listener
-  [oracle]      ./60-RCU-DB-19c/05-db_create_database.sh --apply
+  [oracle]      ./60-RCU-DB-19c/03-db_create_database.sh --apply
                   DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, no archivelog,
                   MAX_STRING_SIZE=EXTENDED in every container incl. PDB$SEED)
   [oracle]      ./60-RCU-DB-19c/06-db_audit_setup.sh --apply

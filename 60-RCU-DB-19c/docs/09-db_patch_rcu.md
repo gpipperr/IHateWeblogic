@@ -92,8 +92,8 @@ Last resort: Data Pump dumps of step 2 + VM snapshot.
 
 | Pitfall | Handling |
 |---|---|
-| service not registered after the start (`local_listener` alias only in the old home's `tnsnames.ora`, or the shared `TNS_ADMIN`) | `local_listener` is the explicit address since 2026-10-28 (`05-`); `09-` starts with the home's own `TNS_ADMIN` and waits for the registration |
-| `PDB$SEED` MOUNTED | `ALTER PLUGGABLE DATABASE PDB$SEED OPEN READ ONLY` – never READ WRITE. If that fails with **ORA-14696** the MAX_STRING_SIZE migration is missing in the seed (old `05-`, test host until 2026-10-28) – repair first ([05-db_create_database.md](05-db_create_database.md#max_string_sizeextended--migrate-every-container-incl-pdbseed)) |
+| service not registered after the start (`local_listener` alias only in the old home's `tnsnames.ora`, or the shared `TNS_ADMIN`) | `local_listener` is the explicit address since 2026-10-28 (`03-`); `09-` starts with the home's own `TNS_ADMIN` and waits for the registration |
+| `PDB$SEED` MOUNTED | `ALTER PLUGGABLE DATABASE PDB$SEED OPEN READ ONLY` – never READ WRITE. If that fails with **ORA-14696** the MAX_STRING_SIZE migration is missing in the seed (old `03-`, then `05-`, test host until 2026-10-28) – repair first ([03-db_create_database.md](03-db_create_database.md#max_string_sizeextended--migrate-every-container-incl-pdbseed)) |
 | `db_securefile=FORCE` (hardening) → ORA-43853 in RU scripts | `PREFERRED` with `SCOPE=MEMORY` for the patch, back afterwards ([rcu_middleware_architecture.md §4.2](../../80-FMW-Architecture/rcu_middleware_architecture.md)) |
 | `OPATCH_XML_INV` / QOpatch directory objects point to a wrong path (PATCH112) | check before; recreate the directory objects |
 | not enough space | checked first in `01-` and `09-` |
@@ -124,7 +124,7 @@ Findings of the run (fixed in the scripts):
 | disk: the unpacked 19.33 home has **11 GB** (estimate was 8) – `/` reached 98 % | thresholds raised (home min 12 / rec 15 GB); in the gold-image case the 19.3 base stage (6.6 GB) is not needed and skipped |
 | `sed -i /etc/oratab` fails (temp file in `/etc` not writable for oracle although oratab is) | write back through a temp file in `/tmp` |
 | systemd unit files readable by root only → "no reference" was reported | unreadable units are treated as "to change", root commands printed |
-| PDB$SEED could not be opened before (ORA-14696) | repaired the same day ([05-db_create_database.md](05-db_create_database.md)) |
+| PDB$SEED could not be opened before (ORA-14696) | repaired the same day ([03-db_create_database.md](03-db_create_database.md)) |
 
 ## References
 

@@ -30,7 +30,7 @@ Flow:
      (fails on FMW hosts – research only)
 5. `root.sh` prompt + `chopt disable olap rat`
 
-`uniaud_on` relink is NOT done here — it runs in `05-db_create_database.sh`
+`uniaud_on` relink is NOT done here — it runs in `03-db_create_database.sh`
 before DBCA (requires the complete DB home).
 
 ---
@@ -112,6 +112,36 @@ DB_AUTOUPGRADE_HOME/
 `DB_TARGET_RU` in `environment_db.conf` controls which RU to download:
 - `RECOMMENDED` — latest RU + OJVM + OPatch + DPBP (default, always current)
 - `19.30` — fixed version, reproducible install
+- **not** `19.CURRENT` / `19.LATEST` – rejected by AutoUpgrade 26.x ("The patch
+  parameter for prefix patch1 includes a value that is not supported"); `01-`
+  falls back to `recommended` with a WARN
+
+### MOS keystore
+
+MOS credentials are stored **once** in the AutoUpgrade keystore
+(`$DB_AUTOUPGRADE_HOME/keystore/`, auto-login) and reused. `01-` fills it with
+`expect` (installed by `00-root_db_os_baseline.sh`) from `mos_sec.conf.des3`;
+the keystore password is derived from the hostname. Manual equivalent:
+
+```bash
+java -jar "$DB_AUTOUPGRADE_HOME/bin/autoupgrade.jar" \
+    -config "$DB_AUTOUPGRADE_HOME/config/keystore.cfg" -patch -load_password
+# Enter password: / again:            <- keystore password
+# MOS> add -user your.email@example.com
+# Enter your secret/Password: / again <- MOS password
+# MOS> exit
+# Save ... [YES|NO] ? YES   /   Convert ... to auto-login [YES|NO] ? YES
+```
+
+AutoUpgrade 26.x: `-mode setmospassword` was replaced by `-load_password`,
+`group mos` is no longer needed. Changed MOS credentials:
+`rm -rf $DB_AUTOUPGRADE_HOME/keystore/* && ./01-db_install_software.sh --apply`.
+
+**TLS by Java version** (set by `01-` automatically): Java 8 (JDK of the 19.3
+base) `-Dhttps.protocols=TLSv1.2` – TLSv1.3 throws `IllegalArgumentException`;
+Java 11+ `TLSv1.3`. AutoUpgrade talks to `login-ext.identity.oraclecloud.com`
+and `updates.oracle.com` – a host without egress uses the offline route
+(`patches_db.csv`, `PATCH_STORAGE`).
 
 ---
 
@@ -190,7 +220,7 @@ instantiation: the image's scripts carry the build path of Oracle's image –
 installer replaces it. The first version of this route (2026-11-02: install,
 rc=252 accepted, `attachHome`, `opatch`, `relink all`) left those paths in
 place – `dbca` then failed with `…/19.0.0/dbhome_1/bin/platform_common: No
-such file or directory` (customer, `05-`). So the RU goes into the **image**
+such file or directory` (customer, `03-`). So the RU goes into the **image**
 first; its `runInstaller` then links with the RU makefiles, instantiates and
 registers – like a gold image. (This is what `-applyRU` does internally, but
 with `opatch` instead of `opatchauto`, which fails with "Invalid Home".)
@@ -291,10 +321,10 @@ $DB_ORACLE_HOME/bin/sqlplus -V
   `--clean --apply`.
 - `--clean` checks the processes running **from** the home first: a
   database instance (`ora_pmon_*`, `oracle<SID>`) → FAIL, the home is not
-  removed (`05-db_create_database.sh --clean --apply` first). A listener
-  (`tnslsnr`, from `04-`) → stopped with `lsnrctl stop`; its `listener.ora`
+  removed (`03-db_create_database.sh --clean --apply` first). A listener
+  (`tnslsnr`, from `02-`) → stopped with `lsnrctl stop`; its `listener.ora`
   lives in `<home>/network/admin` and is removed with the home, so
-  `04-db_setup_listener.sh --apply` runs again after the install (the
+  `02-db_setup_listener.sh --apply` runs again after the install (the
   systemd unit points to the same path and stays).
 
 ---
@@ -359,6 +389,13 @@ lists every extracted directory with size and patch description. Causes:
   the ZIPs are **linked** from `$PATCH_STORAGE/database/patches/` into
   `patchdir` (no second copy).
 
+### `libpthread_nonshared.a` missing (OL9)
+
+Relinks (`chopt`, `uniaud_on`, `opatch`) fail on OL9 with `ld: cannot find
+/usr/lib64/libpthread_nonshared.a` – pthreads were merged into libc in RHEL 9.
+An empty archive satisfies the linker (created by `00-root_db_os_baseline.sh
+--apply`): `ar cr /usr/lib64/libpthread_nonshared.a; chmod 644 …`.
+
 ### "Cannot create /etc/oraInst.loc" / INS-32031
 
 `/etc/oraInst.loc` must exist before `runInstaller` runs — the 19c installer
@@ -378,8 +415,24 @@ If missing: re-run `00-root_db_os_baseline.sh --apply`.
 
 ---
 
+## History
+
+Until 2026-03 a separate `02-db_patch_db_software.sh` cloned the installed
+19.3 home (`cp -a`), fixed the hard-coded home path in `chopt` / `root.sh`
+with `sed`, attached it and applied the patches with `opatch napply` (the
+19.30 home of March 2026). It was replaced by the routes above and removed
+on 2026-11-02 (stub and doc `02-db_patch_autoupgrade.md` are in the git
+history). Background on AutoUpgrade `create_home` / PATCH109 "Invalid Home"
+(the gold image ZIP has no `oraInst.loc`, OPatch error 106) is in that doc too.
+
+References: [AutoUpgrade direct download](https://mikedietrichde.com/2024/11/21/download-autoupgrade-directly-from-oracle-com/),
+[AutoUpgrade patching](https://mikedietrichde.com/2024/10/28/autoupgrades-patching-the-feature-you-waited-for/),
+[AutoUpgrade / patch automation 19c (pipperr.de)](https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c).
+
+---
+
 ## Next Step
 
 ```
-04-db_setup_listener.sh --apply
+02-db_setup_listener.sh --apply
 ```

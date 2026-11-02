@@ -269,7 +269,7 @@ if $CLEAN; then
 
     # Processes running FROM the home: a database instance -> never remove the
     # home (FAIL); the listener (04-) -> stopped first, its listener.ora lives in
-    # <home>/network/admin and is removed with the home -> 04- again afterwards
+    # <home>/network/admin and is removed with the home -> 02- again afterwards
     _home_procs() {   # prints "pid name" of processes whose binary is in DB_ORACLE_HOME
         local p e
         for p in /proc/[0-9]*; do
@@ -283,14 +283,14 @@ if $CLEAN; then
     if [ -n "$_db_procs" ]; then
         fail "A database instance runs from $DB_ORACLE_HOME – the home is NOT removed:"
         printf '%s\n' "$_db_procs" | while IFS= read -r _l; do info "    $_l"; done
-        info "  Remove the database first (05-db_create_database.sh --clean --apply) or stop it"
+        info "  Remove the database first (03-db_create_database.sh --clean --apply) or stop it"
         EXIT_CODE=2; print_summary; exit $EXIT_CODE
     fi
     if [ -n "$_lsnr_procs" ]; then
-        warn "Listener runs from $DB_ORACLE_HOME (04-db_setup_listener.sh):"
+        warn "Listener runs from $DB_ORACLE_HOME (02-db_setup_listener.sh):"
         printf '%s\n' "$_lsnr_procs" | while IFS= read -r _l; do info "    $_l"; done
         info "  --clean --apply stops it (lsnrctl stop); its listener.ora is removed with the home"
-        info "  -> after the install: 04-db_setup_listener.sh --apply again (systemd unit: same path, stays)"
+        info "  -> after the install: 02-db_setup_listener.sh --apply again (systemd unit: same path, stays)"
     fi
 
     if ! $APPLY; then
@@ -319,7 +319,7 @@ if $CLEAN; then
             fail "Listener still running from $DB_ORACLE_HOME – stop it (sudo systemctl stop oracle-listener) and re-run"
             EXIT_CODE=2; print_summary; exit $EXIT_CODE
         fi
-        ok "Listener stopped – run 04-db_setup_listener.sh --apply after the install"
+        ok "Listener stopped – run 02-db_setup_listener.sh --apply after the install"
         unset _ln
     fi
     unset _hp _db_procs _lsnr_procs
@@ -1136,7 +1136,7 @@ if [ -n "$TARGET_HOME_ARG" ]; then
     info "  09-db_patch_rcu.sh --new-home $DB_ORACLE_HOME          (dry-run first)"
 else
     info "Next step: configure the listener"
-    info "  04-db_setup_listener.sh --apply"
+    info "  02-db_setup_listener.sh --apply"
 fi
 
 # =============================================================================

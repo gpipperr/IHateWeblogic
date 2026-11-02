@@ -1,20 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 05-db_create_database.sh
+# Script   : 03-db_create_database.sh
 # Purpose  : Create Oracle 19c CDB + PDB (FMWCDB / FMWPDB) via dbca -silent.
 #            Includes:
 #              - DBCA silent with minimal FMW-RCU sizing
 #              - Post-creation parameter tuning (open_cursors, processes, …)
 #              - ALTER PLUGGABLE DATABASE ALL SAVE STATE (PDB auto-open)
-#            Requires listener running — run 04-db_setup_listener.sh first.
-# Call     : ./60-RCU-DB-19c/05-db_create_database.sh
-#            ./60-RCU-DB-19c/05-db_create_database.sh --apply
-#            ./60-RCU-DB-19c/05-db_create_database.sh --help
+#            Requires listener running — run 02-db_setup_listener.sh first.
+# Call     : ./60-RCU-DB-19c/03-db_create_database.sh
+#            ./60-RCU-DB-19c/03-db_create_database.sh --apply
+#            ./60-RCU-DB-19c/03-db_create_database.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, db_sys_sec.conf.des3
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/05-db_create_database.md
+# Ref      : 60-RCU-DB-19c/docs/03-db_create_database.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -122,7 +122,7 @@ unset _oh_base
 
 "$DB_ORACLE_HOME/bin/lsnrctl" status LISTENER >/dev/null 2>&1 \
     && ok "Listener is running" \
-    || { fail "Listener is NOT running — run 04-db_setup_listener.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    || { fail "Listener is NOT running — run 02-db_setup_listener.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 # --- Unified Auditing relink verification ------------------------------------
 # INFO only — DB creation works with standard auditing (uniaud_off).

@@ -146,8 +146,8 @@ STEPS=(
 "DB|root|60-RCU-DB-19c/00-root_db_os_baseline.sh|apply|_c_db|_p_dbos|--apply"
 "DB|oracle|60-RCU-DB-19c/00b-db_cvu_check.sh|apply|_c_db|-|--apply"
 "DB|oracle|60-RCU-DB-19c/01-db_install_software.sh|apply|_c_db|_p_dbhome|--apply"
-"DB|oracle|60-RCU-DB-19c/04-db_setup_listener.sh|apply|_c_db|_p_listener|--apply"
-"DB|oracle|60-RCU-DB-19c/05-db_create_database.sh|apply|_c_db|_p_db|--apply"
+"DB|oracle|60-RCU-DB-19c/02-db_setup_listener.sh|apply|_c_db|_p_listener|--apply"
+"DB|oracle|60-RCU-DB-19c/03-db_create_database.sh|apply|_c_db|_p_db|--apply"
 "DB|oracle|60-RCU-DB-19c/06-db_audit_setup.sh|apply|_c_db|_p_audit|--apply"
 "DB|oracle|60-RCU-DB-19c/07-db_fmw_tablespace.sh|opt|_c_db|-|--apply"
 "DB|oracle|60-RCU-DB-19c/07b-db_rcu_profile.sh|apply|_c_db|-|--apply"
@@ -183,8 +183,13 @@ _runs() {
         case "$t" in +*) plus="--${t#+}" ;; -*) minus="--${t#-}" ;; esac
     done
     [ -f "$HIST" ] || { printf ';;;;0'; return; }
+    # renamed scripts: runs recorded under the old name count for the new one
+    # (60-RCU-DB-19c 04-/05- -> 02-/03-, 2026-11-02)
     awk -F';' -v s="$script" -v p="$plus" -v m="$minus" -v h="$HOST" -v all="$ALL_HOSTS" '
-        NR > 1 && $4 == s && (all == "true" || $2 == h) {
+        BEGIN { R["60-RCU-DB-19c/04-db_setup_listener.sh"] = "60-RCU-DB-19c/02-db_setup_listener.sh"
+                R["60-RCU-DB-19c/05-db_create_database.sh"] = "60-RCU-DB-19c/03-db_create_database.sh" }
+        { sc = ($4 in R) ? R[$4] : $4 }
+        NR > 1 && sc == s && (all == "true" || $2 == h) {
             a = " " $5 " "
             if (p != "" && !index(a, " " p " ")) next
             if (m != "" && index(a, " " m " ")) next

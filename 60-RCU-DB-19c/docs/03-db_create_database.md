@@ -1,9 +1,9 @@
-# Step 5 – 05-db_create_database.sh
+# Step 3 – 03-db_create_database.sh
 
-**Script:** `60-RCU-DB-19c/05-db_create_database.sh`
+**Script:** `60-RCU-DB-19c/03-db_create_database.sh`
 **Runs as:** `oracle`
 **Phase:** Create the CDB + PDB
-**Requires:** Listener running — `04-db_setup_listener.sh` must have run first.
+**Requires:** Listener running — `02-db_setup_listener.sh` must have run first.
 
 ---
 
@@ -99,8 +99,8 @@ OK / WARN / FAIL).
 | UNDOTBS1 (PDB) | undotbs01.dbf | 200 MB | 32 MB | 1 GB | FMWPDB |
 | TEMP (PDB) | temp01.tmp | 100 MB | 32 MB | 1 GB | FMWPDB |
 
-AUDITLOG tablespace: created by `04-db_audit_setup.sh` (separate script).
-FMW_DATA tablespace: created by `05-db_fmw_tablespace.sh` (optional).
+AUDITLOG tablespace: created by `06-db_audit_setup.sh` (separate script).
+FMW_DATA tablespace: created by `07-db_fmw_tablespace.sh` (optional).
 
 **Total fresh: ~1.8 GB, with 4× growth margin: ~7 GB**
 

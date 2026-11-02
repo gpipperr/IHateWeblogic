@@ -1,6 +1,6 @@
-# Step 4 – 04-db_setup_listener.sh
+# Step 2 – 02-db_setup_listener.sh
 
-**Script:** `60-RCU-DB-19c/04-db_setup_listener.sh`
+**Script:** `60-RCU-DB-19c/02-db_setup_listener.sh`
 **Runs as:** `oracle` (systemd unit install requires root — script prompts)
 **Phase:** Oracle Net configuration + TNS Listener start
 
@@ -9,7 +9,7 @@
 ## Purpose
 
 Create the Oracle Net configuration and start the TNS Listener.
-Must run **before** `05-db_create_database.sh` — DBCA requires the listener
+Must run **before** `03-db_create_database.sh` — DBCA requires the listener
 to be running for dynamic service registration.
 
 1. Write `listener.ora` (TCP, configured host, port 1521)
@@ -49,9 +49,9 @@ remote connections (FMW, RCU) will not work.
 Set `DB_LISTENER_HOST` to the external hostname or IP in `environment_db.conf`.
 
 The instance registers with this listener through `local_listener`, which
-`05-db_create_database.sh` sets to the explicit address (not the DBCA alias
+`03-db_create_database.sh` sets to the explicit address (not the DBCA alias
 `LISTENER_<SID>`) – see
-[05-db_create_database.md](05-db_create_database.md#step-4-post-creation-parameter-tuning).
+[03-db_create_database.md](03-db_create_database.md#step-4-post-creation-parameter-tuning).
 
 ---
 
@@ -65,7 +65,7 @@ The instance registers with this listener through `local_listener`, which
 Lesson of 2026-10-27/28: an instance started with the **shared** `TNS_ADMIN`
 did not find the `LISTENER_<SID>` alias of `local_listener` and never
 registered its services – hence the explicit address in `local_listener`
-(`05-`), and `09-db_patch_rcu.sh` starts the instance with the home's own
+(`03-`), and `09-db_patch_rcu.sh` starts the instance with the home's own
 `network/admin` and copies these three files into a new home. Background:
 [report_engine_architecture.md §5.2](../../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin),
 [02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh).

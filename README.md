@@ -678,9 +678,8 @@ IHateWeblogic/
 │   ├── 00b-db_cvu_check.sh          – host pre-check with the standalone CVU (patch 30839369, cluvfy -r 19)
 │   ├── 01-db_install_software.sh    – 19c software-only install, patched in one run (gold image or
 │   │                                   base + opatch RU); --target-home = new home for 09-
-│   ├── 02-db_patch_db_software.sh   – DEPRECATED stub (points to 01- / 09-)
-│   ├── 04-db_setup_listener.sh      – Configure the TNS listener
-│   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
+│   ├── 02-db_setup_listener.sh      – Configure the TNS listener
+│   ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
 │   │                                   local_listener without alias, requirement check)
 │   ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
 │   ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU

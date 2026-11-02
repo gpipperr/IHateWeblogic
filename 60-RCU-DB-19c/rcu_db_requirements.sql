@@ -13,7 +13,7 @@
 --   IHW:REQ|PARAM|<name>|<value>             processes, open_cursors, ...
 --   IHW:REQ|OPTION|<v$option parameter>|<TRUE/FALSE>
 -- Requirements: 80-FMW-Architecture/rcu_middleware_architecture.md section 9
--- Used by: 60-RCU-DB-19c/05-db_create_database.sh,
+-- Used by: 60-RCU-DB-19c/03-db_create_database.sh,
 --          09-Install/07-oracle_setup_repository.sh, 07-Maintenance/rcu_repository_check.sh
 -- =============================================================================
 SET SERVEROUTPUT ON FEEDBACK OFF VERIFY OFF HEADING OFF PAGESIZE 0 LINESIZE 300

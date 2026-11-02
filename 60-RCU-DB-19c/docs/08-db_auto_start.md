@@ -15,7 +15,7 @@ Ensure the Oracle CDB starts automatically after a system reboot:
 3. Confirm the unit is enabled
 
 PDB auto-open is **not** handled here — it relies on
-`ALTER PLUGGABLE DATABASE ALL SAVE STATE` which was set in `05-db_create_database.sh`.
+`ALTER PLUGGABLE DATABASE ALL SAVE STATE` which was set in `03-db_create_database.sh`.
 
 ---
 
@@ -111,7 +111,7 @@ ORACLE_SID=FMWCDB sqlplus / as sysdba <<< "SELECT NAME, OPEN_MODE FROM V\$PDBS;"
 
 | Script | What it starts | systemd unit |
 |---|---|---|
-| `04-db_setup_listener.sh` | TNS Listener | `oracle-listener.service` |
+| `02-db_setup_listener.sh` | TNS Listener | `oracle-listener.service` |
 | `08-db_auto_start.sh` | Oracle CDB (+ PDB via SAVE STATE) | `oracle-db.service` |
 
 Boot order: `oracle-listener.service` → `oracle-db.service`

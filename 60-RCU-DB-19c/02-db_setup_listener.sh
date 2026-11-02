@@ -1,20 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 04-db_setup_listener.sh
+# Script   : 02-db_setup_listener.sh
 # Purpose  : Create Oracle Net configuration and start the TNS Listener.
 #              - listener.ora  (TCP, host IP, port 1521)
 #              - sqlnet.ora    (basic name resolution)
 #              - tnsnames.ora  (CDB + PDB aliases)
 #              - Start LISTENER
 #              - systemd oracle-listener.service for auto-start at boot
-#            Must run BEFORE 05-db_create_database.sh — DBCA requires the
+#            Must run BEFORE 03-db_create_database.sh — DBCA requires the
 #            listener to be running for dynamic service registration.
-# Call     : ./60-RCU-DB-19c/04-db_setup_listener.sh
-#            ./60-RCU-DB-19c/04-db_setup_listener.sh --apply
-#            ./60-RCU-DB-19c/04-db_setup_listener.sh --help
+# Call     : ./60-RCU-DB-19c/02-db_setup_listener.sh
+#            ./60-RCU-DB-19c/02-db_setup_listener.sh --apply
+#            ./60-RCU-DB-19c/02-db_setup_listener.sh --help
 # Runs as  : oracle  (systemd unit install requires root — script prompts)
 # Requires : environment.conf, environment_db.conf
-# Ref      : 60-RCU-DB-19c/docs/04-db_setup_listener.md
+# Ref      : 60-RCU-DB-19c/docs/02-db_setup_listener.md
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================
@@ -137,7 +137,7 @@ info "Writing: $_listener_ora"
 cat > "$_listener_ora" << LSNEOF
 # =============================================================================
 # listener.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/02-db_setup_listener.sh
 # DO NOT EDIT manually — re-run the script to regenerate.
 # =============================================================================
 
@@ -169,7 +169,7 @@ info "Writing: $_sqlnet_ora"
 cat > "$_sqlnet_ora" << SQLEOF
 # =============================================================================
 # sqlnet.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/02-db_setup_listener.sh
 # =============================================================================
 
 NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
@@ -195,7 +195,7 @@ info "Writing: $_tnsnames_ora"
 cat > "$_tnsnames_ora" << TNSEOF
 # =============================================================================
 # tnsnames.ora
-# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/02-db_setup_listener.sh
 # =============================================================================
 
 # CDB (admin / SYS access)
@@ -263,7 +263,7 @@ _unit_tmp="$(mktemp /tmp/oracle-listener-XXXXXX.service)"
 cat > "$_unit_tmp" << UNITEOF
 # =============================================================================
 # ${_unit_name}
-# Managed by: IHateWeblogic/60-RCU-DB-19c/04-db_setup_listener.sh
+# Managed by: IHateWeblogic/60-RCU-DB-19c/02-db_setup_listener.sh
 # Install  : cp ${_unit_tmp} ${_unit_target}
 #            systemctl daemon-reload
 #            systemctl enable ${_unit_name}

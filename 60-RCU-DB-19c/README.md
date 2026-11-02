@@ -91,8 +91,8 @@ Run in this order — each step must complete before the next:
 | 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
 | 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
-| 4 | `04-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
-| 5 | `05-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
+| 2 | `02-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
+| 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
 | 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
 | 7 | `07-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
 | 7b | `07b-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
@@ -174,7 +174,7 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
   this is safe at runtime; only WLS OUI needs the smaller values during install
 
 **Separate DB server:**
-- Run only `00-root_db_os_baseline.sh` through `04-db_audit_setup.sh` here
+- Run only `00-root_db_os_baseline.sh` through `08-db_auto_start.sh` here
 - No FMW scripts needed on the DB host
 
 ---
@@ -187,9 +187,8 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
 | [docs/00b-db_cvu_check.md](docs/00b-db_cvu_check.md) | Standalone CVU: download (04- `--mos`), checks, fixups, expected findings |
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
-| [docs/02-db_patch_autoupgrade.md](docs/02-db_patch_autoupgrade.md) | DEPRECATED (merged into step 1) |
-| [docs/04-db_setup_listener.md](docs/04-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
-| [docs/05-db_create_database.md](docs/05-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
+| [docs/02-db_setup_listener.md](docs/02-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
+| [docs/03-db_create_database.md](docs/03-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
 | [docs/06-db_audit_setup.md](docs/06-db_audit_setup.md) | Unified Auditing setup |
 | [docs/07-db_fmw_tablespace.md](docs/07-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
 | [docs/07b-db_rcu_profile.md](docs/07b-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |

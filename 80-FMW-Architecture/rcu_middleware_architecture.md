@@ -330,7 +330,7 @@ Consequences:
   (FAIL with `FORCE` and no registry yet, WARN with `FORCE` and an existing
   registry), `60-RCU-DB-19c/07b-db_rcu_profile.sh` and
   `rcu_registry_overview.sql` (line `IHW:SECUREFILE|…`). Our own DB creation
-  (`60-RCU-DB-19c/05-db_create_database.sh`) does not set the parameter
+  (`60-RCU-DB-19c/03-db_create_database.sh`) does not set the parameter
   (default `PREFERRED`).
 
 Check (as DBA):
@@ -658,7 +658,7 @@ option missing, parameter below minimum → WARN. Used by:
 |---|---|
 | `09-Install/07-oracle_setup_repository.sh --check` | read-only, any (customer) DB before RCU |
 | `09-Install/07-oracle_setup_repository.sh --apply` | automatically before `-createRepository` – a FAIL stops RCU |
-| `60-RCU-DB-19c/05-db_create_database.sh` | after DBCA, in the PDB |
+| `60-RCU-DB-19c/03-db_create_database.sh` | after DBCA, in the PDB |
 | `07-Maintenance/rcu_repository_check.sh` | section 1, regularly |
 
 Live 2026-10-27 (test DB): version, EE, AL32UTF8, JVM, block size OK; the

@@ -6,7 +6,7 @@
 #            - Verify/add /etc/oratab entry (required by dbstart/dbshut)
 #            - Write oracle-db.service unit to /tmp/, prompt root to install
 #            - Depends on oracle-listener.service (listener must start first)
-#            PDB auto-open is handled via SAVE STATE (done in 05-db_create_database.sh).
+#            PDB auto-open is handled via SAVE STATE (done in 03-db_create_database.sh).
 # Call     : ./60-RCU-DB-19c/08-db_auto_start.sh
 #            ./60-RCU-DB-19c/08-db_auto_start.sh --apply
 #            ./60-RCU-DB-19c/08-db_auto_start.sh --help
