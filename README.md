@@ -366,7 +366,7 @@ operation with proactive, AI-assisted error analysis.
 │  07-Maintenance/80-patch_java_os.sh            Java/OS (read-only)  │
 │  07-Maintenance/81-patch_weblogic.sh           WebLogic patches     │
 │  07-Maintenance/82-patch_forms_reports.sh      Forms/Reports patches│
-│  60-RCU-DB-19c/02-db_patch_db_software.sh      Database patches     │
+│  60-RCU-DB-19c/01- --target-home + 09-         Database RU (o-o-p)  │
 │  01-Run/startStop.sh start-all --apply         Start after patching │
 │  07-Maintenance/restore_config.sh              Rollback on issues   │
 │  07-Maintenance/bak_cleanup.sh --apply         Old *.bak_<ts> copies│
@@ -676,8 +676,9 @@ IHateWeblogic/
 │   ├── 00a-db_env_interview.sh      – environment_db.conf from the template (interview, --check)
 │   ├── 00-root_db_os_baseline.sh    – DB-specific OS settings, preinstall RPM (auto-sudo)
 │   ├── 00b-db_cvu_check.sh          – host pre-check with the standalone CVU (patch 30839369, cluvfy -r 19)
-│   ├── 01-db_install_software.sh    – Oracle 19c software-only install (runInstaller -silent)
-│   ├── 02-db_patch_db_software.sh   – AutoUpgrade: download RU + create patched ORACLE_HOME
+│   ├── 01-db_install_software.sh    – 19c software-only install, patched in one run (gold image or
+│   │                                   base + opatch RU); --target-home = new home for 09-
+│   ├── 02-db_patch_db_software.sh   – DEPRECATED stub (points to 01- / 09-)
 │   ├── 04-db_setup_listener.sh      – Configure the TNS listener
 │   ├── 05-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
 │   │                                   local_listener without alias, requirement check)

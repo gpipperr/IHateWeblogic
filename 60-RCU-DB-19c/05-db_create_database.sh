@@ -95,6 +95,23 @@ section "Pre-checks"
     && ok "DB_ORACLE_HOME = $DB_ORACLE_HOME" \
     || { fail "DB_ORACLE_HOME not set"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
+# ORACLE_BASE: DB_DATA_DIR / DB_ADMIN_DIR / FRA derive from it; dbca itself takes
+# the base of the home from install/orabasetab (written by runInstaller in 01-)
+# - both must agree (customer 2026-11-02: /u01 paths instead of /oracle)
+ok "ORACLE_BASE = ${ORACLE_BASE:-(not set)}  (environment.conf -> environment_db.conf)"
+_oh_base="$(awk -F: -v h="$DB_ORACLE_HOME" '$1 == h { print $2 }' "$DB_ORACLE_HOME/install/orabasetab" 2>/dev/null | head -1)"
+if [ -z "$_oh_base" ]; then
+    warn "ORACLE_BASE of the home: not found in $DB_ORACLE_HOME/install/orabasetab"
+elif [ "$_oh_base" = "${ORACLE_BASE:-}" ]; then
+    ok "ORACLE_BASE of the home (orabasetab) = $_oh_base"
+else
+    fail "ORACLE_BASE of the home (orabasetab) = $_oh_base – environment has ${ORACLE_BASE:-(not set)}"
+    info "  dbca uses $_oh_base (cfgtoollogs, admin, diag); fix the config (00a-db_env_interview.sh --check)"
+    info "  or the home was installed with the wrong base -> 01-db_install_software.sh --clean --apply"
+    EXIT_CODE=2
+fi
+unset _oh_base
+
 [ -x "$DB_ORACLE_HOME/bin/dbca" ] \
     && ok "dbca found: $DB_ORACLE_HOME/bin/dbca" \
     || { fail "dbca not found – run 01-db_install_software.sh --apply first"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
@@ -110,8 +127,9 @@ section "Pre-checks"
 # --- Unified Auditing relink verification ------------------------------------
 # INFO only — DB creation works with standard auditing (uniaud_off).
 # Unified Auditing is enabled in a separate step (06-db_audit_setup.sh).
-_kzaiang_count=$(strings "$DB_ORACLE_HOME/bin/oracle" 2>/dev/null | grep -c "kzaiang" || printf "0")
-if [ "$_kzaiang_count" -gt 0 ]; then
+# grep -c prints "0" itself (rc=1) - no "|| printf 0" (gave "0 0", customer 2026-11-02)
+_kzaiang_count=$(strings "$DB_ORACLE_HOME/bin/oracle" 2>/dev/null | grep -c "kzaiang")
+if [ "${_kzaiang_count:-0}" -gt 0 ]; then
     ok "Unified Auditing: enabled in oracle binary (kzaiang: $_kzaiang_count)"
 else
     info "Unified Auditing: not yet enabled (standard auditing active — OK for DB creation)"
@@ -166,6 +184,7 @@ printList "JAVA_POOL_SIZE"    28 "${_java_pool_mb} MB  (floor for JSERVER) → 0
 printList "PGA_TARGET"        28 "${_pga_mb} MB  → post-install: ${DB_PGA_POST_MB:-512} MB"
 printList "Total memory"      28 "${_total_mb} MB"
 printList "Character set"     28 "${DB_CHAR_SET:-AL32UTF8}"
+printList "ORACLE_BASE"       28 "${ORACLE_BASE:-(not set)}"
 printList "Data dir"          28 "$DB_DATA_DIR"
 printList "Recovery Area"     28 "${DB_FAST_RECOVERY_AREA:-(disabled)}"
 printList "Admin dir"         28 "${DB_ADMIN_DIR:-$ORACLE_BASE/admin}"

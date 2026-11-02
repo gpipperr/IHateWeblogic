@@ -14,10 +14,12 @@ into the same, still unused home. No separate patching step, no `cp -a`, no
 second home.
 
 Flow:
-1. Extract the 19.3.0 base ZIP to a staging directory (`base_stage`)
+1. Extract the 19.3.0 base ZIP to a staging directory (`base_stage`) – only
+   when AutoUpgrade has to download (it is its `source_home` + Java); with
+   patch ZIPs in `patchdir` / `PATCH_STORAGE` or a gold image it is skipped
 2. Download RU + OJVM + OPatch ZIPs from MOS via AutoUpgrade
    (download is skipped if `patchdir/` already contains ZIPs)
-3. Update OPatch in staging; identify the RU dir (`bundle.xml` of a system patch, or `etc/config/inventory.xml` "Database Release Update" of the single DB RU) and OneOffs
+3. Identify the RU dir (`bundle.xml` of a system patch, or `etc/config/inventory.xml` "Database Release Update" of the single DB RU) and OneOffs
 4. Install route (details in [Installation](#installation-routes)):
    - **gold image** in `patchdir` → unpack as the home, `runInstaller`,
      OneOffs with `opatch apply`
@@ -103,7 +105,7 @@ DB_AUTOUPGRADE_HOME/
 │   ├── p6880880_*.zip     ← OPatch
 │   ├── p39915792_*.zip    ← DB RU 19.33 (inventory.xml: "Database Release Update")
 │   └── p36912638_*.zip    ← OJVM (OneOff)
-└── base_stage/            ← extracted 19.3.0 base (removed by --clean)
+└── base_stage/            ← extracted 19.3.0 base, only for the AutoUpgrade download (removed by --clean)
 ```
 
 `DB_TARGET_RU` in `environment_db.conf` controls which RU to download:

@@ -7,11 +7,13 @@
 #            no create_home, no cp-a, no separate base home.
 #
 #            Flow:
-#              1. Extract 19.3.0 base ZIP to a staging directory (base_stage)
+#              1. Extract 19.3.0 base ZIP to a staging directory (base_stage) –
+#                 ONLY when AutoUpgrade has to download (its source_home + Java);
+#                 patches in patchdir / PATCH_STORAGE or a gold image -> skipped
 #              2. Download RU + OJVM + DPBP + OPatch + DB home JDK from MOS via
 #                 AutoUpgrade (refreshed to the newest autoupgrade.jar first;
 #                 skipped if patchdir already contains ZIPs)
-#              3. Update OPatch in staging + identify RU / OneOff patch dirs
+#              3. Identify RU / OneOff patch dirs
 #              4. Route (in this order):
 #                 a) gold image in patchdir: unzip as the home, runInstaller,
 #                    OneOffs with opatch apply
@@ -23,8 +25,9 @@
 #                    "Invalid Home" – kept for research)
 #              5. root.sh prompt + chopt disable olap/rat
 #
-#            uniaud_on relink is NOT done here — it runs in 05-db_create_database.sh
-#            before DBCA (requires the complete DB home).
+#            uniaud_on relink is NOT done here – a manual step after DBCA
+#            (docs/00-concept.md, 06-db_audit_setup.sh checks it); an out-of-place
+#            patch keeps it (09-db_patch_rcu.sh relinks the new home).
 #
 # Call     : ./60-RCU-DB-19c/01-db_install_software.sh
 #            ./60-RCU-DB-19c/01-db_install_software.sh --apply
@@ -132,7 +135,13 @@ _fs_dev() { local d="$1"; while [ ! -d "$d" ] && [ "$d" != "/" ]; do d="$(dirnam
 # (19.33 gold image unpacked + OneOffs = 11 GB, live 2026-10-28)
 _home_min="${DB_HOME_MIN_FREE_GB:-12}";  _home_rec="${DB_HOME_REC_FREE_GB:-15}"
 _stage_min="${DB_STAGE_MIN_FREE_GB:-8}"; _stage_rec="${DB_STAGE_REC_FREE_GB:-14}"
-[ -f "$DB_AUTOUPGRADE_HOME/base_stage/runInstaller" ] && { _stage_min=$(( _stage_min - 6 )); _stage_rec=$(( _stage_rec - 6 )); }
+# no new base_stage when it exists already or no AutoUpgrade download is needed
+# (patch ZIPs in patchdir / PATCH_STORAGE, gold image - see section 2)
+if [ -f "$DB_AUTOUPGRADE_HOME/base_stage/runInstaller" ] \
+   || { ! $FRESH_PATCHES && ls "$DB_AUTOUPGRADE_HOME"/patchdir/p[0-9]*.zip "$DB_AUTOUPGRADE_HOME"/patchdir/db_goldimage_*.zip 2>/dev/null | grep -qv 'p6880880'; } \
+   || ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip >/dev/null 2>&1; then
+    _stage_min=$(( _stage_min - 6 )); _stage_rec=$(( _stage_rec - 6 ))
+fi
 [ "$_stage_min" -lt 2 ] && _stage_min=2; [ "$_stage_rec" -lt 4 ] && _stage_rec=4
 _disk_fail=false
 _disk_row() {   # label dir min rec
@@ -325,11 +334,22 @@ unset _dir
 
 section "Extract 19.3.0 Base ZIP → Staging"
 
-# A gold image in patchdir (downloaded before) is a complete home - the 19.3
-# base stage (~6.6 GB) is not needed then
+# base_stage (~6.6 GB) is only the source_home (and Java) of the AutoUpgrade
+# download - the install itself unpacks the base ZIP / gold image into the new
+# home. No download needed (patch ZIPs in patchdir or PATCH_STORAGE, or a gold
+# image) -> no base_stage; the base would otherwise lie on disk twice
 _GOLD_PRESENT="$(ls -1 "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
+_NEED_DOWNLOAD=true
+if ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip >/dev/null 2>&1; then
+    _NEED_DOWNLOAD=false
+elif ! $FRESH_PATCHES && { [ -n "$_GOLD_PRESENT" ] \
+        || ls "$_AU_PATCHDIR"/p[0-9]*.zip 2>/dev/null | grep -qv 'p6880880'; }; then
+    _NEED_DOWNLOAD=false
+fi
 if [ -n "$_GOLD_PRESENT" ] && ! $FRESH_PATCHES; then
     ok "Gold image present ($(basename "$_GOLD_PRESENT")) – base ZIP not needed, skipping unzip"
+elif ! $_NEED_DOWNLOAD; then
+    ok "Patch ZIPs present (patchdir / PATCH_STORAGE) – no AutoUpgrade download, base_stage not needed"
 elif [ -f "$_AU_BASE_STAGE/runInstaller" ]; then
     ok "Base already extracted (runInstaller found) — skipping unzip"
 else
@@ -366,13 +386,19 @@ unset _jbin
 [ -z "$JAVA_BIN" ] && [ -x "${DB_ORACLE_HOME_CURRENT}/jdk/bin/java" ] && JAVA_BIN="${DB_ORACLE_HOME_CURRENT}/jdk/bin/java"
 if [ -n "$JAVA_BIN" ]; then
     ok "Java found: $JAVA_BIN ($("$JAVA_BIN" -version 2>&1 | head -1))"
+elif ! $_NEED_DOWNLOAD; then
+    info "No Java for AutoUpgrade – not needed, no download"
+    JAVA_BIN=/bin/false
 else
     fail "No Java found — install java-11-openjdk (run 00-root_db_os_baseline.sh --apply)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
+unset _NEED_DOWNLOAD
 
 # TLS version: Java 8 does not support TLSv1.3 as JVM property
-if "$JAVA_BIN" -version 2>&1 | grep -q '"1\.8\.'; then
+if [ "$JAVA_BIN" = /bin/false ]; then
+    AU_TLS=""
+elif "$JAVA_BIN" -version 2>&1 | grep -q '"1\.8\.'; then
     AU_TLS="-Dhttps.protocols=TLSv1.2"
     ok "TLS mode: TLSv1.2  (Java 8 — TLSv1.3 not supported as JVM property)"
 else
@@ -607,10 +633,11 @@ unset _existing_zips
 
 section "Identify Patches"
 
-# Update OPatch in staging dir so the installer uses the latest OPatch for -applyRU
+# OPatch: the newest p6880880 goes into the new home before patching (section 6);
+# an existing base_stage (download case) gets it too
 _opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
 if [ ! -d "$_AU_BASE_STAGE/OPatch" ]; then
-    info "No base stage (gold image) – OPatch is updated in the new home"
+    info "No base_stage – OPatch ${_opatch_zip:+$(basename "$_opatch_zip") }is unpacked into the new home"
 elif [ -n "$_opatch_zip" ]; then
     info "Updating OPatch in staging dir: $(basename "$_opatch_zip") ..."
     unzip -q -o "$_opatch_zip" -d "$_AU_BASE_STAGE" 2>&1 | tee -a "$LOG_FILE"

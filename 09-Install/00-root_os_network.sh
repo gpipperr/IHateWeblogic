@@ -296,7 +296,7 @@ RESOLV_CONF="/etc/resolv.conf"
 if [ ! -f "$RESOLV_CONF" ]; then
     fail "$RESOLV_CONF not found – DNS resolution will not work"
 else
-    NS_COUNT="$(grep -c '^nameserver' "$RESOLV_CONF" 2>/dev/null || printf "0")"
+    NS_COUNT="$(grep -c '^nameserver' "$RESOLV_CONF" 2>/dev/null)"; NS_COUNT="${NS_COUNT:-0}"
     SEARCH_LINE="$(grep -E '^(search|domain)' "$RESOLV_CONF" 2>/dev/null | head -1)"
 
     printf "  %-26s %s\n" "nameserver entries:" "$NS_COUNT" \

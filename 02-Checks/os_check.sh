@@ -216,7 +216,7 @@ fi
 printf "\n"
 
 # CPU – Oracle FMW 14.1.2: min 1 CPU, DEV 2 CPU, PRD 4 CPU
-CPU_COUNT="$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 0)"
+CPU_COUNT="$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null)"; CPU_COUNT="${CPU_COUNT:-0}"
 CPU_MODEL="$(grep '^model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs)"
 printList "CPU Cores" 30 "$CPU_COUNT"
 printList "CPU Model" 30 "${CPU_MODEL:-unknown}"

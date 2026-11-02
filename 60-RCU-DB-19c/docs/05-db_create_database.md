@@ -9,16 +9,20 @@
 
 ## Purpose
 
-1. Relink the Oracle binary for Unified Auditing (`uniaud_on`) — must happen
-   before the first database is created on this ORACLE_HOME
+1. Unified Auditing (`uniaud_on`) – the script only **checks** the binary
+   (INFO) and prints the relink command; the relink itself is a manual step
+   with database and listener stopped, before `06-db_audit_setup.sh`
+   ([00-concept.md](00-concept.md), [06-db_audit_setup.md](06-db_audit_setup.md#prerequisites))
 2. Create the Container Database (FMWCDB) with one Pluggable Database (FMWPDB)
    via `dbca -silent`
 
 ---
 
-## Step 1: Unified Audit Relink
+## Step 1: Unified Audit Relink (manual, checked only)
 
-Must happen on a closed Oracle binary before any instance exists:
+Manual, on a stopped Oracle binary (database + listener down) – best right
+after DBCA, before `06-db_audit_setup.sh` (which stops with FAIL until it is
+done):
 
 ```bash
 cd $DB_ORACLE_HOME/rdbms/lib
@@ -31,8 +35,8 @@ strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang
 # must return > 0
 ```
 
-> This relink must be repeated after every Oracle RU patch.
-> `02-db_patch_db_software.sh` performs it automatically as part of the patch cycle.
+> A new home needs it again: `09-db_patch_rcu.sh` relinks the new home with
+> `uniaud_on` when the old one has it (out-of-place RU patch).
 
 ---
 
