@@ -15,7 +15,7 @@ Flow:
 1. Extract the 19.3.0 base ZIP to a staging directory (`base_stage`)
 2. Download RU + OJVM + OPatch ZIPs from MOS via AutoUpgrade
    (download is skipped if `patchdir/` already contains ZIPs)
-3. Update OPatch in staging; identify RU dir (has `bundle.xml`) and OneOffs
+3. Update OPatch in staging; identify the RU dir (`bundle.xml` of a system patch, or `etc/config/inventory.xml` "Database Release Update" of the single DB RU) and OneOffs
 4. `runInstaller -applyRU <RU_dir> [-applyOneOffs <OJVM_dir>] -silent`
    → installs directly to `DB_ORACLE_HOME`
 5. `root.sh` prompt + `chopt disable olap rat`
@@ -94,7 +94,7 @@ DB_AUTOUPGRADE_HOME/
 ├── keystore/
 ├── patchdir/              ← downloaded ZIPs (kept across runs)
 │   ├── p6880880_*.zip     ← OPatch
-│   ├── p36912597_*.zip    ← RU (has bundle.xml after extraction)
+│   ├── p39915792_*.zip    ← DB RU 19.33 (inventory.xml: "Database Release Update")
 │   └── p36912638_*.zip    ← OJVM (OneOff)
 └── base_stage/            ← extracted 19.3.0 base (removed by --clean)
 ```
@@ -227,10 +227,14 @@ rc=252 on OL9 due to an ASM client library build failure.  The `-applyRU`
 approach resolves this: the RU contains OL9-compatible makefiles, so the build
 succeeds and rc=0 is expected.
 
-### "No RU identified (no bundle.xml)"
+### "No RU identified"
 
-The RU patch ZIP, when extracted, contains a single directory with `bundle.xml`
-(DB RU 19.33 = patch **39915792**, 2.2 GB, about 5 GB unpacked). Causes:
+`01-` takes as RU the extracted directory with a `bundle.xml` (system patch,
+GI-style bundle) **or** whose `etc/config/inventory.xml` has the patch
+description "Database Release Update" – the single DB RU from MOS (19.33 =
+patch **39915792**, 2.2 GB, 5.1 GB unpacked) has **no** `bundle.xml`
+(customer 2026-11-02; until then only `bundle.xml` was accepted). The FAIL
+lists every extracted directory with size and patch description. Causes:
 
 - **Disk full while unzipping** (customer 2026-10-30: 10 GB free on the staging
   file system) – the RU directory exists but is incomplete. Since 2026-10-30

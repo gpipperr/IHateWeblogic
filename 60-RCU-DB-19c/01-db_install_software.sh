@@ -167,7 +167,7 @@ section "Pre-checks"
     || { fail "DB_INSTALL_ARCHIVE not set in environment_db.conf"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
 [ -f "$DB_INSTALL_ARCHIVE" ] \
-    && ok "Install archive found: $DB_INSTALL_ARCHIVE  ($(du -sh "$DB_INSTALL_ARCHIVE" 2>/dev/null | cut -f1))" \
+    && ok "Install archive found: $DB_INSTALL_ARCHIVE  ($(du -shL "$DB_INSTALL_ARCHIVE" 2>/dev/null | cut -f1))" \
     || { fail "Install archive not found: $DB_INSTALL_ARCHIVE"
          info "  Manual download from eDelivery (V982063-01 / LINUX.X64_193000_db_home.zip)"
          info "  Place at: \${PATCH_STORAGE}/database/LINUX.X64_193000_db_home.zip"
@@ -414,7 +414,7 @@ if [ "$_existing_zips" -gt 0 ]; then
     ok "$(printf "Patchdir has %d patch ZIP(s) — skipping download" "$_existing_zips")"
     info "  Delete $_AU_PATCHDIR/*.zip to force re-download"
     ls "$_AU_PATCHDIR"/*.zip 2>/dev/null | while IFS= read -r _z; do
-        info "  $(basename "$_z")  ($(du -sh "$_z" 2>/dev/null | cut -f1))"
+        info "  $(basename "$_z")  ($(du -shL "$_z" 2>/dev/null | cut -f1))"
     done
 else
     # --- 4a. Download autoupgrade.jar -----------------------------------------
@@ -654,17 +654,21 @@ for _zip in "$_AU_PATCHDIR"/p[0-9]*.zip; do
 done
 unset _uz_rc
 
-# Identify RU (contains bundle.xml) and OneOffs
+# Identify RU and OneOffs. RU = a system patch with bundle.xml (GI-style
+# bundle) OR a single DB RU, whose etc/config/inventory.xml says
+# "Database Release Update" – the MOS DB RU ZIP (19.33 = 39915792) has no
+# bundle.xml (customer 2026-11-02); -applyRU takes either directory
+_patch_desc() { sed -n 's/.*<patch_description>\([^<]*\).*/\1/p' "${1}etc/config/inventory.xml" 2>/dev/null | head -1; }
 _RU_DIR=""
 _ONEOFF_LIST=""
 for _pd in "$_AU_PATCH_STAGE"/*/; do
     [ -d "$_pd" ] || continue
-    if [ -f "${_pd}bundle.xml" ]; then
+    if [ -f "${_pd}bundle.xml" ] || [[ "$(_patch_desc "$_pd")" == "Database Release Update"* ]]; then
         _RU_DIR="${_pd%/}"
-        ok "$(printf "RU identified  : %s" "$(basename "$_RU_DIR")")"
+        ok "$(printf "RU identified  : %s  %s" "$(basename "$_RU_DIR")" "$(_patch_desc "$_pd")")"
     else
         _ONEOFF_LIST="${_ONEOFF_LIST:+${_ONEOFF_LIST},}${_pd%/}"
-        ok "$(printf "OneOff         : %s" "$(basename "${_pd%/}")")"
+        ok "$(printf "OneOff         : %s  %s" "$(basename "${_pd%/}")" "$(_patch_desc "$_pd")")"
     fi
 done
 
@@ -673,13 +677,12 @@ done
 # unzip it as the new home and run ITS runInstaller with the OneOffs only
 _GOLD_ZIP="$(ls -1t "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
 if [ -z "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
-    ok "$(printf "Gold image     : %s  (%s)" "$(basename "$_GOLD_ZIP")" "$(du -sh "$_GOLD_ZIP" 2>/dev/null | cut -f1)")"
+    ok "$(printf "Gold image     : %s  (%s)" "$(basename "$_GOLD_ZIP")" "$(du -shL "$_GOLD_ZIP" 2>/dev/null | cut -f1)")"
 elif [ -z "$_RU_DIR" ]; then
-    fail "No RU patch identified (no bundle.xml found in patch_stage subdirectories)"
-    info "  Expected: a patch ZIP that extracts to a dir containing bundle.xml (DB RU 19.33 = 39915792, 2.2 GB)"
+    fail "No RU patch identified in patch_stage (no bundle.xml, no \"Database Release Update\" in etc/config/inventory.xml)"
+    info "  Expected: the DB RU ZIP (19.33 = 39915792, 2.2 GB) – patches found:"
     for _pd in "$_AU_PATCH_STAGE"/*/; do
-        [ -d "$_pd" ] && info "$(printf "    %-10s %6s  %s" "$(basename "$_pd")" "$(du -sh "$_pd" 2>/dev/null | cut -f1)" \
-            "$(sed -n 's/.*<title>\(.*\)<\/title>.*/\1/p' "${_pd}README.html" 2>/dev/null | head -1)")"
+        [ -d "$_pd" ] && info "$(printf "    %-10s %6s  %s" "$(basename "$_pd")" "$(du -sh "$_pd" 2>/dev/null | cut -f1)" "$(_patch_desc "$_pd")")"
     done
     info "  Patchdir: $_AU_PATCHDIR"
     info "  Delete patchdir ZIPs and re-run --apply to trigger fresh download"

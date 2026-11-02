@@ -12,7 +12,7 @@
 # DB RU: AutoUpgrade "RECOMMENDED" delivers a gold image (db_goldimage_19_33_*.zip,
 #   4.9 GB, no MOS patch number) instead of the RU ZIP - the offline route needs the
 #   RU row below (39915792 = DATABASE RELEASE UPDATE 19.33.0.0.0, 2.2 GB, SHA-256
-#   from MOS 2026-10-30; 01- finds it by bundle.xml after unzip, unpacked ~5 GB).
+#   from MOS 2026-10-30; 01- finds it by "Database Release Update" in etc/config/inventory.xml – no bundle.xml; unpacked 5.1 GB).
 patch;platform;file_regexp;required;step;description;dir;sha256
 6880880;226P;p6880880_190000_Linux-x86-64\.zip;yes;db_opatch;OPatch 12.2.0.1.55 for DB 19c (same file name every release);database/patches/6880880;8fd0d738032626d4455a8a67004c6576ef0bb62870b49758a1b1fb4b34046fde
 39915792;226P;p39915792_190000_Linux-x86-64\.zip;yes;db_ru;Database Release Update 19.33.0.0.0 (offline route; AutoUpgrade online uses a gold image);database/patches/39915792;48622ec346168e9d3bed96d1abdeca43feb691c94df8de6168c8dadf8129dc0a
