@@ -12,11 +12,23 @@ Create the Oracle Net configuration and start the TNS Listener.
 Must run **before** `03-db_create_database.sh` — DBCA requires the listener
 to be running for dynamic service registration.
 
-1. Write `listener.ora` (TCP, configured host, port 1521)
+0. Pre-checks: `lsnrctl` in the DB home (FAIL otherwise), listener host
+   (`DB_LISTENER_HOST`, empty = `hostname -f`) resolved with `getent hosts` –
+   loopback → WARN. **Dry-run** ends here (host, port, home, `network/admin`).
+1. Write `listener.ora` (TCP, listener host, `DB_LISTENER_PORT`)
 2. Write `sqlnet.ora` (basic name resolution, connect timeout)
 3. Write `tnsnames.ora` (CDB + PDB aliases)
-4. Start LISTENER (or reload if already running)
-5. Install `oracle-listener.service` systemd unit for auto-start at boot
+   – existing files are saved first (`backup_file`), all three `chmod 640`
+4. Start LISTENER (or reload if already running) with
+   `TNS_ADMIN=$DB_ORACLE_HOME/network/admin` – the oracle profile exports the
+   shared `TNS_ADMIN` without a `listener.ora` (fixed 2026-11-02; before, the
+   listener could start with defaults)
+5. Write the `oracle-listener.service` unit to a temp file, print the root
+   commands, ask for confirmation (not confirmed → WARN, temp file kept)
+6. Next step hint: `03-db_create_database.sh`
+
+After `01-db_install_software.sh --clean` the home – and with it
+`network/admin/listener.ora` – is gone: run `02-` again.
 
 ---
 
@@ -82,6 +94,75 @@ systemctl daemon-reload
 systemctl enable --now oracle-listener
 ```
 
+Unit content (`<home>` = `DB_ORACLE_HOME`):
+
+```ini
+[Unit]
+Description=Oracle TNS Listener (<host>:<port>)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=oracle
+Group=oinstall
+Environment=ORACLE_HOME=<home>
+Environment=ORACLE_BASE=<ORACLE_BASE>
+ExecStart=<home>/bin/lsnrctl start LISTENER
+ExecStop=<home>/bin/lsnrctl stop LISTENER
+ExecReload=<home>/bin/lsnrctl reload LISTENER
+RemainAfterExit=yes
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Without `TNS_ADMIN` in the unit the listener reads `<home>/network/admin`.
 The unit contains the home path – after an out-of-place patch see
 [08-db_auto_start.md](08-db_auto_start.md) / [09-db_patch_rcu.md](09-db_patch_rcu.md).
+
+---
+
+## Manual installation (same order as the script)
+
+```bash
+export ORACLE_HOME=$DB_ORACLE_HOME TNS_ADMIN=$DB_ORACLE_HOME/network/admin
+cd $TNS_ADMIN
+cat > listener.ora <<'ORA'
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = <host>)(PORT = 1521))
+    )
+  )
+ORA
+cat > sqlnet.ora <<'ORA'
+NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
+SQLNET.OUTBOUND_CONNECT_TIMEOUT = 10
+ORA
+cat > tnsnames.ora <<'ORA'
+FMWCDB =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = <host>)(PORT = 1521))
+    (CONNECT_DATA = (SERVER = DEDICATED)(SERVICE_NAME = FMWCDB)))
+FMWPDB =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = <host>)(PORT = 1521))
+    (CONNECT_DATA = (SERVER = DEDICATED)(SERVICE_NAME = FMWPDB)))
+ORA
+chmod 640 listener.ora sqlnet.ora tnsnames.ora
+$ORACLE_HOME/bin/lsnrctl status LISTENER >/dev/null && $ORACLE_HOME/bin/lsnrctl reload LISTENER \
+    || $ORACLE_HOME/bin/lsnrctl start LISTENER
+# as root: unit above to /etc/systemd/system/oracle-listener.service, then
+systemctl daemon-reload && systemctl enable --now oracle-listener
+```
+
+## Next step
+
+```bash
+./60-RCU-DB-19c/03-db_create_database.sh            # dry-run first
+./60-RCU-DB-19c/03-db_create_database.sh --apply
+```
 

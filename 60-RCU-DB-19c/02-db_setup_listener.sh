@@ -112,6 +112,9 @@ printList "ORACLE_HOME"     28 "$DB_ORACLE_HOME"
 
 _net_admin="$DB_ORACLE_HOME/network/admin"
 printList "network/admin"   28 "$_net_admin"
+# lsnrctl must read the files written below - the oracle profile exports the
+# shared TNS_ADMIN ($ORACLE_BASE/admin/tns_names, no listener.ora there)
+export TNS_ADMIN="$_net_admin"
 
 # =============================================================================
 # Dry-run exit
@@ -266,7 +269,7 @@ cat > "$_unit_tmp" << UNITEOF
 # Managed by: IHateWeblogic/60-RCU-DB-19c/02-db_setup_listener.sh
 # Install  : cp ${_unit_tmp} ${_unit_target}
 #            systemctl daemon-reload
-#            systemctl enable ${_unit_name}
+#            systemctl enable --now ${_unit_name}
 # =============================================================================
 [Unit]
 Description=Oracle TNS Listener (${_listener_host}:${_listener_port})
@@ -319,6 +322,8 @@ unset _unit_name _unit_target _unit_tmp
 
 unset _listener_host _listener_port _net_admin
 unset _listener_ora _sqlnet_ora _tnsnames_ora _resolved_ip
+
+info "Next step: 03-db_create_database.sh   (dry-run first, then --apply)"
 
 print_summary
 exit $EXIT_CODE
