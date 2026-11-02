@@ -3,6 +3,9 @@
 **Script:** `60-RCU-DB-19c/00b-db_cvu_check.sh`
 **Runs as:** `oracle`
 **Phase:** after `00-root_db_os_baseline.sh`, before `01-db_install_software.sh`
+**Requires:** `environment_db.conf` (FATAL otherwise, hint
+`00a-db_env_interview.sh --apply`); runs as `ORACLE_OS_USER` (else exit 2) –
+in a **new login** after `00-` added oracle to `dba` / `oper`
 
 ---
 
@@ -39,7 +42,8 @@ Separate DB server (`LOCAL_REP_DB=false` on the FMW host): 04- skips the CVU –
 download it by hand on the DB host, or temporarily with
 `LOCAL_REP_DB=true`, and copy the ZIP into `DB_CVU_DIR` there.
 
-Patch number: `DB_CVU_PATCH_NR` = role `cvu` in `09-Install/download/patches_fmw.csv`.
+Patch number: `DB_CVU_PATCH_NR` = role `cvu` in `09-Install/download/patches_fmw.csv`
+(loaded via `oracle_software_version.conf`; empty → the script uses `30839369`).
 
 **The Linux patch holds five ZIPs** (confirmed live 2026-10-27 – 810 MB when
 getMOSPatch takes all of them):
@@ -55,9 +59,10 @@ getMOSPatch takes all of them):
 `DB_CVU_REGEXP` (`p30839369_[0-9]+_Linux-x86-64\.zip`) restricts getMOSPatch to
 the 26ai kit; the script picks the same file (newest version) and falls back
 to `cvupack_linux_ol7*.zip` only when it is missing. getMOSPatch compares the
-regexp with the file name **without** `.zip` – `04-` strips the trailing
-`\.zip` before the call (fixed 2026-10-28; before, the filter never matched and
-the download relied on the directory being filled otherwise).
+regexp with the file name **without** `.zip` – `mos_patch_download.sh` (called
+by `04-oracle_pre_download.sh --mos`) strips the trailing `\.zip` before the
+call (fixed 2026-10-28; before, the filter never matched and the download
+relied on the directory being filled otherwise).
 By hand: MOS → patch 30839369 → platform Linux x86-64 → into
 `DB_CVU_DIR` (`environment_db.conf`, default `$PATCH_STORAGE/database/cvu`).
 
@@ -65,12 +70,27 @@ By hand: MOS → patch 30839369 → platform Linux x86-64 → into
 
 | Mode | Action |
 |---|---|
-| (none) | dry-run: archive found?, free space, the cluvfy command |
-| `--apply` | unpack the ZIP into `DB_CVU_HOME` once (default `$ORACLE_BASE/cvu`, ≥ 500 MB free – the 26ai kit needs 280 MB), set `CV_ORACLE_RELEASE=19` in `cv/admin/cvu_config`, disk check (DB home 8 GB, data files 4 GB – README sizing), run `cluvfy comp sys -n <host> -p database -r 19 -fixup -verbose` |
+| (none) | dry-run: CVU archive (or existing CV home), free space for the CV home (≥ 500 MB when not unpacked yet – the 26ai kit needs 280 MB), the DB home (`DB_HOME_MIN_FREE_GB`, 12 GB) and the data files (8 GB), the unzip + cluvfy commands |
+| `--apply` | additionally: unpack once into `DB_CVU_HOME` (default `$ORACLE_BASE/cvu`; an inner `cvupack*.zip` is unpacked too), `CV_ORACLE_RELEASE=19` in `cv/admin/cvu_config` (backup), run `cluvfy comp sys -n <host> -p database -r 19 -fixup -verbose` |
 
-Every `Verifying <item> ...PASSED / WARNING / FAILED` line becomes OK / WARN /
-FAIL (with the `PRVF-…` / `PRVG-…` code); the full output is in
-`log/<date>/cvu_pre_<time>.txt` / `cvu_post_<time>.txt`.
+Every item line (26ai: `  <item> ...PASSED|WARNING|FAILED|IGNORED`; 21c:
+`Verifying <item> ...`) becomes OK / WARN / FAIL (with the `PRVF-…` /
+`PRVG-…` code); the summary block is skipped. The full output is in
+`log/<date>/cvu_pre_<time>.txt`. Result: OK "only the expected findings
+failed – host ready for 01-"; FAIL when CVU rejected the call (output starts
+with `ERROR:`); WARN "no verification result found" with the last 15 lines.
+
+### By hand
+
+```bash
+mkdir -p $ORACLE_BASE/cvu
+unzip -q -o $PATCH_STORAGE/database/cvu/p30839369_2326000_Linux-x86-64.zip -d $ORACLE_BASE/cvu
+#   (only a cvupack*.zip inside? unzip that one into $ORACLE_BASE/cvu as well)
+sed -i '/^#\{0,1\}[[:space:]]*CV_ORACLE_RELEASE=/d' $ORACLE_BASE/cvu/cv/admin/cvu_config
+echo 'CV_ORACLE_RELEASE=19' >> $ORACLE_BASE/cvu/cv/admin/cvu_config
+$ORACLE_BASE/cvu/bin/cluvfy comp sys -n $(hostname -s) -p database -r 19 -fixup -verbose | tee cvu_pre.txt
+#   runfixup.sh generated? review it, then run it as root
+```
 
 `-r 19`: the CVU checks against its own release (26ai / 21c) by default; the
 script sets both the option and `CV_ORACLE_RELEASE=19`, so a manual `cluvfy`
@@ -93,13 +113,15 @@ expected, the script reports them as WARN with the reason:
 | Item | CVU message | Why it is expected | Action |
 |---|---|---|---|
 | (header) | "Reference data is not available for release 19 on … Linux OL9. Using … Linux OL7 reference data." | CVU has no 19c reference data for OL9 yet and checks against OL7 | none – the OL7 package names below follow from it |
-| `Package: compat-libcap1-1.10` | PRVF-7532 missing | the package does not exist on OL9; `oracle-database-preinstall-19c` for OL9 does not require it | none |
+| `Package: compat-libcap1-1.10` | PRVF-7532 missing | the package does not exist on OL9; `oracle-database-preinstall-19c` for OL9 does not require it (WARN only on OL9 – `el9` in `/proc/version`) | none |
 | `Swap Size` | PRVF-7573 required 16 GB, found 2 GB | CVU rule for RAM > 16 GB (test host 18.6 GB); sized for a full database, the RCU repository runs with SGA 1.5 GB | test host: accept; production: add swap (or size by the DB's real memory) |
 
 PASSED on OL9: memory, `/tmp` space, oracle user / groups `oinstall` + `dba`,
 run level, architecture, kernel version, **all kernel parameters**
 (sem*, shm*, file-max, ip_local_port_range, rmem / wmem, aio-max-nr – set by
-`00-root_db_os_baseline.sh`) and all other packages (binutils, glibc(-devel),
+`00-` / the preinstall RPM / the FMW baseline, see
+[00-db_os_baseline.md](00-db_os_baseline.md#effective-values-the-last-file-wins))
+and all other packages (binutils, glibc(-devel),
 libaio(-devel), libstdc++(-devel), ksh, make, sysstat, smartmontools,
 net-tools, kmod). No fixup script was generated ("No fixable verification
 failures to fix").
@@ -132,5 +154,6 @@ check. The installed home is verified by `01-` itself (`opatch lspatches`,
 ## Next step
 
 ```bash
+./60-RCU-DB-19c/01-db_install_software.sh            # dry-run first
 ./60-RCU-DB-19c/01-db_install_software.sh --apply
 ```

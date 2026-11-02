@@ -122,8 +122,9 @@ else
     fi
 fi
 
-# Disk for the DB itself (README sizing: software 8 GB, data files 4 GB)
-for _spec in "DB_ORACLE_HOME:${DB_ORACLE_HOME}:8192" "DB_DATA_DIR:${DB_DATA_DIR:-$ORACLE_BASE/oradata}:4096"; do
+# Disk for the DB itself (README sizing: one patched home DB_HOME_MIN_FREE_GB
+# = 12 GB, data files 8 GB; the full staging check is done by 01-)
+for _spec in "DB_ORACLE_HOME:${DB_ORACLE_HOME}:$(( ${DB_HOME_MIN_FREE_GB:-12} * 1024 ))" "DB_DATA_DIR:${DB_DATA_DIR:-$ORACLE_BASE/oradata}:8192"; do
     IFS=: read -r _lbl _dir _need <<< "$_spec"
     _probe="$_dir"; while [ ! -d "$_probe" ] && [ "$_probe" != "/" ]; do _probe="$(dirname "$_probe")"; done
     _free_mb="$(df -Pm "$_probe" 2>/dev/null | awk 'NR==2{print $4}')"
