@@ -250,8 +250,9 @@ cat > "$SYSCTL_FILE" << SYSCTLEOF
 # =============================================================================
 
 # --- Shared memory (calculated from RAM: ${RAM_KB} kB) ----------------------
-# Overrides the WLS-OUI-sized values from 09-Install/01-root_os_baseline.sh.
-# WLS runtime does NOT need the smaller values — only WLS OUI during install.
+# NOTE: sysctl --system loads /etc/sysctl.d/ in lexical order, the LAST file
+# wins - 99-oracle-fmw.conf / 99-oracle-database-preinstall-19c-sysctl.conf
+# override this 60- file (docs/00-db_os_baseline.md "Effective values").
 kernel.shmmax = ${SHMMAX}
 kernel.shmall = ${SHMALL}
 kernel.shmmni = 4096
@@ -316,15 +317,15 @@ cat > "$LIMITS_FILE" << LIMITSEOF
 # Managed by: IHateWeblogic/60-RCU-DB-19c/00-root_db_os_baseline.sh
 # Reference : 60-RCU-DB-19c/docs/00-db_os_baseline.md
 # =============================================================================
-oracle  soft  nofile    131072
-oracle  hard  nofile    131072
-oracle  soft  nproc     131072
-oracle  hard  nproc     131072
-oracle  soft  core      unlimited
-oracle  hard  core      unlimited
-oracle  soft  memlock   50000000
-oracle  hard  memlock   50000000
-oracle  soft  stack     10240
+${ORACLE_OS_USER:-oracle}  soft  nofile    131072
+${ORACLE_OS_USER:-oracle}  hard  nofile    131072
+${ORACLE_OS_USER:-oracle}  soft  nproc     131072
+${ORACLE_OS_USER:-oracle}  hard  nproc     131072
+${ORACLE_OS_USER:-oracle}  soft  core      unlimited
+${ORACLE_OS_USER:-oracle}  hard  core      unlimited
+${ORACLE_OS_USER:-oracle}  soft  memlock   50000000
+${ORACLE_OS_USER:-oracle}  hard  memlock   50000000
+${ORACLE_OS_USER:-oracle}  soft  stack     10240
 LIMITSEOF
 
 chmod 644 "$LIMITS_FILE"
@@ -388,13 +389,13 @@ fi
 # =============================================================================
 # On a separate DB server (no FMW installed) 03-root_user_oracle.sh has not run,
 # so /etc/oraInst.loc does not yet exist.  Create it here using ORACLE_INVENTORY
-# from environment_db.conf (or environment.conf if available).
+# of environment.conf (this root script reads only environment.conf).
 # On a shared host where 03-root_user_oracle.sh already ran, this is a no-op.
 
 section "Oracle Central Inventory (/etc/oraInst.loc)"
 
-# ORACLE_INVENTORY may come from environment.conf (FMW install) or
-# environment_db.conf; derive from ORACLE_BASE parent if not set.
+# ORACLE_INVENTORY from environment.conf; derived from the ORACLE_BASE parent
+# if not set.
 _ORA_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
 printList "ORACLE_INVENTORY" 26 "$_ORA_INVENTORY"
 
@@ -422,7 +423,9 @@ else
     info "$ORA_INST_ETC not found — will create"
     if $APPLY; then
         mkdir -p "$_ORA_INVENTORY"
-        chmod 750 "$_ORA_INVENTORY"
+        # owned by the software owner - the installer (oracle) writes it
+        chown "${ORACLE_OS_USER:-oracle}:oinstall" "$_ORA_INVENTORY"
+        chmod 770 "$_ORA_INVENTORY"
         printf "inventory_loc=%s\ninst_group=oinstall\n" "$_ORA_INVENTORY" > "$ORA_INST_ETC"
         chmod 644 "$ORA_INST_ETC"
         ok "Created: $ORA_INST_ETC  (inventory: $_ORA_INVENTORY)"
