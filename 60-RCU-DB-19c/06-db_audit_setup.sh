@@ -363,7 +363,19 @@ BEGIN
             DBMS_AUDIT_MGMT.SET_LAST_ARCHIVE_TIMESTAMP(
                 audit_trail_type  => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
                 last_archive_time => SYSTIMESTAMP - ${_retain});
-            DBMS_STATS.GATHER_TABLE_STATS(''AUDSYS'', ''AUD\$UNIFIED'');
+            -- stats for the purge DELETE; own block: a stats error must not
+            -- fail the job (the archive timestamp above is what matters).
+            -- ORA-20000 seen sporadically under load (partition dropped /
+            -- added by purge or audit writes while gathering) -> 3 tries
+            FOR i IN 1 .. 3 LOOP
+                BEGIN
+                    DBMS_STATS.GATHER_TABLE_STATS(ownname => ''AUDSYS'', tabname => ''AUD\$UNIFIED'');
+                    EXIT;
+                EXCEPTION WHEN OTHERS THEN
+                    SYS.DBMS_SYSTEM.KSDWRT(2, ''FMW_AUDIT_ARCHIVE_TS: stats AUDSYS.AUD\$UNIFIED try '' || i || '' failed: '' || SQLERRM);
+                    IF i < 3 THEN DBMS_SESSION.SLEEP(120); END IF;
+                END;
+            END LOOP;
         END;',
         repeat_interval => 'FREQ=DAILY;BYHOUR=2;BYMINUTE=0',
         enabled         => TRUE,
