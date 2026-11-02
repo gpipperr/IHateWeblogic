@@ -139,8 +139,12 @@ section "Create Tablespace: $_ts_name"
 
 mkdir -p "$_data_dir"
 
-"$SQLPLUS" -S /nolog << SQLEOF 2>&1 | tee -a "$LOG_FILE"
+# SERVEROUTPUT for the created/skipping message; an SQL error ends sqlplus with
+# rc<>0 (before: rc 0 and "created/verified" even after ORA-01119 / ORA-01543)
+_ts_out="$("$SQLPLUS" -S /nolog << SQLEOF 2>&1
 CONNECT / AS SYSDBA
+SET SERVEROUTPUT ON
+WHENEVER SQLERROR EXIT SQL.SQLCODE
 ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
 
 DECLARE
@@ -173,10 +177,16 @@ FROM DBA_DATA_FILES WHERE TABLESPACE_NAME = UPPER('${_ts_name}');
 
 EXIT;
 SQLEOF
-
-_sql_rc=${PIPESTATUS[0]}
-[ "$_sql_rc" -eq 0 ] && ok "Tablespace $DB_FMW_TABLESPACE created/verified" \
-    || { warn "SQL returned rc=$_sql_rc – review log"; EXIT_CODE=1; }
+)"
+_sql_rc=$?
+printf '%s\n' "$_ts_out" | tee -a "$LOG_FILE"
+if [ "$_sql_rc" -eq 0 ] && ! printf '%s\n' "$_ts_out" | grep -q 'ORA-'; then
+    ok "Tablespace $_ts_name created/verified"
+else
+    fail "Tablespace $_ts_name: SQL rc=$_sql_rc $(printf '%s\n' "$_ts_out" | grep -m1 'ORA-')"
+    EXIT_CODE=2
+fi
+unset _ts_out _sql_rc
 
 # =============================================================================
 # Update environment.conf with RCU_TABLESPACE
@@ -190,19 +200,20 @@ if grep -q "^RCU_TABLESPACE=" "$ENV_CONF"; then
         ok "RCU_TABLESPACE already set to '$_ts_name' in environment.conf"
     else
         backup_file "$ENV_CONF" "$(dirname "$ENV_CONF")"
-        sed -i "s|^RCU_TABLESPACE=.*|RCU_TABLESPACE=\"${_ts_name}\"|" "$ENV_CONF"
+        sed -i --follow-symlinks "s|^RCU_TABLESPACE=.*|RCU_TABLESPACE=\"${_ts_name}\"|" "$ENV_CONF"
         ok "RCU_TABLESPACE updated to '$_ts_name' in environment.conf"
     fi
 else
-    info "RCU_TABLESPACE not found in environment.conf – run init_env.sh --apply to add it"
+    warn "RCU_TABLESPACE not found in environment.conf – add it (00-Setup/init_env.sh --apply or the interview, block 4), then run 05- again"
 fi
 unset _current_val
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: run RCU against the PDB"
-info "  09-Install/07-oracle_setup_repository.sh --apply"
-info ""
-info "  DB_SERVICE in environment.conf must point to: ${DB_PDB_NAME}"
+info "Next steps:"
+info "  60-RCU-DB-19c/06-db_rcu_profile.sh --apply      (profile RCU_USER)"
+info "  60-RCU-DB-19c/08-db_auto_start.sh --apply       (autostart)"
+info "  09-Install/07-oracle_setup_repository.sh --apply (RCU)"
+info "  DB_SERVICE in environment.conf must be the PDB service: ${DB_PDB_NAME}"
 
 unset _ts_name _ts_size _data_dir _ts_file
 

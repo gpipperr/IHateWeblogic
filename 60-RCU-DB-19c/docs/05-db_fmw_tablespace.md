@@ -17,6 +17,17 @@ RCU schema storage.
 - If `DB_FMW_TABLESPACE` is **set**: create the tablespace, then update
   `RCU_TABLESPACE` in `environment.conf` to match.
 
+```bash
+./60-RCU-DB-19c/05-db_fmw_tablespace.sh            # dry-run (needs the running DB)
+./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
+```
+
+Flow: database reachable as SYSDBA (exit 2 otherwise, also in the dry-run) →
+dry-run ends → `mkdir -p` of the data file directory → `CREATE TABLESPACE`
+in the PDB (an existing tablespace is skipped; an SQL error is a FAIL –
+`WHENEVER SQLERROR`, since 2026-11-02) → `RCU_TABLESPACE` in
+`environment.conf` set (backup first, symlink followed).
+
 ---
 
 ## When to use
@@ -49,7 +60,26 @@ RCU_TABLESPACE=FMW_DATA
 
 The script sets `RCU_TABLESPACE` automatically if the line already exists
 in `environment.conf` – `09-Install/01-setup-interview.sh` writes it (block 4,
-empty by default).
+empty by default). If the line is missing, the script only WARNs – add it
+with `00-Setup/init_env.sh --apply` (or the interview) and run `05-` again.
+`DB_SERVICE` in `environment.conf` must be the PDB service (`DB_PDB_NAME`).
+
+---
+
+## Manual equivalent
+
+```sql
+sqlplus / as sysdba
+ALTER SESSION SET CONTAINER = FMWPDB;
+CREATE TABLESPACE "FMW_DATA"
+  DATAFILE '<DB_DATA_DIR>/<CDB>/<PDB>/fmw_data01.dbf' SIZE 500M
+  AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED
+  EXTENT MANAGEMENT LOCAL AUTOALLOCATE SEGMENT SPACE MANAGEMENT AUTO;
+```
+
+Data file: `${DB_DATA_DIR}/${DB_CDB_NAME}/${DB_PDB_NAME}/<lower-case name>01.dbf`
+(directory created with `mkdir -p` first). Then in `environment.conf`:
+`RCU_TABLESPACE="FMW_DATA"`.
 
 ---
 
