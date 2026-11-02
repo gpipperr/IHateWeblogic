@@ -63,7 +63,7 @@ Set `DB_LISTENER_HOST` to the external hostname or IP in `environment_db.conf`.
 The instance registers with this listener through `local_listener`, which
 `03-db_create_database.sh` sets to the explicit address (not the DBCA alias
 `LISTENER_<SID>`) – see
-[03-db_create_database.md](03-db_create_database.md#step-4-post-creation-parameter-tuning).
+[03-db_create_database.md](03-db_create_database.md#post-creation-parameter-tuning).
 
 ---
 

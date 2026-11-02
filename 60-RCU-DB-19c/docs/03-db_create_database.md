@@ -3,36 +3,59 @@
 **Script:** `60-RCU-DB-19c/03-db_create_database.sh`
 **Runs as:** `oracle`
 **Phase:** Create the CDB + PDB
-**Requires:** Listener running — `02-db_setup_listener.sh` must have run first.
-
----
-
-## Purpose
-
-1. Unified Auditing (`uniaud_on`) – the script only **checks** the binary
-   (INFO) and prints the relink command; the relink itself is a manual step
-   with database and listener stopped, before `04-db_audit_setup.sh`
-   ([00-concept.md](00-concept.md), [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites))
-2. Create the Container Database (FMWCDB) with one Pluggable Database (FMWPDB)
-   via `dbca -silent`
-
----
-
-## Step 1: Unified Audit Relink (manual, checked only)
-
-Manual, on a stopped Oracle binary (database + listener down) – best right
-after DBCA, before `04-db_audit_setup.sh` (which stops with FAIL until it is
-done):
+**Requires:** listener running (`02-db_setup_listener.sh`),
+`environment_db.conf`, `db_sys_sec.conf.des3` (`00-Setup/database_rcu_sec.sh
+--apply`), the DB home from `01-` (root.sh done)
 
 ```bash
-cd $DB_ORACLE_HOME/rdbms/lib
-make -f ins_rdbms.mk uniaud_on ioracle
+./60-RCU-DB-19c/03-db_create_database.sh                  # dry-run: checks + configuration
+./60-RCU-DB-19c/03-db_create_database.sh --apply          # create CDB + PDB + post-config
+./60-RCU-DB-19c/03-db_create_database.sh --clean          # dry-run: what --clean --apply removes
+./60-RCU-DB-19c/03-db_create_database.sh --clean --apply  # delete the DB + files, then create again
 ```
 
-Verify:
+---
+
+## Flow (as in the script)
+
+1. **Pre-checks** – `DB_ORACLE_HOME`; `ORACLE_BASE` (environment.conf →
+   environment_db.conf) must equal the base recorded for the home in
+   `$DB_ORACLE_HOME/install/orabasetab` – dbca uses that one for cfgtoollogs
+   / admin / diag (mismatch = FAIL with the hints `00a-db_env_interview.sh
+   --check` / `01-db_install_software.sh --clean --apply`; customer
+   2026-11-02); `dbca` and `lsnrctl` present; listener running (FAIL);
+   `uniaud_on` state of the binary (INFO only, see
+   [Unified Audit relink](#unified-audit-relink-manual-checked-only));
+   `DB_SID`, `DB_CDB_NAME`, `DB_PDB_NAME`, `DB_DATA_DIR` set; credentials file
+2. **Existing database** – `DB_DATA_DIR/<CDB>` exists: dry-run WARN;
+   `--apply` without `--clean` stops with FAIL (DBCA is not started)
+3. Configuration summary – **dry-run ends here**
+4. Credentials: `DB_SYS_PWD` from `db_sys_sec.conf.des3`; `DB_SYSTEM_PWD` /
+   `DB_PDB_ADMIN_PWD` default to it (override in `environment_db.conf`)
+5. `--clean`: `dbca -silent -deleteDatabase -sourceDB <SID>` (errors
+   ignored), `rm -rf` of `DB_DATA_DIR/<CDB>`, `DB_ADMIN_DIR/<CDB>`,
+   `DB_FAST_RECOVERY_AREA/<CDB>`
+6. Directories: `mkdir -p $DB_DATA_DIR $DB_ADMIN_DIR/<CDB>/adump [$DB_FAST_RECOVERY_AREA]`
+7. DBCA (below)
+8. Post-creation parameters, `local_listener`, `max_string_size`, PDB save state
+9. `MAX_STRING_SIZE=EXTENDED` migration in every container (`utl32k` via
+   catcon), `utlrp` via catcon
+10. Memory resize to the operating values
+11. `/etc/oratab` (DBCA normally writes `<SID>:<home>:N` itself – the script
+    then reports "already exists"; `08-db_auto_start.sh` sets `Y`)
+12. Verification + RCU requirements check in the PDB, next-step hints
+
+---
+
+## Unified Audit relink (manual, checked only)
+
+`03-` only **checks** the binary (`kzaiang`, INFO) and prints the relink
+command; the relink is a manual step with database and listener stopped –
+right after DBCA, before `04-db_audit_setup.sh` (which stops with FAIL until
+it is done). Commands: [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites).
+
 ```bash
-strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang
-# must return > 0
+strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang    # > 0 = linked
 ```
 
 > A new home needs it again: `09-db_patch_rcu.sh` relinks the new home with
@@ -40,69 +63,41 @@ strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang
 
 ---
 
-## Step 2: Listener (netca silent)
+## Listener
 
-```bash
-$DB_ORACLE_HOME/bin/netca -silent -responseFile \
-    $DB_ORACLE_HOME/assistants/netca/netca.rsp
-```
-
-Or via dbca which creates the listener automatically if `createListener=true`.
-
-Default: `LISTENER` on port `1521`.
+Prerequisite, not part of this script: `02-db_setup_listener.sh` writes
+`listener.ora` / `sqlnet.ora` / `tnsnames.ora` in
+`$DB_ORACLE_HOME/network/admin` and starts `LISTENER`. `03-` stops with FAIL
+if `lsnrctl status LISTENER` fails. No netca.
 
 ---
 
-## Step 3: DBCA Silent — Minimal CDB + PDB
-
-### Design goals for minimal footprint
-
-Source: Oracle FMW 14.1.2 System Requirements (Doc ID 2605929.1) and RCU Guide.
+## DBCA Silent — Minimal CDB + PDB
 
 | Parameter | Value | Reason |
 |---|---|---|
-| `SGA_TARGET` | `1536M` | Minimum for stable PL/SQL compilation during RCU |
-| `PGA_AGGREGATE_TARGET` | `512M` | Parallel RCU sessions; sort/hash operations |
-| `DB_BLOCK_SIZE` | `8192` | FMW default; do not change |
-| Character set | `AL32UTF8` | **Mandatory here** — RCU itself only warns ("strongly recommends"), Forms/Reports Unicode and APEX need it |
-| National char set | `AL16UTF16` | Oracle default |
-| `PROCESSES` | `1000` | RCU minimum of FMW 14.1.2 (static) |
-| `OPEN_CURSORS` | `1600` | RCU minimum of FMW 14.1.2 (CDB and PDB) |
-| `SESSION_CACHED_CURSORS` | `100` | RCU minimum of FMW 14.1.2 (static) |
+| `sga_target` | `DB_SGA_MB` during DBCA (template 1536, script default 4096) + `shared_pool_size` `DB_SHARED_POOL_MB` (2048) and `java_pool_size` `DB_JAVA_POOL_MB` (512) as floors for the JVM install; afterwards `DB_SGA_POST_MB` (2048), both pools 0 (auto) | the floors are larger than 1536 – Oracle raises the SGA (test host 2026-03: `sga_target=1536m` + `shared_pool_size=2048m` + `java_pool_size=512m` → DBCA 100 %; today `sga_target` / `sga_max_size` 2 GB) |
+| `pga_aggregate_target` | `DB_PGA_MB` (template 512, script default 1024) during DBCA, afterwards `DB_PGA_POST_MB` (512) | parallel RCU sessions |
+| `DB_BLOCK_SIZE` | `8192` (template) | FMW default; checked (FAIL otherwise) |
+| Character set | `DB_CHAR_SET` = `AL32UTF8` | **Mandatory here** — RCU itself only warns ("strongly recommends"), Forms/Reports Unicode and APEX need it |
+| National char set | `DB_NCHAR_SET` = `AL16UTF16` | Oracle default |
+| `PROCESSES` | `DB_PROCESSES` 1000 | RCU minimum of FMW 14.1.2 (static) |
+| `OPEN_CURSORS` | `DB_OPEN_CURSORS` 1600 | RCU minimum of FMW 14.1.2 (CDB and PDB) |
+| `SESSION_CACHED_CURSORS` | `DB_SESSION_CACHED_CURSORS` 100 | RCU minimum of FMW 14.1.2 (static) |
+| `DB_FILES` | `DB_FILES` 600 | RCU minimum of FMW 14.1.2 (static) |
 | `compatible` | `19.0.0` | Required for 19c feature set |
 | `max_string_size` | `EXTENDED` | FMW extended VARCHAR support; static — needs restart and the `utl32k.sql` migration in **every** container incl. `PDB$SEED` (see below) |
-| Archivelog | `false` (dev) | Saves disk; not needed for metadata-only DB |
-| Redo log groups | `2` | Minimum; one is always current |
-| Redo log size | `50 MB` | Minimal for low-write workload |
-| `DB_FILES` | `600` | RCU minimum of FMW 14.1.2 (static) |
+| Archivelog | `DB_ARCHIVELOG` (false = test) | Saves disk; not needed for metadata-only DB |
+| Fast Recovery Area | `DB_FAST_RECOVERY_AREA` + `DB_RECOVERY_SIZE_MB` (script default 4096); empty = no FRA | |
+| Redo logs | template: 3 groups × `-redoLogFileSize 50` MB | low-write workload |
 
 Source of the minimums and the full requirement list (version, edition,
 JVM): [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai).
-After DBCA the script checks them in the PDB (`rcu_db_requirements.sql`,
-OK / WARN / FAIL).
 
-> **AMM vs. SGA_TARGET:** `MEMORY_TARGET` (Automatic Memory Management) is simpler
-> but cannot be used with HugePages.  For this minimal setup, `SGA_TARGET=1536M` +
-> `PGA_AGGREGATE_TARGET=512M` is preferred — works with or without HugePages.
-> Total memory: ~2 GB.
-
-### Tablespace sizing (initial, AUTOEXTEND ON)
-
-| Tablespace | File | Initial | NEXT | MAXSIZE | Where |
-|---|---|---|---|---|---|
-| SYSTEM | system01.dbf | 200 MB | 32 MB | 1 GB | CDB |
-| SYSAUX | sysaux01.dbf | 500 MB | 32 MB | 2 GB | CDB |
-| UNDOTBS1 | undotbs01.dbf | 200 MB | 32 MB | 2 GB | CDB |
-| TEMP | temp01.tmp | 100 MB | 32 MB | 1 GB | CDB |
-| SYSTEM (PDB) | system01.dbf | 200 MB | 32 MB | 1 GB | FMWPDB |
-| SYSAUX (PDB) | sysaux01.dbf | 300 MB | 32 MB | 1 GB | FMWPDB |
-| UNDOTBS1 (PDB) | undotbs01.dbf | 200 MB | 32 MB | 1 GB | FMWPDB |
-| TEMP (PDB) | temp01.tmp | 100 MB | 32 MB | 1 GB | FMWPDB |
-
+Data file sizes come from the DBCA template `General_Purpose.dbc` – the
+script sets none of them (measured: [00-concept.md](00-concept.md#disk-layout-minimal)).
 AUDITLOG tablespace: created by `04-db_audit_setup.sh` (separate script).
 FMW_DATA tablespace: created by `05-db_fmw_tablespace.sh` (optional).
-
-**Total fresh: ~1.8 GB, with 4× growth margin: ~7 GB**
 
 ### DBCA silent command
 
@@ -118,41 +113,42 @@ $DB_ORACLE_HOME/bin/dbca -silent \
     -pdbAdminPassword "${DB_PDB_ADMIN_PWD}" \
     -databaseType   MULTIPURPOSE \
     -memoryMgmtType CUSTOM_SGA \
-    -sga            "${DB_SGA_MB:-1536}" \
-    -pga            "${DB_PGA_MB:-512}" \
+    -initParams     "sga_target=${DB_SGA_MB}m,shared_pool_size=${DB_SHARED_POOL_MB:-2048}m,java_pool_size=${DB_JAVA_POOL_MB:-512}m,pga_aggregate_target=${DB_PGA_MB}m" \
     -storageType    FS \
     -datafileDestination "${DB_DATA_DIR}" \
     -redoLogFileSize 50 \
     -emConfiguration NONE \
-    -dbOptions      "JSERVER:false,ORACLE_TEXT:false,IMEDIA:false,CWMLITE:false,SPATIAL:false,OMS:false,APEX:false,DV:false" \
-    -characterSet   AL32UTF8 \
-    -nationalCharacterSet AL16UTF16 \
+    -dbOptions      "JSERVER:true,ORACLE_TEXT:false,IMEDIA:false,CWMLITE:false,SPATIAL:false,OMS:false,APEX:false,DV:false" \
+    -characterSet   "${DB_CHAR_SET}" \
+    -nationalCharacterSet "${DB_NCHAR_SET}" \
     -sysPassword    "${DB_SYS_PWD}" \
     -systemPassword "${DB_SYSTEM_PWD}" \
-    -enableArchive  false \
-    -recoveryAreaDestination "" \
-    -useLocalUndoForPDBs true \
-    2>&1 | tee -a "$LOG_FILE"
+    -enableArchive  "${DB_ARCHIVELOG}" \
+    -recoveryAreaDestination "${DB_FAST_RECOVERY_AREA}" -recoveryAreaSize "${DB_RECOVERY_SIZE_MB}" \
+    -useLocalUndoForPDBs true
+# without FRA: -recoveryAreaDestination ""   (no -recoveryAreaSize)
+# rc <> 0 = FAIL, logs: $ORACLE_BASE/cfgtoollogs/dbca/<DB_CDB_NAME>/
 ```
 
 > `useLocalUndoForPDBs=true`: each PDB manages its own undo — required for
 > PDB-level flashback and simplifies future PDB migration.
 
-### Disabled DB options (via -dbOptions)
+### DB options (via -dbOptions)
 
-| Option | Disabled |
+| Option | State |
 |---|---|
-| JSERVER | Java in DB — not needed for FMW schemas |
+| JSERVER | **enabled** – Oracle JVM is an RCU 14.1.2 requirement (checked: `JAVAVM` must be VALID) |
 | ORACLE_TEXT | Full-text search — not used by FMW |
 | IMEDIA | Oracle Multimedia — not needed |
 | CWMLITE | OLAP Catalog — not needed |
 | SPATIAL | Oracle Spatial — not needed |
 | APEX | Application Express — not needed |
+| OMS | not needed |
 | DV | Database Vault — not needed for RCU DB |
 
 ---
 
-## Step 4: Post-Creation Parameter Tuning
+## Post-Creation Parameter Tuning
 
 Connect to the CDB as SYSDBA and apply parameters that DBCA does not set:
 
@@ -166,7 +162,8 @@ ALTER SYSTEM SET session_cached_cursors = 100  SCOPE=SPFILE;
 ALTER SYSTEM SET db_files               = 600  SCOPE=SPFILE;
 
 -- Listener registration with the explicit address instead of the DBCA alias
-ALTER SYSTEM SET local_listener = '(ADDRESS=(PROTOCOL=TCP)(HOST=<DB_LISTENER_HOST>)(PORT=1521))' SCOPE=BOTH;
+-- host: DB_LISTENER_HOST, empty = hostname -f; port: DB_LISTENER_PORT
+ALTER SYSTEM SET local_listener = '(ADDRESS=(PROTOCOL=TCP)(HOST=<host>)(PORT=<port>))' SCOPE=BOTH;
 ALTER SYSTEM REGISTER;
 
 -- Extended string support for FMW VARCHAR columns (static — needs restart)
@@ -178,12 +175,11 @@ ALTER SYSTEM SET compatible      = '19.0.0' SCOPE=SPFILE;
 -- PDB auto-open after CDB restart (CRITICAL — without this the PDB stays MOUNTED)
 ALTER PLUGGABLE DATABASE ALL OPEN;
 ALTER PLUGGABLE DATABASE ALL SAVE STATE;
-
--- Apply static changes
-SHUTDOWN IMMEDIATE;
-STARTUP;
-ALTER PLUGGABLE DATABASE ALL OPEN;
 ```
+
+The static changes take effect with the restarts of the `MAX_STRING_SIZE`
+migration below – a plain `STARTUP` after `max_string_size=EXTENDED` without
+`utl32k` fails (ORA-14694).
 
 > `ALTER PLUGGABLE DATABASE ALL SAVE STATE` persists the PDB open mode in the
 > CDB data dictionary.  Without it, the PDB must be opened manually after every
@@ -204,10 +200,32 @@ ALTER PLUGGABLE DATABASE ALL OPEN;
 
 ### MAX_STRING_SIZE=EXTENDED – migrate every container (incl. PDB$SEED)
 
-`STARTUP UPGRADE`, `ALTER PLUGGABLE DATABASE ALL OPEN UPGRADE`, then
-`utl32k.sql` through `catcon.pl` (all containers – `PDB$SEED` is in MIGRATE
-mode after `STARTUP UPGRADE` and `catcon` includes it), normal restart,
-`utlrp.sql` through `catcon.pl`. `catcon.pl` needs `sqlplus` in `PATH`.
+As the script does it (`catcon.pl` needs `sqlplus` in `PATH`; `PDB$SEED` is
+in MIGRATE mode after `STARTUP UPGRADE` and `catcon` includes it):
+
+```sql
+SHUTDOWN IMMEDIATE
+STARTUP UPGRADE
+ALTER PLUGGABLE DATABASE ALL OPEN UPGRADE;
+```
+```bash
+cd $DB_ORACLE_HOME/rdbms/admin
+PATH=$DB_ORACLE_HOME/bin:$DB_ORACLE_HOME/perl/bin:$PATH \
+  perl catcon.pl -n 1 -d $DB_ORACLE_HOME/rdbms/admin -l <logdir> -b utl32k utl32k.sql
+```
+```sql
+SHUTDOWN IMMEDIATE
+STARTUP
+ALTER PLUGGABLE DATABASE ALL OPEN;
+```
+```bash
+PATH=$DB_ORACLE_HOME/bin:$DB_ORACLE_HOME/perl/bin:$PATH \
+  perl catcon.pl -n 1 -d $DB_ORACLE_HOME/rdbms/admin -l <logdir> -b utlrp utlrp.sql
+```
+
+The script only filters the catcon output (`completed successfully`,
+`ORA-`) into the log – after a run with errors check `SHOW PDBS`
+(`PDB$SEED` READ ONLY) and `SHOW PARAMETER max_string_size` (EXTENDED).
 
 **Bug until 2026-10-28:** the script ran `utl32k.sql` only in `CDB$ROOT` and
 the application PDB (`ALL OPEN UPGRADE` does not include the seed). Result,
@@ -238,7 +256,27 @@ Done on the test host 2026-10-28: `PDB$SEED` READ ONLY; the `utlrp` over all
 containers also recompiled the 69 objects of the RCU schemas that had been
 invalid since the RCU run (`rcu_repository_check.sh`: 0 invalid).
 
-## Step 5: Post-Creation Checks
+## Memory resize (operating values)
+
+```sql
+-- CDB$ROOT, all SCOPE=BOTH - no restart
+ALTER SYSTEM SET shared_pool_size     = 0 SCOPE=BOTH;     -- floors off first
+ALTER SYSTEM SET java_pool_size       = 0 SCOPE=BOTH;
+ALTER SYSTEM SET sga_target           = 2048m SCOPE=BOTH; -- DB_SGA_POST_MB
+ALTER SYSTEM SET pga_aggregate_target = 512m  SCOPE=BOTH; -- DB_PGA_POST_MB
+ALTER SESSION SET CONTAINER = <PDB>;
+ALTER SYSTEM SET open_cursors = 1600 SCOPE=BOTH;          -- PDB-modifiable
+```
+
+## oratab
+
+```bash
+grep "^<SID>:" /etc/oratab || echo "<SID>:<DB_ORACLE_HOME>:Y" >> /etc/oratab
+```
+
+DBCA normally writes the entry with flag `N`; `08-db_auto_start.sh` sets `Y`.
+
+## Post-Creation Checks
 
 ```sql
 sqlplus / as sysdba
@@ -251,30 +289,46 @@ SHOW PDBS;
 SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET';
 
 -- Verify RCU-critical parameters
-SHOW PARAMETER open_cursors;     -- expected: 1000
-SHOW PARAMETER processes;        -- expected: 500
+SHOW PARAMETER open_cursors;     -- expected: 1600
+SHOW PARAMETER processes;        -- expected: 1000
+SHOW PARAMETER session_cached_cursors;  -- expected: 100
+SHOW PARAMETER db_files;         -- expected: 600
 SHOW PARAMETER max_string_size;  -- expected: EXTENDED
 SHOW PARAMETER compatible;       -- expected: 19.0.0
 SHOW PARAMETER sga_target;
 SHOW PARAMETER pga_aggregate_target;
+SELECT VALUE FROM V$OPTION WHERE PARAMETER = 'Unified Auditing';
 ```
+
+The script then runs `rcu_db_requirements.sql` in the PDB and grades it
+(`rcu_db_req_eval`, `00-Setup/IHateWeblogic_lib.sh`):
+
+| Result | Check |
+|---|---|
+| FAIL | version 19c < 19.14 (23ai < 23.4.0.24); character set not `AL32UTF8`; `JAVAVM` not VALID; `db_block_size` ≠ 8192 |
+| WARN | `processes` < 1000, `open_cursors` < 1600, `session_cached_cursors` < 100, `db_files` < 600; edition not EE; options "Fine-grained access control" / "Partitioning" not TRUE |
+| INFO | `shared_pool_size`, `sga_max_size`, `sga_target`, national character set |
 
 ---
 
 ## environment_db.conf Variables Used
 
 ```bash
-ORACLE_BASE         # /u01/app/oracle — shared with FMW
-DB_ORACLE_HOME      # ${ORACLE_BASE}/product/19.24.0/db_home1 — patched home
+ORACLE_BASE         # shared with FMW (environment.conf); must match install/orabasetab
+DB_ORACLE_HOME      # ${ORACLE_BASE}/product/19.33.0/db_home1 — patched home
 DB_ADMIN_DIR        # ${ORACLE_BASE}/admin  — audit dump dir
 DB_DATA_DIR         # e.g. /u01/app/oracle/oradata
-DB_SID              # e.g. FMWCDB
-DB_CDB_NAME         # e.g. FMWCDB
-DB_PDB_NAME         # e.g. FMWPDB
-DB_MEMORY_MB        # e.g. 2048
+DB_FAST_RECOVERY_AREA / DB_RECOVERY_SIZE_MB   # empty = no FRA
+DB_SID / DB_CDB_NAME / DB_PDB_NAME             # e.g. FMWCDB / FMWCDB / FMWPDB (= DB_SERVICE)
+DB_LISTENER_HOST / DB_LISTENER_PORT            # local_listener (empty host = hostname -f)
+DB_SGA_MB / DB_PGA_MB                          # during DBCA
+DB_SHARED_POOL_MB / DB_JAVA_POOL_MB            # floors during DBCA (default 2048 / 512)
+DB_SGA_POST_MB / DB_PGA_POST_MB                # operating values (default 2048 / 512)
+DB_PROCESSES / DB_OPEN_CURSORS / DB_SESSION_CACHED_CURSORS / DB_FILES
+DB_CHAR_SET / DB_NCHAR_SET / DB_ARCHIVELOG
 DB_SYS_PWD          # from db_sys_sec.conf.des3
-DB_SYSTEM_PWD       # from db_sys_sec.conf.des3
-DB_PDB_ADMIN_PWD    # from db_sys_sec.conf.des3
+DB_SYSTEM_PWD       # optional, default DB_SYS_PWD
+DB_PDB_ADMIN_PWD    # optional, default DB_SYS_PWD
 ```
 
 ---
@@ -282,9 +336,8 @@ DB_PDB_ADMIN_PWD    # from db_sys_sec.conf.des3
 ## Notes
 
 - `dbca -silent` exit code: 0 = success, non-zero = error; check
-  `$DB_BASE/cfgtoollogs/dbca/` for detailed logs
-- The database starts automatically via `/etc/oratab` + `dbstart`; configure
-  systemd service separately if auto-start on boot is required
+  `$ORACLE_BASE/cfgtoollogs/dbca/<DB_CDB_NAME>/` for detailed logs
+- Auto-start on boot: `08-db_auto_start.sh` (oratab flag `Y` + `oracle-db.service`)
 - After creation, update `environment.conf` with `DB_SERVICE=FMWPDB` before
   running the RCU script
 - `db_securefile` is not set → default `PREFERRED`. Do **not** set `FORCE`
@@ -293,3 +346,11 @@ DB_PDB_ADMIN_PWD    # from db_sys_sec.conf.des3
   tablespace `SYSTEM` → ORA-43853. `ALWAYS` is harmless (BasicFile fallback).
   See `80-FMW-Architecture/rcu_middleware_architecture.md` §4.2
 - Profile for the RCU schemas (no password expiry): `06-db_rcu_profile.sh`
+
+## Next steps
+
+1. Manual `uniaud_on` relink (DB + listener down) – [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites)
+2. `04-db_audit_setup.sh --apply`
+3. `05-db_fmw_tablespace.sh --apply` (optional)
+4. `06-db_rcu_profile.sh --apply`, `08-db_auto_start.sh --apply`
+5. `09-Install/07-oracle_setup_repository.sh --apply`

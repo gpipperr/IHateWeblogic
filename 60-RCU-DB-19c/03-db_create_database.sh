@@ -149,9 +149,15 @@ fi
 [ "$EXIT_CODE" -ne 0 ] && { print_summary; exit $EXIT_CODE; }
 
 # --- DB already exists? -------------------------------------------------------
+# --apply without --clean must not run DBCA over an existing database
 if [ -d "${DB_DATA_DIR}/${DB_CDB_NAME}" ]; then
+    if $APPLY && ! $CLEAN; then
+        fail "Datafile directory already exists: ${DB_DATA_DIR}/${DB_CDB_NAME} – DBCA not started"
+        info "  Fresh database: --clean --apply (dbca -deleteDatabase + remove data / admin / FRA dirs)"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
     warn "Datafile directory already exists: ${DB_DATA_DIR}/${DB_CDB_NAME}"
-    warn "  Remove it and re-run if a fresh DB is needed."
+    $CLEAN || warn "  --apply stops here; a fresh DB needs --clean --apply"
     EXIT_CODE=1
 fi
 
@@ -547,12 +553,13 @@ info "  DB_HOST=${_listener_host}"
 info "  DB_PORT=${_listener_port}"
 info "  DB_SERVICE=${DB_PDB_NAME}"
 printf "\n" | tee -a "$LOG_FILE"
-info "Next step: RCU schema creation"
-info "  09-Install/07-oracle_setup_repository.sh --apply"
-info ""
-info "Optional (after RCU): enable Unified Auditing + custom audit tablespace"
-info "  relink uniaud_on: cd \$ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
-info "  04-db_audit_setup.sh --apply"
+info "Next steps:"
+info "  1. relink uniaud_on (DB + listener down): cd \$ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
+info "     (docs/04-db_audit_setup.md#prerequisites)"
+info "  2. 04-db_audit_setup.sh --apply"
+info "  3. 05-db_fmw_tablespace.sh --apply   (optional)"
+info "  4. 06-db_rcu_profile.sh --apply, 08-db_auto_start.sh --apply"
+info "  5. 09-Install/07-oracle_setup_repository.sh --apply"
 
 # =============================================================================
 print_summary
