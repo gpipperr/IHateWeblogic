@@ -1,7 +1,10 @@
 -- =============================================================================
 -- fmw_rcu_audit_policies.sql
 -- FMW/RCU Sicherheits-Audit-Policies für Oracle 19c CDB.
--- Ausführen als: SYS (CDB$ROOT)
+-- Ausführen als: SYS (CDB$ROOT) – common policies (CONTAINER = ALL), in
+--               CDB$ROOT aktiviert = wirksam in allen Containern (auch der PDB
+--               mit den RCU-Schemas). Bis 2026-11-02 ohne CONTAINER = ALL:
+--               nur Root-lokal, in der PDB "ORA-46357 not found" (verschluckt).
 -- Verwendung  : @fmw_rcu_audit_policies.sql
 -- Vorlage     : gpiconsult_audit_policies.sql
 -- Quelle      : Gunther Pipperr | https://pipperr.de
@@ -12,7 +15,9 @@
 -- Überwacht privilegierte DDL-Operationen und kritische Systemänderungen.
 -- =============================================================================
 
+-- erneuter Lauf: eine aktivierte Policy lässt sich nicht löschen -> erst NOAUDIT
 BEGIN
+    BEGIN EXECUTE IMMEDIATE 'NOAUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT'; EXCEPTION WHEN OTHERS THEN NULL; END;
     EXECUTE IMMEDIATE 'DROP AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT';
 EXCEPTION WHEN OTHERS THEN NULL;
 END;
@@ -57,14 +62,16 @@ CREATE AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT
     -- Session
     logon,
     logoff
-;
+  CONTAINER = ALL;
 
 -- =============================================================================
 -- Policy 2: FMW_RCU_SEC_AUDIT_TRUNC
 -- Überwacht TRUNCATE auf der Unified Audit Tabelle (Manipulationsschutz).
 -- =============================================================================
 
+-- erneuter Lauf: eine aktivierte Policy lässt sich nicht löschen -> erst NOAUDIT
 BEGIN
+    BEGIN EXECUTE IMMEDIATE 'NOAUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC'; EXCEPTION WHEN OTHERS THEN NULL; END;
     EXECUTE IMMEDIATE 'DROP AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC';
 EXCEPTION WHEN OTHERS THEN NULL;
 END;
@@ -74,14 +81,14 @@ CREATE AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC
   ACTIONS TRUNCATE TABLE
     WHEN 'SYS_CONTEXT(''USERENV'', ''CURRENT_SCHEMA'') = ''AUDSYS''
      AND SYS_CONTEXT(''USERENV'', ''CURRENT_OBJECT'') = ''AUD$UNIFIED'''
-  EVALUATE PER STATEMENT;
+  EVALUATE PER STATEMENT
+  CONTAINER = ALL;
 
 -- =============================================================================
 -- Policies aktivieren (alle Container)
 -- =============================================================================
 
--- Aktivierung in CDB$ROOT (gilt nur für Root selbst).
--- In der PDB separat aktivieren: Block 2 in 04-db_audit_setup.sh.
+-- Aktivierung in CDB$ROOT: common policy -> gilt in allen Containern.
 AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT;
 AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC;
 
@@ -104,3 +111,8 @@ SELECT POLICY_NAME
   FROM audit_unified_enabled_policies
  WHERE POLICY_NAME IN ('FMW_RCU_DB_MIN_SEC_AUDIT', 'FMW_RCU_SEC_AUDIT_TRUNC')
  ORDER BY POLICY_NAME;
+
+COL COMMON FORMAT A6
+SELECT DISTINCT POLICY_NAME, COMMON
+  FROM audit_unified_policies
+ WHERE POLICY_NAME IN ('FMW_RCU_DB_MIN_SEC_AUDIT', 'FMW_RCU_SEC_AUDIT_TRUNC');

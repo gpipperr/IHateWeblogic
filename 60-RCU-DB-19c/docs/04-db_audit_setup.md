@@ -2,15 +2,17 @@
 
 **Script:** `60-RCU-DB-19c/04-db_audit_setup.sh`
 **Runs as:** `oracle`
-**Phase:** Configure Unified Auditing in the running database (after `03-`,
-best after the RCU run `09-Install/07-`)
+**Phase:** Configure Unified Auditing in the running database – after `03-`
+and the manual `uniaud_on` relink, before `05-` / `06-` / the RCU run
+(`09-Install/07-`); the policies do not depend on the RCU schemas, a later
+run works too
 
 ```bash
 ./60-RCU-DB-19c/04-db_audit_setup.sh            # dry-run: checks + plan
 ./60-RCU-DB-19c/04-db_audit_setup.sh --apply    # policies, AUDITLOG, purge jobs
 ```
 
-Checked against the script 2026-10-29. Background (author's wiki):
+Checked against the script 2026-11-02. Background (author's wiki):
 [pipperr.de – Unified Auditing migration 23ai](https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai);
 which FMW schemas log in to this database:
 [rcu_middleware_architecture.md §3](../../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where).
@@ -21,18 +23,31 @@ which FMW schemas log in to this database:
 
 Pure Unified Auditing for the RCU database:
 
-1. Two security policies in `CDB$ROOT` (`fmw_rcu_audit_policies.sql`)
-2. Default policy `ORA_SECURECONFIG` off (too verbose for a small metadata DB)
+1. Two **common** security policies, created and enabled in `CDB$ROOT`
+   (`fmw_rcu_audit_policies.sql`, `CONTAINER = ALL`) – effective in all
+   containers, including the PDB with the RCU schemas
+2. Default policy `ORA_SECURECONFIG` off in the root and in the PDB (too
+   verbose for a small metadata DB)
 3. Dedicated `AUDITLOG` tablespace in the PDB; **all three** trails
    (standard, FGA, unified) moved there
 4. Retention: daily archive-timestamp job + one purge job per trail
+5. Check: both `FMW_RCU_*` policies enabled as seen from the PDB (FAIL
+   otherwise)
+
+> **Fixed 2026-11-02:** until then the policies were created **without**
+> `CONTAINER = ALL` – root-local. The PDB step `AUDIT POLICY …` failed with
+> `ORA-46357 … not found` and swallowed it (`— skipping`), so the RCU schemas
+> in the PDB were **not** audited by them (test host: only `ORA_SECURECONFIG`
+> + `ORA_LOGON_FAILURES` enabled in the PDB). Re-run `04- --apply` on such a
+> database: Block 1 runs again (re-runnable) and creates the common policies.
 
 ---
 
 ## Prerequisites
 
-- Database running: CDB open, PDB (`DB_PDB_NAME`) open READ WRITE –
-  checked by the script
+- Database running (`SELECT 'DB_UP'` as SYSDBA, FAIL otherwise), PDB
+  (`DB_PDB_NAME`) open READ WRITE – with `--apply` the script opens it
+  (`ALTER PLUGGABLE DATABASE ALL OPEN`), the dry-run only reports it
 - **Oracle binary linked with `uniaud_on`** – checked via
   `V$OPTION 'Unified Auditing' = TRUE`; FAIL stops the script.
   `03-db_create_database.sh` only reports the state (`kzaiang` in the binary)
@@ -40,13 +55,19 @@ Pure Unified Auditing for the RCU database:
   listener stopped:
 
   ```bash
-  # as oracle, DB_ORACLE_HOME from environment_db.conf
+  # as oracle, values from environment_db.conf
+  export ORACLE_HOME=$DB_ORACLE_HOME ORACLE_SID=$DB_SID TNS_ADMIN=$DB_ORACLE_HOME/network/admin
   sqlplus / as sysdba <<< "shutdown immediate"
-  lsnrctl stop
+  $ORACLE_HOME/bin/lsnrctl stop        # with the systemd units: systemctl stop oracle-db oracle-listener (root)
   cd $ORACLE_HOME/rdbms/lib && make -f ins_rdbms.mk uniaud_on ioracle
-  lsnrctl start
+  $ORACLE_HOME/bin/lsnrctl start       # or: systemctl start oracle-listener oracle-db (root)
   sqlplus / as sysdba <<< "startup"
+  sqlplus -S / as sysdba <<< "select value from v\$option where parameter='Unified Auditing';"   # TRUE
   ```
+
+  With the systemd units of `02-` / `08-` installed, stop and start through
+  systemd – otherwise the units' state (`RemainAfterExit=yes`) no longer
+  matches reality.
 
   An out-of-place patch keeps it: `09-db_patch_rcu.sh` relinks the new home
   with `uniaud_on` when the old one has it.
@@ -59,30 +80,43 @@ Parameters (`environment_db.conf`):
 | `DB_AUDIT_TS_MAX_MB` | `4000` | `MAXSIZE` (autoextend next 120 MB) |
 | `DB_AUDIT_RETAIN_DAYS` | `180` | retention of all three trails |
 
-Idempotent: when all three trails already point to `AUDITLOG` the script
-stops with OK (re-run: drop `AUDITLOG` first).
+Re-run: Block 1 (policies) always runs – it is re-runnable (`NOAUDIT`,
+`DROP`, `CREATE`, `AUDIT`). Block 2 is skipped when all three trails already
+point to `AUDITLOG` (`--apply` only); to recreate just the jobs run steps 4–5
+of Block 2 by hand (both are drop + create) – do **not** drop `AUDITLOG`, it
+holds the moved audit trails.
 
 ---
 
 ## Block 1 – CDB$ROOT: policies
 
-`@fmw_rcu_audit_policies.sql` as SYS in `CDB$ROOT` (drop + create, then
-`AUDIT POLICY …` – active in the root):
+First `NOAUDIT POLICY ORA_SECURECONFIG;` (19c: no `CONTAINER` clause for
+`NOAUDIT` – it acts on the root only), then `@fmw_rcu_audit_policies.sql` as
+SYS in `CDB$ROOT`: for each policy `NOAUDIT` + `DROP` (an enabled policy
+cannot be dropped; errors ignored), `CREATE AUDIT POLICY … CONTAINER = ALL`,
+`AUDIT POLICY …` – a common policy enabled in the root is effective in all
+containers:
 
 | Policy | Content |
 |---|---|
 | `FMW_RCU_DB_MIN_SEC_AUDIT` | privileges `CREATE EXTERNAL JOB`, `CREATE JOB`, `CREATE ANY JOB`; actions on users, roles, profiles, synonyms, DB links, procedures, triggers, table DDL, `RENAME`, `GRANT` / `REVOKE`, `ALTER SYSTEM`, `ALTER DATABASE`, tablespaces, directories, `DELETE` / `UPDATE ON AUDSYS.AUD$UNIFIED`, `LOGON` / `LOGOFF` |
 | `FMW_RCU_SEC_AUDIT_TRUNC` | `TRUNCATE TABLE` on `AUDSYS.AUD$UNIFIED` (tamper protection) |
 
-Then `NOAUDIT POLICY ORA_SECURECONFIG;` (19c: no `CONTAINER` clause for `NOAUDIT`).
 `generate_unified_audit_policy.sql` helps to derive an own policy from the
 traditional audit settings of an existing database.
 
+**State:** the common-policy version is not live-tested yet (2026-11-02) –
+check with the verification queries below after the first run.
+
 ## Block 2 – PDB: AUDITLOG, trails, retention
 
-In the PDB (`ALTER SESSION SET CONTAINER = <PDB>`):
+In the PDB (`ALTER SESSION SET CONTAINER = <PDB>`), the data file directory
+`<DB_DATA_DIR>/<CDB>/<PDB>` is created first (`mkdir -p`):
 
 ```sql
+-- 0. ORA_SECURECONFIG off in the PDB too (DBCA enables it per container)
+NOAUDIT POLICY ORA_SECURECONFIG;
+
 -- 1. tablespace (only if missing)
 CREATE SMALLFILE TABLESPACE "AUDITLOG" LOGGING
   DATAFILE '<DB_DATA_DIR>/<CDB>/<PDB>/auditlog01.dbf'
@@ -90,31 +124,49 @@ CREATE SMALLFILE TABLESPACE "AUDITLOG" LOGGING
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M;
 
 -- 2. all three trails into AUDITLOG
+--    (each in its own block, an error is printed and skipped – e.g. already set)
 BEGIN
-  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_AUD_STD, 'AUDITLOG');
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_DB_STD,  'AUDITLOG');
   DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_FGA_STD, 'AUDITLOG');
   DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED, 'AUDITLOG');
 END;
 /
 
--- 3. cleanup infrastructure (19c: AUDIT_TRAIL_ALL works here)
+-- 3. cleanup infrastructure (19c: AUDIT_TRAIL_ALL works here; ORA-46258 = already done)
 BEGIN
   DBMS_AUDIT_MGMT.INIT_CLEANUP(DBMS_AUDIT_MGMT.AUDIT_TRAIL_ALL, 24);
 END;
 /
 
--- 4. archive timestamp, daily 02:00, for all three trails + statistics
---    job FMW_AUDIT_ARCHIVE_TS: SET_LAST_ARCHIVE_TIMESTAMP(<trail>, SYSTIMESTAMP - 180)
---    – details: section "Retention" below
+-- 4. archive timestamp job, daily 02:00 (job action: section "Retention" below)
+BEGIN
+  BEGIN DBMS_SCHEDULER.DROP_JOB('FMW_AUDIT_ARCHIVE_TS', TRUE); EXCEPTION WHEN OTHERS THEN NULL; END;
+  DBMS_SCHEDULER.CREATE_JOB(
+    job_name        => 'FMW_AUDIT_ARCHIVE_TS',
+    job_type        => 'PLSQL_BLOCK',
+    job_action      => q'[<job action below>]',
+    repeat_interval => 'FREQ=DAILY;BYHOUR=2;BYMINUTE=0',
+    enabled         => TRUE,
+    comments        => 'Set archive timestamp for all audit trails (180 day retention)');
+END;
+/
 
 -- 5. one purge job per trail (19c: CREATE_PURGE_JOB does NOT accept AUDIT_TRAIL_ALL)
---    PURGE_STD_AUDIT, PURGE_FGA_AUDIT, PURGE_UNIFIED_AUDIT
---    (audit_trail_purge_interval => 24, use_last_arch_timestamp => TRUE)
-
--- 6. activate the policies in the PDB
-AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT;
-AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC;
+BEGIN
+  BEGIN DBMS_AUDIT_MGMT.DROP_PURGE_JOB('PURGE_STD_AUDIT'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  DBMS_AUDIT_MGMT.CREATE_PURGE_JOB(DBMS_AUDIT_MGMT.AUDIT_TRAIL_AUD_STD, 24, 'PURGE_STD_AUDIT', TRUE);
+  BEGIN DBMS_AUDIT_MGMT.DROP_PURGE_JOB('PURGE_FGA_AUDIT'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  DBMS_AUDIT_MGMT.CREATE_PURGE_JOB(DBMS_AUDIT_MGMT.AUDIT_TRAIL_FGA_STD, 24, 'PURGE_FGA_AUDIT', TRUE);
+  BEGIN DBMS_AUDIT_MGMT.DROP_PURGE_JOB('PURGE_UNIFIED_AUDIT'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  DBMS_AUDIT_MGMT.CREATE_PURGE_JOB(DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED, 24, 'PURGE_UNIFIED_AUDIT', TRUE);
+END;
+/
+-- (arguments: audit_trail_type, audit_trail_purge_interval, audit_trail_purge_name,
+--  use_last_arch_timestamp)
 ```
+
+`AUDIT_TRAIL_DB_STD` covers both `AUD$` and `FGA_LOG$` for the location;
+the script sets FGA separately as well (an error is printed and skipped).
 
 ---
 
@@ -273,7 +325,9 @@ SELECT JOB_NAME, JOB_STATUS FROM DBA_AUDIT_MGMT_CLEANUP_JOBS;          -- 3 purg
 SELECT JOB_NAME, ENABLED, STATE FROM DBA_SCHEDULER_JOBS
  WHERE JOB_NAME = 'FMW_AUDIT_ARCHIVE_TS';
 
-SELECT POLICY_NAME, ENABLED_OPT FROM AUDIT_UNIFIED_ENABLED_POLICIES;  -- the two FMW_RCU_* policies
+SELECT POLICY_NAME, ENABLED_OPTION FROM AUDIT_UNIFIED_ENABLED_POLICIES;  -- the two FMW_RCU_* policies (not ORA_SECURECONFIG)
+SELECT DISTINCT POLICY_NAME, COMMON FROM AUDIT_UNIFIED_POLICIES
+ WHERE POLICY_NAME LIKE 'FMW_RCU%';                                    -- COMMON = YES
 ```
 
 ---
@@ -286,3 +340,12 @@ SELECT POLICY_NAME, ENABLED_OPT FROM AUDIT_UNIFIED_ENABLED_POLICIES;  -- the two
 - 180 days fit easily into 4 GB for a metadata database with low activity.
 - RCU schema users log on many times (data source pools) – `LOGON` /
   `LOGOFF` is the largest share of the records; the purge jobs keep it bounded.
+
+## Next step
+
+```bash
+./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply   # optional
+./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
+./60-RCU-DB-19c/08-db_auto_start.sh --apply
+./09-Install/07-oracle_setup_repository.sh --apply
+```

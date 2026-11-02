@@ -1,11 +1,14 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 04-db_audit_setup.sh
-# Purpose  : Configure Unified Auditing in the running FMWPDB:
-#              1. Create AUDITLOG tablespace
-#              2. Move unified audit trail to AUDITLOG
-#              3. Create automated purge job (180 day retention)
-#              4. Define and activate minimal security audit policy
+# Purpose  : Configure Unified Auditing in the running CDB / PDB:
+#              Block 1 (CDB$ROOT): common audit policies FMW_RCU_* (CONTAINER=ALL,
+#                       enabled in the root = all containers), ORA_SECURECONFIG off
+#              Block 2 (PDB): ORA_SECURECONFIG off, AUDITLOG tablespace, all three
+#                       trails (AUD_STD / FGA_STD / UNIFIED) moved there, cleanup
+#                       init, archive-timestamp job (DB_AUDIT_RETAIN_DAYS), three
+#                       purge jobs; skipped when already configured
+#              Check   : FMW_RCU_* policies enabled as seen from the PDB
 # Call     : ./60-RCU-DB-19c/04-db_audit_setup.sh
 #            ./60-RCU-DB-19c/04-db_audit_setup.sh --apply
 #            ./60-RCU-DB-19c/04-db_audit_setup.sh --help
@@ -122,6 +125,8 @@ EXIT;" 2>/dev/null | tr -d ' \r')
 
 if [ "$_pdb_mode" = "READWRITE" ]; then
     ok "PDB $DB_PDB_NAME is open (READ WRITE)"
+elif ! $APPLY; then
+    warn "PDB $DB_PDB_NAME OPEN_MODE: ${_pdb_mode:-not found} — --apply opens it (ALTER PLUGGABLE DATABASE ALL OPEN)"
 else
     warn "PDB $DB_PDB_NAME OPEN_MODE: ${_pdb_mode:-not found} — attempting to open ..."
     "$SQLPLUS" -S /nolog << 'PDBOPEN' 2>&1 | tee -a "$LOG_FILE"
@@ -174,12 +179,14 @@ SELECT COUNT(*) FROM DBA_AUDIT_MGMT_CONFIG_PARAMS
    AND PARAMETER_VALUE = 'AUDITLOG';
 EXIT;" 2>/dev/null | tr -d ' \r\n')
 
+# Block 1 (policies) always runs - it is re-runnable (NOAUDIT, DROP, CREATE)
+# and brings older installations to the common policies (2026-11-02)
+_block2=true
 if [ "${_already_configured:-0}" -ge 3 ] 2>/dev/null; then
-    ok "Audit already configured: AUDITLOG tablespace + all 3 trails already set"
-    info "  Skipping Block 1 + Block 2 — nothing to do."
-    info "  To re-run anyway: drop AUDITLOG tablespace first or comment out this check."
-    unset _already_configured _ts_size _ts_max _retain _data_dir
-    print_summary; exit $EXIT_CODE
+    ok "AUDITLOG tablespace + all 3 trails already set – Block 2 (tablespace, jobs) skipped"
+    info "  Policies (Block 1) are deployed again. Jobs only: run steps 4-5 of Block 2 by hand"
+    info "  (docs/04-db_audit_setup.md – both are drop + create)"
+    _block2=false
 fi
 unset _already_configured
 
@@ -193,8 +200,8 @@ _policy_sql="$SCRIPT_DIR/fmw_rcu_audit_policies.sql"
 # =============================================================================
 # Block 1 – CDB\$ROOT: Audit Policies (CONTAINER=ALL)
 # =============================================================================
-# Policies must be created and activated in CDB\$ROOT to apply to all PDBs.
-# fmw_rcu_audit_policies.sql handles DROP/CREATE/AUDIT POLICY CONTAINER=ALL.
+# Common policies (CREATE ... CONTAINER = ALL) created and enabled in CDB\$ROOT
+# apply to all containers. fmw_rcu_audit_policies.sql: NOAUDIT/DROP/CREATE/AUDIT.
 
 section "CDB Audit Policies (CONTAINER=ALL)"
 
@@ -229,6 +236,7 @@ printf "\n  SQL Block 1 finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" 
 # 19c: CREATE_PURGE_JOB must be called SEPARATELY for AUD_STD, FGA_STD, UNIFIED
 #      (AUDIT_TRAIL_ALL not supported for CREATE_PURGE_JOB in 19c).
 
+if $_block2; then
 section "PDB Audit Infrastructure (${DB_PDB_NAME})"
 
 printf "\n  SQL Block 2 started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
@@ -239,25 +247,16 @@ ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
 SET SERVEROUTPUT ON SIZE UNLIMITED
 
 -- ===========================================================================
--- Step 0: Activate common audit policies in PDB
--- Common policies (created in CDB$ROOT) must be explicitly enabled per container.
--- AUDIT POLICY without CONTAINER clause = enables in the current container.
+-- Step 0: ORA_SECURECONFIG off in the PDB too (enabled per container by
+-- DBCA; the FMW_RCU_* common policies come from CDB$ROOT, Block 1)
 -- ===========================================================================
-PROMPT === Step 0: Enable Common Audit Policies in PDB ===
+PROMPT === Step 0: ORA_SECURECONFIG off in the PDB ===
 
 BEGIN
-    EXECUTE IMMEDIATE 'AUDIT POLICY FMW_RCU_DB_MIN_SEC_AUDIT';
-    DBMS_OUTPUT.PUT_LINE('FMW_RCU_DB_MIN_SEC_AUDIT enabled in ${DB_PDB_NAME}.');
+    EXECUTE IMMEDIATE 'NOAUDIT POLICY ORA_SECURECONFIG';
+    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG deactivated in ${DB_PDB_NAME}.');
 EXCEPTION WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('FMW_RCU_DB_MIN_SEC_AUDIT: ' || SQLERRM || ' — skipping.');
-END;
-/
-
-BEGIN
-    EXECUTE IMMEDIATE 'AUDIT POLICY FMW_RCU_SEC_AUDIT_TRUNC';
-    DBMS_OUTPUT.PUT_LINE('FMW_RCU_SEC_AUDIT_TRUNC enabled in ${DB_PDB_NAME}.');
-EXCEPTION WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('FMW_RCU_SEC_AUDIT_TRUNC: ' || SQLERRM || ' — skipping.');
+    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG: ' || SQLERRM || ' — skipping.');
 END;
 /
 
@@ -456,12 +455,30 @@ printf "\n  SQL Block 2 finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" 
 [ "$_sql2_rc" -eq 0 ] \
     && ok "PDB audit infrastructure configured" \
     || { warn "Block 2 SQL rc=$_sql2_rc – review log"; EXIT_CODE=1; }
+fi
+unset _block2
+
+# The policies must be effective where the RCU schemas live (until 2026-11-02
+# they were root-local and the PDB step swallowed "ORA-46357 not found")
+_pol_pdb=$("$SQLPLUS" -S /nolog <<< "CONNECT / AS SYSDBA
+SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+SELECT COUNT(DISTINCT POLICY_NAME) FROM AUDIT_UNIFIED_ENABLED_POLICIES
+ WHERE POLICY_NAME IN ('FMW_RCU_DB_MIN_SEC_AUDIT', 'FMW_RCU_SEC_AUDIT_TRUNC');
+EXIT;" 2>/dev/null | tr -d ' \r\n')
+if [ "${_pol_pdb:-0}" = "2" ]; then
+    ok "FMW_RCU_DB_MIN_SEC_AUDIT + FMW_RCU_SEC_AUDIT_TRUNC enabled in ${DB_PDB_NAME}"
+else
+    fail "FMW_RCU_* policies not enabled in ${DB_PDB_NAME} (found ${_pol_pdb:-?} of 2) – see the log of Block 1"
+    EXIT_CODE=2
+fi
+unset _pol_pdb
 
 # Combined result
 [ "$EXIT_CODE" -eq 0 ] && ok "Audit setup completed" || warn "Audit setup completed with warnings"
 
 printf "\n" | tee -a "$LOG_FILE"
-info "Policies active (CDB\$ROOT CONTAINER=ALL):"
+info "Policies active (common, enabled in CDB\$ROOT = all containers):"
 info "  FMW_RCU_DB_MIN_SEC_AUDIT"
 info "  FMW_RCU_SEC_AUDIT_TRUNC"
 info ""
@@ -469,7 +486,8 @@ info "Next step: optional FMW_DATA tablespace"
 info "  05-db_fmw_tablespace.sh --apply"
 info "  (or skip and use RCU with auto-created tablespaces)"
 info ""
-info "Then: 09-Install/07-oracle_setup_repository.sh --apply"
+info "Then: 06-db_rcu_profile.sh --apply, 08-db_auto_start.sh --apply,"
+info "      09-Install/07-oracle_setup_repository.sh --apply"
 
 unset _ts_size _ts_max _retain _data_dir _policy_sql
 
