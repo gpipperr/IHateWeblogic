@@ -8,8 +8,9 @@ Background – what FMW stores in this database and who logs in:
 The smallest possible Oracle 19c database that satisfies the FMW 14.1.2 RCU
 requirements.  Nothing more.
 
-FMW RCU creates 7 metadata schemas (STB, MDS, OPSS, IAU, IAU_APPEND,
-IAU_VIEWER, UCSUMS).  These schemas store configuration and audit data —
+FMW RCU (`09-Install/07-oracle_setup_repository.sh`) creates 8 components =
+9 metadata schemas (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER, UMS
+(component UCSUMS), WLS, WLS_RUNTIME).  These schemas store configuration and audit data —
 not application data.  Transaction volumes are low, the schemas are small
 (< 500 MB total in a fresh install), and there are no performance-critical
 queries at database level.
@@ -34,8 +35,8 @@ CDB: FMWCDB          ← admin layer, SYS/SYSTEM live here
  └─ PDB: FMWPDB      ← application layer, all PREFIX_* schemas live here
 ```
 
-The `DB_SERVICE` in `environment.conf` always points to `FMWPDB`, never to
-the CDB.
+The `DB_SERVICE` in `environment.conf` always names the PDB (`DB_PDB_NAME`,
+default `FMWPDB`; `00a-db_env_interview.sh` keeps both equal), never the CDB.
 
 ### Archivelog: OFF for dev/test, ON for production
 
@@ -45,17 +46,16 @@ need point-in-time recovery.  Archivelog OFF keeps disk usage minimal.
 Exception: if this database is used in a production environment, enable
 archivelog mode after creation.
 
-### Automatic Memory Management (AMM)
+### Memory: SGA_TARGET + PGA_AGGREGATE_TARGET (no AMM)
 
-`MEMORY_TARGET` controls total memory (SGA + PGA combined).  Oracle manages
-the split internally.  Simpler than separate SGA_TARGET + PGA_AGGREGATE_TARGET
-for a small, non-tuned installation.
-
-Minimum: `MEMORY_TARGET=1536M`  (1.5 GB)
-Recommended: `MEMORY_TARGET=2048M`  (2 GB, leaves headroom for FMW startup)
-
-> On systems with HugePages, AMM (MEMORY_TARGET) cannot be used — switch to
-> `SGA_TARGET` + `PGA_AGGREGATE_TARGET` and configure HugePages accordingly.
+`03-db_create_database.sh` creates the database with `-memoryMgmtType
+CUSTOM_SGA`: `sga_target=DB_SGA_MB`, `pga_aggregate_target=DB_PGA_MB`
+(`00a-` proposes 15 % of RAM, 1536–4096 MB, PGA a third of it), plus
+`shared_pool_size` / `java_pool_size` floors (`DB_SHARED_POOL_MB` 2048 /
+`DB_JAVA_POOL_MB` 512) for the Oracle JVM install. Afterwards it sets both
+pools to 0 (auto) and `sga_target` / `pga_aggregate_target` to
+`DB_SGA_POST_MB` (2048) / `DB_PGA_POST_MB` (512). `MEMORY_TARGET` (AMM) is
+not used – it works with and without HugePages.
 
 ### Unified Auditing: on from day 1
 
@@ -107,11 +107,12 @@ To switch: set `DB_EDITION=SE2` in `environment_db.conf` before running
 
 ### No optional components
 
-After patching, disable unused options to reduce attack surface and binary size:
+`01-db_install_software.sh` disables unused options as its last step (attack
+surface, binary size); by hand with the DB home's `chopt`:
 
 ```bash
-$ORACLE_HOME/bin/chopt disable olap
-$ORACLE_HOME/bin/chopt disable rat
+$DB_ORACLE_HOME/bin/chopt disable olap
+$DB_ORACLE_HOME/bin/chopt disable rat
 ```
 
 OLAP and Real Application Testing are never needed for FMW metadata storage.
@@ -125,10 +126,14 @@ OLAP and Real Application Testing are never needed for FMW metadata storage.
 | `environment.conf` | FMW/WLS settings + DB connection params | All 09-Install scripts |
 | `environment_db.conf` | DB-internal settings (ORACLE_HOME, SID, sizing) | 60-RCU-DB-19c scripts only |
 
-The two files share:
-- `ORACLE_BASE` (must match — both use `/u01/app/oracle`)
-- `ROOT_DIR` (project root)
+`environment_db.conf` is read **after** `environment.conf`. The two files share:
+- `ORACLE_BASE`, `ORACLE_INVENTORY` – inherited from `environment.conf`
+  (template form `ORACLE_BASE="${ORACLE_BASE:-/u01/app/oracle}"`; a fixed value
+  overrides it for all 60- scripts – `00a-db_env_interview.sh` replaces it)
+- `PATCH_STORAGE` (base ZIP, offline patches, CVU), `ROOT_DIR` (project root)
 - `00-Setup/IHateWeblogic_lib.sh` (logging, ok/warn/fail)
+
+`00-root_db_os_baseline.sh` (root) reads only `environment.conf`.
 
 ### ORACLE_HOME: the ambiguous variable
 
@@ -155,7 +160,8 @@ $DB_ORACLE_HOME/OPatch/opatch ...
 The ORACLE_HOME environment variable is set **within script scope only**:
 
 ```bash
-source "$SCRIPT_DIR/../environment_db.conf"
+source "$ROOT_DIR/environment.conf"
+source "$SCRIPT_DIR/environment_db.conf"   # 60-RCU-DB-19c/environment_db.conf
 export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
 # ... run DB commands ...
 # ORACLE_HOME reverts when script exits
@@ -175,7 +181,7 @@ export ORACLE_HOME="$DB_ORACLE_HOME"   # local to this script process
     ├── product/
     │   ├── 19.33.0/db_home1/              ← DB_ORACLE_HOME (one versioned home per RU,
     │   │                                     01- gold image or base + opatch RU)
-    │   └── 19.30.0/db_home1/              ← DB_ORACLE_HOME_PREV after 09-db_patch_rcu.sh
+    │   └── <previous RU>/db_home1/        ← DB_ORACLE_HOME_PREV after 09-db_patch_rcu.sh
     │                                         (rollback path, deinstall after some days)
     ├── oradata/
     │   └── FMWCDB/
@@ -208,45 +214,49 @@ DB_SCHEMA_PREFIX=DEV   # e.g. DEV, TEST, PROD
 
 ---
 
-## Same Host: shmmax/shmall Conflict
+## Same Host: kernel parameters from several files
 
-`09-Install/01-root_os_baseline.sh` sets `kernel.shmmax` to the WLS OUI
-installation value intentionally (comment in that script).  The Oracle DB
-preinstall RPM would set it much higher — which breaks the WLS OUI installer.
-
-Resolution (same host, both FMW and DB):
-
-1. Run `09-Install` phase 0–1 (root scripts + FMW software install) with the
-   WLS-sized shmmax/shmall in place
-2. Run `60-RCU-DB-19c/00-root_db_os_baseline.sh` — upgrades shmmax/shmall to
-   DB-sized values
-3. WLS runtime does not require the smaller values — only WLS OUI during install
+FMW and DB both write kernel parameters to `/etc/sysctl.d/`:
+`09-Install/01-root_os_baseline.sh` → `99-oracle-fmw.conf`, the preinstall
+RPM → `99-oracle-database-preinstall-19c-sysctl.conf`,
+`00-root_db_os_baseline.sh` → `60-oracle-db.conf`. `sysctl --system` loads
+them in lexical order – **the last file wins**, so the 99- files override
+`60-oracle-db.conf` (test host 2026-11-02: effective `kernel.shmmax`
+4398046511104 from the preinstall RPM, not the RAM/2 value of `60-`). With
+`LOCAL_REP_DB=true` the FMW baseline treats its shm values only as minimums
+and keeps the larger DB values. Check what is effective:
+`sysctl kernel.shmmax kernel.shmall fs.aio-max-nr` and
+`grep -H -E 'shmmax|shmall|aio-max-nr' /etc/sysctl.d/*.conf`.
 
 ---
 
 ## Disk Layout (minimal)
 
+Measured on the test host (2026-11-02, `General_Purpose.dbc`, after RCU and
+some months of operation – sizes come from the DBCA template, the scripts set
+only `-redoLogFileSize 50`):
+
 ```
-$DB_BASE/
-└── oradata/
-    └── FMWCDB/
-        ├── system01.dbf        200 MB
-        ├── sysaux01.dbf        500 MB
-        ├── undotbs01.dbf       200 MB
-        ├── temp01.dbf          100 MB
-        └── FMWPDB/
-            ├── system01.dbf    200 MB
-            ├── sysaux01.dbf    300 MB
-            ├── undotbs01.dbf   200 MB
-            ├── temp01.dbf      100 MB
-            ├── auditlog01.dbf  100 MB  ← grows slowly; purge job keeps it bounded
-            └── fmw_data01.dbf  500 MB  ← optional, for DBA-managed RCU tablespace
+$DB_DATA_DIR/                    (default $ORACLE_BASE/oradata)
+└── FMWCDB/
+    ├── system01.dbf        ~1.5 GB
+    ├── sysaux01.dbf        ~1.2 GB
+    ├── undotbs01.dbf       ~1.6 GB
+    ├── temp01.dbf          ~0.3 GB
+    ├── redo01..03.log      3 × 50 MB
+    ├── control01.ctl         (control02.ctl in the FRA)
+    ├── pdbseed/            ~1.8 GB  (system, sysaux, undo, temp)
+    └── FMWPDB/
+        ├── system01.dbf    ~1 GB
+        ├── sysaux01.dbf    ~0.5 GB
+        ├── undotbs01.dbf   ~0.3 GB
+        ├── temp01.dbf      ~0.3 GB
+        ├── auditlog01.dbf  100 MB  ← DB_AUDIT_TS_SIZE_MB; purge jobs keep it bounded
+        └── fmw_data01.dbf  500 MB  ← optional (05-), DB_FMW_TABLESPACE_SIZE_MB
 ```
 
-Redo logs (CDB-level): 2 groups × 50 MB = 100 MB
-Control files: 2 × 20 MB = 40 MB
-
-**Total DB files: ~2.5 GB fresh, ~4 GB with growth margin**
+**Total DB files: ~9 GB** (test host 9.8 GB incl. 0.5 GB APEX) – fresh
+somewhat less; the README sizing (8 / 15 GB) covers it.
 
 Homes and staging come on top: one patched 19c home ≈ 11–12 GB, two of them
 during an out-of-place patch, plus the AutoUpgrade patch directory – host
@@ -270,10 +280,14 @@ totals in the root README [Disk Sizing Guide](../../README.md#disk-sizing-guide)
 ## Script Sequence Summary
 
 ```
-root:   00-root_db_os_baseline.sh    OS params, preinstall RPM, limits, oraInst.loc
+oracle: 00a-db_env_interview.sh     environment_db.conf from the template (--check: consistency only)
+root:   00-root_db_os_baseline.sh   preinstall RPM, oracle in dba/oper, expect, perl-File-Copy,
+                                    sysctl, limits, libpthread stub, oraInst.loc (DB-only host)
 oracle: 00b-db_cvu_check.sh         host pre-check with the standalone CVU
-oracle: 01-db_install_software.sh   base + AutoUpgrade download (RU/OJVM/DPBP/jdk, gold image)
-                                    + gold image, or base install + opatch RU + relink; chopt disable
+oracle: 01-db_install_software.sh   gold image (preferred), else 19.3 base into the home + attachHome
+                                    + opatch RU/OneOffs + detachHome + runInstaller on the patched image;
+                                    AutoUpgrade download (+ base_stage) only when no patches are local;
+                                    root.sh, chopt disable olap/rat
 oracle: 02-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
 oracle: 03-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
                                     local_listener = explicit address (uniaud_on: reported only)
