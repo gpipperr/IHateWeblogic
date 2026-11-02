@@ -676,6 +676,14 @@ done
 # complete, already patched home (RU + OCW RU inside) instead of an RU ZIP ->
 # unzip it as the new home and run ITS runInstaller with the OneOffs only
 _GOLD_ZIP="$(ls -1t "$_AU_PATCHDIR"/db_goldimage_*.zip 2>/dev/null | head -1)"
+# Gold image + RU ZIP both present -> gold image. The -applyRU route failed on
+# FMW hosts with a shared central inventory ("Invalid Home" in opatchauto,
+# test host 2026-03 and customer 2026-11-02, cause open) – the gold image
+# route is the proven one (live 2026-10-28)
+if [ -n "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
+    info "$(printf "Gold image found – RU %s is NOT used (-applyRU route unproven on FMW hosts, see docs)" "$(basename "$_RU_DIR")")"
+    _RU_DIR=""
+fi
 if [ -z "$_RU_DIR" ] && [ -n "$_GOLD_ZIP" ]; then
     ok "$(printf "Gold image     : %s  (%s)" "$(basename "$_GOLD_ZIP")" "$(du -shL "$_GOLD_ZIP" 2>/dev/null | cut -f1)")"
 elif [ -z "$_RU_DIR" ]; then

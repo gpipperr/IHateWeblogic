@@ -136,7 +136,11 @@ the running one; `09-db_patch_rcu.sh` then moves the instance
 ./60-RCU-DB-19c/01-db_install_software.sh --target-home $ORACLE_BASE/product/19.33.0/db_home1 --fresh-patches --apply
 ```
 
-**Gold image (AutoUpgrade 26.6, 19.33, live 2026-10-28):** `recommended` now
+**Gold image (AutoUpgrade 26.6, 19.33, live 2026-10-28) – preferred:** when
+both a `db_goldimage_*.zip` and an RU ZIP lie in `patchdir`, `01-` takes the
+gold image (the RU is extracted but not used). Offline: copy the gold image
+of another host (e.g. `autoupgrade/patchdir/db_goldimage_19_33_*.zip`, 4.6 GB)
+into `patchdir`. `recommended` now
 delivers `db_goldimage_19_<ru>_*.zip` – a complete home with RU and OCW RU –
 instead of an RU ZIP. `01-` then unpacks it as the new home (newest OPatch
 into it), runs its `runInstaller` without patches (rc 6 = success with
@@ -152,6 +156,23 @@ patch ZIPs to `patchdir_<timestamp>/`. The **disk space check runs first**
 recommended 24 GB (home min 12 / rec 15 GB since the gold image).
 
 ## Installation: runInstaller -applyRU
+
+> **State 2026-11-02: this route is NOT working on an FMW host with a shared
+> central inventory.** `runInstaller -applyRU` attaches the unpacked home
+> temporarily ("tempGIName"), runs `opatchauto apply <RU> -binary` and
+> detaches it again – opatchauto then stops with `Invalid Home :
+> <DB_ORACLE_HOME>` / "… is not applicable to the oracle home" (prereqs
+> `checkPatchApplicable`, `checkConflictAgainstOHWithDetail` … "NOT
+> ATTEMPTED"). Seen on the test host in all five runs of March 2026 (RU
+> 19.30 = 38632161; the attach logged `OUI-10053 Unable to generate
+> temporary script …/orainstRoot.sh`) and at the customer 2026-11-02 (RU
+> 19.33 = 39915792, OPatch 12.2.0.1.55). Cause not confirmed yet – to be
+> researched on a test host (AttachHome log, inventory permissions).
+> **Working routes:** the gold image (below – `01-` prefers it when a
+> `db_goldimage_*.zip` lies in `patchdir` next to an RU ZIP; it can be copied
+> from a host where AutoUpgrade built it, it is not host-specific), or base
+> install + `opatch napply` (how the 19.30 home of March was made).
+
 
 19c is an **image-based** install: `runInstaller` must run from the home it
 installs. `01-` unpacks the 19.3 base ZIP (`DB_INSTALL_ARCHIVE`) into
