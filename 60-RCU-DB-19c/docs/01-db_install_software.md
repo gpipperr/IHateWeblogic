@@ -153,14 +153,24 @@ recommended 24 GB (home min 12 / rec 15 GB since the gold image).
 
 ## Installation: runInstaller -applyRU
 
-The 19.3.0 staging directory (`base_stage`) provides the `runInstaller` binary.
-The installer receives the extracted RU directory via `-applyRU` and optional
-OneOffs via `-applyOneOffs`.  The result is installed **directly** to
-`DB_ORACLE_HOME` (e.g. `$ORACLE_BASE/product/19.30.0/db_home1`).
+19c is an **image-based** install: `runInstaller` must run from the home it
+installs. `01-` unpacks the 19.3 base ZIP (`DB_INSTALL_ARCHIVE`) into
+`DB_ORACLE_HOME`, puts the newest OPatch (p6880880) into it and runs **that**
+`runInstaller` with the extracted RU via `-applyRU` and the OneOffs via
+`-applyOneOffs` (`base_stage` only provides the Java for AutoUpgrade and the
+OPatch for the patch check). Until 2026-11-02 the script ran
+`base_stage/runInstaller` with `ORACLE_HOME=<new home>` – the installer stops
+with rc=1: "The installer has detected that the Oracle home location provided
+in the command line is not correct. The Oracle home is the location from where
+setup script is executed." (customer, first run of the RU route; the gold-image
+route always unpacked into the home).
 
 ```bash
+unzip -q LINUX.X64_193000_db_home.zip -d "$DB_ORACLE_HOME"
+unzip -q -o p6880880_190000_Linux-x86-64.zip -d "$DB_ORACLE_HOME"   # OPatch 12.2.0.1.55
+cd "$DB_ORACLE_HOME"
 CV_ASSUME_DISTID=OEL7.6 \
-"$base_stage/runInstaller" \
+./runInstaller \
     -silent -ignorePrereqFailure -waitforcompletion \
     -applyRU   /path/to/RU_patch_dir \
     -applyOneOffs /path/to/OJVM_dir \

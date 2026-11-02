@@ -10,7 +10,7 @@
 # Directory convention (same ORACLE_BASE, separate product subtrees):
 #   ORACLE_BASE/fmw/                    ← FMW_HOME  (FMW 14.1.2 software)
 #   ORACLE_BASE/product/19.3.0/db_home1 ← DB base install (unpatched)
-#   ORACLE_BASE/product/19.30.0/db_home1← DB patched home (DB_ORACLE_HOME, RU 30)
+#   ORACLE_BASE/product/19.33.0/db_home1← DB patched home (DB_ORACLE_HOME, RU 33)
 #   ORACLE_BASE/oradata/FMWCDB/         ← DB data files
 #   ORACLE_BASE/flash_recovery_area/    ← Fast Recovery Area (FRA)
 #   ORACLE_BASE/admin/FMWCDB/adump/     ← audit dump
@@ -20,14 +20,17 @@
 #   DB_HOST=...  DB_PORT=1521  DB_SERVICE=FMWPDB
 # =============================================================================
 
-# --- Oracle Base (shared with FMW — must match ORACLE_BASE in environment.conf) ---
-ORACLE_BASE="/u01/app/oracle"
+# --- Oracle Base (shared with FMW) ---------------------------------------------
+# Default = ORACLE_BASE of environment.conf (read before this file) – a fixed
+# value here OVERRIDES it for all 60- scripts; set one only for a DB-only host.
+ORACLE_BASE="${ORACLE_BASE:-/u01/app/oracle}"
 
-# --- Oracle Central Inventory (must match ORACLE_INVENTORY in environment.conf) ---
-# Keep in sync with environment.conf — both FMW and DB share one Central Inventory.
-# /etc/oraInst.loc is written by 03-root_user_oracle.sh; DB runInstaller finds it automatically.
-# Only set here for reference; the DB scripts read inventory location from /etc/oraInst.loc.
-ORACLE_INVENTORY="/u01/app/oraInventory"
+# --- Oracle Central Inventory (shared by FMW + DB) -----------------------------
+# Default = ORACLE_INVENTORY of environment.conf (interview; e.g. /opt/oraInventory
+# when ORACLE_BASE is /oracle). /etc/oraInst.loc (03-root_user_oracle.sh) is what
+# the DB runInstaller really uses. A fixed /u01/... value here made 01- warn and
+# suggest re-pointing oraInst.loc (customer 2026-11-02) – keep the default.
+ORACLE_INVENTORY="${ORACLE_INVENTORY:-$(dirname "$ORACLE_BASE")/oraInventory}"
 
 # --- Edition ------------------------------------------------------------------
 # EE (Enterprise Edition) is the default and recommended setting.
@@ -45,8 +48,8 @@ DB_CV_ASSUME_DISTID="OEL7.6"
 
 # --- Oracle Homes -------------------------------------------------------------
 # Patched home: installed directly via runInstaller -applyRU (01-db_install_software.sh)
-# Current RU: 19.30 (Q1 2026) — update this when applying a newer RU.
-DB_ORACLE_HOME="${ORACLE_BASE}/product/19.30.0/db_home1"
+# Current RU: 19.33 (Oct 2026) — the directory names the RU; a newer RU = new home (09-db_patch_rcu.sh).
+DB_ORACLE_HOME="${ORACLE_BASE}/product/19.33.0/db_home1"
 
 # --- Storage (all under ORACLE_BASE for clean separation from FMW) -----------
 DB_DATA_DIR="${ORACLE_BASE}/oradata"          # datafiles:  ORACLE_BASE/oradata/FMWCDB/

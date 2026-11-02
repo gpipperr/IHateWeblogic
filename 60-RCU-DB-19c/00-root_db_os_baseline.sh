@@ -405,7 +405,10 @@ if [ -f "$ORA_INST_ETC" ]; then
         ok "$ORA_INST_ETC already correct (inventory_loc=$_ORA_INVENTORY)"
     else
         warn "$ORA_INST_ETC exists but points to '$_inv_current' — expected '$_ORA_INVENTORY'"
-        if $APPLY; then
+        if [ -f "$_inv_current/ContentsXML/inventory.xml" ] && grep -q '<HOME ' "$_inv_current/ContentsXML/inventory.xml" 2>/dev/null; then
+            # homes are registered there (FMW) – re-pointing would orphan them
+            warn "  $_inv_current holds registered Oracle homes – NOT changed; fix ORACLE_INVENTORY in environment.conf / environment_db.conf instead"
+        elif $APPLY; then
             backup_file "$ORA_INST_ETC" "$(dirname "$ORA_INST_ETC")" 2>/dev/null || true
             printf "inventory_loc=%s\ninst_group=oinstall\n" "$_ORA_INVENTORY" > "$ORA_INST_ETC"
             chmod 644 "$ORA_INST_ETC"

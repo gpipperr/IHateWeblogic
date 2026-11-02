@@ -118,6 +118,11 @@ vi environment_db.conf
 ```
 
 `environment_db.conf` is **separate from** `environment.conf` (FMW/WLS).
+It is read **after** `environment.conf`: `ORACLE_BASE` and `ORACLE_INVENTORY`
+default to the values of `environment.conf` – a fixed value in
+`environment_db.conf` overrides them for all 60- scripts (an old copy of the
+template had `/u01/...` fixed: check these two lines when `ORACLE_BASE` is
+not `/u01/app/oracle`).
 The 09-Install scripts read `environment.conf`; these scripts read
 `environment_db.conf`.  The two files share `ROOT_DIR` and
 `00-Setup/IHateWeblogic_lib.sh`, but no variables overlap.

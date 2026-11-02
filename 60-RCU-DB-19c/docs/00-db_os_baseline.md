@@ -181,7 +181,9 @@ Switch to: `SGA_TARGET=1536M` + `PGA_AGGREGATE_TARGET=512M`.
     (from `environment.conf` / `environment_db.conf`, else derived from
     `ORACLE_BASE`). On a shared host it must point to the **same** inventory
     as the FMW home – a different value is reported (WARN) and corrected
-    with `--apply`
+    with `--apply` **only** when the current inventory holds no homes yet;
+    an inventory with registered homes (FMW) is never re-pointed (since
+    2026-11-02) – then `ORACLE_INVENTORY` in the config is wrong
 
 ---
 

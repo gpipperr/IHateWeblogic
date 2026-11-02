@@ -715,8 +715,12 @@ if [ -f "/etc/oraInst.loc" ]; then
     if [ "$_inv_current" = "$_inv_target" ]; then
         ok "$(printf "/etc/oraInst.loc : inventory_loc=%s" "$_inv_current")"
     else
-        warn "$(printf "/etc/oraInst.loc: inventory_loc='%s' expected '%s'" "$_inv_current" "$_inv_target")"
-        warn "  Re-run 00-root_db_os_baseline.sh --apply to correct"
+        # the installer uses /etc/oraInst.loc – FMW is registered there already,
+        # so the config is what is wrong, not the pointer
+        warn "$(printf "/etc/oraInst.loc: inventory_loc='%s', ORACLE_INVENTORY='%s'" "$_inv_current" "$_inv_target")"
+        info "  The installer uses /etc/oraInst.loc ($_inv_current) – the DB home is registered there."
+        info "  Fix the config: ORACLE_INVENTORY in 60-RCU-DB-19c/environment_db.conf (or remove the line –"
+        info "  it then comes from environment.conf). Do NOT point /etc/oraInst.loc elsewhere: FMW is registered in it."
     fi
     unset _inv_current
 else
@@ -737,11 +741,28 @@ EOF
 fi
 unset _inv_target
 
-# Build -applyRU / -applyOneOffs arguments
-_INSTALLER="$_AU_BASE_STAGE/runInstaller"
+# Build -applyRU / -applyOneOffs arguments. 19c is image-based: runInstaller
+# must run FROM the new home ("The Oracle home is the location from where
+# setup script is executed", customer 2026-11-02 with base_stage/runInstaller)
+# -> the 19.3 base ZIP is unpacked into DB_ORACLE_HOME first, like the gold image
 _ru_args=()
 if [ -n "$_RU_DIR" ]; then
     _ru_args=(-applyRU "$_RU_DIR")
+    info "Unpacking the 19.3 base ZIP into $DB_ORACLE_HOME (runInstaller runs from the home) ..."
+    printf "  Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    unzip -q -o "$DB_INSTALL_ARCHIVE" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"
+    _uz_rc=${PIPESTATUS[0]}
+    if [ "$_uz_rc" -ne 0 ] || [ ! -x "$DB_ORACLE_HOME/runInstaller" ]; then
+        fail "Base ZIP unzip failed (rc=$_uz_rc) – no runInstaller in $DB_ORACLE_HOME"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    printf "  Finished: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+    # -applyRU needs the OPatch of the RU README (12.2.0.1.55 for 19.33) in the home
+    _opatch_zip=$(ls "$_AU_PATCHDIR"/p6880880_*.zip 2>/dev/null | sort -V | tail -1)
+    [ -n "$_opatch_zip" ] && { rm -rf "$DB_ORACLE_HOME/OPatch"; unzip -q -o "$_opatch_zip" -d "$DB_ORACLE_HOME" 2>&1 | tee -a "$LOG_FILE"; }
+    ok "Base unpacked, $(ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" version 2>/dev/null | head -1)"
+    _INSTALLER="$DB_ORACLE_HOME/runInstaller"
+    unset _opatch_zip _uz_rc
 else
     # gold image: unpack it as the new home, newest OPatch into it, then its runInstaller
     info "Unpacking gold image into $DB_ORACLE_HOME ..."
