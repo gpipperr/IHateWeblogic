@@ -23,8 +23,9 @@ Flow:
 4. Install route (details in [Installation](#installation-routes)):
    - **gold image** in `patchdir` → unpack as the home, `runInstaller`,
      OneOffs with `opatch apply`
-   - **RU ZIP** (default) → 19.3 base into the home, `runInstaller` without
-     patches, then RU + OneOffs with `opatch apply`, `relink all`
+   - **RU ZIP** (default) → 19.3 base into the home, `attachHome`, RU +
+     OneOffs with `opatch apply`, `detachHome`, then `runInstaller` without
+     patches on the patched image (links, instantiates, registers)
    - `--apply-ru-installer` → `runInstaller -applyRU … -applyOneOffs …`
      (fails on FMW hosts – research only)
 5. `root.sh` prompt + `chopt disable olap rat`
@@ -176,38 +177,58 @@ first and puts the newest OPatch (p6880880, 12.2.0.1.55 for 19.33) into it.
 | `patchdir` contains | Route | State |
 |---|---|---|
 | `db_goldimage_*.zip` (RU ZIP too or not) | gold image | live 2026-10-28 (19.33) |
-| RU ZIP, no gold image | base install + `opatch apply` (default) | manual 2026-03 (19.30), script since 2026-11-02 |
+| RU ZIP, no gold image | patch the image with `opatch`, then install (default) | live test host 2026-11-02 (19.33, `--target-home`, rc=6, 41 OK) |
 | RU ZIP + `--apply-ru-installer` | `runInstaller -applyRU` | **fails on FMW hosts** |
 
-### Base install + opatch (default without a gold image)
+### Patch first, then install (default without a gold image)
 
-For a fresh install no database uses the home yet – patching it in place is
-safe, a second home (19.3.0 → clone → 19.33.0) would only cost 8 GB more and
-an extra attach/detach. The home directory gets the target name right away
-(`product/19.33.0/db_home1`).
+**Why this order:** the 19.3 base installer cannot link on OL9 (rc=252,
+"Error in invoking target", see Troubleshooting) and stops **before**
+"Setup files" and before registering the home. "Setup files" is the
+instantiation: the image's scripts carry the build path of Oracle's image –
+`bin/dbca` has `OH=/u01/app/oracle/product/19.0.0/dbhome_1` until the
+installer replaces it. The first version of this route (2026-11-02: install,
+rc=252 accepted, `attachHome`, `opatch`, `relink all`) left those paths in
+place – `dbca` then failed with `…/19.0.0/dbhome_1/bin/platform_common: No
+such file or directory` (customer, `05-`). So the RU goes into the **image**
+first; its `runInstaller` then links with the RU makefiles, instantiates and
+registers – like a gold image. (This is what `-applyRU` does internally, but
+with `opatch` instead of `opatchauto`, which fails with "Invalid Home".)
+
+For a fresh install no database uses the home yet – no second home needed;
+the home directory gets the target name right away (`product/19.33.0/db_home1`).
 
 ```bash
 unzip -q LINUX.X64_193000_db_home.zip -d "$DB_ORACLE_HOME"
+rm -rf "$DB_ORACLE_HOME/OPatch"
 unzip -q -o p6880880_190000_Linux-x86-64.zip -d "$DB_ORACLE_HOME"   # OPatch 12.2.0.1.55
+# 1. register the image temporarily - opatch needs the home in the inventory
+"$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
+    ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1
+# 2. RU first, then OJVM RU, Data Pump bundle, JDK bundle
+cd <patch_stage>/39915792 && "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME"
+"$DB_ORACLE_HOME/OPatch/opatch" lspatches     # RU must be listed
+# 3. unregister again - the installer registers the home itself
+"$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -detachHome ORACLE_HOME="$DB_ORACLE_HOME"
+# 4. install the patched image (links, instantiates, registers)
 cd "$DB_ORACLE_HOME"
 CV_ASSUME_DISTID=OEL7.6 ./runInstaller -silent -ignorePrereqFailure -waitforcompletion \
     oracle.install.option=INSTALL_DB_SWONLY ORACLE_BASE="$ORACLE_BASE" \
     ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1 ...
-# rc=252 on OL9 = link error of the 19.3 makefiles – expected. The installer
-# stops in the link phase BEFORE registering the home -> attach it:
-"$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
-    ORACLE_HOME="$DB_ORACLE_HOME" ORACLE_HOME_NAME=OraDB19Home1
-cd <patch_stage>/39915792 && "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME"   # RU first
-# then OJVM RU, Data Pump bundle, JDK bundle the same way
-"$DB_ORACLE_HOME/OPatch/opatch" lspatches     # RU must be listed
-"$DB_ORACLE_HOME/bin/relink" all              # link with the RU makefiles
+grep -n '^OH=' "$DB_ORACLE_HOME/bin/dbca"     # must show DB_ORACLE_HOME
 ```
 
 `01-` checks each `opatch apply` on its output (a "SKIPPED" / "not
 applicable" patch is a failure, the benign "re-links will eventually be
-skipped because they are duplicates" is ignored), then that the RU is listed
-in `opatch lspatches`, then `relink all`. Unlike the gold image this home has
-no OCW RU – not needed for a single instance without GI/ASM.
+skipped because they are duplicates" is ignored), that the RU is listed in
+`opatch lspatches`, that attach / detach changed the inventory, and after the
+installer that the home is registered and no `bin/` script still contains
+`/u01/app/oracle/product/19.0.0/dbhome_1`. Unlike the gold image this home
+has no OCW RU – not needed for a single instance without GI/ASM.
+
+**Repair of a home from the first version** (registered, patched, but
+`dbca` with the image path): `detachHome`, then step 4 from the home – or
+`01- --clean --apply`.
 
 ### Gold image
 
@@ -296,14 +317,12 @@ at the customer (2026-11-02) target `all_no_orcl` / `orion` with
 the 19.3 objects/stubs predate glibc 2.33/2.34. The RU brings OL9-compatible
 libraries and makefiles.
 
-The installer stops in the link phase **before** it registers the home in the
-central inventory (test host 2026-03: the home was attached by hand later,
-"'AttachHome' was successful"). Base route: on rc=252 `01-` checks the
-inventory, runs `oui/bin/runInstaller -silent -attachHome` if the home is
-missing, then applies the RU with `opatch` and runs `relink all`; a failing
-attach or `relink all` is a FAIL (logs `<inventory>/logs/AttachHome*.log`,
-`$DB_ORACLE_HOME/install/relinkActions*.log`). A half-installed home from a
-failed run: `01- --clean --apply` (detach if registered, remove, reinstall).
+The installer stops in the link phase **before** "Setup files"
+(instantiation) and before it registers the home. Hence the default route
+patches the image first and installs it afterwards (see above) – with the RU
+in the home the installer links on OL9. rc=252 from that installer is a FAIL.
+A half-installed home from a failed run: `01- --clean --apply` (detach if
+registered, remove, reinstall).
 
 ### "No RU identified"
 

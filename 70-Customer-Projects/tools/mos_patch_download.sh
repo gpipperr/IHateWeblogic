@@ -143,6 +143,10 @@ ROWS=()
 while IFS= read -r _line || [ -n "$_line" ]; do
     _line="${_line%$'\r'}"
     case "$_line" in ''|'#'*|patch\;*) continue ;; esac
+    # more than 8 columns = a ";" inside a field (description) - the columns
+    # shift and the ZIP lands in a wrong directory (patches_db.csv, 2026-11-02)
+    _semi="${_line//[^;]/}"
+    [ "${#_semi}" -le 7 ] || { fail "skipped line (more than 8 columns – ';' in a field?): $_line"; continue; }
     IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha <<< "$_line"
     [[ "$_nr" =~ ^[0-9]+$ ]] || { warn "skipped line (no patch number): $_line"; continue; }
     if [ -n "$ONLY" ] && [[ "$ONLY" != *",$_nr,"* ]]; then continue; fi

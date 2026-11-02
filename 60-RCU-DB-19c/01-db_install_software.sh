@@ -17,9 +17,10 @@
 #              4. Route (in this order):
 #                 a) gold image in patchdir: unzip as the home, runInstaller,
 #                    OneOffs with opatch apply
-#                 b) RU ZIP (default): 19.3 base into the home, runInstaller
-#                    WITHOUT patches (rc=252 on OL9 tolerated), then RU + OneOffs
-#                    with opatch apply, relink all – same home, no DB uses it yet
+#                 b) RU ZIP (default): 19.3 base into the home, attachHome
+#                    (temporary), RU + OneOffs with opatch apply, detachHome, then
+#                    runInstaller WITHOUT patches on the patched image (links with
+#                    the RU makefiles, instantiates the scripts, registers)
 #                 c) --apply-ru-installer: runInstaller -applyRU <RU>
 #                    -applyOneOffs … (fails on FMW hosts with a shared inventory,
 #                    "Invalid Home" – kept for research)
@@ -834,10 +835,11 @@ fi
 # -applyOneOffs only with -applyRU: with a gold image runInstaller rejected the
 # OJVM RU as "not applicable" (checkComponents not executed, live 2026-10-28) -
 # there the OneOffs are applied with opatch after the installation (below).
-# Base route: the RU first, then the OneOffs - all with opatch apply
+# Base route: RU + OneOffs with opatch BEFORE the installer (below)
+_PRE_PATCHES=""
 _POST_ONEOFFS=""
 if $_BASE_ONLY; then
-    _POST_ONEOFFS="$_RU_DIR${_ONEOFF_LIST:+,$_ONEOFF_LIST}"
+    _PRE_PATCHES="$_RU_DIR${_ONEOFF_LIST:+,$_ONEOFF_LIST}"
 elif [ -n "$_RU_DIR" ]; then
     [ -n "$_ONEOFF_LIST" ] && _ru_args+=(-applyOneOffs "$_ONEOFF_LIST")
 else
@@ -845,7 +847,6 @@ else
 fi
 unset _RU_DIR _ONEOFF_LIST _GOLD_ZIP
 
-_edition="${DB_EDITION:-EE}"
 # Oracle home name: unique in the central inventory - first install OraDB19Home1,
 # an additional home (--target-home) OraDB19Home_<version dir>, e.g. OraDB19Home_19_33_0
 if [ -n "$TARGET_HOME_ARG" ]; then
@@ -853,21 +854,85 @@ if [ -n "$TARGET_HOME_ARG" ]; then
 else
     _home_name="OraDB19Home1"
 fi
-_inv_xml_n="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
-if grep -q "NAME=\"$_home_name\"" "$_inv_xml_n" 2>/dev/null; then
+_inv_xml="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
+if grep -q "NAME=\"$_home_name\"" "$_inv_xml" 2>/dev/null; then
     _home_name="${_home_name}_$(date +%Y%m%d)"
 fi
-unset _inv_xml_n
 info "$(printf "%-28s %s" "Oracle home name:" "$_home_name")"
+
+# _opatch_list "p1,p2,..." - opatch apply each patch dir into DB_ORACLE_HOME;
+# OPatch "succeeded" is not enough, a SKIPPED / not applicable patch is a failure
+# (the benign "re-links will eventually be skipped because they are duplicates"
+# is ignored). Returns 1 on the first failure.
+_opatch_list() {
+    local _po _pd _out
+    IFS=',' read -r -a _po <<< "$1"
+    for _pd in "${_po[@]}"; do
+        info "opatch apply $(basename "$_pd") ..."
+        _out="$(cd "$_pd" && ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME" 2>&1)"
+        printf '%s\n' "$_out" >> "$LOG_FILE"
+        if printf '%s\n' "$_out" | grep -q 'OPatch succeeded' \
+           && ! printf '%s\n' "$_out" | grep -v 're-links will eventually be skipped' \
+                | grep -qiE 'skipped|not applicable|Prerequisite check .* failed'; then
+            ok "  $(basename "$_pd") applied"
+        else
+            fail "  $(basename "$_pd"): $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
+            info "  Logs: $DB_ORACLE_HOME/cfgtoollogs/opatch/"
+            return 1
+        fi
+    done
+}
+
+# Base route: PATCH FIRST, THEN INSTALL. The 19.3 installer cannot link on OL9
+# (rc=252: client_sharedlib on the test host 2026-03, all_no_orcl / orion
+# "undefined reference to stat" at the customer 2026-11-02) and stops BEFORE
+# "Setup files" (instantiation: bin/dbca etc. keep OH=/u01/app/oracle/product/
+# 19.0.0/dbhome_1 of Oracle's build -> dbca "platform_common: No such file",
+# customer 2026-11-02) and before registering the home. So: attach the unpacked
+# image temporarily, opatch the RU + OneOffs into it (OL9-ready makefiles),
+# detach, then run its runInstaller without patches - it links, instantiates
+# and registers like with a gold image. (= -applyRU, but opatch instead of
+# opatchauto, which fails on FMW hosts with "Invalid Home")
+if $_BASE_ONLY; then
+    section "Patches with opatch apply (before the installer)"
+    info "attachHome (temporary, for opatch) as $_home_name ..."
+    "$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
+        "ORACLE_HOME=$DB_ORACLE_HOME" "ORACLE_HOME_NAME=$_home_name" >> "$LOG_FILE" 2>&1
+    if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
+        ok "attachHome: $DB_ORACLE_HOME registered (temporary)"
+    else
+        fail "attachHome failed – $DB_ORACLE_HOME not in $_inv_xml (log: $(dirname "$(dirname "$_inv_xml")")/logs/AttachHome*.log)"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    _opatch_list "$_PRE_PATCHES" || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    # RU really in the home? (opatch rc / text alone is no proof)
+    if ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null | grep -q "^${_RU_ID};"; then
+        ok "RU $_RU_ID in the home (opatch lspatches)"
+    else
+        fail "RU $_RU_ID not in opatch lspatches of $DB_ORACLE_HOME"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    info "detachHome (the installer registers the home itself) ..."
+    "$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -detachHome \
+        "ORACLE_HOME=$DB_ORACLE_HOME" >> "$LOG_FILE" 2>&1
+    if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
+        fail "detachHome failed – $DB_ORACLE_HOME still in $_inv_xml"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    ok "detachHome done – the patched image is installed now"
+    section "runInstaller (patched image)"
+fi
+unset _PRE_PATCHES
+
+_edition="${DB_EDITION:-EE}"
 # CV_ASSUME_DISTID: the 19.3.0 base installer predates OL8/OL9 (MOS Doc ID 2584365.1).
-# The 19.3 makefiles fail on OL9 (rc=252, ASM client lib) - fixed by the RU:
-# -applyRU, or opatch apply of the RU + relink all on the base route.
+# The 19.3 makefiles fail on OL9 (rc=252) - the RU in the home fixes them.
 # -ignorePrereqFailure + CV_ASSUME_DISTID together suppress the supportedOSCheck NPE.
 _cv_distid="${DB_CV_ASSUME_DISTID:-OEL7.6}"
 export CV_ASSUME_DISTID="$_cv_distid"
 info "$(printf "%-28s %s  (OL8/OL9 compat)" "CV_ASSUME_DISTID:" "$CV_ASSUME_DISTID")"
 info "$(printf "%-28s %s" "Edition:" "$_edition")"
-info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]:-(none – patches with opatch after the install)}")"
+info "$(printf "%-28s %s" "RU args:" "${_ru_args[*]:-(none – home already patched / gold image)}")"
 
 printf "\n  Install started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
@@ -908,35 +973,10 @@ if [ "$_install_rc" -eq 6 ]; then
     warn "runInstaller rc=6 – software set up with warnings (optional prerequisites, see the installer log)"
     _install_rc=0
 fi
-# Base route: the 19.3 installer fails to link on OL9 (rc=252, "Error in
-# invoking target" – client_sharedlib on the test host 2026-03, all_no_orcl /
-# orion "undefined reference to stat" at the customer 2026-11-02) - expected,
-# the RU brings the fixed makefiles and relink all runs after it. The installer
-# stops BEFORE it registers the home in the central inventory -> attachHome
-# (as done by hand in March 2026, "'AttachHome' was successful"); opatch needs it
-if $_BASE_ONLY && [ "$_install_rc" -eq 252 ]; then
-    warn "runInstaller rc=252 – link error of the 19.3 base on OL9 (expected), relink after the RU"
-    _inv_xml_b="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
-    if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_b" 2>/dev/null; then
-        ok "Home registered in $_inv_xml_b"
-        _install_rc=0
-    else
-        info "Home not registered (installer stopped in the link phase) – attachHome as $_home_name ..."
-        "$DB_ORACLE_HOME/oui/bin/runInstaller" -silent -attachHome \
-            "ORACLE_HOME=$DB_ORACLE_HOME" "ORACLE_HOME_NAME=$_home_name" 2>&1 | tee -a "$LOG_FILE"
-        if grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml_b" 2>/dev/null; then
-            ok "attachHome: $DB_ORACLE_HOME registered as $_home_name"
-            _install_rc=0
-        else
-            fail "attachHome failed – $DB_ORACLE_HOME not in $_inv_xml_b (log: $(dirname "$(dirname "$_inv_xml_b")")/logs/AttachHome*.log)"
-        fi
-    fi
-    unset _inv_xml_b
-fi
 if [ "$_install_rc" -ne 0 ]; then
     fail "runInstaller exited with rc=$_install_rc"
     $USE_APPLYRU && info "  -applyRU on an FMW host (shared inventory): \"Invalid Home\" – run without --apply-ru-installer"
-    info "  rc=252 = link error of the 19.3 base on OL9 – fixed by the RU makefiles"
+    [ "$_install_rc" -eq 252 ] && info "  rc=252 = link error (\"Error in invoking target\" in the installer log) – 19.3 makefiles on OL9 without RU?"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 unset _install_rc
@@ -944,53 +984,30 @@ unset _install_rc
 ok "runInstaller completed"
 
 # Gold image: OneOffs (OJVM RU, Data Pump bundle, JDK bundle) with opatch into the
-# registered home; base route: the RU first, then the OneOffs (how the 19.30
-# home of March 2026 was built) - OPatch "succeeded" is not enough, a SKIPPED
-# patch is a failure
+# registered home
 if [ -n "$_POST_ONEOFFS" ]; then
-    section "Patches with opatch apply ($($_BASE_ONLY && printf 'base install' || printf 'gold image'))"
-    IFS=',' read -r -a _po <<< "$_POST_ONEOFFS"
-    for _pd in "${_po[@]}"; do
-        info "opatch apply $(basename "$_pd") ..."
-        _out="$(cd "$_pd" && ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" apply -silent -oh "$DB_ORACLE_HOME" 2>&1)"
-        printf '%s\n' "$_out" >> "$LOG_FILE"
-        if printf '%s\n' "$_out" | grep -q 'OPatch succeeded' \
-           && ! printf '%s\n' "$_out" | grep -v 're-links will eventually be skipped' \
-                | grep -qiE 'skipped|not applicable|Prerequisite check .* failed'; then
-            ok "  $(basename "$_pd") applied"
-        else
-            fail "  $(basename "$_pd"): $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
-            EXIT_CODE=2
-        fi
-    done
-    unset _po _pd _out
-    [ "$EXIT_CODE" -ge 2 ] && { info "  Logs: $DB_ORACLE_HOME/cfgtoollogs/opatch/"; print_summary; exit $EXIT_CODE; }
+    section "OneOffs with opatch apply (gold image)"
+    _opatch_list "$_POST_ONEOFFS" || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 fi
 unset _POST_ONEOFFS
 
-if $_BASE_ONLY; then
-    # RU really in the home? (opatch rc / text alone is no proof)
-    if ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null | grep -q "^${_RU_ID};"; then
-        ok "RU $_RU_ID registered in the home (opatch lspatches)"
+# Installed for real? Registered in the central inventory, and the installer's
+# instantiation ran (no build path of Oracle's image left in the scripts)
+grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null \
+    && ok "Home registered in $_inv_xml" \
+    || { fail "Home NOT registered in $_inv_xml"; EXIT_CODE=2; }
+_img_path="/u01/app/oracle/product/19.0.0/dbhome_1"
+if [ "$DB_ORACLE_HOME" != "$_img_path" ]; then
+    _left="$(grep -lI "$_img_path" "$DB_ORACLE_HOME"/bin/* 2>/dev/null | head -5)"
+    if [ -n "$_left" ]; then
+        fail "Image build path $_img_path still in: $(printf '%s ' $_left | sed 's|'"$DB_ORACLE_HOME"'/||g')– installer instantiation did not run"
+        EXIT_CODE=2
     else
-        fail "RU $_RU_ID not in opatch lspatches of $DB_ORACLE_HOME"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        ok "Scripts instantiated (no $_img_path in bin/)"
     fi
-    # the base install failed to link on OL9 - link everything with the RU makefiles
-    info "relink all (RU makefiles) ..."
-    _rl_out="$(ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/bin/relink" all 2>&1)"
-    _rl_rc=$?
-    printf '%s\n' "$_rl_out" >> "$LOG_FILE"
-    if [ "$_rl_rc" -eq 0 ] && ! printf '%s\n' "$_rl_out" | grep -qiE 'error in invoking target|make: \*\*\*'; then
-        ok "relink all completed"
-    else
-        fail "relink all failed (rc=$_rl_rc): $(printf '%s\n' "$_rl_out" | grep -iE 'error' | head -1)"
-        info "  Log: $DB_ORACLE_HOME/install/relinkActions*.log"
-        EXIT_CODE=2; print_summary; exit $EXIT_CODE
-    fi
-    unset _rl_out _rl_rc
 fi
-unset _BASE_ONLY _RU_ID _home_name
+[ "$EXIT_CODE" -ge 2 ] && { print_summary; exit $EXIT_CODE; }
+unset _BASE_ONLY _RU_ID _home_name _inv_xml _img_path _left
 
 # Cleanup patch staging dir (ZIPs in patchdir are kept for reproducibility)
 rm -rf "$_AU_PATCH_STAGE"
