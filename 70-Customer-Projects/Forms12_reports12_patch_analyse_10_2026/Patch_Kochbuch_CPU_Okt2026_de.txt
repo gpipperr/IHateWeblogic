@@ -822,6 +822,35 @@ SCHRITT 11: Client-JRE der Forms-Anwender  (README Abschnitt 5)
   # Nachweis: java -version -> 1.8.0_511-b26 oder neuer. eMudhra-Pruefung
   # wie in 4.8 (keytool ... | grep -ci emsign, blocked.certs).
 
+  # 11.1 Standalone-Client (FSAL, frmsal.jar): die LOKALE frmsal.jar MUSS
+  #      nach der Forms-QPR neu vom Server geholt werden.
+  #      frmsal.jar enthaelt selbst Klassen aus oracle.forms.engine (14c-
+  #      Testhost: 61 Stueck), frmall.jar (Server) ebenfalls. Die QPR bringt
+  #      ein neu signiertes frmall.jar; eine alte lokale frmsal.jar ist mit
+  #      einem aelteren Oracle-Zertifikat signiert -> Java lehnt das Paket ab:
+  #        java.lang.SecurityException: class "oracle.forms.engine.Main"'s
+  #        signer information does not match signer information of other
+  #        classes in the same package
+  #      Die Jars SIND signiert - nur von zwei verschiedenen Zertifikaten.
+  #      Kunde 2026-11-02 bestaetigt: Ursache war das eigene Startprogramm,
+  #      das frmsal.jar nur laedt, wenn die lokale Datei fehlt ("dir
+  #      frmsal...jar || wget ..."), Dateiname mit fester Version - nach dem
+  #      Patch blieb die alte liegen. Lokale Kopie geloescht, neu geladen ->
+  #      laeuft, KEIN Neusignieren noetig. fsalcheck=true in formsweb.cfg hat
+  #      die alte Kopie NICHT abgefangen.
+  #      Abhilfe am Client: lokale frmsal*.jar loeschen (wird neu geladen),
+  #      bei Bedarf zusaetzlich den FSAL-Cache unter
+  #      %USERPROFILE%\...\frmsal\<host>\<version>\ leeren. Nach JEDER
+  #      Forms-QPR auf allen Clients noetig, solange das Startprogramm so
+  #      arbeitet.
+  #      Dauerhaft: Startskript laedt frmsal.jar bei jeder Aenderung neu
+  #      (z.B. curl -z <lokale Datei> -o <lokale Datei> <url>, oder Patch-
+  #      Stand im Dateinamen).
+  #      Pruefen - Server und Client muessen DASSELBE Zertifikat zeigen:
+  keytool -printcert -jarfile $ORACLE_HOME/forms/java/frmsal.jar | grep -E 'Owner|Valid|SHA256:'
+  keytool -printcert -jarfile $ORACLE_HOME/forms/java/frmall.jar | grep -E 'Owner|Valid|SHA256:'
+  #      (am Client dasselbe mit der lokalen frmsal*.jar)
+
 
 ================================================================================
 SCHRITT 12: Rollback  (nur im Notfall)
@@ -879,6 +908,14 @@ BEKANNTE PROBLEME
   Problem: Download der Reports-QPR / Forms-QPR passt nicht
   Ursache: falsche Plattform-Variante (SOLARIS64 statt Linux-x86-64)
   Loesung: ZIP-Name pruefen (Schritt 1), Linux-Variante laden
+
+  Problem: Forms-Client (FSAL) startet nicht: SecurityException "class
+           oracle.forms.engine.Main's signer information does not match
+           signer information of other classes in the same package"
+  Ursache: alte lokale frmsal.jar (aelteres Oracle-Signaturzertifikat) +
+           neues frmall.jar der Forms-QPR - beide enthalten oracle.forms.engine
+  Loesung: lokale frmsal*.jar am Client loeschen / neu laden (Schritt 11.1,
+           beim Kunden 2026-11-02 so geloest, kein Neusignieren noetig)
 
   Problem: Nach dem JDK-Wechsel startet ein Server/Node Manager mit altem Java
   Ursache: irgendwo steht ein versionsbehafteter Pfad statt $JDK_LINK
