@@ -1,19 +1,19 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 06-db_audit_setup.sh
+# Script   : 04-db_audit_setup.sh
 # Purpose  : Configure Unified Auditing in the running FMWPDB:
 #              1. Create AUDITLOG tablespace
 #              2. Move unified audit trail to AUDITLOG
 #              3. Create automated purge job (180 day retention)
 #              4. Define and activate minimal security audit policy
-# Call     : ./60-RCU-DB-19c/06-db_audit_setup.sh
-#            ./60-RCU-DB-19c/06-db_audit_setup.sh --apply
-#            ./60-RCU-DB-19c/06-db_audit_setup.sh --help
+# Call     : ./60-RCU-DB-19c/04-db_audit_setup.sh
+#            ./60-RCU-DB-19c/04-db_audit_setup.sh --apply
+#            ./60-RCU-DB-19c/04-db_audit_setup.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, database running
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/06-db_audit_setup.md
+# Ref      : 60-RCU-DB-19c/docs/04-db_audit_setup.md
 #            https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai
 # =============================================================================
 
@@ -108,7 +108,7 @@ if [ "$_ua_val" = "TRUE" ]; then
     ok "Unified Auditing is active (V\$OPTION: TRUE)"
 else
     fail "Unified Auditing is NOT active (V\$OPTION: ${_ua_val:-empty})"
-    fail "  Relink: DB + listener down, cd $ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle (docs/06-db_audit_setup.md)"
+    fail "  Relink: DB + listener down, cd $ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle (docs/04-db_audit_setup.md)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 unset _ua_val
@@ -466,7 +466,7 @@ info "  FMW_RCU_DB_MIN_SEC_AUDIT"
 info "  FMW_RCU_SEC_AUDIT_TRUNC"
 info ""
 info "Next step: optional FMW_DATA tablespace"
-info "  07-db_fmw_tablespace.sh --apply"
+info "  05-db_fmw_tablespace.sh --apply"
 info "  (or skip and use RCU with auto-created tablespaces)"
 info ""
 info "Then: 09-Install/07-oracle_setup_repository.sh --apply"

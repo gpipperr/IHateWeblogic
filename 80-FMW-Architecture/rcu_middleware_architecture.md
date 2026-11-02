@@ -120,7 +120,7 @@ Created by `09-Install/07-oracle_setup_repository.sh`
 | `UCSUMS` | `DEV_UMS` | User Messaging Service | **no data source** in this domain |
 
 All schemas: version `14.1.2.0.0`, status `VALID`, `UPGRADED=N`, default
-tablespace `FMW_DATA` (`60-RCU-DB-19c/07-db_fmw_tablespace.sh`).
+tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
 
 ### 2.1 The schemas and their users at a glance
 
@@ -328,7 +328,7 @@ Consequences:
   BasicFile registry keeps working, see the test above).
 - Pre-checks in this repository: `09-Install/07-oracle_setup_repository.sh`
   (FAIL with `FORCE` and no registry yet, WARN with `FORCE` and an existing
-  registry), `60-RCU-DB-19c/07b-db_rcu_profile.sh` and
+  registry), `60-RCU-DB-19c/06-db_rcu_profile.sh` and
   `rcu_registry_overview.sql` (line `IHW:SECUREFILE|…`). Our own DB creation
   (`60-RCU-DB-19c/03-db_create_database.sh`) does not set the parameter
   (default `PREFERRED`).
@@ -403,7 +403,7 @@ picks":
 - Reports cookbook step 3: `-databaseType EBR` in the silent command; in the
   GUI select "Oracle Database enabled for edition-based redefinition"
   explicitly instead of taking the preselection.
-- The prefix overview (`rcu_registry_overview.sql`, `07b-`,
+- The prefix overview (`rcu_registry_overview.sql`, `60-RCU-DB-19c/06-`,
   `07 --profile`) shows the column `EBR` per prefix and warns about mixed
   schemas within a prefix.
 
@@ -470,7 +470,7 @@ restart AdminServer, managed servers and Reports server.
     (`--prefix`), no "all" switch – other repositories in the same DB may
     belong to other teams/policies. `rcu_registry_overview.sql` shows all
     prefixes (schemas, orphaned registry rows, profile, status, expiry)
-  - `60-RCU-DB-19c/07b-db_rcu_profile.sh` – DB preparation on the DB host
+  - `60-RCU-DB-19c/06-db_rcu_profile.sh` – DB preparation on the DB host
     before RCU (`--assign` for an existing repository)
   - `09-Install/07-oracle_setup_repository.sh` – assigns it after
     `-createRepository`; `--profile` for an existing repository
@@ -754,7 +754,7 @@ All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
 - `db_securefile` test 2026-10-17: scratch table `SYSTEM.IHW_SF_TEST` with a
   CLOB in tablespace `SYSTEM` under `PREFERRED` / `ALWAYS` / `FORCE`
   (session level), dropped afterwards; `DBA_LOBS`, `DBA_TABLESPACES`
-- Profile change 2026-10-17: `60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign`,
+- Profile change 2026-10-17: `60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign`,
   `09-Install/07-oracle_setup_repository.sh --profile` (idempotent re-run)
 - READMEs of the September 2026 patches in `$PATCH_STORAGE/patches/`
 

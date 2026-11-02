@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 07b-db_rcu_profile.sh
+# Script   : 06-db_rcu_profile.sh
 # Purpose  : DB preparation before RCU: create the profile for the FMW
 #            repository schemas (RCU_DB_PROFILE, default RCU_USER) with
 #            PASSWORD_LIFE_TIME UNLIMITED and FAILED_LOGIN_ATTEMPTS UNLIMITED.
@@ -16,16 +16,16 @@
 #            Every run shows ALL prefixes of the registry (schemas, missing
 #            users, profiles, status, earliest expiry).
 #            09-Install/07-oracle_setup_repository.sh assigns it after RCU.
-# Call     : ./60-RCU-DB-19c/07b-db_rcu_profile.sh
-#            ./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply
-#            ./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign
-#            ./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign --prefix DEV --prefix TEST
+# Call     : ./60-RCU-DB-19c/06-db_rcu_profile.sh
+#            ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
+#            ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign
+#            ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign --prefix DEV --prefix TEST
 # Runs as  : oracle (on the DB host, sqlplus / AS SYSDBA)
 # Requires : environment.conf, environment_db.conf (DB_ORACLE_HOME, DB_SID,
 #            DB_PDB_NAME), 60-RCU-DB-19c/rcu_user_profile.sql
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/07b-db_rcu_profile.md
+# Ref      : 60-RCU-DB-19c/docs/06-db_rcu_profile.md
 #            80-FMW-Architecture/rcu_middleware_architecture.md (6.1)
 # =============================================================================
 

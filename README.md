@@ -681,9 +681,9 @@ IHateWeblogic/
 │   ├── 02-db_setup_listener.sh      – Configure the TNS listener
 │   ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
 │   │                                   local_listener without alias, requirement check)
-│   ├── 06-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
-│   ├── 07-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
-│   ├── 07b-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
+│   ├── 04-db_audit_setup.sh         – Pure Unified Auditing relink + purge job
+│   ├── 05-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
+│   ├── 06-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
 │   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry
 │   ├── rcu_db_requirements.sql      – FMW 14.1.2 DB requirements (version, edition, AL32UTF8, JVM, parameters)

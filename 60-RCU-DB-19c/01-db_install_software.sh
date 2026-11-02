@@ -27,7 +27,7 @@
 #              5. root.sh prompt + chopt disable olap/rat
 #
 #            uniaud_on relink is NOT done here – a manual step after DBCA
-#            (docs/00-concept.md, 06-db_audit_setup.sh checks it); an out-of-place
+#            (docs/00-concept.md, 04-db_audit_setup.sh checks it); an out-of-place
 #            patch keeps it (09-db_patch_rcu.sh relinks the new home).
 #
 # Call     : ./60-RCU-DB-19c/01-db_install_software.sh

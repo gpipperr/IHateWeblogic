@@ -196,11 +196,11 @@ Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
   [oracle]      ./60-RCU-DB-19c/03-db_create_database.sh --apply
                   DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, no archivelog,
                   MAX_STRING_SIZE=EXTENDED in every container incl. PDB$SEED)
-  [oracle]      ./60-RCU-DB-19c/06-db_audit_setup.sh --apply
+  [oracle]      ./60-RCU-DB-19c/04-db_audit_setup.sh --apply
                   Pure Unified Auditing (uniaud_on relink + purge job)
-  [oracle]      ./60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
+  [oracle]      ./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
                   optional: create FMW_DATA tablespace (skip = RCU creates its own)
-  [oracle]      ./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply
+  [oracle]      ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
                   DB profile RCU_USER (no password expiry / lock for the schemas)
   [oracle]      ./60-RCU-DB-19c/08-db_auto_start.sh --apply
                   configure DB/listener autostart (oratab, systemd)

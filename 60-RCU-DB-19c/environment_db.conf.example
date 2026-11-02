@@ -98,12 +98,12 @@ DB_NCHAR_SET="AL16UTF16"
 # true  for production (set DB_FAST_RECOVERY_AREA as well)
 DB_ARCHIVELOG=false
 
-# --- Audit Tablespace (06-db_audit_setup.sh) ---------------------------------
+# --- Audit Tablespace (04-db_audit_setup.sh) ---------------------------------
 DB_AUDIT_TS_SIZE_MB=100            # initial size; purge job keeps it bounded
 DB_AUDIT_TS_MAX_MB=4000            # max 4 GB
 DB_AUDIT_RETAIN_DAYS=180           # purge records older than N days
 
-# --- Optional: FMW_DATA Tablespace (07-db_fmw_tablespace.sh) -----------------
+# --- Optional: FMW_DATA Tablespace (05-db_fmw_tablespace.sh) -----------------
 # Leave empty to let RCU create its own tablespaces (recommended for dev).
 # Set to enable pre-created tablespace (enterprise/production).
 # Must match RCU_TABLESPACE in environment.conf.

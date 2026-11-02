@@ -45,7 +45,7 @@ Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ..
 > **`--drop` also drops the tablespace – including a DBA-pre-created one.** The RCU
 > log shows `drop tablespace FMW_DATA including contents and datafiles` (confirmed
 > 2026-10-14). With `RCU_TABLESPACE` set, re-create it before the next `--apply`:
-> `60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply`. On a customer DB managed by a
+> `60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply`. On a customer DB managed by a
 > DB team: agree on this before any drop – their tablespace and datafiles are gone.
 
 ---
@@ -217,7 +217,7 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
   `FAILED_LOGIN_ATTEMPTS UNLIMITED`) and assigns it to every schema of the
   prefix listed in `SYSTEM.SCHEMA_VERSION_REGISTRY$`. For an existing
   repository: `--profile`. DB preparation before RCU (on the DB host):
-  `60-RCU-DB-19c/07b-db_rcu_profile.sh`. Background:
+  `60-RCU-DB-19c/06-db_rcu_profile.sh`. Background:
   [`80-FMW-Architecture/rcu_middleware_architecture.md`](../../80-FMW-Architecture/rcu_middleware_architecture.md) §6.1.
 
 ---
@@ -231,7 +231,7 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 | `--drop` | Drop existing schemas (CAUTION: destroys data) |
 | `--check` | Read-only: FMW 14.1.2 database requirements in the target PDB – version (19c ≥ 19.14 / 23ai–26ai ≥ 23.4.0.24), edition (EE; SE2 → ORA-00439), AL32UTF8, Oracle JVM, `db_block_size`, RCU parameter minimums (`processes` 1000, `open_cursors` 1600, `session_cached_cursors` 100, `db_files` 600). The same check runs automatically before `--apply` (FAIL items stop RCU). Requirements: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai) |
 | `--profile` | Only create/align `RCU_DB_PROFILE` and assign it to the existing schemas of the prefix (no RCU run); shows all prefixes of the registry first |
-| `--prefix <P>` | With `--profile`: prefix(es) to assign (repeatable), default `DB_SCHEMA_PREFIX`; exact match, no "all" option – see `60-RCU-DB-19c/docs/07b-db_rcu_profile.md` |
+| `--prefix <P>` | With `--profile`: prefix(es) to assign (repeatable), default `DB_SCHEMA_PREFIX`; exact match, no "all" option – see `60-RCU-DB-19c/docs/06-db_rcu_profile.md` |
 | `--help` | Show usage |
 
 ---

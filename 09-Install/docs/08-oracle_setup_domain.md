@@ -253,7 +253,7 @@ Please create a new schema..
 
 Order: remove the (partial) `DOMAIN_HOME` → `07-oracle_setup_repository.sh --drop`
 → re-create the tablespace if `RCU_TABLESPACE` is set
-(`60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply`, the drop removes it) →
+(`60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply`, the drop removes it) →
 `07-oracle_setup_repository.sh --apply` → `08-oracle_setup_domain.sh --apply`.
 The script prints this sequence when it detects the error.
 

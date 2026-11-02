@@ -1,4 +1,4 @@
-# 07b – DB profile for the RCU schemas (`07b-db_rcu_profile.sh`)
+# Step 6 – DB profile for the RCU schemas (`06-db_rcu_profile.sh`)
 
 ## Purpose
 
@@ -33,10 +33,10 @@ Both use the same idempotent SQL: `60-RCU-DB-19c/rcu_user_profile.sql`.
 ## Call
 
 ```bash
-./60-RCU-DB-19c/07b-db_rcu_profile.sh                    # dry-run: profile + schema state
-./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply            # create / align the profile
-./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign   # + assign to existing <PREFIX>_* schemas
-./60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign --prefix DEV --prefix TEST   # several prefixes
+./60-RCU-DB-19c/06-db_rcu_profile.sh                    # dry-run: profile + schema state
+./60-RCU-DB-19c/06-db_rcu_profile.sh --apply            # create / align the profile
+./60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign   # + assign to existing <PREFIX>_* schemas
+./60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign --prefix DEV --prefix TEST   # several prefixes
 ```
 
 ### Which schemas are changed – prefix selection

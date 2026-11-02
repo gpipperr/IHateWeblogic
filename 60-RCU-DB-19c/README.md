@@ -93,9 +93,9 @@ Run in this order — each step must complete before the next:
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
 | 2 | `02-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
 | 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config |
-| 6 | `06-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
-| 7 | `07-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
-| 7b | `07b-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
+| 4 | `04-db_audit_setup.sh` | oracle | AUDITLOG tablespace + purge jobs + policy |
+| 5 | `05-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
+| 6 | `06-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
 | 9 | `09-db_patch_rcu.sh` | oracle | **Patch a running DB out-of-place:** new home with `01- --target-home <dir> --fresh-patches`, then move the instance (spfile, orapw, network, oratab, env), datapatch, utlrp, domain stop / start; `--rollback` |
 
@@ -189,9 +189,9 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
 | [docs/02-db_setup_listener.md](docs/02-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/03-db_create_database.md](docs/03-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
-| [docs/06-db_audit_setup.md](docs/06-db_audit_setup.md) | Unified Auditing setup |
-| [docs/07-db_fmw_tablespace.md](docs/07-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
-| [docs/07b-db_rcu_profile.md](docs/07b-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
+| [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup |
+| [docs/05-db_fmw_tablespace.md](docs/05-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
+| [docs/06-db_rcu_profile.md](docs/06-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
 | [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
 | [docs/09-db_patch_rcu.md](docs/09-db_patch_rcu.md) | Out-of-place patching of the running RCU DB (new home + move + datapatch, rollback) |
 

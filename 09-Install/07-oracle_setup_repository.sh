@@ -30,7 +30,7 @@
 #            -createRepository (and with --profile) this script creates/aligns
 #            RCU_DB_PROFILE and assigns it to all schemas of the prefix
 #            (60-RCU-DB-19c/rcu_user_profile.sql; DB preparation:
-#            60-RCU-DB-19c/07b-db_rcu_profile.sh).
+#            60-RCU-DB-19c/06-db_rcu_profile.sh).
 # DB type  : RCU_DB_TYPE (EBR | ORACLE, default EBR) is always passed as
 #            -databaseType. Without it silent RCU created EBR schemas
 #            (editions enabled) on 19c, while the GUI may preselect "Oracle
@@ -280,7 +280,7 @@ _rcu_profile() {
     local sqlplus="$ORACLE_HOME/bin/sqlplus" out rc l
     if [ ! -x "$sqlplus" ]; then
         fail "sqlplus not found: $sqlplus – assign the profile on the DB host:"
-        info "  60-RCU-DB-19c/07b-db_rcu_profile.sh --apply --assign"
+        info "  60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign"
         return 1
     fi
     if [ ! -f "$PROFILE_SQL" ] || [ ! -f "$OVERVIEW_SQL" ]; then
@@ -455,7 +455,7 @@ if printf "%s\n" "$LISTSCHEMAS_OUTPUT" | grep -qi "${DB_SCHEMA_PREFIX}_"; then
         # including contents and datafiles" in the RCU log)
         if [ -n "${RCU_TABLESPACE:-}" ]; then
             warn "RCU -dropRepository also drops tablespace '${RCU_TABLESPACE}' INCLUDING DATAFILES"
-            warn "  Re-create it before --apply: 60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply"
+            warn "  Re-create it before --apply: 60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply"
         fi
     else
         warn "$(printf "Schemas with prefix '%s' already exist in the DB" "$DB_SCHEMA_PREFIX")"
@@ -520,7 +520,7 @@ if [ -n "${RCU_TABLESPACE:-}" ] && ! $DROP; then
     info "  Verify on DB server (as SYSDBA):"
     info "    SELECT tablespace_name, status FROM dba_tablespaces"
     info "    WHERE tablespace_name = UPPER('${RCU_TABLESPACE}');"
-    info "  If missing – run on DB server: 60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply"
+    info "  If missing – run on DB server: 60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply"
     printf "\n" | tee -a "$LOG_FILE"
     if $APPLY; then
         if ! askYesNo "Tablespace '${RCU_TABLESPACE}' confirmed as pre-created in the DB?" "n"; then
@@ -600,7 +600,7 @@ if $DROP; then
         printf "\n" | tee -a "$LOG_FILE"
         info "Next step: create the repository again"
         [ -n "${RCU_TABLESPACE:-}" ] && \
-            info "  60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply   (tablespace ${RCU_TABLESPACE})"
+            info "  60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply   (tablespace ${RCU_TABLESPACE})"
         info "  07-oracle_setup_repository.sh --apply"
     fi
     unset _left

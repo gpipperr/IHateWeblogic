@@ -1,19 +1,19 @@
 #!/bin/bash
 # =============================================================================
-# Script   : 07-db_fmw_tablespace.sh
+# Script   : 05-db_fmw_tablespace.sh
 # Purpose  : Optionally pre-create a shared FMW_DATA tablespace in FMWPDB
 #            for DBA-managed RCU schema storage.
 #            If DB_FMW_TABLESPACE is empty → script exits with info (no-op).
 #            If DB_FMW_TABLESPACE is set   → create tablespace, then set
 #            RCU_TABLESPACE in environment.conf to match.
-# Call     : ./60-RCU-DB-19c/07-db_fmw_tablespace.sh
-#            ./60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply
-#            ./60-RCU-DB-19c/07-db_fmw_tablespace.sh --help
+# Call     : ./60-RCU-DB-19c/05-db_fmw_tablespace.sh
+#            ./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
+#            ./60-RCU-DB-19c/05-db_fmw_tablespace.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, DB_FMW_TABLESPACE set
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 60-RCU-DB-19c/docs/07-db_fmw_tablespace.md
+# Ref      : 60-RCU-DB-19c/docs/05-db_fmw_tablespace.md
 #            09-Install/docs/07-oracle_setup_repository.md (RCU_TABLESPACE)
 # =============================================================================
 

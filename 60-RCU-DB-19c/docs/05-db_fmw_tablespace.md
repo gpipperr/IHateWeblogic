@@ -1,6 +1,6 @@
-# Step 7 – 07-db_fmw_tablespace.sh
+# Step 5 – 05-db_fmw_tablespace.sh
 
-**Script:** `60-RCU-DB-19c/07-db_fmw_tablespace.sh`
+**Script:** `60-RCU-DB-19c/05-db_fmw_tablespace.sh`
 **Runs as:** `oracle`
 **Phase:** Optional — pre-create a shared FMW_DATA tablespace before RCU
 
@@ -56,7 +56,7 @@ empty by default).
 ## Next step
 
 ```
-60-RCU-DB-19c/07b-db_rcu_profile.sh --apply      # profile RCU_USER (no password expiry)
+60-RCU-DB-19c/06-db_rcu_profile.sh --apply      # profile RCU_USER (no password expiry)
 60-RCU-DB-19c/08-db_auto_start.sh --apply        # autostart
 09-Install/07-oracle_setup_repository.sh --apply  # RCU
 ```

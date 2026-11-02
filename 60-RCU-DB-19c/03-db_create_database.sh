@@ -126,7 +126,7 @@ unset _oh_base
 
 # --- Unified Auditing relink verification ------------------------------------
 # INFO only — DB creation works with standard auditing (uniaud_off).
-# Unified Auditing is enabled in a separate step (06-db_audit_setup.sh).
+# Unified Auditing is enabled in a separate step (04-db_audit_setup.sh).
 # grep -c prints "0" itself (rc=1) - no "|| printf 0" (gave "0 0", customer 2026-11-02)
 _kzaiang_count=$(strings "$DB_ORACLE_HOME/bin/oracle" 2>/dev/null | grep -c "kzaiang")
 if [ "${_kzaiang_count:-0}" -gt 0 ]; then
@@ -552,7 +552,7 @@ info "  09-Install/07-oracle_setup_repository.sh --apply"
 info ""
 info "Optional (after RCU): enable Unified Auditing + custom audit tablespace"
 info "  relink uniaud_on: cd \$ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
-info "  06-db_audit_setup.sh --apply"
+info "  04-db_audit_setup.sh --apply"
 
 # =============================================================================
 print_summary

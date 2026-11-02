@@ -14,7 +14,7 @@
 -- First line: IHW:SECUREFILE|<db_securefile> - with FORCE the FIRST RCU run in
 -- a database fails: the registry (CLOB column BACKUP) is created in the
 -- non-ASSM tablespace SYSTEM -> ORA-43853 (rcu_middleware_architecture.md 4.2)
--- Used by: 60-RCU-DB-19c/07b-db_rcu_profile.sh, 09-Install/07-oracle_setup_repository.sh
+-- Used by: 60-RCU-DB-19c/06-db_rcu_profile.sh, 09-Install/07-oracle_setup_repository.sh
 -- =============================================================================
 SET SERVEROUTPUT ON FEEDBACK OFF VERIFY OFF HEADING OFF PAGESIZE 0 LINESIZE 300
 

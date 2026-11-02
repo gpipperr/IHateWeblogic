@@ -174,7 +174,7 @@ Switch to: `SGA_TARGET=1536M` + `PGA_AGGREGATE_TARGET=512M`.
 6. Write `/etc/security/limits.d/60-oracle-db.conf` (oracle user DB limits)
 7. Create `/var/tmp/core` with correct permissions
 8. OL9: create an empty stub `libpthread_nonshared.a` if missing – the 19c
-   relink (`make … ioracle`, e.g. `uniaud_on` in `06-` / `09-`) links against it;
+   relink (`make … ioracle`, e.g. `uniaud_on` in `04-` / `09-`) links against it;
    glibc 2.34 merged libpthread into libc and dropped the archive
 9. Check and report THP status
 10. Central inventory: `/etc/oraInst.loc` with `inventory_loc=<ORACLE_INVENTORY>`

@@ -296,7 +296,7 @@ if [ "$WLST_RC" -ne 0 ]; then
         info "    rm -rf $DOMAIN_HOME                                  (partial domain from this run)"
         info "    09-Install/07-oracle_setup_repository.sh --drop"
         [ -n "${RCU_TABLESPACE:-}" ] && \
-            info "    60-RCU-DB-19c/07-db_fmw_tablespace.sh --apply        (drop removes ${RCU_TABLESPACE})"
+            info "    60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply        (drop removes ${RCU_TABLESPACE})"
         info "    09-Install/07-oracle_setup_repository.sh --apply"
         info "    09-Install/08-oracle_setup_domain.sh --apply"
     else

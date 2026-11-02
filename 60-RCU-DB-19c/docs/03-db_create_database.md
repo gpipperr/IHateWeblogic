@@ -11,8 +11,8 @@
 
 1. Unified Auditing (`uniaud_on`) – the script only **checks** the binary
    (INFO) and prints the relink command; the relink itself is a manual step
-   with database and listener stopped, before `06-db_audit_setup.sh`
-   ([00-concept.md](00-concept.md), [06-db_audit_setup.md](06-db_audit_setup.md#prerequisites))
+   with database and listener stopped, before `04-db_audit_setup.sh`
+   ([00-concept.md](00-concept.md), [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites))
 2. Create the Container Database (FMWCDB) with one Pluggable Database (FMWPDB)
    via `dbca -silent`
 
@@ -21,7 +21,7 @@
 ## Step 1: Unified Audit Relink (manual, checked only)
 
 Manual, on a stopped Oracle binary (database + listener down) – best right
-after DBCA, before `06-db_audit_setup.sh` (which stops with FAIL until it is
+after DBCA, before `04-db_audit_setup.sh` (which stops with FAIL until it is
 done):
 
 ```bash
@@ -99,8 +99,8 @@ OK / WARN / FAIL).
 | UNDOTBS1 (PDB) | undotbs01.dbf | 200 MB | 32 MB | 1 GB | FMWPDB |
 | TEMP (PDB) | temp01.tmp | 100 MB | 32 MB | 1 GB | FMWPDB |
 
-AUDITLOG tablespace: created by `06-db_audit_setup.sh` (separate script).
-FMW_DATA tablespace: created by `07-db_fmw_tablespace.sh` (optional).
+AUDITLOG tablespace: created by `04-db_audit_setup.sh` (separate script).
+FMW_DATA tablespace: created by `05-db_fmw_tablespace.sh` (optional).
 
 **Total fresh: ~1.8 GB, with 4× growth margin: ~7 GB**
 
@@ -292,4 +292,4 @@ DB_PDB_ADMIN_PWD    # from db_sys_sec.conf.des3
   creates `SYSTEM.SCHEMA_VERSION_REGISTRY$` with a CLOB in the non-ASSM
   tablespace `SYSTEM` → ORA-43853. `ALWAYS` is harmless (BasicFile fallback).
   See `80-FMW-Architecture/rcu_middleware_architecture.md` §4.2
-- Profile for the RCU schemas (no password expiry): `07b-db_rcu_profile.sh`
+- Profile for the RCU schemas (no password expiry): `06-db_rcu_profile.sh`

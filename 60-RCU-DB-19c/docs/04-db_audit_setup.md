@@ -1,13 +1,13 @@
-# Step 6 – 06-db_audit_setup.sh
+# Step 4 – 04-db_audit_setup.sh
 
-**Script:** `60-RCU-DB-19c/06-db_audit_setup.sh`
+**Script:** `60-RCU-DB-19c/04-db_audit_setup.sh`
 **Runs as:** `oracle`
 **Phase:** Configure Unified Auditing in the running database (after `03-`,
 best after the RCU run `09-Install/07-`)
 
 ```bash
-./60-RCU-DB-19c/06-db_audit_setup.sh            # dry-run: checks + plan
-./60-RCU-DB-19c/06-db_audit_setup.sh --apply    # policies, AUDITLOG, purge jobs
+./60-RCU-DB-19c/04-db_audit_setup.sh            # dry-run: checks + plan
+./60-RCU-DB-19c/04-db_audit_setup.sh --apply    # policies, AUDITLOG, purge jobs
 ```
 
 Checked against the script 2026-10-29. Background (author's wiki):
@@ -244,7 +244,7 @@ partition, ORA-01403 / ORA-00942) names the cause.
 Remedies (in this order):
 
 1. Statistics in an **own block with retry** (as above, since 2026-11-02 in
-   `06-db_audit_setup.sh`): the archive timestamp – the part the purge
+   `04-db_audit_setup.sh`): the archive timestamp – the part the purge
    depends on – is set before, a statistics failure no longer marks the job
    `FAILED`, a second try 2 min later normally finds a stable partition list.
 2. **Schedule apart**: the archive job well before the purge jobs (purge

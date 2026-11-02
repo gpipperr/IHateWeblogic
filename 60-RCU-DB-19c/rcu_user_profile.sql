@@ -19,7 +19,7 @@
 -- Idempotent: creates the profile or aligns the two limits; other limits are
 -- inherited from DEFAULT. RCU has no option to set a profile - assign it after
 -- every RCU -createRepository (09-Install/07-oracle_setup_repository.sh does).
--- Called by: 60-RCU-DB-19c/07b-db_rcu_profile.sh, 09-Install/07-oracle_setup_repository.sh
+-- Called by: 60-RCU-DB-19c/06-db_rcu_profile.sh, 09-Install/07-oracle_setup_repository.sh
 -- =============================================================================
 SET SERVEROUTPUT ON FEEDBACK OFF VERIFY OFF
 WHENEVER SQLERROR EXIT SQL.SQLCODE

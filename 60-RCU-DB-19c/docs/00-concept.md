@@ -66,8 +66,8 @@ The kernel relink (`make uniaud_on ioracle`) must happen either:
 **State 2026-10-29 (checked against the scripts):** `03-db_create_database.sh`
 only **reports** whether the binary is linked with `uniaud_on` (`kzaiang`) and
 prints the relink command; the relink itself is a manual step with database
-and listener stopped ([06-db_audit_setup.md](06-db_audit_setup.md#prerequisites)),
-and `06-db_audit_setup.sh` stops with FAIL until it is done. An out-of-place
+and listener stopped ([04-db_audit_setup.md](04-db_audit_setup.md#prerequisites)),
+and `04-db_audit_setup.sh` stops with FAIL until it is done. An out-of-place
 patch keeps it: `09-db_patch_rcu.sh` relinks the new home when the old one has
 `uniaud_on`. (The original plan – relink in `03-` (then `05-`) before DBCA, repeated after
 every RU in the former `02-db_patch_db_software.sh` – was not implemented;
@@ -277,10 +277,10 @@ oracle: 01-db_install_software.sh   base + AutoUpgrade download (RU/OJVM/DPBP/jd
 oracle: 02-db_setup_listener.sh     listener.ora + sqlnet.ora + tnsnames.ora + oracle-listener.service
 oracle: 03-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in every container,
                                     local_listener = explicit address (uniaud_on: reported only)
-manual: uniaud_on relink            DB + listener down (06-db_audit_setup.md)
-oracle: 06-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge jobs
-oracle: 07-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
-oracle: 07b-db_rcu_profile.sh       profile RCU_USER (no password expiry / lock)
+manual: uniaud_on relink            DB + listener down (04-db_audit_setup.md)
+oracle: 04-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge jobs
+oracle: 05-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
+oracle: 06-db_rcu_profile.sh       profile RCU_USER (no password expiry / lock)
 oracle: 08-db_auto_start.sh         /etc/oratab :Y + oracle-db.service systemd unit
 
 → then: 09-Install/07-oracle_setup_repository.sh --apply

@@ -254,7 +254,7 @@ Client `sqlplus` or SQLcl `sql`); Easy Connect `//host:port/service`.
 | none | login successful |
 | `ORA-01017` | wrong user name or password |
 | `ORA-28000` | account locked |
-| `ORA-28001` | password expired → [profile `RCU_USER`](../60-RCU-DB-19c/docs/07b-db_rcu_profile.md) |
+| `ORA-28001` | password expired → [profile `RCU_USER`](../60-RCU-DB-19c/docs/06-db_rcu_profile.md) |
 
 ---
 
