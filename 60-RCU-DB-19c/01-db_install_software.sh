@@ -202,7 +202,16 @@ section "Pre-checks"
 # /etc/oraInst.loc is the canonical location (created by 00-root_db_os_baseline.sh)
 _inv_xml="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"
 
-if [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
+# --clean goes on (removes the registered home); a home registered without the
+# installer's instantiation (bin/ still holds the image build path - first
+# base-route version, customer 2026-11-02) is not "complete"
+if ! $CLEAN && [ -f "$_inv_xml" ] && grep -q "LOC=\"$DB_ORACLE_HOME\"" "$_inv_xml" 2>/dev/null; then
+    if grep -qI "/u01/app/oracle/product/19.0.0/dbhome_1" "$DB_ORACLE_HOME/bin/dbca" 2>/dev/null \
+       && [ "$DB_ORACLE_HOME" != "/u01/app/oracle/product/19.0.0/dbhome_1" ]; then
+        fail "DB home registered, but NOT instantiated (bin/dbca still has the image path /u01/app/oracle/product/19.0.0/dbhome_1)"
+        info "  Reinstall: ./60-RCU-DB-19c/01-db_install_software.sh --clean --apply"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
     ok "DB home already registered in Oracle Inventory — installation complete"
     section "Verification"
     ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/OPatch/opatch" lspatches 2>/dev/null \
@@ -258,6 +267,32 @@ fi
 if $CLEAN; then
     section "Clean – Remove Target Home and Staging"
 
+    # Processes running FROM the home: a database instance -> never remove the
+    # home (FAIL); the listener (04-) -> stopped first, its listener.ora lives in
+    # <home>/network/admin and is removed with the home -> 04- again afterwards
+    _home_procs() {   # prints "pid name" of processes whose binary is in DB_ORACLE_HOME
+        local p e
+        for p in /proc/[0-9]*; do
+            e="$(readlink "$p/exe" 2>/dev/null)" || continue
+            case "$e" in "$DB_ORACLE_HOME"/*) printf '%s %s\n' "${p#/proc/}" "$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null | cut -c1-60)" ;; esac
+        done
+    }
+    _hp="$( [ -d "$DB_ORACLE_HOME" ] && _home_procs )"
+    _db_procs="$(printf '%s\n' "$_hp" | grep -E 'ora_pmon_|oracle[A-Z0-9_]+ \(' | head -5)"
+    _lsnr_procs="$(printf '%s\n' "$_hp" | grep 'tnslsnr' | head -5)"
+    if [ -n "$_db_procs" ]; then
+        fail "A database instance runs from $DB_ORACLE_HOME – the home is NOT removed:"
+        printf '%s\n' "$_db_procs" | while IFS= read -r _l; do info "    $_l"; done
+        info "  Remove the database first (05-db_create_database.sh --clean --apply) or stop it"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    if [ -n "$_lsnr_procs" ]; then
+        warn "Listener runs from $DB_ORACLE_HOME (04-db_setup_listener.sh):"
+        printf '%s\n' "$_lsnr_procs" | while IFS= read -r _l; do info "    $_l"; done
+        info "  --clean --apply stops it (lsnrctl stop); its listener.ora is removed with the home"
+        info "  -> after the install: 04-db_setup_listener.sh --apply again (systemd unit: same path, stays)"
+    fi
+
     if ! $APPLY; then
         info "Dry-run: the following would be removed (use --clean --apply to execute):"
         printf "\n" | tee -a "$LOG_FILE"
@@ -272,6 +307,22 @@ if $CLEAN; then
         warn "Run --clean --apply to execute"
         print_summary; exit $EXIT_CODE
     fi
+
+    # 0. Listener from this home: stop it (otherwise it keeps running from deleted binaries)
+    if [ -n "$_lsnr_procs" ]; then
+        info "Stopping the listener of $DB_ORACLE_HOME ..."
+        for _ln in $(printf '%s\n' "$_lsnr_procs" | awk '{ print $3 }' | sort -u); do
+            ORACLE_HOME="$DB_ORACLE_HOME" "$DB_ORACLE_HOME/bin/lsnrctl" stop "$_ln" >> "$LOG_FILE" 2>&1
+        done
+        sleep 2
+        if _home_procs | grep -q tnslsnr; then
+            fail "Listener still running from $DB_ORACLE_HOME – stop it (sudo systemctl stop oracle-listener) and re-run"
+            EXIT_CODE=2; print_summary; exit $EXIT_CODE
+        fi
+        ok "Listener stopped – run 04-db_setup_listener.sh --apply after the install"
+        unset _ln
+    fi
+    unset _hp _db_procs _lsnr_procs
 
     # 1. Detach DB_ORACLE_HOME from Oracle Inventory
     _inv_xml_cl="$(grep "^inventory_loc=" /etc/oraInst.loc 2>/dev/null | cut -d= -f2)/ContentsXML/inventory.xml"

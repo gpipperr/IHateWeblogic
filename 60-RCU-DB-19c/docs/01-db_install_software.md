@@ -284,6 +284,19 @@ $DB_ORACLE_HOME/bin/sqlplus -V
 ./01-db_install_software.sh --clean --apply
 ```
 
+- A **registered** home normally ends `01-` with "installation complete";
+  `--clean` goes past that check. A registered home whose `bin/dbca` still
+  has the image path `/u01/app/oracle/product/19.0.0/dbhome_1` (not
+  instantiated, first base-route version) is a FAIL with the hint to
+  `--clean --apply`.
+- `--clean` checks the processes running **from** the home first: a
+  database instance (`ora_pmon_*`, `oracle<SID>`) → FAIL, the home is not
+  removed (`05-db_create_database.sh --clean --apply` first). A listener
+  (`tnslsnr`, from `04-`) → stopped with `lsnrctl stop`; its `listener.ora`
+  lives in `<home>/network/admin` and is removed with the home, so
+  `04-db_setup_listener.sh --apply` runs again after the install (the
+  systemd unit points to the same path and stays).
+
 ---
 
 ## environment_db.conf Variables Used
