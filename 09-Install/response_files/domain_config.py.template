@@ -147,6 +147,25 @@ set('NodeManagerUsername', '##WLS_ADMIN_USER##')
 set('NodeManagerPasswordEncrypted', '##WLS_ADMIN_PWD##')
 cd('/')
 
+# --- Embedded LDAP password (cn=Admin) = embedded_ldap_sec.conf.des3 ----------
+# Without it a new domain gets a random one; 13-oracle_setup_reports.sh
+# (REPORTS_SECURITY=ldap) then has to set it online, which needs an
+# AdminServer restart - every managed server started in between fails with
+# "LDAPException: error result (49)" (customer 2026-11-03). The MBean does
+# not exist in the template tree - created here (checked offline 2026-11-03,
+# node name 'base_domain' like above). Empty = not set (REPORTS_SECURITY other
+# than ldap or no password stored).
+_ihw_eldap = '##EMBEDDED_LDAP_PWD##'
+if _ihw_eldap:
+    try:
+        cd('/EmbeddedLDAP/base_domain')
+    except:
+        cd('/')
+        create('base_domain', 'EmbeddedLDAP')
+        cd('/EmbeddedLDAP/base_domain')
+    set('CredentialEncrypted', _ihw_eldap)
+    cd('/')
+
 # --- Write domain ------------------------------------------------------------
 writeDomain('##DOMAIN_HOME##')
 closeTemplate()

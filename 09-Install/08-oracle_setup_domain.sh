@@ -184,6 +184,23 @@ fi
     && ok "DB schema password decrypted" \
     || { fail "DB_SCHEMA_PWD not found in $DB_SYS_SEC_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
+# Embedded LDAP password (REPORTS_SECURITY=ldap): set in the new domain right
+# away - otherwise 13- sets it online and needs an AdminServer restart before
+# any managed server can start again (error 49, customer 2026-11-03)
+ELDAP_SEC_FILE="$ROOT_DIR/embedded_ldap_sec.conf.des3"
+unset EMBEDDED_LDAP_PWD
+if [ "${REPORTS_SECURITY:-ldap}" = "ldap" ]; then
+    if [ -f "$ELDAP_SEC_FILE" ] && load_secrets_file "$ELDAP_SEC_FILE" > /dev/null 2>&1 \
+       && [ -n "${EMBEDDED_LDAP_PWD:-}" ]; then
+        ok "Embedded LDAP password decrypted (set in the domain – 13- needs no AdminServer restart)"
+    else
+        unset EMBEDDED_LDAP_PWD
+        warn "Embedded LDAP password not stored ($(basename "$ELDAP_SEC_FILE")) – the domain gets a random one"
+        info "  13-oracle_setup_reports.sh will set it later (then AdminServer restart + second 13- run)"
+        info "  store it first: 09-Install/01-setup-interview.sh (REPORTS_SECURITY=ldap)"
+    fi
+fi
+
 # =============================================================================
 # Show planned domain configuration
 # =============================================================================
@@ -289,7 +306,7 @@ _cleanup_domain_py() {
     fi
     INTERNAL_WL_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     DB_SCHEMA_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    unset INTERNAL_WL_PWD DB_SCHEMA_PWD
+    unset INTERNAL_WL_PWD DB_SCHEMA_PWD EMBEDDED_LDAP_PWD
 }
 
 trap '_cleanup_domain_py' EXIT
@@ -311,6 +328,7 @@ sed \
     -e "s|##DB_PORT##|${DB_PORT}|g" \
     -e "s|##DB_SERVICE##|${DB_SERVICE}|g" \
     -e "s|##DB_SCHEMA_PWD##|${DB_SCHEMA_PWD}|g" \
+    -e "s|##EMBEDDED_LDAP_PWD##|${EMBEDDED_LDAP_PWD:-}|g" \
     -e "s|##DB_SCHEMA_PREFIX##|${DB_SCHEMA_PREFIX}|g" \
     -e "s|##WITH_FORMS##|${WITH_FORMS}|g" \
     -e "s|##WITH_REPORTS##|${WITH_REPORTS}|g" \
@@ -366,6 +384,7 @@ _cd_err="$(tail -n +"$((_log_lines_before + 1))" "$LOG_FILE" | grep -c 'Error: c
 _cd_exp=0
 $WITH_FORMS   && _cd_exp=$(( _cd_exp + 1 ))
 $WITH_REPORTS && _cd_exp=$(( _cd_exp + 1 ))
+[ -n "${EMBEDDED_LDAP_PWD:-}" ] && _cd_exp=$(( _cd_exp + 1 ))   # EmbeddedLDAP MBean created
 if [ "$_cd_err" -gt 0 ]; then
     info "$(printf "%s × 'Error: cd() failed' in the WLST output (expected %s: MBeans created by the template helpers) – result checked below" "$_cd_err" "$_cd_exp")"
 fi
@@ -541,6 +560,14 @@ if [ -f "$_cfg" ]; then
     else
         warn "Node Manager user is '${_nm_user:-?}', not $WL_USER – first start: AdminServer without the"
         info "  Node Manager, then 09-Install/11-oracle_nodemanager.sh --apply (README Phase 6)"
+    fi
+    # Embedded LDAP password from the template (REPORTS_SECURITY=ldap)
+    if [ "${REPORTS_SECURITY:-ldap}" = "ldap" ]; then
+        if grep -A8 '<embedded-ldap>' "$_cfg" | grep -q '<credential-encrypted>'; then
+            ok "Embedded LDAP password set in config.xml – 13- binds as cn=Admin without an AdminServer restart"
+        else
+            warn "No embedded LDAP password in config.xml – 13- will set it (AdminServer restart + second run)"
+        fi
     fi
     unset _bad_ds _ms_n _uni _nm_user
 fi

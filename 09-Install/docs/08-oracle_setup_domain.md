@@ -252,6 +252,18 @@ for the full WLST/OPSS procedure (manual and scripted).
 - Selects the templates by `INSTALL_COMPONENTS` (see *Components*), checks that
   they exist, passes `##WITH_FORMS##` / `##WITH_REPORTS##` to the WLST script
 - Configures `nodemanager.properties` (127.0.0.1 only, port from `WLS_NODEMANAGER_PORT`)
+- **Embedded LDAP password** (`REPORTS_SECURITY=ldap`, since 2026-11-03):
+  the template creates `/EmbeddedLDAP/base_domain` (not in the template
+  tree – checked offline) and sets `CredentialEncrypted` from
+  `embedded_ldap_sec.conf.des3` (interview). Without it the new domain gets a
+  random one, `13-oracle_setup_reports.sh` has to set it online and every
+  managed server started before the following AdminServer restart fails with
+  `LDAPException: error result (49); Invalid credentials` (customer
+  2026-11-03). Password file missing: WARN, the old way through `13-`
+  applies. The verification checks `<embedded-ldap>` / `<credential-encrypted>`
+  in `config.xml`. Not yet confirmed with a real `writeDomain` (the whole
+  rendered template ran offline without `writeDomain`) – the next new domain
+  shows it
 - **Node Manager credentials = admin user** (since 2026-11-03): the template
   sets `NodeManagerUsername` / `NodeManagerPasswordEncrypted` under
   `/SecurityConfiguration/base_domain` before `writeDomain` (offline the node

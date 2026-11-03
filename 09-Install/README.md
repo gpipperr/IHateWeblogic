@@ -284,11 +284,13 @@ Phase 6 – Runtime Configuration (as oracle)
                                                                    # formsweb.cfg, Registry.dat for 14- – without it
                                                                    # 14- FAILs "Forms app dir not found")
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # instances, rwnetwork.conf, rwservlet, rwserver.conf
-           First run with REPORTS_SECURITY=ldap: 13- sets the embedded-LDAP password (the new
-           domain has a random one) and ends with FAIL "RESTART THE ADMINSERVER NOW" – EXPECTED.
-           Until that restart no managed server can start ("LDAPException: error result (49);
-           Invalid credentials" – customer 2026-11-03). So right away:
-  [oracle] ./01-Run/startStop.sh stop-all --apply
+           REPORTS_SECURITY=ldap: since 2026-11-03 08- puts the embedded-LDAP password
+           (embedded_ldap_sec.conf.des3) into the new domain – 13- binds at the first run.
+           Only for a domain created before (or without that file at 08-): 13- sets the
+           password itself and ends with FAIL "RESTART THE ADMINSERVER NOW". Until that
+           restart no managed server can start ("LDAPException: error result (49); Invalid
+           credentials" – customer 2026-11-03). Then right away:
+  [oracle] ./01-Run/startStop.sh stop-all --apply                  # only after that FAIL
   [oracle] ./01-Run/startStop.sh start-all --apply                 # AdminServer reads the new LDAP password
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # second run: credential store + securityId → OK
   Code signing BEFORE 14- (only FORMS_WEBUTIL_JACOB=true): jacob.jar is activated only when signed

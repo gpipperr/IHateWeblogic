@@ -501,7 +501,10 @@ Steps of the script (with `--apply`, AdminServer running):
    (`/EmbeddedLDAP/<domain>` → `setCredential`, activate) and stops this
    section with a **FAIL** (WARN before 2026-11-03): **restart the
    AdminServer, then re-run 13** – the embedded LDAP reads the credential
-   only at start. Until that restart the domain is in between: the new
+   only at start. Since 2026-11-03 `08-` sets this password already when it
+   creates the domain (from the same `embedded_ldap_sec.conf.des3`) – the
+   bind then succeeds at the first run and this restart is needed only for
+   domains created before, or when the password file was missing at `08-`. Until that restart the domain is in between: the new
    password is in the configuration, the AdminServer's LDAP still has the
    old one. Running managed servers keep working; **every managed server
    that starts fails** while deploying its security roles –
