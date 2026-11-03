@@ -172,7 +172,7 @@ The minimal setup works only if these four things are kept identical:
 | Item | Why | Where |
 |---|---|---|
 | **Patch level** | a report saved by a newer Builder must run on the server; same CPU cycle, Windows variants of the same patch numbers | cookbook step 4, Linux cookbooks |
-| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_Only_manuall_install/Font_kochbuch_de.txt) |
+| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_Only_manuall_install/Font_kochbuch_de.txt) |
 | **Connect aliases** | same `tnsnames.ora` entries on both sides | `DOMAIN_HOME\config\fmwconfig` vs. server `TNS_ADMIN` |
 | **Paths** | images / libraries via `REPORTS_PATH`; Windows paths in reports have no fallback on Linux (`REP-108`) – references carry the file name only (section 6) | [report_server_image_handling.md](report_server_image_handling.md) |
 

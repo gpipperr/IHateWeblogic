@@ -749,6 +749,8 @@ IHateWeblogic/
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
 │   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
 │   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
+│   ├── reports_fonts_architecture.md – Reports fonts: original vs. substitute, licences (Windows fonts
+│   │                                      not to another server), OFL replacements, migration
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export

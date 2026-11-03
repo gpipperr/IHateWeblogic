@@ -11,6 +11,11 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 > ([report_engine_architecture.md §5.1](../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server));
 > engines run on the FMW-bundled JDK ([§4](../80-FMW-Architecture/report_engine_architecture.md#4-standalone-server-with-own-engines--advantages)).
 
+> Background: original vs. substitute, **licences** (Microsoft fonts may not
+> be copied to another server, free OFL replacements, customer fonts),
+> metric compatibility and the migration path:
+> [reports_fonts_architecture.md](../80-FMW-Architecture/reports_fonts_architecture.md).
+
 ---
 
 ## Lessons Learned
@@ -475,7 +480,10 @@ A corporate font also needs its AFM for the screen printer:
 | Symbol           | Greek/math symbols               | Include Symbol.ttf or use FreeSerif          |
 | Arial Unicode MS | Full Unicode coverage            | Use DejaVu Sans or Noto fonts                |
 
-**Legal note:** Copying font files from Windows requires a valid Windows license.
+**Legal note:** the Windows licence does **not** allow copying Windows fonts to
+another computer or server (Microsoft font FAQ) – an original TTF on the Linux
+server needs extended rights (Monotype / foundry). Details and sources:
+[reports_fonts_architecture.md §3](../80-FMW-Architecture/reports_fonts_architecture.md#3-licences--who-may-use-which-font-where).
 
 > **Note on symbol fonts (Wingdings, Symbol):**
 > If reports use Wingdings for checkmarks (✓) or arrows (→), redesigning the report

@@ -46,7 +46,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-03.3"   # bump on every change – shown in the report
+VERSION="2026-11-03.4"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false
@@ -601,10 +601,11 @@ unset _first_rs _rc _fp1
         "$(($(wc -l < "$FONTS_TXT") - 1))" "$(grep -c ';customer;' "$FONTS_TXT")" "$(grep -c ';ms;' "$FONTS_TXT")" "$(grep -c ';free;' "$FONTS_TXT")"
     printf '\n  Customer fonts (barcode, corporate ...) – must move to 14c, no replacement:\n'
     awk -F';' '$4=="customer"{printf "    %-28s %10s  %s\n", $1, $2, $3}' "$FONTS_TXT"
-    printf '\n  Microsoft fonts – licensed with Windows / Office of the CUSTOMER, never into the\n'
-    printf '  library / git. 14c uses the free replacement; move the original only when the\n'
-    printf '  customer confirms the licence for the new server AND the output must stay identical\n'
-    printf '  ("similar" = line breaks / field widths can shift; symbol fonts have no replacement):\n'
+    printf '\n  Microsoft fonts – licensed with Windows / Office of THIS host: the Windows licence does\n'
+    printf '  NOT allow copying them to another server (Microsoft font FAQ). 14c uses the free\n'
+    printf '  replacement; the original only with extended rights (Monotype / foundry). "similar" =\n'
+    printf '  line breaks / field widths can shift; symbol fonts have no replacement.\n'
+    printf '  Background: 80-FMW-Architecture/reports_fonts_architecture.md\n'
     awk -F';' '$4=="ms"{printf "    %-28s %10s  -> %s\n", $1, $2, $5}' "$FONTS_TXT"
 
     printf '\n== Source directories (sources_inventory.csv) – inventory only, no module content ==\n'; sed 's/^/  /' "$INV"
