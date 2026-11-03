@@ -165,9 +165,13 @@ unset _FORMS_APP_BASE
 if [ -n "$FORMS_APP_DIR" ]; then
     ok "Forms app dir: $FORMS_APP_DIR"
 else
-    warn "Forms app dir not found under $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/"
-    info "  Expected: formsapp_14.1.2.0.0 or formsapp_12.2.1"
-    info "  Sections 3, 4, 5 will be skipped"
+    # WebLogic creates formsapp_<version>/config only at the FIRST start of
+    # WLS_FORMS - without it default.env, formsweb.cfg, Registry.dat are not
+    # written (customer 2026-11-03: was only a WARN, half the setup missing)
+    fail "Forms app dir not found under $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/"
+    info "  It is created by the FIRST start of $WLS_FORMS_SERVER – start it once, then re-run:"
+    info "    01-Run/startStop.sh start $WLS_FORMS_SERVER --apply"
+    info "  default.env, formsweb.cfg, Registry.dat are skipped in this run"
 fi
 
 # =============================================================================
@@ -340,13 +344,24 @@ _jacob_sign() {
     else
         warn "  FORMS_SIGN_TSA_URL empty – signature without timestamp (invalid after the certificate expires)"
     fi
-    "$_JDK_BIN/jarsigner" -keystore "$ks" -storetype PKCS12 -storepass:file "$tmp/ks.pw" \
-        -digestalg SHA-256 "${tsa[@]}" "$jar" "$alias" >> "$LOG_FILE" 2>&1
+    local jout
+    jout="$("$_JDK_BIN/jarsigner" -keystore "$ks" -storetype PKCS12 -storepass:file "$tmp/ks.pw" \
+        -digestalg SHA-256 "${tsa[@]}" "$jar" "$alias" 2>&1)"
     rc=$?
+    printf '%s\n' "$jout" >> "$LOG_FILE"
     rm -rf "$tmp"
 
     if [ "$rc" -ne 0 ]; then
-        fail "jarsigner failed (rc=$rc) – original restored, see $LOG_FILE"
+        fail "jarsigner failed (rc=$rc) – original restored"
+        # show jarsigner's own message (was only in the log, customer 2026-11-03)
+        printf '%s\n' "$jout" | grep -iE 'jarsigner|error|exception|unable|denied|refused|timed? ?out|unknown' \
+            | head -5 | while IFS= read -r _l; do info "  $_l"; done
+        if [ -n "${FORMS_SIGN_TSA_URL:-}" ] && printf '%s\n' "$jout" \
+             | grep -qiE 'tsa|timestamp|socket|connect|unknownhost|timed? ?out|unreachable'; then
+            info "  Timestamp server ${FORMS_SIGN_TSA_URL} not reachable? (egress allow-list / proxy)"
+            info "  allow it outbound, or sign without timestamp: FORMS_SIGN_TSA_URL=\"\" in environment.conf"
+            info "  (then the signature is valid only as long as the certificate)"
+        fi
         cp -p "${jar}.orig" "$jar"
         return 1
     fi

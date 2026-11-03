@@ -53,9 +53,11 @@ Steps performed by `14-oracle_setup_forms.sh`:
 | Prerequisite | Check |
 |---|---|
 | Domain created | `08-oracle_setup_domain.sh` completed |
+| `WLS_FORMS` started once | creates `servers/WLS_FORMS/applications/formsapp_<version>/config` – the target of `default.env`, `formsweb.cfg`, `Registry.dat`; missing = **FAIL** (since 2026-11-03, before only a WARN and those three files were skipped): `01-Run/startStop.sh start WLS_FORMS --apply`, then re-run |
 | `FORMS_INSTANCE_NAME` set in `environment.conf` | default: `forms1` |
 | `WLS_FORMS_SERVER` set in `environment.conf` | default: `WLS_FORMS` |
 | Templates in `09-Install/forms_templates/` edited | see [Templates](#templates) |
+| `FORMS_WEBUTIL_JACOB=true`: timestamp server reachable | `jarsigner -tsa $FORMS_SIGN_TSA_URL` (default `http://timestamp.digicert.com`) needs outbound HTTP – behind an egress allow-list allow it or set `FORMS_SIGN_TSA_URL=""` (signature without timestamp, valid only while the certificate is). On a failure the script now prints jarsigner's message and this hint |
 | `FORMS_WEBUTIL_JACOB=true`: code-signing keystore ready | `FORMS_SIGN_KEYSTORE` exists + `forms_sign_sec.conf.des3` (own CA: `08-SSL/ssl_local_ca.sh codesign --apply` or `FORMS_SIGN_LOCALCA=true`; customer PKI: `08-SSL/ssl_customer_certs.sh --apply`). Checked first – missing = **FAIL, also in the dry-run** (since 2026-11-03); not needed when `jacob.jar` is already signed |
 
 ---

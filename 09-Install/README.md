@@ -277,12 +277,18 @@ Phase 6 – Runtime Configuration (as oracle / root)
            Registry.dat / fmrweb*.res : colour scheme, key mapping (German layout preset)
            → details: forms_templates/README.md; without changes 14- deploys the defaults
   [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # first start creates the app dir (rwservlet.properties)
+  [oracle] ./01-Run/startStop.sh start WLS_FORMS --apply           # first start creates formsapp_*/config (default.env,
+                                                                   # formsweb.cfg, Registry.dat for 14- – without it
+                                                                   # 14- FAILs "Forms app dir not found")
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
   BEFORE 14- with FORMS_WEBUTIL_JACOB=true: the code-signing keystore must exist – jacob.jar is
   activated only when signed (else WebUtil OLE / Office automation silently does not work).
   14- reports a missing keystore / password as FAIL, also in the dry-run:
     own CA        [oracle] ./08-SSL/ssl_local_ca.sh codesign --apply    # FORMS_SIGN_KEYSTORE + password
                   (or FORMS_SIGN_LOCALCA=true in environment.conf – then 14- --apply creates it)
+    timestamp     jarsigner contacts FORMS_SIGN_TSA_URL (default http://timestamp.digicert.com) –
+                  behind an egress allow-list: allow it, or FORMS_SIGN_TSA_URL="" (no timestamp:
+                  the signature is valid only as long as the certificate)
     customer PKI  codesign.p12 → 08-SSL/user_certs/, [oracle] ./08-SSL/ssl_customer_certs.sh --apply
     check         [oracle] ./09-Install/14-oracle_setup_forms.sh      # dry-run: "Code signing ready"
   [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # copy Forms config templates into the domain
