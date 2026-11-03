@@ -3,13 +3,14 @@
 **Script:** `60-RCU-DB-19c/04-db_audit_setup.sh`
 **Runs as:** `oracle`
 **Phase:** Configure Unified Auditing in the running database – after `03-`
-and the manual `uniaud_on` relink, before `05-` / `06-` / the RCU run
+and the `uniaud_on` relink (`--relink`), before `05-` / `06-` / the RCU run
 (`09-Install/07-`); the policies do not depend on the RCU schemas, a later
 run works too
 
 ```bash
-./60-RCU-DB-19c/04-db_audit_setup.sh            # dry-run: checks + plan
-./60-RCU-DB-19c/04-db_audit_setup.sh --apply    # policies, AUDITLOG, purge jobs
+./60-RCU-DB-19c/04-db_audit_setup.sh                    # dry-run: checks + plan
+./60-RCU-DB-19c/04-db_audit_setup.sh --relink --apply    # only when not linked: uniaud_on relink
+./60-RCU-DB-19c/04-db_audit_setup.sh --apply            # policies, AUDITLOG, purge jobs
 ```
 
 Checked against the script 2026-11-02. Background (author's wiki):
@@ -45,14 +46,32 @@ Pure Unified Auditing for the RCU database:
 
 ## Prerequisites
 
-- Database running (`SELECT 'DB_UP'` as SYSDBA, FAIL otherwise), PDB
+- Database running, checked in two steps (FAIL stops the script, with the
+  reason):
+  1. **PMON** `ora_pmon_<DB_SID>` exists and its binary
+     (`/proc/<pid>/exe`) lies in `DB_ORACLE_HOME` – otherwise the running
+     instances / the real home are printed. Reason: the local SYSDBA login
+     only reaches the instance with exactly the `ORACLE_HOME` / `ORACLE_SID`
+     it was started with, else "Connected to an idle instance" although the
+     DB runs (a trailing `/` in `DB_ORACLE_HOME` is stripped).
+  2. **SYSDBA login** (`SELECT 'DB_UP'`) – on error the ORA message is shown
+     (ORA-01031: `oracle` not in the OSDBA group, or
+     `SQLNET.AUTHENTICATION_SERVICES = (NONE)` in the home's `sqlnet.ora`).
+- PDB
   (`DB_PDB_NAME`) open READ WRITE – with `--apply` the script opens it
   (`ALTER PLUGGABLE DATABASE ALL OPEN`), the dry-run only reports it
 - **Oracle binary linked with `uniaud_on`** – checked via
   `V$OPTION 'Unified Auditing' = TRUE`; FAIL stops the script.
-  `03-db_create_database.sh` only reports the state (`kzaiang` in the binary)
-  and prints the relink command; the relink is **manual**, with database and
-  listener stopped:
+  `03-db_create_database.sh` only reports the state (`kzaiang` in the binary).
+  **`--relink --apply`** does the relink: FAIL when `weblogic.Server`
+  processes run on the host (the domain loses its repository connections –
+  stop it first; with `LOCAL_REP_DB=false` only a WARN for the remote
+  domain), then `SHUTDOWN IMMEDIATE`, `lsnrctl stop`, `make … uniaud_on
+  ioracle` (checked: `kzaiang` in `libknlopt.a`), `lsnrctl start`, `STARTUP`
+  + `ALTER PLUGGABLE DATABASE ALL OPEN` (also after a failed relink – the old
+  binary stays), `V$OPTION` again; then the normal checks continue (with
+  `--apply` the setup runs in the same call). `--relink` without `--apply`
+  only prints the plan. Same by hand:
 
   ```bash
   # as oracle, values from environment_db.conf
@@ -65,9 +84,11 @@ Pure Unified Auditing for the RCU database:
   sqlplus -S / as sysdba <<< "select value from v\$option where parameter='Unified Auditing';"   # TRUE
   ```
 
-  With the systemd units of `02-` / `08-` installed, stop and start through
-  systemd – otherwise the units' state (`RemainAfterExit=yes`) no longer
-  matches reality.
+  With the systemd units of `02-` / `08-` installed the script stops and
+  starts outside systemd: the units (`RemainAfterExit=yes`) stay "active",
+  which matches again once the DB runs; a unit in `failed` needs
+  `systemctl reset-failed oracle-listener oracle-db` (root). By hand you can
+  also stop / start through systemd.
 
   An out-of-place patch keeps it: `09-db_patch_rcu.sh` relinks the new home
   with `uniaud_on` when the old one has it.

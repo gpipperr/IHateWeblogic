@@ -2,6 +2,9 @@
 # =============================================================================
 # Script   : 04-db_audit_setup.sh
 # Purpose  : Configure Unified Auditing in the running CDB / PDB:
+#              Pre-checks: PMON of DB_SID runs from DB_ORACLE_HOME, SYSDBA login,
+#                       uniaud_on linked (--relink: stop DB + listener, relink,
+#                       start again)
 #              Block 1 (CDB$ROOT): common audit policies FMW_RCU_* (CONTAINER=ALL,
 #                       enabled in the root = all containers), ORA_SECURECONFIG off
 #              Block 2 (PDB): ORA_SECURECONFIG off, AUDITLOG tablespace, all three
@@ -11,6 +14,7 @@
 #              Check   : FMW_RCU_* policies enabled as seen from the PDB
 # Call     : ./60-RCU-DB-19c/04-db_audit_setup.sh
 #            ./60-RCU-DB-19c/04-db_audit_setup.sh --apply
+#            ./60-RCU-DB-19c/04-db_audit_setup.sh --relink --apply
 #            ./60-RCU-DB-19c/04-db_audit_setup.sh --help
 # Runs as  : oracle
 # Requires : environment.conf, environment_db.conf, database running
@@ -38,20 +42,40 @@ unset _f
 DIAG_LOG_DIR="${DIAG_LOG_DIR:-$ROOT_DIR/log/$(date +%Y%m%d)}"
 init_log "$DIAG_LOG_DIR"
 
+DB_ORACLE_HOME="${DB_ORACLE_HOME%/}"   # a trailing / is another home for the SYSDBA login
 export ORACLE_HOME="$DB_ORACLE_HOME"
 export ORACLE_SID="${DB_SID}"
 SQLPLUS="$DB_ORACLE_HOME/bin/sqlplus"
+
+# _sql "statements" - local sqlplus / as sysdba; TNS_ADMIN = the home's
+# network/admin, so an instance started here resolves its local_listener alias
+_sql() {
+    TNS_ADMIN="$DB_ORACLE_HOME/network/admin" "$SQLPLUS" -S -L / as sysdba <<SQLEOF 2>&1
+SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 300
+$1
+EXIT;
+SQLEOF
+}
+_lsnr() { TNS_ADMIN="$DB_ORACLE_HOME/network/admin" "$DB_ORACLE_HOME/bin/lsnrctl" "$1" LISTENER 2>&1; }
+_pmon_home() {   # home of the running PMON of DB_SID (empty = down)
+    local pid; pid="$(pgrep -f "^ora_pmon_${DB_SID}$" | head -1)"
+    [ -n "$pid" ] && readlink -f "/proc/$pid/exe" 2>/dev/null | sed 's#/bin/oracle$##'
+}
+_uniaud() { ar -t "$DB_ORACLE_HOME/rdbms/lib/libknlopt.a" 2>/dev/null | grep -q kzaiang && printf on || printf off; }
 
 # =============================================================================
 # Arguments
 # =============================================================================
 
 APPLY=false
+RELINK=false
 
 _usage() {
     printf "Usage: %s [--apply] [--help]\n\n" "$(basename "$0")"
     printf "  %-12s %s\n" "(none)"  "Dry-run: show configuration, no changes"
     printf "  %-12s %s\n" "--apply" "Create AUDITLOG tablespace + purge job + policy"
+    printf "  %-12s %s\n" "--relink" "Unified Auditing not linked: stop DB + listener, relink"
+    printf "  %-12s %s\n" ""         "uniaud_on, start again (with --apply; FMW domain must be down)"
     printf "  %-12s %s\n" "--help"  "Show this help"
     exit 0
 }
@@ -59,6 +83,7 @@ _usage() {
 for _arg in "$@"; do
     case "$_arg" in
         --apply)   APPLY=true ;;
+        --relink)  RELINK=true ;;
         --help|-h) _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
@@ -73,7 +98,7 @@ printLine
 printf "\n\033[1m  IHateWeblogic – DB Audit Setup\033[0m\n"               | tee -a "$LOG_FILE"
 printf "  Host        : %s\n" "$(_get_hostname)"                          | tee -a "$LOG_FILE"
 printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"             | tee -a "$LOG_FILE"
-printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY' || printf 'DRY-RUN')" | tee -a "$LOG_FILE"
+printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY' || printf 'DRY-RUN')$($RELINK && printf ' + RELINK')" | tee -a "$LOG_FILE"
 printf "  Log         : %s\n" "$LOG_FILE"                                 | tee -a "$LOG_FILE"
 printLine
 
@@ -87,32 +112,99 @@ section "Pre-checks"
     && ok "sqlplus found: $SQLPLUS" \
     || { fail "sqlplus not found: $SQLPLUS"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
 
-# --- Check DB is running ------------------------------------------------------
-_ping=$("$DB_ORACLE_HOME/bin/sqlplus" -S /nolog <<< "CONNECT / AS SYSDBA
-SELECT 'DB_UP' FROM DUAL;
-EXIT;" 2>/dev/null)
-
-if printf "%s" "$_ping" | grep -q "DB_UP"; then
-    ok "Database is running"
-else
-    fail "Database is not running or OS authentication failed"
-    info "  Start DB: ORACLE_HOME=$DB_ORACLE_HOME $DB_ORACLE_HOME/bin/sqlplus /nolog"
+# --- Check DB is running: PMON, then SYSDBA login -----------------------------
+# The local SYSDBA login only finds the instance with exactly the ORACLE_HOME /
+# ORACLE_SID it was started with - otherwise "idle instance" although it runs.
+# PMON tells which home really runs (2026-11-03).
+_run_home="$(_pmon_home)"
+if [ -z "$_run_home" ]; then
+    fail "Database $DB_SID is not running (no ora_pmon_${DB_SID} process)"
+    _others="$(pgrep -fa '^ora_pmon_' | sed 's/.*ora_pmon_//' | tr '\n' ' ')"
+    [ -n "$_others" ] && info "  Running instances: ${_others}– DB_SID in environment_db.conf?"
+    info "  Start: ORACLE_HOME=$DB_ORACLE_HOME ORACLE_SID=$DB_SID $SQLPLUS / as sysdba <<< startup"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+elif [ "$_run_home" != "$(readlink -f "$DB_ORACLE_HOME")" ]; then
+    fail "Database $DB_SID runs from $_run_home, DB_ORACLE_HOME = $DB_ORACLE_HOME"
+    info "  Set DB_ORACLE_HOME in environment_db.conf (00a-db_env_interview.sh --reset --apply)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
-unset _ping
+ok "Database $DB_SID is running (PMON from $_run_home)"
+
+_ping="$(_sql "SELECT 'DB_UP' FROM DUAL;")"
+if printf "%s" "$_ping" | grep -q "DB_UP"; then
+    ok "SYSDBA login (OS authentication)"
+else
+    fail "SYSDBA login failed: $(printf "%s" "$_ping" | grep -m1 -E '(ORA|SP2)-[0-9]+' | tr -d '\r')"
+    info "  ORA-01031: oracle not in the OSDBA group of the home, or SQLNET.AUTHENTICATION_SERVICES"
+    info "  = (NONE) in $DB_ORACLE_HOME/network/admin/sqlnet.ora"
+    EXIT_CODE=2; print_summary; exit $EXIT_CODE
+fi
+unset _ping _run_home _others
 
 # --- Check Unified Auditing is active -----------------------------------------
-_ua_val=$("$SQLPLUS" -S /nolog <<< "CONNECT / AS SYSDBA
-SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
-SELECT VALUE FROM V\$OPTION WHERE PARAMETER='Unified Auditing';
-EXIT;" 2>/dev/null | tr -d ' \r')
+_ua_val="$(_sql "SELECT VALUE FROM V\$OPTION WHERE PARAMETER='Unified Auditing';" | tr -d ' \r\n')"
 
 if [ "$_ua_val" = "TRUE" ]; then
     ok "Unified Auditing is active (V\$OPTION: TRUE)"
-else
-    fail "Unified Auditing is NOT active (V\$OPTION: ${_ua_val:-empty})"
-    fail "  Relink: DB + listener down, cd $ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle (docs/04-db_audit_setup.md)"
+elif ! $RELINK; then
+    fail "Unified Auditing is NOT active (V\$OPTION: ${_ua_val:-empty}, libknlopt.a: uniaud $(_uniaud))"
+    info "  Relink (DB + listener are stopped and started again):"
+    info "    ./60-RCU-DB-19c/04-db_audit_setup.sh --relink --apply"
+    info "  or by hand: docs/04-db_audit_setup.md (Prerequisites)"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
+else
+    section "Relink uniaud_on"
+    warn "Unified Auditing is NOT active (V\$OPTION: ${_ua_val:-empty}) – --relink"
+    # the FMW domain loses its repository connections while the DB is down
+    _wls="$(pgrep -f 'weblogic.Server' | wc -l)"
+    if [ "$_wls" -gt 0 ]; then
+        fail "$_wls WebLogic server process(es) running on this host – stop the domain first"
+        info "  01-Run/startStop.sh stop-all --apply, then run again"
+        EXIT_CODE=2; print_summary; exit $EXIT_CODE
+    fi
+    [ "${LOCAL_REP_DB:-true}" = "false" ] && warn "LOCAL_REP_DB=false – a domain on another host must be down too"
+    if ! $APPLY; then
+        info "  --relink --apply would:"
+        info "    1 SHUTDOWN IMMEDIATE ($DB_SID), lsnrctl stop LISTENER"
+        info "    2 cd $DB_ORACLE_HOME/rdbms/lib; make -f ins_rdbms.mk uniaud_on ioracle"
+        info "    3 lsnrctl start LISTENER, STARTUP, ALTER PLUGGABLE DATABASE ALL OPEN"
+        info "    4 check V\$OPTION 'Unified Auditing' = TRUE"
+        warn "Dry-run – use --relink --apply"
+        print_summary; exit $EXIT_CODE
+    fi
+    # 1 stop
+    _sql "SHUTDOWN IMMEDIATE" | tee -a "$LOG_FILE" | grep -E 'ORACLE instance shut down|ORA-' | head -3
+    [ -z "$(_pmon_home)" ] && ok "Database $DB_SID stopped" \
+        || { fail "Database still running – see $LOG_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    _lsnr stop >> "$LOG_FILE" && ok "Listener stopped" || warn "Listener stop reported an error (not running?)"
+    # 2 relink
+    info "make -f ins_rdbms.mk uniaud_on ioracle ..."
+    ( cd "$DB_ORACLE_HOME/rdbms/lib" && make -f ins_rdbms.mk uniaud_on ioracle ) >> "$LOG_FILE" 2>&1
+    _make_rc=$?
+    if [ "$_make_rc" -eq 0 ] && [ "$(_uniaud)" = "on" ]; then
+        ok "uniaud_on linked"
+    else
+        fail "Relink failed (rc=$_make_rc, uniaud $(_uniaud)) – see $LOG_FILE; starting the DB again"
+        EXIT_CODE=2
+    fi
+    # 3 start (also after a failed relink - the old binary stays in place)
+    _lsnr start >> "$LOG_FILE" && ok "Listener started" || fail "Listener start failed – see $LOG_FILE"
+    _sql "STARTUP
+ALTER PLUGGABLE DATABASE ALL OPEN;" | tee -a "$LOG_FILE" | grep -E 'Database opened|ORA-' | head -3
+    [ -n "$(_pmon_home)" ] && ok "Database $DB_SID started" \
+        || { fail "Database did not start – see $LOG_FILE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    [ "$EXIT_CODE" -ge 2 ] && { print_summary; exit $EXIT_CODE; }
+    # systemd units (RemainAfterExit=yes) stay "active" - that matches again now
+    if systemctl is-enabled oracle-db oracle-listener >/dev/null 2>&1; then
+        info "  systemd units: stopped/started outside systemd – state matches again;"
+        info "  a unit in 'failed': systemctl reset-failed oracle-listener oracle-db (root)"
+    fi
+    # 4 check
+    _ua_val="$(_sql "SELECT VALUE FROM V\$OPTION WHERE PARAMETER='Unified Auditing';" | tr -d ' \r\n')"
+    [ "$_ua_val" = "TRUE" ] && ok "Unified Auditing is active (V\$OPTION: TRUE)" \
+        || { fail "Unified Auditing still NOT active (V\$OPTION: ${_ua_val:-empty})"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+    unset _wls _make_rc
+    section "Pre-checks (continued)"
 fi
 unset _ua_val
 

@@ -93,8 +93,8 @@ Run in this order — each step must complete before the next:
 | 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
 | 2 | `02-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
 | 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config (`--clean` = drop and re-create) |
-| – | manual | oracle | `uniaud_on` relink, DB + listener down ([docs/04-db_audit_setup.md](docs/04-db_audit_setup.md#prerequisites)) |
-| 4 | `04-db_audit_setup.sh` | oracle | common audit policies (all containers) + AUDITLOG tablespace + purge jobs |
+| 4 | `04-db_audit_setup.sh --relink --apply` | oracle | `uniaud_on` relink (stops + starts DB and listener; by hand: [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md#prerequisites)) |
+| 4 | `04-db_audit_setup.sh --apply` | oracle | common audit policies (all containers) + AUDITLOG tablespace + purge jobs |
 | 5 | `05-db_fmw_tablespace.sh` | oracle | Optional: pre-create FMW_DATA tablespace |
 | 6 | `06-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
@@ -193,7 +193,7 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
 | [docs/02-db_setup_listener.md](docs/02-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/03-db_create_database.md](docs/03-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
-| [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup (manual `uniaud_on` relink, common policies, retention jobs) |
+| [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup (`uniaud_on` relink `--relink`, common policies, retention jobs) |
 | [docs/05-db_fmw_tablespace.md](docs/05-db_fmw_tablespace.md) | Optional FMW_DATA tablespace |
 | [docs/06-db_rcu_profile.md](docs/06-db_rcu_profile.md) | DB profile for the RCU schemas (password expiry / lock) |
 | [docs/08-db_auto_start.md](docs/08-db_auto_start.md) | /etc/oratab + oracle-db.service auto-start |
