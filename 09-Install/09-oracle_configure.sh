@@ -5,6 +5,7 @@
 #            Reports 14.1.2 BEFORE the first start: boot.properties, JVM
 #            settings, font OS packages, validation, initial backup.
 #            Calls existing scripts; does not implement new functionality.
+#            A called script with rc >= 2 is a FAIL here (rc 1 = WARN).
 #            Font/uifont.ali/cgicmd.dat need the Reports components and run
 #            later in 14b-oracle_reports_fonts.sh (split 2026-10-15).
 # Call     : ./09-Install/09-oracle_configure.sh
@@ -65,7 +66,7 @@ for _arg in "$@"; do
             printf "Prerequisite: 08-oracle_setup_domain.sh must have completed successfully.\n"
             exit 0
             ;;
-        *) warn "Unknown argument: $_arg (ignored)" ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
@@ -94,9 +95,11 @@ _run_step() {
     local rc=${PIPESTATUS[0]}
 
     printf "\n" | tee -a "$LOG_FILE"
-    if [ "$rc" -ne 0 ]; then
-        warn "Step '$label' finished with rc=$rc"
+    if [ "$rc" -ge 2 ]; then
+        fail "Step '$label' failed (rc=$rc) – see the output above"
         STEP_FAILS=$(( STEP_FAILS + 1 ))
+    elif [ "$rc" -ne 0 ]; then
+        warn "Step '$label' finished with warnings (rc=$rc)"
     else
         ok "Step '$label' finished successfully"
     fi
@@ -133,13 +136,14 @@ section "Pre-checks"
 # Verify required subscripts
 for _s in \
     "$ROOT_DIR/02-Checks/weblogic_performance.sh" \
+    "$ROOT_DIR/02-Checks/tns_admin_check.sh" \
     "$ROOT_DIR/09-Install/10-oracle_boot_properties.sh" \
     "$ROOT_DIR/04-ReportsFonts/get_root_install_libs.sh" \
     "$ROOT_DIR/07-Maintenance/backup_config.sh"
 do
     [ -f "$_s" ] \
         && ok "$(printf "Script found   : %s" "$(basename "$_s")")" \
-        || { warn "$(printf "Script missing : %s" "$_s")"; }
+        || { fail "$(printf "Script missing : %s" "$_s")"; EXIT_CODE=2; }
 done
 unset _s
 
@@ -157,7 +161,9 @@ printf "  %-3s  %-12s  %s\n" "---" "------------" "------" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "0" "planned" \
     "boot.properties     → 09-Install/10-oracle_boot_properties.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "1" "planned" \
-    "JVM settings        → 02-Checks/weblogic_performance.sh --apply" | tee -a "$LOG_FILE"
+    "JVM settings        → 02-Checks/weblogic_performance.sh --apply (interactive)" | tee -a "$LOG_FILE"
+printf "  %-3s  %-12s  %s\n" "1b" "planned" \
+    "TNS_ADMIN           → 02-Checks/tns_admin_check.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "2" "$($SKIP_FONTS && printf 'SKIPPED' || printf 'planned')" \
     "Font OS packages    → 04-ReportsFonts/get_root_install_libs.sh --apply" | tee -a "$LOG_FILE"
 printf "  %-3s  %-12s  %s\n" "3" "planned" \
@@ -201,18 +207,15 @@ _run_step "TNS_ADMIN (setUserOverrides.sh)" \
 if ! $SKIP_FONTS; then
 
     # Step 2 – Font OS packages
-    # get_root_install_libs.sh --apply requires root or sudo.
-    # Check availability before attempting.
-    section "Step: Font OS Packages"
+    # get_root_install_libs.sh --apply runs "sudo dnf install" itself when not
+    # root. 03-root_user_oracle.sh allows oracle exactly "dnf install *" without
+    # password (no general sudo) - so ask sudo for THAT command, not "true".
     _font_lib_script="$ROOT_DIR/04-ReportsFonts/get_root_install_libs.sh"
 
-    if [ "$(id -u)" -eq 0 ]; then
-        bash "$_font_lib_script" --apply 2>&1 | tee -a "$LOG_FILE"
-        [ "${PIPESTATUS[0]}" -ne 0 ] && STEP_FAILS=$(( STEP_FAILS + 1 ))
-    elif sudo -n true 2>/dev/null; then
-        sudo bash "$_font_lib_script" --apply 2>&1 | tee -a "$LOG_FILE"
-        [ "${PIPESTATUS[0]}" -ne 0 ] && STEP_FAILS=$(( STEP_FAILS + 1 ))
+    if [ "$(id -u)" -eq 0 ] || sudo -n -l /usr/bin/dnf install -y fontconfig >/dev/null 2>&1; then
+        _run_step "Font OS Packages" "$_font_lib_script" --apply
     else
+        section "Step: Font OS Packages"
         warn "No root/sudo access – font OS packages cannot be installed automatically"
         info "  Run manually as root:"
         info "    sudo bash $ROOT_DIR/04-ReportsFonts/get_root_install_libs.sh --apply"
@@ -272,11 +275,14 @@ _run_step "Initial Config Backup" \
 
 section "Next Steps"
 
-info "Pre-start configuration complete. Next steps (see 09-Install/README.md, Phase 6):"
-info "  10-oracle_boot_properties.sh, 11-oracle_nodemanager.sh, 12-oracle_reports_users.sh,"
-info "  13-root_reports_fix.sh, 13-oracle_setup_reports.sh, 14-oracle_setup_forms.sh,"
-info "  then start the domain once and run 14b-oracle_reports_fonts.sh --apply"
-info "  (fonts, uifont.ali, cgicmd.dat – need the Reports components)"
+info "Pre-start configuration complete. Next steps (09-Install/README.md, Phase 6):"
+info "  00-Setup/init_env.sh --apply                      (runtime parameters for 13-)"
+info "  10-oracle_boot_properties.sh --apply"
+info "  11-oracle_nodemanager.sh --apply --skip-wlst, start AdminServer + NodeManager,"
+info "  11-oracle_nodemanager.sh --apply, 12-oracle_reports_users.sh --apply,"
+info "  13-root_reports_fix.sh --apply (root), first start of WLS_REPORTS,"
+info "  13-oracle_setup_reports.sh --apply, 14-oracle_setup_forms.sh --apply,"
+info "  restart (stop-all / start-all), 14b-oracle_reports_fonts.sh --apply"
 
 # =============================================================================
 # Summary
