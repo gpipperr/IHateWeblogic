@@ -17,8 +17,10 @@
                Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
                dann die Werte in die Sitzung laden:
                  . /u01/oracle/tools/set_install_env.sh
+
                und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
                  [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+
                Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
                (gleiche Namen wie in install.ini).
                Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
@@ -48,12 +50,19 @@ VORAUSSETZUNGEN
   Reihenfolge Schritte 1-5, Schritt 8, Neustart (6), Test (7).
 
     export ORACLE_HOME=/u01/oracle/fmw
+
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
     export REPORTS_TOOLS_INSTANCE=reptools1
+
     export REPORTS_SERVER_NAME=repServer01
+
     export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+
     export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+
     export REPORTS_FONT_DIR="${DOMAIN_HOME}/reports/fonts"
+
     export UIFONT_ALI="${REPORTS_ADMIN}/uifont.ali"
 
   Alle Schritte laufen als oracle-User, ausser Schritt 1 (root, nur
@@ -107,6 +116,7 @@ SCHRITT 2: REPORTS_FONT_DIR anlegen und Fonts kopieren  (als oracle)
 
   # Kontrolle
   ls -lh "$REPORTS_FONT_DIR/"
+
   echo "Anzahl TTF-Dateien: $(ls "$REPORTS_FONT_DIR"/*.ttf 2>/dev/null | wc -l)"
 
 
@@ -163,12 +173,14 @@ SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
   # Syntax-Pruefung mit mfontchk (ohne REPORTS_FONT_DIR = reine
   # Syntaxpruefung)
   export LD_LIBRARY_PATH="${ORACLE_HOME}/lib:${ORACLE_HOME}/jdk/jre/lib/amd64/server"
+
   "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
   # Erwartete Ausgabe: "Schriftartaliasdatei erfolgreich geparst"
 
   # Vollstaendige Pruefung MIT Dateiexistenz-Check:
   REPORTS_FONT_DIRECTORY="$REPORTS_FONT_DIR" \
       "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
+
   # Ein '^' auf der RECHTEN Seite = TTF-Datei nicht in REPORTS_FONT_DIR gefunden
   # Ein '^' auf der LINKEN Seite  = Syntaxfehler im Font-Namen
   # "[Global] Invalid font specification"-Warnungen sind an dieser Stelle
@@ -182,6 +194,7 @@ SCHRITT 5: Umgebungsvariablen in setUserOverrides.sh eintragen  (als oracle)
 
   # Backup anlegen
   [ -f "$OVERRIDES" ] && cp "$OVERRIDES" "${OVERRIDES}.bak_$(date +%Y%m%d_%H%M%S)"
+
   [ ! -f "$OVERRIDES" ] && touch "$OVERRIDES"
 
   cat >> "$OVERRIDES" << EOF
@@ -217,6 +230,7 @@ SCHRITT 6: Reports Server neu starten  (als oracle)
 --------------------------------------------------------------------------------
 
   $DOMAIN_HOME/bin/stopComponent.sh  "$REPORTS_SERVER_NAME"
+
   $DOMAIN_HOME/bin/startComponent.sh "$REPORTS_SERVER_NAME"
 
   # Kontrolle: Engine-Prozesse sichtbar? (Java-Prozesse des Reports Servers)
@@ -270,9 +284,13 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   # Zeichensatzkonflikt - auf Symbol zurueck.
 
   export TK_ADMIN="${REPORTS_ADMIN}"
+
   export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
+
   export AFM_DIR="${TK_ADMIN}/AFM"
+
   export PPD="${TK_ADMIN}/PPD/screenprinter.ppd"
+
   export FONT_DIR="${REPORTS_FONT_DIR}"
 
   # --- Schritt 8.1: FontSpecific-Kopien der Standard-AFMs ---
@@ -281,9 +299,11 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   # Der Oracle-Home-Ordner selbst wird dabei NIE veraendert, nur in den
   # Domain-eigenen Ordner kopiert.
   mkdir -p "$AFM_DIR"
+
   for f in "$OH_AFM"/Helvetica* "$OH_AFM"/Courier* "$OH_AFM"/Times*; do
       sed 's/^EncodingScheme .*/EncodingScheme FontSpecific/' "$f" > "$AFM_DIR/$(basename "$f")"
   done
+
   grep -H '^EncodingScheme' "$AFM_DIR"/Helvetica* "$AFM_DIR"/Courier* "$AFM_DIR"/Times* 2>/dev/null
 
   # --- Schritt 8.2: python3-fonttools installieren (fuer die
@@ -318,10 +338,12 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   # Fuer jeden neu generierten Schluessel pruefen, ob er schon existiert,
   # und falls nicht nach der letzten bestehenden *Font-Zeile einfuegen:
   KEY="Arial-Bold"
+
   if ! grep -q "^\*Font ${KEY}:" "$PPD"; then
       LAST_LINE=$(grep -n '^\*Font ' "$PPD" | tail -1 | cut -d: -f1)
       sed -i "${LAST_LINE}a *Font ${KEY}: Standard \"(001.000)\" Standard ROM" "$PPD"
   fi
+
   # Diesen Block fuer jeden weiteren Schluessel (Arial, Arial-Italic,
   # Arial-BoldItalic, ...) wiederholen.
 

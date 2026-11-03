@@ -12,8 +12,10 @@
                Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
                dann die Werte in die Sitzung laden:
                  . /u01/oracle/tools/set_install_env.sh
+
                und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
                  [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+
                Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
                (gleiche Namen wie in install.ini).
                Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
@@ -32,19 +34,31 @@ VORAUSSETZUNGEN
     Stelle keytool- oder WLST-SSL-Befehle noetig.
 
     export SSL_CN=wls01.company.local
+
     export SSL_COUNTRY=DE
+
     export SSL_STATE=Bavaria
+
     export SSL_CITY=Munich
+
     export SSL_ORG="Company GmbH"
+
     export SSL_ORG_UNIT=IT
+
     export SSL_KEY_SIZE=4096
+
     export SSL_DAYS=825
 
     export SSL_CERT_FILE=/u01/oracle/certs/server.crt
+
     export SSL_KEY_FILE=/u01/oracle/certs/server.key
+
     export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt
+
     export SSL_CSR_FILE=/u01/oracle/certs/server.csr
+
     export SSL_CA_DIR=/u01/oracle/certs/ca          # nur Option D
+
     export SSL_CA_CN="Company GmbH Root CA"         # nur Option D
 
   Alle Befehle in diesem Kochbuch laufen als oracle-User, es sind KEINE
@@ -68,6 +82,7 @@ VORBEREITUNG: Verzeichnis anlegen  (als oracle)
 ================================================================================
 
   mkdir -p /u01/oracle/certs
+
   chmod 700 /u01/oracle/certs
 
 
@@ -100,6 +115,7 @@ subjectAltName = DNS:${SSL_CN}
 keyUsage = critical, keyEncipherment, digitalSignature
 extendedKeyUsage = serverAuth
 EOF
+
   chmod 600 /tmp/ssl_openssl.cnf
 
   # Schluessel + selbstsigniertes Zertifikat in einem Schritt erzeugen
@@ -115,11 +131,14 @@ EOF
       -config /tmp/ssl_openssl.cnf
 
   chmod 600 "$SSL_KEY_FILE"
+
   chmod 644 "$SSL_CERT_FILE"
+
   rm -f /tmp/ssl_openssl.cnf
 
   # Kontrolle: Inhalt pruefen
   openssl x509 -noout -subject -issuer -enddate -in "$SSL_CERT_FILE"
+
   openssl x509 -noout -text -in "$SSL_CERT_FILE" | grep -A2 "Subject Alternative"
 
   # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
@@ -137,11 +156,15 @@ OPTION B: Interne CA mit Easy-RSA  (als oracle)
   dnf install -y easy-rsa      # ggf. vorher: dnf install -y oracle-epel-release-el9
 
   export EASYRSA_PKI_DIR=/srv/gpi_ca
+
   mkdir -p "$EASYRSA_PKI_DIR"
+
   chmod 700 "$EASYRSA_PKI_DIR"
+
   ln -s /usr/share/easy-rsa/3 "$EASYRSA_PKI_DIR/easy-rsa"
 
   cd "$EASYRSA_PKI_DIR"
+
   ./easy-rsa/easyrsa init-pki
 
   # pki/vars anlegen (CA-Gueltigkeit 10 Jahre, Zertifikats-Gueltigkeit wie
@@ -169,7 +192,9 @@ EOF
 
   # In die Zielpfade kopieren
   cp pki/issued/${SSL_CN}.crt  "$SSL_CERT_FILE"  && chmod 644 "$SSL_CERT_FILE"
+
   cp pki/private/${SSL_CN}.key "$SSL_KEY_FILE"   && chmod 600 "$SSL_KEY_FILE"
+
   cp pki/ca.crt                "$SSL_CHAIN_FILE" && chmod 644 "$SSL_CHAIN_FILE"
 
   # Kontrolle
@@ -178,6 +203,7 @@ EOF
   # WICHTIG: Die CA-Root (ca.crt) muss auf JEDEM Client, der die Seite
   # ohne Warnung aufrufen soll, als vertrauenswuerdig importiert werden:
   cp pki/ca.crt /etc/pki/ca-trust/source/anchors/company-local-ca.crt
+
   update-ca-trust
 
   # Hinweis: Ist bereits ein CA-Zertifikat vorhanden (pki/ca.crt existiert),
@@ -215,6 +241,7 @@ subjectAltName = DNS:${SSL_CN}
 keyUsage = critical, keyEncipherment, digitalSignature
 extendedKeyUsage = serverAuth
 EOF
+
   chmod 600 /tmp/ssl_openssl.cnf
 
   openssl req -new \
@@ -225,10 +252,12 @@ EOF
       -config /tmp/ssl_openssl.cnf
 
   chmod 600 "$SSL_KEY_FILE"
+
   rm -f /tmp/ssl_openssl.cnf
 
   # Kontrolle
   openssl req -noout -subject -in "$SSL_CSR_FILE"
+
   openssl req -noout -text -in "$SSL_CSR_FILE" | grep -A2 "Subject Alternative"
 
   # MANUELLER ZWISCHENSCHRITT (ausserhalb dieses Kochbuchs):
@@ -263,7 +292,9 @@ OPTION D: Eigene Root-CA mit openssl  (als oracle, ohne Zusatzpaket)
 
   # --- D.1 Verzeichnis und Root-CA (EINMALIG) --------------------------------
   mkdir -p "$SSL_CA_DIR"/ca "$SSL_CA_DIR"/server
+
   chmod 700 "$SSL_CA_DIR" "$SSL_CA_DIR"/ca "$SSL_CA_DIR"/server
+
   cd "$SSL_CA_DIR"
 
   cat > ca/ca.cnf << CNF
@@ -289,13 +320,16 @@ CNF
   # ein Zertifikat ausgestellt werden.
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
       -aes-256-cbc -out ca/ca.key
+
   chmod 600 ca/ca.key
 
   # Root-Zertifikat (selbstsigniert, 10 Jahre) - fragt nach der Passphrase
   openssl req -x509 -new -key ca/ca.key -sha256 -days 3650 \
       -config ca/ca.cnf -extensions v3_ca -out ca/ca.crt
+
   # DER-Variante fuer Windows / Gruppenrichtlinie
   openssl x509 -in ca/ca.crt -outform DER -out ca/ca.cer
+
   chmod 644 ca/ca.crt ca/ca.cer
 
   # Kontrolle: "CA:TRUE" und 10 Jahre
@@ -327,7 +361,9 @@ CNF
   # Schluessel (ohne Passphrase - Nginx muss ihn beim Start lesen) + CSR
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${SSL_KEY_SIZE} \
       -out server/${SSL_CN}.key
+
   chmod 600 server/${SSL_CN}.key
+
   openssl req -new -key server/${SSL_CN}.key -config server/server.cnf \
       -out server/${SSL_CN}.csr
 
@@ -339,11 +375,14 @@ CNF
 
   # Kontrolle: Kette und SAN
   openssl verify -CAfile ca/ca.crt server/${SSL_CN}.crt     # -> OK
+
   openssl x509 -in server/${SSL_CN}.crt -noout -ext subjectAltName
 
   # In die Zielpfade kopieren (Chain = Root, Nginx bekommt Zertifikat + Root)
   cp server/${SSL_CN}.crt "$SSL_CERT_FILE"  && chmod 644 "$SSL_CERT_FILE"
+
   cp server/${SSL_CN}.key "$SSL_KEY_FILE"   && chmod 600 "$SSL_KEY_FILE"
+
   cp ca/ca.crt            "$SSL_CHAIN_FILE" && chmod 644 "$SSL_CHAIN_FILE"
 
   # Weiter mit FMW_Kochbuch_de.txt, Abschnitt "SSL-Zertifikat auf Nginx
@@ -386,6 +425,7 @@ AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
   # regelmaessig wiederholen, z.B. per Cronjob.
 
   NGINX_CERT=/etc/nginx/ssl/fullchain.pem
+
   NGINX_KEY=/etc/nginx/ssl/privkey.pem
 
   # Dateirechte des privaten Schluessels (MUSS 600 sein)
@@ -393,31 +433,41 @@ AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
 
   # Ablaufdatum
   openssl x509 -noout -enddate -in "$NGINX_CERT"
+
   openssl x509 -noout -checkend 0       -in "$NGINX_CERT"   # bereits abgelaufen?
+
   openssl x509 -noout -checkend 2592000 -in "$NGINX_CERT"   # laeuft in <30 Tagen ab?
 
   # Subject / Issuer / SAN
   openssl x509 -noout -subject -in "$NGINX_CERT"
+
   openssl x509 -noout -issuer  -in "$NGINX_CERT"
+
   openssl x509 -noout -text -in "$NGINX_CERT" | grep -A2 "Subject Alternative"
+
   # Falls Subject == Issuer: Zertifikat ist selbstsigniert (erwartet bei
   # Option A, nicht bei B/C)
 
   # Schluessel und Zertifikat muessen zusammenpassen (gleicher Public Key)
   openssl x509 -noout -pubkey -in "$NGINX_CERT" | md5sum
+
   openssl pkey -pubout -in "$NGINX_KEY" | md5sum
+
   # Beide Pruefsummen MUESSEN identisch sein
 
   # Nginx-Konfiguration: nur moderne TLS-Versionen erlaubt
   grep "ssl_protocols" /etc/nginx/conf.d/oracle-wls.conf
+
   # Darf NICHT SSLv3/TLSv1.0/TLSv1.1 enthalten
 
   # Live-Test (nur wenn Port 443 bereits lauscht)
   echo | openssl s_client -connect localhost:443 -brief
   # Erwartet: "Verify return code: 0" (bei interner CA: nur wenn CA-Root
   # lokal als vertrauenswuerdig importiert ist, siehe Option B)
+
   echo | openssl s_client -connect localhost:443 -tls1
   # Erwartet: Handshake-Fehler (TLS 1.0 darf nicht angeboten werden)
+
   echo | openssl s_client -connect localhost:443 -tls1_2
   # Erwartet: erfolgreicher Handshake
 

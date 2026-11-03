@@ -13,8 +13,10 @@
                Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
                dann die Werte in die Sitzung laden:
                  . /u01/oracle/tools/set_install_env.sh
+
                und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
                  [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+
                Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
                (gleiche Namen wie in install.ini).
                Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
@@ -47,15 +49,25 @@ VORAUSSETZUNGEN
   Beispielwerte entsprechen Reports_kochbuch_de.txt):
 
     export ORACLE_HOME=/u01/oracle/fmw
+
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
     export DOMAIN_NAME=reportRpgpi
+
     export WLS_ADMIN_URL=t3://localhost:7001
+
     export WLS_ADMIN_PORT=7001
+
     export WLS_MANAGED_SERVER=WLS_REPORTS
+
     export WLS_REPORTS_PORT=9002
+
     export REPORTS_SERVER_NAME=repServer01
+
     export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+
     export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
+
     export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
 
   Kennwoerter: in dieser Anleitung steht immer <KENNWORT> - echte Werte
@@ -86,11 +98,14 @@ SCHRITT 0: Bestandsaufnahme (nur lesen, nichts aendern)  (als oracle)
 
   # 0.4 Reports-Server-Konfiguration
   grep -nE "identifier|folderAccess|<read>|<write>|<job " $RWSERVER_CONF
+
   cat $REPORTS_APP_CONF/rwservlet.properties
 
   # 0.5 Dateien mit Kennwoertern (Rechte pruefen, siehe SCHRITT 9)
   find $DOMAIN_HOME -name boot.properties -exec ls -l {} \;
+
   ls -l $REPORTS_APP_CONF/cgicmd.dat $RWSERVER_CONF
+
   ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties 2>/dev/null
 
 
@@ -104,6 +119,7 @@ SCHRITT 1: Netzwerk - WebLogic nur lokal erreichbar  (als root / oracle)
 
   # 1.1 Listen-Adressen in der Domain pruefen (als oracle)
   grep -n "<listen-address>" $DOMAIN_HOME/config/config.xml
+
   grep -E "^ListenAddress" $DOMAIN_HOME/nodemanager/nodemanager.properties
   # Erwartet: localhost oder 127.0.0.1 (leere listen-address = ALLE
   # Adressen -> dann im EM unter Server -> Einstellungen auf localhost
@@ -130,6 +146,7 @@ SCHRITT 2: Nginx haerten  (als root)
 ================================================================================
 
   cp /etc/nginx/conf.d/oracle-wls.conf /etc/nginx/conf.d/oracle-wls.conf.bak_$(date +%Y%m%d_%H%M%S)
+
   vi /etc/nginx/conf.d/oracle-wls.conf
 
   # 2.1 Server-Version verbergen und Sicherheits-Header setzen - im
@@ -227,6 +244,7 @@ SCHRITT 3: WebLogic hinter dem Proxy - HTTPS korrekt erkennen  (als oracle)
   # und /console erst auf http:// um (getestet 2026-10-26). Sicher, weil
   # Nginx die vom Client mitgeschickten WL-Proxy-*-Header entfernt
   # (OS_Kochbuch_de.txt Schritt 8).
+
   grep -n -A30 "<name>AdminServer</name>" $DOMAIN_HOME/config/config.xml | grep weblogic-plugin-enabled
 
   # Hinweis zu connect(): ohne Benutzer/Kennwort fragt WLST beides ab -
@@ -466,6 +484,7 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
   #     Neustart-Schleife, REP-51002 bei jedem Aufruf).
 
   cp $RWSERVER_CONF ${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)
+
   vi $RWSERVER_CONF
   #   Den (ggf. auskommentierten) identifier-Eintrag ersetzen durch:
   #     <identifier encrypted="no">repadmin/<KENNWORT></identifier>
@@ -477,6 +496,7 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
 
   # Reports-Server neu starten (restartComponent.sh geht NICHT):
   $DOMAIN_HOME/bin/stopComponent.sh  $REPORTS_SERVER_NAME
+
   $DOMAIN_HOME/bin/startComponent.sh $REPORTS_SERVER_NAME
 
   grep -n identifier $RWSERVER_CONF
@@ -484,7 +504,9 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
 
   # Test (Kennwort NICHT in die Shell-History: vorher "read -s"):
   read -s -p "repadmin-Kennwort: " RPW; echo
+
   curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=repadmin/${RPW}" | head -5
+
   unset RPW
   # Erwartet: XML mit <server ... und Engine-Status
 
@@ -535,6 +557,7 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   # Reports_kochbuch_de.txt 9.6 schreibt seit 2026-10-23 bereits die
   # Betriebswerte (aeltere Fassungen: singlesignon=no, L0). Pruefen:
   grep -E "singlesignon|webcommandaccess" $REPORTS_APP_CONF/rwservlet.properties
+
   # Fuer den Betrieb:
   #   <webcommandaccess>L1</webcommandaccess>
   #     Web-Befehle (getserverinfo, showjobs ...) nur noch mit authid -
@@ -560,6 +583,7 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   #   pruefen. Rueckweg: Sicherung zurueckkopieren, WLS_REPORTS neu starten.
 
   cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$(date +%Y%m%d_%H%M%S)
+
   vi $REPORTS_APP_CONF/rwservlet.properties
   #   nur diese zwei Zeilen aendern - cookie/encryptionkey NICHT aendern:
   #     <singlesignon>yes</singlesignon>
@@ -567,6 +591,7 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
 
   # WLS_REPORTS neu starten (liest die Datei nur beim Start):
   $DOMAIN_HOME/bin/stopManagedWebLogic.sh  ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
+
   nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} > /tmp/managed_start.log 2>&1 &
 
   # Tests:
@@ -586,11 +611,17 @@ SCHRITT 9: Dateien mit Kennwoertern schuetzen  (als oracle)
 
   # 9.1 Rechte setzen
   find $DOMAIN_HOME/servers -name boot.properties -exec chmod 600 {} \;
+
   chmod 600 $DOMAIN_HOME/security/SerializedSystemIni.dat
+
   chmod 640 $REPORTS_APP_CONF/cgicmd.dat
+
   chmod 640 $RWSERVER_CONF
+
   chmod 600 $DOMAIN_HOME/config/nodemanager/nm_password.properties
+
   chmod 600 ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties 2>/dev/null
+
   chmod 750 $DOMAIN_HOME
   #   SerializedSystemIni.dat ist der Schluessel der Domain - mit ihm und
   #   einer Kopie der Domain lassen sich ALLE {AES}-Kennwoerter
@@ -598,6 +629,7 @@ SCHRITT 9: Dateien mit Kennwoertern schuetzen  (als oracle)
 
   # 9.2 Kontrolle
   find $DOMAIN_HOME/servers -name boot.properties -exec ls -l {} \;
+
   grep -c "{AES" $DOMAIN_HOME/servers/*/security/boot.properties
   #   Erwartet: Rechte -rw------- und je 2 Treffer ({AES}-verschluesselt;
   #   Klartext steht nur bis zum ersten Start darin)
@@ -648,6 +680,7 @@ SCHRITT 11: Betriebssystem  (als root)
   #      beliebige Pakete installieren bzw. die Firewall oeffnen - faktisch
   #      root-Rechte. Nach der Installation:
   cp /etc/sudoers.d/oracle-fmw /root/oracle-fmw.sudoers.bak_$(date +%Y%m%d)
+
   vi /etc/sudoers.d/oracle-fmw
   #   Nur behalten, was im Betrieb noetig ist, z.B.:
   #     oracle ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
@@ -655,6 +688,7 @@ SCHRITT 11: Betriebssystem  (als root)
   #     oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
   #   (Autostart: der systemd-Dienst laeuft ueber root/systemctl, nicht ueber
   #   sudo von oracle.)
+
   visudo -c
   sudo -l -U oracle
 
@@ -680,6 +714,7 @@ SCHRITT 12: Patchstand  (als oracle)
   # den Monaten dazwischen, dazu Security Alerts. Sicherheit heisst auch:
   # regelmaessig patchen. Stand dieser Kochbuecher: CPU Oktober 2026.
   $ORACLE_HOME/OPatch/opatch lspatches
+
   ${JAVA_HOME:-/u01/oracle/java/jdk-21}/bin/java -version 2>&1 | head -1
   #   Mit dem aktuellen Stand aus MOS KA1182 vergleichen - Vorgehen siehe
   #   FMW_Kochbuch_de.txt Schritt 3 / Reports_kochbuch_de.txt Schritt 2.
@@ -693,7 +728,9 @@ SCHRITT 12: Patchstand  (als oracle)
   # emSign-Wurzeln noch im Java-Truststore bzw. im Betriebssystem?
   ${JAVA_HOME:-/u01/oracle/java/jdk-21}/bin/keytool -list -cacerts \
       -storepass changeit 2>/dev/null | grep -ci emsign
+
   grep -c '^[0-9A-F]' ${JAVA_HOME:-/u01/oracle/java/jdk-21}/lib/security/blocked.certs
+
   rpm -q ca-certificates
   #   Hinweis: Das JDK IM Home ($ORACLE_HOME/oracle_common/jdk, 17.0.12)
   #   betreibt die Reports-Engines und hat keinen Patch - es vertraut den
@@ -745,25 +782,45 @@ ABSCHLUSS-CHECKLISTE
 ================================================================================
 
   [ ] ss -tlnp: 7001/9002/5556 nur auf localhost                (SCHRITT 1)
+
   [ ] firewall-cmd --list-ports: nur 80, 443, Reports-UDP-Port  (SCHRITT 1)
+
   [ ] /reports/rwservlet/showenv von aussen: 403                 (SCHRITT 2)
+
   [ ] /em von aussen: 403 bzw. nur Admin-IPs / SSH-Tunnel        (SCHRITT 2)
+
   [ ] /console-Block aus Nginx entfernt                          (SCHRITT 2)
+
   [ ] weblogic-plugin-enabled=true an WLS_REPORTS + AdminServer  (SCHRITT 3)
+
   [ ] Kennwort-Richtlinie 12 Zeichen, Kontosperre aktiv          (SCHRITT 4)
+
   [ ] Persoenliche Admin-Konten, Gruppen zugewiesen              (SCHRITT 5)
+
   [ ] RW_ADMINISTRATOR -> Administrators, monUser, RepRunner     (SCHRITT 6)
+
   [ ] <identifier encrypted="yes"> in rwserver.conf              (SCHRITT 7)
+
   [ ] securityId + LDAP-Identity-Store, monUser liefert XML      (SCHRITT 7b)
+
   [ ] REPORTS_JVM_OPTIONS (reports.sh) + ORB-Timeout (setUserOverrides.sh)
+
   [ ] <folderAccess><read> nur benoetigte Verzeichnisse, ";"     (SCHRITT 7)
+
   [ ] webcommandaccess L1; singlesignon nach Test                (SCHRITT 8)
+
   [ ] boot.properties 600 und {AES}; cgicmd.dat 640              (SCHRITT 9)
+
   [ ] History ohne Kennwoerter, Kennwortdateien 600 (umask 022) (SCHRITT 9)
+
   [ ] Node Manager nur localhost, Authentifizierung an           (SCHRITT 10)
+
   [ ] sudo von oracle auf das Noetigste reduziert, kein wheel    (SCHRITT 11)
+
   [ ] Patchstand dokumentiert, ca-certificates aktuell          (SCHRITT 12)
+
   [ ] Funktionstest: Bericht ueber https://<fqdn>/reports/... laeuft,
+
       Bilder erscheinen, Monitoring-Abfrage funktioniert
 
 
@@ -837,13 +894,18 @@ BEKANNTE PROBLEME UND LOESUNGEN
            dem laufenden AdminServer nicht.
   Pruefen:
            ls -l $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok
+
            grep -c '<ldap id="DefaultAuthenticator"' $DOMAIN_HOME/config/fmwconfig/ovd/default/adapters.os_xml
+
              (direkt nach dem AdminServer-Start: 1 = in Ordnung)
   Loesung: AdminServer stoppen, Sperre entfernen, AdminServer starten
            (Managed Server und Reports-Server koennen weiterlaufen):
              $DOMAIN_HOME/bin/stopWebLogic.sh
+
              mv $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale
+
              nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver.out 2>&1 &
+
            Dauerhaft: die Start-Skripte entfernen die Sperre vor jedem
            AdminServer-Start (WLS_Report_start_stop_kochbuch.txt 0.1 und
            start_wls_all.sh, Autostart_linux_middleware.txt start_all.sh).

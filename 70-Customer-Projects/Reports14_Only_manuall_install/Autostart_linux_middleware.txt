@@ -28,8 +28,10 @@
                Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
                dann die Werte in die Sitzung laden:
                  . /u01/oracle/tools/set_install_env.sh
+
                und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
                  [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+
                Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
                (gleiche Namen wie in install.ini).
                Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
@@ -50,6 +52,7 @@ VORAUSSETZUNGEN
   Schritt 4 und 6) - darueber starten UND stoppen die Server ohne
   Passworteingabe:
     ls -l /u01/user_projects/domains/reportRpgpi/servers/AdminServer/security/boot.properties
+
     ls -l /u01/user_projects/domains/reportRpgpi/servers/WLS_REPORTS/security/boot.properties
 
   Schritt 1-5 laufen als oracle, Schritt 6-8 als root.
@@ -71,6 +74,7 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
   #     "Connection refused. Could not connect to NodeManager ... 5556"
   #     (unabhaengig vom Passwort; beim Kunden so aufgetreten, 2026-10-15):
   ss -ltn | grep ':5556'
+
   # Keine Ausgabe -> Node Manager starten:
   #   nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
   #   sleep 10; ss -ltn | grep ':5556'
@@ -100,6 +104,7 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
 
   # 1c) Passwort einmalig speichern:
   $DOMAIN_HOME/bin/startComponent.sh repServer01 storeUserConfig
+
   # Fragt einmal nach dem Node-Manager-Passwort und speichert es
   # verschluesselt im Home-Verzeichnis des oracle-Users als
   #   ~/oracle-WebLogicConfig.properties  (Benutzer/Passwort, verschluesselt)
@@ -111,7 +116,9 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
 
   # Kontrolle: die naechsten Aufrufe duerfen NICHT mehr nach einem Passwort fragen
   /u01/user_projects/domains/reportRpgpi/bin/stopComponent.sh repServer01
+
   /u01/user_projects/domains/reportRpgpi/bin/startComponent.sh repServer01
+
   ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties
 
 
@@ -287,6 +294,7 @@ SCHRITT 5: Beide Skripte von Hand testen  (als oracle)
 
   /u01/oracle/scripts/stop_all.sh
   # Erwartet: alle vier Teile gestoppt, KEINE Frage nach Benutzer/Passwort
+
   ps -ef | grep -E "weblogic.Name|NodeManager" | grep -v grep
   # Erwartet: keine Ausgabe
 
@@ -340,7 +348,9 @@ SCHRITT 7: Dienst aktivieren und starten  (als root)
   su - oracle -c /u01/oracle/scripts/stop_all.sh
 
   systemctl enable reportrpgpi
+
   systemctl start reportrpgpi
+
   # "start" kehrt erst zurueck, wenn start_all.sh fertig ist (einige Minuten)
 
   systemctl status reportrpgpi
@@ -366,6 +376,7 @@ SCHRITT 8: Funktions- und Neustarttest  (als root)
   reboot
   # Nach dem Neustart (der Start dauert einige Minuten):
   systemctl status reportrpgpi
+
   journalctl -u reportrpgpi -b
   # danach Ports/Prozesse/curl wie oben pruefen
 

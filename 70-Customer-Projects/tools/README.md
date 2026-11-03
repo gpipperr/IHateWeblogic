@@ -22,6 +22,11 @@ runtime, never by a second copy of the script.
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
+Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
+(customer request 2026-11-03). `python3 -I cookbook_blank_lines.py <file.txt>`
+adds them (only blank lines; heredocs, loops, `\` continuations and the
+explaining comment right after a command stay together; shell cookbooks only).
+
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
   (patch list [patches_cpu_oct2026.csv](../Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv))

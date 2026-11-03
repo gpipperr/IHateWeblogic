@@ -12,8 +12,10 @@
                Beide Dateien EINMALIG genau an die eigene Umgebung anpassen,
                dann die Werte in die Sitzung laden:
                  . /u01/oracle/tools/set_install_env.sh
+
                und set_env.sh dauerhaft in ~/.bash_profile aufnehmen:
                  [ -f /u01/oracle/tools/set_env.sh ] && . /u01/oracle/tools/set_env.sh
+
                Die Parameter im Text bleiben zur Nachvollziehbarkeit stehen
                (gleiche Namen wie in install.ini).
                Details: Tools_status_logs_kochbuch.txt (Schritte 1, 2, 2b, 7)
@@ -32,15 +34,25 @@ VORAUSSETZUNGEN
   verwenden):
 
     export ORACLE_BASE=/u01/oracle
+
     export ORACLE_HOME=/u01/oracle/fmw
+
     export JDK_HOME=/u01/oracle/java/jdk-21
+
     export PATCH_STORAGE=/u01/oracle/patch_storage
+
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
     export DOMAIN_NAME=reportRpgpi
+
     export WLS_MANAGED_SERVER=WLS_REPORTS
+
     export WLS_SERVER_FQDN=wls01.company.local
+
     export WLS_ADMIN_PORT=7001
+
     export WLS_REPORTS_PORT=9002
+
     export WLS_NODEMANAGER_PORT=5556
 
   Hinweis zu WLS_MANAGED_SERVER: Der Reports-Managed-Server heisst
@@ -80,6 +92,7 @@ SCHRITT 1: Hostname, DNS und Zeitsynchronisation  (als root)
   # Resolver-Konfiguration pruefen: nameserver + search/domain muessen
   # gesetzt sein
   cat /etc/resolv.conf
+
   grep '^hosts:' /etc/nsswitch.conf
   # Erwartet: "hosts: files dns" (files VOR dns)
 
@@ -90,6 +103,7 @@ SCHRITT 1: Hostname, DNS und Zeitsynchronisation  (als root)
 net.ipv6.conf.all.disable_ipv6     = 1
 net.ipv6.conf.default.disable_ipv6 = 1
 EOF
+
   sysctl --system
 
   # WICHTIG: "default" gilt nur fuer Netzwerkkarten, die DANACH angelegt
@@ -119,6 +133,7 @@ EOF
   # Zeitsynchronisation (chrony) - WebLogic/OPSS-Zertifikatspruefungen
   # reagieren empfindlich auf Zeitabweichungen zwischen Knoten.
   dnf install -y chrony
+
   systemctl enable chronyd
 
   # Deutsche NTP-Pools eintragen
@@ -126,6 +141,7 @@ EOF
 pool 0.de.pool.ntp.org iburst
 pool 1.de.pool.ntp.org iburst
 EOF
+
   systemctl restart chronyd
 
   # Kontrolle: Synchronisation aktiv?
@@ -144,6 +160,7 @@ SCHRITT 2: OS-Basiskonfiguration  (als root)
   # deaktivierten Modus unterstuetzt). ERFORDERT NEUSTART.
   getenforce
   cp /etc/selinux/config /etc/selinux/config.bak_$(date +%Y%m%d_%H%M%S)
+
   sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
 
   # EPEL-Repository fuer zusaetzliche Pakete (z.B. easy-rsa fuer SSL)
@@ -152,6 +169,7 @@ SCHRITT 2: OS-Basiskonfiguration  (als root)
   # System aktualisieren (kann uebersprungen werden, wenn Patch-Level
   # bereits freigegeben ist)
   dnf check-update --quiet
+
   dnf upgrade --refresh -y
 
   # Mindestens die Zertifikatsliste des Betriebssystems aktuell halten -
@@ -160,6 +178,7 @@ SCHRITT 2: OS-Basiskonfiguration  (als root)
   # Zertifikate fuer beliebige Domains moeglich); ELSA-2026-88459 entfernt
   # das Vertrauen. Kein Neustart der Dienste noetig.
   dnf updateinfo list --available ca-certificates
+
   dnf update -y ca-certificates
 
   # Kernel-Parameter fuer Oracle FMW/WebLogic setzen. Werte stammen aus
@@ -184,11 +203,13 @@ fs.suid_dumpable      = 1
 kernel.core_uses_pid  = 1
 kernel.core_pattern   = /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
 EOF
+
   sysctl --system
 
 
   # Core-Dump-Verzeichnis pruefen
   mkdir -p /var/tmp/core/
+
   chmod 777 /var/tmp/core/
 
   #aus sysctl.conf default rausnehmen??
@@ -202,6 +223,7 @@ EOF
   # als zuletzt geladene Datei die obigen Werte sonst stillschweigend
   # ueberschreiben. Pruefen:
   grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null
+
   # Falls ein Konflikt gefunden wird (z.B. durch ein DB-Preinstall-Paket),
   # die abweichende Zeile sichern und auskommentieren:
   #   cp /etc/sysctl.conf /etc/sysctl.conf.bak_$(date +%Y%m%d)
@@ -211,6 +233,7 @@ EOF
   # Transparent HugePages deaktivieren (kann JVM-Pausen/GC-Spitzen
   # verursachen). ERFORDERT NEUSTART.
   cat /sys/kernel/mm/transparent_hugepage/enabled
+
 # gpi Beispiel 
 
   grubby --update-kernel=ALL --args="transparent_hugepage=never"
@@ -218,17 +241,22 @@ EOF
   # /dev/shm (tmpfs) muss mind. 25% des RAM gross sein (min. 2 GB) und
   # darf NICHT "noexec" gesetzt haben (JVM braucht Exec-Rechte dort).
   df -h /dev/shm
+
   grep /dev/shm /etc/fstab
+
   # Beispiel-Eintrag in /etc/fstab (N = Groesse in MB, z.B. 8192 fuer 8 GB):
   #   tmpfs /dev/shm tmpfs rw,exec,size=8192M 0 0
   #GPI
   systemctl daemon-reload
+
   mount -o remount /dev/shm
 
   # Swap-Speicher (OUI verlangt mind. 512 MB, empfohlen min. 2 GB)
   free -h
+
   fallocate -l 2G /u01/oracle/swapfile
   chmod 600 /u01/oracle/swapfile
+
   mkswap /u01/oracle/swapfile
   swapon /u01/oracle/swapfile
   echo "/u01/oracle/swapfile none swap sw 0 0" >> /etc/fstab
@@ -236,6 +264,7 @@ EOF
   # Core-Dump-Verzeichnis anlegen (777, da sowohl oracle als auch native
   # Prozesse dorthin schreiben muessen)
   mkdir -p /var/tmp/core
+
   chmod 777 /var/tmp/core
 
   # Firewall: HTTP/HTTPS fuer Nginx oeffnen, WebLogic-Ports NICHT extern
@@ -280,8 +309,10 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
   #    (beim Kunden so aufgetreten, 2026-10).
   dnf repolist
   # Erwartet in der Liste: ol9_baseos_latest UND ol9_appstream.
+
   # Fehlt ol9_appstream:
   dnf config-manager --set-enabled ol9_appstream
+
   # Eigener Repo-Spiegel (OLAM/Satellite/Spacewalk/eigenes .repo) oder ULN:
   # dort das Repo bzw. den Kanal "Oracle Linux 9 AppStream"
   # (ULN: ol9_x86_64_appstream) freischalten lassen - die Repo-ID kann
@@ -321,6 +352,7 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
   # Kontrolle: die wichtigsten Pakete muessen installiert sein - jede Zeile
   # "is not installed" heisst: Paket fehlt (meist AppStream nicht aktiv)
   rpm -q motif motif-devel compat-openssl11 ksh libnsl2 numactl-devel fontconfig
+
   ls -la /lib64/libnsl.so.3
   # Erwartet: "/lib64/libnsl.so.3 -> libnsl.so.3.0.0"
 
@@ -348,6 +380,7 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
   # vorher pruefen (Stand CPU Oktober 2026: jdk-21.0.13.0.2, Alert-Build zu
   # CVE-2026-91403; die 21.0.13 des CPU selbst ist betroffen):
   unzip -l p35702194_2100_Linux-x86-64.zip | grep -o 'jdk-21[^_]*'
+
   unzip -j p35702194_2100_Linux-x86-64.zip '*_linux-x64_bin.tar.gz' -d /tmp
 
   # Tar.gz-Variante (empfohlen - haelt das JDK unabhaengig vom FMW_HOME):
@@ -459,19 +492,30 @@ oracle ALL=(root) NOPASSWD: /usr/bin/systemctl status nginx
 oracle ALL=(root) NOPASSWD: /usr/bin/firewall-cmd *
 oracle ALL=(root) NOPASSWD: /usr/bin/fc-cache -f -v
 EOF
+
   chmod 440 /etc/sudoers.d/oracle-fmw
+
   visudo -c
 
   # Verzeichnisstruktur anlegen
   mkdir -p /u01/oracle
+
   mkdir -p /u01/oracle/fmw
+
   mkdir -p /u01/oracle/java
+
   mkdir -p /u01/user_projects/domains
+
   mkdir -p /u01/oracle/patch_storage
+
   mkdir -p /u01/oracle/patch_storage/bin
+
   mkdir -p /var/crash
+
   mkdir -p /u01/app/oraInventory
+
   chown -R oracle:oinstall /u01/oracle /u01/user_projects
+
   chmod 750 /u01/app/oraInventory
 
   # Oracle-Inventory-Registrierung (wird von JEDEM Oracle-Installer und
@@ -492,10 +536,12 @@ SCHRITT 6: Vorab-Pruefungen  (als oracle, rein informativ)
 
   # OS-Version
   cat /etc/oracle-release
+
   uname -r
 
   # Arbeitsspeicher und Festplattenplatz
   free -g
+
   df -h $ORACLE_HOME $ORACLE_BASE $PATCH_STORAGE
 
   # Java-Version
@@ -537,13 +583,18 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   # Installer-ZIPs ablegen (aus eDelivery/MOS-Download, manuell kopiert
   # oder per sftp uebertragen) und Pruefsumme kontrollieren:
   cp V1045135-01.zip $PATCH_STORAGE/wls/        # FMW Infrastructure
+
   cp V1045121-01.zip $PATCH_STORAGE/fr/         # Forms & Reports (ein ZIP fuer beide)
+
   sha256sum $PATCH_STORAGE/wls/V1045135-01.zip
+
   sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
+
   # Pruefsummen mit dem Wert aus dem eDelivery-Download-Portal vergleichen
 
   # Entpacken
   unzip $PATCH_STORAGE/wls/V1045135-01.zip -d $PATCH_STORAGE/wls/
+
   unzip $PATCH_STORAGE/fr/V1045121-01.zip  -d $PATCH_STORAGE/fr/
 
   # Patches: Download via MOS (My Oracle Support), entweder manuell im
@@ -579,9 +630,11 @@ SCHRITT 8: Nginx als Reverse-Proxy installieren (ohne SSL)  (als root)
   # nur auf localhost/127.0.0.1 ohne eigenes Zertifikat (siehe
   # FMW_Kochbuch_de.txt fuer die SSL-Einrichtung).
   dnf install -y nginx
+
   systemctl enable nginx
 
   mkdir -p /etc/nginx/ssl
+
   chmod 700 /etc/nginx/ssl
 
   # Default-Konfiguration deaktivieren (kollidiert sonst mit unserem
@@ -675,6 +728,7 @@ EOF
   # Kontrolle (schlaegt noch fehl, solange kein Zertifikat unter
   # /etc/nginx/ssl/ liegt - das passiert erst im FMW-Kochbuch):
   grep -q 'include /etc/nginx/conf.d' /etc/nginx/nginx.conf
+
   nginx -t
 
   # WebLogic-Ports bleiben in der Firewall geschlossen - Zugriff nur
@@ -706,6 +760,7 @@ SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz
   # --- 9.1 Firewall --------------------------------------------------------
 
   systemctl is-active firewalld        # "inactive" -> weiter; "active" -> 9.1b
+
   firewall-offline-cmd --get-default-zone            # meist: public
   # ssh MUSS in der Zone stehen, sonst sperrt man sich aus:
   firewall-offline-cmd --zone=public --query-service=ssh    # -> yes
@@ -733,6 +788,7 @@ SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz
   #       Test-NetConnection <server> -Port 9002   -> TcpTestSucceeded False
   # Alles ok -> dauerhaft machen und Sicherheitsnetz entfernen:
   systemctl enable firewalld
+
   systemctl stop ihw-fw-rollback.timer
 
   # --- 9.2 SSH absichern (sshd) --------------------------------------------
@@ -762,6 +818,7 @@ CNF
 Match User admin,oracle
     PasswordAuthentication yes
 CNF
+
   chmod 600 /etc/ssh/sshd_config.d/10-ihw-hardening.conf \
             /etc/ssh/sshd_config.d/99-ihw-match.conf
 
@@ -782,6 +839,7 @@ CNF
         | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {printf "%s=%s ", $1, $2}'
       echo
   done
+
   # erwartet: admin/oracle passwordauthentication=yes, root=no, x11forwarding=no
 
   # JETZT TESTEN: neuer ssh-Login als admin UND als oracle (zweites Fenster),
@@ -817,6 +875,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: dnf meldet bei Schritt 3 "No match for argument" / "Unable to
            find a match" fuer motif, libnsl2, compat-openssl11, ksh u.a.
+
   Ursache: das AppStream-Repository ist nicht aktiv (beim Kunden so
            aufgetreten) - diese Pakete gibt es nur dort, nicht in BaseOS
   Loesung: Schritt 3, Punkt 0): "dnf repolist" pruefen, AppStream mit

@@ -29,6 +29,7 @@ WORUM GEHT ES - IN EINFACHEN WORTEN
     Konto              wo es lebt              wofuer
     -----------------  ----------------------  ------------------------------
     cn=Admin           eingebettetes LDAP des  technischer Lese-Zugang: der
+
                        AdminServers            Reports-Server schaut damit
                                                die WebLogic-Benutzer nach
     monUser            WebLogic (myrealm)      NUR Status abfragen
@@ -73,17 +74,29 @@ SCHRITT 0: Variablen  (als oracle)
   # Kurzweg: . /u01/oracle/tools/set_install_env.sh   (install.ini)
   # Sonst von Hand - an die Umgebung anpassen:
   export ORACLE_HOME=/u01/oracle/fmw
+
   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
   export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
   export WLS_ADMIN_PORT=7001
+
   export WLS_REPORTS_PORT=9002
+
   export REPORTS_SERVER_NAME=repServer01                  # Komponente, nicht WLS_REPORTS
+
   export DOMAIN_NAME=$(basename $DOMAIN_HOME)
+
   export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+
   export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration
+
   export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
+
   export JPS_JSE=$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+
   export OVD=$DOMAIN_HOME/config/fmwconfig/ovd/default
+
   ls -l $RWSERVER_CONF $CGICMD_DAT $JPS_JSE      # alle drei muessen existieren
 
   # Der Domain-Name steht im LDAP als dc=<Name>. Kontrolle:
@@ -101,17 +114,21 @@ SCHRITT 1: Bestandsaufnahme - nur lesen  (als oracle, Domain laeuft)
   # 1.1 rwserver.conf: Absicherung und Notfall-Admin
   grep -n 'securityId' $RWSERVER_CONF
   #   Soll: <job jobType="report" engineId="rwEng" securityId="rwJaznSec" .../>
+
   grep -n '<identifier' $RWSERVER_CONF
   #   Soll: <identifier encrypted="yes">...</identifier>
   #   (fehlt = niemand bekommt Status-Abfragen; leer = Server startet nicht)
 
   # 1.2 Identity Store des Reports-Servers
   grep -c 'idstore.ldap.embedded' $JPS_JSE
+
   sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE | grep idstore
   #   Soll: Zaehler >= 2 und im default-Kontext
   #         <serviceInstanceRef ref="idstore.ldap.embedded"/>
   #         (idstore.xml nur noch auskommentiert)
+
   grep -A3 'name="ldap.url"' $JPS_JSE | head -2
+
   grep 'dc=' $JPS_JSE | head -3
   #   Soll: ldap://localhost:7001 und dc=<Domain-Name aus Schritt 0>
 
@@ -121,6 +138,7 @@ SCHRITT 1: Bestandsaufnahme - nur lesen  (als oracle, Domain laeuft)
 
   # 1.4 cgicmd.dat: Schluessel mit RepRunner
   grep -n 'authid' $CGICMD_DAT | sed 's#authid=\([^/]*\)/[^ ]*#authid=\1/*****#'
+
   ls -l $CGICMD_DAT
   #   Soll: default: server=repServer01 %* authid=RepRunner/*****
   #         Rechte -rw-r----- (640)
@@ -158,11 +176,13 @@ SCHRITT 1: Bestandsaufnahme - nur lesen  (als oracle, Domain laeuft)
 
   # 1.8 OVD-Zustand (Symptom: EM "Add Principal" findet keine Benutzer):
   ls -la --time-style=+%F_%T $OVD
+
   grep -c 'DefaultAuthenticator' $OVD/adapters.os_xml
   #   ovd.lok vorhanden und Zaehler 0 = EM-Benutzersuche leer (Schritt 10)
 
   # 1.9 Laufende Status-Abfrage mit monUser (Kennwort verdeckt eingeben):
   read -s -p "monUser-Kennwort: " MPW; echo
+
   curl -s -G "http://localhost:$WLS_REPORTS_PORT/reports/rwservlet/getserverinfo" \
        --data-urlencode "server=$REPORTS_SERVER_NAME" --data-urlencode "statusformat=XML" \
        --data-urlencode "authid=monUser/$MPW" | head -3; unset MPW
@@ -196,10 +216,14 @@ SCHRITT 2: Vorbereitung - Kennwoerter und Sicherung  (als oracle)
 
   # 2.2 Sicherung aller Dateien, die angefasst werden:
   B=$HOME/backup_reports_absicherung_$(date +%Y%m%d_%H%M%S); mkdir -p $B
+
   cp -p $DOMAIN_HOME/config/config.xml $JPS_JSE $RWSERVER_CONF $CGICMD_DAT \
         $REPORTS_APP_CONF/rwservlet.properties $DOMAIN_HOME/reports/bin/reports.sh $B/
+
   tar -czpf $B/fmwconfig.tgz -C $DOMAIN_HOME/config fmwconfig
+
   ls -l $B
+
   # Rueckweg: siehe Ende des Kochbuchs.
 
   # 2.3 Wartungsfenster: Schritt 3 braucht einen Neustart der GANZEN
@@ -229,8 +253,11 @@ try:
 except Exception, ex:
     print('LDAP-BIND FEHLER: ' + str(ex).split('\n')[0])
 EOF
+
   read -s -p "cn=Admin-Kennwort: " LDAP_PW; echo; export LDAP_PW
+
   $WLST /tmp/ldap_bind.py 2>/dev/null | grep LDAP-BIND
+
   unset LDAP_PW
   #   LDAP-BIND OK          -> Schritt 3 erledigt, weiter mit Schritt 4
   #   "error code 49"       -> Kennwort falsch/unbekannt -> 3.2
@@ -249,7 +276,9 @@ EOF
 
   # 3.3 SOFORT die ganze Domain neu starten (als root):
   systemctl stop reportrpgpi
+
   ps -ef | grep -E "weblogic.Server|NodeManager|rwserver" | grep -v grep   # leer?
+
   systemctl start reportrpgpi
   #   ohne Autostart: /u01/oracle/scripts/stop_all.sh und start_all.sh
   #
@@ -267,6 +296,7 @@ EOF
   # 3.4 Kontrolle: 3.1 noch einmal ausfuehren -> "LDAP-BIND OK"
   grep -c 'credential-encrypted' $DOMAIN_HOME/config/config.xml
   #   Soll: >= 1 (im Block <embedded-ldap>)
+
   rm -f /tmp/ldap_bind.py
 
 
@@ -352,6 +382,7 @@ SCHRITT 6: Reports-Server auf das WebLogic-LDAP umstellen  (als oracle)
   # Nur wenn 1.2 nicht "ok" war. Ist der Eintrag schon da, aber mit
   # falschem dc= oder Port: nur diese Werte korrigieren.
   echo "Domain-Name fuer dc=: $DOMAIN_NAME"
+
   vi $JPS_JSE
   #   a) direkt VOR der Zeile "    </serviceInstances>" einfuegen
   #      (reportRpgpi durch den Domain-Namen ersetzen, 7001 durch den
@@ -384,7 +415,9 @@ SCHRITT 6: Reports-Server auf das WebLogic-LDAP umstellen  (als oracle)
   #      (genau EIN Identity Store im Kontext)
 
   python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$JPS_JSE'); print('XML ok')"
+
   sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE | grep idstore
+
   # Soll: "XML ok" und nur idstore.ldap.embedded aktiv.
   # Wirksam erst beim Neustart des Reports-Servers (Schritt 9).
 
@@ -401,6 +434,7 @@ SCHRITT 7: rwserver.conf - Notfall-Admin und Absicherung  (als oracle)
   #       Der Reports-Server verschluesselt es beim naechsten Start selbst
   #       (dann encrypted="yes"). NIE leer lassen - ein leerer Eintrag
   #       verhindert den Start (REP-50125).
+
   #
   #   7.2 Absicherung - am Report-Job securityId ergaenzen:
   #         <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>
@@ -411,6 +445,7 @@ SCHRITT 7: rwserver.conf - Notfall-Admin und Absicherung  (als oracle)
   #         <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
   #       Kontrolle:
   grep -n 'security id=\|securityId\|<identifier' $RWSERVER_CONF
+
   python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$RWSERVER_CONF'); print('XML ok')"
 
 
@@ -433,7 +468,9 @@ SCHRITT 8: Servlet, cgicmd.dat, JVM-Optionen  (als oracle)
   #   - %* uebernimmt alle URL-Parameter (ohne: REP-50004)
   #   - authid NACH %*, sonst koennte ein authid in der URL es ersetzen
   #   - server= ist die Reports-Komponente, NICHT WLS_REPORTS
+
   chmod 640 $CGICMD_DAT
+
   # WICHTIG vorher klaeren: Wie rufen die Anwendungen heute Berichte auf?
   # Nach der Absicherung braucht JEDER Aufruf eine Anmeldung - entweder
   # ueber cmdkey=default oder mit eigenem authid. Aufrufe ohne beides
@@ -445,6 +482,7 @@ SCHRITT 8: Servlet, cgicmd.dat, JVM-Optionen  (als oracle)
   #     Reports-Server + langes CORBA-Timeout):
   grep -n REPORTS_JVM_OPTIONS $DOMAIN_HOME/reports/bin/reports.sh
   #   fehlt die Zeile -> am Ende anhaengen:
+
   cat >> $DOMAIN_HOME/reports/bin/reports.sh << 'EOF'
 REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
 EOF
@@ -453,6 +491,7 @@ EOF
   #   Dazu (einmalig, Reports_kochbuch_de.txt 9.9b): in
   #   $DOMAIN_HOME/bin/setUserOverrides.sh fuer WLS_REPORTS
   #   -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
+
   grep -n ORBTCPConnectTimeouts $DOMAIN_HOME/bin/setUserOverrides.sh
 
 
@@ -461,14 +500,18 @@ SCHRITT 9: Neustart der Domain  (als root)
 ================================================================================
 
   systemctl stop reportrpgpi
+
   systemctl start reportrpgpi
+
   systemctl status reportrpgpi --no-pager
+
   # Danach laeuft alles mit der neuen Konfiguration (AdminServer zuerst,
   # damit das LDAP schon da ist, wenn der Reports-Server startet - die
   # Start-Skripte halten diese Reihenfolge ein).
 
   # Kontrolle (als oracle):
   grep -n '<identifier' $RWSERVER_CONF          # Soll: encrypted="yes"
+
   /u01/oracle/tools/show_errors.sh -r           # neue Fehler?
 
 
@@ -505,8 +548,10 @@ SCHRITT 10: Das OVD-Problem - EM findet keine Benutzer
   #         weiter):
   $DOMAIN_HOME/bin/stopWebLogic.sh
   #      b) Sperrdatei wegschieben:
+
   mv $OVD/ovd.lok $OVD/ovd.lok.$(date +%Y%m%d_%H%M%S) 2>/dev/null; ls -la $OVD
   #      c) AdminServer starten:
+
   nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver_start.out 2>&1 &
   #         ...warten bis "RUNNING" (tail -f /tmp/adminserver_start.out)
   #      d) im EM SOFORT einmal "Add Principal" -> Suche ausfuehren. Danach
@@ -529,17 +574,29 @@ SCHRITT 11: Tests  (als oracle, auf dem Server)
 
   # Kennwoerter verdeckt eingeben (nicht in die Shell-History):
   read -s -p "monUser: " MPW; echo; read -s -p "RepRunner: " RPW; echo
+
   read -s -p "repadmin: " APW; echo
+
   U="http://localhost:$WLS_REPORTS_PORT/reports/rwservlet"
+
   S="server=$REPORTS_SERVER_NAME"
+
   t() { printf '%-34s ' "$1"; curl -s -o /tmp/t.out -w '%{http_code} ' "$2"; grep -o 'REP-[0-9]*\|<serverInfo\|%PDF' /tmp/t.out | head -1; echo; }
+
   t "monUser    getserverinfo"  "$U/getserverinfo?$S&statusformat=XML&authid=monUser/$MPW"
+
   t "RepRunner  getserverinfo"  "$U/getserverinfo?$S&statusformat=XML&authid=RepRunner/$RPW"
+
   t "falsches Kennwort"          "$U/getserverinfo?$S&statusformat=XML&authid=monUser/falsch"
+
   t "ohne Anmeldung"             "$U/getserverinfo?$S&statusformat=XML"
+
   t "repadmin   getserverinfo"   "$U/getserverinfo?$S&statusformat=XML&authid=repadmin/$APW"
+
   t "monUser    showenv"         "$U/showenv?$S&authid=monUser/$MPW"
+
   unset MPW RPW APW; rm -f /tmp/t.out
+
   #
   #   Erwartet (Spalte 1 = HTTP-Code, Spalte 2 = Inhalt):
   #   monUser    getserverinfo   <serverInfo
@@ -570,6 +627,7 @@ SCHRITT 12: Kennwoerter spaeter wechseln - was muss wohin?
   Konto      wo aendern                              danach
   ---------  --------------------------------------  ------------------------
   cn=Admin   Schritt 3.2 (setCredential) UND         Komplett-Neustart
+
              Schritt 5 (updateCred) - beide gleich!  (Schritt 3.3)
   monUser    WLST resetUserPassword oder EM          Monitoring-Konfiguration
              (myrealm -> Users -> Passwords)         anpassen
@@ -578,6 +636,7 @@ SCHRITT 12: Kennwoerter spaeter wechseln - was muss wohin?
                                                      Neustart WLS_REPORTS
   repadmin   rwserver.conf <identifier               Reports-Server neu
              encrypted="no">repadmin/NEU<...>        starten (stopComponent/
+
                                                      startComponent)
   weblogic   Reports_security.txt Schritt 13         boot.properties etc.
 
