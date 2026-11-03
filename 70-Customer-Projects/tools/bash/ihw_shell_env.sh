@@ -27,7 +27,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.5"
+IHW_SHELL_ENV_VERSION="2026-11-03.6"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -37,6 +37,14 @@ _ihwse_c() {   # colour text: _ihwse_c 32 "text"
 _ihwse_line() { _ihwse_c 35 "-----------------------------------------------------------"; printf "\n"; }
 _ihwse_kv()   { printf "    %-22s " "$1"; _ihwse_c 32 "$2"; printf "\n"; }
 _ihwse_err()  { _ihwse_c 31 "!! $1"; printf "\n"; }
+
+# DB group header: home name + path
+_ihwse_home_head() {
+    printf "    "
+    _ihwse_c 36 "$(printf "%-31s" "$1")"
+    _ihwse_c 32 "$2"
+    printf "\n"
+}
 
 # one menu line: nr label home [mark]
 _ihwse_entry() {
@@ -107,6 +115,13 @@ _ihwse_norm() {   # comparison key: no trailing "/", symlinks resolved (same hom
     readlink -f "$p" 2>/dev/null || printf "%s\n" "$p"
 }
 
+_ihwse_db_home_name() {   # home name: install/orabasetab field 3, else central inventory
+    local oh="$1" invfile="$2" n
+    n="$(awk -F: -v h="$oh" '$0 !~ /^#/ && $1 == h { print $3; exit }' "$oh/install/orabasetab" 2>/dev/null)"
+    [ -z "$n" ] && n="$(grep "LOC=\"$oh\"" "$invfile" 2>/dev/null | sed -n 's/.*HOME NAME="\([^"]*\)".*/\1/p' | head -1)"
+    printf "%s" "${n:-$(basename "$(dirname "$oh")")/$(basename "$oh")}"
+}
+
 _ihwse_db_sids() {   # SIDs of a DB home: /etc/oratab + running pmon processes
     local oh="$1" pid sid line
     {
@@ -127,7 +142,7 @@ _ihwse_db_sids() {   # SIDs of a DB home: /etc/oratab + running pmon processes
 
 # ihwenv_configure [-f] - detect homes, write ~/.ihw_env.conf (editable)
 ihwenv_configure() {
-    local force="$1" inv="" invfile h d jdk base sid n_fmw=0 n_db=0 answer tmp
+    local force="$1" inv="" invfile h d jdk base sid hname n_fmw=0 n_db=0 answer tmp
     if [ -f "$IHW_ENV_CONF" ] && [ "$force" != "-f" ]; then
         read -r -p "   $IHW_ENV_CONF exists - overwrite? [NO]: " answer </dev/tty
         [ "$answer" = "YES" ] || [ "$answer" = "yes" ] || { printf "   unchanged\n"; return 0; }
@@ -142,7 +157,7 @@ ihwenv_configure() {
                "$IHW_ENV_CONF" "$(date '+%F %T')" "$IHW_SHELL_ENV_VERSION"
         printf "# Edit freely; 'ihwenv_configure' detects again.\n"
         printf "# IHW_FMW_ENV: label ORACLE_HOME DOMAIN_HOME|- JDK_HOME   (label - = home only)\n"
-        printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE   (SID - = home without ORACLE_SID, one per home)\n"
+        printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE HOME_NAME   (SID - = home without ORACLE_SID, one per home)\n"
         printf "# Inventory  : %s\n" "${invfile}"
         # candidate homes (each normalised, duplicates removed):
         #  - central inventory (/etc/oraInst.loc), entries not REMOVED
@@ -165,10 +180,11 @@ ihwenv_configure() {
                 base="${base:-${ORACLE_BASE:-$(dirname "$(dirname "$(dirname "$h")")")}}"
                 # per home: one line per SID, then ALWAYS the home without SID
                 # (OPatch / home work without ORACLE_SID) - like FMW "home only"
+                hname="$(_ihwse_db_home_name "$h" "$invfile")"
                 for sid in $(_ihwse_db_sids "$h"); do
-                    printf 'IHW_DB_ENV+=("%s %s %s")\n' "$sid" "$h" "$base"
+                    printf 'IHW_DB_ENV+=("%s %s %s %s")\n' "$sid" "$h" "$base" "$hname"
                 done
-                printf 'IHW_DB_ENV+=("%s %s %s")\n' "-" "$h" "$base"
+                printf 'IHW_DB_ENV+=("%s %s %s %s")\n' "-" "$h" "$base" "$hname"
             elif [ -x "$h/bin/sqlplus" ]; then
                 printf "#SKIP %s (client home - no bin/oracle)\n" "$h"
             else
@@ -292,7 +308,7 @@ _ihwse_apply_db() {   # sid oh base
 # ------------------------------------------------------------------ menu ----
 setdb() {
     _ihwse_save_orig
-    local sel="$1" n=0 i e mark key total
+    local sel="$1" n=0 i e mark key total last_home="" e4
     local -a types=() idx=()
     for i in "${!IHW_FMW_ENV[@]}"; do types+=(FMW); idx+=("$i"); done
     for i in "${!IHW_DB_ENV[@]}";  do types+=(DB);  idx+=("$i"); done
@@ -311,12 +327,21 @@ setdb() {
                 key="FMW $e2 $e3"
                 [ "$e1" = "-" ] && e1="-  (home only)"
             else
-                read -r e1 e2 _ <<< "${IHW_DB_ENV[${idx[$n]}]}"
+                read -r e1 e2 _ e4 <<< "${IHW_DB_ENV[${idx[$n]}]}"
                 key="DB $e2 $e1"
                 [ "$e1" = "-" ] && e1="-  (no SID)"
+                # one header per DB home: home name + path, entries below it
+                if [ "$e2" != "$last_home" ]; then
+                    _ihwse_home_head "${e4:-$(basename "$(dirname "$e2")")/$(basename "$e2")}" "$e2"
+                    last_home="$e2"
+                fi
             fi
             mark=" "; [ "$key" = "${IHW_ENV_KEY:-}" ] && mark="*"
-            _ihwse_entry "$((n + 1))" "$e1" "$e2" "$mark"
+            if [ "${types[$n]}" = DB ]; then
+                printf "  %s %3s ---> %s\n" "$mark" "$((n + 1))" "$e1"
+            else
+                _ihwse_entry "$((n + 1))" "$e1" "$e2" "$mark"
+            fi
         done
         printf "   ---\n"
         printf "      c ---> clear environment    (back to the login values)\n"
@@ -344,7 +369,7 @@ setdb() {
         _ihwse_apply_fmw "$e1" "$e2" "$e3" "$e4"
         export IHW_ENV_KEY="FMW $e2 $e3"
     else
-        read -r e1 e2 e3 <<< "${IHW_DB_ENV[${idx[$n]}]}"
+        read -r e1 e2 e3 _ <<< "${IHW_DB_ENV[${idx[$n]}]}"
         _ihwse_apply_db "$e1" "$e2" "$e3"
         export IHW_ENV_KEY="DB $e2 $e1"
     fi
