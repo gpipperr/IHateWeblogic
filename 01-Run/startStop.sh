@@ -309,6 +309,17 @@ STEOF
     printf '%s\n' "$out" | grep -q '^IHW:OK' && return 0
     fail "$name: $(printf '%s\n' "$out" | sed -n 's/^IHW:FAIL://p' | head -1)"
     info "  AdminServer running? Machine of $name assigned to this Node Manager?"
+    # The reason is in the server's own logs (the Node Manager starts it -
+    # nothing goes to our start_*.log; customer 2026-11-03 found no log)
+    local _sl="$DOMAIN_HOME/servers/$name/logs"
+    if [ -f "$_sl/$name.out" ]; then
+        info "  last errors in $_sl/$name.out:"
+        grep -E '<(Error|Critical|Emergency)>|Exception|BEA-[0-9]+|OutOfMemory|Could not reserve|Address already in use' \
+            "$_sl/$name.out" 2>/dev/null | tail -5 | cut -c1-220 | while IFS= read -r _l; do info "    $_l"; done
+    else
+        info "  no $_sl/$name.out yet – the JVM did not start (Node Manager log below)"
+    fi
+    info "  logs: $_sl/$name.out, $_sl/$name.log, $DOMAIN_HOME/nodemanager/nodemanager.log"
     return 1
 }
 
@@ -562,7 +573,13 @@ _start_comp() {
     local start_log="${DIAG_LOG_DIR:-/tmp}/start_${name}_$(date +%H%M%S).log"
 
     info "Starting $name (type=$ctype) ..."
-    info "Output log: $start_log"
+    # started through the Node Manager / AdminServer the output goes to the
+    # server's own logs, start_*.log is only written for a script start
+    if [ -n "$(_nm_pid)" ] || [ -n "$FMW_CTL" ]; then
+        info "Output log: $DOMAIN_HOME/servers/$name/logs/$name.out (Node Manager start)"
+    else
+        info "Output log: $start_log"
+    fi
 
     case "$ctype" in
         NM)
