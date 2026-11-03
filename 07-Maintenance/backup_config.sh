@@ -191,10 +191,12 @@ JPS_CONFIG="$DOMAIN_HOME/config/fmwconfig/jps-config.xml"
 JPS_CONFIG_JSE="$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml"
 CONFIG_XML="$DOMAIN_HOME/config/config.xml"
 NM_PROPS="$DOMAIN_HOME/nodemanager/nodemanager.properties"
-_rtc_inst="$(dirname "${RWNETWORK_CONF_RTC:-/x/x}")"
-RWBUILDER_CONF="$_rtc_inst/rwbuilder.conf"
-SCREEN_PPD="$_rtc_inst/guicommon/tk/admin/PPD/screenprinter.ppd"
-AFM_DIR="$_rtc_inst/guicommon/tk/admin/AFM"
+# ReportsTools instance not created yet (before 13-) -> empty paths = "not
+# found" by description (was a "/x/rwbuilder.conf" placeholder path)
+_rtc_inst="${RWNETWORK_CONF_RTC:+$(dirname "$RWNETWORK_CONF_RTC")}"
+RWBUILDER_CONF="${_rtc_inst:+$_rtc_inst/rwbuilder.conf}"
+SCREEN_PPD="${_rtc_inst:+$_rtc_inst/guicommon/tk/admin/PPD/screenprinter.ppd}"
+AFM_DIR="${_rtc_inst:+$_rtc_inst/guicommon/tk/admin/AFM}"
 AFM_FILES=()
 if [ -d "$AFM_DIR" ]; then
     while IFS= read -r _a; do AFM_FILES+=("$_a"); done \
@@ -305,7 +307,7 @@ for item in "${BACKUP_ITEMS[@]}"; do
     fi
 
     if [ -f "$src_path" ]; then
-        sz="$(du -h "$src_path" 2>/dev/null | cut -f1)"
+        sz="$(du -hL "$src_path" 2>/dev/null | cut -f1)"   # -L: environment.conf is a symlink
         ok "$(printf "  %-14s  %-35s  %s (%s)" "$category" "${_stored:-$(basename "$src_path")}" "$src_path" "$sz")"
         ITEM_OK["$src_path"]=1
         FOUND_COUNT=$(( FOUND_COUNT + 1 ))

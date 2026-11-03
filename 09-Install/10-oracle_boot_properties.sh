@@ -34,7 +34,9 @@ fi
 source "$LIB_SH"
 
 # --- Source environment.conf --------------------------------------------------
-check_env_conf
+# without an argument it printed "ENV_CONF variable not set" (rc ignored)
+ENV_CONF="$ROOT_DIR/environment.conf"
+check_env_conf "$ENV_CONF" || exit 2
 # shellcheck source=../environment.conf
 source "$ROOT_DIR/environment.conf"
 
