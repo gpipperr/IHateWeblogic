@@ -236,8 +236,14 @@ Phase 6 – Runtime Configuration (as oracle / root)
                                                                    # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
   [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties for AdminServer + Managed Server
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst  # NodeManager config before first start
-  → Start AdminServer + NodeManager manually
-  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: set Machine NMType=Plain
+           (--skip-wlst = only nodemanager.properties, no WLST – the AdminServer is not running
+            yet; the Machine keeps NMType=SSL until the second run below WITHOUT --skip-wlst.
+            Forgotten → WLS_FORMS / WLS_REPORTS do not start through the Node Manager.
+            Without --skip-wlst on a stopped domain the script waits 120 s for the AdminServer.)
+  [oracle] ./01-Run/startStop.sh start NodeManager --apply         # first start: Node Manager
+  [oracle] ./01-Run/startStop.sh start AdminServer --apply         # then the AdminServer (listens after ~30-60 s)
+  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: set Machine NMType=Plain – now
+                                                                   # WITHOUT --skip-wlst (waits for the AdminServer)
   [oracle] ./09-Install/12-oracle_reports_users.sh --apply         # create WLS users monUser + RepRunner
   [root]   ./09-Install/13-root_reports_fix.sh --apply             # libnsl.so.2 symlink (OL9 only)
   [edit]   09-Install/forms_templates/*.template                   # adapt templates before the Forms setup
