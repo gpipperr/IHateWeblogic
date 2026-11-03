@@ -201,9 +201,9 @@ change. Values are per WLS_FORMS JVM.
  [debug]    (inherits)                     ... 10 sections x 5 = 50 processes
  ...
  ----------------------------------------------------------------------------
- [default]  (no prestart)          ==>    5 x webfile=HTTP-0,webstart
- [webstart] prestartRuntimes=true
-            prestartInit=5
+ [default]       (no prestart)     ==>    5 x webfile=HTTP-0,standaloneapp
+ [standaloneapp] prestartRuntimes=true    (FORMS_PRESTART_SECTION, written by 14-)
+                 prestartInit=5
 ```
 
 - Oracle: "It is recommended not setting the parameter in the [default]
@@ -216,6 +216,18 @@ change. Values are per WLS_FORMS JVM.
   removing the prestarted runtime processes …` at shutdown (both
   `[NOTIFICATION]`, **confirmed (live)**). With `FORMS_PRESTART_SECTION=webstart`:
   5 processes (**confirmed (live)**).
+- Which section to pool: the one in the **start URL of the users**
+  (`config=`). On the test host the pool was in `[webstart]` (2026-10-19,
+  Java Web Start was the client then), but the URL client distribution
+  (2026-10-23) starts FSAL with `config=standaloneapp` – the live session of
+  2026-11-03 started a new `frmweb` while 5 pooled `webstart` processes
+  waited. Switched 2026-11-03: `FORMS_PRESTART_SECTION="standaloneapp"`,
+  `14- --apply`, restart WLS_FORMS → log `FRM-93424 removing the prestarted
+  runtime processes for configuration section [webstart]`, `FRM-93412 There
+  are 5 prestarted runtime processes … for configuration section
+  [standaloneapp]`, `forms_perf_settings.sh` without WARN (**confirmed
+  (live)**). That an FSAL session now takes a pooled process is not
+  re-tested yet.
 - A pooled runtime "is removed from the prestart pool once client
   connection is made" (**documented**). A pooled process only listens on
   its port; when a client attaches, it closes the listen socket and holds
@@ -229,6 +241,8 @@ change. Values are per WLS_FORMS JVM.
   distribution start `config=standaloneapp` (`FORMS_CLIENT_CONFIG`), Java Web
   Start users `config=webstart` – pool the section the users actually start
   (`FORMS_PRESTART_SECTION`; `forms_perf_settings.sh` warns when they differ).
+  `FORMS_PRESTART_SECTION` takes **one** section; a second pool set by hand
+  (`forms_perf_settings.sh --set`) is removed by the next `14- --apply`.
 
 ## 4. Timeout chain
 

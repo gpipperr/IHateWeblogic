@@ -193,7 +193,10 @@ Consequences, built into `forms_perf_analyse.sh`:
   process had more ticks than the new session – dropped.
 - The session did not come from the pool: the pool is in `[webstart]`, FSAL
   started `standaloneapp` – a new `frmweb` was started
-  (`forms_perf_settings.sh` now warns about that).
+  (`forms_perf_settings.sh` now warns about that). Switched the same day:
+  `FORMS_PRESTART_SECTION="standaloneapp"` + `14- --apply` + WLS_FORMS
+  restart → 5 × `frmweb …,standaloneapp`, no WARN
+  ([forms_runtime_architecture.md §3](../80-FMW-Architecture/forms_runtime_architecture.md#3-runtime-pooling-prestart)).
 - RSS per session: 39 MB for the small test form, of it 7 MB private – the
   rest (libraries, FMX) is shared between sessions. The 64 MB of the
   `maxRuntimeProcesses` proposal stay a conservative value; a real
