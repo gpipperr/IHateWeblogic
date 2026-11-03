@@ -70,7 +70,7 @@ for _arg in "$@"; do
             printf "  %-16s %s\n" "--skip-wlst"  "Skip WLST instance creation (AdminServer not running)"
             printf "\nWithout --apply: dry-run, no files changed.\n"
             exit 0 ;;
-        *) warn "Unknown argument: $_arg" ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
@@ -555,10 +555,21 @@ else
     if ! $APPLY; then
         info "Dry-run - would check the LDAP bind as cn=Admin and createCred(map='reports.idstore', key='embeddedldap')"
         _cred_ok=true
-    elif $SKIP_WLST; then
-        warn "--skip-wlst: credential + LDAP bind not checked - re-run without --skip-wlst"
-    elif ! timeout 3 bash -c "echo >/dev/tcp/localhost/${WLS_ADMIN_PORT:-7001}" 2>/dev/null; then
-        warn "AdminServer not reachable on port ${WLS_ADMIN_PORT:-7001} - security step skipped"
+    elif $SKIP_WLST || ! timeout 3 bash -c "echo >/dev/tcp/localhost/${WLS_ADMIN_PORT:-7001}" 2>/dev/null; then
+        if $SKIP_WLST; then
+            warn "--skip-wlst: credential + LDAP bind not checked - re-run without --skip-wlst"
+        else
+            warn "AdminServer not reachable on port ${WLS_ADMIN_PORT:-7001} - credential + LDAP bind not checked"
+        fi
+        # an earlier run already switched the identity store: keep the secured
+        # server - else this run would write rwserver.conf WITHOUT securityId
+        # (silently unsecured, until 2026-11-03)
+        if grep -q 'serviceInstanceRef ref="idstore.ldap.embedded"' "$_JSE"; then
+            info "  jps-config-jse.xml already uses idstore.ldap.embedded - securityId is kept"
+            _cred_ok=true
+        else
+            warn "  rwserver.conf is written WITHOUT securityId (unsecured) until a run with the AdminServer"
+        fi
     elif load_weblogic_password > /dev/null 2>&1 && load_secrets_file "$_ELDAP_SEC" > /dev/null 2>&1; then
         _sec_py="$(mktemp --suffix=.py)"; chmod 600 "$_sec_py"
         cat > "$_sec_py" << 'SEC_PY'
@@ -619,8 +630,9 @@ SEC_PY
                 IHW:OK:*)      ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
                 IHW:INFO:*)    info "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
                 IHW:RESTART:*) warn "$(printf '%s' "$_line" | cut -d: -f3-)"
-                               info "  e.g. \$ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh stop AdminServer && ... start AdminServer"
-                               info "  (managed servers and the Reports server keep running)" ;;
+                               info "  01-Run/startStop.sh stop AdminServer --apply; 01-Run/startStop.sh start AdminServer --apply"
+                               info "  (managed servers and the Reports server keep running)"
+                               warn "  rwserver.conf of this run has NO securityId - the re-run writes it" ;;
                 IHW:FAIL:*)    fail "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
             esac
         done <<< "$_sec_out"
@@ -1087,22 +1099,14 @@ unset _inst
 # =============================================================================
 
 section "Next Steps"
-info "Start sequence (after 13-root_reports_fix.sh and font setup):"
-info "  1.  \$DOMAIN_HOME/bin/startWebLogic.sh &"
-info "  2.  \$DOMAIN_HOME/bin/startManagedWebLogic.sh $WLS_MANAGED_SERVER t3://localhost:${WLS_ADMIN_PORT:-7001} &"
-info "  3.  \$DOMAIN_HOME/bin/startComponent.sh $REPORTS_TOOLS_INSTANCE"
-_step=4
-for _inst in $REPORTS_SERVER_INSTANCES; do
-    info "  ${_step}.  \$DOMAIN_HOME/bin/startComponent.sh $_inst"
-    _step=$(( _step + 1 ))
-done
-unset _inst _step
-info ""
-info "Verify (Nginx proxy port or WLS_REPORTS port):"
-info "  curl -s \"http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet/getserverinfo?server=${_FIRST_SERVER_INST}&statusformat=XML\""
-info ""
-info "Fonts, uifont.ali, cgicmd.dat (after 14- and the first start of WLS_REPORTS):"
-info "  09-Install/14b-oracle_reports_fonts.sh --apply"
+# README Phase 6: the files are written while the domain runs and become
+# active with the restart after 14- (WLS_REPORTS, Reports server component)
+info "Next (09-Install/README.md, Phase 6):"
+info "  1. 09-Install/14-oracle_setup_forms.sh --apply"
+info "  2. 01-Run/startStop.sh stop-all --apply; 01-Run/startStop.sh start-all --apply"
+info "     (start-all also starts the Reports server component(s): $REPORTS_SERVER_INSTANCES)"
+info "  3. 01-Run/rwserver_status.sh --auth       (getserverinfo as monUser, engine states)"
+info "  4. 09-Install/14b-oracle_reports_fonts.sh --apply   (fonts, uifont.ali, cgicmd.dat)"
 
 unset _REPORTS_APP_DIR _REPORTS_APP_BASE _FIRST_SERVER_INST
 unset _TOOLS_CONF_BASE _REPSERV_CONF_BASE

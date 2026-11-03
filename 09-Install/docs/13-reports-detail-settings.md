@@ -77,8 +77,9 @@ REPORTS_TMP="/u01/app/oracle/reports/tmp"                               # output
 # 14027 = FMW 14.1.2.0.0 production, 14028 = standby
 REPORTS_BROADCAST_PORT="14027"
 
-# rwservlet.properties
-REPORTS_SERVER_NAME="repserver_ent"         # <server> element (must match instance name)
+# rwservlet.properties: <server> = FIRST entry of REPORTS_SERVER_INSTANCES (13- uses
+# that one); REPORTS_SERVER_NAME is the default server of the 01-Run tools
+REPORTS_SERVER_NAME="repserver_ent"
 REPORTS_COOKIE_KEY=""                       # Encryption key for session cookie (random string)
 
 # rwserver.conf engine tuning
@@ -288,8 +289,9 @@ Locate the `<multicast>` element (14.1.2; `<cluster>` in older releases) and cha
 $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwservlet.properties
 ```
 
-> **Before editing:** Stop WLS_REPORTS and AdminServer.
-> After changes, start in order: AdminServer → WLS_REPORTS → Reports Server component.
+> The script writes the file while the domain runs; it becomes active with the
+> restart of WLS_REPORTS (README Phase 6: `startStop.sh stop-all` / `start-all`
+> after `14-`). By hand: same, back up the file first.
 
 **Target content:**
 
@@ -342,6 +344,16 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
 > Back up the original file before editing.
 > Check `rwserver_diagnostic.log` for XML parsing errors after changes.
+>
+> **The script rewrites the whole file on every `--apply`** (backup
+> `rwserver.conf.bak_<ts>` first): manual edits are lost. Engine / queue
+> values come from `environment.conf` (`REPORTS_ENGINE_*`,
+> `REPORTS_MAX_*` – `05-ReportsPerformance/engine_perf_settings.sh --apply`
+> writes tuned values back there), the `<identifier>` from
+> `reports_admin_sec.conf.des3`. `securityId="rwJaznSec"` is written when the
+> JSE identity store is the embedded LDAP (step 5a) – also on a run with
+> `--skip-wlst` / AdminServer down once an earlier run switched it (before
+> 2026-11-03 such a run wrote the file without `securityId`).
 
 **Target content:**
 
@@ -672,30 +684,37 @@ ${REPORTS_TOOLS_INSTANCE}/guicommon/tk/admin
 
 ## Step 8 – Start and Stop System Components
 
-### Start sequence (after all configuration is complete)
+### With the scripts (README Phase 6)
+
+After `13-` and `14-` the changes become active with one restart:
 
 ```bash
-# 1. Start AdminServer (if not already running)
-$DOMAIN_HOME/bin/startWebLogic.sh &
-
-# 2. Start WLS_REPORTS managed server
-$DOMAIN_HOME/bin/startManagedWebLogic.sh WLS_REPORTS t3://localhost:7001 &
-
-# 3. Start ReportsTools component
-$DOMAIN_HOME/bin/startComponent.sh reptools_ent
-
-# 4. Start ReportsServer component
-$DOMAIN_HOME/bin/startComponent.sh repserver_ent
+./01-Run/startStop.sh stop-all --apply      # Reports server → managed servers → AdminServer → NM
+./01-Run/startStop.sh start-all --apply     # NM → AdminServer → managed servers → Reports server(s)
+./01-Run/startStop.sh                       # status table (repserver01 = type REPORTS, Ctrl NM)
+./01-Run/startStop.sh stop  repserver01 --apply   # one Reports server component
+./01-Run/startStop.sh start repserver01 --apply
 ```
 
-### Stop sequence
+The ReportsTools instance is **not** a running process: `startStop.sh` does
+not list it, the test host runs without starting it (`rwrun`,
+`rwconverter`, `14b-` use only its configuration directory).
+
+### By hand
 
 ```bash
-$DOMAIN_HOME/bin/stopComponent.sh repserver_ent
-$DOMAIN_HOME/bin/stopComponent.sh reptools_ent
+$DOMAIN_HOME/bin/startNodeManager.sh &                    # Node Manager first (11-)
+$DOMAIN_HOME/bin/startWebLogic.sh &                       # AdminServer
+$DOMAIN_HOME/bin/startManagedWebLogic.sh WLS_REPORTS t3://localhost:7001 &
+$DOMAIN_HOME/bin/startComponent.sh <repserver instance>   # via the Node Manager
+
+$DOMAIN_HOME/bin/stopComponent.sh <repserver instance>
 $DOMAIN_HOME/bin/stopManagedWebLogic.sh WLS_REPORTS
 $DOMAIN_HOME/bin/stopWebLogic.sh
 ```
+
+A server started by hand is unknown to the Node Manager – `startStop.sh` /
+autostart then cannot stop it cleanly; prefer the scripts.
 
 ---
 
@@ -717,12 +736,18 @@ indicate a functional problem.
 ### Check Reports Server is responding
 
 ```bash
-# Queue status (replace host/port/authid as needed)
-curl -s "http://localhost:7777/reports/rwservlet/showjobs?server=repserver_ent&authid=rep_admin/<identifier password>"
+# with the script: getserverinfo as monUser (reports_users.conf.des3), engine states
+./01-Run/rwserver_status.sh --auth
 
-# Server info (no authentication required at webcommandaccess L1 for getserverinfo)
-curl -s "http://localhost:7777/reports/rwservlet/getserverinfo?server=repserver_ent&statusformat=XML"
+# by hand on the host (WLS_REPORTS port; from outside only via Nginx + ADMIN_IP_RANGE)
+# secured server (REPORTS_SECURITY=ldap): a realm user with RW_MONITOR
+curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=<repserver>&statusformat=XML&authid=monUser/<pwd>"
+# unsecured server: only the <identifier> admin
+curl -s "http://localhost:9002/reports/rwservlet/showjobs?server=<repserver>&authid=rep_admin/<identifier password>"
 ```
+
+`getserverinfo` always needs an `authid` (`webcommandaccess` L1; without one
+REP-52262 / login page – see below and [doc 81](81-reports_rwservlet_security.md)).
 
 Expected: XML response with `<server>` element and engine status entries
 (`status="1"` = IDLE, `status="2"` = BUSY, `status="0"` = DEAD).
