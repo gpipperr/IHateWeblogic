@@ -20,6 +20,7 @@ runtime, never by a second copy of the script.
 | [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
+| [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` … (installed as `~/.bashrc.d/ihw_env.sh`) |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
@@ -249,6 +250,78 @@ WARN (rc 1): `BACKUP` on the file system of `ORACLE_HOME`, more than one
 domain, run as root. Read-only without `--apply`; with it only the four
 directories and `patch_env.sh` in the base directory are created.
 Tested 2026-10-29 on the 14c test host (executed, sourced, `--apply`).
+
+## ihw_shell_env.sh
+
+Environment switcher for the oracle user, after the model of `setdb` in
+[OraBashShell .profile](https://github.com/gpipperr/OraBashShell). It
+changes **only the current shell** – no installation file, no
+`environment.conf` of the library (that one is switched with
+`00-Setup/set_env.sh`).
+
+**Install** (as oracle, also on customer hosts – the file is standalone):
+
+```bash
+mkdir -p ~/.bashrc.d
+chmod 700 ~/.bashrc.d
+cp ihw_shell_env.sh ~/.bashrc.d/ihw_env.sh
+grep -n 'bashrc.d' ~/.bashrc
+# Expected: the OL9 default loop "for rc in ~/.bashrc.d/*" (else add it)
+```
+
+Then open a new shell. On the test host `09-Install/03-root_user_oracle.sh`
+does the same ([doc 5b](../../09-Install/docs/03-root_user_oracle.md)).
+The first start detects the homes and writes `~/.ihw_env.conf` (mode 600,
+editable): inventory (`/etc/oraInst.loc` → `inventory.xml`, removed or
+missing homes skipped) plus `/etc/oratab`. A FMW home has
+`wlserver/server/lib/weblogic.jar`; its domains come from
+`domain-registry.xml`, its JDK from `oui/.globalEnv.properties`. A DB home
+has `bin/oracle` + `bin/sqlplus`; its SIDs come from `/etc/oratab` and the
+running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
+
+**Use** – `setdb`, `setfmw` and `setfw` show the same menu (live, test host):
+
+```
+    Current environment :  login values
+-----------------------------------------------------------
+   FMW
+      1 ---> -  (home only)         Home: /u01/app/oracle/fmw
+      2 ---> fr_domain              Home: /u01/app/oracle/fmw
+   DB
+      3 ---> FMWCDB                 Home: /u01/app/oracle/product/19.33.0/db_home1
+      4 ---> -  (no SID)            Home: /u01/app/oracle/product/19.30.0/db_home1
+   ---
+      c ---> clear environment    (back to the login values)
+      h ---> help                 (aliases / functions / variables)
+   Selection [1]:
+```
+
+`setdb 2` selects directly, `*` marks the active entry, an invalid choice
+changes nothing.
+
+| Entry | Sets | PATH (in front of the login PATH) |
+|---|---|---|
+| FMW domain | `ORACLE_HOME` `WL_HOME` `DOMAIN_HOME` `DOMAIN_NAME` `JDK_HOME` `JAVA_HOME` `WLST` `NM_HOME` `FMWCONFIG` `FORMS_INSTANCE` `FORMS_APP_CONF` (formsweb.cfg, default.env) `REPORTS_APP_CONF` (rwservlet.properties, cgicmd.dat) `REPORTS_SERVER_CONF_DIR` (rwserver.conf) `REPORTS_TOOLS_CONF_DIR` (rwbuilder.conf); unsets `ORACLE_SID` | `$DOMAIN_HOME/reports/bin` (`rwrun.sh`, `rwclient.sh` – the domain wrappers, plain `$ORACLE_HOME/bin/rwrun` lacks the Reports env), `$DOMAIN_HOME/bin`, `$JAVA_HOME/bin`, `$ORACLE_HOME/oracle_common/common/bin` (FMW `wlst.sh`), `$ORACLE_HOME/bin`, `$ORACLE_HOME/OPatch` |
+| FMW home only | the same without the domain variables (patching, OPatch) | without the two domain directories |
+| DB (SID or `-`) | `ORACLE_HOME` `ORACLE_SID` (unset for `-`) `ORACLE_BASE`; removes all FMW variables | `$ORACLE_HOME/bin`, `$ORACLE_HOME/OPatch` |
+| `c` | back to the login values (saved at the first `setdb` call), all switcher variables removed | login PATH |
+
+Never changed: `TNS_ADMIN`, `NLS_LANG` (one Oracle Net directory for all
+processes). The login PATH is cleaned of the entries of the login
+`ORACLE_HOME` / `JAVA_HOME` before the new entries are put in front, so
+PATH does not grow (live: 8 switches, length 156 / 240 / 121 constant).
+
+Helpers: `whichenv`, `ihwenv_configure [-f]`, `wlst` (FMW `wlst.sh` from
+`oracle_common` – never `wlserver/common/bin/wlst.sh`, it lacks `createCred`,
+`grantAppRole` & co.; without arguments it starts in `$DOMAIN_HOME`), `cdoh`,
+`cddh`, `cdcfg`, `cdnm`, `cdlog [server]` (server logs; with a DB entry the
+ADR `diag` directory + `adrci show homes`). A function `myprompt` defined in
+`.bash_profile` is called after each switch (as in OraBashShell).
+
+Non-interactive shells (scp, sftp, cron, `bash -c`) load nothing and print
+nothing (first line `[[ $- == *i* ]] || return`). Tested 2026-11-03 on the
+14c test host (isolated `HOME` + real login shell): all four entries,
+`c`, `h`, invalid input, PATH length, nested shell, `wlst` start directory.
 
 ## clone_check_fmw.sh
 

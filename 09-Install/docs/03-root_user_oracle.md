@@ -212,6 +212,38 @@ the marker `IHW TNS_ADMIN`). The other places that read Oracle Net settings:
 > variable. This is the standard Oracle convention. Do not confuse with a Database
 > `ORACLE_HOME` — on this host, `ORACLE_HOME` points exclusively to the FMW install.
 
+### 5b. Environment switcher `setdb` / `setfmw` (interactive shells)
+
+`~oracle/.bash_profile` stays the baseline. For switching between the FMW
+home, the domain and DB homes in **one** shell, the script installs the
+switcher file
+[70-Customer-Projects/tools/bash/ihw_shell_env.sh](../../70-Customer-Projects/tools/bash/ihw_shell_env.sh)
+as `~oracle/.bashrc.d/ihw_env.sh`. The OL9 default `~/.bashrc` sources
+`~/.bashrc.d/*`, and `.bash_profile` sources `~/.bashrc`, so it is active in
+ssh, `su - oracle` and new terminals.
+
+```bash
+mkdir -p ~/.bashrc.d
+chmod 700 ~/.bashrc.d
+cp 70-Customer-Projects/tools/bash/ihw_shell_env.sh ~/.bashrc.d/ihw_env.sh
+chmod 644 ~/.bashrc.d/ihw_env.sh
+grep -n 'bashrc.d' ~/.bashrc
+# Expected: the OL9 loop "for rc in ~/.bashrc.d/*" - otherwise add it
+```
+
+Use (new shell):
+
+```
+setdb            # = setfmw = setfw: one menu, FMW (home only + domains) first,
+                 #   then DB homes with and without SID, c = clear, h = help
+setdb 2          # select entry 2 directly
+whichenv         # current values
+ihwenv_configure # detect the homes again -> ~/.ihw_env.conf (editable)
+```
+
+Only the current shell is changed. Details, variables and paths:
+[tools/README.md](../../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
+
 ### 6. System locale (Unicode support)
 
 Oracle Forms and Reports require a UTF-8 locale for correct Unicode handling.
@@ -323,6 +355,7 @@ From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
 - Creates `/etc/sudoers.d/oracle-fmw` and validates with `visudo -c`
 - Writes `~oracle/.bash_profile` FMW block (checks for existing entries, no duplicates)
 - Creates the `TNS_ADMIN` directory and writes `export TNS_ADMIN=…` into `.bash_profile` (own `IHW TNS_ADMIN` block, corrected when `environment.conf` changes)
+- Installs the environment switcher `~oracle/.bashrc.d/ihw_env.sh` (`setdb` / `setfmw`, from `70-Customer-Projects/tools/bash/ihw_shell_env.sh`; replaced with a backup when the repo version is newer) and checks that `~/.bashrc` sources `~/.bashrc.d`
 - Creates full directory tree with correct ownership (`$ORACLE_BASE/*` and `$ORACLE_INVENTORY`)
 - Creates `/etc/oraInst.loc` pointing to `$ORACLE_INVENTORY` (system-wide, root-owned)
 - Transfers repository ownership to `oracle:oinstall` (bootstrap handover)

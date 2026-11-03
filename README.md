@@ -783,6 +783,7 @@ IHateWeblogic/
     │   │   ├── clone_check_fmw.sh            – read-only golden-image / clone check (12c + 14c)
     │   │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
     │   │   ├── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
+    │   │   ├── ihw_shell_env.sh              – setdb / setfmw: switch the current shell (FMW home, domains, DB homes) – ~/.bashrc.d
     │   │   └── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
     │   │                                         for the 14c rebuild – encrypted archive, never into git
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash

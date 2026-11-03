@@ -406,6 +406,57 @@ TNSEOF
 fi
 unset _tns_dir
 
+# oracle user – environment switcher setdb / setfmw (~/.bashrc.d, docs 5b)
+SWITCH_SRC="$ROOT_DIR/70-Customer-Projects/tools/bash/ihw_shell_env.sh"
+SWITCH_DIR="$ORACLE_HOME_DIR/.bashrc.d"
+SWITCH_DST="$SWITCH_DIR/ihw_env.sh"
+ORACLE_BASHRC="$ORACLE_HOME_DIR/.bashrc"
+if [ ! -f "$SWITCH_SRC" ]; then
+    warn "Environment switcher source missing: $SWITCH_SRC"
+elif _run_root test -f "$SWITCH_DST" && _run_root cmp -s "$SWITCH_SRC" "$SWITCH_DST"; then
+    ok "Environment switcher installed: $SWITCH_DST (setdb / setfmw)"
+else
+    if _run_root test -f "$SWITCH_DST"; then
+        warn "Environment switcher differs from the repo version: $SWITCH_DST"
+    else
+        warn "Environment switcher not installed: $SWITCH_DST (setdb / setfmw)"
+    fi
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        _run_root mkdir -p "$SWITCH_DIR"
+        _run_root chmod 700 "$SWITCH_DIR"
+        _run_root test -f "$SWITCH_DST" && _run_root cp -p "$SWITCH_DST" "$SWITCH_DST.bak_$(date +%Y%m%d_%H%M%S)"
+        _run_root cp "$SWITCH_SRC" "$SWITCH_DST"
+        _run_root chmod 644 "$SWITCH_DST"
+        _run_root chown -R oracle:oinstall "$SWITCH_DIR"
+        ok "Environment switcher installed: $SWITCH_DST"
+    else
+        info "  Install: cp $SWITCH_SRC $SWITCH_DST  (--apply)"
+    fi
+fi
+# ~/.bashrc must source ~/.bashrc.d (OL9 default) - otherwise the switcher stays inactive
+if _run_root grep -q 'bashrc\.d' "$ORACLE_BASHRC" 2>/dev/null; then
+    ok ".bashrc sources ~/.bashrc.d"
+else
+    warn ".bashrc does not source ~/.bashrc.d - setdb / setfmw would not be loaded"
+    if [ "$APPLY_MODE" -eq 1 ]; then
+        _run_root test -f "$ORACLE_BASHRC" && _run_root cp -p "$ORACLE_BASHRC" "$ORACLE_BASHRC.bak_$(date +%Y%m%d_%H%M%S)"
+        _run_root tee -a "$ORACLE_BASHRC" > /dev/null << 'RCEOF'
+
+# IHW bashrc.d – user specific aliases and functions (setdb / setfmw)
+# Managed by: 09-Install/03-root_user_oracle.sh
+if [ -d ~/.bashrc.d ]; then
+    for rc in ~/.bashrc.d/*; do
+        [ -f "$rc" ] && . "$rc"
+    done
+fi
+unset rc
+RCEOF
+        _run_root chown oracle:oinstall "$ORACLE_BASHRC"
+        ok ".bashrc: ~/.bashrc.d loop added"
+    fi
+fi
+unset SWITCH_SRC SWITCH_DIR SWITCH_DST ORACLE_BASHRC
+
 # =============================================================================
 # 6. sudo Configuration
 # =============================================================================

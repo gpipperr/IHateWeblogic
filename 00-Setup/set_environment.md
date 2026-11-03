@@ -4,6 +4,15 @@ Manages multiple Oracle environments on a single server via a numbered
 selection menu.  Supports FMW/WebLogic domains and Oracle Database homes
 side by side.
 
+> **`set_env.sh` vs. `setdb` / `setfmw`.** `set_env.sh` switches the
+> **library configuration**: the `environment.conf` symlink that every
+> IHateWeblogic script reads. For switching only the **current interactive
+> shell** between the FMW home, its domains and DB homes, use the switcher
+> [ihw_shell_env.sh](../70-Customer-Projects/tools/bash/ihw_shell_env.sh)
+> (`setdb` = `setfmw` = `setfw`, installed by `09-Install/03-root_user_oracle.sh`
+> as `~/.bashrc.d/ihw_env.sh`). It never touches `environment.conf`.
+> Details: [tools/README.md](../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
+
 ---
 
 ## Problem
