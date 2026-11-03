@@ -183,7 +183,7 @@ into the Forms logon dialog – no password in the URL / access log):
 | pooled (`[webstart]`, 12 h old) | only a LISTEN socket (ephemeral port, IPv4 + IPv6) | 4 MB | 0 s (34 ticks) |
 | session, logon dialog | LISTEN socket closed; one connection from the WLS_FORMS JVM (Listener servlet) | 30 MB | 0 s (2 ticks) |
 | session, logged on (test form open) | + one connection to the DB port (`:1521`) | 39 MB, private (`RssAnon`) 7 MB | 0 s |
-| client killed hard | both connections stay until `FORMS_TIMEOUT` ends the `frmweb` | – | – |
+| client killed hard (08:13) | both connections stay; the `frmweb` ended between 08:38 and 08:39 – **~25 min**, although `FORMS_TIMEOUT` is not set (Oracle default 15 min). Cause **open** (timer granularity / heartBeat interplay?); no FRM message in `WLS_FORMS-diagnostic.log` / `formsapp-diagnostic.log` for the end | – | – |
 
 Consequences, built into `forms_perf_analyse.sh`:
 - **client** (session) = a connection whose peer is a socket of the
