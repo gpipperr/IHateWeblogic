@@ -288,6 +288,7 @@ What follows from the facts above:
   RCU is not needed for that. Re-inserting registry rows by hand is not
   documented by Oracle – check MOS before doing it. (**assumption**, to be
   tested on the test host if needed)
+  The complete clean-up procedure (find, check, drop): section 4.4.
 
 ### 4.2 `db_securefile=FORCE` – the first RCU run fails
 
@@ -415,6 +416,144 @@ SELECT mrc_name, comp_id, owner, version, status, upgraded, edition
  WHERE owner LIKE 'DEV\_%' ESCAPE '\'
  ORDER BY owner;
 ```
+
+### 4.4 Cleaning up – find old prefixes, check, drop
+
+Typical situation at a customer: after test installations, failed RCU runs
+or a migration the database holds several prefixes, and nobody knows which
+one is still in use. The order is always **find → prove unused → back up →
+drop → verify**. All queries below run as SYSDBA (or a DBA) in the PDB of
+the repository and are read-only – **confirmed (live)** 2026-11-03 against
+the test database (prefix `DEV`, 9 components). Replace `ALT` with the
+prefix to examine.
+
+**1. Which prefixes exist** (registry):
+
+```sql
+SELECT SUBSTR(owner, 1, INSTR(owner, '_') - 1) prefix, COUNT(*) comps,
+       MIN(version) min_ver, MAX(version) max_ver,
+       LISTAGG(DISTINCT status, ',') WITHIN GROUP (ORDER BY status) status
+  FROM system.schema_version_registry
+ GROUP BY SUBSTR(owner, 1, INSTR(owner, '_') - 1)
+ ORDER BY 1;
+```
+
+**2. Orphans – FMW-like schemas without a registry row.** These come from
+aborted RCU runs or a damaged registry (section 4.1). RCU does **not** list
+them, so they can only be dropped by SQL (step 7):
+
+```sql
+SELECT u.username, u.account_status, u.created, u.last_login
+  FROM dba_users u
+ WHERE REGEXP_LIKE(u.username,
+       '^[A-Z0-9]+_(STB|OPSS|IAU|IAU_APPEND|IAU_VIEWER|MDS|WLS|WLS_RUNTIME|UMS|ESS|SOAINFRA|BIPLATFORM)$')
+   AND NOT EXISTS (SELECT 1 FROM system.schema_version_registry r WHERE r.owner = u.username)
+ ORDER BY 1;
+```
+
+**3. Prove that the prefix is not used.** Look at both sides:
+
+| Side | Check | In use when |
+|---|---|---|
+| every FMW host (also the Reports Builder machine on Windows) | `grep -H -A1 -E '<url>\|<name>user</name>' $DOMAIN_HOME/config/jdbc/*-jdbc.xml` – the user of `LocalSvcTblDataSource` is `<prefix>_STB` (Windows: `Select-String` on the same files) | a domain names the prefix – **never drop it** |
+| database | sessions and last login per schema (queries below) | open sessions, or a `LAST_LOGIN` that is recent |
+
+```sql
+-- last login and open sessions per schema of the prefix
+SELECT u.username, u.account_status, u.last_login,
+       (SELECT COUNT(*) FROM v$session s WHERE s.username = u.username) sessions
+  FROM dba_users u WHERE u.username LIKE 'ALT\_%' ESCAPE '\' ORDER BY 1;
+
+-- who is connected: machine + program show the domain host
+SELECT s.username, s.machine, s.program, COUNT(*) n
+  FROM v$session s WHERE s.username LIKE 'ALT\_%' ESCAPE '\'
+ GROUP BY s.username, s.machine, s.program ORDER BY 1;
+```
+
+A running domain holds sessions of `_STB`, `_OPSS`, `_IAU_APPEND` /
+`_IAU_VIEWER` (live: program "Server" / "JDBC Thin Client" / `java@<host>`).
+`_MDS` / `_IAU` are often only logged in at creation, so their old
+`LAST_LOGIN` is no proof that the prefix is unused – `_STB` and `_OPSS` are
+the reliable ones. A stopped domain has no sessions: the `*-jdbc.xml` check
+on the hosts is the decisive one. `LAST_LOGIN` needs 12c or newer.
+
+**4. What must stay** – shared by all prefixes of the database:
+
+```sql
+-- tablespaces of the prefix and who else has segments in them
+SELECT t.tablespace_name,
+       (SELECT LISTAGG(DISTINCT owner, ',') WITHIN GROUP (ORDER BY owner)
+          FROM dba_segments g WHERE g.tablespace_name = t.tablespace_name) owners
+  FROM dba_tablespaces t
+ WHERE t.tablespace_name IN (SELECT default_tablespace FROM dba_users
+                              WHERE username LIKE 'ALT\_%' ESCAPE '\')
+    OR t.tablespace_name LIKE 'ALT\_%' ESCAPE '\';
+```
+
+| Object | Why it stays |
+|---|---|
+| `SYSTEM.SCHEMA_VERSION_REGISTRY$` (+ view, synonym, role `REGISTRYACCESS`) | one registry for every prefix (section 4) |
+| roles `FMW_RO`, `STBROLE` | granted objects of **all** prefixes (live: `FMW_RO` holds grants on `DEV_MDS/OPSS/STB/UMS/WLS`) |
+| a shared tablespace (our installation: `FMW_DATA` for every prefix, `RCU_TABLESPACE`) | other owners in the `owners` column – drop only a tablespace whose only owners are the prefix's schemas |
+| `<prefix>_IAS_TEMP`, `<prefix>_STB` … tablespaces of a default RCU run | belong to that prefix alone – RCU offers to drop them |
+
+**5. Back up** before any drop – the schemas and the registry
+(`07-Maintenance/rcu_repository_check.sh --apply` does this for the own
+prefix):
+
+```bash
+expdp \"/ as sysdba\" directory=DATA_PUMP_DIR dumpfile=rcu_ALT_%U.dmp logfile=rcu_ALT.log \
+      schemas=ALT_STB,ALT_OPSS,ALT_IAU,ALT_IAU_APPEND,ALT_IAU_VIEWER,ALT_MDS,ALT_WLS,ALT_WLS_RUNTIME,ALT_UMS
+expdp \"/ as sysdba\" directory=DATA_PUMP_DIR dumpfile=registry.dmp logfile=registry.log \
+      tables=SYSTEM.SCHEMA_VERSION_REGISTRY$
+```
+
+**6. Drop with RCU** – the normal way for a prefix that is in the registry:
+
+- GUI: `$ORACLE_HOME/oracle_common/bin/rcu` (Linux, needs `DISPLAY`) or
+  `%ORACLE_HOME%\oracle_common\bin\rcu.bat` (Windows – runs directly in
+  an RDP session, e.g. on the Reports Builder machine,
+  [report_rwbuilder.md](report_rwbuilder.md)) → *Drop Repository* → *System
+  Load and Product Load* → database as SYSDBA → prefix from **Existing
+  Prefixes** → all components → summary → Drop → drop the prefix's own
+  tablespaces when asked (not a shared one, step 4).
+- Silent (**documented**, RCU command line):
+  `rcu -silent -dropRepository -databaseType ORACLE -connectString <host>:<port>:<service> -dbUser sys -dbRole SYSDBA -schemaPrefix ALT -component STB -component OPSS -component IAU -component IAU_APPEND -component IAU_VIEWER -component MDS -component WLS -component UCSUMS`
+  (password asked, or `-f` with a password file).
+- RCU reads the components **from the registry** (section 4) and deletes
+  the registry rows itself.
+- Use the RCU of the version that created the prefix where possible. Dropping
+  12.2.1.x schemas with the 14.1.2 RCU is **not tested** – if RCU refuses,
+  continue with step 7.
+
+**7. Drop by SQL** – orphans (step 2), or when RCU cannot select the prefix:
+
+```sql
+-- generate the statements, review them, then run them
+SELECT 'DROP USER ' || username || ' CASCADE;'
+  FROM dba_users WHERE username LIKE 'ALT\_%' ESCAPE '\' ORDER BY 1;
+-- registry rows of the prefix (only when present - RCU would delete them)
+DELETE FROM system.schema_version_registry$ WHERE owner LIKE 'ALT\_%' ESCAPE '\';
+COMMIT;
+-- a tablespace only when step 4 showed no other owner
+-- DROP TABLESPACE ALT_IAS_TEMP INCLUDING CONTENTS AND DATAFILES;
+```
+
+`DROP USER … CASCADE` fails with ORA-01940 while a session is open – that
+is the last safety net (step 3). With `RCU_DB_TYPE=EBR` the schemas are
+editioned; `DROP USER … CASCADE` still works. Deleting registry rows by
+hand is what RCU does internally (`utilDropRegistryEntry`, above), but it
+is not documented as a manual step (**assumption**, untested on purpose).
+
+**8. Verify:** step 1 without the prefix, and
+
+```sql
+SELECT username FROM dba_users WHERE username LIKE 'ALT\_%' ESCAPE '\';
+SELECT owner FROM system.schema_version_registry WHERE owner LIKE 'ALT\_%' ESCAPE '\';
+```
+
+both empty. Then a start / `rcu_repository_check.sh` of every domain that
+should still work – it shows at once if the wrong prefix was dropped.
 
 ---
 
