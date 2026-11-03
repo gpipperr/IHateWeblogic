@@ -1,0 +1,432 @@
+================================================================================
+  Reports automatisch per Zeitplan erstellen  (Linux)
+  cron + rwclient (empfohlen) - Anhang: SCHEDULE= im Reports-Server
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Skripte)
+================================================================================
+  Zielgruppe : DBA / Systemadministrator der Reports-Umgebung
+  Umgebung   : Oracle Linux 9, FMW / WebLogic 14.1.2, Oracle Reports 14.1.2
+               mit eigenstaendigem, abgesichertem Reports-Server
+  Erstellt   : 2026-11-03, Stil nach 70-Customer-Projects/cookbook-Skill.md
+  Voraussetz.: Reports_Absicherung_kochbuch_de.txt umgesetzt (RepRunner mit
+               Rolle RW_EXECREPORTS, cgicmd.dat-Schluessel "default",
+               Notfall-Admin <identifier> in rwserver.conf)
+  Grundlage  : IHateWeblogic/80-FMW-Architecture/reports_job_handling.md
+               (alle Schritte auf dem Testsystem am 2026-11-03 live getestet)
+  Oracle     : Die 14.1.2-Bibliothek verweist fuer Reports auf die Buecher
+               12.2.1.3 - "Publishing Reports to the Web":
+               18.11 Scheduling Reports to Run Automatically
+               https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_run011.htm
+               A.8.3 SCHEDULE, A.8.8 SHOWJOBS
+               https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm
+               A.6.19 KILLJOBID
+               https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla006.htm
+  Original   : Windows-Variante auf pipperr.de "Report automatisch per
+               Zeitplan erstellen" (rwclient.bat mit SCHEDULE=)
+================================================================================
+
+WORUM GEHT ES - IN EINFACHEN WORTEN
+--------------------------------------------------------------------------------
+
+  Ein Bericht soll ohne Benutzer zu festen Zeiten laufen und als PDF-Datei
+  abgelegt werden. Dafuer gibt es zwei Wege:
+
+    Weg                         wo steht der Plan        Dateiname
+    --------------------------  -----------------------  -------------------
+    A  cron + rwclient.sh       crontab des Servers      mit Datum, je Lauf
+       (EMPFOHLEN, Schritt 1-6) (sichtbar, im Backup)    eine eigene Datei
+    B  SCHEDULE= im Reports-    versteckt in der Datei   immer derselbe -
+       Server (Anhang S)        repserver01.dat          wird ueberschrieben
+
+  Warum A: Der Plan ist mit "crontab -l" lesbar, jeder Lauf bekommt eine
+  eigene Datei, und ein Fehler liefert einen Exit-Code (1) fuer Journal und
+  Monitoring. Weg B ist richtig, wenn Benutzer selbst ueber den Browser
+  planen oder Oracles Kalender gebraucht wird ("letzter Werktag vor dem 15.").
+
+  Drei Regeln des Reports-Servers, die fuer beide Wege gelten:
+
+  - Der Bericht (.rdf) muss in einem Verzeichnis aus <folderAccess><read>
+    liegen (sonst REP-56132).
+  - Die PDF-Datei darf NUR in ein Verzeichnis aus <folderAccess><write>
+    geschrieben werden - NICHT in ein Unterverzeichnis davon (sonst
+    REP-56133, getestet 2026-11-03).
+  - Kennwoerter nie auf die Kommandozeile oder in eine URL: rwclient liest
+    sie aus einer Datei (cmdfile=), curl aus einer Konfigurationsdatei.
+
+
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - Platzhalter in spitzen Klammern (<db_user>, <REPRUNNER_KENNWORT>)
+    werden NUR in Dateien mit vi ersetzt - nie in der Shell eintippen.
+
+  - Alles als Benutzer oracle, ausser es steht anders da.
+
+
+================================================================================
+SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Werte anpassen  (nur diese vier)
+  ----------------------------------------------------------------------------
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
+  export REPORTS_SERVER_NAME=repServer01
+  # Name der Reports-Komponente - NICHT WLS_REPORTS
+
+  export WLS_REPORTS_PORT=9002
+
+  export JOBS=/u01/oracle/reports/jobs
+  # Hier liegen Parameterdateien, Wrapper und Logs der Zeitplan-Jobs
+
+  ----------------------------------------------------------------------------
+  0.2 Abgeleitete Variablen  (nichts anpassen, nur kopieren)
+  ----------------------------------------------------------------------------
+  export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+
+  export RWCLIENT=$DOMAIN_HOME/reports/bin/rwclient.sh
+
+  export RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
+
+  ----------------------------------------------------------------------------
+  0.3 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "DH=$DOMAIN_HOME Komponente=$REPORTS_SERVER_NAME JOBS=$JOBS"
+  # Erwartet: alle drei gefuellt. LEER? -> 0.1 wiederholen.
+
+  ls -l $RWSERVER_CONF $RWCLIENT
+  # Erwartet: beide Dateien vorhanden.
+
+
+================================================================================
+SCHRITT 1: Lese- und Schreibverzeichnis des Reports-Servers  (nur lesen)
+================================================================================
+
+  grep -n '<read>\|<write>' $RWSERVER_CONF
+  # Erwartet z.B.:
+  #   <read>/u01/oracle/reports/source;/u01/oracle/reports/images</read>
+  #   <write>/u01/oracle/reports/tmp</write>
+
+  export WRITE_DIR=$(sed -n 's#.*<write>\([^;<]*\).*#\1#p' $RWSERVER_CONF)
+
+  echo "PDF-Ablage: $WRITE_DIR"
+  # Erwartet: das erste Verzeichnis aus <write>.
+  # LEER (kein <write>-Eintrag) -> 1.1
+
+  ----------------------------------------------------------------------------
+  1.1 Nur falls ein anderes Ablageverzeichnis gebraucht wird
+  ----------------------------------------------------------------------------
+  # In rwserver.conf das Verzeichnis im EINEN <write>-Element ergaenzen,
+  # mit ";" getrennt (wie bei <read>), z.B.:
+  #     <write>/u01/oracle/reports/tmp;/u01/oracle/reports/out</write>
+  # Danach Reports-Server neu starten (stopComponent.sh / startComponent.sh).
+  # Ein Unterverzeichnis von /u01/oracle/reports/tmp reicht NICHT - jedes
+  # Verzeichnis muss selbst in <write> stehen.
+
+  ----------------------------------------------------------------------------
+  1.2 Der Bericht
+  ----------------------------------------------------------------------------
+  ls -l /u01/oracle/reports/source/<bericht>.rdf
+  # Erwartet: die Datei liegt in einem <read>-Verzeichnis aus Schritt 1.
+
+
+================================================================================
+SCHRITT 2: Arbeitsverzeichnis fuer die Zeitplan-Jobs  (als oracle)
+================================================================================
+
+  mkdir -p $JOBS
+
+  chmod 700 $JOBS
+
+  ls -ld $JOBS
+  # Erwartet: drwx------ oracle ...  (hier liegen Kennwoerter)
+
+
+================================================================================
+SCHRITT 3: Parameterdatei je Bericht  (als oracle)
+================================================================================
+
+  Je Bericht EINE Datei <name>.cmd. Beispiel fuer den Namen "tagesbericht".
+  Der Name wird spaeter im Dateinamen der PDF und in der crontab verwendet.
+
+  ----------------------------------------------------------------------------
+  3.1 Vorlage anlegen  (enthaelt noch keine Kennwoerter)
+  ----------------------------------------------------------------------------
+  umask 077
+
+  cat > $JOBS/tagesbericht.cmd << 'EOF'
+report=<bericht>.rdf
+destype=file
+desformat=pdf
+userid=<db_user>/<db_kennwort>@//<db_host>:1521/<service>
+authid=RepRunner/<REPRUNNER_KENNWORT>
+EOF
+
+  ls -l $JOBS/tagesbericht.cmd
+  # Erwartet: -rw------- (600)
+
+  # desname fehlt mit Absicht - der Wrapper (Schritt 4) setzt ihn bei
+  # jedem Lauf mit Datum und Uhrzeit.
+
+  ----------------------------------------------------------------------------
+  3.2 Platzhalter ersetzen
+  ----------------------------------------------------------------------------
+  vi $JOBS/tagesbericht.cmd
+
+  # Die vier Platzhalter ersetzen: <bericht>, <db_user>/<db_kennwort>,
+  # <db_host>:1521/<service>, <REPRUNNER_KENNWORT>.
+  # Berichtsparameter (Parameterformular) als weitere Zeilen, z.B.:
+  #     P_DATUM=03.11.2026
+  # Speichern mit :wq
+
+  grep -c '<' $JOBS/tagesbericht.cmd
+  # Erwartet: 0   (kein Platzhalter mehr uebrig)
+
+
+================================================================================
+SCHRITT 4: Wrapper-Skript  (als oracle)
+================================================================================
+
+  Ein kleines Skript, das cron aufruft: Bericht laufen lassen, PDF mit
+  Datum ablegen, Ergebnis ins Journal schreiben.
+
+  ----------------------------------------------------------------------------
+  4.1 Skript anlegen  (die Pfade kommen aus SCHRITT 0 und 1)
+  ----------------------------------------------------------------------------
+  echo "JOBS=$JOBS WRITE_DIR=$WRITE_DIR RWCLIENT=$RWCLIENT"
+  # Alle drei gefuellt? LEER -> zuerst SCHRITT 0 und 1.
+
+  cat > $JOBS/run_report.sh << EOF
+#!/bin/bash
+# run_report.sh <name> - Bericht aus $JOBS/<name>.cmd laufen lassen,
+# PDF mit Datum nach $WRITE_DIR, Ergebnis ins Journal (Tag ihw-report)
+NAME="\$1"
+STAMP=\$(date +%Y%m%d_%H%M)
+OUT="$WRITE_DIR/\${NAME}_\${STAMP}.pdf"
+"$RWCLIENT" server=$REPORTS_SERVER_NAME cmdfile="$JOBS/\$NAME.cmd" desname="\$OUT" >> "$JOBS/\$NAME.log" 2>&1
+RC=\$?
+logger -t ihw-report "\$NAME rc=\$RC \$OUT"
+exit \$RC
+EOF
+
+  chmod 700 $JOBS/run_report.sh
+
+  cat $JOBS/run_report.sh
+  # Kontrolle: echte Pfade statt Variablen in den Zeilen OUT= und rwclient.
+
+  ----------------------------------------------------------------------------
+  4.2 Von Hand testen
+  ----------------------------------------------------------------------------
+  $JOBS/run_report.sh tagesbericht
+
+  echo $?
+  # Erwartet: 0
+  # 1 = Fehler - Ursache in $JOBS/tagesbericht.log (siehe 4.3)
+
+  ls -lt $WRITE_DIR | head -3
+  # Erwartet: tagesbericht_<JJJJMMTT_HHMM>.pdf
+
+  journalctl -t ihw-report --since today --no-pager
+  # Erwartet: ihw-report: tagesbericht rc=0 .../tagesbericht_<...>.pdf
+
+  ----------------------------------------------------------------------------
+  4.3 Bei rc=1: Fehlermeldung ansehen
+  ----------------------------------------------------------------------------
+  grep -o 'REP-[0-9]*[^"]*' $JOBS/tagesbericht.log | tail -3
+  # REP-56133  -> PDF-Verzeichnis nicht in <write>      -> SCHRITT 1
+  # REP-56132  -> Bericht nicht in <read> / Name falsch -> SCHRITT 1.2 / 3.2
+  # REP-56071  -> RepRunner ohne Rolle RW_EXECREPORTS   -> Absicherungs-
+  #               Kochbuch Schritt 4
+  # REP-50171  -> RepRunner-Kennwort falsch             -> SCHRITT 3.2
+  # ORA-01017  -> DB-Benutzer / -Kennwort falsch        -> SCHRITT 3.2
+
+
+================================================================================
+SCHRITT 5: Zeitplan in der crontab  (als oracle)
+================================================================================
+
+  crontab -l
+  # Vorhandene Eintraege merken - sie bleiben erhalten.
+
+  crontab -e
+
+  # Eine Zeile je Bericht anhaengen. Aufbau:
+  #   Minute Stunde Tag Monat Wochentag  Befehl
+  # Beispiele:
+  #   0 6 * * 1-5   /u01/oracle/reports/jobs/run_report.sh tagesbericht
+  #                 -> Montag bis Freitag um 06:00
+  #   30 7 1 * *    /u01/oracle/reports/jobs/run_report.sh monatsbericht
+  #                 -> am 1. jedes Monats um 07:30
+  # Den Pfad aus "echo $JOBS" nehmen. Speichern und schliessen.
+
+  crontab -l | grep run_report
+  # Erwartet: die neue(n) Zeile(n)
+
+  # Die Uhrzeit ist die des Servers:
+  timedatectl | grep 'Time zone'
+  # Erwartet: Europe/Berlin (oder die gewuenschte Zone)
+
+
+================================================================================
+SCHRITT 6: Kontrolle nach dem ersten echten Lauf
+================================================================================
+
+  journalctl -t ihw-report --since yesterday --no-pager
+  # Erwartet: je geplantem Lauf eine Zeile mit rc=0
+
+  ls -lt $WRITE_DIR | head -5
+
+  # Fuer das Monitoring: rc=1 im Journal (Tag ihw-report) alarmieren, oder
+  # den Zaehler failedJobs aus getserverinfo (80-FMW-Architecture/
+  # reports_monitoring_getserverinfo.md).
+
+  ----------------------------------------------------------------------------
+  6.1 Aufraeumen alter PDF-Dateien  (optional, als weitere crontab-Zeile)
+  ----------------------------------------------------------------------------
+  # Zuerst ansehen, was geloescht wuerde (aelter als 30 Tage):
+  find $WRITE_DIR -maxdepth 1 -name 'tagesbericht_*.pdf' -mtime +30
+
+  # Wenn die Liste stimmt, als crontab-Zeile (taeglich 05:00):
+  #   0 5 * * *  find /u01/oracle/reports/tmp -maxdepth 1 -name 'tagesbericht_*.pdf' -mtime +30 -delete
+
+
+================================================================================
+ANHANG S: Weg B - SCHEDULE= im Reports-Server
+================================================================================
+
+  Nur wenn der Plan im Reports-Server liegen soll (siehe "Worum geht es").
+  Der Job gehoert danach RepRunner und laeuft auch nach einem Neustart des
+  Reports-Servers weiter - gespeichert in der Datei <Komponente>.dat unter
+  $DOMAIN_HOME/reports/server/. Er schreibt bei JEDEM Lauf dieselbe Datei neu.
+
+  ----------------------------------------------------------------------------
+  S.1 Schreibweise des Zeitplans  (Oracle A.8.3)
+  ----------------------------------------------------------------------------
+  #   [FREQ from] TIME [retry {n} after LEN] expires {on|after} time|n
+  #   FREQ  hourly | daily | weekly | monthly | every <n> minute[s]|hour[s]|...
+  #         | every first|second|... <mon..sun> of month
+  #         | last weekday before <n>
+  #   TIME  now | hh:mm [today | tomorrow | <mon> <tag>[, <jahr>]]
+  # Uhrzeit 24-Stunden, Zeitzone des Servers. Beispiele:
+  #   daily from 06:00 tomorrow
+  #   every first mon of month from 07:30 tomorrow
+  #   last weekday before 15 from 12:00 tomorrow
+  #   daily from 23:00 tomorrow expires after 1      (einmal, zum Testen)
+
+  ----------------------------------------------------------------------------
+  S.2 Anfrage-Datei anlegen  (POST - nichts in der URL)
+  ----------------------------------------------------------------------------
+  umask 077
+
+  cat > $JOBS/tagesbericht_sched.curl << EOF
+url = "$RW_URL"
+data = "cmdkey=default&report=<bericht>.rdf&destype=file&desformat=pdf"
+data = "desname=$WRITE_DIR/tagesbericht.pdf"
+data = "jobname=tagesbericht"
+data-urlencode = "schedule=daily from 06:00 tomorrow"
+data-urlencode = "userid=<db_user>/<db_kennwort>@//<db_host>:1521/<service>"
+EOF
+
+  vi $JOBS/tagesbericht_sched.curl
+  # Platzhalter <bericht> und die DB-Anmeldung ersetzen, Zeitplan anpassen.
+  # cmdkey=default bringt RepRunner mit - kein authid noetig.
+
+  grep -c '<' $JOBS/tagesbericht_sched.curl
+  # Erwartet: 0
+
+  ----------------------------------------------------------------------------
+  S.3 Einplanen  (GENAU EINMAL ausfuehren - jeder Aufruf ist ein neuer Plan)
+  ----------------------------------------------------------------------------
+  curl -s -K $JOBS/tagesbericht_sched.curl | grep -o 'scheduled successfully\|REP-[0-9]*[^<]*'
+  # Erwartet: scheduled successfully
+
+  ----------------------------------------------------------------------------
+  S.4 Geplante Jobs ansehen  (nur der Notfall-Admin sieht alle Jobs)
+  ----------------------------------------------------------------------------
+  cat > $JOBS/admin.curl << 'EOF'
+data-urlencode = "authid=repadmin/<REPADMIN_KENNWORT>"
+EOF
+
+  vi $JOBS/admin.curl
+  # <REPADMIN_KENNWORT> ersetzen (Notfall-Admin aus rwserver.conf)
+
+  curl -s -K $JOBS/admin.curl -d server=$REPORTS_SERVER_NAME -d statusformat=XML -d queuetype=future $RW_URL/showjobs | grep -o '<job id="[0-9]*"\|<name>[^<]*\|<nextRun>[^<]*'
+  # Erwartet z.B.:
+  #   <job id="85"
+  #   <name>tagesbericht
+  #   <nextRun>Nov 4, 2026, 6:00:00/AM
+  # monUser sieht hier NUR eigene Jobs (leer). queuetype heisst "future",
+  # nicht "scheduled" (sonst REP-52274).
+
+  # Letzte Laeufe (Status 4 = ok, 5 = Fehler):
+  curl -s -K $JOBS/admin.curl -d server=$REPORTS_SERVER_NAME -d statusformat=XML -d queuetype=past -d count=5 $RW_URL/showjobs | grep -o '<job id="[0-9]*"\|<name>[^<]*\|<status code="[0-9]"'
+
+  ----------------------------------------------------------------------------
+  S.5 Geplanten Job loeschen  (Job-Nummer aus S.4)
+  ----------------------------------------------------------------------------
+  JOBID=85
+
+  curl -s -K $JOBS/admin.curl -d server=$REPORTS_SERVER_NAME -d statusformat=XML $RW_URL/killjobid$JOBID | grep -o '<status[^<]*'
+  # Erwartet: <status code="7">The job is canceled upon user request.
+
+
+================================================================================
+RUECKWEG
+================================================================================
+
+  Weg A (cron):
+
+  crontab -e
+  # Die run_report-Zeile(n) loeschen bzw. mit "#" auskommentieren.
+
+  crontab -l | grep run_report
+  # Erwartet: keine aktive Zeile mehr
+
+  Weg B (SCHEDULE): jeden Job aus S.4 mit S.5 loeschen.
+
+  Das Verzeichnis $JOBS enthaelt Kennwoerter - wenn nicht mehr gebraucht:
+
+  ls -l $JOBS
+
+  rm -r "${JOBS:?}"
+
+
+================================================================================
+BEKANNTE PROBLEME
+================================================================================
+
+  Problem: REP-56133 Access is denied to write to the specified location
+  Ursache: PDF-Verzeichnis steht nicht in <folderAccess><write> - auch ein
+           Unterverzeichnis eines <write>-Verzeichnisses wird abgelehnt.
+  Loesung: Schritt 1 / 1.1.
+
+  Problem: REP-56132 Access is denied to the report definition file
+  Ursache: Bericht nicht in einem <read>-Verzeichnis oder Name falsch.
+  Loesung: Schritt 1.2 / 3.2.
+
+  Problem: cron laeuft, aber kein PDF und kein Journal-Eintrag
+  Ursache: Pfad in der crontab falsch oder run_report.sh nicht ausfuehrbar.
+  Loesung: Zeile aus "crontab -l" von Hand ausfuehren (Schritt 4.2).
+
+  Problem: Weg B - dieselbe PDF wird jedes Mal ueberschrieben
+  Ursache: desname ist pro geplantem Job fest.
+  Loesung: Weg A verwenden (Datum im Dateinamen).
+
+  Problem: Weg B - ein Bericht laeuft doppelt
+  Ursache: S.3 wurde zweimal ausgefuehrt (zwei Plaene).
+  Loesung: S.4 ansehen, den ueberzaehligen Job mit S.5 loeschen.
+
+  Problem: Weg B - auf einer geklonten oder zurueckgesicherten Domain
+           laufen alte Zeitplaene wieder
+  Ursache: Die Plaene liegen in $DOMAIN_HOME/reports/server/<Komponente>.dat
+           und werden mitkopiert.
+  Loesung: Vor dem ersten Start des Klons die Jobs mit S.4 / S.5 pruefen
+           und loeschen.
+
+  Problem: Kennwort im Access-Log von WLS_REPORTS
+  Ursache: Aufruf per GET mit userid= / authid= in der URL.
+  Loesung: Nur die Dateien aus Schritt 3 (cmdfile) bzw. S.2 (curl -K, POST)
+           verwenden.

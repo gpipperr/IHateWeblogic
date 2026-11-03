@@ -107,6 +107,13 @@ und deutschen Kommentaren.
     Credential Store, `jps-config-jse.xml` auf das LDAP, `<identifier>` und
     `securityId`, `cgicmd.dat`, JVM-Optionen, das OVD-Problem (EM findet
     keine Benutzer) mit Umgehungen, Testmatrix und Kennwortwechsel.
+12. [Reports_Zeitplan_kochbuch_de.txt](Reports_Zeitplan_kochbuch_de.txt) –
+    Berichte automatisch per Zeitplan als PDF erzeugen: empfohlen cron +
+    `rwclient.sh cmdfile=` (Kennwörter in einer Datei, PDF mit Datum,
+    Exit-Code ins Journal), als Anhang `SCHEDULE=` im Reports-Server per POST
+    mit `showjobs` / `killjobid`. Wichtig: PDF nur in ein `<write>`-Verzeichnis,
+    keine Unterverzeichnisse (REP-56133). Hintergrund:
+    [reports_job_handling.md](../../80-FMW-Architecture/reports_job_handling.md).
 
 ## Download-Checkliste (Vorbereitung)
 
