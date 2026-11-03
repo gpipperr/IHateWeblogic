@@ -73,9 +73,9 @@ WAS WO LANDET
                                        nur lesen (ausser 1.1)
     $RWCLIENT                          $DOMAIN_HOME/reports/bin/rwclient.sh
                                        (Teil der Domain, nichts zu kopieren)
-    $DOMAIN_HOME/reports/server/<Komponente>.dat
-                                       gespeicherte Plaene von Weg B (nicht
-                                       anfassen, siehe Bekannte Probleme)
+    $DOMAIN_HOME/reports/server/       <Komponente>.dat = gespeicherte Plaene
+                                       von Weg B (nicht anfassen, siehe
+                                       Bekannte Probleme)
     crontab von oracle                 <- SCHRITT 5 (crontab -l)
     Journal, Tag ihw-report            <- jeder Lauf (journalctl -t ihw-report)
 

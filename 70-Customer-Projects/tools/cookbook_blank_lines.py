@@ -23,6 +23,7 @@ def is_cmd(l):
     if t in CMDS or t in ('for', 'while', 'if', 'until', '['): return True
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*=\S', s):
         return not re.search(r'\S\s{3,}[^#\s]', s)            # table row like "cn=Admin   text"
+    if t.startswith('$') and re.search(r'^\S+\s{3,}[^#\s|\\&>]', s): return False   # tree / table row "$VAR   text"
     if t.startswith('$') or t.startswith('"$') or t.startswith('./'): return True
     if t.startswith('/') and t.endswith('.sh'): return True
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*\(\)', s): return True      # function definition
