@@ -21,7 +21,8 @@ def is_cmd(l):
     if re.match(r'^[=\-]{5,}', s): return False
     t = first(l)
     if t in CMDS or t in ('for', 'while', 'if', 'until', '['): return True
-    if re.match(r'^[A-Za-z_][A-Za-z0-9_]*=\S', s): return True
+    if re.match(r'^[A-Za-z_][A-Za-z0-9_]*=\S', s):
+        return not re.search(r'\S\s{3,}[^#\s]', s)            # table row like "cn=Admin   text"
     if t.startswith('$') or t.startswith('"$') or t.startswith('./'): return True
     if t.startswith('/') and t.endswith('.sh'): return True
     if re.match(r'^[A-Za-z_][A-Za-z0-9_]*\(\)', s): return True      # function definition
@@ -61,8 +62,8 @@ def fmt(text):
                     pass
                 elif belongs(c):
                     pass
-                elif prev is not None and not prev.rstrip().endswith(('.', '!', '?')):
-                    pass                                # sentence of the attached comment goes on
+                elif not re.match(r'^#\s*(-{3}|\d+\.\d+|[a-z]\))', c.strip()):
+                    pass                                # comment block right under the command explains it
                 else:
                     break
                 out.append(c); prev = c; i += 1

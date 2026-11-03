@@ -195,6 +195,37 @@ Good (one idea per line, the result is shown before it is used):
 - **No customer names, hosts or IPs in a committed cookbook.** Use
   generic examples such as `reportrpgpi`, `fr_domain` and `<host>`.
 
+### 2.7 Input for another tool (WLST, SQL*Plus, vi)
+
+- **Commands typed INSIDE a tool are not shell commands.** Mark the block
+  and indent it four more spaces:
+
+```
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      listCred(map='reports.idstore', key='embeddedldap')
+      # Erwartet: "User Name : cn=Admin"
+
+      exit()
+
+  # --- Ende WLST ---
+```
+
+- **The same rules apply inside the block:** one call per line, a blank
+  line between calls, `# Erwartet:` under the call.
+- **Long arguments go into variables first** (`rw_role = '...'`). Use names
+  WLST does not use itself (WLST namespace shadowing).
+- **For vi, write the keystrokes as a comment,** e.g. `/<\/serviceInstances>`,
+  `k`, `:r <file>`. Generate the text to insert beforehand with a heredoc
+  that fills in the variables. The customer then pastes nothing by hand.
+- **Ask for passwords hidden** with `read -s -p "...: " PW`, then a bare
+  `echo` for the line break. In WLST and in files use a placeholder
+  `<NAME_KENNWORT>`.
+
 ## 3. Language and shell independence
 
 The structure is the same everywhere; only the syntax changes.

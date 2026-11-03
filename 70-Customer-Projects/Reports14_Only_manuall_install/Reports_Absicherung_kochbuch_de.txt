@@ -6,7 +6,7 @@
   Zielgruppe : DBA / Systemadministrator der Reports-Umgebung
   Umgebung   : Oracle Linux 9, FMW / WebLogic 14.1.2, Oracle Reports 14.1.2
                mit eigenstaendigem Reports-Server (Systemkomponente)
-  Erstellt   : 2026-11-03
+  Erstellt   : 2026-11-03, Stil nach 70-Customer-Projects/cookbook-Skill.md
   Wann       : NACH dem Patch-Lauf (Patch_Kochbuch_CPU_Okt2026_de.txt), in
                einem eigenen Wartungsfenster (2 Neustarts der Domain)
   Grundlage  : IHateWeblogic/09-Install 12-oracle_reports_users.sh und
@@ -29,7 +29,6 @@ WORUM GEHT ES - IN EINFACHEN WORTEN
     Konto              wo es lebt              wofuer
     -----------------  ----------------------  ------------------------------
     cn=Admin           eingebettetes LDAP des  technischer Lese-Zugang: der
-
                        AdminServers            Reports-Server schaut damit
                                                die WebLogic-Benutzer nach
     monUser            WebLogic (myrealm)      NUR Status abfragen
@@ -67,23 +66,55 @@ WORUM GEHT ES - IN EINFACHEN WORTEN
   Status-Abfragen schlagen fehl, bis er wieder laeuft).
 
 
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" bzw. "# Soll:" = was richtig ist.
+
+  - WLST-Befehle (WebLogic Scripting Tool) werden NICHT in der Shell,
+    sondern IN WLST eingegeben. Sie stehen zwischen
+        # --- in WLST eingeben ---
+        # --- Ende WLST ---
+    und sind weiter eingerueckt. Jede Zeile einzeln eingeben, Enter, auf
+    die Antwort warten. "connect(...)" fragt Benutzer und Kennwort des
+    WebLogic-Admins (weblogic) ab.
+
+  - Kennwoerter werden NIE als Befehl eingetippt (Shell-History), sondern
+    verdeckt mit "read -s" abgefragt. Nach "read -s" steht der Cursor noch
+    in derselben Zeile - das folgende "echo" macht nur den Zeilenumbruch.
+    In WLST und in Dateien stehen Platzhalter wie <MONUSER_KENNWORT>.
+
+
 ================================================================================
-SCHRITT 0: Variablen  (als oracle)
+SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 ================================================================================
 
-  # Kurzweg: . /u01/oracle/tools/set_install_env.sh   (install.ini)
-  # Sonst von Hand - an die Umgebung anpassen:
+  ----------------------------------------------------------------------------
+  0.1 Kurzweg mit install.ini
+  ----------------------------------------------------------------------------
+  . /u01/oracle/tools/set_install_env.sh
+
+  # Danach mit 0.3 weiter. Ohne set_install_env.sh: 0.2.
+
+  ----------------------------------------------------------------------------
+  0.2 Von Hand  (Werte an die Umgebung anpassen - nur die ersten fuenf)
+  ----------------------------------------------------------------------------
   export ORACLE_HOME=/u01/oracle/fmw
 
   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-
-  export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
 
   export WLS_ADMIN_PORT=7001
 
   export WLS_REPORTS_PORT=9002
 
-  export REPORTS_SERVER_NAME=repServer01                  # Komponente, nicht WLS_REPORTS
+  export REPORTS_SERVER_NAME=repServer01
+  # Name der Reports-Komponente - NICHT WLS_REPORTS
+
+  ----------------------------------------------------------------------------
+  0.3 Abgeleitete Variablen  (nichts anpassen, nur kopieren)
+  ----------------------------------------------------------------------------
+  export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
 
   export DOMAIN_NAME=$(basename $DOMAIN_HOME)
 
@@ -93,150 +124,240 @@ SCHRITT 0: Variablen  (als oracle)
 
   export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
 
+  export RWSERVLET_PROPS=$REPORTS_APP_CONF/rwservlet.properties
+
+  export REPORTS_SH=$DOMAIN_HOME/reports/bin/reports.sh
+
   export JPS_JSE=$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
 
   export OVD=$DOMAIN_HOME/config/fmwconfig/ovd/default
 
-  ls -l $RWSERVER_CONF $CGICMD_DAT $JPS_JSE      # alle drei muessen existieren
+  export RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
 
-  # Der Domain-Name steht im LDAP als dc=<Name>. Kontrolle:
+  export WORK=$HOME/reports_absicherung
+  # Arbeitsverzeichnis: Hilfsdateien, Sicherung, Pfad der Sicherung
+
+  mkdir -p $WORK
+
+  ----------------------------------------------------------------------------
+  0.4 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME Komponente=$REPORTS_SERVER_NAME"
+  # Erwartet: alle drei gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
+
+  ls -l $RWSERVER_CONF $CGICMD_DAT $JPS_JSE
+  # Erwartet: alle drei Dateien vorhanden.
+  # "No such file": Komponentenname (0.2) oder DOMAIN_HOME falsch.
+
   grep -m1 '<name>' $DOMAIN_HOME/config/config.xml
-  # Erwartet: <name>reportRpgpi</name>  (= $DOMAIN_NAME, sonst anpassen)
+  # Erwartet: <name>reportRpgpi</name>
+
+  echo $DOMAIN_NAME
+  # Muss derselbe Name sein. Er steht spaeter im LDAP als dc=<Name>.
+  # Weicht er ab: export DOMAIN_NAME=<Name aus config.xml>
 
 
 ================================================================================
 SCHRITT 1: Bestandsaufnahme - nur lesen  (als oracle, Domain laeuft)
 ================================================================================
 
-  # Jede Pruefung hat ein "Soll". Ergebnis in die Tabelle am Ende dieses
-  # Schritts eintragen - die Schritte 3-9 nur fuer die Zeilen mit "nein".
+  Jede Pruefung hat ein "Soll". Ergebnis in die Tabelle 1.10 eintragen.
+  Die Schritte 3-8 sind nur fuer die Zeilen mit "nein" noetig.
 
-  # 1.1 rwserver.conf: Absicherung und Notfall-Admin
+  ----------------------------------------------------------------------------
+  1.1 rwserver.conf: Absicherung und Notfall-Admin
+  ----------------------------------------------------------------------------
   grep -n 'securityId' $RWSERVER_CONF
-  #   Soll: <job jobType="report" engineId="rwEng" securityId="rwJaznSec" .../>
+  # Soll: <job jobType="report" engineId="rwEng" securityId="rwJaznSec" .../>
 
   grep -n '<identifier' $RWSERVER_CONF
-  #   Soll: <identifier encrypted="yes">...</identifier>
-  #   (fehlt = niemand bekommt Status-Abfragen; leer = Server startet nicht)
+  # Soll: <identifier encrypted="yes">...</identifier>
+  # Fehlt die Zeile: niemand bekommt Status-Abfragen.
+  # Ist sie leer: der Server startet nicht.
 
-  # 1.2 Identity Store des Reports-Servers
+  ----------------------------------------------------------------------------
+  1.2 Identity Store des Reports-Servers
+  ----------------------------------------------------------------------------
   grep -c 'idstore.ldap.embedded' $JPS_JSE
+  # Soll: 2 oder mehr
 
   sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE | grep idstore
-  #   Soll: Zaehler >= 2 und im default-Kontext
-  #         <serviceInstanceRef ref="idstore.ldap.embedded"/>
-  #         (idstore.xml nur noch auskommentiert)
+  # Soll: <serviceInstanceRef ref="idstore.ldap.embedded"/>
+  #       (idstore.xml hoechstens noch als Kommentar <!-- ... -->)
 
-  grep -A3 'name="ldap.url"' $JPS_JSE | head -2
+  grep -A1 'name="ldap.url"' $JPS_JSE
+  # Soll: ldap://localhost:7001  (= $WLS_ADMIN_PORT)
 
-  grep 'dc=' $JPS_JSE | head -3
-  #   Soll: ldap://localhost:7001 und dc=<Domain-Name aus Schritt 0>
+  grep 'dc=' $JPS_JSE
+  # Soll: dc=<Domain-Name aus 0.4>
 
-  # 1.3 rwservlet.properties
-  grep -E 'webcommandaccess|singlesignon' $REPORTS_APP_CONF/rwservlet.properties
-  #   Soll: <webcommandaccess>L1</webcommandaccess>  (NIE L2 = alles offen)
+  ----------------------------------------------------------------------------
+  1.3 rwservlet.properties
+  ----------------------------------------------------------------------------
+  grep -E 'webcommandaccess|singlesignon' $RWSERVLET_PROPS
+  # Soll: <webcommandaccess>L1</webcommandaccess>  (NIE L2 = alles offen)
 
-  # 1.4 cgicmd.dat: Schluessel mit RepRunner
+  ----------------------------------------------------------------------------
+  1.4 cgicmd.dat: Schluessel mit RepRunner  (Kennwort wird ausgeblendet)
+  ----------------------------------------------------------------------------
   grep -n 'authid' $CGICMD_DAT | sed 's#authid=\([^/]*\)/[^ ]*#authid=\1/*****#'
+  # Soll: default: server=repServer01 %* authid=RepRunner/*****
 
   ls -l $CGICMD_DAT
-  #   Soll: default: server=repServer01 %* authid=RepRunner/*****
-  #         Rechte -rw-r----- (640)
+  # Soll: -rw-r----- (640)
 
-  # 1.5 reports.sh: JVM-Optionen (sonst dauert die erste Anmeldung Minuten)
-  grep REPORTS_JVM_OPTIONS $DOMAIN_HOME/reports/bin/reports.sh
-  #   Soll: enthaelt -Djdk.lang.processReaperUseDefaultStackSize=true
-  #         -DORBWaitForResponseTimeout=999999999
-  #         -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
+  ----------------------------------------------------------------------------
+  1.5 reports.sh: JVM-Optionen  (sonst dauert die erste Anmeldung Minuten)
+  ----------------------------------------------------------------------------
+  grep REPORTS_JVM_OPTIONS $REPORTS_SH
+  # Soll: eine Zeile, die alle drei Optionen enthaelt:
+  #   -Djdk.lang.processReaperUseDefaultStackSize=true
+  #   -DORBWaitForResponseTimeout=999999999
+  #   -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
 
-  # 1.6 Benutzer, Rollen, Berechtigungen, Tresor-Eintrag (WLST, nur lesen):
+  ----------------------------------------------------------------------------
+  1.6 Benutzer, Rollen, Berechtigungen, Tresor  (WLST, nur lesen)
+  ----------------------------------------------------------------------------
   $WLST
-  #   connect(url='t3://localhost:7001')
-  #   serverConfig()
-  #   cd('/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
-  #   print cmo.userExists('monUser'), cmo.userExists('RepRunner')
-  #       Soll: 1 1
-  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_ADMINISTRATOR')
-  #       Soll: Gruppe Administrators (und/oder die Admin-Benutzer)
-  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_MONITOR')
-  #       Soll: monUser
-  #   listAppRoleMembers(appStripe='reports', appRoleName='RW_EXECREPORTS')
-  #       Soll: RepRunner  ("Application Role not found" = fehlt)
-  #   listPermissions(appStripe='reports', principalName='RW_MONITOR', principalClass='oracle.security.jps.service.policystore.ApplicationRole')
-  #       Soll: WebCommandPermission ... getserverinfo ...
-  #   listPermissions(appStripe='reports', principalName='RW_EXECREPORTS', principalClass='oracle.security.jps.service.policystore.ApplicationRole')
-  #       Soll: ReportsPermission report=* ...
-  #   listCred(map='reports.idstore', key='embeddedldap')
-  #       Soll: "User Name : cn=Admin"  (Fehler "not found" = fehlt)
-  #   exit()
 
-  # 1.7 Ist das cn=Admin-Kennwort bekannt und gueltig? -> Test in Schritt 3.1.
-  #     Weiss niemand das Kennwort: es wurde bei der Domain-Anlage
-  #     zufaellig vergeben -> Schritt 3 ist noetig.
+  # --- in WLST eingeben ---
 
-  # 1.8 OVD-Zustand (Symptom: EM "Add Principal" findet keine Benutzer):
+      connect(url='t3://localhost:7001')
+
+      serverConfig()
+
+      realm_dir = '/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator'
+
+      cd(realm_dir)
+
+      print cmo.userExists('monUser'), cmo.userExists('RepRunner')
+      # Soll: 1 1   (0 = Benutzer fehlt)
+
+      listAppRoleMembers(appStripe='reports', appRoleName='RW_ADMINISTRATOR')
+      # Soll: Gruppe Administrators (und/oder die Admin-Benutzer)
+
+      listAppRoleMembers(appStripe='reports', appRoleName='RW_MONITOR')
+      # Soll: monUser
+
+      listAppRoleMembers(appStripe='reports', appRoleName='RW_EXECREPORTS')
+      # Soll: RepRunner   ("Application Role not found" = Rolle fehlt)
+
+      rw_role = 'oracle.security.jps.service.policystore.ApplicationRole'
+
+      listPermissions(appStripe='reports', principalName='RW_MONITOR', principalClass=rw_role)
+      # Soll: WebCommandPermission ... getserverinfo ...
+
+      listPermissions(appStripe='reports', principalName='RW_EXECREPORTS', principalClass=rw_role)
+      # Soll: ReportsPermission report=* ...
+
+      listCred(map='reports.idstore', key='embeddedldap')
+      # Soll: "User Name : cn=Admin"   (Fehler "not found" = Eintrag fehlt)
+
+      exit()
+
+  # --- Ende WLST ---
+
+  ----------------------------------------------------------------------------
+  1.7 Ist das cn=Admin-Kennwort bekannt?
+  ----------------------------------------------------------------------------
+  Der Test folgt in Schritt 3.1. Weiss niemand das Kennwort: es wurde bei
+  der Domain-Anlage zufaellig vergeben -> Schritt 3 ist noetig.
+
+  ----------------------------------------------------------------------------
+  1.8 OVD-Zustand  (Symptom: EM "Add Principal" findet keine Benutzer)
+  ----------------------------------------------------------------------------
   ls -la --time-style=+%F_%T $OVD
 
   grep -c 'DefaultAuthenticator' $OVD/adapters.os_xml
-  #   ovd.lok vorhanden und Zaehler 0 = EM-Benutzersuche leer (Schritt 10)
+  # ovd.lok vorhanden UND Zaehler 0 = EM-Benutzersuche leer -> Schritt 10
 
-  # 1.9 Laufende Status-Abfrage mit monUser (Kennwort verdeckt eingeben):
-  read -s -p "monUser-Kennwort: " MPW; echo
+  ----------------------------------------------------------------------------
+  1.9 Status-Abfrage mit monUser
+  ----------------------------------------------------------------------------
+  read -s -p "monUser-Kennwort: " MPW
 
-  curl -s -G "http://localhost:$WLS_REPORTS_PORT/reports/rwservlet/getserverinfo" \
-       --data-urlencode "server=$REPORTS_SERVER_NAME" --data-urlencode "statusformat=XML" \
-       --data-urlencode "authid=monUser/$MPW" | head -3; unset MPW
-  #   Soll: <serverInfo ...   - REP-52262 = Server nicht abgesichert,
-  #         REP-50171 = securityId ohne LDAP-Identity-Store (oder Kennwort falsch)
+  echo
 
-  # Ergebnis-Tabelle (ausfuellen):
-  #   Pruefung                                      ok?   -> Schritt
-  #   1.7 cn=Admin-Kennwort bekannt + Bind ok       [ ]      3
-  #   1.6 monUser / RepRunner vorhanden             [ ]      4
-  #   1.6 Rollen + Berechtigungen vollstaendig      [ ]      4
-  #   1.6 Tresor reports.idstore/embeddedldap       [ ]      5
-  #   1.2 jps-config-jse.xml auf LDAP               [ ]      6
-  #   1.1 identifier encrypted="yes"                [ ]      7
-  #   1.1 securityId am <job>                       [ ]      7
-  #   1.3 webcommandaccess L1                       [ ]      8
-  #   1.4 cgicmd.dat mit RepRunner, 640             [ ]      8
-  #   1.5 REPORTS_JVM_OPTIONS                       [ ]      8
+  curl -s -G "$RW_URL/getserverinfo" \
+       --data-urlencode "server=$REPORTS_SERVER_NAME" \
+       --data-urlencode "statusformat=XML" \
+       --data-urlencode "authid=monUser/$MPW" | head -3
+  # Soll: <serverInfo ...
+  # REP-52262 = Server nicht abgesichert
+  # REP-50171 = securityId ohne LDAP-Identity-Store (oder Kennwort falsch)
+
+  unset MPW
+
+  ----------------------------------------------------------------------------
+  1.10 Ergebnis-Tabelle  (ausfuellen)
+  ----------------------------------------------------------------------------
+    Pruefung                                      ok?   nein -> Schritt
+    1.7 cn=Admin-Kennwort bekannt + Bind ok       [ ]      3
+    1.6 monUser / RepRunner vorhanden             [ ]      4
+    1.6 Rollen + Berechtigungen vollstaendig      [ ]      4
+    1.6 Tresor reports.idstore/embeddedldap       [ ]      5
+    1.2 jps-config-jse.xml auf LDAP               [ ]      6
+    1.1 identifier encrypted="yes"                [ ]      7
+    1.1 securityId am <job>                       [ ]      7
+    1.3 webcommandaccess L1                       [ ]      8
+    1.4 cgicmd.dat mit RepRunner, 640             [ ]      8
+    1.5 REPORTS_JVM_OPTIONS                       [ ]      8
 
 
 ================================================================================
 SCHRITT 2: Vorbereitung - Kennwoerter und Sicherung  (als oracle)
 ================================================================================
 
-  # 2.1 Kennwoerter festlegen und im Passwort-Safe ablegen (vorher!):
-  #     cn=Admin (LDAP), monUser, RepRunner, repadmin.
-  #     Nur Buchstaben und Ziffern, mind. 12 Zeichen - KEINE Sonderzeichen
-  #     wie " $ ` \ # & / @ ; (die brechen cgicmd.dat, URLs, WLST, XML).
-  #     Die Kennwort-Richtlinie der Domain (Reports_security.txt Schritt 4)
-  #     muss erfuellt sein.
+  ----------------------------------------------------------------------------
+  2.1 Kennwoerter festlegen  (VOR dem Wartungsfenster, im Passwort-Safe)
+  ----------------------------------------------------------------------------
+  Vier Kennwoerter: cn=Admin (LDAP), monUser, RepRunner, repadmin.
 
-  # 2.2 Sicherung aller Dateien, die angefasst werden:
-  B=$HOME/backup_reports_absicherung_$(date +%Y%m%d_%H%M%S); mkdir -p $B
+  - Nur Buchstaben und Ziffern, mindestens 12 Zeichen.
+  - KEINE Sonderzeichen wie " $ ` \ # & / @ ; - sie brechen cgicmd.dat,
+    URLs, WLST und XML.
+  - Die Kennwort-Richtlinie der Domain (Reports_security.txt Schritt 4)
+    muss erfuellt sein.
 
-  cp -p $DOMAIN_HOME/config/config.xml $JPS_JSE $RWSERVER_CONF $CGICMD_DAT \
-        $REPORTS_APP_CONF/rwservlet.properties $DOMAIN_HOME/reports/bin/reports.sh $B/
+  ----------------------------------------------------------------------------
+  2.2 Sicherung aller Dateien, die angefasst werden
+  ----------------------------------------------------------------------------
+  B=$WORK/backup_$(date +%Y%m%d_%H%M%S)
+
+  mkdir -p $B
+
+  echo "$B" > $WORK/backup_dir.txt
+  # Pfad der Sicherung merken - der RUECKWEG liest ihn hier wieder aus,
+  # auch in einem neuen Terminal.
+
+  cp -p $DOMAIN_HOME/config/config.xml $B/
+
+  cp -p $JPS_JSE $RWSERVER_CONF $CGICMD_DAT $RWSERVLET_PROPS $REPORTS_SH $B/
 
   tar -czpf $B/fmwconfig.tgz -C $DOMAIN_HOME/config fmwconfig
 
   ls -l $B
+  # Erwartet: 7 Dateien (config.xml, jps-config-jse.xml, rwserver.conf,
+  #           cgicmd.dat, rwservlet.properties, reports.sh, fmwconfig.tgz)
 
-  # Rueckweg: siehe Ende des Kochbuchs.
-
-  # 2.3 Wartungsfenster: Schritt 3 braucht einen Neustart der GANZEN
-  #     Domain, Schritt 9 einen zweiten. Berichte laufen dazwischen nicht.
+  ----------------------------------------------------------------------------
+  2.3 Wartungsfenster
+  ----------------------------------------------------------------------------
+  Schritt 3 braucht einen Neustart der GANZEN Domain, Schritt 9 einen
+  zweiten. Berichte laufen dazwischen nicht.
 
 
 ================================================================================
 SCHRITT 3: Kennwort des LDAP-Administrators cn=Admin  (als oracle / root)
 ================================================================================
 
-  # 3.1 Test: funktioniert das Kennwort schon?
-  #     Kleines WLST-Skript, Kennwort kommt verdeckt ueber eine Variable:
-  cat > /tmp/ldap_bind.py << 'EOF'
+  ----------------------------------------------------------------------------
+  3.1 Test: funktioniert das Kennwort schon?
+  ----------------------------------------------------------------------------
+  Ein kleines WLST-Skript meldet sich mit cn=Admin am LDAP an. Das
+  Kennwort kommt ueber eine Umgebungsvariable, nicht ueber die Kommandozeile.
+
+  cat > $WORK/ldap_bind.py << 'EOF'
 import os
 from java.util import Hashtable
 from javax.naming import Context
@@ -254,245 +375,393 @@ except Exception, ex:
     print('LDAP-BIND FEHLER: ' + str(ex).split('\n')[0])
 EOF
 
-  read -s -p "cn=Admin-Kennwort: " LDAP_PW; echo; export LDAP_PW
+  read -s -p "cn=Admin-Kennwort: " LDAP_PW
 
-  $WLST /tmp/ldap_bind.py 2>/dev/null | grep LDAP-BIND
+  echo
+
+  export LDAP_PW
+
+  $WLST $WORK/ldap_bind.py 2>/dev/null | grep LDAP-BIND
+  # "LDAP-BIND OK"      -> Schritt 3 erledigt, weiter mit SCHRITT 4
+  # "error code 49"     -> Kennwort falsch oder unbekannt -> 3.2
 
   unset LDAP_PW
-  #   LDAP-BIND OK          -> Schritt 3 erledigt, weiter mit Schritt 4
-  #   "error code 49"       -> Kennwort falsch/unbekannt -> 3.2
 
-  # 3.2 Kennwort setzen (WLST, AdminServer laeuft):
+  ----------------------------------------------------------------------------
+  3.2 Kennwort setzen  (WLST, AdminServer laeuft)
+  ----------------------------------------------------------------------------
   $WLST
-  #   connect(url='t3://localhost:7001')
-  #   dn = cmo.getName()
-  #   edit()
-  #   startEdit()
-  #   cd('/EmbeddedLDAP/' + dn)
-  #   cmo.setCredential('<CN_ADMIN_KENNWORT>')
-  #   save()
-  #   activate()
-  #   exit()
 
-  # 3.3 SOFORT die ganze Domain neu starten (als root):
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      dn = cmo.getName()
+
+      edit()
+
+      startEdit()
+
+      cd('/EmbeddedLDAP/' + dn)
+
+      cmo.setCredential('<CN_ADMIN_KENNWORT>')
+
+      save()
+
+      activate()
+      # Erwartet: "Activation completed"
+
+      exit()
+
+  # --- Ende WLST ---
+
+  ----------------------------------------------------------------------------
+  3.3 SOFORT die ganze Domain neu starten  (als root)
+  ----------------------------------------------------------------------------
+  WARUM DIE GANZE DOMAIN (Erfahrung beim Kunden, 2026-11-03):
+  Das LDAP liest das Kennwort nur beim Start des AdminServers. Bis dahin
+  steht das NEUE Kennwort schon in der Konfiguration, das LDAP arbeitet
+  aber noch mit dem ALTEN. Laufende Server merken nichts - aber JEDER
+  Managed Server, der in dieser Zwischenzeit startet, bleibt im Zustand
+  FAILED haengen ("LDAPException: error result (49); Invalid
+  credentials" im <Server>.out unter $DOMAIN_HOME/servers/<Server>/logs/).
+  Deshalb: zwischen 3.2 und 3.3 KEINEN einzelnen Server starten.
+
   systemctl stop reportrpgpi
 
-  ps -ef | grep -E "weblogic.Server|NodeManager|rwserver" | grep -v grep   # leer?
+  ps -ef | grep -E "weblogic.Server|NodeManager|rwserver" | grep -v grep
+  # Erwartet: keine Ausgabe. Reste mit "kill <pid>" beenden.
 
   systemctl start reportrpgpi
-  #   ohne Autostart: /u01/oracle/scripts/stop_all.sh und start_all.sh
-  #
-  # WARUM DIE GANZE DOMAIN (Erfahrung beim Kunden, 2026-11-03):
-  # Das LDAP liest das Kennwort nur beim Start des AdminServers. Bis dahin
-  # steht das NEUE Kennwort schon in der Konfiguration, das LDAP arbeitet
-  # aber noch mit dem ALTEN. Laufende Server merken nichts - aber JEDER
-  # Managed Server, der in dieser Zwischenzeit startet, bleibt im Zustand
-  # FAILED haengen:
-  #   LDAPException: error result (49); Invalid credentials
-  # (im <Server>.out unter $DOMAIN_HOME/servers/<Server>/logs/). Der Node
-  # Manager gibt nach einigen Versuchen auf. Deshalb: zwischen 3.2 und 3.3
-  # KEINEN einzelnen Server starten, sondern alles stoppen und alles starten.
+  # Dauert einige Minuten.
 
-  # 3.4 Kontrolle: 3.1 noch einmal ausfuehren -> "LDAP-BIND OK"
+  # Ohne Autostart (als oracle):
+  #   /u01/oracle/scripts/stop_all.sh
+  #   /u01/oracle/scripts/start_all.sh
+
+  ----------------------------------------------------------------------------
+  3.4 Kontrolle  (als oracle, Variablen aus SCHRITT 0)
+  ----------------------------------------------------------------------------
+  read -s -p "cn=Admin-Kennwort: " LDAP_PW
+
+  echo
+
+  export LDAP_PW
+
+  $WLST $WORK/ldap_bind.py 2>/dev/null | grep LDAP-BIND
+  # Erwartet: LDAP-BIND OK
+
+  unset LDAP_PW
+
   grep -c 'credential-encrypted' $DOMAIN_HOME/config/config.xml
-  #   Soll: >= 1 (im Block <embedded-ldap>)
+  # Erwartet: 1 oder mehr (im Block <embedded-ldap>)
 
-  rm -f /tmp/ldap_bind.py
+  rm -f $WORK/ldap_bind.py
 
 
 ================================================================================
 SCHRITT 4: Benutzer, Rollen und Berechtigungen  (als oracle, WLST)
 ================================================================================
 
-  # Alles in EINER WLST-Sitzung. Was es schon gibt, meldet "already
-  # exists" / "already granted" - das ist KEIN Fehler, einfach weiter.
-  # Benutzer anlegen geht auch in der Oberflaeche (Reports_kochbuch_de.txt
-  # Schritt 8) - die Rollen-Zuweisung dort scheitert aber oft am
-  # OVD-Problem (Schritt 10), daher hier per WLST.
-  $WLST
-  #   connect(url='t3://localhost:7001')
-  #
-  #   # 4.1 Benutzer (nur die, die in 1.6 fehlten)
-  #   serverConfig()
-  #   cd('/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
-  #   cmo.createUser('monUser',   '<MONUSER_KENNWORT>',   'Reports Monitoring')
-  #   cmo.createUser('RepRunner', '<REPRUNNER_KENNWORT>', 'Reports Ausfuehrung')
-  #   # Benutzer gibt es schon, Kennwort unbekannt/neu setzen:
-  #   # cmo.resetUserPassword('monUser', '<MONUSER_KENNWORT>')
-  #
-  #   # 4.2 Rollen anlegen ("already exists" ist ok)
-  #   createAppRole(appStripe='reports', appRoleName='RW_MONITOR')
-  #   createAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS')
-  #
-  #   # 4.3 Rollen zuweisen
-  #   grantAppRole(appStripe='reports', appRoleName='RW_ADMINISTRATOR',
-  #       principalClass='weblogic.security.principal.WLSGroupImpl', principalName='Administrators')
-  #   grantAppRole(appStripe='reports', appRoleName='RW_MONITOR',
-  #       principalClass='weblogic.security.principal.WLSUserImpl', principalName='monUser')
-  #   grantAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS',
-  #       principalClass='weblogic.security.principal.WLSUserImpl', principalName='RepRunner')
-  #
-  #   # 4.4 Berechtigungen an die Rollen haengen
-  #   grantPermission(appStripe='reports',
-  #       principalClass='oracle.security.jps.service.policystore.ApplicationRole',
-  #       principalName='RW_MONITOR',
-  #       permClass='oracle.reports.server.WebCommandPermission',
-  #       permTarget='webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*',
-  #       permActions='ALL')
-  #   grantPermission(appStripe='reports',
-  #       principalClass='oracle.security.jps.service.policystore.ApplicationRole',
-  #       principalName='RW_EXECREPORTS',
-  #       permClass='oracle.reports.server.ReportsPermission',
-  #       permTarget='report=* server=* destype=* desformat=* allowcustomargs=true',
-  #       permActions='ALL')
-  #
-  #   # 4.5 Kontrolle wie Schritt 1.6, dann
-  #   exit()
+  Alles in EINER WLST-Sitzung. Was es schon gibt, meldet "already exists"
+  bzw. "already granted" - das ist KEIN Fehler, einfach weiter.
 
-  # Falsch angelegte Eintraege entfernen (z.B. monUser versehentlich in
-  # RW_EXECREPORTS): revokeAppRole(...) mit denselben Parametern wie
-  # grantAppRole; falsche Berechtigung: revokePermission(...) wie
-  # grantPermission.
-  # HINWEIS: Nach grantAppRole & Co. steht WLST im domainRuntime-Baum -
-  # fuer weitere createUser-Befehle zuerst wieder serverConfig().
+  Benutzer anlegen geht auch in der Oberflaeche (Reports_kochbuch_de.txt
+  Schritt 8). Die Rollen-Zuweisung dort scheitert aber oft am OVD-Problem
+  (Schritt 10) - daher hier per WLST.
+
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      # 4.1 Benutzer - nur die, die in 1.6 fehlten
+
+      serverConfig()
+
+      realm_dir = '/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator'
+
+      cd(realm_dir)
+
+      cmo.createUser('monUser', '<MONUSER_KENNWORT>', 'Reports Monitoring')
+
+      cmo.createUser('RepRunner', '<REPRUNNER_KENNWORT>', 'Reports Ausfuehrung')
+
+      # Benutzer gibt es schon, Kennwort unbekannt - stattdessen:
+      #   cmo.resetUserPassword('monUser', '<MONUSER_KENNWORT>')
+
+      # 4.2 Rollen anlegen ("already exists" ist ok)
+
+      createAppRole(appStripe='reports', appRoleName='RW_MONITOR')
+
+      createAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS')
+
+      # 4.3 Rollen zuweisen
+
+      wls_group = 'weblogic.security.principal.WLSGroupImpl'
+
+      wls_user = 'weblogic.security.principal.WLSUserImpl'
+
+      grantAppRole(appStripe='reports', appRoleName='RW_ADMINISTRATOR', principalClass=wls_group, principalName='Administrators')
+
+      grantAppRole(appStripe='reports', appRoleName='RW_MONITOR', principalClass=wls_user, principalName='monUser')
+
+      grantAppRole(appStripe='reports', appRoleName='RW_EXECREPORTS', principalClass=wls_user, principalName='RepRunner')
+
+      # 4.4 Berechtigungen an die Rollen haengen
+
+      rw_role = 'oracle.security.jps.service.policystore.ApplicationRole'
+
+      mon_target = 'webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*'
+
+      exec_target = 'report=* server=* destype=* desformat=* allowcustomargs=true'
+
+      grantPermission(appStripe='reports', principalClass=rw_role, principalName='RW_MONITOR', permClass='oracle.reports.server.WebCommandPermission', permTarget=mon_target, permActions='ALL')
+
+      grantPermission(appStripe='reports', principalClass=rw_role, principalName='RW_EXECREPORTS', permClass='oracle.reports.server.ReportsPermission', permTarget=exec_target, permActions='ALL')
+
+      # 4.5 Kontrolle: die listAppRoleMembers- / listPermissions-Befehle
+      #     aus 1.6 noch einmal eingeben, dann:
+
+      exit()
+
+  # --- Ende WLST ---
+
+  Hinweise:
+  - Nach grantAppRole & Co. steht WLST im domainRuntime-Baum. Fuer weitere
+    createUser-Befehle zuerst wieder serverConfig() und cd(realm_dir).
+  - Falsch angelegt (z.B. monUser versehentlich in RW_EXECREPORTS):
+    revokeAppRole(...) mit denselben Parametern wie grantAppRole,
+    revokePermission(...) mit denselben Parametern wie grantPermission.
 
 
 ================================================================================
 SCHRITT 5: cn=Admin im OPSS-Tresor hinterlegen  (als oracle, WLST)
 ================================================================================
 
-  # Mit diesem Eintrag meldet sich der Reports-Server am LDAP an. Er muss
-  # IMMER dasselbe Kennwort haben wie Schritt 3.
+  Mit diesem Eintrag meldet sich der Reports-Server am LDAP an. Er muss
+  IMMER dasselbe Kennwort haben wie in Schritt 3.
+
   $WLST
-  #   connect(url='t3://localhost:7001')
-  #   createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
-  #              password='<CN_ADMIN_KENNWORT>', desc='Bind user Reports identity store')
-  #   # Gibt es den Eintrag schon (1.6) - stattdessen:
-  #   # updateCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
-  #   #            password='<CN_ADMIN_KENNWORT>', desc='Bind user Reports identity store')
-  #   listCred(map='reports.idstore', key='embeddedldap')
-  #   exit()
-  # (Der Befehl heisst createCred, nicht createCredential.)
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', password='<CN_ADMIN_KENNWORT>', desc='Bind user Reports identity store')
+      # Gab es den Eintrag schon (1.6) - stattdessen:
+      #   updateCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', password='<CN_ADMIN_KENNWORT>', desc='Bind user Reports identity store')
+
+      listCred(map='reports.idstore', key='embeddedldap')
+      # Erwartet: "User Name : cn=Admin"
+
+      exit()
+
+  # --- Ende WLST ---
+
+  (Der Befehl heisst createCred, nicht createCredential.)
 
 
 ================================================================================
 SCHRITT 6: Reports-Server auf das WebLogic-LDAP umstellen  (als oracle)
 ================================================================================
 
-  # Nur wenn 1.2 nicht "ok" war. Ist der Eintrag schon da, aber mit
-  # falschem dc= oder Port: nur diese Werte korrigieren.
-  echo "Domain-Name fuer dc=: $DOMAIN_NAME"
+  Nur wenn 1.2 nicht "ok" war. Ist der Eintrag schon da, aber mit falschem
+  dc= oder Port: nur diese Werte in der Datei korrigieren (6.3).
+
+  ----------------------------------------------------------------------------
+  6.1 Den neuen Block erzeugen  (Domain-Name und Port kommen aus SCHRITT 0)
+  ----------------------------------------------------------------------------
+  echo "dc=$DOMAIN_NAME  Port=$WLS_ADMIN_PORT"
+  # Beide gefuellt? LEER -> zuerst SCHRITT 0.
+
+  cat > $WORK/idstore_ldap.xml << EOF
+    <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
+        <description>WebLogic embedded LDAP (realm myrealm)</description>
+        <property name="idstore.type" value="OPEN_LDAP"/>
+        <property name="ldap.url" value="ldap://localhost:$WLS_ADMIN_PORT"/>
+        <property name="security.principal.alias" value="reports.idstore"/>
+        <property name="security.principal.key" value="embeddedldap"/>
+        <property name="subscriber.name" value="ou=myrealm,dc=$DOMAIN_NAME"/>
+        <property name="username.attr" value="uid"/>
+        <property name="groupname.attr" value="cn"/>
+        <extendedProperty>
+            <name>user.search.bases</name>
+            <values><value>ou=people,ou=myrealm,dc=$DOMAIN_NAME</value></values>
+        </extendedProperty>
+        <extendedProperty>
+            <name>group.search.bases</name>
+            <values><value>ou=groups,ou=myrealm,dc=$DOMAIN_NAME</value></values>
+        </extendedProperty>
+    </serviceInstance>
+EOF
+
+  cat $WORK/idstore_ldap.xml
+  # Kontrolle: ldap://localhost:7001 und dreimal dc=<Domain-Name>.
+
+  ----------------------------------------------------------------------------
+  6.2 Block in jps-config-jse.xml einfuegen
+  ----------------------------------------------------------------------------
+  grep -n '</serviceInstances>' $JPS_JSE
+  # Erwartet: genau eine Zeile, z.B. "245:    </serviceInstances>"
 
   vi $JPS_JSE
-  #   a) direkt VOR der Zeile "    </serviceInstances>" einfuegen
-  #      (reportRpgpi durch den Domain-Namen ersetzen, 7001 durch den
-  #      Admin-Port):
-  #
-  #   <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
-  #       <description>WebLogic embedded LDAP (realm myrealm)</description>
-  #       <property name="idstore.type" value="OPEN_LDAP"/>
-  #       <property name="ldap.url" value="ldap://localhost:7001"/>
-  #       <property name="security.principal.alias" value="reports.idstore"/>
-  #       <property name="security.principal.key" value="embeddedldap"/>
-  #       <property name="subscriber.name" value="ou=myrealm,dc=reportRpgpi"/>
-  #       <property name="username.attr" value="uid"/>
-  #       <property name="groupname.attr" value="cn"/>
-  #       <extendedProperty>
-  #           <name>user.search.bases</name>
-  #           <values><value>ou=people,ou=myrealm,dc=reportRpgpi</value></values>
-  #       </extendedProperty>
-  #       <extendedProperty>
-  #           <name>group.search.bases</name>
-  #           <values><value>ou=groups,ou=myrealm,dc=reportRpgpi</value></values>
-  #       </extendedProperty>
-  #   </serviceInstance>
-  #
-  #   b) im Abschnitt <jpsContext name="default"> die Zeile
-  #        <serviceInstanceRef ref="idstore.xml"/>
-  #      ersetzen durch:
-  #        <!--serviceInstanceRef ref="idstore.xml"/-->
-  #        <serviceInstanceRef ref="idstore.ldap.embedded"/>
-  #      (genau EIN Identity Store im Kontext)
 
+  # In vi:
+  #   /<\/serviceInstances>       Enter  -> Cursor auf dieser Zeile
+  #   k                                  -> eine Zeile hoeher
+  #   :r ~/reports_absicherung/idstore_ldap.xml   Enter
+  #                                      -> Block wird darunter eingefuegt,
+  #                                         also direkt VOR </serviceInstances>
+
+  ----------------------------------------------------------------------------
+  6.3 Identity Store im Kontext "default" umschalten  (noch in vi)
+  ----------------------------------------------------------------------------
+  # Im Abschnitt <jpsContext name="default"> die Zeile
+  #     <serviceInstanceRef ref="idstore.xml"/>
+  # ersetzen durch diese zwei Zeilen:
+  #     <!--serviceInstanceRef ref="idstore.xml"/-->
+  #     <serviceInstanceRef ref="idstore.ldap.embedded"/>
+  # Es darf genau EIN Identity Store im Kontext aktiv sein.
+  # Speichern mit :wq
+
+  ----------------------------------------------------------------------------
+  6.4 Kontrolle
+  ----------------------------------------------------------------------------
   python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$JPS_JSE'); print('XML ok')"
+  # Erwartet: XML ok
 
   sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE | grep idstore
+  # Erwartet: nur idstore.ldap.embedded aktiv, idstore.xml als Kommentar.
 
-  # Soll: "XML ok" und nur idstore.ldap.embedded aktiv.
-  # Wirksam erst beim Neustart des Reports-Servers (Schritt 9).
+  # Wirksam erst beim Neustart (SCHRITT 9).
 
 
 ================================================================================
 SCHRITT 7: rwserver.conf - Notfall-Admin und Absicherung  (als oracle)
 ================================================================================
 
-  vi $RWSERVER_CONF
-  #   7.1 Notfall-Admin (nur wenn 1.1 nicht encrypted="yes" zeigte -
-  #       ein vorhandenes verschluesseltes Kennwort nur ersetzen, wenn es
-  #       niemand mehr kennt). Direkt nach </folderAccess>:
-  #         <identifier encrypted="no">repadmin/<REPADMIN_KENNWORT></identifier>
-  #       Der Reports-Server verschluesselt es beim naechsten Start selbst
-  #       (dann encrypted="yes"). NIE leer lassen - ein leerer Eintrag
-  #       verhindert den Start (REP-50125).
+  ----------------------------------------------------------------------------
+  7.1 Ausgangslage ansehen
+  ----------------------------------------------------------------------------
+  grep -n '</folderAccess>\|<identifier\|security id=\|<job ' $RWSERVER_CONF
 
+  vi $RWSERVER_CONF
+
+  ----------------------------------------------------------------------------
+  7.2 Notfall-Admin  (nur wenn 1.1 NICHT encrypted="yes" zeigte)
+  ----------------------------------------------------------------------------
+  # Direkt nach der Zeile </folderAccess> einfuegen:
+  #     <identifier encrypted="no">repadmin/<REPADMIN_KENNWORT></identifier>
   #
-  #   7.2 Absicherung - am Report-Job securityId ergaenzen:
-  #         <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>
-  #       (die anderen Attribute der vorhandenen Zeile bleiben). Der
-  #       rwurl-Job bleibt ohne securityId.
-  #   7.3 securityId verweist auf ein <security>-Element - fehlt es, VOR
-  #       den <job>-Zeilen einfuegen:
-  #         <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
-  #       Kontrolle:
+  # Der Reports-Server verschluesselt es beim naechsten Start selbst (dann
+  # encrypted="yes"). NIE leer lassen - ein leerer Eintrag verhindert den
+  # Start (REP-50125). Ein vorhandenes verschluesseltes Kennwort nur
+  # ersetzen, wenn es niemand mehr kennt.
+
+  ----------------------------------------------------------------------------
+  7.3 Security-Element  (nur wenn "security id=" in 7.1 fehlte)
+  ----------------------------------------------------------------------------
+  # VOR den <job>-Zeilen einfuegen:
+  #     <security id="rwJaznSec" class="oracle.reports.server.RWJAZNSecurity"/>
+
+  ----------------------------------------------------------------------------
+  7.4 Absicherung einschalten  (am Report-Job)
+  ----------------------------------------------------------------------------
+  # In der Zeile <job jobType="report" ...> securityId ergaenzen, z.B.:
+  #     <job jobType="report" engineId="rwEng" securityId="rwJaznSec" retry="3"/>
+  # Die anderen Attribute der vorhandenen Zeile bleiben. Der rwurl-Job
+  # bleibt OHNE securityId.
+  # Speichern mit :wq
+
+  ----------------------------------------------------------------------------
+  7.5 Kontrolle
+  ----------------------------------------------------------------------------
   grep -n 'security id=\|securityId\|<identifier' $RWSERVER_CONF
+  # Erwartet: je eine Zeile security id="rwJaznSec", securityId="rwJaznSec"
+  #           und <identifier ...>
 
   python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$RWSERVER_CONF'); print('XML ok')"
+  # Erwartet: XML ok
 
 
 ================================================================================
 SCHRITT 8: Servlet, cgicmd.dat, JVM-Optionen  (als oracle)
 ================================================================================
 
-  # 8.1 rwservlet.properties (nur wenn 1.3 nicht L1):
-  vi $REPORTS_APP_CONF/rwservlet.properties
-  #   <webcommandaccess>L1</webcommandaccess>
-  #   (L0 verhaelt sich wie L1; L2 oeffnet alle Verwaltungsbefehle ohne
-  #    Anmeldung, auch ueber Nginx von aussen - NIE verwenden)
+  ----------------------------------------------------------------------------
+  8.1 rwservlet.properties  (nur wenn 1.3 nicht L1 zeigte)
+  ----------------------------------------------------------------------------
+  vi $RWSERVLET_PROPS
 
-  # 8.2 cgicmd.dat - Schluessel fuer die Berichtsaufrufe. Die Anwendungen
-  #     rufen dann ?cmdkey=default&report=... auf und brauchen selbst kein
-  #     Reports-Kennwort. Vorhandene Zeile mit "authid=" anpassen, sonst am
-  #     Ende anhaengen (die Oracle-Beispiele in der Datei bleiben stehen):
+  # Zeile setzen bzw. aendern:
+  #     <webcommandaccess>L1</webcommandaccess>
+  # L0 verhaelt sich wie L1. L2 oeffnet alle Verwaltungsbefehle ohne
+  # Anmeldung, auch ueber Nginx von aussen - NIE verwenden.
+
+  grep webcommandaccess $RWSERVLET_PROPS
+  # Erwartet: <webcommandaccess>L1</webcommandaccess>
+
+  ----------------------------------------------------------------------------
+  8.2 cgicmd.dat - Schluessel fuer die Berichtsaufrufe
+  ----------------------------------------------------------------------------
+  WICHTIG vorher klaeren: Wie rufen die Anwendungen heute Berichte auf?
+  Nach der Absicherung braucht JEDER Aufruf eine Anmeldung - entweder
+  ueber cmdkey=default oder mit eigenem authid. Aufrufe ohne beides
+  bekommen HTTP 499 (Anmeldeseite). Liste der Aufrufer mit dem
+  Anwendungsteam abstimmen.
+
+  Die Anwendungen rufen dann ?cmdkey=default&report=... auf und brauchen
+  selbst kein Reports-Kennwort.
+
   vi $CGICMD_DAT
+
+  # Vorhandene Zeile mit "authid=" anpassen, sonst am Ende anhaengen (die
+  # Oracle-Beispiele in der Datei bleiben stehen):
   #     default: server=repServer01 %* authid=RepRunner/<REPRUNNER_KENNWORT>
-  #   - %* uebernimmt alle URL-Parameter (ohne: REP-50004)
-  #   - authid NACH %*, sonst koennte ein authid in der URL es ersetzen
-  #   - server= ist die Reports-Komponente, NICHT WLS_REPORTS
+  # - %* uebernimmt alle URL-Parameter (ohne: REP-50004)
+  # - authid NACH %*, sonst koennte ein authid in der URL es ersetzen
+  # - server= ist die Reports-Komponente, NICHT WLS_REPORTS
 
   chmod 640 $CGICMD_DAT
 
-  # WICHTIG vorher klaeren: Wie rufen die Anwendungen heute Berichte auf?
-  # Nach der Absicherung braucht JEDER Aufruf eine Anmeldung - entweder
-  # ueber cmdkey=default oder mit eigenem authid. Aufrufe ohne beides
-  # bekommen HTTP 499 (Anmeldeseite). Liste der Aufrufer mit dem
-  # Anwendungsteam abstimmen.
+  ls -l $CGICMD_DAT
+  # Erwartet: -rw-r-----
 
-  # 8.3 reports.sh - JVM-Optionen (nur wenn 1.5 fehlte). Ohne sie dauert
-  #     die erste Anmeldung nach einem Start 1-5 Minuten (Java-Fehler im
-  #     Reports-Server + langes CORBA-Timeout):
-  grep -n REPORTS_JVM_OPTIONS $DOMAIN_HOME/reports/bin/reports.sh
-  #   fehlt die Zeile -> am Ende anhaengen:
+  ----------------------------------------------------------------------------
+  8.3 reports.sh - JVM-Optionen  (nur wenn 1.5 nicht ok war)
+  ----------------------------------------------------------------------------
+  Ohne diese Optionen dauert die erste Anmeldung nach einem Start 1-5
+  Minuten (Java-Fehler im Reports-Server + langes CORBA-Timeout).
 
-  cat >> $DOMAIN_HOME/reports/bin/reports.sh << 'EOF'
+  grep -n REPORTS_JVM_OPTIONS $REPORTS_SH
+  # keine Zeile                       -> 8.3a
+  # Zeile da, aber Optionen fehlen    -> 8.3b
+
+  # 8.3a  Zeile anhaengen:
+
+  cat >> $REPORTS_SH << 'EOF'
 REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
 EOF
-  #   steht sie schon da, aber ohne einzelne Optionen: Optionen in der
-  #   vorhandenen Zeile ergaenzen (nicht zweimal anhaengen).
-  #   Dazu (einmalig, Reports_kochbuch_de.txt 9.9b): in
-  #   $DOMAIN_HOME/bin/setUserOverrides.sh fuer WLS_REPORTS
-  #   -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
 
+  # 8.3b  Fehlende Optionen in der vorhandenen Zeile ergaenzen (NICHT
+  #       zweimal anhaengen):
+
+  vi $REPORTS_SH
+
+  grep -n REPORTS_JVM_OPTIONS $REPORTS_SH
+  # Erwartet: GENAU eine Zeile mit allen drei Optionen aus 1.5
+
+  ----------------------------------------------------------------------------
+  8.4 CORBA-Timeout auch fuer WLS_REPORTS  (einmalig)
+  ----------------------------------------------------------------------------
   grep -n ORBTCPConnectTimeouts $DOMAIN_HOME/bin/setUserOverrides.sh
+  # Eine Zeile                -> ok
+  # keine Ausgabe             -> nach Reports_kochbuch_de.txt 9.9b in
+  #                              setUserOverrides.sh fuer WLS_REPORTS
+  #                              -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
+  #                              ergaenzen
 
 
 ================================================================================
@@ -504,120 +773,168 @@ SCHRITT 9: Neustart der Domain  (als root)
   systemctl start reportrpgpi
 
   systemctl status reportrpgpi --no-pager
+  # Erwartet: active (running)
 
-  # Danach laeuft alles mit der neuen Konfiguration (AdminServer zuerst,
-  # damit das LDAP schon da ist, wenn der Reports-Server startet - die
-  # Start-Skripte halten diese Reihenfolge ein).
+  # Die Start-Skripte starten den AdminServer zuerst - so ist das LDAP schon
+  # da, wenn der Reports-Server startet.
 
-  # Kontrolle (als oracle):
-  grep -n '<identifier' $RWSERVER_CONF          # Soll: encrypted="yes"
+  # Kontrolle (als oracle, Variablen aus SCHRITT 0):
 
-  /u01/oracle/tools/show_errors.sh -r           # neue Fehler?
+  grep -n '<identifier' $RWSERVER_CONF
+  # Erwartet: encrypted="yes"
+
+  /u01/oracle/tools/show_errors.sh -r
+  # Neue Fehler? Ende mit Strg-C.
 
 
 ================================================================================
 SCHRITT 10: Das OVD-Problem - EM findet keine Benutzer
 ================================================================================
 
-  # SYMPTOM: Im Enterprise Manager unter Security -> Application Roles ->
-  # Rolle bearbeiten -> "Add Principal" bleibt die Benutzersuche LEER,
-  # obwohl die Benutzer existieren.
-  #
-  # URSACHE (auf dem Testsystem nachgewiesen, 2026-10-16): Die Benutzersuche
-  # im EM laeuft ueber "libOVD" mit der Konfiguration in
-  #   $DOMAIN_HOME/config/fmwconfig/ovd/default/adapters.os_xml
-  # Der eigenstaendige Reports-Server benutzt bei seinem Start DIESELBE
-  # Datei, schreibt sie mit seinem eigenen Stand neu und laesst eine
-  # Sperrdatei ovd.lok liegen. Danach fehlt dem EM die Verbindung zum
-  # WebLogic-Benutzerverzeichnis. Es ist ein Anzeige-Problem des EM - die
-  # Anmeldung der Benutzer und die Absicherung des Reports-Servers
-  # funktionieren trotzdem. Der LibOVD-Patch des CPU Oktober 2026
-  # (39726399) behebt es NICHT; Oracle kennt keinen Patch (SR in
-  # Vorbereitung).
+  SYMPTOM: Im Enterprise Manager unter Security -> Application Roles ->
+  Rolle bearbeiten -> "Add Principal" bleibt die Benutzersuche LEER,
+  obwohl die Benutzer existieren.
 
-  # 10.1 Umgehung 1 - einfach und immer moeglich: Rollen per WLST zuweisen
-  #      (Schritt 4.3). Das ist der empfohlene Weg.
+  URSACHE (auf dem Testsystem nachgewiesen, 2026-10-16): Die Benutzersuche
+  im EM laeuft ueber "libOVD" mit der Konfiguration in der Datei
+  adapters.os_xml (Verzeichnis $OVD). Der eigenstaendige Reports-Server
+  benutzt bei seinem Start DIESELBE Datei, schreibt sie mit seinem eigenen
+  Stand neu und laesst eine Sperrdatei ovd.lok liegen. Danach fehlt dem EM die
+  Verbindung zum WebLogic-Benutzerverzeichnis.
 
-  # 10.2 Umgehung 2 - in der Oberflaeche: im Dialog "Add Principal" das
-  #      Feld "Advanced Option" (Erweiterte Option) anhaken und den
-  #      Benutzernamen (z.B. monUser) von Hand eintragen, ohne Suche.
+  Es ist ein Anzeige-Problem des EM - die Anmeldung der Benutzer und die
+  Absicherung des Reports-Servers funktionieren trotzdem. Der LibOVD-Patch
+  des CPU Oktober 2026 (39726399) behebt es NICHT; Oracle kennt keinen
+  Patch (SR in Vorbereitung).
 
-  # 10.3 Wenn die EM-Suche gebraucht wird (Wiederherstellen, bis zum
-  #      naechsten Neustart des Reports-Servers):
-  #      a) AdminServer stoppen (Managed Server und Reports-Server laufen
-  #         weiter):
+  ----------------------------------------------------------------------------
+  10.1 Umgehung 1 - empfohlen: Rollen per WLST zuweisen  (Schritt 4.3)
+  ----------------------------------------------------------------------------
+
+  ----------------------------------------------------------------------------
+  10.2 Umgehung 2 - in der Oberflaeche ohne Suche
+  ----------------------------------------------------------------------------
+  Im Dialog "Add Principal" das Feld "Advanced Option" (Erweiterte
+  Option) anhaken und den Benutzernamen (z.B. monUser) von Hand eintragen.
+
+  ----------------------------------------------------------------------------
+  10.3 EM-Suche wiederherstellen  (gilt bis zum naechsten AdminServer-Neustart)
+  ----------------------------------------------------------------------------
+  Nur den AdminServer neu starten - Managed Server und Reports-Server
+  laufen weiter. NICHT ueber systemctl: das ist ein Komplett-Neustart, der
+  Reports-Server startet nach dem AdminServer und ueberschreibt die Datei
+  VOR der ersten Suche.
+
+  # a) AdminServer stoppen (als oracle):
+
   $DOMAIN_HOME/bin/stopWebLogic.sh
-  #      b) Sperrdatei wegschieben:
 
-  mv $OVD/ovd.lok $OVD/ovd.lok.$(date +%Y%m%d_%H%M%S) 2>/dev/null; ls -la $OVD
-  #      c) AdminServer starten:
+  # b) Sperrdatei wegschieben:
 
-  nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver_start.out 2>&1 &
-  #         ...warten bis "RUNNING" (tail -f /tmp/adminserver_start.out)
-  #      d) im EM SOFORT einmal "Add Principal" -> Suche ausfuehren. Danach
-  #         behaelt der AdminServer die richtige Konfiguration im Speicher,
-  #         auch wenn der Reports-Server die Datei spaeter wieder
-  #         ueberschreibt - bis zum naechsten AdminServer-Neustart.
-  #      Mit Autostart (systemd): AdminServer-Neustart ueber die Unit ist
-  #      ein Komplett-Neustart, dabei startet der Reports-Server nach dem
-  #      AdminServer und ueberschreibt die Datei VOR der ersten Suche -
-  #      deshalb den AdminServer hier einzeln wie oben neu starten.
+  ls -la $OVD/ovd.lok
+  # Keine Datei da -> b) ueberspringen.
 
-  # 10.4 NICHT tun: die Variable DO_NOT_PUSH_DATA_LIBOVD oder andere
-  #      Oracle-interne Schalter setzen - ungetestet, nur nach Freigabe
-  #      durch Oracle Support.
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  mv $OVD/ovd.lok $OVD/ovd.lok.$TS
+
+  # c) AdminServer starten:
+
+  nohup $DOMAIN_HOME/bin/startWebLogic.sh > $WORK/adminserver_start.out 2>&1 &
+
+  tail -f $WORK/adminserver_start.out
+  # Warten bis "RUNNING" erscheint, dann Strg-C.
+
+  # d) Im EM SOFORT einmal "Add Principal" -> Suche ausfuehren.
+  #    Danach behaelt der AdminServer die richtige Konfiguration im
+  #    Speicher, auch wenn der Reports-Server die Datei spaeter wieder
+  #    ueberschreibt.
+
+  ----------------------------------------------------------------------------
+  10.4 NICHT tun
+  ----------------------------------------------------------------------------
+  Die Variable DO_NOT_PUSH_DATA_LIBOVD oder andere Oracle-interne
+  Schalter setzen - ungetestet, nur nach Freigabe durch Oracle Support.
 
 
 ================================================================================
-SCHRITT 11: Tests  (als oracle, auf dem Server)
+SCHRITT 11: Tests  (als oracle, auf dem Server, Variablen aus SCHRITT 0)
 ================================================================================
 
-  # Kennwoerter verdeckt eingeben (nicht in die Shell-History):
-  read -s -p "monUser: " MPW; echo; read -s -p "RepRunner: " RPW; echo
+  ----------------------------------------------------------------------------
+  11.1 Kennwoerter verdeckt eingeben
+  ----------------------------------------------------------------------------
+  read -s -p "monUser: " MPW
 
-  read -s -p "repadmin: " APW; echo
+  echo
 
-  U="http://localhost:$WLS_REPORTS_PORT/reports/rwservlet"
+  read -s -p "RepRunner: " RPW
 
-  S="server=$REPORTS_SERVER_NAME"
+  echo
 
-  t() { printf '%-34s ' "$1"; curl -s -o /tmp/t.out -w '%{http_code} ' "$2"; grep -o 'REP-[0-9]*\|<serverInfo\|%PDF' /tmp/t.out | head -1; echo; }
+  read -s -p "repadmin: " APW
 
-  t "monUser    getserverinfo"  "$U/getserverinfo?$S&statusformat=XML&authid=monUser/$MPW"
+  echo
 
-  t "RepRunner  getserverinfo"  "$U/getserverinfo?$S&statusformat=XML&authid=RepRunner/$RPW"
+  S="server=$REPORTS_SERVER_NAME&statusformat=XML"
 
-  t "falsches Kennwort"          "$U/getserverinfo?$S&statusformat=XML&authid=monUser/falsch"
+  ----------------------------------------------------------------------------
+  11.2 Die Tests  (die erste Anfrage nach einem Start kann dauern)
+  ----------------------------------------------------------------------------
+  # monUser darf den Status sehen:
 
-  t "ohne Anmeldung"             "$U/getserverinfo?$S&statusformat=XML"
+  curl -s "$RW_URL/getserverinfo?$S&authid=monUser/$MPW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  # Erwartet: <serverInfo
 
-  t "repadmin   getserverinfo"   "$U/getserverinfo?$S&statusformat=XML&authid=repadmin/$APW"
+  # RepRunner darf nur Berichte, keinen Status:
 
-  t "monUser    showenv"         "$U/showenv?$S&authid=monUser/$MPW"
+  curl -s "$RW_URL/getserverinfo?$S&authid=RepRunner/$RPW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  # Erwartet: REP-56071
 
-  unset MPW RPW APW; rm -f /tmp/t.out
+  # Falsches Kennwort:
 
-  #
-  #   Erwartet (Spalte 1 = HTTP-Code, Spalte 2 = Inhalt):
-  #   monUser    getserverinfo   <serverInfo
-  #   RepRunner  getserverinfo   REP-56071   (darf nur Berichte)
-  #   falsches Kennwort          REP-50171
-  #   ohne Anmeldung             HTTP 499    (Anmeldung verlangt)
-  #   repadmin   getserverinfo   <serverInfo (Notfall-Admin)
-  #   monUser    showenv         REP-56071   (nur fuer Admins)
-  #   (die erste Anfrage nach einem Start kann einige Sekunden dauern)
+  curl -s "$RW_URL/getserverinfo?$S&authid=monUser/falsch" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  # Erwartet: REP-50171
 
-  # Bericht ueber den Schluessel (echten Bericht und DB-Login einsetzen):
-  #   curl -s -o /tmp/test.pdf "$U?cmdkey=default&report=<bericht>.rdf&userid=<db_user>/<db_pw>@<tns>&destype=cache&desformat=pdf"
-  #   file /tmp/test.pdf     -> "PDF document"
+  # Ohne Anmeldung (HTTP-Code):
+
+  curl -s -o /dev/null -w '%{http_code}\n' "$RW_URL/getserverinfo?$S"
+  # Erwartet: 499   (Anmeldung verlangt)
+
+  # Notfall-Admin repadmin:
+
+  curl -s "$RW_URL/getserverinfo?$S&authid=repadmin/$APW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  # Erwartet: <serverInfo
+
+  # showenv ist nur fuer Admins:
+
+  curl -s "$RW_URL/showenv?server=$REPORTS_SERVER_NAME&authid=monUser/$MPW" | grep -o -m1 'REP-[0-9]*'
+  # Erwartet: REP-56071
+
+  unset MPW RPW APW
+
+  ----------------------------------------------------------------------------
+  11.3 Ein echter Bericht ueber den Schluessel
+  ----------------------------------------------------------------------------
+  # Bericht und DB-Login einsetzen:
+  #   curl -s -o $WORK/test.pdf "$RW_URL?cmdkey=default&report=<bericht>.rdf&userid=<db_user>/<db_pw>@<tns>&destype=cache&desformat=pdf"
+  #   file $WORK/test.pdf
+  #   Erwartet: PDF document
   # Derselbe Aufruf OHNE cmdkey=default -> HTTP 499.
+  # Danach: rm -f $WORK/test.pdf
 
-  # Von aussen (ueber Nginx, von einem Arbeitsplatz):
-  #   https://<server>/reports/rwservlet/getserverinfo  -> 403 (gesperrt,
-  #   Reports_security.txt 2.3) oder 499 - beides richtig, nie Server-Infos.
+  ----------------------------------------------------------------------------
+  11.4 Von aussen  (ueber Nginx, von einem Arbeitsplatz)
+  ----------------------------------------------------------------------------
+  https://<server>/reports/rwservlet/getserverinfo
+  # Erwartet: 403 (gesperrt, Reports_security.txt 2.3) oder 499 - beides
+  #           richtig. Nie Server-Infos.
 
-  # Monitoring/Status-Tools (status.sh, eigene Checks) auf monUser
-  # umstellen - nicht repadmin oder weblogic dafuer verwenden.
+  ----------------------------------------------------------------------------
+  11.5 Monitoring umstellen
+  ----------------------------------------------------------------------------
+  Status-Tools (status.sh, eigene Checks) auf monUser umstellen - nicht
+  repadmin oder weblogic dafuer verwenden.
 
 
 ================================================================================
@@ -627,40 +944,68 @@ SCHRITT 12: Kennwoerter spaeter wechseln - was muss wohin?
   Konto      wo aendern                              danach
   ---------  --------------------------------------  ------------------------
   cn=Admin   Schritt 3.2 (setCredential) UND         Komplett-Neustart
-
              Schritt 5 (updateCred) - beide gleich!  (Schritt 3.3)
-  monUser    WLST resetUserPassword oder EM          Monitoring-Konfiguration
+  monUser    WLST resetUserPassword (12.1) oder EM   Monitoring-Konfiguration
              (myrealm -> Users -> Passwords)         anpassen
-  RepRunner  WLST resetUserPassword oder EM UND      WLS_REPORTS liest
-             cgicmd.dat (Schritt 8.2)                cgicmd.dat beim Start -
+  RepRunner  WLST resetUserPassword (12.1) oder EM   WLS_REPORTS liest
+             UND cgicmd.dat (Schritt 8.2)            cgicmd.dat beim Start -
                                                      Neustart WLS_REPORTS
   repadmin   rwserver.conf <identifier               Reports-Server neu
-             encrypted="no">repadmin/NEU<...>        starten (stopComponent/
-
-                                                     startComponent)
+             encrypted="no">repadmin/NEU<...>        starten (12.2)
   weblogic   Reports_security.txt Schritt 13         boot.properties etc.
 
-  # WLST fuer monUser/RepRunner:
-  #   connect(url='t3://localhost:7001'); serverConfig()
-  #   cd('/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator')
-  #   cmo.resetUserPassword('RepRunner', '<NEUES_KENNWORT>')
-  # Reports-Server einzeln neu starten (restartComponent.sh geht nicht):
-  #   $DOMAIN_HOME/bin/stopComponent.sh  repServer01
-  #   $DOMAIN_HOME/bin/startComponent.sh repServer01
+  ----------------------------------------------------------------------------
+  12.1 WLST fuer monUser / RepRunner
+  ----------------------------------------------------------------------------
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      serverConfig()
+
+      realm_dir = '/SecurityConfiguration/' + cmo.getName() + '/Realms/myrealm/AuthenticationProviders/DefaultAuthenticator'
+
+      cd(realm_dir)
+
+      cmo.resetUserPassword('RepRunner', '<NEUES_KENNWORT>')
+
+      exit()
+
+  # --- Ende WLST ---
+
+  ----------------------------------------------------------------------------
+  12.2 Reports-Server einzeln neu starten  (restartComponent.sh geht nicht)
+  ----------------------------------------------------------------------------
+  $DOMAIN_HOME/bin/stopComponent.sh $REPORTS_SERVER_NAME
+
+  $DOMAIN_HOME/bin/startComponent.sh $REPORTS_SERVER_NAME
 
 
 ================================================================================
 RUECKWEG
 ================================================================================
 
-  # Absicherung abschalten (Berichte laufen dann wieder ohne
-  # Benutzerpruefung): Sicherung aus Schritt 2.2 zurueckkopieren
-  #   cp -p $B/rwserver.conf $RWSERVER_CONF
-  #   cp -p $B/jps-config-jse.xml $JPS_JSE
-  #   cp -p $B/cgicmd.dat $CGICMD_DAT
-  # und die Domain neu starten (Schritt 9). Die WebLogic-Benutzer, Rollen
-  # und der Tresor-Eintrag koennen bleiben - sie stoeren nicht.
-  # Das cn=Admin-Kennwort NICHT zuruecksetzen (das alte ist unbekannt).
+  Absicherung abschalten - Berichte laufen dann wieder ohne
+  Benutzerpruefung. Die WebLogic-Benutzer, Rollen und der Tresor-Eintrag
+  koennen bleiben, sie stoeren nicht. Das cn=Admin-Kennwort NICHT
+  zuruecksetzen (das alte ist unbekannt).
+
+  # Als oracle, Variablen aus SCHRITT 0:
+
+  B=$(cat $WORK/backup_dir.txt)
+
+  ls -l $B
+  # Erwartet: die 7 Dateien aus Schritt 2.2
+
+  cp -p $B/rwserver.conf $RWSERVER_CONF
+
+  cp -p $B/jps-config-jse.xml $JPS_JSE
+
+  cp -p $B/cgicmd.dat $CGICMD_DAT
+
+  # Danach die Domain neu starten (SCHRITT 9).
 
 
 ================================================================================
@@ -675,12 +1020,12 @@ BEKANNTE PROBLEME
 
   Problem: Jede Anmeldung "REP-50171 Authentication failed", keine
            Berichte mehr
-  Ursache: securityId gesetzt (Schritt 7.2), aber der Reports-Server kann
+  Ursache: securityId gesetzt (Schritt 7.4), aber der Reports-Server kann
            das LDAP nicht fragen: Schritt 6 fehlt / falsch (dc=, Port),
            Tresor-Kennwort (Schritt 5) passt nicht zu Schritt 3, oder der
            AdminServer laeuft nicht.
-  Loesung: Schritt 1.2, 3.1 und 5 pruefen. Sofortige Abhilfe: securityId
-           wieder entfernen und Reports-Server neu starten.
+  Loesung: Schritt 1.2, 3.4 und 5 pruefen. Sofortige Abhilfe: securityId
+           wieder entfernen und Reports-Server neu starten (12.2).
 
   Problem: "REP-52262 Diagnostic output is disabled" fuer monUser
   Ursache: Server nicht abgesichert (kein securityId) - dann darf nur der
@@ -696,10 +1041,11 @@ BEKANNTE PROBLEME
   Problem: Reports-Server startet nicht, REP-50125 NullPointerException
   Ursache: <identifier> leer, oder REPORTS_JVM_OPTIONS ohne
            -DORBWaitForResponseTimeout.
-  Loesung: Schritt 7.1 / 8.3.
+  Loesung: Schritt 7.2 / 8.3.
 
   Problem: erste Anfrage nach dem Start dauert 1-5 Minuten
-  Loesung: Schritt 8.3 (JVM-Optionen in reports.sh + setUserOverrides.sh).
+  Loesung: Schritt 8.3 und 8.4 (JVM-Optionen in reports.sh +
+           setUserOverrides.sh).
 
   Problem: EM "Add Principal" findet keine Benutzer
   Loesung: Schritt 10.
