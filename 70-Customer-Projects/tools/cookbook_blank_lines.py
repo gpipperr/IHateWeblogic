@@ -28,7 +28,7 @@ def is_cmd(l):
     return False
 def belongs(l):
     s = l.strip()
-    return s.startswith('#') and (re.match(r'^#\s{2,}', s) or re.match(r'^#\s*(Erwartet|Zeigt|Steht|Normal|Pruefen|Kontrolle|Ergebnis|-> |=> )', s))
+    return s.startswith('#') and (re.match(r'^#\s{2,}', s) or re.match(r'^#\s*(Erwartet|Zeigt|Steht|Normal|Pruefen|Kontrolle|Ergebnis|"|-> |=> )', s))
 def unit_end(L, i):
     """index of the last line of the unit starting at i"""
     s = L[i]

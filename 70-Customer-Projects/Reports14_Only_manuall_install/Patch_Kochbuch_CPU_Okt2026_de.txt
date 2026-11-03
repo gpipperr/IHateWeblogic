@@ -40,7 +40,8 @@ ZIELSTAND (CPU Oktober 2026)
                                    39979746 OPSS, 39726399 LibOVD     9
   PERL                             39951765 (ersetzt 38590500)        10
   OHS / WebGate (nur Binaries)     39987730 / 39100536                11
-  Forms-QPR / Reports-QPR          39842516 / 39600348                12
+  Reports-QPR                      39600348                           12
+  Forms-QPR (optional, Scanner)    39842516                           12.F
   JDK im Home (oracle_common/jdk)  17.0.12 - bleibt, es gibt KEINEN Patch
 
   Typische Ausgangslagen (je nachdem, nach welchem Kochbuch-Stand
@@ -175,7 +176,7 @@ VORAUSSETZUNGEN
     39951765   p39951765_141200_Linux-x86-64.zip         PERL SPU
     39987730   p39987730_141200_Linux-x86-64.zip         OHS BP (nur Binaries)
     39100536   p39100536_141200_Linux-x86-64.zip         WebGate BP (nur Binaries)
-    39842516   p39842516_141200_Linux-x86-64.zip         Forms QPR 14.1.2
+    39842516   p39842516_141200_Linux-x86-64.zip  (optional)  Forms QPR - nur Anhang 12.F
     39600348   p39600348_141200_Linux-x86-64.zip         Reports QPR 14.1.2
     38936596   p38936596_141200_Generic.zip  (optional)  Reports-One-off Bidi
 
@@ -319,7 +320,7 @@ SCHRITT 3: Patches entpacken  (als oracle, Umgebung darf noch laufen)
 
   ls -1 $STAGE
   # Erwartet u.a.: WLS_SPB_14.1.2.0.261007, 40050062 ... 39726399, 39951765,
-  # 39987730, 39100536, 39842516, 39600348 (38936596 nur falls geladen)
+  # 39987730, 39100536, 39600348 (39842516 / 38936596 nur falls geladen)
   # Das entpackte SPB-Verzeichnis NICHT veraendern.
 
 
@@ -545,6 +546,7 @@ SCHRITT 8: WLS Stack Patch Bundle 40125898 per "napply"  (als oracle)
     $OH/OPatch/opatch napply -report -oh $OH -phBaseFile linux64_patchlist.txt -invPtrLoc $INV_PTR
 
   ) 2>&1 | tee $LOGDIR/08_spb_report.txt
+  
   grep -iE "superset|conflict|fail|skip|All checks passed" $LOGDIR/08_spb_report.txt
   # Erwartet: "All checks passed". Bei Ausgangslage b) u.a.
 
@@ -662,75 +664,97 @@ SCHRITT 11: OHS 39987730 und WebGate 39100536 - nur Binaries  (als oracle)
 
 
 ================================================================================
-SCHRITT 12: Forms-QPR 39842516 und Reports-QPR 39600348  (als oracle)
+SCHRITT 12: Reports-QPR 39600348  (als oracle)
 ================================================================================
 
-  # Reihenfolge IMMER: Forms VOR Reports. Der Forms-QPR wird eingespielt,
-  # obwohl die Domain kein Forms nutzt: der 14.1.2-Installer legt die
-  # Forms-Binaries immer mit ins Home (Scanner finden sie).
-  # (Abweichung zu Reports_kochbuch_de.txt Schritt 2, dort bewusst
-  #  weggelassen - fuer den vollstaendigen Patchstand hier mit dabei.)
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39842516|39600348|38874285|38827528"
+  Kein Forms im Einsatz: hier wird NUR der Reports-Patch eingespielt.
+  Der Forms-QPR ist optional (Anhang 12.F am Ende dieses Schritts) - nur
+  falls ein Schwachstellen-Scanner die Forms-Dateien im Home anmahnt.
 
-  # 12.1 libzrc-Pruefung (OL9 / glibc 2.34, MOS KB873815, Bug 38892485):
-  # Ist der Reports-QPR schon drin, wurde libzrc.so gegen die System-glibc
-  # gelinkt - dann scheitert der Relink des Forms-QPR (rc=73,
-  # "undefined reference to dlsym@GLIBC_2.34", OPatch stellt das Home
-  # wieder her). Vorher pruefen und ggf. neu bauen:
+  ----------------------------------------------------------------------------
+  12.1 Ist der Reports-Patch schon drin?
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39600348|38827528"
+  # "39600348;..." steht da     -> fertig, weiter mit SCHRITT 13
+  # nur "38827528;..." (alt)    -> 12.2
+  # keine Zeile                 -> 12.3
+
+  ----------------------------------------------------------------------------
+  12.2 Alten Reports-Patch 38827528 entfernen  (nur wenn er da ist)
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch rollback -id 38827528 -silent -invPtrLoc $INV_PTR
+  # Erwartet am Ende: "OPatch succeeded."
+
+  ----------------------------------------------------------------------------
+  12.3 Reports-Patch 39600348 einspielen
+  ----------------------------------------------------------------------------
+  cd $STAGE/39600348
+
+  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
+  # Erwartet: Prereq "checkConflictAgainstOHWithDetail" passed.
+  # Steht dort "failed": NICHT weiter - Ausgabe sichern, melden.
+
+  $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee $LOGDIR/12_reports_qpr.txt
+  # Erwartet: "Patch 39600348 successfully applied."
+  # BEKANNT UND HARMLOS am Ende: "OPatch Session completed with warnings"
+  # (Linker-Warnungen mktemp / zrmpu_functypes).
+
+  cd $STAGE
+
+  ----------------------------------------------------------------------------
+  12.4 Kontrolle
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
+  # Erwartet: 39600348;... - die Zeile muss da sein ("OPatch succeeded"
+  # allein reicht nicht, siehe "Bekannte Probleme").
+
+  ----------------------------------------------------------------------------
+  12.5 Optional: Reports-One-off 38936596
+  ----------------------------------------------------------------------------
+  # NUR wenn REPORTS_BIDIPARENTHESIS=YES gebraucht wird (hebraeische
+  # Klammern) - sonst weglassen.
+
+  ----------------------------------------------------------------------------
+  Anhang 12.F  (OPTIONAL) Forms-QPR 39842516 - nur fuer den Scanner
+  ----------------------------------------------------------------------------
+  # Der 14.1.2-Installer legt die Forms-Dateien immer mit ins Home, auch
+  # wenn Forms nicht genutzt wird. Ein Schwachstellen-Scanner kann sie
+  # deshalb anmahnen. Reports funktioniert ohne diesen Patch genauso.
+  # Wenn er eingespielt werden soll: VOR 12.3 (vor dem Reports-Patch) -
+  # sonst scheitert er auf OL9 (libzrc, MOS KB873815). Ist der Reports-Patch
+  # schon drin, zuerst F.1.
+
+  # F.1 libzrc pruefen:
   nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym
 
-  # "dlsym@GLIBC_2.2.5" -> ok, weiter mit 12.2
-  # "dlsym@GLIBC_2.34"  -> neu bauen gegen die Oracle-Stubs:
+  # "dlsym@GLIBC_2.2.5" -> ok, weiter mit F.2
+  # "dlsym@GLIBC_2.34"  -> neu bauen (braucht gcc + binutils):
+
   mkdir -p /tmp/libzrc && cd /tmp/libzrc
 
   cp -p $ORACLE_HOME/lib/libzrc.so.0 $ORACLE_HOME/lib/libzrc.so.0.glibc_$(date +%Y%m%d_%H%M%S)
 
   ar x $ORACLE_HOME/lib/libzrc.a
+
   gcc -shared -Wl,-G,-hlibzrc.so.0 -L$ORACLE_HOME/lib/stubs -o $ORACLE_HOME/lib/libzrc.so.0 *.o -ldl
+
   nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym     # Erwartet: dlsym@GLIBC_2.2.5
 
   cd $STAGE && rm -rf /tmp/libzrc
-  #   (gcc / binutils muessen installiert sein: dnf install gcc binutils)
 
-  # 12.2 Forms-QPR 39842516 (alter Forms-QPR 38874285 vorher weg):
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -q "^38874285;" && \
+  # F.2 alten Forms-QPR 38874285 entfernen (nur wenn vorhanden):
+  $ORACLE_HOME/OPatch/opatch lspatches | grep "^38874285;" && \
       $ORACLE_HOME/OPatch/opatch rollback -id 38874285 -silent -invPtrLoc $INV_PTR
 
+  # F.3 Forms-QPR einspielen:
   cd $STAGE/39842516
 
   $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
 
   $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee $LOGDIR/12_forms_qpr.txt
+  # Erwartet: "Patch 39842516 successfully applied."
 
   cd $STAGE
-
-  grep -iE "successfully applied|rc=|Make failed|error" $LOGDIR/12_forms_qpr.txt
-
-  # 12.3 Reports-QPR 39600348 - nur falls noch NICHT installiert
-  #      (alter Reports-QPR 38827528 vorher weg):
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -q "^38827528;" && \
-      $ORACLE_HOME/OPatch/opatch rollback -id 38827528 -silent -invPtrLoc $INV_PTR
-
-  cd $STAGE/39600348
-
-  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
-
-  $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee $LOGDIR/12_reports_qpr.txt
-
-  cd $STAGE
-
-  # BEKANNT UND HARMLOS: Ende "OPatch Session completed with warnings"
-  # (Linker-Warnungen mktemp / zrmpu_functypes), solange vorher
-  # "Patch 39600348 successfully applied." steht.
-
-  # 12.4 Nach dem Reports-QPR ist libzrc wieder gegen glibc 2.34 gebaut -
-  # fuer KUENFTIGE Forms-Patches 12.1 erneut ausfuehren (jetzt oder beim
-  # naechsten Zyklus). Reports selbst laeuft mit beiden Varianten.
-
-  # 12.5 Optional: Reports-One-off 38936596 NUR wenn
-  # REPORTS_BIDIPARENTHESIS=YES gebraucht wird (hebraeische Klammern).
-
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39842516|39600348"
 
 
 ================================================================================
@@ -743,7 +767,8 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
   diff $LOGDIR/02_lspatches_before.txt $LOGDIR/13_lspatches_after.txt
   # Erwartet u.a.: 40126042, 40058371, 40035655 (Third-Party), 39984190
   # (Coherence), die 8 Bundles aus Schritt 9, 39951765, 39987730, 39100536,
-  # 39842516, 39600348. Nicht mehr: 39925694, 39988381, 38590500.
+  # 39600348 (39842516 nur mit Anhang 12.F). Nicht mehr: 39925694,
+  # 39988381, 38590500.
 
   # 13.2 Starten - als root:
   systemctl enable reportrpgpi      # falls in Schritt 4 deaktiviert
@@ -842,7 +867,7 @@ BEKANNTE PROBLEME
            "none of the components") - Ausgabe lesen.
 
   Problem: Forms-QPR bricht ab, rc=73, "dlsym@GLIBC_2.34" in libzrc.so
-  Loesung: Schritt 12.1 (libzrc neu bauen), dann Forms-QPR erneut.
+  Loesung: Anhang 12.F, F.1 (libzrc neu bauen), dann Forms-QPR erneut.
 
   Problem: WebLogic startet extrem langsam nach dem JDK-Wechsel
   Loesung: SecureRandom-Fix im NEUEN JDK fehlt - Schritt 6 a).

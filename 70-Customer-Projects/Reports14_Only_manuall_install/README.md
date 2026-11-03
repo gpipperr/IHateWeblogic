@@ -92,8 +92,8 @@ und deutschen Kommentaren.
     kompletter Patchsatz, vor jedem Patch Prüfung per `opatch lspatches`,
     JDK-Wechsel mit Übernahme von `java.security` / `cacerts`, OPatch, SPB
     per `napply`, acht Infrastruktur-Bundles, PERL, OHS/WebGate (nur
-    Binaries – keine OHS-Instanz), Forms- vor Reports-QPR mit
-    `libzrc`-Prüfung, Start und Test, Rollback. Download aller Patches in
+    Binaries – keine OHS-Instanz), Reports-QPR (Forms-QPR nur optional
+    für einen Scanner, Anhang 12.F mit `libzrc`-Prüfung), Start und Test, Rollback. Download aller Patches in
     einem Lauf: [patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) mit
     [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
     (`--all`).
@@ -156,9 +156,9 @@ V1045121-01.zip  01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175
 - [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS Bundle (nur Binaries) · 17 MB · Reports Schritt 2
 - [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate Bundle (nur Binaries) · 21 MB · Reports Schritt 2
 
-Nicht nötig für die Neuinstallation: Forms-QPR 39842516 (reine
-Reports-Installation) – das Patch-Kochbuch (Punkt 10) spielt ihn für einen
-vollständigen Patchstand trotzdem ein (Forms-Binaries liegen im Home). Optional:
+Nicht nötig: Forms-QPR 39842516 (reine Reports-Installation, kein Forms im
+Einsatz) – im Patch-Kochbuch (Punkt 10) nur noch als optionaler Anhang 12.F,
+falls ein Schwachstellen-Scanner die Forms-Binaries im Home anmahnt. Optional:
 One-off 38936596 nur bei hebräischer Klammer-Darstellung
 (`REPORTS_BIDIPARENTHESIS=YES`).
 
@@ -170,8 +170,8 @@ Optional für den MOS-Download per Kommandozeile:
 Schritt 7) – oder alle MOS-Patches in einem Lauf mit
 [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
 einer CSV-Liste (Vorlage:
-[patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) – kompletter Satz inkl.
-Forms-QPR und JDK-Ersatz 40186074, mit `--all` laden).
+[patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) – kompletter Satz, mit `--all`
+auch die optionalen Zeilen: Forms-QPR für Anhang 12.F, JDK-Ersatz 40186074).
 
 **Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
 nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche

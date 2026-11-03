@@ -2,7 +2,8 @@
 # + Security Alert CVE-2026-91403 (JDK 21.0.13.0.2). COMPLETE set: the starting level of the
 # customer home is unknown (no collector run possible) - download everything (--all), the
 # cookbook checks per patch with "opatch lspatches" whether it is already installed.
-# Forms QPR included: the 14.1.2 installer always puts the Forms binaries on disk (scanner).
+# Forms QPR optional (no Forms in use; cookbook appendix 12.F only if a scanner flags the Forms
+# binaries the 14.1.2 installer always puts on disk) - loaded with --all.
 # No OHS instance - OHS / WebGate binaries are patched, no post-install (KB559857).
 # Source: README.md download checklist, FMW_Kochbuch_de.txt step 3, Reports_kochbuch_de.txt
 # step 2, 09-Install/download/patches_fmw.csv (state 2026-10-30); steps = Patch_Kochbuch_CPU_Okt2026_de.txt
@@ -31,7 +32,7 @@ patch;platform;file_regexp;required;step;description;dir;sha256
 39951765;226P;p39951765_141200_Linux-x86-64\.zip;yes;10;FMW PERL SPU 14.1.2 (replaces 38590500);;eea5c6416d998242c916c6f0535987ed7187b9ea1458291557aa351596641d1d
 39987730;226P;p39987730_141200_Linux-x86-64\.zip;yes;11;OHS (native) Bundle Patch 14.1.2.0.260907 - binaries only, no OHS instance;;93b242c57ccb7d459218950cf7442ed4a82b9df575abb99f897ecd6a817b24fe
 39100536;226P;p39100536_141200_Linux-x86-64\.zip;yes;11;OAM WebGate Bundle Patch 14.1.2.0.260318 - binaries only;;e29ac71bf8b4fbcf09a437a18750d897685477b42f727387b0103b63f84010da
-39842516;226P;p39842516_141200_Linux-x86-64\.zip;yes;12;Oracle Forms 14.1.2 QPR (Sep 2026) - Forms binaries are in every F&R home - BEFORE the Reports QPR (libzrc, KB873815);;4907661f9017079c75b5c91bc7d049f01675934fdd115de978e0985fb065dcdb
+39842516;226P;p39842516_141200_Linux-x86-64\.zip;optional;12.F;Oracle Forms 14.1.2 QPR (Sep 2026) - only for a scanner (no Forms in use) - BEFORE the Reports QPR (libzrc, KB873815);;4907661f9017079c75b5c91bc7d049f01675934fdd115de978e0985fb065dcdb
 39600348;226P;p39600348_141200_Linux-x86-64\.zip;yes;12;Oracle Reports 14.1.2 QPR (Aug 2026) - unchanged since Sep;;e6c42fc5f2e587791db94982b6955abab3c592c67fc0654b181bb14fee7a5466
 38936596;2000P;p38936596_141200_Generic\.zip;optional;12;Reports one-off bidi parenthesis - only with REPORTS_BIDIPARENTHESIS=YES;;a6088b2b08377012ca26b03cee96da4189ebb2b033d04f156c0f374221d7a9ee
 # NOT needed: OHS post-install KB559857 (no OHS instance); Sep patches 39925660 / 39988381 / 38590500 (superseded)
