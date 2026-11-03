@@ -4,6 +4,17 @@
 **Runs as:** `oracle`
 **Phase:** 4 – Repository & Domain
 
+```bash
+./09-Install/07-oracle_setup_repository.sh --check    # DB requirements only (read-only)
+./09-Install/07-oracle_setup_repository.sh            # dry-run: connection, schema names
+./09-Install/07-oracle_setup_repository.sh --apply    # RCU -createRepository + DB profile
+```
+
+Checked against the script 2026-11-03. Before it (local DB, `60-RCU-DB-19c`):
+`04-db_audit_setup.sh`, `05-db_fmw_tablespace.sh` (when `RCU_TABLESPACE` is
+set), `06-db_rcu_profile.sh`; the DB credentials with
+`00-Setup/database_rcu_sec.sh --apply`.
+
 ---
 
 ## Purpose
@@ -52,6 +63,26 @@ Schema names are prefixed with `DB_SCHEMA_PREFIX` (e.g. `DEV_STB`, `DEV_MDS`, ..
 
 ## Without the Script (manual)
 
+Same order as the script. Values from `environment.conf`; connect string
+always `host:port/service` (slash = PDB service, not `:SID`).
+
+### 0. Check the database (read-only)
+
+```bash
+sqlplus -S -L /nolog <<EOF
+CONNECT sys/"<sys password>"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
+@60-RCU-DB-19c/rcu_db_requirements.sql
+SHOW PARAMETER db_securefile
+SELECT tablespace_name, status FROM dba_tablespaces WHERE tablespace_name = UPPER('${RCU_TABLESPACE:-FMW_DATA}');
+EOF
+```
+
+`IHW:REQ|…` lines: version 19c ≥ 19.14, Enterprise Edition, AL32UTF8, JVM
+`VALID`, `processes` ≥ 1000, `open_cursors` ≥ 1600, `session_cached_cursors`
+≥ 100, `db_files` ≥ 600 (the script evaluates them, `--check`).
+`db_securefile` must not be `FORCE` before the first RCU run (ORA-43853, see
+below); with `RCU_TABLESPACE` set the tablespace must exist.
+
 ### 1. Write RCU password file
 
 RCU silent mode (`-f`) reads passwords from stdin/file in this order:
@@ -81,9 +112,15 @@ chmod 600 /tmp/rcu_passwords.txt
 ### 2. Run RCU
 
 ```bash
+# test the connection first (lists existing schemas – the prefix must not exist yet)
+$ORACLE_HOME/oracle_common/bin/rcu -silent -listSchemas -databaseType EBR \
+    -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" -dbUser sys -dbRole sysdba \
+    -f < /tmp/rcu_passwords.txt
+
 $ORACLE_HOME/oracle_common/bin/rcu \
     -silent \
     -createRepository \
+    -databaseType EBR \
     -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys \
     -dbRole sysdba \
@@ -99,6 +136,10 @@ $ORACLE_HOME/oracle_common/bin/rcu \
     -f < /tmp/rcu_passwords.txt
 ```
 
+`-databaseType` = `RCU_DB_TYPE` (`EBR` default, or `ORACLE`). With
+`RCU_TABLESPACE` set add `-tablespace FMW_DATA -tempTablespace TEMP` directly
+after **each** `-component <ID>`.
+
 > **Connect string format:** Use `/service_name` (slash) for PDB service names — not `:SID`
 > (colon). Colon format addresses the CDB SID; slash format targets the PDB service.
 > Example: `192.168.1.20:1521/fmwpdb`
@@ -112,15 +153,23 @@ rm -f /tmp/rcu_passwords.txt
 ### 4. Verify schemas were created
 
 ```bash
-sqlplus sys/${DB_SYS_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_SERVICE} as sysdba << 'EOF'
-SELECT username FROM dba_users
-WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}')  || '_%'
-ORDER BY username;
-EXIT;
+sqlplus -S -L /nolog <<EOF
+CONNECT sys/"<sys password>"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
+SELECT username, profile, account_status FROM dba_users
+ WHERE username LIKE '${DB_SCHEMA_PREFIX^^}\_%' ESCAPE '\' ORDER BY username;
 EOF
 ```
 
 Expected: 9 schemas listed (8 components + the WLS_RUNTIME sub-schema).
+
+### 5. DB profile for the schemas
+
+RCU creates them with profile `DEFAULT` (password expires after 180 days):
+
+```sql
+-- as SYSDBA in the PDB, from the repository root
+@60-RCU-DB-19c/rcu_user_profile.sql RCU_USER DEV      -- profile + assign (prefixes comma-separated)
+```
 
 ---
 
@@ -129,13 +178,20 @@ Expected: 9 schemas listed (8 components + the WLS_RUNTIME sub-schema).
 ### Default: RCU creates its own tablespaces
 
 If `RCU_TABLESPACE` is **not** set in `environment.conf`, RCU automatically creates
-tablespaces for each schema component using prefix-based names:
+tablespaces for each schema component using prefix-based names (from
+`$ORACLE_HOME/oracle_common/common/sql/*/*_Storage.xml`, FMW 14.1.2, checked
+2026-11-03):
 
 | Component | Default tablespace created by RCU |
 |---|---|
-| STB, MDS, UCSUMS | `<PREFIX>_STB` |
+| STB | `<PREFIX>_STB` |
+| MDS | `<PREFIX>_MDS` |
 | OPSS | `<PREFIX>_IAS_OPSS` |
-| IAU, IAU_APPEND, IAU_VIEWER | `<PREFIX>_IAS_AUDIT` |
+| IAU, IAU_APPEND, IAU_VIEWER | `<PREFIX>_IAU` |
+| UCSUMS | `<PREFIX>_IAS_UMS` |
+| WLS (+ WLS_RUNTIME) | `<PREFIX>_WLS` |
+
+plus a shared temporary tablespace (`fmw/fmw_Storage.xml`).
 
 No DBA action required. Suitable for dev, test and QA environments.
 
@@ -179,20 +235,25 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
   its own tablespaces automatically)
 - Decrypts `DB_SYS_PWD` + `DB_SCHEMA_PWD` from `db_sys_sec.conf.des3`
   (written by `00-Setup/database_rcu_sec.sh` or `09-Install/01-setup-interview.sh`)
-- Creates `/tmp/rcu_passwords.tmp` with correct permissions (600)
+- Creates `/tmp/rcu_pw_<PID>.tmp` with correct permissions (600)
 - **DB Pre-Flight Check** (before touching the database):
   1. TCP port reachability (`bash /dev/tcp`) — fails fast if listener is down
   2. `rcu -listSchemas` — tests SYSDBA auth and lists existing schemas;
      aborts if connection fails or if prefix already exists (use `--drop` first)
-  3. `db_securefile` (create only, via sqlplus as SYSDBA): with `FORCE` the
+  3. Registry overview (`rcu_registry_overview.sql`, all prefixes – before
+     the first RCU run `IHW:NOREG`, no error) and the database requirements
+     (`rcu_db_requirements.sql`, same as `--check`) – a FAIL item stops `--apply`
+  4. `db_securefile` (create only, via sqlplus as SYSDBA): with `FORCE` the
      first RCU run in a database fails – the registry
      `SYSTEM.SCHEMA_VERSION_REGISTRY$` (CLOB) is created in the non-ASSM
      tablespace `SYSTEM` → ORA-43853. FAIL if `FORCE` and no registry yet
      (fix: `ALTER SYSTEM SET db_securefile=PREFERRED`), WARN if `FORCE` and a
      registry already exists. `PREFERRED`/`ALWAYS` are fine (BasicFile in
      `SYSTEM`). Live test: architecture doc §4.2
-  4. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
-     to confirm the tablespace was pre-created before proceeding
+  5. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
+     to confirm the tablespace was pre-created before proceeding (no DB
+     query – answer "y" only after `60-RCU-DB-19c/05-db_fmw_tablespace.sh`
+     or the DBA confirmed it, otherwise RCU fails half-way)
 - Runs `rcu -silent -createRepository` with all 8 components (9 schemas total,
   including the WLS_RUNTIME sub-schema)
 - **Database type** `RCU_DB_TYPE` (`EBR` | `ORACLE`, default `EBR`, asked by
@@ -205,7 +266,8 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
   Background: `80-FMW-Architecture/rcu_middleware_architecture.md` §4.3
 - Deletes the password file immediately via `trap cleanup EXIT`
   (cleanup runs even if RCU fails or script is interrupted)
-- Verifies each schema is confirmed as Success in the RCU log
+- Verifies the RCU Completion Summary in the log (`Success` ≥ 8 components,
+  any `Failure` = FAIL)
 - **DB profile** (since 2026-10-17): RCU creates its schemas with profile
   `DEFAULT` – in 19c `PASSWORD_LIFE_TIME 180` / `FAILED_LOGIN_ATTEMPTS 10`:
   after 180 days the data sources and the OPSS bootstrap can no longer log in
@@ -226,7 +288,7 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 
 | Flag | Description |
 |---|---|
-| (none) | Show what would be created (connection info, schema names) |
+| (none) | Show what would be created (connection info, schema names); no DB connection |
 | `--apply` | Run RCU and create schemas |
 | `--drop` | Drop existing schemas (CAUTION: destroys data) |
 | `--check` | Read-only: FMW 14.1.2 database requirements in the target PDB – version (19c ≥ 19.14 / 23ai–26ai ≥ 23.4.0.24), edition (EE; SE2 → ORA-00439), AL32UTF8, Oracle JVM, `db_block_size`, RCU parameter minimums (`processes` 1000, `open_cursors` 1600, `session_cached_cursors` 100, `db_files` 600). The same check runs automatically before `--apply` (FAIL items stop RCU). Requirements: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai) |
@@ -247,6 +309,7 @@ chmod 600 /tmp/rcu_pw_verify.txt
 $ORACLE_HOME/oracle_common/bin/rcu \
     -silent \
     -listSchemas \
+    -databaseType EBR \
     -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
     -dbUser sys -dbRole sysdba \
     -f < /tmp/rcu_pw_verify.txt
