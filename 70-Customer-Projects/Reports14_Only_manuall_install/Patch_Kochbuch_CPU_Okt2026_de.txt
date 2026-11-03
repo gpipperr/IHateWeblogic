@@ -17,7 +17,8 @@
                Forms14_reports14_patch_analyse_10_2026/
                install_14c_patch_set_october_2026_manual.md
   Patchliste : patches_cpu_oct2026.csv (dieses Verzeichnis) - Download in
-               einem Lauf mit ../tools/mos_patch_download.sh (Schritt 1)
+               einem Lauf mit ../tools/mos_patch_download.sh (VORAUSSETZUNGEN
+               V.3), Variablen mit ../tools/fmw_patch_env.sh (V.2)
   Wichtig    : Der Ausgangsstand dieses Homes ist NICHT bekannt (kein
                Sammellauf moeglich). Deshalb: kompletten Satz laden und VOR
                jedem Patch mit "opatch lspatches" pruefen, ob er (oder ein
@@ -55,32 +56,146 @@ ZIELSTAND (CPU Oktober 2026)
   Test ca. 2,5 h. Jedes "opatch lspatches" dauert ca. 25 s.
 
 
+VORAUSSETZUNGEN
+----------------
+  Ablauf der Vorbereitung (vor dem Wartungsfenster, System laeuft):
+
+    V.1  Arbeitsverzeichnis anlegen, Werkzeuge hineinlegen
+    V.2  Variablen setzen + Verzeichnisse anlegen  (fmw_patch_env.sh)
+    V.3  Patches herunterladen                     (mos_patch_download.sh)
+    dann SCHRITT 0 (Variablen pruefen), SCHRITT 1 (ZIPs pruefen),
+    SCHRITT 2 (Ist-Stand) und SCHRITT 3 (nach $STAGE entpacken)
+
+  Was wo landet:
+
+    /u01/oracle/install/cpu_okt2026/    Arbeitsverzeichnis (= Basis, V.1)
+      fmw_patch_env.sh                  aus 70-Customer-Projects/tools/
+      mos_patch_download.sh             aus 70-Customer-Projects/tools/
+      patches_cpu_oct2026.csv           neben diesem Kochbuch
+      getMOSPatch.jar                   von Hand (github.com/MarisElsins/getMOSPatch)
+      patch_env.sh                      <- V.2 (Variablen fuer weitere Terminals)
+      zip/                              $PATCH_DIR  <- V.3
+        <patchnr>/p<patchnr>_*.zip      ein Verzeichnis je Patch
+        <patchnr>/.getMOSPatch.cfg      Hilfsdatei des Downloads (Plattform),
+                                        wird nicht gebraucht und nicht entpackt
+        patches_sha256.txt, mos_patch_download_<zeit>.log
+      stage/                            $STAGE  <- SCHRITT 3 (entpackt, >= 8 GB)
+        WLS_SPB_14.1.2.0.261007/  40050062/  39951765/  39600348/ ...
+        logs/                           $LOGDIR (alle tee-Ausgaben der Schritte)
+    /u01/oracle/backup/cpu_okt2026/     $BACKUP  <- SCHRITT 5 (anderes Dateisystem
+                                        als /u01, wenn moeglich)
+    /u01/oracle/java/jdk-21.0.13.0.2/   neues JDK  <- SCHRITT 6, der Link
+                                        /u01/oracle/java/jdk-21 ($JDK_HOME)
+                                        zeigt danach darauf
+
+  V.1 Arbeitsverzeichnis
+  ----------------------
+    mkdir -p /u01/oracle/install/cpu_okt2026 && cd /u01/oracle/install/cpu_okt2026
+    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_oct2026.csv und
+    # getMOSPatch.jar hierher kopieren, dann:
+    chmod +x fmw_patch_env.sh mos_patch_download.sh
+
+  V.2 Variablen setzen (GESOURCT - nur so landen sie in dieser Shell)
+  -------------------------------------------------------------------
+    cd /u01/oracle/install/cpu_okt2026
+    ./fmw_patch_env.sh                   # nur anzeigen und pruefen
+    . ./fmw_patch_env.sh --apply         # setzen + zip/ stage/ stage/logs
+                                         # + $BACKUP anlegen + patch_env.sh
+    . /u01/oracle/install/cpu_okt2026/patch_env.sh   # in jedem weiteren Terminal
+    # Ermittelt ORACLE_HOME, DOMAIN_HOME, INV_PTR, JDK_LINK aus der
+    # laufenden Umgebung; PATCH_DIR / STAGE / LOGDIR / BACKUP aus dem
+    # Arbeitsverzeichnis. Ausgabe mit den Werten unten vergleichen.
+    # Laeuft die Domain nicht: -o <ORACLE_HOME> -d <DOMAIN_HOME> mitgeben.
+
+    Ohne Skript - dieselben Werte von Hand (Layout der Reports-Kochbuecher,
+    install.ini):
+    export ORACLE_HOME=/u01/oracle/fmw                  # Forms-&-Reports-Home
+    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export INV_PTR=/etc/oraInst.loc                     # inventory_loc=... darin
+    export JDK_LINK=/u01/oracle/java/jdk-21             # JAVA_HOME aus
+                                                        # $ORACLE_HOME/oui/.globalEnv.properties
+    export NEW_JDK_BASE=/u01/oracle/java                # dort landet 21.0.13.0.2
+    export PATCH_DIR=/u01/oracle/install/cpu_okt2026/zip    # die heruntergeladenen ZIPs
+    export STAGE=/u01/oracle/install/cpu_okt2026/stage      # Entpack-Verzeichnis (>= 8 GB)
+    export BACKUP=/u01/oracle/backup/cpu_okt2026            # Ziel der Sicherung
+    export LOGDIR=$STAGE/logs
+    mkdir -p $PATCH_DIR $STAGE $BACKUP $LOGDIR
+
+  V.3 Patches herunterladen (alle in EINEM Lauf)
+  ----------------------------------------------
+    cd /u01/oracle/install/cpu_okt2026
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all            # nur Plan
+    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all --apply    # Download
+    # 18 Patches, ca. 4 GB. --all laedt auch die optionalen Zeilen
+    # (JDK-Ersatz 40186074, Reports-One-off 38936596) - gewollt: lieber zu
+    # viel als zu wenig. MOS-Passwort wird einmal (verdeckt) abgefragt;
+    # Ergebnis je Patch in $PATCH_DIR/<patchnr>/, Pruefsummen in
+    # $PATCH_DIR/patches_sha256.txt, Exit 0 = alle Pflicht-Patches da.
+    # Zweiter Lauf laedt nur, was fehlt. Hinter einem Proxy: --proxy host:port.
+    # Kein MOS-Zugang auf dem Server: auf einem anderen Rechner mit
+    # -d <dort>/zip laden und zip/ komplett nach $PATCH_DIR kopieren.
+    # Ohne Skript: jeden Patch im Browser laden und nach
+    # $PATCH_DIR/<patchnr>/ legen. Beschreibung: 70-Customer-Projects/tools/README.md.
+
+    Benoetigte ZIPs in $PATCH_DIR/<nr>/ (Plattform beachten!):
+
+    Patch      Datei                                     Inhalt
+    ---------  ----------------------------------------  -----------------------
+    35702194   p35702194_2100_Linux-x86-64.zip           JDK 21 latest (Inhalt
+                                                         >= 21.0.13.0.2, Schritt 1)
+    40186074   p40186074_*_Linux-x86-64.zip  (optional)  JDK 21.0.13.0.2 (Ersatz)
+    28186730   p28186730_1394225_Generic.zip             OPatch 13.9.4.2.25
+                                                         (steckt auch im SPB)
+    40125898   p40125898_141200_Generic.zip              WLS Stack Patch Bundle
+    40050062   p40050062_141200_Generic.zip              ADF BP
+    40035984   p40035984_141200_Generic.zip              WebCenter Core BP
+    40024749   p40024749_141200_Generic.zip              OWSM BP
+    39995927   p39995927_141200_Generic.zip              FMW Control (EM) BP
+    40057999   p40057999_141200_Generic.zip              OAMCLIENT BP
+    39940047   p39940047_141200_Generic.zip              UMS BP
+    39979746   p39979746_141200_Generic.zip              OPSS BP
+    39726399   p39726399_141200_Generic.zip              LibOVD BP
+    39951765   p39951765_141200_Linux-x86-64.zip         PERL SPU
+    39987730   p39987730_141200_Linux-x86-64.zip         OHS BP (nur Binaries)
+    39100536   p39100536_141200_Linux-x86-64.zip         WebGate BP (nur Binaries)
+    39842516   p39842516_141200_Linux-x86-64.zip         Forms QPR 14.1.2
+    39600348   p39600348_141200_Linux-x86-64.zip         Reports QPR 14.1.2
+    38936596   p38936596_141200_Generic.zip  (optional)  Reports-One-off Bidi
+
+  ACHTUNG Plattform: PERL, OHS, WebGate, Forms- und Reports-QPR und das JDK
+  gibt es unter derselben Patchnummer fuer mehrere Plattformen. Nur
+  "*Linux-x86-64*.zip" verwenden; alles andere ist "Generic".
+
+
+  Regeln fuer den ganzen Lauf:
+  - Alle Schritte als der Software-Owner (oracle), NICHT als root (ausser
+    Schritt 6, falls /u01/oracle/java root gehoert, und systemctl).
+  - STAGE und PATCH_DIR liegen AUSSERHALB von ORACLE_HOME; STAGE braucht
+    mindestens 8 GB frei (SPB allein ca. 4 GB).
+  - Alle Prozesse des Homes sind ab Schritt 4 gestoppt.
+  - "OPatch succeeded" allein ist KEIN Beweis: nach jedem Patch die Ausgabe
+    auf "Prerequisite check ... failed", "skipped", "none of the
+    components", "make" und "error" durchsehen.
+
+
 ================================================================================
-SCHRITT 0: Variablen  (als oracle)
+SCHRITT 0: Variablen pruefen  (in JEDEM Terminal, als oracle)
 ================================================================================
 
-  # Kurzweg: . /u01/oracle/tools/set_install_env.sh  (install.ini)
-  # Sonst von Hand - Werte an die Umgebung anpassen:
+  . /u01/oracle/install/cpu_okt2026/patch_env.sh     # aus V.2
+  # Die Schritte unten verwenden zusaetzlich JDK_HOME und ORACLE_BASE:
   export ORACLE_BASE=/u01/oracle
-  export ORACLE_HOME=/u01/oracle/fmw
-  export JDK_HOME=/u01/oracle/java/jdk-21           # Symlink -> jdk-21.0.x
+  export JDK_HOME=$JDK_LINK
   export JAVA_HOME=$JDK_HOME
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-  export PATCH_STORAGE=/u01/oracle/patch_storage    # ZIPs: patches/<nr>/
-  export STAGE=$ORACLE_BASE/stage/cpu_oct2026       # entpackt, >= 8 GB frei
-  export BACKUP=/u01/backup/cpu_oct2026             # >= Groesse Home+Domain
-  export LOGDIR=$STAGE/logs
-  export INV_PTR=/etc/oraInst.loc
-  mkdir -p $STAGE $BACKUP $LOGDIR $ORACLE_BASE/tmp
-
-  # Regeln fuer den ganzen Lauf:
-  # - immer als Installations-Owner (oracle), NIE als root (ausser Schritt 6
-  #   falls /u01/oracle/java root gehoert)
-  # - STAGE und PATCH_STORAGE liegen AUSSERHALB von $ORACLE_HOME
-  # - "OPatch succeeded" allein beweist nichts: jede Ausgabe auf
-  #   "Prerequisite check ... failed", "skipped", "none of the components",
-  #   "make", "error" lesen
-  # - ab Schritt 4 laeuft KEIN Prozess aus $ORACLE_HOME / $JDK_HOME mehr
+  mkdir -p $ORACLE_BASE/tmp
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME ($(readlink $JDK_HOME))"
+  echo "ZIP=$PATCH_DIR STAGE=$STAGE BACKUP=$BACKUP LOG=$LOGDIR"
+  # JDK_HOME muss ein LINK sein (z.B. jdk-21 -> jdk-21.0.12.1) - nur dann
+  # ist der JDK-Wechsel in Schritt 6 ein einfaches Umsetzen des Links.
+  # Ist es ein echtes Verzeichnis: VOR Schritt 6 einmalig umbauen
+  #   mv /u01/oracle/java/jdk-21 /u01/oracle/java/jdk-21.0.<alt>
+  #   ln -s /u01/oracle/java/jdk-21.0.<alt> /u01/oracle/java/jdk-21
+  # (bei gestoppter Domain, Schritt 4).
 
   # Platz pruefen (SPB entpackt ca. 4 GB, Backup ca. Home + Domain):
   df -h $STAGE $BACKUP /tmp
@@ -88,38 +203,23 @@ SCHRITT 0: Variablen  (als oracle)
 
 
 ================================================================================
-SCHRITT 1: Patches herunterladen  (VORAB, vor dem Termin)
+SCHRITT 1: ZIPs pruefen  (vor dem Wartungsfenster)
 ================================================================================
 
-  # Alle Patches aus patches_cpu_oct2026.csv in einem Lauf (18 Stueck, ca.
-  # 4 GB). Auf einem Rechner mit Zugang zu MOS (updates.oracle.com,
-  # login.oracle.com) - das kann auch ein anderer Rechner sein, danach den
-  # Ordner per scp auf den Server kopieren.
-  # Voraussetzung: Java, python3, unzip und getMOSPatch.jar
-  # (https://github.com/MarisElsins/getMOSPatch) im aktuellen Verzeichnis.
-
-  cd <Verzeichnis mit mos_patch_download.sh, patches_cpu_oct2026.csv, getMOSPatch.jar>
-  ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_STORAGE --all
-  #   = Plan: zeigt, was geladen wuerde
-  ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_STORAGE --all --apply
-  #   MOS-Benutzer und Passwort werden einmal (verdeckt) abgefragt.
-  #   --all laedt auch die optionalen Zeilen (JDK-Ersatz 40186074,
-  #   Reports-One-off 38936596) - gewollt: lieber zu viel als zu wenig.
-  #   Hinter einem Proxy: --proxy host:port
-  #   Ergebnis: $PATCH_STORAGE/patches/<nr>/p<nr>_*.zip, jede ZIP mit
-  #   "unzip -t" geprueft, SHA-256 in $PATCH_STORAGE/patches_sha256.txt.
-  #   Exit 0 = alles da; "SHA-256 differs" (WARN) = Oracle hat den Patch
-  #   unter gleicher Nummer neu ausgeliefert - auf MOS vergleichen.
+  ls -l $PATCH_DIR/*/p*.zip           # je Patch eine ZIP, Plattform im Namen
+  cat $PATCH_DIR/patches_sha256.txt   # mit den SHA-256-Werten auf MOS vergleichen
+  # "SHA-256 differs" (WARN) beim Download = Oracle hat den Patch unter
+  # gleicher Nummer neu ausgeliefert - auf MOS vergleichen.
 
   # JDK: der ZIP-Name von 35702194 aendert sich NIE - die Version steht
   # nur IM ZIP. Pflicht: jdk-21.0.13.0.2 oder neuer (21.0.13 ohne ".0.2"
   # ist selbst von CVE-2026-91403 betroffen):
-  unzip -l $PATCH_STORAGE/patches/35702194/p35702194_*.zip | grep -o 'jdk-21[^_]*'
-  unzip -l $PATCH_STORAGE/patches/40186074/p40186074_*.zip | grep -o 'jdk-21[^_]*'
+  unzip -l $PATCH_DIR/35702194/p35702194_*.zip | grep -o 'jdk-21[^_]*'
+  unzip -l $PATCH_DIR/40186074/p40186074_*.zip | grep -o 'jdk-21[^_]*'
   #   Die neuere der beiden nehmen (Schritt 6).
 
   # Plattform kontrollieren - keine Solaris/AIX/Windows-ZIPs:
-  ls -1 $PATCH_STORAGE/patches/*/p*.zip | grep -E 'SOLARIS|AIX|MSWIN|HPUX'
+  ls -1 $PATCH_DIR/*/p*.zip | grep -E 'SOLARIS|AIX|MSWIN|HPUX'
   # Erwartet: keine Ausgabe
 
 
@@ -176,7 +276,7 @@ SCHRITT 3: Patches entpacken  (als oracle, Umgebung darf noch laufen)
 ================================================================================
 
   cd $STAGE
-  for Z in $PATCH_STORAGE/patches/*/p*.zip; do
+  for Z in $PATCH_DIR/*/p*.zip; do
       case "$Z" in */35702194/*|*/40186074/*|*/28186730/*) continue ;; esac   # JDK/OPatch: eigene Schritte
       echo "== $Z"; unzip -q -o "$Z" -d $STAGE
   done
@@ -235,7 +335,7 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   ls -ld /u01/oracle/java $JDK_HOME              # Besitzer? Link?
   cd /u01/oracle/java
   # Neuere der beiden ZIPs aus Schritt 1 nehmen (Beispiel 35702194):
-  unzip -j -o $PATCH_STORAGE/patches/35702194/p35702194_*.zip '*_linux-x64_bin.tar.gz' -d $STAGE
+  unzip -j -o $PATCH_DIR/35702194/p35702194_*.zip '*_linux-x64_bin.tar.gz' -d $STAGE
   ls $STAGE/jdk-21*_linux-x64_bin.tar.gz
   tar -xzf $STAGE/jdk-21.0.13.0.2_linux-x64_bin.tar.gz -C /u01/oracle/java/
   NEWJDK=/u01/oracle/java/jdk-21.0.13.0.2      # Verzeichnisname aus dem tar
@@ -296,7 +396,7 @@ SCHRITT 7: OPatch 13.9.4.2.25  (als oracle)
   # die Kopie im SPB (identisch mit dem Einzeldownload 28186730):
   mkdir -p $STAGE/opatch
   unzip -q -o $STAGE/WLS_SPB_14.1.2.0.261007/tools/opatch/generic/p28186730_*.zip -d $STAGE/opatch \
-   || unzip -q -o $PATCH_STORAGE/patches/28186730/p28186730_*.zip -d $STAGE/opatch
+   || unzip -q -o $PATCH_DIR/28186730/p28186730_*.zip -d $STAGE/opatch
   $JDK_HOME/bin/java -Djava.io.tmpdir=$ORACLE_BASE/tmp \
       -jar $STAGE/opatch/6880880/opatch_generic.jar \
       -silent oracle_home=$ORACLE_HOME -invPtrLoc $INV_PTR
@@ -549,7 +649,7 @@ SCHRITT 14: Aufraeumen und dokumentieren
   # $LOGDIR (Ausgaben dieses Laufs) aufheben = Patch-Nachweis.
   # VM-Snapshot nach einigen Tagen Betrieb loeschen (Snapshots wachsen).
   # Altes JDK ($OLDJDK) erst beim naechsten Zyklus entfernen.
-  # Die ZIPs in $PATCH_STORAGE/patches fuer den naechsten Zyklus in einen
+  # Die ZIPs in $PATCH_DIR/patches fuer den naechsten Zyklus in einen
   # Ordner patches_cpu_oct2026/ verschieben, damit keine alten Builds
   # versehentlich wiederverwendet werden.
 
