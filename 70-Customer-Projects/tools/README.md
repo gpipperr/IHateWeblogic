@@ -291,11 +291,30 @@ running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
    ---
       c ---> clear environment    (back to the login values)
       h ---> help                 (aliases / functions / variables)
+      q ---> quit                 (nothing changed)
    Selection [1]:
 ```
 
-`setdb 2` selects directly, `*` marks the active entry, an invalid choice
-changes nothing.
+`setdb 2` selects directly, `*` marks the active entry, `q` or an invalid
+choice changes nothing.
+
+Where the homes come from (`ihwenv_configure`, every path once – symlinks
+and a trailing `/` only for the comparison, the registered spelling is
+kept for OPatch):
+- the central inventory (`/etc/oraInst.loc`), entries not `REMOVED`;
+- **further inventories** named in `<home>/oraInst.loc` – a DB home
+  installed with its own `-invPtrLoc` or by another team is not in the
+  FMW inventory;
+- `/etc/oratab`;
+- the standard locations `/u0?/app/*/product/*/*`, `/oracle/product/*/*`,
+  `/opt/oracle/product/*/*`, `$ORACLE_BASE/product/*/*` (only directories
+  with `bin/oracle`) – a DB home **without SID** is in no oratab and
+  without them it would not be listed (customer, 2026-11-03).
+
+What was found but not listed is written as `# skipped: <home> (reason)`
+into the cache and shown after the run: directory missing, client home (no
+`bin/oracle`), neither FMW nor DB. A home still missing: add the line by
+hand to `~/.ihw_env.conf` (`IHW_DB_ENV+=("- <home> <base>")`).
 
 | Entry | Sets | PATH (in front of the login PATH) |
 |---|---|---|

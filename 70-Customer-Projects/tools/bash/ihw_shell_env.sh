@@ -5,7 +5,8 @@
 # One menu for FMW homes / domains and DB homes / SIDs, in the style of
 # OraBashShell .profile (setdb, https://github.com/gpipperr/OraBashShell).
 #
-#   setdb [n|c|h]   menu; n = select entry n directly, c = clear, h = help
+#   setdb [n|c|h|q] menu; n = select entry n directly, c = clear, h = help,
+#                   q = quit without change
 #   setfmw / setfw  aliases of setdb (same menu)
 #   whichenv        show the current environment
 #   ihwenv_configure [-f]   detect homes again -> ~/.ihw_env.conf (editable)
@@ -26,7 +27,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.3"
+IHW_SHELL_ENV_VERSION="2026-11-03.4"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -101,12 +102,23 @@ _ihwse_fmw_jdk() {   # JDK of a FMW home: .globalEnv.properties, else bundled
     printf "%s" "$oh/oracle_common/jdk"
 }
 
+_ihwse_norm() {   # comparison key: no trailing "/", symlinks resolved (same home, other spelling)
+    local p="${1%/}"
+    readlink -f "$p" 2>/dev/null || printf "%s\n" "$p"
+}
+
 _ihwse_db_sids() {   # SIDs of a DB home: /etc/oratab + running pmon processes
-    local oh="$1" pid sid
+    local oh="$1" pid sid line
     {
-        [ -r /etc/oratab ] && awk -F: -v h="$oh" '$0 !~ /^[[:space:]]*#/ && $1 != "*" && $2 == h { print $1 }' /etc/oratab
+        if [ -r /etc/oratab ]; then
+            while IFS= read -r line; do
+                case "$line" in ''|\#*|\**) continue ;; esac
+                [ "$(_ihwse_norm "$(printf "%s" "$line" | cut -d: -f2)")" = "$(_ihwse_norm "$oh")" ] || continue
+                printf "%s\n" "${line%%:*}"
+            done < /etc/oratab
+        fi
         for pid in $(pgrep -f '^ora_pmon_' 2>/dev/null); do
-            [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$oh/bin/oracle" ] || continue
+            [ "$(readlink -f "/proc/$pid/exe" 2>/dev/null)" = "$(_ihwse_norm "$oh")/bin/oracle" ] || continue
             sid="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | sed -n 's/^ora_pmon_\([^ ]*\).*/\1/p')"
             [ -n "$sid" ] && printf "%s\n" "$sid"
         done
@@ -122,6 +134,7 @@ ihwenv_configure() {
     fi
     [ -r /etc/oraInst.loc ] && inv="$(sed -n 's/^inventory_loc=//p' /etc/oraInst.loc)"
     invfile="$inv/ContentsXML/inventory.xml"
+    local -a skipped=()
 
     tmp="$(mktemp)" || return 1
     {
@@ -131,13 +144,15 @@ ihwenv_configure() {
         printf "# IHW_FMW_ENV: label ORACLE_HOME DOMAIN_HOME|- JDK_HOME   (label - = home only)\n"
         printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE\n"
         printf "# Inventory  : %s\n" "${invfile}"
-        # candidate homes: inventory (not REMOVED, existing) + /etc/oratab
-        {
-            [ -r "$invfile" ] && grep '<HOME ' "$invfile" | grep -v 'REMOVED="T"' \
-                | sed -n 's/.*LOC="\([^"]*\)".*/\1/p'
-            [ -r /etc/oratab ] && awk -F: '$0 !~ /^[[:space:]]*#/ && NF >= 2 { print $2 }' /etc/oratab
-        } | awk '!seen[$0]++' | while read -r h; do
-            [ -d "$h" ] || continue
+        # candidate homes (each normalised, duplicates removed):
+        #  - central inventory (/etc/oraInst.loc), entries not REMOVED
+        #  - further inventories named in <home>/oraInst.loc (DB installed with
+        #    its own -invPtrLoc / by another team: not in the central inventory)
+        #  - /etc/oratab
+        #  - standard locations */product/<ver>/<home> - a DB home without SID
+        #    is in no oratab, and without these it would stay invisible
+        _ihwse_candidates "$invfile" | while read -r h; do
+            [ -d "$h" ] || { printf "#SKIP %s (directory missing)\n" "$h"; continue; }
             if [ -f "$h/wlserver/server/lib/weblogic.jar" ]; then
                 jdk="$(_ihwse_fmw_jdk "$h")"
                 printf 'IHW_FMW_ENV+=("%s %s %s %s")\n' "-" "$h" "-" "$jdk"
@@ -153,15 +168,20 @@ ihwenv_configure() {
                     printf 'IHW_DB_ENV+=("%s %s %s")\n' "$sid" "$h" "$base"
                 done
                 [ -z "$sid" ] && printf 'IHW_DB_ENV+=("%s %s %s")\n' "-" "$h" "$base"
+            elif [ -x "$h/bin/sqlplus" ]; then
+                printf "#SKIP %s (client home - no bin/oracle)\n" "$h"
+            else
+                printf "#SKIP %s (neither FMW nor DB home)\n" "$h"
             fi
         done
     } > "$tmp.raw"
     # order: header, FMW (home only before its domains), DB with SID, DB without SID
     {
-        grep '^#' "$tmp.raw"
+        grep '^# ' "$tmp.raw"
         grep '^IHW_FMW_ENV' "$tmp.raw"
         grep '^IHW_DB_ENV' "$tmp.raw" | grep -v '^IHW_DB_ENV+=("- '
         grep '^IHW_DB_ENV+=("- ' "$tmp.raw"
+        grep '^#SKIP' "$tmp.raw" | sed 's/^#SKIP/# skipped:/'
     } > "$tmp"
     rm -f "$tmp.raw"
     mv "$tmp" "$IHW_ENV_CONF" && chmod 600 "$IHW_ENV_CONF"
@@ -171,6 +191,41 @@ ihwenv_configure() {
     printf "   %s FMW and %s DB entries written to %s\n" "$n_fmw" "$n_db" "$IHW_ENV_CONF"
     _ihwse_line
     grep -v '^#' "$IHW_ENV_CONF"
+    grep '^# skipped:' "$IHW_ENV_CONF"
+}
+
+# candidate homes for ihwenv_configure, one normalised path per line
+_ihwse_candidates() {
+    local invfile="$1" h loc f
+    local -a invs=("$invfile")
+    {
+        for h in $(grep '<HOME ' "$invfile" 2>/dev/null | grep -v 'REMOVED="T"' \
+                   | sed -n 's/.*LOC="\([^"]*\)".*/\1/p'); do
+            printf "%s\n" "$h"
+            # inventory of this home, if it is another one
+            f="$(sed -n 's/^inventory_loc=//p' "$h/oraInst.loc" 2>/dev/null)"
+            [ -n "$f" ] && invs+=("$f/ContentsXML/inventory.xml")
+        done
+        [ -r /etc/oratab ] && awk -F: '$0 !~ /^[[:space:]]*#/ && $1 != "*" && NF >= 2 { print $2 }' /etc/oratab
+        for h in /u0[0-9]/app/*/product/*/* /u0[0-9]/*/product/*/* /opt/oracle/product/*/* \
+                 /oracle/product/*/* ${ORACLE_BASE:+$ORACLE_BASE/product/*/*}; do
+            [ -x "$h/bin/oracle" ] && printf "%s\n" "$h"
+        done
+        # homes of further inventories (also their oraInst.loc of DB homes)
+        for h in $(awk -F: '$0 !~ /^[[:space:]]*#/ && NF >= 2 { print $2 }' /etc/oratab 2>/dev/null) \
+                 /u0[0-9]/app/*/product/*/* /oracle/product/*/*; do
+            f="$(sed -n 's/^inventory_loc=//p' "$h/oraInst.loc" 2>/dev/null)"
+            [ -n "$f" ] && invs+=("$f/ContentsXML/inventory.xml")
+        done
+        for f in $(printf "%s\n" "${invs[@]}" | sort -u); do
+            [ "$f" = "$invfile" ] && continue
+            grep '<HOME ' "$f" 2>/dev/null | grep -v 'REMOVED="T"' | sed -n 's/.*LOC="\([^"]*\)".*/\1/p'
+        done
+    } | while read -r loc; do
+        # first spelling wins (inventory before oratab / glob) - OPatch expects
+        # the registered path; the resolved path is only the duplicate key
+        [ -n "$loc" ] && printf "%s\t%s\n" "$(_ihwse_norm "$loc")" "${loc%/}"
+    done | awk -F'\t' 'NF == 2 && !seen[$1]++ { print $2 }'
 }
 
 _ihwse_load() {
@@ -231,7 +286,7 @@ _ihwse_apply_db() {   # sid oh base
     if [ -d "$HOME/sql" ]; then
         export SQLPATH="$HOME/sql" ORACLE_PATH="$HOME/sql"
     fi
-    export IHW_ENV_NAME="DB:${sid}"
+    if [ "$sid" = "-" ]; then export IHW_ENV_NAME="DB:no-SID"; else export IHW_ENV_NAME="DB:${sid}"; fi
 }
 
 # ------------------------------------------------------------------ menu ----
@@ -266,6 +321,7 @@ setdb() {
         printf "   ---\n"
         printf "      c ---> clear environment    (back to the login values)\n"
         printf "      h ---> help                 (aliases / functions / variables)\n"
+        printf "      q ---> quit                 (nothing changed)\n"
         if ! read -r -p "   Selection [1]: " sel </dev/tty; then
             _ihwse_err "no terminal - Environment not changed (use setdb <n>)"
             return 1
@@ -276,9 +332,10 @@ setdb() {
     case "$sel" in
         c|C) _ihwse_clear; _ihwse_line; _ihwse_kv "Environment cleared" "login values"; whichenv; return 0 ;;
         h|H) ihwenv_help; setdb; return $? ;;
+        q|Q) printf "   Environment not changed\n"; return 0 ;;
     esac
     if ! [[ "$sel" =~ ^[0-9]+$ ]] || [ "$sel" -lt 1 ] || [ "$sel" -gt "$total" ]; then
-        _ihwse_err "Environment not changed (valid: 1-$total, c, h)"
+        _ihwse_err "Environment not changed (valid: 1-$total, c, h, q)"
         return 1
     fi
     n=$((sel - 1))
@@ -319,7 +376,7 @@ ihwenv_help() {
     _ihwse_line
     printf "   ihw_shell_env.sh %s - cache %s\n" "$IHW_SHELL_ENV_VERSION" "$IHW_ENV_CONF"
     _ihwse_line
-    printf "   %-24s %s\n" "setdb [n|c|h]"      "menu: FMW homes/domains, DB homes/SIDs; n = direct"
+    printf "   %-24s %s\n" "setdb [n|c|h|q]"    "menu: FMW homes/domains, DB homes/SIDs; n = direct, q = quit"
     printf "   %-24s %s\n" "setfmw, setfw"      "aliases of setdb (same menu)"
     printf "   %-24s %s\n" "whichenv"           "show the current environment"
     printf "   %-24s %s\n" "ihwenv_configure [-f]" "detect homes again (-f = without asking)"
@@ -365,6 +422,14 @@ cdlog() {
 }
 
 # ------------------------------------------------------------------ load ----
+# a second copy in ~/.bashrc.d (e.g. ihw_shell_env.sh next to ihw_env.sh) is
+# loaded later and silently replaces these functions with its version
+for _ihwse_f in "$HOME"/.bashrc.d/*; do
+    [ -f "$_ihwse_f" ] && [ "$_ihwse_f" -ef "${BASH_SOURCE[0]}" ] && continue
+    grep -q '^IHW_SHELL_ENV_VERSION=' "$_ihwse_f" 2>/dev/null || continue
+    _ihwse_err "ihw_shell_env: second copy $_ihwse_f ($(sed -n 's/^IHW_SHELL_ENV_VERSION=//p' "$_ihwse_f" | tr -d '"')) - keep only ~/.bashrc.d/ihw_env.sh"
+done
+unset _ihwse_f
 _ihwse_load
 if [ ! -f "$IHW_ENV_CONF" ]; then
     printf "ihw_shell_env: first start - detecting the Oracle homes\n"

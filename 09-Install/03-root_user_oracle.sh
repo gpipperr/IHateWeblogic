@@ -433,6 +433,12 @@ else
         info "  Install: cp $SWITCH_SRC $SWITCH_DST  (--apply)"
     fi
 fi
+# a second copy (other name) is loaded later and replaces the functions
+for _sw_f in $(_run_root grep -l '^IHW_SHELL_ENV_VERSION=' "$SWITCH_DIR"/* 2>/dev/null); do
+    [ "$_sw_f" = "$SWITCH_DST" ] && continue
+    warn "Second copy of the switcher: $_sw_f - remove it (only $SWITCH_DST)"
+done
+unset _sw_f
 # ~/.bashrc must source ~/.bashrc.d (OL9 default) - otherwise the switcher stays inactive
 if _run_root grep -q 'bashrc\.d' "$ORACLE_BASHRC" 2>/dev/null; then
     ok ".bashrc sources ~/.bashrc.d"
