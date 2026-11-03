@@ -255,7 +255,7 @@ _ask_menu_db DB_ARCHIVELOG "Archivelog mode" "false:no – test / development (m
 _ask_db DB_AUDIT_RETAIN_DAYS  "Audit retention (days)"   "$(_raw DB_AUDIT_RETAIN_DAYS)"
 _ts_re=""
 [ "${RCU_TABLESPACE:-}" != "$(_eff DB_FMW_TABLESPACE)" ] && _ts_re="DB_FMW_TABLESPACE '$(_eff DB_FMW_TABLESPACE)' but RCU_TABLESPACE in environment.conf is '${RCU_TABLESPACE:-}'"
-_ask_db DB_FMW_TABLESPACE "FMW tablespace (= RCU_TABLESPACE, empty = RCU default)" "${RCU_TABLESPACE:-}" "$_ts_re"
+_ask_db DB_FMW_TABLESPACE "FMW tablespace for all schemas (= RCU_TABLESPACE)" "${RCU_TABLESPACE:-FMW_DATA}" "$_ts_re"
 fi   # ! CHECK_ONLY
 
 # =============================================================================

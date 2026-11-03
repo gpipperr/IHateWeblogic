@@ -1,9 +1,11 @@
 #!/bin/bash
 # =============================================================================
 # Script   : 05-db_fmw_tablespace.sh
-# Purpose  : Optionally pre-create a shared FMW_DATA tablespace in FMWPDB
-#            for DBA-managed RCU schema storage.
-#            If DB_FMW_TABLESPACE is empty → script exits with info (no-op).
+# Purpose  : Pre-create the ONE tablespace (FMW_DATA) for all RCU schemas in
+#            the PDB – the standard (09-Install/docs/07-…, Tablespace
+#            Configuration).
+#            If DB_FMW_TABLESPACE is empty → WARN, nothing created (fallback:
+#            RCU creates one tablespace per component).
 #            If DB_FMW_TABLESPACE is set   → create tablespace, then set
 #            RCU_TABLESPACE in environment.conf to match.
 # Call     : ./60-RCU-DB-19c/05-db_fmw_tablespace.sh
@@ -69,7 +71,7 @@ unset _arg
 # =============================================================================
 
 printLine
-printf "\n\033[1m  IHateWeblogic – DB FMW Tablespace (optional)\033[0m\n"  | tee -a "$LOG_FILE"
+printf "\n\033[1m  IHateWeblogic – DB FMW Tablespace\033[0m\n"  | tee -a "$LOG_FILE"
 printf "  Host        : %s\n" "$(_get_hostname)"                            | tee -a "$LOG_FILE"
 printf "  Date        : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"               | tee -a "$LOG_FILE"
 printf "  Mode        : %s\n" "$( $APPLY && printf 'APPLY' || printf 'DRY-RUN')" | tee -a "$LOG_FILE"
@@ -77,18 +79,17 @@ printf "  Log         : %s\n" "$LOG_FILE"                                   | te
 printLine
 
 # =============================================================================
-# Optional check — exit cleanly if not configured
+# Not configured: WARN (standard = one tablespace), nothing to do
 # =============================================================================
 
 section "FMW Tablespace Configuration"
 
 if [ -z "${DB_FMW_TABLESPACE:-}" ]; then
-    info "DB_FMW_TABLESPACE is not set in environment_db.conf."
-    info "  → Skipping. RCU will create its own tablespaces automatically."
-    info ""
-    info "To enable: set DB_FMW_TABLESPACE=FMW_DATA in environment_db.conf"
-    info "  and also set RCU_TABLESPACE=FMW_DATA in environment.conf"
-    print_summary; exit 0
+    warn "DB_FMW_TABLESPACE is not set in environment_db.conf – nothing created"
+    info "  Fallback: RCU creates one tablespace per component (not the standard)."
+    info "  Standard: DB_FMW_TABLESPACE=FMW_DATA here (00a-db_env_interview.sh --reset --apply)"
+    info "  and RCU_TABLESPACE=FMW_DATA in environment.conf"
+    print_summary; exit $EXIT_CODE
 fi
 
 _ts_name="$DB_FMW_TABLESPACE"

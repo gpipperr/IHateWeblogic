@@ -252,7 +252,7 @@ $DB_DATA_DIR/                    (default $ORACLE_BASE/oradata)
         ├── undotbs01.dbf   ~0.3 GB
         ├── temp01.dbf      ~0.3 GB
         ├── auditlog01.dbf  100 MB  ← DB_AUDIT_TS_SIZE_MB; purge jobs keep it bounded
-        └── fmw_data01.dbf  500 MB  ← optional (05-), DB_FMW_TABLESPACE_SIZE_MB
+        └── fmw_data01.dbf  500 MB  ← all RCU schemas (05-), DB_FMW_TABLESPACE_SIZE_MB
 ```
 
 **Total DB files: ~9 GB** (test host 9.8 GB incl. 0.5 GB APEX) – fresh
@@ -293,7 +293,7 @@ oracle: 03-db_create_database.sh    DBCA silent CDB+PDB, MAX_STRING_SIZE in ever
                                     local_listener = explicit address (uniaud_on: reported only)
 manual: uniaud_on relink            DB + listener down (04-db_audit_setup.md)
 oracle: 04-db_audit_setup.sh        AUDITLOG-TS + audit policies (CDB+PDB) + purge jobs
-oracle: 05-db_fmw_tablespace.sh     (optional) FMW_DATA tablespace for RCU
+oracle: 05-db_fmw_tablespace.sh     FMW_DATA tablespace for all RCU schemas
 oracle: 06-db_rcu_profile.sh       profile RCU_USER (no password expiry / lock)
 oracle: 08-db_auto_start.sh         /etc/oratab :Y + oracle-db.service systemd unit
 

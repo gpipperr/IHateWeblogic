@@ -111,6 +111,8 @@ _p_listener() { [ -n "$DB_HOME_V" ] && [ -f "$DB_HOME_V/network/admin/listener.o
 _p_db()       { [ -n "$DB_SID_V" ] && grep -q "^${DB_SID_V}:" /etc/oratab 2>/dev/null; }
 _p_dbunit()   { _any /etc/systemd/system/oracle-db*.service /etc/systemd/system/*dbora*.service; }
 _p_dbos()     { [ -f /etc/sysctl.d/60-oracle-db.conf ]; }
+_p_fmwts()    { local d n; d="$(_db_val DB_DATA_DIR)"; n="$(_db_val DB_FMW_TABLESPACE)"; n="${n:-${RCU_TABLESPACE:-}}"
+                [ -n "$d" ] && [ -n "$n" ] && _any "$d"/*/*/"${n,,}"01.dbf; }
 _p_audit()    { local d; d="$(_db_val DB_DATA_DIR)"; [ -n "$d" ] && _any "$d"/*/auditlog*.dbf "$d"/*/*/auditlog*.dbf; }
 _p_apexsw()   { ls -d "${APEX_SW_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product/apex}"/APEX_* > /dev/null 2>&1; }
 _p_apexweb()  { ls -d "${APEX_WEB_DIR:-/srv/apex}"/apex_* > /dev/null 2>&1; }
@@ -149,7 +151,7 @@ STEPS=(
 "DB|oracle|60-RCU-DB-19c/02-db_setup_listener.sh|apply|_c_db|_p_listener|--apply"
 "DB|oracle|60-RCU-DB-19c/03-db_create_database.sh|apply|_c_db|_p_db|--apply"
 "DB|oracle|60-RCU-DB-19c/04-db_audit_setup.sh|apply|_c_db|_p_audit|--apply"
-"DB|oracle|60-RCU-DB-19c/05-db_fmw_tablespace.sh|opt|_c_db|-|--apply"
+"DB|oracle|60-RCU-DB-19c/05-db_fmw_tablespace.sh|apply|_c_db|_p_fmwts|--apply"
 "DB|oracle|60-RCU-DB-19c/06-db_rcu_profile.sh|apply|_c_db|-|--apply"
 "DB|oracle|60-RCU-DB-19c/08-db_auto_start.sh|apply|_c_db|_p_dbunit|--apply"
 "4|oracle|00-Setup/database_rcu_sec.sh|manual|-|_p_dbsec|--apply"

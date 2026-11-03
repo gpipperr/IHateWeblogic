@@ -102,11 +102,11 @@ DB_AUDIT_TS_SIZE_MB=100            # initial size; purge job keeps it bounded
 DB_AUDIT_TS_MAX_MB=4000            # max 4 GB
 DB_AUDIT_RETAIN_DAYS=180           # purge records older than N days
 
-# --- Optional: FMW_DATA Tablespace (05-db_fmw_tablespace.sh) -----------------
-# Leave empty to let RCU create its own tablespaces (recommended for dev).
-# Set to enable pre-created tablespace (enterprise/production).
-# Must match RCU_TABLESPACE in environment.conf.
-DB_FMW_TABLESPACE=""               # e.g. FMW_DATA
+# --- FMW_DATA Tablespace (05-db_fmw_tablespace.sh) ---------------------------
+# Standard: ONE tablespace for all FMW schemas, created before RCU.
+# Must match RCU_TABLESPACE in environment.conf (empty = fallback: RCU creates
+# one tablespace per component).
+DB_FMW_TABLESPACE="FMW_DATA"
 DB_FMW_TABLESPACE_SIZE_MB=500      # initial size
 
 # --- AutoUpgrade / Patching (01-db_install_software.sh) ----------------------

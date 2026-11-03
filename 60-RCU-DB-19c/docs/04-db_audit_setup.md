@@ -365,7 +365,7 @@ SELECT DISTINCT POLICY_NAME, COMMON FROM AUDIT_UNIFIED_POLICIES
 ## Next step
 
 ```bash
-./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply   # optional
+./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply   # FMW_DATA for all RCU schemas
 ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
 ./60-RCU-DB-19c/08-db_auto_start.sh --apply
 ./09-Install/07-oracle_setup_repository.sh --apply

@@ -2,18 +2,18 @@
 
 **Script:** `60-RCU-DB-19c/05-db_fmw_tablespace.sh`
 **Runs as:** `oracle`
-**Phase:** Optional — pre-create a shared FMW_DATA tablespace before RCU
+**Phase:** Before RCU — pre-create the FMW_DATA tablespace for all RCU schemas
 
 ---
 
 ## Purpose
 
-Optionally create a dedicated tablespace in `FMWPDB` for DBA-managed
-RCU schema storage.
+Create the **one** tablespace in `FMWPDB` that holds all RCU schemas – our
+standard ([07-oracle_setup_repository.md – Tablespace Configuration](../../09-Install/docs/07-oracle_setup_repository.md#tablespace-configuration));
+`07-` checks before RCU that it exists (`dba_tablespaces`).
 
-- If `DB_FMW_TABLESPACE` is **not set** in `environment_db.conf`: script
-  exits cleanly with an info message (no-op).
-  RCU will create its own tablespaces automatically.
+- If `DB_FMW_TABLESPACE` is **not set** in `environment_db.conf`: WARN,
+  nothing created – fallback, RCU then creates one tablespace per component.
 - If `DB_FMW_TABLESPACE` is **set**: create the tablespace, then update
   `RCU_TABLESPACE` in `environment.conf` to match.
 

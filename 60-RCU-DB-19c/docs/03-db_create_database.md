@@ -97,7 +97,7 @@ JVM): [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middlew
 Data file sizes come from the DBCA template `General_Purpose.dbc` – the
 script sets none of them (measured: [00-concept.md](00-concept.md#disk-layout-minimal)).
 AUDITLOG tablespace: created by `04-db_audit_setup.sh` (separate script).
-FMW_DATA tablespace: created by `05-db_fmw_tablespace.sh` (optional).
+FMW_DATA tablespace (all RCU schemas): created by `05-db_fmw_tablespace.sh`.
 
 ### DBCA silent command
 
@@ -351,6 +351,6 @@ DB_PDB_ADMIN_PWD    # optional, default DB_SYS_PWD
 
 1. Manual `uniaud_on` relink (DB + listener down) – [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites)
 2. `04-db_audit_setup.sh --apply`
-3. `05-db_fmw_tablespace.sh --apply` (optional)
+3. `05-db_fmw_tablespace.sh --apply` (FMW_DATA for all RCU schemas)
 4. `06-db_rcu_profile.sh --apply`, `08-db_auto_start.sh --apply`
 5. `09-Install/07-oracle_setup_repository.sh --apply`

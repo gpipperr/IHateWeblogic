@@ -203,7 +203,7 @@ Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
                   common audit policies (all containers), AUDITLOG tablespace,
                   archive + purge jobs
   [oracle]      ./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
-                  optional: create FMW_DATA tablespace (skip = RCU creates its own)
+                  FMW_DATA tablespace for all RCU schemas (= RCU_TABLESPACE)
   [oracle]      ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
                   DB profile RCU_USER (no password expiry / lock for the schemas)
   [oracle]      ./60-RCU-DB-19c/08-db_auto_start.sh --apply

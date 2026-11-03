@@ -81,6 +81,36 @@ OVERVIEW_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_registry_overview.sql"
 REQ_SQL="$ROOT_DIR/60-RCU-DB-19c/rcu_db_requirements.sql"
 PREFIXES=()
 RCU_DB_PROFILE="${RCU_DB_PROFILE:-RCU_USER}"
+TS_CHECKED=false
+
+# Tablespaces RCU_TABLESPACE / RCU_TEMP_TABLESPACE in the target PDB (read-only)
+TS_SQL=""
+if [ -n "${RCU_TABLESPACE:-}" ]; then
+    TS_SQL="SET HEADING OFF FEEDBACK OFF PAGESIZE 0 LINESIZE 200
+SELECT 'IHW:TS|' || UPPER('${RCU_TABLESPACE}') || '|' || NVL(MAX(status || '/' || contents), 'MISSING')
+  FROM dba_tablespaces WHERE tablespace_name = UPPER('${RCU_TABLESPACE}');
+SELECT 'IHW:TS|' || UPPER('${RCU_TEMP_TABLESPACE:-TEMP}') || '|' || NVL(MAX(status || '/' || contents), 'MISSING')
+  FROM dba_tablespaces WHERE tablespace_name = UPPER('${RCU_TEMP_TABLESPACE:-TEMP}');"
+fi
+
+# _ts_eval OUTPUT - evaluate the IHW:TS lines; rc 1 = a tablespace is missing / wrong
+_ts_eval() {
+    local t name st rc=0
+    [ -z "$TS_SQL" ] && return 0
+    while IFS='|' read -r t name st; do
+        [ "$t" = "IHW:TS" ] || continue
+        st="${st%$'\r'}"
+        case "$st" in
+            ONLINE/PERMANENT|ONLINE/TEMPORARY) ok "$(printf "Tablespace %-16s %s" "$name" "$st")" ;;
+            MISSING) fail "Tablespace $name does not exist in ${DB_SERVICE}"
+                     info "  Create it: 60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply (local DB) or the DBA"
+                     rc=1 ;;
+            *)       fail "Tablespace $name: $st (expected ONLINE)"; rc=1 ;;
+        esac
+    done <<< "$1"
+    printf '%s\n' "$1" | grep -q '^IHW:TS|' || { warn "Tablespace check returned nothing – see $LOG_FILE"; rc=1; }
+    return $rc
+}
 
 _usage() {
     printf "Usage: %s [--apply | --drop] [--help]\n\n" "$(basename "$0")"
@@ -202,10 +232,11 @@ printList "Database type"   28 "$RCU_DB_TYPE  ($( [ "$RCU_DB_TYPE" = EBR ] && pr
 if [ -n "${RCU_TABLESPACE:-}" ]; then
     ok "$(printf "%-28s %s" "RCU_TABLESPACE:"      "$RCU_TABLESPACE")"
     ok "$(printf "%-28s %s" "RCU_TEMP_TABLESPACE:" "${RCU_TEMP_TABLESPACE:-TEMP}")"
-    info "  → DBA must have pre-created tablespace '$RCU_TABLESPACE' before running RCU"
+    info "  → all schemas in '$RCU_TABLESPACE' – must exist before RCU (checked with --apply / --check)"
 else
-    info "RCU_TABLESPACE not set – RCU will create its own tablespaces automatically"
-    info "  (set RCU_TABLESPACE in environment.conf for a DBA-managed tablespace)"
+    warn "RCU_TABLESPACE not set – RCU creates one tablespace per component (not the standard)"
+    info "  Standard: one tablespace for all schemas – RCU_TABLESPACE=FMW_DATA in environment.conf,"
+    info "  create it with 60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply (local DB) or by the DBA"
 fi
 
 printf "\n" | tee -a "$LOG_FILE"
@@ -333,12 +364,14 @@ if $CHECK_ONLY; then
     _req="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$ORACLE_HOME/bin/sqlplus" -S -L /nolog 2>&1 <<SQLEOF
 CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
 @${REQ_SQL}
+${TS_SQL}
 EXIT;
 SQLEOF
 )"
     unset DB_SYS_PWD DB_SCHEMA_PWD
     printf '%s\n' "$_req" >> "$LOG_FILE"
     rcu_db_req_eval "$_req"
+    _ts_eval "$_req"
     info "Requirements: 80-FMW-Architecture/rcu_middleware_architecture.md section 9"
     print_summary; exit $EXIT_CODE
 fi
@@ -482,6 +515,7 @@ if ! $DROP && [ -x "$ORACLE_HOME/bin/sqlplus" ] && [ -f "$OVERVIEW_SQL" ]; then
 CONNECT sys/"${DB_SYS_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE} AS SYSDBA
 @${OVERVIEW_SQL}
 @${REQ_SQL}
+${TS_SQL}
 EXIT;
 SQLEOF
 )"
@@ -510,11 +544,13 @@ SQLEOF
     else
         ok "db_securefile=${_sf} – RCU registry in tablespace SYSTEM possible"
     fi
+    TS_CHECKED=true
+    _ts_eval "$_pf" || { $APPLY && { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }; }
     unset _pf _sf
 fi
 
-# --- 3. Tablespace pre-check (if RCU_TABLESPACE is configured, create only) ---
-if [ -n "${RCU_TABLESPACE:-}" ] && ! $DROP; then
+# --- 3. Tablespace: confirmation only when sqlplus could not check it --------
+if [ -n "${RCU_TABLESPACE:-}" ] && ! $DROP && ! $TS_CHECKED; then
     printf "\n" | tee -a "$LOG_FILE"
     warn "$(printf "RCU_TABLESPACE='%s' is set – DBA must have pre-created this tablespace." "$RCU_TABLESPACE")"
     info "  Verify on DB server (as SYSDBA):"

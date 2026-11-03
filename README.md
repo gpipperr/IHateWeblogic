@@ -697,7 +697,7 @@ IHateWeblogic/
 │   │                                   local_listener without alias, requirement check)
 │   ├── 04-db_audit_setup.sh         – common audit policies, AUDITLOG tablespace, archive + purge jobs
 │   │                                   (uniaud_on relink before it: --relink --apply)
-│   ├── 05-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
+│   ├── 05-db_fmw_tablespace.sh      – FMW_DATA tablespace for all RCU schemas
 │   ├── 06-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
 │   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry

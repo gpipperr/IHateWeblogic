@@ -557,7 +557,7 @@ info "Next steps:"
 info "  1. relink uniaud_on: 04-db_audit_setup.sh --relink --apply (stops + starts DB and listener)"
 info "     by hand: docs/04-db_audit_setup.md#prerequisites"
 info "  2. 04-db_audit_setup.sh --apply"
-info "  3. 05-db_fmw_tablespace.sh --apply   (optional)"
+info "  3. 05-db_fmw_tablespace.sh --apply   (FMW_DATA for all RCU schemas)"
 info "  4. 06-db_rcu_profile.sh --apply, 08-db_auto_start.sh --apply"
 info "  5. 09-Install/07-oracle_setup_repository.sh --apply"
 

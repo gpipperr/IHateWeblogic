@@ -175,14 +175,50 @@ RCU creates them with profile `DEFAULT` (password expires after 180 days):
 
 ## Tablespace Configuration
 
-### Default: RCU creates its own tablespaces
+### Our standard: one tablespace for all schemas (`RCU_TABLESPACE`)
 
-If `RCU_TABLESPACE` is **not** set in `environment.conf`, RCU automatically creates
-tablespaces for each schema component using prefix-based names (from
+All 9 FMW schemas go into **one** tablespace, passed as `RCU_TABLESPACE`
+(e.g. `FMW_DATA`) – one place for size, monitoring and backup, nothing
+scattered over per-component tablespaces.
+
+```bash
+# environment.conf (01-setup-interview.sh, block 4 – Database)
+RCU_TABLESPACE=FMW_DATA        # must exist before RCU
+RCU_TEMP_TABLESPACE=TEMP       # default: TEMP
+```
+
+Create it before `07- --apply`:
+
+- local RCU DB: `60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply`
+  (`DB_FMW_TABLESPACE` = `RCU_TABLESPACE`, also writes `RCU_TABLESPACE` into
+  `environment.conf`)
+- DBA-managed DB, the DBA creates it:
+
+  ```sql
+  CREATE TABLESPACE FMW_DATA
+    DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
+    SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
+  ```
+
+The script then passes it after **every** component (RCU requirement):
+
+```bash
+rcu ... -component STB -tablespace FMW_DATA -tempTablespace TEMP \
+        -component MDS -tablespace FMW_DATA -tempTablespace TEMP ...
+```
+
+`--drop` removes this tablespace **including its data files**, also a
+DBA-created one – re-create it before the next `--apply` (see *Required
+Schemas*).
+
+### Fallback: `RCU_TABLESPACE` empty – RCU creates its own
+
+Only when `RCU_TABLESPACE` is empty (interview default `FMW_DATA`) RCU creates one
+tablespace per component (names from
 `$ORACLE_HOME/oracle_common/common/sql/*/*_Storage.xml`, FMW 14.1.2, checked
 2026-11-03):
 
-| Component | Default tablespace created by RCU |
+| Component | Tablespace created by RCU |
 |---|---|
 | STB | `<PREFIX>_STB` |
 | MDS | `<PREFIX>_MDS` |
@@ -191,38 +227,8 @@ tablespaces for each schema component using prefix-based names (from
 | UCSUMS | `<PREFIX>_IAS_UMS` |
 | WLS (+ WLS_RUNTIME) | `<PREFIX>_WLS` |
 
-plus a shared temporary tablespace (`fmw/fmw_Storage.xml`).
-
-No DBA action required. Suitable for dev, test and QA environments.
-
-### Optional: single pre-created tablespace (enterprise / production)
-
-The DBA pre-creates one tablespace; all FMW schemas share it.
-
-Set in `environment.conf` (via `01-setup-interview.sh` or manually):
-
-```bash
-RCU_TABLESPACE=FMW_DATA        # DBA must create this before running RCU
-RCU_TEMP_TABLESPACE=TEMP       # default: TEMP (system temp tablespace)
-```
-
-**DBA pre-creation SQL:**
-
-```sql
-CREATE TABLESPACE FMW_DATA
-  DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
-  SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
-```
-
-When `RCU_TABLESPACE` is set, the script adds:
-
-```bash
-rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
-```
-
-> **Note:** `RCU_TABLESPACE` and `RCU_TEMP_TABLESPACE` are set by
-> `09-Install/01-setup-interview.sh` (Block 4 – Database) and are kept in
-> `environment.conf`. Leave `RCU_TABLESPACE` empty to use RCU defaults.
+plus a temporary tablespace (`fmw/fmw_Storage.xml`). Not our way – six
+tablespaces to size and watch.
 
 ---
 
@@ -230,9 +236,9 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 
 - Reads `DB_HOST`, `DB_PORT`, `DB_SERVICE`, `DB_SCHEMA_PREFIX`, `ORACLE_HOME`
   from `environment.conf`
-- Reads optional `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE` from `environment.conf`
-  (if set, passes `-tablespace` / `-tempTablespace` to RCU; otherwise RCU creates
-  its own tablespaces automatically)
+- Reads `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE` from `environment.conf`
+  (passes `-tablespace` / `-tempTablespace` after every component; empty =
+  WARN, RCU creates one tablespace per component – not the standard)
 - Decrypts `DB_SYS_PWD` + `DB_SCHEMA_PWD` from `db_sys_sec.conf.des3`
   (written by `00-Setup/database_rcu_sec.sh` or `09-Install/01-setup-interview.sh`)
 - Creates `/tmp/rcu_pw_<PID>.tmp` with correct permissions (600)
@@ -250,10 +256,11 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
      (fix: `ALTER SYSTEM SET db_securefile=PREFERRED`), WARN if `FORCE` and a
      registry already exists. `PREFERRED`/`ALWAYS` are fine (BasicFile in
      `SYSTEM`). Live test: architecture doc §4.2
-  5. Tablespace confirmation prompt — if `RCU_TABLESPACE` is set, asks operator
-     to confirm the tablespace was pre-created before proceeding (no DB
-     query – answer "y" only after `60-RCU-DB-19c/05-db_fmw_tablespace.sh`
-     or the DBA confirmed it, otherwise RCU fails half-way)
+  5. Tablespaces `RCU_TABLESPACE` + `RCU_TEMP_TABLESPACE` in `dba_tablespaces`
+     of the PDB (same sqlplus call, also in `--check`): `ONLINE` → OK,
+     missing / not online → FAIL, stops `--apply` (since 2026-11-03 – before,
+     only a "pre-created?" prompt). Only without `sqlplus` in `ORACLE_HOME`
+     the script still asks the operator to confirm it
 - Runs `rcu -silent -createRepository` with all 8 components (9 schemas total,
   including the WLS_RUNTIME sub-schema)
 - **Database type** `RCU_DB_TYPE` (`EBR` | `ORACLE`, default `EBR`, asked by
@@ -291,7 +298,7 @@ rcu ... -tablespace FMW_DATA -tempTablespace TEMP ...
 | (none) | Show what would be created (connection info, schema names); no DB connection |
 | `--apply` | Run RCU and create schemas |
 | `--drop` | Drop existing schemas (CAUTION: destroys data) |
-| `--check` | Read-only: FMW 14.1.2 database requirements in the target PDB – version (19c ≥ 19.14 / 23ai–26ai ≥ 23.4.0.24), edition (EE; SE2 → ORA-00439), AL32UTF8, Oracle JVM, `db_block_size`, RCU parameter minimums (`processes` 1000, `open_cursors` 1600, `session_cached_cursors` 100, `db_files` 600). The same check runs automatically before `--apply` (FAIL items stop RCU). Requirements: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai) |
+| `--check` | Read-only: FMW 14.1.2 database requirements in the target PDB + the tablespaces `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE` – version (19c ≥ 19.14 / 23ai–26ai ≥ 23.4.0.24), edition (EE; SE2 → ORA-00439), AL32UTF8, Oracle JVM, `db_block_size`, RCU parameter minimums (`processes` 1000, `open_cursors` 1600, `session_cached_cursors` 100, `db_files` 600). The same check runs automatically before `--apply` (FAIL items stop RCU). Requirements: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai) |
 | `--profile` | Only create/align `RCU_DB_PROFILE` and assign it to the existing schemas of the prefix (no RCU run); shows all prefixes of the registry first |
 | `--prefix <P>` | With `--profile`: prefix(es) to assign (repeatable), default `DB_SCHEMA_PREFIX`; exact match, no "all" option – see `60-RCU-DB-19c/docs/06-db_rcu_profile.md` |
 | `--help` | Show usage |
@@ -340,7 +347,8 @@ FMW 14.1.2. There is no `-checkRequirements` or `-checkPrereqs` in this version.
 - Re-running RCU with `-createRepository` fails if schemas already exist
   → use `--drop` first (CAUTION: destroys all FMW configuration data)
 - `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE`: set in `environment.conf` via
-  `01-setup-interview.sh` (Block 4); leave empty to let RCU manage tablespaces
+  `01-setup-interview.sh` (Block 4); standard = one tablespace for all
+  schemas (*Tablespace Configuration*), empty only as fallback
 
 ---
 

@@ -779,10 +779,10 @@ fi
 unset _local_db_detected _local_db_reason
 
 printf "\n"
-info "RCU tablespace: leave empty → RCU creates its own tablespaces automatically"
-info "  Set only if DBA pre-creates a dedicated tablespace (e.g. FMW_DATA)"
-info "  See: 09-Install/docs/07-oracle_setup_repository.md"
-_ask RCU_TABLESPACE      "RCU data tablespace (optional)" "" "" "optional"
+info "RCU tablespace: ONE tablespace for all FMW schemas (standard FMW_DATA) –"
+info "  created before RCU (local DB: 60-RCU-DB-19c/05-db_fmw_tablespace.sh, else the DBA)"
+info "  See: 09-Install/docs/07-oracle_setup_repository.md#tablespace-configuration"
+_ask RCU_TABLESPACE      "RCU data tablespace (all schemas)" "FMW_DATA"
 _ask RCU_TEMP_TABLESPACE "RCU temp tablespace"            "TEMP"
 printf "\n"
 _ask_menu RCU_DB_TYPE "RCU database type" \
@@ -1096,8 +1096,8 @@ DB_HOST="${DB_HOST}"
 DB_PORT="${DB_PORT}"
 DB_SERVICE="${DB_SERVICE}"
 DB_SCHEMA_PREFIX="${DB_SCHEMA_PREFIX}"
-# RCU_TABLESPACE: empty = RCU creates its own tablespaces automatically
-# Set to a DBA-pre-created tablespace name for enterprise/production installs
+# RCU_TABLESPACE: ONE pre-created tablespace for all FMW schemas (standard
+# FMW_DATA; empty = fallback, RCU creates one tablespace per component)
 # See: 09-Install/docs/07-oracle_setup_repository.md
 RCU_TABLESPACE="${RCU_TABLESPACE}"
 RCU_TEMP_TABLESPACE="${RCU_TEMP_TABLESPACE}"
