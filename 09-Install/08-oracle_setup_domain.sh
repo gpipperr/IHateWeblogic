@@ -360,15 +360,55 @@ ok "WLST completed successfully"
 # The template's helpers try cd() first and create the MBean when it is
 # missing - WLST prints "Error: cd() failed" / "runCmd() failed" for each try
 # even though the except branch handles it. Expected on a fresh domain:
-# CoherenceMemberConfig (per managed server) + WebServerLog (WLS_FORMS).
+# one per managed server (CoherenceMemberConfig).
 _cd_err="$(tail -n +"$((_log_lines_before + 1))" "$LOG_FILE" | grep -c 'Error: cd() failed')"
 _cd_exp=0
-$WITH_FORMS   && _cd_exp=$(( _cd_exp + 2 ))
+$WITH_FORMS   && _cd_exp=$(( _cd_exp + 1 ))
 $WITH_REPORTS && _cd_exp=$(( _cd_exp + 1 ))
 if [ "$_cd_err" -gt 0 ]; then
     info "$(printf "%s × 'Error: cd() failed' in the WLST output (expected %s: MBeans created by the template helpers) – result checked below" "$_cd_err" "$_cd_exp")"
 fi
 unset _cd_err _cd_exp
+
+# =============================================================================
+# Access log of WLS_FORMS: + time-taken (response times for
+# 06-FormsDiag/forms_perf_analyse.sh)
+#
+# Not settable in the WLST template: writeDomain (JRF) rewrites the
+# web-server-log of every server afterwards (elf-fields "date time cs-method
+# ctx-ecid ctx-rid cs-uri sc-status bytes", customer 2026-11-03). The domain
+# has not been started yet - append it in config.xml (backup first).
+# =============================================================================
+
+if $WITH_FORMS; then
+    section "Access log WLS_FORMS (time-taken)"
+    _cfg="$DOMAIN_HOME/config/config.xml"
+    if grep -q 'time-taken' "$_cfg"; then
+        ok "time-taken already in config.xml"
+    else
+        backup_file "$_cfg" > /dev/null
+        _tmp="$(mktemp)"
+        # inside <web-server-log> of WLS_FORMS: append to <elf-fields>
+        awk '
+            /<web-server-log>/   { inlog = 1; srv = "" }
+            inlog && srv == "" && /<name>/ { srv = $0 }
+            inlog && /<elf-fields>/ && srv ~ /<name>WLS_FORMS<\/name>/ && $0 !~ /time-taken/ {
+                sub(/<\/elf-fields>/, " time-taken</elf-fields>")
+            }
+            /<\/web-server-log>/  { inlog = 0 }
+            { print }
+        ' "$_cfg" > "$_tmp" && [ -s "$_tmp" ] && cat "$_tmp" > "$_cfg"
+        rm -f "$_tmp"
+        if grep -q 'time-taken' "$_cfg"; then
+            ok "time-taken appended to the WLS_FORMS access log (config.xml, backup .bak_*)"
+        else
+            warn "No <elf-fields> in the WLS_FORMS access log – after the first start:"
+            info "  06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog"
+        fi
+        unset _tmp
+    fi
+    unset _cfg
+fi
 
 # =============================================================================
 # Configure nodemanager.properties

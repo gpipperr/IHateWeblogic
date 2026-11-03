@@ -90,28 +90,13 @@ def _ihw_loopback(ms):
     set('UnicastListenAddress', '##WLS_LISTEN_ADDRESS##')
     cd('/')
 
-# time-taken in the WLS_FORMS access log (response times for
-# 06-FormsDiag/forms_perf_analyse.sh)
-def _ihw_accesslog(ms):
-    try:
-        cd('/Servers/' + ms + '/WebServer/' + ms + '/WebServerLog/' + ms)
-    except:
-        cd('/Servers/' + ms)
-        create(ms, 'WebServer')
-        cd('WebServer/' + ms)
-        create(ms, 'WebServerLog')
-        cd('WebServerLog/' + ms)
-    set('LogFileFormat', 'extended')
-    _ihw_f = get('ELFFields')
-    if _ihw_f is None or str(_ihw_f).strip() == '':
-        _ihw_f = 'date time cs-method cs-uri sc-status bytes'
-    if 'time-taken' not in str(_ihw_f).split():
-        set('ELFFields', str(_ihw_f) + ' time-taken')
-    cd('/')
+# time-taken in the WLS_FORMS access log: NOT here - writeDomain (JRF) rewrites
+# the web-server-log of every server afterwards (elf-fields with ctx-ecid
+# ctx-rid ..., customer 2026-11-03); 08-oracle_setup_domain.sh appends it in
+# config.xml after writeDomain.
 
 if _with_forms:
     _ihw_loopback('WLS_FORMS')
-    _ihw_accesslog('WLS_FORMS')
 if _with_reports:
     _ihw_loopback('WLS_REPORTS')
 

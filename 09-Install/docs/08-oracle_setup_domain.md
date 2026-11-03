@@ -266,8 +266,12 @@ for the full WLST/OPSS procedure (manual and scripted).
 - WLST output `Error: cd() failed` / `Error: runCmd() failed`: the template
   helpers try `cd()` first and create the MBean in the `except` branch – WLST
   still prints the error. Expected on a fresh domain: one pair per
-  `CoherenceMemberConfig` (each managed server) + one for the `WebServerLog`
-  of `WLS_FORMS` (FORMS_AND_REPORTS: 3); the script reports the count as INFO
+  `CoherenceMemberConfig` (each managed server, FORMS_AND_REPORTS: 2; until
+  2026-11-03 one more for the access-log helper); the script reports the
+  count as INFO
+- Appends `time-taken` to the `<elf-fields>` of the `WLS_FORMS` access log
+  directly in `config.xml` (backup `config.xml.bak_*`, domain not started
+  yet) – see *Access log of WLS_FORMS with `time-taken`*
 - `07-Maintenance/domain_jdk_path.sh` result by its exit code (until
   2026-11-03 a `grep FAIL` also hit its summary line `FAIL: 0` and always
   printed "reported errors" – false alarm)
@@ -402,13 +406,29 @@ and `start AdminServer --apply` (managed servers keep running).
 
 ### Access log of WLS_FORMS with `time-taken`
 
-The template also adds `time-taken` to the extended access log of
-`WLS_FORMS` (helper `_ihw_accesslog`: `LogFileFormat=extended`, the existing
-`ELFFields` + `time-taken`) – response times for
-`06-FormsDiag/forms_perf_analyse.sh` (frmservlet and the `lservlet` round
-trips of running sessions). Tested offline on a domain copy and online
-2026-10-23; existing domains: `06-FormsDiag/forms_perf_settings.sh --apply
---fix-accesslog`.
+`time-taken` in the extended access log of `WLS_FORMS` gives the response
+times for `06-FormsDiag/forms_perf_analyse.sh` (frmservlet and the
+`lservlet` round trips of running sessions).
+
+It **cannot be set in the WLST template**: `writeDomain` (JRF processing)
+rewrites the `web-server-log` of every server afterwards – all three get
+`date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes`, a value set
+before `writeDomain` is gone (first new domain with the template helper at a
+customer, 2026-11-03; the helper worked before `writeDomain`, checked offline).
+The helper `_ihw_accesslog` was removed from the template; `08-` now appends
+` time-taken` to that list in `config.xml` after `writeDomain`, before the
+first start (backup first, only the `WLS_FORMS` block, idempotent).
+
+By hand on a fresh, not yet started domain:
+
+```bash
+cp -p $DOMAIN_HOME/config/config.xml{,.bak_$(date +%Y%m%d_%H%M%S)}
+grep -n "<elf-fields>" $DOMAIN_HOME/config/config.xml     # line of the WLS_FORMS block
+sed -i '<line>s#</elf-fields># time-taken</elf-fields>#' $DOMAIN_HOME/config/config.xml
+```
+
+Running domain: `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`
+(WLST online, tested 2026-10-23).
 
 **Existing domains (SSL / Coherence):** `02-Checks/clone_check.sh --apply` (WLST online,
 backup of `config.xml`), then stop both managed servers and start them
