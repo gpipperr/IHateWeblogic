@@ -56,6 +56,7 @@ Steps performed by `14-oracle_setup_forms.sh`:
 | `FORMS_INSTANCE_NAME` set in `environment.conf` | default: `forms1` |
 | `WLS_FORMS_SERVER` set in `environment.conf` | default: `WLS_FORMS` |
 | Templates in `09-Install/forms_templates/` edited | see [Templates](#templates) |
+| `FORMS_WEBUTIL_JACOB=true`: code-signing keystore ready | `FORMS_SIGN_KEYSTORE` exists + `forms_sign_sec.conf.des3` (own CA: `08-SSL/ssl_local_ca.sh codesign --apply` or `FORMS_SIGN_LOCALCA=true`; customer PKI: `08-SSL/ssl_customer_certs.sh --apply`). Checked first – missing = **FAIL, also in the dry-run** (since 2026-11-03); not needed when `jacob.jar` is already signed |
 
 ---
 

@@ -375,6 +375,36 @@ _jacob_sign() {
     return 0
 }
 
+# --- Code signing must be ready BEFORE 14- (also a FAIL in the dry-run) -----
+# An unsigned jacob.jar is not activated - WebUtil OLE then silently does not
+# work on the client. Needed: FORMS_SIGN_KEYSTORE (PKCS12) + its password in
+# forms_sign_sec.conf.des3 - own CA: 08-SSL/ssl_local_ca.sh codesign --apply
+# (or FORMS_SIGN_LOCALCA=true: 14- creates it), customer PKI:
+# 08-SSL/ssl_customer_certs.sh --apply (codesign.p12). Not needed when
+# jacob.jar is already signed.
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
+    if [ -f "$_JACOB_JAR" ] && _jacob_signed "$_JACOB_JAR"; then
+        ok "Code signing: jacob.jar already signed – keystore not needed for this run"
+    elif [ -z "${FORMS_SIGN_KEYSTORE:-}" ]; then
+        fail "Code signing not prepared: FORMS_SIGN_KEYSTORE is empty (FORMS_WEBUTIL_JACOB=true)"
+        info "  own CA        : ./08-SSL/ssl_local_ca.sh codesign --apply   (or FORMS_SIGN_LOCALCA=true)"
+        info "  customer PKI  : codesign.p12 → 08-SSL/user_certs/, ./08-SSL/ssl_customer_certs.sh --apply"
+        info "  without signing jacob.jar is NOT activated (WebUtil OLE / Office automation does not work)"
+    elif [ ! -f "$FORMS_SIGN_KEYSTORE" ]; then
+        if [ "${FORMS_SIGN_LOCALCA:-false}" = "true" ]; then
+            ok "Code signing: keystore missing, FORMS_SIGN_LOCALCA=true – --apply creates it with the own CA"
+        else
+            fail "Code signing keystore not found: $FORMS_SIGN_KEYSTORE"
+            info "  own CA: ./08-SSL/ssl_local_ca.sh codesign --apply; customer PKI: ./08-SSL/ssl_customer_certs.sh --apply"
+        fi
+    elif [ ! -f "$ROOT_DIR/forms_sign_sec.conf.des3" ]; then
+        fail "Code signing: keystore present, but its password file is missing: forms_sign_sec.conf.des3"
+        info "  written by 08-SSL/ssl_local_ca.sh codesign / ssl_customer_certs.sh – re-run it"
+    else
+        ok "$(printf "Code signing ready: %s (alias %s)" "$FORMS_SIGN_KEYSTORE" "${FORMS_SIGN_ALIAS:-forms_codesign}")"
+    fi
+fi
+
 if [ "${FORMS_WEBUTIL_JACOB:-false}" != "true" ]; then
     info "FORMS_WEBUTIL_JACOB=${FORMS_WEBUTIL_JACOB:-false} – JACOB not installed"
     info "  Only needed for WebUtil OLE (CLIENT_OLE2, Word/Excel automation);"

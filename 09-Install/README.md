@@ -278,6 +278,13 @@ Phase 6 – Runtime Configuration (as oracle / root)
            → details: forms_templates/README.md; without changes 14- deploys the defaults
   [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # first start creates the app dir (rwservlet.properties)
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
+  BEFORE 14- with FORMS_WEBUTIL_JACOB=true: the code-signing keystore must exist – jacob.jar is
+  activated only when signed (else WebUtil OLE / Office automation silently does not work).
+  14- reports a missing keystore / password as FAIL, also in the dry-run:
+    own CA        [oracle] ./08-SSL/ssl_local_ca.sh codesign --apply    # FORMS_SIGN_KEYSTORE + password
+                  (or FORMS_SIGN_LOCALCA=true in environment.conf – then 14- --apply creates it)
+    customer PKI  codesign.p12 → 08-SSL/user_certs/, [oracle] ./08-SSL/ssl_customer_certs.sh --apply
+    check         [oracle] ./09-Install/14-oracle_setup_forms.sh      # dry-run: "Code signing ready"
   [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # copy Forms config templates into the domain
   [oracle] ./01-Run/startStop.sh stop-all --apply                  # restart: 13-/14- changes become active
   [oracle] ./01-Run/startStop.sh start-all --apply
