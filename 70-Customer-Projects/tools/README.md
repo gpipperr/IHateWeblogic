@@ -439,7 +439,23 @@ source passwords. Choose the mode **before** the run:
 **Never in the archive:** module files (`.fmb .fmx .pll .plx .mmb .mmx
 .olb .rdf .rep`) – only their paths and counts; `frm*.jar` and `jacob*.jar`
 (FSAL / JACOB come from our 14- / 40- logic and are never overwritten);
-Liberation / DejaVu fonts (OS packages, 14b- deploys them).
+free fonts (Liberation / DejaVu / Carlito / Caladea – OS packages, 14b-
+deploys them).
+
+**Fonts – three classes** (`ihw_import/fonts.txt` column `class`, grouped in
+`00_report.txt`, since 2026-11-03.3):
+
+| Class | Example | On 14c |
+|---|---|---|
+| `customer` | barcode (`IDAutomationC128L.ttf`), corporate fonts | must move – no replacement |
+| `ms` | `arial*`, `times*`, `cour*`, `verdana*`, `calibri*`, Arial Unicode MS, Wingdings | licensed with Windows / Office **of the customer** – never into the library or git. 14c uses the free replacement: Arial / Times New Roman / Courier New / Calibri / Cambria → Liberation / Carlito / Caladea with **identical metrics** (same line breaks); Verdana / Tahoma / Georgia … → DejaVu / Liberation only **similar** (line breaks and field widths can shift); symbol fonts (Wingdings, Symbol) have no replacement. Move the original only when the customer confirms the licence for the new server and the output must stay identical. |
+| `free` | Liberation, DejaVu | skipped – `14b-` deploys the OS packages |
+
+All `customer` and `ms` files are copied into `ihw_import/custom_fonts_dir/`
+(the export is the input for that decision). The import step must take only
+`customer` plus the `ms` fonts the customer released. Mapping and PDF
+background: [04-ReportsFonts/README.md](../../04-ReportsFonts/README.md)
+(§7 "Windows-Specific Fonts on Linux": metric-compatible replacements, fonts requiring the original TTF, licence note).
 
 **Customer data:** the export contains passwords, host names and paths – it
 never goes into git (refused inside the repo; `.gitignore` has

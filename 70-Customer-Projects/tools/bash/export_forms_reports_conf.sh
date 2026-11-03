@@ -46,7 +46,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-03.2"   # bump on every change – shown in the report
+VERSION="2026-11-03.3"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false
@@ -123,15 +123,11 @@ _cleanup() {
     PASS=""
     [ -n "$ARCH" ] && rm -f "$OUTBASE/$ARCH" "$OUTBASE/$ARCH.enc"
     if $KEEP; then
-        printf '
-  ABORTED (rc %s) – staging kept (--keep): %s – contains %s data, delete it
-' \
+        printf '\n  ABORTED (rc %s) – staging kept (--keep): %s – contains %s data, delete it\n' \
             "$rc" "$STAGE" "$($MASKED && printf masked || printf CLEAR-TEXT)" >&2
     else
         rm -rf "${STAGE:?}"
-        printf '
-  ABORTED (rc %s) – staging directory and partial archive removed
-' "$rc" >&2
+        printf '\n  ABORTED (rc %s) – staging directory and partial archive removed\n' "$rc" >&2
     fi
 }
 trap _cleanup EXIT
@@ -365,17 +361,42 @@ for f in "$DH/reports/bin/reports.sh" "$DH/bin/setUserOverrides.sh" "${ENV_FILES
 done
 mapfile -t FONT_DIRS < <(printf '%s\n' "${FONT_DIRS[@]}" | tr ':' '\n' | sort -u | sed '/^$/d')
 FONTS_TXT="$STAGE/ihw_import/fonts.txt"
-printf 'font;size;dir;exported\n' > "$FONTS_TXT"
+printf 'font;size;dir;class;replacement_14c;exported\n' > "$FONTS_TXT"
+# _font_class FILE – "class;replacement" (04-ReportsFonts/README.md "Font Mapping")
+#   customer  own / bought fonts (barcode ...) – must move, no replacement
+#   ms        Microsoft fonts (Windows / Office licence of the customer) – the
+#             library uses free replacements; "identical" = same metrics
+#             (same line breaks), "similar" = layout can shift
+#   free      Liberation / DejaVu – OS packages, 14b- deploys them
+_font_class() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        liberation*|dejavu*|carlito*|caladea*)        printf 'free;OS package (14b-)' ;;
+        arialuni*|arial-unicode*|arial_unicode*)      printf 'ms;DejaVu Sans / Noto (similar – only needed for non-Latin text)' ;;
+        arial*|ariblk*)                               printf 'ms;Liberation Sans (identical metrics)' ;;
+        times*)                                       printf 'ms;Liberation Serif (identical metrics)' ;;
+        cour*)                                        printf 'ms;Liberation Mono (identical metrics)' ;;
+        calibri*)                                     printf 'ms;Carlito (identical metrics)' ;;
+        cambria*)                                     printf 'ms;Caladea (identical metrics)' ;;
+        verdana*|tahoma*|trebuc*|segoe*|micross*)     printf 'ms;DejaVu Sans (similar – layout can shift)' ;;
+        georgia*|pala*|book*|constan*)                printf 'ms;Liberation Serif (similar – layout can shift)' ;;
+        consola*|lucon*)                              printf 'ms;Liberation Mono (similar)' ;;
+        wingding*|webdings*|symbol*|marlett*)         printf 'ms;none – symbol font, original TTF needed' ;;
+        candara*|corbel*|comic*|impact*|l_10646*|gara*|century*|gothic*|franklin*)
+                                                      printf 'ms;DejaVu Sans / Liberation (similar – check)' ;;
+        *)                                            printf 'customer;none – must move' ;;
+    esac
+}
 for fd in "${FONT_DIRS[@]}"; do
     [ -d "$fd" ] || continue
     while IFS= read -r ff; do
         fb="$(basename "$ff")"
-        case "$fb" in Liberation*|DejaVu*) printf '%s;%s;%s;no (OS package – 14b- deploys it)\n' "$fb" "$(stat -c %s "$ff")" "$fd" >> "$FONTS_TXT"; continue ;; esac
+        fc="$(_font_class "$fb")"
+        case "$fc" in free\;*) printf '%s;%s;%s;%s;no (OS package – 14b- deploys it)\n' "$fb" "$(stat -c %s "$ff")" "$fd" "$fc" >> "$FONTS_TXT"; continue ;; esac
         if $FONTS; then
             _store "$ff" fonts "ihw_import/custom_fonts_dir/$fb"
-            printf '%s;%s;%s;ihw_import/custom_fonts_dir/\n' "$fb" "$(stat -c %s "$ff")" "$fd" >> "$FONTS_TXT"
+            printf '%s;%s;%s;%s;ihw_import/custom_fonts_dir/\n' "$fb" "$(stat -c %s "$ff")" "$fd" "$fc" >> "$FONTS_TXT"
         else
-            printf '%s;%s;%s;no (--no-fonts)\n' "$fb" "$(stat -c %s "$ff")" "$fd" >> "$FONTS_TXT"
+            printf '%s;%s;%s;%s;no (--no-fonts)\n' "$fb" "$(stat -c %s "$ff")" "$fd" "$fc" >> "$FONTS_TXT"
         fi
     done < <(find "$fd" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.ttc' -o -iname '*.otf' \) 2>/dev/null | sort)
 done
@@ -576,9 +597,15 @@ unset _first_rs _rc _fp1
     printf '\n== Reports servers (ihw_import/reports_servers.txt) ==\n'; sed 's/^/  /' "$RSV"
     printf '\n== Customer jars (ihw_import/jars.txt) – FSAL / JACOB / frm*.jar excluded ==\n'; sed 's/^/  /' "$JARS"
     printf '\n== Fonts (ihw_import/fonts.txt) ==\n'
-    printf '  %s font file(s), %s exported (customer fonts), %s Liberation/DejaVu skipped (14b- deploys them)\n' \
-        "$(($(wc -l < "$FONTS_TXT") - 1))" "$(grep -c ';ihw_import/' "$FONTS_TXT")" "$(grep -c 'OS package' "$FONTS_TXT")"
-    grep ';ihw_import/\|no (--no-fonts)' "$FONTS_TXT" | sed 's/^/  /'
+    printf '  %s font file(s): %s customer, %s Microsoft, %s free (skipped – 14b- deploys them)\n' \
+        "$(($(wc -l < "$FONTS_TXT") - 1))" "$(grep -c ';customer;' "$FONTS_TXT")" "$(grep -c ';ms;' "$FONTS_TXT")" "$(grep -c ';free;' "$FONTS_TXT")"
+    printf '\n  Customer fonts (barcode, corporate ...) – must move to 14c, no replacement:\n'
+    awk -F';' '$4=="customer"{printf "    %-28s %10s  %s\n", $1, $2, $3}' "$FONTS_TXT"
+    printf '\n  Microsoft fonts – licensed with Windows / Office of the CUSTOMER, never into the\n'
+    printf '  library / git. 14c uses the free replacement; move the original only when the\n'
+    printf '  customer confirms the licence for the new server AND the output must stay identical\n'
+    printf '  ("similar" = line breaks / field widths can shift; symbol fonts have no replacement):\n'
+    awk -F';' '$4=="ms"{printf "    %-28s %10s  -> %s\n", $1, $2, $5}' "$FONTS_TXT"
 
     printf '\n== Source directories (sources_inventory.csv) – inventory only, no module content ==\n'; sed 's/^/  /' "$INV"
     printf '\n== Secrets (secrets_locations.txt: file:line:keyword – values never listed) ==\n'
@@ -590,7 +617,7 @@ unset _first_rs _rc _fp1
     printf '  webutil.cfg.overrides          -> forms_templates/webutil.cfg.template\n'
     printf '  cgicmd.dat.customer_keys       -> cgicmd.dat after the END marker of 14b-\n'
     printf '  uifont.ali.customer            -> 04-ReportsFonts/uifont_ali_template.ali\n'
-    printf '  custom_fonts_dir/              -> 04-ReportsFonts/custom_fonts_dir/\n'
+    printf '  custom_fonts_dir/              -> 04-ReportsFonts/custom_fonts_dir/ (customer fonts; Microsoft fonts only with licence – fonts.txt class)\n'
     printf '  forms_java/ + jars.txt         -> customer jars (signing / archive= on 14c)\n'
     printf '  environment.conf.proposal      -> values for 01-setup-interview / environment.conf\n'
     [ ${#WARNINGS[@]} -gt 0 ] && { printf '\n== Warnings ==\n'; printf '  %s\n' "${WARNINGS[@]}"; }
