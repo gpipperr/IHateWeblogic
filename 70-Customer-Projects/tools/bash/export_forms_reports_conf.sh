@@ -46,7 +46,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-03.1"   # bump on every change – shown in the report
+VERSION="2026-11-03.2"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false
@@ -113,6 +113,29 @@ CFG="$DH/config/fmwconfig"
 
 STAGE="$OUTBASE/$NAME"
 mkdir -p "$STAGE/raw" "$STAGE/ihw_import" || exit 2
+# Abort (Ctrl-C, kill, error exit) before the end: remove the staging directory
+# (clear-text passwords in the default mode) and a half-written / still
+# unencrypted archive. --keep keeps the staging directory also then.
+DONE=false; ARCH=""
+_cleanup() {
+    local rc=$?
+    $DONE && return
+    PASS=""
+    [ -n "$ARCH" ] && rm -f "$OUTBASE/$ARCH" "$OUTBASE/$ARCH.enc"
+    if $KEEP; then
+        printf '
+  ABORTED (rc %s) – staging kept (--keep): %s – contains %s data, delete it
+' \
+            "$rc" "$STAGE" "$($MASKED && printf masked || printf CLEAR-TEXT)" >&2
+    else
+        rm -rf "${STAGE:?}"
+        printf '
+  ABORTED (rc %s) – staging directory and partial archive removed
+' "$rc" >&2
+    fi
+}
+trap _cleanup EXIT
+trap 'exit 130' INT TERM HUP
 REPORT="$STAGE/00_report.txt"
 MANIFEST="$STAGE/manifest.csv"
 printf 'category;source;stored;size;sha256\n' > "$MANIFEST"
@@ -597,6 +620,7 @@ if ! $MASKED; then
 fi
 sha256sum "$ARCH" > "$ARCH.sha256"
 $KEEP || rm -rf "${OUTBASE:?}/${NAME:?}"
+DONE=true
 
 printf '\n'
 say "Archive : $OUTBASE/$ARCH ($(du -h "$ARCH" | cut -f1))"

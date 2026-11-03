@@ -357,6 +357,77 @@ cp export_forms_reports_conf.sh /tmp/ && cd /tmp && chmod +x export_forms_report
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in ihw_export_<host>_<ts>.zip.enc -out ihw_export_<host>_<ts>.zip
 ```
 
+### Passwords – two modes
+
+The configuration files contain passwords: `cgicmd.dat` `userid=` /
+`authid=`, `default.env` / env files, `rwserver.conf` `<identifier>` (clear
+until the Reports server encrypts it), `{AES}` values in `config.xml`, data
+source passwords. Choose the mode **before** the run:
+
+| | Default: **encrypted** | `--masked` |
+|---|---|---|
+| Passwords in the archive | **included** (1:1 copies – needed for the rebuild) | replaced by `***MASKED***` in every text file (also in the derived `ihw_import/` files) |
+| Archive | AES-256 encrypted (`.zip.enc`) | not encrypted (`.zip`) |
+| Use | input for the 14c rebuild / later import | analysis, may be sent by mail / ticket after a look at it |
+| Needs | `openssl`, a terminal for the passphrase | – |
+
+**Passphrase (encrypted mode):**
+- Asked **at the start**, before the minutes of collecting, so you do not
+  have to wait for it. It is asked twice and hidden (`read -s`); empty or
+  unequal input is asked again.
+- Without a terminal (cron, pipe, `ssh host cmd` without `-t`) the script
+  **refuses** to run. Use `--masked` there, or start it in an interactive
+  session.
+- It is handed to `openssl` over a file descriptor (`-pass fd:3`), **never on
+  the command line**, so it is not visible in `ps` / `/proc/<pid>/cmdline`.
+  It is not written to any file, and the variable is cleared right after
+  the encryption.
+- Encryption: `openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -md sha256
+  -salt`. PBKDF2 with 200 000 iterations makes guessing a weak passphrase
+  expensive, but it does not make a weak passphrase strong. Use a long one
+  (e.g. 4–5 random words), because the archive holds the customer's
+  passwords.
+- **Forgotten passphrase = archive lost**: there is no recovery key. Give
+  the passphrase to the recipient on a **different channel** than the file
+  (phone / messenger vs. mail / share) and keep it in the password safe
+  together with the customer entry.
+- `openssl` of OL8 / OL9 (1.1.1 / 3.x) supports `-pbkdf2`. Decrypt with the
+  same parameters (command above, also printed at the end of the run); on
+  Windows with the `openssl.exe` of Git for Windows.
+
+**Masking (`--masked`):**
+- The same rules as `collect_fmw_env.sh`, plus `<identifier>…</identifier>`,
+  `name="…password…" value="…"` (XML attributes) and `dbpassword=`.
+- `raw/` files are masked while they are copied. Every other text file
+  (`ihw_import/`, reports, dependency lists) is masked again before packing,
+  because these files quote configuration lines. A first version left a
+  `authid` value in `ihw_import/cgicmd.dat.customer_keys`; that is fixed and
+  tested.
+- Binary files (fonts, jars) are copied unchanged – they hold no passwords.
+- Masking is pattern based: a password in an unusual place (own variable
+  name, comment) can stay. Look through the archive before sending it.
+
+**In both modes:**
+- `secrets_locations.txt` lists **where** secrets are (`file:line:keyword`,
+  never the value). With it you know which files to look at, and which
+  passwords the rebuild needs.
+- `umask 077`: the staging directory and the archive are readable for the
+  running user only.
+- The **staging directory** (`<OUTDIR>/ihw_export_<host>_<ts>/`) holds the
+  files **unencrypted**: in clear text in the default mode, masked with
+  `--masked`. It is removed after packing, unless `--keep` is given (the
+  script then reminds you to delete it).
+- **Abort** (Ctrl-C, `kill`, SIGHUP when the SSH session drops, error
+  exit): an exit trap removes the staging directory and a half-written or
+  still unencrypted archive, then prints `ABORTED (rc …)`. With `--keep`
+  the staging directory is kept and the message names it. Since version
+  2026-11-03.2; tested with SIGINT / SIGTERM in both modes. Only a
+  `kill -9` or a power loss leaves it behind – then delete it by hand:
+  `rm -rf /tmp/ihw_export_<host>_<ts>`.
+- The archive itself never goes into git (see "Customer data" below). After
+  the rebuild delete it in `/tmp` and on every copy, and keep the
+  passphrase only as long as the archive exists.
+
 | Part | Content |
 |---|---|
 | `00_report.txt` | versions, paths, Forms sections, Reports servers, customer jars, fonts, source dirs, warnings, what goes where |
