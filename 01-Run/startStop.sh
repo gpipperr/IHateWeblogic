@@ -316,6 +316,13 @@ STEOF
         info "  last errors in $_sl/$name.out:"
         grep -E '<(Error|Critical|Emergency)>|Exception|BEA-[0-9]+|OutOfMemory|Could not reserve|Address already in use' \
             "$_sl/$name.out" 2>/dev/null | tail -5 | cut -c1-220 | while IFS= read -r _l; do info "    $_l"; done
+        # embedded LDAP password changed (13-oracle_setup_reports.sh, setCredential)
+        # but the AdminServer not restarted: every new managed server start
+        # fails to bind (customer 2026-11-03)
+        if grep -q 'LDAPException: error result (49)' "$_sl/$name.out" 2>/dev/null; then
+            info "  → embedded LDAP credential changed (13-oracle_setup_reports.sh) without an AdminServer"
+            info "    restart: ./01-Run/startStop.sh stop-all --apply; ./01-Run/startStop.sh start-all --apply"
+        fi
     else
         info "  no $_sl/$name.out yet – the JVM did not start (Node Manager log below)"
     fi

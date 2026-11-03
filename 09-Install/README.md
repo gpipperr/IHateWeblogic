@@ -281,6 +281,10 @@ Phase 6 – Runtime Configuration (as oracle / root)
                                                                    # formsweb.cfg, Registry.dat for 14- – without it
                                                                    # 14- FAILs "Forms app dir not found")
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
+           (REPORTS_SECURITY=ldap, first run: 13- sets the embedded-LDAP password and FAILs with
+            "RESTART THE ADMINSERVER NOW" – do it before anything else: until the restart NO
+            managed server starts (WLS_FORMS: "LDAPException: error result (49); Invalid
+            credentials"). Then: startStop.sh stop-all / start-all, 13- --apply a second time.)
   BEFORE 14- with FORMS_WEBUTIL_JACOB=true: the code-signing keystore must exist – jacob.jar is
   activated only when signed (else WebUtil OLE / Office automation silently does not work).
   14- reports a missing keystore / password as FAIL, also in the dry-run:

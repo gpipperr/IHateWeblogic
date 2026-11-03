@@ -629,9 +629,15 @@ SEC_PY
             case "$_line" in
                 IHW:OK:*)      ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
                 IHW:INFO:*)    info "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
-                IHW:RESTART:*) warn "$(printf '%s' "$_line" | cut -d: -f3-)"
-                               info "  01-Run/startStop.sh stop AdminServer --apply; 01-Run/startStop.sh start AdminServer --apply"
-                               info "  (managed servers and the Reports server keep running)"
+                # FAIL, not WARN: until the AdminServer restart every managed
+                # server that STARTS gets "LDAPException: error result (49);
+                # Invalid credentials" while deploying its roles and goes to
+                # FAILED (customer 2026-11-03: WLS_FORMS started after 13-)
+                IHW:RESTART:*) fail "$(printf '%s' "$_line" | cut -d: -f3-)"
+                               fail "  RESTART THE ADMINSERVER NOW - until then NO managed server starts"
+                               info "  (a start fails with 'LDAPException: error result (49); Invalid credentials')"
+                               info "    01-Run/startStop.sh stop-all --apply; 01-Run/startStop.sh start-all --apply"
+                               info "    09-Install/13-oracle_setup_reports.sh --apply      (second run: credential + securityId)"
                                warn "  rwserver.conf of this run has NO securityId - the re-run writes it" ;;
                 IHW:FAIL:*)    fail "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
             esac

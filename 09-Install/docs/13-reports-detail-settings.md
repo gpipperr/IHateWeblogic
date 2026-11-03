@@ -499,8 +499,18 @@ Steps of the script (with `--apply`, AdminServer running):
    If the bind fails (the domain still has the random password of the domain
    creation), the script sets the stored password via WLST
    (`/EmbeddedLDAP/<domain>` → `setCredential`, activate) and stops this
-   section with a WARN: **restart the AdminServer, then re-run 13** – the
-   embedded LDAP reads the credential only at start.
+   section with a **FAIL** (WARN before 2026-11-03): **restart the
+   AdminServer, then re-run 13** – the embedded LDAP reads the credential
+   only at start. Until that restart the domain is in between: the new
+   password is in the configuration, the AdminServer's LDAP still has the
+   old one. Running managed servers keep working; **every managed server
+   that starts fails** while deploying its security roles –
+   `LDAPException: error result (49); Invalid credentials`, state `FAILED`,
+   the Node Manager gives up after its restart attempts (customer
+   2026-11-03: `WLS_FORMS` started after `13-`, `WLS_REPORTS` from before
+   kept running). `01-Run/startStop.sh` recognises error 49 in
+   `<server>.out` and prints the fix: `stop-all` / `start-all`, then `13-
+   --apply` again.
 3. `createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', …)`
    (`updateCred` if it exists).
 4. `jps-config-jse.xml` (backup): new `serviceInstance idstore.ldap.embedded`
