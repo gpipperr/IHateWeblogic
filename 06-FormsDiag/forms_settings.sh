@@ -246,6 +246,91 @@ printf "\n" | tee -a "${LOG_FILE:-/dev/null}"
 info "WebUtil = WebUtilArchive set (effective). A section inherits every key it does not set from [default] – evaluation of the values: forms_perf_settings.sh"
 
 # =============================================================================
+# 5b. WebUtil / JACOB (OLE automation) – state of jacob.jar, read-only
+# Written on new installations by 09-Install/14-oracle_setup_forms.sh (signs,
+# activates only when signed); here also for environments not built by 14-.
+# Background: 08-SSL/README.md "Code Signing", forms_jakob_webutil.md §8-11
+# =============================================================================
+
+printLine
+section "WebUtil / JACOB (jacob.jar)"
+
+JACOB_JAR="$OH/forms/java/jacob.jar"
+if [ ! -f "$JACOB_JAR" ]; then
+    info "jacob.jar not installed – only needed for WebUtil OLE (CLIENT_OLE2, Office automation)"
+else
+    _show "jacob.jar:" "$JACOB_JAR"
+    # sections that load it: WebUtilArchive own or inherited from [default]
+    _jsec="$(for _s in "${SECTIONS[@]}"; do
+        frm_cfg_get "$FRM_CFG" "$_s" WebUtilArchive | grep -qw 'jacob\.jar' && printf '%s ' "$_s"; done)"
+    _show "loaded by sections:" "${_jsec:-none (not in WebUtilArchive)}"
+
+    _js="${JDK_HOME:-$OH/oracle_common/jdk}/bin/jarsigner"
+    [ -x "$_js" ] || _js="$OH/oracle_common/jdk/bin/jarsigner"
+    if [ ! -x "$_js" ]; then
+        warn "jarsigner not found (JDK_HOME) – signature not checked"
+    else
+        _out="$("$_js" -verify -verbose -certs "$JACOB_JAR" 2>&1)"
+        if printf '%s\n' "$_out" | grep -q '^jar verified'; then
+            _signer="$(printf '%s\n' "$_out" | grep -m1 'Signed by' | sed 's/.*Signed by "CN=\([^,"]*\).*/\1/')"
+            _exp="$(printf '%s\n' "$_out" | grep -iE 'as early as|signer certificate will expire|has expired' \
+                | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+            ok "$(printf "signed by %s" "${_signer:-?}")"
+            if printf '%s\n' "$_out" | grep -q 'Timestamped by'; then
+                ok "$(printf "  timestamped – stays valid after the certificate expires (%s)" "${_exp:-?}")"
+            else
+                _days=""
+                [ -n "$_exp" ] && _days=$(( ( $(date -d "$_exp" +%s) - $(date +%s) ) / 86400 ))
+                if [ -n "$_days" ] && [ "$_days" -lt 0 ]; then
+                    fail "$(printf "  signature WITHOUT timestamp, certificate expired %s – Java Web Start blocks jacob.jar" "$_exp")"
+                elif [ -n "$_days" ] && [ "$_days" -lt 90 ]; then
+                    warn "$(printf "  signature WITHOUT timestamp – invalid from %s (%s days)" "$_exp" "$_days")"
+                else
+                    info "$(printf "  signature WITHOUT timestamp – valid only until %s" "${_exp:-?}")"
+                fi
+                [ -n "$_days" ] && [ "$_days" -lt 90 ] \
+                    && info "  renew the certificate, then: ./09-Install/14-oracle_setup_forms.sh --apply --resign"
+            fi
+            [ -z "$_jsec" ] && warn "signed, but no section loads it – WebUtil OLE not available (14- --apply activates it)"
+        elif [ -n "$_jsec" ]; then
+            warn "jacob.jar NOT signed but loaded by: $_jsec– Java Web Start blocks it (FSAL does not check signatures)"
+            info "  sign it: ./09-Install/14-oracle_setup_forms.sh --apply (needs FORMS_SIGN_KEYSTORE)"
+        else
+            info "jacob.jar not signed and not activated – 14- signs and activates it (FORMS_WEBUTIL_JACOB=true)"
+        fi
+    fi
+
+    # Java Web Start loads extra jars only through extensions.jnlp (Oracle
+    # ships the jacob entry commented out); FSAL takes WebUtilArchive
+    _ext="$OH/forms/java/extensions.jnlp"
+    if [ -n "$_jsec" ] && [ -f "$_ext" ]; then
+        if grep -qE '^[[:space:]]*<jar href="jacob\.jar"' "$_ext"; then
+            ok "extensions.jnlp: jacob.jar entry active (Java Web Start)"
+        else
+            warn "extensions.jnlp: jacob.jar entry missing / commented – Java Web Start sessions do not load it"
+        fi
+    fi
+
+    # The client installs the DLLs listed in webutil.cfg (name|size|version);
+    # the size must match the file on the server
+    _wcfg="$FORMS_INST/server/webutil.cfg"
+    if [ -f "$_wcfg" ]; then
+        while IFS='|' read -r _name _size _rest; do
+            _name="${_name#*=}"
+            _f="$(find "$OH/forms/webutil" -name "$_name" -type f 2>/dev/null | head -1)"
+            if [ -z "$_f" ]; then
+                fail "$(printf "  %s listed in webutil.cfg, not found below %s/forms/webutil" "$_name" "$OH")"
+            elif [ "$(stat -c %s "$_f")" != "$_size" ]; then
+                fail "$(printf "  %s: %s bytes, webutil.cfg expects %s – the client install does not match" "$_name" "$(stat -c %s "$_f")" "$_size")"
+            else
+                ok "$(printf "  %-22s %s bytes = webutil.cfg" "$_name" "$_size")"
+            fi
+        done < <(grep -E '^install\.syslib\.[0-9.]+=jacob' "$_wcfg")
+    fi
+    unset _jsec _js _out _signer _exp _days _ext _wcfg _name _size _rest _f
+fi
+
+# =============================================================================
 # 6. Runtime overview
 # =============================================================================
 

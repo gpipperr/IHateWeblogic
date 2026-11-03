@@ -47,7 +47,9 @@ Markers: **confirmed (live)** = seen on the test host (FMW 14.1.2, OL 9),
   all interfaces (`0.0.0.0:34925` and `[::]:34925` for a pooled runtime,
   `ss -tanp`), the Listener servlet connects to it (**confirmed (live)**
   2026-10-19) – the socket principle of Forms 6i (section 8), only with the
-  servlet in front. Reachable from the network unless the firewall blocks
+  servlet in front. The listen socket exists only while the runtime waits
+  in the pool: once the servlet has connected it is closed (**confirmed
+  (live)** 2026-11-03, section 3). Reachable from the network unless the firewall blocks
   the port range (01-root_os_baseline section 8 keeps only ssh/http/https open).
   The bind address is **not configurable**: no `FORMS_*` variable for it in
   `frmweb` and its libraries, none in the 14.1.2 documentation (**documented**:
@@ -215,10 +217,14 @@ change. Values are per WLS_FORMS JVM.
   `[NOTIFICATION]`, **confirmed (live)**). With `FORMS_PRESTART_SECTION=webstart`:
   5 processes (**confirmed (live)**).
 - A pooled runtime "is removed from the prestart pool once client
-  connection is made" (**documented**). A pooled process has no DB
-  connection and no CPU time yet – `06-FormsDiag/forms_perf_analyse.sh`
-  uses that to separate pool from sessions (**assumption**, not yet tested
-  with a real client session).
+  connection is made" (**documented**). A pooled process only listens on
+  its port; when a client attaches, it closes the listen socket and holds
+  one connection from the WLS_FORMS JVM (Listener servlet), after the logon
+  one more to the database – `06-FormsDiag/forms_perf_analyse.sh` separates
+  pool / session / logged on by these connections (**confirmed (live)**
+  2026-11-03, [06-FormsDiag/README.md §8](../06-FormsDiag/README.md#8-pool-vs-session--live-test-2026-11-03)).
+  CPU time is no criterion (`ps` shows 0 s for a session, a pooled process
+  collects ticks over hours).
 - A pool serves only **its** section: FSAL clients of the URL client
   distribution start `config=standaloneapp` (`FORMS_CLIENT_CONFIG`), Java Web
   Start users `config=webstart` – pool the section the users actually start
@@ -258,8 +264,12 @@ names.
   attacks" (**documented**). Size: (RAM available for Forms) / (RSS of a real
   session under load). This repository proposes ½ `MemTotal` / 64 MB
   (`frm_mrp_proposal`, `FORMS_MAX_RUNTIME_PROCESSES`, written by `14-`); the
-  64 MB per session is an **assumption**, an idle pooled `frmweb` has 16 MB
-  RSS (**confirmed (live)** 2026-10-23).
+  64 MB per session is a conservative **assumption**. Measured (**confirmed
+  (live)** 2026-11-03, small test form): idle pooled `frmweb` 4 MB RSS,
+  session at the logon dialog 30 MB, logged on 39 MB RSS of which 7 MB
+  private (`RssAnon`) – the rest is shared libraries / FMX. Real
+  applications: measure under load (`forms_perf_analyse.sh`, RSS and
+  private MB per session).
 - `allowNewConnections=FALSE` blocks new sessions (maintenance), read on
   every request (**documented**).
 
@@ -457,20 +467,16 @@ Secondary:
 
 ## 9. Open points
 
-- First real client session: **confirmed (live) 2026-10-22** with FSAL and
-  an own `jlink` runtime on Linux (Xvfb) through Nginx / HTTPS – new
-  `frmweb …,standaloneapp`, "Forms Session ID is WLS_FORMS.formsapp.2";
-  the `frmweb` of a killed client lives until `FORMS_TIMEOUT`
-  ([java_jlink_forms_env.md §4.2](java_jlink_forms_env.md#42-linux-runtime-and-a-real-forms-session--confirmed-live)).
-- First session from a **Windows** client: **confirmed (live) 2026-10-23** –
-  FSAL with the jlink runtime of the client distribution
-  ([09-Install/docs/40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md)),
-  login with a TNS alias after `TNS_ADMIN` was fixed (section 2.1).
-- Pool vs. session with a real client session (JWS / FSAL from Windows):
-  DB connection and CPU time as criterion, EM "User Sessions" comparison
-  (Oracle: "A user session starts when the frmweb process starts" – does EM
-  list pooled processes as sessions? **assumption**: yes).
-- RSS of a real session for the `maxRuntimeProcesses` sizing.
+Done: real client sessions (Linux FSAL 2026-10-22, Windows 2026-10-23 –
+[java_jlink_forms_env.md §4.2](java_jlink_forms_env.md#42-linux-runtime-and-a-real-forms-session--confirmed-live),
+[40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md)),
+pool vs. session criterion and RSS of a session (2026-11-03, section 3 / 5).
+
+- EM "User Sessions" – does EM list pooled processes as sessions (Oracle:
+  "A user session starts when the frmweb process starts", **assumption**:
+  yes)?
+- RSS of a session of a **real application** under load (sizing of
+  `maxRuntimeProcesses` beyond the test form).
 - `frmweb` listens on `0.0.0.0` (section 1): can it be bound to loopback?
   (root README open item "frmweb/rwserver loopback binding").
 

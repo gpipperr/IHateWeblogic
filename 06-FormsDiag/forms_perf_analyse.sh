@@ -3,7 +3,7 @@
 # Script   : forms_perf_analyse.sh
 # Purpose  : How does the Forms server carry its load?
 #            - frmweb processes per config section: count, memory, age,
-#              CPU time, DB connection -> prestart pool vs. user session
+#              listener / DB connection -> prestart pool vs. user session
 #            - memory of WLS_FORMS + all frmweb vs. RAM and maxRuntimeProcesses
 #            - WLS_FORMS access.log: requests per config section, HTTP status,
 #              response time (only if the log has a time-taken field)
@@ -105,36 +105,55 @@ else
     FRM_LIST="$(frm_frmweb_list "$WLS_FORMS_PID")"
 fi
 
-# PIDs with an established TCP connection (DB) – logged-on sessions
-DB_PIDS="$(ss -tnpH state established 2>/dev/null | grep -o 'frmweb",pid=[0-9]*' | sed 's/.*pid=//' | sort -u)"
+# Connections of every frmweb: a connection whose peer is a socket of the
+# WLS_FORMS JVM comes from the Forms Listener servlet = a client is attached
+# (session); every other established connection is outbound = Oracle Net to
+# the database (logged on). A pooled frmweb only LISTENs on an ephemeral port
+# and closes that socket when the servlet connects. Confirmed (live)
+# 2026-11-03 with an FSAL session: pool = listen socket, no connection; logon
+# dialog = servlet connection only; logged on = servlet + DB port. CPU time is
+# no criterion: ps rounds to seconds (a session shows 0), an old pooled
+# process has more ticks than a new session.
+EST="$(ss -tnpH state established 2>/dev/null)"
+WLS_PORTS="$( [ -n "$WLS_FORMS_PID" ] && printf '%s\n' "$EST" | grep "pid=$WLS_FORMS_PID," \
+    | awk '{ n = split($3, a, ":"); print a[n] }' | sort -u)"
+FRM_EST="$(printf '%s\n' "$EST" | awk '/"frmweb",pid=/ { match($0, /pid=[0-9]+/); n = split($4, a, ":")
+                                                      print substr($0, RSTART + 4, RLENGTH - 4) " " a[n] }')"
+CLIENT_PIDS="$(awk 'NR == FNR { w[$1] = 1; next } NF && ($2 in w) { print $1 }' \
+    <(printf '%s\n' "$WLS_PORTS") <(printf '%s\n' "$FRM_EST") | sort -u)"
+DB_PIDS="$(awk 'NR == FNR { w[$1] = 1; next } NF && !($2 in w) { print $1 }' \
+    <(printf '%s\n' "$WLS_PORTS") <(printf '%s\n' "$FRM_EST") | sort -u)"
+unset EST WLS_PORTS FRM_EST
 
-TOTAL_N=0 TOTAL_RSS=0 TOTAL_SESS=0 SESS_RSS=0
+TOTAL_N=0 TOTAL_RSS=0 TOTAL_SESS=0 TOTAL_DB=0 SESS_RSS=0 SESS_PRIV=0
 if [ -n "$FRM_LIST" ]; then
-    printf "\n  \033[1m%-23s %5s %8s %8s %9s %8s %s\033[0m\n" "Section" "procs" "RSS MB" "max MB" "with DB" "CPU>0" "prestart" | tee -a "${LOG_FILE:-/dev/null}"
+    printf "\n  \033[1m%-23s %5s %8s %8s %8s %10s %s\033[0m\n" "Section" "procs" "RSS MB" "max MB" "client" "logged on" "prestart" | tee -a "${LOG_FILE:-/dev/null}"
     for _s in $(printf '%s\n' "$FRM_LIST" | cut -f2 | sort -u); do
         _lines="$(printf '%s\n' "$FRM_LIST" | awk -F'\t' -v s="$_s" '$2==s')"
         _n="$(printf '%s\n' "$_lines" | wc -l)"
         _rss="$(printf '%s\n' "$_lines" | awk -F'\t' '{t+=$3} END {print t+0}')"
         _max="$(printf '%s\n' "$_lines" | awk -F'\t' '$3>m {m=$3} END {print m+0}')"
-        _db=0 _cpu=0
-        for _p in $(printf '%s\n' "$_lines" | cut -f1); do
+        _cl=0 _db=0
+        while IFS=$'\t' read -r _p _x _r _e; do
             printf '%s\n' "$DB_PIDS" | grep -qx "$_p" && _db=$(( _db + 1 ))
-            [ "$(ps -o cputimes= -p "$_p" 2>/dev/null | tr -d ' ')" != "0" ] && _cpu=$(( _cpu + 1 ))
-        done
+            printf '%s\n' "$CLIENT_PIDS" | grep -qx "$_p" || continue
+            _cl=$(( _cl + 1 ))
+            SESS_RSS=$(( SESS_RSS + _r ))
+            SESS_PRIV=$(( SESS_PRIV + $(awk '/^RssAnon/ {print int($2/1024)}' "/proc/$_p/status" 2>/dev/null || echo 0) ))
+        done <<< "$_lines"
         _pre="-"
         if [ -n "${FRM_CFG:-}" ] && [ "$(frm_cfg_get "$FRM_CFG" "$_s" prestartRuntimes | tr 'A-Z' 'a-z')" = "true" ]; then
             _pre="init $(frm_cfg_get "$FRM_CFG" "$_s" prestartInit)"
         fi
-        printf "  %-23s %5s %8s %8s %9s %8s %s\n" "$_s" "$_n" "$_rss" "$_max" "$_db" "$_cpu" "$_pre" | tee -a "${LOG_FILE:-/dev/null}"
-        TOTAL_N=$(( TOTAL_N + _n )); TOTAL_RSS=$(( TOTAL_RSS + _rss )); TOTAL_SESS=$(( TOTAL_SESS + _db ))
-        SESS_RSS=$(( SESS_RSS + $(printf '%s\n' "$_lines" | while IFS=$'\t' read -r _p _x _r _e; do
-            printf '%s\n' "$DB_PIDS" | grep -qx "$_p" && printf '%s\n' "$_r"; done | awk '{t+=$1} END {print t+0}') ))
+        printf "  %-23s %5s %8s %8s %8s %10s %s\n" "$_s" "$_n" "$_rss" "$_max" "$_cl" "$_db" "$_pre" | tee -a "${LOG_FILE:-/dev/null}"
+        TOTAL_N=$(( TOTAL_N + _n )); TOTAL_RSS=$(( TOTAL_RSS + _rss ))
+        TOTAL_SESS=$(( TOTAL_SESS + _cl )); TOTAL_DB=$(( TOTAL_DB + _db ))
     done
     printf "\n" | tee -a "${LOG_FILE:-/dev/null}"
     _show "frmweb total:" "$(printf "%s processes, %s MB RSS" "$TOTAL_N" "$TOTAL_RSS")"
-    _show "with DB connection (sessions):" "$TOTAL_SESS"
-    _show "without (pool / not logged on):" "$(( TOTAL_N - TOTAL_SESS ))"
-    info "  assumption: no DB connection and no CPU time = prestarted pool runtime (not yet tested with a real client session)"
+    _show "sessions (client attached):" "$TOTAL_SESS  (logged on to the DB: $TOTAL_DB)"
+    _show "pool (no client):" "$(( TOTAL_N - TOTAL_SESS ))"
+    info "  client = connection from the $WLS_FORMS_SRV JVM (Listener servlet); logged on = other connection (Oracle Net)"
     if [ $(( TOTAL_N - TOTAL_SESS )) -gt 20 ]; then
         warn "$(printf "%s frmweb processes without a session – prestart pool in many sections?" $(( TOTAL_N - TOTAL_SESS )))"
         REC_POOL=1
@@ -159,10 +178,10 @@ _show "$WLS_FORMS_SRV JVM RSS:" "${WLS_RSS:-0} MB  (heap: ./02-Checks/weblogic_p
 _show "frmweb RSS total:" "${TOTAL_RSS} MB"
 if [ "$TOTAL_SESS" -gt 0 ]; then
     AVG_SESS=$(( SESS_RSS / TOTAL_SESS ))
-    _show "RSS per session (avg):" "$AVG_SESS MB"
-    [ "$AVG_SESS" -gt 0 ] && _show "Sessions that fit (RAM avail):" "~$(( (MEM_AVAIL + SESS_RSS) / AVG_SESS ))"
+    _show "RSS per session (avg):" "$AVG_SESS MB  (private / not shared: $(( SESS_PRIV / TOTAL_SESS )) MB)"
+    [ "$AVG_SESS" -gt 0 ] && _show "Sessions that fit (RAM avail):" "~$(( (MEM_AVAIL + SESS_RSS) / AVG_SESS ))  (by RSS – upper bound of the cost)"
 else
-    info "No session with a DB connection – RSS per session cannot be measured now (measure under real load)"
+    info "No client session now – RSS per session cannot be measured (measure under real load)"
 fi
 info "  FMX code and boilerplate are shared between sessions of the same form (Oracle) – only the data part grows per session"
 
