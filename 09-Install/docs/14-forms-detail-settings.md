@@ -16,10 +16,23 @@
 This step configures all Oracle Forms runtime files after the domain and
 managed servers have been created (Step 8 `08-oracle_setup_domain.sh`).
 
-The configuration uses a **template-copy** approach: customer-edited template
-files in `09-Install/forms_templates/` are copied to the correct domain
-locations.  No values are generated from `environment.conf` – the customer
-controls every parameter directly in the templates.
+The configuration uses a **template** approach: customer-edited templates in
+`09-Install/forms_templates/` are rendered into the domain. What comes from
+where:
+
+| Source | Values |
+|---|---|
+| `environment.conf` (never edit these in the templates) | all paths in `default.env` (`##ORACLE_HOME##`, `##JDK_HOME##`, `##TNS_ADMIN##`, `##FORMS_CUSTOMER_DIR##` …), `maxRuntimeProcesses` (`FORMS_MAX_RUNTIME_PROCESSES`, empty = RAM proposal), runtime pooling (`FORMS_PRESTART_SECTION` / `_INIT` / `_MIN` / `_INCREMENT`), JACOB / signing (`FORMS_WEBUTIL_JACOB`, `FORMS_SIGN_*`) |
+| templates (customer) | `FORMS_PATH` extras, `NLS_LANG` / `NLS_DATE_FORMAT`, `[default]` overrides of `formsweb.cfg`, `webutil.cfg` transfer directories, colour scheme, key mapping |
+| Oracle's own files (`$ORACLE_HOME/forms/templates/config/`) | the base of `formsweb.cfg` and `webutil.cfg` – our templates only override keys |
+
+Re-runnable: a target that already matches is reported "up to date" and not
+rewritten; a changed one gets a `.bak_<timestamp>` first (since 2026-11-03
+also for `default.env`, `Registry.dat`, `*.res` – before, every `--apply`
+rewrote them). `formsweb.cfg` is compared by its settings only: WebLogic / EM
+rewrite the deployed file (own header line, trailing blanks and empty lines
+removed) – a difference only in comments / blank lines counts as "up to
+date". Unknown options: exit 1.
 
 Steps performed by `14-oracle_setup_forms.sh`:
 
@@ -28,7 +41,8 @@ Steps performed by `14-oracle_setup_forms.sh`:
    `$PATCH_STORAGE/jacob/`, sign it with `FORMS_SIGN_KEYSTORE` (if set),
    activate only a signed `jacob.jar`
 3. Write `webutil.cfg` (Oracle's file + template overrides) to both locations
-4. Copy `default.env` to the Forms application config dir
+   – then create `FORMS_CUSTOMER_DIR` / `FORMS_TMP` (Step 2b)
+4. Copy `default.env` to the Forms application config dir (placeholders filled)
 5. Write `formsweb.cfg` (Oracle's file + `[default]` overrides, runtime pooling only in
    `FORMS_PRESTART_SECTION`) to the Forms application config dir
 6. Copy `Registry.dat` to the registry subdirectory
@@ -73,7 +87,7 @@ of parameters to adapt.
 
 | Template | Must adapt |
 |---|---|
-| `default.env.template` | `ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, `FORMS_PATH`, `NLS_LANG`, JDK path in `PATH`/`LD_LIBRARY_PATH`/`LD_PRELOAD` |
+| `default.env.template` | only `FORMS_PATH` (extra `.fmx` dirs), `NLS_LANG`, `NLS_DATE_FORMAT` – every path (`ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, JDK in `PATH` / `LD_LIBRARY_PATH` / `LD_PRELOAD`) is a `##…##` placeholder filled from `environment.conf`; do not replace them by hand |
 | `formsweb.cfg.template` | overrides for `[default]` only (window size, WebUtil); optional `form=`, `pageTitle=` – runtime pooling is NOT set here (`FORMS_PRESTART_SECTION`) |
 | `webutil.cfg.template` | `transfer.appsrv.read.N`, `transfer.appsrv.write.N` |
 | `Registry.dat.template` | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
@@ -334,7 +348,7 @@ Parameters in `default.env.template`:
 | `FORMS_INSTANCE` | Full path to Forms instance dir (= `$FR_INST`) |
 | `TNS_ADMIN` | Directory containing `tnsnames.ora` / `sqlnet.ora` |
 | `FORMS_PATH` | Colon-separated list of `.fmb`/`.fmx` search dirs |
-| `NLS_LANG` | Must match Oracle DB character set (e.g. `GERMAN_GERMANY.UTF8`) |
+| `NLS_LANG` | Client character set of the Forms runtime, e.g. `GERMAN_GERMANY.AL32UTF8` (`UTF8` = old CESU-8 – `06-FormsDiag/forms_settings.sh` reports it) |
 | `NLS_DATE_FORMAT` | Date display format (`DD.MM.YYYY` for German) |
 | `COMPONENT_CONFIG_PATH` | Full path to `ReportsToolsComponent/<instance>` dir |
 | `PATH` | Must include `$ORACLE_HOME/bin` and JDK `bin` |
@@ -522,25 +536,29 @@ Modifiers: `0` = none, `1` = Shift, `2` = Ctrl, `3` = Shift+Ctrl.
 The templates contain a standard German layout. Change key codes only if
 your application uses different function key assignments.
 
-> Always back up the originals before replacing:
-> `cp fmrweb.res fmrweb.res.ori`
-> `cp fmrweb_utf8.res fmrweb_utf8.res.ori`
+> The script backs up a changed file as `.bak_<timestamp>` before it writes.
+> By hand: `cp fmrweb_utf8.res fmrweb_utf8.res.ori` first.
 
 ---
 
 ## Verification
 
+The files are read at the start of the Forms servlet: restart first (README
+Phase 6 – `01-Run/startStop.sh stop-all` / `start-all` after `13-` and `14-`;
+later only `stop` / `start WLS_FORMS`).
+
 ```bash
-# Check Forms servlet is responding
-curl -s "http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet"
-# Expected: HTTP 200 or redirect to login
+# configuration actually used (formsweb.cfg / default.env of the deployed app,
+# FORMS_PATH, TNS_ADMIN, NLS_LANG, sections incl. inheritance from [default])
+./06-FormsDiag/forms_settings.sh
+# timeout chain, maxRuntimeProcesses, runtime pooling
+./06-FormsDiag/forms_perf_settings.sh
 
-# Check WLS_FORMS managed server log
-tail -100 $DOMAIN_HOME/servers/$WLS_FORMS_SERVER/logs/$WLS_FORMS_SERVER.log
+# Forms servlet answers (on the host; from outside https://<FQDN>/forms/frmservlet)
+curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet"   # 200
 
-# Verify default.env loaded by Forms
-grep 'FORMS_PATH\|NLS_LANG' \
-    $DOMAIN_HOME/servers/$WLS_FORMS_SERVER/logs/$WLS_FORMS_SERVER.log
+# messages of the servlet / runtime pool (FRM-934xx = [NOTIFICATION])
+tail -100 $DOMAIN_HOME/servers/$WLS_FORMS_SERVER/logs/${WLS_FORMS_SERVER}-diagnostic.log
 ```
 
 ---
@@ -555,7 +573,7 @@ grep 'FORMS_PATH\|NLS_LANG' \
 | Wrong date format displayed | `NLS_DATE_FORMAT` not set | Add `NLS_DATE_FORMAT=DD.MM.YYYY` to `default.env` |
 | Custom colour scheme not applied | Name mismatch between `Registry.dat` and `formsweb.cfg` | Verify `customColorScheme=<name>` matches `colorScheme.<name>.*` |
 | Forms loads but keyboard mapping wrong | Wrong `.res` file active | Check `NLS_LANG` → determines which `.res` file is used |
-| `jacob.jar is not signed – NOT activated` | release jar is unsigned | sign `jacob.jar` (open TODO), re-run `--apply` (Step 1) |
+| `jacob.jar is not signed – NOT activated` | release jar is unsigned | set `FORMS_SIGN_KEYSTORE` (own CA: `08-SSL/ssl_local_ca.sh codesign --apply`, or `FORMS_SIGN_LOCALCA=true`), re-run `--apply` – the script signs it (Step 1) |
 | JACOB ZIP not found / SHA-256 mismatch | not downloaded / damaged | `04-oracle_pre_download.sh --apply` (Step 1) |
 | WebUtil cannot install DLLs on the client | `webutil.cfg` without `install.syslib` entries (template before 2026-10-15) | re-run `14-oracle_setup_forms.sh --apply` (Step 2) |
 
@@ -569,6 +587,7 @@ grep 'FORMS_PATH\|NLS_LANG' \
 | `09-Install/forms_templates/` | Customer-edited configuration templates |
 | `09-Install/forms_templates/README.md` | Template editing guide |
 | `09-Install/11-oracle_nodemanager.sh` | NodeManager plain mode (prerequisite) |
-| `09-Install/13-oracle_setup_reports.sh` | Reports Server setup (parallel step) |
+| `09-Install/13-oracle_setup_reports.sh` | Reports Server setup (step before; one restart for both) |
+| `06-FormsDiag/` | check the deployed configuration, pooling, limits, load |
 | `04-ReportsFonts/uifont_ali_update.sh` | Font configuration for Reports (shares `REPORTS_FONT_DIR`) |
 | `90-Source-MetaData/oracle_forms_config_ch7_8.md` | Source document (Chapters 7–8) |

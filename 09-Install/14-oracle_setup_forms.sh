@@ -64,7 +64,7 @@ for _arg in "$@"; do
             printf "\nWithout --apply: check only, no files copied.\n"
             printf "Templates: %s/\n" "$TEMPLATES_DIR"
             exit 0 ;;
-        *) warn "Unknown argument: $_arg" ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
@@ -201,9 +201,12 @@ _render_template() {
 # _copy_template  src_template  dest_file  [dest_file_2]
 # =============================================================================
 
+# Renders the template first and compares: an unchanged target is reported
+# "up to date" and not rewritten (before 2026-11-03 every --apply rewrote it
+# and left one more .bak_* behind, like webutil.cfg / formsweb.cfg do not)
 _copy_template() {
     local src="$1" dest="$2" dest2="${3:-}"
-    local tname
+    local tname rendered d
     tname="$(basename "$src" .template)"
 
     if [ ! -f "$src" ]; then
@@ -211,46 +214,34 @@ _copy_template() {
         info "  Check 09-Install/forms_templates/ and edit before running --apply"
         return 1
     fi
+    rendered="$(mktemp)"
+    _render_template "$src" "$rendered" || { rm -f "$rendered"; return 1; }
 
-    # Primary destination
-    printf "  %-30s %s\n" "$tname" "$dest" | tee -a "${LOG_FILE:-/dev/null}"
-    if $APPLY; then
-        local dest_dir
-        dest_dir="$(dirname "$dest")"
-        if [ ! -d "$dest_dir" ]; then
-            warn "Target directory does not exist: $dest_dir"
-            info "  Create directory first or verify domain configuration"
-            return 1
+    for d in "$dest" ${dest2:+"$dest2"}; do
+        printf "  %-30s %s%s\n" "$tname" "$d" "$([ "$d" = "$dest2" ] && printf '  (sync)')" \
+            | tee -a "${LOG_FILE:-/dev/null}"
+        if [ ! -d "$(dirname "$d")" ]; then
+            if $APPLY; then
+                warn "Target directory does not exist: $(dirname "$d")"
+                info "  verify the domain configuration (FR_INST / Forms app dir)"
+            else
+                info "  Dry-run – target directory missing: $(dirname "$d")"
+            fi
+            [ "$d" = "$dest" ] && { rm -f "$rendered"; return 1; }
+            continue
         fi
-        [ -f "$dest" ] && cp "$dest" "${dest}.bak_$(date +%Y%m%d_%H%M%S)"
-        _render_template "$src" "$dest" || return 1
-        ok "Copied: $tname → $(basename "$dest_dir")/$(basename "$dest")"
-    else
-        if [ -f "$dest" ]; then
-            info "  Dry-run – would overwrite (backup first)"
+        if [ -f "$d" ] && cmp -s "$rendered" "$d"; then
+            ok "$(printf "  up to date: %s" "$d")"
+        elif $APPLY; then
+            [ -f "$d" ] && cp -p "$d" "${d}.bak_$(date +%Y%m%d_%H%M%S)"
+            cp "$rendered" "$d" && ok "Written: $tname → $(basename "$(dirname "$d")")/$(basename "$d")"
+        elif [ -f "$d" ]; then
+            info "  Dry-run – differs, would overwrite (backup first)"
         else
             info "  Dry-run – would create"
         fi
-    fi
-
-    # Optional second destination (two-location sync)
-    if [ -n "$dest2" ]; then
-        printf "  %-30s %s  (sync)\n" "" "$dest2" | tee -a "${LOG_FILE:-/dev/null}"
-        if $APPLY; then
-            local dest2_dir
-            dest2_dir="$(dirname "$dest2")"
-            if [ ! -d "$dest2_dir" ]; then
-                warn "Secondary target directory does not exist: $dest2_dir"
-                info "  Skipping secondary location – copy manually if needed"
-                return 0
-            fi
-            [ -f "$dest2" ] && cp "$dest2" "${dest2}.bak_$(date +%Y%m%d_%H%M%S)"
-            _render_template "$src" "$dest2" || return 0
-            ok "Synced:  $tname → $(basename "$dest2_dir")/$(basename "$dest2")"
-        else
-            info "  Dry-run – would also copy to secondary location"
-        fi
-    fi
+    done
+    rm -f "$rendered"
 }
 
 # =============================================================================
@@ -724,8 +715,14 @@ else
         fi
         printf "  %-30s %s\n" "formsweb.cfg (base)" "$FORMSWEB_BASE" | tee -a "${LOG_FILE:-/dev/null}"
         info "$(printf "  sections kept from Oracle's file: %s" "$(grep -o '^\[[^]]*\]' "$_fw_tmp" | tr -d '[]' | xargs)")"
+        # WebLogic / EM rewrite the deployed file (own header line, trailing
+        # blanks and empty lines removed) - compare only the settings, else
+        # every run rewrote it (2026-11-03)
+        _fw_norm() { grep -v '^[[:space:]]*#' "$1" | sed 's/[[:space:]]*$//' | grep -v '^$'; }
         if [ -f "$_fw_dest" ] && cmp -s "$_fw_tmp" "$_fw_dest"; then
             ok "$(printf "  up to date: %s" "$_fw_dest")"
+        elif [ -f "$_fw_dest" ] && cmp -s <(_fw_norm "$_fw_tmp") <(_fw_norm "$_fw_dest"); then
+            ok "$(printf "  up to date (settings equal, only comments / blank lines differ): %s" "$_fw_dest")"
         elif $APPLY; then
             [ -f "$_fw_dest" ] && cp "$_fw_dest" "${_fw_dest}.bak_$(date +%Y%m%d_%H%M%S)"
             cp "$_fw_tmp" "$_fw_dest" && chmod 640 "$_fw_dest" \
@@ -832,12 +829,14 @@ unset _JACOB_JAR _EXT_JNLP
 
 section "Next Steps"
 if $APPLY; then
-    info "Restart WLS_FORMS to pick up configuration changes:"
-    info "  \$DOMAIN_HOME/bin/stopManagedWebLogic.sh $WLS_FORMS_SERVER t3://localhost:${WLS_ADMIN_PORT:-7001}"
-    info "  \$DOMAIN_HOME/bin/startManagedWebLogic.sh $WLS_FORMS_SERVER t3://localhost:${WLS_ADMIN_PORT:-7001} &"
-    info ""
-    info "Verify Forms servlet:"
-    info "  curl -s http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet"
+    # README Phase 6: one restart for 13- and 14- (formsweb.cfg / default.env
+    # are read at servlet start)
+    info "Next (09-Install/README.md, Phase 6):"
+    info "  1. 01-Run/startStop.sh stop-all --apply; 01-Run/startStop.sh start-all --apply"
+    info "     (later only Forms changed: stop/start $WLS_FORMS_SERVER --apply)"
+    info "  2. check: 06-FormsDiag/forms_settings.sh, 06-FormsDiag/forms_perf_settings.sh"
+    info "     curl -s -o /dev/null -w '%{http_code}' http://localhost:${WLS_FORMS_PORT:-9001}/forms/frmservlet   (200)"
+    info "  3. 09-Install/14b-oracle_reports_fonts.sh --apply"
 else
     info "Re-run with --apply to copy templates to domain locations"
     info ""
