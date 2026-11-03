@@ -9,7 +9,9 @@
 #            Afterwards the JDK path is reset to the JDK_HOME symlink
 #            (07-Maintenance/domain_jdk_path.sh).
 #            All servers listen on WLS_LISTEN_ADDRESS (default: 127.0.0.1).
-#            Run AFTER 07-oracle_setup_repository.sh --apply.
+#            Run AFTER 07-oracle_setup_repository.sh --apply – checked before
+#            WLST: login as <prefix>_OPSS (schemas present, password valid),
+#            no existing config.xml.
 # Call     : ./09-Install/08-oracle_setup_domain.sh
 #            ./09-Install/08-oracle_setup_domain.sh --apply
 #            ./09-Install/08-oracle_setup_domain.sh --help
@@ -70,7 +72,7 @@ for _arg in "$@"; do
             printf "  --help   Show this help\n\n"
             exit 0
             ;;
-        *) warn "Unknown argument: $_arg (ignored)" ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
@@ -209,19 +211,67 @@ $WITH_REPORTS || info "$(printf "%30s  %s" "" "(no Reports templates – INSTALL
 
 printf "\n" | tee -a "$LOG_FILE"
 
+# =============================================================================
+# Repository check: RCU schemas present, schema password valid
+#
+# writeDomain needs <prefix>_OPSS (security store) and the other RCU schemas.
+# Without them WLST fails only after minutes in the "OPSS Processing" phase and
+# leaves a partial DOMAIN_HOME. One login as <prefix>_OPSS (read-only) proves
+# DB reachable + schema exists + password right + account open.
+# =============================================================================
+
+section "Repository"
+
+if [ -f "$DOMAIN_HOME/config/config.xml" ]; then
+    if $APPLY; then
+        fail "Domain already exists: $DOMAIN_HOME/config/config.xml"
+        fail "  Delete it first (and re-create the RCU schemas, see docs) or use a different DOMAIN_HOME."
+        EXIT_CODE=2
+    else
+        warn "Domain already exists: $DOMAIN_HOME/config/config.xml – --apply would refuse"
+    fi
+elif [ -d "$DOMAIN_HOME" ] && [ -n "$(ls -A "$DOMAIN_HOME" 2>/dev/null)" ]; then
+    warn "DOMAIN_HOME exists without config.xml (partial domain?) – WLST overwrites it"
+fi
+
+if ! timeout 3 bash -c ">/dev/null </dev/tcp/${DB_HOST}/${DB_PORT}" 2>/dev/null; then
+    fail "Cannot reach ${DB_HOST}:${DB_PORT} – listener down or firewall?"
+    EXIT_CODE=2
+elif [ -x "$ORACLE_HOME/bin/sqlplus" ]; then
+    _opss="${DB_SCHEMA_PREFIX^^}_OPSS"
+    _out="$(LD_LIBRARY_PATH="$ORACLE_HOME/lib" "$ORACLE_HOME/bin/sqlplus" -S -L /nolog 2>&1 <<SQLEOF
+CONNECT ${_opss}/"${DB_SCHEMA_PWD}"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE}
+SET HEADING OFF FEEDBACK OFF PAGESIZE 0
+SELECT 'IHW:LOGIN_OK' FROM DUAL;
+EXIT;
+SQLEOF
+)"
+    if printf '%s\n' "$_out" | grep -q 'IHW:LOGIN_OK'; then
+        ok "Login ${_opss} on ${DB_HOST}:${DB_PORT}/${DB_SERVICE} – RCU schemas present"
+    else
+        _ora="$(printf '%s\n' "$_out" | grep -m1 -oE 'ORA-[0-9]+[^[:cntrl:]]*')"
+        fail "Login ${_opss} failed: ${_ora:-no answer}"
+        case "$_ora" in
+            ORA-01017*) info "  Schema missing (RCU not run for prefix ${DB_SCHEMA_PREFIX}) or wrong DB_SCHEMA_PWD:"
+                        info "  09-Install/07-oracle_setup_repository.sh --apply" ;;
+            ORA-28000*) info "  Account locked: 09-Install/07-oracle_setup_repository.sh --profile, then unlock" ;;
+            ORA-28001*) info "  Password expired: 09-Install/07-oracle_setup_repository.sh --profile" ;;
+            ORA-12514*) info "  Service ${DB_SERVICE} not registered at the listener (DB_SERVICE = PDB name?)" ;;
+        esac
+        EXIT_CODE=2
+    fi
+    unset _opss _out _ora
+else
+    warn "sqlplus not found in ORACLE_HOME – RCU schemas not checked"
+fi
+
+if [ "$EXIT_CODE" -ge 2 ]; then
+    print_summary; exit $EXIT_CODE
+fi
+
 if ! $APPLY; then
     info "Dry-run complete – use --apply to create the domain"
     print_summary; exit "$EXIT_CODE"
-fi
-
-# =============================================================================
-# Safety check: abort if domain already exists
-# =============================================================================
-
-if [ -f "$DOMAIN_HOME/config/config.xml" ]; then
-    fail "Domain already exists: $DOMAIN_HOME/config/config.xml"
-    fail "  Delete it first or use a different DOMAIN_HOME."
-    EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 
 # =============================================================================

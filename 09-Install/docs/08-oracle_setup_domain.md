@@ -4,6 +4,15 @@
 **Runs as:** `oracle`
 **Phase:** 4 – Repository & Domain
 
+```bash
+./09-Install/08-oracle_setup_domain.sh            # dry-run: plan + repository check
+./09-Install/08-oracle_setup_domain.sh --apply    # WLST createDomain
+```
+
+Checked against the script 2026-11-03. Before it: `07-oracle_setup_repository.sh
+--apply` (RCU schemas + profile), `00-Setup/weblogic_sec.sh --apply` (admin
+user / password).
+
 ---
 
 ## Purpose
@@ -68,6 +77,21 @@ depend on it.
 
 ## Without the Script (manual)
 
+### 0. Check the repository
+
+```bash
+# DB reachable, RCU schemas present, schema password valid, account open
+sqlplus -S -L /nolog <<EOF
+CONNECT ${DB_SCHEMA_PREFIX}_OPSS/"<schema password>"@//${DB_HOST}:${DB_PORT}/${DB_SERVICE}
+SELECT 'LOGIN_OK' FROM dual;
+EOF
+ls $DOMAIN_HOME/config/config.xml     # must NOT exist
+```
+
+ORA-01017 = schema missing (RCU not run for this prefix) or wrong password;
+ORA-28000 / ORA-28001 = locked / expired (profile, `07- --profile`);
+ORA-12514 = `DB_SERVICE` not registered at the listener.
+
 ### 1. Create WLST domain config script
 
 Create from template `09-Install/response_files/domain_config.py.template`
@@ -112,44 +136,65 @@ cd('/Servers/WLS_REPORTS')
 set('ListenAddress', '127.0.0.1')
 set('ListenPort', 9002)
 
-# Configure LocalSvcTblDataSource (FMW Service Table = STB schema)
+# Data sources: URL, password and schema user for each one
 # JDBC thin URL: //host:port/service_name  (// + / = PDB service, not SID)
-cd('/JDBCSystemResources/LocalSvcTblDataSource/JdbcResource/LocalSvcTblDataSource')
-cd('JDBCDriverParams/NO_NAME_0')
-set('URL', 'jdbc:oracle:thin:@//DB_HOST:DB_PORT/DB_SERVICE')
-set('PasswordEncrypted', 'DB_SCHEMA_PASSWORD')
-cd('Properties/NO_NAME_0/Property/user')
-set('Value', 'DEV_STB')
+def cfg_ds(ds, user):
+    cd('/JDBCSystemResources/' + ds + '/JdbcResource/' + ds)
+    cd('JDBCDriverParams/NO_NAME_0')
+    set('URL', 'jdbc:oracle:thin:@//DB_HOST:DB_PORT/DB_SERVICE')
+    set('PasswordEncrypted', 'DB_SCHEMA_PASSWORD')
+    cd('Properties/NO_NAME_0/Property/user')
+    set('Value', user)
+    cd('/')
+
+cfg_ds('LocalSvcTblDataSource',      'DEV_STB')
+cfg_ds('opss-data-source',           'DEV_OPSS')
+cfg_ds('opss-audit-DBDS',            'DEV_IAU_APPEND')
+cfg_ds('opss-audit-viewDS',          'DEV_IAU_VIEWER')
+cfg_ds('WLSSchemaDataSource',        'DEV_WLS')          # untargeted by design,
+cfg_ds('WLSRuntimeSchemaDataSource', 'DEV_WLS_RUNTIME')  # URL still needed (see below)
+# (no mds-owsm in Forms & Reports – no OWSM component)
 
 # Write domain
 writeDomain('DOMAIN_HOME')
 closeTemplate()
 ```
 
+The template additionally sets, before `writeDomain` (see *Notes*):
+`WeblogicPluginEnabled` on the AdminServer, SSL listen port off + Coherence
+on the listen address per managed server (`_ihw_loopback`), `time-taken` in
+the access log of `WLS_FORMS` (`_ihw_accesslog`).
+
 ### 2. Run WLST to create domain
 
 ```bash
-$ORACLE_HOME/oracle_common/common/bin/wlst.sh $PATCH_STORAGE/domain_config.py
+chmod 600 /tmp/domain_config.py      # contains the passwords
+$ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/domain_config.py
+rm -f /tmp/domain_config.py
 ```
 
 ### 3. Configure Node Manager
 
 ```bash
-$DOMAIN_HOME/bin/installNodeMgrSvc.sh   # create Node Manager as a service (optional)
-
-# Or configure nodemanager.properties manually:
-cat > $DOMAIN_HOME/nodemanager/nodemanager.properties << 'EOF'
+cp -p $DOMAIN_HOME/nodemanager/nodemanager.properties{,.bak.$(date +%Y%m%d_%H%M%S)}
+cat > $DOMAIN_HOME/nodemanager/nodemanager.properties <<EOF
 ListenAddress=127.0.0.1
-ListenPort=5556
+ListenPort=${WLS_NODEMANAGER_PORT:-5556}
 SecureListener=false
 LogLimit=0
-PropertiesVersion=12.2.1
+PropertiesVersion=14.1.2
 AuthenticationEnabled=true
 NodeManagerHome=$DOMAIN_HOME/nodemanager
 JavaHome=$JDK_HOME
 LogFile=$DOMAIN_HOME/nodemanager/nodemanager.log
+LogLevel=INFO
 EOF
 ```
+
+Only these keys – Node Manager adds the missing ones with their defaults at
+the first start (`DomainsFile`, `StartScriptEnabled`, `CrashRecoveryEnabled`,
+… – seen on the test host). Node Manager as a systemd service: phase 7c
+(`30-configure_autostart.sh`); `installNodeMgrSvc` exists for Windows only.
 
 ### 3b. JDK path: symlink instead of the versioned directory
 
@@ -188,11 +233,19 @@ for the full WLST/OPSS procedure (manual and scripted).
 
 ## What the Script Does
 
-- Reads all domain parameters from `environment.conf`
+- Reads all domain parameters from `environment.conf`; unknown options stop
+  the script (exit 1)
 - Decrypts WLS admin password from `weblogic_sec.conf.des3`
   (`load_weblogic_password` → `WL_USER`, `INTERNAL_WL_PWD`)
 - Decrypts DB schema password from `db_sys_sec.conf.des3`
   (`load_secrets_file` → `DB_SCHEMA_PWD`)
+- **Repository check** (dry-run too): DB port reachable, one login as
+  `<prefix>_OPSS` with `DB_SCHEMA_PWD` (sqlplus of `ORACLE_HOME`) – FAIL with
+  the ORA message and a hint (ORA-01017 / 28000 / 28001 / 12514). Without it
+  WLST fails only after minutes in "OPSS Processing" and leaves a partial
+  `DOMAIN_HOME`. An existing `config.xml`: WARN in the dry-run, FAIL with
+  `--apply`; a non-empty `DOMAIN_HOME` without `config.xml` (partial domain):
+  WARN, WLST overwrites it (`OverwriteDomain`)
 - Substitutes `##PLACEHOLDER##` values in `response_files/domain_config.py.template`
   into a temp file (`/tmp/domain_cfg_PID.py`, mode 600); deleted via `trap EXIT`
 - Runs `wlst.sh /tmp/domain_cfg_PID.py` to create the domain
@@ -219,7 +272,7 @@ Located at: `09-Install/response_files/domain_config.py.template`
 
 | Flag | Description |
 |---|---|
-| (none) | Show planned domain configuration |
+| (none) | Show planned domain configuration + repository check (read-only login) |
 | `--apply` | Create domain |
 | `--help` | Show usage |
 
@@ -272,8 +325,8 @@ The domain is not started here: next step is `09-oracle_configure.sh`
 - Domain creation is not idempotent. The WLST template hardcodes
   `setOption('OverwriteDomain', 'true')` — WLST itself would silently overwrite an
   existing domain, no questions asked. The actual protection is the shell script's
-  own pre-check (`08-oracle_setup_domain.sh`, before WLST is even invoked): it aborts
-  if `$DOMAIN_HOME/config/config.xml` already exists. Running the "Without the
+  own pre-check (`08-oracle_setup_domain.sh`, before WLST is even invoked): `--apply`
+  aborts if `$DOMAIN_HOME/config/config.xml` already exists. Running the "Without the
   Script" WLST steps below directly does **not** have this protection — check for
   an existing domain manually first.
 - The WLST script file containing the password is created in a temp location and
