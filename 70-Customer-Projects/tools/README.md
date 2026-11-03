@@ -26,6 +26,7 @@ Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
 (customer request 2026-11-03). `python3 -I cookbook_blank_lines.py <file.txt>`
 adds them (only blank lines; heredocs, loops, `\` continuations and the
 explaining comment right after a command stay together; shell cookbooks only).
+All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
 
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)

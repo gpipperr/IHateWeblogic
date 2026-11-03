@@ -6,6 +6,13 @@ numbered folders above. One subfolder per customer/scenario, each a
 self-contained, copy-paste-able walkthrough rather than generated script
 output.
 
+## Writing a cookbook
+
+→ [cookbook-Skill.md](cookbook-Skill.md) – style rules for every customer
+cookbook (any language, bash / PowerShell / cmd): one command per line with
+blank lines around it, no nesting (intermediate variables instead), derived
+paths, "Expected" output under each command, rollback in every step.
+
 ## Available Walkthroughs
 
 ### Oracle Reports 14.1.2 – Manual Install (German)

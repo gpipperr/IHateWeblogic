@@ -827,6 +827,9 @@ SCHRITT 14: Aufraeumen und dokumentieren
 
   # Erst nach erfolgreichem Test (Schritt 13) - und nach Ruecksprache, wie
   # lange das Backup gehalten werden soll:
+
+  echo $STAGE
+
   rm -rf $STAGE/WLS_SPB_14.1.2.0.261007 $STAGE/4* $STAGE/3* $STAGE/opatch \
          $STAGE/jdk-21*_linux-x64_bin.tar.gz
 
@@ -841,6 +844,10 @@ SCHRITT 14: Aufraeumen und dokumentieren
   # Dokumentation: Datum, Ausgabe 13_lspatches_after.txt, java -version,
   # Testergebnis -> Patchprotokoll des Kunden.
 
+================================================================================
+SCHRITT 15: Maschine neu starten
+================================================================================
+reboot
 
 ================================================================================
 ROLLBACK
