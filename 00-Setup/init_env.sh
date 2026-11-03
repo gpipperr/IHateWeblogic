@@ -76,156 +76,6 @@ LOG_FILE="$LOG_BOOT_DIR/init_env_$(date +%H%M%S).log"
 
 mkdir -p "$ENV_CONF_DIR"
 
-# =============================================================================
-# DB MODE  (--db flag): detect Oracle DB home → write environments/db_<SID>.conf
-# Exits after completion; the FMW detection below is skipped.
-# =============================================================================
-if $DB_MODE; then
-    printf "\n\033[1m  IHateWeblogic – DB Environment Initialisation\033[0m\n" | tee -a "$LOG_FILE"
-    printf "  Host   : %s\n" "$(_get_hostname)" | tee -a "$LOG_FILE"
-    printf "  Apply  : %s\n" "$APPLY"           | tee -a "$LOG_FILE"
-    printLine
-
-    section "Detecting Oracle DB SID"
-    DET_DB_SID="$(detect_oracle_sid)"
-    if [ -n "$DET_DB_SID" ]; then
-        ok "ORACLE_SID detected: $DET_DB_SID"
-    else
-        warn "ORACLE_SID not auto-detected"
-        if $INTERVIEW; then
-            printf "  ORACLE_SID [ORCL]: "
-            read -r DET_DB_SID </dev/tty
-            [ -z "$DET_DB_SID" ] && DET_DB_SID="ORCL"
-        else
-            DET_DB_SID="ORCL"
-            info "  Using default: ORCL  (use --interview to override)"
-        fi
-    fi
-
-    section "Detecting Oracle DB Home"
-    DET_DB_ORACLE_HOME="$(detect_db_home "$DET_DB_SID")"
-    if [ -n "$DET_DB_ORACLE_HOME" ] && [ -f "$DET_DB_ORACLE_HOME/bin/sqlplus" ]; then
-        ok "ORACLE_HOME detected: $DET_DB_ORACLE_HOME"
-    else
-        warn "DB ORACLE_HOME not auto-detected"
-        if $INTERVIEW; then
-            printf "  ORACLE_HOME [/u01/app/oracle/product/19c/dbhome_1]: "
-            read -r DET_DB_ORACLE_HOME </dev/tty
-            [ -z "$DET_DB_ORACLE_HOME" ] && DET_DB_ORACLE_HOME="/u01/app/oracle/product/19c/dbhome_1"
-        else
-            DET_DB_ORACLE_HOME="/u01/app/oracle/product/19c/dbhome_1"
-            info "  Using default (use --interview to override)"
-        fi
-    fi
-
-    DET_DB_ORACLE_BASE="$(detect_oracle_base "$DET_DB_ORACLE_HOME")"
-    printList "ORACLE_HOME" 28 "$DET_DB_ORACLE_HOME"
-    printList "ORACLE_BASE" 28 "$DET_DB_ORACLE_BASE"
-
-    # sqlplus version check
-    if [ -x "$DET_DB_ORACLE_HOME/bin/sqlplus" ]; then
-        DET_DB_VER="$("$DET_DB_ORACLE_HOME/bin/sqlplus" -V 2>/dev/null | head -1)"
-        ok "sqlplus: $DET_DB_VER"
-    else
-        warn "sqlplus not found: $DET_DB_ORACLE_HOME/bin/sqlplus"
-    fi
-
-    section "Detecting NLS_LANG and DB Connection"
-    DET_NLS_LANG="${NLS_LANG:-AMERICAN_AMERICA.AL32UTF8}"
-    DET_DB_HOST="localhost"
-    DET_DB_PORT="1521"
-    DET_DB_SERVICE="$DET_DB_SID"
-
-    # /etc/oratab has no connection details; try tnsnames.ora
-    local_tns="$DET_DB_ORACLE_HOME/network/admin/tnsnames.ora"
-    if [ -f "$local_tns" ]; then
-        ok "tnsnames.ora found: $local_tns"
-        DET_DB_HOST="$(grep -A5 -i "${DET_DB_SID}" "$local_tns" 2>/dev/null \
-            | grep -oiP '(?<=HOST\s=\s)\S+' | tr -d '()' | head -1)"
-        DET_DB_PORT="$(grep -A5 -i "${DET_DB_SID}" "$local_tns" 2>/dev/null \
-            | grep -oiP '(?<=PORT\s=\s)\d+' | head -1)"
-        [ -z "$DET_DB_HOST" ] && DET_DB_HOST="localhost"
-        [ -z "$DET_DB_PORT" ] && DET_DB_PORT="1521"
-    else
-        info "tnsnames.ora not found – using defaults"
-    fi
-
-    if $INTERVIEW; then
-        printf "\n  Confirm values (Enter = keep, type to override):\n\n"
-        printf "  %-28s [%s]: " "ORACLE_SID" "$DET_DB_SID"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_SID="$_in"
-
-        printf "  %-28s [%s]: " "ORACLE_HOME" "$DET_DB_ORACLE_HOME"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_ORACLE_HOME="$_in"
-
-        printf "  %-28s [%s]: " "ORACLE_BASE" "$DET_DB_ORACLE_BASE"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_ORACLE_BASE="$_in"
-
-        printf "  %-28s [%s]: " "NLS_LANG" "$DET_NLS_LANG"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_NLS_LANG="$_in"
-
-        printf "  %-28s [%s]: " "DB_HOST" "$DET_DB_HOST"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_HOST="$_in"
-
-        printf "  %-28s [%s]: " "DB_PORT" "$DET_DB_PORT"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_PORT="$_in"
-
-        printf "  %-28s [%s]: " "DB_SERVICE" "$DET_DB_SERVICE"
-        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_SERVICE="$_in"
-        unset _in
-    fi
-
-    printList "ORACLE_SID"  28 "$DET_DB_SID"
-    printList "NLS_LANG"    28 "$DET_NLS_LANG"
-    printList "DB_HOST"     28 "$DET_DB_HOST"
-    printList "DB_PORT"     28 "$DET_DB_PORT"
-    printList "DB_SERVICE"  28 "$DET_DB_SERVICE"
-
-    DB_ENV_NAME="db_${DET_DB_SID}"
-    DB_ENV_CONF="$ENV_CONF_DIR/${DB_ENV_NAME}.conf"
-    printList "Conf target" 28 "$DB_ENV_CONF"
-
-    section "Writing DB environment conf"
-    printLine
-
-    if $APPLY; then
-        if [ -f "$DB_ENV_CONF" ]; then
-            backup_file "$DB_ENV_CONF" "$ENV_CONF_DIR"
-        fi
-
-        cat > "$DB_ENV_CONF" <<DBENVEOF
-# ENV_TYPE=DB
-# ENV_LABEL=Oracle DB ${DET_DB_SID} @ $(_get_hostname)
-# =============================================================================
-# environment conf – Oracle Database Home
-# Generated by 00-Setup/init_env.sh --db
-# Host : $(_get_hostname)
-# Date : $(date '+%Y-%m-%d %H:%M:%S')
-# DO NOT check into git!
-# =============================================================================
-
-ORACLE_HOME="${DET_DB_ORACLE_HOME}"
-ORACLE_BASE="${DET_DB_ORACLE_BASE}"
-ORACLE_SID="${DET_DB_SID}"
-NLS_LANG="${DET_NLS_LANG}"
-
-# Optional: used by IHateWeblogic DB scripts
-DB_HOST="${DET_DB_HOST}"
-DB_PORT="${DET_DB_PORT}"
-DB_SERVICE="${DET_DB_SERVICE}"
-DBENVEOF
-
-        chmod 600 "$DB_ENV_CONF"
-        ok "DB conf written: $DB_ENV_CONF"
-        info "Activate with: . ./00-Setup/set_env.sh"
-    else
-        warn "Dry-run – use --apply to write conf"
-        printf "  Would write: %s\n" "$DB_ENV_CONF" | tee -a "$LOG_FILE"
-    fi
-
-    print_summary
-    exit $EXIT_CODE
-fi
 
 # =============================================================================
 # Detection helpers
@@ -273,19 +123,29 @@ detect_oracle_home() {
     printf "%s" "$result"
 }
 
-# detect_domain_home
-# Scans running AdminServer/NodeManager processes and standard paths.
+# detect_domain_home  [oracle_home]
+# Running AdminServer/NodeManager processes, then the domain-registry.xml of
+# the Oracle Home (works while WebLogic is down), then standard paths.
 detect_domain_home() {
-    local result=""
+    local oracle_home="${1:-}" result="" d
 
     # 1. Running AdminServer: -Dweblogic.RootDirectory=<path>
     result="$(ps -eo args 2>/dev/null \
         | grep -oP '(?<=-Dweblogic\.RootDirectory=)[^ ]+' \
         | head -1)"
 
-    # 2. Standard domain base directories
+    # 2. domain-registry.xml of the Oracle Home (written by every domain create)
+    if [ -z "$result" ] && [ -n "$oracle_home" ] && [ -f "$oracle_home/domain-registry.xml" ]; then
+        for d in $(sed -n 's/.*location="\([^"]*\)".*/\1/p' "$oracle_home/domain-registry.xml"); do
+            [ -f "$d/config/config.xml" ] && { result="$d"; break; }
+        done
+    fi
+
+    # 3. Standard domain base directories
     if [ -z "$result" ]; then
         for base in \
+            /u01/app/oracle/domains \
+            ${ORACLE_BASE:+$ORACLE_BASE/domains} \
             /u01/user_projects/domains \
             /u01/app/oracle/user_projects/domains \
             /home/oracle/user_projects/domains \
@@ -484,14 +344,17 @@ detect_db_home() {
         done < /etc/oratab
     fi
 
-    # 2. Running ora_pmon_<SID>: binary path is $ORACLE_HOME/bin/oracle
+    # 2. Running ora_pmon_<SID>: /proc/<pid>/exe is $ORACLE_HOME/bin/oracle
+    #    (args holds only the process name "ora_pmon_<SID>", no path)
     if [ -z "$result" ]; then
-        local pmon_exe
-        pmon_exe="$(ps -eo args 2>/dev/null \
-            | grep -E '^ora_pmon_' | grep -v grep | awk '{print $1}' | head -1)"
-        if [ -n "$pmon_exe" ] && [ -f "$pmon_exe" ]; then
-            result="$(dirname "$(dirname "$pmon_exe")")"
-        fi
+        local pmon_pid pmon_exe
+        for pmon_pid in $(pgrep -f "^ora_pmon_${sid:-}" 2>/dev/null); do
+            pmon_exe="$(readlink "/proc/$pmon_pid/exe" 2>/dev/null)"
+            if [ -n "$pmon_exe" ] && [ -f "$pmon_exe" ]; then
+                result="$(dirname "$(dirname "$pmon_exe")")"
+                break
+            fi
+        done
     fi
 
     # 3. Standard Oracle DB installation paths
@@ -514,9 +377,10 @@ detect_db_home() {
 detect_oracle_sid() {
     local result=""
 
-    # 1. Running instance: process name is ora_pmon_<SID>
-    result="$(ps -eo comm 2>/dev/null \
-        | grep -oP '(?<=ora_pmon_)\S+' \
+    # 1. Running instance: ora_pmon_<SID> - from args, not comm (the kernel
+    #    comm shows the SID in lower case: ora_pmon_fmwcdb vs. FMWCDB)
+    result="$(ps -eo args 2>/dev/null \
+        | grep -oP '^ora_pmon_\K\S+' \
         | head -1)"
 
     # 2. /etc/oratab – first non-comment entry
@@ -533,20 +397,20 @@ detect_oracle_sid() {
 }
 
 # detect_oracle_base  oracle_home
-# Derives ORACLE_BASE from ORACLE_HOME using the standard Oracle directory layout.
-# Standard layout: $ORACLE_BASE/product/<ver>/dbhome_1 → strip last 3 components.
+# ORACLE_BASE of a DB home: $ORACLE_HOME/bin/orabase, then install/orabasetab
+# (<home>:<base>:<home name>:<N|Y>:), last the standard layout
+# $ORACLE_BASE/product/<ver>/dbhome_1 (strip the last 3 components).
 detect_oracle_base() {
-    local oracle_home="$1"
-    local base
-    base="$(dirname "$(dirname "$(dirname "$oracle_home")")")"
-    # Fallback: read orabasetab if present
+    local oracle_home="$1" base=""
     local orabasetab="$oracle_home/install/orabasetab"
-    if [ -f "$orabasetab" ]; then
-        local tb_base
-        tb_base="$(awk -F: 'NR>1 && $1==ENVIRON["ORACLE_HOME"]{print $4}' \
-            ORACLE_HOME="$oracle_home" "$orabasetab" 2>/dev/null | head -1)"
-        [ -n "$tb_base" ] && base="$tb_base"
+    if [ -x "$oracle_home/bin/orabase" ]; then
+        base="$(ORACLE_HOME="$oracle_home" "$oracle_home/bin/orabase" 2>/dev/null | head -1)"
     fi
+    if [ -z "$base" ] && [ -f "$orabasetab" ]; then
+        base="$(awk -F: -v h="$oracle_home" '$0 !~ /^#/ && $1 == h { print $2; exit }' \
+            "$orabasetab" 2>/dev/null)"
+    fi
+    [ -z "$base" ] && base="$(dirname "$(dirname "$(dirname "$oracle_home")")")"
     printf "%s" "$base"
 }
 
@@ -692,6 +556,169 @@ _update_symlink() {
         info "  Check write permissions on: $(dirname "$link")"
     fi
 }
+
+# =============================================================================
+# DB MODE  (--db flag): detect Oracle DB home → write environments/db_<SID>.conf
+# Exits after completion; the FMW detection is skipped. Runs after the detection
+# helpers are defined (before 2026-11-03 it ran first and every detect_* was
+# "command not found" -> defaults ORCL / 19c/dbhome_1 were written).
+# =============================================================================
+_run_db_mode() {
+    printf "\n\033[1m  IHateWeblogic – DB Environment Initialisation\033[0m\n" | tee -a "$LOG_FILE"
+    printf "  Host   : %s\n" "$(_get_hostname)" | tee -a "$LOG_FILE"
+    printf "  Apply  : %s\n" "$APPLY"           | tee -a "$LOG_FILE"
+    printLine
+
+    section "Detecting Oracle DB SID"
+    DET_DB_SID="$(detect_oracle_sid)"
+    if [ -n "$DET_DB_SID" ]; then
+        ok "ORACLE_SID detected: $DET_DB_SID"
+    else
+        warn "ORACLE_SID not auto-detected"
+        if $INTERVIEW; then
+            printf "  ORACLE_SID [ORCL]: "
+            read -r DET_DB_SID </dev/tty
+            [ -z "$DET_DB_SID" ] && DET_DB_SID="ORCL"
+        else
+            DET_DB_SID="ORCL"
+            info "  Using default: ORCL  (use --interview to override)"
+        fi
+    fi
+
+    section "Detecting Oracle DB Home"
+    DET_DB_ORACLE_HOME="$(detect_db_home "$DET_DB_SID")"
+    if [ -n "$DET_DB_ORACLE_HOME" ] && [ -f "$DET_DB_ORACLE_HOME/bin/sqlplus" ]; then
+        ok "ORACLE_HOME detected: $DET_DB_ORACLE_HOME"
+    else
+        warn "DB ORACLE_HOME not auto-detected"
+        if $INTERVIEW; then
+            printf "  ORACLE_HOME [/u01/app/oracle/product/19c/dbhome_1]: "
+            read -r DET_DB_ORACLE_HOME </dev/tty
+            [ -z "$DET_DB_ORACLE_HOME" ] && DET_DB_ORACLE_HOME="/u01/app/oracle/product/19c/dbhome_1"
+        else
+            DET_DB_ORACLE_HOME="/u01/app/oracle/product/19c/dbhome_1"
+            info "  Using default (use --interview to override)"
+        fi
+    fi
+
+    DET_DB_ORACLE_BASE="$(detect_oracle_base "$DET_DB_ORACLE_HOME")"
+    printList "ORACLE_HOME" 28 "$DET_DB_ORACLE_HOME"
+    printList "ORACLE_BASE" 28 "$DET_DB_ORACLE_BASE"
+
+    # sqlplus version check
+    if [ -x "$DET_DB_ORACLE_HOME/bin/sqlplus" ]; then
+        DET_DB_VER="$("$DET_DB_ORACLE_HOME/bin/sqlplus" -V 2>/dev/null | grep -m1 'Version')"
+        ok "sqlplus: $DET_DB_VER"
+    else
+        warn "sqlplus not found: $DET_DB_ORACLE_HOME/bin/sqlplus"
+    fi
+
+    section "Detecting NLS_LANG and DB Connection"
+    DET_NLS_LANG="${NLS_LANG:-AMERICAN_AMERICA.AL32UTF8}"
+    DET_DB_HOST="localhost"
+    DET_DB_PORT="1521"
+    DET_DB_SERVICE="$DET_DB_SID"
+
+    # /etc/oratab has no connection details; try tnsnames.ora - the shared
+    # TNS_ADMIN first (one Oracle Net directory), then the home's network/admin
+    local_tns=""
+    for _t in "${TNS_ADMIN:+$TNS_ADMIN/tnsnames.ora}" "$DET_DB_ORACLE_HOME/network/admin/tnsnames.ora"; do
+        [ -n "$_t" ] && [ -f "$_t" ] && { local_tns="$_t"; break; }
+    done
+    unset _t
+    if [ -n "$local_tns" ]; then
+        ok "tnsnames.ora found: $local_tns"
+        # entry "<SID> = ..." first, else any line mentioning the SID;
+        # value stops at ")" - HOST = h)(PORT = 1521 must not run together
+        _tns_block="$(grep -iE -A6 "^[[:space:]]*${DET_DB_SID}[[:space:]]*=" "$local_tns" 2>/dev/null)"
+        [ -z "$_tns_block" ] && _tns_block="$(grep -i -A6 "${DET_DB_SID}" "$local_tns" 2>/dev/null)"
+        DET_DB_HOST="$(printf '%s\n' "$_tns_block" | grep -oiP 'HOST\s*=\s*\K[^)\s]+' | head -1)"
+        DET_DB_PORT="$(printf '%s\n' "$_tns_block" | grep -oiP 'PORT\s*=\s*\K\d+' | head -1)"
+        unset _tns_block
+        [ -z "$DET_DB_HOST" ] && DET_DB_HOST="localhost"
+        [ -z "$DET_DB_PORT" ] && DET_DB_PORT="1521"
+    else
+        info "tnsnames.ora not found – using defaults"
+    fi
+
+    if $INTERVIEW; then
+        printf "\n  Confirm values (Enter = keep, type to override):\n\n"
+        printf "  %-28s [%s]: " "ORACLE_SID" "$DET_DB_SID"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_SID="$_in"
+
+        printf "  %-28s [%s]: " "ORACLE_HOME" "$DET_DB_ORACLE_HOME"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_ORACLE_HOME="$_in"
+
+        printf "  %-28s [%s]: " "ORACLE_BASE" "$DET_DB_ORACLE_BASE"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_ORACLE_BASE="$_in"
+
+        printf "  %-28s [%s]: " "NLS_LANG" "$DET_NLS_LANG"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_NLS_LANG="$_in"
+
+        printf "  %-28s [%s]: " "DB_HOST" "$DET_DB_HOST"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_HOST="$_in"
+
+        printf "  %-28s [%s]: " "DB_PORT" "$DET_DB_PORT"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_PORT="$_in"
+
+        printf "  %-28s [%s]: " "DB_SERVICE" "$DET_DB_SERVICE"
+        read -r _in </dev/tty; [ -n "$_in" ] && DET_DB_SERVICE="$_in"
+        unset _in
+    fi
+
+    printList "ORACLE_SID"  28 "$DET_DB_SID"
+    printList "NLS_LANG"    28 "$DET_NLS_LANG"
+    printList "DB_HOST"     28 "$DET_DB_HOST"
+    printList "DB_PORT"     28 "$DET_DB_PORT"
+    printList "DB_SERVICE"  28 "$DET_DB_SERVICE"
+
+    DB_ENV_NAME="db_${DET_DB_SID}"
+    DB_ENV_CONF="$ENV_CONF_DIR/${DB_ENV_NAME}.conf"
+    printList "Conf target" 28 "$DB_ENV_CONF"
+
+    section "Writing DB environment conf"
+    printLine
+
+    if $APPLY; then
+        if [ -f "$DB_ENV_CONF" ]; then
+            backup_file "$DB_ENV_CONF" "$ENV_CONF_DIR"
+        fi
+
+        cat > "$DB_ENV_CONF" <<DBENVEOF
+# ENV_TYPE=DB
+# ENV_LABEL=Oracle DB ${DET_DB_SID} @ $(_get_hostname)
+# =============================================================================
+# environment conf – Oracle Database Home
+# Generated by 00-Setup/init_env.sh --db
+# Host : $(_get_hostname)
+# Date : $(date '+%Y-%m-%d %H:%M:%S')
+# DO NOT check into git!
+# =============================================================================
+
+ORACLE_HOME="${DET_DB_ORACLE_HOME}"
+ORACLE_BASE="${DET_DB_ORACLE_BASE}"
+ORACLE_SID="${DET_DB_SID}"
+NLS_LANG="${DET_NLS_LANG}"
+
+# Optional: used by IHateWeblogic DB scripts
+DB_HOST="${DET_DB_HOST}"
+DB_PORT="${DET_DB_PORT}"
+DB_SERVICE="${DET_DB_SERVICE}"
+DBENVEOF
+
+        chmod 600 "$DB_ENV_CONF"
+        ok "DB conf written: $DB_ENV_CONF"
+        info "Activate with: . ./00-Setup/set_env.sh"
+    else
+        warn "Dry-run – use --apply to write conf"
+        printf "  Would write: %s\n" "$DB_ENV_CONF" | tee -a "$LOG_FILE"
+    fi
+
+    print_summary
+    exit $EXIT_CODE
+}
+
+$DB_MODE && _run_db_mode
 
 # =============================================================================
 # MAIN
@@ -872,7 +899,7 @@ done
 
 # --------------------------------------------------------------------------
 section "Detecting DOMAIN_HOME"
-DET_DOMAIN_HOME="$(detect_domain_home)"
+DET_DOMAIN_HOME="$(detect_domain_home "$DET_ORACLE_HOME")"
 
 if [ -n "$DET_DOMAIN_HOME" ] && [ -f "$DET_DOMAIN_HOME/config/config.xml" ]; then
     ok "DOMAIN_HOME detected: $DET_DOMAIN_HOME"
