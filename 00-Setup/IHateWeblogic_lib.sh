@@ -61,6 +61,11 @@ LAST_BACKUP=""
 # Run history (run_history_record): repository root of this library and the
 # arguments of the calling script – "source lib" without arguments keeps the
 # caller's positional parameters, so "$*" here are the script's arguments.
+# A personal login.sql (SQLPATH / ORACLE_PATH, e.g. set by the shell switcher
+# setdb) changes every scripted sqlplus call - prompt, termout, format - and
+# disturbs datapatch / catcon / utlrp. Library scripts never use it.
+[[ $- != *i* ]] && unset SQLPATH ORACLE_PATH
+
 IHW_LIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IHW_RUN_ARGS="$*"
 IHW_RUN_RECORDED=""

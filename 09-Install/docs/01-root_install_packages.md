@@ -229,7 +229,7 @@ dnf install -y \
 dnf install -y \
   sysstat smartmontools nmon tmux \
   lsof strace psmisc xorg-x11-xauth \
-  bind-utils tcpdump nmap-ncat poppler-utils rsync
+  bind-utils tcpdump nmap-ncat poppler-utils rsync git-core
 ```
 
 `nmon` exists only in **EPEL** (`ol9_developer_EPEL`, developer repo without
@@ -244,6 +244,12 @@ package = FAIL, missing `nmon` = WARN.
 `PATCH_STORAGE` (`07-Maintenance/patch_storage.sh pull|clean`, resumable with
 `--partial`) and for the offline route (copy of a downloaded `PATCH_STORAGE`);
 without it `patch_storage.sh` falls back to `cp` (added 2026-10-30).
+
+`git-core` (plain `git` without Perl / extras) is needed for the very first
+`git clone` of IHateWeblogic and for the DBA SQL scripts in `~oracle/sql`
+(`60-RCU-DB-19c/07-db_sql_scripts.sh`, local DB only). Before the first
+clone root installs it by hand (`dnf install -y git-core`). 02- keeps it
+installed afterwards (added 2026-11-03).
 
 `poppler-utils` provides `pdffonts`, used by `04-ReportsFonts/pdf_font_verify.sh`
 to check that a report PDF embeds TrueType fonts (added 2026-10-19 – without

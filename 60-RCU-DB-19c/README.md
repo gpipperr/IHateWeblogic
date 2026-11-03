@@ -97,6 +97,7 @@ Run in this order — each step must complete before the next:
 | 4 | `04-db_audit_setup.sh --apply` | oracle | common audit policies (all containers) + AUDITLOG tablespace + purge jobs |
 | 5 | `05-db_fmw_tablespace.sh` | oracle | FMW_DATA tablespace for all RCU schemas (= `RCU_TABLESPACE`) |
 | 6 | `06-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
+| 7 | `07-db_sql_scripts.sh` | oracle | DBA SQL scripts (OraDBASQLScripts: `login.sql` + analysis scripts) as git clone in `~/sql` – clone / `pull --ff-only`, offline `--archive`; `SQLPATH` via the shell switcher `setdb` |
 | 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
 | 9 | `09-db_patch_rcu.sh` | oracle | **Patch a running DB out-of-place:** new home with `01- --target-home <dir> --fresh-patches`, then move the instance (spfile, orapw, network, oratab, env), datapatch, utlrp, domain stop / start; `--rollback` |
 
@@ -191,6 +192,7 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 | [docs/00-db_os_baseline.md](docs/00-db_os_baseline.md) | OS parameters, packages, shmmax conflict |
 | [docs/00b-db_cvu_check.md](docs/00b-db_cvu_check.md) | Standalone CVU: download (04- `--mos`), checks, fixups, expected findings |
 | [docs/01-db_install_software.md](docs/01-db_install_software.md) | Install + patch (gold image, base + opatch RU; -applyRU research only) |
+| [docs/07-db_sql_scripts.md](docs/07-db_sql_scripts.md) | DBA SQL scripts in `~/sql`: git clone / pull, offline archive, egress github.com |
 | [docs/02-db_setup_listener.md](docs/02-db_setup_listener.md) | listener.ora, sqlnet.ora, systemd unit |
 | [docs/03-db_create_database.md](docs/03-db_create_database.md) | DBCA silent, sizing, CDB/PDB |
 | [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md) | Unified Auditing setup (`uniaud_on` relink `--relink`, common policies, retention jobs) |

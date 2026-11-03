@@ -122,6 +122,7 @@ last N history rows).
 
 ```
 Setup – Environment Configuration (as oracle; before Phase 0)
+  [root]   dnf install -y git-core        # only prerequisite for the clone (02- keeps it)
   [oracle] git clone <repo> && cd IHateWeblogic
   [oracle] ./09-Install/01-setup-interview.sh --apply  # interview → writes environment.conf
            → WLS_SERVER_FQDN = PUBLIC name (URL of the users, certificate SAN) – in the

@@ -275,7 +275,8 @@ for PKG in \
     tcpdump \
     nmap-ncat \
     poppler-utils \
-    rsync
+    rsync \
+    git-core
 do
     _check_pkg "$PKG"
 done

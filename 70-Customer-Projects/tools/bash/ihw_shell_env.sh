@@ -9,6 +9,8 @@
 #   setfmw / setfw  aliases of setdb (same menu)
 #   whichenv        show the current environment
 #   ihwenv_configure [-f]   detect homes again -> ~/.ihw_env.conf (editable)
+#   SQLPATH / ORACLE_PATH = ~/sql only for a DB entry (login.sql disturbs
+#   datapatch / utlrp) - removed by FMW entries and "setdb c"
 #   wlst, cdoh, cddh, cdcfg, cdnm, cdlog [server]   helpers (see setdb h)
 #
 # Install (as oracle):  mkdir -p ~/.bashrc.d
@@ -24,7 +26,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.2"
+IHW_SHELL_ENV_VERSION="2026-11-03.3"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -76,6 +78,9 @@ _ihwse_set_or_unset() {   # name value - export, or unset when empty
 
 # back to the login values, remove everything the switcher set
 _ihwse_clear() {
+    # SQLPATH / ORACLE_PATH only for a DB entry: a personal login.sql disturbs
+    # datapatch / catcon / utlrp and every scripted sqlplus call while patching
+    unset SQLPATH ORACLE_PATH
     unset WL_HOME DOMAIN_HOME DOMAIN_NAME JDK_HOME WLST NM_HOME FMWCONFIG \
           FORMS_INSTANCE FORMS_APP_CONF REPORTS_APP_CONF \
           REPORTS_SERVER_CONF_DIR REPORTS_TOOLS_CONF_DIR \
@@ -222,6 +227,10 @@ _ihwse_apply_db() {   # sid oh base
     export ORACLE_HOME="$oh" ORACLE_BASE="$base"
     if [ "$sid" != "-" ]; then export ORACLE_SID="$sid"; else unset ORACLE_SID; fi
     export PATH="$oh/bin:$oh/OPatch:$(_ihwse_base_path)"
+    # personal SQL scripts + login.sql (sqlplus SQLPATH, SQLcl ORACLE_PATH)
+    if [ -d "$HOME/sql" ]; then
+        export SQLPATH="$HOME/sql" ORACLE_PATH="$HOME/sql"
+    fi
     export IHW_ENV_NAME="DB:${sid}"
 }
 
@@ -325,8 +334,10 @@ ihwenv_help() {
     printf "     REPORTS_SERVER_CONF_DIR (rwserver.conf) REPORTS_TOOLS_CONF_DIR (rwbuilder.conf)\n"
     printf "     PATH: domain reports/bin, domain bin, JDK,\n"
     printf "     oracle_common/common/bin, ORACLE_HOME/bin, OPatch\n"
-    printf "   Set by a DB entry : ORACLE_HOME ORACLE_SID ORACLE_BASE; PATH: bin, OPatch\n"
-    printf "   Never changed     : TNS_ADMIN NLS_LANG SQLPATH ORACLE_PATH (~/sql, set at load)\n"
+    printf "   Set by a DB entry : ORACLE_HOME ORACLE_SID ORACLE_BASE SQLPATH ORACLE_PATH (~/sql)\n"
+    printf "     PATH: bin, OPatch - before datapatch / utlrp: setdb c (removes SQLPATH)\n"
+    printf "   Removed by c / FMW: SQLPATH ORACLE_PATH (login.sql disturbs patching)\n"
+    printf "   Never changed     : TNS_ADMIN NLS_LANG\n"
     _ihwse_line
 }
 
@@ -354,12 +365,6 @@ cdlog() {
 }
 
 # ------------------------------------------------------------------ load ----
-# personal SQL scripts (login.sql ...) for sqlplus (SQLPATH) and SQLcl
-# (ORACLE_PATH) - independent of the home, kept by "setdb c"
-if [ -d "$HOME/sql" ]; then
-    [ -z "${SQLPATH:-}" ]     && export SQLPATH="$HOME/sql"
-    [ -z "${ORACLE_PATH:-}" ] && export ORACLE_PATH="$SQLPATH"
-fi
 _ihwse_load
 if [ ! -f "$IHW_ENV_CONF" ]; then
     printf "ihw_shell_env: first start - detecting the Oracle homes\n"

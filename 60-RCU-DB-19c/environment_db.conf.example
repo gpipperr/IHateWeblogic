@@ -128,6 +128,11 @@ DB_STAGE_MIN_FREE_GB=8
 DB_STAGE_REC_FREE_GB=14
 # DB_ORACLE_HOME_PREV is written by 09-db_patch_rcu.sh (previous home, --rollback)
 
+# --- DBA SQL scripts (07-db_sql_scripts.sh) ----------------------------------
+# git clone target; SQLPATH / ORACLE_PATH point there (shell switcher setdb)
+DB_SQL_SCRIPTS_REPO="https://github.com/gpipperr/OraDBASQLScripts.git"
+DB_SQL_SCRIPTS_DIR="${HOME}/sql"
+
 # --- Standalone CVU (00b-db_cvu_check.sh) -------------------------------------
 # MOS patch DB_CVU_PATCH_NR (09-Install/oracle_software_version.conf), downloaded
 # by 09-Install/04-oracle_pre_download.sh --apply --mos when LOCAL_REP_DB=true

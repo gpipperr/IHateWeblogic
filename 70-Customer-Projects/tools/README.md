@@ -305,9 +305,14 @@ changes nothing.
 | `c` | back to the login values (saved at the first `setdb` call), all switcher variables removed | login PATH |
 
 Never changed: `TNS_ADMIN`, `NLS_LANG` (one Oracle Net directory for all
-processes), `SQLPATH` / `ORACLE_PATH` – set once at load time to `~/sql`
-when it exists (personal `login.sql` and scripts for sqlplus / SQLcl, as in
-OraBashShell); `mkdir ~/sql` to use it. The login PATH is cleaned of the entries of the login
+processes).
+
+`SQLPATH` / `ORACLE_PATH` (sqlplus / SQLcl: personal `login.sql` and DBA
+scripts in `~/sql`, as in OraBashShell) are set **only by a DB entry**.
+FMW entries and `c` remove them, and a fresh login has none: a `login.sql`
+disturbs `datapatch`, `catcon` and `utlrp` and every scripted sqlplus call.
+So `setdb c` before patching a DB home by hand. The IHateWeblogic library
+unsets both in every script anyway. The login PATH is cleaned of the entries of the login
 `ORACLE_HOME` / `JAVA_HOME` before the new entries are put in front, so
 PATH does not grow (live: 8 switches, length 156 / 240 / 121 constant).
 
