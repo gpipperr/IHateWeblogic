@@ -414,7 +414,9 @@ Recommendation (design, to be decided with the customer):
   Variables `FORMS_SIGN_KEYSTORE`, `FORMS_SIGN_ALIAS`, `FORMS_SIGN_TSA_URL`
   (`environment.conf`), password `FORMS_SIGN_STOREPASS` in
   `forms_sign_sec.conf.des3`. Details: `09-Install/docs/14-forms-detail-settings.md`
-  Step 1, `08-SSL/README.md` section "ssl_local_ca.sh".
+  Step 1, `08-SSL/README.md` section "ssl_local_ca.sh"; operator summary
+  (who creates / signs / checks, TSA decision, `--resign`):
+  [08-SSL/README.md – Code Signing](../08-SSL/README.md#code-signing-jacobjar).
 - Verification after signing **without `-strict`**: the server JDK does not
   trust an own / company root ("PKIX path building failed") – trust is a
   client matter (**confirmed (live)**).

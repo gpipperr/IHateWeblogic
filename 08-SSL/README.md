@@ -22,11 +22,14 @@ Background (`80-FMW-Architecture/`):
   joined: [weblogic_middleware_architecture.md §6](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined)
 - which client (Java Web Start / FSAL) talks to which server process:
   [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts)
-- code signing: [how Oracle intends it](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it),
+- code signing (summary in [Code Signing](#code-signing-jacobjar) below):
+  [how Oracle intends it](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it),
   [which certificates](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed),
   [who checks the signature](../80-FMW-Architecture/forms_jakob_webutil.md#10-who-checks-the-signature--and-against-what),
   [renewal / re-signing](../80-FMW-Architecture/forms_jakob_webutil.md#11-maintenance--patching-renewal-re-signing),
-  [client distribution](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients)
+  [client distribution](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients),
+  [implementation in this repository](../80-FMW-Architecture/forms_jakob_webutil.md#13-implementation-in-this-repository-2026-10-17),
+  [signing without outbound access (TSA)](../80-FMW-Architecture/certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access)
 
 It covers these recurring tasks:
 
@@ -240,7 +243,9 @@ code-signing certificate expires. Test host (confirmed 2026-10-20,
 `jarsigner -verify -verbose -certs`): signed by the local "Forms Code
 Signing" certificate (expires 2029-10-17), timestamped by DigiCert
 (timestamp valid until 2031-11-10). Without a TSA the jar becomes invalid
-for Java Web Start on the day the certificate expires.
+for Java Web Start on the day the certificate expires. The TSA is called over
+HTTP at signing time – on a host without outbound access see
+[Code Signing](#code-signing-jacobjar) below.
 
 **Passwords:** never on the command line. The scripts decrypt the des3 file
 (`load_secrets_file`), write the value to a temporary file (600, removed by
@@ -262,7 +267,7 @@ root.
 | Event | Action | Client impact |
 |---|---|---|
 | Server certificate expires (825 days) | `ssl_prepare_cert.sh LOCALCA --apply --renew` → `05-root_nginx_ssl.sh --apply` | none |
-| Code-signing certificate expires (3 years) | `ssl_local_ca.sh codesign --apply --renew` → `14-oracle_setup_forms.sh --apply` (signs again only unsigned jars; timestamped signatures stay valid) | none |
+| Code-signing certificate expires (3 years) | `ssl_local_ca.sh codesign --apply --renew`; signed **with** timestamp: nothing else (the signature stays valid, `14-` signs only unsigned jars); signed **without** timestamp (`FORMS_SIGN_TSA_URL=""`): also `14-oracle_setup_forms.sh --apply --resign` **before** the old certificate expires | none |
 | A Forms patch / new JACOB version replaces `jacob.jar` | `14-oracle_setup_forms.sh --apply` signs the new (unsigned) jar with the current certificate (`07-Maintenance/README.md` patch step 8) | none |
 | Root expires (10 years) / root key lost | new root (`init` after moving `SSL_CA_DIR`), re-issue both leaves | **redistribute `ca.cer` to every client** |
 
@@ -308,6 +313,56 @@ Exit code 1 if expiry < 30 days, exit code 2 if expired or handshake fails.
 
 ---
 
+## Code Signing (jacob.jar)
+
+Short version of the architecture article
+[forms_jakob_webutil.md §8–13](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it) –
+what is signed, who creates the key, who signs, who checks.
+
+```
+ 08-SSL (creates the keystore)        09-Install/14- (signs)               Client (checks)
+ ────────────────────────────        ──────────────────────               ─────────────────────────
+ ssl_local_ca.sh codesign   ─┐       jacob.jar (unsigned release)         Java Web Start: every jar,
+ ssl_customer_certs.sh       ├─────> main manifest += Permissions,        chain -> trusted root,
+   (customer codesign.p12)   │       Codebase                             unsigned = blocked
+ public CA (PKCS12, or token ┘       jarsigner -digestalg SHA-256         FSAL: no signer check by
+   / HSM -> sign elsewhere)          [-tsa FORMS_SIGN_TSA_URL]            default - only TLS trust
+                                     verify -> extensions.jnlp,
+ FORMS_SIGN_KEYSTORE / _ALIAS        WebUtilArchive
+ + forms_sign_sec.conf.des3
+```
+
+| Question | Answer |
+|---|---|
+| What is signed? | only **customer** jars – here `jacob.jar` (WebUtil OLE / Excel). Oracle's jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) are signed by Oracle (DigiCert, timestamped) and stay untouched. Planned: Authenticode signature of the client installer `FormsWeb-Setup.ps1` with the same keystore (open – [40-forms_client_distribution.md §5.1](../09-Install/docs/40-forms_client_distribution.md#51-getting-the-script-to-run--executionpolicy-and-signing-chicken-and-egg)) |
+| Which certificate? | EKU *codeSigning*. Own root CA (`ssl_local_ca.sh codesign`, lab / internal), company CA or public CA. Production: company or public CA, never a single self-signed certificate ([§9](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed)) |
+| Customer delivers a keystore? | PFX / PKCS12 with key + chain (password on a separate channel) as **`08-SSL/user_certs/codesign.p12`** (or `.pfx`) → `./08-SSL/ssl_customer_certs.sh --only codesign --apply`: checks EKU / chain / quality, copies it to `$SSL_CA_DIR/customer/codesign.p12` (600), sets `FORMS_SIGN_KEYSTORE` / `FORMS_SIGN_ALIAS` (alias read from the PFX) / `FORMS_SIGN_LOCALCA=false`, password → `forms_sign_sec.conf.des3`; then `14-oracle_setup_forms.sh --apply --resign` and delete the inbox file. A JKS keystore: convert first (`keytool -importkeystore -deststoretype PKCS12`). Key only on a token / HSM (public CA): no file – sign elsewhere ([user_certs/README.md](user_certs/README.md)) |
+| Who signs? | `09-Install/14-oracle_setup_forms.sh --apply` with any PKCS12 keystore – details: [14-forms-detail-settings.md Step 1](../09-Install/docs/14-forms-detail-settings.md#step-1--jacob-webutil-ole--office-automation). Creating (08-SSL) and using (14-) are separate |
+| Who checks? | **Java Web Start** checks every signature against the client's trust stores (Windows store via GPO, `trusted.certs`) incl. revocation. **FSAL** does not check signatures by default – there only the TLS chain of the Forms URL must be trusted ([§10](../80-FMW-Architecture/forms_jakob_webutil.md#10-who-checks-the-signature--and-against-what)). Sign anyway (Oracle recommendation) |
+| What must the clients have? | the **root** of the code-signing chain (JWS only) and the root of the TLS chain (always) – with the own root CA one `ca.cer` covers both ([§12](../80-FMW-Architecture/forms_jakob_webutil.md#12-distribution-concept-for-the-clients)) |
+| Server verification | `jarsigner -verify` **without** `-strict` – the server JDK does not trust an own / company root; trust is a client matter |
+
+**Timestamp and hosts without outbound access** – the decision with the
+largest operational effect
+([certificates_trust_stores.md §6.1](../80-FMW-Architecture/certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access)):
+
+| `FORMS_SIGN_TSA_URL` | Signature valid | At certificate renewal |
+|---|---|---|
+| reachable TSA (default `http://timestamp.digicert.com`, egress HTTP 80 to that host only) or internal TSA | beyond the certificate's expiry | nothing – new jars are signed with the new key |
+| `""` (no egress, `14-` warns) | **only until the code-signing certificate expires** – from that day Java Web Start blocks `jacob.jar` | `ssl_local_ca.sh codesign --apply --renew` **and** `14-oracle_setup_forms.sh --apply --resign` before the expiry date (`14-` alone keeps the old signature – a signed jar counts as up to date) |
+| sign elsewhere | as the TSA used there | copy the signed jar into `$ORACLE_HOME/forms/java/` again by hand |
+
+Monitoring: `14-` reports after every run whether the signature is
+timestamped or until when it is valid (WARN < 90 days);
+`10-Monitoring/cert_expiry_check.sh` watches the code-signing certificate
+(via `ssl_local_ca.sh status`) and reminds of `--resign` when no TSA is set.
+
+**After a Forms patch / new JACOB version:** `14-oracle_setup_forms.sh --apply`
+– re-activates `extensions.jnlp` / `WebUtilArchive` and signs a new
+(unsigned) `jacob.jar` ([§11](../80-FMW-Architecture/forms_jakob_webutil.md#11-maintenance--patching-renewal-re-signing)).
+
+---
+
 ## Customer certificates
 
 When the customer has an own PKI, its certificates replace those of the own
@@ -327,7 +382,7 @@ root CA. The switch is `SSL_CERT_SOURCE` in `ssl.conf` (`localca` default |
 08-SSL/certs/server.crt / server.key (600) / chain.crt   -> 09-Install/05-root_nginx_ssl.sh --apply (root)
 $SSL_CA_DIR/customer/root.crt          -> FORMS_CLIENT_TRUST_CA (40-), OS trust anchors
 $SSL_CA_DIR/customer/codesign.p12      -> FORMS_SIGN_KEYSTORE / _ALIAS, forms_sign_sec.conf.des3
-                                          -> re-sign jacob.jar (jacob.jar.orig back, 14- --apply)
+                                          -> re-sign jacob.jar (14- --apply --resign)
 $SSL_CA_DIR/customer/interception.crt  -> OS trust anchors; keytool command for JDK_HOME cacerts
 ssl.conf: SSL_CERT_SOURCE=customer, SSL_LAST_MODE=CUSTOMER
 ```

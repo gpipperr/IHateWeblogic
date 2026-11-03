@@ -49,7 +49,14 @@ by the script (hidden) – never put them into a file here.
 **Code-signing certificate** (only with WebUtil / JACOB or the Forms client
 distribution)
 - Extended Key Usage `codeSigning`, as PFX with key + chain, password
-  separately.
+  separately. Delivered as a Java keystore (JKS) instead: convert it to
+  PKCS12 first and store the result here as `codesign.p12`:
+  `keytool -importkeystore -srckeystore codesign.jks -destkeystore codesign.p12 -deststoretype PKCS12`
+- After the import: `./09-Install/14-oracle_setup_forms.sh --apply --resign`
+  signs `jacob.jar` again with the customer certificate.
+- Key only on a hardware token / HSM (usual with public code-signing CAs
+  since 2023): there is no file for this inbox – sign `jacob.jar` on the
+  machine with the token and copy it to `$ORACLE_HOME/forms/java/`.
 - Issued by a CA the **clients** trust (company root in the Windows store via
   GPO, or a public code-signing CA).
 

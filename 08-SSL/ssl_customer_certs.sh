@@ -384,9 +384,9 @@ if _want codesign && [ -f "$_cs" ]; then
         _set_conf "$ENV_CONF" FORMS_SIGN_ALIAS "$_alias"
         _set_conf "$ENV_CONF" FORMS_SIGN_LOCALCA false
         _jar="${ORACLE_HOME:-/x}/forms/java/jacob.jar"
-        if [ -f "$_jar" ] && [ -f "${_jar}.orig" ]; then
+        if [ -f "$_jar" ]; then
             NEXT+=("Re-sign jacob.jar with the customer certificate (14- signs only an unsigned jar):"
-                   "  cp -p $_jar ${_jar}.bak_${TS} && cp -p ${_jar}.orig $_jar && ./09-Install/14-oracle_setup_forms.sh --apply")
+                   "  ./09-Install/14-oracle_setup_forms.sh --apply --resign")
         else
             NEXT+=("Sign jacob.jar: ./09-Install/14-oracle_setup_forms.sh --apply (FORMS_WEBUTIL_JACOB=true)")
         fi
