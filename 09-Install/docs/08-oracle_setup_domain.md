@@ -258,7 +258,19 @@ for the full WLST/OPSS procedure (manual and scripted).
   started right away, without waiting for Phase 6 (`10-oracle_boot_properties.sh`
   re-writes the same file later with identical content — harmless double-write,
   not a bug)
-- Verifies domain directory structure exists after creation
+- Verifies domain directory structure exists after creation, then what the
+  template set (in the written domain): no data source left at
+  `dbhost.example.com` (FAIL), Coherence unicast on loopback for every managed
+  server, `time-taken` in the `WLS_FORMS` access log (WARN with the fix
+  command)
+- WLST output `Error: cd() failed` / `Error: runCmd() failed`: the template
+  helpers try `cd()` first and create the MBean in the `except` branch – WLST
+  still prints the error. Expected on a fresh domain: one pair per
+  `CoherenceMemberConfig` (each managed server) + one for the `WebServerLog`
+  of `WLS_FORMS` (FORMS_AND_REPORTS: 3); the script reports the count as INFO
+- `07-Maintenance/domain_jdk_path.sh` result by its exit code (until
+  2026-11-03 a `grep FAIL` also hit its summary line `FAIL: 0` and always
+  printed "reported errors" – false alarm)
 
 ---
 
@@ -357,7 +369,8 @@ set('UnicastListenAddress', '<WLS_LISTEN_ADDRESS>')         # 127.0.0.1
 `Enabled=false` is the default value – `config.xml` then has no
 `<enabled>` element under `<ssl>` (tested offline on a domain copy
 2026-10-23). The `cd()` errors in the WLST output come from the `try`
-branch that creates a missing `CoherenceMemberConfig` – harmless.
+branch that creates a missing `CoherenceMemberConfig` – harmless (count and
+result are checked by the script, see *What the Script Does*).
 
 Live 2026-10-23 (existing domain, WLST online + restart): 9501 / 9512 gone,
 Forms, EM, rwservlet and the smoke test unchanged; Coherence members talk

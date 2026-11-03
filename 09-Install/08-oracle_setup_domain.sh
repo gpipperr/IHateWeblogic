@@ -357,6 +357,18 @@ if [ "$WLST_RC" -ne 0 ]; then
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi
 ok "WLST completed successfully"
+# The template's helpers try cd() first and create the MBean when it is
+# missing - WLST prints "Error: cd() failed" / "runCmd() failed" for each try
+# even though the except branch handles it. Expected on a fresh domain:
+# CoherenceMemberConfig (per managed server) + WebServerLog (WLS_FORMS).
+_cd_err="$(tail -n +"$((_log_lines_before + 1))" "$LOG_FILE" | grep -c 'Error: cd() failed')"
+_cd_exp=0
+$WITH_FORMS   && _cd_exp=$(( _cd_exp + 2 ))
+$WITH_REPORTS && _cd_exp=$(( _cd_exp + 1 ))
+if [ "$_cd_err" -gt 0 ]; then
+    info "$(printf "%s × 'Error: cd() failed' in the WLST output (expected %s: MBeans created by the template helpers) – result checked below" "$_cd_err" "$_cd_exp")"
+fi
+unset _cd_err _cd_exp
 
 # =============================================================================
 # Configure nodemanager.properties
@@ -402,12 +414,18 @@ ok "$(printf "  JavaHome      = %s" "$JDK_HOME")"
 section "JDK Path"
 
 if [ -x "$ROOT_DIR/07-Maintenance/domain_jdk_path.sh" ]; then
-    if "$ROOT_DIR/07-Maintenance/domain_jdk_path.sh" --apply 2>&1 \
-         | grep -E "No file pins|OK|FAIL|Backup:" | tee -a "$LOG_FILE" | grep -q "FAIL"; then
-        warn "07-Maintenance/domain_jdk_path.sh reported errors – re-run it manually"
+    # evaluate the exit code - grep "FAIL" also matched its summary line
+    # "FAIL: 0" and always warned (until 2026-11-03)
+    _jdk_out="$("$ROOT_DIR/07-Maintenance/domain_jdk_path.sh" --apply 2>&1)"
+    _jdk_rc=$?
+    printf '%s\n' "$_jdk_out" | sed 's/\x1b\[[0-9;]*m//g' \
+        | grep -E "No file pins|Backup:|^ *(OK|WARN|FAIL) {2}" | tee -a "$LOG_FILE"
+    if [ "$_jdk_rc" -ge 2 ]; then
+        warn "07-Maintenance/domain_jdk_path.sh failed (rc=$_jdk_rc) – run it manually: 07-Maintenance/domain_jdk_path.sh"
     else
         ok "$(printf "Domain uses JDK_HOME: %s" "$JDK_HOME")"
     fi
+    unset _jdk_out _jdk_rc
 else
     warn "07-Maintenance/domain_jdk_path.sh not found – domain pins $(readlink -f "$JDK_HOME")"
 fi
@@ -460,6 +478,24 @@ unset _path
 
 [ "$VERIFY_FAILS" -gt 0 ] && \
     warn "$VERIFY_FAILS expected file(s) not found – domain may be incomplete"
+
+# What the template set before writeDomain - visible in the written domain
+_cfg="$DOMAIN_HOME/config/config.xml"
+if [ -f "$_cfg" ]; then
+    _bad_ds="$(grep -l 'dbhost.example.com' "$DOMAIN_HOME"/config/jdbc/*.xml 2>/dev/null | xargs -r -n1 basename | xargs)"
+    [ -z "$_bad_ds" ] && ok "Data sources: no template placeholder URL left" \
+        || { fail "Data sources still at dbhost.example.com: $_bad_ds"; EXIT_CODE=2; }
+    _ms_n=0; $WITH_FORMS && _ms_n=$(( _ms_n + 1 )); $WITH_REPORTS && _ms_n=$(( _ms_n + 1 ))
+    _uni="$(grep -cE "<unicast-listen-address>(${WLS_LISTEN_ADDRESS}|localhost|127\.0\.0\.1)</unicast-listen-address>" "$_cfg")"
+    [ "$_uni" -ge "$_ms_n" ] && ok "Coherence unicast on loopback: ${_uni} of ${_ms_n} managed server(s)" \
+        || warn "Coherence unicast on loopback: only ${_uni} of ${_ms_n} – 02-Checks/clone_check.sh"
+    if $WITH_FORMS; then
+        grep -q 'time-taken' "$_cfg" && ok "WLS_FORMS access log with time-taken" \
+            || warn "time-taken missing in the WLS_FORMS access log – 06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog"
+    fi
+    unset _bad_ds _ms_n _uni
+fi
+unset _cfg
 
 printf "\n" | tee -a "$LOG_FILE"
 # WLS 14.1.2 has no Administration Console (/console) any more – the domain is
