@@ -71,8 +71,8 @@ SSL terminates entirely at Nginx; no SSL required inside WLS.
 
 | User | Role | Description |
 |---|---|---|
-| `webadmin` | WLS Administrator | Full access to WLS Console and WLST |
-| `nodemanager` | Node Manager Auth | Node Manager authentication |
+| `webadmin` | WLS Administrator | WLST, Fusion Middleware Control (`/em`) – WLS 14.1.2 has no Administration Console |
+| `webadmin` (same user) | Node Manager credentials | set to the admin user by `08-` (template) and `11-` – no separate `nodemanager` user |
 | `monUser` | Monitor | Read-only for monitoring/alerting (`RW_MONITOR` role) |
 | `RepRunner` | Reports Runner | Submits Reports jobs via rwservlet (`RW_EXECREPORTS` role) |
 
@@ -231,10 +231,11 @@ Phase 5 – Configuration (as oracle)
                                                        # font OS packages, validation, backup)
                                                        # – fonts/cgicmd.dat: 14b-
 
-Phase 6 – Runtime Configuration (as oracle / root)
+Phase 6 – Runtime Configuration (as oracle)
   [oracle] ./00-Setup/init_env.sh --apply                          # add runtime parameters to environment.conf
                                                                    # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
-  [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties for AdminServer + Managed Server
+  [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties – already run by 09- (step 0);
+                                                                   # again only after an admin password change
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst  # NodeManager config before first start
            (--skip-wlst = only nodemanager.properties, no WLST – the AdminServer is not running
             yet; NMType and the Node Manager credentials are set only by the second run below
@@ -245,7 +246,7 @@ Phase 6 – Runtime Configuration (as oracle / root)
   Manager credentials until 11- sets them, and startStop.sh starts the AdminServer through a
   running Node Manager ("Access to domain 'fr_domain' for user 'webadmin' denied", customer
   2026-11-03). Since 2026-11-03 08- sets them to the admin user already (its verification
-  shows it) – this order works either way:
+  shows it; not yet confirmed with a new domain) – this order works either way:
   [oracle] ./01-Run/startStop.sh start AdminServer --apply         # NM not running → startWebLogic.sh
                                                                    # with boot.properties (~30-60 s)
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: Machine NMType=Plain + NM
@@ -276,26 +277,33 @@ Phase 6 – Runtime Configuration (as oracle / root)
            webutil.cfg.template  : transfer.appsrv.read/write.N directories
            Registry.dat / fmrweb*.res : colour scheme, key mapping (German layout preset)
            → details: forms_templates/README.md; without changes 14- deploys the defaults
-  [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # first start creates the app dir (rwservlet.properties)
-  [oracle] ./01-Run/startStop.sh start WLS_FORMS --apply           # first start creates formsapp_*/config (default.env,
+  First start of both managed servers – BEFORE 13- (a managed server that starts between
+  13-'s LDAP password change and the AdminServer restart fails, see below):
+  [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # creates the app dir (rwservlet.properties)
+  [oracle] ./01-Run/startStop.sh start WLS_FORMS --apply           # creates formsapp_*/config (default.env,
                                                                    # formsweb.cfg, Registry.dat for 14- – without it
                                                                    # 14- FAILs "Forms app dir not found")
-  [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
-           (REPORTS_SECURITY=ldap, first run: 13- sets the embedded-LDAP password and FAILs with
-            "RESTART THE ADMINSERVER NOW" – do it before anything else: until the restart NO
-            managed server starts (WLS_FORMS: "LDAPException: error result (49); Invalid
-            credentials"). Then: startStop.sh stop-all / start-all, 13- --apply a second time.)
-  BEFORE 14- with FORMS_WEBUTIL_JACOB=true: the code-signing keystore must exist – jacob.jar is
-  activated only when signed (else WebUtil OLE / Office automation silently does not work).
-  14- reports a missing keystore / password as FAIL, also in the dry-run:
+  [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # instances, rwnetwork.conf, rwservlet, rwserver.conf
+           First run with REPORTS_SECURITY=ldap: 13- sets the embedded-LDAP password (the new
+           domain has a random one) and ends with FAIL "RESTART THE ADMINSERVER NOW" – EXPECTED.
+           Until that restart no managed server can start ("LDAPException: error result (49);
+           Invalid credentials" – customer 2026-11-03). So right away:
+  [oracle] ./01-Run/startStop.sh stop-all --apply
+  [oracle] ./01-Run/startStop.sh start-all --apply                 # AdminServer reads the new LDAP password
+  [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # second run: credential store + securityId → OK
+  Code signing BEFORE 14- (only FORMS_WEBUTIL_JACOB=true): jacob.jar is activated only when signed
+  (else WebUtil OLE / Office automation silently does not work); 14- reports a missing keystore /
+  password as FAIL, also in the dry-run:
     own CA        [oracle] ./08-SSL/ssl_local_ca.sh codesign --apply    # FORMS_SIGN_KEYSTORE + password
                   (or FORMS_SIGN_LOCALCA=true in environment.conf – then 14- --apply creates it)
-    timestamp     jarsigner contacts FORMS_SIGN_TSA_URL (default http://timestamp.digicert.com) –
-                  behind an egress allow-list: allow it, or FORMS_SIGN_TSA_URL="" (no timestamp:
-                  the signature is valid only as long as the certificate)
     customer PKI  codesign.p12 → 08-SSL/user_certs/, [oracle] ./08-SSL/ssl_customer_certs.sh --apply
+    timestamp     jarsigner contacts FORMS_SIGN_TSA_URL (default http://timestamp.digicert.com) –
+                  no outbound access: allow only the TSA, or FORMS_SIGN_TSA_URL="" (no timestamp:
+                  valid only as long as the certificate – after a renewal 14- --apply --resign;
+                  80-FMW-Architecture/certificates_trust_stores.md §6.1)
     check         [oracle] ./09-Install/14-oracle_setup_forms.sh      # dry-run: "Code signing ready"
-  [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # copy Forms config templates into the domain
+  [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # JACOB + signing, webutil.cfg, default.env,
+                                                                   # formsweb.cfg, Registry.dat, key mapping
   [oracle] ./01-Run/startStop.sh stop-all --apply                  # restart: 13-/14- changes become active
   [oracle] ./01-Run/startStop.sh start-all --apply
   [oracle] ./09-Install/14b-oracle_reports_fonts.sh --apply        # fonts, uifont.ali, cgicmd.dat, backup
@@ -361,11 +369,11 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
 | 5 | `09-oracle_configure.sh` | Pre-start configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
 | 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
-| 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
+| 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, Node Manager credentials = admin user, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
 | 6 | `12-oracle_reports_users.sh` | Create WLS users monUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
-| 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 (root) | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (rwnetwork, rwservlet, rwserver) | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `14-oracle_setup_forms.sh` | Copy Forms config templates into the domain | [→ docs](docs/14-forms-detail-settings.md) |
+| 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 – runs as oracle (`ORACLE_HOME/lib` is oracle's), root works too | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (instances, rwnetwork, rwservlet, rwserver, secured server via embedded LDAP – first run needs an AdminServer restart + second run) | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | `14-oracle_setup_forms.sh` | Forms configuration into the domain (templates + Oracle's files merged), JACOB install + code signing (`--resign` after a certificate renewal) | [→ docs](docs/14-forms-detail-settings.md) |
 | 6 | `14b-oracle_reports_fonts.sh` | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
 | 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
@@ -676,7 +684,7 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 ├── 10-oracle_boot_properties.sh       ← Phase 6: boot.properties for AdminServer + Managed Server
 ├── 11-oracle_nodemanager.sh           ← Phase 6: configure NodeManager (plain mode, WLST)
 ├── 12-oracle_reports_users.sh         ← Phase 6: create WLS users monUser + RepRunner
-├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (root, OL9 only)
+├── 13-root_reports_fix.sh             ← Phase 6: libnsl.so.2 symlink (OL9 only; runs as oracle)
 ├── 13-oracle_setup_reports.sh         ← Phase 6: configure Reports Server
 ├── 14-oracle_setup_forms.sh           ← Phase 6: copy Forms config templates into the domain
 ├── 14b-oracle_reports_fonts.sh        ← Phase 6: Reports fonts, uifont.ali, cgicmd.dat
