@@ -46,7 +46,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-03.4"   # bump on every change – shown in the report
+VERSION="2026-11-03.5"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false
@@ -372,11 +372,12 @@ _font_class() {
     case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
         liberation*|dejavu*|carlito*|caladea*)        printf 'free;OS package (14b-)' ;;
         arialuni*|arial-unicode*|arial_unicode*)      printf 'ms;DejaVu Sans / Noto (similar – only needed for non-Latin text)' ;;
+        arialn*)                                      printf 'ms;Liberation Sans Narrow (identical metrics)' ;;
         arial*|ariblk*)                               printf 'ms;Liberation Sans (identical metrics)' ;;
         times*)                                       printf 'ms;Liberation Serif (identical metrics)' ;;
         cour*)                                        printf 'ms;Liberation Mono (identical metrics)' ;;
         calibri*)                                     printf 'ms;Carlito (identical metrics)' ;;
-        cambria*)                                     printf 'ms;Caladea (identical metrics)' ;;
+        cambria*)                                     printf 'ms;Caladea (identical metrics) - not set up in 14c yet, see reports_fonts_architecture.md' ;;
         verdana*|tahoma*|trebuc*|segoe*|micross*)     printf 'ms;DejaVu Sans (similar – layout can shift)' ;;
         georgia*|pala*|book*|constan*)                printf 'ms;Liberation Serif (similar – layout can shift)' ;;
         consola*|lucon*)                              printf 'ms;Liberation Mono (similar)' ;;

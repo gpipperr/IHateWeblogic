@@ -202,9 +202,16 @@ dnf install -y \
   dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
   dejavu-lgc-sans-fonts dejavu-lgc-sans-mono-fonts dejavu-lgc-serif-fonts \
   liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
+  liberation-narrow-fonts google-carlito-fonts \
   xorg-x11-utils xorg-x11-fonts-Type1 xorg-x11-server-Xvfb \
   python3-fonttools
 ```
+
+> `liberation-narrow-fonts` (Arial Narrow) and `google-carlito-fonts`
+> (Calibri) – metric-compatible replacements, both in `ol9_appstream`
+> (added 2026-11-03). Caladea (Cambria) is not in the OL 9 base
+> repositories. Background and licences:
+> [reports_fonts_architecture.md](../../80-FMW-Architecture/reports_fonts_architecture.md).
 
 > `xorg-x11-server-Xvfb`: virtual X display for the Reports/Forms command-line
 > tools. Confirmed live (FMW 14.1.2): `rwconverter` and the Forms XML tools

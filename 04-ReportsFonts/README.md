@@ -455,11 +455,11 @@ A corporate font also needs its AFM for the screen printer:
 | Windows Font          | Linux Replacement         | Package                     | Metric Match |
 |-----------------------|---------------------------|-----------------------------|--------------|
 | Arial                 | Liberation Sans           | liberation-fonts            | ✓ Exact      |
-| Arial Narrow          | Liberation Sans Narrow    | liberation-fonts            | ✓ Exact      |
+| Arial Narrow          | Liberation Sans Narrow    | liberation-narrow-fonts     | ✓ Exact – mapped since 2026-11-03 |
 | Times New Roman       | Liberation Serif          | liberation-fonts            | ✓ Exact      |
 | Courier New           | Liberation Mono           | liberation-fonts            | ✓ Exact      |
-| Calibri               | Carlito                   | google-carlito-fonts        | ✓ Exact      |
-| Cambria               | Caladea                   | google-caladea-fonts        | ✓ Exact      |
+| Calibri               | Carlito                   | google-carlito-fonts        | ✓ Exact – mapped since 2026-11-03 |
+| Cambria               | Caladea                   | google-caladea-fonts        | ✓ Exact – not in OL 9 base repos, not mapped |
 | Tahoma                | DejaVu Sans               | dejavu-sans-fonts           | ~ Close      |
 | Verdana               | DejaVu Sans               | dejavu-sans-fonts           | ~ Close      |
 | Georgia               | Liberation Serif          | liberation-fonts            | ~ Close      |

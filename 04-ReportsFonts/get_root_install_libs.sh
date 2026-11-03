@@ -55,6 +55,8 @@ FONT_PKGS=(
     liberation-sans-fonts       # Liberation Sans  (Arial/Helvetica substitute)
     liberation-serif-fonts      # Liberation Serif (Times New Roman substitute)
     liberation-mono-fonts       # Liberation Mono  (Courier New substitute)
+    liberation-narrow-fonts     # Liberation Sans Narrow (Arial Narrow substitute)
+    google-carlito-fonts        # Carlito (Calibri substitute, metric-compatible)
     dejavu-sans-fonts           # DejaVu Sans       (Tahoma/Verdana substitute)
     dejavu-sans-mono-fonts      # DejaVu Sans Mono  (monospace)
     dejavu-serif-fonts          # DejaVu Serif      (serif fallback)

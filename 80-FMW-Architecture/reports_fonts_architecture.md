@@ -133,8 +133,8 @@ Its point is full Unicode coverage, which DejaVu / Noto give for free.
 | Font | Replaces | Licence | On OL 9 |
 |---|---|---|---|
 | Liberation Sans / Serif / Mono (2.x) | Arial / Times New Roman / Courier New – **identical metrics** | SIL Open Font License 1.1 since 2.00.0 (older 1.x: GPLv2 with font exception) | `liberation-*-fonts` 2.1.3, installed by `09-Install/02-root_os_packages.sh` (**confirmed (live)**, `rpm -qi`: License OFL) |
-| Liberation Sans Narrow | Arial Narrow – identical metrics | only in the 1.x line (2.x dropped it) | `liberation-narrow-fonts` in `ol9_appstream`, **not** installed by us |
-| Carlito | Calibri – identical metrics | SIL OFL 1.1 | `google-carlito-fonts` in `ol9_appstream`, **not** installed by us (section 8) |
+| Liberation Sans Narrow | Arial Narrow – identical metrics | only in the 1.x line (2.x dropped it): licence "Liberation" (GPLv2 with font exception – embedding in documents allowed) | `liberation-narrow-fonts` 1.07.6 (`ol9_appstream`), installed by `02-` since 2026-11-03 |
+| Carlito | Calibri – identical metrics | SIL OFL 1.1 | `google-carlito-fonts` 1.103 (`ol9_appstream`), installed by `02-` since 2026-11-03 |
 | Caladea | Cambria – identical metrics | SIL OFL 1.1 | not in the OL 9 base repositories (**open**: EPEL / upstream) |
 | DejaVu Sans / Serif / Mono | Verdana, Tahoma, Trebuchet MS – **similar only**; broad Unicode | Bitstream Vera licence + public-domain changes (copy, distribute, bundle allowed; not sold on their own; modified versions must be renamed) | `dejavu-*-fonts` 2.37, installed by `02-` (**confirmed (live)**) |
 
@@ -168,8 +168,9 @@ differently.
 | Original | Replacement | Metrics | Effect on a report |
 |---|---|---|---|
 | Arial, Times New Roman, Courier New | Liberation Sans / Serif / Mono | identical | none – the default of the library |
-| Calibri, Cambria | Carlito, Caladea | identical | none – not set up yet (section 8) |
-| Arial Narrow | Liberation Sans Narrow | identical | none – not set up yet |
+| Calibri | Carlito | identical | none – set up 2026-11-03 (`[Global] Calibri = Carlito`), embedded in the PDF (**confirmed (live)**, `pdffonts`) |
+| Arial Narrow | Liberation Sans Narrow | identical | none – set up 2026-11-03 (`[Global] "Arial Narrow" = LiberationSansNarrow`), embedded (**confirmed (live)**) |
+| Cambria | Caladea | identical | not set up – Caladea is not in the OL 9 base repositories (section 8) |
 | Verdana, Tahoma, Trebuchet MS | DejaVu Sans | **similar** | Verdana is wide: lines / fields can shift – check every report that uses it |
 | Georgia, Palatino Linotype | Liberation Serif | **similar** | as above |
 | Wingdings, Webdings, Symbol | – | none | check boxes / arrows become other characters: original font with a licence, or change the report to Unicode characters with DejaVu |
@@ -211,7 +212,7 @@ Per font:
 1. **customer** class: always needed. Clarify the vendor licence for the
    new server, then `custom_fonts_dir/`.
 2. **ms** class with an *identical* replacement (Arial, Times New Roman,
-   Courier New; Calibri / Cambria once section 8 is done): use the
+   Courier New, Calibri, Arial Narrow; Cambria once section 8 is done): use the
    replacement. The old TTF stays behind.
 3. **ms** class with a *similar* replacement (Verdana, Tahoma, Georgia):
    find the reports that use it and test them with the replacement. If the
@@ -248,13 +249,12 @@ fonts live only on the customer's servers.
 
 ## 8. Open points
 
-- **Calibri / Cambria:** the replacement table of `04-ReportsFonts`
-  names Carlito / Caladea, but `02-` does not install them and
-  `uifont_ali_template.ali` has no mapping. Carlito is in `ol9_appstream`
-  (`google-carlito-fonts`); Caladea is not in the OL 9 base repositories.
-  To do: add the package(s) to `02-`, add `[Global]` / `[PDF:Subset]`
-  entries and test with `pdffonts`. Same for Arial Narrow
-  (`liberation-narrow-fonts`).
+- **Cambria → Caladea:** not in the OL 9 base repositories (EPEL / the
+  upstream release would be needed). Calibri → Carlito and Arial Narrow →
+  Liberation Sans Narrow are done (2026-11-03): packages in `02-`,
+  `deploy_fonts.sh` copies Carlito, `[Global]` + `[PDF:Subset]` entries,
+  font test of `15-` with both families – all `CID TrueType emb=yes
+  sub=yes` (**confirmed (live)**).
 - **`fsType`:** does the Reports engine respect the embedding flags of a
   font (e.g. "restricted licence – no embedding" of some bought fonts)? Not
   documented, not tested.

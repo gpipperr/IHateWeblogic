@@ -395,6 +395,26 @@ NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana"              ".."            "Dej
 NEW_SUBSET_LINES+=("$(_subset_line_q "Verdana Bold"         ""              "DejaVuSans-Bold")")
 NEW_SUBSET_LINES+=("")
 
+# ─── Calibri → Carlito, Arial Narrow → Liberation Sans Narrow (identical metrics) ──
+# [Global] maps Calibri = Carlito and "Arial Narrow" = LiberationSansNarrow -
+# the engine then looks up those families; both spellings + the original
+# name are mapped (2026-11-03)
+NEW_SUBSET_LINES+=("# ─── Calibri → Carlito, Arial Narrow → Liberation Sans Narrow (metric-compatible) ─")
+for _key in "Calibri" "Carlito"; do
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic.Bold" "Carlito-BoldItalic")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "...Bold"       "Carlito-Bold")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic"      "Carlito-Italic")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" ".."            "Carlito-Regular")")
+done
+# Regular file of liberation-narrow-fonts 1.07 has no "-Regular" suffix
+for _key in "Arial Narrow" "LiberationSansNarrow" "Liberation Sans Narrow"; do
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic.Bold" "LiberationSansNarrow-BoldItalic")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "...Bold"       "LiberationSansNarrow-Bold")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" "..Italic"      "LiberationSansNarrow-Italic")")
+    NEW_SUBSET_LINES+=("$(_subset_line_q "$_key" ".."            "LiberationSansNarrow")")
+done
+NEW_SUBSET_LINES+=("")
+
 # ─── Deployed TTF families under their own names ─────────────────────────────
 # A report that uses the Linux font directly ("Liberation Sans", "DejaVu Sans")
 # is resolved via the generated AFM (paramform_afm_setup.sh) under the compact

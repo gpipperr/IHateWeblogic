@@ -145,6 +145,20 @@ else
     done
 fi
 
+# Carlito (Calibri replacement, metric-compatible, OFL) – google-carlito-fonts
+CARLITO_TTFS=()
+while IFS= read -r f; do
+    CARLITO_TTFS+=("$f")
+done < <(find /usr/share/fonts -name "Carlito*.ttf" 2>/dev/null | sort)
+if [ "${#CARLITO_TTFS[@]}" -eq 0 ]; then
+    warn "No Carlito fonts found – Calibri falls back (install google-carlito-fonts, 02-root_os_packages.sh)"
+else
+    ok "${#CARLITO_TTFS[@]} Carlito TTF file(s) found (Calibri replacement)"
+    for ttf in "${CARLITO_TTFS[@]}"; do
+        _deploy_font "$ttf" "$REPORTS_FONT_DIR"
+    done
+fi
+
 # =============================================================================
 # Section 3: DejaVu Fonts (system packages)
 # =============================================================================

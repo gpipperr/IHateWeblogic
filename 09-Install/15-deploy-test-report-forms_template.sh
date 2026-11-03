@@ -425,10 +425,13 @@ if $DEPLOY_REPORTS; then
         else
             _pf="$(pdffonts "$STAGING/test_fonts.pdf" 2>/dev/null | tail -n +3)"
             printf '%s\n' "$_pf" | sed 's/^/    /' | tee -a "${LOG_FILE:-/dev/null}"
-            # PDF names come as "AACCGD+Liberation,Mono" - compare without , - and blanks
-            _pfn="$(printf '%s\n' "$_pf" | awk '{print $1}' | sed 's/^[A-Z]*+//; s/[ ,-]//g')"
+            # PDF names come as "AACCGD+Liberation,Mono" / "…+Liberation,Sans Narrow" (a
+            # blank inside the name) - the name is everything before the type column;
+            # compare without , - and blanks
+            _pfn="$(printf '%s\n' "$_pf" | sed -E 's/[[:space:]]+(CID |Type |TrueType).*//; s/^[A-Z]*\+//; s/[ ,-]//g')"
             for _exp in "Arial|Helvetica:LiberationSans" "Times New Roman:LiberationSerif" \
-                        "Courier New:LiberationMono" "Tahoma|DejaVu Sans:DejaVuSans"; do
+                        "Courier New:LiberationMono" "Tahoma|DejaVu Sans:DejaVuSans" \
+                        "Calibri:Carlito" "Arial Narrow:LiberationSansNarrow"; do
                 if printf '%s\n' "$_pfn" | grep -qi "^${_exp#*:}"; then
                     ok "$(printf "  %-22s -> %s embedded" "${_exp%%:*}" "${_exp#*:}")"
                 else
@@ -438,10 +441,10 @@ if $DEPLOY_REPORTS; then
             # umlauts: the text layer must hold them (NLS_LANG / font encoding)
             if command -v pdftotext > /dev/null 2>&1; then
                 _um="$(pdftotext -enc UTF-8 "$STAGING/test_fonts.pdf" - 2>/dev/null | grep -c 'Größe Übung ÄÖÜ äöü ß')"
-                if [ "${_um:-0}" -ge 7 ]; then
-                    ok "  umlauts readable in all 7 lines (pdftotext)"
+                if [ "${_um:-0}" -ge 9 ]; then
+                    ok "  umlauts readable in all 9 lines (pdftotext)"
                 else
-                    warn "$(printf "  umlauts readable in %s of 7 lines only (pdftotext) – NLS_LANG / font encoding" "${_um:-0}")"
+                    warn "$(printf "  umlauts readable in %s of 9 lines only (pdftotext) – NLS_LANG / font encoding" "${_um:-0}")"
                 fi
             fi
             if printf '%s\n' "$_pf" | grep -qiE 'Symbol|Courier[^N]|ZapfDingbats'; then

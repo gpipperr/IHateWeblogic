@@ -13,6 +13,7 @@
     Arial, Helvetica   -> LiberationSans      Times New Roman -> LiberationSerif
     Courier New        -> LiberationMono      Tahoma          -> DejaVuSans
     Liberation Sans    -> LiberationSans      DejaVu Sans     -> DejaVuSans
+    Calibri            -> Carlito             Arial Narrow    -> LiberationSansNarrow
   A font that falls back to Courier / Symbol or is not embedded = mapping
   missing (04-ReportsFonts/README.md section 11).
 
@@ -81,6 +82,22 @@
           <textSegment>
             <font face="DejaVu Sans" size="11"/>
             <string><![CDATA[DejaVu Sans: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_CALIBRI" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="3.65000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Calibri" size="11"/>
+            <string><![CDATA[Calibri: Größe Übung ÄÖÜ äöü ß 0123]]></string>
+          </textSegment>
+        </text>
+        <text name="B_ARIALNARROW" minWidowLines="1">
+          <textSettings spacing="0"/>
+          <geometryInfo x="0.50000" y="4.10000" width="7.00000" height="0.30000"/>
+          <textSegment>
+            <font face="Arial Narrow" size="11"/>
+            <string><![CDATA[Arial Narrow: Größe Übung ÄÖÜ äöü ß 0123]]></string>
           </textSegment>
         </text>
       </body>

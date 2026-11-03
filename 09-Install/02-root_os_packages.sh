@@ -246,6 +246,8 @@ for PKG in \
     liberation-sans-fonts \
     liberation-serif-fonts \
     liberation-mono-fonts \
+    liberation-narrow-fonts \
+    google-carlito-fonts \
     xorg-x11-utils \
     xorg-x11-fonts-Type1 \
     xorg-x11-server-Xvfb \
