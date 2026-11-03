@@ -164,6 +164,31 @@ into git – import step follows); for the Linux Reports-only customer a
 complete **CPU October 2026 patch set** (CSV + cookbook for a home with
 unknown starting level) and a cookbook to **check and complete the Reports
 security** (monUser / RepRunner, embedded LDAP, `securityId`, libOVD).
+New 2026-11-03 (afternoon, customer on site + test host):
+- **Shell environment switcher** `setdb` / `setfmw` / `setfw`
+  ([ihw_shell_env.sh](70-Customer-Projects/tools/bash/ihw_shell_env.sh), installed by `03-` as
+  `~oracle/.bashrc.d/ihw_env.sh`, after the model of OraBashShell): one menu – FMW home only + domains,
+  DB homes under their home name with every SID and always a `(no SID)` line, `c` clear, `h` help, `q`
+  quit. It sets `WLST`, `wlst`, `cdlog` and the Forms / Reports config paths, never touches
+  `environment.conf`, and sets `SQLPATH` / `ORACLE_PATH` (`~/sql`) **only for a DB entry** – a
+  `login.sql` disturbs datapatch / utlrp. The library unsets both in every script.
+- **DBA SQL scripts** in `~/sql` (OraDBASQLScripts git clone,
+  `60-RCU-DB-19c/07-db_sql_scripts.sh`, offline `--archive`); `git-core` is now in `02-`.
+- **`init_env.sh --db` never worked** (the DB block ran before the `detect_*` helpers were defined →
+  always `ORCL` / `19c/dbhome_1`). It now works, plus fixes: SID case (`comm`), pmon home via
+  `/proc/<pid>/exe`, tnsnames parsing, domain via `domain-registry.xml` and `/u01/app/oracle/domains`,
+  `orabasetab` field.
+- **`rwservlet` with `authid=` in the URL writes the password into `WLS_REPORTS/logs/access.log`** –
+  every web command and report call now goes as POST (`reports_server_lib.sh`, cookbooks);
+  [reports_monitoring_getserverinfo.md](80-FMW-Architecture/reports_monitoring_getserverinfo.md)
+  (XML field reference, alarm table, tested Nagios / Checkmk plugin).
+- **Scheduled reports** ([reports_job_handling.md](80-FMW-Architecture/reports_job_handling.md) +
+  `Reports_Zeitplan_kochbuch_de.txt`): cron + `rwclient.sh cmdfile=` recommended; `SCHEDULE=`
+  jobs live in `$DOMAIN_HOME/reports/server/<server>.dat` (survive restarts, come back with a
+  restore / clone); `<folderAccess><write>` has no subdirectories (`REP-56133`).
+- **Cookbook style** rules in [cookbook-Skill.md](70-Customer-Projects/cookbook-Skill.md) (one command
+  per line, blank lines, no nesting, "what ends up where" tree, sources); the security cookbook
+  rewritten in that style.
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
@@ -946,6 +971,14 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > `webcommandaccess=L0` is not open, **`L2` opens every web command without
 > login – also through Nginx**. `rwserver_status.sh` checks all three; the
 > Nginx template blocks the admin web commands from outside.
+>
+> **Live finding 2026-11-03:** WebLogic logs the whole `cs-uri` – a GET with
+> `authid=user/password` (or `userid=` with the DB password) lands **in plain
+> text** in `WLS_REPORTS/logs/access.log`. Send web commands and report
+> requests as **POST** (all parameters in the body – a POST ignores the
+> query string); `reports_server_lib.sh` does so since 2026-11-03. Monitoring
+> of the server: [reports_monitoring_getserverinfo.md](80-FMW-Architecture/reports_monitoring_getserverinfo.md);
+> error XML codes have no `REP-` prefix (`code="56071"`).
 
 ## Open Items / TODO
 
@@ -1155,6 +1188,19 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   level unknown; Forms QPR before Reports QPR with the `libzrc` check – decide
   on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
   restarts) – feed findings back into the cookbooks.
+- [ ] **Still GET with a password in the URL** (2026-11-03): the test report
+  run of `09-Install/15-deploy-test-report-forms_template.sh` (`userid=`) and
+  examples in doc 12, doc 13, `WLS_Report_start_stop_kochbuch.txt`,
+  `Patch_Kochbuch_CPU_Okt2026_de.txt` 13.6 – switch to POST; on customer
+  hosts check old `access.log` files for `authid=` / `userid=`.
+- [ ] **Shell switcher at the customer**: copy the current
+  `ihw_shell_env.sh` to `~/.bashrc.d/ihw_env.sh` (only ONE copy there) and run
+  `ihwenv_configure -f`, so the home names and `(no SID)` lines appear;
+  `07-db_sql_scripts.sh` there needs `github.com` on the egress allow-list
+  (else `--archive`).
+- [ ] **Scheduled reports**: mail notification (`destype=mail`,
+  `notifysuccess`) untested – the mail server is still the template
+  placeholder; `;` in `<write>` untested.
 - [ ] **Configuration export → import**: first real customer run of
   `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh` (12c), then the
   import step into the 14c library (formsweb sections, env keys, cgicmd
