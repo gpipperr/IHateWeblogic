@@ -237,13 +237,22 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties for AdminServer + Managed Server
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst  # NodeManager config before first start
            (--skip-wlst = only nodemanager.properties, no WLST – the AdminServer is not running
-            yet; the Machine keeps NMType=SSL until the second run below WITHOUT --skip-wlst.
-            Forgotten → WLS_FORMS / WLS_REPORTS do not start through the Node Manager.
+            yet; NMType and the Node Manager credentials are set only by the second run below
+            WITHOUT --skip-wlst. Forgotten → the Node Manager refuses the admin user and
+            WLS_FORMS / WLS_REPORTS do not start through it.
             Without --skip-wlst on a stopped domain the script waits 120 s for the AdminServer.)
-  [oracle] ./01-Run/startStop.sh start NodeManager --apply         # first start: Node Manager
-  [oracle] ./01-Run/startStop.sh start AdminServer --apply         # then the AdminServer (listens after ~30-60 s)
-  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: set Machine NMType=Plain – now
-                                                                   # WITHOUT --skip-wlst (waits for the AdminServer)
+  First start – AdminServer WITHOUT the Node Manager: a WLST-offline domain has RANDOM Node
+  Manager credentials until 11- sets them, and startStop.sh starts the AdminServer through a
+  running Node Manager ("Access to domain 'fr_domain' for user 'webadmin' denied", customer
+  2026-11-03):
+  [oracle] ./01-Run/startStop.sh start AdminServer --apply         # NM not running → startWebLogic.sh
+                                                                   # with boot.properties (~30-60 s)
+  [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: Machine NMType=Plain + NM
+                                                                   # credentials = admin user – now
+                                                                   # WITHOUT --skip-wlst
+  [oracle] ./01-Run/startStop.sh stop AdminServer --apply          # hand over to the Node Manager:
+  [oracle] ./01-Run/startStop.sh start NodeManager --apply
+  [oracle] ./01-Run/startStop.sh start AdminServer --apply         # now via nmStart
   [oracle] ./09-Install/12-oracle_reports_users.sh --apply         # create WLS users monUser + RepRunner
   [root]   ./09-Install/13-root_reports_fix.sh --apply             # libnsl.so.2 symlink (OL9 only)
   [edit]   09-Install/forms_templates/*.template                   # adapt templates before the Forms setup

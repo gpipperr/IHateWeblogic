@@ -108,14 +108,27 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 # 1. Fix nodemanager.properties before first start
 ./09-Install/11-oracle_nodemanager.sh --apply --skip-wlst
 
-# 2. Start NodeManager and AdminServer
-./01-Run/startStop.sh start NodeManager --apply
+# 2. Start the AdminServer WITHOUT the Node Manager (startWebLogic.sh +
+#    boot.properties – startStop.sh uses nmStart only when the NM runs)
 ./01-Run/startStop.sh start AdminServer --apply
 
-# 3. Set domain NodeManager type via WLST – the script waits up to
-#    ADMIN_WAIT_SECONDS (default 120) for the AdminServer port
+# 3. Set NMType=Plain + the Node Manager credentials via WLST – the script
+#    waits up to ADMIN_WAIT_SECONDS (default 120) for the AdminServer port
 ./09-Install/11-oracle_nodemanager.sh --apply
+
+# 4. Hand the AdminServer over to the Node Manager
+./01-Run/startStop.sh stop AdminServer --apply
+./01-Run/startStop.sh start NodeManager --apply
+./01-Run/startStop.sh start AdminServer --apply
 ```
+
+> **Why the AdminServer first:** a WLST-offline production domain has random
+> Node Manager credentials (step 5 below). With the Node Manager running,
+> `startStop.sh` starts the AdminServer through it (`nmConnect` with the
+> admin user) – on a fresh domain that fails with
+> `Access to domain 'fr_domain' for user 'webadmin' denied` (customer
+> 2026-11-03; this workflow said "NodeManager first" until then).
+> `startStop.sh` prints this sequence when it sees that message.
 
 > The AdminServer needs ~30–60 s until it listens. A run 29 s after the start
 > missed RUNNING by 6 s (2026-10-15) – hence the wait loop.

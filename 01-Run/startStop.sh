@@ -511,6 +511,14 @@ NMEOF
     if printf '%s\n' "$out" | grep -q 'IHW:FAIL:nmConnect'; then
         info "  Node Manager running? NM credentials = admin credentials?"
         info "  Check: ./09-Install/11-oracle_nodemanager.sh (nmConnect test)"
+        if printf '%s\n' "$out" | grep -q 'Access to domain .* denied'; then
+            # fresh WLST-offline domain: random NM credentials until 11- (WLST,
+            # needs the AdminServer) sets them - start the AdminServer without NM
+            info "  Fresh domain? Its Node Manager credentials are random until 11- sets them:"
+            info "    stop NodeManager --apply; start AdminServer --apply (script, no NM);"
+            info "    ./09-Install/11-oracle_nodemanager.sh --apply; stop AdminServer --apply;"
+            info "    start NodeManager --apply; start AdminServer --apply"
+        fi
     else
         info "  Logs: $DOMAIN_HOME/servers/$name/logs/ and nodemanager/nodemanager.log"
     fi

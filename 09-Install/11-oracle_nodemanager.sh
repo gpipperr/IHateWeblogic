@@ -445,11 +445,17 @@ unset _nm_host _nm_port _nm_sec _nm_type _nm_domain
 # =============================================================================
 section "Next Steps"
 if $SKIP_WLST; then
-    info "1. Start NodeManager and AdminServer:"
+    # NOT the Node Manager first: a fresh WLST-offline domain has random NM
+    # credentials until step 2 sets them - startStop.sh would start the
+    # AdminServer through the NM and fail ("Access ... denied", 2026-11-03)
+    info "1. Start the AdminServer WITHOUT the Node Manager (startWebLogic.sh):"
+    info "     01-Run/startStop.sh start AdminServer --apply"
+    info "2. NMType=Plain + Node Manager credentials via WLST (waits for the AdminServer):"
+    info "     09-Install/11-oracle_nodemanager.sh --apply"
+    info "3. Hand over to the Node Manager:"
+    info "     01-Run/startStop.sh stop AdminServer --apply"
     info "     01-Run/startStop.sh start NodeManager --apply"
     info "     01-Run/startStop.sh start AdminServer --apply"
-    info "2. Set Machine NMType=Plain via WLST (waits for the AdminServer):"
-    info "     09-Install/11-oracle_nodemanager.sh --apply"
 else
     info "1. Status of all components:"
     info "     01-Run/startStop.sh"
