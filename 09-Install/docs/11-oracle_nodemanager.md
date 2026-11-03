@@ -129,6 +129,10 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 > `Access to domain 'fr_domain' for user 'webadmin' denied` (customer
 > 2026-11-03; this workflow said "NodeManager first" until then).
 > `startStop.sh` prints this sequence when it sees that message.
+> Since 2026-11-03 `08-` sets the Node Manager credentials to the admin user
+> already in the WLST template (check in its verification) – with it the
+> Node Manager could be started first as well; the order above works in
+> both cases and stays the documented one.
 
 > The AdminServer needs ~30–60 s until it listens. A run 29 s after the start
 > missed RUNNING by 6 s (2026-10-15) – hence the wait loop.

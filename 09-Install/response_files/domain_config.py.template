@@ -134,6 +134,19 @@ _cfg_ds('WLSSchemaDataSource',        _pfx + '_WLS',         _db_url, _db_pw)
 _cfg_ds('WLSRuntimeSchemaDataSource', _pfx + '_WLS_RUNTIME', _db_url, _db_pw)
 # mds-owsm does NOT exist in Forms & Reports (no OWSM component installed)
 
+# --- Node Manager credentials = admin user -----------------------------------
+# Without this a production domain gets RANDOM Node Manager credentials
+# (default '????????') - nmConnect with the admin user is refused ("Access to
+# domain ... denied") until 11-oracle_nodemanager.sh sets them online, which
+# needs a running AdminServer (customer 2026-11-03). Offline the node keeps the
+# template name 'base_domain' even after set('Name') (checked offline
+# 2026-11-03, like /Security/base_domain above). writeDomain writes
+# config/nodemanager/nm_password.properties from these values.
+cd('/SecurityConfiguration/base_domain')
+set('NodeManagerUsername', '##WLS_ADMIN_USER##')
+set('NodeManagerPasswordEncrypted', '##WLS_ADMIN_PWD##')
+cd('/')
+
 # --- Write domain ------------------------------------------------------------
 writeDomain('##DOMAIN_HOME##')
 closeTemplate()

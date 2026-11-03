@@ -244,7 +244,8 @@ Phase 6 – Runtime Configuration (as oracle / root)
   First start – AdminServer WITHOUT the Node Manager: a WLST-offline domain has RANDOM Node
   Manager credentials until 11- sets them, and startStop.sh starts the AdminServer through a
   running Node Manager ("Access to domain 'fr_domain' for user 'webadmin' denied", customer
-  2026-11-03):
+  2026-11-03). Since 2026-11-03 08- sets them to the admin user already (its verification
+  shows it) – this order works either way:
   [oracle] ./01-Run/startStop.sh start AdminServer --apply         # NM not running → startWebLogic.sh
                                                                    # with boot.properties (~30-60 s)
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: Machine NMType=Plain + NM

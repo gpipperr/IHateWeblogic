@@ -11,7 +11,8 @@
 #            All servers listen on WLS_LISTEN_ADDRESS (default: 127.0.0.1).
 #            Run AFTER 07-oracle_setup_repository.sh --apply – checked before
 #            WLST: login as <prefix>_OPSS (schemas present, password valid),
-#            no existing config.xml.
+#            no existing config.xml. The Node Manager credentials are set to
+#            the admin user (else random until 11-, since 2026-11-03).
 # Call     : ./09-Install/08-oracle_setup_domain.sh
 #            ./09-Install/08-oracle_setup_domain.sh --apply
 #            ./09-Install/08-oracle_setup_domain.sh --help
@@ -533,7 +534,15 @@ if [ -f "$_cfg" ]; then
         grep -q 'time-taken' "$_cfg" && ok "WLS_FORMS access log with time-taken" \
             || warn "time-taken missing in the WLS_FORMS access log – 06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog"
     fi
-    unset _bad_ds _ms_n _uni
+    # Node Manager credentials from the template (else random until 11-)
+    _nm_user="$(sed -n 's:.*<node-manager-username>\(.*\)</node-manager-username>.*:\1:p' "$_cfg" | head -1)"
+    if [ "$_nm_user" = "$WL_USER" ]; then
+        ok "Node Manager user = admin user ($WL_USER) – nmConnect works from the first start"
+    else
+        warn "Node Manager user is '${_nm_user:-?}', not $WL_USER – first start: AdminServer without the"
+        info "  Node Manager, then 09-Install/11-oracle_nodemanager.sh --apply (README Phase 6)"
+    fi
+    unset _bad_ds _ms_n _uni _nm_user
 fi
 unset _cfg
 

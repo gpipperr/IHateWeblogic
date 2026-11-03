@@ -252,6 +252,16 @@ for the full WLST/OPSS procedure (manual and scripted).
 - Selects the templates by `INSTALL_COMPONENTS` (see *Components*), checks that
   they exist, passes `##WITH_FORMS##` / `##WITH_REPORTS##` to the WLST script
 - Configures `nodemanager.properties` (127.0.0.1 only, port from `WLS_NODEMANAGER_PORT`)
+- **Node Manager credentials = admin user** (since 2026-11-03): the template
+  sets `NodeManagerUsername` / `NodeManagerPasswordEncrypted` under
+  `/SecurityConfiguration/base_domain` before `writeDomain` (offline the node
+  keeps the template name after `set('Name')`; checked offline). Without it a
+  production domain gets random ones (default `????????`) and the first
+  `nmConnect` with the admin user fails (`Access to domain 'fr_domain' for
+  user 'webadmin' denied`, customer 2026-11-03) until `11-` sets them online.
+  The verification compares `<node-manager-username>` in `config.xml` with the
+  admin user (WARN with the first-start order otherwise). Not yet confirmed
+  with a real `writeDomain` – the next new domain shows it
 - Runs `07-Maintenance/domain_jdk_path.sh --apply`: versioned JDK directory →
   `JDK_HOME` symlink (step 3b)
 - Writes `servers/AdminServer/security/boot.properties` so AdminServer can be
