@@ -26,6 +26,7 @@ documentation (section 7), **assumption** = plausible, not verified.
 | Node Manager, AdminServer ↔ managed servers | WebLogic | T3, loopback / own host | yes |
 | **Internet** | – | – | **no** – nothing in the product needs it at run time |
 | MOS, yum, GitHub, Oracle advisories | **our scripts** (`04-oracle_pre_download.sh`, `dnf`, `cve_inventory.sh --online`), never the domain | HTTPS | only for downloads / the CVE watch |
+| Timestamp server (TSA) `FORMS_SIGN_TSA_URL`, default `http://timestamp.digicert.com` | `jarsigner -tsa` in `09-Install/14-oracle_setup_forms.sh` when it signs `jacob.jar` (only `FORMS_WEBUTIL_JACOB=true`) | HTTP (port 80, RFC 3161) | only at signing; blocked → `jarsigner` **fails** (`ConnectException`, customer 2026-11-03) – allow it or `FORMS_SIGN_TSA_URL=""` ([certificates_trust_stores.md §6.1](certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access)) |
 
 **Confirmed (live) 2026-10-20:** full restart of the domain under
 `tcpdump` – AdminServer incl. Enterprise Manager, WLS_FORMS incl. the

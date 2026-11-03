@@ -237,9 +237,13 @@ jarsigner -keystore codesign.p12 -storetype PKCS12 \
 jarsigner -verify -verbose -certs jacob.jar     # "jar verified." + chain + timestamp
 ```
 
-- **Always with `-tsa`** (timestamp): without it the signature becomes
-  invalid when the code-signing certificate expires → every client blocks
-  the jar on that day.
+- **With `-tsa`** (timestamp) whenever possible: without it the signature
+  becomes invalid when the code-signing certificate expires → every client
+  that checks (Java Web Start) blocks the jar on that day. The TSA is called
+  over HTTP at signing time – a host without outbound access cannot reach
+  it and `jarsigner -tsa` **fails** (no automatic fallback). Options (allow
+  only the TSA, internal TSA, sign without timestamp + re-sign at every
+  renewal): [certificates_trust_stores.md §6.1](certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access).
 - The jar's manifest has `Permissions: all-permissions`, `Codebase: *`,
   `Trusted-Library: true` – but only in the **per-entry section**
   `Name: com/jacob/`, not in the main section (**confirmed (live)**
@@ -333,8 +337,9 @@ whether `CLIENT_HOST` is needed at all.
 |---|---|---|
 | **Forms patch / bundle** (`07-Maintenance/82-patch_forms_reports.sh`) | Oracle replaces its own signed jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) – signed by Oracle, nothing to do; `jacob.jar` and the JACOB DLLs are not Oracle files and normally stay; **Oracle files we changed can be reset**: `extensions.jnlp` (jacob entry), `webutil.cfg` template | after every Forms patch: re-run `14-oracle_setup_forms.sh --apply` (checks `jacob.jar` present + `jarsigner -verify`, re-activates the `extensions.jnlp` entry and `WebUtilArchive`) |
 | **New JACOB version required** (release notes of a Forms patch) | new `jacob.jar` (unsigned again) and new DLLs (other sizes) | download (`04-`), sign again, adapt `install.syslib.*` size/version in `webutil.cfg` (`14-` does it), clients download the new DLL automatically |
-| **Own code-signing certificate expires** | signatures **with timestamp** stay valid; without timestamp the jar is blocked from that day | sign only with `-tsa`; renew the certificate before expiry; re-signing is needed only for new / changed jars |
-| **Own root CA (B') – leaf renewal** | new code-signing / TLS certificate under the **same root** | `ssl_local_ca.sh codesign --apply --renew` / `ssl_prepare_cert.sh LOCALCA --apply --renew`; nothing to change on the clients; already signed + timestamped jars stay valid |
+| **Own code-signing certificate expires** | signatures **with timestamp** stay valid; without timestamp the jar is blocked from that day (Java Web Start) | sign with `-tsa` where the TSA is reachable; renew the certificate before expiry; with timestamp re-signing is needed only for new / changed jars |
+| **Signed without timestamp** (host without outbound access, `FORMS_SIGN_TSA_URL=""`) | signature valid only until the signer certificate expires; `14-` reports the date after every run (WARN < 90 days), `cert_expiry_check.sh` reminds | before expiry: `ssl_local_ca.sh codesign --apply --renew` (or a new customer `codesign.p12`) **and** `14-oracle_setup_forms.sh --apply --resign` – `14-` alone keeps the jar signed with the old certificate |
+| **Own root CA (B') – leaf renewal** | new code-signing / TLS certificate under the **same root** | `ssl_local_ca.sh codesign --apply --renew` / `ssl_prepare_cert.sh LOCALCA --apply --renew`; nothing to change on the clients; already signed + timestamped jars stay valid; without timestamp: `14- --apply --resign` |
 | **Certificate revoked / key compromised** | revocation check blocks every jar signed with it – also timestamped ones (**assumption** for the timestamp interplay) | new certificate, re-sign, serve |
 | **Algorithm deprecated** (e.g. SHA-1 disabled in Java updates) | old signatures rejected by new Java versions | re-sign with SHA-256 (`-digestalg SHA-256`, current `jarsigner` default) |
 | **Java update on the clients** | a JRE update replaces `lib/security/cacerts` – certificates imported **into that file** are lost (**assumption** – standard JRE update behaviour, verify per Java distribution) | never import into the JRE's `cacerts`; use the Windows store (GPO) or the system-level deployment stores outside the JRE |
@@ -413,6 +418,13 @@ Recommendation (design, to be decided with the customer):
 - Verification after signing **without `-strict`**: the server JDK does not
   trust an own / company root ("PKIX path building failed") – trust is a
   client matter (**confirmed (live)**).
+- After activation `14-` reports the signature: timestamped (valid after the
+  certificate expires) or **without timestamp + valid until** (WARN below 90
+  days). `--resign` puts the unsigned release jar back (old signed one kept
+  as `.bak_*`) and signs with the current keystore – needed after a
+  certificate renewal when no timestamp is used (since 2026-11-03).
+- A failing `jarsigner` prints its own message; a TSA error adds the hint
+  "allow the TSA or `FORMS_SIGN_TSA_URL=\"\"`".
 - Still open:
   - Windows client: FSAL start itself works (2026-10-23, URL client
     distribution); open: FSAL with unsigned and signed `jacob.jar`, JWS with
@@ -448,6 +460,15 @@ file + our `transfer.*` keys (all `install.syslib` entries kept), `jacob.jar`
 | `formsweb.cfg` | `WebUtilArchive=frmwebutil.jar` (without `jacob.jar`) |
 | `extensions.jnlp` | `jacob.jar` entry commented out (Oracle default) |
 | hints in `14-` / doc 14 | still refer to `jacob-1.18-M2` and SourceForge (fixed the same day) |
+
+**2026-11-03 – a customer host without outbound access:** `14- --apply`
+failed in `jarsigner` – the TSA `timestamp.digicert.com` was not reachable
+(OCI egress allow-list), the error was only in the log. Decision: sign
+without timestamp (`FORMS_SIGN_TSA_URL=""`, certificate of the own root CA,
+1095 days) and re-sign at every renewal (`--resign`). Reproduced on the test
+host in an isolated copy (unreachable TSA → `Connection refused`; without
+TSA: "valid only until 2029-10-17"; `--resign` re-signs, idempotent second
+run).
 
 ## Summary
 

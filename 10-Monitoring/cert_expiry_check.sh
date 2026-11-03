@@ -120,6 +120,12 @@ _ca_dir="$(sed -n 's/^SSL_CA_DIR="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$ROOT_DIR/08-
 _ca_dir="${_ca_dir:-${ORACLE_BASE:-/u01/app/oracle}/admin/pki}"
 if [ -d "$_ca_dir/ca" ]; then
     _run "Local CA / server / codesign" "$ROOT_DIR/08-SSL/ssl_local_ca.sh" status
+    # jacob.jar signed WITHOUT timestamp (no TSA reachable) is invalid when the
+    # code-signing certificate expires - a renewal alone does not help
+    if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] && [ -z "${FORMS_SIGN_TSA_URL:-}" ]; then
+        info "  jacob.jar is signed without timestamp (FORMS_SIGN_TSA_URL empty): after a codesign"
+        info "  renewal re-sign it – 09-Install/14-oracle_setup_forms.sh --apply --resign"
+    fi
 else
     info "No local CA (08-SSL/ssl_local_ca.sh) – only the served certificate is checked"
 fi

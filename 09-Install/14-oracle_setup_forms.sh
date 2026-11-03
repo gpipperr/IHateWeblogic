@@ -15,7 +15,10 @@
 #              6. fmrweb_utf8.res + fmrwebd.res → FR_INST/admin/resource/D/
 # Call     : ./09-Install/14-oracle_setup_forms.sh
 #            ./09-Install/14-oracle_setup_forms.sh --apply
+#            ./09-Install/14-oracle_setup_forms.sh --apply --resign
 # Options  : --apply   Copy templates to domain (default: check only)
+#            --resign  sign jacob.jar again with the current keystore (after
+#                      a certificate renewal - mandatory without timestamp)
 #            --help    Show usage
 # Requires : environment.conf with FORMS_INSTANCE_NAME + WLS_FORMS_SERVER
 #            (optional FORMS_WEBUTIL_JACOB=true + 04- download of JACOB)
@@ -54,13 +57,16 @@ source "$ROOT_DIR/06-FormsDiag/forms_lib.sh"
 # =============================================================================
 
 APPLY=false
+RESIGN=false
 
 for _arg in "$@"; do
     case "$_arg" in
         --apply)    APPLY=true ;;
+        --resign)   RESIGN=true ;;
         --help|-h)
             printf "Usage: %s [--apply]\n\n" "$(basename "$0")"
             printf "  %-16s %s\n" "--apply"  "Copy templates to domain locations"
+            printf "  %-16s %s\n" "--resign" "Re-sign jacob.jar with the current keystore (after a renewal)"
             printf "\nWithout --apply: check only, no files copied.\n"
             printf "Templates: %s/\n" "$TEMPLATES_DIR"
             exit 0 ;;
@@ -279,6 +285,34 @@ _jacob_signed() {
     [ -n "$js" ] && "$js" -verify "$1" 2>/dev/null | grep -q '^jar verified'
 }
 
+# _jacob_sig_report jar – timestamp + expiry of the signer certificate.
+# Without a timestamp (no TSA reachable, FORMS_SIGN_TSA_URL="") the signature
+# is valid only until the signer certificate expires - Java Web Start then
+# blocks the jar. jarsigner -verify: "Timestamped by" / "do not include a
+# timestamp ... (as early as YYYY-MM-DD)" / "will expire on YYYY-MM-DD".
+_jacob_sig_report() {
+    local js="$_JDK_BIN/jarsigner" out exp days
+    [ -x "$js" ] || js="$(command -v jarsigner 2>/dev/null)"
+    [ -n "$js" ] || return 0
+    out="$("$js" -verify -verbose -certs "$1" 2>&1)"
+    exp="$(printf '%s\n' "$out" | grep -iE 'as early as|signer certificate will expire' \
+        | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+    if printf '%s\n' "$out" | grep -q 'Timestamped by'; then
+        ok "$(printf "  signature timestamped – stays valid after the certificate expires (%s)" "${exp:-?}")"
+        return 0
+    fi
+    days=""
+    [ -n "$exp" ] && days=$(( ( $(date -d "$exp" +%s) - $(date +%s) ) / 86400 ))
+    if [ -n "$days" ] && [ "$days" -lt 90 ]; then
+        warn "$(printf "  signature WITHOUT timestamp – invalid from %s (%s days): renew + re-sign" "$exp" "$days")"
+        info "    ./08-SSL/ssl_local_ca.sh codesign --apply --renew   (or a new customer codesign.p12)"
+        info "    ./09-Install/14-oracle_setup_forms.sh --apply --resign"
+    else
+        info "$(printf "  signature WITHOUT timestamp – valid only until %s (%s days); after a renewal: 14- --apply --resign" \
+            "${exp:-?}" "${days:-?}")"
+    fi
+}
+
 # _jacob_install src dest – copy with backup if different
 # A signed jacob.jar whose unsigned original (jacob.jar.orig, kept by
 # _jacob_sign) equals the source is up to date – do not overwrite it
@@ -398,7 +432,7 @@ _jacob_sign() {
 # 08-SSL/ssl_customer_certs.sh --apply (codesign.p12). Not needed when
 # jacob.jar is already signed.
 if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
-    if [ -f "$_JACOB_JAR" ] && _jacob_signed "$_JACOB_JAR"; then
+    if [ -f "$_JACOB_JAR" ] && _jacob_signed "$_JACOB_JAR" && ! $RESIGN; then
         ok "Code signing: jacob.jar already signed – keystore not needed for this run"
     elif [ -z "${FORMS_SIGN_KEYSTORE:-}" ]; then
         fail "Code signing not prepared: FORMS_SIGN_KEYSTORE is empty (FORMS_WEBUTIL_JACOB=true)"
@@ -458,6 +492,18 @@ else
             _jacob_install "$_src_jar" "$_JACOB_JAR"
             _jacob_install "$_src32"   "$_JACOB_DLL32"
             _jacob_install "$_src64"   "$_JACOB_DLL64"
+            # --resign: a signed jacob.jar counts as up to date - put the
+            # unsigned release jar back, the signing step below signs it with
+            # the CURRENT keystore (after ssl_local_ca.sh codesign --renew)
+            if $RESIGN && [ -f "$_JACOB_JAR" ] && _jacob_signed "$_JACOB_JAR"; then
+                if $APPLY; then
+                    cp -p "$_JACOB_JAR" "${_JACOB_JAR}.bak_$(date +%Y%m%d_%H%M%S)"
+                    cp "$_src_jar" "$_JACOB_JAR" \
+                        && ok "  --resign: unsigned jacob.jar restored (old signed one: .bak_*) – signing again"
+                else
+                    info "  dry-run – --resign would restore the unsigned jacob.jar and sign it again"
+                fi
+            fi
         fi
         rm -rf "${_tmp:?}"
         unset _tmp _src_jar _src32 _src64 _f _pair _exp _sz _ok
@@ -505,6 +551,7 @@ else
             ok "jacob.jar is signed – activating it for the Forms client"
             JACOB_ACTIVE=true
             WEBUTIL_ARCHIVE="frmwebutil.jar,jacob.jar"
+            _jacob_sig_report "$_JACOB_JAR"
         elif ! $APPLY && [ -n "${FORMS_SIGN_KEYSTORE:-}" ]; then
             info "  dry-run – jacob.jar would be activated after signing"
         else

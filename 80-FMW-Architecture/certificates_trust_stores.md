@@ -139,7 +139,7 @@ All values **confirmed (live)** 2026-10-28 on the test host unless marked.
 | **Nginx identity** | `/etc/nginx/ssl/fullchain.pem`, `privkey.pem` | PEM | root, dir `700`, key `600` – root only | server leaf + chain, private key | `09-Install/05-root_nginx_ssl.sh` | Nginx |
 | **Staging** | `08-SSL/certs/server.crt`, `server.key`, `chain.crt` | PEM | oracle, key `600` (gitignored) | what will be deployed | `08-SSL/ssl_prepare_cert.sh`, `ssl_local_ca.sh` | `05-root_nginx_ssl.sh`, `ssl_config.sh` |
 | **Local CA** | `$ORACLE_BASE/admin/pki/ca/` (`ca.key`, `ca.crt`, `ca.cer`, `ca.srl`), `server/`, `codesign/` | PEM / DER / PKCS#8 | oracle, dirs `700`, keys `600` | root key (AES-256, passphrase in `ssl_ca_sec.conf.des3`), root certificate, issued certificates | `08-SSL/ssl_local_ca.sh` | the scripts above; `ca.crt` / `ca.cer` are distributed to clients |
-| **Code signing** | `$ORACLE_BASE/admin/pki/codesign/codesign.p12` (`FORMS_SIGN_KEYSTORE`; customer PKI: `…/pki/customer/codesign.p12`) | PKCS#12 | oracle `600` | signing key + chain (password in `forms_sign_sec.conf.des3`) | `ssl_local_ca.sh codesign` or the customer CA | `09-Install/14-oracle_setup_forms.sh` (`jarsigner`) |
+| **Code signing** | `$ORACLE_BASE/admin/pki/codesign/codesign.p12` (`FORMS_SIGN_KEYSTORE`; customer PKI: `…/pki/customer/codesign.p12`) | PKCS#12 | oracle `600` | signing key + chain (password in `forms_sign_sec.conf.des3`) | `ssl_local_ca.sh codesign` or the customer CA | `09-Install/14-oracle_setup_forms.sh` (`jarsigner`, timestamp from `FORMS_SIGN_TSA_URL` – empty = none, §6.1) |
 | **Server JDK trust** | `$JDK_HOME/lib/security/cacerts` | PKCS#12, `changeit` | `644` | **110** Oracle JDK roots | Oracle (JDK update replaces it) | WLST, getMOSPatch (`java` in `PATH`), our Java tools |
 | **Bundled JDK trust** | `$ORACLE_HOME/oracle_common/jdk/lib/security/cacerts` | PKCS#12, `changeit` | oracle `640` | **110** roots of 2024 (17.0.12) | only an Oracle FMW patch (component `oracle.jdk`) | WebLogic servers, Reports server / engines, Forms / Reports tools |
 | **JDK blocklists** | `lib/security/blocked.certs`, `java.security` (`disabledAlgorithms`) | text | JDK | distrusted certificates / algorithms | JDK update | every JVM of that JDK |
@@ -222,7 +222,7 @@ imports with `--apply` ([08-SSL README – Customer certificates](../08-SSL/READ
 | dnf, curl, wget | `curl: (60) SSL certificate problem: unable to get local issuer certificate` | OS `anchors/` + `update-ca-trust` |
 | DB `UTL_HTTP` | `ORA-29024: Certificate validation failure` | OS store (`system:`) or DB wallet |
 | Node.js / Claude Code | `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` / `SELF_SIGNED_CERT_IN_CHAIN` | `NODE_EXTRA_CA_CERTS=<pem>` |
-| `jarsigner -tsa` | timestamp request fails → unsigned timestamp warning | JDK that runs `jarsigner` |
+| `jarsigner -tsa` | timestamp request fails → **`jarsigner` aborts** (`unable to sign jar: … ConnectException` / PKIX error), the jar stays unsigned – no fallback to "without timestamp" (**confirmed (live)** 2026-11-03) | JDK that runs `jarsigner`; no outbound access at all: §6.1 |
 | Forms clients behind a client-side interception (antivirus) | FSAL TLS error | client runtime / Windows store |
 
 Further pitfalls: certificate pinning or mutual TLS to a vendor endpoint
@@ -239,6 +239,34 @@ instead of a public one:
 echo | openssl s_client -connect updates.oracle.com:443 -servername updates.oracle.com 2>/dev/null \
   | openssl x509 -noout -issuer      # public: DigiCert ...  intercepted: <company> Interception CA
 ```
+
+### 6.1 Code signing on a host without outbound access
+
+A timestamp (TSA, section 1) needs one HTTP request from the signing host to
+the TSA at the moment of signing. A server without any outbound access
+(customer 2026-11-03: OCI, egress allow-list) cannot reach it –
+`jarsigner -tsa` then **fails**, it does not sign without timestamp by itself.
+
+| Option | How | Consequence |
+|---|---|---|
+| **1 – allow only the TSA** (preferred) | egress rule HTTP port 80 to the host of `FORMS_SIGN_TSA_URL` (default `timestamp.digicert.com`; RFC 3161 over plain HTTP – the response is signed, TLS not needed) | signature stays valid after the certificate expires – nothing to do at renewal |
+| **2 – internal TSA** | `FORMS_SIGN_TSA_URL=<TSA of the company PKI>` (if the PKI runs one) | as 1; the clients must trust the TSA chain too (Java Web Start) |
+| **3 – no timestamp** | `FORMS_SIGN_TSA_URL=""` (`14-` warns and signs without `-tsa`) | the signature is valid **only until the signer certificate expires** (own CA: 1095 days); from that day Java Web Start blocks `jacob.jar` (FSAL does not check signatures by default – [forms_jakob_webutil.md §10](forms_jakob_webutil.md#10-who-checks-the-signature--and-against-what)). Before expiry: renew the certificate **and re-sign** – a renewal alone is not enough |
+| 4 – sign elsewhere | sign `jacob.jar` on a host with internet, copy it to `$ORACLE_HOME/forms/java/` | `14-` keeps a signed jar whose unsigned original matches the release; extra manual step at every JACOB / certificate change |
+
+Re-signing with option 3 (own CA):
+
+```bash
+./08-SSL/ssl_local_ca.sh codesign --apply --renew        # new code-signing certificate, same root
+./09-Install/14-oracle_setup_forms.sh --apply --resign   # unsigned original back, signed with the new key
+```
+
+`14-` reports after every run whether the signature is timestamped and – if
+not – until when it is valid (WARN below 90 days); `10-Monitoring/cert_expiry_check.sh`
+watches the expiry of the code-signing certificate (via `ssl_local_ca.sh
+status`) and reminds of `--resign` when `FORMS_SIGN_TSA_URL` is empty.
+Why `--resign` is needed: `14-` signs only an **unsigned** `jacob.jar`; a jar
+signed with the old certificate counts as up to date.
 
 ## 7. Centralising the Java trust stores – options
 
@@ -310,7 +338,7 @@ adds itself here and links back to this article.
 | [09-Install/05-root_nginx_ssl.sh](../09-Install/docs/05-root_nginx_ssl.md) | deploys `fullchain.pem` / `privkey.pem`, frontend host |
 | `09-Install/nginx-wls.conf.template` | TLS protocols / ciphers, `WL-Proxy-SSL` |
 | [09-Install/01-setup-interview.sh](../09-Install/docs/01-setup-interview.md) | signing keystore, TSA, `FORMS_CLIENT_TRUST_CA`, `des3` passwords |
-| [09-Install/14-oracle_setup_forms.sh](../09-Install/docs/14-forms-detail-settings.md) | signs `jacob.jar` (`jarsigner`, PKCS#12, TSA) |
+| [09-Install/14-oracle_setup_forms.sh](../09-Install/docs/14-forms-detail-settings.md) | signs `jacob.jar` (`jarsigner`, PKCS#12, TSA or none – §6.1), `--resign` after a certificate renewal, reports timestamp / expiry of the signature |
 | [09-Install/40-oracle_forms_client_bundle.sh](../09-Install/docs/40-forms_client_distribution.md) | imports the client root into the client runtime `cacerts` |
 | `09-Install/client_templates/FormsWeb-Setup.ps1` | relies on the Windows store (no import) |
 | `09-Install/response_files/domain_config.py.template` | demo SSL ports of the managed servers off |
@@ -326,7 +354,7 @@ adds itself here and links back to this article.
 | [02-Checks/java_check.sh](../02-Checks/README.md) | both JDKs (version, bundled JDK) |
 | [02-Checks/clone_check.sh](clone_golden_image.md) | demo SSL ports, host-specific certificate |
 | [02-Checks/egress_check.sh](weblogic_outbound_connections.md), `09-Install/04-oracle_pre_checks.sh` | outbound connections, proxy variables |
-| [10-Monitoring/cert_expiry_check.sh](../10-Monitoring/README.md) | daily expiry of the served certificate and the local CA (cron, journal `ihw-cert`) |
+| [10-Monitoring/cert_expiry_check.sh](../10-Monitoring/README.md) | daily expiry of the served certificate and the local CA incl. code signing (cron, journal `ihw-cert`); reminds of `14- --resign` when signing runs without timestamp |
 | [10-Monitoring/cve_inventory.sh](../10-Monitoring/README.md) | OS errata (`ca-certificates`, …), both JDK versions |
 | [10-Monitoring/claude_setup_check.sh](../10-Monitoring/setup_claude.md) | secret / key files denied to Claude, Node.js version |
 
