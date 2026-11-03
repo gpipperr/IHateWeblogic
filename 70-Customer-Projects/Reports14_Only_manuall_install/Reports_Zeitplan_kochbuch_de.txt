@@ -53,6 +53,36 @@ WORUM GEHT ES - IN EINFACHEN WORTEN
     sie aus einer Datei (cmdfile=), curl aus einer Konfigurationsdatei.
 
 
+WAS WO LANDET
+--------------------------------------------------------------------------------
+
+    /u01/oracle/reports/jobs/          $JOBS  <- SCHRITT 2 (Rechte 700,
+                                       enthaelt Kennwoerter)
+      tagesbericht.cmd                 <- SCHRITT 3 (Rechte 600) Parameter-
+                                       datei je Bericht: report, userid, authid
+      run_report.sh                    <- SCHRITT 4 Wrapper, von cron gerufen
+      tagesbericht.log                 <- jeder Lauf (Ausgabe von rwclient)
+      tagesbericht_sched.curl          <- nur Anhang S.2 (Rechte 600)
+      admin.curl                       <- nur Anhang S.4 (Rechte 600)
+    /u01/oracle/reports/source/        <folderAccess><read> - die .rdf-Dateien
+                                       (Wert aus rwserver.conf, SCHRITT 1)
+    /u01/oracle/reports/tmp/           $WRITE_DIR = <folderAccess><write>
+      tagesbericht_<JJJJMMTT_HHMM>.pdf <- jeder cron-Lauf (SCHRITT 5)
+      tagesbericht.pdf                 <- nur Weg B, bei jedem Lauf neu
+    $RWSERVER_CONF                     rwserver.conf der Reports-Komponente -
+                                       nur lesen (ausser 1.1)
+    $RWCLIENT                          $DOMAIN_HOME/reports/bin/rwclient.sh
+                                       (Teil der Domain, nichts zu kopieren)
+    $DOMAIN_HOME/reports/server/<Komponente>.dat
+                                       gespeicherte Plaene von Weg B (nicht
+                                       anfassen, siehe Bekannte Probleme)
+    crontab von oracle                 <- SCHRITT 5 (crontab -l)
+    Journal, Tag ihw-report            <- jeder Lauf (journalctl -t ihw-report)
+
+  Nichts muss heruntergeladen werden. Die Pfade /u01/oracle/reports/...
+  sind Beispiele - die echten Werte kommen aus SCHRITT 0 und 1.
+
+
 SO IST DIESES KOCHBUCH ZU LESEN
 --------------------------------------------------------------------------------
 

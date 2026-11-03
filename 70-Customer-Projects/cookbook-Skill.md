@@ -66,6 +66,85 @@ KNOWN PROBLEMS      Problem: / Cause: / Solution: - points back to the step
   - PowerShell 5.1 reads BOM-less files as ANSI;
   - WLST/Jython rejects non-ASCII.
 
+### 1.1 Storage, paths and sources - always written down
+
+Model:
+[Forms12_reports12_patch_analyse_10_2026/Patch_Kochbuch_CPU_Okt2026_de.txt](Forms12_reports12_patch_analyse_10_2026/Patch_Kochbuch_CPU_Okt2026_de.txt),
+sections "IST-STATUS" and "VORAUSSETZUNGEN / Was wo landet".
+
+The customer must never wonder where a file comes from or where it ends up.
+Before the first step, the cookbook therefore contains:
+
+1. **A folder tree "what ends up where"** with every directory and file of
+   the run:
+
+   ```
+     /oracle/install/cpu_okt2026/        working directory (= base, V.1)
+       fmw_patch_env.sh                  from 70-Customer-Projects/tools/bash/
+       patches_cpu_oct2026.csv           next to this cookbook
+       getMOSPatch.jar                   by hand (github.com/MarisElsins/getMOSPatch)
+       patch_env.sh                      <- V.2 (variables for further terminals)
+       zip/                              $PATCH_DIR  <- V.3
+         <patchnr>/p<patchnr>_*.zip      one directory per patch
+         <patchnr>/.getMOSPatch.cfg      helper file of the download, not unpacked
+       stage/                            $STAGE  <- STEP 1 (unpacked, >= 6 GB)
+         logs/                           $LOGDIR (all tee output of the steps)
+     /oracle/backup/cpu_okt2026/         $BACKUP  <- STEP 3 (other file system
+                                         than /oracle, if possible)
+   ```
+
+   - **Every line says three things:**
+     - its variable (`$PATCH_DIR`);
+     - its origin ("from `tools/bash/`", "next to this cookbook", "by hand
+       from ...", "MOS patch 35702194");
+     - the step that creates or fills it (`<- V.3`, `<- STEP 1`).
+   - **Helper files are named too,** with whether they are needed
+     (`.getMOSPatch.cfg`: not unpacked).
+   - **Space and placement are part of the tree:**
+     - the free space needed (`>= 6 GB`);
+     - the placement rule (backup on another file system);
+     - the lifetime (`zip/` belongs to this cycle only).
+   - **One working directory per cycle or task** (`cpu_okt2026/`). The next
+     run gets its own, so nothing old is reused by mistake.
+
+2. **A table of the source files** (patches, installers, downloads):
+   - number;
+   - **exact file name with platform** (`p39600348_141200_Linux-x86-64.zip`);
+   - content;
+   - whether it is optional;
+   - the step it is used in.
+
+   Add a warning where the same number exists for several platforms
+   ("only `*Linux-x86-64*.zip`, everything else is `Generic`"), and the
+   checksum source (`patches_sha256.txt` against MOS).
+
+3. **The real paths of THIS customer next to the variables.** The block "Ist-Status /
+   Kundenumgebung" lists Oracle home, domain, JDK (link or directory),
+   inventory, web tier and DB home, each with its source. The source is the
+   collector run with its date, or `.globalEnv.properties`, or
+   `/etc/oraInst.loc`. The hand-made `export` lines repeat these values, with
+   a comment where a value comes from (`# customer: inventory_loc=/home/oracle/oraInventory`).
+
+4. **The paths of the documents the cookbook relies on,** in the header
+   (`Grundlage / Sources`):
+   - repo-relative paths, e.g. `IHateWeblogic/80-FMW-Architecture/reports_job_handling.md`;
+   - Oracle sources with chapter number and URL ("Publishing Reports
+     12.2.1.3, A.8.3 SCHEDULE, https://docs.oracle.com/...");
+   - MOS notes with their number (KA1182, KB873815);
+   - the date they were read.
+
+   References in the text point back to them precisely: "(README 3.2a)", not
+   "see the README".
+
+5. **The paths of the product's own sources and configuration** a step
+   touches: the source directories of the application, e.g. `.fmb` / `.rdf`
+   locations from `FORMS_PATH` / `REPORTS_PATH` / `<folderAccess>`, and the
+   config files. Write them with their full path derived from a variable
+   (`$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf`)
+   and show them with `ls -l` once before they are changed. Customer code
+   itself (`.fmb`, `.rdf`, `.pll`) is never copied into the repo: only its
+   paths and dependencies are written down.
+
 ## 2. Commands - the core rules
 
 ### 2.1 One command per line, blank line after it
@@ -268,6 +347,9 @@ The structure is the same everywhere; only the syntax changes.
 4. **Every value used later comes from a variable** or a file under
    `$LOGDIR`, never typed.
 5. **Step 0 sets and checks all variables.** Every step names its user.
+5a. **The "what ends up where" tree and the source-file table exist** (1.1).
+    Every path in the commands appears in the tree, and every source has an
+    origin.
 6. **Every change has its way back,** in the step and in the ROLLBACK table.
 7. **ASCII check:** `grep -nP '[^\x00-\x7F]' <file>` gives no output.
 8. **Customer-data scan before the commit** (no real names, hosts, IPs,
