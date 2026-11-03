@@ -90,6 +90,30 @@ execution if sudo is not available.
 
 ## 2. Installation Flow
 
+### Prerequisites – certificates (decide and prepare first)
+
+The certificate steps are part of the flow below (server certificate before
+`05-root_nginx_ssl.sh`, code signing before `14-oracle_setup_forms.sh`) –
+this block collects them, so they are not forgotten and the decisions are
+made at the start. Background:
+[certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md).
+
+| # | What | Own root CA (`SSL_CERT_SOURCE=localca`, default) | Customer PKI (`SSL_CERT_SOURCE=customer`) | Needed by |
+|---|---|---|---|---|
+| 1 | Root CA | `./08-SSL/ssl_local_ca.sh init --apply` (once; key protected by `ssl_ca_sec.conf.des3`) – also created by `ssl_prepare_cert.sh LOCALCA` | customer root + intermediates → `08-SSL/user_certs/` | everything below |
+| 2 | Server (TLS) certificate for Nginx, SAN = `WLS_SERVER_FQDN` | `./08-SSL/ssl_prepare_cert.sh LOCALCA --apply` | `server.crt` + `server.key` (or `server.p12`) → `08-SSL/user_certs/`, `./08-SSL/ssl_customer_certs.sh --apply` | `05-root_nginx_ssl.sh` |
+| 3 | Code-signing keystore (only `FORMS_WEBUTIL_JACOB=true`) | `./08-SSL/ssl_local_ca.sh codesign --apply` (or `FORMS_SIGN_LOCALCA=true` – `14-` creates it) | `codesign.p12` → `08-SSL/user_certs/`, `ssl_customer_certs.sh --apply` | `14-oracle_setup_forms.sh` |
+| 4 | Timestamp server for code signing | `FORMS_SIGN_TSA_URL` reachable (HTTP 80) – no outbound access: allow only the TSA, or `FORMS_SIGN_TSA_URL=""` (re-sign after every renewal: `14- --apply --resign`) | same, or an internal TSA of the PKI | `14-oracle_setup_forms.sh` |
+| 5 | Trust on the clients | distribute `$ORACLE_BASE/admin/pki/ca/ca.cer` (GPO / Windows store); the Forms client bundle has it in its `cacerts` (`FORMS_CLIENT_TRUST_CA`, `40-`) | the customer root is usually already distributed | browsers, FSAL / Java Web Start |
+
+```bash
+./08-SSL/ssl_local_ca.sh status          # own CA: root, server and code-signing certificate, expiry
+./08-SSL/ssl_customer_certs.sh           # customer PKI: check only (key ↔ cert, SAN, chain, expiry)
+./09-Install/14-oracle_setup_forms.sh    # dry-run: "Code signing ready" (FAIL if the keystore is missing)
+```
+
+### Flow
+
 Where am I? `./09-Install/00-install-status.sh` lists every step below with
 its state (DONE / FAILED / DRY-RUN / PRESENT / OPEN / SKIP) from the run
 history `log/run_history.csv` plus a short probe on the system, and prints
