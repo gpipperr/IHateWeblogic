@@ -86,6 +86,18 @@ und deutschen Kommentaren.
      Installations-Kochbücher an einer Stelle, für die nächste
      Installation in die Sitzung zu laden.
 
+10. [Patch_Kochbuch_CPU_Okt2026_de.txt](Patch_Kochbuch_CPU_Okt2026_de.txt) –
+    eine **bestehende** Reports-Umgebung auf CPU Oktober 2026 (+ Security
+    Alert CVE-2026-91403) heben, wenn der Ausgangsstand unbekannt ist:
+    kompletter Patchsatz, vor jedem Patch Prüfung per `opatch lspatches`,
+    JDK-Wechsel mit Übernahme von `java.security` / `cacerts`, OPatch, SPB
+    per `napply`, acht Infrastruktur-Bundles, PERL, OHS/WebGate (nur
+    Binaries – keine OHS-Instanz), Forms- vor Reports-QPR mit
+    `libzrc`-Prüfung, Start und Test, Rollback. Download aller Patches in
+    einem Lauf: [patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) mit
+    [tools/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
+    (`--all`).
+
 ## Download-Checkliste (Vorbereitung)
 
 Alles vor dem Installationstermin herunterladen und in das Patch-Verzeichnis
@@ -134,7 +146,9 @@ V1045121-01.zip  01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175
 - [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS Bundle (nur Binaries) · 17 MB · Reports Schritt 2
 - [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate Bundle (nur Binaries) · 21 MB · Reports Schritt 2
 
-Nicht nötig: Forms-QPR 39842516 (reine Reports-Installation). Optional:
+Nicht nötig für die Neuinstallation: Forms-QPR 39842516 (reine
+Reports-Installation) – das Patch-Kochbuch (Punkt 10) spielt ihn für einen
+vollständigen Patchstand trotzdem ein (Forms-Binaries liegen im Home). Optional:
 One-off 38936596 nur bei hebräischer Klammer-Darstellung
 (`REPORTS_BIDIPARENTHESIS=YES`).
 
@@ -146,8 +160,8 @@ Optional für den MOS-Download per Kommandozeile:
 Schritt 7) – oder alle MOS-Patches in einem Lauf mit
 [tools/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
 einer CSV-Liste (Vorlage:
-[patches_cpu_oct2026.csv](../Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv)
-des 12c-Projekts; eine CSV für diese Liste wird beim nächsten Termin erstellt).
+[patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) – kompletter Satz inkl.
+Forms-QPR und JDK-Ersatz 40186074, mit `--all` laden).
 
 **Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
 nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche
