@@ -1,7 +1,7 @@
 # Patch list Forms & Reports 14.1.2 (WLS 14.1.2.0) - CPU October 2026 (2026-10-20, cpuoct2026)
 # THE patch list of the library: read by 09-Install/oracle_software_version.conf
 # (sets INSTALL_PATCHES, WLS_SPB_PATCH_NR, JDK_PATCH_NR, ...) and downloaded by
-# 70-Customer-Projects/tools/mos_patch_download.sh - with or without the library:
+# 70-Customer-Projects/tools/bash/mos_patch_download.sh - with or without the library:
 #   mos_patch_download.sh -c patches_fmw.csv -d $PATCH_STORAGE --all [--apply]
 # Sources: KA1182 (CPU tab FMW 14.1.2), KA204 (F&R QPR), docs/00-patch-references.md,
 # 70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md.

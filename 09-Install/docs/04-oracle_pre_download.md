@@ -16,7 +16,7 @@ CVU / RCU database – [rcu_middleware_architecture.md §9](../../80-FMW-Archite
 APEX / ORDS – [apex_architecture.md](../../80-FMW-Architecture/apex_architecture.md).
 **Patch list:** [`09-Install/download/patches_fmw.csv`](../download/README.md) –
 one row per patch file, used by this script **and** by the standalone
-[70-Customer-Projects/tools/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+[70-Customer-Projects/tools/bash/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
 (the `--mos` part of this script calls that tool). A host without MOS access
 downloads with the tool somewhere else and copies `PATCH_STORAGE` – see
 "Host without internet access" below.
@@ -508,7 +508,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
   - Builds the role list from `environment.conf` (`forms` only with Forms,
     `client_jdk` only `FORMS_CLIENT_DIST=true`, `cvu` only `LOCAL_REP_DB=true`,
     `apex` only `INSTALL_APEX=true`, `fr_optional` only `REPORTS_BIDIPARENTHESIS=YES`)
-    and calls `70-Customer-Projects/tools/mos_patch_download.sh -c download/patches_fmw.csv
+    and calls `70-Customer-Projects/tools/bash/mos_patch_download.sh -c download/patches_fmw.csv
     -d $PATCH_STORAGE --steps <roles> --password-stdin --apply` – the password
     goes through stdin into the tool's pseudo terminal, never on a command line;
     each file by its regexp into the row's `dir`, `unzip -t`, SHA-256 soft check

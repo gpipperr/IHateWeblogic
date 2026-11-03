@@ -77,7 +77,7 @@ objects since the RCU run – IAU synonyms, OPSS ORA-00942):
 $IHW/07-Maintenance/rcu_repository_check.sh | tee $LOGDIR/01_rcu_check.txt   # check 6
 ```
 
-Or everything in one run: [../tools/collect_fmw_env.sh](../tools/collect_fmw_env.sh) `--full`.
+Or everything in one run: [../tools/bash/collect_fmw_env.sh](../tools/bash/collect_fmw_env.sh) `--full`.
 Expected on the test host: see [README](README.md) section 1a.
 
 ---

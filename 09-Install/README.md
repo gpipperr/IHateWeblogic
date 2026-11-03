@@ -170,7 +170,7 @@ Phase 1 – Pre-Install Checks (as oracle)
              --apply --mos    + MOS patches of download/patches_fmw.csv
                               (+ JDK 21 patch, CVU for a local RCU DB)
          (no MOS access from this host: download on another host with
-          70-Customer-Projects/tools/mos_patch_download.sh -c patches_fmw.csv,
+          70-Customer-Projects/tools/bash/mos_patch_download.sh -c patches_fmw.csv,
           rsync PATCH_STORAGE – see 09-Install/download/README.md)
   [root]   ./09-Install/02b-root_os_java.sh --apply --upgrade-jdk
                                                        # JDK 21 of the current patch cycle (JDK_PATCH_NR

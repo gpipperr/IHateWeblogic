@@ -95,7 +95,7 @@ und deutschen Kommentaren.
     Binaries – keine OHS-Instanz), Forms- vor Reports-QPR mit
     `libzrc`-Prüfung, Start und Test, Rollback. Download aller Patches in
     einem Lauf: [patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) mit
-    [tools/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
+    [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
     (`--all`).
 
 11. [Reports_Absicherung_kochbuch_de.txt](Reports_Absicherung_kochbuch_de.txt) –
@@ -168,7 +168,7 @@ Termin): Betriebssystem-Pakete, Nginx und `ca-certificates`
 Optional für den MOS-Download per Kommandozeile:
 [getMOSPatch.jar](https://github.com/MarisElsins/getMOSPatch) (OS-Kochbuch
 Schritt 7) – oder alle MOS-Patches in einem Lauf mit
-[tools/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
+[tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
 einer CSV-Liste (Vorlage:
 [patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) – kompletter Satz inkl.
 Forms-QPR und JDK-Ersatz 40186074, mit `--all` laden).

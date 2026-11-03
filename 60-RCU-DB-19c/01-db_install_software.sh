@@ -481,7 +481,7 @@ if $FRESH_PATCHES && ls "$_AU_PATCHDIR"/p[0-9]*.zip "$_AU_PATCHDIR"/db_goldimage
 fi
 
 # Offline route: patches downloaded on another host with
-# 70-Customer-Projects/tools/mos_patch_download.sh -c 09-Install/download/patches_db.csv
+# 70-Customer-Projects/tools/bash/mos_patch_download.sh -c 09-Install/download/patches_db.csv
 # -d $PATCH_STORAGE (layout database/patches/<nr>/) and copied here – used
 # instead of the AutoUpgrade download when patchdir has no patch ZIPs yet.
 _csv_zips="$(ls "$PATCH_STORAGE"/database/patches/*/p[0-9]*.zip 2>/dev/null)"
@@ -729,7 +729,7 @@ _msg="$(printf "patch_stage needs %s GB unpacked%s, free %s GB on %s" \
     "$(( ${_free_kb:-0} / 1048576 ))" "$(_fs_dev "$_AU_PATCH_STAGE")")"
 if [ "${_free_kb:-0}" -lt $(( _need_kb + _need_kb / 10 + _home_kb )) ]; then
     fail "Not enough disk space: $_msg"
-    info "  Free space first: 70-Customer-Projects/tools/check_disk_space.sh (sudo) shows the space eaters;"
+    info "  Free space first: 70-Customer-Projects/tools/bash/check_disk_space.sh (sudo) shows the space eaters;"
     info "  patch ZIPs from PATCH_STORAGE are linked, not copied; or move DB_AUTOUPGRADE_HOME to a bigger fs"
     EXIT_CODE=2; print_summary; exit $EXIT_CODE
 fi

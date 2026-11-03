@@ -108,7 +108,7 @@ New 2026-10-28: the **RCU database patched out-of-place 19.30 → 19.33**
 `09-db_patch_rcu.sh`, domain down ~22 min, datapatch in every container,
 rollback path), the PDB$SEED MAX_STRING_SIZE fix in `03-` (then `05-`), a **disk sizing
 guide**, the central article on **certificates and trust stores**, and a
-standalone **MOS patch download tool** (`70-Customer-Projects/tools/mos_patch_download.sh`,
+standalone **MOS patch download tool** (`70-Customer-Projects/tools/bash/mos_patch_download.sh`,
 CSV list per cycle – first for the customer's 12c CPU October 2026 run).
 New 2026-10-29: review of every `09-Install/docs` file against its script
 (one commit each, architecture links), `fmw_patch_env.sh` and
@@ -127,7 +127,7 @@ check) downloaded by the standalone tool on a share host; a **patch archive**
 history** every install / maintenance script writes (`log/run_history.csv`);
 root scripts log centrally from the first step on; `60-RCU-DB-19c` adds
 oracle to `dba` / `oper` (CVU PRVF-7566 at the customer);
-`70-Customer-Projects/tools/check_disk_space.sh` (where is the space, NFS
+`70-Customer-Projects/tools/bash/check_disk_space.sh` (where is the space, NFS
 never scanned); and the **CVE early warning** `10-Monitoring/cve_watch.sh`
 (Oracle CNA records on release day instead of the late NVD CPE, OSV for the
 third-party jars of the home, KEV, EPSS, heise).
@@ -159,7 +159,7 @@ scripts + direct checks, one summary – test host 24 OK / 3 WARN / 0 FAIL);
 Nginx `ihw_timing` log format and
 [forms_performance_analyse_tuning.md](80-FMW-Architecture/forms_performance_analyse_tuning.md);
 the **configuration export** of an existing 12c/14c customer environment
-(`70-Customer-Projects/tools/export_forms_reports_conf.sh`, encrypted, never
+(`70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`, encrypted, never
 into git – import step follows); for the Linux Reports-only customer a
 complete **CPU October 2026 patch set** (CSV + cookbook for a home with
 unknown starting level) and a cookbook to **check and complete the Reports
@@ -292,7 +292,7 @@ Rules:
 
 - Check free space **before** every patch run. `01-db_install_software.sh` and `09-db_patch_rcu.sh` check it first and stop on FAIL; the FMW patch scripts `81-` / `82-` need the SPB workspace.
 - Each cycle: remove the old DB home after a few days of stable operation (`deinstall`, about 12 GB). Archived patch sets in `PATCH_STORAGE` older than one cycle can go too. Clean up `.patch_storage` of the FMW home only with `opatch util cleanup` (never by hand).
-- Small local disk: keep the patches in an NFS/ZFS archive (`PATCH_ARCHIVE`) and pull only the next step's files – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean --apply`; find the space eaters with `70-Customer-Projects/tools/check_disk_space.sh`.
+- Small local disk: keep the patches in an NFS/ZFS archive (`PATCH_ARCHIVE`) and pull only the next step's files – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean --apply`; find the space eaters with `70-Customer-Projects/tools/bash/check_disk_space.sh`.
 - Logs and backups grow without limit unless rotated: `07-Maintenance` (`backup_config.sh --keep`, `bak_cleanup.sh`), the domain log rotation and the Data Pump dumps of `rcu_repository_check.sh --apply`.
 
 ## Lifecycle Overview
@@ -494,7 +494,7 @@ Run these scripts in sequence on a fresh installation:
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/`: collector, MOS download, clone check, cookbook variables, disk space), independent of the scripts above |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
@@ -775,13 +775,20 @@ IHateWeblogic/
     │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
     ├── tools/
     │   ├── README.md
-    │   ├── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
-    │   ├── mos_patch_download.sh         – MOS download of a patch CSV with getMOSPatch (share host)
-    │   ├── clone_check_fmw.sh            – read-only golden-image / clone check (12c + 14c)
-    │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
-    │   ├── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
-    │   └── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
-    │                                         for the 14c rebuild – encrypted archive, never into git
+    │   ├── bash/                         – Linux hosts
+    │   │   ├── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
+    │   │   ├── mos_patch_download.sh         – MOS download of a patch CSV with getMOSPatch (share host)
+    │   │   ├── clone_check_fmw.sh            – read-only golden-image / clone check (12c + 14c)
+    │   │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
+    │   │   ├── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
+    │   │   └── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
+    │   │                                         for the 14c rebuild – encrypted archive, never into git
+    │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
+    │       ├── README.md
+    │       ├── collect_fmw_env.ps1           – read-only collector (services, registry, CIM), secrets masked
+    │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
+    │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
+    │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -1146,7 +1153,7 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
   restarts) – feed findings back into the cookbooks.
 - [ ] **Configuration export → import**: first real customer run of
-  `70-Customer-Projects/tools/export_forms_reports_conf.sh` (12c), then the
+  `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh` (12c), then the
   import step into the 14c library (formsweb sections, env keys, cgicmd
   keys, uifont.ali, fonts, customer jars – never FSAL / JACOB).
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard

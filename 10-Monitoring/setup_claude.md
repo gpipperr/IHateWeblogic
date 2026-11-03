@@ -12,7 +12,7 @@ analysis ([README.md](README.md#architecture)) later. Check script:
 > **WARNING – test and admin hosts only.**
 > Claude Code is **never** installed or started on a production FMW server.
 > Production data reaches Claude only as a collector archive
-> (`70-Customer-Projects/tools/collect_fmw_env.sh --full`), analysed on a test
+> (`70-Customer-Projects/tools/bash/collect_fmw_env.sh --full`), analysed on a test
 > or admin host. A host with `IHW_ENV_TYPE=prod` in `environment.conf` is
 > refused by `claude_setup_check.sh` and `patch_cycle_analysis.sh`, and the
 > guard hook denies every changing command there.

@@ -41,7 +41,7 @@ CVE background and the questions to clarify with the customer – applied by
 hand with the German cookbook `Patch_Kochbuch_CPU_Okt2026_de.txt` (manual run
 at the customer 2026-10-29). Download list
 [patches_cpu_oct2026.csv](Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv)
-for `tools/mos_patch_download.sh`.
+for `tools/bash/mos_patch_download.sh`.
 
 ### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
 
@@ -67,6 +67,10 @@ No IHateWeblogic library needed – copy the script to the host:
 | `mos_patch_download.sh` | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
 | `clone_check_fmw.sh` | read-only check whether the installation is clone-capable (golden image) – e.g. after the 12c patch run |
 | `fmw_patch_env.sh` | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
+
+Linux: `tools/bash/`. Windows Server hosts: `tools/powershell/` –
+`collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1`, same
+output / CSV format → [tools/powershell/README.md](tools/powershell/README.md)
 
 ## Further Installation Guides (German)
 

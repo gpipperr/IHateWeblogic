@@ -17,8 +17,8 @@
                Forms14_reports14_patch_analyse_10_2026/
                install_14c_patch_set_october_2026_manual.md
   Patchliste : patches_cpu_oct2026.csv (dieses Verzeichnis) - Download in
-               einem Lauf mit ../tools/mos_patch_download.sh (VORAUSSETZUNGEN
-               V.3), Variablen mit ../tools/fmw_patch_env.sh (V.2)
+               einem Lauf mit ../tools/bash/mos_patch_download.sh (VORAUSSETZUNGEN
+               V.3), Variablen mit ../tools/bash/fmw_patch_env.sh (V.2)
   Wichtig    : Der Ausgangsstand dieses Homes ist NICHT bekannt (kein
                Sammellauf moeglich). Deshalb: kompletten Satz laden und VOR
                jedem Patch mit "opatch lspatches" pruefen, ob er (oder ein

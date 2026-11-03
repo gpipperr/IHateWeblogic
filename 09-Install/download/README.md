@@ -9,7 +9,7 @@ read by
   (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR`, …); `04-oracle_pre_download.sh --mos`
   downloads with the tool below, `05-`/`06-` apply in row order;
 - the standalone download tool
-  [70-Customer-Projects/tools/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+  [70-Customer-Projects/tools/bash/mos_patch_download.sh](../../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
   – no library, no `environment.conf`: Java + getMOSPatch.jar + MOS account.
 
 | File | Content | Maintained |
@@ -77,7 +77,7 @@ package check of `05-`/`06-` (`check_patch_zip`).
 
 # host WITHOUT MOS access (OCI private subnet, egress allow-list):
 # 1. on a host that may (share, admin workstation) – no library needed
-cp 70-Customer-Projects/tools/mos_patch_download.sh 09-Install/download/patches_fmw.csv <share>/
+cp 70-Customer-Projects/tools/bash/mos_patch_download.sh 09-Install/download/patches_fmw.csv <share>/
 cd <share> && ./mos_patch_download.sh -c patches_fmw.csv -d <share>/patch_storage --all          # plan
 cd <share> && ./mos_patch_download.sh -c patches_fmw.csv -d <share>/patch_storage --all --apply  # download
 #    only some roles: --steps spb,wls,fr_common,reports,forms,jdk,opatch

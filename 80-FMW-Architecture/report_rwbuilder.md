@@ -255,7 +255,7 @@ Prerequisites on both sides:
   or to change the domain.
 - **Next time:** the MOS downloads (about 15 patches, ~7 GB) took too long
   one by one – since 2026-10-28 they come in one run with
-  [70-Customer-Projects/tools/mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
+  [70-Customer-Projects/tools/bash/mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh)
   and a CSV list (platform `233P` for the Windows ZIPs).
 
 ## 9. Status

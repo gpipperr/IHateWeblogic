@@ -37,7 +37,7 @@ and customer data. Layout:
   cycle.info        cycle id, advisory URL, release date, configured cycle, mode
   readme_list.md    phase 1 result: checklist of documents to download
   readmes/          the user drops every README / KA1182 PDF / MOS note here
-  env/              collector archive(s) (70-Customer-Projects/tools/collect_fmw_env.sh --full)
+  env/              collector archive(s) (70-Customer-Projects/tools/bash/collect_fmw_env.sh --full)
   result/           customer mode: analysis README + manual guide
 ```
 
@@ -178,7 +178,7 @@ Template for every change list (built from the October 2026 switch: commits
 
 | Area | Places |
 |---|---|
-| patch list | `09-Install/download/patches_fmw.csv`: one row per patch file (number, platform, exact file regexp, role, `dir`, sha256 from the README / MOS digest) – the conf derives `WLS_SPB_PATCH_NR`, `INSTALL_PATCHES*`, `JDK_PATCH_NR`, `CLIENT_JDK_*`, `DB_CVU_*`, `APEX_PATCH_NR` from it; `download/patches_db.csv` for the 19c repository (offline route). Same file is used by `70-Customer-Projects/tools/mos_patch_download.sh` on a host without the library |
+| patch list | `09-Install/download/patches_fmw.csv`: one row per patch file (number, platform, exact file regexp, role, `dir`, sha256 from the README / MOS digest) – the conf derives `WLS_SPB_PATCH_NR`, `INSTALL_PATCHES*`, `JDK_PATCH_NR`, `CLIENT_JDK_*`, `DB_CVU_*`, `APEX_PATCH_NR` from it; `download/patches_db.csv` for the 19c repository (offline route). Same file is used by `70-Customer-Projects/tools/bash/mos_patch_download.sh` on a host without the library |
 | conf | `09-Install/oracle_software_version.conf`: `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY`, `OPATCH_VERSION_MIN/_INSTALL`, `OPATCH_PATCHES_MIN`, `WLS_SPB_VERSION/_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS`, `JDK_VERSION_MIN`, the comment blocks and the "Superseded" list |
 | scripts | `09-Install/06-oracle_patch_forms_reports.sh` `SUPERSEDES` map; `04-`/`05-`/`06-` and `07-Maintenance/80-82` only if the patch model changed (new mechanism, new pre-check) |
 | install docs | `09-Install/docs/00-patch-references.md` (cycle row → "lib switched"), `04-oracle_pre_download.md` (conf table, manual download block, storage tree), `05-oracle_patch_weblogic.md` (current set, SPB section), `06-oracle_patch_forms_reports.md` (current state, `SUPERSEDES`) |

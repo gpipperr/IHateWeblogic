@@ -6,7 +6,7 @@
 #            eDelivery path : manual file placement (primary) or Bearer Token wget.
 #            MOS path       : patch list download/patches_fmw.csv (one row per file,
 #                             role per row), downloaded by the standalone
-#                             70-Customer-Projects/tools/mos_patch_download.sh
+#                             70-Customer-Projects/tools/bash/mos_patch_download.sh
 #                             (getMOSPatch.jar) – the same tool + list run on a
 #                             host without this library (offline route).
 #            GitHub         : JACOB (WebUtil OLE) if FORMS_WEBUTIL_JACOB=true.
@@ -283,7 +283,7 @@ _install_one() {
 # =============================================================================
 # The download itself is done by the standalone tool – the same one that runs
 # on a host without this library (share host with MOS access):
-MOS_TOOL="$ROOT_DIR/70-Customer-Projects/tools/mos_patch_download.sh"
+MOS_TOOL="$ROOT_DIR/70-Customer-Projects/tools/bash/mos_patch_download.sh"
 
 # _row_zip ROW – path of the ZIP of one CSV row (lib: patch_row_zip)
 _row_zip() { patch_row_zip "$1"; }

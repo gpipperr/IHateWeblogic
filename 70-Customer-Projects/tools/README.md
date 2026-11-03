@@ -1,20 +1,26 @@
 # tools – metadata collection and patch download for a Forms & Reports host
 
 Shared, standalone helpers for the patch analyses in `70-Customer-Projects/`
-– **no** IHateWeblogic library, plain bash + coreutils, copy them to the host
-and run them there. One script for all releases: it works for FMW / Forms &
+– **no** IHateWeblogic library, copy them to the host and run them there:
+
+| Folder | Platform |
+|---|---|
+| `bash/` | Linux – plain bash + coreutils (this README) |
+| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: `collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1` (+ `GetMOSPatchRunner.java`), same output / CSV format as the bash versions |
+
+The bash scripts (`bash/`): one script for all releases – it works for FMW / Forms &
 Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
 17 / 21) – tested on both (2026-10-23). Release differences are detected at
 runtime, never by a second copy of the script.
 
 | Script | Purpose |
 |---|---|
-| [collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
-| [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
-| [clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
-| [fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
-| [export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
-| [check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
+| [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
+| [bash/mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
+| [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
+| [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
+| [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
+| [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Used by:
 - [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
@@ -105,7 +111,7 @@ python (only for the password terminal), no IHateWeblogic library.
 ```bash
 # as any user with write access to the target directory (oracle is fine)
 cd /oracle/install/cpu_okt2026
-cp <repo>/70-Customer-Projects/tools/mos_patch_download.sh .
+cp <repo>/70-Customer-Projects/tools/bash/mos_patch_download.sh .
 cp <repo>/70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv .
 # getMOSPatch.jar placed here by hand
 ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip                      # plan only

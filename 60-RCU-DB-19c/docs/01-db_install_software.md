@@ -188,7 +188,7 @@ $AU/base_stage/jdk/bin/java -Dhttps.protocols=TLSv1.2 -jar $AU/bin/autoupgrade.j
 ### Offline patches (host without MOS)
 
 1. On a host with MOS:
-   `70-Customer-Projects/tools/mos_patch_download.sh -c 09-Install/download/patches_db.csv -d $PATCH_STORAGE --apply`
+   `70-Customer-Projects/tools/bash/mos_patch_download.sh -c 09-Install/download/patches_db.csv -d $PATCH_STORAGE --apply`
    → `$PATCH_STORAGE/database/patches/<nr>/p<nr>_*.zip` (SHA-256 checked against the CSV)
 2. Copy `$PATCH_STORAGE/database/` to the DB host (same path)
 3. `01-` links them (`ln -sfn`) into an **empty** `patchdir` – no AutoUpgrade,
