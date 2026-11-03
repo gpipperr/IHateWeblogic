@@ -68,7 +68,7 @@ Outside `$DOMAIN_HOME` (Nginx and the access log analysis are not covered by the
 | Log | Where | Note |
 |---|---|---|
 | Nginx access / error | `/var/log/nginx/` | root-readable; the only entry from outside – first place for HTTP 4xx / 5xx and TLS errors |
-| Forms response times | `servers/WLS_FORMS/logs/access.log` | `time-taken` column only after `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`; analysed by `06-FormsDiag/forms_perf_analyse.sh` |
+| Forms response times | `servers/WLS_FORMS/logs/access.log` | `time-taken` column: new domains from `09-Install/08-`, existing ones after `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`; analysed by `06-FormsDiag/forms_perf_analyse.sh` – meaning: [forms_runtime_architecture.md §6.1](../80-FMW-Architecture/forms_runtime_architecture.md#61-accesslog-and-time-taken) |
 | IHateWeblogic scripts | `log/<yyyymmdd>/` in the repository | `DIAG_LOG_DIR` |
 | ORDS access log (APEX / REST requests) | `/var/log/ords_N/ords_<yyyy_mm_dd>.log` | one file per day, NCSA format (`standalone.access.log`); the Nginx log shows the same request from outside |
 | ORDS server log | `/var/log/ords_N/ords_sys_<n>.log` | `java.util.logging`, level WARNING, 5 × 10 MB (`config/global/logging.properties`, written by `12-APEX-Ords/04-install-ords.sh`) |

@@ -408,7 +408,8 @@ and `start AdminServer --apply` (managed servers keep running).
 
 `time-taken` in the extended access log of `WLS_FORMS` gives the response
 times for `06-FormsDiag/forms_perf_analyse.sh` (frmservlet and the
-`lservlet` round trips of running sessions).
+`lservlet` round trips of running sessions) – what the value measures and
+what not: [forms_runtime_architecture.md §6.1](../../80-FMW-Architecture/forms_runtime_architecture.md#61-accesslog-and-time-taken).
 
 It **cannot be set in the WLST template**: `writeDomain` (JRF processing)
 rewrites the `web-server-log` of every server afterwards – all three get

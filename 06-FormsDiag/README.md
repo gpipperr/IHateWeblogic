@@ -94,7 +94,7 @@ other sections, comments and Oracle entries stay):
 | `--section NAME --set KEY=VALUE` | change or add the key in that section (repeatable) |
 | `--section NAME --unset KEY` | remove the key from that section – it inherits from `[default]` again |
 | `--fix-prestart NAME` | copy the effective `prestart*` values into `[NAME]`, remove them from `[default]`; hint to set `FORMS_PRESTART_SECTION=NAME` in environment.conf so a re-installation (14-) keeps it |
-| `--fix-accesslog` | WLST online: access log of WLS_FORMS in extended format with `time-taken` (keeps the other fields). Dynamic – WebLogic rotates `access.log` and writes a new `#Fields` header, no restart; entries appear after ~8 KB (buffer) (**confirmed (live)** 2026-10-23). New domains get it from `09-Install/08-` |
+| `--fix-accesslog` | WLST online: access log of WLS_FORMS in extended format with `time-taken` (keeps the other fields). Dynamic – WebLogic rotates `access.log` and writes a new `#Fields` header, no restart; entries appear after ~8 KB (buffer) (**confirmed (live)** 2026-10-23). New domains get it from `09-Install/08-` (in `config.xml` after `writeDomain`, since 2026-11-03). What `time-taken` measures: [forms_runtime_architecture.md §6.1](../80-FMW-Architecture/forms_runtime_architecture.md#61-accesslog-and-time-taken) |
 
 Pooling changes need a WLS_FORMS restart (read only at servlet start).
 

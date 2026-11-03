@@ -264,12 +264,63 @@ names.
 | What | Where |
 |---|---|
 | Servlet / listener / pool messages (ODL) | `servers/WLS_FORMS/logs/WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log` – judge by level: `FRM-934xx` are `[NOTIFICATION]` (pool), `FRM-93654 Runtime process … is terminating due to external action` is `[ERROR]` (process killed, e.g. by a stop) (**confirmed (live)**) |
-| HTTP | `servers/WLS_FORMS/logs/access.log`, fields `date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes` + `time-taken` (seconds) since 2026-10-23 (`08-`, `forms_perf_settings.sh --fix-accesslog`; WLST `ELFFields`, dynamic, log rotated with a new `#Fields` header – **confirmed (live)**); `lservlet` lines = round trips of running sessions |
+| HTTP | `servers/WLS_FORMS/logs/access.log`, fields `date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes` + our `time-taken` (seconds) – what it measures and how it gets there: [6.1](#61-accesslog-and-time-taken); `lservlet` lines = round trips of running sessions |
 | frmweb crash dumps, `record=forms` traces | `FORMS_TRACE_DIR`, Oracle default `$DOMAIN_HOME/system_component/FORMS/<instance>/trace` (**documented**; not present on the test host = no crash yet) |
 | Forms Trace (events of a session) | `ftrace.cfg` of the instance, Tracing and Diagnostics chapter |
 | Sessions, metrics, kill a session | Fusion Middleware Control → Forms → User Sessions; Forms Diagnostics Agent `formsagentapp.war` (`$ORACLE_HOME/forms/j2ee/`, not deployed by us) |
 
 Collected by `03-Logs/log_locations.sh` (group `forms`).
+
+### 6.1 access.log and `time-taken`
+
+**What it is.** `time-taken` is a field of the W3C Extended Log Format: the
+time WebLogic needed to complete one HTTP request, in **seconds with
+milliseconds** (test host:
+`0.031`, `0.008`). Example line (fields from the `#Fields` header above it):
+
+```
+#Fields:	date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes time-taken
+2026-10-28	19:19:42	GET	<ecid>	<rid>	/forms/frmservlet?config=...	200	<bytes>	0.031
+```
+
+**What it says for Forms.** Two kinds of lines matter:
+
+| URI | Meaning of `time-taken` |
+|---|---|
+| `/forms/frmservlet?config=…` | start of a session: HTML / JNLP page, config section resolved |
+| `/forms/lservlet` | **one round trip of a running session** – every user action the client sends (key, button, navigation); the listener servlet waits for `frmweb`, so the value contains the `frmweb` work **and its database calls** |
+
+A high `lservlet` value is therefore a slow action on the server side (PL/SQL,
+SQL, triggers, a blocked `frmweb`), not a network problem.
+`06-FormsDiag/forms_perf_analyse.sh` reports average / maximum per kind and
+the `lservlet` requests ≥ 2 s.
+
+**What it does not contain.** The network between client and Nginx, Nginx
+itself, TLS and the client's rendering. The time seen from outside would come
+from Nginx (`$request_time`, `$upstream_response_time`) – not in its default
+`main` log format and not configured by us. A big difference between the
+user's perception and `time-taken` points to network / client.
+
+**Why we set it.** WebLogic writes the access log in `common` format by
+default; JRF switches all servers to `extended` with the ECID list
+`date time cs-method ctx-ecid ctx-rid cs-uri sc-status bytes` – without
+`time-taken`. We add it only for `WLS_FORMS` (WLST attribute `ELFFields` of
+the `WebServerLog` MBean):
+
+| Domain | How | Since |
+|---|---|---|
+| new (`09-Install/08-`) | appended in `config.xml` after `writeDomain`, before the first start. Setting it in the WLST template before `writeDomain` does **not** work: the JRF processing in `writeDomain` rewrites the `web-server-log` of every server afterwards (first new domain at a customer, 2026-11-03 – the template helper of 2026-10-23 never reached a domain) | 2026-11-03 |
+| running | `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog` – WLST online, keeps the other fields, dynamic (no restart): WebLogic rotates `access.log` and starts it with a new `#Fields` header | 2026-10-23 (**confirmed (live)**) |
+
+Check: `grep -c time-taken $DOMAIN_HOME/config/config.xml` (1), or the last
+`#Fields` header of `access.log`; `forms_perf_settings.sh` section Access Log.
+
+**Reading pitfalls.**
+- The **last** `#Fields` header counts – an older part of the file may have
+  fewer columns (`forms_perf_analyse.sh` follows the header).
+- The last numeric column is `time-taken` only when the field is there –
+  without it, it is `bytes` (an old version of the analysis read it as ms).
+- WebLogic buffers the access log: new lines appear only after about 8 KB.
 
 ## 7. Where the scripts check this
 
