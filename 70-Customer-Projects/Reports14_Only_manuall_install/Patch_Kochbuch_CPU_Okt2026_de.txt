@@ -183,10 +183,11 @@ SCHRITT 0: Variablen pruefen  (in JEDEM Terminal, als oracle)
 ================================================================================
 
   . /u01/oracle/install/cpu_okt2026/patch_env.sh     # aus V.2
-  # Die Schritte unten verwenden zusaetzlich JDK_HOME und ORACLE_BASE:
+  # setzt seit 2026-11-03 auch JDK_HOME und JAVA_HOME (= JDK_LINK). Aelteres
+  # patch_env.sh ohne JDK_HOME: fmw_patch_env.sh --apply neu laufen lassen
+  # oder die beiden Zeilen von Hand:
+  #   export JDK_HOME=$JDK_LINK; export JAVA_HOME=$JDK_HOME
   export ORACLE_BASE=/u01/oracle
-  export JDK_HOME=$JDK_LINK
-  export JAVA_HOME=$JDK_HOME
   mkdir -p $ORACLE_BASE/tmp
   echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME ($(readlink $JDK_HOME))"
   echo "ZIP=$PATCH_DIR STAGE=$STAGE BACKUP=$BACKUP LOG=$LOGDIR"
@@ -232,7 +233,7 @@ SCHRITT 2: Bestandsaufnahme VORHER  (als oracle, Umgebung darf noch laufen)
   $ORACLE_HOME/OPatch/opatch version              | tee $LOGDIR/02_opatch_version.txt
   $ORACLE_HOME/OPatch/opatch lspatches            | tee $LOGDIR/02_lspatches_before.txt
   $ORACLE_HOME/OPatch/opatch lsinventory -bugs_fixed > $LOGDIR/02_bugs_before.txt
-  readlink -f $JDK_HOME; $JDK_HOME/bin/java -version 2>&1 | head -1
+  readlink -f "$JDK_HOME"; "$JDK_HOME"/bin/java -version 2>&1 | head -1
   $ORACLE_HOME/oracle_common/jdk/bin/java -version 2>&1 | head -1
   ldd --version | head -1                         # OL9: glibc 2.34
   ls -d $ORACLE_HOME/forms $ORACLE_HOME/reports   # beide vorhanden = F&R-Home
@@ -298,7 +299,12 @@ SCHRITT 4: Alles stoppen  (als root bzw. oracle)
   # Kontrolle - es darf NICHTS mehr laufen (Reports-Server, Engines,
   # Managed Server, AdminServer, Node Manager, sonstige Java-Prozesse auf
   # dem JDK):
-  ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME|$(readlink -f $JDK_HOME)|$JDK_HOME" | grep -v grep
+  # Variablen pruefen - nach "systemctl" als root / in einem neuen Fenster
+  # sind sie leer: dann zuerst als oracle  . <BASIS>/patch_env.sh
+  # (SCHRITT 0, setzt auch JDK_HOME). Leere Variable = leeres "|" im
+  # grep-Muster = es passt auf JEDEN Prozess, readlink meldet "missing operand".
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME"   # alle drei gefuellt?
+  ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME|$(readlink -f "$JDK_HOME")|$JDK_HOME" | grep -v grep
   # Erwartet: leer. Reste mit "kill <pid>" beenden (zuletzt "kill -9").
   # Grund: OPatch linkt in Schritt 10-12 Binaries neu, der JDK-Wechsel in
   # Schritt 6 darf keine laufende JVM unter sich haben.
@@ -340,7 +346,7 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   tar -xzf $STAGE/jdk-21.0.13.0.2_linux-x64_bin.tar.gz -C /u01/oracle/java/
   NEWJDK=/u01/oracle/java/jdk-21.0.13.0.2      # Verzeichnisname aus dem tar
   grep JAVA_RUNTIME_VERSION $NEWJDK/release     # 21.0.13.0.2+...
-  OLDJDK=$(readlink -f $JDK_HOME); echo "alt: $OLDJDK"
+  OLDJDK=$(readlink -f "$JDK_HOME"); echo "alt: $OLDJDK"   # darf NICHT leer sein
 
   # Einstellungen des alten JDK uebernehmen - das neue JDK hat eine
   # frische java.security / cacerts:

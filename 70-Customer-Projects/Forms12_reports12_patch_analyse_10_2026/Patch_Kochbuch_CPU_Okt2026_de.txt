@@ -358,7 +358,9 @@ SCHRITT 2: Alles stoppen  (Beginn Wartungsfenster)
   # den Link darunter). Auch Java-Programme ausserhalb der Domain zaehlen
   # (z.B. ORDS, eigene Tools, Monitoring-Agenten) - auf unserem Testhost hat
   # ein vergessener ORDS-Dienst den JDK-Wechsel blockiert (2026-10-24).
-  ps -ef | grep -E "$JDK_LINK|$(readlink -f $JDK_LINK)" | grep -v grep
+  echo "JDK_LINK=$JDK_LINK"   # leer = Variablen fehlen (. <BASIS>/patch_env.sh) -
+                              # sonst passt das Muster auf JEDEN Prozess
+  ps -ef | grep -E "$JDK_LINK|$(readlink -f "$JDK_LINK")" | grep -v grep
   # Erwartet: leer.
 
 

@@ -4,7 +4,7 @@
 #            (Patch_Kochbuch_*_de.txt, block VORAUSSETZUNGEN) from the running
 #            Windows environment and set them:
 #              ORACLE_HOME DOMAIN_HOME INV_PTR INVENTORY JDK_LINK NEW_JDK_BASE
-#              PATCH_DIR STAGE BACKUP LOGDIR
+#              PATCH_DIR STAGE BACKUP LOGDIR, plus JDK_HOME / JAVA_HOME (= JDK_LINK)
 #            Windows / PowerShell version of tools/bash/fmw_patch_env.sh.
 #            Standalone - no library.
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -62,7 +62,7 @@ param(
 # No Set-StrictMode / exit at top level: the script is meant to be dot-sourced
 # (both would act on the caller's session).
 
-$fpe_version = "2026-11-03.1"   # bump on every change
+$fpe_version = "2026-11-03.2"   # bump on every change
 $fpe_sourced = ($MyInvocation.InvocationName -eq '.')
 $fpe_rc = 0
 
@@ -191,6 +191,8 @@ function local-fpe-main {
     $vals = [ordered]@{
         ORACLE_HOME = $OracleHome; DOMAIN_HOME = $DomainHome; INV_PTR = $invptr; INVENTORY = $inv
         JDK_LINK = $jdk; NEW_JDK_BASE = $(if ($jdk) { Split-Path -Parent $jdk } else { "" })
+        # the cookbook steps use JDK_HOME / JAVA_HOME (= JDK_LINK) - empty JDK_HOME broke a check (2026-11-03)
+        JDK_HOME = $jdk; JAVA_HOME = $jdk
         PATCH_DIR = (Join-Path $Base "zip"); STAGE = (Join-Path $Base "stage"); BACKUP = $Backup
         LOGDIR = (Join-Path (Join-Path $Base "stage") "logs")
     }

@@ -5,7 +5,9 @@
 #            (Patch_Kochbuch_*_de.txt, block VORAUSSETZUNGEN) from the running
 #            environment and set them:
 #              ORACLE_HOME DOMAIN_HOME INV_PTR INVENTORY JDK_LINK NEW_JDK_BASE
-#              PATCH_DIR STAGE BACKUP LOGDIR
+#              PATCH_DIR STAGE BACKUP LOGDIR, plus JDK_HOME / JAVA_HOME
+#              (= JDK_LINK - the cookbook steps use them, an empty JDK_HOME
+#              broke the "ps | grep" check of step 4, customer 2026-11-03)
 #            Standalone – no IHateWeblogic library, plain bash + coreutils.
 # Call     : . ./fmw_patch_env.sh [options]     SOURCED: exports into this shell
 #            ./fmw_patch_env.sh [options]       executed: shows the values only
@@ -27,7 +29,7 @@
 # No "set -u" / "exit" at top level: the script is meant to be sourced.
 
 _fpe_main() {
-    local VERSION="2026-10-29.1"   # bump on every change
+    local VERSION="2026-11-03.1"   # bump on every change
     local oh="${ORACLE_HOME:-}" dh="${DOMAIN_HOME:-}" base="$PWD" bk="" apply=false
     local sourced=false args="$*" v
     [ "${BASH_SOURCE[1]}" != "$0" ] && sourced=true
@@ -116,6 +118,7 @@ _fpe_main() {
     # --- set ------------------------------------------------------------------------
     export ORACLE_HOME="$oh" DOMAIN_HOME="$dh" INV_PTR="$invptr" INVENTORY="$inv"
     export JDK_LINK="$jdk" NEW_JDK_BASE="$(dirname "${jdk:-/x}")"
+    export JDK_HOME="$jdk" JAVA_HOME="$jdk"
     export PATCH_DIR="$base/zip" STAGE="$base/stage" BACKUP="$bk"
     export LOGDIR="$STAGE/logs"
 
@@ -125,6 +128,7 @@ _fpe_main() {
     _var INV_PTR      "$INV_PTR"
     _var INVENTORY    "$INVENTORY"
     _var JDK_LINK     "$JDK_LINK   [.globalEnv.properties]"
+    _var JDK_HOME     "$JDK_HOME   (= JDK_LINK, also JAVA_HOME)"
     _var NEW_JDK_BASE "$NEW_JDK_BASE"
     _var PATCH_DIR    "$PATCH_DIR"
     _var STAGE        "$STAGE"
@@ -165,7 +169,7 @@ _fpe_main() {
         mkdir -p "$PATCH_DIR" "$STAGE" "$LOGDIR" "$BACKUP" || _fail "mkdir failed"
         {
             printf '# written by fmw_patch_env.sh %s on %s - load with: . %s\n' "$VERSION" "$(date '+%Y-%m-%d %H:%M')" "$envf"
-            for v in ORACLE_HOME DOMAIN_HOME INV_PTR INVENTORY JDK_LINK NEW_JDK_BASE PATCH_DIR STAGE BACKUP LOGDIR; do
+            for v in ORACLE_HOME DOMAIN_HOME INV_PTR INVENTORY JDK_LINK NEW_JDK_BASE JDK_HOME JAVA_HOME PATCH_DIR STAGE BACKUP LOGDIR; do
                 printf 'export %s=%q\n' "$v" "${!v}"
             done
         } > "$envf" && _ok "written: $envf  (in a 2nd terminal: . $envf)"

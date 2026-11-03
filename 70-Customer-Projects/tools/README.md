@@ -227,6 +227,7 @@ cd /oracle/install/cpu_okt2026                 # base directory of the patch run
 | `DOMAIN_HOME` | `-d`, `$DOMAIN_HOME`, `$ORACLE_HOME/domain-registry.xml` (WARN with more than one domain), running AdminServer |
 | `INV_PTR` / `INVENTORY` | `/etc/oraInst.loc`, else `$ORACLE_HOME/oraInst.loc`; `inventory_loc` |
 | `JDK_LINK` / `NEW_JDK_BASE` | `JAVA_HOME` of `$ORACLE_HOME/oui/.globalEnv.properties` (the JDK of OPatch and the servers) / its parent |
+| `JDK_HOME`, `JAVA_HOME` | = `JDK_LINK` – the cookbook steps use `JDK_HOME`; since 2026-11-03 set by the script and written to `patch_env.sh` (before, an empty `JDK_HOME` in a new shell made the `ps \| grep` check of step 4 match every process) |
 | `PATCH_DIR` / `STAGE` / `LOGDIR` | `-b` (default: current directory) + `/zip`, `/stage`, `/stage/logs` – `PATCH_DIR` = the `-d` of `mos_patch_download.sh` |
 | `BACKUP` | `-k`; default `<prefix>/backup/<name>` for `<prefix>/install/<name>` (cookbook layout), else `<base>/backup` |
 
