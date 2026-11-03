@@ -649,9 +649,10 @@ SCHRITT 14: Aufraeumen und dokumentieren
   # $LOGDIR (Ausgaben dieses Laufs) aufheben = Patch-Nachweis.
   # VM-Snapshot nach einigen Tagen Betrieb loeschen (Snapshots wachsen).
   # Altes JDK ($OLDJDK) erst beim naechsten Zyklus entfernen.
-  # Die ZIPs in $PATCH_DIR/patches fuer den naechsten Zyklus in einen
-  # Ordner patches_cpu_oct2026/ verschieben, damit keine alten Builds
-  # versehentlich wiederverwendet werden.
+  # $PATCH_DIR gehoert nur zu diesem Zyklus (install/cpu_okt2026/zip) -
+  # der naechste Zyklus bekommt ein eigenes Arbeitsverzeichnis, so werden
+  # keine alten Builds versehentlich wiederverwendet. ZIPs archivieren
+  # oder loeschen, wenn der Patchstand abgenommen ist.
 
   # Dokumentation: Datum, Ausgabe 13_lspatches_after.txt, java -version,
   # Testergebnis -> Patchprotokoll des Kunden.
