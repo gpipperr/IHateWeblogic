@@ -696,7 +696,7 @@ IHateWeblogic/
 │   ├── 03-db_create_database.sh     – DBCA: CDB FMWCDB + PDB FMWPDB (AL32UTF8, RCU parameter minimums,
 │   │                                   local_listener without alias, requirement check)
 │   ├── 04-db_audit_setup.sh         – common audit policies, AUDITLOG tablespace, archive + purge jobs
-│   │                                   (uniaud_on relink before it: manual)
+│   │                                   (uniaud_on relink before it: --relink --apply)
 │   ├── 05-db_fmw_tablespace.sh      – Optional: FMW_DATA tablespace pre-RCU
 │   ├── 06-db_rcu_profile.sh        – DB profile RCU_USER for the RCU schemas (no expiry/lock)
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)

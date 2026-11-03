@@ -188,16 +188,20 @@ Phase DB – Oracle 19c RCU Database (separate DB host, or the same host with
   [oracle]      ./60-RCU-DB-19c/00b-db_cvu_check.sh
                   host pre-check with the standalone CVU (downloaded by 04- --mos)
   [oracle]      ./60-RCU-DB-19c/01-db_install_software.sh --apply
-                  19c software-only install, patched in one go: AutoUpgrade
-                  downloads RU + OJVM + Data Pump + JDK (gold image possible),
-                  gold image, else 19.3 base + RU with opatch (02- is DEPRECATED)
+                  19c software-only install, already patched: gold image (AutoUpgrade
+                  RECOMMENDED), else 19.3 base + RU / OneOffs with opatch, then
+                  runInstaller ("patch first, then install")
   [oracle]      ./60-RCU-DB-19c/02-db_setup_listener.sh --apply
-                  configure the TNS listener
+                  listener.ora / sqlnet.ora / tnsnames.ora, listener, systemd unit
   [oracle]      ./60-RCU-DB-19c/03-db_create_database.sh --apply
                   DBCA silent: CDB FMWCDB + PDB FMWPDB (AL32UTF8, no archivelog,
                   MAX_STRING_SIZE=EXTENDED in every container incl. PDB$SEED)
+  [oracle]      ./60-RCU-DB-19c/04-db_audit_setup.sh --relink --apply
+                  uniaud_on relink (stops + starts DB and listener; refuses while
+                  a WebLogic server runs) – only when V$OPTION Unified Auditing = FALSE
   [oracle]      ./60-RCU-DB-19c/04-db_audit_setup.sh --apply
-                  Pure Unified Auditing (uniaud_on relink + purge job)
+                  common audit policies (all containers), AUDITLOG tablespace,
+                  archive + purge jobs
   [oracle]      ./60-RCU-DB-19c/05-db_fmw_tablespace.sh --apply
                   optional: create FMW_DATA tablespace (skip = RCU creates its own)
   [oracle]      ./60-RCU-DB-19c/06-db_rcu_profile.sh --apply
