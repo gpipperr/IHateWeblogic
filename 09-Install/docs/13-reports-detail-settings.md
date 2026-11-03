@@ -1,7 +1,7 @@
 # Step 13 – Reports Server Detail Configuration
 
 **Scripts:** `09-Install/13-root_reports_fix.sh` · `09-Install/13-oracle_setup_reports.sh`
-**Runs as:** `root` (fix step) then `oracle`
+**Runs as:** `oracle` (both – the fix step needs no root, `ORACLE_HOME/lib` belongs to oracle; root works too)
 **Phase:** 6 – Reports Server Setup
 
 **Source:** `90-Source-MetaData/oracle_reports_config_ch6.md` (Kapitel 6, Seiten 83–98)
@@ -33,7 +33,7 @@ within the WebLogic domain.  It covers:
 Script call (`13-oracle_setup_reports.sh`):
 
 ```bash
-./09-Install/13-root_reports_fix.sh --apply            # root, OL9: libnsl.so.2 symlink (Step 1)
+./09-Install/13-root_reports_fix.sh --apply            # OL9: libnsl.so.2 symlink (Step 1), as oracle
 ./09-Install/13-oracle_setup_reports.sh                # dry-run
 ./09-Install/13-oracle_setup_reports.sh --apply        # Steps 2–6b
 ./09-Install/13-oracle_setup_reports.sh --apply --skip-wlst   # AdminServer down: files only, no WLST instance creation
@@ -108,7 +108,7 @@ TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (intervie
 
 ---
 
-## Step 1 – OS Fix: `libnsl.so.2` Symlink (root, Oracle Linux 9 only)
+## Step 1 – OS Fix: `libnsl.so.2` Symlink (Oracle Linux 9 only)
 
 **Issue:** Oracle Reports 14c on OL9 fails to start the standalone Reports Server
 with the error:
@@ -125,14 +125,24 @@ No such file or directory
 "Oracle Reports 14c on Linux 9.X for Standalone Report Server Startup Shows Error
 'libnsl.so.2: cannot open shared object file'"
 
-**Fix (as root):**
+**Fix** (as oracle – the owner of `$ORACLE_HOME/lib`; the note says root,
+which works too but is not needed):
 
 ```bash
 ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2
 
 # Verify
 ls -la $ORACLE_HOME/lib/libnsl.so.2
+ldd $ORACLE_HOME/bin/rwserver | grep libnsl    # => .../lib/libnsl.so.2
 ```
+
+Script `13-root_reports_fix.sh` (name kept): check without `--apply`,
+`--apply` creates / corrects the link. Runs as oracle when
+`$ORACLE_HOME/lib` is writable, else as root or with sudo (until 2026-11-03
+it required root or an unrestricted sudo – false with the sudo rules of
+`03-root_user_oracle.sh`). `/lib64/libnsl.so.3` comes from the package
+`libnsl2` (AppStream repository – the script checks it and prints the install
+hint). Then `ldd` on `rwserver`; "Nothing to do" when the link is right.
 
 > This symlink is only required on Oracle Linux 9 / RHEL 9.
 > Link to the stable SONAME link `/lib64/libnsl.so.3` (package `libnsl2`, itself

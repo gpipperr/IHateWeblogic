@@ -4,11 +4,13 @@
 # Purpose  : Phase 6 – OS-level fix for Oracle Reports 14c on Oracle Linux 9
 #            Creates the libnsl.so.2 symlink required by the standalone
 #            Reports Server (compiled against libnsl.so.2, OL9 ships .so.3).
-# Call     : sudo ./09-Install/13-root_reports_fix.sh
-#            sudo ./09-Install/13-root_reports_fix.sh --apply
+# Call     : ./09-Install/13-root_reports_fix.sh
+#            ./09-Install/13-root_reports_fix.sh --apply
 # Options  : --apply   Create the symlink (default: check only)
 #            --help    Show usage
-# Runs as  : root (or oracle with sudo)
+# Runs as  : oracle (owner of ORACLE_HOME/lib – root is not needed, despite
+#            the name), or root / oracle with sudo when the directory is not
+#            writable
 # Ref      : Oracle Support Doc ID 3069675.1
 #            09-Install/docs/13-reports-detail-settings.md  Step 1
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -62,14 +64,18 @@ done
 
 _can_sudo() { sudo -n true 2>/dev/null; }
 
+# The link lives in ORACLE_HOME/lib, which belongs to oracle: no root needed.
+# Root / sudo only as fallback when the directory is not writable (until
+# 2026-11-03 root or "sudo -n true" was required - false with the restricted
+# sudoers of 03-root_user_oracle.sh)
 _run_root() {
-    if [ "$(id -u)" -eq 0 ]; then
+    if [ "$(id -u)" -eq 0 ] || [ -w "${LIBNSL_TARGET_DIR:-/nonexistent}" ]; then
         "$@"
     elif _can_sudo; then
         sudo "$@"
     else
-        warn "No root/sudo for: $*"
-        info "  Run manually: sudo $*"
+        warn "No write access to ${LIBNSL_TARGET_DIR} and no sudo for: $*"
+        info "  Run as the owner of ORACLE_HOME (oracle) or as root"
         return 1
     fi
 }
@@ -77,11 +83,15 @@ _run_root() {
 _check_root_access() {
     if [ "$(id -u)" -eq 0 ]; then
         ok "Running as root"
+    elif [ -w "$LIBNSL_TARGET_DIR" ]; then
+        ok "Running as $(id -un) – $LIBNSL_TARGET_DIR writable, root not needed"
     elif _can_sudo; then
         ok "Running as $(id -un) with sudo"
-    else
-        fail "Root or sudo access required"
+    elif [ "$APPLY_MODE" -eq 1 ]; then
+        fail "No write access to $LIBNSL_TARGET_DIR (and no sudo) – run as oracle (owner) or root"
         print_summary; exit 2
+    else
+        info "No write access to $LIBNSL_TARGET_DIR – check only"
     fi
 }
 
@@ -98,8 +108,6 @@ printf "  %-26s %s\n" "ORACLE_HOME:" "${ORACLE_HOME:-(not set)}" \
 printf "  %-26s %s\n" "Mode:" "$([ "$APPLY_MODE" -eq 1 ] && echo APPLY || echo CHECK)" \
     | tee -a "${LOG_FILE:-/dev/null}"
 printLine
-
-_check_root_access
 
 # =============================================================================
 # 1. OS Version Check
@@ -153,6 +161,8 @@ else
     info "  FMW installation may be incomplete"
     print_summary; exit 2
 fi
+_check_root_access
+TODO=0      # 1 = something --apply would change
 
 # =============================================================================
 # 3. libnsl.so.2 Symlink Check
@@ -214,11 +224,15 @@ if [ -L "$LIBNSL_LINK" ]; then
     else
         warn "libnsl.so.2 symlink points to wrong target: $CURRENT_TARGET"
         info "  Expected: $LIBNSL_SRC"
+        TODO=1
 
         if [ "$APPLY_MODE" -eq 1 ] && [ "$NEEDS_FIX" -eq 1 ]; then
             if [ -f "$LIBNSL_SRC" ]; then
-                _run_root ln -sf "$LIBNSL_SRC" "$LIBNSL_LINK"
-                ok "Symlink updated: $LIBNSL_LINK → $LIBNSL_SRC"
+                if _run_root ln -sf "$LIBNSL_SRC" "$LIBNSL_LINK"; then
+                    ok "Symlink updated: $LIBNSL_LINK → $LIBNSL_SRC"
+                else
+                    fail "Symlink not updated: $LIBNSL_LINK"
+                fi
             else
                 fail "Cannot fix: source library missing ($LIBNSL_SRC)"
             fi
@@ -241,11 +255,12 @@ else
             fail "libnsl.so.2 not found in ORACLE_HOME/lib – Reports Server will fail to start"
         fi
         info "  Doc ID 3069675.1: ln -s $LIBNSL_SRC $LIBNSL_LINK"
+        TODO=1
 
         if [ "$APPLY_MODE" -eq 1 ]; then
             if [ -f "$LIBNSL_SRC" ]; then
-                _run_root ln -s "$LIBNSL_SRC" "$LIBNSL_LINK"
-                ok "Symlink created: $LIBNSL_LINK → $LIBNSL_SRC"
+                _run_root ln -s "$LIBNSL_SRC" "$LIBNSL_LINK" \
+                    && ok "Symlink created: $LIBNSL_LINK → $LIBNSL_SRC"
 
                 # Post-create verification
                 if [ -L "$LIBNSL_LINK" ] && [ -f "$LIBNSL_LINK" ]; then
@@ -258,8 +273,6 @@ else
                 fail "Cannot create symlink – source library missing: $LIBNSL_SRC"
                 _libnsl2_hint
             fi
-        else
-            info "  Re-run with --apply to create the symlink"
         fi
     else
         info "libnsl.so.2 not present (not required on this OS version)"
@@ -308,8 +321,10 @@ fi
 # =============================================================================
 
 printLine
-if [ "$APPLY_MODE" -eq 0 ]; then
+if [ "$APPLY_MODE" -eq 0 ] && [ "$TODO" -eq 1 ]; then
     info "Re-run with --apply to create the symlink"
+elif [ "$TODO" -eq 0 ]; then
+    info "Nothing to do – next: first start of WLS_REPORTS, then 13-oracle_setup_reports.sh"
 fi
 
 print_summary

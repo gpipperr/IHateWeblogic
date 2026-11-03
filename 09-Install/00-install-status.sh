@@ -162,7 +162,7 @@ STEPS=(
 "6|oracle|09-Install/10-oracle_boot_properties.sh|apply|-|_p_boot|--apply"
 "6|oracle|09-Install/11-oracle_nodemanager.sh|apply|-|_p_nm|--apply"
 "6|oracle|09-Install/12-oracle_reports_users.sh|apply|_c_reports|-|--apply"
-"6|root|09-Install/13-root_reports_fix.sh|apply|_c_ol9|_p_libnsl|--apply"
+"6|oracle|09-Install/13-root_reports_fix.sh|apply|_c_ol9|_p_libnsl|--apply"
 "6|oracle|09-Install/13-oracle_setup_reports.sh|apply|_c_reports|-|--apply"
 "6|oracle|09-Install/14-oracle_setup_forms.sh|apply|_c_forms|-|--apply"
 "6|oracle|09-Install/14b-oracle_reports_fonts.sh|apply|_c_reports|-|--apply"

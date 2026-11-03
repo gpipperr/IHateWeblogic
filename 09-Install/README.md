@@ -264,8 +264,18 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] ./01-Run/startStop.sh start NodeManager --apply
   [oracle] ./01-Run/startStop.sh start AdminServer --apply         # now via nmStart
   [oracle] ./09-Install/12-oracle_reports_users.sh --apply         # create WLS users monUser + RepRunner
-  [root]   ./09-Install/13-root_reports_fix.sh --apply             # libnsl.so.2 symlink (OL9 only)
-  [edit]   09-Install/forms_templates/*.template                   # adapt templates before the Forms setup
+  [oracle] ./09-Install/13-root_reports_fix.sh --apply             # libnsl.so.2 symlink (OL9 only) in
+                                                                   # ORACLE_HOME/lib – owned by oracle, so no
+                                                                   # root needed despite the name (root works too)
+  [edit]   09-Install/forms_templates/*.template                   # adapt BEFORE 14- (used only there):
+           default.env.template  : FORMS_PATH (extra .fmx dirs), NLS_LANG / NLS_DATE_FORMAT –
+                                   leave the ##…## placeholders, 14- fills them from environment.conf
+           formsweb.cfg.template : [default] overrides only (form=, pageTitle=, colours …); own
+                                   [sections] later in the deployed file; NOT here: maxRuntimeProcesses
+                                   + prestart (FORMS_MAX_RUNTIME_PROCESSES / FORMS_PRESTART_* in env)
+           webutil.cfg.template  : transfer.appsrv.read/write.N directories
+           Registry.dat / fmrweb*.res : colour scheme, key mapping (German layout preset)
+           → details: forms_templates/README.md; without changes 14- deploys the defaults
   [oracle] ./01-Run/startStop.sh start WLS_REPORTS --apply         # first start creates the app dir (rwservlet.properties)
   [oracle] ./09-Install/13-oracle_setup_reports.sh --apply         # rwnetwork.conf, rwservlet, rwserver.conf
   [oracle] ./09-Install/14-oracle_setup_forms.sh --apply           # copy Forms config templates into the domain
