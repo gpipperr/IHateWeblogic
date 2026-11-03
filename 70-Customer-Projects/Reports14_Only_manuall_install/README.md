@@ -100,7 +100,7 @@ und deutschen Kommentaren.
 
 11. [Reports_Absicherung_kochbuch_de.txt](Reports_Absicherung_kochbuch_de.txt) –
     nach dem Patch: eine **bestehende**, nur teilweise abgesicherte
-    Reports-Umgebung pruefen und sauber nachziehen – Bestandsaufnahme mit
+    Reports-Umgebung prüfen und sauber nachziehen – Bestandsaufnahme mit
     Soll-Werten, Kennwort `cn=Admin` des WebLogic-LDAP (danach
     Komplett-Neustart, sonst Fehler 49 beim Start der Managed Server),
     `monUser` / `RepRunner` mit Rollen und Berechtigungen per WLST,
