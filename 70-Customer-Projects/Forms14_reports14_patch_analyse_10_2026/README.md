@@ -108,7 +108,7 @@ as in the 12c analysis. **README pending** = not read yet.
 4. Infrastructure bundles (eight).
 5. PERL 39951765 (Forms / Reports QPRs are already at the October level).
 6. OHS 39987730 + WebGate 39100536 (binaries).
-7. Start, smoke test `15-`, `cve_inventory.sh` (`90-oracle_validate.sh` is still planned).
+7. Start, smoke test `15-`, `cve_inventory.sh` (acceptance since 2026-11-03: `09-Install/90-oracle_validate.sh`).
 
 Details: [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_october_2026_manual.md).
 

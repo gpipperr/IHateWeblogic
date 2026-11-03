@@ -172,26 +172,31 @@ else
     printLine
 
     # Parse server blocks from config.xml
-    # Output fields: name|listen_addr|listen_port|ssl_port
-    while IFS='|' read -r srv_name listen_addr listen_port ssl_port; do
+    # Output fields: name|listen_addr|listen_port|ssl_port|ssl_enabled
+    # An SSL port is probed only when <ssl><enabled>true – WebLogic's default
+    # is off, and 08- switches the demo SSL ports of the managed servers off
+    # (loopback only; port_check FAILed on 9501/9512 until 2026-11-03)
+    while IFS='|' read -r srv_name listen_addr listen_port ssl_port ssl_enabled; do
         [ -z "$srv_name" ] && continue
         local_addr="${listen_addr:-*}"
         probe_host="${listen_addr:-localhost}"
 
+        _ssl_show="${ssl_port:--}"
+        [ -n "$ssl_port" ] && [ "$ssl_enabled" != "true" ] && _ssl_show="${ssl_port} (off)"
         printf "  %-24s  %-22s  %-8s  %-10s  config.xml\n" \
-            "$srv_name" "$local_addr" "${listen_port:--}" "${ssl_port:--}" \
+            "$srv_name" "$local_addr" "${listen_port:--}" "$_ssl_show" \
             | tee -a "${LOG_FILE:-/dev/null}"
 
         _register "$srv_name"          "$probe_host" "$listen_port" "T3/HTTP"
-        [ -n "$ssl_port" ] && \
+        [ -n "$ssl_port" ] && [ "$ssl_enabled" = "true" ] && \
             _register "${srv_name}(SSL)" "$probe_host" "$ssl_port"    "T3/HTTPS"
 
     done < <(awk '
         BEGIN { in_srv=0; in_ssl=0 }
-        /<server>$/   { in_srv=1; name=""; addr=""; port=""; ssl="" }
+        /<server>$/   { in_srv=1; name=""; addr=""; port=""; ssl=""; sslen="" }
         /<\/server>$/ {
             if (in_srv && name != "" && name != "TEMPLATE" && name != "template") {
-                print name "|" addr "|" port "|" ssl
+                print name "|" addr "|" port "|" ssl "|" sslen
             }
             in_srv=0; in_ssl=0
         }
@@ -215,6 +220,11 @@ else
             }
         }
         in_srv && in_ssl {
+            if ($0 ~ /<enabled>/) {
+                e=$0; gsub(/.*<enabled>/, "", e); gsub(/<\/enabled>.*/, "", e)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", e)
+                sslen=e
+            }
             if ($0 ~ /<listen-port>/) {
                 p=$0; gsub(/.*<listen-port>/, "", p); gsub(/<\/listen-port>.*/, "", p)
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)

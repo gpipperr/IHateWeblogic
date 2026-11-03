@@ -335,8 +335,11 @@ Phase 6 – Runtime Configuration (as oracle)
   [oracle] ./09-Install/14b-oracle_reports_fonts.sh --apply        # fonts, uifont.ali, cgicmd.dat, backup
                                                                    # (needs the WLS_REPORTS app dir of the first start)
 
-Phase 7 – Validation (as oracle) [planned]
-  [oracle] ./09-Install/90-oracle_validate.sh          # full validation report → docs/90-oracle_validate.md
+Phase 7 – Validation (as oracle; domain running)
+  [oracle] ./09-Install/90-oracle_validate.sh          # acceptance: all analyse scripts read-only + direct checks
+                                                       # (NM, code signing, access logs, HTTP via Nginx, autostart),
+                                                       # one summary table, exit 0/1/2 → docs/90-oracle_validate.md
+             --smoke          + smoke test 15- --apply (deploys test modules)
 
 Phase 7b – Smoke Test Modules (as oracle) [verified 2026-10-16]
   [oracle] ./09-Install/15-deploy-test-report-forms_template.sh --apply
@@ -401,7 +404,7 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 | 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (instances, rwnetwork, rwservlet, rwserver, secured server via embedded LDAP – first run needs an AdminServer restart + second run) | [→ docs](docs/13-reports-detail-settings.md) |
 | 6 | `14-oracle_setup_forms.sh` | Forms configuration into the domain (templates + Oracle's files merged), JACOB install + code signing (`--resign` after a certificate renewal) | [→ docs](docs/14-forms-detail-settings.md) |
 | 6 | `14b-oracle_reports_fonts.sh` | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
-| 7 | `90-oracle_validate.sh` | Full validation report [planned] | [→ docs](docs/90-oracle_validate.md) |
+| 7 | `90-oracle_validate.sh` | Acceptance: calls the read-only analyse scripts of 01–10 + direct checks of what the install steps set up, one summary table (exit 0/1/2); `--smoke` adds `15-` | [→ docs](docs/90-oracle_validate.md) |
 | 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
 | pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
 | 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
@@ -472,7 +475,7 @@ The installation module calls existing scripts directly — no code duplication:
 | `02-Checks/java_check.sh` | `04-oracle_pre_checks.sh` |
 | `02-Checks/port_check.sh` | `04-oracle_pre_checks.sh` |
 | `02-Checks/db_connect_check.sh` | `01-setup-interview.sh`, `04-oracle_pre_checks.sh` |
-| `02-Checks/ssl_check.sh` | `90-oracle_validate.sh` [planned] |
+| `02-Checks/ssl_check.sh`, `02-Checks/port_check.sh`, `02-Checks/os_check.sh`, `02-Checks/java_check.sh`, `02-Checks/tns_admin_check.sh`, `02-Checks/clone_check.sh`, `02-Checks/egress_check.sh`, `08-SSL/ssl_config.sh`, `05-ReportsPerformance/engine_perf_settings.sh`, `06-FormsDiag/forms_settings.sh` / `forms_perf_settings.sh`, `07-Maintenance/rcu_repository_check.sh`, `10-Monitoring/cert_expiry_check.sh` | `90-oracle_validate.sh` |
 | `02-Checks/weblogic_performance.sh` | `09-oracle_configure.sh` |
 | `04-ReportsFonts/get_root_install_libs.sh` | `09-oracle_configure.sh` |
 | `04-ReportsFonts/deploy_fonts.sh` | `14b-oracle_reports_fonts.sh` |
@@ -481,7 +484,7 @@ The installation module calls existing scripts directly — no code duplication:
 | `04-ReportsFonts/fontpath_config.sh` | `14b-oracle_reports_fonts.sh` |
 | `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh`, `14b-oracle_reports_fonts.sh` |
 | `09-Install/10-oracle_boot_properties.sh` | `09-oracle_configure.sh` (Step 0) |
-| `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` [planned] |
+| `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` |
 
 Shared install functions (silent response file generation, OPatch version check,
 password-file handling for RCU) are planned to live in `install_lib.sh` — not yet
@@ -717,6 +720,7 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 ├── 15-deploy-test-report-forms_template.sh  ← Phase 7b: smoke test (Forms+Reports), verified 2026-10-16
 ├── 30-configure_autostart.sh          ← Phase 7c: autostart at boot (systemd, Node Manager controlled)
 ├── 40-oracle_forms_client_bundle.sh   ← Phase 7d: Forms client bundle for Nginx /formsWeb/
+├── 90-oracle_validate.sh              ← Phase 7: acceptance – analyse scripts read-only + direct checks
 ├── 99-oracle_deinstall_fmw.sh         ← Teardown: remove FMW completely, keep the database (irreversible)
 ├── autostart_templates/               ← Templates rendered by 30-configure_autostart.sh
 │   ├── fmw_env.sh.template / fmw_ctl.sh.template          (env + control wrapper)
@@ -769,7 +773,7 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
     ├── 14b-oracle_reports_fonts.md   ← 14b-oracle_reports_fonts.sh
     ├── 80-oracle_security.md         ← post-install hardening checklist + password recovery
     ├── 81-reports_rwservlet_security.md ← Reports web commands / <identifier> / webcommandaccess (tests A–D done 2026-10-23)
-    ├── 90-oracle_validate.md         ← 90-oracle_validate.sh [planned]
+    ├── 90-oracle_validate.md         ← 90-oracle_validate.sh
     ├── 20-forms_reports_testmodules.md ← 15-deploy-test-report-forms_template.sh (verified 2026-10-16)
     ├── 30-configure_autostart.md     ← 30-configure_autostart.sh
     ├── 40-forms_client_distribution.md ← 40-oracle_forms_client_bundle.sh + Windows installer

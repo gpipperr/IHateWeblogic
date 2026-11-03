@@ -297,7 +297,7 @@ if [ -n "$NEXT" ]; then
     info "Next step: $NEXT"
     info "  (order and details: 09-Install/README.md – a FAILED step: check its log, fix, run it again)"
 else
-    ok "All required steps done – validation: 09-Install/docs/90-oracle_validate.md"
+    ok "All required steps done – acceptance: ./09-Install/90-oracle_validate.sh"
 fi
 [ -f "$HIST" ] || info "No run history yet – states come from the probes only (PRESENT / OPEN)"
 
