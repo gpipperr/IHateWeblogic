@@ -221,6 +221,34 @@ location = /formsWeb { return 301 /formsWeb/; }
 
 ---
 
+### Access log with times (`ihw_timing`, since 2026-11-03)
+
+The template defines `log_format ihw_timing` (http context, conf.d is
+included inside `http{}`) and the HTTPS server writes
+`access_log /var/log/nginx/access.log ihw_timing;` – the same file and
+rotation as before, the `main` format of `nginx.conf` plus three fields at
+the end:
+
+```
+... "curl/7.76.1" "-" rt=0.232 urt=0.232 uct=0.000
+```
+
+| Field | Variable | Meaning (seconds) |
+|---|---|---|
+| `rt` | `$request_time` | whole request as Nginx sees it (incl. sending to the client) |
+| `urt` | `$upstream_response_time` | WebLogic answer; `-` = not proxied (redirect, static file) |
+| `uct` | `$upstream_connect_time` | TCP connect to WebLogic; `0.000` with keepalive |
+
+`rt` − `urt` = client / network side; `urt` ≈ `time-taken` of WebLogic. Use:
+[forms_performance_analyse_tuning.md](../../80-FMW-Architecture/forms_performance_analyse_tuning.md).
+The port-80 redirect server keeps the `main` format. Tested with a private
+Nginx in front of WLS_FORMS (`nginx -t` + real requests); an existing host
+gets it with `04-root_nginx.sh --apply` (re-render, backup, `nginx -t`,
+reload).
+
+By hand: the `log_format` block and the `access_log` line from the template
+into `/etc/nginx/conf.d/oracle-wls.conf`, `nginx -t`, `systemctl reload nginx`.
+
 ## Flags
 
 | Flag | Description |

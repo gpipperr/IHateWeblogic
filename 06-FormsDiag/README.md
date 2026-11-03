@@ -8,6 +8,8 @@ read-only as acceptance; `10-Monitoring/` uses them as a data source.
 How Forms works on the server (servlet, listener, `frmweb` per session,
 runtime pooling, timeout chain, memory, logs):
 [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md).
+"Forms is slow" – which layer, which number, which setting:
+[forms_performance_analyse_tuning.md](../80-FMW-Architecture/forms_performance_analyse_tuning.md).
 
 ---
 

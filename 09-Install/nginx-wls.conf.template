@@ -27,6 +27,23 @@
 # =============================================================================
 
 # ---------------------------------------------------------------------------
+# Access log with times: the "main" format of nginx.conf + three fields at the
+# end, so existing parsers of "main" keep working (same file, same rotation):
+#   rt  = $request_time            whole request as Nginx sees it: first byte
+#                                  from the client .. last byte to the client (s)
+#   urt = $upstream_response_time  WebLogic answer incl. transfer to Nginx (s);
+#                                  "-" = not proxied (redirect, static file)
+#   uct = $upstream_connect_time   TCP connect to WebLogic (s); 0.000 with keepalive
+# rt - urt = client / network side; urt ~ WebLogic time-taken of the request
+# (80-FMW-Architecture/forms_performance_analyse_tuning.md)
+# ---------------------------------------------------------------------------
+
+log_format ihw_timing '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for" '
+                      'rt=$request_time urt=$upstream_response_time uct=$upstream_connect_time';
+
+# ---------------------------------------------------------------------------
 # Upstream targets – WebLogic listens on 127.0.0.1 only (Nginx is the gateway)
 # ---------------------------------------------------------------------------
 
@@ -64,6 +81,9 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
     server_name ##SERVER_NAME##;
+
+    # all HTTPS requests with times (format ihw_timing above)
+    access_log /var/log/nginx/access.log ihw_timing;
 
     # --- SSL Certificate --------------------------------------------------
     ssl_certificate     ##SSL_CERT##;

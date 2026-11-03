@@ -315,6 +315,9 @@ the `WebServerLog` MBean):
 Check: `grep -c time-taken $DOMAIN_HOME/config/config.xml` (1), or the last
 `#Fields` header of `access.log`; `forms_perf_settings.sh` section Access Log.
 
+How to use it together with the Nginx times (`rt` / `urt`) when a user
+reports "slow": [forms_performance_analyse_tuning.md](forms_performance_analyse_tuning.md).
+
 **Reading pitfalls.**
 - The **last** `#Fields` header counts – an older part of the file may have
   fewer columns (`forms_perf_analyse.sh` follows the header).
