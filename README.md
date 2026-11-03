@@ -57,7 +57,7 @@ the automation is an [open item](#open-items--todo).
 
 ## Project Status
 
-**`[███████████████████░]` ~96 % complete** (state 2026-11-02) – phases 1–7
+**`[███████████████████░]` ~96 % complete** (state 2026-11-03) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -145,6 +145,25 @@ stub removed); fixes found by the review: the audit policies were root-local
 queries of `06-` / `09-Install/07-` failed before the first RCU run; `02-`
 started the listener with the shared `TNS_ADMIN`; every DB doc now has the
 manual way in the script's order.
+New 2026-11-03 (review of `09-Install` 07–14 against the customer logs):
+one RCU tablespace `RCU_TABLESPACE` checked in the DB; `08-` writes
+`time-taken` into `config.xml` after `writeDomain` (JRF overwrote it) and
+sets the Node Manager and embedded-LDAP credentials already in the domain
+template (customer: AdminServer "Access denied", managed servers `error 49`
+after `13-`); `11-` first start order; `13-` keeps `securityId`, an embedded
+LDAP password change is a FAIL with "restart AdminServer"; `14-` writes
+idempotently, needs the code-signing keystore (FAIL also in dry run),
+`--resign` for signatures without timestamp (no TSA without egress);
+the **Phase 7 acceptance** `09-Install/90-oracle_validate.sh` (16 analyse
+scripts + direct checks, one summary – test host 24 OK / 3 WARN / 0 FAIL);
+Nginx `ihw_timing` log format and
+[forms_performance_analyse_tuning.md](80-FMW-Architecture/forms_performance_analyse_tuning.md);
+the **configuration export** of an existing 12c/14c customer environment
+(`70-Customer-Projects/tools/export_forms_reports_conf.sh`, encrypted, never
+into git – import step follows); for the Linux Reports-only customer a
+complete **CPU October 2026 patch set** (CSV + cookbook for a home with
+unknown starting level) and a cookbook to **check and complete the Reports
+security** (monUser / RepRunner, embedded LDAP, `securityId`, libOVD).
 
 How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
@@ -635,7 +654,8 @@ IHateWeblogic/
 │   ├── 10-oracle_boot_properties.sh – Phase 6: boot.properties (AdminServer + NodeManager)
 │   ├── 11-oracle_nodemanager.sh     – Phase 6: NodeManager setup (plain SSL via WLST)
 │   ├── 12-oracle_reports_users.sh   – Phase 6: monUser + RepRunner WebLogic users
-│   ├── 13-root_reports_fix.sh       – Phase 6 (root): libnsl.so.2 symlink for Oracle Linux 9
+│   ├── 13-root_reports_fix.sh       – Phase 6: libnsl.so.2 symlink for Oracle Linux 9 (root, or
+│   │                                   oracle when $ORACLE_HOME/lib is writable)
 │   ├── 13-oracle_setup_reports.sh   – Phase 6: Reports Server config (rwnetwork/rwservlet/rwserver)
 │   ├── 14-oracle_setup_forms.sh     – Phase 6: Forms config (template-copy approach)
 │   ├── 14b-oracle_reports_fonts.sh  – Phase 6: Reports fonts, uifont.ali, cgicmd.dat (after first start)
@@ -655,6 +675,8 @@ IHateWeblogic/
 │   │                                   (domain_config.py, fr_install.rsp, cgicmd.dat)
 │   ├── 15-deploy-test-report-forms_template.sh – Smoke test: minimal Forms module + Reports demo
 │   │                                   + font test report (reports_templates/test_fonts.xml)
+│   ├── 90-oracle_validate.sh        – Phase 7: acceptance – runs the analyse scripts read-only +
+│   │                                   direct checks, one summary (--smoke for 15-)
 │   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
 │                                       30-autostart, 40-client distribution, 80-security,
 │                                       90-validate, 99-deinstall)
@@ -757,7 +779,9 @@ IHateWeblogic/
     │   ├── mos_patch_download.sh         – MOS download of a patch CSV with getMOSPatch (share host)
     │   ├── clone_check_fmw.sh            – read-only golden-image / clone check (12c + 14c)
     │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
-    │   └── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
+    │   ├── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
+    │   └── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
+    │                                         for the 14c rebuild – encrypted archive, never into git
     └── Reports14_Only_manuall_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
@@ -770,7 +794,12 @@ IHateWeblogic/
         ├── Tools_status_logs_kochbuch.txt – status.sh / show_all_logs.sh / show_errors.sh for
         │                                    /u01/oracle/tools (no lib, data in env.ini)
         ├── tools/                         – the scripts + env.ini (copied 1:1 to the server)
-        └── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
+        ├── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
+        ├── Reports_security.txt           – Hardening of the finished environment (new install)
+        ├── Patch_Kochbuch_CPU_Okt2026_de.txt – CPU Oct 2026 for an EXISTING home with unknown
+        │                                    patch level (+ patches_cpu_oct2026.csv, 18 patches)
+        └── Reports_Absicherung_kochbuch_de.txt – check + complete the Reports security of an
+                                             existing domain (monUser/RepRunner, LDAP, libOVD)
 ```
 
 ## Common Flags
@@ -910,7 +939,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 
 ## Open Items / TODO
 
-Only what is still open (state 2026-11-02). Everything finished is described
+Only what is still open (state 2026-11-03). Everything finished is described
 in the folder READMEs and in `git log`; the review of 2026-10-19/20 is
 summarised in each README ("Review 2026-10-19").
 
@@ -953,8 +982,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   (`06-FormsDiag/forms_perf_analyse.sh`).
 - [ ] `01-setup-interview.sh` interactively (questions `REPORTS_SECURITY`,
   embedded LDAP password, Reports server admin, `FORMS_TMP`).
-- [ ] `13-` path that sets the embedded LDAP `cn=Admin` password in a fresh
-  domain (bind fails → `setCredential` → AdminServer restart → re-run).
+- [ ] **Fresh domain with the new `08-` template** (2026-11-03): Node Manager
+  credentials and embedded-LDAP `cn=Admin` password set at `writeDomain` –
+  then the first `11-` start and `13-` must run without "Access denied" /
+  `error 49` and without the `13-` restart path (bind fails →
+  `setCredential` → restart, still in place for older domains).
 - [ ] `startStop.sh`: the "Node Manager running without autostart" path
   (`start-all` / `stop-all` through `fmw_ctl.sh` incl. ORDS ran live
   2026-10-24/26).
@@ -1108,6 +1140,15 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   XML file + customer thread dump in the local SR draft
   (`SR/oam_external_dtd/`, reproducer without root included).
 
+- [ ] **Linux Reports-only customer (cookbooks of 2026-11-03, not run yet):**
+  CPU October 2026 run with `Patch_Kochbuch_CPU_Okt2026_de.txt` (starting
+  level unknown; Forms QPR before Reports QPR with the `libzrc` check – decide
+  on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
+  restarts) – feed findings back into the cookbooks.
+- [ ] **Configuration export → import**: first real customer run of
+  `70-Customer-Projects/tools/export_forms_reports_conf.sh` (12c), then the
+  import step into the 14c library (formsweb sections, env keys, cgicmd
+  keys, uifont.ali, fonts, customer jars – never FSAL / JACOB).
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard
   also create random Node Manager credentials? If yes,
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
