@@ -76,6 +76,13 @@ All of this in one run: [../tools/collect_fmw_env.sh](../tools/collect_fmw_env.s
 standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.gz`
 (shared collector for 12c and 14c, see [../tools/README.md](../tools/README.md)).
 
+For the later **migration to 14c** the customer configuration (formsweb.cfg
+sections, env files, cgicmd.dat keys, Reports servers, uifont.ali, custom
+fonts, customer jars, source paths + dependencies – no module files) is
+exported with
+[../tools/export_forms_reports_conf.sh](../tools/README.md#export_forms_reports_confsh)
+– encrypted archive, never into git.
+
 ### 1a. Inventory of the customer home (received 2026-10-23)
 
 > **Source:** the inventory and the collector run of this section come from

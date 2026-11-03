@@ -13,6 +13,7 @@ runtime, never by a second copy of the script.
 | [mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
 | [clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
+| [export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
 | [check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Used by:
@@ -318,3 +319,53 @@ Sections:
 
 Exit code: 0 = all local file systems < 85 %, 1 = one >= 85 %, 2 = one >= 95 %.
 Runtime on the test host (100 GB disk, 92 GB used): about 40 s.
+
+## export_forms_reports_conf.sh
+
+Exports the customer-specific configuration of an **existing** Forms &
+Reports environment (12.2.1.x or 14.1.2) into one archive – the input for
+the rebuild with the 14c library. Read-only on the host, writes only below
+`-t OUTDIR`. Step 1 of the migration; the import into the library is a
+later, separate step (after the first real customer export).
+
+```bash
+# as the software owner (oracle), not root
+cp export_forms_reports_conf.sh /tmp/ && cd /tmp && chmod +x export_forms_reports_conf.sh
+./export_forms_reports_conf.sh                      # auto-detect, encrypted archive (passphrase asked twice)
+./export_forms_reports_conf.sh -o /oracle/product/mw -d /oracle/user_projects/domains/fr_domain
+./export_forms_reports_conf.sh --masked             # passwords masked, not encrypted – for analysis
+```
+
+| Option | Meaning |
+|---|---|
+| `-o DIR` / `-d DIR` | Oracle Home / domain home (default: environment, `domain-registry.xml`, running process, known paths – as `collect_fmw_env.sh`) |
+| `-t DIR` | output directory (default `/tmp`); inside a git work tree it is **refused** unless git ignores the path |
+| `--masked` | mask passwords in every file, archive not encrypted |
+| `--no-fonts` | list the font files only, do not copy them |
+| `--keep` | keep the unpacked staging directory (delete it yourself – customer data) |
+
+**Output:** `ihw_export_<host>_<ts>.zip.enc` (+ `.sha256`; `.zip` with
+`--masked`; `.tar.gz` if `zip` is missing). Decrypt:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in ihw_export_<host>_<ts>.zip.enc -out ihw_export_<host>_<ts>.zip
+```
+
+| Part | Content |
+|---|---|
+| `00_report.txt` | versions, paths, Forms sections, Reports servers, customer jars, fonts, source dirs, warnings, what goes where |
+| `raw/domain/`, `raw/oracle_home/`, `raw/other/` | 1:1 copies below their original path: `formsweb.cfg` + every `envFile`, `Registry.dat`, `webutil.cfg`, `*.res`, jnlp files; per Reports server (standalone + in-process) `rwserver.conf`, `rwnetwork.conf`, `rwservlet.properties`, `cgicmd.dat`; ReportsTools `uifont.ali`, PPD, AFM; `reports.sh`, `setUserOverrides.sh`, `config.xml`, `jps-config-jse.xml`, `tnsnames.ora` / `sqlnet.ora`, OHS routing |
+| `ihw_import/` | proposals laid out for the library (nothing applied): `formsweb.cfg.default_overrides` / `.sections`, `default.env.customer_keys` (`FORMS_PATH_CUSTOMER`, `CLASSPATH_CUSTOMER`), `webutil.cfg.overrides`, `cgicmd.dat.customer_keys` (without Oracle's sample keys), `uifont.ali.customer`, `custom_fonts_dir/`, `forms_java/` + `jars.txt`, `reports_servers.txt`, `environment.conf.proposal` |
+| `sources_inventory.csv`, `sources_files.txt`, `sources_dependencies.txt` | every configured Forms / Reports source directory (`FORMS_PATH`, `REPORTS_PATH`, `folderAccess`, `sourceDir`, WebUtil transfer dirs, icon path) with file counts per type; attached libraries / menus per `.fmx` (heuristic, `strings`), missing referenced files, TNS aliases vs. `tnsnames.ora` |
+| `manifest.csv`, `secrets_locations.txt` | `category;source;stored;size;sha256`; where passwords are (file:line:keyword, never the value) |
+
+**Never in the archive:** module files (`.fmb .fmx .pll .plx .mmb .mmx
+.olb .rdf .rep`) – only their paths and counts; `frm*.jar` and `jacob*.jar`
+(FSAL / JACOB come from our 14- / 40- logic and are never overwritten);
+Liberation / DejaVu fonts (OS packages, 14b- deploys them).
+
+**Customer data:** the export contains passwords, host names and paths – it
+never goes into git (refused inside the repo; `.gitignore` has
+`ihw_export_*` and `70-Customer-Projects/**/export/` for a copy placed there
+for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
+(`forms_12.2.1` / `reports_12.2.1`, standalone + in-process server).

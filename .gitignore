@@ -84,3 +84,7 @@ SR/
 # Customer / licensed fonts – never commit (licence); readme.txt stays
 04-ReportsFonts/custom_fonts_dir/*
 !04-ReportsFonts/custom_fonts_dir/readme.txt
+
+# Customer configuration exports (export_forms_reports_conf.sh) – customer data + passwords
+ihw_export_*
+70-Customer-Projects/**/export/
