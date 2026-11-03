@@ -268,13 +268,17 @@ rws_fetch_serverinfo() {
     esac
     unset REPORTS_MON_PWD REPORTS_EXEC_PWD REPORTS_ADMIN_PWD
 
+    # POST with ALL parameters in the body: WebLogic logs the query string
+    # (cs-uri) in WLS_REPORTS/logs/access.log - a GET authid= would land
+    # there in plain text; a POST ignores the query string (2026-11-03)
+    local base="${url%%\?*}" query=""
+    [ "$base" != "$url" ] && query="${url#*\?}"
     tmp="$(mktemp)"
     RWS_HTTP_CODE="$( {
-        printf 'url = "%s"\n' "$url"
-        if [ -n "$RWS_AUTH_USER" ]; then
-            printf 'get\n'
-            printf 'data-urlencode = "authid=%s/%s"\n' "$RWS_AUTH_USER" "$pwd"
-        fi
+        printf 'url = "%s"\n' "$base"
+        [ -n "$query" ] && printf 'data = "%s"\n' "$query"
+        [ -n "$RWS_AUTH_USER" ] && printf 'data-urlencode = "authid=%s/%s"\n' "$RWS_AUTH_USER" "$pwd"
+        [ -z "$query$RWS_AUTH_USER" ] && printf 'request = "POST"\n'
     } | curl -s --connect-timeout 5 --max-time 30 -K - -o "$tmp" -w "%{http_code}" 2>/dev/null )"
     pwd=""
     RWS_HTTP_XML="$(cat "$tmp" 2>/dev/null)"

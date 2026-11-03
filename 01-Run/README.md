@@ -295,7 +295,9 @@ without it the servlet answers HTTP 499 (login) or `REP-52262`.
 
 The password is passed to `curl` as a config on stdin (`-K -`,
 `data-urlencode`) – it never appears in the process list, the output or the
-log (output shows `user/****`). REP errors in the answer are reported with
+log (output shows `user/****`). The request is a **POST** with all
+parameters in the body (since 2026-11-03) – a GET `authid=` would land in
+plain text in `WLS_REPORTS/logs/access.log`. REP errors in the answer are reported with
 a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 (monUser) and `admin` → full server info, `none` → HTTP 499.
 
@@ -312,6 +314,8 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 | Performance | `getserverinfo` | successful / current / future / transferred / failed / long running / runaway jobs, average response / elapsed / queuing time |
 | Connections | `getserverinfo` | connections used / available, max / avg engines used |
 
+Meaning of every field, alarm thresholds and a monitoring plugin:
+[reports_monitoring_getserverinfo.md](../80-FMW-Architecture/reports_monitoring_getserverinfo.md).
 Evaluation of these numbers (failure rate, queuing share, pool at
 `maxEngine`, server logs): `05-ReportsPerformance/engine_perf_analyse.sh`.
 All `getserverinfo` / `rwserver.conf` helpers are in `reports_server_lib.sh`

@@ -18,7 +18,8 @@
 #            Reports server administrator (<identifier>) from
 #            reports_admin_sec.conf.des3; falls back to the other one. The
 #            password goes to curl via a config on stdin - not in the
-#            process list, not printed.
+#            process list, not printed; request is a POST, so nothing lands
+#            in the WLS_REPORTS access.log (2026-11-03).
 # Requires : curl (for HTTP status), pgrep, sed
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0

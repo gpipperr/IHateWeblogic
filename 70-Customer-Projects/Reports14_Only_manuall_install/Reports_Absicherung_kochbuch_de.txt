@@ -85,6 +85,11 @@ SO IST DIESES KOCHBUCH ZU LESEN
     in derselben Zeile - das folgende "echo" macht nur den Zeilenumbruch.
     In WLST und in Dateien stehen Platzhalter wie <MONUSER_KENNWORT>.
 
+  - Aufrufe an rwservlet mit Kennwort immer per POST (curl -d /
+    --data-urlencode, OHNE -G und OHNE "?..." in der URL). WebLogic
+    schreibt die URL samt "?..." in das Access-Log von WLS_REPORTS - ein
+    authid= in der URL steht dort im Klartext (Test 2026-11-03).
+
 
 ================================================================================
 SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
@@ -278,13 +283,14 @@ SCHRITT 1: Bestandsaufnahme - nur lesen  (als oracle, Domain laeuft)
 
   echo
 
-  curl -s -G "$RW_URL/getserverinfo" \
+  curl -s "$RW_URL/getserverinfo" \
        --data-urlencode "server=$REPORTS_SERVER_NAME" \
        --data-urlencode "statusformat=XML" \
        --data-urlencode "authid=monUser/$MPW" | head -3
+  # POST: alle Werte im Body, nichts in der URL (kein -G).
   # Soll: <serverInfo ...
-  # REP-52262 = Server nicht abgesichert
-  # REP-50171 = securityId ohne LDAP-Identity-Store (oder Kennwort falsch)
+  # code="52262" = Server nicht abgesichert
+  # code="50171" = securityId ohne LDAP-Identity-Store (oder Kennwort falsch)
 
   unset MPW
 
@@ -876,51 +882,56 @@ SCHRITT 11: Tests  (als oracle, auf dem Server, Variablen aus SCHRITT 0)
 
   echo
 
-  S="server=$REPORTS_SERVER_NAME&statusformat=XML"
+  SRV="server=$REPORTS_SERVER_NAME"
+
+  FMT="statusformat=XML"
+
+  # Alle Tests per POST (-d / --data-urlencode) - kein Kennwort in der URL.
 
   ----------------------------------------------------------------------------
   11.2 Die Tests  (die erste Anfrage nach einem Start kann dauern)
   ----------------------------------------------------------------------------
   # monUser darf den Status sehen:
 
-  curl -s "$RW_URL/getserverinfo?$S&authid=monUser/$MPW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  curl -s -d "$SRV" -d "$FMT" --data-urlencode "authid=monUser/$MPW" "$RW_URL/getserverinfo" | grep -o -m1 '<serverInfo\|code="[0-9]*"'
   # Erwartet: <serverInfo
 
   # RepRunner darf nur Berichte, keinen Status:
 
-  curl -s "$RW_URL/getserverinfo?$S&authid=RepRunner/$RPW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
-  # Erwartet: REP-56071
+  curl -s -d "$SRV" -d "$FMT" --data-urlencode "authid=RepRunner/$RPW" "$RW_URL/getserverinfo" | grep -o -m1 '<serverInfo\|code="[0-9]*"'
+  # Erwartet: code="56071"   (REP-56071 unauthorized)
 
   # Falsches Kennwort:
 
-  curl -s "$RW_URL/getserverinfo?$S&authid=monUser/falsch" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
-  # Erwartet: REP-50171
+  curl -s -d "$SRV" -d "$FMT" --data-urlencode "authid=monUser/falsch" "$RW_URL/getserverinfo" | grep -o -m1 '<serverInfo\|code="[0-9]*"'
+  # Erwartet: code="50171"   (REP-50171 Authentication failed)
 
   # Ohne Anmeldung (HTTP-Code):
 
-  curl -s -o /dev/null -w '%{http_code}\n' "$RW_URL/getserverinfo?$S"
+  curl -s -o /dev/null -w '%{http_code}\n' -d "$SRV" -d "$FMT" "$RW_URL/getserverinfo"
   # Erwartet: 499   (Anmeldung verlangt)
 
   # Notfall-Admin repadmin:
 
-  curl -s "$RW_URL/getserverinfo?$S&authid=repadmin/$APW" | grep -o -m1 '<serverInfo\|REP-[0-9]*'
+  curl -s -d "$SRV" -d "$FMT" --data-urlencode "authid=repadmin/$APW" "$RW_URL/getserverinfo" | grep -o -m1 '<serverInfo\|code="[0-9]*"'
   # Erwartet: <serverInfo
 
   # showenv ist nur fuer Admins:
 
-  curl -s "$RW_URL/showenv?server=$REPORTS_SERVER_NAME&authid=monUser/$MPW" | grep -o -m1 'REP-[0-9]*'
-  # Erwartet: REP-56071
+  curl -s -d "$SRV" --data-urlencode "authid=monUser/$MPW" "$RW_URL/showenv" | grep -o -m1 'code="[0-9]*"'
+  # Erwartet: code="56071"
 
   unset MPW RPW APW
 
   ----------------------------------------------------------------------------
   11.3 Ein echter Bericht ueber den Schluessel
   ----------------------------------------------------------------------------
-  # Bericht und DB-Login einsetzen:
-  #   curl -s -o $WORK/test.pdf "$RW_URL?cmdkey=default&report=<bericht>.rdf&userid=<db_user>/<db_pw>@<tns>&destype=cache&desformat=pdf"
+  # Bericht und DB-Login einsetzen - auch hier per POST, sonst steht das
+  # DB-Kennwort im Access-Log:
+  #   curl -s -o $WORK/test.pdf -d "cmdkey=default" -d "report=<bericht>.rdf" -d "destype=cache" -d "desformat=pdf" --data-urlencode "userid=<db_user>/<db_pw>@<tns>" "$RW_URL"
   #   file $WORK/test.pdf
   #   Erwartet: PDF document
-  # Derselbe Aufruf OHNE cmdkey=default -> HTTP 499.
+  # Derselbe Aufruf OHNE cmdkey=default (dafuer -d "$SRV") -> HTTP 499.
   # Danach: rm -f $WORK/test.pdf
 
   ----------------------------------------------------------------------------

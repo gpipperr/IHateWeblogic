@@ -270,8 +270,11 @@ and is not known. Set it by hand (done on the test host 2026-10-16, as oracle):
 | report job as `monUser` (no `RW_EXECREPORTS`) | `REP-56071 unauthorized` |
 | report job without `authid` | HTTP 499 |
 
-Passwords do not appear in any log (checked); the log shows `authid=monUser`
-only. idstore type `OPEN_LDAP` works with the embedded LDAP.
+Passwords do not appear in the Reports server / rwservlet diagnostic logs
+(checked); they show `authid=monUser` only. **But:** a GET request with
+`authid=` in the URL puts the password in plain text into
+`WLS_REPORTS/logs/access.log` (cs-uri, found 2026-11-03) – send web commands
+as POST ([reports_monitoring_getserverinfo.md §2.1](reports_monitoring_getserverinfo.md)). idstore type `OPEN_LDAP` works with the embedded LDAP.
 
 So the standalone Reports server uses the same users and roles as the
 in-process server – the role model of the Windows setup works once the JSE
