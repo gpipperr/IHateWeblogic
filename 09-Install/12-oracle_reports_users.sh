@@ -5,9 +5,11 @@
 #            and configure the corresponding Application Roles and Policies.
 #
 #            Three users are set up:
-#              1. weblogic → RW_ADMINISTRATOR  (Reports admin UI in EM)
+#              1. WL_USER    → RW_ADMINISTRATOR (admin user of weblogic_sec.conf.des3,
+#                                               webadmin here; Reports admin in EM)
 #              2. monUser    → RW_MONITOR     (getserverinfo / monitoring tools)
-#              3. RepRunner  → RW_EXECREPORTS (report execution via cgicmd.dat)
+#              3. RepRunner  → RW_EXECREPORTS (report execution; the cgicmd.dat
+#                                              authid is written by 14b-)
 #
 # Call     : ./09-Install/12-oracle_reports_users.sh [--apply]
 #
@@ -57,7 +59,7 @@ for _arg in "$@"; do
             printf "User credentials are read from reports_users.conf.des3\n"
             printf "or prompted interactively on first run.\n"
             exit 0 ;;
-        *) warn "Unknown argument: $_arg" ;;
+        *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
@@ -215,7 +217,7 @@ section "Configuration plan"
 printList "Admin user"     30 "$WL_USER  →  RW_ADMINISTRATOR"
 printList "Monitor user"   30 "$REPORTS_MON_USER  →  RW_MONITOR (getserverinfo only)"
 printList "Exec user"      30 "$REPORTS_EXEC_USER  →  RW_EXECREPORTS (run reports)"
-printList "cgicmd.dat key" 30 "authid=$REPORTS_EXEC_USER/<pwd>  (manual step)"
+printList "cgicmd.dat key" 30 "authid=$REPORTS_EXEC_USER/<pwd>  (written by 14b-)"
 
 if ! $APPLY; then
     printf "\n"
@@ -445,10 +447,10 @@ fi
 # =============================================================================
 if [ "$CNT_FAIL" -eq 0 ]; then
     printf "\n" | tee -a "$LOG_FILE"
-    info "Next step: add authid to cgicmd.dat"
-    info "  File: \$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/cgicmd.dat"
-    info "  Add after %2: authid=$REPORTS_EXEC_USER/<pwd>"
-    info "  Restart WLS_REPORTS after cgicmd.dat change"
+    info "Next steps (README Phase 6): 13-root_reports_fix.sh (root), first start of WLS_REPORTS,"
+    info "  13-oracle_setup_reports.sh, 14-oracle_setup_forms.sh, restart, 14b-oracle_reports_fonts.sh"
+    info "  – 14b- writes authid=$REPORTS_EXEC_USER/<pwd> into cgicmd.dat (password from"
+    info "  $(basename "$REPORTS_USERS_SEC")); 01-Run/rwserver_status.sh --auth uses $REPORTS_MON_USER"
 fi
 
 # =============================================================================

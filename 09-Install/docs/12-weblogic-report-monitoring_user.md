@@ -2,7 +2,10 @@
 
 **Script:** `09-Install/12-oracle_reports_users.sh`
 **Runs as:** `oracle` (WLST) / Browser (Enterprise Manager)
-**Phase:** 6 – Runtime Configuration
+**Phase:** 6 – Runtime Configuration – after `11-` (AdminServer running),
+before `13-`
+
+Checked against the script 2026-11-03 (customer run without errors).
 
 **Source:** [pipperr.de – Oracle Reports 14c: Reports Servlet Admin / Monitoring and Report User Setup](https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64&s[]=boot&s[]=properties#reports_servlet_admin_oberflaeche_erlauben_-_monitoring_und_report_user_anlegen)
 
@@ -30,10 +33,23 @@ Three WebLogic users are created with distinct permission levels:
 ./09-Install/12-oracle_reports_users.sh --apply   # WLST: users, app roles, policies
 ```
 
-Needs the running AdminServer and `weblogic_sec.conf.des3`; the passwords of
-`monUser` / `RepRunner` are asked on the first run and stored in
-`reports_users.conf.des3` (read later by `01-Run/rwserver_status.sh --auth`,
-`14b-` for `cgicmd.dat`). Idempotent – existing users / grants are kept.
+Needs the running AdminServer (port of `WL_ADMIN_URL` listening) and
+`weblogic_sec.conf.des3`; the passwords of `monUser` / `RepRunner` are asked
+on the first `--apply` (twice, hidden) and stored in `reports_users.conf.des3`
+(read later by `01-Run/rwserver_status.sh --auth`, `14b-` for the `cgicmd.dat`
+`authid`). Names: `REPORTS_MON_USER` / `REPORTS_EXEC_USER` (default `monUser` /
+`RepRunner`). Idempotent – existing users / roles / grants are reported as
+"already configured". The WLST output goes to `log/<date>/wlst_reports_users_*.log`;
+lines `IHW:<TAG>:…` are evaluated (FATAL / *_ERROR = FAIL). Unknown options:
+exit 1.
+
+What the script does in WLST (same as the EM steps below):
+
+| Step | WLST |
+|---|---|
+| 1 | `grantAppRole(reports, RW_ADMINISTRATOR, <admin user>)` |
+| 2 | `createUser(monUser)` in `myrealm` / `DefaultAuthenticator`, `createAppRole(RW_MONITOR)`, `grantAppRole`, `grantPermission(WebCommandPermission, webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*)` |
+| 3 | `createUser(RepRunner)`, `createAppRole(RW_EXECREPORTS)`, `grantAppRole`, `grantPermission(ReportsPermission, report=* server=* destype=* desformat=* allowcustomargs=true)` |
 
 Background – how a secured Reports server checks users (JSE identity store →
 WebLogic embedded LDAP) and the web-command rights:
@@ -53,31 +69,35 @@ Application Policies
 > Reference: Oracle Doc ID 2072876.1 – *REP-56071 When Attempt to Access
 > In-Process Reports Server in Reports 12c*
 
-**Enterprise Manager (EM):** `http://<host>:9002/em`
+**Enterprise Manager (EM):** runs on the AdminServer – behind Nginx
+`https://<FQDN>/em` (from `ADMIN_IP_RANGE` only), on the host
+`http://localhost:7001/em`. Not on the WLS_REPORTS port.
 
 ---
 
 ## 1 – weblogic → RW_ADMINISTRATOR
 
-Grant the existing `weblogic` admin user access to the Reports Servlet UI so
-Report jobs can be managed via EM.
+Grant the existing WebLogic admin user (`webadmin` here, `weblogic` in older
+guides) access to the Reports Servlet UI so Report jobs can be managed via EM.
 
 ### Manual Steps (EM Browser)
 
-1. Open EM: `http://<host>:9002/em`
+1. Open EM (see above)
 2. Menu: **WebLogic Domain → Security → Application Roles**
 3. *Application Stripe* = **reports** → search (`>`)
 4. Select role **RW_ADMINISTRATOR** → **Edit**
 5. Section *Members* → **+ Add**
    - *Type*: `User`
-   - Search (`>`) → select user `weblogic` → **OK**
+   - Search (`>`) → select the admin user → **OK**
 6. Confirm with **OK**
 
 ### Verification
 
 ```
-https://<host>/reports/rwservlet/showenv
-# Must display the Reports environment variables after login as weblogic
+https://<FQDN>/reports/rwservlet/showenv
+# Must display the Reports environment variables after login as the admin user.
+# Nginx answers 403 for showenv / getserverinfo / showjobs … from outside the
+# admin network (ADMIN_IP_RANGE) – on the host: http://localhost:9002/reports/rwservlet/showenv
 ```
 
 ---
@@ -86,11 +106,18 @@ https://<host>/reports/rwservlet/showenv
 
 This user may **only** call `getserverinfo` – no reports, no admin.
 
-Monitoring URL (e.g. PRTG):
+Monitoring URL (e.g. PRTG) – WLS_REPORTS listens on loopback only, and Nginx
+lets `getserverinfo` through only from `ADMIN_IP_RANGE`
+([doc 81](81-reports_rwservlet_security.md)):
 
 ```
-http://<host>:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
+# on the host
+http://localhost:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
+# from a monitoring server inside ADMIN_IP_RANGE
+https://<FQDN>/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
 ```
+
+`01-Run/rwserver_status.sh --auth` uses `monUser` from `reports_users.conf.des3`.
 
 ### 2a – Create User (Security Realm)
 
@@ -127,7 +154,9 @@ http://<host>:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusfo
 ## 3 – Report Execution User (RepRunner) → RW_EXECREPORTS
 
 This user is stored in `cgicmd.dat` as the `authid=` parameter so that reports
-can be executed automatically without exposing a password in the URL.
+can be executed automatically without exposing a password in the URL –
+written by `14b-oracle_reports_fonts.sh` from `reports_users.conf.des3`
+(section 4).
 
 ### 3a – Create User (Security Realm)
 
@@ -163,7 +192,11 @@ can be executed automatically without exposing a password in the URL.
 ## 4 – cgicmd.dat: Adding the authid Parameter
 
 To prevent the `RepRunner` password from appearing in the report call URL,
-store it centrally in `cgicmd.dat`.
+store it centrally in `cgicmd.dat`. **With the scripts:**
+`09-Install/14b-oracle_reports_fonts.sh --apply` writes the `default` key from
+`response_files/cgicmd.dat.template` with `authid=<REPORTS_EXEC_USER>/<password>`
+(password from `reports_users.conf.des3`, never logged) – after the first start
+of WLS_REPORTS. By hand: see below.
 
 ### File Path
 
@@ -229,7 +262,7 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 | `401 Unauthorized` on getserverinfo | Servlet secured, no authid passed | Append `authid=user/pwd` to URL |
 | `403 Forbidden` despite authid | User not assigned to role | Check Application Role (step 2b / 3b) |
 | `403 Forbidden` on report call | Policy permission missing | Check Application Policy (step 3c) |
-| getserverinfo returns empty response | Reports Server not running | Check WLS_REPORTS in Admin Console |
+| getserverinfo returns empty response | Reports Server not running | `01-Run/startStop.sh` (status), `01-Run/rwserver_status.sh` – WLS 14.1.2 has no Administration Console |
 | Password visible in URL | authid not in cgicmd.dat | Add authid to cgicmd.dat key (section 4) |
 | Changes have no effect | Security cache not refreshed | Restart WLS_REPORTS managed server |
 | EM "Add Principal": user search returns nothing (users exist) | libOVD lock `config/fmwconfig/ovd/default/ovd.lok` left by the Reports server – the AdminServer started with it has no `DefaultAuthenticator` LDAP adapter | Stop AdminServer, move `ovd.lok` away, start AdminServer (`fmw_ctl.sh` / `startStop.sh` do this automatically since 2026-10-16); workaround: "Advanced Option" in the dialog or WLST `grantAppRole`. Background: [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md) |
@@ -322,8 +355,8 @@ URL:
 |---|---|
 | `$DOMAIN_HOME/.../cgicmd.dat` | authid parameter for report execution |
 | `09-Install/12-oracle_reports_users.sh` | Automation script for this setup |
-| `09-Install/09-oracle_configure.sh` | Base configuration (includes cgicmd.dat setup) |
-| `09-Install/docs/09-oracle_configure.md` | Configuration steps overview |
+| `09-Install/14b-oracle_reports_fonts.sh` | writes the `cgicmd.dat` `default` key with `authid` (from `reports_users.conf.des3`) |
+| `reports_users.conf.des3` | `REPORTS_MON_USER` / `_PWD`, `REPORTS_EXEC_USER` / `_PWD` (encrypted, machine-bound, gitignored) |
 | `01-Run/rwserver_status.sh` | Automated status monitoring (uses getserverinfo) |
 | `00-Setup/weblogic_sec.sh` | WebLogic password concept (encrypted storage) |
 
