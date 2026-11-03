@@ -250,6 +250,15 @@ Phase 6 – Runtime Configuration (as oracle / root)
   [oracle] ./09-Install/11-oracle_nodemanager.sh --apply           # WLST: Machine NMType=Plain + NM
                                                                    # credentials = admin user – now
                                                                    # WITHOUT --skip-wlst
+           (Be patient: "AdminServer not (yet) listening on port 7001 – waiting up to 120s ..."
+            is NORMAL right after the start – the first start of a new domain takes clearly
+            longer than the usual ~30-60 s. The script polls every 5 s and goes on by itself
+            as soon as the port answers; WLST itself then needs some more time (start of
+            the WLST JVM, connect, edit session). Do not interrupt it. Only after 120 s
+            without the port it warns "AdminServer not reachable" – then check
+            log/<date>/start_AdminServer_*.log and $DOMAIN_HOME/servers/AdminServer/logs/
+            AdminServer.log and run it again; ADMIN_WAIT_SECONDS=300 ./09-Install/11-...
+            waits longer.)
   [oracle] ./01-Run/startStop.sh stop AdminServer --apply          # hand over to the Node Manager:
   [oracle] ./01-Run/startStop.sh start NodeManager --apply
   [oracle] ./01-Run/startStop.sh start AdminServer --apply         # now via nmStart
