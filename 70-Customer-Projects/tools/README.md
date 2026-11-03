@@ -282,16 +282,17 @@ running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
 ```
     Current environment :  login values
 -----------------------------------------------------------
-   FMW
+  FMW
       1 ---> -  (home only)         Home: /u01/app/oracle/fmw
       2 ---> fr_domain              Home: /u01/app/oracle/fmw
-   DB
+-----------------------------------------------------------
+  DB
     OraDB19Home1Patched            /u01/app/oracle/product/19.30.0/db_home1
       3 ---> -  (no SID)
     OraDB19Home_19_33_0            /u01/app/oracle/product/19.33.0/db_home1
-  *   4 ---> FMWCDB
+      4 ---> FMWCDB
       5 ---> -  (no SID)
-   ---
+-----------------------------------------------------------
       c ---> clear environment    (back to the login values)
       h ---> help                 (aliases / functions / variables)
       q ---> quit                 (nothing changed)

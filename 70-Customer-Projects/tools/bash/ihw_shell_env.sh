@@ -27,7 +27,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.6"
+IHW_SHELL_ENV_VERSION="2026-11-03.7"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -319,9 +319,9 @@ setdb() {
         _ihwse_kv "Current environment :" "${IHW_ENV_NAME:-login values}"
         _ihwse_line
         [ "$total" -eq 0 ] && _ihwse_err "no environments in $IHW_ENV_CONF - run ihwenv_configure"
-        [ "${#IHW_FMW_ENV[@]}" -gt 0 ] && printf "   FMW\n"
+        [ "${#IHW_FMW_ENV[@]}" -gt 0 ] && printf "  FMW\n"
         for ((n = 0; n < total; n++)); do
-            [ "${types[$n]}" = DB ] && [ "$n" -eq "${#IHW_FMW_ENV[@]}" ] && printf "   DB\n"
+            [ "${types[$n]}" = DB ] && [ "$n" -eq "${#IHW_FMW_ENV[@]}" ] && { [ "$n" -gt 0 ] && _ihwse_line; printf "  DB\n"; }
             if [ "${types[$n]}" = FMW ]; then
                 read -r e1 e2 e3 _ <<< "${IHW_FMW_ENV[${idx[$n]}]}"
                 key="FMW $e2 $e3"
@@ -343,7 +343,7 @@ setdb() {
                 _ihwse_entry "$((n + 1))" "$e1" "$e2" "$mark"
             fi
         done
-        printf "   ---\n"
+        _ihwse_line
         printf "      c ---> clear environment    (back to the login values)\n"
         printf "      h ---> help                 (aliases / functions / variables)\n"
         printf "      q ---> quit                 (nothing changed)\n"
