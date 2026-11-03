@@ -286,8 +286,9 @@ running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
       1 ---> -  (home only)         Home: /u01/app/oracle/fmw
       2 ---> fr_domain              Home: /u01/app/oracle/fmw
    DB
-      3 ---> FMWCDB                 Home: /u01/app/oracle/product/19.33.0/db_home1
-      4 ---> -  (no SID)            Home: /u01/app/oracle/product/19.30.0/db_home1
+      3 ---> -  (no SID)            Home: /u01/app/oracle/product/19.30.0/db_home1
+      4 ---> FMWCDB                 Home: /u01/app/oracle/product/19.33.0/db_home1
+      5 ---> -  (no SID)            Home: /u01/app/oracle/product/19.33.0/db_home1
    ---
       c ---> clear environment    (back to the login values)
       h ---> help                 (aliases / functions / variables)
@@ -295,7 +296,9 @@ running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
    Selection [1]:
 ```
 
-`setdb 2` selects directly, `*` marks the active entry, `q` or an invalid
+Every DB home gets one line per SID **and always one `(no SID)` line**
+(OPatch / work on the home without `ORACLE_SID`), the same idea as
+"home only" for FMW; the homes in inventory order. `setdb 2` selects directly, `*` marks the active entry, `q` or an invalid
 choice changes nothing.
 
 Where the homes come from (`ihwenv_configure`, every path once – symlinks

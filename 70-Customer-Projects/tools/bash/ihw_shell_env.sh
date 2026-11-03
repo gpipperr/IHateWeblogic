@@ -27,7 +27,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.4"
+IHW_SHELL_ENV_VERSION="2026-11-03.5"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -142,7 +142,7 @@ ihwenv_configure() {
                "$IHW_ENV_CONF" "$(date '+%F %T')" "$IHW_SHELL_ENV_VERSION"
         printf "# Edit freely; 'ihwenv_configure' detects again.\n"
         printf "# IHW_FMW_ENV: label ORACLE_HOME DOMAIN_HOME|- JDK_HOME   (label - = home only)\n"
-        printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE\n"
+        printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE   (SID - = home without ORACLE_SID, one per home)\n"
         printf "# Inventory  : %s\n" "${invfile}"
         # candidate homes (each normalised, duplicates removed):
         #  - central inventory (/etc/oraInst.loc), entries not REMOVED
@@ -163,11 +163,12 @@ ihwenv_configure() {
             elif [ -x "$h/bin/oracle" ] && [ -x "$h/bin/sqlplus" ]; then
                 base="$(ORACLE_HOME="$h" "$h/bin/orabase" 2>/dev/null)"
                 base="${base:-${ORACLE_BASE:-$(dirname "$(dirname "$(dirname "$h")")")}}"
-                sid=""
+                # per home: one line per SID, then ALWAYS the home without SID
+                # (OPatch / home work without ORACLE_SID) - like FMW "home only"
                 for sid in $(_ihwse_db_sids "$h"); do
                     printf 'IHW_DB_ENV+=("%s %s %s")\n' "$sid" "$h" "$base"
                 done
-                [ -z "$sid" ] && printf 'IHW_DB_ENV+=("%s %s %s")\n' "-" "$h" "$base"
+                printf 'IHW_DB_ENV+=("%s %s %s")\n' "-" "$h" "$base"
             elif [ -x "$h/bin/sqlplus" ]; then
                 printf "#SKIP %s (client home - no bin/oracle)\n" "$h"
             else
@@ -175,12 +176,11 @@ ihwenv_configure() {
             fi
         done
     } > "$tmp.raw"
-    # order: header, FMW (home only before its domains), DB with SID, DB without SID
+    # order: header, FMW (home only before its domains), DB per home (SIDs, then no SID)
     {
         grep '^# ' "$tmp.raw"
         grep '^IHW_FMW_ENV' "$tmp.raw"
-        grep '^IHW_DB_ENV' "$tmp.raw" | grep -v '^IHW_DB_ENV+=("- '
-        grep '^IHW_DB_ENV+=("- ' "$tmp.raw"
+        grep '^IHW_DB_ENV' "$tmp.raw"
         grep '^#SKIP' "$tmp.raw" | sed 's/^#SKIP/# skipped:/'
     } > "$tmp"
     rm -f "$tmp.raw"
