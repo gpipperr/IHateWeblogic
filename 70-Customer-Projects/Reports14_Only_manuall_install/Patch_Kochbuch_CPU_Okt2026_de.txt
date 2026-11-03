@@ -333,55 +333,103 @@ SCHRITT 5: Backup + VM-Snapshot  (als oracle; Snapshot ueber VM-Team)
 SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
 ================================================================================
 
-  # Entfaellt, wenn "java -version" schon 21.0.13.0.2 oder neuer zeigt.
-  # Ziel ist der Alert-Build von CPU426, NICHT die 21.0.13 des CPU.
-  # Das JDK im Home ($ORACLE_HOME/oracle_common/jdk, 17.0.12) bleibt
-  # unveraendert - KA1182 nennt keinen Patch, nicht von Hand ersetzen.
+  Idee: Das neue JDK wird NEBEN das alte entpackt, dann zeigt der Link
+  $JDK_HOME (z.B. /u01/oracle/java/jdk-21) auf das neue Verzeichnis.
+  Das alte bleibt liegen - zurueck geht es mit einem Befehl (6.8).
+  Das JDK im Home ($ORACLE_HOME/oracle_common/jdk, 17.0.12) bleibt
+  unveraendert - KA1182 nennt keinen Patch, nicht von Hand ersetzen.
 
-  ls -ld /u01/oracle/java $JDK_HOME              # Besitzer? Link?
-  cd /u01/oracle/java
-  # Neuere der beiden ZIPs aus Schritt 1 nehmen (Beispiel 35702194):
-  unzip -j -o $PATCH_DIR/35702194/p35702194_*.zip '*_linux-x64_bin.tar.gz' -d $STAGE
-  ls $STAGE/jdk-21*_linux-x64_bin.tar.gz
-  tar -xzf $STAGE/jdk-21.0.13.0.2_linux-x64_bin.tar.gz -C /u01/oracle/java/
-  NEWJDK=/u01/oracle/java/jdk-21.0.13.0.2      # Verzeichnisname aus dem tar
-  grep JAVA_RUNTIME_VERSION $NEWJDK/release     # 21.0.13.0.2+...
-  OLDJDK=$(readlink -f "$JDK_HOME"); echo "alt: $OLDJDK"   # darf NICHT leer sein
+  ----------------------------------------------------------------------------
+  6.1 Brauche ich den Schritt?
+  ----------------------------------------------------------------------------
+  "$JDK_HOME"/bin/java -version 2>&1 | head -1
+  # Zeigt es schon "21.0.13.0.2" (oder neuer): SCHRITT 6 ueberspringen.
+  # Ziel ist der Alert-Build 21.0.13.0.2 (CPU426), NICHT 21.0.13.
 
-  # Einstellungen des alten JDK uebernehmen - das neue JDK hat eine
-  # frische java.security / cacerts:
-  # a) SecureRandom-Fix (OS-Kochbuch Schritt 4) - sonst haengt der WLS-Start
+  ----------------------------------------------------------------------------
+  6.2 Ausgangslage merken  (setzt drei Variablen - nichts eintippen)
+  ----------------------------------------------------------------------------
+  echo "JDK_HOME=$JDK_HOME"            # LEER? -> zuerst SCHRITT 0 (patch_env.sh)
+  JDK_BASE=$(dirname "$JDK_HOME")       # Ordner, in dem die JDKs liegen
+  OLDJDK=$(readlink -f "$JDK_HOME")     # das jetzige, echte JDK-Verzeichnis
+  ls -ld "$JDK_HOME"; echo "Ordner: $JDK_BASE   altes JDK: $OLDJDK"
+  echo "$OLDJDK" > $LOGDIR/06_oldjdk.txt   # fuer das Zuruecksetzen (6.8)
+  # Erwartet z.B.:
+  #   lrwxrwxrwx ... /u01/oracle/java/jdk-21 -> jdk-21.0.12.1
+  #   Ordner: /u01/oracle/java   altes JDK: /u01/oracle/java/jdk-21.0.12.1
+  # Steht am Anfang KEIN "l" (kein Link): STOP - zuerst SCHRITT 0 Hinweis
+  # "JDK_HOME muss ein LINK sein" umsetzen.
+  # Schreibrecht im Ordner? (sonst als dessen Besitzer weiterarbeiten)
+  touch "$JDK_BASE/.test" && rm "$JDK_BASE/.test" && echo "Schreibrecht OK"
+
+  ----------------------------------------------------------------------------
+  6.3 Welches ZIP?  (eines von beiden - das mit 21.0.13.0.2, siehe Schritt 1)
+  ----------------------------------------------------------------------------
+  ZIP=$(ls $PATCH_DIR/35702194/p35702194_*.zip)        # Normalfall
+  # nur falls 35702194 eine aeltere Version enthielt:
+  #   ZIP=$(ls $PATCH_DIR/40186074/p40186074_*.zip)
+  unzip -l "$ZIP" | grep linux-x64_bin.tar.gz
+  # Erwartet eine Zeile: ... jdk-21.0.13.0.2_linux-x64_bin.tar.gz
+
+  ----------------------------------------------------------------------------
+  6.4 Auspacken  (neben das alte JDK - nichts wird ueberschrieben)
+  ----------------------------------------------------------------------------
+  unzip -j -o "$ZIP" '*_linux-x64_bin.tar.gz' -d $STAGE
+  TGZ=$(ls $STAGE/jdk-21*_linux-x64_bin.tar.gz)
+  NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
+  echo "neues JDK: $NEWJDK"             # z.B. /u01/oracle/java/jdk-21.0.13.0.2
+  [ "$NEWJDK" = "$OLDJDK" ] && echo "STOP: gleiche Version schon aktiv (6.1)"
+  tar -xzf "$TGZ" -C "$JDK_BASE"
+  "$NEWJDK"/bin/java -version 2>&1 | head -1
+  # Erwartet: java version "21.0.13.0.2" ...
+
+  ----------------------------------------------------------------------------
+  6.5 SecureRandom-Fix ins neue JDK  (sonst haengt der WebLogic-Start)
+  ----------------------------------------------------------------------------
   sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
-      $NEWJDK/conf/security/java.security
-  grep '^securerandom.source' $NEWJDK/conf/security/java.security
-  # b) weitere eigene Aenderungen an java.security?
-  diff $OLDJDK/conf/security/java.security $NEWJDK/conf/security/java.security
-  #    Erwartet: nur Oracle-eigene Unterschiede (neue Algorithmen-Listen).
-  #    Eigene Zeilen (z.B. jdk.tls.disabledAlgorithms) von Hand nachziehen.
-  # c) eigene Zertifikate im Truststore (z.B. eigene CA, LDAP-/DB-SSL)?
-  $OLDJDK/bin/keytool -list -cacerts -storepass changeit | grep -c trustedCertEntry
-  $NEWJDK/bin/keytool -list -cacerts -storepass changeit | grep -c trustedCertEntry
-  diff <($OLDJDK/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort) \
-       <($NEWJDK/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort)
-  #    Zeilen mit "<" = nur im alten JDK. Eigene davon importieren:
-  #    $OLDJDK/bin/keytool -exportcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt
-  #    $NEWJDK/bin/keytool -importcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt -noprompt
-  #    (Oracle-Wurzeln, die Oracle entfernt hat, z.B. emSign, NICHT zurueckholen)
+      "$NEWJDK"/conf/security/java.security
+  grep '^securerandom.source' "$NEWJDK"/conf/security/java.security
+  # Erwartet: securerandom.source=file:/dev/./urandom
 
-  # Link umsetzen:
-  ln -sfn $NEWJDK $JDK_HOME
-  $JDK_HOME/bin/java -version
-  # Erwartet: java version "21.0.13.0.2" ... Java(TM) SE Runtime Environment
+  ----------------------------------------------------------------------------
+  6.6 Eigene Einstellungen des alten JDK?  (nur ansehen, meist nichts zu tun)
+  ----------------------------------------------------------------------------
+  # a) java.security - Unterschiede alt / neu:
+  diff "$OLDJDK"/conf/security/java.security "$NEWJDK"/conf/security/java.security
+  #    Normal: nur Oracle-Aenderungen (Algorithmen-Listen, Kommentare).
+  #    Eine Zeile, die der Kunde selbst geaendert hat (z.B.
+  #    jdk.tls.disabledAlgorithms), im neuen JDK genauso eintragen.
+  # b) eigene Zertifikate (eigene CA, LDAP-/DB-SSL) - nur im alten JDK?
+  diff <("$OLDJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort) \
+       <("$NEWJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort)
+  #    Keine Ausgabe oder nur Zeilen mit ">": nichts zu tun.
+  #    Zeilen mit "<" = nur im alten JDK. Ist es ein EIGENES Zertifikat
+  #    (Kunden-CA), uebernehmen - <alias> = Name aus der Zeile:
+  #      "$OLDJDK"/bin/keytool -exportcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt
+  #      "$NEWJDK"/bin/keytool -importcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt -noprompt
+  #    Von Oracle entfernte Wurzeln (z.B. emSign) NICHT zurueckholen.
 
-  # Dateien mit versioniertem Pfad (Schritt 2, 02_jdk_pinned.txt) auf den
-  # Link $JDK_HOME umstellen, z.B.:
-  #   sed -i "s|$OLDJDK|$JDK_HOME|g" <datei>     (vorher Kopie <datei>.bak)
-  # $ORACLE_HOME/oui/.globalEnv.properties: JAVA_HOME muss auf $JDK_HOME
-  # zeigen (MOS KB175049 - sonst patcht OPatch mit dem falschen JDK).
+  ----------------------------------------------------------------------------
+  6.7 Umschalten  (der eigentliche Wechsel - ein Befehl)
+  ----------------------------------------------------------------------------
+  ln -sfn "$NEWJDK" "$JDK_HOME"
+  ls -ld "$JDK_HOME"; "$JDK_HOME"/bin/java -version 2>&1 | head -1
+  # Erwartet: jdk-21 -> /u01/oracle/java/jdk-21.0.13.0.2
+  #           java version "21.0.13.0.2" ...
+  # OPatch und die Server muessen ueber den LINK gehen (MOS KB175049):
   grep JAVA_HOME $ORACLE_HOME/oui/.globalEnv.properties
+  # Erwartet: JAVA_HOME=<$JDK_HOME, der Link - KEINE Versionsnummer>
+  # Dateien mit fester Versionsnummer aus Schritt 2 (02_jdk_pinned.txt)
+  # auf den Link umstellen - je Datei:
+  #   cp -p <datei> <datei>.bak; sed -i "s|$OLDJDK|$JDK_HOME|g" <datei>
 
-  # Rollback: ln -sfn $OLDJDK $JDK_HOME   (altes JDK erst nach dem
-  # naechsten Patchzyklus loeschen)
+  ----------------------------------------------------------------------------
+  6.8 Zurueck, falls etwas nicht startet
+  ----------------------------------------------------------------------------
+  #   ln -sfn "$(cat $LOGDIR/06_oldjdk.txt)" "$JDK_HOME"
+  #   (funktioniert auch in einem neuen Terminal - der Pfad steht in der
+  #   Datei aus 6.2; nach SCHRITT 0 ist $LOGDIR gesetzt)
+  # Das alte JDK erst nach dem naechsten Patchzyklus loeschen.
 
 
 ================================================================================
@@ -654,7 +702,7 @@ SCHRITT 14: Aufraeumen und dokumentieren
          $STAGE/jdk-21*_linux-x64_bin.tar.gz
   # $LOGDIR (Ausgaben dieses Laufs) aufheben = Patch-Nachweis.
   # VM-Snapshot nach einigen Tagen Betrieb loeschen (Snapshots wachsen).
-  # Altes JDK ($OLDJDK) erst beim naechsten Zyklus entfernen.
+  # Altes JDK (Pfad in $LOGDIR/06_oldjdk.txt) erst beim naechsten Zyklus entfernen.
   # $PATCH_DIR gehoert nur zu diesem Zyklus (install/cpu_okt2026/zip) -
   # der naechste Zyklus bekommt ein eigenes Arbeitsverzeichnis, so werden
   # keine alten Builds versehentlich wiederverwendet. ZIPs archivieren
@@ -677,7 +725,7 @@ ROLLBACK
   SPB                              opatch nrollback -oh $ORACLE_HOME
                                    -idFile rollback_patchlist.txt (in
                                    binary_patches/, nur komplett)
-  JDK                              ln -sfn $OLDJDK $JDK_HOME
+  JDK                              ln -sfn "$(cat $LOGDIR/06_oldjdk.txt)" "$JDK_HOME"
 
 
 ================================================================================
