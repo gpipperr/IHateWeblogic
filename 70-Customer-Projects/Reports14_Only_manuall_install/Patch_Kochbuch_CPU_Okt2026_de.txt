@@ -350,15 +350,20 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   6.2 Ausgangslage merken  (setzt drei Variablen - nichts eintippen)
   ----------------------------------------------------------------------------
   echo "JDK_HOME=$JDK_HOME"            # LEER? -> zuerst SCHRITT 0 (patch_env.sh)
+
   JDK_BASE=$(dirname "$JDK_HOME")       # Ordner, in dem die JDKs liegen
+
   OLDJDK=$(readlink -f "$JDK_HOME")     # das jetzige, echte JDK-Verzeichnis
-  ls -ld "$JDK_HOME"; echo "Ordner: $JDK_BASE   altes JDK: $OLDJDK"
+
   echo "$OLDJDK" > $LOGDIR/06_oldjdk.txt   # fuer das Zuruecksetzen (6.8)
+
+  ls -ld "$JDK_HOME"; echo "Ordner: $JDK_BASE   altes JDK: $OLDJDK"
   # Erwartet z.B.:
   #   lrwxrwxrwx ... /u01/oracle/java/jdk-21 -> jdk-21.0.12.1
   #   Ordner: /u01/oracle/java   altes JDK: /u01/oracle/java/jdk-21.0.12.1
   # Steht am Anfang KEIN "l" (kein Link): STOP - zuerst SCHRITT 0 Hinweis
   # "JDK_HOME muss ein LINK sein" umsetzen.
+
   # Schreibrecht im Ordner? (sonst als dessen Besitzer weiterarbeiten)
   touch "$JDK_BASE/.test" && rm "$JDK_BASE/.test" && echo "Schreibrecht OK"
 
@@ -366,8 +371,10 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   6.3 Welches ZIP?  (eines von beiden - das mit 21.0.13.0.2, siehe Schritt 1)
   ----------------------------------------------------------------------------
   ZIP=$(ls $PATCH_DIR/35702194/p35702194_*.zip)        # Normalfall
+
   # nur falls 35702194 eine aeltere Version enthielt:
   #   ZIP=$(ls $PATCH_DIR/40186074/p40186074_*.zip)
+
   unzip -l "$ZIP" | grep linux-x64_bin.tar.gz
   # Erwartet eine Zeile: ... jdk-21.0.13.0.2_linux-x64_bin.tar.gz
 
@@ -375,11 +382,17 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   6.4 Auspacken  (neben das alte JDK - nichts wird ueberschrieben)
   ----------------------------------------------------------------------------
   unzip -j -o "$ZIP" '*_linux-x64_bin.tar.gz' -d $STAGE
+
   TGZ=$(ls $STAGE/jdk-21*_linux-x64_bin.tar.gz)
+
   NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
+
   echo "neues JDK: $NEWJDK"             # z.B. /u01/oracle/java/jdk-21.0.13.0.2
+
   [ "$NEWJDK" = "$OLDJDK" ] && echo "STOP: gleiche Version schon aktiv (6.1)"
+
   tar -xzf "$TGZ" -C "$JDK_BASE"
+
   "$NEWJDK"/bin/java -version 2>&1 | head -1
   # Erwartet: java version "21.0.13.0.2" ...
 
@@ -388,6 +401,7 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   ----------------------------------------------------------------------------
   sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
       "$NEWJDK"/conf/security/java.security
+
   grep '^securerandom.source' "$NEWJDK"/conf/security/java.security
   # Erwartet: securerandom.source=file:/dev/./urandom
 
@@ -399,6 +413,7 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   #    Normal: nur Oracle-Aenderungen (Algorithmen-Listen, Kommentare).
   #    Eine Zeile, die der Kunde selbst geaendert hat (z.B.
   #    jdk.tls.disabledAlgorithms), im neuen JDK genauso eintragen.
+
   # b) eigene Zertifikate (eigene CA, LDAP-/DB-SSL) - nur im alten JDK?
   diff <("$OLDJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort) \
        <("$NEWJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort)
@@ -413,12 +428,15 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   6.7 Umschalten  (der eigentliche Wechsel - ein Befehl)
   ----------------------------------------------------------------------------
   ln -sfn "$NEWJDK" "$JDK_HOME"
+
   ls -ld "$JDK_HOME"; "$JDK_HOME"/bin/java -version 2>&1 | head -1
   # Erwartet: jdk-21 -> /u01/oracle/java/jdk-21.0.13.0.2
   #           java version "21.0.13.0.2" ...
+
   # OPatch und die Server muessen ueber den LINK gehen (MOS KB175049):
   grep JAVA_HOME $ORACLE_HOME/oui/.globalEnv.properties
   # Erwartet: JAVA_HOME=<$JDK_HOME, der Link - KEINE Versionsnummer>
+
   # Dateien mit fester Versionsnummer aus Schritt 2 (02_jdk_pinned.txt)
   # auf den Link umstellen - je Datei:
   #   cp -p <datei> <datei>.bak; sed -i "s|$OLDJDK|$JDK_HOME|g" <datei>
