@@ -82,7 +82,7 @@ every action, one particular form / button, or a certain time of day.
 
 | Symptom | First check | Likely cause | Setting / fix |
 |---|---|---|---|
-| Start of a session slow, actions fine | `frmservlet` `time-taken`, Nginx `rt` of the jars, pool size per section | no pooled `frmweb` for this section, jar download, client JVM start | prestart in the **used** section, not `[default]` (§3 of the architecture doc); `gzipCompressApplet`; client bundle / jar cache (`40-`) |
+| Start of a session slow, actions fine | `frmservlet` `time-taken`, Nginx `rt` of the jars, pool size per section | no pooled `frmweb` for this section, jar download, client JVM start | prestart in the **used** section (FSAL of the client distribution: `standaloneapp`), not `[default]` (§3 of the architecture doc); `gzipCompressApplet`; client bundle / jar cache (`40-`) |
 | Every action slow for everybody | `lservlet` avg in `forms_perf_analyse.sh`, `rt` vs. `urt` | DB or host overloaded, `frmweb` CPU-bound | §5 DB; host load (CPU, swap); number of sessions vs. RAM |
 | One form / one button slow | `lservlet` max, ≥ 2 s list (time of day) | SQL / PL/SQL of that action | DB (§5) – not a Forms server setting |
 | Slow, but `time-taken` small | `rt` − `urt` | network / client | network path, proxy, client PC; not the server |
@@ -108,7 +108,7 @@ What does **not** help:
 
 - **More heap for WLS_FORMS against slow forms.** `frmweb` runs outside the
   JVM; the heap serves the servlet / listener only
-  ([06-FormsDiag/README.md §6](../06-FormsDiag/README.md)).
+  ([06-FormsDiag/README.md §7](../06-FormsDiag/README.md#7-review-2026-10-19--what-was-wrong-before)).
 - **A bigger prestart pool against slow actions.** The pool only shortens
   the start of a session; a running session has its own `frmweb`.
 - **A lower `heartBeat` against "hanging" sessions.** It only shortens the

@@ -217,6 +217,45 @@ if [ "${PRE_DEF,,}" = "true" ]; then
     warn "prestartRuntimes=true in [default] – Oracle: \"Doing so will result in processes being started for all other configurations\""
     info "  fix: ./06-FormsDiag/forms_perf_settings.sh --apply --fix-prestart <section used in production>"
 fi
+# Sync with the installation: 14- rebuilds formsweb.cfg from Oracle's file and
+# sets pooling only in FORMS_PRESTART_SECTION with FORMS_PRESTART_* – a state
+# that differs from environment.conf is lost at the next 14- --apply
+if [ -n "${FORMS_PRESTART_SECTION:-}" ]; then
+    _ps="$FORMS_PRESTART_SECTION"
+    _p="$(frm_cfg_get "$FRM_CFG" "$_ps" prestartRuntimes)"
+    if [ "${_p,,}" != "true" ]; then
+        warn "environment.conf FORMS_PRESTART_SECTION=$_ps, but [$_ps] has no runtime pooling – 14- --apply would set it again"
+    else
+        _bad=0
+        for _kv in "prestartInit:${FORMS_PRESTART_INIT:-5}" "prestartMin:${FORMS_PRESTART_MIN:-4}" \
+                   "prestartIncrement:${FORMS_PRESTART_INCREMENT:-1}"; do
+            _v="$(frm_cfg_get "$FRM_CFG" "$_ps" "${_kv%%:*}")"
+            [ "$_v" = "${_kv#*:}" ] && continue
+            warn "$(printf "[%s] %s=%s, environment.conf expects %s – 14- --apply would write the environment.conf value" \
+                "$_ps" "${_kv%%:*}" "${_v:-unset}" "${_kv#*:}")"
+            _bad=1
+        done
+        [ "$_bad" -eq 0 ] && ok "$(printf "runtime pooling in [%s] matches FORMS_PRESTART_* (environment.conf)" "$_ps")"
+        unset _bad
+    fi
+    for _s in "${SECTIONS[@]}"; do
+        [ "$_s" = "$_ps" ] && continue
+        [ "$(frm_cfg_where "$FRM_CFG" "$_s" prestartRuntimes)" = "$_s" ] || continue
+        _p="$(frm_cfg_get "$FRM_CFG" "$_s" prestartRuntimes)"
+        [ "${_p,,}" = "true" ] \
+            && warn "[$_s] has own runtime pooling, environment.conf only [$_ps] – lost at the next 14- --apply (set FORMS_PRESTART_SECTION=$_s to keep it)"
+    done
+    # the URL client distribution (40-) starts FSAL with config=FORMS_CLIENT_CONFIG –
+    # a pool in another section is never used by these clients
+    if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -n "${FORMS_CLIENT_CONFIG:-}" ] \
+       && [ "$FORMS_CLIENT_CONFIG" != "$_ps" ]; then
+        warn "FSAL clients (FORMS_CLIENT_CONFIG=$FORMS_CLIENT_CONFIG) do not use the pool of [$_ps] – pool the section the users start"
+        info "  FORMS_PRESTART_SECTION=\"$FORMS_CLIENT_CONFIG\" in environment.conf + 14- --apply, or --fix-prestart $FORMS_CLIENT_CONFIG"
+    fi
+    unset _ps _kv _v
+elif [ "$EXPECT" -gt 0 ]; then
+    info "runtime pooling active, FORMS_PRESTART_SECTION empty in environment.conf – a 14- --apply would remove it"
+fi
 info "  prestart* are read only at frmservlet initialization – restart WLS_FORMS after a change"
 
 # =============================================================================

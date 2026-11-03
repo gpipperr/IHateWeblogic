@@ -18,7 +18,7 @@ runtime pooling, timeout chain, memory, logs):
 | Script | Question it answers |
 |---|---|
 | `forms_settings.sh` | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit |
-| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters. `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]`, `--fix-accesslog` adds `time-taken` to the WLS_FORMS access log |
+| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters, `time-taken` in the access log; values vs. `environment.conf` (what a `14-` re-run would write, [section 6](#6-sync-with-the-installation-09-install14-)). `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]`, `--fix-accesslog` adds `time-taken` to the WLS_FORMS access log |
 | `forms_perf_analyse.sh` | How does the server carry its load? `frmweb` per config section (pool vs. session), memory vs. RAM and limit, access log per section / status, Forms logs by ODL level, crash dumps |
 
 Not duplicated here:
@@ -29,6 +29,9 @@ Not duplicated here:
 | Search all logs, tail | `03-Logs/grep_logs.sh 'FRM-'`, `03-Logs/tail_logs.sh` |
 | `uifont.ali` / fonts | `04-ReportsFonts/` |
 | DB connectivity (ORA-) | `02-Checks/db_connect_check.sh` |
+| `TNS_ADMIN` of `default.env` and of every running `frmweb` | `02-Checks/tns_admin_check.sh` |
+| `jacob.jar` signature / timestamp / expiry (WebUtil OLE) | `09-Install/14-oracle_setup_forms.sh` (dry-run reports it), `10-Monitoring/cert_expiry_check.sh` – [08-SSL Code Signing](../08-SSL/README.md#code-signing-jacobjar) |
+| Response time seen by the client (Nginx `rt=` / `urt=`) | Nginx `access.log` – [forms_performance_analyse_tuning.md §2](../80-FMW-Architecture/forms_performance_analyse_tuning.md#2-measuring-per-layer) |
 | Start / stop WLS_FORMS | `01-Run/startStop.sh` |
 
 Shared helpers: [forms_lib.sh](forms_lib.sh) (sourced; `frm_*`: WLS_FORMS
@@ -45,6 +48,8 @@ servlet). Also used by `09-Install/14-oracle_setup_forms.sh`.
 1. forms_settings.sh          configuration complete?
 2. forms_perf_settings.sh     parameters coherent? (prestart, timeouts, limit)
 3. forms_perf_analyse.sh      load – best during real use
+   + Nginx access.log rt vs. urt: server side or network / client?
+     (method: forms_performance_analyse_tuning.md §6)
 4. fix, e.g.
    forms_perf_settings.sh --apply --fix-prestart webstart
    forms_perf_settings.sh --apply --section default --set maxRuntimeProcesses=200
@@ -85,8 +90,9 @@ Read-only.
 |---|---|
 | Timeout Chain | per section: `heartBeat` (minutes, default 2) < `FORMS_TIMEOUT` of its envFile (minutes, default 15, valid 3–1440) → else FAIL; `heartBeat` < WLS `session-timeout` (formsapp.ear, 120 min) → else WARN; `heartBeat` < 0.5 → WARN (network traffic) |
 | Global Parameters | `maxRuntimeProcesses` 0/unset → WARN ("vulnerable to Denial of Service") with the RAM proposal (`frm_mrp_proposal`); `--set maxRuntimeProcesses=` also writes `FORMS_MAX_RUNTIME_PROCESSES` back to `environment.conf`; differs from it → WARN; `allowNewConnections=FALSE` → WARN; global keys set in a named section → WARN (only read from `[default]`) |
-| Runtime Pooling | table of the sections with pooling (own / from default, Init, Min, Increment, Timeout), expected number of pooled `frmweb`; `prestartRuntimes` in `[default]` → WARN with Oracle's quote; `prestartMin > prestartInit` → WARN |
+| Runtime Pooling | table of the sections with pooling (own / from default, Init, Min, Increment, Timeout), expected number of pooled `frmweb`; `prestartRuntimes` in `[default]` → WARN with Oracle's quote; `prestartMin > prestartInit` → WARN; sync with `FORMS_PRESTART_SECTION` / `FORMS_PRESTART_*` (WARN: other values, own pool in another section – lost at the next `14-`); WARN when the FSAL clients of the URL distribution (`FORMS_CLIENT_CONFIG`) start another section than the pooled one |
 | Startup / Network | `networkRetries` (default 0), `gzipCompressApplet` (INFO: TRUE shortens start-up), `idleTimeout` |
+| Access Log | `elf-fields` of WLS_FORMS in `config.xml`: `time-taken` present → OK, else WARN + `--fix-accesslog` |
 
 `--apply` (backup with `backup_file`, python edit of one section only –
 other sections, comments and Oracle entries stay):
@@ -110,7 +116,7 @@ Pooling changes need a WLS_FORMS restart (read only at servlet start).
 
 | Section | Content |
 |---|---|
-| frmweb per Config Section | count, RSS sum / max, processes with an established TCP connection (DB) and with CPU time > 0, prestart Init of the section; pool = no DB connection and no CPU (**assumption**, see section 7); > 20 processes without a session → WARN |
+| frmweb per Config Section | count, RSS sum / max, processes with an established TCP connection (DB) and with CPU time > 0, prestart Init of the section; pool = no DB connection and no CPU (**assumption**, see section 8); > 20 processes without a session → WARN |
 | Memory and Session Limit | RAM, WLS_FORMS RSS, frmweb RSS, average RSS of real sessions and how many fit; `maxRuntimeProcesses` unset → WARN, >= 90 % used → WARN; < 10 % RAM available → WARN |
 | HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time with a `time-taken` field (the **last** `#Fields` header counts): frmservlet avg/max, **lservlet** avg/max and requests ≥ 2 s (every round trip of a running session); field missing → hint `--fix-accesslog`. Check of the field itself: `forms_perf_settings.sh` section Access Log |
 | Forms Logs | `WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log`, `WLS_FORMS.out`: ERROR/WARNING lines by message id (top 5), FRM `[NOTIFICATION]`s separately (runtime pool, servlet start), ORA-, OutOfMemoryError |
@@ -119,7 +125,32 @@ Pooling changes need a WLS_FORMS restart (read only at servlet start).
 
 ---
 
-## 6. Review 2026-10-19 – what was wrong before
+## 6. Sync with the installation (`09-Install/14-`)
+
+On a new installation `14-oracle_setup_forms.sh` writes the Forms
+configuration from `environment.conf`; on an existing one these scripts
+check it. A value changed only in the domain (EM, by hand, `--apply` here)
+is **overwritten by the next `14- --apply`** – the scripts say where that
+would happen, `--set maxRuntimeProcesses` and `--fix-prestart` write / name
+the `environment.conf` variable.
+
+| Setting | `14-` writes from (`environment.conf`) | Checked by |
+|---|---|---|
+| `maxRuntimeProcesses` (`[default]`) | `FORMS_MAX_RUNTIME_PROCESSES`, empty = RAM proposal `frm_mrp_proposal` (`forms_lib.sh`) | `forms_perf_settings.sh` Global Parameters (differs → WARN; `--set` writes it back) |
+| runtime pooling | `FORMS_PRESTART_SECTION` + `FORMS_PRESTART_INIT` / `_MIN` / `_INCREMENT` (5 / 4 / 1), never in `[default]` | `forms_perf_settings.sh` Runtime Pooling (other values / other section → WARN; FSAL section ≠ pooled section → WARN) |
+| `TNS_ADMIN` (`default.env`) | `TNS_ADMIN` | `forms_settings.sh` default.env, `02-Checks/tns_admin_check.sh` |
+| `TMPDIR` (`default.env`) | `FORMS_TMP` (directory created by `14-`) | `forms_settings.sh` default.env |
+| `FORMS_PATH` (`default.env`) | `FORMS_CUSTOMER_DIR` first | `forms_settings.sh` FORMS_PATH |
+| `heartBeat`, `FORMS_TIMEOUT`, `networkRetries`, `gzipCompressApplet` | not set – Oracle defaults (2 / 15 min, 0, FALSE) | `forms_perf_settings.sh` Timeout Chain, Startup / Network |
+| `WebUtilArchive`, `extensions.jnlp` (`jacob.jar`) | `FORMS_WEBUTIL_JACOB`, `FORMS_SIGN_*` – only when signed | `forms_settings.sh` Config Sections (WebUtil column); signature: `14-` |
+| `time-taken` in the access log | `09-Install/08-` (domain creation, not `14-`) | `forms_perf_settings.sh` Access Log |
+
+The acceptance of a new installation (`09-Install/90-oracle_validate.sh`)
+runs `forms_settings.sh` and `forms_perf_settings.sh` read-only.
+
+---
+
+## 7. Review 2026-10-19 – what was wrong before
 
 | Before | Effect | Now |
 |---|---|---|
@@ -140,16 +171,22 @@ smoke test 15- green.
 
 ---
 
-## 7. Open items
+## 8. Open items
 
 - Pool vs. session with a real client session (JWS / FSAL from Windows) –
   verify the DB-connection / CPU criterion, RSS of a real session for the
   `maxRuntimeProcesses` sizing.
+- No read-only check of the `jacob.jar` state here (signed, timestamp,
+  `extensions.jnlp` entry active) – today only `14-` (dry-run) and
+  `cert_expiry_check.sh`; a section in `forms_settings.sh` would help on
+  environments not built by `14-`.
 
 ---
 
-## 8. References
+## 9. References
 
-- Background + Oracle sources: [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md)
+- How it works + Oracle sources: [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md)
+  (§3 pooling, §4 timeout chain, §5 memory, §6 logs / `time-taken`, §7 which script checks what)
+- Method "Forms is slow": [forms_performance_analyse_tuning.md](../80-FMW-Architecture/forms_performance_analyse_tuning.md)
 - Installation side: [09-Install/docs/14-forms-detail-settings.md](../09-Install/docs/14-forms-detail-settings.md)
 - WebUtil / JACOB: [forms_jakob_webutil.md](../80-FMW-Architecture/forms_jakob_webutil.md)

@@ -219,6 +219,10 @@ change. Values are per WLS_FORMS JVM.
   connection and no CPU time yet – `06-FormsDiag/forms_perf_analyse.sh`
   uses that to separate pool from sessions (**assumption**, not yet tested
   with a real client session).
+- A pool serves only **its** section: FSAL clients of the URL client
+  distribution start `config=standaloneapp` (`FORMS_CLIENT_CONFIG`), Java Web
+  Start users `config=webstart` – pool the section the users actually start
+  (`FORMS_PRESTART_SECTION`; `forms_perf_settings.sh` warns when they differ).
 
 ## 4. Timeout chain
 
@@ -298,8 +302,10 @@ the `lservlet` requests ≥ 2 s.
 **What it does not contain.** The network between client and Nginx, Nginx
 itself, TLS and the client's rendering. The time seen from outside would come
 from Nginx (`$request_time`, `$upstream_response_time`) – not in its default
-`main` log format and not configured by us. A big difference between the
-user's perception and `time-taken` points to network / client.
+`main` log format; our template logs them as `rt=` / `urt=` / `uct=` (format
+`ihw_timing`, `09-Install/nginx-wls.conf.template`, since 2026-11-03). A big
+difference between the user's perception and `time-taken` points to network
+/ client.
 
 **Why we set it.** WebLogic writes the access log in `common` format by
 default; JRF switches all servers to `extended` with the ECID list
@@ -330,9 +336,11 @@ reports "slow": [forms_performance_analyse_tuning.md](forms_performance_analyse_
 | Script | Section |
 |---|---|
 | `06-FormsDiag/forms_settings.sh` | 1, 2 (files, binaries, FORMS_PATH, default.env, sections) |
-| `06-FormsDiag/forms_perf_settings.sh` | 3, 4, 5 (prestart incl. inheritance, timeout chain, limits; `--apply --fix-prestart`) |
+| `06-FormsDiag/forms_perf_settings.sh` | 3, 4, 5, 6.1 (prestart incl. inheritance and sync with `FORMS_PRESTART_*`, timeout chain, limits, `time-taken`; `--apply --fix-prestart`, `--fix-accesslog`) |
 | `06-FormsDiag/forms_perf_analyse.sh` | 3, 5, 6 (processes per section, pool vs. session, memory, access.log, logs, dumps) |
-| `09-Install/14-oracle_setup_forms.sh` | 2, 3 (`FORMS_PRESTART_SECTION`) |
+| `09-Install/14-oracle_setup_forms.sh` | 2, 2.1, 3, 5 (writes `formsweb.cfg` / `default.env`: `TNS_ADMIN`, `FORMS_PRESTART_SECTION`, `maxRuntimeProcesses`) – what 06 compares with it: [06-FormsDiag/README.md §6](../06-FormsDiag/README.md#6-sync-with-the-installation-09-install14-) |
+| `09-Install/08-oracle_setup_domain.sh` | 6.1 (`time-taken` for new domains) |
+| `09-Install/90-oracle_validate.sh` | acceptance: runs `forms_settings.sh` + `forms_perf_settings.sh` read-only |
 | `02-Checks/weblogic_performance.sh` | WLS_FORMS heap (servlet side only) |
 | `02-Checks/tns_admin_check.sh` | 2.1 (`TNS_ADMIN` in `default.env` and of every running `frmweb`) |
 
