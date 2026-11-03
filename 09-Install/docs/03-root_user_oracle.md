@@ -241,6 +241,10 @@ whichenv         # current values
 ihwenv_configure # detect the homes again -> ~/.ihw_env.conf (editable)
 ```
 
+At load time the switcher also sets `SQLPATH` and `ORACLE_PATH` (SQLcl) to
+`~/sql` when the directory exists and the variables are not set yet –
+independent of the selected home, `c` keeps them (as in OraBashShell).
+
 Only the current shell is changed. Details, variables and paths:
 [tools/README.md](../../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
 
@@ -301,6 +305,8 @@ chmod 750 /u01/app/oraInventory
 Also created (owner `oracle:oinstall`, mode 755):
 
 - `PATCH_STORAGE` (default `/srv/patch_storage`) and `$PATCH_STORAGE/bin`
+- `~oracle/sql` – personal SQL scripts (`login.sql` …); the switcher of 5b
+  exports `SQLPATH` and `ORACLE_PATH` (SQLcl) to it
 - `FORMS_CLIENT_DIR` (default `/srv/formsWeb`) – **only** for Forms
   installations with `FORMS_CLIENT_DIST=true` (never for `REPORTS_ONLY`):
   the client bundle Nginx serves, see

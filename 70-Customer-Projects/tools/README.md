@@ -24,9 +24,7 @@ runtime, never by a second copy of the script.
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
-(customer request 2026-11-03). `python3 -I cookbook_blank_lines.py <file.txt>`
-adds them (only blank lines; heredocs, loops, `\` continuations and the
-explaining comment right after a command stay together; shell cookbooks only).
+(customer request 2026-11-03).
 All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
 
 Used by:
@@ -307,7 +305,9 @@ changes nothing.
 | `c` | back to the login values (saved at the first `setdb` call), all switcher variables removed | login PATH |
 
 Never changed: `TNS_ADMIN`, `NLS_LANG` (one Oracle Net directory for all
-processes). The login PATH is cleaned of the entries of the login
+processes), `SQLPATH` / `ORACLE_PATH` – set once at load time to `~/sql`
+when it exists (personal `login.sql` and scripts for sqlplus / SQLcl, as in
+OraBashShell); `mkdir ~/sql` to use it. The login PATH is cleaned of the entries of the login
 `ORACLE_HOME` / `JAVA_HOME` before the new entries are put in front, so
 PATH does not grow (live: 8 switches, length 156 / 240 / 121 constant).
 

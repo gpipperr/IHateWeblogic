@@ -88,3 +88,6 @@ SR/
 # Customer configuration exports (export_forms_reports_conf.sh) – customer data + passwords
 ihw_export_*
 70-Customer-Projects/**/export/
+
+# local maintainer helper (formats cookbooks, not shipped)
+70-Customer-Projects/tools/cookbook_blank_lines.py

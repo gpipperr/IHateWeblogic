@@ -569,6 +569,8 @@ _check_dir "$(dirname "$DOMAIN_HOME")"     oracle oinstall
 _check_dir "$(dirname "$(dirname "$DOMAIN_HOME")")"  oracle oinstall
 _check_dir "$PATCH_STORAGE"                oracle oinstall
 _check_dir "$PATCH_STORAGE/bin"            oracle oinstall
+# personal SQL scripts (login.sql ...) - SQLPATH / ORACLE_PATH of the switcher (docs 5b)
+_check_dir "$ORACLE_HOME_DIR/sql"          oracle oinstall
 # Oracle Net directory (tnsnames.ora / sqlnet.ora) for all processes
 _check_dir "${TNS_ADMIN:-$ORACLE_BASE/admin/tns_names}" oracle oinstall
 # Forms client bundle served by Nginx (concept docs/40-forms_client_distribution.md)

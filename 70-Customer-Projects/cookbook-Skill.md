@@ -168,9 +168,10 @@ Before the first step, the cookbook therefore contains:
   Command and its explanation form one block.
 - **A multi-line unit stays one block:** a `\` continuation, a loop, an
   `if`, a heredoc.
-- **The formatter** for bash cookbooks is
-  `python3 -I tools/cookbook_blank_lines.py <file.txt>`. It only adds blank
-  lines. PowerShell and cmd cookbooks are formatted by hand.
+- **Check the blank lines before handing the cookbook over.** The
+  maintainer keeps a small local formatter for bash cookbooks (not in Git).
+  It only adds blank lines. PowerShell and cmd cookbooks are formatted by
+  hand.
 
 ### 2.2 Do not nest - use intermediate steps
 
@@ -340,8 +341,7 @@ The structure is the same everywhere; only the syntax changes.
 
 1. **Every step is tested once** on the test host (or in an isolated copy).
    The `# Expected:` lines come from that run.
-2. **Every command stands alone,** with a blank line before and after it
-   (bash: run the formatter).
+2. **Every command stands alone,** with a blank line before and after it.
 3. **No line has more than one `$( ... )`,** and there are no `&&` chains
    with consequences.
 4. **Every value used later comes from a variable** or a file under

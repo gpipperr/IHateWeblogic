@@ -24,7 +24,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-03.1"
+IHW_SHELL_ENV_VERSION="2026-11-03.2"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -302,6 +302,7 @@ whichenv() {
     [ -n "${WLST:-}" ]        && _ihwse_kv "WLST"        "$WLST"
     _ihwse_kv "TNS_ADMIN"    "${TNS_ADMIN:--}"
     _ihwse_kv "NLS_LANG"     "${NLS_LANG:--}"
+    [ -n "${SQLPATH:-}" ]     && _ihwse_kv "SQLPATH"     "$SQLPATH"
     _ihwse_line
 }
 
@@ -325,7 +326,7 @@ ihwenv_help() {
     printf "     PATH: domain reports/bin, domain bin, JDK,\n"
     printf "     oracle_common/common/bin, ORACLE_HOME/bin, OPatch\n"
     printf "   Set by a DB entry : ORACLE_HOME ORACLE_SID ORACLE_BASE; PATH: bin, OPatch\n"
-    printf "   Never changed     : TNS_ADMIN NLS_LANG\n"
+    printf "   Never changed     : TNS_ADMIN NLS_LANG SQLPATH ORACLE_PATH (~/sql, set at load)\n"
     _ihwse_line
 }
 
@@ -353,6 +354,12 @@ cdlog() {
 }
 
 # ------------------------------------------------------------------ load ----
+# personal SQL scripts (login.sql ...) for sqlplus (SQLPATH) and SQLcl
+# (ORACLE_PATH) - independent of the home, kept by "setdb c"
+if [ -d "$HOME/sql" ]; then
+    [ -z "${SQLPATH:-}" ]     && export SQLPATH="$HOME/sql"
+    [ -z "${ORACLE_PATH:-}" ] && export ORACLE_PATH="$SQLPATH"
+fi
 _ihwse_load
 if [ ! -f "$IHW_ENV_CONF" ]; then
     printf "ihw_shell_env: first start - detecting the Oracle homes\n"
