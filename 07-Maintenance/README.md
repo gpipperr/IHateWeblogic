@@ -92,8 +92,7 @@ duplicated here.
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
    (81-/82- refuse --apply while NM, a WLS server or ANY process from
     $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …;
-    80- also while a JVM runs from JDK_HOME – ORDS, stopped by stop-all
-    since 2026-10-24)
+    80- also while a JVM runs from JDK_HOME – ORDS, stopped by stop-all)
    Then each of 80-/81-/82- --apply pauses: "VM snapshot now?" – type ok to
    continue, anything else aborts (no terminal or IHW_NO_SNAPSHOT_PROMPT=true:
    no pause). Everything is stopped at that point, so the snapshot is
@@ -180,7 +179,7 @@ Options:
 | `--keep N` | Retention: keep the N newest sets, default `CONFIG_BACKUP_KEEP` from `environment.conf` (10) |
 | `--help` | Show usage |
 
-**Retention** (since 2026-10-23): after a successful `--apply` the oldest
+**Retention:** after a successful `--apply` the oldest
 sets beyond N are removed – counted separately per kind:
 
 | Kind | Name | Created by |
@@ -215,11 +214,6 @@ install), not hardcoded:
 | `ihw` | project root | `environment.conf` | interview, `init_env.sh` |
 | `ords` | `$APEX_ORDS_BASE/ords_*/config/` (whole tree) | ORDS `pool.xml`, `global/settings.xml`, `logging.properties`, wallet `cwallet.sso` (credentials of `ORDS_PUBLIC_USER`) – stored as `<inst>__<path>` (e.g. `ords_1__databases__default__wallet__cwallet.sso`), mode 600 like the whole set; restore → restart `ords@ords_<n>`. Never copied **into** the config directory (ORDS reads every file there) | `12-APEX-Ords/04-`, `06-` |
 
-Extended 2026-10-19: before, customer font originals, `.ttc` files, `webutil.cfg`, `Registry.dat`, the OPSS files,
-`config.xml`, `nodemanager.properties`, `logging.xml`, `rwbuilder.conf` and
-the screen-printer PPD/AFM were not backed up although our own scripts
-change them.
-
 **Not backed up on purpose:**
 
 | What | Why / where instead |
@@ -248,6 +242,7 @@ change them.
 ├── logging/          <server>_logging.xml
 ├── domain/           setDomainEnv.sh, setUserOverrides.sh, config.xml, nodemanager.properties
 ├── ihw/              environment.conf
+├── ords/             <inst>__<path> (pool.xml, settings.xml, wallet)
 └── manifest.txt      category, stored filename, original path — one line per file
 ```
 
@@ -261,9 +256,7 @@ find files again — do not rename or move files inside a backup directory.
 
 **Permissions:** `umask 077` – backup directories 700, files 600 (the set
 contains `rwserver.conf` with the encrypted `<identifier>`, `default.env`,
-the OPSS configuration and `environment.conf`). Sets created before
-2026-10-19 are 755/644 – tighten them once:
-`chmod -R go-rwx 07-Maintenance/ConfigBackup`.
+the OPSS configuration and `environment.conf`).
 
 ---
 
@@ -454,11 +447,10 @@ which JDK is in the repository, would it be installed. Rollback:
 Options: same as `09-Install/05-oracle_patch_weblogic.sh` (`--apply`,
 `--check-only`, `--help`) — forwarded verbatim, no translation.
 
-Delegates to: `09-Install/05-oracle_patch_weblogic.sh` (unchanged — OPatch
-upgrade, WLS Stack Patch Bundle, `INSTALL_PATCHES` loop). New code: the
-`require_wls_stopped()` hard gate before `--apply` runs (not implemented
-anywhere before this wrapper — neither the delegated script nor OPatch
-itself actually enforces this).
+Delegates to: `09-Install/05-oracle_patch_weblogic.sh` (OPatch upgrade, WLS
+Stack Patch Bundle, `INSTALL_PATCHES` loop). Own code: the
+`require_wls_stopped()` hard gate before `--apply` (OPatch itself does not
+enforce a stopped domain).
 
 ### 82-patch_forms_reports.sh
 
@@ -471,9 +463,9 @@ itself actually enforces this).
 Options: same as `09-Install/06-oracle_patch_forms_reports.sh` — forwarded
 verbatim.
 
-Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (unchanged —
-auto-detects Forms/Reports, superseded-QPR rollback, `check_patch_zip()`
-validation). New code: same `require_wls_stopped()` hard gate as `81-`.
+Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (auto-detects
+Forms/Reports, superseded-QPR rollback, `check_patch_zip()` validation). Own
+code: same `require_wls_stopped()` hard gate as `81-`.
 
 ### rcu_repository_check.sh
 
@@ -553,8 +545,8 @@ Fix:     ./07-Maintenance/backup_config.sh --apply --keep 10   (sets)
 ```
 Symptom: Script exits immediately (EXIT_CODE=2) before the delegated
          05-/06-oracle_patch_*.sh banner ever prints
-Cause:   Domain not stopped — new, intentional hard gate. Previously
-         neither 05- nor 06-oracle_patch_*.sh checked this at all.
+Cause:   Domain not stopped (NM, a WLS server or any process from
+         $ORACLE_HOME) – intentional hard gate of the wrappers.
 Fix:     ./01-Run/startStop.sh stop-all --apply
          Verify: ./01-Run/startStop.sh list
          Then re-run the wrapper with --apply.
@@ -584,33 +576,17 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 - All scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
 - `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
 - Retention: `backup_config.sh --keep N` (`CONFIG_BACKUP_KEEP`, 10 sets) and `bak_cleanup.sh` (`BAK_FILES_KEEP`, 3 copies per file) – both delete only with `--apply`.
-- `rcu_repository_check.sh`: new check 6 "invalid objects" (2026-10-26) – the
-  test host shows 69 objects invalid since the RCU 14.1.2 EBR run (62 IAU
-  synonyms, `DEV_OPSS` packages / triggers – `OPSS_SYNCHRONIZATION` ORA-00942,
-  `DEV_UMS.DRIVERPROPERTIES`); not caused by the CPU Oct 2026 patch run.
-  **Resolved 2026-10-28:** `utlrp.sql` via `catcon.pl` in all containers
-  (run while fixing the `PDB$SEED` MAX_STRING_SIZE migration, see
-  `60-RCU-DB-19c/docs/03-db_create_database.md`) recompiled all of them –
-  check 6 shows 0 invalid objects, all data sources log in. A recompile in
-  the PDB is enough; no MOS note needed.
-- `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error (2026-10-19).
+- `rcu_repository_check.sh` check 6 (invalid objects): objects invalid since
+  the RCU run (IAU synonyms, `DEV_OPSS` packages) are fixed by `utlrp.sql` in
+  the PDB (`catcon.pl`, see `60-RCU-DB-19c/docs/03-db_create_database.md`) –
+  no MOS note needed.
+- `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error.
 
-## 8. Review 2026-10-19
+## 8. Open Items
 
-Live on the test host: `backup_config.sh` (dry-run + `--apply`: 27 files,
-55 TTF, 77 AFM), `restore_config.sh` (`--category logging` restored
-unchanged files, `--category domain` refused while the domain runs, a
-manifest pointing to `/tmp` or `…/../` skipped), `domain_jdk_path.sh`,
-`80-` (dry), `81-`/`82-` (dry-run, `require_wls_stopped` now lists
-`rwserver`, Reports engines and `frmweb`), `rcu_repository_check.sh`
-(27 checks OK).
+All scripts of this folder are live-tested on the test host (review
+2026-10-19; `80-`/`81-`/`82-` `--apply` in the CPU Oct 2026 run 2026-10-24).
 
-Open:
-- ~~retention for `ConfigBackup/`~~ and ~~`*.bak_<ts>` copies~~ – done
-  2026-10-23 (`backup_config.sh --keep`, `bak_cleanup.sh`)
-- ~~JDK upgrade automation~~ – done: `80-patch_java_os.sh --apply` upgrades
-  `JDK_HOME` from the patch repository (live 2026-10-20, CPU Oct 2026 run
-  2026-10-24)
-- ~~ORDS configuration in `backup_config.sh`~~ – done 2026-10-29 (category `ords`)
-- Reports engines on the FMW-bundled JDK 17.0.12 (`80-` shows them – root
-  README open item, no Oracle patch yet, SR prepared)
+- Reports engines on the FMW-bundled JDK 17.0.12 (`oracle_common/jdk`,
+  `80-` shows them): no Oracle patch number yet (`FMW_JDK_PATCH_NR`), SR
+  prepared – root README open item.
