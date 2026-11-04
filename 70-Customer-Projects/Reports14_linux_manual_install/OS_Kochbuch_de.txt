@@ -4,7 +4,8 @@
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
   Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports (kein Forms)
-  Erstellt   : 2026-10
+  Erstellt   : 2026-10, Stil nach 70-Customer-Projects/cookbook-Skill.md
+               (umgestellt 2026-11-04)
   Grundlage  : IHateWeblogic/09-Install/00-04 (Gunther Pipperr)
   Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen in EINER
                Datei /u01/oracle/tools/patch_install.ini (Vorlage:
@@ -24,37 +25,111 @@
                einrichten (Fahrplan Schritt 1).
 ================================================================================
 
+
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - Die Schritte 1-5 und 8-9 laufen als root - der oracle-User und
+    /u01/oracle/tools gibt es da noch NICHT. Die Werte werden deshalb in
+    SCHRITT 0.2 von Hand gesetzt (abgelesen aus patch_install.ini).
+
+  - Ab SCHRITT 6 (als oracle) und nach dem Fahrplan Schritt 1-5 reicht
+    SCHRITT 0.3: . /u01/oracle/tools/set_script_env.sh
+
+  - SCHRITT 0 nach JEDEM neuen Terminal, jedem "su" und nach dem Reboot in
+    SCHRITT 2 wiederholen.
+
+  - Text, der in eine Datei geschrieben wird (cat > ... << 'EOF' ... EOF),
+    ist EIN Befehl - komplett kopieren.
+
+
+WAS WO LANDET
+--------------------------------------------------------------------------------
+
+    $MEDIA/                            Upload-Verzeichnis der ZIPs (per sftp
+                                       vom Arbeitsplatz, VOR SCHRITT 4)
+      p35702194_2100_Linux-x86-64.zip  MOS-Patch 35702194 (Oracle JDK 21)
+      V1045135-01.zip                  eDelivery, FMW Infrastructure
+      V1045121-01.zip                  eDelivery, Forms & Reports
+    $WORK/                             /root/os_kochbuch - Notizen und
+                                       Vorher-Ausgaben dieses Kochbuchs
+                                       <- SCHRITT 0 (nur root)
+    /tmp/jdk-21.*_linux-x64_bin.tar.gz aus dem MOS-ZIP <- SCHRITT 4.2
+                                       (nur temporaer)
+    $JDK_BASE/                         /u01/oracle/java <- SCHRITT 4
+      jdk-21.0.13.0.2/                 das JDK (Name kommt aus dem tar.gz)
+      jdk-21 -> jdk-21.0.13.0.2        $JDK_HOME = versionsneutraler Link
+    $ORACLE_HOME/                      /u01/oracle/fmw <- SCHRITT 5 (leer,
+                                       befuellt im FMW_Kochbuch_de.txt)
+    /u01/user_projects/domains/        <- SCHRITT 5 (Domain kommt im
+                                       Reports_kochbuch_de.txt)
+    $PATCH_STORAGE/                    /u01/oracle/patch_storage <- SCHRITT 5
+      bin/getMOSPatch.jar              von Hand (github.com/MarisElsins/
+                                       getMOSPatch), optional, SCHRITT 7
+      bin/.getMOSPatch.cfg             Hilfsdatei von getMOSPatch
+      wls/V1045135-01.zip              <- SCHRITT 7.1
+      wls/fmw_14.1.2.0.0_infrastructure.jar   <- SCHRITT 7.3 (entpackt)
+      fr/V1045121-01.zip               <- SCHRITT 7.1
+      fr/fmw_14.1.2.0.0_fr_linux64.bin <- SCHRITT 7.3 (entpackt)
+      patches/<patchnr>/               <- SCHRITT 7.4 (MOS, je Patch ein
+                                       Verzeichnis; benutzt im FMW- und
+                                       Reports-Kochbuch)
+    /u01/app/oraInventory/             <- SCHRITT 5 (Oracle-Inventory)
+    /etc/oraInst.loc                   <- SCHRITT 5 (zeigt auf das Inventory)
+    /u01/oracle/swapfile               <- SCHRITT 2 (2 GB Swap)
+    /var/tmp/core/                     <- SCHRITT 2 (Core-Dumps, Rechte 777)
+    /var/crash/                        <- SCHRITT 5
+    /etc/sysctl.d/99-oracle-fmw.conf   <- SCHRITT 1 (IPv6) und SCHRITT 2
+                                       (Kernel-Parameter)
+    /etc/chrony.conf                   <- SCHRITT 1 (NTP-Pools angehaengt)
+    /etc/selinux/config                <- SCHRITT 2 (Sicherung .bak_<zeit>)
+    /etc/security/limits.d/oracle-fmw.conf  <- SCHRITT 5
+    /etc/sudoers.d/oracle-fmw          <- SCHRITT 5 (Rechte 440)
+    /home/oracle/.bash_profile         <- SCHRITT 5 (Block angehaengt)
+    /etc/nginx/conf.d/oracle-wls.conf  <- SCHRITT 8
+    /etc/nginx/ssl/                    <- SCHRITT 8 (leer, Rechte 700 -
+                                       Zertifikat kommt im FMW_Kochbuch_de.txt
+                                       Schritt 4)
+    /etc/ssh/sshd_config.d/10-ihw-hardening.conf   <- SCHRITT 9.2
+    /etc/ssh/sshd_config.d/99-ihw-match.conf       <- SCHRITT 9.2
+    /u01/oracle/tools/                 NACH SCHRITT 5 (Fahrplan Schritt 1):
+      patch_install.ini                alle Werte (Fahrplan Schritt 3)
+      set_script_env.sh                laedt patch_install.ini (SCHRITT 0.3)
+
+  Quelldateien (vorher herunterladen, nach $MEDIA kopieren):
+
+    Nummer     Datei                             Inhalt                  Schritt
+    ---------  --------------------------------  ----------------------  -------
+    35702194   p35702194_2100_Linux-x86-64.zip   Oracle JDK 21 "latest"  4
+               (MOS)                             darin jdk-21.0.x_linux-
+                                                 x64_bin.tar.gz
+    V1045135   V1045135-01.zip  (eDelivery)      FMW Infrastructure      7
+                                                 14.1.2.0.0 (.jar)
+    V1045121   V1045121-01.zip  (eDelivery)      Forms & Reports         7
+                                                 14.1.2.0.0 (.bin)
+    -          getMOSPatch.jar  (github, opt.)   MOS-Download per CLI    7.4
+    -          RPMs aus ol9_baseos_latest +      Pakete                  1,2,3,8
+               ol9_appstream (+ EPEL)
+
+    - Nur die Linux-Variante "*Linux-x86-64*" des JDK-Patches laden - die
+      gleiche Nummer gibt es fuer andere Plattformen.
+    - Pruefsummen: Wert aus dem eDelivery-Download-Portal (SCHRITT 7.2).
+    - Patch-/Installer-Nummern aendern sich mit jedem Quartal (SCHRITT 7).
+
+
 VORAUSSETZUNGEN
-----------------
+--------------------------------------------------------------------------------
+
   - root-Zugriff (oder oracle-User mit passwortlosem sudo) fuer alle
     Schritte dieses Kochbuchs
+
   - Diese Anleitung nutzt als Beispiel eine bestehende Referenzumgebung.
     Werte an die eigene Installation anpassen.
 
-  Wichtige Pfade und Variablen (einmalig setzen, dann in allen Schritten
-  verwenden):
-
-    export ORACLE_BASE=/u01/oracle
-
-    export ORACLE_HOME=/u01/oracle/fmw
-
-    export JDK_HOME=/u01/oracle/java/jdk-21
-
-    export PATCH_STORAGE=/u01/oracle/patch_storage
-
-    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-
-    export DOMAIN_NAME=reportRpgpi
-
-    export WLS_MANAGED_SERVER=WLS_REPORTS
-
-    export WLS_SERVER_FQDN=wls01.company.local
-
-    export WLS_ADMIN_PORT=7001
-
-    export WLS_REPORTS_PORT=9002
-
-    export WLS_NODEMANAGER_PORT=5556
+  - Die ZIPs aus der Tabelle oben liegen in $MEDIA (SCHRITT 0.2).
 
   Hinweis zu WLS_MANAGED_SERVER: Der Reports-Managed-Server heisst
   "WLS_REPORTS" - so legt ihn die Oracle-Vorlage "Oracle Reports
@@ -65,41 +140,149 @@ VORAUSSETZUNGEN
 
 
 ================================================================================
+SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Welcher Weg?
+  ----------------------------------------------------------------------------
+  # Als root, oracle-User / /u01/oracle/tools gibt es noch nicht -> 0.2
+  # Als oracle, Fahrplan Schritt 1-5 erledigt                    -> 0.3
+
+  ----------------------------------------------------------------------------
+  0.2 Von Hand  (Werte aus patch_install.ini neben diesem Kochbuch ablesen)
+  ----------------------------------------------------------------------------
+  export ORACLE_BASE=/u01/oracle
+
+  export ORACLE_HOME=/u01/oracle/fmw
+
+  export JDK_HOME=/u01/oracle/java/jdk-21
+
+  export PATCH_STORAGE=/u01/oracle/patch_storage
+
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
+  export DOMAIN_NAME=reportRpgpi
+
+  export WLS_MANAGED_SERVER=WLS_REPORTS
+
+  export WLS_SERVER_FQDN=wls01.company.local
+
+  export WLS_ADMIN_PORT=7001
+
+  export WLS_REPORTS_PORT=9002
+
+  export WLS_NODEMANAGER_PORT=5556
+
+  export REPORTS_BROADCAST_PORT=14027
+  # Reports-Server-Erkennung (UDP), Reports_kochbuch_de.txt 9.2
+
+  export DB_HOST=dbserver01.company.local
+
+  export DB_PORT=1521
+
+  export DB_SERVICE=ORCLPDB1
+
+  export MEDIA=/tmp/media
+  # Upload-Verzeichnis der ZIPs (Tabelle "Quelldateien") - anpassen
+
+  export JDK_BASE=$(dirname $JDK_HOME)
+
+  export WORK=/root/os_kochbuch
+  # nur als root: Notizen und Vorher-Ausgaben dieses Kochbuchs
+
+  mkdir -p $WORK
+
+  # Danach weiter mit 0.4.
+
+  ----------------------------------------------------------------------------
+  0.3 Kurzweg mit patch_install.ini  (als oracle, ab SCHRITT 6)
+  ----------------------------------------------------------------------------
+  . /u01/oracle/tools/set_script_env.sh
+
+  export MEDIA=/tmp/media
+  # wie in 0.2 - steht nicht in patch_install.ini
+
+  ----------------------------------------------------------------------------
+  0.4 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "OB=$ORACLE_BASE OH=$ORACLE_HOME JDK=$JDK_HOME PS=$PATCH_STORAGE"
+  # Erwartet: alle vier gefuellt. LEER? -> 0.2 bzw. 0.3 wiederholen.
+
+  echo "FQDN=$WLS_SERVER_FQDN Ports=$WLS_ADMIN_PORT/$WLS_REPORTS_PORT/$WLS_NODEMANAGER_PORT"
+  # Erwartet: wls01.company.local Ports=7001/9002/5556 (bzw. eigene Werte)
+
+  echo "Broadcast=$REPORTS_BROADCAST_PORT DB=$DB_HOST:$DB_PORT/$DB_SERVICE"
+  # Erwartet: alle Werte gefuellt.
+
+  ls -l $MEDIA
+  # Erwartet (vor SCHRITT 4 / 7): die drei ZIPs aus der Tabelle oben.
+
+
+================================================================================
 SCHRITT 1: Hostname, DNS und Zeitsynchronisation  (als root)
 ================================================================================
 
+  ----------------------------------------------------------------------------
+  1.1 Hostname pruefen
+  ----------------------------------------------------------------------------
   # Kurzer und vollqualifizierter Hostname muessen zusammenpassen und
   # DNS-aufloesbar sein - WebLogic/Forms&Reports reagieren empfindlich auf
   # falsch konfigurierte Hostnamen (T3-Verbindungsprobleme, falsche
   # Redirect-URLs).
+
   hostname
+
   hostname -f
+  # Erwartet: der FQDN, z.B. wls01.company.local (= $WLS_SERVER_FQDN)
+
   hostnamectl status
 
   # /etc/hosts PRUEFEN: FQDN muss VOR dem Kurznamen stehen, sonst liefert
   # "hostname -f" den Kurznamen zurueck.
   #   Falsch:  192.168.1.10  wls01  wls01.company.local
   #   Richtig: 192.168.1.10  wls01.company.local  wls01
+
   grep -i "$(hostname)" /etc/hosts
 
+  ----------------------------------------------------------------------------
+  1.2 DNS pruefen
+  ----------------------------------------------------------------------------
+  FQDN=$(hostname -f)
+
+  echo "FQDN=$FQDN"
+
   # Forward-DNS pruefen (muss die eigene IP liefern, nicht leer/loopback)
-  getent hosts "$(hostname -f)"
-  dig +short "$(hostname -f)" A
+
+  getent hosts "$FQDN"
+
+  dig +short "$FQDN" A
 
   # Reverse-DNS (PTR) pruefen - nur Warnung, kein Hard-Fail, wenn nicht
   # gesetzt, aber fuer sauberen Betrieb empfohlen
-  dig -x "$(hostname -I | awk '{print $1}')" +short
+
+  MYIP=$(hostname -I | awk '{print $1}')
+
+  echo "MYIP=$MYIP"
+
+  dig -x "$MYIP" +short
 
   # Resolver-Konfiguration pruefen: nameserver + search/domain muessen
   # gesetzt sein
+
   cat /etc/resolv.conf
 
   grep '^hosts:' /etc/nsswitch.conf
   # Erwartet: "hosts: files dns" (files VOR dns)
 
-  # IPv6 deaktivieren (WebLogic/Node Manager Listen-Adressen sind sonst
-  # instabil zwischen 127.0.0.1 und ::1)
+  ----------------------------------------------------------------------------
+  1.3 IPv6 deaktivieren
+  ----------------------------------------------------------------------------
+  # WebLogic/Node Manager Listen-Adressen sind sonst instabil zwischen
+  # 127.0.0.1 und ::1.
+
   sysctl -n net.ipv6.conf.all.disable_ipv6
+
   cat >> /etc/sysctl.d/99-oracle-fmw.conf << 'EOF'
 net.ipv6.conf.all.disable_ipv6     = 1
 net.ipv6.conf.default.disable_ipv6 = 1
@@ -112,32 +295,46 @@ EOF
   # NetworkManager schaltet IPv6 pro Verbindung wieder ein. Beim Kunden so
   # aufgetreten (2026-10): all=1, default=1, aber ens33=0 mit fe80::-Adresse
   # -> die Java-Prozesse lauschten ueber IPv6. Deshalb JEDE Karte pruefen:
+
   sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"
   # Erwartet: ueberall "= 1". Steht bei einer Karte (z.B. ens33) "= 0":
   #   sysctl -w net.ipv6.conf.ens33.disable_ipv6=1          # sofort
   #   nmcli -g GENERAL.CONNECTION device show ens33         # Verbindungsname
   #   nmcli connection modify "<Verbindung>" ipv6.method disabled   # dauerhaft
-  # (nmcli wirkt bei der naechsten Aktivierung bzw. beim Reboot unten.)
+  # (nmcli wirkt bei der naechsten Aktivierung bzw. beim Reboot in SCHRITT 2.)
+
   ip -6 addr show
   # Erwartet nach dem Reboot: keine Ausgabe (keine IPv6-Adresse mehr)
 
+  ----------------------------------------------------------------------------
+  1.4 localhost muss auf 127.0.0.1 zeigen
+  ----------------------------------------------------------------------------
   # localhost MUSS auf IPv4 (127.0.0.1) aufloesen, nicht auf ::1 - sonst
   # binden manche JVM-Prozesse auf die falsche Adresse.
+
   getent -s files hosts localhost
+  # Erwartet: 127.0.0.1  localhost ...
   # Falls hier "::1" statt "127.0.0.1" erscheint, in /etc/hosts die Zeile
-  # fuer ::1 korrigieren:
+  # fuer ::1 korrigieren (vorher: cp -p /etc/hosts /etc/hosts.bak):
   #   Vorher (falsch):
   #     ::1   localhost localhost.localdomain localhost6 localhost6.localdomain6
   #   Nachher (richtig):
   #     ::1   localhost6 localhost6.localdomain6
 
-  # Zeitsynchronisation (chrony) - WebLogic/OPSS-Zertifikatspruefungen
-  # reagieren empfindlich auf Zeitabweichungen zwischen Knoten.
+  ----------------------------------------------------------------------------
+  1.5 Zeitsynchronisation (chrony)
+  ----------------------------------------------------------------------------
+  # WebLogic/OPSS-Zertifikatspruefungen reagieren empfindlich auf
+  # Zeitabweichungen zwischen Knoten.
+
   dnf install -y chrony
 
   systemctl enable chronyd
 
+  cp -p /etc/chrony.conf /etc/chrony.conf.bak
+
   # Deutsche NTP-Pools eintragen
+
   cat >> /etc/chrony.conf << 'EOF'
 pool 0.de.pool.ntp.org iburst
 pool 1.de.pool.ntp.org iburst
@@ -146,29 +343,52 @@ EOF
   systemctl restart chronyd
 
   # Kontrolle: Synchronisation aktiv?
+
   chronyc -n sources -v
+
   chronyc -n tracking
+
   timedatectl show --property=NTPSynchronized
+  # Erwartet: NTPSynchronized=yes
+
   # Hardware-Uhr einmalig nach Sync schreiben
+
   hwclock -w
 
 
 ================================================================================
-SCHRITT 2: OS-Basiskonfiguration  (als root)
+SCHRITT 2: OS-Basiskonfiguration  (als root, endet mit einem REBOOT)
 ================================================================================
 
-  # SELinux deaktivieren (Oracle FMW 14.1.2 wird nur im permissiven/
-  # deaktivierten Modus unterstuetzt). ERFORDERT NEUSTART.
+  ----------------------------------------------------------------------------
+  2.1 SELinux deaktivieren  (wirkt erst nach dem Neustart in 2.9)
+  ----------------------------------------------------------------------------
+  # Oracle FMW 14.1.2 wird nur im permissiven/deaktivierten Modus
+  # unterstuetzt.
+
   getenforce
-  cp /etc/selinux/config /etc/selinux/config.bak_$(date +%Y%m%d_%H%M%S)
+
+  SEL_BAK=/etc/selinux/config.bak_$(date +%Y%m%d_%H%M%S)
+
+  cp -p /etc/selinux/config $SEL_BAK
+
+  echo "$SEL_BAK" > $WORK/02_selinux_backup.txt
 
   sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
 
+  grep '^SELINUX=' /etc/selinux/config
+  # Erwartet: SELINUX=disabled
+
+  ----------------------------------------------------------------------------
+  2.2 Repositories und Updates
+  ----------------------------------------------------------------------------
   # EPEL-Repository fuer zusaetzliche Pakete (z.B. easy-rsa fuer SSL)
+
   dnf install -y oracle-epel-release-el9
 
   # System aktualisieren (kann uebersprungen werden, wenn Patch-Level
   # bereits freigegeben ist)
+
   dnf check-update --quiet
 
   dnf upgrade --refresh -y
@@ -178,13 +398,21 @@ SCHRITT 2: OS-Basiskonfiguration  (als root)
   # eMudhra hatte Zwischen-CAs mit 8-Bit-Schluesseln (gefaelschte
   # Zertifikate fuer beliebige Domains moeglich); ELSA-2026-88459 entfernt
   # das Vertrauen. Kein Neustart der Dienste noetig.
+
   dnf updateinfo list --available ca-certificates
 
   dnf update -y ca-certificates
 
+  ----------------------------------------------------------------------------
+  2.3 Kernel-Parameter
+  ----------------------------------------------------------------------------
   # Kernel-Parameter fuer Oracle FMW/WebLogic setzen. Werte stammen aus
   # einer realen, bestaetigten Produktivumgebung (100-500 gleichzeitige
   # Sessions), nicht nur aus generischer Oracle-Dokumentation.
+
+  cat /etc/sysctl.d/99-oracle-fmw.conf
+  # Zeigt den Stand vor dem Ueberschreiben (u.a. die IPv6-Zeilen aus 1.3).
+
   cat > /etc/sysctl.d/99-oracle-fmw.conf << 'EOF'
 # Oracle FMW 14.1.2 - Kernel-Parameter fuer WebLogic / Reports
 kernel.shmmax         = 8318808064
@@ -207,75 +435,109 @@ EOF
 
   sysctl --system
 
-
   # Core-Dump-Verzeichnis pruefen
+
   mkdir -p /var/tmp/core/
 
   chmod 777 /var/tmp/core/
 
-  #aus sysctl.conf default rausnehmen??
+  # Notiz (Autor, offen): aus sysctl.conf default rausnehmen??
 
-
-
+  ----------------------------------------------------------------------------
+  2.4 Konflikt-Check mit anderen sysctl-Dateien
+  ----------------------------------------------------------------------------
   # WICHTIG - Konflikt-Check: Da die Datenbank bei diesem Kunden EXTERN
   # betrieben wird (kein lokales DB-Preinstall-RPM auf diesem Host), darf
   # hier KEIN anderes Paket (z.B. oracle-database-preinstall-*) bereits
   # andere shmmax/shmall-Werte gesetzt haben - diese wuerden /etc/sysctl.conf
   # als zuletzt geladene Datei die obigen Werte sonst stillschweigend
   # ueberschreiben. Pruefen:
-  grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null
 
+  grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null
+  # Erwartet: nur die zwei Zeilen aus 99-oracle-fmw.conf
   # Falls ein Konflikt gefunden wird (z.B. durch ein DB-Preinstall-Paket),
   # die abweichende Zeile sichern und auskommentieren:
-  #   cp /etc/sysctl.conf /etc/sysctl.conf.bak_$(date +%Y%m%d)
+  #   cp /etc/sysctl.conf /etc/sysctl.conf.bak_<JJJJMMTT>
   #   sed -i 's/^kernel\.shmmax[[:space:]]*=/# [oracle-fmw] kernel.shmmax =/' /etc/sysctl.conf
   #   sysctl --system
 
-  # Transparent HugePages deaktivieren (kann JVM-Pausen/GC-Spitzen
-  # verursachen). ERFORDERT NEUSTART.
+  ----------------------------------------------------------------------------
+  2.5 Transparent HugePages deaktivieren  (wirkt erst nach dem Neustart)
+  ----------------------------------------------------------------------------
+  # Kann JVM-Pausen/GC-Spitzen verursachen.
+
   cat /sys/kernel/mm/transparent_hugepage/enabled
 
-# gpi Beispiel 
+  # Notiz (Autor): gpi Beispiel
 
   grubby --update-kernel=ALL --args="transparent_hugepage=never"
 
+  ----------------------------------------------------------------------------
+  2.6 /dev/shm pruefen
+  ----------------------------------------------------------------------------
   # /dev/shm (tmpfs) muss mind. 25% des RAM gross sein (min. 2 GB) und
   # darf NICHT "noexec" gesetzt haben (JVM braucht Exec-Rechte dort).
+
   df -h /dev/shm
 
   grep /dev/shm /etc/fstab
 
   # Beispiel-Eintrag in /etc/fstab (N = Groesse in MB, z.B. 8192 fuer 8 GB):
   #   tmpfs /dev/shm tmpfs rw,exec,size=8192M 0 0
-  #GPI
+  # Notiz (Autor): GPI
+
   systemctl daemon-reload
 
   mount -o remount /dev/shm
 
-  # Swap-Speicher (OUI verlangt mind. 512 MB, empfohlen min. 2 GB)
+  df -h /dev/shm
+  # Erwartet: die neue Groesse
+
+  ----------------------------------------------------------------------------
+  2.7 Swap-Speicher
+  ----------------------------------------------------------------------------
+  # OUI verlangt mind. 512 MB, empfohlen min. 2 GB.
+
   free -h
 
   fallocate -l 2G /u01/oracle/swapfile
+
   chmod 600 /u01/oracle/swapfile
 
   mkswap /u01/oracle/swapfile
+
   swapon /u01/oracle/swapfile
+
+  cp -p /etc/fstab /etc/fstab.bak
+
   echo "/u01/oracle/swapfile none swap sw 0 0" >> /etc/fstab
+
+  free -h
+  # Erwartet: Swap um 2 GB groesser
 
   # Core-Dump-Verzeichnis anlegen (777, da sowohl oracle als auch native
   # Prozesse dorthin schreiben muessen)
+
   mkdir -p /var/tmp/core
 
   chmod 777 /var/tmp/core
 
-  # Firewall: HTTP/HTTPS fuer Nginx oeffnen, WebLogic-Ports NICHT extern
-  # freigeben (nur ueber den Reverse-Proxy erreichbar).
-  # Laeuft firewalld noch NICHT ("not running"): die Befehle hier
-  # ueberspringen und die Firewall erst in SCHRITT 9 mit Sicherheitsnetz
-  # einschalten (dort auch SSH-Haertung).
+  ----------------------------------------------------------------------------
+  2.8 Firewall: Ports fuer Nginx und Reports
+  ----------------------------------------------------------------------------
+  # HTTP/HTTPS fuer Nginx oeffnen, WebLogic-Ports NICHT extern freigeben
+  # (nur ueber den Reverse-Proxy erreichbar).
+
   firewall-cmd --state
+  # "running"     -> die Befehle unten ausfuehren
+  # "not running" -> die Befehle hier ueberspringen und die Firewall erst
+  #                  in SCHRITT 9 mit Sicherheitsnetz einschalten (dort
+  #                  auch SSH-Haertung)
+
   firewall-cmd --permanent --add-port=80/tcp
+
   firewall-cmd --permanent --add-port=443/tcp
+
   # Reports-Server-Erkennung (Multicast 228.5.6.7, UDP): der Reports Server
   # schickt beim Start ein Multicast-Paket und muss Pakete EMPFANGEN koennen,
   # sonst beendet er sich mit "REP-50600 Broadcasting is disabled" und der
@@ -283,35 +545,49 @@ EOF
   # aufgetreten, 2026-10). Port = REPORTS_BROADCAST_PORT aus
   # Reports_kochbuch_de.txt 9.2 (Beispiel 14027, je Umgebung im Netz
   # eindeutig, Bereich 14021-14030):
-  firewall-cmd --permanent --add-port=14027/udp
-  firewall-cmd --reload
-  # Kontrolle: 80/tcp 443/tcp 14027/udp - 7001/9002/5556 duerfen HIER NICHT
-  # auftauchen
-  firewall-cmd --list-ports
 
-  # >>> AB HIER NEUSTART ERFORDERLICH (SELinux + THP-Kernel-Parameter) <<<
+  firewall-cmd --permanent --add-port=$REPORTS_BROADCAST_PORT/udp
+
+  firewall-cmd --reload
+
+  firewall-cmd --list-ports
+  # Erwartet: 80/tcp 443/tcp 14027/udp - 7001/9002/5556 duerfen HIER NICHT
+  # auftauchen
+
+  ----------------------------------------------------------------------------
+  2.9 Neustart  (SELinux + THP-Kernel-Parameter)
+  ----------------------------------------------------------------------------
+  # >>> AB HIER NEUSTART ERFORDERLICH <<<
+
   reboot
 
-  # Nach dem Neustart pruefen:
-  getenforce                                                   # Disabled
-  cat /sys/kernel/mm/transparent_hugepage/enabled              # [never]
+  # Nach dem Neustart: neu anmelden, SCHRITT 0.2 wiederholen, dann pruefen:
+
+  getenforce
+  # Erwartet: Disabled
+
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+  # Erwartet: always madvise [never]
 
 
 ================================================================================
 SCHRITT 3: Erforderliche Pakete installieren  (als root)
 ================================================================================
 
-  # 0) ZUERST: AppStream-Repository muss aktiv sein. Mehr als die Haelfte
-  #    der folgenden Pakete kommt NICHT aus BaseOS, sondern aus AppStream -
-  #    u.a. motif/motif-devel (vom Installer zwingend geprueft),
-  #    compat-openssl11, ksh, glibc-devel, libaio-devel, libnsl2,
-  #    numactl-devel, fontconfig und die Fonts. Ist AppStream aus, meldet
-  #    dnf "No match for argument" bzw. "Unable to find a match"
-  #    (beim Kunden so aufgetreten, 2026-10).
+  ----------------------------------------------------------------------------
+  3.0 ZUERST: AppStream-Repository muss aktiv sein
+  ----------------------------------------------------------------------------
+  # Mehr als die Haelfte der folgenden Pakete kommt NICHT aus BaseOS,
+  # sondern aus AppStream - u.a. motif/motif-devel (vom Installer zwingend
+  # geprueft), compat-openssl11, ksh, glibc-devel, libaio-devel, libnsl2,
+  # numactl-devel, fontconfig und die Fonts. Ist AppStream aus, meldet
+  # dnf "No match for argument" bzw. "Unable to find a match"
+  # (beim Kunden so aufgetreten, 2026-10).
+
   dnf repolist
   # Erwartet in der Liste: ol9_baseos_latest UND ol9_appstream.
+  # Fehlt ol9_appstream -> naechster Befehl.
 
-  # Fehlt ol9_appstream:
   dnf config-manager --set-enabled ol9_appstream
 
   # Eigener Repo-Spiegel (OLAM/Satellite/Spacewalk/eigenes .repo) oder ULN:
@@ -319,11 +595,15 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
   # (ULN: ol9_x86_64_appstream) freischalten lassen - die Repo-ID kann
   # anders heissen, "dnf repolist --all" zeigt alle, auch deaktivierte.
 
-  # 1) FMW-Basisbibliotheken (Pflicht fuer den Installer, motif/motif-devel
-  #    wird vom Installer explizit per Namen geprueft).
-  #    libnsl2 liefert /lib64/libnsl.so.3 - das braucht der Reports Server
-  #    (Reports_kochbuch_de.txt Schritt 9.1). NICHT verwechseln mit "libnsl"
-  #    (glibc, liefert nur das alte libnsl.so.1).
+  ----------------------------------------------------------------------------
+  3.1 FMW-Basisbibliotheken
+  ----------------------------------------------------------------------------
+  # Pflicht fuer den Installer, motif/motif-devel wird vom Installer
+  # explizit per Namen geprueft.
+  # libnsl2 liefert /lib64/libnsl.so.3 - das braucht der Reports Server
+  # (Reports_kochbuch_de.txt Schritt 9.1). NICHT verwechseln mit "libnsl"
+  # (glibc, liefert nur das alte libnsl.so.1).
+
   dnf install -y \
       binutils compat-openssl11 cups-libs \
       gcc gcc-c++ \
@@ -334,8 +614,12 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
       net-tools nfs-utils numactl numactl-devel \
       unzip wget curl tar
 
-  # 2) Font-Stack (fuer Reports PDF-Rendering, siehe Font_kochbuch_de.txt
-  #    fuer die eigentliche Font-Konfiguration)
+  ----------------------------------------------------------------------------
+  3.2 Font-Stack
+  ----------------------------------------------------------------------------
+  # Fuer Reports PDF-Rendering, siehe Font_kochbuch_de.txt fuer die
+  # eigentliche Font-Konfiguration.
+
   dnf install -y \
       fontconfig freetype \
       dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
@@ -343,16 +627,23 @@ SCHRITT 3: Erforderliche Pakete installieren  (als root)
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts \
       xorg-x11-utils xorg-x11-fonts-Type1
 
-  # 3) Admin-/Monitoring-Werkzeuge (praktisch fuer Diagnose, nicht
-  #    zwingend vom Installer gefordert)
+  ----------------------------------------------------------------------------
+  3.3 Admin-/Monitoring-Werkzeuge
+  ----------------------------------------------------------------------------
+  # Praktisch fuer Diagnose, nicht zwingend vom Installer gefordert.
+
   dnf install -y \
       sysstat smartmontools nmon tmux \
       lsof strace psmisc xorg-x11-xauth \
       bind-utils tcpdump nmap-ncat
 
-  # Kontrolle: die wichtigsten Pakete muessen installiert sein - jede Zeile
-  # "is not installed" heisst: Paket fehlt (meist AppStream nicht aktiv)
+  ----------------------------------------------------------------------------
+  3.4 Kontrolle
+  ----------------------------------------------------------------------------
   rpm -q motif motif-devel compat-openssl11 ksh libnsl2 numactl-devel fontconfig
+  # Erwartet: je Paket eine Versionszeile.
+  # Jede Zeile "is not installed" heisst: Paket fehlt (meist AppStream nicht
+  # aktiv -> 3.0)
 
   ls -la /lib64/libnsl.so.3
   # Erwartet: "/lib64/libnsl.so.3 -> libnsl.so.3.0.0"
@@ -373,45 +664,95 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
   # als Laufzeitumgebung fuer Oracle-Produkte (hier: WebLogic) verwendet
   # wird (Doc ID 1557737.1).
 
-  mkdir -p /u01/oracle/java
-
+  ----------------------------------------------------------------------------
+  4.1 Welche Version steckt im MOS-ZIP?
+  ----------------------------------------------------------------------------
   # Quelle: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS,
   # Patch 35702194 ("Oracle JDK 21" latest, ZIP-Name bleibt immer gleich:
   # p35702194_2100_Linux-x86-64.zip). Die Version steht nur IM ZIP -
   # vorher pruefen (Stand CPU Oktober 2026: jdk-21.0.13.0.2, Alert-Build zu
   # CVE-2026-91403; die 21.0.13 des CPU selbst ist betroffen):
-  unzip -l p35702194_2100_Linux-x86-64.zip | grep -o 'jdk-21[^_]*'
 
-  unzip -j p35702194_2100_Linux-x86-64.zip '*_linux-x64_bin.tar.gz' -d /tmp
+  echo "JDK_BASE=$JDK_BASE JDK_HOME=$JDK_HOME MEDIA=$MEDIA"
+  # Erwartet: /u01/oracle/java /u01/oracle/java/jdk-21 ... LEER? -> SCHRITT 0
 
-  # Tar.gz-Variante (empfohlen - haelt das JDK unabhaengig vom FMW_HOME):
-  tar xf /tmp/jdk-21.0.13.0.2_linux-x64_bin.tar.gz -C /u01/oracle/java/
+  mkdir -p $JDK_BASE
 
+  unzip -l $MEDIA/p35702194_2100_Linux-x86-64.zip | grep -o 'jdk-21[^_]*'
+  # Erwartet z.B.: jdk-21.0.13.0.2
+
+  ----------------------------------------------------------------------------
+  4.2 Auspacken  (tar.gz-Variante, haelt das JDK unabhaengig vom FMW_HOME)
+  ----------------------------------------------------------------------------
+  unzip -j $MEDIA/p35702194_2100_Linux-x86-64.zip '*_linux-x64_bin.tar.gz' -d /tmp
+
+  TGZ=$(ls /tmp/jdk-21*_linux-x64_bin.tar.gz)
+
+  echo "TGZ=$TGZ"
+  # Erwartet: GENAU eine Datei, z.B. /tmp/jdk-21.0.13.0.2_linux-x64_bin.tar.gz
+
+  NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
+
+  echo "NEWJDK=$NEWJDK"
+  # Erwartet z.B.: /u01/oracle/java/jdk-21.0.13.0.2
+
+  echo "$NEWJDK" > $WORK/04_newjdk.txt
+
+  tar xf "$TGZ" -C $JDK_BASE/
+
+  ls -d $NEWJDK
+  # Erwartet: das Verzeichnis existiert
+
+  ----------------------------------------------------------------------------
+  4.3 Versionsneutraler Link $JDK_HOME
+  ----------------------------------------------------------------------------
   # Stabilen Symlink anlegen, damit Versions-Updates spaeter keine
   # Pfadaenderungen in environment.conf/.bash_profile erfordern - ein
   # spaeteres JDK-Update ist dann nur: neues JDK daneben auspacken, alle
   # Java-Prozesse stoppen, Link umsetzen:
-  ln -sfn /u01/oracle/java/jdk-21.0.13.0.2 /u01/oracle/java/jdk-21
 
+  ln -sfn "$NEWJDK" "$JDK_HOME"
+
+  readlink -f $JDK_HOME
+  # Erwartet: der Wert von $NEWJDK
+
+  ----------------------------------------------------------------------------
+  4.4 alternatives und jps
+  ----------------------------------------------------------------------------
   # Bei "alternatives" registrieren (aendert NICHT den Systemstandard -
   # WebLogic nutzt immer explizit $JAVA_HOME, nie /usr/bin/java):
-  alternatives --install /usr/bin/java java /u01/oracle/java/jdk-21/bin/java 21000
+
+  alternatives --install /usr/bin/java java $JDK_HOME/bin/java 21000
+
   alternatives --display java
 
   # jps-Symlink (praktisch fuer Prozessdiagnose):
-  ln -sf /u01/oracle/java/jdk-21/bin/jps /usr/bin/jps
 
-  # SecureRandom-Fix: vermeidet langsamen WebLogic-Start durch
-  # blockierende Entropie-Quelle (/dev/random statt /dev/urandom).
-  sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
-      /u01/oracle/java/jdk-21/conf/security/java.security
+  ln -sf $JDK_HOME/bin/jps /usr/bin/jps
+
+  ----------------------------------------------------------------------------
+  4.5 SecureRandom-Fix
+  ----------------------------------------------------------------------------
+  # Vermeidet langsamen WebLogic-Start durch blockierende Entropie-Quelle
+  # (/dev/random statt /dev/urandom).
+
+  JSEC=$JDK_HOME/conf/security/java.security
+
+  cp -p $JSEC $JSEC.bak
+
+  sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' $JSEC
+
+  grep '^securerandom.source' $JSEC
+  # Erwartet: securerandom.source=file:/dev/./urandom
 
   # WICHTIG: Nach der FMW-Installation (naechstes Kochbuch) hat WebLogic
   # eine EIGENE, eingebettete JDK mit einer EIGENEN java.security-Datei
   # unter $ORACLE_HOME/oracle_common/jdk/. Dieser Fix muss dort WIEDERHOLT
   # werden - siehe FMW_Kochbuch_de.txt, Abschnitt "JVM-Einstellungen".
 
-  # Kontrolle:
+  ----------------------------------------------------------------------------
+  4.6 Kontrolle
+  ----------------------------------------------------------------------------
   $JDK_HOME/bin/java -version
   # Erwartet: "java version 21..." und "Java(TM) SE Runtime Environment"
   # (NICHT "OpenJDK")
@@ -421,17 +762,28 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
 SCHRITT 5: oracle-Benutzer und Verzeichnisstruktur anlegen  (als root)
 ================================================================================
 
+  ----------------------------------------------------------------------------
+  5.1 Gruppe und Benutzer
+  ----------------------------------------------------------------------------
   # OS-Gruppe fuer die Oracle-Software
+
   groupadd -g 1000 oinstall
 
   # oracle-Betriebssystembenutzer (nur oinstall noetig - KEINE dba/oper
   # Gruppen, da die Datenbank extern betrieben wird und hier nicht lokal
   # administriert werden muss)
+
   useradd -m -u 1100 -g oinstall -s /bin/bash -d /home/oracle oracle
 
-  # Ressourcenlimits fuer den oracle-User. NICHT direkt in limits.conf
-  # schreiben, sondern in eine eigene Datei unter limits.d/ (wird nach
-  # limits.conf geladen und ist daher wirksam).
+  id oracle
+  # Erwartet: uid=1100(oracle) gid=1000(oinstall) groups=1000(oinstall)
+
+  ----------------------------------------------------------------------------
+  5.2 Ressourcenlimits
+  ----------------------------------------------------------------------------
+  # NICHT direkt in limits.conf schreiben, sondern in eine eigene Datei
+  # unter limits.d/ (wird nach limits.conf geladen und ist daher wirksam).
+
   cat > /etc/security/limits.d/oracle-fmw.conf << 'EOF'
 oracle   soft   nofile     65536
 oracle   hard   nofile     65536
@@ -452,10 +804,13 @@ EOF
   # entsprechender Nutzerzahl diese Werte stattdessen eintragen.
 
   # Kontrolle: laedt PAM die Limits ueberhaupt?
+
   grep pam_limits /etc/pam.d/system-auth
   # Erwartet: "session required pam_limits.so"
 
-  # .bash_profile fuer oracle ergaenzen
+  ----------------------------------------------------------------------------
+  5.3 .bash_profile fuer oracle
+  ----------------------------------------------------------------------------
   cat >> /home/oracle/.bash_profile << 'EOF'
 
 # Oracle FMW Umgebung
@@ -471,15 +826,21 @@ export TMPDIR=/tmp
 umask 0022
 EOF
 
+  tail -12 /home/oracle/.bash_profile
+  # Kontrolle: der Block steht genau EINMAL am Ende
+
   # Hinweis: JAVA_HOME zeigt hier bewusst auf die STANDALONE Oracle JDK
   # (Installationszeit). Nach der FMW-Installation nutzt WebLogic selbst
   # intern eine ANDERE, FMW-eigene JDK unter
   # $ORACLE_HOME/oracle_common/jdk - diese beiden Pfade nicht verwechseln.
 
   # Systemweite Locale
+
   localectl set-locale LANG=en_US.UTF-8
 
-  # sudo-Rechte fuer oracle (nur die noetigsten Befehle, passwortlos)
+  ----------------------------------------------------------------------------
+  5.4 sudo-Rechte fuer oracle  (nur die noetigsten Befehle, passwortlos)
+  ----------------------------------------------------------------------------
   cat > /etc/sudoers.d/oracle-fmw << 'EOF'
 oracle ALL=(root) NOPASSWD: /usr/bin/dnf install *
 oracle ALL=(root) NOPASSWD: /usr/bin/dnf update *
@@ -497,19 +858,23 @@ EOF
   chmod 440 /etc/sudoers.d/oracle-fmw
 
   visudo -c
+  # Erwartet: ".../etc/sudoers.d/oracle-fmw: parsed OK"
+  # Fehler -> NICHT abmelden, Datei korrigieren oder loeschen
 
-  # Verzeichnisstruktur anlegen
-  mkdir -p /u01/oracle
+  ----------------------------------------------------------------------------
+  5.5 Verzeichnisstruktur
+  ----------------------------------------------------------------------------
+  mkdir -p $ORACLE_BASE
 
-  mkdir -p /u01/oracle/fmw
+  mkdir -p $ORACLE_HOME
 
-  mkdir -p /u01/oracle/java
+  mkdir -p $JDK_BASE
 
   mkdir -p /u01/user_projects/domains
 
-  mkdir -p /u01/oracle/patch_storage
+  mkdir -p $PATCH_STORAGE
 
-  mkdir -p /u01/oracle/patch_storage/bin
+  mkdir -p $PATCH_STORAGE/bin
 
   mkdir -p /var/crash
 
@@ -519,46 +884,77 @@ EOF
 
   chmod 750 /u01/app/oraInventory
 
-  # Oracle-Inventory-Registrierung (wird von JEDEM Oracle-Installer und
-  # OPatch als erstes gesucht)
+  ls -ld $ORACLE_BASE $ORACLE_HOME $JDK_BASE $PATCH_STORAGE /u01/user_projects/domains
+  # Erwartet: Besitzer oracle oinstall
+
+  ----------------------------------------------------------------------------
+  5.6 Oracle-Inventory-Registrierung
+  ----------------------------------------------------------------------------
+  # Wird von JEDEM Oracle-Installer und OPatch als erstes gesucht.
+
   cat > /etc/oraInst.loc << 'EOF'
 inventory_loc=/u01/app/oraInventory
 inst_group=oinstall
 EOF
 
+  cat /etc/oraInst.loc
+  # Erwartet: inventory_loc=/u01/app/oraInventory und inst_group=oinstall
+
+  ----------------------------------------------------------------------------
+  5.7 Wechsel zum oracle-User
+  ----------------------------------------------------------------------------
   # Letzter root-Schritt: Besitzrechte am Skript-/Arbeitsverzeichnis
-  # uebergeben, danach als oracle weiterarbeiten
+  # uebergeben, danach als oracle weiterarbeiten.
+  # Jetzt den Fahrplan Schritt 1-5 (../Start_beim_Kunden_kochbuch_de.txt)
+  # ausfuehren: /u01/oracle/tools mit patch_install.ini.
+
   su - oracle
+
+  # Danach: SCHRITT 0.3
 
 
 ================================================================================
 SCHRITT 6: Vorab-Pruefungen  (als oracle, rein informativ)
 ================================================================================
 
+  # Zuerst SCHRITT 0.3 (oder 0.2) in dieser Sitzung.
+
+  echo "OH=$ORACLE_HOME JDK=$JDK_HOME DB=$DB_HOST:$DB_PORT"
+  # Erwartet: alle gefuellt. LEER? -> SCHRITT 0
+
   # OS-Version
+
   cat /etc/oracle-release
 
   uname -r
 
   # Arbeitsspeicher und Festplattenplatz
+
   free -g
 
   df -h $ORACLE_HOME $ORACLE_BASE $PATCH_STORAGE
 
   # Java-Version
+
   $JDK_HOME/bin/java -version
 
   # Ports MUESSEN vor der Installation frei sein (umgekehrte Logik zu
-  # einem spaeteren Betriebs-Check!)
+  # einem spaeteren Betriebs-Check!) - 7001/9002/5556 = WLS_ADMIN_PORT,
+  # WLS_REPORTS_PORT, WLS_NODEMANAGER_PORT
+
   ss -tlnp | grep -E ':7001|:9002|:5556'
   # Erwartet: KEINE Ausgabe
 
   # Ressourcenlimits des oracle-Users pruefen
+
   ulimit -a | grep -E "open files|max user processes"
+  # Erwartet: 65536 / 16384 (bzw. die Werte aus 5.2)
 
   # Datenbank-Erreichbarkeit (reiner Lesetest - die Datenbank selbst wird
   # NICHT angelegt, sie existiert bereits extern)
+
   nc -zv $DB_HOST $DB_PORT
+  # Erwartet: "Ncat: Connected to ..."
   # Alternativ ausfuehrlicher per tnsping/sqlplus, falls Oracle-Client
   # lokal vorhanden:
   #   tnsping "${DB_HOST}:${DB_PORT}/${DB_SERVICE}"
@@ -578,28 +974,53 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   #   3. Im Patch-Readme auf MOS: Abschnitt "Prerequisites" nennt die
   #      benoetigte OPatch-Version + deren eigene Patch-Nummer
 
-  # Verzeichnisstruktur fuer Installationsmedien
-  mkdir -p $PATCH_STORAGE/wls $PATCH_STORAGE/fr $PATCH_STORAGE/patches
+  ----------------------------------------------------------------------------
+  7.1 Verzeichnisse anlegen und Installer-ZIPs ablegen
+  ----------------------------------------------------------------------------
+  echo "PATCH_STORAGE=$PATCH_STORAGE MEDIA=$MEDIA"
+  # LEER? -> SCHRITT 0
 
-  # Installer-ZIPs ablegen (aus eDelivery/MOS-Download, manuell kopiert
-  # oder per sftp uebertragen) und Pruefsumme kontrollieren:
-  cp V1045135-01.zip $PATCH_STORAGE/wls/        # FMW Infrastructure
+  mkdir -p $PATCH_STORAGE/wls
 
-  cp V1045121-01.zip $PATCH_STORAGE/fr/         # Forms & Reports (ein ZIP fuer beide)
+  mkdir -p $PATCH_STORAGE/fr
 
+  mkdir -p $PATCH_STORAGE/patches
+
+  # Installer-ZIPs (aus eDelivery/MOS-Download, manuell kopiert oder per
+  # sftp nach $MEDIA uebertragen):
+
+  cp $MEDIA/V1045135-01.zip $PATCH_STORAGE/wls/
+  # FMW Infrastructure
+
+  cp $MEDIA/V1045121-01.zip $PATCH_STORAGE/fr/
+  # Forms & Reports (ein ZIP fuer beide)
+
+  ----------------------------------------------------------------------------
+  7.2 Pruefsummen
+  ----------------------------------------------------------------------------
   sha256sum $PATCH_STORAGE/wls/V1045135-01.zip
 
   sha256sum $PATCH_STORAGE/fr/V1045121-01.zip
 
-  # Pruefsummen mit dem Wert aus dem eDelivery-Download-Portal vergleichen
+  # Pruefsummen mit dem Wert aus dem eDelivery-Download-Portal vergleichen.
+  # Weicht ein Wert ab: NICHT weitermachen - ZIP neu laden.
 
-  # Entpacken
+  ----------------------------------------------------------------------------
+  7.3 Entpacken
+  ----------------------------------------------------------------------------
   unzip $PATCH_STORAGE/wls/V1045135-01.zip -d $PATCH_STORAGE/wls/
 
-  unzip $PATCH_STORAGE/fr/V1045121-01.zip  -d $PATCH_STORAGE/fr/
+  unzip $PATCH_STORAGE/fr/V1045121-01.zip -d $PATCH_STORAGE/fr/
 
-  # Patches: Download via MOS (My Oracle Support), entweder manuell im
-  # Browser oder per Kommandozeilen-Werkzeug (z.B. getMOSPatch.jar,
+  ls $PATCH_STORAGE/wls/ $PATCH_STORAGE/fr/
+  # Erwartet: fmw_14.1.2.0.0_infrastructure.jar bzw.
+  #           fmw_14.1.2.0.0_fr_linux64.bin
+
+  ----------------------------------------------------------------------------
+  7.4 Patches von MOS
+  ----------------------------------------------------------------------------
+  # Download via MOS (My Oracle Support), entweder manuell im Browser oder
+  # per Kommandozeilen-Werkzeug (z.B. getMOSPatch.jar,
   # https://github.com/MarisElsins/getMOSPatch), Beispiel:
   #   mkdir -p $PATCH_STORAGE/patches/<PATCHNUMMER>
   #   cd $PATCH_STORAGE/patches/<PATCHNUMMER>
@@ -615,12 +1036,14 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   # Build sperrt die betroffenen Zwischen-CAs aber schon - den naechsten
   # Build nehmen, sobald MOS ihn liefert.
 
-  # Ergebnis-Verzeichnisstruktur:
+  # Ergebnis-Verzeichnisstruktur (siehe auch "Was wo landet"):
   #   $PATCH_STORAGE/
   #   +-- bin/{getMOSPatch.jar, .getMOSPatch.cfg}
   #   +-- wls/{V1045135-01.zip, fmw_14.1.2.0.0_infrastructure.jar}
   #   +-- fr/{V1045121-01.zip, fmw_14.1.2.0.0_fr_linux64.bin}
   #   +-- patches/{<OPatch-Patch>/, <CPU-Patch>/, <Reports-QPR-Patch>/}
+
+  ls -R $PATCH_STORAGE | head -30
 
 
 ================================================================================
@@ -630,6 +1053,12 @@ SCHRITT 8: Nginx als Reverse-Proxy installieren (ohne SSL)  (als root)
   # Nginx terminiert spaeter TLS vor WebLogic - WebLogic selbst laeuft
   # nur auf localhost/127.0.0.1 ohne eigenes Zertifikat (siehe
   # FMW_Kochbuch_de.txt fuer die SSL-Einrichtung).
+  # Als root: SCHRITT 0.2 in dieser Sitzung (die Ports und der FQDN werden
+  # unten in die Konfiguration eingesetzt).
+
+  ----------------------------------------------------------------------------
+  8.1 Installieren
+  ----------------------------------------------------------------------------
   dnf install -y nginx
 
   systemctl enable nginx
@@ -640,10 +1069,19 @@ SCHRITT 8: Nginx als Reverse-Proxy installieren (ohne SSL)  (als root)
 
   # Default-Konfiguration deaktivieren (kollidiert sonst mit unserem
   # eigenen Server-Block)
+
   mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.disabled 2>/dev/null
 
-  # Eigene Konfiguration anlegen - NUR Reports-Location (kein /forms/-Block,
-  # da dieser Kunde ausschliesslich Reports nutzt)
+  ----------------------------------------------------------------------------
+  8.2 Eigene Konfiguration anlegen
+  ----------------------------------------------------------------------------
+  # NUR Reports-Location (kein /forms/-Block, da dieser Kunde ausschliesslich
+  # Reports nutzt). Die Werte werden beim Schreiben eingesetzt - vorher
+  # pruefen:
+
+  echo "REPORTS=$WLS_REPORTS_PORT ADMIN=$WLS_ADMIN_PORT FQDN=$WLS_SERVER_FQDN"
+  # Erwartet: 9002 7001 wls01.company.local - LEER? -> SCHRITT 0.2
+
   cat > /etc/nginx/conf.d/oracle-wls.conf << EOF
 upstream wls_reports { server 127.0.0.1:${WLS_REPORTS_PORT}; keepalive 32; }
 upstream wls_admin   { server 127.0.0.1:${WLS_ADMIN_PORT}; keepalive 16; }
@@ -726,11 +1164,19 @@ server {
 }
 EOF
 
-  # Kontrolle (schlaegt noch fehl, solange kein Zertifikat unter
-  # /etc/nginx/ssl/ liegt - das passiert erst im FMW-Kochbuch):
-  grep -q 'include /etc/nginx/conf.d' /etc/nginx/nginx.conf
+  grep -n 'upstream\|server_name' /etc/nginx/conf.d/oracle-wls.conf
+  # Kontrolle: echte Ports und der FQDN statt ${...}
+
+  ----------------------------------------------------------------------------
+  8.3 Kontrolle
+  ----------------------------------------------------------------------------
+  grep -n 'include /etc/nginx/conf.d' /etc/nginx/nginx.conf
+  # Erwartet: eine Zeile "include /etc/nginx/conf.d/*.conf;"
 
   nginx -t
+  # Schlaegt noch fehl, solange kein Zertifikat unter /etc/nginx/ssl/
+  # liegt - das passiert erst im FMW-Kochbuch. KNOWN AND HARMLESS an
+  # dieser Stelle: "cannot load certificate".
 
   # WebLogic-Ports bleiben in der Firewall geschlossen - Zugriff nur
   # ueber Nginx (Port 80/443). Nginx selbst wird erst gestartet, nachdem
@@ -746,7 +1192,7 @@ SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz
   # das ~50 vorgestartete Forms-Prozesse (frmweb), der Reports Server, die
   # Reports-Engines und Coherence - alles am Nginx vorbei. Ziel:
   #
-  #     Netz --> nur 22 (ssh), 80 + 443 (Nginx), 14027/udp (Reports)
+  #     Netz  -> nur 22 (ssh), 80 + 443 (Nginx), 14027/udp (Reports)
   #              alles andere (7001, 9001, 9002, 5556, frmweb, Engines) zu
   #     ausgehend: unveraendert (MOS-Downloads, NTP, ...)
   #     lo:        immer erlaubt (WebLogic -> DB auf demselben Host)
@@ -758,28 +1204,45 @@ SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz
   #   - die Sicherheitsnetze unten (systemd-run) nehmen jede Aenderung nach
   #     15 Minuten automatisch zurueck, wenn sie nicht bestaetigt wird
 
-  # --- 9.1 Firewall --------------------------------------------------------
+  ----------------------------------------------------------------------------
+  9.1 Firewall
+  ----------------------------------------------------------------------------
+  systemctl is-active firewalld
+  # "inactive" -> weiter mit dem naechsten Befehl
+  # "active"   -> direkt 9.1b
 
-  systemctl is-active firewalld        # "inactive" -> weiter; "active" -> 9.1b
+  firewall-offline-cmd --get-default-zone
+  # Erwartet: meist "public"
 
-  firewall-offline-cmd --get-default-zone            # meist: public
   # ssh MUSS in der Zone stehen, sonst sperrt man sich aus:
-  firewall-offline-cmd --zone=public --query-service=ssh    # -> yes
+
+  firewall-offline-cmd --zone=public --query-service=ssh
+  # Erwartet: yes
+  # "no" -> STOP, zuerst ssh in die Zone aufnehmen
 
   # Sicherheitsnetz: stoppt die Firewall in 15 min wieder von selbst
+
   systemd-run --on-active=15min --unit=ihw-fw-rollback systemctl stop firewalld
 
   systemctl start firewalld
 
-  # 9.1b Freigaben (dauerhaft + sofort wirksam)
+  ----------------------------------------------------------------------------
+  9.1b Freigaben  (dauerhaft + sofort wirksam)
+  ----------------------------------------------------------------------------
   firewall-cmd --permanent --add-service=ssh --add-service=http --add-service=https
-  firewall-cmd --permanent --add-port=14027/udp      # REPORTS_BROADCAST_PORT
+
+  firewall-cmd --permanent --add-port=$REPORTS_BROADCAST_PORT/udp
+  # REPORTS_BROADCAST_PORT (Beispiel 14027)
+
   # cockpit (Web-Konsole, Port 9090) wird auf einem FMW-Server nicht gebraucht:
+
   firewall-cmd --permanent --remove-service=cockpit
+
   firewall-cmd --reload
 
-  # Kontrolle: nur ssh/http/https (+ dhcpv6-client) und 14027/udp
   firewall-cmd --list-all
+  # Erwartet: services nur ssh/http/https (+ dhcpv6-client),
+  #           ports 14027/udp
 
   # JETZT TESTEN (vom Arbeitsplatz aus):
   #   - neuer ssh-Login (zweites Fenster / MobaXterm / PuTTY)
@@ -787,13 +1250,16 @@ SCHRITT 9: Netzwerk absichern - Firewall und SSH  (als root, mit Sicherheitsnetz
   #   - Windows PowerShell:
   #       Test-NetConnection <server> -Port 443    -> TcpTestSucceeded True
   #       Test-NetConnection <server> -Port 9002   -> TcpTestSucceeded False
-  # Alles ok -> dauerhaft machen und Sicherheitsnetz entfernen:
+  # Alles ok -> dauerhaft machen und Sicherheitsnetz entfernen.
+  # Etwas geht NICHT -> nichts tun, nach 15 min ist die Firewall wieder aus.
+
   systemctl enable firewalld
 
   systemctl stop ihw-fw-rollback.timer
 
-  # --- 9.2 SSH absichern (sshd) --------------------------------------------
-  #
+  ----------------------------------------------------------------------------
+  9.2 SSH absichern (sshd)
+  ----------------------------------------------------------------------------
   # Nur die Benutzer, die wirklich per ssh auf den Server muessen (hier:
   # admin + oracle), kein root-Login, kein X11 (auf einem Server wird alles
   # per Skript gemacht), 3 Passwortversuche. Bei Anmeldung ueber AD/LDAP-
@@ -815,6 +1281,7 @@ CNF
 
   # Passwort-Login nur fuer diese Benutzer (Notzugang ohne Schluessel);
   # alle anderen erlaubten Benutzer brauchen ~/.ssh/authorized_keys
+
   cat > /etc/ssh/sshd_config.d/99-ihw-match.conf << 'CNF'
 Match User admin,oracle
     PasswordAuthentication yes
@@ -824,31 +1291,71 @@ CNF
             /etc/ssh/sshd_config.d/99-ihw-match.conf
 
   # Syntax pruefen - bei Fehler NICHT weitermachen, Dateien wieder loeschen
+
   sshd -t && echo "sshd config OK"
+  # Erwartet: sshd config OK
+  # Andere Ausgabe -> STOP, die beiden Dateien loeschen (RUECKWEG)
 
   # Sicherheitsnetz: entfernt die beiden Dateien in 15 min wieder
+  # (sh -c, weil systemd-run nur EINEN Befehl startet)
+
   systemd-run --on-active=15min --unit=ihw-ssh-rollback /bin/sh -c \
       "rm -f /etc/ssh/sshd_config.d/10-ihw-hardening.conf /etc/ssh/sshd_config.d/99-ihw-match.conf; systemctl reload sshd"
 
   # reload (nicht restart): bestehende Sitzungen bleiben bestehen
+
   systemctl reload sshd
 
   # Kontrolle der wirksamen Werte je Benutzer:
-  for u in admin oracle root; do
-      printf '%-8s ' "$u"
-      sshd -T -C user=$u,host=x,addr=10.0.0.1 \
-        | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {printf "%s=%s ", $1, $2}'
-      echo
-  done
 
-  # erwartet: admin/oracle passwordauthentication=yes, root=no, x11forwarding=no
+  sshd -T -C user=admin,host=x,addr=10.0.0.1 | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {print $1 "=" $2}'
+  # Erwartet: passwordauthentication=yes, x11forwarding=no
+
+  sshd -T -C user=oracle,host=x,addr=10.0.0.1 | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {print $1 "=" $2}'
+  # Erwartet: passwordauthentication=yes, x11forwarding=no
+
+  sshd -T -C user=root,host=x,addr=10.0.0.1 | awk '$1 ~ /^(passwordauthentication|permitrootlogin|x11forwarding)$/ {print $1 "=" $2}'
+  # Erwartet: passwordauthentication=no, permitrootlogin=no, x11forwarding=no
 
   # JETZT TESTEN: neuer ssh-Login als admin UND als oracle (zweites Fenster),
   # root muss abgewiesen werden. Alles ok -> Sicherheitsnetz entfernen:
+
   systemctl stop ihw-ssh-rollback.timer
 
   # NICHT aendern: AllowTcpForwarding (VS Code / MobaXterm-Tunnel brauchen es),
   # LoginGraceTime 0 in /etc/ssh/sshd_config (Oracle-Schutz gegen CVE-2024-6387).
+
+
+================================================================================
+RUECKWEG
+================================================================================
+
+  Was                         Wie
+  --------------------------  --------------------------------------------------
+  SELinux (2.1)               cp -p "$(cat $WORK/02_selinux_backup.txt)"
+                              /etc/selinux/config, dann reboot
+  Kernel-Parameter (2.3)      /etc/sysctl.d/99-oracle-fmw.conf loeschen bzw.
+                              korrigieren, dann sysctl --system
+  THP (2.5)                   grubby --update-kernel=ALL
+                              --remove-args="transparent_hugepage=never", reboot
+  Swap (2.7)                  swapoff /u01/oracle/swapfile, Zeile in
+                              /etc/fstab entfernen (Sicherung /etc/fstab.bak)
+  chrony (1.5)                cp -p /etc/chrony.conf.bak /etc/chrony.conf,
+                              systemctl restart chronyd
+
+  JDK (4)                     altes JDK bleibt daneben: ln -sfn <altes JDK>
+                              $JDK_HOME; java.security: $JSEC.bak zurueck
+
+  Nginx-Default (8.1)         mv /etc/nginx/conf.d/default.conf.disabled
+                              /etc/nginx/conf.d/default.conf
+  Firewall (9.1)              Sicherheitsnetz (15 min) - sonst
+                              systemctl stop firewalld, dann
+
+                              systemctl disable firewalld
+
+  sshd (9.2)                  Sicherheitsnetz (15 min) - sonst die Dateien
+                              /etc/ssh/sshd_config.d/10-ihw-hardening.conf und
+                              99-ihw-match.conf loeschen, systemctl reload sshd
 
 
 ================================================================================
@@ -857,21 +1364,23 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: "hostname -f" liefert nur den Kurznamen
   Ursache: /etc/hosts hat den Kurznamen VOR dem FQDN stehen
-  Loesung: Reihenfolge in /etc/hosts korrigieren (FQDN zuerst)
+  Loesung: Reihenfolge in /etc/hosts korrigieren (FQDN zuerst), Schritt 1.1
 
   Problem: sysctl-Werte wirken nicht / werden nach Neustart wieder anders
   Ursache: Ein anderes *.conf in /etc/sysctl.d/ oder /etc/sysctl.conf
            ueberschreibt 99-oracle-fmw.conf (laedt alphabetisch, zuletzt
            gewinnt - /etc/sysctl.conf laedt immer zuletzt)
-  Loesung: grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf
+  Loesung: Schritt 2.4:
+             grep -rE 'shmmax|shmall' /etc/sysctl.d/*.conf /etc/sysctl.conf
+
            Konfliktzeile sichern und auskommentieren, sysctl --system
 
   Problem: WebLogic-Start dauert sehr lange (mehrere Minuten bis zur
            ersten Logzeile)
   Ursache: SecureRandom liest aus /dev/random (blockierend) statt
            /dev/urandom
-  Loesung: Schritt 4 fuer BEIDE JDKs durchfuehren (Standalone-JDK hier UND
-           die FMW-eigene JDK nach der Installation, siehe
+  Loesung: Schritt 4.5 fuer BEIDE JDKs durchfuehren (Standalone-JDK hier
+           UND die FMW-eigene JDK nach der Installation, siehe
            FMW_Kochbuch_de.txt)
 
   Problem: dnf meldet bei Schritt 3 "No match for argument" / "Unable to
@@ -879,7 +1388,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Ursache: das AppStream-Repository ist nicht aktiv (beim Kunden so
            aufgetreten) - diese Pakete gibt es nur dort, nicht in BaseOS
-  Loesung: Schritt 3, Punkt 0): "dnf repolist" pruefen, AppStream mit
+  Loesung: Schritt 3.0: "dnf repolist" pruefen, AppStream mit
            "dnf config-manager --set-enabled ol9_appstream" bzw. im
            Repo-Spiegel/ULN freischalten, Schritt 3 wiederholen.
            Ohne jeden Repo-Zugang: RPM auf einer anderen OL9-Maschine mit
@@ -897,7 +1406,6 @@ BEKANNTE PROBLEME UND LOESUNGEN
            abgelegt - an dieser Stelle normal und zu erwarten
   Loesung: Weiter mit SSL_Kochbuch_de.txt + FMW_Kochbuch_de.txt
 
-
   Problem: Nach dem Einschalten der Firewall kein ssh-Login mehr moeglich
   Ursache: Service ssh nicht in der Zone (eigene Zone ohne ssh) oder
            Login-Benutzer nicht in AllowUsers
@@ -909,7 +1417,10 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Problem: Reports Server startet nach dem Einschalten der Firewall immer
            wieder neu (REP-50600 Broadcasting is disabled)
   Ursache: 14027/udp (REPORTS_BROADCAST_PORT) fehlt in der Firewall
-  Loesung: firewall-cmd --permanent --add-port=14027/udp; firewall-cmd --reload
+  Loesung: Schritt 9.1b:
+             firewall-cmd --permanent --add-port=14027/udp
+             firewall-cmd --reload
+
 
 ================================================================================
 WEITERGEHENDE INFORMATIONEN
