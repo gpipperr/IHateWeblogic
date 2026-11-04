@@ -109,6 +109,24 @@ TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (intervie
 
 ---
 
+### Server list and customer overlay
+
+- **Server list:** `REPORTS_SERVER_INSTANCES` (space-separated, written by
+  `00-Setup/detect_env_conf.sh`). Empty → the array `REPORTS_SERVER_NAMES` of
+  the interview (`01-setup-interview.sh`), else `REPORTS_SERVER_NAME` – one
+  list under two names until 2026-11-04.
+- **Customer overlay** (`CUSTOMER_CONF_DIR`, import of an existing
+  environment – [17-customer_conf_import.md](17-customer_conf_import.md)):
+  `reports/<server>.env` with `KEY=VALUE` lines per server. In Step 5 these
+  override the `<envVariable>` values of the `<environment id="QS">` of that
+  server (`REPORTS_PATH`, `REPORTS_TMP`, `NLS_LANG`, `TNS_ADMIN`), other keys
+  are added there (e.g. one server WE8ISO8859P1, one UTF8). `REPORTS_JVM_OPTIONS`
+  stays the fixed value (ORB timeout, see Step 5). `rwserver.conf` is still
+  generated completely – from `environment.conf` + overlay, so a re-run loses
+  nothing that is in them.
+
+---
+
 ## Step 1 – OS Fix: `libnsl.so.2` Symlink (Oracle Linux 9 only)
 
 **Issue:** Oracle Reports 14c on OL9 fails to start the standalone Reports Server

@@ -312,6 +312,26 @@ else
     chmod 640 "$CGICMD_DAT"
     find "$(dirname "$CGICMD_DAT")" -maxdepth 1 -name "$(basename "$CGICMD_DAT").bak_*" -exec chmod 600 {} \;
 
+    # Customer keys of an import (CUSTOMER_CONF_DIR/reports/cgicmd.dat.customer):
+    # own block between CUSTOMER markers after the library block - replaced on
+    # every run, everything else in the file stays
+    _cc_cg="${CUSTOMER_CONF_DIR:+$CUSTOMER_CONF_DIR/reports/cgicmd.dat.customer}"
+    if [ -n "$_cc_cg" ] && [ -f "$_cc_cg" ]; then
+        _cb="# --- CUSTOMER BEGIN (CUSTOMER_CONF_DIR) ---"; _ce="# --- CUSTOMER END ---"
+        _new="$(mktemp)"; chmod 600 "$_new"
+        { awk -v b="$_cb" -v e="$_ce" '$0 == b {skip = 1; next} skip && $0 == e {skip = 0; next} !skip' "$CGICMD_DAT" \
+              | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+          printf '\n%s\n' "$_cb"; grep -v '^[[:space:]]*#' "$_cc_cg" | sed '/^[[:space:]]*$/d'; printf '%s\n' "$_ce"
+        } > "$_new"
+        if cmp -s "$_new" "$CGICMD_DAT"; then
+            ok "customer cgicmd.dat keys up to date"
+        else
+            backup_file "$CGICMD_DAT"; cat "$_new" > "$CGICMD_DAT"
+            ok "$(printf "customer cgicmd.dat keys written: %s key(s)" "$(grep -vc '^[[:space:]]*\(#\|$\)' "$_cc_cg")")"
+        fi
+        rm -f "$_new"; unset _cb _ce
+    fi
+    unset _cc_cg
     if grep -qE "^default:.*%\* authid=${REPORTS_EXEC_USER}/" "$CGICMD_DAT"; then
         ok "default key: server=$_reports_server %* authid=$REPORTS_EXEC_USER/****"
     else

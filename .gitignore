@@ -14,6 +14,8 @@ environment.conf.pre_deinstall_*
 00-Setup/environments/*.conf
 00-Setup/environments/*.conf.bak*
 00-Setup/environments/*.conf.pre_deinstall_*
+# customer overlay of an import (00-Setup/customer_conf_import.sh) - customer data
+00-Setup/environments/*.customer/
 
 # DB-specific generated configuration (machine-specific paths + credentials)
 60-RCU-DB-19c/environment_db.conf

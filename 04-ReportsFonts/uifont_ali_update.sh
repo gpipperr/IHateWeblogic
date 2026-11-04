@@ -596,6 +596,35 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
 done < "$UIFONT_TEMPLATE"
 
+# Customer lines of an import (CUSTOMER_CONF_DIR/fonts/uifont.ali.customer,
+# "[section]" headers + lines): each line goes to the end of ITS section of the
+# generated file (a section missing there is appended), lines already present
+# are skipped - so a re-run does not duplicate them
+_CUST_ALI="${CUSTOMER_CONF_DIR:+$CUSTOMER_CONF_DIR/fonts/uifont.ali.customer}"
+if $MARKER_FOUND && [ -n "$_CUST_ALI" ] && [ -f "$_CUST_ALI" ]; then
+    awk -v cf="$_CUST_ALI" '
+        function norm(x) { x = tolower(x); gsub(/[[:space:]]/, "", x); return x }
+        BEGIN {
+            while ((getline l < cf) > 0) {
+                if (l ~ /^[[:space:]]*#/ || l ~ /^[[:space:]]*$/) continue
+                if (l ~ /^[[:space:]]*\[/) { cs = norm(l); if (!(cs in seen)) { seen[cs] = 1; order[++n] = cs; hdr[cs] = l } ; continue }
+                add[cs] = add[cs] l "\n"
+            }
+        }
+        function flush(s,   k, m, i, a) { if (s in add) { m = split(add[s], a, "\n"); for (i = 1; i < m; i++) if (!(s SUBSEP norm(a[i]) in have)) print a[i]; done[s] = 1 } }
+        /^[[:space:]]*\[/ { flush(sec); sec = norm($0); print; next }
+        { if (!/^[[:space:]]*#/) have[sec, norm($0)] = 1; print }
+        END {
+            flush(sec)
+            for (i = 1; i <= n; i++) if (!(order[i] in done)) {
+                print ""; print "# --- customer import (CUSTOMER_CONF_DIR) ---"; print hdr[order[i]]
+                printf "%s", add[order[i]]
+            }
+        }' "$TEMP_NEW_ALI" > "$TEMP_NEW_ALI.cust" && mv -f "$TEMP_NEW_ALI.cust" "$TEMP_NEW_ALI"
+    ok "Customer uifont.ali lines merged: $_CUST_ALI"
+fi
+unset _CUST_ALI
+
 if $MARKER_FOUND; then
     ok "Template processed – [PDF:Subset] block injected at ${TEMPLATE_MARKER}"
 else

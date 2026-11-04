@@ -72,6 +72,7 @@ FORMS_INSTANCE_NAME=forms1        # instance name under FORMS/instances/
 WLS_FORMS_SERVER=WLS_FORMS        # managed server with Forms deployed
 FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls   # .fmx/.fmb, first FORMS_PATH entry
 FORMS_TMP=/u01/app/oracle/forms/tmp               # TMPDIR in default.env
+CUSTOMER_CONF_DIR=                                # optional: customer overlay (see "Customer overlay")
 ```
 
 Directory layout `$ORACLE_BASE/forms/{moduls,tmp}` (outside `ORACLE_HOME` and
@@ -96,6 +97,26 @@ of parameters to adapt.
 | `Registry.dat.template` | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
 | `fmrweb_utf8.res.template` | Only if function key assignment differs from the standard layout |
 | `fmrwebd.res.template` | Only if `NLS_LANG` does not use UTF8 |
+
+### Customer overlay (`CUSTOMER_CONF_DIR`, import of an existing environment)
+
+Optional. `CUSTOMER_CONF_DIR` in `environment.conf` points to the overlay
+directory the importer writes from a customer export
+(`00-Setup/environments/<env>.customer/`, git-ignored – customer data). Empty
+or unset = behaviour as before. The overlay is applied **on top of** the
+templates, in every run, so a re-run keeps the customer configuration:
+
+| Overlay file | Applied in | How |
+|---|---|---|
+| `forms/formsweb.default.cfg` | Step 4 | appended to the `[default]` overlay of `formsweb.cfg.template` (later key wins) |
+| `forms/formsweb.sections.cfg` | Step 4 | every `[section]` of the file is created or **replaced completely** (`frm_cfg_put_sections`, `06-FormsDiag/forms_lib.sh`) – before `maxRuntimeProcesses` / prestart, so `FORMS_PRESTART_SECTION` can be a customer section; `[default]` is not allowed there |
+| `forms/env/default.env` | Step 3 | key overlay on the rendered `default.env.template` (`frm_kv_overlay`) |
+| `forms/env/<name>.env` | Step 3 | one more env file next to `default.env`: the rendered `default.env.template` + this overlay – for the `envFile=<name>.env` of the customer sections |
+| `forms/webutil.cfg.overrides` | Step 2 | appended to the `webutil.cfg.template` overlay (later key wins) |
+| `forms/jars/*.jar` | Step 4b | copied to `$ORACLE_HOME/forms/java` and signed with `FORMS_SIGN_*` (old signatures removed first); the `archive=` keys come with the sections |
+
+An overlay value `__REMOVE__` comments a key of the base out
+(`# (IHW removed) ...`) – e.g. to drop a key of Oracle's `default.env`.
 
 ---
 
@@ -494,6 +515,26 @@ then sets the four keys in `FORMS_PRESTART_SECTION` (`frm_cfg_set` of
 nothing set. On an existing environment without re-installation:
 `06-FormsDiag/forms_perf_settings.sh --apply --fix-prestart <section>`.
 Background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md).
+
+---
+
+## Step 4b – Customer jars (overlay only)
+
+Only with `CUSTOMER_CONF_DIR` and jar files in `forms/jars/`. Each jar is:
+
+1. compared with the installed copy – an unchanged jar (also: its unsigned
+   original `<jar>.orig` equals the overlay jar and the installed one is
+   signed) is "up to date";
+2. copied to `$ORACLE_HOME/forms/java/` (`.bak_<ts>` of an older copy);
+3. stripped of old signatures (`META-INF/*.SF|*.RSA|*.DSA|*.EC` – a customer
+   jar is often signed with an expired certificate or SHA-1, which JDK 21
+   treats as unsigned) and signed with `FORMS_SIGN_KEYSTORE` / `_ALIAS` /
+   `_TSA_URL` – the same signing function as `jacob.jar` (Step 1);
+   `Permissions` / `Codebase` / `Application-Name` are added to the manifest
+   only when missing.
+
+The `archive=` / `CLASSPATH` entries that load the jars come with the
+customer sections and env files of the overlay.
 
 ---
 

@@ -56,7 +56,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-04.4"   # bump on every change – shown in the report
+VERSION="2026-11-04.5"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -284,6 +284,18 @@ for jp in $(printf '%s\n' "${!JREF[@]}" | sort); do
     fi
 done
 
+_kt="$OH/oracle_common/jdk/bin/keytool"; [ -x "$_kt" ] || _kt="$(command -v keytool 2>/dev/null)"
+if [ -n "$_kt" ]; then
+    for j in "$STAGE"/ihw_import/forms_java/*.jar; do
+        [ -f "$j" ] || continue
+        _o="$("$_kt" -printcert -jarfile "$j" 2>/dev/null | awk '/^Signer #1/{s=1} s&&/^Owner:/&&!o{sub(/^Owner: /,""); o=$0} s&&/^Issuer:/&&!i{sub(/^Issuer: /,""); i=$0} s&&/until:/&&!u{sub(/.*until: /,""); u=$0} END{print o "|" i "|" u}')"
+        [ "$_o" = "||" ] && continue
+        printf 'jar %s;%s;%s;%s\n' "$(basename "$j")" "$(printf '%s' "$_o" | cut -d'|' -f1 | tr ';' ',')" \
+            "$(printf '%s' "$_o" | cut -d'|' -f2 | tr ';' ',')" "$(printf '%s' "$_o" | cut -d'|' -f3)" >> "$STAGE/ihw_import/.jar_certs"
+    done
+fi
+unset _kt _o
+
 # =============================================================================
 # 2. Reports
 # =============================================================================
@@ -356,6 +368,35 @@ for d in "$CFG"/components/OHS/*; do
     [ -d "$d" ] || continue; [ "$(basename "$d")" = instances ] && continue
     for f in "$d"/mod_wl_ohs.conf "$d"/httpd.conf "$d"/ssl.conf "$d"/moduleconf/*.conf; do _store "$f" ohs; done
 done
+# JDBC system resources (RCU data sources: URL + schema user; passwords are {AES})
+for f in "$DH"/config/jdbc/*-jdbc.xml; do _store "$f" domain_jdbc; done
+JDBC_TXT="$STAGE/ihw_import/jdbc.txt"
+printf 'datasource;url;user\n' > "$JDBC_TXT"
+for f in "$DH"/config/jdbc/*-jdbc.xml; do
+    [ -f "$f" ] || continue
+    _u="$(sed -n 's:.*<url>\([^<]*\)</url>.*:\1:p' "$f" | head -1)"
+    _usr="$(tr '\n' ' ' < "$f" | grep -oE '<name>user</name>[[:space:]]*<value>[^<]*' | sed 's/.*<value>//' | head -1)"
+    printf '%s;%s;%s\n' "$(basename "$f" -jdbc.xml)" "$_u" "$_usr" >> "$JDBC_TXT"
+done
+# certificates - public part only (subject / issuer / expiry): the HTTPS
+# listeners of the web tier (OHS ssl.conf Listen) and the signers of the jars
+CERT_TXT="$STAGE/ihw_import/certificates.txt"
+printf 'source;subject;issuer;not_after\n' > "$CERT_TXT"
+if command -v openssl >/dev/null 2>&1; then
+    for sc in "$CFG"/components/OHS/*/ssl.conf; do
+        [ -f "$sc" ] || continue
+        for l in $(sed -n 's/^[[:space:]]*Listen[[:space:]]\+//p' "$sc"); do
+            case "$l" in *:*) _h="${l%:*}"; _p="${l##*:}" ;; *) _h=localhost; _p="$l" ;; esac
+            _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_h" </dev/null 2>/dev/null \
+                  | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
+            [ -n "$_c" ] && printf 'https %s:%s;%s;%s;%s\n' "$_h" "$_p" \
+                "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p')" "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p')" \
+                "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')" >> "$CERT_TXT"
+        done
+    done
+fi
+[ -f "$STAGE/ihw_import/.jar_certs" ] && { sort -u "$STAGE/ihw_import/.jar_certs" >> "$CERT_TXT"; rm -f "$STAGE/ihw_import/.jar_certs"; }
+unset _h _p _c _u _usr
 
 # =============================================================================
 # 4. Fonts
@@ -681,6 +722,30 @@ _fp1="$(for ef in "${ENV_FILES[@]}"; do _cfgval "$ef" FORMS_PATH; done | head -1
         printf 'FORMS_MAX_RUNTIME_PROCESSES="%s"\n' "$(_sections "$fw" | awk -F'\t' '$1=="default"&&$2=="maxRuntimeProcesses"{print $3}')"
         _sections "$fw" | awk -F'\t' '$2=="prestartRuntimes"&&tolower($3)=="true"{print "FORMS_PRESTART_SECTION=\"" $1 "\""}' | head -1
     done
+    # ports / listen address of the servers (config.xml; AdminServer default 7001)
+    _sp() { awk -v w="$1" '/<server>/{s=1;n="";p="";a="";sub_=0} /<(ssl|network-access-point|web-server|server-start|log)>/{sub_++} /<\/(ssl|network-access-point|web-server|server-start|log)>/{sub_--; next} sub_>0{next}
+              s&&/<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)}
+              s&&/<listen-port>/&&p==""{p=$0; gsub(/.*<listen-port>|<\/listen-port>.*/,"",p)}
+              s&&/<listen-address>/&&a==""{a=$0; gsub(/.*<listen-address>|<\/listen-address>.*/,"",a)}
+              /<\/server>/{ if (s && n ~ w) { print (p==""?"7001":p) ";" a; exit } s=0 }' "$DH/config/config.xml" 2>/dev/null; }
+    printf 'WLS_ADMIN_PORT="%s"\n'   "$(_sp '^AdminServer$' | cut -d';' -f1)"
+    printf 'WLS_FORMS_PORT="%s"\n'   "$(_sp 'FORMS' | cut -d';' -f1)"
+    printf 'WLS_REPORTS_PORT="%s"\n' "$(_sp 'REPORTS' | cut -d';' -f1)"
+    printf 'WLS_LISTEN_ADDRESS="%s"   # 14c default: 127.0.0.1 behind Nginx\n' "$(_sp '^AdminServer$' | cut -d';' -f2)"
+    printf 'WLS_NODEMANAGER_PORT="%s"\n' "$(_cfgval "$DH/nodemanager/nodemanager.properties" ListenPort | tail -1)"
+    _sn="$(for h in "$CFG"/components/OHS/*/httpd.conf; do sed -n 's/^[[:space:]]*ServerName[[:space:]]\+//p' "$h" 2>/dev/null; done | head -1)"
+    _sn="${_sn#*://}"; _sn="${_sn%%:*}"
+    printf 'WLS_SERVER_FQDN="%s"   # OLD public name - the 14c host may get a new name / DNS alias\n' "${_sn:-$(hostname -f 2>/dev/null)}"
+    # RCU database of the domain (WLSSchemaDataSource: jdbc:oracle:thin:@//host:port/service)
+    _ru="$(awk -F';' '$1=="WLSSchemaDataSource"{print $2 ";" $3}' "$JDBC_TXT" 2>/dev/null)"
+    _url="${_ru%%;*}"; _usr="${_ru#*;}"
+    _hp="$(printf '%s' "$_url" | sed -n 's#.*@//\([^/]*\)/\(.*\)#\1;\2#p')"
+    [ -z "$_hp" ] && _hp="$(printf '%s' "$_url" | sed -n 's#.*HOST=\([^)]*\).*PORT=\([0-9]*\).*SERVICE_NAME=\([^)]*\).*#\1:\2;\3#p')"
+    printf 'DB_HOST="%s"   # RCU database of the OLD domain - 14c needs a new RCU (14.1.2 schemas)\n' "$(printf '%s' "${_hp%%;*}" | cut -d: -f1)"
+    printf 'DB_PORT="%s"\n' "$(printf '%s' "${_hp%%;*}" | sed -n 's/.*:\([0-9]*\)$/\1/p')"
+    printf 'DB_SERVICE="%s"\n' "${_hp#*;}"
+    printf 'DB_SCHEMA_PREFIX="%s"   # old prefix - choose a new one for the 14c RCU\n' "${_usr%%_*}"
+    unset _sn _ru _url _usr _hp
 } > "$PROP"
 unset _first_rs _rc _fp1
 

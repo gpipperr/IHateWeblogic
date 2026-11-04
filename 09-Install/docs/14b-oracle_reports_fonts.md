@@ -118,6 +118,17 @@ Then back up and restart:
 - `server=` in `cgicmd.dat` = `REPORTS_SERVER_NAME` (default `repserver01`).
   Before 2026-10-15 `09-` wrongly used `WLS_MANAGED_SERVER` for it.
 - Steps 1–4b are skipped with `--skip-fonts`.
+- **Customer overlay** (`CUSTOMER_CONF_DIR`, import of an existing
+  environment – [17-customer_conf_import.md](17-customer_conf_import.md)):
+  - step 1 also deploys `fonts/*.ttf|ttc|otf` of the overlay (customer fonts;
+    Microsoft fonts only after the customer released them);
+  - step 3 merges `fonts/uifont.ali.customer` into the generated `uifont.ali`
+    – every line into the end of its `[section]` (a missing section is
+    appended), lines already there are skipped;
+  - step 5 writes `reports/cgicmd.dat.customer` as its own block
+    `# --- CUSTOMER BEGIN (CUSTOMER_CONF_DIR) ---` … `# --- CUSTOMER END ---`
+    after the library block; it is replaced on every run (`up to date` when
+    unchanged), everything else in the file stays.
 
 ---
 

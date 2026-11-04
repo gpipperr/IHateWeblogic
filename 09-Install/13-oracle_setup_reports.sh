@@ -92,6 +92,18 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # Header
 # =============================================================================
 
+# Server list: REPORTS_SERVER_INSTANCES (detect_env_conf.sh) or the array
+# REPORTS_SERVER_NAMES of the interview (same list, two names until 2026-11-04)
+if [ -z "${REPORTS_SERVER_INSTANCES:-}" ]; then
+    if [ "$(declare -p REPORTS_SERVER_NAMES 2>/dev/null | cut -c1-10)" = "declare -a" ]; then
+        REPORTS_SERVER_INSTANCES="${REPORTS_SERVER_NAMES[*]}"
+    else
+        REPORTS_SERVER_INSTANCES="${REPORTS_SERVER_NAMES:-${REPORTS_SERVER_NAME:-}}"
+    fi
+fi
+# Customer overlay (import): per server <environment> values
+CC_DIR="${CUSTOMER_CONF_DIR:-}"
+
 printLine
 printf "\n\033[1m  IHateWeblogic – Reports Server Setup\033[0m\n" | tee -a "$LOG_FILE"
 printf "  Host              : %s\n" "$(_get_hostname)"               | tee -a "$LOG_FILE"
@@ -792,6 +804,24 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
     if $APPLY; then
         [ -f "$_RWSERVER" ] && cp "$_RWSERVER" "${_RWSERVER}.bak_$(date +%Y%m%d_%H%M%S)"
 
+        # Customer overlay of this server (CUSTOMER_CONF_DIR/reports/<inst>.env):
+        # KEY=VALUE lines override the <envVariable> values below, other keys
+        # are added to the environment (e.g. NLS_LANG per server)
+        declare -A _CC_ENV=()
+        _cc_env="${CC_DIR:+$CC_DIR/reports/${_inst}.env}"
+        if [ -n "$_cc_env" ] && [ -f "$_cc_env" ]; then
+            while IFS='=' read -r _k _v; do
+                case "$_k" in ''|\#*) continue ;; esac
+                _CC_ENV[$_k]="$_v"
+            done < "$_cc_env"
+            info "  + customer overlay $_cc_env (${#_CC_ENV[@]} value(s))"
+        fi
+        _envvar() {   # name default - one <envVariable> line, overlay value wins
+            local v="$2"
+            [ -n "${_CC_ENV[$1]+x}" ] && { v="${_CC_ENV[$1]}"; unset "_CC_ENV[$1]"; }
+            printf '    <envVariable name="%s"%*s value="%s"/>\n' "$1" $(( 19 - ${#1} )) "" "$v"
+        }
+
         # Build optional TNS_ADMIN line
         _tns_line=""
         [ -n "${TNS_ADMIN:-}" ] && \
@@ -817,10 +847,15 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '\n'
             printf '  <!-- Environment QS: variables passed to each report engine process -->\n'
             printf '  <environment id="QS">\n'
-            printf '    <envVariable name="REPORTS_PATH"        value="%s"/>\n' "$REPORTS_PATH"
-            printf '    <envVariable name="REPORTS_TMP"         value="%s"/>\n' "$REPORTS_TMP"
-            printf '    <envVariable name="NLS_LANG"            value="%s"/>\n' "$_NLS"
-            [ -n "$_tns_line" ] && printf '%s\n' "$_tns_line"
+            _envvar REPORTS_PATH "$REPORTS_PATH"
+            _envvar REPORTS_TMP  "$REPORTS_TMP"
+            _envvar NLS_LANG     "$_NLS"
+            [ -n "$_tns_line" ] && [ -z "${_CC_ENV[TNS_ADMIN]+x}" ] && printf '%s\n' "$_tns_line"
+            # remaining customer values of this server (not REPORTS_JVM_OPTIONS - fixed below)
+            for _k in "${!_CC_ENV[@]}"; do
+                [ "$_k" = REPORTS_JVM_OPTIONS ] && continue
+                _envvar "$_k" "${_CC_ENV[$_k]}"
+            done
             # -DORBWaitForResponseTimeout is REQUIRED as soon as REPORTS_JVM_OPTIONS
             # is set: oracle.reports.utility.Utility.getOrbProperties (Reports QPR
             # 39600348) reads the timeout only from this variable and puts null
@@ -900,6 +935,7 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             printf '</server>\n'
         } > "$_RWSERVER"
         chmod 640 "$_RWSERVER"
+        unset _CC_ENV _cc_env _k _v
 
         ok "rwserver.conf written: $_inst (engines: init=$_ENG_INIT max=$_ENG_MAX min=$_ENG_MIN)"
     else

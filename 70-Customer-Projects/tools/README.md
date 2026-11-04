@@ -692,6 +692,15 @@ is searched for clear-text patterns (`password=…`, `{AES}…`,
 still holds host names, paths and user directory names of the customer – hand
 it only to that customer.
 
+Export version 2026-11-04.5 additionally collects the JDBC descriptors
+`config/jdbc/*-jdbc.xml` (RCU data sources, `ihw_import/jdbc.txt`:
+URL + schema user, passwords stay `{AES}` / masked), the public part of the
+certificates (`ihw_import/certificates.txt`: subject / issuer / expiry of the
+OHS HTTPS listeners and of the jar signers) and puts ports, listen address,
+old public name and the RCU database into `environment.conf.proposal`. The
+report shows them as the checklist **13.1 Values for the 14c
+environment.conf** (from export / decision / asked / secret / missing).
+
 Export version 2026-11-04.3 additionally collects the `weblogic.xml` /
 `web.xml` of `formsapp.ear` (servlet session-timeout for the timeout chain)
 and CPUs / RAM of the host (header of `00_report.txt` – sizing proposals);

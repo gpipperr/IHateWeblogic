@@ -256,8 +256,21 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     chain, CPUs / RAM for the sizing proposals, load profile of the last 90
     days – the Reports servers are unsecured, so `getserverinfo` / `showjobs`
     work without `--rw-auth`);
-  - [ ] import step into the 14c library (formsweb sections, env keys,
-    cgicmd keys, uifont.ali, fonts, customer jars – never FSAL / JACOB).
+  - [ ] import step into the 14c library – plan 2026-11-04: customer
+    overlay `00-Setup/environments/<env>.customer/` + importer
+    `00-Setup/customer_conf_import.sh` (safe corrections in
+    `IMPORT_DECISIONS.md`); 13- / 14- / 14b- read the overlay (Way 1 new
+    install chain, Way 2 re-run on an existing library domain via
+    `07-Maintenance/apply_customer_conf.sh`). Prerequisite done: export
+    2026-11-04.5 (jdbc, certificates, ports) + report section 13.1.
+    **Built 2026-11-04 (uncommitted):** overlay support in `14-` (sections /
+    `[default]` / env files / webutil / customer jars + generic `_sign_jar`),
+    `14b-` (`cgicmd.dat` CUSTOMER block), `04-ReportsFonts` (overlay fonts,
+    `uifont.ali.customer` merge), `13-` (per-server `<environment>` values,
+    `REPORTS_SERVER_NAMES` → `REPORTS_SERVER_INSTANCES`), `forms_lib.sh`
+    (`frm_cfg_put_sections`, `frm_kv_overlay`), spec `09-Install/docs/17-customer_conf_import.md`.
+    **Open:** the importer itself + `apply_customer_conf.sh` (with the fresh
+    customer export), `13-` overlay `--apply` test in an isolated domain.
 - [ ] **Library template:** `09-Install/forms_templates/default.env.template`
   sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
   (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the

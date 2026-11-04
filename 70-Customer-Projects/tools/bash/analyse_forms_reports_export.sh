@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-04.3"
+VERSION="2026-11-04.4"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -521,6 +521,79 @@ md "Date;requests;HTTP 5xx;by command" load_reports_requests < "$CSV/load_report
 md "Date;CPU busy avg %;CPU busy peak %;memory used avg %" load_sar < "$CSV/load_sar.csv"
 
 # =============================================================================
+# 12b. values for the 14c environment.conf (checklist for the interview)
+#   status: from export | decision | asked (new host) | secret (asked) | missing in this export
+# =============================================================================
+PROPF="$IMP/environment.conf.proposal"
+_pv() { sed -n "s/^$1=\"\\([^\"]*\\)\".*/\\1/p" "$PROPF" 2>/dev/null | head -1; }
+_ev() { printf '%s;%s;%s;%s\n' "$1" "$(printf '%s' "$2" | sed 's/;/,/g')" "$3" "$4"; }
+# raw config.xml fallback for older exports (ports)
+_rsp() { awk -v w="$1" '/<server>/{s=1;n="";p="";sub_=0} /<(ssl|network-access-point|web-server|server-start|log)>/{sub_++} /<\/(ssl|network-access-point|web-server|server-start|log)>/{sub_--; next} sub_>0{next}
+          s&&/<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)} s&&/<listen-port>/&&p==""{p=$0; gsub(/.*<listen-port>|<\/listen-port>.*/,"",p)}
+          /<\/server>/{ if (s && n ~ w) { print (p==""?"7001":p); exit } s=0 }' "$CONFIG_XML" 2>/dev/null; }
+ncs="$(awk -F';' -v std=" $STD_SECTIONS " 'index(std, " " $1 " ")==0' "$CSV/forms_sections.csv" | wc -l)"
+nrs="$(awk -F';' '$2=="standalone"' "$CSV/reports_servers.csv" | wc -l)"
+if [ "$ncs" -gt 0 ] && [ "$nrs" -gt 0 ]; then ic="FORMS_AND_REPORTS"; elif [ "$nrs" -gt 0 ]; then ic="REPORTS_ONLY"; else ic="FORMS"; fi
+jac="false"; grep -qi 'jacob' "$CSV/.fw_all.tsv" 2>/dev/null && jac="true"
+# client section: the customer section with the most starts (load), else the first with form=
+cl="$(awk -F';' -v std=" $STD_SECTIONS " 'index(std, " " $1 " ")==0 && $2+0>0 {print $1; exit}' "$CSV/load_forms_sections.csv" 2>/dev/null)"
+[ -z "$cl" ] && cl="$(awk -F';' -v std=" $STD_SECTIONS " 'index(std, " " $1 " ")==0 && $2!="-" {print $1; exit}' "$CSV/forms_sections.csv")"
+clf="$(awk -F';' -v s="$cl" '$1==s {print $2}' "$CSV/forms_sections.csv")"
+cert="$(awk -F';' 'NR>1 && $1 ~ /^https/ {print $2; exit}' "$IMP/certificates.txt" 2>/dev/null)"
+jcert="$(awk -F';' 'NR>1 && $1 ~ /^jar/ {print $2 " (until " $4 ")"; exit}' "$IMP/certificates.txt" 2>/dev/null)"
+# module / report directories: the source directory (not below ORACLE_HOME) with the most .fmx / .rdf+.rep
+fp_old="$(awk -F';' '$1 !~ /^\$ORACLE_HOME/ && $6 ~ /^[0-9]+$/ && $6+0 > m {m=$6; d=$1} END {print d}' "$CSV/sources.csv")"
+rp_old="$(awk -F';' '$1 !~ /^\$ORACLE_HOME/ && $12 ~ /^[0-9]+$/ && $12+$13 > m {m=$12+$13; d=$1} END {print d}' "$CSV/sources.csv")"
+rt_old="$(awk -F';' '$2 ~ /folderAccess.write/ && $1 ~ /directories\)/ {print $1; exit}' "$CSV/sources.csv")"
+[ -z "$rt_old" ] && rt_old="$(_pv REPORTS_TMP)"
+{
+    _ev INSTALL_COMPONENTS "$ic" "$ncs customer Forms sections, $nrs standalone Reports servers" "from export"
+    _ev REPORTS_SERVER_NAMES "$(awk -F';' '$2=="standalone" {print $1}' "$CSV/reports_servers.csv" | paste -sd' ' -)" "standalone servers (in-process leftover not taken over)" "from export"
+    _ev FORMS_WEBUTIL_JACOB "$jac" "WebUtilArchive / install.syslib" "from export"
+    _ev NLS_LANG "$(_pv NLS_LANG)" "env files (per server NLS_LANG: section 6.1 / overlay)" "from export"
+    _ev REPORTS_BROADCAST_PORT "$(_pv REPORTS_BROADCAST_PORT)" "rwnetwork.conf - choose a port unique in the subnet" "decision"
+    for k in WLS_ADMIN_PORT WLS_FORMS_PORT WLS_REPORTS_PORT WLS_NODEMANAGER_PORT; do
+        v="$(_pv $k)"; src="environment.conf.proposal"
+        if [ -z "$v" ]; then
+            case $k in WLS_ADMIN_PORT) v="$(_rsp '^AdminServer$')" ;; WLS_FORMS_PORT) v="$(_rsp FORMS)" ;; WLS_REPORTS_PORT) v="$(_rsp REPORTS)" ;;
+                       WLS_NODEMANAGER_PORT) v="$(ihwt_cfgval "$NMPROP" ListenPort | tail -1)" ;; esac
+            src="raw config.xml / nodemanager.properties"
+        fi
+        _ev "$k" "${v:--}" "$src" "from export"
+    done
+    _ev WLS_LISTEN_ADDRESS "127.0.0.1" "old: $(_pv WLS_LISTEN_ADDRESS)$( [ -z "$(_pv WLS_LISTEN_ADDRESS)" ] && printf 'localhost (config.xml)') - 14c: loopback behind Nginx" "decision"
+    v="$(_pv WLS_SERVER_FQDN)"; [ -z "$v" ] && v="$(grep -h '^AS_HOST_NAME=' "${ENVFILES[@]}" 2>/dev/null | head -1 | cut -d= -f2)"
+    _ev WLS_SERVER_FQDN "${v:-$SRC_HOST}" "OLD public name - keep (DNS alias) or new name" "decision"
+    for k in DB_HOST DB_PORT DB_SERVICE DB_SCHEMA_PREFIX; do
+        v="$(_pv $k)"
+        if [ -n "$v" ]; then _ev "$k" "$v" "RCU of the old domain (WLSSchemaDataSource) - 14c needs a NEW RCU (14.1.2)" "decision"
+        else _ev "$k" "-" "config/jdbc not collected - fresh export (2026-11-04.5)" "missing in this export"; fi
+    done
+    _ev FORMS_CLIENT_CONFIG "${cl:--}" "most used customer section" "decision"
+    _ev FORMS_CLIENT_FORM "${clf:--}" "form= of that section" "from export"
+    v="$(_pv FORMS_MAX_RUNTIME_PROCESSES)"
+    _ev FORMS_MAX_RUNTIME_PROCESSES "${v:-(proposal from the 14c RAM)}" "not set at the customer (finding) - frm_mrp_proposal on the 14c host" "decision"
+    _ev EXPECTED_SESSIONS "-" "load profile (section 12) - frmweb processes / starts per hour" "decision"
+    _ev FORMS_CUSTOMER_DIR "${fp_old:--}" "directory with the most .fmx - keep the path or move into \$ORACLE_BASE/forms/moduls" "decision"
+    _ev REPORTS_CUSTOMER_DIR "${rp_old:--}" "directory with the most .rdf / .rep - keep or move into \$ORACLE_BASE/reports/source" "decision"
+    _ev REPORTS_TMP "${rt_old:--}" "old <write> directory - 14c: one output directory (no subdirectories in <write>)" "decision"
+    _ev REPORTS_SECURITY "ldap" "customer: no securityId / identifier (finding) - 14c secured server" "decision"
+    _ev "REPORTS_ENGINE_*" "50 / 2 / 2 / 5" "engLife / init / min / max - 14c standard instead of engLife=1 (finding)" "decision"
+    if [ -n "$cert" ]; then _ev "SSL_ORG / SSL_COUNTRY / SSL_CA_CN" "$cert" "certificate of the old HTTPS listener" "from export"
+    else _ev "SSL_ORG / SSL_COUNTRY / SSL_CA_CN" "-" "certificate subject not in this export - fresh export (2026-11-04.5)" "missing in this export"; fi
+    if [ -n "$jcert" ]; then _ev "FORMS_SIGN_*" "$jcert" "signer of the customer jars - code-signing certificate for 14c?" "decision"
+    else _ev "FORMS_SIGN_*" "-" "jar signer: see section 5 (fresh export lists the subject)" "decision"; fi
+    _ev "ORACLE_BASE, ORACLE_HOME, JDK_HOME, DOMAIN_HOME, ORACLE_INVENTORY, PATCH_STORAGE, TNS_ADMIN, IHW_ENV_TYPE" "-" "layout of the new host" "asked (new host)"
+    _ev "LOCAL_REP_DB, RCU_TABLESPACE, RCU_DB_TYPE, INSTALL_APEX, FORMS_CLIENT_DIST, MOS_USER" "-" "decisions for the new host" "asked (new host)"
+    _ev WLS_ADMIN_USER "webadmin" "only in the encrypted boot.properties of the old host" "asked (new host)"
+    _ev "WLS_ADMIN_PWD, EMBEDDED_LDAP_PWD, REPORTS_ADMIN_PWD, DB_SYS_PWD, DB_SCHEMA_PWD, FORMS_SIGN_STOREPASS, MOS_PWD" "-" "never taken from an export" "secret (asked)"
+} | ihwt_mask > "$CSV/env_values.csv"
+md "environment.conf key;proposed value;source / note;status" env_values < "$CSV/env_values.csv"
+N_ENV_EXPORT="$(cnt ';from export$' "$CSV/env_values.csv")"; N_ENV_DEC="$(cnt ';decision$' "$CSV/env_values.csv")"
+N_ENV_MISS="$(cnt ';missing in this export$' "$CSV/env_values.csv")"
+[ "$N_ENV_MISS" -gt 0 ] && f_add INFO "Import" "$N_ENV_MISS environment.conf value(s) missing in this export (section 13.1)" "fresh export with export_forms_reports_conf.sh 2026-11-04.5 or newer"
+
+# =============================================================================
 # 12. environment.conf proposal (masked)
 # =============================================================================
 ENV_PROPOSAL="$(grep -v '^#' "$IMP/environment.conf.proposal" 2>/dev/null | sed '/^$/d' | ihwt_mask)"
@@ -847,7 +920,8 @@ export IHWA_CUSTOMER="$CUST" IHWA_DATE="$DATE" IHWA_SRC_HOST="${SRC_HOST:--}" \
     IHWA_N_WARN="$(cnt '^WARN;' "$FIND")" IHWA_N_HINT="$(cnt '^HINT;' "$FIND")" IHWA_N_INFO="$(cnt '^INFO;' "$FIND")" \
     IHWA_ENV_PROPOSAL="${ENV_PROPOSAL:-# no proposal in the export}" \
     IHWA_LOAD_INFO="$LOAD_INFO" IHWA_LOAD_PERIOD="$LOAD_PERIOD" IHWA_LOAD_FRMWEB="$LOAD_FRMWEB" \
-    IHWA_LOAD_RWENG="$LOAD_RWENG" IHWA_LOAD_HOST="$LOAD_HOST"
+    IHWA_LOAD_RWENG="$LOAD_RWENG" IHWA_LOAD_HOST="$LOAD_HOST" \
+    IHWA_N_ENV_EXPORT="$N_ENV_EXPORT" IHWA_N_ENV_DEC="$N_ENV_DEC" IHWA_N_ENV_MISS="$N_ENV_MISS"
 awk -v mddir="$MD" '
     /^<!-- BLOCK:[a-z_]+ -->$/ { b=$0; sub(/^<!-- BLOCK:/,"",b); sub(/ -->$/,"",b)
         f=mddir "/" b ".md"; if ((getline l < f) > 0) { print l; while ((getline l < f) > 0) print l; close(f) } else print "_none found_"

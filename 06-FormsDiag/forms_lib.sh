@@ -26,6 +26,8 @@
 #            frm_cfg_get FILE SECTION KEY   -> effective value (section, else [default])
 #            frm_cfg_where FILE SECTION KEY -> section that sets the key (or empty)
 #            frm_cfg_set FILE SECTION KEY VALUE / frm_cfg_unset FILE SECTION KEY
+#            frm_cfg_put_sections FILE SECTIONS_FILE -> create / replace whole sections
+#            frm_kv_overlay BASE OVERLAY [HDR] > OUT -> key=value overlay (env, webutil)
 #            frm_env_get FILE KEY           -> value of KEY=... in default.env
 #            frm_frmweb_list [WLS_PID]      -> lines: pid<TAB>section<TAB>rss_mb<TAB>etime
 #            frm_session_timeout_min        -> WLS session timeout of the Forms servlet
@@ -165,6 +167,100 @@ for l in lines:
     out.append(l)
 open(path, 'w', encoding='iso-8859-1').write('\n'.join(out))
 FRM_PY
+}
+
+# frm_cfg_put_sections FILE SECTIONS_FILE – write every [section] of
+# SECTIONS_FILE (ini format) into FILE: an existing section of the same name is
+# REPLACED completely, a new one appended at the end. [default] is not allowed
+# here (use frm_kv_overlay on the [default] overlay). Used by 14- for the
+# customer sections of the import overlay (CUSTOMER_CONF_DIR).
+# Prints the names of the written sections. No backup – the caller does it.
+frm_cfg_put_sections() {
+    python3 -I - "$@" << 'FRM_PY'
+import re, sys
+path, src = sys.argv[1:3]
+hdr = re.compile(r'^\s*\[([^\]]+)\]\s*$')
+def parse(lines):
+    secs, order, cur = {}, [], None
+    for l in lines:
+        m = hdr.match(l)
+        if m:
+            cur = m.group(1).strip()
+            if cur not in secs:
+                order.append(cur)
+            secs[cur] = []
+            continue
+        if cur is not None:
+            secs[cur].append(l)
+    return secs, order
+new, norder = parse(open(src, encoding='iso-8859-1').read().split('\n'))
+if 'default' in new:
+    sys.exit('[default] is not allowed in the sections file - use the [default] overlay')
+for s in new:                                   # trailing blank lines of a block
+    while new[s] and new[s][-1].strip() == '':
+        new[s].pop()
+lines = open(path, encoding='iso-8859-1').read().split('\n')
+out, cur, skip = [], None, False
+for l in lines:
+    m = hdr.match(l)
+    if m:
+        cur = m.group(1).strip()
+        skip = cur in new
+        if skip:                                # replace in place
+            out.append('[%s]' % cur)
+            out.extend(new[cur])
+            out.append('')
+            new[cur] = None
+            continue
+    if not skip:
+        out.append(l)
+while out and out[-1].strip() == '':
+    out.pop()
+for s in norder:                                # new sections at the end
+    if new[s] is not None:
+        out.append('')
+        out.append('[%s]' % s)
+        out.extend(new[s])
+open(path, 'w', encoding='iso-8859-1').write('\n'.join(out) + '\n')
+print(' '.join(norder))
+FRM_PY
+}
+
+# frm_kv_overlay BASE OVERLAY [HEADER] > OUT – key=value overlay without
+# sections (default.env, webutil.cfg): every key of OVERLAY replaces the key in
+# BASE, keys not in BASE are appended after a marker line. Comments and order
+# of BASE stay. An overlay value "__REMOVE__" comments the key out
+# ("# (IHW removed) ..."). Keys compared case-sensitively (env files are).
+frm_kv_overlay() {
+    local base="$1" overlay="$2" header="${3:-added by the IHateWeblogic overlay}"
+    awk -v ovf="$overlay" -v hdrtxt="$header" '
+        BEGIN {
+            n = 0
+            while ((getline line < ovf) > 0) {
+                if (line ~ /^[[:space:]]*#/ || line !~ /=/) continue
+                k = line; sub(/=.*/, "", k); gsub(/[[:space:]]/, "", k)
+                v = line; sub(/^[^=]*=/, "", v)
+                if (!(k in ov)) order[++n] = k
+                ov[k] = v
+            }
+        }
+        /^[[:space:]]*#/ || !/=/ { print; next }
+        {
+            k = $0; sub(/=.*/, "", k); gsub(/[[:space:]]/, "", k)
+            if (k in ov) {
+                used[k] = 1
+                if (ov[k] == "__REMOVE__") print "# (IHW removed) " $0; else print k "=" ov[k]
+                next
+            }
+            print
+        }
+        END {
+            h = 0
+            for (i = 1; i <= n; i++) if (!(order[i] in used) && ov[order[i]] != "__REMOVE__") {
+                if (!h) { print ""; print "# --- " hdrtxt " ---"; h = 1 }
+                print order[i] "=" ov[order[i]]
+            }
+        }' "$base"
 }
 
 # frm_env_get FILE KEY – KEY=value from default.env (last one wins)

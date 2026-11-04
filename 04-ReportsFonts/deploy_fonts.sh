@@ -198,6 +198,14 @@ else
     while IFS= read -r f; do
         CUSTOM_TTFS+=("$f")
     done < <(find "$CUSTOM_FONTS_DIR" -name "*.ttf" -o -name "*.TTF" -o -name "*.ttc" 2>/dev/null | sort)
+    # customer overlay of an import (CUSTOMER_CONF_DIR/fonts, class "customer"
+    # of the analysis - Microsoft fonts only after the customer released them)
+    if [ -n "${CUSTOMER_CONF_DIR:-}" ] && [ -d "$CUSTOMER_CONF_DIR/fonts" ]; then
+        info "Customer overlay fonts: $CUSTOMER_CONF_DIR/fonts"
+        while IFS= read -r f; do
+            CUSTOM_TTFS+=("$f")
+        done < <(find "$CUSTOMER_CONF_DIR/fonts" -maxdepth 1 \( -iname "*.ttf" -o -iname "*.ttc" -o -iname "*.otf" \) 2>/dev/null | sort)
+    fi
 
     if [ "${#CUSTOM_TTFS[@]}" -eq 0 ]; then
         info "custom_fonts_dir/ is empty – no custom fonts to deploy"

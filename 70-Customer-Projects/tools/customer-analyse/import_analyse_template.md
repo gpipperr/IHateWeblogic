@@ -50,7 +50,8 @@ directory names of the customer: hand it only to the customer.
     [12.5 Reports per report](#125-reports--jobs-per-report),
     [12.6 Reports requests](#126-reports--servlet-requests-per-day),
     [12.7 Host](#127-host--cpu-and-memory-sar)
-13. [Target in 14c – how we build it](#13-target-in-14c--how-we-build-it)
+13. [Target in 14c – how we build it](#13-target-in-14c--how-we-build-it) –
+    [13.1 environment.conf values](#131-values-for-the-14c-environmentconf)
 14. [Findings and recommendations](#14-findings-and-recommendations) –
     [14.1 security](#141-security-findings), [14.2 other](#142-other-findings),
     [14.3 not checked](#143-not-checked)
@@ -256,7 +257,17 @@ Daily average and peak of the CPU, average memory use (`sysstat`).
 | source directories | one customer directory tree below `$ORACLE_BASE/forms` / `reports` (`FORMS_CUSTOMER_DIR`, `REPORTS_PATH`) |
 | database aliases | one `tnsnames.ora` in one `TNS_ADMIN` for all processes |
 
-### 13.1 Proposed values for the 14c `environment.conf`
+### 13.1 Values for the 14c `environment.conf`
+
+The checklist for the 14c interview (`09-Install/01-setup-interview.sh`):
+{{N_ENV_EXPORT}} values come from the export, {{N_ENV_DEC}} are decisions to
+clarify with the customer, {{N_ENV_MISS}} are missing in this export. Host
+layout and passwords are always asked during the installation – passwords are
+never taken from an export.
+
+<!-- BLOCK:env_values -->
+
+### 13.2 Raw proposal of the export (`environment.conf.proposal`)
 
 ```
 {{ENV_PROPOSAL}}

@@ -147,6 +147,26 @@ else
     print_summary; exit "$EXIT_CODE"
 fi
 
+# Customer overlay (import of an existing environment, doc 14 "Customer
+# overlay") - optional; empty = templates only
+CC_DIR="${CUSTOMER_CONF_DIR:-}"
+if [ -n "$CC_DIR" ]; then
+    if [ -d "$CC_DIR/forms" ]; then
+        ok "Customer overlay: $CC_DIR"
+        for _f in formsweb.default.cfg formsweb.sections.cfg webutil.cfg.overrides; do
+            [ -f "$CC_DIR/forms/$_f" ] && info "$(printf "  %-26s %s" "$_f" "present")"
+        done
+        info "$(printf "  %-26s %s" "env files" "$(ls "$CC_DIR"/forms/env/*.env 2>/dev/null | xargs -n1 basename 2>/dev/null | xargs)")"
+        info "$(printf "  %-26s %s" "customer jars" "$(ls "$CC_DIR"/forms/jars/*.jar 2>/dev/null | wc -l)")"
+        unset _f
+    else
+        fail "CUSTOMER_CONF_DIR=$CC_DIR has no forms/ directory - run 00-Setup/customer_conf_import.sh --apply"
+        CC_DIR=""
+    fi
+else
+    info "CUSTOMER_CONF_DIR not set - no customer overlay (templates only)"
+fi
+
 # Derive path variables
 _FORMS_INST_NAME="${FORMS_INSTANCE_NAME:-forms1}"
 FR_INST="$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$_FORMS_INST_NAME"
@@ -226,6 +246,12 @@ _copy_template() {
     fi
     rendered="$(mktemp)"
     _render_template "$src" "$rendered" || { rm -f "$rendered"; return 1; }
+    # customer key overlay (CT_OVERLAY=file, set by the caller for one call)
+    if [ -n "${CT_OVERLAY:-}" ] && [ -f "$CT_OVERLAY" ]; then
+        frm_kv_overlay "$rendered" "$CT_OVERLAY" "customer overlay $(basename "$CT_OVERLAY")" > "$rendered.ov" \
+            && mv -f "$rendered.ov" "$rendered"
+        info "$(printf "  + customer overlay %s" "$CT_OVERLAY")"
+    fi
 
     for d in "$dest" ${dest2:+"$dest2"}; do
         printf "  %-30s %s%s\n" "$tname" "$d" "$([ "$d" = "$dest2" ] && printf '  (sync)')" \
@@ -345,8 +371,14 @@ _jacob_install() {
 # MAIN manifest section (the release has them only under "Name: com/jacob/"),
 # jarsigner with the password from forms_sign_sec.conf.des3 via a temp file,
 # verify (integrity, no -strict); on failure the original is restored
-_jacob_sign() {
-    local jar="$1" rc
+_jacob_sign() { _sign_jar "$1" "Java-Windows Bridge"; }
+
+# _sign_jar jar [application name] - sign a jar with FORMS_SIGN_* (jacob.jar,
+# customer jars of the overlay): old signatures are removed first (a customer
+# jar is often signed with an expired certificate / SHA-1), the security
+# attributes are added to the MAIN manifest section only when missing
+_sign_jar() {
+    local jar="$1" appname="${2:-$(basename "$1" .jar)}" rc
     local ks="${FORMS_SIGN_KEYSTORE}" alias="${FORMS_SIGN_ALIAS:-forms_codesign}"
     local sec="$ROOT_DIR/forms_sign_sec.conf.des3"
 
@@ -368,9 +400,21 @@ _jacob_sign() {
     unset FORMS_SIGN_STOREPASS
 
     cp -p "$jar" "${jar}.orig"
-    printf 'Permissions: all-permissions\nCodebase: *\nApplication-Name: Java-Windows Bridge\n' \
-        > "$tmp/manifest.add"
-    "$_JDK_BIN/jar" ufm "$jar" "$tmp/manifest.add" >> "$LOG_FILE" 2>&1
+    # old signatures out (the manifest digests stay - harmless)
+    if unzip -Z1 "$jar" 2>/dev/null | grep -qiE '^META-INF/[^/]+\.(SF|RSA|DSA|EC)$'; then
+        if command -v zip >/dev/null 2>&1; then
+            zip -q -d "$jar" 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' 'META-INF/*.EC' >> "$LOG_FILE" 2>&1
+            info "  $(basename "$jar"): old signature removed"
+        else
+            warn "  $(basename "$jar"): signed already, zip missing - old signature stays next to the new one"
+        fi
+    fi
+    unzip -p "$jar" META-INF/MANIFEST.MF 2>/dev/null | tr -d '\r' > "$tmp/manifest.cur"
+    : > "$tmp/manifest.add"
+    grep -qi '^Permissions:' "$tmp/manifest.cur"      || printf 'Permissions: all-permissions\n' >> "$tmp/manifest.add"
+    grep -qi '^Codebase:' "$tmp/manifest.cur"         || printf 'Codebase: *\n' >> "$tmp/manifest.add"
+    grep -qi '^Application-Name:' "$tmp/manifest.cur" || printf 'Application-Name: %s\n' "$appname" >> "$tmp/manifest.add"
+    [ -s "$tmp/manifest.add" ] && "$_JDK_BIN/jar" ufm "$jar" "$tmp/manifest.add" >> "$LOG_FILE" 2>&1
 
     local tsa=()
     if [ -n "${FORMS_SIGN_TSA_URL:-}" ]; then
@@ -646,6 +690,12 @@ _deploy_webutil_cfg() {
         printf 'install.syslib.0.1.7.1=jacob-%s-x64.dll|%s|%s|true\n' \
             "${JACOB_VERSION}" "${JACOB_DLL_X64_SIZE}" "${JACOB_VERSION}" >> "$overlay"
     fi
+    # customer overlay: later keys win in _merge_webutil_cfg
+    if [ -n "$CC_DIR" ] && [ -f "$CC_DIR/forms/webutil.cfg.overrides" ]; then
+        printf '\n' >> "$overlay"
+        grep -v '^[[:space:]]*#' "$CC_DIR/forms/webutil.cfg.overrides" >> "$overlay"
+        info "  + customer overlay webutil.cfg.overrides"
+    fi
     tmp="$(mktemp)"
     _merge_webutil_cfg "$overlay" "$tmp"
     rm -f "$overlay"
@@ -703,9 +753,19 @@ unset _d
 section "default.env"
 
 if [ -n "$FORMS_APP_DIR" ]; then
-    _copy_template \
+    CT_OVERLAY="${CC_DIR:+$CC_DIR/forms/env/default.env}" _copy_template \
         "$TEMPLATES_DIR/default.env.template" \
         "$FORMS_APP_DIR/config/default.env"
+    # one env file per envFile= of the customer sections: same template + overlay
+    if [ -n "$CC_DIR" ]; then
+        for _ef in "$CC_DIR"/forms/env/*.env; do
+            [ -f "$_ef" ] || continue
+            [ "$(basename "$_ef")" = default.env ] && continue
+            CT_OVERLAY="$_ef" _copy_template "$TEMPLATES_DIR/default.env.template" \
+                "$FORMS_APP_DIR/config/$(basename "$_ef")"
+        done
+        unset _ef
+    fi
     # TNS_ADMIN of environment.conf (one directory for all processes, check:
     # 02-Checks/tns_admin_check.sh); fallback = Oracle's domain default
     if [ -z "${TNS_ADMIN:-}" ]; then
@@ -778,7 +838,23 @@ else
     _fw_dest="$FORMS_APP_DIR/config/formsweb.cfg"
     _fw_ovl="$(mktemp)"; _fw_tmp="$(mktemp)"
     if _render_template "$TEMPLATES_DIR/formsweb.cfg.template" "$_fw_ovl"; then
+        # customer [default] keys after the template (later key wins)
+        if [ -n "$CC_DIR" ] && [ -f "$CC_DIR/forms/formsweb.default.cfg" ]; then
+            printf '\n' >> "$_fw_ovl"
+            grep -v '^[[:space:]]*#' "$CC_DIR/forms/formsweb.default.cfg" >> "$_fw_ovl"
+            info "  + customer overlay formsweb.default.cfg"
+        fi
         _merge_formsweb_cfg "$_fw_ovl" "$_fw_tmp"
+        # customer sections: create / replace whole sections (before the
+        # session limit and prestart - FORMS_PRESTART_SECTION may be one of them)
+        if [ -n "$CC_DIR" ] && [ -f "$CC_DIR/forms/formsweb.sections.cfg" ]; then
+            if _cs="$(frm_cfg_put_sections "$_fw_tmp" "$CC_DIR/forms/formsweb.sections.cfg" 2>&1)"; then
+                info "$(printf "  + customer sections: %s" "$_cs")"
+            else
+                fail "customer sections not applied: $_cs"
+            fi
+            unset _cs
+        fi
         # Session limit (global, [default] only) - Oracle: 0 = no limit =
         # vulnerable to Denial of Service; empty = RAM proposal of forms_lib
         _mrp="${FORMS_MAX_RUNTIME_PROCESSES:-}"
@@ -825,6 +901,34 @@ else
     fi
     rm -f "$_fw_ovl" "$_fw_tmp"
     unset _fw_dest _fw_ovl _fw_tmp
+fi
+
+# =============================================================================
+# 5b. Customer jars of the overlay (doc 14, Step 4b)
+# =============================================================================
+
+if [ -n "$CC_DIR" ] && ls "$CC_DIR"/forms/jars/*.jar >/dev/null 2>&1; then
+    section "Customer jars (overlay)"
+    _jdir="$ORACLE_HOME/forms/java"
+    for _j in "$CC_DIR"/forms/jars/*.jar; do
+        _dest="$_jdir/$(basename "$_j")"
+        # up to date: unsigned original equals the overlay jar and the installed one is signed
+        if [ -f "$_dest" ] && [ -f "${_dest}.orig" ] && cmp -s "$_j" "${_dest}.orig" && _jacob_signed "$_dest" && ! $RESIGN; then
+            ok "$(printf "  %-28s up to date (signed)" "$(basename "$_j")")"
+            continue
+        fi
+        if ! $APPLY; then
+            info "$(printf "  %-28s dry-run - would install + sign  %s" "$(basename "$_j")" "$_dest")"
+            continue
+        fi
+        if [ -z "${FORMS_SIGN_KEYSTORE:-}" ] || [ ! -f "${FORMS_SIGN_KEYSTORE:-/nonexistent}" ]; then
+            fail "$(printf "  %s: FORMS_SIGN_KEYSTORE missing - customer jars need signing (Java Web Start / FSAL)" "$(basename "$_j")")"
+            continue
+        fi
+        [ -f "$_dest" ] && cp -p "$_dest" "${_dest}.bak_$(date +%Y%m%d_%H%M%S)"
+        cp "$_j" "$_dest" && _sign_jar "$_dest" || fail "$(printf "  %s not installed / signed" "$(basename "$_j")")"
+    done
+    unset _jdir _j _dest
 fi
 
 # =============================================================================
