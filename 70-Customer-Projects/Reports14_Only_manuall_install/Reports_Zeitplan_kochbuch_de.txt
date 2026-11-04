@@ -155,6 +155,13 @@ SCHRITT 1: Lese- und Schreibverzeichnis des Reports-Servers  (nur lesen)
   # Danach Reports-Server neu starten (stopComponent.sh / startComponent.sh).
   # Ein Unterverzeichnis von /u01/oracle/reports/tmp reicht NICHT - jedes
   # Verzeichnis muss selbst in <write> stehen.
+  # Praxis (Kunde, 2026-11-04): eigenes Ausgabeverzeichnis .../out mit ";"
+  # an das bestehende <write> angehaengt, Reports-Server neu gestartet -
+  # danach lief der naechtliche Report-Job.
+  # KEIN zweites <write>-Element anlegen - das zweite ueberschreibt das erste.
+
+  grep -n '<write>' $RWSERVER_CONF
+  # Erwartet (nach der Aenderung): beide Verzeichnisse, mit ";" getrennt
 
   ----------------------------------------------------------------------------
   1.2 Der Bericht
@@ -431,7 +438,9 @@ BEKANNTE PROBLEME
   Problem: REP-56133 Access is denied to write to the specified location
   Ursache: PDF-Verzeichnis steht nicht in <folderAccess><write> - auch ein
            Unterverzeichnis eines <write>-Verzeichnisses wird abgelehnt.
-  Loesung: Schritt 1 / 1.1.
+  Loesung: Schritt 1 / 1.1 - Verzeichnis mit ";" im EINEN <write>-Element
+           ergaenzen und den Reports-Server neu starten (beim Kunden so
+           bestaetigt, 2026-11-04).
 
   Problem: REP-56132 Access is denied to the report definition file
   Ursache: Bericht nicht in einem <read>-Verzeichnis oder Name falsch.

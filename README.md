@@ -1200,7 +1200,7 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   (else `--archive`).
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
   `notifysuccess`) untested – the mail server is still the template
-  placeholder; `;` in `<write>` untested.
+  placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
 - [ ] **Configuration export → import**: first real customer run of
   `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh` (12c), then the
   import step into the 14c library (formsweb sections, env keys, cgicmd

@@ -169,8 +169,11 @@ grep -n '<write>' $RWSERVER_CONF
 - If the output must go somewhere else, add that directory in the **one**
   `<write>` element, separated by `;`, like `<read>`
   ([report_server_image_handling.md](report_server_image_handling.md)).
-  That the `;` rule also applies to `<write>` is an **assumption**, not
-  tested.
+  That the `;` rule also applies to `<write>` is **confirmed (customer,
+  2026-11-04)**: a second output directory for the nightly job was appended
+  to the existing `<write>` element with `;`
+  (`<write>/u01/.../tmp;/u01/.../out</write>`), the Reports server was
+  restarted, and the nightly job then wrote into the new directory.
 - After a change, restart the Reports server.
 - Without the right directory the job fails with `REP-56133`.
 
@@ -356,7 +359,7 @@ from the wrapper on `rc≠0`). That needs no mail set-up in the Reports server.
 
 | Symptom | Cause |
 |---|---|
-| `REP-56133 Access is denied to write to the specified location` | `desname` outside `<folderAccess><write>`, **or in a subdirectory of it** (live) |
+| `REP-56133 Access is denied to write to the specified location` | `desname` outside `<folderAccess><write>`, **or in a subdirectory of it** (live) – append the directory to the one `<write>` element with `;` and restart (customer, 2026-11-04) |
 | `REP-56132 Access is denied to the report definition file` | report not in a `<read>` directory, or the name is wrong (live, rc=1 of `rwclient`) |
 | `REP-56071 unauthorized` when scheduling | user without `RW_EXECREPORTS`, or `monUser` used for a report |
 | `showjobs queuetype=future` is empty although jobs exist | asked as `monUser` – shows only its own jobs; ask as admin |
