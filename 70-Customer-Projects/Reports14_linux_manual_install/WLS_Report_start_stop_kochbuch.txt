@@ -5,7 +5,8 @@
   Zielgruppe : Kunde / Betrieb, der den Server selbst hoch- und runterfahren
                moechte, ohne sich mit WebLogic-Details zu beschaeftigen
   Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
-  Erstellt   : 2026-10
+  Erstellt   : 2026-10, ueberarbeitet 2026-11-04 (Stil nach
+               70-Customer-Projects/cookbook-Skill.md)
   Voraussetzung: Reports_kochbuch_de.txt vollstaendig durchgefuehrt (Domain
                  angelegt, AdminServer/Managed Server/Reports-Komponenten
                  laufen mindestens einmal erfolgreich)
@@ -34,17 +35,44 @@
 ================================================================================
 
 VORAUSSETZUNGEN
-----------------
+--------------------------------------------------------------------------------
   Alle Schritte laufen als oracle-User.
 
   Die folgenden Werte muessen zu der Domain passen, die mit
-  Reports_kochbuch_de.txt angelegt wurde (siehe dortige VORAUSSETZUNGEN):
-    ORACLE_HOME          /u01/oracle/fmw
-    DOMAIN_HOME          /u01/user_projects/domains/reportRpgpi
-    WLS_MANAGED_SERVER   WLS_REPORTS
-    WLS_ADMIN_URL        t3://localhost:7001
+  Reports_kochbuch_de.txt angelegt wurde (siehe dortige VORAUSSETZUNGEN,
+  gleiche Namen wie in patch_install.ini):
+
+    ORACLE_HOME             /u01/oracle/fmw
+    DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
+    WLS_MANAGED_SERVER      WLS_REPORTS
+    WLS_ADMIN_URL           t3://localhost:7001
     REPORTS_TOOLS_INSTANCE  reptools1
     REPORTS_SERVER_NAME     repServer01
+
+  Was wo landet:
+
+    ~/.bash_profile                     Block "WebLogic/Reports Start-Stop"
+                                        <- SCHRITT 1 (Sicherung daneben:
+                                        ~/.bash_profile.bak_<zeit>)
+    $ORACLE_HOME/start_wls_all.sh       <- SCHRITT 2 (Rechte 755)
+    $ORACLE_HOME/stop_wls_all.sh        <- SCHRITT 3 (Rechte 755)
+    $DOMAIN_HOME/bin/                   die Oracle-Skripte (Teil der Domain,
+                                        nichts zu kopieren - Tabelle SCHRITT 0)
+    $DOMAIN_HOME/nodemanager/nm_start.log   <- Start Node Manager (0.1 / 2)
+    /tmp/adminserver_start.log          <- Start AdminServer (0.1 / 2)
+    /tmp/managed_start.log              <- Start Managed Server (0.1 / 2)
+    $DOMAIN_HOME/config/fmwconfig/ovd/default/   ($OVD_DIR, 0.0)
+      ovd.lok -> ovd.lok.stale          libOVD-Sperre, vor jedem
+                                        AdminServer-Start zur Seite (0.1 / 2)
+    ~/oracle-WebLogicConfig.properties  nur nach "storeUserConfig" (0.1):
+    ~/oracle-WebLogicKey.properties     gespeichertes Node-Manager-Kennwort
+
+  Kennwoerter: in dieser Anleitung stehen Platzhalter wie
+  <IDENTIFIER_PASSWORD>. Kennwoerter werden NIE in die Befehlszeile
+  getippt, sondern verdeckt mit "read -s" abgefragt. Aufrufe an rwservlet
+  mit authid= immer per POST (curl -d / --data-urlencode, nichts in der
+  URL) - sonst steht das Kennwort im Klartext im access.log von
+  WLS_REPORTS.
 
 
 ================================================================================
@@ -78,25 +106,38 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #
   # Ein eigenes Status-Skript liefert Oracle in 14.1.2 NICHT mit - der
   # Zustand wird unten per curl/ps abgefragt.
-  #
-  # Werte fuer die aktuelle Sitzung setzen (dauerhaft: Schritt 1):
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-
-  export WLS_MANAGED_SERVER=WLS_REPORTS
-
-  export WLS_ADMIN_URL=t3://localhost:7001
-
-  export REPORTS_SERVER_NAME=repServer01
-
-  cd $DOMAIN_HOME/bin
 
   # WICHTIG, falls der Autostart (Autostart_linux_middleware.txt) schon
   # eingerichtet ist: die Umgebung dann NUR noch ueber "systemctl start/stop"
   # bedienen und nicht zusaetzlich mit den Befehlen hier - sonst kennt der
   # Node Manager den Zustand der von Hand gestarteten Server nicht.
 
-  --- 0.1 Starten (in dieser Reihenfolge) ---------------------------------------
+  ----------------------------------------------------------------------------
+  0.0 Variablen setzen und pruefen  (in JEDEM neuen Terminal)
+  ----------------------------------------------------------------------------
+  # Kurzweg mit patch_install.ini:
 
+  . /u01/oracle/tools/set_script_env.sh
+
+  # Ohne set_script_env.sh - Werte fuer die aktuelle Sitzung von Hand
+  # (dauerhaft: Schritt 1):
+  #   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  #   export WLS_MANAGED_SERVER=WLS_REPORTS
+  #   export WLS_ADMIN_URL=t3://localhost:7001
+  #   export REPORTS_SERVER_NAME=repServer01
+
+  echo "DH=$DOMAIN_HOME MS=$WLS_MANAGED_SERVER URL=$WLS_ADMIN_URL REP=$REPORTS_SERVER_NAME"
+  # Erwartet: alle vier gefuellt. LEER? -> set_script_env.sh bzw. exports oben
+
+  OVD_DIR=$DOMAIN_HOME/config/fmwconfig/ovd/default
+
+  RW_URL=http://localhost:9002/reports/rwservlet
+
+  cd $DOMAIN_HOME/bin
+
+  ----------------------------------------------------------------------------
+  0.1 Starten  (in dieser Reihenfolge)
+  ----------------------------------------------------------------------------
   # 1. AdminServer - braucht $DOMAIN_HOME/servers/AdminServer/security/
   #    boot.properties (Reports_kochbuch_de.txt Schritt 4). Ohne diese Datei
   #    bricht ein Start im Hintergrund (nohup) sofort ab: im Production Mode
@@ -104,92 +145,124 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #    Vorher die libOVD-Sperre entfernen, die der Reports-Server liegen
   #    laesst - sonst findet der EM unter "Principal hinzufuegen" keine
   #    Benutzer (Reports_security.txt, Bekannte Probleme):
-  mv -f $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok.stale 2>/dev/null
+
+  mv -f $OVD_DIR/ovd.lok $OVD_DIR/ovd.lok.stale 2>/dev/null
+  # Erwartet: keine Ausgabe (auch dann, wenn keine Sperre da war)
 
   nohup ./startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
 
-  # ca. 1 Minute warten, bis der Status (0.2) "200" meldet
+  # ca. 1 Minute warten, bis der Status (0.2, Punkt 1) "200" meldet
 
   # 2. Node Manager
+
   nohup ./startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
 
-  # ca. 10 Sekunden
+  # ca. 10 Sekunden, Kontrolle 0.2 Punkt 2
 
   # 3. Managed Server - braucht ebenfalls boot.properties
   #    (Reports_kochbuch_de.txt Schritt 6) und einen laufenden AdminServer
-  nohup ./startManagedWebLogic.sh $WLS_MANAGED_SERVER $WLS_ADMIN_URL \
-      > /tmp/managed_start.log 2>&1 &
 
-  # ca. 1 Minute warten, bis der Status (0.2) "200" meldet
+  nohup ./startManagedWebLogic.sh $WLS_MANAGED_SERVER $WLS_ADMIN_URL > /tmp/managed_start.log 2>&1 &
+
+  # ca. 1 Minute warten, bis der Status (0.2, Punkt 3) "200" meldet
 
   # 4. Reports Server - wird ueber den Node Manager gestartet, der muss
-  #    also laufen. Laeuft im Vordergrund und meldet am Ende
-  #    "Successfully started server ...".
-  ./startComponent.sh $REPORTS_SERVER_NAME
+  #    also laufen. Laeuft im Vordergrund.
 
+  ./startComponent.sh $REPORTS_SERVER_NAME
+  # Erwartet am Ende: "Successfully started server ..."
   # "Connection refused ... 5556" heisst: Node Manager laeuft nicht -> erst
   # Punkt 2 (Node Manager starten).
+
   # Fragt das Skript nach dem Node-Manager-Passwort: den Benutzer liest es
   # aus der Domain, nachsehen mit
-  #   grep -o "<node-manager-username>[^<]*" $DOMAIN_HOME/config/config.xml
-  # "weblogic" -> WebLogic-Admin-Passwort eingeben. Eine zufaellige
-  # Zeichenkette -> Passwort ist unbekannt, siehe
-  # Autostart_linux_middleware.txt Schritt 1b (per WLST auf den
-  # Administrator setzen).
-  # Mit "./startComponent.sh $REPORTS_SERVER_NAME storeUserConfig" wird das
-  # Passwort einmalig gespeichert (~/oracle-WebLogicConfig.properties +
-  # ~/oracle-WebLogicKey.properties) und danach nicht mehr abgefragt.
 
-  --- 0.2 Zustand der 4 Komponenten abfragen --------------------------------------
+  grep -o "<node-manager-username>[^<]*" $DOMAIN_HOME/config/config.xml
+  # "weblogic"                     -> WebLogic-Admin-Passwort eingeben
+  # eine zufaellige Zeichenkette   -> Passwort ist unbekannt, siehe
+  #                                   Autostart_linux_middleware.txt
+  #                                   Schritt 1b (per WLST auf den
+  #                                   Administrator setzen)
 
-  # 1. AdminServer - Erwartet: 200 (503 = startet noch)
+  # Einmalig speichern (danach keine Abfrage mehr; legt
+  # ~/oracle-WebLogicConfig.properties + ~/oracle-WebLogicKey.properties an):
+  #   ./startComponent.sh $REPORTS_SERVER_NAME storeUserConfig
+
+  ----------------------------------------------------------------------------
+  0.2 Zustand der 4 Komponenten abfragen
+  ----------------------------------------------------------------------------
+  # 1. AdminServer
+
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:7001/weblogic/ready
+  # Erwartet: 200 (503 = startet noch)
 
-  # 2. Node Manager - Erwartet: eine LISTEN-Zeile auf Port 5556 und ein
-  #    Java-Prozess "weblogic.NodeManager"
+  # 2. Node Manager
+
   ss -ltn | grep ':5556'
+  # Erwartet: eine LISTEN-Zeile auf Port 5556
 
   ps -ef | grep '[w]eblogic.NodeManager'
+  # Erwartet: ein Java-Prozess "weblogic.NodeManager"
 
-  # 3. Managed Server - Erwartet: 200 (503 = startet noch)
+  # 3. Managed Server
+
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9002/weblogic/ready
+  # Erwartet: 200 (503 = startet noch)
 
   # 4. Reports Server - Prozess vorhanden?
+
   ps -ef | grep "[r]wserver server=$REPORTS_SERVER_NAME"
-  #    Und antwortet er? authid ist der Server-Administrator aus
-  #    <identifier> in rwserver.conf (Reports_kochbuch_de.txt Schritt 9.7),
-  #    NICHT ein WebLogic-Benutzer:
+  # Erwartet: eine Zeile
 
-  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=$REPORTS_SERVER_NAME&statusformat=XML&authid=rep_admin/<IDENTIFIER_PASSWORD>"
-  #    Erwartet: <engineInstance ... status="1"> (1 = Engine bereit/IDLE,
-  #    2 = beschaeftigt, 0 = tot). "REP-50001 The server is initializing"
-  #    = noch 1-2 Minuten warten.
+  # Und antwortet er? authid ist der Server-Administrator aus <identifier>
+  # in rwserver.conf (Reports_kochbuch_de.txt Schritt 9.7), NICHT ein
+  # WebLogic-Benutzer. Kennwort verdeckt abfragen, Aufruf per POST:
 
-  --- 0.3 Stoppen (umgekehrte Reihenfolge) -----------------------------------------
+  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
 
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo
+  # Erwartet: <engineInstance ... status="1"> (1 = Engine bereit/IDLE,
+  # 2 = beschaeftigt, 0 = tot). "REP-50001 The server is initializing"
+  # = noch 1-2 Minuten warten.
+  # Fehler: code="56071" = Benutzer nicht berechtigt, code="50171" =
+  # Kennwort falsch.
+
+  unset APW
+
+  ----------------------------------------------------------------------------
+  0.3 Stoppen  (umgekehrte Reihenfolge)
+  ----------------------------------------------------------------------------
   # Reihenfolge: Reports Server -> Managed Server -> AdminServer -> Node
   # Manager. Der Node Manager kommt zuletzt, weil der Reports Server ueber
   # ihn gestoppt wird.
 
   # 4. Reports Server
+
   ./stopComponent.sh $REPORTS_SERVER_NAME
 
   # 3. Managed Server - braucht WebLogic-Benutzer und -Passwort. Das Passwort
   #    nicht direkt in die Befehlszeile tippen (steht sonst in der
   #    Shell-History), sondern verdeckt abfragen:
-  read -s -p "WebLogic-Passwort: " WLS_PASS; echo
+
+  read -s -p "WebLogic-Passwort: " WLS_PASS
+
+  echo
 
   ./stopManagedWebLogic.sh $WLS_MANAGED_SERVER $WLS_ADMIN_URL weblogic "$WLS_PASS"
 
   # 1. AdminServer
+
   ./stopWebLogic.sh weblogic "$WLS_PASS" $WLS_ADMIN_URL
 
   unset WLS_PASS
 
   # 2. Node Manager
+
   ./stopNodeManager.sh
 
-  # Kontrolle: alle vier Abfragen aus 0.2 liefern jetzt nichts mehr bzw.
+  # Kontrolle: alle Abfragen aus 0.2 liefern jetzt nichts mehr bzw.
   # "000" (keine Verbindung).
 
 
@@ -200,6 +273,17 @@ SCHRITT 1: Pfade dauerhaft im .bash_profile hinterlegen  (als oracle)
   # Diese Variablen braucht NUR dieses Kochbuch (start_wls_all.sh /
   # stop_wls_all.sh) - unabhaengig davon, ob sie schon anderswo gesetzt
   # sind, macht ein zweites "export" hier nichts kaputt.
+
+  ----------------------------------------------------------------------------
+  1.1 Sichern
+  ----------------------------------------------------------------------------
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp -p ~/.bash_profile ~/.bash_profile.bak_$TS
+
+  ----------------------------------------------------------------------------
+  1.2 Block anhaengen
+  ----------------------------------------------------------------------------
   cat >> ~/.bash_profile << 'EOF'
 
 # --- WebLogic/Reports Start-Stop (WLS_Report_start_stop_kochbuch.txt) ------
@@ -211,18 +295,26 @@ export REPORTS_TOOLS_INSTANCE=reptools1
 export REPORTS_SERVER_NAME=repServer01
 EOF
 
+  ----------------------------------------------------------------------------
+  1.3 Uebernehmen und pruefen
+  ----------------------------------------------------------------------------
   # Sofort fuer die aktuelle Sitzung uebernehmen (sonst erst beim naechsten
   # Login aktiv):
+
   source ~/.bash_profile
 
-  # Kontrolle
   echo "$DOMAIN_HOME"
   # Erwartet: /u01/user_projects/domains/reportRpgpi
+
+  # Zurueck: cp -p ~/.bash_profile.bak_<zeit> ~/.bash_profile
 
 
 ================================================================================
 SCHRITT 2: start_wls_all.sh anlegen  (als oracle)
 ================================================================================
+
+  # Das Skript wird mit einem Heredoc geschrieben - der ganze Block von
+  # "cat" bis zur Zeile "EOF" ist EIN Befehl.
 
   cat > $ORACLE_HOME/start_wls_all.sh << 'EOF'
 #!/bin/bash
@@ -265,6 +357,9 @@ EOF
 
   chmod +x $ORACLE_HOME/start_wls_all.sh
 
+  ls -l $ORACLE_HOME/start_wls_all.sh
+  # Erwartet: -rwxr-xr-x ... start_wls_all.sh
+
 
 ================================================================================
 SCHRITT 3: stop_wls_all.sh anlegen  (als oracle)
@@ -274,6 +369,8 @@ SCHRITT 3: stop_wls_all.sh anlegen  (als oracle)
   # WebLogic-Benutzername und -Passwort stoppen - das Skript fragt beide
   # interaktiv ab (per "read"), speichert sie NIRGENDS und gibt das
   # Passwort beim Tippen nicht auf dem Bildschirm aus.
+  # Der ganze Block von "cat" bis zur Zeile "EOF" ist EIN Befehl.
+
   cat > $ORACLE_HOME/stop_wls_all.sh << 'EOF'
 #!/bin/bash
 # Stoppt Reports-Komponenten, Managed Server, AdminServer und Node Manager
@@ -311,22 +408,57 @@ EOF
 
   chmod +x $ORACLE_HOME/stop_wls_all.sh
 
+  ls -l $ORACLE_HOME/stop_wls_all.sh
+  # Erwartet: -rwxr-xr-x ... stop_wls_all.sh
+
 
 ================================================================================
-SCHRITT 4: Benutzung
+SCHRITT 4: Benutzung  (als oracle)
 ================================================================================
 
-  # Alles starten (dauert insgesamt ca. 2-3 Minuten):
+  ----------------------------------------------------------------------------
+  4.1 Alles starten  (dauert insgesamt ca. 2-3 Minuten)
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/start_wls_all.sh
+  # Erwartet am Ende: "Fertig. Logs bei Problemen:" und die drei Log-Pfade
 
-  # Status pruefen (alle vier Abfragen siehe Schritt 0.2):
-  curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=rep_admin/<IDENTIFIER_PASSWORD>"
+  ----------------------------------------------------------------------------
+  4.2 Status pruefen  (alle vier Abfragen siehe Schritt 0.2)
+  ----------------------------------------------------------------------------
+  RW_URL=http://localhost:9002/reports/rwservlet
+
+  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
+
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo
   # Erwartet: XML-Antwort mit status="1" (Engine IDLE). Ohne authid kommt
   # "REP-52262 Diagnostic output is disabled" (siehe Reports_kochbuch_de.txt
   # Schritt 9.11).
+  # Fehler: code="56071" = Benutzer nicht berechtigt, code="50171" =
+  # Kennwort falsch.
 
-  # Alles stoppen (fragt nach WebLogic-Benutzername/-Passwort):
+  unset APW
+
+  ----------------------------------------------------------------------------
+  4.3 Alles stoppen  (fragt nach WebLogic-Benutzername/-Passwort)
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/stop_wls_all.sh
+  # Erwartet am Ende: "Fertig."
+
+
+================================================================================
+ROLLBACK
+================================================================================
+
+  Was                          Wie
+  ---------------------------  ----------------------------------------------
+  .bash_profile (SCHRITT 1)    cp -p ~/.bash_profile.bak_<zeit> ~/.bash_profile
+  start_wls_all.sh (SCHRITT 2) umbenennen: mv <skript> <skript>.alt
+  stop_wls_all.sh (SCHRITT 3)  umbenennen: mv <skript> <skript>.alt
+                               (beide liegen in $ORACLE_HOME/)
+
+  Die Oracle-Skripte unter $DOMAIN_HOME/bin/ werden nicht veraendert.
 
 
 ================================================================================
@@ -350,7 +482,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            nicht oder mit Fehler
   Ursache: 60 Sekunden Wartezeit reichen auf einer langsamen Maschine
            manchmal nicht
-  Loesung: Noch 1-2 Minuten warten, dann den curl-Befehl aus Schritt 4
+  Loesung: Noch 1-2 Minuten warten, dann den curl-Befehl aus Schritt 4.2
            erneut ausfuehren; bei weiterem Problem die drei Log-Dateien
            pruefen, die start_wls_all.sh am Ende auflistet
 
@@ -366,12 +498,20 @@ BEKANNTE PROBLEME UND LOESUNGEN
            disabled"
   Ursache: authid fehlt oder ist ein WebLogic-Benutzer statt des
            Server-Administrators aus <identifier> in rwserver.conf
-  Loesung: authid=rep_admin/<IDENTIFIER_PASSWORD> verwenden (Schritt 0.2)
+  Loesung: authid=rep_admin/<IDENTIFIER_PASSWORD> verwenden (Schritt 0.2,
+           per POST)
+
+  Problem: Kennwort im access.log von WLS_REPORTS
+  Ursache: rwservlet-Aufruf per GET mit authid= in der URL
+           (".../getserverinfo?...&authid=...")
+  Loesung: per POST aufrufen (curl -d / --data-urlencode, Schritt 0.2 /
+           4.2)
 
   Problem: $DOMAIN_HOME ist leer, wenn man "echo $DOMAIN_HOME" eingibt
   Ursache: ~/.bash_profile wurde noch nicht geladen (z.B. neue SSH-Sitzung
            nach Schritt 1, aber vor dem naechsten Login)
   Loesung: "source ~/.bash_profile" erneut ausfuehren, oder neu einloggen
+           (oder . /u01/oracle/tools/set_script_env.sh, Schritt 0.0)
 
 
 ================================================================================
