@@ -4,7 +4,7 @@
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
   Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2, nur Reports
-  Erstellt   : 2026-10
+  Erstellt   : 2026-10, Stil nach 70-Customer-Projects/cookbook-Skill.md
   Grundlage  : IHateWeblogic/09-Install/06-13 (Gunther Pipperr)
   Voraussetzung: OS_Kochbuch_de.txt + FMW_Kochbuch_de.txt vollstaendig
                  durchgefuehrt (WebLogic/FMW-Infrastruktur installiert,
@@ -33,86 +33,301 @@
 ================================================================================
 
 VORAUSSETZUNGEN
-----------------
-    # Kurzweg: alle Werte aller Kochbuecher stehen in patch_install.ini -
-    # einlesen mit  . /u01/oracle/tools/set_script_env.sh
-    # (Start_beim_Kunden_kochbuch_de.txt). Sonst von Hand:
-    export ORACLE_BASE=/u01/oracle
-
-    export ORACLE_HOME=/u01/oracle/fmw
-
-    export JDK_HOME=/u01/oracle/java/jdk-21
-
-    export PATCH_STORAGE=/u01/oracle/patch_storage
-
-    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-
-    export DOMAIN_NAME=reportRpgpi
-
-    export WLS_MANAGED_SERVER=WLS_REPORTS
-
-    export WLS_ADMIN_URL=t3://localhost:7001
-
-    export WLS_ADMIN_PORT=7001
-
-    export WLS_REPORTS_PORT=9002
-
-    export WLS_NODEMANAGER_PORT=5556
-
-    export REPORTS_TOOLS_INSTANCE=reptools1
-
-    export REPORTS_SERVER_NAME=repServer01
-
-    export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
-
-    export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
-
-    export UIFONT_ALI=$REPORTS_ADMIN/uifont.ali
-
-    export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
-
-    export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
-
-    # cgicmd.dat liest das rwservlet aus dem Anwendungsverzeichnis des Managed
-    # Servers - dieses Verzeichnis entsteht erst beim ERSTEN Start (Schritt 9.3):
-    export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
-
-    export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
-
-    # Externe, BESTEHENDE Datenbank (wird in diesem Kochbuch NICHT angelegt):
-    export DB_HOST=dbserver01.company.local
-
-    export DB_PORT=1521
-
-    export DB_SERVICE=ORCLPDB1
-
-    export DB_SCHEMA_PREFIX=DEV
+--------------------------------------------------------------------------------
 
   Alle Schritte laufen als oracle-User, ausser ausdruecklich als "root"
-  markiert.
+  markiert (Schritt 9.1). SCHRITT 0 in JEDEM neuen Terminal wiederholen.
+
+  Die externe, BESTEHENDE Datenbank (DB_HOST, DB_PORT, DB_SERVICE) wird in
+  diesem Kochbuch NICHT angelegt - das DB-Team stellt sie bereit und fuehrt
+  die SQL-Befehle in Schritt 3 aus.
+
+
+WAS WO LANDET
+--------------------------------------------------------------------------------
+
+    $PATCH_STORAGE/                    = /u01/oracle/patch_storage (Software)
+      fr/fmw_14.1.2.0.0_fr_linux64.bin Forms-&-Reports-Installer (SCHRITT 1)
+      fr/fr_install.rsp                <- SCHRITT 1 Option A, danach geloescht
+      patches/<nr>/p<nr>_*.zip         Patch-ZIPs, je Patch ein Verzeichnis
+                                       (SCHRITT 2, siehe Tabelle unten)
+    /tmp/mw_patches/                   $MW_PATCHES <- SCHRITT 2 entpackt,
+                                       am Ende von SCHRITT 2 geloescht
+    /tmp/rcu_passwords.txt             $RCU_PW <- SCHRITT 3 Option A (600),
+                                       sofort danach geloescht (shred)
+    $ORACLE_HOME/                      = /u01/oracle/fmw  <- SCHRITT 1 + 2
+      bin/rwrun bin/rwconverter        Reports-Werkzeuge (NICHT reports/bin)
+      lib/libnsl.so.2                  <- SCHRITT 9.1 (Symlink, als root)
+    $DOMAIN_HOME/                      = /u01/user_projects/domains/reportRpgpi
+                                       <- SCHRITT 4 (Configuration Wizard)
+      config/config.xml                Domain-Konfiguration (nur lesen)
+      nodemanager/nodemanager.properties
+                                       <- SCHRITT 4, geaendert in SCHRITT 7
+      servers/AdminServer/security/boot.properties
+                                       <- SCHRITT 4 (Rechte 600)
+      servers/WLS_REPORTS/security/boot.properties
+                                       <- SCHRITT 6 (Rechte 600)
+      config/fmwconfig/jps-config-jse.xml
+                                       = $JPS_JSE <- SCHRITT 9.7b
+      config/fmwconfig/components/ReportsToolsComponent/reptools1/
+                                       = $REPORTS_COMPONENT_HOME <- SCHRITT 9.4
+        rwnetwork.conf                 <- SCHRITT 9.5 (Broadcast-Port)
+      config/fmwconfig/components/ReportsServerComponent/repServer01/
+                                       <- SCHRITT 9.4
+        rwserver.conf                  $RWSERVER_CONF <- SCHRITT 9.7
+        rwnetwork.conf                 <- SCHRITT 9.5
+      config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/
+        configuration/                 $REPORTS_APP_CONF - entsteht erst beim
+                                       ERSTEN Start von WLS_REPORTS (9.3)
+          rwservlet.properties         <- SCHRITT 9.6
+          rwnetwork.conf               <- SCHRITT 9.5
+          cgicmd.dat                   $CGICMD_DAT <- SCHRITT 9.8 (640)
+      reports/bin/reports.sh           <- SCHRITT 9.9 (Block angehaengt)
+      bin/setUserOverrides.sh          <- SCHRITT 9.9b (vi)
+    $ORACLE_BASE/reports/              = /u01/oracle/reports  <- SCHRITT 9.2
+      source/                          $REPORTS_PATH  (.rdf-Dateien)
+      images/                          $REPORTS_IMAGE_DIR (Bilder/Grafiken)
+      tmp/                             $REPORTS_TMP (NICHT /tmp - Reboot)
+    $ORACLE_BASE/admin/tns_names/      $TNS_ADMIN <- SCHRITT 9.2
+      tnsnames.ora sqlnet.ora          von der Firma / dem DB-Team
+    ~/.bash_profile                    <- SCHRITT 9.2 (export TNS_ADMIN)
+    $WORK                              = $HOME/reports_install/ <- SCHRITT 0
+                                       Arbeitsverzeichnis (Rechte 700)
+      09_cookie_key.txt                <- SCHRITT 9.2 (600) Cookie-Schluessel
+                                       fuer rwservlet.properties - BEHALTEN
+      09_backup_ts.txt                 Zeitstempel der Sicherungen in 9.5
+    /tmp/adminserver_start.log         <- SCHRITT 4 (Start AdminServer)
+    /tmp/managed_start.log             <- SCHRITT 9.3 / 9.10 (WLS_REPORTS)
+
+  Jede geaenderte Konfigurationsdatei bekommt vorher eine Sicherung
+  <datei>.bak_<JJJJMMTT_HHMMSS> im selben Verzeichnis.
+
+  Quellen (Software und Patches, Ablage unter $PATCH_STORAGE):
+
+    Nr / Datei                      Inhalt                          Schritt
+    ------------------------------  ------------------------------  -------
+    fmw_14.1.2.0.0_fr_linux64.bin   Forms & Reports 14.1.2 Installer  1
+                                    (Oracle Software Delivery Cloud)
+    39600348  p39600348_*.zip       Reports-QPR (Stand Aug 2026)       2.2
+    39951765  p39951765_*.zip       FMW PERL SPU 14.1.2                2.3
+                                    (ersetzt 38590500)
+    39987730  p39987730_*.zip       OHS Bundle 14.1.2.0.260907         2.4
+    39100536  p39100536_*.zip       WebGate Bundle 14.1.2.0.260318     2.4
+    39842516                        Forms-QPR - NICHT einspielen       -
+
+    Nur die Linux-x86-64-Variante laden (bzw. Generic, wenn MOS nur diese
+    anbietet). Aktuelle Nummern: MOS KA1182 / KA204,
+    IHateWeblogic/09-Install/docs/00-patch-references.md.
+
+  Repository-Skripte, auf die verwiesen wird:
+    60-RCU-DB-19c/rcu_registry_overview.sql, rcu_user_profile.sql (Schritt 3)
+    80-FMW-Architecture/reports_user_local_ldap.md (Schritt 9.7b)
+    80-FMW-Architecture/report_server_image_handling.md (Bekannte Probleme)
+
+
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - WLST- und SQL-Befehle werden NICHT in der Shell eingegeben. Sie stehen
+    zwischen
+        # --- in WLST eingeben ---          bzw. # --- in SQL*Plus ... ---
+        # --- Ende WLST ---                 bzw. # --- Ende SQL ---
+    und sind weiter eingerueckt. WLST liest KEINE Shell-Variablen - dort
+    stehen die echten Werte (Beispielwerte aus SCHRITT 0).
+
+  - Platzhalter in spitzen Klammern (<WLS_ADMIN_PASSWORD>,
+    <REPRUNNER_PASSWORD>) werden NUR in Dateien mit vi bzw. in WLST /
+    im Assistenten ersetzt - nie in der Shell eintippen. Kennwoerter in der
+    Shell verdeckt mit "read -s" abfragen.
+
+  - Aufrufe an rwservlet mit Kennwort (authid=, userid=) immer per POST
+    (curl -d / --data-urlencode, OHNE "?..." in der URL). WebLogic schreibt
+    die URL samt "?..." in das Access-Log von WLS_REPORTS.
+
+  - Die Dateien entstehen mit "cat > ... << EOF". Den ganzen Block von "cat"
+    bis einschliesslich "EOF" auf einmal kopieren.
+
+
+================================================================================
+SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Kurzweg mit patch_install.ini
+  ----------------------------------------------------------------------------
+  . /u01/oracle/tools/set_script_env.sh
+
+  # Alle Werte aller Kochbuecher stehen in patch_install.ini
+  # (Start_beim_Kunden_kochbuch_de.txt). Danach mit 0.3 weiter.
+  # Ohne set_script_env.sh: 0.2.
+
+  ----------------------------------------------------------------------------
+  0.2 Von Hand  (Werte an die Umgebung anpassen)
+  ----------------------------------------------------------------------------
+  export ORACLE_BASE=/u01/oracle
+
+  export ORACLE_HOME=/u01/oracle/fmw
+
+  export JDK_HOME=/u01/oracle/java/jdk-21
+
+  export PATCH_STORAGE=/u01/oracle/patch_storage
+
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
+  export DOMAIN_NAME=reportRpgpi
+
+  export WLS_MANAGED_SERVER=WLS_REPORTS
+
+  export WLS_ADMIN_URL=t3://localhost:7001
+
+  export WLS_ADMIN_PORT=7001
+
+  export WLS_REPORTS_PORT=9002
+
+  export WLS_NODEMANAGER_PORT=5556
+
+  export WLS_SERVER_FQDN=wls01.company.local
+  # Name des Servers hinter Nginx/SSL (Test in 9.11)
+
+  export REPORTS_TOOLS_INSTANCE=reptools1
+
+  export REPORTS_SERVER_NAME=repServer01
+
+  export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+
+  export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+
+  export UIFONT_ALI=$REPORTS_ADMIN/uifont.ali
+
+  export REPORTS_FONT_DIR=$DOMAIN_HOME/reports/fonts
+
+  export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
+
+  export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
+  # cgicmd.dat liest das rwservlet aus dem Anwendungsverzeichnis des Managed
+  # Servers - dieses Verzeichnis entsteht erst beim ERSTEN Start (Schritt 9.3)
+
+  export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
+
+  # Externe, BESTEHENDE Datenbank (wird in diesem Kochbuch NICHT angelegt):
+
+  export DB_HOST=dbserver01.company.local
+
+  export DB_PORT=1521
+
+  export DB_SERVICE=ORCLPDB1
+
+  export DB_SCHEMA_PREFIX=DEV
+
+  # Werte fuer Schritt 9 (Reports-Server):
+
+  export REPORTS_PATH=/u01/oracle/reports/source
+
+  export REPORTS_IMAGE_DIR=/u01/oracle/reports/images
+  # Bilder/Grafiken der Reports (frueher unter Windows z.B. d:\graphiken) -
+  # eigener Ordner, wird in 9.7 an REPORTS_PATH angehaengt und freigegeben
+
+  export REPORTS_TMP=/u01/oracle/reports/tmp
+  # NICHT /tmp - wird beim Reboot geleert
+
+  export REPORTS_BROADCAST_PORT=14027
+  # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
+
+  export TNS_ADMIN=$ORACLE_BASE/admin/tns_names
+  # EIN Verzeichnis fuer tnsnames.ora/sqlnet.ora fuer ALLE Prozesse (Engines,
+  # Reports-Server, rwrun/rwconverter, WebLogic, Shell) - nicht das
+  # Verzeichnis eines DB-Clients (wird bei dessen Patch/Upgrade ersetzt).
+  # Ohne Wert nimmt jeder Prozess einen anderen Oracle-Standard
+  # ($DOMAIN_HOME/config/fmwconfig mit nur einer Beispiel-tnsnames.ora)
+  # -> ORA-12154 / ORA-12162 beim Login
+
+  export REPORTS_NLS_LANG=GERMAN_GERMANY.AL32UTF8
+  # an den DB-Zeichensatz anpassen
+
+  ----------------------------------------------------------------------------
+  0.3 Abgeleitete Variablen  (nichts anpassen, nur kopieren)
+  ----------------------------------------------------------------------------
+  export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
+  export OPATCH=$ORACLE_HOME/OPatch/opatch
+
+  export MW_PATCHES=/tmp/mw_patches
+  # hier werden die Patch-ZIPs in SCHRITT 2 entpackt
+
+  export RCU_PW=/tmp/rcu_passwords.txt
+  # Kennwortdatei fuer RCU Option A (SCHRITT 3), nur kurz vorhanden
+
+  export JPS_JSE=$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+
+  export REPORTS_SH=$DOMAIN_HOME/reports/bin/reports.sh
+
+  export OVERRIDES=$DOMAIN_HOME/bin/setUserOverrides.sh
+
+  export RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
+
+  export WORK=$HOME/reports_install
+  # Arbeitsverzeichnis: Werte, die einen neuen Terminal ueberleben muessen
+
+  mkdir -p $WORK
+
+  chmod 700 $WORK
+
+  ----------------------------------------------------------------------------
+  0.4 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "OH=$ORACLE_HOME JDK=$JDK_HOME PS=$PATCH_STORAGE"
+  # Erwartet: alle drei gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
+
+  echo "DH=$DOMAIN_HOME DN=$DOMAIN_NAME MS=$WLS_MANAGED_SERVER"
+  # Erwartet: /u01/user_projects/domains/reportRpgpi reportRpgpi WLS_REPORTS
+
+  echo "Ports: Admin=$WLS_ADMIN_PORT Reports=$WLS_REPORTS_PORT NM=$WLS_NODEMANAGER_PORT"
+  # Erwartet: 7001 9002 5556
+
+  echo "Tools=$REPORTS_TOOLS_INSTANCE Server=$REPORTS_SERVER_NAME"
+  # Erwartet: reptools1 repServer01
+
+  echo "DB=$DB_HOST:$DB_PORT/$DB_SERVICE Prefix=$DB_SCHEMA_PREFIX"
+  # Erwartet: dbserver01.company.local:1521/ORCLPDB1 Prefix=DEV
+
+  echo "REPORTS_PATH=$REPORTS_PATH REPORTS_TMP=$REPORTS_TMP TNS_ADMIN=$TNS_ADMIN"
+  # Erwartet: alle drei gefuellt
+
+  echo "WORK=$WORK RW_URL=$RW_URL"
+  # Erwartet: /home/oracle/reports_install http://localhost:9002/reports/rwservlet
 
 
 ================================================================================
 SCHRITT 1: Forms & Reports Software installieren  (als oracle)
 ================================================================================
 
-  # Hinweis: Der 14.1.2-Installer liefert IMMER Forms- und
-  # Reports-Binaries gemeinsam aus - einen "Reports-only"-Installertyp
-  # gibt es auf Binaer-Ebene nicht. Die Beschraenkung auf Reports erfolgt
-  # erst spaeter bei der Domain-Erstellung (Schritt 3) ueber die
-  # tatsaechlich verwendeten Konfigurations-Templates.
+  Hinweis: Der 14.1.2-Installer liefert IMMER Forms- und Reports-Binaries
+  gemeinsam aus - einen "Reports-only"-Installertyp gibt es auf
+  Binaer-Ebene nicht. Die Beschraenkung auf Reports erfolgt erst spaeter
+  bei der Domain-Erstellung (Schritt 3) ueber die tatsaechlich verwendeten
+  Konfigurations-Templates.
 
-  # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
-  # (Silent) ist die uebliche Wahl auf einem Server ohne dauerhafte
-  # grafische Oberflaeche, Option B (Grafisch) fuer alle, die dem
-  # Installationsassistenten lieber beim Arbeiten zusehen/Werte interaktiv
-  # pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+  Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
+  (Silent) ist die uebliche Wahl auf einem Server ohne dauerhafte
+  grafische Oberflaeche, Option B (Grafisch) fuer alle, die dem
+  Installationsassistenten lieber beim Arbeiten zusehen/Werte interaktiv
+  pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
 
-  --- Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI) --------
+  ls -l $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin
+  # Erwartet: die Datei ist da (-rwxr-xr-x)
 
-  # Werte aus VORAUSSETZUNGEN (EOF ohne Anfuehrungszeichen -> die Shell
-  # setzt ORACLE_HOME/JDK_HOME ein; vorher kontrollieren, dass beide gesetzt
-  # sind: echo "$ORACLE_HOME $JDK_HOME")
+  ----------------------------------------------------------------------------
+  1.A Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI)
+  ----------------------------------------------------------------------------
+  # EOF ohne Anfuehrungszeichen -> die Shell setzt ORACLE_HOME/JDK_HOME
+  # ein; vorher kontrollieren, dass beide gesetzt sind:
+
+  echo "$ORACLE_HOME $JDK_HOME"
+  # Erwartet: /u01/oracle/fmw /u01/oracle/java/jdk-21. LEER? -> SCHRITT 0
+
   cat > $PATCH_STORAGE/fr/fr_install.rsp << EOF
 [ENGINE]
 Response File Version=1.0.0.0.0
@@ -130,11 +345,15 @@ INSTALL_TYPE=Forms and Reports Deployment
 JDK_HOME=${JDK_HOME}
 EOF
 
+  grep -E '^ORACLE_HOME|^JDK_HOME' $PATCH_STORAGE/fr/fr_install.rsp
+  # Erwartet: echte Pfade, kein leerer Wert
+
   export CV_ASSUME_DISTID=OEL8
 
   # Natives .bin-Installerformat (NICHT "java -jar" wie bei der
   # FMW-Infrastruktur) - -ignoreSysPrereqs ist hier Standard laut
   # Oracle-Dokumentation fuer diesen Installer.
+
   $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
       -silent \
       -responseFile $PATCH_STORAGE/fr/fr_install.rsp \
@@ -146,8 +365,11 @@ EOF
 
   rm -f $PATCH_STORAGE/fr/fr_install.rsp
 
-  --- Option B: Grafisch (Installationsassistent, OUI-GUI) -------------------
+  # Weiter mit 1.C (Kontrolle).
 
+  ----------------------------------------------------------------------------
+  1.B Option B: Grafisch (Installationsassistent, OUI-GUI)
+  ----------------------------------------------------------------------------
   # Voraussetzung: grafische Oberflaeche erreichbar - siehe
   # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
   # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
@@ -157,6 +379,7 @@ EOF
   # Gleicher Installer-Aufruf wie Option A, aber OHNE -silent/-responseFile -
   # startet stattdessen den grafischen Oracle Universal Installer (OUI).
   # -ignoreSysPrereqs bleibt noetig, unabhaengig vom Silent-/GUI-Modus:
+
   $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
       -invPtrLoc /etc/oraInst.loc \
       -ignoreSysPrereqs \
@@ -177,63 +400,93 @@ EOF
   # Der Assistent fuehrt am Ende dieselbe Pruefung/Installation aus wie
   # Option A - Dauer und Ergebnis sind identisch.
 
+  ----------------------------------------------------------------------------
+  1.C Kontrolle  (beide Optionen, NUR Reports relevant)
+  ----------------------------------------------------------------------------
   # Dauer (beide Optionen): ca. 10-20 Minuten. Installationslog:
   # /u01/app/oraInventory/logs/
 
-  # Kontrolle (beide Optionen, NUR Reports relevant)
-  $ORACLE_HOME/OPatch/opatch version
+  $OPATCH version
+  # Erwartet: "OPatch Version: ..." und "OPatch succeeded."
 
   ls $ORACLE_HOME/reports/
 
   # Die Reports-Werkzeuge liegen direkt unter $ORACLE_HOME/bin (NICHT unter
   # $ORACLE_HOME/reports/bin):
-  test -x $ORACLE_HOME/bin/rwrun && echo "rwrun vorhanden - OK"
 
-  test -x $ORACLE_HOME/bin/rwconverter && echo "rwconverter vorhanden - OK"
+  ls -l $ORACLE_HOME/bin/rwrun $ORACLE_HOME/bin/rwconverter
+  # Erwartet: beide Dateien vorhanden und ausfuehrbar (-rwx...)
 
 
 ================================================================================
 SCHRITT 2: Reports-Patch einspielen  (als oracle)
 ================================================================================
 
-  # WICHTIG: Von den beiden aktuellen Forms&Reports-QPR-Patches wird HIER
-  # NUR der Reports-Patch eingespielt. Der zweite (Forms-QPR) wird
-  # bewusst WEGGELASSEN, da reines Forms-Patch ohne Reports-Bezug.
-  #   Reports-Patch (einspielen):      39600348  (Stand Aug 2026)
-  #   Forms-Patch (NICHT einspielen):  39842516  (Stand Sep 2026)
-  # Beide sind auch im CPU Oktober 2026 unveraendert aktuell (KA1182).
-  # Dazu kommen Patches fuer Komponenten, die erst die Forms-&-Reports-
-  # Installation mitbringt (Stand CPU Oktober 2026, auf dem Testsystem
-  # am 2026-10-24 eingespielt):
-  #   39951765  FMW PERL SPU 14.1.2 (ersetzt 38590500)       ~4,5 min
-  #   39987730  OHS Bundle 14.1.2.0.260907 (nur Binaries)     ~3,5 min
-  #   39100536  WebGate Bundle 14.1.2.0.260318 (nur Binaries) ~3,5 min
-  # Aktuelle Patchnummern per MOS KA1182 / KA204 ermitteln (aendern sich
-  # monatlich) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
-  # und oracle_software_version.conf fuer den jeweils aktuellen Stand.
+  WICHTIG: Von den beiden aktuellen Forms&Reports-QPR-Patches wird HIER
+  NUR der Reports-Patch eingespielt. Der zweite (Forms-QPR) wird
+  bewusst WEGGELASSEN, da reines Forms-Patch ohne Reports-Bezug.
+    Reports-Patch (einspielen):      39600348  (Stand Aug 2026)
+    Forms-Patch (NICHT einspielen):  39842516  (Stand Sep 2026)
+  Beide sind auch im CPU Oktober 2026 unveraendert aktuell (KA1182).
+  Dazu kommen Patches fuer Komponenten, die erst die Forms-&-Reports-
+  Installation mitbringt (Stand CPU Oktober 2026, auf dem Testsystem
+  am 2026-10-24 eingespielt):
+    39951765  FMW PERL SPU 14.1.2 (ersetzt 38590500)       ~4,5 min
+    39987730  OHS Bundle 14.1.2.0.260907 (nur Binaries)     ~3,5 min
+    39100536  WebGate Bundle 14.1.2.0.260318 (nur Binaries) ~3,5 min
+  Aktuelle Patchnummern per MOS KA1182 / KA204 ermitteln (aendern sich
+  monatlich) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
+  und oracle_software_version.conf fuer den jeweils aktuellen Stand.
 
+  /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
+
+  ls -l $PATCH_STORAGE/patches/39600348 $PATCH_STORAGE/patches/39951765
+  # Erwartet: je ein p<nr>_*.zip
+
+  ls -l $PATCH_STORAGE/patches/39987730 $PATCH_STORAGE/patches/39100536
+  # Erwartet: je ein p<nr>_*.zip
+
+  mkdir -p $MW_PATCHES
+
+  ----------------------------------------------------------------------------
+  2.1 Aelteren Reports-QPR entfernen  (nur falls vorhanden)
+  ----------------------------------------------------------------------------
   # Falls ein aelterer Reports-QPR bereits installiert ist (z.B. 38827528
-  # aus Januar 2026), wird er vom neuen Patch ersetzt - vorher zurueckrollen:
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 38827528
+  # aus Januar 2026), wird er vom neuen Patch ersetzt - vorher
+  # zurueckrollen:
 
-  # falls gefunden:
-  $ORACLE_HOME/OPatch/opatch rollback -id 38827528
+  $OPATCH lspatches | grep 38827528
+  # keine Ausgabe         -> weiter mit 2.2
+  # "38827528;..." gefunden -> den naechsten Befehl ausfuehren
 
+  $OPATCH rollback -id 38827528
+
+  ----------------------------------------------------------------------------
+  2.2 Reports-QPR 39600348
+  ----------------------------------------------------------------------------
   # Patch-ZIP zuerst entpacken - opatch arbeitet im entpackten Verzeichnis
-  unzip -q $PATCH_STORAGE/patches/39600348/p39600348_*.zip -d /tmp/mw_patches
 
-  cd /tmp/mw_patches/39600348
+  unzip -q $PATCH_STORAGE/patches/39600348/p39600348_*.zip -d $MW_PATCHES
 
-  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
+  cd $MW_PATCHES/39600348
+
+  $OPATCH prereq CheckConflictAgainstOHWithDetail -ph .
   # Pruefen: "Prereq ... passed". Steht dort "failed", NICHT weitermachen -
   # opatch meldet am Ende trotzdem "OPatch succeeded".
 
-  $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
+  $OPATCH apply -silent -jdk $JDK_HOME
+  # Erwartet: "Patch 39600348 successfully applied."
+  # Ende mit "OPatch Session completed with warnings": BEKANNT UND
+  # HARMLOS, siehe 2.5.
 
-  cd -
+  cd $MW_PATCHES
 
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 39600348
+  $OPATCH lspatches | grep 39600348
+  # Erwartet: eine Zeile "39600348;..."
 
+  ----------------------------------------------------------------------------
+  2.3 FMW PERL SPU 39951765
+  ----------------------------------------------------------------------------
   # FMW PERL SPU 39951765 (CVE-2026-4176) - gehoert HIERHER, nicht ins
   # FMW-Kochbuch: seine Komponente (oracle.perlint) bringt erst die
   # Reports-Installation mit. In der reinen WebLogic-Infrastruktur wuerde
@@ -241,45 +494,78 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   # ueberspringen (Ende: "completed with warnings", aber NICHT installiert).
   # Braucht den DB-Client >= 23.26 aus dem SPB (FMW-Kochbuch Schritt 3).
   # Der Vorgaenger 38590500 (September-Stand) wird vorher entfernt:
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 38590500
 
-  # falls gefunden:
-  $ORACLE_HOME/OPatch/opatch rollback -id 38590500 -silent
+  $OPATCH lspatches | grep 38590500
+  # keine Ausgabe           -> weiter mit unzip
+  # "38590500;..." gefunden -> den naechsten Befehl ausfuehren
 
-  unzip -q $PATCH_STORAGE/patches/39951765/p39951765_*.zip -d /tmp/mw_patches
+  $OPATCH rollback -id 38590500 -silent
 
-  cd /tmp/mw_patches/39951765
+  unzip -q $PATCH_STORAGE/patches/39951765/p39951765_*.zip -d $MW_PATCHES
 
-  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
+  cd $MW_PATCHES/39951765
 
-  $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
+  $OPATCH prereq CheckConflictAgainstOHWithDetail -ph .
+  # Pruefen: "Prereq ... passed" - sonst NICHT weitermachen
 
-  cd -
+  $OPATCH apply -silent -jdk $JDK_HOME
 
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 39951765
+  cd $MW_PATCHES
+
+  $OPATCH lspatches | grep 39951765
   # Erwartet: "PERL 5.42.2 patch for FMW 14.1.2.0.0". Fehlt die Zeile und
   # stand "none of the components from patch are present" in der Ausgabe,
   # ist Perl in diesem Home nicht installiert - dann nicht anwendbar.
 
+  ----------------------------------------------------------------------------
+  2.4 OHS-Bundle 39987730 und WebGate-Bundle 39100536
+  ----------------------------------------------------------------------------
   # OHS- und WebGate-Bundle: die Binaries liegen in jedem Forms-&-Reports-
   # Home, auch wenn Nginx davor steht und keine OHS-Instanz existiert -
   # alles, was auf der Platte liegt, wird gepatcht (Scanner melden es sonst).
   # Ohne OHS-Instanz ist laut MOS KB559857 nach dem Einspielen nichts zu tun.
-  for PATCHNR in 39987730 39100536; do
-      unzip -q -o $PATCH_STORAGE/patches/$PATCHNR/p${PATCHNR}_*.zip -d /tmp/mw_patches
-      cd /tmp/mw_patches/$PATCHNR
-      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph .
-      $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME
-      cd -
-  done
 
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39987730|39100536"
+  # --- OHS-Bundle 39987730 ---
+
+  unzip -q -o $PATCH_STORAGE/patches/39987730/p39987730_*.zip -d $MW_PATCHES
+
+  cd $MW_PATCHES/39987730
+
+  $OPATCH prereq CheckConflictAgainstOHWithDetail -ph .
+  # Pruefen: "Prereq ... passed" - sonst NICHT weitermachen
+
+  $OPATCH apply -silent -jdk $JDK_HOME
+
+  cd $MW_PATCHES
+
+  # --- WebGate-Bundle 39100536 ---
+
+  unzip -q -o $PATCH_STORAGE/patches/39100536/p39100536_*.zip -d $MW_PATCHES
+
+  cd $MW_PATCHES/39100536
+
+  $OPATCH prereq CheckConflictAgainstOHWithDetail -ph .
+  # Pruefen: "Prereq ... passed" - sonst NICHT weitermachen
+
+  $OPATCH apply -silent -jdk $JDK_HOME
+
+  cd $MW_PATCHES
+
+  # --- Kontrolle beider Bundles ---
+
+  $OPATCH lspatches | grep -E "39987730|39100536"
   # Erwartet: "OHS (NATIVE) BUNDLE PATCH 14.1.2.0.260907" und
   #           "OAM WEBGATE BUNDLE PATCH 14.1.2.0.260318"
 
-  rm -rf /tmp/mw_patches
+  ----------------------------------------------------------------------------
+  2.5 Aufraeumen und bekannte Warnungen
+  ----------------------------------------------------------------------------
+  cd $HOME
 
-  # /etc/oraInst.loc wird automatisch gefunden, kein -invPtrLoc noetig.
+  echo "MW_PATCHES=$MW_PATCHES"
+  # Erwartet: /tmp/mw_patches. LEER? -> NICHT loeschen, erst SCHRITT 0
+
+  rm -rf "${MW_PATCHES:?}"
 
   # BEKANNT UND UNKRITISCH bei 39600348 (bestaetigt 2026-10-14): Die Ausgabe
   # endet haeufig mit "OPatch Session completed with warnings" statt "OPatch
@@ -304,45 +590,70 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
 SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
 ================================================================================
 
-  # WICHTIG: Dieser Schritt legt KEINE Datenbank an und erzeugt KEINE
-  # Instanz - die Datenbank existiert bereits extern und wird von einem
-  # anderen Team betrieben. RCU registriert hier ausschliesslich Schemas
-  # (Tabellen/Benutzer) INNERHALB dieser bestehenden Datenbank.
+  WICHTIG: Dieser Schritt legt KEINE Datenbank an und erzeugt KEINE
+  Instanz - die Datenbank existiert bereits extern und wird von einem
+  anderen Team betrieben. RCU registriert hier ausschliesslich Schemas
+  (Tabellen/Benutzer) INNERHALB dieser bestehenden Datenbank.
 
+  ----------------------------------------------------------------------------
+  3.1 Vorab pruefen
+  ----------------------------------------------------------------------------
   # Erreichbarkeit vorab pruefen
+
   nc -zv "$DB_HOST" "$DB_PORT"
+  # Erwartet: "Connected to ...:1521"
 
   # Vorab vom DB-Team pruefen lassen (als SYSDBA in der PDB):
-  #   SELECT value FROM v$parameter WHERE name = 'db_securefile';
+
+  # --- in SQL*Plus eingeben (DB-Team, als SYSDBA in der PDB) ---
+
+      SELECT value FROM v$parameter WHERE name = 'db_securefile';
+
+  # --- Ende SQL ---
+
   # Steht dort FORCE ("immer SecureFile", Haertungsvorgabe), scheitert der
   # ERSTE RCU-Lauf in dieser Datenbank mit ORA-43853: RCU legt die
   # Registry-Tabelle SYSTEM.SCHEMA_VERSION_REGISTRY$ (mit CLOB-Spalte) im
   # Tablespace SYSTEM an, und der kann keine SecureFiles (kein ASSM).
   # PREFERRED (Standard) und ALWAYS sind unkritisch. Bei FORCE fuer den
   # RCU-Lauf umstellen (danach darf es wieder FORCE sein):
-  #   ALTER SYSTEM SET db_securefile=PREFERRED;
+
+  # --- in SQL*Plus eingeben (DB-Team, nur bei FORCE) ---
+
+      ALTER SYSTEM SET db_securefile=PREFERRED;
+
+  # --- Ende SQL ---
 
   # Optional: Falls ein eigener Tablespace gewuenscht ist (sonst legt RCU
   # automatisch eigene Tablespaces an) - dieser SQL-Befehl muss vom
   # Datenbank-Team der EXTERNEN Datenbank ausgefuehrt werden, nicht von
   # uns:
-  #   CREATE TABLESPACE FMW_DATA
-  #     DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
-  #     SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
 
-  # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis (dieselben 9
-  # Schemas werden angelegt) - Option A (Silent) ist die uebliche Wahl auf
-  # einem Server ohne dauerhafte grafische Oberflaeche, Option B (Grafisch)
-  # fuer alle, die dem RCU-Assistenten lieber beim Arbeiten zusehen/Werte
-  # interaktiv pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+  # --- in SQL*Plus eingeben (DB-Team, optional) ---
 
-  --- Option A: Silent (Kennwortdatei, empfohlen fuer Server ohne GUI) -------
+      CREATE TABLESPACE FMW_DATA
+        DATAFILE '/u01/oradata/mydb/fmw_data01.dbf'
+        SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE UNLIMITED;
 
+  # --- Ende SQL ---
+
+  Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis (dieselben 9
+  Schemas werden angelegt) - Option A (Silent) ist die uebliche Wahl auf
+  einem Server ohne dauerhafte grafische Oberflaeche, Option B (Grafisch)
+  fuer alle, die dem RCU-Assistenten lieber beim Arbeiten zusehen/Werte
+  interaktiv pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+
+  ----------------------------------------------------------------------------
+  3.A Option A: Silent (Kennwortdatei, empfohlen fuer Server ohne GUI)
+  ----------------------------------------------------------------------------
   # RCU-Kennwortdatei anlegen (SYS-Kennwort + je ein Kennwort pro Schema).
   # WICHTIG: Datei nur temporaer, danach sofort loeschen (enthaelt
-  # Klartext-Kennwoerter).
+  # Klartext-Kennwoerter). Die Platzhalter danach mit vi ersetzen
+  # (1. Zeile SYS, dann je Schema eine Zeile).
+
   umask 077
-  cat > /tmp/rcu_passwords.txt << 'EOF'
+
+  cat > $RCU_PW << 'EOF'
 <SYS_PASSWORD>
 <SCHEMA_PASSWORD>
 <SCHEMA_PASSWORD>
@@ -355,13 +666,22 @@ SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
 <SCHEMA_PASSWORD>
 EOF
 
-  chmod 600 /tmp/rcu_passwords.txt
+  chmod 600 $RCU_PW
+
+  vi $RCU_PW
+  # Platzhalter durch die echten Kennwoerter ersetzen, speichern (:wq)
+
+  grep -c '<' $RCU_PW
+  # Erwartet: 0 (kein Platzhalter mehr)
 
   # Vorab-Test: SYSDBA-Anmeldung pruefen, bestehenden Schema-Prefix
   # ausschliessen (Namenskonflikt vermeiden)
+
   $ORACLE_HOME/oracle_common/bin/rcu -silent -listSchemas \
       -connectString "${DB_HOST}:${DB_PORT}/${DB_SERVICE}" \
-      -dbUser sys -dbRole sysdba < /tmp/rcu_passwords.txt
+      -dbUser sys -dbRole sysdba < $RCU_PW
+  # Erwartet: Anmeldung OK, der Prefix aus SCHRITT 0 (DEV) ist NICHT
+  # in der Liste
 
   # RCU-Schemas anlegen. 8 Komponenten ergeben 9 Schemas (WLS hat ein
   # Unterschema WLS_RUNTIME zusaetzlich).
@@ -376,6 +696,7 @@ EOF
   # enabled for edition-based redefinition" (unser Standard). Ohne Angabe
   # entscheidet das Werkzeug selbst (still: EBR, grafisch evtl. "Oracle
   # Database") - der Typ eines Prefix laesst sich spaeter nicht aendern.
+
   $ORACLE_HOME/oracle_common/bin/rcu \
       -silent \
       -createRepository \
@@ -386,19 +707,28 @@ EOF
       -schemaPrefix "${DB_SCHEMA_PREFIX}" \
       -component STB -component MDS -component OPSS -component IAU \
       -component IAU_APPEND -component IAU_VIEWER -component UCSUMS -component WLS \
-      -f < /tmp/rcu_passwords.txt
+      -f < $RCU_PW
 
   # Kennwortdatei sofort entfernen
-  shred -u /tmp/rcu_passwords.txt 2>/dev/null || rm -f /tmp/rcu_passwords.txt
 
-  --- Option B: Grafisch (RCU-Assistent) --------------------------------------
+  shred -u $RCU_PW
 
+  ls -l $RCU_PW
+  # Erwartet: "No such file or directory".
+  # Datei noch da (shred nicht vorhanden) -> rm -f $RCU_PW
+
+  # Weiter mit 3.C (Kontrolle).
+
+  ----------------------------------------------------------------------------
+  3.B Option B: Grafisch (RCU-Assistent)
+  ----------------------------------------------------------------------------
   # Voraussetzung: grafische Oberflaeche erreichbar - siehe
   # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
   # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
 
   # Gleiches Werkzeug wie Option A, aber OHNE -silent/-connectString/
   # -component-Parameter - startet stattdessen den grafischen RCU-Assistenten:
+
   $ORACLE_HOME/oracle_common/bin/rcu
 
   # Im Assistenten dieselben Werte eintragen, die in Option A als
@@ -443,22 +773,36 @@ EOF
   # Der Assistent fuehrt am Ende dieselbe Schema-Erstellung aus wie
   # Option A - Ergebnis ist identisch (9 Schemas mit Prefix ${DB_SCHEMA_PREFIX}_).
 
+  ----------------------------------------------------------------------------
+  3.C Kontrolle  (beide Optionen)
+  ----------------------------------------------------------------------------
   # RCU-Logs (beide Optionen): pro RCU-Aufruf ein eigenes Verzeichnis
   #   /tmp/RCU<Datum_Uhrzeit_Zufallszahl>/logs/rcu.log
   #   (das juengste ist das letzte; $ORACLE_HOME/oracle_common/rcu/log/
   #   gibt es in 14.1.2 nicht)
 
+  ls -ltd /tmp/RCU*
+  # Erwartet: das juengste Verzeichnis steht oben
+
   # Verifikation GEGEN DIE BESTEHENDE DATENBANK (per sqlplus, falls
-  # Oracle-Client lokal verfuegbar, sonst vom DB-Team ausfuehren lassen):
-  #   SELECT username FROM dba_users
-  #   WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '_%'
-  #   ORDER BY username;
-  # Erwartung: 9 Zeilen (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
-  # UMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
-  # (Achtung: die Komponente heisst UCSUMS, das Schema aber ..._UMS)
+  # Oracle-Client lokal verfuegbar, sonst vom DB-Team ausfuehren lassen).
+  # ${DB_SCHEMA_PREFIX} in SQL von Hand durch den Wert aus SCHRITT 0
+  # ersetzen (z.B. DEV):
 
-  --- Kennwort-Ablauf der Schemas verhindern (WICHTIG, vom DB-Team) --------
+  # --- in SQL*Plus eingeben ---
 
+      SELECT username FROM dba_users
+      WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '_%'
+      ORDER BY username;
+      -- Erwartung: 9 Zeilen (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
+      -- UMS, WLS, WLS_RUNTIME), jeweils mit Prefix ${DB_SCHEMA_PREFIX}_
+      -- (Achtung: die Komponente heisst UCSUMS, das Schema aber ..._UMS)
+
+  # --- Ende SQL ---
+
+  ----------------------------------------------------------------------------
+  3.D Kennwort-Ablauf der Schemas verhindern  (WICHTIG, vom DB-Team)
+  ----------------------------------------------------------------------------
   # RCU legt die Schemas mit dem Profil DEFAULT an. In Oracle 19c laeuft
   # dort das Kennwort nach 180 Tagen ab (PASSWORD_LIFE_TIME 180) und nach
   # 10 Fehlversuchen wird das Konto gesperrt (FAILED_LOGIN_ATTEMPTS 10).
@@ -466,32 +810,41 @@ EOF
   # Domain startet nicht mehr (ORA-28001 / ORA-28000 im Server-Log).
   # RCU kennt keinen Parameter fuer ein Profil - daher NACH dem RCU-Lauf
   # ein eigenes Profil anlegen und zuweisen (als SYSDBA in der PDB):
-  #
-  #   CREATE PROFILE RCU_USER LIMIT
-  #     PASSWORD_LIFE_TIME UNLIMITED
-  #     FAILED_LOGIN_ATTEMPTS UNLIMITED;
-  #
-  #   -- allen RCU-Schemas des Prefix zuweisen (Liste aus der RCU-Registry)
-  #   BEGIN
-  #     FOR r IN (SELECT owner FROM system.schema_version_registry$
-  #                WHERE mrc_name = UPPER('${DB_SCHEMA_PREFIX}')) LOOP
-  #       EXECUTE IMMEDIATE 'ALTER USER "' || r.owner || '" PROFILE RCU_USER';
-  #     END LOOP;
-  #   END;
-  #   /
-  #
-  #   -- Kontrolle: Profil RCU_USER, Status OPEN, kein Ablaufdatum
-  #   SELECT username, profile, account_status, expiry_date
-  #     FROM dba_users
-  #    WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '\_%' ESCAPE '\'
-  #    ORDER BY username;
-  #
+
+  # --- in SQL*Plus eingeben (DB-Team, als SYSDBA in der PDB) ---
+
+      CREATE PROFILE RCU_USER LIMIT
+        PASSWORD_LIFE_TIME UNLIMITED
+        FAILED_LOGIN_ATTEMPTS UNLIMITED;
+
+      -- allen RCU-Schemas des Prefix zuweisen (Liste aus der RCU-Registry)
+      BEGIN
+        FOR r IN (SELECT owner FROM system.schema_version_registry$
+                   WHERE mrc_name = UPPER('${DB_SCHEMA_PREFIX}')) LOOP
+          EXECUTE IMMEDIATE 'ALTER USER "' || r.owner || '" PROFILE RCU_USER';
+        END LOOP;
+      END;
+      /
+
+      -- Kontrolle: Profil RCU_USER, Status OPEN, kein Ablaufdatum
+      SELECT username, profile, account_status, expiry_date
+        FROM dba_users
+       WHERE username LIKE UPPER('${DB_SCHEMA_PREFIX}') || '\_%' ESCAPE '\'
+       ORDER BY username;
+
+  # --- Ende SQL ---
+
   # Hinweis: nur den EIGENEN Prefix aendern - in derselben Datenbank
   # koennen weitere RCU-Repositories (andere Domains/Teams) liegen.
   # Uebersicht aller Prefixe der Datenbank:
-  #   SELECT mrc_name, COUNT(*) FROM system.schema_version_registry$
-  #    GROUP BY mrc_name;
-  #
+
+  # --- in SQL*Plus eingeben ---
+
+      SELECT mrc_name, COUNT(*) FROM system.schema_version_registry$
+       GROUP BY mrc_name;
+
+  # --- Ende SQL ---
+
   # Fertige Skripte dafuer im Repository:
   #   60-RCU-DB-19c/rcu_registry_overview.sql  (alle Prefixe, Profil, Ablauf)
   #   60-RCU-DB-19c/rcu_user_profile.sql   (@rcu_user_profile.sql RCU_USER <PREFIX>)
@@ -503,18 +856,28 @@ EOF
 SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
 ================================================================================
 
-  # Voraussetzung: grafische Oberflaeche erreichbar - siehe
-  # FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
-  # "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
+  Voraussetzung: grafische Oberflaeche erreichbar - siehe
+  FMW_Kochbuch_de.txt Schritt 1 Option B (X11-Weiterleitung per
+  "ssh -X" oder VNC, $DISPLAY gesetzt, ggf. xorg-x11-xauth installiert).
 
+  ----------------------------------------------------------------------------
+  4.1 Gibt es die Domain schon?
+  ----------------------------------------------------------------------------
   # WICHTIG vor dem Start: Falls $DOMAIN_HOME/config/config.xml bereits
   # existiert, im Assistenten NICHT "Create Domain" waehlen - das wuerde
   # versuchen, am selben Pfad eine neue Domain anzulegen und schlaegt dann
   # entweder fehl oder fragt nach einem Update. Stattdessen "Update Domain"
   # verwenden oder vorher einen anderen DOMAIN_HOME waehlen.
-  test -f $DOMAIN_HOME/config/config.xml && echo "ACHTUNG: Domain existiert bereits"
 
+  ls -l $DOMAIN_HOME/config/config.xml
+  # "No such file or directory" -> gut, neue Domain, weiter mit 4.2
+  # Datei vorhanden             -> ACHTUNG: Domain existiert bereits
+
+  ----------------------------------------------------------------------------
+  4.2 Configuration Wizard
+  ----------------------------------------------------------------------------
   # Fusion Middleware Configuration Wizard starten:
+
   $ORACLE_HOME/oracle_common/common/bin/config.sh
 
   # Im Assistenten folgende Werte eintragen/auswaehlen. Im Vergleich zu
@@ -618,12 +981,21 @@ SCHRITT 4: WebLogic-Domain anlegen (nur Reports, kein Forms)  (als oracle)
   # Dauer: ca. 5-10 Minuten. Fortschritt/Fehler sind im Assistenten selbst
   # ueber "View Log" einsehbar.
 
-  # Kontrolle
-  test -f $DOMAIN_HOME/config/config.xml && echo "Domain angelegt - OK"
+  ----------------------------------------------------------------------------
+  4.3 Kontrolle
+  ----------------------------------------------------------------------------
+  ls -l $DOMAIN_HOME/config/config.xml
+  # Erwartet: die Datei ist da (Domain angelegt)
 
-  grep -q "${WLS_MANAGED_SERVER}" $DOMAIN_HOME/config/config.xml && echo "Managed Server vorhanden - OK"
+  grep -c "${WLS_MANAGED_SERVER}" $DOMAIN_HOME/config/config.xml
+  # Erwartet: 1 oder mehr (Managed Server vorhanden). 0 -> Wizard pruefen
 
-  # Node-Manager-Konfiguration
+  ----------------------------------------------------------------------------
+  4.4 Node-Manager-Konfiguration
+  ----------------------------------------------------------------------------
+  echo "NM-Port=$WLS_NODEMANAGER_PORT JDK=$JDK_HOME"
+  # Erwartet: 5556 /u01/oracle/java/jdk-21. LEER? -> SCHRITT 0
+
   mkdir -p $DOMAIN_HOME/nodemanager
 
   cat > $DOMAIN_HOME/nodemanager/nodemanager.properties << EOF
@@ -639,9 +1011,15 @@ LogFile=${DOMAIN_HOME}/nodemanager/nodemanager.log
 LogLevel=INFO
 EOF
 
-  # boot.properties fuer AdminServer (automatischer Start ohne
-  # interaktive Passwortabfrage - WebLogic verschluesselt die Datei beim
-  # ersten Start automatisch)
+  cat $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Erwartet: echte Werte (ListenPort=5556, JavaHome=/u01/oracle/java/jdk-21)
+
+  ----------------------------------------------------------------------------
+  4.5 boot.properties fuer AdminServer
+  ----------------------------------------------------------------------------
+  # Automatischer Start ohne interaktive Passwortabfrage - WebLogic
+  # verschluesselt die Datei beim ersten Start automatisch.
+
   mkdir -p $DOMAIN_HOME/servers/AdminServer/security
 
   cat > $DOMAIN_HOME/servers/AdminServer/security/boot.properties << 'EOF'
@@ -651,15 +1029,25 @@ EOF
 
   chmod 600 $DOMAIN_HOME/servers/AdminServer/security/boot.properties
 
+  vi $DOMAIN_HOME/servers/AdminServer/security/boot.properties
+  # <WLS_ADMIN_PASSWORD> durch das echte Kennwort ersetzen, speichern (:wq)
+
+  grep -c '<WLS_ADMIN_PASSWORD>' $DOMAIN_HOME/servers/AdminServer/security/boot.properties
+  # Erwartet: 0
+
   # Hinweis Kennwort-Richtlinie: mindestens 8 Zeichen, mindestens eine
   # Ziffer ODER ein Sonderzeichen (sonst Fehler 60455).
 
-  # AdminServer erstmalig starten
+  ----------------------------------------------------------------------------
+  4.6 AdminServer erstmalig starten
+  ----------------------------------------------------------------------------
   nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
 
   sleep 60
+
   # WebLogic 14.1.2 hat KEINE Administration Console (/console) mehr -
   # stattdessen den Readiness-Endpunkt abfragen:
+
   curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_ADMIN_PORT}/weblogic/ready
   # Erwartet: 200 (Server im Zustand RUNNING). 503 = startet noch - etwas
   # warten und wiederholen.
@@ -669,31 +1057,33 @@ EOF
 SCHRITT 5: (entfallen - cgicmd.dat siehe Schritt 9.8)
 ================================================================================
 
-  # cgicmd.dat liegt im Anwendungsverzeichnis des Managed Servers
-  # ($REPORTS_APP_CONF). Dieses Verzeichnis gibt es erst nach dem ersten
-  # Start von $WLS_MANAGED_SERVER - deshalb wird cgicmd.dat jetzt in
-  # Schritt 9.8 eingerichtet (inkl. RepRunner-authid aus Schritt 8).
+  cgicmd.dat liegt im Anwendungsverzeichnis des Managed Servers
+  ($REPORTS_APP_CONF). Dieses Verzeichnis gibt es erst nach dem ersten
+  Start von $WLS_MANAGED_SERVER - deshalb wird cgicmd.dat jetzt in
+  Schritt 9.8 eingerichtet (inkl. RepRunner-authid aus Schritt 8).
 
 
 ================================================================================
 SCHRITT 6: boot.properties fuer den Reports-Managed-Server  (als oracle)
 ================================================================================
 
-  # NUR AdminServer (Schritt 4) und $WLS_MANAGED_SERVER - KEIN
-  # WLS_FORMS-Eintrag, da kein Forms installiert wird.
-  # Ohne diese Datei stirbt der erste Start des Managed Servers sofort
-  # (Production Mode, keine Konsole fuer die Passwortabfrage):
-  #   BEA-090782 ... System Console ... was not found ... shutDownStatus=255
-  # Das Verzeichnis servers/<name>/ gibt es vor dem ersten Start noch nicht -
-  # deshalb hier selbst anlegen.
+  NUR AdminServer (Schritt 4) und $WLS_MANAGED_SERVER - KEIN
+  WLS_FORMS-Eintrag, da kein Forms installiert wird.
+  Ohne diese Datei stirbt der erste Start des Managed Servers sofort
+  (Production Mode, keine Konsole fuer die Passwortabfrage):
+    BEA-090782 ... System Console ... was not found ... shutDownStatus=255
+  Das Verzeichnis servers/<name>/ gibt es vor dem ersten Start noch nicht -
+  deshalb hier selbst anlegen.
 
   # Zuerst pruefen: Ist die Datei bereits von WebLogic verschluesselt
   # ("{AES256}..." in 14.1.2, aeltere Versionen "{AES}...")? Dann NICHT
   # ueberschreiben:
-  grep -q '{AES' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties 2>/dev/null \
-      && echo "Bereits verschluesselt - Datei unveraendert lassen, Rest dieses Schritts ueberspringen"
 
-  # Nur wenn NICHT "Bereits verschluesselt" erschien:
+  grep -c '{AES' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  # 1 oder mehr       -> Bereits verschluesselt - Datei unveraendert lassen,
+  #                      Rest dieses Schritts ueberspringen
+  # 0 / "No such file" -> die naechsten Befehle ausfuehren
+
   mkdir -p $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security
 
   cat > $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties << 'EOF'
@@ -703,20 +1093,37 @@ EOF
 
   chmod 600 $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
 
+  vi $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  # <WLS_ADMIN_PASSWORD> durch das echte Kennwort ersetzen, speichern (:wq)
+
+  grep -c '<WLS_ADMIN_PASSWORD>' $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  # Erwartet: 0
+
 
 ================================================================================
-SCHRITT 7: Node Manager konfigurieren  (als oracle)
+SCHRITT 7: Node Manager konfigurieren  (als oracle, AdminServer laeuft)
 ================================================================================
 
+  ----------------------------------------------------------------------------
+  7.1 nodemanager.properties
+  ----------------------------------------------------------------------------
   # Standardmaessig erwartet der Node Manager SSL-Verbindungen, was auf
   # dieser rein internen Verbindung (127.0.0.1) nur unnoetige Fehler
   # produziert (BEA-300048 / SSLException: Unrecognized SSL message).
+
   sed -i 's/^SecureListener=.*/SecureListener=false/' \
       $DOMAIN_HOME/nodemanager/nodemanager.properties
 
   sed -i 's/^StartScriptEnabled=.*/StartScriptEnabled=true/' \
       $DOMAIN_HOME/nodemanager/nodemanager.properties
 
+  grep -E '^SecureListener|^StartScriptEnabled' $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Erwartet: SecureListener=false (und StartScriptEnabled=true, falls die
+  # Zeile in der Datei steht)
+
+  ----------------------------------------------------------------------------
+  7.2 Node-Manager-Typ "Plain"  (WLST)
+  ----------------------------------------------------------------------------
   # Node-Manager-Typ auf "Plain" setzen (WLST, AdminServer muss bereits
   # laufen). WICHTIG: NICHT ueber "/SecurityConfiguration/<domain>" setzen -
   # cmo.setNodeManagerType() existiert dort in 14.1.2 nicht mehr (fuehrt zu
@@ -724,64 +1131,81 @@ SCHRITT 7: Node Manager konfigurieren  (als oracle)
   # live gegen eine echte 14.1.2-Domain bestaetigt per dir(cmo) - dort sind
   # nur noch NodeManagerUsername/NodeManagerPassword(Encrypted)/SecureMode
   # vorhanden). Das Attribut sitzt stattdessen auf der NodeManagerMBean
-  # unterhalb der Machine und heisst dort "NMType":
-  cat > /tmp/nm_plain.py << EOF
-connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
-edit()
-startEdit()
-cd('/Machines/AdminServerMachine/NodeManager/AdminServerMachine')
-cmo.setNMType('Plain')
-save()
-activate(block='true')
-disconnect()
-EOF
-
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh /tmp/nm_plain.py
-
-  rm -f /tmp/nm_plain.py
-
-  # Hinweis: "AdminServerMachine" ist der Name der Machine, die der
-  # Configuration Wizard in Schritt 4 automatisch mit AdminServer angelegt
-  # hat (derselbe Name wird in Schritt 9.4 fuer machine='AdminServerMachine'
+  # unterhalb der Machine und heisst dort "NMType".
+  #
+  # "AdminServerMachine" ist der Name der Machine, die der Configuration
+  # Wizard in Schritt 4 automatisch mit AdminServer angelegt hat (derselbe
+  # Name wird in Schritt 9.4 fuer machine='AdminServerMachine'
   # wiederverwendet). Falls ein anderer Machine-Name vergeben wurde: per
   # "ls()" unter "/Machines" im WLST pruefen.
 
-  # Node Manager starten
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect('weblogic', '<WLS_ADMIN_PASSWORD>', 't3://localhost:7001')
+      # t3://... = WLS_ADMIN_URL aus SCHRITT 0
+
+      edit()
+
+      startEdit()
+
+      cd('/Machines/AdminServerMachine/NodeManager/AdminServerMachine')
+
+      cmo.setNMType('Plain')
+
+      save()
+
+      activate(block='true')
+
+      disconnect()
+
+      exit()
+
+  # --- Ende WLST ---
+
+  ----------------------------------------------------------------------------
+  7.3 Node Manager starten
+  ----------------------------------------------------------------------------
   nohup $DOMAIN_HOME/bin/startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm.out 2>&1 &
 
   sleep 10
+
   tail -20 $DOMAIN_HOME/nodemanager/nodemanager.log
+  # Erwartet: keine SSLException / BEA-300048 (siehe 7.1)
 
 
 ================================================================================
 SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
 ================================================================================
 
-  # Berechtigungs-Kette in WebLogic/OPSS: Berechtigung (Application Policy)
-  # -> Rolle (Application Role) -> Benutzer (Security Realm / myrealm).
-  # Quelle: pipperr.de - Oracle Reports 14c Reports Servlet Admin Oberflaeche
-  # erlauben - Monitoring und Report User anlegen; Oracle Doc ID 2072876.1
-  # (REP-56071 When Attempt to Access In-Process Reports Server).
-  #
-  # Diese drei Benutzer/Rollen werden ueber die EM-Konsole angelegt
-  # (http://<host>:7001/em - EM laeuft auf dem AdminServer, NICHT auf dem
-  # Reports-Managed-Server), app-stripe "reports":
-  #
-  #   Benutzer      Rolle            Zweck
-  #   weblogic      RW_ADMINISTRATOR (bereits vorhanden, nur Rolle zuweisen)
-  #   monUser       RW_MONITOR       Server-Status abfragen (showjobs, getserverinfo, ...)
-  #   RepRunner     RW_EXECREPORTS   Reports tatsaechlich ausfuehren
-  #
-  # Menuetexte unten: Englisch (Deutsch) - die deutschen Begriffe entsprechen
-  # der ueblichen Oracle-EM-Uebersetzung, werden aber nur angezeigt, wenn die
-  # Konsole/der Browser auf Deutsch eingestellt ist. Ohne deutsches
-  # Sprachpaket/Locale erscheinen IMMER die englischen Originalbegriffe -
-  # dann nach den englischen Texten navigieren.
+  Berechtigungs-Kette in WebLogic/OPSS: Berechtigung (Application Policy)
+  -> Rolle (Application Role) -> Benutzer (Security Realm / myrealm).
+  Quelle: pipperr.de - Oracle Reports 14c Reports Servlet Admin Oberflaeche
+  erlauben - Monitoring und Report User anlegen; Oracle Doc ID 2072876.1
+  (REP-56071 When Attempt to Access In-Process Reports Server).
 
-  # 8.1 weblogic -> RW_ADMINISTRATOR (vorhandenen Admin-User fuer die
-  #     Reports-Oberflaeche berechtigen, damit Report-Jobs ueber EM verwaltet
-  #     werden koennen - NICHT ueber "Users and Groups", der User existiert
-  #     bereits, nur die Rolle fehlt):
+  Diese drei Benutzer/Rollen werden ueber die EM-Konsole angelegt
+  (http://<host>:7001/em - EM laeuft auf dem AdminServer, NICHT auf dem
+  Reports-Managed-Server), app-stripe "reports":
+
+    Benutzer      Rolle            Zweck
+    weblogic      RW_ADMINISTRATOR (bereits vorhanden, nur Rolle zuweisen)
+    monUser       RW_MONITOR       Server-Status abfragen (showjobs, getserverinfo, ...)
+    RepRunner     RW_EXECREPORTS   Reports tatsaechlich ausfuehren
+
+  Menuetexte unten: Englisch (Deutsch) - die deutschen Begriffe entsprechen
+  der ueblichen Oracle-EM-Uebersetzung, werden aber nur angezeigt, wenn die
+  Konsole/der Browser auf Deutsch eingestellt ist. Ohne deutsches
+  Sprachpaket/Locale erscheinen IMMER die englischen Originalbegriffe -
+  dann nach den englischen Texten navigieren.
+
+  ----------------------------------------------------------------------------
+  8.1 weblogic -> RW_ADMINISTRATOR
+  ----------------------------------------------------------------------------
+  # Vorhandenen Admin-User fuer die Reports-Oberflaeche berechtigen, damit
+  # Report-Jobs ueber EM verwaltet werden koennen - NICHT ueber "Users and
+  # Groups", der User existiert bereits, nur die Rolle fehlt:
   #   EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
   #         Application Roles (Anwendungsrollen)
   #   Application Stripe "reports" auswaehlen, mit ">" suchen
@@ -790,10 +1214,12 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #     Type (Typ): User (Benutzer), mit ">" suchen, weblogic auswaehlen -> OK
   #   Mit OK bestaetigen
 
-  # 8.2 monUser -> RW_MONITOR (darf NUR den Status abfragen, keine Berichte).
-  #     WICHTIG: Benutzer werden NICHT direkt unter "Users and Groups"
-  #     angelegt, sondern innerhalb eines Security Realm (hier "myrealm") -
-  #     ein haeufiger Stolperstein, wenn man den Menuepunkt direkt sucht:
+  ----------------------------------------------------------------------------
+  8.2 monUser -> RW_MONITOR  (darf NUR den Status abfragen, keine Berichte)
+  ----------------------------------------------------------------------------
+  # WICHTIG: Benutzer werden NICHT direkt unter "Users and Groups"
+  # angelegt, sondern innerhalb eines Security Realm (hier "myrealm") -
+  # ein haeufiger Stolperstein, wenn man den Menuepunkt direkt sucht:
   #   Benutzer anlegen:
   #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
   #           Security Realms (Sicherheitsbereiche) -> myrealm
@@ -820,9 +1246,12 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #         webcommands=showmyjobs,getjobid,showjobid,getserverinfo,showjobs server=*
   #       Permission Actions: ALL -> OK -> OK
 
-  # 8.3 RepRunner -> RW_EXECREPORTS (fuehrt Berichte tatsaechlich aus, kein
-  #     Admin-Zugriff; dieser User wird anschliessend in cgicmd.dat
-  #     hinterlegt, damit das Kennwort nicht im Report-Aufruf/der URL steht):
+  ----------------------------------------------------------------------------
+  8.3 RepRunner -> RW_EXECREPORTS
+  ----------------------------------------------------------------------------
+  # Fuehrt Berichte tatsaechlich aus, kein Admin-Zugriff; dieser User wird
+  # anschliessend in cgicmd.dat hinterlegt, damit das Kennwort nicht im
+  # Report-Aufruf/der URL steht:
   #   Benutzer anlegen (wie 8.2 - Security Realms -> myrealm):
   #     EM -> WebLogic Domain (WebLogic-Domaene) -> Security (Sicherheit) ->
   #           Security Realms (Sicherheitsbereiche) -> myrealm
@@ -846,9 +1275,15 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   #         report=* server=* destype=* desformat=* allowcustomargs=true
   #       Permission Actions: ALL -> OK -> OK
 
-  # 8.4 RepRunner in cgicmd.dat hinterlegen: siehe Schritt 9.8 (die Datei
-  #     existiert erst nach dem ersten Start des Managed Servers).
+  ----------------------------------------------------------------------------
+  8.4 RepRunner in cgicmd.dat hinterlegen
+  ----------------------------------------------------------------------------
+  # Siehe Schritt 9.8 (die Datei existiert erst nach dem ersten Start des
+  # Managed Servers).
 
+  ----------------------------------------------------------------------------
+  8.5 Hinweise und Verifikation
+  ----------------------------------------------------------------------------
   # Bleibt im EM-Dialog "Add Principal" (Principal hinzufuegen) die
   # Benutzerliste leer, obwohl die Benutzer existieren: libOVD-Sperre ovd.lok
   # des Reports-Servers - siehe Reports_security.txt, BEKANNTE PROBLEME
@@ -857,7 +1292,7 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
 
   # Falls die neuen Rollen/Policies nicht sofort wirken (weiterhin 401/403
   # trotz korrektem authid): der Security-Cache des Managed Servers wird
-  # erst nach einem Neustart aktualisiert.
+  # erst nach einem Neustart aktualisiert:
   #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
   #   $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL}
   #   (Stop ohne Benutzer/Passwort braucht die boot.properties des Managed
@@ -867,24 +1302,38 @@ SCHRITT 8: Reports-Benutzer und Policies anlegen  (ueber Enterprise Manager)
   # Server und repServer laufen vorher noch nicht). ACHTUNG: wirkt nur, wenn
   # der Reports-Server ueber securityId am <job>-Element abgesichert ist -
   # sonst kommt "REP-52262 Diagnostic output is disabled", siehe 9.11.
-  # monUser-Kennwort interaktiv eingeben statt fest in der Shell-History zu
-  # verdrahten:
-  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?authid=monUser/<MONUSER_PASSWORD>&statusformat=XML"
+  # monUser-Kennwort verdeckt eingeben statt fest in der Shell-History zu
+  # verdrahten; per POST (nicht in der URL - Access-Log):
+
+  read -s -p "monUser-Kennwort: " MPW
+
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=monUser/$MPW" $RW_URL/getserverinfo
   # Erwartet: XML-Antwort mit Server-/Engine-Status, KEIN 401/403
+
+  unset MPW
 
 
 ================================================================================
 SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 ================================================================================
 
-  # 9.1 Nur auf Oracle Linux 9 / RHEL 9 noetig (als root): symbolischer
-  #     Link fuer libnsl, da OL9 die alte libnsl.so.2-ABI nicht mehr
-  #     mitbringt, rwserver sie aber dynamisch bindet (MOS Doc ID 3069675.1).
-  #     $ORACLE_HOME/lib/libnsl.so.2 loest mit den Werten aus VORAUSSETZUNGEN
-  #     zu /u01/oracle/fmw/lib/libnsl.so.2 auf - das Verzeichnis ist korrekt,
-  #     es ist das in rwserver fest einkompilierte RPATH-Verzeichnis.
+  ----------------------------------------------------------------------------
+  9.1 libnsl-Link  (nur Oracle Linux 9 / RHEL 9, als root)
+  ----------------------------------------------------------------------------
+  # Symbolischer Link fuer libnsl, da OL9 die alte libnsl.so.2-ABI nicht
+  # mehr mitbringt, rwserver sie aber dynamisch bindet (MOS Doc ID
+  # 3069675.1). $ORACLE_HOME/lib/libnsl.so.2 loest mit den Werten aus
+  # SCHRITT 0 zu /u01/oracle/fmw/lib/libnsl.so.2 auf - das Verzeichnis ist
+  # korrekt, es ist das in rwserver fest einkompilierte RPATH-Verzeichnis.
+  #
+  # Als root ist ORACLE_HOME zunaechst leer - zuerst setzen:
 
-  #Fehler erkennenn
+  export ORACLE_HOME=/u01/oracle/fmw
+
+  # Fehler erkennen
+
   ldd $ORACLE_HOME/bin/rwserver | grep libnsl
   # Erwartet:  "not found"
 
@@ -893,11 +1342,10 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # kann sich mit einem OS-Update aendern. Stattdessen den stabilen
   # SONAME-Link verwenden, den das Betriebssystem selbst pflegt und
   # automatisch aktuell haelt:
-  
+
   ls -la /lib64/libnsl.so.3
-  
   # Erwartet: ein Symlink, z.B. "/lib64/libnsl.so.3 -> libnsl.so.3.0.0".
-  
+  #
   # Falls die Datei NICHT existiert: Paket libnsl2 fehlt (eigentlich schon
   # in OS_Kochbuch_de.txt Schritt 3 installiert). libnsl2 kommt aus dem
   # AppStream-Repository - findet dnf es nicht, ist AppStream nicht aktiv
@@ -914,7 +1362,6 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   ln -s /lib64/libnsl.so.3 $ORACLE_HOME/lib/libnsl.so.2
 
-
   # Kontrolle - WICHTIG: "ls" alleine reicht hier NICHT. "ls" zeigt einen
   # Symlink auch dann an, wenn sein Ziel gar nicht existiert ("toter
   # Symlink") - das sieht dann faelschlich nach Erfolg aus. "readlink -f"
@@ -922,46 +1369,24 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # falls am Ende keine echte Datei steht:
 
   readlink -f $ORACLE_HOME/lib/libnsl.so.2
-  
   # Erwartet: ein Pfad wie "/usr/lib64/libnsl.so.3.0.0" - KEINE Fehlermeldung.
   # Kommt stattdessen gar nichts oder ein Fehler zurueck: der Symlink zeigt
   # ins Leere - Schritt 9.1 nochmal von vorn, genau wie oben beschrieben.
 
-  
   ldd $ORACLE_HOME/bin/rwserver | grep libnsl
   # Erwartet: Pfadaufloesung, Lib wird angezeigt
 
-  # 9.2 Benoetigte Variablen fuer diesen Abschnitt
-  #     Die export-Zeilen aus VORAUSSETZUNGEN gelten nur in der Shell, in der
-  #     sie eingegeben wurden. Wird Schritt 9 in einer neuen Sitzung
-  #     ausgefuehrt, sind sie leer - dann landen z.B. rwservlet.properties
-  #     oder cgicmd.dat unter "/" statt in der Domain. Deshalb hier die fuer
-  #     Schritt 9 noetigen Werte noch einmal setzen (Werte wie in
-  #     VORAUSSETZUNGEN):
+  # Ab hier wieder als oracle (SCHRITT 0 im oracle-Terminal).
 
-  export ORACLE_HOME=/u01/oracle/fmw
+  ----------------------------------------------------------------------------
+  9.2 Variablen und Verzeichnisse fuer Schritt 9  (als oracle)
+  ----------------------------------------------------------------------------
+  # Die export-Zeilen aus SCHRITT 0 gelten nur in der Shell, in der sie
+  # eingegeben wurden. Wird Schritt 9 in einer neuen Sitzung ausgefuehrt,
+  # sind sie leer - dann landen z.B. rwservlet.properties oder cgicmd.dat
+  # unter "/" statt in der Domain. Deshalb zuerst kontrollieren - keine
+  # Zeile darf leer sein (LEER? -> SCHRITT 0):
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-
-  export WLS_MANAGED_SERVER=WLS_REPORTS
-
-  export WLS_ADMIN_URL=t3://localhost:7001
-
-  export WLS_REPORTS_PORT=9002
-
-  export REPORTS_TOOLS_INSTANCE=reptools1
-
-  export REPORTS_SERVER_NAME=repServer01
-
-  export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
-
-  export RWSERVER_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwserver.conf
-
-  export REPORTS_APP_CONF=$DOMAIN_HOME/config/fmwconfig/servers/$WLS_MANAGED_SERVER/applications/reports_14.1.2/configuration
-
-  export CGICMD_DAT=$REPORTS_APP_CONF/cgicmd.dat
-
-  # Kontrolle - keine Zeile darf leer sein:
   echo "DOMAIN_HOME=$DOMAIN_HOME"
 
   echo "REPORTS_APP_CONF=$REPORTS_APP_CONF"
@@ -970,122 +1395,187 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 
   echo "CGICMD_DAT=$CGICMD_DAT"
 
-  # Werte nur fuer Schritt 9:
-  export REPORTS_PATH=/u01/oracle/reports/source
+  echo "REPORTS_PATH=$REPORTS_PATH REPORTS_IMAGE_DIR=$REPORTS_IMAGE_DIR"
 
-  # Bilder/Grafiken der Reports (frueher unter Windows z.B. d:\graphiken) -
-  # eigener Ordner, wird in 9.7 an REPORTS_PATH angehaengt und freigegeben
-  export REPORTS_IMAGE_DIR=/u01/oracle/reports/images
+  echo "REPORTS_TMP=$REPORTS_TMP TNS_ADMIN=$TNS_ADMIN"
 
-  export REPORTS_TMP=/u01/oracle/reports/tmp    # NICHT /tmp - wird beim Reboot geleert
+  echo "BROADCAST=$REPORTS_BROADCAST_PORT NLS_LANG=$REPORTS_NLS_LANG"
 
-  export REPORTS_BROADCAST_PORT=14027        # eindeutig je Umgebung, Bereich 14021-14030 (Doc ID 437228.1)
+  # --- Cookie-Schluessel fuer rwservlet.properties (9.6) ---
+  # EINMAL erzeugen und in $WORK aufheben - bei JEDEM spaeteren
+  # Neuschreiben von rwservlet.properties wiederverwenden (nicht neu
+  # erzeugen). Gibt es die Datei schon, den openssl-Befehl NICHT
+  # wiederholen:
 
-  export REPORTS_COOKIE_KEY=$(openssl rand -hex 16)
+  ls -l $WORK/09_cookie_key.txt
+  # "No such file" -> die naechsten zwei Befehle ausfuehren
+  # Datei vorhanden -> weiter mit "export REPORTS_COOKIE_KEY"
 
-  # EIN Verzeichnis fuer tnsnames.ora/sqlnet.ora fuer ALLE Prozesse (Engines,
-  # Reports-Server, rwrun/rwconverter, WebLogic, Shell) - nicht das Verzeichnis
-  # eines DB-Clients (wird bei dessen Patch/Upgrade ersetzt). Ohne Wert nimmt
-  # jeder Prozess einen anderen Oracle-Standard ($DOMAIN_HOME/config/fmwconfig
-  # mit nur einer Beispiel-tnsnames.ora) -> ORA-12154 / ORA-12162 beim Login
-  export TNS_ADMIN=$ORACLE_BASE/admin/tns_names
+  openssl rand -hex 16 > $WORK/09_cookie_key.txt
 
-  export REPORTS_NLS_LANG=GERMAN_GERMANY.AL32UTF8   # an den DB-Zeichensatz anpassen
+  chmod 600 $WORK/09_cookie_key.txt
 
-  # Server-Administrator des Reports-Servers (<identifier> in rwserver.conf,
-  # authid fuer getserverinfo/showjobs - siehe 9.11). Kennwort hier SELBST
-  # festlegen, nicht den Beispielwert uebernehmen. NIE leer lassen: ein
-  # leerer <identifier> verhindert den Start des Reports-Servers (REP-50125
-  # NullPointerException, Neustart-Schleife - getestet 2026-10-23).
-  # Nur Buchstaben und Ziffern (kein / & < > " ' Leerzeichen):
-  export REPORTS_IDENTIFIER="rep_admin/<IDENTIFIER_PASSWORD>"
+  export REPORTS_COOKIE_KEY=$(cat $WORK/09_cookie_key.txt)
 
+  echo "Cookie-Schluessel gesetzt: ${REPORTS_COOKIE_KEY:+ja}"
+  # Erwartet: ja
 
-  # unter $TNS_ADMIN die Firmen-tnsnames.ora und sqlnet.ora ablegen, z.B.
-  #   NAMES.DIRECTORY_PATH=(TNSNAMES, EZCONNECT)     (sqlnet.ora)
-  # Wo der Wert ueberall eingetragen wird: rwserver.conf (9.7), reports.sh
-  # (9.9), setUserOverrides.sh (9.9b), ~/.bash_profile (siehe unten)
+  # --- Server-Administrator des Reports-Servers ---
+  # <identifier> in rwserver.conf, authid fuer getserverinfo/showjobs -
+  # siehe 9.11. Kennwort hier SELBST festlegen, nicht einen Beispielwert
+  # uebernehmen. NIE leer lassen: ein leerer <identifier> verhindert den
+  # Start des Reports-Servers (REP-50125 NullPointerException,
+  # Neustart-Schleife - getestet 2026-10-23).
+  # Nur Buchstaben und Ziffern (kein / & < > " ' Leerzeichen).
+  # Benutzername: rep_admin. Kennwort verdeckt eingeben:
+
+  read -s -p "Kennwort fuer rep_admin: " RIPW
+
+  echo
+
+  export REPORTS_IDENTIFIER="rep_admin/$RIPW"
+
+  unset RIPW
+
+  echo "REPORTS_IDENTIFIER gesetzt: ${REPORTS_IDENTIFIER:+ja}"
+  # Erwartet: ja. Gilt nur in DIESEM Terminal (gebraucht in 9.7 und 9.11) -
+  # in einem neuen Terminal diesen Block wiederholen.
+
+  # --- Verzeichnisse ---
 
   mkdir -p "$REPORTS_PATH" "$REPORTS_IMAGE_DIR" "$REPORTS_TMP" "$TNS_ADMIN"
 
-  # Shell (sqlplus, rwrun von Hand) - einmalig:
-  grep -q '^export TNS_ADMIN=' ~/.bash_profile \
-      || echo "export TNS_ADMIN=$TNS_ADMIN" >> ~/.bash_profile
+  ls -ld "$REPORTS_PATH" "$REPORTS_IMAGE_DIR" "$REPORTS_TMP" "$TNS_ADMIN"
+  # Erwartet: vier Verzeichnisse, Besitzer oracle
 
-  # 9.3 Reports-Managed-Server erstmalig starten
-  #     (AdminServer laeuft seit Schritt 4, Node Manager seit Schritt 7)
-  #     Der erste Start legt das Anwendungsverzeichnis $REPORTS_APP_CONF an
-  #     (rwservlet.properties, rwnetwork.conf, cgicmd.dat - gebraucht in 9.5,
-  #     9.6 und 9.8). Voraussetzung: boot.properties aus Schritt 6.
+  # Unter $TNS_ADMIN die Firmen-tnsnames.ora und sqlnet.ora ablegen, z.B.
+  #   NAMES.DIRECTORY_PATH=(TNSNAMES, EZCONNECT)     (sqlnet.ora)
+  # Wo der Wert ueberall eingetragen wird: rwserver.conf (9.7), reports.sh
+  # (9.9), setUserOverrides.sh (9.9b), ~/.bash_profile (naechster Befehl)
+
+  # Shell (sqlplus, rwrun von Hand) - einmalig:
+
+  grep -n '^export TNS_ADMIN=' ~/.bash_profile
+  # Treffer       -> schon eingetragen, naechsten Befehl NICHT ausfuehren
+  # keine Ausgabe -> den naechsten Befehl ausfuehren
+
+  echo "export TNS_ADMIN=$TNS_ADMIN" >> ~/.bash_profile
+
+  ----------------------------------------------------------------------------
+  9.3 Reports-Managed-Server erstmalig starten
+  ----------------------------------------------------------------------------
+  # AdminServer laeuft seit Schritt 4, Node Manager seit Schritt 7.
+  # Der erste Start legt das Anwendungsverzeichnis $REPORTS_APP_CONF an
+  # (rwservlet.properties, rwnetwork.conf, cgicmd.dat - gebraucht in 9.5,
+  # 9.6 und 9.8). Voraussetzung: boot.properties aus Schritt 6.
+
   nohup $DOMAIN_HOME/bin/startManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} \
       > /tmp/managed_start.log 2>&1 &
 
   sleep 90
+
   curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_REPORTS_PORT}/weblogic/ready
   # Erwartet: 200. Danach muss das Anwendungsverzeichnis existieren:
 
   ls -la $REPORTS_APP_CONF/
+  # Erwartet: rwservlet.properties, rwnetwork.conf, cgicmd.dat
 
-  # 9.4 System-Component-Instanzen anlegen (WLST interaktiv; AdminServer,
-  #     Node Manager UND $WLS_MANAGED_SERVER muessen laufen). Bewusst OHNE
-  #     Skript-Datei - bei nur zwei Befehlen lohnt sich kein .py-File: WLST
-  #     interaktiv oeffnen und die Befehle direkt eintippen.
+  ----------------------------------------------------------------------------
+  9.4 System-Component-Instanzen anlegen  (WLST interaktiv)
+  ----------------------------------------------------------------------------
+  # AdminServer, Node Manager UND $WLS_MANAGED_SERVER muessen laufen.
+  # Bewusst OHNE Skript-Datei - bei nur zwei Befehlen lohnt sich kein
+  # .py-File: WLST interaktiv oeffnen und die Befehle direkt eintippen.
+  #
+  # WLST liest KEINE Shell-Variablen - die Werte aus SCHRITT 0
+  # (WLS_ADMIN_URL, REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME) von Hand
+  # eintragen. Vorher anzeigen:
 
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
+  echo "URL=$WLS_ADMIN_URL Tools=$REPORTS_TOOLS_INSTANCE Server=$REPORTS_SERVER_NAME"
+  # Erwartet: t3://localhost:7001 reptools1 repServer01
 
-  # Ab hier an der WLST-Eingabeaufforderung (wls:/offline>) eintippen, NICHT
-  # in der normalen Shell. WLST liest KEINE Shell-Variablen - die Werte aus
-  # VORAUSSETZUNGEN oben (WLS_ADMIN_URL, REPORTS_TOOLS_INSTANCE,
-  # REPORTS_SERVER_NAME) von Hand eintragen, also z.B. statt
-  # "${WLS_ADMIN_URL}" wirklich "t3://localhost:7001" tippen:
+  $WLST
 
-  connect('weblogic', '<WLS_ADMIN_PASSWORD>', '${WLS_ADMIN_URL}')
-  createReportsToolsInstance(instanceName='${REPORTS_TOOLS_INSTANCE}', machine='AdminServerMachine')
-  createReportsServerInstance(instanceName='${REPORTS_SERVER_NAME}', machine='AdminServerMachine')
-  disconnect()
+  # --- in WLST eingeben (Prompt wls:/offline>) ---
 
-  exit()
+      connect('weblogic', '<WLS_ADMIN_PASSWORD>', 't3://localhost:7001')
 
-  # 9.5 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
-  #     (muss je Umgebung eindeutig sein, falls mehrere Reports-Domains im
-  #     selben Netzsegment laufen).
-  #     In 14.1.2 steht der Port im Element <multicast ... port="14021" .../>
-  #     - NICHT mehr in <cluster ...> wie in aelteren Versionen (ein sed auf
-  #     "<cluster" aendert in 14.1.2 nichts, bestaetigt 2026-10-15).
-  for f in \
-      "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
-      "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
-      "$REPORTS_APP_CONF/rwnetwork.conf"
-  do
-      cp "$f" "${f}.bak_$(date +%Y%m%d_%H%M%S)"
-      sed -i "s/\(<multicast[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" "$f"
-  done
+      createReportsToolsInstance(instanceName='reptools1', machine='AdminServerMachine')
+      # reptools1 = REPORTS_TOOLS_INSTANCE
+
+      createReportsServerInstance(instanceName='repServer01', machine='AdminServerMachine')
+      # repServer01 = REPORTS_SERVER_NAME
+
+      disconnect()
+
+      exit()
+
+  # --- Ende WLST ---
+
+  ----------------------------------------------------------------------------
+  9.5 Broadcasting-Port in allen drei rwnetwork.conf-Dateien setzen
+  ----------------------------------------------------------------------------
+  # Muss je Umgebung eindeutig sein, falls mehrere Reports-Domains im
+  # selben Netzsegment laufen.
+  # In 14.1.2 steht der Port im Element <multicast ... port="14021" .../>
+  # - NICHT mehr in <cluster ...> wie in aelteren Versionen (ein sed auf
+  # "<cluster" aendert in 14.1.2 nichts, bestaetigt 2026-10-15).
+
+  RWNET_TOOLS=$REPORTS_COMPONENT_HOME/rwnetwork.conf
+
+  RWNET_SERVER=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPORTS_SERVER_NAME/rwnetwork.conf
+
+  RWNET_APP=$REPORTS_APP_CONF/rwnetwork.conf
+
+  ls -l $RWNET_TOOLS $RWNET_SERVER $RWNET_APP
+  # Erwartet: alle drei Dateien vorhanden (nach 9.3 und 9.4)
+
+  echo "Port: $REPORTS_BROADCAST_PORT"
+  # Erwartet: 14027. LEER? -> SCHRITT 0 (sonst wird der Port geloescht)
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  echo "$TS" > $WORK/09_backup_ts.txt
+
+  cp $RWNET_TOOLS $RWNET_TOOLS.bak_$TS
+
+  cp $RWNET_SERVER $RWNET_SERVER.bak_$TS
+
+  cp $RWNET_APP $RWNET_APP.bak_$TS
+
+  sed -i "s/\(<multicast[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" $RWNET_TOOLS
+
+  sed -i "s/\(<multicast[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" $RWNET_SERVER
+
+  sed -i "s/\(<multicast[^>]*port=\"\)[0-9]*/\1${REPORTS_BROADCAST_PORT}/" $RWNET_APP
 
   # Kontrolle - den Port in allen drei Dateien von Hand nachsehen, nicht
   # blind auf "sed -i" vertrauen:
-  for f in \
-      "$REPORTS_COMPONENT_HOME/rwnetwork.conf" \
-      "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/${REPORTS_SERVER_NAME}/rwnetwork.conf" \
-      "$REPORTS_APP_CONF/rwnetwork.conf"
-  do
-      echo "--- $f ---"
-      grep '<multicast' "$f"
-  done
-  # Erwartet: in allen drei Ausgaben dieselbe Portnummer
-  # (port="${REPORTS_BROADCAST_PORT}")
 
-  # 9.6 rwservlet.properties - gleich mit den Betriebswerten:
-  #     singlesignon=yes, webcommandaccess=L1. Ein "offener" erster Test
-  #     ist damit nicht noetig und auch nicht moeglich (getestet 2026-10-23):
-  #       - L0 ist NICHT offen, es verhaelt sich wie L1.
-  #       - L2 oeffnet ALLE Web-Befehle (getserverinfo, showjobs, showenv,
-  #         showmap, killjobid) OHNE Anmeldung - auch ueber Nginx von
-  #         aussen. NIE verwenden.
-  #     Der Funktionstest in 9.11 laeuft mit monUser oder dem
-  #     Server-Administrator aus <identifier>.
-  #     REPORTS_COOKIE_KEY aus 9.2 notieren und bei JEDEM spaeteren
-  #     Neuschreiben dieser Datei wiederverwenden (nicht neu erzeugen).
-  cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$(date +%Y%m%d_%H%M%S)
+  grep -H '<multicast' $RWNET_TOOLS $RWNET_SERVER $RWNET_APP
+  # Erwartet: in allen drei Ausgaben dieselbe Portnummer
+  # (port="${REPORTS_BROADCAST_PORT}", z.B. port="14027")
+
+  ----------------------------------------------------------------------------
+  9.6 rwservlet.properties - gleich mit den Betriebswerten
+  ----------------------------------------------------------------------------
+  # singlesignon=yes, webcommandaccess=L1. Ein "offener" erster Test
+  # ist damit nicht noetig und auch nicht moeglich (getestet 2026-10-23):
+  #   - L0 ist NICHT offen, es verhaelt sich wie L1.
+  #   - L2 oeffnet ALLE Web-Befehle (getserverinfo, showjobs, showenv,
+  #     showmap, killjobid) OHNE Anmeldung - auch ueber Nginx von
+  #     aussen. NIE verwenden.
+  # Der Funktionstest in 9.11 laeuft mit monUser oder dem
+  # Server-Administrator aus <identifier>.
+  # REPORTS_COOKIE_KEY kommt aus $WORK/09_cookie_key.txt (9.2) und wird bei
+  # JEDEM spaeteren Neuschreiben dieser Datei wiederverwendet.
+
+  echo "Server=$REPORTS_SERVER_NAME Cookie-Schluessel: ${REPORTS_COOKIE_KEY:+ja}"
+  # Erwartet: repServer01 ja. Schluessel LEER? -> 9.2 (export REPORTS_COOKIE_KEY)
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp $REPORTS_APP_CONF/rwservlet.properties $REPORTS_APP_CONF/rwservlet.properties.bak_$TS
 
   cat > $REPORTS_APP_CONF/rwservlet.properties << EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1100,23 +1590,29 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
 EOF
 
   # Kontrolle
- cat $REPORTS_APP_CONF/rwservlet.properties
 
-  # Erwartet: singlesignon yes, webcommandaccess L1. Danach
-  # $WLS_MANAGED_SERVER neu starten. getserverinfo/showjobs verlangen ab
-  # jetzt einen authid-Parameter (Schritt 8 / 9.11).
+  cat $REPORTS_APP_CONF/rwservlet.properties
+  # Erwartet: singlesignon yes, webcommandaccess L1, encryptionkey gefuellt.
+  # Danach $WLS_MANAGED_SERVER neu starten (9.10). getserverinfo/showjobs
+  # verlangen ab jetzt einen authid-Parameter (Schritt 8 / 9.11).
 
-  # 9.7 rwserver.conf (Kernkonfiguration des Reports-Servers - Engine-Pool,
-  #     Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits)
-  #     Alle Pfade/Werte kommen aus den Variablen von 9.2 - deshalb steht
-  #     EOF hier OHNE Anfuehrungszeichen (die Shell setzt die Werte ein).
-  #     Die Oracle-Platzhalter "$$Self.proxyHost$$" usw. sind deshalb mit
-  #     "\$" geschrieben, sonst ersetzt die Shell "$$" durch eine Prozessnummer.
+  ----------------------------------------------------------------------------
+  9.7 rwserver.conf  (Kernkonfiguration des Reports-Servers)
+  ----------------------------------------------------------------------------
+  # Engine-Pool, Umgebungsvariablen fuer den Report-Lauf, Verbindungslimits.
+  # Alle Pfade/Werte kommen aus den Variablen von SCHRITT 0 / 9.2 - deshalb
+  # steht EOF hier OHNE Anfuehrungszeichen (die Shell setzt die Werte ein).
+  # Die Oracle-Platzhalter "$$Self.proxyHost$$" usw. sind deshalb mit
+  # "\$" geschrieben, sonst ersetzt die Shell "$$" durch eine Prozessnummer.
 
   # Pflicht: ohne REPORTS_IDENTIFIER (9.2) NICHT weitermachen - ein leerer
   # <identifier> laesst den Reports-Server nicht starten (REP-50125):
+
   : "${REPORTS_IDENTIFIER:?REPORTS_IDENTIFIER ist leer - erst Schritt 9.2 ausfuehren}"
+  # Erwartet: keine Ausgabe. Fehlermeldung -> 9.2 (rep_admin-Block)
+
   # Kontrolle vorab - keine Zeile darf leer sein:
+
   echo "RWSERVER_CONF=$RWSERVER_CONF"
 
   echo "REPORTS_PATH=$REPORTS_PATH  REPORTS_TMP=$REPORTS_TMP  TNS_ADMIN=$TNS_ADMIN"
@@ -1125,7 +1621,9 @@ EOF
 
   echo "REPORTS_NLS_LANG=$REPORTS_NLS_LANG  REPORTS_IDENTIFIER gesetzt: ${REPORTS_IDENTIFIER:+ja}"
 
-  cp "$RWSERVER_CONF" "${RWSERVER_CONF}.bak_$(date +%Y%m%d_%H%M%S)"
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp "$RWSERVER_CONF" "${RWSERVER_CONF}.bak_$TS"
 
   cat > "$RWSERVER_CONF" << EOF
 <?xml version="1.0" encoding="ISO-8859-1"?>
@@ -1168,6 +1666,7 @@ EOF
 EOF
 
   # Kontrolle: Werte eingesetzt, Oracle-Platzhalter unveraendert?
+
   grep -E 'REPORTS_PATH|NLS_LANG|TNS_ADMIN|<read>|<write>|proxyHost' "$RWSERVER_CONF"
   # Erwartet: echte Pfade statt "${...}" und weiterhin "$$Self.proxyHost$$".
 
@@ -1200,107 +1699,167 @@ EOF
   #     anpassen (Backup!), dann Reports-Server neu starten (stopComponent.sh
   #     + startComponent.sh, restartComponent.sh geht nicht).
 
-  # Hinweis: NLS_LANG kommt aus REPORTS_NLS_LANG (9.2, Beispiel
+  # Hinweis: NLS_LANG kommt aus REPORTS_NLS_LANG (SCHRITT 0, Beispiel
   # GERMAN_GERMANY.AL32UTF8) - an die tatsaechliche
-  # Datenbank-Zeichensatzkonfiguration anpassen. Siehe Font_kochbuch_de.txt Caveats zu NLS_LANG/--encoding.
+  # Datenbank-Zeichensatzkonfiguration anpassen. Siehe Font_kochbuch_de.txt
+  # Caveats zu NLS_LANG/--encoding.
 
-  # 9.7b Reports-Server absichern: Identity Store = WebLogic-LDAP
-  #      Der eigenstaendige Reports-Server (rwserver) liest seine OPSS-
-  #      Konfiguration aus jps-config-jse.xml. Rollen/Policies (DB) teilt er
-  #      mit der Domain, die BENUTZER sucht er aber in einer XML-Datei
-  #      (system-jazn-data.xml) - dort gibt es monUser/RepRunner nicht.
-  #      Mit securityId aus 9.7 ohne diesen Schritt: REP-50171 "Authentication
-  #      failed" fuer JEDEN Benutzer, Berichte laufen nicht mehr.
-  #      Hier wird der Identity Store auf das eingebettete LDAP des
-  #      AdminServers umgestellt (dort liegen die WebLogic-Benutzer).
-  #      Getestet 2026-10-16. Hintergrund:
-  #      IHateWeblogic 80-FMW-Architecture/reports_user_local_ldap.md
+  ----------------------------------------------------------------------------
+  9.7b Reports-Server absichern: Identity Store = WebLogic-LDAP
+  ----------------------------------------------------------------------------
+  # Der eigenstaendige Reports-Server (rwserver) liest seine OPSS-
+  # Konfiguration aus jps-config-jse.xml. Rollen/Policies (DB) teilt er
+  # mit der Domain, die BENUTZER sucht er aber in einer XML-Datei
+  # (system-jazn-data.xml) - dort gibt es monUser/RepRunner nicht.
+  # Mit securityId aus 9.7 ohne diesen Schritt: REP-50171 "Authentication
+  # failed" fuer JEDEN Benutzer, Berichte laufen nicht mehr.
+  # Hier wird der Identity Store auf das eingebettete LDAP des
+  # AdminServers umgestellt (dort liegen die WebLogic-Benutzer).
+  # Getestet 2026-10-16. Hintergrund:
+  # IHateWeblogic 80-FMW-Architecture/reports_user_local_ldap.md
   #
-  #      Folge: laeuft der AdminServer nicht, kann der Reports-Server
-  #      niemanden anmelden.
+  # Folge: laeuft der AdminServer nicht, kann der Reports-Server
+  # niemanden anmelden.
 
-  # a) Kennwort des LDAP-Administrators cn=Admin setzen (es ist bei der
-  #    Domain-Anlage zufaellig vergeben). Kennwort waehlen (Buchstaben und
-  #    Ziffern), im Passwort-Safe ablegen. WLST interaktiv:
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
-  #   connect(url='t3://localhost:7001')
-  #   dn = cmo.getName()
-  #   edit()
-  #   startEdit()
-  #   cd('/EmbeddedLDAP/' + dn)
-  #   cmo.setCredential('<LDAP_KENNWORT>')
-  #   save()
-  #   activate()
-  #   exit()
+  # --- a) Kennwort des LDAP-Administrators cn=Admin setzen ---
+  # Es ist bei der Domain-Anlage zufaellig vergeben. Kennwort waehlen
+  # (Buchstaben und Ziffern), im Passwort-Safe ablegen. WLST interaktiv
+  # (connect fragt Benutzer und Kennwort des WebLogic-Admins ab):
+
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      dn = cmo.getName()
+
+      edit()
+
+      startEdit()
+
+      cd('/EmbeddedLDAP/' + dn)
+
+      cmo.setCredential('<LDAP_KENNWORT>')
+
+      save()
+
+      activate()
+
+      exit()
+
+  # --- Ende WLST ---
+
   # Danach den AdminServer neu starten (das LDAP liest das Kennwort beim
   # Start) - Managed Server und Reports-Server koennen weiterlaufen:
-  #   $DOMAIN_HOME/bin/stopWebLogic.sh
-  #   nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver.out 2>&1 &
 
-  # b) Bind-Benutzer im OPSS-Credential-Store hinterlegen (WLST):
-  $ORACLE_HOME/oracle_common/common/bin/wlst.sh
-  #   connect(url='t3://localhost:7001')
-  #   createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin',
-  #              password='<LDAP_KENNWORT>', desc='Bind user Reports identity store')
-  #   exit()
-  #   (Befehl heisst createCred, nicht createCredential; existiert der
-  #    Eintrag schon: updateCred mit denselben Parametern)
+  $DOMAIN_HOME/bin/stopWebLogic.sh
 
-  # c) jps-config-jse.xml umstellen (Domain-Name aus config.xml, hier
-  #    reportRpgpi - in den Suchbasen dc=<Domain-Name>):
-  export JPS_JSE=$DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+  nohup $DOMAIN_HOME/bin/startWebLogic.sh > /tmp/adminserver.out 2>&1 &
 
-  cp $JPS_JSE ${JPS_JSE}.bak_$(date +%Y%m%d_%H%M%S)
+  # --- b) Bind-Benutzer im OPSS-Credential-Store hinterlegen (WLST) ---
+
+  $WLST
+
+  # --- in WLST eingeben ---
+
+      connect(url='t3://localhost:7001')
+
+      createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', password='<LDAP_KENNWORT>', desc='Bind user Reports identity store')
+      # Befehl heisst createCred, nicht createCredential; existiert der
+      # Eintrag schon: updateCred mit denselben Parametern
+
+      exit()
+
+  # --- Ende WLST ---
+
+  # --- c) jps-config-jse.xml umstellen ---
+  # Domain-Name aus config.xml, hier reportRpgpi - in den Suchbasen
+  # dc=<Domain-Name>:
+
+  grep -m1 '<name>' $DOMAIN_HOME/config/config.xml
+  # Erwartet: <name>reportRpgpi</name> (= DOMAIN_NAME aus SCHRITT 0)
+
+  echo "JPS_JSE=$JPS_JSE DOMAIN_NAME=$DOMAIN_NAME"
+  # Erwartet: beide gefuellt. LEER? -> SCHRITT 0
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp $JPS_JSE ${JPS_JSE}.bak_$TS
+
+  # Einzufuegenden Block vorher erzeugen (die Shell setzt DOMAIN_NAME ein):
+
+  cat > $WORK/09_idstore_ldap.xml << EOF
+    <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
+        <description>WebLogic embedded LDAP (realm myrealm)</description>
+        <property name="idstore.type" value="OPEN_LDAP"/>
+        <property name="ldap.url" value="ldap://localhost:7001"/>
+        <property name="security.principal.alias" value="reports.idstore"/>
+        <property name="security.principal.key" value="embeddedldap"/>
+        <property name="subscriber.name" value="ou=myrealm,dc=${DOMAIN_NAME}"/>
+        <property name="username.attr" value="uid"/>
+        <property name="groupname.attr" value="cn"/>
+        <extendedProperty>
+            <name>user.search.bases</name>
+            <values><value>ou=people,ou=myrealm,dc=${DOMAIN_NAME}</value></values>
+        </extendedProperty>
+        <extendedProperty>
+            <name>group.search.bases</name>
+            <values><value>ou=groups,ou=myrealm,dc=${DOMAIN_NAME}</value></values>
+        </extendedProperty>
+    </serviceInstance>
+EOF
+
+  grep -n 'dc=' $WORK/09_idstore_ldap.xml
+  # Erwartet: drei Zeilen mit dc=reportRpgpi (kein leeres "dc=")
 
   vi $JPS_JSE
-  #   1) direkt VOR der Zeile "    </serviceInstances>" einfuegen:
-  #
-  #   <serviceInstance name="idstore.ldap.embedded" provider="idstore.ldap.provider">
-  #       <description>WebLogic embedded LDAP (realm myrealm)</description>
-  #       <property name="idstore.type" value="OPEN_LDAP"/>
-  #       <property name="ldap.url" value="ldap://localhost:7001"/>
-  #       <property name="security.principal.alias" value="reports.idstore"/>
-  #       <property name="security.principal.key" value="embeddedldap"/>
-  #       <property name="subscriber.name" value="ou=myrealm,dc=reportRpgpi"/>
-  #       <property name="username.attr" value="uid"/>
-  #       <property name="groupname.attr" value="cn"/>
-  #       <extendedProperty>
-  #           <name>user.search.bases</name>
-  #           <values><value>ou=people,ou=myrealm,dc=reportRpgpi</value></values>
-  #       </extendedProperty>
-  #       <extendedProperty>
-  #           <name>group.search.bases</name>
-  #           <values><value>ou=groups,ou=myrealm,dc=reportRpgpi</value></values>
-  #       </extendedProperty>
-  #   </serviceInstance>
-  #
-  #   2) im Abschnitt <jpsContext name="default"> die Zeile
+  # 1) Block direkt VOR der Zeile "    </serviceInstances>" einfuegen:
+  #      /<\/serviceInstances>       (Zeile suchen, Enter)
+  #      k                           (eine Zeile hoch)
+  #      :r $WORK/09_idstore_ldap.xml   (Block darunter einlesen)
+  # 2) im Abschnitt <jpsContext name="default"> die Zeile
   #        <serviceInstanceRef ref="idstore.xml"/>
-  #      ersetzen durch:
+  #    ersetzen durch:
   #        <!--serviceInstanceRef ref="idstore.xml"/-->
   #        <serviceInstanceRef ref="idstore.ldap.embedded"/>
-  #      (nur EIN Identity Store pro Kontext)
+  #    (nur EIN Identity Store pro Kontext)
+  #      /<jpsContext name="default"   dann  /idstore.xml
+  # Speichern mit :wq
 
   python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('$JPS_JSE'); print('XML ok')"
+  # Erwartet: "XML ok"
 
   sed -n '/<jpsContext name="default">/,/<\/jpsContext>/p' $JPS_JSE
-  # Erwartet: "XML ok", im Kontext idstore.ldap.embedded statt idstore.xml.
+  # Erwartet: im Kontext idstore.ldap.embedded statt idstore.xml.
 
   # Wirksam beim naechsten Start des Reports-Servers (9.10).
+  # Zurueck: Sicherung ${JPS_JSE}.bak_<zeit> zurueckkopieren.
 
-  # 9.8 cgicmd.dat - Standard-Schluessel + RepRunner-authid (frueher
-  #     Schritt 5 und 8.4). Die Datei bringt Oracle mit Beispielen mit -
-  #     deshalb ANHAENGEN (>>), nicht ueberschreiben. server= ist der Name
-  #     der Reports-Server-KOMPONENTE ($REPORTS_SERVER_NAME), NICHT der
-  #     Managed Server ($WLS_MANAGED_SERVER).
-  #     %* uebernimmt alle Parameter der URL (report=, userid=, desformat=
-  #     ...) - ohne %* kommt "REP-50004 No report is specified". authid steht
-  #     NACH %*: ein authid in der URL ueberschreibt es nicht (getestet).
-  #     Aufruf: /reports/rwservlet?cmdkey=default&report=<bericht>.rdf
-  #             &userid=<db-user>/<pwd>@<db>&destype=cache&desformat=pdf
-  #     Wer den Schluessel aufrufen kann, startet Berichte als RepRunner -
-  #     /reports/ in Nginx/Firewall auf die aufrufenden Server beschraenken.
-  cp "$CGICMD_DAT" "${CGICMD_DAT}.bak_$(date +%Y%m%d_%H%M%S)"
+  ----------------------------------------------------------------------------
+  9.8 cgicmd.dat - Standard-Schluessel + RepRunner-authid
+  ----------------------------------------------------------------------------
+  # Frueher Schritt 5 und 8.4. Die Datei bringt Oracle mit Beispielen mit -
+  # deshalb ANHAENGEN (>>), nicht ueberschreiben. server= ist der Name
+  # der Reports-Server-KOMPONENTE ($REPORTS_SERVER_NAME), NICHT der
+  # Managed Server ($WLS_MANAGED_SERVER).
+  # %* uebernimmt alle Parameter des Aufrufs (report=, userid=, desformat=
+  # ...) - ohne %* kommt "REP-50004 No report is specified". authid steht
+  # NACH %*: ein authid im Aufruf ueberschreibt es nicht (getestet).
+  # Aufruf (POST - userid= nie in die URL, sonst steht das DB-Kennwort im
+  # Access-Log):
+  #   curl -s -d cmdkey=default -d report=<bericht>.rdf
+  #        --data-urlencode "userid=<db-user>/<pwd>@<db>"
+  #        -d destype=cache -d desformat=pdf -o test.pdf $RW_URL
+  # Wer den Schluessel aufrufen kann, startet Berichte als RepRunner -
+  # /reports/ in Nginx/Firewall auf die aufrufenden Server beschraenken.
+
+  echo "CGICMD_DAT=$CGICMD_DAT Server=$REPORTS_SERVER_NAME"
+  # Erwartet: beide gefuellt. LEER? -> SCHRITT 0
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp "$CGICMD_DAT" "${CGICMD_DAT}.bak_$TS"
 
   cat >> "$CGICMD_DAT" << EOF
 
@@ -1311,22 +1870,36 @@ EOF
 
   chmod 640 "$CGICMD_DAT"
 
+  vi "$CGICMD_DAT"
+  # Am Dateiende <REPRUNNER_PASSWORD> durch das Kennwort von RepRunner
+  # (Schritt 8.3) ersetzen, speichern (:wq)
+
   tail -5 "$CGICMD_DAT"
+  # Erwartet: der Block "IHateWeblogic BEGIN/END" mit
+  #   default: server=repServer01 %* authid=RepRunner/...
 
-  # 9.9 reports.sh ergaenzen (Umgebungsvariablen fuer den Reports-Server-
-  #     Startprozess - Font-Variablen hier nur als Verweis, Details siehe
-  #     Font_kochbuch_de.txt)
-  #     NLS_LANG kommt aus REPORTS_NLS_LANG (9.2, muss zur rwserver.conf
-  #     passen). "\${DOMAIN_HOME}" bleibt bewusst woertlich stehen -
-  #     reports.sh setzt DOMAIN_HOME selbst. Nur EINMAL anhaengen: steht der
-  #     Block schon drin (grep findet die Markierung), diesen Schritt
-  #     ueberspringen.
-  grep -q "IHateWeblogic reports.sh" $DOMAIN_HOME/reports/bin/reports.sh \
-      && echo "Block schon vorhanden - Schritt 9.9 ueberspringen"
+  grep -c '<REPRUNNER_PASSWORD>' "$CGICMD_DAT"
+  # Erwartet: 0
 
-  cp $DOMAIN_HOME/reports/bin/reports.sh $DOMAIN_HOME/reports/bin/reports.sh.bak_$(date +%Y%m%d_%H%M%S)
+  ----------------------------------------------------------------------------
+  9.9 reports.sh ergaenzen
+  ----------------------------------------------------------------------------
+  # Umgebungsvariablen fuer den Reports-Server-Startprozess - Font-Variablen
+  # hier nur als Verweis, Details siehe Font_kochbuch_de.txt.
+  # NLS_LANG kommt aus REPORTS_NLS_LANG (SCHRITT 0, muss zur rwserver.conf
+  # passen). "\${DOMAIN_HOME}" bleibt bewusst woertlich stehen -
+  # reports.sh setzt DOMAIN_HOME selbst. Nur EINMAL anhaengen:
 
-  cat >> $DOMAIN_HOME/reports/bin/reports.sh << EOF
+  grep -c "IHateWeblogic reports.sh" $REPORTS_SH
+  # 1 oder mehr -> Block schon vorhanden - Rest von 9.9 ueberspringen
+  #                (Ausnahme: Zeilen fehlen, siehe Ende von 9.9)
+  # 0           -> die naechsten Befehle ausfuehren
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp $REPORTS_SH $REPORTS_SH.bak_$TS
+
+  cat >> $REPORTS_SH << EOF
 
 # --- IHateWeblogic reports.sh (Reports_kochbuch_de.txt 9.9) ---
 export NLS_LANG=${REPORTS_NLS_LANG}
@@ -1337,14 +1910,14 @@ TNS_ADMIN=${TNS_ADMIN}; export TNS_ADMIN
 REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"; export REPORTS_JVM_OPTIONS
 EOF
 
-  tail -7 $DOMAIN_HOME/reports/bin/reports.sh
-  # Erwartet: "export NLS_LANG=<Wert aus 9.2>", "REPORTS_PATH=${REPORTS_PATH}:
+  tail -7 $REPORTS_SH
+  # Erwartet: "export NLS_LANG=<Wert aus SCHRITT 0>", "REPORTS_PATH=${REPORTS_PATH}:
   # <Report-Ordner>:<Bildordner>" (rwrun und die Reports-Tools lesen die
   # rwserver.conf nicht - sie brauchen den Bildordner hier) und woertlich
   # "REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts"
-  # Block schon vorhanden (ohne REPORTS_PATH-/REPORTS_JVM_OPTIONS-Zeile)?
 
-  # Die Zeilen von Hand nach "export NLS_LANG=..." einfuegen:
+  # Block schon vorhanden (ohne REPORTS_PATH-/REPORTS_JVM_OPTIONS-Zeile)?
+  # Die Zeilen mit vi von Hand nach "export NLS_LANG=..." einfuegen:
   #   REPORTS_PATH=${REPORTS_PATH}:/u01/oracle/reports/source:/u01/oracle/reports/images; export REPORTS_PATH
   #   TNS_ADMIN=/u01/oracle/admin/tns_names; export TNS_ADMIN
   # (Oracles eigener Teil weiter oben in reports.sh setzt TNS_ADMIN nur, wenn
@@ -1360,54 +1933,66 @@ EOF
   #   ORBTCPConnectTimeouts - nach einem Engine-Absturz 6 s statt 60 s
   #   ORBWaitForResponseTimeout - Pflicht, sobald die Variable gesetzt ist
   #   -Xmx256M - bisheriger Standardwert
-  # Kontrolle nach dem Start (9.10):
-  #   jcmd $(pgrep -f "rwserver server=${REPORTS_SERVER_NAME}") VM.command_line
+  # Kontrolle nach dem Start: siehe 9.10 (jcmd ... VM.command_line).
 
-  # 9.9b setUserOverrides.sh - ORB-Timeout des Managed Servers
-  #      Das rwservlet merkt sich die Adresse des Reports-Servers; nach einem
-  #      Neustart nur des Reports-Servers (neuer Port) versucht es 60 s den
-  #      alten Port - mit dieser Einstellung ~8 s.
-  #      Im Block fuer den Managed Server (if [ "${SERVER_NAME}" = "WLS_REPORTS" ])
-  #      ergaenzen - existiert der Block nicht, mit if/fi anlegen:
-  cp $DOMAIN_HOME/bin/setUserOverrides.sh $DOMAIN_HOME/bin/setUserOverrides.sh.bak_$(date +%Y%m%d_%H%M%S)
-
-  vi $DOMAIN_HOME/bin/setUserOverrides.sh
+  ----------------------------------------------------------------------------
+  9.9b setUserOverrides.sh - ORB-Timeout des Managed Servers
+  ----------------------------------------------------------------------------
+  # Das rwservlet merkt sich die Adresse des Reports-Servers; nach einem
+  # Neustart nur des Reports-Servers (neuer Port) versucht es 60 s den
+  # alten Port - mit dieser Einstellung ~8 s.
+  # Im Block fuer den Managed Server (if [ "${SERVER_NAME}" = "WLS_REPORTS" ])
+  # ergaenzen - existiert der Block nicht, mit if/fi anlegen:
   #   if [ "${SERVER_NAME}" = "WLS_REPORTS" ]; then
   #       export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000"
   #   fi
-  #  Ausserdem fuer ALLE Server (ausserhalb der if-Bloecke, am Dateiende) das
-  #  gemeinsame Oracle-Net-Verzeichnis - Oracles setStartupEnv.sh setzt fuer
-  #  WLS_REPORTS sonst $DOMAIN_HOME/config/fmwconfig (setUserOverrides.sh wird
-  #  danach gelesen und gewinnt):
+  # Ausserdem fuer ALLE Server (ausserhalb der if-Bloecke, am Dateiende) das
+  # gemeinsame Oracle-Net-Verzeichnis - Oracles setStartupEnv.sh setzt fuer
+  # WLS_REPORTS sonst $DOMAIN_HOME/config/fmwconfig (setUserOverrides.sh wird
+  # danach gelesen und gewinnt):
   #   export TNS_ADMIN="/u01/oracle/admin/tns_names"
   #   export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Doracle.net.tns_admin=/u01/oracle/admin/tns_names"
 
-  grep -n "ORBTCPConnectTimeouts\|TNS_ADMIN" $DOMAIN_HOME/bin/setUserOverrides.sh
+  TS=$(date +%Y%m%d_%H%M%S)
 
-  # 9.10 Managed Server neu starten (laedt rwservlet.properties,
-  #      rwnetwork.conf, cgicmd.dat) und Reports-Komponenten starten
+  cp $OVERRIDES $OVERRIDES.bak_$TS
+
+  vi $OVERRIDES
+  # Die Zeilen von oben eintragen, speichern (:wq)
+
+  grep -n "ORBTCPConnectTimeouts\|TNS_ADMIN" $OVERRIDES
+  # Erwartet: die ORBTCPConnectTimeouts-Zeile im WLS_REPORTS-Block und die
+  # beiden TNS_ADMIN-Zeilen
+
+  ----------------------------------------------------------------------------
+  9.10 Managed Server neu starten und Reports-Komponenten starten
+  ----------------------------------------------------------------------------
+  # Laedt rwservlet.properties, rwnetwork.conf, cgicmd.dat.
   #
-  #      stopManagedWebLogic.sh ohne Benutzer/Passwort meldet sich mit der
-  #      boot.properties DES ZU STOPPENDEN SERVERS am AdminServer an:
-  #        $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
-  #      (Schritt 6). Fehlt sie - z.B. weil Schritt 6 mit einem anderen
-  #      Servernamen ausgefuehrt wurde -, bricht der Stop ab mit
-  #        connect(... adminServerName='WLS_REPORTS') ...
-  #        "No valid username/password or userConfigFile/userKeyFile provided"
-  #        shutDownStatus=1
-  #      (beim Kunden so aufgetreten, 2026-10-15). Deshalb zuerst pruefen:
+  # stopManagedWebLogic.sh ohne Benutzer/Passwort meldet sich mit der
+  # boot.properties DES ZU STOPPENDEN SERVERS am AdminServer an:
+  #   $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
+  # (Schritt 6). Fehlt sie - z.B. weil Schritt 6 mit einem anderen
+  # Servernamen ausgefuehrt wurde -, bricht der Stop ab mit
+  #   connect(... adminServerName='WLS_REPORTS') ...
+  #   "No valid username/password or userConfigFile/userKeyFile provided"
+  #   shutDownStatus=1
+  # (beim Kunden so aufgetreten, 2026-10-15). Deshalb zuerst pruefen:
 
   # a) Heisst der Managed Server in der Domain wirklich so?
+
   grep -A1 "<server>" $DOMAIN_HOME/config/config.xml | grep "<name>"
   # Erwartet: eine Zeile <name>WLS_REPORTS</name> (= ${WLS_MANAGED_SERVER})
+
   # b) Gibt es seine boot.properties?
 
   ls -l $DOMAIN_HOME/servers/${WLS_MANAGED_SERVER}/security/boot.properties
-
+  # Erwartet: die Datei ist da.
   # Fehlt die Datei: Schritt 6 mit dem richtigen Servernamen nachholen -
   # ODER beim Stoppen Benutzer/Passwort mitgeben (verdeckt abfragen, nicht
   # in die Befehlszeile tippen):
-  #   read -s -p "WebLogic-Passwort: " WLS_PASS; echo
+  #   read -s -p "WebLogic-Passwort: " WLS_PASS
+  #   echo
   #   $DOMAIN_HOME/bin/stopManagedWebLogic.sh ${WLS_MANAGED_SERVER} ${WLS_ADMIN_URL} weblogic "$WLS_PASS"
   #   unset WLS_PASS
 
@@ -1419,44 +2004,93 @@ EOF
       > /tmp/managed_start.log 2>&1 &
 
   sleep 90
+
   curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WLS_REPORTS_PORT}/weblogic/ready
+  # Erwartet: 200
 
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_TOOLS_INSTANCE}
 
   $DOMAIN_HOME/bin/startComponent.sh ${REPORTS_SERVER_NAME}
 
-  # 9.11 Verifikation - mit 9.7/9.7b ist der Reports-Server abgesichert:
-  #      getserverinfo mit monUser (Rolle RW_MONITOR, Schritt 8); der
-  #      Server-Administrator aus <identifier> geht weiterhin.
-  #      Die ERSTE Anmeldung nach einem Start dauert einige Sekunden.
-  read -s -p "monUser-Kennwort: " MPW; echo
+  # Kontrolle der Reports-Server-JVM (Optionen aus 9.9):
 
-  curl -s -G "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo" \
-       --data-urlencode "server=${REPORTS_SERVER_NAME}" --data-urlencode "statusformat=XML" \
-       --data-urlencode "authid=monUser/${MPW}" | head -5
+  RS_PID=$(pgrep -f "rwserver server=${REPORTS_SERVER_NAME}")
 
-  unset MPW
+  echo "rwserver-PID: $RS_PID"
+  # Erwartet: eine Zahl. LEER -> Reports-Server laeuft nicht
+
+  jcmd $RS_PID VM.command_line
+  # Erwartet: processReaperUseDefaultStackSize, ORBTCPConnectTimeouts,
+  # ORBWaitForResponseTimeout in den jvm_args
+
+  ----------------------------------------------------------------------------
+  9.11 Verifikation
+  ----------------------------------------------------------------------------
+  # Mit 9.7/9.7b ist der Reports-Server abgesichert: getserverinfo mit
+  # monUser (Rolle RW_MONITOR, Schritt 8); der Server-Administrator aus
+  # <identifier> geht weiterhin.
+  # Die ERSTE Anmeldung nach einem Start dauert einige Sekunden.
+  # Alle Aufrufe mit authid per POST (nicht in der URL - Access-Log).
+
+  read -s -p "monUser-Kennwort: " MPW
+
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=monUser/$MPW" $RW_URL/getserverinfo | head -5
   # Erwartet: <serverInfo ...> mit Engines.
 
-  # Gegenproben: ohne authid -> HTTP 499; RepRunner -> REP-56071
-  # "unauthorized" (darf nur Berichte ausfuehren).
-  # Berichtsaufruf ueber den Schluessel aus 9.8:
-  #   /reports/rwservlet?cmdkey=default&report=<bericht>.rdf&userid=...&destype=cache&desformat=pdf
-  # Alternativ mit dem Server-Administrator:
-  curl -s "http://localhost:${WLS_REPORTS_PORT}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML&authid=${REPORTS_IDENTIFIER}"
+  unset MPW
+
+  # Gegenproben: ohne authid -> HTTP 499; RepRunner -> Fehler-XML mit
+  # code="56071" ("unauthorized" - darf nur Berichte ausfuehren).
+  # Berichtsaufruf ueber den Schluessel aus 9.8 (POST, siehe 9.8):
+  #   curl -s -d cmdkey=default -d report=<bericht>.rdf
+  #        --data-urlencode "userid=..." -d destype=cache -d desformat=pdf
+  #        -o test.pdf $RW_URL
+
+  # Alternativ mit dem Server-Administrator (REPORTS_IDENTIFIER aus 9.2,
+  # in einem neuen Terminal dort wiederholen):
+
+  echo "REPORTS_IDENTIFIER gesetzt: ${REPORTS_IDENTIFIER:+ja}"
+  # Erwartet: ja
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=$REPORTS_IDENTIFIER" $RW_URL/getserverinfo
   # Erwartet: XML-Antwort mit <engineInstance ... status="1"> (Engine IDLE)
   #
   # Bleibt die Antwort bei "REP-50001 The server is initializing" und zeigt
   # rwEng-0_diagnostic.log alle 60 s "REP-50125 NullPointerException ...
-
   # Utility.getOrbProperties": in rwserver.conf (9.7) fehlt
   # -DORBWaitForResponseTimeout=999999999 in REPORTS_JVM_OPTIONS - ergaenzen
   # und repServer neu starten (stopComponent.sh / startComponent.sh).
 
-  # Ueber Nginx/SSL (aus FMW_Kochbuch_de.txt):
+  # Ueber Nginx/SSL (aus FMW_Kochbuch_de.txt) - ohne authid:
+
   curl -k "https://${WLS_SERVER_FQDN}/reports/rwservlet/getserverinfo?server=${REPORTS_SERVER_NAME}&statusformat=XML"
   # Erwartet: HTTP 499 (Anmeldung noetig); nach Reports_security.txt 2.3
   # (Verwaltungsbefehle von aussen gesperrt) HTTP 403 - beides richtig.
+
+
+================================================================================
+ROLLBACK
+================================================================================
+
+    was                           wie
+    ----------------------------  -------------------------------------------
+    Patches (Schritt 2)           opatch rollback -id <nr> -silent (je Patch,
+                                  umgekehrte Reihenfolge)
+    RCU-Schemas (Schritt 3)       rcu -silent -dropRepository - nur nach
+                                  Ruecksprache mit dem DB-Team (loescht auch
+                                  den Tablespace, siehe BEKANNTE PROBLEME)
+    rwnetwork.conf (9.5)          die drei Dateien <datei>.bak_<zeit> mit
+                                  dem Zeitstempel aus $WORK/09_backup_ts.txt
+                                  zurueckkopieren
+    rwservlet.properties (9.6),   jeweils <datei>.bak_<zeit> im selben
+    rwserver.conf (9.7),          Verzeichnis zurueckkopieren (cp -p), dann
+    jps-config-jse.xml (9.7b),    Managed Server bzw. Reports-Server neu
+    cgicmd.dat (9.8),             starten (9.10)
+    reports.sh (9.9),
+    setUserOverrides.sh (9.9b)
+    libnsl-Link (9.1)             als root: rm $ORACLE_HOME/lib/libnsl.so.2
 
 
 ================================================================================
@@ -1487,7 +2121,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            with warnings" statt "OPatch succeeded"
   Ursache: zwei bekannte, harmlose Linker-Warnungen aus Oracles eigenem
            Relink-Schritt (mktemp-Hinweis, Symbolgroessen-Hinweis zu
-           zrmpu_functypes) - siehe Schritt 2 fuer Details
+           zrmpu_functypes) - siehe Schritt 2.5 fuer Details
   Loesung: Kein Rollback noetig, wenn vorher "Patch 39600348 successfully
            applied." stand. Danach gezielt testen: Report ueber rwservlet
            (PDF/HTML), rwrun, rwconverter, showjobs
@@ -1532,30 +2166,35 @@ BEKANNTE PROBLEME UND LOESUNGEN
            werden. Beim Drop KEINE -tablespace/-tempTablespace Parameter
            angeben (sonst Abbruch mit RCU-6197).
 
-  Problem: createReportsServerInstance (Schritt 9.4) bricht ab mit
-           "Attribute oracle.reports:Type=ReportsServerComponent,
-           Name=ReportsServerComponentManager not found"
-
+  Problem: createReportsServerInstance (Schritt 9.4) bricht ab mit "Attribute
+           oracle.reports:Type=ReportsServerComponent,Name=ReportsServerComponentManager
+           not found"
   Ursache: Die Domain wurde ohne die Vorlage "Oracle Reports Server"
            angelegt (in Schritt 4 nicht angehakt). "Oracle Reports
            Application" zieht nur "Oracle Reports Tools" mit, nicht den
            Server. Ein laufender Managed Server aendert daran nichts.
-           Pruefen: fehlt die Datei
-             $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/mbeans/mbeans.xml
-
-           dann fehlt die Vorlage.
+           Pruefen: fehlt die Datei mbeans.xml im Verzeichnis
+             .../config/fmwconfig/components/ReportsServerComponent/mbeans/
+           (unter $DOMAIN_HOME), dann fehlt die Vorlage.
   Loesung: Domain offline erweitern (ALLE Server und Node Manager vorher
            stoppen), danach AdminServer, Node Manager und Managed Server
            wieder starten und Schritt 9.4 wiederholen:
-             $ORACLE_HOME/oracle_common/common/bin/wlst.sh
 
-             readDomain('<DOMAIN_HOME>')
-             addTemplate('<ORACLE_HOME>/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
-             updateDomain()
+             $WLST
 
-             closeDomain()
+             # --- in WLST eingeben ---
 
-             exit()
+                 readDomain('<DOMAIN_HOME>')
+
+                 addTemplate('<ORACLE_HOME>/ReportsServerComponent/common/templates/wls/oracle.reports_server_template.jar')
+
+                 updateDomain()
+
+                 closeDomain()
+
+                 exit()
+
+             # --- Ende WLST ---
 
            (Alternativ: config.sh -> "Update an existing domain" ->
            "Oracle Reports Server" zusaetzlich anhaken.)
@@ -1583,8 +2222,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            rwnetwork.conf gleich); nur eigene = lokal verworfen (Firewall);
            gar keine = Route/Netzwerkkarte.
            Danach: $DOMAIN_HOME/bin/stopComponent.sh repServer01, dann
-           $DOMAIN_HOME/bin/startComponent.sh repServer01 (restartComponent.sh
-
+           startComponent.sh repServer01 (restartComponent.sh
            lehnt der Node Manager fuer den Reports Server ab: "softRestart
            command is not supported on ReportsServerComponent")
 
@@ -1597,10 +2235,9 @@ BEKANNTE PROBLEME UND LOESUNGEN
            bestaetigt als Bug 39868225, MOS KB924687 (Workaround = genau
            diese Option; Fix "in einem spaeteren QPR" - die Option so lange
            drin lassen)
-  Loesung: in rwserver.conf (Schritt 9.7)
-             value="-Djobid=random -DORBWaitForResponseTimeout=999999999"
-
-           setzen, repServer neu starten
+  Loesung: in rwserver.conf (Schritt 9.7) bei REPORTS_JVM_OPTIONS den Wert
+             -Djobid=random -DORBWaitForResponseTimeout=999999999
+           setzen (value="..."), repServer neu starten
 
   Problem: Reports-Server startet staendig neu, getserverinfo meldet
            "REP-51002 Bind to Reports Server ... failed", im
@@ -1653,7 +2290,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: $DOMAIN_HOME/config/config.xml existiert bereits - der
            Assistent legt bei "Create Domain" eine komplett neue Domain an
   Loesung: VOR dem Start immer pruefen, ob $DOMAIN_HOME/config/config.xml
-           schon existiert (siehe Hinweis in Schritt 4); im Assistenten
+           schon existiert (siehe Schritt 4.1); im Assistenten
            dann "Update Domain" statt "Create Domain" waehlen, oder einen
            anderen DOMAIN_HOME verwenden
 
@@ -1693,8 +2330,11 @@ BEKANNTE PROBLEME UND LOESUNGEN
              "logo.jpg") - der Builder findet das Bild ueber REPORTS_PATH
              und speichert ohne Pfad. Report auf den Server kopieren. Liegen
              die Bilder dort klein geschrieben, Link mit der Schreibweise
-             des Reports anlegen:
-               cd $REPORTS_IMAGE_DIR && ln -s gpilogo.jpg gpiLogo.jpg
+             des Reports anlegen (zwei Befehle):
+
+               cd $REPORTS_IMAGE_DIR
+
+               ln -s gpilogo.jpg gpiLogo.jpg
 
            Weg B (alle Reports auf einmal ueber XML, Pfad weg + Name klein,
              danach Liste vorhandener/fehlender Bilder): siehe
@@ -1710,11 +2350,10 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Problem: stopManagedWebLogic.sh bricht ab mit "No valid username/password
            or userConfigFile/userKeyFile provided" und "shutDownStatus=1"
   Ursache: ohne Benutzer/Passwort meldet sich das Oracle-Skript mit der
-           boot.properties des zu stoppenden Servers an - die fehlt unter
-           $DOMAIN_HOME/servers/<Servername>/security/ (Schritt 6 nicht oder
-
-           mit einem anderen Servernamen ausgefuehrt; der Name muss exakt
-           dem <name> in config.xml entsprechen)
+           boot.properties des zu stoppenden Servers an - die fehlt
+           unter $DOMAIN_HOME/servers/<Servername>/security/ (Schritt 6
+           nicht oder mit einem anderen Servernamen ausgefuehrt; der Name
+           muss exakt dem <name> in config.xml entsprechen)
   Loesung: Schritt 6 mit dem richtigen Namen nachholen (siehe Pruefung in
            Schritt 9.10), oder Benutzer/Passwort als 3./4. Parameter
            mitgeben (verdeckt per "read -s" abfragen)
@@ -1724,7 +2363,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: der Security-Cache des Managed Servers uebernimmt neue
            Rollen/Policies nicht immer sofort
   Loesung: $WLS_MANAGED_SERVER neu starten (stopManagedWebLogic.sh,
-           dann startManagedWebLogic.sh - siehe Schritt 8 Ende)
+           dann startManagedWebLogic.sh - siehe Schritt 8.5)
 
 
 ================================================================================
