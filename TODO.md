@@ -5,6 +5,48 @@ in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [README.md](README.md#project-status).
 
+## Cookbook findings of the style rewrite (2026-11-04)
+
+The 10 cookbooks of `Reports14_linux_manual_install` + the Windows Builder
+cookbook were rewritten to the cookbook-Skill style (form only). Technical
+doubts noticed on the way, **not changed** – check on the test host:
+
+- [ ] **Identifier admin name** differs: `rep_admin` (Patch 13.6, start/stop)
+  vs. `repadmin` (Reports_security, Absicherung) – decide one.
+- [ ] **OS cookbook:** 1.3 appends IPv6 lines to `99-oracle-fmw.conf`, 2.3
+  overwrites the file (IPv6 settings lost); 5.5 `chown` misses
+  `/u01/app/oraInventory`; 2.7 swapfile before `/u01/oracle` exists; nginx
+  `listen [::]` with IPv6 off; core dir created twice; `/dev/shm` remount
+  without an fstab edit; new `MEDIA=/tmp/media` upload dir to confirm.
+- [ ] **Reports cookbook:** step 7 `sed StartScriptEnabled` has no line to
+  change; `umask 077` of 3.A stays active for the session; step 1 says domain
+  = "Schritt 3" (is 4); 1.C install log path `/u01/app/oraInventory` vs.
+  `ORACLE_BASE=/u01/oracle`; `cmdkey` report run as POST (9.8 / 9.11) and the
+  new `server=` in step 8 – verify.
+- [ ] **Font cookbook:** 4.3 `LD_LIBRARY_PATH` `jdk/jre/lib/amd64/server`
+  (not in JDK 21); 8.5 kills only `rwEng-0`; origin of `/tmp/test_report.pdf`;
+  known problem "systemctl restart weblogic" (unit is `reportrpgpi`);
+  `04-ReportsFonts/manual_setup_de.txt` still exists; `AFM_PY` path assumed.
+- [ ] **Autostart:** 8.1 `getserverinfo` without authid gives 499 on a secured
+  server; scripts / unit hard-code `/u01/oracle/scripts`, 5556, domain values
+  (could read `patch_install.ini`).
+- [ ] **start/stop:** start order AdminServer → NM (0.1) vs. NM → AdminServer
+  (`start_wls_all.sh`); Reports Tools instance in start/stop – needed?;
+  scripts stored in `$ORACLE_HOME` (lost / old after a home restore).
+- [ ] **Patch 14c:** 13.6 `REPORTS_SERVER_NAME` not set by `patch_env.sh`,
+  port 9002 literal; no check after the `reboot` of step 15.
+- [ ] **Reports_security:** 8.4 a) expected "HTTP 499 / REP-52262" (XML
+  `code=`?), 7.3 expects `<server` vs. `<serverInfo` in Absicherung.
+- [ ] **FMW:** "sleep 20" (known problems) vs. "sleep 30" (3.2).
+- [ ] **SSL:** "no root needed" but Option B needs root (`dnf`, `/srv/gpi_ca`,
+  `update-ca-trust`); audit as oracle cannot read `/etc/nginx/ssl` keys;
+  `s_client -brief` prints "Verification: OK".
+- [ ] **Windows Builder:** 9.2 `rwconverter userid=` on the command line;
+  7.2 `connect()` with the password as argument; 9.3 PowerShell 5.1 POST needs
+  the root CA imported; new "Erwartet" for `mklink` / `setx` not verified.
+- [ ] Formatter `cookbook_blank_lines.py` (local): false positives on
+  `$VAR` tree / text rows and inside `( … ) | tee` subshells.
+
 ## Patch cycle CPU October 2026 – remaining
 
 Applied on the test host 2026-10-24 (details, runtimes, answered open points:
