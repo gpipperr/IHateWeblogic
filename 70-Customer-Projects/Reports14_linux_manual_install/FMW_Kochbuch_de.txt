@@ -4,7 +4,8 @@
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
   Umgebung   : Oracle Linux 9, FMW 14.1.2.0.0, WebLogic 14.1.2
-  Erstellt   : 2026-10
+  Erstellt   : 2026-10, Stil nach 70-Customer-Projects/cookbook-Skill.md
+               (umgestellt 2026-11-04)
   Grundlage  : IHateWeblogic/09-Install/05* (Gunther Pipperr)
   Voraussetzung: OS_Kochbuch_de.txt vollstaendig durchgefuehrt (Pakete,
                  Java, oracle-User, /etc/oraInst.loc, Nginx-Grundinstallation)
@@ -23,46 +24,181 @@
                Fahrplan: ../Start_beim_Kunden_kochbuch_de.txt
 ================================================================================
 
+
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - Alles als Benutzer oracle, AUSSER SCHRITT 4 (SSL auf Nginx, als root -
+    /etc/nginx/ ist schreibgeschuetzt) und der xauth-Installation in 1.3.
+
+  - SCHRITT 0 in JEDEM neuen Terminal und nach jedem "su" wiederholen.
+
+  - Mehrzeilige Befehle (Zeilen mit "\" am Ende, for-Schleife, if-Block,
+    cat > ... << 'EOF') sind EIN Befehl - komplett kopieren.
+
+
+WAS WO LANDET
+--------------------------------------------------------------------------------
+
+    $ORACLE_HOME/                      /u01/oracle/fmw <- SCHRITT 1
+                                       (muss vorher leer sein)
+      OPatch/                          <- SCHRITT 3.2 (Upgrade 13.9.4.2.25)
+      oracle_common/jdk/               FMW-eigene JDK <- SCHRITT 1,
+                                       java.security <- SCHRITT 2
+    $ORACLE_HOME/OPatch.bak_<JJJJMMTT> <- SCHRITT 3.2 (Sicherung)
+    $INV_LOC/                          Inventory aus /etc/oraInst.loc
+                                       (/u01/app/oraInventory), Installer-Log
+                                       unter logs/ <- SCHRITT 1
+    $INV_LOC.bak_<JJJJMMTT>            <- SCHRITT 3.2 (Sicherung)
+    $PATCH_STORAGE/                    /u01/oracle/patch_storage (aus
+                                       OS_Kochbuch_de.txt Schritt 7)
+      wls/fmw_14.1.2.0.0_infrastructure.jar   Installer (OS-Kochbuch 7.3)
+      wls/wls_install.rsp              <- SCHRITT 1.2 (nach der
+                                       Installation wieder geloescht)
+      patches/<patchnr>/p<patchnr>_*.zip      die Patches aus der Tabelle
+                                       unten (OS-Kochbuch 7.4)
+    $ORACLE_BASE/tmp/                  <- SCHRITT 3.2 (java.io.tmpdir fuer
+                                       das OPatch-Upgrade)
+    /tmp/opatch_upgrade/               <- SCHRITT 3.2 (temporaer, danach weg)
+    /tmp/wls_spb/                      <- SCHRITT 3.3 (temporaer, >= 4 GB
+                                       frei, danach weg)
+    /tmp/mw_patches/                   <- SCHRITT 3.4 (temporaer, danach weg)
+    $WORK/                             $HOME/fmw_kochbuch <- SCHRITT 0:
+                                       Datum der Sicherung, lspatches
+                                       vorher/nachher, opatch-Ausgaben
+    $SSL_CERT_FILE / $SSL_KEY_FILE /   /u01/oracle/certs/... aus
+    $SSL_CHAIN_FILE                    SSL_Kochbuch_de.txt (Option A-D)
+    /etc/nginx/ssl/                    <- SCHRITT 4 (als root)
+      fullchain.pem                    Zertifikat (+ Chain), Rechte 644
+      privkey.pem                      Schluessel, Rechte 600
+    /etc/nginx/ssl.bak-<zeit>/         <- SCHRITT 4.2 (Sicherung)
+
+  Quelldateien (alle "Generic", in $PATCH_STORAGE/patches/<nr>/,
+  Stand CPU Oktober 2026 + Security Alert CVE-2026-91403):
+
+    Nummer    Datei                         Inhalt                    Schritt
+    --------  ----------------------------  ------------------------  -------
+    V1045135  V1045135-01.zip (eDelivery)   FMW Infrastructure        1
+              darin fmw_14.1.2.0.0_infrastructure.jar
+    40125898  p40125898_141200_Generic.zip  WLS Stack Patch Bundle    3.2/3.3
+                                            14.1.2.0.261007 (ca. 2,8
+                                            GB, darin auch OPatch
+                                            13.9.4.2.25 = p28186730)
+    40050062  p40050062_141200_Generic.zip  ADF BP                    3.4
+    40035984  p40035984_141200_Generic.zip  WebCenter Core BP         3.4
+    40024749  p40024749_141200_Generic.zip  OWSM BP                   3.4
+    39995927  p39995927_141200_Generic.zip  FMW Control (EM) BP       3.4
+    40057999  p40057999_141200_Generic.zip  OAMCLIENT BP              3.4
+    39940047  p39940047_141200_Generic.zip  UMS BP                    3.4
+    39979746  p39979746_141200_Generic.zip  OPSS BP                   3.4
+    39726399  p39726399_141200_Generic.zip  LibOVD BP                 3.4
+
+    - Die Befehle verwenden p<nr>_*.zip - massgeblich sind Nummer und
+      "Generic", der Release-Teil im Namen kann abweichen.
+    - Vor JEDEM Patch-Lauf im aktuellen MOS KA1182 pruefen, ob sich
+      Nummern geaendert haben (SCHRITT 3).
+    - PERL / OHS / WebGate / Reports-QPR kommen erst nach der Reports-
+      Installation: Reports_kochbuch_de.txt Schritt 2.
+
+
 VORAUSSETZUNGEN
-----------------
-    # Kurzweg: alle Werte aller Kochbuecher stehen in patch_install.ini -
-    # einlesen mit  . /u01/oracle/tools/set_script_env.sh
-    # (Start_beim_Kunden_kochbuch_de.txt). Sonst von Hand:
-    export ORACLE_BASE=/u01/oracle
+--------------------------------------------------------------------------------
 
-    export ORACLE_HOME=/u01/oracle/fmw
+  - OS_Kochbuch_de.txt komplett, Installer und Patches liegen in
+    $PATCH_STORAGE (OS-Kochbuch Schritt 7).
 
-    export JDK_HOME=/u01/oracle/java/jdk-21
+  - Fahrplan (../Start_beim_Kunden_kochbuch_de.txt) Schritt 1-5:
+    /u01/oracle/tools/patch_install.ini ist angepasst.
 
-    export PATCH_STORAGE=/u01/oracle/patch_storage
+  - Alle Schritte dieses Kapitels laufen als oracle-User, AUSSER dem
+    SSL-Ausroll-Schritt (root, da /etc/nginx/ schreibgeschuetzt ist).
 
-  Alle Schritte dieses Kapitels laufen als oracle-User, AUSSER dem
-  SSL-Ausroll-Schritt (root, da /etc/nginx/ schreibgeschuetzt ist).
+
+================================================================================
+SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Kurzweg mit patch_install.ini
+  ----------------------------------------------------------------------------
+  . /u01/oracle/tools/set_script_env.sh
+
+  # Danach mit 0.3 weiter. Ohne set_script_env.sh: 0.2.
+
+  ----------------------------------------------------------------------------
+  0.2 Von Hand  (Werte an die Umgebung anpassen)
+  ----------------------------------------------------------------------------
+  export ORACLE_BASE=/u01/oracle
+
+  export ORACLE_HOME=/u01/oracle/fmw
+
+  export JDK_HOME=/u01/oracle/java/jdk-21
+
+  export PATCH_STORAGE=/u01/oracle/patch_storage
+
+  ----------------------------------------------------------------------------
+  0.3 Abgeleitete Variablen  (nichts anpassen, nur kopieren)
+  ----------------------------------------------------------------------------
+  export INV_LOC=$(sed -n 's/^inventory_loc=//p' /etc/oraInst.loc)
+
+  export JSEC_FMW=$ORACLE_HOME/oracle_common/jdk/conf/security/java.security
+
+  export WORK=$HOME/fmw_kochbuch
+  # Arbeitsverzeichnis: Datum der Sicherung, opatch-Ausgaben
+
+  mkdir -p $WORK
+
+  ----------------------------------------------------------------------------
+  0.4 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "OB=$ORACLE_BASE OH=$ORACLE_HOME JDK=$JDK_HOME PS=$PATCH_STORAGE"
+  # Erwartet: alle vier gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
+
+  echo "INV_LOC=$INV_LOC WORK=$WORK"
+  # Erwartet: /u01/app/oraInventory /home/oracle/fmw_kochbuch
+  # INV_LOC LEER -> /etc/oraInst.loc fehlt (OS_Kochbuch_de.txt Schritt 5.6)
 
 
 ================================================================================
 SCHRITT 1: FMW-Infrastruktur installieren  (als oracle)
 ================================================================================
 
-  # Voraussetzungen pruefen: JDK vorhanden, ORACLE_HOME leer,
-  # /etc/oraInst.loc vorhanden (aus OS_Kochbuch_de.txt Schritt 5)
+  ----------------------------------------------------------------------------
+  1.1 Voraussetzungen pruefen
+  ----------------------------------------------------------------------------
+  # JDK vorhanden, ORACLE_HOME leer, /etc/oraInst.loc vorhanden (aus
+  # OS_Kochbuch_de.txt Schritt 5)
+
   $JDK_HOME/bin/java -version
+  # Erwartet: java version "21..." (Oracle, NICHT OpenJDK)
 
   ls "$ORACLE_HOME" 2>/dev/null && echo "WARNUNG: ORACLE_HOME nicht leer!"
+  # Erwartet: keine Ausgabe. "WARNUNG" -> STOP, Inhalt klaeren.
 
   cat /etc/oraInst.loc
+  # Erwartet: inventory_loc=/u01/app/oraInventory, inst_group=oinstall
+
+  ls -l $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar
+  # Erwartet: die Datei ist da (OS_Kochbuch_de.txt Schritt 7.3)
 
   # Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
   # (Silent) ist die uebliche Wahl auf einem Server ohne dauerhafte
   # grafische Oberflaeche, Option B (Grafisch) fuer alle, die dem
   # Installationsassistenten lieber beim Arbeiten zusehen/Werte interaktiv
-  # pruefen wollen. Nur EINE der beiden Optionen ausfuehren.
+  # pruefen wollen. Nur EINE der beiden Optionen ausfuehren:
+  #   Option A -> 1.2, danach 1.4
+  #   Option B -> 1.3, danach 1.4
 
-  --- Option A: Silent (Antwortdatei, empfohlen fuer Server ohne GUI) --------
-
+  ----------------------------------------------------------------------------
+  1.2 Option A: Silent  (Antwortdatei, empfohlen fuer Server ohne GUI)
+  ----------------------------------------------------------------------------
   # Response-Datei anlegen. DECLINE_SECURITY_UPDATES=true, da ohne
   # MOS-Zugangsdaten keine automatischen Update-Benachrichtigungen
-  # moeglich/gewuenscht sind.
+  # moeglich/gewuenscht sind. ORACLE_HOME in der Datei = $ORACLE_HOME.
+
   cat > $PATCH_STORAGE/wls/wls_install.rsp << 'EOF'
 [ENGINE]
 Response File Version=1.0.0.0.0
@@ -81,11 +217,15 @@ PROXY_PWD=
 COLLECTOR_SUPPORTHUB_URL=
 EOF
 
+  grep '^ORACLE_HOME' $PATCH_STORAGE/wls/wls_install.rsp
+  # Muss derselbe Pfad sein wie: echo $ORACLE_HOME
+
   # CV_ASSUME_DISTID=OEL8: Oracle Linux 9 wird vom Installer-internen
   # Systemvoraussetzungs-Check (CVU) noch nicht nativ erkannt. Diese
   # Variable taeuscht NUR die Betriebssystem-Identifikation vor - alle
   # anderen Pruefungen (RAM, Platz, Pakete) laufen normal und ungefiltert.
   # -ignoreSysPrereqs wird bewusst NICHT verwendet.
+
   export CV_ASSUME_DISTID=OEL8
 
   $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
@@ -93,13 +233,17 @@ EOF
       -responseFile $PATCH_STORAGE/wls/wls_install.rsp \
       -invPtrLoc /etc/oraInst.loc \
       -jreLoc $JDK_HOME
+  # Installationslog: $INV_LOC/logs/ (siehe 1.4)
 
   unset CV_ASSUME_DISTID
 
   rm -f $PATCH_STORAGE/wls/wls_install.rsp
 
-  --- Option B: Grafisch (Installationsassistent, OUI-GUI) -------------------
+  # Weiter mit 1.4.
 
+  ----------------------------------------------------------------------------
+  1.3 Option B: Grafisch  (Installationsassistent, OUI-GUI)
+  ----------------------------------------------------------------------------
   # Voraussetzung: eine grafische Oberflaeche muss erreichbar sein - entweder
   # per X11-Weiterleitung ueber SSH (lokaler X-Server noetig, z.B. Xming/
   # VcXsrv unter Windows, XQuartz unter macOS, ein Linux-Desktop sonst)
@@ -109,22 +253,28 @@ EOF
   #   echo $DISPLAY                     # muss gesetzt sein, z.B. localhost:10.0
   #
   # Falls "xauth" auf dem Server fehlt, bricht der Installer mit
-  # "No protocol specified" oder gar nicht sichtbar ab:
-  dnf install -y xorg-x11-xauth   # als root, einmalig, falls noch nicht vorhanden
+  # "No protocol specified" oder gar nicht sichtbar ab.
+  # Als root, einmalig, falls noch nicht vorhanden:
+
+  dnf install -y xorg-x11-xauth
+
+  # Wieder als oracle (SCHRITT 0 in dieser Sitzung):
+
+  echo $DISPLAY
+  # Erwartet: z.B. localhost:10.0 - LEER -> ssh -X fehlt
 
   export CV_ASSUME_DISTID=OEL8
 
   # Gleicher Installer-Aufruf wie Option A, aber OHNE -silent/-responseFile -
   # startet stattdessen den grafischen Oracle Universal Installer (OUI):
+
   $JDK_HOME/bin/java -jar $PATCH_STORAGE/wls/fmw_14.1.2.0.0_infrastructure.jar \
       -invPtrLoc /etc/oraInst.loc \
       -jreLoc $JDK_HOME
 
-  unset CV_ASSUME_DISTID
-
   # Im Assistenten dieselben Werte eintragen, die in Option A in der
   # Response-Datei standen:
-  #   Oracle Home:         /u01/oracle/fmw
+  #   Oracle Home:         /u01/oracle/fmw  (= $ORACLE_HOME)
   #   Installationstyp:    Fusion Middleware Infrastructure
   #   Security Updates:    "I wish to receive security updates..." abwaehlen
   #                        (keine MOS-Zugangsdaten hinterlegt)
@@ -133,11 +283,18 @@ EOF
   # Der Assistent fuehrt am Ende dieselbe Pruefung/Installation aus wie
   # Option A - Dauer und Ergebnis sind identisch.
 
-  # Dauer (beide Optionen): ca. 10-15 Minuten. Installationslog liegt unter
-  # /u01/app/oraInventory/logs/
+  unset CV_ASSUME_DISTID
 
-  # Kontrolle (beide Optionen)
+  ----------------------------------------------------------------------------
+  1.4 Kontrolle  (beide Optionen)
+  ----------------------------------------------------------------------------
+  # Dauer (beide Optionen): ca. 10-15 Minuten. Installationslog liegt unter
+  # $INV_LOC/logs/ (/u01/app/oraInventory/logs/)
+
+  ls -lt $INV_LOC/logs/ | head -3
+
   $ORACLE_HOME/OPatch/opatch lsinventory
+  # Erwartet: "OPatch succeeded." und die installierten Produkte
 
   ls $ORACLE_HOME/wlserver/
 
@@ -153,11 +310,17 @@ SCHRITT 2: JVM-Einstellungen fuer die FMW-eigene JDK  (als oracle)
   # $ORACLE_HOME/oracle_common/jdk - diese hat eine EIGENE
   # java.security-Datei, der SecureRandom-Fix muss hier WIEDERHOLT werden.
 
-  sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' \
-      $ORACLE_HOME/oracle_common/jdk/conf/security/java.security
+  echo "JSEC_FMW=$JSEC_FMW"
+  # Erwartet: /u01/oracle/fmw/oracle_common/jdk/conf/security/java.security
+  # LEER -> SCHRITT 0
 
-  # Kontrolle
-  grep '^securerandom.source' $ORACLE_HOME/oracle_common/jdk/conf/security/java.security
+  ls -l $JSEC_FMW
+
+  cp -p $JSEC_FMW $JSEC_FMW.bak
+
+  sed -i 's|^securerandom\.source=.*|securerandom.source=file:/dev/./urandom|' $JSEC_FMW
+
+  grep '^securerandom.source' $JSEC_FMW
   # Erwartet: securerandom.source=file:/dev/./urandom
 
   # Log4Shell-Haertung + Heap-Settings werden in setUserOverrides.sh
@@ -174,7 +337,7 @@ SCHRITT 2: JVM-Einstellungen fuer die FMW-eigene JDK  (als oracle)
 
 
 ================================================================================
-SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
+SCHRITT 3: FMW-Infrastruktur patchen  (als oracle, alles gestoppt)
 ================================================================================
 
   # Stand: CPU Oktober 2026 + Security Alert CVE-2026-91403 (Patchnummern
@@ -195,48 +358,77 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   #   - PERL / OHS / WebGate / Reports-QPR erst nach der Reports-
   #     Installation: Reports_kochbuch_de.txt Schritt 2
   #
-  # Benoetigte ZIPs (in $PATCH_STORAGE/patches/<nr>/, alle "Generic"):
-  #   40125898  WLS Stack Patch Bundle 14.1.2.0.261007 (ca. 2,8 GB, darin
-  #             auch OPatch 13.9.4.2.25)
-  #   40050062  ADF BP              40035984  WebCenter Core BP
-  #   40024749  OWSM BP             39995927  FMW Control (EM) BP
-  #   40057999  OAMCLIENT BP        39940047  UMS BP
-  #   39979746  OPSS BP             39726399  LibOVD BP
+  # Benoetigte ZIPs: Tabelle "Quelldateien" oben (in
+  # $PATCH_STORAGE/patches/<nr>/, alle "Generic").
   #
   # Laufzeiten auf dem Testsystem: OPatch 1 min, SPB entpacken 1 min,
   # SPB napply 5 min, je Bundle ca. 4 min (zusammen ca. 31 min).
   # Jeder "opatch lspatches"-Aufruf dauert ca. 25 s.
 
-  # 3.0 Vorher: alles gestoppt (bei einer Neuinstallation laeuft noch
-  #     nichts) - und JETZT einen VM-Snapshot anlegen: konsistent, weil
-  #     nichts laeuft. Bei einer bestehenden Umgebung zusaetzlich
-  #     ORACLE_HOME, Inventory und DOMAIN_HOME per tar sichern.
+  ----------------------------------------------------------------------------
+  3.0 Vorher: alles gestoppt + VM-Snapshot
+  ----------------------------------------------------------------------------
+  # Bei einer Neuinstallation laeuft noch nichts - JETZT einen VM-Snapshot
+  # anlegen (ueber das VM-Team): konsistent, weil nichts laeuft. Bei einer
+  # bestehenden Umgebung zusaetzlich ORACLE_HOME, Inventory und
+  # DOMAIN_HOME per tar sichern.
 
-  # 3.1 OPatch-Version pruefen - der aktuelle Zyklus verlangt 13.9.4.2.25
-  #     (behebt Bug 40105335: GDR-Bibliotheken bei 14.1.2 - VOR dem SPB)
+  ls -l $PATCH_STORAGE/patches/*/p*.zip
+  # Erwartet: alle neun ZIPs aus der Tabelle "Quelldateien"
+
+  df -h /tmp
+  # Erwartet: >= 4 GB frei (SPB entpacken, 3.3)
+
+  $ORACLE_HOME/OPatch/opatch lspatches | tee $WORK/03_lspatches_before.txt
+
+  ----------------------------------------------------------------------------
+  3.1 OPatch-Version pruefen
+  ----------------------------------------------------------------------------
+  # Der aktuelle Zyklus verlangt 13.9.4.2.25 (behebt Bug 40105335:
+  # GDR-Bibliotheken bei 14.1.2 - VOR dem SPB).
+
   $ORACLE_HOME/OPatch/opatch version
+  # "OPatch Version: 13.9.4.2.25" (oder neuer) -> weiter mit 3.3
+  # aelter                                     -> 3.2
 
-  # 3.2 OPatch-Upgrade auf 13.9.4.2.25
-  #     Vorher Patch 23335292 zurueckrollen, falls vorhanden (Pflichtschritt
-  #     laut OPatch-Readme):
+  ----------------------------------------------------------------------------
+  3.2 OPatch-Upgrade auf 13.9.4.2.25
+  ----------------------------------------------------------------------------
+  # Vorher Patch 23335292 zurueckrollen, falls vorhanden (Pflichtschritt
+  # laut OPatch-Readme):
+
   $ORACLE_HOME/OPatch/opatch lspatches | grep 23335292
-  #   falls gefunden:
-  #   $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -silent; sleep 30
+  # keine Ausgabe          -> weiter mit der Sicherung unten
+  # "23335292;..." gezeigt -> zurueckrollen, dann 30 s warten:
+  #     $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -silent
+  #     sleep 30
 
-  #     Backup (OPatch selbst hat keinen Rollback-Mechanismus fuer sich):
-  cp -a $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak_$(date +%Y%m%d)
+  # Backup (OPatch selbst hat keinen Rollback-Mechanismus fuer sich):
 
-  cp -a /u01/app/oraInventory /u01/app/oraInventory.bak_$(date +%Y%m%d)
+  STAMP=$(date +%Y%m%d)
 
-  #     OPatch-Upgrade ueber opatch_generic.jar (NICHT per unzip - sonst
-  #     inkonsistente OUI-Metadaten). Die benoetigte 13.9.4.2.25 steckt im
-  #     SPB 40125898 - nur diese eine Datei aus dem SPB-ZIP holen:
+  echo "$STAMP" > $WORK/03_backup_stamp.txt
+
+  cp -a $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch.bak_$STAMP
+
+  cp -a $INV_LOC $INV_LOC.bak_$STAMP
+
+  ls -ld $ORACLE_HOME/OPatch.bak_$STAMP $INV_LOC.bak_$STAMP
+  # Erwartet: beide Sicherungen vorhanden
+
+  # OPatch-Upgrade ueber opatch_generic.jar (NICHT per unzip - sonst
+  # inkonsistente OUI-Metadaten). Die benoetigte 13.9.4.2.25 steckt im
+  # SPB 40125898 - nur diese eine Datei aus dem SPB-ZIP holen:
+
   mkdir -p /tmp/opatch_upgrade
 
   unzip -q -j $PATCH_STORAGE/patches/40125898/p40125898_*.zip \
       "*/tools/opatch/generic/p28186730_*.zip" -d /tmp/opatch_upgrade
 
   unzip -q /tmp/opatch_upgrade/p28186730_*.zip -d /tmp/opatch_upgrade
+
+  ls /tmp/opatch_upgrade/6880880/opatch_generic.jar
+  # Erwartet: die Datei ist da
 
   mkdir -p $ORACLE_BASE/tmp
 
@@ -249,33 +441,47 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
 
   rm -rf /tmp/opatch_upgrade
 
-  # 3.3 WLS Stack Patch Bundle 40125898 (14.1.2.0.261007) einspielen -
-  #     NICHT ueber "opatch apply", sondern "opatch napply" mit der im SPB
-  #     mitgelieferten Patch-Liste. Braucht ca. 4 GB freien Platz
-  #     ausserhalb von $ORACLE_HOME zum Entpacken.
+  ----------------------------------------------------------------------------
+  3.3 WLS Stack Patch Bundle 40125898 (14.1.2.0.261007)
+  ----------------------------------------------------------------------------
+  # NICHT ueber "opatch apply", sondern "opatch napply" mit der im SPB
+  # mitgelieferten Patch-Liste. Braucht ca. 4 GB freien Platz ausserhalb
+  # von $ORACLE_HOME zum Entpacken.
+
   unzip -q $PATCH_STORAGE/patches/40125898/p40125898_*.zip -d /tmp/wls_spb
 
   cd /tmp/wls_spb/WLS_SPB_14.1.2.0.261007/binary_patches
 
+  ls linux64_patchlist.txt
+  # Erwartet: die Datei ist da
+
   # Laut SPB-Readme: JAVA_HOME und ORACLE_HOME fuer den napply-Aufruf
-  # unsetten (nur in dieser Shell, danach wieder setzen):
+  # unsetten (nur in dieser Shell, danach wieder setzen). Geht das
+  # Terminal hier verloren: neues Terminal, SCHRITT 0, dann hier weiter.
+
   ORACLE_HOME_SAVED=$ORACLE_HOME
+
+  echo "ORACLE_HOME_SAVED=$ORACLE_HOME_SAVED"
+  # Erwartet: /u01/oracle/fmw - LEER -> STOP, SCHRITT 0
 
   unset JAVA_HOME
 
   unset ORACLE_HOME
 
   # Trockenlauf (zeigt an, was passieren wuerde, aendert nichts):
-  $ORACLE_HOME_SAVED/OPatch/opatch napply -report \
-      -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt
 
+  $ORACLE_HOME_SAVED/OPatch/opatch napply -report \
+      -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt 2>&1 | tee $WORK/03_spb_report.txt
   # Bei einem Update von September 2026 zeigt der Bericht u.a.
   # "Patch 40058371 - Bug Superset of 39988381": der September-Einzelpatch
   # 39988381 wird von der neuen PSU ersetzt und automatisch entfernt.
 
   # Tatsaechlich einspielen:
+
   $ORACLE_HOME_SAVED/OPatch/opatch napply -silent \
-      -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt
+      -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt 2>&1 | tee $WORK/03_spb_napply.txt
+  # Erwartet am Ende: "OPatch succeeded." - das allein ist KEIN Beweis,
+  # Kontrolle unten mit lspatches.
 
   export ORACLE_HOME=$ORACLE_HOME_SAVED
 
@@ -284,6 +490,7 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   cd -
 
   # Verifikation: Marker-Patch 40126042 macht das SPB in lspatches sichtbar
+
   $ORACLE_HOME/OPatch/opatch lspatches | grep -E "40126042|40058371"
   # Erwartet: 40126042 (WLS STACK PATCH BUNDLE 14.1.2.0.261007) und
   #           40058371 (WLS PATCH SET UPDATE 14.1.2.0.260922)
@@ -294,12 +501,17 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   #   cd <entpacktes SPB>/WLS_SPB_14.1.2.0.261007/binary_patches
   #   opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 
-  # 3.4 FMW-Infrastruktur-Bundles NACH dem SPB (normales "opatch apply").
-  #     ADF zwingend erst NACH dem SPB: ADF-Bundle, Third-Party-Bundle und
-  #     WLS-PSU teilen sich GraalVM-Bibliotheken und muessen aus demselben
-  #     Zyklus stammen (MOS PNEWS2138) - sonst startet EM nicht.
-  #     Im prereq-Ergebnis muss "passed" stehen; bei "failed" NICHT
-  #     weitermachen (opatch meldet trotzdem "OPatch succeeded").
+  ----------------------------------------------------------------------------
+  3.4 FMW-Infrastruktur-Bundles NACH dem SPB  (normales "opatch apply")
+  ----------------------------------------------------------------------------
+  # ADF zwingend erst NACH dem SPB: ADF-Bundle, Third-Party-Bundle und
+  # WLS-PSU teilen sich GraalVM-Bibliotheken und muessen aus demselben
+  # Zyklus stammen (MOS PNEWS2138) - sonst startet EM nicht.
+  # Im prereq-Ergebnis muss "passed" stehen; bei "failed" NICHT
+  # weitermachen (opatch meldet trotzdem "OPatch succeeded").
+  # Die Schleife fragt nach JEDEM prereq: "j" = einspielen, alles andere
+  # = Schleife abbrechen (Ausgabe sichern, melden).
+
   mkdir -p /tmp/mw_patches
 
   for PATCHNR in 40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399; do
@@ -309,17 +521,24 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
       $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail \
           -ph . -invPtrLoc /etc/oraInst.loc
       read -p "Prereq von $PATCHNR passed, kein Konflikt? [j/n] " A
-      [ "$A" = j ] || { cd -; break; }
+      if [ "$A" != j ]; then
+          cd -
+          break
+      fi
       $ORACLE_HOME/OPatch/opatch apply -silent -jdk $JDK_HOME -invPtrLoc /etc/oraInst.loc
       cd -
   done
+  # Erwartet je Patch: Prereq "checkConflictAgainstOHWithDetail" passed.
+  # und "OPatch succeeded."
 
   # Meldet ein Bundle "none of the components from patch are present",
   # ist seine Komponente in diesem Home nicht installiert - dann ist es hier
-  # nicht anwendbar (kein Fehler).
+  # nicht anwendbar (kein Fehler). KNOWN AND HARMLESS.
 
-  # 3.5 Verifikation
-  $ORACLE_HOME/OPatch/opatch lspatches
+  ----------------------------------------------------------------------------
+  3.5 Verifikation
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch lspatches | tee $WORK/03_lspatches_after.txt
   # Erwartet u.a.: 40126042, 40058371, 40035655 (Third-Party), 39984190
   # (Coherence), 40050062, 40035984, 40024749, 39995927, 40057999,
   # 39940047, 39979746, 39726399
@@ -334,9 +553,12 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   # 40058371 abgeloest), SPB 39925660. Den UMS-Januar-Patch 38566996 ersetzt
   # das UMS-Bundle 39940047.
 
-  # 3.6 Rollback eines Bundles (nur falls spaeter noetig)
-  #     opatch rollback -id <PATCHNUMMER> -silent
-  #     opatch lspatches | grep <PATCHNUMMER>   # muss leer sein
+  ----------------------------------------------------------------------------
+  3.6 Rollback eines Bundles  (nur falls spaeter noetig)
+  ----------------------------------------------------------------------------
+  #   $ORACLE_HOME/OPatch/opatch rollback -id <PATCHNUMMER> -silent
+  #   $ORACLE_HOME/OPatch/opatch lspatches | grep <PATCHNUMMER>
+  #   # Erwartet: keine Ausgabe
 
 
 ================================================================================
@@ -344,35 +566,58 @@ SCHRITT 4: SSL-Zertifikat auf Nginx ausrollen  (als root)
 ================================================================================
 
   # Voraussetzung: Zertifikat + Schluessel liegen bereits vor - siehe
-  # SSL_Kochbuch_de.txt (Option A/B/C) fuer die Erzeugung.
+  # SSL_Kochbuch_de.txt (Option A/B/C/D) fuer die Erzeugung.
 
+  ----------------------------------------------------------------------------
+  4.1 Variablen  (als root - aus patch_install.ini ablesen)
+  ----------------------------------------------------------------------------
   export SSL_CERT_FILE=/u01/oracle/certs/server.crt
 
   export SSL_KEY_FILE=/u01/oracle/certs/server.key
 
-  export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt   # optional, leer lassen falls nicht vorhanden
+  export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt
+  # optional, leer lassen falls nicht vorhanden
 
-  # Zertifikat validieren
-  openssl x509 -noout -enddate   -in "$SSL_CERT_FILE"
+  export WLS_SERVER_FQDN=wls01.company.local
+  # fuer den Live-Test in 4.4
 
-  openssl x509 -noout -subject   -in "$SSL_CERT_FILE"
+  ls -l "$SSL_CERT_FILE" "$SSL_KEY_FILE" "$SSL_CHAIN_FILE"
+  # Erwartet: Zertifikat und Schluessel vorhanden (Chain nur bei B/C/D)
 
-  openssl x509 -noout -issuer    -in "$SSL_CERT_FILE"
+  ----------------------------------------------------------------------------
+  4.2 Zertifikat validieren
+  ----------------------------------------------------------------------------
+  openssl x509 -noout -enddate -in "$SSL_CERT_FILE"
+
+  openssl x509 -noout -subject -in "$SSL_CERT_FILE"
+
+  openssl x509 -noout -issuer -in "$SSL_CERT_FILE"
 
   openssl x509 -noout -checkend 0 -in "$SSL_CERT_FILE"
+  # Erwartet: Certificate will not expire
 
-  openssl x509 -noout -modulus   -in "$SSL_CERT_FILE" | md5sum
+  openssl x509 -noout -modulus -in "$SSL_CERT_FILE" | md5sum
 
-  openssl rsa  -noout -modulus   -in "$SSL_KEY_FILE"  | md5sum
+  openssl rsa -noout -modulus -in "$SSL_KEY_FILE" | md5sum
+  # Beide md5sum-Werte MUESSEN identisch sein (Schluessel passt zum
+  # Zertifikat). Abweichend -> STOP, siehe BEKANNTE PROBLEME.
 
-  # Beide md5sum-Werte MUESSEN identisch sein (Schluessel passt zum Zertifikat)
-
+  ----------------------------------------------------------------------------
+  4.3 Sichern und ausrollen
+  ----------------------------------------------------------------------------
   # Backup des bisherigen Standes (siehe SSL_Kochbuch_de.txt - keine
   # Automatik vorhanden)
-  cp -a /etc/nginx/ssl /etc/nginx/ssl.bak-$(date +%Y%m%d_%H%M%S) 2>/dev/null
 
-  # Ausrollen: Chain nur anhaengen, wenn vorhanden (Option B/C), bei
+  SSL_BAK=/etc/nginx/ssl.bak-$(date +%Y%m%d_%H%M%S)
+
+  cp -a /etc/nginx/ssl $SSL_BAK 2>/dev/null
+
+  ls -ld $SSL_BAK
+  # Erwartet: die Sicherung (beim allerersten Ausrollen ggf. leer)
+
+  # Ausrollen: Chain nur anhaengen, wenn vorhanden (Option B/C/D), bei
   # Option A (selbstsigniert) existiert keine Chain-Datei
+
   mkdir -p /etc/nginx/ssl
 
   chmod 700 /etc/nginx/ssl
@@ -391,22 +636,53 @@ SCHRITT 4: SSL-Zertifikat auf Nginx ausrollen  (als root)
 
   chown root:root /etc/nginx/ssl/fullchain.pem /etc/nginx/ssl/privkey.pem
 
-  # Konfiguration testen und Nginx (erstmalig) starten
+  ls -l /etc/nginx/ssl
+  # Erwartet: fullchain.pem -rw-r--r-- root, privkey.pem -rw------- root
+
+  ----------------------------------------------------------------------------
+  4.4 Konfiguration testen und Nginx (erstmalig) starten
+  ----------------------------------------------------------------------------
   nginx -t
+  # Erwartet: "syntax is ok" und "test is successful"
+
   systemctl start nginx
 
   systemctl status nginx
+  # Erwartet: active (running)
 
   # Live-Test
+
   openssl s_client -connect 127.0.0.1:443 -servername "$WLS_SERVER_FQDN" -brief
 
   curl -o /dev/null -s -w "%{http_code}\n" http://127.0.0.1/
   # Erwartet: 301 (Redirect auf https)
 
   curl -k -o /dev/null -s -w "%{http_code}\n" https://127.0.0.1/reports/
-
   # 502/503 ist an dieser Stelle NORMAL - WebLogic/Reports laeuft noch
   # nicht (folgt erst im Reports-Kochbuch)
+
+
+================================================================================
+RUECKWEG
+================================================================================
+
+  Was                          Wie
+  ---------------------------  -------------------------------------------------
+  Installation (1)             VM-Snapshot; oder Oracle Home ueber den
+                               Deinstaller entfernen (vorher leer)
+  java.security (2)            cp -p $JSEC_FMW.bak $JSEC_FMW
+  OPatch-Upgrade (3.2)         Sicherung $ORACLE_HOME/OPatch.bak_<STAMP> und
+                               $INV_LOC.bak_<STAMP> zurueck
+
+                               (STAMP: cat $WORK/03_backup_stamp.txt)
+  SPB (3.3)                    nur komplett: opatch nrollback -oh $ORACLE_HOME
+                               -idFile rollback_patchlist.txt (im entpackten
+                               SPB, binary_patches)
+  Bundle (3.4)                 opatch rollback -id <PATCHNUMMER> -silent (3.6)
+  Alles (3)                    VM-Snapshot aus 3.0
+  Nginx-SSL (4)                Sicherung zurueck: Inhalt von
+                               /etc/nginx/ssl.bak-<zeit> nach /etc/nginx/ssl,
+                               nginx -t, systemctl reload nginx
 
 
 ================================================================================
@@ -418,6 +694,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: CV_ASSUME_DISTID nicht gesetzt (OL9 wird vom Installer nicht
            nativ erkannt)
   Loesung: export CV_ASSUME_DISTID=OEL8 vor dem Installer-Aufruf setzen
+           (Schritt 1.2 / 1.3)
 
   Problem: OPatch-Upgrade schlaegt mit einem Konflikt zu Patch 23335292 ab
   Ursache: Dieser alte Patch muss laut OPatch-Readme VOR dem Upgrade
@@ -444,7 +721,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: Falsches Schluessel/Zertifikat-Paar (z.B. alter Schluessel
            versehentlich wiederverwendet)
   Loesung: Beide Dateien aus demselben Erzeugungsvorgang (siehe
-           SSL_Kochbuch_de.txt) neu ausrollen
+           SSL_Kochbuch_de.txt) neu ausrollen (Schritt 4)
 
   Problem: curl auf /reports/ liefert 502/503 nach dem SSL-Rollout
   Ursache: WebLogic/Reports-Managed-Server laeuft noch nicht
