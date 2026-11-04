@@ -276,7 +276,7 @@ _run_step "Initial Config Backup" \
 section "Next Steps"
 
 info "Pre-start configuration complete. Next steps (09-Install/README.md, Phase 6):"
-info "  00-Setup/init_env.sh --apply                      (runtime parameters for 13-)"
+info "  00-Setup/detect_env_conf.sh --apply                      (runtime parameters for 13-)"
 info "  10-oracle_boot_properties.sh --apply"
 info "  11-oracle_nodemanager.sh --apply --skip-wlst, start AdminServer + NodeManager,"
 info "  11-oracle_nodemanager.sh --apply, 12-oracle_reports_users.sh --apply,"

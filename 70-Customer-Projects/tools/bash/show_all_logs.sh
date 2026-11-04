@@ -7,7 +7,7 @@
 #          ./show_all_logs.sh -n 50      je Datei die letzten 50 Zeilen zuerst
 #          ./show_all_logs.sh -h         Hilfe
 # Beenden: Strg+C
-# Daten  : env.ini im selben Verzeichnis (oder ENV_INI=/pfad/env.ini)
+# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
 # Hinweis: Logdateien, die erst NACH dem Aufruf neu entstehen, sind nicht
 #          dabei (tail -F folgt nur Dateien, die beim Start da waren, auch
 #          ueber eine Rotation hinweg) - dann einfach neu aufrufen.
@@ -15,13 +15,13 @@
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_INI="${ENV_INI:-$TOOLS_DIR/env.ini}"
-if [ ! -f "$ENV_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$ENV_INI" >&2
+IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
+if [ ! -f "$IHW_INI" ]; then
+    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
     exit 2
 fi
 # shellcheck source=/dev/null
-. "$ENV_INI"
+. "$IHW_INI"
 
 MINUTES="${LOG_MINUTES:-60}"
 LINES=20

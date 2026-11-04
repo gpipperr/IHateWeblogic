@@ -61,7 +61,7 @@ RCU_TABLESPACE=FMW_DATA
 The script sets `RCU_TABLESPACE` automatically if the line already exists
 in `environment.conf` – `09-Install/01-setup-interview.sh` writes it (block 4,
 empty by default). If the line is missing, the script only WARNs – add it
-with `00-Setup/init_env.sh --apply` (or the interview) and run `05-` again.
+with `00-Setup/detect_env_conf.sh --apply` (or the interview) and run `05-` again.
 `DB_SERVICE` in `environment.conf` must be the PDB service (`DB_PDB_NAME`).
 
 ---

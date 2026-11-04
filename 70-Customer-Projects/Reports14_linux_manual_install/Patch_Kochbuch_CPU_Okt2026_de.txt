@@ -114,7 +114,7 @@ VORAUSSETZUNGEN
     # Laeuft die Domain nicht: -o <ORACLE_HOME> -d <DOMAIN_HOME> mitgeben.
 
     Ohne Skript - dieselben Werte von Hand (Layout der Reports-Kochbuecher,
-    install.ini):
+    wie in patch_install.ini):
     export ORACLE_HOME=/u01/oracle/fmw                  # Forms-&-Reports-Home
 
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi

@@ -22,7 +22,7 @@
 # Options  : --apply       Write all configuration files
 #            --skip-wlst   Skip WLST instance creation (AdminServer not running)
 #            --help        Show usage
-# Requires : environment.conf with Reports variables (init_env.sh --apply)
+# Requires : environment.conf with Reports variables (detect_env_conf.sh --apply)
 #            weblogic_sec.conf.des3 (for WLST credential loading)
 #            embedded_ldap_sec.conf.des3 (REPORTS_SECURITY=ldap: password of
 #              the embedded LDAP administrator cn=Admin, asked by
@@ -121,7 +121,7 @@ for _var in ORACLE_HOME DOMAIN_HOME WLS_MANAGED_SERVER \
     fi
 done
 unset _var
-$_prereq_fail && info "  Runtime parameters are added by: 00-Setup/init_env.sh --apply (after 08-)"
+$_prereq_fail && info "  Runtime parameters are added by: 00-Setup/detect_env_conf.sh --apply (after 08-)"
 $_prereq_fail && { print_summary; exit "$EXIT_CODE"; }
 unset _prereq_fail
 

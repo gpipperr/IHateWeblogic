@@ -960,9 +960,9 @@ fi
 # Write environment.conf – append 09-INSTALL block
 # =============================================================================
 
-# Target layout (same as 00-Setup/init_env.sh, see 00-Setup/set_environment.md):
+# Target layout (same as 00-Setup/detect_env_conf.sh, see 00-Setup/set_environment.md):
 #   environment.conf  →  symlink to 00-Setup/environments/<basename DOMAIN_HOME>.conf
-# Writing a plain file here would later be replaced by init_env.sh's symlink,
+# Writing a plain file here would later be replaced by detect_env_conf.sh's symlink,
 # silently dropping every interview value.
 ENV_CONF_DIR="$ROOT_DIR/00-Setup/environments"
 mkdir -p "$ENV_CONF_DIR"
@@ -991,7 +991,7 @@ fi
 if [ -f "$WRITE_CONF" ]; then
     sed -i '/^# === 09-INSTALL/,/^# === END 09-INSTALL/d' "$WRITE_CONF" 2>/dev/null || true
     # WLS_SERVER_FQDN now lives in the block – drop a copy appended by hand /
-    # by init_env.sh outside of it (its value was read and kept above)
+    # by detect_env_conf.sh outside of it (its value was read and kept above)
     sed -i '/^WLS_SERVER_FQDN=/d' "$WRITE_CONF" 2>/dev/null || true
     sed -i '/^PATCH_ARCHIVE=/d' "$WRITE_CONF" 2>/dev/null || true
 fi

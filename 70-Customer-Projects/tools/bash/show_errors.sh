@@ -8,7 +8,7 @@
 #          ./show_errors.sh -r -m 240  ... der letzten 240 Minuten
 #          ./show_errors.sh -h         Hilfe
 # Beenden: Strg+C
-# Daten  : env.ini im selben Verzeichnis (oder ENV_INI=/pfad/env.ini)
+# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
 # Muster : PATTERN unten - bei Bedarf anpassen. "==>" sind die Dateinamen-
 #          Zeilen von tail, damit man sieht, aus welchem Log ein Fehler kommt.
 # Beschreibung: Tools_status_logs_kochbuch.txt
@@ -17,13 +17,13 @@
 PATTERN='<Error>|<Critical>|ERROR|SEVERE|Exception|REP-[0-9]+|JPS-[0-9]+|BEA-[0-9]+'
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_INI="${ENV_INI:-$TOOLS_DIR/env.ini}"
-if [ ! -f "$ENV_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$ENV_INI" >&2
+IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
+if [ ! -f "$IHW_INI" ]; then
+    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
     exit 2
 fi
 # shellcheck source=/dev/null
-. "$ENV_INI"
+. "$IHW_INI"
 
 MINUTES="${LOG_MINUTES:-60}"
 REVIEW=false

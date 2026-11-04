@@ -58,7 +58,7 @@ and writes `TNS_ADMIN` into `rwserver.conf` and `reports.sh`
 
 ## Required Environment Variables
 
-Add to `environment.conf` (populated by `00-Setup/init_env.sh --apply` – run it once
+Add to `environment.conf` (populated by `00-Setup/detect_env_conf.sh --apply` – run it once
 after `08-`; on a fresh domain it takes the Reports server name from the setup
 interview `REPORTS_SERVER_NAMES` and `REPORTS_PATH` from `REPORTS_CUSTOMER_DIR`):
 

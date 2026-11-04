@@ -9,20 +9,20 @@
 # Aufruf : ./status.sh          alle drei Stufen
 #          ./status.sh -q       ohne WLST (schnell, Stufe 3 nur HTTP)
 #          ./status.sh -h       Hilfe
-# Daten  : env.ini im selben Verzeichnis (oder ENV_INI=/pfad/env.ini)
+# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
 # Exit   : 0 = alles in Ordnung, 1 = Warnung, 2 = Fehler
 # Ohne Abhaengigkeit zu weiteren Skripten - nur bash, ss, ps, curl, wlst.sh.
 # Beschreibung: Tools_status_logs_kochbuch.txt
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_INI="${ENV_INI:-$TOOLS_DIR/env.ini}"
-if [ ! -f "$ENV_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$ENV_INI" >&2
+IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
+if [ ! -f "$IHW_INI" ]; then
+    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
     exit 2
 fi
 # shellcheck source=/dev/null
-. "$ENV_INI"
+. "$IHW_INI"
 
 QUICK=false
 case "${1:-}" in
@@ -43,8 +43,8 @@ declare -A R_PORT R_PROC R_HTTP R_NM
 COMPS=()
 
 # Server-Liste aufbauen: Name|Typ|Port
-COMPS+=("NodeManager|NM|${NM_PORT}")
-COMPS+=("${ADMIN_SERVER}|WLS|${ADMIN_PORT}")
+COMPS+=("NodeManager|NM|${WLS_NODEMANAGER_PORT}")
+COMPS+=("${ADMIN_SERVER}|WLS|${WLS_ADMIN_PORT}")
 for _m in $MANAGED_SERVERS; do
     COMPS+=("${_m%%:*}|WLS|${_m##*:}")
 done
@@ -189,7 +189,7 @@ else
         esac
     done
     out="$("$ORACLE_HOME/oracle_common/common/bin/wlst.sh" "$PY" \
-            "$WLST_CONFIG_FILE" "$WLST_KEY_FILE" "$NM_HOST" "$NM_PORT" \
+            "$WLST_CONFIG_FILE" "$WLST_KEY_FILE" "$NM_HOST" "$WLS_NODEMANAGER_PORT" \
             "$DOMAIN_NAME" "$DOMAIN_HOME" "$NM_TYPE" "${args[@]}" 2>&1)"
     if printf '%s\n' "$out" | grep -q '^NMSTAT|CONNECT|'; then
         printf "  Node Manager: Anmeldung fehlgeschlagen:\n    %s\n" \

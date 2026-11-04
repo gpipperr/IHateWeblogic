@@ -395,7 +395,7 @@ installation, chosen explicitly – default `EBR`** – not "whatever the tool
 picks":
 
 - `RCU_DB_TYPE` in `environment.conf` (`EBR` | `ORACLE`, default `EBR`,
-  asked by `01-setup-interview.sh`, added by `init_env.sh`);
+  asked by `01-setup-interview.sh`, added by `detect_env_conf.sh`);
   `09-Install/07-oracle_setup_repository.sh` passes it as `-databaseType` to
   every RCU call (`-listSchemas`, `-createRepository`, `-dropRepository`).
 - Why `EBR`: what all installations of this repository got so far (silent

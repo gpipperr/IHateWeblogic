@@ -20,14 +20,21 @@ runtime, never by a second copy of the script.
 | [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
-| [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` … (installed as `~/.bashrc.d/ihw_env.sh`) |
+| [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
+| [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
+| [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
 (customer request 2026-11-03).
 All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
 
+Order at a customer (tools → setdb → ini → analysis or installation):
+[../Start_beim_Kunden_kochbuch_de.txt](../Start_beim_Kunden_kochbuch_de.txt).
+
 Used by:
+- [Reports14_linux_manual_install](../Reports14_linux_manual_install/README.md)
+  (all values in [patch_install.ini](../Reports14_linux_manual_install/patch_install.ini))
 - [FormsReports12_patch_cpu_2026-10](../FormsReports12_patch_cpu_2026-10/README.md)
   (patch list [patches_cpu_forms_reports_12c_oct2026.csv](../FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv))
 - [FormsReports14_patch_cpu_2026-10](../FormsReports14_patch_cpu_2026-10/README.md)
@@ -255,7 +262,7 @@ Environment switcher for the oracle user, after the model of `setdb` in
 [OraBashShell .profile](https://github.com/gpipperr/OraBashShell). It
 changes **only the current shell** – no installation file, no
 `environment.conf` of the library (that one is switched with
-`00-Setup/set_env.sh`).
+`00-Setup/detect_env_conf.sh --select`).
 
 **Install** (as oracle, also on customer hosts – the file is standalone):
 
@@ -574,3 +581,42 @@ never goes into git (refused inside the repo; `.gitignore` has
 `ihw_export_*` and `70-Customer-Projects/**/export/` for a copy placed there
 for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
 (`forms_12.2.1` / `reports_12.2.1`, standalone + in-process server).
+
+## set_script_env.sh and the operation tools
+
+Moved here on 2026-11-04 from `Reports14_linux_manual_install/tools/`; the
+former `env.ini` (operation) and `install.ini` (installation) are now **one**
+`patch_install.ini` per customer folder, the former `set_env.sh` (PATH,
+`wlst`, `domain`) is replaced by `setdb`
+([ihw_shell_env.sh](#ihw_shell_envsh), it puts `$ORACLE_BASE/tools` into the
+PATH at login – variable `IHW_TOOLS_DIR`).
+
+On the host everything lies in one directory:
+
+```
+$ORACLE_BASE/tools/
+  status.sh  show_log.sh  show_errors.sh  show_all_logs.sh  set_script_env.sh  (755)
+  patch_install.ini                                                            (600)
+```
+
+```bash
+. $ORACLE_BASE/tools/set_script_env.sh     # values for the cookbook commands
+set_script_env_show                        # check: all values of the ini
+
+status.sh -q                               # reads patch_install.ini itself
+IHW_INI=/path/other.ini status.sh          # another ini (test, second domain)
+```
+
+| Value in `patch_install.ini` | Used by |
+|---|---|
+| `DOMAIN_HOME`, `DOMAIN_NAME`, `ORACLE_HOME` | all four tools |
+| `ADMIN_SERVER`, `WLS_ADMIN_PORT`, `MANAGED_SERVERS` (`name:port …`) | `status.sh`, `show_log.sh` |
+| `REPORTS_SERVERS` (default `$REPORTS_SERVER_NAME`) | `status.sh`, `show_log.sh` |
+| `NM_HOST`, `WLS_NODEMANAGER_PORT`, `NM_TYPE`, `WLST_CONFIG_FILE`, `WLST_KEY_FILE` | `status.sh` stage 3 (Node Manager via WLST, storeUserConfig files) |
+| `EXTRA_PORTS` | `status.sh` stage 1 (e.g. Nginx `80 443`) |
+| `LOG_MINUTES` | `show_all_logs.sh`, `show_errors.sh` |
+
+No passwords in the ini. Cookbook:
+[Tools_status_logs_kochbuch.txt](../Reports14_linux_manual_install/Tools_status_logs_kochbuch.txt).
+Tested 2026-11-04 on the test host from a scratch copy (`status.sh -q`:
+all OK, `set_script_env_show`).

@@ -33,7 +33,7 @@ if [ -f "$ENV_CONF" ]; then
     source "$ENV_CONF"
 else
     warn "environment.conf not found – using defaults"
-    info "Run first: 00-Setup/init_env.sh --apply"
+    info "Run first: 00-Setup/detect_env_conf.sh --apply"
     SEC_CONF="$ROOT_DIR/mos_sec.conf.des3"
 fi
 

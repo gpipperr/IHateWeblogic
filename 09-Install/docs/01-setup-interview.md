@@ -55,12 +55,12 @@ rm mos_sec.conf
 - Writes a reusable `setup.conf` template (passwords stripped) for subsequent installs
 - Shows a summary of all values and asks for confirmation before writing
 - Writes the values to `00-Setup/environments/<basename DOMAIN_HOME>.conf` and
-  points the `environment.conf` symlink at it – the same layout `00-Setup/init_env.sh`
+  points the `environment.conf` symlink at it – the same layout `00-Setup/detect_env_conf.sh`
   uses later. If `environment.conf` is already a symlink, its target is updated;
   a legacy plain `environment.conf` is moved there first. (A plain file would
-  otherwise be replaced by `init_env.sh`'s symlink and all interview values lost.)
+  otherwise be replaced by `detect_env_conf.sh`'s symlink and all interview values lost.)
 - Replaces an existing `# === 09-INSTALL` block on every `--apply` instead of
-  appending a second one; values outside the block (e.g. the `init_env.sh`
+  appending a second one; values outside the block (e.g. the `detect_env_conf.sh`
   runtime section) are preserved
 - Block 4 asks for `LOCAL_REP_DB` (Oracle DB on this host?) with a detected
   default: `true` if an `ora_pmon_*` process runs or `DB_HOST` is a local
@@ -243,7 +243,7 @@ The interview itself asks only `REPORTS_SERVER_NAMES` (list, default
 `repserver01`; the first one is `REPORTS_SERVER_NAME`), the customer
 directories (`FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `REPORTS_CUSTOMER_DIR`,
 `REPORTS_IMAGE_DIR`) and `REPORTS_SECURITY`. The values of the table below are
-written by **`00-Setup/init_env.sh --apply` after the installation** (Phase 6,
+written by **`00-Setup/detect_env_conf.sh --apply` after the installation** (Phase 6,
 before `13-`) – detected from the domain, otherwise the defaults shown.
 Background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md),
 [discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md).

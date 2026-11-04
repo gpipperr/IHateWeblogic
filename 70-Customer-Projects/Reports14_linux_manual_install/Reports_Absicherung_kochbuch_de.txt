@@ -96,11 +96,11 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 ================================================================================
 
   ----------------------------------------------------------------------------
-  0.1 Kurzweg mit install.ini
+  0.1 Kurzweg mit patch_install.ini
   ----------------------------------------------------------------------------
-  . /u01/oracle/tools/set_install_env.sh
+  . /u01/oracle/tools/set_script_env.sh
 
-  # Danach mit 0.3 weiter. Ohne set_install_env.sh: 0.2.
+  # Danach mit 0.3 weiter. Ohne set_script_env.sh: 0.2.
 
   ----------------------------------------------------------------------------
   0.2 Von Hand  (Werte an die Umgebung anpassen - nur die ersten fuenf)

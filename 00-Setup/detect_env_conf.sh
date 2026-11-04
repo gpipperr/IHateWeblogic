@@ -1,18 +1,24 @@
 #!/bin/bash
 # =============================================================================
-# Script   : init_env.sh
+# Script   : detect_env_conf.sh  (until 2026-11-04: detect_env_conf.sh)
 # Purpose  : Detect FMW/Domain paths and running processes → generate a named
 #            environment conf file in 00-Setup/environments/ and update the
 #            environment.conf symlink in the project root.
 #            Use once per environment (installation time or new domain).
-#            For daily environment switching use set_env.sh instead.
+#            Several environments: --list / --select switch the symlink.
+#            The current SHELL is switched with setdb (ihw_shell_env.sh).
 #
-# Call     : ./00-Setup/init_env.sh [--apply] [--interview]
+# Call     : ./00-Setup/detect_env_conf.sh [--apply] [--interview]
 #              FMW mode (default): detect FMW/Domain paths, write environments/<domain>.conf
 #                                  + update environment.conf symlink
-#            ./00-Setup/init_env.sh --db [--apply] [--interview]
+#            ./00-Setup/detect_env_conf.sh --db [--apply] [--interview]
 #              DB  mode:           detect Oracle DB home, write environments/db_<SID>.conf
 #                                  symlink is NOT changed (FMW env stays active)
+#            ./00-Setup/detect_env_conf.sh --list
+#              list environments/*.conf, mark the active one (symlink target)
+#            ./00-Setup/detect_env_conf.sh --select [n] [--apply]
+#              menu (or entry n) – point environment.conf to that conf;
+#              only the symlink, nothing is exported into the shell
 #            Without --apply: dry-run – show what would be detected/written.
 #            With    --interview: confirm each detected value interactively.
 #
@@ -44,16 +50,25 @@ source "$LIB_SH"
 APPLY=false
 INTERVIEW=false
 DB_MODE=false
+LIST_MODE=false
+SELECT_MODE=false
+SELECT_NR=""
 for _arg in "$@"; do
     case "$_arg" in
         --apply)     APPLY=true ;;
         --interview) INTERVIEW=true ;;
         --db)        DB_MODE=true ;;
+        --list)      LIST_MODE=true ;;
+        --select)    SELECT_MODE=true ;;
+        [0-9]*)      $SELECT_MODE && SELECT_NR="$_arg" ;;
         --help|-h)
-            printf "Usage: %s [--apply] [--interview] [--db]\n\n" "$(basename "$0")"
+            printf "Usage: %s [--apply] [--interview] [--db] | --list | --select [n] [--apply]\n\n" "$(basename "$0")"
             printf "  %-20s %s\n" "--apply"     "Write environments/<name>.conf and update symlink"
             printf "  %-20s %s\n" "--interview" "Confirm each detected value interactively before writing"
             printf "  %-20s %s\n" "--db"        "Detect Oracle DB home and create environments/db_<SID>.conf"
+            printf "  %-20s %s\n" "--list"      "List environments/*.conf, mark the active one"
+            printf "  %-20s %s\n" "--select [n]" "Point environment.conf to conf n (menu without n); needs --apply"
+            printf "\nShell environment (ORACLE_HOME, PATH ...): setdb (ihw_shell_env.sh)\n"
             printf "\nWithout --apply: dry-run only.\n"
             printf "Output: %s/<domain_name|db_SID>.conf\n" "$ENV_CONF_DIR"
             exit 0
@@ -62,12 +77,88 @@ for _arg in "$@"; do
 done
 unset _arg
 
+# =============================================================================
+# --list / --select: switch the environment.conf symlink between the confs
+# in environments/ (formerly 00-Setup/set_env.sh – without the shell export;
+# the current shell is switched with setdb)
+# =============================================================================
+_sel_read_conf() {   # <file> <var> – value of VAR= (with or without quotes)
+    grep -m1 "^${2}=" "$1" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"
+}
+
+_list_confs() {
+    local i=0 f lbl typ mark active=""
+    [ -L "$ENV_LINK" ] && active="$(readlink -f "$ENV_LINK")"
+    SEL_FILES=()
+    printLine
+    while IFS= read -r f; do
+        i=$((i + 1))
+        SEL_FILES+=("$f")
+        lbl="$(sed -n 's/^#[[:space:]]*ENV_LABEL=//p' "$f" | head -1)"
+        typ="$(sed -n 's/^#[[:space:]]*ENV_TYPE=//p' "$f" | head -1 | tr '[:lower:]' '[:upper:]')"
+        if [ -z "$typ" ]; then
+            if   [ -n "$(_sel_read_conf "$f" DOMAIN_HOME)" ]; then typ="FMW"
+            elif [ -n "$(_sel_read_conf "$f" ORACLE_SID)" ];  then typ="DB"
+            else typ="?"; fi
+        fi
+        mark=" "; [ "$(readlink -f "$f")" = "$active" ] && mark="*"
+        printf "  %s [%d]  %-28s %-4s %s\n" "$mark" "$i" "${lbl:-$(basename "$f" .conf)}" "$typ" "$(basename "$f")"
+        printf "         ORACLE_HOME %s\n" "$(_sel_read_conf "$f" ORACLE_HOME)"
+        case "$typ" in
+            FMW) printf "         DOMAIN_HOME %s\n" "$(_sel_read_conf "$f" DOMAIN_HOME)" ;;
+            DB)  printf "         ORACLE_SID  %s\n" "$(_sel_read_conf "$f" ORACLE_SID)" ;;
+        esac
+    done < <(find "$ENV_CONF_DIR" -maxdepth 1 -name "*.conf" 2>/dev/null | sort)
+    printLine
+    if [ -L "$ENV_LINK" ]; then
+        info "Active: $ENV_LINK -> $(readlink "$ENV_LINK")"
+    elif [ -f "$ENV_LINK" ]; then
+        warn "environment.conf is a plain file, not a symlink – see 00-Setup/set_environment.md"
+    else
+        warn "No environment.conf yet – run without --list to detect one"
+    fi
+}
+
+if $LIST_MODE || $SELECT_MODE; then
+    _list_confs
+    $LIST_MODE && ! $SELECT_MODE && exit 0
+    if [ "${#SEL_FILES[@]}" -eq 0 ]; then
+        fail "No *.conf in $ENV_CONF_DIR – run $(basename "$0") --apply first"
+        exit 2
+    fi
+    if [ -z "$SELECT_NR" ]; then
+        printf "  Select environment [1-%d]: " "${#SEL_FILES[@]}"
+        read -r SELECT_NR </dev/tty || SELECT_NR=""
+    fi
+    if ! [[ "$SELECT_NR" =~ ^[0-9]+$ ]] || [ "$SELECT_NR" -lt 1 ] || [ "$SELECT_NR" -gt "${#SEL_FILES[@]}" ]; then
+        fail "Invalid selection '$SELECT_NR' (1-${#SEL_FILES[@]}) – nothing changed"
+        exit 1
+    fi
+    _target="${SEL_FILES[$((SELECT_NR - 1))]}"
+    if [ -f "$ENV_LINK" ] && [ ! -L "$ENV_LINK" ]; then
+        fail "environment.conf is a plain file – convert it first (00-Setup/set_environment.md), nothing changed"
+        exit 2
+    fi
+    if ! $APPLY; then
+        info "Dry-run: environment.conf -> $_target"
+        warn "use --select $SELECT_NR --apply to switch"
+        exit 0
+    fi
+    if ln -sfn "$_target" "$ENV_LINK"; then
+        ok "environment.conf -> $_target"
+        info "Current shell: setdb (ORACLE_HOME / PATH are not changed by this script)"
+        exit 0
+    fi
+    fail "Cannot update symlink $ENV_LINK"
+    exit 2
+fi
+
 # --- Bootstrap log (environment.conf may not yet be available) ----------------
 LOG_BOOT_DIR="$ROOT_DIR/log/$(date +%Y%m%d)"
 mkdir -p "$LOG_BOOT_DIR"
-LOG_FILE="$LOG_BOOT_DIR/init_env_$(date +%H%M%S).log"
+LOG_FILE="$LOG_BOOT_DIR/detect_env_conf_$(date +%H%M%S).log"
 {
-    printf "# init_env.sh log\n"
+    printf "# detect_env_conf.sh log\n"
     printf "# Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"
     printf "# Host    : %s\n" "$(_get_hostname)"
     printf "# Apply   : %s\n" "$APPLY"
@@ -689,7 +780,7 @@ _run_db_mode() {
 # ENV_LABEL=Oracle DB ${DET_DB_SID} @ $(_get_hostname)
 # =============================================================================
 # environment conf – Oracle Database Home
-# Generated by 00-Setup/init_env.sh --db
+# Generated by 00-Setup/detect_env_conf.sh --db
 # Host : $(_get_hostname)
 # Date : $(date '+%Y-%m-%d %H:%M:%S')
 # DO NOT check into git!
@@ -708,7 +799,7 @@ DBENVEOF
 
         chmod 600 "$DB_ENV_CONF"
         ok "DB conf written: $DB_ENV_CONF"
-        info "Activate with: . ./00-Setup/set_env.sh"
+        info "Activate with: 00-Setup/detect_env_conf.sh --select --apply  (shell: setdb)"
     else
         warn "Dry-run – use --apply to write conf"
         printf "  Would write: %s\n" "$DB_ENV_CONF" | tee -a "$LOG_FILE"
@@ -784,7 +875,7 @@ if [ ! -f "$ENV_LINK" ]; then
             printf "# ENV_TYPE=FMW\n"
             printf "# ENV_LABEL=%s @ %s\n" "$ENV_NAME" "$(_get_hostname)"
             printf "# =============================================================================\n"
-            printf "# environment conf – generated by 00-Setup/init_env.sh\n"
+            printf "# environment conf – generated by 00-Setup/detect_env_conf.sh\n"
             printf "# Host  : %s\n" "$(_get_hostname)"
             printf "# Date  : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"
             printf "# DO NOT check into git!\n"
@@ -806,7 +897,7 @@ if [ ! -f "$ENV_LINK" ]; then
         info "Next:"
         info "  1. 09-Install/01-setup-interview.sh --apply  (domain / DB / MOS / passwords)"
         info "  2. 09-Install/ Phase 0 root scripts"
-        info "  3. After FMW install: 00-Setup/init_env.sh --apply  (extend with runtime values)"
+        info "  3. After FMW install: 00-Setup/detect_env_conf.sh --apply  (extend with runtime values)"
     else
         warn "Dry-run – use --apply to write conf"
         printLine
@@ -840,7 +931,7 @@ source "$ENV_LINK"
 # parameters below - those are only ever asked for by 01-setup-interview.sh
 # (full guided interview) or the "no active environment" fresh-install
 # branch above. Warn here so an incomplete environment.conf (e.g. written
-# by an older init_env.sh, or never run through 01-setup-interview.sh at
+# by an older detect_env_conf.sh, or never run through 01-setup-interview.sh at
 # all) doesn't silently look "done" just because this script finished
 # without errors.
 section "Checking for 09-Install Parameters"
@@ -865,7 +956,7 @@ else
         info "  $_key"
     done
     unset _key
-    warn "init_env.sh only detects RUNTIME values - it does not collect these"
+    warn "detect_env_conf.sh only detects RUNTIME values - it does not collect these"
     warn "install-time parameters, even in --interview mode."
     info "Run: 09-Install/01-setup-interview.sh --apply   (full guided interview)"
 fi
@@ -1166,10 +1257,10 @@ if $APPLY; then
         # --- Extend mode: existing conf – only append missing keys ---
         backup_file "$ENV_CONF" "$ENV_CONF_DIR"
 
-        if ! grep -q "# --- Runtime: init_env.sh" "$ENV_CONF" 2>/dev/null; then
+        if ! grep -q "# --- Runtime: detect_env_conf.sh" "$ENV_CONF" 2>/dev/null; then
             {
                 printf "\n"
-                printf "# --- Runtime: init_env.sh auto-detected %s ---\n" \
+                printf "# --- Runtime: detect_env_conf.sh auto-detected %s ---\n" \
                     "$(date '+%Y-%m-%d %H:%M:%S')"
             } >> "$ENV_CONF"
         fi
@@ -1264,7 +1355,7 @@ if $APPLY; then
 # ENV_TYPE=FMW
 # ENV_LABEL=${ENV_NAME} @ $(_get_hostname)
 # =============================================================================
-# environment conf – generated by 00-Setup/init_env.sh
+# environment conf – generated by 00-Setup/detect_env_conf.sh
 # Host  : $(_get_hostname)
 # Date  : $(date '+%Y-%m-%d %H:%M:%S')
 # DO NOT check into git!

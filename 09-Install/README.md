@@ -257,7 +257,7 @@ Phase 5 – Configuration (as oracle)
                                                        # – fonts/cgicmd.dat: 14b-
 
 Phase 6 – Runtime Configuration (as oracle)
-  [oracle] ./00-Setup/init_env.sh --apply                          # add runtime parameters to environment.conf
+  [oracle] ./00-Setup/detect_env_conf.sh --apply                          # add runtime parameters to environment.conf
                                                                    # (WLS_MANAGED_SERVER, REPORTS_* – needed by 13-)
   [oracle] ./09-Install/10-oracle_boot_properties.sh --apply       # boot.properties – already run by 09- (step 0);
                                                                    # again only after an admin password change

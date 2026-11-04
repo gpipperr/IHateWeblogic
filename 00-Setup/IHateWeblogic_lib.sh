@@ -207,7 +207,7 @@ readSelection() {
 # Creates log directory and sets LOG_FILE.  Must be called after DIAG_LOG_DIR is set.
 init_log() {
     # Default = central repo log: a fresh environment.conf written by the
-    # interview has no DIAG_LOG_DIR yet (init_env.sh adds it later)
+    # interview has no DIAG_LOG_DIR yet (detect_env_conf.sh adds it later)
     local log_dir="${1:-${DIAG_LOG_DIR:-$IHW_LIB_ROOT/log/$(date +%Y%m%d)}}"
     local _dirnew=0
 
@@ -464,7 +464,7 @@ check_env_conf() {
     fi
     if [ ! -f "$env_conf" ]; then
         printError "environment.conf not found: $env_conf"
-        printError "Run first: 00-Setup/init_env.sh --apply"
+        printError "Run first: 00-Setup/detect_env_conf.sh --apply"
         return 1
     fi
     return 0

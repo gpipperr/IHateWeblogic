@@ -13,9 +13,9 @@ Background – which home, configuration and process a parameter belongs to:
 | Situation | Tool | Method |
 |---|---|---|
 | **New installation** (no FMW present) | `09-Install/01-setup-interview.sh` | Interactive interview, sensible defaults suggested |
-| **Existing system, no conf** | `00-Setup/init_env.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
-| **Existing system, conf present** | `00-Setup/init_env.sh --apply` | Auto-detect, append only missing values |
-| **Multi-domain environment** | `00-Setup/set_env.sh` | Switch symlink to the active conf |
+| **Existing system, no conf** | `00-Setup/detect_env_conf.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
+| **Existing system, conf present** | `00-Setup/detect_env_conf.sh --apply` | Auto-detect, append only missing values |
+| **Multi-domain environment** | `00-Setup/detect_env_conf.sh --select [n] --apply` | Switch symlink to the active conf (shell: `setdb`) |
 
 ---
 
@@ -29,7 +29,7 @@ explicitly provides a different value during `--interview`.
 
 ```
 [Install parameters]    → set by the interview before installation begins
-[Runtime parameters]    → auto-detected by init_env.sh after installation
+[Runtime parameters]    → auto-detected by detect_env_conf.sh after installation
 ```
 
 **Passwords never in plaintext:** All passwords are encrypted immediately
@@ -52,7 +52,7 @@ explicitly provides a different value during `--interview`.
 
 2. [Phase 0–1 installation runs through]
 
-3. 00-Setup/init_env.sh --apply
+3. 00-Setup/detect_env_conf.sh --apply
    → Detects runtime parameters (FMW paths, instances, config files)
    → Extends environment.conf with runtime section
    → Existing install parameters are not overwritten
@@ -61,7 +61,7 @@ explicitly provides a different value during `--interview`.
 ## Existing System (no conf)
 
 ```
-1. 00-Setup/init_env.sh --interview --apply
+1. 00-Setup/detect_env_conf.sh --interview --apply
    → Scans running WLS processes, FMW paths, jps-config.xml
    → Shows each detected value, user confirms or overrides
    → Writes complete environment.conf
@@ -86,7 +86,7 @@ explicitly provides a different value during `--interview`.
 | `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` | menu |
 
 ### Block 2 – FMW Runtime Paths
-*Runtime parameters – auto-detected by `init_env.sh` after installation*
+*Runtime parameters – auto-detected by `detect_env_conf.sh` after installation*
 
 | Variable | Value | Description |
 |---|---|---|
@@ -102,7 +102,7 @@ explicitly provides a different value during `--interview`.
 > (Reports engines, OPatch fallback), see [JDK_HOME vs. the bundled JDK](#jdk_home-vs-the-bundled-jdk).
 
 ### Block 3 – WebLogic Domain
-*Mix: base values from interview, managed server name auto-detected by init_env.sh*
+*Mix: base values from interview, managed server name auto-detected by detect_env_conf.sh*
 
 | Variable | Default | Description |
 |---|---|---|
@@ -126,7 +126,7 @@ explicitly provides a different value during `--interview`.
 | `ULIMIT_CORE` | `2097152` | oracle OS user `core` ulimit (blocks) — fixed, not session-tiered; not asked by the interview, override manually if needed |
 
 ### Block 4 – Reports Components
-*Runtime parameters – auto-detected by init_env.sh after installation*
+*Runtime parameters – auto-detected by detect_env_conf.sh after installation*
 
 | Variable | Description |
 |---|---|
@@ -157,7 +157,7 @@ All engine values are written by `13-` / `05-ReportsPerformance --apply` into
 `rwserver.conf` – background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md).
 
 ### Block 5 – Configuration Files
-*Runtime parameters – auto-detected by init_env.sh*
+*Runtime parameters – auto-detected by detect_env_conf.sh*
 
 | Variable | Description |
 |---|---|
@@ -251,7 +251,7 @@ Patch numbers (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR` …) are
 | `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
 | `SSH_ALLOW_USERS` / `SSH_PASSWORD_USERS` | empty | sshd hardening of `01-root_os_baseline.sh` (`AllowUsers`, password login only for these) |
 | `CONFIG_BACKUP_KEEP` / `BAK_FILES_KEEP` | `10` / `3` | retention of `backup_config.sh` runs / `*.bak_<ts>` copies (`bak_cleanup.sh`) |
-| `IHW_ENV_TYPE` | interview: `prod`; `init_env.sh`: none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
+| `IHW_ENV_TYPE` | interview: `prod`; `detect_env_conf.sh`: none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 
 ### Block 9 – Test Modules (Smoke Test)
 *Manual parameter — not set by the interview; add by hand if used*
@@ -280,7 +280,7 @@ $ORACLE_HOME/oracle_common/jdk                  (FMW-bundled JDK, part of the ho
 
 Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
 
-> **`init_env.sh` without an existing conf** (taking over a system) proposes
+> **`detect_env_conf.sh` without an existing conf** (taking over a system) proposes
 > `JDK_HOME` in this order (since 2026-10-29; before, the bundled JDK came
 > first and became `JDK_HOME`): `JAVA_HOME` of
 > `$ORACLE_HOME/oui/.globalEnv.properties` → java of a running WebLogic server /
@@ -291,7 +291,7 @@ Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middle
 
 ---
 
-## Detection Chain in `init_env.sh`
+## Detection Chain in `detect_env_conf.sh`
 
 ```
 FMW_HOME:
@@ -354,7 +354,7 @@ DB connection:
 | Script | Purpose |
 |---|---|
 | `09-Install/01-setup-interview.sh` | New install: interview → environment.conf + encrypted passwords |
-| `00-Setup/init_env.sh` | Existing system: auto-detect → extend environment.conf |
+| `00-Setup/detect_env_conf.sh` | Existing system: auto-detect → extend environment.conf |
 | `00-Setup/weblogic_sec.sh` | Password concept: encrypt/decrypt via machine UUID |
-| `00-Setup/set_env.sh` | Multi-domain: switch symlink to active conf |
+| `00-Setup/detect_env_conf.sh --list / --select` | Multi-domain: show / switch the symlink to the active conf |
 | `09-Install/04-oracle_pre_checks.sh` | Phase 1: reads install parameters from environment.conf |

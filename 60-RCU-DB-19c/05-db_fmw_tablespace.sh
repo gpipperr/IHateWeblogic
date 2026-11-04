@@ -205,7 +205,7 @@ if grep -q "^RCU_TABLESPACE=" "$ENV_CONF"; then
         ok "RCU_TABLESPACE updated to '$_ts_name' in environment.conf"
     fi
 else
-    warn "RCU_TABLESPACE not found in environment.conf – add it (00-Setup/init_env.sh --apply or the interview, block 4), then run 05- again"
+    warn "RCU_TABLESPACE not found in environment.conf – add it (00-Setup/detect_env_conf.sh --apply or the interview, block 4), then run 05- again"
 fi
 unset _current_val
 

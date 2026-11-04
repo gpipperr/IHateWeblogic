@@ -6,6 +6,30 @@ numbered folders above. One subfolder per customer/scenario, each a
 self-contained, copy-paste-able walkthrough rather than generated script
 output.
 
+## First steps at a customer – the road map
+
+→ [Start_beim_Kunden_kochbuch_de.txt](Start_beim_Kunden_kochbuch_de.txt) (German, step by step)
+
+Every customer engagement on Linux starts the same way, whatever the folder:
+
+1. **Tools:** copy `tools/bash/*.sh` to `$ORACLE_BASE/tools` (755).
+2. **setdb:** `tools/bash/ihw_shell_env.sh` → `~/.bashrc.d/ihw_env.sh`, new
+   shell – one menu for the FMW home / domains and DB homes, PATH on the
+   tools, `wlst`, `domain`.
+3. **One ini:** the `patch_install.ini` of the customer folder (template:
+   [Reports14_linux_manual_install/patch_install.ini](Reports14_linux_manual_install/patch_install.ini))
+   to `$ORACLE_BASE/tools` (600), plus the `patches_cpu_*.csv` when patching.
+4. **Existing environment?**
+   - yes → analysis with `collect_fmw_env.sh`, fill / check the ini from its
+     `00_summary.txt`;
+   - no → fill the ini from the installation cookbooks.
+5. **In both cases** `. $ORACLE_BASE/tools/set_script_env.sh` in every new
+   session – then the cookbooks of the customer folder; `status.sh` /
+   `show_log.sh` / `show_errors.sh` read the same ini.
+
+So a customer folder holds only **one ini, one csv and the cookbooks**; all
+scripts are shared in `tools/bash/`.
+
 ## Writing a cookbook
 
 → [cookbook-Skill.md](cookbook-Skill.md) – style rules for every customer
@@ -22,7 +46,8 @@ paths, "Expected" output under each command, rollback in every step.
 A manual, step-by-step installation guide (in German) for a Reports-only
 FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
 "Kochbuch" text files a customer can follow without using any of the
-IHateWeblogic scripts.
+IHateWeblogic scripts, with all values in one
+[patch_install.ini](Reports14_linux_manual_install/patch_install.ini).
 
 ### Oracle Reports Builder 14.1.2 on Windows – Development Environment (German)
 
@@ -74,6 +99,10 @@ No IHateWeblogic library needed – copy the script to the host:
 | `mos_patch_download.sh` | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
 | `clone_check_fmw.sh` | read-only check whether the installation is clone-capable (golden image) – e.g. after the 12c patch run |
 | `fmw_patch_env.sh` | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
+| `ihw_shell_env.sh` | `setdb` / `setfmw`: one menu to switch the shell between FMW home / domains and DB homes / SIDs (`~/.bashrc.d/ihw_env.sh`) |
+| `set_script_env.sh` | loads the customer's `patch_install.ini` into the session for the cookbook commands – sourced |
+| `status.sh`, `show_log.sh`, `show_errors.sh`, `show_all_logs.sh` | operation: status in three stages (ports / processes / HTTP + Node Manager), logs and error lines – read `patch_install.ini` next to them |
+| `check_disk_space.sh`, `export_forms_reports_conf.sh` | disk space before a patch run; read-only export of the Forms / Reports configuration (12c → 14c) |
 
 Linux: `tools/bash/`. Windows Server hosts: `tools/powershell/` –
 `collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1`, same

@@ -65,7 +65,7 @@ Steps performed by `14-oracle_setup_forms.sh`:
 ## Required Environment Variables
 
 ```bash
-# Set by init_env.sh or manually in environment.conf
+# Set by detect_env_conf.sh or manually in environment.conf
 ORACLE_HOME=/u01/oracle/fmw
 DOMAIN_HOME=/u01/user_projects/domains/fr_domain
 FORMS_INSTANCE_NAME=forms1        # instance name under FORMS/instances/

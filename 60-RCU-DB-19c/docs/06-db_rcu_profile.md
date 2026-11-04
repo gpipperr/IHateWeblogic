@@ -86,7 +86,7 @@ architecture doc §4.2.
 
 | Variable | Source | Default |
 |---|---|---|
-| `RCU_DB_PROFILE` | `environment.conf` (optional – not written by `init_env.sh` / the interview; set it by hand only for another name) | `RCU_USER` |
+| `RCU_DB_PROFILE` | `environment.conf` (optional – not written by `detect_env_conf.sh` / the interview; set it by hand only for another name) | `RCU_USER` |
 | `DB_SCHEMA_PREFIX` | `environment.conf` | – (needed for `--assign`) |
 | `DB_ORACLE_HOME`, `DB_SID`, `DB_PDB_NAME` | `environment_db.conf` | – |
 

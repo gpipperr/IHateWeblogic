@@ -28,30 +28,24 @@ Templates:
 ## Usage
 
 ```bash
-# Interactive menu – source to set variables in the current shell:
-. ./00-Setup/set_env.sh
+# List the registered environments (active one = symlink target, marked *):
+./00-Setup/detect_env_conf.sh --list
 
-# Direct select without menu (e.g. in .bash_profile):
-. ./00-Setup/set_env.sh 1
-
-# List only (no env change):
-./00-Setup/set_env.sh --list
+# Point environment.conf to another conf (menu without the number;
+# without --apply only a dry-run):
+./00-Setup/detect_env_conf.sh --select 2 --apply
 ```
 
----
+`--select` changes **only** the symlink `environment.conf` in the project
+root – the conf the library scripts read. After selecting a DB conf the FMW
+scripts miss `DOMAIN_HOME`; select the FMW conf again.
 
-## How it works
-
-`set_env.sh` updates the symlink in the project root (for **both** types –
-after selecting a DB conf the FMW scripts miss `DOMAIN_HOME`, select the FMW
-conf again) and, when sourced, exports the appropriate variables + adjusts
-`PATH`:
-
-**FMW:** `ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`
-→ PATH gets `$ORACLE_HOME/bin`, `$ORACLE_HOME/oracle_common/common/bin`, `$JDK_HOME/bin`
-
-**DB:**  `ORACLE_HOME`, `ORACLE_SID`, `ORACLE_BASE`, `NLS_LANG`
-→ PATH gets `$ORACLE_HOME/bin`
+The **current shell** (`ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`,
+`wlst`) is switched with `setdb` / `setfmw`
+([ihw_shell_env.sh](../../70-Customer-Projects/tools/README.md#ihw_shell_envsh),
+installed by `09-Install/03-root_user_oracle.sh` as `~/.bashrc.d/ihw_env.sh`).
+It detects the homes itself and does not read these conf files. The former
+`00-Setup/set_env.sh` (symlink + shell export) was removed on 2026-11-04.
 
 ```
 IHateWeblogic/
@@ -65,44 +59,14 @@ IHateWeblogic/
 
 ---
 
-## .bash_profile integration
-
-Add to `~/.bash_profile` of the `oracle` user:
-
-```bash
-IHW_ROOT="/path/to/IHateWeblogic"
-
-if [ -d "$IHW_ROOT/00-Setup/environments" ]; then
-    _conf_count=$(find "$IHW_ROOT/00-Setup/environments" -maxdepth 1 \
-        -name "*.conf" ! -name "*.template" 2>/dev/null | wc -l)
-    if [ "$_conf_count" -gt 1 ]; then
-        # Multiple environments → show selection menu
-        . "$IHW_ROOT/00-Setup/set_env.sh"
-    elif [ "$_conf_count" -eq 1 ]; then
-        # Exactly one environment → load directly without menu
-        . "$IHW_ROOT/00-Setup/set_env.sh" 1
-    elif [ -f "$IHW_ROOT/environment.conf" ]; then
-        # No environments/ directory → load classic single conf
-        source "$IHW_ROOT/environment.conf"
-        export ORACLE_HOME DOMAIN_HOME JDK_HOME ORACLE_SID
-        [ -n "${ORACLE_HOME:-}" ] && export PATH="$ORACLE_HOME/bin:$PATH"
-        [ -n "${JDK_HOME:-}"    ] && export PATH="$JDK_HOME/bin:$PATH"
-    fi
-    unset _conf_count
-fi
-unset IHW_ROOT
-```
-
----
-
 ## .gitignore
 
 The actual `*.conf` files contain server-specific paths and are excluded
-from Git, together with their backups (`*.conf.bak*` of `init_env.sh`,
+from Git, together with their backups (`*.conf.bak*` of `detect_env_conf.sh`,
 `*.conf.pre_deinstall_*` of `09-Install/99-oracle_deinstall_fmw.sh`). Only
 `*.template` files and this `README.md` are committed.
 
-Typical content on a host (`init_env.sh --apply` names the file after the
+Typical content on a host (`detect_env_conf.sh --apply` names the file after the
 domain, e.g. `fr_domain.conf`): the active conf and dated backups.
 `07-Maintenance/bak_cleanup.sh --apply` keeps the newest `BAK_FILES_KEEP` (3)
 `*.conf.bak_<ts>` copies per file here as well; `environment.conf.bak_*`

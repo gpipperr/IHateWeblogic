@@ -534,7 +534,7 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 | `08-SSL/ssl_local_ca.sh` | Local root CA; server + code-signing certificates |
 | `09-Install/14-oracle_setup_forms.sh` | Signs `jacob.jar` with `FORMS_SIGN_KEYSTORE` (code-signing certificate) |
 | `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
-| `00-Setup/init_env.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
+| `00-Setup/detect_env_conf.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
 | `02-Checks/ssl_check.sh` | Host-wide TLS audit: who terminates TLS (Nginx / WLS / OHS), live TLS, WebLogic demo certificates / keystores |
 | `07-Maintenance/backup_config.sh` | Does **not** back up `SSL_CA_DIR` on purpose – the CA key belongs in an offline backup (see above) |
 | `10-Monitoring/cert_expiry_check.sh` | the scheduled run (daily cron, `--cron --apply`) of `ssl_config.sh` / `ssl_local_ca.sh status` – done 2026-10-23 |

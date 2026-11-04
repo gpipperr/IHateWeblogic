@@ -211,7 +211,7 @@ install), not hardcoded:
 | `security` | `config/fmwconfig/` | `jps-config.xml`, `jps-config-jse.xml` (identity store of the Reports server) | `13-` |
 | `logging` | `servers/*/logging.xml`, `components/Reports*Component/*/logging.xml` | ODL logging config (stored as `<server>_logging.xml`) | `03-Logs/setLogLevel.sh --persist` |
 | `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, `domain_jdk_path.sh` |
-| `ihw` | project root | `environment.conf` | interview, `init_env.sh` |
+| `ihw` | project root | `environment.conf` | interview, `detect_env_conf.sh` |
 | `ords` | `$APEX_ORDS_BASE/ords_*/config/` (whole tree) | ORDS `pool.xml`, `global/settings.xml`, `logging.properties`, wallet `cwallet.sso` (credentials of `ORDS_PUBLIC_USER`) – stored as `<inst>__<path>` (e.g. `ords_1__databases__default__wallet__cwallet.sso`), mode 600 like the whole set; restore → restart `ords@ords_<n>`. Never copied **into** the config directory (ORDS reads every file there) | `12-APEX-Ords/04-`, `06-` |
 
 **Not backed up on purpose:**
@@ -502,7 +502,7 @@ DB a DBA may prefer an own export user. Live 2026-10-17 on the test host:
 Symptom: Nearly all BACKUP_ITEMS show "NOT FOUND" / "(not found – will be skipped)"
 Cause:   DOMAIN_HOME or ORACLE_HOME in environment.conf is wrong, or the
          domain/instances haven't been created yet
-Fix:     Re-run 00-Setup/init_env.sh to detect the current paths, or verify
+Fix:     Re-run 00-Setup/detect_env_conf.sh to detect the current paths, or verify
          DOMAIN_HOME manually: ls $DOMAIN_HOME/config/fmwconfig/components/
 ```
 
@@ -562,7 +562,7 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 | `04-ReportsFonts/uifont_ali_update.sh` | Backs up `uifont.ali` itself before rewriting; run `backup_config.sh` first for the full picture |
 | `04-ReportsFonts/font_cache_reset.sh` | Run after restoring fonts, to rebuild the fontconfig cache |
 | `01-Run/startStop.sh` | Stop/start the domain before and after maintenance patching (`stop-all --apply` / `start-all --apply`); also restart components after a restore |
-| `00-Setup/init_env.sh` | Re-detect paths if `backup_config.sh` reports most sources as not found |
+| `00-Setup/detect_env_conf.sh` | Re-detect paths if `backup_config.sh` reports most sources as not found |
 | `09-Install/04-oracle_pre_download.sh` | Download new patch ZIPs for a CPU/CSPU cycle before running `81-`/`82-` |
 | `09-Install/05-oracle_patch_weblogic.sh` | Delegated to by `81-patch_weblogic.sh` |
 | `09-Install/06-oracle_patch_forms_reports.sh` | Delegated to by `82-patch_forms_reports.sh` |

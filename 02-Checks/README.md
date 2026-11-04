@@ -31,7 +31,7 @@ explained in the background documents of
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/report_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
-`$DIAG_LOG_DIR/` (or `log/<date>/`). Run `00-Setup/init_env.sh` first if
+`$DIAG_LOG_DIR/` (or `log/<date>/`). Run `00-Setup/detect_env_conf.sh` first if
 `environment.conf` does not exist yet.
 
 Related, outside this folder: `10-Monitoring/cve_inventory.sh` (installed
@@ -545,7 +545,7 @@ Symptom: all WLS ports CLOSED in the cross-check
 Cause A: domain not started
          → ./01-Run/startStop.sh start-all --apply
 Cause B: WL_ADMIN_URL in environment.conf has the wrong host/port
-         → re-run 00-Setup/init_env.sh
+         → re-run 00-Setup/detect_env_conf.sh
 Cause C: the check runs from another host – WLS listens on 127.0.0.1 only
          and the firewall lets only ssh / 80 / 443 through (by design);
          check on the server itself, from outside only via Nginx
@@ -567,7 +567,7 @@ Fix:     run as the oracle user that started WebLogic, or as root:
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/init_env.sh` | detect FMW / domain paths, generate `environment.conf` |
+| `00-Setup/detect_env_conf.sh` | detect FMW / domain paths, generate `environment.conf` |
 | `00-Setup/weblogic_sec.sh` | store the WebLogic admin credentials (des3) |
 | `01-Run/rwrun_trace.sh` | diagnose `rwrun` crashes |
 | `03-Logs/grep_logs.sh` | search the logs after a failed check |

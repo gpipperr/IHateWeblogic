@@ -95,7 +95,7 @@ Orchestrates the configuration sequence:
 Each called script reports its own OK/WARN/FAIL. The orchestrator counts per
 step: rc ≥ 2 = FAIL (exit 2), rc 1 = WARN; a missing called script stops it
 in the pre-checks. Unknown options: exit 1. At the end it prints the Phase 6
-order (`init_env.sh`, `10-` … `14b-`).
+order (`detect_env_conf.sh`, `10-` … `14b-`).
 
 > Until 2026-11-03 step 2 tested `sudo -n true` – false with the restricted
 > sudoers of `03-` (only `dnf install *` etc.), so the packages were never

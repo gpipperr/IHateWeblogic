@@ -158,7 +158,7 @@ STEPS=(
 "4|oracle|09-Install/07-oracle_setup_repository.sh|apply|-|-|--apply"
 "4|oracle|09-Install/08-oracle_setup_domain.sh|apply|-|_p_domain|--apply"
 "5|oracle|09-Install/09-oracle_configure.sh|apply|-|-|--apply"
-"6|oracle|00-Setup/init_env.sh|manual|-|_p_initenv|--apply"
+"6|oracle|00-Setup/detect_env_conf.sh|manual|-|_p_initenv|--apply"
 "6|oracle|09-Install/10-oracle_boot_properties.sh|apply|-|_p_boot|--apply"
 "6|oracle|09-Install/11-oracle_nodemanager.sh|apply|-|_p_nm|--apply"
 "6|oracle|09-Install/12-oracle_reports_users.sh|apply|_c_reports|-|--apply"

@@ -94,7 +94,7 @@ What Claude sees is sent to Anthropic for processing:
 | 2 | Permission rules | `Read` deny for the secret files, `Edit` deny for `environment.conf`, `git push` = ask, bypass mode off; profile `customer` also auto mode off | managed settings |
 | 3 | Sandbox | Bash and every child process: writes only in the working directory + temp, reads denied for the secret files found on the host, network only to the allowed domains | managed settings, bubblewrap + socat |
 | 4 | Guard hook | `ihw_guard.sh` before every Bash call: `--apply`, OPatch apply/rollback, WLST, start/stop scripts, RCU / config.sh, sqlplus / rman / Data Pump, systemctl changes, sudo / su, `rm -r`, kill, package or crontab changes, `git push` → **ask** on `test`, **deny** on `prod` / unknown | managed settings, `/etc/claude-code/` (root-owned) |
-| 5 | Environment type | `IHW_ENV_TYPE=test\|prod` in `environment.conf` (interview / `init_env.sh`); fixed into the hook command at install time – a later change of the conf makes the hook treat the host as `prod` | `environment.conf` + managed settings |
+| 5 | Environment type | `IHW_ENV_TYPE=test\|prod` in `environment.conf` (interview / `detect_env_conf.sh`); fixed into the hook command at install time – a later change of the conf makes the hook treat the host as `prod` | `environment.conf` + managed settings |
 
 Why several layers (documented behaviour of Claude Code):
 

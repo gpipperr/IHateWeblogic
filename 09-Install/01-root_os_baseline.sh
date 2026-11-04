@@ -851,7 +851,7 @@ if [ "$FW_RUNNING" -eq 1 ]; then
             _fw_need --query-port="${_bport}/udp" --add-port="${_bport}/udp" \
                 "${_bport}/udp (Reports multicast discovery, else REP-50600)"
             [ -z "${REPORTS_BROADCAST_PORT:-}" ] && \
-                info "  REPORTS_BROADCAST_PORT not set yet (init_env.sh) – default 14027 used; keep both in sync"
+                info "  REPORTS_BROADCAST_PORT not set yet (detect_env_conf.sh) – default 14027 used; keep both in sync"
             unset _bport
             ;;
     esac

@@ -169,7 +169,7 @@ section "2 – Environment type (IHW_ENV_TYPE)"
 case "${IHW_ENV_TYPE:-}" in
     test) ok "  IHW_ENV_TYPE=test – Claude allowed with sandbox + guard" ;;
     prod) fail "  IHW_ENV_TYPE=prod – do not use Claude Code on this host (collector archive -> analysis host)" ;;
-    *)    warn "  IHW_ENV_TYPE not set (test|prod) – 00-Setup/init_env.sh; the guard treats it as prod" ;;
+    *)    warn "  IHW_ENV_TYPE not set (test|prod) – 00-Setup/detect_env_conf.sh; the guard treats it as prod" ;;
 esac
 if [ "$PROFILE" = "maintainer" ] && [ "${IHW_ENV_TYPE:-}" != "test" ]; then
     fail "  --profile maintainer needs IHW_ENV_TYPE=test"

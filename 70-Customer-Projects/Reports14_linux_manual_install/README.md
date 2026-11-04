@@ -68,10 +68,11 @@ und deutschen Kommentaren.
    WLST-Befehle zum Selbst-Eintippen.
 
 9. [Tools_status_logs_kochbuch.txt](Tools_status_logs_kochbuch.txt) –
-   kleine Betriebs-Skripte aus dem Ordner [`tools/`](tools/), abgelegt
-   unter `/u01/oracle/tools` (ohne IHateWeblogic-Lib, Daten in `env.ini`,
-   per `set_env.sh` aus der `~/.bash_profile` geladen – mit PATH auf die
-   Tools und den Kurzbefehlen `wlst` und `domain`):
+   kleine Betriebs-Skripte aus [`../tools/bash/`](../tools/bash/), abgelegt
+   unter `/u01/oracle/tools` nach dem Fahrplan
+   [../Start_beim_Kunden_kochbuch_de.txt](../Start_beim_Kunden_kochbuch_de.txt)
+   (ohne IHateWeblogic-Lib; Werte in [`patch_install.ini`](patch_install.ini);
+   PATH auf die Tools, `wlst` und `domain` setzt `setdb`):
    - `status.sh` – Zustand in drei Stufen: Ports (`ss`), Prozesse (`ps`,
      inkl. "gestartet vom Node Manager?" und Anzahl Reports-Engines),
      Status über `/weblogic/ready` und den Node Manager (WLST mit den
@@ -82,9 +83,9 @@ und deutschen Kommentaren.
    - `show_log.sh` – das aktuelle Log einer Komponente (Node Manager,
      AdminServer, Managed Server, Reports-Server/Engines) per Auswahl-Menü
      oder direkt (`show_log.sh reports engine`).
-   - `install.ini` + `set_install_env.sh` – alle Parameter der
-     Installations-Kochbücher an einer Stelle, für die nächste
-     Installation in die Sitzung zu laden.
+   - `patch_install.ini` + `set_script_env.sh` – alle Werte dieser
+     Umgebung an einer Stelle (Kochbücher und Tools), mit
+     `. /u01/oracle/tools/set_script_env.sh` in die Sitzung zu laden.
 
 10. [Patch_Kochbuch_CPU_Okt2026_de.txt](Patch_Kochbuch_CPU_Okt2026_de.txt) –
     eine **bestehende** Reports-Umgebung auf CPU Oktober 2026 (+ Security

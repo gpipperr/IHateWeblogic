@@ -263,7 +263,7 @@ fi
 case "${IHW_ENV_TYPE:-}" in
     prod) fail "IHW_ENV_TYPE=prod – no Claude on this host; analyse a collector archive on a test / admin host" ;;
     test) ok "IHW_ENV_TYPE=test" ;;
-    *)    warn "IHW_ENV_TYPE not set (test|prod) – 00-Setup/init_env.sh" ;;
+    *)    warn "IHW_ENV_TYPE not set (test|prod) – 00-Setup/detect_env_conf.sh" ;;
 esac
 "$SCRIPT_DIR/claude_setup_check.sh" >> "${LOG_FILE:-/dev/null}" 2>&1
 case $? in

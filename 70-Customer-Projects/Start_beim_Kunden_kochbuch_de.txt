@@ -1,0 +1,315 @@
+================================================================================
+  Fahrplan: erstes Vorgehen beim Kunden  (Linux, Forms & Reports 12c / 14c)
+  Tools -> setdb -> patch_install.ini -> Analyse oder Installation
+  (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Lib)
+================================================================================
+  Zielgruppe : wer beim Kunden die Umgebung uebernimmt, patcht oder neu
+               aufbaut (DBA / Middleware-Admin)
+  Umgebung   : Oracle Linux 8/9, Oracle Forms & Reports 12.2.1.x oder 14.1.2
+  Erstellt   : 2026-11-04, Stil nach 70-Customer-Projects/cookbook-Skill.md
+  Grundlage  : IHateWeblogic/70-Customer-Projects/tools/README.md
+
+  Beim Kunden gibt es danach genau drei Dinge aus dem Kundenordner:
+    - EINE patch_install.ini   alle Werte dieser Umgebung (keine Kennwoerter)
+    - EINE patches_cpu_*.csv   die Patch-Liste des Zyklus (nur beim Patchen)
+    - die Kochbuecher           *_kochbuch_de.txt des Kundenordners
+  Alle Skripte kommen aus 70-Customer-Projects/tools/bash/ und sind fuer
+  jeden Kunden gleich.
+================================================================================
+
+
+WAS WO LANDET
+--------------------------------------------------------------------------------
+
+    $REPO/                             Kopie von IHateWeblogic auf dem Server
+                                       (git clone oder ZIP, SCHRITT 0) - nur
+                                       Quelle, danach nicht mehr gebraucht
+    $ORACLE_BASE/tools/                $TOOLS <- SCHRITT 1 (Rechte 755)
+      status.sh show_log.sh            Betrieb (Tools_status_logs_kochbuch.txt)
+      show_errors.sh show_all_logs.sh
+      set_script_env.sh                laedt patch_install.ini (SCHRITT 5)
+      collect_fmw_env.sh               Analyse einer vorhandenen Umgebung
+      fmw_patch_env.sh                 Variablen fuer die Patch-Kochbuecher
+      mos_patch_download.sh            Patch-Download nach der csv
+      check_disk_space.sh ...          weitere Tools aus tools/bash
+      patch_install.ini                <- SCHRITT 3 (Rechte 600)
+      patches_cpu_*.csv                <- SCHRITT 3, nur beim Patchen
+    ~/.bashrc.d/ihw_env.sh             <- SCHRITT 2 setdb (aus
+                                       tools/bash/ihw_shell_env.sh)
+    ~/.ihw_env.conf                    <- SCHRITT 2, von setdb erkannt
+                                       (editierbar, ihwenv_configure -f)
+    $ORACLE_BASE/install/              <- SCHRITT 4a Ausgabe der Analyse
+      fmw_collect_<host>_<zeit>/       00_summary.txt = die wichtigsten Werte
+      fmw_collect_<host>_<zeit>.tar.gz zum Mitnehmen / Auswerten
+
+  Quellen im Repository:
+    70-Customer-Projects/tools/bash/*.sh        alle Skripte
+    70-Customer-Projects/<Kundenordner>/        patch_install.ini, csv,
+                                                Kochbuecher
+    70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini
+                                                Vorlage, wenn der Kunden-
+                                                ordner noch keine ini hat
+
+
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
+
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - Platzhalter in spitzen Klammern (<Kundenordner>) werden NUR in 0.1
+    ersetzt.
+
+  - Alles als Benutzer oracle, ausser es steht anders da.
+
+
+================================================================================
+SCHRITT 0: Variablen setzen und Repository bereitstellen  (als oracle)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Werte anpassen  (nur diese drei)
+  ----------------------------------------------------------------------------
+  export ORACLE_BASE=/u01/oracle
+
+  export REPO=$ORACLE_BASE/install/IHateWeblogic
+  # Hier liegt (oder landet in 0.2) die Kopie des Repositorys
+
+  export KUNDE=<Kundenordner>
+  # Ordnername unter 70-Customer-Projects, z.B. Reports14_linux_manual_install
+
+  ----------------------------------------------------------------------------
+  0.2 Repository auf den Server  (EINE der beiden Varianten)
+  ----------------------------------------------------------------------------
+  # a) Server darf zu github.com:443 (git ist installiert):
+
+  git clone https://github.com/gpipperr/IHateWeblogic.git $REPO
+
+  # b) Ohne Internet: auf dem Arbeitsplatz das ZIP laden
+  #    (https://github.com/gpipperr/IHateWeblogic/archive/refs/heads/main.zip),
+  #    per scp nach /tmp, dann:
+
+  mkdir -p $ORACLE_BASE/install
+
+  unzip -q /tmp/IHateWeblogic-main.zip -d $ORACLE_BASE/install
+
+  mv $ORACLE_BASE/install/IHateWeblogic-main $REPO
+
+  ----------------------------------------------------------------------------
+  0.3 Kontrolle
+  ----------------------------------------------------------------------------
+  ls $REPO/70-Customer-Projects/tools/bash/status.sh
+
+  # Erwartet: die Datei ist da
+
+  ls $REPO/70-Customer-Projects/$KUNDE
+
+  # Erwartet: die Kochbuecher des Kunden (und ggf. patch_install.ini, csv)
+
+
+================================================================================
+SCHRITT 1: Tools anlegen  (als oracle)
+================================================================================
+
+  export TOOLS=$ORACLE_BASE/tools
+
+  mkdir -p $TOOLS
+
+  cp $REPO/70-Customer-Projects/tools/bash/*.sh $TOOLS/
+
+  chmod 755 $TOOLS/*.sh
+
+  ls -l $TOOLS
+
+  # Erwartet: status.sh, show_log.sh, set_script_env.sh, collect_fmw_env.sh,
+  #           fmw_patch_env.sh, mos_patch_download.sh ... (rwxr-xr-x)
+
+
+================================================================================
+SCHRITT 2: setdb aktivieren  (als oracle)
+================================================================================
+
+  mkdir -p ~/.bashrc.d
+
+  cp $TOOLS/ihw_shell_env.sh ~/.bashrc.d/ihw_env.sh
+
+  grep -n 'bashrc.d' ~/.bashrc
+
+  # Erwartet: die OL-Standardschleife "for rc in ~/.bashrc.d/*".
+  # KEIN Treffer (aeltere .bashrc) -> diese drei Zeilen ans Ende von
+  # ~/.bashrc anhaengen (vi):
+  #     for rc in ~/.bashrc.d/*; do
+  #         [ -f "$rc" ] && . "$rc"
+  #     done
+
+  ls ~/.bashrc.d
+
+  # Erwartet: NUR ihw_env.sh - eine zweite Kopie (z.B. ihw_shell_env.sh)
+  # wuerde die neue Version ueberschreiben.
+
+  # Jetzt abmelden und NEU anmelden (ssh / su - oracle). Beim ersten Start
+  # erkennt setdb die Oracle Homes und schreibt ~/.ihw_env.conf.
+
+  setdb
+
+  # Erwartet: Menue mit Block FMW (Home + Domain(s)) und Block DB, falls
+  # eine Datenbank auf dem Host ist. Domain-Eintrag waehlen.
+  # LEERES Menue (neuer Host ohne Software) ist richtig -> spaeter, nach
+  # der Installation: ihwenv_configure -f
+
+  type status.sh
+
+  # Erwartet: status.sh is /u01/oracle/tools/status.sh  (PATH durch setdb)
+
+
+================================================================================
+SCHRITT 3: Kunden-ini und Patch-Liste ablegen  (als oracle)
+================================================================================
+
+  ls $REPO/70-Customer-Projects/$KUNDE/patch_install.ini
+
+  # Erwartet: die Datei ist da -> 3.1
+  # FEHLT (Kundenordner noch ohne ini) -> 3.2
+
+  ----------------------------------------------------------------------------
+  3.1 ini des Kunden
+  ----------------------------------------------------------------------------
+  cp $REPO/70-Customer-Projects/$KUNDE/patch_install.ini $TOOLS/
+
+  ----------------------------------------------------------------------------
+  3.2 nur ohne Kunden-ini: Vorlage nehmen
+  ----------------------------------------------------------------------------
+  cp $REPO/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini $TOOLS/
+
+  ----------------------------------------------------------------------------
+  3.3 Rechte und Patch-Liste
+  ----------------------------------------------------------------------------
+  chmod 600 $TOOLS/patch_install.ini
+
+  ls $REPO/70-Customer-Projects/$KUNDE/patches_cpu_*.csv
+
+  # Erwartet: die Patch-Liste des Zyklus. Keine -> kein Patchlauf geplant.
+
+  cp $REPO/70-Customer-Projects/$KUNDE/patches_cpu_*.csv $TOOLS/
+
+
+================================================================================
+SCHRITT 4: Gibt es schon eine Umgebung?
+================================================================================
+
+  setdb
+
+  # FMW-Block mit Home und Domain   -> 4a (vorhandene Umgebung: Analyse)
+  # kein FMW-Eintrag                -> 4b (neue Installation)
+
+  ----------------------------------------------------------------------------
+  4a Vorhandene Umgebung: analysieren, ini daraus fuellen
+  ----------------------------------------------------------------------------
+  mkdir -p $ORACLE_BASE/install
+
+  collect_fmw_env.sh -t $ORACLE_BASE/install
+
+  # Erwartet am Ende: Pfad des Ausgabeverzeichnisses und der .tar.gz
+  # (nur lesend, Kennwoerter werden maskiert)
+
+  ls -td $ORACLE_BASE/install/fmw_collect_* | head -1
+
+  # Den angezeigten Ordner einsetzen:
+  less <ausgabe_ordner>/00_summary.txt
+
+  # Daraus in patch_install.ini pruefen bzw. eintragen: ORACLE_BASE,
+  # ORACLE_HOME, JDK_HOME, DOMAIN_NAME / DOMAIN_HOME, Ports
+  # (WLS_ADMIN_PORT, WLS_REPORTS_PORT, WLS_NODEMANAGER_PORT), Servernamen
+  # (WLS_MANAGED_SERVER, MANAGED_SERVERS, REPORTS_SERVER_NAME), TNS_ADMIN.
+
+  vi $TOOLS/patch_install.ini
+
+  # Die .tar.gz zur Auswertung mitnehmen (enthaelt Hostnamen und Pfade -
+  # NICHT ins Git).
+
+  ----------------------------------------------------------------------------
+  4b Neue Installation: Werte aus den Kochbuechern eintragen
+  ----------------------------------------------------------------------------
+  vi $TOOLS/patch_install.ini
+
+  # Jeden Block durchgehen - die Kopfzeile jedes Blocks nennt das
+  # Kochbuch, das die Werte braucht (OS_, FMW_, Reports_, Font_, SSL_,
+  # Autostart). Hostname (WLS_SERVER_FQDN), RCU-Datenbank (DB_*) und
+  # Zertifikatsdaten (SSL_*) gehoeren dem Kunden.
+
+
+================================================================================
+SCHRITT 5: Werte laden - in JEDER neuen Sitzung  (als oracle)
+================================================================================
+
+  . $TOOLS/set_script_env.sh
+
+  # Erwartet: Umgebung geladen aus /u01/oracle/tools/patch_install.ini
+
+  set_script_env_show
+
+  # Erwartet: alle Werte gefuellt, keine Platzhalter. Ab hier gelten
+  # $ORACLE_HOME, $DOMAIN_HOME, $RWSERVER_CONF ... in allen Kochbuechern.
+
+  # Zusammenspiel:
+  #   setdb               Shell: ORACLE_HOME, PATH, wlst, domain
+  #   set_script_env.sh   Werte der ini fuer die Kochbuch-Befehle
+  # Beides in dieser Reihenfolge: erst setdb, dann set_script_env.sh.
+
+
+================================================================================
+SCHRITT 6: Weiter mit den Kochbuechern des Kundenordners
+================================================================================
+
+  ls $REPO/70-Customer-Projects/$KUNDE/*.txt
+
+  # Neue Installation (Reports14_linux_manual_install): Reihenfolge laut
+  #   README.md des Kundenordners - OS, FMW, Reports, Font, SSL,
+  #   Autostart, Reports_Absicherung, Tools_status_logs.
+  # Patchlauf: Patch_Kochbuch_* des Kundenordners; die Variablen des
+  #   Patchlaufs setzt  . $TOOLS/fmw_patch_env.sh  (VORAUSSETZUNGEN dort),
+  #   den Download macht mos_patch_download.sh mit der csv aus SCHRITT 3.
+  # Betrieb: status.sh / show_log.sh / show_errors.sh lesen dieselbe
+  #   patch_install.ini (Tools_status_logs_kochbuch.txt).
+
+  status.sh -q
+
+  # Erwartet (vorhandene Umgebung): "Ergebnis: alles in Ordnung" oder die
+  # Liste dessen, was nicht laeuft.
+
+
+================================================================================
+RUECKWEG
+================================================================================
+
+  # Alles aus diesem Fahrplan liegt an drei Stellen und ist ohne Einfluss
+  # auf die Oracle-Software:
+
+  rm ~/.bashrc.d/ihw_env.sh ~/.ihw_env.conf
+
+  ls -l $TOOLS
+
+  rm -r "${TOOLS:?}"
+
+  # $REPO und $ORACLE_BASE/install/fmw_collect_* bei Bedarf ebenso.
+
+
+================================================================================
+BEKANNTE PROBLEME
+================================================================================
+
+  Problem: setdb zeigt eine alte Version / alte Eintraege
+  Ursache: zweite Kopie in ~/.bashrc.d oder ~/.ihw_env.conf von frueher
+  Loesung: nur ~/.bashrc.d/ihw_env.sh behalten, dann ihwenv_configure -f
+
+  Problem: status.sh: "FEHLER: .../patch_install.ini nicht gefunden"
+  Ursache: SCHRITT 3 fehlt, die ini liegt woanders
+  Loesung: SCHRITT 3 - die ini muss neben den Skripten in $TOOLS liegen
+
+  Problem: Kochbuch-Befehle finden $DOMAIN_HOME nicht (leer)
+  Ursache: neue Sitzung, SCHRITT 5 nicht ausgefuehrt
+  Loesung: . /u01/oracle/tools/set_script_env.sh
+
+  Problem: git clone haengt / scheitert
+  Ursache: keine Freigabe nach github.com:443
+  Loesung: Variante b) in 0.2 (ZIP ueber den Arbeitsplatz)

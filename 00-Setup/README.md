@@ -32,8 +32,7 @@ secures the configuration that the rest of the library (`09-Install/`,
 | File | Type | Purpose |
 |---|---|---|
 | `IHateWeblogic_lib.sh` | library (source only) | Output functions, password encryption, environment helpers |
-| `init_env.sh` | script | Detect FMW/DB paths → generate/extend `environments/<name>.conf` |
-| `set_env.sh` | script (must be **sourced**) | Switch the active environment via a numbered menu |
+| `detect_env_conf.sh` | script | Detect FMW/DB paths → generate/extend `environments/<name>.conf`; `--list` / `--select` switch the `environment.conf` symlink (until 2026-11-04: `init_env.sh`, the switch was `set_env.sh`) |
 | `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
 | `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
 | `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
@@ -86,19 +85,21 @@ script exits with it.
 
 ---
 
-### init_env.sh
+### detect_env_conf.sh
 
 Detects paths and running processes, then writes or extends a named conf
 file under `environments/` and updates the `environment.conf` symlink.
 **Use once per environment** (at install time, or when a new domain/instance
-appears). For daily switching between already-configured environments, use
-`set_env.sh` instead.
+appears). With several configured environments, `--list` shows them and
+`--select [n] --apply` points `environment.conf` to another one. The current
+**shell** (ORACLE_HOME, PATH, wlst …) is switched with `setdb`
+([ihw_shell_env.sh](../70-Customer-Projects/tools/README.md#ihw_shell_envsh)).
 
 ```bash
-./00-Setup/init_env.sh                    # FMW mode, dry-run (default)
-./00-Setup/init_env.sh --apply            # FMW mode, write conf
-./00-Setup/init_env.sh --apply --interview  # confirm/override every detected value
-./00-Setup/init_env.sh --db --apply       # DB mode: detect Oracle DB home
+./00-Setup/detect_env_conf.sh                    # FMW mode, dry-run (default)
+./00-Setup/detect_env_conf.sh --apply            # FMW mode, write conf
+./00-Setup/detect_env_conf.sh --apply --interview  # confirm/override every detected value
+./00-Setup/detect_env_conf.sh --db --apply       # DB mode: detect Oracle DB home
 ```
 
 | Option | Effect |
@@ -142,41 +143,25 @@ changing command ([setup_claude.md](../10-Monitoring/setup_claude.md));
 `09-Install/01-setup-interview.sh` asks it with the default `prod`.
 
 Without `--apply` every mode is a pure dry-run/preview — nothing is written.
-This makes `./00-Setup/init_env.sh` (no flags) the standard way to **analyze
+This makes `./00-Setup/detect_env_conf.sh` (no flags) the standard way to **analyze
 an existing environment** without changing anything.
 
 ---
 
-### set_env.sh
+### Switching between environments
 
-Switches between multiple environments already registered in
-`environments/` — an FMW/WebLogic domain or an Oracle Database home — via a
-numbered menu. **Must be sourced**, otherwise the detected variables never
-reach your shell.
+`00-Setup/set_env.sh` was removed on 2026-11-04. Its two jobs are split:
+
+| Job | Now |
+|---|---|
+| Which conf do the library scripts read? (`environment.conf` symlink) | `./00-Setup/detect_env_conf.sh --list` shows `environments/*.conf` (active one marked `*`); `--select [n] --apply` switches the symlink (menu without `n`, dry-run without `--apply`) |
+| Which home is set in my shell? (`ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`, `wlst`) | `setdb` / `setfmw` from `~/.bashrc.d/ihw_env.sh` – one menu for FMW and DB homes, independent of the library |
 
 ```bash
-. ./00-Setup/set_env.sh          # interactive menu, sets shell env
-. ./00-Setup/set_env.sh 1        # direct select #1, no menu
-./00-Setup/set_env.sh --list     # list only, no environment change
+./00-Setup/detect_env_conf.sh --list              # registered environments
+./00-Setup/detect_env_conf.sh --select 2 --apply  # library scripts now use conf 2
+setdb                                             # switch the current shell
 ```
-
-| Option | Effect |
-|---|---|
-| *(none, sourced)* | Show numbered menu of all `environments/*.conf`, select, export variables |
-| `N` (sourced) | Select entry `N` directly, no menu |
-| `--list` | Print the menu and exit — does not touch the symlink or shell |
-| `--help` | Usage |
-
-Exported variables depend on the conf's `# ENV_TYPE=` (explicit comment, or
-auto-detected: `DOMAIN_HOME` present → FMW, `ORACLE_SID` present → DB):
-
-| ENV_TYPE | Exports | PATH addition |
-|---|---|---|
-| `FMW` | `ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME` | `$ORACLE_HOME/bin`, `$ORACLE_HOME/oracle_common/common/bin`, `$JDK_HOME/bin` |
-| `DB` | `ORACLE_HOME`, `ORACLE_SID`, `ORACLE_BASE`, `NLS_LANG` | `$ORACLE_HOME/bin` |
-
-Full concept, `.bash_profile` integration and troubleshooting:
-see [set_environment.md](set_environment.md).
 
 ---
 
@@ -224,7 +209,7 @@ them (and partly by `09-Install/01-setup-interview.sh`), read with
 | `forms_sign_sec.conf.des3` | keystore password of the Forms jar signing | interview, `08-SSL/ssl_local_ca.sh` |
 | `ssl_ca_sec.conf.des3` | passphrase of the local root CA | `08-SSL/ssl_local_ca.sh` |
 | `apex_sec.conf.des3` | APEX `ADMIN` / ORDS passwords (`merge_secrets_file`) | interview, `12-APEX-Ords/` |
-| `db_connect.conf.des3` | DB login for `02-Checks/db_connect_check.sh` | `db_connect_check.sh` (asks once; path `SEC_CONF_DB` from `init_env.sh`) |
+| `db_connect.conf.des3` | DB login for `02-Checks/db_connect_check.sh` | `db_connect_check.sh` (asks once; path `SEC_CONF_DB` from `detect_env_conf.sh`) |
 | `test_db_sec.conf.des3` | DB user of the smoke test / `rwrun_trace.sh` | `09-Install/15-` |
 
 ```bash
@@ -368,7 +353,7 @@ missing). See `09-Install/docs/01-setup-interview.md`.
 already-installed environment):
 
 ```bash
-./00-Setup/init_env.sh --interview --apply
+./00-Setup/detect_env_conf.sh --interview --apply
 ```
 
 Scans the running system and shows every detected value for confirmation.
@@ -378,7 +363,7 @@ values, e.g. after `09-Install/13-oracle_setup_reports.sh` or
 `14-oracle_setup_forms.sh` created new instances):
 
 ```bash
-./00-Setup/init_env.sh --apply
+./00-Setup/detect_env_conf.sh --apply
 ```
 
 Only appends keys that are still missing — existing values are never
@@ -415,8 +400,8 @@ detection scripts **without** `--apply` — every one of them is read-only by
 default:
 
 ```bash
-./00-Setup/init_env.sh                 # what would be written/updated?
-./00-Setup/set_env.sh --list           # which environments are registered?
+./00-Setup/detect_env_conf.sh                 # what would be written/updated?
+./00-Setup/detect_env_conf.sh --list   # which environments are registered?
 ./00-Setup/weblogic_sec.sh             # can existing credentials be decrypted here?
 ```
 
@@ -430,16 +415,15 @@ Once analysis confirms the detected values are correct (or after adjusting
 them via `--interview`), make it official:
 
 ```bash
-./00-Setup/init_env.sh --apply                 # write/extend environment.conf
-./00-Setup/init_env.sh --db --apply            # additionally register a DB home
-. ./00-Setup/set_env.sh                        # activate it in the current shell
+./00-Setup/detect_env_conf.sh --apply                 # write/extend environment.conf
+./00-Setup/detect_env_conf.sh --db --apply            # additionally register a DB home
+setdb                                          # set it in the current shell
 ```
 
 If this server hosts more than one domain or DB home, `environments/` will
-contain multiple conf files — `set_env.sh` (sourced) is then the daily
-driver for switching between them; see
-[set_environment.md](set_environment.md#bash_profile-integration) for
-automatic activation on login.
+contain multiple conf files — `detect_env_conf.sh --select` switches the
+library between them, `setdb` the shell; see
+[set_environment.md](set_environment.md).
 
 ---
 
@@ -451,7 +435,7 @@ automatic activation on login.
 | `environments/*.conf` | Server-specific paths (templates and `README.md` ARE committed) |
 | `*.des3`, `*.des3.bak*` | Encrypted credentials — machine-specific key, no reason to share |
 | `weblogic_sec.conf` | Plaintext intermediate — exists only briefly at runtime, always deleted |
-| `environment.conf.bak*`, `*.conf.pre_deinstall_*` | Backups of the conf (`init_env.sh`, `99-oracle_deinstall_fmw.sh`) |
+| `environment.conf.bak*`, `*.conf.pre_deinstall_*` | Backups of the conf (`detect_env_conf.sh`, `99-oracle_deinstall_fmw.sh`) |
 | `00-Setup/getPWDs.sh` | Local debug helper that prints every decrypted `*.des3` – never committed, never on a customer host |
 
 ---

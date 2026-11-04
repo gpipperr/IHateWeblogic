@@ -6,23 +6,23 @@
 #          show_log.sh nodemanager         Node-Manager-Log
 #          show_log.sh adminserver         Auswahl der Logs des AdminServers
 #          show_log.sh AdminServer out     direkt das .out des AdminServers
-#          show_log.sh reports             Reports-Server (der erste aus env.ini)
+#          show_log.sh reports             Reports-Server (der erste aus patch_install.ini)
 #          show_log.sh -l ...              in "less" oeffnen statt live (tail -F)
 #          show_log.sh -n 200 ...          mit den letzten 200 Zeilen beginnen
 # Log    : log | out | diag | rwservlet | engine  (nur was es gibt)
 # Beenden: Strg+C   (in less: Strg+C, dann q)
-# Daten  : env.ini im selben Verzeichnis (oder ENV_INI=/pfad/env.ini)
+# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
 # Beschreibung: Tools_status_logs_kochbuch.txt
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_INI="${ENV_INI:-$TOOLS_DIR/env.ini}"
-if [ ! -f "$ENV_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$ENV_INI" >&2
+IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
+if [ ! -f "$IHW_INI" ]; then
+    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
     exit 2
 fi
 # shellcheck source=/dev/null
-. "$ENV_INI"
+. "$IHW_INI"
 
 USE_LESS=false
 LINES=50
@@ -38,7 +38,7 @@ shift $((OPTIND - 1))
 WANT_COMP="${1:-}"
 WANT_LOG="${2:-}"
 
-# --- Komponenten aus env.ini: Anzeigename|Typ -----------------------------------
+# --- Komponenten aus patch_install.ini: Anzeigename|Typ -----------------------------------
 COMPS=("NodeManager|NM" "${ADMIN_SERVER}|WLS")
 for _m in $MANAGED_SERVERS; do COMPS+=("${_m%%:*}|WLS"); done
 for _r in $REPORTS_SERVERS; do COMPS+=("${_r}|REPORTS"); done

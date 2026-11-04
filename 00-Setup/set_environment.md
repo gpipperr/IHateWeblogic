@@ -1,17 +1,19 @@
-# set_env.sh – Environment Management
+# Environment management – `environment.conf`, `detect_env_conf.sh`, `setdb`
 
-Manages multiple Oracle environments on a single server via a numbered
-selection menu.  Supports FMW/WebLogic domains and Oracle Database homes
-side by side.
+Several Oracle environments on one server: FMW/WebLogic domains and Oracle
+Database homes side by side. Two different things have to be switched, and
+two tools do it:
 
-> **`set_env.sh` vs. `setdb` / `setfmw`.** `set_env.sh` switches the
-> **library configuration**: the `environment.conf` symlink that every
-> IHateWeblogic script reads. For switching only the **current interactive
-> shell** between the FMW home, its domains and DB homes, use the switcher
-> [ihw_shell_env.sh](../70-Customer-Projects/tools/bash/ihw_shell_env.sh)
-> (`setdb` = `setfmw` = `setfw`, installed by `09-Install/03-root_user_oracle.sh`
-> as `~/.bashrc.d/ihw_env.sh`). It never touches `environment.conf`.
-> Details: [tools/README.md](../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
+| What | Tool | Reads / changes |
+|---|---|---|
+| **Library configuration** – which conf every IHateWeblogic script reads | `00-Setup/detect_env_conf.sh` (detect, `--list`, `--select`) | `00-Setup/environments/*.conf`, symlink `environment.conf` |
+| **Current interactive shell** – `ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`, `wlst` | `setdb` = `setfmw` = `setfw` ([ihw_shell_env.sh](../70-Customer-Projects/tools/bash/ihw_shell_env.sh), `~/.bashrc.d/ihw_env.sh`) | only the shell; detects the homes itself (`~/.ihw_env.conf`), never touches `environment.conf` |
+
+Until 2026-11-04 `00-Setup/set_env.sh` did both (symlink + shell export) and
+`detect_env_conf.sh` was called `init_env.sh`. `set_env.sh` was removed: the
+shell part is done better by `setdb` (one menu for all homes, PATH rebuilt
+from the login PATH, `setdb c` resets), the symlink part moved into
+`detect_env_conf.sh --select`.
 
 ---
 
@@ -27,7 +29,7 @@ A typical Oracle server hosts several environments simultaneously:
 ```
 
 All IHateWeblogic scripts read their paths from `environment.conf` in the
-project root.  Without a selection mechanism, the file would need to be
+project root. Without a selection mechanism, the file would need to be
 edited manually on every environment switch.
 
 ---
@@ -38,16 +40,20 @@ edited manually on every environment switch.
 IHateWeblogic/
 ├── environment.conf          →  symlink to the active environment
 └── 00-Setup/
-    ├── set_env.sh            ←  selection script
+    ├── detect_env_conf.sh    ←  detect (writes a conf), --list, --select
     └── environments/
         ├── fmw_prod.conf     ←  one file per environment
         ├── fmw_test.conf
         └── db_prod.conf
 ```
 
-`set_env.sh` presents a numbered menu, updates the symlink, and –
-when sourced – exports the selected environment variables into the
-current shell session.
+- `detect_env_conf.sh --apply` detects an environment and writes
+  `environments/<domain>.conf` (FMW, symlink is set) or
+  `environments/db_<SID>.conf` (`--db`, symlink unchanged).
+- `detect_env_conf.sh --list` shows all confs, the active one marked `*`.
+- `detect_env_conf.sh --select [n] --apply` points the symlink to conf `n`
+  (menu without `n`, dry-run without `--apply`). Nothing is exported into
+  the shell.
 
 ---
 
@@ -75,13 +81,13 @@ JDK_HOME=/u01/app/oracle/java/jdk-21
 
 ### Auto-detection
 
-If `ENV_TYPE` is missing, the script detects the type automatically:
+If `ENV_TYPE` is missing, `--list` / `--select` detect the type automatically:
 
 | Condition | Detected type |
 |---|---|
 | `DOMAIN_HOME=` is set | FMW |
 | `ORACLE_SID=` is set | DB |
-| neither present | UNKNOWN |
+| neither present | `?` |
 
 ### FMW conf – relevant variables
 
@@ -119,127 +125,53 @@ DB_SERVICE=FRPRD
 
 ## Usage
 
-### Interactive menu (recommended)
-
-The script **must be sourced** so that variables take effect in the
-current shell session:
-
 ```bash
-. ./00-Setup/set_env.sh
+./00-Setup/detect_env_conf.sh --list
 ```
 
 Example output:
 
 ```
-  IHateWeblogic – Environment Selection
-  Host   : dbserver01
-  Active : fmw_prod  (00-Setup/environments/fmw_prod.conf)
-
-  ----------------------------------------------------------------
-* [1]  Production – Forms & Reports  [FMW/WebLogic]
-       ORACLE_HOME  : /u01/oracle/fmw
-       DOMAIN_HOME  : /u01/user_projects/domains/fr_domain
-       File         : fmw_prod.conf
-  ----------------------------------------------------------------
-  [2]  Test – Forms & Reports        [FMW/WebLogic]
-       ORACLE_HOME  : /u01/oracle/fmw
-       DOMAIN_HOME  : /u01/user_projects/domains/fr_test
-       File         : fmw_test.conf
-  ----------------------------------------------------------------
-  [3]  Oracle DB 19c Production      [Database]
-       ORACLE_HOME  : /u01/app/oracle/product/19c/dbhome_1
-       ORACLE_SID   : FRPRD
-       NLS_LANG     : GERMAN_GERMANY.AL32UTF8
-       File         : db_prod.conf
-  ----------------------------------------------------------------
-
-  Select environment [1-3]: 1
+  --------------------------------------------------------------
+    [1]  Oracle DB FMWCDB              DB   db_FMWCDB.conf
+         ORACLE_HOME /u01/app/oracle/product/19.33.0/db_home1
+         ORACLE_SID  FMWCDB
+  * [2]  fr_domain                    FMW  fr_domain.conf
+         ORACLE_HOME /u01/app/oracle/fmw
+         DOMAIN_HOME /u01/app/oracle/domains/fr_domain
+  --------------------------------------------------------------
+  INFO  Active: .../environment.conf -> .../00-Setup/environments/fr_domain.conf
 ```
-
-### Direct selection (no menu)
 
 ```bash
-. ./00-Setup/set_env.sh 1
+./00-Setup/detect_env_conf.sh --select 1            # dry-run: what would be set
+./00-Setup/detect_env_conf.sh --select 1 --apply    # switch the symlink
+./00-Setup/detect_env_conf.sh --select --apply      # menu
 ```
 
-### List only
+> **Selecting a DB conf switches the library to it** – the FMW scripts
+> (`01-Run/`, `02-Checks/`, …) then read the DB conf and miss `DOMAIN_HOME`.
+> Select the FMW conf again before running them. (`detect_env_conf.sh --db
+> --apply` does **not** touch the symlink.) The local RCU database of
+> `60-RCU-DB-19c/` is not managed here at all – it has its own
+> `60-RCU-DB-19c/environment_db.conf`.
+
+### The shell: `setdb`
+
+The library scripts source `environment.conf` themselves – the shell needs
+no exported variables for them. For working by hand (sqlplus, opatch, wlst,
+`cd $DOMAIN_HOME`) use `setdb`:
 
 ```bash
-./00-Setup/set_env.sh --list
+setdb        # menu: FMW home / domains, DB homes / SIDs; c = clear, h = help
+whichenv     # what is set now
 ```
 
----
-
-## What the script exports
-
-### ENV_TYPE=FMW
-
-```bash
-export ORACLE_HOME   # FMW installation root
-export DOMAIN_HOME   # WebLogic domain directory
-export JDK_HOME      # Oracle JDK
-export PATH="$ORACLE_HOME/bin:$ORACLE_HOME/oracle_common/common/bin:$JDK_HOME/bin:$PATH"
-```
-
-`oracle_common/common/bin` contains `wlst.sh` – making WLST available
-without an absolute path.
-
-### ENV_TYPE=DB
-
-```bash
-export ORACLE_HOME   # Database installation root
-export ORACLE_SID    # Instance name
-export ORACLE_BASE   # Oracle base directory
-export NLS_LANG      # Character set
-export PATH="$ORACLE_HOME/bin:$PATH"
-```
-
-`$ORACLE_HOME/bin` provides `sqlplus`, `rman`, `expdp`, and related tools.
-
-Not exported by `set_env.sh`: `TNS_ADMIN` and `JAVA_HOME` – both come from
+`TNS_ADMIN`, `NLS_LANG` and the login `JAVA_HOME` come from
 `~oracle/.bash_profile`, written by `09-Install/03-root_user_oracle.sh`
 (`JAVA_HOME=$JDK_HOME`, the one `TNS_ADMIN` of `environment.conf`). Why
 `JDK_HOME` and not the bundled JDK: [weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
-
-> **Selecting a DB environment also switches the `environment.conf`
-> symlink** (checked 2026-10-29) – the FMW scripts (`01-Run/`, `02-Checks/`, …)
-> then read the DB conf and miss `DOMAIN_HOME`. Select the FMW environment
-> again before running them. (`init_env.sh --db --apply` does **not** touch
-> the symlink.) The local RCU database of `60-RCU-DB-19c/` is not managed here
-> at all – it has its own `60-RCU-DB-19c/environment_db.conf`.
-
----
-
-## .bash_profile integration
-
-Automatically activate the correct environment on `oracle` user login.
-Add to `~/.bash_profile`:
-
-```bash
-# IHateWeblogic – Oracle Environment Setup
-IHW_ROOT="/path/to/IHateWeblogic"
-
-if [ -d "$IHW_ROOT/00-Setup/environments" ]; then
-    _conf_count=$(find "$IHW_ROOT/00-Setup/environments" -maxdepth 1 \
-        -name "*.conf" ! -name "*.template" 2>/dev/null | wc -l)
-
-    if [ "$_conf_count" -gt 1 ]; then
-        # Multiple environments → show selection menu
-        . "$IHW_ROOT/00-Setup/set_env.sh"
-    elif [ "$_conf_count" -eq 1 ]; then
-        # Exactly one environment → load directly without menu
-        . "$IHW_ROOT/00-Setup/set_env.sh" 1
-    elif [ -f "$IHW_ROOT/environment.conf" ]; then
-        # No environments/ directory → load classic single conf
-        source "$IHW_ROOT/environment.conf"
-        export ORACLE_HOME DOMAIN_HOME JDK_HOME ORACLE_SID
-        [ -n "${ORACLE_HOME:-}" ] && export PATH="$ORACLE_HOME/bin:$PATH"
-        [ -n "${JDK_HOME:-}"    ] && export PATH="$JDK_HOME/bin:$PATH"
-    fi
-    unset _conf_count
-fi
-unset IHW_ROOT
-```
+Details of `setdb`: [tools/README.md](../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
 
 ---
 
@@ -268,9 +200,9 @@ cp environment.conf 00-Setup/environments/fmw_prod.conf
 Auto-detect (recommended on a server where Oracle DB is installed):
 
 ```bash
-./00-Setup/init_env.sh --db              # dry-run: show what would be detected
-./00-Setup/init_env.sh --db --apply      # write environments/db_<SID>.conf
-./00-Setup/init_env.sh --db --apply --interview  # confirm/override each value
+./00-Setup/detect_env_conf.sh --db              # dry-run: show what would be detected
+./00-Setup/detect_env_conf.sh --db --apply      # write environments/db_<SID>.conf
+./00-Setup/detect_env_conf.sh --db --apply --interview  # confirm/override each value
 ```
 
 Or manually from the template:
@@ -285,8 +217,8 @@ cp 00-Setup/environments/db_prod.conf.template \
 
 ```bash
 rm 00-Setup/environments/fmw_test.conf
-# If the active symlink pointed to this file, reset it:
-. ./00-Setup/set_env.sh
+# If the active symlink pointed to this file, point it to another one:
+./00-Setup/detect_env_conf.sh --select --apply
 ```
 
 ---
@@ -294,11 +226,11 @@ rm 00-Setup/environments/fmw_test.conf
 ## Git status
 
 The `*.conf` files contain server-specific paths and are **not** committed
-to Git (`.gitignore`).  The following files are committed:
+to Git (`.gitignore`). The following files are committed:
 
 | File | Purpose |
 |---|---|
-| `set_env.sh` | Selection script |
+| `detect_env_conf.sh` | Detection + `--list` / `--select` |
 | `set_environment.md` | This documentation |
 | `environments/README.md` | Quick reference |
 | `environments/*.template` | Templates for new environments |
@@ -312,8 +244,9 @@ excluded – it points to the currently active conf file.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Variables not set after call | Script executed instead of sourced | `. ./00-Setup/set_env.sh` (note the leading dot) |
-| `environments directory not found` | Directory missing | `mkdir -p 00-Setup/environments` |
-| `No *.conf files found` | No conf files present | Copy a template and adapt |
-| Symlink points to deleted file | Conf file was removed | Re-run the menu to select a valid file |
+| `No *.conf in .../environments` | No conf files present | `./00-Setup/detect_env_conf.sh --apply`, or copy a template and adapt |
+| `environment.conf is a plain file` | Old layout (file instead of symlink) | Move it to `environments/<name>.conf`, then `--select --apply` |
+| Symlink points to deleted file | Conf file was removed | `./00-Setup/detect_env_conf.sh --select --apply` |
 | `Cannot update symlink` | No write permission on project root | Check: `ls -la environment.conf` |
+| FMW script misses `DOMAIN_HOME` | Symlink points to a DB conf | `--select` the FMW conf |
+| `ORACLE_HOME` in the shell is the wrong home | shell not switched | `setdb`, choose the entry |
