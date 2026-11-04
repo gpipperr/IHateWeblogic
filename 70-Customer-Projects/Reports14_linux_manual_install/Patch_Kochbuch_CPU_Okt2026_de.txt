@@ -9,7 +9,8 @@
                14.1.2 (Installationstyp "Forms and Reports Deployment",
                Domain nur mit Reports), Nginx davor, KEINE OHS-Instanz,
                Datenbank extern (anderes Team)
-  Erstellt   : 2026-11-03
+  Erstellt   : 2026-11-03, ueberarbeitet 2026-11-04 (Stil nach
+               70-Customer-Projects/cookbook-Skill.md)
   Grundlage  : FMW_Kochbuch_de.txt Schritt 3, Reports_kochbuch_de.txt
                Schritt 2 (Stand CPU Okt 2026, auf dem Testsystem am
                2026-10-24 eingespielt), MOS KA1182 (PDF 2026-10-22), CPU426,
@@ -58,7 +59,7 @@ ZIELSTAND (CPU Oktober 2026)
 
 
 VORAUSSETZUNGEN
-----------------
+--------------------------------------------------------------------------------
   Ablauf der Vorbereitung (vor dem Wartungsfenster, System laeuft):
 
     V.1  Arbeitsverzeichnis anlegen, Werkzeuge hineinlegen
@@ -70,8 +71,10 @@ VORAUSSETZUNGEN
   Was wo landet:
 
     /u01/oracle/install/cpu_okt2026/    Arbeitsverzeichnis (= Basis, V.1)
-      fmw_patch_env.sh                  aus 70-Customer-Projects/tools/
-      mos_patch_download.sh             aus 70-Customer-Projects/tools/
+      fmw_patch_env.sh                  aus 70-Customer-Projects/tools/bash/
+                                        (beim Kunden auch in /u01/oracle/tools,
+                                        Fahrplan Start_beim_Kunden_kochbuch_de.txt)
+      mos_patch_download.sh             aus 70-Customer-Projects/tools/bash/
       patches_cpu_reports_14c_oct2026.csv           neben diesem Kochbuch
       getMOSPatch.jar                   von Hand (github.com/MarisElsins/getMOSPatch)
       patch_env.sh                      <- V.2 (Variablen fuer weitere Terminals)
@@ -82,73 +85,101 @@ VORAUSSETZUNGEN
         patches_sha256.txt, mos_patch_download_<zeit>.log
       stage/                            $STAGE  <- SCHRITT 3 (entpackt, >= 8 GB)
         WLS_SPB_14.1.2.0.261007/  40050062/  39951765/  39600348/ ...
-        logs/                           $LOGDIR (alle tee-Ausgaben der Schritte)
+        jdk-21*_linux-x64_bin.tar.gz    <- SCHRITT 6.4 (aus Patch 35702194)
+        opatch/                         <- SCHRITT 7 (OPatch-Installer)
+        logs/                           $LOGDIR (alle tee-Ausgaben der Schritte,
+                                        02_* vorher / 13_* nachher = Nachweis,
+                                        06_oldjdk.txt = Rueckweg JDK)
     /u01/oracle/backup/cpu_okt2026/     $BACKUP  <- SCHRITT 5 (anderes Dateisystem
                                         als /u01, wenn moeglich)
-    /u01/oracle/java/jdk-21.0.13.0.2/   neues JDK  <- SCHRITT 6, der Link
-                                        /u01/oracle/java/jdk-21 ($JDK_HOME)
-                                        zeigt danach darauf
+      oracle_home.tgz  oraInventory.tgz  domain_home.tgz   <- SCHRITT 5
+      OPatch.bak/                       <- SCHRITT 7
+    /u01/oracle/java/                   $NEW_JDK_BASE (Ordner der JDKs)
+      jdk-21 -> jdk-21.0.13.0.2         $JDK_HOME = $JDK_LINK (Link) <- SCHRITT 6.7
+      jdk-21.0.13.0.2/                  neues JDK  <- SCHRITT 6.4
+      jdk-21.0.<alt>/                   altes JDK bleibt liegen (Rueckweg 6.8)
 
+  ----------------------------------------------------------------------------
   V.1 Arbeitsverzeichnis
-  ----------------------
-    mkdir -p /u01/oracle/install/cpu_okt2026 && cd /u01/oracle/install/cpu_okt2026
+  ----------------------------------------------------------------------------
+    mkdir -p /u01/oracle/install/cpu_okt2026
+
+    cd /u01/oracle/install/cpu_okt2026
 
     # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_reports_14c_oct2026.csv und
     # getMOSPatch.jar hierher kopieren, dann:
+
     chmod +x fmw_patch_env.sh mos_patch_download.sh
 
-  V.2 Variablen setzen (GESOURCT - nur so landen sie in dieser Shell)
-  -------------------------------------------------------------------
+  ----------------------------------------------------------------------------
+  V.2 Variablen setzen  (GESOURCT - nur so landen sie in dieser Shell)
+  ----------------------------------------------------------------------------
     cd /u01/oracle/install/cpu_okt2026
 
-    ./fmw_patch_env.sh                   # nur anzeigen und pruefen
+    ./fmw_patch_env.sh
+    # nur anzeigen und pruefen - Ausgabe mit den Werten unten vergleichen
 
-    . ./fmw_patch_env.sh --apply         # setzen + zip/ stage/ stage/logs
-                                         # + $BACKUP anlegen + patch_env.sh
+    . ./fmw_patch_env.sh --apply
+    # setzt die Variablen, legt zip/ stage/ stage/logs und $BACKUP an und
+    # schreibt patch_env.sh
 
-    . /u01/oracle/install/cpu_okt2026/patch_env.sh   # in jedem weiteren Terminal
+    . /u01/oracle/install/cpu_okt2026/patch_env.sh
+    # in JEDEM weiteren Terminal (SCHRITT 0)
 
     # Ermittelt ORACLE_HOME, DOMAIN_HOME, INV_PTR, JDK_LINK aus der
     # laufenden Umgebung; PATCH_DIR / STAGE / LOGDIR / BACKUP aus dem
-    # Arbeitsverzeichnis. Ausgabe mit den Werten unten vergleichen.
+    # Arbeitsverzeichnis.
     # Laeuft die Domain nicht: -o <ORACLE_HOME> -d <DOMAIN_HOME> mitgeben.
 
     Ohne Skript - dieselben Werte von Hand (Layout der Reports-Kochbuecher,
     wie in patch_install.ini):
-    export ORACLE_HOME=/u01/oracle/fmw                  # Forms-&-Reports-Home
+
+    export ORACLE_HOME=/u01/oracle/fmw
+    # Forms-&-Reports-Home
 
     export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
 
-    export INV_PTR=/etc/oraInst.loc                     # inventory_loc=... darin
+    export INV_PTR=/etc/oraInst.loc
+    # inventory_loc=... darin
 
-    export JDK_LINK=/u01/oracle/java/jdk-21             # JAVA_HOME aus
-                                                        # $ORACLE_HOME/oui/.globalEnv.properties
+    export JDK_LINK=/u01/oracle/java/jdk-21
+    # JAVA_HOME aus $ORACLE_HOME/oui/.globalEnv.properties
 
-    export NEW_JDK_BASE=/u01/oracle/java                # dort landet 21.0.13.0.2
+    export JDK_HOME=$JDK_LINK
 
-    export PATCH_DIR=/u01/oracle/install/cpu_okt2026/zip    # die heruntergeladenen ZIPs
+    export JAVA_HOME=$JDK_LINK
 
-    export STAGE=/u01/oracle/install/cpu_okt2026/stage      # Entpack-Verzeichnis (>= 8 GB)
+    export NEW_JDK_BASE=/u01/oracle/java
+    # dort landet 21.0.13.0.2
 
-    export BACKUP=/u01/oracle/backup/cpu_okt2026            # Ziel der Sicherung
+    export PATCH_DIR=/u01/oracle/install/cpu_okt2026/zip
+    # die heruntergeladenen ZIPs
+
+    export STAGE=/u01/oracle/install/cpu_okt2026/stage
+    # Entpack-Verzeichnis (>= 8 GB)
+
+    export BACKUP=/u01/oracle/backup/cpu_okt2026
+    # Ziel der Sicherung
 
     export LOGDIR=$STAGE/logs
 
     mkdir -p $PATCH_DIR $STAGE $BACKUP $LOGDIR
 
-  V.3 Patches herunterladen (alle in EINEM Lauf)
-  ----------------------------------------------
+  ----------------------------------------------------------------------------
+  V.3 Patches herunterladen  (alle in EINEM Lauf)
+  ----------------------------------------------------------------------------
     cd /u01/oracle/install/cpu_okt2026
 
-    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all            # nur Plan
+    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all
+    # nur Plan - zeigt, was geladen wuerde
 
-    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all --apply    # Download
-
-    # 18 Patches, ca. 4 GB. --all laedt auch die optionalen Zeilen
+    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all --apply
+    # Download: 18 Patches, ca. 4 GB. --all laedt auch die optionalen Zeilen
     # (JDK-Ersatz 40186074, Reports-One-off 38936596) - gewollt: lieber zu
     # viel als zu wenig. MOS-Passwort wird einmal (verdeckt) abgefragt;
     # Ergebnis je Patch in $PATCH_DIR/<patchnr>/, Pruefsummen in
     # $PATCH_DIR/patches_sha256.txt, Exit 0 = alle Pflicht-Patches da.
+
     # Zweiter Lauf laedt nur, was fehlt. Hinter einem Proxy: --proxy host:port.
     # Kein MOS-Zugang auf dem Server: auf einem anderen Rechner mit
     # -d <dort>/zip laden und zip/ komplett nach $PATCH_DIR kopieren.
@@ -157,33 +188,40 @@ VORAUSSETZUNGEN
 
     Benoetigte ZIPs in $PATCH_DIR/<nr>/ (Plattform beachten!):
 
-    Patch      Datei                                     Inhalt
-    ---------  ----------------------------------------  -----------------------
-    35702194   p35702194_2100_Linux-x86-64.zip           JDK 21 latest (Inhalt
-                                                         >= 21.0.13.0.2, Schritt 1)
-    40186074   p40186074_*_Linux-x86-64.zip  (optional)  JDK 21.0.13.0.2 (Ersatz)
-    28186730   p28186730_1394225_Generic.zip             OPatch 13.9.4.2.25
+    Patch      Datei                                     Inhalt          Schritt
+    ---------  ----------------------------------------  --------------  -------
+    35702194   p35702194_2100_Linux-x86-64.zip           JDK 21 latest    6
+               (Inhalt >= 21.0.13.0.2 - Pruefung in SCHRITT 1)
+    40186074   p40186074_*_Linux-x86-64.zip  (optional)  JDK 21.0.13.0.2  6
+                                                         (Ersatz)
+    28186730   p28186730_1394225_Generic.zip             OPatch           7
+                                                         13.9.4.2.25
                                                          (steckt auch im SPB)
-    40125898   p40125898_141200_Generic.zip              WLS Stack Patch Bundle
-    40050062   p40050062_141200_Generic.zip              ADF BP
-    40035984   p40035984_141200_Generic.zip              WebCenter Core BP
-    40024749   p40024749_141200_Generic.zip              OWSM BP
-    39995927   p39995927_141200_Generic.zip              FMW Control (EM) BP
-    40057999   p40057999_141200_Generic.zip              OAMCLIENT BP
-    39940047   p39940047_141200_Generic.zip              UMS BP
-    39979746   p39979746_141200_Generic.zip              OPSS BP
-    39726399   p39726399_141200_Generic.zip              LibOVD BP
-    39951765   p39951765_141200_Linux-x86-64.zip         PERL SPU
-    39987730   p39987730_141200_Linux-x86-64.zip         OHS BP (nur Binaries)
-    39100536   p39100536_141200_Linux-x86-64.zip         WebGate BP (nur Binaries)
-    39842516   p39842516_141200_Linux-x86-64.zip  (optional)  Forms QPR - nur Anhang 12.F
-    39600348   p39600348_141200_Linux-x86-64.zip         Reports QPR 14.1.2
-    38936596   p38936596_141200_Generic.zip  (optional)  Reports-One-off Bidi
+    40125898   p40125898_141200_Generic.zip              WLS SPB          8
+    40050062   p40050062_141200_Generic.zip              ADF BP           9
+    40035984   p40035984_141200_Generic.zip              WebCenter Core   9
+    40024749   p40024749_141200_Generic.zip              OWSM BP          9
+    39995927   p39995927_141200_Generic.zip              FMW Control BP   9
+    40057999   p40057999_141200_Generic.zip              OAMCLIENT BP     9
+    39940047   p39940047_141200_Generic.zip              UMS BP           9
+    39979746   p39979746_141200_Generic.zip              OPSS BP          9
+    39726399   p39726399_141200_Generic.zip              LibOVD BP        9
+    39951765   p39951765_141200_Linux-x86-64.zip         PERL SPU         10
+    39987730   p39987730_141200_Linux-x86-64.zip         OHS BP           11
+                                                         (nur Binaries)
+    39100536   p39100536_141200_Linux-x86-64.zip         WebGate BP       11
+                                                         (nur Binaries)
+    39842516   p39842516_141200_Linux-x86-64.zip  (optional)  Forms QPR   12.F
+    39600348   p39600348_141200_Linux-x86-64.zip         Reports QPR      12
+                                                         14.1.2
+    38936596   p38936596_141200_Generic.zip  (optional)  Reports-One-off  12.5
+                                                         Bidi
 
   ACHTUNG Plattform: PERL, OHS, WebGate, Forms- und Reports-QPR und das JDK
   gibt es unter derselben Patchnummer fuer mehrere Plattformen. Nur
   "*Linux-x86-64*.zip" verwenden; alles andere ist "Generic".
-
+  Pruefsummen: $PATCH_DIR/patches_sha256.txt gegen die Werte auf MOS
+  (SCHRITT 1).
 
   Regeln fuer den ganzen Lauf:
   - Alle Schritte als der Software-Owner (oracle), NICHT als root (ausser
@@ -194,59 +232,98 @@ VORAUSSETZUNGEN
   - "OPatch succeeded" allein ist KEIN Beweis: nach jedem Patch die Ausgabe
     auf "Prerequisite check ... failed", "skipped", "none of the
     components", "make" und "error" durchsehen.
+  - Jeder Befehl steht allein, darunter "# Erwartet:" = was richtig ist.
+  - Aufrufe an rwservlet mit Kennwort (authid= / userid=) immer per POST
+    (curl -d / --data-urlencode, nichts in der URL) - sonst steht das
+    Kennwort im Klartext im access.log von WLS_REPORTS (SCHRITT 13.6).
 
 
 ================================================================================
 SCHRITT 0: Variablen pruefen  (in JEDEM Terminal, als oracle)
 ================================================================================
 
-  . /u01/oracle/install/cpu_okt2026/patch_env.sh     # aus V.2
+  ----------------------------------------------------------------------------
+  0.1 Variablen laden
+  ----------------------------------------------------------------------------
+  . /u01/oracle/install/cpu_okt2026/patch_env.sh
+  # aus V.2. Setzt seit 2026-11-03 auch JDK_HOME und JAVA_HOME (= JDK_LINK).
 
-  # setzt seit 2026-11-03 auch JDK_HOME und JAVA_HOME (= JDK_LINK). Aelteres
-  # patch_env.sh ohne JDK_HOME: fmw_patch_env.sh --apply neu laufen lassen
-  # oder die beiden Zeilen von Hand:
-  #   export JDK_HOME=$JDK_LINK; export JAVA_HOME=$JDK_HOME
+  # Aelteres patch_env.sh ohne JDK_HOME: fmw_patch_env.sh --apply neu
+  # laufen lassen oder die beiden Zeilen von Hand:
+  #   export JDK_HOME=$JDK_LINK
+  #   export JAVA_HOME=$JDK_HOME
+
   export ORACLE_BASE=/u01/oracle
 
   mkdir -p $ORACLE_BASE/tmp
 
-  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME ($(readlink $JDK_HOME))"
+  ----------------------------------------------------------------------------
+  0.2 Werte anzeigen
+  ----------------------------------------------------------------------------
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME"
+  # Erwartet: alle drei gefuellt. LEER? -> 0.1 bzw. V.2
+
+  JDK_REAL=$(readlink $JDK_HOME)
+
+  echo "JDK_HOME zeigt auf: $JDK_REAL"
+  # Erwartet z.B.: jdk-21.0.12.1
 
   echo "ZIP=$PATCH_DIR STAGE=$STAGE BACKUP=$BACKUP LOG=$LOGDIR"
+  # Erwartet: alle gefuellt.
+
+  ----------------------------------------------------------------------------
+  0.3 Ist JDK_HOME ein Link?
+  ----------------------------------------------------------------------------
+  ls -ld $JDK_HOME
+  # "lrwx... jdk-21 -> jdk-21.0.12.1" = Link     -> in Ordnung
+  # "drwx... jdk-21"                  = Verzeichnis -> einmalig umbauen
 
   # JDK_HOME muss ein LINK sein (z.B. jdk-21 -> jdk-21.0.12.1) - nur dann
   # ist der JDK-Wechsel in Schritt 6 ein einfaches Umsetzen des Links.
   # Ist es ein echtes Verzeichnis: VOR Schritt 6 einmalig umbauen
+  # (bei gestoppter Domain, Schritt 4):
   #   mv /u01/oracle/java/jdk-21 /u01/oracle/java/jdk-21.0.<alt>
   #   ln -s /u01/oracle/java/jdk-21.0.<alt> /u01/oracle/java/jdk-21
-  # (bei gestoppter Domain, Schritt 4).
 
-  # Platz pruefen (SPB entpackt ca. 4 GB, Backup ca. Home + Domain):
+  ----------------------------------------------------------------------------
+  0.4 Platz pruefen  (SPB entpackt ca. 4 GB, Backup ca. Home + Domain)
+  ----------------------------------------------------------------------------
   df -h $STAGE $BACKUP /tmp
 
   du -sh $ORACLE_HOME $DOMAIN_HOME
 
 
 ================================================================================
-SCHRITT 1: ZIPs pruefen  (vor dem Wartungsfenster)
+SCHRITT 1: ZIPs pruefen  (als oracle, vor dem Wartungsfenster)
 ================================================================================
 
-  ls -l $PATCH_DIR/*/p*.zip           # je Patch eine ZIP, Plattform im Namen
+  ----------------------------------------------------------------------------
+  1.1 Vollstaendig und unveraendert?
+  ----------------------------------------------------------------------------
+  ls -l $PATCH_DIR/*/p*.zip
+  # je Patch eine ZIP, Plattform im Namen
 
-  cat $PATCH_DIR/patches_sha256.txt   # mit den SHA-256-Werten auf MOS vergleichen
+  cat $PATCH_DIR/patches_sha256.txt
+  # mit den SHA-256-Werten auf MOS vergleichen
 
   # "SHA-256 differs" (WARN) beim Download = Oracle hat den Patch unter
   # gleicher Nummer neu ausgeliefert - auf MOS vergleichen.
 
-  # JDK: der ZIP-Name von 35702194 aendert sich NIE - die Version steht
-  # nur IM ZIP. Pflicht: jdk-21.0.13.0.2 oder neuer (21.0.13 ohne ".0.2"
-  # ist selbst von CVE-2026-91403 betroffen):
+  ----------------------------------------------------------------------------
+  1.2 Welche JDK-Version steckt in den ZIPs?
+  ----------------------------------------------------------------------------
+  # Der ZIP-Name von 35702194 aendert sich NIE - die Version steht nur IM
+  # ZIP. Pflicht: jdk-21.0.13.0.2 oder neuer (21.0.13 ohne ".0.2" ist
+  # selbst von CVE-2026-91403 betroffen):
+
   unzip -l $PATCH_DIR/35702194/p35702194_*.zip | grep -o 'jdk-21[^_]*'
 
   unzip -l $PATCH_DIR/40186074/p40186074_*.zip | grep -o 'jdk-21[^_]*'
-  #   Die neuere der beiden nehmen (Schritt 6).
+  # Die neuere der beiden nehmen (Schritt 6.3).
 
-  # Plattform kontrollieren - keine Solaris/AIX/Windows-ZIPs:
+  ----------------------------------------------------------------------------
+  1.3 Plattform kontrollieren  (keine Solaris/AIX/Windows-ZIPs)
+  ----------------------------------------------------------------------------
   ls -1 $PATCH_DIR/*/p*.zip | grep -E 'SOLARIS|AIX|MSWIN|HPUX'
   # Erwartet: keine Ausgabe
 
@@ -255,29 +332,46 @@ SCHRITT 1: ZIPs pruefen  (vor dem Wartungsfenster)
 SCHRITT 2: Bestandsaufnahme VORHER  (als oracle, Umgebung darf noch laufen)
 ================================================================================
 
-  $ORACLE_HOME/oui/bin/viewInventory.sh 2>/dev/null | grep -i distribution \
-      | tee $LOGDIR/02_distribution.txt
+  ----------------------------------------------------------------------------
+  2.1 Distribution, OPatch, Patchstand  (Vergleichsbasis fuer nachher)
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/oui/bin/viewInventory.sh 2>/dev/null | grep -i distribution | tee $LOGDIR/02_distribution.txt
 
-  $ORACLE_HOME/OPatch/opatch version              | tee $LOGDIR/02_opatch_version.txt
+  $ORACLE_HOME/OPatch/opatch version | tee $LOGDIR/02_opatch_version.txt
 
-  $ORACLE_HOME/OPatch/opatch lspatches            | tee $LOGDIR/02_lspatches_before.txt
+  $ORACLE_HOME/OPatch/opatch lspatches | tee $LOGDIR/02_lspatches_before.txt
 
   $ORACLE_HOME/OPatch/opatch lsinventory -bugs_fixed > $LOGDIR/02_bugs_before.txt
 
-  readlink -f "$JDK_HOME"; "$JDK_HOME"/bin/java -version 2>&1 | head -1
+  ----------------------------------------------------------------------------
+  2.2 Java, glibc, Home-Typ
+  ----------------------------------------------------------------------------
+  readlink -f "$JDK_HOME"
+
+  "$JDK_HOME"/bin/java -version 2>&1 | head -1
 
   $ORACLE_HOME/oracle_common/jdk/bin/java -version 2>&1 | head -1
 
-  ldd --version | head -1                         # OL9: glibc 2.34
+  ldd --version | head -1
+  # OL9: glibc 2.34
 
-  ls -d $ORACLE_HOME/forms $ORACLE_HOME/reports   # beide vorhanden = F&R-Home
+  ls -d $ORACLE_HOME/forms $ORACLE_HOME/reports
+  # beide vorhanden = F&R-Home
 
-  # Auswertung - fuer jede Zeile notieren "schon drin" ja/nein:
+  ----------------------------------------------------------------------------
+  2.3 Auswertung - welche Patches sind schon drin?
+  ----------------------------------------------------------------------------
+  # Fuer jede Nummer "installiert" oder "-" (nur lesend, aus der Datei von 2.1):
+
   for P in 40126042 40058371 39925694 39988381 \
            40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399 \
            39951765 38590500 39987730 39100536 \
            39842516 38874285 39600348 38827528 23335292; do
-      grep -q "^$P;" $LOGDIR/02_lspatches_before.txt && echo "$P  installiert" || echo "$P  -"
+      if grep -q "^$P;" $LOGDIR/02_lspatches_before.txt; then
+          echo "$P  installiert"
+      else
+          echo "$P  -"
+      fi
   done | tee $LOGDIR/02_auswertung.txt
   #   40126042 installiert  -> SPB Okt schon drin, Schritt 7+8 entfallen
   #   39925694 installiert  -> SPB Sep drin, wird in Schritt 8 ersetzt
@@ -290,32 +384,46 @@ SCHRITT 2: Bestandsaufnahme VORHER  (als oracle, Umgebung darf noch laufen)
   # Bei "Conflict ... will be rolled back" NICHT weitermachen -> SR /
   # Merge-Patch.
 
-  # Laufende Prozesse und Konfiguration merken (fuer den Vergleich danach):
-  ps -eo pid,args | grep -E "java|rwserver|rwengine" | grep -v grep \
-      > $LOGDIR/02_processes_before.txt
+  ----------------------------------------------------------------------------
+  2.4 Laufende Prozesse und JDK-Pfade merken  (fuer den Vergleich danach)
+  ----------------------------------------------------------------------------
+  ps -eo pid,args | grep -E "java|rwserver|rwengine" | grep -v grep > $LOGDIR/02_processes_before.txt
 
   grep -rl "jdk-21\.0\." $DOMAIN_HOME/bin $DOMAIN_HOME/nodemanager \
       $ORACLE_HOME/oui/.globalEnv.properties /u01/oracle/scripts 2>/dev/null \
       | tee $LOGDIR/02_jdk_pinned.txt
   # Erwartet: leer. Jede Datei hier enthaelt den VERSIONIERTEN JDK-Pfad statt
-  # des Links $JDK_HOME - nach dem JDK-Wechsel (Schritt 6) dort anpassen.
+  # des Links $JDK_HOME - nach dem JDK-Wechsel (Schritt 6.7) dort anpassen.
 
-  # Optional mit dem DB-Team: ungueltige Objekte der RCU-Schemas jetzt
-  # festhalten und in Schritt 13 vergleichen (nur NEUE sind Patch-Folgen):
-  #   select owner, object_type, object_name from dba_objects
-  #   where status = 'INVALID' and owner like '<PRAEFIX>\_%' escape '\'
-  #   order by 1, 2, 3;
+  ----------------------------------------------------------------------------
+  2.5 Optional mit dem DB-Team: ungueltige Objekte der RCU-Schemas VORHER
+  ----------------------------------------------------------------------------
+  # Jetzt festhalten und in Schritt 13.7 vergleichen - nur NEUE ungueltige
+  # Objekte sind Patch-Folgen. <PRAEFIX> = RCU-Praefix der Domain.
+
+  # --- in SQL*Plus eingeben (als DBA, Repository-DB) ---
+
+      select owner, object_type, object_name from dba_objects where status = 'INVALID' and owner like '<PRAEFIX>\_%' escape '\' order by 1, 2, 3;
+
+  # --- Ende SQL*Plus ---
 
 
 ================================================================================
 SCHRITT 3: Patches entpacken  (als oracle, Umgebung darf noch laufen)
 ================================================================================
 
+  # Jeder Patch in ein eigenes Verzeichnis unter $STAGE. JDK (35702194,
+  # 40186074) und OPatch (28186730) werden NICHT hier entpackt - sie haben
+  # eigene Schritte (6 und 7).
+
   cd $STAGE
 
   for Z in $PATCH_DIR/*/p*.zip; do
-      case "$Z" in */35702194/*|*/40186074/*|*/28186730/*) continue ;; esac   # JDK/OPatch: eigene Schritte
-      echo "== $Z"; unzip -q -o "$Z" -d $STAGE
+      case "$Z" in
+          */35702194/*|*/40186074/*|*/28186730/*) continue ;;
+      esac
+      echo "== $Z"
+      unzip -q -o "$Z" -d $STAGE
   done
 
   ls -1 $STAGE
@@ -325,51 +433,92 @@ SCHRITT 3: Patches entpacken  (als oracle, Umgebung darf noch laufen)
 
 
 ================================================================================
-SCHRITT 4: Alles stoppen  (als root bzw. oracle)
+SCHRITT 4: Alles stoppen  (als root bzw. oracle, Beginn Wartungsfenster)
 ================================================================================
 
+  ----------------------------------------------------------------------------
+  4.1 Stoppen
+  ----------------------------------------------------------------------------
   # Mit Autostart (Autostart_linux_middleware.txt) - als root:
+
   systemctl stop reportrpgpi
 
   # Ohne Autostart - als oracle:
   #   /u01/oracle/scripts/stop_all.sh   bzw.  $ORACLE_HOME/stop_wls_all.sh
 
-  # Kontrolle - es darf NICHTS mehr laufen (Reports-Server, Engines,
-  # Managed Server, AdminServer, Node Manager, sonstige Java-Prozesse auf
-  # dem JDK):
-  # Variablen pruefen - nach "systemctl" als root / in einem neuen Fenster
-  # sind sie leer: dann zuerst als oracle  . <BASIS>/patch_env.sh
-  # (SCHRITT 0, setzt auch JDK_HOME). Leere Variable = leeres "|" im
-  # grep-Muster = es passt auf JEDEN Prozess, readlink meldet "missing operand".
-  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME"   # alle drei gefuellt?
+  # Autostart waehrend der Arbeit nicht versehentlich ausloesen (Reboot) -
+  # optional, als root (in Schritt 13.2 wieder "enable"):
+  #   systemctl disable reportrpgpi
 
-  ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME|$(readlink -f "$JDK_HOME")|$JDK_HOME" | grep -v grep
-  # Erwartet: leer. Reste mit "kill <pid>" beenden (zuletzt "kill -9").
+  ----------------------------------------------------------------------------
+  4.2 Variablen pruefen  (als oracle)
+  ----------------------------------------------------------------------------
+  # Nach "systemctl" als root / in einem neuen Fenster sind die Variablen
+  # leer: dann zuerst als oracle SCHRITT 0 (patch_env.sh, setzt auch
+  # JDK_HOME). Leere Variable = leeres "|" im grep-Muster = es passt auf
+  # JEDEN Prozess, readlink meldet "missing operand".
 
-  # Grund: OPatch linkt in Schritt 10-12 Binaries neu, der JDK-Wechsel in
-  # Schritt 6 darf keine laufende JVM unter sich haben.
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME JDK=$JDK_HOME"
+  # Erwartet: alle drei gefuellt. LEER -> SCHRITT 0, NICHT weiter.
 
-  # Autostart waehrend der Arbeit nicht versehentlich ausloesen (Reboot):
-  #   systemctl disable reportrpgpi    (in Schritt 13 wieder "enable")
+  ----------------------------------------------------------------------------
+  4.3 Es darf NICHTS mehr laufen
+  ----------------------------------------------------------------------------
+  # Reports-Server, Engines, Managed Server, AdminServer, Node Manager,
+  # sonstige Java-Prozesse auf dem JDK. Grund: OPatch linkt in Schritt
+  # 10-12 Binaries neu, der JDK-Wechsel in Schritt 6 darf keine laufende
+  # JVM unter sich haben.
+
+  ps -ef | grep -E "$ORACLE_HOME|$DOMAIN_HOME" | grep -v grep
+  # Erwartet: leer.
+
+  JDK_REAL=$(readlink -f "$JDK_HOME")
+
+  echo "JDK_REAL=$JDK_REAL"
+  # Erwartet z.B.: /u01/oracle/java/jdk-21.0.12.1
+
+  ps -ef | grep -E "$JDK_REAL|$JDK_HOME" | grep -v grep
+  # Erwartet: leer.
+
+  # Reste mit "kill <pid>" beenden (zuletzt "kill -9"), dann 4.3 wiederholen.
 
 
 ================================================================================
 SCHRITT 5: Backup + VM-Snapshot  (als oracle; Snapshot ueber VM-Team)
 ================================================================================
 
-  INVENTORY=$(sed -n 's/^inventory_loc=//p' $INV_PTR); echo $INVENTORY
+  # Diese drei Archive sind der einzige Rollback fuer das OPatch-Upgrade
+  # und der sicherste fuer das SPB.
 
-  tar -czpf $BACKUP/oracle_home.tgz  -C $(dirname $ORACLE_HOME) $(basename $ORACLE_HOME)
+  ----------------------------------------------------------------------------
+  5.1 Pfade ermitteln
+  ----------------------------------------------------------------------------
+  INVENTORY=$(sed -n 's/^inventory_loc=//p' $INV_PTR)
 
-  tar -czpf $BACKUP/oraInventory.tgz -C $(dirname $INVENTORY)   $(basename $INVENTORY)
+  OH_PARENT=$(dirname "$ORACLE_HOME")
 
-  tar -czpf $BACKUP/domain_home.tgz  -C $(dirname $DOMAIN_HOME) $(basename $DOMAIN_HOME)
+  DH_PARENT=$(dirname "$DOMAIN_HOME")
+
+  INV_PARENT=$(dirname "$INVENTORY")
+
+  echo "Inventory=$INVENTORY  OH in $OH_PARENT  DH in $DH_PARENT"
+  # Erwartet: alle gefuellt. Inventory LEER -> $INV_PTR pruefen, NICHT weiter.
+
+  ----------------------------------------------------------------------------
+  5.2 Sichern  (einige Minuten, Home ca. 6-8 GB)
+  ----------------------------------------------------------------------------
+  tar -czpf $BACKUP/oracle_home.tgz -C "$OH_PARENT" "$(basename "$ORACLE_HOME")"
+
+  tar -czpf $BACKUP/oraInventory.tgz -C "$INV_PARENT" "$(basename "$INVENTORY")"
+
+  tar -czpf $BACKUP/domain_home.tgz -C "$DH_PARENT" "$(basename "$DOMAIN_HOME")"
 
   ls -lh $BACKUP
+  # Erwartet: oracle_home.tgz, oraInventory.tgz, domain_home.tgz
 
-  # Dauer: einige Minuten (Home ca. 6-8 GB). Diese drei Archive sind der
-  # einzige Rollback fuer das OPatch-Upgrade und der sicherste fuer das SPB.
-
+  ----------------------------------------------------------------------------
+  5.3 VM-Snapshot
+  ----------------------------------------------------------------------------
   # JETZT VM-Snapshot anlegen - alles steht, der Snapshot ist konsistent.
   # (Ersetzt das tar-Backup nicht.) Erst weiter, wenn der Snapshot da ist.
 
@@ -390,34 +539,42 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   ----------------------------------------------------------------------------
   "$JDK_HOME"/bin/java -version 2>&1 | head -1
   # Zeigt es schon "21.0.13.0.2" (oder neuer): SCHRITT 6 ueberspringen.
-
   # Ziel ist der Alert-Build 21.0.13.0.2 (CPU426), NICHT 21.0.13.
 
   ----------------------------------------------------------------------------
   6.2 Ausgangslage merken  (setzt drei Variablen - nichts eintippen)
   ----------------------------------------------------------------------------
-  echo "JDK_HOME=$JDK_HOME"            # LEER? -> zuerst SCHRITT 0 (patch_env.sh)
+  echo "JDK_HOME=$JDK_HOME"
+  # LEER? -> zuerst SCHRITT 0 (patch_env.sh)
 
-  JDK_BASE=$(dirname "$JDK_HOME")       # Ordner, in dem die JDKs liegen
+  JDK_BASE=$(dirname "$JDK_HOME")
+  # Ordner, in dem die JDKs liegen
 
-  OLDJDK=$(readlink -f "$JDK_HOME")     # das jetzige, echte JDK-Verzeichnis
+  OLDJDK=$(readlink -f "$JDK_HOME")
+  # das jetzige, echte JDK-Verzeichnis
 
-  echo "$OLDJDK" > $LOGDIR/06_oldjdk.txt   # fuer das Zuruecksetzen (6.8)
+  echo "$OLDJDK" > $LOGDIR/06_oldjdk.txt
+  # fuer das Zuruecksetzen (6.8)
 
-  ls -ld "$JDK_HOME"; echo "Ordner: $JDK_BASE   altes JDK: $OLDJDK"
+  ls -ld "$JDK_HOME"
+
+  echo "Ordner: $JDK_BASE   altes JDK: $OLDJDK"
   # Erwartet z.B.:
   #   lrwxrwxrwx ... /u01/oracle/java/jdk-21 -> jdk-21.0.12.1
   #   Ordner: /u01/oracle/java   altes JDK: /u01/oracle/java/jdk-21.0.12.1
-  # Steht am Anfang KEIN "l" (kein Link): STOP - zuerst SCHRITT 0 Hinweis
+  # Steht am Anfang KEIN "l" (kein Link): STOP - zuerst SCHRITT 0.3
   # "JDK_HOME muss ein LINK sein" umsetzen.
 
   # Schreibrecht im Ordner? (sonst als dessen Besitzer weiterarbeiten)
+
   touch "$JDK_BASE/.test" && rm "$JDK_BASE/.test" && echo "Schreibrecht OK"
+  # Erwartet: Schreibrecht OK
 
   ----------------------------------------------------------------------------
-  6.3 Welches ZIP?  (eines von beiden - das mit 21.0.13.0.2, siehe Schritt 1)
+  6.3 Welches ZIP?  (eines von beiden - das mit 21.0.13.0.2, siehe Schritt 1.2)
   ----------------------------------------------------------------------------
-  ZIP=$(ls $PATCH_DIR/35702194/p35702194_*.zip)        # Normalfall
+  ZIP=$(ls $PATCH_DIR/35702194/p35702194_*.zip)
+  # Normalfall
 
   # nur falls 35702194 eine aeltere Version enthielt:
   #   ZIP=$(ls $PATCH_DIR/40186074/p40186074_*.zip)
@@ -432,11 +589,17 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
 
   TGZ=$(ls $STAGE/jdk-21*_linux-x64_bin.tar.gz)
 
+  echo "Archiv: $TGZ"
+  # Erwartet: genau eine Datei
+
   NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
 
-  echo "neues JDK: $NEWJDK"             # z.B. /u01/oracle/java/jdk-21.0.13.0.2
+  echo "neues JDK: $NEWJDK   altes JDK: $OLDJDK"
+  # Erwartet z.B.: neues JDK: /u01/oracle/java/jdk-21.0.13.0.2
+  # Beide GLEICH -> STOP: diese Version ist schon aktiv (6.1).
 
-  [ "$NEWJDK" = "$OLDJDK" ] && echo "STOP: gleiche Version schon aktiv (6.1)"
+  echo "$NEWJDK" > $LOGDIR/06_newjdk.txt
+  # merken - auch ein neues Terminal findet den Pfad wieder
 
   tar -xzf "$TGZ" -C "$JDK_BASE"
 
@@ -456,44 +619,58 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
   6.6 Eigene Einstellungen des alten JDK?  (nur ansehen, meist nichts zu tun)
   ----------------------------------------------------------------------------
   # a) java.security - Unterschiede alt / neu:
+
   diff "$OLDJDK"/conf/security/java.security "$NEWJDK"/conf/security/java.security
-  #    Normal: nur Oracle-Aenderungen (Algorithmen-Listen, Kommentare).
-  #    Eine Zeile, die der Kunde selbst geaendert hat (z.B.
-  #    jdk.tls.disabledAlgorithms), im neuen JDK genauso eintragen.
+  # Normal: nur Oracle-Aenderungen (Algorithmen-Listen, Kommentare).
+  # Eine Zeile, die der Kunde selbst geaendert hat (z.B.
+  # jdk.tls.disabledAlgorithms), im neuen JDK genauso eintragen.
 
   # b) eigene Zertifikate (eigene CA, LDAP-/DB-SSL) - nur im alten JDK?
-  diff <("$OLDJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort) \
-       <("$NEWJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort)
-  #    Keine Ausgabe oder nur Zeilen mit ">": nichts zu tun.
-  #    Zeilen mit "<" = nur im alten JDK. Ist es ein EIGENES Zertifikat
-  #    (Kunden-CA), uebernehmen - <alias> = Name aus der Zeile:
-  #      "$OLDJDK"/bin/keytool -exportcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt
-  #      "$NEWJDK"/bin/keytool -importcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt -noprompt
-  #    Von Oracle entfernte Wurzeln (z.B. emSign) NICHT zurueckholen.
+  #    Erst die beiden Listen der Aliase in Dateien schreiben, dann vergleichen:
+
+  "$OLDJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry > $LOGDIR/06_cacerts_alt.txt
+
+  "$NEWJDK"/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry > $LOGDIR/06_cacerts_neu.txt
+
+  cut -d, -f1 $LOGDIR/06_cacerts_alt.txt | sort > $LOGDIR/06_aliase_alt.txt
+
+  cut -d, -f1 $LOGDIR/06_cacerts_neu.txt | sort > $LOGDIR/06_aliase_neu.txt
+
+  diff $LOGDIR/06_aliase_alt.txt $LOGDIR/06_aliase_neu.txt
+  # Keine Ausgabe oder nur Zeilen mit ">": nichts zu tun.
+  # Zeilen mit "<" = nur im alten JDK. Ist es ein EIGENES Zertifikat
+  # (Kunden-CA), uebernehmen - <alias> = Name aus der Zeile:
+  #   "$OLDJDK"/bin/keytool -exportcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt
+  #   "$NEWJDK"/bin/keytool -importcert -cacerts -storepass changeit -alias <alias> -file /tmp/<alias>.crt -noprompt
+  # Von Oracle entfernte Wurzeln (z.B. emSign) NICHT zurueckholen.
 
   ----------------------------------------------------------------------------
   6.7 Umschalten  (der eigentliche Wechsel - ein Befehl)
   ----------------------------------------------------------------------------
   ln -sfn "$NEWJDK" "$JDK_HOME"
 
-  ls -ld "$JDK_HOME"; "$JDK_HOME"/bin/java -version 2>&1 | head -1
+  ls -ld "$JDK_HOME"
   # Erwartet: jdk-21 -> /u01/oracle/java/jdk-21.0.13.0.2
-  #           java version "21.0.13.0.2" ...
+
+  "$JDK_HOME"/bin/java -version 2>&1 | head -1
+  # Erwartet: java version "21.0.13.0.2" ...
 
   # OPatch und die Server muessen ueber den LINK gehen (MOS KB175049):
+
   grep JAVA_HOME $ORACLE_HOME/oui/.globalEnv.properties
   # Erwartet: JAVA_HOME=<$JDK_HOME, der Link - KEINE Versionsnummer>
 
-  # Dateien mit fester Versionsnummer aus Schritt 2 (02_jdk_pinned.txt)
+  # Dateien mit fester Versionsnummer aus Schritt 2.4 (02_jdk_pinned.txt)
   # auf den Link umstellen - je Datei:
-  #   cp -p <datei> <datei>.bak; sed -i "s|$OLDJDK|$JDK_HOME|g" <datei>
+  #   cp -p <datei> <datei>.bak
+  #   sed -i "s|$OLDJDK|$JDK_HOME|g" <datei>
 
   ----------------------------------------------------------------------------
   6.8 Zurueck, falls etwas nicht startet
   ----------------------------------------------------------------------------
+  # Funktioniert auch in einem neuen Terminal - der Pfad steht in der Datei
+  # aus 6.2; nach SCHRITT 0 ist $LOGDIR gesetzt:
   #   ln -sfn "$(cat $LOGDIR/06_oldjdk.txt)" "$JDK_HOME"
-  #   (funktioniert auch in einem neuen Terminal - der Pfad steht in der
-  #   Datei aus 6.2; nach SCHRITT 0 ist $LOGDIR gesetzt)
   # Das alte JDK erst nach dem naechsten Patchzyklus loeschen.
 
 
@@ -501,29 +678,56 @@ SCHRITT 6: JDK 21.0.13.0.2 unter $JDK_HOME  (als Besitzer von /u01/oracle/java)
 SCHRITT 7: OPatch 13.9.4.2.25  (als oracle)
 ================================================================================
 
+  ----------------------------------------------------------------------------
+  7.1 Brauche ich den Schritt?
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch version
   # Zeigt 13.9.4.2.25 oder hoeher -> Schritt entfaellt.
 
-  # Patch 23335292 vorher zurueckrollen, falls vorhanden (OPatch-Readme):
-  $ORACLE_HOME/OPatch/opatch lspatches | grep 23335292 && \
-      $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -silent -invPtrLoc $INV_PTR && sleep 30
+  ----------------------------------------------------------------------------
+  7.2 Patch 23335292 VORHER zurueckrollen  (nur wenn vorhanden, OPatch-Readme)
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch lspatches | grep 23335292
+  # keine Ausgabe  -> weiter mit 7.3
+  # "23335292;..." -> zurueckrollen, dann 30 s warten:
+  #   $ORACLE_HOME/OPatch/opatch rollback -id 23335292 -silent -invPtrLoc $INV_PTR
+  #   sleep 30
 
-  # Sicherung (OPatch hat fuer sich selbst keinen Rollback):
+  ----------------------------------------------------------------------------
+  7.3 Sicherung  (OPatch hat fuer sich selbst keinen Rollback)
+  ----------------------------------------------------------------------------
   cp -a $ORACLE_HOME/OPatch $BACKUP/OPatch.bak
 
-  # Upgrade NUR ueber opatch_generic.jar (nie per unzip ins Home). Quelle:
-  # die Kopie im SPB (identisch mit dem Einzeldownload 28186730):
+  ----------------------------------------------------------------------------
+  7.4 Installer auspacken  (Quelle: die Kopie im SPB = Einzeldownload 28186730)
+  ----------------------------------------------------------------------------
+  # Upgrade NUR ueber opatch_generic.jar (nie per unzip ins Home).
+
   mkdir -p $STAGE/opatch
 
-  unzip -q -o $STAGE/WLS_SPB_14.1.2.0.261007/tools/opatch/generic/p28186730_*.zip -d $STAGE/opatch \
-   || unzip -q -o $PATCH_DIR/28186730/p28186730_*.zip -d $STAGE/opatch
+  ls $STAGE/WLS_SPB_14.1.2.0.261007/tools/opatch/generic/
+  # p28186730_*.zip steht da     -> Variante a)
+  # keine Datei / Fehler         -> Variante b)
 
+  # a) aus dem SPB (Normalfall):
+
+  unzip -q -o $STAGE/WLS_SPB_14.1.2.0.261007/tools/opatch/generic/p28186730_*.zip -d $STAGE/opatch
+
+  # b) NUR wenn a) keine Datei fand - aus dem Einzeldownload:
+  #   unzip -q -o $PATCH_DIR/28186730/p28186730_*.zip -d $STAGE/opatch
+
+  ls $STAGE/opatch/6880880/opatch_generic.jar
+  # Erwartet: der Pfad wird angezeigt
+
+  ----------------------------------------------------------------------------
+  7.5 Upgrade  (ca. 1 min)
+  ----------------------------------------------------------------------------
   $JDK_HOME/bin/java -Djava.io.tmpdir=$ORACLE_BASE/tmp \
       -jar $STAGE/opatch/6880880/opatch_generic.jar \
       -silent oracle_home=$ORACLE_HOME -invPtrLoc $INV_PTR
 
   $ORACLE_HOME/OPatch/opatch version
-  # Erwartet: OPatch Version: 13.9.4.2.25   (Dauer ca. 1 min)
+  # Erwartet: OPatch Version: 13.9.4.2.25
   # Die NGINST-Patches 31101362, 29137924, 29909359 sind enthalten - nie
   # einzeln nachspielen.
 
@@ -532,81 +736,109 @@ SCHRITT 7: OPatch 13.9.4.2.25  (als oracle)
 SCHRITT 8: WLS Stack Patch Bundle 40125898 per "napply"  (als oracle)
 ================================================================================
 
-  # Entfaellt, wenn 40126042 schon in lspatches steht (Schritt 2).
-  # KEIN SPBAT (nicht unterstuetzt fuer "WebLogic Server for FMW"), KEIN
-  # "opatch apply". Ein vorhandenes Sep-SPB (39925660) wird NICHT vorher
-  # zurueckgerollt - napply ersetzt die Teile selbst (Superset).
+  KEIN SPBAT (nicht unterstuetzt fuer "WebLogic Server for FMW"), KEIN
+  "opatch apply". Ein vorhandenes Sep-SPB (39925660) wird NICHT vorher
+  zurueckgerollt - napply ersetzt die Teile selbst (Superset).
+
+  ----------------------------------------------------------------------------
+  8.1 Brauche ich den Schritt?
+  ----------------------------------------------------------------------------
+  grep 40126042 $LOGDIR/02_auswertung.txt
+  # "40126042  installiert" -> Schritt entfaellt, weiter mit SCHRITT 9
+  # "40126042  -"           -> 8.2
+
+  ----------------------------------------------------------------------------
+  8.2 Trockenlauf  (aendert nichts)
+  ----------------------------------------------------------------------------
+  # JAVA_HOME und ORACLE_HOME fuer napply unsetten - nur in einer
+  # Subshell ( ... ), OPatch nimmt das JDK aus .globalEnv.properties.
 
   OH=$ORACLE_HOME
 
   cd $STAGE/WLS_SPB_14.1.2.0.261007/binary_patches
 
-  # Trockenlauf (aendert nichts):
   ( unset JAVA_HOME ORACLE_HOME
     $OH/OPatch/opatch napply -report -oh $OH -phBaseFile linux64_patchlist.txt -invPtrLoc $INV_PTR
-
   ) 2>&1 | tee $LOGDIR/08_spb_report.txt
-  
+
   grep -iE "superset|conflict|fail|skip|All checks passed" $LOGDIR/08_spb_report.txt
   # Erwartet: "All checks passed". Bei Ausgangslage b) u.a.
-
   # "Patch 40058371 - Bug Superset of 39988381" (der Sep-Einzelpatch wird
   # automatisch entfernt, die PSU enthaelt den Fix). "Samples 38063775
   # skipped" = Komponente nicht im Home, normal.
   # Bei einem echten Konflikt mit einem One-off: STOP -> SR.
 
-  # Einspielen (ca. 5 min):
+  ----------------------------------------------------------------------------
+  8.3 Einspielen  (ca. 5 min)
+  ----------------------------------------------------------------------------
   ( unset JAVA_HOME ORACLE_HOME
     $OH/OPatch/opatch napply -silent -oh $OH -phBaseFile linux64_patchlist.txt -invPtrLoc $INV_PTR
-
   ) 2>&1 | tee $LOGDIR/08_spb_apply.txt
+
   cd $STAGE
 
   tail -5 $LOGDIR/08_spb_apply.txt
 
+  ----------------------------------------------------------------------------
+  8.4 Pruefen
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | grep -E "40126042|40058371"
   # Erwartet: 40126042 (WLS STACK PATCH BUNDLE 14.1.2.0.261007) und
   #           40058371 (WLS PATCH SET UPDATE 14.1.2.0.260922)
 
   $ORACLE_HOME/OPatch/opatch lsinventory -bugs_fixed | grep 39924025
   # Erwartet: eine Zeile mit 40058371
+
   # Post-Install laut SPB: MOS KB694158 lesen (nichts zu tun auf dem
   # Testsystem).
 
-  # Rollback des SPB (nur komplett):
+  ----------------------------------------------------------------------------
+  8.5 Zurueck  (nur komplett - nicht einzelne SPB-Patches)
+  ----------------------------------------------------------------------------
   #   cd $STAGE/WLS_SPB_14.1.2.0.261007/binary_patches
-  #   opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
+  #   $ORACLE_HOME/OPatch/opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 
 
 ================================================================================
 SCHRITT 9: FMW-Infrastruktur-Bundles  (als oracle)
 ================================================================================
 
-  # Nicht im SPB enthalten; laut KA1182 Pflicht, sobald das WLS-SPB
-  # eingespielt wird. ADF zwingend NACH dem SPB (gemeinsame GraalVM-
-  # Bibliotheken mit WLS-PSU und Third-Party-Bundle, MOS PNEWS2138 - sonst
-  # startet EM nicht). Schon installierte werden uebersprungen.
-  # Dauer: ADF ca. 2 min, die anderen je ca. 4 min.
+  Nicht im SPB enthalten; laut KA1182 Pflicht, sobald das WLS-SPB
+  eingespielt wird. ADF zwingend NACH dem SPB (gemeinsame GraalVM-
+  Bibliotheken mit WLS-PSU und Third-Party-Bundle, MOS PNEWS2138 - sonst
+  startet EM nicht). Schon installierte werden uebersprungen.
+  Dauer: ADF ca. 2 min, die anderen je ca. 4 min.
 
+  ----------------------------------------------------------------------------
+  9.1 Die acht Bundles  (je Patch: schon da?, Prereq, Frage j/n, apply)
+  ----------------------------------------------------------------------------
   for P in 40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399; do
       echo "===== $P =====" | tee -a $LOGDIR/09_infra.txt
       if $ORACLE_HOME/OPatch/opatch lspatches | grep -q "^$P;"; then
-          echo "$P schon installiert - weiter" | tee -a $LOGDIR/09_infra.txt; continue
+          echo "$P schon installiert - weiter" | tee -a $LOGDIR/09_infra.txt
+          continue
       fi
       cd $STAGE/$P || break
-      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR \
-          2>&1 | tee -a $LOGDIR/09_infra.txt
+      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/09_infra.txt
       read -p "Prereq von $P 'passed', kein Konflikt? [j/n] " A
-      [ "$A" = j ] || { cd $STAGE; break; }
+      if [ "$A" != "j" ]; then echo "Abbruch bei $P"; break; fi
       $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/09_infra.txt
       cd $STAGE
   done
+
+  cd $STAGE
+  # Bei "Abbruch" oder fehlendem Verzeichnis: Ursache klaeren, dann die
+  # Schleife erneut starten - schon installierte Patches werden
+  # uebersprungen.
 
   # Fragt opatch "... will be rolled back ... proceed?" -> "n", STOP,
   # Merge-Patch ueber SR. "none of the components from patch are present"
   # = Komponente nicht im Home -> fuer dieses Home nicht anwendbar, kein
   # Fehler.
 
+  ----------------------------------------------------------------------------
+  9.2 Pruefen
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | grep -cE "40050062|40035984|40024749|39995927|40057999|39940047|39979746|39726399"
   # Erwartet: 8
 
@@ -615,23 +847,39 @@ SCHRITT 9: FMW-Infrastruktur-Bundles  (als oracle)
 SCHRITT 10: PERL 39951765  (als oracle)
 ================================================================================
 
-  # Komponente oracle.perlint (kommt mit der F&R-Installation), braucht den
-  # DB-Client fuer FMW >= 23.26 aus dem SPB (Schritt 8). Dauer ca. 4,5 min.
+  Komponente oracle.perlint (kommt mit der F&R-Installation), braucht den
+  DB-Client fuer FMW >= 23.26 aus dem SPB (Schritt 8). Dauer ca. 4,5 min.
+
+  ----------------------------------------------------------------------------
+  10.1 Brauche ich den Schritt?
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39951765|38590500"
+  # "39951765;..." steht da     -> fertig, weiter mit SCHRITT 11
+  # nur "38590500;..." (alt)    -> 10.2
+  # keine Zeile                 -> 10.3
 
-  # 39951765 schon da -> Schritt entfaellt.
-  # Vorgaenger 38590500 vorher entfernen (getesteter Weg):
-  $ORACLE_HOME/OPatch/opatch lspatches | grep -q "^38590500;" && \
-      $ORACLE_HOME/OPatch/opatch rollback -id 38590500 -silent -invPtrLoc $INV_PTR
+  ----------------------------------------------------------------------------
+  10.2 Vorgaenger 38590500 entfernen  (nur wenn er da ist - getesteter Weg)
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch rollback -id 38590500 -silent -invPtrLoc $INV_PTR
+  # Erwartet am Ende: "OPatch succeeded."
 
+  ----------------------------------------------------------------------------
+  10.3 PERL 39951765 einspielen
+  ----------------------------------------------------------------------------
   cd $STAGE/39951765
 
   $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
+  # Erwartet: Prereq "checkConflictAgainstOHWithDetail" passed.
+  # Steht dort "failed": NICHT weiter - Ausgabe sichern, melden.
 
   $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee $LOGDIR/10_perl.txt
 
   cd $STAGE
 
+  ----------------------------------------------------------------------------
+  10.4 Kontrolle
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | grep 39951765
   # Erwartet: "PERL 5.42.2 patch for FMW 14.1.2.0.0"
 
@@ -640,27 +888,56 @@ SCHRITT 10: PERL 39951765  (als oracle)
 SCHRITT 11: OHS 39987730 und WebGate 39100536 - nur Binaries  (als oracle)
 ================================================================================
 
-  # Der OHS ist hier NICHT im Einsatz (Nginx davor, keine OHS-Instanz).
-  # Die Binaries (oracle.ohs2, oracle.oamclient.webgate.ohs) liegen aber in
-  # jedem Forms-&-Reports-Home auf der Platte und werden von
-  # Schwachstellen-Scannern gefunden -> trotzdem patchen. Ohne OHS-Instanz
-  # ist danach NICHTS zu tun (MOS KB559857: nur Haertungs-Direktiven fuer
-  # eine OHS-Instanz). Dauer je ca. 3,5 min.
+  Der OHS ist hier NICHT im Einsatz (Nginx davor, keine OHS-Instanz).
+  Die Binaries (oracle.ohs2, oracle.oamclient.webgate.ohs) liegen aber in
+  jedem Forms-&-Reports-Home auf der Platte und werden von
+  Schwachstellen-Scannern gefunden -> trotzdem patchen. Ohne OHS-Instanz
+  ist danach NICHTS zu tun (MOS KB559857: nur Haertungs-Direktiven fuer
+  eine OHS-Instanz). Dauer je ca. 3,5 min.
 
-  for P in 39987730 39100536; do
-      $ORACLE_HOME/OPatch/opatch lspatches | grep -q "^$P;" && { echo "$P schon da"; continue; }
-      cd $STAGE/$P || break
-      $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
-      $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/11_ohs.txt
-      cd $STAGE
-  done
+  ----------------------------------------------------------------------------
+  11.1 Brauche ich den Schritt?
+  ----------------------------------------------------------------------------
+  $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39987730|39100536"
+  # beide Zeilen da            -> weiter mit 11.4
+  # "39100536;..." fehlt       -> 11.3 (11.2 auslassen, wenn 39987730 da ist)
+  # "39987730;..." fehlt       -> 11.2
 
+  ----------------------------------------------------------------------------
+  11.2 OHS Bundle Patch 39987730
+  ----------------------------------------------------------------------------
+  cd $STAGE/39987730
+
+  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
+  # Erwartet: Prereq "checkConflictAgainstOHWithDetail" passed.
+
+  $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/11_ohs.txt
+
+  cd $STAGE
+
+  ----------------------------------------------------------------------------
+  11.3 WebGate Bundle Patch 39100536
+  ----------------------------------------------------------------------------
+  cd $STAGE/39100536
+
+  $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
+  # Erwartet: Prereq "checkConflictAgainstOHWithDetail" passed.
+
+  $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee -a $LOGDIR/11_ohs.txt
+
+  cd $STAGE
+
+  ----------------------------------------------------------------------------
+  11.4 Kontrolle
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | grep -E "39987730|39100536"
   # Erwartet: "OHS (NATIVE) BUNDLE PATCH 14.1.2.0.260907" und
   #           "OAM WEBGATE BUNDLE PATCH 14.1.2.0.260318"
+
   # Kontrolle, dass wirklich keine OHS-Instanz existiert:
 
-  ls $DOMAIN_HOME/config/fmwconfig/components/OHS 2>/dev/null || echo "keine OHS-Instanz"
+  ls $DOMAIN_HOME/config/fmwconfig/components/OHS
+  # Erwartet: "No such file or directory" = keine OHS-Instanz
 
 
 ================================================================================
@@ -725,31 +1002,45 @@ SCHRITT 12: Reports-QPR 39600348  (als oracle)
   # schon drin, zuerst F.1.
 
   # F.1 libzrc pruefen:
+
   nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym
-
   # "dlsym@GLIBC_2.2.5" -> ok, weiter mit F.2
-  # "dlsym@GLIBC_2.34"  -> neu bauen (braucht gcc + binutils):
+  # "dlsym@GLIBC_2.34"  -> neu bauen (braucht gcc + binutils), die
+  #                        folgenden Befehle bis F.2:
 
-  mkdir -p /tmp/libzrc && cd /tmp/libzrc
+  mkdir -p /tmp/libzrc
 
-  cp -p $ORACLE_HOME/lib/libzrc.so.0 $ORACLE_HOME/lib/libzrc.so.0.glibc_$(date +%Y%m%d_%H%M%S)
+  cd /tmp/libzrc
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp -p $ORACLE_HOME/lib/libzrc.so.0 $ORACLE_HOME/lib/libzrc.so.0.glibc_$TS
+  # Sicherung der alten Bibliothek (Rueckweg: zurueckkopieren)
 
   ar x $ORACLE_HOME/lib/libzrc.a
 
   gcc -shared -Wl,-G,-hlibzrc.so.0 -L$ORACLE_HOME/lib/stubs -o $ORACLE_HOME/lib/libzrc.so.0 *.o -ldl
 
-  nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym     # Erwartet: dlsym@GLIBC_2.2.5
+  nm -D $ORACLE_HOME/lib/libzrc.so.0 | grep -w dlsym
+  # Erwartet: dlsym@GLIBC_2.2.5
 
-  cd $STAGE && rm -rf /tmp/libzrc
+  cd $STAGE
+
+  rm -rf /tmp/libzrc
 
   # F.2 alten Forms-QPR 38874285 entfernen (nur wenn vorhanden):
-  $ORACLE_HOME/OPatch/opatch lspatches | grep "^38874285;" && \
-      $ORACLE_HOME/OPatch/opatch rollback -id 38874285 -silent -invPtrLoc $INV_PTR
+
+  $ORACLE_HOME/OPatch/opatch lspatches | grep "^38874285;"
+  # keine Ausgabe  -> weiter mit F.3
+  # "38874285;..." -> zurueckrollen:
+  #   $ORACLE_HOME/OPatch/opatch rollback -id 38874285 -silent -invPtrLoc $INV_PTR
 
   # F.3 Forms-QPR einspielen:
+
   cd $STAGE/39842516
 
   $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -invPtrLoc $INV_PTR
+  # Erwartet: Prereq "checkConflictAgainstOHWithDetail" passed.
 
   $ORACLE_HOME/OPatch/opatch apply -silent -invPtrLoc $INV_PTR 2>&1 | tee $LOGDIR/12_forms_qpr.txt
   # Erwartet: "Patch 39842516 successfully applied."
@@ -761,7 +1052,9 @@ SCHRITT 12: Reports-QPR 39600348  (als oracle)
 SCHRITT 13: Starten und pruefen  (als oracle / root)
 ================================================================================
 
-  # 13.1 Patchstand nachher
+  ----------------------------------------------------------------------------
+  13.1 Patchstand nachher  (als oracle)
+  ----------------------------------------------------------------------------
   $ORACLE_HOME/OPatch/opatch lspatches | tee $LOGDIR/13_lspatches_after.txt
 
   diff $LOGDIR/02_lspatches_before.txt $LOGDIR/13_lspatches_after.txt
@@ -770,28 +1063,40 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
   # 39600348 (39842516 nur mit Anhang 12.F). Nicht mehr: 39925694,
   # 39988381, 38590500.
 
-  # 13.2 Starten - als root:
-  systemctl enable reportrpgpi      # falls in Schritt 4 deaktiviert
+  ----------------------------------------------------------------------------
+  13.2 Starten  (als root)
+  ----------------------------------------------------------------------------
+  systemctl enable reportrpgpi
+  # nur falls in Schritt 4.1 deaktiviert
 
-  systemctl start reportrpgpi       # wartet auf RUNNING, dauert einige Minuten
+  systemctl start reportrpgpi
+  # wartet auf RUNNING, dauert einige Minuten
 
   systemctl status reportrpgpi --no-pager
-  #   ohne Autostart (als oracle): /u01/oracle/scripts/start_all.sh
 
-  # 13.3 Status (als oracle, Tools_status_logs_kochbuch.txt):
+  # Ohne Autostart (als oracle): /u01/oracle/scripts/start_all.sh
+
+  ----------------------------------------------------------------------------
+  13.3 Status  (als oracle, Tools_status_logs_kochbuch.txt)
+  ----------------------------------------------------------------------------
   /u01/oracle/tools/status.sh
 
-  /u01/oracle/tools/show_errors.sh -r     # letzte Fehler, dann live (Strg-C)
+  /u01/oracle/tools/show_errors.sh -r
+  # letzte Fehler, dann live (Strg-C)
 
-  # 13.4 Laeuft alles auf dem neuen JDK?
-  ps -eo pid,args | grep -E "weblogic.Server|NodeManager" | grep -v grep | grep -o '[^ ]*/bin/java'
-  # Erwartet: /u01/oracle/java/jdk-21/bin/java bzw. .../jdk-21.0.13.0.2/...
-
+  ----------------------------------------------------------------------------
+  13.4 Laeuft alles auf dem neuen JDK?
+  ----------------------------------------------------------------------------
+  for P in $(pgrep -f 'weblogic.Server|NodeManager'); do
+      readlink -f /proc/$P/exe
+  done | sort -u
+  # Erwartet: /u01/oracle/java/jdk-21.0.13.0.2/bin/java
   # (Reports-Engines laufen weiter auf $ORACLE_HOME/oracle_common/jdk - normal)
 
-  # 13.5 Logs auf bekannte Patch-Folgen pruefen:
-  grep -E 'BEA-149205|Unresolved Webapp Library' \
-      $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log
+  ----------------------------------------------------------------------------
+  13.5 Logs auf bekannte Patch-Folgen pruefen
+  ----------------------------------------------------------------------------
+  grep -E 'BEA-149205|Unresolved Webapp Library' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log
   # Erwartet: leer (sonst ADF/GraalVM-Mismatch -> Schritt 8/9 pruefen)
 
   grep -c 'JEP 290' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log
@@ -799,39 +1104,69 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
 
   grep -E '<Error>|<Critical>' $DOMAIN_HOME/servers/*/logs/*.log | tail -20
 
-  # 13.6 Funktionstest Reports
-  #  - Enterprise Manager: https://<host>/em  -> Anmeldung, Reports-Seite
-  #  - Server-Status (authid = <identifier> aus rwserver.conf):
-  #    (lokal auf dem Server - von aussen sperrt Nginx die Verwaltungsbefehle)
-  #    curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repServer01&statusformat=XML&authid=rep_admin/<IDENTIFIER_PASSWORD>"
-  #    Erwartet: Engines mit status="1" (bereit)
-  #  - einen echten Report als PDF UND HTML ueber rwservlet laufen lassen
-  #    (der QPR linkt rwsjni neu), dazu rwrun / rwconverter von der
-  #    Kommandozeile, showjobs
-  #  - Schriften im PDF pruefen (Font_kochbuch_de.txt Testreport)
+  ----------------------------------------------------------------------------
+  13.6 Funktionstest Reports
+  ----------------------------------------------------------------------------
+  # a) Enterprise Manager: https://<host>/em -> Anmeldung, Reports-Seite
 
-  # 13.7 Optional mit dem DB-Team: Abfrage ungueltige Objekte aus Schritt 2
-  # wiederholen - nur NEUE ungueltige Objekte sind Patch-Folgen.
+  # b) Server-Status - lokal auf dem Server (von aussen sperrt Nginx die
+  #    Verwaltungsbefehle). authid = <identifier> aus rwserver.conf.
+  #    Per POST - ein authid=... in der URL steht sonst im Klartext im
+  #    access.log von WLS_REPORTS.
 
-  # 13.8 Betriebssystem: ca-certificates (eMudhra-Vorfall) - als root:
+  echo "REPORTS_SERVER_NAME=$REPORTS_SERVER_NAME"
+  # Erwartet: repServer01. LEER -> . /u01/oracle/tools/set_script_env.sh
+  # (patch_install.ini) oder  export REPORTS_SERVER_NAME=repServer01
+
+  RW_URL=http://localhost:9002/reports/rwservlet
+
+  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
+
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo | head -20
+  # Erwartet: Engines mit status="1" (bereit)
+  # code="56071" = Benutzer nicht berechtigt, code="50171" = Kennwort falsch
+
+  unset APW
+
+  # c) einen echten Report als PDF UND HTML ueber rwservlet laufen lassen
+  #    (der QPR linkt rwsjni neu) - ebenfalls per POST, userid im Body
+  #    (Muster: Reports_Absicherung_kochbuch_de.txt 11.3); dazu rwrun /
+  #    rwconverter von der Kommandozeile, showjobs
+
+  # d) Schriften im PDF pruefen (Font_kochbuch_de.txt Testreport)
+
+  ----------------------------------------------------------------------------
+  13.7 Optional mit dem DB-Team: ungueltige Objekte NACHHER
+  ----------------------------------------------------------------------------
+  # Abfrage aus Schritt 2.5 wiederholen - nur NEUE ungueltige Objekte sind
+  # Patch-Folgen.
+
+  ----------------------------------------------------------------------------
+  13.8 Betriebssystem: ca-certificates (eMudhra-Vorfall)  (als root)
+  ----------------------------------------------------------------------------
   dnf updateinfo list --available ca-certificates
 
-  dnf update -y ca-certificates          # falls angeboten; kein Neustart noetig
+  dnf update -y ca-certificates
+  # falls angeboten; kein Neustart noetig
 
-  # und Reports_security.txt SCHRITT 12 (emSign-Pruefung) ausfuehren.
+  # Danach Reports_security.txt SCHRITT 12 (emSign-Pruefung) ausfuehren.
 
 
 ================================================================================
-SCHRITT 14: Aufraeumen und dokumentieren
+SCHRITT 14: Aufraeumen und dokumentieren  (als oracle)
 ================================================================================
 
   # Erst nach erfolgreichem Test (Schritt 13) - und nach Ruecksprache, wie
-  # lange das Backup gehalten werden soll:
+  # lange das Backup gehalten werden soll.
 
-  echo $STAGE
+  echo "STAGE=$STAGE"
+  # Erwartet: /u01/oracle/install/cpu_okt2026/stage. LEER -> SCHRITT 0,
+  # NICHT weiter.
 
-  rm -rf $STAGE/WLS_SPB_14.1.2.0.261007 $STAGE/4* $STAGE/3* $STAGE/opatch \
-         $STAGE/jdk-21*_linux-x64_bin.tar.gz
+  rm -rf "${STAGE:?}"/WLS_SPB_14.1.2.0.261007 "${STAGE:?}"/4* "${STAGE:?}"/3* "${STAGE:?}"/opatch \
+         "${STAGE:?}"/jdk-21*_linux-x64_bin.tar.gz
 
   # $LOGDIR (Ausgaben dieses Laufs) aufheben = Patch-Nachweis.
   # VM-Snapshot nach einigen Tagen Betrieb loeschen (Snapshots wachsen).
@@ -844,25 +1179,52 @@ SCHRITT 14: Aufraeumen und dokumentieren
   # Dokumentation: Datum, Ausgabe 13_lspatches_after.txt, java -version,
   # Testergebnis -> Patchprotokoll des Kunden.
 
-================================================================================
-SCHRITT 15: Maschine neu starten
-================================================================================
-reboot
 
 ================================================================================
-ROLLBACK
+SCHRITT 15: Maschine neu starten  (als root)
+================================================================================
+
+  reboot
+
+
+================================================================================
+ROLLBACK  (nur im Notfall, Home gestoppt - SCHRITT 4)
 ================================================================================
 
   Was                              Wie
-  Alles / OPatch-Probleme          stoppen, oracle_home.tgz, oraInventory.tgz,
-                                   domain_home.tgz aus Schritt 5 zurueck,
-                                   JDK-Link zurueck - oder VM-Snapshot
-  Ein Bundle (Schritt 9-12)        opatch rollback -id <nr> -silent
-                                   (umgekehrte Reihenfolge)
-  SPB                              opatch nrollback -oh $ORACLE_HOME
-                                   -idFile rollback_patchlist.txt (in
-                                   binary_patches/, nur komplett)
+  -------------------------------  ---------------------------------------------
+  Alles / OPatch-Probleme          A) unten - oder den VM-Snapshot (Schritt 5.3)
+  Ein Bundle (Schritt 9-12)        B) unten, umgekehrte Reihenfolge
+  SPB                              C) unten (nur komplett)
   JDK                              ln -sfn "$(cat $LOGDIR/06_oldjdk.txt)" "$JDK_HOME"
+
+  ----------------------------------------------------------------------------
+  A) Vollstaendig aus der Sicherung  (Schritt 5)
+  ----------------------------------------------------------------------------
+  echo "OH=$ORACLE_HOME BACKUP=$BACKUP"
+  # Beide gefuellt? LEER -> zuerst SCHRITT 0 - NICHT weiter.
+
+  ls -lh $BACKUP/oracle_home.tgz
+
+  mv "${ORACLE_HOME:?}" "${ORACLE_HOME:?}.defekt_$(date +%Y%m%d_%H%M%S)"
+  # das kaputte Home zur Seite (nicht loeschen - Analyse / Platz spaeter)
+
+  tar -xzpf $BACKUP/oracle_home.tgz -C "$(dirname "$ORACLE_HOME")"
+
+  # Inventory und DOMAIN_HOME ebenso: erst zur Seite schieben (mv ...
+  # .defekt_<zeit>), dann oraInventory.tgz / domain_home.tgz aus $BACKUP
+  # auspacken (Pfade aus 5.1). JDK-Link zurueck (Tabelle oben).
+
+  ----------------------------------------------------------------------------
+  B) Ein Bundle  (Schritt 9-12)
+  ----------------------------------------------------------------------------
+  #   $ORACLE_HOME/OPatch/opatch rollback -id <nr> -silent -invPtrLoc $INV_PTR
+
+  ----------------------------------------------------------------------------
+  C) SPB komplett
+  ----------------------------------------------------------------------------
+  #   cd $STAGE/WLS_SPB_14.1.2.0.261007/binary_patches
+  #   $ORACLE_HOME/OPatch/opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 
 
 ================================================================================
@@ -877,15 +1239,15 @@ BEKANNTE PROBLEME
   Loesung: Anhang 12.F, F.1 (libzrc neu bauen), dann Forms-QPR erneut.
 
   Problem: WebLogic startet extrem langsam nach dem JDK-Wechsel
-  Loesung: SecureRandom-Fix im NEUEN JDK fehlt - Schritt 6 a).
+  Loesung: SecureRandom-Fix im NEUEN JDK fehlt - Schritt 6.5.
 
   Problem: SSL-Fehler zu LDAP/DB/Mail nach dem JDK-Wechsel
            ("PKIX path building failed")
-  Loesung: eigenes Zertifikat fehlt im neuen cacerts - Schritt 6 c).
+  Loesung: eigenes Zertifikat fehlt im neuen cacerts - Schritt 6.6 b).
 
   Problem: Domain startet noch mit dem alten JDK
-  Loesung: versionierter JDK-Pfad in einer Domain-Datei - Schritt 2
-           (02_jdk_pinned.txt) / Schritt 6, auf $JDK_HOME umstellen.
+  Loesung: versionierter JDK-Pfad in einer Domain-Datei - Schritt 2.4
+           (02_jdk_pinned.txt) / Schritt 6.7, auf $JDK_HOME umstellen.
 
   Problem: EM startet nicht, "BEA-149205" / "Unresolved Webapp Library
            ... graal-bundle"
@@ -901,6 +1263,14 @@ BEKANNTE PROBLEME
   Problem: OPatch nimmt das falsche JDK / Inventar-Fehler
   Loesung: JAVA_HOME in $ORACLE_HOME/oui/.globalEnv.properties muss auf
            $JDK_HOME zeigen (KB175049).
+
+  Problem: ps-Pruefung in 4.3 zeigt ALLE Prozesse
+  Ursache: eine Variable ist leer (neues Terminal ohne patch_env.sh)
+  Loesung: SCHRITT 0, dann die Pruefung wiederholen
+
+  Problem: Kennwort im access.log von WLS_REPORTS
+  Ursache: rwservlet-Aufruf per GET mit authid= / userid= in der URL
+  Loesung: per POST aufrufen (curl -d / --data-urlencode, 13.6)
 
   MOS: KA1182, CPU426, KB694158, KB559857, KB175049, KB159467, KB873815,
        KB924687, PNEWS2138.
