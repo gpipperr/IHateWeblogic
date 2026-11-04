@@ -184,7 +184,7 @@ SCHRITT 3: FMW-Infrastruktur patchen  (als oracle)
   # monatlich (CPU im Quartal, CSPU in den Monaten dazwischen, Alerts).
   # Aktueller Stand und Historie: IHateWeblogic/09-Install/docs/
   # 00-patch-references.md, Ablauf mit Laufzeiten: 70-Customer-Projects/
-  # Forms14_reports14_patch_analyse_10_2026/.
+  # FormsReports14_patch_cpu_2026-10/.
   #
   # Patch-Modell 14.1.2 (Distribution "WebLogic Server for FMW"):
   #   - OPatch-Upgrade (steckt im SPB)

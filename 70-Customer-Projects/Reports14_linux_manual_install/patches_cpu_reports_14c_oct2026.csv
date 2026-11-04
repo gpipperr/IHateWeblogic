@@ -8,8 +8,8 @@
 # Source: README.md download checklist, FMW_Kochbuch_de.txt step 3, Reports_kochbuch_de.txt
 # step 2, 09-Install/download/patches_fmw.csv (state 2026-10-30); steps = Patch_Kochbuch_CPU_Okt2026_de.txt
 # Download in one run into $PATCH_DIR/<nr>/ (Patch_Kochbuch_CPU_Okt2026_de.txt VORAUSSETZUNGEN V.3):
-#   ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all            # plan
-#   ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all --apply
+#   ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all            # plan
+#   ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all --apply
 #   (--all = also the optional rows - recommended here, rather one patch too many)
 # Columns : patch;platform;file_regexp;required;step;description;dir;sha256
 #   platform    226P = Linux x86-64, 2000P = Generic - alternatives with "|" tried in order

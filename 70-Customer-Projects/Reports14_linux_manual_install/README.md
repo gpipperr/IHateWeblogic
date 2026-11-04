@@ -94,7 +94,7 @@ und deutschen Kommentaren.
     per `napply`, acht Infrastruktur-Bundles, PERL, OHS/WebGate (nur
     Binaries – keine OHS-Instanz), Reports-QPR (Forms-QPR nur optional
     für einen Scanner, Anhang 12.F mit `libzrc`-Prüfung), Start und Test, Rollback. Download aller Patches in
-    einem Lauf: [patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) mit
+    einem Lauf: [patches_cpu_reports_14c_oct2026.csv](patches_cpu_reports_14c_oct2026.csv) mit
     [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
     (`--all`).
 
@@ -177,19 +177,19 @@ Optional für den MOS-Download per Kommandozeile:
 Schritt 7) – oder alle MOS-Patches in einem Lauf mit
 [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
 einer CSV-Liste (Vorlage:
-[patches_cpu_oct2026.csv](patches_cpu_oct2026.csv) – kompletter Satz, mit `--all`
+[patches_cpu_reports_14c_oct2026.csv](patches_cpu_reports_14c_oct2026.csv) – kompletter Satz, mit `--all`
 auch die optionalen Zeilen: Forms-QPR für Anhang 12.F, JDK-Ersatz 40186074).
 
 **Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
 nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche
 Liste für die Windows-Builder-Umgebung (andere Plattform-ZIPs):
-[ReportBuilder_Windows_Kochbuch_de.txt](../Reports14_ReportBuilder_MS_Windows/ReportBuilder_Windows_Kochbuch_de.txt).
+[ReportBuilder_Windows_Kochbuch_de.txt](../Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt).
 
 ## Entwicklungsumgebung (Reports Builder)
 
 Der Reports Builder für diesen Server läuft auf einem eigenen Windows Server
 (Entwickler per RDP) – Analyse und Kochbuch:
-[../Reports14_ReportBuilder_MS_Windows/](../Reports14_ReportBuilder_MS_Windows/README.md).
+[../Reports14_builder_windows/](../Reports14_builder_windows/README.md).
 
 ## Patchstand
 

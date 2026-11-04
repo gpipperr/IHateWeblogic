@@ -79,7 +79,7 @@ block), `time-taken` in the Forms access log, a font test report in the
 smoke test and a daily certificate expiry check (cron).
 New 2026-10-24: all 17 patch READMEs of the **CPU October 2026** set read
 and documented in a versioned manual guide per cycle
-([`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)),
+([`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)),
 `oracle_software_version.conf` + `04-`/`05-`/`06-` switched to that set
 (incl. the eight FMW Infrastructure bundles), JDK 21.0.13.0.2 downloaded;
 applied on the test host the same day with `07-Maintenance/80-`/`81-`/`82-` (0 FAIL, smoke test OK);
@@ -231,8 +231,8 @@ CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-26.
 | Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
 | Scripts / `oracle_software_version.conf` | **CPU October 2026** – switched and applied on the test host 2026-10-24 (smoke test OK, runtimes in the 14c folder) |
 | DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
-| Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md) – analysis (facts of all 17 patch READMEs) + step-by-step guide of the CPU Oct 2026 set – the master for the scripts |
-| Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/`](70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/README.md) |
+| Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md) – analysis (facts of all 17 patch READMEs) + step-by-step guide of the CPU Oct 2026 set – the master for the scripts |
+| Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/FormsReports12_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports12_patch_cpu_2026-10/README.md) |
 
 What matters in this cycle:
 
@@ -791,11 +791,11 @@ IHateWeblogic/
     │                                   the scripts above; see README.md for an index + further
     │                                   German installation guides (one subfolder per customer/scenario)
     ├── README.md
-    ├── Forms12_reports12_patch_analyse_10_2026/
+    ├── FormsReports12_patch_cpu_2026-10/
     │   ├── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
     │   │                                     Java alert (server JDK 8, client JRE), manual
     │   └── Patch_Kochbuch_CPU_Okt2026_de.txt – German patch cookbook for the customer (12 steps)
-    ├── Forms14_reports14_patch_analyse_10_2026/   – one folder per patch cycle (history of the
+    ├── FormsReports14_patch_cpu_2026-10/   – one folder per patch cycle (history of the
     │   │                                     manual procedure; the scripts follow the current cycle)
     │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
     │   │                                     facts of every patch README
@@ -817,7 +817,7 @@ IHateWeblogic/
     │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
-    └── Reports14_Only_manuall_install/
+    └── Reports14_linux_manual_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
         ├── FMW_Kochbuch_de.txt            – WebLogic/FMW install, patch, SSL rollout to Nginx
@@ -832,7 +832,7 @@ IHateWeblogic/
         ├── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
         ├── Reports_security.txt           – Hardening of the finished environment (new install)
         ├── Patch_Kochbuch_CPU_Okt2026_de.txt – CPU Oct 2026 for an EXISTING home with unknown
-        │                                    patch level (+ patches_cpu_oct2026.csv, 18 patches)
+        │                                    patch level (+ patches_cpu_reports_14c_oct2026.csv, 18 patches)
         └── Reports_Absicherung_kochbuch_de.txt – check + complete the Reports security of an
                                              existing domain (monUser/RepRunner, LDAP, libOVD)
 ```
@@ -989,7 +989,7 @@ summarised in each README ("Review 2026-10-19").
 ### Patch cycle CPU October 2026 – remaining
 
 Applied on the test host 2026-10-24 (details, runtimes, answered open points:
-[`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md)).
+[`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 - [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable

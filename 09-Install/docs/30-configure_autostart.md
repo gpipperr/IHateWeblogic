@@ -24,7 +24,7 @@ deliberate changes:
 | Managed servers started with `nmStart` | Started with `start()` through the AdminServer (passes the admin URL / startup properties correctly); AdminServer and system components with `nmStart` |
 
 > **Simple alternative for customers who set everything up by hand:**
-> `70-Customer-Projects/Reports14_Only_manuall_install/Autostart_linux_middleware.txt`
+> `70-Customer-Projects/Reports14_linux_manual_install/Autostart_linux_middleware.txt`
 > (plain start scripts, no Node Manager control).
 
 ---

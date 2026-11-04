@@ -11,7 +11,7 @@
                  aus Autostart_linux_middleware.txt Schritt 1c
 
   Die drei Skripte liegen im Repository unter
-    70-Customer-Projects/Reports14_Only_manuall_install/tools/
+    70-Customer-Projects/Reports14_linux_manual_install/tools/
   und werden unveraendert nach /u01/oracle/tools/ kopiert. Sie benutzen
   nur Standard-Werkzeuge (bash, ss, ps, curl, find, tail, grep) und das
   mitgelieferte wlst.sh - keine weiteren Skripte, keine Kennwoerter.

@@ -4,7 +4,7 @@
 # 70-Customer-Projects/tools/bash/mos_patch_download.sh - with or without the library:
 #   mos_patch_download.sh -c patches_fmw.csv -d $PATCH_STORAGE --all [--apply]
 # Sources: KA1182 (CPU tab FMW 14.1.2), KA204 (F&R QPR), docs/00-patch-references.md,
-# 70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md.
+# 70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md.
 # Maintained per cycle (CPU/CSPU) - update this file, not the scripts. README.md here.
 # Columns : patch;platform;file_regexp;required;step;description;dir;sha256
 #   platform    MOS platform code(s), alternatives with "|" tried in order:

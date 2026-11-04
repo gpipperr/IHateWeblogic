@@ -216,7 +216,7 @@ server"). **confirmed (live)**
 
 Docs: `09-Install/docs/13-reports-detail-settings.md` (REP-50600 section),
 `09-Install/docs/00-root_set_os_parameter.md` (firewall, IPv6 per interface).
-Cookbooks: `70-Customer-Projects/Reports14_Only_manuall_install/` (OS steps 1+2,
+Cookbooks: `70-Customer-Projects/Reports14_linux_manual_install/` (OS steps 1+2,
 Reports 9.5 + known problems).
 
 ## 8. Open points

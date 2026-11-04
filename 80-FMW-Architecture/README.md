@@ -66,7 +66,7 @@ documents for the **why**:
 | `09-Install/14-` JACOB / signing, `08-SSL/ssl_local_ca.sh codesign` | [forms_jakob_webutil.md](forms_jakob_webutil.md) |
 | `12-APEX-Ords/01-` … `06-`, `03-Logs` group `ords` | [apex_architecture.md](apex_architecture.md), [ords_architecture.md](ords_architecture.md) |
 | `09-Install/07-oracle_setup_repository.sh --check`, `60-RCU-DB-19c/` | [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §9 |
-| `70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/` | [report_rwbuilder.md](report_rwbuilder.md) |
+| `70-Customer-Projects/Reports14_builder_windows/` | [report_rwbuilder.md](report_rwbuilder.md) |
 
 The installation steps link here per step: [09-Install/README.md §1](../09-Install/README.md#1-architecture--security-concept)
 and every `09-Install/docs/*.md` (reviewed 2026-10-29).

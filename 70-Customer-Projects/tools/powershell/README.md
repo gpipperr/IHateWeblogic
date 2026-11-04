@@ -110,9 +110,9 @@ stays open.
 
 ```powershell
 # getMOSPatch.jar placed here by hand (see ../README.md "Place getMOSPatch on the host")
-.\mos_patch_download.ps1 -Csv patches_cpu_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All              # plan only
-.\mos_patch_download.ps1 -Csv patches_cpu_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All -Apply       # download
-.\mos_patch_download.ps1 -Csv patches_cpu_oct2026.csv -Dir D:\install\cpu_okt2026\zip -Only 28186730,39600348 -Apply
+.\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All              # plan only
+.\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All -Apply       # download
+.\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -Only 28186730,39600348 -Apply
 .\mos_patch_download.ps1 ... -Apply -Java D:\Oracle\jdk-21\bin\java.exe -Proxy proxy.company.local:8080
 ```
 
@@ -170,7 +170,7 @@ Windows):
 - all scripts parse without errors and use only ASCII and 5.1-compatible
   syntax;
 - `mos_patch_download.ps1`:
-  - the plan for `Reports14_Only_manuall_install/patches_cpu_oct2026.csv` is identical to the bash version (18 patches);
+  - the plan for `Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv` is identical to the bash version (18 patches);
   - `-Apply -Only 28186730,39100536`: real MOS download through the runner (Java 21), CRC and SHA-256 OK, SHA-256 equal to the CSV;
   - the password was never in `ps` and never in the log;
 - `fmw_patch_env.ps1`:

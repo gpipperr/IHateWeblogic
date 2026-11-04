@@ -10,7 +10,7 @@ frontend.
 | What / why | [09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md) – patch list, KA1182 / CPU360 / CPU426, the CVE table of this cycle (not repeated here) |
 | How – by hand | [install_14c_patch_set_october_2026_manual.md](install_14c_patch_set_october_2026_manual.md) – step by step, versioned for this cycle |
 | How – automated | `09-Install/04-oracle_pre_download.sh`, `05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`, `07-Maintenance/80-patch_java_os.sh` with `09-Install/oracle_software_version.conf` – **switched to this set and applied on the test host 2026-10-24** (smoke test OK) |
-| Counterpart 12c | [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md) (customer, F&R 12.2.1.19) |
+| Counterpart 12c | [FormsReports12_patch_cpu_2026-10](../FormsReports12_patch_cpu_2026-10/README.md) (customer, F&R 12.2.1.19) |
 | State | **2026-10-24: applied on the test host** with `07-Maintenance/80-`/`81-`/`82-` – 0 FAIL, start + smoke test `15-` OK, Forms session from a Windows PC OK (runtimes: section 8). All 17 patch READMEs read (section 3a); open: points 5, 9, 10, 11 (section 7) |
 
 **Why one folder per cycle:** the library always follows the current CPU.

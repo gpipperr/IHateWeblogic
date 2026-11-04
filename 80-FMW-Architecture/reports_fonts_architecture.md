@@ -263,7 +263,7 @@ fonts live only on the customer's servers.
 - **Oracle documentation 14.1.2:** the Reports font chapters were found
   only for 11g / 12.2.1.3 ("Configuring Fonts"); 14.1.2 is unchanged
   according to Oracle's statement that Reports 14.1.2 equals 12.2.1.3
-  ([Reports14_ReportBuilder_MS_Windows/README.md](../70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/README.md)).
+  ([Reports14_builder_windows/README.md](../70-Customer-Projects/Reports14_builder_windows/README.md)).
 - A list of the fonts used per report (from the report XML) as part of the
   export / migration tooling.
 

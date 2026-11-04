@@ -8,9 +8,9 @@ work via RDP, the reports are designed there and executed on the existing
 Linux Reports server. This document explains the architecture and why it
 looks like this; the step-by-step installation is the German customer
 cookbook
-[ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/ReportBuilder_Windows_Kochbuch_de.txt)
+[ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
 (background and decisions in German:
-[README.md](../70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/README.md)).
+[README.md](../70-Customer-Projects/Reports14_builder_windows/README.md)).
 
 Markers as in [README.md](README.md): **confirmed (live)** = customer
 installation 2026-10-27 (Windows Server 2025, CPU October 2026 – the
@@ -172,7 +172,7 @@ The minimal setup works only if these four things are kept identical:
 | Item | Why | Where |
 |---|---|---|
 | **Patch level** | a report saved by a newer Builder must run on the server; same CPU cycle, Windows variants of the same patch numbers | cookbook step 4, Linux cookbooks |
-| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_Only_manuall_install/Font_kochbuch_de.txt) |
+| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) |
 | **Connect aliases** | same `tnsnames.ora` entries on both sides | `DOMAIN_HOME\config\fmwconfig` vs. server `TNS_ADMIN` |
 | **Paths** | images / libraries via `REPORTS_PATH`; Windows paths in reports have no fallback on Linux (`REP-108`) – references carry the file name only (section 6) | [report_server_image_handling.md](report_server_image_handling.md) |
 
@@ -219,7 +219,7 @@ eports\img\logo.gif`)
    the DEV `rwservlet`, e.g.
    `https://<dev-server>/reports/rwservlet?report=<name>.rdf&destype=cache&desformat=pdf&<cmdkey>`
    (connect from a `cgicmd.dat` key, no password in the URL –
-   [Reports_security.txt](../70-Customer-Projects/Reports14_Only_manuall_install/Reports_security.txt)). This is the real test: server fonts / `uifont.ali`,
+   [Reports_security.txt](../70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt)). This is the real test: server fonts / `uifont.ali`,
    Linux paths, the server's patch level.
 
 Why this order: the Builder preview (Windows fonts, Windows paths) is only a
@@ -281,6 +281,6 @@ local-admin requirement for the developer accounts (section 4).
   https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
 - Patch READMEs of the CPU October 2026 Windows patches (39600348, 39951765,
   39987730, 39100536) – facts in the
-  [folder README](../70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/README.md)
+  [folder README](../70-Customer-Projects/Reports14_builder_windows/README.md)
 - Customer installation 2026-10-27 (Windows Server 2025) – cookbook
-  [ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_ReportBuilder_MS_Windows/ReportBuilder_Windows_Kochbuch_de.txt)
+  [ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)

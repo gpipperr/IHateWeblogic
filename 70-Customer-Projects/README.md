@@ -17,7 +17,7 @@ paths, "Expected" output under each command, rollback in every step.
 
 ### Oracle Reports 14.1.2 – Manual Install (German)
 
-→ [Reports14_Only_manuall_install/README.md](Reports14_Only_manuall_install/README.md)
+→ [Reports14_linux_manual_install/README.md](Reports14_linux_manual_install/README.md)
 
 A manual, step-by-step installation guide (in German) for a Reports-only
 FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
@@ -26,7 +26,7 @@ IHateWeblogic scripts.
 
 ### Oracle Reports Builder 14.1.2 on Windows – Development Environment (German)
 
-→ [Reports14_ReportBuilder_MS_Windows/README.md](Reports14_ReportBuilder_MS_Windows/README.md)
+→ [Reports14_builder_windows/README.md](Reports14_builder_windows/README.md)
 
 Same customer as the Reports-only Linux install: a minimal **Reports Builder**
 environment on a central Windows Server (developers via RDP). Analysis of the
@@ -39,7 +39,7 @@ ACL inheritance under the Oracle base).
 
 ### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
 
-→ [Forms12_reports12_patch_analyse_10_2026/README.md](Forms12_reports12_patch_analyse_10_2026/README.md)
+→ [FormsReports12_patch_cpu_2026-10/README.md](FormsReports12_patch_cpu_2026-10/README.md)
 
 Patch list for an existing Forms & Reports 12.2.1.19 home (FMW
 Infrastructure / WebLogic 12.2.1.4) from KA1182 of October 2026 plus the
@@ -47,17 +47,17 @@ Java Security Alert CVE-2026-91403 (server JDK 8 and client JRE), with the
 CVE background and the questions to clarify with the customer – applied by
 hand with the German cookbook `Patch_Kochbuch_CPU_Okt2026_de.txt` (manual run
 at the customer 2026-10-29). Download list
-[patches_cpu_oct2026.csv](Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv)
+[patches_cpu_forms_reports_12c_oct2026.csv](FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv)
 for `tools/bash/mos_patch_download.sh`.
 
 ### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
 
-→ [Forms14_reports14_patch_analyse_10_2026/README.md](Forms14_reports14_patch_analyse_10_2026/README.md)
+→ [FormsReports14_patch_cpu_2026-10/README.md](FormsReports14_patch_cpu_2026-10/README.md)
 
 The reference stack of this library (Forms & Reports 14.1.2, OL9, Nginx):
 analysis of the CPU October 2026 patch set with the facts of every patch
 README, and a manual step-by-step guide
-([install_14c_patch_set_october_2026_manual.md](Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md)).
+([install_14c_patch_set_october_2026_manual.md](FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)).
 **One folder per patch cycle** – the versioned history of the manual
 procedure, while the scripts always follow the current cycle; older folders
 are frozen. Cycle table: [09-Install/docs/00-patch-references.md](../09-Install/docs/00-patch-references.md).

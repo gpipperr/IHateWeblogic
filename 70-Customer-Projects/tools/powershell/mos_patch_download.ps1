@@ -34,7 +34,7 @@
   differs from the list, 2 = required missing / error.
 
 .PARAMETER Csv
-  Patch list, e.g. ..\..\Reports14_Only_manuall_install\patches_cpu_oct2026.csv
+  Patch list, e.g. ..\..\Reports14_linux_manual_install\patches_cpu_reports_14c_oct2026.csv
 
 .PARAMETER Dir
   Target directory, one sub-directory per patch.
@@ -67,10 +67,10 @@
   Download (default: plan only).
 
 .EXAMPLE
-  .\mos_patch_download.ps1 -Csv patches_cpu_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All
+  .\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All
 
 .EXAMPLE
-  .\mos_patch_download.ps1 -Csv patches_cpu_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All -Apply -Java D:\Oracle\jdk-21\bin\java.exe
+  .\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All -Apply -Java D:\Oracle\jdk-21\bin\java.exe
 
 .NOTES
   ExecutionPolicy: powershell.exe -ExecutionPolicy Bypass -File .\mos_patch_download.ps1 ...

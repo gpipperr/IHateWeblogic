@@ -11,7 +11,7 @@
   Grundlage  : Oracle-Doku Forms 14.1.2 Kap. 5 + Reports-Installation 12.2.1.3
                (gilt laut Oracle unveraendert fuer 14.1.2), pipperr.de
                "Oracle Reports 14c unter Windows", IHateWeblogic 70-Customer-
-               Projects/Reports14_Only_manuall_install (Linux-Server, gleicher
+               Projects/Reports14_linux_manual_install (Linux-Server, gleicher
                Kunde). Hintergrund und Entscheidung: README.md in diesem Ordner.
   Status     : LIVE BESTAETIGT 2026-10-27 beim Kunden (Windows Server 2025,
                CPU Okt 2026): alle Schritte 1-9 genau so durchgespielt und
@@ -133,7 +133,7 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen)
   14.1.2 und Windows x64 bzw. Generic verwenden.
   Tipp: Mit getMOSPatch geht der Download in einem Lauf (Plattform 233P fuer
   d) und b), Generic fuer c)) - siehe OS_Kochbuch_de.txt Schritt 7 im Ordner
-  Reports14_Only_manuall_install.
+  Reports14_linux_manual_install.
 
   Platz: ca. 10 GB fuer Oracle Home + Domain, zusaetzlich ca. 6 GB beim
   Patchen (SPB entpacken). RAM: 8 GB Basis, je gleichzeitiger
@@ -226,7 +226,7 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
 
   rem Gleicher Patchstand wie der Linux-Reports-Server (FMW_Kochbuch_de.txt
   rem Schritt 3 + Reports_kochbuch_de.txt Schritt 2 im Ordner
-  rem Reports14_Only_manuall_install). Builder und Server sollen gleich
+  rem Reports14_linux_manual_install). Builder und Server sollen gleich
   rem stehen. Vor dem Lauf in MOS KA1182 pruefen, ob sich Nummern geaendert
   rem haben (Oracle liefert monatlich).
   rem Alle Oracle-Prozesse dieses Homes beendet, Virenschutz pausiert,
@@ -411,7 +411,7 @@ SCHRITT 8: Builder fuer die Entwickler einrichten  [live 2026-10-27]
   rem     uifont.ali der Tools-Instanz:
   rem       %DOMAIN_HOME%\config\fmwconfig\components\ReportsToolsComponent\
   rem         reptools1\tools\COMMON\uifont.ali
-  rem     (Details: Reports14_Only_manuall_install\Font_kochbuch_de.txt)
+  rem     (Details: Reports14_linux_manual_install\Font_kochbuch_de.txt)
 
   rem 8.4 Verknuepfung fuer alle RDP-Benutzer:
   rem     C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle Reports Builder.lnk

@@ -9,9 +9,9 @@
   Umgebung   : Linux x86-64, Oracle Forms & Reports 12.2.1.19,
                FMW-Infrastruktur / WebLogic 12.2.1.4, Oracle JDK 8
   Grundlage  : IHateWeblogic/70-Customer-Projects/
-               Forms12_reports12_patch_analyse_10_2026/README.md (Patch-
+               FormsReports12_patch_cpu_2026-10/README.md (Patch-
                Analyse, KA1182 Stand 2026-10-22, alle Patch-READMEs gelesen
-               2026-10-23), patches_cpu_oct2026.csv (Patchliste)
+               2026-10-23), patches_cpu_forms_reports_12c_oct2026.csv (Patchliste)
                Hinweise wie "(README 3.2a)" verweisen auf diese README.md.
   MOS        : KA1182 (Patch Advisor), KA204 (Forms/Reports QPR), CPU426
                (Java Alert), KB694158, KB175049, KB159467, KB873815,
@@ -115,7 +115,7 @@ VORAUSSETZUNGEN
                                         (optional, SCHRITT 0.1)
       clone_check_fmw.sh                aus 70-Customer-Projects/tools/bash/
                                         (optional, SCHRITT 10.7)
-      patches_cpu_oct2026.csv           neben diesem Kochbuch
+      patches_cpu_forms_reports_12c_oct2026.csv           neben diesem Kochbuch
       getMOSPatch.jar                   von Hand (github.com/MarisElsins/getMOSPatch)
       patch_env.sh                      <- V.2 (Variablen fuer weitere Terminals)
       zip/                              $PATCH_DIR  <- V.3
@@ -143,7 +143,7 @@ VORAUSSETZUNGEN
 
     cd /oracle/install/cpu_okt2026
 
-    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_oct2026.csv und
+    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_forms_reports_12c_oct2026.csv und
     # getMOSPatch.jar hierher kopieren, dann:
 
     chmod +x fmw_patch_env.sh mos_patch_download.sh
@@ -201,10 +201,10 @@ VORAUSSETZUNGEN
   ----------------------------------------------
     cd /oracle/install/cpu_okt2026
 
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR
+    ./mos_patch_download.sh -c patches_cpu_forms_reports_12c_oct2026.csv -d $PATCH_DIR
     # nur Plan - zeigt, was geladen wuerde
 
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --apply
+    ./mos_patch_download.sh -c patches_cpu_forms_reports_12c_oct2026.csv -d $PATCH_DIR --apply
     # Download. MOS-Passwort wird einmal verdeckt abgefragt. Ergebnis je
     # Patch in $PATCH_DIR/<patchnr>/, Pruefsummen in
     # $PATCH_DIR/patches_sha256.txt. Exit 0 = alle Pflicht-Patches da.

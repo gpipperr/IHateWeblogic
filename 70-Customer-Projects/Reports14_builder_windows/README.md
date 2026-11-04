@@ -3,7 +3,7 @@
 Minimale Entwicklungsumgebung für den **Oracle Reports Builder 14.1.2** auf
 einem zentralen **Windows Server**, auf dem die Entwickler per **RDP**
 arbeiten. Gleicher Kunde wie die Linux-Reports-Installation in
-[`../Reports14_Only_manuall_install/`](../Reports14_Only_manuall_install/README.md):
+[`../Reports14_linux_manual_install/`](../Reports14_linux_manual_install/README.md):
 Die Berichte werden unter Windows entworfen und auf dem Linux-Reports-Server
 ausgeführt und getestet.
 
@@ -73,7 +73,7 @@ aufwendigen und fehleranfälligen Teile der Windows-Serverinstallation.
   im `REPORTS_PATH` des Builders; Fonts und `uifont.ali` **identisch** zum
   Linux-Server halten, sonst sieht die Vorschau anders aus als die
   Server-Ausgabe (siehe
-  [Font_kochbuch_de.txt](../Reports14_Only_manuall_install/Font_kochbuch_de.txt)).
+  [Font_kochbuch_de.txt](../Reports14_linux_manual_install/Font_kochbuch_de.txt)).
 - Datenbankverbindungen über eine gemeinsame `tnsnames.ora`
   (`%DOMAIN_HOME%\config\fmwconfig`, `TNS_ADMIN` aus `reports.bat`).
 - Java: Oracle JDK nur für Oracle-Produkte → lizenzfrei nach MOS Doc ID
@@ -82,8 +82,8 @@ aufwendigen und fehleranfälligen Teile der Windows-Serverinstallation.
 ## Patchstand
 
 CPU Oktober 2026 – dieselben Patches wie der Linux-Server
-([FMW_Kochbuch_de.txt](../Reports14_Only_manuall_install/FMW_Kochbuch_de.txt)
-Schritt 3, [Reports_kochbuch_de.txt](../Reports14_Only_manuall_install/Reports_kochbuch_de.txt)
+([FMW_Kochbuch_de.txt](../Reports14_linux_manual_install/FMW_Kochbuch_de.txt)
+Schritt 3, [Reports_kochbuch_de.txt](../Reports14_linux_manual_install/Reports_kochbuch_de.txt)
 Schritt 2), jeweils in der Windows-Variante (MOS-Plattform „Microsoft Windows
 x64 (64-bit)“, getMOSPatch `233P`). JDK 21.0.13.0.2 aus MOS-Patch 35702194
 (Windows). Builder und Server sollen **denselben Patchstand** haben – ein mit
@@ -93,7 +93,7 @@ einem neueren Builder gespeicherter Bericht muss auf dem Server laufen.
 
 Generic-Patches (OPatch 28186730, SPB 40125898, die acht
 Infrastruktur-Bundles) haben dieselbe README wie unter Linux – Fakten im
-[14c-README, Abschnitt 3a](../Forms14_reports14_patch_analyse_10_2026/README.md).
+[14c-README, Abschnitt 3a](../FormsReports14_patch_cpu_2026-10/README.md).
 Plattformabhängig (Windows x64):
 
 | Patch | Gelesen | Installation | Voraussetzung / Windows-Hinweise | Bugs / Anmerkungen |
@@ -113,7 +113,7 @@ Plattformabhängig (Windows x64):
 | 4 | Ablage der Berichtsquellen (Netzlaufwerk, Git?) und Weg auf den Linux-Server (Freigabe, sftp, Deployment-Skript) |
 | 5 | Virenschutz: Ausnahmen für das Oracle Home während Installation und Patchen |
 | 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). Der MOS-Titel des Reports-QPR („MERGE REQUEST … FOR BUGS 38991174 37866660 39375353“) nennt nur die Bugs des Merge-Antrags – die **Windows-README listet 31 Bugs**, identisch mit dem Inventar des Linux-Testhosts (`lsinventory -bugs_fixed`, verglichen 2026-10-26). Builder und Server haben damit denselben Reports-Stand. |
-| 7 | **Erledigt 2026-10-28:** Die MOS-Patches einzeln von Hand zu laden hat beim Termin zu lange gedauert (rund 15 Dateien, ~7 GB, je Patch Plattform wählen). Dafür gibt es jetzt [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows-Variante seit 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), dazu `collect_fmw_env.ps1` / `fmw_patch_env.ps1`; Windows-Plattform `233P`): eine CSV-Liste (Patch-Nummer, Plattform `233P` / Generic `2000P`, Datei-Regexp, Pflicht/optional) in einem Lauf mit getMOSPatch laden, `unzip -t` + SHA-256 – vorab auf einem Rechner mit MOS-Zugang, dann die Dateien als Paket zum Kunden. Die CSV für diese Download-Checkliste wird beim nächsten Termin aus dem Kochbuch erstellt (Vorlage: `Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv`). |
+| 7 | **Erledigt 2026-10-28:** Die MOS-Patches einzeln von Hand zu laden hat beim Termin zu lange gedauert (rund 15 Dateien, ~7 GB, je Patch Plattform wählen). Dafür gibt es jetzt [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows-Variante seit 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), dazu `collect_fmw_env.ps1` / `fmw_patch_env.ps1`; Windows-Plattform `233P`): eine CSV-Liste (Patch-Nummer, Plattform `233P` / Generic `2000P`, Datei-Regexp, Pflicht/optional) in einem Lauf mit getMOSPatch laden, `unzip -t` + SHA-256 – vorab auf einem Rechner mit MOS-Zugang, dann die Dateien als Paket zum Kunden. Die CSV für diese Download-Checkliste wird beim nächsten Termin aus dem Kochbuch erstellt (Vorlage: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
 | 8 | **RCU-DB im Alltag:** Die Reports-Werkzeuge nutzen die RCU-Schemas zur Laufzeit nicht (gemessen 2026-10-27 mit `strace` an `rwconverter` auf dem Linux-Testsystem: keine OPSS-/Wallet-Datei, kein AdminServer, nur die Anmeldung des Berichts) – die eigene RCU-DB auf dem Builder-Server wird nur für Domain-Änderungen und ein Versions-Upgrade gebraucht, Dienst auf „Manuell“. **Offen:** einmal mit gestopptem DB-Dienst den Builder starten und eine Vorschau erzeugen (Builder-GUI noch nicht gemessen). Details: Kochbuch Schritt 10, [report_rwbuilder.md §3.2/3.3](../../80-FMW-Architecture/report_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
 
 Status: **live bestätigt 2026-10-27** beim Kunden (Windows Server 2025, CPU

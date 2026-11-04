@@ -14,9 +14,9 @@
                Schritt 2 (Stand CPU Okt 2026, auf dem Testsystem am
                2026-10-24 eingespielt), MOS KA1182 (PDF 2026-10-22), CPU426,
                IHateWeblogic/70-Customer-Projects/
-               Forms14_reports14_patch_analyse_10_2026/
+               FormsReports14_patch_cpu_2026-10/
                install_14c_patch_set_october_2026_manual.md
-  Patchliste : patches_cpu_oct2026.csv (dieses Verzeichnis) - Download in
+  Patchliste : patches_cpu_reports_14c_oct2026.csv (dieses Verzeichnis) - Download in
                einem Lauf mit ../tools/bash/mos_patch_download.sh (VORAUSSETZUNGEN
                V.3), Variablen mit ../tools/bash/fmw_patch_env.sh (V.2)
   Wichtig    : Der Ausgangsstand dieses Homes ist NICHT bekannt (kein
@@ -72,7 +72,7 @@ VORAUSSETZUNGEN
     /u01/oracle/install/cpu_okt2026/    Arbeitsverzeichnis (= Basis, V.1)
       fmw_patch_env.sh                  aus 70-Customer-Projects/tools/
       mos_patch_download.sh             aus 70-Customer-Projects/tools/
-      patches_cpu_oct2026.csv           neben diesem Kochbuch
+      patches_cpu_reports_14c_oct2026.csv           neben diesem Kochbuch
       getMOSPatch.jar                   von Hand (github.com/MarisElsins/getMOSPatch)
       patch_env.sh                      <- V.2 (Variablen fuer weitere Terminals)
       zip/                              $PATCH_DIR  <- V.3
@@ -93,7 +93,7 @@ VORAUSSETZUNGEN
   ----------------------
     mkdir -p /u01/oracle/install/cpu_okt2026 && cd /u01/oracle/install/cpu_okt2026
 
-    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_oct2026.csv und
+    # fmw_patch_env.sh, mos_patch_download.sh, patches_cpu_reports_14c_oct2026.csv und
     # getMOSPatch.jar hierher kopieren, dann:
     chmod +x fmw_patch_env.sh mos_patch_download.sh
 
@@ -140,9 +140,9 @@ VORAUSSETZUNGEN
   ----------------------------------------------
     cd /u01/oracle/install/cpu_okt2026
 
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all            # nur Plan
+    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all            # nur Plan
 
-    ./mos_patch_download.sh -c patches_cpu_oct2026.csv -d $PATCH_DIR --all --apply    # Download
+    ./mos_patch_download.sh -c patches_cpu_reports_14c_oct2026.csv -d $PATCH_DIR --all --apply    # Download
 
     # 18 Patches, ca. 4 GB. --all laedt auch die optionalen Zeilen
     # (JDK-Ersatz 40186074, Reports-One-off 38936596) - gewollt: lieber zu

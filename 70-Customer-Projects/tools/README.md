@@ -28,9 +28,9 @@ Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
 All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
 
 Used by:
-- [Forms12_reports12_patch_analyse_10_2026](../Forms12_reports12_patch_analyse_10_2026/README.md)
-  (patch list [patches_cpu_oct2026.csv](../Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv))
-- [Forms14_reports14_patch_analyse_10_2026](../Forms14_reports14_patch_analyse_10_2026/README.md)
+- [FormsReports12_patch_cpu_2026-10](../FormsReports12_patch_cpu_2026-10/README.md)
+  (patch list [patches_cpu_forms_reports_12c_oct2026.csv](../FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv))
+- [FormsReports14_patch_cpu_2026-10](../FormsReports14_patch_cpu_2026-10/README.md)
 
 ## collect_fmw_env.sh
 
@@ -117,11 +117,11 @@ python (only for the password terminal), no IHateWeblogic library.
 # as any user with write access to the target directory (oracle is fine)
 cd /oracle/install/cpu_okt2026
 cp <repo>/70-Customer-Projects/tools/bash/mos_patch_download.sh .
-cp <repo>/70-Customer-Projects/Forms12_reports12_patch_analyse_10_2026/patches_cpu_oct2026.csv .
+cp <repo>/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv .
 # getMOSPatch.jar placed here by hand
-./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip                      # plan only
-./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip -u me@example.com --apply
-./mos_patch_download.sh -c patches_cpu_oct2026.csv -d ./zip --only 39888613,39600813 --apply
+./mos_patch_download.sh -c patches_cpu_forms_reports_12c_oct2026.csv -d ./zip                      # plan only
+./mos_patch_download.sh -c patches_cpu_forms_reports_12c_oct2026.csv -d ./zip -u me@example.com --apply
+./mos_patch_download.sh -c patches_cpu_forms_reports_12c_oct2026.csv -d ./zip --only 39888613,39600813 --apply
 
 # patch list of the library (14.1.2) on a host without the library - result in
 # the PATCH_STORAGE layout (column dir), then rsync to the target host:

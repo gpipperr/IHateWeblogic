@@ -5,7 +5,7 @@
   Diese Datei war eine fruehere Fassung (Stand 2026-03) und wird nicht mehr
   gepflegt. Die gueltige manuelle Anleitung ist:
 
-    70-Customer-Projects/Reports14_Only_manuall_install/Font_kochbuch_de.txt
+    70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt
 
   Gruende (2026-10-19): die alte Fassung kannte den Schritt AFM/PPD
   ("screen printer") nicht - ohne ihn werden Ersatzschriften (Arial ->

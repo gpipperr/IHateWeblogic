@@ -44,7 +44,7 @@ applied — see "What the Script Does" below.
 > unchanged since Aug/Sep 2026. Source: MOS KA1182 / KA204, see
 > [`docs/00-patch-references.md`](00-patch-references.md); README facts and
 > the manual procedure:
-> [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
+> [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md).
 
 ---
 
@@ -121,7 +121,7 @@ The manual procedure is versioned **per patch cycle** – one folder per cycle
 with the analysis (patch list, facts of every patch README) and a
 step-by-step guide:
 
-- **current:** [70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md)
+- **current:** [70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)
   (CPU October 2026)
 - older cycles: the folders `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`
   and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the

@@ -14,7 +14,7 @@
 > OPatch 13.9.4.2.25, SPB `40125898` (marker `40126042`), then the eight FMW
 > Infrastructure bundle patches in `INSTALL_PATCHES`. Manual procedure and the
 > facts of every patch README:
-> [`70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/`](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/README.md).
+> [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md).
 
 Background – what OPatch patches (components of the Oracle Home, the central
 inventory, the JDK in `.globalEnv.properties`) and why all processes of the
@@ -137,7 +137,7 @@ The manual procedure is versioned **per patch cycle** – one folder per cycle
 with the analysis (patch list, facts of every patch README) and a
 step-by-step guide:
 
-- **current:** [70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/Forms14_reports14_patch_analyse_10_2026/install_14c_patch_set_october_2026_manual.md)
+- **current:** [70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)
   (CPU October 2026)
 - older cycles: the folders `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`
   and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the
