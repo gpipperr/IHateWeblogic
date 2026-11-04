@@ -1,6 +1,6 @@
 ================================================================================
   Fahrplan: erstes Vorgehen beim Kunden  (Linux, Forms & Reports 12c / 14c)
-  Tools -> setdb -> patch_install.ini -> Analyse oder Installation
+  Tools-ZIP -> setdb -> patch_install.ini -> Analyse oder Installation
   (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Lib)
 ================================================================================
   Zielgruppe : wer beim Kunden die Umgebung uebernimmt, patcht oder neu
@@ -9,46 +9,51 @@
   Erstellt   : 2026-11-04, Stil nach 70-Customer-Projects/cookbook-Skill.md
   Grundlage  : IHateWeblogic/70-Customer-Projects/tools/README.md
 
-  Beim Kunden gibt es danach genau drei Dinge aus dem Kundenordner:
-    - EINE patch_install.ini   alle Werte dieser Umgebung (keine Kennwoerter)
-    - EINE patches_cpu_*.csv   die Patch-Liste des Zyklus (nur beim Patchen)
-    - die Kochbuecher           *_kochbuch_de.txt des Kundenordners
-  Alle Skripte kommen aus 70-Customer-Projects/tools/bash/ und sind fuer
-  jeden Kunden gleich.
+  Beim Kunden gibt es genau zwei Lieferungen:
+    1. das Tools-ZIP (fuer jeden Kunden gleich) - ein Link:
+       https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip
+       (+ .sha256 unter demselben Link mit ".sha256" am Ende)
+    2. die Dateien des Kundenordners (von uns per Mail / Freigabe):
+       - EINE patch_install.ini   alle Werte dieser Umgebung (keine Kennwoerter)
+       - EINE patches_cpu_*.csv   die Patch-Liste des Zyklus (nur beim Patchen)
+       - die Kochbuecher           *_kochbuch_de.txt
+  Ein git clone des Repositorys auf dem Kundenserver ist NICHT noetig.
 ================================================================================
 
 
 WAS WO LANDET
 --------------------------------------------------------------------------------
 
-    $REPO/                             Kopie von IHateWeblogic auf dem Server
-                                       (git clone oder ZIP, SCHRITT 0) - nur
-                                       Quelle, danach nicht mehr gebraucht
-    $ORACLE_BASE/tools/                $TOOLS <- SCHRITT 1 (Rechte 755)
+    /tmp/ihw_customer_tools_linux.zip  <- SCHRITT 0.2 (Download / scp)
+    $ORACLE_BASE/tools/                $TOOLS <- SCHRITT 1 (ZIP entpackt)
       status.sh show_log.sh            Betrieb (Tools_status_logs_kochbuch.txt)
       show_errors.sh show_all_logs.sh
       set_script_env.sh                laedt patch_install.ini (SCHRITT 5)
       collect_fmw_env.sh               Analyse einer vorhandenen Umgebung
+      export_forms_reports_conf.sh     Konfigurations-Export (12c -> 14c)
       fmw_patch_env.sh                 Variablen fuer die Patch-Kochbuecher
       mos_patch_download.sh            Patch-Download nach der csv
-      check_disk_space.sh ...          weitere Tools aus tools/bash
+      ihw_shell_env.sh                 setdb (SCHRITT 2)
+      ihw_tools_lib.sh                 gemeinsame Hilfsfunktionen der Tools
+      check_disk_space.sh ...          weitere Tools
+      VERSIONS.txt                     Version + sha256 jeder Datei
+      doc/                             README, dieser Fahrplan,
+                                       patch_install.ini.template
       patch_install.ini                <- SCHRITT 3 (Rechte 600)
       patches_cpu_*.csv                <- SCHRITT 3, nur beim Patchen
-    ~/.bashrc.d/ihw_env.sh             <- SCHRITT 2 setdb (aus
-                                       tools/bash/ihw_shell_env.sh)
+    $ORACLE_BASE/install/kunde/        $KUNDE_DIR <- SCHRITT 0.3 die
+                                       Lieferung des Kundenordners
+    ~/.bashrc.d/ihw_env.sh             <- SCHRITT 2 setdb
     ~/.ihw_env.conf                    <- SCHRITT 2, von setdb erkannt
                                        (editierbar, ihwenv_configure -f)
     $ORACLE_BASE/install/              <- SCHRITT 4a Ausgabe der Analyse
       fmw_collect_<host>_<zeit>/       00_summary.txt = die wichtigsten Werte
       fmw_collect_<host>_<zeit>.tar.gz zum Mitnehmen / Auswerten
 
-  Quellen im Repository:
-    70-Customer-Projects/tools/bash/*.sh        alle Skripte
-    70-Customer-Projects/<Kundenordner>/        patch_install.ini, csv,
-                                                Kochbuecher
-    70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini
-                                                Vorlage, wenn der Kunden-
-                                                ordner noch keine ini hat
+  Quellen im Repository (fuer uns):
+    70-Customer-Projects/tools/ihw_customer_tools_linux.zip
+                                     gebaut mit tools/make_customer_zip.sh
+    70-Customer-Projects/<Kundenordner>/  patch_install.ini, csv, Kochbuecher
 
 
 SO IST DIESES KOCHBUCH ZU LESEN
@@ -57,54 +62,55 @@ SO IST DIESES KOCHBUCH ZU LESEN
   - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
     darunter: "# Erwartet:" = was richtig ist.
 
-  - Platzhalter in spitzen Klammern (<Kundenordner>) werden NUR in 0.1
-    ersetzt.
-
   - Alles als Benutzer oracle, ausser es steht anders da.
 
 
 ================================================================================
-SCHRITT 0: Variablen setzen und Repository bereitstellen  (als oracle)
+SCHRITT 0: Variablen setzen, Tools-ZIP und Kundendateien bereitstellen
+           (als oracle)
 ================================================================================
 
   ----------------------------------------------------------------------------
-  0.1 Werte anpassen  (nur diese drei)
+  0.1 Werte anpassen  (nur diese zwei)
   ----------------------------------------------------------------------------
   export ORACLE_BASE=/u01/oracle
 
-  export REPO=$ORACLE_BASE/install/IHateWeblogic
-  # Hier liegt (oder landet in 0.2) die Kopie des Repositorys
-
-  export KUNDE=<Kundenordner>
-  # Ordnername unter 70-Customer-Projects, z.B. Reports14_linux_manual_install
+  export KUNDE_DIR=$ORACLE_BASE/install/kunde
+  # Hierhin kommen die Dateien des Kundenordners (0.3)
 
   ----------------------------------------------------------------------------
-  0.2 Repository auf den Server  (EINE der beiden Varianten)
+  0.2 Tools-ZIP auf den Server  (EINE der beiden Varianten)
   ----------------------------------------------------------------------------
-  # a) Server darf zu github.com:443 (git ist installiert):
+  # a) Server darf zu github.com:443:
 
-  git clone https://github.com/gpipperr/IHateWeblogic.git $REPO
+  cd /tmp
 
-  # b) Ohne Internet: auf dem Arbeitsplatz das ZIP laden
-  #    (https://github.com/gpipperr/IHateWeblogic/archive/refs/heads/main.zip),
-  #    per scp nach /tmp, dann:
+  curl -fsSLO https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip
 
-  mkdir -p $ORACLE_BASE/install
+  curl -fsSLO https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip.sha256
 
-  unzip -q /tmp/IHateWeblogic-main.zip -d $ORACLE_BASE/install
+  # b) Ohne Internet: beide Dateien (Links oben) auf dem Arbeitsplatz im
+  #    Browser laden und per scp / WinSCP nach /tmp kopieren.
 
-  mv $ORACLE_BASE/install/IHateWeblogic-main $REPO
+  cd /tmp
+
+  sha256sum -c ihw_customer_tools_linux.zip.sha256
+
+  # Erwartet: ihw_customer_tools_linux.zip: OK
+  # FAILED -> Download unvollstaendig oder veraendert: neu laden
 
   ----------------------------------------------------------------------------
-  0.3 Kontrolle
+  0.3 Dateien des Kundenordners ablegen
   ----------------------------------------------------------------------------
-  ls $REPO/70-Customer-Projects/tools/bash/status.sh
+  mkdir -p $KUNDE_DIR
 
-  # Erwartet: die Datei ist da
+  # patch_install.ini, patches_cpu_*.csv und die Kochbuecher aus unserer
+  # Lieferung nach $KUNDE_DIR kopieren (scp / WinSCP).
 
-  ls $REPO/70-Customer-Projects/$KUNDE
+  ls $KUNDE_DIR
 
-  # Erwartet: die Kochbuecher des Kunden (und ggf. patch_install.ini, csv)
+  # Erwartet: die Kochbuecher (und ggf. patch_install.ini, csv)
+  # Noch keine patch_install.ini -> Vorlage in SCHRITT 3.2
 
 
 ================================================================================
@@ -113,16 +119,25 @@ SCHRITT 1: Tools anlegen  (als oracle)
 
   export TOOLS=$ORACLE_BASE/tools
 
-  mkdir -p $TOOLS
+  ls $TOOLS 2>/dev/null
 
-  cp $REPO/70-Customer-Projects/tools/bash/*.sh $TOOLS/
+  # Erwartet: leer bzw. "No such file". Schon vorhanden (Update) -> zuerst
+  # sichern: mv $TOOLS $TOOLS.alt_<datum> - patch_install.ini danach aus
+  # der Sicherung zurueckholen (SCHRITT 3.1).
 
-  chmod 755 $TOOLS/*.sh
+  unzip -q /tmp/ihw_customer_tools_linux.zip -d $ORACLE_BASE
+
+  # das ZIP enthaelt das Verzeichnis tools/ -> $ORACLE_BASE/tools
 
   ls -l $TOOLS
 
   # Erwartet: status.sh, show_log.sh, set_script_env.sh, collect_fmw_env.sh,
-  #           fmw_patch_env.sh, mos_patch_download.sh ... (rwxr-xr-x)
+  #           export_forms_reports_conf.sh, ihw_tools_lib.sh ... (rwxr-xr-x),
+  #           VERSIONS.txt und doc/
+
+  head -5 $TOOLS/VERSIONS.txt
+
+  # Versionen der Tools - bei Rueckfragen an uns diese Datei mitschicken
 
 
 ================================================================================
@@ -166,7 +181,7 @@ SCHRITT 2: setdb aktivieren  (als oracle)
 SCHRITT 3: Kunden-ini und Patch-Liste ablegen  (als oracle)
 ================================================================================
 
-  ls $REPO/70-Customer-Projects/$KUNDE/patch_install.ini
+  ls $KUNDE_DIR/patch_install.ini
 
   # Erwartet: die Datei ist da -> 3.1
   # FEHLT (Kundenordner noch ohne ini) -> 3.2
@@ -174,24 +189,23 @@ SCHRITT 3: Kunden-ini und Patch-Liste ablegen  (als oracle)
   ----------------------------------------------------------------------------
   3.1 ini des Kunden
   ----------------------------------------------------------------------------
-  cp $REPO/70-Customer-Projects/$KUNDE/patch_install.ini $TOOLS/
+  cp $KUNDE_DIR/patch_install.ini $TOOLS/
 
   ----------------------------------------------------------------------------
-  3.2 nur ohne Kunden-ini: Vorlage nehmen
+  3.2 nur ohne Kunden-ini: Vorlage aus dem ZIP nehmen
   ----------------------------------------------------------------------------
-  cp $REPO/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini $TOOLS/
+  cp $TOOLS/doc/patch_install.ini.template $TOOLS/patch_install.ini
 
   ----------------------------------------------------------------------------
   3.3 Rechte und Patch-Liste
   ----------------------------------------------------------------------------
   chmod 600 $TOOLS/patch_install.ini
 
-  ls $REPO/70-Customer-Projects/$KUNDE/patches_cpu_*.csv
+  ls $KUNDE_DIR/patches_cpu_*.csv
 
   # Erwartet: die Patch-Liste des Zyklus. Keine -> kein Patchlauf geplant.
 
-  cp $REPO/70-Customer-Projects/$KUNDE/patches_cpu_*.csv $TOOLS/
-
+  cp $KUNDE_DIR/patches_cpu_*.csv $TOOLS/
 
 ================================================================================
 SCHRITT 4: Gibt es schon eine Umgebung?
@@ -261,7 +275,7 @@ SCHRITT 5: Werte laden - in JEDER neuen Sitzung  (als oracle)
 SCHRITT 6: Weiter mit den Kochbuechern des Kundenordners
 ================================================================================
 
-  ls $REPO/70-Customer-Projects/$KUNDE/*.txt
+  ls $KUNDE_DIR/*.txt
 
   # Neue Installation (Reports14_linux_manual_install): Reihenfolge laut
   #   README.md des Kundenordners - OS, FMW, Reports, Font, SSL,
@@ -291,7 +305,8 @@ RUECKWEG
 
   rm -r "${TOOLS:?}"
 
-  # $REPO und $ORACLE_BASE/install/fmw_collect_* bei Bedarf ebenso.
+  # $KUNDE_DIR, /tmp/ihw_customer_tools_linux.zip und
+  # $ORACLE_BASE/install/fmw_collect_* bei Bedarf ebenso.
 
 
 ================================================================================
@@ -310,6 +325,10 @@ BEKANNTE PROBLEME
   Ursache: neue Sitzung, SCHRITT 5 nicht ausgefuehrt
   Loesung: . /u01/oracle/tools/set_script_env.sh
 
-  Problem: git clone haengt / scheitert
+  Problem: curl haengt / scheitert beim ZIP-Download
   Ursache: keine Freigabe nach github.com:443
   Loesung: Variante b) in 0.2 (ZIP ueber den Arbeitsplatz)
+
+  Problem: Tool meldet "ihw_tools_lib.sh missing"
+  Ursache: nur ein einzelnes Skript kopiert statt das ZIP zu entpacken
+  Loesung: SCHRITT 1 - alle Tools liegen zusammen in $ORACLE_BASE/tools

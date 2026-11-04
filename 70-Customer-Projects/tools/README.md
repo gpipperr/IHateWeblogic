@@ -1,7 +1,33 @@
 # tools – metadata collection and patch download for a Forms & Reports host
 
 Shared, standalone helpers for the patch analyses in `70-Customer-Projects/`
-– **no** IHateWeblogic library, copy them to the host and run them there:
+– **no** IHateWeblogic library, copy them to the host and run them there.
+
+**For the customer: one ZIP per platform, one link** (no git clone on the
+customer host):
+
+| ZIP | Content | Link |
+|---|---|---|
+| [ihw_customer_tools_linux.zip](ihw_customer_tools_linux.zip) | `tools/*.sh` (all of `bash/` except the analysis, incl. `ihw_tools_lib.sh`), `tools/doc/` (this README, the road map, `patch_install.ini.template`), `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip` |
+| [ihw_customer_tools_windows.zip](ihw_customer_tools_windows.zip) | `tools/*.ps1`, `GetMOSPatchRunner.java`, `tools/doc/README.md`, `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_windows.zip` |
+
+Each with a `.sha256` next to it (same link + `.sha256`). Unpacked with
+`unzip … -d $ORACLE_BASE` it gives `$ORACLE_BASE/tools/` – the layout of the
+road map [Start_beim_Kunden_kochbuch_de.txt](../Start_beim_Kunden_kochbuch_de.txt).
+
+**Maintainer rule:** the ZIPs are built by
+[make_customer_zip.sh](make_customer_zip.sh) – deterministic (fixed time
+stamps, sorted, no extra attributes), so they only change when a tool really
+changed. Before **every commit** that touches `bash/`, `powershell/`, this
+README or the road map:
+
+```bash
+70-Customer-Projects/tools/make_customer_zip.sh            # check: exit 1 + changed files = stale
+70-Customer-Projects/tools/make_customer_zip.sh --apply    # rebuild (+ .sha256), commit the ZIPs with the change
+```
+
+Not in the ZIPs: `analyse_forms_reports_export.sh` and `customer-analyse/`
+(the analysis runs on our host), the local cookbook formatter.
 
 | Folder | Platform |
 |---|---|
@@ -23,6 +49,8 @@ runtime, never by a second copy of the script.
 | [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
+| [bash/analyse_forms_reports_export.sh](#analyse_forms_reports_exportsh) | turn an export of `export_forms_reports_conf.sh` into an analysis report for the customer (English Markdown): all sections as tables, the 14c target mapping and rule-based findings, security first – output git-ignored in `customer-analyse/` |
+| [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
 Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
@@ -453,8 +481,9 @@ the rebuild with the 14c library. Read-only on the host, writes only below
 later, separate step (after the first real customer export).
 
 ```bash
-# as the software owner (oracle), not root
-cp export_forms_reports_conf.sh /tmp/ && cd /tmp && chmod +x export_forms_reports_conf.sh
+# as the software owner (oracle), not root - from the unpacked tools ZIP
+# (the script needs ihw_tools_lib.sh next to it)
+cd $ORACLE_BASE/tools
 ./export_forms_reports_conf.sh                      # auto-detect, encrypted archive (passphrase asked twice)
 ./export_forms_reports_conf.sh -o /oracle/product/mw -d /oracle/user_projects/domains/fr_domain
 ./export_forms_reports_conf.sh --masked             # passwords masked, not encrypted – for analysis
@@ -467,6 +496,22 @@ cp export_forms_reports_conf.sh /tmp/ && cd /tmp && chmod +x export_forms_report
 | `--masked` | mask passwords in every file, archive not encrypted |
 | `--no-fonts` | list the font files only, do not copy them |
 | `--keep` | keep the unpacked staging directory (delete it yourself – customer data) |
+| `--no-load` | no load profile (default: on, see below) |
+| `--load-days N` | period of the load profile (access logs / sar files changed in the last N days, default 90) |
+| `--rw-auth USER` | Reports admin (`<identifier>`) for `getserverinfo` / `showjobs` of a **secured** Reports server – password asked hidden at the start; non-interactive: `IHW_RW_AUTH=user/password` in the environment. Passed to curl only via a config on stdin (never on the command line) |
+
+**Load profile** (`load/`, since 2026-11-04.4) – **only counted values**, no
+log line leaves the host (access logs hold client addresses, user names and,
+with GET report calls, passwords):
+
+| File | Content |
+|---|---|
+| `forms_starts.csv` | `date;section;starts` – `frmservlet?config=…` with HTTP 2xx from the WLS_FORMS access logs |
+| `forms_traffic.csv` / `forms_hourly.csv` | `date;requests;lservlet;http_5xx;avg_ms` (avg only with `time-taken`) / `hour;starts` |
+| `now.txt` | `frmweb` processes + RSS, Reports engine processes, uptime, load average |
+| `reports_requests.csv` | `date;command;requests;http_5xx` from the WLS_REPORTS access logs (command = `getserverinfo`, `showjobs`, report run …, no parameters) |
+| `reports_<server>_serverinfo.xml`, `reports_jobs.csv` | `getserverinfo` and the past job queue (`server;id;report;status;started_epoch;seconds` – no owner, no parameters) of every **running** Reports server; a not running in-process server is not asked (the request would start it) |
+| `host_sar.csv` | `date;cpu_avg;cpu_peak;mem_avg` from `/var/log/sa` (sysstat), if present |
 
 **Output:** `ihw_export_<host>_<ts>.zip.enc` (+ `.sha256`; `.zip` with
 `--masked`; `.tar.gz` if `zip` is missing). Decrypt:
@@ -581,6 +626,99 @@ never goes into git (refused inside the repo; `.gitignore` has
 `ihw_export_*` and `70-Customer-Projects/**/export/` for a copy placed there
 for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
 (`forms_12.2.1` / `reports_12.2.1`, standalone + in-process server).
+
+## analyse_forms_reports_export.sh
+
+Step 2 of the 12c/14c → 14c migration (step 1 = `export_forms_reports_conf.sh`
+at the customer, step 3 = the import into the library – still open). It turns
+one export into a **structured report** the customer gets ("this is how we
+build it in 14c"):
+
+```bash
+# on our host - the export (encrypted .zip.enc, masked .zip or an unpacked directory)
+tools/bash/analyse_forms_reports_export.sh -i ihw_export_<host>_<ts>.zip.enc -k <customer>
+tools/bash/analyse_forms_reports_export.sh -i <export> -k <customer> --ref-home /u01/app/oracle/fmw   # 14c templates as reference
+```
+
+| Option | Meaning |
+|---|---|
+| `-i` | the export: `.zip.enc` (passphrase asked hidden, passed to openssl via fd), `.zip`, `.tar.gz` or a directory |
+| `-k` | short customer name – run directory `<date>_<customer>`, report name |
+| `-o` | base directory (default `tools/customer-analyse/`); inside a git work tree it is **refused** unless git ignores it |
+| `--ref-home` | 14c `ORACLE_HOME` (default `$ORACLE_HOME`, else `/u01/app/oracle/fmw`) – customer keys are compared with Oracle's 14.1.2 templates (`forms/templates/config/formsweb.cfg`, `default.env`, `webutil.cfg`); without it these rules are listed as "not checked" |
+| `--fresh` | unpack the export again (default: reuse `export/` of an earlier run) |
+
+**Output** (`tools/customer-analyse/<date>_<customer>/`, git-ignored – only
+the README, the template and `rules/` are committed):
+
+```
+export/                                 the unpacked export (clear text with an encrypted export!)
+csv/                                    every table as ';'-CSV (findings.csv, jars.csv, tns.csv ...)
+import_analyse_<customer>_<date>.md     the report
+```
+
+**Report** (template
+[customer-analyse/import_analyse_template.md](customer-analyse/import_analyse_template.md)):
+summary, Forms sections + `[default]` against the 14c standard + all keys of
+the customer sections, env files + differing keys, WebUtil, customer jars
+(signature, digest, signer expiry + timestamp, class version, duplicates),
+Reports servers (engines read from `rwserver.conf`), `rwservlet.properties`,
+`cgicmd.dat` key names, fonts (class + 14c replacement; free fonts as one line
+per directory), source directories (one line for many sibling directories,
+e.g. per-user homes), dependencies (libraries used / missing), TNS aliases
+(defined / used / not defined), secrets (counted: active lines and all
+keyword hits – never a value), the 14c target table, the
+`environment.conf` proposal, the findings.
+
+**Findings** – one row `severity;area;finding;recommendation`, security
+first, WARN > HINT > INFO. Examples of the rules:
+
+| Area | Rule |
+|---|---|
+| Security / Forms | `userid` stored in a section (clear text / `{AES}` encrypted), `allow_debug=true`, `restrictedURLparams` shorter than the 14c standard, client trace, `http://` URLs, `FORMS_RESTRICT_ENTER_QUERY=FALSE`, password keywords on active env file lines |
+| Security / WebUtil | `transfer.appsrv.accessControl=FALSE`, `/tmp` as transfer directory, `transfer.database.enabled`, own `install.syslib` DLLs (not JACOB) |
+| Security / Reports | no encrypted `<identifier>`, no `securityId`, no `<folderAccess>`, `webcommandaccess` L2, `cgicmd.dat` keys with logins, world-writable read / write directories |
+| Security / WebLogic, web tier, net | production mode, empty `listen-address`, demo keystores, Node Manager, `-D…password` in start scripts, OHS `DebugConfigInfo`, `/console` `/em` routed without restriction, `sqlnet.ora` encryption |
+| Security / Jars | unsigned, SHA-1 / MD5 signature (JDK 21 = unsigned), signer expired without timestamp (WARN) / with timestamp (HINT), expiring in 90 days (`keytool -printcert -jarfile`, read only) |
+| Oracle Net | aliases unused / used but not defined / defined twice, `SID=`, IP as host, several TNS_ADMIN – usages read from the active lines only, Oracle's `cgicmd.dat` sample keys and Kerberos principals ignored |
+| Forms runtime (rules of `06-FormsDiag`) | timeout chain `heartBeat` < `FORMS_TIMEOUT` < servlet session-timeout (own table 3.2), `maxRuntimeProcesses` missing (DoS), prestart pool in `[default]` / none at all, `networkRetries=0`, `gzipCompressApplet`, no `time-taken` in the WLS_FORMS access log, env values with the old host name – recommendations point to `06-FormsDiag/forms_perf_settings.sh` / `forms_perf_analyse.sh` and `environment.conf` |
+| Reports engines (rules of `05-ReportsPerformance`) | `engLife` < 10 (workaround – question to the customer, our measured approach as alternative), no `engineResponseTimeOut`, obsolete engine JVM options (`-Xoss`, PermGen, CMS), tiny `-Xms`, identical engine blocks on several servers, leftover in-process server that is still the rwservlet default |
+| Forms / Jars / Reports / Fonts / Sources | keys not in the 14c template (minus [rules/formsweb_14c_known_keys.txt](customer-analyse/rules/formsweb_14c_known_keys.txt)), overrides equal to the 14c default, missing env files / jars, case / content duplicates, unreferenced jars, short `engLife`, in-process server, shared broadcast port, Microsoft / symbol / customer fonts, missing or world-writable source directories, `.fmb` without `.fmx`, missing libraries |
+
+**Safety:** every value passes `ihwt_mask`; alias names are the only thing
+read from an unmasked login (`user/pw@ALIAS` → `ALIAS`); the finished report
+is searched for clear-text patterns (`password=…`, `{AES}…`,
+`<identifier>…</identifier>`, `user/pw@`) and **deleted** on a hit. The report
+still holds host names, paths and user directory names of the customer – hand
+it only to that customer.
+
+Export version 2026-11-04.3 additionally collects the `weblogic.xml` /
+`web.xml` of `formsapp.ear` (servlet session-timeout for the timeout chain)
+and CPUs / RAM of the host (header of `00_report.txt` – sizing proposals);
+older exports list these rules under "not checked".
+
+Tested 2026-11-04: test-host export (masked, 14.1.2) and the first real
+customer export (12.2.1.4, export version 2026-11-03.1 without the font class
+column – computed by the analysis).
+
+## ihw_tools_lib.sh
+
+Shared helpers of the tools in `bash/` – **not** the IHateWeblogic library
+(`00-Setup/IHateWeblogic_lib.sh`): no `environment.conf`, no
+`ok`/`warn`/`fail`, functions only (prefix `ihwt_`), no output when sourced.
+The tools source it from their own directory; the road map copies all
+`tools/bash/*.sh`, so it always lies next to them.
+
+| Function | Purpose |
+|---|---|
+| `ihwt_mask` | stdin → stdout, secrets masked (`<…password…>`, `<identifier>`, `{AES}`, `userid=` / `authid=` / `password=`, `-D…password=`, `user/pw@`) |
+| `ihwt_sections FILE` / `ihwt_keys FILE` / `ihwt_cfgval FILE KEY` | ini / key=value parsing (formsweb.cfg, env files, webutil.cfg) |
+| `ihwt_font_class NAME` | `class;replacement` of a font file (customer / ms / free) |
+| `ihwt_git_guard DIR NAME` | refuse customer data inside a git work tree unless ignored |
+| `ihwt_md_table "Col1;Col2"` | `;`-CSV on stdin → Markdown table (`_none found_` when empty) |
+
+Used by `export_forms_reports_conf.sh` (since 2026-11-04.1 – output checked
+identical before / after) and `analyse_forms_reports_export.sh`.
 
 ## set_script_env.sh and the operation tools
 

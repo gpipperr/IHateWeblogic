@@ -244,10 +244,24 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
   `notifysuccess`) untested – the mail server is still the template
   placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
-- [ ] **Configuration export → import**: first real customer run of
-  `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh` (12c), then the
-  import step into the 14c library (formsweb sections, env keys, cgicmd
-  keys, uifont.ali, fonts, customer jars – never FSAL / JACOB).
+- [ ] **Configuration export → analysis → import** (12c customer):
+  - [x] export at the customer (`export_forms_reports_conf.sh`, 2026-11-03);
+  - [x] analysis report `tools/bash/analyse_forms_reports_export.sh`
+    (2026-11-04, first run on the customer export – report git-ignored in
+    `tools/customer-analyse/`); export 2026-11-04.2 proposes the parent of
+    many per-user `<write>` directories as `REPORTS_TMP`;
+  - [ ] hand the report to the customer, clarify the findings;
+  - [ ] fresh export at the end (export 2026-11-04.3: font classes, fixed
+    `REPORTS_TMP` proposal, `formsapp.ear` session-timeout for the timeout
+    chain, CPUs / RAM for the sizing proposals, load profile of the last 90
+    days – the Reports servers are unsecured, so `getserverinfo` / `showjobs`
+    work without `--rw-auth`);
+  - [ ] import step into the 14c library (formsweb sections, env keys,
+    cgicmd keys, uifont.ali, fonts, customer jars – never FSAL / JACOB).
+- [ ] **Library template:** `09-Install/forms_templates/default.env.template`
+  sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
+  (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the
+  test host – decide and change.
 - [ ] **Customer cookbook check**: does the graphical Configuration Wizard
   also create random Node Manager credentials? If yes,
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same

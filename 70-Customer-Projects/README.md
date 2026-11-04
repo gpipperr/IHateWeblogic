@@ -12,7 +12,10 @@ output.
 
 Every customer engagement on Linux starts the same way, whatever the folder:
 
-1. **Tools:** copy `tools/bash/*.sh` to `$ORACLE_BASE/tools` (755).
+1. **Tools:** one link – `tools/ihw_customer_tools_linux.zip` (Windows:
+   `…_windows.zip`), unpacked into `$ORACLE_BASE` = `$ORACLE_BASE/tools`; no
+   git clone at the customer. Built with `tools/make_customer_zip.sh --apply`
+   before every commit that touches the tools.
 2. **setdb:** `tools/bash/ihw_shell_env.sh` → `~/.bashrc.d/ihw_env.sh`, new
    shell – one menu for the FMW home / domains and DB homes, PATH on the
    tools, `wlst`, `domain`.
@@ -103,6 +106,8 @@ No IHateWeblogic library needed – copy the script to the host:
 | `set_script_env.sh` | loads the customer's `patch_install.ini` into the session for the cookbook commands – sourced |
 | `status.sh`, `show_log.sh`, `show_errors.sh`, `show_all_logs.sh` | operation: status in three stages (ports / processes / HTTP + Node Manager), logs and error lines – read `patch_install.ini` next to them |
 | `check_disk_space.sh`, `export_forms_reports_conf.sh` | disk space before a patch run; read-only export of the Forms / Reports configuration (12c → 14c) |
+| `analyse_forms_reports_export.sh` | (our host) export → analysis report for the customer with the 14c target mapping and security findings; output git-ignored in `tools/customer-analyse/` |
+| `ihw_tools_lib.sh` | shared helpers of the tools (sourced, always copied with them) |
 
 Linux: `tools/bash/`. Windows Server hosts: `tools/powershell/` –
 `collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1`, same
