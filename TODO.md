@@ -271,6 +271,16 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     (`frm_cfg_put_sections`, `frm_kv_overlay`), spec `09-Install/docs/17-customer_conf_import.md`.
     **Open:** the importer itself + `apply_customer_conf.sh` (with the fresh
     customer export), `13-` overlay `--apply` test in an isolated domain.
+- [ ] **status.sh / Node Manager keys (2026-11-04, for tomorrow):** document
+  how the Node Manager credential files of `status.sh` stage 3 are created and
+  where they really are. Today the docs (`Autostart_linux_middleware.txt` step
+  1c "NOT under ~/.wlst/", `Tools_status_logs_kochbuch.txt` step 3,
+  `patch_install.ini` `WLST_CONFIG_FILE` / `WLST_KEY_FILE`, `status.sh` hint)
+  assume `~/oracle-WebLogicConfig.properties` / `~/oracle-WebLogicKey.properties`.
+  `startComponent.sh … storeUserConfig` may write them below `~/.wlst/`
+  (`nm-cfg-<domain>.props` / `nm-key-<domain>.props`?) – check live, then:
+  `status.sh` searches both places, the docs name the real files and the
+  command that creates them (cross-check `Reports_kochbuch_de.txt` 9.10).
 - [ ] **Library template:** `09-Install/forms_templates/default.env.template`
   sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
   (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the
