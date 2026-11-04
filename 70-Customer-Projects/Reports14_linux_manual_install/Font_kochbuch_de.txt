@@ -4,7 +4,7 @@
 ================================================================================
   Zielgruppe : DBA / Systemadministrator ohne IHateWeblogic-Skripte
   Umgebung   : Oracle Linux 9, FMW 14.1.2, WebLogic 14.1.2, nur Reports
-  Erstellt   : 2026-10
+  Erstellt   : 2026-10, Stil nach 70-Customer-Projects/cookbook-Skill.md
   Grundlage  : IHateWeblogic/04-ReportsFonts (Gunther Pipperr)
   Hinweis    : Einzige gepflegte manuelle Font-Anleitung (ersetzt
                04-ReportsFonts/manual_setup_de.txt). Am 2026-10-19 am
@@ -27,7 +27,8 @@
 ================================================================================
 
 VORAUSSETZUNGEN
-----------------
+--------------------------------------------------------------------------------
+
   Oracle Reports kennt ZWEI Font-Mechanismen:
     1. PDF-Ausgabe (desformat=pdf): uifont.ali + TrueType-Fonts in
        REPORTS_FONT_DIRECTORY (Teil A, Schritte 1-7)
@@ -49,24 +50,145 @@ VORAUSSETZUNGEN
   eingebettet. Empfehlung: Teil B immer mit einrichten (schadet nicht);
   Reihenfolge Schritte 1-5, Schritt 8, Neustart (6), Test (7).
 
-    export ORACLE_HOME=/u01/oracle/fmw
+  Alle Schritte laufen als oracle-User, ausser Schritt 1 und 8.2 (root,
+  nur Paketinstallation).
 
-    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
 
-    export REPORTS_TOOLS_INSTANCE=reptools1
+WAS WO LANDET
+--------------------------------------------------------------------------------
 
-    export REPORTS_SERVER_NAME=repServer01
+    /usr/share/fonts/                  <- SCHRITT 1 (dnf, als root) Liberation,
+                                       DejaVu - nur Quelle fuer SCHRITT 2
+    $REPORTS_FONT_DIR                  = $DOMAIN_HOME/reports/fonts
+                                       <- SCHRITT 2 alle TTF-Dateien
+                                       (= REPORTS_FONT_DIRECTORY)
+      Liberation*.ttf DejaVu*.ttf      aus /usr/share/fonts (SCHRITT 2)
+      <Kundenschrift>.ttf              vom Kunden, nur falls vorhanden
+    $REPORTS_ADMIN                     = .../ReportsToolsComponent/
+                                       <instanz>/guicommon/tk/admin
+      uifont.ali                       $UIFONT_ALI <- SCHRITT 4 (Sicherung
+                                       uifont.ali.bak_<zeit> daneben)
+      AFM/                             $AFM_DIR <- SCHRITT 8.1 + 8.3
+        Helvetica* Courier* Times*     FontSpecific-Kopien aus $OH_AFM (8.1)
+        Arial Arial-Bold ...           aus den TTF erzeugt (8.3)
+      PPD/screenprinter.ppd            $PPD <- SCHRITT 8.4 (*Font-Zeilen,
+                                       Sicherung .bak_<zeit> daneben)
+    $OH_AFM                            = $ORACLE_HOME/guicommon/tk/admin/AFM
+                                       Oracles Original - wird NIE geaendert
+    $OVERRIDES                         = $DOMAIN_HOME/bin/setUserOverrides.sh
+                                       <- SCHRITT 5 (Block wird angehaengt,
+                                       Sicherung .bak_<zeit> daneben)
+    $DOMAIN_HOME/reports/bin/reports.sh   Umgebung der ENGINES (nur
+                                       lesen, Kontrolle in SCHRITT 6)
+    $WORK                              = $HOME/reports_fonts/ <- SCHRITT 0
+                                       Arbeitsverzeichnis:
+      04_uifont_backup.txt             Pfad der uifont.ali-Sicherung
+      05_overrides_backup.txt          Pfad der setUserOverrides.sh-Sicherung
+      08_ppd_backup.txt                Pfad der screenprinter.ppd-Sicherung
+    /tmp/test_report.pdf               Test-PDF fuer pdffonts (SCHRITT 7)
 
-    export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+  Quellen:
 
-    export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+    Datei                       Herkunft                         Schritt
+    --------------------------  -------------------------------  -------
+    liberation-fonts, dejavu-*  dnf (OL9-Repository)             1
+    fontconfig, poppler-utils   dnf (OL9-Repository)             1, 7
+    python3-fonttools           dnf (OL9-Repository)             8.2
+    ttf2reports_afm.py          IHateWeblogic/04-ReportsFonts/   8.3
+                                (Repository-Kopie aus dem
+                                Fahrplan, $AFM_PY)
+    uifont_ali_template.ali     IHateWeblogic/04-ReportsFonts/   4 (nur
+                                                                 Vorlage)
 
-    export REPORTS_FONT_DIR="${DOMAIN_HOME}/reports/fonts"
 
-    export UIFONT_ALI="${REPORTS_ADMIN}/uifont.ali"
+SO IST DIESES KOCHBUCH ZU LESEN
+--------------------------------------------------------------------------------
 
-  Alle Schritte laufen als oracle-User, ausser Schritt 1 (root, nur
-  Paketinstallation).
+  - Jeder Befehl steht allein, mit Leerzeile davor und danach. Direkt
+    darunter: "# Erwartet:" = was richtig ist.
+
+  - Alles als Benutzer oracle, ausser es steht anders da.
+
+  - Vor jeder Aenderung wird gesichert; der Pfad der Sicherung landet in
+    einer Datei unter $WORK - so geht der Weg zurueck auch in einem neuen
+    Terminal.
+
+
+================================================================================
+SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  0.1 Kurzweg mit patch_install.ini
+  ----------------------------------------------------------------------------
+  . /u01/oracle/tools/set_script_env.sh
+
+  # Danach mit 0.3 weiter. Ohne set_script_env.sh: 0.2.
+
+  ----------------------------------------------------------------------------
+  0.2 Von Hand  (Werte an die Umgebung anpassen - nur die ersten vier)
+  ----------------------------------------------------------------------------
+  export ORACLE_HOME=/u01/oracle/fmw
+
+  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+
+  export REPORTS_TOOLS_INSTANCE=reptools1
+
+  export REPORTS_SERVER_NAME=repServer01
+
+  export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
+
+  export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
+
+  export REPORTS_FONT_DIR="${DOMAIN_HOME}/reports/fonts"
+
+  export UIFONT_ALI="${REPORTS_ADMIN}/uifont.ali"
+
+  ----------------------------------------------------------------------------
+  0.3 Abgeleitete Variablen  (nichts anpassen, nur kopieren)
+  ----------------------------------------------------------------------------
+  export TK_ADMIN="${REPORTS_ADMIN}"
+
+  export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
+
+  export AFM_DIR="${TK_ADMIN}/AFM"
+
+  export PPD="${TK_ADMIN}/PPD/screenprinter.ppd"
+
+  export FONT_DIR="${REPORTS_FONT_DIR}"
+
+  export OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
+
+  export AFM_PY=/u01/oracle/install/IHateWeblogic/04-ReportsFonts/ttf2reports_afm.py
+  # Repository-Kopie aus dem Fahrplan (Start_beim_Kunden_kochbuch_de.txt,
+  # SCHRITT 0) - liegt sie woanders, hier den Pfad anpassen
+
+  export WORK=$HOME/reports_fonts
+  # Arbeitsverzeichnis: Pfade der Sicherungen
+
+  mkdir -p $WORK
+
+  ----------------------------------------------------------------------------
+  0.4 Kontrolle
+  ----------------------------------------------------------------------------
+  echo "OH=$ORACLE_HOME DH=$DOMAIN_HOME Tools=$REPORTS_TOOLS_INSTANCE Server=$REPORTS_SERVER_NAME"
+  # Erwartet: alle vier gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
+
+  echo "FONT_DIR=$REPORTS_FONT_DIR"
+  # Erwartet: /u01/user_projects/domains/reportRpgpi/reports/fonts
+
+  ls -ld $REPORTS_ADMIN
+  # Erwartet: das Verzeichnis existiert.
+  # "No such file": REPORTS_TOOLS_INSTANCE oder DOMAIN_HOME falsch.
+
+  ls -l $UIFONT_ALI $PPD
+  # Erwartet: beide Dateien vorhanden
+
+  ls -ld $OH_AFM
+  # Erwartet: das Verzeichnis existiert (Original-AFMs von Oracle)
+
+  ls -l $AFM_PY
+  # Erwartet: die Datei ist da (wird erst in SCHRITT 8.3 gebraucht)
 
 
 ================================================================================
@@ -78,9 +200,11 @@ SCHRITT 1: Font-Pakete installieren  (als root)
 
   # Liberation Fonts - metrisch kompatibel zu Arial, Times New Roman,
   # Courier New (gleiche Zeichenbreiten, daher kein Layout-Versatz)
+
   dnf install -y liberation-fonts liberation-fonts-common
 
   # DejaVu Fonts - Ersatz fuer Tahoma, Verdana, Trebuchet MS
+
   dnf install -y \
       dejavu-sans-fonts \
       dejavu-sans-mono-fonts \
@@ -90,14 +214,20 @@ SCHRITT 1: Font-Pakete installieren  (als root)
       dejavu-lgc-serif-fonts
 
   # fontconfig-Werkzeuge (fc-cache, fc-list, fc-query)
+
   dnf install -y fontconfig
 
   # Systemweiten Font-Cache aktualisieren
+
   fc-cache -fv
 
   # Kontrolle: sind die Fonts sichtbar?
+
   fc-list | grep -i liberation
+  # Erwartet: mehrere Zeilen .../Liberation*.ttf
+
   fc-list | grep -i dejavu
+  # Erwartet: mehrere Zeilen .../DejaVu*.ttf
 
 
 SCHRITT 2: REPORTS_FONT_DIR anlegen und Fonts kopieren  (als oracle)
@@ -106,18 +236,24 @@ SCHRITT 2: REPORTS_FONT_DIR anlegen und Fonts kopieren  (als oracle)
   mkdir -p "$REPORTS_FONT_DIR"
 
   # Liberation Fonts kopieren
+
   find /usr/share/fonts -name "Liberation*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
 
   # DejaVu Fonts kopieren
+
   find /usr/share/fonts -name "DejaVu*.ttf" -exec cp -v {} "$REPORTS_FONT_DIR/" \;
 
   # Kundeneigene / Corporate Fonts kopieren (falls vorhanden):
-  # cp /tmp/MeinFont*.ttf "$REPORTS_FONT_DIR/"
+  #   cp /tmp/MeinFont*.ttf "$REPORTS_FONT_DIR/"
 
   # Kontrolle
+
   ls -lh "$REPORTS_FONT_DIR/"
 
-  echo "Anzahl TTF-Dateien: $(ls "$REPORTS_FONT_DIR"/*.ttf 2>/dev/null | wc -l)"
+  TTF_COUNT=$(ls "$REPORTS_FONT_DIR"/*.ttf 2>/dev/null | wc -l)
+
+  echo "Anzahl TTF-Dateien: $TTF_COUNT"
+  # Erwartet: groesser als 0
 
 
 SCHRITT 3: Font-Cache fuer REPORTS_FONT_DIR aktualisieren  (als oracle)
@@ -126,6 +262,7 @@ SCHRITT 3: Font-Cache fuer REPORTS_FONT_DIR aktualisieren  (als oracle)
   fc-cache -fv "$REPORTS_FONT_DIR"
 
   # Kontrolle: sind die Fonts im fontconfig-Cache sichtbar?
+
   fc-list : file | grep "$REPORTS_FONT_DIR"
   # Mindestens eine Zeile pro kopierter TTF-Datei muss erscheinen.
 
@@ -138,9 +275,25 @@ SCHRITT 3: Font-Cache fuer REPORTS_FONT_DIR aktualisieren  (als oracle)
 SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
 --------------------------------------------------------------------------------
 
-  # Aktuelle Datei sichern (falls vorhanden)
-  [ -f "$UIFONT_ALI" ] && cp "$UIFONT_ALI" "${UIFONT_ALI}.bak_$(date +%Y%m%d_%H%M%S)"
+  ----------------------------------------------------------------------------
+  4.1 Aktuelle Datei sichern
+  ----------------------------------------------------------------------------
+  ls -l "$UIFONT_ALI"
+  # Erwartet: die Datei ist da.
+  # "No such file" -> nichts zu sichern, weiter mit 4.2
 
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp -p "$UIFONT_ALI" "${UIFONT_ALI}.bak_$TS"
+
+  echo "${UIFONT_ALI}.bak_$TS" > $WORK/04_uifont_backup.txt
+
+  cat $WORK/04_uifont_backup.txt
+  # Erwartet: .../guicommon/tk/admin/uifont.ali.bak_<zeit>
+
+  ----------------------------------------------------------------------------
+  4.2 Eintraege anlegen bzw. pruefen
+  ----------------------------------------------------------------------------
   # [PDF:Subset]-Eintraege fuer die Standard-Ersatzschriften anlegen bzw.
   # pruefen. KRITISCHE SYNTAX - rechte Seite IMMER in Anfuehrungszeichen,
   # IMMER mit .ttf-Erweiterung:
@@ -169,33 +322,59 @@ SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
   # werden (Vorlage: 04-ReportsFonts/uifont_ali_template.ali).
 
   grep -A 30 '\[PDF:Subset\]' "$UIFONT_ALI"
+  # Erwartet: die Eintraege wie oben beschrieben
 
-  # Syntax-Pruefung mit mfontchk (ohne REPORTS_FONT_DIR = reine
-  # Syntaxpruefung)
+  ----------------------------------------------------------------------------
+  4.3 Syntax pruefen mit mfontchk
+  ----------------------------------------------------------------------------
+  # Ohne REPORTS_FONT_DIR = reine Syntaxpruefung
+
   export LD_LIBRARY_PATH="${ORACLE_HOME}/lib:${ORACLE_HOME}/jdk/jre/lib/amd64/server"
 
   "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
   # Erwartete Ausgabe: "Schriftartaliasdatei erfolgreich geparst"
 
   # Vollstaendige Pruefung MIT Dateiexistenz-Check:
+
   REPORTS_FONT_DIRECTORY="$REPORTS_FONT_DIR" \
       "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
-
   # Ein '^' auf der RECHTEN Seite = TTF-Datei nicht in REPORTS_FONT_DIR gefunden
   # Ein '^' auf der LINKEN Seite  = Syntaxfehler im Font-Namen
   # "[Global] Invalid font specification"-Warnungen sind an dieser Stelle
-  # normal und koennen ignoriert werden.
+  # normal und koennen ignoriert werden (BEKANNT UND HARMLOS).
+
+  ----------------------------------------------------------------------------
+  4.4 Zurueck, falls noetig
+  ----------------------------------------------------------------------------
+  # cp -p "$(cat $WORK/04_uifont_backup.txt)" "$UIFONT_ALI"
 
 
 SCHRITT 5: Umgebungsvariablen in setUserOverrides.sh eintragen  (als oracle)
 --------------------------------------------------------------------------------
 
-  OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
+  ----------------------------------------------------------------------------
+  5.1 Sichern
+  ----------------------------------------------------------------------------
+  echo "OVERRIDES=$OVERRIDES"
+  # Erwartet: /u01/user_projects/domains/reportRpgpi/bin/setUserOverrides.sh
+  # LEER? -> SCHRITT 0
 
-  # Backup anlegen
-  [ -f "$OVERRIDES" ] && cp "$OVERRIDES" "${OVERRIDES}.bak_$(date +%Y%m%d_%H%M%S)"
+  ls -l "$OVERRIDES"
+  # "No such file" ist hier in Ordnung - der naechste Befehl legt sie an.
 
-  [ ! -f "$OVERRIDES" ] && touch "$OVERRIDES"
+  touch "$OVERRIDES"
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp -p "$OVERRIDES" "${OVERRIDES}.bak_$TS"
+
+  echo "${OVERRIDES}.bak_$TS" > $WORK/05_overrides_backup.txt
+
+  ----------------------------------------------------------------------------
+  5.2 Font-Block anhaengen
+  ----------------------------------------------------------------------------
+  # Ohne Anfuehrungszeichen um EOF: die Shell setzt $DOMAIN_HOME und
+  # $UIFONT_ALI JETZT ein - in der Datei stehen absolute Pfade.
 
   cat >> "$OVERRIDES" << EOF
 
@@ -218,30 +397,43 @@ export JAVA_OPTIONS="\${JAVA_OPTIONS} -DREPORTS_ENHANCED_FONTHANDLING=yes"
 # === Ende Font-Konfiguration ===
 EOF
 
-  # Kontrolle
+  ----------------------------------------------------------------------------
+  5.3 Kontrolle
+  ----------------------------------------------------------------------------
   grep -A6 "Font-Konfiguration" "$OVERRIDES"
+  # Erwartet: der Block mit ABSOLUTEN Pfaden
+  # (REPORTS_FONT_DIRECTORY=/u01/user_projects/domains/reportRpgpi/reports/fonts)
 
   # WICHTIG: Absoluten Pfad verwenden (keine Variablen wie $DOMAIN_HOME),
   # da setUserOverrides.sh zu einem Zeitpunkt ausgefuehrt wird, zu dem
   # $DOMAIN_HOME noch nicht in jedem Startkontext gesetzt ist.
 
+  # Zurueck, falls noetig:
+  #   cp -p "$(cat $WORK/05_overrides_backup.txt)" "$OVERRIDES"
+
 
 SCHRITT 6: Reports Server neu starten  (als oracle)
 --------------------------------------------------------------------------------
 
-  $DOMAIN_HOME/bin/stopComponent.sh  "$REPORTS_SERVER_NAME"
+  $DOMAIN_HOME/bin/stopComponent.sh "$REPORTS_SERVER_NAME"
 
   $DOMAIN_HOME/bin/startComponent.sh "$REPORTS_SERVER_NAME"
 
   # Kontrolle: Engine-Prozesse sichtbar? (Java-Prozesse des Reports Servers)
+
   pgrep -af 'RWEngine name=rwEng' | cut -c1-120
+  # Erwartet: mindestens eine Zeile ... RWEngine name=rwEng-0 ...
 
   # Kontrolle: die ENGINES (sie erzeugen das PDF) haben die Font-Variablen?
   # Sie bekommen sie aus $DOMAIN_HOME/reports/bin/reports.sh, nicht aus
   # setUserOverrides.sh (das gilt nur fuer WebLogic-Server wie WLS_REPORTS).
-  cat /proc/$(pgrep -f 'RWEngine name=rwEng-0' | head -1)/environ 2>/dev/null \
-      | tr '\0' '\n' \
-      | grep -iE 'REPORTS_FONT|ENHANCED'
+
+  ENG_PID=$(pgrep -f 'RWEngine name=rwEng-0' | head -1)
+
+  echo "Engine-PID: $ENG_PID"
+  # Erwartet: eine Zahl. LEER -> Engine laeuft nicht, Reports-Server pruefen
+
+  tr '\0' '\n' < /proc/$ENG_PID/environ | grep -iE 'REPORTS_FONT|ENHANCED'
   # Erwartet: REPORTS_FONT_DIRECTORY=.../reports/fonts und
   #           REPORTS_ENHANCED_FONTHANDLING=YES
 
@@ -249,9 +441,10 @@ SCHRITT 6: Reports Server neu starten  (als oracle)
 SCHRITT 7: PDF-Test und Verifikation  (als oracle)
 --------------------------------------------------------------------------------
 
-  # pdffonts ist Teil des Pakets poppler-utils: dnf install -y poppler-utils
-  pdffonts /tmp/test_report.pdf
+  # pdffonts ist Teil des Pakets poppler-utils (als root:
+  # dnf install -y poppler-utils)
 
+  pdffonts /tmp/test_report.pdf
   # Korrekte Ausgabe (so am Testsystem, 2026-10-19):
   #   name                     type          encoding    emb sub uni
   #   AAATCI+Liberation,Sans   CID TrueType  Identity-H  yes yes yes
@@ -276,28 +469,27 @@ TEIL B: HTML-PARAMETERFORMULAR-FONTPFAD (PPD + AFM, "screen printer")
 SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
 --------------------------------------------------------------------------------
 
-  # SYMPTOM: Griechische/Symbol-Zeichen statt lateinischer Schrift im
-  # HTML-Parameterformular - und bei Ersatzschriften (siehe
-  # VORAUSSETZUNGEN) auch im PDF. URSACHE: Das Parameterformular nutzt den
-  # "screen printer" (screenprinter.ppd + AFM-Dateien). Ohne passende
-  # AFM-Datei faellt Reports auf *DefaultFont (Courier) oder - bei
-  # Zeichensatzkonflikt - auf Symbol zurueck.
+  SYMPTOM: Griechische/Symbol-Zeichen statt lateinischer Schrift im
+  HTML-Parameterformular - und bei Ersatzschriften (siehe
+  VORAUSSETZUNGEN) auch im PDF. URSACHE: Das Parameterformular nutzt den
+  "screen printer" (screenprinter.ppd + AFM-Dateien). Ohne passende
+  AFM-Datei faellt Reports auf *DefaultFont (Courier) oder - bei
+  Zeichensatzkonflikt - auf Symbol zurueck.
 
-  export TK_ADMIN="${REPORTS_ADMIN}"
+  echo "OH_AFM=$OH_AFM AFM_DIR=$AFM_DIR"
+  # Erwartet: beide gefuellt. LEER? -> SCHRITT 0
 
-  export OH_AFM="${ORACLE_HOME}/guicommon/tk/admin/AFM"
+  echo "PPD=$PPD FONT_DIR=$FONT_DIR"
+  # Erwartet: beide gefuellt. LEER? -> SCHRITT 0
 
-  export AFM_DIR="${TK_ADMIN}/AFM"
-
-  export PPD="${TK_ADMIN}/PPD/screenprinter.ppd"
-
-  export FONT_DIR="${REPORTS_FONT_DIR}"
-
-  # --- Schritt 8.1: FontSpecific-Kopien der Standard-AFMs ---
+  ----------------------------------------------------------------------------
+  8.1 FontSpecific-Kopien der Standard-AFMs
+  ----------------------------------------------------------------------------
   # EncodingScheme FontSpecific umgeht die NLS_LANG-Zeichensatzpruefung,
   # die sonst AdobeStandardEncoding-Schriften ablehnt (MOS Doc ID 300416.1).
   # Der Oracle-Home-Ordner selbst wird dabei NIE veraendert, nur in den
   # Domain-eigenen Ordner kopiert.
+
   mkdir -p "$AFM_DIR"
 
   for f in "$OH_AFM"/Helvetica* "$OH_AFM"/Courier* "$OH_AFM"/Times*; do
@@ -305,20 +497,27 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   done
 
   grep -H '^EncodingScheme' "$AFM_DIR"/Helvetica* "$AFM_DIR"/Courier* "$AFM_DIR"/Times* 2>/dev/null
+  # Erwartet: jede Zeile endet mit "EncodingScheme FontSpecific"
 
-  # --- Schritt 8.2: python3-fonttools installieren (fuer die
-  #     AFM-Generierung aus TTF-Dateien benoetigt) ---
-  dnf install -y python3-fonttools    # als root, falls noch nicht installiert
+  ----------------------------------------------------------------------------
+  8.2 python3-fonttools installieren  (als root, falls noch nicht da)
+  ----------------------------------------------------------------------------
+  # Fuer die AFM-Generierung aus TTF-Dateien benoetigt.
 
-  # --- Schritt 8.3: Je Zeichensatz/Stil eine AFM-Datei generieren ---
+  dnf install -y python3-fonttools
+
+  ----------------------------------------------------------------------------
+  8.3 Je Zeichensatz/Stil eine AFM-Datei generieren  (wieder als oracle)
+  ----------------------------------------------------------------------------
   # Benennungsschema: Familienname ohne Leerzeichen, Suffix -Bold /
   # -Italic / -BoldItalic. HIER die konkreten TTF-Dateinamen aus
-  # $REPORTS_FONT_DIR einsetzen - Beispiel fuer eine Arial-Ersatzschrift:
+  # $REPORTS_FONT_DIR einsetzen - Beispiel fuer eine Arial-Ersatzschrift
+  # (je Datei ein Befehl):
   #
-  #   python3 ttf2reports_afm.py "$FONT_DIR/arial.ttf"    "Arial"            -o "$AFM_DIR/Arial"
-  #   python3 ttf2reports_afm.py "$FONT_DIR/arialbd.ttf"  "Arial-Bold"       -o "$AFM_DIR/Arial-Bold"
-  #   python3 ttf2reports_afm.py "$FONT_DIR/ariali.ttf"   "Arial-Italic"     -o "$AFM_DIR/Arial-Italic"
-  #   python3 ttf2reports_afm.py "$FONT_DIR/arialbi.ttf"  "Arial-BoldItalic" -o "$AFM_DIR/Arial-BoldItalic"
+  #   python3 $AFM_PY "$FONT_DIR/arial.ttf"    "Arial"            -o "$AFM_DIR/Arial"
+  #   python3 $AFM_PY "$FONT_DIR/arialbd.ttf"  "Arial-Bold"       -o "$AFM_DIR/Arial-Bold"
+  #   python3 $AFM_PY "$FONT_DIR/ariali.ttf"   "Arial-Italic"     -o "$AFM_DIR/Arial-Italic"
+  #   python3 $AFM_PY "$FONT_DIR/arialbi.ttf"  "Arial-BoldItalic" -o "$AFM_DIR/Arial-BoldItalic"
   #
   # --encoding (Standard: cp1252/WE8MSWIN1252) MUSS zum NLS_LANG-Zeichensatz
   # aus rwserver.conf passen (siehe Reports_kochbuch_de.txt Schritt 9.7):
@@ -327,40 +526,100 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   #                    "Bekannte Probleme" unten
 
   # Jede generierte AFM-Datei sofort pruefen:
-  python3 ttf2reports_afm.py --check "$AFM_DIR/Arial-Bold"
+
+  python3 $AFM_PY --check "$AFM_DIR/Arial-Bold"
   # Erwartete Ausgabe: "OK <Dateiname>" mit CapHeight/XHeight != 0,
   # EncodingScheme FontSpecific, FontName == Dateiname, FullName ohne
   # Sonderzeichen (z.B. "Arial Bold", NICHT lokalisiert wie "Arial Gras")
 
-  # --- Schritt 8.4: *Font-Zeilen in screenprinter.ppd ergaenzen ---
-  cp -p "$PPD" "${PPD}.bak_$(date +%Y%m%d_%H%M%S)"
+  ----------------------------------------------------------------------------
+  8.4 *Font-Zeilen in screenprinter.ppd ergaenzen
+  ----------------------------------------------------------------------------
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  cp -p "$PPD" "${PPD}.bak_$TS"
+
+  echo "${PPD}.bak_$TS" > $WORK/08_ppd_backup.txt
 
   # Fuer jeden neu generierten Schluessel pruefen, ob er schon existiert,
-  # und falls nicht nach der letzten bestehenden *Font-Zeile einfuegen:
-  KEY="Arial-Bold"
-
-  if ! grep -q "^\*Font ${KEY}:" "$PPD"; then
-      LAST_LINE=$(grep -n '^\*Font ' "$PPD" | tail -1 | cut -d: -f1)
-      sed -i "${LAST_LINE}a *Font ${KEY}: Standard \"(001.000)\" Standard ROM" "$PPD"
-  fi
-
-  # Diesen Block fuer jeden weiteren Schluessel (Arial, Arial-Italic,
+  # und falls nicht nach der letzten bestehenden *Font-Zeile einfuegen.
+  # Beispiel fuer den Schluessel Arial-Bold - die Befehle von KEY= bis
+  # zur Kontrolle fuer jeden weiteren Schluessel (Arial, Arial-Italic,
   # Arial-BoldItalic, ...) wiederholen.
 
-  # --- Schritt 8.5: Nur den Report-Engine-Prozess neu starten ---
+  KEY="Arial-Bold"
+
+  grep -c "^\*Font ${KEY}:" "$PPD"
+  # 1 (oder mehr) -> Schluessel ist schon da, naechster Schluessel
+  # 0             -> die naechsten vier Befehle ausfuehren
+
+  LAST_LINE=$(grep -n '^\*Font ' "$PPD" | tail -1)
+
+  LAST_LINE=${LAST_LINE%%:*}
+
+  echo "letzte *Font-Zeile: $LAST_LINE"
+  # Erwartet: eine Zeilennummer. LEER -> NICHT weiter (sed wuerde sonst
+  # falsch einfuegen), PPD pruefen.
+
+  sed -i "${LAST_LINE}a *Font ${KEY}: Standard \"(001.000)\" Standard ROM" "$PPD"
+
+  grep -n "^\*Font ${KEY}:" "$PPD"
+  # Erwartet: genau eine Zeile
+  #   *Font Arial-Bold: Standard "(001.000)" Standard ROM
+
+  # Zurueck, falls noetig:
+  #   cp -p "$(cat $WORK/08_ppd_backup.txt)" "$PPD"
+
+  ----------------------------------------------------------------------------
+  8.5 Nur den Report-Engine-Prozess neu starten
+  ----------------------------------------------------------------------------
   # WICHTIG: NICHT den ganzen Reports-Server neu starten - AFM/PPD werden
   # nur beim Start eines Engine-Prozesses gelesen, der Reports-Server
   # selbst startet den Engine-Prozess danach automatisch neu (minEngine).
-  pgrep -af 'RWEngine name=rwEng'
-  kill -TERM $(pgrep -f 'RWEngine name=rwEng-0')
 
-  # --- Schritt 8.6: Verifikation ---
+  pgrep -af 'RWEngine name=rwEng'
+  # Erwartet: die laufenden Engines, z.B. ... RWEngine name=rwEng-0 ...
+
+  ENG_PID=$(pgrep -f 'RWEngine name=rwEng-0')
+
+  echo "Engine-PID: $ENG_PID"
+  # Erwartet: genau eine Zahl. LEER -> keine Engine rwEng-0, nichts zu tun
+
+  kill -TERM $ENG_PID
+
+  pgrep -af 'RWEngine name=rwEng'
+  # Erwartet (nach einigen Sekunden): wieder eine Engine rwEng-0, mit
+  # neuer PID
+
+  ----------------------------------------------------------------------------
+  8.6 Verifikation
+  ----------------------------------------------------------------------------
   # Im Browser das Parameterformular aufrufen und pruefen:
   #   - Seitenquelltext: face="arial" (oder der verwendete Fontname) ist
   #     vorhanden, kein Darstellungsfehler
-  #   - Sonderzeichen (grosse Umlaute A/O/U mit Punkten, scharfes s, Euro-Zeichen) werden korrekt angezeigt
+  #   - Sonderzeichen (grosse Umlaute A/O/U mit Punkten, scharfes s,
+  #     Euro-Zeichen) werden korrekt angezeigt
+
   pdffonts /tmp/test_report.pdf
-  # jetzt "CID TrueType ... yes yes" fuer alle Schriften (siehe Schritt 7)
+  # Erwartet: jetzt "CID TrueType ... yes yes" fuer alle Schriften
+  # (siehe Schritt 7)
+
+
+================================================================================
+ROLLBACK
+================================================================================
+
+    was                         wie
+    --------------------------  ---------------------------------------------
+    uifont.ali (Schritt 4)      cp -p der Datei aus $WORK/04_uifont_backup.txt
+                                zurueck nach $UIFONT_ALI (4.4)
+    setUserOverrides.sh (5)     cp -p der Datei aus der Liste
+                                05_overrides_backup.txt in $WORK (5.3)
+    screenprinter.ppd (8.4)     cp -p der Datei aus $WORK/08_ppd_backup.txt
+                                zurueck nach $PPD (8.4)
+    AFM-Dateien (8.1, 8.3)      liegen nur in $AFM_DIR (Domain) - das
+                                Original in $OH_AFM bleibt unveraendert
+    danach                      Reports-Server neu starten (Schritt 6)
 
 
 ================================================================================
