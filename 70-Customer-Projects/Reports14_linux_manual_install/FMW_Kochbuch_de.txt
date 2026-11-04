@@ -700,7 +700,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: Dieser alte Patch muss laut OPatch-Readme VOR dem Upgrade
            zurueckgerollt werden
   Loesung: Schritt 3.2 in der angegebenen Reihenfolge durchfuehren
-           (Rollback -> sleep 20 -> Upgrade)
+           (Rollback -> 30 s warten -> Upgrade)
 
   Problem: "opatch prereq CheckConflictAgainstOHWithDetail" meldet einen
            Konflikt

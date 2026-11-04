@@ -308,6 +308,10 @@ SCHRITT 1: Windows vorbereiten und JDK installieren  [live 2026-10-27]
   mklink /J %JDK_HOME% %JAVA_BASE%\%JDKVER%
   REM Erwartet (englisches Windows):
   REM   Junction created for E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.0.2
+  REM Deutsches Windows:
+  REM   Verbindung erstellt fuer E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.0.2
+  REM Pruefen unabhaengig von der Sprache: dir E:\Java zeigt jdk-21 als
+  REM <JUNCTION> mit dem Ziel in eckigen Klammern.
 
   %JDK_HOME%\bin\java -version
   REM Erwartet: java version "21.0.13..." und Java(TM) SE Runtime Environment
@@ -318,6 +322,7 @@ SCHRITT 1: Windows vorbereiten und JDK installieren  [live 2026-10-27]
   ----------------------------------------------------------------------------
   setx /M JAVA_HOME %JDK_HOME%
   REM Erwartet: SUCCESS: Specified value was saved.
+  REM (deutsches Windows: ERFOLGREICH: Der angegebene Wert wurde gespeichert.)
   REM Danach eine NEUE cmd-Shell als Administrator oeffnen und SCHRITT 0.2.
 
   ----------------------------------------------------------------------------
@@ -626,7 +631,10 @@ SCHRITT 7: Reports-Tools-Instanz anlegen (einmalig)  [live 2026-10-27]
 
   REM --- in WLST eingeben ---
 
-      connect('weblogic', '<Kennwort>', 't3://127.0.0.1:7001')
+      connect(url='t3://127.0.0.1:7001')
+
+      # WLST fragt Benutzer (weblogic) und Kennwort ab - das Kennwort
+      # steht so nicht in der Befehlszeile bzw. im WLST-Verlauf
 
       createReportsToolsInstance(instanceName='reptools1', machine='AdminServerMachine')
 
@@ -768,9 +776,20 @@ SCHRITT 9: Test  [live 2026-10-27]
   ----------------------------------------------------------------------------
   9.2 Kommandozeile  (Kompilieren ohne GUI)
   ----------------------------------------------------------------------------
+  REM Die DB-Anmeldung (userid=) NICHT in die Befehlszeile - sie waere in
+  REM der Prozessliste sichtbar. rwconverter liest sie aus einer Datei
+  REM (cmdfile=), die danach sofort geloescht wird:
+
+  notepad E:\temp\rwconv.txt
+
+  REM Inhalt - eine Zeile, Platzhalter ersetzen, speichern, schliessen:
+  REM   userid=<user>/<kennwort>@<alias>
+
   %DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\reports\src\test_builder.rdf ^
       stype=rdffile dest=E:\temp\test_builder.rep dtype=repfile batch=yes ^
-      userid=<user>/<kennwort>@<alias>
+      cmdfile=E:\temp\rwconv.txt
+
+  del E:\temp\rwconv.txt
 
   dir E:\temp\test_builder.rep
   REM Erwartet: die .rep-Datei ist da
@@ -789,6 +808,17 @@ SCHRITT 9: Test  [live 2026-10-27]
   REM --- in PowerShell eingeben ---
 
       $rwUrl = 'https://<linux-server>/reports/rwservlet'
+
+      # Windows PowerShell 5.1 prueft das Zertifikat gegen den Windows-
+      # Zertifikatsspeicher: bei einer internen CA muss deren Root-CA dort
+      # importiert sein (SSL_Kochbuch_de.txt Option D.3), sonst "Die
+      # zugrunde liegende Verbindung wurde geschlossen". Test:
+
+      Invoke-WebRequest -UseBasicParsing -Method Head -Uri $rwUrl
+      # Erwartet: StatusCode 200 (oder 499/403 - Hauptsache keine TLS-Meldung)
+
+      # Falls TLS 1.2 nicht aktiv ist (aeltere Windows-Server):
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
       $sec = Read-Host -AsSecureString 'DB-Kennwort'
       # Kennwort verdeckt eingeben

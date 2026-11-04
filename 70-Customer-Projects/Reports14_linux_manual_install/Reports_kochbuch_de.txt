@@ -307,7 +307,7 @@ SCHRITT 1: Forms & Reports Software installieren  (als oracle)
   Hinweis: Der 14.1.2-Installer liefert IMMER Forms- und Reports-Binaries
   gemeinsam aus - einen "Reports-only"-Installertyp gibt es auf
   Binaer-Ebene nicht. Die Beschraenkung auf Reports erfolgt erst spaeter
-  bei der Domain-Erstellung (Schritt 3) ueber die tatsaechlich verwendeten
+  bei der Domain-Erstellung (Schritt 4) ueber die tatsaechlich verwendeten
   Konfigurations-Templates.
 
   Beide folgenden Optionen fuehren zum IDENTISCHEN Ergebnis - Option A
@@ -403,8 +403,12 @@ EOF
   ----------------------------------------------------------------------------
   1.C Kontrolle  (beide Optionen, NUR Reports relevant)
   ----------------------------------------------------------------------------
-  # Dauer (beide Optionen): ca. 10-20 Minuten. Installationslog:
-  # /u01/app/oraInventory/logs/
+  # Dauer (beide Optionen): ca. 10-20 Minuten. Das Installationslog liegt
+  # im Inventory (OS_Kochbuch_de.txt 5.6, /etc/oraInst.loc):
+
+  grep inventory_loc /etc/oraInst.loc
+
+  # Erwartet: inventory_loc=/u01/app/oraInventory -> Logs darunter in logs/
 
   $OPATCH version
   # Erwartet: "OPatch Version: ..." und "OPatch succeeded."

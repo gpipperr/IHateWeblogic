@@ -10,7 +10,7 @@ Overview and status: [README.md](README.md#project-status).
 The 10 cookbooks of `Reports14_linux_manual_install` + the Windows Builder
 cookbook were rewritten to the cookbook-Skill style (form only). Technical
 doubts noticed on the way, **not changed** – check on the test host.
-Fixed on 2026-11-04 (afternoon): admin name = `repadmin` everywhere (also the
+Fixed on 2026-11-04 (afternoon + evening): admin name = `repadmin` everywhere (also the
 library default `REPORTS_ADMIN_USER`), OS IPv6 lines kept in
 `99-oracle-fmw.conf` / inventory owner + 770 / swap dir / nginx without
 `[::]`, Reports `umask 077` removed / `StartScriptEnabled` (default true),
@@ -19,29 +19,15 @@ restarted, Autostart 8.1 + Reports_security 8.4 a) (live: HTTP 499 + "Oracle
 SSO" page without authid), SSL root steps marked, audit as root,
 `s_client` output (live).
 
-- [ ] **OS cookbook:** core dir created twice; `/dev/shm` remount without an
-  fstab edit; new `MEDIA=/tmp/media` upload dir to confirm.
-- [ ] **Reports cookbook:** step 1 says domain = "Schritt 3" (is 4); 1.C install log path `/u01/app/oraInventory` vs.
-  `ORACLE_BASE=/u01/oracle`; `cmdkey` report run as POST (9.8 / 9.11) and the
-  new `server=` in step 8 – verify.
-- [ ] **Font cookbook:** origin of `/tmp/test_report.pdf`;
-  known problem "systemctl restart weblogic" (unit is `reportrpgpi`);
-  `04-ReportsFonts/manual_setup_de.txt` still exists; `AFM_PY` path assumed.
-- [ ] **Autostart:** scripts / unit hard-code `/u01/oracle/scripts`, 5556, domain values
-  (could read `patch_install.ini`).
-- [ ] **start/stop:** start order AdminServer → NM (0.1) vs. NM → AdminServer
-  (`start_wls_all.sh`); Reports Tools instance in start/stop – needed?;
-  scripts stored in `$ORACLE_HOME` (lost / old after a home restore).
-- [ ] **Patch 14c:** 13.6 `REPORTS_SERVER_NAME` not set by `patch_env.sh`,
-  port 9002 literal; no check after the `reboot` of step 15.
-- [ ] **Reports_security:** 7.3 expects `<server` vs. `<serverInfo` in
-  Absicherung.
-- [ ] **FMW:** "sleep 20" (known problems) vs. "sleep 30" (3.2).
-- [ ] **Windows Builder:** 9.2 `rwconverter userid=` on the command line;
-  7.2 `connect()` with the password as argument; 9.3 PowerShell 5.1 POST needs
-  the root CA imported; new "Erwartet" for `mklink` / `setx` not verified.
-- [ ] Formatter `cookbook_blank_lines.py` (local): false positives on
-  `$VAR` tree / text rows and inside `( … ) | tee` subshells.
+All points of this list were fixed on 2026-11-04 (evening), see `git log`.
+Still to check on a fresh run / at the customer:
+
+- [ ] `cmdkey` / `userid=` report runs as POST (Reports cookbook 9.8 / 9.11,
+  Font step 7 test PDF via `destype=cache`) on a customer host.
+- [ ] Windows Builder: German `mklink` / `setx` messages, `rwconverter
+  cmdfile=`, PowerShell 5.1 POST against the internal CA.
+- [ ] Autostart / start-stop: generated `report_env.sh` (values from step 0)
+  and `start_wls_all.sh` reading `patch_install.ini` – first real run.
 
 ## Patch cycle CPU October 2026 – remaining
 

@@ -183,8 +183,11 @@ SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
 
   export DB_SERVICE=ORCLPDB1
 
-  export MEDIA=/tmp/media
-  # Upload-Verzeichnis der ZIPs (Tabelle "Quelldateien") - anpassen
+  export MEDIA=/u01/oracle/install/media
+  # Upload-Verzeichnis der ZIPs (Tabelle "Quelldateien"). Nicht /tmp: wird
+  # beim Reboot geleert und ist auf gehaerteten Images oft noexec.
+
+  mkdir -p $MEDIA
 
   export JDK_BASE=$(dirname $JDK_HOME)
 
@@ -200,8 +203,9 @@ SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
   ----------------------------------------------------------------------------
   . /u01/oracle/tools/set_script_env.sh
 
-  export MEDIA=/tmp/media
-  # wie in 0.2 - steht nicht in patch_install.ini
+  echo "MEDIA=$MEDIA"
+
+  # Erwartet: /u01/oracle/install/media (aus patch_install.ini)
 
   ----------------------------------------------------------------------------
   0.4 Kontrolle
@@ -490,9 +494,20 @@ EOF
 
   grep /dev/shm /etc/fstab
 
-  # Beispiel-Eintrag in /etc/fstab (N = Groesse in MB, z.B. 8192 fuer 8 GB):
+  # Erwartet: Groesse >= 25 % RAM (min. 2 GB) und KEIN "noexec" in der
+  # mount-Zeile bzw. im fstab-Eintrag -> fertig, weiter mit 2.7.
+  # Zu klein oder noexec (z.B. CIS-Image) -> fstab anpassen:
+
+  cp -p /etc/fstab /etc/fstab.bak_shm
+
+  vi /etc/fstab
+
+  # Zeile fuer /dev/shm eintragen bzw. ersetzen (Groesse in MB, z.B. 8 GB):
   #   tmpfs /dev/shm tmpfs rw,exec,size=8192M 0 0
-  # Notiz (Autor): GPI
+
+  grep /dev/shm /etc/fstab
+
+  # Erwartet: genau eine Zeile, ohne noexec
 
   systemctl daemon-reload
 
@@ -500,6 +515,10 @@ EOF
 
   df -h /dev/shm
   # Erwartet: die neue Groesse
+
+  mount | grep /dev/shm
+
+  # Erwartet: kein "noexec" in der Zeile
 
   ----------------------------------------------------------------------------
   2.7 Swap-Speicher
@@ -527,12 +546,7 @@ EOF
   free -h
   # Erwartet: Swap um 2 GB groesser
 
-  # Core-Dump-Verzeichnis anlegen (777, da sowohl oracle als auch native
-  # Prozesse dorthin schreiben muessen)
-
-  mkdir -p /var/tmp/core
-
-  chmod 777 /var/tmp/core
+  # Das Core-Dump-Verzeichnis /var/tmp/core ist schon in 2.3 angelegt.
 
   ----------------------------------------------------------------------------
   2.8 Firewall: Ports fuer Nginx und Reports

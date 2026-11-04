@@ -1114,11 +1114,20 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
   #    Per POST - ein authid=... in der URL steht sonst im Klartext im
   #    access.log von WLS_REPORTS.
 
-  echo "REPORTS_SERVER_NAME=$REPORTS_SERVER_NAME"
-  # Erwartet: repServer01. LEER -> . /u01/oracle/tools/set_script_env.sh
-  # (patch_install.ini) oder  export REPORTS_SERVER_NAME=repServer01
+  # REPORTS_SERVER_NAME und WLS_REPORTS_PORT setzt fmw_patch_env.sh NICHT -
+  # sie kommen aus patch_install.ini:
 
-  RW_URL=http://localhost:9002/reports/rwservlet
+  . /u01/oracle/tools/set_script_env.sh
+
+  RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
+
+  echo "REPORTS_SERVER_NAME=$REPORTS_SERVER_NAME RW_URL=$RW_URL"
+
+  # Erwartet: repServer01 http://localhost:9002/reports/rwservlet.
+  # LEER (keine patch_install.ini) -> von Hand:
+  #   export REPORTS_SERVER_NAME=repServer01
+  #   export WLS_REPORTS_PORT=9002
+  # und RW_URL= neu setzen.
 
   read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
 
@@ -1185,6 +1194,26 @@ SCHRITT 15: Maschine neu starten  (als root)
 ================================================================================
 
   reboot
+
+  # Nach dem Neustart (einige Minuten) als oracle neu anmelden - pruefen,
+  # dass alles von selbst wieder hochkommt:
+
+  systemctl status reportrpgpi --no-pager
+
+  # Erwartet: "active (exited)" - nur mit Autostart
+  # (Autostart_linux_middleware.txt). Ohne Autostart: start_wls_all.sh
+  # (WLS_Report_start_stop_kochbuch.txt Schritt 4.1).
+
+  status.sh
+
+  # Erwartet: "Ergebnis: alles in Ordnung" (Tools_status_logs_kochbuch.txt)
+
+  java -version
+
+  # Erwartet: 21.0.13.0.2 (die neue JDK aus Schritt 6 ist auch nach dem
+  # Neustart aktiv)
+
+  # Danach den Funktionstest 13.6 b) einmal wiederholen.
 
 
 ================================================================================

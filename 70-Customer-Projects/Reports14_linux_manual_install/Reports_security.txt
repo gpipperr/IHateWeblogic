@@ -731,7 +731,9 @@ SCHRITT 7: Reports-Server-Administrator <identifier>  (als oracle)
   echo
 
   curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$RPW" $RW_URL/getserverinfo | head -5
-  # Erwartet: XML mit <server ... und Engine-Status
+  # Erwartet: <serverInfo name="repServer01" version="14.1.2.0.0"> und die
+  # <engine ...>-Zeilen (Feldreferenz: 80-FMW-Architecture/
+  # reports_monitoring_getserverinfo.md)
   # Fehler: code="56071" = nicht berechtigt, code="50171" = Kennwort falsch
 
   unset RPW

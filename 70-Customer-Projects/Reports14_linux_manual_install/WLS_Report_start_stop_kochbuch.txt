@@ -46,16 +46,16 @@ VORAUSSETZUNGEN
     DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
     WLS_MANAGED_SERVER      WLS_REPORTS
     WLS_ADMIN_URL           t3://localhost:7001
-    REPORTS_TOOLS_INSTANCE  reptools1
     REPORTS_SERVER_NAME     repServer01
 
   Was wo landet:
 
-    ~/.bash_profile                     Block "WebLogic/Reports Start-Stop"
-                                        <- SCHRITT 1 (Sicherung daneben:
-                                        ~/.bash_profile.bak_<zeit>)
-    $ORACLE_HOME/start_wls_all.sh       <- SCHRITT 2 (Rechte 755)
-    $ORACLE_HOME/stop_wls_all.sh        <- SCHRITT 3 (Rechte 755)
+    /u01/oracle/tools/patch_install.ini die Werte (Fahrplan Schritt 3) -
+                                        nur lesen (SCHRITT 1)
+    /u01/oracle/tools/start_wls_all.sh  <- SCHRITT 2 (Rechte 755), neben
+    /u01/oracle/tools/stop_wls_all.sh   <- SCHRITT 3  der ini; NICHT im
+                                        ORACLE_HOME (ein Restore des Homes
+                                        braechte alte Skripte zurueck)
     $DOMAIN_HOME/bin/                   die Oracle-Skripte (Teil der Domain,
                                         nichts zu kopieren - Tabelle SCHRITT 0)
     $DOMAIN_HOME/nodemanager/nm_start.log   <- Start Node Manager (0.1 / 2)
@@ -88,8 +88,8 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   #
   #   Komponente          Starten                     Stoppen
   #   ------------------  --------------------------  ---------------------------
-  #   1. AdminServer      startWebLogic.sh            stopWebLogic.sh
-  #   2. Node Manager     startNodeManager.sh         stopNodeManager.sh
+  #   1. Node Manager     startNodeManager.sh         stopNodeManager.sh
+  #   2. AdminServer      startWebLogic.sh            stopWebLogic.sh
   #   3. Managed Server   startManagedWebLogic.sh     stopManagedWebLogic.sh
   #      (Reports-WLS)    <server> <admin-url>        <server> <admin-url> <user> <pw>
   #   4. Reports Server   startComponent.sh <name>    stopComponent.sh <name>
@@ -119,11 +119,11 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
 
   . /u01/oracle/tools/set_script_env.sh
 
-  # Ohne set_script_env.sh - Werte fuer die aktuelle Sitzung von Hand
-  # (dauerhaft: Schritt 1):
+  # Ohne set_script_env.sh - Werte fuer die aktuelle Sitzung von Hand:
   #   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
   #   export WLS_MANAGED_SERVER=WLS_REPORTS
   #   export WLS_ADMIN_URL=t3://localhost:7001
+  #   export WLS_REPORTS_PORT=9002
   #   export REPORTS_SERVER_NAME=repServer01
 
   echo "DH=$DOMAIN_HOME MS=$WLS_MANAGED_SERVER URL=$WLS_ADMIN_URL REP=$REPORTS_SERVER_NAME"
@@ -131,14 +131,25 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
 
   OVD_DIR=$DOMAIN_HOME/config/fmwconfig/ovd/default
 
-  RW_URL=http://localhost:9002/reports/rwservlet
+  RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
+
+  echo "$RW_URL"
+
+  # Erwartet: http://localhost:9002/reports/rwservlet. Port LEER ->
+  # export WLS_REPORTS_PORT=9002
 
   cd $DOMAIN_HOME/bin
 
   ----------------------------------------------------------------------------
   0.1 Starten  (in dieser Reihenfolge)
   ----------------------------------------------------------------------------
-  # 1. AdminServer - braucht $DOMAIN_HOME/servers/AdminServer/security/
+  # 1. Node Manager - zuerst, wie in start_wls_all.sh und im Autostart
+
+  nohup ./startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
+
+  # ca. 10 Sekunden, Kontrolle 0.2 Punkt 2
+
+  # 2. AdminServer - braucht $DOMAIN_HOME/servers/AdminServer/security/
   #    boot.properties (Reports_kochbuch_de.txt Schritt 4). Ohne diese Datei
   #    bricht ein Start im Hintergrund (nohup) sofort ab: im Production Mode
   #    gibt es keine Konsole fuer die Passwortabfrage (BEA-090782).
@@ -152,12 +163,6 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   nohup ./startWebLogic.sh > /tmp/adminserver_start.log 2>&1 &
 
   # ca. 1 Minute warten, bis der Status (0.2, Punkt 1) "200" meldet
-
-  # 2. Node Manager
-
-  nohup ./startNodeManager.sh > $DOMAIN_HOME/nodemanager/nm_start.log 2>&1 &
-
-  # ca. 10 Sekunden, Kontrolle 0.2 Punkt 2
 
   # 3. Managed Server - braucht ebenfalls boot.properties
   #    (Reports_kochbuch_de.txt Schritt 6) und einen laufenden AdminServer
@@ -267,46 +272,20 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
 
 
 ================================================================================
-SCHRITT 1: Pfade dauerhaft im .bash_profile hinterlegen  (als oracle)
+SCHRITT 1: Werte in patch_install.ini pruefen  (als oracle)
 ================================================================================
 
-  # Diese Variablen braucht NUR dieses Kochbuch (start_wls_all.sh /
-  # stop_wls_all.sh) - unabhaengig davon, ob sie schon anderswo gesetzt
-  # sind, macht ein zweites "export" hier nichts kaputt.
+  # Die Skripte aus Schritt 2/3 lesen ihre Werte selbst aus
+  # patch_install.ini im selben Verzeichnis - kein Block in der
+  # ~/.bash_profile mehr (bis 2026-11-04 stand er dort).
 
-  ----------------------------------------------------------------------------
-  1.1 Sichern
-  ----------------------------------------------------------------------------
-  TS=$(date +%Y%m%d_%H%M%S)
+  TOOLS=/u01/oracle/tools
 
-  cp -p ~/.bash_profile ~/.bash_profile.bak_$TS
+  grep -E '^(ORACLE_HOME|DOMAIN_NAME|DOMAIN_HOME|WLS_ADMIN_PORT|WLS_ADMIN_URL|WLS_MANAGED_SERVER|REPORTS_SERVER_NAME)=' $TOOLS/patch_install.ini
 
-  ----------------------------------------------------------------------------
-  1.2 Block anhaengen
-  ----------------------------------------------------------------------------
-  cat >> ~/.bash_profile << 'EOF'
-
-# --- WebLogic/Reports Start-Stop (WLS_Report_start_stop_kochbuch.txt) ------
-export ORACLE_HOME=/u01/oracle/fmw
-export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-export WLS_MANAGED_SERVER=WLS_REPORTS
-export WLS_ADMIN_URL=t3://localhost:7001
-export REPORTS_TOOLS_INSTANCE=reptools1
-export REPORTS_SERVER_NAME=repServer01
-EOF
-
-  ----------------------------------------------------------------------------
-  1.3 Uebernehmen und pruefen
-  ----------------------------------------------------------------------------
-  # Sofort fuer die aktuelle Sitzung uebernehmen (sonst erst beim naechsten
-  # Login aktiv):
-
-  source ~/.bash_profile
-
-  echo "$DOMAIN_HOME"
-  # Erwartet: /u01/user_projects/domains/reportRpgpi
-
-  # Zurueck: cp -p ~/.bash_profile.bak_<zeit> ~/.bash_profile
+  # Erwartet: alle sieben Zeilen mit den Werten dieser Domain.
+  # "No such file" -> Fahrplan ../Start_beim_Kunden_kochbuch_de.txt
+  # Schritt 1-3.
 
 
 ================================================================================
@@ -316,14 +295,17 @@ SCHRITT 2: start_wls_all.sh anlegen  (als oracle)
   # Das Skript wird mit einem Heredoc geschrieben - der ganze Block von
   # "cat" bis zur Zeile "EOF" ist EIN Befehl.
 
-  cat > $ORACLE_HOME/start_wls_all.sh << 'EOF'
+  cat > $TOOLS/start_wls_all.sh << 'EOF'
 #!/bin/bash
-# Startet Node Manager, AdminServer, Managed Server und die
-# Reports-Komponenten in dieser Reihenfolge. Einfachste Variante: immer
-# alles zusammen starten, keine Einzelsteuerung.
+# Startet Node Manager, AdminServer, Managed Server und den Reports-Server
+# in dieser Reihenfolge. Einfachste Variante: immer alles zusammen
+# starten, keine Einzelsteuerung.
 #
-# Benoetigt DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
-# REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME aus ~/.bash_profile.
+# Werte (DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
+# REPORTS_SERVER_NAME) aus patch_install.ini im selben Verzeichnis.
+set -a
+. "$(dirname "$0")/patch_install.ini"
+set +a
 
 echo "=== 1/4 Node Manager starten ==="
 nohup "$DOMAIN_HOME/bin/startNodeManager.sh" \
@@ -344,8 +326,9 @@ nohup "$DOMAIN_HOME/bin/startManagedWebLogic.sh" \
     > /tmp/managed_start.log 2>&1 &
 sleep 60
 
-echo "=== 4/4 Reports-Komponenten starten ==="
-"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+echo "=== 4/4 Reports-Server starten ==="
+# Die Reports-Tools-Instanz ist reine Konfiguration (kein Prozess) - sie
+# wird nicht gestartet (wie 01-Run/startStop.sh der Bibliothek)
 "$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_SERVER_NAME"
 
 echo
@@ -355,9 +338,9 @@ echo "  /tmp/adminserver_start.log"
 echo "  /tmp/managed_start.log"
 EOF
 
-  chmod +x $ORACLE_HOME/start_wls_all.sh
+  chmod 755 $TOOLS/start_wls_all.sh
 
-  ls -l $ORACLE_HOME/start_wls_all.sh
+  ls -l $TOOLS/start_wls_all.sh
   # Erwartet: -rwxr-xr-x ... start_wls_all.sh
 
 
@@ -371,14 +354,16 @@ SCHRITT 3: stop_wls_all.sh anlegen  (als oracle)
   # Passwort beim Tippen nicht auf dem Bildschirm aus.
   # Der ganze Block von "cat" bis zur Zeile "EOF" ist EIN Befehl.
 
-  cat > $ORACLE_HOME/stop_wls_all.sh << 'EOF'
+  cat > $TOOLS/stop_wls_all.sh << 'EOF'
 #!/bin/bash
-# Stoppt Reports-Komponenten, Managed Server, AdminServer und Node Manager
+# Stoppt Reports-Server, Managed Server, AdminServer und Node Manager
 # in umgekehrter Reihenfolge. Einfachste Variante: immer alles zusammen
 # stoppen, keine Einzelsteuerung.
 #
-# Benoetigt DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
-# REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME aus ~/.bash_profile.
+# Werte aus patch_install.ini im selben Verzeichnis.
+set -a
+. "$(dirname "$0")/patch_install.ini"
+set +a
 
 echo "Fuer AdminServer und Managed Server wird das WebLogic-Administrator-"
 echo "Kennwort benoetigt (wird nirgends gespeichert)."
@@ -387,9 +372,8 @@ WLS_USER="${WLS_USER:-weblogic}"
 read -s -p "WebLogic-Passwort: " WLS_PASS
 echo
 
-echo "=== 1/4 Reports-Komponenten stoppen ==="
+echo "=== 1/4 Reports-Server stoppen ==="
 "$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_SERVER_NAME"
-"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_TOOLS_INSTANCE"
 
 echo "=== 2/4 Managed Server ($WLS_MANAGED_SERVER) stoppen ==="
 "$DOMAIN_HOME/bin/stopManagedWebLogic.sh" \
@@ -406,9 +390,9 @@ echo
 echo "Fertig."
 EOF
 
-  chmod +x $ORACLE_HOME/stop_wls_all.sh
+  chmod 755 $TOOLS/stop_wls_all.sh
 
-  ls -l $ORACLE_HOME/stop_wls_all.sh
+  ls -l $TOOLS/stop_wls_all.sh
   # Erwartet: -rwxr-xr-x ... stop_wls_all.sh
 
 
@@ -419,13 +403,15 @@ SCHRITT 4: Benutzung  (als oracle)
   ----------------------------------------------------------------------------
   4.1 Alles starten  (dauert insgesamt ca. 2-3 Minuten)
   ----------------------------------------------------------------------------
-  $ORACLE_HOME/start_wls_all.sh
+  start_wls_all.sh
+
+  # (liegt in /u01/oracle/tools - durch setdb im PATH)
   # Erwartet am Ende: "Fertig. Logs bei Problemen:" und die drei Log-Pfade
 
   ----------------------------------------------------------------------------
   4.2 Status pruefen  (alle vier Abfragen siehe Schritt 0.2)
   ----------------------------------------------------------------------------
-  RW_URL=http://localhost:9002/reports/rwservlet
+  RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
 
   read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
 
@@ -433,8 +419,8 @@ SCHRITT 4: Benutzung  (als oracle)
 
   curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$APW" $RW_URL/getserverinfo
   # Erwartet: XML-Antwort mit status="1" (Engine IDLE). Ohne authid kommt
-  # "REP-52262 Diagnostic output is disabled" (siehe Reports_kochbuch_de.txt
-  # Schritt 9.11).
+  # beim abgesicherten Server HTTP 499 mit der Seite "Oracle SSO" (live
+  # 2026-11-04), sonst "REP-52262 Diagnostic output is disabled".
   # Fehler: code="56071" = Benutzer nicht berechtigt, code="50171" =
   # Kennwort falsch.
 
@@ -443,7 +429,8 @@ SCHRITT 4: Benutzung  (als oracle)
   ----------------------------------------------------------------------------
   4.3 Alles stoppen  (fragt nach WebLogic-Benutzername/-Passwort)
   ----------------------------------------------------------------------------
-  $ORACLE_HOME/stop_wls_all.sh
+  stop_wls_all.sh
+
   # Erwartet am Ende: "Fertig."
 
 
@@ -453,10 +440,11 @@ ROLLBACK
 
   Was                          Wie
   ---------------------------  ----------------------------------------------
-  .bash_profile (SCHRITT 1)    cp -p ~/.bash_profile.bak_<zeit> ~/.bash_profile
   start_wls_all.sh (SCHRITT 2) umbenennen: mv <skript> <skript>.alt
   stop_wls_all.sh (SCHRITT 3)  umbenennen: mv <skript> <skript>.alt
-                               (beide liegen in $ORACLE_HOME/)
+                               (beide liegen in /u01/oracle/tools/)
+  alter .bash_profile-Block    (nur Installationen vor 2026-11-04) mit vi
+                               entfernen - die Werte kommen aus der ini
 
   Die Oracle-Skripte unter $DOMAIN_HOME/bin/ werden nicht veraendert.
 
@@ -508,10 +496,10 @@ BEKANNTE PROBLEME UND LOESUNGEN
            4.2)
 
   Problem: $DOMAIN_HOME ist leer, wenn man "echo $DOMAIN_HOME" eingibt
-  Ursache: ~/.bash_profile wurde noch nicht geladen (z.B. neue SSH-Sitzung
-           nach Schritt 1, aber vor dem naechsten Login)
-  Loesung: "source ~/.bash_profile" erneut ausfuehren, oder neu einloggen
-           (oder . /u01/oracle/tools/set_script_env.sh, Schritt 0.0)
+  Ursache: neue Sitzung, die Werte der ini sind noch nicht geladen
+  Loesung: . /u01/oracle/tools/set_script_env.sh (Schritt 0.0) - die
+           Skripte aus Schritt 2/3 lesen die ini selbst und brauchen das
+           nicht
 
 
 ================================================================================

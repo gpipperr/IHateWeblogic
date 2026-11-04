@@ -136,6 +136,8 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   export REPORTS_SERVER_NAME=repServer01
 
+  export WLS_REPORTS_PORT=9002
+
   export REPORTS_COMPONENT_HOME=$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/$REPORTS_TOOLS_INSTANCE
 
   export REPORTS_ADMIN=$REPORTS_COMPONENT_HOME/guicommon/tk/admin
@@ -160,6 +162,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   export OVERRIDES="${DOMAIN_HOME}/bin/setUserOverrides.sh"
 
   export AFM_PY=/u01/oracle/install/IHateWeblogic/04-ReportsFonts/ttf2reports_afm.py
+  # = $REPO/04-ReportsFonts/... aus dem Fahrplan (Start_beim_Kunden SCHRITT 0.2)
   # Repository-Kopie aus dem Fahrplan (Start_beim_Kunden_kochbuch_de.txt,
   # SCHRITT 0) - liegt sie woanders, hier den Pfad anpassen
 
@@ -447,6 +450,41 @@ SCHRITT 7: PDF-Test und Verifikation  (als oracle)
   # pdffonts ist Teil des Pakets poppler-utils (als root:
   # dnf install -y poppler-utils)
 
+  # Test-PDF erzeugen: einen Bericht mit den verwendeten Schriften ueber
+  # rwservlet als PDF holen (POST, destype=cache - die Datei landet auf
+  # diesem Rechner, nicht im <write>-Verzeichnis des Servers).
+  # Werte anpassen (Bericht aus einem <read>-Verzeichnis, DB-Benutzer und
+  # Verbindung OHNE Kennwort):
+
+  export TEST_RDF=font_test.rdf
+
+  export TEST_DB_USER=scott
+
+  export TEST_DB_CONN=//dbserver01.company.local:1521/ORCLPDB1
+
+  export RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
+
+  echo "RDF=$TEST_RDF USER=$TEST_DB_USER CONN=$TEST_DB_CONN URL=$RW_URL"
+
+  # Erwartet: alle gefuellt, Port 9002 in der URL. LEER -> SCHRITT 0
+
+  read -s -p "Kennwort RepRunner: " RPW
+
+  echo
+
+  read -s -p "DB-Kennwort: " DPW
+
+  echo
+
+  curl -s -o /tmp/test_report.pdf -d server=$REPORTS_SERVER_NAME -d report=$TEST_RDF -d destype=cache -d desformat=pdf --data-urlencode "authid=RepRunner/$RPW" --data-urlencode "userid=$TEST_DB_USER/$DPW@$TEST_DB_CONN" $RW_URL
+
+  unset RPW DPW
+
+  file /tmp/test_report.pdf
+
+  # Erwartet: PDF document. "HTML document" -> Fehlerseite: less ansehen
+  # (REP-56132 = Bericht nicht in <read>, code="50171" = Kennwort falsch)
+
   pdffonts /tmp/test_report.pdf
   # Korrekte Ausgabe (so am Testsystem, 2026-10-19):
   #   name                     type          encoding    emb sub uni
@@ -692,10 +730,12 @@ BEKANNTE PROBLEME UND LOESUNGEN
            04-ReportsFonts/HTML_ParameterForm_Fonts.md Abschnitt 9
            (Caveats and Open Points)
 
-  Problem: Systemctl restart weblogic schlaegt fehl
-  Loesung: Service-Name pruefen: systemctl list-units | grep -i weblogic
-           Alternativ: Domain-Skripte (Schritt 6 bzw. Reports_kochbuch_de.txt)
-           verwenden.
+  Problem: Neustart ueber systemctl schlaegt fehl ("Unit ... not found")
+  Ursache: Der Dienst heisst nach Autostart_linux_middleware.txt
+           "reportrpgpi" (nicht "weblogic"); ohne Autostart gibt es keinen
+  Loesung: systemctl list-units | grep -i report - sonst nur den
+           Reports-Server mit stopComponent.sh / startComponent.sh neu
+           starten (Schritt 6).
 
 
 ================================================================================

@@ -101,9 +101,12 @@ SO IST DIESES KOCHBUCH ZU LESEN
         # --- Ende WLST ---
     und sind weiter eingerueckt.
 
-  - Die Dateien in SCHRITT 2-4 und 6 entstehen mit "cat > ... << 'EOF'".
+  - Die Dateien in SCHRITT 2-4 und 6 entstehen mit "cat > ... << EOF".
     Den ganzen Block von "cat" bis einschliesslich "EOF" auf einmal
-    kopieren.
+    kopieren. Bei "<< EOF" (ohne Hochkommas) setzt die Shell die Werte
+    aus SCHRITT 0 beim Anlegen ein - nichts ist fest eingetragen, die
+    Kontrolle danach zeigt die eingesetzten Werte. Bei "<< 'EOF'" wird
+    der Text unveraendert geschrieben.
 
   - Platzhalter in spitzen Klammern (<WLS_ADMIN_PASSWORD>) nur in WLST
     ersetzen, nie in der Shell eintippen.
@@ -317,17 +320,26 @@ SCHRITT 2: Umgebungsdatei anlegen  (als oracle)
 
   mkdir -p $SCRIPTS
 
-  cat > $SCRIPTS/report_env.sh << 'EOF'
+  # a) die Werte aus SCHRITT 0 (die Shell setzt sie beim Anlegen ein):
+
+  cat > $SCRIPTS/report_env.sh << EOF
 #!/bin/bash
 # Umgebung fuer start_all.sh / stop_all.sh (Autostart_linux_middleware.txt)
+# Werte beim Anlegen aus SCHRITT 0 eingesetzt
 
-export ORACLE_HOME=/u01/oracle/fmw
-export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
-export WLS_MANAGED_SERVER=WLS_REPORTS
-export WLS_ADMIN_URL=t3://localhost:7001
-export REPORTS_TOOLS_INSTANCE=reptools1
-export REPORTS_SERVER_NAME=repServer01
+export ORACLE_HOME=$ORACLE_HOME
+export DOMAIN_HOME=$DOMAIN_HOME
+export WLS_MANAGED_SERVER=$WLS_MANAGED_SERVER
+export WLS_ADMIN_URL=t3://localhost:$WLS_ADMIN_PORT
+export WLS_NODEMANAGER_PORT=$WLS_NODEMANAGER_PORT
+export REPORTS_TOOLS_INSTANCE=$REPORTS_TOOLS_INSTANCE
+export REPORTS_SERVER_NAME=$REPORTS_SERVER_NAME
 export LOG_DIR=$DOMAIN_HOME/logs
+EOF
+
+  # b) die Hilfsfunktionen (unveraendert, daher 'EOF'):
+
+  cat >> $SCRIPTS/report_env.sh << 'EOF'
 
 # Obergrenzen in Sekunden (keine festen Pausen - es wird nur so lange
 # gewartet wie noetig)
@@ -369,23 +381,25 @@ EOF
   2.1 Kontrolle: passen die Werte zu SCHRITT 0?
   ----------------------------------------------------------------------------
   grep -n '^export' $SCRIPTS/report_env.sh
-  # Erwartet: dieselben Werte wie "echo" in 0.4 (ORACLE_HOME, DOMAIN_HOME,
-  # WLS_MANAGED_SERVER, WLS_ADMIN_URL, REPORTS_TOOLS_INSTANCE,
-  # REPORTS_SERVER_NAME, LOG_DIR).
+  # Erwartet: echte Werte, keine leeren Zuweisungen - dieselben wie "echo"
+  # in 0.4 (ORACLE_HOME, DOMAIN_HOME, WLS_MANAGED_SERVER, WLS_ADMIN_URL,
+  # WLS_NODEMANAGER_PORT, REPORTS_TOOLS_INSTANCE, REPORTS_SERVER_NAME,
+  # LOG_DIR). "export DOMAIN_HOME=" ohne Wert -> SCHRITT 0, dann 2 neu.
 
 
 ================================================================================
 SCHRITT 3: Start-Skript anlegen  (als oracle)
 ================================================================================
 
-  Der Node-Manager-Port 5556 ist im Skript fest eingetragen - bei einem
-  anderen WLS_NODEMANAGER_PORT danach mit vi anpassen.
+  Alle Werte (auch der Node-Manager-Port) kommen zur Laufzeit aus
+  report_env.sh im selben Verzeichnis - im Skript ist nichts fest
+  eingetragen.
 
   cat > $SCRIPTS/start_all.sh << 'EOF'
 #!/bin/bash
 # Startet Node Manager, AdminServer, Managed Server und die
 # Reports-Komponenten. Bereits laufende Teile werden uebersprungen.
-source /u01/oracle/scripts/report_env.sh
+source "$(dirname "$0")/report_env.sh"
 mkdir -p "$LOG_DIR"
 cd "$DOMAIN_HOME" || exit 1
 
@@ -395,10 +409,10 @@ if pgrep -f "weblogic.NodeManager" > /dev/null; then
 else
     nohup "$DOMAIN_HOME/bin/startNodeManager.sh" > "$LOG_DIR/NodeManager.out" 2>&1 &
     t=0
-    until ss -tln | grep -q ":5556 "; do
+    until ss -tln | grep -q ":$WLS_NODEMANAGER_PORT "; do
         sleep 5; t=$((t + 5))
         if [ "$t" -ge "$WAIT_NODEMANAGER" ]; then
-            echo "WARNUNG: Node-Manager-Port 5556 nach ${t}s nicht offen"
+            echo "WARNUNG: Node-Manager-Port $WLS_NODEMANAGER_PORT nach ${t}s nicht offen"
             break
         fi
     done
@@ -428,16 +442,18 @@ else
     wait_running "$LOG_DIR/ManagedServer.out" "$WAIT_MANAGED" "$WLS_MANAGED_SERVER"
 fi
 
-echo "=== 4/4 Reports-Komponenten ==="
-"$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_TOOLS_INSTANCE"
+echo "=== 4/4 Reports-Server ==="
+# Die Reports-Tools-Instanz ist reine Konfiguration (kein Prozess) - sie
+# wird nicht gestartet (wie 01-Run/startStop.sh der Bibliothek)
 "$DOMAIN_HOME/bin/startComponent.sh" "$REPORTS_SERVER_NAME"
 
 echo "Start abgeschlossen. Logs: $LOG_DIR"
 exit 0
 EOF
 
-  grep -n '5556' $SCRIPTS/start_all.sh
-  # Erwartet: zwei Zeilen mit 5556 (= WLS_NODEMANAGER_PORT aus SCHRITT 0)
+  grep -n 'report_env.sh\|WLS_NODEMANAGER_PORT' $SCRIPTS/start_all.sh
+  # Erwartet: die source-Zeile und zwei Zeilen mit $WLS_NODEMANAGER_PORT
+  # (der Wert selbst steht in report_env.sh, siehe 2.1)
 
 
 ================================================================================
@@ -452,12 +468,11 @@ SCHRITT 4: Stop-Skript anlegen  (als oracle)
   cat > $SCRIPTS/stop_all.sh << 'EOF'
 #!/bin/bash
 # Stoppt Reports-Komponenten, Managed Server, AdminServer und Node Manager.
-source /u01/oracle/scripts/report_env.sh
+source "$(dirname "$0")/report_env.sh"
 cd "$DOMAIN_HOME" || exit 1
 
-echo "=== 1/4 Reports-Komponenten ==="
+echo "=== 1/4 Reports-Server ==="
 "$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_SERVER_NAME"
-"$DOMAIN_HOME/bin/stopComponent.sh" "$REPORTS_TOOLS_INSTANCE"
 
 echo "=== 2/4 Managed Server ($WLS_MANAGED_SERVER) ==="
 if pgrep -f "weblogic.Name=$WLS_MANAGED_SERVER" > /dev/null; then
@@ -518,9 +533,12 @@ SCHRITT 6: systemd-Dienst anlegen  (als root, vorher SCHRITT 0.5)
   echo "Unit: /etc/systemd/system/$SERVICE.service"
   # Erwartet: /etc/systemd/system/reportrpgpi.service. LEER? -> 0.5
 
-  cat > /etc/systemd/system/$SERVICE.service << 'EOF'
+  echo "SCRIPTS=$SCRIPTS DOMAIN_NAME=$DOMAIN_NAME"
+  # Erwartet: /u01/oracle/scripts reportRpgpi. LEER? -> 0.5
+
+  cat > /etc/systemd/system/$SERVICE.service << EOF
 [Unit]
-Description=Oracle Reports Middleware (WebLogic Domain reportRpgpi)
+Description=Oracle Reports Middleware (WebLogic Domain $DOMAIN_NAME)
 Wants=network-online.target
 After=network-online.target
 
@@ -532,14 +550,19 @@ Group=oinstall
 LimitNOFILE=65536
 LimitNPROC=16384
 LimitSTACK=10485760
-ExecStart=/u01/oracle/scripts/start_all.sh
-ExecStop=/u01/oracle/scripts/stop_all.sh
+ExecStart=$SCRIPTS/start_all.sh
+ExecStop=$SCRIPTS/stop_all.sh
 TimeoutStartSec=1500
 TimeoutStopSec=900
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+  grep -n 'Description\|ExecSt' /etc/systemd/system/$SERVICE.service
+
+  # Erwartet: der Domain-Name und zwei Pfade unter /u01/oracle/scripts -
+  # keine leeren Stellen ("ExecStart=/start_all.sh" -> 0.5 wiederholen)
 
   systemctl daemon-reload
 

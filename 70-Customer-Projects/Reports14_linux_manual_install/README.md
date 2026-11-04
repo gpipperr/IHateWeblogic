@@ -41,7 +41,8 @@ und deutschen Kommentaren.
      braucht als `authid` den Server-Administrator aus `<identifier>` in
      `rwserver.conf`, nicht einen WebLogic-Benutzer.
    - **Schritt 1–4 – alles auf einmal:** zwei eigene Skripte
-     `start_wls_all.sh` / `stop_wls_all.sh`, die die Umgebung immer
+     `start_wls_all.sh` / `stop_wls_all.sh` (in `/u01/oracle/tools`, Werte
+     aus `patch_install.ini`), die die Umgebung immer
      komplett in der richtigen Reihenfolge starten bzw. stoppen (das
      WebLogic-Passwort wird beim Stoppen verdeckt abgefragt und nirgends
      gespeichert).
