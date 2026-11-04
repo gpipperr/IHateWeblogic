@@ -651,7 +651,9 @@ SCHRITT 3: RCU-Schema in der bestehenden Datenbank registrieren  (als oracle)
   # Klartext-Kennwoerter). Die Platzhalter danach mit vi ersetzen
   # (1. Zeile SYS, dann je Schema eine Zeile).
 
-  umask 077
+  # Kein "umask 077" - es bliebe fuer den Rest der Sitzung aktiv und alle
+  # spaeter angelegten Verzeichnisse waeren 700. Die Vorlage enthaelt nur
+  # Platzhalter; chmod 600 kommt VOR dem Eintragen der echten Kennwoerter.
 
   cat > $RCU_PW << 'EOF'
 <SYS_PASSWORD>
@@ -1114,12 +1116,13 @@ SCHRITT 7: Node Manager konfigurieren  (als oracle, AdminServer laeuft)
   sed -i 's/^SecureListener=.*/SecureListener=false/' \
       $DOMAIN_HOME/nodemanager/nodemanager.properties
 
-  sed -i 's/^StartScriptEnabled=.*/StartScriptEnabled=true/' \
-      $DOMAIN_HOME/nodemanager/nodemanager.properties
+  grep -iE 'SecureListener|StartScriptEnabled' $DOMAIN_HOME/nodemanager/nodemanager.properties
 
-  grep -E '^SecureListener|^StartScriptEnabled' $DOMAIN_HOME/nodemanager/nodemanager.properties
-  # Erwartet: SecureListener=false (und StartScriptEnabled=true, falls die
-  # Zeile in der Datei steht)
+  # Erwartet: SecureListener=false
+  # StartScriptEnabled ist seit WLS 12.1.2 standardmaessig true - fehlt die
+  # Zeile, ist das richtig (die Datei aus 4.4 hat keine). Nur eine Zeile
+  # "StartScriptEnabled=false" (bzw. weblogic.StartScriptEnabled=false) mit
+  # vi auf true aendern.
 
   ----------------------------------------------------------------------------
   7.2 Node-Manager-Typ "Plain"  (WLST)
@@ -1427,13 +1430,13 @@ SCHRITT 9: Reports-Server-Detaileinstellungen  (reines Reports-Thema)
   # Start des Reports-Servers (REP-50125 NullPointerException,
   # Neustart-Schleife - getestet 2026-10-23).
   # Nur Buchstaben und Ziffern (kein / & < > " ' Leerzeichen).
-  # Benutzername: rep_admin. Kennwort verdeckt eingeben:
+  # Benutzername: repadmin. Kennwort verdeckt eingeben:
 
-  read -s -p "Kennwort fuer rep_admin: " RIPW
+  read -s -p "Kennwort fuer repadmin: " RIPW
 
   echo
 
-  export REPORTS_IDENTIFIER="rep_admin/$RIPW"
+  export REPORTS_IDENTIFIER="repadmin/$RIPW"
 
   unset RIPW
 
@@ -1609,7 +1612,7 @@ EOF
   # <identifier> laesst den Reports-Server nicht starten (REP-50125):
 
   : "${REPORTS_IDENTIFIER:?REPORTS_IDENTIFIER ist leer - erst Schritt 9.2 ausfuehren}"
-  # Erwartet: keine Ausgabe. Fehlermeldung -> 9.2 (rep_admin-Block)
+  # Erwartet: keine Ausgabe. Fehlermeldung -> 9.2 (repadmin-Block)
 
   # Kontrolle vorab - keine Zeile darf leer sein:
 
@@ -2245,7 +2248,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            Element.getFirstChild() is null" (ServerConfig.open)
   Ursache: <identifier> in rwserver.conf ist LEER (z.B. REPORTS_IDENTIFIER
            in 9.2 nicht gesetzt, nur ab 9.7 kopiert) - getestet 2026-10-23
-  Loesung: <identifier encrypted="no">rep_admin/<KENNWORT></identifier>
+  Loesung: <identifier encrypted="no">repadmin/<KENNWORT></identifier>
            eintragen (9.2 + 9.7), repServer neu starten
 
   Problem: getserverinfo/showjobs liefern "REP-52262 Diagnostic output is

@@ -145,7 +145,7 @@ explicitly provides a different value during `--interview`.
 | `REPORTS_CUSTOMER_DIR` | `$ORACLE_BASE/reports/source` – `.rdf` / `.rep` sources (interview) |
 | `REPORTS_IMAGE_DIR` | `$ORACLE_BASE/reports/images` – images, `<folderAccess>` – [image handling](../../80-FMW-Architecture/report_server_image_handling.md) |
 | `REPORTS_SECURITY` | `ldap` (secured server, WebLogic embedded LDAP) or `identifier` – [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md); passwords → `embedded_ldap_sec` / `reports_admin_sec.conf.des3` |
-| `REPORTS_ADMIN_USER` | `rep_admin` – Reports server admin (`<identifier>`) |
+| `REPORTS_ADMIN_USER` | `repadmin` – Reports server admin (`<identifier>`) |
 | `REPORTS_COOKIE_KEY` | generated once by `13-` (persisted) |
 | `REPORTS_ENGINE_MIN` / `_INIT` / `_MAX` | `2` / `2` / `5` – engines per server |
 | `REPORTS_ENGINE_LIFE` / `_MAX_IDLE` | `50` jobs / empty (Oracle default) – engine recycling |

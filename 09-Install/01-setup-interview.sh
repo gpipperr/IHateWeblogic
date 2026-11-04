@@ -532,7 +532,7 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
         # WebLogic user): web commands with REPORTS_SECURITY=identifier,
         # emergency admin with ldap. 13- writes it from the des3 file.
         printf "\n"
-        _ask REPORTS_ADMIN_USER "Reports server admin (<identifier>)" "rep_admin"
+        _ask REPORTS_ADMIN_USER "Reports server admin (<identifier>)" "repadmin"
         info "Reports server admin password -> encrypted to: $(basename "$REPORTS_ADMIN_SEC_FILE")"
         info "  letters and digits only (no / & < > \" ' blank) - 13- writes it into rwserver.conf"
         _ask_password REPORTS_ADMIN_PWD "Reports server admin password" "$REPORTS_ADMIN_SEC_FILE"
@@ -1054,7 +1054,7 @@ REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
 REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
-REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-repadmin}"
 # Forms session limit (formsweb.cfg [default] maxRuntimeProcesses, 14-) - 0 = DoS risk
 FORMS_MAX_RUNTIME_PROCESSES="${FORMS_MAX_RUNTIME_PROCESSES:-}"
 
@@ -1165,7 +1165,7 @@ fi
 
 if [ -n "${REPORTS_ADMIN_PWD:-}" ] && [ "$REPORTS_ADMIN_PWD" != "****" ]; then
     _write_secrets_file "$REPORTS_ADMIN_SEC_FILE" \
-        "REPORTS_ADMIN_USER=${REPORTS_ADMIN_USER:-rep_admin}" "REPORTS_ADMIN_PWD=$REPORTS_ADMIN_PWD"
+        "REPORTS_ADMIN_USER=${REPORTS_ADMIN_USER:-repadmin}" "REPORTS_ADMIN_PWD=$REPORTS_ADMIN_PWD"
     unset REPORTS_ADMIN_PWD
 fi
 
@@ -1252,7 +1252,7 @@ REPORTS_IMAGE_DIR="${REPORTS_IMAGE_DIR}"
 # ldap = secured Reports server (EMBEDDED_LDAP_PWD -> embedded_ldap_sec.conf.des3)
 REPORTS_SECURITY="${REPORTS_SECURITY}"
 # Reports server admin = rwserver.conf <identifier> (password -> reports_admin_sec.conf.des3)
-REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+REPORTS_ADMIN_USER="${REPORTS_ADMIN_USER:-repadmin}"
 FORMS_MAX_RUNTIME_PROCESSES="${FORMS_MAX_RUNTIME_PROCESSES:-}"
 FORMS_WEBUTIL_JACOB="${FORMS_WEBUTIL_JACOB:-false}"
 FORMS_SIGN_KEYSTORE="${FORMS_SIGN_KEYSTORE}"

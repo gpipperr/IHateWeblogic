@@ -1120,11 +1120,11 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
 
   RW_URL=http://localhost:9002/reports/rwservlet
 
-  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
+  read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
 
   echo
 
-  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo | head -20
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$APW" $RW_URL/getserverinfo | head -20
   # Erwartet: Engines mit status="1" (bereit)
   # code="56071" = Benutzer nicht berechtigt, code="50171" = Kennwort falsch
 

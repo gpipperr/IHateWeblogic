@@ -583,8 +583,20 @@ SCHRITT 8: Funktions- und Neustarttest  (als root)
 
   # Reports-Server (wie in WLS_Report_start_stop_kochbuch.txt)
 
-  curl -s "$RW_URL/getserverinfo?server=$REPORTS_SERVER_NAME&statusformat=XML"
-  # Erwartet: XML-Antwort mit status="1" (Engine IDLE)
+  # Der abgesicherte Server (Reports_kochbuch_de.txt 9.6/9.7) antwortet
+  # ohne authid mit HTTP 499 (Anmeldeseite). Daher mit dem <identifier>-
+  # Admin, Kennwort verdeckt, per POST (nie in der URL - access.log):
+
+  read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
+
+  echo
+
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$APW" $RW_URL/getserverinfo | grep -o 'status="[0-9]"' | head -3
+
+  # Erwartet: status="1" (Engine IDLE). Leer -> Antwort ohne grep ansehen:
+  # code="50171" = Kennwort falsch, code="56071" = nicht berechtigt.
+
+  unset APW
 
   ----------------------------------------------------------------------------
   8.2 Neustart

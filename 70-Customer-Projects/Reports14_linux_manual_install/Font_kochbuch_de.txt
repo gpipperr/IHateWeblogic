@@ -329,7 +329,10 @@ SCHRITT 4: uifont.ali anlegen/pruefen  (als oracle)
   ----------------------------------------------------------------------------
   # Ohne REPORTS_FONT_DIR = reine Syntaxpruefung
 
-  export LD_LIBRARY_PATH="${ORACLE_HOME}/lib:${ORACLE_HOME}/jdk/jre/lib/amd64/server"
+  export LD_LIBRARY_PATH="${ORACLE_HOME}/lib"
+
+  # mfontchk braucht nur die Bibliotheken aus $ORACLE_HOME/lib (libuimotif
+  # ...) - kein JDK-Pfad (live getestet 2026-11-04, FMW 14.1.2)
 
   "${ORACLE_HOME}/bin/mfontchk" "$UIFONT_ALI"
   # Erwartete Ausgabe: "Schriftartaliasdatei erfolgreich geparst"
@@ -577,19 +580,24 @@ SCHRITT 8: AFM-Metrikdateien und screenprinter.ppd einrichten  (als oracle)
   # nur beim Start eines Engine-Prozesses gelesen, der Reports-Server
   # selbst startet den Engine-Prozess danach automatisch neu (minEngine).
 
+  # ALLE Engines beenden: jede Engine (rwEng-0, rwEng-1 ... bei minEngine=2)
+  # liest AFM/PPD nur bei ihrem eigenen Start. Laufende Berichte brechen ab -
+  # nur zu einer ruhigen Zeit (vorher: showjobs bzw. status.sh).
+
   pgrep -af 'RWEngine name=rwEng'
   # Erwartet: die laufenden Engines, z.B. ... RWEngine name=rwEng-0 ...
+  #           und ... name=rwEng-1 ...
 
-  ENG_PID=$(pgrep -f 'RWEngine name=rwEng-0')
+  ENG_PIDS=$(pgrep -f 'RWEngine name=rwEng')
 
-  echo "Engine-PID: $ENG_PID"
-  # Erwartet: genau eine Zahl. LEER -> keine Engine rwEng-0, nichts zu tun
+  echo "Engine-PIDs: $ENG_PIDS"
+  # Erwartet: eine Zahl je Engine. LEER -> keine Engine, nichts zu tun
 
-  kill -TERM $ENG_PID
+  kill -TERM $ENG_PIDS
 
   pgrep -af 'RWEngine name=rwEng'
-  # Erwartet (nach einigen Sekunden): wieder eine Engine rwEng-0, mit
-  # neuer PID
+  # Erwartet (nach einigen Sekunden): wieder so viele Engines wie
+  # minEngine, alle mit neuer PID
 
   ----------------------------------------------------------------------------
   8.6 Verifikation

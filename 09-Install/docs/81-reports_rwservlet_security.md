@@ -61,7 +61,7 @@ Consequences:
 | `authid=webadmin/…` (WebLogic admin, role `RW_ADMINISTRATOR`) | `REP-52262` |
 | `authid=monUser/…` (role `RW_MONITOR` + `WebCommandPermission`) | `REP-52262` |
 | `authid=RepRunner/…` (role `RW_EXECREPORTS`) | `REP-52262` |
-| `authid=rep_admin/<identifier password>` (= `<identifier>` written by `13-`, at the time of the test the fixed demo password) | **works** – full `serverInfo` XML |
+| `authid=repadmin/<identifier password>` (= `<identifier>` written by `13-`, at the time of the test the fixed demo password) | **works** – full `serverInfo` XML |
 
 - The Reports server encrypts `<identifier>` on its first start
   (`encrypted="yes"`) – the password cannot be read back from the file afterwards.

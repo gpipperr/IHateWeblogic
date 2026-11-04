@@ -276,7 +276,7 @@ curl -s -K $ORACLE_BASE/reports/jobs/daily_sales.curl | grep -o 'scheduled succe
 ## 6. Watching and cancelling jobs
 
 All commands as POST, with the user named in the table. The `<identifier>`
-admin is called `rep_admin` here.
+admin is called `repadmin` here.
 
 | Command | Who | Live result |
 |---|---|---|
@@ -289,7 +289,7 @@ admin is called `rep_admin` here.
 | `showjobid<n>`, `getjobid<n>` | the owner / admin | status of one job; output only for `destype=cache` jobs still in the cache (Oracle A.6.10) |
 
 ```bash
-# admin credentials in a curl config file (mode 600): data-urlencode = "authid=rep_admin/<PASSWORD>"
+# admin credentials in a curl config file (mode 600): data-urlencode = "authid=repadmin/<PASSWORD>"
 curl -s -K ~/.config/rwadmin.curl -d server=repserver01 -d statusformat=XML -d queuetype=future \
      http://localhost:9002/reports/rwservlet/showjobs
 ```

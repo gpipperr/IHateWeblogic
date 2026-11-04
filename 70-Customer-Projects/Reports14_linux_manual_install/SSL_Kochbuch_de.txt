@@ -82,10 +82,12 @@ VORAUSSETZUNGEN
     lokal auf 127.0.0.1 ohne eigenes Zertifikat. Es sind daher an keiner
     Stelle keytool- oder WLST-SSL-Befehle noetig.
 
-  - Alle Befehle in diesem Kochbuch laufen als oracle-User, es sind KEINE
-    root-Rechte und keine Backup-Automatik vorhanden - vor jedem Austausch
-    eines produktiven Zertifikats daher immer erst Schritt "Backup vor
-    Zertifikatswechsel" ausfuehren.
+  - Die Zertifikate entstehen als oracle-User. root wird gebraucht fuer:
+    Paket easy-rsa und PKI-Verzeichnis unter /srv (Option B.1/B.2), den
+    OS-Trust (B.6), das Backup und das AUDIT (/etc/nginx/ssl ist root 700).
+    Jeder dieser Schritte ist mit "(als root)" markiert. Es gibt keine
+    Backup-Automatik - vor jedem Austausch eines produktiven Zertifikats
+    daher immer erst Schritt "Backup vor Zertifikatswechsel" ausfuehren.
 
   Vier Varianten stehen zur Auswahl - je nachdem, woher das Zertifikat
   stammen soll:
@@ -259,11 +261,18 @@ OPTION B: Interne CA mit Easy-RSA  (als oracle, Paket und Trust als root)
   # ggf. vorher: dnf install -y oracle-epel-release-el9
 
   ----------------------------------------------------------------------------
-  B.2 PKI-Verzeichnis anlegen
+  B.2 PKI-Verzeichnis anlegen  (mkdir/chown als root, Rest als oracle)
   ----------------------------------------------------------------------------
-  export EASYRSA_PKI_DIR=/srv/gpi_ca
+  # /srv gehoert root - das Verzeichnis legt root an und uebergibt es an
+  # oracle:
 
-  mkdir -p "$EASYRSA_PKI_DIR"
+  mkdir -p /srv/gpi_ca
+
+  chown oracle:oinstall /srv/gpi_ca
+
+  # Ab hier als oracle:
+
+  export EASYRSA_PKI_DIR=/srv/gpi_ca
 
   chmod 700 "$EASYRSA_PKI_DIR"
 
@@ -601,11 +610,13 @@ CNF
 
 
 ================================================================================
-AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
+AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als root)
 ================================================================================
 
   # Diese Pruefungen nach dem Ausrollen (siehe FMW_Kochbuch_de.txt)
   # regelmaessig wiederholen, z.B. per Cronjob.
+  # Als root: /etc/nginx/ssl ist root 700, der Schluessel root 600 - als
+  # oracle scheitern stat und openssl mit "Permission denied".
 
   NGINX_CERT=/etc/nginx/ssl/fullchain.pem
 
@@ -657,9 +668,12 @@ AUDIT / VERIFIKATION eines bereits ausgerollten Zertifikats  (als oracle)
   ----------------------------------------------------------------------------
   AU.5 Live-Test  (nur wenn Port 443 bereits lauscht)
   ----------------------------------------------------------------------------
-  echo | openssl s_client -connect localhost:443 -brief
-  # Erwartet: "Verify return code: 0" (bei interner CA: nur wenn CA-Root
-  # lokal als vertrauenswuerdig importiert ist, siehe Option B)
+  echo | openssl s_client -connect localhost:443 2>/dev/null | grep "Verify return code"
+
+  # Erwartet: "Verify return code: 0 (ok)" (bei interner CA: nur wenn
+  # CA-Root lokal als vertrauenswuerdig importiert ist, siehe Option B;
+  # sonst "19 (self-signed certificate in certificate chain)").
+  # Hinweis: mit -brief steht stattdessen "Verification: OK" da.
 
   echo | openssl s_client -connect localhost:443 -tls1
   # Erwartet: Handshake-Fehler (TLS 1.0 darf nicht angeboten werden)

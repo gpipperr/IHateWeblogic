@@ -218,11 +218,11 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   # in rwserver.conf (Reports_kochbuch_de.txt Schritt 9.7), NICHT ein
   # WebLogic-Benutzer. Kennwort verdeckt abfragen, Aufruf per POST:
 
-  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
+  read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
 
   echo
 
-  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$APW" $RW_URL/getserverinfo
   # Erwartet: <engineInstance ... status="1"> (1 = Engine bereit/IDLE,
   # 2 = beschaeftigt, 0 = tot). "REP-50001 The server is initializing"
   # = noch 1-2 Minuten warten.
@@ -427,11 +427,11 @@ SCHRITT 4: Benutzung  (als oracle)
   ----------------------------------------------------------------------------
   RW_URL=http://localhost:9002/reports/rwservlet
 
-  read -s -p "Kennwort des <identifier>-Admins rep_admin: " APW
+  read -s -p "Kennwort des <identifier>-Admins repadmin: " APW
 
   echo
 
-  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=rep_admin/$APW" $RW_URL/getserverinfo
+  curl -s -d server=$REPORTS_SERVER_NAME -d statusformat=XML --data-urlencode "authid=repadmin/$APW" $RW_URL/getserverinfo
   # Erwartet: XML-Antwort mit status="1" (Engine IDLE). Ohne authid kommt
   # "REP-52262 Diagnostic output is disabled" (siehe Reports_kochbuch_de.txt
   # Schritt 9.11).
@@ -498,7 +498,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
            disabled"
   Ursache: authid fehlt oder ist ein WebLogic-Benutzer statt des
            Server-Administrators aus <identifier> in rwserver.conf
-  Loesung: authid=rep_admin/<IDENTIFIER_PASSWORD> verwenden (Schritt 0.2,
+  Loesung: authid=repadmin/<IDENTIFIER_PASSWORD> verwenden (Schritt 0.2,
            per POST)
 
   Problem: Kennwort im access.log von WLS_REPORTS

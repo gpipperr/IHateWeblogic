@@ -411,7 +411,8 @@ SCHRITT 2: OS-Basiskonfiguration  (als root, endet mit einem REBOOT)
   # Sessions), nicht nur aus generischer Oracle-Dokumentation.
 
   cat /etc/sysctl.d/99-oracle-fmw.conf
-  # Zeigt den Stand vor dem Ueberschreiben (u.a. die IPv6-Zeilen aus 1.3).
+  # Zeigt den Stand vor dem Ueberschreiben. Die IPv6-Zeilen aus 1.3 stehen
+  # unten in der neuen Datei noch einmal - sie gehen nicht verloren.
 
   cat > /etc/sysctl.d/99-oracle-fmw.conf << 'EOF'
 # Oracle FMW 14.1.2 - Kernel-Parameter fuer WebLogic / Reports
@@ -431,9 +432,16 @@ kernel.panic_on_oops  = 1
 fs.suid_dumpable      = 1
 kernel.core_uses_pid  = 1
 kernel.core_pattern   = /var/tmp/core/coredump_%h_.%s.%u.%g_%t_%E_%e
+# IPv6 aus (SCHRITT 1.3) - gleiche Datei wie 09-Install/01-root_os_baseline.sh
+net.ipv6.conf.all.disable_ipv6     = 1
+net.ipv6.conf.default.disable_ipv6 = 1
 EOF
 
   sysctl --system
+
+  sysctl -n net.ipv6.conf.all.disable_ipv6
+
+  # Erwartet: 1
 
   # Core-Dump-Verzeichnis pruefen
 
@@ -499,6 +507,10 @@ EOF
   # OUI verlangt mind. 512 MB, empfohlen min. 2 GB.
 
   free -h
+
+  mkdir -p /u01/oracle
+
+  # /u01/oracle entsteht sonst erst in SCHRITT 5.5 (Besitzer setzt 5.5)
 
   fallocate -l 2G /u01/oracle/swapfile
 
@@ -882,10 +894,17 @@ EOF
 
   chown -R oracle:oinstall /u01/oracle /u01/user_projects
 
-  chmod 750 /u01/app/oraInventory
+  chown oracle:oinstall /u01/app/oraInventory
 
-  ls -ld $ORACLE_BASE $ORACLE_HOME $JDK_BASE $PATCH_STORAGE /u01/user_projects/domains
-  # Erwartet: Besitzer oracle oinstall
+  chmod 770 /u01/app/oraInventory
+
+  # Inventory: oracle schreibt hinein (Installer, OPatch), Gruppe oinstall
+  # liest/schreibt (Oracle-Standard 770). Die Swap-Datei bleibt root (600):
+
+  chown root:root /u01/oracle/swapfile
+
+  ls -ld $ORACLE_BASE $ORACLE_HOME $JDK_BASE $PATCH_STORAGE /u01/user_projects/domains /u01/app/oraInventory
+  # Erwartet: Besitzer oracle oinstall (oraInventory: drwxrwx---)
 
   ----------------------------------------------------------------------------
   5.6 Oracle-Inventory-Registrierung
@@ -1088,14 +1107,12 @@ upstream wls_admin   { server 127.0.0.1:${WLS_ADMIN_PORT}; keepalive 16; }
 
 server {
     listen 80;
-    listen [::]:80;
     server_name ${WLS_SERVER_FQDN} _;
     return 301 https://\$host\$request_uri;
 }
 
 server {
     listen 443 ssl;
-    listen [::]:443 ssl;
     server_name ${WLS_SERVER_FQDN};
 
     ssl_certificate     /etc/nginx/ssl/fullchain.pem;

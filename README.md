@@ -837,7 +837,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > roles above do not apply to web commands. With `<webcommandaccess>`
 > `no`/`L0`/`L1`, `getserverinfo`/`showjobs` then require the **server
 > administrator** from `<identifier>` in `rwserver.conf` as `authid`
-> (`rep_admin/...`); `authid=monUser/...` or the WebLogic admin return
+> (`repadmin/...`); `authid=monUser/...` or the WebLogic admin return
 > `REP-52262 Diagnostic output is disabled` (confirmed in the
 > `CommandManager.checkDiagnostic` bytecode). See
 > `09-Install/docs/13-reports-detail-settings.md`.

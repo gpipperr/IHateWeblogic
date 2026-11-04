@@ -861,8 +861,11 @@ SCHRITT 8: rwservlet.properties haerten  (als oracle)
   curl -s -o /dev/null -w '%{http_code}\n' -d "$SRV" -d "$FMT" $RW_URL/getserverinfo
   # Erwartet: 499 (mit SCHRITT 7b)
 
-  curl -s -d "$SRV" -d "$FMT" $RW_URL/getserverinfo | grep -o -m1 '<serverInfo\|code="[0-9]*"\|REP-[0-9]*'
-  # Erwartet: REP-52262 bzw. code="52262", KEINE Server-Infos (<serverInfo)
+  curl -s -d "$SRV" -d "$FMT" $RW_URL/getserverinfo | grep -o -m1 '<serverInfo\|code="[0-9]*"\|Oracle SSO'
+
+  # Erwartet (live 2026-11-04, mit SCHRITT 7b): "Oracle SSO" - die
+  # Anmeldeseite, KEINE Server-Infos (<serverInfo), kein REP-Code.
+  # Ohne SCHRITT 7b statt dessen code="52262" (Diagnostic output disabled).
 
   # b) mit monUser (SCHRITT 7b) bzw. repadmin (SCHRITT 7) -> Server-Infos
 

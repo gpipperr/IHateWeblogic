@@ -421,7 +421,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
   </folderAccess>
 
   <!-- Reports server administrator (not a WebLogic user), from reports_admin_sec.conf.des3 -->
-  <identifier encrypted="no">rep_admin/<password from reports_admin_sec.conf.des3></identifier>
+  <identifier encrypted="no">repadmin/<password from reports_admin_sec.conf.des3></identifier>
 
   <proxyInfo>
     <proxyServers>
@@ -445,7 +445,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<envVariable NLS_LANG>` | Must match Oracle DB character set |
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections – `TNS_ADMIN` of `environment.conf`; `13-` also writes `TNS_ADMIN=…; export TNS_ADMIN` into the IHW block of `reports.sh` (Reports server process, `rwrun`, `rwconverter`) – Oracle's own `reports.sh` sets it only when empty (`/etc` or `$DOMAIN_HOME/config/fmwconfig`). All places: [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
 | `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
-| `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `rep_admin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
+| `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `repadmin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
 | `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
 
@@ -756,7 +756,7 @@ indicate a functional problem.
 # secured server (REPORTS_SECURITY=ldap): a realm user with RW_MONITOR
 curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=<repserver>&statusformat=XML&authid=monUser/<pwd>"
 # unsecured server: only the <identifier> admin
-curl -s "http://localhost:9002/reports/rwservlet/showjobs?server=<repserver>&authid=rep_admin/<identifier password>"
+curl -s "http://localhost:9002/reports/rwservlet/showjobs?server=<repserver>&authid=repadmin/<identifier password>"
 ```
 
 `getserverinfo` always needs an `authid` (`webcommandaccess` L1; without one
@@ -806,7 +806,7 @@ secured (no `securityId` on the `<job>` element), web commands such as
 `<identifier>` in `rwserver.conf` – not a WebLogic user and not `monUser`:
 
 ```bash
-curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repserver01&statusformat=XML&authid=rep_admin/<identifier password>"
+curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repserver01&statusformat=XML&authid=repadmin/<identifier password>"
 ```
 
 `authid=monUser/...` or `authid=webadmin/...` still return REP-52262.

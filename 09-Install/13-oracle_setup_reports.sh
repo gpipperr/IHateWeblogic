@@ -736,7 +736,7 @@ info "$(printf "Report engine: init=%s min=%s max=%s engLife=%s maxIdle=%s engin
 # reports_admin_sec.conf.des3 (asked by 01-setup-interview.sh). Missing ->
 # with --apply a random password is generated and stored there.
 _RADM_SEC="$ROOT_DIR/reports_admin_sec.conf.des3"
-_RADM_USER="${REPORTS_ADMIN_USER:-rep_admin}"
+_RADM_USER="${REPORTS_ADMIN_USER:-repadmin}"
 _RADM_PWD=""
 if [ -f "$_RADM_SEC" ]; then
     if load_secrets_file "$_RADM_SEC" > /dev/null 2>&1 && [ -n "${REPORTS_ADMIN_PWD:-}" ]; then
@@ -884,7 +884,7 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             if [ -n "$_RADM_PWD" ]; then
                 printf '  <identifier encrypted="no">%s/%s</identifier>\n' "$_RADM_USER" "$_RADM_PWD"
             else
-                printf '  <!-- <identifier encrypted="no">rep_admin/PASSWORD</identifier>  (reports_admin_sec.conf.des3 missing) -->\n'
+                printf '  <!-- <identifier encrypted="no">repadmin/PASSWORD</identifier>  (reports_admin_sec.conf.des3 missing) -->\n'
             fi
             printf '\n'
             printf '  <proxyInfo>\n'
