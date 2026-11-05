@@ -248,10 +248,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     the wait for the Reports servers);
   - slow Reports logins at the customer (1.6–2.6 s, test host 60 ms) –
     measure again after IPv6 off (`rwserver_status.sh`, "Avg auth time");
-  - step 3 (before / after report) for the customer – the loop itself works
-    (test host 14c: security light green);
-  - the WebUtil transfer directory `##FORMS_TMP##/webutil` – check that
-    `14-` creates it;
+  - step 3 done on 2026-11-05: both reports of the customer's 14c host
+    (patch green, security red only because `ADMIN_IP_RANGE=any` – `/console`
+    / `/em` open; the customer decides on an admin network). `14-` now creates
+    `FORMS_TMP/webutil`; this takes effect at the next `14- --apply` at the
+    customer;
   - feedback of the customer on the reports and the decisions in
     `IMPORT_DECISIONS.md` (`SECTION_UNUSED`, `ENV_UNUSED`, `PATH_KEPT` –
     second module directory);

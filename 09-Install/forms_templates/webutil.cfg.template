@@ -26,15 +26,16 @@ transfer.appsrv.enabled=TRUE
 transfer.appsrv.workAreaRoot=##FORMS_TMP##
 transfer.appsrv.accessControl=TRUE
 
-# ── Read Directories ──────────────────────────────────────────────────────────
-# ADAPT: set to the directories your Forms application reads files from
-transfer.appsrv.read.1=/mnt/shared/import
-transfer.appsrv.read.2=/mnt/shared/export
-# Add more as needed:
-# transfer.appsrv.read.3=/another/path
-
-# ── Write Directories ─────────────────────────────────────────────────────────
-# ADAPT: set to the directories your Forms application writes output files to
-transfer.appsrv.write.1=/mnt/shared/import
-# Add more as needed:
-# transfer.appsrv.write.2=/another/path
+# ── Read / Write Directories ─────────────────────────────────────────────────
+# Default: one transfer directory below FORMS_TMP – 14- creates it. The same
+# directory the customer import maps old transfer directories to (rule
+# WEBUTIL_DIRS). Until 2026-11-05 the example paths /mnt/shared/import and
+# /mnt/shared/export were active here – on a host without that share they
+# are directories that do not exist (found by the analysis of a customer host).
+# ADAPT: add the directories your Forms application reads from / writes to
+# (shares must be mounted – 14- creates only directories below FORMS_TMP).
+transfer.appsrv.read.1=##FORMS_TMP##/webutil
+transfer.appsrv.write.1=##FORMS_TMP##/webutil
+# transfer.appsrv.read.2=/mnt/shared/import
+# transfer.appsrv.read.3=/mnt/shared/export
+# transfer.appsrv.write.2=/mnt/shared/import

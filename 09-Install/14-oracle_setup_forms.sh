@@ -773,8 +773,9 @@ _deploy_webutil_cfg
 
 section "Forms Directories"
 
+_ftmp="${FORMS_TMP:-${ORACLE_BASE:-/u01/app/oracle}/forms/tmp}"
 for _d in "${FORMS_CUSTOMER_DIR:-${ORACLE_BASE:-/u01/app/oracle}/forms/moduls}" \
-          "${FORMS_TMP:-${ORACLE_BASE:-/u01/app/oracle}/forms/tmp}"; do
+          "$_ftmp" "$_ftmp/webutil"; do
     if [ -d "$_d" ]; then
         if [ -w "$_d" ]; then
             ok "$(printf "  exists   %s" "$_d")"
@@ -792,6 +793,21 @@ for _d in "${FORMS_CUSTOMER_DIR:-${ORACLE_BASE:-/u01/app/oracle}/forms/moduls}" 
     fi
 done
 unset _d
+# WebUtil transfer directories of the deployed webutil.cfg: the ones below
+# FORMS_TMP are created (above); any other missing one is a share or a
+# customer path - not created here, only reported (customer 2026-11-05:
+# /oracle/forms/tmp/webutil missing, /mnt/shared/export from our old template)
+_wu_cfg="$FR_INST/server/webutil.cfg"
+if [ -f "$_wu_cfg" ]; then
+    while IFS= read -r _d; do
+        [ -n "$_d" ] || continue
+        case "$_d/" in "$_ftmp"/*) [ -d "$_d" ] || { $APPLY && mkdir -p "$_d" && chmod 750 "$_d" && ok "$(printf "  created  %s (750, WebUtil transfer)" "$_d")"; }; continue ;; esac
+        [ -d "$_d" ] && ok "$(printf "  exists   %s (WebUtil transfer)" "$_d")" \
+                     || { if $APPLY; then warn "$(printf "  WebUtil transfer directory missing: %s – mount the share / create it, or drop the key in webutil.cfg" "$_d")"
+                          else info "$(printf "  WebUtil transfer directory missing in the CURRENT webutil.cfg: %s (--apply writes the new file first, then checks again)" "$_d")"; fi; }
+    done < <(grep -E '^[[:space:]]*transfer\.appsrv\.(read|write)\.[0-9]+[[:space:]]*=' "$_wu_cfg" | sed 's/^[^=]*=[[:space:]]*//' | sort -u)
+fi
+unset _wu_cfg _ftmp
 
 # =============================================================================
 # 4. default.env

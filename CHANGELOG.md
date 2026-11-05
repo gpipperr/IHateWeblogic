@@ -5,6 +5,26 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Step 3 of the 14c move, first run on the customer's new 14c host: export
+  + collection analysed. Patch level green. Security red only for open
+  `/console` / `/em` (`ADMIN_IP_RANGE=any`).
+  - **`analyse_forms_reports_export.sh` 2026-11-05.7** – false positives on a
+    14c target fixed:
+    - several Reports servers of ONE domain on one broadcast port is right
+      (INFO, was WARN);
+    - no `<folderAccess>` in the in-process `rwserver.conf` with
+      `inprocess=no` (INFO);
+    - host name values of a 14.1.2 export are the new host (INFO with a
+      clone hint);
+    - TNS_ADMIN directories counted only with defined aliases (Oracle's
+      sample files no longer count).
+  - **`webutil.cfg.template`:** the example paths `/mnt/shared/import` /
+    `/mnt/shared/export` were active as `read.1` / `read.2` / `write.1` –
+    directories that do not exist on a host without that share. Default now
+    `##FORMS_TMP##/webutil`; the examples are commented.
+  - **`14-`:** creates `FORMS_TMP/webutil`, and every WebUtil transfer
+    directory below `FORMS_TMP` of the deployed `webutil.cfg`. Other missing
+    ones (shares) are a WARN.
 - `export_forms_reports_conf.sh` 2026-11-05.4:
   - no shell error at the end of the load profile when `reports_jobs.csv`
     or `host_sar.csv` is missing. `wc -l < file 2>/dev/null` did not stop

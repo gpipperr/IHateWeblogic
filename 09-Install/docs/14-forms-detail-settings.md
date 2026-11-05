@@ -334,10 +334,15 @@ Key parameters in `webutil.cfg.template`:
 |---|---|
 | `transfer.database.enabled` | Enable DB-based file transfer (`TRUE`/`FALSE`) |
 | `transfer.appsrv.enabled` | Enable server-side file transfer |
-| `transfer.appsrv.workAreaRoot` | Temp dir for transfer operations (`/tmp`) |
+| `transfer.appsrv.workAreaRoot` | Temp dir for transfer operations (template: `FORMS_TMP`) |
 | `transfer.appsrv.accessControl` | Restrict access to listed directories |
-| `transfer.appsrv.read.N` | Directories the server may read from |
-| `transfer.appsrv.write.N` | Directories the server may write to |
+| `transfer.appsrv.read.N` | Directories the server may read from (template: `read.1=FORMS_TMP/webutil`) |
+| `transfer.appsrv.write.N` | Directories the server may write to (template: `write.1=FORMS_TMP/webutil`) |
+
+Until 2026-11-05 the template had the example paths `/mnt/shared/import` /
+`/mnt/shared/export` active. On a host without that share they are
+directories that do not exist. They are commented examples now; add the real
+shares of the application (mounted) as further `read.N` / `write.N`.
 
 Kept from Oracle's file (do not put into the template unless needed):
 `install.syslib.location*`, `install.syslib.<os>.<arch>.<package>.<n>`
@@ -351,9 +356,18 @@ Kept from Oracle's file (do not put into the template unless needed):
 
 ## Step 2b – Forms directories
 
-`FORMS_CUSTOMER_DIR` (modules) and `FORMS_TMP` (runtime temp) are created with
-mode 750 when missing (`--apply`); existing directories are only checked for
-write access. Defaults: `$ORACLE_BASE/forms/moduls`, `$ORACLE_BASE/forms/tmp`.
+`FORMS_CUSTOMER_DIR` (modules), `FORMS_TMP` (runtime temp) and
+`FORMS_TMP/webutil` (WebUtil transfer, also the target of the import rule
+`WEBUTIL_DIRS`) are created with mode 750 when missing (`--apply`); existing
+directories are only checked for write access. Defaults:
+`$ORACLE_BASE/forms/moduls`, `$ORACLE_BASE/forms/tmp`.
+
+Then every `transfer.appsrv.read.N` / `write.N` directory of the deployed
+`webutil.cfg` is checked:
+- a directory below `FORMS_TMP` is created;
+- any other missing directory (a share, a customer path) is a WARN – mount
+  it, create it, or drop the key. The dry run reads the current file, so it
+  only reports.
 
 ## Step 3 – default.env
 

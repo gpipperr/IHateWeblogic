@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.6"
+VERSION="2026-11-05.7"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -687,7 +687,18 @@ x="$(awk -F';' '$6=="none" || $6=="clear" {print $1 " (" $6 ")"}' "$CSV/reports_
 x="$(awk -F';' '$7=="no" {print $1}' "$CSV/reports_servers.csv" | paste -sd, -)"
 [ -n "$x" ] && f_add WARN "Security / Reports" "Reports server without securityId (no authentication of jobs): $x" "14c: secured server with securityId, RepRunner via cmdkey, monUser for monitoring"
 for c in "${RWCONFS[@]}"; do
-    grep -q '<folderAccess' "$c" || f_add WARN "Security / Reports" "no <folderAccess> in $(short "$(printf '%s' "$c" | sed "s#^$RAW/domain#$SRC_DH#")")" "engines may read / write everywhere - set <read> / <write>"
+    grep -q '<folderAccess' "$c" && continue
+    cs="$(short "$(printf '%s' "$c" | sed "s#^$RAW/domain#$SRC_DH#")")"
+    # rwserver.conf of the in-process server (WLS_REPORTS application): not
+    # used while rwservlet.properties has inprocess=no (14c library, 2026-11-05)
+    case "$c" in
+        */servers/*/applications/*/configuration/rwserver.conf)
+            if [ -s "$CSV/rwservlet.csv" ] && ! awk -F';' '$3=="yes"{f=1} END{exit !f}' "$CSV/rwservlet.csv"; then
+                f_add INFO "Reports" "no <folderAccess> in $cs - in-process server, not used (inprocess=no)" "-"
+                continue
+            fi ;;
+    esac
+    f_add WARN "Security / Reports" "no <folderAccess> in $cs" "engines may read / write everywhere - set <read> / <write>"
 done
 x="$(awk -F';' '$4=="L2" {print $1}' "$CSV/rwservlet.csv" | paste -sd, -)"
 [ -n "$x" ] && f_add WARN "Security / Reports" "webcommandaccess=L2 (web commands open for everybody): $x" "14c: L1 (only the identifier admin), see 81-reports_rwservlet_security.md"
@@ -820,8 +831,15 @@ x="$(awk -F';' '$3=="SID" {print $1}' "$CSV/.tns_def" | paste -sd, -)"
 [ -n "$x" ] && f_add HINT "Oracle Net" "old SID= style: $x" "use SERVICE_NAME (PDB / service)"
 x="$(awk -F';' '$4=="yes" {print $1}' "$CSV/.tns_def" | paste -sd, -)"
 [ -n "$x" ] && f_add HINT "Oracle Net" "IP address as HOST: $x" "use DNS names (moves / failover)"
-n="$(grep -o 'TNS_ADMIN_SOURCE="[^"]*"' "$IMP/environment.conf.proposal" 2>/dev/null | tr -cd ' ' | wc -c)"
-[ "${n:-0}" -gt 1 ] && f_add HINT "Oracle Net" "$n TNS_ADMIN directories in use" "14c: one TNS_ADMIN for every process (02-Checks/tns_admin_check.sh)"
+# directories with a tnsnames.ora that defines aliases - Oracle's default
+# places hold only the commented sample (counted as 3 on a 14c host, 2026-11-05)
+x=""; n=0
+for d in $(grep -o 'TNS_ADMIN_SOURCE="[^"]*"' "$IMP/environment.conf.proposal" 2>/dev/null | sed 's/^TNS_ADMIN_SOURCE="//; s/"$//'); do
+    t="$RAW/other$d/tnsnames.ora"
+    [ -n "${SRC_DH:-}" ] && [ "${d#"$SRC_DH"}" != "$d" ] && t="$RAW/domain${d#"$SRC_DH"}/tnsnames.ora"
+    grep -qE '^[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]*=' "$t" 2>/dev/null && { n=$((n + 1)); x="${x:+$x, }$d"; }
+done
+[ "$n" -gt 1 ] && f_add HINT "Oracle Net" "$n TNS_ADMIN directories with aliases: $x" "14c: one TNS_ADMIN for every process (02-Checks/tns_admin_check.sh)"
 # --- Forms ---------------------------------------------------------------------
 if $HAVE_REF && [ -f "$FW" ]; then
     KNOWN="$_IHWT_DIR/../customer-analyse/rules/formsweb_14c_known_keys.txt"
@@ -880,8 +898,15 @@ if [ -n "${SRC_HOST:-}" ]; then
     hs="${SRC_HOST%%.*}"
     x="$(for ef in "${ENVFILES[@]}"; do ihwt_keys "$ef" | awk -F'\t' -v h="$hs" -v f="$(basename "$ef")" 'index(tolower($2), tolower(h)) {print $1 "\t" f}'; done \
          | sort -u | awk -F'\t' '{n[$1]++} END {for (k in n) print k " (" n[k] " env file" (n[k]>1?"s":"") ")"}' | sort | paste -sd, -)"
-    [ -n "$x" ] && f_add HINT "Forms" "env file values with the old host name: $x" \
-        "14c: these values from environment.conf (WLS_SERVER_FQDN, ports) - otherwise the application still calls the old host after the move"
+    if [ -n "$x" ]; then
+        case "${SRC_FMW:-}" in
+            14.1.2*)   # export of a 14c target (re-analysis after the move): the host is the new one
+                f_add INFO "Forms" "env file values with the name of this host: $x" \
+                    "right for this host; a clone / new host needs them changed (02-Checks/clone_check.sh)" ;;
+            *)  f_add HINT "Forms" "env file values with the old host name: $x" \
+                    "14c: these values from environment.conf (WLS_SERVER_FQDN, ports) - otherwise the application still calls the old host after the move" ;;
+        esac
+    fi
 fi
 
 # --- jars ------------------------------------------------------------------------
@@ -925,7 +950,10 @@ if [ -n "$x" ]; then
     fi
 fi
 x="$(awk -F';' '$9 ~ /^[0-9]+$/ {c[$9]++; n[$9]=n[$9] " " $1} END{for(p in c) if(c[p]>1) print p ":" n[p]}' "$CSV/reports_servers.csv" | paste -sd, -)"
-[ -n "$x" ] && f_add WARN "Reports" "several Reports servers with the same broadcast port: $x" "one port per server group, unique in the subnet (multicast discovery)"
+# the servers of ONE domain share one discovery port by design (rwnetwork.conf,
+# 13- sets REPORTS_BROADCAST_PORT everywhere) - the port must be unique only
+# against OTHER environments in the subnet (was a WARN until 2026-11-05.7)
+[ -n "$x" ] && f_add INFO "Reports" "Reports servers of this domain on one discovery port: $x" "the port must be unique against other environments in the subnet (02-Checks/reports_network_scan.sh); a new environment with the same server names gets its own port"
 # --- fonts -----------------------------------------------------------------------
 n="$(awk -F';' '$4=="ms"' "$CSV/fonts.csv" | wc -l)"
 [ "$n" -gt 0 ] && f_add HINT "Fonts" "$n Microsoft font file(s)" "14c uses the free replacements (section 7) - the Windows font licence does not allow copying them to another server"
