@@ -208,7 +208,13 @@ printList "Mode"        20 "$($APPLY && printf 'APPLY – import' || printf 'che
 if [ ! -d "$INBOX" ]; then fail "Inbox not found: $INBOX"; print_summary; exit "$EXIT_CODE"; fi
 _files="$(find "$INBOX" -maxdepth 1 -type f ! -name 'README*' -printf '%f ' 2>/dev/null)"
 printList "Files"       20 "${_files:-(none)}"
-[ -z "$_files" ] && { warn "Inbox is empty – see $INBOX/README.md"; print_summary; exit "$EXIT_CODE"; }
+_root_missing_warn() {   # conf points to customer/root.crt, file never delivered
+    [ "${FORMS_CLIENT_TRUST_CA:-}" = "$CUST_DIR/root.crt" ] && [ ! -f "$CUST_DIR/root.crt" ] || return 0
+    warn "FORMS_CLIENT_TRUST_CA=$CUST_DIR/root.crt, but no root.crt in the inbox and none imported yet"
+    info "  company CA: put the customer's root CA into 08-SSL/user_certs/root.crt and re-run with --apply"
+    info "  public CA : set FORMS_CLIENT_TRUST_CA= (empty) – 40-oracle_forms_client_bundle.sh needs no own CA then"
+}
+[ -z "$_files" ] && { warn "Inbox is empty – see $INBOX/README.md"; _root_missing_warn; print_summary; exit "$EXIT_CODE"; }
 command -v openssl > /dev/null || { fail "openssl not found"; print_summary; exit "$EXIT_CODE"; }
 
 # =============================================================================
@@ -239,13 +245,11 @@ if _want root && _f="$(_find root)"; then
     else
         fail "  not a certificate (PEM / DER / PKCS#7): $_f"
     fi
-elif [ "${FORMS_CLIENT_TRUST_CA:-}" = "$CUST_DIR/root.crt" ] && [ ! -f "$CUST_DIR/root.crt" ]; then
-    # the interview set the path for SSL_CERT_SOURCE=customer - the file comes
+else
+    # the interview sets the path for SSL_CERT_SOURCE=customer - the file comes
     # only from a delivered root.crt (customer 2026-11-05: never delivered,
     # 40- failed with "no readable certificate")
-    warn "FORMS_CLIENT_TRUST_CA=$CUST_DIR/root.crt, but no root.crt in the inbox and none imported yet"
-    info "  company CA: put the customer's root CA into 08-SSL/user_certs/root.crt and re-run with --apply"
-    info "  public CA : set FORMS_CLIENT_TRUST_CA= (empty) – 40-oracle_forms_client_bundle.sh needs no own CA then"
+    _root_missing_warn
 fi
 _verify() {   # _verify leaf chainfile – against root.crt, else the OS store
     [ -s "${2:-/x}" ] || set -- "$1" ""
