@@ -253,6 +253,18 @@ Only HTTPS (same server block as `/forms/`), no directory listing, no
 access from outside the networks that may use Forms (same rules as
 `/forms/`).
 
+**Landing page (since 2026-11-05):** `/formsWeb/` shows `index.html`
+instead of a 403. The page has the shortcut name, a button for
+`FormsWeb-Install.cmd`, three steps, the SmartScreen note and the versions
+of the manifest.
+- It is written by `40-` from `client_templates/index.html.template`.
+- The location needs `index index.html;` and `text/html html` in its
+  `types` block – without it the browser downloads the page instead of
+  showing it. Existing hosts: run `04-root_nginx.sh --apply` again.
+- Without `index.html` the directory still gives 403 (no listing).
+- Tested in a private Nginx: `/formsWeb/` 200 `text/html; charset=utf-8`,
+  `.ps1` `text/plain`, 403 without the file.
+
 ---
 
 ## 5. Client Side – `FormsWeb-Setup.ps1`
@@ -591,6 +603,7 @@ client JDK), every Forms patch (new `frmsal.jar`) and every CA change.
 | File | Content |
 |---|---|
 | `FormsWeb-Install.cmd` | bootstrap; `40-` replaces `@@BASE_URL@@` with `FORMS_CLIENT_BASE_URL` + `FORMS_CLIENT_URL_PATH` when copying it into the bundle; downloads `manifest.json` and `FormsWeb-Setup.ps1`, checks the SHA-256, runs `-Install -BaseUrl …`; CRLF line endings |
+| `index.html.template` | landing page of `/formsWeb/` (§4). `40-` fills in `@@APP_NAME@@` (HTML-escaped `FORMS_CLIENT_APP_NAME`), `@@BASE_URL@@` and the versions of the current manifest (`@@JAVA_VERSION@@`, `@@FSAL_VERSION@@`, `@@SETUP_VERSION@@`, `@@GENERATED@@`). It writes the page only when the content changed, also when the bundle is up to date. German with English lines; self-contained (no external fonts / scripts); edit the template, not the rendered file |
 | `FormsWeb-Setup.ps1` | the installer / starter of §5; first line of interest `$FormsWebSetupVersion = 'x.y.z'` – `40-` reads it into `setup.version` of the manifest; **raise it with every change**, otherwise clients do not self-update |
 
 Written for **Windows PowerShell 5.1** (default on Windows 10 / 11):

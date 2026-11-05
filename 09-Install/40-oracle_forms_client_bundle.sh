@@ -113,6 +113,38 @@ except Exception:
     pass' "$1" "$2" "$3"
 }
 
+# _index_html – landing page index.html from client_templates/index.html.template
+# with the values of the CURRENT manifest (Nginx shows it for <URL_PATH>/
+# instead of a 403; needs "text/html html" in the location, 04-root_nginx.sh).
+# Writes only when the content changed; dry run only reports. Rc 0 always.
+_index_html() {
+    local tpl="$TEMPLATE_DIR/index.html.template" out="$CLIENT_DIR/index.html" tmp app gen sv
+    [ -f "$tpl" ] || { info "index.html: no template $tpl – skipped"; return 0; }
+    [ -f "$MANIFEST" ] || { info "index.html: no manifest.json yet – after the first build"; return 0; }
+    # HTML-escape the shortcut name (& < > ")
+    app="$(printf '%s' "${FORMS_CLIENT_APP_NAME:-Oracle Forms}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')"
+    # then for the sed replacement below: \ & | are special there
+    app="$(printf '%s' "$app" | sed 's/[\\&|]/\\&/g')"
+    gen="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("generated","")[:16].replace("T"," "))' "$MANIFEST" 2>/dev/null)"
+    sv="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("setup",{}).get("version","-"))' "$MANIFEST" 2>/dev/null)"
+    tmp="$(mktemp)"
+    sed -e "s|@@APP_NAME@@|${app}|g" \
+        -e "s|@@BASE_URL@@|${BASE_URL}${URL_PATH}/|g" \
+        -e "s|@@JAVA_VERSION@@|$(_mf_get "$MANIFEST" java version)|g" \
+        -e "s|@@FSAL_VERSION@@|$(_mf_get "$MANIFEST" fsal version)|g" \
+        -e "s|@@SETUP_VERSION@@|${sv:--}|g" \
+        -e "s|@@GENERATED@@|${gen:--}|g" "$tpl" > "$tmp"
+    if cmp -s "$tmp" "$out"; then
+        ok "index.html   : up to date"
+    elif $APPLY; then
+        install -m 644 "$tmp" "$out" && ok "$(printf "index.html   : written – %s%s/" "$BASE_URL" "$URL_PATH")"
+    else
+        info "index.html   : would be written (landing page of ${URL_PATH}/)"
+    fi
+    rm -f "$tmp"
+    return 0
+}
+
 printLine
 section "Forms client bundle – $(date '+%Y-%m-%d %H:%M:%S')"
 ok "$(printf "%-22s %s" "FORMS_CLIENT_DIR:" "$CLIENT_DIR")"
@@ -439,6 +471,7 @@ unset _cur_icon
 if ! $NEED_JAVA && ! $NEED_FSAL && ! $NEED_JACOB && ! $_setup_changed && ! $NEED_ICON && ! $NEED_START && [ -f "$MANIFEST" ]; then
     rm -f "$ICON_TMP"
     ok "Bundle is up to date – nothing to do (--force rebuilds)"
+    _index_html
     print_summary; exit $EXIT_CODE
 fi
 
@@ -608,6 +641,7 @@ chmod 644 "$_tmp_mf"
 mv -f "$_tmp_mf" "$MANIFEST"
 ok "manifest.json switched – clients see the new bundle at their next start"
 unset _tmp_mf
+_index_html
 
 # =============================================================================
 # 6. Clean-up: own files referenced by neither manifest

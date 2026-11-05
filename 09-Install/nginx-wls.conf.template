@@ -162,9 +162,12 @@ server {
     # --- Forms client bundle (static, read-only) -----------------------------
     location ##FORMS_CLIENT_URL_PATH##/ {
         alias ##FORMS_CLIENT_DIR##/;
-        autoindex off;
+        autoindex off;                                  # no listing –
+        index index.html;                               # landing page of 40- instead
         types { application/json json; application/zip zip;
-                application/java-archive jar; text/plain ps1; }
+                application/java-archive jar; text/plain ps1;
+                text/html html; image/x-icon ico; }
+        charset utf-8;
         default_type application/octet-stream;        # dll, cmd (browser downloads the bootstrap)
     }
 

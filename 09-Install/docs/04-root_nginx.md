@@ -198,8 +198,11 @@ same HTTPS server block as `/forms/`:
 location /formsWeb/ {                        # FORMS_CLIENT_URL_PATH
     alias /srv/formsWeb/;                    # FORMS_CLIENT_DIR (oracle:oinstall 755)
     autoindex off;                           # no directory listing
+    index index.html;                        # landing page written by 40- (else 403)
     types { application/json json; application/zip zip;
-            application/java-archive jar; text/plain ps1; }
+            application/java-archive jar; text/plain ps1;
+            text/html html; image/x-icon ico; }
+    charset utf-8;
     default_type application/octet-stream;   # dll, cmd (the browser downloads
                                              # FormsWeb-Install.cmd instead of showing it)
 }

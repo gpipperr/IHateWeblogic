@@ -5,6 +5,17 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Forms client bundle landing page: `/formsWeb/` showed only a 403
+  (`autoindex off`, no index file; customer).
+  - `40-` now writes `index.html` from
+    `client_templates/index.html.template`: shortcut name, a button for
+    `FormsWeb-Install.cmd`, three steps, the SmartScreen note, the versions
+    of the manifest. Written only when it changed, also when the bundle is
+    up to date.
+  - The Nginx template has `index index.html;`, `text/html` and
+    `image/x-icon` in the `types` block and `charset utf-8`. Existing hosts:
+    run `04-root_nginx.sh --apply` again.
+  - Tested in a private Nginx. Doc 40 §4 / §11.
 - `FORMS_CLIENT_TRUST_CA` pointed to `…/pki/customer/root.crt`, but the
   file did not exist (customer). The interview proposes this path for
   `SSL_CERT_SOURCE=customer`; only `ssl_customer_certs.sh` writes it, from a
