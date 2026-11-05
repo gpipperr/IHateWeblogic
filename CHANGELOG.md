@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `13-`: the multicast check now runs AFTER the `rwnetwork.conf` port update.
+  WLST creates a new Reports server with Oracle's default port 14021; the
+  check ran before the update and stopped the first customer `--apply` with
+  a false FAIL, although 13- had already set the port. The check output
+  now includes the port-consistency line. In a dry run, a port difference
+  that `--apply` fixes is reported as WARN. The empty "ReportsTools instance
+  already exists:" line is gone.
 - First customer dry run of `apply_customer_conf.sh`, fixes:
   - `14-`: the code-signing readiness check now covers the customer jars of
     the overlay, too. Before, it was skipped when `jacob.jar` was already

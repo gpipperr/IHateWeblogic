@@ -434,17 +434,18 @@ try:
 
     # ReportsTools instance (skipped when it already exists - a second
     # createReportsToolsInstance reported "Created" again, 2026-10-15)
-    if os.environ.get('_IHW_SKIP_TOOLS', '0') == '1':
-        tools_inst = ''
+    skip_tools = os.environ.get('_IHW_SKIP_TOOLS', '0') == '1'
     try:
-        if not tools_inst:
+        if skip_tools:
             raise Exception('already exists')
         createReportsToolsInstance(instanceName=tools_inst, machine=machine)
         print('IHW:OK:Created ReportsTools instance: ' + tools_inst)
     except Exception as ex:
         msg = str(ex).lower()
         if 'already exists' in msg or 'duplicate' in msg:
-            print('IHW:INFO:ReportsTools instance already exists: ' + tools_inst)
+            # skipped: the shell side already printed OK for it - no second line
+            if not skip_tools:
+                print('IHW:INFO:ReportsTools instance already exists: ' + tools_inst)
         else:
             print('IHW:FAIL:createReportsToolsInstance failed: ' + str(ex))
             sys.exit(1)
@@ -541,33 +542,10 @@ _update_rwnetwork() {
         fi
     else
         info "  Dry-run – would change port to $REPORTS_BROADCAST_PORT"
+        _PORT_PENDING=true
     fi
 }
-
-# Multicast discovery prerequisites (2026-10-15): route, MULTICAST flag,
-# firewall UDP port, send/receive self-test - done by
-# 02-Checks/reports_network_scan.sh (also scans the network for other Reports
-# servers when called without --no-scan). Without multicast reception the
-# Reports server stops at once with REP-50600 and the Node Manager restarts it
-# in a loop (customer 2026-10-15).
-_scan="$ROOT_DIR/02-Checks/reports_network_scan.sh"
-if [ -x "$_scan" ]; then
-    info "Multicast checks: 02-Checks/reports_network_scan.sh --no-scan --port ${REPORTS_BROADCAST_PORT}"
-    bash "$_scan" --no-scan --port "${REPORTS_BROADCAST_PORT}" 2>&1 \
-        | sed -n '/=== Multicast Prerequisites/,/=== Summary/p' | grep -vE '=== Summary|^-{20,}' \
-        | tee -a "$LOG_FILE"
-    _scan_rc=${PIPESTATUS[0]}
-    case "$_scan_rc" in
-        0) ok   "Multicast prerequisites OK" ;;
-        1) warn "Multicast prerequisites: warnings – see above" ;;
-        *) fail "Multicast prerequisites failed – the Reports server would stop with REP-50600" ;;
-    esac
-    info "  Other Reports servers in the network: 02-Checks/reports_network_scan.sh (port scan)"
-    unset _scan_rc
-else
-    warn "02-Checks/reports_network_scan.sh not found – multicast checks skipped"
-fi
-unset _scan
+_PORT_PENDING=false
 
 # Location 1: ReportsToolsComponent
 _update_rwnetwork \
@@ -590,6 +568,40 @@ if [ -n "$_REPORTS_APP_DIR" ]; then
 else
     warn "Skipping WLS_REPORTS rwnetwork.conf – application dir not found"
 fi
+
+# Multicast discovery prerequisites (2026-10-15) - AFTER the port update:
+# WLST creates a new server with Oracle's default port 14021, the scan before
+# the update reported that as FAIL although 13- fixed it (customer 2026-11-05).
+# Checks: route, MULTICAST flag,
+# firewall UDP port, send/receive self-test - done by
+# 02-Checks/reports_network_scan.sh (also scans the network for other Reports
+# servers when called without --no-scan). Without multicast reception the
+# Reports server stops at once with REP-50600 and the Node Manager restarts it
+# in a loop (customer 2026-10-15).
+_scan="$ROOT_DIR/02-Checks/reports_network_scan.sh"
+if [ -x "$_scan" ]; then
+    info "Multicast checks: 02-Checks/reports_network_scan.sh --no-scan --port ${REPORTS_BROADCAST_PORT}"
+    bash "$_scan" --no-scan --port "${REPORTS_BROADCAST_PORT}" 2>&1 \
+        | sed -n -e '/=== Discovery Configuration/,/=== Multicast Prerequisites/{/FAIL\|WARN\|Fix:/p}' \
+                 -e '/=== Multicast Prerequisites/,/=== Summary/p' | grep -vE '=== Summary|^-{20,}' \
+        | tee -a "$LOG_FILE"
+    _scan_rc=${PIPESTATUS[0]}
+    case "$_scan_rc" in
+        0) ok   "Multicast prerequisites OK" ;;
+        1) warn "Multicast prerequisites: warnings – see above" ;;
+        *) if $_PORT_PENDING; then
+               # dry run: the port mismatch the scan sees is fixed by --apply above
+               warn "Multicast check sees different ports – --apply aligns them (see above); re-check after --apply"
+           else
+               fail "Multicast prerequisites failed – the Reports server would stop with REP-50600"
+           fi ;;
+    esac
+    info "  Other Reports servers in the network: 02-Checks/reports_network_scan.sh (port scan)"
+    unset _scan_rc
+else
+    warn "02-Checks/reports_network_scan.sh not found – multicast checks skipped"
+fi
+unset _scan _PORT_PENDING
 
 # =============================================================================
 # 4. rwservlet.properties
