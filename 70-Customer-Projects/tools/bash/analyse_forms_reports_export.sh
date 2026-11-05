@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.4"
+VERSION="2026-11-05.5"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -579,6 +579,11 @@ rt_old="$(awk -F';' '$2 ~ /folderAccess.write/ && $1 ~ /directories\)/ {print $1
     done
     _ev WLS_LISTEN_ADDRESS "127.0.0.1" "old: $(_pv WLS_LISTEN_ADDRESS)$( [ -z "$(_pv WLS_LISTEN_ADDRESS)" ] && printf 'localhost (config.xml)') - 14c: loopback behind Nginx" "decision"
     v="$(_pv WLS_SERVER_FQDN)"; [ -z "$v" ] && v="$(grep -h '^AS_HOST_NAME=' "${ENVFILES[@]}" 2>/dev/null | head -1 | cut -d= -f2)"
+    # an IP address is no public name - prefer a DNS name of the HTTPS listeners
+    if [[ "$v" =~ ^[0-9.]+$ ]] && [ -f "$WT" ]; then
+        _n="$(awk -F';' 'NR>1 && $5=="yes" {print $4}' "$WT" | tr ',' '\n' | grep -vE '^(_|localhost|\*.*|-|[0-9.]+)?$' | head -1)"
+        [ -n "$_n" ] && v="$_n (old ServerName: $v)"
+    fi
     _ev WLS_SERVER_FQDN "${v:-$SRC_HOST}" "OLD public name - keep (DNS alias) or new name" "decision"
     for k in DB_HOST DB_PORT DB_SERVICE DB_SCHEMA_PREFIX; do
         v="$(_pv $k)"
@@ -728,7 +733,10 @@ if [ -f "$WT" ] && [ "$(wc -l < "$WT")" -gt 1 ]; then
     [ -n "$x" ] && f_add HINT "Security / Web tier" "HTTPS listener without explicit protocol list: $x" "the default of the web server version applies (older versions allow TLS 1.0 / 1.1) - check"
     x="$(awk -F';' 'NR>1 && $5=="no" && $8 != "-" && $8 !~ /^(redirect|static) / && $7 ~ /forms|reports|rwservlet|weblogic|\*/ {print $1 " " $3 " " $7}' "$WT" | sort -u | paste -sd, -)"
     [ -n "$x" ] && f_add WARN "Security / Web tier" "plain HTTP routed to WebLogic: $x" "14c: HTTP only redirects to HTTPS"
-    x="$(awk -F';' 'NR>1 && $8 != "-" && $8 !~ /^(redirect|static) / { t=$8; sub(/^[^(]*\(/, "", t); sub(/\)$/, "", t)
+    # target taken from the request (header / argument / host) = open forward proxy
+    x="$(awk -F';' 'NR>1 && $8 ~ /\$(http_|arg_|host|request_uri|uri)/ && $8 !~ /^redirect / {print $1 " " $3 " " $7 " -> " $8}' "$WT" | sort -u | paste -sd, -)"
+    [ -n "$x" ] && f_add WARN "Security / Web tier" "proxy target taken from the request (open forward proxy / SSRF): $x" "remove it or proxy only to fixed upstreams - anybody who reaches the port can make the host call any address"
+    x="$(awk -F';' 'NR>1 && $8 != "-" && $8 !~ /^(redirect|static) / && $8 !~ /\$/ { t=$8; sub(/^[^(]*\(/, "", t); sub(/\)$/, "", t)
           n=split(t, h, ","); for (i=1; i<=n; i++) { v=h[i]; sub(/:[0-9]*$/, "", v); if (v != "" && v !~ /^(127\.|localhost|\[::1\])/) print v } }' "$WT" | sort -u | paste -sd, -)"
     [ -n "$x" ] && f_add INFO "Web tier" "backends reached over the network: $x" "14c: WebLogic on 127.0.0.1 behind the local Nginx (separate web tier host = own decision)"
     if [ -f "$WTS" ]; then
@@ -743,7 +751,7 @@ if [ -f "$WT" ] && [ "$(wc -l < "$WT")" -gt 1 ]; then
         [ -n "$x" ] && f_add HINT "Security / Web tier" "nginx shows its version (server_tokens not off): $x" "server_tokens off"
         x="$(awk -F';' 'NR>1 && ($1=="apache" || $1=="ohs") {print $1 ";" $2}' "$WT" | sort -u | while IFS=';' read -r ty c; do
               v="$(awk -F';' -v c="$c" '$2==c && tolower($3)=="servertokens" {v=$4} END {print v}' "$WTS")"
-              case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in prod|productonly) ;; *) printf '%s %s (%s)\n' "$ty" "$c" "${v:-default Full}" ;; esac; done | paste -sd, -)"
+              case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in prod|productonly|none|custom*) ;; *) printf '%s %s (%s)\n' "$ty" "$c" "${v:-default Full}" ;; esac; done | paste -sd, -)"
         [ -n "$x" ] && f_add HINT "Security / Web tier" "web server shows version / OS (ServerTokens): $(short "$x")" "ServerTokens Prod, ServerSignature Off"
     fi
     x="$(sed -n 's/^  web tier (\([a-z]*\)): not readable as [^:]*: \(.*\) – copy.*/\1 \2/p' "$ROOT/00_report.txt" | paste -sd, -)"

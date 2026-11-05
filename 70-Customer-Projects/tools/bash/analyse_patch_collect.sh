@@ -36,7 +36,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.1"
+VERSION="2026-11-05.2"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -210,7 +210,8 @@ _area() {   # DESC STEP -> area (library roles first, then the description)
         *"stack patch bundle"*)                    printf 'WLS Stack Patch Bundle' ;;
         *opatch*)                                  printf 'OPatch' ;;
         *"forms client"*|*"jre "*client*|*client*jre*) printf 'Client JRE' ;;
-        *jdk*|*jre*)                               printf 'Server JDK' ;;
+        *libovd*|*adf*|*owsm*|*opss*|*ums*|*oamclient*|*webcenter*|*"fmw control"*|*coherence*) printf 'FMW Infrastructure' ;;
+        jdk*|jre*|"oracle jdk"*|"java "*)          printf 'Server JDK' ;;
         *webgate*)                                 printf 'WebGate' ;;
         *ohs*|*libdms*|*libiau*)                   printf 'OHS' ;;
         *perl*)                                    printf 'Perl' ;;
@@ -274,6 +275,10 @@ x="$(awk -F';' '$6=="**install**" {print $1 " (" $2 ")"}' "$CSV/patchlist.csv" |
 # =============================================================================
 # 5. installed patches
 # =============================================================================
+# patches applied together with the SPB (napply of the SPB patch list)
+B 35_opatch_prereq.txt "Last patch runs (apply / napply / rollback) with result" \
+    | awk -F' [|] ' '$2 ~ /napply/ && $2 !~ /-report/ && $3 ~ /successfully applied/ { t=$3; sub(/.*Patches[[:space:]]+/, "", t); sub(/[[:space:]].*/, "", t); gsub(/,/, "\n", t); print t }' \
+    | sort -u > "$CSV/.spbset"
 _key() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/([^)]*)//g' | awk '{print $1 " " $2}'; }
 cut -d';' -f1,4 "$CSV/.rows" | while IFS=';' read -r n dsc; do printf '%s;%s\n' "$(_key "$dsc")" "$n"; done > "$CSV/.keys"
 while IFS=';' read -r nr desc; do
@@ -282,6 +287,8 @@ while IFS=';' read -r nr desc; do
         st="current cycle"
     elif r="$(awk -F';' -v n="$nr" '$1==n {print $2; exit}' "$CSV/.superseded")" && [ -n "$r" ]; then
         st="older version - replaced by $r"
+    elif grep -qx "$nr" "$CSV/.spbset"; then
+        st="part of the SPB"
     elif printf '%s' "$desc" | grep -qiE 'STACK PATCH BUNDLE|WLS PATCH SET UPDATE|Coherence|Thirdparty|JDBC[0-9.]* BUNDLE|^RDA |FMW DBCLIENT|DATABASE RELEASE UPDATE'; then
         st="part of the SPB"
     elif r="$(awk -F';' -v k="$(_key "$desc")" '$1==k {print $2; exit}' "$CSV/.keys")" && [ -n "$r" ] && [ "$(_key "$desc")" != "ONE-OFF " ]; then
@@ -304,7 +311,7 @@ jt="$(awk -F';' '$2=="Server JDK" {print $3 " -> " $5; exit}' "$CSV/patchlist.cs
 BJ="$(F 'Bundled JDK (oracle_common/jdk)')"
 {
     ev "Server JDK (.globalEnv)" "$(F 'JDK of OPatch (.globalEnv)') - ${JDK_VER:--}" "cycle: ${jt:--}"
-    ev "Bundled JDK (oracle_common/jdk)" "${BJ:--}" "not updated by the CPU - only by its own oracle.jdk patch (if Oracle offers one) / SR"
+    ev "Bundled JDK (oracle_common/jdk)" "${BJ:--}" "used by the Reports engines and the Reports / Forms tools (reports.sh) - not updated by the CPU"
     ev "JDKs of the running processes" "$(F 'JDKs of running processes')" "every server should run on the server JDK (JAVA_HOME of the domain)"
     if [ -f "$ROOT/44_forms_client.txt" ]; then
         ev "Forms client: JNLP java version" "$(B 44_forms_client.txt "JNLP j2se / java versions" | grep -oE '(java|j2se) version="[^"]*"' | sort -u | paste -sd, -)" "client JRE / FSAL = software distribution of the clients"
@@ -318,7 +325,17 @@ md "Check;Result;Consequence" java < "$CSV/java.csv"
 if [ -n "$JDK_VER" ] && ! awk -F';' '$2=="Server JDK" && $5 ~ /^yes/ {f=1} END {exit !f}' "$CSV/patchlist.csv"; then
     f_add WARN "Java" "server JDK $JDK_VER older than the JDK of $CYCLE" "install the JDK patch of section 4 (new JDK directory, JDK link repointed)"
 fi
-case "$BJ" in *'"17.'*|*'"1.8'*|*'"11.'*) f_add HINT "Java" "bundled JDK oracle_common/jdk: $BJ" "not used by the servers when JAVA_HOME points to the server JDK - keep it unused; patch only with Oracle's oracle.jdk patch" ;; esac
+# processes on the bundled JDK: names from the process list (Reports engine / WLS server / other)
+BJP="$(grep -E "[[:space:]]$SRC_OH/oracle_common/jdk/(jre/)?bin/java " "$ROOT/50_processes.txt" 2>/dev/null | grep -v '\\_' \
+       | awk '{ n="process " $1 } /-Dcomponent\.path=/ { m=$0; sub(/.*-Dcomponent\.path=/, "", m); sub(/ .*/, "", m); n="Reports engine of " m }
+              /-Dweblogic\.Name=/ { m=$0; sub(/.*-Dweblogic\.Name=/, "", m); sub(/ .*/, "", m); n="WLS server " m }
+              /weblogic\.NodeManager/ { n="Node Manager" } { print n }' | sort -u | paste -sd, -)"
+if [ -n "$BJP" ]; then
+    f_add WARN "Java" "processes run on the bundled JDK oracle_common/jdk ($BJ): $BJP" "known product gap: reports.sh / rwengine.sh always start the Reports engines with oracle_common/jdk, the server JDK patch does not reach them and the CPU has no patch for it - ask Oracle Support for the supported way (SR), meanwhile no other use of that JDK"
+    printf '%s;%s;%s\n' "Processes on the bundled JDK" "$BJP" "not updated by the server JDK patch - see section 9" | M >> "$CSV/java.csv"
+    md "Check;Result;Consequence" java < "$CSV/java.csv"
+fi
+[ -z "$BJP" ] && case "$BJ" in *'"17.'*|*'"1.8'*|*'"11.'*) f_add HINT "Java" "bundled JDK oracle_common/jdk: $BJ" "no running process used it at the collection - the Reports engines and tools use it when they run (reports.sh), not updated by the CPU" ;; esac
 
 # =============================================================================
 # 7. other homes, web tier
@@ -329,8 +346,8 @@ if [ -f "$ROOT/34_other_homes.txt" ]; then
          /^### / { next }
          h != "" && /^[0-9]+;/ { n[h]++; if (ru[h]=="" && $0 ~ /Release Update|BUNDLE PATCH|Bundle Patch/) { r=$0; sub(/^[0-9]+;/, "", r); ru[h]=r } }
          END { for (i=1; i<=k; i++) { h=ord[i]
-                 note = (h ~ /db_?home|dbhome|product\/(1[89]|2[0-9])/ ? "database home - DB Release Update of its own cycle" : (h ~ /ohs|webgate|webtier|web_tier/ ? "web tier home - OHS / WebGate bundle of the cycle" : "check"))
-                 printf "%s;%s;%s;%s\n", h, (h in no ? "no OPatch" : n[h]), (ru[h]=="" ? "-" : ru[h]), (h in no ? "not patchable (no OPatch) - removed home?" : note) } }' \
+                 note = (h ~ /agent/ ? "Oracle management agent - updated by its own agent update (OEM / OCI)" : (h ~ /db_?home|dbhome|\/db$|product\/(1[89]|2[0-9])/ ? "database home - DB Release Update of its own cycle" : (h ~ /ohs|webgate|webtier|web_tier/ ? "web tier home - OHS / WebGate bundle of the cycle" : "check")))
+                 printf "%s;%s;%s;%s\n", h, (h in no ? "no OPatch" : n[h]), (ru[h]=="" ? "-" : ru[h]), (h in no ? "no OPatch - removed or only partly deleted home? (deinstall / detach from the inventory)" : note) } }' \
         "$ROOT/34_other_homes.txt" | M > "$CSV/other_homes.csv"
     n="$(wc -l < "$CSV/other_homes.csv")"
     [ "$n" -gt 0 ] && f_add INFO "Other homes" "$n other Oracle home(s) in the inventory (section 6.1)" "patch each home on its own; remove unused homes (deinstall) - every home is an attack surface"
@@ -343,18 +360,29 @@ WT_FACT="$(F 'Web tier')"
 awk '/^### Routing \(/ {on=1; next} on && /^$/ {exit} on && /^(nginx|apache|ohs);/' "$ROOT/61_webserver.txt" 2>/dev/null > "$CSV/.wt"
 MODWL="$(B 61_webserver.txt "WebLogic proxy plug-in for Apache (mod_wl*)" | grep -oE '/[^ ]*mod_wl[^ ]*\.so' | sort -u | paste -sd, -)"
 if [ -s "$CSV/.wt" ]; then
-    awk -F';' -v oh="$SRC_OH" -v mw="$MODWL" '
+    _wl_on="$(grep -E '^[[:space:]]*LoadModule[[:space:]]+weblogic_module' "$ROOT/61_webserver.txt" 2>/dev/null | head -1)"
+    _wl_off="$(grep -E '^[[:space:]]*#[[:space:]]*LoadModule[[:space:]]+weblogic_module' "$ROOT/61_webserver.txt" 2>/dev/null | head -1)"
+    _px="$(grep -ciE '^[[:space:]]*ProxyPass[[:space:]]' "$ROOT/61_webserver.txt" 2>/dev/null)"
+    [ -z "$MODWL" ] && [ -n "$_wl_on" ] && MODWL="$(printf '%s' "$_wl_on" | awk '{print $3}')"
+    APNOTE="$( if [ -n "$MODWL" ]; then printf ' + WebLogic Proxy Plug-In %s (KA1182 tab Proxy Plug-In)' "$MODWL"
+               elif [ -n "$_wl_off" ]; then printf ' - WebLogic Proxy Plug-In only commented out (not loaded)%s' "$( [ "${_px:-0}" -gt 0 ] && printf ', routes via mod_proxy')"
+               elif [ "${_px:-0}" -gt 0 ]; then printf ' - routes via mod_proxy, no WebLogic plug-in'
+               else printf ' - check for the WebLogic Proxy Plug-In'; fi)"
+    awk -F';' -v oh="$SRC_OH" -v dh="$SRC_DH" -v apn="$APNOTE" '
         { k=$1 ";" $2; if (!(k in seen)) { seen[k]=1; ord[++n]=k }
           if ($5=="yes") { m=split($3, L, ","); for (j=1; j<=m; j++) if (!((k, L[j]) in tl)) { tl[k, L[j]]=1; tls[k]=tls[k] (tls[k]=="" ? "" : ",") L[j] } }
           if ($8 ~ /:[0-9]/ && $8 !~ /^(redirect|static) /) wl[k]++ }
         END { for (i=1; i<=n; i++) { k=ord[i]; split(k, a, ";")
                 if (a[1]=="nginx") note="OS package (dnf update nginx) - not part of the Oracle CPU"
-                else if (a[1]=="apache") note="OS package httpd" (mw != "" ? " + WebLogic Proxy Plug-In " mw " (KA1182 tab Proxy Plug-In)" : " - check for the WebLogic Proxy Plug-In")
-                else if (index(a[2], oh "/") == 1) note="OHS of this home - OHS bundle of section 4"
+                else if (a[1]=="apache") note="OS package httpd" apn
+                else if (index(a[2], oh "/") == 1 || (dh != "" && index(a[2], dh "/") == 1)) note="OHS of this domain / home - OHS bundle of section 4"
                 else note="OHS outside this home - OHS bundle of the cycle for that home (section 6.1)"
                 printf "%s;%s;%s;%s;%s\n", a[1], a[2], (tls[k]=="" ? "-" : tls[k]), wl[k]+0, note } }' "$CSV/.wt" | M > "$CSV/web_tier.csv"
     WT_INFO="Web servers found at the collection: ${WT_FACT:-see table}. The web tier is patched with its own packages / patches."
-    grep -q '^apache;' "$CSV/web_tier.csv" && f_add HINT "Web tier" "Apache httpd in front$( [ -n "$MODWL" ] && printf ' with the WebLogic Proxy Plug-In (%s)' "$MODWL")" "patch httpd with the OS; the Proxy Plug-In has its own patches (KA1182 tab Proxy Plug-In)"
+    if grep -q '^apache;' "$CSV/web_tier.csv"; then
+        if [ -n "$MODWL" ]; then f_add HINT "Web tier" "Apache httpd in front with the WebLogic Proxy Plug-In ($MODWL)" "patch httpd with the OS; the Proxy Plug-In has its own patches (KA1182 tab Proxy Plug-In)"
+        else f_add INFO "Web tier" "Apache httpd in front$APNOTE" "patch httpd with the OS (dnf); no Oracle plug-in to patch"; fi
+    fi
     grep -q 'OHS outside this home' "$CSV/web_tier.csv" && f_add HINT "Web tier" "OHS outside the Forms & Reports home" "patch that home with the OHS bundle of the cycle (own lspatches in section 6.1)"
     grep -q '^nginx;' "$CSV/web_tier.csv" && f_add INFO "Web tier" "Nginx in front" "OS updates (dnf) - not part of the Oracle CPU"
 else
