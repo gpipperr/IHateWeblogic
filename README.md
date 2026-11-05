@@ -91,17 +91,19 @@ the automation is an [open item](TODO.md).
 
 ## Project Status
 
-**`[███████████████████░]` ~96 % complete** (state 2026-11-04) – phases 1–7
+**`[███████████████████░]` ~96 % complete** (state 2026-11-05) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
 (2026-10-19/20); phase 8 is nearly done, phase 9 has its first script
 (`cve_inventory.sh`, since 2026-10-30 `cve_watch.sh`); host hardening
-(firewall, sshd) is live on the test host.
+(firewall, sshd) is live on the test host. The 14c move of a customer
+(export → analysis → import, [process](09-Install/docs/00-transfer_customer_settings.md))
+ran live for the first time on 2026-11-05 (Way 2).
 What was done when: [CHANGELOG.md](CHANGELOG.md) (newest first). What is
 still open: [TODO.md](TODO.md).
 
-How the ~95 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
+How the ~96 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
 (CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
 the certificate expiry check and the Claude patch-cycle analysis done;
@@ -244,6 +246,8 @@ operation with proactive, AI-assisted error analysis.
 │                                                                     │
 │  00-Setup/            Shared library, environment concept,         │
 │                       credential handling                          │
+│  00-Setup/customer_conf_import.sh  customer master data (14c move, │
+│                       before the interview)                        │
 │  09-Install/00–03     OS baseline, packages, Java, "oracle" user    │
 │  09-Install/04–05     Nginx (optional), WebLogic installation       │
 │  09-Install/06        Forms & Reports installation                 │
@@ -463,6 +467,8 @@ IHateWeblogic/
 │   ├── mos_sec.sh                   – Same encryption concept for My Oracle Support credentials
 │   ├── install_db_client_tools.sh   – Instant Client 23.26 (sqlplus/tools) + SQLcl into
 │   │                                   $ORACLE_BASE/product/<tool>_<ver>, link switch after smoke test
+│   ├── customer_conf_import.sh      – Customer export → environments/<env>.customer/ overlay +
+│   │                                   IMPORT_DECISIONS.md + conf block (14c move, step 2)
 │   ├── set_environment.md           – Concept doc: environment.conf symlink + environments/ folder
 │   └── environments/                – Per-environment conf files
 │       ├── README.md                – committed
@@ -555,6 +561,8 @@ IHateWeblogic/
 │   │                                   hard-fails if WebLogic is still running
 │   ├── 82-patch_forms_reports.sh    – Forms + Reports layer: wraps 09-Install/06-oracle_patch_forms_reports.sh,
 │   │                                   same stop-check as 81-
+│   ├── apply_customer_conf.sh       – Customer overlay on an existing library environment (Way 2):
+│   │                                   14b- / 14- / 13- / 30-, restart, wait, 15- / 90- – one log
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type (gitignored,
 │                                       retention CONFIG_BACKUP_KEEP)
 │
@@ -616,9 +624,10 @@ IHateWeblogic/
 │   │                                   + font test report (reports_templates/test_fonts.xml)
 │   ├── 90-oracle_validate.sh        – Phase 7: acceptance – runs the analyse scripts read-only +
 │   │                                   direct checks, one summary (--smoke for 15-)
-│   └── docs/                        – Step-by-step detail documentation (00–14b, 20-testmodules,
-│                                       30-autostart, 40-client distribution, 80-security,
-│                                       90-validate, 99-deinstall)
+│   └── docs/                        – Step-by-step detail documentation (00–14b, 17-customer
+│                                       import, 20-testmodules, 30-autostart, 40-client distribution,
+│                                       80-security, 90-validate, 99-deinstall); process of the
+│                                       14c move: 00-transfer_customer_settings.md
 │
 ├── 10-Monitoring/
 │   ├── README.md                    – Concept: AI-assisted proactive monitoring + monthly CVE watch
@@ -723,8 +732,12 @@ IHateWeblogic/
     │   │   ├── fmw_patch_env.sh              – variables of the manual patch cookbooks
     │   │   ├── check_disk_space.sh           – where is the local disk space (NFS never scanned), clean commands
     │   │   ├── ihw_shell_env.sh              – setdb / setfmw: switch the current shell (FMW home, domains, DB homes) – ~/.bashrc.d
-    │   │   └── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
-    │   │                                         for the 14c rebuild – encrypted archive, never into git
+    │   │   ├── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
+    │   │   │                                     for the 14c rebuild – encrypted archive, never into git
+    │   │   ├── analyse_forms_reports_export.sh – export → Forms & Reports status report (security light)
+    │   │   ├── analyse_patch_collect.sh      – collection → patch analysis report (patch light)
+    │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
+    │   ├── customer-analyse/             – report templates + rules/ (committed); run dirs git-ignored
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
     │       ├── README.md
     │       ├── collect_fmw_env.ps1           – read-only collector (services, registry, CIM), secrets masked

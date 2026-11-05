@@ -1,26 +1,14 @@
 # IHateWeblogic – Open Items / TODO
 
-Only what is still open (state 2026-11-04). Everything finished is described
+Only what is still open (state 2026-11-05). Everything finished is described
 in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [README.md](README.md#project-status).
 
-## Cookbook findings of the style rewrite (2026-11-04)
+## Cookbooks – still to check on a fresh run / at the customer
 
-The 10 cookbooks of `Reports14_linux_manual_install` + the Windows Builder
-cookbook were rewritten to the cookbook-Skill style (form only). Technical
-doubts noticed on the way, **not changed** – check on the test host.
-Fixed on 2026-11-04 (afternoon + evening): admin name = `repadmin` everywhere (also the
-library default `REPORTS_ADMIN_USER`), OS IPv6 lines kept in
-`99-oracle-fmw.conf` / inventory owner + 770 / swap dir / nginx without
-`[::]`, Reports `umask 077` removed / `StartScriptEnabled` (default true),
-Font `LD_LIBRARY_PATH` = `$ORACLE_HOME/lib` only (live) / all engines
-restarted, Autostart 8.1 + Reports_security 8.4 a) (live: HTTP 499 + "Oracle
-SSO" page without authid), SSL root steps marked, audit as root,
-`s_client` output (live).
-
-All points of this list were fixed on 2026-11-04 (evening), see `git log`.
-Still to check on a fresh run / at the customer:
+The findings of the cookbook style rewrite (2026-11-04) are fixed (`git log`).
+Still open:
 
 - [ ] `cmdkey` / `userid=` report runs as POST (Reports cookbook 9.8 / 9.11,
   Font step 7 test PDF via `destype=cache`) on a customer host.
@@ -67,7 +55,9 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   Forms **pool vs. session** criterion and RSS of a real session
   (`06-FormsDiag/forms_perf_analyse.sh`).
 - [ ] `01-setup-interview.sh` interactively (questions `REPORTS_SECURITY`,
-  embedded LDAP password, Reports server admin, `FORMS_TMP`).
+  embedded LDAP password, Reports server admin, `FORMS_TMP`) – also after a
+  customer import (Way 1: `environment.conf` link of the importer, server
+  list taken from `REPORTS_SERVER_INSTANCES`, imported values `[kept]`).
 - [ ] **Fresh domain with the new `08-` template** (2026-11-03): Node Manager
   credentials and embedded-LDAP `cn=Admin` password set at `writeDomain` –
   then the first `11-` start and `13-` must run without "Access denied" /
@@ -231,11 +221,13 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   level unknown; Forms QPR before Reports QPR with the `libzrc` check – decide
   on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
   restarts) – feed findings back into the cookbooks.
-- [ ] **Still GET with a password in the URL** (2026-11-03): the test report
-  run of `09-Install/15-deploy-test-report-forms_template.sh` (`userid=`) and
-  examples in doc 12, doc 13, `WLS_Report_start_stop_kochbuch.txt`,
-  `Patch_Kochbuch_CPU_Okt2026_de.txt` 13.6 – switch to POST; on customer
-  hosts check old `access.log` files for `authid=` / `userid=`.
+- [ ] **Still GET with a password in the URL** (2026-11-03; the cookbooks are
+  on POST since 2026-11-04): the test report run of
+  `09-Install/15-deploy-test-report-forms_template.sh` (`userid=` in the
+  query string – via a curl config, but still in `access.log`) and the
+  examples in docs 12, 13, 14b, 20 and
+  `80-FMW-Architecture/reports_user_local_ldap.md` – switch to POST; on
+  customer hosts check old `access.log` files for `authid=` / `userid=`.
 - [ ] **Shell switcher at the customer**: copy the current
   `ihw_shell_env.sh` to `~/.bashrc.d/ihw_env.sh` (only ONE copy there) and run
   `ihwenv_configure -f`, so the home names and `(no SID)` lines appear;
@@ -244,59 +236,28 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
   `notifysuccess`) untested – the mail server is still the template
   placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
-- [ ] **Configuration export → analysis → import** (12c customer):
-  - [x] export at the customer (`export_forms_reports_conf.sh`, 2026-11-03);
-  - [x] analysis report `tools/bash/analyse_forms_reports_export.sh`
-    (2026-11-04, first run on the customer export – report git-ignored in
-    `tools/customer-analyse/`); export 2026-11-04.2 proposes the parent of
-    many per-user `<write>` directories as `REPORTS_TMP`;
-  - [ ] hand the report to the customer, clarify the findings;
-  - [ ] fresh export at the end (export 2026-11-04.3: font classes, fixed
-    `REPORTS_TMP` proposal, `formsapp.ear` session-timeout for the timeout
-    chain, CPUs / RAM for the sizing proposals, load profile of the last 90
-    days – the Reports servers are unsecured, so `getserverinfo` / `showjobs`
-    work without `--rw-auth`);
-  - [ ] import step into the 14c library – plan 2026-11-04: customer
-    overlay `00-Setup/environments/<env>.customer/` + importer
-    `00-Setup/customer_conf_import.sh` (safe corrections in
-    `IMPORT_DECISIONS.md`); 13- / 14- / 14b- read the overlay (Way 1 new
-    install chain, Way 2 re-run on an existing library domain via
-    `07-Maintenance/apply_customer_conf.sh`). Prerequisite done: export
-    2026-11-04.5 (jdbc, certificates, ports) + report section 13.1.
-    **Built 2026-11-04 (uncommitted):** overlay support in `14-` (sections /
-    `[default]` / env files / webutil / customer jars + generic `_sign_jar`),
-    `14b-` (`cgicmd.dat` CUSTOMER block), `04-ReportsFonts` (overlay fonts,
-    `uifont.ali.customer` merge), `13-` (per-server `<environment>` values,
-    `REPORTS_SERVER_NAMES` → `REPORTS_SERVER_INSTANCES`), `forms_lib.sh`
-    (`frm_cfg_put_sections`, `frm_kv_overlay`), spec `09-Install/docs/17-customer_conf_import.md`.
-    **Built 2026-11-05:**
-    - the importer `00-Setup/customer_conf_import.sh` (dry run / `--apply`,
-      `--keep-customer`, `##PLACEHOLDER##` paths);
-    - `07-Maintenance/apply_customer_conf.sh`;
-    - `14-` renders the overlay (placeholders).
-
-    It was tested with the real export in an isolated copy (Way 1 and Way 2,
-    dry runs of `14-` / `13-` against the overlay).
-
-    **Live 2026-11-05 (Way 2, customer 14c environment):**
-    - import, `apply_customer_conf.sh --apply`, the two customer Reports
-      servers with their own `NLS_LANG`, 14 jars signed;
-    - `13- --remove-server` removed the old default server.
-
-    Process document: `09-Install/docs/00-transfer_customer_settings.md`.
-
-    **Open:**
-    - Way 1 at a customer (import before the interview);
-    - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF
-      after the wait for the Reports servers);
-    - the slow Reports logins (1.6–2.6 s) – measure again after IPv6 off;
-    - step 3 of the process: export + analysis of a 14c library host (the
-      before / after report);
-    - the WebUtil transfer directory `##FORMS_TMP##/webutil` – check that
-      `14-` creates it;
-    - the decisions to clarify with the customer (`SECTION_UNUSED`,
-      `PATH_KEPT` (second module directory), `ENV_UNUSED`).
-- [ ] **status.sh / Node Manager keys (2026-11-04, for tomorrow):** document
+- [ ] **14c move of a customer – export → analysis → import**
+  ([process](09-Install/docs/00-transfer_customer_settings.md)). Export,
+  both analysis reports (PDF to the customer) and the import Way 2 ran live
+  on 2026-11-05: two customer Reports servers with their own `NLS_LANG`, 14
+  jars signed, the old default server removed with `13- --remove-server`.
+  Open:
+  - Way 1 at a customer (import before the interview, see the interview
+    test under "Tests");
+  - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF after
+    the wait for the Reports servers);
+  - slow Reports logins at the customer (1.6–2.6 s, test host 60 ms) –
+    measure again after IPv6 off (`rwserver_status.sh`, "Avg auth time");
+  - step 3 (before / after report) for the customer – the loop itself works
+    (test host 14c: security light green);
+  - the WebUtil transfer directory `##FORMS_TMP##/webutil` – check that
+    `14-` creates it;
+  - feedback of the customer on the reports and the decisions in
+    `IMPORT_DECISIONS.md` (`SECTION_UNUSED`, `ENV_UNUSED`, `PATH_KEPT` –
+    second module directory);
+  - on the customer host: `tnsnames.ora`, Carlito fonts, `FORMS_SIGN_TSA_URL`,
+    recompile of the invalid RCU objects (since the RCU run of 2026-11-03).
+- [ ] **status.sh / Node Manager keys:** document
   how the Node Manager credential files of `status.sh` stage 3 are created and
   where they really are. Today the docs (`Autostart_linux_middleware.txt` step
   1c "NOT under ~/.wlst/", `Tools_status_logs_kochbuch.txt` step 3,
