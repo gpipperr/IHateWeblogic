@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.1"
+VERSION="2026-11-05.2"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -459,6 +459,18 @@ LOAD_PERIOD="-"; LOAD_FRMWEB="-"; LOAD_RWENG="-"; LOAD_HOST="-"
 _nv() { sed -n "s/^$1=//p" "$LD/now.txt" 2>/dev/null | head -1; }
 if [ -d "$LD" ]; then
     LOAD_INFO="Counted on the old host at the export, last $(_nv load_days) days of the logs."
+    # older exports filtered the log FILES by date only - drop older rows here
+    _exd="$(sed -n '1s/.* – \([0-9-]*\) .*/\1/p' "$ROOT/00_report.txt")"
+    _cut="$(date -d "${_exd:-today} -$(_nv load_days) days" +%Y-%m-%d 2>/dev/null)"
+    if [ -n "$_cut" ]; then
+        # filtered copy of load/ - the export itself stays untouched
+        rm -rf "${CSV:?}/.ld"; mkdir -p "$CSV/.ld"; cp -p "$LD"/* "$CSV/.ld/" 2>/dev/null
+        for _f in forms_traffic forms_starts reports_requests host_sar; do
+            [ -f "$LD/$_f.csv" ] && awk -F';' -v c="$_cut" '$1 >= c' "$LD/$_f.csv" > "$CSV/.ld/$_f.csv"
+        done
+        LD="$CSV/.ld"
+    fi
+    unset _exd _cut _f
     if [ -s "$LD/forms_traffic.csv" ]; then
         d1="$(cut -d';' -f1 "$LD/forms_traffic.csv" | sort | head -1)"; d2="$(cut -d';' -f1 "$LD/forms_traffic.csv" | sort | tail -1)"
         nd="$(wc -l < "$LD/forms_traffic.csv")"
@@ -496,7 +508,22 @@ if [ -d "$LD" ]; then
     [ -f "$LD/reports_not_collected.txt" ] && while IFS=';' read -r sv what why; do
         nc_add "Reports load of $sv ($what)" "$why"; done < "$LD/reports_not_collected.txt"
     # 12.5 per report
-    awk -F';' '{k=$1 ";" $3; n[k]++; if ($4!="4") f[k]++; if ($6!="") {s[k]+=$6; c[k]++; if ($6>m[k]) m[k]=$6}}
+    # run times: exports >= 2026-11-05.2 also carry the raw time strings
+    # (columns 7 / 8) - parse them when the export could not (other 12c formats)
+    if [ -f "$LD/reports_jobs.csv" ] && awk -F';' '$6=="" && $7!="" && $8!="" {f=1} END{exit !f}' "$LD/reports_jobs.csv"; then
+        _tp() { local t="$1"; t="${t//\// }"; t="${t//,/ }"; t="$(printf '%s' "$t" | sed -E 's/^([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})/\3-\2-\1/')"; date -d "$t" +%s 2>/dev/null; }
+        while IFS=';' read -r a b c d e f g h; do
+            if [ -z "$f" ] && [ -n "$g" ] && [ -n "$h" ]; then
+                s1="$(_tp "$g")"; s2="$(_tp "$h")"
+                [ -n "$s1" ] && [ -n "$s2" ] && { e="$s1"; f=$((s2 - s1)); }
+            fi
+            printf '%s;%s;%s;%s;%s;%s\n' "$a" "$b" "$c" "$d" "$e" "$f"
+        done < "$LD/reports_jobs.csv" > "$CSV/.jobs" && { [ "$LD" = "$CSV/.ld" ] || { mkdir -p "$CSV/.ld"; cp -p "$LD"/* "$CSV/.ld/"; LD="$CSV/.ld"; }; cp "$CSV/.jobs" "$LD/reports_jobs.csv"; }
+        unset -f _tp
+    fi
+    # status: 4 and 12 = finished (12c reports 12 - matches successfulJobs of
+    # getserverinfo), 5 / 8 = failed / crashed, 7 = canceled
+    awk -F';' '{k=$1 ";" $3; n[k]++; if ($4=="5" || $4=="8") f[k]++; if ($6!="") {s[k]+=$6; c[k]++; if ($6>m[k]) m[k]=$6}}
          END {for (k in n) printf "%s;%d;%d;%s;%s\n", k, n[k], f[k], (c[k]?sprintf("%.0f", s[k]/c[k]):"-"), (c[k]?m[k]:"-")}' \
         "$LD/reports_jobs.csv" 2>/dev/null | sort -t';' -k3,3nr > "$CSV/load_reports_jobs.csv"
     # 12.6 servlet requests per day (newest 31 days, commands summed per day)
@@ -512,7 +539,7 @@ md "Section;starts;per day;last start" load_forms_sections < "$CSV/load_forms_se
 md "Date;application starts;all requests;lservlet (session traffic);HTTP 5xx;avg response ms" load_forms_days < "$CSV/load_forms_days.csv"
 md "Hour;starts;distribution" load_forms_hours < "$CSV/load_forms_hours.csv"
 md "Server;counters since;successful jobs;failed jobs;failure rate;current;future;max / avg engines used;avg response ms" load_reports_servers < "$CSV/load_reports_servers.csv"
-md "Server;report;runs;not successful;avg seconds;max seconds" load_reports_jobs < "$CSV/load_reports_jobs.csv"
+md "Server;report;runs;failed (code 5 / 8);avg seconds;max seconds" load_reports_jobs < "$CSV/load_reports_jobs.csv"
 md "Date;requests;HTTP 5xx;by command" load_reports_requests < "$CSV/load_reports_requests.csv"
 md "Date;CPU busy avg %;CPU busy peak %;memory used avg %" load_sar < "$CSV/load_sar.csv"
 

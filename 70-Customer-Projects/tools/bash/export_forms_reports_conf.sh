@@ -56,7 +56,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-05.1"   # bump on every change – shown in the report
+VERSION="2026-11-05.2"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -589,11 +589,12 @@ if $LOADP; then
                           else if (f=="sc-status") sI=j; else if (f=="time-taken") ttI=j }
                       next }
         /^#/ || !dI || !uI { next }
-        { d=$dI; h=substr($tI,1,2); u=$uI; st=$sI; if (d !~ /^[0-9][0-9][0-9][0-9]-/) next }'
+        { d=$dI; h=substr($tI,1,2); u=$uI; st=$sI; if (d !~ /^[0-9][0-9][0-9][0-9]-/ || d < cut) next }'
+    LOAD_CUT="$(date -d "-$LOAD_DAYS days" +%Y-%m-%d)"
     # --- Forms ---------------------------------------------------------------
     mapfile -t _fl < <(_logs '*FORMS*')
     if [ ${#_fl[@]} -gt 0 ]; then
-        for f in "${_fl[@]}"; do _cat "$f"; done | awk "$_elf_awk"'
+        for f in "${_fl[@]}"; do _cat "$f"; done | awk -v cut="$LOAD_CUT" "$_elf_awk"'
             u ~ /\/frmservlet/ && st ~ /^2/ { c="default"
                 if (match(u, /[?&]config=[^&]+/)) { c=substr(u, RSTART+8, RLENGTH-8) }
                 gsub(/[;\t ]/, "_", c); starts[d ";" c]++; hour[h]++ }
@@ -616,7 +617,7 @@ if $LOADP; then
     # --- Reports: servlet requests per day and command --------------------------
     mapfile -t _rl < <(_logs '*REPORTS*')
     if [ ${#_rl[@]} -gt 0 ]; then
-        for f in "${_rl[@]}"; do _cat "$f"; done | awk "$_elf_awk"'
+        for f in "${_rl[@]}"; do _cat "$f"; done | awk -v cut="$LOAD_CUT" "$_elf_awk"'
             u ~ /\/rwservlet/ { c=u; sub(/^.*\/rwservlet\/?/, "", c); sub(/[?;].*$/, "", c); if (c=="") c="(report run)"
                 gsub(/[0-9]+$/, "", c); k=d ";" c; r[k]++; if (st ~ /^5/) e[k]++ }
             END { for (k in r) printf "%s;%d;%d\n", k, r[k], e[k] > "'"$LOAD"'/reports_requests.csv" }'
@@ -652,11 +653,11 @@ if $LOADP; then
                 /^<job / { id=$0; sub(/^<job id="/, "", id); sub(/".*/, "", id)
                     n=$0; if (match(n, /<name>[^<]*<\/name>/)) n=substr(n, RSTART+6, RLENGTH-13); else n="-"
                     c=$0; if (match(c, /<status code="[0-9]+"/)) c=substr(c, RSTART+14, RLENGTH-15); else c="-"
-                    a1=$0; b1=$0; st=""; fi=""
-                    if (match(a1, /<started>[^<]*<\/started>/)) st=ep(substr(a1, RSTART+9, RLENGTH-19))
-                    if (match(b1, /<finished>[^<]*<\/finished>/)) fi=ep(substr(b1, RSTART+10, RLENGTH-21))
-                    gsub(/[;]/, "_", n)
-                    printf "%s;%s;%s;%s;%s;%s\n", s, id, n, c, st, ((st != "" && fi != "") ? fi - st : "") }' >> "$LOAD/reports_jobs.csv"
+                    a1=$0; b1=$0; st=""; fi=""; sr=""; fr=""
+                    if (match(a1, /<started>[^<]*<\/started>/)) { sr=substr(a1, RSTART+9, RLENGTH-19); st=ep(sr) }
+                    if (match(b1, /<finished>[^<]*<\/finished>/)) { fr=substr(b1, RSTART+10, RLENGTH-21); fi=ep(fr) }
+                    gsub(/[;]/, "_", n); gsub(/[;]/, ",", sr); gsub(/[;]/, ",", fr)
+                    printf "%s;%s;%s;%s;%s;%s;%s;%s\n", s, id, n, c, st, ((st != "" && fi != "") ? fi - st : ""), sr, fr }' >> "$LOAD/reports_jobs.csv"
             rm -f "$LOAD/.sj.xml"
         done
     else
