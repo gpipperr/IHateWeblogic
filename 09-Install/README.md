@@ -93,7 +93,9 @@ execution if sudo is not available.
 > **Existing customer environment?** Read
 > [00-transfer_customer_settings.md](docs/00-transfer_customer_settings.md)
 > first. Export the old environment before step 01, so the interview and the
-> chain below build with the customer's data (Way 1).
+> chain below build with the customer's data (Way 1). Order on the new host:
+> `git clone` → `00-Setup/customer_conf_import.sh --env <env> --apply` →
+> `01-setup-interview.sh --apply` (continues the imported conf) → phase 0 …
 
 ### Prerequisites – certificates (decide and prepare first)
 

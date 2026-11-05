@@ -460,6 +460,16 @@ if grep -q '=' "$BLK"; then
 else
     info "environment.conf: no new keys"
 fi
+# Way 1 on a new host: no environment.conf yet - link it to the new conf, so
+# 01-setup-interview.sh reads the import block (shows [kept]) and writes its
+# block into the same file (without the link it started a fresh interview
+# and wrote environments/<basename DOMAIN_HOME>.conf - import block lost)
+if [ ! -e "$ENV_CONF" ] && [ ! -L "$ENV_CONF" ]; then
+    ln -s "$TCONF" "$ENV_CONF" && ok "environment.conf -> $TCONF (Way 1: the interview continues this conf)"
+elif [ "$(readlink -f "$ENV_CONF" 2>/dev/null)" != "$(readlink -f "$TCONF")" ]; then
+    warn "environment.conf points to $(readlink -f "$ENV_CONF" 2>/dev/null || printf 'a plain file') - not to $TCONF"
+    info "  Way 1: ln -sfn $TCONF $ENV_CONF  before 09-Install/01-setup-interview.sh"
+fi
 info "Next: Way 1 - 09-Install/01-setup-interview.sh, then the install chain;"
 info "      Way 2 - 07-Maintenance/backup_config.sh --apply, then 14- / 14b- / 13- --apply (apply_customer_conf.sh)"
 print_summary

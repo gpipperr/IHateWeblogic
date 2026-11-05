@@ -5,6 +5,15 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Way 1 order clone → import → interview:
+  - `customer_conf_import.sh` links `environment.conf` to the new conf when
+    there is none yet. Before, the interview started fresh and wrote
+    `environments/<basename DOMAIN_HOME>.conf`, so the import block was not
+    seen.
+  - `01-setup-interview.sh` takes `REPORTS_SERVER_INSTANCES` of the import
+    as its Reports server list. Before, it asked again with the default
+    `repserver01` – two different lists, the pitfall of the live run.
+  - Process document section "When does the interview run?".
 - Process document `09-Install/docs/00-transfer_customer_settings.md`:
   moving a customer environment to 14c in three steps (extract + analyse,
   build with the customer's master data – Way 1 preferred / Way 2, analyse

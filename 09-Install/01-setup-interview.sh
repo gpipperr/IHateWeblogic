@@ -503,8 +503,19 @@ if [ "${WLS_LISTEN_ADDRESS:-}" = "custom" ]; then
 fi
 
 printf "\n"
-_ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
-    "Reports Server name(s)"  "repserver01"
+# Customer import (00-Setup/customer_conf_import.sh, Way 1) writes the
+# customer's servers as REPORTS_SERVER_INSTANCES - take them as the list, so
+# REPORTS_SERVER_NAMES / _NAME / _INSTANCES are one list (live 2026-11-05: two
+# different lists in the conf, 13- created only one customer server)
+if ! _conf_has REPORTS_SERVER_NAME && [ "$RESET_MODE" -eq 0 ] \
+   && [ -n "$(_conf_get REPORTS_SERVER_INSTANCES)" ]; then
+    read -r -a REPORTS_SERVER_NAMES <<< "$(_conf_get REPORTS_SERVER_INSTANCES)"
+    REPORTS_SERVER_NAME="${REPORTS_SERVER_NAMES[0]}"
+    ok "$(printf "  %-30s %s  [kept - customer import, REPORTS_SERVER_INSTANCES]" "REPORTS_SERVER_NAMES" "${REPORTS_SERVER_NAMES[*]}")"
+else
+    _ask_list REPORTS_SERVER_NAMES REPORTS_SERVER_NAME \
+        "Reports Server name(s)"  "repserver01"
+fi
 _ask FORMS_CUSTOMER_DIR      "Forms module directory (.fmx/.fmb)" "${ORACLE_BASE}/forms/moduls"
 _ask FORMS_TMP               "Forms temp directory (TMPDIR)" "${ORACLE_BASE}/forms/tmp"
 _ask REPORTS_CUSTOMER_DIR    "Reports source directory (.rdf/.rep)" "${ORACLE_BASE}/reports/source"

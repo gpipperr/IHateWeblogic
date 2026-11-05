@@ -245,6 +245,14 @@ directories (`FORMS_CUSTOMER_DIR`, `FORMS_TMP`, `REPORTS_CUSTOMER_DIR`,
 `REPORTS_IMAGE_DIR`) and `REPORTS_SECURITY`. The values of the table below are
 written by **`00-Setup/detect_env_conf.sh --apply` after the installation** (Phase 6,
 before `13-`) – detected from the domain, otherwise the defaults shown.
+
+**After a customer import (Way 1)** the conf already holds
+`REPORTS_SERVER_INSTANCES` with the customer's servers. The interview does
+not ask for the names then. It takes this list as `REPORTS_SERVER_NAMES` /
+`REPORTS_SERVER_NAME` and shows it as `[kept - customer import]`. The
+process is described in
+[00-transfer_customer_settings.md](00-transfer_customer_settings.md#when-does-the-interview-run-no-chicken-and-egg-problem).
+
 Background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md),
 [discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md).
 

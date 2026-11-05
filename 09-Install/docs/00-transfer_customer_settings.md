@@ -111,6 +111,36 @@ The reports contain host names and paths. They go **only** to the customer
 
 ## 4. Phase C1 – Way 1: new build with the customer's data (step 2, preferred)
 
+### When does the interview run? (no chicken-and-egg problem)
+
+The order on the new host is: **clone → import → interview → install
+chain**. The importer runs *before* the interview and needs nothing from it:
+- **Placeholders:** the overlay holds no paths of the new host, only
+  `##ORACLE_HOME##`, `##DOMAIN_HOME##`, `##FORMS_CUSTOMER_DIR##`,
+  `##WLS_SERVER_FQDN##` …. `14-` fills them in much later from the then
+  complete conf.
+- **The new conf:** the importer writes `environments/<env>.conf` with the
+  import block only. When there is no `environment.conf` yet, it links that
+  file as `environment.conf`.
+- **The interview continues this conf:** the imported keys are shown as
+  `[kept]`, and the customer's Reports servers (`REPORTS_SERVER_INSTANCES`)
+  become `REPORTS_SERVER_NAMES` / `REPORTS_SERVER_NAME` – one list. It asks
+  only for what the export cannot know: host values (`ORACLE_BASE`,
+  `DOMAIN_HOME`, the public `WLS_SERVER_FQDN`, RCU database), the decisions
+  and the passwords. It writes its block into the same file.
+
+| Order | Step | As |
+|---|---|---|
+| 1 | `git clone` of the library on the new host (see [09-Install/README.md](../README.md), "Setup") | oracle |
+| 2 | copy the export (`.zip.enc`) to the new host; `customer_conf_import.sh --env <env>` dry run, then `--apply` | oracle |
+| 3 | `01-setup-interview.sh --apply` | oracle |
+| 4 | phase 0 (root scripts) and the install chain | root / oracle |
+
+If an `environment.conf` already exists (e.g. a test run of the interview),
+the importer leaves it alone and prints the `ln -sfn` command. Then either
+link it to the new conf, or import with `--env` set to the conf the link
+points to.
+
 ```bash
 # 1. import: creates environments/<env>.conf with the import block + the overlay
 ./00-Setup/customer_conf_import.sh -i ihw_export_<host>_<ts>.zip.enc --env <env>            # dry run
@@ -122,7 +152,8 @@ The reports contain host names and paths. They go **only** to the customer
 ```
 
 3. **Check the Reports server list in the conf** before the install chain.
-   All three keys must name the customer's servers, without duplicates:
+   The interview takes it from the import; all three keys must name the
+   customer's servers, without duplicates:
 
    ```bash
    grep -nE '^REPORTS_SERVER|^\s+"' 00-Setup/environments/<env>.conf

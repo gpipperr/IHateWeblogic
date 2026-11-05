@@ -93,6 +93,10 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 - **`--env`:** default = the conf the `environment.conf` link points to.
 - **A missing `environments/<name>.conf`** is created with the import block
   only (Way 1, then `01-setup-interview.sh`).
+  - Without an `environment.conf`, the importer links it to this file, so
+    the interview reads the import block and writes into the same file.
+  - The interview takes `REPORTS_SERVER_INSTANCES` of the import as its
+    server list (`REPORTS_SERVER_NAMES` / `_NAME`).
 - **Already set keys** are kept. When the value differs, the run says so.
   For `REPORTS_SERVER_INSTANCES`, `INSTALL_COMPONENTS` and
   `FORMS_WEBUTIL_JACOB` this is a WARN, because the overlay needs the
