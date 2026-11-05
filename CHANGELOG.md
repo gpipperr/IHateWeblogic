@@ -5,6 +5,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `40-`: check of the start form. The `.fmx` of `FORMS_CLIENT_FORM` (else
+  `form=` of the section) must be in `FORMS_PATH` of the section's
+  `envFile`. Otherwise WARN – the clients would start into FRM-40010. At
+  the customer, the kept library value `main.fmb` did not exist; the test
+  form of `15-` is `FORMS_CLIENT_FORM=test_form`.
 - Forms client bundle landing page: `/formsWeb/` showed only a 403
   (`autoindex off`, no index file; customer).
   - `40-` now writes `index.html` from

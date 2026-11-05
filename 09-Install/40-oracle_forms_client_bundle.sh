@@ -392,6 +392,30 @@ if frm_find_files; then
             ok "$(printf "%-22s %s" "Start section:" "[$_sec] (baseSAAfile=${_saa:-<none>}${_wua:+, WebUtil})${FORMS_CLIENT_FORM:+, form=$FORMS_CLIENT_FORM}")"
         fi
         unset _saa _wua
+        # start form: FORMS_CLIENT_FORM, else form= of the section - its .fmx
+        # must be in FORMS_PATH of the section's envFile (customer 2026-11-05:
+        # main.fmb kept from the library conf, not on the host)
+        _frm="${FORMS_CLIENT_FORM:-$(frm_cfg_get "$FRM_CFG" "$_sec" form)}"
+        if [ -n "$_frm" ]; then
+            _envf="$(frm_cfg_get "$FRM_CFG" "$_sec" envFile)"
+            case "${_envf:-default.env}" in /*) ;; *) _envf="$FRM_CONFIG_DIR/${_envf:-default.env}" ;; esac
+            _fpath="$(frm_env_get "$_envf" FORMS_PATH)"
+            _base="${_frm%.*}"                           # main.fmb / main.fmx / main -> main
+            _hit=""
+            for _d in ${_fpath//:/ }; do
+                [ -f "$_d/$_base.fmx" ] && { _hit="$_d/$_base.fmx"; break; }
+            done
+            if [ -n "$_hit" ]; then
+                ok "$(printf "%-22s %s" "Start form:" "$_frm -> $_hit")"
+            else
+                warn "$(printf "%-22s %s" "Start form:" "$_base.fmx not found in FORMS_PATH of $(basename "$_envf") – the client starts into FRM-40010")"
+                info "  FORMS_PATH: ${_fpath:-<not set>}"
+                info "  set FORMS_CLIENT_FORM (e.g. test_form of 15-, or the customer start form), then 40- --apply"
+            fi
+            case "$_frm" in *.fmb) info "  form=$_frm: Forms runs the .fmx – give the name without .fmb" ;; esac
+            unset _envf _fpath _base _hit _d
+        fi
+        unset _frm
     fi
 else
     warn "$(printf "%-22s %s" "Start section:" "formsweb.cfg of the domain not found – [$_sec] not checked")"
