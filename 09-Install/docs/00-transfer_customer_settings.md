@@ -196,6 +196,13 @@ The sequence as it ran live on 2026-11-05. Send the log of every step
   `30-`). The restart is then done by hand.
 - **The old default server** keeps running until step 6 – it does not
   disturb the new ones (other name, same port).
+- **Forms client bundle (FSAL shortcut):** Way 2 keeps the library's
+  `FORMS_CLIENT_CONFIG` / `FORMS_CLIENT_FORM` (test form). Once a customer
+  section works, set it in the conf and run
+  `09-Install/40-oracle_forms_client_bundle.sh --apply`. It checks that the
+  section exists, and that a WebUtil section has `baseSAAfile=webutilsaa.txt`.
+  Way 1 takes the customer section with the most application starts
+  automatically.
 
 ---
 

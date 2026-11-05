@@ -44,6 +44,8 @@ if [ ! -f "$LIB" ]; then
 fi
 # shellcheck source=../00-Setup/IHateWeblogic_lib.sh
 source "$LIB"
+# shellcheck source=../06-FormsDiag/forms_lib.sh
+source "$ROOT_DIR/06-FormsDiag/forms_lib.sh"   # frm_find_files, frm_sections, frm_cfg_get
 
 check_env_conf "$ENV_CONF" || exit 2
 # shellcheck source=../environment.conf
@@ -197,6 +199,9 @@ fi
 CJ_VER="$(printf '%s' "$CJ_INNER" | sed -n 's/^jdk-\([0-9.]*\)_windows-x64_bin\.zip$/\1/p')"
 CJ_SHA_EXP="$(unzip -p "$CJ_ZIP" SHA256_VALUES 2>/dev/null | grep -F "($CJ_INNER)" | awk '{print $NF}')"
 ok "$(printf "%-22s %s" "Client JDK:" "$(basename "$CJ_ZIP") → $CJ_INNER")"
+# outer ZIP against the sha256 of the patch list (row client_jdk, 233P regexp) –
+# soft check like 05- / 06-; the inner jdk ZIP is checked against SHA256_VALUES
+patch_zip_sha_check "$CJ_ZIP" "$CJ_NR"
 
 # --- frmsal.jar -------------------------------------------------------------
 FSAL_SRC="$ORACLE_HOME/forms/java/frmsal.jar"
@@ -284,6 +289,39 @@ PYEOF
 else
     info "$(printf "%-22s %s" "Shortcut icon:" "Windows default (FORMS_CLIENT_ICON empty)")"
 fi
+
+# --- Start section in the deployed formsweb.cfg --------------------------------
+# FORMS_CLIENT_CONFIG is the section the FSAL shortcut starts. After a customer
+# import it is one of the customer's sections - it must exist, and a section
+# with WebUtil needs the FSAL WebUtil base file (baseSAAfile=webutilsaa.txt,
+# like Oracle's [webutil_standaloneapp]); [default] has basesaa.txt, without
+# WebUtil the client starts but every WebUtil call fails.
+_sec="${FORMS_CLIENT_CONFIG:-standaloneapp}"
+if frm_find_files; then
+    if ! frm_sections "$FRM_CFG" | grep -qxF "$_sec"; then
+        fail "$(printf "%-22s %s" "Start section:" "[$_sec] not in $FRM_CFG – FSAL would get an error page")"
+        info "  set FORMS_CLIENT_CONFIG to one of: $(frm_sections "$FRM_CFG" | grep -vx default | xargs)"
+        info "  (customer sections come with 14-oracle_setup_forms.sh --apply)"
+    else
+        _saa="$(frm_cfg_get "$FRM_CFG" "$_sec" baseSAAfile)"
+        # WebUtil in THIS section: own WebUtilArchive or a webutil base file
+        # ([default] carries WebUtilArchive for every section - not counted)
+        _wua=""
+        [ "$(frm_cfg_where "$FRM_CFG" "$_sec" WebUtilArchive)" = "$_sec" ] && _wua=yes
+        frm_cfg_get "$FRM_CFG" "$_sec" baseHTMLjpi | grep -qi webutil && _wua=yes
+        frm_cfg_get "$FRM_CFG" "$_sec" basejnlp    | grep -qi webutil && _wua=yes
+        if [ -n "$_wua" ] && [ "$_saa" != "webutilsaa.txt" ]; then
+            warn "$(printf "%-22s %s" "Start section:" "[$_sec] uses WebUtil, but baseSAAfile=${_saa:-<none>} – FSAL needs webutilsaa.txt")"
+            info "  add baseSAAfile=webutilsaa.txt to [$_sec] (customer overlay forms/formsweb.sections.cfg), then 14- --apply"
+        else
+            ok "$(printf "%-22s %s" "Start section:" "[$_sec] (baseSAAfile=${_saa:-<none>}${_wua:+, WebUtil})${FORMS_CLIENT_FORM:+, form=$FORMS_CLIENT_FORM}")"
+        fi
+        unset _saa _wua
+    fi
+else
+    warn "$(printf "%-22s %s" "Start section:" "formsweb.cfg of the domain not found – [$_sec] not checked")"
+fi
+unset _sec
 
 # --- Setup templates (Baustein 3, optional) ---------------------------------
 SETUP_PS1="$TEMPLATE_DIR/FormsWeb-Setup.ps1"

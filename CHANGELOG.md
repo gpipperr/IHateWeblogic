@@ -5,6 +5,18 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `40-oracle_forms_client_bundle.sh` reviewed:
+  - client JDK and patch numbers come from `patches_fmw.csv` – up to date;
+    the test host bundle is on 21.0.13.0.2 (CPU Oct 2026);
+  - new: soft SHA-256 check of the client JDK ZIP against the patch list
+    (`patch_zip_sha_check`, like `05-` / `06-`);
+  - new: check of the start section `FORMS_CLIENT_CONFIG` in the deployed
+    `formsweb.cfg`. FAIL when it does not exist. WARN when it switches
+    WebUtil on without `baseSAAfile=webutilsaa.txt` – FSAL would load no
+    WebUtil jars. The customer sections of the import are on FSAL +
+    WebUtil.
+  - Docs 40 and `00-transfer_customer_settings` (Way 2: set the customer
+    section, then `40- --apply`).
 - systemd units wait for the Oracle file systems: `RequiresMountsFor=` in
   `oracle-listener` (`60-/02-`), `oracle-db` (`60-/08-`, plus
   `DB_DATA_DIR`), `fmw-<domain>` (`30-`: Oracle Home, domain, JDK, ctrl dir,
