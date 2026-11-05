@@ -13,6 +13,23 @@
 | Patch cycle (reference) | **{{CYCLE}}** – patch list `{{CSV_NAME}}` |
 | Created by | analyse_patch_collect.sh {{ANALYSE_VERSION}} (ihw_tools_lib {{LIB_VERSION}}) |
 
+## Status at a glance
+
+| Patch level | {{CYCLE}} |
+|---|---|
+| {{LIGHT}} | **{{LIGHT_TEXT}}** |
+
+{{LIGHT_POINTS}}
+
+| Light | Meaning |
+|---|---|
+| 🟢 green | every patch of the cycle that applies to this environment is installed |
+| 🟡 yellow | partly patched – some patches of the cycle are missing |
+| 🔴 red | nothing of the cycle installed, or the WebLogic Stack Patch Bundle (most of the security fixes) is missing |
+
+The light refers to the patch list of the cycle. Points without a patch
+(product gaps) are listed below it and in section 9.
+
 This report compares the patch level of the environment, as read from the
 collection, with the patch list of the cycle above:
 - section 4 shows what is missing;
@@ -35,6 +52,7 @@ within the cycle.
 
 ## Contents
 
+0. [Status at a glance](#status-at-a-glance)
 1. [Summary](#1-summary)
 2. [Environment](#2-environment)
 3. [Installed patches](#3-installed-patches)

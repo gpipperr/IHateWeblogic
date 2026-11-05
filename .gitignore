@@ -98,6 +98,6 @@ ihw_export_*
 # only the README and the generic template are committed
 70-Customer-Projects/tools/customer-analyse/*
 !70-Customer-Projects/tools/customer-analyse/README.md
-!70-Customer-Projects/tools/customer-analyse/import_analyse_template.md
+!70-Customer-Projects/tools/customer-analyse/fmw_forms_reports_status_template.md
 !70-Customer-Projects/tools/customer-analyse/patch_analyse_template.md
 !70-Customer-Projects/tools/customer-analyse/rules/

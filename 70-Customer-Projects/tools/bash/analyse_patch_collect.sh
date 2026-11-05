@@ -36,7 +36,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.2"
+VERSION="2026-11-05.3"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -490,6 +490,26 @@ else
 fi
 
 # =============================================================================
+# 9b. traffic light (patch list only - product gaps without a patch are listed below it)
+#   green  nothing missing | yellow  partly | red  nothing of the cycle / SPB missing
+# =============================================================================
+CYC_SHORT="${CYCLE%% (*}"
+if [ "$N_MISS" -eq 0 ] && [ "$N_APPLY" -gt 0 ]; then
+    PL=green; PTXT="Requirements of $CYC_SHORT met"
+elif [ "$N_INST" -eq 0 ] || grep -q ';WLS Stack Patch Bundle;' "$CSV/.missing"; then
+    PL=red; PTXT="Not on $CYC_SHORT – $N_MISS of $N_APPLY patches missing$(grep -q ';WLS Stack Patch Bundle;' "$CSV/.missing" && printf ' (incl. the WebLogic Stack Patch Bundle)')"
+else
+    PL=yellow; PTXT="Partly patched – $N_MISS of $N_APPLY patches of $CYC_SHORT missing"
+fi
+[ "$N_APPLY" -eq 0 ] && { PL=none; PTXT="no applicable patch list"; }
+# points next to the light: WARN findings (not the patch list itself), max. 3
+POINTS="$(awk -F';' '$1=="WARN" && $2 != "Patch level" {print "- " $2 ": " $3}' "$FIND" | cut -c1-230 | head -3)"
+[ -n "$(awk -F';' '$1=="WARN" && $2=="Java" && $3 ~ /bundled JDK/' "$FIND")" ] && \
+    POINTS="$(printf '%s\n' "$POINTS" | sed 's/^- Java: processes run on the bundled JDK/- Known product gap (no patch in the cycle): processes run on the bundled JDK/')"
+[ -z "$POINTS" ] && POINTS="- no further point that must be solved (section 9)"
+printf 'PATCH_LIGHT=%s\nPATCH_TEXT=%s\nPATCH_MISSING=%s\nPATCH_CYCLE=%s\nPATCH_DATE=%s\n' "$PL" "$PTXT" "$N_MISS" "$CYC_SHORT" "$DATE" > "$CSV/status.env"
+
+# =============================================================================
 # 10. findings, fill the template
 # =============================================================================
 awk -F';' 'BEGIN{o["WARN"]=1; o["HINT"]=2; o["INFO"]=3} {print o[$1] ";" $0}' "$FIND" | sort -t';' -k1,1n -s | cut -d';' -f2- | M > "$CSV/findings_sorted.csv"
@@ -504,6 +524,7 @@ export IHWP_CUSTOMER="$CUST" IHWP_DATE="$DATE" IHWP_SRC_HOST="${SRC_HOST:--}" \
     IHWP_N_APPLY="$N_APPLY" IHWP_N_INSTALLED="$N_INST" IHWP_N_MISSING="$N_MISS" IHWP_N_NOT_NEEDED="$N_NN" \
     IHWP_N_LSPATCHES="$N_LSP" IHWP_N_WARN="$(cnt '^WARN;' "$FIND")" IHWP_N_HINT="$(cnt '^HINT;' "$FIND")" \
     IHWP_N_INFO="$(cnt '^INFO;' "$FIND")" IHWP_ROUTE="$ROUTE" IHWP_SUMMARY_TEXT="$SUMMARY_TEXT" \
+    IHWP_LIGHT="$(ihwt_light_md "$PL")" IHWP_LIGHT_TEXT="$PTXT" IHWP_LIGHT_POINTS="$(printf '%s' "$POINTS" | M)" \
     IHWP_WT_INFO="$WT_INFO" IHWP_DOWNTIME="$DOWNTIME" IHWP_ROUTE_A="$ROUTE_A" IHWP_ROUTE_B="$ROUTE_B"
 awk -v mddir="$MD" '
     /^<!-- BLOCK:[a-z_]+ -->$/ { b=$0; sub(/^<!-- BLOCK:/,"",b); sub(/ -->$/,"",b)
@@ -517,7 +538,7 @@ mv -f "$REPORT.tmp" "$REPORT"
 rm -rf "${MD:?}" "$CSV"/.[a-z]*
 
 say "Report  : $REPORT"
-say "Patches : $N_MISS missing of $N_APPLY applicable ($CYCLE), route $ROUTE"
+say "Patches : $N_MISS missing of $N_APPLY applicable ($CYCLE), route $ROUTE - light: $PL"
 say "Findings: $IHWP_N_WARN WARN, $IHWP_N_HINT HINT, $IHWP_N_INFO INFO"
 say "Customer data - never commit it to git (run dir is git-ignored)."
 exit 0

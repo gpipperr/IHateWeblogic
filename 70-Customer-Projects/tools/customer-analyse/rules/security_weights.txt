@@ -1,0 +1,64 @@
+# Security weighting of the findings of analyse_forms_reports_export.sh
+# (traffic light "Status at a glance" of the Forms & Reports status report).
+#
+# Format: <extended regexp on "area;finding">;<category>;<weight>
+#   - first matching line wins (put specific rules first)
+#   - matched case-insensitively against "<area>;<finding text>" of a
+#     WARN / HINT / INFO finding (findings.csv)
+#   - category: one of the names below (same spelling = same row in the table)
+#   - weight:
+#       critical  exploitable from the network today without a login -> category RED
+#       high      weakens the protection substantially / needs one more step -> YELLOW
+#       low       hardening / good practice -> category stays green (counted)
+#       none      not a security point (only listed, not counted)
+# A security finding ("Security / ...") without a matching line is reported as
+# "unrated" by the analysis run - add a line here.
+# Overall light = the worst category.
+#
+# --- Network access / web tier ---------------------------------------------
+Security / Web tier;proxy target taken from the request;Network access / web tier;critical
+Security / Web tier;admin consoles routed;Network access / web tier;critical
+Security / Reports;webcommandaccess=L2;Network access / web tier;critical
+Security / Web tier;plain HTTP routed to WebLogic;Network access / web tier;high
+Security / Web tier;old TLS protocols;Network access / web tier;high
+Security / Web tier;(DebugConfigInfo|TraceEnable);Network access / web tier;high
+Security / WebLogic;listen on all interfaces;Network access / web tier;high
+Security / Web tier;(directory listing|shows its version|shows version|without explicit protocol list);Network access / web tier;low
+Security / Forms;absolute http:// URL;Network access / web tier;low
+Security / Oracle Net;without client encryption;Network access / web tier;low
+#
+# --- Credentials -------------------------------------------------------------
+Security / Forms;login \(userid parameter\) in clear text;Credentials;critical
+Security / Reports;customer key\(s\) in cgicmd.dat with a database login;Credentials;critical
+Security / WebLogic;password keyword in setDomainEnv;Credentials;critical
+Security / Forms;login \(userid parameter\) stored encrypted;Credentials;high
+Security / Forms;password / login keyword in env files;Credentials;high
+Security / Reports;logins only in Oracle's sample keys;Credentials;low
+Security / Secrets;places with password;Credentials;none
+#
+# --- Reports server ------------------------------------------------------------
+Security / Reports;without securityId;Reports server;high
+Security / Reports;without encrypted identifier;Reports server;high
+Security / Reports;world-writable;Reports server;high
+Security / Reports;no <folderAccess>;Reports server;low
+#
+# --- Forms / WebUtil -----------------------------------------------------------
+Security / WebUtil;file transfer to the application server enabled;Forms / WebUtil;critical
+Security / Forms;allow_debug=true;Forms / WebUtil;high
+Forms runtime;maxRuntimeProcesses not set;Forms / WebUtil;high
+Security / WebUtil;very wide transfer directories;Forms / WebUtil;high
+Security / Forms;(restrictedURLparams|FORMS_RESTRICT_ENTER_QUERY|client trace);Forms / WebUtil;low
+Security / WebUtil;(transfer.database.enabled|own client libraries);Forms / WebUtil;low
+#
+# --- WebLogic / Node Manager -----------------------------------------------------
+Security / WebLogic;Node Manager AuthenticationEnabled=false;WebLogic / Node Manager;critical
+Security / WebLogic;Node Manager without SSL;WebLogic / Node Manager;high
+Security / WebLogic;not in production mode;WebLogic / Node Manager;high
+Security / WebLogic;demo keystores;WebLogic / Node Manager;low
+#
+# --- Code signing (jars) ---------------------------------------------------------
+Security / Jars;(unsigned jar|SHA-1 / MD5|expired and no timestamp);Code signing (jars);high
+Security / Jars;(expires within 90 days|signature still valid);Code signing (jars);low
+#
+# --- not security ----------------------------------------------------------------
+Security / Java;source JDK;Code signing (jars);none

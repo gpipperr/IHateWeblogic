@@ -5,6 +5,20 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- **Traffic lights in the customer reports:**
+  - **Patch analysis:** 🟢 requirements of the cycle met / 🟡 partly /
+    🔴 nothing or no SPB, with the known product gaps below it.
+  - **Configuration report:** renamed to the **Forms & Reports status**
+    (`fmw_forms_reports_status_<customer>_<date>.md`, template
+    `fmw_forms_reports_status_template.md`). It gets a security light per
+    area:
+    - weights in `customer-analyse/rules/security_weights.txt`
+      (critical / high / low);
+    - patch level taken from the patch analysis;
+    - overall = the worst area.
+  - Shared helpers in `ihw_tools_lib.sh` 2026-11-05.4: `ihwt_light_md`,
+    `ihwt_weigh`, `ihwt_status_rows`.
+
 - **Patch analysis for the customer:** new
   `70-Customer-Projects/tools/bash/analyse_patch_collect.sh` + template
   `customer-analyse/patch_analyse_template.md` turn a collection of

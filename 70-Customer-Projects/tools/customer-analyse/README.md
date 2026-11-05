@@ -1,7 +1,7 @@
 # customer-analyse – analysis reports of customer configuration exports
 
 **Customer data. Nothing below this directory is committed** except this
-README, the generic report templates `import_analyse_template.md` /
+README, the generic report templates `fmw_forms_reports_status_template.md` /
 `patch_analyse_template.md` and the
 generic rule lists in `rules/` (`.gitignore`:
 `70-Customer-Projects/tools/customer-analyse/*` with exceptions).
@@ -9,13 +9,14 @@ generic rule lists in `rules/` (`.gitignore`:
 ```
 customer-analyse/
   README.md                         committed
-  import_analyse_template.md        committed – report template (English)
+  fmw_forms_reports_status_template.md        committed – report template (English)
   patch_analyse_template.md         committed – patch analysis template (English)
+  rules/security_weights.txt        committed – weight of every security finding (traffic light)
   <YYYY-MM-DD>_<customer>/          one run – git-ignored
     export/                         the unpacked export (may hold clear-text passwords!)
     collect/                        the unpacked collection (collect_fmw_env.sh, masked)
     csv/                            the tables of the reports as ';'-CSV (csv/patch/ = patch analysis)
-    import_analyse_<customer>_<date>.md   the configuration report for the customer
+    fmw_forms_reports_status_<customer>_<date>.md   the configuration report for the customer
     patch_analyse_<customer>_<date>.md    the patch analysis for the customer
 ```
 

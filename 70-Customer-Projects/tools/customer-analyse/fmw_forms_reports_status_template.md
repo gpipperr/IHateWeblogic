@@ -1,4 +1,4 @@
-# Forms & Reports configuration analysis – {{CUSTOMER}}
+# Forms & Reports status and 14c migration analysis – {{CUSTOMER}}
 
 | | |
 |---|---|
@@ -13,6 +13,21 @@
 | Reference for 14c | {{REF_INFO}} |
 | Created by | analyse_forms_reports_export.sh {{ANALYSE_VERSION}} (ihw_tools_lib {{LIB_VERSION}}) |
 
+## Status at a glance
+
+Security status of the environment: {{OVERALL}}
+
+<!-- BLOCK:status -->
+
+| Light | Meaning |
+|---|---|
+| 🔴 red | at least one **critical** point: exploitable from the network today without a login – act now |
+| 🟡 yellow | at least one **important** point: weakens the protection substantially – plan the change |
+| 🟢 green | only hardening points (or none) |
+
+The overall light is the worst area. Every security finding of section 14.1
+has its weight (critical / high / low).
+
 This report describes the Forms & Reports configuration of the existing
 environment, as read from the configuration export. It is the starting point
 for the rebuild on Oracle Forms & Reports 14.1.2 with the IHateWeblogic
@@ -25,6 +40,7 @@ directory names of the customer: hand it only to the customer.
 
 ## Contents
 
+0. [Status at a glance](#status-at-a-glance)
 1. [Summary](#1-summary)
 2. [Forms – configuration sections](#2-forms--configuration-sections-formswebcfg) –
    [2.1 `[default]` settings](#21-default-settings-that-differ-from-oracles-standard),
@@ -291,6 +307,10 @@ in that location.
 | INFO | for information |
 
 ### 14.1 Security findings
+
+Most important first. "Weight" (rule list `rules/security_weights.txt` of the
+analysis): critical = exploitable from the network today without a login,
+high = weakens the protection substantially, low = hardening.
 
 <!-- BLOCK:findings_security -->
 

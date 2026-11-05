@@ -7,7 +7,7 @@
 #            servers, fonts, source directories, dependencies, TNS aliases,
 #            secrets (counted, never shown), the 14c target mapping and
 #            rule-based findings (security first).
-#            Template: ../customer-analyse/import_analyse_template.md
+#            Template: ../customer-analyse/fmw_forms_reports_status_template.md
 # Call     : analyse_forms_reports_export.sh -i <export.zip|export.zip.enc|dir>
 #                 -k <customer> [-o <outbase>] [--date YYYY-MM-DD]
 #                 [--ref-home <14c ORACLE_HOME>] [--fresh]
@@ -21,7 +21,7 @@
 #                        /u01/app/oracle/fmw); without it those rules are
 #                        listed as "not checked"
 #            --fresh     unpack the export again (default: reuse export/)
-# Output   : <outbase>/<date>_<customer>/import_analyse_<customer>_<date>.md
+# Output   : <outbase>/<date>_<customer>/fmw_forms_reports_status_<customer>_<date>.md
 #            + csv/ (tables) + export/ (unpacked export - clear text!)
 # Safety   : every value passes ihwt_mask; secrets are only counted; the
 #            finished report is checked for clear-text patterns and deleted
@@ -33,14 +33,15 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.5"
+VERSION="2026-11-05.6"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
 
 IN=""; CUST=""; OUTBASE="$_IHWT_DIR/../customer-analyse"; DATE="$(date +%Y-%m-%d)"
 REF_HOME="${ORACLE_HOME:-/u01/app/oracle/fmw}"; FRESH=false
-TEMPLATE="$_IHWT_DIR/../customer-analyse/import_analyse_template.md"
+TEMPLATE="$_IHWT_DIR/../customer-analyse/fmw_forms_reports_status_template.md"
+WEIGHTS="$_IHWT_DIR/../customer-analyse/rules/security_weights.txt"
 while [ $# -gt 0 ]; do
     case "$1" in
         -i) IN="${2:-}"; shift ;;
@@ -67,7 +68,7 @@ RUNNAME="${DATE}_${CUST}"
 ihwt_git_guard "$OUTBASE" "$RUNNAME" || exit 2
 
 RUN="$OUTBASE/$RUNNAME"
-REPORT="$RUN/import_analyse_${CUST}_${DATE}.md"
+REPORT="$RUN/fmw_forms_reports_status_${CUST}_${DATE}.md"
 CSV="$RUN/csv"; MD="$RUN/.md"
 mkdir -p "$RUN" "$CSV" "$MD" || exit 2
 IN="$(readlink -f "$IN")"
@@ -988,9 +989,23 @@ md "Rule;reason" not_checked < "$NOTCHK"
 
 # findings: security first, WARN > HINT > INFO
 _fsort() { awk -F';' 'BEGIN{o["WARN"]=1;o["HINT"]=2;o["INFO"]=3} {print o[$1] ";" $0}' | sort -t';' -k1,1n -k3,3 | cut -d';' -f2-; }
-grep '^[A-Z]*;Security' "$FIND" | _fsort | M > "$CSV/findings_security.csv"
+# weighting (rules/security_weights.txt) -> category + weight per finding
+_fsort < "$FIND" | ihwt_weigh "$WEIGHTS" | M > "$CSV/findings_weighted.csv"
+awk -F';' 'BEGIN{o["critical"]=1;o["high"]=2;o["unrated"]=3;o["low"]=4;o["none"]=5} $2 ~ /^Security/ {print o[$6] ";" $7 ";" $6 ";" $1 ";" $2 ";" $3 ";" $4}' \
+    "$CSV/findings_weighted.csv" | sort -t';' -k1,1n -k2,2n -s | cut -d';' -f3- > "$CSV/findings_security.csv"
 grep -v '^[A-Z]*;Security' "$FIND" | _fsort | M > "$CSV/findings_other.csv"
-md "Severity;area;finding;recommendation" findings_security < "$CSV/findings_security.csv"
+md "Weight;severity;area;finding;recommendation" findings_security < "$CSV/findings_security.csv"
+UNRATED="$(awk -F';' '$6=="unrated" {print $2 ": " substr($3, 1, 50)}' "$CSV/findings_weighted.csv")"
+# patch light of the patch analysis in the same run directory
+PL="none"; PT="not assessed - run analyse_patch_collect.sh with the collection of this host"
+if [ -f "$RUN/csv/patch/status.env" ]; then
+    PL="$(sed -n 's/^PATCH_LIGHT=//p' "$RUN/csv/patch/status.env")"
+    PT="$(sed -n 's/^PATCH_TEXT=//p' "$RUN/csv/patch/status.env") (patch analysis $(sed -n 's/^PATCH_DATE=//p' "$RUN/csv/patch/status.env"))"
+fi
+ihwt_status_rows "$PL" "$PT" < "$CSV/findings_weighted.csv" | M > "$CSV/status.csv"
+OVERALL="$(head -1 "$CSV/status.csv" | cut -d';' -f2)"
+awk -F';' '{print $1 ";" $2 ";" $3}' "$CSV/status.csv" | while IFS=';' read -r c l t; do
+    printf '%s;%s;%s\n' "$c" "$(ihwt_light_md "$l")" "$t"; done | md "Area;Status;Most important point" status
 md "Severity;area;finding;recommendation" findings_other < "$CSV/findings_other.csv"
 
 # =============================================================================
@@ -1011,7 +1026,7 @@ export IHWA_CUSTOMER="$CUST" IHWA_DATE="$DATE" IHWA_SRC_HOST="${SRC_HOST:--}" \
     IHWA_ENV_PROPOSAL="${ENV_PROPOSAL:-# no proposal in the export}" \
     IHWA_LOAD_INFO="$LOAD_INFO" IHWA_LOAD_PERIOD="$LOAD_PERIOD" IHWA_LOAD_FRMWEB="$LOAD_FRMWEB" \
     IHWA_LOAD_RWENG="$LOAD_RWENG" IHWA_LOAD_HOST="$LOAD_HOST" \
-    IHWA_WT_INFO="$WT_INFO" IHWA_N_ENV_EXPORT="$N_ENV_EXPORT" IHWA_N_ENV_DEC="$N_ENV_DEC" IHWA_N_ENV_MISS="$N_ENV_MISS"
+    IHWA_OVERALL="$(ihwt_light_md "$OVERALL")" IHWA_WT_INFO="$WT_INFO" IHWA_N_ENV_EXPORT="$N_ENV_EXPORT" IHWA_N_ENV_DEC="$N_ENV_DEC" IHWA_N_ENV_MISS="$N_ENV_MISS"
 awk -v mddir="$MD" '
     /^<!-- BLOCK:[a-z_]+ -->$/ { b=$0; sub(/^<!-- BLOCK:/,"",b); sub(/ -->$/,"",b)
         f=mddir "/" b ".md"; if ((getline l < f) > 0) { print l; while ((getline l < f) > 0) print l; close(f) } else print "_none found_"
@@ -1028,6 +1043,7 @@ mv -f "$REPORT.tmp" "$REPORT"
 rm -rf "${MD:?}" "$CSV"/.[a-z]*
 
 say "Report  : $REPORT"
-say "Findings: $IHWA_N_WARN WARN, $IHWA_N_HINT HINT, $IHWA_N_INFO INFO"
+say "Findings: $IHWA_N_WARN WARN, $IHWA_N_HINT HINT, $IHWA_N_INFO INFO - security light: $OVERALL"
+[ -n "$UNRATED" ] && { say "UNRATED security findings (add a line to rules/security_weights.txt):"; printf '%s\n' "$UNRATED" | sed 's/^/      /'; }
 say "Customer data - never commit it to git (run dir is git-ignored)."
 exit 0

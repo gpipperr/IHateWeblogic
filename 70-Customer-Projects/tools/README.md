@@ -687,11 +687,28 @@ the README, the template and `rules/` are committed):
 ```
 export/                                 the unpacked export (clear text with an encrypted export!)
 csv/                                    every table as ';'-CSV (findings.csv, jars.csv, tns.csv ...)
-import_analyse_<customer>_<date>.md     the report
+fmw_forms_reports_status_<customer>_<date>.md     the report
 ```
 
+**Traffic light "Status at a glance"** (since 2026-11-05.6, top of the
+report – the "Forms & Reports status"):
+- every security finding gets a category and a weight from
+  [customer-analyse/rules/security_weights.txt](customer-analyse/rules/security_weights.txt)
+  (`<area regexp>;<finding regexp>;<category>;<weight>`, first match wins);
+- the weights:
+  - critical = exploitable from the network today without a login → 🔴;
+  - high = weakens the protection substantially → 🟡;
+  - low = hardening → stays 🟢;
+- one light per category: network access / web tier, credentials, Reports
+  server, Forms / WebUtil, WebLogic / Node Manager, code signing;
+- **patch level** = the light of `analyse_patch_collect.sh` of the same run
+  directory (`csv/patch/status.env`), else "not assessed";
+- **overall = the worst area** – no point score;
+- security findings without a rule are printed as "UNRATED" at the end of
+  the run.
+
 **Report** (template
-[customer-analyse/import_analyse_template.md](customer-analyse/import_analyse_template.md)):
+[customer-analyse/fmw_forms_reports_status_template.md](customer-analyse/fmw_forms_reports_status_template.md)):
 summary, Forms sections + `[default]` against the 14c standard + all keys of
 the customer sections, env files + differing keys, WebUtil, customer jars
 (signature, digest, signer expiry + timestamp, class version, duplicates),
@@ -812,6 +829,17 @@ the FMW version of `inventory/registry.xml`:
 - **Route B** (`07-Maintenance/80-/81-/82-`) is offered only for 14.1.2
   **and** when the collector found the library. Fact `IHateWeblogic library`
   since collector 2026-11-05.3.
+
+**Traffic light** (since 2026-11-05.3) at the top:
+- 🟢 every applicable patch of the cycle is installed ("Requirements of
+  `<cycle>` met");
+- 🟡 partly patched;
+- 🔴 nothing of the cycle installed, or the WLS Stack Patch Bundle is
+  missing.
+
+The light rates the patch list only. WARN points without a patch (e.g.
+Reports engines on the bundled JDK) are listed below it as a known product
+gap. `csv/patch/status.env` hands the light to the status report.
 
 **Report** (template
 [customer-analyse/patch_analyse_template.md](customer-analyse/patch_analyse_template.md)):
