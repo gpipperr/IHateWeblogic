@@ -126,6 +126,16 @@ uses it for `nmStart('AdminServer')`.
   services, without these lines WebLogic would run with 1024 open files.
 - `After=network-online.target`; with `LOCAL_REP_DB=true` also
   `After=`/`Wants=oracle-db.service oracle-listener.service`.
+- `RequiresMountsFor=` `ORACLE_HOME`, `DOMAIN_HOME`, `JDK_HOME`, the ctrl
+  directory and `TNS_ADMIN` (only the existing ones). systemd waits for the
+  `.mount` units of these paths.
+  - **Why:** a block volume mounted with `nofail` / `_netdev` (OCI iSCSI,
+    NFS) comes after `network-online.target`. At a customer on 2026-11-05,
+    `oracle-listener` started at 7 s while `/oracle` was mounted at 11 s.
+  - **Existing hosts:** run `30-configure_autostart.sh --apply` again (and
+    `60-RCU-DB-19c/02-` / `08-`, `12-APEX-Ords/04-` for their units).
+  - **Check:** `systemd-analyze critical-chain fmw-<domain>.service` – the
+    `.mount` of the volume must appear in the chain.
 - `TimeoutStartSec=1800`, `TimeoutStopSec=900`.
 
 The script copies the unit and runs `systemctl daemon-reload` + `enable` (as

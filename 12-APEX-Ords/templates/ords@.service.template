@@ -13,6 +13,9 @@
 Description=Oracle REST Data Services %i (standalone, Jetty)
 After=network-online.target
 Wants=network-online.target
+# ORDS home, JDK, logs, TNS_ADMIN on their file systems (block volume with
+# nofail / _netdev is mounted after network-online)
+RequiresMountsFor=##ORDS_BASE## ##JDK_HOME## ##LOG_BASE## ##TNS_ADMIN##
 
 [Service]
 Type=simple

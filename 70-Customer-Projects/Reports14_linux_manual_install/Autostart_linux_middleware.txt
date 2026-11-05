@@ -530,6 +530,13 @@ SCHRITT 6: systemd-Dienst anlegen  (als root, vorher SCHRITT 0.5)
   Werte wie in OS_Kochbuch_de.txt (oracle-Limits) - wurden dort andere
   Werte gesetzt, hier dieselben eintragen.
 
+  WICHTIG: RequiresMountsFor= laesst den Dienst warten, bis die Dateisysteme
+  von Oracle Home, Domain und Skripten eingehaengt sind. Ein Block-Volume
+  mit "nofail" / "_netdev" (OCI iSCSI, NFS) kommt erst NACH dem Netzwerk -
+  ohne die Zeile startet der Dienst zu frueh (beim Kunden 2026-11-05:
+  Listener nach 7 s, /oracle erst nach 11 s eingehaengt). Liegt alles auf
+  "/", aendert die Zeile nichts.
+
   echo "Unit: /etc/systemd/system/$SERVICE.service"
   # Erwartet: /etc/systemd/system/reportrpgpi.service. LEER? -> 0.5
 
@@ -541,6 +548,7 @@ SCHRITT 6: systemd-Dienst anlegen  (als root, vorher SCHRITT 0.5)
 Description=Oracle Reports Middleware (WebLogic Domain $DOMAIN_NAME)
 Wants=network-online.target
 After=network-online.target
+RequiresMountsFor=$ORACLE_HOME $DOMAIN_HOME $SCRIPTS
 
 [Service]
 Type=oneshot
@@ -559,10 +567,11 @@ TimeoutStopSec=900
 WantedBy=multi-user.target
 EOF
 
-  grep -n 'Description\|ExecSt' /etc/systemd/system/$SERVICE.service
+  grep -n 'Description\|ExecSt\|RequiresMountsFor' /etc/systemd/system/$SERVICE.service
 
-  # Erwartet: der Domain-Name und zwei Pfade unter /u01/oracle/scripts -
-  # keine leeren Stellen ("ExecStart=/start_all.sh" -> 0.5 wiederholen)
+  # Erwartet: der Domain-Name, zwei Pfade unter /u01/oracle/scripts und
+  # RequiresMountsFor mit drei Pfaden - keine leeren Stellen
+  # ("ExecStart=/start_all.sh" oder "RequiresMountsFor=  " -> 0.5 wiederholen)
 
   systemctl daemon-reload
 
@@ -634,6 +643,10 @@ SCHRITT 8: Funktions- und Neustarttest  (als root)
 
   journalctl -u $SERVICE -b
   # Erwartet: Ausgabe von start_all.sh, "Start abgeschlossen."
+
+  systemd-analyze critical-chain $SERVICE.service
+  # Erwartet: liegt Oracle auf einem eigenen Volume, steht dessen
+  # ".mount" (z.B. u01.mount) in der Kette VOR dem Dienst
 
   # Danach Ports/Prozesse/curl wie in 8.1 pruefen.
 

@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- systemd units wait for the Oracle file systems: `RequiresMountsFor=` in
+  `oracle-listener` (`60-/02-`), `oracle-db` (`60-/08-`, plus
+  `DB_DATA_DIR`), `fmw-<domain>` (`30-`: Oracle Home, domain, JDK, ctrl dir,
+  `TNS_ADMIN`) and `ords@` (`12-APEX-Ords/04-`). Also in the German autostart
+  cookbook, with a `critical-chain` check after the reboot. At the customer,
+  the listener started at 7 s and the `/oracle` block volume (`nofail` /
+  `_netdev`, after `network-online.target`) was mounted only at 11 s. Docs
+  30, 60-02, 60-08 and the 12-APEX-Ords README updated.
 - Way 1 order clone → import → interview:
   - `customer_conf_import.sh` links `environment.conf` to the new conf when
     there is none yet. Before, the interview started fresh and wrote

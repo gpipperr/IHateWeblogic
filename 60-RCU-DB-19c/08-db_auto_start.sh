@@ -214,6 +214,8 @@ Description=Oracle Database CDB (${DB_SID})
 After=network-online.target oracle-listener.service
 Wants=network-online.target
 Requires=oracle-listener.service
+# software + data files must be mounted (block volume with nofail / _netdev)
+RequiresMountsFor=${DB_ORACLE_HOME} ${ORACLE_BASE}${DB_DATA_DIR:+ ${DB_DATA_DIR}}
 
 [Service]
 Type=forking

@@ -10,6 +10,9 @@
 Description=Oracle FMW Forms/Reports domain ##DOMAIN_NAME## (Node Manager controlled)
 Wants=network-online.target##DB_UNITS##
 After=network-online.target##DB_UNITS##
+# Oracle Home, domain, JDK, control scripts: wait for their file systems (a
+# block volume with nofail / _netdev is mounted after network-online)
+RequiresMountsFor=##MOUNT_PATHS##
 
 [Service]
 Type=oneshot

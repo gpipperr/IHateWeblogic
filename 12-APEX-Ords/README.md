@@ -305,6 +305,7 @@ oracle.dbtools.level=WARNING
 [Unit]
 Description=Oracle REST Data Services %i (standalone)
 After=network-online.target
+RequiresMountsFor=<ORACLE_BASE>/ords <JDK_HOME> /var/log <TNS_ADMIN>
 
 [Service]
 Type=simple

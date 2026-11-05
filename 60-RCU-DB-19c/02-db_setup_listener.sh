@@ -275,6 +275,10 @@ cat > "$_unit_tmp" << UNITEOF
 Description=Oracle TNS Listener (${_listener_host}:${_listener_port})
 After=network-online.target
 Wants=network-online.target
+# wait for the file system(s) of the Oracle software - a block volume
+# mounted with nofail / _netdev (OCI iSCSI) comes AFTER network-online
+# (customer 2026-11-05: listener at 7 s, /oracle mounted at 11 s)
+RequiresMountsFor=${DB_ORACLE_HOME} ${ORACLE_BASE}
 
 [Service]
 Type=forking

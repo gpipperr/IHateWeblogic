@@ -60,6 +60,7 @@ Description=Oracle Database CDB (FMWCDB)
 After=network-online.target oracle-listener.service
 Wants=network-online.target
 Requires=oracle-listener.service
+RequiresMountsFor=<home> <ORACLE_BASE> <DB_DATA_DIR>
 
 [Service]
 Type=forking
@@ -78,6 +79,17 @@ TimeoutStopSec=120
 [Install]
 WantedBy=multi-user.target
 ```
+
+> **`RequiresMountsFor=`** (since 2026-11-05): the unit waits until the file
+> systems of these paths are mounted. A block volume mounted with `nofail` /
+> `_netdev` (OCI iSCSI, NFS) comes **after** `network-online.target`, so
+> `After=network-online.target` alone is not enough. At a customer the
+> listener started at 7 s, while `/oracle` was mounted only at 11 s. If
+> everything is on `/`, the line changes nothing. Check:
+> `systemctl show -p RequiresMountsFor,After <unit>`,
+> `systemd-analyze critical-chain <unit>` – the `.mount` of the volume must
+> appear in the chain.
+
 
 `Requires=oracle-listener.service` needs the unit of `02-` – without it
 `oracle-db` does not start. `dbstart` / `dbshut` with the home argument also

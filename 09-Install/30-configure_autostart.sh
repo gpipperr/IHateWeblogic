@@ -290,13 +290,16 @@ if ls "$CTRL_DIR"/*.sh "$CTRL_DIR"/*.py >/dev/null 2>&1; then
 fi
 unset _ts
 
+# paths the unit needs mounted (RequiresMountsFor) - unique, existing only
+MOUNT_PATHS="$(for _p in "$ORACLE_HOME" "$DOMAIN_HOME" "${JDK_HOME:-}" "$CTRL_DIR" "${TNS_ADMIN:-}"; do
+                   [ -n "$_p" ] && [ -e "$_p" ] && printf '%s\n' "$_p"; done | sort -u | xargs)"
 declare -A RENDER=(
     [ORACLE_HOME]="$ORACLE_HOME"            [DOMAIN_HOME]="$DOMAIN_HOME"
     [DOMAIN_NAME]="$DOMAIN_NAME"            [CTRL_DIR]="$CTRL_DIR"
     [NM_HOST]="$NM_HOST"                    [NM_PORT]="$NM_PORT"
     [ADMIN_URL]="$ADMIN_URL"                [ADMIN_SERVER]="$ADMIN_SERVER"
     [MANAGED_SERVERS]="$MANAGED_SERVERS"    [SYSTEM_COMPONENTS]="$SYSTEM_COMPONENTS"
-    [DB_UNITS]="$DB_UNITS"
+    [DB_UNITS]="$DB_UNITS"                  [MOUNT_PATHS]="$MOUNT_PATHS"
     [OS_USER]="$(id -un)"                   [OS_GROUP]="$(id -gn)"
     [ULIMIT_NOFILE]="${ULIMIT_NOFILE:-65536}" [ULIMIT_NPROC]="${ULIMIT_NPROC:-16384}"
 )
