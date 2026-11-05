@@ -278,10 +278,20 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     It was tested with the real export in an isolated copy (Way 1 and Way 2,
     dry runs of `14-` / `13-` against the overlay).
 
+    **Live 2026-11-05 (Way 2, customer 14c environment):**
+    - import, `apply_customer_conf.sh --apply`, the two customer Reports
+      servers with their own `NLS_LANG`, 14 jars signed;
+    - `13- --remove-server` removed the old default server.
+
+    Process document: `09-Install/docs/00-transfer_customer_settings.md`.
+
     **Open:**
-    - `--apply` of `13-` / `14-` with the overlay on a test domain (customer
-      jars signed, the env files, both Reports servers with their
-      `NLS_LANG`);
+    - Way 1 at a customer (import before the interview);
+    - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF
+      after the wait for the Reports servers);
+    - the slow Reports logins (1.6–2.6 s) – measure again after IPv6 off;
+    - step 3 of the process: export + analysis of a 14c library host (the
+      before / after report);
     - the WebUtil transfer directory `##FORMS_TMP##/webutil` – check that
       `14-` creates it;
     - the decisions to clarify with the customer (`SECTION_UNUSED`,

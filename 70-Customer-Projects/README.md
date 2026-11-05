@@ -33,6 +33,11 @@ Every customer engagement on Linux starts the same way, whatever the folder:
 So a customer folder holds only **one ini, one csv and the cookbooks**; all
 scripts are shared in `tools/bash/`.
 
+**Moving to 14c:** export the old environment at the first visit
+(`export_forms_reports_conf.sh`, next to `collect_fmw_env.sh`). The whole
+process – analysis, build with the customer's data, check again – is in
+[09-Install/docs/00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md).
+
 ## Writing a cookbook
 
 → [cookbook-Skill.md](cookbook-Skill.md) – style rules for every customer

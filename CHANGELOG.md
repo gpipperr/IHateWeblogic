@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Process document `09-Install/docs/00-transfer_customer_settings.md`:
+  moving a customer environment to 14c in three steps (extract + analyse,
+  build with the customer's master data – Way 1 preferred / Way 2, analyse
+  again + harden). It includes the pitfalls of the first live run,
+  verification and rollback. Linked from:
+  - the new section at the start of the root README;
+  - `09-Install/README.md`, doc 17 (status: Way 2 live-tested);
+  - `70-Customer-Projects` README, tools README, the German first-visit
+    cookbook;
+  - `00-Setup` / `07-Maintenance` READMEs.
 - `13- --remove-server` live at the customer: `repserver01` removed with
   WLST `deleteReportsServerInstance` (before / after lists, backup,
   `servers/<name>` moved into the backup). `30- --apply` then removed it

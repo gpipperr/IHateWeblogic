@@ -1,6 +1,11 @@
 # Step 17 – Import the customer configuration (overlay)
 
-**Status 2026-11-05: built.**
+> The whole process – collect, analyse, build (Way 1 / Way 2), check again –
+> is described in
+> [00-transfer_customer_settings.md](00-transfer_customer_settings.md). This
+> document is the reference of the importer and the overlay.
+
+**Status 2026-11-05: built, Way 2 live-tested in a customer 14c environment.**
 - **Importer:** `00-Setup/customer_conf_import.sh`.
 - **Way 2:** `07-Maintenance/apply_customer_conf.sh`.
 - **Overlay readers:** `13-`, `14-`, `14b-`, `04-ReportsFonts`.
@@ -8,8 +13,15 @@
   - dry run and `--apply` in an isolated copy of the repository, Way 1 (new
     conf) and Way 2 (existing conf);
   - `14-` and the Way 2 sequence as a dry run against the overlay: 0 FAIL.
-- **Not tested yet:** `13-` / `14-` `--apply` with an overlay on a real
-  domain.
+- **Live in a customer 14c environment (Way 2):**
+  - `apply_customer_conf.sh --apply` created two customer Reports servers,
+    each with its own `<environment>` from the overlay;
+  - 14 customer jars were signed;
+  - `13- --remove-server` removed the old default server.
+
+  The fixes found on the way are listed in the pitfalls table of the
+  process document.
+- **Not tested yet:** Way 1 at a customer.
 
 ---
 
@@ -157,6 +169,14 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 ```
 
 - **Only a sequence:** `14b-` → `14-` → `13-`, each with the same flag.
+  - The section "Reports server names" comes first. It compares the
+    overlay, `REPORTS_SERVER_INSTANCES`, `REPORTS_SERVER_NAMES`,
+    `REPORTS_SERVER_NAME` and the servers of the domain.
+  - After `13-` it runs `30-configure_autostart.sh --apply`, if the
+    autostart scripts miss a Reports server (lib `autostart_drift`).
+  - After `start-all` it waits for every Reports server to answer
+    `getserverinfo` (`IHW_REPORTS_READY_WAIT`, default 240 s), then runs
+    `15-`.
 - **With `--apply`:**
   - It warns (and asks on a terminal) when there is no configuration backup
     of the last 4 hours.

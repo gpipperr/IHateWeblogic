@@ -510,8 +510,9 @@ Runtime on the test host (100 GB disk, 92 GB used): about 40 s.
 Exports the customer-specific configuration of an **existing** Forms &
 Reports environment (12.2.1.x or 14.1.2) into one archive – the input for
 the rebuild with the 14c library. Read-only on the host, writes only below
-`-t OUTDIR`. Step 1 of the migration; the import into the library is a
-later, separate step (after the first real customer export).
+`-t OUTDIR`. Step 1 of the migration; the import into the library is
+`00-Setup/customer_conf_import.sh` – whole process:
+[00-transfer_customer_settings.md](../../09-Install/docs/00-transfer_customer_settings.md).
 
 ```bash
 # as the software owner (oracle), not root - from the unpacked tools ZIP
@@ -663,7 +664,9 @@ for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
 ## analyse_forms_reports_export.sh
 
 Step 2 of the 12c/14c → 14c migration (step 1 = `export_forms_reports_conf.sh`
-at the customer, step 3 = the import into the library – still open). It turns
+at the customer, step 3 = the import into the library,
+`00-Setup/customer_conf_import.sh`; whole process:
+[00-transfer_customer_settings.md](../../09-Install/docs/00-transfer_customer_settings.md)). It turns
 one export into a **structured report** the customer gets ("this is how we
 build it in 14c"):
 

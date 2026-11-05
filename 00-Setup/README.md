@@ -36,7 +36,7 @@ secures the configuration that the rest of the library (`09-Install/`,
 | `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
 | `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
 | `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
-| `customer_conf_import.sh` | script | Customer export (`export_forms_reports_conf.sh`) → customer overlay `environments/<env>.customer/` + `IMPORT_DECISIONS.md` + `environment.conf` block; read by `13-` / `14-` / `14b-` – spec `09-Install/docs/17-customer_conf_import.md` |
+| `customer_conf_import.sh` | script | Customer export (`export_forms_reports_conf.sh`) → customer overlay `environments/<env>.customer/` + `IMPORT_DECISIONS.md` + `environment.conf` block; read by `13-` / `14-` / `14b-` – spec `09-Install/docs/17-customer_conf_import.md`, process [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md) |
 | `install_db_client_tools.sh` | script | Oracle Instant Client (SQL\*Plus, tools) + SQLcl, versioned, update / rollback by link |
 | `set_environment.md` | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
 | `environments/` | directory | One conf file per environment (FMW domain or DB home) + templates |

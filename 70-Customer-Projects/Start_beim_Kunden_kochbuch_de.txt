@@ -247,6 +247,18 @@ SCHRITT 4: Gibt es schon eine Umgebung?
 
   rm -rf <ausgabe_ordner>
 
+  # Umstieg auf 14c geplant? Dann jetzt auch die Konfiguration exportieren -
+  # sie ist die Grundlage der neuen Umgebung (Ablauf: IHateWeblogic
+  # 09-Install/docs/00-transfer_customer_settings.md):
+
+  export_forms_reports_conf.sh -t $ORACLE_BASE/install
+
+  # Erwartet: Abfrage einer Passphrase (zweimal), am Ende der Pfad der
+  # Datei ihw_export_<host>_<zeit>.zip.enc - wie oben mitnehmen, die
+  # Passphrase getrennt uebermitteln. Bei uns entsteht daraus der
+  # Forms & Reports Status-Bericht:
+  #   tools/bash/analyse_forms_reports_export.sh -i <datei>.zip.enc -k <kunde>
+
   ----------------------------------------------------------------------------
   4b Neue Installation: Werte aus den Kochbuechern eintragen
   ----------------------------------------------------------------------------

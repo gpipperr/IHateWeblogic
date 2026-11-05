@@ -90,6 +90,11 @@ execution if sudo is not available.
 
 ## 2. Installation Flow
 
+> **Existing customer environment?** Read
+> [00-transfer_customer_settings.md](docs/00-transfer_customer_settings.md)
+> first. Export the old environment before step 01, so the interview and the
+> chain below build with the customer's data (Way 1).
+
 ### Prerequisites – certificates (decide and prepare first)
 
 The certificate steps are part of the flow below (server certificate before

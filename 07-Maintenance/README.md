@@ -31,7 +31,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 |---|---|---|
 | `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
 | `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
-| `apply_customer_conf.sh` | ✅ implemented | Way 2 of the customer import: apply the overlay of `00-Setup/customer_conf_import.sh` to an existing library environment – `14b-` / `14-` / `13-`, restart, `15-` smoke test, `90-` validate (`09-Install/docs/17-customer_conf_import.md`) |
+| `apply_customer_conf.sh` | ✅ implemented | Way 2 of the customer import: apply the overlay of `00-Setup/customer_conf_import.sh` to an existing library environment – `14b-` / `14-` / `13-`, `30-` autostart when a server is missing, restart, wait for the Reports servers, `15-` smoke test, `90-` validate (`09-Install/docs/17-customer_conf_import.md`; process: [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md)) |
 | `patch_storage.sh` | ✅ implemented | Local `PATCH_STORAGE` as working copy of a patch archive (`PATCH_ARCHIVE`, NFS/ZFS): `status`, `pull <step>` before a step, `clean` after it – done steps from the run history `log/run_history.csv` |
 | `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
