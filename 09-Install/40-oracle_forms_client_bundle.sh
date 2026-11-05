@@ -239,7 +239,28 @@ if [ -n "$CA_FILE" ]; then
     _ca_form=""
     if [ ! -e "$CA_FILE" ]; then
         fail "FORMS_CLIENT_TRUST_CA $CA_FILE does not exist"
-        info "  customer PKI: root.crt -> 08-SSL/user_certs/, ./08-SSL/ssl_customer_certs.sh --apply (writes it as PEM)"
+        # the interview proposes .../customer/root.crt for SSL_CERT_SOURCE=customer;
+        # only ssl_customer_certs.sh writes it - when the customer root came in
+        # (customer 2026-11-05: path set, file never delivered). Which root the
+        # clients need: the top of the chain Nginx sends.
+        _top="$(printf '' | timeout 10 openssl s_client -connect 127.0.0.1:443 \
+                    -servername "${WLS_SERVER_FQDN:-localhost}" -showcerts 2>/dev/null \
+                | awk '/-----BEGIN CERTIFICATE-----/{b=""} {b=b $0 "\n"} /-----END CERTIFICATE-----/{last=b} END{printf "%s", last}')"
+        if [ -n "$_top" ]; then
+            info "  Nginx sends a chain up to: $(printf '%s' "$_top" | openssl x509 -noout -subject 2>/dev/null | sed 's/^subject=//')"
+            info "    issued by              : $(printf '%s' "$_top" | openssl x509 -noout -issuer  2>/dev/null | sed 's/^issuer=//')"
+            if printf '' | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername "${WLS_SERVER_FQDN:-localhost}" \
+                   2>/dev/null | grep -q 'Verify return code: 0 (ok)'; then
+                info "  -> the chain verifies against the OS trust store (public CA?): Java's default cacerts"
+                info "     usually knows it too - then set FORMS_CLIENT_TRUST_CA= (empty) and run 40- again"
+            else
+                info "  -> the chain does NOT verify against the OS trust store: the clients need this root"
+            fi
+        fi
+        unset _top
+        info "  company root: get the root CA of the issuer above from the customer (PEM / DER / .p7b),"
+        info "    -> 08-SSL/user_certs/root.crt, ./08-SSL/ssl_customer_certs.sh --apply (writes $CA_FILE)"
+        info "  public CA   : FORMS_CLIENT_TRUST_CA= (empty) in $(basename "$(readlink -f "$ENV_CONF")")"
     elif [ ! -r "$CA_FILE" ]; then
         fail "FORMS_CLIENT_TRUST_CA $CA_FILE is not readable for $(id -un)"
         info "  $(ls -ld "$CA_FILE" 2>&1)"

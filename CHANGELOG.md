@@ -5,6 +5,15 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `FORMS_CLIENT_TRUST_CA` pointed to `…/pki/customer/root.crt`, but the
+  file did not exist (customer). The interview proposes this path for
+  `SSL_CERT_SOURCE=customer`; only `ssl_customer_certs.sh` writes it, from a
+  delivered `root.crt`, and none was delivered.
+  - `40-` now shows which root the clients need: the top of the chain Nginx
+    sends, whether it verifies against the OS store, and the two ways out
+    (deliver the company root / set the value empty for a public CA).
+  - `ssl_customer_certs.sh` warns when the conf points to the file, but no
+    `root.crt` was delivered.
 - `40-`: the check of `FORMS_CLIENT_TRUST_CA` names the cause instead of
   "no readable certificate" (customer). Possible causes:
   - the file is missing;

@@ -239,6 +239,13 @@ if _want root && _f="$(_find root)"; then
     else
         fail "  not a certificate (PEM / DER / PKCS#7): $_f"
     fi
+elif [ "${FORMS_CLIENT_TRUST_CA:-}" = "$CUST_DIR/root.crt" ] && [ ! -f "$CUST_DIR/root.crt" ]; then
+    # the interview set the path for SSL_CERT_SOURCE=customer - the file comes
+    # only from a delivered root.crt (customer 2026-11-05: never delivered,
+    # 40- failed with "no readable certificate")
+    warn "FORMS_CLIENT_TRUST_CA=$CUST_DIR/root.crt, but no root.crt in the inbox and none imported yet"
+    info "  company CA: put the customer's root CA into 08-SSL/user_certs/root.crt and re-run with --apply"
+    info "  public CA : set FORMS_CLIENT_TRUST_CA= (empty) – 40-oracle_forms_client_bundle.sh needs no own CA then"
 fi
 _verify() {   # _verify leaf chainfile – against root.crt, else the OS store
     [ -s "${2:-/x}" ] || set -- "$1" ""
