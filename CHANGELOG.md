@@ -5,6 +5,19 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- First customer dry run of `apply_customer_conf.sh`, fixes:
+  - `14-`: the code-signing readiness check now covers the customer jars of
+    the overlay, too. Before, it was skipped when `jacob.jar` was already
+    signed, so a missing keystore showed up only as a FAIL during `--apply`.
+  - `14-`: every env file is labelled with its own name (it was always
+    `default.env`); the overlay path shows the overlay file instead of the
+    temp copy.
+  - `apply_customer_conf.sh`: new section "Reports server names". It warns
+    when a server of the overlay (`reports/<name>.env`) is not in
+    `REPORTS_SERVER_INSTANCES`, or when `REPORTS_SERVER_NAME` is not in it
+    (14b- would write `cgicmd.dat` for the old server). It lists the servers
+    of the domain that are no longer configured, with the
+    `--remove-server` hint.
 - `13-oracle_setup_reports.sh --remove-server <name> [--apply]`: remove a
   Reports server instance. It checks the gates (not in
   `REPORTS_SERVER_INSTANCES`, stopped, AdminServer up) and lists the

@@ -49,6 +49,36 @@ printList "Log (all steps)" 20 "${LOG_FILE:-}"
 printList "Conf" 20 "$(readlink -f "$ENV_CONF")"
 printList "Servers" 20 "${REPORTS_SERVER_INSTANCES:-<not set>}"
 [ -f "$CUSTOMER_CONF_DIR/IMPORT_DECISIONS.md" ] && info "decisions: $CUSTOMER_CONF_DIR/IMPORT_DECISIONS.md"
+
+# Reports server names: the overlay, REPORTS_SERVER_INSTANCES,
+# REPORTS_SERVER_NAME and the domain must agree - otherwise 13- creates other
+# servers than the overlay describes and 14b- writes cgicmd.dat for an old one
+section "Reports server names"
+_inst=" ${REPORTS_SERVER_INSTANCES:-} "
+for _e in "$CUSTOMER_CONF_DIR"/reports/*.env; do
+    [ -f "$_e" ] || continue
+    _n="$(basename "$_e" .env)"
+    case "$_inst" in
+        *" $_n "*) ok "$(printf "  %-16s overlay + REPORTS_SERVER_INSTANCES" "$_n")" ;;
+        *) warn "$(printf "  %-16s in the overlay, NOT in REPORTS_SERVER_INSTANCES - 13- does not create it (add it in %s)" "$_n" "$(basename "$(readlink -f "$ENV_CONF")")")" ;;
+    esac
+done
+if [ -n "${REPORTS_SERVER_NAME:-}" ]; then
+    case "$_inst" in
+        *" $REPORTS_SERVER_NAME "*) ok "$(printf "  %-16s REPORTS_SERVER_NAME (default server: cgicmd.dat, 15-, status tools)" "$REPORTS_SERVER_NAME")" ;;
+        *) warn "$(printf "  REPORTS_SERVER_NAME=%s is not in REPORTS_SERVER_INSTANCES - 14b- would write cgicmd.dat for it; set it to one of: %s" "$REPORTS_SERVER_NAME" "${REPORTS_SERVER_INSTANCES:-?}")" ;;
+    esac
+fi
+_cdir="${DOMAIN_HOME:-}/config/fmwconfig/components/ReportsServerComponent"
+for _d in "$_cdir"/*/; do
+    [ -f "$_d/rwserver.conf" ] || continue   # a server, not mbeans/ etc.
+    _n="$(basename "$_d")"
+    case "$_inst" in
+        *" $_n "*) ;;
+        *) info "$(printf "  %-16s exists in the domain, not in REPORTS_SERVER_INSTANCES - after the switch: 01-Run/startStop.sh stop %s, then 09-Install/13-oracle_setup_reports.sh --remove-server %s" "$_n" "$_n" "$_n")" ;;
+    esac
+done
+unset _inst _e _n _cdir _d
 if $APPLY; then
     _lb="$(ls -td "$ROOT_DIR"/07-Maintenance/ConfigBackup/*/ 2>/dev/null | head -1)"
     if [ -z "$_lb" ] || [ -n "$(find "$_lb" -maxdepth 0 -mmin +240 2>/dev/null)" ]; then

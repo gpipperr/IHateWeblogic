@@ -257,10 +257,16 @@ _copy_template() {
     if [ -n "${CT_OVERLAY:-}" ] && [ -f "$CT_OVERLAY" ]; then
         frm_kv_overlay "$rendered" "$CT_OVERLAY" "customer overlay $(basename "$CT_OVERLAY")" > "$rendered.ov" \
             && mv -f "$rendered.ov" "$rendered"
-        info "$(printf "  + customer overlay %s" "$CT_OVERLAY")"
+        # rendered temp copy (section 4b) -> show the path inside the overlay
+        local shown="$CT_OVERLAY"
+        [ -n "${CC_SRC:-}" ] && [ "${CT_OVERLAY#"$CC_DIR"/}" != "$CT_OVERLAY" ] \
+            && shown="$CC_SRC/${CT_OVERLAY#"$CC_DIR"/} (rendered)"
+        info "$(printf "  + customer overlay %s" "$shown")"
     fi
 
     for d in "$dest" ${dest2:+"$dest2"}; do
+        # label = target file name (one template renders several env files)
+        [ "$d" = "$dest" ] && [ "$(basename "$d")" != "$tname" ] && tname="$(basename "$d")"
         printf "  %-30s %s%s\n" "$tname" "$d" "$([ "$d" = "$dest2" ] && printf '  (sync)')" \
             | tee -a "${LOG_FILE:-/dev/null}"
         if [ ! -d "$(dirname "$d")" ]; then
@@ -482,16 +488,34 @@ _sign_jar() {
 # (or FORMS_SIGN_LOCALCA=true: 14- creates it), customer PKI:
 # 08-SSL/ssl_customer_certs.sh --apply (codesign.p12). Not needed when
 # jacob.jar is already signed.
-if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
-    if [ -f "$_JACOB_JAR" ] && _jacob_signed "$_JACOB_JAR" && ! $RESIGN; then
+# Customer jars of the overlay (section 5b) are signed as well: count the
+# ones that are not installed + signed yet - they need the keystore, too
+_CC_TO_SIGN=0
+if [ -n "${CUSTOMER_CONF_DIR:-}" ]; then
+    for _j in "$CUSTOMER_CONF_DIR"/forms/jars/*.jar; do
+        [ -f "$_j" ] || continue
+        _d="$ORACLE_HOME/forms/java/$(basename "$_j")"
+        { [ -f "$_d" ] && [ -f "${_d}.orig" ] && cmp -s "$_j" "${_d}.orig" && _jacob_signed "$_d" && ! $RESIGN; } \
+            || _CC_TO_SIGN=$((_CC_TO_SIGN + 1))
+    done
+    unset _j _d
+fi
+_JACOB_NEEDS_SIGN=false
+[ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] \
+    && { [ ! -f "$_JACOB_JAR" ] || ! _jacob_signed "$_JACOB_JAR" || $RESIGN; } && _JACOB_NEEDS_SIGN=true
+if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] || [ "$_CC_TO_SIGN" -gt 0 ]; then
+    _sign_for="$($_JACOB_NEEDS_SIGN && printf 'jacob.jar')"
+    [ "$_CC_TO_SIGN" -gt 0 ] && _sign_for="${_sign_for:+$_sign_for + }$_CC_TO_SIGN customer jar(s) of the overlay"
+    if ! $_JACOB_NEEDS_SIGN && [ "$_CC_TO_SIGN" -eq 0 ]; then
         ok "Code signing: jacob.jar already signed – keystore not needed for this run"
     elif [ -z "${FORMS_SIGN_KEYSTORE:-}" ]; then
-        fail "Code signing not prepared: FORMS_SIGN_KEYSTORE is empty (FORMS_WEBUTIL_JACOB=true)"
+        fail "Code signing not prepared: FORMS_SIGN_KEYSTORE is empty (to sign: $_sign_for)"
         info "  own CA        : ./08-SSL/ssl_local_ca.sh codesign --apply   (or FORMS_SIGN_LOCALCA=true)"
         info "  customer PKI  : codesign.p12 → 08-SSL/user_certs/, ./08-SSL/ssl_customer_certs.sh --apply"
         info "  without signing jacob.jar is NOT activated (WebUtil OLE / Office automation does not work)"
     elif [ ! -f "$FORMS_SIGN_KEYSTORE" ]; then
-        if [ "${FORMS_SIGN_LOCALCA:-false}" = "true" ]; then
+        # the local-CA keystore is created only on the jacob.jar path (section 2)
+        if [ "${FORMS_SIGN_LOCALCA:-false}" = "true" ] && $_JACOB_NEEDS_SIGN; then
             ok "Code signing: keystore missing, FORMS_SIGN_LOCALCA=true – --apply creates it with the own CA"
         else
             fail "Code signing keystore not found: $FORMS_SIGN_KEYSTORE"
@@ -501,8 +525,9 @@ if [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ]; then
         fail "Code signing: keystore present, but its password file is missing: forms_sign_sec.conf.des3"
         info "  written by 08-SSL/ssl_local_ca.sh codesign / ssl_customer_certs.sh – re-run it"
     else
-        ok "$(printf "Code signing ready: %s (alias %s)" "$FORMS_SIGN_KEYSTORE" "${FORMS_SIGN_ALIAS:-forms_codesign}")"
+        ok "$(printf "Code signing ready: %s (alias %s) - to sign: %s" "$FORMS_SIGN_KEYSTORE" "${FORMS_SIGN_ALIAS:-forms_codesign}" "$_sign_for")"
     fi
+    unset _sign_for
 fi
 
 if [ "${FORMS_WEBUTIL_JACOB:-false}" != "true" ]; then
