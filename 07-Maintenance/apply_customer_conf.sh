@@ -70,6 +70,13 @@ if [ -n "$_names" ]; then
     fi
 fi
 unset _names
+# a server of the list without overlay values (typo, e.g. repsrv_utf8 for repsrv_utf)
+if ls "$CUSTOMER_CONF_DIR"/reports/*.env >/dev/null 2>&1; then
+    for _n in ${REPORTS_SERVER_INSTANCES:-}; do
+        [ -f "$CUSTOMER_CONF_DIR/reports/$_n.env" ] || \
+            warn "$(printf "  %-16s in REPORTS_SERVER_INSTANCES, no customer values in the overlay (reports/%s.env) - typo? servers of the export: %s" "$_n" "$_n" "$(ls "$CUSTOMER_CONF_DIR"/reports/*.env | xargs -n1 basename | sed 's/\.env$//' | xargs)")"
+    done
+fi
 for _e in "$CUSTOMER_CONF_DIR"/reports/*.env; do
     [ -f "$_e" ] || continue
     _n="$(basename "$_e" .env)"
