@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `13- --remove-server` live at the customer: `repserver01` removed with
+  WLST `deleteReportsServerInstance` (before / after lists, backup,
+  `servers/<name>` moved into the backup). `30- --apply` then removed it
+  from the autostart. Fix found on the way: `14b-` now updates the
+  "Server" / "Date" header lines of its `cgicmd.dat` block too. Before, the
+  old server name stayed in the comment and `--remove-server` listed it as
+  a reference.
 - Reports status, false OK fixed: `getserverinfo` answering HTTP 200
   without `<serverInfo>` was reported as "rwservlet reachable". The output
   was an empty "Server Info" section and 0 FAIL, while the smoke test got

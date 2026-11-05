@@ -288,13 +288,18 @@ else
     elif grep -qF "$_marker_begin" "$CGICMD_DAT" 2>/dev/null; then
         # Block already present (older version without authid): replace it -
         # everything outside the markers (Oracle samples, own keys) is kept.
-        # The header comment block written before the BEGIN marker is kept
-        # unchanged (only the date in it is old).
+        # The header comment block before the BEGIN marker is kept; its
+        # "Server" / "Date" lines are updated (a changed REPORTS_SERVER_NAME
+        # left the old name there - 13- --remove-server reported it as a
+        # reference, customer 2026-11-05).
         backup_file "$CGICMD_DAT"
         _new="$(mktemp)"; chmod 600 "$_new"
-        awk -v b="$_marker_begin" -v e="$_marker_end" -v blk="$_cgicmd_tmp" '
+        awk -v b="$_marker_begin" -v e="$_marker_end" -v blk="$_cgicmd_tmp" \
+            -v srv="$_reports_server" -v ts="$_ts" '
             BEGIN { while ((getline l < blk) > 0) { if (l == b) inb = 1; if (inb) nb = nb l "\n"; if (l == e) inb = 0 } }
-            $0 == b { printf "%s", nb; skip = 1; next }
+            !seen && /^# Server      : / { print "# Server      : " srv; next }
+            !seen && /^# Date        : / { print "# Date        : " ts; next }
+            $0 == b { printf "%s", nb; skip = 1; seen = 1; next }
             skip && $0 == e { skip = 0; next }
             !skip { print }
         ' "$CGICMD_DAT" > "$_new"
