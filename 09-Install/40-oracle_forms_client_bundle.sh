@@ -234,13 +234,35 @@ fi
 CA_FILE="${FORMS_CLIENT_TRUST_CA:-}"
 CA_SHA=""
 if [ -n "$CA_FILE" ]; then
-    if [ -f "$CA_FILE" ] && openssl x509 -in "$CA_FILE" -noout 2>/dev/null; then
-        CA_SHA="$(_sha "$CA_FILE")"
-        ok "$(printf "%-22s %s" "Truststore CA:" "$CA_FILE ($(openssl x509 -in "$CA_FILE" -noout -subject 2>/dev/null | sed 's/^subject=//'))")"
+    # PEM or DER (a Windows export as .crt is often DER) – keytool imports both;
+    # every failure says why (customer 2026-11-05: "no readable certificate")
+    _ca_form=""
+    if [ ! -e "$CA_FILE" ]; then
+        fail "FORMS_CLIENT_TRUST_CA $CA_FILE does not exist"
+        info "  customer PKI: root.crt -> 08-SSL/user_certs/, ./08-SSL/ssl_customer_certs.sh --apply (writes it as PEM)"
+    elif [ ! -r "$CA_FILE" ]; then
+        fail "FORMS_CLIENT_TRUST_CA $CA_FILE is not readable for $(id -un)"
+        info "  $(ls -ld "$CA_FILE" 2>&1)"
+        info "  $(ls -ld "$(dirname "$CA_FILE")" 2>&1)"
+        info "  as root: chmod 644 the file, chmod 755 (or o+x) the directories above it"
+    elif openssl x509 -inform PEM -in "$CA_FILE" -noout 2>/dev/null; then
+        _ca_form=PEM
+    elif openssl x509 -inform DER -in "$CA_FILE" -noout 2>/dev/null; then
+        _ca_form=DER
     else
-        fail "FORMS_CLIENT_TRUST_CA $CA_FILE is no readable certificate"
+        fail "FORMS_CLIENT_TRUST_CA $CA_FILE is neither a PEM nor a DER certificate"
+        info "  file: $(file -b "$CA_FILE" 2>/dev/null) – $(wc -c < "$CA_FILE") bytes – PEM blocks: $(grep -o -- '-----BEGIN [A-Z0-9 ]*-----' "$CA_FILE" 2>/dev/null | sort | uniq -c | xargs)"
+        info "  PKCS#7 (.p7b), a BOM or text before the PEM block: ./08-SSL/ssl_customer_certs.sh --apply normalises it"
+    fi
+    if [ -z "$_ca_form" ]; then
         print_summary; exit 2
     fi
+    CA_SHA="$(_sha "$CA_FILE")"
+    ok "$(printf "%-22s %s" "Truststore CA:" "$CA_FILE ($_ca_form, $(openssl x509 -inform "$_ca_form" -in "$CA_FILE" -noout -subject 2>/dev/null | sed 's/^subject=//'))")"
+    [ "$_ca_form" = DER ] && info "  DER is fine for keytool; ssl_customer_certs.sh --apply would store it as PEM"
+    _is_ca="$(openssl x509 -inform "$_ca_form" -in "$CA_FILE" -noout -ext basicConstraints 2>/dev/null | grep -c 'CA:TRUE')"
+    [ "$_is_ca" -gt 0 ] || warn "  $CA_FILE has no basicConstraints CA:TRUE – a server certificate instead of the root?"
+    unset _ca_form _is_ca
 else
     info "$(printf "%-22s %s" "Truststore CA:" "none (public CA – Java's default cacerts)")"
 fi

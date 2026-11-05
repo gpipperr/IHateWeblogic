@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `40-`: the check of `FORMS_CLIENT_TRUST_CA` names the cause instead of
+  "no readable certificate" (customer). Possible causes:
+  - the file is missing;
+  - the file or a directory is not readable for oracle (`ls -ld` of both);
+  - neither PEM nor DER, shown with `file`, the size and the PEM block
+    types (PKCS#7, private key, empty).
+
+  DER is accepted (`keytool` imports it), and the PEM / DER form is set
+  explicitly – OpenSSL 3 guesses the format otherwise. New WARN when the
+  certificate has no `CA:TRUE`.
 - `40-oracle_forms_client_bundle.sh` reviewed:
   - client JDK and patch numbers come from `patches_fmw.csv` – up to date;
     the test host bundle is on 21.0.13.0.2 (CPU Oct 2026);
