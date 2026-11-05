@@ -55,6 +55,21 @@ printList "Servers" 20 "${REPORTS_SERVER_INSTANCES:-<not set>}"
 # servers than the overlay describes and 14b- writes cgicmd.dat for an old one
 section "Reports server names"
 _inst=" ${REPORTS_SERVER_INSTANCES:-} "
+printList "REPORTS_SERVER_INSTANCES" 26 "${REPORTS_SERVER_INSTANCES:-<not set>}   (13- creates these)"
+# the interview writes the array REPORTS_SERVER_NAMES as well - 13- uses
+# REPORTS_SERVER_INSTANCES first; two different lists = the wrong servers
+if [ "$(declare -p REPORTS_SERVER_NAMES 2>/dev/null | cut -c1-10)" = "declare -a" ]; then
+    _names="${REPORTS_SERVER_NAMES[*]}"
+else
+    _names="${REPORTS_SERVER_NAMES:-}"
+fi
+if [ -n "$_names" ]; then
+    printList "REPORTS_SERVER_NAMES" 26 "$_names"
+    if [ "$(printf '%s\n' $_names | sort | xargs)" != "$(printf '%s\n' ${REPORTS_SERVER_INSTANCES:-} | sort | xargs)" ]; then
+        warn "REPORTS_SERVER_NAMES and REPORTS_SERVER_INSTANCES differ - set both to the same list in $(basename "$(readlink -f "$ENV_CONF")")"
+    fi
+fi
+unset _names
 for _e in "$CUSTOMER_CONF_DIR"/reports/*.env; do
     [ -f "$_e" ] || continue
     _n="$(basename "$_e" .env)"

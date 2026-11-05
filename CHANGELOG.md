@@ -17,7 +17,9 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
     `REPORTS_SERVER_INSTANCES`, or when `REPORTS_SERVER_NAME` is not in it
     (14b- would write `cgicmd.dat` for the old server). It lists the servers
     of the domain that are no longer configured, with the
-    `--remove-server` hint.
+    `--remove-server` hint. It also shows both server lists and warns
+    when the interview array `REPORTS_SERVER_NAMES` differs from
+    `REPORTS_SERVER_INSTANCES` (13- uses the latter).
 - `13-oracle_setup_reports.sh --remove-server <name> [--apply]`: remove a
   Reports server instance. It checks the gates (not in
   `REPORTS_SERVER_INSTANCES`, stopped, AdminServer up) and lists the
