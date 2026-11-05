@@ -250,14 +250,25 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     measure again after IPv6 off (`rwserver_status.sh`, "Avg auth time");
   - step 3 done on 2026-11-05: both reports of the customer's 14c host
     (patch green, security red only because `ADMIN_IP_RANGE=any` – `/console`
-    / `/em` open; the customer decides on an admin network). `14-` now creates
-    `FORMS_TMP/webutil`; this takes effect at the next `14- --apply` at the
-    customer;
+    / `/em` open). Then `14- --apply` at the customer created
+    `FORMS_TMP/webutil` (0 WARN). For the green closing report:
+    - the customer decides on an admin network → `04-root_nginx.sh --apply`
+      (also brings the `/formsWeb/` landing page);
+    - `40- --apply` (`index.html`, `FORMS_CLIENT_FORM=test_form`), restart
+      `WLS_FORMS` for the new `webutil.cfg`;
+    - re-export + analysis;
+  - re-render the systemd units with `RequiresMountsFor=` at the customer
+    (`30- --apply`, `60-RCU-DB-19c/02-` / `08-`). Then reboot test:
+    `systemd-analyze critical-chain` must show the `/oracle` mount;
+  - 12c report already sent: one false WARN ("same broadcast port", not
+    security) – regenerate with analysis 2026-11-05.7 if it is sent again;
   - feedback of the customer on the reports and the decisions in
     `IMPORT_DECISIONS.md` (`SECTION_UNUSED`, `ENV_UNUSED`, `PATH_KEPT` –
-    second module directory);
-  - on the customer host: `tnsnames.ora`, Carlito fonts, `FORMS_SIGN_TSA_URL`,
-    recompile of the invalid RCU objects (since the RCU run of 2026-11-03).
+    second module directory `bin_eg`), the customer start section / form for
+    the FSAL shortcut;
+  - on the customer host: Carlito fonts, `FORMS_SIGN_TSA_URL`, recompile of
+    the invalid RCU objects (since the RCU run of 2026-11-03), `server_tokens
+    off`.
 - [ ] **status.sh / Node Manager keys:** document
   how the Node Manager credential files of `status.sh` stage 3 are created and
   where they really are. Today the docs (`Autostart_linux_middleware.txt` step

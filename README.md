@@ -99,7 +99,9 @@ reviewed against the Oracle 14.1.2 documentation and re-tested live
 (`cve_inventory.sh`, since 2026-10-30 `cve_watch.sh`); host hardening
 (firewall, sshd) is live on the test host. The 14c move of a customer
 (export → analysis → import, [process](09-Install/docs/00-transfer_customer_settings.md))
-ran live for the first time on 2026-11-05 (Way 2).
+ran live for the first time on 2026-11-05 (Way 2), including step 3: the
+re-analysis of the new 14c host (patch level green, security red only for
+the admin consoles – no admin network chosen at the customer).
 What was done when: [CHANGELOG.md](CHANGELOG.md) (newest first). What is
 still open: [TODO.md](TODO.md).
 
@@ -609,9 +611,11 @@ IHateWeblogic/
 │   ├── 30-configure_autostart.sh    – Autostart at boot: systemd unit + Node Manager controlled
 │   │                                   start/stop scripts (templates in autostart_templates/)
 │   ├── 40-oracle_forms_client_bundle.sh – Forms client bundle for Nginx /formsWeb: jlink Windows
-│   │                                   runtime + CA, frmsal.jar, JACOB DLL, icon, manifest.json
+│   │                                   runtime + CA, frmsal.jar, JACOB DLL, icon, manifest.json,
+│   │                                   index.html landing page; checks start section + start form
 │   ├── client_templates/            – FormsWeb-Install.cmd (bootstrap) + FormsWeb-Setup.ps1
 │   │                                   (PS 5.1 installer/starter in %LOCALAPPDATA%, self-update)
+│   │                                   + index.html.template (landing page of /formsWeb/)
 │   ├── 99-oracle_deinstall_fmw.sh   – Teardown: remove FMW completely for a clean reinstall,
 │   │                                   keeps a database on the same host (irreversible)
 │   ├── oracle_software_version.conf – Pinned FMW/JDK/patch version numbers
