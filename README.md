@@ -22,7 +22,7 @@ C – Control
 ```
 Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic.md](IHateWeblogic.md)
 
-## Moving to Forms & Reports 14c – the process in three steps
+## Moving from 12c to Forms & Reports 14c – the process in three steps
 
 ```
  1. extract + analyse          2. build 14c with the customer's     3. analyse again +
@@ -37,6 +37,24 @@ Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governan
 
 Collect at the **start** of a project, not when the new host is ready: the
 export of the old environment is the master data of the new build.
+
+**Step 2 in order on the new host (Way 1).** The import comes **before** the
+interview:
+
+```
+ [oracle] git clone <repo> && cd IHateWeblogic
+ [oracle] ./00-Setup/customer_conf_import.sh -i <export>.zip.enc --env <env>           # dry run
+ [oracle] ./00-Setup/customer_conf_import.sh -i <export>.zip.enc --env <env> --apply   # conf + overlay, links environment.conf
+ [oracle] ./09-Install/01-setup-interview.sh --apply      # continues the imported conf: customer values [kept],
+                                                          # asks only host values, decisions, passwords
+ [root]   phase 0 (00-root_* … 05-root_nginx_ssl.sh), then the install chain 04- … 15-, 30-, 90-
+          → 09-Install/README.md "Installation Flow"
+```
+
+The overlay holds placeholders, not paths of the new host – `14-` fills them
+in later from the complete conf. So the importer needs nothing from the
+interview. Details and Way 2:
+[00-transfer_customer_settings.md](09-Install/docs/00-transfer_customer_settings.md#when-does-the-interview-run-no-chicken-and-egg-problem).
 
 ## Target Picture – Forms and APEX side by side
 
