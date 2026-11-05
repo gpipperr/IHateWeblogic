@@ -102,6 +102,8 @@ _check_root_access() {
 # =============================================================================
 
 TEMPLATE="$SCRIPT_DIR/nginx-wls.conf.template"
+INDEX_TEMPLATE="$SCRIPT_DIR/nginx-index.html.template"
+INDEX_DIR="/usr/share/nginx/ihw-html"          # location = / of nginx-wls.conf.template
 NGINX_CONF_DIR="/etc/nginx/conf.d"
 NGINX_CONF="$NGINX_CONF_DIR/oracle-wls.conf"
 NGINX_SSL_DIR="/etc/nginx/ssl"
@@ -460,6 +462,45 @@ else
 fi
 
 rm -f "$NGINX_CONF_TMP"
+
+# =============================================================================
+# 4b. Start page https://<host>/ (index.html, own directory)
+# =============================================================================
+# Links only to what is installed: /formsWeb/ (FORMS_CLIENT_DIST=true) and
+# /ords/ (an ORDS include of 12-APEX-Ords in /etc/nginx/oracle-wls.d/).
+section "Start page"
+if [ ! -f "$INDEX_TEMPLATE" ]; then
+    info "No $INDEX_TEMPLATE – start page skipped"
+else
+    _idx_tmp="$(mktemp /tmp/nginx-index-XXXXXX.html)"
+    _app="$(printf '%s' "${FORMS_CLIENT_APP_NAME:-Oracle Forms}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g' | sed 's/[\\&|]/\\&/g')"
+    _fw="${FORMS_CLIENT_URL_PATH:-/formsWeb}"; _fw="${_fw%/}/"
+    sed -e "s|@@SERVER_NAME@@|${SERVER_NAME}|g" -e "s|@@APP_NAME@@|${_app}|g" \
+        -e "s|@@FORMSWEB_URL@@|${_fw}|g" -e "s|@@GENERATED@@|$(date '+%Y-%m-%d')|g" \
+        "$INDEX_TEMPLATE" > "$_idx_tmp"
+    if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "REPORTS_ONLY" ]; then
+        sed -i '/<!--@FORMSWEB_\(BEGIN\|END\)@-->/d' "$_idx_tmp"; ok "Start page: link to ${_fw} (Forms client)"
+    else
+        sed -i '/<!--@FORMSWEB_BEGIN@-->/,/<!--@FORMSWEB_END@-->/d' "$_idx_tmp"
+    fi
+    if ls /etc/nginx/oracle-wls.d/ords*.conf >/dev/null 2>&1; then
+        sed -i '/<!--@APEX_\(BEGIN\|END\)@-->/d' "$_idx_tmp"; ok "Start page: link to /ords/ (APEX)"
+    else
+        sed -i '/<!--@APEX_BEGIN@-->/,/<!--@APEX_END@-->/d' "$_idx_tmp"
+    fi
+    # unchanged apart from the date? then leave it (no root call, no new date)
+    if _run_root test -f "$INDEX_DIR/index.html" 2>/dev/null \
+       && [ "$(sed '/Stand /d' "$_idx_tmp")" = "$(_run_root cat "$INDEX_DIR/index.html" 2>/dev/null | sed '/Stand /d')" ]; then
+        ok "Start page up to date: $INDEX_DIR/index.html"
+    elif [ "$APPLY_MODE" -eq 1 ]; then
+        _run_root install -d -m 755 "$INDEX_DIR" \
+            && _run_root install -m 644 "$_idx_tmp" "$INDEX_DIR/index.html" \
+            && ok "Start page written: $INDEX_DIR/index.html (https://${SERVER_NAME}/)"
+    else
+        info "Dry-run: would write $INDEX_DIR/index.html (https://${SERVER_NAME}/)"
+    fi
+    rm -f "$_idx_tmp"; unset _idx_tmp _app _fw
+fi
 
 # =============================================================================
 # 5. Default nginx.conf check

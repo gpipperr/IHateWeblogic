@@ -620,6 +620,7 @@ IHateWeblogic/
 │   │                                   keeps a database on the same host (irreversible)
 │   ├── oracle_software_version.conf – Pinned FMW/JDK/patch version numbers
 │   ├── nginx-wls.conf.template      – Nginx reverse-proxy config template
+│   ├── nginx-index.html.template    – start page https://<host>/ with the link to /formsWeb/
 │   ├── forms_templates/             – 6 editable Forms config templates + README
 │   │                                   (default.env, formsweb.cfg, webutil.cfg, Registry.dat, res files)
 │   ├── response_files/              – Silent-install response file templates

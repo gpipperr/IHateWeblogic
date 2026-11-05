@@ -188,6 +188,35 @@ location ~* ^/reports/rwservlet/(getserverinfo|showjobs|showenv|showmap|showauth
   check from outside: `curl -k https://<host>/reports/rwservlet/getserverinfo`
   → HTTP 403.
 
+### Start page `https://<host>/` (since 2026-11-05)
+
+`04-` writes `/usr/share/nginx/ihw-html/index.html` from
+`09-Install/nginx-index.html.template`. The server block serves it with an
+exact-match location:
+
+```nginx
+location = / {
+    root /usr/share/nginx/ihw-html;
+    try_files /index.html =404;
+    default_type text/html;
+    charset utf-8;
+    add_header Cache-Control "no-cache" always;
+}
+```
+
+- **Own directory:** the package directory `/usr/share/nginx/html` is not
+  used – its `index.html` is an RPM symlink to the Oracle Linux test page,
+  and a package update could put it back.
+- **Content:** the server name, a card "Forms client" with a link to
+  `FORMS_CLIENT_URL_PATH` (only with `FORMS_CLIENT_DIST=true`), a card
+  Oracle Reports ("started from the application"), and a card APEX with
+  `/ords/` (only when `/etc/nginx/oracle-wls.d/ords*.conf` exists). There are
+  **no** links to `/console` / `/em`.
+- **Rewrite:** only when the content changed (apart from the date).
+  Self-contained HTML (no external resources); edit the template.
+- **Tested** in a private Nginx: `/` 200 `text/html; charset=utf-8`,
+  `/nginx-health` unchanged.
+
 ### Forms client bundle location (`FORMS_CLIENT_DIST=true`)
 
 Static, read-only delivery of the client bundle (concept

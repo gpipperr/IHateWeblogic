@@ -5,6 +5,15 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Start page of the server `https://<host>/`.
+  - `04-root_nginx.sh` writes `/usr/share/nginx/ihw-html/index.html` from
+    `09-Install/nginx-index.html.template`: the server name, a link to the
+    Forms client `/formsWeb/` (only with `FORMS_CLIENT_DIST=true`), a Reports
+    note, `/ords/` (only with an ORDS include). No admin links.
+  - Served by a new exact `location = /`, in an own directory – the
+    package's `/usr/share/nginx/html/index.html` is an RPM symlink to the
+    test page.
+  - Tested in a private Nginx. Doc 04.
 - Step 3 of the 14c move, first run on the customer's new 14c host: export
   + collection analysed. Patch level green. Security red only for open
   `/console` / `/em` (`ADMIN_IP_RANGE=any`).

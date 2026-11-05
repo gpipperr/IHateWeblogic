@@ -705,6 +705,7 @@ README [Disk Sizing Guide](../README.md#disk-sizing-guide).
 ├── 04-root_nginx.sh                   ← Phase 0: Nginx install + proxy config
 ├── 05-root_nginx_ssl.sh               ← Phase 0: SSL cert, TLS config, start Nginx
 ├── nginx-wls.conf.template            ← Nginx proxy config template (##VARIABLE## substitution)
+├── nginx-index.html.template          ← start page https://<host>/ (04- → /usr/share/nginx/ihw-html/)
 ├── oracle_software_version.conf       ← SW versions, SHA-256, cycle values; loads download/patches_fmw.csv
 ├── download/                          ← per-cycle patch lists (CSV) – library + mos_patch_download.sh
 │   ├── patches_fmw.csv / patches_db.csv

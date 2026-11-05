@@ -232,6 +232,18 @@ server {
     # Not below conf.d/: those files are loaded at http{} level.
     include /etc/nginx/oracle-wls.d/*.conf;
 
+    # --- Start page (https://<host>/) ---------------------------------------
+    # written by 04-root_nginx.sh from nginx-index.html.template into an own
+    # directory (the package's /usr/share/nginx/html/index.html is an RPM
+    # symlink to the OL test page). Only "/" – nothing else is served from it.
+    location = / {
+        root /usr/share/nginx/ihw-html;
+        try_files /index.html =404;
+        default_type text/html;
+        charset utf-8;
+        add_header Cache-Control "no-cache" always;
+    }
+
     # --- Health check endpoint (Nginx itself, no proxy) -------------------
     location /nginx-health {
         access_log off;

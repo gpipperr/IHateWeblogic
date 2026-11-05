@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!--
+  Start page of the Forms & Reports server (https://@@SERVER_NAME@@/).
+  Written by 09-Install/04-root_nginx.sh from 09-Install/nginx-index.html.template
+  to /usr/share/nginx/ihw-html/index.html (own directory, not the package's
+  /usr/share/nginx/html – its index.html is an RPM symlink to the test page).
+  Edit the template, not the rendered file. Placeholders: @@SERVER_NAME@@
+  @@APP_NAME@@ @@FORMSWEB_URL@@ @@GENERATED@@; the blocks between the
+  @…_BEGIN@ / @…_END@ comments are kept only when that part is installed.
+  Self-contained: no external fonts, scripts or images. No links to /console
+  or /em – admins know them, users do not need them.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oracle Forms &amp; Reports – @@SERVER_NAME@@</title>
+<style>
+  :root { --fg:#1f2933; --muted:#52606d; --bg:#f5f7fa; --card:#ffffff; --accent:#c74634; --line:#d9e2ec; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Segoe UI", Arial, sans-serif; color:var(--fg); background:var(--bg); line-height:1.5; }
+  main { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+  h1 { margin:0 0 4px; font-size:1.7em; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:22px 28px; margin-bottom:16px; }
+  .card h2 { margin:0 0 6px; font-size:1.2em; }
+  a.button { display:inline-block; background:var(--accent); color:#fff; text-decoration:none;
+             padding:10px 20px; border-radius:6px; font-weight:600; margin-top:8px; }
+  a.button:hover { filter: brightness(0.92); }
+  .muted { color:var(--muted); font-size:0.9em; }
+  footer { color:var(--muted); font-size:0.85em; margin-top:24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Oracle Forms &amp; Reports</h1>
+  <p class="sub">@@SERVER_NAME@@</p>
+
+  <!--@FORMSWEB_BEGIN@-->
+  <div class="card">
+    <h2>@@APP_NAME@@ – Forms Client</h2>
+    <p>Installation und Start des Forms Clients für Windows (ohne Administratorrechte).<br>
+       <span class="muted" lang="en">Install and start the Forms client for Windows (no administrator rights).</span></p>
+    <a class="button" href="@@FORMSWEB_URL@@">Zum Forms Client / Forms client</a>
+  </div>
+  <!--@FORMSWEB_END@-->
+
+  <div class="card">
+    <h2>Oracle Reports</h2>
+    <p>Berichte werden aus der Anwendung heraus aufgerufen – hier ist nichts zu tun.<br>
+       <span class="muted" lang="en">Reports are started from the application – nothing to do here.</span></p>
+  </div>
+
+  <!--@APEX_BEGIN@-->
+  <div class="card">
+    <h2>Oracle APEX</h2>
+    <p>Web-Anwendungen im Browser.<br><span class="muted" lang="en">Web applications in the browser.</span></p>
+    <a class="button" href="/ords/">Zu APEX / to APEX</a>
+  </div>
+  <!--@APEX_END@-->
+
+  <footer>Bei Problemen wenden Sie sich bitte an Ihre IT-Abteilung. · Stand @@GENERATED@@</footer>
+</main>
+</body>
+</html>
