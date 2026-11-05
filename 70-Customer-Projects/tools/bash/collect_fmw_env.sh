@@ -35,7 +35,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.2"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-05.3"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -358,6 +358,19 @@ for e in "${WT_FOUND[@]}"; do
 done
 fact "Web tier" "$(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort | uniq -c | awk '{printf "%s%s x%s", (NR>1?", ":""), $2, $1}')"
 fact "Web tier unreadable" "$(for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}"; done | grep -c '^#@@ UNREADABLE') file(s)"
+# built with the IHateWeblogic library? (decides the patch route of the patch
+# analysis: library scripts 07-Maintenance/8x- or the cookbook)
+_ihwlib="$(for d in "$HOME" "${ORACLE_BASE:-}" "$(dirname "${OH:-/nonexistent}")" /development /u01/app/oracle /opt; do
+              [ -n "$d" ] && [ -d "$d" ] && timeout 20 find "$d" -maxdepth 4 -path '*/00-Setup/IHateWeblogic_lib.sh' -type f 2>/dev/null
+          done | head -1)"
+if [ -n "$_ihwlib" ]; then
+    _ihwroot="$(dirname "$(dirname "$_ihwlib")")"
+    fact "IHateWeblogic library" "$_ihwroot (environment.conf -> $(readlink "$_ihwroot/environment.conf" 2>/dev/null || printf 'none'); shell switcher $( [ -f "$HOME/.bashrc.d/ihw_env.sh" ] && printf yes || printf no))"
+    runsh 30_inventory.txt "IHateWeblogic library" "ls -l '$_ihwroot/environment.conf' 2>&1; git -C '$_ihwroot' log -1 --format='%h %ci' 2>/dev/null"
+else
+    fact "IHateWeblogic library" "none"
+fi
+unset _ihwlib _ihwroot
 
 # =============================================================================
 # 7. Logs (sizes always, error lines only with --logs)

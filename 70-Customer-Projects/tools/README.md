@@ -26,7 +26,7 @@ README or the road map:
 70-Customer-Projects/tools/make_customer_zip.sh --apply    # rebuild (+ .sha256), commit the ZIPs with the change
 ```
 
-Not in the ZIPs: `analyse_forms_reports_export.sh` and `customer-analyse/`
+Not in the ZIPs: `analyse_forms_reports_export.sh`, `analyse_patch_collect.sh` and `customer-analyse/`
 (the analysis runs on our host), the local cookbook formatter.
 
 | Folder | Platform |
@@ -50,6 +50,7 @@ runtime, never by a second copy of the script.
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
 | [bash/analyse_forms_reports_export.sh](#analyse_forms_reports_exportsh) | turn an export of `export_forms_reports_conf.sh` into an analysis report for the customer (English Markdown): all sections as tables, the 14c target mapping and rule-based findings, security first – output git-ignored in `customer-analyse/` |
+| [bash/analyse_patch_collect.sh](#analyse_patch_collectsh) | turn a collection of `collect_fmw_env.sh` into the patch analysis for the customer (English Markdown): installed patches, the patch list of the cycle against this environment, Java, other homes, web tier, OPatch prerequisites, order of work, route cookbook / library, findings |
 | [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
@@ -761,6 +762,80 @@ older exports list these rules under "not checked".
 Tested 2026-11-04: test-host export (masked, 14.1.2) and the first real
 customer export (12.2.1.4, export version 2026-11-03.1 without the font class
 column – computed by the analysis).
+
+## analyse_patch_collect.sh
+
+The customer document of the **patch analysis**: collect at the customer
+(`collect_fmw_env.sh`, encrypted archive), analyse here, send the report;
+patch later with the cookbook – or, environments built with the library,
+with the library scripts.
+
+```bash
+# on our host (needs the repository: patch lists, cookbooks)
+tools/bash/analyse_patch_collect.sh -i fmw_collect_<host>_<ts>.zip.enc -k <customer>
+tools/bash/analyse_patch_collect.sh -i <collection> -k <customer> --csv <other patch list>
+```
+
+| Option | Meaning |
+|---|---|
+| `-i` | the collection: `.zip.enc` (passphrase asked hidden), `.zip`, `.tar.gz` or a directory |
+| `-k` | short customer name – run directory `<date>_<customer>` (shared with the configuration report) |
+| `-o` | base directory (default `tools/customer-analyse/`, refused when not git-ignored) |
+| `--csv` | patch list instead of the automatic choice |
+| `--fresh` | unpack the collection again |
+
+**Reference = our patch lists** (no patch number is typed twice), chosen by
+the FMW version of `inventory/registry.xml`:
+
+| Release | Patch list | Minimums | Cookbook (route A) |
+|---|---|---|---|
+| 14.1.2 | `09-Install/download/patches_fmw.csv` | `09-Install/oracle_software_version.conf` (`OPATCH_VERSION_MIN`, `JDK_VERSION_MIN`, `WLS_SPB_MARKER_PATCH`, superseded list) | newest `FormsReports14_patch_cpu_*/…manual.md` |
+| 12.2.1.x | newest `70-Customer-Projects/FormsReports12_patch_cpu_*/patches_*.csv` | from the descriptions (OPatch, JDK 8uNNN) | newest `FormsReports12_patch_cpu_*/Patch_Kochbuch_*.txt` |
+
+**Logic:**
+- Every row of the patch list gets an area (OPatch, SPB, FMW
+  Infrastructure, Perl, OHS, WebGate, DB client, Forms, Reports, server JDK,
+  client JRE).
+- "Applies" follows the components of the collection: comps.xml,
+  `Reports comps.xml / binaries`, OHS / WebGate / DB client / Perl in the
+  home.
+- "Installed" means one of:
+  - the number is in `opatch lspatches`;
+  - for the SPB: `(Patch NNN)` or the marker patch;
+  - for OPatch / JDK: the version.
+- The installed patches are classified as:
+  - current cycle;
+  - part of the SPB;
+  - older version replaced: from the superseded list, or the same bundle
+    name with another number;
+  - not in the cycle list – check.
+- **Route B** (`07-Maintenance/80-/81-/82-`) is offered only for 14.1.2
+  **and** when the collector found the library. Fact `IHateWeblogic library`
+  since collector 2026-11-05.3.
+
+**Report** (template
+[customer-analyse/patch_analyse_template.md](customer-analyse/patch_analyse_template.md)):
+1. summary with the recommended route;
+2. environment;
+3. installed patches;
+4. patch list against the environment;
+5. Java (server JDK, bundled JDK, client JRE / FSAL);
+6. other homes and web tier: Nginx = OS packages, Apache = httpd + WebLogic
+   Proxy Plug-In, OHS outside the home;
+7. OPatch prerequisites (space, `/tmp`, `.patch_storage`, locks, owners,
+   running servers, last runs with their result);
+8. order of work with the maintenance window, route A cookbook, route B
+   library;
+9. findings (WARN / HINT / INFO) and the rules that could not be checked.
+
+The finished report passes the same clear-text check as the configuration
+report (`ihwt_report_secret_check`).
+
+Not covered – stays with the patch-cycle analysis
+(`10-Monitoring/patch_cycle_analysis.sh`):
+- reading the advisories and the patch READMEs;
+- conflicts between patches;
+- writing the cookbook of a new cycle.
 
 ## ihw_tools_lib.sh
 

@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.3"
+VERSION="2026-11-05.4"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -83,16 +83,8 @@ if [ -d "$IN" ]; then
 else
     EXPDIR="$RUN/export"
     if $FRESH || [ ! -d "$EXPDIR" ]; then
-        rm -rf "${EXPDIR:?}"; mkdir -p "$EXPDIR"
-        case "$IN" in
-            *.enc)
-                ihwt_decrypt "$IN" "$RUN/.export.zip" || die "decryption failed"
-                unzip -q "$RUN/.export.zip" -d "$EXPDIR" || { rm -f "$RUN/.export.zip"; die "unzip failed"; }
-                rm -f "$RUN/.export.zip" ;;
-            *.zip)    unzip -q "$IN" -d "$EXPDIR" || die "unzip failed" ;;
-            *.tar.gz) tar -xzf "$IN" -C "$EXPDIR" || die "tar failed" ;;
-            *) die "unknown export format: $IN" ;;
-        esac
+        rm -rf "${EXPDIR:?}"
+        ihwt_unpack "$IN" "$EXPDIR" || die "unpacking failed: $IN"
     fi
 fi
 ROOT="$(dirname "$(find "$EXPDIR" -maxdepth 3 -name 00_report.txt | head -1)")"
@@ -1023,16 +1015,7 @@ awk -v mddir="$MD" '
 # =============================================================================
 # 15. clear-text check of the finished report (second safety line)
 # =============================================================================
-hits="$(grep -nE '(password|passwd|pwd|userid|authid)[[:space:]]*=[[:space:]]*[^*%[:space:]<;|]' "$REPORT.tmp" | grep -v '\*\*\*MASKED\*\*\*' ;
-        grep -nE '\{AES(256)?\}[A-Za-z0-9+/]{8,}' "$REPORT.tmp" ;
-        grep -nE '<identifier[^>]*>[^<*][^<]*</identifier>' "$REPORT.tmp" ;
-        grep -nE '[A-Za-z0-9_]+/[^*@[:space:]/|;]+@[A-Za-z][A-Za-z0-9_.]*' "$REPORT.tmp" | grep -vE '@//|https?://' )"
-if [ -n "$hits" ]; then
-    rm -f "$REPORT.tmp"
-    printf '  ERROR possible clear-text secret in the report - report deleted. Lines (values cut):\n' >&2
-    printf '%s\n' "$hits" | cut -c1-60 | sed 's/^/    /' >&2
-    exit 1
-fi
+ihwt_report_secret_check "$REPORT.tmp" || exit 1
 mv -f "$REPORT.tmp" "$REPORT"
 rm -rf "${MD:?}" "$CSV"/.[a-z]*
 

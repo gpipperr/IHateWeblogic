@@ -15,7 +15,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-05.2"
+IHWT_LIB_VERSION="2026-11-05.3"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -406,4 +406,54 @@ ihwt_webtier_settings() {
         { l=$0; gsub(/^[[:space:]]+|[[:space:];]+$/, "", l); w=l; sub(/[[:space:]].*/, "", w); a=l; sub(/^[^[:space:]]+[[:space:]]*/, "", a); lw=tolower(w) }
         lw ~ /^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex)$/ { printf "%s;%s;%s;%s;%s\n", type, conf, w, a, stk[n] }
         lw=="options" && tolower(a) ~ /(^|[[:space:]])\+?indexes/ { printf "%s;%s;Options;%s;%s\n", type, conf, a, stk[n] }'
+}
+
+# -----------------------------------------------------------------------------
+# Analysis helpers (analyse_forms_reports_export.sh, analyse_patch_collect.sh)
+# -----------------------------------------------------------------------------
+# ihwt_unpack IN DIR - unpack an archive of the tools into DIR (.zip.enc asks
+# the passphrase, .zip, .tar.gz); rc 2 on an error (DIR may be partly filled)
+ihwt_unpack() {
+    local in="$1" dir="$2"
+    mkdir -p "$dir" || return 2
+    case "$in" in
+        *.enc)
+            ihwt_decrypt "$in" "$dir/.archive.zip" || return 2
+            unzip -q "$dir/.archive.zip" -d "$dir" || { rm -f "$dir/.archive.zip"; printf 'unzip failed\n' >&2; return 2; }
+            rm -f "$dir/.archive.zip" ;;
+        *.zip)    unzip -q "$in" -d "$dir" || { printf 'unzip failed\n' >&2; return 2; } ;;
+        *.tar.gz) tar -xzf "$in" -C "$dir" || { printf 'tar failed\n' >&2; return 2; } ;;
+        *) printf 'unknown archive format: %s\n' "$in" >&2; return 2 ;;
+    esac
+}
+
+# ihwt_report_secret_check FILE - second safety line of every report: clear-text
+# password / {AES} / <identifier> / user/pw@ patterns. On a hit FILE is DELETED,
+# the lines (values cut) go to stderr, rc 1.
+ihwt_report_secret_check() {
+    local f="$1" hits
+    hits="$(grep -nE '(password|passwd|pwd|userid|authid)[[:space:]]*=[[:space:]]*[^*%[:space:]<;|]' "$f" | grep -v '\*\*\*MASKED\*\*\*' ;
+            grep -nE '\{AES(256)?\}[A-Za-z0-9+/]{8,}' "$f" ;
+            grep -nE '<identifier[^>]*>[^<*][^<]*</identifier>' "$f" ;
+            grep -nE '[A-Za-z0-9_]+/[^*@[:space:]/|;]+@[A-Za-z][A-Za-z0-9_.]*' "$f" | grep -vE '@//|https?://' )"
+    [ -z "$hits" ] && return 0
+    rm -f "$f"
+    printf '  ERROR possible clear-text secret in the report - report deleted. Lines (values cut):\n' >&2
+    printf '%s\n' "$hits" | cut -c1-60 | sed 's/^/    /' >&2
+    return 1
+}
+
+# ihwt_fact FILE KEY - value of a "KEY<spaces>value" line of 00_summary.txt
+# (collect_fmw_env.sh fact(): key padded to 28 characters, may contain blanks)
+ihwt_fact() {
+    # key < 28 characters: padding + separator = at least 2 blanks ("Domain" must
+    # not match "Domain version ..."); longer keys: exactly one blank
+    awk -v k="$2" '{ s = (length(k) < 28 ? k "  " : k " ") }
+        index($0, s) == 1 { v = substr($0, length(k) + 1); sub(/^[[:space:]]+/, "", v); print v; exit }' "$1" 2>/dev/null
+}
+
+# ihwt_block FILE TITLE - output of the collector block "### TITLE" (without the
+# "### $ command" line, up to "### rc=")
+ihwt_block() {
+    awk -v t="### $2" '$0 == t { on = 1; next } on && /^### \$ / { next } on && /^### rc=/ { exit } on { print }' "$1" 2>/dev/null
 }

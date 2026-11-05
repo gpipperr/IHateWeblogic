@@ -5,6 +5,18 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- **Patch analysis for the customer:** new
+  `70-Customer-Projects/tools/bash/analyse_patch_collect.sh` + template
+  `customer-analyse/patch_analyse_template.md` turn a collection of
+  `collect_fmw_env.sh` into the customer document (installed patches, the
+  patch list of the cycle against the environment, Java, other homes, web
+  tier, OPatch prerequisites, order of work, route cookbook / library,
+  findings). Reference = our patch lists (`patches_fmw.csv` for 14.1.2, the
+  12c customer list). Collector 2026-11-05.3 records whether the library
+  is present (route B). `ihw_tools_lib.sh` 2026-11-05.3: `ihwt_unpack`,
+  `ihwt_report_secret_check`, `ihwt_fact`, `ihwt_block` (shared by both
+  analyses).
+
 - **Web tier in the customer tools:** export `export_forms_reports_conf.sh`
   2026-11-05.3, collector `collect_fmw_env.sh` 2026-11-05.2 and analysis
   2026-11-05.3 find Nginx, Apache + WebLogic plug-in (`mod_wl`) and OHS

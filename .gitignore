@@ -99,4 +99,5 @@ ihw_export_*
 70-Customer-Projects/tools/customer-analyse/*
 !70-Customer-Projects/tools/customer-analyse/README.md
 !70-Customer-Projects/tools/customer-analyse/import_analyse_template.md
+!70-Customer-Projects/tools/customer-analyse/patch_analyse_template.md
 !70-Customer-Projects/tools/customer-analyse/rules/

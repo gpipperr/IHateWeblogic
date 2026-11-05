@@ -221,12 +221,13 @@ SCHRITT 4: Gibt es schon eine Umgebung?
   ----------------------------------------------------------------------------
   mkdir -p $ORACLE_BASE/install
 
-  collect_fmw_env.sh -t $ORACLE_BASE/install
+  collect_fmw_env.sh -t $ORACLE_BASE/install --keep
 
-  # Erwartet am Ende: Pfad des Ausgabeverzeichnisses und der .tar.gz
-  # (nur lesend, Kennwoerter werden maskiert)
+  # Erwartet: Abfrage einer Passphrase (zweimal), am Ende der Pfad der
+  # verschluesselten Datei fmw_collect_<host>_<zeit>.zip.enc und des
+  # Ausgabeordners (nur lesend, Kennwoerter werden maskiert)
 
-  ls -td $ORACLE_BASE/install/fmw_collect_* | head -1
+  ls -td $ORACLE_BASE/install/fmw_collect_*/ | head -1
 
   # Den angezeigten Ordner einsetzen:
   less <ausgabe_ordner>/00_summary.txt
@@ -238,8 +239,13 @@ SCHRITT 4: Gibt es schon eine Umgebung?
 
   vi $TOOLS/patch_install.ini
 
-  # Die .tar.gz zur Auswertung mitnehmen (enthaelt Hostnamen und Pfade -
-  # NICHT ins Git).
+  # Die .zip.enc zur Auswertung mitnehmen, die Passphrase getrennt
+  # uebermitteln (enthaelt Hostnamen und Pfade - NICHT ins Git). Bei uns
+  # entsteht daraus die Patch-Analyse fuer den Kunden:
+  #   tools/bash/analyse_patch_collect.sh -i <datei>.zip.enc -k <kunde>
+  # Den Ausgabeordner danach loeschen:
+
+  rm -rf <ausgabe_ordner>
 
   ----------------------------------------------------------------------------
   4b Neue Installation: Werte aus den Kochbuechern eintragen

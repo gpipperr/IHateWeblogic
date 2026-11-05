@@ -15,7 +15,8 @@
 #            The ZIPs are deterministic (fixed time stamps, sorted, no extra
 #            attributes): the same files give byte-identical ZIPs, so git only
 #            sees a change when a tool really changed.
-#            NOT in the ZIPs: analyse_forms_reports_export.sh + customer-analyse/
+#            NOT in the ZIPs: analyse_forms_reports_export.sh,
+#            analyse_patch_collect.sh + customer-analyse/
 #            (the analysis runs on our host), the local cookbook formatter.
 # Call     : ./make_customer_zip.sh            check only: are the ZIPs current?
 #                                              (exit 1 = stale - run with --apply)
@@ -49,7 +50,7 @@ STALE=0
 _files_linux() {
     local f
     for f in "$TOOLS"/bash/*.sh; do
-        case "$(basename "$f")" in analyse_forms_reports_export.sh) continue ;; esac
+        case "$(basename "$f")" in analyse_forms_reports_export.sh|analyse_patch_collect.sh) continue ;; esac
         printf '%s;tools/%s;755\n' "$f" "$(basename "$f")"
     done
     printf '%s;tools/doc/README.md;644\n' "$TOOLS/README.md"
