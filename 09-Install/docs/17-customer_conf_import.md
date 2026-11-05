@@ -1,10 +1,15 @@
 # Step 17 – Import the customer configuration (overlay)
 
-**Status 2026-11-04:** The install scripts read the overlay (`13-`, `14-`,
-`14b-`, `04-ReportsFonts`). Two parts are **not built yet**: the importer
-`00-Setup/customer_conf_import.sh`, which writes the overlay from a customer
-export, and `07-Maintenance/apply_customer_conf.sh`. This document is the
-specification for them (doc-as-master).
+**Status 2026-11-05: built.**
+- **Importer:** `00-Setup/customer_conf_import.sh`.
+- **Way 2:** `07-Maintenance/apply_customer_conf.sh`.
+- **Overlay readers:** `13-`, `14-`, `14b-`, `04-ReportsFonts`.
+- **Tested with the first real customer export (12c):**
+  - dry run and `--apply` in an isolated copy of the repository, Way 1 (new
+    conf) and Way 2 (existing conf);
+  - `14-` and the Way 2 sequence as a dry run against the overlay: 0 FAIL.
+- **Not tested yet:** `13-` / `14-` `--apply` with an overlay on a real
+  domain.
 
 ---
 
@@ -66,13 +71,44 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 
 ---
 
-## The importer (to build) – `00-Setup/customer_conf_import.sh`
+## The importer – `00-Setup/customer_conf_import.sh`
 
 ```bash
 ./00-Setup/customer_conf_import.sh -i <export.zip|.zip.enc|dir> [--env <name>] [--keep-customer RULE ...] [--apply]
+./00-Setup/customer_conf_import.sh --rules        # the correction rules
 ```
 
-1. **Unpack** with the same function as the analysis (`ihwt_unpack_export` in
+- **`--env`:** default = the conf the `environment.conf` link points to.
+- **A missing `environments/<name>.conf`** is created with the import block
+  only (Way 1, then `01-setup-interview.sh`).
+- **Already set keys** are kept. When the value differs, the run says so.
+  For `REPORTS_SERVER_INSTANCES`, `INSTALL_COMPONENTS` and
+  `FORMS_WEBUTIL_JACOB` this is a WARN, because the overlay needs the
+  customer value.
+- **Values in the overlay** use `##PLACEHOLDER##` for the new paths and the
+  host name. `14-` resolves them from `environment.conf`; see doc 14
+  "Placeholders".
+  - The old `ORACLE_HOME` / `DOMAIN_HOME` become `##ORACLE_HOME##` /
+    `##DOMAIN_HOME##`.
+  - The main module directory (the one with the most `.fmx`) becomes
+    `##FORMS_CUSTOMER_DIR##`.
+  - The old host name becomes `##WLS_SERVER_FQDN##`. If the proposal holds
+    an IP, the DNS name of the HTTPS listener is used.
+  - Other directories are kept and get a `PATH_KEPT` row.
+  - Reports `<environment>` values with a path of the old host are not
+    taken over; `13-` sets them from `environment.conf`.
+- **Decisions without a correction** are documented too:
+  - `SECTION_UNUSED`: no application start in the load period;
+  - `ENV_UNUSED`: no section uses the env file;
+  - `JAR_DUPLICATE`: same content, or the same name in another case;
+  - `HOST_MAPPED`, `PATH_MAPPED`;
+  - `RCU_NEW`: 14c needs a new RCU;
+  - `REPORTS_SECURITY`: the secured server of the library.
+- **Rules:** the correction rules (`--rules`, `--keep-customer`) are in the
+  importer. The analysis uses its own weighting file,
+  `customer-analyse/rules/security_weights.txt`, for the traffic light.
+
+1. **Unpack** with the same function as the analysis (`ihwt_unpack` in
    `ihw_tools_lib.sh`).
 2. **Map the export to the overlay** with the parsers `ihwt_sections`,
    `ihwt_keys` and `ihwt_cfgval`:
@@ -110,6 +146,21 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
    clear-text check on the overlay as the analysis.
 
 ---
+
+## Way 2 – `07-Maintenance/apply_customer_conf.sh`
+
+```bash
+./07-Maintenance/backup_config.sh --apply
+./07-Maintenance/apply_customer_conf.sh            # dry run of 14b- / 14- / 13-
+./07-Maintenance/apply_customer_conf.sh --apply    # + stop-all / start-all, 15- smoke test, 90- validate
+./07-Maintenance/apply_customer_conf.sh --apply --no-restart
+```
+
+- **Only a sequence:** `14b-` → `14-` → `13-`, each with the same flag.
+- **With `--apply`:**
+  - It warns (and asks on a terminal) when there is no configuration backup
+    of the last 4 hours.
+  - No restart after a failed step.
 
 ## What the install scripts do with it (built)
 

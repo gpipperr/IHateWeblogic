@@ -118,6 +118,17 @@ templates, in every run, so a re-run keeps the customer configuration:
 An overlay value `__REMOVE__` comments a key of the base out
 (`# (IHW removed) ...`) – e.g. to drop a key of Oracle's `default.env`.
 
+**Placeholders:** the importer writes paths and the host name of the new
+environment as `##NAME##` (`##ORACLE_HOME##`, `##DOMAIN_HOME##`,
+`##FORMS_CUSTOMER_DIR##`, `##FORMS_TMP##`, `##REPORTS_TMP##`,
+`##WLS_SERVER_FQDN##` …). This keeps the overlay valid before the interview
+and after a later change of `environment.conf`.
+- At the start of a run, `14-` renders the whole overlay once into a private
+  temp copy, using the same `_render_template` as the templates. A
+  placeholder that is not in the fixed list takes the value of the
+  `environment.conf` variable with the same name.
+- An unresolved placeholder is a FAIL.
+
 ---
 
 ## File Locations (Two-Location Rule)

@@ -269,8 +269,23 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
     `uifont.ali.customer` merge), `13-` (per-server `<environment>` values,
     `REPORTS_SERVER_NAMES` → `REPORTS_SERVER_INSTANCES`), `forms_lib.sh`
     (`frm_cfg_put_sections`, `frm_kv_overlay`), spec `09-Install/docs/17-customer_conf_import.md`.
-    **Open:** the importer itself + `apply_customer_conf.sh` (with the fresh
-    customer export), `13-` overlay `--apply` test in an isolated domain.
+    **Built 2026-11-05:**
+    - the importer `00-Setup/customer_conf_import.sh` (dry run / `--apply`,
+      `--keep-customer`, `##PLACEHOLDER##` paths);
+    - `07-Maintenance/apply_customer_conf.sh`;
+    - `14-` renders the overlay (placeholders).
+
+    It was tested with the real export in an isolated copy (Way 1 and Way 2,
+    dry runs of `14-` / `13-` against the overlay).
+
+    **Open:**
+    - `--apply` of `13-` / `14-` with the overlay on a test domain (customer
+      jars signed, the env files, both Reports servers with their
+      `NLS_LANG`);
+    - the WebUtil transfer directory `##FORMS_TMP##/webutil` – check that
+      `14-` creates it;
+    - the decisions to clarify with the customer (`SECTION_UNUSED`,
+      `PATH_KEPT` (second module directory), `ENV_UNUSED`).
 - [ ] **status.sh / Node Manager keys (2026-11-04, for tomorrow):** document
   how the Node Manager credential files of `status.sh` stage 3 are created and
   where they really are. Today the docs (`Autostart_linux_middleware.txt` step

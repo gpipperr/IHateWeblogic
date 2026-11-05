@@ -221,6 +221,13 @@ _render_template() {
         -e "s|##TNS_ADMIN##|${TNS_ADMIN:-$DOMAIN_HOME/config/fmwconfig}|g" \
         -e "s|##WEBUTIL_ARCHIVE##|${WEBUTIL_ARCHIVE:-frmwebutil.jar}|g" \
         "$src" > "$dest"
+    # other placeholders (customer overlay of an import): value of the
+    # environment.conf variable with the same name, e.g. ##WLS_SERVER_FQDN##
+    local ph pv
+    for ph in $(grep -oE '##[A-Z_][A-Z0-9_]*##' "$dest" | sort -u | tr -d '#'); do
+        pv="${!ph:-}"
+        [ -n "$pv" ] && sed -i "s|##${ph}##|${pv}|g" "$dest"
+    done
     left="$(grep -oE '##[A-Z_]+##' "$dest" | sort -u | xargs)"
     if [ -n "$left" ]; then
         fail "Unresolved placeholders in $(basename "$dest"): $left"
@@ -635,6 +642,21 @@ unset _JACOB_VER _JACOB_DLL32 _JACOB_DLL64
 # install any native library on the client (d2kwut60.dll, JNIsharedstubs.dll,
 # jacob DLLs).
 # =============================================================================
+
+# Customer overlay: render it once (##PLACEHOLDER## of the importer -> values
+# of environment.conf) into a private temp copy; every step reads the copy
+if [ -n "$CC_DIR" ]; then
+    CC_SRC="$CC_DIR"
+    CC_DIR="$(mktemp -d)"
+    trap 'rm -rf "${CC_DIR:?}"' EXIT
+    _cc_bad=0
+    while IFS= read -r -d '' _f; do
+        _t="$CC_DIR/${_f#"$CC_SRC"/}"; mkdir -p "$(dirname "$_t")"
+        _render_template "$_f" "$_t" || _cc_bad=1
+    done < <(find "$CC_SRC" -type f ! -name '*.md' ! -name 'README.txt' -print0)
+    [ "$_cc_bad" -eq 0 ] || fail "customer overlay $CC_SRC: unresolved placeholders - set the values in environment.conf"
+    unset _f _t _cc_bad
+fi
 
 section "webutil.cfg (two locations)"
 

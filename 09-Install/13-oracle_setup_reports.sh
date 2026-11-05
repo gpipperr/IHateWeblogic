@@ -19,8 +19,14 @@
 # Call     : ./09-Install/13-oracle_setup_reports.sh
 #            ./09-Install/13-oracle_setup_reports.sh --apply
 #            ./09-Install/13-oracle_setup_reports.sh --apply --skip-wlst
+#            ./09-Install/13-oracle_setup_reports.sh --remove-server <name> [--apply]
 # Options  : --apply       Write all configuration files
 #            --skip-wlst   Skip WLST instance creation (AdminServer not running)
+#            --remove-server NAME   ONLY remove the Reports server instance NAME
+#                          (WLST deleteReportsServerInstance, AdminServer running,
+#                          server stopped, NAME not in REPORTS_SERVER_INSTANCES);
+#                          backup of config.xml + component directories first,
+#                          lists the files that still name it - nothing else runs
 #            --help        Show usage
 # Requires : environment.conf with Reports variables (detect_env_conf.sh --apply)
 #            weblogic_sec.conf.des3 (for WLST credential loading)
@@ -49,7 +55,8 @@ fi
 # shellcheck source=../00-Setup/IHateWeblogic_lib.sh
 source "$LIB_SH"
 
-check_env_conf "$ROOT_DIR/environment.conf" || exit 2
+ENV_CONF="$ROOT_DIR/environment.conf"
+check_env_conf "$ENV_CONF" || exit 2
 # shellcheck source=../environment.conf
 source "$ROOT_DIR/environment.conf"
 
@@ -60,18 +67,25 @@ source "$ROOT_DIR/environment.conf"
 APPLY=false
 SKIP_WLST=false
 
-for _arg in "$@"; do
+REMOVE_SERVER=""
+while [ $# -gt 0 ]; do
+    _arg="$1"
     case "$_arg" in
         --apply)      APPLY=true ;;
         --skip-wlst)  SKIP_WLST=true ;;
+        --remove-server)
+            REMOVE_SERVER="${2:-}"; shift
+            [[ "$REMOVE_SERVER" =~ ^[A-Za-z0-9_.-]+$ ]] || { printf "\033[31mERROR\033[0m --remove-server <name>\n" >&2; exit 1; } ;;
         --help|-h)
-            printf "Usage: %s [--apply] [--skip-wlst]\n\n" "$(basename "$0")"
-            printf "  %-16s %s\n" "--apply"      "Write all configuration files"
-            printf "  %-16s %s\n" "--skip-wlst"  "Skip WLST instance creation (AdminServer not running)"
+            printf "Usage: %s [--apply] [--skip-wlst] | --remove-server <name> [--apply]\n\n" "$(basename "$0")"
+            printf "  %-22s %s\n" "--apply"      "Write all configuration files"
+            printf "  %-22s %s\n" "--skip-wlst"  "Skip WLST instance creation (AdminServer not running)"
+            printf "  %-22s %s\n" "--remove-server NAME" "only remove the Reports server instance NAME (backup first)"
             printf "\nWithout --apply: dry-run, no files changed.\n"
             exit 0 ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
+    shift
 done
 unset _arg
 
@@ -86,6 +100,9 @@ mkdir -p "$(dirname "$LOG_FILE")"
     printf "# Started : %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"
     printf "# Host    : %s\n" "$(_get_hostname)"
     printf "# Apply   : %s\n" "$APPLY"
+    [ -n "$REMOVE_SERVER" ] && printf "# Mode    : --remove-server %s\n" "$REMOVE_SERVER"
+    printf "# User    : %s\n" "$(id -un)"
+    printf "# Conf    : %s\n" "$(readlink -f "$ENV_CONF" 2>/dev/null || printf '%s' "$ENV_CONF")"
 } > "$LOG_FILE"
 
 # =============================================================================
@@ -153,6 +170,144 @@ if [ -f "$WLST_SH" ]; then
 else
     warn "wlst.sh not found – WLST step will be skipped"
     SKIP_WLST=true
+fi
+
+# =============================================================================
+# --remove-server NAME - remove one Reports server instance, nothing else
+#   order: 1. remove NAME from REPORTS_SERVER_INSTANCES (and REPORTS_SERVER_NAME)
+#          2. 13- / 14b- --apply (new servers, rwservlet.properties, cgicmd.dat)
+#          3. stop NAME   4. this step
+# =============================================================================
+if [ -n "$REMOVE_SERVER" ]; then
+    section "Remove Reports server instance: $REMOVE_SERVER"
+    _rn="$REMOVE_SERVER"; _blocked=0
+    _cfgxml="$DOMAIN_HOME/config/config.xml"
+    _dirs=()
+    for _d in "$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$_rn" \
+              "$DOMAIN_HOME/system_components/ReportsServerComponent/$_rn" \
+              "$DOMAIN_HOME/servers/$_rn"; do
+        [ -d "$_d" ] && _dirs+=("$_d")
+    done
+    printList "config.xml" 26 "$_cfgxml"
+    if awk -v n="$_rn" '/<system-component>/{s=1;nm="";t=""} s&&/<name>/{nm=$0;gsub(/.*<name>|<\/name>.*/,"",nm)} s&&/<component-type>/{t=$0;gsub(/.*<component-type>|<\/component-type>.*/,"",t)} /<\/system-component>/{if(s&&nm==n&&t=="ReportsServerComponent")f=1;s=0} END{exit !f}' "$_cfgxml"; then
+        ok "$(printf "  %-24s %s" "system component" "$_rn (ReportsServerComponent) found in config.xml")"
+    else
+        warn "$(printf "  %-24s %s" "system component" "$_rn not in config.xml (already removed?)")"
+        [ ${#_dirs[@]} -eq 0 ] && { info "nothing to remove"; print_summary; exit "$EXIT_CODE"; }
+    fi
+    for _d in "${_dirs[@]}"; do info "$(printf "  %-24s %s (%s)" "directory" "$_d" "$(du -sh "$_d" 2>/dev/null | cut -f1)")"; done
+    # still in the configuration of the library? 13- would create it again
+    case " ${REPORTS_SERVER_INSTANCES:-} " in
+        *" $_rn "*) fail "$_rn is still in REPORTS_SERVER_INSTANCES ($REPORTS_SERVER_INSTANCES) - remove it in $(readlink -f "$ENV_CONF") first"; _blocked=1 ;;
+        *) ok "$(printf "  %-24s %s" "REPORTS_SERVER_INSTANCES" "${REPORTS_SERVER_INSTANCES:-<empty>} (without $_rn)")" ;;
+    esac
+    [ "${REPORTS_SERVER_NAME:-}" = "$_rn" ] && warn "REPORTS_SERVER_NAME=$_rn (default server of 15- / status tools) - set it to one of: ${REPORTS_SERVER_INSTANCES:-?}"
+    # running?
+    _rp="$(ps -eo pid,args 2>/dev/null | grep -E "rwserver[^ ]* .*server=${_rn}( |$)" | grep -v grep | awk '{print $1}' | paste -sd' ')"
+    if [ -n "$_rp" ]; then
+        fail "Reports server $_rn is running (pid $_rp) - stop it first: 01-Run/startStop.sh stop $_rn --apply (or stopComponent('$_rn') in WLST)"
+        _blocked=1
+    else
+        ok "$(printf "  %-24s %s" "process" "$_rn not running")"
+    fi
+    _adm_port="${WLS_ADMIN_PORT:-7001}"
+    if timeout 3 bash -c "echo >/dev/tcp/localhost/${_adm_port}" 2>/dev/null; then
+        ok "$(printf "  %-24s %s" "AdminServer" "reachable on port $_adm_port")"
+    else
+        fail "AdminServer not reachable on port $_adm_port - deleteReportsServerInstance needs it (start it, then re-run)"; _blocked=1
+    fi
+    # files that still name the server (active files only, no .bak_*)
+    section "References to $_rn (must point to another server)"
+    _refs="$(timeout 60 grep -rlw -- "$_rn" "$DOMAIN_HOME/config/fmwconfig/servers" "$DOMAIN_HOME/reports/bin" "$DOMAIN_HOME/bin" "$(readlink -f "$ENV_CONF")" 2>/dev/null \
+             | grep -vE '\.bak|\.log$|/components/ReportsServerComponent/' )"
+    if [ -n "$_refs" ]; then
+        while IFS= read -r _f; do
+            warn "$(printf "  %s: %s" "$_f" "$(grep -nw -- "$_rn" "$_f" | sed -E 's/((userid|authid|password|pwd)[[:space:]]*=)[^[:space:]&]*/\1***/Ig' | head -3 | cut -c1-120 | paste -sd'|')")"
+        done <<< "$_refs"
+        info "  rwservlet.properties / cgicmd.dat: 13- / 14b- --apply rewrite them from REPORTS_SERVER_NAME / REPORTS_SERVER_INSTANCES"
+    else
+        ok "no active file names $_rn"
+    fi
+    if [ "$_blocked" -ne 0 ]; then
+        fail "not removed - solve the FAIL points above"; print_summary; exit "$EXIT_CODE"
+    fi
+    if ! $APPLY; then
+        info "Dry-run - would: backup config.xml + ${#_dirs[@]} directory(ies), WLST deleteReportsServerInstance(instanceName='$_rn'), move left-over directories into the backup"
+        print_summary; exit "$EXIT_CODE"
+    fi
+    # backup
+    section "Backup"
+    _bk="$ROOT_DIR/07-Maintenance/ConfigBackup/remove_reports_${_rn}_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$_bk" && chmod 700 "$_bk"
+    cp -p "$_cfgxml" "$_bk/config.xml" && ok "config.xml -> $_bk/config.xml"
+    if [ ${#_dirs[@]} -gt 0 ]; then
+        tar -czf "$_bk/component_dirs.tgz" "${_dirs[@]}" 2>>"$LOG_FILE" && ok "$(printf "component directories -> %s (%s)" "$_bk/component_dirs.tgz" "$(du -h "$_bk/component_dirs.tgz" | cut -f1)")" \
+            || { fail "backup of the component directories failed - nothing removed"; print_summary; exit "$EXIT_CODE"; }
+    fi
+    # WLST
+    section "WLST deleteReportsServerInstance"
+    if ! load_weblogic_password; then
+        fail "Cannot load WebLogic credentials - run 00-Setup/weblogic_sec.sh --apply"; print_summary; exit "$EXIT_CODE"
+    fi
+    _wlst_script="$(mktemp --suffix=.py)"
+    cat > "$_wlst_script" <<'WLST_DEL'
+import os, sys
+inst = os.environ.get('_IHW_DEL_INST', '')
+try:
+    connect(os.environ.get('_IHW_WL_USER', ''), os.environ.get('_IHW_WL_PASS', ''), os.environ.get('_IHW_ADM_URL', 't3://localhost:7001'))
+    cd('/')
+    before = [str(x) for x in ls('SystemComponents', returnMap='true')]
+    print('IHW:INFO:system components before: ' + ', '.join(before))
+    if inst not in before:
+        print('IHW:WARN:' + inst + ' is no system component of the domain - nothing to delete in WLST')
+    else:
+        deleteReportsServerInstance(instanceName=inst)
+        cd('/')
+        after = [str(x) for x in ls('SystemComponents', returnMap='true')]
+        print('IHW:INFO:system components after: ' + ', '.join(after))
+        if inst in after:
+            print('IHW:FAIL:' + inst + ' is still a system component after deleteReportsServerInstance')
+            sys.exit(1)
+        print('IHW:OK:Deleted ReportsServer instance: ' + inst)
+    disconnect()
+except Exception, e:
+    print('IHW:FAIL:WLST error: ' + str(e))
+    sys.exit(1)
+WLST_DEL
+    _wlst_out="$(_IHW_WL_USER="$WL_USER" _IHW_WL_PASS="$INTERNAL_WL_PWD" _IHW_ADM_URL="t3://localhost:${_adm_port}" _IHW_DEL_INST="$_rn" \
+                 "$WLST_SH" "$_wlst_script" 2>&1)"; _wrc=$?
+    unset INTERNAL_WL_PWD
+    rm -f "$_wlst_script"
+    { printf '# --- WLST output (deleteReportsServerInstance %s, rc %s) ---\n' "$_rn" "$_wrc"
+      printf '%s\n' "$_wlst_out" | grep -viE 'password|passwd'
+      printf '# --- end WLST output ---\n'; } >> "$LOG_FILE"
+    _wfail=0
+    while IFS= read -r _line; do
+        case "$_line" in
+            IHW:OK:*)   ok   "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+            IHW:INFO:*) info "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+            IHW:WARN:*) warn "$(printf '%s' "$_line" | cut -d: -f3-)" ;;
+            IHW:FAIL:*) fail "$(printf '%s' "$_line" | cut -d: -f3-)"; _wfail=1 ;;
+        esac
+    done <<< "$_wlst_out"
+    if [ "$_wfail" -ne 0 ] || [ "$_wrc" -ne 0 ]; then
+        fail "WLST rc $_wrc - full WLST output in $LOG_FILE; backup: $_bk (restore config.xml only with the domain stopped)"
+        print_summary; exit "$EXIT_CODE"
+    fi
+    # left-over directories (WLST removes the component config; logs / runtime dirs may stay)
+    section "Left-over directories"
+    for _d in "${_dirs[@]}"; do
+        if [ -d "$_d" ]; then
+            _t="$_bk/leftover$(printf '%s' "$_d" | tr '/' '_')"
+            mv "$_d" "$_t" && ok "$(printf "moved %s -> %s" "$_d" "$_t")" || warn "could not move $_d"
+        else
+            ok "$(printf "removed by WLST: %s" "$_d")"
+        fi
+    done
+    grep -q "<name>${_rn}</name>" "$_cfgxml" && warn "config.xml still contains <name>$_rn</name> - check $_cfgxml" || ok "config.xml: $_rn gone"
+    info "Backup: $_bk  |  log: $LOG_FILE"
+    info "Next: 01-Run/rwserver_status.sh, 70-Customer-Projects/tools/bash/status.sh -q (autostart / fmw_ctl lists the remaining servers)"
+    print_summary; exit "$EXIT_CODE"
 fi
 
 # Detect reports application directory (version is part of the name, e.g. reports_14.1.2.0.0)

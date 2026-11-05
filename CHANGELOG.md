@@ -5,6 +5,28 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `13-oracle_setup_reports.sh --remove-server <name> [--apply]`: remove a
+  Reports server instance. It checks the gates (not in
+  `REPORTS_SERVER_INSTANCES`, stopped, AdminServer up) and lists the
+  references, makes a backup of `config.xml` and the component directories,
+  then runs WLST `deleteReportsServerInstance`. Use case: the customer import
+  replaces `repserver01` with the customer's server names.
+- Logging for the customer test: `apply_customer_conf.sh` writes the full
+  output of every step into one log. The importer log holds the whole
+  decision table and the file list of the overlay.
+- **Customer import built:**
+  - `00-Setup/customer_conf_import.sh`: export → overlay
+    `environments/<env>.customer/` + `IMPORT_DECISIONS.md` + conf block.
+    It covers:
+    - Forms: sections, env files per `envFile`, WebUtil, deduplicated jars;
+    - Reports: per-server `<environment>`, `cgicmd.dat` without logins;
+    - customer fonts.
+
+    Safe corrections with `--keep-customer`; passwords never.
+  - `07-Maintenance/apply_customer_conf.sh`: Way 2 sequence `14b-` / `14-` /
+    `13-`, restart, `15-` / `90-`.
+  - `14-` renders the overlay with `##PLACEHOLDER##` from `environment.conf`.
+
 - **Traffic lights in the customer reports:**
   - **Patch analysis:** 🟢 requirements of the cycle met / 🟡 partly /
     🔴 nothing or no SPB, with the known product gaps below it.

@@ -250,6 +250,47 @@ $DOMAIN_HOME/system_components/ReportsServerComponent/repserver_ent/data/nodeman
 
 ---
 
+### Removing a Reports server instance (`--remove-server`)
+
+Example: the library installed `repserver01`, the customer import brings its
+own server names.
+
+```bash
+# 1. remove the name from environment.conf: REPORTS_SERVER_INSTANCES (and
+#    REPORTS_SERVER_NAMES / REPORTS_SERVER_NAME = default server of 15- / status tools)
+# 2. create the new servers and rewrite the references (rwservlet.properties <server>,
+#    library block of cgicmd.dat)
+./09-Install/13-oracle_setup_reports.sh --apply
+./09-Install/14b-oracle_reports_fonts.sh --apply
+# 3. stop the old server
+./01-Run/startStop.sh stop repserver01 --apply
+# 4. dry run: checks + the list of files that still name the server
+./09-Install/13-oracle_setup_reports.sh --remove-server repserver01
+# 5. remove
+./09-Install/13-oracle_setup_reports.sh --remove-server repserver01 --apply
+```
+
+- **Gates.** `--apply` is refused when:
+  - the name is still in `REPORTS_SERVER_INSTANCES` (`13-` would create it
+    again);
+  - its `rwserver` process runs;
+  - the AdminServer is not reachable.
+- **References:** active files below `config/fmwconfig/servers`,
+  `reports/bin` and `bin`, and the env conf, that still contain the name are
+  listed as WARN (logins masked).
+- **Backup** in `07-Maintenance/ConfigBackup/remove_reports_<name>_<ts>/`:
+  `config.xml` and a tar of the component directories
+  (`components/ReportsServerComponent/<name>`,
+  `system_components/ReportsServerComponent/<name>`, `servers/<name>`).
+- **WLST online:** `deleteReportsServerInstance(instanceName=…)` – a Reports
+  WLST command registered after `connect()`. It exists in 14.1.2 (checked
+  live 2026-11-05, next to `create…` / `deleteReportsToolsInstance`).
+- **Checks before and after:** the script lists the system components
+  before and after the delete. The full WLST output goes into the log.
+- **Left-over directories** are moved into the backup, not deleted.
+- **Only this step runs** in this mode: no other configuration of `13-` is
+  touched.
+
 ## Step 3 – Broadcasting Port (`rwnetwork.conf`)
 
 ### Background
