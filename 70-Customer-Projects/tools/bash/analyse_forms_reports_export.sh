@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-04.4"
+VERSION="2026-11-05.1"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -86,11 +86,7 @@ else
         rm -rf "${EXPDIR:?}"; mkdir -p "$EXPDIR"
         case "$IN" in
             *.enc)
-                [ -t 0 ] || die "encrypted export needs a passphrase from a terminal"
-                read -r -s -p "  Passphrase of the export: " _pw; printf '\n'
-                openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in "$IN" \
-                    -out "$RUN/.export.zip" -pass fd:3 3<<<"$_pw" || { unset _pw; rm -f "$RUN/.export.zip"; die "decryption failed"; }
-                unset _pw
+                ihwt_decrypt "$IN" "$RUN/.export.zip" || die "decryption failed"
                 unzip -q "$RUN/.export.zip" -d "$EXPDIR" || { rm -f "$RUN/.export.zip"; die "unzip failed"; }
                 rm -f "$RUN/.export.zip" ;;
             *.zip)    unzip -q "$IN" -d "$EXPDIR" || die "unzip failed" ;;

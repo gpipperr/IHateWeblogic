@@ -26,7 +26,9 @@
 #              --mode M        customer (default, writes only into Patch-Doku)
 #                              or maintainer (repo docs + update_plan.md)
 #              --env ARCHIVE   collector archive (70-Customer-Projects/tools/
-#                              collect_fmw_env.sh --full) -> env/
+#                              collect_fmw_env.sh --full) -> env/; an
+#                              encrypted .zip.enc is decrypted (passphrase
+#                              asked hidden) and unpacked into env/
 #              --print-prompt  show the Claude prompt and stop
 #              --apply         create folders / start Claude
 # Requires : claude (Claude Code CLI) in PATH, curl for the advisory index
@@ -322,7 +324,27 @@ fi
 sed -i '/^mode=/d' "$DOKU_DIR/cycle.info"; printf 'mode=%s\n' "$MODE" >> "$DOKU_DIR/cycle.info"
 
 if [ -n "$ENV_ARCHIVE" ]; then
-    cp -p "$ENV_ARCHIVE" "$DOKU_DIR/env/" && ok "Environment archive copied: $(basename "$ENV_ARCHIVE")"
+    case "$ENV_ARCHIVE" in
+        *.enc)
+            # collector >= 2026-11-05.1 encrypts by default - Claude cannot read
+            # the .enc, so decrypt + unpack here (passphrase never on a command line)
+            # shellcheck source=../70-Customer-Projects/tools/bash/ihw_tools_lib.sh
+            . "$ROOT_DIR/70-Customer-Projects/tools/bash/ihw_tools_lib.sh"
+            _zip="$DOKU_DIR/env/$(basename "${ENV_ARCHIVE%.enc}")"
+            if ihwt_decrypt "$ENV_ARCHIVE" "$_zip"; then
+                if unzip -q -o "$_zip" -d "$DOKU_DIR/env/"; then
+                    rm -f "$_zip"
+                    ok "Environment archive decrypted + unpacked: $DOKU_DIR/env/$(basename "${_zip%.zip}")"
+                else
+                    fail "unzip failed: $_zip"
+                fi
+            else
+                fail "Environment archive not decrypted: $(basename "$ENV_ARCHIVE")"
+            fi
+            unset _zip ;;
+        *)
+            cp -p "$ENV_ARCHIVE" "$DOKU_DIR/env/" && ok "Environment archive copied: $(basename "$ENV_ARCHIVE")" ;;
+    esac
 fi
 
 info "Starting Claude in $ROOT_DIR – the session continues interactively"

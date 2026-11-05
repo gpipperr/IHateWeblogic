@@ -56,7 +56,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-04.5"   # bump on every change – shown in the report
+VERSION="2026-11-05.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -90,17 +90,9 @@ NAME="ihw_export_${HOST}_${TS}"
 ihwt_git_guard "$OUTBASE" "$NAME.zip" || exit 2
 
 # --- passphrase first (before minutes of collecting) ---------------------------
-PASS=""
+IHWT_PASS=""
 if ! $MASKED; then
-    command -v openssl >/dev/null 2>&1 || { printf 'openssl missing – use --masked\n' >&2; exit 2; }
-    [ -t 0 ] || { printf 'Encryption needs a passphrase from a terminal – or use --masked\n' >&2; exit 2; }
-    while :; do
-        read -r -s -p "  Passphrase for the export archive: " PASS; printf '\n'
-        read -r -s -p "  Repeat passphrase               : " _p2; printf '\n'
-        [ -n "$PASS" ] && [ "$PASS" = "$_p2" ] && break
-        printf '  empty or not equal – again\n'
-    done
-    unset _p2
+    ihwt_read_passphrase "export archive" || { printf '  -> or use --masked\n' >&2; exit 2; }
 fi
 
 if $LOADP && [ -n "$RW_AUTH_USER" ] && [ -z "$RWAUTH" ]; then
@@ -133,7 +125,7 @@ DONE=false; ARCH=""
 _cleanup() {
     local rc=$?
     $DONE && return
-    PASS=""; RWAUTH=""
+    IHWT_PASS=""; RWAUTH=""
     [ -n "$ARCH" ] && rm -f "$OUTBASE/$ARCH" "$OUTBASE/$ARCH.enc"
     if $KEEP; then
         printf '\n  ABORTED (rc %s) – staging kept (--keep): %s – contains %s data, delete it\n' \
@@ -813,18 +805,9 @@ if $MASKED; then
 fi
 
 cd "$OUTBASE" || exit 2
-if command -v zip >/dev/null 2>&1; then
-    ARCH="$NAME.zip"; zip -qr "$ARCH" "$NAME" || { printf 'zip failed\n' >&2; exit 2; }
-else
-    ARCH="$NAME.tar.gz"; tar -czf "$ARCH" "$NAME" || { printf 'tar failed\n' >&2; exit 2; }
-fi
-if ! $MASKED; then
-    openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -salt -in "$ARCH" -out "$ARCH.enc" -pass fd:3 3<<<"$PASS" \
-        || { printf 'encryption failed – unencrypted archive removed\n' >&2; rm -f "$ARCH" "$ARCH.enc"; exit 2; }
-    PASS=""; unset PASS
-    rm -f "$ARCH"; ARCH="$ARCH.enc"
-fi
-sha256sum "$ARCH" > "$ARCH.sha256"
+ARCH="$NAME.zip"                                   # for the abort trap
+ihwt_pack "$OUTBASE" "$NAME" "$($MASKED && printf false || printf true)" || exit 2
+ARCH="$IHWT_ARCHIVE"
 $KEEP || rm -rf "${OUTBASE:?}/${NAME:?}"
 DONE=true
 
@@ -832,7 +815,7 @@ printf '\n'
 say "Archive : $OUTBASE/$ARCH ($(du -h "$ARCH" | cut -f1))"
 say "SHA-256 : $OUTBASE/$ARCH.sha256"
 if ! $MASKED; then
-    say "Decrypt : openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in $ARCH -out ${ARCH%.enc}"
+    say "Decrypt : openssl enc -d $IHWT_ENC_OPTS -in $ARCH -out ${ARCH%.enc}"
 fi
 $KEEP && say "Staging : $STAGE (kept – contains $($MASKED && printf 'masked' || printf 'CLEAR-TEXT') data, delete it)"
 [ ${#WARNINGS[@]} -gt 0 ] && say "${#WARNINGS[@]} warning(s) – see 00_report.txt"

@@ -15,7 +15,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-04.1"
+IHWT_LIB_VERSION="2026-11-05.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -114,4 +114,67 @@ ihwt_md_table() {
               out = out " " v " |" }
           print out }
         END { if (!rows) print "_none found_" }'
+}
+
+# -----------------------------------------------------------------------------
+# Archive encryption (export_forms_reports_conf.sh, collect_fmw_env.sh,
+# analyse_forms_reports_export.sh): ZIP (tar.gz without zip), openssl
+# AES-256-CBC with PBKDF2 (200 000 iterations, SHA-256, salt). The passphrase
+# is read hidden and handed to openssl via a file descriptor - never on a
+# command line (ps / /proc/<pid>/cmdline), never written to a file.
+# Decrypt by hand:  openssl enc -d $IHWT_ENC_OPTS -in <file>.zip.enc -out <file>.zip
+# -----------------------------------------------------------------------------
+IHWT_ENC_OPTS="-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
+
+# ihwt_read_passphrase [WHAT] - ask twice (hidden), sets IHWT_PASS; rc 2 when
+# there is no terminal or no openssl (the caller offers its no-encrypt option)
+ihwt_read_passphrase() {
+    local what="${1:-archive}" p2
+    IHWT_PASS=""
+    command -v openssl >/dev/null 2>&1 || { printf 'openssl missing - cannot encrypt the %s\n' "$what" >&2; return 2; }
+    [ -t 0 ] || { printf 'Encryption needs a passphrase from a terminal (%s)\n' "$what" >&2; return 2; }
+    while :; do
+        read -r -s -p "  Passphrase for the $what: " IHWT_PASS; printf '\n'
+        read -r -s -p "  Repeat passphrase               : " p2; printf '\n'
+        [ -n "$IHWT_PASS" ] && [ "$IHWT_PASS" = "$p2" ] && break
+        printf '  empty or not equal - again\n'
+    done
+    return 0
+}
+
+# ihwt_pack BASE NAME ENCRYPT - pack BASE/NAME into BASE/NAME.zip (or .tar.gz),
+# with ENCRYPT=true into NAME.zip.enc using IHWT_PASS (cleared afterwards), plus
+# a .sha256. Sets IHWT_ARCHIVE (file name below BASE). On an error every
+# partial / unencrypted file is removed, rc 2.
+ihwt_pack() {
+    local base="$1" name="$2" enc="${3:-false}" a
+    IHWT_ARCHIVE=""
+    ( cd "$base" || exit 2
+      if command -v zip >/dev/null 2>&1; then a="$name.zip"; zip -qr "$a" "$name" || { rm -f "$a"; exit 2; }
+      else a="$name.tar.gz"; tar -czf "$a" "$name" || { rm -f "$a"; exit 2; }; fi
+      printf '%s' "$a" > "$name.packed" ) || { printf 'packing failed\n' >&2; return 2; }
+    a="$(cat "$base/$name.packed")"; rm -f "$base/$name.packed"
+    if [ "$enc" = true ]; then
+        # shellcheck disable=SC2086
+        if ! openssl enc $IHWT_ENC_OPTS -salt -in "$base/$a" -out "$base/$a.enc" -pass fd:3 3<<<"$IHWT_PASS"; then
+            IHWT_PASS=""; rm -f "$base/$a" "$base/$a.enc"
+            printf 'encryption failed - unencrypted archive removed\n' >&2; return 2
+        fi
+        IHWT_PASS=""; rm -f "$base/$a"; a="$a.enc"
+    fi
+    ( cd "$base" && sha256sum "$a" > "$a.sha256" )
+    IHWT_ARCHIVE="$a"
+}
+
+# ihwt_decrypt IN OUT - decrypt IN (.enc) into OUT; the passphrase is asked
+# hidden (once). rc 2 on a wrong passphrase / no terminal (OUT removed).
+ihwt_decrypt() {
+    local in="$1" out="$2" pw
+    [ -t 0 ] || { printf 'decryption needs a passphrase from a terminal\n' >&2; return 2; }
+    read -r -s -p "  Passphrase of $(basename "$in"): " pw; printf '\n'
+    # shellcheck disable=SC2086
+    if ! openssl enc -d $IHWT_ENC_OPTS -in "$in" -out "$out" -pass fd:3 3<<<"$pw" 2>/dev/null; then
+        pw=""; rm -f "$out"; printf 'decryption failed (wrong passphrase?)\n' >&2; return 2
+    fi
+    pw=""
 }

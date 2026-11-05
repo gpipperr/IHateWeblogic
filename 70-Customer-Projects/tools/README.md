@@ -71,12 +71,17 @@ Used by:
 
 Collects the metadata of an Oracle Forms & Reports / FMW host – OS, Java,
 Oracle Home / inventory / patches, domain configuration, processes, Oracle
-Net, logs – into one directory plus a `.tar.gz` for the analysis.
+Net, logs – for the **patch analysis** (the configuration for a move:
+`export_forms_reports_conf.sh`). Since 2026-11-05.1 the result is an
+**encrypted ZIP** (`fmw_collect_<host>_<ts>.zip.enc` + `.sha256`) – masked,
+but with host names, IPs and paths of the customer.
 
 ```bash
-# as the software owner of the Oracle Home (oracle), not root
-cp collect_fmw_env.sh /tmp/ && cd /tmp && chmod +x collect_fmw_env.sh
-./collect_fmw_env.sh                    # auto-detect ORACLE_HOME / DOMAIN_HOME
+# as the software owner of the Oracle Home (oracle), not root - from the
+# unpacked tools ZIP (needs ihw_tools_lib.sh next to it)
+cd $ORACLE_BASE/tools
+./collect_fmw_env.sh                    # auto-detect, passphrase asked twice at the start
+./collect_fmw_env.sh --no-encrypt       # plain ZIP (still masked) - e.g. without a terminal
 ./collect_fmw_env.sh -o /oracle/product/mw -d /oracle/user_projects/domains/fr_domain
 ./collect_fmw_env.sh --full             # + opatch lsinventory -details / -bugs_fixed
 ./collect_fmw_env.sh --logs             # + error lines of the server logs (last 200)
@@ -89,6 +94,30 @@ cp collect_fmw_env.sh /tmp/ && cd /tmp && chmod +x collect_fmw_env.sh
 | `-t DIR` | base directory of the output (default `/tmp`) |
 | `--full` | large inventory output – for bug / CVE questions (`-bugs_fixed`) |
 | `--logs` | error / FRM- / REP- / ORA- lines of the server logs |
+| `--no-encrypt` | plain `.zip` instead of `.zip.enc` (the content is masked in both cases) |
+| `--keep` | keep the output directory next to the archive |
+
+Encryption: the same as the configuration export (`ihw_tools_lib.sh`
+`ihwt_read_passphrase` / `ihwt_pack`: openssl AES-256-CBC, PBKDF2 200 000,
+the passphrase only via a file descriptor). Decrypt:
+`openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in <file>.zip.enc -out <file>.zip` –
+or hand the `.zip.enc` to `10-Monitoring/patch_cycle_analysis.sh analyse --env`,
+which decrypts and unpacks it into `env/`. Inside a git work tree `-t` is
+refused unless git ignores the path.
+
+**Patch scope since 2026-11-05.1** (for KA1182 / CPU / CSPU):
+
+| File | Content |
+|---|---|
+| `30_inventory.txt` | + product versions of `inventory/registry.xml` (WLS / Forms & Reports / OPatch – selects the patch list) |
+| `33_components.txt` | patch-relevant `comps.xml` components with version (DB client, Perl, OHS, WebGate, Coherence, ADF / JRF / OPSS / OWSM / EM / UMS / WebCenter / LibOVD / OAMCLIENT, Forms / Reports), `sqlplus -V`, `perl -v`, OHS / WebGate directories |
+| `34_other_homes.txt` | `opatch lspatches -oh` of every other home of the central inventory (separate OHS / WebGate / DB client / old FMW homes) |
+| `35_opatch_prereq.txt` | inventory locks, owner / mode of the home and inventory, files not owned by the user, `.patch_storage` size, free space, the last apply / napply / rollback runs with their result |
+| `44_forms_client.txt` | client JRE of the Forms users: JNLP `java version`, `formsweb.cfg` Java keys, `frmsal.jar` |
+| `00_summary.txt` | + bundled JDK `oracle_common/jdk`, product versions, DB client, Perl, WebGate, `.patch_storage`, free space, locks, other homes, domain version, `openssl` / `ca-certificates` |
+
+The process tree holds only the processes of the software owner (no command
+lines of other users of the host).
 
 Since 2026-10-29.1 also: the Reports / Forms components of `comps.xml`
 (the home inventory OPatch uses – Reports binaries **without** these entries
@@ -100,19 +129,21 @@ must be patched there).
 Check the version first: `./collect_fmw_env.sh -V` (also the first line of
 `00_summary.txt`) – it must match the version in the repository.
 
-Result: `/tmp/fmw_collect_<host>_<timestamp>/` and `….tar.gz` (about 100 KB
+Result: `/tmp/fmw_collect_<host>_<timestamp>.zip.enc` (about 130 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
-area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `40_config.xml`,
-`41_domain_scripts`, `42_forms_reports_config`, `43_ohs_config`, `50_processes`, `60_net`, `61_webserver`,
-`70_logs`). Runtime on the test host: about 30 s.
+area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `33_components`,
+`34_other_homes`, `35_opatch_prereq`, `40_config.xml`, `41_domain_scripts`,
+`42_forms_reports_config`, `43_ohs_config`, `44_forms_client`, `50_processes`,
+`60_net`, `61_webserver`, `70_logs`). Runtime on the test host: about 60 s.
 
 **Read-only:** writes only into the output directory (OPatch writes its usual
 logs to `$ORACLE_HOME/cfgtoollogs` while it reads the inventory). Every
 command runs under `timeout 600`.
 
-**Secrets:** password elements, `{AES}` values, `userid=` / `authid=` /
-`password=` values, `user/password@` connect strings and `-D…password=`
-arguments are replaced by `***MASKED***` before anything is written.
+**Secrets:** password elements, `<identifier>` content, `{AES}` values,
+`userid=` / `authid=` / `password=` values, `user/password@` connect strings
+and `-D…password=` arguments are replaced by `***MASKED***` before anything is
+written (`ihwt_mask`, the same rules as the configuration export).
 Host names, IP addresses and paths stay in the output – they are needed for
 the analysis. Check the files before sending; never commit the output to a
 repository.

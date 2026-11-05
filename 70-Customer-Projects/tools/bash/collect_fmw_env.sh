@@ -7,17 +7,25 @@
 #            READ-ONLY: writes only into the output directory (OPatch itself
 #            writes its usual logs to $ORACLE_HOME/cfgtoollogs when it reads
 #            the inventory). Secrets are masked before they are stored.
-#            Standalone – no IHateWeblogic library, plain bash + coreutils.
+#            No IHateWeblogic library - bash + coreutils (+ openssl) and the
+#            shared helpers ihw_tools_lib.sh next to this script.
+#            The archive is ENCRYPTED by default (ZIP + openssl AES-256, the
+#            passphrase is asked twice at the start): masked, but it holds host
+#            names, IPs and paths of the customer.
 # Call     : ./collect_fmw_env.sh [-o ORACLE_HOME] [-d DOMAIN_HOME] [-t OUTBASE]
-#                                 [--full] [--logs]
+#                                 [--full] [--logs] [--no-encrypt] [--keep]
 #            -o / -d  default: environment, $ORACLE_HOME/domain-registry.xml,
 #                     /oracle/product/mw, /u01/app/oracle/fmw …
 #            -t       base directory of the output (default /tmp)
 #            --full   also "opatch lsinventory -details" and "-bugs_fixed"
 #                     (slow, large – needed for bug / CVE questions)
 #            --logs   also the error lines of the server logs (last 200)
+#            --no-encrypt  plain ZIP (still masked) - e.g. without a terminal
+#            --keep   keep the output directory next to the archive
 # Runs as  : the software owner of the Oracle Home (oracle), not root
-# Output   : <OUTBASE>/fmw_collect_<host>_<yyyymmdd_hhmmss>/ + .tar.gz
+# Output   : <OUTBASE>/fmw_collect_<host>_<yyyymmdd_hhmmss>.zip.enc (+ .sha256)
+#            decrypt: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 \
+#                       -in <file>.zip.enc -out <file>.zip
 #            00_summary.txt = key facts; every other file = one area.
 #            Host names, IPs and paths stay in the output (needed for the
 #            analysis) – passwords, {AES} values, userid= values do not.
@@ -27,9 +35,14 @@
 
 set -u
 umask 077
-VERSION="2026-10-29.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-05.1"   # bump on every change – shown in 00_summary.txt
+
+_IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ihw_tools_lib.sh
+. "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
+ENCRYPT=true; KEEP=false
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OH="${2:-}"; shift ;;
@@ -37,7 +50,9 @@ while [ $# -gt 0 ]; do
         -t) OUTBASE="${2:-/tmp}"; shift ;;
         --full) FULL=true ;;
         --logs) LOGS=true ;;
-        -h|--help) sed -n '2,25p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
+        --no-encrypt) ENCRYPT=false ;;
+        --keep) KEEP=true ;;
+        -h|--help) sed -n '2,34p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
         -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -46,20 +61,24 @@ done
 
 HOST="$(hostname -s 2>/dev/null || hostname)"
 TS="$(date +%Y%m%d_%H%M%S)"
-OUT="$OUTBASE/fmw_collect_${HOST}_${TS}"
+OUTBASE="$(cd "$OUTBASE" 2>/dev/null && pwd)" || { printf 'Output directory does not exist\n' >&2; exit 2; }
+NAME="fmw_collect_${HOST}_${TS}"
+OUT="$OUTBASE/$NAME"
+# customer data (host names, IPs, paths) never into a git work tree
+ihwt_git_guard "$OUTBASE" "$NAME.zip" || exit 2
+# passphrase first - before the minutes of collecting
+IHWT_PASS=""
+if $ENCRYPT; then
+    ihwt_read_passphrase "collector archive" || { printf '  -> or use --no-encrypt (plain ZIP, masked)\n' >&2; exit 2; }
+fi
 mkdir -p "$OUT" || { printf 'Cannot create %s\n' "$OUT" >&2; exit 2; }
+trap 'IHWT_PASS=""' EXIT
 SUM="$OUT/00_summary.txt"
 
 # --- helpers -----------------------------------------------------------------
-# mask: passwords, {AES}/{AES256} values, userid=/password= values, -D…password=
-mask() {
-    sed -E \
-        -e 's/(<[^>/]*[Pp]ass[Ww]or[dD][^>]*>)[^<]*/\1***MASKED***/g' \
-        -e 's/\{AES(256)?\}[A-Za-z0-9+\/=]+/{AES}***MASKED***/g' \
-        -e 's/((^|[[:space:];&?])(userid|USERID|UserId|authid|AUTHID|password|PASSWORD|Password|passwd|pwd|PWD)[[:space:]]*=[[:space:]]*)[^[:space:];&]+/\1***MASKED***/g' \
-        -e 's/(-D[A-Za-z0-9._]*[Pp]ass[Ww]ord[A-Za-z0-9._]*=)[^[:space:]]+/\1***MASKED***/g' \
-        -e 's#([A-Za-z0-9_]+)/[^@[:space:]/]+@#\1/***MASKED***@#g'
-}
+# mask: ihw_tools_lib.sh (passwords, <identifier>, {AES}, userid= / authid=,
+# -D...password=, user/pw@) - the same rules as the configuration export
+mask() { ihwt_mask; }
 # run FILE TITLE CMD… – run a command, append title, output (masked) and rc
 run() {
     local f="$OUT/$1" t="$2"; shift 2
@@ -110,7 +129,7 @@ fi
 
 {
     printf 'FMW environment collection – %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
-    printf '%s\n\n' "collect_fmw_env.sh version $VERSION (read-only, secrets masked)"
+    printf '%s\n\n' "collect_fmw_env.sh version $VERSION (ihw_tools_lib $(ihwt_lib_version), read-only, secrets masked)"
 } > "$SUM"
 fact "Host" "$(hostname -f 2>/dev/null || hostname)"
 fact "User" "$(id)"
@@ -134,6 +153,7 @@ run 10_os.txt "Time / zone"         timedatectl
 run 10_os.txt "Locale"              locale
 runsh 10_os.txt "Kernel parameters"   "sysctl -a 2>/dev/null | grep -E '^(kernel\\.(sem|shm)|fs\\.file-max|net\\.ipv4\\.ip_local_port_range|vm\\.swappiness)'"
 runsh 10_os.txt "Packages (FMW prerequisites)" "rpm -q binutils gcc gcc-c++ glibc glibc-devel libaio libaio-devel libgcc libstdc++ libstdc++-devel libXext libXi libXtst libnsl make motif motif-devel ksh sysstat fontconfig xorg-x11-utils 2>&1"
+runsh 10_os.txt "Packages relevant for patches (CA / SSL / kernel)" "rpm -q openssl openssl-libs ca-certificates kernel kernel-uek 2>&1; rpm -qa --last 2>/dev/null | head -15"
 run 10_os.txt "Network addresses"   ip -br addr
 runsh 10_os.txt "Listening ports"     "ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null"
 runsh 10_os.txt "systemd units (oracle/wls/forms/reports/nginx/httpd)" "systemctl list-unit-files 2>/dev/null | grep -iE 'oracle|weblogic|wls|fmw|forms|report|nodemanager|nginx|httpd|ohs'"
@@ -143,12 +163,14 @@ fact "glibc" "$(ldd --version 2>/dev/null | head -1 | awk '{print $NF}')"
 fact "Uptime" "$(uptime -p 2>/dev/null || uptime)"
 fact "Memory MB (total/avail)" "$(free -m 2>/dev/null | awk '/^Mem:/{print $2" / "$7}')"
 fact "SELinux" "$(getenforce 2>/dev/null || printf 'n/a')"
+fact "openssl / ca-certificates" "$(rpm -q openssl ca-certificates 2>/dev/null | tr '\n' ' ')"
 
 # =============================================================================
 # 2. Java
 # =============================================================================
 say "2/7 Java"
 JAVA_CANDIDATES="$( { [ -n "$OH" ] && sed -n 's/^JAVA_HOME[A-Z0-9_]*=//p' "$OH/oui/.globalEnv.properties" 2>/dev/null;
+                     [ -n "$OH" ] && [ -x "$OH/oracle_common/jdk/bin/java" ] && printf '%s\n' "$OH/oracle_common/jdk";
                      [ -n "${JAVA_HOME:-}" ] && printf '%s\n' "$JAVA_HOME";
                      for p in $(pgrep -f 'java' 2>/dev/null); do readlink -f "/proc/$p/exe" 2>/dev/null | sed 's#/\(jre/\)\{0,1\}bin/java$##'; done; } | sort -u)"
 for J in $JAVA_CANDIDATES; do
@@ -162,6 +184,8 @@ runsh 20_java.txt "Java of the running processes" "for p in \$(pgrep -f java); d
 J1="$( [ -n "$OH" ] && sed -n 's/^JAVA_HOME=//p' "$OH/oui/.globalEnv.properties" 2>/dev/null | head -1)"
 fact "JDK of OPatch (.globalEnv)" "${J1:-?} -> $(readlink -f "${J1:-/x}" 2>/dev/null)"
 fact "JDK version (.globalEnv)" "$("${J1:-/x}/bin/java" -version 2>&1 | head -2 | tr '\n' ' ')"
+BJ="$OH/oracle_common/jdk"
+fact "Bundled JDK (oracle_common/jdk)" "$( [ -x "$BJ/bin/java" ] && "$BJ/bin/java" -version 2>&1 | head -1 || printf 'none')"
 fact "JDKs of running processes" "$(for p in $(pgrep -f java 2>/dev/null); do readlink -f "/proc/$p/exe" 2>/dev/null; done | sort -u | tr '\n' ' ')"
 
 # =============================================================================
@@ -186,6 +210,34 @@ if [ -n "$OH" ]; then
     runsh 30_inventory.txt "Top level of the Oracle Home" "ls -l '$OH'"
     runsh 30_inventory.txt "Forms / Reports binaries" "ls -l --time-style=long-iso '$OH'/bin/{frmweb,frmcmp,frmcmp_batch,rwserver,rwrun,rwbuilder,rwconverter} 2>&1"
     copy 30_inventory.txt "$OH/domain-registry.xml"
+    # product versions (registry.xml) - selects the patch list of KA1182
+    runsh 30_inventory.txt "Installed distributions / features (inventory/registry.xml)" \
+        "grep -oE '<(distribution|feature)[^>]* name=\"[^\"]*\"[^>]* version=\"[^\"]*\"' '$OH/inventory/registry.xml' | sed -E 's/.* name=\"([^\"]*)\".* version=\"([^\"]*)\".*/\1 \2/' | sort -u"
+    # components that decide single patches (DB client, Perl, OHS, WebGate, Infrastructure bundles)
+    runsh 33_components.txt "Patch-relevant components (comps.xml)" \
+        "grep -oE 'COMP NAME=\"[^\"]*\" VER=\"[^\"]*\"' '$OH/inventory/ContentsXML/comps.xml' | grep -iE 'rdbms|client|perl|ohs|webgate|wls|weblogic|coherence|adf|jrf|opss|owsm|wsm|em|ums|webcenter|libovd|oamclient|forms|reports|jdk|dbclient' | sed 's/COMP NAME=//; s/ VER=/ /; s/\"//g' | sort -u"
+    run 33_components.txt "DB client in the home (sqlplus -V)" "$OH/bin/sqlplus" -V
+    run 33_components.txt "Perl in the home"                      "$OH/perl/bin/perl" -v
+    runsh 33_components.txt "OHS / WebGate in the home" "ls -ld '$OH/ohs' '$OH/webgate' '$OH'/webgate/* 2>&1; ls '$OH'/ohs/bin/httpd* 2>&1"
+    # every Oracle home of the central inventory (separate OHS / WebGate / DB client / old FMW homes)
+    if [ -n "$INV" ] && [ -r "$INV/ContentsXML/inventory.xml" ]; then
+        grep '<HOME ' "$INV/ContentsXML/inventory.xml" | grep -v 'REMOVED="T"' | sed -n 's/.*LOC="\([^"]*\)".*/\1/p' | while read -r h; do
+            [ "$(readlink -f "$h")" = "$(readlink -f "$OH")" ] && continue
+            if [ -x "$h/OPatch/opatch" ]; then
+                run 34_other_homes.txt "opatch lspatches -oh $h" "$h/OPatch/opatch" lspatches -oh "$h"
+            else
+                printf '### %s: no OPatch (missing / not a patchable home)\n\n' "$h" >> "$OUT/34_other_homes.txt"
+            fi
+        done
+    fi
+    # OPatch prerequisites: inventory locks, ownership, rollback storage, free space
+    runsh 35_opatch_prereq.txt "Inventory locks" "ls -la '${INV:-/nonexistent}/locks' 2>&1"
+    runsh 35_opatch_prereq.txt "Owner / mode of ORACLE_HOME and inventory" "ls -ld '$OH' '$OH/inventory' '$OH/OPatch' '${INV:-/nonexistent}' 2>&1; id"
+    runsh 35_opatch_prereq.txt "Files in the home NOT owned by this user (first 20)" "find '$OH' -xdev ! -user \"\$(id -un)\" 2>/dev/null | head -20"
+    runsh 35_opatch_prereq.txt "Rollback storage (.patch_storage)" "du -sh '$OH/.patch_storage' 2>&1; ls '$OH/.patch_storage' 2>/dev/null | wc -l"
+    runsh 35_opatch_prereq.txt "Free space: home / inventory / /tmp" "df -hP '$OH' '${INV:-/tmp}' /tmp 2>&1"
+    runsh 35_opatch_prereq.txt "Last OPatch logs (cfgtoollogs/opatch)" "ls -lt --time-style=long-iso '$OH/cfgtoollogs/opatch' 2>/dev/null | head -15"
+    runsh 35_opatch_prereq.txt "Last patch runs (apply / napply / rollback) with result" "for f in \$(ls -t '$OH'/cfgtoollogs/opatch/opatch*.log 2>/dev/null); do c=\$(grep -m1 -oE \"OPatch invoked as follows: '(apply|napply|rollback|nrollback)[^']*'\" \"\$f\"); [ -n \"\$c\" ] || continue; printf '%s | %s | %s\\n' \"\$(basename \$f)\" \"\${c#OPatch invoked as follows: }\" \"\$(grep -hE 'successfully (applied|rolled back)|OPatch (failed|stopped)|UtilSession failed|Prereq .* failed' \"\$f\" | sed 's/^\\[[^]]*\\] *//' | sort -u | tr '\\n' ' ' | cut -c1-300)\"; done | head -20"
     fact "Distributions" "$("$OH/oui/bin/viewInventory.sh" 2>/dev/null | sed -n 's/.*Distribution: //p' | sort -u | tr '\n' ';')"
     fact "OPatch" "$("$OP" version 2>/dev/null | sed -n 's/^OPatch Version: //p')"
     fact "Patches (lspatches)" "$("$OP" lspatches 2>/dev/null | grep -c '^[0-9]')"
@@ -200,6 +252,14 @@ if [ -n "$OH" ]; then
     [ "$_rc" -eq 0 ] && [ "$_rb" -gt 0 ] && \
         fact "!! Reports NOT REGISTERED" "binaries in the home but no oracle.reports component – OPatch would never patch them"
     fact "OHS component in home" "$(ls "$OH"/inventory/Components 2>/dev/null | grep -ciE 'ohs') entries"
+    fact "Product versions (registry.xml)" "$(grep -oE '<distribution[^>]* name="[^"]*"[^>]* version="[^"]*"' "$OH/inventory/registry.xml" 2>/dev/null | sed -E 's/.* name="([^"]*)".* version="([^"]*)".*/\1 \2/' | sort -u | paste -sd';' -)"
+    fact "DB client in home" "$("$OH/bin/sqlplus" -V 2>/dev/null | grep -oE 'Version [0-9.]+' | head -1)"
+    fact "Perl in home" "$("$OH/perl/bin/perl" -e 'print $^V' 2>/dev/null)"
+    fact "WebGate in home" "$( [ -d "$OH/webgate" ] && printf yes || printf no)"
+    fact ".patch_storage" "$(du -sh "$OH/.patch_storage" 2>/dev/null | cut -f1)"
+    fact "Free space of the home" "$(df -hP "$OH" 2>/dev/null | awk 'NR==2{print $4 " free of " $2}')"
+    fact "Inventory locks" "$(ls "${INV:-/nonexistent}/locks" 2>/dev/null | wc -l) file(s)"
+    fact "Other Oracle homes (inventory)" "$(grep '<HOME ' "${INV:-/x}/ContentsXML/inventory.xml" 2>/dev/null | grep -v 'REMOVED="T"' | sed -n 's/.*LOC="\([^"]*\)".*/\1/p' | grep -vx "$OH" | tr '\n' ' ')"
 fi
 
 # =============================================================================
@@ -236,6 +296,11 @@ if [ -n "$DH" ]; then
         runsh 43_ohs_config.txt "default index.html in $d" \
             "ls -l '${d}htdocs/index.html' 2>&1; grep -ic 'oracle http server' '${d}htdocs/index.html' 2>/dev/null"
     done
+    # client JRE of the Forms users (Java alerts also concern the client JREs)
+    runsh 44_forms_client.txt "JNLP j2se / java versions" "grep -Hn -iE 'j2se|<java ' '$OH'/forms/java/*.jnlp '$OH'/forms/templates/config/*.jnlp \$(find '$DH/config/fmwconfig' -name '*.jnlp' 2>/dev/null) 2>/dev/null | head -40"
+    runsh 44_forms_client.txt "formsweb.cfg Java plug-in / client keys" "for f in \$(find '$DH/config/fmwconfig/servers' -name formsweb.cfg 2>/dev/null); do grep -Hn -iE '^(jpi_|baseHTMLjpi|webstart|fsal|java_version|jre)' \"\$f\"; done | head -40"
+    runsh 44_forms_client.txt "FSAL / client jars (frmsal.jar)" "ls -l --time-style=long-iso '$OH'/forms/java/frmsal*.jar '$OH'/forms/java/frmall.jar 2>&1; unzip -p '$OH/forms/java/frmsal.jar' META-INF/MANIFEST.MF 2>/dev/null | grep -iE 'version|built'"
+    fact "Domain version (config.xml)" "$(sed -n 's/.*<domain-version>\([^<]*\)<.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Domain" "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Servers (config.xml)" "$(awk '/<server>/{s=1} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");printf "%s ",$0;s=0}' "$DH/config/config.xml")"
 fi
@@ -246,7 +311,7 @@ fi
 say "5/7 Processes"
 runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
     "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx' | grep -v grep"
-runsh 50_processes.txt "Process tree" "ps auxf"
+runsh 50_processes.txt "Process tree of $(id -un) (other users are not collected)" "ps -u \"\$(id -un)\" fww -o pid,ppid,lstart,etime,rss,args"
 fact "frmweb processes" "$(pgrep -c frmweb 2>/dev/null; true)"
 # Which home do the running FMW processes come from? (2026-10-29)
 runsh 50_processes.txt "Binary (/proc/<pid>/exe) of WLS / Forms / Reports processes" \
@@ -301,8 +366,12 @@ fi
 # Pack
 # =============================================================================
 printf '\nFiles:\n' >> "$SUM"; (cd "$OUT" && ls -l) >> "$SUM"
-tar -czf "$OUT.tar.gz" -C "$OUTBASE" "$(basename "$OUT")" 2>/dev/null
-say "Summary : $SUM"
-say "Archive : $OUT.tar.gz ($(du -h "$OUT.tar.gz" 2>/dev/null | cut -f1))"
-say "Secrets are masked – check 00_summary.txt and the files before sending."
+ihwt_pack "$OUTBASE" "$NAME" "$ENCRYPT" || exit 2
+ARCH="$IHWT_ARCHIVE"
+$KEEP || rm -rf "${OUTBASE:?}/${NAME:?}"
+say "Archive : $OUTBASE/$ARCH ($(du -h "$OUTBASE/$ARCH" 2>/dev/null | cut -f1))"
+say "SHA-256 : $OUTBASE/$ARCH.sha256"
+$ENCRYPT && say "Decrypt : openssl enc -d $IHWT_ENC_OPTS -in $ARCH -out ${ARCH%.enc}"
+$KEEP && say "Kept    : $OUT (00_summary.txt = key facts)"
+say "Secrets are masked; host names, IPs and paths are included - send the encrypted archive."
 exit 0

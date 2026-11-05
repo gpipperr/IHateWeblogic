@@ -37,7 +37,8 @@ and customer data. Layout:
   cycle.info        cycle id, advisory URL, release date, configured cycle, mode
   readme_list.md    phase 1 result: checklist of documents to download
   readmes/          the user drops every README / KA1182 PDF / MOS note here
-  env/              collector archive(s) (70-Customer-Projects/tools/bash/collect_fmw_env.sh --full)
+  env/              collector archive(s) (70-Customer-Projects/tools/bash/collect_fmw_env.sh --full);
+                    an encrypted .zip.enc is decrypted + unpacked by patch_cycle_analysis.sh --env
   result/           customer mode: analysis README + manual guide
 ```
 
