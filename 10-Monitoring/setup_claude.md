@@ -157,6 +157,13 @@ rules stay usable; a customer who wants only managed rules adds it.
 | Patch-cycle analysis | implemented – `patch_cycle_analysis.sh`, [skill](patch_cycle_analysis_skill.md) | public Oracle pages (curl), `Patch-Doku/<cycle>/readmes/`, `env/` | `Patch-Doku/<cycle>/result/`; maintainer: repo docs |
 | Proactive log analysis | concept – [README.md](README.md#architecture) | logs (local, or a read-only mount of the production log dirs – to decide), findings of the 01–07 checks | `10-Monitoring/reports/` |
 
+**Development / analysis system only – never on a Forms / Reports
+instance:** turning the customer reports
+(`70-Customer-Projects/tools/customer-analyse/`) into PDF needs the OS package
+`pango` (`dnf install pango`, for the Python renderer weasyprint in a private
+venv). It is no FMW prerequisite – the install chain (`02-root_os_packages.sh`)
+must not add it, and `os_check.sh` must not demand it.
+
 The log analysis will run headless (`claude -p`, read-only tools, cron) in
 the same sandbox and reports only the *unusual* entries – availability,
 thresholds and known patterns stay with the customer's monitoring (Nagios,
