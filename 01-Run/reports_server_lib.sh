@@ -241,6 +241,7 @@ rws_wls_port() {
 rws_fetch_serverinfo() {
     local url="$1" mode="${2:-auto}" pwd="" tmp
     RWS_HTTP_CODE="" RWS_HTTP_XML="" RWS_REP_ERR="" RWS_AUTH_USER="" RWS_AUTH_SRC=""
+    RWS_LAST_URL="$url"
 
     _rws_load_mon() {
         local f="$ROOT_DIR/reports_users.conf.des3"
@@ -307,6 +308,19 @@ rws_http_verdict() {
                 esac
                 return 1
             fi
+            # getserverinfo without <serverInfo>: no server data although HTTP 200
+            # (customer 2026-11-05: empty "Server Info", 0 FAIL, but REP-51002 in
+            # the smoke test) - show what came back instead
+            case "${RWS_LAST_URL:-}" in
+                *getserverinfo*)
+                    if ! printf '%s' "$RWS_HTTP_XML" | grep -q '<serverInfo'; then
+                        fail "rwservlet answered HTTP 200 without server info (<serverInfo> missing)"
+                        info "$(printf "  answer (%s bytes, tags removed): %s" "${#RWS_HTTP_XML}" \
+                            "$(printf '%s' "$RWS_HTTP_XML" | sed 's/<[^>]*>/ /g' | tr -s ' \t\r\n' ' ' | cut -c1-300)")"
+                        info "  next: 02-Checks/reports_network_scan.sh (servers seen by multicast), rwserver_diagnostic.log of the server"
+                        return 1
+                    fi ;;
+            esac
             ok "rwservlet reachable (HTTP 200)"
             return 0
             ;;

@@ -257,7 +257,10 @@ esac
 # Detect Reports WLS managed server (before banner so it can be shown)
 # =============================================================================
 
-WLS_REPORTS_SERVER="${OVERRIDE_SERVER:-$(rws_detect_wls_server)}"
+# --server is the Reports SERVER component (repserver01 ...), not the WLS
+# managed server - until 2026-11-05 it was used for both ("WLS managed
+# server 'repserver01' not detected", port lookup on the wrong server)
+WLS_REPORTS_SERVER="${WLS_MANAGED_SERVER:-$(rws_detect_wls_server)}"
 
 # =============================================================================
 # Banner
@@ -430,7 +433,7 @@ else
     else
         STATUS_URL="${SERVLET_BASE}/getserverinfo?statusformat=XML"
     fi
-    printf "  %-26s %s\n" "Status URL:" "$STATUS_URL"
+    printf "  %-26s %s\n" "Status URL:" "$STATUS_URL" | tee -a "${LOG_FILE:-/dev/null}"
 
     rws_fetch_serverinfo "$STATUS_URL" "$AUTH_MODE"
     if [ -n "$RWS_AUTH_USER" ]; then

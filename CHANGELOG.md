@@ -5,6 +5,18 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Reports status, false OK fixed: `getserverinfo` answering HTTP 200
+  without `<serverInfo>` was reported as "rwservlet reachable". The output
+  was an empty "Server Info" section and 0 FAIL, while the smoke test got
+  REP-51002. This is now a FAIL that shows the start of the answer (lib
+  `rws_http_verdict`, used by `rwserver_status.sh`, `90-` and
+  `engine_perf_analyse.sh`).
+- `rwserver_status.sh --server NAME` no longer takes NAME as the WLS managed
+  server too. The "Status URL" line is now written to the log.
+- `apply_customer_conf.sh`: after `start-all` it waits until every Reports
+  server answers `getserverinfo` (default up to 240 s,
+  `IHW_REPORTS_READY_WAIT`) before the smoke test. It prints the details
+  of a server that does not answer.
 - Autostart drift: the autostart scripts of `30-` carry the Reports servers
   of `config.xml` as of configure time. Servers created later by `13-` were
   not started by `start-all` / systemd (customer: only the old

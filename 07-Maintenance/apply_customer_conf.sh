@@ -155,6 +155,27 @@ if $APPLY && [ "$RC" -lt 2 ]; then
     if $RESTART; then
         _step "stop-all"  "$ROOT_DIR/01-Run/startStop.sh" stop-all --apply
         _step "start-all" "$ROOT_DIR/01-Run/startStop.sh" start-all --apply
+        # the NM reports a Reports server as started before it answers -
+        # the smoke test right after start-all got REP-51002 (customer
+        # 2026-11-05); wait until every server answers getserverinfo
+        section "Reports servers ready"
+        for _s in ${REPORTS_SERVER_INSTANCES:-}; do
+            _t0=$SECONDS; _ready=false
+            while [ $((SECONDS - _t0)) -lt "${IHW_REPORTS_READY_WAIT:-240}" ]; do
+                # rc 2 = FAIL (REP-51002 / no server info); rc 1 = warnings only
+                "$ROOT_DIR/01-Run/rwserver_status.sh" --server "$_s" >/dev/null 2>&1
+                [ $? -lt 2 ] && { _ready=true; break; }
+                sleep 15
+            done
+            if $_ready; then
+                ok "$(printf "  %-16s answers getserverinfo (after %ss)" "$_s" "$((SECONDS - _t0))")"
+            else
+                warn "$(printf "  %-16s no server info after %ss - details:" "$_s" "$((SECONDS - _t0))")"
+                "$ROOT_DIR/01-Run/rwserver_status.sh" --server "$_s" 2>&1 \
+                    | grep -E 'FAIL|WARN|answer|next:|RUNNING|Engine processes' | tee -a "${LOG_FILE:-/dev/null}"
+            fi
+        done
+        unset _s _t0 _ready
         _step "15- smoke test" "$ROOT_DIR/09-Install/15-deploy-test-report-forms_template.sh" --apply
         _step "90- validate"   "$ROOT_DIR/09-Install/90-oracle_validate.sh"
     else
