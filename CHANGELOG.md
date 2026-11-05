@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- `export_forms_reports_conf.sh` 2026-11-05.4:
+  - no shell error at the end of the load profile when `reports_jobs.csv`
+    or `host_sar.csv` is missing. `wc -l < file 2>/dev/null` did not stop
+    the redirect error; a secured Reports server without `--rw-auth`
+    leaves no job list – first export of a library 14c host.
+  - The block "ihw_import/ – what goes where" in `00_report.txt` names
+    the importer and the overlay files. It said "no 14- mechanism yet".
 - `40-`: check of the start form. The `.fmx` of `FORMS_CLIENT_FORM` (else
   `form=` of the section) must be in `FORMS_PATH` of the section's
   `envFile`. Otherwise WARN – the clients would start into FRM-40010. At

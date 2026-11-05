@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-05.3"   # bump on every change – shown in the report
+VERSION="2026-11-05.4"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -810,22 +810,26 @@ unset _first_rs _rc _fp1
     printf '\n== Source directories (sources_inventory.csv) – inventory only, no module content ==\n'; sed 's/^/  /' "$INV"
     printf '\n== Secrets (secrets_locations.txt: file:line:keyword – values never listed) ==\n'
     printf '  %s locations\n' "$(wc -l < "$SECRETS")"
-    printf '\n== ihw_import/ – what goes where (later import step) ==\n'
-    printf '  formsweb.cfg.default_overrides -> 09-Install/forms_templates/formsweb.cfg.template\n'
-    printf '  formsweb.cfg.sections          -> customer sections (no 14- mechanism yet)\n'
-    printf '  default.env.customer_keys      -> forms_templates/default.env.template\n'
-    printf '  webutil.cfg.overrides          -> forms_templates/webutil.cfg.template\n'
-    printf '  cgicmd.dat.customer_keys       -> cgicmd.dat after the END marker of 14b-\n'
-    printf '  uifont.ali.customer            -> 04-ReportsFonts/uifont_ali_template.ali\n'
-    printf '  custom_fonts_dir/              -> 04-ReportsFonts/custom_fonts_dir/ (customer fonts; Microsoft fonts only with licence – fonts.txt class)\n'
-    printf '  forms_java/ + jars.txt         -> customer jars (signing / archive= on 14c)\n'
-    printf '  environment.conf.proposal      -> values for 01-setup-interview / environment.conf\n'
+    printf '\n== ihw_import/ – what goes where ==\n'
+    printf '  Import with 00-Setup/customer_conf_import.sh -i <this archive> (overlay environments/<env>.customer/,\n'
+    printf '  read by 13- / 14- / 14b-; process: 09-Install/docs/00-transfer_customer_settings.md)\n'
+    printf '  formsweb.cfg.default_overrides -> overlay forms/formsweb.default.cfg      (14-)\n'
+    printf '  formsweb.cfg.sections          -> overlay forms/formsweb.sections.cfg     (14-)\n'
+    printf '  default.env.customer_keys      -> overlay forms/env/<name>.env            (14-)\n'
+    printf '  webutil.cfg.overrides          -> overlay forms/webutil.cfg.overrides     (14-)\n'
+    printf '  forms_java/ + jars.txt         -> overlay forms/jars/ (deduplicated, signed by 14-)\n'
+    printf '  reports_servers.txt            -> REPORTS_SERVER_INSTANCES + overlay reports/<server>.env (13-)\n'
+    printf '  cgicmd.dat.customer_keys       -> overlay reports/cgicmd.dat.customer, without logins (14b-)\n'
+    printf '  uifont.ali.customer            -> overlay fonts/uifont.ali.customer       (14b-)\n'
+    printf '  custom_fonts_dir/              -> overlay fonts/ (customer fonts; Microsoft fonts only with licence – fonts.txt class)\n'
+    printf '  environment.conf.proposal      -> import block of environments/<env>.conf\n'
     printf '  web_tier.txt                   -> 09-Install/nginx-wls.conf.template (04-root_nginx.sh): own paths by hand\n'
     if $LOADP; then
         printf '\n== Load profile (load/, last %s days, aggregated - no log lines) ==\n' "$LOAD_DAYS"
         printf '  Forms starts: %s   Forms days: %s   Reports jobs (past queue): %s   sar days: %s\n' \
-            "$(awk -F';' '{s+=$3} END{print s+0}' "$LOAD/forms_starts.csv" 2>/dev/null)" "$(wc -l < "$LOAD/forms_traffic.csv" 2>/dev/null || echo 0)" \
-            "$(wc -l < "$LOAD/reports_jobs.csv" 2>/dev/null || echo 0)" "$(wc -l < "$LOAD/host_sar.csv" 2>/dev/null || echo 0)"
+            "$(awk -F';' '{s+=$3} END{print s+0}' "$LOAD/forms_starts.csv" 2>/dev/null)" "$(cat "$LOAD/forms_traffic.csv" 2>/dev/null | wc -l)" \
+            "$(cat "$LOAD/reports_jobs.csv" 2>/dev/null | wc -l)" "$(cat "$LOAD/host_sar.csv" 2>/dev/null | wc -l)"
+        # a missing file is no error: no jobs (secured server without --rw-auth -> "not collected"), no sysstat
         [ -f "$LOAD/reports_not_collected.txt" ] && sed 's/^/  not collected: /' "$LOAD/reports_not_collected.txt"
         sed 's/^/  /' "$LOAD/now.txt"
     fi
