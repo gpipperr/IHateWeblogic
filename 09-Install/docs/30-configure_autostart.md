@@ -63,6 +63,20 @@ Discovered from `$DOMAIN_HOME/config/config.xml` at configure time:
 Not started: `FORMS` and `ReportsToolsComponent` system components – they have
 no long-running process of their own.
 
+**The list is fixed at configure time.** A Reports server that is created
+later (`13-`, customer import) or removed (`13- --remove-server`) is unknown
+to `fmw_ctl.sh` and the systemd unit until the scripts are rendered again
+with `30-configure_autostart.sh --apply`. The lib function `autostart_drift`
+compares the list with `config.xml`:
+- `01-Run/startStop.sh` warns and starts / stops the missing components
+  directly through the Node Manager;
+- `13-` warns after `--apply` and after `--remove-server`;
+- `07-Maintenance/apply_customer_conf.sh --apply` runs `30- --apply` itself
+  before the restart.
+
+Found at the customer on 2026-11-05: `start-all` started only the old
+`repserver01`, the two new servers stayed down (REP-51002).
+
 > **Fixed 2026-10-20 – WLST name shadowing in `wls_stop.py` / `wls_start.py`.**
 > After `connect()` WLST puts its own commands (`state()`, `shutdown()` …) and
 > Java packages (`java.time` → `time`) into the global namespace and

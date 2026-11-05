@@ -306,7 +306,13 @@ WLST_DEL
     done
     grep -q "<name>${_rn}</name>" "$_cfgxml" && warn "config.xml still contains <name>$_rn</name> - check $_cfgxml" || ok "config.xml: $_rn gone"
     info "Backup: $_bk  |  log: $LOG_FILE"
-    info "Next: 01-Run/rwserver_status.sh, 70-Customer-Projects/tools/bash/status.sh -q (autostart / fmw_ctl lists the remaining servers)"
+    _drift="$(autostart_drift "$DOMAIN_HOME")"
+    if [ -n "$_drift" ]; then
+        warn "Autostart scripts still list the removed server ($_drift)"
+        info "  re-render: ./09-Install/30-configure_autostart.sh --apply"
+    fi
+    unset _drift
+    info "Next: 09-Install/30-configure_autostart.sh --apply (when autostart is set up), 01-Run/rwserver_status.sh, 70-Customer-Projects/tools/bash/status.sh -q"
     print_summary; exit "$EXIT_CODE"
 fi
 
@@ -1306,6 +1312,20 @@ unset _inst
 # =============================================================================
 # 8. Next Steps
 # =============================================================================
+
+# Autostart (30-) renders the system components into its scripts - a server
+# created here is not started by start-all / systemd until it is re-rendered
+_drift="$(autostart_drift "$DOMAIN_HOME")"
+if [ -n "$_drift" ]; then
+    section "Autostart"
+    if $APPLY; then
+        warn "Autostart scripts out of date ($_drift)"
+    else
+        info "Autostart scripts would be out of date after --apply ($_drift)"
+    fi
+    info "  re-render: ./09-Install/30-configure_autostart.sh --apply (apply_customer_conf.sh does it)"
+fi
+unset _drift
 
 section "Next Steps"
 # README Phase 6: the files are written while the domain runs and become

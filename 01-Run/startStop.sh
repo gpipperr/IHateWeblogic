@@ -267,6 +267,15 @@ DOMAIN_NAME_CFG="${DOMAIN_NAME_CFG:-$(basename "$DOMAIN_HOME")}"
 FMW_CTL="${ORACLE_BASE:-/u01/app/oracle}/admin/${DOMAIN_NAME_CFG}/ctrl/fmw_ctl.sh"
 [ -x "$FMW_CTL" ] || FMW_CTL=""
 FMW_UNIT="fmw-${DOMAIN_NAME_CFG}.service"
+# components created after the autostart was rendered (13-) are unknown to
+# fmw_ctl.sh - they are started / stopped directly through the NM (lib
+# autostart_drift; re-render: 09-Install/30-configure_autostart.sh --apply)
+AUTOSTART_DRIFT=""; AUTOSTART_MISSING=""
+if [ -n "$FMW_CTL" ]; then
+    AUTOSTART_DRIFT="$(autostart_drift "$DOMAIN_HOME")"
+    AUTOSTART_MISSING=" $(printf '%s' "$AUTOSTART_DRIFT" | sed -n 's/^missing: \(.*\) | removed:.*/\1/p' | sed 's/^-$//') "
+fi
+_autostart_unknown() { case "$AUTOSTART_MISSING" in *" $1 "*) return 0 ;; esac; return 1; }
 
 # _fmw_ctl start|stop all|<name> - delegate to fmw_ctl.sh (keyfiles, no password)
 _fmw_ctl() {
@@ -660,7 +669,7 @@ _start_comp() {
                 info "  ./01-Run/startStop.sh start NodeManager --apply"
                 return 1
             fi
-            [ -n "$FMW_CTL" ] && { _fmw_ctl start "$name"; return $?; }
+            [ -n "$FMW_CTL" ] && ! _autostart_unknown "$name" && { _fmw_ctl start "$name"; return $?; }
             # nmStart returns when the NM reports the component as started
             _run_nm_action start "$name" "$start_log" || return 1
             ok "$name started (Node Manager)"
@@ -697,7 +706,8 @@ _stop_comp() {
     # Autostart configured: same orderly shutdown / nmKill as systemd. Not for
     # a server started past the NM - fmw_ctl.sh sees it as SHUTDOWN and skips
     # it; that one is shut down through the AdminServer (WLST) below.
-    if [ -n "$FMW_CTL" ] && [ "$ctrl" != "script" ] && [[ "$ctype" =~ ^(ADMIN|MANAGED|REPORTS)$ ]]; then
+    if [ -n "$FMW_CTL" ] && [ "$ctrl" != "script" ] && [[ "$ctype" =~ ^(ADMIN|MANAGED|REPORTS)$ ]] \
+       && ! _autostart_unknown "$name"; then
         _fmw_ctl stop "$name"; return $?
     fi
     if [[ "$ctype" =~ ^(ADMIN|MANAGED)$ ]] && [ -z "${INTERNAL_WL_PWD:-}" ]; then
@@ -795,6 +805,12 @@ PYEOF
 
 # systemd keeps its own view: "active (exited)" after start, independent of
 # what fmw_ctl.sh did by hand afterwards
+_autostart_drift_warn() {
+    [ -n "$AUTOSTART_DRIFT" ] || return 0
+    warn "Autostart scripts out of date ($AUTOSTART_DRIFT) - systemd / fmw_ctl.sh do not know them"
+    info "  re-render: ./09-Install/30-configure_autostart.sh --apply (this run handles the missing ones directly)"
+}
+
 _systemd_note() {
     systemctl is-enabled "$FMW_UNIT" > /dev/null 2>&1 || return 0
     info "systemd unit $FMW_UNIT: $(systemctl is-active "$FMW_UNIT" 2>/dev/null)"
@@ -900,6 +916,7 @@ if ! $APPLY; then
     printf "\n"
     if [ -n "$FMW_CTL" ]; then
         info "Would run through: $FMW_CTL (Node Manager)"
+        _autostart_drift_warn
     elif [ -n "$(_nm_pid)" ]; then
         info "Node Manager running: AdminServer via nmStart, managed servers via the AdminServer"
     fi
@@ -933,7 +950,13 @@ case "$ACTION" in
     start-all)
         section "Starting All Components"
         if [ -n "$FMW_CTL" ]; then
+            _autostart_drift_warn
             _fmw_ctl start all
+            # Reports servers / OHS unknown to fmw_ctl.sh: directly through the NM
+            for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+                [[ "${C_TYPE[$i]}" =~ ^(REPORTS|OHS)$ ]] && _autostart_unknown "${C_NAME[$i]}" \
+                    && { _start_comp "${C_NAME[$i]}" "${C_TYPE[$i]}" || true; }
+            done
             _ords_all start
             _systemd_note
         else
@@ -944,7 +967,14 @@ case "$ACTION" in
     stop-all)
         section "Stopping All Components"
         if [ -n "$FMW_CTL" ]; then
+            _autostart_drift_warn
             _ords_all stop
+            # Reports servers / OHS unknown to fmw_ctl.sh: directly through the NM
+            for (( i=0; i < ${#C_NAME[@]}; i++ )); do
+                [[ "${C_TYPE[$i]}" =~ ^(REPORTS|OHS)$ ]] && _autostart_unknown "${C_NAME[$i]}" \
+                    && [ -n "${C_PID[$i]}" ] && [ "${C_PID[$i]}" != "-" ] \
+                    && { _stop_comp "${C_NAME[$i]}" "${C_TYPE[$i]}" "${C_PID[$i]}" "${C_CTRL[$i]}" || true; }
+            done
             # servers started past the NM first - fmw_ctl.sh would skip them
             for (( i=0; i < ${#C_NAME[@]}; i++ )); do
                 [ "${C_CTRL[$i]}" = "script" ] && [ "${C_TYPE[$i]}" = "MANAGED" ] \

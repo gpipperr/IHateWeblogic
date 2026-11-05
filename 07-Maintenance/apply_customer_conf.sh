@@ -8,6 +8,8 @@
 #              1. 09-Install/14b-oracle_reports_fonts.sh   fonts, uifont.ali, cgicmd.dat
 #              2. 09-Install/14-oracle_setup_forms.sh      formsweb.cfg, env files, WebUtil, jars
 #              3. 09-Install/13-oracle_setup_reports.sh    Reports servers (+ <environment> per server)
+#              3b. --apply: 09-Install/30-configure_autostart.sh --apply when the
+#                  autostart scripts miss a Reports server of config.xml
 #              4. --apply: 01-Run/startStop.sh stop-all / start-all (unless --no-restart)
 #              5. --apply: 09-Install/15- smoke test, 09-Install/90-oracle_validate.sh
 #            Without --apply every script shows what it would change.
@@ -131,6 +133,23 @@ _step() {   # title script args...
 _step "14b- Reports fonts / cgicmd.dat" "$ROOT_DIR/09-Install/14b-oracle_reports_fonts.sh" $FLAG
 _step "14- Forms configuration"         "$ROOT_DIR/09-Install/14-oracle_setup_forms.sh" $FLAG
 _step "13- Reports servers"             "$ROOT_DIR/09-Install/13-oracle_setup_reports.sh" $FLAG
+
+# autostart scripts (30-) carry the system components of config.xml: new
+# servers of 13- are unknown to fmw_ctl.sh / systemd until re-rendered
+# (customer 2026-11-05: start-all started only the old repserver01).
+# Before stop-all: 30- writes the WLST key files against the running domain.
+_drift="$(autostart_drift "$DOMAIN_HOME")"
+if [ -n "$_drift" ]; then
+    if $APPLY && [ "$RC" -lt 2 ]; then
+        _step "30- autostart (component list)" "$ROOT_DIR/09-Install/30-configure_autostart.sh" --apply
+        _drift="$(autostart_drift "$DOMAIN_HOME")"
+        [ -z "$_drift" ] && ok "autostart scripts now list every Reports server" \
+                         || warn "autostart still out of date ($_drift) - startStop.sh handles the missing ones directly"
+    else
+        info "autostart scripts out of date ($_drift) - --apply re-renders them (09-Install/30-configure_autostart.sh --apply)"
+    fi
+fi
+unset _drift
 
 if $APPLY && [ "$RC" -lt 2 ]; then
     if $RESTART; then

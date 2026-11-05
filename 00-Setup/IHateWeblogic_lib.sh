@@ -601,6 +601,38 @@ confirm_snapshot() {
     esac
 }
 
+# autostart_drift [DOMAIN_HOME]
+# The autostart scripts of 09-Install/30-configure_autostart.sh (fmw_env.sh,
+# wls_start/stop/status.py) carry the system components (Reports servers,
+# OHS) of config.xml AT THE TIME OF RENDERING. A server created / removed
+# later (13-, 13- --remove-server) is not started / stopped by
+# fmw_ctl.sh / start-all / systemd (customer import 2026-11-05).
+# Prints "missing: a b | removed: c" (- = none); rc 0 = in sync or no
+# autostart, rc 1 = the scripts must be re-rendered (30- --apply).
+autostart_drift() {
+    local dh="${1:-${DOMAIN_HOME:-}}" cfg dn env have want miss extra
+    cfg="$dh/config/config.xml"
+    [ -f "$cfg" ] || return 0
+    dn="$(grep -m1 -o '<name>[^<]*</name>' "$cfg" 2>/dev/null | sed 's/<[^>]*>//g')"
+    env="${ORACLE_BASE:-/u01/app/oracle}/admin/${dn:-$(basename "$dh")}/ctrl/fmw_env.sh"
+    [ -f "$env" ] || return 0
+    have="$(sed -n 's/^SYSTEM_COMPONENTS="\(.*\)"$/\1/p' "$env" | tr ' ' '\n' | sed 's/:.*//' | grep -v '^$' | sort -u)"
+    # same selection as 30-configure_autostart.sh
+    want="$(awk '
+        /<system-component>/  { in_c=1; name=""; type="" }
+        in_c && match($0, /<name>([^<]+)<\/name>/, m)                     { name=m[1] }
+        in_c && match($0, /<component-type>([^<]+)<\/component-type>/, m) { type=m[1] }
+        /<\/system-component>/ {
+            if (type == "ReportsServerComponent" || type == "OHS") print name
+            in_c=0
+        }' "$cfg" | sort -u)"
+    miss="$(comm -13 <(printf '%s\n' "$have") <(printf '%s\n' "$want") | grep -v '^$' | xargs)"
+    extra="$(comm -23 <(printf '%s\n' "$have") <(printf '%s\n' "$want") | grep -v '^$' | xargs)"
+    [ -z "$miss$extra" ] && return 0
+    printf 'missing: %s | removed: %s\n' "${miss:--}" "${extra:--}"
+    return 1
+}
+
 # print_summary
 # Prints OK/WARN/FAIL counters and sets EXIT_CODE (0=OK, 1=WARN, 2=FAIL).
 print_summary() {

@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-05
 
+- Autostart drift: the autostart scripts of `30-` carry the Reports servers
+  of `config.xml` as of configure time. Servers created later by `13-` were
+  not started by `start-all` / systemd (customer: only the old
+  `repserver01` came up, REP-51002 for the new ones). The new lib function
+  `autostart_drift` drives three changes:
+  - `startStop.sh` warns and starts / stops the missing components directly
+    through the Node Manager;
+  - `13-` warns after `--apply` / `--remove-server`;
+  - `apply_customer_conf.sh --apply` re-renders with `30- --apply` before
+    the restart.
 - `13-`: the multicast check now runs AFTER the `rwnetwork.conf` port update.
   WLST creates a new Reports server with Oracle's default port 14021; the
   check ran before the update and stopped the first customer `--apply` with
