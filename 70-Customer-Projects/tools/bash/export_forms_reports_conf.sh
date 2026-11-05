@@ -11,7 +11,8 @@
 #                          rwservlet.properties / cgicmd.dat of every Reports
 #                          server, ReportsTools (uifont.ali, PPD, AFM),
 #                          reports.sh, domain scripts, tnsnames / sqlnet,
-#                          OHS routing
+#                          web tier: Nginx / Apache (+ mod_wl) / OHS with
+#                          every include (ihw_import/web_tier.txt = routing)
 #              ihw_import/ prepared for the library (proposals, nothing is
 #                          applied): customer formsweb.cfg keys + sections,
 #                          env keys, webutil keys, cgicmd keys, uifont.ali
@@ -56,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-05.2"   # bump on every change – shown in the report
+VERSION="2026-11-05.3"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -343,9 +344,9 @@ done
 _store "$DH/reports/bin/reports.sh" reports_script
 
 # =============================================================================
-# 3. Domain, Oracle Net, OHS
+# 3. Domain, Oracle Net, web tier
 # =============================================================================
-say "Domain / Oracle Net / OHS ..."
+say "Domain / Oracle Net / web tier ..."
 for f in "$DH/bin/setUserOverrides.sh" "$DH/bin/setDomainEnv.sh" "$DH/nodemanager/nodemanager.properties" \
          "$DH/config/config.xml" "$CFG/jps-config-jse.xml"; do _store "$f" domain; done
 TNS_DIRS=("$CFG" "$OH/network/admin")
@@ -370,25 +371,52 @@ for f in "$DH"/config/jdbc/*-jdbc.xml; do
     _usr="$(tr '\n' ' ' < "$f" | grep -oE '<name>user</name>[[:space:]]*<value>[^<]*' | sed 's/.*<value>//' | head -1)"
     printf '%s;%s;%s\n' "$(basename "$f" -jdbc.xml)" "$_u" "$_usr" >> "$JDBC_TXT"
 done
-# certificates - public part only (subject / issuer / expiry): the HTTPS
-# listeners of the web tier (OHS ssl.conf Listen) and the signers of the jars
+# web tier in front of WebLogic: Nginx, Apache (+ WebLogic plug-in mod_wl), OHS
+# (in this domain or a standalone web tier domain) - every configuration file
+# incl. includes into raw/, the routing into ihw_import/web_tier.txt
+WT_TXT="$STAGE/ihw_import/web_tier.txt"; WTS_TXT="$STAGE/ihw_import/web_tier_settings.txt"
+printf '%s\n' "$IHWT_WT_HEAD" > "$WT_TXT"; printf 'type;conf;key;value;file\n' > "$WTS_TXT"
+mapfile -t WT_FOUND < <(ihwt_webtier_find "$DH")
+for _e in "${WT_FOUND[@]}"; do
+    _t="${_e%%;*}"; _m="${_e#*;}"
+    ihwt_webtier_flatten "$_t" "$_m" > "$STAGE/.wt_flat"
+    while IFS= read -r _f; do _store "$_f" "web_tier_$_t" || true; done < <(sed -n 's/^#@@ FILE //p' "$STAGE/.wt_flat")
+    while IFS= read -r _f; do warn "web tier ($_t): not readable as $(id -un): $_f – copy it by hand (root)"; done \
+        < <(sed -n 's/^#@@ UNREADABLE //p' "$STAGE/.wt_flat")
+    ihwt_webtier_routes "$_t" "$_m" < "$STAGE/.wt_flat" >> "$WT_TXT"
+    ihwt_webtier_settings "$_t" "$_m" < "$STAGE/.wt_flat" >> "$WTS_TXT"
+done
+rm -f "$STAGE/.wt_flat"
+[ ${#WT_FOUND[@]} -eq 0 ] && warn "web tier: no Nginx / Apache / OHS configuration found (other host? -> export it there too)"
+# certificates - public part only (subject / issuer / expiry): every HTTPS
+# listener of the web tier (s_client with the server name, else the certificate
+# file) and the signers of the jars
 CERT_TXT="$STAGE/ihw_import/certificates.txt"
 printf 'source;subject;issuer;not_after\n' > "$CERT_TXT"
 if command -v openssl >/dev/null 2>&1; then
-    for sc in "$CFG"/components/OHS/*/ssl.conf; do
-        [ -f "$sc" ] || continue
-        for l in $(sed -n 's/^[[:space:]]*Listen[[:space:]]\+//p' "$sc"); do
-            case "$l" in *:*) _h="${l%:*}"; _p="${l##*:}" ;; *) _h=localhost; _p="$l" ;; esac
-            _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_h" </dev/null 2>/dev/null \
-                  | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
-            [ -n "$_c" ] && printf 'https %s:%s;%s;%s;%s\n' "$_h" "$_p" \
-                "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p')" "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p')" \
-                "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')" >> "$CERT_TXT"
-        done
-    done
+    awk -F';' 'NR>1 && $5=="yes" { n=split($3, L, ","); sn=$4; sub(/,.*/, "", sn)
+                for (i=1; i<=n; i++) if (L[i] !~ /^\[/ || L[i] ~ /^\[::\]:/) print $1 ";" L[i] ";" sn ";" $10 }' "$WT_TXT" \
+        | awk -F';' '{ p=$2; sub(/.*:/, "", p) } !seen[$1 ";" p ";" $3]++' \
+        | while IFS=';' read -r _t _l _sn _cf; do
+        _h="${_l%:*}"; _p="${_l##*:}"
+        case "$_h" in '*'|0.0.0.0|'[::]'|'') _h=127.0.0.1 ;; esac
+        case "$_sn" in ''|_|'*'*|localhost) _sn="$(hostname -f 2>/dev/null || hostname)" ;; esac
+        _src="https $_t $_l ($_sn)"
+        _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_sn" </dev/null 2>/dev/null \
+              | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
+        if [ -z "$_c" ] && [ -f "$_cf" ] && [ -r "$_cf" ]; then
+            _c="$(openssl x509 -in "$_cf" -noout -subject -issuer -enddate 2>/dev/null)"; _src="https $_t $_l (file $_cf)"
+        fi
+        if [ -n "$_c" ]; then
+            printf '%s;%s;%s;%s\n' "$_src" "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p' | tr ';' ',')" \
+                "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p' | tr ';' ',')" "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')"
+        else
+            printf '%s;-;-;not reachable / no readable certificate file\n' "$_src"
+        fi
+    done >> "$CERT_TXT"
 fi
 [ -f "$STAGE/ihw_import/.jar_certs" ] && { sort -u "$STAGE/ihw_import/.jar_certs" >> "$CERT_TXT"; rm -f "$STAGE/ihw_import/.jar_certs"; }
-unset _h _p _c _u _usr
+unset _h _p _c _u _usr _t _m _e _f _l _sn _cf _src
 
 # =============================================================================
 # 4. Fonts
@@ -726,9 +754,14 @@ _fp1="$(for ef in "${ENV_FILES[@]}"; do _cfgval "$ef" FORMS_PATH; done | head -1
     printf 'WLS_REPORTS_PORT="%s"\n' "$(_sp 'REPORTS' | cut -d';' -f1)"
     printf 'WLS_LISTEN_ADDRESS="%s"   # 14c default: 127.0.0.1 behind Nginx\n' "$(_sp '^AdminServer$' | cut -d';' -f2)"
     printf 'WLS_NODEMANAGER_PORT="%s"\n' "$(_cfgval "$DH/nodemanager/nodemanager.properties" ListenPort | tail -1)"
-    _sn="$(for h in "$CFG"/components/OHS/*/httpd.conf; do sed -n 's/^[[:space:]]*ServerName[[:space:]]\+//p' "$h" 2>/dev/null; done | head -1)"
+    # old public name: server name of the HTTPS route to /forms, else any HTTPS / OHS ServerName
+    _sn="$(awk -F';' 'NR>1 && $5=="yes" && $7 ~ /forms/ {print $4} NR>1 && $5=="yes" {print $4} NR>1 {print $4}' "$WT_TXT" \
+           | tr ',' '\n' | grep -vE '^(_|localhost|\*.*|-)?$' | head -1)"
+    [ -z "$_sn" ] && _sn="$(for h in "$CFG"/components/OHS/*/httpd.conf; do sed -n 's/^[[:space:]]*ServerName[[:space:]]\+//p' "$h" 2>/dev/null; done | head -1)"
     _sn="${_sn#*://}"; _sn="${_sn%%:*}"
     printf 'WLS_SERVER_FQDN="%s"   # OLD public name - the 14c host may get a new name / DNS alias\n' "${_sn:-$(hostname -f 2>/dev/null)}"
+    printf 'WEB_TIER_OLD="%s"   # web server(s) in front today - 14c: Nginx (04-root_nginx.sh)\n' \
+        "$(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort -u | paste -sd' ')"
     # RCU database of the domain (WLSSchemaDataSource: jdbc:oracle:thin:@//host:port/service)
     _ru="$(awk -F';' '$1=="WLSSchemaDataSource"{print $2 ";" $3}' "$JDBC_TXT" 2>/dev/null)"
     _url="${_ru%%;*}"; _usr="${_ru#*;}"
@@ -758,6 +791,9 @@ unset _first_rs _rc _fp1
     printf '  env files: %s\n' "${ENV_FILES[*]:-none}"
     printf '  sections: %s\n' "$(for fw in "${FORMS_CFGS[@]}"; do grep -oE '^\[[^]]+\]' "$fw"; done | tr -d '[]' | sort -u | paste -sd' ')"
     printf '\n== Reports servers (ihw_import/reports_servers.txt) ==\n'; sed 's/^/  /' "$RSV"
+    printf '\n== Web tier (ihw_import/web_tier.txt, web_tier_settings.txt) ==\n'
+    [ ${#WT_FOUND[@]} -gt 0 ] && printf '  %s\n' "${WT_FOUND[@]}" || printf '  none found\n'
+    awk -F';' 'NR>1 {n[$1]++} END {for (t in n) printf "  %s: %d route(s)\n", t, n[t]}' "$WT_TXT"
     printf '\n== Customer jars (ihw_import/jars.txt) – FSAL / JACOB / frm*.jar excluded ==\n'; sed 's/^/  /' "$JARS"
     printf '\n== Fonts (ihw_import/fonts.txt) ==\n'
     printf '  %s font file(s): %s customer, %s Microsoft, %s free (skipped – 14b- deploys them)\n' \
@@ -784,6 +820,7 @@ unset _first_rs _rc _fp1
     printf '  custom_fonts_dir/              -> 04-ReportsFonts/custom_fonts_dir/ (customer fonts; Microsoft fonts only with licence – fonts.txt class)\n'
     printf '  forms_java/ + jars.txt         -> customer jars (signing / archive= on 14c)\n'
     printf '  environment.conf.proposal      -> values for 01-setup-interview / environment.conf\n'
+    printf '  web_tier.txt                   -> 09-Install/nginx-wls.conf.template (04-root_nginx.sh): own paths by hand\n'
     if $LOADP; then
         printf '\n== Load profile (load/, last %s days, aggregated - no log lines) ==\n' "$LOAD_DAYS"
         printf '  Forms starts: %s   Forms days: %s   Reports jobs (past queue): %s   sar days: %s\n' \

@@ -33,7 +33,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.2"
+VERSION="2026-11-05.3"
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
@@ -157,6 +157,7 @@ mapfile -t SQLNETS  < <(find "$RAW" -name sqlnet.ora 2>/dev/null | sort)
 mapfile -t RWSERVLETS < <(find "$RAW" -name rwservlet.properties 2>/dev/null | sort)
 mapfile -t RWCONFS < <(find "$RAW" -name rwserver.conf 2>/dev/null | sort)
 mapfile -t OHSCONFS < <(find "$RAW" -name mod_wl_ohs.conf 2>/dev/null | sort)
+WT="$IMP/web_tier.txt"; WTS="$IMP/web_tier_settings.txt"     # export 2026-11-05.3+
 say "Forms / Reports / fonts / sources / net ..."
 
 # =============================================================================
@@ -562,7 +563,7 @@ jac="false"; grep -qi 'jacob' "$CSV/.fw_all.tsv" 2>/dev/null && jac="true"
 cl="$(awk -F';' -v std=" $STD_SECTIONS " 'index(std, " " $1 " ")==0 && $2+0>0 {print $1; exit}' "$CSV/load_forms_sections.csv" 2>/dev/null)"
 [ -z "$cl" ] && cl="$(awk -F';' -v std=" $STD_SECTIONS " 'index(std, " " $1 " ")==0 && $2!="-" {print $1; exit}' "$CSV/forms_sections.csv")"
 clf="$(awk -F';' -v s="$cl" '$1==s {print $2}' "$CSV/forms_sections.csv")"
-cert="$(awk -F';' 'NR>1 && $1 ~ /^https/ {print $2; exit}' "$IMP/certificates.txt" 2>/dev/null)"
+cert="$(awk -F';' 'NR>1 && $1 ~ /^https/ && $2 != "-" {print $2; exit}' "$IMP/certificates.txt" 2>/dev/null)"
 jcert="$(awk -F';' 'NR>1 && $1 ~ /^jar/ {print $2 " (until " $4 ")"; exit}' "$IMP/certificates.txt" 2>/dev/null)"
 # module / report directories: the source directory (not below ORACLE_HOME) with the most .fmx / .rdf+.rep
 fp_old="$(awk -F';' '$1 !~ /^\$ORACLE_HOME/ && $6 ~ /^[0-9]+$/ && $6+0 > m {m=$6; d=$1} END {print d}' "$CSV/sources.csv")"
@@ -603,7 +604,11 @@ rt_old="$(awk -F';' '$2 ~ /folderAccess.write/ && $1 ~ /directories\)/ {print $1
     _ev REPORTS_SECURITY "ldap" "customer: no securityId / identifier (finding) - 14c secured server" "decision"
     _ev "REPORTS_ENGINE_*" "50 / 2 / 2 / 5" "engLife / init / min / max - 14c standard instead of engLife=1 (finding)" "decision"
     if [ -n "$cert" ]; then _ev "SSL_ORG / SSL_COUNTRY / SSL_CA_CN" "$cert" "certificate of the old HTTPS listener" "from export"
-    else _ev "SSL_ORG / SSL_COUNTRY / SSL_CA_CN" "-" "certificate subject not in this export - fresh export (2026-11-04.5)" "missing in this export"; fi
+    else _ev "SSL_ORG / SSL_COUNTRY / SSL_CA_CN" "-" "certificate subject not in this export - fresh export (2026-11-05.3: every Nginx / Apache / OHS HTTPS listener)" "missing in this export"; fi
+    if [ -f "$WT" ]; then
+        _ev ADMIN_IP_RANGE "-" "admin networks for /console, /em, Reports web commands - old web tier: $(awk -F';' 'NR>1 && $7 ~ /console|\/em/ {print $7 " " $9}' "$WT" | sort -u | paste -sd, - | sed 's/^$/not routed/')" "decision"
+        _ev "(web tier - no key)" "nginx" "today: $(awk -F';' 'NR>1 {print $1}' "$WT" | sort -u | paste -sd' ' -) - 14c: Nginx (04-root_nginx.sh), routes in section 13.2" "decision"
+    fi
     if [ -n "$jcert" ]; then _ev "FORMS_SIGN_*" "$jcert" "signer of the customer jars - code-signing certificate for 14c?" "decision"
     else _ev "FORMS_SIGN_*" "-" "jar signer: see section 5 (fresh export lists the subject)" "decision"; fi
     _ev "ORACLE_BASE, ORACLE_HOME, JDK_HOME, DOMAIN_HOME, ORACLE_INVENTORY, PATCH_STORAGE, TNS_ADMIN, IHW_ENV_TYPE" "-" "layout of the new host" "asked (new host)"
@@ -711,12 +716,74 @@ if [ -f "$NMPROP" ]; then
 fi
 n="$(_secret_hits '(setDomainEnv|setUserOverrides)\.sh$' 'password|passwd|pwd')"
 [ "${n:-0}" -gt 0 ] && f_add WARN "Security / WebLogic" "$n active line(s) with a password keyword in setDomainEnv.sh / setUserOverrides.sh" "no -D...password=... in start scripts - boot.properties / wallet"
-for o in "${OHSCONFS[@]}"; do
+# web tier (Nginx / Apache + mod_wl / OHS) - export 2026-11-05.3+; older
+# exports: the OHS-only checks below
+WT_ADMIN='(^|[^a-z])(console|em|management|bea_wls_[a-z_]*|wls-wsat|_async|consolehelp)([^a-z]|$)'
+if [ -f "$WT" ] && [ "$(wc -l < "$WT")" -gt 1 ]; then
+    f_add INFO "Web tier" "web server(s) in front today: $(awk -F';' 'NR>1 {print $1 " " $2}' "$WT" | sort -u | paste -sd, -)" "14c: one Nginx (04-root_nginx.sh / 05-root_nginx_ssl.sh), routes in section 13.2"
+    x="$(awk -F';' -v re="$WT_ADMIN" 'NR>1 && $9=="open" && $8 != "-" && $8 !~ /^(redirect|static) / && $7 ~ re {print $1 " " $7}' "$WT" | sort -u | paste -sd, -)"
+    [ -n "$x" ] && f_add WARN "Security / Web tier" "admin consoles routed without restriction: $x" "14c: /console and /em only from the admin network (ADMIN_IP_RANGE) or not routed"
+    # TLS protocols: nginx tokens, Apache "all" minus "-..." , OHS nzos_Version_1_0 / 1_1
+    x="$(awk -F';' 'NR>1 && $5=="yes" {print $1 " " $3 "|" $6}' "$WT" | sort -u | awk -F'|' '
+          { n=split($2, t, /[[:space:]]+/); old=""; neg=""; all=0
+            for (i=1; i<=n; i++) { w=t[i]; if (w ~ /^-/) { neg=neg " " substr(w,2) " "; continue } sub(/^\+/, "", w)
+                if (tolower(w)=="all") all=1
+                else if (w ~ /^(SSLv2|SSLv3|TLSv1|TLSv1\.0|TLSv1\.1|nzos_Version_1_0|nzos_Version_1_1)$/) old=old " " w }
+            if (all) { if (index(neg, " TLSv1 ")==0) old=old " TLSv1"; if (index(neg, " TLSv1.1 ")==0) old=old " TLSv1.1" }
+            if (old != "") print $1 " (" substr(old,2) ")" }' | paste -sd, -)"
+    [ -n "$x" ] && f_add WARN "Security / Web tier" "old TLS protocols allowed: $x" "14c: TLSv1.2 TLSv1.3 only (nginx-wls.conf.template)"
+    x="$(awk -F';' 'NR>1 && $5=="yes" && $6=="" {print $1 " " $3}' "$WT" | sort -u | paste -sd, -)"
+    [ -n "$x" ] && f_add HINT "Security / Web tier" "HTTPS listener without explicit protocol list: $x" "the default of the web server version applies (older versions allow TLS 1.0 / 1.1) - check"
+    x="$(awk -F';' 'NR>1 && $5=="no" && $8 != "-" && $8 !~ /^(redirect|static) / && $7 ~ /forms|reports|rwservlet|weblogic|\*/ {print $1 " " $3 " " $7}' "$WT" | sort -u | paste -sd, -)"
+    [ -n "$x" ] && f_add WARN "Security / Web tier" "plain HTTP routed to WebLogic: $x" "14c: HTTP only redirects to HTTPS"
+    x="$(awk -F';' 'NR>1 && $8 != "-" && $8 !~ /^(redirect|static) / { t=$8; sub(/^[^(]*\(/, "", t); sub(/\)$/, "", t)
+          n=split(t, h, ","); for (i=1; i<=n; i++) { v=h[i]; sub(/:[0-9]*$/, "", v); if (v != "" && v !~ /^(127\.|localhost|\[::1\])/) print v } }' "$WT" | sort -u | paste -sd, -)"
+    [ -n "$x" ] && f_add INFO "Web tier" "backends reached over the network: $x" "14c: WebLogic on 127.0.0.1 behind the local Nginx (separate web tier host = own decision)"
+    if [ -f "$WTS" ]; then
+        x="$(awk -F';' 'NR>1 && tolower($3)=="traceenable" && tolower($4) ~ /^on/ {print $1 " " $5}' "$WTS" | sort -u | paste -sd, -)"
+        [ -n "$x" ] && f_add WARN "Security / Web tier" "TraceEnable on: $(short "$x")" "TraceEnable off (cross-site tracing)"
+        x="$(awk -F';' 'NR>1 && tolower($3)=="debugconfiginfo" && tolower($4) ~ /^on/ {print $1 " " $5}' "$WTS" | sort -u | paste -sd, -)"
+        [ -n "$x" ] && f_add WARN "Security / Web tier" "DebugConfigInfo ON: $(short "$x")" "switch off (shows the routing configuration to everybody)"
+        x="$(awk -F';' 'NR>1 && ((tolower($3)=="autoindex" && tolower($4) ~ /^on/) || ($3=="Options" && $4 !~ /-Indexes/)) {print $1 " " $5}' "$WTS" | sort -u | paste -sd, -)"
+        [ -n "$x" ] && f_add HINT "Security / Web tier" "directory listing enabled: $(short "$x")" "autoindex off / Options -Indexes"
+        x="$(awk -F';' 'NR>1 && $1=="nginx" {print $2}' "$WT" | sort -u | while read -r c; do
+              awk -F';' -v c="$c" '$2==c && $3=="server_tokens" && tolower($4) ~ /^off/ {f=1} END {exit !f}' "$WTS" || printf '%s\n' "$c"; done | paste -sd, -)"
+        [ -n "$x" ] && f_add HINT "Security / Web tier" "nginx shows its version (server_tokens not off): $x" "server_tokens off"
+        x="$(awk -F';' 'NR>1 && ($1=="apache" || $1=="ohs") {print $1 ";" $2}' "$WT" | sort -u | while IFS=';' read -r ty c; do
+              v="$(awk -F';' -v c="$c" '$2==c && tolower($3)=="servertokens" {v=$4} END {print v}' "$WTS")"
+              case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in prod|productonly) ;; *) printf '%s %s (%s)\n' "$ty" "$c" "${v:-default Full}" ;; esac; done | paste -sd, -)"
+        [ -n "$x" ] && f_add HINT "Security / Web tier" "web server shows version / OS (ServerTokens): $(short "$x")" "ServerTokens Prod, ServerSignature Off"
+    fi
+    x="$(sed -n 's/^  web tier (\([a-z]*\)): not readable as [^:]*: \(.*\) – copy.*/\1 \2/p' "$ROOT/00_report.txt" | paste -sd, -)"
+    [ -n "$x" ] && nc_add "Web tier files not readable at the export" "$x"
+    # 13.2 routing table: today -> 14c Nginx
+    awk -F';' 'NR>1 { p=$7; q=p; sub(/^(= |~\*? |\^~ )/, "", q); gsub(/[\^$]/, "", q); t=$8
+        if (q ~ /rwservlet\/\(?getserverinfo/) m="template: Reports admin web commands (ADMIN_IP_RANGE)"
+        else if (q ~ /^\/?forms[wW]eb/ || t ~ /formsWeb/) m="Forms client distribution (FORMS_CLIENT_DIST, 40-)"
+        else if (q ~ /^\/forms/) m="template: location /forms/"
+        else if (q ~ /^\/reports/) m="template: location /reports/"
+        else if (q ~ /^\/(console|em)([\/*]|$)/) m="template: /console, /em (ADMIN_IP_RANGE)"
+        else if (q ~ /^\/(ords|i)\// || q ~ /^\/ords/) m="ORDS / APEX (12-APEX-Ords)"
+        else if (p == "-" && t ~ /^redirect/) m="template: HTTP -> HTTPS redirect"
+        else if (q ~ /^\/(nginx-health|404\.html|50x\.html)$/ || p ~ /^~ \/\\\./) m="template"
+        else if (p == "-") m="-"
+        else m="not in the template - own location by hand or drop"
+        printf "%s;%s;%s;%s;%s;%s;%s;%s\n", $1, $3, $4, $5 ($6 != "" ? " (" $6 ")" : ""), p, t, $9, m }' "$WT" | M > "$CSV/web_tier.csv"
+    nown="$(grep -c ';not in the template' "$CSV/web_tier.csv")"
+    [ "$nown" -gt 0 ] && f_add HINT "Web tier" "$nown route(s) not covered by the 14c Nginx template: $(grep ';not in the template' "$CSV/web_tier.csv" | cut -d';' -f5 | sort -u | paste -sd, -)" "add own location blocks to nginx-wls.conf (04-root_nginx.sh) or drop them - section 13.2"
+    WT_INFO="Web servers in front of WebLogic at the export (\`ihw_import/web_tier.txt\`) and where each route goes in the 14c Nginx (\`09-Install/nginx-wls.conf.template\`)."
+else
+    : > "$CSV/web_tier.csv"
+    WT_INFO="No web tier routing in this export (export older than 2026-11-05.3, or no Nginx / Apache / OHS on the host) – OHS checks only."
+    nc_add "Web tier (Nginx / Apache / OHS routing, TLS, admin paths)" "export older than 2026-11-05.3 - fresh export"
+fi
+md "Web server;listen;server name;TLS (protocols);path;target;access;14c Nginx" web_tier < "$CSV/web_tier.csv"
+[ -f "$WT" ] || for o in "${OHSCONFS[@]}"; do
     grep -qiE '^[[:space:]]*DebugConfigInfo[[:space:]]+ON' "$o" && f_add WARN "Security / Web tier" "OHS DebugConfigInfo ON" "switch off (shows the routing configuration to everybody)"
     x="$(awk '/^[[:space:]]*#/{next} /<Location[[:space:]]+\/(console|em)/{l=$2; gsub(/>/,"",l); r=0} /Require|Allow from|Deny from/{r=1} /<\/Location>/{ if(l!="" && !r) print l; l="" }' "$o" | paste -sd, -)"
     [ -n "$x" ] && f_add WARN "Security / Web tier" "admin consoles routed by the web server without restriction: $x" "14c: /console and /em only from the admin network (Nginx ADMIN_IP_RANGE) or not routed"
 done
-[ ${#OHSCONFS[@]} -eq 0 ] && nc_add "OHS rules" "no mod_wl_ohs.conf in the export"
+[ -f "$WT" ] || [ ${#OHSCONFS[@]} -gt 0 ] || nc_add "OHS rules" "no mod_wl_ohs.conf in the export"
 if [ ${#SQLNETS[@]} -gt 0 ]; then
     grep -qiE 'SQLNET\.(ENCRYPTION|CRYPTO_CHECKSUM)_CLIENT' "${SQLNETS[@]}" || \
         f_add INFO "Security / Oracle Net" "sqlnet.ora without client encryption settings" "check whether the database enforces Oracle Net encryption"
@@ -944,7 +1011,7 @@ export IHWA_CUSTOMER="$CUST" IHWA_DATE="$DATE" IHWA_SRC_HOST="${SRC_HOST:--}" \
     IHWA_ENV_PROPOSAL="${ENV_PROPOSAL:-# no proposal in the export}" \
     IHWA_LOAD_INFO="$LOAD_INFO" IHWA_LOAD_PERIOD="$LOAD_PERIOD" IHWA_LOAD_FRMWEB="$LOAD_FRMWEB" \
     IHWA_LOAD_RWENG="$LOAD_RWENG" IHWA_LOAD_HOST="$LOAD_HOST" \
-    IHWA_N_ENV_EXPORT="$N_ENV_EXPORT" IHWA_N_ENV_DEC="$N_ENV_DEC" IHWA_N_ENV_MISS="$N_ENV_MISS"
+    IHWA_WT_INFO="$WT_INFO" IHWA_N_ENV_EXPORT="$N_ENV_EXPORT" IHWA_N_ENV_DEC="$N_ENV_DEC" IHWA_N_ENV_MISS="$N_ENV_MISS"
 awk -v mddir="$MD" '
     /^<!-- BLOCK:[a-z_]+ -->$/ { b=$0; sub(/^<!-- BLOCK:/,"",b); sub(/ -->$/,"",b)
         f=mddir "/" b ".md"; if ((getline l < f) > 0) { print l; while ((getline l < f) > 0) print l; close(f) } else print "_none found_"

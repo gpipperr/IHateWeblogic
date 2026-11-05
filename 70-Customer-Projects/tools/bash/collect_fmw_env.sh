@@ -35,7 +35,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-05.2"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -337,12 +337,27 @@ runsh 60_net.txt "Web server in front (nginx / httpd / OHS)" \
 # what the oracle user cannot read is reported, not forced)
 runsh 61_webserver.txt "Versions" "nginx -v 2>&1; httpd -v 2>&1; rpm -q nginx httpd mod_ssl 2>&1"
 runsh 61_webserver.txt "Which process owns 80 / 443 (needs root to show the pid)" "ss -ltnp 2>/dev/null | grep -E ':(80|443|8080|8443|7777|4443) '"
-runsh 61_webserver.txt "WebLogic proxy plug-in for Apache (mod_wl*)" "ls -l /etc/httpd/modules/mod_wl* /usr/lib64/httpd/modules/mod_wl* 2>&1; grep -rl 'weblogic_module\|mod_wl' /etc/httpd 2>/dev/null"
-for f in /etc/httpd/conf/httpd.conf /etc/httpd/conf.d/*.conf /etc/httpd/conf.modules.d/*.conf \
-         /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf /etc/nginx/default.d/*.conf; do
-    [ -e "$f" ] || continue
-    if [ -r "$f" ]; then copy 61_webserver.txt "$f"; else printf '### not readable: %s\n' "$f" >> "$OUT/61_webserver.txt"; fi
+runsh 61_webserver.txt "WebLogic proxy plug-in for Apache (mod_wl*)" "ls -l /etc/httpd/modules/mod_wl* /usr/lib64/httpd/modules/mod_wl* /etc/apache2/modules/mod_wl* /usr/local/apache2/modules/mod_wl* 2>&1"
+# every web server (running or installed, standalone OHS domains too) with all
+# includes inlined, masked; routing table in front (ihw_tools_lib ihwt_webtier_*)
+mapfile -t WT_FOUND < <(ihwt_webtier_find "$DH")
+{
+    printf '### Web servers found (type;main configuration)\n'
+    printf '%s\n' "${WT_FOUND[@]:-none}"
+    printf '\n### Routing (%s)\n' "$IHWT_WT_HEAD"
+    for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | ihwt_webtier_routes "${e%%;*}" "${e#*;}"; done
+    printf '\n### Rated directives (type;conf;key;value;file)\n'
+    for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | ihwt_webtier_settings "${e%%;*}" "${e#*;}"; done
+    printf '\n'
+} >> "$OUT/61_webserver.txt"
+for e in "${WT_FOUND[@]}"; do
+    # OHS of this domain: 43_ohs_config.txt has the files already
+    case "${e#*;}" in "$DH"/*) continue ;; esac
+    { printf '### configuration %s (%s) - includes inlined, #@@ = file markers\n' "${e#*;}" "${e%%;*}"
+      ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | mask; printf '\n'; } >> "$OUT/61_webserver.txt"
 done
+fact "Web tier" "$(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort | uniq -c | awk '{printf "%s%s x%s", (NR>1?", ":""), $2, $1}')"
+fact "Web tier unreadable" "$(for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}"; done | grep -c '^#@@ UNREADABLE') file(s)"
 
 # =============================================================================
 # 7. Logs (sizes always, error lines only with --logs)

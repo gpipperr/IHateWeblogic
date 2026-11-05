@@ -51,7 +51,8 @@ directory names of the customer: hand it only to the customer.
     [12.6 Reports requests](#126-reports--servlet-requests-per-day),
     [12.7 Host](#127-host--cpu-and-memory-sar)
 13. [Target in 14c – how we build it](#13-target-in-14c--how-we-build-it) –
-    [13.1 environment.conf values](#131-values-for-the-14c-environmentconf)
+    [13.1 environment.conf values](#131-values-for-the-14c-environmentconf),
+    [13.2 web tier](#132-web-tier--routing-today-and-in-14c)
 14. [Findings and recommendations](#14-findings-and-recommendations) –
     [14.1 security](#141-security-findings), [14.2 other](#142-other-findings),
     [14.3 not checked](#143-not-checked)
@@ -256,6 +257,7 @@ Daily average and peak of the CPU, average memory use (`sysstat`).
 | fonts | free replacements as OS packages (`14b-`), customer fonts into `04-ReportsFonts/custom_fonts_dir/` |
 | source directories | one customer directory tree below `$ORACLE_BASE/forms` / `reports` (`FORMS_CUSTOMER_DIR`, `REPORTS_PATH`) |
 | database aliases | one `tnsnames.ora` in one `TNS_ADMIN` for all processes |
+| web tier (OHS / Apache with the WebLogic plug-in / Nginx) | one Nginx on the host (`04-root_nginx.sh`, TLS `05-root_nginx_ssl.sh`), WebLogic only on 127.0.0.1 – section 13.2 |
 
 ### 13.1 Values for the 14c `environment.conf`
 
@@ -267,7 +269,14 @@ never taken from an export.
 
 <!-- BLOCK:env_values -->
 
-### 13.2 Raw proposal of the export (`environment.conf.proposal`)
+### 13.2 Web tier – routing today and in 14c
+
+{{WT_INFO}} "access" = restricted by allow / deny / Require / authentication
+in that location.
+
+<!-- BLOCK:web_tier -->
+
+### 13.3 Raw proposal of the export (`environment.conf.proposal`)
 
 ```
 {{ENV_PROPOSAL}}

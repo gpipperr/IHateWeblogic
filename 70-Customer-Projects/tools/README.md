@@ -134,7 +134,8 @@ without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `33_components`,
 `34_other_homes`, `35_opatch_prereq`, `40_config.xml`, `41_domain_scripts`,
 `42_forms_reports_config`, `43_ohs_config`, `44_forms_client`, `50_processes`,
-`60_net`, `61_webserver`, `70_logs`). Runtime on the test host: about 60 s.
+`60_net`, `61_webserver` (Nginx / Apache / standalone OHS: routing, rated
+directives, configuration with all includes), `70_logs`). Runtime on the test host: about 60 s.
 
 **Read-only:** writes only into the output directory (OPatch writes its usual
 logs to `$ORACLE_HOME/cfgtoollogs` while it reads the inventory). Every
@@ -625,8 +626,8 @@ source passwords. Choose the mode **before** the run:
 | Part | Content |
 |---|---|
 | `00_report.txt` | versions, paths, Forms sections, Reports servers, customer jars, fonts, source dirs, warnings, what goes where |
-| `raw/domain/`, `raw/oracle_home/`, `raw/other/` | 1:1 copies below their original path: `formsweb.cfg` + every `envFile`, `Registry.dat`, `webutil.cfg`, `*.res`, jnlp files; per Reports server (standalone + in-process) `rwserver.conf`, `rwnetwork.conf`, `rwservlet.properties`, `cgicmd.dat`; ReportsTools `uifont.ali`, PPD, AFM; `reports.sh`, `setUserOverrides.sh`, `config.xml`, `jps-config-jse.xml`, `tnsnames.ora` / `sqlnet.ora`, OHS routing |
-| `ihw_import/` | proposals laid out for the library (nothing applied): `formsweb.cfg.default_overrides` / `.sections`, `default.env.customer_keys` (`FORMS_PATH_CUSTOMER`, `CLASSPATH_CUSTOMER`), `webutil.cfg.overrides`, `cgicmd.dat.customer_keys` (without Oracle's sample keys), `uifont.ali.customer`, `custom_fonts_dir/`, `forms_java/` + `jars.txt`, `reports_servers.txt`, `environment.conf.proposal` |
+| `raw/domain/`, `raw/oracle_home/`, `raw/other/` | 1:1 copies below their original path: `formsweb.cfg` + every `envFile`, `Registry.dat`, `webutil.cfg`, `*.res`, jnlp files; per Reports server (standalone + in-process) `rwserver.conf`, `rwnetwork.conf`, `rwservlet.properties`, `cgicmd.dat`; ReportsTools `uifont.ali`, PPD, AFM; `reports.sh`, `setUserOverrides.sh`, `config.xml`, `jps-config-jse.xml`, `tnsnames.ora` / `sqlnet.ora`, web tier: every configuration file of Nginx / Apache (+ `mod_wl`) / OHS incl. all includes |
+| `ihw_import/` | proposals laid out for the library (nothing applied): `formsweb.cfg.default_overrides` / `.sections`, `default.env.customer_keys` (`FORMS_PATH_CUSTOMER`, `CLASSPATH_CUSTOMER`), `webutil.cfg.overrides`, `cgicmd.dat.customer_keys` (without Oracle's sample keys), `uifont.ali.customer`, `custom_fonts_dir/`, `forms_java/` + `jars.txt`, `reports_servers.txt`, `environment.conf.proposal`, `web_tier.txt` (routing) + `web_tier_settings.txt` |
 | `sources_inventory.csv`, `sources_files.txt`, `sources_dependencies.txt` | every configured Forms / Reports source directory (`FORMS_PATH`, `REPORTS_PATH`, `folderAccess`, `sourceDir`, WebUtil transfer dirs, icon path) with file counts per type; attached libraries / menus per `.fmx` (heuristic, `strings`), missing referenced files, TNS aliases vs. `tnsnames.ora` |
 | `manifest.csv`, `secrets_locations.txt` | `category;source;stored;size;sha256`; where passwords are (file:line:keyword, never the value) |
 
@@ -709,7 +710,8 @@ first, WARN > HINT > INFO. Examples of the rules:
 | Security / Forms | `userid` stored in a section (clear text / `{AES}` encrypted), `allow_debug=true`, `restrictedURLparams` shorter than the 14c standard, client trace, `http://` URLs, `FORMS_RESTRICT_ENTER_QUERY=FALSE`, password keywords on active env file lines |
 | Security / WebUtil | `transfer.appsrv.accessControl=FALSE`, `/tmp` as transfer directory, `transfer.database.enabled`, own `install.syslib` DLLs (not JACOB) |
 | Security / Reports | no encrypted `<identifier>`, no `securityId`, no `<folderAccess>`, `webcommandaccess` L2, `cgicmd.dat` keys with logins, world-writable read / write directories |
-| Security / WebLogic, web tier, net | production mode, empty `listen-address`, demo keystores, Node Manager, `-D…password` in start scripts, OHS `DebugConfigInfo`, `/console` `/em` routed without restriction, `sqlnet.ora` encryption |
+| Security / WebLogic, net | production mode, empty `listen-address`, demo keystores, Node Manager, `-D…password` in start scripts, `sqlnet.ora` encryption |
+| Security / web tier (Nginx, Apache + `mod_wl`, OHS) | `/console` `/em` (and other WLS admin paths) routed without allow / deny / `Require`, old TLS protocols (SSLv3 / TLS 1.0 / 1.1, Apache `all` without `-TLSv1 -TLSv1.1`, OHS `nzos_Version_1_0/1_1`), HTTPS without a protocol list, plain HTTP routed to WebLogic, `TraceEnable on`, `DebugConfigInfo ON`, directory listing, version shown (`server_tokens`, `ServerTokens`), backends reached over the network; routes not covered by the 14c Nginx template (table 13.2) |
 | Security / Jars | unsigned, SHA-1 / MD5 signature (JDK 21 = unsigned), signer expired without timestamp (WARN) / with timestamp (HINT), expiring in 90 days (`keytool -printcert -jarfile`, read only) |
 | Oracle Net | aliases unused / used but not defined / defined twice, `SID=`, IP as host, several TNS_ADMIN – usages read from the active lines only, Oracle's `cgicmd.dat` sample keys and Kerberos principals ignored |
 | Forms runtime (rules of `06-FormsDiag`) | timeout chain `heartBeat` < `FORMS_TIMEOUT` < servlet session-timeout (own table 3.2), `maxRuntimeProcesses` missing (DoS), prestart pool in `[default]` / none at all, `networkRetries=0`, `gzipCompressApplet`, no `time-taken` in the WLS_FORMS access log, env values with the old host name – recommendations point to `06-FormsDiag/forms_perf_settings.sh` / `forms_perf_analyse.sh` and `environment.conf` |
@@ -722,6 +724,25 @@ is searched for clear-text patterns (`password=…`, `{AES}…`,
 `<identifier>…</identifier>`, `user/pw@`) and **deleted** on a hit. The report
 still holds host names, paths and user directory names of the customer – hand
 it only to that customer.
+
+Export version 2026-11-05.3 adds the **web tier**: Nginx, Apache httpd with
+the WebLogic plug-in (`mod_wl`) and OHS – also a standalone OHS web tier
+domain – are found from the running processes (`nginx: master -c`,
+`httpd -f / -d`), the default paths and a bounded search; every configuration
+file **including all includes** is stored below `raw/other/…` (shared lib
+functions `ihwt_webtier_find` / `_flatten` / `_routes` / `_settings`, no
+binary and no root needed – files the owner cannot read are listed as
+warnings). `ihw_import/web_tier.txt` holds one row per route
+(`type;conf;listen;server_name;tls;protocols;path;target;access;cert`),
+`web_tier_settings.txt` the rated directives. The certificate subjects now
+come from **every** HTTPS listener (`openssl s_client` with the server name,
+else the certificate file) – before only OHS `ssl.conf` was read, so a
+customer with TLS on Nginx / Apache had no subject. `WLS_SERVER_FQDN` is
+taken from the `server_name` of the HTTPS route to `/forms`; the analysis
+maps every route to the 14c Nginx (section 13.2) and proposes
+`ADMIN_IP_RANGE`. `collect_fmw_env.sh` 2026-11-05.2 uses the same functions
+(`61_webserver.txt`: routing table, rated directives, configuration with the
+includes inlined, masked).
 
 Export version 2026-11-04.5 additionally collects the JDBC descriptors
 `config/jdbc/*-jdbc.xml` (RCU data sources, `ihw_import/jdbc.txt`:

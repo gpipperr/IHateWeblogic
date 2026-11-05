@@ -3,6 +3,23 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
+## 2026-11-05
+
+- **Web tier in the customer tools:** export `export_forms_reports_conf.sh`
+  2026-11-05.3, collector `collect_fmw_env.sh` 2026-11-05.2 and analysis
+  2026-11-05.3 find Nginx, Apache + WebLogic plug-in (`mod_wl`) and OHS
+  (also standalone web tier domains), store every configuration file incl.
+  includes, and write the routing (`ihw_import/web_tier.txt`); the analysis
+  maps the routes to the 14c Nginx template (section 13.2) and rates admin
+  paths, TLS protocols, plain HTTP, `TraceEnable`, `DebugConfigInfo`,
+  version banners. Certificate subjects from every HTTPS listener (was: OHS
+  only). Shared functions `ihwt_webtier_*` in `ihw_tools_lib.sh` 2026-11-05.2.
+- `collect_fmw_env.sh` 2026-11-05.1: encrypted ZIP by default, patch scope
+  (registry versions, bundled JDK, components, other homes, OPatch
+  prerequisites, Forms client JRE).
+- Load profile fixes from the first real customer export (12c job status 12,
+  per-line date cutoff, raw showjobs times).
+
 ## 2026-11-04
 
 - **Cleanup – one environment tool chain:** `00-Setup/init_env.sh` renamed

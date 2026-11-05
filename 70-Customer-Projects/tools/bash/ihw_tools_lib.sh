@@ -15,7 +15,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-05.1"
+IHWT_LIB_VERSION="2026-11-05.2"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -177,4 +177,233 @@ ihwt_decrypt() {
         pw=""; rm -f "$out"; printf 'decryption failed (wrong passphrase?)\n' >&2; return 2
     fi
     pw=""
+}
+
+# -----------------------------------------------------------------------------
+# Web tier in front of WebLogic: Nginx, Apache httpd (+ WebLogic proxy plug-in
+# mod_wl) and Oracle HTTP Server (OHS). Used by collect_fmw_env.sh,
+# export_forms_reports_conf.sh and analyse_forms_reports_export.sh.
+#   ihwt_webtier_find [DOMAIN_HOME ...]  -> "type;main_conf" (type nginx|apache|ohs)
+#   ihwt_webtier_flatten TYPE MAIN       -> config with all includes inlined
+#   ihwt_webtier_routes TYPE MAIN        -> routing rows (stdin = flattened config)
+#   ihwt_webtier_settings TYPE MAIN      -> security-relevant directives (stdin)
+# Read-only; what the caller cannot read is reported, never forced.
+# -----------------------------------------------------------------------------
+IHWT_WT_HEAD="type;conf;listen;server_name;tls;protocols;path;target;access;cert"
+
+# ihwt_webtier_find [DOMAIN_HOME ...] - running processes first, then the
+# default paths and the OHS components of the given domains (+ a bounded search
+# for standalone OHS domains). One line per main configuration file.
+ihwt_webtier_find() {
+    local l bin conf root t d f
+    {
+        # running: nginx master / httpd (Apache or OHS) - ps shows the args of all users
+        ps -eo args 2>/dev/null | while IFS= read -r l; do
+            case "$l" in
+                "nginx: master process "*)
+                    l="${l#nginx: master process }"; bin="${l%% *}"
+                    conf="$(printf '%s' "$l" | sed -n 's/.*[[:space:]]-c[[:space:]]\+\([^[:space:]]*\).*/\1/p')"
+                    [ -z "$conf" ] && [ -x "$bin" ] && conf="$("$bin" -V 2>&1 | grep -o -- '--conf-path=[^[:space:]]*' | cut -d= -f2)"
+                    printf 'nginx;%s\n' "${conf:-/etc/nginx/nginx.conf}" ;;
+                */httpd\ *|*/httpd|*/httpd.worker*|*/httpd.event*|*/httpd.prefork*|*/apache2\ *|*/apache2|httpd\ *|apache2\ *)
+                    bin="${l%% *}"
+                    conf="$(printf '%s' "$l" | sed -n 's/.*[[:space:]]-f[[:space:]]\+\([^[:space:]]*\).*/\1/p')"
+                    root="$(printf '%s' "$l" | sed -n 's/.*[[:space:]]-d[[:space:]]\+\([^[:space:]]*\).*/\1/p')"
+                    t=apache
+                    case "$l" in *OHS*|*/ohs/*|*components/OHS*) t=ohs ;; esac
+                    if [ -z "$conf" ] && [ -n "$root" ]; then conf="$root/httpd.conf"
+                    elif [ -z "$conf" ] && [ -x "$bin" ]; then
+                        conf="$("$bin" -V 2>/dev/null | sed -n 's/.*SERVER_CONFIG_FILE="\([^"]*\)".*/\1/p')"
+                        root="$("$bin" -V 2>/dev/null | sed -n 's/.*HTTPD_ROOT="\([^"]*\)".*/\1/p')"
+                        case "$conf" in /*) ;; ?*) conf="$root/$conf" ;; esac
+                    fi
+                    # OHS runs from instances/<name> - the master copy is components/OHS/<name>
+                    [ "$t" = ohs ] && conf="$(printf '%s' "$conf" | sed 's#/components/OHS/instances/\([^/]*\)/#/components/OHS/\1/#')"
+                    [ -n "$conf" ] && printf '%s;%s\n' "$t" "$conf" ;;
+            esac
+        done
+        # installed, maybe not running
+        for f in /etc/nginx/nginx.conf /usr/local/nginx/conf/nginx.conf /opt/nginx/conf/nginx.conf; do
+            [ -e "$f" ] && printf 'nginx;%s\n' "$f"
+        done
+        for f in /etc/httpd/conf/httpd.conf /etc/apache2/apache2.conf /usr/local/apache2/conf/httpd.conf \
+                 /opt/apache*/conf/httpd.conf /opt/httpd*/conf/httpd.conf; do
+            [ -e "$f" ] && printf 'apache;%s\n' "$f"
+        done
+        for d in "$@"; do
+            for f in "$d"/config/fmwconfig/components/OHS/*/httpd.conf; do
+                case "$f" in */instances/*) continue ;; esac
+                [ -e "$f" ] && printf 'ohs;%s\n' "$f"
+            done
+        done
+        # standalone OHS domains (separate web tier domain on the same host)
+        for d in /u01 /u02 /oracle /opt /app; do
+            [ -d "$d" ] || continue
+            timeout 20 find "$d" -maxdepth 9 -path '*/config/fmwconfig/components/OHS/*/httpd.conf' \
+                -not -path '*/instances/*' 2>/dev/null | sed 's/^/ohs;/'
+        done
+    } | while IFS=';' read -r t f; do
+        [ -e "$f" ] || continue
+        printf '%s;%s\n' "$t" "$(readlink -f "$f")"
+    done | awk -F';' '!seen[$2]++'
+}
+
+# _ihwt_wt_flat TYPE FILE ROOT VARS DEPTH - recursive include expansion
+_ihwt_wt_flat() {
+    local type="$1" f="$2" root="$3" vars="$4" depth="$5" line inc p k v
+    [ "$depth" -gt 8 ] && { printf '#@@ TOO_DEEP %s\n' "$f"; return; }
+    if [ ! -r "$f" ]; then printf '#@@ UNREADABLE %s\n' "$f"; return; fi
+    printf '#@@ FILE %s\n' "$f"
+    while IFS= read -r line || [ -n "$line" ]; do
+        printf '%s\n' "$line"
+        inc=""
+        if [ "$type" = nginx ]; then
+            [[ "$line" =~ ^[[:space:]]*include[[:space:]]+([^\;]+)\; ]] && inc="${BASH_REMATCH[1]}"
+        else
+            [[ "$line" =~ ^[[:space:]]*[Ii][Nn][Cc][Ll][Uu][Dd][Ee]([Oo][Pp][Tt][Ii][Oo][Nn][Aa][Ll])?[[:space:]]+\"?([^\"]+)\"? ]] && inc="${BASH_REMATCH[2]}"
+        fi
+        [ -n "$inc" ] || continue
+        inc="${inc%"${inc##*[![:space:]]}"}"; inc="${inc//\"/}"; inc="${inc//\'/}"
+        # ${VAR} of OHS / Apache (VARS = "NAME=value NAME=value")
+        for p in $vars; do k="${p%%=*}"; v="${p#*=}"; inc="${inc//\$\{$k\}/$v}"; done
+        inc="$(printf '%s' "$inc" | sed 's#/components/OHS/instances/\([^/]*\)/#/components/OHS/\1/#')"
+        case "$inc" in *'${'*) printf '#@@ UNRESOLVED %s\n' "$inc"; continue ;; /*) ;; *) inc="$root/$inc" ;; esac
+        case "$(basename "$inc")" in
+            mime.types|*fastcgi_params|uwsgi_params|scgi_params|koi-*|win-utf) printf '#@@ SKIPPED %s\n' "$inc"; continue ;;
+        esac
+        local found=false
+        while IFS= read -r p; do
+            [ -n "$p" ] || continue
+            found=true
+            [ -d "$p" ] && continue
+            _ihwt_wt_flat "$type" "$p" "$root" "$vars" $((depth + 1))
+        done < <(compgen -G "$inc" | sort)
+        $found || printf '#@@ NOT_FOUND %s\n' "$inc"
+    done < "$f"
+    printf '#@@ END %s\n' "$f"
+}
+
+# ihwt_webtier_flatten TYPE MAIN - like "nginx -T" / "httpd -t -D DUMP_INCLUDES",
+# but without needing the binary, root or a valid configuration. Markers:
+# "#@@ FILE|END|UNREADABLE|NOT_FOUND|UNRESOLVED|SKIPPED <path>".
+ihwt_webtier_flatten() {
+    local type="$1" main="$2" root vars="" d n
+    case "$type" in
+        nginx) root="$(dirname "$main")" ;;
+        ohs)   root="$(dirname "$main")"
+               # components/OHS/<name>/httpd.conf: ORACLE_INSTANCE = domain home
+               n="$(basename "$root")"; d="${root%/config/fmwconfig/components/OHS/*}"
+               vars="ORACLE_INSTANCE=$d DOMAIN_HOME=$d COMPONENT_TYPE=OHS COMPONENT_NAME=$n" ;;
+        *)     root="$(sed -n 's/^[[:space:]]*ServerRoot[[:space:]]\+"\?\([^"[:space:]]*\)"\?.*/\1/p' "$main" 2>/dev/null | head -1)"
+               [ -d "$root" ] || root="$(dirname "$(dirname "$main")")" ;;
+    esac
+    _ihwt_wt_flat "$type" "$main" "$root" "$vars" 0
+}
+
+# ihwt_webtier_routes TYPE MAIN < flattened - one row per route ($IHWT_WT_HEAD):
+#   listen     "addr:port" list of the server / virtual host
+#   tls        yes / no
+#   protocols  ssl_protocols / SSLProtocol (server, else global; "" = default)
+#   path       location / Location / ProxyPass path / MatchExpression ("-" = none)
+#   target     host:port (WebLogic) | upstream name(host:port,...) | redirect URL | static DIR | -
+#   access     restricted (allow / deny / Require / Auth) | open
+#   cert       certificate file (public part)
+ihwt_webtier_routes() {
+    local type="$1" main="$2"
+    if [ "$type" = nginx ]; then
+        sed -e '/^#@@/d' -e 's/[[:space:]]#.*$//' -e 's/^[[:space:]]*#.*$//' \
+            -e 's/{/{\n/g' -e 's/}/\n}\n/g' -e 's/;/;\n/g' | awk -v conf="$main" '
+        function trim(s) { gsub(/^[[:space:]]+|[[:space:];{]+$/, "", s); return s }
+        function args(s) { s=trim(s); sub(/^[^[:space:]]+[[:space:]]*/, "", s); return s }
+        { l=trim($0); if (l == "" && $0 !~ /}/) next; w=l; sub(/[[:space:]].*/, "", w) }
+        /\{[[:space:]]*$/ { sp++; ctx[sp]=w; carg[sp]=args(l)
+            if (w=="server" && ctx[sp-1]=="http") { ns++; sl[ns]=""; sn[ns]=""; stls[ns]="no"; spr[ns]=""; sacc[ns]=""; scert[ns]=""; srows[ns]=0; cur=ns }
+            if (w=="location") { lp[sp]=carg[sp]; lt[sp]="-"; la[sp]="" }
+            if (w=="upstream") up=carg[sp]
+            next }
+        /^}/ { if (ctx[sp]=="location" && cur) { r=++nr; rs[r]=cur; rp[r]=lp[sp]; rt[r]=lt[sp]; ra[r]=la[sp]; srows[cur]++ }
+               if (ctx[sp]=="server") cur=0
+               if (ctx[sp]=="upstream") up=""
+               sp--; next }
+        { a=args(l) }
+        w=="ssl_protocols" { if (cur) spr[cur]=a; else gpr=a }
+        w=="upstream" { next }
+        ctx[sp]=="upstream" && w=="server" { u=a; sub(/[[:space:]].*/, "", u); ups[up]=(ups[up]=="" ? u : ups[up] "," u); next }
+        !cur { next }
+        w=="listen" { v=a; if (v ~ /(^|[[:space:]])ssl([[:space:]]|$)/) stls[cur]="yes"; sub(/[[:space:]].*/, "", v); if (v !~ /:/) v="*:" v; sl[cur]=(sl[cur]=="" ? v : sl[cur] "," v) }
+        w=="ssl" && a ~ /^on/ { stls[cur]="yes" }
+        w=="server_name" { sn[cur]=a; gsub(/[[:space:]]+/, ",", sn[cur]) }
+        w=="ssl_certificate" { scert[cur]=a }
+        (w=="allow" && a !~ /^all/) || (w=="deny" && a ~ /^all/) || (w=="auth_basic" && a !~ /^off/) || w=="auth_request" {
+            if (ctx[sp]=="location") la[sp]="restricted"; else sacc[cur]="restricted" }
+        ctx[sp]=="location" && w=="proxy_pass" { t=a; sub(/^[a-z]+:\/\//, "", t); h=t; sub(/\/.*/, "", h); lt[sp]=h; lpath[sp]=t }
+        ctx[sp]=="location" && w=="return" && a ~ /^30[1278]/ { t=a; sub(/^[0-9]+[[:space:]]*/, "", t); lt[sp]="redirect " t }
+        ctx[sp]=="location" && (w=="alias" || w=="root") && lt[sp]=="-" { lt[sp]="static " a }
+        ctx[sp]=="server" && w=="return" && a ~ /^30[1278]/ { t=a; sub(/^[0-9]+[[:space:]]*/, "", t); sret[cur]="redirect " t }
+        END { for (r=1; r<=nr; r++) { s=rs[r]; t=rt[r]; h=t
+                  if (t !~ /^(redirect|static) / && t != "-" && t !~ /:/ && (t in ups)) t=t "(" ups[t] ")"
+                  printf "nginx;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", conf, sl[s], sn[s], stls[s], (spr[s]!="" ? spr[s] : gpr), rp[r], t,
+                      (ra[r]!="" ? ra[r] : (sacc[s]!="" ? sacc[s] : "open")), scert[s] }
+              for (s=1; s<=ns; s++) if (!srows[s])
+                  printf "nginx;%s;%s;%s;%s;%s;-;%s;%s;%s\n", conf, sl[s], sn[s], stls[s], (spr[s]!="" ? spr[s] : gpr),
+                      (sret[s]!="" ? sret[s] : "-"), (sacc[s]!="" ? sacc[s] : "open"), scert[s] }' | sed 's/[[:space:]]*;/;/g'
+    else
+        sed -e '/^#@@/d' -e 's/^[[:space:]]*#.*$//' | awk -v type="$type" -v conf="$main" '
+        function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+        function unq(s) { gsub(/"/, "", s); return s }
+        # WebLogic target: Location -> VirtualHost -> global (IfModule weblogic_module)
+        function wlt(h, p, c) { if (c != "") return c
+            if (h == "" && p == "") { if (vh && vwc[vh] != "") return vwc[vh]; if (gwc != "") return gwc }
+            if (h == "") h = (vh && vwh[vh] != "" ? vwh[vh] : gwh); if (p == "") p = (vh && vwp[vh] != "" ? vwp[vh] : gwp)
+            return h ":" p }
+        function row(path, target, acc) { nr++; rv[nr]=vh; rpth[nr]=path; rtg[nr]=target; racc[nr]=acc; if (vh) vrows[vh]++; else grows++ }
+        { l=trim($0); if (l=="") next; w=tolower(l); sub(/[[:space:]].*/, "", w); a=l; sub(/^[^[:space:]]+[[:space:]]*/, "", a); a=trim(a) }
+        w ~ /^<virtualhost/ { nv++; vh=nv; v=a; sub(/>$/, "", v); vl[vh]=v; gsub(/[[:space:]]+/, ",", vl[vh]); vt[vh]="no"; vpr[vh]=""; vn[vh]=""; vcert[vh]=""; next }
+        w ~ /^<\/virtualhost/ { vh=0; next }
+        w ~ /^<location(match)?$/ || w ~ /^<location(match)?>/ { inl=1; lpth=unq(a); sub(/>$/, "", lpth); lh=0; lwh=""; lwp=""; lwc=""; lacc="open"; lpx=""; next }
+        w ~ /^<\/location/ { if (lh || lpx != "") row(lpth, (lpx != "" ? lpx : wlt(lwh, lwp, lwc)), lacc)
+                             inl=0; next }
+        w=="listen" { v=a; s="no"; if (v ~ /[[:space:]]https$/) s="yes"; sub(/[[:space:]].*/, "", v); if (v !~ /:/) v="*:" v; gl=(gl=="" ? v : gl "," v); next }
+        w=="servername" { v=a; sub(/^https?:\/\//, "", v); sub(/:.*/, "", v); if (vh) vn[vh]=v; else gn=v; next }
+        w=="serveralias" && vh { vn[vh]=vn[vh] "," a; gsub(/[[:space:]]+/, ",", vn[vh]); next }
+        w=="sslengine" && tolower(a) ~ /^on/ { if (vh) vt[vh]="yes"; else gt="yes"; next }
+        w=="sslprotocol" { if (vh) vpr[vh]=a; else gpr=a; next }
+        w=="sslcertificatefile" || w=="sslwallet" { if (vh) vcert[vh]=unq(a); else gcert=unq(a); next }
+        w=="sethandler" && tolower(a) ~ /weblogic-handler/ && inl { lh=1; next }
+        w=="weblogichost" { if (inl) lwh=a; else if (vh) vwh[vh]=a; else gwh=a; next }
+        w=="weblogicport" { if (inl) lwp=a; else if (vh) vwp[vh]=a; else gwp=a; next }
+        w=="weblogiccluster" { if (inl) lwc=a; else if (vh) vwc[vh]=a; else gwc=a; next }
+        (w=="require" && tolower(a) !~ /^all granted/) || w=="allow" || w=="deny" || w=="authtype" { if (inl) lacc="restricted"; next }
+        w=="matchexpression" { m=a; sub(/[[:space:]].*/, "", m)
+            row(m, wlt("", "", ""), "open"); next }
+        w=="proxypass" { split(a, pp, /[[:space:]]+/); if (pp[2]=="!" ) next
+            t=pp[2]; sub(/^[a-z]+:\/\//, "", t); sub(/\/.*/, "", t)
+            if (inl) { lpx=t } else row(pp[1], t, "open"); next }
+        w=="redirect" || w=="redirectmatch" || (w=="rewriterule" && a ~ /https:/) { if (vh) vred[vh]="redirect " a; else gred="redirect " a; next }
+        END { for (r=1; r<=nr; r++) { v=rv[r]
+                  printf "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", type, conf, (v ? vl[v] : gl), (v ? (vn[v] != "" ? vn[v] : gn) : gn),
+                      (v ? vt[v] : (gt != "" ? gt : "no")), (v && vpr[v] != "" ? vpr[v] : gpr), rpth[r], rtg[r], racc[r], (v && vcert[v] != "" ? vcert[v] : gcert) }
+              for (v=1; v<=nv; v++) if (!vrows[v])
+                  printf "%s;%s;%s;%s;%s;%s;-;%s;open;%s\n", type, conf, vl[v], (vn[v] != "" ? vn[v] : gn), vt[v], (vpr[v] != "" ? vpr[v] : gpr),
+                      (vred[v] != "" ? vred[v] : "-"), (vcert[v] != "" ? vcert[v] : gcert)
+              if (!nv && !grows) printf "%s;%s;%s;%s;%s;%s;-;%s;open;%s\n", type, conf, gl, gn, (gt != "" ? gt : "no"), gpr, (gred != "" ? gred : "-"), gcert }'
+    fi | if [ "$type" = ohs ]; then
+        # ${ORACLE_INSTANCE} ... of the OHS wallet / certificate paths
+        local cd n d; cd="$(dirname "$main")"; n="$(basename "$cd")"; d="${cd%/config/fmwconfig/components/OHS/*}"
+        sed -e "s#\${ORACLE_INSTANCE}#$d#g; s#\${DOMAIN_HOME}#$d#g; s#\${COMPONENT_TYPE}#OHS#g; s#\${COMPONENT_NAME}#$n#g" \
+            -e 's#/components/OHS/instances/\([^/]*\)/#/components/OHS/\1/#g'
+    else cat; fi | ihwt_mask
+}
+
+# ihwt_webtier_settings TYPE MAIN < flattened - "type;conf;key;value;file" of the
+# directives the analysis rates (server_tokens, ServerTokens, ServerSignature,
+# TraceEnable, DebugConfigInfo, autoindex, Options Indexes)
+ihwt_webtier_settings() {
+    awk -v type="$1" -v conf="$2" '
+        /^#@@ FILE / { f=$0; sub(/^#@@ FILE /, "", f); stk[++n]=f; next }
+        /^#@@ END /  { n--; next }
+        /^[[:space:]]*#/ { next }
+        { l=$0; gsub(/^[[:space:]]+|[[:space:];]+$/, "", l); w=l; sub(/[[:space:]].*/, "", w); a=l; sub(/^[^[:space:]]+[[:space:]]*/, "", a); lw=tolower(w) }
+        lw ~ /^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex)$/ { printf "%s;%s;%s;%s;%s\n", type, conf, w, a, stk[n] }
+        lw=="options" && tolower(a) ~ /(^|[[:space:]])\+?indexes/ { printf "%s;%s;Options;%s;%s\n", type, conf, a, stk[n] }'
 }
