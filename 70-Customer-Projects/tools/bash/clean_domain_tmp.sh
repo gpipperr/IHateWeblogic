@@ -57,7 +57,7 @@ _running() {
             java|frmweb|frmcmp*|frmbld*|rwserver|rwrun*|rwbuilder*|rwclient*|rwconverter*|rwEng*) ;;
             *) continue ;;
         esac
-        cmd="$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)"
+        cmd="$(tr '\0' ' ' 2>/dev/null < "$d/cmdline")"   # 2> first: process may just have ended
         cwd="$(readlink "$d/cwd" 2>/dev/null)"
         exe="$(readlink "$d/exe" 2>/dev/null)"
         case " $cmd " in

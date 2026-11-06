@@ -31,7 +31,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-10-30.1"   # bump on every change
+VERSION="2026-11-06.1"   # bump on every change
 
 MIN_MB=100; BIG_MB=500; TOP=15; OUTBASE="/tmp"
 while [ $# -gt 0 ]; do
@@ -251,7 +251,8 @@ done < <(tail -n +2 /proc/swaps 2>/dev/null)
 # -Dweblogic.home), /etc/oratab names it, or a domain is registered on it
 PROCS="$TMPD/procs.txt"; : > "$PROCS"
 for _pd in /proc/[0-9]*; do
-    { readlink "$_pd/exe" 2>/dev/null; tr '\0' ' ' < "$_pd/cmdline" 2>/dev/null; printf '\n'; } >> "$PROCS"
+    # 2>/dev/null before "<": a process that just ended must not print a shell error
+    { readlink "$_pd/exe" 2>/dev/null; tr '\0' ' ' 2>/dev/null < "$_pd/cmdline"; printf '\n'; } >> "$PROCS"
 done
 _home_in_use() {
     grep -qE "^[^#][^:]*:$1/?:" /etc/oratab 2>/dev/null && return 0
