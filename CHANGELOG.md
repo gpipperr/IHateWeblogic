@@ -16,6 +16,18 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   - Way 1 of the import run at a customer.
 
   Docs 00-transfer, 04, 17, 30, README status and TODO updated. No code change.
+- `setdb` and the operation tools work together (`ihw_tools_lib` 2026-11-06.1,
+  `ihw_shell_env.sh` 2026-11-06.1):
+  - `status.sh`, `show_log.sh`, `show_errors.sh`, `show_all_logs.sh` no longer need
+    `patch_install.ini`. They use the domain selected with `setdb` and read
+    servers and ports from `config.xml` / `nodemanager.properties`. Order:
+    `IHW_INI` by hand, `setdb` domain, ini, login. An ini with another domain
+    gives a note and is ignored. `set_script_env.sh` warns in that case.
+  - `setdb`: `t` / `cdt` change to the tools, `2t` selects and changes, `h` lists
+    the tools that exist. The tools directory is also found above a known
+    home (`/oracle/tools`), or set with `IHW_TOOLS_DIR=` in `~/.ihw_env.conf`.
+  - `status.sh`: Node Manager keys searched in the ini, the home directory and the
+    library autostart; a clear message when missing; new `status.sh --store-nm-key`.
 
 ## 2026-11-05
 

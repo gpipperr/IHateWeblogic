@@ -176,6 +176,14 @@ SCHRITT 2: setdb aktivieren  (als oracle)
 
   # Erwartet: status.sh is /u01/oracle/tools/status.sh  (PATH durch setdb)
 
+  # Danach im Alltag:
+  #   setdb       Umgebung waehlen; "2t" = Eintrag 2 und in die Tools wechseln
+  #   setdb t     (oder cdt) in das Tools-Verzeichnis wechseln
+  #   setdb h     Hilfe mit der Liste der Tools
+  # status.sh, show_log.sh, show_errors.sh und show_all_logs.sh nehmen die mit
+  # setdb gewaehlte Domain - die patch_install.ini (SCHRITT 3) brauchen sie
+  # nicht, nur die Kochbuecher.
+
 
 ================================================================================
 SCHRITT 3: Kunden-ini und Patch-Liste ablegen  (als oracle)

@@ -5,16 +5,18 @@
 # One menu for FMW homes / domains and DB homes / SIDs, in the style of
 # OraBashShell .profile (setdb, https://github.com/gpipperr/OraBashShell).
 #
-#   setdb [n|c|h|q] menu; n = select entry n directly, c = clear, h = help,
+#   setdb [n|nt|t|c|h|q] menu; n = select entry n directly, nt = select + cd to the
+#                   tools, t = cd to the tools, c = clear, h = help (+ tool list),
 #                   q = quit without change
 #   setfmw / setfw  aliases of setdb (same menu)
 #   whichenv        show the current environment
 #   ihwenv_configure [-f]   detect homes again -> ~/.ihw_env.conf (editable)
 #   SQLPATH / ORACLE_PATH = ~/sql only for a DB entry (login.sql disturbs
 #   datapatch / utlrp) - removed by FMW entries and "setdb c"
-#   wlst, cdoh, cddh (alias domain), cdcfg, cdnm, cdlog [server]   helpers (see setdb h)
-#   IHW_TOOLS_DIR   customer tools ($ORACLE_BASE/tools: status.sh, show_log.sh,
-#                   set_script_env.sh + patch_install.ini) - put in PATH at load
+#   wlst, cdoh, cddh (alias domain), cdcfg, cdnm, cdt, cdlog [server]   helpers (see setdb h)
+#   IHW_TOOLS_DIR   customer tools (status.sh, show_log.sh ... - they use the domain
+#                   selected here): $ORACLE_BASE/tools, tools above a known home, or
+#                   IHW_TOOLS_DIR=/path in ~/.ihw_env.conf - put in PATH
 #
 # Install (as oracle):  mkdir -p ~/.bashrc.d
 #                       cp ihw_shell_env.sh ~/.bashrc.d/ihw_env.sh
@@ -29,7 +31,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-04.1"
+IHW_SHELL_ENV_VERSION="2026-11-06.1"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -160,6 +162,7 @@ ihwenv_configure() {
         printf "# Edit freely; 'ihwenv_configure' detects again.\n"
         printf "# IHW_FMW_ENV: label ORACLE_HOME DOMAIN_HOME|- JDK_HOME   (label - = home only)\n"
         printf "# IHW_DB_ENV : SID|- ORACLE_HOME ORACLE_BASE HOME_NAME   (SID - = home without ORACLE_SID, one per home)\n"
+        printf "# IHW_TOOLS_DIR=/path   (optional line) tools directory, when it is not found by itself\n"
         printf "# Inventory  : %s\n" "${invfile}"
         # candidate homes (each normalised, duplicates removed):
         #  - central inventory (/etc/oraInst.loc), entries not REMOVED
@@ -197,6 +200,7 @@ ihwenv_configure() {
     # order: header, FMW (home only before its domains), DB per home (SIDs, then no SID)
     {
         grep '^# ' "$tmp.raw"
+        grep '^IHW_TOOLS_DIR=' "$IHW_ENV_CONF" 2>/dev/null   # set by hand: survives a new detection
         grep '^IHW_FMW_ENV' "$tmp.raw"
         grep '^IHW_DB_ENV' "$tmp.raw"
         grep '^#SKIP' "$tmp.raw" | sed 's/^#SKIP/# skipped:/'
@@ -346,8 +350,9 @@ setdb() {
             fi
         done
         _ihwse_line
+        printf "      t ---> tools                (cd to the tools directory, 2t = entry 2 + tools)\n"
         printf "      c ---> clear environment    (back to the login values)\n"
-        printf "      h ---> help                 (aliases / functions / variables)\n"
+        printf "      h ---> help                 (aliases / functions / tools / variables)\n"
         printf "      q ---> quit                 (nothing changed)\n"
         if ! read -r -p "   Selection [1]: " sel </dev/tty; then
             _ihwse_err "no terminal - Environment not changed (use setdb <n>)"
@@ -356,13 +361,17 @@ setdb() {
         sel="${sel:-1}"
     fi
 
+    # 2t = select entry 2, then cd to the tools
+    local to_tools=false
+    if [[ "$sel" =~ ^([0-9]+)[tT]$ ]]; then sel="${BASH_REMATCH[1]}"; to_tools=true; fi
     case "$sel" in
+        t|T) cdt; return $? ;;
         c|C) _ihwse_clear; _ihwse_line; _ihwse_kv "Environment cleared" "login values"; whichenv; return 0 ;;
         h|H) ihwenv_help; setdb; return $? ;;
         q|Q) printf "   Environment not changed\n"; return 0 ;;
     esac
     if ! [[ "$sel" =~ ^[0-9]+$ ]] || [ "$sel" -lt 1 ] || [ "$sel" -gt "$total" ]; then
-        _ihwse_err "Environment not changed (valid: 1-$total, c, h, q)"
+        _ihwse_err "Environment not changed (valid: 1-$total, 1-${total} + t, t, c, h, q)"
         return 1
     fi
     n=$((sel - 1))
@@ -376,9 +385,11 @@ setdb() {
         export IHW_ENV_KEY="DB $e2 $e1"
     fi
     unset e1 e2 e3 e4
+    _ihwse_tools_path
     whichenv
     # change the prompt if the function was defined in .bash_profile
     declare -F myprompt > /dev/null && myprompt
+    $to_tools && cdt
     return 0
 }
 alias setfmw=setdb
@@ -396,6 +407,7 @@ whichenv() {
     _ihwse_kv "TNS_ADMIN"    "${TNS_ADMIN:--}"
     _ihwse_kv "NLS_LANG"     "${NLS_LANG:--}"
     [ -n "${SQLPATH:-}" ]     && _ihwse_kv "SQLPATH"     "$SQLPATH"
+    [ -n "${IHW_TOOLS_DIR:-}" ] && _ihwse_kv "Tools" "$IHW_TOOLS_DIR  (cdt, status.sh -q, setdb h)"
     _ihwse_line
 }
 
@@ -403,14 +415,18 @@ ihwenv_help() {
     _ihwse_line
     printf "   ihw_shell_env.sh %s - cache %s\n" "$IHW_SHELL_ENV_VERSION" "$IHW_ENV_CONF"
     _ihwse_line
-    printf "   %-24s %s\n" "setdb [n|c|h|q]"    "menu: FMW homes/domains, DB homes/SIDs; n = direct, q = quit"
+    printf "   %-24s %s\n" "setdb [n|nt|t|c|h|q]" "menu: FMW homes/domains, DB homes/SIDs; n = direct, q = quit"
+    printf "   %-24s %s\n" ""                   "t = cd to the tools, nt = entry n + cd to the tools"
     printf "   %-24s %s\n" "setfmw, setfw"      "aliases of setdb (same menu)"
     printf "   %-24s %s\n" "whichenv"           "show the current environment"
     printf "   %-24s %s\n" "ihwenv_configure [-f]" "detect homes again (-f = without asking)"
     printf "   %-24s %s\n" "wlst [script args]" "FMW wlst.sh (oracle_common), no args: starts in DOMAIN_HOME"
     printf "   %-24s %s\n" "cdoh / cddh, domain" "cd ORACLE_HOME / DOMAIN_HOME (domain = cddh)"
     printf "   %-24s %s\n" "cdcfg / cdnm"       "cd DOMAIN_HOME/config/fmwconfig / nodemanager"
+    printf "   %-24s %s\n" "cdt"                "cd to the tools directory"
     printf "   %-24s %s\n" "cdlog [server]"     "cd server logs (FMW, no arg = list) / ADR diag (DB)"
+    _ihwse_line
+    _ihwse_tools_help
     _ihwse_line
     printf "   Set by an FMW entry: ORACLE_HOME WL_HOME DOMAIN_HOME DOMAIN_NAME JDK_HOME\n"
     printf "     JAVA_HOME WLST NM_HOME FMWCONFIG FORMS_INSTANCE FORMS_APP_CONF (formsweb.cfg,\n"
@@ -422,9 +438,35 @@ ihwenv_help() {
     printf "     PATH: bin, OPatch - before datapatch / utlrp: setdb c (removes SQLPATH)\n"
     printf "   Removed by c / FMW: SQLPATH ORACLE_PATH (login.sql disturbs patching)\n"
     printf "   Never changed     : TNS_ADMIN NLS_LANG\n"
-    printf "   Tools dir in PATH : %s\n" "${IHW_TOOLS_DIR:-(none found)}"
-    printf "     values for the cookbooks: . \$IHW_TOOLS_DIR/set_script_env.sh\n"
     _ihwse_line
+}
+
+# tools of the directory that exist, one line each (setdb h)
+_ihwse_tools_help() {
+    local l t txt
+    if [ -z "${IHW_TOOLS_DIR:-}" ]; then
+        printf "   Tools: not found - unpack the tools ZIP into \$ORACLE_BASE/tools,\n"
+        printf "          or add IHW_TOOLS_DIR=/path to %s\n" "$IHW_ENV_CONF"
+        return 0
+    fi
+    printf "   Tools in %s (in PATH; they use the domain selected here):\n" "$IHW_TOOLS_DIR"
+    while IFS='|' read -r l t txt; do
+        [ -f "$IHW_TOOLS_DIR/${t#. }" ] || continue
+        printf "   %-8s %-30s %s\n" "$l" "${t}${txt%%|*}" "${txt#*|}"
+    done <<'EOF'
+Status|status.sh| [-q]|ports, processes, HTTP, Node Manager (-q = without WLST)
+Status|status.sh| --store-nm-key|store the Node Manager login once, for status.sh
+Logs|show_log.sh| [component]|follow the log of one component
+Logs|show_errors.sh| [-r]|errors of all logs, live (-r = first the last hour)
+Logs|show_all_logs.sh||follow all logs written in the last hour
+Analysis|collect_fmw_env.sh||collect the patch level etc. for the analysis (read-only)
+Analysis|export_forms_reports_conf.sh||export the configuration, for the 14c move (read-only)
+Analysis|clone_check_fmw.sh||is the environment clone-capable?
+Analysis|check_disk_space.sh||where is the disk space, what can be cleaned
+Patch|. set_script_env.sh||values of patch_install.ini for the cookbook commands
+Patch|fmw_patch_env.sh||variables of the manual patch cookbooks
+Patch|mos_patch_download.sh||download a patch list from My Oracle Support
+EOF
 }
 
 # ------------------------------------------------------------ cd helpers ----
@@ -433,6 +475,16 @@ cdoh()  { _ihwse_cd ORACLE_HOME "${ORACLE_HOME:-}"; }
 cddh()  { _ihwse_cd DOMAIN_HOME "${DOMAIN_HOME:-}"; }
 cdcfg() { _ihwse_cd FMWCONFIG   "${FMWCONFIG:-}"; }
 cdnm()  { _ihwse_cd NM_HOME     "${NM_HOME:-}"; }
+cdt() {
+    _ihwse_tools_path
+    if [ -z "${IHW_TOOLS_DIR:-}" ]; then
+        _ihwse_err "tools directory not found - unpack the tools ZIP into \$ORACLE_BASE/tools,"
+        _ihwse_err "or add IHW_TOOLS_DIR=/path to $IHW_ENV_CONF"
+        return 1
+    fi
+    cd "$IHW_TOOLS_DIR" || return
+    printf "   %s - setdb h lists the tools (status.sh -q, show_log.sh, show_errors.sh ...)\n" "$PWD"
+}
 alias domain=cddh
 cdlog() {
     if [ -n "${DOMAIN_HOME:-}" ]; then
@@ -451,32 +503,59 @@ cdlog() {
     fi
 }
 
-# ------------------------------------------------------------------ load ----
-# customer tools directory (status.sh, show_log.sh, set_script_env.sh ...):
-# into PATH at load time, so it is part of the login PATH and stays after
-# "setdb c". ORACLE_BASE may still be empty here (.bash_profile sources
-# .bashrc before its exports) - hence the fixed fallbacks.
-if [ -z "${IHW_TOOLS_DIR:-}" ]; then
-    for _ihwse_f in ${ORACLE_BASE:+$ORACLE_BASE/tools} /u01/oracle/tools /u01/app/oracle/tools; do
-        [ -f "$_ihwse_f/status.sh" ] || [ -f "$_ihwse_f/set_script_env.sh" ] || continue
-        IHW_TOOLS_DIR="$_ihwse_f"
-        break
+# ----------------------------------------------------------- tools dir ----
+# _ihwse_tools_find - first directory with the tools: IHW_TOOLS_DIR (also from
+# ~/.ihw_env.conf), $ORACLE_BASE/tools, tools above a known home
+# (/u01/app/oracle/fmw -> /u01/app/oracle/tools, /oracle/product/mw ->
+# /oracle/tools), the base of a DB entry, fixed paths. ORACLE_BASE may be empty
+# at load (.bash_profile sources .bashrc before its exports).
+_ihwse_tools_find() {
+    local d e oh base
+    local -a c=()
+    [ -n "${ORACLE_BASE:-}" ] && c+=("$ORACLE_BASE/tools")
+    for oh in "${ORACLE_HOME:-}"; do
+        [ -n "$oh" ] && c+=("$(dirname "$oh")/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")
     done
-fi
-if [ -n "${IHW_TOOLS_DIR:-}" ] && [ -d "$IHW_TOOLS_DIR" ]; then
+    for e in "${IHW_FMW_ENV[@]}"; do
+        read -r _ oh _ <<< "$e"
+        c+=("$(dirname "$oh")/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")
+    done
+    for e in "${IHW_DB_ENV[@]}"; do
+        read -r _ oh base _ <<< "$e"
+        c+=("$base/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")
+    done
+    c+=(/u01/oracle/tools /u01/app/oracle/tools)
+    for d in "${c[@]}"; do
+        if [ -f "$d/status.sh" ] || [ -f "$d/set_script_env.sh" ]; then
+            printf "%s" "$d"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# _ihwse_tools_path - set IHW_TOOLS_DIR if still empty, keep it in PATH: also in the
+# saved login PATH, so it stays after "setdb c"
+_ihwse_tools_path() {
+    [ -n "${IHW_TOOLS_DIR:-}" ] || IHW_TOOLS_DIR="$(_ihwse_tools_find)"
+    if [ -z "$IHW_TOOLS_DIR" ] || [ ! -d "$IHW_TOOLS_DIR" ]; then
+        unset IHW_TOOLS_DIR
+        return 0
+    fi
     export IHW_TOOLS_DIR
     case ":$PATH:" in
         *":$IHW_TOOLS_DIR:"*) ;;
-        *) PATH="$IHW_TOOLS_DIR:$PATH" ;;
+        *) export PATH="$IHW_TOOLS_DIR:$PATH" ;;
     esac
-    # a login value saved before the tools dir existed: add it there too
     if [ -n "${IHW_ORIG_PATH:-}" ]; then
         case ":$IHW_ORIG_PATH:" in
             *":$IHW_TOOLS_DIR:"*) ;;
             *) export IHW_ORIG_PATH="$IHW_TOOLS_DIR:$IHW_ORIG_PATH" ;;
         esac
     fi
-fi
+}
+
+# ------------------------------------------------------------------ load ----
 # a second copy in ~/.bashrc.d (e.g. ihw_shell_env.sh next to ihw_env.sh) is
 # loaded later and silently replaces these functions with its version
 for _ihwse_f in "$HOME"/.bashrc.d/*; do
@@ -490,3 +569,4 @@ if [ ! -f "$IHW_ENV_CONF" ]; then
     printf "ihw_shell_env: first start - detecting the Oracle homes\n"
     ihwenv_configure -f
 fi
+_ihwse_tools_path

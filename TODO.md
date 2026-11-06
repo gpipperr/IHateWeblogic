@@ -228,7 +228,7 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   customer hosts check old `access.log` files for `authid=` / `userid=`.
 - [ ] **Shell switcher at the customer**: copy the current
   `ihw_shell_env.sh` to `~/.bashrc.d/ihw_env.sh` (only ONE copy there) and run
-  `ihwenv_configure -f`, so the home names and `(no SID)` lines appear;
+  `ihwenv_configure -f`, so the home names, `(no SID)` lines and `t` appear;
   `07-db_sql_scripts.sh` there needs `github.com` on the egress allow-list
   (else `--archive`).
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
@@ -254,16 +254,12 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   - on the customer host: Carlito fonts, `FORMS_SIGN_TSA_URL`, recompile of
     the invalid RCU objects (since the RCU run of 2026-11-03), `server_tokens
     off`.
-- [ ] **status.sh / Node Manager keys:** document
-  how the Node Manager credential files of `status.sh` stage 3 are created and
-  where they really are. Today the docs (`Autostart_linux_middleware.txt` step
-  1c "NOT under ~/.wlst/", `Tools_status_logs_kochbuch.txt` step 3,
-  `patch_install.ini` `WLST_CONFIG_FILE` / `WLST_KEY_FILE`, `status.sh` hint)
-  assume `~/oracle-WebLogicConfig.properties` / `~/oracle-WebLogicKey.properties`.
-  `startComponent.sh … storeUserConfig` may write them below `~/.wlst/`
-  (`nm-cfg-<domain>.props` / `nm-key-<domain>.props`?) – check live, then:
-  `status.sh` searches both places, the docs name the real files and the
-  command that creates them (cross-check `Reports_kochbuch_de.txt` 9.10).
+- [ ] **`status.sh --store-nm-key`**: first real run with the Node Manager
+  password (only the error paths are tested). Open question left over: where
+  `startComponent.sh … storeUserConfig` writes its files, which
+  `Autostart_linux_middleware.txt` step 1c, `WLS_Report_start_stop_kochbuch.txt`
+  and `Reports_kochbuch_de.txt` 9.10 describe as `~/oracle-WebLogic*.properties` –
+  check once live.
 - [ ] **Library template:** `09-Install/forms_templates/default.env.template`
   sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
   (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the

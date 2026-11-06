@@ -105,24 +105,38 @@ SCHRITT 2: Werte fuer die Tools in patch_install.ini pruefen  (als oracle)
 
   # In patch_install.ini stehen KEINE Kennwoerter.
 
+  # Die ini ist fuer die vier Betriebs-Tools optional: ohne ini nehmen sie die
+  # mit setdb gewaehlte Domain und lesen Server und Ports aus config.xml.
+  # Reihenfolge: IHW_INI=/pfad von Hand, dann setdb-Domain, dann die ini.
+
 
 ================================================================================
 SCHRITT 3: Zugangsdaten fuer den Node-Manager-Status pruefen  (als oracle)
 ================================================================================
 
-  # status.sh fragt den echten Zustand beim Node Manager ab - mit den
-  # Zugangsdaten, die einmalig mit storeUserConfig gespeichert wurden
-  # (Autostart_linux_middleware.txt Schritt 1c):
+  # status.sh fragt den echten Zustand beim Node Manager ab - mit gespeicherten
+  # Zugangsdaten. Es sucht nacheinander:
+  #   WLST_CONFIG_FILE / WLST_KEY_FILE aus der patch_install.ini
+  #   ~/oracle-WebLogicConfig.properties + ~/oracle-WebLogicKey.properties
+  #   $ORACLE_BASE/admin/<domain>/ctrl/keyfile/ (Autostart der IHateWeblogic-Lib)
 
-  ls -l ~/oracle-WebLogicConfig.properties ~/oracle-WebLogicKey.properties
+  status.sh
 
-  # Erwartet: beide Dateien, Rechte -rw-------  -> fertig.
-  # Fehlen sie, einmalig anlegen (fragt nach dem Node-Manager-Passwort):
+  # Erwartet in Stufe 3: "Node Manager: Zugangsdaten <datei>" und eine Zeile
+  # "NM <komponente> RUNNING" je Komponente -> fertig.
+  # "keine gespeicherten Zugangsdaten": einmalig anlegen. Der Node Manager muss
+  # laufen; das Skript fragt Benutzer und Passwort (verdeckt) und schreibt
+  # ~/oracle-WebLogic*.properties mit Rechten 600:
 
-  $DOMAIN_HOME/bin/startComponent.sh repServer01 storeUserConfig
+  status.sh --store-nm-key
 
-  # Ohne diese Dateien laeuft status.sh trotzdem, zeigt dann aber nur
-  # Ports, Prozesse und den HTTP-Status (mit einem Hinweis).
+  # Erwartet: "OK: gespeichert (Rechte 600)". Danach status.sh wie oben.
+
+  # Passwort unbekannt (zufaellig bei der Domain-Anlage):
+  # Autostart_linux_middleware.txt Schritt 1b.
+
+  # Ohne Zugangsdaten laeuft status.sh trotzdem, zeigt dann aber nur Ports,
+  # Prozesse und den HTTP-Status (mit diesem Hinweis).
 
 
 ================================================================================
@@ -297,10 +311,15 @@ BEKANNTE PROBLEME UND LOESUNGEN
 ================================================================================
 
   Problem: status.sh meldet "Node Manager: keine gespeicherten
-           Zugangsdaten gefunden"
-  Ursache: ~/oracle-WebLogicConfig.properties / ~/oracle-WebLogicKey.properties
-           fehlen oder gehoeren einem anderen Benutzer
-  Loesung: Schritt 3 (storeUserConfig) als oracle ausfuehren
+           Zugangsdaten"
+  Ursache: an den gesuchten Stellen liegt kein lesbares Dateipaar (die
+           Meldung listet sie auf), oder es gehoert einem anderen Benutzer
+  Loesung: Schritt 3: status.sh --store-nm-key als oracle ausfuehren
+
+  Problem: status.sh meldet "FEHLER: keine Domain bekannt"
+  Ursache: weder mit setdb eine Domain gewaehlt noch eine patch_install.ini
+           neben den Tools
+  Loesung: setdb, Domain-Eintrag waehlen (nicht "home only" / DB)
 
   Problem: status.sh meldet "Node Manager: Anmeldung fehlgeschlagen"
            (z.B. BadPaddingException oder "Access to domain ... denied")

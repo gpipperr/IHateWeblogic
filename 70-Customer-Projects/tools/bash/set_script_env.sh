@@ -31,11 +31,20 @@ if [ ! -f "$_IHW_SCRIPT_INI" ]; then
     return 1
 fi
 
+# mit setdb gewaehlte Domain merken: die ini ueberschreibt DOMAIN_HOME
+_ihw_setdb_dh=""
+case "${IHW_ENV_KEY:-}" in "FMW "*" -") ;; "FMW "*) _ihw_setdb_dh="${DOMAIN_HOME:-}" ;; esac
+
 # set -a: jede gesetzte Variable wird automatisch exportiert
 set -a
 # shellcheck source=/dev/null
 . "$_IHW_SCRIPT_INI"
 set +a
+
+if [ -n "$_ihw_setdb_dh" ] && [ "$(readlink -f "$_ihw_setdb_dh")" != "$(readlink -f "${DOMAIN_HOME:-/}")" ]; then
+    printf "WARNUNG: setdb hatte Domain %s gewaehlt, %s setzt jetzt %s\n" "$_ihw_setdb_dh" "$_IHW_SCRIPT_INI" "$DOMAIN_HOME" >&2
+fi
+unset _ihw_setdb_dh
 
 # Kontrolle: alle Werte aus der ini anzeigen
 set_script_env_show() {

@@ -11,18 +11,15 @@
 #          show_log.sh -n 200 ...          mit den letzten 200 Zeilen beginnen
 # Log    : log | out | diag | rwservlet | engine  (nur was es gibt)
 # Beenden: Strg+C   (in less: Strg+C, dann q)
-# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
+# Daten  : die mit setdb gewaehlte Domain, sonst patch_install.ini im selben
+#          Verzeichnis (IHW_INI=/pfad/datei.ini hat Vorrang); was fehlt, kommt aus der Domain
 # Beschreibung: Tools_status_logs_kochbuch.txt
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
-if [ ! -f "$IHW_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
-    exit 2
-fi
-# shellcheck source=/dev/null
-. "$IHW_INI"
+# shellcheck source=./ihw_tools_lib.sh
+. "$TOOLS_DIR/ihw_tools_lib.sh" || { printf "FEHLER: ihw_tools_lib.sh fehlt neben %s\n" "$0" >&2; exit 2; }
+ihwt_ops_env "$TOOLS_DIR" || exit 2
 
 USE_LESS=false
 LINES=50
@@ -30,7 +27,7 @@ while getopts "ln:h" opt; do
     case "$opt" in
         l) USE_LESS=true ;;
         n) LINES="$OPTARG" ;;
-        h) sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        h) sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) exit 2 ;;
     esac
 done

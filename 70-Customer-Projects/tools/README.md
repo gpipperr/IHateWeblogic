@@ -361,11 +361,27 @@ running `ora_pmon_*` processes; `ORACLE_BASE` from `bin/orabase`.
       4 ---> FMWCDB
       5 ---> -  (no SID)
 -----------------------------------------------------------
+      t ---> tools                (cd to the tools directory, 2t = entry 2 + tools)
       c ---> clear environment    (back to the login values)
-      h ---> help                 (aliases / functions / variables)
+      h ---> help                 (aliases / functions / tools / variables)
       q ---> quit                 (nothing changed)
    Selection [1]:
 ```
+
+**Tools:** `t` (also `setdb t`, `cdt`) changes to the tools directory and keeps
+the environment; `2t` (also `setdb 2t`) selects entry 2 first. `h` lists the
+tools that exist there, with one line each. `status.sh`, `show_log.sh`,
+`show_errors.sh` and `show_all_logs.sh` use the domain selected here, see
+[the operation tools](#set_script_envsh-and-the-operation-tools).
+
+The tools directory (`IHW_TOOLS_DIR`, in the PATH, stays after `setdb c`) is
+searched at login and after a selection:
+1. `IHW_TOOLS_DIR` from the environment or as a line in `~/.ihw_env.conf` (survives
+   `ihwenv_configure`);
+2. `$ORACLE_BASE/tools`;
+3. `tools` above a known home (`/u01/app/oracle/fmw` → `/u01/app/oracle/tools`,
+   `/oracle/product/mw` → `/oracle/tools`), the base of a DB entry;
+4. `/u01/oracle/tools`, `/u01/app/oracle/tools`.
 
 Every DB home gets one line per SID **and always one `(no SID)` line**
 (OPatch / work on the home without `ORACLE_SID`), the same idea as
@@ -413,7 +429,7 @@ PATH does not grow (live: 8 switches, length 156 / 240 / 121 constant).
 Helpers: `whichenv`, `ihwenv_configure [-f]`, `wlst` (FMW `wlst.sh` from
 `oracle_common` – never `wlserver/common/bin/wlst.sh`, it lacks `createCred`,
 `grantAppRole` & co.; without arguments it starts in `$DOMAIN_HOME`), `cdoh`,
-`cddh`, `cdcfg`, `cdnm`, `cdlog [server]` (server logs; with a DB entry the
+`cddh`, `cdcfg`, `cdnm`, `cdt`, `cdlog [server]` (server logs; with a DB entry the
 ADR `diag` directory + `adrci show homes`). A function `myprompt` defined in
 `.bash_profile` is called after each switch (as in OraBashShell).
 
@@ -905,23 +921,55 @@ $ORACLE_BASE/tools/
 ```
 
 ```bash
+setdb 2t                                   # select the domain, cd to the tools
+status.sh -q                               # uses the domain selected with setdb
+status.sh --store-nm-key                   # once: Node Manager login for stage 3
+
 . $ORACLE_BASE/tools/set_script_env.sh     # values for the cookbook commands
 set_script_env_show                        # check: all values of the ini
-
-status.sh -q                               # reads patch_install.ini itself
 IHW_INI=/path/other.ini status.sh          # another ini (test, second domain)
 ```
 
+**Which values the four tools use** (`ihwt_ops_env` in `ihw_tools_lib.sh`, which
+must lie next to them). The first match decides the domain; the ini is optional:
+
+| # | Source | Rule |
+|---|---|---|
+| 1 | `IHW_INI=/path` set by hand | wins over everything |
+| 2 | domain selected with `setdb` | wins over `patch_install.ini`; an ini with another domain gives a note on stderr and is ignored, except `EXTRA_PORTS` / `LOG_MINUTES` |
+| 3 | `patch_install.ini` next to the tools | same domain as `setdb`, or no domain selected (also after a DB / "home only" entry) |
+| 4 | `DOMAIN_HOME` of the login | no ini, `setdb` not used |
+| – | nothing | `FEHLER: keine Domain bekannt`, rc 2 |
+
+What the source does not give comes from the domain: `DOMAIN_NAME`,
+`ADMIN_SERVER`, `WLS_ADMIN_PORT`, `MANAGED_SERVERS`, `REPORTS_SERVERS` from
+`config.xml`; `NM_HOST`, `WLS_NODEMANAGER_PORT`, `NM_TYPE` from
+`nodemanager.properties`. `status.sh` shows the source in its header.
+
+**Node Manager keys of `status.sh`** (stage 3), first readable pair wins:
+1. `WLST_CONFIG_FILE` / `WLST_KEY_FILE` of the ini;
+2. `~/oracle-WebLogicConfig.properties` + `~/oracle-WebLogicKey.properties`;
+3. `<base>/admin/<domain>/ctrl/keyfile/nm_config` + `nm_key` of the library
+   autostart (`09-Install/30-configure_autostart.sh`).
+
+Missing: the message lists the paths and names `status.sh --store-nm-key`. It
+asks the Node Manager user and the password hidden, passes them to WLST through the
+environment, runs `nmConnect` + `storeUserConfig` and sets mode 600. It needs a
+terminal and a running Node Manager.
+
 | Value in `patch_install.ini` | Used by |
 |---|---|
-| `DOMAIN_HOME`, `DOMAIN_NAME`, `ORACLE_HOME` | all four tools |
+| `DOMAIN_HOME`, `DOMAIN_NAME`, `ORACLE_HOME` | all four tools (`DOMAIN_NAME` etc. also from the domain, see above) |
 | `ADMIN_SERVER`, `WLS_ADMIN_PORT`, `MANAGED_SERVERS` (`name:port …`) | `status.sh`, `show_log.sh` |
 | `REPORTS_SERVERS` (default `$REPORTS_SERVER_NAME`) | `status.sh`, `show_log.sh` |
-| `NM_HOST`, `WLS_NODEMANAGER_PORT`, `NM_TYPE`, `WLST_CONFIG_FILE`, `WLST_KEY_FILE` | `status.sh` stage 3 (Node Manager via WLST, storeUserConfig files) |
+| `NM_HOST`, `WLS_NODEMANAGER_PORT`, `NM_TYPE`, `WLST_CONFIG_FILE`, `WLST_KEY_FILE` | `status.sh` stage 3 (Node Manager via WLST, stored login) |
 | `EXTRA_PORTS` | `status.sh` stage 1 (e.g. Nginx `80 443`) |
 | `LOG_MINUTES` | `show_all_logs.sh`, `show_errors.sh` |
 
 No passwords in the ini. Cookbook:
 [Tools_status_logs_kochbuch.txt](../Reports14_linux_manual_install/Tools_status_logs_kochbuch.txt).
-Tested 2026-11-04 on the test host from a scratch copy (`status.sh -q`:
-all OK, `set_script_env_show`).
+Tested 2026-11-06 on the test host from a scratch copy with an isolated `HOME`:
+setdb domain without ini, ini with the same and another domain, `IHW_INI`, no
+domain, a DB entry; `t`, `2t`, `9t`, `cdt`, `h`; stage 3 with the library keys, the
+message without keys, `--store-nm-key` without terminal and without Node Manager.
+A real `--store-nm-key` run needs the Node Manager password and is still open.

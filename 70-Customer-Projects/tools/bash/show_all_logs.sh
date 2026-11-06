@@ -7,7 +7,8 @@
 #          ./show_all_logs.sh -n 50      je Datei die letzten 50 Zeilen zuerst
 #          ./show_all_logs.sh -h         Hilfe
 # Beenden: Strg+C
-# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
+# Daten  : die mit setdb gewaehlte Domain, sonst patch_install.ini im selben
+#          Verzeichnis (IHW_INI=/pfad/datei.ini hat Vorrang); was fehlt, kommt aus der Domain
 # Hinweis: Logdateien, die erst NACH dem Aufruf neu entstehen, sind nicht
 #          dabei (tail -F folgt nur Dateien, die beim Start da waren, auch
 #          ueber eine Rotation hinweg) - dann einfach neu aufrufen.
@@ -15,13 +16,9 @@
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
-if [ ! -f "$IHW_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
-    exit 2
-fi
-# shellcheck source=/dev/null
-. "$IHW_INI"
+# shellcheck source=./ihw_tools_lib.sh
+. "$TOOLS_DIR/ihw_tools_lib.sh" || { printf "FEHLER: ihw_tools_lib.sh fehlt neben %s\n" "$0" >&2; exit 2; }
+ihwt_ops_env "$TOOLS_DIR" || exit 2
 
 MINUTES="${LOG_MINUTES:-60}"
 LINES=20
@@ -29,7 +26,7 @@ while getopts "m:n:h" opt; do
     case "$opt" in
         m) MINUTES="$OPTARG" ;;
         n) LINES="$OPTARG" ;;
-        h) sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        h) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) exit 2 ;;
     esac
 done

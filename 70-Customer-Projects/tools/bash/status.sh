@@ -8,31 +8,114 @@
 #
 # Aufruf : ./status.sh          alle drei Stufen
 #          ./status.sh -q       ohne WLST (schnell, Stufe 3 nur HTTP)
+#          ./status.sh --store-nm-key  Node-Manager-Zugang einmalig speichern
+#                               (~/oracle-WebLogic*.properties, Rechte 600)
 #          ./status.sh -h       Hilfe
-# Daten  : patch_install.ini im selben Verzeichnis (oder IHW_INI=/pfad/datei.ini)
+# Daten  : die mit setdb gewaehlte Domain, sonst patch_install.ini im selben
+#          Verzeichnis (IHW_INI=/pfad/datei.ini hat Vorrang); was fehlt, kommt aus der Domain
 # Exit   : 0 = alles in Ordnung, 1 = Warnung, 2 = Fehler
-# Ohne Abhaengigkeit zu weiteren Skripten - nur bash, ss, ps, curl, wlst.sh.
+# Braucht ihw_tools_lib.sh daneben, sonst nur bash, ss, ps, curl, wlst.sh.
 # Beschreibung: Tools_status_logs_kochbuch.txt
 # =============================================================================
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IHW_INI="${IHW_INI:-$TOOLS_DIR/patch_install.ini}"
-if [ ! -f "$IHW_INI" ]; then
-    printf "FEHLER: %s nicht gefunden\n" "$IHW_INI" >&2
-    exit 2
-fi
-# shellcheck source=/dev/null
-. "$IHW_INI"
+# shellcheck source=./ihw_tools_lib.sh
+. "$TOOLS_DIR/ihw_tools_lib.sh" || { printf "FEHLER: ihw_tools_lib.sh fehlt neben %s\n" "$0" >&2; exit 2; }
+ihwt_ops_env "$TOOLS_DIR" || exit 2
 
 QUICK=false
+STORE_KEY=false
 case "${1:-}" in
     -q|--quick) QUICK=true ;;
+    --store-nm-key) STORE_KEY=true ;;
     -h|--help)
-        sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '3,18p' "$0" | sed 's/^# \{0,1\}//'
         exit 0 ;;
     "") ;;
     *) printf "Unbekannte Option: %s (Hilfe: -h)\n" "$1" >&2; exit 2 ;;
 esac
+
+# ---------------------------------------------------------------- NM keys ----
+# _nm_key_candidates - "config<TAB>key" pairs in search order: ini, storeUserConfig
+# default in the home directory, keys of the library autostart (30-configure_autostart.sh)
+_nm_key_candidates() {
+    local d b
+    [ -n "${WLST_CONFIG_FILE:-}" ] && printf '%s\t%s\n' "$WLST_CONFIG_FILE" "${WLST_KEY_FILE:-}"
+    printf '%s\t%s\n' "$HOME/oracle-WebLogicConfig.properties" "$HOME/oracle-WebLogicKey.properties"
+    # ORACLE_BASE is not set by setdb for FMW: also above the Oracle Home
+    # (/u01/app/oracle/fmw -> /u01/app/oracle, /oracle/product/mw -> /oracle)
+    for b in "${ORACLE_BASE:-}" "$(dirname "${ORACLE_HOME:-/}")" "$(dirname "$(dirname "$(dirname "${ORACLE_HOME:-/}")")")"; do
+        [ -n "$b" ] && [ "$b" != "/" ] || continue
+        d="$b/admin/$DOMAIN_NAME/ctrl/keyfile"
+        printf '%s\t%s\n' "$d/nm_config" "$d/nm_key"
+    done | awk '!seen[$0]++'
+}
+
+_nm_keys_hint() {   # how to create them - also shown after a failed login
+    printf "    -> einmalig anlegen (Node Manager muss laufen, fragt Benutzer + Passwort):\n"
+    printf "         %s --store-nm-key\n" "$(basename "$0")"
+    printf "    Benutzer/Passwort unbekannt (zufaellig bei der Domain-Anlage)?\n"
+    printf "         Autostart_linux_middleware.txt Schritt 1b\n"
+}
+
+NM_KEY_CFG="" NM_KEY_KEY=""
+while IFS=$'\t' read -r _c _k; do
+    if [ -r "$_c" ] && [ -r "$_k" ]; then NM_KEY_CFG="$_c"; NM_KEY_KEY="$_k"; break; fi
+done < <(_nm_key_candidates)
+
+# --store-nm-key: one write action of this tool, only on explicit request.
+# The password goes to WLST through the environment, never on a command line.
+if $STORE_KEY; then
+    _cfg="${WLST_CONFIG_FILE:-$HOME/oracle-WebLogicConfig.properties}"
+    _key="${WLST_KEY_FILE:-$HOME/oracle-WebLogicKey.properties}"
+    _wlst="$ORACLE_HOME/oracle_common/common/bin/wlst.sh"
+    printf "Node-Manager-Zugang speichern: Domain %s, %s:%s (%s)\n" "$DOMAIN_NAME" "$NM_HOST" "$WLS_NODEMANAGER_PORT" "$NM_TYPE"
+    printf "  Ziel: %s\n        %s\n" "$_cfg" "$_key"
+    [ -x "$_wlst" ] || { printf "FEHLER: %s nicht gefunden (ORACLE_HOME? -> setdb)\n" "$_wlst" >&2; exit 2; }
+    ss -ltnH 2>/dev/null | awk -v p=":$WLS_NODEMANAGER_PORT" '$4 ~ p"$" {f=1} END {exit !f}' || {
+        printf "FEHLER: auf Port %s hoert kein Node Manager - erst starten, dann erneut aufrufen\n" "$WLS_NODEMANAGER_PORT" >&2
+        exit 2
+    }
+    [ -t 0 ] || { printf "FEHLER: fragt Benutzer + Passwort - nur im Terminal\n" >&2; exit 2; }
+    if [ -e "$_cfg" ] || [ -e "$_key" ]; then
+        read -r -p "  Dateien existieren - ueberschreiben? (ja/NEIN) " _a
+        [ "$_a" = "ja" ] || { printf "  nichts geaendert\n"; exit 0; }
+    fi
+    _u_def="$(sed -n 's|.*<node-manager-username>\([^<]*\)</node-manager-username>.*|\1|p' "$DOMAIN_HOME/config/config.xml" | head -1)"
+    read -r -p "  Node-Manager-Benutzer [${_u_def}]: " _u
+    _u="${_u:-$_u_def}"
+    read -r -s -p "  Passwort: " _p; printf "\n"
+    [ -n "$_u" ] && [ -n "$_p" ] || { printf "FEHLER: Benutzer und Passwort noetig\n" >&2; exit 2; }
+    PY="$(mktemp /tmp/status_nmkey_XXXXXX.py)"
+    chmod 600 "$PY"
+    trap 'rm -f "$PY"' EXIT
+    cat > "$PY" <<'WLST_EOF'
+import os
+e = os.environ
+try:
+    nmConnect(e['_IHW_NM_USER'], e['_IHW_NM_PWD'], e['_IHW_NM_HOST'], e['_IHW_NM_PORT'],
+              e['_IHW_DOMAIN'], e['_IHW_DOMAIN_HOME'], e['_IHW_NM_TYPE'])
+    storeUserConfig(e['_IHW_CFG'], e['_IHW_KEY'], 'true')
+    nmDisconnect()
+    print('IHW:OK')
+except Exception, ex:
+    print('IHW:FAIL:' + str(ex).split('\n')[0])
+    exit(defaultAnswer='y', exitcode=1)
+exit(defaultAnswer='y', exitcode=0)
+WLST_EOF
+    _out="$(_IHW_NM_USER="$_u" _IHW_NM_PWD="$_p" _IHW_NM_HOST="$NM_HOST" _IHW_NM_PORT="$WLS_NODEMANAGER_PORT" \
+            _IHW_DOMAIN="$DOMAIN_NAME" _IHW_DOMAIN_HOME="$DOMAIN_HOME" _IHW_NM_TYPE="$NM_TYPE" \
+            _IHW_CFG="$_cfg" _IHW_KEY="$_key" "$_wlst" "$PY" 2>&1)"
+    unset _p
+    if printf '%s\n' "$_out" | grep -q '^IHW:OK' && [ -s "$_cfg" ] && [ -s "$_key" ]; then
+        chmod 600 "$_cfg" "$_key"
+        printf "  OK: gespeichert (Rechte 600). Kontrolle: %s\n" "$(basename "$0")"
+        exit 0
+    fi
+    printf "FEHLER: nicht gespeichert: %s\n" "$(printf '%s\n' "$_out" | sed -n 's/^IHW:FAIL://p' | head -1)" >&2
+    printf "  Benutzer/Passwort unbekannt (zufaellig bei der Domain-Anlage)? Autostart_linux_middleware.txt Schritt 1b\n" >&2
+    exit 2
+fi
 
 RC=0
 _warn() { [ "$RC" -lt 1 ] && RC=1; }
@@ -53,6 +136,7 @@ for _r in $REPORTS_SERVERS; do
 done
 
 printf "\n=== Status %s  (%s, %s) ===\n" "$DOMAIN_NAME" "$(hostname -s)" "$(date '+%Y-%m-%d %H:%M:%S')"
+printf "  DOMAIN_HOME %s  (Quelle: %s)\n" "$DOMAIN_HOME" "$IHWT_OPS_SRC"
 
 # =============================================================================
 # Stufe 1: Ports
@@ -148,11 +232,11 @@ done
 
 if $QUICK; then
     printf "  Node Manager: uebersprungen (-q)\n"
-elif [ ! -r "$WLST_CONFIG_FILE" ] || [ ! -r "$WLST_KEY_FILE" ]; then
-    printf "  Node Manager: keine gespeicherten Zugangsdaten gefunden\n"
-    printf "    %s\n    %s\n" "$WLST_CONFIG_FILE" "$WLST_KEY_FILE"
-    printf "    -> einmalig anlegen: \$DOMAIN_HOME/bin/startComponent.sh <ReportsServer> storeUserConfig\n"
-    printf "       (Autostart_linux_middleware.txt Schritt 1c)\n"
+elif [ -z "$NM_KEY_CFG" ]; then
+    printf "  Node Manager: keine gespeicherten Zugangsdaten - Abfrage uebersprungen\n"
+    printf "    gesucht:\n"
+    _nm_key_candidates | while IFS=$'\t' read -r _c _k; do printf "      %s\n" "$_c"; done
+    _nm_keys_hint
     _warn
 elif [ -z "$NM_PID" ]; then
     printf "  Node Manager: laeuft nicht - Status nicht abfragbar\n"
@@ -188,13 +272,14 @@ else
             REPORTS) args+=("${name}:ReportsServerComponent") ;;
         esac
     done
+    printf "  Node Manager: Zugangsdaten %s\n" "$NM_KEY_CFG"
     out="$("$ORACLE_HOME/oracle_common/common/bin/wlst.sh" "$PY" \
-            "$WLST_CONFIG_FILE" "$WLST_KEY_FILE" "$NM_HOST" "$WLS_NODEMANAGER_PORT" \
+            "$NM_KEY_CFG" "$NM_KEY_KEY" "$NM_HOST" "$WLS_NODEMANAGER_PORT" \
             "$DOMAIN_NAME" "$DOMAIN_HOME" "$NM_TYPE" "${args[@]}" 2>&1)"
     if printf '%s\n' "$out" | grep -q '^NMSTAT|CONNECT|'; then
         printf "  Node Manager: Anmeldung fehlgeschlagen:\n    %s\n" \
             "$(printf '%s\n' "$out" | sed -n 's/^NMSTAT|CONNECT|//p')"
-        printf "    -> Zugangsdaten neu speichern (Autostart_linux_middleware.txt Schritt 1b/1c)\n"
+        _nm_keys_hint
         _err
     else
         while IFS='|' read -r tag name st; do

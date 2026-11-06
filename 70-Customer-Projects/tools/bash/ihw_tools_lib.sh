@@ -15,7 +15,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-05.4"
+IHWT_LIB_VERSION="2026-11-06.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -525,4 +525,129 @@ ihwt_status_rows() {
           printf "**Overall**;%s;%s\n", ov, (bad ? bad " of " m + 1 " areas need action" : "no critical or important point")
           for (j = 1; j <= m; j++) print row[j]
           printf "Patch level;%s;%s\n", (pr < 0 ? "none" : pl), pt }'
+}
+
+# -----------------------------------------------------------------------------
+# ihwt_ops_env TOOLS_DIR - values of the operation tools (status.sh, show_log.sh,
+# show_errors.sh, show_all_logs.sh). patch_install.ini is optional:
+#   1. IHW_INI=/path set by hand             explicit, wins over everything
+#   2. domain selected with setdb            wins over patch_install.ini
+#   3. patch_install.ini next to the tools   same domain as setdb / nothing selected
+#   4. DOMAIN_HOME of the login              when there is no ini
+# Values the ini does not give come from the domain (ihwt_ops_from_domain).
+# Sets the ini variables + IHWT_OPS_SRC (for the header). Rc 2 + message on stderr
+# when no domain is known. German messages like the tools.
+# -----------------------------------------------------------------------------
+ihwt_ops_env() {
+    local tools_dir="$1" ini="" ini_dh="" sel="" use_ini=false
+
+    case "${IHW_ENV_KEY:-}" in
+        "FMW "*" -") ;;                     # setdb: home only
+        "FMW "*) [ -n "${DOMAIN_HOME:-}" ] && sel="$DOMAIN_HOME" ;;
+    esac
+    if [ -n "${IHW_INI:-}" ]; then
+        if [ ! -f "$IHW_INI" ]; then
+            printf "FEHLER: IHW_INI=%s nicht gefunden\n" "$IHW_INI" >&2
+            return 2
+        fi
+        ini="$IHW_INI"; use_ini=true; sel=""
+    elif [ -f "$tools_dir/patch_install.ini" ]; then
+        ini="$tools_dir/patch_install.ini"
+        if [ -z "$sel" ]; then
+            use_ini=true
+        else
+            # shellcheck source=/dev/null
+            ini_dh="$(. "$ini" >/dev/null 2>&1; printf '%s' "${DOMAIN_HOME:-}")"
+            if [ "$(readlink -f "$ini_dh" 2>/dev/null)" = "$(readlink -f "$sel" 2>/dev/null)" ]; then
+                use_ini=true
+            else
+                printf "Hinweis: setdb-Domain %s, patch_install.ini hat %s - verwendet wird %s\n" "$sel" "${ini_dh:-?}" "$sel" >&2
+            fi
+        fi
+    fi
+
+    if $use_ini; then
+        # shellcheck source=/dev/null
+        . "$ini"
+        [ -n "$sel" ] && DOMAIN_HOME="$sel"
+        IHWT_OPS_SRC="$ini"
+    else
+        # nothing of another domain may survive (exports of set_script_env.sh)
+        local _keep_extra="" _keep_min=""
+        if [ -n "$ini" ]; then
+            # shellcheck source=/dev/null
+            _keep_extra="$(. "$ini" >/dev/null 2>&1; printf '%s' "${EXTRA_PORTS:-}")"
+            # shellcheck source=/dev/null
+            _keep_min="$(. "$ini" >/dev/null 2>&1; printf '%s' "${LOG_MINUTES:-}")"
+        fi
+        unset DOMAIN_NAME ADMIN_SERVER MANAGED_SERVERS REPORTS_SERVERS REPORTS_SERVER_NAME \
+              WLS_ADMIN_PORT WLS_NODEMANAGER_PORT NM_HOST NM_TYPE WLST_CONFIG_FILE WLST_KEY_FILE
+        [ -n "$_keep_extra" ] && EXTRA_PORTS="$_keep_extra"
+        [ -n "$_keep_min" ] && LOG_MINUTES="$_keep_min"
+        if [ -n "$sel" ]; then
+            IHWT_OPS_SRC="setdb"
+        elif [ -n "${DOMAIN_HOME:-}" ] && [ "${IHW_ENV_KEY:-}" = "" ]; then
+            IHWT_OPS_SRC="Login-Umgebung"
+        else
+            printf "FEHLER: keine Domain bekannt.\n" >&2
+            printf "  setdb         eine FMW-Domain waehlen (nicht \"home only\" / DB)\n" >&2
+            printf "  oder          patch_install.ini neben die Tools legen (%s)\n" "$tools_dir" >&2
+            return 2
+        fi
+    fi
+
+    if [ ! -f "$DOMAIN_HOME/config/config.xml" ]; then
+        printf "FEHLER: keine Domain unter DOMAIN_HOME=%s (config/config.xml fehlt) - Quelle: %s\n" "$DOMAIN_HOME" "$IHWT_OPS_SRC" >&2
+        return 2
+    fi
+    ihwt_ops_from_domain
+    return 0
+}
+
+# ihwt_ops_from_domain - fills what is still empty from config.xml and
+# nodemanager.properties (same parsing as 09-Install/30-configure_autostart.sh)
+ihwt_ops_from_domain() {
+    local cfg="$DOMAIN_HOME/config/config.xml" nmp="$DOMAIN_HOME/nodemanager/nodemanager.properties" list v
+    [ -n "${DOMAIN_NAME:-}" ] || DOMAIN_NAME="$(grep -m1 -o '<name>[^<]*</name>' "$cfg" | sed 's/<[^>]*>//g')"
+    [ -n "${ADMIN_SERVER:-}" ] || ADMIN_SERVER="$(sed -n 's|.*<admin-server-name>\([^<]*\)</admin-server-name>.*|\1|p' "$cfg" | head -1)"
+    ADMIN_SERVER="${ADMIN_SERVER:-AdminServer}"
+    # name:port of every server; first <name> / <listen-port> outside <ssl> and
+    # <network-access-point>; no <listen-port> = WebLogic's default 7001
+    list="$(awk '
+        /<server>[[:space:]]*$/ { s=1; n=""; p=""; skip=0; next }
+        /<\/server>[[:space:]]*$/ { if (s && n != "" && tolower(n) != "template") print n ":" (p == "" ? "7001" : p); s=0; next }
+        s && /<(ssl|network-access-point)>[[:space:]]*$/ { skip++; next }
+        s && /<\/(ssl|network-access-point)>[[:space:]]*$/ { skip--; next }
+        s && !skip && n == "" && /<name>/ { v=$0; gsub(/.*<name>|<\/name>.*/, "", v); n=v }
+        s && !skip && p == "" && /<listen-port>/ { v=$0; gsub(/.*<listen-port>|<\/listen-port>.*/, "", v); p=v }
+    ' "$cfg")"
+    if [ -z "${WLS_ADMIN_PORT:-}" ]; then
+        v="$(printf '%s\n' "$list" | sed -n "s/^${ADMIN_SERVER}://p" | head -1)"
+        WLS_ADMIN_PORT="${v:-7001}"
+    fi
+    [ -n "${MANAGED_SERVERS:-}" ] || MANAGED_SERVERS="$(printf '%s\n' "$list" | grep -v "^${ADMIN_SERVER}:" | xargs)"
+    [ -n "${REPORTS_SERVERS:-}" ] || REPORTS_SERVERS="$(awk '
+        /<system-component>/ { c=1; n=""; t="" }
+        c && /<name>/ && n == "" { n=$0; gsub(/.*<name>|<\/name>.*/, "", n) }
+        c && /<component-type>/ { t=$0; gsub(/.*<component-type>|<\/component-type>.*/, "", t) }
+        /<\/system-component>/ { if (t == "ReportsServerComponent") print n; c=0 }
+    ' "$cfg" | xargs)"
+    if [ -f "$nmp" ]; then
+        [ -n "${WLS_NODEMANAGER_PORT:-}" ] || WLS_NODEMANAGER_PORT="$(sed -n 's/^ListenPort=//p' "$nmp" | tr -d ' \r' | head -1)"
+        [ -n "${NM_HOST:-}" ] || NM_HOST="$(sed -n 's/^ListenAddress=//p' "$nmp" | tr -d ' \r' | head -1)"
+        if [ -z "${NM_TYPE:-}" ]; then
+            case "$(sed -n 's/^SecureListener=//p' "$nmp" | tr -d ' \r' | head -1)" in
+                false) NM_TYPE="plain" ;;
+                *)     NM_TYPE="ssl" ;;
+            esac
+        fi
+    fi
+    WLS_NODEMANAGER_PORT="${WLS_NODEMANAGER_PORT:-5556}"
+    NM_HOST="${NM_HOST:-localhost}"
+    NM_TYPE="${NM_TYPE:-plain}"
+    # ORACLE_HOME for wlst.sh: from setdb / the ini / the login, else from the domain
+    if [ -z "${ORACLE_HOME:-}" ]; then
+        v="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}\(ORACLE_HOME\|MW_HOME\)="\{0,1\}\([^"$]*\)"\{0,1\}.*/\3/p' "$DOMAIN_HOME/bin/setDomainEnv.sh" 2>/dev/null | head -1)"
+        [ -n "$v" ] && ORACLE_HOME="$v"
+    fi
 }
