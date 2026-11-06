@@ -30,7 +30,7 @@ Further homes of the platform:
 | JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`, symlink → `jdk-21.0.x`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`), by OPatch / `wlst.sh` (`$ORACLE_HOME/oui/.globalEnv.properties`) and by ORDS. Updated by switching the link (`02b- --upgrade-jdk` / `07-Maintenance/80-`); installer and `createDomain` write the resolved path – `07-Maintenance/domain_jdk_path.sh` puts the link back |
 | FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`); since 2026-10-24 `JDK_HOME` = 21.0.13.0.2 (CPU Oct 2026), the bundled JDK is still 17.0.12 – no Oracle patch for it yet (SR). JDK updates via `JDK_HOME` do not reach it – checked by `02-Checks/java_check.sh` and `10-Monitoring/cve_inventory.sh` |
 | Inventory | `/u01/app/oracle/oraInventory` | OUI/OPatch registry of the Oracle Homes |
-| Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path) |
+| Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path). Created with the domain, but **inside the Oracle Home** in this layout – see [§7a](#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home) |
 | Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – `09-Install/30-configure_autostart.sh` |
 
 **Rule of thumb:** *Oracle Home = what Oracle delivered, Domain Home = what
@@ -38,6 +38,8 @@ you configured.* Never edit files under `$ORACLE_HOME/.../templates` to change
 a domain – they are the source for new domains and are replaced by patches.
 (**documented**, 11g Administrator's Guide "Understanding Oracle Fusion
 Middleware Concepts", 14c Understanding Oracle Fusion Middleware)
+The rule has exceptions in both directions, see
+[§7a](#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home).
 
 ---
 
@@ -343,6 +345,121 @@ Log families:
   "Managing Log Files and Diagnostic Data")
 - ADR (`D/diag/`, `~/oradiag_*`) – incidents of native code (`frmweb`,
   `rwserver` engines, tools).
+
+---
+
+## 7a. What a patch changes – Oracle Home, Domain Home, swapped home
+
+Measured on the test host (14.1.2, CPU Oct 2026 applied with OPatch on 2026-10-24,
+domain created 2026-10-15). Another version or another patch set can differ, so
+repeat the checks at the end of this section on the host you patch.
+
+**A patch writes into the Oracle Home, not into the Domain Home.** (**confirmed (live)**)
+
+- All `<source-path>` entries in `config.xml` (92, all `nostage`) point into the
+  Oracle Home, and outside `servers/*/tmp` and `cache` the domain holds no JAR, EAR or
+  WAR. The servers load the patched code after a restart.
+- The file actions of the 29 `actions.xml` in `$ORACLE_HOME/.patch_storage` (14,854
+  entries) share only two file names with the domain: a `readme.txt` and the sample
+  `network/admin/samples/tnsnames.ora`. This compares names only, it is an indication
+  and not a proof.
+- The post-install sections of the READMEs ask for "verify with `lspatches`, start all
+  processes" (RDA: also its version check). The READMEs of the bundle patches have no
+  such section and name no domain step, SQL or schema change. KB559857 (OHS) and
+  Doc ID 3093394.1 (ADF) name no command either, see
+  [00-patch-references.md](../09-Install/docs/00-patch-references.md). **Not read
+  yet:** KB694158, the post-install note of the WLS PSU.
+
+### What the home does not reach
+
+| Stays old after the patch | Where | What to do |
+|---|---|---|
+| Copies made when the domain was created | 304 of 1,063 domain files are identical to a file in the home, mostly `config/fmwconfig/components/FORMS` (163) and `ReportsToolsComponent` (34) | Nothing in this cycle: no patch changed a file of the same name. Check per cycle, a patch of such a file would not reach the domain |
+| Unpacked applications | `servers/*/tmp/_WL_user`, `_WL_internal` | Rebuilt at start. To be sure, delete them with [`clean_domain_tmp.sh`](#deleting-the-rebuildable-files) |
+| The JDK of the domain | `JDK_HOME`, separate from the home | Updated on its own, see §1 |
+| Settings from security advice | `config.xml` | Only by changing the configuration |
+
+### What the domain leaves in the home
+
+Files in the home that are newer than the domain and do not come from a patch:
+(**confirmed (live)**)
+
+| File in `$ORACLE_HOME` | Written by |
+|---|---|
+| `user_projects/applications/<domain>/em.ear` (86 KB, source path of EM in `config.xml`), `.fads.domain`, `forms/fads` | domain creation |
+| `domain-registry.xml` (list of the domains of this home) | domain creation |
+| `forms/java/jacob.jar`, `jacob.jar.orig`, `extensions.jnlp`, `forms/webutil/win32` + `win64/jacob-*.dll`, signed jars of an overlay | `09-Install/14-oracle_setup_forms.sh` |
+| `envPropertiesCache/` | at runtime |
+
+OPatch leaves all of them alone: `em.ear` still has its date of 2026-10-15 although the
+FMW Control patch of 2026-10-24 changed `O/em`. They only matter when the **whole
+home is replaced**.
+
+### Swapping a patched home
+
+Replacing the Oracle Home with a patched copy under the same path, without touching the
+domain, gives the same code as `opatch apply`. The difference is that nothing above is
+carried over by itself, unless the new home was copied from this one. Not tested live on
+the test host.
+
+1. Stop everything, including the Node Manager.
+2. Find what lives in the old home:
+   ```bash
+   grep '<source-path>' $DOMAIN_HOME/config/config.xml | grep user_projects
+   ls -la $ORACLE_HOME/user_projects/applications/ $ORACLE_HOME/domain-registry.xml
+   ```
+   If the application directory is outside the home (for example
+   `/oracle/user_projects/applications`), this point does not apply.
+3. Swap the home, then copy `user_projects/` and `domain-registry.xml` from the old one.
+4. Run `14-oracle_setup_forms.sh` again, or copy the files of the table above.
+5. Delete the rebuildable files (next section), then start.
+6. Check that the processes run from the new home with the expected patches:
+   ```bash
+   $ORACLE_HOME/OPatch/opatch lspatches
+   ls -l /proc/$(pgrep -f 'weblogic.Name=AdminServer')/exe
+   ```
+
+"It runs" proves that the domain fits the home, not that the patch level is complete.
+A missing `em.ear` shows at EM, not at Forms or Reports.
+
+### Deleting the rebuildable files
+
+[`clean_domain_tmp.sh`](../70-Customer-Projects/tools/README.md#clean_domain_tmpsh)
+deletes the contents of `servers/*/tmp` and `servers/*/cache` of a stopped domain.
+WebLogic rebuilds them at the next start, which then takes longer.
+
+```bash
+clean_domain_tmp.sh            # shows directories and sizes, deletes nothing
+clean_domain_tmp.sh --apply    # deletes, refuses while a process of the domain or home runs
+```
+
+Never delete `servers/*/data` (embedded LDAP, stores) or `reports/cache` (job results).
+`servers/*/stage` stays too: with a `stage` deployment it holds a copy that a patch does
+not reach, so check it by hand. A first real start after `--apply` is still open.
+
+### Repeat the checks on your host
+
+The commands change nothing in the home or the domain, they only write `/tmp/dom.names`.
+Not yet run as written.
+
+```bash
+# deployments: a stage entry means a copy under servers/*/stage
+grep '<staging-mode>' $DOMAIN_HOME/config/config.xml | sort | uniq -c
+
+# file names that a patch and the domain configuration share
+find $DOMAIN_HOME/config -type f -printf '%f\n' | LC_ALL=C sort -u > /tmp/dom.names
+find $ORACLE_HOME/.patch_storage -name actions.xml -exec grep -ohE 'file_name="[^"]+"' {} + \
+  | sed -E 's/"$//; s/.*[/"]//' | LC_ALL=C sort -u | LC_ALL=C comm -12 /tmp/dom.names -
+
+# what was written into the home after the domain was created (without patch machinery)
+find $ORACLE_HOME -type f -newer $DOMAIN_HOME/config/fmwconfig/jps-config.xml \
+     -not -path "$ORACLE_HOME/.patch_storage/*" -not -path "$ORACLE_HOME/inventory/*" \
+     -not -path "$ORACLE_HOME/cfgtoollogs/*" | head -50
+```
+
+The last command is only a rough filter: it also lists the patched files, and it depends
+on the date of `jps-config.xml`. On the test host the list above came from the creation
+date of the domain directory.
 
 ---
 

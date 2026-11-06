@@ -816,6 +816,9 @@ clean_domain_tmp.sh --apply    # deletes, only when nothing runs any more
   running. A shell inside the domain or a `tail -f` on a log does not count. Servers on
   other hosts are not seen; the tool only deletes on its own host.
 - **Afterwards:** the first start takes longer, the applications are unpacked again.
+- **Background:** what a patch changes in the home and in the domain, and what a swapped
+  home needs:
+  [weblogic_middleware_architecture.md §7a](../../80-FMW-Architecture/weblogic_middleware_architecture.md#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home).
 
 Tested 2026-11-06: dry run on the running test host (all processes listed, rc 1, nothing
 changed); `--apply` only on an isolated copy (protected directories and link targets

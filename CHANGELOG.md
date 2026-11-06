@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-06
 
+- `weblogic_middleware_architecture.md` new §7a: what a patch changes in the Oracle Home
+  and the Domain Home (measured on the test host), what stays behind, what the domain
+  leaves in the home (`em.ear`, `domain-registry.xml`, JACOB and signed jars), checklist
+  for a swapped home, `clean_domain_tmp.sh`. KB694158 still to be read.
 - New tool `clean_domain_tmp.sh`: deletes the contents of `servers/*/tmp` and `cache` of
   a stopped domain, WebLogic rebuilds them at the next start (after a patch or a swapped
   FMW home). Dry run by default, `--apply` refuses while a process of the domain or home
