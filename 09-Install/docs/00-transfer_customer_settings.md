@@ -36,9 +36,9 @@ The export of the old environment is the master data of the new build.
 ```
  customer host (old 12c / 14c)          our host                              new 14c host
  ─────────────────────────────          ────────                              ────────────
- tools ZIP                              analyse_patch_collect.sh   ─┐
- collect_fmw_env.sh  ── .zip.enc ──▶    analyse_forms_reports_      ├─▶ reports (PDF)
- export_forms_reports_conf.sh ─.enc─▶     export.sh                ─┘   to the customer
+ tools ZIP                              our analysis               ─┐
+ collect_fmw_env.sh  ── .zip.enc ──▶      patch level               ├─▶ reports (PDF)
+ export_forms_reports_conf.sh ─.enc─▶     configuration, security  ─┘   to the customer
                                               │ decisions of the customer
                                               ▼
                                         customer_conf_import.sh ──▶ environments/<env>.conf
@@ -79,20 +79,17 @@ cd $ORACLE_BASE/tools
 
 ## 3. Phase B – analysis and customer report (step 1)
 
-On our host, output git-ignored in `70-Customer-Projects/tools/customer-analyse/<date>_<customer>/`:
-
-```bash
-70-Customer-Projects/tools/bash/analyse_patch_collect.sh       -i fmw_collect_<host>_<ts>.zip.enc -k <customer>
-70-Customer-Projects/tools/bash/analyse_forms_reports_export.sh -i ihw_export_<host>_<ts>.zip.enc  -k <customer> --ref-home "$ORACLE_HOME"
-```
+On our side: the analysis scripts are not part of this repository (private
+repository, not needed at the customer). They turn the two archives into two
+reports:
 
 | Report | Content | Light |
 |---|---|---|
 | `patch_analyse_<customer>_<date>.md` | patch level against the cycle, Java, web tier, how to patch | patch light (cycle met / partly / not) |
-| `fmw_forms_reports_status_<customer>_<date>.md` | the whole configuration, the 14c target mapping, findings | security light per area (weights: `customer-analyse/rules/security_weights.txt`), overall = worst area |
+| `fmw_forms_reports_status_<customer>_<date>.md` | the whole configuration, the 14c target mapping, findings | security light per area, overall = worst area |
 
 The reports contain host names and paths. They go **only** to the customer
-(PDF: local converter in `customer-analyse/_pdf/`, development system only).
+(as PDF).
 
 ### To clarify with the customer **before** the build
 
@@ -216,9 +213,7 @@ environment, before / after.
 # on the new 14c host (tools ZIP or repository)
 ./export_forms_reports_conf.sh -t $ORACLE_BASE/install
 ./collect_fmw_env.sh -t $ORACLE_BASE/install
-# on our host
-analyse_forms_reports_export.sh -i <new export> -k <customer>_14c --ref-home "$ORACLE_HOME"
-analyse_patch_collect.sh        -i <new collection> -k <customer>_14c
+# then on our side: both archives through the analysis, as in step 1
 ```
 
 - **Target:** security light green, or yellow with a documented reason per

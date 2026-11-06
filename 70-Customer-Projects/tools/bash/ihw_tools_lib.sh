@@ -3,7 +3,8 @@
 # Script   : ihw_tools_lib.sh
 # Purpose  : Shared helpers of the standalone customer tools in
 #            70-Customer-Projects/tools/bash (export_forms_reports_conf.sh,
-#            analyse_forms_reports_export.sh, ...). NOT the IHateWeblogic
+#            collect_fmw_env.sh, status.sh, ...) and of the customer import
+#            (00-Setup/customer_conf_import.sh). NOT the IHateWeblogic
 #            library (00-Setup/IHateWeblogic_lib.sh) - no environment.conf,
 #            no ok/warn/fail; plain bash + coreutils.
 #            The road map (Start_beim_Kunden_kochbuch_de.txt step 1) copies all
@@ -15,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-06.1"
+IHWT_LIB_VERSION="2026-11-06.2"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -99,26 +100,7 @@ ihwt_git_guard() {
 }
 
 # -----------------------------------------------------------------------------
-# ihwt_md_table "Col1;Col2;..." - ';'-CSV on stdin -> Markdown table
-#   (no header line in the input). "|" in values is escaped, empty input
-#   prints "_none found_".
-# -----------------------------------------------------------------------------
-ihwt_md_table() {
-    awk -F';' -v head="$1" '
-        BEGIN { n = split(head, h, ";"); line = "|"; sep = "|"
-                for (i = 1; i <= n; i++) { line = line " " h[i] " |"; sep = sep "---|" } }
-        NF == 0 { next }
-        { if (!rows++) { print line; print sep }
-          out = "|"
-          for (i = 1; i <= n; i++) { v = (i <= NF ? $i : ""); gsub(/\|/, "\\|", v); if (i == n && NF > n) for (j = n + 1; j <= NF; j++) v = v ";" $j
-              out = out " " v " |" }
-          print out }
-        END { if (!rows) print "_none found_" }'
-}
-
-# -----------------------------------------------------------------------------
-# Archive encryption (export_forms_reports_conf.sh, collect_fmw_env.sh,
-# analyse_forms_reports_export.sh): ZIP (tar.gz without zip), openssl
+# Archive encryption (export_forms_reports_conf.sh, collect_fmw_env.sh): ZIP (tar.gz without zip), openssl
 # AES-256-CBC with PBKDF2 (200 000 iterations, SHA-256, salt). The passphrase
 # is read hidden and handed to openssl via a file descriptor - never on a
 # command line (ps / /proc/<pid>/cmdline), never written to a file.
@@ -182,7 +164,7 @@ ihwt_decrypt() {
 # -----------------------------------------------------------------------------
 # Web tier in front of WebLogic: Nginx, Apache httpd (+ WebLogic proxy plug-in
 # mod_wl) and Oracle HTTP Server (OHS). Used by collect_fmw_env.sh,
-# export_forms_reports_conf.sh and analyse_forms_reports_export.sh.
+# export_forms_reports_conf.sh and the customer import.
 #   ihwt_webtier_find [DOMAIN_HOME ...]  -> "type;main_conf" (type nginx|apache|ohs)
 #   ihwt_webtier_flatten TYPE MAIN       -> config with all includes inlined
 #   ihwt_webtier_routes TYPE MAIN        -> routing rows (stdin = flattened config)
@@ -409,7 +391,7 @@ ihwt_webtier_settings() {
 }
 
 # -----------------------------------------------------------------------------
-# Analysis helpers (analyse_forms_reports_export.sh, analyse_patch_collect.sh)
+# Unpack + clear-text check (customer import, also used by our analysis)
 # -----------------------------------------------------------------------------
 # ihwt_unpack IN DIR - unpack an archive of the tools into DIR (.zip.enc asks
 # the passphrase, .zip, .tar.gz); rc 2 on an error (DIR may be partly filled)
@@ -441,90 +423,6 @@ ihwt_report_secret_check() {
     printf '  ERROR possible clear-text secret in the report - report deleted. Lines (values cut):\n' >&2
     printf '%s\n' "$hits" | cut -c1-60 | sed 's/^/    /' >&2
     return 1
-}
-
-# ihwt_fact FILE KEY - value of a "KEY<spaces>value" line of 00_summary.txt
-# (collect_fmw_env.sh fact(): key padded to 28 characters, may contain blanks)
-ihwt_fact() {
-    # key < 28 characters: padding + separator = at least 2 blanks ("Domain" must
-    # not match "Domain version ..."); longer keys: exactly one blank
-    awk -v k="$2" '{ s = (length(k) < 28 ? k "  " : k " ") }
-        index($0, s) == 1 { v = substr($0, length(k) + 1); sub(/^[[:space:]]+/, "", v); print v; exit }' "$1" 2>/dev/null
-}
-
-# ihwt_block FILE TITLE - output of the collector block "### TITLE" (without the
-# "### $ command" line, up to "### rc=")
-ihwt_block() {
-    awk -v t="### $2" '$0 == t { on = 1; next } on && /^### \$ / { next } on && /^### rc=/ { exit } on { print }' "$1" 2>/dev/null
-}
-
-# -----------------------------------------------------------------------------
-# Traffic lights of the customer reports ("Status at a glance")
-# -----------------------------------------------------------------------------
-# ihwt_light_md COLOR - Markdown of a light: green / yellow / red / grey
-# (emoji for GitHub / VS Code; the PDF converter turns them into a badge)
-ihwt_light_md() {
-    case "$1" in
-        green)  printf '🟢 **green**' ;;
-        yellow) printf '🟡 **yellow**' ;;
-        red)    printf '🔴 **red**' ;;
-        *)      printf '⚪ not assessed' ;;
-    esac
-}
-
-# ihwt_weigh RULES < findings.csv > weighted.csv
-#   findings  "severity;area;finding;recommendation"
-#   RULES     lines "<area regexp>;<finding regexp>;<category>;<weight>"
-#             (first match wins, case-insensitive, # = comment)
-#   output    "severity;area;finding;recommendation;category;weight;rule_no"
-#             (rule_no = line order of RULES = priority inside one weight)
-#             security findings without a rule: category "unrated", weight "unrated"
-#             other findings without a rule: dropped
-ihwt_weigh() {
-    awk -F';' -v rf="$1" '
-        BEGIN { while ((getline l < rf) > 0) {
-                    if (l ~ /^[[:space:]]*(#|$)/) continue
-                    n = split(l, p, ";"); if (n < 4) continue
-                    w = p[n]; c = p[n-1]; ar = p[1]; fr = p[2]
-                    for (i = 3; i <= n - 2; i++) fr = fr ";" p[i]
-                    k++; RA[k] = tolower(ar); RF[k] = tolower(fr); RC[k] = c; RW[k] = w }
-                close(rf) }
-        { a = tolower($2); f = tolower($3); hit = 0
-          for (i = 1; i <= k; i++) if (a ~ RA[i] && f ~ RF[i]) { hit = i; break }
-          if (hit) print $0 ";" RC[hit] ";" RW[hit] ";" hit
-          else if ($2 ~ /^Security/) print $0 ";unrated;unrated;999" }'
-}
-
-# ihwt_status_table PATCH_LIGHT PATCH_TEXT < weighted.csv - "Status at a glance"
-#   table rows "category;light;most important point" (overall first); sets
-#   nothing - prints the CSV. PATCH_LIGHT green|yellow|red|none
-ihwt_status_rows() {
-    awk -F';' -v pl="$1" -v pt="$2" '
-        function rank(w) { return (w == "critical" ? 3 : (w == "high" ? 2 : (w == "low" ? 1 : 0))) }
-        $6 == "none" || $6 == "" { next }
-        { c = $5; if (!(c in seen)) { seen[c] = 1; ord[++n] = c }
-          r = rank($6); if ($6 == "unrated") r = 1; q = $7 + 0
-          if (!(c in txt) || r > top[c] || (r == top[c] && q < pri[c])) { top[c] = r; txt[c] = $3; pri[c] = q }
-          cnt[c]++ }
-        END {
-          split("Network access / web tier|Credentials|Reports server|Forms / WebUtil|WebLogic / Node Manager|Code signing (jars)", fixed, "|")
-          worst = 0; bad = 0; m = 0
-          for (i = 1; i <= 6; i++) { c = fixed[i]; L[++m] = c }
-          for (i = 1; i <= n; i++) { c = ord[i]; f = 0; for (j = 1; j <= m; j++) if (L[j] == c) f = 1; if (!f) L[++m] = c }
-          for (j = 1; j <= m; j++) { c = L[j]; r = top[c] + 0
-              col = (r == 3 ? "red" : (r == 2 ? "yellow" : "green"))
-              if (r >= 2) bad++
-              if (r > worst) worst = r
-              t = (c in txt ? txt[c] : "-"); if (length(t) > 110) t = substr(t, 1, 107) "..."
-              if (cnt[c] > 1) t = t " (+" cnt[c] - 1 " more point" (cnt[c] > 2 ? "s" : "") ")"
-              row[j] = c ";" col ";" (r <= 1 && cnt[c] ? "only hardening points: " cnt[c] : (r == 0 ? "-" : t)) }
-          pr = (pl == "red" ? 3 : (pl == "yellow" ? 2 : (pl == "green" ? 0 : -1)))
-          if (pr >= 2) bad++
-          if (pr > worst) worst = pr
-          ov = (worst == 3 ? "red" : (worst == 2 ? "yellow" : "green"))
-          printf "**Overall**;%s;%s\n", ov, (bad ? bad " of " m + 1 " areas need action" : "no critical or important point")
-          for (j = 1; j <= m; j++) print row[j]
-          printf "Patch level;%s;%s\n", (pr < 0 ? "none" : pl), pt }'
 }
 
 # -----------------------------------------------------------------------------

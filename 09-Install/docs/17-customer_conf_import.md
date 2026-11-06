@@ -30,8 +30,7 @@
 This step brings the configuration of an existing customer environment
 (12c or 14c) into a 14c environment built with the IHateWeblogic library.
 The source is an export of `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`,
-analysed first with `analyse_forms_reports_export.sh` (report for the
-customer).
+analysed first on our side (report for the customer).
 
 There are two ways in, and both use **one** code path:
 
@@ -121,8 +120,7 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
   - `RCU_NEW`: 14c needs a new RCU;
   - `REPORTS_SECURITY`: the secured server of the library.
 - **Rules:** the correction rules (`--rules`, `--keep-customer`) are in the
-  importer. The analysis uses its own weighting file,
-  `customer-analyse/rules/security_weights.txt`, for the traffic light.
+  importer.
 
 1. **Unpack** with the same function as the analysis (`ihwt_unpack` in
    `ihw_tools_lib.sh`).

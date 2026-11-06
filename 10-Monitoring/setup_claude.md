@@ -159,7 +159,7 @@ rules stay usable; a customer who wants only managed rules adds it.
 
 **Development / analysis system only – never on a Forms / Reports
 instance:** turning the customer reports
-(`70-Customer-Projects/tools/customer-analyse/`) into PDF needs the OS package
+(our analysis, private repository below `70-Customer-Projects/customer-analyse/`) into PDF needs the OS package
 `pango` (`dnf install pango`, for the Python renderer weasyprint in a private
 venv). It is no FMW prerequisite – the install chain (`02-root_os_packages.sh`)
 must not add it, and `os_check.sh` must not demand it.

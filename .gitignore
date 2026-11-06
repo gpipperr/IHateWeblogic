@@ -94,10 +94,5 @@ ihw_export_*
 # local maintainer helper (formats cookbooks, not shipped)
 70-Customer-Projects/tools/cookbook_blank_lines.py
 
-# Customer export analyses (analyse_forms_reports_export.sh) - customer data, never commit;
-# only the README and the generic template are committed
-70-Customer-Projects/tools/customer-analyse/*
-!70-Customer-Projects/tools/customer-analyse/README.md
-!70-Customer-Projects/tools/customer-analyse/fmw_forms_reports_status_template.md
-!70-Customer-Projects/tools/customer-analyse/patch_analyse_template.md
-!70-Customer-Projects/tools/customer-analyse/rules/
+# Analysis of customer exports: own private repository, cloned here
+70-Customer-Projects/customer-analyse/

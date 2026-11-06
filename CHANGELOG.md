@@ -28,6 +28,12 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
     home (`/oracle/tools`), or set with `IHW_TOOLS_DIR=` in `~/.ihw_env.conf`.
   - `status.sh`: Node Manager keys searched in the ini, the home directory and the
     library autostart; a clear message when missing; new `status.sh --store-nm-key`.
+- The analysis scripts and their templates / rules left this repository: they run
+  on our side only and make no sense on a customer host. Private repository,
+  cloned to `70-Customer-Projects/customer-analyse/` (ignored here). The tools ZIPs
+  never contained them. Helpers used only by the analysis moved along
+  (`ihw_tools_lib` 2026-11-06.2). Reports identical before / after. The old versions
+  stay in the history of this repository.
 - New `make_patch_install_ini.sh`: `patch_install.ini` from the existing domain, for
   the cookbooks. Dry run shows every value with its source; `--apply` writes it
   (600), never over an existing file. What cannot be derived stays commented out.

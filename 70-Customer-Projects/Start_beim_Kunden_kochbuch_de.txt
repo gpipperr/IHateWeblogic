@@ -251,8 +251,7 @@ SCHRITT 4: Gibt es schon eine Umgebung?
 
   # Die .zip.enc zur Auswertung mitnehmen, die Passphrase getrennt
   # uebermitteln (enthaelt Hostnamen und Pfade - NICHT ins Git). Bei uns
-  # entsteht daraus die Patch-Analyse fuer den Kunden:
-  #   tools/bash/analyse_patch_collect.sh -i <datei>.zip.enc -k <kunde>
+  # entsteht daraus die Patch-Analyse fuer den Kunden.
   # Den Ausgabeordner danach loeschen:
 
   rm -rf <ausgabe_ordner>
@@ -266,8 +265,7 @@ SCHRITT 4: Gibt es schon eine Umgebung?
   # Erwartet: Abfrage einer Passphrase (zweimal), am Ende der Pfad der
   # Datei ihw_export_<host>_<zeit>.zip.enc - wie oben mitnehmen, die
   # Passphrase getrennt uebermitteln. Bei uns entsteht daraus der
-  # Forms & Reports Status-Bericht:
-  #   tools/bash/analyse_forms_reports_export.sh -i <datei>.zip.enc -k <kunde>
+  # Forms & Reports Status-Bericht.
 
   ----------------------------------------------------------------------------
   4b Neue Installation: Werte aus den Kochbuechern eintragen

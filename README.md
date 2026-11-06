@@ -727,6 +727,7 @@ IHateWeblogic/
     │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
     │   │                                     facts of every patch README
     │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
+    ├── customer-analyse/             – not in this repository: our analysis (private repository, git-ignored here)
     ├── tools/
     │   ├── README.md
     │   ├── bash/                         – Linux hosts
@@ -739,10 +740,7 @@ IHateWeblogic/
     │   │   ├── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
     │   │   │                                     for the 14c rebuild – encrypted archive, never into git
     │   │   ├── make_patch_install_ini.sh     – patch_install.ini from the existing domain (for the cookbooks)
-    │   │   ├── analyse_forms_reports_export.sh – export → Forms & Reports status report (security light)
-    │   │   ├── analyse_patch_collect.sh      – collection → patch analysis report (patch light)
     │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
-    │   ├── customer-analyse/             – report templates + rules/ (committed); run dirs git-ignored
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
     │       ├── README.md
     │       ├── collect_fmw_env.ps1           – read-only collector (services, registry, CIM), secrets masked

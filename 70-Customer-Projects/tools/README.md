@@ -26,8 +26,7 @@ README or the road map:
 70-Customer-Projects/tools/make_customer_zip.sh --apply    # rebuild (+ .sha256), commit the ZIPs with the change
 ```
 
-Not in the ZIPs: `analyse_forms_reports_export.sh`, `analyse_patch_collect.sh` and `customer-analyse/`
-(the analysis runs on our host), the local cookbook formatter.
+Not in the ZIPs: the local cookbook formatter.
 
 | Folder | Platform |
 |---|---|
@@ -50,8 +49,6 @@ runtime, never by a second copy of the script.
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create `patch_install.ini` from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
-| [bash/analyse_forms_reports_export.sh](#analyse_forms_reports_exportsh) | turn an export of `export_forms_reports_conf.sh` into an analysis report for the customer (English Markdown): all sections as tables, the 14c target mapping and rule-based findings, security first – output git-ignored in `customer-analyse/` |
-| [bash/analyse_patch_collect.sh](#analyse_patch_collectsh) | turn a collection of `collect_fmw_env.sh` into the patch analysis for the customer (English Markdown): installed patches, the patch list of the cycle against this environment, Java, other homes, web tier, OPatch prerequisites, order of work, route cookbook / library, findings |
 | [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
@@ -678,213 +675,6 @@ never goes into git (refused inside the repo; `.gitignore` has
 for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
 (`forms_12.2.1` / `reports_12.2.1`, standalone + in-process server).
 
-## analyse_forms_reports_export.sh
-
-Step 2 of the 12c/14c → 14c migration (step 1 = `export_forms_reports_conf.sh`
-at the customer, step 3 = the import into the library,
-`00-Setup/customer_conf_import.sh`; whole process:
-[00-transfer_customer_settings.md](../../09-Install/docs/00-transfer_customer_settings.md)). It turns
-one export into a **structured report** the customer gets ("this is how we
-build it in 14c"):
-
-```bash
-# on our host - the export (encrypted .zip.enc, masked .zip or an unpacked directory)
-tools/bash/analyse_forms_reports_export.sh -i ihw_export_<host>_<ts>.zip.enc -k <customer>
-tools/bash/analyse_forms_reports_export.sh -i <export> -k <customer> --ref-home /u01/app/oracle/fmw   # 14c templates as reference
-```
-
-| Option | Meaning |
-|---|---|
-| `-i` | the export: `.zip.enc` (passphrase asked hidden, passed to openssl via fd), `.zip`, `.tar.gz` or a directory |
-| `-k` | short customer name – run directory `<date>_<customer>`, report name |
-| `-o` | base directory (default `tools/customer-analyse/`); inside a git work tree it is **refused** unless git ignores it |
-| `--ref-home` | 14c `ORACLE_HOME` (default `$ORACLE_HOME`, else `/u01/app/oracle/fmw`) – customer keys are compared with Oracle's 14.1.2 templates (`forms/templates/config/formsweb.cfg`, `default.env`, `webutil.cfg`); without it these rules are listed as "not checked" |
-| `--fresh` | unpack the export again (default: reuse `export/` of an earlier run) |
-
-**Output** (`tools/customer-analyse/<date>_<customer>/`, git-ignored – only
-the README, the template and `rules/` are committed):
-
-```
-export/                                 the unpacked export (clear text with an encrypted export!)
-csv/                                    every table as ';'-CSV (findings.csv, jars.csv, tns.csv ...)
-fmw_forms_reports_status_<customer>_<date>.md     the report
-```
-
-**Traffic light "Status at a glance"** (since 2026-11-05.6, top of the
-report – the "Forms & Reports status"):
-- every security finding gets a category and a weight from
-  [customer-analyse/rules/security_weights.txt](customer-analyse/rules/security_weights.txt)
-  (`<area regexp>;<finding regexp>;<category>;<weight>`, first match wins);
-- the weights:
-  - critical = exploitable from the network today without a login → 🔴;
-  - high = weakens the protection substantially → 🟡;
-  - low = hardening → stays 🟢;
-- one light per category: network access / web tier, credentials, Reports
-  server, Forms / WebUtil, WebLogic / Node Manager, code signing;
-- **patch level** = the light of `analyse_patch_collect.sh` of the same run
-  directory (`csv/patch/status.env`), else "not assessed";
-- **overall = the worst area** – no point score;
-- security findings without a rule are printed as "UNRATED" at the end of
-  the run.
-
-**Report** (template
-[customer-analyse/fmw_forms_reports_status_template.md](customer-analyse/fmw_forms_reports_status_template.md)):
-summary, Forms sections + `[default]` against the 14c standard + all keys of
-the customer sections, env files + differing keys, WebUtil, customer jars
-(signature, digest, signer expiry + timestamp, class version, duplicates),
-Reports servers (engines read from `rwserver.conf`), `rwservlet.properties`,
-`cgicmd.dat` key names, fonts (class + 14c replacement; free fonts as one line
-per directory), source directories (one line for many sibling directories,
-e.g. per-user homes), dependencies (libraries used / missing), TNS aliases
-(defined / used / not defined), secrets (counted: active lines and all
-keyword hits – never a value), the 14c target table, the
-`environment.conf` proposal, the findings.
-
-**Findings** – one row `severity;area;finding;recommendation`, security
-first, WARN > HINT > INFO. Examples of the rules:
-
-| Area | Rule |
-|---|---|
-| Security / Forms | `userid` stored in a section (clear text / `{AES}` encrypted), `allow_debug=true`, `restrictedURLparams` shorter than the 14c standard, client trace, `http://` URLs, `FORMS_RESTRICT_ENTER_QUERY=FALSE`, password keywords on active env file lines |
-| Security / WebUtil | `transfer.appsrv.accessControl=FALSE`, `/tmp` as transfer directory, `transfer.database.enabled`, own `install.syslib` DLLs (not JACOB) |
-| Security / Reports | no encrypted `<identifier>`, no `securityId`, no `<folderAccess>`, `webcommandaccess` L2, `cgicmd.dat` keys with logins, world-writable read / write directories |
-| Security / WebLogic, net | production mode, empty `listen-address`, demo keystores, Node Manager, `-D…password` in start scripts, `sqlnet.ora` encryption |
-| Security / web tier (Nginx, Apache + `mod_wl`, OHS) | `/console` `/em` (and other WLS admin paths) routed without allow / deny / `Require`, old TLS protocols (SSLv3 / TLS 1.0 / 1.1, Apache `all` without `-TLSv1 -TLSv1.1`, OHS `nzos_Version_1_0/1_1`), HTTPS without a protocol list, plain HTTP routed to WebLogic, `TraceEnable on`, `DebugConfigInfo ON`, directory listing, version shown (`server_tokens`, `ServerTokens`), backends reached over the network; routes not covered by the 14c Nginx template (table 13.2) |
-| Security / Jars | unsigned, SHA-1 / MD5 signature (JDK 21 = unsigned), signer expired without timestamp (WARN) / with timestamp (HINT), expiring in 90 days (`keytool -printcert -jarfile`, read only) |
-| Oracle Net | aliases unused / used but not defined / defined twice, `SID=`, IP as host, several TNS_ADMIN – usages read from the active lines only, Oracle's `cgicmd.dat` sample keys and Kerberos principals ignored |
-| Forms runtime (rules of `06-FormsDiag`) | timeout chain `heartBeat` < `FORMS_TIMEOUT` < servlet session-timeout (own table 3.2), `maxRuntimeProcesses` missing (DoS), prestart pool in `[default]` / none at all, `networkRetries=0`, `gzipCompressApplet`, no `time-taken` in the WLS_FORMS access log, env values with the old host name – recommendations point to `06-FormsDiag/forms_perf_settings.sh` / `forms_perf_analyse.sh` and `environment.conf` |
-| Reports engines (rules of `05-ReportsPerformance`) | `engLife` < 10 (workaround – question to the customer, our measured approach as alternative), no `engineResponseTimeOut`, obsolete engine JVM options (`-Xoss`, PermGen, CMS), tiny `-Xms`, identical engine blocks on several servers, leftover in-process server that is still the rwservlet default |
-| Forms / Jars / Reports / Fonts / Sources | keys not in the 14c template (minus [rules/formsweb_14c_known_keys.txt](customer-analyse/rules/formsweb_14c_known_keys.txt)), overrides equal to the 14c default, missing env files / jars, case / content duplicates, unreferenced jars, short `engLife`, in-process server, shared broadcast port, Microsoft / symbol / customer fonts, missing or world-writable source directories, `.fmb` without `.fmx`, missing libraries |
-
-**Safety:** every value passes `ihwt_mask`; alias names are the only thing
-read from an unmasked login (`user/pw@ALIAS` → `ALIAS`); the finished report
-is searched for clear-text patterns (`password=…`, `{AES}…`,
-`<identifier>…</identifier>`, `user/pw@`) and **deleted** on a hit. The report
-still holds host names, paths and user directory names of the customer – hand
-it only to that customer.
-
-Export version 2026-11-05.3 adds the **web tier**: Nginx, Apache httpd with
-the WebLogic plug-in (`mod_wl`) and OHS – also a standalone OHS web tier
-domain – are found from the running processes (`nginx: master -c`,
-`httpd -f / -d`), the default paths and a bounded search; every configuration
-file **including all includes** is stored below `raw/other/…` (shared lib
-functions `ihwt_webtier_find` / `_flatten` / `_routes` / `_settings`, no
-binary and no root needed – files the owner cannot read are listed as
-warnings). `ihw_import/web_tier.txt` holds one row per route
-(`type;conf;listen;server_name;tls;protocols;path;target;access;cert`),
-`web_tier_settings.txt` the rated directives. The certificate subjects now
-come from **every** HTTPS listener (`openssl s_client` with the server name,
-else the certificate file) – before only OHS `ssl.conf` was read, so a
-customer with TLS on Nginx / Apache had no subject. `WLS_SERVER_FQDN` is
-taken from the `server_name` of the HTTPS route to `/forms`; the analysis
-maps every route to the 14c Nginx (section 13.2) and proposes
-`ADMIN_IP_RANGE`. `collect_fmw_env.sh` 2026-11-05.2 uses the same functions
-(`61_webserver.txt`: routing table, rated directives, configuration with the
-includes inlined, masked).
-
-Export version 2026-11-04.5 additionally collects the JDBC descriptors
-`config/jdbc/*-jdbc.xml` (RCU data sources, `ihw_import/jdbc.txt`:
-URL + schema user, passwords stay `{AES}` / masked), the public part of the
-certificates (`ihw_import/certificates.txt`: subject / issuer / expiry of the
-OHS HTTPS listeners and of the jar signers) and puts ports, listen address,
-old public name and the RCU database into `environment.conf.proposal`. The
-report shows them as the checklist **13.1 Values for the 14c
-environment.conf** (from export / decision / asked / secret / missing).
-
-Export version 2026-11-04.3 additionally collects the `weblogic.xml` /
-`web.xml` of `formsapp.ear` (servlet session-timeout for the timeout chain)
-and CPUs / RAM of the host (header of `00_report.txt` – sizing proposals);
-older exports list these rules under "not checked".
-
-Tested 2026-11-04: test-host export (masked, 14.1.2) and the first real
-customer export (12.2.1.4, export version 2026-11-03.1 without the font class
-column – computed by the analysis).
-
-## analyse_patch_collect.sh
-
-The customer document of the **patch analysis**: collect at the customer
-(`collect_fmw_env.sh`, encrypted archive), analyse here, send the report;
-patch later with the cookbook – or, environments built with the library,
-with the library scripts.
-
-```bash
-# on our host (needs the repository: patch lists, cookbooks)
-tools/bash/analyse_patch_collect.sh -i fmw_collect_<host>_<ts>.zip.enc -k <customer>
-tools/bash/analyse_patch_collect.sh -i <collection> -k <customer> --csv <other patch list>
-```
-
-| Option | Meaning |
-|---|---|
-| `-i` | the collection: `.zip.enc` (passphrase asked hidden), `.zip`, `.tar.gz` or a directory |
-| `-k` | short customer name – run directory `<date>_<customer>` (shared with the configuration report) |
-| `-o` | base directory (default `tools/customer-analyse/`, refused when not git-ignored) |
-| `--csv` | patch list instead of the automatic choice |
-| `--fresh` | unpack the collection again |
-
-**Reference = our patch lists** (no patch number is typed twice), chosen by
-the FMW version of `inventory/registry.xml`:
-
-| Release | Patch list | Minimums | Cookbook (route A) |
-|---|---|---|---|
-| 14.1.2 | `09-Install/download/patches_fmw.csv` | `09-Install/oracle_software_version.conf` (`OPATCH_VERSION_MIN`, `JDK_VERSION_MIN`, `WLS_SPB_MARKER_PATCH`, superseded list) | newest `FormsReports14_patch_cpu_*/…manual.md` |
-| 12.2.1.x | newest `70-Customer-Projects/FormsReports12_patch_cpu_*/patches_*.csv` | from the descriptions (OPatch, JDK 8uNNN) | newest `FormsReports12_patch_cpu_*/Patch_Kochbuch_*.txt` |
-
-**Logic:**
-- Every row of the patch list gets an area (OPatch, SPB, FMW
-  Infrastructure, Perl, OHS, WebGate, DB client, Forms, Reports, server JDK,
-  client JRE).
-- "Applies" follows the components of the collection: comps.xml,
-  `Reports comps.xml / binaries`, OHS / WebGate / DB client / Perl in the
-  home.
-- "Installed" means one of:
-  - the number is in `opatch lspatches`;
-  - for the SPB: `(Patch NNN)` or the marker patch;
-  - for OPatch / JDK: the version.
-- The installed patches are classified as:
-  - current cycle;
-  - part of the SPB;
-  - older version replaced: from the superseded list, or the same bundle
-    name with another number;
-  - not in the cycle list – check.
-- **Route B** (`07-Maintenance/80-/81-/82-`) is offered only for 14.1.2
-  **and** when the collector found the library. Fact `IHateWeblogic library`
-  since collector 2026-11-05.3.
-
-**Traffic light** (since 2026-11-05.3) at the top:
-- 🟢 every applicable patch of the cycle is installed ("Requirements of
-  `<cycle>` met");
-- 🟡 partly patched;
-- 🔴 nothing of the cycle installed, or the WLS Stack Patch Bundle is
-  missing.
-
-The light rates the patch list only. WARN points without a patch (e.g.
-Reports engines on the bundled JDK) are listed below it as a known product
-gap. `csv/patch/status.env` hands the light to the status report.
-
-**Report** (template
-[customer-analyse/patch_analyse_template.md](customer-analyse/patch_analyse_template.md)):
-1. summary with the recommended route;
-2. environment;
-3. installed patches;
-4. patch list against the environment;
-5. Java (server JDK, bundled JDK, client JRE / FSAL);
-6. other homes and web tier: Nginx = OS packages, Apache = httpd + WebLogic
-   Proxy Plug-In, OHS outside the home;
-7. OPatch prerequisites (space, `/tmp`, `.patch_storage`, locks, owners,
-   running servers, last runs with their result);
-8. order of work with the maintenance window, route A cookbook, route B
-   library;
-9. findings (WARN / HINT / INFO) and the rules that could not be checked.
-
-The finished report passes the same clear-text check as the configuration
-report (`ihwt_report_secret_check`).
-
-Not covered – stays with the patch-cycle analysis
-(`10-Monitoring/patch_cycle_analysis.sh`):
-- reading the advisories and the patch READMEs;
-- conflicts between patches;
-- writing the cookbook of a new cycle.
-
 ## ihw_tools_lib.sh
 
 Shared helpers of the tools in `bash/` – **not** the IHateWeblogic library
@@ -899,10 +689,10 @@ The tools source it from their own directory; the road map copies all
 | `ihwt_sections FILE` / `ihwt_keys FILE` / `ihwt_cfgval FILE KEY` | ini / key=value parsing (formsweb.cfg, env files, webutil.cfg) |
 | `ihwt_font_class NAME` | `class;replacement` of a font file (customer / ms / free) |
 | `ihwt_git_guard DIR NAME` | refuse customer data inside a git work tree unless ignored |
-| `ihwt_md_table "Col1;Col2"` | `;`-CSV on stdin → Markdown table (`_none found_` when empty) |
 
 Used by `export_forms_reports_conf.sh` (since 2026-11-04.1 – output checked
-identical before / after) and `analyse_forms_reports_export.sh`.
+identical before / after), `collect_fmw_env.sh`, the operation tools and
+`00-Setup/customer_conf_import.sh`.
 
 ## set_script_env.sh and the operation tools
 
