@@ -108,6 +108,8 @@ SCHRITT 2: Werte fuer die Tools in patch_install.ini pruefen  (als oracle)
   # Die ini ist fuer die vier Betriebs-Tools optional: ohne ini nehmen sie die
   # mit setdb gewaehlte Domain und lesen Server und Ports aus config.xml.
   # Reihenfolge: IHW_INI=/pfad von Hand, dann setdb-Domain, dann die ini.
+  # Eine erzeugte ini (make_patch_install_ini.sh) enthaelt MANAGED_SERVERS und
+  # REPORTS_SERVERS nur als Kommentar - die Tools lesen sie live aus der Domain.
 
 
 ================================================================================

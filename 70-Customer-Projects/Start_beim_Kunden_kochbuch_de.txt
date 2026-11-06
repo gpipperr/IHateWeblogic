@@ -182,7 +182,9 @@ SCHRITT 2: setdb aktivieren  (als oracle)
   #   setdb h     Hilfe mit der Liste der Tools
   # status.sh, show_log.sh, show_errors.sh und show_all_logs.sh nehmen die mit
   # setdb gewaehlte Domain - die patch_install.ini (SCHRITT 3) brauchen sie
-  # nicht, nur die Kochbuecher.
+  # nicht, nur die Kochbuecher. Fehlt sie auf einem installierten Host, bietet
+  # "t" an, sie aus der Domain zu erzeugen (make_patch_install_ini.sh); danach
+  # die als "pruefen" / ANPASSEN gemeldeten Werte durchgehen.
 
 
 ================================================================================

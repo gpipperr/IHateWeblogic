@@ -23,6 +23,8 @@
 # The OL9 default ~/.bashrc sources ~/.bashrc.d/*; open a new shell.
 # Only the current shell is changed - no file of the installation, no
 # environment.conf of the IHateWeblogic library. Standalone, no dependency.
+# One exception, only after asking: "t" offers to create patch_install.ini when
+# the tools directory has none (make_patch_install_ini.sh).
 #
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -463,6 +465,7 @@ Analysis|collect_fmw_env.sh||collect the patch level etc. for the analysis (read
 Analysis|export_forms_reports_conf.sh||export the configuration, for the 14c move (read-only)
 Analysis|clone_check_fmw.sh||is the environment clone-capable?
 Analysis|check_disk_space.sh||where is the disk space, what can be cleaned
+Patch|make_patch_install_ini.sh| [--apply]|create patch_install.ini from the domain (for the cookbooks)
 Patch|. set_script_env.sh||values of patch_install.ini for the cookbook commands
 Patch|fmw_patch_env.sh||variables of the manual patch cookbooks
 Patch|mos_patch_download.sh||download a patch list from My Oracle Support
@@ -484,6 +487,27 @@ cdt() {
     fi
     cd "$IHW_TOOLS_DIR" || return
     printf "   %s - setdb h lists the tools (status.sh -q, show_log.sh, show_errors.sh ...)\n" "$PWD"
+    _ihwse_ini_offer
+}
+
+# no patch_install.ini next to the tools + a domain selected: ask once per session.
+# Only the cookbooks need the file. Written by the tool, never here.
+_ihwse_ini_offer() {
+    local a tool="$IHW_TOOLS_DIR/make_patch_install_ini.sh"
+    [ -f "$IHW_TOOLS_DIR/patch_install.ini" ] && return 0
+    [ -n "${IHW_INI_ASKED:-}" ] && return 0
+    [ -x "$tool" ] || return 0
+    case "${IHW_ENV_KEY:-}" in
+        "FMW "*" -"|"") return 0 ;;
+        "FMW "*) ;;
+        *) return 0 ;;
+    esac
+    export IHW_INI_ASKED=1
+    read -r -p "   no patch_install.ini (only the cookbooks need it) - create it from domain ${DOMAIN_NAME:-?}? [y/N]: " a </dev/tty 2>/dev/null || return 0
+    case "$a" in
+        y|Y|yes|YES|j|J|ja|JA) "$tool" --apply ;;
+        *) printf "   not created - later: make_patch_install_ini.sh\n" ;;
+    esac
 }
 alias domain=cddh
 cdlog() {

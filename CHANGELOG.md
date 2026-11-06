@@ -28,6 +28,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
     home (`/oracle/tools`), or set with `IHW_TOOLS_DIR=` in `~/.ihw_env.conf`.
   - `status.sh`: Node Manager keys searched in the ini, the home directory and the
     library autostart; a clear message when missing; new `status.sh --store-nm-key`.
+- New `make_patch_install_ini.sh`: `patch_install.ini` from the existing domain, for
+  the cookbooks. Dry run shows every value with its source; `--apply` writes it
+  (600), never over an existing file. What cannot be derived stays commented out.
+  `setdb` offers it once per session at `t` when there is no ini and a domain is
+  selected.
 
 ## 2026-11-05
 

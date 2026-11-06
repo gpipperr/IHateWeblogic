@@ -42,13 +42,14 @@ _nm_key_candidates() {
     local d b
     [ -n "${WLST_CONFIG_FILE:-}" ] && printf '%s\t%s\n' "$WLST_CONFIG_FILE" "${WLST_KEY_FILE:-}"
     printf '%s\t%s\n' "$HOME/oracle-WebLogicConfig.properties" "$HOME/oracle-WebLogicKey.properties"
+    # (duplicates: an ini may name the same pair)
     # ORACLE_BASE is not set by setdb for FMW: also above the Oracle Home
     # (/u01/app/oracle/fmw -> /u01/app/oracle, /oracle/product/mw -> /oracle)
     for b in "${ORACLE_BASE:-}" "$(dirname "${ORACLE_HOME:-/}")" "$(dirname "$(dirname "$(dirname "${ORACLE_HOME:-/}")")")"; do
         [ -n "$b" ] && [ "$b" != "/" ] || continue
         d="$b/admin/$DOMAIN_NAME/ctrl/keyfile"
         printf '%s\t%s\n' "$d/nm_config" "$d/nm_key"
-    done | awk '!seen[$0]++'
+    done
 }
 
 _nm_keys_hint() {   # how to create them - also shown after a failed login
@@ -61,7 +62,7 @@ _nm_keys_hint() {   # how to create them - also shown after a failed login
 NM_KEY_CFG="" NM_KEY_KEY=""
 while IFS=$'\t' read -r _c _k; do
     if [ -r "$_c" ] && [ -r "$_k" ]; then NM_KEY_CFG="$_c"; NM_KEY_KEY="$_k"; break; fi
-done < <(_nm_key_candidates)
+done < <(_nm_key_candidates | awk '!seen[$0]++')
 
 # --store-nm-key: one write action of this tool, only on explicit request.
 # The password goes to WLST through the environment, never on a command line.
@@ -235,7 +236,7 @@ if $QUICK; then
 elif [ -z "$NM_KEY_CFG" ]; then
     printf "  Node Manager: keine gespeicherten Zugangsdaten - Abfrage uebersprungen\n"
     printf "    gesucht:\n"
-    _nm_key_candidates | while IFS=$'\t' read -r _c _k; do printf "      %s\n" "$_c"; done
+    _nm_key_candidates | awk '!seen[$0]++' | while IFS=$'\t' read -r _c _k; do printf "      %s\n" "$_c"; done
     _nm_keys_hint
     _warn
 elif [ -z "$NM_PID" ]; then

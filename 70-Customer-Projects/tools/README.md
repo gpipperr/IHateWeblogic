@@ -48,6 +48,7 @@ runtime, never by a second copy of the script.
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
 | [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
+| [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create `patch_install.ini` from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
 | [bash/analyse_forms_reports_export.sh](#analyse_forms_reports_exportsh) | turn an export of `export_forms_reports_conf.sh` into an analysis report for the customer (English Markdown): all sections as tables, the 14c target mapping and rule-based findings, security first – output git-ignored in `customer-analyse/` |
 | [bash/analyse_patch_collect.sh](#analyse_patch_collectsh) | turn a collection of `collect_fmw_env.sh` into the patch analysis for the customer (English Markdown): installed patches, the patch list of the cycle against this environment, Java, other homes, web tier, OPatch prerequisites, order of work, route cookbook / library, findings |
@@ -973,3 +974,32 @@ setdb domain without ini, ini with the same and another domain, `IHW_INI`, no
 domain, a DB entry; `t`, `2t`, `9t`, `cdt`, `h`; stage 3 with the library keys, the
 message without keys, `--store-nm-key` without terminal and without Node Manager.
 A real `--store-nm-key` run needs the Node Manager password and is still open.
+
+### make_patch_install_ini.sh
+
+Creates `patch_install.ini` from the existing domain, for the cookbooks – the four
+operation tools do not need it. `setdb` offers it once per session when `t` / `cdt`
+finds no ini and a domain is selected; only on "y" it runs the tool.
+
+```bash
+make_patch_install_ini.sh            # shows every value with its source, writes nothing
+make_patch_install_ini.sh --apply    # writes patch_install.ini next to the tool (600)
+```
+
+- **Domain:** the one selected with `setdb`, else `DOMAIN_HOME` of the login. Never
+  an old ini; an existing file is not overwritten (rc 2). `IHW_INI=/path` sets
+  another target.
+- **Derived:** `setdb` (homes, JDK), `config.xml` + `nodemanager.properties`,
+  `rwservlet.properties`, `rwserver.conf`, `rwnetwork.conf`, `reports.sh`
+  (`TNS_ADMIN`), `opss-datasource-jdbc.xml` (RCU database, prefix).
+- **To check, marked at the end:** `ORACLE_BASE` when it is not in the environment,
+  `WLS_SERVER_FQDN` / `SSL_CN` (Nginx `server_name`, else the host name).
+- **Commented out, "ANPASSEN":** `PATCH_STORAGE` / `MEDIA` when the directory does not
+  exist, `RCU_DB_TYPE`, `SSL_*`. No sample values, no passwords.
+- **`MANAGED_SERVERS` / `REPORTS_SERVERS` stay comments:** `status.sh` and `show_log.sh`
+  read them live from the domain, so the ini is still right after
+  `13- --remove-server`. A hand-written ini with these keys wins over the domain.
+
+Tested 2026-11-06 on the test host from a scratch copy: all keys of the template
+present (active or commented), `set_script_env.sh` and `status.sh` with the result,
+no second write, the offer of `setdb` asks once.

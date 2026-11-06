@@ -738,6 +738,7 @@ IHateWeblogic/
     │   │   ├── ihw_shell_env.sh              – setdb / setfmw: switch the current shell (FMW home, domains, DB homes) – ~/.bashrc.d
     │   │   ├── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
     │   │   │                                     for the 14c rebuild – encrypted archive, never into git
+    │   │   ├── make_patch_install_ini.sh     – patch_install.ini from the existing domain (for the cookbooks)
     │   │   ├── analyse_forms_reports_export.sh – export → Forms & Reports status report (security light)
     │   │   ├── analyse_patch_collect.sh      – collection → patch analysis report (patch light)
     │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
