@@ -311,11 +311,24 @@ Seen at a customer (2026-10-15): `all=1`, `default=1`, but `ens33=0` with an
 sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"   # every interface must be 1
 ip -6 addr show                                                  # no output = IPv6 really off
 sysctl -w net.ipv6.conf.<if>.disable_ipv6=1                      # runtime
-nmcli -g GENERAL.CONNECTION device show <if>                     # connection name
-nmcli connection modify "<connection>" ipv6.method disabled      # persistent (next activation/boot)
+nmcli -g GENERAL.CON-UUID device show <if>                       # UUID of the active profile (names can be duplicates)
+nmcli connection modify uuid <UUID> ipv6.method disabled         # persistent (next activation/boot)
 ```
 
 Restart the WLS/Reports JVMs afterwards – they bind their network stack at start.
+
+**Network boot (OCI, root volume over iSCSI, `netroot=iscsi`):** `nm-initrd-generator`
+creates a **new** in-memory profile "Wired Connection" with `ipv6.method=auto` at
+every boot, and NetworkManager takes it over from the initrd. `nmcli connection
+modify` turns that profile into a file in `/etc`, which the next boot does not use:
+IPv6 is back after each reboot, and one more file stays behind. Found at a customer
+on 2026-11-06 (5 files, all `origin=nm-initrd-generator`). Therefore `01-` installs a
+dispatcher script for every host: `/etc/NetworkManager/dispatcher.d/90-ihw-disable-ipv6`
+sets `net.ipv6.conf.<if>.disable_ipv6=1` at `up`, `reapply` and `dhcp4-change`. For a
+profile from the initrd `01-` changes nothing. Inactive leftovers can be deleted
+(`nmcli connection delete uuid <UUID>`). `ipv6.disable=1` on the kernel line is **not**
+used: Nginx (`listen [::]`) and others would have to change. Check after a reboot:
+`ip -6 addr show` must be empty.
 
 
 ### Parameter rationale

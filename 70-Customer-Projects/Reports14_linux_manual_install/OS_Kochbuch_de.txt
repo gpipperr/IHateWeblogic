@@ -303,8 +303,14 @@ EOF
   sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"
   # Erwartet: ueberall "= 1". Steht bei einer Karte (z.B. ens33) "= 0":
   #   sysctl -w net.ipv6.conf.ens33.disable_ipv6=1          # sofort
-  #   nmcli -g GENERAL.CONNECTION device show ens33         # Verbindungsname
-  #   nmcli connection modify "<Verbindung>" ipv6.method disabled   # dauerhaft
+  #   nmcli -g GENERAL.CON-UUID device show ens33           # UUID der aktiven Verbindung
+  #   nmcli connection modify uuid <UUID> ipv6.method disabled   # dauerhaft
+  # (UUID statt Name: mehrere Verbindungen koennen gleich heissen.)
+  # OCI / Root-Volume ueber iSCSI (grep netroot /proc/cmdline): Die Initrd legt bei
+  # jedem Boot ein NEUES Profil "Wired Connection" mit auto an - nmcli hilft hier
+  # nicht. Dann statt dessen /etc/NetworkManager/dispatcher.d/90-ihw-disable-ipv6
+  # (root, 755, Inhalt: 09-Install/01-root_os_baseline.sh) anlegen, Kontrolle nach
+  # dem Reboot: ip -6 addr show muss leer sein.
   # (nmcli wirkt bei der naechsten Aktivierung bzw. beim Reboot in SCHRITT 2.)
 
   ip -6 addr show

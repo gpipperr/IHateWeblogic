@@ -362,18 +362,24 @@ for _ifdir in /proc/sys/net/ipv6/conf/*; do
     _val="$(cat "$_ifdir/disable_ipv6" 2>/dev/null)"
     _nm=""
     if command -v nmcli > /dev/null 2>&1; then
+        # UUID of the active profile: several profiles can share one name
         _con="$(nmcli -g GENERAL.CONNECTION device show "$_if" 2>/dev/null | head -1)"
-        [ -n "$_con" ] && _nm="$(nmcli -g ipv6.method connection show "$_con" 2>/dev/null)"
+        _uuid="$(nmcli -g GENERAL.CON-UUID device show "$_if" 2>/dev/null | head -1)"
+        [ -n "$_uuid" ] && _nm="$(nmcli -g ipv6.method connection show uuid "$_uuid" 2>/dev/null)"
     fi
     printf "  %-40s %s\n" "net.ipv6.conf.${_if}.disable_ipv6:" \
         "${_val:-?}${_nm:+  (NM ipv6.method: $_nm)}" | tee -a "${LOG_FILE:-/dev/null}"
     [ "$_val" = "1" ] || IPV6_IF_ACTIVE="$IPV6_IF_ACTIVE $_if"
-    if [ -n "$_nm" ] && [ "$_nm" != "disabled" ] && [ "$_nm" != "ignore" ]; then
-        warn "NetworkManager connection '$_con' (${_if}): ipv6.method=$_nm – re-enables IPv6 at the next activation"
-        info "  Fix: nmcli connection modify '$_con' ipv6.method disabled  (or 01-root_os_baseline.sh --apply)"
+    if [ -n "$_nm" ] && [ "$_nm" != "disabled" ] && [ "$_nm" != "ignore" ] \
+       && [ -x /etc/NetworkManager/dispatcher.d/90-ihw-disable-ipv6 ]; then
+        # e.g. network boot: the initrd creates a profile with "auto" at each start
+        info "  ${_if}: profile has ipv6.method=$_nm, IPv6 is switched off by the NM dispatcher 90-ihw-disable-ipv6"
+    elif [ -n "$_nm" ] && [ "$_nm" != "disabled" ] && [ "$_nm" != "ignore" ]; then
+        warn "NetworkManager connection '$_con' (${_if}, $_uuid): ipv6.method=$_nm – re-enables IPv6 at the next activation"
+        info "  Fix: 01-root_os_baseline.sh --apply (NM dispatcher + ipv6.method disabled)"
     fi
 done
-unset _ifdir _if _val _nm _con
+unset _ifdir _if _val _nm _con _uuid
 
 if [ "${IPV6_ALL_DISABLED:-0}" = "1" ] && [ "${IPV6_DEF_DISABLED:-0}" = "1" ] && [ -z "$IPV6_IF_ACTIVE" ]; then
     ok "IPv6 disabled system-wide via sysctl (recommended for WebLogic)"

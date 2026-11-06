@@ -451,6 +451,49 @@ fi
 # Seen at a customer 2026-10-15: all=1, default=1, ens33=0 with an fe80::
 # address -> the JVMs listened via the IPv6 stack ([::ffff:127.0.0.1]:5556).
 # Runtime fix: sysctl per interface; persistent fix: nmcli ipv6.method disabled.
+#
+# Root volume over the network (OCI: netroot=iscsi): nm-initrd-generator creates a
+# NEW in-memory profile "Wired Connection" with ipv6.method=auto at EVERY boot and
+# NetworkManager takes it over from the initrd ("assume ... indicated"). A changed
+# profile only becomes a file in /etc that the next boot does not use (customer
+# 2026-11-05: 5 files, IPv6 back after every reboot). So the persistent fix that
+# works for every profile is a dispatcher script, sets the sysctl at each "up".
+# --- begin dispatcher ---
+NM_DISPATCH="/etc/NetworkManager/dispatcher.d/90-ihw-disable-ipv6"
+if command -v nmcli > /dev/null 2>&1; then
+    _disp_tmp="$(mktemp)"
+    cat > "$_disp_tmp" <<'DISPEOF'
+#!/bin/sh
+# Written by IHateWeblogic 09-Install/01-root_os_baseline.sh - IPv6 off on every
+# interface, whatever ipv6.method the active NetworkManager profile has (at a
+# network boot the initrd creates a new profile with "auto" at each start).
+# Arguments of NetworkManager: $1 = interface, $2 = action
+case "$2" in up|reapply|dhcp4-change) ;; *) exit 0 ;; esac
+case "$1" in ""|lo|*/*) exit 0 ;; esac
+f="/proc/sys/net/ipv6/conf/$1/disable_ipv6"
+[ -w "$f" ] && echo 1 > "$f"
+exit 0
+DISPEOF
+    if _run_root cmp -s "$_disp_tmp" "$NM_DISPATCH" 2>/dev/null; then
+        ok "$(printf "%-42s %s" "NM dispatcher (IPv6 off at each up):" "$NM_DISPATCH")"
+    elif [ "$APPLY_MODE" -eq 1 ]; then
+        # NetworkManager runs it only when root-owned and not group/world writable
+        if _run_root install -o root -g root -m 755 "$_disp_tmp" "$NM_DISPATCH"; then
+            command -v restorecon > /dev/null 2>&1 && _run_root restorecon "$NM_DISPATCH" 2>/dev/null
+            ok "NM dispatcher installed: $NM_DISPATCH"
+        else
+            fail "NM dispatcher not installed: $NM_DISPATCH"
+        fi
+    else
+        warn "NM dispatcher missing: $NM_DISPATCH – IPv6 can come back at the next activation / boot (--apply installs it)"
+    fi
+    if ! systemctl is-enabled NetworkManager-dispatcher > /dev/null 2>&1; then
+        warn "NetworkManager-dispatcher.service is not enabled – the script would not run"
+        info "  systemctl enable NetworkManager-dispatcher"
+    fi
+    rm -f "$_disp_tmp"; unset _disp_tmp
+fi
+# --- end dispatcher ---
 IPV6_IF_ISSUES=0
 for _ifdir in /proc/sys/net/ipv6/conf/*; do
     _if="$(basename "$_ifdir")"
@@ -468,25 +511,51 @@ for _ifdir in /proc/sys/net/ipv6/conf/*; do
     fi
     # NetworkManager: keep it from re-enabling IPv6 at the next activation/boot
     if command -v nmcli > /dev/null 2>&1; then
+        # Always the UUID of the ACTIVE profile: several profiles can share one name
         _con="$(nmcli -g GENERAL.CONNECTION device show "$_if" 2>/dev/null | head -1)"
-        if [ -n "$_con" ]; then
-            _method="$(nmcli -g ipv6.method connection show "$_con" 2>/dev/null)"
+        _uuid="$(nmcli -g GENERAL.CON-UUID device show "$_if" 2>/dev/null | head -1)"
+        if [ -n "$_uuid" ]; then
+            _method="$(nmcli -g ipv6.method connection show uuid "$_uuid" 2>/dev/null)"
+            _same="$(nmcli -g NAME,UUID connection show 2>/dev/null | awk -F: -v n="$_con" -v u="$_uuid" '$1 == n && $2 != u {c++} END {print c + 0}')"
+            _file="$(nmcli -t -f UUID,FILENAME connection show 2>/dev/null | sed -n "s/^$_uuid://p" | head -1)"
+            # profile of the initrd (network boot): changing it has no effect at the
+            # next boot and only leaves one more file in /etc - the dispatcher handles it
+            if [ -n "$_file" ] && _run_root grep -q 'origin=nm-initrd-generator' "$_file" 2>/dev/null; then
+                info "$(printf "NM connection '%s' (%s): from the initrd, ipv6.method=%s – new at each boot, IPv6 off by the dispatcher" "$_con" "$_uuid" "${_method:-?}")"
+                if [ "${_same:-0}" -gt 0 ]; then
+                    info "  $_same inactive profile(s) with this name are leftovers of earlier changes, can be deleted:"
+                    info "    nmcli -f NAME,UUID,DEVICE connection show ; nmcli connection delete uuid <UUID>"
+                fi
+                continue
+            fi
+            if [ "${_same:-0}" -gt 0 ]; then
+                warn "$(printf "NM: %s more profile(s) named '%s' besides the active %s – check them" "$_same" "$_con" "$_uuid")"
+                info "  nmcli -f NAME,UUID,DEVICE,AUTOCONNECT connection show"
+            fi
             if [ "$_method" = "disabled" ] || [ "$_method" = "ignore" ]; then
                 ok "$(printf "%-42s = %s" "NM connection '${_con}' ipv6.method" "$_method")"
             else
                 warn "$(printf "%-42s = %s  (want: disabled)" "NM connection '${_con}' ipv6.method" "${_method:-?}")"
                 IPV6_IF_ISSUES=$((IPV6_IF_ISSUES + 1))
-                if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Set ipv6.method=disabled on NM connection '${_con}' (takes effect at next activation/boot)?" "y"; then
-                    _run_root nmcli connection modify "$_con" ipv6.method disabled \
-                        && ok "NM connection '${_con}': ipv6.method=disabled"
+                if [ "$APPLY_MODE" -eq 1 ] && askYesNo "Set ipv6.method=disabled on NM connection '${_con}' (${_uuid}, takes effect at next activation/boot)?" "y"; then
+                    _run_root nmcli connection modify uuid "$_uuid" ipv6.method disabled
+                    # read back - only this proves the active profile changed
+                    _method="$(nmcli -g ipv6.method connection show uuid "$_uuid" 2>/dev/null)"
+                    if [ "$_method" = "disabled" ]; then
+                        ok "NM connection '${_con}' (${_uuid}): ipv6.method=disabled"
+                    else
+                        fail "NM connection '${_con}' (${_uuid}): ipv6.method is still '${_method:-?}'"
+                    fi
                 fi
             fi
         fi
     fi
 done
-unset _ifdir _if _val _con _method
-[ "$IPV6_IF_ISSUES" -gt 0 ] && [ "$APPLY_MODE" -ne 1 ] && \
-    info "  Re-run with --apply; after changing it restart the WLS/Reports JVMs (they bind their stack at start)"
+unset _ifdir _if _val _con _uuid _same _file _method
+if [ "$IPV6_IF_ISSUES" -gt 0 ]; then
+    [ "$APPLY_MODE" -ne 1 ] && info "  Re-run with --apply"
+    info "  After changing it restart the WLS/Reports JVMs (they bind their stack at start)"
+fi
 
 # =============================================================================
 # 5. Transparent HugePages

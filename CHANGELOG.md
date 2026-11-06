@@ -16,6 +16,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   - Way 1 of the import run at a customer.
 
   Docs 00-transfer, 04, 17, 30, README status and TODO updated. No code change.
+- IPv6 came back after every reboot on a host with a network boot (customer, OCI,
+  `netroot=iscsi`): the initrd creates a new NetworkManager profile with
+  `ipv6.method=auto` at each start, our `nmcli modify` only left a file in `/etc`. `01-`
+  now installs the dispatcher script `90-ihw-disable-ipv6` (sets the sysctl at each
+  `up`) on every host and leaves a profile of the initrd alone; otherwise it changes the
+  active profile by UUID and reads the value back (FAIL if unchanged). `00-` knows the
+  dispatcher. Docs 00-set_os, OS cookbook. Effect after a reboot still to be confirmed live.
 - `setdb` and the operation tools work together (`ihw_tools_lib` 2026-11-06.1,
   `ihw_shell_env.sh` 2026-11-06.1):
   - `status.sh`, `show_log.sh`, `show_errors.sh`, `show_all_logs.sh` no longer need
