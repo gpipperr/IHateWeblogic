@@ -740,6 +740,7 @@ IHateWeblogic/
     │   │   ├── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
     │   │   │                                     for the 14c rebuild – encrypted archive, never into git
     │   │   ├── make_patch_install_ini.sh     – patch_install.ini from the existing domain (for the cookbooks)
+    │   │   ├── clean_domain_tmp.sh           – delete servers/*/tmp + cache of the stopped domain (rebuilt at the next start)
     │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
     │       ├── README.md

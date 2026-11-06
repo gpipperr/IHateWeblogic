@@ -49,6 +49,7 @@ runtime, never by a second copy of the script.
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create `patch_install.ini` from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
+| [bash/clean_domain_tmp.sh](#clean_domain_tmpsh) | delete the contents of `servers/*/tmp` and `cache` of a stopped domain, rebuilt at the next start, e.g. after a patch (dry run shows the sizes, `--apply` deletes, refuses while anything runs) |
 | [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
@@ -793,3 +794,30 @@ make_patch_install_ini.sh --apply    # writes patch_install.ini next to the tool
 Tested 2026-11-06 on the test host from a scratch copy: all keys of the template
 present (active or commented), `set_script_env.sh` and `status.sh` with the result,
 no second write, the offer of `setdb` asks once.
+
+### clean_domain_tmp.sh
+
+Deletes what WebLogic rebuilds at the next start, for example after a patch or after
+swapping the FMW home. Domain selection as for the operation tools (`setdb`, ini,
+login). Call it as the owner of the domain.
+
+```bash
+clean_domain_tmp.sh            # shows the directories and sizes, deletes nothing
+clean_domain_tmp.sh --apply    # deletes, only when nothing runs any more
+```
+
+- **Deleted:** the contents of `servers/<server>/tmp` and `servers/<server>/cache`
+  (`_WL_user`, `_WL_internal`, `.lok` files). The directories stay. Links are not followed.
+- **Kept:** `servers/*/data` (embedded LDAP, stores), `security`, `logs`, `adr`, `stage`
+  (may hold deployments, a note is shown), `reports/cache` (job results), `config/`.
+- **Refuses (rc 1)** while a `java`, `frmweb`, `rwserver` … process runs that belongs to
+  this domain (command line or working directory) or to this home (`frmweb` names no
+  domain). This also stops the tool when another domain of the same home is still
+  running. A shell inside the domain or a `tail -f` on a log does not count. Servers on
+  other hosts are not seen; the tool only deletes on its own host.
+- **Afterwards:** the first start takes longer, the applications are unpacked again.
+
+Tested 2026-11-06: dry run on the running test host (all processes listed, rc 1, nothing
+changed); `--apply` only on an isolated copy (protected directories and link targets
+kept, refusal with a running process). The first real start after a real `--apply` is
+still open.

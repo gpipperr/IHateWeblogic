@@ -33,7 +33,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-06.2"
+IHW_SHELL_ENV_VERSION="2026-11-06.3"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -465,6 +465,7 @@ Analysis|collect_fmw_env.sh||collect the patch level etc. for the analysis (read
 Analysis|export_forms_reports_conf.sh||export the configuration, for the 14c move (read-only)
 Analysis|clone_check_fmw.sh||is the environment clone-capable?
 Analysis|check_disk_space.sh||where is the disk space, what can be cleaned
+Patch|clean_domain_tmp.sh| [--apply]|delete servers/*/tmp + cache of the stopped domain, rebuilt at the next start
 Patch|make_patch_install_ini.sh| [--apply]|create patch_install.ini from the domain (for the cookbooks)
 Patch|. set_script_env.sh||values of patch_install.ini for the cookbook commands
 Patch|fmw_patch_env.sh||variables of the manual patch cookbooks

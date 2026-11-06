@@ -5,6 +5,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-06
 
+- New tool `clean_domain_tmp.sh`: deletes the contents of `servers/*/tmp` and `cache` of
+  a stopped domain, WebLogic rebuilds them at the next start (after a patch or a swapped
+  FMW home). Dry run by default, `--apply` refuses while a process of the domain or home
+  runs; `data`, `security`, `logs`, `stage`, `reports/cache` and `config` stay. In the
+  `setdb` help (`ihw_shell_env.sh` 2026-11-06.3). First real start after `--apply` open.
 - Customer follow-up after the first 14c move, as reported from the customer
   host:
   - admin network set with `04-root_nginx.sh --apply --admin-range`; this
