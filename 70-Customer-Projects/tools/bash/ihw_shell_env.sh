@@ -33,7 +33,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-06.1"
+IHW_SHELL_ENV_VERSION="2026-11-06.2"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -470,6 +470,8 @@ Patch|. set_script_env.sh||values of patch_install.ini for the cookbook commands
 Patch|fmw_patch_env.sh||variables of the manual patch cookbooks
 Patch|mos_patch_download.sh||download a patch list from My Oracle Support
 EOF
+    printf "   patch_install.ini: optional for status / logs (they use the selected domain),\n"
+    printf "     needed by the cookbooks. Missing: t / cdt offer once per session to create it.\n"
 }
 
 # ------------------------------------------------------------ cd helpers ----
