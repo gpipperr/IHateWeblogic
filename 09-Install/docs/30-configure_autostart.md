@@ -135,7 +135,8 @@ uses it for `nmStart('AdminServer')`.
   - **Existing hosts:** run `30-configure_autostart.sh --apply` again (and
     `60-RCU-DB-19c/02-` / `08-`, `12-APEX-Ords/04-` for their units).
   - **Check:** `systemd-analyze critical-chain fmw-<domain>.service` – the
-    `.mount` of the volume must appear in the chain.
+    `.mount` of the volume must appear in the chain. Reboot test OK at the
+    customer on 2026-11-06.
 - `TimeoutStartSec=1800`, `TimeoutStopSec=900`.
 
 The script copies the unit and runs `systemctl daemon-reload` + `enable` (as

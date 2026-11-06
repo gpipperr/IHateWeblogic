@@ -1,6 +1,6 @@
 # IHateWeblogic – Open Items / TODO
 
-Only what is still open (state 2026-11-05). Everything finished is described
+Only what is still open (state 2026-11-06). Everything finished is described
 in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [README.md](README.md#project-status).
@@ -55,9 +55,7 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   Forms **pool vs. session** criterion and RSS of a real session
   (`06-FormsDiag/forms_perf_analyse.sh`).
 - [ ] `01-setup-interview.sh` interactively (questions `REPORTS_SECURITY`,
-  embedded LDAP password, Reports server admin, `FORMS_TMP`) – also after a
-  customer import (Way 1: `environment.conf` link of the importer, server
-  list taken from `REPORTS_SERVER_INSTANCES`, imported values `[kept]`).
+  embedded LDAP password, Reports server admin, `FORMS_TMP`).
 - [ ] **Fresh domain with the new `08-` template** (2026-11-03): Node Manager
   credentials and embedded-LDAP `cn=Admin` password set at `writeDomain` –
   then the first `11-` start and `13-` must run without "Access denied" /
@@ -237,35 +235,22 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `notifysuccess`) untested – the mail server is still the template
   placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
 - [ ] **14c move of a customer – export → analysis → import**
-  ([process](09-Install/docs/00-transfer_customer_settings.md)). Export,
-  both analysis reports (PDF to the customer) and the import Way 2 ran live
-  on 2026-11-05: two customer Reports servers with their own `NLS_LANG`, 14
-  jars signed, the old default server removed with `13- --remove-server`.
-  Open:
-  - Way 1 at a customer (import before the interview, see the interview
-    test under "Tests");
+  ([process](09-Install/docs/00-transfer_customer_settings.md)). Way 2 ran live
+  on 2026-11-05, Way 1 and the start page of `04-` as root by 2026-11-06. The
+  admin network is set, and the systemd units wait for `/oracle` (reboot test
+  with `critical-chain` OK). Open:
+  - the closing report: export and collection after the admin network change
+    to our host, then the status report + PDF;
   - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF after
     the wait for the Reports servers);
   - slow Reports logins at the customer (1.6–2.6 s, test host 60 ms) –
     measure again after IPv6 off (`rwserver_status.sh`, "Avg auth time");
-  - step 3 done on 2026-11-05: both reports of the customer's 14c host
-    (patch green, security red only because `ADMIN_IP_RANGE=any` – `/console`
-    / `/em` open). Then `14- --apply` at the customer created
-    `FORMS_TMP/webutil` (0 WARN). For the green closing report:
-    - the customer decides on an admin network → `04-root_nginx.sh --apply`
-      (also brings the `/formsWeb/` landing page);
-    - `40- --apply` (`index.html`, `FORMS_CLIENT_FORM=test_form`), restart
-      `WLS_FORMS` for the new `webutil.cfg`;
-    - re-export + analysis;
-  - re-render the systemd units with `RequiresMountsFor=` at the customer
-    (`30- --apply`, `60-RCU-DB-19c/02-` / `08-`). Then reboot test:
-    `systemd-analyze critical-chain` must show the `/oracle` mount;
   - 12c report already sent: one false WARN ("same broadcast port", not
     security) – regenerate with analysis 2026-11-05.7 if it is sent again;
   - feedback of the customer on the reports and the decisions in
     `IMPORT_DECISIONS.md` (`SECTION_UNUSED`, `ENV_UNUSED`, `PATH_KEPT` –
     second module directory `bin_eg`), the customer start section / form for
-    the FSAL shortcut;
+    the FSAL shortcut (today `test_form`);
   - on the customer host: Carlito fonts, `FORMS_SIGN_TSA_URL`, recompile of
     the invalid RCU objects (since the RCU run of 2026-11-03), `server_tokens
     off`.

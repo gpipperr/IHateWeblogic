@@ -5,7 +5,7 @@
 > [00-transfer_customer_settings.md](00-transfer_customer_settings.md). This
 > document is the reference of the importer and the overlay.
 
-**Status 2026-11-05: built, Way 2 live-tested in a customer 14c environment.**
+**Status 2026-11-06: built, Way 1 and Way 2 live at a customer.**
 - **Importer:** `00-Setup/customer_conf_import.sh`.
 - **Way 2:** `07-Maintenance/apply_customer_conf.sh`.
 - **Overlay readers:** `13-`, `14-`, `14b-`, `04-ReportsFonts`.
@@ -21,7 +21,7 @@
 
   The fixes found on the way are listed in the pitfalls table of the
   process document.
-- **Not tested yet:** Way 1 at a customer.
+- **Way 1** has run at a customer as well (reported 2026-11-06).
 
 ---
 

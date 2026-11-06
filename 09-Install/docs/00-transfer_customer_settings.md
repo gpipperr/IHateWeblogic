@@ -16,9 +16,9 @@ workflow:
 - **importer and overlay (spec of the scripts):** [17-customer_conf_import.md](17-customer_conf_import.md);
 - **first visit at the customer (German):** [Start_beim_Kunden_kochbuch_de.txt](../../70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
-Status 2026-11-05: Way 2 has been run live once in a customer 14c
-environment (import, two customer Reports servers, old default server
-removed). Way 1 is built, but not yet run at a customer.
+Status 2026-11-06: both ways have run live at a customer. Way 2: import, two
+customer Reports servers, old default server removed (2026-11-05). Way 1: new
+build with the import before the interview (reported 2026-11-06).
 
 ---
 

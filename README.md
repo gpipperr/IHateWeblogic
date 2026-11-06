@@ -91,7 +91,7 @@ the automation is an [open item](TODO.md).
 
 ## Project Status
 
-**`[███████████████████░]` ~96 % complete** (state 2026-11-05) – phases 1–7
+**`[███████████████████░]` ~96 % complete** (state 2026-11-06) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
 reviewed against the Oracle 14.1.2 documentation and re-tested live
@@ -99,9 +99,8 @@ reviewed against the Oracle 14.1.2 documentation and re-tested live
 (`cve_inventory.sh`, since 2026-10-30 `cve_watch.sh`); host hardening
 (firewall, sshd) is live on the test host. The 14c move of a customer
 (export → analysis → import, [process](09-Install/docs/00-transfer_customer_settings.md))
-ran live for the first time on 2026-11-05 (Way 2), including step 3: the
-re-analysis of the new 14c host (patch level green, security red only for
-the admin consoles – no admin network chosen at the customer).
+ran live at a customer on 2026-11-05/06: Way 2 and Way 1, including step 3,
+the re-analysis of the new 14c host.
 What was done when: [CHANGELOG.md](CHANGELOG.md) (newest first). What is
 still open: [TODO.md](TODO.md).
 

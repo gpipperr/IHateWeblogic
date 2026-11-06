@@ -3,6 +3,20 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
+## 2026-11-06
+
+- Customer follow-up after the first 14c move, as reported from the customer
+  host:
+  - admin network set with `04-root_nginx.sh --apply --admin-range`; this
+    also deployed the start page `/` and the `/formsWeb/` landing page (first
+    run of the start page as root);
+  - `40- --apply` with `FORMS_CLIENT_FORM=test_form`, `WLS_FORMS` restarted;
+  - systemd units rendered again (`30-`, `60-RCU-DB-19c/02-` / `08-`), reboot
+    test with `systemd-analyze critical-chain` OK;
+  - Way 1 of the import run at a customer.
+
+  Docs 00-transfer, 04, 17, 30, README status and TODO updated. No code change.
+
 ## 2026-11-05
 
 - Start page of the server `https://<host>/`.

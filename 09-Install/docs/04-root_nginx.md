@@ -215,7 +215,7 @@ location = / {
 - **Rewrite:** only when the content changed (apart from the date).
   Self-contained HTML (no external resources); edit the template.
 - **Tested** in a private Nginx: `/` 200 `text/html; charset=utf-8`,
-  `/nginx-health` unchanged.
+  `/nginx-health` unchanged. Live as root at a customer on 2026-11-06.
 
 ### Forms client bundle location (`FORMS_CLIENT_DIST=true`)
 
