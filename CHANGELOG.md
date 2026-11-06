@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-06
 
+- Closing analysis of the customer 14c host, from the export and collection of
+  2026-11-06: patch level green (nothing of CPU Oct 2026 missing), security red in one
+  point only, `/console` and `/em` without an IP restriction. Accepted for now, see
+  above.
 - `weblogic_middleware_architecture.md` new §7a: what a patch changes in the Oracle Home
   and the Domain Home (measured on the test host), what stays behind, what the domain
   leaves in the home (`em.ear`, `domain-registry.xml`, JACOB and signed jars), checklist
@@ -16,9 +20,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   `setdb` help (`ihw_shell_env.sh` 2026-11-06.3). First real start after `--apply` open.
 - Customer follow-up after the first 14c move, as reported from the customer
   host:
-  - admin network set with `04-root_nginx.sh --apply --admin-range`; this
-    also deployed the start page `/` and the `/formsWeb/` landing page (first
-    run of the start page as root);
+  - `04-root_nginx.sh --apply` deployed the start page `/` and the `/formsWeb/`
+    landing page (first run of the start page as root). Corrected the same day: no
+    admin network was set. The exported `oracle-wls.conf` has no restriction on
+    `/console` and `/em`, the customer stays on `ADMIN_IP_RANGE=any` by decision
+    because its network has no clean separation;
   - `40- --apply` with `FORMS_CLIENT_FORM=test_form`, `WLS_FORMS` restarted;
   - systemd units rendered again (`30-`, `60-RCU-DB-19c/02-` / `08-`), reboot
     test with `systemd-analyze critical-chain` OK;

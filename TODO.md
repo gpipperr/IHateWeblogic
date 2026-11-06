@@ -237,10 +237,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **14c move of a customer – export → analysis → import**
   ([process](09-Install/docs/00-transfer_customer_settings.md)). Way 2 ran live
   on 2026-11-05, Way 1 and the start page of `04-` as root by 2026-11-06. The
-  admin network is set, and the systemd units wait for `/oracle` (reboot test
-  with `critical-chain` OK). Open:
-  - the closing report: export and collection after the admin network change
-    to our host, then the status report + PDF;
+  systemd units wait for `/oracle` (reboot test with `critical-chain` OK). The
+  closing report exists (2026-11-06): patch level green, security red only because
+  `/console` and `/em` have no IP restriction. The customer stays on
+  `ADMIN_IP_RANGE=any` by decision, its network has no clean separation; the red
+  point is accepted for now. Open:
   - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF after
     the wait for the Reports servers);
   - slow Reports logins at the customer (1.6–2.6 s, test host 60 ms) –
