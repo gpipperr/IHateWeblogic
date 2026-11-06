@@ -269,10 +269,10 @@ ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
 SELECT COUNT(*) FROM DBA_AUDIT_MGMT_CONFIG_PARAMS
  WHERE PARAMETER_NAME = 'DB AUDIT TABLESPACE'
    AND PARAMETER_VALUE = 'AUDITLOG';
-EXIT;" 2>/dev/null | tr -d ' \r\n')
+EXIT;" 2>/dev/null | tr -d '[:space:]')
 
-# Block 1 (policies) always runs - it is re-runnable (NOAUDIT, DROP, CREATE)
-# and brings older installations to the common policies (2026-11-02)
+# Block 1 (policies) and ORA_SECURECONFIG off in the PDB always run - both are
+# re-runnable and bring older installations to the common policies (2026-11-02)
 _block2=true
 if [ "${_already_configured:-0}" -ge 3 ] 2>/dev/null; then
     ok "AUDITLOG tablespace + all 3 trails already set – Block 2 (tablespace, jobs) skipped"
@@ -320,6 +320,22 @@ printf "\n  SQL Block 1 finished: %s  (rc=%s)\n" "$(date '+%Y-%m-%d %H:%M:%S')" 
     && ok "Audit policies deployed" \
     || { warn "Block 1 SQL rc=$_sql1_rc – review log"; EXIT_CODE=1; }
 
+# ORA_SECURECONFIG is enabled per container by DBCA. Outside Block 2: on a re-run
+# with existing trails Block 2 is skipped and the policy stayed on (2026-11-06).
+"$SQLPLUS" -S /nolog << SQLEOF 2>&1 | tee -a "$LOG_FILE"
+CONNECT / AS SYSDBA
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+SET SERVEROUTPUT ON SIZE UNLIMITED
+BEGIN
+    EXECUTE IMMEDIATE 'NOAUDIT POLICY ORA_SECURECONFIG';
+    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG deactivated in ${DB_PDB_NAME}.');
+EXCEPTION WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG in ${DB_PDB_NAME}: ' || SQLERRM || ' — skipping.');
+END;
+/
+EXIT;
+SQLEOF
+
 # =============================================================================
 # Block 2 – PDB: Tablespace, Trail Location, Cleanup, Purge Jobs
 # =============================================================================
@@ -337,20 +353,6 @@ printf "\n  SQL Block 2 started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "
 CONNECT / AS SYSDBA
 ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
 SET SERVEROUTPUT ON SIZE UNLIMITED
-
--- ===========================================================================
--- Step 0: ORA_SECURECONFIG off in the PDB too (enabled per container by
--- DBCA; the FMW_RCU_* common policies come from CDB$ROOT, Block 1)
--- ===========================================================================
-PROMPT === Step 0: ORA_SECURECONFIG off in the PDB ===
-
-BEGIN
-    EXECUTE IMMEDIATE 'NOAUDIT POLICY ORA_SECURECONFIG';
-    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG deactivated in ${DB_PDB_NAME}.');
-EXCEPTION WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('ORA_SECURECONFIG: ' || SQLERRM || ' — skipping.');
-END;
-/
 
 -- ===========================================================================
 -- Step 1: AUDITLOG Tablespace
@@ -551,20 +553,32 @@ fi
 unset _block2
 
 # The policies must be effective where the RCU schemas live (until 2026-11-02
-# they were root-local and the PDB step swallowed "ORA-46357 not found")
+# they were root-local and the PDB step swallowed "ORA-46357 not found").
+# [:space:]: SQL*Plus pads a wide count column with tabs (false FAIL "2 of 2").
 _pol_pdb=$("$SQLPLUS" -S /nolog <<< "CONNECT / AS SYSDBA
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
 ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
 SELECT COUNT(DISTINCT POLICY_NAME) FROM AUDIT_UNIFIED_ENABLED_POLICIES
  WHERE POLICY_NAME IN ('FMW_RCU_DB_MIN_SEC_AUDIT', 'FMW_RCU_SEC_AUDIT_TRUNC');
-EXIT;" 2>/dev/null | tr -d ' \r\n')
+EXIT;" 2>/dev/null | tr -d '[:space:]')
 if [ "${_pol_pdb:-0}" = "2" ]; then
     ok "FMW_RCU_DB_MIN_SEC_AUDIT + FMW_RCU_SEC_AUDIT_TRUNC enabled in ${DB_PDB_NAME}"
 else
     fail "FMW_RCU_* policies not enabled in ${DB_PDB_NAME} (found ${_pol_pdb:-?} of 2) – see the log of Block 1"
     EXIT_CODE=2
 fi
-unset _pol_pdb
+_sec_pdb=$("$SQLPLUS" -S /nolog <<< "CONNECT / AS SYSDBA
+SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
+ALTER SESSION SET CONTAINER = ${DB_PDB_NAME};
+SELECT COUNT(*) FROM AUDIT_UNIFIED_ENABLED_POLICIES WHERE POLICY_NAME = 'ORA_SECURECONFIG';
+EXIT;" 2>/dev/null | tr -d '[:space:]')
+if [ "${_sec_pdb:-1}" = "0" ]; then
+    ok "ORA_SECURECONFIG off in ${DB_PDB_NAME}"
+else
+    warn "ORA_SECURECONFIG still enabled in ${DB_PDB_NAME} – see the log"
+    [ "$EXIT_CODE" -lt 1 ] && EXIT_CODE=1
+fi
+unset _pol_pdb _sec_pdb
 
 # Combined result
 [ "$EXIT_CODE" -eq 0 ] && ok "Audit setup completed" || warn "Audit setup completed with warnings"

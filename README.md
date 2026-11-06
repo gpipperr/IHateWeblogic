@@ -908,6 +908,7 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > `authid=user/password` (or `userid=` with the DB password) lands **in plain
 > text** in `WLS_REPORTS/logs/access.log`. Send web commands and report
 > requests as **POST** (all parameters in the body – a POST ignores the
-> query string); `reports_server_lib.sh` does so since 2026-11-03. Monitoring
+> query string); `reports_server_lib.sh` does so since 2026-11-03, `15-` and
+> the docs since 2026-11-06. Old log files keep the passwords. Monitoring
 > of the server: [reports_monitoring_getserverinfo.md](80-FMW-Architecture/reports_monitoring_getserverinfo.md);
 > error XML codes have no `REP-` prefix (`code="56071"`).

@@ -106,15 +106,21 @@ https://<FQDN>/reports/rwservlet/showenv
 
 This user may **only** call `getserverinfo` – no reports, no admin.
 
-Monitoring URL (e.g. PRTG) – WLS_REPORTS listens on loopback only, and Nginx
+Monitoring call (e.g. PRTG) – WLS_REPORTS listens on loopback only, and Nginx
 lets `getserverinfo` through only from `ADMIN_IP_RANGE`
-([doc 81](81-reports_rwservlet_security.md)):
+([doc 81](81-reports_rwservlet_security.md)). Always **POST** with all parameters
+in the body: an `authid=` in the URL lands in plain text in
+`WLS_REPORTS/logs/access.log`
+([reports_monitoring_getserverinfo.md](../../80-FMW-Architecture/reports_monitoring_getserverinfo.md)):
 
-```
+```bash
+# ~/.config/rwmon.curl, mode 600:  data-urlencode = "authid=monUser/<PWD>"
 # on the host
-http://localhost:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
+curl -s -K ~/.config/rwmon.curl --data-urlencode "statusformat=XML" \
+     http://localhost:9002/reports/rwservlet/getserverinfo
 # from a monitoring server inside ADMIN_IP_RANGE
-https://<FQDN>/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML
+curl -s -K ~/.config/rwmon.curl --data-urlencode "statusformat=XML" \
+     https://<FQDN>/reports/rwservlet/getserverinfo
 ```
 
 `01-Run/rwserver_status.sh --auth` uses `monUser` from `reports_users.conf.des3`.
@@ -237,8 +243,9 @@ cp "$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.
 ### Monitoring User
 
 ```bash
-# Status query without browser (curl)
-curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?authid=monUser/<PWD>&statusformat=XML" \
+# Status query without browser (curl, POST; config file as above)
+curl -s -K ~/.config/rwmon.curl --data-urlencode "statusformat=XML" \
+     http://localhost:9002/reports/rwservlet/getserverinfo \
   | grep -E '<server|engineState|status='
 ```
 
@@ -259,7 +266,7 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `401 Unauthorized` on getserverinfo | Servlet secured, no authid passed | Append `authid=user/pwd` to URL |
+| `401 Unauthorized` on getserverinfo | Servlet secured, no authid passed | Send `authid=user/pwd` in the POST body (never in the URL) |
 | `403 Forbidden` despite authid | User not assigned to role | Check Application Role (step 2b / 3b) |
 | `403 Forbidden` on report call | Policy permission missing | Check Application Policy (step 3c) |
 | getserverinfo returns empty response | Reports Server not running | `01-Run/startStop.sh` (status), `01-Run/rwserver_status.sh` – WLS 14.1.2 has no Administration Console |

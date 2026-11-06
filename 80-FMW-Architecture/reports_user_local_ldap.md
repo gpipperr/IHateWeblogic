@@ -40,7 +40,7 @@ identity store is the file `system-jazn-data.xml` (JAZN XML).
 
 ```
  Browser / Monitoring / Application
-        |  HTTPS  /reports/rwservlet/getserverinfo?authid=monUser/...
+        |  HTTPS POST /reports/rwservlet/getserverinfo (authid=monUser/... in the body)
         v
  +------------------+
  | nginx (TLS)      |

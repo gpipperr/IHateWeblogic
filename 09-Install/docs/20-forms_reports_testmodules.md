@@ -202,16 +202,20 @@ run via `rwservlet`; the engine resolves the DB itself (EZConnect works
 there):
 
 ```bash
-curl -s -o test_dual.pdf \
-  "http://localhost:9002/reports/rwservlet?cmdkey=default&report=test_dual.rdf&destype=cache&desformat=pdf&userid=user/pwd@//host:port/service"
+# test.curl (mode 600):  data-urlencode = "userid=user/pwd@//host:port/service"
+curl -s -o test_dual.pdf -K test.curl \
+     -d "cmdkey=default&report=test_dual.rdf&destype=cache&desformat=pdf" \
+     http://localhost:9002/reports/rwservlet
 head -c 5 test_dual.pdf      # %PDF-
 ```
 
 - With a `cgicmd.dat` key `default` (14b-, `server=… %* authid=…`) the key
   is used – required for a secured Reports server (`REPORTS_SECURITY=ldap`,
   otherwise HTTP 499 login page). Without the key `server=` is passed.
-- The script passes the URL to `curl` via a config on stdin (`-K -`) so the
-  password does not show up in the process list.
+- The script sends a **POST** with all parameters in the body, as a curl config on
+  stdin (`-K -`): the password shows up neither in the process list nor in
+  `WLS_REPORTS/logs/access.log` (WebLogic logs the query string of a GET in plain
+  text; until 2026-11-06 this call did).
 
 ### Step 4 — Font test (`test_fonts.xml`)
 

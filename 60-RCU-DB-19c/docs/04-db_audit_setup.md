@@ -33,7 +33,7 @@ Pure Unified Auditing for the RCU database:
    (standard, FGA, unified) moved there
 4. Retention: daily archive-timestamp job + one purge job per trail
 5. Check: both `FMW_RCU_*` policies enabled as seen from the PDB (FAIL
-   otherwise)
+   otherwise), `ORA_SECURECONFIG` off there (WARN otherwise)
 
 > **Fixed 2026-11-02:** until then the policies were created **without**
 > `CONTAINER = ALL` – root-local. The PDB step `AUDIT POLICY …` failed with
@@ -41,6 +41,13 @@ Pure Unified Auditing for the RCU database:
 > in the PDB were **not** audited by them (test host: only `ORA_SECURECONFIG`
 > + `ORA_LOGON_FAILURES` enabled in the PDB). Re-run `04- --apply` on such a
 > database: Block 1 runs again (re-runnable) and creates the common policies.
+>
+> **Live on the test host 2026-11-06:** re-run on an older database, trails already
+> in `AUDITLOG`. Policies now `COMMON=YES` and enabled in the PDB; `CREATE ROLE` /
+> `DROP ROLE` in the PDB appear in `UNIFIED_AUDIT_TRAIL` under
+> `FMW_RCU_DB_MIN_SEC_AUDIT`. Two script bugs fixed in that run: `ORA_SECURECONFIG`
+> stayed on in the PDB because it was switched off inside the skipped Block 2, and a
+> tab in the SQL*Plus output gave a false FAIL "found 2 of 2".
 
 ---
 
@@ -101,8 +108,8 @@ Parameters (`environment_db.conf`):
 | `DB_AUDIT_TS_MAX_MB` | `4000` | `MAXSIZE` (autoextend next 120 MB) |
 | `DB_AUDIT_RETAIN_DAYS` | `180` | retention of all three trails |
 
-Re-run: Block 1 (policies) always runs – it is re-runnable (`NOAUDIT`,
-`DROP`, `CREATE`, `AUDIT`). Block 2 is skipped when all three trails already
+Re-run: Block 1 (policies) and `ORA_SECURECONFIG` off in the PDB always run – both
+are re-runnable (`NOAUDIT`, `DROP`, `CREATE`, `AUDIT`). Block 2 is skipped when all three trails already
 point to `AUDITLOG` (`--apply` only); to recreate just the jobs run steps 4–5
 of Block 2 by hand (both are drop + create) – do **not** drop `AUDITLOG`, it
 holds the moved audit trails.
@@ -126,8 +133,12 @@ containers:
 `generate_unified_audit_policy.sql` helps to derive an own policy from the
 traditional audit settings of an existing database.
 
-**State:** the common-policy version is not live-tested yet (2026-11-02) –
-check with the verification queries below after the first run.
+After Block 1 the same `NOAUDIT POLICY ORA_SECURECONFIG` runs in the PDB, because
+DBCA enables the policy per container.
+
+The `LOGON` / `LOGOFF` actions now also count in the PDB, so its audit trail grows
+faster than before. Watch `AUDITLOG` after the change, its limit is
+`DB_AUDIT_TS_MAX_MB`.
 
 ## Block 2 – PDB: AUDITLOG, trails, retention
 
@@ -135,9 +146,6 @@ In the PDB (`ALTER SESSION SET CONTAINER = <PDB>`), the data file directory
 `<DB_DATA_DIR>/<CDB>/<PDB>` is created first (`mkdir -p`):
 
 ```sql
--- 0. ORA_SECURECONFIG off in the PDB too (DBCA enables it per container)
-NOAUDIT POLICY ORA_SECURECONFIG;
-
 -- 1. tablespace (only if missing)
 CREATE SMALLFILE TABLESPACE "AUDITLOG" LOGGING
   DATAFILE '<DB_DATA_DIR>/<CDB>/<PDB>/auditlog01.dbf'

@@ -812,10 +812,15 @@ indicate a functional problem.
 ./01-Run/rwserver_status.sh --auth
 
 # by hand on the host (WLS_REPORTS port; from outside only via Nginx + ADMIN_IP_RANGE)
+# POST, the password in a curl config (mode 600) - in the URL it would land in access.log
 # secured server (REPORTS_SECURITY=ldap): a realm user with RW_MONITOR
-curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=<repserver>&statusformat=XML&authid=monUser/<pwd>"
+#   ~/.config/rwmon.curl:    data-urlencode = "authid=monUser/<pwd>"
+curl -s -K ~/.config/rwmon.curl -d "server=<repserver>&statusformat=XML" \
+     http://localhost:9002/reports/rwservlet/getserverinfo
 # unsecured server: only the <identifier> admin
-curl -s "http://localhost:9002/reports/rwservlet/showjobs?server=<repserver>&authid=repadmin/<identifier password>"
+#   ~/.config/rwadmin.curl:  data-urlencode = "authid=repadmin/<identifier password>"
+curl -s -K ~/.config/rwadmin.curl -d "server=<repserver>" \
+     http://localhost:9002/reports/rwservlet/showjobs
 ```
 
 `getserverinfo` always needs an `authid` (`webcommandaccess` L1; without one
@@ -865,7 +870,9 @@ secured (no `securityId` on the `<job>` element), web commands such as
 `<identifier>` in `rwserver.conf` – not a WebLogic user and not `monUser`:
 
 ```bash
-curl -s "http://localhost:9002/reports/rwservlet/getserverinfo?server=repserver01&statusformat=XML&authid=repadmin/<identifier password>"
+# ~/.config/rwadmin.curl (mode 600):  data-urlencode = "authid=repadmin/<identifier password>"
+curl -s -K ~/.config/rwadmin.curl -d "server=repserver01&statusformat=XML" \
+     http://localhost:9002/reports/rwservlet/getserverinfo
 ```
 
 `authid=monUser/...` or `authid=webadmin/...` still return REP-52262.

@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-06
 
+- Reports calls with a password are POST everywhere: `15-` test report run
+  (`_rws_post_report`, all parameters in the body, `userid` via `data-urlencode`, `\` and
+  `"` escaped), examples in docs 12, 13, 14b, 20, `reports_user_local_ldap.md`.
+  `cmdkey=default` works with POST (PDF from the Reports server, 0.2 s).
+- `60-RCU-DB-19c/04-db_audit_setup.sh --apply` live on the test DB, common policies now
+  enabled in the PDB, DDL there audited (`CREATE ROLE` test). Two fixes from that run:
+  `ORA_SECURECONFIG` off in the PDB now also on a re-run (it was inside the skipped
+  Block 2), final check with `[:space:]` (a SQL*Plus tab gave a false FAIL "2 of 2").
 - Closing analysis of the customer 14c host, from the export and collection of
   2026-11-06: patch level green (nothing of CPU Oct 2026 missing), security red in one
   point only, `/console` and `/em` without an IP restriction. Accepted for now, see

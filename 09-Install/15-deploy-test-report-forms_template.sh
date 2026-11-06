@@ -364,6 +364,28 @@ fi
 # Reports: XML -> RDF -> run via rwservlet (PDF)
 # =============================================================================
 
+# _rws_post_report NAME OUTFILE – run NAME.rdf through the Reports server, prints
+# "<http code> <seconds>". POST with ALL parameters in the body: WebLogic logs the
+# query string in WLS_REPORTS/logs/access.log, a password in the URL lands there in
+# plain text; a POST ignores a query string. curl config on stdin: not in the process
+# list. With a cgicmd.dat key "default" (14-b, carries server= and authid=) the key is
+# used, otherwise server= directly.
+_rws_post_report() {
+    local name="$1" out="$2" route="server=${REPORTS_SERVER_NAME:-repserver01}" cred
+    if [ -n "${CGICMD_DAT:-}" ] && grep -q '^default:' "$CGICMD_DAT" 2>/dev/null; then
+        route="cmdkey=default"
+    fi
+    info "Running: rwservlet (POST) $route report=${name}.rdf desformat=pdf" >&2
+    # \ and " would end the quoted value of the curl config
+    cred="$(printf '%s/%s@//%s:%s/%s' "$TEST_DB_USER" "$TEST_DB_PWD" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" \
+            | sed 's/[\\"]/\\&/g')"
+    {
+        printf 'url = "http://localhost:%s/reports/rwservlet"\n' "${WLS_REPORTS_PORT:-9002}"
+        printf 'data = "report=%s.rdf&destype=cache&desformat=pdf&%s"\n' "$name" "$route"
+        printf 'data-urlencode = "userid=%s"\n' "$cred"
+    } | curl -s --max-time 180 -K - -o "$out" -w '%{http_code} %{time_total}' 2>/dev/null
+}
+
 # _run_report NAME – XML -> RDF (rwconverter) -> deploy -> run via rwservlet,
 # PDF in $STAGING/NAME.pdf. Returns 0 when a PDF came back.
 _run_report() {
@@ -384,21 +406,8 @@ _run_report() {
     _deploy "$STAGING/${name}.rdf" "$REPORTS_CUSTOMER_DIR" || return 1
 
     # --- Run through the Reports server. The engine resolves the DB itself
-    # (EZConnect works there). With a cgicmd.dat key "default" (14b-, carries
-    # server= and authid=) the key is used, otherwise server= directly.
-    url="http://localhost:${WLS_REPORTS_PORT:-9002}/reports/rwservlet?report=${name}.rdf&destype=cache&desformat=pdf"
-    if [ -n "${CGICMD_DAT:-}" ] && grep -q '^default:' "$CGICMD_DAT" 2>/dev/null; then
-        url="${url}&cmdkey=default"
-        info "Running: rwservlet cmdkey=default report=${name}.rdf desformat=pdf"
-    else
-        url="${url}&server=${REPORTS_SERVER_NAME:-repserver01}"
-        info "Running: rwservlet server=${REPORTS_SERVER_NAME:-repserver01} report=${name}.rdf desformat=pdf"
-    fi
-    # URL with password via curl config on stdin - not in the process list
-    http="$(printf 'url = "%s&userid=%s/%s@//%s:%s/%s"\n' "$url" \
-                "$TEST_DB_USER" "$TEST_DB_PWD" "$_DB_HOST" "$_DB_PORT" "$_DB_SERVICE" \
-             | curl -s --max-time 180 -K - -o "$STAGING/${name}.pdf" \
-                    -w '%{http_code} %{time_total}' 2>/dev/null)"
+    # (EZConnect works there).
+    http="$(_rws_post_report "$name" "$STAGING/${name}.pdf")"
     if [ "$(head -c 5 "$STAGING/${name}.pdf" 2>/dev/null)" = "%PDF-" ]; then
         ok "$(printf "Report run OK: %s PDF %s bytes (HTTP %s, %ss)" \
             "$name" "$(wc -c < "$STAGING/${name}.pdf")" "${http%% *}" "${http#* }")"

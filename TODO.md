@@ -77,10 +77,9 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   real clone, incl. the external-RCU way (new prefix per clone).
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
-- [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**:
-  `04-db_audit_setup.sh --apply` with the **common** audit policies on the
-  test DB (the DB change was not run in the review session) and check
-  `AUDIT_UNIFIED_ENABLED_POLICIES` in the PDB; `06-` / `09-Install/07-` on a
+- [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
+  growth in the PDB with the common policies (`LOGON` / `LOGOFF` count there since
+  2026-11-06), check `AUDITLOG` after some days of normal use; `06-` / `09-Install/07-` on a
   PDB **before** RCU (registry missing – checked read-only in `CDB$ROOT`
   only); first customer run of the new `01-` "patch first, then install"
   route (live on the test host with `--target-home`); research why
@@ -219,13 +218,20 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   level unknown; Forms QPR before Reports QPR with the `libzrc` check – decide
   on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
   restarts) – feed findings back into the cookbooks.
-- [ ] **Still GET with a password in the URL** (2026-11-03; the cookbooks are
-  on POST since 2026-11-04): the test report run of
-  `09-Install/15-deploy-test-report-forms_template.sh` (`userid=` in the
-  query string – via a curl config, but still in `access.log`) and the
-  examples in docs 12, 13, 14b, 20 and
-  `80-FMW-Architecture/reports_user_local_ldap.md` – switch to POST; on
-  customer hosts check old `access.log` files for `authid=` / `userid=`.
+- [ ] **Passwords in old `access.log` files** (library and docs on POST since
+  2026-11-06): check customer hosts and the test host for `authid=` / `userid=`
+  in `WLS_REPORTS/logs/access.log*` and change the affected passwords. First
+  full `15- --apply` with the POST call (the function ran alone against the
+  Reports server).
+- [ ] **Node Manager warnings** "Uncaught exception in server handler"
+  (`Connection reset` / `Broken pipe`) in `nodemanager.log` of a customer host,
+  nearly all at second `:45`: the client is the AdminServer, the cause is open. The
+  test host shows none of them. Compare the connection with `tcpdump`, read Doc ID
+  1498013.1 (related, only seen as a search summary).
+- [ ] **Home vs. domain** ([§7a](80-FMW-Architecture/weblogic_middleware_architecture.md)):
+  read KB694158 (WLS PSU post-install); run the checklist for swapping a patched
+  home live; first real domain start after `clean_domain_tmp.sh --apply` (so far
+  dry run on the test host and `--apply` on an isolated copy).
 - [ ] **Shell switcher at the customer**: copy the current
   `ihw_shell_env.sh` to `~/.bashrc.d/ihw_env.sh` (only ONE copy there) and run
   `ihwenv_configure -f`, so the home names, `(no SID)` lines and `t` appear;

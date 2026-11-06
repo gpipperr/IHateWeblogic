@@ -81,9 +81,12 @@ CGICMD_DAT="$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/repor
 chmod 640 "$CGICMD_DAT"
 ```
 
-Call: `/reports/rwservlet?cmdkey=default&report=<file>.rdf&userid=<db>&destype=cache&desformat=pdf`.
+Call: POST to `/reports/rwservlet` with `cmdkey=default`, `report=<file>.rdf`,
+`userid=<db>`, `destype=cache`, `desformat=pdf` in the body. In the URL, `userid=` would
+land in plain text in `WLS_REPORTS/logs/access.log`. The key works with POST (tested
+2026-11-06).
 
-- `%*` passes all URL parameters – without it `REP-50004 No report is specified`
+- `%*` passes all parameters of the request – without it `REP-50004 No report is specified`
   (tested 2026-10-16).
 - `authid` after `%*`: an `authid` in the URL does not override it (the key
   wins – tested with `monUser`).
