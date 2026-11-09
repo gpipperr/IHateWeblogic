@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-09
 
+- `clone_check_fmw.sh` 2026-11-09.1: new option `--config` – under each finding the
+  configuration file (full path) and its lines with the own host name / IP or the setting to
+  change (`{AES}` / passwords masked, at most 8 lines per file). Tested on the test host and
+  on a test domain for the FIX cases (listen address, Coherence, Node Manager, masking).
 - `export_forms_reports_conf.sh` 2026-11-09.1: on a Reports-only domain (no `formsweb.cfg`)
   the export hung after "Sources inventory ..." – with no Forms env file the TNS alias step
   ran a bare `cat` that waited for keyboard input (`Ctrl+D` let it go on). Now `cat

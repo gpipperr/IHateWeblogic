@@ -450,7 +450,16 @@ carry the host name. Background and recipe:
 cp clone_check_fmw.sh /tmp/ && cd /tmp && chmod +x clone_check_fmw.sh
 ./clone_check_fmw.sh                     # auto-detect ORACLE_HOME / DOMAIN_HOME
 ./clone_check_fmw.sh -d /oracle/user_projects/domains/fr_domain -t /tmp
+./clone_check_fmw.sh --config            # + under each finding: file and lines to change
 ```
+
+**`--config`** (2026-11-09) shows under each FIX / STEP the configuration
+file with its full path and the lines (with line number) that hold the own
+host name / IP or the setting to change – e.g. the `<url>` line of a JDBC
+descriptor, `<listen-address>` in `config.xml`, `ListenAddress=` in
+`nodemanager.properties`, `server_name` of the Nginx, the `HOST` in
+`tnsnames.ora`. At most 8 lines per file (then "… n more"); `{AES}` values and
+password values are masked. Without `--config` the output is as before.
 
 | Section | FIX (before an image) | STEP (after cloning) / INFO |
 |---|---|---|

@@ -19,10 +19,13 @@
 #              5. machine identity (domain key, wallets, WLST key files)
 #              6. host-specific places by design (web tier, certificate,
 #                 tnsnames.ora)
-# Call     : ./clone_check_fmw.sh [-o ORACLE_HOME] [-d DOMAIN_HOME] [-t OUTDIR]
+# Call     : ./clone_check_fmw.sh [-o ORACLE_HOME] [-d DOMAIN_HOME] [-t OUTDIR] [--config]
 #              -o / -d  default: environment, running WebLogic,
 #                       domain-registry.xml, /oracle/product/mw, /u01/app/oracle/fmw …
 #              -t       directory of the log file (default /tmp)
+#              --config under each finding: the configuration file (full path)
+#                       and its lines (line number) with the host name / IP or
+#                       the setting to change; {AES} values / passwords masked
 # Runs as  : the software owner (oracle); as root the socket owners are shown
 # Output   : stdout + <OUTDIR>/clone_check_<host>_<yyyymmdd_hhmmss>.log
 # Exit     : 0 = clone-capable, 1 = items to fix first, 2 = error
@@ -32,15 +35,16 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-10-29.1"   # bump on every change
+VERSION="2026-11-09.1"   # bump on every change
 
-OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
+OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OH="${2:-}"; shift ;;
         -d) DH="${2:-}"; shift ;;
         -t) OUTBASE="${2:-/tmp}"; shift ;;
-        -h|--help) sed -n '2,34p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
+        --config) SHOWCFG=true ;;
+        -h|--help) sed -n '2,38p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
         -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -60,6 +64,24 @@ fix()  { FIXES=$((FIXES + 1)); printf '\033[33m FIX  \033[0m %s\n' "$*"; printf 
 step() { STEPS=$((STEPS + 1)); printf '\033[36m STEP \033[0m %s\n' "$*"; printf ' STEP  %s\n' "$*" >> "$LOG"; }
 info() { printf '       %s\n' "$*" | tee -a "$LOG"; }
 section() { _p ""; _p "=== $* ==="; }
+# --config: _cfg FILE [ERE] - full path + matching lines "nnn: text" (max 8, masked);
+# without ERE only the file. Does nothing without --config.
+_cfg() {
+    $SHOWCFG || return 0
+    local f="$1" re="${2:-}" n
+    [ -n "$f" ] || return 0
+    if [ ! -r "$f" ]; then info "    -> $f (not readable)"; return 0; fi
+    info "    -> $f"
+    [ -n "$re" ] || return 0
+    n="$(grep -cE "$re" "$f" 2>/dev/null)"
+    grep -nE "$re" "$f" 2>/dev/null | head -8 \
+        | sed -E 's/\{AES[^}<"]*\}[^<" ]*/{AES}***/g
+                 s/<([A-Za-z_.-]*(password|passwd|pwd)[A-Za-z_.-]*)>[^<]*/<\1>***/Ig
+                 s/((password|passwd|pwd)[A-Za-z_.-]*[[:space:]]*[=:][[:space:]]*"?)[^"<[:space:]]+/\1***/Ig' \
+        | cut -c1-200 | while IFS= read -r _l; do info "       ${_l%%:*}: $(printf '%s' "${_l#*:}" | sed 's/^[[:space:]]*//')"; done
+    [ "${n:-0}" -gt 8 ] && info "       … $((n - 8)) more line(s)"
+    return 0
+}
 
 # --- locate ORACLE_HOME / DOMAIN_HOME (same order as collect_fmw_env.sh) --------
 if [ -z "$OH" ] || [ ! -d "$OH/OPatch" ]; then
@@ -162,8 +184,10 @@ while IFS='|' read -r _s _la _ssl _ua _cl; do
     [ -z "$_s" ] && continue
     case "$_la" in
         localhost|127.0.0.1) ok "$(printf '%-14s listen %s' "$_s" "$_la")" ;;
-        "") fix "$(printf '%-14s listen address empty = all interfaces' "$_s")" ;;
-        *)  fix "$(printf '%-14s listen %s (not loopback)' "$_s" "$_la")" ;;
+        "") fix "$(printf '%-14s listen address empty = all interfaces' "$_s")"
+            _cfg "$CONFIG_XML" "<name>${_s}</name>" ;;
+        *)  fix "$(printf '%-14s listen %s (not loopback)' "$_s" "$_la")"
+            _cfg "$CONFIG_XML" "<listen-address>${_la//./\\.}</listen-address>" ;;
     esac
     if [ "$_ssl" = "true" ]; then
         fix "$(printf '%-14s SSL listen port enabled (demo certificate unless replaced)' "$_s")"
@@ -175,6 +199,7 @@ while IFS='|' read -r _s _la _ssl _ua _cl; do
         case "$_ua" in
             127.0.0.1|localhost) ok "$(printf '%-14s Coherence unicast %s' "$_s" "$_ua")" ;;
             *) fix "$(printf '%-14s Coherence unicast %s – member traffic on the host IP, clones can join' "$_s" "${_ua:-(auto = host IP)}")"
+               _cfg "$CONFIG_XML" "unicast-listen-address"
                NEED_WLST="$NEED_WLST $_s:coh" ;;
         esac
     fi
@@ -184,7 +209,8 @@ if [ -f "$_nm" ]; then
     _nla="$(sed -n 's/^ListenAddress=//p' "$_nm" | tail -1)"
     case "$_nla" in
         localhost|127.0.0.1) ok "$(printf '%-14s listen %s' NodeManager "$_nla")" ;;
-        *) fix "$(printf '%-14s listen %s – ListenAddress=localhost in nodemanager.properties + machine address in config.xml' NodeManager "${_nla:-(all)}")" ;;
+        *) fix "$(printf '%-14s listen %s – ListenAddress=localhost in nodemanager.properties + machine address in config.xml' NodeManager "${_nla:-(all)}")"
+           _cfg "$_nm" '^ListenAddress='; _cfg "$CONFIG_XML" '<listen-address>|<node-manager>' ;;
     esac
 fi
 
@@ -197,14 +223,17 @@ if [ -f "$_rsh" ]; then
         ok "reports.sh: ORB of Reports server + engines on 127.0.0.1 (ORBServerHost)"
     else
         fix "reports.sh: no -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 in REPORTS_JVM_OPTIONS – server / engines on all interfaces"
+        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS'
     fi
     if grep -q 'ORBServerHost=127.0.0.1' "$DH/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else
         fix "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on all interfaces – -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 for WLS_REPORTS"
+        _cfg "$DH/bin/setUserOverrides.sh" 'WLS_REPORTS|ORBServerHost'
     fi
     _rs="$(find "$DH/config/fmwconfig/components/ReportsServerComponent" -mindepth 1 -maxdepth 1 -type d ! -name mbeans -printf '%f ' 2>/dev/null)"
     step "discovery: multicast port $DISC_PORT, server(s) ${_rs:-none} – a clone in the same subnet needs its own port (14021-14030, all rwnetwork.conf) or name"
+    _cfg "$RWNET" '<multicast'
 else
     info "no \$DOMAIN_HOME/reports/bin/reports.sh – Reports not configured in this domain"
 fi
@@ -214,7 +243,8 @@ section "4. Host name / IP in \$DOMAIN_HOME/config"
 # =============================================================================
 _pat="$(printf '%s\n' "$H_FQDN" "$H_SHORT" $H_IPS | grep -v '^$' | sed 's/\./\\./g' | paste -sd'|')"
 if [ -n "$_pat" ]; then
-    _hits="$(grep -rlIE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$DH/config" "$DH/init-info" 2>/dev/null \
+    _hre="(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)"
+    _hits="$(grep -rlIE "$_hre" "$DH/config" "$DH/init-info" 2>/dev/null \
         | grep -vE '\.bak|/logs?/|\.log|/tmp/' | sort)"
     if [ -z "$_hits" ]; then
         ok "no own host name / IP"
@@ -230,6 +260,7 @@ if [ -n "$_pat" ]; then
                     info "$(printf '%-50s informational (not read at runtime / comment)' "$_rel")" ;;
                 *)  fix "$(printf '%-50s host name / IP – check' "$_rel")" ;;
             esac
+            _cfg "$_f" "$_hre"
         done <<< "$_hits"
     fi
 fi
@@ -243,6 +274,7 @@ if [ -f "${_ds:-/x}" ]; then
         ok "RCU repository on this host ($_dbh, prefix ${_pfx:-?}) – cloned along with the DB"
     else
         step "RCU repository EXTERNAL (${_dbh:-?}, prefix ${_pfx:-?}) – a clone needs its own prefix / repository; never start it against the source repository (two domains in one OPSS store)"
+        _cfg "$_ds" '<url>'
     fi
 fi
 
@@ -262,17 +294,20 @@ for _c in "$DH"/config/fmwconfig/components/OHS/*/httpd.conf; do
     [ -f "$_c" ] || continue
     _i="$(basename "$(dirname "$_c")")"
     step "$(printf 'OHS %-10s ServerName %s, Listen %s' "$_i" "$(sed -n 's/^ServerName *//p' "$_c" | head -1)" "$(sed -n 's/^Listen *//p' "$_c" | paste -sd' ')")"
+    _cfg "$_c" '^(ServerName|Listen)[[:space:]]'
 done
 for _c in /etc/nginx/conf.d/*.conf /etc/httpd/conf.d/*.conf /etc/httpd/conf/httpd.conf; do
     [ -r "$_c" ] || continue
     _sn="$(grep -hE '^\s*(server_name|ServerName)\s' "$_c" | awk '{print $2}' | tr -d ';' | sort -u | paste -sd' ')"
-    [ -n "$_sn" ] && step "$(printf '%-40s server name %s + TLS certificate (CN/SAN)' "$_c" "$_sn")"
+    [ -n "$_sn" ] && { step "$(printf '%-40s server name %s + TLS certificate (CN/SAN)' "$_c" "$_sn")"
+                       _cfg "$_c" '^[[:space:]]*(server_name|ServerName|ssl_certificate|SSLCertificateFile)[[:space:]]'; }
 done
 _tns="${TNS_ADMIN:-}"
 [ -z "$_tns" ] && _tns="$(grep -h '^TNS_ADMIN=' "$DH"/config/fmwconfig/servers/*/applications/*/config/default.env 2>/dev/null | head -1 | cut -d= -f2)"
 for _t in "$_tns/tnsnames.ora" "$DH/config/fmwconfig/tnsnames.ora"; do
     [ -f "$_t" ] || continue
     step "$(printf 'tnsnames.ora %-34s HOST %s' "$_t" "$(grep -oiE 'HOST *= *[^)]+' "$_t" | sed 's/.*= *//' | sort -u | paste -sd' ')")"
+    $SHOWCFG && [ -n "$_pat" ] && _cfg "$_t" "$_hre"
     break
 done
 
