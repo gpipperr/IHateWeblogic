@@ -9,6 +9,9 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   the export hung after "Sources inventory ..." – with no Forms env file the TNS alias step
   ran a bare `cat` that waited for keyboard input (`Ctrl+D` let it go on). Now `cat
   /dev/null …`; output with Forms unchanged (compared on the test host). Tools ZIP rebuilt.
+- `export_forms_reports_conf.sh` 2026-11-09.2: `DB_HOST` / `DB_PORT` / `DB_SERVICE` of the
+  proposal stayed empty when the JDBC descriptor is written in lower case, as RCU does
+  (`(host=…)(port=…)(service_name=…)`); now read case-insensitive. Tools ZIP rebuilt.
 
 ## 2026-11-06
 

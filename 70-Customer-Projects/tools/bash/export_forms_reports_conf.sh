@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-09.1"   # bump on every change – shown in the report
+VERSION="2026-11-09.2"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -763,11 +763,12 @@ _fp1="$(for ef in "${ENV_FILES[@]}"; do _cfgval "$ef" FORMS_PATH; done | head -1
     printf 'WLS_SERVER_FQDN="%s"   # OLD public name - the 14c host may get a new name / DNS alias\n' "${_sn:-$(hostname -f 2>/dev/null)}"
     printf 'WEB_TIER_OLD="%s"   # web server(s) in front today - 14c: Nginx (04-root_nginx.sh)\n' \
         "$(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort -u | paste -sd' ')"
-    # RCU database of the domain (WLSSchemaDataSource: jdbc:oracle:thin:@//host:port/service)
+    # RCU database of the domain (WLSSchemaDataSource: jdbc:oracle:thin:@//host:port/service
+    # or a descriptor - RCU writes (host=..)(port=..)(service_name=..) in lower case: sed I)
     _ru="$(awk -F';' '$1=="WLSSchemaDataSource"{print $2 ";" $3}' "$JDBC_TXT" 2>/dev/null)"
     _url="${_ru%%;*}"; _usr="${_ru#*;}"
     _hp="$(printf '%s' "$_url" | sed -n 's#.*@//\([^/]*\)/\(.*\)#\1;\2#p')"
-    [ -z "$_hp" ] && _hp="$(printf '%s' "$_url" | sed -n 's#.*HOST=\([^)]*\).*PORT=\([0-9]*\).*SERVICE_NAME=\([^)]*\).*#\1:\2;\3#p')"
+    [ -z "$_hp" ] && _hp="$(printf '%s' "$_url" | sed -n 's#.*HOST=\([^)]*\).*PORT=\([0-9]*\).*SERVICE_NAME=\([^)]*\).*#\1:\2;\3#Ip')"
     printf 'DB_HOST="%s"   # RCU database of the OLD domain - 14c needs a new RCU (14.1.2 schemas)\n' "$(printf '%s' "${_hp%%;*}" | cut -d: -f1)"
     printf 'DB_PORT="%s"\n' "$(printf '%s' "${_hp%%;*}" | sed -n 's/.*:\([0-9]*\)$/\1/p')"
     printf 'DB_SERVICE="%s"\n' "${_hp#*;}"
