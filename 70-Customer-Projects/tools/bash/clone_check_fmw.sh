@@ -35,7 +35,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-09.2"   # bump on every change
+VERSION="2026-11-09.3"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -232,14 +232,14 @@ if [ -f "$_rsh" ]; then
     if grep -q 'ORBServerHost=127.0.0.1' "$_rsh" 2>/dev/null; then
         ok "reports.sh: ORB of Reports server + engines on 127.0.0.1 (ORBServerHost)"
     else
-        fix "reports.sh: no -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 in REPORTS_JVM_OPTIONS – server / engines on all interfaces"
-        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "no REPORTS_JVM_OPTIONS - add -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 there"
+        fix "reports.sh: no -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 in REPORTS_JVM_OPTIONS – server / engines on all interfaces"
+        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "no REPORTS_JVM_OPTIONS - add -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 there"
     fi
     if grep -q 'ORBServerHost=127.0.0.1' "$DH/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else
-        fix "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on all interfaces – -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 for WLS_REPORTS"
-        _cfg "$DH/bin/setUserOverrides.sh" 'WLS_REPORTS|ORBServerHost' "no WLS_REPORTS block - JAVA_OPTIONS for SERVER_NAME=WLS_REPORTS with -Dcom.sun.CORBA.ORBServerHost=127.0.0.1"
+        fix "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on all interfaces – -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 for WLS_REPORTS"
+        _cfg "$DH/bin/setUserOverrides.sh" 'WLS_REPORTS|ORBServerHost' "no WLS_REPORTS block - JAVA_OPTIONS for SERVER_NAME=WLS_REPORTS with -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
     fi
     _rs="$(find "$DH/config/fmwconfig/components/ReportsServerComponent" -mindepth 1 -maxdepth 1 -type d ! -name mbeans -printf '%f ' 2>/dev/null)"
     step "discovery: multicast port $DISC_PORT, server(s) ${_rs:-none} – a clone in the same subnet needs its own port (14021-14030, all rwnetwork.conf) or name"

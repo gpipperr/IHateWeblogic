@@ -13,7 +13,8 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   line of the `<server>` block (not every `<name>` of SSL / log), missing settings are named
   (Coherence unicast, `REPORTS_JVM_OPTIONS`, `WLS_REPORTS` block), `tnsnames.ora` with all
   `HOST` lines; the RCU host of a lower-case descriptor (`(host=…)`) is read again (the
-  whole descriptor was printed).
+  whole descriptor was printed). 2026-11-09.3: the messages name the ORB property
+  `-Dcom.sun.corba.ee.ORBServerHost` (GlassFish ORB, as tested), not `com.sun.CORBA`.
 - `export_forms_reports_conf.sh` 2026-11-09.1: on a Reports-only domain (no `formsweb.cfg`)
   the export hung after "Sources inventory ..." – with no Forms env file the TNS alias step
   ran a bare `cat` that waited for keyboard input (`Ctrl+D` let it go on). Now `cat
