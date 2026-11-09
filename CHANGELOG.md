@@ -9,6 +9,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   configuration file (full path) and its lines with the own host name / IP or the setting to
   change (`{AES}` / passwords masked, at most 8 lines per file). Tested on the test host and
   on a test domain for the FIX cases (listen address, Coherence, Node Manager, masking).
+  2026-11-09.2 after the first customer run: an empty listen address shows only the `<name>`
+  line of the `<server>` block (not every `<name>` of SSL / log), missing settings are named
+  (Coherence unicast, `REPORTS_JVM_OPTIONS`, `WLS_REPORTS` block), `tnsnames.ora` with all
+  `HOST` lines; the RCU host of a lower-case descriptor (`(host=…)`) is read again (the
+  whole descriptor was printed).
 - `export_forms_reports_conf.sh` 2026-11-09.1: on a Reports-only domain (no `formsweb.cfg`)
   the export hung after "Sources inventory ..." – with no Forms env file the TNS alias step
   ran a bare `cat` that waited for keyboard input (`Ctrl+D` let it go on). Now `cat

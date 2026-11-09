@@ -458,7 +458,11 @@ file with its full path and the lines (with line number) that hold the own
 host name / IP or the setting to change – e.g. the `<url>` line of a JDBC
 descriptor, `<listen-address>` in `config.xml`, `ListenAddress=` in
 `nodemanager.properties`, `server_name` of the Nginx, the `HOST` in
-`tnsnames.ora`. At most 8 lines per file (then "… n more"); `{AES}` values and
+`tnsnames.ora` (all `HOST` lines). A missing setting is named instead
+("no such line: no `<unicast-listen-address>` = automatic …", no
+`REPORTS_JVM_OPTIONS`, no `WLS_REPORTS` block in `setUserOverrides.sh`); an
+empty listen address shows the `<name>` line of its `<server>` block plus the
+WLST command. At most 8 lines per file (then "… n more"); `{AES}` values and
 password values are masked. Without `--config` the output is as before.
 
 | Section | FIX (before an image) | STEP (after cloning) / INFO |

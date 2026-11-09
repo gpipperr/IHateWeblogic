@@ -35,7 +35,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-09.1"   # bump on every change
+VERSION="2026-11-09.2"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -64,16 +64,24 @@ fix()  { FIXES=$((FIXES + 1)); printf '\033[33m FIX  \033[0m %s\n' "$*"; printf 
 step() { STEPS=$((STEPS + 1)); printf '\033[36m STEP \033[0m %s\n' "$*"; printf ' STEP  %s\n' "$*" >> "$LOG"; }
 info() { printf '       %s\n' "$*" | tee -a "$LOG"; }
 section() { _p ""; _p "=== $* ==="; }
-# --config: _cfg FILE [ERE] - full path + matching lines "nnn: text" (max 8, masked);
-# without ERE only the file. Does nothing without --config.
+# --config: _cfg FILE [ERE [NOTE]] - full path + matching lines "nnn: text" (max 8, masked);
+# without ERE only the file; NOTE is printed when no line matches (setting missing).
+# _cfgline FILE LINE - one line by number. Both do nothing without --config.
+_cfgline() {
+    $SHOWCFG || return 0
+    info "    -> $1"
+    [ -n "${2:-}" ] && info "       $2: $(sed -n "${2}p" "$1" | sed 's/^[[:space:]]*//' | cut -c1-200)"
+    return 0
+}
 _cfg() {
     $SHOWCFG || return 0
-    local f="$1" re="${2:-}" n
+    local f="$1" re="${2:-}" note="${3:-}" n
     [ -n "$f" ] || return 0
     if [ ! -r "$f" ]; then info "    -> $f (not readable)"; return 0; fi
     info "    -> $f"
     [ -n "$re" ] || return 0
     n="$(grep -cE "$re" "$f" 2>/dev/null)"
+    [ "${n:-0}" -eq 0 ] && [ -n "$note" ] && info "       (no such line: $note)"
     grep -nE "$re" "$f" 2>/dev/null | head -8 \
         | sed -E 's/\{AES[^}<"]*\}[^<" ]*/{AES}***/g
                  s/<([A-Za-z_.-]*(password|passwd|pwd)[A-Za-z_.-]*)>[^<]*/<\1>***/Ig
@@ -185,7 +193,9 @@ while IFS='|' read -r _s _la _ssl _ua _cl; do
     case "$_la" in
         localhost|127.0.0.1) ok "$(printf '%-14s listen %s' "$_s" "$_la")" ;;
         "") fix "$(printf '%-14s listen address empty = all interfaces' "$_s")"
-            _cfg "$CONFIG_XML" "<name>${_s}</name>" ;;
+            # the <name> line of the <server> block - <listen-address> belongs below it
+            _cfgline "$CONFIG_XML" "$(awk -v n="<name>${_s}</name>" 'p ~ /<server>/ && index($0, n) {print NR; exit} /[^[:space:]]/ {p=$0}' "$CONFIG_XML")"
+            $SHOWCFG && info "       (no <listen-address> in this <server> block - WLST: cd('/Servers/${_s}'); set('ListenAddress','127.0.0.1'))" ;;
         *)  fix "$(printf '%-14s listen %s (not loopback)' "$_s" "$_la")"
             _cfg "$CONFIG_XML" "<listen-address>${_la//./\\.}</listen-address>" ;;
     esac
@@ -199,7 +209,7 @@ while IFS='|' read -r _s _la _ssl _ua _cl; do
         case "$_ua" in
             127.0.0.1|localhost) ok "$(printf '%-14s Coherence unicast %s' "$_s" "$_ua")" ;;
             *) fix "$(printf '%-14s Coherence unicast %s – member traffic on the host IP, clones can join' "$_s" "${_ua:-(auto = host IP)}")"
-               _cfg "$CONFIG_XML" "unicast-listen-address"
+               _cfg "$CONFIG_XML" "unicast-listen-address" "no <unicast-listen-address> = automatic (host IP) - WLST under Result"
                NEED_WLST="$NEED_WLST $_s:coh" ;;
         esac
     fi
@@ -223,13 +233,13 @@ if [ -f "$_rsh" ]; then
         ok "reports.sh: ORB of Reports server + engines on 127.0.0.1 (ORBServerHost)"
     else
         fix "reports.sh: no -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 in REPORTS_JVM_OPTIONS – server / engines on all interfaces"
-        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS'
+        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "no REPORTS_JVM_OPTIONS - add -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 there"
     fi
     if grep -q 'ORBServerHost=127.0.0.1' "$DH/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else
         fix "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on all interfaces – -Dcom.sun.CORBA.ORBServerHost=127.0.0.1 for WLS_REPORTS"
-        _cfg "$DH/bin/setUserOverrides.sh" 'WLS_REPORTS|ORBServerHost'
+        _cfg "$DH/bin/setUserOverrides.sh" 'WLS_REPORTS|ORBServerHost' "no WLS_REPORTS block - JAVA_OPTIONS for SERVER_NAME=WLS_REPORTS with -Dcom.sun.CORBA.ORBServerHost=127.0.0.1"
     fi
     _rs="$(find "$DH/config/fmwconfig/components/ReportsServerComponent" -mindepth 1 -maxdepth 1 -type d ! -name mbeans -printf '%f ' 2>/dev/null)"
     step "discovery: multicast port $DISC_PORT, server(s) ${_rs:-none} – a clone in the same subnet needs its own port (14021-14030, all rwnetwork.conf) or name"
@@ -268,7 +278,8 @@ _ds="$DH/config/jdbc/WLSSchemaDataSource-jdbc.xml"
 [ -f "$_ds" ] || _ds="$(ls "$DH"/config/jdbc/*opss*-jdbc.xml 2>/dev/null | head -1)"
 if [ -f "${_ds:-/x}" ]; then
     _dburl="$(sed -n 's:.*<url>\([^<]*\)</url>.*:\1:p' "$_ds" | head -1)"
-    _dbh="$(printf '%s' "$_dburl" | sed -n 's|.*@/*\([^:/]*\).*|\1|p; s|.*(HOST *= *\([^)]*\)).*|\1|Ip' | head -1)"
+    # descriptor (RCU writes (host=..) in lower case) first, then @//host:port/service
+    _dbh="$(printf '%s' "$_dburl" | sed -n 's|.*(HOST *= *\([^)]*\)).*|\1|Ip; s|.*@/*\([^:/(]*\):.*|\1|p' | head -1)"
     _pfx="$(grep -A1 '<name>user</name>' "$_ds" | sed -n 's:.*<value>\([A-Za-z0-9]*\)_[A-Z_]*</value>.*:\1:p' | head -1)"
     if [ "$_dbh" = "localhost" ] || [ "${_dbh%%.*}" = "$H_SHORT" ] || printf '%s\n' $H_IPS 127.0.0.1 | grep -qxF "$_dbh"; then
         ok "RCU repository on this host ($_dbh, prefix ${_pfx:-?}) – cloned along with the DB"
@@ -307,7 +318,7 @@ _tns="${TNS_ADMIN:-}"
 for _t in "$_tns/tnsnames.ora" "$DH/config/fmwconfig/tnsnames.ora"; do
     [ -f "$_t" ] || continue
     step "$(printf 'tnsnames.ora %-34s HOST %s' "$_t" "$(grep -oiE 'HOST *= *[^)]+' "$_t" | sed 's/.*= *//' | sort -u | paste -sd' ')")"
-    $SHOWCFG && [ -n "$_pat" ] && _cfg "$_t" "$_hre"
+    _cfg "$_t" '[Hh][Oo][Ss][Tt][[:space:]]*='
     break
 done
 
