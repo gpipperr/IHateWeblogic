@@ -3,6 +3,13 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
+## 2026-11-09
+
+- `export_forms_reports_conf.sh` 2026-11-09.1: on a Reports-only domain (no `formsweb.cfg`)
+  the export hung after "Sources inventory ..." – with no Forms env file the TNS alias step
+  ran a bare `cat` that waited for keyboard input (`Ctrl+D` let it go on). Now `cat
+  /dev/null …`; output with Forms unchanged (compared on the test host). Tools ZIP rebuilt.
+
 ## 2026-11-06
 
 - Reports calls with a password are POST everywhere: `15-` test report run

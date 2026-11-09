@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-05.4"   # bump on every change – shown in the report
+VERSION="2026-11-09.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -591,7 +591,8 @@ done
       grep -qix "${x%.*}" "$LIBS" || printf '  %s\n' "$x"; done; } >> "$DEP"
 # TNS aliases used (userid=x/y@ALIAS) vs tnsnames.ora
 { printf '\n# TNS aliases used in env files / cgicmd.dat / reports config:\n'
-  { cat "${ENV_FILES[@]}" 2>/dev/null; grep -v '^#' "$IMP/cgicmd.dat.customer_keys" 2>/dev/null; } \
+  { cat /dev/null "${ENV_FILES[@]}" 2>/dev/null;   # /dev/null: never stdin when ENV_FILES is empty (no Forms)
+    grep -v '^#' "$IMP/cgicmd.dat.customer_keys" 2>/dev/null; } \
       | grep -oE '@[A-Za-z0-9_.]+' | sort -u | sed 's/^@//' | while read -r a; do
           if cat "${TNS_DIRS[@]/%//tnsnames.ora}" 2>/dev/null | grep -qiE "^[[:space:]]*$a[[:space:]]*="; then printf '  %s (in tnsnames.ora)\n' "$a"
           else printf '  %s (NOT in a collected tnsnames.ora)\n' "$a"; fi; done; } >> "$DEP"
