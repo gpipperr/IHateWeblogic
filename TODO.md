@@ -5,6 +5,40 @@ in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [README.md](README.md#project-status).
 
+## Oracle ACE submission – publication readiness (assessment 2026-11-10)
+
+Assessment: idea very good, implementation and quality good (three customer
+environments live), visuals good since the SVG diagrams, completion good for a
+1.0 – **publication hygiene not yet** (items 0, 2, 3, 7). Order:
+
+- [ ] **0. Demo-data naming convention:** test host = demo data, no masking –
+  server `orafusion01` (`pipperr.local`), IP `10.10.10.124`, RCU DB `fmwpdb`,
+  Reports domain `reportGPI`, everything with `gpi`; short "Demo data" section
+  in README / CONTRIBUTING.
+- [x] **1. Git history** – decided 2026-11-10: stays as it is. Historic
+  customer traces (domain name) are accepted by the customer; the only other trace is a host
+  name in 2 old commit messages, and that server no longer exists. No secrets
+  were ever committed. New files keep the customer-data rule.
+- [ ] **2. Disclaimer & Acknowledgements** at the end of the root README: not
+  affiliated with / endorsed by Oracle, trademarks, use at own risk, personal
+  logo; thanks to **Jürgen Menge** and **Mark Eichhorst** (IT-Macher,
+  https://www.der-it-macher.de/) – today only in `09-Install/README.md`.
+- [ ] **3. Compact root README – move, do not shorten:** ~1-screen top (what,
+  for whom, Target Picture, 3 entry paths); long sections moved 1:1 into own
+  files (`docs/`), one summary line + link each; a line-by-line check proves
+  nothing is lost; incoming anchors repointed or kept as stubs.
+- [ ] **4. Release `v1.0.0`** with the tools ZIPs as assets, notes from
+  CHANGELOG.
+- [ ] **5. `shellcheck` + `bash -n`** as a GitHub Actions gate.
+- [ ] **6. Showcase** (`status.sh`, `clone_check`, analysis PDF page, smoke
+  test) + blog article on pipperr.de linked both ways.
+- [ ] **7. `CONTRIBUTING.md`** (conventions, customer-data rule, how to report
+  a finding); customer-data scan as a pre-commit hook.
+- [ ] **8. Reviewer-visible test gaps:** fresh domain with the current `08-`
+  template, `clone_check.sh --apply` file places on a real domain,
+  `REPORTS_ONLY` domain creation.
+- [ ] 9. Optional: `render_ascii` checked in, `?v=` cache-busting for SVGs.
+
 ## Cookbooks – still to check on a fresh run / at the customer
 
 The findings of the cookbook style rewrite (2026-11-04) are fixed (`git log`).
