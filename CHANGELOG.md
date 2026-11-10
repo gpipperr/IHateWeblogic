@@ -11,6 +11,15 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 - `cookbook-Skill.md` 2.7: small changes to a config file are made with vi (grep first,
   keystrokes as comments, text at column 0, check with `tail` / `bash -n`), no
   `cat >> ... << 'EOF'`.
+- `clone_check_fmw.sh` 2026-11-10.1 and `02-Checks/clone_check.sh`: new FIX when
+  `REPORTS_JVM_OPTIONS` in `reports.sh` is set without `-DORBWaitForResponseTimeout=` – the
+  Reports server then stops at the start (REP-50125 NullPointerException in
+  `Utility.getOrbProperties`, read in `zrclient.jar`). Found at a customer loopback change whose
+  cookbook line lacked the timeout; the skill example is fixed too.
+- `reports_job_handling.md` section 7 rewritten: mail server in `rwserver.conf` (`host:port`,
+  `enableSSL` = SMTPS, STARTTLS properties only with login – read from `rwrun.jar`), sender
+  (`from=`, `sender` of the notification), call with a `cgicmd.dat` key, debugging steps,
+  sources. Mail itself not tested yet (no relay on the test host).
 
 ## 2026-11-09
 

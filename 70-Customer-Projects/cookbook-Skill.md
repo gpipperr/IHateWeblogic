@@ -329,7 +329,7 @@ Good (one idea per line, the result is shown before it is used):
   # Zeilen eintippen oder einfuegen:
 
 # <Datum>: Reports-Server und Engines nur auf 127.0.0.1
-REPORTS_JVM_OPTIONS="-Xmx256M -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+REPORTS_JVM_OPTIONS="-Xmx256M -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
 export REPORTS_JVM_OPTIONS
 
   # Dann  Esc  und  :wq  (speichern und beenden).

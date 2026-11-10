@@ -326,20 +326,294 @@ With variant B the exit code of the wrapper is enough.
 
 ## 7. Mail notification and `destype=mail`
 
-The keywords:
-- `notifysuccess=` / `notifyfailure=` (Oracle A.6.26/27) send a mail after
-  the job;
-- `destype=mail` + `desname=<address>` sends the report itself.
+Two different functions use the same mail server:
 
-Both need:
-- the `<notification id="mailNotify" class="oracle.reports.server.MailNotify">`
-  element of `rwserver.conf` (present on the test host);
-- a real mail server in `<pluginParam name="mailServer" value="..."/>`. On
-  the test host this is still the template placeholder `%MAILSERVER_NAME%`,
-  so mail is **not tested**.
+| | `destype=mail` | `notifysuccess=` / `notifyfailure=` |
+|---|---|---|
+| what is sent | the **report itself** (e.g. PDF attachment) | a short **notification** after the job (text from `succnote.txt` / `failnote.txt`) |
+| recipient | `desname=` (+ `cc=`, `bcc=`) | the value of the keyword |
+| sender | `from=` per request | `<property name="sender">` of the `<notification>` element |
+| needs | `<pluginParam name="mailServer">` | `mailServer` **and** `<notification id="mailNotify" ...>` |
 
-For variant B the OS can send the mail itself (cron `MAILTO`, or a mail
-from the wrapper on `rc≠0`). That needs no mail set-up in the Reports server.
+Status: the `rwserver.conf` part and the code facts below are read on the
+test host (Reports 14.1.2, `rwrun.jar`), **mail was not sent yet** – the test
+host has no mail server. Live test open (TODO).
+
+### 7.1 Mail server in `rwserver.conf`
+
+The mail server belongs to the **standalone Reports server**, that is the one
+that runs the jobs:
+
+```
+$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<server>/rwserver.conf
+```
+
+The file of the in-process server
+(`servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwserver.conf`)
+has the same element. It is only used when the in-process server runs jobs
+(not in this library, `inprocess=no`). 12c had the same file under
+`reports_12.2.1`.
+
+Oracle's template (14.1.2, in-process file) – the placeholder stays if nobody
+sets it:
+
+```xml
+<pluginParam name="mailServer" value="%MAILSERVER_NAME%">
+   <!--property name="enableSSL" value="yes"/-->
+   <!--UserName and Password that can be used to connect to the mail server-->
+   <!--property name="mailUserName" value="%MAIL_USERID%" /-->
+   <!--property name="mailPassword" value="%MAIL_PASSWORD%"/-->
+</pluginParam>
+```
+
+What the Reports server makes of it – **confirmed (code)**,
+`oracle.reports.server.MailService` in `$ORACLE_HOME/reports/jlib/rwrun.jar`
+(14.1.2, read with `javap`), JavaMail underneath:
+
+| Setting | Effect |
+|---|---|
+| `value="host"` | `mail.smtp.host`; port = JavaMail default **25** |
+| `value="host:port"` | split at the `:` into `mail.smtp.host` + `mail.smtp.port` – **the port goes into `value`**, there is no port property |
+| `enableSSL=yes` | `mail.smtp.socketFactory.class=javax.net.ssl.SSLSocketFactory` = TLS from the first byte (SMTPS, normally port **465**). Not STARTTLS. Default `no`. |
+| `mailUserName` + `mailPassword` | SMTP login. **Only when both are set**, the server also reads these properties of the element (name = the JavaMail key, value `yes` / text): `mail.smtp.auth`, `mail.smtp.starttls.enable`, `mail.smtp.starttls.required`, `mail.smtp.ssl.trust`, `mail.smtp.ssl.protocols`, `mail.smtp.auth.login.disable`, `mail.transport.protocol` |
+| `mail.smtp.auth=no` | allowed, but the trace writes "would usually fail" |
+
+Consequences:
+- **STARTTLS (port 587) is only possible with a login.** Without
+  `mailUserName` / `mailPassword` the STARTTLS properties are not read. A
+  relay without login therefore means plain port 25, or `enableSSL=yes`
+  on 465.
+- **The mail session is built when the server starts.** At start the server
+  writes the values into `rwserver_diagnostic.log` (live, test host):
+
+  ```
+  [WARNING] [] [oracle.reports.server] ... MailService:MailService [[
+   hostName = %MAILSERVER_NAME%
+   enableSSL = null
+  ]]
+  ```
+
+  After every change: restart the Reports server and check this entry.
+- **`mailPassword` is clear text in the file** – whether the server encrypts
+  it at the restart like the `<identifier>` is **not tested**. Until then:
+  a mail user only for this server, only allowed to send, `rwserver.conf`
+  readable for `oracle` only.
+
+Examples (`<mail.example.com>` = the SMTP relay of the customer):
+
+```xml
+<!-- a) internal relay, no login, port 25 (most common in a company network) -->
+<pluginParam name="mailServer" value="mail.example.com"/>
+
+<!-- b) relay with login and STARTTLS on 587 -->
+<pluginParam name="mailServer" value="mail.example.com:587">
+   <property name="mailUserName" value="reports-sender@example.com"/>
+   <property name="mailPassword" value="<MAIL_PASSWORD>"/>
+   <property name="mail.smtp.starttls.enable" value="yes"/>
+   <property name="mail.smtp.starttls.required" value="yes"/>
+</pluginParam>
+
+<!-- c) SMTPS (TLS from the start) on 465 with login -->
+<pluginParam name="mailServer" value="mail.example.com:465">
+   <property name="enableSSL" value="yes"/>
+   <property name="mailUserName" value="reports-sender@example.com"/>
+   <property name="mailPassword" value="<MAIL_PASSWORD>"/>
+</pluginParam>
+```
+
+- **TLS trust:** the relay certificate is checked against the trust store of
+  the Reports server JVM (the JDK `cacerts`). An internal CA must be in it,
+  otherwise the TLS handshake fails (see the certificates article).
+  `mail.smtp.ssl.trust=<host>` switches the check off for this host – only
+  as a test.
+- **Firewall:** the Reports host needs an outgoing rule to the relay on 25 /
+  465 / 587. No direct mail to the internet (rule "no outbound calls" of this
+  library).
+
+### 7.2 Sender (`from=`) and notification sender
+
+- **`from=` sets the sender of a `destype=mail` request.** One address, no
+  list. **Default `loginid@machine_name`** (Oracle A.6.9), that is
+  `oracle@<host>` of the Reports server. Most relays reject this address,
+  because the domain of the host does not receive mail. So **always set
+  `from=`**, with an address of a domain the relay accepts.
+- **`replyto=`** sets where answers go (e.g. the department instead of the
+  technical sender).
+- **The notification mails** (`notifysuccess` / `notifyfailure`) take their
+  sender from the `<notification>` element (Oracle 7.2.1: "some mail servers
+  may validate the sender's domain"):
+
+  ```xml
+  <notification id="mailNotify" class="oracle.reports.server.MailNotify">
+     <property name="succnotefile" value="succnote.txt"/>
+     <property name="failnotefile" value="failnote.txt"/>
+     <property name="sender" value="reports-noreply@example.com"/>
+  </notification>
+  ```
+
+  The code reads the property `sender` (string in `MailNotify.class`,
+  confirmed). The texts come from `$ORACLE_HOME/reports/templates/succnote.txt`
+  / `failnote.txt` (on the test host in `templates`, Oracle writes
+  `template`).
+
+### 7.3 Calling a report with `destype=mail`
+
+The keywords (Oracle A.5 / A.6 / A.7 / A.8):
+
+| Keyword | Value |
+|---|---|
+| `destype=mail` | send by mail |
+| `desname=` | main recipient(s), several separated by `,` (Oracle: without blanks) |
+| `desformat=` | `pdf` (attachment); `html` / `htmlcss` are sent as HTML |
+| `from=` | sender (7.2) |
+| `replyto=` | answer address |
+| `cc=` / `bcc=` | copies – one address `"a@x"` or a list `("a@x","b@x")` |
+| `subject=` | subject line |
+
+Oracle's example (A.5, `rwrun`):
+
+```
+rwrun report=test.rdf userid=scott/tiger@mydb desformat=pdf destype=mail
+desname="emp1@comp.com, emp2@comp.com" cc="emp3@comp.com" bcc="mgr@comp.com"
+replyto="me@comp.com" from="me@comp.com"
+```
+
+**a) Via rwservlet with a key in `cgicmd.dat` (recommended).** The fixed part
+– report, mail target, sender, subject – stays in the key. The URL only
+carries `cmdkey=`; the user cannot change the recipient or the sender. The
+DB login is in the key as before (secured server: `%D` / `RepRunner`, see
+[81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md)):
+
+```
+monthly_sales_mail: report=monthly_sales.rdf destype=mail desformat=pdf
+    desname=controlling@example.com from=reports-noreply@example.com
+    replyto=controlling@example.com subject="Monthly sales" %*
+```
+
+- One key per line in the real file (the line is wrapped here); `%*` lets
+  further parameters from the URL through (e.g. report parameters) – the
+  same rules as for every other key.
+- **Values with blanks in quotes** (`subject="..."`).
+- Call as POST (no login in the access log):
+
+  ```bash
+  curl -s -d cmdkey=monthly_sales_mail -d p_month=2026-10 \
+       http://localhost:9002/reports/rwservlet | grep -o 'REP-[0-9]*[^<]*'
+  # Expected: no REP line (the exact success page for destype=mail is not tested yet)
+  ```
+
+- **Must it be in `cgicmd.dat`?** No – every keyword can also be a
+  parameter of the request (`-d destype=mail -d desname=...`). But: then
+  every caller can choose recipient and sender, and the rwservlet becomes a
+  mail sender for anyone who can reach it. With `cmdkey` the target is fixed
+  on the server. For a secured server: put the mail keywords into the key.
+
+**b) Scheduled or by cron.** The same keywords go into the curl file of 5.3
+(`data = "destype=mail&desformat=pdf"`, `data-urlencode = "desname=..."`,
+`data-urlencode = "from=..."`, `data-urlencode = "subject=..."`) or into the
+`cmdfile` of 5.2. With variant B the wrapper must not set `desname` to a
+file then.
+
+**c) Notification only** (the report goes to a file, a mail says "done" /
+"failed"):
+
+```
+... destype=file desname=/u01/app/oracle/reports/tmp/daily.pdf
+    notifysuccess=controlling@example.com notifyfailure=it-ops@example.com
+```
+
+For variant B the OS can send the notification itself (cron `MAILTO`, or a
+mail from the wrapper on `rc≠0`). That needs no mail set-up in the Reports
+server.
+
+### 7.4 Debugging
+
+Step by step from the network to the Reports server, as `oracle` on the
+Reports host:
+
+1. **Configuration loaded?** After the restart:
+
+   ```bash
+   grep -A3 'MailService:MailService' $DOMAIN_HOME/servers/repserver01/logs/rwserver_diagnostic.log | tail -4
+   # Expected: hostName = mail.example.com:587 (not %MAILSERVER_NAME%), enableSSL = yes/no/null
+   ```
+
+2. **Relay reachable?**
+
+   ```bash
+   timeout 5 bash -c '</dev/tcp/mail.example.com/25' && echo open        # 465 / 587 in the same way
+   openssl s_client -connect mail.example.com:587 -starttls smtp -brief </dev/null   # STARTTLS + certificate
+   openssl s_client -connect mail.example.com:465 -brief </dev/null                  # SMTPS
+   ```
+
+   `verify error` = the relay certificate is not trusted (7.1, TLS trust).
+
+3. **Relay accepts sender and recipient – without Reports.** `curl` speaks
+   SMTP and shows the dialogue (`-v`):
+
+   ```bash
+   printf 'Subject: Reports mail test\n\nTest from the Reports host.\n' > /tmp/mailtest.txt
+   curl -v --url smtp://mail.example.com:25 --mail-from reports-noreply@example.com \
+        --mail-rcpt controlling@example.com -T /tmp/mailtest.txt
+   ```
+
+   For 587 add `--ssl-reqd` (STARTTLS) and `--user reports-sender@example.com`
+   (curl asks for the password). An answer like `550 sender rejected` /
+   `relay access denied` is a matter for the mail team: allow the Reports host
+   IP or the sender address on the relay. This test already shows whether
+   `from=` is accepted.
+
+4. **Report with `destype=mail`:** a small report (e.g. `select sysdate from
+   dual`) with the key from 7.3. Then:
+   - the job status as admin with `showjobs queuetype=past` (section 6) –
+     status code 5 + the REP text;
+   - the error in the log:
+
+     ```bash
+     grep -hE 'REP-[0-9]+|MailService|javax.mail' $DOMAIN_HOME/servers/repserver01/logs/rwserver_diagnostic.log | tail -20
+     ```
+
+     The `javax.mail...Exception` behind the REP number names the cause
+     (connection refused, `530 Must issue a STARTTLS command first`,
+     `535 authentication failed`, certificate).
+
+5. **More detail (trace):** raise the logger `oracle.reports.server` in
+   `$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/repserver01/logging.xml`
+   from `NOTIFICATION:1` to `TRACE:32`, restart, run the test, set it back.
+   The code writes its mail values under a trace flag (`MailService:MailService`,
+   `MailService:send`); whether `TRACE:32` switches this flag on is **not
+   tested**. JavaMail's own SMTP dialogue (`mail.debug`) cannot be set through
+   `rwserver.conf` – the server passes only the properties of 7.1.
+
+Typical errors (from the JavaMail / SMTP answers – to be confirmed in the
+live test):
+
+| Message | Cause |
+|---|---|
+| `hostName = %MAILSERVER_NAME%` at the start | template value never set, or the wrong `rwserver.conf` (in-process instead of standalone) |
+| `Connection refused` / timeout | firewall to the relay, wrong port, relay only on 587 / 465 |
+| `530 Must issue a STARTTLS command first` | relay wants STARTTLS – 7.1 b) (with login) |
+| `535 Authentication failed` | `mailUserName` / `mailPassword` wrong, or the relay wants the full address as user |
+| `550` / `553 sender rejected`, `relay access denied` | `from=` missing (default `oracle@<host>`) or not allowed; Reports host not allowed on the relay |
+| `PKIX path building failed` | relay certificate (internal CA) not in the JDK trust store |
+
+### 7.5 Sources
+
+- Oracle, Publishing Reports 12.2.1.3 (linked from the 14.1.2 library):
+  - [7.2.1 Reports server configuration file – `pluginParam` / `mailServer`, `enableSSL`, `notification` with `sender`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm)
+  - [A.5 command line keywords – `BCC`, `CC`, `DESFORMAT`, `DESNAME` (mail example), `DESTYPE=MAIL`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm)
+  - [A.6 – `FROM` (default `loginid@machine_name`), `NOTIFYFAILURE`, `NOTIFYSUCCESS`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla006.htm)
+  - [A.7 – `REPLYTO`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla007.htm),
+    [A.8 – `SUBJECT`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm)
+  - 12.2.1 (same text): [7.2 Reports Server Configuration File](https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_conf002.htm)
+- Code: `oracle.reports.server.MailService`, `MailNotify`, `DesMail` in
+  `$ORACLE_HOME/reports/jlib/rwrun.jar`, Reports 14.1.2 test host, read with
+  `javap -c` on 2026-11-10 (host:port, `enableSSL`, STARTTLS properties only
+  with login, `sender`).
+- Oracle community: [REP-50152 "Must issue a STARTTLS command first"](https://community.oracle.com/mosc/discussion/4173446)
+  (Gmail SMTP; internal relay worked).
+- pipperr.de (older blog entry): mail server in `rwserver.conf` of Reports
+  12.2.1 on Windows, the same `pluginParam` block.
 
 ## 8. Backup, restore, clone
 

@@ -240,6 +240,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
   `notifysuccess`) untested – the mail server is still the template
   placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
+  Doc section 7 of `80-FMW-Architecture/reports_job_handling.md` written
+  2026-11-10 from Oracle docs + `rwrun.jar` code (host:port, `enableSSL`,
+  STARTTLS only with login, `from=` / `sender`, `cgicmd.dat` key, debugging).
+  Open live test with a relay: send, the success page, does `TRACE:32` show
+  the mail values, is `mailPassword` encrypted at the restart.
 - [ ] **14c move of a customer – export → analysis → import**
   ([process](09-Install/docs/00-transfer_customer_settings.md)). Way 2 ran live
   on 2026-11-05, Way 1 and the start page of `04-` as root by 2026-11-06. The

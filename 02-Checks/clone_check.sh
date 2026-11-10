@@ -178,6 +178,12 @@ if [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "FORMS_ONLY" ]; then
     else
         _fix "  reports.sh: no ORBServerHost=127.0.0.1 – server/engines on all interfaces – 09-Install/13-oracle_setup_reports.sh --apply + restart"
     fi
+    # Oracle (Utility.getOrbProperties): REPORTS_JVM_OPTIONS set without
+    # -DORBWaitForResponseTimeout= -> NullPointerException, REP-50125 at the start
+    if grep -qE '^[[:space:]]*(export[[:space:]]+)?REPORTS_JVM_OPTIONS=' "$_rsh" 2>/dev/null \
+       && ! grep -E '^[[:space:]]*(export[[:space:]]+)?REPORTS_JVM_OPTIONS=' "$_rsh" | tail -1 | grep -q 'ORBWaitForResponseTimeout='; then
+        _fix "  reports.sh: REPORTS_JVM_OPTIONS without -DORBWaitForResponseTimeout – Reports server stops at the start (REP-50125) – 09-Install/13-oracle_setup_reports.sh --apply + restart"
+    fi
     if grep -q 'ORBServerHost=127.0.0.1' "$DOMAIN_HOME/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "  setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else

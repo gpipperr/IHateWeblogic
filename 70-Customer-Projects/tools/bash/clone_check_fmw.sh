@@ -35,7 +35,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-09.3"   # bump on every change
+VERSION="2026-11-10.1"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -233,7 +233,14 @@ if [ -f "$_rsh" ]; then
         ok "reports.sh: ORB of Reports server + engines on 127.0.0.1 (ORBServerHost)"
     else
         fix "reports.sh: no -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 in REPORTS_JVM_OPTIONS – server / engines on all interfaces"
-        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "no REPORTS_JVM_OPTIONS - add -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 there"
+        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "no REPORTS_JVM_OPTIONS - add -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 there"
+    fi
+    # Oracle (Utility.getOrbProperties): REPORTS_JVM_OPTIONS set without
+    # -DORBWaitForResponseTimeout= -> NullPointerException, REP-50125 at the start
+    if grep -qE '^[[:space:]]*(export[[:space:]]+)?REPORTS_JVM_OPTIONS=' "$_rsh" 2>/dev/null \
+       && ! grep -E '^[[:space:]]*(export[[:space:]]+)?REPORTS_JVM_OPTIONS=' "$_rsh" | tail -1 | grep -q 'ORBWaitForResponseTimeout='; then
+        fix "reports.sh: REPORTS_JVM_OPTIONS without -DORBWaitForResponseTimeout=999999999 – the Reports server stops at the start (REP-50125 NullPointerException in getOrbProperties)"
+        _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "add -DORBWaitForResponseTimeout=999999999 to the last REPORTS_JVM_OPTIONS line"
     fi
     if grep -q 'ORBServerHost=127.0.0.1' "$DH/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
