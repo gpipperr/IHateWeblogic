@@ -1,0 +1,79 @@
+direction: down
+
+browser: "Internet / Browser" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "Nginx  (SSL termination)\n/etc/nginx/ssl/fullchain.pem ← deployed by\n/etc/nginx/ssl/privkey.pem     05-root_nginx_ssl.sh\n\nProtocols: TLSv1.2 + TLSv1.3 only\nCiphers:   ECDHE / AES-GCM only" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+weblogic: "WebLogic (no client TLS)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  admin: "AdminServer   127.0.0.1:7001" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  forms: "WLS_FORMS     127.0.0.1:9001\n(+ demo SSL 127.0.0.1:9501 – unused)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  reports: "WLS_REPORTS   127.0.0.1:9002\n(+ demo SSL 127.0.0.1:9512 – unused)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+browser -> nginx: "HTTPS :443" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> weblogic: "HTTP plain —\nloopback only\n(127.0.0.1)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}

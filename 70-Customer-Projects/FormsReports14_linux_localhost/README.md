@@ -24,7 +24,12 @@ section 2.1 (hardening checklist), section 3 (where host name / IP live).
 
 ## 1. Target picture
 
-```
+![localhost-target](diagrams/localhost-target.svg)
+<sub>Quelle: [diagrams/localhost-target.prompt](diagrams/localhost-target.prompt) · [D2](diagrams/localhost-target.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=localhost-target
   client (browser / Forms client)
         |  HTTPS, host name + certificate   <-- the ONLY host-specific edge
         v
@@ -34,6 +39,8 @@ section 2.1 (hardening checklist), section 3 (where host name / IP live).
         +--> WLS_FORMS   127.0.0.1:9001 --> frmweb (0.0.0.0, no option)
         +--> WLS_REPORTS 127.0.0.1:9002 --> rwserver + rwEng-* 127.0.0.1
 ```
+
+</details>
 
 Details: [clone_golden_image.md §1–§3](../../80-FMW-Architecture/clone_golden_image.md).
 

@@ -79,7 +79,12 @@ plain PostScript name `Courier`). The PDF output of the same report is correct.
 The key insight: Reports 12c/14c uses **two different font mechanisms** in
 the same engine.
 
-```
+![font-two-paths](diagrams/font-two-paths.svg)
+<sub>Quelle: [diagrams/font-two-paths.prompt](diagrams/font-two-paths.prompt) · [D2](diagrams/font-two-paths.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=font-two-paths
                          Report font name ("Arial")
                                    │
              ┌─────────────────────┴─────────────────────┐
@@ -98,6 +103,8 @@ the same engine.
                                          no match → Symbol (FontSpecific)
                                          not in PPD/no AFM → *DefaultFont Courier
 ```
+
+</details>
 
 With `REPORTS_DEFAULT_DISPLAY=YES` the HTML formatting is done against the
 **screen printer** defined in `uiscreenprint.txt` (12c and later; the 11g

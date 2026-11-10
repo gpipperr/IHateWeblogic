@@ -54,7 +54,12 @@ Note: the domain templates also enable WebLogic SSL listen ports with the
 
 ## Architecture: SSL in This Installation
 
-```
+![ssl-nginx](diagrams/ssl-nginx.svg)
+<sub>Quelle: [diagrams/ssl-nginx.prompt](diagrams/ssl-nginx.prompt) · [D2](diagrams/ssl-nginx.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=ssl-nginx
 Internet / Browser
         │  HTTPS :443
         ▼
@@ -73,6 +78,8 @@ WebLogic (no client TLS)
   WLS_FORMS     127.0.0.1:9001   (+ demo SSL 127.0.0.1:9501 – unused)
   WLS_REPORTS   127.0.0.1:9002   (+ demo SSL 127.0.0.1:9512 – unused)
 ```
+
+</details>
 
 **Consequences:**
 - Only one certificate location for clients: `/etc/nginx/ssl/` (`fullchain.pem`
@@ -176,7 +183,12 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 **Purpose:** a small own certificate authority built with plain `openssl`
 (no Easy-RSA, no EPEL): **one root CA**, two kinds of leaf certificates.
 
-```
+![ssl-local-ca](diagrams/ssl-local-ca.svg)
+<sub>Quelle: [diagrams/ssl-local-ca.prompt](diagrams/ssl-local-ca.prompt) · [D2](diagrams/ssl-local-ca.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=ssl-local-ca
                  ┌───────────────────────────────────────┐
                  │  Root CA   ca/ca.crt  (10 years)      │
                  │  CA:TRUE pathlen:0, keyCertSign/cRLSign│
@@ -198,6 +210,8 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
    Client: imports ONLY ca.crt / ca.cer once → trusts the TLS certificate
    (browser, FSAL, Java Web Start) AND the jacob.jar signature (Web Start).
 ```
+
+</details>
 
 **Why one root for both:** the clients need exactly one trust anchor.
 Renewing the server or the code-signing certificate under the same root
@@ -319,7 +333,12 @@ Short version of the architecture article
 [forms_jakob_webutil.md §8–13](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it) –
 what is signed, who creates the key, who signs, who checks.
 
-```
+![ssl-codesign-flow](diagrams/ssl-codesign-flow.svg)
+<sub>Quelle: [diagrams/ssl-codesign-flow.prompt](diagrams/ssl-codesign-flow.prompt) · [D2](diagrams/ssl-codesign-flow.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=ssl-codesign-flow
  08-SSL (creates the keystore)        09-Install/14- (signs)               Client (checks)
  ────────────────────────────        ──────────────────────               ─────────────────────────
  ssl_local_ca.sh codesign   ─┐       jacob.jar (unsigned release)         Java Web Start: every jar,
@@ -331,6 +350,8 @@ what is signed, who creates the key, who signs, who checks.
  FORMS_SIGN_KEYSTORE / _ALIAS        WebUtilArchive
  + forms_sign_sec.conf.des3
 ```
+
+</details>
 
 | Question | Answer |
 |---|---|

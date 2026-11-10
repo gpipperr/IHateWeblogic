@@ -1,0 +1,56 @@
+direction: down
+
+classes: {
+  cert: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  sign: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+ca: "Root CA   ca/ca.crt  (10 years)\nCA:TRUE pathlen:0, keyCertSign/cRLSign\nca/ca.key  AES-256, passphrase in\nssl_ca_sec.conf.des3" {
+  class: cert
+}
+
+server: "server/<cn>.crt   (825 days)\nEKU serverAuth, SAN\nkey unencrypted (Nginx)\n→ SSL_CERT_FILE/_KEY/_CHAIN\n→ 05-root_nginx_ssl.sh --apply\nTLS of the Forms/Reports URL" {
+  class: cert
+}
+
+codesign: "codesign/codesign.crt (3 years)\nEKU codeSigning\nkey only in codesign.p12\n(password forms_sign_sec.conf.des3)\n→ 14-oracle_setup_forms.sh\nsigns jacob.jar (jarsigner)" {
+  class: cert
+}
+
+client: "Client: imports ONLY ca.crt / ca.cer once\n→ trusts the TLS certificate\n(browser, FSAL, Java Web Start)\nAND the jacob.jar signature (Web Start)." {
+  class: cert
+  style.font-color: "#262626"
+}
+
+ca -> server: "signs" {
+  class: sign
+}
+
+ca -> codesign: "signs" {
+  class: sign
+}
+
+server -> client: {
+  style.opacity: 0
+}
+
+codesign -> client: {
+  style.opacity: 0
+}

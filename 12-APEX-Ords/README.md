@@ -25,7 +25,12 @@ A modern Forms environment is Forms **and** APEX on the same database
 | data capture, self-service, occasional users, mobile | Oracle APEX 26.2 |
 | reporting for everyone (dashboards, interactive reports) | Oracle APEX (+ Oracle Reports for print) |
 
-```
+![apex-ords-overview](diagrams/apex-ords-overview.svg)
+<sub>Quelle: [diagrams/apex-ords-overview.prompt](diagrams/apex-ords-overview.prompt) · [D2](diagrams/apex-ords-overview.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=apex-ords-overview
    browser / FSAL
         |  HTTPS – one host name, one certificate
    +--- Nginx -------------------------------------------------------------------+
@@ -37,6 +42,8 @@ A modern Forms environment is Forms **and** APEX on the same database
         |                    |                           |
         +---- DB A (Forms schema + APEX) ----+           DB B (other APEX)
 ```
+
+</details>
 
 ---
 

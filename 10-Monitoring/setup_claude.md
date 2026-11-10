@@ -24,7 +24,12 @@ first rollout.
 
 ## 1. Placement
 
-```
+![claude-hosts](diagrams/claude-hosts.svg)
+<sub>Quelle: [diagrams/claude-hosts.prompt](diagrams/claude-hosts.prompt) · [D2](diagrams/claude-hosts.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=claude-hosts
  production FMW host                 analysis host (test host / admin VM)
  ─────────────────────               ─────────────────────────────────────
  IHW_ENV_TYPE=prod                   IHW_ENV_TYPE=test
@@ -33,6 +38,8 @@ first rollout.
  (later: log dirs exported           (later: read-only mount of the log dirs,
   read-only)                 ──────▶  log analysis – to decide)
 ```
+
+</details>
 
 | Host | `IHW_ENV_TYPE` | Claude | Profile |
 |---|---|---|---|

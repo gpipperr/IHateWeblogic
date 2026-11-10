@@ -1,0 +1,162 @@
+browser: "browser / FSAL" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "Nginx" {
+  width: 280
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+wls: "WLS_FORMS / WLS_REPORTS\n127.0.0.1:9001/9002" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+ords_1: "ords_1\n127.0.0.1:8081" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+apex_1: "/srv/apex/apex_1" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+db_a: "DB A\n(Forms schema + APEX)" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+ords_2: "ords_2\n127.0.0.1:8082" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+apex_2: "/srv/apex/apex_2" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+db_b: "DB B\n(other APEX)" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+browser -> nginx: "HTTPS –\none host name,\none certificate" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> wls: "/forms\n/reports" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> ords_1: "/ords" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> apex_1: "/i/" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+wls -> db_a: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+ords_1 -> db_a: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+nginx -> ords_2: "/ords_2" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> apex_2: "/i_2/" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+ords_2 -> db_b: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+wls -> apex_1: {
+  style.opacity: 0
+}
+
+db_a -> ords_2: {
+  style.opacity: 0
+}
+
+db_a -> apex_2: {
+  style.opacity: 0
+}

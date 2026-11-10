@@ -1,0 +1,86 @@
+direction: down
+
+entwickler: "Entwickler (RDP)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+windows: "Windows Server" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  builder: "Reports Builder (rwbuilder.bat)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  home: "Oracle Home + Builder-Domain\n(AdminServer aus)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+}
+
+db: "bestehende DB:\nRCU-Präfix + Anwendungsdaten" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+linux: "Linux-Reports-Server (rwservlet)\nzum Testen" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+entwickler -> windows {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-size: 18
+  style.font-color: "#000000"
+}
+
+windows -> db {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-size: 18
+  style.font-color: "#000000"
+}
+
+windows -> linux: ".rdf / .rep" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-size: 18
+  style.font-color: "#000000"
+}

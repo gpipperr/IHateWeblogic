@@ -1,0 +1,66 @@
+direction: down
+
+classes: {
+  ext: {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  mw: {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  main: {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  line: {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+report_font: "Report font name (\"Arial\")" {class: ext}
+
+pdf: "PDF output (Java part)" {class: main}
+pdf_ali: "uifont.ali [PDF:Subset]\n\"Arial\".. = \"LiberationSans-Regular.ttf\"" {class: mw}
+pdf_ttf: "TTF from REPORTS_FONT_DIRECTORY" {class: mw}
+pdf_sub: "embedded TrueType subset" {class: mw}
+pdf_ok: "✓ works" {class: mw}
+
+html: "HTML / parameter form (TK layer)" {class: main}
+html_sp: "uiscreenprint.txt\nSCREENPRINTER:PostScript:1:...:screenprinter.ppd:" {class: mw}
+html_ppd: "screenprinter.ppd  (*Font list)" {class: mw}
+html_afm: "AFM metric file per *Font entry" {class: mw}
+html_cs: "charset check against NLS_LANG" {class: mw}
+html_fb: "no match → Symbol (FontSpecific)\nnot in PPD/no AFM → *DefaultFont Courier" {class: ext}
+
+report_font -> pdf {class: line}
+report_font -> html {class: line}
+
+pdf -> pdf_ali {class: line}
+pdf_ali -> pdf_ttf {class: line}
+pdf_ttf -> pdf_sub {class: line}
+pdf_sub -> pdf_ok {class: line}
+
+html -> html_sp {class: line}
+html_sp -> html_ppd {class: line}
+html_ppd -> html_afm {class: line}
+html_afm -> html_cs {class: line}
+html_cs -> html_fb {class: line}

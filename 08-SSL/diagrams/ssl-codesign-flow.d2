@@ -1,0 +1,134 @@
+ssl: "08-SSL (creates the keystore)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  local_ca: "ssl_local_ca.sh codesign" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  customer_certs: "ssl_customer_certs.sh\n(customer codesign.p12)" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  public_ca: "public CA (PKCS12, or token\n/ HSM -> sign elsewhere)" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  keystore: "FORMS_SIGN_KEYSTORE / _ALIAS\n+ forms_sign_sec.conf.des3" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+install: "09-Install/14- (signs)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  jacob: "jacob.jar (unsigned release)" {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  sign_steps: "main manifest += Permissions,\nCodebase\njarsigner -digestalg SHA-256\n[-tsa FORMS_SIGN_TSA_URL]\nverify -> extensions.jnlp,\nWebUtilArchive" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+}
+
+client: "Client (checks)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  jws: "Java Web Start: every jar,\nchain -> trusted root,\nunsigned = blocked" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  fsal: "FSAL: no signer check by\ndefault - only TLS trust" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+direction: down
+
+ssl -> install: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-size: 18
+  style.font-color: "#000000"
+}
+
+install -> client: {
+  style.opacity: 0
+}

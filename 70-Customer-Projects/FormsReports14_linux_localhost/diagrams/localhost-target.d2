@@ -1,0 +1,120 @@
+client: "client (browser / Forms client)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "Nginx 0.0.0.0:443\n-- upstream / proxy_pass\nhttp://127.0.0.1:<port>" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+admin: "AdminServer 127.0.0.1:7001" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nodemanager: "Node Manager 127.0.0.1:5556" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+forms: "WLS_FORMS   127.0.0.1:9001" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+reports: "WLS_REPORTS 127.0.0.1:9002" {
+  width: 280
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+frmweb: "frmweb (0.0.0.0, no option)" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+rwserver: "rwserver + rwEng-* 127.0.0.1" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+direction: down
+
+client -> nginx: "HTTPS, host name\n+ certificate\n<-- the ONLY\nhost-specific edge" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> admin: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+nginx -> forms: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+nginx -> reports: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+forms -> frmweb: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+reports -> rwserver: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+admin -> nodemanager: {
+  style.opacity: 0
+}

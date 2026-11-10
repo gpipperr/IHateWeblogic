@@ -49,12 +49,19 @@ Im Alltag startet der Entwickler nur `rwbuilder.bat` aus
 `DOMAIN_HOME\reports\bin` – es läuft kein WebLogic. Damit entfallen die
 aufwendigen und fehleranfälligen Teile der Windows-Serverinstallation.
 
-```
+![builder-windows](diagrams/builder-windows.svg)
+<sub>Quelle: [diagrams/builder-windows.prompt](diagrams/builder-windows.prompt) · [D2](diagrams/builder-windows.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=builder-windows
  Entwickler (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
                          │  Oracle Home + Builder-Domain (AdminServer aus)
                          ├──────────► bestehende DB: RCU-Präfix + Anwendungsdaten
                          └─ .rdf / .rep  ──► Linux-Reports-Server (rwservlet) zum Testen
 ```
+
+</details>
 
 ## Mehrbenutzerbetrieb (RDP)
 

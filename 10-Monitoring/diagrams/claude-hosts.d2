@@ -1,0 +1,123 @@
+direction: down
+
+prod: "production FMW host" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  envtype: "IHW_ENV_TYPE=prod" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  noclaude: "no Claude Code" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  collect: "collect_fmw_env.sh --full" {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  logs: "(later: log dirs exported\nread-only)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+}
+
+analysis: "analysis host (test host / admin VM)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  envtype: "IHW_ENV_TYPE=test" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  claude: "Claude Code + sandbox + guard" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  patchdoku: "Patch-Doku/<cycle>/env/\n(patch analysis)" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  mount: "(later: read-only mount of the log dirs,\nlog analysis – to decide)" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+}
+
+prod -> analysis: "scp" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+prod -> analysis: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
