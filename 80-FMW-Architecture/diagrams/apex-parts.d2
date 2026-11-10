@@ -2,6 +2,7 @@ direction: down
 
 classes: {
   ext: {
+    width: 280
     style: {
       fill: "#EDEDED"
       stroke: "#7F7F7F"
@@ -13,23 +14,7 @@ classes: {
       font-color: "#C00000"
     }
   }
-  mw_zone: {
-    grid-columns: 1
-    grid-gap: 16
-    style: {
-      fill: "#FFFFFF"
-      stroke: "#548235"
-      stroke-dash: 4
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 22
-      bold: true
-      font-color: "#C00000"
-    }
-  }
-  mw_part: {
+  mw_line: {
     style: {
       fill: "#E2EFDA"
       stroke: "#548235"
@@ -41,19 +26,36 @@ classes: {
       font-color: "#262626"
     }
   }
-  mw_main: {
+  db_line: {
+    shape: rectangle
     style: {
-      fill: "#A9D18E"
-      stroke: "#548235"
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
       border-radius: 8
       stroke-width: 1
       shadow: false
       3d: false
       font-size: 20
+      font-color: "#262626"
+    }
+  }
+  mw_box: {
+    grid-columns: 1
+    grid-gap: 16
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      3d: false
+      font-size: 22
+      bold: true
       font-color: "#C00000"
     }
   }
-  db_zone: {
+  db_box: {
     grid-columns: 1
     grid-gap: 16
     style: {
@@ -66,18 +68,6 @@ classes: {
       3d: false
       font-size: 22
       bold: true
-      font-color: "#C00000"
-    }
-  }
-  db_part: {
-    style: {
-      fill: "#DEEBF7"
-      stroke: "#2E75B6"
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 20
       font-color: "#C00000"
     }
   }
@@ -95,26 +85,26 @@ browser: "browser" {class: ext}
 script: "script / other system" {class: ext}
 
 nginx: "Nginx (TLS, one host name)" {
-  class: mw_zone
-  images: "/i/  -> alias /srv/apex/apex_1/\n(static images, no ORDS)" {class: mw_part}
-  ords_route: "/ords/ -> 127.0.0.1:8081\nX-Forwarded-For = \$remote_addr (overwritten)" {class: mw_part}
+  class: mw_box
+  n1: "/i/  -> alias /srv/apex/apex_1/\n(static images, no ORDS)" {class: mw_line}
+  n2: "/ords/ -> 127.0.0.1:8081\nX-Forwarded-For = \$remote_addr\n(overwritten)" {class: mw_line}
 }
 
-ords: "ORDS 26.x standalone (Jetty 12, java at JDK_HOME)" {
-  class: mw_zone
-  config: "config dir  ords_1/config/\ndatabases/<pool>/pool.xml + wallet,\nglobal/settings.xml, credentials, logging" {class: mw_part}
-  pool: "JDBC pool (UCP) - connects as\nORDS_PUBLIC_USER (runtime user)" {class: mw_main}
+ords: "ORDS 26.x standalone\n(Jetty 12, java at JDK_HOME)" {
+  class: mw_box
+  o1: "config dir  ords_1/config/\ndatabases/<pool>/pool.xml + wallet,\nglobal/settings.xml, credentials, logging" {class: mw_line}
+  o2: "JDBC pool (UCP) - connects as\nORDS_PUBLIC_USER (runtime user)" {class: mw_line}
 }
 
 db: "database (PDB)" {
-  class: db_zone
-  apex_public: "APEX_PUBLIC_USER -> APEX engine\n(schema APEX_260200, FLOWS_FILES):\nwwv_flow.show/accept, the app's PL/SQL,\nsession state" {class: db_part}
-  rest_schema: "<SCHEMA> (REST-enabled) -> handler PL/SQL /\nSQL of the REST module" {class: db_part}
-  ords_metadata: "ORDS_METADATA  - REST\nmodules/templates/handlers, privileges,\nroles, OAuth clients, schema aliases\n(the \"ORDS repository\")" {class: db_part}
+  class: db_box
+  d1: "APEX_PUBLIC_USER -> APEX engine\n(schema APEX_260200, FLOWS_FILES):\nwwv_flow.show/accept, the app's PL/SQL,\nsession state" {class: db_line}
+  d2: "<SCHEMA> (REST-enabled) -> handler PL/SQL /\nSQL of the REST module" {class: db_line}
+  d3: "ORDS_METADATA  -\nREST modules/templates/handlers, privileges,\nroles, OAuth clients, schema aliases\n(the \"ORDS repository\")" {class: db_line}
 }
 
-browser -> nginx: "HTTPS  /ords/r/<app>/..." {class: conn}
-script -> nginx: "HTTPS  /ords/<schema>/<module>/..." {class: conn}
-nginx -> ords: "" {class: conn}
-ords -> db: "proxy: ORDS_PUBLIC_USER[APEX_PUBLIC_USER]" {class: conn}
-ords -> db: "proxy: ORDS_PUBLIC_USER[<SCHEMA>]" {class: conn}
+browser -> nginx: "HTTPS\n/ords/r/<app>/..." {class: conn}
+script -> nginx: "HTTPS\n/ords/<schema>/\n<module>/..." {class: conn}
+nginx -> ords {class: conn}
+ords -> db: "proxy:\nORDS_PUBLIC_USER\n[APEX_PUBLIC_USER]" {class: conn}
+ords -> db: "proxy:\nORDS_PUBLIC_USER\n[<SCHEMA>]" {class: conn}

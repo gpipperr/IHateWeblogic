@@ -3,7 +3,9 @@ Task: convert the ASCII diagram in the section "### ASCII" into D2 code.
 
 Output rules
 - Output ONLY D2 code. No explanation, no Markdown fence, no comments outside D2.
-- Use plain D2 syntax that compiles with "d2 --layout elk" (d2 v0.9).
+- Use plain D2 syntax that compiles with "d2 --layout dagre" (d2 v0.9).
+- A "$" inside a label starts a D2 variable substitution: put such labels in
+  single quotes ('...') or write "\$" – e.g. '$remote_addr' or "\$remote_addr".
 - Take the layout direction from the ASCII drawing ("direction: down" for top
   to bottom flows, "direction: right" for left to right flows).
 
@@ -33,15 +35,23 @@ Shapes and colours (simple technical style, white background)
 - Connections: style.stroke "#7F7F7F", style.stroke-width: 2, label
   font-color "#000000", style.font-size: 18; arrow heads as in the ASCII
   (-> one way, <-> both).
+- Connection labels: split into short lines (\n) at natural breaks – after
+  the protocol / keyword, after a "/" or before a bracket; at most about 18
+  characters per line, up to three lines, e.g.
+  "HTTPS\n/ords/<schema>/\n<module>/..." or "proxy:\nORDS_PUBLIC_USER\n[<SCHEMA>]".
+  Words stay exactly as written.
+- A box from which a labelled connection starts, and which stands next to
+  another such box, gets "width: 280" so the labels of the two arrows do not
+  overlap.
 - Keep the drawing narrow (it is shown in a ~900 px wide page column):
   - a container whose parts are stacked in the ASCII gets "grid-columns: 1"
-    and "grid-gap: 16" instead of a direction, so ELK cannot place its parts
-    side by side;
+    and "grid-gap: 16" instead of a direction, so the layout cannot place its
+    parts side by side;
   - break long labels into several lines (\n) between words, at most about
     45 characters per line – the words themselves stay exactly as written;
   - connections start and end at the container itself, never at a part
-    inside a "grid-columns" container (ELK cannot layer edges into a grid and
-    then spreads the containers sideways); keep the arrow label exactly – it
+    inside a "grid-columns" container (the layout engine cannot layer edges into
+    a grid and then spreads the containers sideways); keep the arrow label exactly – it
     names the target anyway.
 - No icons, no images, no shadows, no gradients, no themes beyond these
   styles, no legend unless the ASCII has one.
