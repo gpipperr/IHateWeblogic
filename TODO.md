@@ -1,6 +1,6 @@
 # IHateWeblogic – Open Items / TODO
 
-Only what is still open (state 2026-11-06). Everything finished is described
+Only what is still open (state 2026-11-10). Everything finished is described
 in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [README.md](README.md#project-status).
@@ -72,9 +72,27 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] `08-SSL` modes `EASYRSA` and `REQUEST` end-to-end.
 - [ ] `08-` loopback block (SSL off, Coherence unicast) in a **new** domain –
   tested offline on a domain copy and online on the existing domain only.
-- [ ] **Clone test**: golden image recipe
-  ([clone_golden_image.md §6](80-FMW-Architecture/clone_golden_image.md)) on a
-  real clone, incl. the external-RCU way (new prefix per clone).
+- [ ] **Clone test – rest**: way 3 (VM clone, new RCU prefix,
+  `reassociateSecurityStore`) ran on the test host (same DB, prefix `CLN`) and
+  at a customer (Reports only, other DB) on 2026-11-10. Still open: the full
+  golden-image recipe of
+  [clone_golden_image.md §6](80-FMW-Architecture/clone_golden_image.md) with
+  `13-` / `40- --apply` on the clone, a clone of a domain **with Forms**, way 2
+  (re-bind to a copied repository).
+- [ ] **`02-Checks/clone_check.sh --apply` file places** (2026-11-10:
+  `startup.properties` `AdminURL`, `bin/*.sh` `ADMIN_URL`, emoms 3 files,
+  engine `jvmOptions`): tested only in an isolated copy – first run on a real
+  domain with these findings, then restart and re-check.
+- [ ] **Public knowledge-base cookbooks** (2026-11-10,
+  [localhost](70-Customer-Projects/FormsReports14_linux_localhost/README.md),
+  [clone](70-Customer-Projects/FormsReports14_linux_clone/README.md)): the
+  write steps come from the customer runs; untested as written: the WLS_FORMS
+  WLST steps (listen / SSL / Coherence) of the localhost cookbook, `curl -K -`
+  for `showjobs` in the clone cookbook (stdin form checked, not against
+  `showjobs`), the manual stop/start path without autostart.
+- [ ] **Test-host leftovers of the way-3 test (2026-11-10):** drop the RCU
+  prefix `CLN` in `fmwpdb` (RCU `-dropRepository`) and delete the scratch copy
+  `clonetest/config_before.tgz` (holds the bootstrap wallet) – decision open.
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
 - [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
@@ -271,7 +289,20 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `startComponent.sh … storeUserConfig` writes its files, which
   `Autostart_linux_middleware.txt` step 1c, `WLS_Report_start_stop_kochbuch.txt`
   and `Reports_kochbuch_de.txt` 9.10 describe as `~/oracle-WebLogic*.properties` –
-  check once live.
+  check once live. Seen 2026-11-10 at the Reports-only customer: `status.sh`
+  read the keys from `~/.wlst/nm-cfg-<domain>.props` – set there as
+  `WLST_CONFIG_FILE` in `patch_install.ini`, so not yet proof of Oracle's
+  default path.
+- [ ] **Customer clone (Reports only, 2026-11-10/11)** – source hardened and
+  "Clone-capable: yes" since 2026-11-10 (`startup.properties` `AdminURL`,
+  engine `jvmOptions`, emoms 3 files, `bin/*.sh`). Open on the clone (future
+  production): the private `fix_localhost_kochbuch.txt` (same four places,
+  EM green afterwards), then from the clone cookbook: result of `updateCred`
+  `AuditDbPrincipalKey` (8.4), EM login by form, `showjobs queuetype=future`
+  on clone (0) and source, host name of the clone vs. the intended name.
+  Feed results into
+  [FormsReports14_linux_clone](70-Customer-Projects/FormsReports14_linux_clone/README.md)
+  and `clone_golden_image.md` §5 / §7.
 - [ ] **Library template:** `09-Install/forms_templates/default.env.template`
   sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
   (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the
@@ -295,3 +326,8 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `-DORBWaitForResponseTimeout` in `REPORTS_JVM_OPTIONS` (`13-`, since
   2026-10-15) is the documented workaround – keep it until a Reports QPR
   README lists 39868225 ([doc 13](09-Install/docs/13-reports-detail-settings.md)).
+  KB text read 2026-11-10: it advises removing the option from `jvmOptions`
+  "to avoid conflicts" – we keep it there with the same value (engine
+  `jvmOptions` since 2026-11-10, running at the customer); drop it from
+  `jvmOptions` if a later QPR shows a conflict
+  ([report_engine_architecture.md §6](80-FMW-Architecture/report_engine_architecture.md)).
