@@ -174,7 +174,7 @@ External RCU – three ways, the first one recommended:
    manage the prefix later, §4.1 there). Many places, not supported as a
    procedure by Oracle, **not tested** here – only if way 1 is impossible.
 3. **Clone the domain, new RCU prefix, OPSS moved with
-   `reassociateSecurityStore` (optional, in test since 2026-11-10).** The
+   `reassociateSecurityStore` (optional, tested 2026-11-10).** The
    domain is cloned with the machine; on the clone, before the managed
    servers start:
    1. RCU creates a **new prefix** with the same components as the source
@@ -208,9 +208,30 @@ External RCU – three ways, the first one recommended:
      offline (`idstore.ldap` needs the WebLogic configuration) – set
      `default=` to the source context.
 
-   Status: the new prefix `CLN` exists in the test DB (RCU rc=0); steps 2–4
-   are being tested on the test host (backup of `config/`, way back = restore
-   and restart on `DEV`). Cookbook for the customer after the test.
+   Test on the test host 2026-11-10 – **confirmed (live)**, domain
+   `fr_domain` from `DEV` to the new prefix `CLN`:
+   - `reassociateSecurityStore` in a WLST **script** (not only interactive)
+     answered "Policy / Credential / Keystore / Audit store reassociation
+     done"; `jps-config.xml` then has `datasource.jndi.name =
+     jdbc/OpssDataSourceCLN`, a new bootstrap key, and the farm name changes
+     from `cn=opssSecurityStore` to `cn=<domain>`.
+   - The other data sources offline (`readDomain` → user + `PasswordEncrypted`
+     per data source → `updateDomain`); `07-Maintenance/domain_jdk_path.sh`
+     afterwards: no versioned JDK path.
+   - Full start: `v$session` shows only `CLN_*` (OPSS 10, IAU_APPEND 3,
+     IAU_VIEWER 3, STB 1), no `DEV_*`; no `<Error>` / `JPS-` in the server
+     logs; `09-Install/15-` smoke test 32 OK (Forms, secured Reports server
+     with `cmdkey`, PDF + fonts); `listAppStripes` shows `reports`.
+   - Side effect: `updateDomain` drops elements with default values, e.g.
+     `<enabled>false</enabled>` of the managed-server SSL (stays off, the
+     default) – compare `config.xml` before / after.
+   - Way back: restore `config/` from the backup, restart → only `DEV_*`
+     sessions, smoke test OK. The source prefix is only read.
+   - Open: `jps-config-jse.xml` `audit.db.principal.key AuditDbPrincipalKey`
+     (credential of Java SE audit) still names the old IAU user – only for
+     Java SE tools; the EM login was not tested by form (EM 302 OK).
+   - Customer cookbook (private): `customer-analyse/2026-11-10_*/Clone_Kochbuch_*_de.txt`.
+source:
 
 ---
 
@@ -233,6 +254,12 @@ External RCU – three ways, the first one recommended:
    - `13- --apply`, `40- --apply`, start, `02-Checks/clone_check.sh` and
      the smoke test `09-Install/15-`.
 
+Source:
+- [Oracle OPSS 12.2.1.3 – reassociateSecurityStore](https://docs.oracle.com/middleware/12213/opss/JISEC/managepols.htm)
+- [Oracle OPSS 12.2.1.3 – migrateSecurityStore, DB-Beispiele](https://docs.oracle.com/middleware/12213/opss/JISEC/addlsecfea.htm)
+- [Oracle OPSS 12.2.1.3 – Configuring the Security Store](https://docs.oracle.com/middleware/12213/opss/JISEC/cfgauthr.htm)
+- [WLST Command Reference 12.2.1.4 – OPSS](https://docs.oracle.com/en/middleware/fusion-middleware/platform-security/12.2.1.4/idmcr/security_wlst.html)
+
 ---
 
 ## 7. Open
@@ -243,7 +270,7 @@ External RCU – three ways, the first one recommended:
 - `frmweb` bind address: ask Oracle (SR) whether an option exists.
 - A full clone with the recipe of section 6 has not been run yet; way 2 of
   section 5 (re-bind to a copied repository) is untested; way 3
-  (`reassociateSecurityStore`) is in test (2026-11-10).
+  (`reassociateSecurityStore`) tested live on the test host 2026-11-10.
 
 ---
 
