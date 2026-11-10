@@ -354,6 +354,10 @@ External RCU – three ways, the first one recommended:
      default) – compare `config.xml` before / after.
    - Way back: restore `config/` from the backup, restart → only `DEV_*`
      sessions, smoke test OK. The source prefix is only read.
+   - Clean-up of the test prefix (2026-11-10): `DROP USER CLN_* CASCADE` +
+     its registry rows by SQL – **not** `rcu -dropRepository`, which also drops
+     the tablespace (`FMW_DATA` is shared with `DEV`,
+     [07-oracle_setup_repository.md](../09-Install/docs/07-oracle_setup_repository.md)).
    - Not rewritten by `reassociateSecurityStore` – **confirmed (customer,
      2026-11-10, new prefix in ANOTHER database)**: in `jps-config-jse.xml`
      the `jdbc.url` of `props.db.1` moved to the new DB, but
@@ -449,7 +453,6 @@ gate is passed.
   credential) to the new `_IAU_APPEND` user – result at the customer pending;
   whether the standalone Reports server writes audit rows at all with
   `audit.filterPreset=None`; EM login by form not tested after the move.
-- The test prefix `CLN` in the test DB (drop with RCU when no longer needed).
 
 ---
 

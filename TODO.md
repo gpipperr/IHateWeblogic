@@ -90,9 +90,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   WLST steps (listen / SSL / Coherence) of the localhost cookbook, `curl -K -`
   for `showjobs` in the clone cookbook (stdin form checked, not against
   `showjobs`), the manual stop/start path without autostart.
-- [ ] **Test-host leftovers of the way-3 test (2026-11-10):** drop the RCU
-  prefix `CLN` in `fmwpdb` (RCU `-dropRepository`) and delete the scratch copy
-  `clonetest/config_before.tgz` (holds the bootstrap wallet) – decision open.
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
 - [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
