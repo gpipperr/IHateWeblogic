@@ -5,6 +5,18 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `rcu_middleware_architecture.md`: corrected – `WLSSchemaDataSource` / `WLSRuntimeSchemaDataSource`
+  have no target in a Forms/Reports domain (no `_WLS*` sessions), `LocalSvcTblDataSource` only on the
+  AdminServer; new: Java SE audit loader with its own URL `audit.loader.jdbc.string` and the
+  credential `AuditDbPrincipalKey` (one more place holding a schema password), farm name after a
+  reassociation, section 3.1 sessions of a running domain (test host and customer), section 8.6 new
+  prefix for an existing domain (empty OPSS schema, JPS-01013 offline, `reassociateSecurityStore`).
+- `clone_golden_image.md` section 5, way 3: ASCII flow of the whole move (source, clone, RCU
+  databases – autostart, `ADMIN_URL`, RCU, AdminServer only, `reassociateSecurityStore`,
+  `updateCred`, offline data sources incl. URL, `audit.loader.jdbc.string`, host-specific places,
+  checks on both DBs and of the scheduled jobs); steps 0–7 in detail; section 3 with tools
+  `patch_install.ini`, crontab and the `showjobs` check; sources for `updateCred`, the Java SE
+  audit loader and the `stopWebLogic.sh` code.
 - `clone_check_fmw.sh` 2026-11-10.2 and `02-Checks/clone_check.sh`: section 4 also searches
   `$DOMAIN_HOME/bin/*.sh` for the own host name and reports an `ADMIN_URL` (domain scripts and
   shell) that does not point to `localhost` as FIX. Found at a customer clone: the cloned

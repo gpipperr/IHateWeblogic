@@ -113,7 +113,9 @@ Notes:
 | `oraInventory`, Oracle Home | paths only | unchanged | – |
 | `$DOMAIN_HOME/config/fmwconfig/servers/AdminServer/applications/em/META-INF/emoms.properties` `ConsoleServerHost` / `ConsoleServerName` | host name (or `localhost`) of the domain creation | **not rewritten** on a restart after the listen-address change (customer, 2026-11-10: FQDN stays; test host: `localhost` because the domain was created with it, file dated at the creation); whether EM needs a change on a clone is open (section 7) | confirmed (live) |
 | `rwserver.conf` `<notification>` `sender` | mail address with the host name (if set) | adjust per clone ([reports_job_handling.md](reports_job_handling.md) §7.2) | – |
-| `$DOMAIN_HOME/reports/server/<server>.dat` | scheduled Reports jobs | move aside before the first start of a clone, else they run twice ([reports_job_handling.md](reports_job_handling.md) §8) | confirmed (live, persistence) |
+| tools directory `patch_install.ini` (`70-Customer-Projects/tools`, customer hosts) | `WLS_SERVER_FQDN`, `SSL_CN`, `DB_HOST/PORT/SERVICE`, `DB_SCHEMA_PREFIX`, `REPORTS_BROADCAST_PORT` of the source | regenerate on the clone after the domain change: move the old file aside, `make_patch_install_ini.sh` (shows) / `--apply` (writes, never overwrites), carry over hand-made entries from a `diff`; `status.sh` warns when the ini names another domain | confirmed (code) |
+| `crontab` of oracle / root, `/etc/cron.d` | cron jobs of the source (`rwclient` runs, exports, cleanup) | check and comment out on the clone – else they run twice or against the source | – |
+| `$DOMAIN_HOME/reports/server/<server>.dat` | scheduled Reports jobs | move aside before the first start of a clone, else they run twice ([reports_job_handling.md](reports_job_handling.md) §8); never copy it back; check with `showjobs queuetype=future` (clone: 0, source: its jobs). Jobs for the clone: plan new (cron + `rwclient`, own targets for `desname` / FTP / mail) | confirmed (live, persistence) |
 
 ---
 
@@ -180,7 +182,67 @@ External RCU – three ways, the first one recommended:
 3. **Clone the domain, new RCU prefix, OPSS moved with
    `reassociateSecurityStore` (optional, tested 2026-11-10).** The
    domain is cloned with the machine; on the clone, before the managed
-   servers start:
+   servers start. Not described as a procedure by Oracle – the pieces
+   (`reassociateSecurityStore`, `updateCred`, offline data source change) are
+   documented single commands (section 8), the order and the leftovers are
+   our tests.
+
+   Flow of way 3 (as run on the test host and at a customer, 2026-11-10;
+   `<SRC>` = prefix of the source, `<NEW>` = new prefix; the new prefix may
+   be in the same or in another database):
+
+   ```
+     SOURCE host A                CLONE host B                            RCU database(s)
+     -------------                ------------                            ---------------
+     0 autostart off,
+       stop the domain
+     1 VM clone ----------------> copy of A: same domain, same config,
+                                  still bound to <SRC>  (do NOT start!)
+     2 autostart on, start
+       (A unchanged)              3 Linux identity: host name, IP,
+                                    machine-id, ssh keys
+                                  4 BEFORE any start / stop of B:
+                                    - ADMIN_URL -> t3://localhost (bin/*.sh,
+                                      profile) - else stop hits A
+                                    - backup $DOMAIN_HOME/config
+                                    - <server>.dat aside (scheduled jobs)
+                                  5 RCU -createRepository -------------->  <NEW>_STB _OPSS _IAU*
+                                    (same components as A)                 _WLS _WLS_RUNTIME
+                                                                           (empty, no OPSS root)
+                                  6 start the AdminServer ONLY  --read-->  <SRC>_OPSS (store of A)
+                                  7 WLST online:
+                                    - data source jdbc/OpssDataSource<NEW>
+                                      (URL of the NEW DB, user <NEW>_OPSS)
+                                    - reassociateSecurityStore --copy--->  <NEW>_OPSS: policies,
+                                      rewrites jps-config.xml,             credentials, keys,
+                                      jps-config-jse.xml (jdbc.url),       audit configuration
+                                      bootstrap key, farm cn=<domain>
+                                    - updateCred AuditDbPrincipalKey
+                                      -> <NEW>_IAU_APPEND
+                                  8 stop: ADMIN_URL=t3://localhost:7001 stopWebLogic.sh
+                                  9 WLST offline (readDomain / updateDomain):
+                                    6 data sources: user <NEW>_..., password
+                                    (+ URL if another DB)
+                                    file edit, jps-config-jse.xml:
+                                    audit.loader.jdbc.string -> URL of the
+                                    new DB (not rewritten by Oracle)
+                                  10 host-specific: Reports multicast port,
+                                     mail sender, Nginx + certificate, firewall,
+                                     tools patch_install.ini, crontab
+                                  11 start all, autostart on  ----------->  sessions only <NEW>_*
+                                  12 checks:                                (OPSS, IAU_APPEND,
+                                     - clone_check.sh                        IAU_VIEWER, STB)
+                                     - v$session: B only on <NEW>,
+                                       no session of B on <SRC>
+                                     - showjobs queuetype=future = 0
+     13 check A: showjobs future
+        = its jobs, sessions <SRC>
+        only from A
+   ```
+
+   The steps in detail:
+   0. Before any start / stop on the clone: `ADMIN_URL` to `localhost`,
+      backup of `config/`, `<server>.dat` aside (section 3).
    1. RCU creates a **new prefix** with the same components as the source
       (customer domain: `STB OPSS IAU IAU_APPEND IAU_VIEWER WLS` – WLS brings
       `WLS_RUNTIME`).
@@ -194,11 +256,24 @@ External RCU – three ways, the first one recommended:
       store from a source to a target store and resets service configurations
       in the `jps-config.xml` and `jps-config-jse.xml` files" and the bootstrap
       credential (**documented**, OPSS 12.2.1.3 "reassociateSecurityStore",
-      section 8).
-   4. Stop; the remaining data sources (`LocalSvcTblDataSource` → `_STB`,
+      section 8). Oracle marks it "interactive mode only"; in a WLST script
+      it worked (**confirmed (live)**, test host and customer).
+   4. Online WLST: `updateCred(map='AuditDbPrincipalMap',
+      key='AuditDbPrincipalKey', user='<new>_IAU_APPEND', password=...)` – the
+      Java SE audit credential was copied with the old user (**documented**
+      command, also "interactive mode only"; script result at the customer
+      pending).
+   5. Stop with `ADMIN_URL=t3://localhost:7001` (section 3); the remaining
+      data sources (`LocalSvcTblDataSource` → `_STB`,
       `opss-audit-DBDS` → `_IAU_APPEND`, `opss-audit-viewDS` → `_IAU_VIEWER`,
       `WLSSchemaDataSource` → `_WLS`, `WLSRuntimeSchemaDataSource` →
-      `_WLS_RUNTIME`, the old `opss-data-source`) to the new prefix; start all.
+      `_WLS_RUNTIME`, the old `opss-data-source`) to the new prefix – user +
+      password, and the URL when the new prefix lives in another DB.
+   6. `jps-config-jse.xml`: `audit.loader.jdbc.string` of the `audit.db`
+      instance to the value of `jdbc.url` (another DB only – see below).
+   7. Host-specific places (section 3), start all, checks: `v$session` on
+      both DBs, `showjobs queuetype=future` on the clone (0) and on the source
+      (its jobs, [reports_job_handling.md](reports_job_handling.md) §6).
 
    Why not offline – **confirmed (live)** on the test host 2026-11-10:
    - `migrateSecurityStore` (WLST offline, DB → DB, assembled config file
@@ -293,8 +368,9 @@ External RCU – three ways, the first one recommended:
      holds no domain) or way 3 (domain cloned along, OPSS moved with
      `reassociateSecurityStore`; the autostart must be off in the image so
      that the clone does not start against the source prefix);
-   - scheduled Reports jobs: `<server>.dat` aside before the first start
-     (section 3);
+   - scheduled Reports jobs: `<server>.dat` aside before the first start,
+     afterwards `showjobs queuetype=future` = 0 (section 3);
+   - tools `patch_install.ini` regenerated, crontab checked (section 3);
    - `13- --apply`, `40- --apply`, start, `02-Checks/clone_check.sh` and
      the smoke test `09-Install/15-`.
 
@@ -357,3 +433,23 @@ Added 2026-11-10 for section 5, way 3 (HTTP 200 checked 2026-11-10; the
   https://docs.oracle.com/en/middleware/fusion-middleware/platform-security/12.2.1.4/idmcr/security_wlst.html
 - Code, test host 14.1.2: `oracle_common/modules/internal/clients/oracle.fmwshare.pyjar.jar`
   (`wlstScriptDir/Opss.py`, `jpsWlstCmd.py`) – list of the OPSS WLST commands
+
+Added later on 2026-11-10 (HTTP 200 checked 2026-11-10):
+
+- The same WLST Command Reference 12.2.1.4 (link above) – `updateCred(map,
+  key, user, password, [desc])`, online, "interactive mode only"; `listCred`
+  is not on that page.
+- Oracle OPSS 12.2.1.3 – Managing Audit, "Configuring Standalone Audit
+  Loader": "Java SE applications also use the standalone audit loader";
+  names the system property `auditloader.jdbcString`. The
+  `jps-config-jse.xml` property `audit.loader.jdbc.string` itself is not
+  described there – what it holds and that `reassociateSecurityStore` keeps
+  it is our finding (customer, section 5) –
+  https://docs.oracle.com/middleware/12213/opss/JISEC/audpolicy.htm
+- Code, test host 14.1.2: `$DOMAIN_HOME/bin/stopWebLogic.sh` (generated by
+  the Configuration Wizard) – `ADMIN_URL` from the 3rd argument, else from the
+  environment, else the value written at the domain creation (section 3).
+- Offline WLST attribute `URL` of `JDBCDriverParams/NO_NAME_0`: read on the
+  test host (`readDomain`, no `updateDomain`).
+- Scheduled jobs, `.dat`, `showjobs`: [reports_job_handling.md](reports_job_handling.md)
+  §2, §6, §8 (with its own sources).

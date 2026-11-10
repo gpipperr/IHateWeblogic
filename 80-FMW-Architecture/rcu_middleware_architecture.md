@@ -47,9 +47,9 @@ domain reads one of two files in `$DOMAIN_HOME/config/fmwconfig/`
 | policy store | application roles (`RW_MONITOR`, `RW_EXECREPORTS`, `RW_ADMINISTRATOR` …) and grants (`ReportsPermission`, `WebCommandPermission`) | `policystore.db` → schema `DEV_OPSS` | `policystore.db` → `DEV_OPSS` (same data) |
 | credential store | credential maps/keys, e.g. `reports.idstore`/`embeddedldap` (`createCred`) | `credstore.db` → `DEV_OPSS` | `credstore.db` → `DEV_OPSS` |
 | keystore service | KSS keystores (`keystores.xml`) | `keystore.db` → `DEV_OPSS` | `keystore.db` → `DEV_OPSS` |
-| audit | audit framework | `audit.db` → `DEV_IAU*` | `audit.db` |
+| audit | audit framework | `audit.db`, loader via JNDI `jdbc/AuditAppendDataSource` (= data source `opss-audit-DBDS`) → `DEV_IAU_APPEND` | `audit.db` with an **own JDBC URL** `audit.loader.jdbc.string` + login from the credential store (`audit.db.principal.map/key` = `AuditDbPrincipalMap` / `AuditDbPrincipalKey`) – the Java SE audit loader (**confirmed (live)** 2026-11-10: properties in both files; whether the credential is filled was not read) |
 | **identity store** | **users and groups** – who is `monUser`, which groups he has | `idstore.ldap` with `WlsLdapIdStoreConfigProvider` = **the authenticators of the WebLogic realm `myrealm`** (DefaultAuthenticator = embedded LDAP of the AdminServer) | Oracle default: `idstore.xml` = file `system-jazn-data.xml` (subscriber `jazn.com`, knows **no** WebLogic user). Here since 2026-10-16: `idstore.ldap.embedded` (`OPEN_LDAP`, `ldap://localhost:7001`, `ou=myrealm,dc=fr_domain`) |
-| bootstrap | how to reach the OPSS DB itself (JDBC URL + credential) | `datasource.jndi.name=jdbc/OpssDataSource` + bootstrap wallet | `jdbc.url` + bootstrap wallet `bootstrap/cwallet.sso` (no data source in Java SE) |
+| bootstrap | how to reach the OPSS DB itself (JDBC URL + credential) | `datasource.jndi.name=jdbc/OpssDataSource` + bootstrap wallet | `jdbc.url` + bootstrap wallet `bootstrap/cwallet.sso` (no data source in Java SE); farm name `oracle.security.jps.farm.name` (`cn=opssSecurityStore` after the domain creation, `cn=<domain>` after a `reassociateSecurityStore`, **confirmed (live)** 2026-11-10) |
 
 ```
               policy + credential + key store: ONE copy, in the database
@@ -109,18 +109,24 @@ Created by `09-Install/07-oracle_setup_repository.sh`
 
 | COMP_ID | Schema | Purpose | Used at runtime by (data source) |
 |---|---|---|---|
-| `STB` | `DEV_STB` | Service table (section 5) | `LocalSvcTblDataSource` |
+| `STB` | `DEV_STB` | Service table (section 5) | `LocalSvcTblDataSource` – target **AdminServer only**, initial capacity 0 (session only when used) |
 | `OPSS` | `DEV_OPSS` | OPSS policy, credential and key store (application roles `RW_*`, `createCred` entries, keystores) | `opss-data-source` (`jdbc/OpssDataSource`); standalone Reports server directly via `jps-config-jse.xml` |
 | `IAU` | `DEV_IAU` | audit data (owner) | – (owner schema) |
 | `IAU_APPEND` | `DEV_IAU_APPEND` | writes audit records | `opss-audit-DBDS` |
 | `IAU_VIEWER` | `DEV_IAU_VIEWER` | reads audit records (reports) | `opss-audit-viewDS` |
-| `WLS` | `DEV_WLS` | WebLogic persistence (JDBC/JMS stores, leasing, …) | `WLSSchemaDataSource` |
-| `WLS_RUNTIME` | `DEV_WLS_RUNTIME` | WebLogic runtime data | `WLSRuntimeSchemaDataSource` |
+| `WLS` | `DEV_WLS` | WebLogic persistence (JDBC/JMS stores, leasing, …) | `WLSSchemaDataSource` – exists, but **no target** in a Forms/Reports domain → no session at runtime (**confirmed (live)** 2026-11-10, test host and a customer domain) |
+| `WLS_RUNTIME` | `DEV_WLS_RUNTIME` | WebLogic runtime data | `WLSRuntimeSchemaDataSource` – **no target**, as `WLSSchemaDataSource` |
 | `MDS` | `DEV_MDS` | Metadata Services repository | **no data source** in this domain |
 | `UCSUMS` | `DEV_UMS` | User Messaging Service | **no data source** in this domain |
 
 All schemas: version `14.1.2.0.0`, status `VALID`, `UPGRADED=N`, default
 tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
+
+A Reports-only customer domain (2026-11-10) was created with `STB OPSS IAU
+IAU_APPEND IAU_VIEWER WLS` only – no `MDS`, no `UCSUMS` – and runs; this
+matches "no data source" for `MDS` / `UMS` in the table (**confirmed
+(live)** for that domain; whether the Infrastructure template insists on
+`MDS` at the domain creation was not tested).
 
 ### 2.1 The schemas and their users at a glance
 
@@ -141,13 +147,15 @@ tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
  |                   (read)                                                           |
  +-----^-------------^--------------^--------------------------------------------------+
        |             |              |
-       |             |              +-- AdminServer, WLS_FORMS, WLS_REPORTS:
-       |             |                  WLSSchemaDataSource / WLSRuntimeSchemaDataSource
-       |             |                  (JDBC/JMS stores, leasing, runtime data)
+       |             |              +-- WLSSchemaDataSource / WLSRuntimeSchemaDataSource
+       |             |                  exist WITHOUT target in a Forms/Reports domain
+       |             |                  -> no session (confirmed live 2026-11-10)
        |             |
        |             +-- all WebLogic servers: audit framework writes via
        |                 opss-audit-DBDS (IAU_APPEND), audit reports read via
        |                 opss-audit-viewDS (IAU_VIEWER)
+       |             +-- rwserver (Java SE): audit loader with its own JDBC URL
+       |                 (audit.loader.jdbc.string) + AuditDbPrincipalKey
        |
        +-- AdminServer, WLS_FORMS, WLS_REPORTS: opss-data-source
        |     application roles RW_MONITOR / RW_EXECREPORTS, credential maps
@@ -167,7 +175,7 @@ tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
 | `DEV_STB` | RCU | RCU | Config Wizard / WLST at domain creation, `LocalSvcTblDataSource` | new domain / domain extension cannot read the RCU configuration |
 | `DEV_OPSS` | RCU | EM, WLST (`grantAppRole`, `createCred`), OPSS | every server + standalone Reports server | servers do not start (OPSS bootstrap), no roles/credentials |
 | `DEV_IAU_APPEND` / `_VIEWER` | RCU | audit framework | audit reports | audit records lost / errors in the server log (**assumption**) |
-| `DEV_WLS` / `_WLS_RUNTIME` | RCU | WebLogic | WebLogic | persistent stores / leasing fail (**assumption** for the exact effect) |
+| `DEV_WLS` / `_WLS_RUNTIME` | RCU | WebLogic (if a data source had a target) | – (here: data sources without target) | no effect at runtime in a Forms/Reports domain (**confirmed (live)**: no sessions); with targeted data sources: persistent stores / leasing fail (**assumption**) |
 | `DEV_MDS`, `DEV_UMS` | RCU | – | – (here) | no effect at runtime here (**confirmed (live)**: no data source) |
 
 ---
@@ -189,11 +197,12 @@ tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
  | AdminServer / WLS_FORMS / WLS_REPORTS (JDBC data sources, connection pools)              |
  |   opss-data-source ---------------------------------------------------> DEV_OPSS         |
  |   opss-audit-DBDS / opss-audit-viewDS -----------------> DEV_IAU_APPEND / DEV_IAU_VIEWER |
- |   WLSSchemaDataSource / WLSRuntimeSchemaDataSource ------> DEV_WLS / DEV_WLS_RUNTIME     |
- |   LocalSvcTblDataSource ----------------------------------------------> DEV_STB          |
+ |   WLSSchemaDataSource / WLSRuntimeSchemaDataSource  (no target - no session)             |
+ |   LocalSvcTblDataSource (AdminServer only) ---------------------------> DEV_STB          |
  |                                                                                          |
  | rwserver repserver01 (Java SE, no data source):                                         |
  |   jps-config-jse.xml jdbc.url + bootstrap credential (cwallet.sso) -----> DEV_OPSS       |
+ |   jps-config-jse.xml audit.loader.jdbc.string + AuditDbPrincipalKey ---> DEV_IAU_APPEND  |
  |                                                                                          |
  | Configuration Wizard / WLST createDomain (one-time):                                     |
  |   reads DEV_STB.COMPONENT_SCHEMA_INFO -> fills all data sources                          |
@@ -214,6 +223,28 @@ tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).
   `jps-config-jse.xml`, user/password from the bootstrap wallet) – that is
   why it sees the same application roles and credentials as the WebLogic
   servers ([reports_user_local_ldap.md](reports_user_local_ldap.md)).
+- **Two URLs in `jps-config-jse.xml`.** `jdbc.url` (bootstrap, `props.db.1`)
+  and `audit.loader.jdbc.string` (instance `audit.db`) are separate values.
+  `reassociateSecurityStore` rewrites only the first – after a move to
+  another database the audit URL still named the old one (**confirmed
+  (live)**, customer 2026-11-10;
+  [clone_golden_image.md](clone_golden_image.md) §5 way 3).
+
+### 3.1 Sessions of a running domain
+
+`v$session` per schema after a full start (**confirmed (live)** 2026-11-10):
+
+| Schema | Test host (AdminServer, WLS_FORMS, WLS_REPORTS) | Customer (AdminServer, WLS_REPORTS, standalone Reports server) | From |
+|---|---|---|---|
+| `_OPSS` | 10 | 6 (5 × program `SERVER`, 1 × `JDBC Thin Client`) | `opss-data-source` per server; the thin-client session logged in after the start of `WLS_REPORTS` – fits the standalone Reports server via `jdbc.url` (time only, not proven) |
+| `_IAU_APPEND` | 3 | 2 | `opss-audit-DBDS`, one per server |
+| `_IAU_VIEWER` | 3 | 2 | `opss-audit-viewDS`, one per server |
+| `_STB` | 1 | 1 | `LocalSvcTblDataSource`, AdminServer |
+| `_WLS`, `_WLS_RUNTIME`, `_IAU`, `_MDS`, `_UMS` | 0 | 0 | no target / owner schema / no data source |
+
+Program `SERVER` = WebLogic data source; `JDBC Thin Client` = a plain JDBC
+connection (Java SE). The counts depend on the pools; the set of schemas is
+the check (section 4.4, and after a move to a new prefix).
 
 ---
 
@@ -471,8 +502,9 @@ SELECT s.username, s.machine, s.program, COUNT(*) n
 ```
 
 A running domain holds sessions of `_STB`, `_OPSS`, `_IAU_APPEND` /
-`_IAU_VIEWER` (live: program "Server" / "JDBC Thin Client" / `java@<host>`).
-`_MDS` / `_IAU` are often only logged in at creation, so their old
+`_IAU_VIEWER` (live: program "Server" / "JDBC Thin Client" / `java@<host>`,
+section 3.1). `_MDS` / `_IAU` / `_WLS` / `_WLS_RUNTIME` are often only
+logged in at creation (no target / no data source), so their old
 `LAST_LOGIN` is no proof that the prefix is unused – `_STB` and `_OPSS` are
 the reliable ones. A stopped domain has no sessions: the `*-jdbc.xml` check
 on the hosts is the decisive one. `LAST_LOGIN` needs 12c or newer.
@@ -582,11 +614,13 @@ should still work – it shows at once if the wrong prefix was dropped.
 | `$DOMAIN_HOME/config/jdbc/<ds>-jdbc.xml` | user + `password-encrypted` (`{AES256}`, key `security/SerializedSystemIni.dat`) – one file per data source (**confirmed (live)**: 6 data sources) | WLST / Remote Console / EM edit of the data source |
 | `$DOMAIN_HOME/config/fmwconfig/bootstrap/cwallet.sso` | OPSS bootstrap credential (map `BOOTSTRAP_JPS`, key in `jps-config.xml` / `jps-config-jse.xml`) for the `DEV_OPSS` connection – used by the standalone Reports server and at WebLogic boot (**confirmed (live)**: file + references) | WLST `modifyBootStrapCredential` (**documented** OPSS command, not tested here) |
 | `<prefix>_STB.COMPONENT_SCHEMA_INFO` | encrypted copy of all schema passwords | RCU only |
+| OPSS credential store (`_OPSS`), map `AuditDbPrincipalMap` key `AuditDbPrincipalKey` | user + password of `_IAU_APPEND` for the Java SE audit loader (referenced in `jps-config-jse.xml`, **confirmed (live)**; whether it is filled in a domain created by the wizard was not read – **assumption**) | WLST `updateCred` (online, **documented**); `reassociateSecurityStore` copies it unchanged to a new store (old user) |
 | repository root `db_sys_sec.conf.des3` | `DB_SYS_PWD`, `DB_SCHEMA_PWD` for our scripts (07, 08, 15, checks) | `01-setup-interview.sh` |
 
 Changing a schema password therefore means (**assumption**, not tested):
 `ALTER USER` in the DB → every data source of that schema →
-`modifyBootStrapCredential` if it is `DEV_OPSS` → `db_sys_sec.conf.des3` →
+`modifyBootStrapCredential` if it is `DEV_OPSS` → `updateCred` of
+`AuditDbPrincipalKey` if it is `DEV_IAU_APPEND` → `db_sys_sec.conf.des3` →
 restart AdminServer, managed servers and Reports server.
 
 ### 6.1 Password expiry – a real risk
@@ -682,6 +716,22 @@ step. What makes sense instead:
    Wizard) – not part of the regular patch cycle.
 5. Move/rebuild: drop with RCU **before** the old database is gone, or
    document the manual cleanup (section 4.1).
+6. **New prefix for an existing domain** (clone, move to another database) –
+   tested 2026-11-10, [clone_golden_image.md](clone_golden_image.md) §5 way 3:
+   - RCU creates the new prefix; its `_OPSS` schema is **empty** – no OPSS
+     root (`cn=opssRoot` …). An offline `migrateSecurityStore` into it stops
+     with `JPS-01013 … the target DN must be pre-configured` (**confirmed
+     (live)**).
+   - `reassociateSecurityStore` (WLST online, AdminServer running on the old
+     store) creates the store in the new schema, copies policies,
+     credentials, keys and the audit configuration and rewrites
+     `jps-config.xml` / `jps-config-jse.xml` and the bootstrap credential
+     (**confirmed (live)**, test host and customer).
+   - The other data sources (user, password, URL for another DB) are changed
+     offline; `audit.loader.jdbc.string` and `AuditDbPrincipalKey` by hand
+     (section 3, 6).
+   - Two domains on one prefix (one OPSS store) are not allowed – the clone
+     must not start on the source prefix.
 
 ---
 
@@ -896,6 +946,11 @@ All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
 - Profile change 2026-10-17: `60-RCU-DB-19c/06-db_rcu_profile.sh --apply --assign`,
   `09-Install/07-oracle_setup_repository.sh --profile` (idempotent re-run)
 - READMEs of the September 2026 patches in `$PATCH_STORAGE/patches/`
+- 2026-11-10: data source targets in `config.xml` (test host and a customer
+  export), `jps-config*.xml` audit properties, `v$session` per schema after a
+  full start (test host, customer), new prefix `CLN` with RCU (passwords via
+  stdin), `migrateSecurityStore` / `reassociateSecurityStore` tests – OPSS
+  sources in [clone_golden_image.md](clone_golden_image.md) §8
 
 **Related**
 
