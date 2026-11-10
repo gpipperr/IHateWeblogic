@@ -14,8 +14,9 @@
 #                 unicast address, Node Manager
 #              3. Reports: ORB on 127.0.0.1 (reports.sh / setUserOverrides.sh),
 #                 discovery port
-#              4. host name / IP in the domain configuration (JDBC, OPSS …),
-#                 RCU repository local or external
+#              4. host name / IP in the domain configuration (JDBC, OPSS …)
+#                 and in $DOMAIN_HOME/bin/*.sh, ADMIN_URL of the scripts and the
+#                 shell not on localhost, RCU repository local or external
 #              5. machine identity (domain key, wallets, WLST key files)
 #              6. host-specific places by design (web tier, certificate,
 #                 tnsnames.ora)
@@ -35,7 +36,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-10.1"   # bump on every change
+VERSION="2026-11-10.2"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -256,12 +257,12 @@ else
 fi
 
 # =============================================================================
-section "4. Host name / IP in \$DOMAIN_HOME/config"
+section "4. Host name / IP in \$DOMAIN_HOME/config and bin"
 # =============================================================================
 _pat="$(printf '%s\n' "$H_FQDN" "$H_SHORT" $H_IPS | grep -v '^$' | sed 's/\./\\./g' | paste -sd'|')"
 if [ -n "$_pat" ]; then
     _hre="(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)"
-    _hits="$(grep -rlIE "$_hre" "$DH/config" "$DH/init-info" 2>/dev/null \
+    _hits="$(grep -rlIE "$_hre" "$DH/config" "$DH/init-info" "$DH"/bin/*.sh 2>/dev/null \
         | grep -vE '\.bak|/logs?/|\.log|/tmp/' | sort)"
     if [ -z "$_hits" ]; then
         ok "no own host name / IP"
@@ -273,6 +274,8 @@ if [ -n "$_pat" ]; then
                     step "$(printf '%-50s DB host = this host – keep only if the DB moves along, else localhost / alias' "$_rel")" ;;
                 config/fmwconfig/components/OHS/*)
                     step "$(printf '%-50s OHS (web tier) – ServerName / Listen of the clone' "$_rel")" ;;
+                bin/*)
+                    fix "$(printf '%-50s host name in a domain script (e.g. ADMIN_URL) – on a clone it addresses the SOURCE AdminServer – localhost' "$_rel")" ;;
                 init-info/*|*uifont.ali)
                     info "$(printf '%-50s informational (not read at runtime / comment)' "$_rel")" ;;
                 *)  fix "$(printf '%-50s host name / IP – check' "$_rel")" ;;
@@ -280,6 +283,22 @@ if [ -n "$_pat" ]; then
             _cfg "$_f" "$_hre"
         done <<< "$_hits"
     fi
+fi
+# AdminServer address of the domain scripts and of the shell: a FOREIGN host
+# (e.g. the source after a clone) makes stopWebLogic.sh stop the source
+# AdminServer when the network is open. Own host name: reported above.
+_are='^[[:space:]]*(export[[:space:]]+)?ADMIN_URL=["'"'"']?[a-z0-9]+://'
+_au="$(grep -HnE "$_are" "$DH"/bin/*.sh 2>/dev/null \
+    | grep -vE '://(localhost|127\.0\.0\.1)[:/"'"'"']' | grep -vE "://(${_pat:-^\$})[:/\"']")"
+if [ -n "$_au" ]; then
+    while IFS= read -r _l; do
+        _f="${_l%%:*}"; _r="${_l#*:}"; _n="${_r%%:*}"
+        fix "$(printf '%-50s %s – foreign AdminServer address, a clone addresses the source – localhost' "${_f#"$DH"/}:$_n" "$(printf '%s' "${_r#*:}" | sed 's/^[[:space:]]*//' | cut -c1-60)")"
+        _cfg "$_f" "$_are"
+    done <<< "$_au"
+fi
+if [ -n "${ADMIN_URL:-}" ] && ! printf '%s' "$ADMIN_URL" | grep -qE '://(localhost|127\.0\.0\.1)([:/]|$)'; then
+    fix "$(printf '%-50s %s – stopWebLogic.sh uses it – set t3://localhost:<port> in the profile or unset' "shell: ADMIN_URL" "$ADMIN_URL")"
 fi
 _ds="$DH/config/jdbc/WLSSchemaDataSource-jdbc.xml"
 [ -f "$_ds" ] || _ds="$(ls "$DH"/config/jdbc/*opss*-jdbc.xml 2>/dev/null | head -1)"

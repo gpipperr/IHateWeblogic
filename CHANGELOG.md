@@ -5,6 +5,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `clone_check_fmw.sh` 2026-11-10.2 and `02-Checks/clone_check.sh`: section 4 also searches
+  `$DOMAIN_HOME/bin/*.sh` for the own host name and reports an `ADMIN_URL` (domain scripts and
+  shell) that does not point to `localhost` as FIX. Found at a customer clone: the cloned
+  `stopWebLogic.sh` connected to `t3://<source>:7001` – with an open network it would have
+  stopped the source AdminServer. `clone_golden_image.md` section 3 and recipe updated.
 - `export_forms_reports_conf.sh` 2026-11-10.1: the sar CPU average of a day is the mean over
   all samples. Before, a day with a reboot gave one average per sar section glued together
   (e.g. `013`, `3310`). Tested on reboot days of the test host.

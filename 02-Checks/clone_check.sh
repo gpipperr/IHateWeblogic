@@ -10,6 +10,8 @@
 #                 certificate), Coherence unicast address, Node Manager
 #              3. Reports ORB on 127.0.0.1 (reports.sh), discovery port
 #              4. host name / IP in the domain configuration (JDBC, OPSS …)
+#                 and in $DOMAIN_HOME/bin/*.sh; ADMIN_URL of the scripts and the
+#                 shell not on localhost (stopWebLogic.sh would reach the source)
 #              5. machine identity: *.des3 secrets (disk UUID)
 #              6. the intended host-specific places (to change after a clone)
 #            --apply (domain running, WLST online, backup of config.xml):
@@ -196,10 +198,10 @@ fi
 # =============================================================================
 # 4. Host name / IP in the domain configuration
 # =============================================================================
-section "Host name / IP in \$DOMAIN_HOME/config"
+section "Host name / IP in \$DOMAIN_HOME/config and bin"
 _pat="$(printf '%s\n' "$H_FQDN" "$H_SHORT" $H_IPS | grep -v '^$' | sed 's/\./\\./g' | paste -sd'|')"
 if [ -n "$_pat" ]; then
-    _hits="$(grep -rlIE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$DOMAIN_HOME/config" "$DOMAIN_HOME/init-info" 2>/dev/null \
+    _hits="$(grep -rlIE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$DOMAIN_HOME/config" "$DOMAIN_HOME/init-info" "$DOMAIN_HOME"/bin/*.sh 2>/dev/null \
         | grep -vE '\.bak_[0-9]|/logs?/|\.log' | sort)"
     if [ -z "$_hits" ]; then
         ok "  no own host name / IP"
@@ -209,6 +211,8 @@ if [ -n "$_pat" ]; then
             case "$_rel" in
                 config/jdbc/*|config/fmwconfig/jps-config*.xml)
                     _step "$(printf "  %-48s DB host = this host – keep it only if the DB moves along, else localhost/alias" "$_rel")" ;;
+                bin/*)
+                    _fix "$(printf "  %-48s host name in a domain script (e.g. ADMIN_URL) – on a clone it addresses the SOURCE AdminServer – localhost" "$_rel")" ;;
                 init-info/*|*uifont.ali)
                     info "$(printf "  %-48s informational (not read at runtime / comment)" "$_rel")" ;;
                 *)
@@ -216,6 +220,22 @@ if [ -n "$_pat" ]; then
             esac
         done <<< "$_hits"
     fi
+fi
+
+# AdminServer address of the domain scripts (stopWebLogic.sh, startManagedWebLogic.sh …)
+# and of the shell: a FOREIGN host there (e.g. the source after a clone) makes
+# stopWebLogic.sh stop the source AdminServer when the network is open.
+# Own host name / IP is already reported above.
+_au="$(grep -HnE '^[[:space:]]*(export[[:space:]]+)?ADMIN_URL=["'"'"']?[a-z0-9]+://' "$DOMAIN_HOME"/bin/*.sh 2>/dev/null \
+    | grep -vE '://(localhost|127\.0\.0\.1)[:/"'"'"']' | grep -vE "://(${_pat:-^\$})[:/\"']")"
+if [ -n "$_au" ]; then
+    while IFS= read -r _l; do
+        _f="${_l%%:*}"; _r="${_l#*:}"; _n="${_r%%:*}"
+        _fix "$(printf "  %-48s %s – foreign AdminServer address, a clone addresses the source – localhost" "${_f#"$DOMAIN_HOME"/}:$_n" "$(printf '%s' "${_r#*:}" | sed 's/^[[:space:]]*//' | cut -c1-60)")"
+    done <<< "$_au"
+fi
+if [ -n "${ADMIN_URL:-}" ] && ! printf '%s' "$ADMIN_URL" | grep -qE '://(localhost|127\.0\.0\.1)([:/]|$)'; then
+    _fix "$(printf "  %-48s %s – stopWebLogic.sh uses it – set t3://localhost:<port> in the profile or unset" "shell: ADMIN_URL" "$ADMIN_URL")"
 fi
 
 # RCU repository: on this host (cloned along) or external (own prefix per clone)

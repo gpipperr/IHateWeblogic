@@ -104,6 +104,7 @@ Notes:
 | `environment.conf` `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL` | host name / URL | set, then `09-Install/40- --apply` (client manifest) | – |
 | `$DOMAIN_HOME/config/jdbc/*-jdbc.xml`, `fmwconfig/jps-config*.xml` | DB host **and prefix** of the RCU repository | DB on the same host: cloned along, only the host name (better `localhost` from the start); **external DB: own prefix per clone – section 5** | confirmed (live) |
 | `tnsnames.ora` in `TNS_ADMIN` | DB host | same as above | – |
+| **`$DOMAIN_HOME/bin/stopWebLogic.sh`** (and possibly `startManagedWebLogic.sh`) `ADMIN_URL="t3://<host>:7001"`; also an `ADMIN_URL` exported in the oracle profile | AdminServer address of the domain creation – the Configuration Wizard writes the listen address / host name of that time (test host: `localhost`) | **change to `t3://localhost:<port>` before the first start / stop on the clone.** Otherwise `stopWebLogic.sh` on the clone connects to the **source** AdminServer and, with `boot.properties` and an open network, **stops the source**. Until then: `ADMIN_URL=t3://localhost:7001 $DOMAIN_HOME/bin/stopWebLogic.sh` (the script takes a set `ADMIN_URL` and uses its own value only when it is empty). `02-Checks/clone_check.sh` reports own host names in `bin/*.sh` and a foreign `ADMIN_URL` (scripts and shell) as FIX | confirmed (customer, 2026-11-10: clone `stopWebLogic.sh` → `t3://<source>:7001`, only "No route to host" prevented the stop; script code read on the test host) |
 | `*.des3` secret files | encrypted with the **disk UUID** (`_get_system_identifier`) | **unreadable** on the clone – re-enter (table "Password Security Concept" in the root README) | confirmed (code, lib) |
 | Reports `rwnetwork.conf` multicast port + server name | `REPORTS_BROADCAST_PORT`, `repserver01` | clones in one subnet: **change the port** (14021–14030), `13- --apply` | documented (Doc ID 437228.1) |
 | `init-info/tokenValue.properties` `@HOST_NAME` | host name of the domain creation | informational, not read at runtime | assumption |
@@ -238,9 +239,32 @@ External RCU – three ways, the first one recommended:
      default) – compare `config.xml` before / after.
    - Way back: restore `config/` from the backup, restart → only `DEV_*`
      sessions, smoke test OK. The source prefix is only read.
-   - Open: `jps-config-jse.xml` `audit.db.principal.key AuditDbPrincipalKey`
-     (credential of Java SE audit) still names the old IAU user – only for
-     Java SE tools; the EM login was not tested by form (EM 302 OK).
+   - Not rewritten by `reassociateSecurityStore` – **confirmed (customer,
+     2026-11-10, new prefix in ANOTHER database)**: in `jps-config-jse.xml`
+     the `jdbc.url` of `props.db.1` moved to the new DB, but
+     `audit.loader.jdbc.string` of the `audit.db` instance (Java SE audit
+     loader – standalone Reports server, Java SE tools) still named the old
+     DB. On the test host the same line exists; it went unnoticed because the
+     DB stayed the same. Fix: copy the `jdbc.url` value into
+     `audit.loader.jdbc.string` with the domain stopped. The audit credential
+     `AuditDbPrincipalMap` / `AuditDbPrincipalKey` is copied with the old
+     `_IAU_APPEND` user – the customer cookbook updates it with `updateCred`
+     while the AdminServer runs (result at the customer pending).
+   - Another RCU database: the new data source and `reassociateSecurityStore`
+     get the URL of the **new** DB; the offline step sets `URL` in addition to
+     user + password on every data source (`set('URL', …)` under
+     `JDBCDriverParams/NO_NAME_0`, attribute checked read-only on the test
+     host). The clone must reach both DBs during the reassociation.
+   - Customer run 2026-11-10 (Reports only, AdminServer + `WLS_REPORTS`,
+     standalone Reports server, other DB) – **confirmed (live)**: after the full
+     start `v$session` on the new DB shows only the new prefix from the clone:
+     `_OPSS` 6 (5 × program `SERVER` = data sources, 1 × `JDBC Thin Client`
+     after the start of `WLS_REPORTS`, fits the standalone Reports server via
+     `jdbc.url`), `_IAU_APPEND` 2, `_IAU_VIEWER` 2, `_STB` 1. `_WLS`,
+     `_WLS_RUNTIME` and `_IAU` log in never – `WLSSchemaDataSource` /
+     `WLSRuntimeSchemaDataSource` have no target in a Forms / Reports domain,
+     `_IAU` is the owner schema.
+   - The EM login was not tested by form (EM 302 OK).
    - Customer cookbook (private): `customer-analyse/2026-11-10_*/Clone_Kochbuch_*_de.txt`
      (structure: autostart off on the source, clone, Linux identity, backup
      + `.dat` aside, RCU, AdminServer only + reassociate, data sources
@@ -257,6 +281,9 @@ External RCU – three ways, the first one recommended:
 2. **Clone** with the OS / hypervisor tooling (new machine-id, ssh keys,
    host name, IP).
 3. **Re-personalise** (clone):
+   - **first, before any start / stop:** `ADMIN_URL` in `$DOMAIN_HOME/bin/*.sh`
+     and in the oracle profile to `t3://localhost:<port>` (section 3) – else
+     the clone's `stopWebLogic.sh` addresses the source AdminServer;
    - secrets: `01-setup-interview.sh` or the single setters
      (`00-Setup/weblogic_sec.sh`, `mos_sec.sh`, …);
    - `environment.conf`: `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL`,
@@ -281,11 +308,12 @@ External RCU – three ways, the first one recommended:
 - `frmweb` bind address: ask Oracle (SR) whether an option exists.
 - A full clone with the recipe of section 6 has not been run yet; way 2 of
   section 5 (re-bind to a copied repository) is untested; way 3
-  (`reassociateSecurityStore`) tested live on the test host 2026-11-10,
-  not yet run at a customer.
-- Way 3 leftovers: `jps-config-jse.xml` `audit.db.principal.key
-  AuditDbPrincipalKey` (Java SE audit credential) may still name the old IAU
-  user; EM login by form not tested after the move.
+  (`reassociateSecurityStore`) tested live on the test host 2026-11-10 and
+  run at a customer the same day (new prefix in another DB, section 5).
+- Way 3 leftovers: `updateCred` of `AuditDbPrincipalKey` (Java SE audit
+  credential) to the new `_IAU_APPEND` user – result at the customer pending;
+  whether the standalone Reports server writes audit rows at all with
+  `audit.filterPreset=None`; EM login by form not tested after the move.
 - `emoms.properties` keeps the host name of the domain creation (section 3) –
   does EM work on a clone / after the listen change without editing it?
 - The test prefix `CLN` in the test DB (drop with RCU when no longer needed).
