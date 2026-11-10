@@ -3,6 +3,15 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
+## 2026-11-10
+
+- `export_forms_reports_conf.sh` 2026-11-10.1: the sar CPU average of a day is the mean over
+  all samples. Before, a day with a reboot gave one average per sar section glued together
+  (e.g. `013`, `3310`). Tested on reboot days of the test host.
+- `cookbook-Skill.md` 2.7: small changes to a config file are made with vi (grep first,
+  keystrokes as comments, text at column 0, check with `tail` / `bash -n`), no
+  `cat >> ... << 'EOF'`.
+
 ## 2026-11-09
 
 - `clone_check_fmw.sh` 2026-11-09.1: new option `--config` – under each finding the

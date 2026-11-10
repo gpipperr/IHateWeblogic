@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-09.2"   # bump on every change – shown in the report
+VERSION="2026-11-10.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -697,7 +697,7 @@ if $LOADP; then
     if command -v sar >/dev/null 2>&1; then
         for f in $(find /var/log/sa -maxdepth 1 -name 'sa[0-9][0-9]' -mtime -"$LOAD_DAYS" 2>/dev/null | sort); do
             d="$(LC_ALL=C sar -f "$f" 2>/dev/null | head -1 | grep -oE '[0-9]{2}/[0-9]{2}/[0-9]{2,4}' | head -1 | awk -F/ '{y=$3; if (length(y)==2) y="20" y; print y "-" $1 "-" $2}')"
-            cpu="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '/^Average/ {printf "%.0f", 100 - $NF}')"
+            cpu="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {s+=100-$NF; n++} END {if (n) printf "%.0f", s/n}')"
             mem="$(LC_ALL=C sar -r -f "$f" 2>/dev/null | awk '/%memused/ {for (i=1;i<=NF;i++) if ($i=="%memused") c=i} /^Average/ && c && $c ~ /^[0-9.]+$/ && $c+0 <= 100 {printf "%.0f", $c; exit}')"
             cpm="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {b=100-$NF; if (b>m) m=b} END {printf "%.0f", m}')"
             [ -n "$d" ] && printf '%s;%s;%s;%s\n' "$d" "${cpu:--}" "${cpm:--}" "${mem:--}"

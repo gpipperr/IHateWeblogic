@@ -302,6 +302,48 @@ Good (one idea per line, the result is shown before it is used):
 - **For vi, write the keystrokes as a comment,** e.g. `/<\/serviceInstances>`,
   `k`, `:r <file>`. Generate the text to insert beforehand with a heredoc
   that fills in the variables. The customer then pastes nothing by hand.
+- **Small changes to a config file: edit with vi, no `cat >> ... << 'EOF'`.**
+  This applies to a few lines of fixed text without variables, for example
+  `reports.sh` or `setUserOverrides.sh`. The customer sees the file and
+  where the lines go. An append also cannot run twice by accident. The
+  pattern:
+  1. `grep` first: is the entry already there? If yes, say which line to
+     change and where to go on.
+  2. `vi <file>` as a command of its own.
+  3. Keystrokes as a comment: `G` (end of file), `o` (new line).
+  4. The text to insert stands at column 0, exactly as it must be in the
+     file. It is NOT indented like the commands.
+  5. `Esc` and `:wq` as a comment, plus a note on indentation. When pasting,
+     vi's autoindent may add spaces.
+  6. Check with `tail -<n>` + `# Erwartet:` and, for scripts, `bash -n`.
+
+```
+  grep -n 'REPORTS_JVM_OPTIONS' $DOMAIN_HOME/reports/bin/reports.sh
+  # Erwartet: keine Ausgabe -> weiter mit dem naechsten Befehl.
+  # Eine Zeile gefunden? -> dort innerhalb der Anfuehrungszeichen
+  # ergaenzen (vi), speichern und mit 4.2 weitermachen.
+
+  vi $DOMAIN_HOME/reports/bin/reports.sh
+
+  # In vi:  G  (ans Dateiende),  o  (neue Zeile darunter), dann diese
+  # Zeilen eintippen oder einfuegen:
+
+# <Datum>: Reports-Server und Engines nur auf 127.0.0.1
+REPORTS_JVM_OPTIONS="-Xmx256M -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+export REPORTS_JVM_OPTIONS
+
+  # Dann  Esc  und  :wq  (speichern und beenden).
+  # Die Zeilen beginnen ganz links, ohne Leerzeichen davor.
+
+  tail -3 $DOMAIN_HOME/reports/bin/reports.sh
+  # Erwartet: die drei Zeilen von oben.
+
+  bash -n $DOMAIN_HOME/reports/bin/reports.sh
+  # Erwartet: keine Ausgabe (= Syntax in Ordnung)
+```
+
+- **When the text holds variables or is long** (XML blocks), keep the
+  heredoc + `:r <file>` way from above.
 - **Ask for passwords hidden** with `read -s -p "...: " PW`, then a bare
   `echo` for the line break. In WLST and in files use a placeholder
   `<NAME_KENNWORT>`.
