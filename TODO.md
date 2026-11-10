@@ -24,11 +24,14 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 - [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable
-  through Forms / Reports / WebLogic / Nginx; install OS fix
-  **ELSA-2026-500513** (`brotli-1.0.9-10.0.1.el9_8`, as root), then
-  `stop-all` / `start-all` (Reports server + engines map the old
-  `libbrotlidec` via `libfreetype`); move Node.js of Claude Code from 20
-  (EOL, bundled Brotli 1.1.0) to 22 / 24 LTS –
+  through Forms / Reports / WebLogic / Nginx. Test host: OS fix
+  ELSA-2026-500513 (`brotli-1.0.9-10.0.1.el9_8`) installed 2026-11-10; open:
+  restart of the Reports server (`rwserver` + engines still map the old
+  `libbrotlidec` via `libfreetype` – check `grep -l 'libbrotli.*(deleted)'
+  /proc/[0-9]*/maps`), the same on customer hosts. Claude Code: the VS Code
+  session runs the native binary (no Node); the old npm CLI 2.1.287 on Node 20
+  (EOL, bundled Brotli 1.1.0) → native CLI, `npm uninstall -g
+  @anthropic-ai/claude-code`, remove or upgrade the nodesource Node 20 –
   [00-patch-references.md, Brotli](09-Install/docs/00-patch-references.md#brotli-decoder--cve-2026-111497-state-2026-10-28).
 
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
@@ -234,8 +237,12 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
   restarts) – feed findings back into the cookbooks.
 - [ ] **Passwords in old `access.log` files** (library and docs on POST since
-  2026-11-06): check customer hosts and the test host for `authid=` / `userid=`
-  in `WLS_REPORTS/logs/access.log*` and change the affected passwords. First
+  2026-11-06): check customer hosts for `authid=` / `userid=` in
+  `WLS_REPORTS/logs/access.log*` (and the Nginx access logs, root) and change
+  the affected passwords. Test host done 2026-11-10: 56 lines (15.10.–03.11.,
+  `DEV_STB`, `rep_admin`, `monUser`) removed with
+  `03-Logs/cleanLogFiles.sh --retain-days 0 --include-out --apply` – passwords
+  not changed (test host without customer data); Nginx logs not checked yet. First
   full `15- --apply` with the POST call (the function ran alone against the
   Reports server).
 - [ ] **Node Manager warnings** "Uncaught exception in server handler"
