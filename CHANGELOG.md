@@ -5,6 +5,9 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `clone_check_fmw.sh` 2026-11-10.4 and `02-Checks/clone_check.sh`: section 4 shows the matching
+  lines (line number + text, max 3) under each host-name / IP finding, so it is visible which line
+  holds the host name (a customer read the findings as "localhost taken for the host name").
 - `clone_check_fmw.sh` 2026-11-10.3 and `02-Checks/clone_check.sh`: section 4 checks `AdminURL` in
   `servers/*/data/nodemanager/startup.properties` – a host name / IP there while the AdminServer
   listens on 127.0.0.1 starts the managed server in *Managed Server independence mode* on every

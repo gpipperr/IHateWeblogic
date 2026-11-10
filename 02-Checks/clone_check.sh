@@ -219,6 +219,9 @@ if [ -n "$_pat" ]; then
                 *)
                     _fix "$(printf "  %-48s host name / IP – check" "$_rel")" ;;
             esac
+            # show where: line number + text (max 3 lines, 110 chars)
+            grep -nE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$_f" 2>/dev/null | head -3 | cut -c1-110 \
+                | while IFS= read -r _hl; do info "$(printf '         %s' "$_hl")"; done
         done <<< "$_hits"
     fi
 fi
