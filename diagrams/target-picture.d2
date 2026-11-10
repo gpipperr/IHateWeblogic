@@ -1,0 +1,98 @@
+direction: down
+
+users: "users (browser / FSAL)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "Nginx (TLS, one host name)" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+forms: "/forms (WLS_FORMS)\nOracle Forms 14c" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+reports: "/reports (WLS_REPORTS)\nOracle Reports" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+ords: "/ords (ORDS 26.2)\nOracle APEX 26.2" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+db: "Oracle Database\none schema, one PL/SQL business logic" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+users -> nginx: "HTTPS" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> forms: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+nginx -> reports: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+nginx -> ords: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+forms -> db: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+reports -> db: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}
+
+ords -> db: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}

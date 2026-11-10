@@ -67,7 +67,12 @@ APEX on the same database**, each where it is strongest:
 | **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.2**) | everyone in the company, in the browser |
 | **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
 
-```
+![target-picture](diagrams/target-picture.svg)
+<sub>Quelle: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=target-picture
                  users (browser / FSAL)
                           |  HTTPS
               +---------- Nginx (TLS, one host name) ----------+
@@ -78,6 +83,8 @@ APEX on the same database**, each where it is strongest:
               +-------------- Oracle Database --------------------+
                      one schema, one PL/SQL business logic
 ```
+
+</details>
 
 This is the intention of a good, future-proof Oracle strategy for a Forms
 customer: keep the investment in Forms and its PL/SQL logic, open the data
