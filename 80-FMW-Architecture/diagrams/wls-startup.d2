@@ -1,0 +1,125 @@
+direction: down
+
+classes: {
+  ext: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mw: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  main: {
+    style: {
+      fill: "#A9D18E"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  spacer: {
+    label: ""
+    style: {
+      opacity: 0
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+systemd: "systemd  fmw-fr_domain.service\n(09-Install/30-configure_autostart.sh)" {
+  class: ext
+}
+
+fmw_ctl: "fmw_ctl.sh\n(\$ORACLE_BASE/admin/fr_domain/ctrl)" {
+  class: ext
+  width: 560
+}
+
+nm: "Node Manager\nNode Manager :5556" {
+  grid-columns: 2
+  grid-gap: 16
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#548235"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+    font-color: "#C00000"
+  }
+
+  admin: "startWebLogic.sh\n-> java AdminServer" {
+    class: main
+  }
+  s1: {
+    class: spacer
+  }
+  forms: "startWebLogic.sh\n-> java WLS_FORMS" {
+    class: mw
+  }
+  frmweb: "frmweb\n(one per Forms session)" {
+    class: mw
+  }
+  reports: "startWebLogic.sh\n-> java WLS_REPORTS" {
+    class: mw
+  }
+  s2: {
+    class: spacer
+  }
+  rwserver: "rwserver.sh\n-> rwserver repserver01" {
+    class: mw
+  }
+  engines: "engines rwEng-0,\nrwEng-1 ..." {
+    class: mw
+  }
+
+  forms -> frmweb: {
+    class: conn
+  }
+  rwserver -> engines: {
+    class: conn
+  }
+}
+
+systemd -> fmw_ctl: "ExecStart =\nfmw_ctl.sh\nstart all" {
+  class: conn
+}
+
+fmw_ctl -> nm: "1. startNodeManager.sh" {
+  class: conn
+}
+fmw_ctl -> nm: "2. WLST nmConnect\n+ nmStart\n(AdminServer)" {
+  class: conn
+}
+fmw_ctl -> nm: "3. WLST connect\n(AdminServer)\n+ start(WLS_*)\nAdminServer asks the NM" {
+  class: conn
+}
+fmw_ctl -> nm: "4. WLST nmStart\n(repserver01,\nReportsServerComponent)" {
+  class: conn
+}

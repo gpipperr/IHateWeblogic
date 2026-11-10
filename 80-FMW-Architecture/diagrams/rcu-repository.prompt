@@ -1,0 +1,113 @@
+### STYLE
+Task: convert the ASCII diagram in the section "### ASCII" into D2 code.
+
+Output rules
+- Output ONLY D2 code. No explanation, no Markdown fence, no comments outside D2.
+- Use plain D2 syntax that compiles with "d2 --layout dagre" (d2 v0.9).
+- A "$" inside a label starts a D2 variable substitution: put such labels in
+  single quotes ('...') or write "\$" – e.g. '$remote_addr' or "\$remote_addr".
+- Take the layout direction from the ASCII drawing ("direction: down" for top
+  to bottom flows, "direction: right" for left to right flows).
+
+Labels
+- Copy every label EXACTLY as written in the ASCII: same words, same case,
+  same paths, same symbols. Add nothing, leave nothing out, do not translate.
+- Text that stands inside a box belongs to that box: use one quoted label
+  with \n line breaks (no Markdown / LaTeX label blocks).
+- Text written next to an arrow is the label of that connection.
+- A box that contains other boxes or lines of text with "->" becomes a
+  container; its title (the text in the top border) is the container label.
+
+Shapes and colours (simple technical style, white background)
+- Database / PDB / schema objects: shape cylinder for a database, rectangle
+  for schemas inside it; fill "#DEEBF7", stroke "#2E75B6".
+- WebLogic / middleware / application server / ORDS / Nginx / Java processes:
+  fill "#E2EFDA", stroke "#548235"; a main component may use fill "#A9D18E".
+- External systems / clients / browser / scripts / other systems:
+  fill "#EDEDED", stroke "#7F7F7F".
+- Containers (zones, hosts, groups): fill "#FFFFFF", stroke of the matching
+  category colour, style.stroke-dash: 4.
+- All shapes: style.border-radius: 8, style.stroke-width: 1, style.shadow:
+  false, style.font-size: 20 (container titles 22, bold),
+  label colour
+  style.font-color "#C00000" for component names (dark red, like the blog
+  diagrams); plain descriptive lines inside a box may use "#262626".
+- Connections: style.stroke "#7F7F7F", style.stroke-width: 2, label
+  font-color "#000000", style.font-size: 18; arrow heads as in the ASCII
+  (-> one way, <-> both).
+- Connection labels: split into short lines (\n) at natural breaks – after
+  the protocol / keyword, after a "/" or before a bracket; at most about 18
+  characters per line, up to three lines, e.g.
+  "HTTPS\n/ords/<schema>/\n<module>/..." or "proxy:\nORDS_PUBLIC_USER\n[<SCHEMA>]".
+  Words stay exactly as written.
+- A box from which a labelled connection starts, and which stands next to
+  another such box, gets "width: 280" so the labels of the two arrows do not
+  overlap.
+- Keep the drawing narrow (it is shown in a ~900 px wide page column):
+  - a container whose parts are stacked in the ASCII gets "grid-columns: 1"
+    and "grid-gap: 16" instead of a direction, so the layout cannot place its
+    parts side by side;
+  - break long labels into several lines (\n) between words, at most about
+    45 characters per line – the words themselves stay exactly as written;
+  - connections start and end at the container itself, never at a part
+    inside a "grid-columns" container (the layout engine cannot layer edges into
+    a grid and then spreads the containers sideways); keep the arrow label exactly – it
+    names the target anyway.
+- Never set style.3d (D2 allows it only on rectangles – on a cylinder it is
+  a compile error); leave it out everywhere.
+- No icons, no images, no shadows, no gradients, no themes beyond these
+  styles, no legend unless the ASCII has one.
+
+Width limit for THIS diagram (the ASCII is drawn wide; the image must fit a
+~900 px page column):
+- Arrange it top to bottom: use "direction: down" at the top level, also when
+  the ASCII shows the parts side by side (two variants / two modes / two
+  machines / a long left-to-right chain).
+- Parts that stand side by side in the ASCII (e.g. MODE A and MODE B, machine
+  A and machine B, INBOUND and OUTBOUND) become containers placed BELOW each
+  other; a long horizontal chain becomes a vertical chain.
+- Target width: at most about 1000 px. Keep all labels and connections
+  exactly; only the arrangement changes.
+- EVERY container of this diagram (also the big outer one and the machine /
+  host containers) gets "grid-columns: 2" (at most two parts per row) or
+  "grid-columns: 1"; never five or more parts in one row. Long free text
+  blocks (notes) become separate boxes below, not beside, the main container.
+
+### ASCII
+                       Repository of prefix DEV  (one PDB, tablespace FMW_DATA)
+ +------------------------------------------------------------------------------------+
+ |                                                                                    |
+ |  DEV_STB  "phone book"                SYSTEM.SCHEMA_VERSION_REGISTRY$  "registry" |
+ |   COMPONENT_SCHEMA_INFO               one row per schema: COMP_ID, OWNER,         |
+ |   (schema, host, service,             VERSION, STATUS - read by RCU (drop),       |
+ |    encrypted password)                UA (upgrade), every schema user (SELECT)    |
+ |      ^          ^                                    ^            ^               |
+ |      |          |                                    |            |               |
+ |  DEV_OPSS     DEV_IAU (owner)   DEV_WLS      DEV_MDS     DEV_UMS                  |
+ |  security     |- DEV_IAU_APPEND  DEV_WLS_     metadata   messaging                 |
+ |  store        |   (write)        RUNTIME      (unused)   (unused)                  |
+ |               +- DEV_IAU_VIEWER  persistence                                       |
+ |                   (read)                                                           |
+ +-----^-------------^--------------^--------------------------------------------------+
+       |             |              |
+       |             |              +-- WLSSchemaDataSource / WLSRuntimeSchemaDataSource
+       |             |                  exist WITHOUT target in a Forms/Reports domain
+       |             |                  -> no session (confirmed live 2026-11-10)
+       |             |
+       |             +-- all WebLogic servers: audit framework writes via
+       |                 opss-audit-DBDS (IAU_APPEND), audit reports read via
+       |                 opss-audit-viewDS (IAU_VIEWER)
+       |             +-- rwserver (Java SE): audit loader with its own JDBC URL
+       |                 (audit.loader.jdbc.string) + AuditDbPrincipalKey
+       |
+       +-- AdminServer, WLS_FORMS, WLS_REPORTS: opss-data-source
+       |     application roles RW_MONITOR / RW_EXECREPORTS, credential maps
+       |     (reports.idstore), keystores, EM "Application Roles"
+       +-- rwserver repserver01 (Java SE): jps-config-jse.xml JDBC + bootstrap wallet
+       +-- WLST grantAppRole / createCred, EM security pages
+
+ DEV_STB: read by the Configuration Wizard / WLST createDomain (once, to build the
+          data sources) and by LocalSvcTblDataSource in the running domain.
+ DEV_MDS / DEV_UMS: created by RCU for the Infrastructure template, no data source
+          in a pure Forms/Reports domain (confirmed live) - empty but must stay
+          consistent with the registry.

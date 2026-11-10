@@ -13,7 +13,12 @@ Markers as in the rest of this folder: **documented** (Oracle documentation),
 
 ## 1. The chain of one user action
 
-```
+![formsperf-path](diagrams/formsperf-path.svg)
+<sub>Quelle: [diagrams/formsperf-path.prompt](diagrams/formsperf-path.prompt) · [D2](diagrams/formsperf-path.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=formsperf-path
  Forms client (Java, FSAL / Web Start)
    │  HTTPS                                   ← network, TLS
    ▼
@@ -28,6 +33,8 @@ Markers as in the rest of this folder: **documented** (Oracle documentation),
    ▼
  Database                                     ← SQL / PL/SQL of the form (open, §5)
 ```
+
+</details>
 
 Every user action of a running session (key, button, navigation, commit) is
 **one `lservlet` round trip**: the client sends the event, the listener

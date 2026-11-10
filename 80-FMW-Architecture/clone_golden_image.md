@@ -32,7 +32,12 @@ Practice (anonymised, from a customer project 2026-11-09/10):
 
 ## 1. Target picture
 
-```
+![clone-target](diagrams/clone-target.svg)
+<sub>Quelle: [diagrams/clone-target.prompt](diagrams/clone-target.prompt) · [D2](diagrams/clone-target.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=clone-target
   client (browser / FSAL)
         |  HTTPS, host name + certificate  <-- the ONLY host-specific edge
         v
@@ -49,6 +54,8 @@ Practice (anonymised, from a customer project 2026-11-09/10):
                                                     engines 127.0.0.1:<eph>
         DB: same host -> localhost / alias, other host -> its name
 ```
+
+</details>
 
 ---
 
@@ -178,7 +185,12 @@ OPSS keeps policies, credentials and keys **in the database**, the service
 table `<prefix>_STB` names the schemas, `SYSTEM.SCHEMA_VERSION_REGISTRY$`
 knows the prefix (§4, §5 there).
 
-```
+![clone-rcu-location](diagrams/clone-rcu-location.svg)
+<sub>Quelle: [diagrams/clone-rcu-location.prompt](diagrams/clone-rcu-location.prompt) · [D2](diagrams/clone-rcu-location.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=clone-rcu-location
   RCU DB on the WLS host (this repository: 60-RCU-DB-19c)
   +----------------- machine -----------------+
   | domain  --JDBC-->  DB (prefix DEV)         |   clone = domain + DB together
@@ -192,6 +204,8 @@ knows the prefix (§4, §5 there).
   | domain (DEV)  ----+-----+    | prefix DEV2 (new)   |   -> B needs its own prefix
   +-------------------+          +---------------------+
 ```
+
+</details>
 
 | RCU database | After the clone |
 |---|---|

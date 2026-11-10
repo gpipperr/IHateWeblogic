@@ -75,7 +75,12 @@ Consequences for this library:
 
 ## 2. A request through ORDS
 
-```
+![ords-dispatch](diagrams/ords-dispatch.svg)
+<sub>Quelle: [diagrams/ords-dispatch.prompt](diagrams/ords-dispatch.prompt) · [D2](diagrams/ords-dispatch.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=ords-dispatch
  Nginx  /ords/...  (X-Forwarded-For = $remote_addr)
    |
    v
@@ -97,6 +102,8 @@ Consequences for this library:
    v
  database (PDB)
 ```
+
+</details>
 
 **Confirmed (live)** on the test host after one call of the APEX sign-in page
 (`v$session`, `v$sql`):

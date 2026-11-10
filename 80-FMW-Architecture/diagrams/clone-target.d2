@@ -1,0 +1,85 @@
+direction: down
+
+classes: {
+  ext: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mw: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mwmain: {
+    style: {
+      fill: "#A9D18E"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  note: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#262626"
+    }
+  }
+  edge: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+client: "client (browser / FSAL)" {class: ext}
+
+nginx: "Nginx (0.0.0.0:443)\nproxy_pass http://127.0.0.1:<port>" {class: mwmain}
+
+admin: "AdminServer 127.0.0.1:7001\nNode Manager 127.0.0.1:5556" {class: mw}
+
+forms: "WLS_FORMS 127.0.0.1:9001" {
+  class: mw
+  width: 280
+}
+
+reports: "WLS_REPORTS 127.0.0.1:9002" {
+  class: mw
+  width: 280
+}
+
+frmweb: "frmweb (0.0.0.0:<eph>)" {class: mw}
+
+rwserver: "rwserver 127.0.0.1:<eph>\nengines 127.0.0.1:<eph>" {class: mw}
+
+db: "DB: same host -> localhost / alias,\nother host -> its name" {class: note}
+
+client -> nginx: "HTTPS, host name +\ncertificate <-- the\nONLY host-specific edge" {class: edge}
+nginx -> admin {class: edge}
+nginx -> forms {class: edge}
+nginx -> reports {class: edge}
+forms -> frmweb: "TCP" {class: edge}
+reports -> rwserver: "rwservlet\nCORBA (IOR host\n127.0.0.1)" {class: edge}

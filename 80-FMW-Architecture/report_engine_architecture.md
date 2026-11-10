@@ -31,7 +31,12 @@ the job is complete." (**documented**, Publishing Reports 12.2.1.3, 2.2)
 
 ## 2. Two modes
 
-```
+![repeng-modes](diagrams/repeng-modes.svg)
+<sub>Quelle: [diagrams/repeng-modes.prompt](diagrams/repeng-modes.prompt) · [D2](diagrams/repeng-modes.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=repeng-modes
  MODE A: IN-PROCESS (Oracle default)              MODE B: STANDALONE (this repository)
 
   Browser / cgicmd key                             Browser / cgicmd key
@@ -59,6 +64,8 @@ the job is complete." (**documented**, Publishing Reports 12.2.1.3, 2.2)
                                                    | of rwserver           |
                                                    +-----------------------+
 ```
+
+</details>
 
 Which mode is used is decided in `rwservlet.properties` of the reports
 application (**confirmed (live)**):

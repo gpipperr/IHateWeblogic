@@ -1,0 +1,78 @@
+direction: right
+
+classes: {
+  grp: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      stroke-dash: 4
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  item: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  line: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 20
+      font-color: "#262626"
+    }
+  }
+  edge: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+sslca: "08-SSL/ssl_local_ca.sh  (creates)" {
+  class: grp
+  grid-columns: 1
+  grid-gap: 16
+
+  init: "init     root CA" {class: item}
+  server: "server   TLS cert -> Nginx" {class: item}
+  codesign: "codesign PKCS12 keystore\n+ des3 password" {class: item}
+}
+
+extca: "or: company CA / public CA" {
+  class: item
+  width: 280
+}
+
+forms: "09-Install/14-oracle_setup_forms.sh  (uses)" {
+  class: grp
+  grid-columns: 1
+  grid-gap: 16
+
+  cond: "FORMS_SIGN_KEYSTORE set and jacob.jar\nunsigned:" {class: item}
+  backup: "jacob.jar -> jacob.jar.orig" {class: line}
+  manifest: "main manifest += Permissions/Codebase/\nApplication-Name" {class: line}
+  sign: "jarsigner -digestalg SHA-256 [-tsa]" {class: line}
+  verify: "jarsigner -verify -> activate" {class: line}
+  targets: "(WebUtilArchive, extensions.jnlp)" {class: line}
+}
+
+sslca -> forms: "keystore\n+ des3 pw" {class: edge}
+extca -> forms: "PKCS12" {class: edge}

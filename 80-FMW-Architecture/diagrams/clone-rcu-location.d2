@@ -1,0 +1,160 @@
+direction: down
+
+classes: {
+  cont_ext: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  cont_wls: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  cont_db: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#2E75B6"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  wls: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  db: {
+    shape: cylinder
+    style: {
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  schema: {
+    style: {
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  note: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#262626"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+local: "RCU DB on the WLS host\n(this repository: 60-RCU-DB-19c)" {
+  class: cont_ext
+  grid-columns: 1
+  grid-gap: 16
+
+  machine: "machine" {
+    class: cont_wls
+    grid-columns: 2
+    grid-gap: 80
+    domain: "domain" {class: wls}
+    db: "DB (prefix DEV)" {class: db}
+    domain -> db: "JDBC" {class: conn}
+  }
+
+  note: "clone = domain + DB together\n-> nothing to do for RCU" {class: note}
+}
+
+external: "RCU DB external" {
+  class: cont_ext
+  grid-columns: 1
+  grid-gap: 16
+
+  setup: "" {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#FFFFFF"
+      stroke-width: 1
+      shadow: false
+    }
+    grid-columns: 2
+    grid-gap: 80
+
+    machine_a: "machine A" {
+      class: cont_wls
+      width: 280
+      grid-columns: 1
+      grid-gap: 16
+      domain: "domain (DEV)" {class: wls}
+    }
+
+    dbhost: "DB host" {
+      class: cont_db
+      grid-columns: 1
+      grid-gap: 16
+      dev: "prefix DEV" {class: schema}
+      dev2: "prefix DEV2 (new)" {class: schema}
+    }
+
+    machine_b: "machine B" {
+      class: cont_wls
+      width: 280
+      grid-columns: 1
+      grid-gap: 16
+      domain: "domain (DEV)" {class: wls}
+    }
+
+    machine_a -> dbhost: "JDBC" {class: conn}
+    machine_b -> dbhost {class: conn}
+  }
+
+  note: "clone B on DEV = two domains\nin ONE OPSS store - forbidden\n-> B needs its own prefix" {class: note}
+}
+
+local -> external: {style.opacity: 0}

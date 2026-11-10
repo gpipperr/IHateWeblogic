@@ -1,0 +1,120 @@
+direction: down
+
+workstation: "Developer workstation" {
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  rdp_client: "RDP client" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+winsrv: "Windows Server (central, RDP)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  rwbuilder: "rwbuilder.bat  (one process per developer)\nreports.bat: TNS_ADMIN, REPORTS_PATH, ..." {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  oracle_home: "Oracle Home E:\\oracle\\fmw\nFMW Infrastructure + Forms & Reports,\npatched like the Linux server" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  builder_domain: "Builder domain (AdminServer STOPPED)\ntemplates: JRF + EM + Reports Tools only\nno managed server, no Node Manager running\nconfig/fmwconfig/components/\nReportsToolsComponent/reptools1\n(rwbuilder.conf, uifont.ali, ...)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  fonts: "fonts (same TTFs as the Linux server)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+customer_db: "existing customer database\n- application schemas (reports data)\n- RCU prefix RWDEV_* (domain only)" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+linux_reports: "Linux Reports server (production stack)\nWLS_REPORTS / rwservlet / engines\nruns the .rdf for the real test" {
+  width: 280
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+workstation.rdp_client -> winsrv: "RDP" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+winsrv -> linux_reports: "file copy /\nshare / sftp" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+linux_reports -> customer_db: "SQL*Net" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}

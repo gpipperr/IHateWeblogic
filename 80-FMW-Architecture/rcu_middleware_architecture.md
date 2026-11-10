@@ -51,7 +51,12 @@ domain reads one of two files in `$DOMAIN_HOME/config/fmwconfig/`
 | **identity store** | **users and groups** – who is `monUser`, which groups he has | `idstore.ldap` with `WlsLdapIdStoreConfigProvider` = **the authenticators of the WebLogic realm `myrealm`** (DefaultAuthenticator = embedded LDAP of the AdminServer) | Oracle default: `idstore.xml` = file `system-jazn-data.xml` (subscriber `jazn.com`, knows **no** WebLogic user). Here since 2026-10-16: `idstore.ldap.embedded` (`OPEN_LDAP`, `ldap://localhost:7001`, `ou=myrealm,dc=fr_domain`) |
 | bootstrap | how to reach the OPSS DB itself (JDBC URL + credential) | `datasource.jndi.name=jdbc/OpssDataSource` + bootstrap wallet | `jdbc.url` + bootstrap wallet `bootstrap/cwallet.sso` (no data source in Java SE); farm name `oracle.security.jps.farm.name` (`cn=opssSecurityStore` after the domain creation, `cn=<domain>` after a `reassociateSecurityStore`, **confirmed (live)** 2026-11-10) |
 
-```
+![rcu-opss-store](diagrams/rcu-opss-store.svg)
+<sub>Quelle: [diagrams/rcu-opss-store.prompt](diagrams/rcu-opss-store.prompt) · [D2](diagrams/rcu-opss-store.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=rcu-opss-store
               policy + credential + key store: ONE copy, in the database
                          +------------------------------+
                          |  DEV_OPSS  (RCU schema)      |
@@ -71,6 +76,8 @@ domain reads one of two files in `$DOMAIN_HOME/config/fmwconfig/`
                                                           ldap://localhost:7001, bind as
                                                           cn=Admin (credential reports.idstore)
 ```
+
+</details>
 
 Why this matters here:
 
@@ -130,7 +137,12 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
 
 ### 2.1 The schemas and their users at a glance
 
-```
+![rcu-repository](diagrams/rcu-repository.svg)
+<sub>Quelle: [diagrams/rcu-repository.prompt](diagrams/rcu-repository.prompt) · [D2](diagrams/rcu-repository.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=rcu-repository
                        Repository of prefix DEV  (one PDB, tablespace FMW_DATA)
  +------------------------------------------------------------------------------------+
  |                                                                                    |
@@ -170,6 +182,8 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
           consistent with the registry.
 ```
 
+</details>
+
 | Schema | Created by | Written by | Read by | If unavailable |
 |---|---|---|---|---|
 | `DEV_STB` | RCU | RCU | Config Wizard / WLST at domain creation, `LocalSvcTblDataSource` | new domain / domain extension cannot read the RCU configuration |
@@ -182,7 +196,12 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
 
 ## 3. Who logs in where
 
-```
+![rcu-homes](diagrams/rcu-homes.svg)
+<sub>Quelle: [diagrams/rcu-homes.prompt](diagrams/rcu-homes.prompt) · [D2](diagrams/rcu-homes.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=rcu-homes
   Oracle Home (software)                         Domain Home (configuration)
   +----------------------------+                 +----------------------------------------+
   | oracle_common/bin/rcu      |  create / drop  | config/jdbc/*-jdbc.xml                 |
@@ -216,6 +235,8 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
  |   application schemas of Forms/Reports - NOT RCU, own credentials                        |
  +-----------------------------------------------------------------------------------------+
 ```
+
+</details>
 
 - The application data of Forms and Reports (`userid=` of a form/report) is
   **not** part of the repository – it is ordinary DB users.

@@ -1,0 +1,101 @@
+classes: {
+  zone_db: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#2E75B6"
+      stroke-dash: 4
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  zone_mw: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  db: {
+    shape: cylinder
+    style: {
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mw: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      stroke-width: 1
+      border-radius: 8
+      shadow: false
+      font-size: 20
+      font-color: "#262626"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+direction: down
+
+dbzone: "policy + credential + key store: ONE copy, in the database" {
+  class: zone_db
+  opss: "DEV_OPSS  (RCU schema)" {
+    class: db
+  }
+}
+
+wls: "jps-config.xml (WebLogic JVM)\nAdminServer / WLS_FORMS / WLS_REPORTS" {
+  class: zone_mw
+  grid-columns: 1
+  grid-gap: 16
+  idstore: "identity store: idstore.ldap\n-> WebLogic realm \"myrealm\"\n   DefaultAuthenticator\n   = embedded LDAP in the AdminServer\n     (ldap://localhost:7001,\n      ou=people,ou=myrealm,dc=<domain>)" {
+    class: mw
+  }
+}
+
+jse: "jps-config-jse.xml (Java SE JVM)\nrwserver repserver01, WLST offline" {
+  class: zone_mw
+  grid-columns: 1
+  grid-gap: 16
+  default: "identity store (Oracle default):\nidstore.xml = system-jazn-data.xml\n  -> knows NO WebLogic users" {
+    class: mw
+  }
+  embedded: "identity store (here, since 2026-10-16):\nidstore.ldap.embedded\n -> the SAME embedded LDAP via\n    ldap://localhost:7001, bind as\n    cn=Admin (credential reports.idstore)" {
+    class: mw
+  }
+}
+
+dbzone.opss <- wls: "JDBC\n(bootstrap wallet\ncwallet.sso)" {
+  class: conn
+}
+
+dbzone.opss <- jse: "JDBC\n(bootstrap wallet\ncwallet.sso)" {
+  class: conn
+}
+
+wls <- jse {
+  class: conn
+}

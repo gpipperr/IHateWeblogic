@@ -1,0 +1,86 @@
+direction: down
+
+classes: {
+  db: {style: {fill: "#DEEBF7"; stroke: "#2E75B6"; border-radius: 8; stroke-width: 1; shadow: false; font-size: 20; font-color: "#C00000"}}
+  dbbox: {style: {fill: "#FFFFFF"; stroke: "#2E75B6"; stroke-dash: 4; border-radius: 8; stroke-width: 1; shadow: false; font-size: 22; bold: true; font-color: "#C00000"}}
+  wls: {style: {fill: "#E2EFDA"; stroke: "#548235"; border-radius: 8; stroke-width: 1; shadow: false; font-size: 20; font-color: "#C00000"}}
+  wlsbox: {style: {fill: "#FFFFFF"; stroke: "#548235"; stroke-dash: 4; border-radius: 8; stroke-width: 1; shadow: false; font-size: 22; bold: true; font-color: "#C00000"}}
+  ext: {style: {fill: "#EDEDED"; stroke: "#7F7F7F"; border-radius: 8; stroke-width: 1; shadow: false; font-size: 20; font-color: "#262626"}}
+  extbox: {style: {fill: "#FFFFFF"; stroke: "#7F7F7F"; stroke-dash: 4; border-radius: 8; stroke-width: 1; shadow: false; font-size: 22; bold: true; font-color: "#C00000"}}
+  conn: {style: {stroke: "#7F7F7F"; stroke-width: 2; font-color: "#000000"; font-size: 18}}
+}
+
+repo: "Repository of prefix DEV  (one PDB, tablespace FMW_DATA)" {
+  class: dbbox
+  grid-columns: 1
+  grid-gap: 16
+
+  lookup: "" {
+    class: dbbox
+    grid-columns: 2
+    grid-gap: 16
+    stb: "DEV_STB  \"phone book\"\nCOMPONENT_SCHEMA_INFO\n(schema, host, service,\nencrypted password)" {class: db}
+    registry: "SYSTEM.SCHEMA_VERSION_REGISTRY\$  \"registry\"\none row per schema: COMP_ID, OWNER,\nVERSION, STATUS - read by RCU (drop),\nUA (upgrade), every schema user (SELECT)" {class: db}
+  }
+
+  schemas: "" {
+    class: dbbox
+    grid-columns: 2
+    grid-gap: 16
+    opss: "DEV_OPSS\nsecurity\nstore" {class: db}
+    iau: "DEV_IAU (owner)" {
+      class: dbbox
+      grid-columns: 1
+      grid-gap: 16
+      append: "DEV_IAU_APPEND\n(write)" {class: db}
+      viewer: "DEV_IAU_VIEWER\n(read)" {class: db}
+    }
+    wls: "DEV_WLS\nDEV_WLS_RUNTIME\npersistence" {class: db}
+    mds: "DEV_MDS\nmetadata\n(unused)" {class: db}
+    ums: "DEV_UMS\nmessaging\n(unused)" {class: db}
+  }
+
+  schemas -> lookup {class: conn}
+}
+
+consumers: "" {
+  class: extbox
+  grid-columns: 1
+  grid-gap: 16
+
+  opss_users: "DEV_OPSS" {
+    class: wlsbox
+    grid-columns: 1
+    grid-gap: 16
+    servers: "AdminServer, WLS_FORMS, WLS_REPORTS:\nopss-data-source\napplication roles RW_MONITOR / RW_EXECREPORTS,\ncredential maps (reports.idstore), keystores,\nEM \"Application Roles\"" {class: wls}
+    rwserver: "rwserver repserver01 (Java SE):\njps-config-jse.xml JDBC + bootstrap wallet" {class: wls}
+    wlst: "WLST grantAppRole / createCred,\nEM security pages" {class: ext}
+  }
+
+  iau_users: "DEV_IAU" {
+    class: wlsbox
+    grid-columns: 1
+    grid-gap: 16
+    servers: "all WebLogic servers: audit framework writes\nvia opss-audit-DBDS (IAU_APPEND), audit\nreports read via opss-audit-viewDS (IAU_VIEWER)" {class: wls}
+    rwserver: "rwserver (Java SE): audit loader with its own\nJDBC URL (audit.loader.jdbc.string) +\nAuditDbPrincipalKey" {class: wls}
+  }
+
+  wls_users: "DEV_WLS" {
+    class: wlsbox
+    grid-columns: 1
+    grid-gap: 16
+    ds: "WLSSchemaDataSource /\nWLSRuntimeSchemaDataSource\nexist WITHOUT target in a Forms/Reports domain\n-> no session (confirmed live 2026-11-10)" {class: wls}
+  }
+}
+
+repo <- consumers {class: conn}
+
+notes: "" {
+  class: extbox
+  grid-columns: 1
+  grid-gap: 16
+  stb_note: "DEV_STB: read by the Configuration Wizard /\nWLST createDomain (once, to build the\ndata sources) and by LocalSvcTblDataSource\nin the running domain." {class: ext}
+  mds_note: "DEV_MDS / DEV_UMS: created by RCU for the\nInfrastructure template, no data source\nin a pure Forms/Reports domain (confirmed live)\n- empty but must stay consistent with the registry." {class: ext}
+}
+
+consumers -> notes {style.opacity: 0}

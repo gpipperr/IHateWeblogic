@@ -1,0 +1,152 @@
+direction: down
+
+client: "Browser / Monitoring / Application" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "nginx (TLS)" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+wls_reports: "WLS_REPORTS  (WebLogic JVM)\nrwservlet\nrwservlet.properties\nsinglesignon / webcmdaccess" {
+  width: 280
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+admin: "AdminServer (WebLogic JVM)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  realm: "realm myrealm\nDefaultAuthenticator" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  ldap: "embedded LDAP :7001\nou=people,ou=myrealm,\ndc=<domain>" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  em: "EM (Add Principal, roles)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  realm -> ldap: {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+  }
+}
+
+repserver: "repserver01  rwserver (Java SE)\nrwserver.conf\n<security rwJaznSec>\n<job ... securityId=?>\n<identifier> (server admin)\nOPSS jps-config-jse.xml\npolicystore.db  credstore.db\nidstore.xml" {
+  width: 280
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+opss_db: "DB schema <prefix>_OPSS\npolicy store (RW_* roles,\nReportsPermission,\nWebCommandPermission)\ncredential store" {
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+jazn: "system-jazn-data.xml\n(file, users unknown to WebLogic)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+client -> nginx: "HTTPS POST\n/reports/rwservlet/getserverinfo\n(authid=monUser/... in the body)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> wls_reports: "HTTP\n127.0.0.1:9002" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+wls_reports -> repserver: "request + authid\n(multicast discovery,\nORB/IIOP)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+admin -> opss_db: "OPSS jps-config.xml\nidstore.ldap -> realm\npolicystore.db" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+repserver -> opss_db: "JDBC" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+repserver -> jazn: {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+}

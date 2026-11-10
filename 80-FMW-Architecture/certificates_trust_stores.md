@@ -108,7 +108,12 @@ encrypted (AES-256), `codesign.p12` with SHA-256 MAC (OpenSSL 3 default).
 
 ## 3. Three directions of trust
 
-```
+![certs-in-out](diagrams/certs-in-out.svg)
+<sub>Quelle: [diagrams/certs-in-out.prompt](diagrams/certs-in-out.prompt) · [D2](diagrams/certs-in-out.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=certs-in-out
   INBOUND  (who proves identity: our server)
     browser / Forms client (JRE, FSAL) --TLS--> Nginx :443 --(127.0.0.1, http)--> WebLogic / ORDS
       client must trust: root of the Nginx certificate (local CA / customer CA / public CA)
@@ -122,6 +127,8 @@ encrypted (AES-256), `codesign.p12` with SHA-256 MAC (OpenSSL 3 default).
     jacob.jar signed with codesign.p12 (+ TSA)  --download--> Forms client JRE
       client must trust: root of the code-signing chain (+ the TSA chain)
 ```
+
+</details>
 
 TLS terminates at Nginx; WebLogic speaks plain HTTP on 127.0.0.1 with
 `WL-Proxy-SSL` (demo SSL ports disabled). The server JDKs therefore need a

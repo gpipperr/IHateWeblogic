@@ -1,0 +1,133 @@
+direction: down
+
+classes: {
+  mw: {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  mwmain: {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  step: {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+  mwbox: {
+    style.fill: "#FFFFFF"
+    style.stroke: "#548235"
+    style.stroke-dash: 4
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 22
+    style.bold: true
+    style.font-color: "#C00000"
+  }
+  db: {
+    shape: cylinder
+    style.fill: "#DEEBF7"
+    style.stroke: "#2E75B6"
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  conn: {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+nginx: "Nginx  /ords/...\n(X-Forwarded-For = \$remote_addr)" {
+  class: mw
+}
+
+jetty: "Jetty (127.0.0.1:8081, standalone.binds)\n-> ORDS dispatcher" {
+  class: mwbox
+  width: 280
+  grid-columns: 1
+  grid-gap: 16
+
+  s1: "1. pool routing: /ords/<pool>/... or \"default\"" {
+    class: step
+  }
+  s2: "2. what is it?" {
+    class: step
+  }
+}
+
+plsql_gw: "PL/SQL gateway" {
+  class: mwmain
+  width: 280
+}
+
+rest: "REST dispatcher" {
+  class: mwmain
+  width: 280
+}
+
+ucp: "UCP pool (logged in as ORDS_PUBLIC_USER)" {
+  class: mwbox
+  grid-columns: 1
+  grid-gap: 16
+
+  s3: "3. take a connection, open a PROXY SESSION\ngateway: ORDS_PUBLIC_USER[APEX_PUBLIC_USER]\nREST:    ORDS_PUBLIC_USER[<schema>]" {
+    class: step
+  }
+  s4: "4. gateway: owa.init_cgi_env(...) –\nCGI variables incl. REMOTE_ADDR\nrequestValidationFunction (allow list)\n-> call the procedure\nREST: definitions from ORDS_METADATA (cached),\nrun the handler" {
+    class: step
+  }
+  s5: "5. read the result (htp buffer / result set /\nJSON), stream it back" {
+    class: step
+  }
+}
+
+database: "database (PDB)" {
+  class: db
+}
+
+nginx -> jetty {
+  class: conn
+}
+
+jetty -> plsql_gw: "/ords/r/<ws>/\n<app>/<page>\nAPEX friendly URL" {
+  class: conn
+}
+
+jetty -> plsql_gw: "/ords/f?p=...\nPL/SQL gateway\n(APEX)" {
+  class: conn
+}
+
+jetty -> rest: "/ords/<schema\nalias>/...\nREST module" {
+  class: conn
+}
+
+jetty -> ucp {
+  class: conn
+}
+
+rest -> ucp {
+  class: conn
+}
+
+ucp -> database {
+  class: conn
+}

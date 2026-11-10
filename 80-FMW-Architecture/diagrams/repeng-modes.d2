@@ -1,0 +1,151 @@
+direction: down
+
+classes: {
+  client: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mw: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mwmain: {
+    style: {
+      fill: "#A9D18E"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  zone: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  modezone: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+mode_a: "MODE A: IN-PROCESS (Oracle default)" {
+  class: modezone
+  direction: down
+
+  client: "Browser / cgicmd key" {
+    class: client
+  }
+
+  wls: "WLS_REPORTS (WebLogic JVM)" {
+    class: zone
+    direction: down
+
+    rwservlet: "rwservlet" {
+      class: mw
+    }
+
+    repserver: "Reports server (in-process)\nconfig: servers/WLS_REPORTS/\napplications/reports_14.1.2/\nconfiguration/rwserver.conf\nsecurity: jps-config.xml\n= WebLogic realm (myrealm)" {
+      class: mwmain
+    }
+
+    rwservlet -> repserver: "in the same JVM" {
+      class: conn
+    }
+  }
+
+  engines: "engines rwEng-0 ...\n(separate processes)" {
+    class: mw
+  }
+
+  client -> wls {
+    class: conn
+  }
+
+  wls -> engines: "starts" {
+    class: conn
+  }
+}
+
+mode_b: "MODE B: STANDALONE (this repository)" {
+  class: modezone
+  direction: down
+
+  client: "Browser / cgicmd key" {
+    class: client
+  }
+
+  wls: "WLS_REPORTS (WebLogic JVM)" {
+    class: zone
+    direction: down
+
+    rwservlet: "rwservlet" {
+      class: mw
+    }
+  }
+
+  rwserver: "rwserver repserver01 (own JVM)\nstarted by the NODE MANAGER\nconfig: components/\nReportsServerComponent/repserver01/\nrwserver.conf\nsecurity: jps-config-jse.xml\n(default identity store: XML file)" {
+    class: mwmain
+  }
+
+  engines: "engines rwEng-0 ...\nJava child processes\nof rwserver" {
+    class: mw
+  }
+
+  client -> wls {
+    class: conn
+  }
+
+  wls.rwservlet -> rwserver: "CORBA/IIOP to a\nserver found by name\n(broadcast / naming)" {
+    class: conn
+  }
+
+  rwserver -> engines: "starts" {
+    class: conn
+  }
+}
+
+mode_a -> mode_b: {
+  style.opacity: 0
+}

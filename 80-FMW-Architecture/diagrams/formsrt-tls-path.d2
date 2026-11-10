@@ -1,0 +1,108 @@
+client: "client PC" {
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  jws: "JWS / FSAL client JVM\nJSSE = TLS client\n(JNLP, jars, all session\ntraffic, WebUtil)" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+server: "server" {
+  direction: down
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  nginx: "Nginx\nOpenSSL 3.5.8\n(no Java)" {
+    width: 280
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  wls: "WLS_FORMS JVM\nno TLS on this\nhop" {
+    width: 280
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  frmweb: "frmweb\nnative\nC" {
+    width: 280
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  nginx -> wls: "HTTP (loopback)\n127.0.0.1:9001" {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+
+  wls -> frmweb: "TCP (own port)\nplain" {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+db: "DB" {
+  shape: cylinder
+  style.fill: "#DEEBF7"
+  style.stroke: "#2E75B6"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+client.jws -> server.nginx: "HTTPS\nTLS 1.2+" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+server.frmweb -> db: "SQL*Net" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+direction: down

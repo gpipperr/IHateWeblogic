@@ -1,0 +1,131 @@
+direction: down
+
+classes: {
+  ext: {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  mw: {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  mwmain: {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+  mwbox: {
+    style.fill: "#FFFFFF"
+    style.stroke: "#548235"
+    style.stroke-dash: 4
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 22
+    style.bold: true
+    style.font-color: "#C00000"
+  }
+  dbbox: {
+    style.fill: "#FFFFFF"
+    style.stroke: "#2E75B6"
+    style.stroke-dash: 4
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 22
+    style.bold: true
+    style.font-color: "#C00000"
+  }
+  schema: {
+    style.fill: "#DEEBF7"
+    style.stroke: "#2E75B6"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+  conn: {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+client: "Browser / Java Web Start / FSAL / curl" {class: ext}
+
+nginx: "NGINX reverse proxy (OS)\n/etc/nginx/conf.d/*.conf\n/forms/* -> :9001\n/reports/* -> :9002\n/em, /console -> :7001" {class: mw}
+
+domain: "WebLogic domain fr_domain" {
+  class: mwbox
+
+  machine: "Machine \"AdminServerMachine\" (one host)" {
+    class: mwbox
+
+    nm: "Node Manager  :5556\n(Java, per domain)" {class: mw}
+
+    asks: "(asks NM to start\nmanaged servers)" {class: ext}
+
+    admin: "AdminServer   :7001\n- domain config\n- EM  (/em)\n- Remote Console\n(/console)\n- embedded LDAP" {class: mwmain}
+
+    forms: "WLS_FORMS     :9001\ncluster_forms\nformsapp (frmservlet,\nListener Servlet)" {
+      class: mw
+      width: 280
+    }
+
+    reports: "WLS_REPORTS    :9002\ncluster_reports\nreports.ear\n(rwservlet)" {
+      class: mw
+      width: 280
+    }
+
+    frmweb: "frmweb  (C, \"forms1\")\nForms runtime" {
+      class: mw
+      width: 280
+    }
+
+    rwserver: "rwserver \"repserver01\"\nJava SE + engines\nrwEng-0 / rwEng-1 ..." {
+      class: mw
+      width: 280
+    }
+
+    asks -> nm: {class: conn}
+    nm -> admin: "starts / kills /\nmonitors" {class: conn}
+    asks -> admin: "t3 / JMX /\nconfig" {class: conn}
+    admin -> forms: "config push /\nruntime MBeans" {class: conn}
+    admin -> reports: {class: conn}
+    forms -> frmweb: "spawns\none per session" {class: conn}
+    reports -> rwserver: "CORBA/IIOP\n(+ UDP multicast\ndiscovery :14027)" {class: conn}
+    nm -> rwserver: "started by the NM\n(system component)" {class: conn}
+  }
+}
+
+db: "Oracle Database" {
+  class: dbbox
+  grid-columns: 1
+  grid-gap: 16
+
+  app: "application schemas (forms/report data)" {class: schema}
+  rcu: "RCU schemas of the domain: <PREFIX>_STB\nservice table (config of the other schemas),\n_OPSS policy/credential/key store,\n_IAU audit, _WLS / _WLS_RUNTIME\n(WebLogic persistence)" {class: schema}
+}
+
+client -> nginx: "https\n:443 / :80" {class: conn}
+nginx -> domain.machine.admin: {class: conn}
+nginx -> domain.machine.forms: {class: conn}
+nginx -> domain.machine.reports: {class: conn}
+domain.machine.frmweb -> db: "SQL*Net" {class: conn}
+domain.machine.rwserver -> db: "SQL*Net\n(report data)" {class: conn}

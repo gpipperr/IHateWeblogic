@@ -67,7 +67,12 @@ WebUtil is part of Oracle Forms since 11g (before that a separate download).
 
 ## 4. Architecture
 
-```
+![jacob-chain](diagrams/jacob-chain.svg)
+<sub>Quelle: [diagrams/jacob-chain.prompt](diagrams/jacob-chain.prompt) · [D2](diagrams/jacob-chain.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=jacob-chain
 +---------------------------+
 | Oracle Forms runtime      |
 | (server, frmweb)          |
@@ -103,6 +108,8 @@ WebUtil is part of Oracle Forms since 11g (before that a separate download).
 | other COM objects         |
 +---------------------------+
 ```
+
+</details>
 
 Forms 14.1.2 has no browser applet any more – the client runs with Java Web
 Start or the Forms Standalone Launcher (FSAL). Everything below the server box
@@ -176,7 +183,12 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 
 ## 8. Signing – how Oracle intends it
 
-```
+![jacob-signing](diagrams/jacob-signing.svg)
+<sub>Quelle: [diagrams/jacob-signing.prompt](diagrams/jacob-signing.prompt) · [D2](diagrams/jacob-signing.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=jacob-signing
    Oracle (vendor)                         Customer (you)
   +------------------------------+        +----------------------------------+
   | frmall.jar, frmwebutil.jar,  |        | jacob.jar, own jars (icons ...)  |
@@ -196,6 +208,8 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
                        the trusted signer / CA stores  -> run or block
                      - FSAL: no trust check by default (see 10)
 ```
+
+</details>
 
 - Oracle signs all **its** client jars and says so explicitly:
   "All Java JAR files provided by Oracle Forms that run on the user's machine
@@ -395,7 +409,12 @@ Recommendation (design, to be decided with the customer):
 
 ## 13. Implementation in this repository (2026-10-17)
 
-```
+![jacob-codesign](diagrams/jacob-codesign.svg)
+<sub>Quelle: [diagrams/jacob-codesign.prompt](diagrams/jacob-codesign.prompt) · [D2](diagrams/jacob-codesign.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=jacob-codesign
   08-SSL/ssl_local_ca.sh  (creates)                09-Install/14-oracle_setup_forms.sh  (uses)
   +------------------------------+                 +------------------------------------------+
   | init     root CA             |                 | FORMS_SIGN_KEYSTORE set and jacob.jar    |
@@ -408,6 +427,8 @@ Recommendation (design, to be decided with the customer):
                                                    |  (WebUtilArchive, extensions.jnlp)       |
                                                    +------------------------------------------+
 ```
+
+</details>
 
 - **Creating** (08-SSL) and **using** (14-) are separate: 14- signs with any
   PKCS12 keystore – from the own root CA, a company CA or a public CA.

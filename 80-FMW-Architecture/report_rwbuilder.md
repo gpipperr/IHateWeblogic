@@ -51,7 +51,12 @@ can.
 
 ## 3. Architecture
 
-```
+![rwbuilder-setup](diagrams/rwbuilder-setup.svg)
+<sub>Quelle: [diagrams/rwbuilder-setup.prompt](diagrams/rwbuilder-setup.prompt) · [D2](diagrams/rwbuilder-setup.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=rwbuilder-setup
   Developer workstation                Windows Server (central, RDP)
   ---------------------                ---------------------------------------------
   RDP client  ----- RDP ----------->   rwbuilder.bat  (one process per developer)
@@ -78,6 +83,8 @@ can.
                                           |     WLS_REPORTS / rwservlet / engines
                                           +---- runs the .rdf for the real test
 ```
+
+</details>
 
 What runs when:
 

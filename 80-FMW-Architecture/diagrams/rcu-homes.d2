@@ -1,0 +1,146 @@
+direction: down
+
+classes: {
+  tool: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  wls: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  db: {
+    style: {
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+oh: "Oracle Home (software)" {
+  grid-columns: 1
+  grid-gap: 16
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#7F7F7F"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+  }
+  rcu: "oracle_common/bin/rcu\n(SYSDBA, one-time)" {
+    class: tool
+    width: 280
+  }
+  ua: "oracle_common/upgrade/bin/\nua  (version upgrade)" {
+    class: tool
+    width: 280
+  }
+}
+
+dh: "Domain Home (configuration)" {
+  grid-columns: 1
+  grid-gap: 16
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#548235"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+  }
+  files: "config/jdbc/*-jdbc.xml\n  user + {AES256} password per DS\nconfig/fmwconfig/jps-config.xml\nconfig/fmwconfig/jps-config-jse.xml\nconfig/fmwconfig/bootstrap/cwallet.sso" {
+    class: wls
+  }
+}
+
+srv: "AdminServer / WLS_FORMS / WLS_REPORTS\n(JDBC data sources, connection pools)" {
+  grid-columns: 1
+  grid-gap: 16
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#548235"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+  }
+  ds: "opss-data-source -> DEV_OPSS\nopss-audit-DBDS / opss-audit-viewDS ->\nDEV_IAU_APPEND / DEV_IAU_VIEWER\nWLSSchemaDataSource / WLSRuntimeSchemaDataSource\n(no target - no session)\nLocalSvcTblDataSource (AdminServer only) ->\nDEV_STB" {
+    class: wls
+    style.fill: "#A9D18E"
+  }
+  rw: "rwserver repserver01 (Java SE, no data source):\njps-config-jse.xml jdbc.url + bootstrap\ncredential (cwallet.sso) -> DEV_OPSS\njps-config-jse.xml audit.loader.jdbc.string +\nAuditDbPrincipalKey -> DEV_IAU_APPEND" {
+    class: wls
+  }
+  cw: "Configuration Wizard / WLST createDomain (one-time):\nreads DEV_STB.COMPONENT_SCHEMA_INFO ->\nfills all data sources" {
+    class: tool
+  }
+}
+
+pdb: "Database (PDB)" {
+  grid-columns: 1
+  grid-gap: 16
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#2E75B6"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+  }
+  rcu_schemas: "DEV_STB  DEV_OPSS  DEV_IAU*  DEV_WLS*\nDEV_MDS  DEV_UMS        (profile DEFAULT)" {
+    class: db
+  }
+  registry: "SYSTEM.SCHEMA_VERSION_REGISTRY\$\n(+ view, public synonym, role REGISTRYACCESS)" {
+    class: db
+  }
+  app: "application schemas of Forms/Reports -\nNOT RCU, own credentials" {
+    class: db
+    style.font-color: "#262626"
+  }
+}
+
+oh -> srv: "create / drop" {
+  class: conn
+}
+dh -> srv: "read at start" {
+  class: conn
+}
+srv -> pdb {
+  class: conn
+}

@@ -45,7 +45,12 @@ The rule has exceptions in both directions, see
 
 ## 2. Big picture
 
-```
+![wls-overview](diagrams/wls-overview.svg)
+<sub>Quelle: [diagrams/wls-overview.prompt](diagrams/wls-overview.prompt) · [D2](diagrams/wls-overview.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=wls-overview
                          Browser / Java Web Start / FSAL / curl
                                          |
                                   https :443 / :80
@@ -101,6 +106,8 @@ The rule has exceptions in both directions, see
  |   _WLS_RUNTIME (WebLogic persistence)                                          |
  +--------------------------------------------------------------------------------+
 ```
+
+</details>
 
 - **confirmed (live)**: listeners `127.0.0.1:5556/7001/9001/9002` (Java),
   `:80/:443` NGINX; deployments from `config.xml`: `em` and `opss-rest` →
@@ -227,7 +234,12 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
 
 ## 4. Who starts whom – the control chain
 
-```
+![wls-startup](diagrams/wls-startup.svg)
+<sub>Quelle: [diagrams/wls-startup.prompt](diagrams/wls-startup.prompt) · [D2](diagrams/wls-startup.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=wls-startup
  systemd  fmw-fr_domain.service   (09-Install/30-configure_autostart.sh)
    |   ExecStart = fmw_ctl.sh start all
    v
@@ -244,6 +256,8 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
    +-- rwserver.sh      -> rwserver repserver01 --> engines rwEng-0, rwEng-1 ...
 ```
 
+</details>
+
 - **confirmed (live)** process trees: AdminServer / WLS_REPORTS / WLS_FORMS:
   `java` ← `startWebLogic.sh` ← Node Manager JVM. A server started by hand
   instead: `java` ← `startWebLogic.sh` ← `startManagedWebLogic.sh` – no NM
@@ -259,7 +273,12 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
 
 ## 5. Consoles – who provides what
 
-```
+![wls-consoles](diagrams/wls-consoles.svg)
+<sub>Quelle: [diagrams/wls-consoles.prompt](diagrams/wls-consoles.prompt) · [D2](diagrams/wls-consoles.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=wls-consoles
    http(s)://<host>/em        http(s)://<host>/console       WLST / REST
             |                          |                           |
             v                          v                           v
@@ -276,6 +295,8 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
              managed servers   Node Manager      OPSS (DB) / embedded LDAP
              (runtime MBeans)  (system components) (security, app roles)
 ```
+
+</details>
 
 | Console | URL | Provided by | Used for |
 |---|---|---|---|

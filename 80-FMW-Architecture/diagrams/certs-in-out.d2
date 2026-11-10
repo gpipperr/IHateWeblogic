@@ -1,0 +1,154 @@
+direction: down
+
+classes: {
+  ext: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mw: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  mwmain: {
+    style: {
+      fill: "#A9D18E"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  note: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#262626"
+    }
+  }
+  zone_mw: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  zone_ext: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+inbound: "INBOUND  (who proves identity: our server)" {
+  class: zone_mw
+
+  client: "browser / Forms client (JRE, FSAL)" {
+    class: ext
+  }
+  nginx: "Nginx :443" {
+    class: mw
+    width: 280
+  }
+  wls: "WebLogic / ORDS" {
+    class: mwmain
+  }
+  trust: "client must trust: root of the Nginx certificate\n(local CA / customer CA / public CA)" {
+    class: note
+  }
+
+  client -> nginx: "TLS" {
+    class: conn
+  }
+  nginx -> wls: "(127.0.0.1,\nhttp)" {
+    class: conn
+  }
+}
+
+outbound: "OUTBOUND (who checks: our processes, against their trust store)" {
+  class: zone_mw
+
+  procs: "JDK_HOME JVMs, bundled JDK JVMs\n(WLS, Reports engines, tools)\nOS tools (curl, wget, dnf, getMOSPatch via java),\nDB UTL_HTTP, Node.js (Claude Code)" {
+    class: mw
+  }
+  ext: "external services" {
+    class: ext
+  }
+  trust: "process must trust: root of the remote server -\nor of the INTERCEPTION CA in between" {
+    class: note
+  }
+
+  procs -> ext: "TLS" {
+    class: conn
+  }
+}
+
+code: "CODE     (who checks: the client JRE)" {
+  class: zone_ext
+
+  jar: "jacob.jar signed with codesign.p12 (+ TSA)" {
+    class: ext
+  }
+  jre: "Forms client JRE" {
+    class: ext
+  }
+  trust: "client must trust: root of the code-signing chain\n(+ the TSA chain)" {
+    class: note
+  }
+
+  jar -> jre: "download" {
+    class: conn
+  }
+}
+
+inbound -> outbound: "" {
+  style: {
+    opacity: 0
+  }
+}
+outbound -> code: "" {
+  style: {
+    opacity: 0
+  }
+}

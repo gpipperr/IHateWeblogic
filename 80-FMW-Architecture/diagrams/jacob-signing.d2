@@ -1,0 +1,81 @@
+direction: down
+
+oracle: "Oracle (vendor)" {
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#7F7F7F"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+    font-color: "#C00000"
+  }
+  jars: "frmall.jar, frmwebutil.jar,\nfrmsal.jar ...\nsigned by \"Oracle America\"\n(DigiCert code-signing CA,\ntimestamped)" {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+}
+
+customer: "Customer (you)" {
+  style: {
+    fill: "#FFFFFF"
+    stroke: "#7F7F7F"
+    stroke-dash: 4
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 22
+    bold: true
+    font-color: "#C00000"
+  }
+  jars: "jacob.jar, own jars (icons ...)\n- unsigned when downloaded\n- sign with YOUR code-signing\ncertificate (jarsigner + TSA)" {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+}
+
+client: "Java client on the Windows PC\n- Java Web Start: checks every signature\nagainst the trusted signer / CA stores\n-> run or block\n- FSAL: no trust check by default (see 10)" {
+  style: {
+    fill: "#E2EFDA"
+    stroke: "#548235"
+    border-radius: 8
+    stroke-width: 1
+    shadow: false
+    font-size: 20
+    font-color: "#C00000"
+  }
+}
+
+oracle -> client: "base.jnlp / webutil.jnlp\n(one signer\nper JNLP file)" {
+  style: {
+    stroke: "#7F7F7F"
+    stroke-width: 2
+    font-color: "#000000"
+    font-size: 18
+  }
+}
+
+customer -> client: "extensions.jnlp\n(component extension,\nown signer allowed)" {
+  style: {
+    stroke: "#7F7F7F"
+    stroke-width: 2
+    font-color: "#000000"
+    font-size: 18
+  }
+}
