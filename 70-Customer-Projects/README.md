@@ -95,6 +95,30 @@ README, and a manual step-by-step guide
 procedure, while the scripts always follow the current cycle; older folders
 are frozen. Cycle table: [09-Install/docs/00-patch-references.md](../09-Install/docs/00-patch-references.md).
 
+### Forms & Reports 14.1.2 – Domain on localhost only (English)
+
+→ [FormsReports14_linux_localhost/README.md](FormsReports14_linux_localhost/README.md)
+
+Hardening an **existing** domain so that every internal socket listens on
+`127.0.0.1` and only Nginx carries the host name – safer and the precondition
+for a clone. Technical README (every place touched, symptom → cause table)
+and an English cookbook; includes the four places found only after a first
+hardening at a customer (Node Manager `AdminURL`, engine `jvmOptions`,
+`bin/*.sh` `ADMIN_URL`, the EM `emoms.properties` source copy). Anonymised
+from a customer run 2026-11-09 / 10. Theory:
+[clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) §1–§3.
+
+### Forms & Reports 14.1.2 – Clone a domain with its VM, own RCU prefix (English)
+
+→ [FormsReports14_linux_clone/README.md](FormsReports14_linux_clone/README.md)
+
+The next step after the localhost hardening: clone the VM, give the clone a
+new RCU prefix (also in another database) and move OPSS with
+`reassociateSecurityStore` ("way 3"). Technical README (what Oracle rewrites
+and what not, data sources, expected RCU sessions, scheduled jobs) and an
+English cookbook – anonymised from a customer run 2026-11-10. Theory:
+[clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) §5, §6.
+
 ### tools – standalone helpers for customer hosts (12c and 14c)
 
 → [tools/README.md](tools/README.md)

@@ -1,0 +1,1146 @@
+================================================================================
+  Cookbook: Forms / Reports 14.1.2 domain on localhost only
+  (loopback hardening of an existing domain - one run to "Clone-capable: yes")
+================================================================================
+
+  Audience   : administrator of the WebLogic / Reports server
+               (user oracle, root for the restart in STEP 6 and STEP 8)
+  Environment: Oracle Forms and / or Reports 14.1.2, WebLogic 14.1.2,
+               Oracle Linux 9, Nginx as the only entry point (https)
+               ORACLE_HOME  e.g. /u01/app/oracle/fmw
+               DOMAIN_HOME  e.g. /u01/app/oracle/domains/fr_domain
+               Reports      e.g. repserver01
+               Host / IP    <host> / <host-ip>
+               Tool         $TOOLS/clone_check_fmw.sh (version 2026-11-10.8)
+  Created    : 2026-11-10
+  Sources    : - IHateWeblogic (github.com/gpipperr/IHateWeblogic):
+                 80-FMW-Architecture/clone_golden_image.md
+                   section 1 (target picture), 2 (sockets), 2.1 (hardening
+                   checklist), 3 (host-name places)
+                 80-FMW-Architecture/report_engine_architecture.md
+                   (engine parameter jvmOptions)
+                 70-Customer-Projects/FormsReports14_linux_localhost/README.md
+                   (overview of every place touched, symptom table)
+                 70-Customer-Projects/tools/README.md (clone_check_fmw.sh,
+                   status.sh)
+  Tested     : - Customer run 2026-11-09 / 2026-11-10 on a Reports-only
+                 domain (no Forms): STEP 3, 4.1, 4.2 on 2026-11-09; the
+                 four gaps found the next day (STEP 4.3, 5.1, 5.2, 5.3)
+                 fixed and tested on 2026-11-10. Result: EM green,
+                 clone_check_fmw.sh "Clone-capable: yes".
+               - Read-only commands of STEP 0, 1, 7 run on a test host
+                 (Forms + Reports domain, already hardened, 2026-11-10);
+                 the "# Expected:" lines marked "test host" come from there.
+               - The Forms parts (WLS_FORMS) match the test host domain,
+                 which was created with these values by 09-Install/08-.
+
+                 They were not run by hand from this cookbook.
+  Important  : - Maintenance window: the whole domain is restarted (STEP 6),
+                 Forms and Reports are away for some minutes.
+               - Ask for a VM snapshot before you start.
+               - Afterwards the ports 7001 / 9001 / 9002 are no longer
+                 reachable from the network, only through Nginx (https).
+                 That closes a security gap and makes the installation
+                 easy to move or to clone. STEP 1.3 checks first whether
+                 anybody calls them directly.
+               - Sections marked "Forms only - skip if Reports only" are
+                 left out on a domain without WLS_FORMS.
+               - No step changes the database, the RCU prefix or a
+                 password.
+
+
+TARGET STATE
+------------
+
+  What                              today (typical)        target     step
+  --------------------------------  ---------------------  ---------  -------
+  AdminServer      (port 7001)      all interfaces         localhost  3
+  WLS_FORMS        (port 9001)      all interfaces         localhost  3 (F)
+  WLS_REPORTS      (port 9002)      all interfaces         localhost  3
+  SSL listen ports of the managed   on (demo certificate)  off        3
+  servers (9501 / 9512)
+  Coherence member traffic          host IP (automatic)    127.0.0.1  3
+  Node Manager     (port 5556)      127.0.0.1 (usually)    localhost  3.3
+  Reports server + engines (ORB)    all interfaces         127.0.0.1  4.1
+  rwservlet ORB in WLS_REPORTS      all interfaces         127.0.0.1  4.2
+  Engine jvmOptions in rwserver.conf  no ORBServerHost     + 2 opts.  4.3
+  AdminURL in startup.properties    host name / IP         localhost  5.1
+  ADMIN_URL in $DOMAIN_HOME/bin/*.sh  host name            localhost  5.2
+  EM emoms.properties (3 files)     host name              localhost  5.3
+  Nginx 443 / 80                    all interfaces         stays      -
+  (F) = Forms only
+
+  Stays on the host IP by design (the firewall closes it, STEP 8):
+  - Coherence cluster port 7574 (tcp / udp) and one more Coherence port -
+    not removable with Oracle settings;
+  - Reports multicast discovery (UDP, e.g. 14022) - the Reports server
+    needs it for its start;
+  - frmweb sockets (Forms only) - no Oracle option for a bind address,
+    no host name inside.
+  - The mail sender in rwserver.conf (reports@<host>) is host-specific on
+    purpose - not an error (STEP 4.4).
+
+  Not part of this run (only important when the server is cloned): own
+  RCU prefix for an external repository, Nginx name and certificate,
+  tnsnames.ora, own Reports broadcast port. Next step for that:
+  ../FormsReports14_linux_clone/README.md
+
+
+PREREQUISITES / WHAT ENDS UP WHERE
+----------------------------------
+
+  - Tools ZIP ihw_customer_tools_linux.zip (from
+    IHateWeblogic/70-Customer-Projects/tools/), unpacked in $TOOLS as
+    described in Start_beim_Kunden_kochbuch_de.txt. Needed:
+    clone_check_fmw.sh 2026-11-10.8 (older versions do not find the
+    places of STEP 4.3 and 5.3) and status.sh.
+  - Nginx forwards to 127.0.0.1 (STEP 1.4).
+  - Password of the WebLogic administrator (STEP 3 and STEP 6). It is
+    asked for hidden and stored nowhere.
+  - Free space: under 50 MB.
+
+  /u01/app/oracle/tools/                         $TOOLS   (from the ZIP)
+    clone_check_fmw.sh                           check tool, read-only
+    status.sh                                    status in three stages
+    patch_install.ini                            values for status.sh
+
+  /u01/app/oracle/install/localhost_2026-11/     $WORK    <- STEP 0
+    ihw_customer_tools_linux.zip                 by scp, only if $TOOLS
+                                                 holds an old version <- 1.1
+    logs/                                        $LOGDIR  all tee output,
+                                                 before / after files
+    backup/                                      $BACKUP  <- STEP 2
+      domain_localhost_<time>.tgz                config/, bin/, reports/bin/,
+                                                 servers/*/data/nodemanager/,
+                                                 EM template (tmp/_WL_user/em)
+      reports.sh.orig                            copy before 4.1
+      setUserOverrides.sh.orig                   copy before 4.2
+      clone_check_fmw.sh.old                     only if 1.1 replaces it
+
+  These files are changed (all under $DOMAIN_HOME):
+
+    config/config.xml                            STEP 3 (through WLST)
+    nodemanager/nodemanager.properties           STEP 3.3 (only if needed)
+    reports/bin/reports.sh                       STEP 4.1
+    bin/setUserOverrides.sh                      STEP 4.2
+    config/fmwconfig/components/ReportsServerComponent/<server>/
+      rwserver.conf                              STEP 4.3 ($RWCONF)
+    servers/<managed server>/data/nodemanager/
+      startup.properties                         STEP 5.1
+    bin/stopWebLogic.sh (and other bin/*.sh)     STEP 5.2 (only if needed)
+    config/fmwconfig/servers/AdminServer/applications/em/META-INF/
+      emoms.properties                           STEP 5.3 ($EMCFG)
+      emoms.properties.jmxori                    STEP 5.3 ($EMCFG)
+    servers/AdminServer/tmp/_WL_user/em/<id>/META-INF/
+      emoms.properties                           STEP 5.3 ($EMTMP, the
+                                                 template: EM copies it over
+                                                 the two above at every
+                                                 AdminServer start)
+
+  Rules for the whole run:
+  - Every command as oracle, unless the step header says root.
+  - Every output goes into $LOGDIR (tee). The before / after files are
+    the evidence - do not delete them at clean-up.
+  - A change takes effect only after the complete restart in STEP 6.
+    Until then everything runs as before.
+
+
+================================================================================
+STEP 0: Set and check the variables  (in EVERY new terminal, as oracle)
+================================================================================
+
+  export ORACLE_HOME=/u01/app/oracle/fmw
+
+  export DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
+
+  export TOOLS=/u01/app/oracle/tools
+
+  export WORK=/u01/app/oracle/install/localhost_2026-11
+
+  export LOGDIR=$WORK/logs
+
+  export BACKUP=$WORK/backup
+
+  export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
+  export EMCFG=$DOMAIN_HOME/config/fmwconfig/servers/AdminServer/applications/em/META-INF
+
+  export FQDN=$(hostname -f)
+
+  export HOSTSHORT=$(hostname -s)
+
+  export HOSTIP=$(hostname -I | awk '{print $1}')
+
+  mkdir -p $LOGDIR $BACKUP
+
+  echo "FQDN=$FQDN HOSTSHORT=$HOSTSHORT HOSTIP=$HOSTIP"
+  # Expected: FQDN=<host>.<domain> HOSTSHORT=<host> HOSTIP=<host-ip>
+  # One of them EMPTY? -> enter the commands of this step again.
+  # HOSTSHORT and HOSTIP are search patterns in STEP 5.2 - empty values
+  # would match every line.
+
+  ls $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf
+  # Expected: exactly ONE file, e.g.
+  #   .../ReportsServerComponent/repserver01/rwserver.conf
+  # No file -> no Reports server in this domain: leave out STEP 4.3 / 4.4.
+  # Two files -> two Reports servers: do STEP 4.3 for each file
+  #   (export RWCONF=<file> before each run).
+
+  export RWCONF=$(ls $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf)
+
+  echo "RWCONF=$RWCONF"
+  # Expected: the path from above.
+
+  ls -d $DOMAIN_HOME/servers/AdminServer/tmp/_WL_user/em/*/META-INF
+  # Expected: exactly ONE directory, e.g. .../em/hsz5x1/META-INF
+  # (the <id> differs per domain).
+
+  export EMTMP=$(ls -d $DOMAIN_HOME/servers/AdminServer/tmp/_WL_user/em/*/META-INF)
+
+  echo "EMTMP=$EMTMP"
+  # Expected: the path from above.
+  # EMPTY or two paths? -> STOP, report the output of "ls -d".
+
+  ls -l $DOMAIN_HOME/config/config.xml $WLST $TOOLS/clone_check_fmw.sh $TOOLS/status.sh
+  # Expected: four files.
+  # "No such file or directory" -> STOP, check the path.
+
+  ls -l $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori $EMTMP/emoms.properties
+  # Expected: three files.
+
+  $TOOLS/clone_check_fmw.sh -V
+  # Expected: 2026-11-10.8
+  # Older version -> STEP 1.1. Newer version -> fine.
+
+
+================================================================================
+STEP 1: Record the starting point  (as oracle, system runs)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  1.1 New check tool  (only if STEP 0 showed an older version)
+  ----------------------------------------------------------------------------
+
+  # Copy the ZIP beforehand by scp to $WORK.
+
+  ls -l $WORK/ihw_customer_tools_linux.zip
+  # Expected: the file is shown.
+
+  cp -p $TOOLS/clone_check_fmw.sh $BACKUP/clone_check_fmw.sh.old
+
+  unzip -o -j $WORK/ihw_customer_tools_linux.zip tools/clone_check_fmw.sh -d $TOOLS
+  # Expected: "inflating: /u01/app/oracle/tools/clone_check_fmw.sh"
+  # ONLY this one file is replaced (patch_install.ini stays).
+
+  $TOOLS/clone_check_fmw.sh -V
+  # Expected: 2026-11-10.8
+
+  ----------------------------------------------------------------------------
+  1.2 Check and status before
+  ----------------------------------------------------------------------------
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | tee $LOGDIR/01_clone_check_before.txt
+  # Expected at the end, e.g. (customer, Reports only, numbers may differ):
+  #   Clone-capable: NOT YET - 17 item(s) to fix first (FIX), then 4
+  #   step(s) after cloning (STEP)
+  # Typical FIX lines that this cookbook removes:
+  #   FIX  tcp  <host-ip>:7001       AdminServer   ...
+  #   FIX  tcp  0.0.0.0:<port>       rwEng-0       all interfaces
+  #   FIX  AdminServer    listen address empty = all interfaces
+  #   FIX  WLS_REPORTS    Coherence unicast (auto = host IP) - ...
+  #   FIX  reports.sh: no -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 ...
+  #   FIX  rwserver.conf repserver01: engine rwEng jvmOptions without ...
+  #   FIX  servers/WLS_REPORTS/data/nodemanager/startup.properties AdminURL=...
+  #   FIX  servers/AdminServer/tmp/_WL_user/em/.../emoms.properties host name
+  # Already "Clone-capable: yes"? -> nothing to do, stop here.
+
+  $TOOLS/status.sh | tee $LOGDIR/01_status_before.txt
+  # Expected (test host, output of status.sh is German):
+  #   Ergebnis: alles in Ordnung
+  # Status shows an error -> fix that first; do not harden a broken domain.
+
+  grep -E 'BEA-14950[56]' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log | tail -2 | tee $LOGDIR/01_jmx_before.txt
+  # BEA-149506 "Established JMX Connectivity with WLS_REPORTS ..." -> fine.
+  # Only BEA-149505 "unable to establish JMX Connectivity with the
+  # WLS_REPORTS at the JMX Service URL of <none>" -> EM shows the server
+  # red (STEP 5.1 fixes it).
+
+  ----------------------------------------------------------------------------
+  1.3 Which address do the servers listen on?
+  ----------------------------------------------------------------------------
+
+  ss -Hltn '( sport = :7001 or sport = :9001 or sport = :9002 or sport = :5556 )' | tee $LOGDIR/01_ports_before.txt
+  # Expected today (not hardened): 7001 / 9001 / 9002 also on <host-ip>
+  # or on 0.0.0.0 / *; 5556 usually only on 127.0.0.1.
+  # Already hardened (test host):
+  #   LISTEN 0      300    127.0.0.1:9001 0.0.0.0:*
+  #   LISTEN 0      300    127.0.0.1:9002 0.0.0.0:*
+  #   LISTEN 0      300    127.0.0.1:7001 0.0.0.0:*
+  #   LISTEN 0      50     127.0.0.1:5556 0.0.0.0:*
+  # 9001 missing -> Reports only, fine.
+
+  ----------------------------------------------------------------------------
+  1.4 Does anybody call 7001 / 9001 / 9002 DIRECTLY (past Nginx)?
+  ----------------------------------------------------------------------------
+
+  ss -Htn state established '( sport = :7001 or sport = :9001 or sport = :9002 )' | tee $LOGDIR/01_connections.txt
+  # Expected: the last column (peer) is 127.0.0.1:<port> everywhere, e.g.
+  # (test host):
+  #   0      0      127.0.0.1:7001 127.0.0.1:55340
+  # No output is fine too (no connection at this moment).
+  #
+  # Another address in the last column?
+  #   -> STOP. That machine calls http://<host>:9002/... or
+  #      http://<host>:7001/console directly today and cannot do that
+  #      after the change. First let it switch to https://<host>/...
+  #      (through Nginx), or move the maintenance window.
+  #
+  # Repeat the command 2-3 times during the day: it shows only the
+  # connections of this moment.
+
+  ----------------------------------------------------------------------------
+  1.5 Does Nginx forward to 127.0.0.1?
+  ----------------------------------------------------------------------------
+
+  grep -rn ':7001\|:9001\|:9002' /etc/nginx/conf.d/
+  # Expected (test host, line numbers may differ):
+  #   /etc/nginx/conf.d/oracle-wls.conf:51:    server 127.0.0.1:9001;
+  #   /etc/nginx/conf.d/oracle-wls.conf:56:    server 127.0.0.1:9002;
+  #   /etc/nginx/conf.d/oracle-wls.conf:61:    server 127.0.0.1:7001;
+  # The host name or <host-ip> instead of 127.0.0.1 -> STOP. Nginx must
+  # point to 127.0.0.1 first, otherwise everything is gone after STEP 6.
+
+  ----------------------------------------------------------------------------
+  1.6 Does everything work today?  (comparison for STEP 7)
+  ----------------------------------------------------------------------------
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:7001/weblogic/ready
+  # Expected: 200
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9002/weblogic/ready
+  # Expected: 200
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9001/weblogic/ready
+  # Forms only - skip if Reports only.
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/reports/rwservlet
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/forms/frmservlet
+  # Forms only - skip if Reports only.
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/em
+  # Expected: 302 (redirect to the login page)
+
+  # In addition, run one usual report (and, with Forms, open one usual
+  # form) through the application and write down which one it was - the
+  # same test comes again in STEP 7.6.
+
+
+================================================================================
+STEP 2: Backup  (as oracle, system runs)
+================================================================================
+
+  # Before: let the responsible team confirm the VM snapshot.
+
+  cd $DOMAIN_HOME
+
+  TS=$(date +%Y%m%d_%H%M%S)
+
+  tar -czf $BACKUP/domain_localhost_$TS.tgz config bin reports/bin servers/*/data/nodemanager servers/AdminServer/tmp/_WL_user/em
+
+  tar -tzf $BACKUP/domain_localhost_$TS.tgz | grep -c 'config.xml\|emoms.properties\|startup.properties\|rwserver.conf\|reports.sh'
+  # Expected: 6 or more (config.xml, rwserver.conf, reports.sh,
+  # startup.properties per managed server, 3x emoms.properties...)
+  # 0 or an error message -> STOP, do not continue.
+
+  echo "$BACKUP/domain_localhost_$TS.tgz" > $LOGDIR/02_backup.txt
+  # remembers the file name for the way back (also in a new terminal)
+
+  cp -p $DOMAIN_HOME/reports/bin/reports.sh $BACKUP/reports.sh.orig
+
+  cp -p $DOMAIN_HOME/bin/setUserOverrides.sh $BACKUP/setUserOverrides.sh.orig
+  # "No such file" for setUserOverrides.sh -> fine, it is created in 4.2
+  # (then the way back is: delete it).
+
+  ls -l $BACKUP
+  # Expected: domain_localhost_<time>.tgz (a few MB), reports.sh.orig,
+  # setUserOverrides.sh.orig
+
+  cd $WORK
+
+
+================================================================================
+STEP 3: Listen addresses, SSL, Coherence  (as oracle, AdminServer runs)
+================================================================================
+
+  # The change takes effect only after the restart in STEP 6. Until then
+  # everything runs as before.
+
+  ----------------------------------------------------------------------------
+  3.1 Change in WLST
+  ----------------------------------------------------------------------------
+
+  $WLST
+
+  # --- type in WLST ---
+
+      connect(url='t3://localhost:7001')
+      # asks for user (e.g. weblogic) and password
+      # Expected: Successfully connected to Admin Server "AdminServer" ...
+
+      ls('/Servers')
+      # Expected: AdminServer, WLS_REPORTS (and WLS_FORMS with Forms)
+
+      edit()
+
+      startEdit()
+
+      cd('/Servers/AdminServer')
+
+      set('ListenAddress', 'localhost')
+
+      cd('/Servers/WLS_REPORTS')
+
+      set('ListenAddress', 'localhost')
+
+      cd('/Servers/WLS_REPORTS/SSL/WLS_REPORTS')
+
+      get('Enabled')
+      # 0 / false -> already off, the next set() does no harm
+
+      set('Enabled', 'false')
+
+      cd('/Servers/WLS_REPORTS/CoherenceMemberConfig/WLS_REPORTS')
+
+      set('UnicastListenAddress', '127.0.0.1')
+
+      # --- Forms only - skip the next six calls if Reports only ---
+
+      cd('/Servers/WLS_FORMS')
+
+      set('ListenAddress', 'localhost')
+
+      cd('/Servers/WLS_FORMS/SSL/WLS_FORMS')
+
+      set('Enabled', 'false')
+
+      cd('/Servers/WLS_FORMS/CoherenceMemberConfig/WLS_FORMS')
+
+      set('UnicastListenAddress', '127.0.0.1')
+
+      # --- end of the Forms part ---
+
+      save()
+
+      activate(block='true')
+      # Expected, roughly:
+      #   The following non-dynamic attribute(s) have been changed on
+      #   MBeans that require server re-start: ... ListenAddress ...
+      #   Activation completed
+      # KNOWN AND HARMLESS: the note about the necessary restart.
+
+      cd('/Servers/AdminServer')
+
+      get('ListenAddress')
+      # Expected: 'localhost'
+
+      cd('/Servers/WLS_REPORTS')
+
+      get('ListenAddress')
+      # Expected: 'localhost'
+
+      disconnect()
+
+      exit()
+
+  # --- end of WLST ---
+
+  # Error message at cd(), set() or activate()?
+  #   -> in WLST: cancelEdit('y') and exit(), save the output,
+  #      STOP - do not continue.
+
+  # The SSL listen port of the AdminServer is off by default. It is
+  # checked in STEP 7.5 (clone_check section 2). Shown there as FIX
+  # "AdminServer SSL listen port enabled"? -> switch it off the same way
+  # (/Servers/AdminServer/SSL/AdminServer), but only if nobody uses
+  # https://<host>:7002.
+
+  ----------------------------------------------------------------------------
+  3.2 Check config.xml
+  ----------------------------------------------------------------------------
+
+  grep -n 'listen-address' $DOMAIN_HOME/config/config.xml | tee $LOGDIR/03_config_after.txt
+  # Expected, Reports only (customer): three lines
+  #   <listen-address>localhost</listen-address>               (AdminServer)
+  #   <listen-address>localhost</listen-address>               (WLS_REPORTS)
+  #   <unicast-listen-address>127.0.0.1</unicast-listen-address>
+  # Expected, Forms + Reports (test host): five lines
+  #   62:    <listen-address>localhost</listen-address>
+  #   86:    <listen-address>localhost</listen-address>
+  #   97:      <unicast-listen-address>127.0.0.1</unicast-listen-address>
+  #   118:    <listen-address>localhost</listen-address>
+  #   129:      <unicast-listen-address>127.0.0.1</unicast-listen-address>
+
+  grep -n -A2 '<ssl>' $DOMAIN_HOME/config/config.xml
+  # Expected (test host): per managed server
+  #   70:    <ssl>
+  #   71-      <name>WLS_FORMS</name>
+  #   72-      <enabled>false</enabled>
+
+  ----------------------------------------------------------------------------
+  3.3 Node Manager on localhost?
+  ----------------------------------------------------------------------------
+
+  grep -n '^ListenAddress\|^ListenPort\|^SecureListener' $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Expected (test host):
+  #   9:ListenAddress=localhost
+  #   11:ListenPort=5556
+  #   23:SecureListener=false
+  # ListenAddress=127.0.0.1 -> fine as well, continue with STEP 4.
+  # ListenAddress empty or the host name -> next commands.
+
+  cp -p $DOMAIN_HOME/nodemanager/nodemanager.properties $BACKUP/nodemanager.properties.orig
+
+  vi $DOMAIN_HOME/nodemanager/nodemanager.properties
+
+  # In vi:  /^ListenAddress  (Enter),  then  C  (change to the end of the
+  # line), type:
+
+ListenAddress=localhost
+
+  # Then  Esc  and  :wq  (save and quit).
+  # The line starts at column 0, without spaces before it.
+
+  grep -n '^ListenAddress' $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Expected: ListenAddress=localhost
+
+
+================================================================================
+STEP 4: Reports server, rwservlet and engines on 127.0.0.1  (as oracle)
+================================================================================
+
+  # All three parts belong together. Only 4.1 or only 4.2 makes reports
+  # hang (REP-51002, "Bind to server failed") - rwservlet and the Reports
+  # server no longer find each other.
+
+  ----------------------------------------------------------------------------
+  4.1 Reports server and engines (reports.sh)
+  ----------------------------------------------------------------------------
+
+  grep -n 'REPORTS_JVM_OPTIONS=' $DOMAIN_HOME/reports/bin/reports.sh
+  # No output                                  -> next command (vi).
+  # A line with BOTH -DORBWaitForResponseTimeout=... and
+  #   -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 -> done, continue with 4.2
+  #   (test host:
+  #   197:REPORTS_JVM_OPTIONS="-Xmx256M ... -DORBWaitForResponseTimeout=
+  #   999999999 ... -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"; export ...)
+  # A line WITHOUT one of the two           -> do NOT append: add the
+  #   missing option(s) inside the quotes of that line (vi), save, check
+  #   with "bash -n" below, continue with 4.2.
+
+  vi $DOMAIN_HOME/reports/bin/reports.sh
+
+  # In vi:  G  (end of file),  o  (new line below), then type or paste
+  # these five lines:
+
+# localhost hardening: Reports server and engines only on 127.0.0.1
+# -Xmx256M = Oracle default without this variable; -DORBWaitForResponseTimeout
+# is mandatory as soon as the variable is set (else REP-50125 at the start)
+REPORTS_JVM_OPTIONS="-Xmx256M -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+export REPORTS_JVM_OPTIONS
+
+  # Then  Esc  and  :wq  (save and quit).
+  # The lines start at column 0, without spaces before them. When
+  # pasting, vi may add spaces (autoindent) - remove them.
+
+  tail -5 $DOMAIN_HOME/reports/bin/reports.sh
+  # Expected: the five lines from above (comment, REPORTS_JVM_OPTIONS with
+  # -DORBWaitForResponseTimeout=999999999, export).
+
+  bash -n $DOMAIN_HOME/reports/bin/reports.sh
+  # Expected: no output (= syntax OK)
+
+  ----------------------------------------------------------------------------
+  4.2 rwservlet in WLS_REPORTS (setUserOverrides.sh)
+  ----------------------------------------------------------------------------
+
+  grep -n 'WLS_REPORTS\|ORBServerHost' $DOMAIN_HOME/bin/setUserOverrides.sh
+  # No output (or "No such file")            -> next command (vi).
+  # A block for WLS_REPORTS that already holds ORBServerHost=127.0.0.1
+  #   -> done, continue with 4.3. Test host:
+  #   21:if [ "${SERVER_NAME}" = "WLS_REPORTS" ]; then
+  #   26:    export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} ...
+  #          -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+  # A block for WLS_REPORTS WITHOUT ORBServerHost -> do NOT append: add
+  #     -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1
+  #   inside the quotes of its EXTRA_JAVA_PROPERTIES line (vi), or add a
+  #   line  export EXTRA_JAVA_PROPERTIES=... like the one below inside the
+  #   block; save, check with "bash -n", continue with 4.3.
+  # Forms: a block for WLS_FORMS or AdminServer stays as it is - the
+  # option belongs ONLY to WLS_REPORTS.
+
+  vi $DOMAIN_HOME/bin/setUserOverrides.sh
+
+  # In vi:  G  (end of file),  o  (new line below), then type or paste
+  # these four lines:
+
+# localhost hardening: rwservlet ORB in WLS_REPORTS only on 127.0.0.1
+if [ "${SERVER_NAME}" = "WLS_REPORTS" ]; then
+    export EXTRA_JAVA_PROPERTIES="${EXTRA_JAVA_PROPERTIES} -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+
+fi
+
+  # Then  Esc  and  :wq  (save and quit).
+  # The export line may be indented, the others start at column 0.
+  # New file (did not exist)? -> type  #!/bin/bash  as the first line.
+
+  tail -4 $DOMAIN_HOME/bin/setUserOverrides.sh
+  # Expected: the four lines from above (comment, if, export, fi).
+
+  bash -n $DOMAIN_HOME/bin/setUserOverrides.sh
+  # Expected: no output
+
+  ----------------------------------------------------------------------------
+  4.3 Engines with their own jvmOptions (rwserver.conf)
+  ----------------------------------------------------------------------------
+
+  # A jvmOptions attribute on <engine> REPLACES the REPORTS_JVM_OPTIONS
+  # from reports.sh that the engines otherwise inherit. Then the ORB
+  # timeout and the binding to 127.0.0.1 are missing there, and the
+  # engines rwEng-* listen on 0.0.0.0 although the server is on loopback
+  # (customer, 2026-11-10). Both options are added, as in reports.sh.
+
+  grep -n '<engine id="rwEng"' $RWCONF
+  # Expected (customer, example):
+  #   ... engLife="50" jvmOptions="-Xms1024m -Xmx2048m" defaultEnvId="QS"/>
+  #   -> next command (sed).
+  # ORBServerHost already in the line          -> continue with 4.4
+  # no jvmOptions in the line                  -> continue with 4.4
+  #   (the engines inherit from reports.sh). Test host:
+  #   8:   <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
+  #   initEngine="2" maxEngine="5" minEngine="2" engLife="50" maxIdle="30"
+  #   engineResponseTimeOut="30" defaultEnvId="QS"/>
+
+  sed -i '/<engine id="rwEng"/s#jvmOptions="\([^"]*\)"#jvmOptions="\1 -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"#' $RWCONF
+
+  grep -n '<engine id="rwEng"' $RWCONF
+  # Expected:
+  #   ... jvmOptions="-Xms1024m -Xmx2048m -DORBWaitForResponseTimeout=999999999
+  #   -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1" defaultEnvId="QS"/>
+  # (one line, wrapped here)
+  # The addition appears twice? -> restore rwserver.conf from the backup
+  # of STEP 2 (ROLLBACK) and run the sed command only ONCE.
+
+  ----------------------------------------------------------------------------
+  4.4 Mail sender (only look, no change)
+  ----------------------------------------------------------------------------
+
+  grep -n 'name="sender"' $RWCONF
+  # No line -> no mail notification configured, continue with STEP 5.
+  # value="reports@<host>.<domain>" -> host-specific ON PURPOSE (mails of
+  # this server carry its name). Not an error, stays. clone_check shows it
+  # as STEP (adjust it on a clone), not as FIX.
+
+
+================================================================================
+STEP 5: Host names in the domain files  (as oracle)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  5.1 AdminURL of the Node Manager start (startup.properties)
+  ----------------------------------------------------------------------------
+
+  # When the Node Manager starts a managed server directly (autostart,
+  # systemd), it passes the AdminServer address from startup.properties.
+  # That address is from the last start via the AdminServer - the host
+  # name or IP. After STEP 3 the AdminServer listens only on localhost:
+  # the managed server does not find it and runs "in Managed Server
+  # independence mode". It works, but the AdminServer (and so the EM)
+  # does not see it: EM shows the server, its cluster and the deployment
+  # red, the AdminServer log only BEA-149505. status.sh still says
+  # RUNNING, because it asks the servers directly (customer, 2026-11-10).
+
+  grep -n 'AdminURL' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+  # Expected today (customer): AdminURL=http\://<host-ip>\:7001
+  # Already http\://localhost\:7001 in every file -> continue with 5.2.
+
+  sed -i 's#^AdminURL=.*#AdminURL=http\\://localhost\\:7001#' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+
+  grep -n 'AdminURL' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+  # Expected (test host, Forms + Reports - one line per managed server):
+  #   .../WLS_FORMS/.../startup.properties:3:AdminURL=http\://localhost\:7001
+  #   .../WLS_REPORTS/.../startup.properties:3:AdminURL=http\://localhost\:7001
+  # The backslashes \ belong in the file like this (Java format).
+  # Other admin port than 7001? -> use it in the sed command.
+
+  ----------------------------------------------------------------------------
+  5.2 ADMIN_URL in the domain scripts and in the shell
+  ----------------------------------------------------------------------------
+
+  # stopWebLogic.sh (and sometimes startManagedWebLogic.sh) holds the
+  # AdminServer address of the domain creation. With the host name in it,
+  # the stop fails after STEP 6 - and on a clone it would stop the SOURCE.
+
+  echo "ADMIN_URL=$ADMIN_URL"
+  # Expected: ADMIN_URL=   (empty) or ADMIN_URL=t3://localhost:7001
+  # Host name or IP -> find the origin:
+  #   grep -n ADMIN_URL ~/.bash_profile ~/.bashrc
+  #   change it there to t3://localhost:7001 (vi), log in again, STEP 0.
+
+  echo "search: $HOSTSHORT / $HOSTIP"
+  # Expected: both filled. EMPTY? -> STEP 0 first (an empty pattern
+  # matches every line).
+
+  grep -n -e "$HOSTSHORT" -e "$HOSTIP" $DOMAIN_HOME/bin/*.sh
+  # Expected: no output (test host). -> continue with 5.3.
+  # Lines, e.g.
+  #   stopWebLogic.sh:39:  ADMIN_URL="t3://<host>.<domain>:7001"
+  #   -> for each file named:
+
+  cp -p $DOMAIN_HOME/bin/stopWebLogic.sh $BACKUP/
+
+  vi $DOMAIN_HOME/bin/stopWebLogic.sh
+
+  #   :%s/<host>[.a-zA-Z0-9-]*/localhost/g   (Enter)
+  #       <host> = the value of $HOSTSHORT, e.g. :%s/myhost[.a-zA-Z0-9-]*/...
+  #       -> replaces short and long name, the port stays;
+  #          vi reports e.g. "1 substitution on 1 line"
+  #   An IP instead of a name: :%s/<host-ip>/localhost/g
+  #   :wq
+  # Another file in the grep output? -> cp -p and vi the same way.
+
+  grep -n -e "$HOSTSHORT" -e "$HOSTIP" $DOMAIN_HOME/bin/*.sh
+  # Expected: no output
+
+  grep -n 'ADMIN_URL="t3' $DOMAIN_HOME/bin/*.sh
+  # Expected (test host):
+  #   .../bin/stopManagedWebLogic.sh:62:   ADMIN_URL="t3://localhost:7001"
+  #   .../bin/stopWebLogic.sh:39:          ADMIN_URL="t3://localhost:7001"
+
+  ----------------------------------------------------------------------------
+  5.3 Enterprise Manager: emoms.properties (all THREE files)
+  ----------------------------------------------------------------------------
+
+  # At every start of the AdminServer the EM copies the template from
+  # servers/AdminServer/tmp/... over emoms.properties and .jmxori under
+  # config/. Change ALL THREE files - a change of only the two under
+  # config/ is undone at the next start (happened at the customer on
+  # 2026-11-10). Not a socket, the EM works with the host name too - but
+  # on a clone it would be the name of the source.
+
+  grep -n 'ConsoleServerHost\|ConsoleServerName' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected today (customer): <host>.<domain> in all three files.
+  # Already localhost everywhere (test host) -> continue with STEP 6:
+  #   .../em/hsz5x1/META-INF/emoms.properties:82:
+  #       oracle.sysman.emSDK.svlt.ConsoleServerHost=localhost
+  #   .../em/hsz5x1/META-INF/emoms.properties:86:
+  #       oracle.sysman.emSDK.svlt.
+  #         ConsoleServerName=localhost:7001_Management_Service
+  #   (the same two lines for emoms.properties and .jmxori under $EMCFG)
+
+  sed -i -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerHost=\).*/\1localhost/' -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerName=\)[^:]*:/\1localhost:/' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+
+  grep -n 'ConsoleServerHost\|ConsoleServerName' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected per file:
+  #   oracle.sysman.emSDK.svlt.ConsoleServerHost=localhost
+  #   ...ConsoleServerName=localhost:7001_Management_Service
+
+  grep -c "$HOSTSHORT" $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected: ...:0 for all three files
+
+
+================================================================================
+STEP 6: Restart the complete domain  (as root or oracle)
+================================================================================
+
+  # Complete means: Reports server, managed servers, AdminServer and Node
+  # Manager stop and start again. Restarting single servers is NOT
+  # enough. From here Forms / Reports are away for about 5 minutes.
+
+  systemctl list-unit-files --type=service | grep -i -e wls -e weblogic -e fmw -e report
+  # One line (autostart is set up) -> 6.1. Examples:
+  #   fmw-fr_domain.service      enabled   disabled   (test host, unit of
+  #                                                    09-Install/30-)
+  #   weblogic.service           enabled   ...        (customer)
+  # No output                    -> 6.2
+
+  ----------------------------------------------------------------------------
+  6.1 With autostart  (as root)
+  ----------------------------------------------------------------------------
+
+  # <unit> = the name from the line above, e.g. fmw-fr_domain.service
+
+  systemctl stop <unit>
+
+  systemctl start <unit>
+
+  systemctl is-active <unit>
+  # Expected: active
+
+  exit
+
+  # Back as oracle: STEP 0 again in a new terminal.
+  # Wait 2-3 minutes until all servers are up.
+
+  ----------------------------------------------------------------------------
+  6.2 Without autostart  (as oracle)
+  ----------------------------------------------------------------------------
+
+  # Own scripts from WLS_Report_start_stop_kochbuch.txt (German) present?
+
+  ls -l $TOOLS/stop_wls_all.sh $TOOLS/start_wls_all.sh
+  # Two files  -> next two commands.
+  # "No such file" -> 6.3.
+  # (Hosts installed with the IHateWeblogic scripts instead:
+  #  01-Run/startStop.sh stop-all --apply, then start-all --apply.)
+
+  $TOOLS/stop_wls_all.sh
+  # asks for the WebLogic password hidden
+
+  $TOOLS/start_wls_all.sh
+  # Expected: Node Manager, AdminServer, managed server(s) and the
+  # Reports server started one after the other ("RUNNING").
+  # Continue with STEP 7.
+
+  ----------------------------------------------------------------------------
+  6.3 By hand with the Oracle scripts  (as oracle, only if 6.1 / 6.2 fail)
+  ----------------------------------------------------------------------------
+
+  cd $DOMAIN_HOME/bin
+
+  RWDIR=$(dirname $RWCONF)
+
+  REP_SERVER=$(basename $RWDIR)
+
+  echo "REP_SERVER=$REP_SERVER"
+  # Expected: e.g. repserver01
+
+  # Stop in this order: Reports server, managed servers, AdminServer,
+  # Node Manager.
+
+  ./stopComponent.sh $REP_SERVER
+
+  read -s -p "WebLogic password: " WLS_PASS
+
+  echo
+
+  ./stopManagedWebLogic.sh WLS_REPORTS t3://localhost:7001 weblogic "$WLS_PASS"
+
+  ./stopManagedWebLogic.sh WLS_FORMS t3://localhost:7001 weblogic "$WLS_PASS"
+  # Forms only - skip if Reports only.
+
+  ./stopWebLogic.sh weblogic "$WLS_PASS" t3://localhost:7001
+
+  unset WLS_PASS
+
+  ./stopNodeManager.sh
+
+  ps -ef | grep -c '[w]eblogic.Name\|[w]eblogic.NodeManager\|[r]wserver'
+  # Expected: 0 (everything stopped). Otherwise wait 1 minute, repeat.
+
+  # Start in this order: Node Manager, AdminServer, managed servers,
+  # Reports server (needs boot.properties for the servers).
+
+  nohup ./startNodeManager.sh > $LOGDIR/06_nm_start.log 2>&1 &
+
+  nohup ./startWebLogic.sh > $LOGDIR/06_admin_start.log 2>&1 &
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:7001/weblogic/ready
+  # Expected: 200 after about 1 minute (000 / 503 = still starting,
+  # repeat).
+
+  nohup ./startManagedWebLogic.sh WLS_REPORTS t3://localhost:7001 > $LOGDIR/06_reports_start.log 2>&1 &
+
+  nohup ./startManagedWebLogic.sh WLS_FORMS t3://localhost:7001 > $LOGDIR/06_forms_start.log 2>&1 &
+  # Forms only - skip if Reports only.
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9002/weblogic/ready
+  # Expected: 200 after about 1 minute
+
+  ./startComponent.sh $REP_SERVER
+  # Expected at the end: "Successfully started server ..."
+
+  # Note: a start with startManagedWebLogic.sh passes the AdminServer
+  # address itself and does not use startup.properties. STEP 5.1 is
+  # proven only by the next start through the Node Manager (autostart).
+
+
+================================================================================
+STEP 7: Check  (as oracle)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  7.1 Do 7001 / 9001 / 9002 / 5556 listen only on localhost?
+  ----------------------------------------------------------------------------
+
+  ss -Hltn '( sport = :7001 or sport = :9001 or sport = :9002 or sport = :5556 )' | tee $LOGDIR/07_ports_after.txt
+  # Expected (test host):
+  #   LISTEN 0      300    127.0.0.1:9001 0.0.0.0:*
+  #   LISTEN 0      300    127.0.0.1:9002 0.0.0.0:*
+  #   LISTEN 0      300    127.0.0.1:7001 0.0.0.0:*
+  #   LISTEN 0      50     127.0.0.1:5556 0.0.0.0:*
+  # Still <host-ip> or 0.0.0.0 -> was really everything restarted
+  # (STEP 6)? Otherwise check 03_config_after.txt.
+
+  ----------------------------------------------------------------------------
+  7.2 Domain, Nginx, status
+  ----------------------------------------------------------------------------
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:7001/weblogic/ready
+  # Expected: 200
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9002/weblogic/ready
+  # Expected: 200
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9001/weblogic/ready
+  # Forms only - skip if Reports only.
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/reports/rwservlet
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/forms/frmservlet
+  # Forms only - skip if Reports only.
+  # Expected: 200
+
+  curl -sk -o /dev/null -w "%{http_code}\n" https://$FQDN/em
+  # Expected: 302
+
+  $TOOLS/status.sh | tee $LOGDIR/07_status_after.txt
+  # Expected (test host, German output of status.sh):
+  #   WLS_REPORTS      ok       ok       ok       RUNNING    OK
+  #   repserver01      -        ok       -        RUNNING    OK
+  #   Ergebnis: alles in Ordnung
+  # and in stage 2 "repserver01 ... Node Manager  Engines: 2"
+  # Something missing -> wait 1 minute, repeat; then KNOWN PROBLEMS.
+
+  ----------------------------------------------------------------------------
+  7.3 Managed servers registered at the AdminServer?  (EM red / green)
+  ----------------------------------------------------------------------------
+
+  grep -E 'BEA-14950[56]' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log | tail -2 | tee $LOGDIR/07_jmx_after.txt
+  # Expected (test host): one BEA-149506 per managed server
+  #   <BEA-149506> <Established JMX Connectivity with WLS_FORMS at the JMX
+  #   Service URL of service:jmx:t3://localhost:9001/jndi/weblogic...>
+  #   <BEA-149506> <Established JMX Connectivity with WLS_REPORTS at the JMX
+  #   Service URL of service:jmx:t3://localhost:9002/jndi/weblogic...>
+  # BEA-149505 still the last line -> wait 1 minute, repeat.
+  # It stays like that -> KNOWN PROBLEMS.
+
+  grep -c 'independence mode' $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log
+  # Expected (test host): 0
+  # Counts old starts too: the number must not have grown with this
+  # restart.
+
+  ----------------------------------------------------------------------------
+  7.4 Reports server and engines on 127.0.0.1?
+  ----------------------------------------------------------------------------
+
+  ss -Hltnp 'not src 127.0.0.1' | grep -e rwserver -e java
+  # Expected: only java lines of the Coherence remainder (port 7574 and one
+  # more port on <host-ip>, see TARGET STATE). Test host:
+  #   LISTEN 0  4096  <host-ip>:26695 0.0.0.0:* users:(("java",pid=...))
+  #   LISTEN 0  4096  <host-ip>:7574  0.0.0.0:* users:(("java",pid=...))
+  #   LISTEN 0  4096  <host-ip>:23323 0.0.0.0:* users:(("java",pid=...))
+  # A "rwserver" line, or a java line on 0.0.0.0 with an ephemeral port
+  # -> the engine options are missing: next command and KNOWN PROBLEMS.
+
+  # Options of the running engines - one block per engine:
+
+  for p in $(pgrep -f 'oracle.reports.component=rwEng'); do
+      echo "== $p"
+      tr '\0' '\n' < /proc/$p/cmdline | grep -E '^-X|ORB|rwEng'
+  done
+  # Expected per engine (test host, without engine jvmOptions):
+  #   == 1084968
+  #   -Doracle.reports.component=rwEng-0
+  #   -Xmx256M
+  #   -DORBWaitForResponseTimeout=999999999
+  #   -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000
+  #   -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1
+  # With engine jvmOptions (customer): -Xms1024m, -Xmx2048m,
+  # -DORBWaitForResponseTimeout=999999999,
+  # -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1
+  # Lines with "pgrep" or "for p" -> your own shell, ignore them.
+
+  ----------------------------------------------------------------------------
+  7.5 Does emoms.properties stay on localhost?  And the whole check
+  ----------------------------------------------------------------------------
+
+  grep -n 'ConsoleServerHost' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected: ConsoleServerHost=localhost in all three files.
+  # The host name back? -> KNOWN PROBLEMS.
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | tee $LOGDIR/07_clone_check_after.txt
+  # Expected at the end (test host):
+  #   OK   Clone-capable: yes - 11 step(s) after cloning (STEP above)
+  # (customer: the same line with its own number of STEP items)
+  # Section 1: no FIX line for 7001 / 9001 / 9002, rwserver or rwEng-*.
+  #   Left (test host):
+  #   udp   0.0.0.0:7574       WLS_FORMS    Coherence remainder ... firewall
+  #   udp   0.0.0.0:14027      WLS_REPORTS  Reports multicast discovery ...
+  #   tcp   <host-ip>:7574     WLS_FORMS    Coherence remainder ... firewall
+  #   frmweb: 10 socket(s) on all interfaces - not configurable ...
+  # Sections 2 and 3: only OK lines (+ STEP for the discovery port).
+  # Sections 4 and 6: only STEP / info lines (DB host in the JDBC URLs,
+  #   Nginx name + certificate, tnsnames.ora, init-info) - that is right.
+  # "NOT YET" -> the FIX lines name the file and the setting; go back to
+  #   the step in TARGET STATE.
+
+  ----------------------------------------------------------------------------
+  7.6 A real report (and a form)
+  ----------------------------------------------------------------------------
+
+  # Run the same report as in 1.6 through the application.
+  # Expected: the PDF as before.
+  # Report hangs, REP-51002 or "Bind to server failed"?
+  #   -> check 4.1 and 4.2, both must be set. Otherwise ROLLBACK.
+  # Forms: open the same form as in 1.6.
+
+  ----------------------------------------------------------------------------
+  7.7 In the EM
+  ----------------------------------------------------------------------------
+
+  # Browser: https://<host>/em -> WebLogic domain fr_domain
+  # Expected: all servers up, clusters (cluster_reports, cluster_forms)
+  # and deployments green.
+
+
+================================================================================
+STEP 8: Firewall  (as root)
+================================================================================
+
+  firewall-cmd --list-all
+  # Expected at "services" / "ports": only ssh, http, https and
+  # <broadcast port>/udp (Reports discovery, e.g. 14022/udp).
+  # 7001, 9001, 9002, 5556 or 7574 open -> close them:
+
+  firewall-cmd --permanent --remove-port=7001/tcp
+  # The same for every other port found above, one command each.
+  # Expected: success  (or "Warning: NOT_ENABLED" = was not open)
+
+  firewall-cmd --reload
+  # Expected: success
+
+  # The Reports discovery port stays open. Its number is in rwnetwork.conf
+  # next to rwserver.conf (as oracle: grep -n multicast <dir of $RWCONF>/
+  # rwnetwork.conf), e.g.  <multicast channel="228.5.6.7" port="14022" .../>
+
+  exit
+
+
+================================================================================
+ROLLBACK  (only if STEP 7 fails, as oracle)
+================================================================================
+
+  What                          How
+  ----------------------------  -----------------------------------------------
+  all files of this cookbook    first stop the domain (STEP 6), then:
+  (config.xml, startup.           cd $DOMAIN_HOME
+  properties, rwserver.conf,      BACKUPFILE=$(cat $LOGDIR/02_backup.txt)
+  bin/*.sh, emoms x3,             echo "$BACKUPFILE"
+  reports.sh)                     tar -xzf "$BACKUPFILE"
+                                then start the domain (STEP 6), check 7.2
+  only reports.sh               cp -p $BACKUP/reports.sh.orig
+                                  $DOMAIN_HOME/reports/bin/reports.sh
+
+  only setUserOverrides.sh      cp -p $BACKUP/setUserOverrides.sh.orig
+                                  $DOMAIN_HOME/bin/setUserOverrides.sh
+
+                                (did not exist before: delete it)
+  only nodemanager.properties   cp -p $BACKUP/nodemanager.properties.orig
+                                  $DOMAIN_HOME/nodemanager/
+
+  only the check tool           cp -p $BACKUP/clone_check_fmw.sh.old
+                                  $TOOLS/clone_check_fmw.sh
+
+  nothing helps                 VM snapshot
+
+  # "tar -xzf" overwrites only the files in the archive; files created
+  # after STEP 2 (e.g. new logs) stay. Restore always with the domain
+  # STOPPED - a running AdminServer writes config.xml back.
+
+
+================================================================================
+KNOWN PROBLEMS
+================================================================================
+
+  Problem : EM shows WLS_REPORTS (or WLS_FORMS), its cluster and the
+            reports deployment red / shut down, but status.sh says
+            RUNNING. AdminServer.log shows only BEA-149505 "... JMX
+            Service URL of <none>".
+  Cause   : the Node Manager started the managed server directly with the
+            old AdminURL from startup.properties (host name / IP). The
+            AdminServer listens only on localhost, the managed server runs
+            "in Managed Server independence mode".
+  Solution: STEP 5.1, then restart the managed server through the Node
+            Manager / autostart. Check the running process:
+
+  ps -ef | grep '[w]eblogic.Name=WLS_REPORTS' | grep -o 'management.server=[^ ]*'
+
+            Expected (test host): management.server=http://localhost:7001
+            Still an IP / host name -> report the output.
+
+  Problem : clone_check shows "tcp 0.0.0.0:<port> rwEng-0 all
+            interfaces", the Reports server itself is on 127.0.0.1.
+  Cause   : <engine ... jvmOptions="..."> in rwserver.conf replaces the
+            inherited REPORTS_JVM_OPTIONS - ORBServerHost is missing for
+            the engines.
+  Solution: STEP 4.3, then restart the Reports server (complete restart
+            STEP 6, or the Reports server alone through the EM / Node
+            Manager). Check with 7.4.
+
+  Problem : emoms.properties shows the host name again after the restart
+            (7.5).
+  Cause   : the template under servers/AdminServer/tmp/_WL_user/em/... was
+            not changed, or the EM was extracted again (EM patch,
+            redeploy, tmp/ emptied).
+  Solution: STEP 0 (find EMTMP again) and STEP 5.3, restart the
+            AdminServer. Check again after every EM patch.
+            NO outage: the EM works with the host name there too.
+
+  Problem : Reports server does not start, rwserver_diagnostic.log shows
+            REP-50125 : java.lang.NullPointerException ... at
+            oracle.reports.utility.Utility.getOrbProperties
+  Cause   : REPORTS_JVM_OPTIONS is set, but without
+            -DORBWaitForResponseTimeout=... - Oracle then reads the value as
+            empty and aborts. The same after STEP 4.3 when the jvmOptions
+            are broken (quotes).
+  Solution: add -DORBWaitForResponseTimeout=999999999 to the line
+            REPORTS_JVM_OPTIONS=... in reports.sh (STEP 4.1); check the
+
+            engine line of STEP 4.3; then restart the Reports server.
+            Otherwise ROLLBACK of the file.
+
+  Problem : report hangs or REP-51002 / "Bind to server failed" after
+            the restart.
+  Cause   : only 4.1 or only 4.2 done - rwservlet and the Reports server
+            do not find each other.
+  Solution: grep ORBServerHost in reports.sh and setUserOverrides.sh
+            (STEP 4), then STEP 6.
+
+  Problem : scripts or a managed server do not reach the AdminServer
+            ("Connection refused" on t3://<host>:7001).
+  Cause   : called with the host name - 7001 listens only on localhost.
+  Solution: use t3://localhost:7001 (STEP 5.2; also the ADMIN_URL of the
+            oracle profile and patch_install.ini of the tools).
+
+  Problem : an application no longer reaches http://<host>:9002/reports/...
+            (or :9001/forms/...).
+  Cause   : it went past Nginx so far (STEP 1.4).
+  Solution: use https://<host>/reports/... In an emergency: ROLLBACK.
+
+  Problem : WLS_REPORTS / WLS_FORMS log BEA-2194505 (warning about
+            localhost) or "Local address 127.0.0.1 is a loopback address;
+            this cluster node will not connect to nodes located on
+            different machines".
+  Cause   : intended - Coherence talks over 127.0.0.1 only.
+  Solution: KNOWN AND HARMLESS.
+
+  Problem : clone_check_fmw.sh does not report the places of STEP 4.3 /
+            5.3 although they hold old values.
+  Cause   : old version of the tool (before 2026-11-10.8).
+  Solution: STEP 1.1.

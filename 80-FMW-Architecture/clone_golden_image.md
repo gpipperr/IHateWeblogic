@@ -19,7 +19,14 @@ sockets),
 [report_engine_architecture.md](report_engine_architecture.md) (server /
 engine CORBA),
 [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md)
-(multicast discovery). Check script: `02-Checks/clone_check.sh`.
+(multicast discovery). Check script: `02-Checks/clone_check.sh` (customer
+hosts: tools `clone_check_fmw.sh`).
+
+Practice (anonymised, from a customer project 2026-11-09/10):
+[../70-Customer-Projects/FormsReports14_linux_localhost/](../70-Customer-Projects/FormsReports14_linux_localhost/README.md)
+(harden an existing domain to localhost – technical README + cookbook) and
+[../70-Customer-Projects/FormsReports14_linux_clone/](../70-Customer-Projects/FormsReports14_linux_clone/README.md)
+(clone with a new RCU prefix, way 3 – technical README + cookbook).
 
 ---
 
@@ -95,6 +102,31 @@ Notes:
   EM (302 to login), rwservlet and the smoke test work unchanged; the demo
   certificate `DemoIdentity` is still loaded at start (`BEA-090171`) but no
   port uses it (**confirmed (live)** 2026-10-23).
+
+### 2.1 Hardening checklist – an existing domain to localhost
+
+Every point is needed; the last four were found only after a first
+hardening at a customer (2026-11-10) – the domain ran, but EM showed the
+Reports server red and the engines still listened on all interfaces.
+
+| # | What | Where | Check |
+|---|---|---|---|
+| 1 | listen address `localhost` | `config.xml` AdminServer, WLS_FORMS, WLS_REPORTS; Node Manager `nodemanager.properties` | `ss -ltn` – 7001 / 9001 / 9002 / 5556 on 127.0.0.1 |
+| 2 | SSL listen ports off, Coherence unicast 127.0.0.1 | `/Servers/<ms>/SSL`, `/Servers/<ms>/CoherenceMemberConfig` | `clone_check.sh` section 2 |
+| 3 | Reports server ORB | `reports.sh` `REPORTS_JVM_OPTIONS` with `-DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` (without the timeout: REP-50125) | section 3 |
+| 4 | rwservlet ORB | `setUserOverrides.sh`, block for WLS_REPORTS | section 3 |
+| 5 | engine ORB when `<engine>` has `jvmOptions` | `rwserver.conf` – the same two options in `jvmOptions` (they replace the inherited ones) | section 1: no `rwEng-*` on 0.0.0.0 |
+| 6 | managed server → AdminServer on a Node Manager start | `servers/<ms>/data/nodemanager/startup.properties` `AdminURL=http\://localhost\:<port>` | AdminServer log `BEA-149506` for every managed server; EM green |
+| 7 | domain scripts | `bin/*.sh` `ADMIN_URL=t3://localhost:<port>` | section 4 |
+| 8 | EM | `emoms.properties` + `.jmxori` **and** the source copy `servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties` | section 4; value survives an AdminServer restart |
+| 9 | edge | Nginx `proxy_pass http://127.0.0.1:<port>`; nobody calls 7001 / 9002 directly (check the access logs first); firewall | `curl` via Nginx, smoke test |
+
+Gate: `clone_check.sh` "Clone-capable: yes" (only STEP / INFO items left).
+Details, symptoms and the manual cookbook:
+[FormsReports14_linux_localhost](../70-Customer-Projects/FormsReports14_linux_localhost/README.md).
+New installations: the domain is created with `localhost` (`09-Install/08-`,
+`11-`), so points 1 and 6–8 hold from the start; points 3–5 come from `13-`
+(engine `jvmOptions` since 2026-11-10); point 2 from `clone_check.sh --apply`.
 
 ---
 
@@ -346,7 +378,8 @@ External RCU – three ways, the first one recommended:
      `WLSRuntimeSchemaDataSource` have no target in a Forms / Reports domain,
      `_IAU` is the owner schema.
    - The EM login was not tested by form (EM 302 OK).
-   - Customer cookbook (private): `customer-analyse/2026-11-10_*/Clone_Kochbuch_*_de.txt`
+   - Manual cookbook (anonymised from the customer run):
+     [FormsReports14_linux_clone](../70-Customer-Projects/FormsReports14_linux_clone/README.md)
      (structure: autostart off on the source, clone, Linux identity, backup
      + `.dat` aside, RCU, AdminServer only + reassociate, data sources
      offline, multicast port / mail sender / Nginx, start, checks).
@@ -355,32 +388,46 @@ External RCU – three ways, the first one recommended:
 
 ## 6. Recipe – golden image
 
-1. **Prepare** (source host; external RCU: see section 5 first): `02-Checks/clone_check.sh` until only the
-   INFO items of section 3 remain (`--apply` switches off SSL, sets the
-   Coherence and ORB addresses). Stop the domain (`01-Run/startStop.sh
-   stop-all --apply`).
+Four phases; each ends with a gate. Do not start the next phase before the
+gate is passed.
+
+1. **Prepare the source.**
+   - Harden to localhost – checklist section 2.1 (`02-Checks/clone_check.sh
+     --apply` covers SSL / Coherence; the rest by `09-Install/08-`, `13-` or
+     the localhost cookbook).
+   - External RCU: decide the way first (section 5). Way 3: switch the
+     autostart **off** before the VM is copied – the clone must not start
+     against the source prefix on its first boot.
+   - Stop the domain (`01-Run/startStop.sh stop-all --apply`).
+   - **Gate:** `clone_check.sh` "Clone-capable: yes"; smoke test OK.
 2. **Clone** with the OS / hypervisor tooling (new machine-id, ssh keys,
-   host name, IP).
-3. **Re-personalise** (clone):
+   host name, IP); start the source again and switch its autostart back on.
+   - **Gate:** the source runs unchanged (status, smoke test).
+3. **Re-personalise the clone** – in this order:
    - **first, before any start / stop:** `ADMIN_URL` in `$DOMAIN_HOME/bin/*.sh`
-     and in the oracle profile to `t3://localhost:<port>` (section 3) – else
-     the clone's `stopWebLogic.sh` addresses the source AdminServer; the same
-     for `AdminURL` in `servers/*/data/nodemanager/startup.properties`
-     (else the managed servers look for the source AdminServer / EM red);
+     and in the oracle profile to `t3://localhost:<port>`, `AdminURL` in
+     `servers/*/data/nodemanager/startup.properties` to localhost (section
+     3) – else the clone's scripts and managed servers address the source;
+   - backup of `config/`, scheduled Reports jobs `<server>.dat` aside;
+   - RCU external: new prefix – section 5, way 1 (image without domain) or
+     way 3 (`reassociateSecurityStore`, data sources, audit URL);
    - secrets: `01-setup-interview.sh` or the single setters
-     (`00-Setup/weblogic_sec.sh`, `mos_sec.sh`, …);
+     (`00-Setup/weblogic_sec.sh`, `mos_sec.sh`, …) – `*.des3` are bound to
+     the disk;
    - `environment.conf`: `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL`,
-     `REPORTS_BROADCAST_PORT`, DB values if the DB changes;
-   - certificate + Nginx (`08-SSL`, `09-Install/05-root_nginx_ssl.sh`);
-   - RCU external: new prefix per clone – section 5, way 1 (the image then
-     holds no domain) or way 3 (domain cloned along, OPSS moved with
-     `reassociateSecurityStore`; the autostart must be off in the image so
-     that the clone does not start against the source prefix);
-   - scheduled Reports jobs: `<server>.dat` aside before the first start,
-     afterwards `showjobs queuetype=future` = 0 (section 3);
-   - tools `patch_install.ini` regenerated, crontab checked (section 3);
-   - `13- --apply`, `40- --apply`, start, `02-Checks/clone_check.sh` and
-     the smoke test `09-Install/15-`.
+     `REPORTS_BROADCAST_PORT`, DB values if the DB changes; then
+     `13- --apply`, `40- --apply`;
+   - certificate + Nginx (`08-SSL`, `09-Install/05-root_nginx_ssl.sh`),
+     firewall, Reports mail sender;
+   - tools `patch_install.ini` regenerated, crontab checked (section 3).
+4. **Check the clone and the source.**
+   - `clone_check.sh` on the clone ("Clone-capable: yes", the remaining
+     STEP items are the new host's own values), smoke test `09-Install/15-`;
+   - external RCU: `v$session` – the clone only on its new prefix, no
+     session of the clone on the source prefix
+     ([rcu_middleware_architecture.md](rcu_middleware_architecture.md) §3.1);
+   - `showjobs queuetype=future`: clone 0, source its jobs;
+   - EM: all servers green (`BEA-149506` in the AdminServer log).
 
 ---
 
@@ -390,10 +437,12 @@ External RCU – three ways, the first one recommended:
   them (MOS 2420434.1 "How To Bring Up The Coherence Cluster With Loop
   Back Address, 127.0.0.1?" – not read).
 - `frmweb` bind address: ask Oracle (SR) whether an option exists.
-- A full clone with the recipe of section 6 has not been run yet; way 2 of
-  section 5 (re-bind to a copied repository) is untested; way 3
-  (`reassociateSecurityStore`) tested live on the test host 2026-11-10 and
-  run at a customer the same day (new prefix in another DB, section 5).
+- Way 3 (`reassociateSecurityStore`) was tested live on the test host and
+  run at a customer on 2026-11-10 (Reports-only domain, new prefix in
+  another DB, followed by the localhost gaps of section 2.1). Not run yet:
+  a clone of a domain **with Forms**, way 2 of section 5 (re-bind to a
+  copied repository), the complete golden-image recipe of section 6 with
+  `13-` / `40- --apply` on the clone.
 - Way 3 leftovers: `updateCred` of `AuditDbPrincipalKey` (Java SE audit
   credential) to the new `_IAU_APPEND` user – result at the customer pending;
   whether the standalone Reports server writes audit rows at all with

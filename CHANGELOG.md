@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- Knowledge base from the customer project (anonymised, English): new folders
+  `70-Customer-Projects/FormsReports14_linux_localhost/` (README + `Localhost_cookbook_en.txt` –
+  harden an existing domain to localhost, incl. the four places found after the first hardening) and
+  `70-Customer-Projects/FormsReports14_linux_clone/` (README + `Clone_cookbook_en.txt` – VM clone
+  with a new RCU prefix, `reassociateSecurityStore`). `clone_golden_image.md`: new section 2.1
+  hardening checklist, section 6 recipe in four phases with gates, section 7 updated, links to the
+  new folders; `70-Customer-Projects/README.md` index.
 - `clone_check_fmw.sh` 2026-11-10.8 and `02-Checks/clone_check.sh`: host name in
   `servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties` is a FIX – EM copies this file
   over `config/.../em/META-INF/emoms.properties` and `.jmxori` at every AdminServer start, so an

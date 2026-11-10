@@ -1,0 +1,1367 @@
+================================================================================
+  Clone a Reports 14.1.2 domain with its VM - own RCU prefix, OPSS moved
+  with reassociateSecurityStore ("way 3")
+  Version 2026-11-10
+================================================================================
+
+  Audience   : Linux / WebLogic administrator, DBA for step 6
+  Environment: Oracle Reports 14.1.2 (no Forms), Oracle Linux 9,
+               domain fr_domain, loopback only (hardened before the clone)
+               AdminServer + WLS_REPORTS + standalone Reports server
+               repserver01, external RCU database
+               ORACLE_HOME  e.g. /u01/app/oracle/fmw
+               DOMAIN_HOME  e.g. /u01/app/oracle/domains/fr_domain
+               Source       <source-host> / <source-ip>
+               RCU DB       source: <old-db-host>:1521/<OLD_SERVICE>
+                            clone:  <NEW_DB> (another database, step 6)
+               RCU prefix   SRC (STB, OPSS, IAU, IAU_APPEND, IAU_VIEWER,
+                            WLS, WLS_RUNTIME)
+  Created    : 2026-11-10, Gunther Pipperr
+  Sources    : - IHateWeblogic/80-FMW-Architecture/clone_golden_image.md,
+                 section 3 (host-name places), section 5 way 3 (flow and
+                 test results), section 8 (sources)
+
+               - IHateWeblogic/80-FMW-Architecture/
+                 rcu_middleware_architecture.md section 3 / 3.1 (who logs in where, sessions)
+               - IHateWeblogic/80-FMW-Architecture/reports_job_handling.md
+                 sections 6 and 8 (.dat, showjobs)
+               - Oracle OPSS 12.2.1.3 "reassociateSecurityStore",
+                 https://docs.oracle.com/middleware/12213/opss/JISEC/managepols.htm
+               - Oracle WLST Command Reference for Infrastructure Security
+                 12.2.1.4, updateCred,
+                 https://docs.oracle.com/en/middleware/fusion-middleware/platform-security/12.2.1.4/idmcr/security_wlst.html
+               (Oracle links checked 2026-11-10)
+  Tested     : - Customer run 2026-11-10: Reports only (AdminServer,
+                 WLS_REPORTS, standalone Reports server), new prefix in
+                 ANOTHER RCU database - clone running, sessions only on
+                 the new prefix.
+               - Test host run 2026-11-10: way 3 in the SAME database
+                 (prefix DEV -> CLN), start, smoke test, way back - all
+                 successful.
+               Both are documented in clone_golden_image.md section 5.
+  Important  : - !!! After the clone, the domain scripts of the clone
+                 (stopWebLogic.sh ...) point to the AdminServer of the
+                 SOURCE (ADMIN_URL=t3://<source-host>:7001). stopWebLogic.sh
+                 on the clone then STOPS THE SOURCE if the network is open.
+                 -> Step 5.1 before any start / stop on the clone; until
+                 then stop only with ADMIN_URL=t3://localhost:7001
+                 (step 9.1). (Found at the customer 2026-11-10.)
+               - The clone must NEVER run with the RCU prefix of the source.
+                 Two domains in one OPSS store (roles, passwords, keys) are
+                 not allowed. That is why the autostart is off before the
+                 clone (step 1) and the clone starts completely only after
+                 step 9.
+               - Only exception: steps 7/8. There only the AdminServer of the
+                 clone starts briefly against the source prefix, so that
+                 Oracle can copy its content into the new prefix. The source
+                 prefix is only read.
+               - In steps 7/8 the clone must reach BOTH databases:
+                 <old-db-host> (read, old OPSS store) and <NEW_DB> (write).
+                 From step 9 on it no longer needs <old-db-host>.
+               - The clone uses the same application databases (logins in
+                 cgicmd.dat). Scheduled Reports jobs of the source are moved
+                 aside before the first start (step 5).
+               - Passwords are only asked hidden (read -s) and passed through
+                 the environment - never on a command line, in a file or in
+                 a log.
+
+
+TARGET STATE
+================================================================================
+
+  Component                       Source (stays)           Clone (new)    Step
+  ------------------------------  -----------------------  -------------  ----
+  Host name / IP                  <source-host>            <clone-host>     4
+                                  / <source-ip>            / <clone-ip>
+  RCU database                    <old-db-host>            <NEW_DB>         6
+  RCU prefix                      SRC                      <NEW_PREFIX>   6-9
+  OPSS data source (JNDI)         jdbc/OpssDataSource      jdbc/OpssData-   8
+                                                           Source<NEW_PREFIX>
+  ADMIN_URL in bin/*.sh           localhost                localhost      5.1
+  AdminURL startup.properties     localhost                localhost      5.2
+  Reports multicast port          14022 (example)          14023           10
+  Nginx server_name / certificate <source-host>            <clone-host>    10
+  Scheduled jobs (.dat)           stay                     none             5
+  Autostart                       on again (step 3)        on (step 11)  3/11
+
+
+PREREQUISITES
+================================================================================
+
+  - Decided before the appointment:
+      <clone-host>    host name of the clone (FQDN)
+      <clone-ip>      IP address of the clone
+      <NEW_PREFIX>    new RCU prefix, letters / digits only, max. 12
+                      characters
+      <NEW_DB>        new RCU database as host:port/service, e.g.
+                      <new-db-host>:1521/<NEW_SERVICE> (PDB service, not
+                      the CDB)
+  - The source is hardened to loopback (localhost) - see
+    ../FormsReports14_linux_localhost/README.md and
+    ../FormsReports14_linux_localhost/Localhost_cookbook_en.txt.
+    Without the hardening the clone keeps many more host-name places
+    (clone_golden_image.md section 3); clone_check_fmw.sh lists them.
+  - DBA with the SYS password for <NEW_DB> (step 6, approx. 10 minutes).
+    Database 19c or newer, character set AL32UTF8 (RCU checks this itself
+    and stops otherwise).
+  - Network: clone -> <old-db-host>:1521 AND clone -> <NEW_DB>:<port> open
+    (firewall / allow list). Check in step 0.
+  - VM team for the clone (step 3) - the clone process or step 4 sets the
+    new MAC / IP.
+  - TLS certificate for <clone-host> (or the existing certificate already
+    covers the name, step 10.3).
+  - Passwords that are asked hidden: WebLogic admin, SYS (DBA), password
+    of the new schemas (choose it new, store it in the password safe),
+    Reports server administrator (<identifier> in rwserver.conf, step 12.2).
+  - clone_check_fmw.sh version 2026-11-10.8 or newer in $TOOLS (from
+    ihw_customer_tools_linux.zip, 70-Customer-Projects/tools/). Older
+    versions do not know the checks of steps 5.1 - 5.3.
+
+  What ends up where (on the clone; on the source only $LOGDIR of step 2):
+
+    /u01/app/oracle/install/clone_2026-11/  $WORK  <- STEP 0 (one directory
+                                            per clone run, never reused)
+      logs/                                 $LOGDIR, all output (tee)
+                                            <- every step
+      backup/                               $BACKUP  <- STEP 0
+        config_<time>.tgz                   backup of $DOMAIN_HOME/config
+                                            <- STEP 5
+        <server>.dat                        job list of the source, moved
+                                            aside <- STEP 5 (never copy back)
+        stopWebLogic.sh                     copy before the edit <- 5.1
+        <ms>_startup.properties             copy before the edit <- 5.2
+        loopback_<time>.tgz                 only if 5.3 changes something
+        jps-config-jse.xml.before_9.5       copy before the edit <- 9.5
+        patch_install.ini.source            copy of the tools ini <- 10.5
+        crontab_oracle.source               only if 10.6 changes something
+      opss_reassociate.py                   WLST script (no passwords)
+                                            <- STEP 8.1
+      audit_cred.py                         WLST script (no passwords)
+                                            <- STEP 8.4
+      datasources.py                        WLST script (no passwords)
+                                            <- STEP 9.2
+    /u01/app/oracle/tools/                  $TOOLS (cloned along)
+      clone_check_fmw.sh                    check tool, 2026-11-10.8
+      status.sh, make_patch_install_ini.sh  tools ZIP
+      patch_install.ini                     values of the SOURCE <- 10.5
+
+  Product files that this cookbook touches (all on the clone):
+
+    $DOMAIN_HOME/bin/stopWebLogic.sh (+ other bin/*.sh)             5.1
+
+    $DOMAIN_HOME/servers/<ms>/data/nodemanager/startup.properties   5.2
+    $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/
+
+      <server>/rwserver.conf                               5.3, 10.2
+    $DOMAIN_HOME/config/fmwconfig/servers/AdminServer/applications/em/
+
+      META-INF/emoms.properties (+ .jmxori)                5.3 (check)
+    $DOMAIN_HOME/servers/AdminServer/tmp/_WL_user/em/<id>/META-INF/
+
+      emoms.properties                                     5.3 (check)
+    $DOMAIN_HOME/config/jdbc/*-jdbc.xml                    8.1, 9
+    $DOMAIN_HOME/config/fmwconfig/jps-config.xml           8 (by Oracle)
+    $DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml       8, 9.5
+    $DOMAIN_HOME/config/fmwconfig/**/rwnetwork.conf (3)    10.1
+
+    $DOMAIN_HOME/reports/server/<server>.dat               5 (moved)
+    /etc/nginx/conf.d/<site>.conf                          10.3
+    $TOOLS/patch_install.ini                               10.5
+
+  Rules for the whole run:
+  - Every command on its own; compare the result with "# Expected:".
+  - STOP means: do NOT continue, save the output from $LOGDIR, report it.
+  - Every new terminal and every su / sudo: STEP 0 first.
+
+
+================================================================================
+STEP 0: Set the variables  (in EVERY new terminal, as oracle)
+================================================================================
+
+  # Replace the e.g. values by the real paths of this host. The values
+  # in <...> are decided before the appointment (PREREQUISITES).
+
+  export ORACLE_HOME=/u01/app/oracle/fmw
+
+  export DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
+
+  export TOOLS=/u01/app/oracle/tools
+
+  export WORK=/u01/app/oracle/install/clone_2026-11
+
+  export LOGDIR=$WORK/logs
+
+  export BACKUP=$WORK/backup
+
+  export WLST=$ORACLE_HOME/oracle_common/common/bin/wlst.sh
+
+  export REPSRV=repserver01
+  # name of the standalone Reports server (as in rwserver.conf)
+
+  export SRC_HOST=<source-host-short>
+  # short host name of the SOURCE (without domain part); it also finds
+  # the long name
+
+  export OLDPFX=SRC
+  # RCU prefix of the source - example value SRC, use the real one
+
+  export NEWPFX=<NEW_PREFIX>
+
+  export OLDDBHOST=<old-db-host>
+
+  export OLDDB=$OLDDBHOST:1521/<OLD_SERVICE>
+
+  export DBCONN=<NEW_DB>
+
+  mkdir -p $LOGDIR $BACKUP
+
+  echo "NEWPFX=$NEWPFX  DOMAIN_HOME=$DOMAIN_HOME"
+  # Expected: NEWPFX=<your new prefix>  DOMAIN_HOME=/u01/app/oracle/...
+  # Still <NEW_PREFIX>? -> repeat the line export NEWPFX=... with the real
+  # value.
+
+  echo "SRC_HOST=$SRC_HOST  OLDPFX=$OLDPFX  OLDDBHOST=$OLDDBHOST"
+  # Expected: three real values. EMPTY or <...>? -> repeat the export.
+  # (An empty value makes the greps of later steps match every line.)
+
+  ls $WLST
+  # Expected: the path is shown (no "No such file")
+
+  echo "DBCONN=$DBCONN"
+  # Expected: host:port/service of the NEW database, not <old-db-host>
+
+  # Only on the clone (PART B) - does it reach both databases?
+
+  for _db in $OLDDB $DBCONN; do _h=${_db%%:*}; _p=${_db#*:}; _p=${_p%%/*}; timeout 5 bash -c "</dev/tcp/$_h/$_p" && echo "OK      $_h:$_p" || echo "MISSING $_h:$_p"; done
+  # Expected: 2 lines OK
+  # MISSING -> clear the firewall / allow list, do NOT start step 6 before
+
+
+################################################################################
+PART A: SOURCE <source-host>
+################################################################################
+
+================================================================================
+STEP 1: Switch off the autostart  (as root on the source, system still runs)
+================================================================================
+
+  # The clone is a copy of the disk - an active autostart would start the
+  # clone against the source prefix at its first boot.
+
+  systemctl list-unit-files --type=service | grep -i -e wls -e weblogic -e report
+  # One line, e.g. "weblogic.service  enabled" -> remember the name = <unit>
+  # No output -> no autostart, continue with step 2
+
+  systemctl disable <unit>
+  # Expected: "Removed ..." - the service keeps running, it only does not
+  # start at boot any more
+
+  systemctl is-enabled <unit>
+  # Expected: disabled
+
+
+================================================================================
+STEP 2: Record the starting point and stop the domain  (as oracle, source)
+================================================================================
+
+  # Run STEP 0 (variables). On the source $WORK does not exist yet -
+  # mkdir creates it.
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | tee $LOGDIR/02_check_source.txt
+  # Expected: sections 1-3 without FIX for 7001, 9002, rwserver, rwEng
+  # (loopback hardening), a note on the external RCU prefix of the source.
+  # FIX lines for startup.properties, engine jvmOptions or emoms.properties
+  # -> the localhost cookbook is not complete on the source; these points
+  # are repeated on the clone in steps 5.2 and 5.3.
+
+  # Stop the domain completely:
+  #   with autostart:    as root  systemctl stop <unit>
+  #   without autostart: as oracle the stop script of the operations
+  #   cookbook (e.g. stop_wls_all.sh from
+  #   ../Reports14_linux_manual_install/WLS_Report_start_stop_kochbuch.txt)
+
+  ps -ef | grep -c '[w]eblogic.Server'
+  # Expected: 0
+
+
+================================================================================
+STEP 3: Clone and start the source again
+================================================================================
+
+  ----------------------------------------------------------------------------
+  3.1 VM team: clone the machine  (source stopped)
+  ----------------------------------------------------------------------------
+
+  # The VM team creates the snapshot / clone of <source-host>.
+  # Do NOT connect the clone to the network of the source as long as it has
+  # the same IP (IP conflict) - the VM team sets IP / host name during the
+  # clone, or step 4 does.
+
+  ----------------------------------------------------------------------------
+  3.2 Switch the source on again  (as root on the source)
+  ----------------------------------------------------------------------------
+
+  systemctl enable <unit>
+
+  systemctl start <unit>
+
+  systemctl status <unit> --no-pager
+  # Expected: active (running)
+  # Without autostart: as oracle the start script of the operations
+  # cookbook (e.g. start_wls_all.sh)
+
+  ----------------------------------------------------------------------------
+  3.3 Short test of the source  (as oracle on the source)
+  ----------------------------------------------------------------------------
+
+  curl -s -o /dev/null -w '%{http_code}\n' http://localhost:7001/weblogic/ready
+  # Expected: 200
+
+
+################################################################################
+PART B: CLONE <clone-host>
+################################################################################
+
+================================================================================
+STEP 4: Linux - identity of the clone  (as root on the clone, domain stopped)
+================================================================================
+
+  # Has the VM team already set host name and IP (cloud-init,
+  # virt-sysprep)? Then only check (4.5) and continue with step 5.
+
+  ----------------------------------------------------------------------------
+  4.1 Host name
+  ----------------------------------------------------------------------------
+
+  hostnamectl set-hostname <clone-host>
+
+  hostname -f
+  # Expected: <clone-host>
+
+  ----------------------------------------------------------------------------
+  4.2 IP address  (show the name of the connection first)
+  ----------------------------------------------------------------------------
+
+  nmcli -t -f NAME,DEVICE connection show --active
+  # Expected e.g.: ens192:ens192 -> name = <connection>
+
+  nmcli connection modify <connection> ipv4.addresses <clone-ip>/<prefix-length>
+
+  nmcli connection up <connection>
+
+  ip -4 addr show | grep inet
+  # Expected: <clone-ip> - NO longer <source-ip>
+
+  ----------------------------------------------------------------------------
+  4.3 /etc/hosts
+  ----------------------------------------------------------------------------
+
+  grep -n '<source-host-short>\|<source-ip>' /etc/hosts
+  # (type the real short name and IP of the source into the pattern)
+  # One line found -> change it with vi to <clone-ip> <clone-host> <short>.
+  # No output -> nothing to do (the name comes from DNS).
+
+  ----------------------------------------------------------------------------
+  4.4 New machine ID and SSH host keys
+  ----------------------------------------------------------------------------
+
+  rm -f /etc/machine-id
+
+  systemd-machine-id-setup
+  # Expected: "Initializing machine ID from random generator."
+
+  rm -f /etc/ssh/ssh_host_*
+
+  ssh-keygen -A
+
+  systemctl restart sshd
+
+  ----------------------------------------------------------------------------
+  4.5 Check
+  ----------------------------------------------------------------------------
+
+  hostname -f
+
+  getent hosts $(hostname -f)
+  # Expected: <clone-ip> <clone-host> - the DNS entry must exist
+
+  systemctl is-enabled <unit>
+  # Expected: disabled (cloned along from step 1) - it stays so until
+  # step 11
+
+
+================================================================================
+STEP 5: Backup, job list, address of the source  (as oracle on the clone,
+        domain stopped - BEFORE any start or stop on the clone)
+================================================================================
+
+  # Run STEP 0.
+
+  ps -ef | grep -c '[w]eblogic.Server'
+  # Expected: 0 - STOP if a number > 0 is shown: do not continue, stop the
+  # domain (step 9.1) and report it.
+
+  TIME=$(date +%Y%m%d_%H%M)
+
+  tar -czf $BACKUP/config_$TIME.tgz -C $DOMAIN_HOME config
+
+  ls -l $BACKUP/config_$TIME.tgz | tee $LOGDIR/05_backup.txt
+  # Expected: one file of some 100 KB
+
+  # Scheduled Reports jobs of the source (otherwise they run twice on the
+  # clone - same files, same FTP targets, same mails):
+
+  ls -l $DOMAIN_HOME/reports/server/
+  # Expected e.g.: repserver01.dat
+
+  mv $DOMAIN_HOME/reports/server/$REPSRV.dat $BACKUP/
+  # No such file? -> nothing to do.
+
+  ----------------------------------------------------------------------------
+  5.1 !!! Remove the address of the SOURCE from the domain scripts !!!
+  ----------------------------------------------------------------------------
+
+  #  +-----------------------------------------------------------------------+
+  #  | WARNING: stopWebLogic.sh (and possibly startManagedWebLogic.sh)      |
+  #  | contain ADMIN_URL="t3://<source-host>:7001". On the clone the script |
+  #  | then addresses the AdminServer of the SOURCE and STOPS IT if the     |
+  #  | network is open (customer 2026-11-10: only "No route to host"        |
+  #  | prevented it). NEVER skip this step.                                 |
+  #  +-----------------------------------------------------------------------+
+
+  echo "ADMIN_URL=$ADMIN_URL"
+  # Expected: ADMIN_URL=   (empty)
+  # Source host name in it -> find the origin:
+  #   grep -n ADMIN_URL ~/.bash_profile ~/.bashrc
+  # change it there to t3://localhost:7001 (vi), log in again, STEP 0.
+
+  grep -n "$SRC_HOST" $DOMAIN_HOME/bin/*.sh
+  # Expected: no line ($SRC_HOST finds the short and the long name)
+  # Lines (e.g. ADMIN_URL="t3://<source-host>:7001" in stopWebLogic.sh or
+  # startManagedWebLogic.sh) -> for every file named:
+
+  cp -p $DOMAIN_HOME/bin/stopWebLogic.sh $BACKUP/
+
+  vi $DOMAIN_HOME/bin/stopWebLogic.sh
+
+  #   :%s/<source-host-short>[.a-zA-Z0-9-]*/localhost/g   (Enter)
+  #       -> type the real short name; replaces short and long name, the
+  #          port stays; vi shows e.g. "1 substitution on 1 line"
+  #   :wq
+  # Another file from the grep? -> cp -p and vi the same way with its name.
+
+  grep -n "$SRC_HOST" $DOMAIN_HOME/bin/*.sh
+  # Expected: no line
+
+  grep -n 'ADMIN_URL="t3' $DOMAIN_HOME/bin/stopWebLogic.sh
+  # Expected: ADMIN_URL="t3://localhost:7001"
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | grep -i 'ADMIN_URL\|bin/'
+  # Expected: no FIX line on ADMIN_URL / bin/ (from clone_check_fmw.sh
+  # 2026-11-10.2; older versions do not check this)
+
+  ----------------------------------------------------------------------------
+  5.2 AdminURL of the Node Manager (startup.properties)
+  ----------------------------------------------------------------------------
+
+  #  +-----------------------------------------------------------------------+
+  #  | When the Node Manager starts WLS_REPORTS directly (autostart), it    |
+  #  | passes the AdminURL from startup.properties. It holds the IP / name  |
+  #  | of the last start through the AdminServer - on the clone the one of  |
+  #  | the SOURCE. Result: WLS_REPORTS runs "in Managed Server independence |
+  #  | mode" (or looks for the source AdminServer), EM shows server,        |
+  #  | cluster_reports and the reports deployment RED (customer 2026-11-10  |
+  #  | on source AND clone: AdminURL=http\://<source-ip>\:7001).            |
+  #  +-----------------------------------------------------------------------+
+
+  grep -n 'AdminURL' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+  # Expected: AdminURL=http\://localhost\:7001 in every file -> 5.3
+  # IP or host name -> the next three commands:
+
+  for f in $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties; do cp -p "$f" "$BACKUP/$(echo "${f#$DOMAIN_HOME/servers/}" | cut -d/ -f1)_startup.properties"; done
+
+  ls $BACKUP/*_startup.properties
+  # Expected: e.g. /.../WLS_REPORTS_startup.properties
+
+  sed -i 's#^AdminURL=.*#AdminURL=http\\://localhost\\:7001#' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+
+  grep -n 'AdminURL' $DOMAIN_HOME/servers/*/data/nodemanager/startup.properties
+  # Expected: AdminURL=http\://localhost\:7001
+  # The backslashes belong in the file like this (Java properties format).
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | grep -i 'startup.properties'
+  # Expected: no FIX line (from clone_check_fmw.sh 2026-11-10.3)
+
+  ----------------------------------------------------------------------------
+  5.3 Loopback leftovers: engine jvmOptions and EM emoms.properties (check)
+  ----------------------------------------------------------------------------
+
+  # If the source was hardened with
+  # ../FormsReports14_linux_localhost/Localhost_cookbook_en.txt, both points
+  # are already correct - only check. Background: clone_golden_image.md
+  # sections 2 and 3.
+
+  export RWCONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPSRV/rwserver.conf
+
+  export EMCFG=$DOMAIN_HOME/config/fmwconfig/servers/AdminServer/applications/em/META-INF
+
+  ls -d $DOMAIN_HOME/servers/AdminServer/tmp/_WL_user/em/*/META-INF
+  # Expected: exactly ONE directory, e.g. .../em/<id>/META-INF
+
+  export EMTMP=$(ls -d $DOMAIN_HOME/servers/AdminServer/tmp/_WL_user/em/*/META-INF)
+
+  echo "EMTMP=$EMTMP"
+  # Expected: the path from above. EMPTY or two paths? -> STOP, report
+  # the output of "ls -d".
+
+  # a) Engine jvmOptions - they REPLACE the REPORTS_JVM_OPTIONS of
+  #    reports.sh that the engines otherwise inherit:
+
+  grep -n '<engine id="rwEng"' $RWCONF
+  # ORBServerHost=127.0.0.1 in the line      -> OK, continue with b)
+  # no jvmOptions in the line                -> OK (engines inherit),
+  #                                             continue with b)
+  # jvmOptions="-Xms1024m -Xmx2048m" without ORBServerHost -> the next
+  # three commands:
+
+  TIME=$(date +%Y%m%d_%H%M)
+
+  tar -czf $BACKUP/loopback_$TIME.tgz -C $DOMAIN_HOME config/fmwconfig/components/ReportsServerComponent/$REPSRV/rwserver.conf config/fmwconfig/servers/AdminServer/applications/em/META-INF servers/AdminServer/tmp/_WL_user/em
+
+  sed -i '/<engine id="rwEng"/s#jvmOptions="\([^"]*\)"#jvmOptions="\1 -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"#' $RWCONF
+
+  grep -n '<engine id="rwEng"' $RWCONF
+  # Expected (one line, wrapped here):
+  #   ... jvmOptions="-Xms1024m -Xmx2048m -DORBWaitForResponseTimeout=999999999
+  #   -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1" .../>
+  # The addition twice? -> restore rwserver.conf from loopback_<time>.tgz
+  # and run the sed command only ONCE.
+
+  # b) EM emoms.properties - EM copies the tmp/ file over the two config/
+  #    files at EVERY AdminServer start, so all three must agree:
+
+  grep -n 'ConsoleServerHost' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # localhost in all three files     -> OK, continue with step 6
+  # host name of the source          -> the next commands (if not done in
+  #                                     a), first the tar line from a))
+
+  sed -i -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerHost=\).*/\1localhost/' -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerName=\)[^:]*:/\1localhost:/' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+
+  grep -n 'ConsoleServerHost\|ConsoleServerName' $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected per file:
+  #   oracle.sysman.emSDK.svlt.ConsoleServerHost=localhost
+  #   ...ConsoleServerName=localhost:7001_Management_Service
+
+  grep -c "$SRC_HOST" $EMTMP/emoms.properties $EMCFG/emoms.properties $EMCFG/emoms.properties.jmxori
+  # Expected: ...:0 for all three files
+
+
+================================================================================
+STEP 6: Create the new RCU prefix  (as oracle on the clone, with the DBA,
+        domain stopped)
+================================================================================
+
+  # Same components as the source prefix. RCU creates its own tablespaces
+  # <NEW_PREFIX>_IAS_... (agree with the DBA; to use an existing
+  # tablespace, append -tablespace <name> per component).
+
+  read -s -p "SYS password new DB: " SYSPW
+  echo
+
+  read -s -p "Password for the new schemas: " NEWPW
+  echo
+
+  # Check that the prefix is still free:
+
+  printf '%s\n' "$SYSPW" | $ORACLE_HOME/oracle_common/bin/rcu -silent -listSchemas -databaseType ORACLE -connectString $DBCONN -dbUser sys -dbRole sysdba -f | grep -i "$NEWPFX"
+  # Expected: no output (prefix free)
+  # Lines with <NEW_PREFIX>_... -> STOP, choose another prefix
+
+  # Create: RCU reads the passwords from standard input - first line SYS,
+  # then one per component, WLS needs two (WLS_RUNTIME).
+  # So: SYS + 7 x the new password.
+
+  printf '%s\n' "$SYSPW" "$NEWPW" "$NEWPW" "$NEWPW" "$NEWPW" "$NEWPW" "$NEWPW" "$NEWPW" | $ORACLE_HOME/oracle_common/bin/rcu -silent -createRepository -databaseType ORACLE -connectString $DBCONN -dbUser sys -dbRole sysdba -schemaPrefix $NEWPFX -component STB -component OPSS -component IAU -component IAU_APPEND -component IAU_VIEWER -component WLS -f 2>&1 | tee $LOGDIR/06_rcu.txt
+  # Expected at the end (test run):
+  #   Common Infrastructure Services     Success
+  #   Oracle Platform Security Services  Success
+  #   Audit Services                     Success
+  #   Audit Services Append              Success
+  #   Audit Services Viewer              Success
+  #   WebLogic Services                  Success
+  #   Repository Creation Utility - Create : Operation Completed
+  # A line "Failure" -> STOP, log $LOGDIR/06_rcu.txt to the DBA.
+
+  unset SYSPW
+  # NEWPW is still needed in steps 8 and 9 - stay in the same terminal.
+  # New terminal? -> STEP 0 and repeat read -s ... NEWPW.
+
+
+================================================================================
+STEP 7: Start the AdminServer only  (as oracle on the clone)
+================================================================================
+
+  # Only the AdminServer - no Node Manager, no WLS_REPORTS, no Reports
+  # server. It still runs against the source prefix (read only).
+
+  cd $DOMAIN_HOME/bin
+
+  nohup ./startWebLogic.sh > $LOGDIR/07_adminserver.log 2>&1 &
+
+  # Wait approx. 1-2 minutes, then:
+
+  curl -s -o /dev/null -w '%{http_code}\n' http://localhost:7001/weblogic/ready
+  # Expected: 200 (before that 000 or 503 = not ready yet, check again)
+
+  ps -ef | grep -c '[w]eblogic.Server'
+  # Expected: 1
+
+
+================================================================================
+STEP 8: Move OPSS into the new prefix  (as oracle, AdminServer runs)
+================================================================================
+
+  # Oracle command reassociateSecurityStore: creates the OPSS store in the
+  # new schema, copies policies, credentials, keys and audit settings and
+  # rewrites jps-config.xml / jps-config-jse.xml (jdbc.url, bootstrap key,
+  # farm name cn=<domain>). Before that a data source on
+  # <NEW_PREFIX>_OPSS is created.
+
+  ----------------------------------------------------------------------------
+  8.1 Write the WLST script  (contains no passwords)
+  ----------------------------------------------------------------------------
+
+  # JDBC URL of the NEW database (from STEP 0). The old URL in
+  # opss-datasource-jdbc.xml points to <old-db-host> and is NOT used here.
+
+  JDBCURL="jdbc:oracle:thin:@//$DBCONN"
+
+  echo "$JDBCURL"
+  # Expected: jdbc:oracle:thin:@//<NEW_DB>  (not <old-db-host>)
+
+  export JDBCURL
+
+  # --- WLST script, written by the heredoc (Python: starts in column 0) ---
+
+  cat > $WORK/opss_reassociate.py << 'EOF'
+import os
+_u = os.environ['WLS_USER']; _p = os.environ['WLS_PW']; _np = os.environ['NEWPW']
+_pfx = os.environ['NEWPFX']; _url = os.environ['JDBCURL']
+connect(_u, _p, 't3://localhost:7001')
+_ds = 'opss-data-source-' + _pfx.lower()
+_jndi = 'jdbc/OpssDataSource' + _pfx
+edit()
+startEdit()
+cd('/')
+_r = cmo.createJDBCSystemResource(_ds)
+_res = _r.getJDBCResource()
+_res.setName(_ds)
+_res.getJDBCDataSourceParams().setJNDINames([_jndi])
+_res.getJDBCDataSourceParams().setGlobalTransactionsProtocol('None')
+_res.getJDBCDriverParams().setUrl(_url)
+_res.getJDBCDriverParams().setDriverName('oracle.jdbc.OracleDriver')
+_res.getJDBCDriverParams().setPassword(_np)
+_res.getJDBCDriverParams().getProperties().createProperty('user').setValue(_pfx + '_OPSS')
+_res.getJDBCConnectionPoolParams().setTestTableName('SQL ISVALID')
+_r.addTarget(getMBean('/Servers/AdminServer'))
+_r.addTarget(getMBean('/Clusters/cluster_reports'))
+save()
+activate(block='true')
+print('IHW: datasource ' + _ds + ' ' + _jndi)
+reassociateSecurityStore(domain='fr_domain', servertype='DB_ORACLE', jpsroot='cn=opssRoot', datasourcename=_jndi, jdbcurl=_url, jdbcdriver='oracle.jdbc.OracleDriver', dbUser=_pfx + '_OPSS', dbPassword=_np)
+print('IHW: reassociateSecurityStore done')
+disconnect()
+exit()
+EOF
+
+  # --- end of the WLST script ---
+
+  grep -c . $WORK/opss_reassociate.py
+  # Expected: 28
+
+  # The script names the domain as fr_domain. Is that your domain name?
+
+  basename $DOMAIN_HOME
+  # Expected: fr_domain -> continue with 8.2
+  # Another name? -> vi $WORK/opss_reassociate.py
+  #   /domain='   (Enter), cw on fr_domain, type your domain name, Esc
+  #   :wq
+  # then:  grep -o "domain='[^']*'" $WORK/opss_reassociate.py
+  #   Expected: domain='<your domain name>'
+
+  # The script targets the cluster cluster_reports (Reports-only domain).
+  # Check the cluster name:
+
+  grep -o '<cluster>[^<]*' $DOMAIN_HOME/config/config.xml
+  # Expected: <cluster>cluster_reports (once per managed server)
+  # Another name? -> change '/Clusters/cluster_reports' in the script the
+  # same way with vi.
+
+  ----------------------------------------------------------------------------
+  8.2 Run it
+  ----------------------------------------------------------------------------
+
+  read -p "WebLogic admin user: " WLS_USER
+
+  read -s -p "WebLogic admin password: " WLS_PW
+  echo
+
+  export WLS_USER WLS_PW NEWPW NEWPFX
+
+  $WLST $WORK/opss_reassociate.py 2>&1 | tee $LOGDIR/08_reassociate.txt
+  # Expected (test run, shortened):
+  #   IHW: datasource opss-data-source-<new_prefix>
+  #        jdbc/OpssDataSource<NEW_PREFIX>   (one line, wrapped here)
+  #   Policy store reassociation done.
+  #   Credential store reassociation done
+  #   Keystore reassociation done
+  #   Audit store reassociation done
+  #   Jps Configuration has been changed. Please restart the application server.
+  #   IHW: reassociateSecurityStore done
+  # Error message (Traceback, JPS-...) -> STOP, stop the AdminServer (step
+  # 9.1), ROLLBACK clone, send $LOGDIR/08_reassociate.txt.
+
+  ----------------------------------------------------------------------------
+  8.3 Check
+  ----------------------------------------------------------------------------
+
+  grep -o 'jdbc/OpssDataSource[A-Z0-9]*' $DOMAIN_HOME/config/fmwconfig/jps-config.xml
+  # Expected: jdbc/OpssDataSource<NEW_PREFIX>
+
+  grep -c "$OLDDBHOST" $DOMAIN_HOME/config/fmwconfig/jps-config.xml $DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+  # Expected: jps-config.xml:0  jps-config-jse.xml:1
+  # The one line in jps-config-jse.xml is audit.loader.jdbc.string (audit
+  # loader of the Java processes outside WebLogic, e.g. the standalone
+  # Reports server). reassociateSecurityStore does NOT rewrite it (seen at
+  # the customer 2026-11-10) -> changed in step 9.5.
+  # (New prefix in the SAME database: both counts show the DB host - this
+  # check then says nothing; 8.3 first line and 9.4 count.)
+
+  grep -n "$OLDDBHOST" $DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml | cut -c1-60
+  # Expected: exactly 1 line with audit.loader.jdbc.string
+  # Another line (e.g. jdbc.url) -> STOP, send the output.
+
+  ----------------------------------------------------------------------------
+  8.4 Audit credential on the new schema  (AdminServer still runs)
+  ----------------------------------------------------------------------------
+
+  # The audit loader logs in with the credential AuditDbPrincipalMap /
+  # AuditDbPrincipalKey. reassociateSecurityStore copied it with the old
+  # user <OLD_PREFIX>_IAU_APPEND into the new store.
+
+  # --- WLST script, written by the heredoc (Python: starts in column 0) ---
+
+  cat > $WORK/audit_cred.py << 'EOF'
+import os
+connect(os.environ['WLS_USER'], os.environ['WLS_PW'], 't3://localhost:7001')
+_u = os.environ['NEWPFX'] + '_IAU_APPEND'
+try:
+    updateCred(map='AuditDbPrincipalMap', key='AuditDbPrincipalKey', user=_u, password=os.environ['NEWPW'])
+    print('IHW: AuditDbPrincipalKey -> ' + _u)
+except Exception, e:
+    print('IHW: updateCred not possible: ' + str(e))
+disconnect()
+exit()
+EOF
+
+  # --- end of the WLST script ---
+
+  grep -c . $WORK/audit_cred.py
+  # Expected: 10
+
+  echo "WLS_USER=$WLS_USER"
+  # Expected: the admin user of 8.2. EMPTY (new terminal)? -> STEP 0,
+  # read -s ... NEWPW, then  read -p "WebLogic admin user: " WLS_USER
+
+  read -s -p "WebLogic admin password: " WLS_PW
+  echo
+
+  export WLS_USER WLS_PW NEWPW NEWPFX
+
+  $WLST $WORK/audit_cred.py 2>&1 | grep 'IHW:' | tee $LOGDIR/08_audit_cred.txt
+  # Expected: IHW: AuditDbPrincipalKey -> <NEW_PREFIX>_IAU_APPEND
+  # "updateCred not possible ... not found / does not exist" -> the
+  #   credential did not exist on the source either; continue with step 9,
+  #   report the line.
+  # Any other message -> STOP, send $LOGDIR/08_audit_cred.txt.
+  # NOTE: the result of this step at the customer is still pending
+  # (clone_golden_image.md section 7) - please report the line in any case.
+
+  unset WLS_PW
+
+
+================================================================================
+STEP 9: Change the remaining data sources  (as oracle, domain stopped)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  9.1 Stop the AdminServer
+  ----------------------------------------------------------------------------
+
+  # Without an explicit address stopWebLogic.sh takes ADMIN_URL from the
+  # environment or from the script - if step 5.1 was missed, that is the
+  # SOURCE (customer 2026-11-10: "No route to host", the clone AdminServer
+  # kept running). So always pass the address:
+
+  ADMIN_URL=t3://localhost:7001 $DOMAIN_HOME/bin/stopWebLogic.sh
+  # Expected: "Connecting to t3://localhost:7001 ..." and at the end
+  #           shutDownStatus=0
+  # Asks for user / password if no boot.properties is read.
+
+  ps -ef | grep -c '[w]eblogic.Server'
+  # Expected: 0
+  # Still 1 and shutDownStatus=1 -> read the line "Connecting to ...";
+  # if it does not say localhost, repeat the line above exactly.
+
+  ----------------------------------------------------------------------------
+  9.2 Write the WLST script  (offline, contains no passwords)
+  ----------------------------------------------------------------------------
+
+  # --- WLST script, written by the heredoc (Python: starts in column 0) ---
+
+  cat > $WORK/datasources.py << 'EOF'
+import os
+_pfx = os.environ['NEWPFX']; _pw = os.environ['NEWPW']; _dh = os.environ['DOMAIN_HOME']
+_url = os.environ['JDBCURL']
+_map = [('LocalSvcTblDataSource', 'STB'), ('opss-audit-DBDS', 'IAU_APPEND'), ('opss-audit-viewDS', 'IAU_VIEWER'), ('WLSSchemaDataSource', 'WLS'), ('WLSRuntimeSchemaDataSource', 'WLS_RUNTIME'), ('opss-data-source', 'OPSS')]
+readDomain(_dh)
+for _ds, _sfx in _map:
+    cd('/JDBCSystemResource/' + _ds + '/JdbcResource/' + _ds + '/JDBCDriverParams/NO_NAME_0')
+    set('URL', _url)
+    set('PasswordEncrypted', _pw)
+    cd('Properties/NO_NAME_0/Property/user')
+    _old = get('Value')
+    set('Value', _pfx + '_' + _sfx)
+    print('IHW: ' + _ds + ': ' + str(_old) + ' -> ' + _pfx + '_' + _sfx)
+updateDomain()
+closeDomain()
+exit()
+EOF
+
+  # --- end of the WLST script ---
+
+  grep -c . $WORK/datasources.py
+  # Expected: 16
+
+  ----------------------------------------------------------------------------
+  9.3 Run it
+  ----------------------------------------------------------------------------
+
+  echo "$JDBCURL"
+  # Expected: jdbc:oracle:thin:@//<NEW_DB> - EMPTY (new terminal)? ->
+  # STEP 0, then JDBCURL="jdbc:oracle:thin:@//$DBCONN" and
+  # read -s -p "Password for the new schemas: " NEWPW
+
+  export NEWPW NEWPFX DOMAIN_HOME JDBCURL
+
+  $WLST $WORK/datasources.py 2>&1 | tee $LOGDIR/09_datasources.txt
+  # Expected (6 IHW lines):
+  #   IHW: LocalSvcTblDataSource: SRC_STB -> <NEW_PREFIX>_STB
+  #   IHW: opss-audit-DBDS: SRC_IAU_APPEND -> <NEW_PREFIX>_IAU_APPEND
+  #   IHW: opss-audit-viewDS: SRC_IAU_VIEWER -> <NEW_PREFIX>_IAU_VIEWER
+  #   IHW: WLSSchemaDataSource: SRC_WLS -> <NEW_PREFIX>_WLS
+  # IHW: WLSRuntimeSchemaDataSource: SRC_WLS_RUNTIME -> <NEW_PREFIX>_WLS_RUNTIME
+  #   IHW: opss-data-source: SRC_OPSS -> <NEW_PREFIX>_OPSS
+
+  unset NEWPW
+
+  ----------------------------------------------------------------------------
+  9.4 Check
+  ----------------------------------------------------------------------------
+
+  grep -h -A1 '<name>user</name>' $DOMAIN_HOME/config/jdbc/*.xml | grep value
+  # Expected: 7 lines, ALL with <NEW_PREFIX>_...
+  # A line with SRC_ (old prefix) -> STOP, repeat step 9.3
+
+  grep -ho 'jdbc:oracle:thin:[^<]*' $DOMAIN_HOME/config/jdbc/*.xml | sort | uniq -c
+  # Expected: ONE line "7 jdbc:oracle:thin:@//<NEW_DB>"
+  # A line with <old-db-host> -> STOP, repeat step 9.3
+
+  grep -c "$OLDPFX" $DOMAIN_HOME/config/fmwconfig/jps-config.xml
+  # Expected: 0
+
+  ----------------------------------------------------------------------------
+  9.5 Audit URL in jps-config-jse.xml  (domain stopped)
+  ----------------------------------------------------------------------------
+
+  # audit.loader.jdbc.string gets the same URL as jdbc.url (props.db.1),
+  # which reassociateSecurityStore already set to the new database.
+
+  cd $DOMAIN_HOME/config/fmwconfig
+
+  cp -p jps-config-jse.xml $BACKUP/jps-config-jse.xml.before_9.5
+
+  NEWURL=$(grep -o 'name="jdbc.url" value="[^"]*"' jps-config-jse.xml | sed 's/.*value="//; s/"$//')
+
+  echo "$NEWURL"
+  # Expected: jdbc:oracle:thin:@...(host=<new DB>... - NOT <old-db-host>
+  # Empty or <old-db-host> -> STOP
+
+  sed -i "s#\(audit.loader.jdbc.string\" value=\"\)jdbc:oracle:thin:[^\"]*#\1$NEWURL#" jps-config-jse.xml
+
+  grep -c "$OLDDBHOST" jps-config-jse.xml
+  # Expected: 0
+
+  grep -o 'audit.loader.jdbc.string" value="[^"]*' jps-config-jse.xml | cut -c1-90
+  # Expected: 2 lines - once value="jdbcstring" (Oracle default, stays
+  # like this), once the URL of the new database
+
+  cd -
+
+  # KNOWN AND HARMLESS: updateDomain rewrites config.xml and drops lines
+  # with default values (e.g. <enabled>false</enabled> of the SSL of
+  # WLS_REPORTS). SSL stays off - check in step 12.
+
+
+================================================================================
+STEP 10: Host names in configurations  (as oracle / root, domain stopped)
+================================================================================
+
+  ----------------------------------------------------------------------------
+  10.1 Reports multicast port  (as oracle)
+  ----------------------------------------------------------------------------
+
+  # Source and clone in the same network with the same port and the same
+  # server name see each other (REP-56040). The clone gets another port
+  # (example: source 14022, clone 14023; range 14021-14030).
+
+  grep -l 'port="14022"' $(find $DOMAIN_HOME/config/fmwconfig -name rwnetwork.conf)
+  # Expected: 3 files (repserver01, reptools1, WLS_REPORTS)
+  # (use the real port of the source - see the output of step 2)
+
+  # In each of the 3 files with vi:
+  #   vi <file>
+  #   /14022   (Enter)  ->  the cursor is on the number
+  #   cw 14023 Esc      ->  replace the number
+  #   :wq
+
+  grep -h 'multicast' $(find $DOMAIN_HOME/config/fmwconfig -name rwnetwork.conf)
+  # Expected: 3 x port="14023"
+
+  ----------------------------------------------------------------------------
+  10.2 Sender of the Reports mails  (as oracle)
+  ----------------------------------------------------------------------------
+
+  grep -n 'sender' $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPSRV/rwserver.conf
+  # Expected: reports@<source-host> -> change it with vi to
+  # reports@<clone-host> (or the address agreed with the mail team).
+  # No line -> no mail notification, nothing to do.
+
+  ----------------------------------------------------------------------------
+  10.3 Nginx  (as root)
+  ----------------------------------------------------------------------------
+
+  grep -n 'server_name\|ssl_certificate' /etc/nginx/conf.d/<site>.conf
+  # Expected: 2 x server_name <source-host> -> change with vi to
+  # <clone-host>; the ssl_certificate line names the certificate file
+
+  openssl x509 -in /etc/nginx/ssl/<certificate>.cer -noout -ext subjectAltName
+  # <clone-host> or *.<your-dns-domain> in the list? -> the certificate
+  # fits. Otherwise a new certificate
+  # (../Reports14_linux_manual_install/SSL_Kochbuch_de.txt).
+
+  nginx -t
+  # Expected: syntax is ok / test is successful
+
+  ----------------------------------------------------------------------------
+  10.4 Firewall  (as root)
+  ----------------------------------------------------------------------------
+
+  firewall-cmd --list-ports | tee $LOGDIR/10_firewall.txt
+  # 14022/udp listed? -> open 14023/udp instead:
+  #   firewall-cmd --permanent --remove-port=14022/udp
+  #   firewall-cmd --permanent --add-port=14023/udp
+  #   firewall-cmd --reload
+
+  ----------------------------------------------------------------------------
+  10.5 Tools directory: patch_install.ini  (as oracle)
+  ----------------------------------------------------------------------------
+
+  # $TOOLS/patch_install.ini came along from the source. status.sh,
+  # show_log.sh, show_errors.sh and the cookbooks (set_script_env.sh)
+  # read from it. Values of the source in it:
+  #   WLS_SERVER_FQDN, SSL_CN              host name     -> <clone-host>
+  #   DB_HOST, DB_PORT, DB_SERVICE         RCU DB        -> <NEW_DB>
+  #   DB_SCHEMA_PREFIX                     RCU prefix    -> <NEW_PREFIX>
+  #   REPORTS_BROADCAST_PORT               multicast     -> 14023
+  #   NM_HOST, WLS_ADMIN_URL               should be localhost / 127.0.0.1
+
+  ls -l $TOOLS/patch_install.ini
+  # No file ("No such file") -> continue with 10.6
+
+  cp -p $TOOLS/patch_install.ini $BACKUP/patch_install.ini.source
+
+  grep -niE "$SRC_HOST|$OLDDBHOST|14022" $TOOLS/patch_install.ini
+  # Expected: the lines of the source that are changed now
+
+  # Way A - regenerate it from the (changed) domain, if the script exists
+  # (it never overwrites an existing file, so move it aside first):
+
+  ls $TOOLS/make_patch_install_ini.sh
+  # "No such file" -> way B
+
+  mv $TOOLS/patch_install.ini $TOOLS/patch_install.ini.source_$(date +%Y%m%d)
+
+  $TOOLS/make_patch_install_ini.sh
+  # shows the values with their source, writes nothing. Expected:
+  # WLS_SERVER_FQDN <clone-host>, DB_HOST of the new DB, DB_SCHEMA_PREFIX
+  # <NEW_PREFIX>, REPORTS_BROADCAST_PORT 14023
+
+  $TOOLS/make_patch_install_ini.sh --apply
+
+  diff $BACKUP/patch_install.ini.source $TOOLS/patch_install.ini
+  # Expected: differences in the values above. Entries that only exist in
+  # the old file (added by hand, e.g. PATCH_STORAGE, MEDIA,
+  # WLST_CONFIG_FILE / WLST_KEY_FILE): carry them over with vi:
+  #   vi $TOOLS/patch_install.ini
+  #   G  o  type the line from the diff (without "< ")  Esc  :wq
+
+  # Way B - by hand (script not available):
+  #   vi $TOOLS/patch_install.ini
+  #   /<source-host-short>  (Enter) -> replace the value after = (cw ...
+  #   Esc), n = next; the same with /<old-db-host>, /SRC (old prefix),
+  #   /14022 (check DB_PORT / DB_SERVICE of the new DB)
+  #   :wq
+
+  grep -niE "$SRC_HOST|$OLDDBHOST|14022" $TOOLS/patch_install.ini
+  # Expected: no line (exception way B: a comment line "# from domain ...
+  # on <source-host>" from the generation on the source - harmless)
+
+  $TOOLS/status.sh -q
+  # Expected: AdminServer / WLS_REPORTS / repserver01 with a state (the
+  # domain is still stopped -> "down" is right here), no message that the
+  # ini names another domain
+
+  ----------------------------------------------------------------------------
+  10.6 Scheduled tasks (crontab)  (as oracle and root)
+  ----------------------------------------------------------------------------
+
+  # The crontab came along with the clone (e.g. rwclient jobs, cleanup,
+  # exports) - otherwise they run twice or against the source.
+
+  crontab -l
+  # Expected: no line, or only entries that shall run on the clone.
+  # Foreign entries (report jobs, source host name, old DB host):
+  #   crontab -l > $BACKUP/crontab_oracle.source
+  #   crontab -e  ->  comment the line out with # at the start  ->  :wq
+
+  # As root the same: root's own crontab with  crontab -l  and the files
+  # in  ls /etc/cron.d/
+
+
+================================================================================
+STEP 11: Start the clone completely and switch on the autostart
+================================================================================
+
+  # With autostart (as root):
+
+  systemctl enable <unit>
+
+  systemctl start <unit>
+
+  systemctl status <unit> --no-pager
+  # Expected: active (running)
+
+  # Without autostart (as oracle): the start script of the operations
+  # cookbook (e.g. start_wls_all.sh).
+  # Expected: Node Manager, AdminServer, WLS_REPORTS, repserver01 "RUNNING"
+
+
+================================================================================
+STEP 12: Check  (as oracle on the clone, everything runs)
+================================================================================
+
+  curl -s -o /dev/null -w '%{http_code}\n' http://localhost:7001/weblogic/ready
+  # Expected: 200
+
+  curl -s -o /dev/null -w '%{http_code}\n' http://localhost:9002/reports/rwservlet/getserverinfo
+  # Expected: 200
+
+  grep -E '<Error>|<Critical>|JPS-[0-9]+' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log | tail -5
+  # Expected: no line with today's time
+
+  grep -E '<Error>|<Critical>|JPS-[0-9]+' $DOMAIN_HOME/servers/WLS_REPORTS/logs/WLS_REPORTS.log | tail -5
+  # Expected: no line with today's time
+
+  grep -E 'BEA-14950[56]' $DOMAIN_HOME/servers/AdminServer/logs/AdminServer.log | tail -1
+  # Expected: BEA-149506 "Established JMX Connectivity with WLS_REPORTS"
+  # Only BEA-149505 -> step 5.2 missed (KNOWN PROBLEMS)
+
+  # Call a real report through https://<clone-host>/reports/...
+  # Expected: the PDF as on the source.
+
+  # Enterprise Manager: log in at https://<clone-host>/em, open the
+  # Reports server repserver01. Expected: page without errors, WLS_REPORTS
+  # and cluster_reports green.
+
+  $TOOLS/clone_check_fmw.sh --config -t $LOGDIR | tee $LOGDIR/12_check_clone.txt
+  # Expected: as in step 2, RCU now <NEW_PREFIX>, multicast 14023.
+
+  ----------------------------------------------------------------------------
+  12.1 DBA check: who logs in to the RCU?  (DBA, SQL*Plus as SYS)
+  ----------------------------------------------------------------------------
+
+  # Clone completely started (step 11), running for approx. 5 minutes.
+
+  # --- in SQL*Plus, on the NEW database <NEW_DB> ---
+
+      select username, machine, count(*) sessions from v$session
+      where username like '<NEW_PREFIX>\_%' escape '\'
+      group by username, machine order by 1;
+
+  # --- end SQL*Plus ---
+
+  # Expected (machine = <clone-host>):
+  #
+  #   User                          Sessions  Who / why
+  #   ----------------------------  --------  ---------------------------------
+  #   <NEW_PREFIX>_OPSS             approx.   opss-data-source (AdminServer +
+  #                                 5-10      WLS_REPORTS), probably also the
+  #                                           standalone Reports server
+  #                                           (jps-config-jse.xml, jdbc.url;
+  #                                           not proven one by one)
+  #   <NEW_PREFIX>_IAU_APPEND       1-2       opss-audit-DBDS (AdminServer +
+  #                                           WLS_REPORTS)
+  #   <NEW_PREFIX>_IAU_VIEWER       1-2       opss-audit-viewDS (same)
+  #   <NEW_PREFIX>_STB              0-1       LocalSvcTblDataSource, AdminServer
+  #                                           only, pool starts with 0 -
+  #                                           session only when needed
+  #
+  #   NOT expected (no error if they are missing):
+  #   <NEW_PREFIX>_WLS              WLSSchemaDataSource without target in
+  #   <NEW_PREFIX>_WLS_RUNTIME      this domain - nobody logs in
+  #   <NEW_PREFIX>_IAU              owner schema, no login
+  #
+  # Customer run 2026-11-10 (Reports only, 2 WebLogic servers): OPSS 6
+  # (5 x program SERVER = data sources, 1 x JDBC Thin Client after the
+  # start of WLS_REPORTS, fits the standalone Reports server via
+  # jdbc.url), IAU_APPEND 2, IAU_VIEWER 2, STB 1 - as expected.
+  # (Test host 2026-11-10, with Forms = 3 servers: OPSS 10, IAU_APPEND 3,
+  # IAU_VIEWER 3, STB 1. The numbers depend on the pools; what counts:
+  # OPSS, IAU_APPEND and IAU_VIEWER are there, machine = <clone-host>.)
+
+  # Who has logged in at all (also without an open session)?
+
+  # --- in SQL*Plus, on the NEW database <NEW_DB> ---
+
+      select username, last_login from dba_users
+      where username like '<NEW_PREFIX>\_%' escape '\' order by 1;
+
+  # --- end SQL*Plus ---
+
+  # Expected: LAST_LOGIN filled for _OPSS, _IAU_APPEND, _IAU_VIEWER (and
+  # _STB if used); empty for _WLS, _WLS_RUNTIME, _IAU (RCU itself logs in
+  # as SYS).
+
+  # On the OLD database <old-db-host> - the clone is no longer there:
+
+  # --- in SQL*Plus, on the OLD database <old-db-host> ---
+
+      select username, machine, count(*) sessions from v$session
+      where lower(machine) like '<clone-host-short>%'
+      group by username, machine order by 1;
+
+  # --- end SQL*Plus ---
+
+  # Expected: no rows.
+  # Rows with SRC_... and machine = <clone-host> -> STOP: the clone still
+  # works with the store of the source. Stop the clone (step 9.1), check
+  # steps 9.4 / 8.3, send the result.
+
+  # Cross-check: SRC_... with machine = <source-host> (the source) are
+  # right and stay.
+
+  ----------------------------------------------------------------------------
+  12.2 Scheduled Reports jobs  (as oracle, clone AND source)
+  ----------------------------------------------------------------------------
+
+  # Scheduled jobs (SCHEDULE=...) live in $DOMAIN_HOME/reports/server/
+  # <server>.dat. The file of the source has been in $BACKUP since step 5
+  # - NEVER copy it back to the clone (otherwise all jobs run twice: same
+  # files, same FTP targets, same mails).
+  # Without <jobStatusRepository> in rwserver.conf the job list lives only
+  # in the .dat, not in a shared DB table:
+
+  grep -c 'jobStatusRepository' $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$REPSRV/rwserver.conf
+  # Expected: 0 (customer run). A number > 0 -> the jobs may also live in a
+  # DB table shared with the source - STOP, clarify before the next
+  # commands (reports_job_handling.md section 2).
+
+  # showjobs needs the Reports server administrator (<identifier> in
+  # rwserver.conf). The password goes to curl via standard input (-K -),
+  # not on the command line and not into a file:
+
+  read -p "Reports admin user (<identifier>): " REPADMIN
+
+  read -s -p "Reports admin password: " RPW
+  echo
+
+  # Clone: there must be NO scheduled job:
+
+  printf 'data-urlencode = "authid=%s/%s"\n' "$REPADMIN" "$RPW" | curl -s -K - -d server=$REPSRV -d statusformat=XML -d queuetype=future http://localhost:9002/reports/rwservlet/showjobs | grep -c '<job '
+  # Expected: 0
+  # A number > 0 -> the .dat came along after all: stop the Reports
+  #   server, move $DOMAIN_HOME/reports/server/$REPSRV.dat to $BACKUP,
+  #   start, check (or delete the jobs with killjobid<n>).
+  # REP-56071 / "not granted" -> wrong user, take the <identifier> admin.
+
+  unset RPW
+
+  # Source (on <source-host>, STEP 0 and the two read lines there too):
+  # the scheduled jobs must still be there - the source kept its .dat and
+  # was restarted in step 3.
+
+  printf 'data-urlencode = "authid=%s/%s"\n' "$REPADMIN" "$RPW" | curl -s -K - -d server=$REPSRV -d statusformat=XML -d queuetype=future http://localhost:9002/reports/rwservlet/showjobs | grep -o '<name>[^<]*' | sort | uniq -c
+  # Expected: the job names as before the clone (compare with the
+  # business department). Empty although there were jobs -> report it
+  # at once.
+
+  unset RPW
+
+  # Shall the clone get its own scheduled jobs: schedule them NEW, do not
+  # copy the .dat - best as crontab + rwclient (reports_job_handling.md
+  # section 5.2). Check where the job writes (desname, FTP, mail): own
+  # targets for the clone, otherwise it overwrites the files of the source.
+
+  # Cache: $DOMAIN_HOME/reports/cache still holds output of the source. No
+  # error (cleaned through cacheSize); empty it only with the Reports
+  # server stopped.
+
+  # Send the result files from $LOGDIR (08_, 09_, 12_) to the person who
+  # supports this run.
+
+
+ROLLBACK
+================================================================================
+
+  What                          How
+  ----------------------------  ----------------------------------------------
+  Source                        changes only in steps 1/3 (autostart off and
+                                on again). The source prefix is only read -
+                                nothing to undo.
+  Clone, error in step 8 or 9   commands below: restore config/ from the
+                                backup of step 5. Then the clone points to
+                                the SOURCE prefix again -> do NOT start it.
+                                Start again from step 7, or discard the clone.
+  bin/*.sh, startup.properties  not undone - localhost is right for the
+  (5.1, 5.2)                    clone; copies in $BACKUP if needed
+  rwserver.conf / emoms (5.3)   tar -xzf $BACKUP/loopback_<time>.tgz
+                                -C $DOMAIN_HOME (domain stopped)
+  jps-config-jse.xml (9.5)      cp -p $BACKUP/jps-config-jse.xml.before_9.5
+                                $DOMAIN_HOME/config/fmwconfig/jps-config-jse.xml
+  patch_install.ini (10.5)      cp -p $BACKUP/patch_install.ini.source
+                                $TOOLS/patch_install.ini
+  New prefix (6)                DBA, only when the clone is discarded:
+                                rcu -dropRepository (commands below)
+
+  Clone, error in step 8 or 9 (as oracle, STEP 0 first):
+
+  ps -ef | grep -c '[w]eblogic.Server'
+  # Expected: 0 - otherwise stop the AdminServer:
+  #   ADMIN_URL=t3://localhost:7001 $DOMAIN_HOME/bin/stopWebLogic.sh
+
+  ls $BACKUP/config_*.tgz
+
+  mv $DOMAIN_HOME/config $DOMAIN_HOME/config.failed
+
+  tar -xzf $BACKUP/config_<time>.tgz -C $DOMAIN_HOME
+
+  # WARNING: the clone now points to the source prefix again -> do NOT
+  # start it. Start again from step 7, or discard the clone.
+
+  Remove the new prefix again (DBA, only when the clone is discarded):
+
+  read -s -p "SYS password new DB: " SYSPW
+  echo
+
+  printf '%s\n' "$SYSPW" | $ORACLE_HOME/oracle_common/bin/rcu -silent -dropRepository -databaseType ORACLE -connectString $DBCONN -dbUser sys -dbRole sysdba -schemaPrefix $NEWPFX -component STB -component OPSS -component IAU -component IAU_APPEND -component IAU_VIEWER -component WLS -f
+  # (against <NEW_DB>)
+
+  unset SYSPW
+
+
+KNOWN PROBLEMS
+================================================================================
+
+  Problem : reassociateSecurityStore stops with JPS-... .
+  Cause   : the data source does not reach the new schema (password,
+            prefix, wrong URL / service).
+  Solution: find the first JPS- / ORA- message in
+            $LOGDIR/08_reassociate.txt. Check password / prefix / DBCONN,
+            ROLLBACK clone, start again from step 7.
+
+  Problem : step 8 hangs for a long time and then reports "IO Error",
+            ORA-12170 or "Connection timed out".
+  Cause   : the clone does not reach <NEW_DB> (firewall, allow list).
+  Solution: repeat the network check of STEP 0, clear the allow list,
+            ROLLBACK clone, start again from step 7.
+
+  Problem : stopWebLogic.sh reports "t3://<source-host>:7001 ... No route
+            to host" and shutDownStatus=1, the AdminServer keeps running.
+  Cause   : the script or the environment holds the address of the source.
+  Solution: ADMIN_URL=t3://localhost:7001 $DOMAIN_HOME/bin/stopWebLogic.sh
+            (step 9.1); permanently: step 5.1.
+
+  Problem : step 8.3 shows jps-config-jse.xml:1 (<old-db-host>).
+  Cause   : reassociateSecurityStore does not rewrite
+            audit.loader.jdbc.string of the audit instance (only jdbc.url).
+  Solution: steps 8.4 and 9.5. KNOWN, not an error of step 8.
+
+  Problem : the clone does not start after step 11, AdminServer.log names
+            <old-db-host> or ORA-01017 for SRC_... .
+  Cause   : a data source still points to the old database / old user.
+  Solution: checks of step 9.4; repeat step 9.
+
+  Problem : "Integration Class not found" in the EM log
+            (sysman/log/emoms.log).
+  Cause   : Oracle message at every EM start, also before the clone.
+  Solution: KNOWN AND HARMLESS.
+
+  Problem : the Reports server of the clone stops with REP-56040, or
+            rwservlet talks to the Reports server of the source.
+  Cause   : multicast port not changed in all 3 rwnetwork.conf.
+  Solution: step 10.1, restart the Reports server and WLS_REPORTS.
+
+  Problem : a report runs on the clone at a time nobody triggered it.
+  Cause   : <server>.dat of the source not moved aside (step 5).
+  Solution: stop the Reports server, move
+            $DOMAIN_HOME/reports/server/$REPSRV.dat to $BACKUP, start.
+
+  Problem : emoms.properties / .jmxori back to the host name after a
+            restart, although changed to localhost.
+  Cause   : EM copies
+            servers/AdminServer/tmp/_WL_user/em/<id>/META-INF/emoms.properties
+            over both files in config/ at every AdminServer start.
+  Solution: step 5.3 b) - all three files; check again after an EM patch /
+            redeploy. No outage: EM also works with the host name there.
+
+  Problem : clone_check_fmw.sh section 1: FIX rwEng-0 / rwEng-1 on
+            0.0.0.0, although reports.sh has ORBServerHost=127.0.0.1.
+  Cause   : <engine ... jvmOptions="-Xms1024m -Xmx2048m"> in rwserver.conf
+            REPLACES the REPORTS_JVM_OPTIONS inherited from reports.sh
+            (source AND clone at the customer, 2026-11-10).
+  Solution: step 5.3 a); restart the Reports server, run
+            clone_check_fmw.sh again.
+
+  Problem : EM shows WLS_REPORTS / cluster_reports / reports RED, but
+            status.sh reports everything RUNNING. WLS_REPORTS.log: "being
+            started in Managed Server independence mode", AdminServer.log
+            only BEA-149505 (no BEA-149506).
+  Cause   : AdminURL in servers/WLS_REPORTS/data/nodemanager/
+            startup.properties points to the host IP of the source; the
+            AdminServer listens only on 127.0.0.1 since the hardening.
+            Seen on the SOURCE too (customer, 2026-11-10).
+  Solution: step 5.2 - on clone and source; then restart WLS_REPORTS.
+            Check: the grep BEA-14950[56] of step 12.
+
+  Problem : an offline copy with migrateSecurityStore instead of step 8
+            reports JPS-01013 "the target DN must be pre-configured".
+  Cause   : a schema freshly created by RCU has no OPSS root; 14.1.2 has
+            no tool to create it offline (clone_golden_image.md section 5).
+  Solution: use step 8 (reassociateSecurityStore).
+
+  Open    : - result of updateCred (step 8.4) at the customer pending.
+            - EM login by form after the move not tested (EM 302 OK).
+            - whether the standalone Reports server writes audit rows at
+              all with audit.filterPreset=None.
+            Report what you see in steps 8.4 and 12.
