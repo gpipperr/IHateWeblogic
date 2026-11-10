@@ -9,7 +9,7 @@ certificate) carries the host name – then an installation can serve as a
 **golden image** and is easy to move.
 
 Markers: **confirmed (live)** (test host, date given), **documented**
-(source in section 7), **assumption** (not proven yet).
+(source in section 8), **assumption** (not proven yet).
 
 Related:
 [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md)
@@ -110,6 +110,9 @@ Notes:
 | `uifont.ali` header comment | host name of the generation | comment only | confirmed (live) |
 | `/etc/machine-id`, ssh host keys, `/etc/hosts` | machine identity | OS clone tooling (`virt-sysprep` / cloud-init) | – |
 | `oraInventory`, Oracle Home | paths only | unchanged | – |
+| `$DOMAIN_HOME/config/fmwconfig/servers/AdminServer/applications/em/META-INF/emoms.properties` `ConsoleServerHost` / `ConsoleServerName` | host name (or `localhost`) of the domain creation | **not rewritten** on a restart after the listen-address change (customer, 2026-11-10: FQDN stays; test host: `localhost` because the domain was created with it, file dated at the creation); whether EM needs a change on a clone is open (section 7) | confirmed (live) |
+| `rwserver.conf` `<notification>` `sender` | mail address with the host name (if set) | adjust per clone ([reports_job_handling.md](reports_job_handling.md) §7.2) | – |
+| `$DOMAIN_HOME/reports/server/<server>.dat` | scheduled Reports jobs | move aside before the first start of a clone, else they run twice ([reports_job_handling.md](reports_job_handling.md) §8) | confirmed (live, persistence) |
 
 ---
 
@@ -153,7 +156,7 @@ knows the prefix (§4, §5 there).
 | RCU database | After the clone |
 |---|---|
 | **on the WLS host** (cloned along) | nothing for RCU – the DB is part of the image. Only the DB host name in the JDBC URLs / `jps-config*.xml` / `tnsnames.ora` (section 3): use `localhost` or an alias from the start, then nothing changes either |
-| **external** | the clone must **not start** against the repository of the source – two domains would write into the same OPSS store (policies, keystores, credentials), the same `_WLS` runtime / lease tables and the same service table (**assumption** from the design, not tested – do not try it on a production repository) |
+| **external** | the clone must **not start** against the repository of the source – two domains would write into the same OPSS store (policies, keystores, credentials), the same `_WLS` runtime / lease tables and the same service table (**assumption** from the design, not tested – do not try it on a production repository). Exception in way 3: only the AdminServer of the clone starts briefly against it to run `reassociateSecurityStore` (reads the source store) |
 
 External RCU – three ways, the first one recommended:
 
@@ -189,9 +192,10 @@ External RCU – three ways, the first one recommended:
       dbUser='<new>_OPSS', dbPassword=...)`. Oracle: it "migrates the security
       store from a source to a target store and resets service configurations
       in the `jps-config.xml` and `jps-config-jse.xml` files" and the bootstrap
-      credential (**documented**, OPSS 12.2.1.3 `managepols.htm`).
+      credential (**documented**, OPSS 12.2.1.3 "reassociateSecurityStore",
+      section 8).
    4. Stop; the remaining data sources (`LocalSvcTblDataSource` → `_STB`,
-      `opss-audit` → `_IAU_APPEND`, `opss-auditview` → `_IAU_VIEWER`,
+      `opss-audit-DBDS` → `_IAU_APPEND`, `opss-audit-viewDS` → `_IAU_VIEWER`,
       `WLSSchemaDataSource` → `_WLS`, `WLSRuntimeSchemaDataSource` →
       `_WLS_RUNTIME`, the old `opss-data-source`) to the new prefix; start all.
 
@@ -202,8 +206,15 @@ External RCU – three ways, the first one recommended:
      store DN cn=CredentialStore,cn=opssSecurityStore,cn=JPSContext,cn=opssRoot
      is missing in the store; the target DN must be pre-configured.` – a
      schema freshly created by RCU has no OPSS root.
-   - 14.1.2 ships no `configureSecurityStore.py` (12c used it to create the
-     root); `tenantOnBoard` is for multi-tenant stores.
+   - No `configureSecurityStore.py` in the 14.1.2 Oracle home (`find`, test
+     host) – that it created the root in older releases is an
+     **assumption**; the WLST command list of 14.1.2 (`Opss.py`,
+     `jpsWlstCmd.py` in `oracle.fmwshare.pyjar.jar`) has no offline command
+     for it, `tenantOnBoard` is for multi-tenant stores.
+   - The DB → DB examples of `migrateSecurityStore` (config file with
+     `jdbc.url`, `bootstrap.security.principal.key/map`, two contexts) are
+     **documented** in OPSS 12.2.1.3 `addlsecfea.htm` (section 8); Oracle
+     there does not say that the target must already hold a store.
    - The default context of the copied `jps-config.xml` must not be used
      offline (`idstore.ldap` needs the WebLogic configuration) – set
      `default=` to the source context.
@@ -230,8 +241,10 @@ External RCU – three ways, the first one recommended:
    - Open: `jps-config-jse.xml` `audit.db.principal.key AuditDbPrincipalKey`
      (credential of Java SE audit) still names the old IAU user – only for
      Java SE tools; the EM login was not tested by form (EM 302 OK).
-   - Customer cookbook (private): `customer-analyse/2026-11-10_*/Clone_Kochbuch_*_de.txt`.
-source:
+   - Customer cookbook (private): `customer-analyse/2026-11-10_*/Clone_Kochbuch_*_de.txt`
+     (structure: autostart off on the source, clone, Linux identity, backup
+     + `.dat` aside, RCU, AdminServer only + reassociate, data sources
+     offline, multicast port / mail sender / Nginx, start, checks).
 
 ---
 
@@ -249,16 +262,14 @@ source:
    - `environment.conf`: `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL`,
      `REPORTS_BROADCAST_PORT`, DB values if the DB changes;
    - certificate + Nginx (`08-SSL`, `09-Install/05-root_nginx_ssl.sh`);
-   - RCU external: new prefix per clone (section 5, way 1 – the image then
-     holds no domain);
+   - RCU external: new prefix per clone – section 5, way 1 (the image then
+     holds no domain) or way 3 (domain cloned along, OPSS moved with
+     `reassociateSecurityStore`; the autostart must be off in the image so
+     that the clone does not start against the source prefix);
+   - scheduled Reports jobs: `<server>.dat` aside before the first start
+     (section 3);
    - `13- --apply`, `40- --apply`, start, `02-Checks/clone_check.sh` and
      the smoke test `09-Install/15-`.
-
-Source:
-- [Oracle OPSS 12.2.1.3 – reassociateSecurityStore](https://docs.oracle.com/middleware/12213/opss/JISEC/managepols.htm)
-- [Oracle OPSS 12.2.1.3 – migrateSecurityStore, DB-Beispiele](https://docs.oracle.com/middleware/12213/opss/JISEC/addlsecfea.htm)
-- [Oracle OPSS 12.2.1.3 – Configuring the Security Store](https://docs.oracle.com/middleware/12213/opss/JISEC/cfgauthr.htm)
-- [WLST Command Reference 12.2.1.4 – OPSS](https://docs.oracle.com/en/middleware/fusion-middleware/platform-security/12.2.1.4/idmcr/security_wlst.html)
 
 ---
 
@@ -270,7 +281,14 @@ Source:
 - `frmweb` bind address: ask Oracle (SR) whether an option exists.
 - A full clone with the recipe of section 6 has not been run yet; way 2 of
   section 5 (re-bind to a copied repository) is untested; way 3
-  (`reassociateSecurityStore`) tested live on the test host 2026-11-10.
+  (`reassociateSecurityStore`) tested live on the test host 2026-11-10,
+  not yet run at a customer.
+- Way 3 leftovers: `jps-config-jse.xml` `audit.db.principal.key
+  AuditDbPrincipalKey` (Java SE audit credential) may still name the old IAU
+  user; EM login by form not tested after the move.
+- `emoms.properties` keeps the host name of the domain creation (section 3) –
+  does EM work on a clone / after the listen change without editing it?
+- The test prefix `CLN` in the test DB (drop with RCU when no longer needed).
 
 ---
 
@@ -289,3 +307,25 @@ All checked 2026-10-23 (HTTP 200, title matches):
   https://docs.oracle.com/cd/E14008_01/coh.310/coh31ug/unicast_listener.htm
 - MOS Doc ID 437228.1 (Reports broadcast port per environment) – see
   [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md)
+- MOS Doc ID 2420434.1 "How To Bring Up The Coherence Cluster With Loop Back
+  Address, 127.0.0.1?" – named in section 7, **not read**
+
+Added 2026-11-10 for section 5, way 3 (HTTP 200 checked 2026-11-10; the
+14.1.2 library links to the 12.2.1.x OPSS books):
+
+- Oracle OPSS 12.2.1.3 – Managing Policies with WLST,
+  `reassociateSecurityStore` (syntax, DB arguments, `join` / `migrate`) –
+  https://docs.oracle.com/middleware/12213/opss/JISEC/managepols.htm
+- Oracle OPSS 12.2.1.3 – Deploying Secure Applications, `migrateSecurityStore`
+  DB → DB examples (policies, credentials, keys) –
+  https://docs.oracle.com/middleware/12213/opss/JISEC/addlsecfea.htm
+- Oracle OPSS 12.2.1.3 – Configuring the Security Store (DB store, resetting
+  the OPSS schema password with `modifyBootStrapCredential`, offline use of
+  `migrateSecurityStore`) –
+  https://docs.oracle.com/middleware/12213/opss/JISEC/cfgauthr.htm
+- Oracle WLST Command Reference for Infrastructure Security 12.2.1.4 – OPSS
+  security store commands (`migrateSecurityStore` offline,
+  `reassociateSecurityStore` online, `modifyBootStrapCredential`) –
+  https://docs.oracle.com/en/middleware/fusion-middleware/platform-security/12.2.1.4/idmcr/security_wlst.html
+- Code, test host 14.1.2: `oracle_common/modules/internal/clients/oracle.fmwshare.pyjar.jar`
+  (`wlstScriptDir/Opss.py`, `jpsWlstCmd.py`) – list of the OPSS WLST commands
