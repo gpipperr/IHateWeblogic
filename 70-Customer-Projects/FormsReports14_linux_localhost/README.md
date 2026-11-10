@@ -82,7 +82,7 @@ design – `clone_check` reports it as STEP (adjust per clone), not as FIX.
 | Check | Expected |
 |---|---|
 | `70-Customer-Projects/tools/bash/clone_check_fmw.sh --config -t <dir>` (customer hosts, read-only, version **2026-11-10.8** or newer; in `tools/ihw_customer_tools_linux.zip`) | last line `OK  Clone-capable: yes – <n> step(s) after cloning` (test host: 11 STEP) |
-| `02-Checks/clone_check.sh` (hosts with the IHateWeblogic library) | `OK  Clone-capable: yes – <n> step(s) after cloning (INFO above)` (test host: 14). `--apply` switches SSL off and Coherence to 127.0.0.1 (WLST online) |
+| `02-Checks/clone_check.sh` (hosts with the IHateWeblogic library) | `OK  Clone-capable: yes – <n> step(s) after cloning (INFO above)` (test host: 14). `--apply` switches SSL off and Coherence to 127.0.0.1 (WLST online) and sets the file places `AdminURL`, `ADMIN_URL`, emoms (3 files), engine `jvmOptions` (backup of each) – the automated version of the cookbook steps for these places |
 | `tools/bash/status.sh` | `Ergebnis: alles in Ordnung` (German output) – note: says RUNNING even when EM is red (symptom 1 below) |
 | `ss -Hltn '( sport = :7001 or sport = :9001 or sport = :9002 or sport = :5556 )'` | only `127.0.0.1:<port>` |
 | `ss -Hltnp 'not src 127.0.0.1' \| grep -e rwserver -e java` | only the Coherence remainder (7574 + one port) |
@@ -113,7 +113,7 @@ design – `clone_check` reports it as STEP (adjust per clone), not as FIX.
 | `09-Install/11-oracle_nodemanager.sh` | Node Manager settings, admin URL `t3://localhost:<port>` |
 | `09-Install/13-oracle_setup_reports.sh` | `reports.sh` `REPORTS_JVM_OPTIONS` (with timeout + `ORBServerHost`), `setUserOverrides.sh` rwservlet ORB for WLS_REPORTS, engine `jvmOptions` always with both options (since 2026-11-10) |
 | `05-ReportsPerformance/engine_perf_settings.sh` | keeps both ORB options when it changes engine `jvmOptions` |
-| `02-Checks/clone_check.sh [--apply]` | check; `--apply` = SSL off + Coherence 127.0.0.1 on an existing domain |
+| `02-Checks/clone_check.sh [--apply]` | check; `--apply` = SSL off + Coherence 127.0.0.1 and the four file places on an existing domain |
 
 Domains created with `localhost` have `startup.properties`, `bin/*.sh`
 and `emoms.properties` on localhost from the start (test host) – the gaps

@@ -18,9 +18,14 @@
 #            --apply (domain running, WLST online, backup of config.xml):
 #            SSL listen port off + Coherence UnicastListenAddress 127.0.0.1
 #            for WLS_FORMS / WLS_REPORTS – restart of both servers needed.
+#            --apply also changes files (backup of each, no WLST):
+#            startup.properties AdminURL, bin/*.sh ADMIN_URL, emoms.properties
+#            (3 files) and engine jvmOptions in rwserver.conf -> localhost /
+#            127.0.0.1 – restart of the named servers needed.
 # Call     : ./02-Checks/clone_check.sh
 #            ./02-Checks/clone_check.sh --apply
-# Options  : --apply   switch off SSL + Coherence on 127.0.0.1 (WLST online)
+# Options  : --apply   SSL off + Coherence on 127.0.0.1 (WLST online), file
+#                      places AdminURL / ADMIN_URL / emoms / engine jvmOptions
 #            --help    Show usage
 # Runs as  : oracle
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -52,7 +57,8 @@ for _arg in "$@"; do
         --help|-h)
             printf "Usage: %s [--apply]\n" "$(basename "$0")"
             printf "  (none)   check sockets, WebLogic, Reports, host references, secrets\n"
-            printf "  --apply  SSL listen port off + Coherence on 127.0.0.1 (WLST online)\n"
+            printf "  --apply  SSL listen port off + Coherence on 127.0.0.1 (WLST online),\n"
+            printf "           AdminURL / ADMIN_URL / emoms / engine jvmOptions to localhost (files)\n"
             exit 0 ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 2 ;;
     esac
@@ -365,6 +371,80 @@ WLST_EOF
     fi
 elif $APPLY; then
     ok "Nothing to apply (SSL off, Coherence on 127.0.0.1)"
+fi
+
+# =============================================================================
+# 7b. --apply: file-based loopback places (no WLST, backup of every file)
+#     found after a first hardening at a customer (2026-11-10):
+#     - servers/<ms>/data/nodemanager/startup.properties AdminURL (Node Manager
+#       start without AdminServer -> MSI mode, EM shows the server down)
+#     - bin/*.sh ADMIN_URL (stopWebLogic.sh of a clone addresses the source)
+#     - emoms.properties + .jmxori + the tmp/_WL_user/em source copy
+#     - engine jvmOptions in rwserver.conf (replace the inherited
+#       REPORTS_JVM_OPTIONS -> engine ORB on 0.0.0.0)
+# =============================================================================
+if $APPLY; then
+    section "Apply (files)"
+    _fchg=0; _rst=""
+    # --- Node Manager AdminURL --------------------------------------------
+    for _sp in "$DOMAIN_HOME"/servers/*/data/nodemanager/startup.properties; do
+        [ -f "$_sp" ] || continue
+        _su="$(sed -n 's/^AdminURL=//p' "$_sp" | sed 's/\\//g' | head -1)"
+        [ -z "$_su" ] && continue
+        printf '%s' "$_su" | grep -qE '://(localhost|127\.0\.0\.1)([:/]|$)' && continue
+        _pt="$(printf '%s' "$_su" | sed -n 's|.*:\([0-9][0-9]*\).*|\1|p')"
+        _ms="${_sp#"$DOMAIN_HOME"/servers/}"; _ms="${_ms%%/*}"
+        backup_file "$_sp" > /dev/null || continue
+        sed -i "s#^AdminURL=.*#AdminURL=http\\\\://localhost\\\\:${_pt:-${WLS_ADMIN_PORT:-7001}}#" "$_sp"
+        if grep -qE '^AdminURL=http\\://localhost\\:[0-9]+' "$_sp"; then
+            ok "$(printf "  %-12s startup.properties AdminURL %s -> localhost" "$_ms" "$_su")"
+            _fchg=$(( _fchg + 1 )); _rst="$_rst $_ms"
+        else
+            fail "$(printf "  %-12s startup.properties not changed – restore %s" "$_ms" "${LAST_BACKUP:-backup}")"
+        fi
+    done
+    # --- ADMIN_URL in the domain scripts ------------------------------------
+    for _bf in "$DOMAIN_HOME"/bin/*.sh; do
+        [ -f "$_bf" ] || continue
+        grep -E '^[[:space:]]*(export[[:space:]]+)?ADMIN_URL=["'"'"']?[a-z0-9]+://' "$_bf" \
+            | grep -qvE '://(localhost|127\.0\.0\.1)[:/"'"'"']' || continue
+        backup_file "$_bf" > /dev/null || continue
+        sed -i -E "s#^([[:space:]]*(export[[:space:]]+)?ADMIN_URL=[\"']?[a-z0-9]+://)[^:/\"']+#\1localhost#" "$_bf"
+        ok "$(printf "  %-48s ADMIN_URL -> localhost" "${_bf#"$DOMAIN_HOME"/}")"
+        _fchg=$(( _fchg + 1 ))
+    done
+    # --- EM emoms.properties (config/ + .jmxori + tmp/ source copy) ------------
+    for _ef in "$DOMAIN_HOME"/config/fmwconfig/servers/AdminServer/applications/em/META-INF/emoms.properties \
+               "$DOMAIN_HOME"/config/fmwconfig/servers/AdminServer/applications/em/META-INF/emoms.properties.jmxori \
+               "$DOMAIN_HOME"/servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties; do
+        [ -f "$_ef" ] || continue
+        grep -qE '^oracle\.sysman\.emSDK\.svlt\.ConsoleServerHost=(localhost|127\.0\.0\.1)?$' "$_ef" && continue
+        grep -q '^oracle\.sysman\.emSDK\.svlt\.ConsoleServerHost=' "$_ef" || continue
+        backup_file "$_ef" > /dev/null || continue
+        sed -i -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerHost=\).*/\1localhost/' \
+               -e 's/^\(oracle.sysman.emSDK.svlt.ConsoleServerName=\)[^:]*:/\1localhost:/' "$_ef"
+        ok "$(printf "  %-48s ConsoleServerHost/Name -> localhost" "${_ef#"$DOMAIN_HOME"/}")"
+        _fchg=$(( _fchg + 1 )); case "$_rst" in *AdminServer*) ;; *) _rst="$_rst AdminServer" ;; esac
+    done
+    # --- engine jvmOptions in rwserver.conf ---------------------------------
+    for _rc in "$DOMAIN_HOME"/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf; do
+        [ -f "$_rc" ] || continue
+        grep -o '<engine [^>]*jvmOptions="[^"]*"' "$_rc" | grep -qv 'ORBServerHost=' || continue
+        backup_file "$_rc" > /dev/null || continue
+        sed -i -E '/<engine [^>]*jvmOptions="/{/ORBWaitForResponseTimeout=/!s#jvmOptions="([^"]*)"#jvmOptions="\1 -DORBWaitForResponseTimeout=999999999"#}' "$_rc"
+        sed -i -E '/<engine [^>]*jvmOptions="/{/ORBServerHost=/!s#jvmOptions="([^"]*)"#jvmOptions="\1 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"#}' "$_rc"
+        _rn="$(basename "$(dirname "$_rc")")"
+        ok "$(printf "  rwserver.conf %s: engine jvmOptions + ORB timeout + ORBServerHost=127.0.0.1" "$_rn")"
+        _fchg=$(( _fchg + 1 )); _rst="$_rst $_rn"
+    done
+    if [ "$_fchg" -gt 0 ]; then
+        APPLIED=true
+        info "$(printf "  %s file(s) changed (backups *.bak_<time> next to them) – restart:%s" "$_fchg" "$_rst")"
+        info "  a restart of the whole domain is the simplest: ./01-Run/startStop.sh stop-all --apply; ./01-Run/startStop.sh start-all --apply"
+    else
+        ok "  Nothing to apply in the files (AdminURL, ADMIN_URL, emoms, engine jvmOptions)"
+    fi
+    unset _fchg _rst _sp _su _pt _ms _bf _ef _rc _rn
 fi
 
 # =============================================================================

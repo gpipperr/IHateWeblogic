@@ -126,7 +126,9 @@ Details, symptoms and the manual cookbook:
 [FormsReports14_linux_localhost](../70-Customer-Projects/FormsReports14_linux_localhost/README.md).
 New installations: the domain is created with `localhost` (`09-Install/08-`,
 `11-`), so points 1 and 6–8 hold from the start; points 3–5 come from `13-`
-(engine `jvmOptions` since 2026-11-10); point 2 from `clone_check.sh --apply`.
+(engine `jvmOptions` since 2026-11-10). On an **existing** domain
+`clone_check.sh --apply` sets point 2 (WLST online) and points 5–8 (files,
+backup of each, since 2026-11-10).
 
 ---
 

@@ -5,6 +5,12 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `02-Checks/clone_check.sh --apply`: besides SSL off / Coherence (WLST online) it now changes the
+  four file places of the localhost hardening – Node Manager `AdminURL` in `startup.properties`,
+  `ADMIN_URL` in `bin/*.sh`, `emoms.properties` (config, `.jmxori`, `tmp/_WL_user/em` source copy),
+  engine `jvmOptions` in `rwserver.conf` (ORB timeout + `ORBServerHost`); backup of each file,
+  idempotent, names the servers to restart. Tested in an isolated copy. `02-Checks/README.md`,
+  `clone_golden_image.md` §2.1.
 - Knowledge base from the customer project (anonymised, English): new folders
   `70-Customer-Projects/FormsReports14_linux_localhost/` (README + `Localhost_cookbook_en.txt` –
   harden an existing domain to localhost, incl. the four places found after the first hardening) and
