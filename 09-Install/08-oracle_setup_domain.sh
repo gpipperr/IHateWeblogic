@@ -8,7 +8,7 @@
 #            FORMS_ONLY: no WLS_REPORTS/Reports components).
 #            Afterwards the JDK path is reset to the JDK_HOME symlink
 #            (07-Maintenance/domain_jdk_path.sh).
-#            All servers listen on WLS_LISTEN_ADDRESS (default: 127.0.0.1).
+#            All servers listen on WLS_LISTEN_ADDRESS (default: localhost).
 #            Run AFTER 07-oracle_setup_repository.sh --apply – checked before
 #            WLST: login as <prefix>_OPSS (schemas present, password valid),
 #            no existing config.xml. The Node Manager credentials are set to
