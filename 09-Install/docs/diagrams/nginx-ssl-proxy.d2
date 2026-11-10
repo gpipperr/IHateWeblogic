@@ -1,0 +1,62 @@
+direction: down
+
+client: "Client (HTTPS :443)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "NGINX  –  SSL Termination + Reverse Proxy\n/etc/nginx/conf.d/oracle-wls.conf\n\nPort 80  →  301 redirect → https://\nPort 443 →  ssl_certificate / ssl_certificate_key" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+routes: "/forms/*    →  http://127.0.0.1:9001\n(WLS_FORMS)\n/reports/*  →  http://127.0.0.1:9002\n(WLS_REPORTS)\n/console    →  http://127.0.0.1:7001\n(Admin Server)" {
+  style.fill: "#E2EFDA"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#262626"
+}
+
+weblogic: "WebLogic  (WLS_LISTEN_ADDRESS = localhost)\nAdmin Server   127.0.0.1:7001\nWLS_FORMS  MS  127.0.0.1:9001\nWLS_REPORTS MS 127.0.0.1:9002" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+client -> nginx {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -> routes: "HTTP plain —\nloopback only\n(127.0.0.1)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+routes -> weblogic {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}

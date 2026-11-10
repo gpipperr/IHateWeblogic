@@ -49,7 +49,12 @@ Background per step – **why** the domain looks like this (`80-FMW-Architecture
 
 ### SSL Proxy Architecture
 
-```
+![install-overview](diagrams/install-overview.svg)
+<sub>Quelle: [diagrams/install-overview.prompt](diagrams/install-overview.prompt) · [D2](diagrams/install-overview.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=install-overview
 Internet / Intranet
         │
         │ HTTPS (443)
@@ -66,6 +71,8 @@ Internet / Intranet
 WebLogic listens exclusively on 127.0.0.1 – no direct external access.
 SSL terminates entirely at Nginx; no SSL required inside WLS.
 ```
+
+</details>
 
 ### WebLogic Users
 

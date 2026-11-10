@@ -1,0 +1,95 @@
+direction: down
+
+internet: "Internet / Intranet" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx: "Nginx\n(Port 443)" {
+  style.fill: "#A9D18E"
+  style.stroke: "#548235"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+nginx_note: "← SSL termination,\nno Oracle HTTP Server (OHS)" {
+  shape: text
+  style.font-size: 18
+  style.font-color: "#262626"
+}
+
+wls: "" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+
+  admin: "AdminServer :7001" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  forms: "WLS_FORMS :9001" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  reports: "WLS_REPORTS :9002" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+footer: "WebLogic listens exclusively on 127.0.0.1 –\nno direct external access.\nSSL terminates entirely at Nginx;\nno SSL required inside WLS." {
+  shape: text
+  near: bottom-center
+  style.font-size: 18
+  style.font-color: "#262626"
+}
+
+internet -> nginx: "HTTPS (443)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+nginx -- nginx_note {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 1
+  style.stroke-dash: 3
+}
+
+nginx -> wls: "HTTP\n(localhost /\n127.0.0.1 only)" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}

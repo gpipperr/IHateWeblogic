@@ -33,7 +33,12 @@ self-signed for tests (`ssl_prepare_cert.sh SELF`) – see [Certificate Options]
 NGINX is the single SSL termination point in front of WebLogic. All external HTTPS
 traffic is handled by NGINX; WebLogic listens on `localhost` only and never handles SSL.
 
-```
+![nginx-ssl-proxy](diagrams/nginx-ssl-proxy.svg)
+<sub>Quelle: [diagrams/nginx-ssl-proxy.prompt](diagrams/nginx-ssl-proxy.prompt) · [D2](diagrams/nginx-ssl-proxy.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=nginx-ssl-proxy
 Client (HTTPS :443)
       │
       ▼
@@ -58,6 +63,8 @@ Client (HTTPS :443)
 │  WLS_REPORTS MS 127.0.0.1:9002                              │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+</details>
 
 **Consequences for the WebLogic configuration:**
 

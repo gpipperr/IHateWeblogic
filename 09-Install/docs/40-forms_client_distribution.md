@@ -50,7 +50,12 @@ reproducible (open items "Tests that need a client" in the root README).
 
 ## 2. Architecture
 
-```
+![client-distribution](diagrams/client-distribution.svg)
+<sub>Quelle: [diagrams/client-distribution.prompt](diagrams/client-distribution.prompt) · [D2](diagrams/client-distribution.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=client-distribution
   Application server (Linux)                                Windows client (user scope)
  +---------------------------------------------+          +-------------------------------------------+
  | $PATCH_STORAGE/client/jdk/<nr>/             |          | Desktop / start menu shortcut             |
@@ -73,6 +78,8 @@ reproducible (open items "Tests that need a client" in the root README).
                                                                               v  -url ...config=standaloneapp
                                                            https://<host>/forms/frmservlet  (Forms session)
 ```
+
+</details>
 
 ---
 

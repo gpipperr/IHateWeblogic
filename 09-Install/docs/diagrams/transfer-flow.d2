@@ -1,0 +1,164 @@
+customer_host: "customer host (old 12c / 14c)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  tools_zip: "tools ZIP" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  collect: "collect_fmw_env.sh" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  export: "export_forms_reports_conf.sh" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+}
+
+our_host: "our host" {
+  direction: down
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  analysis: "our analysis\npatch level\nconfiguration, security" {
+    width: 280
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  import: "customer_conf_import.sh" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  analysis -> import: "decisions of\nthe customer" {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+reports: "reports (PDF)\nto the customer" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+new_host: "new 14c host" {
+  direction: down
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  env_conf: "environments/<env>.conf\n+ <env>.customer/ (overlay)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  step3: "step 3: export + analysis of the new host" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  env_conf -> step3: "Way 1: interview + install\nchain 04- … 15-\nWay 2: apply_customer_conf.sh" {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+direction: down
+
+customer_host -> our_host.analysis: ".zip.enc" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+customer_host -> our_host.analysis: ".enc" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+our_host.analysis -> reports {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+our_host.import -> new_host.env_conf {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}

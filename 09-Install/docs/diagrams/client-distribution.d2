@@ -1,0 +1,120 @@
+direction: down
+
+app: "Application server (Linux)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#548235"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  sources: "\$PATCH_STORAGE/client/jdk/<nr>/\n  Windows x64 JDK ZIP (MOS, platform 233P)\n\$ORACLE_HOME/forms/java/frmsal.jar\n\$PATCH_STORAGE/jacob/jacob-1.21.zip\n08-SSL CA (TLS chain of Nginx)" {
+    style.fill: "#E2EFDA"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  dir: "\$FORMS_CLIENT_DIR  (default /srv/formsWeb)\n\nmanifest.json\nFormsWeb-Setup.ps1\nFormsWeb-Install.cmd (bootstrap)\njre-<version>-win-x64.zip\nfrmsal-<version>.jar\njacob-1.21-x64.dll" {
+    style.fill: "#A9D18E"
+    style.stroke: "#548235"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  sources -> dir: "40-oracle_forms_\nclient_bundle.sh" {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+    style.font-color: "#000000"
+    style.font-size: 18
+  }
+}
+
+client: "Windows client (user scope)" {
+  grid-columns: 1
+  grid-gap: 16
+  style.fill: "#FFFFFF"
+  style.stroke: "#7F7F7F"
+  style.stroke-dash: 4
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 22
+  style.bold: true
+  style.font-color: "#C00000"
+
+  shortcut: "Desktop / start menu shortcut\npowershell -ExecutionPolicy Bypass\n-File FormsWeb-Setup.ps1 -Start" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#C00000"
+  }
+
+  flow: "1. GET manifest.json (10 s timeout)\n2. self-update of the script\n3. load changed components, SHA-256\n4. start script / shortcut refresh\n5. start FSAL" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  local: "%LOCALAPPDATA%\\FormsWeb\\\njava\\<version>-<sha8>\\ (jlink runtime)\nfsal\\frmsal-<version>.jar\njacob\\jacob-1.21-x64.dll\nstate.json, logs\\" {
+    style.fill: "#EDEDED"
+    style.stroke: "#7F7F7F"
+    style.border-radius: 8
+    style.stroke-width: 1
+    style.shadow: false
+    style.font-size: 20
+    style.font-color: "#262626"
+  }
+
+  shortcut -> flow {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+  }
+
+  flow -> local {
+    style.stroke: "#7F7F7F"
+    style.stroke-width: 2
+  }
+}
+
+frmservlet: "https://<host>/forms/frmservlet  (Forms session)" {
+  style.fill: "#EDEDED"
+  style.stroke: "#7F7F7F"
+  style.border-radius: 8
+  style.stroke-width: 1
+  style.shadow: false
+  style.font-size: 20
+  style.font-color: "#C00000"
+}
+
+client -> app: "HTTPS\nNginx /forms\nWeb/" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
+
+client -> frmservlet: "javaw -jar\nfrmsal.jar\n-url ...config=standaloneapp" {
+  style.stroke: "#7F7F7F"
+  style.stroke-width: 2
+  style.font-color: "#000000"
+  style.font-size: 18
+}
