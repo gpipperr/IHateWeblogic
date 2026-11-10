@@ -910,6 +910,16 @@ case "$_ENG_JVM" in
         fail "REPORTS_ENGINE_JVM_OPTIONS contains \" & < or > - not usable in an XML attribute, ignored"
         _ENG_JVM="" ;;
 esac
+# Engine jvmOptions REPLACE the REPORTS_JVM_OPTIONS the engines would inherit
+# from the server (reports.sh) - without ORBServerHost there the engine ORB
+# listens on 0.0.0.0 (customer 2026-11-10), and like in reports.sh the ORB
+# timeout belongs to it (REP-50125 on the server without it). Always added here.
+if [ -n "$_ENG_JVM" ]; then
+    printf '%s' "$_ENG_JVM" | grep -q 'ORBWaitForResponseTimeout=' \
+        || _ENG_JVM="${_ENG_JVM} -DORBWaitForResponseTimeout=999999999"
+    printf '%s' "$_ENG_JVM" | grep -q 'ORBServerHost=' \
+        || _ENG_JVM="${_ENG_JVM} -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+fi
 _eng_extra=""
 [ -n "$_ENG_IDLE" ] && _eng_extra="${_eng_extra} maxIdle=\"${_ENG_IDLE}\""
 [ -n "$_ENG_JVM" ]  && _eng_extra="${_eng_extra} jvmOptions=\"${_ENG_JVM}\""

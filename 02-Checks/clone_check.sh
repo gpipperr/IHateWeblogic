@@ -187,6 +187,15 @@ if [ "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" != "FORMS_ONLY" ]; then
        && ! grep -E '^[[:space:]]*(export[[:space:]]+)?REPORTS_JVM_OPTIONS=' "$_rsh" | tail -1 | grep -q 'ORBWaitForResponseTimeout='; then
         _fix "  reports.sh: REPORTS_JVM_OPTIONS without -DORBWaitForResponseTimeout – Reports server stops at the start (REP-50125) – 09-Install/13-oracle_setup_reports.sh --apply + restart"
     fi
+    # engine jvmOptions in rwserver.conf REPLACE the inherited REPORTS_JVM_OPTIONS
+    # -> without ORBServerHost there the engines listen on 0.0.0.0 (customer 2026-11-10)
+    for _rc in "$DOMAIN_HOME"/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf; do
+        [ -f "$_rc" ] || continue
+        _ej="$(grep -o '<engine [^>]*jvmOptions="[^"]*"' "$_rc" | grep -v 'ORBServerHost=' | grep -o 'id="[^"]*"' | paste -sd' ')"
+        if [ -n "$_ej" ]; then
+            _fix "$(printf '  rwserver.conf %s: engine %s jvmOptions without -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 – they replace REPORTS_JVM_OPTIONS, engines on all interfaces – add -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1' "$(basename "$(dirname "$_rc")")" "$_ej")"
+        fi
+    done
     if grep -q 'ORBServerHost=127.0.0.1' "$DOMAIN_HOME/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "  setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else
@@ -233,6 +242,15 @@ if [ -n "$_pat" ]; then
     fi
 fi
 
+# EM copies servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties to
+# config/.../em/META-INF/emoms.properties(.jmxori) at every AdminServer start
+# (customer 2026-11-10) - the tmp/ copy is the source and is skipped above.
+for _em in "$DOMAIN_HOME"/servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties; do
+    [ -f "$_em" ] && [ -n "$_pat" ] || continue
+    grep -qE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$_em" 2>/dev/null || continue
+    _fix "$(printf '  %-48s host name – EM copies it to config/.../emoms.properties at every AdminServer start – change here too' "${_em#"$DOMAIN_HOME"/}")"
+    grep -nE "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$_em" | head -2 | cut -c1-110 | while IFS= read -r _hl; do info "$(printf '         %s' "$_hl")"; done
+done
 # AdminServer address of the domain scripts (stopWebLogic.sh, startManagedWebLogic.sh …)
 # and of the shell: a FOREIGN host there (e.g. the source after a clone) makes
 # stopWebLogic.sh stop the source AdminServer when the network is open.

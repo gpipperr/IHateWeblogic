@@ -5,6 +5,17 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `clone_check_fmw.sh` 2026-11-10.8 and `02-Checks/clone_check.sh`: host name in
+  `servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties` is a FIX – EM copies this file
+  over `config/.../em/META-INF/emoms.properties` and `.jmxori` at every AdminServer start, so an
+  edit of `config/` alone is undone (customer). `clone_golden_image.md` section 3 and 7.
+- Reports engine ORB: `jvmOptions` on `<engine>` in `rwserver.conf` **replace** the
+  `REPORTS_JVM_OPTIONS` the engines inherit from `reports.sh` – without `ORBServerHost` there the
+  engines listen on `0.0.0.0` (customer, loopback-hardened domain). `13-oracle_setup_reports.sh` and
+  `05-ReportsPerformance/engine_perf_settings.sh` now add `-DORBWaitForResponseTimeout=999999999
+  -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` (as in `reports.sh`) whenever they write engine
+  `jvmOptions` (the drift check ignores them); `clone_check.sh` / `clone_check_fmw.sh` 2026-11-10.7 report engine `jvmOptions` without it as FIX. Docs: 13- detail
+  settings, setup interview, `report_engine_architecture.md`, `clone_golden_image.md` section 2.
 - `clone_check_fmw.sh` 2026-11-10.5 and `02-Checks/clone_check.sh`: `rwserver.conf` whose only host
   name is the mail sender (`<notification>` `sender` `reports@<host>`) is a STEP (adjust per clone),
   no longer a FIX; any other host-name line in it stays a FIX.

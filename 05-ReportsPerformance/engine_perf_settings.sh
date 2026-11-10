@@ -291,6 +291,11 @@ DRIFT=0
 _cmp() {
     local label="$1" envval="$2" confval="$3"
     [ -z "$envval" ] && return
+    # 13- adds the engine ORB options to jvmOptions itself - not a drift
+    if [ "$label" = "jvmOptions" ]; then
+        envval="$(printf '%s' "$envval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//')"
+        confval="$(printf '%s' "$confval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//')"
+    fi
     if [ "$envval" = "$confval" ]; then
         ok "$(printf "%-14s %s" "$label" "$confval")"
     else
@@ -394,6 +399,12 @@ if [ "$APPLY_MODE" -eq 1 ]; then
         else
             NEW_JVM="$(printf "%s -Xmx%s" "$ENG_JVM" "$NEW_XMX" | sed 's/^ //')"
         fi
+        # engine jvmOptions replace the inherited REPORTS_JVM_OPTIONS (reports.sh)
+        # - keep the engine ORB on loopback (clone_golden_image.md section 2)
+        printf '%s' "$NEW_JVM" | grep -q 'ORBWaitForResponseTimeout=' \
+            || NEW_JVM="$NEW_JVM -DORBWaitForResponseTimeout=999999999"
+        printf '%s' "$NEW_JVM" | grep -q 'ORBServerHost=' \
+            || NEW_JVM="$NEW_JVM -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
         CHANGES+=("jvmOptions=$NEW_JVM")
     fi
 

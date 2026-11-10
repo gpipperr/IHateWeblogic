@@ -102,6 +102,11 @@ REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
 # All engine values are written by 13- --apply on every run. Tuning with
 # 05-ReportsPerformance/engine_perf_settings.sh --apply writes them back here,
 # so a later 13- --apply keeps them. jvmOptions must not contain " & < >.
+# Engine jvmOptions REPLACE the REPORTS_JVM_OPTIONS the engines inherit from the
+# server (reports.sh): 13- / engine_perf_settings.sh always add
+# -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1,
+# else the engine ORB listens on 0.0.0.0 (customer 2026-11-10, clone_check FIX)
+# and the ORB timeout of reports.sh is missing.
 
 # TNS / database
 TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (interview block 1)
@@ -427,7 +432,9 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 
   <!-- Engine configuration -->
   <!-- initEngine/maxEngine/minEngine: tune to available CPUs and load -->
-  <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set,
+  <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set
+       (jvmOptions + -DORBWaitForResponseTimeout=999999999
+        -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1),
        engineResponseTimeOut="30" (minutes) from REPORTS_ENGINE_RESPONSE_TIMEOUT -->
   <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
           initEngine="2" maxEngine="5" minEngine="2"

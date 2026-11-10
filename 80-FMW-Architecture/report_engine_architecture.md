@@ -310,7 +310,11 @@ This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
 values, so an `--apply` survives the next `13-`; `engineResponseTimeOut` is
 proposed from the measured run times (`engine_perf_analyse.sh`, `showjobs`); JVM of the
 **server** via `REPORTS_JVM_OPTIONS` in `reports.sh` (not `jvmOptions`,
-which is for the engines). Live test 2026-10-16: regular `engLife`
+which is for the engines). Engine `jvmOptions` **replace** the `REPORTS_JVM_OPTIONS` the engines
+otherwise inherit – `13-` / `engine_perf_settings.sh` therefore add
+`-DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1`
+(customer 2026-11-10: engines
+on `0.0.0.0` with `jvmOptions="-Xms1024m -Xmx2048m"`). Live test 2026-10-16: regular `engLife`
 recycling costs 85–661 ms per job, a crashed engine (kill -9) is replaced
 within seconds after the ORB fix ([reports_user_local_ldap.md](reports_user_local_ldap.md) §7).
 

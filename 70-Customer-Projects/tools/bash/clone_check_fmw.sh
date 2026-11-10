@@ -37,7 +37,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-10.5"   # bump on every change
+VERSION="2026-11-10.8"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -244,6 +244,16 @@ if [ -f "$_rsh" ]; then
         fix "reports.sh: REPORTS_JVM_OPTIONS without -DORBWaitForResponseTimeout=999999999 – the Reports server stops at the start (REP-50125 NullPointerException in getOrbProperties)"
         _cfg "$_rsh" 'REPORTS_JVM_OPTIONS' "add -DORBWaitForResponseTimeout=999999999 to the last REPORTS_JVM_OPTIONS line"
     fi
+    # engine jvmOptions in rwserver.conf REPLACE the inherited REPORTS_JVM_OPTIONS
+    # -> without ORBServerHost there the engines listen on 0.0.0.0 (customer 2026-11-10)
+    for _rc in "$DH"/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf; do
+        [ -f "$_rc" ] || continue
+        _ej="$(grep -o '<engine [^>]*jvmOptions="[^"]*"' "$_rc" | grep -v 'ORBServerHost=' | grep -o 'id="[^"]*"' | paste -sd' ')"
+        if [ -n "$_ej" ]; then
+            fix "$(printf 'rwserver.conf %s: engine %s jvmOptions without -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 – they replace REPORTS_JVM_OPTIONS, engines on all interfaces – add -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1' "$(basename "$(dirname "$_rc")")" "$_ej")"
+            _cfg "$_rc" '<engine '
+        fi
+    done
     if grep -q 'ORBServerHost=127.0.0.1' "$DH/bin/setUserOverrides.sh" 2>/dev/null; then
         ok "setUserOverrides.sh: rwservlet ORB (WLS_REPORTS) on 127.0.0.1"
     else
@@ -295,6 +305,15 @@ if [ -n "$_pat" ]; then
         done <<< "$_hits"
     fi
 fi
+# EM copies servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties to
+# config/.../em/META-INF/emoms.properties(.jmxori) at every AdminServer start
+# (customer 2026-11-10) - the tmp/ copy is the source and is skipped above.
+for _em in "$DH"/servers/AdminServer/tmp/_WL_user/em/*/META-INF/emoms.properties; do
+    [ -f "$_em" ] && [ -n "$_pat" ] || continue
+    grep -qE "$_hre" "$_em" 2>/dev/null || continue
+    fix "$(printf '%-50s host name – EM copies it to config/.../emoms.properties at every AdminServer start – change here too' "${_em#"$DH"/}")"
+    grep -nE "$_hre" "$_em" | head -2 | cut -c1-110 | while IFS= read -r _hl; do info "$(printf '         %s' "$_hl")"; done
+done
 # AdminServer address of the domain scripts and of the shell: a FOREIGN host
 # (e.g. the source after a clone) makes stopWebLogic.sh stop the source
 # AdminServer when the network is open. Own host name: reported above.
