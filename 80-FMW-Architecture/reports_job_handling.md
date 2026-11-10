@@ -514,13 +514,31 @@ The keywords (Oracle A.5 / A.6 / A.7 / A.8):
 | `cc=` / `bcc=` | copies – one address `"a@x"` or a list `("a@x","b@x")` |
 | `subject=` | subject line |
 
-Oracle's example (A.5, `rwrun`):
+Oracle's example (A.5, `rwrun`), here with the path of the domain wrapper
+and the DB login in a parameter file (mode 600, not on the command line,
+as in 5.2):
 
+```bash
+# $ORACLE_BASE/reports/jobs/test_mail.cmd:  userid=<db_user>/<db_password>@//<db_host>:1521/<service>
+$DOMAIN_HOME/reports/bin/rwrun.sh report=/u01/app/oracle/reports/source/test.rdf \
+    cmdfile=$ORACLE_BASE/reports/jobs/test_mail.cmd desformat=pdf destype=mail \
+    desname="emp1@example.com,emp2@example.com" cc="emp3@example.com" bcc="mgr@example.com" \
+    replyto="me@example.com" from="me@example.com" subject="Test report"
 ```
-rwrun report=test.rdf userid=scott/tiger@mydb desformat=pdf destype=mail
-desname="emp1@comp.com, emp2@comp.com" cc="emp3@comp.com" bcc="mgr@comp.com"
-replyto="me@comp.com" from="me@comp.com"
-```
+
+- **Call `$DOMAIN_HOME/reports/bin/rwrun.sh`, not `$ORACLE_HOME/bin/rwrun`.**
+  The wrapper sources `reports.sh` (`REPORTS_PATH`, `TNS_ADMIN`, libraries)
+  and sets the tools component `reptools1`, then runs
+  `$ORACLE_HOME/bin/rwrun` (test host).
+- **`rwrun` runs the report locally, without the Reports server.** It does
+  not read `rwserver.conf` – its mail server is the `pluginParam
+  name="mailServer"` in the tools configuration
+  `$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools1/rwbuilder.conf`
+  (on the test host also still `%MAILSERVER_NAME%`, with its own
+  `<notification id="mailNotify">`). Set it there too when `rwrun` should
+  send mail.
+- `report=` with the full path, or the file in a `REPORTS_PATH` directory of
+  `reports.sh`.
 
 **a) Via rwservlet with a key in `cgicmd.dat` (recommended).** The fixed part
 – report, mail target, sender, subject – stays in the key. The URL only
