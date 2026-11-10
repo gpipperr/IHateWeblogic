@@ -1,0 +1,59 @@
+### STYLE
+Task: convert the ASCII diagram in the section "### ASCII" into D2 code.
+
+Output rules
+- Output ONLY D2 code. No explanation, no Markdown fence, no comments outside D2.
+- Use plain D2 syntax that compiles with "d2 --layout elk" (d2 v0.9).
+- Take the layout direction from the ASCII drawing ("direction: down" for top
+  to bottom flows, "direction: right" for left to right flows).
+
+Labels
+- Copy every label EXACTLY as written in the ASCII: same words, same case,
+  same paths, same symbols. Add nothing, leave nothing out, do not translate.
+- Text that stands inside a box belongs to that box: use one quoted label
+  with \n line breaks (no Markdown / LaTeX label blocks).
+- Text written next to an arrow is the label of that connection.
+- A box that contains other boxes or lines of text with "->" becomes a
+  container; its title (the text in the top border) is the container label.
+
+Shapes and colours (simple technical style, white background)
+- Database / PDB / schema objects: shape cylinder for a database, rectangle
+  for schemas inside it; fill "#DEEBF7", stroke "#2E75B6".
+- WebLogic / middleware / application server / ORDS / Nginx / Java processes:
+  fill "#E2EFDA", stroke "#548235"; a main component may use fill "#A9D18E".
+- External systems / clients / browser / scripts / other systems:
+  fill "#EDEDED", stroke "#7F7F7F".
+- Containers (zones, hosts, groups): fill "#FFFFFF", stroke of the matching
+  category colour, style.stroke-dash: 4.
+- All shapes: style.border-radius: 8, style.stroke-width: 1, style.shadow:
+  false, style.3d: false, style.font-size: 14, label colour
+  style.font-color "#C00000" for component names (dark red, like the blog
+  diagrams); plain descriptive lines inside a box may use "#262626".
+- Connections: style.stroke "#7F7F7F", style.stroke-width: 2, label
+  font-color "#000000"; arrow heads as in the ASCII (-> one way, <-> both).
+- No icons, no images, no shadows, no gradients, no themes beyond these
+  styles, no legend unless the ASCII has one.
+
+### ASCII
+ browser                                        script / other system
+   |  HTTPS  /ords/r/<app>/...                    |  HTTPS  /ords/<schema>/<module>/...
+   v                                              v
+ +------------------------- Nginx (TLS, one host name) -------------------------+
+ |  /i/  -> alias /srv/apex/apex_1/  (static images, no ORDS)                         |
+ |  /ords/ -> 127.0.0.1:8081     X-Forwarded-For = $remote_addr (overwritten)     |
+ +-------------------------------------|-----------------------------------------+
+                                       v
+ +---------------- ORDS 26.x standalone (Jetty 12, java at JDK_HOME) ----------------+
+ |  config dir  ords_1/config/   databases/<pool>/pool.xml + wallet,                 |
+ |                               global/settings.xml, credentials, logging           |
+ |  JDBC pool (UCP) - connects as ORDS_PUBLIC_USER (runtime user)                    |
+ +-----------|------------------------------------------------|----------------------+
+             | proxy: ORDS_PUBLIC_USER[APEX_PUBLIC_USER]       | proxy: ORDS_PUBLIC_USER[<SCHEMA>]
+             v                                                v
+ +--------------------------------- database (PDB) ----------------------------------+
+ |  APEX_PUBLIC_USER -> APEX engine (schema APEX_260200, FLOWS_FILES):                |
+ |                     wwv_flow.show/accept, the app's PL/SQL, session state          |
+ |  <SCHEMA> (REST-enabled) -> handler PL/SQL / SQL of the REST module                |
+ |  ORDS_METADATA  - REST modules/templates/handlers, privileges, roles, OAuth        |
+ |                   clients, schema aliases (the "ORDS repository")                  |
+ +------------------------------------------------------------------------------------+

@@ -96,3 +96,6 @@ ihw_export_*
 
 # Analysis of customer exports: own private repository, cloned here
 70-Customer-Projects/customer-analyse/
+
+# render_ascii and other local doc tools – not checked in for now (2026-11-10)
+tools/

@@ -22,7 +22,12 @@ on the test host since 2026-10-23 (`12-APEX-Ords/01-` … `05-`, PDB on DB
 
 ## 1. The parts
 
-```
+![apex-parts](diagrams/apex-parts.svg)
+<sub>Quelle: [diagrams/apex-parts.prompt](diagrams/apex-parts.prompt) · [D2](diagrams/apex-parts.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=apex-parts
  browser                                        script / other system
    |  HTTPS  /ords/r/<app>/...                    |  HTTPS  /ords/<schema>/<module>/...
    v                                              v
@@ -46,6 +51,8 @@ on the test host since 2026-10-23 (`12-APEX-Ords/01-` … `05-`, PDB on DB
  |                   clients, schema aliases (the "ORDS repository")                  |
  +------------------------------------------------------------------------------------+
 ```
+
+</details>
 
 | Part | Role |
 |---|---|
