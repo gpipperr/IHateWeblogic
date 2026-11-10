@@ -341,21 +341,32 @@ host has no mail server. Live test open (TODO).
 
 ### 7.1 Mail server in `rwserver.conf`
 
-The mail server belongs to the **standalone Reports server**, that is the one
-that runs the jobs:
+The mail server goes into the `rwserver.conf` of the Reports server that
+**runs the jobs**. Which one that is, `rwservlet.properties` says:
 
+```bash
+grep -n 'inprocess\|<server>' $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwservlet.properties
+# Expected (this library): <server>repserver01</server> and <inprocess>no</inprocess>
 ```
-$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<server>/rwserver.conf
-```
 
-The file of the in-process server
-(`servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwserver.conf`)
-has the same element. It is only used when the in-process server runs jobs
-(not in this library, `inprocess=no`). 12c had the same file under
-`reports_12.2.1`.
+| `<inprocess>` | Reports server | `rwserver.conf` with the mail server | restart after a change | log of the mail errors |
+|---|---|---|---|---|
+| **`no`** – standalone (this library, test host) | own process `rwserver` (`<server>` name, e.g. `repserver01`) | `$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<server>/rwserver.conf` | the Reports server (`startStop.sh stop/start <server>`) | `$DOMAIN_HOME/servers/<server>/logs/rwserver_diagnostic.log` |
+| **`yes`** – in-process (inside WLS_REPORTS) | runs in the WLS_REPORTS JVM | `$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwserver.conf` | WLS_REPORTS | `$DOMAIN_HOME/servers/WLS_REPORTS/logs/reports/rwserver_diagnostic.log` (`03-Logs/README.md`) |
 
-Oracle's template (14.1.2, in-process file) – the placeholder stays if nobody
-sets it:
+- **Only the file of the server in use counts.** The other file has the
+  same `pluginParam` element, but an entry there has no effect. A frequent
+  mistake: the mail server set in the WLS_REPORTS file while the jobs run on
+  the standalone server – the start log then still shows
+  `hostName = %MAILSERVER_NAME%` (7.4 step 1).
+- 12c had the in-process path under `reports_12.2.1` instead of
+  `reports_14.1.2`.
+- The examples below and in 7.4 use the standalone server `repserver01`; for
+  in-process take the WLS_REPORTS paths of the table.
+
+Oracle's template (14.1.2, `rwserver.conf` of WLS_REPORTS; the standalone
+file of the test host has only the one-line form) – the placeholder stays if
+nobody sets it:
 
 ```xml
 <pluginParam name="mailServer" value="%MAILSERVER_NAME%">
@@ -452,9 +463,42 @@ Examples (`<mail.example.com>` = the SMTP relay of the customer):
   ```
 
   The code reads the property `sender` (string in `MailNotify.class`,
-  confirmed). The texts come from `$ORACLE_HOME/reports/templates/succnote.txt`
-  / `failnote.txt` (on the test host in `templates`, Oracle writes
-  `template`).
+  confirmed).
+
+**Where the note files are – confirmed (code)**, `MailNotify` +
+`Utility.fullFileName` / `getTemplatesDir` (14.1.2, `javap`):
+
+| Value of `succnotefile` / `failnotefile` | File read |
+|---|---|
+| file name only (`succnote.txt`, Oracle's default) | `$ORACLE_HOME/reports/templates/succnote.txt` – the templates directory of the **Oracle home** (Oracle's docs write `template`; on the test host it is `templates`) |
+| absolute path | exactly this file |
+
+Oracle's files on the test host (one line of text under a `/` comment header):
+
+```
+The Job &jobname on Report Server &servername has successfully finished at &timefinished.
+The Job &jobname on Report Server &servername has terminated at &timefinished.
+```
+
+- **Placeholders** the code replaces: `&jobName`, `&serverName`,
+  `&timeFinished`, `&errorString` (Oracle's files write them in lower case;
+  the replace call is passed `true`, most likely "ignore case" – not tested).
+  `&errorString` = the status text of the job, the REP error – Oracle's
+  `failnote.txt` does not use it, an own fail note should.
+- **Own texts: absolute path outside the Oracle home**, e.g. next to the
+  `rwserver.conf` of the server:
+
+  ```xml
+  <property name="succnotefile" value="/u01/app/oracle/domains/fr_domain/config/fmwconfig/components/ReportsServerComponent/repserver01/succnote_de.txt"/>
+  <property name="failnotefile" value="/u01/app/oracle/domains/fr_domain/config/fmwconfig/components/ReportsServerComponent/repserver01/failnote_de.txt"/>
+  ```
+
+  A change in `$ORACLE_HOME/reports/templates` is not part of the domain
+  backup, is lost on a new Oracle home (out-of-place patch, clone of the
+  binaries) and applies to every domain of that home.
+- **Open (live test):** whether the `/` header lines of the file land in the
+  mail body, and the subject line – the code takes it from Oracle's message
+  catalogue (message 56086), not from a property.
 
 ### 7.3 Calling a report with `destype=mail`
 
@@ -590,7 +634,7 @@ live test):
 
 | Message | Cause |
 |---|---|
-| `hostName = %MAILSERVER_NAME%` at the start | template value never set, or the wrong `rwserver.conf` (in-process instead of standalone) |
+| `hostName = %MAILSERVER_NAME%` at the start | template value never set, or set in the `rwserver.conf` of the server not in use (7.1 table: `inprocess` no / yes) |
 | `Connection refused` / timeout | firewall to the relay, wrong port, relay only on 587 / 465 |
 | `530 Must issue a STARTTLS command first` | relay wants STARTTLS – 7.1 b) (with login) |
 | `535 Authentication failed` | `mailUserName` / `mailPassword` wrong, or the relay wants the full address as user |
