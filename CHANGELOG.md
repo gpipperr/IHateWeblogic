@@ -5,6 +5,9 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `clone_check_fmw.sh` 2026-11-10.5 and `02-Checks/clone_check.sh`: `rwserver.conf` whose only host
+  name is the mail sender (`<notification>` `sender` `reports@<host>`) is a STEP (adjust per clone),
+  no longer a FIX; any other host-name line in it stays a FIX.
 - `clone_check_fmw.sh` 2026-11-10.4 and `02-Checks/clone_check.sh`: section 4 shows the matching
   lines (line number + text, max 3) under each host-name / IP finding, so it is visible which line
   holds the host name (a customer read the findings as "localhost taken for the host name").

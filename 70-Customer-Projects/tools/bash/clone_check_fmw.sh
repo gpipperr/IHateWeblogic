@@ -37,7 +37,7 @@
 # License  : Apache 2.0
 # =============================================================================
 set -u
-VERSION="2026-11-10.4"   # bump on every change
+VERSION="2026-11-10.5"   # bump on every change
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; SHOWCFG=false
 while [ $# -gt 0 ]; do
@@ -279,6 +279,13 @@ if [ -n "$_pat" ]; then
                     fix "$(printf '%-50s host name in a domain script (e.g. ADMIN_URL) – on a clone it addresses the SOURCE AdminServer – localhost' "$_rel")" ;;
                 init-info/*|*uifont.ali)
                     info "$(printf '%-50s informational (not read at runtime / comment)' "$_rel")" ;;
+                */rwserver.conf)
+                    # only the mail sender reports@<host> = host-specific by design, no FIX
+                    if ! grep -E "$_hre" "$_f" | grep -vqE 'name="sender"'; then
+                        step "$(printf '%-50s mail sender (notification) with the host name – adjust per clone' "$_rel")"
+                    else
+                        fix "$(printf '%-50s host name / IP – check' "$_rel")"
+                    fi ;;
                 *)  fix "$(printf '%-50s host name / IP – check' "$_rel")" ;;
             esac
             # show where: line number + text (max 3 lines, 110 chars)

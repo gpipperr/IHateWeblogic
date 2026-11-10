@@ -216,6 +216,13 @@ if [ -n "$_pat" ]; then
                     _fix "$(printf "  %-48s host name in a domain script (e.g. ADMIN_URL) – on a clone it addresses the SOURCE AdminServer – localhost" "$_rel")" ;;
                 init-info/*|*uifont.ali)
                     info "$(printf "  %-48s informational (not read at runtime / comment)" "$_rel")" ;;
+                */rwserver.conf)
+                    # only the mail sender reports@<host> = host-specific by design, no FIX
+                    if ! grep -E "(^|[^A-Za-z0-9.-])(${_pat})([^A-Za-z0-9-]|$)" "$_f" | grep -vqE 'name="sender"'; then
+                        _step "$(printf "  %-48s mail sender (notification) with the host name – adjust per clone" "$_rel")"
+                    else
+                        _fix "$(printf "  %-48s host name / IP – check" "$_rel")"
+                    fi ;;
                 *)
                     _fix "$(printf "  %-48s host name / IP – check" "$_rel")" ;;
             esac
