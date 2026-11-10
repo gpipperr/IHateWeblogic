@@ -9,7 +9,8 @@ Overview and status: [README.md](README.md#project-status).
 
 Assessment: idea very good, implementation and quality good (three customer
 environments live), visuals good since the SVG diagrams, completion good for a
-1.0 – **publication hygiene not yet** (items 0, 2, 3, 7). Order:
+1.0 – **publication hygiene not yet** (items 0, 2, 3, 7). Worked off step by
+step beside the customer work (state 2026-11-10). Order:
 
 - [ ] **0. Demo-data naming convention:** test host = demo data, no masking –
   server `orafusion01` (`pipperr.local`), IP `10.10.10.124`, RCU DB `fmwpdb`,
@@ -242,29 +243,17 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   the journal `ihw-cert` today; mail / monitoring hook with the monitoring
   concept).
 
-## Customer feedback / watch
+## Watch / generic follow-ups
 
-- [ ] **Customer installation 2026-10-29/30 (OCI, no `*.oracle.com`, NFS/ZFS
-  store):** first live runs of `07-Maintenance/patch_storage.sh` with a real
-  `PATCH_ARCHIVE` on NFS, `check_disk_space.sh` with an NFS mount (must be
-  listed as "not scanned"), `60-RCU-DB-19c/00-root_db_os_baseline.sh --apply`
-  adding oracle to `dba` / `oper` (then re-login, `00b-`). Confirmed there:
-  the run history file created by a root script belongs to the repository
-  owner.
+Customer-specific follow-ups (customer hosts, customer runs, customer
+feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
+(not in the repository, git-ignored).
+
 - [ ] **Next customer installation:** run `09-Install/04-oracle_pre_checks.sh`
   (check 10: does a blocked request fail fast or hang?) and
   `02-Checks/egress_check.sh --capture 300` during the first start – which
   components fetch external DTDs there
   ([weblogic_outbound_connections.md](80-FMW-Architecture/weblogic_outbound_connections.md)).
-- [ ] **OAM external DTD (SR):** colleagues fill in OAM version / component /
-  XML file + customer thread dump in the local SR draft
-  (`SR/oam_external_dtd/`, reproducer without root included).
-
-- [ ] **Linux Reports-only customer (cookbooks of 2026-11-03, not run yet):**
-  CPU October 2026 run with `Patch_Kochbuch_CPU_Okt2026_de.txt` (starting
-  level unknown; Forms QPR before Reports QPR with the `libzrc` check – decide
-  on site), then `Reports_Absicherung_kochbuch_de.txt` (two full domain
-  restarts) – feed findings back into the cookbooks.
 - [ ] **Passwords in old `access.log` files** (library and docs on POST since
   2026-11-06): check customer hosts for `authid=` / `userid=` in
   `WLS_REPORTS/logs/access.log*` (and the Nginx access logs, root) and change
@@ -274,20 +263,10 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   not changed (test host without customer data); Nginx logs not checked yet. First
   full `15- --apply` with the POST call (the function ran alone against the
   Reports server).
-- [ ] **Node Manager warnings** "Uncaught exception in server handler"
-  (`Connection reset` / `Broken pipe`) in `nodemanager.log` of a customer host,
-  nearly all at second `:45`: the client is the AdminServer, the cause is open. The
-  test host shows none of them. Compare the connection with `tcpdump`, read Doc ID
-  1498013.1 (related, only seen as a search summary).
 - [ ] **Home vs. domain** ([§7a](80-FMW-Architecture/weblogic_middleware_architecture.md)):
   read KB694158 (WLS PSU post-install); run the checklist for swapping a patched
   home live; first real domain start after `clean_domain_tmp.sh --apply` (so far
   dry run on the test host and `--apply` on an isolated copy).
-- [ ] **Shell switcher at the customer**: copy the current
-  `ihw_shell_env.sh` to `~/.bashrc.d/ihw_env.sh` (only ONE copy there) and run
-  `ihwenv_configure -f`, so the home names, `(no SID)` lines and `t` appear;
-  `07-db_sql_scripts.sh` there needs `github.com` on the egress allow-list
-  (else `--archive`).
 - [ ] **Scheduled reports**: mail notification (`destype=mail`,
   `notifysuccess`) untested – the mail server is still the template
   placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
@@ -296,27 +275,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   STARTTLS only with login, `from=` / `sender`, `cgicmd.dat` key, debugging).
   Open live test with a relay: send, the success page, does `TRACE:32` show
   the mail values, is `mailPassword` encrypted at the restart.
-- [ ] **14c move of a customer – export → analysis → import**
-  ([process](09-Install/docs/00-transfer_customer_settings.md)). Way 2 ran live
-  on 2026-11-05, Way 1 and the start page of `04-` as root by 2026-11-06. The
-  systemd units wait for `/oracle` (reboot test with `critical-chain` OK). The
-  closing report exists (2026-11-06): patch level green, security red only because
-  `/console` and `/em` have no IP restriction. The customer stays on
-  `ADMIN_IP_RANGE=any` by decision, its network has no clean separation; the red
-  point is accepted for now. Open:
-  - a fully green `apply_customer_conf.sh --apply` run (`15-` with PDF after
-    the wait for the Reports servers);
-  - slow Reports logins at the customer (1.6–2.6 s, test host 60 ms) –
-    measure again after IPv6 off (`rwserver_status.sh`, "Avg auth time");
-  - 12c report already sent: one false WARN ("same broadcast port", not
-    security) – regenerate with analysis 2026-11-05.7 if it is sent again;
-  - feedback of the customer on the reports and the decisions in
-    `IMPORT_DECISIONS.md` (`SECTION_UNUSED`, `ENV_UNUSED`, `PATH_KEPT` –
-    second module directory `bin_eg`), the customer start section / form for
-    the FSAL shortcut (today `test_form`);
-  - on the customer host: Carlito fonts, `FORMS_SIGN_TSA_URL`, recompile of
-    the invalid RCU objects (since the RCU run of 2026-11-03), `server_tokens
-    off`.
 - [ ] **`status.sh --store-nm-key`**: first real run with the Node Manager
   password (only the error paths are tested). Open question left over: where
   `startComponent.sh … storeUserConfig` writes its files, which
@@ -326,16 +284,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   read the keys from `~/.wlst/nm-cfg-<domain>.props` – set there as
   `WLST_CONFIG_FILE` in `patch_install.ini`, so not yet proof of Oracle's
   default path.
-- [ ] **Customer clone (Reports only, 2026-11-10/11)** – source hardened and
-  "Clone-capable: yes" since 2026-11-10 (`startup.properties` `AdminURL`,
-  engine `jvmOptions`, emoms 3 files, `bin/*.sh`). Open on the clone (future
-  production): the private `fix_localhost_kochbuch.txt` (same four places,
-  EM green afterwards), then from the clone cookbook: result of `updateCred`
-  `AuditDbPrincipalKey` (8.4), EM login by form, `showjobs queuetype=future`
-  on clone (0) and source, host name of the clone vs. the intended name.
-  Feed results into
-  [FormsReports14_linux_clone](70-Customer-Projects/FormsReports14_linux_clone/README.md)
-  and `clone_golden_image.md` §5 / §7.
 - [ ] **Library template:** `09-Install/forms_templates/default.env.template`
   sets `FORMS_RESTRICT_ENTER_QUERY=FALSE` – Oracle's 14c template has TRUE
   (FALSE allows own SQL in Enter Query mode). Found by the analysis rule on the
@@ -344,13 +292,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   also create random Node Manager credentials? If yes,
   `Reports_kochbuch_de.txt` / `Autostart_linux_middleware.txt` need the same
   fix as `11-oracle_nodemanager.sh`.
-- [ ] **Reports Builder Windows (customer, 2026-10-27):** start the Builder
-  once with the own RCU database service stopped and run a preview – the
-  tools runtime was measured without RCU use (`strace`), the Builder GUI not
-  yet ([report_rwbuilder.md §3.2](80-FMW-Architecture/report_rwbuilder.md#32-what-the-builder-still-needs-at-runtime)).
-- [ ] Customer installation 2026-10-15: which of the changes (firewall
-  `14027/udp`, IPv6 per interface, multicast pre-check) fixed `REP-50600`
-  there is not confirmed yet.
 - [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a
   Reports QPR on OL9, `libzrc.so` vs. glibc 2.34): workaround in
   `06-oracle_patch_forms_reports.sh` stays until Oracle ships a fix.
