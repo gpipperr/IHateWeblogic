@@ -1,10 +1,4 @@
-browser: "browser" {
-  class: ext
-}
-
-script: "script / other system" {
-  class: ext
-}
+direction: down
 
 classes: {
   ext: {
@@ -15,11 +9,27 @@ classes: {
       stroke-width: 1
       shadow: false
       3d: false
-      font-size: 14
+      font-size: 20
       font-color: "#C00000"
     }
   }
-  mw: {
+  mw_zone: {
+    grid-columns: 1
+    grid-gap: 16
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#548235"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      3d: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  mw_part: {
     style: {
       fill: "#E2EFDA"
       stroke: "#548235"
@@ -27,23 +37,11 @@ classes: {
       stroke-width: 1
       shadow: false
       3d: false
-      font-size: 14
-      font-color: "#C00000"
-    }
-  }
-  mw_text: {
-    style: {
-      fill: "#E2EFDA"
-      stroke: "#548235"
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 14
+      font-size: 20
       font-color: "#262626"
     }
   }
-  mw_main_text: {
+  mw_main: {
     style: {
       fill: "#A9D18E"
       stroke: "#548235"
@@ -51,48 +49,13 @@ classes: {
       stroke-width: 1
       shadow: false
       3d: false
-      font-size: 14
-      font-color: "#262626"
-    }
-  }
-  mw_zone: {
-    style: {
-      fill: "#FFFFFF"
-      stroke: "#548235"
-      stroke-dash: 4
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 14
+      font-size: 20
       font-color: "#C00000"
-    }
-  }
-  db: {
-    style: {
-      fill: "#DEEBF7"
-      stroke: "#2E75B6"
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 14
-      font-color: "#C00000"
-    }
-  }
-  db_text: {
-    style: {
-      fill: "#DEEBF7"
-      stroke: "#2E75B6"
-      border-radius: 8
-      stroke-width: 1
-      shadow: false
-      3d: false
-      font-size: 14
-      font-color: "#262626"
     }
   }
   db_zone: {
+    grid-columns: 1
+    grid-gap: 16
     style: {
       fill: "#FFFFFF"
       stroke: "#2E75B6"
@@ -101,7 +64,20 @@ classes: {
       stroke-width: 1
       shadow: false
       3d: false
-      font-size: 14
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  db_part: {
+    style: {
+      fill: "#DEEBF7"
+      stroke: "#2E75B6"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      3d: false
+      font-size: 20
       font-color: "#C00000"
     }
   }
@@ -110,89 +86,35 @@ classes: {
       stroke: "#7F7F7F"
       stroke-width: 2
       font-color: "#000000"
+      font-size: 18
     }
   }
 }
 
-direction: down
+browser: "browser" {class: ext}
+script: "script / other system" {class: ext}
 
 nginx: "Nginx (TLS, one host name)" {
   class: mw_zone
-  direction: right
-
-  i_path: "/i/" {
-    class: mw
-  }
-  alias: "alias /srv/apex/apex_1/  (static images, no ORDS)" {
-    class: mw_text
-  }
-  ords_path: "/ords/" {
-    class: mw
-  }
-  upstream: '127.0.0.1:8081     X-Forwarded-For = $remote_addr (overwritten)' {
-    class: mw_text
-  }
-
-  i_path -> alias: {
-    class: conn
-  }
-  ords_path -> upstream: {
-    class: conn
-  }
+  images: "/i/  -> alias /srv/apex/apex_1/\n(static images, no ORDS)" {class: mw_part}
+  ords_route: "/ords/ -> 127.0.0.1:8081\nX-Forwarded-For = \$remote_addr (overwritten)" {class: mw_part}
 }
 
 ords: "ORDS 26.x standalone (Jetty 12, java at JDK_HOME)" {
   class: mw_zone
-
-  details: "config dir  ords_1/config/   databases/<pool>/pool.xml + wallet,\nglobal/settings.xml, credentials, logging\nJDBC pool (UCP) - connects as ORDS_PUBLIC_USER (runtime user)" {
-    class: mw_main_text
-  }
+  config: "config dir  ords_1/config/\ndatabases/<pool>/pool.xml + wallet,\nglobal/settings.xml, credentials, logging" {class: mw_part}
+  pool: "JDBC pool (UCP) - connects as\nORDS_PUBLIC_USER (runtime user)" {class: mw_main}
 }
 
 db: "database (PDB)" {
   class: db_zone
-  direction: right
-
-  apex_public_user: "APEX_PUBLIC_USER" {
-    class: db
-  }
-  apex_engine: "APEX engine (schema APEX_260200, FLOWS_FILES):\nwwv_flow.show/accept, the app's PL/SQL, session state" {
-    class: db_text
-  }
-  schema: "<SCHEMA> (REST-enabled)" {
-    class: db
-  }
-  handler: "handler PL/SQL / SQL of the REST module" {
-    class: db_text
-  }
-  ords_metadata: "ORDS_METADATA  - REST modules/templates/handlers, privileges, roles, OAuth\nclients, schema aliases (the \"ORDS repository\")" {
-    class: db
-  }
-
-  apex_public_user -> apex_engine: {
-    class: conn
-  }
-  schema -> handler: {
-    class: conn
-  }
+  apex_public: "APEX_PUBLIC_USER -> APEX engine\n(schema APEX_260200, FLOWS_FILES):\nwwv_flow.show/accept, the app's PL/SQL,\nsession state" {class: db_part}
+  rest_schema: "<SCHEMA> (REST-enabled) -> handler PL/SQL /\nSQL of the REST module" {class: db_part}
+  ords_metadata: "ORDS_METADATA  - REST\nmodules/templates/handlers, privileges,\nroles, OAuth clients, schema aliases\n(the \"ORDS repository\")" {class: db_part}
 }
 
-browser -> nginx: "HTTPS  /ords/r/<app>/..." {
-  class: conn
-}
-
-script -> nginx: "HTTPS  /ords/<schema>/<module>/..." {
-  class: conn
-}
-
-nginx -> ords: {
-  class: conn
-}
-
-ords -> db.apex_public_user: "proxy: ORDS_PUBLIC_USER[APEX_PUBLIC_USER]" {
-  class: conn
-}
-
-ords -> db.schema: "proxy: ORDS_PUBLIC_USER[<SCHEMA>]" {
-  class: conn
-}
+browser -> nginx: "HTTPS  /ords/r/<app>/..." {class: conn}
+script -> nginx: "HTTPS  /ords/<schema>/<module>/..." {class: conn}
+nginx -> ords: "" {class: conn}
+ords -> db: "proxy: ORDS_PUBLIC_USER[APEX_PUBLIC_USER]" {class: conn}
+ords -> db: "proxy: ORDS_PUBLIC_USER[<SCHEMA>]" {class: conn}

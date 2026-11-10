@@ -26,11 +26,23 @@ Shapes and colours (simple technical style, white background)
 - Containers (zones, hosts, groups): fill "#FFFFFF", stroke of the matching
   category colour, style.stroke-dash: 4.
 - All shapes: style.border-radius: 8, style.stroke-width: 1, style.shadow:
-  false, style.3d: false, style.font-size: 14, label colour
+  false, style.3d: false, style.font-size: 20 (container titles 22, bold),
+  label colour
   style.font-color "#C00000" for component names (dark red, like the blog
   diagrams); plain descriptive lines inside a box may use "#262626".
 - Connections: style.stroke "#7F7F7F", style.stroke-width: 2, label
-  font-color "#000000"; arrow heads as in the ASCII (-> one way, <-> both).
+  font-color "#000000", style.font-size: 18; arrow heads as in the ASCII
+  (-> one way, <-> both).
+- Keep the drawing narrow (it is shown in a ~900 px wide page column):
+  - a container whose parts are stacked in the ASCII gets "grid-columns: 1"
+    and "grid-gap: 16" instead of a direction, so ELK cannot place its parts
+    side by side;
+  - break long labels into several lines (\n) between words, at most about
+    45 characters per line – the words themselves stay exactly as written;
+  - connections start and end at the container itself, never at a part
+    inside a "grid-columns" container (ELK cannot layer edges into a grid and
+    then spreads the containers sideways); keep the arrow label exactly – it
+    names the target anyway.
 - No icons, no images, no shadows, no gradients, no themes beyond these
   styles, no legend unless the ASCII has one.
 
