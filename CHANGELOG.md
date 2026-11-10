@@ -5,6 +5,11 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- Test host RCU DB: old 19.30 home removed after 13 days on 19.33 – its deinstall tool was never
+  instantiated (`%setInstallFlag%`, 19.3 image + opatch route), so `detachHome` + rm;
+  stale inventory entry of the 19.3 home detached; Data Pump dumps of 2026-10-17 deleted; audit
+  growth checked (OK). `09-db_patch_rcu.md` "After the patch": check the deinstall tool first,
+  the manual way, listener name trap.
 - REP-50125 / `REPORTS_JVM_OPTIONS`: MOS KB924687 read – `report_engine_architecture.md` section 6
   explains the three places (`reports.sh`, `<envVariable>`, engine `jvmOptions`) and their effect;
   `13-reports-detail-settings.md` quotes the KB note on `jvmOptions` and why this repository keeps

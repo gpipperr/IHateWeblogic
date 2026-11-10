@@ -93,7 +93,20 @@ the instance runs from the home in `DB_ORACLE_HOME`.
 ## After the patch
 
 - keep the old home some days, then
-  `$OLD_HOME/deinstall/deinstall -checkonly` and `-silent`;
+  `$OLD_HOME/deinstall/deinstall -checkonly` and `-silent`. **Check first**
+  that the tool was instantiated: `grep '^INSTALLED_VERSION_FLAG=' $OLD_HOME/deinstall/deinstall`
+  must show `true` – a home built with the 19.3 image + `opatch` RU (the
+  `-applyRU` route never worked on FMW hosts) keeps the placeholder
+  `%setInstallFlag%` and the tool stops with `deinstall/perl/bin/perl: No such
+  file or directory` (test host 2026-11-10). Then: nothing of the old home may
+  run (`/proc/*/exe`), `oratab` / systemd units / profiles must not name it,
+  `$NEW_HOME/oui/bin/runInstaller -silent -detachHome ORACLE_HOME=$OLD_HOME
+  ORACLE_HOME_NAME=<name from inventory.xml>`, then remove the directory and
+  empty `DB_ORACLE_HOME_PREV` (the rollback path ends here). Careful with the
+  deinstall tool: the old home's `listener.ora` names the same `LISTENER` as
+  the running one – deselect it (`.`) if the tool asks to de-configure
+  listeners. `detachHome` of a home whose directory is already gone leaves a
+  small stub directory (`inventory/`, `cfgtoollogs/`) – remove it;
 - delete the Data Pump dumps (`DATA_PUMP_DIR/rcu_<prefix>_*_<ts>.dmp`) when no
   longer needed;
 - systemd units: run the printed root commands **before the next reboot**

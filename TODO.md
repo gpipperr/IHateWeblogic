@@ -96,8 +96,9 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] HTML parameter form with `AL32UTF8` umlauts
   ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
 - [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
-  growth in the PDB with the common policies (`LOGON` / `LOGOFF` count there since
-  2026-11-06), check `AUDITLOG` after some days of normal use; `06-` / `09-Install/07-` on a
+  growth in the PDB checked 2026-11-10: `AUDITLOG` 85 of 100 MB (autoextend
+  4 GB), 4–32 rows per normal day, peaks only on admin days (patch 6390, RCU
+  work 262), archive timestamp job + 3 purge jobs working (180 days) – OK; `06-` / `09-Install/07-` on a
   PDB **before** RCU (registry missing – checked read-only in `CDB$ROOT`
   only); first customer run of the new `01-` "patch first, then install"
   route (live on the test host with `--target-home`); research why
@@ -168,14 +169,8 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ## APEX / ORDS beside Forms
 
-- [ ] **RCU / APEX database after the 19.33 patch** (out-of-place
-  19.30 → 19.33 live 2026-10-28,
-  [09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)): after some
-  days of stable operation deinstall the old 19.30 home (11.2 GB, reported
-  "NOT in use" by `check_disk_space.sh` 2026-10-30)
-  (`deinstall -checkonly` / `-silent`), remove the stale inventory entry
-  `OraDB19Home1` of the 19.3 `db_home1`, delete the Data Pump dumps of the
-  patch run.
+- [ ] Remove the 32 KB stub `/u01/app/oracle/product/19.3.0` (left by
+  `detachHome` of the already missing 19.3 home on 2026-11-10).
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
