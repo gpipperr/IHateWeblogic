@@ -5,6 +5,12 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- `clone_check_fmw.sh` 2026-11-10.3 and `02-Checks/clone_check.sh`: section 4 checks `AdminURL` in
+  `servers/*/data/nodemanager/startup.properties` – a host name / IP there while the AdminServer
+  listens on 127.0.0.1 starts the managed server in *Managed Server independence mode* on every
+  direct Node Manager start (EM: server, cluster and `reports` deployment shut down, AdminServer
+  only `BEA-149505`); on a clone it addresses the source. Found live at a customer on the hardened
+  source and the clone. `clone_golden_image.md` sections 2, 3, 5, 6, 8 and tools README updated.
 - `rcu_middleware_architecture.md`: corrected – `WLSSchemaDataSource` / `WLSRuntimeSchemaDataSource`
   have no target in a Forms/Reports domain (no `_WLS*` sessions), `LocalSvcTblDataSource` only on the
   AdminServer; new: Java SE audit loader with its own URL `audit.loader.jdbc.string` and the

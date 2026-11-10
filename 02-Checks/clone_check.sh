@@ -11,7 +11,8 @@
 #              3. Reports ORB on 127.0.0.1 (reports.sh), discovery port
 #              4. host name / IP in the domain configuration (JDBC, OPSS …)
 #                 and in $DOMAIN_HOME/bin/*.sh; ADMIN_URL of the scripts and the
-#                 shell not on localhost (stopWebLogic.sh would reach the source)
+#                 shell not on localhost (stopWebLogic.sh would reach the source),
+#                 AdminURL of servers/*/data/nodemanager/startup.properties
 #              5. machine identity: *.des3 secrets (disk UUID)
 #              6. the intended host-specific places (to change after a clone)
 #            --apply (domain running, WLST online, backup of config.xml):
@@ -237,6 +238,18 @@ fi
 if [ -n "${ADMIN_URL:-}" ] && ! printf '%s' "$ADMIN_URL" | grep -qE '://(localhost|127\.0\.0\.1)([:/]|$)'; then
     _fix "$(printf "  %-48s %s – stopWebLogic.sh uses it – set t3://localhost:<port> in the profile or unset" "shell: ADMIN_URL" "$ADMIN_URL")"
 fi
+# AdminURL the Node Manager passes on a DIRECT start (autostart, nmStart without
+# AdminServer): servers/<ms>/data/nodemanager/startup.properties keeps the
+# address of the last start via the AdminServer. Host name / IP there while the
+# AdminServer listens on 127.0.0.1 = managed server in "Managed Server
+# independence mode", EM shows it shut down (live 2026-11-10, BEA-149505 only).
+for _sp in "$DOMAIN_HOME"/servers/*/data/nodemanager/startup.properties; do
+    [ -f "$_sp" ] || continue
+    _su="$(sed -n 's/^AdminURL=//p' "$_sp" | sed 's/\\//g' | head -1)"
+    [ -z "$_su" ] && continue
+    printf '%s' "$_su" | grep -qE '://(localhost|127\.0\.0\.1)([:/]|$)' && continue
+    _fix "$(printf "  %-48s AdminURL=%s – Node Manager start without AdminServer → MSI mode (EM: down) / on a clone the source – http://localhost:<port>" "${_sp#"$DOMAIN_HOME"/}" "$_su")"
+done
 
 # RCU repository: on this host (cloned along) or external (own prefix per clone)
 _ds="$DOMAIN_HOME/config/jdbc/WLSSchemaDataSource-jdbc.xml"

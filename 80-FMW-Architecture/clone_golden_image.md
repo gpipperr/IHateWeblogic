@@ -51,6 +51,7 @@ engine CORBA),
 |---|---|---|---|---|---|
 | AdminServer, WLS_FORMS, WLS_REPORTS | 7001 / 9001 / 9002 | `localhost` | – | `ListenAddress` in `09-Install/08-` | confirmed (live) |
 | Node Manager | 5556 | `127.0.0.1` | – | `nodemanager.properties` (`08-`, `11-`) | confirmed (live) |
+| Managed server → AdminServer on a **direct Node Manager start** (autostart, `nmStart` without AdminServer) | `servers/<ms>/data/nodemanager/startup.properties` `AdminURL` | address of the **last start via the AdminServer** (host name / IP before the hardening) | **`http\://localhost\:<port>`** | edit the file (or start the server once via EM / console – the AdminServer then hands over its own URL; assumption) and restart the managed server. The hardening (`ListenAddress localhost`) does **not** rewrite it: the server runs, but in *Managed Server independence mode*, the AdminServer logs only `BEA-149505 … JMX Service URL of <none>`, EM shows server, cluster and `reports` deployment **shut down** | confirmed (customer, 2026-11-10: `AdminURL=http\://<host IP>\:7001` on the source and the clone, `status.sh` all RUNNING, EM red) |
 | WLS_FORMS / WLS_REPORTS SSL | 9501 / 9512, **demo certificate** | `localhost` | **off** | `/Servers/<ms>/SSL/<ms>` `Enabled=false` | confirmed (live) |
 | Reports server `rwserver` | CORBA, ephemeral | `0.0.0.0` | **`127.0.0.1`** | `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` in `REPORTS_JVM_OPTIONS` (`reports.sh`) | confirmed (live) |
 | Reports engines (`rwEng-*`) | CORBA, ephemeral | `0.0.0.0` | **`127.0.0.1`** | the engines inherit `REPORTS_JVM_OPTIONS` of the server – no own setting needed | confirmed (live) |
@@ -105,6 +106,7 @@ Notes:
 | `$DOMAIN_HOME/config/jdbc/*-jdbc.xml`, `fmwconfig/jps-config*.xml` | DB host **and prefix** of the RCU repository | DB on the same host: cloned along, only the host name (better `localhost` from the start); **external DB: own prefix per clone – section 5** | confirmed (live) |
 | `tnsnames.ora` in `TNS_ADMIN` | DB host | same as above | – |
 | **`$DOMAIN_HOME/bin/stopWebLogic.sh`** (and possibly `startManagedWebLogic.sh`) `ADMIN_URL="t3://<host>:7001"`; also an `ADMIN_URL` exported in the oracle profile | AdminServer address of the domain creation – the Configuration Wizard writes the listen address / host name of that time (test host: `localhost`) | **change to `t3://localhost:<port>` before the first start / stop on the clone.** Otherwise `stopWebLogic.sh` on the clone connects to the **source** AdminServer and, with `boot.properties` and an open network, **stops the source**. Until then: `ADMIN_URL=t3://localhost:7001 $DOMAIN_HOME/bin/stopWebLogic.sh` (the script takes a set `ADMIN_URL` and uses its own value only when it is empty). `02-Checks/clone_check.sh` reports own host names in `bin/*.sh` and a foreign `ADMIN_URL` (scripts and shell) as FIX | confirmed (customer, 2026-11-10: clone `stopWebLogic.sh` → `t3://<source>:7001`, only "No route to host" prevented the stop; script code read on the test host) |
+| **`$DOMAIN_HOME/servers/<ms>/data/nodemanager/startup.properties`** `AdminURL=http\://<host>\:7001` | AdminServer address the Node Manager passes on a direct start | **`http\://localhost\:<port>`** before the first start on the clone – a host name / IP of the source makes the clone's managed server look for the **source** AdminServer (or, network closed, run in independence mode: EM red). Same on a hardened source (section 2). `clone_check.sh` reports it as FIX (2026-11-10.3) | confirmed (customer, 2026-11-10) |
 | `*.des3` secret files | encrypted with the **disk UUID** (`_get_system_identifier`) | **unreadable** on the clone – re-enter (table "Password Security Concept" in the root README) | confirmed (code, lib) |
 | Reports `rwnetwork.conf` multicast port + server name | `REPORTS_BROADCAST_PORT`, `repserver01` | clones in one subnet: **change the port** (14021–14030), `13- --apply` | documented (Doc ID 437228.1) |
 | `init-info/tokenValue.properties` `@HOST_NAME` | host name of the domain creation | informational, not read at runtime | assumption |
@@ -204,6 +206,8 @@ External RCU – three ways, the first one recommended:
                                   4 BEFORE any start / stop of B:
                                     - ADMIN_URL -> t3://localhost (bin/*.sh,
                                       profile) - else stop hits A
+                                    - AdminURL -> localhost (servers/*/data/
+                                      nodemanager/startup.properties)
                                     - backup $DOMAIN_HOME/config
                                     - <server>.dat aside (scheduled jobs)
                                   5 RCU -createRepository -------------->  <NEW>_STB _OPSS _IAU*
@@ -241,8 +245,9 @@ External RCU – three ways, the first one recommended:
    ```
 
    The steps in detail:
-   0. Before any start / stop on the clone: `ADMIN_URL` to `localhost`,
-      backup of `config/`, `<server>.dat` aside (section 3).
+   0. Before any start / stop on the clone: `ADMIN_URL` (`bin/*.sh`, profile)
+      and `AdminURL` (`servers/*/data/nodemanager/startup.properties`) to
+      `localhost`, backup of `config/`, `<server>.dat` aside (section 3).
    1. RCU creates a **new prefix** with the same components as the source
       (customer domain: `STB OPSS IAU IAU_APPEND IAU_VIEWER WLS` – WLS brings
       `WLS_RUNTIME`).
@@ -358,7 +363,9 @@ External RCU – three ways, the first one recommended:
 3. **Re-personalise** (clone):
    - **first, before any start / stop:** `ADMIN_URL` in `$DOMAIN_HOME/bin/*.sh`
      and in the oracle profile to `t3://localhost:<port>` (section 3) – else
-     the clone's `stopWebLogic.sh` addresses the source AdminServer;
+     the clone's `stopWebLogic.sh` addresses the source AdminServer; the same
+     for `AdminURL` in `servers/*/data/nodemanager/startup.properties`
+     (else the managed servers look for the source AdminServer / EM red);
    - secrets: `01-setup-interview.sh` or the single setters
      (`00-Setup/weblogic_sec.sh`, `mos_sec.sh`, …);
    - `environment.conf`: `WLS_SERVER_FQDN`, `FORMS_CLIENT_BASE_URL`,
@@ -449,6 +456,11 @@ Added later on 2026-11-10 (HTTP 200 checked 2026-11-10):
 - Code, test host 14.1.2: `$DOMAIN_HOME/bin/stopWebLogic.sh` (generated by
   the Configuration Wizard) – `ADMIN_URL` from the 3rd argument, else from the
   environment, else the value written at the domain creation (section 3).
+- `servers/<ms>/data/nodemanager/startup.properties` `AdminURL`: customer
+  source and clone 2026-11-10 (host IP, `WLS_REPORTS.log` "being started in
+  Managed Server independence mode in the absence of the Administration
+  Server" at every start, AdminServer `BEA-149505` only, no `BEA-149506`);
+  test host has `localhost` there (domain created with `localhost`).
 - Offline WLST attribute `URL` of `JDBCDriverParams/NO_NAME_0`: read on the
   test host (`readDomain`, no `updateDomain`).
 - Scheduled jobs, `.dat`, `showjobs`: [reports_job_handling.md](reports_job_handling.md)

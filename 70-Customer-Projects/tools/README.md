@@ -470,7 +470,7 @@ password values are masked. Without `--config` the output is as before.
 | 1 listening sockets (`ss`) | java / `rwserver` socket on all interfaces or the host IP | web tier (`httpd`, `nginx`) by design; `frmweb` (no bind option); Coherence remainder; multicast discovery |
 | 2 `config.xml`, `nodemanager.properties` | listen address not loopback, SSL listen port on, Coherence unicast not `127.0.0.1` | – |
 | 3 Reports | no `ORBServerHost=127.0.0.1` in `reports.sh` / `setUserOverrides.sh` | discovery port / server name per clone |
-| 4 host name / IP in `$DOMAIN_HOME/config` and `bin/*.sh` | unknown file; own host name in a domain script; `ADMIN_URL` of `bin/*.sh` or of the shell not on `localhost` (2026-11-10.2 – a clone's `stopWebLogic.sh` would address the source AdminServer) | JDBC / OPSS (DB host), OHS config; RCU repository local (cloned along) or **external** (own prefix per clone) |
+| 4 host name / IP in `$DOMAIN_HOME/config` and `bin/*.sh` | unknown file; own host name in a domain script; `ADMIN_URL` of `bin/*.sh` or of the shell not on `localhost` (2026-11-10.2 – a clone's `stopWebLogic.sh` would address the source AdminServer); `AdminURL` of `servers/*/data/nodemanager/startup.properties` not on `localhost` (2026-11-10.3 – managed server in independence mode, EM shows it shut down) | JDBC / OPSS (DB host), OHS config; RCU repository local (cloned along) or **external** (own prefix per clone) |
 | 5 machine identity | – | domain key travels with the clone, stored WLST credentials |
 | 6 by design | – | OHS `ServerName` / `Listen`, Apache / Nginx `server_name` + certificate, `tnsnames.ora` hosts |
 
