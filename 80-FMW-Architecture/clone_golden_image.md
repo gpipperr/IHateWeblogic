@@ -155,7 +155,7 @@ knows the prefix (§4, §5 there).
 | **on the WLS host** (cloned along) | nothing for RCU – the DB is part of the image. Only the DB host name in the JDBC URLs / `jps-config*.xml` / `tnsnames.ora` (section 3): use `localhost` or an alias from the start, then nothing changes either |
 | **external** | the clone must **not start** against the repository of the source – two domains would write into the same OPSS store (policies, keystores, credentials), the same `_WLS` runtime / lease tables and the same service table (**assumption** from the design, not tested – do not try it on a production repository) |
 
-External RCU – two ways, the first one recommended:
+External RCU – three ways, the first one recommended:
 
 1. **Image without domain (recommended).** The golden image holds the OS
    baseline, the Oracle Homes (patched), the JDK and this repository with a
@@ -173,6 +173,44 @@ External RCU – two ways, the first one recommended:
    the new prefix in `SCHEMA_VERSION_REGISTRY$` (missing rows = RCU cannot
    manage the prefix later, §4.1 there). Many places, not supported as a
    procedure by Oracle, **not tested** here – only if way 1 is impossible.
+3. **Clone the domain, new RCU prefix, OPSS moved with
+   `reassociateSecurityStore` (optional, in test since 2026-11-10).** The
+   domain is cloned with the machine; on the clone, before the managed
+   servers start:
+   1. RCU creates a **new prefix** with the same components as the source
+      (customer domain: `STB OPSS IAU IAU_APPEND IAU_VIEWER WLS` – WLS brings
+      `WLS_RUNTIME`).
+   2. Only the AdminServer starts (still on the OPSS of the source – reading;
+      audit rows may land in the source `_IAU_APPEND`).
+   3. Online WLST: a new data source on `<new>_OPSS` (JNDI e.g.
+      `jdbc/OpssDataSource<new>`), then
+      `reassociateSecurityStore(domain=..., servertype='DB_ORACLE',
+      jpsroot='cn=opssRoot', datasourcename=<JNDI>, jdbcurl=..., jdbcdriver=...,
+      dbUser='<new>_OPSS', dbPassword=...)`. Oracle: it "migrates the security
+      store from a source to a target store and resets service configurations
+      in the `jps-config.xml` and `jps-config-jse.xml` files" and the bootstrap
+      credential (**documented**, OPSS 12.2.1.3 `managepols.htm`).
+   4. Stop; the remaining data sources (`LocalSvcTblDataSource` → `_STB`,
+      `opss-audit` → `_IAU_APPEND`, `opss-auditview` → `_IAU_VIEWER`,
+      `WLSSchemaDataSource` → `_WLS`, `WLSRuntimeSchemaDataSource` →
+      `_WLS_RUNTIME`, the old `opss-data-source`) to the new prefix; start all.
+
+   Why not offline – **confirmed (live)** on the test host 2026-11-10:
+   - `migrateSecurityStore` (WLST offline, DB → DB, assembled config file
+     with a source and a target context, target bootstrap credential added
+     with `addBootStrapCredential`) stops with `JPS-01013: The credential
+     store DN cn=CredentialStore,cn=opssSecurityStore,cn=JPSContext,cn=opssRoot
+     is missing in the store; the target DN must be pre-configured.` – a
+     schema freshly created by RCU has no OPSS root.
+   - 14.1.2 ships no `configureSecurityStore.py` (12c used it to create the
+     root); `tenantOnBoard` is for multi-tenant stores.
+   - The default context of the copied `jps-config.xml` must not be used
+     offline (`idstore.ldap` needs the WebLogic configuration) – set
+     `default=` to the source context.
+
+   Status: the new prefix `CLN` exists in the test DB (RCU rc=0); steps 2–4
+   are being tested on the test host (backup of `config/`, way back = restore
+   and restart on `DEV`). Cookbook for the customer after the test.
 
 ---
 
@@ -204,7 +242,8 @@ External RCU – two ways, the first one recommended:
   Back Address, 127.0.0.1?" – not read).
 - `frmweb` bind address: ask Oracle (SR) whether an option exists.
 - A full clone with the recipe of section 6 has not been run yet; way 2 of
-  section 5 (re-bind to a copied repository) is untested.
+  section 5 (re-bind to a copied repository) is untested; way 3
+  (`reassociateSecurityStore`) is in test (2026-11-10).
 
 ---
 
