@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-10
 
+- REP-50125 / `REPORTS_JVM_OPTIONS`: MOS KB924687 read – `report_engine_architecture.md` section 6
+  explains the three places (`reports.sh`, `<envVariable>`, engine `jvmOptions`) and their effect;
+  `13-reports-detail-settings.md` quotes the KB note on `jvmOptions` and why this repository keeps
+  the timeout there with the same value (no conflict, running at the customer).
 - `02-Checks/clone_check.sh --apply`: besides SSL off / Coherence (WLST online) it now changes the
   four file places of the localhost hardening – Node Manager `AdminURL` in `startup.properties`,
   `ADMIN_URL` in `bin/*.sh`, `emoms.properties` (config, `.jmxori`, `tmp/_WL_user/em` source copy),

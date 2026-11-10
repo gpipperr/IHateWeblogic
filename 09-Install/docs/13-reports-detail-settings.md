@@ -862,11 +862,28 @@ Oracle confirmed it later as **Bug 39868225** (defect introduced by QPR
 Standalone Report Server – REP-50125": workaround is the same option in
 `REPORTS_JVM_OPTIONS` of the start script (the KB says `report.sh` and
 `7200000` – in 14.1.2 the file is `$DOMAIN_HOME/reports/bin/reports.sh`; any
-non-null value works). The KB also says: if `-DORBWaitForResponseTimeout` is
-set under `<jvmOptions>` in `rwserver.conf`, remove it there to avoid a
-conflict – we set it only in `<envVariable name="REPORTS_JVM_OPTIONS">` (engines)
-and in `reports.sh` (rwserver JVM). Fix expected in a later QPR – keep the
-option until a QPR README lists 39868225.
+non-null value works). The KB also says, as a note without a described
+error: "If you already have the -DORBWaitForResponseTimeout parameter defined
+under jvmOptions in the rwserver.conf then remove the entry in rwserver.conf to
+avoid conflicts with REPORTS_JVM_OPTIONS." (text read 2026-11-10).
+
+Where this repository sets it, and why:
+- `reports.sh` `REPORTS_JVM_OPTIONS` (rwserver JVM) – the KB workaround, value
+  `999999999`;
+- `<envVariable name="REPORTS_JVM_OPTIONS">` in `rwserver.conf` (environment of
+  the engines, same value);
+- engine `jvmOptions` – **only when** `REPORTS_ENGINE_JVM_OPTIONS` is set: the
+  attribute replaces the inherited `-D` options on the engine command line, so
+  `13-` / `engine_perf_settings.sh` add `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1`
+  and, like `reports.sh`, the timeout (since 2026-11-10, customer: engines with
+  `jvmOptions` on `0.0.0.0`). Against the KB note on purpose: the value is the
+  **same** `999999999` everywhere, so nothing can conflict; running at the
+  customer since 2026-11-10 without error. If a later QPR shows a conflict,
+  drop the timeout from `jvmOptions` – `ORBServerHost` alone is what the
+  engines need there (the engines get the timeout from the environment
+  variable, test host 2026-11-10: `/proc/<engine>/environ`).
+
+Fix expected in a later QPR – keep the option until a QPR README lists 39868225.
 
 ### getserverinfo returns REP-52262 "Diagnostic output is disabled" (confirmed 2026-10-15)
 

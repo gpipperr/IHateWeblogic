@@ -1111,9 +1111,12 @@ KNOWN PROBLEMS
             are broken (quotes).
   Solution: add -DORBWaitForResponseTimeout=999999999 to the line
             REPORTS_JVM_OPTIONS=... in reports.sh (STEP 4.1); check the
-
             engine line of STEP 4.3; then restart the Reports server.
             Otherwise ROLLBACK of the file.
+            Oracle: Bug 39868225, MOS KB924687 (since Reports QPR
+            39600348); background in
+            IHateWeblogic/80-FMW-Architecture/report_engine_architecture.md
+            section 6.
 
   Problem : report hangs or REP-51002 / "Bind to server failed" after
             the restart.

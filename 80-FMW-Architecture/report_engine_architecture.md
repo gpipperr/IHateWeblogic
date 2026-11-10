@@ -127,7 +127,7 @@ sharing one JVM, not quoted from Oracle):
 | Advantage | Why |
 |---|---|
 | process isolation | an engine or server crash does not touch WLS_REPORTS; Reports can be restarted alone (`startStop.sh stop/start repserver01`) |
-| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7; ORB of server + engines on `127.0.0.1` via `ORBServerHost` – [clone_golden_image.md](clone_golden_image.md)) independent of WLS_REPORTS. Also an **own JDK**: `reports.sh` puts `$ORACLE_HOME/oracle_common/jdk/bin` first in `PATH`, the engines run on the FMW-bundled JDK, not on `JDK_HOME` (**confirmed (live)** 2026-10-19 – 17.0.12 on the test host, unchanged after the CPU Oct 2026 run; open: supported way to update it – KA1182 lists no patch for `oracle.jdk`, Reports QPR bug 37866660 "alternative JAVA_HOME" covers the tools only, `rwengine.sh` hard-codes `oracle_common/jdk`; SR prepared) |
+| own JVM settings | `REPORTS_JVM_OPTIONS` in `$DOMAIN_HOME/reports/bin/reports.sh` (heap, process-reaper fix, ORB timeouts – [reports_user_local_ldap.md](reports_user_local_ldap.md) §7; ORB of server + engines on `127.0.0.1` via `ORBServerHost` – [clone_golden_image.md](clone_golden_image.md); the timeout is mandatory once the variable is set – REP-50125, section 6) independent of WLS_REPORTS. Also an **own JDK**: `reports.sh` puts `$ORACLE_HOME/oracle_common/jdk/bin` first in `PATH`, the engines run on the FMW-bundled JDK, not on `JDK_HOME` (**confirmed (live)** 2026-10-19 – 17.0.12 on the test host, unchanged after the CPU Oct 2026 run; open: supported way to update it – KA1182 lists no patch for `oracle.jdk`, Reports QPR bug 37866660 "alternative JAVA_HOME" covers the tools only, `rwengine.sh` hard-codes `oracle_common/jdk`; SR prepared) |
 | Node Manager control | start/stop/monitoring like the WebLogic servers (`nmStart … ReportsServerComponent`, autostart via `fmw_ctl.sh`) |
 | several servers | several standalone servers (different names / queues / settings) can serve one rwservlet farm |
 
@@ -318,6 +318,26 @@ on `0.0.0.0` with `jvmOptions="-Xms1024m -Xmx2048m"`). Live test 2026-10-16: reg
 recycling costs 85–661 ms per job, a crashed engine (kill -9) is replaced
 within seconds after the ORB fix ([reports_user_local_ldap.md](reports_user_local_ldap.md) §7).
 
+**`REPORTS_JVM_OPTIONS` and REP-50125.** Since Reports QPR 39600348
+`oracle.reports.utility.Utility.getOrbProperties` reads
+`-DORBWaitForResponseTimeout` from the **environment variable**
+`REPORTS_JVM_OPTIONS`. Is the variable set without this option, the value is
+null and the server (or an engine) stops with `REP-50125 :
+java.lang.NullPointerException … Properties.put … getOrbProperties`; is it
+not set at all, a default is used (**documented**: Bug 39868225, MOS KB924687
+"After July QPR 39600348 Unable to start Standalone Report Server";
+**confirmed (live)** 2026-10-15 on the test host and 2026-11-10 at a customer
+– right after `REPORTS_JVM_OPTIONS` was first set in `reports.sh` for the
+loopback hardening, without the timeout; gone after adding it). So whoever sets the variable must always include the
+timeout. Three places, three effects (**confirmed (live)** 2026-11-10,
+`/proc/<pid>/environ` and `cmdline`):
+
+| Place | Effect on | Note |
+|---|---|---|
+| `$DOMAIN_HOME/reports/bin/reports.sh` `REPORTS_JVM_OPTIONS` | `rwserver` JVM; inherited by the engines as environment **and** as `-D` options on their command line | KB workaround; this repository: `-Xmx256M`, reaper fix, timeout, ORB connect timeouts, `ORBServerHost=127.0.0.1` |
+| `rwserver.conf` `<envVariable name="REPORTS_JVM_OPTIONS">` | environment of the engines | timeout |
+| `rwserver.conf` engine `jvmOptions` | **replaces** the inherited `-D` options on the engine command line (the environment stays) | without `ORBServerHost` the engine ORB listens on `0.0.0.0`; the KB advises against the timeout here ("to avoid conflicts") – we keep it with the same value, see [13-reports-detail-settings.md](../09-Install/docs/13-reports-detail-settings.md) troubleshooting |
+
 On a host: `05-ReportsPerformance/engine_perf_settings.sh` checks the
 parameters of this table against these rules (report engine only, CPUs, RAM,
 drift to `environment.conf`) and changes them with `--apply`;
@@ -443,6 +463,12 @@ All links checked 2026-10-17, A.2 on 2026-10-19 (HTTP 200, title matches). The F
 - 24.3 Tuning Reports Server Configuration (engine sizing formulas, cache,
   queue):
   https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_tune003.htm
+
+MOS (read 2026-11-10):
+- KB924687 "After July QPR 39600348 Unable to start Standalone Report Server –
+  REP-50125" (Bug 39868225): workaround `REPORTS_JVM_OPTIONS=-DORBWaitForResponseTimeout=…`
+  in the start script; note to remove the option from `jvmOptions` in
+  `rwserver.conf` "to avoid conflicts" (section 6)
 
 Older editions (history, same concepts):
 - 11g – Understanding the Oracle Reports Services Architecture:
