@@ -100,7 +100,13 @@ reviewed against the Oracle 14.1.2 documentation and re-tested live
 (firewall, sshd) is live on the test host. The 14c move of a customer
 (export → analysis → import, [process](09-Install/docs/00-transfer_customer_settings.md))
 ran live at a customer on 2026-11-05/06: Way 2 and Way 1, including step 3,
-the re-analysis of the new 14c host.
+the re-analysis of the new 14c host. On 2026-11-09/10 a customer domain was
+hardened to localhost and cloned with its VM onto a new RCU prefix in another
+database (`reassociateSecurityStore`) – the findings are in
+[`clone_golden_image.md`](80-FMW-Architecture/clone_golden_image.md) and, anonymised
+with cookbooks, in
+[`FormsReports14_linux_localhost`](70-Customer-Projects/FormsReports14_linux_localhost/README.md) /
+[`FormsReports14_linux_clone`](70-Customer-Projects/FormsReports14_linux_clone/README.md).
 What was done when: [CHANGELOG.md](CHANGELOG.md) (newest first). What is
 still open: [TODO.md](TODO.md).
 
@@ -189,7 +195,8 @@ What matters in this cycle:
 > all analyse + fix folders and `08-SSL` against the Oracle docs (2026-10-19/20),
 > Forms client distribution via URL + first Windows FSAL session, one
 > `TNS_ADMIN` for all processes and the loopback-only / clone-capable domain
-> (2026-10-22/23) – [Folder Roles](#folder-roles), background in
+> (2026-10-22/23), at a customer the localhost hardening of an existing domain
+> and a VM clone with a new RCU prefix (2026-11-09/10) – [Folder Roles](#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
 > fix: `git log`; what is still open: [TODO.md](TODO.md).
 > Use with caution and verify output before applying any changes (`--apply`).
@@ -400,9 +407,14 @@ Rules across the folders:
 | Phase 9 (Monitoring) | `cve_inventory.sh`, `cve_watch.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
 | Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` optional (asked by `04-root_nginx.sh`, `any` where there is no admin network) |
 
-## First Run – Required Order
+## First Run on an Existing Environment – Required Order
 
-Run these scripts in sequence on a fresh installation:
+A **new installation** runs through the install chain instead – order,
+phases and gates in [`09-Install/README.md`](09-Install/README.md) (customer
+14c move: [Step 2 in order](#moving-from-12c-to-forms--reports-14c--the-process-in-three-steps)).
+
+On an **existing** environment (built by somebody else, analyse + fix), run
+these scripts in sequence:
 
 ```
 1.  00-Setup/detect_env_conf.sh                  # Detect paths, generate environment.conf
@@ -435,7 +447,7 @@ Run these scripts in sequence on a fresh installation:
 | `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
+| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
@@ -497,7 +509,8 @@ IHateWeblogic/
 │   ├── tns_admin_check.sh           – One TNS_ADMIN everywhere: default.env, rwserver.conf, reports.sh,
 │   │                                   setUserOverrides.sh (--apply), .bash_profile, running processes
 │   ├── clone_check.sh               – Clone-capable / golden image: sockets by bind address, SSL ports,
-│   │                                   Coherence, Reports ORB, host refs, RCU location, secrets (--apply)
+│   │                                   Coherence, Reports ORB, host refs, RCU location, secrets; --apply:
+│   │                                   SSL/Coherence (WLST) + AdminURL, ADMIN_URL, emoms, engine jvmOptions
 │   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
 │   │                                   servers per port (DiagServerLocator), read-only
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
@@ -708,8 +721,9 @@ IHateWeblogic/
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export
 │   ├── ords_architecture.md         – ORDS: Jetty, APEXlang compiler, config levels, proxy right, features + risks
 │   │                                      (CONNECT THROUGH), REST / OAuth2, APEX session in REST, history
-│   ├── clone_golden_image.md        – loopback-only installation, what holds the host name, RCU
-│   │                                      local vs. external, golden-image recipe
+│   ├── clone_golden_image.md        – loopback-only installation, hardening checklist, what holds the
+│   │                                      host name, RCU local vs. external (way 3 reassociate),
+│   │                                      golden-image recipe in four phases
 │   ├── java_jlink_forms_env.md      – own Java runtime for the Forms client (jlink, jmods,
 │   │                                      cross-build Windows on Linux, module list)
 │   └── forms_jakob_webutil.md       – WebUtil + JACOB (OLE / Office automation)
@@ -718,6 +732,15 @@ IHateWeblogic/
     │                                   the scripts above; see README.md for an index + further
     │                                   German installation guides (one subfolder per customer/scenario)
     ├── README.md
+    ├── cookbook-Skill.md             – how a customer cookbook is written (style rules)
+    ├── Start_beim_Kunden_kochbuch_de.txt – first steps at a customer (tools ZIP, setdb, ini)
+    ├── FormsReports14_linux_localhost/ – knowledge base (English, anonymised): harden an existing
+    │   │                                 domain to localhost
+    │   ├── README.md                     – every place touched, symptom -> cause table
+    │   └── Localhost_cookbook_en.txt     – manual cookbook, ends with "Clone-capable: yes"
+    ├── FormsReports14_linux_clone/   – knowledge base (English, anonymised): VM clone, new RCU prefix
+    │   ├── README.md                     – reassociateSecurityStore, what changes and what not
+    │   └── Clone_cookbook_en.txt         – manual cookbook (source part A, clone part B)
     ├── FormsReports12_patch_cpu_2026-10/
     │   ├── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
     │   │                                     Java alert (server JDK 8, client JRE), manual
@@ -727,9 +750,12 @@ IHateWeblogic/
     │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
     │   │                                     facts of every patch README
     │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
-    ├── customer-analyse/             – not in this repository: our analysis (private repository, git-ignored here)
+    ├── customer-analyse/             – not in this repository: analysis scripts / templates (private
+    │                                     repository) + local customer data (never committed)
     ├── tools/
     │   ├── README.md
+    │   ├── make_customer_zip.sh          – builds ihw_customer_tools_linux.zip / _windows.zip (one link
+    │   │                                     for the customer; run --apply before every tools commit)
     │   ├── bash/                         – Linux hosts
     │   │   ├── collect_fmw_env.sh            – shared read-only collector (12c + 14c), secrets masked
     │   │   ├── mos_patch_download.sh         – MOS download of a patch CSV with getMOSPatch (share host)
@@ -740,6 +766,9 @@ IHateWeblogic/
     │   │   ├── export_forms_reports_conf.sh  – export of the customer Forms/Reports configuration (12c/14c)
     │   │   │                                     for the 14c rebuild – encrypted archive, never into git
     │   │   ├── make_patch_install_ini.sh     – patch_install.ini from the existing domain (for the cookbooks)
+    │   │   ├── set_script_env.sh             – loads patch_install.ini into the shell (sourced)
+    │   │   ├── status.sh, show_log.sh,       – operation: status in three stages, logs, error lines
+    │   │   │   show_errors.sh, show_all_logs.sh
     │   │   ├── clean_domain_tmp.sh           – delete servers/*/tmp + cache of the stopped domain (rebuilt at the next start)
     │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
@@ -748,6 +777,9 @@ IHateWeblogic/
     │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
+    ├── Reports14_builder_windows/
+    │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
+    │   └── ReportBuilder_Windows_Kochbuch_de.txt
     └── Reports14_linux_manual_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)
