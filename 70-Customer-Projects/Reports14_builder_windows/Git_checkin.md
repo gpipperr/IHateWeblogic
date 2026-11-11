@@ -66,6 +66,39 @@ calls `reports.bat`):
 - `batch=yes` = no dialog; `overwrite=yes` = replace the old XML.
 - **Same base name** for `.rdf` and `.xml` (2.2, "report name").
 
+Example of the login file for the demo user `gpi` (DB user `gpi`, TNS alias
+`fmwpdb` from the shared `tnsnames.ora` of the domain), created once in a cmd
+shell of the developer:
+
+```bat
+mkdir %USERPROFILE%\.rwconv
+```
+
+```bat
+notepad %USERPROFILE%\.rwconv\login.txt
+```
+
+Content – exactly one line, no blank at the end, save, close:
+
+```
+userid=gpi/<password>@fmwpdb
+```
+
+Only the developer may read the file (remove inherited rights, grant the own
+account full access):
+
+```bat
+icacls %USERPROFILE%\.rwconv\login.txt /inheritance:r /grant:r "%USERNAME%:F"
+```
+
+```bat
+icacls %USERPROFILE%\.rwconv\login.txt
+```
+
+Expected: only one line with `<computer>\gpi:(F)`. `%USERPROFILE%` is
+`C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\gpi`, so Git
+never sees the file. A changed DB password = edit this one line.
+
 ### 2.2 Results – confirmed (live) on the Linux test host, 2026-11-11
 
 Reports 14.1.2 + QPR 39600348, `$DOMAIN_HOME/reports/bin/rwconverter.sh`
