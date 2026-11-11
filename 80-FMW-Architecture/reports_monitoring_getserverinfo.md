@@ -127,8 +127,8 @@ content (`<error>` or `<serverInfo>`).
 
 ## 3. The XML – a real answer
 
-Test host, 2026-11-03, about 5 hours after the start of the Reports server.
-The host name is replaced by a placeholder.
+Test host, 2026-11-03, about 5 hours after the start of the Reports server
+(demo host name, see [Demo Data](../README.md#demo-data)).
 
 ```xml
 <?xml version = '1.0' encoding = 'UTF-8' standalone = 'yes'?>
@@ -356,12 +356,114 @@ body in its configuration, so make the macro secret.
 
 ### 7.3 PRTG
 
-The plain "HTTP XML/REST Value" sensor runs on the probe, not on the Reports
-host, and Nginx blocks the web commands from outside. Use instead:
-- an **SSH Script Advanced** sensor that runs the script from 7.1 on the
+Every PRTG HTTP sensor runs **on the probe**, not on the Reports host. Nginx
+blocks the web commands from outside (Reports_security.txt 2.3), and on a
+loopback-hardened domain `WLS_REPORTS` listens on `127.0.0.1:9002` only. So
+the request has to start on the Reports host. Two ways:
+
+- **A – REST Custom v2 sensor** on a probe that runs on the Reports host
+  (multi-platform probe on Linux). Reads up to 10 values straight from the
+  XML, no script on the host (7.3.1).
+- **B – SSH Script Advanced** sensor that runs the script from 7.1 on the
   host. Turn its output into PRTG's XML format, or use the plain exit code
-  with "SSH Script";
-- or a local probe on the Reports host.
+  with "SSH Script". Works with any probe that may SSH to the host.
+
+#### 7.3.1 REST Custom v2 sensor (XPath, 10 channels)
+
+Source: [PRTG manual – REST Custom v2](https://www.paessler.com/manuals/prtg/rest_custom_v2_sensor)
+(read 2026-11-11). **Not tested live** – no PRTG on the test host; the XPath
+expressions are checked against the real answer from section 3 with `xmllint`.
+
+What the sensor offers (from the manual):
+- content type XML, **XPath 1.0** (functions such as `count()` allowed);
+- request method POST with a **POST body**, custom headers;
+- placeholders `%restusername` / `%restpassword` from the device setting
+  "credentials for REST API";
+- **at most 10 channels**; channel #1 is required, #2–#10 can only be
+  enabled at creation;
+- value types Absolute (integer / float), Delta (counter), Status (string)
+  with "Strings mapped to the 'Up' status" (unknown strings → Down by
+  default), Lookup. **Value type and lookup cannot be changed after creation.**
+
+Sensor settings:
+
+| Setting | Value |
+|---|---|
+| Request URL | `http://localhost:9002/reports/rwservlet/getserverinfo` |
+| Request Method | POST |
+| POST Body | `server=repserver01&statusformat=XML&authid=%restusername/%restpassword` |
+| Custom Headers | `Content-Type: application/x-www-form-urlencoded` |
+| Content Type | XML |
+| Timeout (Sec.) | 60 (first request after a Reports server start can be slow, 2.2) |
+| Credentials (device) | "credentials for REST API": user `monUser`, its password |
+| Custom Sensor Message | `concat(/serverInfo/@name, ' ', /serverInfo/@version, //error/@message)` – server and release, or the error text |
+
+All parameters stay in the POST body – nothing lands in `access.log` (2.1).
+**Assumption:** the manual does not say whether the placeholders are
+URL-encoded; a password with `&`, `+`, `%` or `=` may then break the body.
+Use a `monUser` password without these characters, or test it once.
+
+The 10 channels (thresholds from section 5):
+
+| # | Channel | XPath | Value type / unit | Alarm (limit / mapping) |
+|---|---|---|---|---|
+| 1 | Server answers | `count(/serverInfo)` | Status (string), Up = `1` | anything else → Down: `<error>` answer (wrong password, AdminServer / LDAP down, missing role) or login page |
+| 2 | Active engines | `/serverInfo/engine[@id="rwEng"]/@activeEngine` | Absolute (integer), # | lower error limit 1 – no report can run |
+| 3 | Busy engines | `/serverInfo/engine[@id="rwEng"]/@totalBusyEngines` | Absolute (integer), # | upper warning = `maxEngine` − 1 (pool full) |
+| 4 | Dead engines | `count(/serverInfo/engine[@id="rwEng"]/engineInstance[@status="0"])` | Absolute (integer), # | upper error limit 0 |
+| 5 | Failed jobs | `/serverInfo/performance/property[@name="failedJobs"]/@value` | Absolute (integer), # | notification trigger "on change"; cumulative since the server start (4.3) |
+| 6 | Runaway jobs | `/serverInfo/performance/property[@name="potentialRunawayJobs"]/@value` | Absolute (integer), # | upper error limit 0 |
+| 7 | Long-running jobs | `/serverInfo/performance/property[@name="longRunningJobs"]/@value` | Absolute (integer), # | upper warning limit 0 |
+| 8 | Free connections | `/serverInfo/connection/@connectionsAvailable` | Absolute (integer), # | lower error limit 1 – new requests are refused |
+| 9 | Secured | `/serverInfo/isSecure` | Status (string), Up = `1` | `0` → Down; leave the channel out on a server without `securityId` |
+| 10 | Auth time | `/serverInfo/avgAuthTime` | Absolute (float), Time ms | upper warning by baseline (test host 287 ms, slow LDAP / AdminServer) |
+
+Notes:
+- **Channel #1 as Status (string)** turns every error answer into Down without
+  a limit: `<error code="50171">` has no `serverInfo`, `count()` returns `0`.
+  The other channels then find no value – also a sensor error.
+- **`failedJobs` not as Delta (counter):** the manual allows Delta only for
+  values that rise every interval. After a restart of the Reports server the
+  counter starts again at 0 (4.3) – a falling value is not supported.
+  Absolute + "on change" trigger (or a limit on the difference you see in
+  the graph) is the safer choice.
+- **Limits** (2–8, 10) are set afterwards in the channel settings (PRTG
+  channel limits). The manual for this sensor does not describe limits
+  itself – check on the first sensor.
+
+Further XPath values to swap in (still 10 channels at most):
+
+| Value | XPath | Value type / unit |
+|---|---|---|
+| Current jobs | `/serverInfo/performance/property[@name="currentJobs"]/@value` | Absolute (integer) |
+| Successful jobs | `/serverInfo/performance/property[@name="successfulJobs"]/@value` | Absolute (integer) |
+| Average response time | `/serverInfo/performance/property[@name="averageResponseTime"]/@value` | Absolute (float), Time ms |
+| Average queuing time | `/serverInfo/performance/property[@name="avgQueuingTime"]/@value` | Absolute (float), Time ms |
+| Queuing share | `/serverInfo/performance/property[@name="avgQueuingTime"]/@value div /serverInfo/performance/property[@name="averageResponseTime"]/@value * 100` | Absolute (float), Percent – warning ≥ 50; **no jobs yet = 0 div 0 = NaN** |
+| Peak engines used | `/serverInfo/engineInfo/@maxEnginesUsed` | Absolute (integer) – `= maxEngine` means jobs had to wait |
+| Idle engines | `/serverInfo/engine[@id="rwEng"]/@totalIdleEngines` | Absolute (integer) |
+| Process ID | `/serverInfo/processId` | Absolute (integer) – changes on a restart |
+| URL engines active | `/serverInfo/engine[@id="rwURLEng"]/@activeEngine` | Absolute (integer) – `0` is normal (4.2) |
+
+Test the expressions on the host before you build the sensor:
+
+```bash
+curl -s --max-time 60 -K ~/.config/rwmon.curl \
+     --data-urlencode "server=repserver01" --data-urlencode "statusformat=XML" \
+     http://localhost:9002/reports/rwservlet/getserverinfo > /tmp/si.xml
+```
+
+```bash
+xmllint --xpath 'count(/serverInfo/engine[@id="rwEng"]/engineInstance[@status="0"])' /tmp/si.xml; echo
+```
+
+```bash
+xmllint --xpath 'string(/serverInfo/performance/property[@name="failedJobs"]/@value)' /tmp/si.xml; echo
+```
+
+`xmllint` needs `string()` around attribute paths to print the bare value;
+in PRTG the plain path is enough. Delete `/tmp/si.xml` afterwards (it holds
+the host name).
 
 ### 7.4 Our tools for manual checks
 
@@ -387,3 +489,6 @@ host, and Nginx blocks the web commands from outside. Use instead:
   `engineResponseTimeOut`).
 - `showjobs` (job list with `REP-` per job) as a second source for the "why"
   behind `failedJobs`.
+- PRTG REST Custom v2 sensor (7.3.1) not tested live: URL-encoding of
+  `%restpassword` in the POST body, sensor state when an XPath finds no value,
+  Status (string) mapping of the `count()` result.

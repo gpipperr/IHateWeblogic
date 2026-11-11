@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `reports_monitoring_getserverinfo.md` §7.3: PRTG **REST Custom v2** sensor as option A (probe on
+  the Reports host, POST body with `%restusername` / `%restpassword`, 10 channels with XPath, value
+  types and limits from §5, further XPath values to swap in); SSH Script Advanced stays as option B.
+  XPath checked with `xmllint` against the real answer, sensor itself not tested live.
 - **Disclaimer & Acknowledgements** (ACE item 2): new last section of the root README (not
   affiliated with Oracle, trademarks, use at own risk / Apache 2.0 "as is", personal bird logo,
   AI co-author) + thanks to Jürgen Menge and Mark Eichhorst of die IT-Macher; pointer line at
