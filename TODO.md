@@ -306,4 +306,4 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
   "to avoid conflicts" – we keep it there with the same value (engine
   `jvmOptions` since 2026-11-10, running at the customer); drop it from
   `jvmOptions` if a later QPR shows a conflict
-  ([report_engine_architecture.md §6](80-FMW-Architecture/report_engine_architecture.md)).
+  ([reports_engine_architecture.md §6](80-FMW-Architecture/reports_engine_architecture.md)).

@@ -14,7 +14,7 @@
 #            --conf PATH     Explicit path to rwserver.conf
 #            --server NAME   Reports server component (default: REPORTS_SERVER_NAME)
 #            --help          Show usage
-# Rules    : 80-FMW-Architecture/report_engine_architecture.md section 6
+# Rules    : 80-FMW-Architecture/reports_engine_architecture.md section 6
 #            (Oracle "Tuning Reports Server Configuration")
 # Requires : pgrep, sed, awk, python3 (--apply)
 # Author   : Gunther Pipperr | https://pipperr.de

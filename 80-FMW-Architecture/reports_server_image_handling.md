@@ -84,7 +84,7 @@ Rules that make one `.rdf` work everywhere:
   the next tool start.
 
 Development workflow with this (copy old report → remove paths → Git → DEV
-server): [report_rwbuilder.md §6](report_rwbuilder.md#6-development-workflow--from-the-old-report-to-the-linux-dev-server).
+server): [reports_rwbuilder.md §6](reports_rwbuilder.md#6-development-workflow--from-the-old-report-to-the-linux-dev-server).
 
 ## 3. `<folderAccess>` – where the server may read
 

@@ -8,8 +8,8 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 > Background: which processes read the font files – Reports server engines
 > and `rwrun` both use the ReportsTools instance (`uifont.ali`, PPD/AFM) and
 > the environment of `reports.sh`
-> ([report_engine_architecture.md §5.1](../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server));
-> engines run on the FMW-bundled JDK ([§4](../80-FMW-Architecture/report_engine_architecture.md#4-standalone-server-with-own-engines--advantages)).
+> ([reports_engine_architecture.md §5.1](../80-FMW-Architecture/reports_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server));
+> engines run on the FMW-bundled JDK ([§4](../80-FMW-Architecture/reports_engine_architecture.md#4-standalone-server-with-own-engines--advantages)).
 
 > Background: original vs. substitute, **licences** (Microsoft fonts may not
 > be copied to another server, free OFL replacements, customer fonts),

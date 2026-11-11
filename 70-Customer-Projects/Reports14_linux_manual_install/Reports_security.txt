@@ -7,7 +7,7 @@
   Erstellt   : 2026-10, ueberarbeitet 2026-11-04 (Stil nach
                70-Customer-Projects/cookbook-Skill.md)
   Grundlage  : IHateWeblogic (Gunther Pipperr), 09-Install/docs/12, 80, 81,
-               80-FMW-Architecture/report_server_image_handling.md
+               80-FMW-Architecture/reports_server_image_handling.md
   Parameter  : Alle Pfade, Namen und Ports der Kochbuecher stehen in EINER
                Datei /u01/oracle/tools/patch_install.ini (Vorlage:
                patch_install.ini neben diesem Kochbuch). EINMALIG genau an

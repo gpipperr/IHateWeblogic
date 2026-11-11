@@ -11,7 +11,7 @@
 Background – the QPRs relink native binaries (`frmweb` per Forms session,
 `rwserver` / engines / `rwrun`), so every process of the home must be down:
 [forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts),
-[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts);
+[reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts);
 the same patches on a running system: `07-Maintenance/82-`.
 
 Apply Forms & Reports specific patches after the base F&R install. Patches

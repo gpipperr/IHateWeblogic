@@ -14,8 +14,8 @@ Related:
 - Security: [reports_user_local_ldap.md](reports_user_local_ldap.md) and
   [81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md).
 - Monitoring of the counters: [reports_monitoring_getserverinfo.md](reports_monitoring_getserverinfo.md).
-- Engines: [report_engine_architecture.md](report_engine_architecture.md).
-- Read / write directories: [report_server_image_handling.md](report_server_image_handling.md).
+- Engines: [reports_engine_architecture.md](reports_engine_architecture.md).
+- Read / write directories: [reports_server_image_handling.md](reports_server_image_handling.md).
 
 ---
 
@@ -168,7 +168,7 @@ grep -n '<write>' $RWSERVER_CONF
   `<read>`.
 - If the output must go somewhere else, add that directory in the **one**
   `<write>` element, separated by `;`, like `<read>`
-  ([report_server_image_handling.md](report_server_image_handling.md)).
+  ([reports_server_image_handling.md](reports_server_image_handling.md)).
   That the `;` rule also applies to `<write>` is **confirmed (customer,
   2026-11-04)**: a second output directory for the nightly job was appended
   to the existing `<write>` element with `;`

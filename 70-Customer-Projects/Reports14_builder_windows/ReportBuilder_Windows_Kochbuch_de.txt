@@ -717,7 +717,7 @@ SCHRITT 8: Builder fuer die Entwickler einrichten  [live 2026-10-27]
   REM keinen Pfad - gefunden wird ueber REPORTS_PATH, unter Windows wie
   REM auf dem Linux-Server (dort sonst REP-108, kein Rueckfall auf den
   REM Dateinamen). Uebersicht wer wo sucht:
-  REM 80-FMW-Architecture/report_server_image_handling.md, Abschnitt 2.1
+  REM 80-FMW-Architecture/reports_server_image_handling.md, Abschnitt 2.1
 
   ----------------------------------------------------------------------------
   8.3 Fonts

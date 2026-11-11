@@ -143,7 +143,7 @@ explicitly provides a different value during `--interview`.
 | `REPORTS_BROADCAST_PORT` | multicast discovery port (`rwnetwork.conf`, `14027` on the test host) – [discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md) |
 | `REPORTS_PATH` / `REPORTS_TMP` | `REPORTS_PATH` and temp directory of the engines (default from `REPORTS_CUSTOMER_DIR`) |
 | `REPORTS_CUSTOMER_DIR` | `$ORACLE_BASE/reports/source` – `.rdf` / `.rep` sources (interview) |
-| `REPORTS_IMAGE_DIR` | `$ORACLE_BASE/reports/images` – images, `<folderAccess>` – [image handling](../../80-FMW-Architecture/report_server_image_handling.md) |
+| `REPORTS_IMAGE_DIR` | `$ORACLE_BASE/reports/images` – images, `<folderAccess>` – [image handling](../../80-FMW-Architecture/reports_server_image_handling.md) |
 | `REPORTS_SECURITY` | `ldap` (secured server, WebLogic embedded LDAP) or `identifier` – [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md); passwords → `embedded_ldap_sec` / `reports_admin_sec.conf.des3` |
 | `REPORTS_ADMIN_USER` | `repadmin` – Reports server admin (`<identifier>`) |
 | `REPORTS_COOKIE_KEY` | generated once by `13-` (persisted) |
@@ -154,7 +154,7 @@ explicitly provides a different value during `--interview`.
 | `REPORTS_MAX_CONNECT` / `REPORTS_MAX_QUEUE` | `300` / `4000` |
 
 All engine values are written by `13-` / `05-ReportsPerformance --apply` into
-`rwserver.conf` – background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md).
+`rwserver.conf` – background: [reports_engine_architecture.md](../../80-FMW-Architecture/reports_engine_architecture.md).
 
 ### Block 5 – Configuration Files
 *Runtime parameters – auto-detected by detect_env_conf.sh*

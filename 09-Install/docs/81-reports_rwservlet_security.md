@@ -11,7 +11,7 @@ The findings below come from the live rebuild on Oracle Linux 9 / FMW 14.1.2
 plan and target design are done (sections 6 / 7); implemented in `12-`, `13-`
 and the Nginx template (admin web commands only from `ADMIN_IP_RANGE`).
 Background – where rwservlet, the Reports server and the engines run and who
-checks which user: [report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
+checks which user: [reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts).
 
 Related: [12-weblogic-report-monitoring_user.md](12-weblogic-report-monitoring_user.md)
 (users/roles), [13-reports-detail-settings.md](13-reports-detail-settings.md)

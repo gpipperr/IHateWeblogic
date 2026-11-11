@@ -11,7 +11,7 @@ ausgeführt und getestet.
 [ReportBuilder_Windows_Kochbuch_de.txt](ReportBuilder_Windows_Kochbuch_de.txt)
 
 → Architektur und Idee (englisch):
-[80-FMW-Architecture/report_rwbuilder.md](../../80-FMW-Architecture/report_rwbuilder.md)
+[80-FMW-Architecture/reports_rwbuilder.md](../../80-FMW-Architecture/reports_rwbuilder.md)
 
 ## Die Frage: geht der Reports Builder ohne den kompletten FMW-Stack?
 
@@ -121,7 +121,7 @@ Plattformabhängig (Windows x64):
 | 5 | Virenschutz: Ausnahmen für das Oracle Home während Installation und Patchen |
 | 6 | ~~Windows-Varianten der plattformabhängigen Patches auf MOS?~~ **Geklärt 2026-10-26: alle vorhanden** (Plattform „Microsoft Windows x64 (64-bit)“): Reports 39600348 (3,5 MB, 2026-08-17), PERL 39951765 (38,4 MB, 2026-10-19), OHS 39987730 (20,3 MB, 2026-10-19), WebGate 39100536 (11,1 MB, 2026-04-21). Der MOS-Titel des Reports-QPR („MERGE REQUEST … FOR BUGS 38991174 37866660 39375353“) nennt nur die Bugs des Merge-Antrags – die **Windows-README listet 31 Bugs**, identisch mit dem Inventar des Linux-Testhosts (`lsinventory -bugs_fixed`, verglichen 2026-10-26). Builder und Server haben damit denselben Reports-Stand. |
 | 7 | **Erledigt 2026-10-28:** Die MOS-Patches einzeln von Hand zu laden hat beim Termin zu lange gedauert (rund 15 Dateien, ~7 GB, je Patch Plattform wählen). Dafür gibt es jetzt [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows-Variante seit 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), dazu `collect_fmw_env.ps1` / `fmw_patch_env.ps1`; Windows-Plattform `233P`): eine CSV-Liste (Patch-Nummer, Plattform `233P` / Generic `2000P`, Datei-Regexp, Pflicht/optional) in einem Lauf mit getMOSPatch laden, `unzip -t` + SHA-256 – vorab auf einem Rechner mit MOS-Zugang, dann die Dateien als Paket zum Kunden. Die CSV für diese Download-Checkliste wird beim nächsten Termin aus dem Kochbuch erstellt (Vorlage: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
-| 8 | **RCU-DB im Alltag:** Die Reports-Werkzeuge nutzen die RCU-Schemas zur Laufzeit nicht (gemessen 2026-10-27 mit `strace` an `rwconverter` auf dem Linux-Testsystem: keine OPSS-/Wallet-Datei, kein AdminServer, nur die Anmeldung des Berichts) – die eigene RCU-DB auf dem Builder-Server wird nur für Domain-Änderungen und ein Versions-Upgrade gebraucht, Dienst auf „Manuell“. **Offen:** einmal mit gestopptem DB-Dienst den Builder starten und eine Vorschau erzeugen (Builder-GUI noch nicht gemessen). Details: Kochbuch Schritt 10, [report_rwbuilder.md §3.2/3.3](../../80-FMW-Architecture/report_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
+| 8 | **RCU-DB im Alltag:** Die Reports-Werkzeuge nutzen die RCU-Schemas zur Laufzeit nicht (gemessen 2026-10-27 mit `strace` an `rwconverter` auf dem Linux-Testsystem: keine OPSS-/Wallet-Datei, kein AdminServer, nur die Anmeldung des Berichts) – die eigene RCU-DB auf dem Builder-Server wird nur für Domain-Änderungen und ein Versions-Upgrade gebraucht, Dienst auf „Manuell“. **Offen:** einmal mit gestopptem DB-Dienst den Builder starten und eine Vorschau erzeugen (Builder-GUI noch nicht gemessen). Details: Kochbuch Schritt 10, [reports_rwbuilder.md §3.2/3.3](../../80-FMW-Architecture/reports_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
 
 Status: **live bestätigt 2026-10-27** beim Kunden (Windows Server 2025, CPU
 Oktober 2026) – das Kochbuch wurde Schritt für Schritt durchgespielt und hat

@@ -10,7 +10,7 @@ archiving and log levels.
 explained in [`80-FMW-Architecture/`](../80-FMW-Architecture/README.md):
 [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain),
 [where is what – homes, configuration, logs](../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs),
-[Reports server and engines](../80-FMW-Architecture/report_engine_architecture.md#1-the-parts),
+[Reports server and engines](../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts),
 [Forms logs and ODL levels](../80-FMW-Architecture/forms_runtime_architecture.md#6-logs-traces-monitoring).
 
 ---
@@ -170,7 +170,7 @@ project:
 |---|---|---|
 | `REP-50600` | `<repserver>.out` | broadcasting disabled – multicast port blocked (firewall `14027/udp`), Reports server stops – [discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md) |
 | `REP-56040` | rwserver log | a Reports server with that name already runs in the network |
-| `REP-56132` | engine log | file access outside `<folderAccess>` – [image handling](../80-FMW-Architecture/report_server_image_handling.md) |
+| `REP-56132` | engine log | file access outside `<folderAccess>` – [image handling](../80-FMW-Architecture/reports_server_image_handling.md) |
 | `REP-108` | engine log | file (image) not found – Windows path in the report |
 | `REP-50125` | rwserver log | `StreamCorruptedException` – foreign packet on the discovery port |
 | `REP-52262` | rwservlet log | diagnostic output disabled – the user sees no details (by design) |

@@ -16,7 +16,7 @@ Related:
 (processes and who starts whom),
 [forms_runtime_architecture.md](forms_runtime_architecture.md) (`frmweb`
 sockets),
-[report_engine_architecture.md](report_engine_architecture.md) (server /
+[reports_engine_architecture.md](reports_engine_architecture.md) (server /
 engine CORBA),
 [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md)
 (multicast discovery). Check script: `02-Checks/clone_check.sh` (customer

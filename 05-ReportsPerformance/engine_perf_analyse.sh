@@ -378,14 +378,14 @@ _rec() { RECS=$(( RECS + 1 )); printf "  [%d] %s\n" "$RECS" "$1" | tee -a "${LOG
 [ "$REC_QUEUE" -eq 1 ] && [ "$REC_POOL" -eq 1 ] && _rec "Queuing caused by the full pool – see [1]"
 [ "$REC_DEAD" -eq 1 ] && _rec "Dead engine(s)" \
     "engine logs: ./03-Logs/grep_logs.sh 'REP-' (rwEng-N_diagnostic.log)" \
-    "background: 80-FMW-Architecture/report_engine_architecture.md"
+    "background: 80-FMW-Architecture/reports_engine_architecture.md"
 _xmx_cfg="$(printf "%s" "${CFG_JVM:-}" | grep -oE '\-Xmx[0-9]+[kKmMgG]?' | tail -1)"
 [ "$REC_OOM" -eq 1 ] && _rec "OutOfMemoryError in the engines" \
     "engine -Xmx: ${_xmx_cfg:-jvmOptions not set (Reports default, see Engine Processes)}" \
     "raise -Xmx in jvmOptions: ./05-ReportsPerformance/engine_perf_settings.sh --apply"
 [ "$REC_FAIL" -eq 1 ] || [ "$REC_REP" -eq 1 ] && _rec "Failed jobs / REP- errors – fix the cause before tuning" \
     "./03-Logs/grep_logs.sh 'REP-'" \
-    "REP-56132 / REP-108 (images, folderAccess): 80-FMW-Architecture/report_server_image_handling.md"
+    "REP-56132 / REP-108 (images, folderAccess): 80-FMW-Architecture/reports_server_image_handling.md"
 [ "$REC_ORA" -eq 1 ] && _rec "ORA- errors – database side" "./02-Checks/db_connect_check.sh"
 [ "$REC_ERT" -eq 1 ] && _rec "engineResponseTimeOut does not match the measured run times (see Job Run Times)" \
     "./05-ReportsPerformance/engine_perf_settings.sh --apply (writes REPORTS_ENGINE_RESPONSE_TIMEOUT)" \

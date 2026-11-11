@@ -394,7 +394,7 @@ without TLS (section 1.1).
 
 A common belief: "there is CORBA in the Forms backend". There is not –
 CORBA is the **Reports** server ↔ engine protocol
-([report_engine_architecture.md](report_engine_architecture.md)). Forms
+([reports_engine_architecture.md](reports_engine_architecture.md)). Forms
 has always had its own protocol: the runtime sends **structured messages**
 ("what the client needs to display"), the client sends back what the user
 did. Oracle 2001: "The Forms Server Runtime process uses a persistent

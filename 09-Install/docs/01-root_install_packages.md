@@ -13,7 +13,7 @@ including the font stack for Reports PDF rendering.
 
 Background – who needs the native libraries: `frmweb` (one process per Forms
 session, Motif / X libraries) – [forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts);
-the Reports engines and `rwrun` (fonts, `libnsl`) – [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md).
+the Reports engines and `rwrun` (fonts, `libnsl`) – [reports_engine_architecture.md](../../80-FMW-Architecture/reports_engine_architecture.md).
 
 > **Note:** Oracle's current documentation (WLS 14.1.1 SYSRS, FMW 14.1.2 Readme,
 > Forms & Reports 14.1.2 Prerequisites) no longer publishes a complete, explicit
@@ -193,7 +193,7 @@ dnf install -y \
 
 Why two font paths (PDF: TTF, HTML / parameter form: AFM / PPD) and why the
 engines and `rwrun` read the same files:
-[report_engine_architecture.md §5.1](../../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server),
+[reports_engine_architecture.md §5.1](../../80-FMW-Architecture/reports_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server),
 [04-ReportsFonts/README.md](../../04-ReportsFonts/README.md).
 
 ```bash

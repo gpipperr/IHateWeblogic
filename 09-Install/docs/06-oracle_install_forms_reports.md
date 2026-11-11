@@ -15,8 +15,8 @@ Background – what this layer adds to the home and how its parts run later:
 Forms (`frmweb` per session, servlet in `WLS_FORMS`) –
 [forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts);
 Reports (rwservlet, standalone server, engines, tools) –
-[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts);
-Builder on Windows – [report_rwbuilder.md](../../80-FMW-Architecture/report_rwbuilder.md).
+[reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts);
+Builder on Windows – [reports_rwbuilder.md](../../80-FMW-Architecture/reports_rwbuilder.md).
 
 ---
 

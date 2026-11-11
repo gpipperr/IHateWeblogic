@@ -156,7 +156,7 @@ All values **confirmed (live)** 2026-10-28 on the test host unless marked.
 | **DB wallet / OS store** | DB home / `sqlnet.ora` / `UTL_HTTP.SET_WALLET` | Oracle wallet or `system:` | DB owner | roots for outbound `UTL_HTTP` (APEX web services) | DBA / `update-ca-trust` | DB 26ai default `system:` (OS store), 19c ≥ 19.16 with `SET_WALLET('system:')` (**documented**, pipperr.de) |
 | **Forms client runtime** | jlink runtime in `/srv/formsWeb/jre-<ver>-win-x64-*.zip` → `lib/security/cacerts` | PKCS#12 | served by Nginx | Oracle roots + **`ihw-forms-ca`** (`FORMS_CLIENT_TRUST_CA`) | `09-Install/40-oracle_forms_client_bundle.sh` (`keytool -importcert`) | FSAL (`-cert_truststore java`), code-signing check of `jacob.jar` |
 | **Windows clients** | `Cert:\LocalMachine\Root` / `\CA` | Windows store | machine | customer root, our `ca.cer` | GPO / `Import-Certificate` ([doc 40 §5.8](../09-Install/docs/40-forms_client_distribution.md)) | browsers, PowerShell installer, Windows tools |
-| **Reports Builder server (Windows)** | `E:\Java\jdk-21\lib\security\cacerts` | PKCS#12 | admin | Oracle roots | JDK update | Builder outbound (none in normal work) – [report_rwbuilder.md](report_rwbuilder.md) |
+| **Reports Builder server (Windows)** | `E:\Java\jdk-21\lib\security\cacerts` | PKCS#12 | admin | Oracle roots | JDK update | Builder outbound (none in normal work) – [reports_rwbuilder.md](reports_rwbuilder.md) |
 | **Node.js (Claude Code)** | built into the `node` binary (144 roots) + `NODE_EXTRA_CA_CERTS` | PEM via env | – | Mozilla roots of that Node build | Node update | Claude Code (API, WebFetch) – [setup_claude.md](../10-Monitoring/setup_claude.md) |
 
 Secret files that unlock stores (repository root, gitignored, machine-bound

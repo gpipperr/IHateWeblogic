@@ -5,6 +5,9 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `80-FMW-Architecture`: consistent `reports_*` names – `report_engine_architecture.md`,
+  `report_rwbuilder.md`, `report_server_image_handling.md` renamed to `reports_*` (git mv); all
+  references in 41 files repointed (also older entries here), relative-link check 0 broken.
 - `reports_monitoring_getserverinfo.md` §7.3: PRTG **REST Custom v2** sensor as option A (probe on
   the Reports host, POST body with `%restusername` / `%restpassword`, 10 channels with XPath, value
   types and limits from §5, further XPath values to swap in); SSH Script Advanced stays as option B.
@@ -24,7 +27,7 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 - `engineResponseTimeOut` default 30 → **360 minutes** (6 h safety net: ends only a really hanging
   engine, never a long batch report): `13-oracle_setup_reports.sh`, `detect_env_conf.sh`,
   `fmw_prod.conf.template`, docs 13 / 00-environment-setup / 01-setup-interview,
-  `report_engine_architecture.md`. `05-ReportsPerformance/README.md`: missing
+  `reports_engine_architecture.md`. `05-ReportsPerformance/README.md`: missing
   `engineResponseTimeOut` is a WARN (as the script does), new note on the difference to
   `-DORBWaitForResponseTimeout` (ORB wait time / REP-50125 workaround, limits nothing).
 
@@ -35,7 +38,7 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   stale inventory entry of the 19.3 home detached; Data Pump dumps of 2026-10-17 deleted; audit
   growth checked (OK). `09-db_patch_rcu.md` "After the patch": check the deinstall tool first,
   the manual way, listener name trap.
-- REP-50125 / `REPORTS_JVM_OPTIONS`: MOS KB924687 read – `report_engine_architecture.md` section 6
+- REP-50125 / `REPORTS_JVM_OPTIONS`: MOS KB924687 read – `reports_engine_architecture.md` section 6
   explains the three places (`reports.sh`, `<envVariable>`, engine `jvmOptions`) and their effect;
   `13-reports-detail-settings.md` quotes the KB note on `jvmOptions` and why this repository keeps
   the timeout there with the same value (no conflict, running at the customer).
@@ -62,7 +65,7 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   `05-ReportsPerformance/engine_perf_settings.sh` now add `-DORBWaitForResponseTimeout=999999999
   -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` (as in `reports.sh`) whenever they write engine
   `jvmOptions` (the drift check ignores them); `clone_check.sh` / `clone_check_fmw.sh` 2026-11-10.7 report engine `jvmOptions` without it as FIX. Docs: 13- detail
-  settings, setup interview, `report_engine_architecture.md`, `clone_golden_image.md` section 2.
+  settings, setup interview, `reports_engine_architecture.md`, `clone_golden_image.md` section 2.
 - `clone_check_fmw.sh` 2026-11-10.5 and `02-Checks/clone_check.sh`: `rwserver.conf` whose only host
   name is the mail sender (`<notification>` `sender` `reports@<host>`) is a STEP (adjust per clone),
   no longer a FIX; any other host-name line in it stays a FIX.

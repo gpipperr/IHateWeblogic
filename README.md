@@ -138,7 +138,7 @@ fresh installation.
 | 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
 | 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
 | 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
-| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [report_engine_architecture.md](80-FMW-Architecture/report_engine_architecture.md) |
+| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [reports_engine_architecture.md](80-FMW-Architecture/reports_engine_architecture.md) |
 | 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
 | 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); since 2026-10-30 patch numbers in `09-Install/download/patches_fmw.csv` (one list per cycle, also for the standalone download tool) and `patch_storage.sh` for a small local disk (`PATCH_ARCHIVE` on NFS/ZFS = master, local = cache per step, run history `log/run_history.csv`); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
 | 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories, third-party jars), `cve_watch.sh` (step 2, daily early warning: Oracle alerts page, NVD Oracle CNA records, OSV, KEV, EPSS, heise – alerts only new findings, journal `ihw-cve`), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`), `patch_cycle_analysis.sh` (Claude patch-cycle analysis, skill doc + `update_plan.md`), `claude_setup_check.sh` (Claude sandbox / managed settings / guard hook, [setup_claude.md](10-Monitoring/setup_claude.md)); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
@@ -459,7 +459,7 @@ these scripts in sequence:
 | `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
 | `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
+| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Repository Structure
 
@@ -713,18 +713,18 @@ IHateWeblogic/
 │   │                                      system components, EM / Remote Console, logs, sources
 │   ├── rcu_middleware_architecture.md – RCU schemas, OPSS/JPS + LDAP, registry, passwords,
 │   │                                      profile RCU_USER, SecureFile/EBR, patching vs. upgrade
-│   ├── report_engine_architecture.md – Reports in-process vs. standalone server, engines,
+│   ├── reports_engine_architecture.md – Reports in-process vs. standalone server, engines,
 │   │                                      rwrun call flow (§5.1), performance parameters, history
 │   ├── certificates_trust_stores.md – certificates / keys / trust stores: terms, CA quality, inventory,
 │   │                                      who needs what, customer PKI + interception, central trust concept
-│   ├── report_rwbuilder.md          – Reports Builder minimal setup on Windows (RDP): builder-only
+│   ├── reports_rwbuilder.md          – Reports Builder minimal setup on Windows (RDP): builder-only
 │   │                                      domain, no running server stack, local-admin finding
 │   ├── weblogic_outbound_connections.md – what the domain sends outside, external-DTD trap
 │   ├── forms_runtime_architecture.md – Forms servlet / listener / frmweb per session, runtime
 │   │                                      pooling, timeout chain, memory, logs, protocol history
 │   ├── reports_server_discovery_multicast.md – Reports discovery via UDP multicast,
 │   │                                      REP-50600 / REP-56040, prerequisites, diagnosis
-│   ├── report_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
+│   ├── reports_server_image_handling.md – images in reports, REPORTS_PATH, <folderAccess>
 │   ├── reports_fonts_architecture.md – Reports fonts: original vs. substitute, licences (Windows fonts
 │   │                                      not to another server), OFL replacements, migration
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
@@ -871,7 +871,7 @@ data and stay as they are.
   https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html –
   digested with quotes in [`80-FMW-Architecture/forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md)
 - Reports server / engines / `rwrun` with Oracle sources:
-  [`80-FMW-Architecture/report_engine_architecture.md`](80-FMW-Architecture/report_engine_architecture.md)
+  [`80-FMW-Architecture/reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md)
 
 ## Troubleshooting
 

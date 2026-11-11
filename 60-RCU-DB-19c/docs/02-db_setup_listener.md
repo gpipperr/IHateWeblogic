@@ -79,7 +79,7 @@ did not find the `LISTENER_<SID>` alias of `local_listener` and never
 registered its services – hence the explicit address in `local_listener`
 (`03-`), and `09-db_patch_rcu.sh` starts the instance with the home's own
 `network/admin` and copies these three files into a new home. Background:
-[report_engine_architecture.md §5.2](../../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin),
+[reports_engine_architecture.md §5.2](../../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin),
 [02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh).
 
 ## systemd Unit

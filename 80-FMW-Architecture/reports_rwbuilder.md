@@ -16,7 +16,7 @@ Markers as in [README.md](README.md): **confirmed (live)** = customer
 installation 2026-10-27 (Windows Server 2025, CPU October 2026 – the
 cookbook was run step by step and worked as written), **documented** =
 Oracle documentation ([Sources](#10-sources)), **assumption** = not verified.
-Related: [report_engine_architecture.md](report_engine_architecture.md)
+Related: [reports_engine_architecture.md](reports_engine_architecture.md)
 (Reports server, engines, ReportsTools instance),
 [rcu_middleware_architecture.md](rcu_middleware_architecture.md) (RCU,
 database requirements).
@@ -115,7 +115,7 @@ work, the Builder starts from `DOMAIN_HOME\reports\bin\rwbuilder.bat`.
 ### 3.2 What the Builder still needs at runtime
 
 - **The ReportsTools instance** (`reptools1`) – configuration files only,
-  no process (see [report_engine_architecture.md §1](report_engine_architecture.md#1-the-parts)).
+  no process (see [reports_engine_architecture.md §1](reports_engine_architecture.md#1-the-parts)).
 - **`reports.bat`** of the domain – sets the environment for the tools:
   `TNS_ADMIN` (= `DOMAIN_HOME\config\fmwconfig`, one `tnsnames.ora` for all
   developers) and `REPORTS_PATH` (sources, libraries, images).
@@ -181,7 +181,7 @@ The minimal setup works only if these four things are kept identical:
 | **Patch level** | a report saved by a newer Builder must run on the server; same CPU cycle, Windows variants of the same patch numbers | cookbook step 4, Linux cookbooks |
 | **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) |
 | **Connect aliases** | same `tnsnames.ora` entries on both sides | `DOMAIN_HOME\config\fmwconfig` vs. server `TNS_ADMIN` |
-| **Paths** | images / libraries via `REPORTS_PATH`; Windows paths in reports have no fallback on Linux (`REP-108`) – references carry the file name only (section 6) | [report_server_image_handling.md](report_server_image_handling.md) |
+| **Paths** | images / libraries via `REPORTS_PATH`; Windows paths in reports have no fallback on Linux (`REP-108`) – references carry the file name only (section 6) | [reports_server_image_handling.md](reports_server_image_handling.md) |
 
 ## 6. Development workflow – from the old report to the Linux DEV server
 
@@ -210,7 +210,7 @@ eports\img\logo.gif`)
    `reports.bat`, on Linux through the `REPORTS_PATH` and `<folderAccess>`
    of the Reports server. A full Windows path has **no fallback** on the
    Linux server (`REP-108`) – details and a test series:
-   [report_server_image_handling.md](report_server_image_handling.md)
+   [reports_server_image_handling.md](reports_server_image_handling.md)
    (sections 2 "How a file name is resolved", **2.1 "Who searches where –
    and with which separator"**, 3 `<folderAccess>`, 5 "Normalising the image
    references"). Same file names in lower case on both sides.

@@ -253,7 +253,7 @@ not ask for the names then. It takes this list as `REPORTS_SERVER_NAMES` /
 process is described in
 [00-transfer_customer_settings.md](00-transfer_customer_settings.md#when-does-the-interview-run-no-chicken-and-egg-problem).
 
-Background: [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md),
+Background: [reports_engine_architecture.md](../../80-FMW-Architecture/reports_engine_architecture.md),
 [discovery](../../80-FMW-Architecture/reports_server_discovery_multicast.md).
 
 | Parameter | Default | Notes |

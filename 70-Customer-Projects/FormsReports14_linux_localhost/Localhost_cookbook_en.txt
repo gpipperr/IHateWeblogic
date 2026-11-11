@@ -17,7 +17,7 @@
                  80-FMW-Architecture/clone_golden_image.md
                    section 1 (target picture), 2 (sockets), 2.1 (hardening
                    checklist), 3 (host-name places)
-                 80-FMW-Architecture/report_engine_architecture.md
+                 80-FMW-Architecture/reports_engine_architecture.md
                    (engine parameter jvmOptions)
                  70-Customer-Projects/FormsReports14_linux_localhost/README.md
                    (overview of every place touched, symptom table)
@@ -1115,7 +1115,7 @@ KNOWN PROBLEMS
             Otherwise ROLLBACK of the file.
             Oracle: Bug 39868225, MOS KB924687 (since Reports QPR
             39600348); background in
-            IHateWeblogic/80-FMW-Architecture/report_engine_architecture.md
+            IHateWeblogic/80-FMW-Architecture/reports_engine_architecture.md
             section 6.
 
   Problem : report hangs or REP-51002 / "Bind to server failed" after

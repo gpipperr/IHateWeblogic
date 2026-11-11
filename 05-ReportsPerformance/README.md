@@ -12,7 +12,7 @@ All scripts source `environment.conf`, log to `log/<date>/` and are
 read-only by default (`--apply` only in `engine_perf_settings.sh`).
 
 Background (why the server/engine split, which process uses which JDK,
-Oracle's tuning rules): [report_engine_architecture.md](../80-FMW-Architecture/report_engine_architecture.md).
+Oracle's tuning rules): [reports_engine_architecture.md](../80-FMW-Architecture/reports_engine_architecture.md).
 
 ---
 
@@ -81,7 +81,7 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 | Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`, **no `engineResponseTimeOut`** (a hanging engine is never ended – typical for domains not built with this library); FAIL: `maxEngine < minEngine/initEngine`. INFO: URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
-| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
 **`engineResponseTimeOut` – not the same as `ORBWaitForResponseTimeout`.**
@@ -95,7 +95,7 @@ this library: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h safety net since
 (customer 2026-11-11: longest 260 s → 9 min).
 
 The rules and Oracle's numbers behind the checks:
-[report_engine_architecture.md §6](../80-FMW-Architecture/report_engine_architecture.md#6-performance-parameters-rwserverconf).
+[reports_engine_architecture.md §6](../80-FMW-Architecture/reports_engine_architecture.md#6-performance-parameters-rwserverconf).
 Live 2026-10-19: without `jvmOptions` the engines run with `-Xmx256M`
 (**confirmed (live)**, engine command line).
 
@@ -151,9 +151,9 @@ repository is counted. Judge trends, not absolute numbers.
 
 Where the logs are and why there are separate engine logs:
 [03-Logs/README.md](../03-Logs/README.md),
-[report_engine_architecture.md §5](../80-FMW-Architecture/report_engine_architecture.md#5-who-starts-what--and-what-the-consoles-show).
+[reports_engine_architecture.md §5](../80-FMW-Architecture/reports_engine_architecture.md#5-who-starts-what--and-what-the-consoles-show).
 Typical REP codes from images/`folderAccess` (REP-56132, REP-108):
-[report_server_image_handling.md](../80-FMW-Architecture/report_server_image_handling.md).
+[reports_server_image_handling.md](../80-FMW-Architecture/reports_server_image_handling.md).
 Slow first request / engine replacement after a crash:
 [reports_user_local_ldap.md §7](../80-FMW-Architecture/reports_user_local_ldap.md).
 
@@ -187,7 +187,7 @@ Slow first request / engine replacement after a crash:
 
 - Oracle Reports 12.2.1.3 "Publishing Reports", 24.3 Tuning Reports Server
   Configuration and 7.2.1.8 `engine` element – quoted and linked in
-  [report_engine_architecture.md §6 / §10](../80-FMW-Architecture/report_engine_architecture.md)
+  [reports_engine_architecture.md §6 / §10](../80-FMW-Architecture/reports_engine_architecture.md)
 - Related scripts: `01-Run/rwserver_status.sh`, `01-Run/reports_server_lib.sh`,
   `03-Logs/grep_logs.sh`, `02-Checks/db_connect_check.sh`,
   `07-Maintenance/backup_config.sh` (category `reports_comp`)

@@ -12,7 +12,7 @@
 ## Overview
 
 Background: in-process vs. standalone server, engines, performance
-parameters – [report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md) (§2, §6); secured server –
+parameters – [reports_engine_architecture.md](../../80-FMW-Architecture/reports_engine_architecture.md) (§2, §6); secured server –
 [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md); discovery – [reports_server_discovery_multicast.md](../../80-FMW-Architecture/reports_server_discovery_multicast.md).
 Check / tune afterwards: `05-ReportsPerformance/`.
 
@@ -513,7 +513,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections – `TNS_ADMIN` of `environment.conf`; `13-` also writes `TNS_ADMIN=…; export TNS_ADMIN` into the IHW block of `reports.sh` (Reports server process, `rwrun`, `rwconverter`) – Oracle's own `reports.sh` sets it only when empty (`/etc` or `$DOMAIN_HOME/config/fmwconfig`). All places: [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
 | `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
 | `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `repadmin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
-| `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [report_server_image_handling.md](../../80-FMW-Architecture/report_server_image_handling.md)) |
+| `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [reports_server_image_handling.md](../../80-FMW-Architecture/reports_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
 
 ### Alternative: Configure via Enterprise Manager MBean Browser
@@ -669,7 +669,7 @@ the Reports server only 8 s (before 64 s), after an engine crash 7 s (before
 
 > **Automated by `14b-oracle_reports_fonts.sh`**, not by `13-` – this section
 > stays as the manual reference. Why two font paths and the same files for the
-> engines and `rwrun`: [report_engine_architecture.md §5.1](../../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
+> engines and `rwrun`: [reports_engine_architecture.md §5.1](../../80-FMW-Architecture/reports_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
 
 > **See also:** `04-ReportsFonts/uifont_ali_update.sh` and `04-ReportsFonts/font_cache_reset.sh`
 

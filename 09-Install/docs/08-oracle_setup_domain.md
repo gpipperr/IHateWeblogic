@@ -27,7 +27,7 @@ the data sources / OPSS store bound to the RCU schemas –
 [rcu_middleware_architecture.md §3](../../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where);
 what runs in `WLS_FORMS` / `WLS_REPORTS` –
 [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md),
-[report_engine_architecture.md](../../80-FMW-Architecture/report_engine_architecture.md).
+[reports_engine_architecture.md](../../80-FMW-Architecture/reports_engine_architecture.md).
 All servers listen on `127.0.0.1` only — Nginx is the external entry point.
 
 ### Components (`INSTALL_COMPONENTS`)

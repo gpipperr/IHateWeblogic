@@ -18,7 +18,7 @@ Background – the four homes and who runs as `oracle`:
 [weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes);
 why `JAVA_HOME` = `JDK_HOME` and not the bundled JDK: same document, §1;
 why one `TNS_ADMIN`: [forms_runtime_architecture.md §2.1](../../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias),
-[report_engine_architecture.md §5.2](../../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin).
+[reports_engine_architecture.md §5.2](../../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin).
 
 ## Groups: FMW vs. Database
 

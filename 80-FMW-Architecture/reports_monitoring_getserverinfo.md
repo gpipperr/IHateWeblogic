@@ -11,7 +11,7 @@ secured server (`securityId`), `monUser` with role `RW_MONITOR`.
 Related:
 - Security of the web commands: [reports_user_local_ldap.md](reports_user_local_ldap.md)
   and [81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md).
-- Engines and sizing: [report_engine_architecture.md](report_engine_architecture.md).
+- Engines and sizing: [reports_engine_architecture.md](reports_engine_architecture.md).
 - Our own tools: [01-Run/rwserver_status.sh](../01-Run/rwserver_status.sh)
   (display) and
   [05-ReportsPerformance/engine_perf_analyse.sh](../05-ReportsPerformance/engine_perf_analyse.sh)
@@ -25,7 +25,7 @@ The **standalone Reports server is not a WebLogic server.** The WebLogic
 console and JMX know only `WLS_REPORTS`, and EM shows the server only as a
 system component. Engine state, queue and job counters therefore come only
 from the Reports server itself, and `getserverinfo` is the interface for
-that ([report_engine_architecture.md §5](report_engine_architecture.md)).
+that ([reports_engine_architecture.md §5](reports_engine_architecture.md)).
 
 ```
  monitoring agent (on the Reports host)

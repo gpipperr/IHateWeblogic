@@ -122,7 +122,7 @@ WAS WO LANDET
   Repository-Skripte, auf die verwiesen wird:
     60-RCU-DB-19c/rcu_registry_overview.sql, rcu_user_profile.sql (Schritt 3)
     80-FMW-Architecture/reports_user_local_ldap.md (Schritt 9.7b)
-    80-FMW-Architecture/report_server_image_handling.md (Bekannte Probleme)
+    80-FMW-Architecture/reports_server_image_handling.md (Bekannte Probleme)
 
 
 SO IST DIESES KOCHBUCH ZU LESEN
@@ -2345,7 +2345,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
            Weg B (alle Reports auf einmal ueber XML, Pfad weg + Name klein,
              danach Liste vorhandener/fehlender Bilder): siehe
-             80-FMW-Architecture/report_server_image_handling.md Abschnitt 5.
+             80-FMW-Architecture/reports_server_image_handling.md Abschnitt 5.
            Vorher immer Sicherung der .rdf. DB-Spalten mit Pfad: Pfad per
            UPDATE oder in der Abfrage entfernen.
 

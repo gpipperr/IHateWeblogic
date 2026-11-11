@@ -1090,7 +1090,7 @@ for _inst in $REPORTS_SERVER_INSTANCES; do
             # are separated by ";" - also on Linux. REPORTS_PATH uses ":" - as
             # "dir1:dir2" in <read> every report fails with REP-56132; two <read>
             # elements: only the last counts; subdirectories are not included
-            # (test series 2026-10-16, 80-FMW-Architecture/report_server_image_handling.md)
+            # (test series 2026-10-16, 80-FMW-Architecture/reports_server_image_handling.md)
             printf '  <!-- folderAccess: read = report source dirs (";"-separated, no subdirs), write = temp output dir -->\n'
             printf '  <folderAccess>\n'
             printf '    <read>%s</read>\n'  "${REPORTS_PATH//:/;}"

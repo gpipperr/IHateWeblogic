@@ -9,7 +9,7 @@ runs with trace.
 started by whom (AdminServer, Node Manager, system components):
 [weblogic_middleware_architecture.md](../80-FMW-Architecture/weblogic_middleware_architecture.md);
 Reports server, engines and `rwrun`:
-[report_engine_architecture.md](../80-FMW-Architecture/report_engine_architecture.md).
+[reports_engine_architecture.md](../80-FMW-Architecture/reports_engine_architecture.md).
 
 ---
 
@@ -363,7 +363,7 @@ rwservlet) – to find out whether a problem is in the report itself (SQL,
 PL/SQL, fonts, parameters) or in the server/servlet path. How `rwrun`
 differs from the server path (own in-process server from `rwbuilder.conf`,
 embedded JVM, reptools1 fonts and log, Oracle: "for testing purposes
-only"): [report_engine_architecture.md §5.1](../80-FMW-Architecture/report_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
+only"): [reports_engine_architecture.md §5.1](../80-FMW-Architecture/reports_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
 
 ```bash
 ./01-Run/rwrun_trace.sh --report test_dual.rdf

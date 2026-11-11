@@ -53,7 +53,7 @@ Markers as in the rest of this folder: **confirmed (live)**, **documented**,
   `$DOMAIN_HOME/reports/bin/reports.sh`, and `uifont.ali`, PPD and AFM from
   the ReportsTools instance (`reptools1`). `TK_FONTALIAS` is ignored by
   `rwrun` (**confirmed (live)**, strace 2026-10-19 –
-  [report_engine_architecture.md](report_engine_architecture.md) §5.1).
+  [reports_engine_architecture.md](reports_engine_architecture.md) §5.1).
 - The **layout** (line breaks, field widths, page breaks) is computed from
   the **metrics** of the font that was found, i.e. the widths of its
   characters. A different font with other metrics means a different
@@ -189,7 +189,7 @@ Full table with package names:
 
 The test that counts is therefore a PDF **from the server** (`pdffonts`
 shows which fonts were embedded), not the Builder preview –
-[report_rwbuilder.md](report_rwbuilder.md) (Builder on Windows, server on
+[reports_rwbuilder.md](reports_rwbuilder.md) (Builder on Windows, server on
 Linux: "different fonts = different layout").
 
 ## 6. Migration – old server → new server
@@ -240,8 +240,8 @@ need a decision.
 | `09-Install/14b-oracle_reports_fonts.sh` | deploys the fonts to `REPORTS_FONT_DIRECTORY`, `uifont.ali`, AFM / PPD step |
 | [04-ReportsFonts/](../04-ReportsFonts/README.md) | `deploy_fonts.sh`, `uifont_ali_update.sh` (template `uifont_ali_template.ali`: `[Global]` Arial = helvetica, Verdana / Tahoma = DejaVuSans, `[PDF:Subset]` families), `paramform_afm_setup.sh`, `pdf_font_verify.sh`, `font_inventory.sh`; `custom_fonts_dir/` for customer fonts (gitignored – licence) |
 | [70-Customer-Projects/tools/bash/export_forms_reports_conf.sh](../70-Customer-Projects/tools/README.md#export_forms_reports_confsh) | fonts of an existing installation in three classes `customer` / `ms` / `free` with the 14c replacement (`ihw_import/fonts.txt`, since 2026-11-03) |
-| [report_rwbuilder.md](report_rwbuilder.md) | Builder on Windows vs. server fonts |
-| [report_engine_architecture.md](report_engine_architecture.md) | which process reads which font configuration |
+| [reports_rwbuilder.md](reports_rwbuilder.md) | Builder on Windows vs. server fonts |
+| [reports_engine_architecture.md](reports_engine_architecture.md) | which process reads which font configuration |
 
 Rule for the repository: **no font file that is not free** goes into git
 (`.gitignore`: `04-ReportsFonts/custom_fonts_dir/*`); Microsoft and customer

@@ -24,7 +24,7 @@ write the JDK path)
 Background – two JDKs on an FMW host (`JDK_HOME` for WebLogic / Node Manager /
 OPatch, `oracle_common/jdk` for the Reports engines and tools):
 [weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes),
-[report_engine_architecture.md §1](../../80-FMW-Architecture/report_engine_architecture.md#1-the-parts).
+[reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts).
 
 ---
 

@@ -566,7 +566,7 @@ expdp \"/ as sysdba\" directory=DATA_PUMP_DIR dumpfile=registry.dmp logfile=regi
 - GUI: `$ORACLE_HOME/oracle_common/bin/rcu` (Linux, needs `DISPLAY`) or
   `%ORACLE_HOME%\oracle_common\bin\rcu.bat` (Windows – runs directly in
   an RDP session, e.g. on the Reports Builder machine,
-  [report_rwbuilder.md](report_rwbuilder.md)) → *Drop Repository* → *System
+  [reports_rwbuilder.md](reports_rwbuilder.md)) → *Drop Repository* → *System
   Load and Product Load* → database as SYSDBA → prefix from **Existing
   Prefixes** → all components → summary → Drop → drop the prefix's own
   tablespaces when asked (not a shared one, step 4).
