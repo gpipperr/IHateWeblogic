@@ -79,10 +79,10 @@ plain PostScript name `Courier`). The PDF output of the same report is correct.
 The key insight: Reports 12c/14c uses **two different font mechanisms** in
 the same engine.
 
-![font-two-paths](diagrams/font-two-paths.svg)
-<sub>Quelle: [diagrams/font-two-paths.prompt](diagrams/font-two-paths.prompt) · [D2](diagrams/font-two-paths.d2)</sub>
+![font-two-paths](diagrams/font-two-paths.svg?v=5c27e119)
+<sub>Source: [diagrams/font-two-paths.prompt](diagrams/font-two-paths.prompt) · [D2](diagrams/font-two-paths.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=font-two-paths
                          Report font name ("Arial")
