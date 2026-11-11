@@ -67,10 +67,10 @@ WebUtil is part of Oracle Forms since 11g (before that a separate download).
 
 ## 4. Architecture
 
-![jacob-chain](diagrams/jacob-chain.svg)
-<sub>Quelle: [diagrams/jacob-chain.prompt](diagrams/jacob-chain.prompt) · [D2](diagrams/jacob-chain.d2)</sub>
+![jacob-chain](diagrams/jacob-chain.svg?v=82e35e4c)
+<sub>Source: [diagrams/jacob-chain.prompt](diagrams/jacob-chain.prompt) · [D2](diagrams/jacob-chain.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=jacob-chain
 +---------------------------+
@@ -183,10 +183,10 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 
 ## 8. Signing – how Oracle intends it
 
-![jacob-signing](diagrams/jacob-signing.svg)
-<sub>Quelle: [diagrams/jacob-signing.prompt](diagrams/jacob-signing.prompt) · [D2](diagrams/jacob-signing.d2)</sub>
+![jacob-signing](diagrams/jacob-signing.svg?v=a8daf0a0)
+<sub>Source: [diagrams/jacob-signing.prompt](diagrams/jacob-signing.prompt) · [D2](diagrams/jacob-signing.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=jacob-signing
    Oracle (vendor)                         Customer (you)
@@ -409,10 +409,10 @@ Recommendation (design, to be decided with the customer):
 
 ## 13. Implementation in this repository (2026-10-17)
 
-![jacob-codesign](diagrams/jacob-codesign.svg)
-<sub>Quelle: [diagrams/jacob-codesign.prompt](diagrams/jacob-codesign.prompt) · [D2](diagrams/jacob-codesign.d2)</sub>
+![jacob-codesign](diagrams/jacob-codesign.svg?v=e10e0ad4)
+<sub>Source: [diagrams/jacob-codesign.prompt](diagrams/jacob-codesign.prompt) · [D2](diagrams/jacob-codesign.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=jacob-codesign
   08-SSL/ssl_local_ca.sh  (creates)                09-Install/14-oracle_setup_forms.sh  (uses)
