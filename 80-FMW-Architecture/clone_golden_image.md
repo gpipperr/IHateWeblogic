@@ -32,10 +32,10 @@ Practice (anonymised, from a customer project 2026-11-09/10):
 
 ## 1. Target picture
 
-![clone-target](diagrams/clone-target.svg)
-<sub>Quelle: [diagrams/clone-target.prompt](diagrams/clone-target.prompt) · [D2](diagrams/clone-target.d2)</sub>
+![clone-target](diagrams/clone-target.svg?v=64d8be7a)
+<sub>Source: [diagrams/clone-target.prompt](diagrams/clone-target.prompt) · [D2](diagrams/clone-target.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=clone-target
   client (browser / FSAL)
@@ -185,10 +185,10 @@ OPSS keeps policies, credentials and keys **in the database**, the service
 table `<prefix>_STB` names the schemas, `SYSTEM.SCHEMA_VERSION_REGISTRY$`
 knows the prefix (§4, §5 there).
 
-![clone-rcu-location](diagrams/clone-rcu-location.svg)
-<sub>Quelle: [diagrams/clone-rcu-location.prompt](diagrams/clone-rcu-location.prompt) · [D2](diagrams/clone-rcu-location.d2)</sub>
+![clone-rcu-location](diagrams/clone-rcu-location.svg?v=b946795a)
+<sub>Source: [diagrams/clone-rcu-location.prompt](diagrams/clone-rcu-location.prompt) · [D2](diagrams/clone-rcu-location.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=clone-rcu-location
   RCU DB on the WLS host (this repository: 60-RCU-DB-19c)
