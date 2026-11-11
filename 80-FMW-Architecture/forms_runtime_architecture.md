@@ -74,10 +74,10 @@ matter for which part of a Forms installation (example: Security Alert
 CVE-2026-91403, JSSE, CVSS 9.1, all Java lines – 8u511, 17.0.21, 21.0.13 and
 older; Oracle's note names Java Web Start explicitly).
 
-![formsrt-tls-path](diagrams/formsrt-tls-path.svg)
-<sub>Quelle: [diagrams/formsrt-tls-path.prompt](diagrams/formsrt-tls-path.prompt) · [D2](diagrams/formsrt-tls-path.d2)</sub>
+![formsrt-tls-path](diagrams/formsrt-tls-path.svg?v=5062845d)
+<sub>Source: [diagrams/formsrt-tls-path.prompt](diagrams/formsrt-tls-path.prompt) · [D2](diagrams/formsrt-tls-path.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=formsrt-tls-path
  client PC                              server
