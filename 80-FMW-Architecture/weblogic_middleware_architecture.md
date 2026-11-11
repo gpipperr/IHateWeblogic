@@ -45,10 +45,10 @@ The rule has exceptions in both directions, see
 
 ## 2. Big picture
 
-![wls-overview](diagrams/wls-overview.svg)
-<sub>Quelle: [diagrams/wls-overview.prompt](diagrams/wls-overview.prompt) · [D2](diagrams/wls-overview.d2)</sub>
+![wls-overview](diagrams/wls-overview.svg?v=f4928f11)
+<sub>Source: [diagrams/wls-overview.prompt](diagrams/wls-overview.prompt) · [D2](diagrams/wls-overview.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=wls-overview
                          Browser / Java Web Start / FSAL / curl
@@ -234,10 +234,10 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
 
 ## 4. Who starts whom – the control chain
 
-![wls-startup](diagrams/wls-startup.svg)
-<sub>Quelle: [diagrams/wls-startup.prompt](diagrams/wls-startup.prompt) · [D2](diagrams/wls-startup.d2)</sub>
+![wls-startup](diagrams/wls-startup.svg?v=e9aa5500)
+<sub>Source: [diagrams/wls-startup.prompt](diagrams/wls-startup.prompt) · [D2](diagrams/wls-startup.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=wls-startup
  systemd  fmw-fr_domain.service   (09-Install/30-configure_autostart.sh)
@@ -273,10 +273,10 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
 
 ## 5. Consoles – who provides what
 
-![wls-consoles](diagrams/wls-consoles.svg)
-<sub>Quelle: [diagrams/wls-consoles.prompt](diagrams/wls-consoles.prompt) · [D2](diagrams/wls-consoles.d2)</sub>
+![wls-consoles](diagrams/wls-consoles.svg?v=9494d647)
+<sub>Source: [diagrams/wls-consoles.prompt](diagrams/wls-consoles.prompt) · [D2](diagrams/wls-consoles.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=wls-consoles
    http(s)://<host>/em        http(s)://<host>/console       WLST / REST
