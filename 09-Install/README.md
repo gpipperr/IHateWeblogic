@@ -51,10 +51,10 @@ Background per step – **why** the domain looks like this (`80-FMW-Architecture
 
 ### SSL Proxy Architecture
 
-![install-overview](diagrams/install-overview.svg)
-<sub>Quelle: [diagrams/install-overview.prompt](diagrams/install-overview.prompt) · [D2](diagrams/install-overview.d2)</sub>
+![install-overview](diagrams/install-overview.svg?v=72fca71b)
+<sub>Source: [diagrams/install-overview.prompt](diagrams/install-overview.prompt) · [D2](diagrams/install-overview.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=install-overview
 Internet / Intranet
