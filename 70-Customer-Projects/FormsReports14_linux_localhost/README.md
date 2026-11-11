@@ -24,10 +24,10 @@ section 2.1 (hardening checklist), section 3 (where host name / IP live).
 
 ## 1. Target picture
 
-![localhost-target](diagrams/localhost-target.svg)
-<sub>Quelle: [diagrams/localhost-target.prompt](diagrams/localhost-target.prompt) · [D2](diagrams/localhost-target.d2)</sub>
+![localhost-target](diagrams/localhost-target.svg?v=4ae0820e)
+<sub>Source: [diagrams/localhost-target.prompt](diagrams/localhost-target.prompt) · [D2](diagrams/localhost-target.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=localhost-target
   client (browser / Forms client)
