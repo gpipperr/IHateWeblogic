@@ -4,6 +4,7 @@ theme: jekyll-theme-cayman
 lang: en
 author: Gunther Pippèrr
 url: https://gpipperr.github.io
+google_site_verification: n98iDKjm72tLvTJClLgqW5eFzyXijNmEDhnqi50pSR4
 baseurl: /IHateWeblogic
 plugins:
   - jekyll-seo-tag
