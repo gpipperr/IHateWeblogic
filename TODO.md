@@ -269,14 +269,14 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
   read KB694158 (WLS PSU post-install); run the checklist for swapping a patched
   home live; first real domain start after `clean_domain_tmp.sh --apply` (so far
   dry run on the test host and `--apply` on an isolated copy).
-- [ ] **Scheduled reports**: mail notification (`destype=mail`,
-  `notifysuccess`) untested – the mail server is still the template
-  placeholder (`;` in `<write>` confirmed at the customer 2026-11-04).
-  Doc section 7 of `80-FMW-Architecture/reports_job_handling.md` written
-  2026-11-10 from Oracle docs + `rwrun.jar` code (host:port, `enableSSL`,
-  STARTTLS only with login, `from=` / `sender`, `cgicmd.dat` key, debugging).
-  Open live test with a relay: send, the success page, does `TRACE:32` show
-  the mail values, is `mailPassword` encrypted at the restart.
+- [ ] **Reports mail** ([reports_mail_handling.md](80-FMW-Architecture/reports_mail_handling.md),
+  own article since 2026-11-11): notifications **live-tested 2026-11-11** with a
+  local SMTP sink (`notifyfailure` / `notifysuccess`, sender, own note files,
+  `notifyfailure` in `cgicmd.dat` keys for a ticket system – key wins, `retry="3"`
+  = 4 mails). Open with a real relay: `destype=mail` (report as attachment) and
+  its success page, login / STARTTLS / SMTPS, does `TRACE:32` show the mail
+  values, is `mailPassword` encrypted at the restart, `retry="0"` = one mail,
+  umlauts in an own note file.
 - [ ] **`status.sh --store-nm-key`**: first real run with the Node Manager
   password (only the error paths are tested). Open question left over: where
   `startComponent.sh … storeUserConfig` writes its files, which

@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- New article `80-FMW-Architecture/reports_mail_handling.md` – section 7 of
+  `reports_job_handling.md` moved 1:1 (overview, configuration, file locations, sender, demo
+  calls, debugging, sources; job handling keeps a short summary + link). New **section 6:
+  failure mail to a ticket system**, live-tested on the test host with a local SMTP sink:
+  `notifyfailure=` in a `cgicmd.dat` key (also the generic `default` key) sends a failure mail
+  for every job; the key value wins over the request in both orders; `destype=cache` and runtime
+  errors (`REP-56133`, `REP-501`) mail too, a rejected request (`REP-50171`) does not; one
+  failed request = 4 mails with `retry="3"` (`failedJobs` +1); a `cgicmd.dat` change needs a
+  WLS_REPORTS restart; subject fixed `Job <jobname> notification from Reports Server`; `/`
+  header lines of the note file land in the body. Test host restored afterwards (`cmp`).
 - `reports_monitoring_getserverinfo.md` §4.3 corrected – confirmed live: `successfulJobs` /
   `failedJobs` (and the average times) are computed from the **persisted past job queue**
   (`<repserver>.dat`), not since the server start; they survive restarts and no command resets
