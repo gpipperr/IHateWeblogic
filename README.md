@@ -790,6 +790,7 @@ IHateWeblogic/
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
     ├── Reports14_builder_windows/
     │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
+    │   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
     │   ├── ReportBuilder_Windows_Kochbuch_de.txt
     │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/

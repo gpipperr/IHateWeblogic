@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- New `70-Customer-Projects/Reports14_builder_windows/Git_checkin.md`: Git check-in idea for
+  Reports developers on the Windows Builder server (clone per user `E:\git\<user>`,
+  `pull.ps1` / `checkin.ps1`, no stash / ff-only, Git Credential Manager). Step 1 rdf -> xml
+  tested live on the Linux test host: needs a DB login (`cmdfile=`; without: REP-3022 /
+  REP-1430, also with Xvfb), 0.4-0.7 s per report, byte-identical XML on re-conversion, `name=`
+  from the destination file name, exit code 1 on missing / broken file and wrong login;
+  Windows test procedure for the customer included. Scripts: flow sketch only.
 - `70-Customer-Projects/Reports14_builder_windows`: README in English; new
   `ReportBuilder_Windows_Kochbuch_en.txt` (full translation of the German cookbook, same commands
   checked line by line, ASCII / 80 columns); German cookbook unchanged. Links added in

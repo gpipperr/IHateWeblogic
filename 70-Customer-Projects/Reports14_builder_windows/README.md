@@ -94,6 +94,15 @@ testing.)
 - Java: Oracle JDK only for Oracle products → licence-free per MOS Doc ID
   1557737.1.
 
+## Next: Git check-in
+
+Idea 2026-11-11: one Git clone per developer (`E:\git\<user>`), `pull.ps1`
+at the start of the work, `checkin.ps1` converts every changed `.rdf` to XML
+and commits / pushes – for developers without Git experience. Step 1 (rdf →
+xml from the command line) is tested on the Linux test host; Windows test
+procedure for the customer and the script design:
+[Git_checkin.md](Git_checkin.md).
+
 ## Patch level
 
 CPU October 2026 – the same patches as the Linux server

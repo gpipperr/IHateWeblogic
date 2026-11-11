@@ -217,7 +217,9 @@ eports\img\logo.gif`)
    references"). Same file names in lower case on both sides.
 3. **Check the report in with Git** (commit / push from the working copy) –
    the repository is the only place the source lives; no copies on file
-   shares.
+   shares. A simple variant for developers without Git experience
+   (`pull.ps1` / `checkin.ps1`, the `.rdf` converted to XML on every
+   check-in): [Git_checkin.md](../70-Customer-Projects/Reports14_builder_windows/Git_checkin.md).
 4. **Git automation deploys it to DEV:** the customer's pipeline copies the
    `.rdf` (and images / libraries, if changed) into the source directory of
    the Linux **DEV** Reports server – a directory that is part of its
