@@ -25,10 +25,10 @@ A modern Forms environment is Forms **and** APEX on the same database
 | data capture, self-service, occasional users, mobile | Oracle APEX 26.2 |
 | reporting for everyone (dashboards, interactive reports) | Oracle APEX (+ Oracle Reports for print) |
 
-![apex-ords-overview](diagrams/apex-ords-overview.svg)
-<sub>Quelle: [diagrams/apex-ords-overview.prompt](diagrams/apex-ords-overview.prompt) · [D2](diagrams/apex-ords-overview.d2)</sub>
+![apex-ords-overview](diagrams/apex-ords-overview.svg?v=6001bc48)
+<sub>Source: [diagrams/apex-ords-overview.prompt](diagrams/apex-ords-overview.prompt) · [D2](diagrams/apex-ords-overview.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=apex-ords-overview
    browser / FSAL
