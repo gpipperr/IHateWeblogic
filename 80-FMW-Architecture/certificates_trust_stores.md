@@ -108,10 +108,10 @@ encrypted (AES-256), `codesign.p12` with SHA-256 MAC (OpenSSL 3 default).
 
 ## 3. Three directions of trust
 
-![certs-in-out](diagrams/certs-in-out.svg)
-<sub>Quelle: [diagrams/certs-in-out.prompt](diagrams/certs-in-out.prompt) · [D2](diagrams/certs-in-out.d2)</sub>
+![certs-in-out](diagrams/certs-in-out.svg?v=7f946897)
+<sub>Source: [diagrams/certs-in-out.prompt](diagrams/certs-in-out.prompt) · [D2](diagrams/certs-in-out.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=certs-in-out
   INBOUND  (who proves identity: our server)
