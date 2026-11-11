@@ -1,6 +1,6 @@
 # Forms & Reports – Security & Patch Status
 
-Moved 1:1 from the [root README](../README.md) on 2026-11-11 (nothing shortened).
+← Back to the [root README](../README.md)
 
 ## Security & Patch Status
 
