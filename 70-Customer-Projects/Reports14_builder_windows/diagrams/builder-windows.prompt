@@ -70,7 +70,7 @@ Width limit for THIS diagram (the ASCII is drawn wide; the image must fit a
   exactly; only the arrangement changes.
 
 ### ASCII
- Entwickler (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
-                         │  Oracle Home + Builder-Domain (AdminServer aus)
-                         ├──────────► bestehende DB: RCU-Präfix + Anwendungsdaten
-                         └─ .rdf / .rep  ──► Linux-Reports-Server (rwservlet) zum Testen
+ Developer (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
+                         │  Oracle Home + builder domain (AdminServer stopped)
+                         ├──────────► existing DB: RCU prefix + application data
+                         └─ .rdf / .rep  ──► Linux Reports server (rwservlet) for testing

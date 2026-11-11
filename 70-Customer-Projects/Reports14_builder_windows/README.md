@@ -52,23 +52,19 @@ Day to day the developer only starts `rwbuilder.bat` from
 `DOMAIN_HOME\reports\bin` – no WebLogic is running. This removes the
 laborious and error-prone parts of a Windows server installation.
 
-![builder-windows](diagrams/builder-windows.svg)
+![builder-windows](diagrams/builder-windows.svg?v=65a44a9e)
 <sub>Source: [diagrams/builder-windows.prompt](diagrams/builder-windows.prompt) · [D2](diagrams/builder-windows.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
 ```ascii name=builder-windows
- Entwickler (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
-                         │  Oracle Home + Builder-Domain (AdminServer aus)
-                         ├──────────► bestehende DB: RCU-Präfix + Anwendungsdaten
-                         └─ .rdf / .rep  ──► Linux-Reports-Server (rwservlet) zum Testen
+ Developer (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
+                         │  Oracle Home + builder domain (AdminServer stopped)
+                         ├──────────► existing DB: RCU prefix + application data
+                         └─ .rdf / .rep  ──► Linux Reports server (rwservlet) for testing
 ```
 
 </details>
-
-(The diagram labels are still German: Entwickler = developer, AdminServer
-aus = AdminServer stopped, bestehende DB = existing DB, zum Testen = for
-testing.)
 
 ## Multi-user operation (RDP)
 
