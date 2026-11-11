@@ -1,3 +1,8 @@
+---
+title: "Oracle CPU Patch-Cycle Analysis with Claude Code – Forms & Reports 14c"
+description: "Analyse Oracle Critical Patch Updates, CSPU and Security Alerts for Forms & Reports 14.1.2 with a Claude Code skill: from advisories and READMEs to an update plan."
+---
+
 # Skill: Oracle patch-cycle analysis (Forms & Reports 14.1.2 / customer homes)
 
 How a patch cycle (CPU quarterly, CSPU in the months between, Security Alerts)

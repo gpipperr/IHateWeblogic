@@ -1,3 +1,8 @@
+---
+title: "Migrate Oracle Forms & Reports 12c to 14c – Process in Three Steps"
+description: "Moving Oracle Forms & Reports from 12c to 14c: export and analyse the old environment, rebuild 14c with the customer's configuration, re-analyse and harden security."
+---
+
 # Moving from 12c to Forms & Reports 14c
 
 ← Back to the [root README](../README.md)

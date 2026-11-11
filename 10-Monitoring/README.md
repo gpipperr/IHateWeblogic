@@ -1,3 +1,8 @@
+---
+title: "AI-Assisted Monitoring & CVE Watch for Oracle Forms & Reports 14c (Claude)"
+description: "Claude as diagnostic co-pilot for Oracle Forms & Reports 14c: CVE watch against Oracle CPU and Security Alerts, patch-cycle analysis, certificate expiry checks."
+---
+
 # 10-Monitoring – AI-Assisted Proactive Monitoring
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c on WebLogic 14.1.2 – Install, Patch & Harden Scripts"
+description: "Open-source bash scripts to install, patch, diagnose and harden Oracle Forms & Reports 14c on WebLogic 14.1.2 and Oracle Linux 9 – with APEX/ORDS side by side."
+---
+
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
 [![lint](https://github.com/gpipperr/IHateWeblogic/actions/workflows/lint.yml/badge.svg)](https://github.com/gpipperr/IHateWeblogic/actions/workflows/lint.yml)
