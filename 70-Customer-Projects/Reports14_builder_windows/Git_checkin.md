@@ -24,10 +24,10 @@ Related:
 ## 1. The idea
 
 ```
- developer (RDP, personal login, e.g. asc)
+ developer (RDP, personal login, e.g. gpi)
         |
         |  1. pull.ps1            at the start of the work
-        |  2. edit in the Builder E:\git\asc\Reports\source\*.rdf
+        |  2. edit in the Builder E:\git\gpi\Reports\source\*.rdf
         |  3. checkin.ps1 "comment"
         |        a) fetch: behind the remote? -> stop, "run pull.ps1 first"
         |        b) changed .rdf -> rwconverter -> Reports\xml\<name>.xml
@@ -38,7 +38,7 @@ Related:
 
 | Item | Value |
 |---|---|
-| clone per developer | `E:\git\<user>` – e.g. `E:\git\asc` for the user `asc` |
+| clone per developer | `E:\git\<user>` – e.g. `E:\git\gpi` for the user `gpi` |
 | report sources | `E:\git\<user>\Reports\source\*.rdf` |
 | images | `E:\git\<user>\Reports\images\` (file names in lower case, see the image article) |
 | XML of every report | `E:\git\<user>\Reports\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
@@ -55,8 +55,8 @@ for `rwbuilder.bat`. `rwconverter.bat` of the domain sets it itself (it
 calls `reports.bat`):
 
 ```bat
-%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\asc\Reports\source\sales.rdf stype=rdffile ^
-    dest=E:\git\asc\Reports\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
+%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\gpi\Reports\source\sales.rdf stype=rdffile ^
+    dest=E:\git\gpi\Reports\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
     cmdfile=%USERPROFILE%\.rwconv\login.txt
 ```
 
@@ -144,7 +144,7 @@ Today `reports.bat` holds one `REPORTS_PATH` for all users (cookbook step
 must search the user's own clone. Options (to decide with the customer):
 - `REPORTS_PATH` built from `%USERNAME%` in `reports.bat`:
   `set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;...`
-  – works when the Windows login equals the folder name (`asc`);
+  – works when the Windows login equals the folder name (`gpi`);
 - or a user environment variable `REPORTS_PATH` per account.
 
 ## 4. Flow sketch of the scripts (not written yet)
