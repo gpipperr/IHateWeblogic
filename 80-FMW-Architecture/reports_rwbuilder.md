@@ -52,10 +52,10 @@ can.
 
 ## 3. Architecture
 
-![rwbuilder-setup](diagrams/rwbuilder-setup.svg)
-<sub>Quelle: [diagrams/rwbuilder-setup.prompt](diagrams/rwbuilder-setup.prompt) · [D2](diagrams/rwbuilder-setup.d2)</sub>
+![rwbuilder-setup](diagrams/rwbuilder-setup.svg?v=4a6199a1)
+<sub>Source: [diagrams/rwbuilder-setup.prompt](diagrams/rwbuilder-setup.prompt) · [D2](diagrams/rwbuilder-setup.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=rwbuilder-setup
   Developer workstation                Windows Server (central, RDP)
