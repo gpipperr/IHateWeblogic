@@ -54,10 +54,10 @@ Note: the domain templates also enable WebLogic SSL listen ports with the
 
 ## Architecture: SSL in This Installation
 
-![ssl-nginx](diagrams/ssl-nginx.svg)
-<sub>Quelle: [diagrams/ssl-nginx.prompt](diagrams/ssl-nginx.prompt) · [D2](diagrams/ssl-nginx.d2)</sub>
+![ssl-nginx](diagrams/ssl-nginx.svg?v=39aab5a3)
+<sub>Source: [diagrams/ssl-nginx.prompt](diagrams/ssl-nginx.prompt) · [D2](diagrams/ssl-nginx.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=ssl-nginx
 Internet / Browser
@@ -183,10 +183,10 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 **Purpose:** a small own certificate authority built with plain `openssl`
 (no Easy-RSA, no EPEL): **one root CA**, two kinds of leaf certificates.
 
-![ssl-local-ca](diagrams/ssl-local-ca.svg)
-<sub>Quelle: [diagrams/ssl-local-ca.prompt](diagrams/ssl-local-ca.prompt) · [D2](diagrams/ssl-local-ca.d2)</sub>
+![ssl-local-ca](diagrams/ssl-local-ca.svg?v=7412638e)
+<sub>Source: [diagrams/ssl-local-ca.prompt](diagrams/ssl-local-ca.prompt) · [D2](diagrams/ssl-local-ca.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=ssl-local-ca
                  ┌───────────────────────────────────────┐
@@ -333,10 +333,10 @@ Short version of the architecture article
 [forms_jakob_webutil.md §8–13](../80-FMW-Architecture/forms_jakob_webutil.md#8-signing--how-oracle-intends-it) –
 what is signed, who creates the key, who signs, who checks.
 
-![ssl-codesign-flow](diagrams/ssl-codesign-flow.svg)
-<sub>Quelle: [diagrams/ssl-codesign-flow.prompt](diagrams/ssl-codesign-flow.prompt) · [D2](diagrams/ssl-codesign-flow.d2)</sub>
+![ssl-codesign-flow](diagrams/ssl-codesign-flow.svg?v=13203770)
+<sub>Source: [diagrams/ssl-codesign-flow.prompt](diagrams/ssl-codesign-flow.prompt) · [D2](diagrams/ssl-codesign-flow.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=ssl-codesign-flow
  08-SSL (creates the keystore)        09-Install/14- (signs)               Client (checks)
