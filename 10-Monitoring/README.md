@@ -1,6 +1,7 @@
 ---
 title: "AI-Assisted Monitoring & CVE Watch for Oracle Forms & Reports 14c (Claude)"
 description: "Claude as diagnostic co-pilot for Oracle Forms & Reports 14c: CVE watch against Oracle CPU and Security Alerts, patch-cycle analysis, certificate expiry checks."
+permalink: /10-Monitoring/
 ---
 
 # 10-Monitoring – AI-Assisted Proactive Monitoring

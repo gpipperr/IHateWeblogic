@@ -1,6 +1,7 @@
 ---
 title: "Oracle Forms, Reports & WebLogic 14c Architecture – How It Works Internally"
 description: "How Oracle Forms, Reports and WebLogic 14.1.2 work internally: Oracle/Domain Home, Node Manager, RCU schemas, Reports engines, fonts, certificates – verified."
+permalink: /80-FMW-Architecture/
 ---
 
 # 80-FMW-Architecture – how Forms/Reports/WebLogic work internally

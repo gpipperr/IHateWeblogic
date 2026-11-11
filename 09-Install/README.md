@@ -1,6 +1,7 @@
 ---
 title: "Install Oracle Forms & Reports 14.1.2 on Oracle Linux 9 – Step by Step"
 description: "Scripted installation of Oracle Forms & Reports 14.1.2 (FMW 14.1.2) on Oracle Linux 9: OS setup, WebLogic, RCU repository, domain, NGINX/SSL, validation."
+permalink: /09-Install/
 ---
 
 # 09-Install – Oracle Forms & Reports 14.1.2 Installation
