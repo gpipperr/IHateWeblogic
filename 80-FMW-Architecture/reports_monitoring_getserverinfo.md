@@ -178,12 +178,12 @@ The **Unit / meaning** column is backed as follows:
 | `serverInfo/@name`, `@version` | server name, release | inventory, detect a wrong server answering |
 | `host` | FQDN of the host | – (do not put it into tickets sent outside) |
 | `processId` | PID of `rwserver` | **restart detection** together with `startTime` |
-| `startTime` | epoch **milliseconds** (live) | uptime; a new value = the counters were reset |
+| `startTime` | epoch **milliseconds** (live) | uptime / restart detection – the job counters (4.3) do **not** start again |
 | `queue/@maxQueueSize` | `<queue maxQueueSize>` of `rwserver.conf` | config drift |
 | `isSecure` | `1` = `securityId` active | **CRITICAL if 0** on a server that should be secured |
 | `avgAuthTime` | ms per login (live: 287) | a rising value points at a slow LDAP / AdminServer |
 | `connection/@connectionsUsed`, `@connectionsAvailable` | client connections against `maxConnect` | `connectionsAvailable=0` = new requests are refused |
-| `engineInfo/@maxEnginesUsed`, `@avgEnginesUsed` | peak / average of engines in use since the start | **sizing**: `maxEnginesUsed = maxEngine` = jobs had to wait |
+| `engineInfo/@maxEnginesUsed`, `@avgEnginesUsed` | peak / average of engines in use (since the start or from the job queue – not verified) | **sizing**: `maxEnginesUsed = maxEngine` = jobs had to wait |
 
 ### 4.2 Engines (`engine id="rwEng"` = report engine, `rwURLEng` = URL engine)
 
@@ -205,11 +205,54 @@ That is normal.
 
 ### 4.3 Job counters (`performance/property`)
 
-**All counters are cumulative since the start of the Reports server.**
-Raise an alarm on the **difference** between two checks, not on the absolute
-value, and start again at 0 when `startTime` changes. The 24 `failedJobs`
-above are test reports from a font and image test series, not a current
-problem.
+**The job counters are computed from the past job queue – not since the
+start of the Reports server.** confirmed (live), 2026-11-11: after a reboot
+(Reports server started 08:11, both engines `numJobsRun="0"`) `getserverinfo`
+still showed `successfulJobs` 71 and `failedJobs` 30, and `showjobs
+queuetype=past` listed exactly 101 jobs from 2026-10-24 to 2026-11-10:
+
+| `<status code>` in `showjobs` | Jobs | Counted as |
+|---|---|---|
+| `4` finished successfully | 70 | `successfulJobs` |
+| `15` scheduled job has expired | 1 | `successfulJobs` |
+| `5` terminated with error | 28 | `failedJobs` |
+| `7` canceled upon user request | 2 | `failedJobs` |
+
+The past queue is kept in `$DOMAIN_HOME/reports/server/<repserver>.dat` and
+survives every restart. `averageResponseTime` / `avgQueuingTime` also kept
+values without a single new job, so they come from the same queue.
+
+Consequences:
+- **No command resets the counters.** `killjobid` acts on current and
+  future jobs only. The only way to 0: stop the Reports server, move the
+  `.dat` away, start – that deletes the whole job history **and every
+  scheduled job** (`schedule=`). Not as a daily routine.
+- **Alarm on the difference** between two checks, never on the absolute
+  value. A restart does not change the counters.
+- **Assumption:** the past queue is limited by `maxQueueSize` (4000); once it
+  is full the oldest jobs drop out and `failedJobs` can even **fall**. Count
+  only positive differences.
+- **Failures per day:** read `showjobs queuetype=past` once a day and count
+  the jobs with code `5` / `7` that finished today (below). The 24 / 30
+  `failedJobs` above are test reports from a font and image test series.
+
+```bash
+curl -s --max-time 60 -K ~/.config/rwadmin.curl \
+     --data-urlencode "server=repserver01" --data-urlencode "statusformat=XML" \
+     --data-urlencode "queuetype=past" \
+     http://localhost:9002/reports/rwservlet/showjobs > /tmp/sj.xml
+```
+
+```bash
+D="$(LC_ALL=C date '+%b %-d, %Y,')"
+xmllint --xpath "count(/serverQueues/job[status/@code='5' or status/@code='7'][starts-with(timingInfo/finished,'$D')])" /tmp/sj.xml; echo
+```
+
+`showjobs` lists all jobs only for the server administrator from
+`<identifier>` (`rwadmin.curl`, doc 13) – `monUser` sees its own jobs only.
+`<finished>` has the format `Nov 3, 2026, 3:38:16/PM` (no leading zero, hence
+`%-d`). Live 2026-11-11 against the test host's queue: 2026-11-03 = 6 failed
+of 17 jobs. Delete `/tmp/sj.xml` afterwards.
 
 | Property | Meaning | Use |
 |---|---|---|
@@ -238,7 +281,7 @@ problem.
 | WARNING | `longRunningJobs` > 0 | slow reports |
 | WARNING | `totalBusyEngines` = `maxEngine` in 3 checks in a row | pool too small, jobs wait |
 | WARNING | queuing share ≥ 50 % | same, measured over the whole uptime |
-| INFO | `startTime` / `processId` changed | restart of the Reports server – the counters start again |
+| INFO | `startTime` / `processId` changed | restart of the Reports server – the job counters keep their values (4.3) |
 
 **Performance data worth a graph:**
 - `totalBusyEngines`, `currentJobs`;
@@ -288,7 +331,6 @@ ERR="$(x 'string(//error/@code)')"
 [ "$(x 'count(/serverInfo)')" = "1" ] || { echo "UNKNOWN - no serverInfo (HTTP 499 = login page?)"; exit 3; }
 
 P() { x "string(//performance/property[@name='$1']/@value)"; }
-START="$(x 'string(/serverInfo/startTime)')"
 ACTIVE="$(x 'string(//engine[@id="rwEng"]/@activeEngine)')"
 BUSY="$(x 'string(//engine[@id="rwEng"]/@totalBusyEngines)')"
 DEAD="$(x 'count(//engine[@id="rwEng"]/engineInstance[@status="0"])')"
@@ -296,12 +338,13 @@ FAILED="$(P failedJobs)"; RUNAWAY="$(P potentialRunawayJobs)"; LONG="$(P longRun
 CURRENT="$(P currentJobs)"; RESP="$(P averageResponseTime)"; QUEUE="$(P avgQueuingTime)"
 CONN_FREE="$(x 'string(/serverInfo/connection/@connectionsAvailable)')"
 
-# failedJobs counts since the server start - alarm only on new failures
-LAST_START=""; LAST_FAILED=""
-[ -r "$STATE" ] && read -r LAST_START LAST_FAILED < "$STATE"
-mkdir -p "$(dirname "$STATE")"; echo "$START $FAILED" > "$STATE"
+# failedJobs comes from the persisted past queue (survives restarts, can fall
+# when the queue is full) - alarm only on a positive difference
+LAST_FAILED=""
+[ -r "$STATE" ] && read -r LAST_FAILED < "$STATE"
+mkdir -p "$(dirname "$STATE")"; echo "$FAILED" > "$STATE"
 NEW_FAILED=0
-[ "$LAST_START" = "$START" ] && NEW_FAILED=$(( FAILED - LAST_FAILED ))
+[ -n "$LAST_FAILED" ] && [ "$FAILED" -gt "$LAST_FAILED" ] && NEW_FAILED=$(( FAILED - LAST_FAILED ))
 
 RC=0; MSG=""
 add() { MSG="$MSG $2;"; [ "$1" -gt "$RC" ] && RC=$1; }
@@ -329,6 +372,10 @@ Live results on the test host:
 | no credentials | `UNKNOWN - no serverInfo (HTTP 499 = login page?)` | 3 |
 | servlet not reachable | `CRITICAL - rwservlet not reachable (http://localhost:9999/x)` | 2 |
 
+The `failedJobs` difference (since 2026-11-11 without the `startTime`
+comparison, 4.3) was tested with saved answers via `RW_URL=file://…`:
+24 → OK, 27 → `WARNING - 3 new failed job(s)`, 27 → OK, 20 (fallen) → OK.
+
 The `isSecure` check is left out on purpose: only the operator knows whether
 the server should be secured. Add `[ "$(x 'string(/serverInfo/isSecure)')" = "1" ] || add 2 "server not secured"`
 when it should be.
@@ -348,7 +395,8 @@ XPath":
 - `string(//engine[@id="rwEng"]/@activeEngine)`
 - `count(//engine[@id="rwEng"]/engineInstance[@status="0"])`
 - `string(//performance/property[@name="failedJobs"]/@value)`, with an extra
-  step "Simple change" for the delta
+  step "Simple change" for the delta (trigger on `> 0` – the value can fall
+  when the job queue is full, 4.3)
 - `string(//error/@code)` → trigger "not empty"
 
 Map the thresholds from section 5 to triggers. The Zabbix server stores the
@@ -411,7 +459,7 @@ The 10 channels (thresholds from section 5):
 | 2 | Active engines | `/serverInfo/engine[@id="rwEng"]/@activeEngine` | Absolute (integer), # | lower error limit 1 – no report can run |
 | 3 | Busy engines | `/serverInfo/engine[@id="rwEng"]/@totalBusyEngines` | Absolute (integer), # | upper warning = `maxEngine` − 1 (pool full) |
 | 4 | Dead engines | `count(/serverInfo/engine[@id="rwEng"]/engineInstance[@status="0"])` | Absolute (integer), # | upper error limit 0 |
-| 5 | Failed jobs | `/serverInfo/performance/property[@name="failedJobs"]/@value` | Absolute (integer), # | notification trigger "on change"; cumulative since the server start (4.3) |
+| 5 | Failed jobs | `/serverInfo/performance/property[@name="failedJobs"]/@value` | Absolute (integer), # | notification trigger "on change"; from the persisted job queue (4.3) |
 | 6 | Runaway jobs | `/serverInfo/performance/property[@name="potentialRunawayJobs"]/@value` | Absolute (integer), # | upper error limit 0 |
 | 7 | Long-running jobs | `/serverInfo/performance/property[@name="longRunningJobs"]/@value` | Absolute (integer), # | upper warning limit 0 |
 | 8 | Free connections | `/serverInfo/connection/@connectionsAvailable` | Absolute (integer), # | lower error limit 1 – new requests are refused |
@@ -423,10 +471,9 @@ Notes:
   a limit: `<error code="50171">` has no `serverInfo`, `count()` returns `0`.
   The other channels then find no value – also a sensor error.
 - **`failedJobs` not as Delta (counter):** the manual allows Delta only for
-  values that rise every interval. After a restart of the Reports server the
-  counter starts again at 0 (4.3) – a falling value is not supported.
-  Absolute + "on change" trigger (or a limit on the difference you see in
-  the graph) is the safer choice.
+  values that never fall. The counter survives restarts, but it falls when
+  the past queue is full (oldest jobs drop out) or the `.dat` is removed
+  (4.3). Absolute + "on change" trigger is the safer choice.
 - **Limits** (2–8, 10) are set afterwards in the channel settings (PRTG
   channel limits). The manual for this sensor does not describe limits
   itself – check on the first sensor.
@@ -489,6 +536,9 @@ the host name).
   `engineResponseTimeOut`).
 - `showjobs` (job list with `REP-` per job) as a second source for the "why"
   behind `failedJobs`.
+- Behaviour of the job counters when the past queue reaches `maxQueueSize`
+  (assumption: oldest jobs drop out, `failedJobs` falls) and whether
+  `engineInfo` also comes from the queue – not seen live yet.
 - PRTG REST Custom v2 sensor (7.3.1) not tested live: URL-encoding of
   `%restpassword` in the POST body, sensor state when an XPath finds no value,
   Status (string) mapping of the `count()` result.

@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `reports_monitoring_getserverinfo.md` §4.3 corrected – confirmed live: `successfulJobs` /
+  `failedJobs` (and the average times) are computed from the **persisted past job queue**
+  (`<repserver>.dat`), not since the server start; they survive restarts and no command resets
+  them (only stop + move the `.dat`, which also drops scheduled jobs). `failedJobs` = status code
+  5 + 7, expired (15) counts as successful. New: failures per day via `showjobs queuetype=past`
+  + XPath on `<finished>`. Plugin 7.1: positive difference only (no `startTime` comparison);
+  §4.1 / §5 / Zabbix / PRTG notes adjusted.
 - `80-FMW-Architecture`: consistent `reports_*` names – `report_engine_architecture.md`,
   `report_rwbuilder.md`, `report_server_image_handling.md` renamed to `reports_*` (git mv); all
   references in 41 files repointed (also older entries here), relative-link check 0 broken.
