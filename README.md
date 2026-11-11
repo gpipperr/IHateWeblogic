@@ -89,12 +89,6 @@ Documentation:
 A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
 APEX on the same database**, each where it is strongest:
 
-| Use | Tool | Users |
-|---|---|---|
-| **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
-| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.3**) | everyone in the company, in the browser |
-| **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
-
 ![target-picture](diagrams/target-picture.svg)
 <sub>Quelle: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
 
@@ -113,6 +107,12 @@ APEX on the same database**, each where it is strongest:
 ```
 
 </details>
+
+| Use | Tool | Users |
+|---|---|---|
+| **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
+| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.3**) | everyone in the company, in the browser |
+| **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
 
 This is the intention of a good, future-proof Oracle strategy for a Forms
 customer: keep the investment in Forms and its PL/SQL logic, open the data
