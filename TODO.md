@@ -21,10 +21,10 @@ step beside the customer work (state 2026-11-10). Order:
   customer traces (domain name) are accepted by the customer; the only other trace is a host
   name in 2 old commit messages, and that server no longer exists. No secrets
   were ever committed. New files keep the customer-data rule.
-- [ ] **2. Disclaimer & Acknowledgements** at the end of the root README: not
+- [x] **2. Disclaimer & Acknowledgements** – done 2026-11-11, at the end of the root README: not
   affiliated with / endorsed by Oracle, trademarks, use at own risk, personal
   logo; thanks to **Jürgen Menge** and **Mark Eichhorst** (IT-Macher,
-  https://www.der-it-macher.de/) – today only in `09-Install/README.md`.
+  https://www.der-it-macher.de/) – also kept in `09-Install/README.md`.
 - [ ] **3. Compact root README – move, do not shorten:** ~1-screen top (what,
   for whom, Target Picture, 3 entry paths); long sections moved 1:1 into own
   files (`docs/`), one summary line + link each; a line-by-line check proves

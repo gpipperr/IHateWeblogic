@@ -7,7 +7,9 @@ on Oracle Linux 9 – from OS configuration to a validated production environmen
 
 ## Acknowledgements
 
-Special thanks to two colleagues without whom this documentation would not exist in this form:
+Special thanks to two colleagues of [die IT-Macher](https://www.der-it-macher.de/)
+without whom this documentation would not exist in this form
+(also in the [root README](../README.md#disclaimer--acknowledgements)):
 
 **Jürgen Menge** – for his invaluable support on countless WebLogic questions,
 for sharing his deep expertise, and for his ideas and information that have

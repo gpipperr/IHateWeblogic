@@ -6,21 +6,25 @@
 
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
-```
-I – Innovation
-H – Helps
-A – Admins
-T – To
-E – Enhance
-W – Weblogic
-B – Based
-L – Lifecycle
-O – Operations
-G – Governance
-I – Integration
-C – Control
-```
-Innovation Helps Admins To Enhance Weblogic-Based Lifecycle Operations, Governance, Integration & Control => [IHateWeblogic.md](IHateWeblogic.md)
+
+Independent community project – not affiliated with Oracle. See
+[Disclaimer & Acknowledgements](#disclaimer--acknowledgements).
+
+<pre>
+<b>I</b> – <b>I</b>nnovation
+<b>H</b> – <b>H</b>elps
+<b>A</b> – <b>A</b>dmins
+<b>T</b> – <b>T</b>o
+<b>E</b> – <b>E</b>nhance
+<b>W</b> – <b>W</b>eblogic
+<b>B</b> – <b>B</b>ased
+<b>L</b> – <b>L</b>ifecycle
+<b>O</b> – <b>O</b>perations
+<b>G</b> – <b>G</b>overnance
+<b>I</b> – <b>I</b>ntegration
+<b>C</b> – <b>C</b>ontrol
+</pre>
+**I**nnovation **H**elps **A**dmins **T**o **E**nhance **W**eblogic-**B**ased **L**ifecycle **O**perations, **G**overnance, **I**ntegration & **C**ontrol => [IHateWeblogic.md](IHateWeblogic.md)
 
 ## Moving from 12c to Forms & Reports 14c – the process in three steps
 
@@ -973,3 +977,38 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > the docs since 2026-11-06. Old log files keep the passwords. Monitoring
 > of the server: [reports_monitoring_getserverinfo.md](80-FMW-Architecture/reports_monitoring_getserverinfo.md);
 > error XML codes have no `REP-` prefix (`code="56071"`).
+
+## Disclaimer & Acknowledgements
+
+### Disclaimer
+
+- IHateWeblogic is an independent community project. It is **not affiliated
+  with, endorsed or supported by Oracle Corporation**.
+- Oracle, Java, WebLogic, Oracle Forms, Oracle Reports, Oracle Linux and APEX
+  are trademarks or registered trademarks of Oracle and/or its affiliates.
+  Other names may be trademarks of their respective owners.
+- **Use at your own risk.** With `--apply` the scripts change OS, WebLogic and
+  database settings – test in a non-production environment first and keep
+  backups. The project is provided "as is", without warranty of any kind – see
+  [LICENSE](LICENSE) (Apache 2.0). For Oracle products follow Oracle's
+  documentation and My Oracle Support; licensing of Oracle software is your
+  responsibility.
+- The bird logo (`assets/IHateWeblogic_logo.png`) is the **personal logo of
+  Gunther Pipperr**, used across his projects – it is neither a project logo
+  nor an Oracle logo. Please do not reuse it for other projects without asking.
+- Written by Gunther Pipperr together with Claude (Anthropic) as AI co-author.
+  Every finding is checked on a real system before it is marked
+  "confirmed live".
+
+### Acknowledgements
+
+Special thanks to two colleagues of [die IT-Macher](https://www.der-it-macher.de/)
+without whom this documentation would not exist in this form:
+
+**Jürgen Menge** – for his invaluable support on countless WebLogic questions,
+for sharing his deep expertise, and for his ideas and information that have
+substantially shaped the concepts and structure of this installation guide.
+
+**Mark Eichhorst** – for his support and patience with Oracle Forms and Reports
+questions, and for the inspiration that came from the challenges and tasks he brought
+to the table.

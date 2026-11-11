@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- **Disclaimer & Acknowledgements** (ACE item 2): new last section of the root README (not
+  affiliated with Oracle, trademarks, use at own risk / Apache 2.0 "as is", personal bird logo,
+  AI co-author) + thanks to Jürgen Menge and Mark Eichhorst of die IT-Macher; pointer line at
+  the README top; `09-Install/README.md` links the company and the root section.
 - **Demo-data naming convention** (ACE item 0): README section "Demo Data" (test host
   `orafusion01.pipperr.local` / `10.10.10.124` / `fmwpdb` / `fr_domain` / `repserver01`,
   Reports-only demo domain `reportGPI`). Examples switched from invented names
