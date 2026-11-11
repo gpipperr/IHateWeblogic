@@ -101,7 +101,9 @@ at the start of the work, `checkin.ps1` converts every changed `.rdf` to XML
 and commits / pushes – for developers without Git experience. Step 1 (rdf →
 xml from the command line) is tested on the Linux test host; Windows test
 procedure for the customer and the script design:
-[Git_checkin.md](Git_checkin.md).
+[Git_checkin.md](Git_checkin.md). The two scripts (German messages, a
+skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
+[scripts/](scripts/).
 
 ## Patch level
 

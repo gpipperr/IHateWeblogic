@@ -1,0 +1,14 @@
+# .gitattributes fuer das Reports-Repository (als .gitattributes in den
+# obersten Ordner des Repositorys kopieren)
+# .rdf ist binaer - Git soll nie versuchen, zwei Versionen zu mischen
+*.rdf    binary
+*.rep    binary
+*.pll    binary
+*.plx    binary
+*.gif    binary
+*.jpg    binary
+*.png    binary
+# XML vom Konverter: feste Zeilenenden, sonst meldet Git jede Datei als
+# geaendert (Wert nach dem Test beim Kunden festlegen: Git_checkin.md 2.3)
+*.xml    text eol=crlf
+*.ps1    text eol=crlf

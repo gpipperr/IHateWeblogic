@@ -10,7 +10,8 @@ Status 2026-11-11: **step 1 of the architecture** – the rdf → xml
 conversion from the command line – is tested on the Linux test host (same
 Reports 14.1.2 tools runtime, `rwconverter`). **The Windows commands below
 are to be confirmed at the customer** (test procedure in section 5). The
-scripts are a flow sketch (section 4), not written yet.
+scripts are in [scripts/](scripts/) (section 4) – tested on Linux with
+PowerShell 7.4, to confirm with Windows PowerShell 5.1 at the customer.
 
 Related:
 - Builder server set-up: [ReportBuilder_Windows_Kochbuch_en.txt](ReportBuilder_Windows_Kochbuch_en.txt).
@@ -178,14 +179,23 @@ neither user nor password of the conversion login in the file).
 
 ### 3.2 No stash, no merge for beginners
 
-`.rdf` is binary – Git cannot merge two changes of the same report. Rules
-the scripts enforce:
-- `checkin.ps1` first runs `git fetch` and compares (`git rev-list --count
-  HEAD..@{u}`): **behind the remote → stop** with "run pull.ps1 first". It
-  never pulls by itself into a working copy with changes.
-- `pull.ps1` refuses when the working copy has uncommitted changes
-  (`git status --porcelain` not empty) – "check in first" – and otherwise runs
-  `git pull --ff-only`. No stash, no merge commit.
+`.rdf` is binary – Git cannot merge two changes of the same report
+(`*.rdf binary` in `.gitattributes`, template in `scripts/`). Rules the
+scripts follow:
+- **Only fast-forward, never stash.** `git pull --ff-only` also works with
+  own uncommitted changes – Git updates the other files and **aborts by
+  itself** ("would be overwritten") when an incoming change touches a file
+  the developer changed too. Nothing is overwritten, nothing is stashed.
+  The first sketch ("pull.ps1 refuses with local changes, checkin.ps1 stops
+  when behind") was dropped – it was a dead end: a developer with changes
+  and a newer server could neither pull nor check in.
+- `checkin.ps1` runs `git fetch` before converting: behind the server →
+  fast-forward first; the same report changed by a colleague → stop.
+- **Local check-ins not yet on the server** (e.g. after a rejected push) and
+  a newer server: no fast-forward possible – the script commits, and on the
+  rejected push it runs `git pull --rebase` and pushes again. On a conflict
+  (same report) it runs `git rebase --abort`: the check-in stays local, the
+  working copy is clean, the developer asks the Git contact person.
 - The same report changed by two developers at the same time stays a
   conflict that a person resolves (agree who works on which report; Git LFS
   file locking would be the technical answer – later, if needed).
@@ -288,26 +298,56 @@ Notes:
   original `rwbuilder.bat`) should be removed for the Git developers, so
   nobody works against `E:\reports\src` by mistake.
 
-## 4. Flow sketch of the scripts (not written yet)
+## 4. The scripts
 
-`pull.ps1`:
-1. `cd` to the folder of the script (`$PSScriptRoot\..`).
-2. `git status --porcelain` not empty → "You have changes – run checkin.ps1
-   first", exit 1.
-3. `git pull --ff-only` → on error: show the message, exit 1.
-4. Show the last 5 commits (`git log --oneline -5`).
+Files in [scripts/](scripts/) – a skeleton for the customer's own
+adaptation: plain PowerShell, one step after the other, no nested commands,
+**messages and comments in German** (the developers' language), plain ASCII
+(Windows PowerShell 5.1 reads files without BOM as ANSI). Copy them into
+`E:\git\<repo>\Reports\` of the repository (one level below the top folder
+– the scripts find the top folder through `$PSScriptRoot`).
 
-`checkin.ps1 "comment"`:
-1. Comment missing → ask for it (`Read-Host`); empty → exit.
-2. `git fetch`; behind the remote → "run pull.ps1 first", exit 1.
-3. Changed / new `.rdf` (`git status --porcelain Reports/source`), for each:
-   `rwconverter.bat ... dest=Reports\xml\<name>.xml ... cmdfile=<login>`;
-   exit code ≠ 0 → show the REP lines, exit 1 (nothing committed).
-4. Deleted `.rdf` → delete the matching `.xml`.
-5. `git add Reports/source Reports/xml Reports/images`, `git commit -m
-   "<comment>"`, `git push`.
-6. Push rejected (someone pushed in between) → "run pull.ps1, then check in
-   again".
+| File | Purpose |
+|---|---|
+| [pull.ps1](scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
+| [checkin.ps1](scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (admin session, converter, login file) → comment → `git fetch` (behind → fast-forward; same report changed → stop) → convert every new / changed `.rdf` (stop at the first error, nothing committed) → delete the `.xml` of a deleted `.rdf` → `git add` source / xml / images → commit → push (rejected → `pull --rebase` + push; conflict → `rebase --abort`) |
+| [template.gitattributes](scripts/template.gitattributes) | `*.rdf binary`, line ends of `*.xml` (value after the Windows test, 2.3) |
+| [template.gitignore](scripts/template.gitignore) | `*.rep`, logs, backups, `login.txt` |
+
+Settings at the top of `checkin.ps1`: `$DomainHome` (default
+`E:\oracle\user_projects\domains\rwbuilder_domain`, the environment variable
+`DOMAIN_HOME` wins), the login file `%USERPROFILE%\.rwconv\login.txt`, the
+three folders `Reports/source`, `Reports/xml`, `Reports/images`. The
+variable `RWCONVERTER` replaces the converter – for tests only.
+
+### 4.1 Tested on Linux (2026-11-11) – Windows to confirm
+
+PowerShell 7.4 on the Linux test host, a local bare repository as the Git
+server, two clones (`gpi`, `kollege`), a fake converter (writes the XML,
+fails with `REP-1430` for a report containing `BROKEN`). Windows
+PowerShell 5.1 and the real `rwconverter.bat` are to be confirmed at the
+customer (section 5).
+
+| Case | Result |
+|---|---|
+| pull, clean | "Already up to date", last check-ins, exit 0 |
+| check-in: 1 changed + 1 new report | both converted, 4 files committed and pushed, exit 0 |
+| check-in without changes | "Nichts einzuchecken", exit 0 |
+| server ahead, own change in another report | fast-forward first, then check-in – exit 0 |
+| pull with own change in another report | change kept, pull done |
+| **colleague changed the same report** – check-in / pull | Git: "would be overwritten", script stops, nothing changed, exit 1 |
+| broken report | `REP-1430` shown, nothing committed, exit 1 |
+| report deleted | `.rdf` and matching `.xml` deleted and checked in |
+| colleague pushes **during** the check-in (other report) | first push rejected → `pull --rebase` → push, exit 0 |
+| same, **same report** | rebase conflict → `rebase --abort`; check-in local, working copy clean, exit 1 |
+| local unsent check-in + newer server | message, commit, rebase on push – both on the server, exit 0 |
+| nothing new, 1 unsent check-in | only pushed |
+| login file missing | clear message with the line format, exit 1 |
+| both scripts | parse without errors (PowerShell parser), plain ASCII |
+
+Not covered by the scripts (on purpose, kept simple): Git LFS / locking,
+several branches, a pre-check that the Builder has saved and closed the
+report.
 
 ## 5. Test procedure for the customer appointment (Windows, cmd)
 

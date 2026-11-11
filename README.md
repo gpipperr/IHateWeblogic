@@ -791,6 +791,7 @@ IHateWeblogic/
     ├── Reports14_builder_windows/
     │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
     │   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
+    │   ├── scripts/                      – pull.ps1, checkin.ps1 (German messages), template.gitattributes / .gitignore
     │   ├── ReportBuilder_Windows_Kochbuch_de.txt
     │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/

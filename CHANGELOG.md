@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `Reports14_builder_windows/scripts/`: `pull.ps1` and `checkin.ps1` (simple skeleton, German
+  messages, plain ASCII, PowerShell 5.1 syntax) + `template.gitattributes` / `.gitignore`. Only
+  fast-forward, never stash: a pull with own changes is allowed (Git aborts by itself when the
+  same report is affected) – the first sketch was a dead end; rejected push -> `pull --rebase` +
+  push, conflict -> `rebase --abort`. Tested on Linux with PowerShell 7.4, a local bare repo and a
+  fake converter (14 cases); Windows PowerShell 5.1 + real `rwconverter.bat` at the customer.
+  `Git_checkin.md` §3.2 / §4 updated (English).
 - New `80-FMW-Architecture/reports_rwservlet_properties.md`: all `rwservlet.properties` elements
   of 14.1.2 (`rwservlet.xsd`, Oracle 12.2.1.3 §7.3 – the book the 14.1.2 library links) with
   default / DEV-PROD recommendation / library value; `13-` rewrites the whole file (hand-set

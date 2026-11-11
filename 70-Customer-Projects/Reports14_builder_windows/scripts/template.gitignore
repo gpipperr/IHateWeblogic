@@ -1,0 +1,10 @@
+# .gitignore fuer das Reports-Repository (als .gitignore in den obersten
+# Ordner des Repositorys kopieren)
+# erzeugte und lokale Dateien - nicht ins Git
+*.rep
+*.log
+*.tmp
+*.bak
+*~
+# Login-Dateien gehoeren nie ins Repository
+login.txt
