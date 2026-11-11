@@ -161,21 +161,12 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (T3/IIOP, debug configs, web commands, demo certificates …) –
   [10-Monitoring/README.md](10-Monitoring/README.md).
-- [ ] **Clean-up of old patch artefacts** – partly done 2026-10-30:
-  `07-Maintenance/patch_storage.sh clean` frees the ZIPs of finished steps,
-  `patches_<timestamp>/` of `--fresh-patches` and staging leftovers;
-  `check_disk_space.sh` lists `.patch_storage`, unlinked JDKs and old homes
-  with the clean command. Open: the rollback copies themselves – external security scanners
-  report vulnerable jars / libraries that only lie in rollback copies:
-  `$ORACLE_HOME/.patch_storage/<patch>_<date>/` of superseded patches (e.g.
-  the Sep PSU 39919611 / SPU 39988381 after CPU Oct 2026), `OPatch.bak_*`,
-  `oraInventory.bak_*`, the previous JDK next to `JDK_HOME`
-  (`jdk-21.0.12.1`), `patches_<timestamp>/` of `04- --fresh-patches`.
-  Check first what Oracle supports for `.patch_storage` (`opatch util
-  cleanup` / `opatch util deleteinactivepatches` – to verify for FMW 14.1.2
-  and OPatch 13.9.4.2.25) instead of deleting by hand; keep the rollback
-  copy of the **current** set until the next cycle is applied and tested;
-  run only with the domain stopped and after a backup / VM snapshot.
+- [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch
+  13.9.4.2.25: removes the rollback copies of superseded patches in
+  `$ORACLE_HOME/.patch_storage` (scanners report old jars there) – supported
+  for FMW? Test on a home copy / with the domain stopped and a snapshot; then
+  add it to `07-Maintenance/patch_storage.sh` / `check_disk_space.sh` beside
+  `opatch util cleanup`.
 
 ## Scripts
 
@@ -210,8 +201,6 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ## APEX / ORDS beside Forms
 
-- [ ] Remove the 32 KB stub `/u01/app/oracle/product/19.3.0` (left by
-  `detachHome` of the already missing 19.3 home on 2026-11-10).
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
@@ -260,15 +249,6 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
   `02-Checks/egress_check.sh --capture 300` during the first start – which
   components fetch external DTDs there
   ([weblogic_outbound_connections.md](80-FMW-Architecture/weblogic_outbound_connections.md)).
-- [ ] **Passwords in old `access.log` files** (library and docs on POST since
-  2026-11-06): check customer hosts for `authid=` / `userid=` in
-  `WLS_REPORTS/logs/access.log*` (and the Nginx access logs, root) and change
-  the affected passwords. Test host done 2026-11-10: 56 lines (15.10.–03.11.,
-  `DEV_STB`, `rep_admin`, `monUser`) removed with
-  `03-Logs/cleanLogFiles.sh --retain-days 0 --include-out --apply` – passwords
-  not changed (test host without customer data); Nginx logs not checked yet. First
-  full `15- --apply` with the POST call (the function ran alone against the
-  Reports server).
 - [ ] **Home vs. domain** ([§7a](80-FMW-Architecture/weblogic_middleware_architecture.md)):
   read KB694158 (WLS PSU post-install); run the checklist for swapping a patched
   home live; first real domain start after `clean_domain_tmp.sh --apply` (so far
