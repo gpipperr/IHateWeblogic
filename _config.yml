@@ -1,0 +1,14 @@
+title: IHateWeblogic
+description: Bash scripts to install, patch, diagnose and harden Oracle Forms 14c and Oracle Reports 14c on WebLogic Server 14.1.2
+theme: jekyll-theme-cayman
+lang: en
+author: Gunther Pippèrr
+url: https://gpipperr.github.io
+baseurl: /IHateWeblogic
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+exclude:
+  - TODO.md
+  - tools/
+
