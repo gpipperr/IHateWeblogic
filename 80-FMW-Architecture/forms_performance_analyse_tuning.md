@@ -13,10 +13,10 @@ Markers as in the rest of this folder: **documented** (Oracle documentation),
 
 ## 1. The chain of one user action
 
-![formsperf-path](diagrams/formsperf-path.svg)
-<sub>Quelle: [diagrams/formsperf-path.prompt](diagrams/formsperf-path.prompt) · [D2](diagrams/formsperf-path.d2)</sub>
+![formsperf-path](diagrams/formsperf-path.svg?v=4e954697)
+<sub>Source: [diagrams/formsperf-path.prompt](diagrams/formsperf-path.prompt) · [D2](diagrams/formsperf-path.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=formsperf-path
  Forms client (Java, FSAL / Web Start)
