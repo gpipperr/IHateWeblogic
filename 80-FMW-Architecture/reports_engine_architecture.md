@@ -31,10 +31,10 @@ the job is complete." (**documented**, Publishing Reports 12.2.1.3, 2.2)
 
 ## 2. Two modes
 
-![repeng-modes](diagrams/repeng-modes.svg)
-<sub>Quelle: [diagrams/repeng-modes.prompt](diagrams/repeng-modes.prompt) · [D2](diagrams/repeng-modes.d2)</sub>
+![repeng-modes](diagrams/repeng-modes.svg?v=27736417)
+<sub>Source: [diagrams/repeng-modes.prompt](diagrams/repeng-modes.prompt) · [D2](diagrams/repeng-modes.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=repeng-modes
  MODE A: IN-PROCESS (Oracle default)              MODE B: STANDALONE (this repository)
