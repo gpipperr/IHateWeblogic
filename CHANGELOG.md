@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `70-Customer-Projects/Reports14_builder_windows`: README in English; new
+  `ReportBuilder_Windows_Kochbuch_en.txt` (full translation of the German cookbook, same commands
+  checked line by line, ASCII / 80 columns); German cookbook unchanged. Links added in
+  `reports_rwbuilder.md`, the Linux manual-install README and the root repository tree.
 - New article `80-FMW-Architecture/reports_mail_handling.md` – section 7 of
   `reports_job_handling.md` moved 1:1 (overview, configuration, file locations, sender, demo
   calls, debugging, sources; job handling keeps a short summary + link). New **section 6:

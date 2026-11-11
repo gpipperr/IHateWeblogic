@@ -790,7 +790,8 @@ IHateWeblogic/
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
     ├── Reports14_builder_windows/
     │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
-    │   └── ReportBuilder_Windows_Kochbuch_de.txt
+    │   ├── ReportBuilder_Windows_Kochbuch_de.txt
+    │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)

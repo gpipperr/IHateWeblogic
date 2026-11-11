@@ -185,7 +185,8 @@ auch die optionalen Zeilen: Forms-QPR für Anhang 12.F, JDK-Ersatz 40186074).
 **Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
 nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche
 Liste für die Windows-Builder-Umgebung (andere Plattform-ZIPs):
-[ReportBuilder_Windows_Kochbuch_de.txt](../Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt).
+[ReportBuilder_Windows_Kochbuch_de.txt](../Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
+(englisch: [ReportBuilder_Windows_Kochbuch_en.txt](../Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt)).
 
 ## Entwicklungsumgebung (Reports Builder)
 

@@ -6,11 +6,12 @@ How to give report developers the **Oracle Reports Builder 14.1.2** with as
 little Fusion Middleware as possible: one central Windows Server, developers
 work via RDP, the reports are designed there and executed on the existing
 Linux Reports server. This document explains the architecture and why it
-looks like this; the step-by-step installation is the German customer
-cookbook
+looks like this; the step-by-step installation is the customer cookbook
+[ReportBuilder_Windows_Kochbuch_en.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt)
+(English) /
 [ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
-(background and decisions in German:
-[README.md](../70-Customer-Projects/Reports14_builder_windows/README.md)).
+(German, the version run at the customer); background and decisions:
+[README.md](../70-Customer-Projects/Reports14_builder_windows/README.md).
 
 Markers as in [README.md](README.md): **confirmed (live)** = customer
 installation 2026-10-27 (Windows Server 2025, CPU October 2026 – the
@@ -291,3 +292,4 @@ local-admin requirement for the developer accounts (section 4).
   [folder README](../70-Customer-Projects/Reports14_builder_windows/README.md)
 - Customer installation 2026-10-27 (Windows Server 2025) – cookbook
   [ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
+  (English: [ReportBuilder_Windows_Kochbuch_en.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt))
