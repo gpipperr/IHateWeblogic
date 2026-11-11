@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- All 32 diagrams: image links with `?v=`, "Source:" / "ASCII version" (one commit per document,
+  no content change, no LLM run); diagram texts checked: `builder-windows` translated to English
+  (hand-edited `.d2`), `apex-parts` prompt + hash brought to the current style template while
+  keeping the approved SVG byte-identical.
 - `tools/render_ascii/` checked in (ACE item 9; only `render_ascii.conf` stays git-ignored), README
   in English. New: `?v=<8 hex of the SVG's SHA-256>` on every image link (cache-busting for
   browsers / GitHub's image proxy, updated on every run when the SVG changed); source line and

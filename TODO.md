@@ -43,7 +43,10 @@ step beside the customer work (state 2026-11-10). Order:
 - [ ] **8. Reviewer-visible test gaps:** fresh domain with the current `08-`
   template, `clone_check.sh --apply` file places on a real domain,
   `REPORTS_ONLY` domain creation.
-- [ ] 9. Optional: `render_ascii` checked in, `?v=` cache-busting for SVGs.
+- [x] 9. Optional: `render_ascii` checked in, `?v=` cache-busting for SVGs –
+  done 2026-11-11: [`tools/render_ascii/`](tools/render_ascii/README.md) in git (README in English),
+  all 32 image links carry `?v=<SVG hash>`, "Source:" / "ASCII version"; diagram texts
+  checked – `builder-windows` translated to English, Target Picture ORDS 26.3.
 
 ## Cookbooks – still to check on a fresh run / at the customer
 
