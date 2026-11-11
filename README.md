@@ -43,10 +43,10 @@ customers: [docs/project_status.md](docs/project_status.md).
 A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
 APEX on the same database**, each where it is strongest:
 
-![target-picture](diagrams/target-picture.svg)
-<sub>Quelle: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
+![target-picture](diagrams/target-picture.svg?v=d9b389b6)
+<sub>Source: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=target-picture
                  users (browser / FSAL)
