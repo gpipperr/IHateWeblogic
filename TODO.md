@@ -63,15 +63,12 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
-- [ ] **Brotli CVE-2026-111497** (CISA KEV, 2026-10-28): not reachable
-  through Forms / Reports / WebLogic / Nginx. Test host: OS fix
-  ELSA-2026-500513 (`brotli-1.0.9-10.0.1.el9_8`) installed 2026-11-10; open:
-  restart of the Reports server (`rwserver` + engines still map the old
-  `libbrotlidec` via `libfreetype` – check `grep -l 'libbrotli.*(deleted)'
-  /proc/[0-9]*/maps`), the same on customer hosts. Claude Code: the VS Code
-  session runs the native binary (no Node); the old npm CLI 2.1.287 on Node 20
-  (EOL, bundled Brotli 1.1.0) → native CLI, `npm uninstall -g
-  @anthropic-ai/claude-code`, remove or upgrade the nodesource Node 20 –
+- [ ] **Brotli CVE-2026-111497** – OS fix and Reports server restart done
+  on the test host (2026-11-10/11, no process maps the old lib after the
+  reboot) and on the customer hosts. Left: the old Claude Code npm CLI 2.1.287
+  on Node 20 (EOL, bundled Brotli 1.1.0) on the test host – as root
+  `npm uninstall -g @anthropic-ai/claude-code`, then remove or upgrade the
+  nodesource Node 20 (the VS Code session uses the native binary) –
   [00-patch-references.md, Brotli](09-Install/docs/00-patch-references.md#brotli-decoder--cve-2026-111497-state-2026-10-28).
 
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
