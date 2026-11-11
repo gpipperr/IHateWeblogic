@@ -33,7 +33,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-06.3"
+IHW_SHELL_ENV_VERSION="2026-11-11.1"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -540,9 +540,8 @@ _ihwse_tools_find() {
     local d e oh base
     local -a c=()
     [ -n "${ORACLE_BASE:-}" ] && c+=("$ORACLE_BASE/tools")
-    for oh in "${ORACLE_HOME:-}"; do
-        [ -n "$oh" ] && c+=("$(dirname "$oh")/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")
-    done
+    oh="${ORACLE_HOME:-}"
+    [ -n "$oh" ] && c+=("$(dirname "$oh")/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")
     for e in "${IHW_FMW_ENV[@]}"; do
         read -r _ oh _ <<< "$e"
         c+=("$(dirname "$oh")/tools" "$(dirname "$(dirname "$(dirname "$oh")")")/tools")

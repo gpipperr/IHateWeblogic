@@ -33,9 +33,16 @@ step beside the customer work (state 2026-11-10). Order:
   headings kept as stubs; line check: 0 lines lost (35 link lines adjusted
   to `../`); incoming anchors repointed; `## Troubleshooting` dissolved into
   02-Checks / 04 §11 / 05 / 06. README 1018 → ~640 lines.
-- [ ] **4. Release `v1.0.0`** with the tools ZIPs as assets, notes from
-  CHANGELOG.
-- [ ] **5. `shellcheck` + `bash -n`** as a GitHub Actions gate.
+- [x] **4. Release `v1.0.0`** with the tools ZIPs as assets, notes from
+  CHANGELOG – done 2026-11-11: tag `v1.0.0` on `d1a1251`, GitHub release
+  "Latest" with the two ZIPs of that tag + `.sha256` (checked with `gh`).
+- [x] **5. `shellcheck` + `bash -n`** as a GitHub Actions gate – done 2026-11-11:
+  `tools/ci_lint.sh` (bash -n on all 132 `*.sh` / `*.sh.template` + shellcheck
+  `-S error` as the gate, `-S warning` report only) run by
+  `.github/workflows/lint.yml` on push / PR; badge in the README. Local run
+  (ShellCheck 0.10.0 from `ol9_developer_EPEL`, ~8 s): 0 errors after the fixes,
+  79 warnings left (43 × SC2034 unused variable – many are read by sourced
+  scripts, check one by one). Open: confirm the first CI run (runner has 0.9.0).
 - [ ] **6. Showcase** (`status.sh`, `clone_check`, analysis PDF page, smoke
   test) + blog article on pipperr.de linked both ways.
 - [ ] **7. `CONTRIBUTING.md`** (conventions, customer-data rule, how to report

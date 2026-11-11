@@ -546,7 +546,7 @@ if $NEED_JAVA; then
         unzip -q -o "$WORK/$CJ_INNER" -d "$WORK/jdk" || { fail "Cannot extract $CJ_INNER"; print_summary; exit 2; }
         mv "$(ls -d "$WORK"/jdk/*/ | head -1)" "$RT"
     fi
-    rm -rf "$WORK/jdk" "$WORK/$CJ_INNER"
+    rm -rf "${WORK:?}/jdk" "${WORK:?}/$CJ_INNER"
 
     RT_VER="$(sed -n 's/^JAVA_VERSION="\(.*\)"/\1/p' "$RT/release")"
     [ -f "$RT/bin/javaw.exe" ] || { fail "javaw.exe missing in the built runtime"; print_summary; exit 2; }

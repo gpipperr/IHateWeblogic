@@ -278,10 +278,21 @@ _pdb="$(_eff DB_PDB_NAME)"
     || _chk warn "DB_PDB_NAME        $_pdb – DB_SERVICE in environment.conf is '${DB_SERVICE:-}' (RCU / data sources connect to DB_SERVICE)"
 [ "${DB_PORT:-1521}" = "$(_eff DB_LISTENER_PORT)" ] && _chk ok "DB_LISTENER_PORT   $(_eff DB_LISTENER_PORT) (= DB_PORT)" \
     || _chk warn "DB_LISTENER_PORT   $(_eff DB_LISTENER_PORT) – DB_PORT in environment.conf is ${DB_PORT:-}"
+# every IP of this host separately - a "a|b" pattern from an expansion is
+# not an alternation in case (with two IPs nothing matched)
+_this_host=false
 case "${DB_HOST:-}" in
-    localhost|127.0.0.1|"$(hostname -s)"|"$(hostname -f)"|$(hostname -I 2>/dev/null | tr ' ' '|' | sed 's/|$//')) _chk ok "DB_HOST            ${DB_HOST} (this host)" ;;
-    *) _chk warn "DB_HOST            '${DB_HOST:-}' is not this host – with a local RCU DB use localhost (environment.conf)" ;;
+    localhost|127.0.0.1|"$(hostname -s)"|"$(hostname -f)") _this_host=true ;;
 esac
+for _ip in $(hostname -I 2>/dev/null); do
+    [ "${DB_HOST:-}" = "$_ip" ] && _this_host=true
+done
+if $_this_host; then
+    _chk ok "DB_HOST            ${DB_HOST} (this host)"
+else
+    _chk warn "DB_HOST            '${DB_HOST:-}' is not this host – with a local RCU DB use localhost (environment.conf)"
+fi
+unset _this_host _ip
 _home="$(_eff DB_ORACLE_HOME)"
 if [ -x "$_home/bin/sqlplus" ]; then
     _chk ok "DB_ORACLE_HOME     $_home (installed)"

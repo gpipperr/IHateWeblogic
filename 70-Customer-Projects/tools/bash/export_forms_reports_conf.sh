@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-10.1"   # bump on every change – shown in the report
+VERSION="2026-11-11.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
@@ -531,10 +531,9 @@ for ef in "${ENV_FILES[@]}"; do
     for p in $(_cfgval "$ef" FORMS_PATH | tr ':' ' '); do _adddir "$p" "FORMS_PATH($(basename "$ef"))"; done
     v="$(_cfgval "$ef" REPORTS_PATH | head -1)"; for p in ${v//:/ }; do _adddir "$p" "REPORTS_PATH($(basename "$ef"))"; done
 done
-for f in "$DH/reports/bin/reports.sh"; do
-    v="$(grep -oE '^REPORTS_PATH=[^;]+' "$f" 2>/dev/null | tail -1 | sed 's/^REPORTS_PATH=//')"
-    for p in ${v//:/ }; do case "$p" in *REPORTS_PATH*) ;; *) _adddir "$p" "REPORTS_PATH(reports.sh)" ;; esac; done
-done
+f="$DH/reports/bin/reports.sh"
+v="$(grep -oE '^REPORTS_PATH=[^;]+' "$f" 2>/dev/null | tail -1 | sed 's/^REPORTS_PATH=//')"
+for p in ${v//:/ }; do case "$p" in *REPORTS_PATH*) ;; *) _adddir "$p" "REPORTS_PATH(reports.sh)" ;; esac; done
 for c in "${INPROC_DIRS[@]/%//rwserver.conf}" "$CFG"/components/ReportsServerComponent/*/rwserver.conf; do
     [ -f "$c" ] || continue
     v="$(sed -n 's/.*name="REPORTS_PATH"[^>]*value="\([^"]*\)".*/\1/p' "$c" | head -1)"
@@ -594,7 +593,7 @@ done
   { cat /dev/null "${ENV_FILES[@]}" 2>/dev/null;   # /dev/null: never stdin when ENV_FILES is empty (no Forms)
     grep -v '^#' "$IMP/cgicmd.dat.customer_keys" 2>/dev/null; } \
       | grep -oE '@[A-Za-z0-9_.]+' | sort -u | sed 's/^@//' | while read -r a; do
-          if cat "${TNS_DIRS[@]/%//tnsnames.ora}" 2>/dev/null | grep -qiE "^[[:space:]]*$a[[:space:]]*="; then printf '  %s (in tnsnames.ora)\n' "$a"
+          if cat "${TNS_DIRS[@]/%//tnsnames.ora}" 2>/dev/null | grep -qiE "^[[:space:]]*${a}[[:space:]]*="; then printf '  %s (in tnsnames.ora)\n' "$a"
           else printf '  %s (NOT in a collected tnsnames.ora)\n' "$a"; fi; done; } >> "$DEP"
 rm -f "$LIBS"
 

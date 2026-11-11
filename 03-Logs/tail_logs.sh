@@ -165,7 +165,7 @@ _colour_filter() {
             '==>'*'<=='*)
                 printf '\033[36;1m%s\033[0m\n' "$line" ;;
             # WLS format <Error> / ODL [ERROR] / SEVERE keyword
-            *'<Error>'*|*'[ERROR]'*|*' ERROR '*|*SEVERE*|'####'*'<Error>'*)
+            *'<Error>'*|*'[ERROR]'*|*' ERROR '*|*SEVERE*)
                 printf '\033[31m%s\033[0m\n' "$line" ;;
             # WLS format <Warning> / ODL [WARNING] / WARN keyword
             *'<Warning>'*|*'[WARNING]'*|*' WARNING '*|*' WARN '*)

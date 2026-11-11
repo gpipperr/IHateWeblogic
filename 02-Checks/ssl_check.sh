@@ -566,7 +566,7 @@ if [ "$ARCH_MODE" = "nginx" ]; then
             [ -d "$_dir" ] || continue
             NGINX_FULL_CONF+="$(find "$_dir" \
                 \( -name "*.conf" -o -name "nginx.conf" \) \
-                -readable 2>/dev/null \
+                -readable \
                 -exec cat {} \; 2>/dev/null)"
         done
         [ -n "$NGINX_FULL_CONF" ] && \

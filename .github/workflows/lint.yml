@@ -1,0 +1,22 @@
+name: lint
+
+# Gate for every push and pull request: bash -n + shellcheck (errors) over all
+# shell scripts under git. Warnings are only reported. Same check locally:
+# tools/ci_lint.sh
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n + shellcheck
+        run: bash tools/ci_lint.sh

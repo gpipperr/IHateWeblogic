@@ -5,6 +5,17 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- **Lint gate** (ACE item 5): `tools/ci_lint.sh` – `bash -n` on all `*.sh` / `*.sh.template`
+  plus ShellCheck (one parallel run, errors = gate, warnings = report; `CI_LINT_VERBOSE=1` lists
+  them) – run by `.github/workflows/lint.yml` on push / PR, badge in the README. Fixed for the
+  gate: 5 ShellCheck errors (`ssl_check.sh` double `2>`, single-item loops in
+  `export_forms_reports_conf.sh` / `ihw_shell_env.sh`, `${a}` before `[[:space:]]`) and the
+  warnings with real risk: `00a-db_env_interview.sh` did not recognise DB_HOST = own IP on a host
+  with more than one IP (`a|b` from an expansion is no alternation in `case`; reproduced);
+  `05-` / `06-` patch scripts stop when `pushd` into the patch directory fails (before: OPatch
+  would have run in the wrong directory); `40-` `rm -rf "${WORK:?}/…"`; dead case patterns in
+  `tail_logs.sh` / `ihw_tools_lib.sh`. Customer tools versions bumped, ZIPs rebuilt.
+- Tag `v1.0.0` on `d1a1251` (ACE item 4, GitHub release page with the ZIPs of that tag).
 - All 32 diagrams: image links with `?v=`, "Source:" / "ASCII version" (one commit per document,
   no content change, no LLM run); diagram texts checked: `builder-windows` translated to English
   (hand-edited `.d2`), `apex-parts` prompt + hash brought to the current style template while

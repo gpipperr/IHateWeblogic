@@ -394,11 +394,11 @@ for _p in $PATCHES_TO_APPLY; do
     [ -d "$PATCH_EXTRACT_DIR" ] || { warn "Patch dir not found after extract: $PATCH_EXTRACT_DIR – skip"; continue; }
 
     info "Conflict check: patch $_p"
-    pushd "$PATCH_EXTRACT_DIR" > /dev/null
+    pushd "$PATCH_EXTRACT_DIR" > /dev/null || { fail "Cannot change to $PATCH_EXTRACT_DIR"; CONFLICT_FOUND=true; continue; }
     PREREQ_OUT="$("$OPATCH" prereq CheckConflictAgainstOHWithDetail \
         -ph . "${INVPTR_ARGS[@]}" 2>&1)"
     PREREQ_RC=$?
-    popd > /dev/null
+    popd > /dev/null || true
     printf '%s\n' "$PREREQ_OUT" | tee -a "$LOG_FILE"
 
     # OPatch prints "OPatch succeeded" (rc=0) even when the prereq itself
@@ -454,7 +454,7 @@ for _p in $PATCHES_TO_APPLY; do
     esac
     printf "  Apply started: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
 
-    pushd "$PATCH_EXTRACT_DIR" > /dev/null
+    pushd "$PATCH_EXTRACT_DIR" > /dev/null || { fail "Cannot change to $PATCH_EXTRACT_DIR – patch $_p not applied"; rm -rf "$STAGING_BASE"; EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
     # Capture first, then log: PIPESTATUS of a pipe inside $( ) is not visible
     # here – it would report tee's status instead of opatch's.
     APPLY_OUTPUT="$("$OPATCH" apply \
@@ -462,7 +462,7 @@ for _p in $PATCHES_TO_APPLY; do
         -jdk "$JDK_HOME" \
         "${INVPTR_ARGS[@]}" 2>&1)"
     APPLY_RC=$?
-    popd > /dev/null
+    popd > /dev/null || true
     printf '%s\n' "$APPLY_OUTPUT" | tee -a "$LOG_FILE"
 
     printf "  Apply finished: %s  (rc=%s)\n" \

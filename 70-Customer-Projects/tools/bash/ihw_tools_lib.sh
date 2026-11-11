@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-06.2"
+IHWT_LIB_VERSION="2026-11-11.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -192,7 +192,7 @@ ihwt_webtier_find() {
                     conf="$(printf '%s' "$l" | sed -n 's/.*[[:space:]]-f[[:space:]]\+\([^[:space:]]*\).*/\1/p')"
                     root="$(printf '%s' "$l" | sed -n 's/.*[[:space:]]-d[[:space:]]\+\([^[:space:]]*\).*/\1/p')"
                     t=apache
-                    case "$l" in *OHS*|*/ohs/*|*components/OHS*) t=ohs ;; esac
+                    case "$l" in *OHS*|*/ohs/*) t=ohs ;; esac
                     if [ -z "$conf" ] && [ -n "$root" ]; then conf="$root/httpd.conf"
                     elif [ -z "$conf" ] && [ -x "$bin" ]; then
                         conf="$("$bin" -V 2>/dev/null | sed -n 's/.*SERVER_CONFIG_FILE="\([^"]*\)".*/\1/p')"
