@@ -28,7 +28,7 @@ Shapes and colours (simple technical style, white background)
 - Containers (zones, hosts, groups): fill "#FFFFFF", stroke of the matching
   category colour, style.stroke-dash: 4.
 - All shapes: style.border-radius: 8, style.stroke-width: 1, style.shadow:
-  false, style.3d: false, style.font-size: 20 (container titles 22, bold),
+  false, style.font-size: 20 (container titles 22, bold),
   label colour
   style.font-color "#C00000" for component names (dark red, like the blog
   diagrams); plain descriptive lines inside a box may use "#262626".
@@ -53,6 +53,8 @@ Shapes and colours (simple technical style, white background)
     inside a "grid-columns" container (the layout engine cannot layer edges into
     a grid and then spreads the containers sideways); keep the arrow label exactly – it
     names the target anyway.
+- Never set style.3d (D2 allows it only on rectangles – on a cylinder it is
+  a compile error); leave it out everywhere.
 - No icons, no images, no shadows, no gradients, no themes beyond these
   styles, no legend unless the ASCII has one.
 
