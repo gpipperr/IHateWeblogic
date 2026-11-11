@@ -33,10 +33,10 @@ build with the import before the interview (reported 2026-11-06).
 **So: collect at the start of the project, not when the new host is ready.**
 The export of the old environment is the master data of the new build.
 
-![transfer-flow](diagrams/transfer-flow.svg)
-<sub>Quelle: [diagrams/transfer-flow.prompt](diagrams/transfer-flow.prompt) · [D2](diagrams/transfer-flow.d2)</sub>
+![transfer-flow](diagrams/transfer-flow.svg?v=d46b68c5)
+<sub>Source: [diagrams/transfer-flow.prompt](diagrams/transfer-flow.prompt) · [D2](diagrams/transfer-flow.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=transfer-flow
  customer host (old 12c / 14c)          our host                              new 14c host
