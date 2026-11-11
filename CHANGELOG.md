@@ -5,6 +5,12 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- `tools/render_ascii/` checked in (ACE item 9; only `render_ascii.conf` stays git-ignored), README
+  in English. New: `?v=<8 hex of the SVG's SHA-256>` on every image link (cache-busting for
+  browsers / GitHub's image proxy, updated on every run when the SVG changed); source line and
+  summary in English ("Source:", "ASCII version") – older German wrappers are recognised and
+  rewritten. Tested in an isolated copy (old wrapper converted, new diagram, re-render changes
+  `?v=`, second run idempotent).
 - **Root README compacted** (ACE item 3, move – not shorten): new "Start here" block; nine
   sections moved 1:1 into `docs/` – `migration_forms_reports_to_14c.md`, `project_status.md`
   (the ~96 % sentence stays in the README too), `forms_reports_security.md`,

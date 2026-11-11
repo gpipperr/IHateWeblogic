@@ -1,0 +1,25 @@
+# render_ascii.conf – copy to render_ascii.conf (git-ignored) and adapt.
+# KEY=VALUE; the environment wins over this file. API keys are NEVER read
+# from this file – set them in the environment only (ANTHROPIC_API_KEY,
+# AZURE_AI_KEY).
+
+# claude-cli (default, uses the Claude Code login) | manual | anthropic | azure
+RENDER_ASCII_PROVIDER=claude-cli
+
+# optional model, e.g. claude-sonnet-5-5 (anthropic / claude-cli --model)
+#RENDER_ASCII_MODEL=
+
+# claude-cli: path of the claude binary when not on the PATH
+#CLAUDE_BIN=/home/oracle/.local/bin/claude
+
+# timeout of one LLM call in seconds
+#RENDER_ASCII_TIMEOUT=600
+
+# d2 layout engine: dagre (default, no label overlap) | elk
+#RENDER_ASCII_LAYOUT=dagre
+
+# azure (Azure AI Foundry, DSGVO): full request URL of the deployment
+#AZURE_AI_URL=https://<resource>.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview
+# openai = chat-completions format, anthropic = Messages format (Claude on Foundry)
+#AZURE_AI_FORMAT=openai
+#AZURE_AI_DEPLOYMENT=<deployment / model name>
