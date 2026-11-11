@@ -5,7 +5,7 @@ management, interactive WLST access, Reports Server status, single report
 runs with trace.
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
-[root README](../README.md#folder-roles)). Background – which process is
+[root README](../docs/forms_reports_installation_steps.md#folder-roles)). Background – which process is
 started by whom (AdminServer, Node Manager, system components):
 [weblogic_middleware_architecture.md](../80-FMW-Architecture/weblogic_middleware_architecture.md);
 Reports server, engines and `rwrun`:

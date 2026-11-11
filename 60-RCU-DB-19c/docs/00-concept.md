@@ -260,7 +260,7 @@ somewhat less; the README sizing (8 / 15 GB) covers it.
 
 Homes and staging come on top: one patched 19c home ≈ 11–12 GB, two of them
 during an out-of-place patch, plus the AutoUpgrade patch directory – host
-totals in the root README [Disk Sizing Guide](../../README.md#disk-sizing-guide).
+totals in the root README [Disk Sizing Guide](../../docs/forms_reports_sizing.md#disk-sizing-guide).
 
 ---
 

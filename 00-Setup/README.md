@@ -315,7 +315,7 @@ directory, pointing at whichever conf is currently active.
 
 This is the complete path from an empty machine to a fully configured,
 credential-secured environment. It corresponds to Phase 1 of the
-[project Lifecycle Overview](../README.md#lifecycle-overview).
+[project Lifecycle Overview](../docs/forms_reports_installation_steps.md#lifecycle-overview).
 
 ### 1. Create the base directory and clone the repository
 

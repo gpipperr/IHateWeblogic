@@ -3,7 +3,7 @@
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
-[root README](../README.md#folder-roles)): backup/restore and patching of a
+[root README](../docs/forms_reports_installation_steps.md#folder-roles)): backup/restore and patching of a
 running installation, no matter who built it. The patch logic itself lives
 once in `09-Install/05-`/`06-` – the `81-`/`82-` wrappers call it.
 Background: what OPatch changes (the Oracle Home, both JDKs) –

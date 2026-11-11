@@ -3,7 +3,7 @@
 Only what is still open (state 2026-11-10). Everything finished is described
 in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
-Overview and status: [README.md](README.md#project-status).
+Overview and status: [docs/project_status.md](docs/project_status.md#project-status).
 
 ## Oracle ACE submission – publication readiness (assessment 2026-11-10)
 
@@ -25,10 +25,14 @@ step beside the customer work (state 2026-11-10). Order:
   affiliated with / endorsed by Oracle, trademarks, use at own risk, personal
   logo; thanks to **Jürgen Menge** and **Mark Eichhorst** (IT-Macher,
   https://www.der-it-macher.de/) – also kept in `09-Install/README.md`.
-- [ ] **3. Compact root README – move, do not shorten:** ~1-screen top (what,
-  for whom, Target Picture, 3 entry paths); long sections moved 1:1 into own
-  files (`docs/`), one summary line + link each; a line-by-line check proves
-  nothing is lost; incoming anchors repointed or kept as stubs.
+- [x] **3. Compact root README – move, do not shorten** – done 2026-11-11:
+  "Start here" block (what, for whom, 3 entry paths, list of the moved
+  files); nine sections moved 1:1 into six files in [`docs/`](docs/) (migration,
+  project status, security & patch status, sizing + new memory / process
+  table, installation steps, general security), one summary + link each,
+  headings kept as stubs; line check: 0 lines lost (35 link lines adjusted
+  to `../`); incoming anchors repointed; `## Troubleshooting` dissolved into
+  02-Checks / 04 §11 / 05 / 06. README 1018 → ~640 lines.
 - [ ] **4. Release `v1.0.0`** with the tools ZIPs as assets, notes from
   CHANGELOG.
 - [ ] **5. `shellcheck` + `bash -n`** as a GitHub Actions gate.

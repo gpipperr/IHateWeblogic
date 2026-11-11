@@ -15,6 +15,10 @@ runtime pooling, timeout chain, memory, logs):
 
 ## 1. Overview – and what is NOT here
 
+Typical symptoms: Forms sessions dropped, too many `frmweb`, timeouts →
+`06-FormsDiag/forms_perf_settings.sh` (background
+[forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md)).
+
 | Script | Question it answers |
 |---|---|
 | `forms_settings.sh` | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit, `jacob.jar` (signature, activation, DLL sizes) |

@@ -691,6 +691,14 @@ With the IHateWeblogic install chain steps 4–7b run in
 
 ## 11. Troubleshooting
 
+### HTML parameter form shows Symbol font / Greek glyphs
+
+For font problems in the **HTML parameter form** (e.g. text rendered in the
+Symbol font / Greek glyphs instead of the expected Latin text) see
+[HTML_ParameterForm_Fonts.md](HTML_ParameterForm_Fonts.md)
+– a separate font code path from PDF generation, with its own root cause and fix.
+The sub-sections below cover the PDF generation.
+
 ### PDF shows Type 1 / non-embedded fonts
 
 ```

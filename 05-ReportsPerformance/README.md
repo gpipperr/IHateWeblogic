@@ -18,6 +18,9 @@ Oracle's tuning rules): [reports_engine_architecture.md](../80-FMW-Architecture/
 
 ## 1. Overview – and what is NOT here
 
+Typical symptoms: Reports server slow, jobs waiting, failures →
+`05-ReportsPerformance/engine_perf_analyse.sh`.
+
 | Script | Question it answers |
 |---|---|
 | `engine_perf_settings.sh` | Are the engine/queue/cache parameters sensible for this host (CPUs, RAM) and in line with `environment.conf`? `--apply` changes the report engine |

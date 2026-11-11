@@ -68,7 +68,7 @@ future migration to a DBA-managed infrastructure database.
 | CPU | 1 core | 2 cores |
 
 > Measured 2026-10-28 (19.33 home = 11–12 GB); details and the whole-host
-> view: root README, [Disk Sizing Guide](../README.md#disk-sizing-guide).
+> view: root README, [Disk Sizing Guide](../docs/forms_reports_sizing.md#disk-sizing-guide).
 > These figures apply to a **metadata-only** database (FMW RCU schemas).
 > Do not use this sizing for application data, archive logs, or production loads.
 

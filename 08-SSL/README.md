@@ -14,7 +14,7 @@ This module manages the **SSL certificate lifecycle** for the Oracle Forms &
 Reports installation – the TLS certificate of the Nginx frontend and the
 code-signing certificate for `jacob.jar` (Forms/WebUtil). Role in the
 library: certificates are **built** here (see the folder roles in the
-[root README](../README.md#folder-roles)); the host-wide TLS audit incl.
+[root README](../docs/forms_reports_installation_steps.md#folder-roles)); the host-wide TLS audit incl.
 WebLogic's own SSL ports is `02-Checks/ssl_check.sh`.
 
 Background (`80-FMW-Architecture/`):

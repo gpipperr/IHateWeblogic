@@ -1,9 +1,6 @@
-
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
-
 <p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude </p>
-
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 
@@ -26,41 +23,68 @@ Independent community project – not affiliated with Oracle. See
 </pre>
 **I**nnovation **H**elps **A**dmins **T**o **E**nhance **W**eblogic-**B**ased **L**ifecycle **O**perations, **G**overnance, **I**ntegration & **C**ontrol => [IHateWeblogic.md](IHateWeblogic.md)
 
+> **Target Version:** This library targets **Oracle Fusion Middleware (FMW) 14.1.2 and later**
+> (Oracle Forms 14c, Reports 12c codebase under 14c naming, WebLogic 14c). Earlier versions
+> (12c domains, pre-14.1.2 WebLogic) are not supported.
+
+## Project Status
+
+> **Work in Progress** – This library is under active development.
+
+**`[███████████████████░]` ~96 % complete** (state 2026-11-06) – phases 1–7
+are implemented and the whole install chain is live-tested end-to-end incl.
+the smoke test; phase table, how the ~96 % is estimated and what ran live at
+customers: [docs/project_status.md](docs/project_status.md).
+
+## Start here
+
+**What:** a Bash library for the whole lifecycle of **Oracle Forms &
+Reports 14.1.2** on Oracle Linux – analyse and fix an existing environment,
+install a new one from an empty host, patch, harden, monitor. Every script
+is read-only by default and writes only with `--apply`.
+**For whom:** administrators and DBAs who run Forms & Reports.
+
+Three ways in:
+
+| I want to … | Start with |
+|---|---|
+| analyse an existing environment (also a customer's) | the tools ZIP – [70-Customer-Projects/tools](70-Customer-Projects/tools/README.md); on the host itself: [first run, required order](docs/forms_reports_installation_steps.md#first-run-on-an-existing-environment--required-order) |
+| install Forms & Reports 14c from an empty host | [09-Install/README.md](09-Install/README.md) – the install chain; overview: [lifecycle](docs/forms_reports_installation_steps.md#lifecycle-overview) |
+| understand why it behaves that way | [80-FMW-Architecture/](80-FMW-Architecture/README.md) – background articles with diagrams |
+| fix a known problem | DB login `ORA-12154` / `ORA-12162`: [tns_admin_check.sh](02-Checks/README.md#tns_admin_checksh) · fonts in PDF / HTML parameter form: [04-ReportsFonts §11](04-ReportsFonts/README.md#11-troubleshooting) · Reports slow, jobs waiting: [05-ReportsPerformance](05-ReportsPerformance/README.md) · Forms sessions dropped, timeouts: [06-FormsDiag](06-FormsDiag/README.md) |
+
 ## Moving from 12c to Forms & Reports 14c – the process in three steps
 
-```
- 1. extract + analyse          2. build 14c with the customer's     3. analyse again +
-    the old environment    ──▶    master data                   ──▶    harden security
-```
+Three steps: extract and analyse the old environment with the tools ZIP,
+build 14c with the customer's master data, analyse again and harden
+security – process, order on the new host and links:
+[docs/migration_forms_reports_to_14c.md](docs/migration_forms_reports_to_14c.md).
 
-| # | Step | What happens | Details |
-|---|---|---|---|
-| 1 | **Extract and analyse the data** | At the customer, from the tools ZIP: `collect_fmw_env.sh` (patch level) and `export_forms_reports_conf.sh` (configuration). On our host: a patch report and a Forms & Reports status report with traffic lights, as PDF for the customer. | [70-Customer-Projects/tools](70-Customer-Projects/tools/README.md), road map in [70-Customer-Projects](70-Customer-Projects/README.md#first-steps-at-a-customer--the-road-map) |
-| 2 | **Build the new environment with the customer's master data** | `customer_conf_import.sh` turns the export into the conf and an overlay. **Preferred:** import first, then interview and install chain (Way 1). For an environment already built with the library: `apply_customer_conf.sh` (Way 2). | [00-transfer_customer_settings.md](09-Install/docs/00-transfer_customer_settings.md) |
-| 3 | **Analyse again and harden security** | The same tools against the new 14c environment – the same reports, now as before / after for the customer. Then hardening along the findings, and `90-oracle_validate.sh`. | [phase D](09-Install/docs/00-transfer_customer_settings.md#6-phase-d--analyse-again-and-harden-security-step-3), [80-oracle_security.md](09-Install/docs/80-oracle_security.md), [81-reports_rwservlet_security.md](09-Install/docs/81-reports_rwservlet_security.md), [Security & Patch Status](#security--patch-status) |
+## Setup
 
-Collect at the **start** of a project, not when the new host is ready: the
-export of the old environment is the master data of the new build.
+The first three steps (detect the environment, store the WebLogic password,
+run the checks):
+[docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md#setup).
 
-**Step 2 in order on the new host (Way 1).** The import comes **before** the
-interview:
+### Lifecycle Overview
 
-```
- [oracle] git clone <repo> && cd IHateWeblogic
- [oracle] ./00-Setup/customer_conf_import.sh -i <export>.zip.enc --env <env>           # dry run
- [oracle] ./00-Setup/customer_conf_import.sh -i <export>.zip.enc --env <env> --apply   # conf + overlay, links environment.conf
- [oracle] ./09-Install/01-setup-interview.sh --apply      # continues the imported conf: customer values [kept],
-                                                          # asks only host values, decisions, passwords
- [root]   phase 0 (00-root_* … 05-root_nginx_ssl.sh), then the install chain 04- … 15-, 30-, 90-
-          → 09-Install/README.md "Installation Flow"
-```
+The numbered folders follow the lifecycle of an installation from an empty
+machine to monitoring (phases 1–9), with the folder roles (analyse + fix /
+build / monitor) and the known gaps:
+[docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md#lifecycle-overview).
 
-The overlay holds placeholders, not paths of the new host – `14-` fills them
-in later from the complete conf. So the importer needs nothing from the
-interview. Details and Way 2:
-[00-transfer_customer_settings.md](09-Install/docs/00-transfer_customer_settings.md#when-does-the-interview-run-no-chicken-and-egg-problem).
+Documentation:
 
-## Target Picture – Forms and APEX side by side
+| File | Content |
+|---|---|
+| [docs/migration_forms_reports_to_14c.md](docs/migration_forms_reports_to_14c.md) | 12c → 14c in three steps |
+| [docs/project_status.md](docs/project_status.md) | status per phase, live tests |
+| [docs/forms_reports_security.md](docs/forms_reports_security.md) | security & patch status, current cycle |
+| [docs/forms_reports_sizing.md](docs/forms_reports_sizing.md) | disk sizing, memory and processes |
+| [docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md) | lifecycle, folder roles, known gaps, first run, setup |
+| [docs/general_security.md](docs/general_security.md) | password concept, secure report invocation |
+
+## Target Picture – Forms and APEX side by side – the main idea behind this installation
 
 A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
 APEX on the same database**, each where it is strongest:
@@ -68,7 +92,7 @@ APEX on the same database**, each where it is strongest:
 | Use | Tool | Users |
 |---|---|---|
 | **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
-| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.2**) | everyone in the company, in the browser |
+| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.3**) | everyone in the company, in the browser |
 | **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
 
 ![target-picture](diagrams/target-picture.svg)
@@ -81,7 +105,7 @@ APEX on the same database**, each where it is strongest:
                           |  HTTPS
               +---------- Nginx (TLS, one host name) ----------+
               |                       |                         |
-        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.2)
+        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.3)
          Oracle Forms 14c       Oracle Reports              Oracle APEX 26.2
               |                       |                         |
               +-------------- Oracle Database --------------------+
@@ -100,104 +124,12 @@ Status in this library: manual installation in
 `ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
 the automation is an [open item](TODO.md).
 
-## Project Status
-
-**`[███████████████████░]` ~96 % complete** (state 2026-11-06) – phases 1–7
-are implemented and the whole install chain is live-tested end-to-end incl.
-the smoke test; all analyse + fix folders `01-`…`07-` and `08-SSL` were
-reviewed against the Oracle 14.1.2 documentation and re-tested live
-(2026-10-19/20); phase 8 is nearly done, phase 9 has its first script
-(`cve_inventory.sh`, since 2026-10-30 `cve_watch.sh`); host hardening
-(firewall, sshd) is live on the test host. The 14c move of a customer
-(export → analysis → import, [process](09-Install/docs/00-transfer_customer_settings.md))
-ran live at a customer on 2026-11-05/06: Way 2 and Way 1, including step 3,
-the re-analysis of the new 14c host. On 2026-11-09/10 a customer domain was
-hardened to localhost and cloned with its VM onto a new RCU prefix in another
-database (`reassociateSecurityStore`) – the findings are in
-[`clone_golden_image.md`](80-FMW-Architecture/clone_golden_image.md) and, anonymised
-with cookbooks, in
-[`FormsReports14_linux_localhost`](70-Customer-Projects/FormsReports14_linux_localhost/README.md) /
-[`FormsReports14_linux_clone`](70-Customer-Projects/FormsReports14_linux_clone/README.md).
-What was done when: [CHANGELOG.md](CHANGELOG.md) (newest first). What is
-still open: [TODO.md](TODO.md).
-
-How the ~96 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
-(CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
-the certificate expiry check and the Claude patch-cycle analysis done;
-notification, log analysis, config security scanner are concept); minus the
-[open items](TODO.md) – mainly the questions to Oracle (bundled
-JDK 17 + FMW DBCLIENT SR, `frmweb` bind address), the
-remaining client tests (update / offline / JACOB on Windows) and tests on a
-fresh installation.
-
-| # | Phase | Status |
-|---|---|---|
-| 1 | Installation | ✅ Done |
-| 2 | Configuration & First Start | ✅ Done – incl. secured Reports server (`REPORTS_SECURITY=ldap`, web-command design tested 2026-10-23 – [doc 81](09-Install/docs/81-reports_rwservlet_security.md)), autostart, NM-aware `startStop.sh`, smoke test `15-` (Forms XML → FMX, report → PDF, font test report with `pdffonts` / `pdf_font_verify.sh`); **one `TNS_ADMIN`** in `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`, `.bash_profile`, checked with `02-Checks/tns_admin_check.sh` incl. the running processes (2026-10-23); **Forms client distribution** `40-` + client templates – first Windows FSAL session 2026-10-23 ([concept 40](09-Install/docs/40-forms_client_distribution.md)) |
-| 3 | Check Logs | ✅ Done (incl. `rwrun_trace.sh`; `display_check.sh` dropped – tools need no X); reviewed 2026-10-19: one log discovery `03-Logs/log_locations.sh`, `setLogLevel` persist fix – [03-Logs/README.md](03-Logs/README.md) |
-| 4 | Set Up SSL | ✅ Done; reviewed 2026-10-20: local root CA for TLS + code signing, `jacob.jar` signed with DigiCert timestamp, redirects behind Nginx via `WL-Proxy-SSL` – [08-SSL/README.md](08-SSL/README.md) |
-| 5 | Solve Font Problems | ✅ Done; reviewed 2026-10-19: two font paths (PDF: TTF, HTML: screen-printer AFM/PPD), substitute fonts need AFM/PPD in PDF too – [04-ReportsFonts/README.md](04-ReportsFonts/README.md) |
-| 6 | Check Reports Performance | ✅ Done; rebuilt 2026-10-19 on `01-Run/reports_server_lib.sh` (right `rwserver.conf`, report engine, `authid`, server logs); since 2026-10-23 every engine value (`engLife`, `maxIdle`, `jvmOptions`, `engineResponseTimeOut` – proposal from the measured `showjobs` run times) comes from `environment.conf` and `--apply` writes it back – [05-ReportsPerformance/README.md](05-ReportsPerformance/README.md), background [reports_engine_architecture.md](80-FMW-Architecture/reports_engine_architecture.md) |
-| 7 | Check Forms | ✅ Done; rebuilt 2026-10-19 on `06-FormsDiag/forms_lib.sh` against Oracle's 14.1.2 parameters, prestart fix in `14-` (50 → 5 idle `frmweb`); 2026-10-23: `maxRuntimeProcesses` from RAM (interview / `14-`), `time-taken` in the access log (frmservlet + lservlet response times) – [06-FormsDiag/README.md](06-FormsDiag/README.md), background [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md) |
-| 8 | Maintenance & Patches | 🚧 Mostly done — reviewed 2026-10-19 ([07-Maintenance/README.md](07-Maintenance/README.md) §8: backup covers every file our scripts change incl. AFM metrics and customer font originals, restore per `--category` with path check, patch gate sees `rwserver`/engines/`frmweb`; retention 2026-10-23: `backup_config.sh --keep N`, `bak_cleanup.sh` for the `*.bak_<ts>` copies); backup/restore + WLS/Forms/Reports patching for an already-running environment (`07-Maintenance/80-82`) implemented; RCU repository: theory, profile `RCU_USER` (no password expiry), `db_securefile`/EBR pre-checks, `rcu_repository_check.sh` (check + Data Pump backup); JDK upgrade: `80-patch_java_os.sh --apply` installs the JDK 21 of MOS Patch 35702194 from the patch repository (downloaded only by `04-`; since the NFTC ended in Sep 2026 there are no public JDK 21 updates), live-tested 2026-10-20; patch set CPU Oct 2026 in conf + `04-`/`05-`/`06-` and applied on the test host 2026-10-24 (manual guide per cycle in `70-Customer-Projects/`, VM-snapshot pause in `80-`–`82-`), `rcu_repository_check.sh` check 6 invalid objects (2026-10-26); since 2026-10-30 patch numbers in `09-Install/download/patches_fmw.csv` (one list per cycle, also for the standalone download tool) and `patch_storage.sh` for a small local disk (`PATCH_ARCHIVE` on NFS/ZFS = master, local = cache per step, run history `log/run_history.csv`); open: OPatch patch for the FMW-bundled JDK `oracle_common/jdk` (SR) |
-| 9 | Proactive Monitoring | 🚧 Started – `cve_inventory.sh` (CVE watch step 1: components, patch cycle, both JDKs, active use / exposure, OS errata, `--online` advisories, third-party jars), `cve_watch.sh` (step 2, daily early warning: Oracle alerts page, NVD Oracle CNA records, OSV, KEV, EPSS, heise – alerts only new findings, journal `ihw-cve`), `cert_expiry_check.sh` (daily cron, journal tag `ihw-cert`), `patch_cycle_analysis.sh` (Claude patch-cycle analysis, skill doc + `update_plan.md`), `claude_setup_check.sh` (Claude sandbox / managed settings / guard hook, [setup_claude.md](10-Monitoring/setup_claude.md)); rest concept incl. config security scanner – see [10-Monitoring/README.md](10-Monitoring/README.md) |
-
-Details per phase: [Lifecycle Overview](#lifecycle-overview) below.
-
-
-
 ## Security & Patch Status
 
-> **Oracle now ships security fixes every month** (quarterly CPU, CSPU in
-> the other months, Security Alerts in between). Check the current cycle
-> **before every installation and every patch run**.
-
-**Current cycle: CPU October 2026 (2026-10-20) + Security Alert
-CVE-2026-91403 (Java SE JSSE, CVSS 9.1, 2026-10-21)** – state 2026-10-26.
-
-| | |
-|---|---|
-| Current patch list (14.1.2) | [`09-Install/docs/00-patch-references.md`](09-Install/docs/00-patch-references.md) – patch numbers from MOS KA1182 + CPU426, CVE check, "How to read KA1182", MOS Doc-ID table |
-| Earlier cycles | frozen snapshots, one per cycle, for rolling back by hand – table "Patch cycle history" in the same file (first: [CSPU September 2026](09-Install/docs/00-patch-references_september_2026.md)) |
-| Scripts / `oracle_software_version.conf` | **CPU October 2026** – switched and applied on the test host 2026-10-24 (smoke test OK, runtimes in the 14c folder) |
-| DB client tools, APEX, ORDS | own release cycles beside the FMW patches: Instant Client 23.26.x (DB RU), SQLcl / ORDS / APEX (OTN releases, APEX patch set bundles via MOS) – update = run `00-Setup/install_db_client_tools.sh` / `04-` again, see "DB client tools, APEX, ORDS" in the patch list |
-| Forms & Reports 14.1.2 – manual guide per cycle | [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md) – analysis (facts of all 17 patch READMEs) + step-by-step guide of the CPU Oct 2026 set – the master for the scripts |
-| Forms & Reports 12.2.1.19 (customer homes) | manual analysis: [`70-Customer-Projects/FormsReports12_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports12_patch_cpu_2026-10/README.md) |
-
-What matters in this cycle:
-
-- **WebLogic Core** CVE-2026-83399 (T3/IIOP) and CVE-2026-91323 (HTTP), Perl,
-  Apache Mina – all CVSS 9.8 → WLS SPB **40125898**, PERL **39951765**.
-- **Correction:** every FMW 14.1.2 home also needs the **eight FMW
-  Infrastructure bundle patches** (ADF, WebCenter Core, OWSM, FMW Control,
-  OAMCLIENT, UMS, OPSS, LibOVD) – they are not in the WLS SPB and were
-  missing in our September set.
-- **Java – target is the alert release, not the CPU release:** JDK 21
-  **21.0.13.0.2** (21.0.13 of the CPU is itself affected); Forms clients
-  JRE 8 **1.8.0_511-b26** (Patch 40186686; b25 = CPU build, affected). The
-  Forms client is a JSSE TLS client – the client JREs are the most
-  important measure:
-  [threat model](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
-- **FMW-bundled JDK** `oracle_common/jdk` 17.0.12: no patch in KA1182 –
-  open; the "alternative JAVA_HOME" fix of the Reports QPR (Bug 37866660) is
-  no way out (tools only, not certified for the engines) → SR.
-- **FMW DBCLIENT** 23.26.2 inside the Oracle Home (only updated through the
-  WLS SPB) is formally in the range of CVE-2026-101510 / -54399 (CVSS ≤ 4.4);
-  `jackson-databind` 2.16.1 in `jlib/` / `sqlcl/lib/` is not loaded – assessment
-  and scanner answer in `00-patch-references.md` ("FMW DBCLIENT – known
-  residual"), question added to the SR draft.
-- **Security Alert CVE-2026-114820** (2026-10-24, Java, eMudhra CA incident:
-  intermediate CAs with 8-bit keys) + OS `ca-certificates` (ELSA-2026-88459):
-  OS updated on the test host; JDK 21.0.13.0.2 already blocks the compromised
-  intermediates (next build removes the roots); the **bundled JDK 17.0.12
-  trusts them** (live-tested) – no mitigation inside it, argument for the SR.
-  Details: [00-patch-references.md – eMudhra](09-Install/docs/00-patch-references.md#emudhra-ca-incident--cve-2026-114820-state-2026-10-26).
-- Oracle publishes no CVE → patch mapping: we prove the **patch level**
-  ("installed ≥ patch document"), not the fix of a single CVE.
-
-
-> **Work in Progress** – This library is under active development.
+Oracle ships security fixes every month – check the current cycle before
+every installation and every patch run. Current cycle (CPU October 2026 +
+Security Alerts, state 2026-10-26), patch lists and what matters in it:
+[docs/forms_reports_security.md](docs/forms_reports_security.md).
 
 > **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CPU Oct 2026, local 19c
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
@@ -207,239 +139,34 @@ What matters in this cycle:
 > Forms client distribution via URL + first Windows FSAL session, one
 > `TNS_ADMIN` for all processes and the loopback-only / clone-capable domain
 > (2026-10-22/23), at a customer the localhost hardening of an existing domain
-> and a VM clone with a new RCU prefix (2026-11-09/10) – [Folder Roles](#folder-roles), background in
+> and a VM clone with a new RCU prefix (2026-11-09/10) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
 > fix: `git log`; what is still open: [TODO.md](TODO.md).
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 
-> **Target Version:** This library targets **Oracle Fusion Middleware (FMW) 14.1.2 and later**
-> (Oracle Forms 14c, Reports 12c codebase under 14c naming, WebLogic 14c). Earlier versions
-> (12c domains, pre-14.1.2 WebLogic) are not supported.
+### Report Security – Secure Invocation & Basic Hardening
 
+The Reports servlet is unsecured by default – secure invocation and basic
+hardening before going live:
+[docs/general_security.md](docs/general_security.md#report-security--secure-invocation--basic-hardening).
 
+### Password Security Concept
 
-## Disk Sizing Guide
+Every password is stored encrypted and machine-bound (`openssl`, key from
+the disk UUID), one `.des3` file per secret:
+[docs/general_security.md](docs/general_security.md#password-security-concept).
 
-Measured on the test host on 2026-10-28. That host runs everything on one server and one 99 GB file system: Forms + Reports domain, local RCU database 19c, APEX + ORDS, patch storage. It is **92 GB full** right after the out-of-place DB patch, with the old and the new DB home side by side. Plan for the **peak during patching**, not for the steady state.
+## Sizing Guide
 
-| Area | Path (default) | Measured | Plan for | Why |
-|---|---|---|---|---|
-| **FMW Oracle Home** (WLS + Forms & Reports, patched) | `$ORACLE_HOME` (`$ORACLE_BASE/fmw`) | 6.8 GB | **12 GB** | OPatch keeps roll-back copies in `.patch_storage` – grows with every cycle (SPB, bundles, QPRs) |
-| FMW patching workspace | SPB unpacked outside the home | – | **+5 GB** temporary | WLS Stack Patch Bundle README: ≥ 4 GB outside the Oracle Home |
-| **Domain** | `$DOMAIN_HOME` | 2.0 GB | **5 GB** | server logs, Reports cache / output, Forms temp; rotation in `07-Maintenance` |
-| JDK | `$ORACLE_BASE/java` | 1.0 GB | **2 GB** | old + new JDK side by side during an update (junction / symlink switch) |
-| **RCU DB home** | `$ORACLE_BASE/product/<ru>/db_home1` | 12 GB per home | **2 × 12 = 24 GB** | out-of-place patch: new home (19.33 gold image + OJVM / Data Pump / JDK = 11 GB) next to the running one until the old one is removed ([09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md)) |
-| DB data files | `DB_DATA_DIR` (`$ORACLE_BASE/oradata`) | 9.3 GB | **15 GB** | CDB + PDB + RCU schemas (67 MB) + APEX; datapatch / `utlrp` grow SYSTEM / SYSAUX |
-| DB admin / diag / FRA | `admin`, `diag`, `flash_recovery_area` | 0.6 GB | **3 GB** | Data Pump dumps before a patch, audit, alert / trace; FRA only with ARCHIVELOG (then much more) |
-| **AutoUpgrade staging** | `DB_AUTOUPGRADE_HOME` | 7.9 GB | **8 GB**, AutoUpgrade download **+10 GB** | gold image 4.9 GB + OneOffs + OPatch; only an AutoUpgrade download also unpacks the 19.3 base ZIP (3 GB ZIP + 6.6 GB `base_stage`) – with the patch set local (offline route / gold image) no `base_stage` |
-| APEX / ORDS / Instant Client | `product/apex`, `ords_*`, `instantclient*` | 1.6 GB | **3 GB** | two ORDS homes for an ORDS switch |
-| **Patch storage** | `PATCH_STORAGE` (`/srv/patch_storage`) | 20 GB | **30 GB** | base installers (WLS 4.2, F&R 2.7 GB), current patch set 3.8 GB **+ archived previous set** (6.5 GB, `04- --fresh-patches`), client Java 1.1 GB, APEX / ORDS / SQLcl |
-| OS / swap / tmp | `/`, `swapfile`, `/tmp` | ~15 GB | **20 GB** | swap file 2 GB, `/tmp` for installers and OPatch |
-
-**Totals:**
-
-| Setup | Plan for |
-|---|---|
-| FMW only (RCU DB on another server) | **~75 GB**: FMW 12 + 5 workspace + domain 5 + JDK 2 + patch storage 30 + OS 20 – the patch storage can be shared or on a separate disk |
-| RCU DB server only | **~80 GB**: 2 homes 24 + data 15 + admin 3 + AutoUpgrade 18 + OS 20 |
-| **Everything on one host** (like the test host) | **≥ 140 GB** (sum of the plan column: 137 GB). Better split: `/u01` ≥ 90 GB, `/srv/patch_storage` 30–40 GB, OS 20 GB. 100 GB is already too tight while a DB patch runs. |
-
-Rules:
-
-- Check free space **before** every patch run. `01-db_install_software.sh` and `09-db_patch_rcu.sh` check it first and stop on FAIL; the FMW patch scripts `81-` / `82-` need the SPB workspace.
-- Each cycle: remove the old DB home after a few days of stable operation (`deinstall`, about 12 GB). Archived patch sets in `PATCH_STORAGE` older than one cycle can go too. Clean up `.patch_storage` of the FMW home only with `opatch util cleanup` (never by hand).
-- Small local disk: keep the patches in an NFS/ZFS archive (`PATCH_ARCHIVE`) and pull only the next step's files – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean --apply`; find the space eaters with `70-Customer-Projects/tools/bash/check_disk_space.sh`.
-- Logs and backups grow without limit unless rotated: `07-Maintenance` (`backup_config.sh --keep`, `bak_cleanup.sh`), the domain log rotation and the Data Pump dumps of `rcu_repository_check.sh --apply`.
-
-## Lifecycle Overview
-
-The numbered folders in this repository follow the lifecycle of a real
-Oracle Forms & Reports installation, from an empty machine to steady-state
-operation with proactive, AI-assisted error analysis.
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  PHASE 1 – EMPTY SYSTEM → INSTALLATION                              │
-│  (root + oracle, one-time)                                          │
-│                                                                     │
-│  00-Setup/            Shared library, environment concept,         │
-│                       credential handling                          │
-│  00-Setup/customer_conf_import.sh  customer master data (14c move, │
-│                       before the interview)                        │
-│  09-Install/00–03     OS baseline, packages, Java, "oracle" user    │
-│  09-Install/04–05     Nginx (optional), WebLogic installation       │
-│  09-Install/06        Forms & Reports installation                 │
-│  60-RCU-DB-19c/       Repository DB: OS baseline, CVU pre-check,   │
-│                       DB software, listener, database, audit,      │
-│                       FMW tablespace, RCU profile, autostart        │
-│  09-Install/07        RCU – create repository schemas in the DB    │
-│  09-Install/08        Create the domain (WLST)                     │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 2 – CONFIGURATION & FIRST START                              │
-│  (oracle)                                                            │
-│                                                                     │
-│  09-Install/09        boot.properties, JVM, font packages, backup   │
-│  00-Setup/detect_env_conf.sh Add runtime parameters to environment.conf    │
-│  09-Install/10–11     boot.properties, NodeManager (+ NM creds)    │
-│  09-Install/12        Reports users (monUser, RepRunner)            │
-│  09-Install/13        Configure Reports Server                     │
-│  09-Install/14        Configure Forms (template copy approach)     │
-│  09-Install/14b       Reports fonts, uifont.ali, cgicmd.dat         │
-│  09-Install/30        Autostart: systemd unit + Node Manager        │
-│  09-Install/15        Smoke test: Forms XML -> FMX, report -> PDF   │
-│  09-Install/40        Forms client bundle via URL (jlink, FSAL)     │
-│  01-Run/startStop.sh  Start/stop through the Node Manager           │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 3 – CHECK LOGS                                               │
-│  (oracle)                                                            │
-│                                                                     │
-│  03-Logs/tail_logs.sh       Follow live logs during first start    │
-│  03-Logs/grep_logs.sh       Error patterns (ORA-, REP-, FRM-)      │
-│  03-Logs/get_all_logs.sh    Collect a full log bundle               │
-│  02-Checks/os_check.sh      Re-verify OS/RAM/disk/ulimits           │
-│  02-Checks/java_check.sh    JAVA_HOME, version, Log4j CVE scan      │
-│  02-Checks/port_check.sh    Port reachability                      │
-│  02-Checks/tns_admin_check.sh  One TNS_ADMIN, files + processes    │
-│  02-Checks/clone_check.sh   Loopback only, clone / golden image    │
-│  01-Run/rwserver_status.sh  Reports Server health                  │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 4 – SET UP SSL                                               │
-│  (root + oracle)                                                    │
-│                                                                     │
-│  08-SSL/ssl_prepare_cert.sh          Create / request a certificate│
-│  08-SSL/ssl_local_ca.sh              Own root CA: TLS + codesigning│
-│  09-Install/05-root_nginx_ssl.sh     Deploy to Nginx                │
-│  08-SSL/ssl_config.sh                Audit + verification          │
-│  02-Checks/ssl_check.sh              Ongoing certificate checks    │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 5 – SOLVE FONT PROBLEMS                                      │
-│  (oracle)                                                            │
-│                                                                     │
-│  04-ReportsFonts/uifont_ali_update.sh   uifont.ali font mapping     │
-│  04-ReportsFonts/fontpath_config.sh     Font paths + JAVA_OPTIONS   │
-│  04-ReportsFonts/font_cache_reset.sh    Reset the font cache        │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 6 – CHECK REPORTS PERFORMANCE  (also alone, existing env.)   │
-│  (oracle)                                                            │
-│                                                                     │
-│  05-ReportsPerformance/engine_perf_settings.sh   rules, CPU, RAM    │
-│  05-ReportsPerformance/engine_perf_analyse.sh    failures, queue,   │
-│                                                   pool, server logs │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 7 – CHECK FORMS                                              │
-│  (oracle)                                                            │
-│                                                                     │
-│  06-FormsDiag/forms_settings.sh         configuration consistent?   │
-│  06-FormsDiag/forms_perf_settings.sh    timeouts, limit, prestart   │
-│  06-FormsDiag/forms_perf_analyse.sh     frmweb per section, logs    │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 8 – MAINTENANCE & PATCHES                                    │
-│  (oracle + root, recurring)                                         │
-│                                                                     │
-│  → 09-Install/docs/00-patch-references.md     Current patch numbers │
-│  07-Maintenance/backup_config.sh              Backup before every  │
-│                                                patch                 │
-│  01-Run/startStop.sh stop-all --apply          Stop before patching │
-│  07-Maintenance/80-patch_java_os.sh            Java/OS (read-only)  │
-│  07-Maintenance/81-patch_weblogic.sh           WebLogic patches     │
-│  07-Maintenance/82-patch_forms_reports.sh      Forms/Reports patches│
-│  60-RCU-DB-19c/01- --target-home + 09-         Database RU (o-o-p)  │
-│  01-Run/startStop.sh start-all --apply         Start after patching │
-│  07-Maintenance/restore_config.sh              Rollback on issues   │
-│  07-Maintenance/bak_cleanup.sh --apply         Old *.bak_<ts> copies│
-│  07-Maintenance/patch_storage.sh clean --apply Free patch ZIPs      │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│  PHASE 9 – PROACTIVE MONITORING (new)                               │
-│  (oracle, cron / systemd timer, ongoing)                             │
-│                                                                     │
-│  10-Monitoring/cve_inventory.sh    Installed components, patch      │
-│                                     cycle, JDKs, exposure, advisory │
-│  10-Monitoring/cve_watch.sh        New CVEs / alerts, daily (cron)  │
-│  10-Monitoring/cert_expiry_check.sh Certificates, daily (cron)      │
-│  10-Monitoring/claude_monitor.sh   Collects diagnostic data from    │
-│                                     phases 3–7 (logs, SSL, fonts,   │
-│                                     Reports/Forms performance)      │
-│  10-Monitoring/claude_analyze.sh   Claude API analysis →            │
-│                                     SEVERITY / ROOT_CAUSE /          │
-│                                     RECOMMENDED_ACTION                │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-### Folder Roles
-
-The library grew in this order: first the scripts to analyse an **existing**
-environment (01–07, customer engagements), then the installation (09), last
-the monitoring (10). The folder numbers stay; each folder has one role:
-
-| Role | Folders | Rule |
-|---|---|---|
-| **Analyse + fix** a running environment (no matter who built it) | `01-Run/`, `02-Checks/`, `03-Logs/`, `04-ReportsFonts/`, `05-ReportsPerformance/`, `06-FormsDiag/`, `07-Maintenance/` | read-only by default, `--apply` repairs with backup, may be interactive |
-| **Build** (once, fixed order) | `09-Install/`, `08-SSL/`, `60-RCU-DB-19c/` | sets the values from `environment.conf`; acceptance by calling the analyse scripts (`09-Install/docs/90-oracle_validate.md`), no own check logic |
-| **Monitor** (regularly, unattended) | `10-Monitoring/` | calls the analyse scripts read-only (exit code, log), never `--apply`; own logic only for what exists nowhere else (CVE comparison, trends, AI assessment) |
-| Background / customer | `80-FMW-Architecture/`, `70-Customer-Projects/` | why it behaves that way / manual cookbooks |
-
-Rules across the folders:
-
-1. **Logic exists once.** Shared functions live in a sourced library of the
-   folder that owns the topic (`01-Run/reports_server_lib.sh`,
-   `03-Logs/log_locations.sh`, `06-FormsDiag/forms_lib.sh`). Build and monitor call the scripts, they do
-   not copy them. (The 05 review of 2026-10-19 found stale copies that
-   evaluated the wrong file – the reason for this rule.)
-2. **One value, one source.** Target and tuning values live in
-   `environment.conf`. The installation writes them to the Oracle files;
-   an `--apply` in 01–07 writes changed values back to `environment.conf`, so a
-   later installation run does not reset them.
-3. **Monitoring needs machine-readable output.** Exit code 0/1/2 and
-   `print_summary` exist in every script; a uniform report/JSON format is an
-   open item in [10-Monitoring/README.md](10-Monitoring/README.md).
-
-### Known Gaps
-
-| Phase | Gap |
-|---|---|
-| Phase 8 (Patches) | FMW-bundled JDK `oracle_common/jdk` (17.0.12, OPatch component `oracle.jdk`) – no patch in KA1182 (`FMW_JDK_PATCH_NR`); FMW DBCLIENT 23.26.2 only via the SPB – SR draft ready |
-| Phase 9 (Monitoring) | `cve_inventory.sh`, `cve_watch.sh`, `cert_expiry_check.sh`, `patch_cycle_analysis.sh`, `claude_setup_check.sh` implemented (Claude sandbox rollout on the test host open), rest concept — see `10-Monitoring/README.md` |
-| Security | `frmweb` / Coherence remainder on all interfaces / host IP (firewall); `ADMIN_IP_RANGE` optional (asked by `04-root_nginx.sh`, `any` where there is no admin network) |
+Disk space, memory and process settings:
+[docs/forms_reports_sizing.md](docs/forms_reports_sizing.md).
 
 ## First Run on an Existing Environment – Required Order
 
-A **new installation** runs through the install chain instead – order,
-phases and gates in [`09-Install/README.md`](09-Install/README.md) (customer
-14c move: [Step 2 in order](#moving-from-12c-to-forms--reports-14c--the-process-in-three-steps)).
-
-On an **existing** environment (built by somebody else, analyse + fix), run
-these scripts in sequence:
-
-```
-1.  00-Setup/detect_env_conf.sh                  # Detect paths, generate environment.conf
-2.  00-Setup/weblogic_sec.sh              # Store WebLogic password (encrypted, machine-local)
-3.  02-Checks/weblogic_performance.sh     # Check/apply SecureRandom fix + JVM heap settings
-4.  02-Checks/os_check.sh                 # Validate OS, kernel, ulimits
-5.  02-Checks/java_check.sh               # Verify correct JDK is used
-6.  02-Checks/port_check.sh               # Verify WebLogic/OHS ports
-7.  02-Checks/db_connect_check.sh         # Verify TNS/DB connectivity
-8.  02-Checks/ssl_check.sh                # Check SSL/TLS configuration and cert expiry
-9.  04-ReportsFonts/font_inventory.sh     # Inventory PS and TTF fonts
-10. 04-ReportsFonts/get_font_names.sh     # Generate uifont.ali entries
-11. 04-ReportsFonts/uifont_ali_update.sh  # Update uifont.ali (--apply to write)
-```
+New installation: [`09-Install/README.md`](09-Install/README.md). Existing
+environment (analyse + fix): the order of the first scripts –
+[docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md#first-run-on-an-existing-environment--required-order).
 
 ## Script Directories
 
@@ -461,15 +188,24 @@ these scripts in sequence:
 | `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
+## Common Flags
+
+- `--apply` : Execute write/change operations (default: read-only/dry-run)
+- `--help`  : Show usage information
+
 ## Repository Structure
 
 ```
 IHateWeblogic/
 │
-├── README.md                        – First-run order, purpose of each script, debug checklist
+├── README.md                        – Start here, target picture, script directories, repository structure
 ├── TODO.md                          – Open items (everything not yet done or tested)
 ├── CHANGELOG.md                     – What was finished when, newest first
 ├── IHateWeblogic.md                 – Background and intention of the IHateWeblogic script lib
+├── docs/                            – sections moved out of this README (2026-11-11): migration to 14c,
+│                                    project status, security & patch status, sizing (disk, memory,
+│                                    processes), installation steps (lifecycle, first run, setup),
+│                                    general security (passwords, report invocation)
 ├── environment.conf                 ← symlink → 00-Setup/environments/<name>.conf  (do NOT commit)
 ├── weblogic_sec.conf.des3           ← generated by 00-Setup/weblogic_sec.sh (do NOT commit)
 ├── *_sec.conf.des3, *.conf.des3     ← further encrypted secrets (interview / 13- / 15-), see
@@ -837,150 +573,6 @@ is demo. Placeholders such as `<host>` or `<repserver>` stay where the reader
 **must** put in an own value; default values inside the scripts are not demo
 data and stay as they are.
 
-## Common Flags
-
-- `--apply` : Execute write/change operations (default: read-only/dry-run)
-- `--help`  : Show usage information
-
-## Setup
-
-```bash
-# Step 1: Detect environment
-./00-Setup/detect_env_conf.sh
-
-# Step 2: Store WebLogic password (encrypted with machine UUID)
-./00-Setup/weblogic_sec.sh
-
-# Step 3: Run checks
-./02-Checks/java_check.sh
-./02-Checks/port_check.sh
-```
-
-## Oracle Documentation References
-
-- Forms 14c Install Guide: https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html
-- Reports 12c Install Guide: https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/
-- Reports 14c Install Guide on Windows: https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64 
-- Reports 12c Install Guide on Windows:https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64
-- SSL Weblogic : https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl
-
-- Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
-- Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
-  [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
-- RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade
-  Assistant, OPatch, 11g Patch Set Assistant):
-  [`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)
-- Working with Oracle Forms 14.1.2 (Web Configuration Parameters, Environment Variables, runtime pooling):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html –
-  digested with quotes in [`80-FMW-Architecture/forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md)
-- Reports server / engines / `rwrun` with Oracle sources:
-  [`80-FMW-Architecture/reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md)
-
-## Troubleshooting
-
-### Database login: ORA-12154 / ORA-12162
-
-An alias login (`user/pwd@ALIAS`) in Forms or a report fails although the
-alias is in "the" `tnsnames.ora`: the process reads another directory.
-`./02-Checks/tns_admin_check.sh` compares `TNS_ADMIN` of `environment.conf`
-with `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`,
-`.bash_profile` **and** the running processes, and names the script that
-fixes each place ([02-Checks/README.md](02-Checks/README.md#tns_admin_checksh)).
-
-### Reports / Forms performance and sessions
-
-- Reports server slow, jobs waiting, failures: `05-ReportsPerformance/engine_perf_analyse.sh`
-  ([05-ReportsPerformance/README.md](05-ReportsPerformance/README.md)).
-- Forms sessions dropped, too many `frmweb`, timeouts: `06-FormsDiag/forms_perf_settings.sh`
-  ([06-FormsDiag/README.md](06-FormsDiag/README.md), background
-  [forms_runtime_architecture.md](80-FMW-Architecture/forms_runtime_architecture.md)).
-
-### Font Problems
-
-For detailed font troubleshooting in PDF generation see [04-ReportsFonts/README.md](04-ReportsFonts/README.md) – Section 11.
-
-For font problems in the **HTML parameter form** (e.g. text rendered in the
-Symbol font / Greek glyphs instead of the expected Latin text) see
-[04-ReportsFonts/HTML_ParameterForm_Fonts.md](04-ReportsFonts/HTML_ParameterForm_Fonts.md)
-– a separate font code path from PDF generation, with its own root cause and fix.
-
-## Password Security Concept
-
-Based on: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen
-
-The WebLogic admin password is encrypted with `openssl des3` using the machine's
-disk UUID as key. The encrypted file `weblogic_sec.conf.des3` is machine-specific
-and **must not be committed to git** (covered by `.gitignore`).
-
-The same mechanism (`_write_secrets_file` / `load_secrets_file` in the lib)
-holds all other secrets in the repository root – never in `environment.conf`:
-
-| File | Content | Written by |
-|---|---|---|
-| `weblogic_sec.conf.des3` | WebLogic admin | `01-setup-interview.sh`, `00-Setup/weblogic_sec.sh` |
-| `db_sys_sec.conf.des3` | DB SYS + RCU schema password | interview |
-| `mos_sec.conf.des3` | My Oracle Support | interview, `00-Setup/mos_sec.sh` |
-| `reports_users.conf.des3` | `monUser`, `RepRunner` | `12-oracle_reports_users.sh` |
-| `embedded_ldap_sec.conf.des3` | embedded LDAP `cn=Admin` (`REPORTS_SECURITY=ldap`) | interview (13- sets it in the domain) |
-| `reports_admin_sec.conf.des3` | Reports server admin `<identifier>` | interview, else random by `13- --apply` |
-| `test_db_sec.conf.des3` | DB user of the smoke test | `15-` (asks once) |
-
-## Report Security – Secure Invocation & Basic Hardening
-
-By default the Reports Servlet (`rwservlet`/`getserverinfo`) is **unsecured** –
-anyone who can reach the port can query server status or run reports. This is
-important to fix before going live, not just a nice-to-have.
-
-See [`09-Install/docs/12-weblogic-report-monitoring_user.md`](09-Install/docs/12-weblogic-report-monitoring_user.md)
-for the full role-based security model: a three-tier WebLogic/OPSS permission
-chain (Application Policy → Application Role → user in the Security Realm)
-separating **monitoring** (`monUser` / `RW_MONITOR` – status queries only, no
-reports) from **report execution** (`RepRunner` / `RW_EXECREPORTS` – runs
-reports via `authid=` in `cgicmd.dat`, password never appears in the report
-URL) from full **admin access** (`weblogic` / `RW_ADMINISTRATOR`). Automated
-by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
-German manual cookbook (Schritt 8) for customers installing by hand — see
-[`70-Customer-Projects/`](70-Customer-Projects/README.md).
-
-> **Since 2026-10-16 the default is a secured Reports server**
-> (`REPORTS_SECURITY=ldap`, `13-`): `securityId` on the report job + the
-> standalone server's identity store pointed to the WebLogic embedded LDAP –
-> then `monUser`/`RW_MONITOR` (`getserverinfo`) and `RepRunner`/`RW_EXECREPORTS`
-> (report jobs, via the `cgicmd.dat` key `default: … %* authid=…`) work as
-> designed; calls without login get HTTP 499. Background:
-> [`80-FMW-Architecture/reports_user_local_ldap.md`](80-FMW-Architecture/reports_user_local_ldap.md).
->
-> **Live finding 2026-10-15** (still true for `REPORTS_SECURITY=identifier`):
-> as long as the Reports server is **not**
-> secured via `securityId` on the `<job>` element of `rwserver.conf`, the
-> roles above do not apply to web commands. With `<webcommandaccess>`
-> `no`/`L0`/`L1`, `getserverinfo`/`showjobs` then require the **server
-> administrator** from `<identifier>` in `rwserver.conf` as `authid`
-> (`repadmin/...`); `authid=monUser/...` or the WebLogic admin return
-> `REP-52262 Diagnostic output is disabled` (confirmed in the
-> `CommandManager.checkDiagnostic` bytecode). See
-> `09-Install/docs/13-reports-detail-settings.md`.
->
-> `01-Run/rwserver_status.sh` and `05-ReportsPerformance/engine_perf_analyse.sh`
-> call `getserverinfo` with `authid` (`--auth`, shared
-> `01-Run/reports_server_lib.sh`, since 2026-10-17 / 2026-10-19).
->
-> **Test series 2026-10-23** ([doc 81 §7](09-Install/docs/81-reports_rwservlet_security.md)):
-> an **empty** `<identifier>` stops the Reports server from starting
-> (REP-50125, restart loop), a missing one locks every web command;
-> `webcommandaccess=L0` is not open, **`L2` opens every web command without
-> login – also through Nginx**. `rwserver_status.sh` checks all three; the
-> Nginx template blocks the admin web commands from outside.
->
-> **Live finding 2026-11-03:** WebLogic logs the whole `cs-uri` – a GET with
-> `authid=user/password` (or `userid=` with the DB password) lands **in plain
-> text** in `WLS_REPORTS/logs/access.log`. Send web commands and report
-> requests as **POST** (all parameters in the body – a POST ignores the
-> query string); `reports_server_lib.sh` does so since 2026-11-03, `15-` and
-> the docs since 2026-11-06. Old log files keep the passwords. Monitoring
-> of the server: [reports_monitoring_getserverinfo.md](80-FMW-Architecture/reports_monitoring_getserverinfo.md);
-> error XML codes have no `REP-` prefix (`code="56071"`).
-
 ## Disclaimer & Acknowledgements
 
 ### Disclaimer
@@ -1015,3 +607,23 @@ substantially shaped the concepts and structure of this installation guide.
 **Mark Eichhorst** – for his support and patience with Oracle Forms and Reports
 questions, and for the inspiration that came from the challenges and tasks he brought
 to the table.
+
+## Oracle Documentation References
+
+- Forms 14c Install Guide: https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html
+- Reports 12c Install Guide: https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/
+- Reports 14c Install Guide on Windows: https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64 
+- Reports 12c Install Guide on Windows:https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64
+- SSL Weblogic : https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl
+
+- Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+- Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
+  [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
+- RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade
+  Assistant, OPatch, 11g Patch Set Assistant):
+  [`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)
+- Working with Oracle Forms 14.1.2 (Web Configuration Parameters, Environment Variables, runtime pooling):
+  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html –
+  digested with quotes in [`80-FMW-Architecture/forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md)
+- Reports server / engines / `rwrun` with Oracle sources:
+  [`80-FMW-Architecture/reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md)

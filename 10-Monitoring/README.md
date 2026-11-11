@@ -628,4 +628,4 @@ their logic. Repairs stay a human decision in 01–07.
 - Notification of the cron checks (`cert_expiry_check.sh` writes only to the
   journal tag `ihw-cert` today)
 
-Same list, project-wide: root [README.md – Open Items, Monitoring](../README.md#monitoring-phase-9).
+Same list, project-wide: [TODO.md – Monitoring (phase 9)](../TODO.md#monitoring-phase-9).

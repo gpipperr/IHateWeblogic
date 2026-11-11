@@ -134,7 +134,7 @@ Runs the following checks in sequence and reports OK/WARN/FAIL for each:
 | 2 | Oracle JDK at `JDK_HOME` (version, vendor) | direct check – `java_check.sh` re-reads `environment.conf` and is meant for the installed system (both JDKs, running JVMs) |
 | 3 | Ports 7001, 9001, 9002, 5556 **free** | direct check – `port_check.sh` checks the opposite (ports open, WLS running) after the installation |
 | 4 | DB connectivity for RCU (skipped with `--skip-db`; skipped automatically with `LOCAL_REP_DB=true` while no local DB runs yet – no `ora_pmon_*`, nothing on `DB_PORT`; the DB is built later with `60-RCU-DB-19c/`) | → calls `02-Checks/db_connect_check.sh` |
-| 5 | Disk space in ORACLE_HOME, DOMAIN_HOME, PATCH_STORAGE – sizing: [Disk Sizing Guide](../../README.md#disk-sizing-guide) | direct check |
+| 5 | Disk space in ORACLE_HOME, DOMAIN_HOME, PATCH_STORAGE – sizing: [Disk Sizing Guide](../../docs/forms_reports_sizing.md#disk-sizing-guide) | direct check |
 | 6 | – (ulimits: part of check 1) | – |
 | 7 | oraInst.loc exists and is valid | direct check |
 | 8 | Directory ownership (oracle owns ORACLE_BASE) | direct check |

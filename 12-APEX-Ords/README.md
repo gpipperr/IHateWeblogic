@@ -17,7 +17,7 @@ anonymised).
 ## 1. Why APEX beside Forms
 
 A modern Forms environment is Forms **and** APEX on the same database
-([root README, Target Picture](../README.md#target-picture--forms-and-apex-side-by-side)):
+([root README, Target Picture](../README.md#target-picture--forms-and-apex-side-by-side--the-main-idea-behind-this-installation)):
 
 | Use | Tool |
 |---|---|

@@ -613,7 +613,7 @@ a specific measured host; validate with real load testing before sizing
 production hardware.
 
 > If the database runs on the same host (`LOCAL_REP_DB=true`), add DB RAM/CPU
-> requirements on top – disk: [Disk Sizing Guide](../README.md#disk-sizing-guide).
+> requirements on top – disk: [Disk Sizing Guide](../docs/forms_reports_sizing.md#disk-sizing-guide).
 
 ### 9.2 Oracle Universal Installer (OUI) minimum requirements
 
@@ -693,8 +693,8 @@ ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;
 /srv/patch_storage/               ← PATCH_STORAGE (own file system recommended)
 ```
 
-Disk space per area (FMW only ~75 GB, with a local RCU DB ≥ 140 GB): root
-README [Disk Sizing Guide](../README.md#disk-sizing-guide).
+Disk space per area (FMW only ~75 GB, with a local RCU DB ≥ 140 GB): see
+[Disk Sizing Guide](../docs/forms_reports_sizing.md#disk-sizing-guide).
 
 ---
 

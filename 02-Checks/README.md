@@ -427,6 +427,14 @@ too (`journalctl`).
 
 ### tns_admin_check.sh
 
+**Symptom – database login `ORA-12154` / `ORA-12162`:** an alias login
+(`user/pwd@ALIAS`) in Forms or a report fails although the alias is in "the"
+`tnsnames.ora`: the process reads another directory.
+`./02-Checks/tns_admin_check.sh` compares `TNS_ADMIN` of `environment.conf`
+with `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh`,
+`.bash_profile` **and** the running processes, and names the script that
+fixes each place.
+
 ```bash
 ./02-Checks/tns_admin_check.sh            # read-only: every place + running processes
 ./02-Checks/tns_admin_check.sh --apply    # write the setUserOverrides.sh block (backup)

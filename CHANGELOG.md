@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- **Root README compacted** (ACE item 3, move – not shorten): new "Start here" block; nine
+  sections moved 1:1 into `docs/` – `migration_forms_reports_to_14c.md`, `project_status.md`
+  (the ~96 % sentence stays in the README too), `forms_reports_security.md`,
+  `forms_reports_sizing.md` (+ new "Memory and process settings" table with sources),
+  `forms_reports_installation_steps.md` (lifecycle incl. folder roles / known gaps, first run,
+  setup), `general_security.md` (password concept, report security). Headings stay as stubs
+  with one summary + link; line check 0 lost; incoming anchors repointed (00-Setup, 01-Run, 07-,
+  08-SSL, 09-Install, 60-RCU, TODO); broken `#monitoring-phase-9` link of 10-Monitoring fixed. `## Troubleshooting` dissolved:
+  symptom entries added in 02-Checks (`tns_admin_check.sh`), 04-ReportsFonts §11 (HTML parameter
+  form), 05 / 06 overviews; "Start here" got a row "fix a known problem".
 - `Reports14_builder_windows/scripts/`: `pull.ps1` and `checkin.ps1` (simple skeleton, German
   messages, plain ASCII, PowerShell 5.1 syntax) + `template.gitattributes` / `.gitignore`. Only
   fast-forward, never stash: a pull with own changes is allowed (Git aborts by itself when the

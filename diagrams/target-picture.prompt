@@ -63,7 +63,7 @@ Shapes and colours (simple technical style, white background)
                           |  HTTPS
               +---------- Nginx (TLS, one host name) ----------+
               |                       |                         |
-        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.2)
+        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.3)
          Oracle Forms 14c       Oracle Reports              Oracle APEX 26.2
               |                       |                         |
               +-------------- Oracle Database --------------------+
