@@ -24,10 +24,10 @@ first rollout.
 
 ## 1. Placement
 
-![claude-hosts](diagrams/claude-hosts.svg)
-<sub>Quelle: [diagrams/claude-hosts.prompt](diagrams/claude-hosts.prompt) · [D2](diagrams/claude-hosts.d2)</sub>
+![claude-hosts](diagrams/claude-hosts.svg?v=e28c8c50)
+<sub>Source: [diagrams/claude-hosts.prompt](diagrams/claude-hosts.prompt) · [D2](diagrams/claude-hosts.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=claude-hosts
  production FMW host                 analysis host (test host / admin VM)
