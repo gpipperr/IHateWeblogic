@@ -1,5 +1,11 @@
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Scripts
 
+> [!IMPORTANT]
+> **For Oracle Fusion Middleware 14.1.2 and later only** – Oracle Forms 14c,
+> Oracle Reports 14c (12c code base under the 14c name), WebLogic 14c.
+> 12c domains and WebLogic before 14.1.2 are **not supported**.
+> Moving from 12c: [docs/migration_forms_reports_to_14c.md](docs/migration_forms_reports_to_14c.md).
+
 <p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude </p>
 
 Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
@@ -22,10 +28,6 @@ Independent community project – not affiliated with Oracle. See
 <b>C</b> – <b>C</b>ontrol
 </pre>
 **I**nnovation **H**elps **A**dmins **T**o **E**nhance **W**eblogic-**B**ased **L**ifecycle **O**perations, **G**overnance, **I**ntegration & **C**ontrol => [IHateWeblogic.md](IHateWeblogic.md)
-
-> **Target Version:** This library targets **Oracle Fusion Middleware (FMW) 14.1.2 and later**
-> (Oracle Forms 14c, Reports 12c codebase under 14c naming, WebLogic 14c). Earlier versions
-> (12c domains, pre-14.1.2 WebLogic) are not supported.
 
 ## Project Status
 
