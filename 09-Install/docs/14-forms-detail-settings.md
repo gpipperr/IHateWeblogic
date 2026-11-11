@@ -66,8 +66,8 @@ Steps performed by `14-oracle_setup_forms.sh`:
 
 ```bash
 # Set by detect_env_conf.sh or manually in environment.conf
-ORACLE_HOME=/u01/oracle/fmw
-DOMAIN_HOME=/u01/user_projects/domains/fr_domain
+ORACLE_HOME=/u01/app/oracle/fmw
+DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
 FORMS_INSTANCE_NAME=forms1        # instance name under FORMS/instances/
 WLS_FORMS_SERVER=WLS_FORMS        # managed server with Forms deployed
 FORMS_CUSTOMER_DIR=/u01/app/oracle/forms/moduls   # .fmx/.fmb, first FORMS_PATH entry

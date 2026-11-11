@@ -44,7 +44,7 @@ VORAUSSETZUNGEN
   passen (SCHRITT 0 setzt und zeigt sie):
 
     ORACLE_HOME             /u01/oracle/fmw
-    DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
+    DOMAIN_HOME             /u01/user_projects/domains/reportGPI
     WLS_MANAGED_SERVER      WLS_REPORTS
     WLS_ADMIN_URL           t3://localhost:7001
     REPORTS_TOOLS_INSTANCE  reptools1
@@ -81,9 +81,9 @@ WAS WO LANDET
         NodeManager.out                Node Manager
         AdminServer.out                AdminServer
         ManagedServer.out              WLS_REPORTS
-    /etc/systemd/system/reportrpgpi.service
+    /etc/systemd/system/reportgpi.service
                                        <- SCHRITT 6 (als root), $SERVICE
-    Journal, Unit reportrpgpi          <- jeder Start/Stop (journalctl -u)
+    Journal, Unit reportgpi          <- jeder Start/Stop (journalctl -u)
 
   Nichts muss heruntergeladen werden. Alle Skripte rufen nur Oracles
   eigene Skripte unter $DOMAIN_HOME/bin/ auf.
@@ -130,7 +130,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   export ORACLE_HOME=/u01/oracle/fmw
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
   export WLS_MANAGED_SERVER=WLS_REPORTS
 
@@ -156,7 +156,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   export SCRIPTS=/u01/oracle/scripts
   # fester Pfad - steht so in start_all.sh, stop_all.sh und der Unit
 
-  export SERVICE=reportrpgpi
+  export SERVICE=reportgpi
   # Name der systemd-Unit (SCHRITT 6)
 
   export DOMAIN_NAME=$(basename $DOMAIN_HOME)
@@ -173,7 +173,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   # Erwartet: reptools1, repServer01, 5556
 
   echo "SCRIPTS=$SCRIPTS SERVICE=$SERVICE DOMAIN_NAME=$DOMAIN_NAME"
-  # Erwartet: /u01/oracle/scripts, reportrpgpi, reportRpgpi
+  # Erwartet: /u01/oracle/scripts, reportgpi, reportGPI
 
   ls -l $DOMAIN_HOME/servers/AdminServer/security/boot.properties
 
@@ -188,10 +188,10 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   export SCRIPTS=/u01/oracle/scripts
 
-  export SERVICE=reportrpgpi
+  export SERVICE=reportgpi
 
   echo "SCRIPTS=$SCRIPTS SERVICE=$SERVICE Ports=$WLS_ADMIN_PORT/$WLS_NODEMANAGER_PORT/$WLS_REPORTS_PORT"
-  # Erwartet: /u01/oracle/scripts reportrpgpi Ports=7001/5556/9002
+  # Erwartet: /u01/oracle/scripts reportgpi Ports=7001/5556/9002
   # Ports LEER (keine patch_install.ini) -> die export-Zeilen aus 0.2 als
   # root wiederholen.
 
@@ -240,7 +240,7 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
   #     muss laufen), danach den Node Manager neu starten (Rest von 1b).
 
   echo "Domain-Name fuer cd() in WLST: $DOMAIN_NAME"
-  # Erwartet: reportRpgpi
+  # Erwartet: reportGPI
 
   $WLST
 
@@ -253,7 +253,7 @@ SCHRITT 1: Node-Manager-Zugangsdaten einmalig speichern  (als oracle)
       startEdit()
 
       cd('/SecurityConfiguration/<DOMAIN_NAME>')
-      # <DOMAIN_NAME> = Wert aus dem echo oben (reportRpgpi)
+      # <DOMAIN_NAME> = Wert aus dem echo oben (reportGPI)
 
       cmo.setNodeManagerUsername('weblogic')
 
@@ -538,10 +538,10 @@ SCHRITT 6: systemd-Dienst anlegen  (als root, vorher SCHRITT 0.5)
   "/", aendert die Zeile nichts.
 
   echo "Unit: /etc/systemd/system/$SERVICE.service"
-  # Erwartet: /etc/systemd/system/reportrpgpi.service. LEER? -> 0.5
+  # Erwartet: /etc/systemd/system/reportgpi.service. LEER? -> 0.5
 
   echo "SCRIPTS=$SCRIPTS DOMAIN_NAME=$DOMAIN_NAME"
-  # Erwartet: /u01/oracle/scripts reportRpgpi. LEER? -> 0.5
+  # Erwartet: /u01/oracle/scripts reportGPI. LEER? -> 0.5
 
   cat > /etc/systemd/system/$SERVICE.service << EOF
 [Unit]
@@ -654,9 +654,9 @@ SCHRITT 8: Funktions- und Neustarttest  (als root)
   8.3 Im Betrieb
   ----------------------------------------------------------------------------
   # Ab jetzt ueber systemd bedienen (statt start_wls_all.sh/stop_wls_all.sh):
-  #   systemctl stop reportrpgpi
-  #   systemctl start reportrpgpi
-  #   systemctl restart reportrpgpi
+  #   systemctl stop reportgpi
+  #   systemctl start reportgpi
+  #   systemctl restart reportgpi
 
 
 ================================================================================
@@ -665,11 +665,11 @@ ROLLBACK
 
     was                         wie
     --------------------------  ---------------------------------------------
-    Autostart abschalten        systemctl disable reportrpgpi (als root) -
+    Autostart abschalten        systemctl disable reportgpi (als root) -
                                 Server laufen weiter, Start/Stop wieder von
                                 Hand (WLS_Report_start_stop_kochbuch.txt)
-    Unit ganz entfernen         systemctl stop reportrpgpi, disable, dann
-                                /etc/systemd/system/reportrpgpi.service
+    Unit ganz entfernen         systemctl stop reportgpi, disable, dann
+                                /etc/systemd/system/reportgpi.service
                                 loeschen, systemctl daemon-reload
     Skripte                     $SCRIPTS (/u01/oracle/scripts) - eigene
                                 Dateien, Oracle-Dateien werden nicht
@@ -722,12 +722,12 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Ursache: Gewollt - ein langsamer Managed Server soll den bereits
            laufenden AdminServer nicht mit beenden
   Loesung: $DOMAIN_HOME/logs/ManagedServer.out pruefen, ggf. spaeter
-           "systemctl restart reportrpgpi"
+           "systemctl restart reportgpi"
 
   Problem: Nach dem Neustart "Too many open files" in den Logs
   Ursache: Limit*-Zeilen in der Unit fehlen oder sind zu klein
   Loesung: Schritt 6 pruefen, danach "systemctl daemon-reload" und
-           "systemctl restart reportrpgpi"
+           "systemctl restart reportgpi"
 
 
 ================================================================================
@@ -738,7 +738,7 @@ WEITERGEHENDE INFORMATIONEN
   unter $DOMAIN_HOME/bin/ auf - keine Abhaengigkeit zu IHateWeblogic-Skripten.
 
   Logs:  $DOMAIN_HOME/logs/NodeManager.out, AdminServer.out, ManagedServer.out
-         journalctl -u reportrpgpi
+         journalctl -u reportgpi
 
   Verwandte Kochbuecher:
     WLS_Report_start_stop_kochbuch.txt  - manuelles Starten/Stoppen

@@ -85,8 +85,8 @@ SCHRITT 2: Werte fuer die Tools in patch_install.ini pruefen  (als oracle)
   set_script_env_show | grep -E 'DOMAIN|ADMIN|MANAGED|REPORTS_SERVERS|NODEMANAGER|NM_|EXTRA|LOG_MIN'
 
   # Erwartet (Beispiel):
-  #   DOMAIN_NAME                  reportRpgpi
-  #   DOMAIN_HOME                  /u01/user_projects/domains/reportRpgpi
+  #   DOMAIN_NAME                  reportGPI
+  #   DOMAIN_HOME                  /u01/user_projects/domains/reportGPI
   #   WLS_ADMIN_PORT               7001
   #   WLS_NODEMANAGER_PORT         5556
   #   ADMIN_SERVER                 AdminServer
@@ -98,7 +98,7 @@ SCHRITT 2: Werte fuer die Tools in patch_install.ini pruefen  (als oracle)
 
   grep -m1 -o '<name>[^<]*' $DOMAIN_HOME/config/config.xml
 
-  # Erwartet: <name>reportRpgpi  (= DOMAIN_NAME)
+  # Erwartet: <name>reportGPI  (= DOMAIN_NAME)
 
   # Weicht etwas ab:
   vi /u01/oracle/tools/patch_install.ini

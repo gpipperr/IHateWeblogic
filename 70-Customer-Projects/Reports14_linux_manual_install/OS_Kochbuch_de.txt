@@ -134,7 +134,7 @@ VORAUSSETZUNGEN
   Hinweis zu WLS_MANAGED_SERVER: Der Reports-Managed-Server heisst
   "WLS_REPORTS" - so legt ihn die Oracle-Vorlage "Oracle Reports
   Application" im Configuration Wizard automatisch an, er muss dort also
-  NICHT umbenannt werden. Die Domain selbst heisst weiterhin "reportRpgpi".
+  NICHT umbenannt werden. Die Domain selbst heisst weiterhin "reportGPI".
   Wichtig ist nur, dass derselbe Name in allen folgenden Kochbuechern und
   Konfigurationsdateien verwendet wird.
 
@@ -160,13 +160,13 @@ SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
 
   export PATCH_STORAGE=/u01/oracle/patch_storage
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
-  export DOMAIN_NAME=reportRpgpi
+  export DOMAIN_NAME=reportGPI
 
   export WLS_MANAGED_SERVER=WLS_REPORTS
 
-  export WLS_SERVER_FQDN=wls01.company.local
+  export WLS_SERVER_FQDN=orafusion01.pipperr.local
 
   export WLS_ADMIN_PORT=7001
 
@@ -177,11 +177,11 @@ SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
   export REPORTS_BROADCAST_PORT=14027
   # Reports-Server-Erkennung (UDP), Reports_kochbuch_de.txt 9.2
 
-  export DB_HOST=dbserver01.company.local
+  export DB_HOST=orafusion01.pipperr.local
 
   export DB_PORT=1521
 
-  export DB_SERVICE=ORCLPDB1
+  export DB_SERVICE=fmwpdb
 
   export MEDIA=/u01/oracle/install/media
   # Upload-Verzeichnis der ZIPs (Tabelle "Quelldateien"). Nicht /tmp: wird
@@ -214,7 +214,7 @@ SCHRITT 0: Variablen setzen  (als root bzw. oracle, in JEDEM neuen Terminal)
   # Erwartet: alle vier gefuellt. LEER? -> 0.2 bzw. 0.3 wiederholen.
 
   echo "FQDN=$WLS_SERVER_FQDN Ports=$WLS_ADMIN_PORT/$WLS_REPORTS_PORT/$WLS_NODEMANAGER_PORT"
-  # Erwartet: wls01.company.local Ports=7001/9002/5556 (bzw. eigene Werte)
+  # Erwartet: orafusion01.pipperr.local Ports=7001/9002/5556 (bzw. eigene Werte)
 
   echo "Broadcast=$REPORTS_BROADCAST_PORT DB=$DB_HOST:$DB_PORT/$DB_SERVICE"
   # Erwartet: alle Werte gefuellt.
@@ -238,14 +238,14 @@ SCHRITT 1: Hostname, DNS und Zeitsynchronisation  (als root)
   hostname
 
   hostname -f
-  # Erwartet: der FQDN, z.B. wls01.company.local (= $WLS_SERVER_FQDN)
+  # Erwartet: der FQDN, z.B. orafusion01.pipperr.local (= $WLS_SERVER_FQDN)
 
   hostnamectl status
 
   # /etc/hosts PRUEFEN: FQDN muss VOR dem Kurznamen stehen, sonst liefert
   # "hostname -f" den Kurznamen zurueck.
-  #   Falsch:  192.168.1.10  wls01  wls01.company.local
-  #   Richtig: 192.168.1.10  wls01.company.local  wls01
+  #   Falsch:  10.10.10.124  orafusion01  orafusion01.pipperr.local
+  #   Richtig: 10.10.10.124  orafusion01.pipperr.local  orafusion01
 
   grep -i "$(hostname)" /etc/hosts
 
@@ -1119,7 +1119,7 @@ SCHRITT 8: Nginx als Reverse-Proxy installieren (ohne SSL)  (als root)
   # pruefen:
 
   echo "REPORTS=$WLS_REPORTS_PORT ADMIN=$WLS_ADMIN_PORT FQDN=$WLS_SERVER_FQDN"
-  # Erwartet: 9002 7001 wls01.company.local - LEER? -> SCHRITT 0.2
+  # Erwartet: 9002 7001 orafusion01.pipperr.local - LEER? -> SCHRITT 0.2
 
   cat > /etc/nginx/conf.d/oracle-wls.conf << EOF
 upstream wls_reports { server 127.0.0.1:${WLS_REPORTS_PORT}; keepalive 32; }
@@ -1187,12 +1187,12 @@ server {
     location /reports  { return 301 /reports/; }
 
     location /console {
-        allow 10.0.0.0/8;
+        allow 10.10.10.0/24;
         deny  all;
         proxy_pass http://wls_admin;
     }
     location /em {
-        allow 10.0.0.0/8;
+        allow 10.10.10.0/24;
         deny  all;
         proxy_pass http://wls_admin;
     }

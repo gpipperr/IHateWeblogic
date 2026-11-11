@@ -59,7 +59,7 @@ Key design decisions to apply manually:
   server-level headers only if the location sets none; one line drops all of
   them (the `/console` location had this bug until 2026-10-26: `Host` =
   upstream name, client-supplied `WL-Proxy-Client-IP` passed through)
-- `/console` and `/em` locations: restrict to admin IP range (`allow 10.0.0.0/8; deny all;`)
+- `/console` and `/em` locations: restrict to admin IP range (`allow 10.10.10.0/24; deny all;`)
 - `/forms/` cookie path rewriting: `proxy_cookie_path /forms /forms;` (session tracking)
 - `/reports/` extended timeouts: `proxy_read_timeout 300s;` (large job output)
 
@@ -146,13 +146,13 @@ interview, which stays short) and saved in `environment.conf`:
 
 ```bash
 ./09-Install/04-root_nginx.sh --apply                                   # ADMIN_IP_RANGE not set → menu
-./09-Install/04-root_nginx.sh --apply --admin-range 10.1.2.0/24,10.1.9.15  # set / change directly
+./09-Install/04-root_nginx.sh --apply --admin-range 10.10.10.0/24,10.10.10.50  # set / change directly
 ./09-Install/04-root_nginx.sh --apply --admin-range any                 # no IP restriction
 ```
 
 | Menu choice | `ADMIN_IP_RANGE` | Effect |
 |---|---|---|
-| 1 Host network only (default) | network(s) of the interface with the default route, e.g. `10.1.2.0/24` | admin URLs only from the server's own subnet |
+| 1 Host network only (default) | network(s) of the interface with the default route, e.g. `10.10.10.0/24` | admin URLs only from the server's own subnet |
 | 2 Own list | `CIDR/IP,CIDR/IP` (IPv4 / IPv6) | one `allow` line per entry |
 | 3 `any` | `any` | `/console`, `/em`: no `allow`/`deny` (WebLogic login only) – WARN; Reports admin web commands: **localhost only** (`allow 127.0.0.1; deny all`) |
 

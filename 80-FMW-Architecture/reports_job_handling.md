@@ -410,24 +410,24 @@ Consequences:
   a mail user only for this server, only allowed to send, `rwserver.conf`
   readable for `oracle` only.
 
-Examples (`<mail.example.com>` = the SMTP relay of the customer):
+Examples (`<mail.pipperr.local>` = the SMTP relay of the customer):
 
 ```xml
 <!-- a) internal relay, no login, port 25 (most common in a company network) -->
-<pluginParam name="mailServer" value="mail.example.com"/>
+<pluginParam name="mailServer" value="mail.pipperr.local"/>
 
 <!-- b) relay with login and STARTTLS on 587 -->
-<pluginParam name="mailServer" value="mail.example.com:587">
-   <property name="mailUserName" value="reports-sender@example.com"/>
+<pluginParam name="mailServer" value="mail.pipperr.local:587">
+   <property name="mailUserName" value="reports-sender@pipperr.local"/>
    <property name="mailPassword" value="<MAIL_PASSWORD>"/>
    <property name="mail.smtp.starttls.enable" value="yes"/>
    <property name="mail.smtp.starttls.required" value="yes"/>
 </pluginParam>
 
 <!-- c) SMTPS (TLS from the start) on 465 with login -->
-<pluginParam name="mailServer" value="mail.example.com:465">
+<pluginParam name="mailServer" value="mail.pipperr.local:465">
    <property name="enableSSL" value="yes"/>
-   <property name="mailUserName" value="reports-sender@example.com"/>
+   <property name="mailUserName" value="reports-sender@pipperr.local"/>
    <property name="mailPassword" value="<MAIL_PASSWORD>"/>
 </pluginParam>
 ```
@@ -458,7 +458,7 @@ Examples (`<mail.example.com>` = the SMTP relay of the customer):
   <notification id="mailNotify" class="oracle.reports.server.MailNotify">
      <property name="succnotefile" value="succnote.txt"/>
      <property name="failnotefile" value="failnote.txt"/>
-     <property name="sender" value="reports-noreply@example.com"/>
+     <property name="sender" value="reports-noreply@pipperr.local"/>
   </notification>
   ```
 
@@ -522,8 +522,8 @@ as in 5.2):
 # $ORACLE_BASE/reports/jobs/test_mail.cmd:  userid=<db_user>/<db_password>@//<db_host>:1521/<service>
 $DOMAIN_HOME/reports/bin/rwrun.sh report=/u01/app/oracle/reports/source/test.rdf \
     cmdfile=$ORACLE_BASE/reports/jobs/test_mail.cmd desformat=pdf destype=mail \
-    desname="emp1@example.com,emp2@example.com" cc="emp3@example.com" bcc="mgr@example.com" \
-    replyto="me@example.com" from="me@example.com" subject="Test report"
+    desname="emp1@pipperr.local,emp2@pipperr.local" cc="emp3@pipperr.local" bcc="mgr@pipperr.local" \
+    replyto="me@pipperr.local" from="me@pipperr.local" subject="Test report"
 ```
 
 - **Call `$DOMAIN_HOME/reports/bin/rwrun.sh`, not `$ORACLE_HOME/bin/rwrun`.**
@@ -548,8 +548,8 @@ DB login is in the key as before (secured server: `%D` / `RepRunner`, see
 
 ```
 monthly_sales_mail: report=monthly_sales.rdf destype=mail desformat=pdf
-    desname=controlling@example.com from=reports-noreply@example.com
-    replyto=controlling@example.com subject="Monthly sales" %*
+    desname=controlling@pipperr.local from=reports-noreply@pipperr.local
+    replyto=controlling@pipperr.local subject="Monthly sales" %*
 ```
 
 - One key per line in the real file (the line is wrapped here); `%*` lets
@@ -581,7 +581,7 @@ file then.
 
 ```
 ... destype=file desname=/u01/app/oracle/reports/tmp/daily.pdf
-    notifysuccess=controlling@example.com notifyfailure=it-ops@example.com
+    notifysuccess=controlling@pipperr.local notifyfailure=it-ops@pipperr.local
 ```
 
 For variant B the OS can send the notification itself (cron `MAILTO`, or a
@@ -597,15 +597,15 @@ Reports host:
 
    ```bash
    grep -A3 'MailService:MailService' $DOMAIN_HOME/servers/repserver01/logs/rwserver_diagnostic.log | tail -4
-   # Expected: hostName = mail.example.com:587 (not %MAILSERVER_NAME%), enableSSL = yes/no/null
+   # Expected: hostName = mail.pipperr.local:587 (not %MAILSERVER_NAME%), enableSSL = yes/no/null
    ```
 
 2. **Relay reachable?**
 
    ```bash
-   timeout 5 bash -c '</dev/tcp/mail.example.com/25' && echo open        # 465 / 587 in the same way
-   openssl s_client -connect mail.example.com:587 -starttls smtp -brief </dev/null   # STARTTLS + certificate
-   openssl s_client -connect mail.example.com:465 -brief </dev/null                  # SMTPS
+   timeout 5 bash -c '</dev/tcp/mail.pipperr.local/25' && echo open        # 465 / 587 in the same way
+   openssl s_client -connect mail.pipperr.local:587 -starttls smtp -brief </dev/null   # STARTTLS + certificate
+   openssl s_client -connect mail.pipperr.local:465 -brief </dev/null                  # SMTPS
    ```
 
    `verify error` = the relay certificate is not trusted (7.1, TLS trust).
@@ -615,11 +615,11 @@ Reports host:
 
    ```bash
    printf 'Subject: Reports mail test\n\nTest from the Reports host.\n' > /tmp/mailtest.txt
-   curl -v --url smtp://mail.example.com:25 --mail-from reports-noreply@example.com \
-        --mail-rcpt controlling@example.com -T /tmp/mailtest.txt
+   curl -v --url smtp://mail.pipperr.local:25 --mail-from reports-noreply@pipperr.local \
+        --mail-rcpt controlling@pipperr.local -T /tmp/mailtest.txt
    ```
 
-   For 587 add `--ssl-reqd` (STARTTLS) and `--user reports-sender@example.com`
+   For 587 add `--ssl-reqd` (STARTTLS) and `--user reports-sender@pipperr.local`
    (curl asks for the password). An answer like `550 sender rejected` /
    `relay access denied` is a matter for the mail team: allow the Reports host
    IP or the sender address on the relay. This test already shows whether

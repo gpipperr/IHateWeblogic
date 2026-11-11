@@ -102,9 +102,9 @@ SCHRITT 0: Bestandsaufnahme (nur lesen, nichts aendern)  (als oracle)
 
   export ORACLE_HOME=/u01/oracle/fmw
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
-  export DOMAIN_NAME=reportRpgpi
+  export DOMAIN_NAME=reportGPI
 
   export WLS_ADMIN_URL=t3://localhost:7001
 
@@ -261,8 +261,8 @@ SCHRITT 2: Nginx haerten  (als root)
   #   ganzes 10.0.0.0/8-Netz:
   #
   #     location /em {
-  #         allow 10.1.2.10;      # Admin-PC 1
-  #         allow 10.1.2.11;      # Admin-PC 2
+  #         allow 10.10.10.50;     # Admin-PC 1
+  #         allow 10.10.10.51;     # Admin-PC 2
   #         deny  all;
   #         proxy_pass http://wls_admin;
   #     }

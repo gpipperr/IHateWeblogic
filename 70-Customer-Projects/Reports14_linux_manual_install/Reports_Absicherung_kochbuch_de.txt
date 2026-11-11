@@ -107,7 +107,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   ----------------------------------------------------------------------------
   export ORACLE_HOME=/u01/oracle/fmw
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
   export WLS_ADMIN_PORT=7001
 
@@ -155,7 +155,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   # "No such file": Komponentenname (0.2) oder DOMAIN_HOME falsch.
 
   grep -m1 '<name>' $DOMAIN_HOME/config/config.xml
-  # Erwartet: <name>reportRpgpi</name>
+  # Erwartet: <name>reportGPI</name>
 
   echo $DOMAIN_NAME
   # Muss derselbe Name sein. Er steht spaeter im LDAP als dc=<Name>.
@@ -433,12 +433,12 @@ EOF
   credentials" im <Server>.out unter $DOMAIN_HOME/servers/<Server>/logs/).
   Deshalb: zwischen 3.2 und 3.3 KEINEN einzelnen Server starten.
 
-  systemctl stop reportrpgpi
+  systemctl stop reportgpi
 
   ps -ef | grep -E "weblogic.Server|NodeManager|rwserver" | grep -v grep
   # Erwartet: keine Ausgabe. Reste mit "kill <pid>" beenden.
 
-  systemctl start reportrpgpi
+  systemctl start reportgpi
   # Dauert einige Minuten.
 
   # Ohne Autostart (als oracle):
@@ -774,11 +774,11 @@ EOF
 SCHRITT 9: Neustart der Domain  (als root)
 ================================================================================
 
-  systemctl stop reportrpgpi
+  systemctl stop reportgpi
 
-  systemctl start reportrpgpi
+  systemctl start reportgpi
 
-  systemctl status reportrpgpi --no-pager
+  systemctl status reportgpi --no-pager
   # Erwartet: active (running)
 
   # Die Start-Skripte starten den AdminServer zuerst - so ist das LDAP schon

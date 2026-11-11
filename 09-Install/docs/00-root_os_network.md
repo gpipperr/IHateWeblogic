@@ -42,9 +42,9 @@ Background: [loopback-only, clone-capable layout](../../80-FMW-Architecture/clon
 ### Block 1 – Hostname Consistency
 
 ```bash
-hostname          # short name  (e.g. wls01)
-hostname -f       # FQDN        (e.g. wls01.company.local)
-hostname -d       # domain part (e.g. company.local)
+hostname          # short name  (e.g. orafusion01)
+hostname -f       # FQDN        (e.g. orafusion01.pipperr.local)
+hostname -d       # domain part (e.g. pipperr.local)
 ```
 
 - Short hostname must not be empty or `localhost`
@@ -95,12 +95,12 @@ grep -E "$(hostname)" /etc/hosts
 
 ```
 # /etc/hosts – WRONG
-192.168.1.10  fmwhost01  fmwhost01.example.local
+10.10.10.124  orafusion01  orafusion01.pipperr.local
 ```
 
 ```bash
-hostname -f   →  fmwhost01              # no dot → WebLogic FAIL
-hostname -a   →  fmwhost01.example.local
+hostname -f   →  orafusion01              # no dot → WebLogic FAIL
+hostname -a   →  orafusion01.pipperr.local
 hostname -d   →  (empty)
 ```
 
@@ -108,13 +108,13 @@ hostname -d   →  (empty)
 
 ```
 # /etc/hosts – CORRECT
-192.168.1.10  fmwhost01.example.local  fmwhost01
+10.10.10.124  orafusion01.pipperr.local  orafusion01
 ```
 
 ```bash
-hostname -f   →  fmwhost01.example.local   # ✓ FQDN
-hostname -a   →  fmwhost01                 # short name as alias
-hostname -d   →  example.local
+hostname -f   →  orafusion01.pipperr.local   # ✓ FQDN
+hostname -a   →  orafusion01                 # short name as alias
+hostname -d   →  pipperr.local
 ```
 
 The script detects the wrong-order case: if `hostname -f` has no dot but

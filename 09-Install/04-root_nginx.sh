@@ -9,7 +9,7 @@
 #            ./09-Install/04-root_nginx.sh --apply
 # Options  : --apply               Install Nginx and write configuration
 #            --admin-range <list>  Admin networks for /console, /em and the Reports
-#                                  admin web commands ("10.1.2.0/24,10.1.9.15") or
+#                                  admin web commands ("10.10.10.0/24,10.10.10.50") or
 #                                  "any" (no IP restriction) – saved in environment.conf.
 #                                  Not set: asked here (not in the interview)
 #            --help                Show usage
@@ -180,7 +180,7 @@ elif [ -z "${ADMIN_IP_RANGE:-}" ]; then
             "any – no IP restriction (no separate admin network)"
         case "$SELECTION_IDX" in
             1) ADMIN_IP_RANGE="$_ADMIN_PROPOSAL" ;;
-            2) printf "  Admin networks (e.g. 10.1.2.0/24,10.1.9.15): " >&2
+            2) printf "  Admin networks (e.g. 10.10.10.0/24,10.10.10.50): " >&2
                read -r ADMIN_IP_RANGE ;;
             3) ADMIN_IP_RANGE="any" ;;
         esac
@@ -229,7 +229,7 @@ fi
 if [ "$ADMIN_IP_RANGE" = "any" ]; then
     warn "ADMIN_IP_RANGE=any – /console and /em reachable from every network (WebLogic login only)"
     info "  Reports admin web commands (showjobs, killjobid, stopserver …) stay localhost only"
-    info "  Narrow later: $0 --apply --admin-range 10.1.2.0/24"
+    info "  Narrow later: $0 --apply --admin-range 10.10.10.0/24"
 fi
 
 # =============================================================================
@@ -259,7 +259,7 @@ printf "  %-28s → %s\n" "##ADMIN_IP_RANGE##"     "$ADMIN_IP_RANGE (one allow l
 # Check for unset ##PARA## (SERVER_NAME must be a valid FQDN)
 if ! printf "%s" "$SERVER_NAME" | grep -qE '\.' ; then
     warn "SERVER_NAME '$SERVER_NAME' is not an FQDN (no dot) – Nginx config may not match requests"
-    info "  Set WLS_SERVER_FQDN=hostname.domain.local in environment.conf"
+    info "  Set WLS_SERVER_FQDN=<fqdn> in environment.conf (e.g. orafusion01.pipperr.local)"
 fi
 
 # =============================================================================

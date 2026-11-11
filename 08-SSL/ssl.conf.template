@@ -12,12 +12,12 @@
 
 # Common Name: must match the external FQDN clients use to reach the server.
 # Modern browsers also require this as a SAN entry (added automatically).
-SSL_CN="wls01.company.local"
+SSL_CN="orafusion01.pipperr.local"
 
 # Subject Alternative Names (space-separated).
 # Format: DNS:hostname  or  IP:1.2.3.4
 # SSL_CN is always added as the first DNS SAN automatically.
-SSL_SAN="DNS:wls01.company.local DNS:wls01"
+SSL_SAN="DNS:orafusion01.pipperr.local DNS:orafusion01"
 
 # Distinguished Name fields
 SSL_COUNTRY="DE"           # 2-letter ISO country code

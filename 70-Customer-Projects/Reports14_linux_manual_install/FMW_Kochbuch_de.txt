@@ -578,7 +578,7 @@ SCHRITT 4: SSL-Zertifikat auf Nginx ausrollen  (als root)
   export SSL_CHAIN_FILE=/u01/oracle/certs/chain.crt
   # optional, leer lassen falls nicht vorhanden
 
-  export WLS_SERVER_FQDN=wls01.company.local
+  export WLS_SERVER_FQDN=orafusion01.pipperr.local
   # fuer den Live-Test in 4.4
 
   ls -l "$SSL_CERT_FILE" "$SSL_KEY_FILE" "$SSL_CHAIN_FILE"

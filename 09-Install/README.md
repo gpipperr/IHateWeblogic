@@ -468,7 +468,7 @@ FORMS_TMP=/u01/app/oracle/forms/tmp
 REPORTS_CUSTOMER_DIR=/u01/app/oracle/reports/source
 
 # === MOS DOWNLOADS ===
-MOS_USER=firstname.lastname@company.com
+MOS_USER=firstname.lastname@example.com
 # MOS_PWD → encrypted: mos_sec.conf.des3 (same mechanism as weblogic_sec.conf.des3)
 ```
 

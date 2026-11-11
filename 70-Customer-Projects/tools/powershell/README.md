@@ -113,7 +113,7 @@ stays open.
 .\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All              # plan only
 .\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -All -Apply       # download
 .\mos_patch_download.ps1 -Csv patches_cpu_reports_14c_oct2026.csv -Dir D:\install\cpu_okt2026\zip -Only 28186730,39600348 -Apply
-.\mos_patch_download.ps1 ... -Apply -Java D:\Oracle\jdk-21\bin\java.exe -Proxy proxy.company.local:8080
+.\mos_patch_download.ps1 ... -Apply -Java D:\Oracle\jdk-21\bin\java.exe -Proxy proxy.pipperr.local:8080
 ```
 
 | Option | bash | Meaning |

@@ -142,7 +142,7 @@ after **each** `-component <ID>`.
 
 > **Connect string format:** Use `/service_name` (slash) for PDB service names — not `:SID`
 > (colon). Colon format addresses the CDB SID; slash format targets the PDB service.
-> Example: `192.168.1.20:1521/fmwpdb`
+> Example: `10.10.10.124:1521/fmwpdb`
 
 ### 3. Clean up password file
 

@@ -133,7 +133,7 @@ The host name is replaced by a placeholder.
 ```xml
 <?xml version = '1.0' encoding = 'UTF-8' standalone = 'yes'?>
 <serverInfo name="repserver01" version="14.1.2.0.0">
-   <host>reports01.example.com</host>
+   <host>orafusion01.pipperr.local</host>
    <processId>217406</processId>
    <startTime>1793697621935</startTime>
    <queue maxQueueSize="4000"/>

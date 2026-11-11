@@ -443,8 +443,8 @@ When `ssl_prepare_cert.sh` is called, it reads `ssl.conf` and shows each
 current value as the prompt default:
 
 ```
-  Common Name      [wls01.company.local]: _
-  SAN              [DNS:wls01.company.local DNS:wls01]: _
+  Common Name      [orafusion01.pipperr.local]: _
+  SAN              [DNS:orafusion01.pipperr.local DNS:orafusion01]: _
   Organization     [Company GmbH]: _
   Country          [DE]: _
   Key algorithm    [RSA]: _

@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- **Demo-data naming convention** (ACE item 0): README section "Demo Data" (test host
+  `orafusion01.pipperr.local` / `10.10.10.124` / `fmwpdb` / `fr_domain` / `repserver01`,
+  Reports-only demo domain `reportGPI`). Examples switched from invented names
+  (`wls01.company.local`, `dbserver01`, `fmwhost01.example.local`, `192.168.1.10`,
+  `10.1.2.0/24`, `ORCLPDB1`, `mail.example.com`, …) to the demo set; typo `reportRpgpi` →
+  `reportGPI` in the manual cookbooks; example paths in docs → `/u01/app/oracle/fmw` /
+  `/u01/app/oracle/domains/fr_domain` (CLAUDE.md too). Script defaults, search lists and
+  `<host>`-style placeholders unchanged; Oracle's own placeholder `dbhost.example.com` kept.
 - `engineResponseTimeOut` default 30 → **360 minutes** (6 h safety net: ends only a really hanging
   engine, never a long batch report): `13-oracle_setup_reports.sh`, `detect_env_conf.sh`,
   `fmw_prod.conf.template`, docs 13 / 00-environment-setup / 01-setup-interview,

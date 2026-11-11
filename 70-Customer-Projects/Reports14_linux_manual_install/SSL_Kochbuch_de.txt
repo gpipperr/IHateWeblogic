@@ -114,7 +114,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   ----------------------------------------------------------------------------
   0.2 Von Hand  (Werte an die Umgebung anpassen)
   ----------------------------------------------------------------------------
-  export SSL_CN=wls01.company.local
+  export SSL_CN=orafusion01.pipperr.local
 
   export SSL_COUNTRY=DE
 

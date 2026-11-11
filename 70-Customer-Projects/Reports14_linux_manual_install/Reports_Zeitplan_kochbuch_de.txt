@@ -102,7 +102,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   ----------------------------------------------------------------------------
   0.1 Werte anpassen  (nur diese vier)
   ----------------------------------------------------------------------------
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
   export REPORTS_SERVER_NAME=repServer01
   # Name der Reports-Komponente - NICHT WLS_REPORTS

@@ -67,8 +67,8 @@ header comment lines:
 # ENV_TYPE=FMW
 # ENV_LABEL=Production – Forms & Reports Domain
 # ============================================================
-ORACLE_HOME=/u01/oracle/fmw
-DOMAIN_HOME=/u01/user_projects/domains/fr_domain
+ORACLE_HOME=/u01/app/oracle/fmw
+DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
 JDK_HOME=/u01/app/oracle/java/jdk-21
 ...
 ```
@@ -95,8 +95,8 @@ If `ENV_TYPE` is missing, `--list` / `--select` detect the type automatically:
 # ENV_TYPE=FMW
 # ENV_LABEL=Production – Forms & Reports
 
-ORACLE_HOME=/u01/oracle/fmw
-DOMAIN_HOME=/u01/user_projects/domains/fr_domain
+ORACLE_HOME=/u01/app/oracle/fmw
+DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
 JDK_HOME=/u01/app/oracle/java/jdk-21
 ORACLE_BASE=/u01/app/oracle
 

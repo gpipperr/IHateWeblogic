@@ -115,7 +115,7 @@ explicitly provides a different value during `--interview`.
 | `WLS_NODEMANAGER_PORT` | `5556` | NodeManager port |
 | `WLS_LISTEN_ADDRESS` | `localhost` | Network interface WebLogic binds to. `localhost` = NGINX proxy (recommended); `0.0.0.0` = all interfaces (no proxy); custom FQDN/IP |
 | `WLS_ADMIN_USER` | `webadmin` | WebLogic admin user (password → `weblogic_sec.conf.des3`) |
-| `WLS_SERVER_FQDN` | interview (default `hostname -f`) | **Public** server name – the name the users type and the certificate (SAN) carries: Nginx `server_name`, 08-SSL, default of `FORMS_CLIENT_BASE_URL` / `ORDS_PUBLIC_URL`. May differ from the host name: cloud host `host.subnet.vcn.oraclevcn.com`, users via `forms.company.com` → `WLS_SERVER_FQDN=forms.company.com` (Nginx answers to both names). Not used inside WebLogic (`WLS_LISTEN_ADDRESS`) |
+| `WLS_SERVER_FQDN` | interview (default `hostname -f`) | **Public** server name – the name the users type and the certificate (SAN) carries: Nginx `server_name`, 08-SSL, default of `FORMS_CLIENT_BASE_URL` / `ORDS_PUBLIC_URL`. May differ from the host name: cloud host `host.subnet.vcn.oraclevcn.com`, users via `forms.pipperr.local` → `WLS_SERVER_FQDN=forms.pipperr.local` (Nginx answers to both names). Not used inside WebLogic (`WLS_LISTEN_ADDRESS`) |
 | `WLS_MANAGED_SERVER` | `WLS_REPORTS` | Reports managed server name (auto-detected) |
 | `WLS_FORMS_SERVER` | `WLS_FORMS` | Forms managed server name (auto-detected) |
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |

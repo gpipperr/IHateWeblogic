@@ -58,7 +58,7 @@ WAS WO LANDET
     $ORACLE_HOME/                      = /u01/oracle/fmw  <- SCHRITT 1 + 2
       bin/rwrun bin/rwconverter        Reports-Werkzeuge (NICHT reports/bin)
       lib/libnsl.so.2                  <- SCHRITT 9.1 (Symlink, als root)
-    $DOMAIN_HOME/                      = /u01/user_projects/domains/reportRpgpi
+    $DOMAIN_HOME/                      = /u01/user_projects/domains/reportGPI
                                        <- SCHRITT 4 (Configuration Wizard)
       config/config.xml                Domain-Konfiguration (nur lesen)
       nodemanager/nodemanager.properties
@@ -175,9 +175,9 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   export PATCH_STORAGE=/u01/oracle/patch_storage
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
-  export DOMAIN_NAME=reportRpgpi
+  export DOMAIN_NAME=reportGPI
 
   export WLS_MANAGED_SERVER=WLS_REPORTS
 
@@ -189,7 +189,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   export WLS_NODEMANAGER_PORT=5556
 
-  export WLS_SERVER_FQDN=wls01.company.local
+  export WLS_SERVER_FQDN=orafusion01.pipperr.local
   # Name des Servers hinter Nginx/SSL (Test in 9.11)
 
   export REPORTS_TOOLS_INSTANCE=reptools1
@@ -214,11 +214,11 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
 
   # Externe, BESTEHENDE Datenbank (wird in diesem Kochbuch NICHT angelegt):
 
-  export DB_HOST=dbserver01.company.local
+  export DB_HOST=orafusion01.pipperr.local
 
   export DB_PORT=1521
 
-  export DB_SERVICE=ORCLPDB1
+  export DB_SERVICE=fmwpdb
 
   export DB_SCHEMA_PREFIX=DEV
 
@@ -282,7 +282,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   # Erwartet: alle drei gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
 
   echo "DH=$DOMAIN_HOME DN=$DOMAIN_NAME MS=$WLS_MANAGED_SERVER"
-  # Erwartet: /u01/user_projects/domains/reportRpgpi reportRpgpi WLS_REPORTS
+  # Erwartet: /u01/user_projects/domains/reportGPI reportGPI WLS_REPORTS
 
   echo "Ports: Admin=$WLS_ADMIN_PORT Reports=$WLS_REPORTS_PORT NM=$WLS_NODEMANAGER_PORT"
   # Erwartet: 7001 9002 5556
@@ -291,7 +291,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   # Erwartet: reptools1 repServer01
 
   echo "DB=$DB_HOST:$DB_PORT/$DB_SERVICE Prefix=$DB_SCHEMA_PREFIX"
-  # Erwartet: dbserver01.company.local:1521/ORCLPDB1 Prefix=DEV
+  # Erwartet: orafusion01.pipperr.local:1521/fmwpdb Prefix=DEV
 
   echo "REPORTS_PATH=$REPORTS_PATH REPORTS_TMP=$REPORTS_TMP TNS_ADMIN=$TNS_ADMIN"
   # Erwartet: alle drei gefuellt
@@ -1781,11 +1781,11 @@ EOF
   # --- Ende WLST ---
 
   # --- c) jps-config-jse.xml umstellen ---
-  # Domain-Name aus config.xml, hier reportRpgpi - in den Suchbasen
+  # Domain-Name aus config.xml, hier reportGPI - in den Suchbasen
   # dc=<Domain-Name>:
 
   grep -m1 '<name>' $DOMAIN_HOME/config/config.xml
-  # Erwartet: <name>reportRpgpi</name> (= DOMAIN_NAME aus SCHRITT 0)
+  # Erwartet: <name>reportGPI</name> (= DOMAIN_NAME aus SCHRITT 0)
 
   echo "JPS_JSE=$JPS_JSE DOMAIN_NAME=$DOMAIN_NAME"
   # Erwartet: beide gefuellt. LEER? -> SCHRITT 0
@@ -1818,7 +1818,7 @@ EOF
 EOF
 
   grep -n 'dc=' $WORK/09_idstore_ldap.xml
-  # Erwartet: drei Zeilen mit dc=reportRpgpi (kein leeres "dc=")
+  # Erwartet: drei Zeilen mit dc=reportGPI (kein leeres "dc=")
 
   vi $JPS_JSE
   # 1) Block direkt VOR der Zeile "    </serviceInstances>" einfuegen:

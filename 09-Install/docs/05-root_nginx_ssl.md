@@ -201,14 +201,14 @@ startEdit()
 
 # Admin Server
 cd('/Servers/AdminServer/WebServer/AdminServer')
-set('FrontendHost', 'wls01.company.local')
+set('FrontendHost', 'orafusion01.pipperr.local')
 set('FrontendHTTPSPort', 443)
 set('FrontendHTTPPort', 80)
 
 # Managed Servers
 for srv in ['WLS_FORMS', 'WLS_REPORTS']:
     cd('/Servers/' + srv + '/WebServer/' + srv)
-    set('FrontendHost', 'wls01.company.local')
+    set('FrontendHost', 'orafusion01.pipperr.local')
     set('FrontendHTTPSPort', 443)
     set('FrontendHTTPPort', 80)
 
@@ -478,7 +478,7 @@ set_var EASYRSA_AUTO_SAN     1            # auto SAN from CN (required for moder
 
 ```bash
 ./easy-rsa/easyrsa build-ca
-# Prompts: CA passphrase + Common Name (e.g. "Company.local CA")
+# Prompts: CA passphrase + Common Name (e.g. "pipperr.local CA")
 ```
 
 CA certificate created at: `pki/ca.crt` — this is the root to distribute to clients.
@@ -486,22 +486,22 @@ CA certificate created at: `pki/ca.crt` — this is the root to distribute to cl
 #### 5. Create server certificate
 
 ```bash
-./easy-rsa/easyrsa build-server-full wls01.company.local nopass
+./easy-rsa/easyrsa build-server-full orafusion01.pipperr.local nopass
 ```
 
 Output files:
 | File | Use |
 |---|---|
-| `pki/issued/wls01.company.local.crt` | Server certificate → `SSL_CERT_FILE` |
-| `pki/private/wls01.company.local.key` | Private key → `SSL_KEY_FILE` |
+| `pki/issued/orafusion01.pipperr.local.crt` | Server certificate → `SSL_CERT_FILE` |
+| `pki/private/orafusion01.pipperr.local.key` | Private key → `SSL_KEY_FILE` |
 | `pki/ca.crt` | CA root → distribute to all clients as `SSL_CHAIN_FILE` |
 
 #### 6. Verify SAN is present
 
 ```bash
-openssl x509 -in pki/issued/wls01.company.local.crt -noout -text \
+openssl x509 -in pki/issued/orafusion01.pipperr.local.crt -noout -text \
     | grep -A2 "Subject Alternative Name"
-# Expected: DNS:wls01.company.local
+# Expected: DNS:orafusion01.pipperr.local
 ```
 
 Modern browsers require SAN — a certificate without SAN will show a security error
@@ -525,8 +525,8 @@ set them in `08-SSL/ssl.conf` – values in `environment.conf` are overridden
 by `ssl.conf` when it exists:
 
 ```bash
-SSL_CERT_FILE=/srv/gpi_ca/pki/issued/wls01.company.local.crt
-SSL_KEY_FILE=/srv/gpi_ca/pki/private/wls01.company.local.key
+SSL_CERT_FILE=/srv/gpi_ca/pki/issued/orafusion01.pipperr.local.crt
+SSL_KEY_FILE=/srv/gpi_ca/pki/private/orafusion01.pipperr.local.key
 SSL_CHAIN_FILE=/srv/gpi_ca/pki/ca.crt
 ```
 
@@ -553,8 +553,8 @@ By hand (then set the paths in `ssl.conf` or answer the prompts of `05-`):
 ```bash
 openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
     -keyout server.key -out server.crt \
-    -subj   "/CN=wls01.company.local" \
-    -addext "subjectAltName=DNS:wls01.company.local"
+    -subj   "/CN=orafusion01.pipperr.local" \
+    -addext "subjectAltName=DNS:orafusion01.pipperr.local"
 ```
 
 ---

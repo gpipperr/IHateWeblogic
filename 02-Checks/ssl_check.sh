@@ -6,7 +6,7 @@
 #            TLS protocol + cipher strength, and checks certificate expiry.
 # Call     : ./ssl_check.sh
 #            ./ssl_check.sh --warn-days 60
-#            ./ssl_check.sh --host 10.0.1.5
+#            ./ssl_check.sh --host 10.10.10.124
 #            ./ssl_check.sh --no-curl
 # Requires : openssl, ss (or netstat), optionally curl, keytool
 # Author   : Gunther Pipperr | https://pipperr.de

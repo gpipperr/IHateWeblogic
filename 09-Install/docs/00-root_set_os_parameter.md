@@ -380,7 +380,7 @@ used: Nginx (`listen [::]`) and others would have to change. Check after a reboo
 ## Core Dump Setup
 
 Oracle Forms in particular can produce core dumps. Without a central directory they
-land in the FMW process working directory (e.g. `/u01/oracle/fmw/.../bin/`) and
+land in the FMW process working directory (e.g. `/u01/app/oracle/fmw/.../bin/`) and
 **silently fill up the disk** — very hard to debug.
 
 `fs.suid_dumpable = 1` is required so the `oracle` user (non-root) actually produces
@@ -420,7 +420,7 @@ kill -s SIGSEGV $$
 
 # Check the dump file
 ls /var/tmp/core/
-# Example: coredump_wls01.company.local_.11.1100.1000_1711234567_!bin!bash_bash
+# Example: coredump_orafusion01.pipperr.local_.11.1100.1000_1711234567_!bin!bash_bash
 
 # Decode the timestamp from the filename
 date -d @1711234567

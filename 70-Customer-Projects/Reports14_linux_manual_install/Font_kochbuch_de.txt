@@ -130,7 +130,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   ----------------------------------------------------------------------------
   export ORACLE_HOME=/u01/oracle/fmw
 
-  export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
   export REPORTS_TOOLS_INSTANCE=reptools1
 
@@ -178,7 +178,7 @@ SCHRITT 0: Variablen setzen  (als oracle, in JEDEM neuen Terminal)
   # Erwartet: alle vier gefuellt. LEER? -> 0.1 bzw. 0.2 wiederholen.
 
   echo "FONT_DIR=$REPORTS_FONT_DIR"
-  # Erwartet: /u01/user_projects/domains/reportRpgpi/reports/fonts
+  # Erwartet: /u01/user_projects/domains/reportGPI/reports/fonts
 
   ls -ld $REPORTS_ADMIN
   # Erwartet: das Verzeichnis existiert.
@@ -362,7 +362,7 @@ SCHRITT 5: Umgebungsvariablen in setUserOverrides.sh eintragen  (als oracle)
   5.1 Sichern
   ----------------------------------------------------------------------------
   echo "OVERRIDES=$OVERRIDES"
-  # Erwartet: /u01/user_projects/domains/reportRpgpi/bin/setUserOverrides.sh
+  # Erwartet: /u01/user_projects/domains/reportGPI/bin/setUserOverrides.sh
   # LEER? -> SCHRITT 0
 
   ls -l "$OVERRIDES"
@@ -408,7 +408,7 @@ EOF
   ----------------------------------------------------------------------------
   grep -A6 "Font-Konfiguration" "$OVERRIDES"
   # Erwartet: der Block mit ABSOLUTEN Pfaden
-  # (REPORTS_FONT_DIRECTORY=/u01/user_projects/domains/reportRpgpi/reports/fonts)
+  # (REPORTS_FONT_DIRECTORY=/u01/user_projects/domains/reportGPI/reports/fonts)
 
   # WICHTIG: Absoluten Pfad verwenden (keine Variablen wie $DOMAIN_HOME),
   # da setUserOverrides.sh zu einem Zeitpunkt ausgefuehrt wird, zu dem
@@ -460,7 +460,7 @@ SCHRITT 7: PDF-Test und Verifikation  (als oracle)
 
   export TEST_DB_USER=scott
 
-  export TEST_DB_CONN=//dbserver01.company.local:1521/ORCLPDB1
+  export TEST_DB_CONN=//orafusion01.pipperr.local:1521/fmwpdb
 
   export RW_URL=http://localhost:$WLS_REPORTS_PORT/reports/rwservlet
 
@@ -732,7 +732,7 @@ BEKANNTE PROBLEME UND LOESUNGEN
 
   Problem: Neustart ueber systemctl schlaegt fehl ("Unit ... not found")
   Ursache: Der Dienst heisst nach Autostart_linux_middleware.txt
-           "reportrpgpi" (nicht "weblogic"); ohne Autostart gibt es keinen
+           "reportgpi" (nicht "weblogic"); ohne Autostart gibt es keinen
   Loesung: systemctl list-units | grep -i report - sonst nur den
            Reports-Server mit stopComponent.sh / startComponent.sh neu
            starten (Schritt 6).

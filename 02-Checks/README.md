@@ -263,7 +263,7 @@ Client `sqlplus` or SQLcl `sql`); Easy Connect `//host:port/service`.
 ```bash
 ./02-Checks/ssl_check.sh                    # auto-detect architecture
 ./02-Checks/ssl_check.sh --warn-days 60     # warn earlier on cert expiry
-./02-Checks/ssl_check.sh --host 10.0.1.5    # external host for the TLS checks
+./02-Checks/ssl_check.sh --host 10.10.10.124    # external host for the TLS checks
 ./02-Checks/ssl_check.sh --no-curl          # skip the HTTP endpoint checks
 ```
 

@@ -453,7 +453,7 @@ Fix:     Re-run 00-Setup/weblogic_sec.sh --apply to update credentials
 ### wlst_connect.sh – wlst.sh not found
 
 ```
-Symptom: FAIL wlst.sh not found: /u01/oracle/fmw/oracle_common/common/bin/wlst.sh
+Symptom: FAIL wlst.sh not found: /u01/app/oracle/fmw/oracle_common/common/bin/wlst.sh
 Cause:   FMW_HOME is wrong or FMW is not installed at that path
 Fix:     Correct ORACLE_HOME in environment.conf, then re-run detect_env_conf.sh
 ```

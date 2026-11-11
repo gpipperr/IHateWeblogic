@@ -8,7 +8,7 @@
 #   -Start      check for updates (self-update first), then start Forms
 #   -Rollback   switch back to the previous installed version
 #   -Uninstall  remove %LOCALAPPDATA%\FormsWeb and the shortcuts
-#   -BaseUrl    bundle URL, e.g. https://forms.company.local/formsWeb/
+#   -BaseUrl    bundle URL, e.g. https://forms.pipperr.local/formsWeb/
 #               (only needed for the first -Install, then kept in state.json)
 #
 # Served and versioned by 09-Install/40-oracle_forms_client_bundle.sh;

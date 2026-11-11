@@ -137,7 +137,7 @@ VORAUSSETZUNGEN
     export ORACLE_HOME=/u01/oracle/fmw
     # Forms-&-Reports-Home
 
-    export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+    export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
 
     export INV_PTR=/etc/oraInst.loc
     # inventory_loc=... darin
@@ -441,14 +441,14 @@ SCHRITT 4: Alles stoppen  (als root bzw. oracle, Beginn Wartungsfenster)
   ----------------------------------------------------------------------------
   # Mit Autostart (Autostart_linux_middleware.txt) - als root:
 
-  systemctl stop reportrpgpi
+  systemctl stop reportgpi
 
   # Ohne Autostart - als oracle:
   #   /u01/oracle/scripts/stop_all.sh   bzw.  $ORACLE_HOME/stop_wls_all.sh
 
   # Autostart waehrend der Arbeit nicht versehentlich ausloesen (Reboot) -
   # optional, als root (in Schritt 13.2 wieder "enable"):
-  #   systemctl disable reportrpgpi
+  #   systemctl disable reportgpi
 
   ----------------------------------------------------------------------------
   4.2 Variablen pruefen  (als oracle)
@@ -1066,13 +1066,13 @@ SCHRITT 13: Starten und pruefen  (als oracle / root)
   ----------------------------------------------------------------------------
   13.2 Starten  (als root)
   ----------------------------------------------------------------------------
-  systemctl enable reportrpgpi
+  systemctl enable reportgpi
   # nur falls in Schritt 4.1 deaktiviert
 
-  systemctl start reportrpgpi
+  systemctl start reportgpi
   # wartet auf RUNNING, dauert einige Minuten
 
-  systemctl status reportrpgpi --no-pager
+  systemctl status reportgpi --no-pager
 
   # Ohne Autostart (als oracle): /u01/oracle/scripts/start_all.sh
 
@@ -1198,7 +1198,7 @@ SCHRITT 15: Maschine neu starten  (als root)
   # Nach dem Neustart (einige Minuten) als oracle neu anmelden - pruefen,
   # dass alles von selbst wieder hochkommt:
 
-  systemctl status reportrpgpi --no-pager
+  systemctl status reportgpi --no-pager
 
   # Erwartet: "active (exited)" - nur mit Autostart
   # (Autostart_linux_middleware.txt). Ohne Autostart: start_wls_all.sh

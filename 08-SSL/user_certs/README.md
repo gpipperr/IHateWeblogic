@@ -33,7 +33,7 @@ by the script (hidden) – never put them into a file here.
 
 **Server certificate**
 - Subject Alternative Name (SAN) = the **external host name** the users type
-  (`WLS_SERVER_FQDN`, e.g. `forms.company.com`, a wildcard `*.company.com` is
+  (`WLS_SERVER_FQDN`, e.g. `forms.pipperr.local`, a wildcard `*.pipperr.local` is
   accepted), plus further names if used. The internal host name (cloud:
   `host.subnet.vcn.oraclevcn.com`) does not have to be in it – the check only
   demands `WLS_SERVER_FQDN` (interview Block 3).

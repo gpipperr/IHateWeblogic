@@ -808,6 +808,28 @@ IHateWeblogic/
                                              existing domain (monUser/RepRunner, LDAP, libOVD)
 ```
 
+## Demo Data
+
+Examples in docs, cookbooks and script comments use the names of our test host.
+They are **demo data** – no customer data, no masking needed – and can be copied
+as they are on a host built with this library:
+
+| Item | Demo value |
+|---|---|
+| host / FQDN | `orafusion01` / `orafusion01.pipperr.local` |
+| IP / network | `10.10.10.124` / `10.10.10.0/24` (admin PCs `10.10.10.50`, `10.10.10.51`) |
+| RCU database | CDB `FMWCDB`, PDB service `fmwpdb` on `10.10.10.124:1521`, schema prefix `DEV` |
+| Forms & Reports domain | `fr_domain` – `/u01/app/oracle/domains/fr_domain` |
+| FMW / JDK home | `/u01/app/oracle/fmw` / `/u01/app/oracle/java/jdk-21` |
+| Reports server | `repserver01` |
+| Reports-only demo domain (manual cookbooks in `70-Customer-Projects/Reports14_linux_manual_install`) | `reportGPI` (systemd unit `reportgpi`) |
+| further names in examples | `forms.pipperr.local` (public alias), `mail.pipperr.local`, `proxy.pipperr.local` |
+
+Rule of thumb: everything with `orafusion`, `pipperr.local`, `10.10.10.` or `gpi`
+is demo. Placeholders such as `<host>` or `<repserver>` stay where the reader
+**must** put in an own value; default values inside the scripts are not demo
+data and stay as they are.
+
 ## Common Flags
 
 - `--apply` : Execute write/change operations (default: read-only/dry-run)

@@ -554,7 +554,7 @@ Typical causes:
   regional yum mirror `yum.<region>.oci.oraclecloud.com`), not the public
   Oracle download sites. A NAT gateway in the route table of the subnet (or a
   proxy) is needed – a matter for the customer's cloud team.
-- **Corporate proxy:** `export https_proxy=http://proxy.company.com:3128`
+- **Corporate proxy:** `export https_proxy=http://proxy.pipperr.local:3128`
   (and `no_proxy`) before the call. curl and wget use it; for getMOSPatch the
   script passes it as `-Dhttps.proxyHost/-Dhttps.proxyPort` (java ignores the
   shell variables).

@@ -8,7 +8,7 @@
 #              https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9
 #
 # Variables replaced at install time:
-#   ##SERVER_NAME##        FQDN of this server (e.g. wls01.company.local)
+#   ##SERVER_NAME##        FQDN of this server (e.g. orafusion01.pipperr.local)
 #   ##WLS_FORMS_PORT##     WLS_FORMS listen port  (default: 9001)
 #   ##WLS_REPORTS_PORT##   WLS_REPORTS listen port (default: 9002)
 #   ##WLS_ADMIN_PORT##     AdminServer listen port  (default: 7001)

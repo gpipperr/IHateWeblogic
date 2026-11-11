@@ -12,10 +12,11 @@ environments live), visuals good since the SVG diagrams, completion good for a
 1.0 – **publication hygiene not yet** (items 0, 2, 3, 7). Worked off step by
 step beside the customer work (state 2026-11-10). Order:
 
-- [ ] **0. Demo-data naming convention:** test host = demo data, no masking –
-  server `orafusion01` (`pipperr.local`), IP `10.10.10.124`, RCU DB `fmwpdb`,
-  Reports domain `reportGPI`, everything with `gpi`; short "Demo data" section
-  in README / CONTRIBUTING.
+- [x] **0. Demo-data naming convention** – done 2026-11-11: test host = demo
+  data, no masking – server `orafusion01` (`pipperr.local`), IP `10.10.10.124`,
+  RCU DB `fmwpdb`, Reports domain `reportGPI`, everything with `gpi`; section
+  [Demo Data](README.md#demo-data) in the README (CONTRIBUTING reuses it, item 7);
+  examples in docs / cookbooks switched to these names.
 - [x] **1. Git history** – decided 2026-11-10: stays as it is. Historic
   customer traces (domain name) are accepted by the customer; the only other trace is a host
   name in 2 old commit messages, and that server no longer exists. No secrets

@@ -481,7 +481,7 @@ section "Block 3 – Domain Configuration"
 
 info "Public server name – the name the users type in the URL; it must be in the"
 info "  certificate (SAN). Differs from the host name in the cloud / with a DNS alias"
-info "  (host.subnet.vcn.oraclevcn.com vs. forms.company.com) – Nginx, SSL, client + ORDS URLs"
+info "  (host.subnet.vcn.oraclevcn.com vs. forms.pipperr.local) – Nginx, SSL, client + ORDS URLs"
 _ask WLS_SERVER_FQDN         "Public server name (URL / certificate)" "$(hostname -f 2>/dev/null || _get_hostname)" "_val_host"
 _ask WLS_ADMIN_USER          "WLS Admin username"           "webadmin"
 _ask WLS_ADMIN_PORT          "WLS Admin port"               "7001"        "_val_port"

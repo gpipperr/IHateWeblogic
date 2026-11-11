@@ -43,7 +43,7 @@ VORAUSSETZUNGEN
   gleiche Namen wie in patch_install.ini):
 
     ORACLE_HOME             /u01/oracle/fmw
-    DOMAIN_HOME             /u01/user_projects/domains/reportRpgpi
+    DOMAIN_HOME             /u01/user_projects/domains/reportGPI
     WLS_MANAGED_SERVER      WLS_REPORTS
     WLS_ADMIN_URL           t3://localhost:7001
     REPORTS_SERVER_NAME     repServer01
@@ -120,7 +120,7 @@ SCHRITT 0: Die mitgelieferten Oracle-Skripte - manuell starten, Status
   . /u01/oracle/tools/set_script_env.sh
 
   # Ohne set_script_env.sh - Werte fuer die aktuelle Sitzung von Hand:
-  #   export DOMAIN_HOME=/u01/user_projects/domains/reportRpgpi
+  #   export DOMAIN_HOME=/u01/user_projects/domains/reportGPI
   #   export WLS_MANAGED_SERVER=WLS_REPORTS
   #   export WLS_ADMIN_URL=t3://localhost:7001
   #   export WLS_REPORTS_PORT=9002
@@ -518,7 +518,7 @@ WEITERGEHENDE INFORMATIONEN
 
   Naechstes Kochbuch: Autostart_linux_middleware.txt - automatischer
   Start/Stop beim Hoch- und Herunterfahren des Servers (systemd). Ab dann
-  wird die Umgebung im Betrieb ueber "systemctl start/stop reportrpgpi"
+  wird die Umgebung im Betrieb ueber "systemctl start/stop reportgpi"
   statt mit den beiden Skripten hier bedient.
 
 ================================================================================

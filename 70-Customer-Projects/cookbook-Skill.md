@@ -273,7 +273,7 @@ Good (one idea per line, the result is shown before it is used):
 - **No passwords in commands, files or logs.** Use placeholders
   `<IDENTIFIER_PASSWORD>`, or let the tool ask for it hidden.
 - **No customer names, hosts or IPs in a committed cookbook.** Use
-  generic examples such as `reportrpgpi`, `fr_domain` and `<host>`.
+  generic examples such as `reportGPI`, `fr_domain` and `<host>`.
 
 ### 2.7 Input for another tool (WLST, SQL*Plus, vi)
 
