@@ -27,7 +27,7 @@ Related:
  developer (RDP, personal login, e.g. gpi)
         |
         |  1. pull.ps1            at the start of the work
-        |  2. edit in the Builder E:\git\gpi\Reports\source\*.rdf
+        |  2. edit in the Builder E:\git\%USERNAME%\Reports\source\*.rdf
         |  3. checkin.ps1 "comment"
         |        a) fetch: behind the remote? -> stop, "run pull.ps1 first"
         |        b) changed .rdf -> rwconverter -> Reports\xml\<name>.xml
@@ -38,13 +38,15 @@ Related:
 
 | Item | Value |
 |---|---|
-| clone per developer | `E:\git\<user>` – e.g. `E:\git\gpi` for the user `gpi` |
-| report sources | `E:\git\<user>\Reports\source\*.rdf` |
-| images | `E:\git\<user>\Reports\images\` (file names in lower case, see the image article) |
-| XML of every report | `E:\git\<user>\Reports\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
-| scripts | `E:\git\<user>\Reports\pull.ps1`, `E:\git\<user>\Reports\checkin.ps1` (part of the repository, so every clone has the same version) |
+| clone per developer | `E:\git\%USERNAME%` – the folder name = the Windows login, e.g. `E:\git\gpi` for the user `gpi` |
+| report sources | `E:\git\%USERNAME%\Reports\source\*.rdf` |
+| images | `E:\git\%USERNAME%\Reports\images\` (file names in lower case, see the image article) |
+| XML of every report | `E:\git\%USERNAME%\Reports\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
+| scripts | `E:\git\%USERNAME%\Reports\pull.ps1`, `...\checkin.ps1` (part of the repository, so every clone has the same version) |
 | Git | Git for Windows (command line), remote via HTTPS, personal user |
-| Builder `REPORTS_PATH` | must contain `E:\git\<user>\Reports\source` and `...\images` of the developer – per user (section 3.4) |
+| Builder start | desktop file `rwbuilder_git.bat` = copy of the original with `REPORTS_PATH=E:\git\%USERNAME%\Reports\source;...\images` in front (3.5) |
+| user in commands and scripts | always the variable **`%USERNAME%`** (cmd) / **`$env:USERNAME`** (PowerShell) – no user name is written into a command, a script or `reports.bat`; the same text works for every developer. `gpi` is only the demo user of the examples |
+| rights | the developer account is a **local administrator**, and the scripts / `rwconverter.bat` run in an **elevated session** (2.1) |
 
 ## 2. rdf → xml from the command line
 
@@ -52,13 +54,40 @@ Related:
 
 The Reports tools need the environment of the tools instance – the same as
 for `rwbuilder.bat`. `rwconverter.bat` of the domain sets it itself (it
-calls `reports.bat`):
+calls `reports.bat`).
+
+**Rights: local administrator, elevated session.** The Oracle installer
+breaks the inheritance of permissions below `E:\oracle`, so a normal user
+account cannot run the Reports tools – the same as for the Builder
+(confirmed live at the customer 2026-10-27, README "Multi-user operation",
+cookbook "User accounts"). Therefore:
+- the developer account is a member of the local group **Administrators**;
+- `rwconverter.bat`, `pull.ps1` and `checkin.ps1` run in a shell started with
+  **"Run as administrator"** (cmd or PowerShell) – with UAC switched on, a
+  normal window of an admin account still runs with standard rights.
+  **Assumption:** `rwconverter` behaves like the Builder here (to confirm at
+  the customer, section 5). A shortcut "Reports check-in" can be set to
+  "Run as administrator" (shortcut → Properties → Advanced).
 
 ```bat
-%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\gpi\Reports\source\sales.rdf stype=rdffile ^
-    dest=E:\git\gpi\Reports\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
+%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\%USERNAME%\Reports\source\sales.rdf stype=rdffile ^
+    dest=E:\git\%USERNAME%\Reports\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
     cmdfile=%USERPROFILE%\.rwconv\login.txt
 ```
+
+In PowerShell (as the scripts will call it) – the clone folder from
+`$env:USERNAME`:
+
+```powershell
+$repo = "E:\git\$env:USERNAME\Reports"
+& "$env:DOMAIN_HOME\reports\bin\rwconverter.bat" "source=$repo\source\sales.rdf" stype=rdffile `
+    "dest=$repo\xml\sales.xml" dtype=xmlfile batch=yes overwrite=yes `
+    "cmdfile=$env:USERPROFILE\.rwconv\login.txt"
+```
+
+The scripts may also take the clone from their own location
+(`$PSScriptRoot` = `E:\git\%USERNAME%\Reports`) – then the folder name does not
+even have to match the login.
 
 - `cmdfile=` holds one line `userid=<user>/<password>@<tns-alias>` – the DB
   login, see 2.2. It is not on the command line (process list) and not in
@@ -66,7 +95,7 @@ calls `reports.bat`):
 - `batch=yes` = no dialog; `overwrite=yes` = replace the old XML.
 - **Same base name** for `.rdf` and `.xml` (2.2, "report name").
 
-Example of the login file for the demo user `gpi` (DB user `gpi`, TNS alias
+Example of the login file – shown for the demo user `gpi` (DB user `gpi`, TNS alias
 `fmwpdb` from the shared `tnsnames.ora` of the domain), created once in a cmd
 shell of the developer:
 
@@ -96,7 +125,7 @@ icacls %USERPROFILE%\.rwconv\login.txt
 ```
 
 Expected: only one line with `<computer>\gpi:(F)`. `%USERPROFILE%` is
-`C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\gpi`, so Git
+`C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\%USERNAME%`, so Git
 never sees the file. A changed DB password = edit this one line.
 
 ### 2.2 Results – confirmed (live) on the Linux test host, 2026-11-11
@@ -122,8 +151,10 @@ neither user nor password of the conversion login in the file).
 
 ### 2.3 Open on Windows
 
-- `rwconverter.bat` runs from PowerShell in a normal RDP session of a
-  developer (local admin, see README) – expected yes.
+- `rwconverter.bat` runs from PowerShell in the RDP session of a developer
+  who is a local admin – in an elevated window ("Run as administrator");
+  check whether it also works without elevation (UAC) – expected no, as for
+  the Builder.
 - Exit code arrives in PowerShell (`$LASTEXITCODE`) – expected 0 / 1 as on
   Linux.
 - Byte-identical XML on Windows (line ends: Windows may write CRLF – then set
@@ -174,11 +205,88 @@ the scripts enforce:
 
 Today `reports.bat` holds one `REPORTS_PATH` for all users (cookbook step
 8.2: `E:\reports\src;E:\reports\images`). With one clone per user the Builder
-must search the user's own clone. Options (to decide with the customer):
-- `REPORTS_PATH` built from `%USERNAME%` in `reports.bat`:
-  `set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;...`
-  – works when the Windows login equals the folder name (`gpi`);
-- or a user environment variable `REPORTS_PATH` per account.
+must search the user's own clone – **decided: a copy of `rwbuilder.bat` on
+the desktop sets it from `%USERNAME%` (3.5).** `reports.bat` itself stays
+unchanged, so a patch or a new tools instance does not touch the per-user
+part.
+
+### 3.5 Builder start from the desktop – own `rwbuilder.bat` with `%USERNAME%`
+
+The developer starts the Builder **only** through this file. It is a copy of
+the original `%DOMAIN_HOME%\reports\bin\rwbuilder.bat` with one added line
+that puts the own clone at the front of `REPORTS_PATH` – report sources and
+images (the Builder finds images through `REPORTS_PATH`, see the image
+article). One file for all developers, because the user comes from
+`%USERNAME%`.
+
+| Item | Value |
+|---|---|
+| original | `%DOMAIN_HOME%\reports\bin\rwbuilder.bat` (written by `createReportsToolsInstance`, cookbook step 7) |
+| copy | `C:\Users\Public\Desktop\rwbuilder_git.bat` – the public desktop, every RDP user sees it |
+| added line | `set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;%REPORTS_PATH%` – **after** the line that calls `reports.bat` (that file sets `REPORTS_PATH` itself) and before the call of `rwbuilder.exe` |
+| start | with administrator rights (2.1) – a `.bat` has no "Run as administrator" setting of its own, so a shortcut to it does (below) |
+
+Create it once, as administrator, in a cmd shell after
+`call E:\oracle\builder_env.cmd`:
+
+```bat
+copy %DOMAIN_HOME%\reports\bin\rwbuilder.bat C:\Users\Public\Desktop\rwbuilder_git.bat
+```
+
+```bat
+findstr /n /i "reports.bat rwbuilder" C:\Users\Public\Desktop\rwbuilder_git.bat
+```
+
+Expected: one line that calls `reports.bat`, one later line that starts
+`rwbuilder` (`%ORACLE_HOME%\bin\rwbuilder.exe` or similar – note the line
+numbers).
+
+```bat
+notepad C:\Users\Public\Desktop\rwbuilder_git.bat
+```
+
+Insert directly **below** the `reports.bat` line (and above the `rwbuilder`
+line):
+
+```bat
+rem IHW: own Git clone first - E:\git\<Windows login>\Reports
+set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;%REPORTS_PATH%
+```
+
+Check – the line is there and stands between the two others:
+
+```bat
+findstr /n /i "reports.bat IHW REPORTS_PATH rwbuilder" C:\Users\Public\Desktop\rwbuilder_git.bat
+```
+
+Shortcut with administrator rights (Explorer, on the public desktop):
+right click → New → Shortcut → target
+`C:\Users\Public\Desktop\rwbuilder_git.bat`, name "Reports Builder (Git)";
+then shortcut → Properties → Shortcut → **Advanced → "Run as
+administrator"**; "Start in": `%DOMAIN_HOME%\reports\bin` written out as
+the real path (e.g. `E:\oracle\user_projects\domains\rwbuilder_domain\reports\bin`).
+Optionally hide the `.bat` itself and leave only the shortcut visible.
+
+Test as a developer (e.g. `gpi`): start "Reports Builder (Git)", open a
+report from `E:\git\gpi\Reports\source`, preview – images with a file name
+only (no path) must appear. Help → About shows 14.1.2.0.0.
+
+Notes:
+- **After every patch and after a new `createReportsToolsInstance`**
+  compare the copy with the original (`fc %DOMAIN_HOME%\reports\bin\rwbuilder.bat
+  C:\Users\Public\Desktop\rwbuilder_git.bat`) – the only difference must be
+  the two IHW lines; otherwise copy again and add the lines again.
+- `%USERNAME%` = the Windows login; the clone folder has the same name (1.).
+- **Assumption, to confirm at the customer:** the exact content of the
+  Windows `rwbuilder.bat` (the Linux `rwbuilder.sh` of the test host sources
+  `reports.sh`, sets the tools instance `reptools1` and then starts
+  `$ORACLE_HOME/bin/rwbuilder`; `reports.sh` puts its own directories in
+  front of an existing `REPORTS_PATH` and keeps the rest). If `reports.bat`
+  should not keep an existing `REPORTS_PATH`, the added line after it still
+  wins – that is why it stands below the `reports.bat` call.
+- The old shortcut "Oracle Reports Builder" of cookbook step 8.4 (to the
+  original `rwbuilder.bat`) should be removed for the Git developers, so
+  nobody works against `E:\reports\src` by mistake.
 
 ## 4. Flow sketch of the scripts (not written yet)
 
@@ -203,9 +311,12 @@ must search the user's own clone. Options (to decide with the customer):
 
 ## 5. Test procedure for the customer appointment (Windows, cmd)
 
-As a developer account on the Builder server, in a cmd shell, after
+As a developer account (**local administrator**) on the Builder server, in a
+cmd shell started with **"Run as administrator"**, after
 `call E:\oracle\builder_env.cmd` (cookbook step 0.2). Use a copy of a real
-report in a temporary folder.
+report in a temporary folder. At the end, run the first conversion once more
+in a **normal** (not elevated) cmd window – does it fail? That decides
+whether the scripts must ask for elevation.
 
 ```bat
 mkdir E:\temp\xmltest\xml
