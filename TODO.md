@@ -275,8 +275,9 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
   `notifyfailure` in `cgicmd.dat` keys for a ticket system – key wins, `retry="3"`
   = 4 mails). Open with a real relay: `destype=mail` (report as attachment) and
   its success page, login / STARTTLS / SMTPS, does `TRACE:32` show the mail
-  values, is `mailPassword` encrypted at the restart, `retry="0"` = one mail,
-  umlauts in an own note file.
+  values, is `mailPassword` encrypted at the restart, umlauts in an own note
+  file. (`retry` / `JOBRETRY` and `reloadkeymap` live-tested 2026-11-11 –
+  [reports_rwservlet_properties.md](80-FMW-Architecture/reports_rwservlet_properties.md).)
 - [ ] **`status.sh --store-nm-key`**: first real run with the Node Manager
   password (only the error paths are tested). Open question left over: where
   `startComponent.sh … storeUserConfig` writes its files, which

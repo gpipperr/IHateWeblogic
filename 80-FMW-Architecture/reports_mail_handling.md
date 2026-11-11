@@ -376,7 +376,7 @@ unknown report name (`REP-56132`) unless noted.
 | request rejected before a job exists: wrong `authid` → `REP-50171` | **no mail** |
 | `jobname=SALES_DAILY` in the request | subject `Job SALES_DAILY notification from Reports Server`, `&jobName` = `SALES_DAILY` |
 | every failing request | **4 mails**, about one second apart – the `<job ... retry="3"/>` of `rwserver.conf` (1 try + 3 retries); `failedJobs` rose by **1** per request |
-| change in `cgicmd.dat` | effective only after a **restart of WLS_REPORTS** (a restart of `repserver01` was not enough) |
+| change in `cgicmd.dat` | effective only after a **restart of WLS_REPORTS** (a restart of `repserver01` was not enough) – or at once with `<reloadkeymap>yes</reloadkeymap>` in `rwservlet.properties` (live, [reports_rwservlet_properties.md §3](reports_rwservlet_properties.md#3-reloadkeymap--cgicmddat-changes-without-a-restart)) |
 
 The failure mail as it arrived (test host, own note file without header):
 
@@ -431,8 +431,11 @@ REP-56132: Access is denied to the report definition file.
    ```
    default: server=repserver01 %* authid=RepRunner/<REPRUNNER_PASSWORD> notifyfailure=reports-tickets@pipperr.local
 
-   monthly_sales: report=monthly_sales.rdf destype=cache desformat=pdf server=repserver01 %* authid=RepRunner/<REPRUNNER_PASSWORD> notifyfailure=reports-tickets@pipperr.local
+   monthly_sales: report=monthly_sales.rdf destype=cache desformat=pdf server=repserver01 %* authid=RepRunner/<REPRUNNER_PASSWORD> notifyfailure=reports-tickets@pipperr.local jobretry=0
    ```
+
+   `jobretry=0` gives one ticket per failed request instead of 1 + `retry`
+   (6.3).
 
    The key value wins over a value from the request (6.1), so a caller can
    neither switch the ticket off nor redirect it.
@@ -446,10 +449,13 @@ REP-56132: Access is denied to the report definition file.
 ### 6.3 Limits – what does NOT open a ticket
 
 - **One failure = several mails** while `retry` is set: with `retry="3"` the
-  ticket system gets 4 mails for one failed request. Either let the ticket
-  system merge mails with the same subject within a few minutes, or set
-  `retry="0"` on the `<job>` element (then a short DB outage is no longer
-  retried). **Assumption:** `retry="0"` gives one mail – not tested.
+  ticket system gets 4 mails for one failed request. **Best fix: `jobretry=0`
+  in the key that sends `notifyfailure`** – one mail per failed request, the
+  other jobs keep `retry="3"`. Live 2026-11-11: `jobretry=0` in the key = 1
+  mail (also when the request sends `jobretry=2`); `retry="0"` in
+  `rwserver.conf` = 1 mail, but only after a restart of the Reports server.
+  Details and the "retry does not take" checklist:
+  [reports_rwservlet_properties.md §5](reports_rwservlet_properties.md#5-job-retry--job-retry-in-rwserverconf-and-jobretry).
 - **No job, no mail:** a rejected request (`REP-50171` wrong login,
   `REP-56071` missing role), a Reports server or WLS_REPORTS that is down,
   a full queue. These cases need the monitoring of

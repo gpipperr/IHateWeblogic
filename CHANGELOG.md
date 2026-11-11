@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- New `80-FMW-Architecture/reports_rwservlet_properties.md`: all `rwservlet.properties` elements
+  of 14.1.2 (`rwservlet.xsd`, Oracle 12.2.1.3 §7.3 – the book the 14.1.2 library links) with
+  default / DEV-PROD recommendation / library value; `13-` rewrites the whole file (hand-set
+  elements lost). Live-tested: `reloadkeymap=yes` makes a new `cgicmd.dat` key work without a
+  WLS_REPORTS restart; job retry: `<job retry>` belongs to `rwserver.conf` (xsd default 0,
+  library 3), needs a Reports server restart, `JOBRETRY` in request / key overrides it (key
+  wins), normal REP errors are retried too; "retry does not take" checklist.
+  `reports_mail_handling.md`: `jobretry=0` in the ticket key (one mail per failure).
 - New `70-Customer-Projects/Reports14_builder_windows/Git_checkin.md`: Git check-in idea for
   Reports developers on the Windows Builder server (clone per user `E:\git\<user>`,
   `pull.ps1` / `checkin.ps1`, no stash / ff-only, Git Credential Manager). Step 1 rdf -> xml

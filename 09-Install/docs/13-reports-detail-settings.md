@@ -349,6 +349,9 @@ Locate the `<multicast>` element (14.1.2; `<cluster>` in older releases) and cha
 
 ## Step 4 – Configure `rwservlet.properties`
 
+> All elements of the file in 14.1.2 (defaults, DEV / PROD, `reloadkeymap`,
+> job retry): [reports_rwservlet_properties.md](../../80-FMW-Architecture/reports_rwservlet_properties.md).
+
 **Location** (one file per WLS_REPORTS managed server):
 ```
 $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/rwservlet.properties
