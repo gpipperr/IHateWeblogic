@@ -17,7 +17,8 @@ names, IP addresses and encrypted credentials of a real system.
 
 This is a private project maintained alongside customer work: reports are
 handled on a best-effort basis, without guaranteed response times. Fixes go
-into `main`; there are no releases and no backports.
+into `main`; releases (since `v1.0.0`) are snapshots of `main` – there are
+no backports.
 
 ## Supported versions
 

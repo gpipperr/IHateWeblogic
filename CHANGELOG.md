@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
 ## 2026-11-11
 
+- **`CONTRIBUTING.md`** (ACE item 7): scope, how to report a finding (fields, anonymise, what never
+  to attach), pull requests only after agreement in an issue, public copy of the coding
+  conventions (so far only in the git-ignored `CLAUDE.md`), customer-data rule with the demo set.
+  Issue template `.github/ISSUE_TEMPLATE/finding.md`. **Pre-commit hook** `tools/hooks/pre-commit`
+  (+ `install.sh` -> `core.hooksPath`): checks only staged lines / names – customer names from the
+  local list `~/.config/ihw/customer_patterns` (never in git; `cs:` / `allow:` entries), forbidden
+  files also with `add -f`, private keys / GitHub tokens / `password=<value>`, private IPs except
+  the demo net, `bash -n`, stale customer ZIPs. 19 cases tested in a scratch repository; the
+  rules run over the whole repository gave no false positive in new-style content.
+  `SECURITY.md`: releases exist since `v1.0.0`.
 - **Lint gate** (ACE item 5): `tools/ci_lint.sh` – `bash -n` on all `*.sh` / `*.sh.template`
   plus ShellCheck (one parallel run, errors = gate, warnings = report; `CI_LINT_VERBOSE=1` lists
   them) – run by `.github/workflows/lint.yml` on push / PR, badge in the README. Fixed for the

@@ -1,0 +1,137 @@
+#!/bin/bash
+# =============================================================================
+# Script   : tools/hooks/pre-commit
+# Purpose  : Git pre-commit hook - stops customer data, secrets and broken
+#            scripts before they reach git. Checks ONLY what is staged:
+#              1. customer names    local list (never in git), see below
+#              2. forbidden files   *.des3, environment.conf, keys, exports
+#              3. secrets           private keys, GitHub tokens, password=<value>
+#              4. private IPs       10/8, 172.16/12, 192.168/16 except the demo
+#                                   net 10.10.10.0/24 and generic examples
+#              5. bash -n           staged *.sh / *.sh.template
+#              6. customer ZIPs     stale after a change in tools/bash|powershell
+# Install  : tools/hooks/install.sh   (= git config core.hooksPath tools/hooks)
+# List     : ${IHW_CUSTOMER_PATTERNS:-~/.config/ihw/customer_patterns}
+#            format: tools/hooks/customer_patterns.example
+# Override : a confirmed false positive -> "allow:" line in the local list;
+#            last resort: git commit --no-verify
+# Exit     : 0 = commit goes on, 1 = blocked
+# License  : Apache 2.0
+# =============================================================================
+
+VERSION="2026-11-11.1"
+
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+cd "$ROOT" || exit 1
+
+LIST="${IHW_CUSTOMER_PATTERNS:-$HOME/.config/ihw/customer_patterns}"
+TMP="$(mktemp -d)" || exit 1
+trap 'rm -rf "$TMP"' EXIT
+
+BLOCK=0
+_hit()  { printf '  BLOCK  %-16s %s\n' "$1" "$2"; BLOCK=$((BLOCK + 1)); }
+_note() { printf '  WARN   %-16s %s\n' "$1" "$2"; }
+
+# --- staged files (added / copied / modified / renamed) -----------------------
+mapfile -t FILES < <(git diff --cached --name-only --diff-filter=ACMR)
+[ "${#FILES[@]}" -gt 0 ] || exit 0
+
+# --- staged added lines as "file:line:text" -----------------------------------
+# -U0: only changed lines; binary files show no content lines.
+git diff --cached -U0 --no-color --diff-filter=ACMR | awk '
+    /^\+\+\+ b\// { f = substr($0, 7); next }
+    /^@@ /        { split($3, a, ","); n = substr(a[1], 2) + 0; next }
+    /^\+/         { printf "%s:%d:%s\n", f, n, substr($0, 2); n++ }
+' > "$TMP/added"
+
+# --- 1. customer names ---------------------------------------------------------
+if [ -r "$LIST" ]; then
+    # pattern lines (case-insensitive), "cs:" lines (case-sensitive), "allow:" strings
+    grep -vE '^[[:space:]]*(#|$)|^(cs|allow):' "$LIST" > "$TMP/pat_i"
+    sed -n 's/^cs://p' "$LIST" > "$TMP/pat_cs"
+    sed -n 's/^allow://p' "$LIST" > "$TMP/allow"
+    {
+        [ -s "$TMP/pat_i" ]  && grep -iE -f "$TMP/pat_i"  "$TMP/added"
+        [ -s "$TMP/pat_cs" ] && grep -E  -f "$TMP/pat_cs" "$TMP/added"
+        # file names count too (a new file named after a customer)
+        printf '%s\n' "${FILES[@]}" | { [ -s "$TMP/pat_i" ] && grep -iE -f "$TMP/pat_i"; }
+    } | sort -u > "$TMP/cust"
+    while IFS= read -r line; do
+        rest="$line"
+        while IFS= read -r a; do
+            [ -n "$a" ] && rest="${rest//"$a"/}"
+        done < "$TMP/allow"
+        # still a hit after removing the allowed strings?
+        if { [ -s "$TMP/pat_i" ] && grep -qiE -f "$TMP/pat_i" <<< "$rest"; } \
+           || { [ -s "$TMP/pat_cs" ] && grep -qE -f "$TMP/pat_cs" <<< "$rest"; }; then
+            _hit "customer-name" "${line:0:160}"
+        fi
+    done < "$TMP/cust"
+else
+    _note "customer-name" "no list $LIST - customer names NOT checked (tools/hooks/install.sh)"
+fi
+
+# --- 2. forbidden files -----------------------------------------------------------
+for f in "${FILES[@]}"; do
+    case "$f" in
+        *.des3|*.des3.bak*|environment.conf|*/environment.conf|setup.conf|*_sec.conf|\
+        *ihw_export_*|*.pem|*.key|*.p12|*.pfx|*.jks)
+            _hit "forbidden-file" "$f (never commit - see .gitignore / CONTRIBUTING.md)" ;;
+    esac
+done
+
+# --- 3. secrets ---------------------------------------------------------------------
+grep -E 'BEGIN [A-Z ]*PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}' "$TMP/added" \
+    | while IFS= read -r l; do printf '  BLOCK  %-16s %s\n' "secret" "${l:0:160}"; done > "$TMP/sec"
+# password=<value> / pwd:<value> without blank: a real value - not a placeholder
+# (<..>, $VAR, ${..}, %s, ##..##, ..., ***), not NOPASSWD, not code (os.environ)
+P_PW='(^|[^A-Za-z0-9_])(password|passwd|pwd)[=:]["'"'"']?[^"'"'"'<$*{%#(.…[:space:]][^"'"'"'[:space:],)]{3,}'
+P_OK='(password|passwd|pwd)[=:]["'"'"']?(xxx|changeme|secret|password|redacted|yes|no|true|false|none|null|prompt|required|ask|os\.environ|getpass)'
+grep -iE "$P_PW" "$TMP/added" | grep -viE "$P_OK" \
+    | while IFS= read -r l; do printf '  BLOCK  %-16s %s\n' "password-value" "${l:0:160}"; done >> "$TMP/sec"
+if [ -s "$TMP/sec" ]; then
+    cat "$TMP/sec"
+    BLOCK=$((BLOCK + $(wc -l < "$TMP/sec")))
+fi
+
+# --- 4. private IP addresses ---------------------------------------------------------
+# A.B.C.D not part of a longer version number (14.1.2.0.0); allowed: demo net
+# 10.10.10.0/24 and the generic examples 10.0.0.0, 10.0.0.1
+while IFS= read -r l; do
+    text="${l#*:*:}"
+    for ip in $(grep -oP '(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)' <<< "$text"); do
+        case "$ip" in
+            10.10.10.*|10.0.0.0|10.0.0.1) ;;
+            10.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|192.168.*)
+                if ! grep -qxF "$ip" "$TMP/allow" 2>/dev/null; then
+                    _hit "private-ip" "$ip in ${l:0:140}"
+                fi ;;
+        esac
+    done
+done < <(grep -P '(?<![\d.])(?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}(?!\.?\d)' "$TMP/added")
+
+# --- 5. bash -n -------------------------------------------------------------------------
+for f in "${FILES[@]}"; do
+    case "$f" in
+        *.sh|*.sh.template|tools/hooks/pre-commit)
+            # check the STAGED content, not the working copy
+            if ! out="$(git show ":$f" | bash -n 2>&1)"; then
+                _hit "bash-n" "$f: ${out:0:140}"
+            fi ;;
+    esac
+done
+
+# --- 6. customer ZIPs current? ------------------------------------------------------------
+if printf '%s\n' "${FILES[@]}" | grep -qE '^70-Customer-Projects/tools/(bash|powershell)/'; then
+    if ! out="$(cd 70-Customer-Projects/tools && ./make_customer_zip.sh 2>&1)"; then
+        _hit "customer-zip" "stale - run 70-Customer-Projects/tools/make_customer_zip.sh --apply and stage the ZIP"
+        printf '%s\n' "$out" | grep -v '^ *OK' | sed 's/^/           /'
+    fi
+fi
+
+if [ "$BLOCK" -gt 0 ]; then
+    printf '\npre-commit %s: %d finding(s) - commit BLOCKED.\n' "$VERSION" "$BLOCK"
+    printf 'Fix it, or for a confirmed false positive add an "allow:" line to %s.\n' "$LIST"
+    exit 1
+fi
+exit 0

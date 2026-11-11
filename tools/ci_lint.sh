@@ -19,7 +19,7 @@ VERSION="2026-11-11.2"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { printf 'not inside a git repository\n' >&2; exit 2; }
 cd "$ROOT" || exit 2
 
-mapfile -t FILES < <(git ls-files '*.sh' '*.sh.template')
+mapfile -t FILES < <(git ls-files '*.sh' '*.sh.template' 'tools/hooks/pre-commit')
 [ "${#FILES[@]}" -gt 0 ] || { printf 'no shell scripts found\n' >&2; exit 2; }
 
 RC=0

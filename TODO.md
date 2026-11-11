@@ -45,8 +45,12 @@ step beside the customer work (state 2026-11-10). Order:
   scripts, check one by one). Open: confirm the first CI run (runner has 0.9.0).
 - [ ] **6. Showcase** (`status.sh`, `clone_check`, analysis PDF page, smoke
   test) + blog article on pipperr.de linked both ways.
-- [ ] **7. `CONTRIBUTING.md`** (conventions, customer-data rule, how to report
-  a finding); customer-data scan as a pre-commit hook.
+- [x] **7. `CONTRIBUTING.md`** (conventions, customer-data rule, how to report
+  a finding); customer-data scan as a pre-commit hook – done 2026-11-11:
+  `CONTRIBUTING.md` (issues welcome, PRs after agreement in an issue),
+  issue template "Finding", `tools/hooks/pre-commit` + `install.sh`
+  (customer names from the local `~/.config/ihw/customer_patterns`, forbidden
+  files, secrets, private IPs, `bash -n`, stale customer ZIPs; 19 test cases).
 - [ ] **8. Reviewer-visible test gaps:** fresh domain with the current `08-`
   template, `clone_check.sh --apply` file places on a real domain,
   `REPORTS_ONLY` domain creation.

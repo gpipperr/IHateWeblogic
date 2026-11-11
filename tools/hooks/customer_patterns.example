@@ -1,0 +1,30 @@
+# =============================================================================
+# Customer-name list for tools/hooks/pre-commit - EXAMPLE
+# =============================================================================
+# Copy to ~/.config/ihw/customer_patterns (tools/hooks/install.sh does it) and
+# put in the names of YOUR customers. The real list never goes into git - it
+# would publish the very names it protects.
+#
+# Format, one entry per line:
+#   <regex>          extended regex, case-insensitive  (host, domain, company)
+#   cs:<regex>       extended regex, case-sensitive    (short upper-case codes)
+#   allow:<string>   literal string removed before the check (false positive),
+#                    or an exact IP address the private-IP check should accept
+#   # comment / empty line
+#
+# Demo data of this repository (README "Demo Data") is allowed and must NOT be
+# listed: orafusion01, pipperr.local, 10.10.10.0/24, FMWCDB / fmwpdb,
+# fr_domain, repserver01, reportGPI, user gpi.
+# =============================================================================
+
+# customer company / project names
+examplecorp
+# host and domain names of the customer
+srvexample0[0-9]
+example-intra\.local
+# customer network outside the private ranges (private ranges are checked anyway)
+203\.0\.113\.
+# short upper-case customer code - case-sensitive, word start
+cs:\bEXC
+# false positive: "exc" in "exception" is not the customer
+allow:exception
