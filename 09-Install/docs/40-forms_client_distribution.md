@@ -50,10 +50,10 @@ reproducible (open items "Tests that need a client" in the root README).
 
 ## 2. Architecture
 
-![client-distribution](diagrams/client-distribution.svg)
-<sub>Quelle: [diagrams/client-distribution.prompt](diagrams/client-distribution.prompt) · [D2](diagrams/client-distribution.d2)</sub>
+![client-distribution](diagrams/client-distribution.svg?v=e4f8de09)
+<sub>Source: [diagrams/client-distribution.prompt](diagrams/client-distribution.prompt) · [D2](diagrams/client-distribution.d2)</sub>
 
-<details><summary>ASCII-Version</summary>
+<details><summary>ASCII version</summary>
 
 ```ascii name=client-distribution
   Application server (Linux)                                Windows client (user scope)
