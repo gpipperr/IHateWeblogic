@@ -78,11 +78,21 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 
 | Section | Content / evaluation |
 |---|---|
-| Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`; FAIL: `maxEngine < minEngine/initEngine`. INFO: no `engineResponseTimeOut`, URL engine active |
+| Report Engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`, **no `engineResponseTimeOut`** (a hanging engine is never ended – typical for domains not built with this library); FAIL: `maxEngine < minEngine/initEngine`. INFO: URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
 | rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/report_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
+
+**`engineResponseTimeOut` – not the same as `ORBWaitForResponseTimeout`.**
+`engineResponseTimeOut` (attribute of `<engine>`, **minutes**) ends an engine
+whose job sends no status update for that long and replaces it – protection
+against an endless query or a DB lock. `-DORBWaitForResponseTimeout=999999999`
+(Java option, **milliseconds**, in `REPORTS_JVM_OPTIONS` / `jvmOptions`) is only
+the ORB wait time and the workaround for REP-50125 – it limits nothing. Default of
+this library: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h safety net since
+2026-11-10, before 30); tune it to 2 × the longest job from `engine_perf_analyse.sh`
+(customer 2026-11-11: longest 260 s → 9 min).
 
 The rules and Oracle's numbers behind the checks:
 [report_engine_architecture.md §6](../80-FMW-Architecture/report_engine_architecture.md#6-performance-parameters-rwserverconf).

@@ -197,7 +197,8 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   (SHA-1 / MD5) and interception – concept in
   [certificates_trust_stores.md §7 / §8](80-FMW-Architecture/certificates_trust_stores.md#7-centralising-the-java-trust-stores--options).
 - [ ] **`maxRuntimeProcesses` / `engineResponseTimeOut` with real load**:
-  both are proposals today (½ RAM / 64 MB per session; 30 min, measured
+  both are proposals today (½ RAM / 64 MB per session; 360 min safety net since
+  2026-11-10 (before 30), measured
   longest job 1 s on the test host) – re-check with
   `06-FormsDiag/forms_perf_analyse.sh` and
   `05-ReportsPerformance/engine_perf_analyse.sh` at the first customer.

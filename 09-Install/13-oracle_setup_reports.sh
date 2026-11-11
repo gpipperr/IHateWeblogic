@@ -901,7 +901,7 @@ _ENG_MIN="${REPORTS_ENGINE_MIN:-2}"
 _ENG_LIFE="${REPORTS_ENGINE_LIFE:-50}"
 _ENG_IDLE="${REPORTS_ENGINE_MAX_IDLE:-}"        # empty = Oracle default 30 min
 _ENG_JVM="${REPORTS_ENGINE_JVM_OPTIONS:-}"      # empty = engines with -Xmx256M
-_ENG_ERT="${REPORTS_ENGINE_RESPONSE_TIMEOUT-30}" # minutes, empty = no timeout (Oracle default)
+_ENG_ERT="${REPORTS_ENGINE_RESPONSE_TIMEOUT-360}" # minutes (default 6 h safety net), empty = no timeout (Oracle default)
 _MAX_CONN="${REPORTS_MAX_CONNECT:-300}"
 _MAX_QUEUE="${REPORTS_MAX_QUEUE:-4000}"
 _NLS="${NLS_LANG:-GERMAN_GERMANY.AL32UTF8}"

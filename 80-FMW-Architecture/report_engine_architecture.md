@@ -298,7 +298,7 @@ Configuration") and the `engine` element (7.2.1.8):
 | `engLife` | `engine` | 50 | jobs per engine before it is replaced – "to thwart memory leaks" |
 | `maxIdle` | `engine` | 30 (min) | idle engines above `minEngine` are stopped after this time |
 | `callbackTimeOut` | `engine` | 90000 ms | wait for a new engine to call the server back |
-| `engineResponseTimeOut` | `engine` | none | minutes without a status update of a running job (hanging engine); Oracle: "set to the maximum time a report takes", batch reports better on an own server. Here: `REPORTS_ENGINE_RESPONSE_TIMEOUT=30`, `engine_perf_analyse.sh` measures the run times (`showjobs` `timingInfo`) and proposes 2 × longest job, ≥ 5 – test host 2026-10-23: 68 jobs, longest 1 s → 5 |
+| `engineResponseTimeOut` | `engine` | none | minutes without a status update of a running job (hanging engine); Oracle: "set to the maximum time a report takes", batch reports better on an own server. Here: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h – safety net against a hanging engine, never kills a long batch report; default 30 until 2026-11-10), `engine_perf_analyse.sh` measures the run times (`showjobs` `timingInfo`) and proposes 2 × longest job, ≥ 5 – test host 2026-10-23: 68 jobs, longest 1 s → 5 |
 | `jvmOptions` | `engine` | – | heap etc. of the **engine** JVMs |
 | `maxQueueSize` | `queue` | – | jobs kept; rate × `EXPIRATION` (10/min × 480 min → 4800) |
 | `cacheSize` | `cache` | – | `maxQueueSize` × average output size (4800 × 100 KB → 480 MB) |
@@ -309,7 +309,7 @@ engine element with ID="rwURLEng"".
 
 This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
 `maxEngine=5`, `minEngine=2`, `engLife=50`, `maxConnect=300`,
-`maxQueueSize=4000`, `engineResponseTimeOut=30` (environment.conf
+`maxQueueSize=4000`, `engineResponseTimeOut=360` (environment.conf
 `REPORTS_ENGINE_*`; `maxIdle` and engine `jvmOptions` only when
 `REPORTS_ENGINE_MAX_IDLE` / `REPORTS_ENGINE_JVM_OPTIONS` are set). Since
 2026-10-23 **every** engine value comes from `environment.conf` – `13-` and
@@ -336,7 +336,9 @@ not set at all, a default is used (**documented**: Bug 39868225, MOS KB924687
 **confirmed (live)** 2026-10-15 on the test host and 2026-11-10 at a customer
 – right after `REPORTS_JVM_OPTIONS` was first set in `reports.sh` for the
 loopback hardening, without the timeout; gone after adding it). So whoever sets the variable must always include the
-timeout. Three places, three effects (**confirmed (live)** 2026-11-10,
+timeout. Not to be confused with `engineResponseTimeOut` (`<engine>`
+attribute, minutes – ends a hanging engine, table above): the ORB value
+limits nothing, `999999999` ms is practically unlimited. Three places, three effects (**confirmed (live)** 2026-11-10,
 `/proc/<pid>/environ` and `cmdline`):
 
 | Place | Effect on | Note |

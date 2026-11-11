@@ -149,7 +149,7 @@ explicitly provides a different value during `--interview`.
 | `REPORTS_COOKIE_KEY` | generated once by `13-` (persisted) |
 | `REPORTS_ENGINE_MIN` / `_INIT` / `_MAX` | `2` / `2` / `5` – engines per server |
 | `REPORTS_ENGINE_LIFE` / `_MAX_IDLE` | `50` jobs / empty (Oracle default) – engine recycling |
-| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `30` minutes – proposal from the measured run times (`05-ReportsPerformance`) |
+| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `360` minutes (6 h safety net) – tune to 2 × the longest report, proposal from the measured run times (`05-ReportsPerformance`) |
 | `REPORTS_ENGINE_JVM_OPTIONS` | extra engine JVM options (empty) |
 | `REPORTS_MAX_CONNECT` / `REPORTS_MAX_QUEUE` | `300` / `4000` |
 

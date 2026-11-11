@@ -3,6 +3,15 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 
+## 2026-11-11
+
+- `engineResponseTimeOut` default 30 → **360 minutes** (6 h safety net: ends only a really hanging
+  engine, never a long batch report): `13-oracle_setup_reports.sh`, `detect_env_conf.sh`,
+  `fmw_prod.conf.template`, docs 13 / 00-environment-setup / 01-setup-interview,
+  `report_engine_architecture.md`. `05-ReportsPerformance/README.md`: missing
+  `engineResponseTimeOut` is a WARN (as the script does), new note on the difference to
+  `-DORBWaitForResponseTimeout` (ORB wait time / REP-50125 workaround, limits nothing).
+
 ## 2026-11-10
 
 - Test host RCU DB: old 19.30 home removed after 13 days on 19.33 – its deinstall tool was never

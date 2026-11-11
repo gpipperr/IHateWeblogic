@@ -90,14 +90,15 @@ REPORTS_ENGINE_LIFE="50"                    # engLife: jobs per engine before it
 REPORTS_ENGINE_MAX_IDLE=""                  # maxIdle (minutes); empty = attribute omitted (Oracle default 30)
 REPORTS_ENGINE_JVM_OPTIONS=""               # jvmOptions of the ENGINE JVMs, e.g. "-Xmx1g";
                                             #   empty = omitted (engines run with -Xmx256M)
-REPORTS_ENGINE_RESPONSE_TIMEOUT="30"        # engineResponseTimeOut (minutes): a job without status
+REPORTS_ENGINE_RESPONSE_TIMEOUT="360"       # engineResponseTimeOut (minutes): a job without status
                                             #   update for this long = hanging engine, killed;
                                             #   empty = omitted (Oracle default: no timeout)
 REPORTS_MAX_CONNECT="300"                   # connection maxConnect
 REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
 # engineResponseTimeOut - Oracle (Tuning Reports Server Configuration): "set to the
-# maximum time a report takes", too low kills long reports; 30 = default for a new
-# installation (nothing measured yet). 05-ReportsPerformance/engine_perf_analyse.sh
+# maximum time a report takes", too low kills long reports; 360 (6 h) = default for a
+# new installation – a safety net that only ends a really hanging engine, never a
+# long batch report (nothing measured yet; before 2026-11-10 the default was 30). 05-ReportsPerformance/engine_perf_analyse.sh
 # measures the run times (showjobs) and proposes 2 x longest job, >= 5 min.
 # All engine values are written by 13- --apply on every run. Tuning with
 # 05-ReportsPerformance/engine_perf_settings.sh --apply writes them back here,
@@ -435,7 +436,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
   <!-- values from REPORTS_ENGINE_*; maxIdle="…" / jvmOptions="…" only when set
        (jvmOptions + -DORBWaitForResponseTimeout=999999999
         -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1),
-       engineResponseTimeOut="30" (minutes) from REPORTS_ENGINE_RESPONSE_TIMEOUT -->
+       engineResponseTimeOut="360" (minutes) from REPORTS_ENGINE_RESPONSE_TIMEOUT -->
   <engine id="rwEng" class="oracle.reports.engine.EngineImpl"
           initEngine="2" maxEngine="5" minEngine="2"
           engLife="50" defaultEnvId="QS"/>
