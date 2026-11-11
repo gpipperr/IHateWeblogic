@@ -36,6 +36,46 @@ are implemented and the whole install chain is live-tested end-to-end incl.
 the smoke test; phase table, how the ~96 % is estimated and what ran live at
 customers: [docs/project_status.md](docs/project_status.md).
 
+## Target Picture – Forms and APEX side by side – the main idea behind this installation
+
+A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
+APEX on the same database**, each where it is strongest:
+
+![target-picture](diagrams/target-picture.svg)
+<sub>Quelle: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
+
+<details><summary>ASCII-Version</summary>
+
+```ascii name=target-picture
+                 users (browser / FSAL)
+                          |  HTTPS
+              +---------- Nginx (TLS, one host name) ----------+
+              |                       |                         |
+        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.3)
+         Oracle Forms 14c       Oracle Reports              Oracle APEX 26.2
+              |                       |                         |
+              +-------------- Oracle Database --------------------+
+                     one schema, one PL/SQL business logic
+```
+
+</details>
+
+| Use | Tool | Users |
+|---|---|---|
+| **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
+| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.3**) | everyone in the company, in the browser |
+| **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
+
+This is the intention of a good, future-proof Oracle strategy for a Forms
+customer: keep the investment in Forms and its PL/SQL logic, open the data
+to everyone with APEX, and keep everything on the Oracle database – instead
+of replacing it piece by piece with other platforms (background and appeal:
+[IHateWeblogic.md](IHateWeblogic.md#why-forms--reports-still-matter--an-appeal)).
+Status in this library: manual installation in
+[`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (ORDS standalone homes
+`ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
+the automation is an [open item](TODO.md).
+
 ## Start here
 
 **What:** a Bash library for the whole lifecycle of **Oracle Forms &
@@ -83,46 +123,6 @@ Documentation:
 | [docs/forms_reports_sizing.md](docs/forms_reports_sizing.md) | disk sizing, memory and processes |
 | [docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md) | lifecycle, folder roles, known gaps, first run, setup |
 | [docs/general_security.md](docs/general_security.md) | password concept, secure report invocation |
-
-## Target Picture – Forms and APEX side by side – the main idea behind this installation
-
-A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
-APEX on the same database**, each where it is strongest:
-
-![target-picture](diagrams/target-picture.svg)
-<sub>Quelle: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
-
-<details><summary>ASCII-Version</summary>
-
-```ascii name=target-picture
-                 users (browser / FSAL)
-                          |  HTTPS
-              +---------- Nginx (TLS, one host name) ----------+
-              |                       |                         |
-        /forms (WLS_FORMS)     /reports (WLS_REPORTS)     /ords (ORDS 26.3)
-         Oracle Forms 14c       Oracle Reports              Oracle APEX 26.2
-              |                       |                         |
-              +-------------- Oracle Database --------------------+
-                     one schema, one PL/SQL business logic
-```
-
-</details>
-
-| Use | Tool | Users |
-|---|---|---|
-| **Case processing** – the existing, proven business logic, heavy data entry, power users | **Oracle Forms 14.1.2** (FSAL / Java Web Start) | the departments that work in it all day |
-| **Data capture** – simple forms, self-service, mobile, occasional users | **Oracle APEX 26.2** (via **ORDS 26.3**) | everyone in the company, in the browser |
-| **Reporting** – dashboards, interactive reports, exports | **Oracle APEX** (and Oracle Reports for the classic print output) | everyone |
-
-This is the intention of a good, future-proof Oracle strategy for a Forms
-customer: keep the investment in Forms and its PL/SQL logic, open the data
-to everyone with APEX, and keep everything on the Oracle database – instead
-of replacing it piece by piece with other platforms (background and appeal:
-[IHateWeblogic.md](IHateWeblogic.md#why-forms--reports-still-matter--an-appeal)).
-Status in this library: manual installation in
-[`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (ORDS standalone homes
-`ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
-the automation is an [open item](TODO.md).
 
 ## Security & Patch Status
 
