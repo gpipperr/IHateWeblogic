@@ -1,4 +1,4 @@
-# Report Builder Environment on MS Windows – Oracle Reports Builder 14.1.2
+# Reports Builder Environment on MS Windows – Oracle Reports Builder 14.1.2
 
 Minimale Entwicklungsumgebung für den **Oracle Reports Builder 14.1.2** auf
 einem zentralen **Windows Server**, auf dem die Entwickler per **RDP**

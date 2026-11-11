@@ -14,7 +14,7 @@ Markers as in [README.md](README.md): **confirmed (code)**, **confirmed
 
 ## 1. How an image gets into a report
 
-| Report Builder | Where the image is | On a Linux server |
+| Reports Builder | Where the image is | On a Linux server |
 |---|---|---|
 | *Insert → Image* (imported boilerplate image) | **embedded** in the `.rdf` | works, no path involved |
 | *Link File* object, *Source File Format* = Image, *Source Filename* = `E:\berichte\grafiken\stamp.jpg` | read from disk **at run time** | the stored name must be resolvable on Linux |
@@ -168,7 +168,7 @@ state: the report contains only the **file name**, the image directory is in
 `REPORTS_PATH` on Windows (Builder) and on Linux (server), and all image
 files on Linux are **lower case**.
 
-### Way A – Report Builder on Windows (confirmed (live), customer 2026-10-16)
+### Way A – Reports Builder on Windows (confirmed (live), customer 2026-10-16)
 
 1. Start the Builder with a `REPORTS_PATH` that contains the report source
    **and** the image directory – on Windows separated by `;`. In
