@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- **GitHub Pages – docs as a linked website, finished** (steps 4–7 of
+  `prompt_ihw_pages_verlinkung.md`): 1,395 code mentions in 108 files linked, one commit per
+  folder (only link brackets added, all targets checked); own `_layouts/default.html` +
+  `assets/css/ihw.css` in the style of www.pipperr.de (header with logo and section,
+  breadcrumb, menu column, "This page on GitHub", footer "Made by"); kramdown fixes found by the
+  live check: ASCII `<details>` blocks swallowed the rest of 12 pages -> `<details
+  markdown="block">` + fence ```` ```ascii?name=<n> ```` (render_ascii writes this form), 240
+  bare URLs in 40 files were plain text on Pages -> `<https://…>`; front matter (title /
+  description, READMEs + permalink) for 12 module READMEs and 35 `09-Install/docs`. Live check
+  0 findings (2,344 links, 119 pages), all folder addresses HTTP 200.
 - `Reports14_builder_windows`: new cookbook `git_pipeline_kochbuch_de.txt` (German) - set-up of
   `deploy_dev` / `deploy_prod` step by step: `rwdeploy.sh` on DEV and PROD, deploy keys with
   `command=` / `restrict` / `from=`, host key for `DEPLOY_KNOWN_HOSTS`, runner tag, GitLab protected

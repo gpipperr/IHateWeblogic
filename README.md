@@ -81,10 +81,12 @@ customer: keep the investment in Forms and its PL/SQL logic, open the data
 to everyone with APEX, and keep everything on the Oracle database – instead
 of replacing it piece by piece with other platforms (background and appeal:
 [IHateWeblogic.md](IHateWeblogic.md#why-forms--reports-still-matter--an-appeal)).
-Status in this library: manual installation in
-[`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (ORDS standalone homes
-`ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
-the automation is an [open item](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
+Status in this library: scripts `01-` … `06-` in
+[`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (prepare the DB, install /
+patch APEX, install / patch ORDS standalone homes `ords_1` / `ords_2`, images
+in `/srv/apex`, Nginx `/ords` + `/i/`), live-tested 2026-10-23, the manual
+procedure stays as reference; follow-ups (security check of what applications
+bring in, first real patch run) are an [open item](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
 ## Start here
 
@@ -184,7 +186,7 @@ environment (analyse + fix): the order of the first scripts –
 |-----------------------|------------------------------------------------------|
 | [`00-Setup/`](00-Setup/README.md)           | Environment setup, lib, password management          |
 | [`01-Run/`](01-Run/README.md)             | Start/stop, WLST, Reports Server status              |
-| [`02-Checks/`](02-Checks/README.md)          | OS, Java, ports, DB connectivity, SSL checks         |
+| [`02-Checks/`](02-Checks/README.md)          | OS, Java, ports, DB connectivity, SSL checks; outbound connections (egress), one `TNS_ADMIN`, clone-capable / loopback check |
 | [`03-Logs/`](03-Logs/README.md)            | Log discovery, grep, tail, archive, cleanup          |
 | [`04-ReportsFonts/`](04-ReportsFonts/README.md)    | Font inventory, migration PS→TTF, uifont.ali, deploy |
 | [`05-ReportsPerformance/`](05-ReportsPerformance/README.md) | Reports server: analyse + fix an existing environment (parameters, load, logs) |
@@ -192,10 +194,10 @@ environment (analyse + fix): the order of the first scripts –
 | [`07-Maintenance/`](07-Maintenance/README.md)     | Config backup/restore, patching an already-running environment |
 | [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
-| [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
+| [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
 | [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
-| [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
+| [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle), Reports Builder on Windows with Git check-in and GitLab deployment (DEV on push, PROD by `prod-*` tag) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | [`80-FMW-Architecture/`](80-FMW-Architecture/README.md) | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Common Flags
@@ -212,6 +214,8 @@ IHateWeblogic/
 ├── TODO.md                          – Open items (everything not yet done or tested)
 ├── CHANGELOG.md                     – What was finished when, newest first
 ├── CONTRIBUTING.md                  – How to report a finding, conventions, customer-data rule + pre-commit hook
+├── SECURITY.md                      – how to report a security problem privately
+├── LICENSE                          – Apache License 2.0
 ├── IHateWeblogic.md                 – Background and intention of the IHateWeblogic script lib
 ├── docs/                            – sections moved out of this README (2026-11-11): migration to 14c,
 │                                    project status, security & patch status, sizing (disk, memory,
@@ -220,6 +224,10 @@ IHateWeblogic/
 ├── tools/ci_lint.sh                 – lint gate: `bash -n` + `shellcheck` (errors) over all scripts, also run by GitHub Actions
 ├── tools/hooks/                     – pre-commit hook (customer data, secrets, bash -n, stale ZIPs) + install.sh
 ├── tools/render_ascii/              – ASCII diagrams in Markdown → SVG (LLM → D2), `?v=` cache-busting
+├── tools/check_pages_links.py       – link check for github.com + GitHub Pages (local / --live), code-link helper
+├── _config.yml, _layouts/, assets/  – GitHub Pages: Cayman theme + own layout (menu, breadcrumb) and
+│                                      assets/css/ihw.css; assets/ also holds the logo
+├── diagrams/                        – SVG diagrams of this README (target picture) + their sources
 ├── environment.conf                 ← symlink → 00-Setup/environments/<name>.conf  (do NOT commit)
 ├── weblogic_sec.conf.des3           ← generated by 00-Setup/weblogic_sec.sh (do NOT commit)
 ├── *_sec.conf.des3, *.conf.des3     ← further encrypted secrets (interview / 13- / 15-), see
@@ -261,7 +269,8 @@ IHateWeblogic/
 │   ├── README.md
 │   ├── os_check.sh                  – OL version, kernel, ulimits, open files;
 │   │                                   validated against Oracle certification matrix
-│   ├── java_check.sh                – Verify JAVA_HOME uses FMW-bundled JDK (not system JDK)
+│   ├── java_check.sh                – JAVA_HOME, JDK version / vendor, JDK of every running WLS JVM and
+│   │                                   of the Reports engines, heap, Log4j scan
 │   ├── port_check.sh                – Listen addresses and ports per component, TCP check
 │   ├── db_connect_check.sh          – TNS / JDBC connectivity test (uses weblogic_sec.sh)
 │   ├── ssl_check.sh                 – Read SSL configuration, analyze certificates, show expiry dates
@@ -345,6 +354,8 @@ IHateWeblogic/
 │   ├── README.md                    – Certificate lifecycle: prepare → deploy → verify
 │   ├── ssl_prepare_cert.sh          – Create/stage a cert: SELF (self-signed), LOCALCA (own root CA),
 │   │                                   EASYRSA (internal CA), REQUEST (CSR for a public/company CA)
+│   ├── ssl_customer_certs.sh        – check + import the certificates of a customer PKI (PEM, DER,
+│   │                                   PKCS#7, PKCS#12)
 │   ├── ssl_local_ca.sh              – Own root CA (openssl): init / server (TLS for Nginx) /
 │   │                                   codesign (PKCS12 for jacob.jar) / status
 │   ├── ssl_config.sh                – Audit SSL config: expiry, protocols, ciphers, Frontend Host
@@ -373,8 +384,8 @@ IHateWeblogic/
 │   ├── 08-oracle_setup_domain.sh    – Phase 4: WebLogic domain creation (WLST silent)
 │   ├── 09-oracle_configure.sh       – Phase 5: pre-start config – boot.properties → JVM → font OS
 │   │                                   packages → validation → backup (fonts/cgicmd.dat: 14b-)
-│   ├── 10-oracle_boot_properties.sh – Phase 6: boot.properties (AdminServer + NodeManager)
-│   ├── 11-oracle_nodemanager.sh     – Phase 6: NodeManager setup (plain SSL via WLST)
+│   ├── 10-oracle_boot_properties.sh – Phase 5: boot.properties (AdminServer + managed servers)
+│   ├── 11-oracle_nodemanager.sh     – Phase 6: NodeManager setup (plain, non-SSL listener via WLST)
 │   ├── 12-oracle_reports_users.sh   – Phase 6: monUser + RepRunner WebLogic users
 │   ├── 13-root_reports_fix.sh       – Phase 6: libnsl.so.2 symlink for Oracle Linux 9 (root, or
 │   │                                   oracle when $ORACLE_HOME/lib is writable)
@@ -450,6 +461,7 @@ IHateWeblogic/
 │   ├── rcu_user_profile.sql         – idempotent SQL for it (also used by 09-Install/07)
 │   ├── rcu_registry_overview.sql    – all RCU prefixes of the DB: schemas, orphans, profile, expiry
 │   ├── rcu_db_requirements.sql      – FMW 14.1.2 DB requirements (version, edition, AL32UTF8, JVM, parameters)
+│   ├── 07-db_sql_scripts.sh         – DBA SQL script collection (OraDBASQLScripts: login.sql + analysis scripts)
 │   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
 │   ├── 09-db_patch_rcu.sh           – patch the running DB out-of-place (new home via 01- --target-home, move, datapatch, rollback)
 │   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
@@ -478,6 +490,12 @@ IHateWeblogic/
 │   ├── reports_fonts_architecture.md – Reports fonts: original vs. substitute, licences (Windows fonts
 │   │                                      not to another server), OFL replacements, migration
 │   ├── reports_user_local_ldap.md   – secured standalone Reports server (embedded LDAP)
+│   ├── reports_job_handling.md      – scheduled reports, job queues, cron + rwclient
+│   ├── reports_mail_handling.md     – mail server, sender, notifications, failure mail to a ticket system
+│   ├── reports_rwservlet_properties.md – what rwservlet.properties can set in 14.1.2, job retry
+│   ├── reports_monitoring_getserverinfo.md – monitoring the Reports server with getserverinfo
+│   ├── fmw_pwd_handling.md          – password handling in the domain (domain key, {AES256}, stores)
+│   ├── forms_performance_analyse_tuning.md – "Forms is slow": method, what to measure, tuning
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export
 │   ├── ords_architecture.md         – ORDS: Jetty, APEXlang compiler, config levels, proxy right, features + risks
@@ -542,8 +560,9 @@ IHateWeblogic/
     │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
     │   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
     │   ├── Git_deploy.md                 – push to main -> DEV (changed reports), prod-* tag -> exactly that check-in to production (GitLab)
+    │   ├── git_pipeline_kochbuch_de.txt  – German cookbook: set up both pipelines (servers, deploy keys, GitLab, tests)
     │   ├── deploy/                       – template.gitlab-ci.yml, ci_deploy.sh (job), rwdeploy.sh (SSH forced-command queue on the server), rwdeploy.conf.template, authorized_keys.example
-    │   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag), release_tag.ps1 (open vs. released, set prod-* tag -> production), menu.cmd / menu.ps1 / menu.ini (start menu for a double click), README_DE.md (workflow for the developers), template.gitattributes / .gitignore
+    │   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag / prod state), release_tag.ps1 (open vs. released, set prod-* tag -> production), menu.cmd / menu.ps1 / menu.ini (start menu for a double click), README_DE.md (workflow for the developers), template.gitattributes / .gitignore
     │   ├── ReportBuilder_Windows_Kochbuch_de.txt
     │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/
@@ -561,6 +580,7 @@ IHateWeblogic/
         │                                    loaded with tools/bash/set_script_env.sh
         ├── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
         ├── Reports_security.txt           – Hardening of the finished environment (new install)
+        ├── Reports_Zeitplan_kochbuch_de.txt – scheduled reports with cron + rwclient (appendix: SCHEDULE=)
         ├── Patch_Kochbuch_CPU_Okt2026_de.txt – CPU Oct 2026 for an EXISTING home with unknown
         │                                    patch level (+ patches_cpu_reports_14c_oct2026.csv, 18 patches)
         └── Reports_Absicherung_kochbuch_de.txt – check + complete the Reports security of an
@@ -630,11 +650,11 @@ to the table.
 
 - Forms 14c Install Guide: <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html>
 - Reports 12c Install Guide: <https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/>
-- Reports 14c Install Guide on Windows: <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64> 
-- Reports 12c Install Guide on Windows:<https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64>
-- SSL Weblogic : <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl>
+- Reports 14c Install Guide on Windows: <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>
+- Reports 12c Install Guide on Windows: <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64>
+- SSL WebLogic: <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl>
 
-- Font Usage Oracle Reports : <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm>
+- Font Usage Oracle Reports: <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm>
 - Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
   [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
 - RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade

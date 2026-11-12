@@ -59,37 +59,6 @@ step beside the customer work (state 2026-11-10). Order:
   all 32 image links carry `?v=<SVG hash>`, "Source:" / "ASCII version"; diagram texts
   checked – `builder-windows` translated to English, Target Picture ORDS 26.3.
 
-## GitHub Pages – docs as a linked website (started 2026-11-12)
-
-Spec: `90-Source-MetaData/prompt_ihw_pages_verlinkung.md` (local), plan steps 1–7;
-tool: `tools/check_pages_links.py`. Done (`c95949c`): link checker, 2 broken
-anchors, `TODO.md` / `tools/` / folder links + 84 raw-file links -> GitHub view,
-render_ascii source links absolute, `code` links sample in `09-Install/README.md`
-+ `00-Setup/README.md`, root README folder column. Rules: `.md` links relative,
-code / raw files -> `github.com/…/blob/main/`, no Liquid in Markdown, no rewording.
-
-- [x] **Step 4 – rest:** done 2026-11-12 – `--link-code --apply` folder by folder
-  (07-Maintenance `9b716d7`, then 23 groups up to 09-Install `402f121`): 1,395 code
-  mentions linked in 108 files, per folder: all targets exist, only link brackets
-  added (text with the links removed is identical), checker 0, customer ZIPs
-  rebuilt with `70-Customer-Projects/tools`; dry run afterwards: 0 links left.
-- [x] **Step 5 – navigation** – done 2026-11-12 (`07b9aec`): own `_layouts/default.html`
-  in the style of www.pipperr.de (header with logo + section, breadcrumb – folder
-  link only with README –, menu column, "This page on GitHub", footer "Made by"),
-  Cayman CSS kept for the content, `assets/css/ihw.css` on top. Found by the live
-  check and fixed: ASCII `<details>` blocks swallowed the rest of 12 pages
-  (kramdown: no fence after ```` ```ascii name= ````, `<placeholder>` as HTML) →
-  `<details markdown="block">` + ```` ```ascii?name=<n> ````, render_ascii writes
-  this form (`3485c0b`); 240 bare URLs in 40 files were plain text on Pages →
-  `<https://…>` (`8900443`). Live check: 0 findings (2,344 links, 119 pages).
-- [x] **Step 6 – front matter** – done 2026-11-12 (`7cc3629`): own `title` (≤ 70) /
-  `description` (150–160) for the 12 module READMEs (+ `permalink: /<folder>/`) and
-  the 35 `09-Install/docs`; description used only for the browser tab, Google and
-  link previews (not shown on the page – decided).
-- [x] **Step 7 – close** – done 2026-11-12: pages build green, `check_pages_links.py
-  --live` 0 findings (2,344 links, 119 pages), all 16 folder addresses HTTP 200,
-  `<title>` / meta description live from the front matter.
-
 ## Cookbooks – still to check on a fresh run / at the customer
 
 The findings of the cookbook style rewrite (2026-11-04) are fixed (`git log`).
