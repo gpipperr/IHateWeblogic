@@ -194,7 +194,7 @@ issued eight intermediate CAs with 8-bit private keys, anybody can issue
 TLS certificates for any domain with them (attack needs a man in the
 middle). Oracle removes the eMudhra roots in the next Java builds → take the
 newest 8u511 build MOS offers (≥ b26; newer than b32 once available). Live
-test on our 14c host (details in `09-Install/docs/00-patch-references.md`,
+test on our 14c host (details in [`09-Install/docs/00-patch-references.md`](../../09-Install/docs/00-patch-references.md),
 "eMudhra CA incident"): JDK 21.0.13.0.2 already blocks the compromised
 intermediates (`blocked.certs`), the old FMW-bundled JDK trusts them – also
 over the cross-signature of "AAA Certificate Services", so deleting the
@@ -464,4 +464,4 @@ can act on the PC with the user's rights. Background:
 | 17 | Repository DB `REPOS` (19.32, same host): DB RU 19.33 for CVE-2026-75803 (9.8) – who patches the database, when? | |
 | 18 | **eMudhra CA incident** (Alert CVE-2026-114820, 2026-10-24): which Java 8 builds trust the compromised intermediates – server JDK, bundled `oracle_common/jdk` 8u341, client JRE? (`keytool -list … \| grep -ci emsign`, count of `blocked.certs`, cookbook step 4.8). OS: `dnf updateinfo list --available ca-certificates` on the OL 8 hosts. Does Reports open outbound TLS (mail destination SMTPS, WebDAV, `https` images / XML)? | found 2026-10-26 on our 14c host: bundled JDK trusts, current JDK 21 blocks |
 | 19 | **Invalid objects in the RCU schemas** – record before the patch run and compare afterwards (cookbook steps 0 / 10.6); only new invalid objects are caused by the patches. Our 14c host had 69 invalid objects right after the RCU run (IAU synonyms, OPSS ORA-00942). | |
-| 20 | Scanner findings for files that are only part of the FMW home's DB client (e.g. `jackson-databind` in `jlib/`): check whether they are loaded at runtime (`/proc/<pid>/maps`) before treating them as exposure – the FMW DB client is only updated through Oracle's FMW patches, never with a regular DB client RU (assessment for 14c: `09-Install/docs/00-patch-references.md`, "FMW DBCLIENT – known residual") | |
+| 20 | Scanner findings for files that are only part of the FMW home's DB client (e.g. `jackson-databind` in `jlib/`): check whether they are loaded at runtime (`/proc/<pid>/maps`) before treating them as exposure – the FMW DB client is only updated through Oracle's FMW patches, never with a regular DB client RU (assessment for 14c: [`09-Install/docs/00-patch-references.md`](../../09-Install/docs/00-patch-references.md), "FMW DBCLIENT – known residual") | |
