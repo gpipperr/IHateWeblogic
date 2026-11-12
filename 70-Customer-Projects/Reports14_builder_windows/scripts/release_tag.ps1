@@ -5,13 +5,15 @@
 # (checkin.ps1); ein prod-Tag auf einen Check-in startet in GitLab die
 # Pipeline, die GENAU die Dateien dieses Check-ins in die Produktion bringt.
 #
-# Teil 1: noch nicht in Produktion - Check-ins auf origin/main ohne eigenen
-#         prod-Tag, fuer deren Dateien es auch keinen NEUEREN Check-in mit
-#         prod-Tag gibt - nummeriert, mit Dateien und einer Liste pro Datei
-# Teil 2: die letzten 20 prod-Tags mit Datum, Freigeber, Check-in und den
-#         Dateien dieses Check-ins (= was in die Produktion ging)
-# Teil 3: fragt nach einer Nummer aus Teil 1, setzt auf diesen Check-in einen
-#         Tag mit Kommentar und sendet ihn zum Git-Server, z.B.
+# Teil 1: noch nicht in Produktion - Check-ins auf origin/main, die neuer
+#         sind als der Stand ihrer Datei in Produktion (= Check-in des zuletzt
+#         angelegten prod-Tags dieser Datei) - nummeriert, mit Dateien und
+#         einer Liste pro Datei
+# Teil 2: die letzten 20 Check-ins nach Datum (neueste zuerst), jede Datei
+#         mit dem Tag ihres Check-ins - ohne Tag: NO_TAG
+# Teil 3: fragt nach einer Nummer aus Teil 1 oder einer Commit-ID (auch ein
+#         aelterer Check-in, z.B. aus Teil 2 = Rollback), setzt auf genau
+#         diesen Check-in einen Tag mit Kommentar und sendet ihn, z.B.
 #             prod-2026-11-12_1430_umsatz.rdf
 #         -> die Pipeline in GitLab verteilt den Bericht nach Produktion
 #
@@ -27,18 +29,20 @@
 #   .\Reports\release_tag.ps1 -Filter '*.png'    nur Bilder (.png)
 #   .\Reports\release_tag.ps1 -Nummer 2 -Ja      Check-in Nr. 2 ohne Rueckfrage
 #                                                taggen und senden
+#   .\Reports\release_tag.ps1 -Commit 52819c1    genau diesen (aelteren)
+#                                                Check-in taggen
 #
 # Weitere Parameter: -Branch (Standard origin/main), -TagPrefix (prod),
-# -Anzahl (20 Freigaben in Teil 2), -TagDatei / -Nachricht (ohne Rueckfrage),
+# -Anzahl (20 Check-ins in Teil 2), -TagDatei / -Nachricht (ohne Rueckfrage),
 # -NoPush (Tag nur lokal), -NoFetch (ohne git fetch).
 #
 # Aendert nichts an Ihren Dateien und wechselt keinen Branch - es setzt nur
 # den Tag. Startordner egal: das Skript wechselt selbst in den obersten
 # Ordner des Repositorys und am Ende zurueck in den Ordner des Skripts.
 #
-# Ein Tag gibt NUR seinen Check-in frei - aeltere Check-ins anderer Berichte
+# Ein Tag gibt NUR seinen Check-in frei - aeltere und neuere Check-ins
 # bleiben, wo sie sind. Gibt es von derselben Datei einen neueren Check-in,
-# warnt das Skript: die Produktion bekaeme sonst den aelteren Stand.
+# warnt das Skript: die Produktion bekommt den aelteren Stand (Rollback).
 #
 # Doku   : Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
@@ -49,7 +53,7 @@ param(
     [string]$Branch    = 'origin/main',
     # Anfang der Tag-Namen: prod-...
     [string]$TagPrefix = 'prod',
-    # Anzahl der Freigaben in Teil 2
+    # Anzahl der Check-ins in Teil 2
     [int]   $Anzahl    = 20,
     # nur Dateien, deren Name diesen Text enthaelt (Teil genuegt, gross/klein egal)
     [string]$File      = '',
@@ -57,6 +61,8 @@ param(
     [string]$Filter    = '*.rdf',
     # Nummer aus Teil 1 ohne Abfrage
     [int]   $Nummer    = 0,
+    # oder: Commit-ID (z.B. aus Teil 2) ohne Abfrage - auch ein aelterer
+    [string]$Commit    = '',
     # Dateiname fuer den Tag-Namen ohne Abfrage
     [string]$TagDatei  = '',
     # Tag-Kommentar ohne Abfrage
@@ -190,18 +196,23 @@ if ($filterInfo.Count -gt 0) { $filterText = ', ' + ($filterInfo -join ', ') }
 # --- 1. Noch nicht freigegebene Check-ins
 Write-Host ""
 Write-Host $Line -ForegroundColor Cyan
-Write-Host " NOCH NICHT IN PRODUKTION  ($Branch, ohne Tag '$TagPattern'$filterText)" -ForegroundColor Cyan
+Write-Host " NOCH NICHT IN PRODUKTION  ($Branch, Tags '$TagPattern'$filterText)" -ForegroundColor Cyan
 Write-Host $Line -ForegroundColor Cyan
 
-# Check-ins mit prod-Tag: die Nummern der Check-ins, auf die ein Tag zeigt
+# Check-ins mit prod-Tag: Nummer des Check-ins -> Name(n) seiner Tags
 # git for-each-ref refs/tags/<muster>: alle Tags mit diesem Muster
+#   --sort=creatordate : aeltester Tag zuerst
 #   --format : %(*objectname) Check-in eines Tags mit Kommentar,
-#              %(objectname) Check-in eines einfachen Tags
+#              %(objectname) Check-in eines einfachen Tags,
+#              %(refname:short) Name des Tags
 $tagged = @{}
-$tagRefs = @(git for-each-ref "refs/tags/$TagPattern" '--format=%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)')
+$tagRefs = @(git for-each-ref "refs/tags/$TagPattern" --sort=creatordate '--format=%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)|%(refname:short)')
 Assert-Git 'git for-each-ref'
-foreach ($h in $tagRefs) {
-    if ($h) { $tagged[$h] = $true }
+foreach ($r in $tagRefs) {
+    if (-not $r) { continue }
+    $tp = $r.Split('|', 2)
+    if ($tagged.ContainsKey($tp[0])) { $tagged[$tp[0]] += ", $($tp[1])" }
+    else { $tagged[$tp[0]] = $tp[1] }
 }
 
 # git log: alle Check-ins des Branches mit ihren Dateien (neu -> alt)
@@ -209,12 +220,13 @@ foreach ($h in $tagRefs) {
 #   --no-pager              : direkt ausgeben, nicht seitenweise
 #   --no-merges             : ohne Zusammenfuehrungen (haben keine eigenen Dateien)
 #   --date=format:'%Y-%m-%d %H:%M' : Datum als 2026-11-12 14:30
+#   --date-order            : nach Datum sortiert, neueste zuerst
 #   --name-status           : unter jedem Check-in die Dateien mit Status
 #                             (A neu, M geaendert, D geloescht, R umbenannt)
 #   --format                : Kopfzeile je Check-in, beginnt mit '@@':
 #                             %H volle Nummer, %h Kurz-Nummer, %ad Datum,
 #                             %an Autor, %s Kommentar
-$lines = @(git -c core.quotePath=false --no-pager log --no-merges --date=format:'%Y-%m-%d %H:%M' `
+$lines = @(git -c core.quotePath=false --no-pager log --no-merges --date-order --date=format:'%Y-%m-%d %H:%M' `
     --name-status --format='@@%H|%h|%ad|%an|%s' $Branch)
 Assert-Git 'git log'
 
@@ -238,20 +250,35 @@ foreach ($l in ($lines + '@@END')) {
     }
 }
 
-# Offen: neu -> alt durchgehen. Ein Check-in mit prod-Tag macht seine Dateien
-# "freigegeben" - aeltere Check-ins dieser Dateien sind damit erledigt.
+# Was ist in Produktion? Pro Datei der Check-in des ZULETZT angelegten Tags
+# (Tags in der Reihenfolge ihres Datums - ein spaeterer Tag auf eine aeltere
+# Version = Rollback, dann ist wieder die aeltere in Produktion)
+$bySha = @{}
+foreach ($c in $alleCommits) { $bySha[$c.Voll] = $c }
+$inProd = @{}
+foreach ($r in $tagRefs) {
+    if (-not $r) { continue }
+    $sha = $r.Split('|', 2)[0]
+    if ($bySha.ContainsKey($sha)) {
+        foreach ($f in $bySha[$sha].Dateien) { $inProd[$f.Pfad] = $sha }
+    }
+}
+
+# Offen: neu -> alt durchgehen bis zum Check-in, der von der Datei in
+# Produktion ist - aeltere Check-ins dieser Datei sind damit erledigt.
 $freigegeben = @{}
 $offen = New-Object System.Collections.ArrayList
 foreach ($c in $alleCommits) {
-    if ($tagged.ContainsKey($c.Voll)) {
-        foreach ($f in $c.Dateien) { $freigegeben[$f.Pfad] = $true }
-        continue
+    foreach ($f in $c.Dateien) {
+        if ($inProd[$f.Pfad] -eq $c.Voll) { $freigegeben[$f.Pfad] = $true }
     }
+    # nur die noch nicht freigegebenen Dateien - als eigenes Objekt, damit
+    # die Liste in Teil 2 alle Dateien des Check-ins behaelt
     $rest = @($c.Dateien | Where-Object { -not $freigegeben.ContainsKey($_.Pfad) })
     if ($rest.Count -gt 0) {
-        $c.Dateien = New-Object System.Collections.ArrayList
-        foreach ($f in $rest) { [void]$c.Dateien.Add($f) }
-        [void]$offen.Add($c)
+        [void]$offen.Add([pscustomobject]@{
+            Voll = $c.Voll; Hash = $c.Hash; Datum = $c.Datum; Autor = $c.Autor; Text = $c.Text
+            Dateien = $rest })
     }
 }
 
@@ -287,82 +314,122 @@ else {
     }
 }
 
-# --- 2. Letzte Freigaben
+# --- 2. Die letzten Check-ins mit ihrem Tag - nach Datum, neueste zuerst
+# Jede Datei steht mit dem Tag IHRES Check-ins (= damit ging sie in die
+# Produktion), ohne Tag: NO_TAG
 Write-Host ""
 Write-Host $Line -ForegroundColor Cyan
-Write-Host " LETZTE $Anzahl FREIGABEN  (Tags '$TagPattern'$filterText)" -ForegroundColor Cyan
+Write-Host " LETZTE $Anzahl CHECK-INS MIT TAG  (Tags '$TagPattern'$filterText)" -ForegroundColor Cyan
 Write-Host $Line -ForegroundColor Cyan
 
-# git for-each-ref refs/tags/<muster>: alle Tags mit diesem Muster
-#   --sort=-v:refname --sort=-creatordate : neueste zuerst (der letzte
-#                     --sort zaehlt zuerst; bei gleichem Datum nach Name)
-#   --format : %(refname:short) Tag-Name, %(creatordate:...) Datum,
-#              %(taggername) Freigeber (- bei einfachem Tag ohne Kommentar),
-#              %(*objectname:short) Check-in, auf den der Tag zeigt
-#              (%(objectname:short) bei einfachem Tag),
-#              %(contents:subject) erste Zeile des Tag-Kommentars
-$fmt = '%(refname:short)|%(creatordate:format:%Y-%m-%d %H:%M)|%(if)%(taggername)%(then)%(taggername)%(else)-%(end)|%(if)%(*objectname)%(then)%(*objectname:short)%(else)%(objectname:short)%(end)|%(contents:subject)'
-$alleTags = @(git -c core.quotePath=false for-each-ref "refs/tags/$TagPattern" --sort=-v:refname --sort=-creatordate "--format=$fmt")
-Assert-Git 'git for-each-ref'
+$rows = New-Object System.Collections.Generic.List[object]
+$zahl = 0
+foreach ($c in $alleCommits) {
+    if ($zahl -ge $Anzahl) { break }
+    $zahl++
+    $tagText = 'NO_TAG'
+    if ($tagged.ContainsKey($c.Voll)) { $tagText = $tagged[$c.Voll] }
+    foreach ($f in $c.Dateien) {
+        $rows.Add([pscustomobject]@{ Datum = $c.Datum; Commit = $c.Hash; Datei = $f.Pfad; Tag = $tagText })
+    }
+}
 
-if ($alleTags.Count -eq 0 -or -not $alleTags[0]) {
-    Write-Host "  Keine Tags '$TagPattern' gefunden." -ForegroundColor Yellow
+if ($rows.Count -eq 0) {
+    Write-Host "  Keine Check-ins gefunden." -ForegroundColor Yellow
 }
 else {
-    $gezeigt = 0
-    for ($i = 0; $i -lt $alleTags.Count -and $gezeigt -lt $Anzahl; $i++) {
-        $t = $alleTags[$i].Split('|', 5)
-        $tag = $t[0]
-        # git diff-tree: die Dateien des Check-ins, auf den der Tag zeigt -
-        #   genau das ging mit diesem Tag in die Produktion
-        #   -r             : auch in Unterordnern
-        #   --root         : auch beim allerersten Check-in
-        #   --no-commit-id : ohne die Nummer, nur die Dateien
-        #   --name-status  : Buchstabe + Datei
-        $dateien = @(ConvertFrom-NameStatus @(git -c core.quotePath=false diff-tree -r --root --no-commit-id --name-status "$tag^{commit}"))
-        Assert-Git 'git diff-tree'
-
-        # mit -File: Freigaben ohne diese Datei auslassen
-        if ($File -ne '' -and $dateien.Count -eq 0) { continue }
-
-        Write-Host ""
-        Write-Host ("  {0,-40} {1}  {2,-15}  Check-in {3}" -f $tag, $t[1], $t[2], $t[3]) -ForegroundColor Green
-        Write-Host ("        {0}" -f $t[4])
-        Write-Host "        Dateien dieses Check-ins:" -ForegroundColor DarkGray
-        if ($dateien.Count -eq 0) { Write-Host "        (keine passenden Aenderungen)" -ForegroundColor DarkGray }
-        foreach ($f in $dateien) { Write-Datei $f }
-        $gezeigt++
+    $head = [pscustomobject]@{ Datum = 'Datum'; Commit = 'Commit'; Datei = 'Datei'; Tag = 'Tag' }
+    $wD = ($rows + $head | ForEach-Object { $_.Datum.Length }  | Measure-Object -Maximum).Maximum
+    $wC = ($rows + $head | ForEach-Object { $_.Commit.Length } | Measure-Object -Maximum).Maximum
+    $wF = ($rows + $head | ForEach-Object { $_.Datei.Length }  | Measure-Object -Maximum).Maximum
+    Write-Host ""
+    Write-Host ("  {0}  {1}  {2}  {3}" -f 'Datum'.PadRight($wD), 'Commit'.PadRight($wC), 'Datei'.PadRight($wF), 'Tag')
+    foreach ($r in $rows) {
+        $color = 'Green'
+        if ($r.Tag -eq 'NO_TAG') { $color = 'Gray' }
+        Write-Host ("  {0}  {1}  {2}  {3}" -f $r.Datum.PadRight($wD), $r.Commit.PadRight($wC), $r.Datei.PadRight($wF), $r.Tag) -ForegroundColor $color
     }
 }
 Write-Host ""
 
 # --- 3. Check-in fuer die Produktion freigeben (Tag setzen)
-if ($offen.Count -eq 0) { Exit-Script 0 }
-
+# Gewaehlt wird eine Nummer aus Teil 1 ODER eine Commit-ID (z.B. aus Teil 2,
+# auch ein aelterer Check-in = Rollback). Der Tag zeigt immer auf genau diesen
+# einen Check-in - die Pipeline bringt nur dessen Dateien in die Produktion,
+# neuere Check-ins gehen NICHT mit.
 Write-Host $Line -ForegroundColor Cyan
 Write-Host " FREIGABE FUER DIE PRODUKTION" -ForegroundColor Cyan
 Write-Host $Line -ForegroundColor Cyan
 
-$nr = $Nummer
-if ($nr -eq 0) {
-    $eingabe = Read-Host "  Nummer des Check-ins fuer die Freigabe (1-$($offen.Count), Enter = keine Freigabe)"
+$eingabe = $Commit
+if ($Nummer -gt 0) { $eingabe = "$Nummer" }
+if (-not $eingabe) {
+    $frage = "  Nummer aus der Liste oben (1-$($offen.Count)) oder Commit-ID (Enter = keine Freigabe)"
+    if ($offen.Count -eq 0) { $frage = "  Commit-ID fuer die Freigabe (Enter = keine Freigabe)" }
+    $eingabe = "$(Read-Host $frage)".Trim()
     if (-not $eingabe) {
         Write-Host "  Keine Freigabe gesetzt."
         Exit-Script 0
     }
-    if (-not [int]::TryParse($eingabe, [ref]$nr)) {
-        Write-Host "FEHLER: Ungueltige Eingabe: '$eingabe'" -ForegroundColor Red
+}
+
+$c  = $null
+$nr = 0
+if ([int]::TryParse($eingabe, [ref]$nr) -and $nr -ge 1 -and $nr -le $offen.Count -and -not $Commit) {
+    $c = $offen[$nr - 1]
+}
+elseif ($eingabe -match '^[0-9a-fA-F]{4,40}$') {
+    # git rev-parse --verify --quiet <id>^{commit}: volle Nummer des
+    #   Check-ins (leer, wenn es ihn nicht gibt)
+    $voll = git rev-parse --verify --quiet "$eingabe^{commit}"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FEHLER: Check-in '$eingabe' gibt es nicht." -ForegroundColor Red
         Exit-Script 1
     }
+    # git merge-base --is-ancestor <id> <branch>: liegt der Check-in auf dem
+    #   Branch (Exit-Code 0 = ja)?
+    git merge-base --is-ancestor $voll $Branch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FEHLER: Check-in '$eingabe' liegt nicht auf $Branch." -ForegroundColor Red
+        Exit-Script 1
+    }
+    # git rev-list --parents -n 1 <id>: der Check-in und seine Vorgaenger -
+    #   mehr als einer = Zusammenfuehrung (hat keine eigenen Dateien)
+    $parents = @("$(git rev-list --parents -n 1 $voll)".Split(' ', [StringSplitOptions]::RemoveEmptyEntries))
+    if ($parents.Count -gt 2) {
+        Write-Host "FEHLER: '$eingabe' ist eine Zusammenfuehrung - bitte den Check-in des Berichts waehlen." -ForegroundColor Red
+        Exit-Script 1
+    }
+    # git log -1 --format=...: Kopfdaten dieses einen Check-ins
+    $kopf = (git -c core.quotePath=false --no-pager log -1 --date=format:'%Y-%m-%d %H:%M' --format='%H|%h|%ad|%an|%s' $voll).Split('|', 5)
+    # git diff-tree: die Dateien dieses Check-ins - die passenden zu -Filter /
+    #   -File (z.B. nur die .rdf, ohne die .xml); passt keine, alle
+    #   -r / --root / --no-commit-id / --name-status : wie in Teil 2
+    $ns = @(git -c core.quotePath=false diff-tree -r --root --no-commit-id --name-status $voll)
+    $dateien = @(ConvertFrom-NameStatus $ns)
+    if ($dateien.Count -eq 0) {
+        $dateien = @(foreach ($l in $ns) {
+            if (-not $l) { continue }
+            $p = $l -split "`t"
+            [pscustomobject]@{ Status = $p[0].Substring(0, 1); Pfad = $p[-1] }
+        })
+    }
+    $c = [pscustomobject]@{ Voll = $kopf[0]; Hash = $kopf[1]; Datum = $kopf[2]; Autor = $kopf[3]; Text = $kopf[4]; Dateien = $dateien }
+    if ($c.Dateien.Count -eq 0) {
+        Write-Host "FEHLER: Check-in '$eingabe' hat keine Dateien." -ForegroundColor Red
+        Exit-Script 1
+    }
+    if ($tagged.ContainsKey($c.Voll)) {
+        Write-Host "  Hinweis  : Der Check-in hat schon den Tag $($tagged[$c.Voll])." -ForegroundColor Yellow
+    }
 }
-if ($nr -lt 1 -or $nr -gt $offen.Count) {
-    Write-Host "FEHLER: Nummer $nr liegt nicht zwischen 1 und $($offen.Count)." -ForegroundColor Red
+else {
+    Write-Host "FEHLER: Ungueltige Eingabe: '$eingabe' (Nummer 1-$($offen.Count) oder Commit-ID)" -ForegroundColor Red
     Exit-Script 1
 }
 
-$c = $offen[$nr - 1]
 Write-Host ""
-Write-Host ("  Ausgewaehlt: [{0}] {1}  {2}  {3}" -f $nr, $c.Hash, $c.Datum, $c.Text) -ForegroundColor Yellow
+Write-Host ("  Ausgewaehlt: {0}  {1}  {2}" -f $c.Hash, $c.Datum, $c.Text) -ForegroundColor Yellow
 
 # Dateiname fuer den Tag-Namen
 $name = $TagDatei
@@ -427,13 +494,17 @@ Write-Host "  Kommentar: $Nachricht"
 if ($c.Dateien.Count -gt 1) {
     Write-Host "  Hinweis  : Der Check-in hat $($c.Dateien.Count) Dateien - alle gehen in die Produktion." -ForegroundColor Yellow
 }
-# Gibt es von einer dieser Dateien einen neueren, offenen Check-in?
-for ($k = 0; $k -lt $nr - 1; $k++) {
-    foreach ($f in $offen[$k].Dateien) {
-        if (@($c.Dateien | Where-Object { $_.Pfad -eq $f.Pfad }).Count -gt 0) {
-            Write-Host "  ACHTUNG  : Von $($f.Pfad) gibt es einen neueren Check-in [$($k + 1)] $($offen[$k].Hash) - die Produktion bekaeme den aelteren Stand." -ForegroundColor Yellow
-        }
-    }
+# Gibt es von diesen Dateien neuere Check-ins? Sie gehen NICHT mit - die
+# Produktion bekommt den Stand dieses Check-ins (gewollt bei einem Rollback)
+# git log <id>..<branch> -- <dateien>: Check-ins nach diesem, die eine der
+#   Dateien geaendert haben
+#   --format='%h %ad %s' : Kurz-Nummer, Datum, Kommentar
+$pfadListe = @($c.Dateien | ForEach-Object { $_.Pfad })
+$neuer = @(git -c core.quotePath=false --no-pager log --date=format:'%Y-%m-%d %H:%M' --format='%h  %ad  %s' "$($c.Voll)..$Branch" -- $pfadListe)
+if ($neuer.Count -gt 0 -and $neuer[0]) {
+    Write-Host "  ACHTUNG  : Es gibt $($neuer.Count) neuere(n) Check-in(s) dieser Datei(en) - sie gehen NICHT mit," -ForegroundColor Yellow
+    Write-Host "             die Produktion bekommt den aelteren Stand dieses Check-ins:" -ForegroundColor Yellow
+    foreach ($z in ($neuer | Select-Object -First 5)) { Write-Host "             $z" -ForegroundColor Yellow }
 }
 
 if (-not $Ja) {

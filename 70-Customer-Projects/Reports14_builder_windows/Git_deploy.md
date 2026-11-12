@@ -85,15 +85,22 @@ cd E:\git\<login>
 ```
 
 1. `git fetch origin --tags` – the developer's files stay unchanged.
-2. **Not yet in production:** the check-ins on `origin/main` without an own
-   `prod-*` tag whose files have no **newer** tagged check-in – numbered,
-   with their files and a summary per file. A tag on a newer version of a
-   report makes the older check-ins of that report obsolete.
-3. **Last releases:** the last 20 `prod-*` tags with date, tagger, check-in
-   and the files of that check-in (= what went to production).
-4. **Release:** the developer enters a number. The script
-   - warns if there is a **newer** check-in of the same file (production
-     would get the older state) and if the check-in holds several files;
+2. **Not yet in production:** what is in production for a file is the
+   check-in of the **most recently created** `prod-*` tag of that file (a
+   later tag on an older version = rollback). Listed are the check-ins on
+   `origin/main` that are newer than that – numbered, with their files and a
+   summary per file.
+3. **Last check-ins:** the last 20 check-ins sorted by date (`git log
+   --date-order`, newest first), one row per file with the tag of **its own**
+   check-in, or `NO_TAG`.
+4. **Release:** the developer enters a number from part 2 – or a **commit
+   id** (e.g. from part 3, also an older check-in; `-Commit <id>`). The tag
+   points at exactly this one check-in; newer check-ins are **not** pulled
+   in. The script
+   - checks a commit id: exists, on `origin/main`, not a merge commit;
+   - warns with the list of **newer** check-ins of the same file (they do not
+     go along – production gets the older state, i.e. a rollback) and if the
+     check-in holds several files;
    - asks for the file for the tag name (only if there are several) and the
      tag message;
    - sets an annotated tag `prod-<yyyy-MM-dd_HHmm>_<file>` (umlauts written
@@ -106,9 +113,9 @@ file name, case-insensitive. Further: `-Nummer`, `-Ja` (no questions),
 `-TagDatei`, `-Nachricht`, `-NoPush`, `-NoFetch`, `-Branch`, `-TagPrefix`,
 `-Anzahl`.
 
-**Rollback:** run the pipeline of an older `prod-*` tag of the report again
-(GitLab → Build → Pipelines → retry), or set a new tag on the older
-check-in. The replaced file is also in `spool/backup/<job>/` on the server.
+**Rollback:** set a new tag on the older check-in (`release_tag.ps1`, enter
+its commit id from the list of the last check-ins, or `-Commit <id>`). The
+newer check-ins of the report then count as open again. The replaced file is also in `spool/backup/<job>/` on the server.
 
 ## 4. The pipeline – `ci_deploy.sh`
 
@@ -246,7 +253,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 
 | Message | Meaning | What to do |
 |---|---|---|
-| `release_tag.ps1`: "ACHTUNG: Von … gibt es einen neueren Check-in" | the chosen check-in is not the newest version of the report | answer `n` and choose the newer number – unless the older version is wanted on purpose (rollback) |
+| `release_tag.ps1`: "ACHTUNG: Es gibt N neuere(n) Check-in(s) dieser Datei(en)" | the chosen check-in is not the newest version of the report; the newer ones do not go along | answer `n` and choose the newer one – unless the older version is wanted on purpose (rollback) |
 | `release_tag.ps1`: "Der Check-in hat N Dateien" | an old check-in with several reports | all of them go to production – fine if wanted, otherwise do not tag it |
 | job: `the tag is on a merge commit` | the tag points at a merge of `checkin.ps1` (colleague checked in at the same moment) | delete the tag (`git push origin :refs/tags/<tag>`, `git tag -d <tag>`) and tag the check-in of the report with `release_tag.ps1` |
 | job: `the tagged commit holds no report (.rdf) or image` | the tag is on a check-in without report or image | delete the tag, tag the right check-in |
@@ -266,7 +273,8 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | DEV, older pipeline afterwards | "already part of the last deploy", file stays at v2 |
 | `release_tag.ps1` before any tag | 4 open check-ins incl. both versions of `umsatz`; tag on `lager` pushed |
 | PROD tag `lager` | only `lager.rdf` deployed – the newer `umsatz` stays out |
-| `release_tag.ps1` on the older `umsatz` check-in | "ACHTUNG … neuerer Check-in [1]", `n` = nothing tagged |
+| `release_tag.ps1` on the older `umsatz` check-in | "ACHTUNG … neuere(n) Check-in(s)" with the list, `n` = nothing tagged |
+| rollback: commit id of `umsatz` v1 entered (`-Commit 52819c1`) | tag on exactly that check-in; PROD job copies only `umsatz.rdf` v1, v2 does not go along; afterwards v2 open again; invalid id / merge commit / not on main: message, exit 1 |
 | PROD tag on `umsatz` v2 (`-Nummer 1 -Ja`) | `umsatz.rdf` v2 deployed; afterwards both `umsatz` check-ins no longer open, both tags listed with their files |
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
 | `rwdeploy.sh` from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |

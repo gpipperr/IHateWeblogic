@@ -211,15 +211,23 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
 .\Reports\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
 ```
 
-1. **Noch nicht in Produktion:** die Check-ins auf dem Git-Server ohne
-   eigenen `prod-`-Tag – nummeriert, neueste zuerst, mit Dateien und einer
-   Liste pro Datei. Hat eine neuere Version eines Berichts schon einen Tag,
-   fallen die älteren Check-ins dieses Berichts weg.
-2. **Letzte Freigaben:** die letzten 20 `prod-`-Tags mit Datum, Freigeber und
-   den Dateien des Check-ins (= was in die Produktion ging).
-3. **Freigabe:** Nummer eingeben → Tag mit Kommentar auf diesen Check-in,
-   z.B. `prod-2026-11-12_1430_umsatz.rdf`, zum Git-Server senden → die
-   Pipeline verteilt den Bericht in die Produktion.
+1. **Noch nicht in Produktion:** die Check-ins auf dem Git-Server, die neuer
+   sind als der Stand des Berichts in der Produktion – nummeriert, neueste
+   zuerst, mit Dateien und einer Liste pro Datei. In der Produktion ist der
+   Check-in mit dem zuletzt gesetzten `prod-`-Tag des Berichts.
+2. **Letzte Check-ins:** die letzten 20 Check-ins nach Datum, neueste zuerst
+   – jede Datei mit dem Tag ihres Check-ins, ohne Tag `NO_TAG`:
+
+   ```
+   Datum             Commit   Datei                      Tag
+   2026-11-12 17:08  1c28588  Reports/source/kunde.rdf   NO_TAG
+   2026-11-12 17:08  f7c434c  Reports/source/umsatz.rdf  prod-2026-11-12_1708_umsatz.rdf
+   ```
+3. **Freigabe:** Nummer aus Teil 1 eingeben – oder eine **Commit-ID** aus
+   Teil 2, auch einen älteren Check-in → Tag mit Kommentar auf genau diesen
+   Check-in, z.B. `prod-2026-11-12_1430_umsatz.rdf`, zum Git-Server senden →
+   die Pipeline verteilt den Bericht in die Produktion. Neuere Check-ins
+   gehen **nicht** mit.
 
 - Freigegeben wird der Stand auf dem **Git-Server**: den Bericht zuerst mit
   `checkin.ps1` einchecken und hochladen, auf DEV testen, dann
@@ -231,14 +239,16 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
 
 | Meldung von `release_tag.ps1` | Was tun |
 |---|---|
-| `ACHTUNG : Von ... gibt es einen neueren Check-in [1]` | Sie haben eine ältere Version gewählt – mit `n` abbrechen und die neuere Nummer wählen (außer Sie wollen bewusst zurück auf die ältere) |
+| `ACHTUNG : Es gibt N neuere(n) Check-in(s) dieser Datei(en)` | Sie haben eine ältere Version gewählt, die neueren gehen nicht mit – mit `n` abbrechen und die neuere wählen (außer Sie wollen bewusst zurück auf die ältere) |
 | `Der Check-in hat N Dateien - alle gehen in die Produktion` | ein alter Check-in mit mehreren Dateien – nur taggen, wenn alle in die Produktion sollen |
 | `Alles freigegeben - keine offenen Check-ins` | nichts zu tun |
 | Pipeline rot: `the tag is on a merge commit` | Tag liegt auf einer Zusammenführung – Git-Ansprechpartner fragen (Tag löschen, richtigen Check-in taggen) |
 
-**Zurück auf eine ältere Version:** in `release_tag.ps1` den älteren
-Check-in des Berichts wählen (die ACHTUNG-Meldung mit `j` bestätigen) – er
-bekommt einen neuen Tag und geht wieder in die Produktion.
+**Zurück auf eine ältere Version:** in `release_tag.ps1` die Commit-ID des
+älteren Check-ins aus Teil 2 eingeben (oder `-Commit <id>`), die
+ACHTUNG-Meldung mit `j` bestätigen – er bekommt einen neuen Tag und geht
+wieder in die Produktion; die neueren Check-ins stehen danach wieder als
+offen in der Liste.
 
 ## Die Auswahl beim Einchecken
 
