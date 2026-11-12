@@ -111,7 +111,7 @@ differ accordingly and show only what is publicly visible (checked
 - **Read-only by default.** Every script only reads and reports unless `--apply` is passed.
 - **No surprises.** Every change is backed up before it is applied.
 - **Source is king.** Where possible, behavior is validated against the official Oracle docs.
-- **One library, many scripts.** All shared logic lives in `00-Setup/IHateWeblogic_lib.sh`.
+- **One library, many scripts.** All shared logic lives in [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh).
 
 ## License
 

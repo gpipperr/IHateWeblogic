@@ -44,7 +44,7 @@ Not here:
 **Open an issue first** and agree on the change there – pull requests without
 a preceding issue may be closed. A pull request must:
 
-- pass the `lint` workflow (`tools/ci_lint.sh`: `bash -n` + ShellCheck errors),
+- pass the `lint` workflow ([`tools/ci_lint.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/ci_lint.sh): `bash -n` + ShellCheck errors),
 - pass the pre-commit hook (below) – no customer data, no secrets,
 - follow the conventions below and change the matching documentation in the
   same pull request.
@@ -57,11 +57,11 @@ inbound = outbound); there is no separate contributor agreement.
 ### Scripts
 
 - Every script sources `environment.conf` (via `check_env_conf`) and
-  `00-Setup/IHateWeblogic_lib.sh` – paths and settings come from
+  [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) – paths and settings come from
   `environment.conf`, never hard-coded.
 - **Read-only by default.** Anything that writes or installs runs only with
   `--apply`; without it the script shows what it would do.
-- **Backup before every config change** (`backup_file` / `07-Maintenance/backup_config.sh`).
+- **Backup before every config change** (`backup_file` / [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)).
 - Output only via `ok` / `warn` / `fail` / `info` of the library. They take a
   plain string – pre-format with `printf`:
   `ok "$(printf "  %-14s  %s" "$label" "$value")"`. `printf`, never `echo -e`.
