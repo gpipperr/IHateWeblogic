@@ -120,6 +120,19 @@ Zeigt, ohne etwas zu ändern:
 
 Am Ende steht, welches Skript als Nächstes dran ist.
 
+Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag:
+
+```powershell
+.\Reports\status_detail.ps1        # die letzten 20 Check-ins
+.\Reports\status_detail.ps1 50     # die letzten 50
+```
+
+```
+|Datum           |Commit ID|Datei                    |Tag |
+|----------------|---------|-------------------------|----|
+|2026-11-12 15:23|cd9aa23  |Reports/source/umsatz.rdf|v1.0|
+```
+
 ### 5. Fertig: `checkin.ps1`
 
 ```powershell
@@ -218,6 +231,7 @@ Auch ein leerer Kommentar bricht ab.
 | `git_setup.ps1` | einmal pro Benutzer: Name, E-Mail, Zeilenende |
 | `pull.ps1` | zu Arbeitsbeginn: neuesten Stand holen |
 | `status.ps1` | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
+| `status_detail.ps1` | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag – eine Zeile pro Datei (ändert nichts) |
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
 | `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |

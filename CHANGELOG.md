@@ -5,6 +5,8 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows/scripts`: new `status_detail.ps1` (read only) - the last 20 check-ins
+  (parameter = other count) as a Markdown table `|Datum|Commit ID|Datei|Tag|`, one row per file.
 - `Reports14_builder_windows`: **deployment** with a self-hosted GitLab (`Git_deploy.md`, folder
   `deploy/`). Push to `development` -> job `deploy_dev` sends all reports + images as a snapshot;
   new `scripts/promote.ps1 <report>` releases ONE report (.rdf + .xml, images on request) from
