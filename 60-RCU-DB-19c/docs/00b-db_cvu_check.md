@@ -1,8 +1,8 @@
 # Step 0b – 00b-db_cvu_check.sh (standalone CVU)
 
-**Script:** `60-RCU-DB-19c/00b-db_cvu_check.sh`
+**Script:** [`60-RCU-DB-19c/00b-db_cvu_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00b-db_cvu_check.sh)
 **Runs as:** `oracle`
-**Phase:** after `00-root_db_os_baseline.sh`, before `01-db_install_software.sh`
+**Phase:** after [`00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh), before [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh)
 **Requires:** `environment_db.conf` (FATAL otherwise, hint
 `00a-db_env_interview.sh --apply`); runs as `ORACLE_OS_USER` (else exit 2) –
 in a **new login** after `00-` added oracle to `dba` / `oper`
@@ -31,7 +31,7 @@ without Clusterware – here: system requirements of a 19c database home.
 ## Download
 
 Automatically with the other MOS patches when the RCU database runs on this
-host (`LOCAL_REP_DB=true`, set by `09-Install/01-setup-interview.sh`):
+host (`LOCAL_REP_DB=true`, set by [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)):
 
 ```bash
 ./09-Install/04-oracle_pre_download.sh --apply --mos
@@ -42,8 +42,8 @@ Separate DB server (`LOCAL_REP_DB=false` on the FMW host): 04- skips the CVU –
 download it by hand on the DB host, or temporarily with
 `LOCAL_REP_DB=true`, and copy the ZIP into `DB_CVU_DIR` there.
 
-Patch number: `DB_CVU_PATCH_NR` = role `cvu` in `09-Install/download/patches_fmw.csv`
-(loaded via `oracle_software_version.conf`; empty → the script uses `30839369`).
+Patch number: `DB_CVU_PATCH_NR` = role `cvu` in [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv)
+(loaded via [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf); empty → the script uses `30839369`).
 
 **The Linux patch holds five ZIPs** (confirmed live 2026-10-27 – 810 MB when
 getMOSPatch takes all of them):
@@ -59,7 +59,7 @@ getMOSPatch takes all of them):
 `DB_CVU_REGEXP` (`p30839369_[0-9]+_Linux-x86-64\.zip`) restricts getMOSPatch to
 the 26ai kit; the script picks the same file (newest version) and falls back
 to `cvupack_linux_ol7*.zip` only when it is missing. getMOSPatch compares the
-regexp with the file name **without** `.zip` – `mos_patch_download.sh` (called
+regexp with the file name **without** `.zip` – [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) (called
 by `04-oracle_pre_download.sh --mos`) strips the trailing `\.zip` before the
 call (fixed 2026-10-28; before, the filter never matched and the download
 relied on the directory being filled otherwise).
@@ -130,7 +130,7 @@ Real errors are everything else: missing kernel parameters / limits (→
 `00-root_db_os_baseline.sh --apply`), groups, disk space.
 
 Seen at a customer (2026-10-30): **`Group Membership: dba` FAILED
-(PRVF-7566)** – oracle was created by `03-root_user_oracle.sh` (FMW, `oinstall`
+(PRVF-7566)** – oracle was created by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) (FMW, `oinstall`
 only) before the preinstall RPM, which does not change an existing user. Fix:
 `00-root_db_os_baseline.sh --apply` (adds oracle to `dba` + `oper`), log out /
 in as oracle, re-run `00b-`. The script prints this hint with the FAIL.

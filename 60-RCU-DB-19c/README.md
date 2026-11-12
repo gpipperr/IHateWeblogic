@@ -87,19 +87,19 @@ Run in this order — each step must complete before the next:
 
 | # | Script | Runs as | What |
 |---|---|---|---|
-| 0a | `00a-db_env_interview.sh` | oracle | Create / maintain `environment_db.conf` from the template, consistency check (`--check`) |
-| 0 | `00-root_db_os_baseline.sh` | root | DB kernel params, limits, preinstall RPM |
-| 0b | `00b-db_cvu_check.sh` | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
-| 1 | `01-db_install_software.sh` | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
-| 2 | `02-db_setup_listener.sh` | oracle | listener.ora + sqlnet.ora + systemd auto-start |
-| 3 | `03-db_create_database.sh` | oracle | DBCA silent CDB+PDB + post-config (`--clean` = drop and re-create) |
+| 0a | [`00a-db_env_interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00a-db_env_interview.sh) | oracle | Create / maintain `environment_db.conf` from the template, consistency check (`--check`) |
+| 0 | [`00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh) | root | DB kernel params, limits, preinstall RPM |
+| 0b | [`00b-db_cvu_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00b-db_cvu_check.sh) | oracle | Validate the host with the standalone CVU (patch 30839369, `cluvfy comp sys -r 19`) |
+| 1 | [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) | oracle | Extract base + download patches + install (gold image, or base + opatch RU) |
+| 2 | [`02-db_setup_listener.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/02-db_setup_listener.sh) | oracle | listener.ora + sqlnet.ora + systemd auto-start |
+| 3 | [`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh) | oracle | DBCA silent CDB+PDB + post-config (`--clean` = drop and re-create) |
 | 4 | `04-db_audit_setup.sh --relink --apply` | oracle | `uniaud_on` relink (stops + starts DB and listener; by hand: [docs/04-db_audit_setup.md](docs/04-db_audit_setup.md#prerequisites)) |
 | 4 | `04-db_audit_setup.sh --apply` | oracle | common audit policies (all containers) + AUDITLOG tablespace + purge jobs |
-| 5 | `05-db_fmw_tablespace.sh` | oracle | FMW_DATA tablespace for all RCU schemas (= `RCU_TABLESPACE`) |
-| 6 | `06-db_rcu_profile.sh` | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
-| 7 | `07-db_sql_scripts.sh` | oracle | DBA SQL scripts (OraDBASQLScripts: `login.sql` + analysis scripts) as git clone in `~/sql` – clone / `pull --ff-only`, offline `--archive`; `SQLPATH` via the shell switcher `setdb` |
-| 8 | `08-db_auto_start.sh` | oracle | /etc/oratab + oracle-db.service systemd unit |
-| 9 | `09-db_patch_rcu.sh` | oracle | **Patch a running DB out-of-place:** new home with `01- --target-home <dir> --fresh-patches`, then move the instance (spfile, orapw, network, oratab, env), datapatch, utlrp, domain stop / start; `--rollback` |
+| 5 | [`05-db_fmw_tablespace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/05-db_fmw_tablespace.sh) | oracle | FMW_DATA tablespace for all RCU schemas (= `RCU_TABLESPACE`) |
+| 6 | [`06-db_rcu_profile.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/06-db_rcu_profile.sh) | oracle | DB profile `RCU_USER` for the RCU schemas (no password expiry, no lock); `--assign` for existing schemas |
+| 7 | [`07-db_sql_scripts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/07-db_sql_scripts.sh) | oracle | DBA SQL scripts (OraDBASQLScripts: `login.sql` + analysis scripts) as git clone in `~/sql` – clone / `pull --ff-only`, offline `--archive`; `SQLPATH` via the shell switcher `setdb` |
+| 8 | [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) | oracle | /etc/oratab + oracle-db.service systemd unit |
+| 9 | [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) | oracle | **Patch a running DB out-of-place:** new home with `01- --target-home <dir> --fresh-patches`, then move the instance (spfile, orapw, network, oratab, env), datapatch, utlrp, domain stop / start; `--rollback` |
 
 After step 8, continue with:
 
@@ -113,7 +113,7 @@ After step 8, continue with:
 ## Configuration
 
 Create it with the interview (from the template, after
-`09-Install/01-setup-interview.sh`) before running any other script:
+[`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)) before running any other script:
 
 ```bash
 ./60-RCU-DB-19c/00a-db_env_interview.sh            # dry-run: questions + diff
@@ -122,7 +122,7 @@ Create it with the interview (from the template, after
 ```
 
 It asks only what differs per installation (DB home named after the RU of
-`09-Install/download/patches_db.csv`, edition, SID / CDB, PDB = `DB_SERVICE`,
+[`09-Install/download/patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv), edition, SID / CDB, PDB = `DB_SERVICE`,
 listener port = `DB_PORT`, SGA / PGA from RAM, data / FRA, archivelog, audit
 retention, FMW tablespace = `RCU_TABLESPACE`), adds template keys an older
 file misses, and replaces fixed `ORACLE_BASE` / `ORACLE_INVENTORY` values by
@@ -138,7 +138,7 @@ template had `/u01/...` fixed: check these two lines when `ORACLE_BASE` is
 not `/u01/app/oracle`).
 The 09-Install scripts read `environment.conf`; these scripts read
 `environment_db.conf`.  The two files share `ROOT_DIR` and
-`00-Setup/IHateWeblogic_lib.sh`, but no variables overlap.
+[`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh), but no variables overlap.
 
 The only bridge: after the DB is running, set in `environment.conf`:
 ```
@@ -149,7 +149,7 @@ DB_SERVICE=FMWPDB   # PDB service name
 
 ### Host without MOS access (offline patches)
 
-`01-db_install_software.sh` lets AutoUpgrade download the patch set from MOS.
+[`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) lets AutoUpgrade download the patch set from MOS.
 Without MOS access (OCI private subnet, egress allow-list) download the list
 [09-Install/download/patches_db.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv)
 on a host that may, with the standalone
@@ -173,13 +173,13 @@ and skips the download. The list holds the DB RU too (19.33 = **39915792**,
 
 **Same host (FMW + DB on one machine):**
 - Run `09-Install` phase 0–3 (FMW software install) first, then this section
-- `00-root_db_os_baseline.sh` writes its own `/etc/sysctl.d/60-oracle-db.conf`;
+- [`00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh) writes its own `/etc/sysctl.d/60-oracle-db.conf`;
   the 99- files of the FMW baseline / preinstall RPM are loaded later and win
   for the same keys – check the effective values
   ([docs/00-db_os_baseline.md](docs/00-db_os_baseline.md#effective-values-the-last-file-wins))
 
 **Separate DB server:**
-- Run only `00-root_db_os_baseline.sh` through `08-db_auto_start.sh` here
+- Run only `00-root_db_os_baseline.sh` through [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) here
 - No FMW scripts needed on the DB host
 
 ---

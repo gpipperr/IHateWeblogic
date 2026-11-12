@@ -1,9 +1,9 @@
 # Step 3 – 03-db_create_database.sh
 
-**Script:** `60-RCU-DB-19c/03-db_create_database.sh`
+**Script:** [`60-RCU-DB-19c/03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh)
 **Runs as:** `oracle`
 **Phase:** Create the CDB + PDB
-**Requires:** listener running (`02-db_setup_listener.sh`),
+**Requires:** listener running ([`02-db_setup_listener.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/02-db_setup_listener.sh)),
 `environment_db.conf`, `db_sys_sec.conf.des3` (`00-Setup/database_rcu_sec.sh
 --apply`), the DB home from `01-` (root.sh done)
 
@@ -42,7 +42,7 @@
    catcon), `utlrp` via catcon
 10. Memory resize to the operating values
 11. `/etc/oratab` (DBCA normally writes `<SID>:<home>:N` itself – the script
-    then reports "already exists"; `08-db_auto_start.sh` sets `Y`)
+    then reports "already exists"; [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) sets `Y`)
 12. Verification + RCU requirements check in the PDB, next-step hints
 
 ---
@@ -51,21 +51,21 @@
 
 `03-` only **checks** the binary (`kzaiang`, INFO) and prints the relink
 command; the relink is a manual step with database and listener stopped –
-right after DBCA, before `04-db_audit_setup.sh` (which stops with FAIL until
+right after DBCA, before [`04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh) (which stops with FAIL until
 it is done). Commands: [04-db_audit_setup.md](04-db_audit_setup.md#prerequisites).
 
 ```bash
 strings $DB_ORACLE_HOME/bin/oracle | grep -c kzaiang    # > 0 = linked
 ```
 
-> A new home needs it again: `09-db_patch_rcu.sh` relinks the new home with
+> A new home needs it again: [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) relinks the new home with
 > `uniaud_on` when the old one has it (out-of-place RU patch).
 
 ---
 
 ## Listener
 
-Prerequisite, not part of this script: `02-db_setup_listener.sh` writes
+Prerequisite, not part of this script: [`02-db_setup_listener.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/02-db_setup_listener.sh) writes
 `listener.ora` / `sqlnet.ora` / `tnsnames.ora` in
 `$DB_ORACLE_HOME/network/admin` and starts `LISTENER`. `03-` stops with FAIL
 if `lsnrctl status LISTENER` fails. No netca.
@@ -96,8 +96,8 @@ JVM): [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middlew
 
 Data file sizes come from the DBCA template `General_Purpose.dbc` – the
 script sets none of them (measured: [00-concept.md](00-concept.md#disk-layout-minimal)).
-AUDITLOG tablespace: created by `04-db_audit_setup.sh` (separate script).
-FMW_DATA tablespace (all RCU schemas): created by `05-db_fmw_tablespace.sh`.
+AUDITLOG tablespace: created by [`04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh) (separate script).
+FMW_DATA tablespace (all RCU schemas): created by [`05-db_fmw_tablespace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/05-db_fmw_tablespace.sh).
 
 ### DBCA silent command
 
@@ -254,7 +254,7 @@ PATH=$ORACLE_HOME/bin:$ORACLE_HOME/perl/bin:$PATH \
 
 Done on the test host 2026-10-28: `PDB$SEED` READ ONLY; the `utlrp` over all
 containers also recompiled the 69 objects of the RCU schemas that had been
-invalid since the RCU run (`rcu_repository_check.sh`: 0 invalid).
+invalid since the RCU run ([`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh): 0 invalid).
 
 ## Memory resize (operating values)
 
@@ -274,7 +274,7 @@ ALTER SYSTEM SET open_cursors = 1600 SCOPE=BOTH;          -- PDB-modifiable
 grep "^<SID>:" /etc/oratab || echo "<SID>:<DB_ORACLE_HOME>:Y" >> /etc/oratab
 ```
 
-DBCA normally writes the entry with flag `N`; `08-db_auto_start.sh` sets `Y`.
+DBCA normally writes the entry with flag `N`; [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) sets `Y`.
 
 ## Post-Creation Checks
 
@@ -300,8 +300,8 @@ SHOW PARAMETER pga_aggregate_target;
 SELECT VALUE FROM V$OPTION WHERE PARAMETER = 'Unified Auditing';
 ```
 
-The script then runs `rcu_db_requirements.sql` in the PDB and grades it
-(`rcu_db_req_eval`, `00-Setup/IHateWeblogic_lib.sh`):
+The script then runs [`rcu_db_requirements.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/rcu_db_requirements.sql) in the PDB and grades it
+(`rcu_db_req_eval`, [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh)):
 
 | Result | Check |
 |---|---|
@@ -337,15 +337,15 @@ DB_PDB_ADMIN_PWD    # optional, default DB_SYS_PWD
 
 - `dbca -silent` exit code: 0 = success, non-zero = error; check
   `$ORACLE_BASE/cfgtoollogs/dbca/<DB_CDB_NAME>/` for detailed logs
-- Auto-start on boot: `08-db_auto_start.sh` (oratab flag `Y` + `oracle-db.service`)
+- Auto-start on boot: [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) (oratab flag `Y` + `oracle-db.service`)
 - After creation, update `environment.conf` with `DB_SERVICE=FMWPDB` before
   running the RCU script
 - `db_securefile` is not set → default `PREFERRED`. Do **not** set `FORCE`
   (hardening guides: "always SecureFile") before the first RCU run: RCU
   creates `SYSTEM.SCHEMA_VERSION_REGISTRY$` with a CLOB in the non-ASSM
   tablespace `SYSTEM` → ORA-43853. `ALWAYS` is harmless (BasicFile fallback).
-  See `80-FMW-Architecture/rcu_middleware_architecture.md` §4.2
-- Profile for the RCU schemas (no password expiry): `06-db_rcu_profile.sh`
+  See [`80-FMW-Architecture/rcu_middleware_architecture.md`](../../80-FMW-Architecture/rcu_middleware_architecture.md) §4.2
+- Profile for the RCU schemas (no password expiry): [`06-db_rcu_profile.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/06-db_rcu_profile.sh)
 
 ## Next steps
 

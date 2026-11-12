@@ -1,6 +1,6 @@
 # Step 9 – 09-db_patch_rcu.sh (patch the RCU database out-of-place)
 
-**Script:** `60-RCU-DB-19c/09-db_patch_rcu.sh`
+**Script:** [`60-RCU-DB-19c/09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)
 **Runs as:** `oracle` on the DB host (systemd unit change: root, commands printed)
 **When:** every DB release update cycle (CPU / RU, e.g. 19.30 → 19.33 for CPU
 October 2026) on a running installation

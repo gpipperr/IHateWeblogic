@@ -28,7 +28,7 @@ RCU has **no option** to set a profile – the new schemas still get
   `db_sys_sec.conf.des3`)
 - or with this script: `--apply --assign` (on the DB host, `/ AS SYSDBA`)
 
-Both use the same idempotent SQL: `60-RCU-DB-19c/rcu_user_profile.sql`.
+Both use the same idempotent SQL: [`60-RCU-DB-19c/rcu_user_profile.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/rcu_user_profile.sql).
 
 ## Call
 
@@ -54,7 +54,7 @@ prefix match is exact (`MRC_NAME = 'DEV'`; `DEV2`, `DE` or a foreign user
   holds further repositories (TEST/PROD, a second domain, SOA/OBIEE of
   another team) whose accounts may follow another password policy.
 - Every run first shows **all prefixes of the registry**
-  (`rcu_registry_overview.sql`): number of schemas, registry rows without
+  ([`rcu_registry_overview.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/rcu_registry_overview.sql)): number of schemas, registry rows without
   database user ("missing" = orphaned entries), profile(s), status, earliest
   expiry date. Selected prefixes are marked `*`; a foreign prefix with
   another profile is reported ("left unchanged"), a selected prefix that is
@@ -86,7 +86,7 @@ architecture doc §4.2.
 
 | Variable | Source | Default |
 |---|---|---|
-| `RCU_DB_PROFILE` | `environment.conf` (optional – not written by `detect_env_conf.sh` / the interview; set it by hand only for another name) | `RCU_USER` |
+| `RCU_DB_PROFILE` | `environment.conf` (optional – not written by [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) / the interview; set it by hand only for another name) | `RCU_USER` |
 | `DB_SCHEMA_PREFIX` | `environment.conf` | – (needed for `--assign`) |
 | `DB_ORACLE_HOME`, `DB_SID`, `DB_PDB_NAME` | `environment_db.conf` | – |
 

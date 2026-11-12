@@ -1,6 +1,6 @@
 # Step 1 – 01-db_install_software.sh
 
-**Script:** `60-RCU-DB-19c/01-db_install_software.sh`
+**Script:** [`60-RCU-DB-19c/01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh)
 **Runs as:** `oracle`
 **Phase:** Install Oracle 19c Database software + patches in one step
 
@@ -12,7 +12,7 @@ Install Oracle 19c into the **patched** `DB_ORACLE_HOME` (e.g. 19.33.0) in one
 run: from a gold image, or from the 19.3 base with the RU applied by `opatch`
 into the image before the installer runs. No separate patching step, no
 `cp -a`, no unpatched base home. `--target-home` builds an **additional** home
-for the out-of-place patch of a running database (`09-db_patch_rcu.sh`).
+for the out-of-place patch of a running database ([`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)).
 
 Flow (as in the script):
 0. Disk space check (first, also in the dry-run), pre-checks
@@ -66,7 +66,7 @@ not confirmed), 2 = FAIL.
 
 ## Prerequisites
 
-- `/etc/oraInst.loc` exists (FMW host: `09-Install/03-root_user_oracle.sh`;
+- `/etc/oraInst.loc` exists (FMW host: [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh);
   DB-only host: `00-root_db_os_baseline.sh --apply`; fallback: `01-` creates
   it via `sudo`). It must point to `ORACLE_INVENTORY` – on a mismatch `01-`
   only WARNs and uses the existing pointer: fix the config, never re-point
@@ -206,7 +206,7 @@ JDK, OPatch) of the same `patchdir`.
 
 MOS credentials are stored **once** in the AutoUpgrade keystore
 (`$DB_AUTOUPGRADE_HOME/keystore/`, auto-login) and reused. `01-` fills it with
-`expect` (installed by `00-root_db_os_baseline.sh`) from `mos_sec.conf.des3`;
+`expect` (installed by [`00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh)) from `mos_sec.conf.des3`;
 the keystore password is `IHateWeblogic-<hostname -s>`. `keystore.cfg` holds
 `global.global_log_dir` + `global.keystore`. Manual equivalent (same
 `-Dhttps.protocols` flag as the download):
@@ -233,7 +233,7 @@ throws `IllegalArgumentException`; Java 11+ (`java-11-openjdk`, or the JDK of
 the running DB home) `TLSv1.3`; not Java 21. Java is only needed for the
 download. AutoUpgrade talks to `login-ext.identity.oraclecloud.com`
 and `updates.oracle.com` – a host without egress uses the offline route
-(`patches_db.csv`, `PATCH_STORAGE`).
+([`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv), `PATCH_STORAGE`).
 
 ---
 
@@ -263,7 +263,7 @@ installer, gold image after it; `-applyOneOffs` only with
 ## Additional home for patching (`--target-home`)
 
 For the next RU of a **running** database `01-` builds a second home next to
-the running one; `09-db_patch_rcu.sh` then moves the instance
+the running one; [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) then moves the instance
 ([09-db_patch_rcu.md](09-db_patch_rcu.md)):
 
 ```bash
@@ -520,7 +520,7 @@ lists every extracted directory with size and patch description. Causes:
   `DB_TARGET_RU=RECOMMENDED` or `19.33`, then `--fresh-patches --apply`
   (or delete `patchdir/p*.zip`). With a gold image in `patchdir` this FAIL
   does not occur.
-- Offline route: the RU row is in `09-Install/download/patches_db.csv`;
+- Offline route: the RU row is in [`09-Install/download/patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv);
   the ZIPs are **linked** from `$PATCH_STORAGE/database/patches/` into
   `patchdir` (no second copy).
 

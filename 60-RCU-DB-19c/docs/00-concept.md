@@ -8,7 +8,7 @@ Background – what FMW stores in this database and who logs in:
 The smallest possible Oracle 19c database that satisfies the FMW 14.1.2 RCU
 requirements.  Nothing more.
 
-FMW RCU (`09-Install/07-oracle_setup_repository.sh`) creates 8 components =
+FMW RCU ([`09-Install/07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh)) creates 8 components =
 9 metadata schemas (STB, MDS, OPSS, IAU, IAU_APPEND, IAU_VIEWER, UMS
 (component UCSUMS), WLS, WLS_RUNTIME).  These schemas store configuration and audit data —
 not application data.  Transaction volumes are low, the schemas are small
@@ -36,7 +36,7 @@ CDB: FMWCDB          ← admin layer, SYS/SYSTEM live here
 ```
 
 The `DB_SERVICE` in `environment.conf` always names the PDB (`DB_PDB_NAME`,
-default `FMWPDB`; `00a-db_env_interview.sh` keeps both equal), never the CDB.
+default `FMWPDB`; [`00a-db_env_interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00a-db_env_interview.sh) keeps both equal), never the CDB.
 
 ### Archivelog: OFF for dev/test, ON for production
 
@@ -48,7 +48,7 @@ archivelog mode after creation.
 
 ### Memory: SGA_TARGET + PGA_AGGREGATE_TARGET (no AMM)
 
-`03-db_create_database.sh` creates the database with `-memoryMgmtType
+[`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh) creates the database with `-memoryMgmtType
 CUSTOM_SGA`: `sga_target=DB_SGA_MB`, `pga_aggregate_target=DB_PGA_MB`
 (`00a-` proposes 15 % of RAM, 1536–4096 MB, PGA a third of it), plus
 `shared_pool_size` / `java_pool_size` floors (`DB_SHARED_POOL_MB` 2048 /
@@ -63,12 +63,12 @@ The kernel relink (`make uniaud_on ioracle`) must happen either:
 1. Before the first database is created — zero downtime, preferred
 2. On a closed database — requires restart of all instances on the ORACLE_HOME
 
-**State 2026-10-29 (checked against the scripts):** `03-db_create_database.sh`
+**State 2026-10-29 (checked against the scripts):** [`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh)
 only **reports** whether the binary is linked with `uniaud_on` (`kzaiang`) and
 prints the relink command; the relink itself is a manual step with database
 and listener stopped ([04-db_audit_setup.md](04-db_audit_setup.md#prerequisites)),
-and `04-db_audit_setup.sh` stops with FAIL until it is done. An out-of-place
-patch keeps it: `09-db_patch_rcu.sh` relinks the new home when the old one has
+and [`04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh) stops with FAIL until it is done. An out-of-place
+patch keeps it: [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) relinks the new home when the old one has
 `uniaud_on`. (The original plan – relink in `03-` (then `05-`) before DBCA, repeated after
 every RU in the former `02-db_patch_db_software.sh` – was not implemented;
 `02-` was removed 2026-11-02.)
@@ -101,13 +101,13 @@ Reports licence does not include the database (audit wording in §9.4 of the
 same document).
 
 To switch: set `DB_EDITION=SE2` in `environment_db.conf` before running
-`01-db_install_software.sh`.
+[`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh).
 
 ---
 
 ### No optional components
 
-`01-db_install_software.sh` disables unused options as its last step (attack
+[`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) disables unused options as its last step (attack
 surface, binary size); by hand with the DB home's `chopt`:
 
 ```bash
@@ -129,11 +129,11 @@ OLAP and Real Application Testing are never needed for FMW metadata storage.
 `environment_db.conf` is read **after** `environment.conf`. The two files share:
 - `ORACLE_BASE`, `ORACLE_INVENTORY` – inherited from `environment.conf`
   (template form `ORACLE_BASE="${ORACLE_BASE:-/u01/app/oracle}"`; a fixed value
-  overrides it for all 60- scripts – `00a-db_env_interview.sh` replaces it)
+  overrides it for all 60- scripts – [`00a-db_env_interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00a-db_env_interview.sh) replaces it)
 - `PATCH_STORAGE` (base ZIP, offline patches, CVU), `ROOT_DIR` (project root)
-- `00-Setup/IHateWeblogic_lib.sh` (logging, ok/warn/fail)
+- [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) (logging, ok/warn/fail)
 
-`00-root_db_os_baseline.sh` (root) reads only `environment.conf`.
+[`00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh) (root) reads only `environment.conf`.
 
 ### ORACLE_HOME: the ambiguous variable
 

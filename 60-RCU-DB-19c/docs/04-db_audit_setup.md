@@ -1,6 +1,6 @@
 # Step 4 – 04-db_audit_setup.sh
 
-**Script:** `60-RCU-DB-19c/04-db_audit_setup.sh`
+**Script:** [`60-RCU-DB-19c/04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh)
 **Runs as:** `oracle`
 **Phase:** Configure Unified Auditing in the running database – after `03-`
 and the `uniaud_on` relink (`--relink`), before `05-` / `06-` / the RCU run
@@ -25,7 +25,7 @@ which FMW schemas log in to this database:
 Pure Unified Auditing for the RCU database:
 
 1. Two **common** security policies, created and enabled in `CDB$ROOT`
-   (`fmw_rcu_audit_policies.sql`, `CONTAINER = ALL`) – effective in all
+   ([`fmw_rcu_audit_policies.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/fmw_rcu_audit_policies.sql), `CONTAINER = ALL`) – effective in all
    containers, including the PDB with the RCU schemas
 2. Default policy `ORA_SECURECONFIG` off in the root and in the PDB (too
    verbose for a small metadata DB)
@@ -69,7 +69,7 @@ Pure Unified Auditing for the RCU database:
   (`ALTER PLUGGABLE DATABASE ALL OPEN`), the dry-run only reports it
 - **Oracle binary linked with `uniaud_on`** – checked via
   `V$OPTION 'Unified Auditing' = TRUE`; FAIL stops the script.
-  `03-db_create_database.sh` only reports the state (`kzaiang` in the binary).
+  [`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh) only reports the state (`kzaiang` in the binary).
   **`--relink --apply`** does the relink: FAIL when `weblogic.Server`
   processes run on the host (the domain loses its repository connections –
   stop it first; with `LOCAL_REP_DB=false` only a WARN for the remote
@@ -97,7 +97,7 @@ Pure Unified Auditing for the RCU database:
   `systemctl reset-failed oracle-listener oracle-db` (root). By hand you can
   also stop / start through systemd.
 
-  An out-of-place patch keeps it: `09-db_patch_rcu.sh` relinks the new home
+  An out-of-place patch keeps it: [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) relinks the new home
   with `uniaud_on` when the old one has it.
 
 Parameters (`environment_db.conf`):
@@ -130,7 +130,7 @@ containers:
 | `FMW_RCU_DB_MIN_SEC_AUDIT` | privileges `CREATE EXTERNAL JOB`, `CREATE JOB`, `CREATE ANY JOB`; actions on users, roles, profiles, synonyms, DB links, procedures, triggers, table DDL, `RENAME`, `GRANT` / `REVOKE`, `ALTER SYSTEM`, `ALTER DATABASE`, tablespaces, directories, `DELETE` / `UPDATE ON AUDSYS.AUD$UNIFIED`, `LOGON` / `LOGOFF` |
 | `FMW_RCU_SEC_AUDIT_TRUNC` | `TRUNCATE TABLE` on `AUDSYS.AUD$UNIFIED` (tamper protection) |
 
-`generate_unified_audit_policy.sql` helps to derive an own policy from the
+[`generate_unified_audit_policy.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/generate_unified_audit_policy.sql) helps to derive an own policy from the
 traditional audit settings of an existing database.
 
 After Block 1 the same `NOAUDIT POLICY ORA_SECURECONFIG` runs in the PDB, because
@@ -325,7 +325,7 @@ partition, ORA-01403 / ORA-00942) names the cause.
 Remedies (in this order):
 
 1. Statistics in an **own block with retry** (as above, since 2026-11-02 in
-   `04-db_audit_setup.sh`): the archive timestamp – the part the purge
+   [`04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh)): the archive timestamp – the part the purge
    depends on – is set before, a statistics failure no longer marks the job
    `FAILED`, a second try 2 min later normally finds a stable partition list.
 2. **Schedule apart**: the archive job well before the purge jobs (purge

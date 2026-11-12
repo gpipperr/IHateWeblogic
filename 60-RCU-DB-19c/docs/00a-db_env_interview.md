@@ -1,8 +1,8 @@
 # Step 0a – 00a-db_env_interview.sh
 
-**Script:** `60-RCU-DB-19c/00a-db_env_interview.sh`
+**Script:** [`60-RCU-DB-19c/00a-db_env_interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00a-db_env_interview.sh)
 **Runs as:** `oracle`
-**Phase:** Phase DB, first step – after `09-Install/01-setup-interview.sh`
+**Phase:** Phase DB, first step – after [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)
 (`environment.conf` with `LOCAL_REP_DB=true`), before `00-` / `00b-` / `01-`
 
 ```bash
@@ -34,11 +34,11 @@ the diff, `--apply` writes it (backup `environment_db.conf.bak_<ts>`,
 
 ## What it does
 
-1. **Template keys** – no file: copy of `environment_db.conf.example` (with
+1. **Template keys** – no file: copy of [`environment_db.conf.example`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/environment_db.conf.example) (with
    its comments). Existing file: keys of the template the file misses are
    appended under a marker comment (new template keys arrive with
    `git pull`); existing values and extra keys (`DB_ORACLE_HOME_PREV` of
-   `09-db_patch_rcu.sh`) stay.
+   [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)) stay.
 2. **Inherited, never asked** – `ORACLE_BASE` and `ORACLE_INVENTORY` come
    from `environment.conf`; a fixed value is replaced by the template's
    default form (`ORACLE_BASE="${ORACLE_BASE:-/u01/app/oracle}"`) with a WARN.
@@ -48,7 +48,7 @@ the diff, `--apply` writes it (backup `environment_db.conf.bak_<ts>`,
 
 | Key | Default | Re-asked when |
 |---|---|---|
-| `DB_ORACLE_HOME` | `${ORACLE_BASE}/product/<RU>/db_home1`, RU from the `db_ru` row of `09-Install/download/patches_db.csv` (19.33 → `19.33.0`; no row: `19.33.0`) | the directory does not name that RU and the home is not installed yet |
+| `DB_ORACLE_HOME` | `${ORACLE_BASE}/product/<RU>/db_home1`, RU from the `db_ru` row of [`09-Install/download/patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) (19.33 → `19.33.0`; no row: `19.33.0`) | the directory does not name that RU and the home is not installed yet |
 | `DB_EDITION` | menu EE / SE2 (licence); default = current value | – |
 | `DB_SID`, `DB_CDB_NAME` | template (`FMWCDB`) | – (not asked when the DB exists in `/etc/oratab`) |
 | `DB_PDB_NAME` | `DB_SERVICE` of `environment.conf`, upper case | it differs from `DB_SERVICE` (case-insensitive) and the DB does not exist yet |
@@ -90,8 +90,8 @@ vi 60-RCU-DB-19c/environment_db.conf
 
 ## Related
 
-- `09-Install/01-setup-interview.sh` prints the call at the end when
-  `LOCAL_REP_DB=true`; the 60- scripts and `04-oracle_pre_checks.sh` point to
-  it when the file is missing; `09-Install/00-install-status.sh` lists it as
+- [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) prints the call at the end when
+  `LOCAL_REP_DB=true`; the 60- scripts and [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) point to
+  it when the file is missing; [`09-Install/00-install-status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-install-status.sh) lists it as
   the first step of phase DB.
-- Template: `60-RCU-DB-19c/environment_db.conf.example`.
+- Template: [`60-RCU-DB-19c/environment_db.conf.example`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/environment_db.conf.example).

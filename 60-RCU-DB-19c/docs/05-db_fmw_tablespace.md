@@ -1,6 +1,6 @@
 # Step 5 – 05-db_fmw_tablespace.sh
 
-**Script:** `60-RCU-DB-19c/05-db_fmw_tablespace.sh`
+**Script:** [`60-RCU-DB-19c/05-db_fmw_tablespace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/05-db_fmw_tablespace.sh)
 **Runs as:** `oracle`
 **Phase:** Before RCU — pre-create the FMW_DATA tablespace for all RCU schemas
 
@@ -59,7 +59,7 @@ RCU_TABLESPACE=FMW_DATA
 ```
 
 The script sets `RCU_TABLESPACE` automatically if the line already exists
-in `environment.conf` – `09-Install/01-setup-interview.sh` writes it (block 4,
+in `environment.conf` – [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) writes it (block 4,
 empty by default). If the line is missing, the script only WARNs – add it
 with `00-Setup/detect_env_conf.sh --apply` (or the interview) and run `05-` again.
 `DB_SERVICE` in `environment.conf` must be the PDB service (`DB_PDB_NAME`).

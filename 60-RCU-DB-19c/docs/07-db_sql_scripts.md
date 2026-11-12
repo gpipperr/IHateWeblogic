@@ -1,6 +1,6 @@
 # Step 7 – 07-db_sql_scripts.sh
 
-**Script:** `60-RCU-DB-19c/07-db_sql_scripts.sh`
+**Script:** [`60-RCU-DB-19c/07-db_sql_scripts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/07-db_sql_scripts.sh)
 **Runs as:** `oracle`
 **Phase:** after the database exists (03-) – DBA tooling for the local RCU DB
 
@@ -18,7 +18,7 @@ Provide the DBA SQL script collection
 
 When you select a **DB entry**, the shell switcher `setdb`
 ([ihw_shell_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh),
-installed by `09-Install/03-root_user_oracle.sh`) exports `SQLPATH` and
+installed by [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)) exports `SQLPATH` and
 `ORACLE_PATH` (SQLcl) to `~/sql`. sqlplus then finds the scripts and
 `login.sql` from any directory.
 
@@ -26,7 +26,7 @@ installed by `09-Install/03-root_user_oracle.sh`) exports `SQLPATH` and
 > formats) and disturbs `datapatch`, `catcon.pl` and `utlrp`. Before a manual
 > DB patch run `setdb c` (removes `SQLPATH` / `ORACLE_PATH`), then set only
 > `ORACLE_HOME` / `ORACLE_SID`. The IHateWeblogic scripts (`01-`, `03-`,
-> `09-db_patch_rcu.sh`) unset both themselves: the library does it for every
+> [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)) unset both themselves: the library does it for every
 > non-interactive run.
 
 The scripts are kept as a **git clone**, so an update is one `git pull`.
@@ -47,12 +47,12 @@ host; on a pure FMW host they are not needed.
 
 ## Prerequisites
 
-- **`git` on the host.** `09-Install/02-root_os_packages.sh` installs
+- **`git` on the host.** [`09-Install/02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) installs
   `git-core` (root). It is also needed for the very first
   `git clone` of IHateWeblogic.
 - **Egress to `github.com:443`** for the clone and every pull. Behind a
   customer firewall it must be on the allow-list, the same as for the
-  IHateWeblogic clone (`02-Checks/egress_check.sh`). Without egress, use
+  IHateWeblogic clone ([`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh)). Without egress, use
   the offline route below.
 - No credentials: the repository is public, HTTPS clone, no SSH key.
 
@@ -119,7 +119,7 @@ SQL> @tablespace
 
 | Script | Relation |
 |---|---|
-| `09-Install/02-root_os_packages.sh` | installs `git-core` |
-| `09-Install/03-root_user_oracle.sh` | creates `~oracle/sql`, installs the switcher that exports `SQLPATH` / `ORACLE_PATH` |
-| `03-db_create_database.sh` | the database the scripts are used against |
-| `08-db_auto_start.sh` | next step |
+| [`09-Install/02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) | installs `git-core` |
+| [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) | creates `~oracle/sql`, installs the switcher that exports `SQLPATH` / `ORACLE_PATH` |
+| [`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh) | the database the scripts are used against |
+| [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) | next step |

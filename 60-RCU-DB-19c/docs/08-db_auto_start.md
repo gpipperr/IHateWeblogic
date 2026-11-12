@@ -1,6 +1,6 @@
 # Step 8 – 08-db_auto_start.sh
 
-**Script:** `60-RCU-DB-19c/08-db_auto_start.sh`
+**Script:** [`60-RCU-DB-19c/08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh)
 **Runs as:** `oracle` (systemd unit install requires root — script prompts)
 **Phase:** Register DB for auto-start at boot
 
@@ -20,7 +20,7 @@ Ensure the Oracle CDB starts automatically after a system reboot:
 3. Confirm the unit is enabled; next-step hint (RCU)
 
 PDB auto-open is **not** handled here — it relies on
-`ALTER PLUGGABLE DATABASE ALL SAVE STATE` which was set in `03-db_create_database.sh`.
+`ALTER PLUGGABLE DATABASE ALL SAVE STATE` which was set in [`03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh).
 
 ---
 
@@ -142,12 +142,12 @@ ORACLE_SID=FMWCDB sqlplus / as sysdba <<< "SELECT NAME, OPEN_MODE FROM V\$PDBS;"
 
 | Script | What it starts | systemd unit |
 |---|---|---|
-| `02-db_setup_listener.sh` | TNS Listener | `oracle-listener.service` |
-| `08-db_auto_start.sh` | Oracle CDB (+ PDB via SAVE STATE) | `oracle-db.service` |
+| [`02-db_setup_listener.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/02-db_setup_listener.sh) | TNS Listener | `oracle-listener.service` |
+| [`08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh) | Oracle CDB (+ PDB via SAVE STATE) | `oracle-db.service` |
 
 Boot order: `oracle-listener.service` → `oracle-db.service`
 
-**After an out-of-place patch** (`09-db_patch_rcu.sh`, new `DB_ORACLE_HOME`):
+**After an out-of-place patch** ([`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh), new `DB_ORACLE_HOME`):
 both units contain the home path (`ExecStart`, `Environment=ORACLE_HOME`) and
 `/etc/oratab` the `SID:home:Y` line. `09-` rewrites `/etc/oratab` and prints
 the root commands for the units (`sed` + `systemctl daemon-reload`) – run them
@@ -156,7 +156,7 @@ before the next reboot, otherwise the old home starts
 readable by root only on some hosts; `09-` then treats them as "to change".
 
 **FMW domain on the same host:** with `LOCAL_REP_DB=true`
-`09-Install/30-configure_autostart.sh` orders `fmw-<domain>.service`
+[`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh) orders `fmw-<domain>.service`
 (`Wants=` / `After=`) after `oracle-listener.service` and `oracle-db.service`
 – the data sources and the OPSS store need the RCU schemas at the first start ([rcu_middleware_architecture.md §3](../../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where)).
 

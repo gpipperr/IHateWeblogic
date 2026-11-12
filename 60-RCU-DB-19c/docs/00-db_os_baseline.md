@@ -1,14 +1,14 @@
 # Step 0 – 00-root_db_os_baseline.sh
 
-**Script:** `60-RCU-DB-19c/00-root_db_os_baseline.sh`
+**Script:** [`60-RCU-DB-19c/00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh)
 **Runs as:** `root` – started as `oracle` it re-runs itself via `sudo`
-**Phase:** OS preparation — before `01-db_install_software.sh`; on a shared
+**Phase:** OS preparation — before [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh); on a shared
 FMW + DB host after the FMW software install (`09-Install/05-`/`06-`)
 **Requires:** `environment.conf` (FATAL otherwise: "Run first:
 09-Install/01-setup-interview.sh --apply") – this root script reads only
 `environment.conf`, not `environment_db.conf`
 
-Next step: `00b-db_cvu_check.sh` – host pre-check with the standalone CVU
+Next step: [`00b-db_cvu_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00b-db_cvu_check.sh) – host pre-check with the standalone CVU
 ([00b-db_cvu_check.md](00b-db_cvu_check.md)). Background – the RCU database and
 what the FMW schemas need: [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai).
 
@@ -145,7 +145,7 @@ chmod 1777 /var/tmp/core
 
 ## Transparent Huge Pages
 
-Already disabled by `09-Install/01-root_os_baseline.sh` via grubby.
+Already disabled by [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) via grubby.
 
 If running on a dedicated DB server (no FMW baseline run before):
 ```bash
@@ -185,7 +185,7 @@ AMM (`MEMORY_TARGET`) is not used by `03-` anyway (`SGA_TARGET` +
 2b. Add the oracle user to the groups `dba` + `oper` (OSDBA / OSOPER of the
    `01-` response file; groups created if missing). The RPM adds the user to
    them only when it creates the user itself – on an FMW host
-   `03-root_user_oracle.sh` created oracle before with `oinstall` only
+   [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) created oracle before with `oinstall` only
    (CVU PRVF-7566 "Group Membership: dba", OS authentication fails). The new
    membership is active only in a **new login** of oracle
 3. Install `expect` – AutoUpgrade's MOS keystore setup (`01-` download) is
