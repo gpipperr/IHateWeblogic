@@ -129,7 +129,7 @@ Before the first step, the cookbook therefore contains:
    (`Grundlage / Sources`):
    - repo-relative paths, e.g. `IHateWeblogic/80-FMW-Architecture/reports_job_handling.md`;
    - Oracle sources with chapter number and URL ("Publishing Reports
-     12.2.1.3, A.8.3 SCHEDULE, https://docs.oracle.com/...");
+     12.2.1.3, A.8.3 SCHEDULE, <https://docs.oracle.com/>...");
    - MOS notes with their number (KA1182, KB873815);
    - the date they were read.
 

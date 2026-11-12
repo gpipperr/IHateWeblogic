@@ -255,6 +255,6 @@ Consequences:
   file) – docs.oracle.com, Fusion Middleware 14.1.2 library.
 - Oracle WebLogic Server 14.1.2 – *Securing a Production Environment*
   (protecting `SerializedSystemIni.dat`, file permissions):
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html>
 - Test host inventory 2026-10-29 (`find $DOMAIN_HOME -name boot.properties …`,
   modes, time stamps; values never displayed).

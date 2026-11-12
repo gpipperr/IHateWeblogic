@@ -813,5 +813,5 @@ sysctl -a 2>/dev/null | grep -E "net.ipv6.conf.*.disable_ipv6"
 
 | Topic | URL |
 |---|---|
-| Oracle WebLogic 14c Installation on Linux – practical guide with sysctl values | https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux |
-| Oracle WebLogic Server 14.1.1 System Requirements and Specifications (kernel.shmmax) | https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/sysrs/system-requirements-and-specifications.html#GUID-D72CDA83-940D-497C-96EF-0BEB97D3A991 |
+| Oracle WebLogic 14c Installation on Linux – practical guide with sysctl values | <https://dbainsight.com/2026/02/oracle-weblogic-14c-installation-on-linux> |
+| Oracle WebLogic Server 14.1.1 System Requirements and Specifications (kernel.shmmax) | <https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/sysrs/system-requirements-and-specifications.html#GUID-D72CDA83-940D-497C-96EF-0BEB97D3A991> |

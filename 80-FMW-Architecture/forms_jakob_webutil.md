@@ -508,34 +508,34 @@ All links checked 2026-10-17 (HTTP 200, title matches).
 Oracle Forms 14.1.2 – *Working with Oracle Forms*:
 - Oracle Forms Standalone Launcher (requirements Java 17+, "Signed Code",
   "FSAL and Signed JARs", TLS truststore):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html>
 - Java Web Start (`basejnlp=webutil.jnlp`, `webstart=enabled`, custom jars
   such as `jacob.jar` into `extensions.jnlp`):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/java-web-start.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/java-web-start.html>
 - Release notes, lifecycle management (JACOB 1.21):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/releasenotes-fnr/lifecycle-management-information.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/releasenotes-fnr/lifecycle-management-information.html>
 
 Java:
 - JAR File Manifest Attributes for Security (`Permissions` required in the
-  main jar only, `Codebase`): https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/manifest.html
-- `jarsigner` (JDK 21): https://docs.oracle.com/en/java/javase/21/docs/specs/man/jarsigner.html
-- Signing JAR Files (Java Tutorials): https://docs.oracle.com/javase/tutorial/deployment/jar/signing.html
+  main jar only, `Codebase`): <https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/manifest.html>
+- `jarsigner` (JDK 21): <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jarsigner.html>
+- Signing JAR Files (Java Tutorials): <https://docs.oracle.com/javase/tutorial/deployment/jar/signing.html>
 - Java Web Start FAQ ("all JAR files used in a JNLP file … signed by the same
   certificate", component extensions):
-  https://docs.oracle.com/javase/8/docs/technotes/guides/javaws/developersguide/faq.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/javaws/developersguide/faq.html>
 - Java Web Start – Application Development Considerations (`all-permissions`
   only for signed jars):
-  https://docs.oracle.com/javase/8/docs/technotes/guides/javaws/developersguide/development.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/javaws/developersguide/development.html>
 - Deployment Configuration File and Properties (trusted.certs user/system,
   `deployment.security.browser.keystore.use`, `revocation.check`,
   `deployment.config` system-wide):
-  https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/properties.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/properties.html>
 - Working with Signed RIAs (certificate chain, root CA):
-  https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/certificates.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/certificates.html>
 - Deployment Rule Set (`DeploymentRuleSet.jar`, signed by a trusted CA,
   `<Windows>\Sun\Java\Deployment`):
-  https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/deployment_rules.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/deploy/deployment_rules.html>
 - Oracle Java Client Roadmap Update (2018, end of Java Web Start with Java 11;
   PDF reachable 2026-10-17, text not machine-checked):
-  https://www.oracle.com/technetwork/java/javase/javaclientroadmapupdate2018mar-4414431.pdf
+  <https://www.oracle.com/technetwork/java/javase/javaclientroadmapupdate2018mar-4414431.pdf>
 

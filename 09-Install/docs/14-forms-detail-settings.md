@@ -287,7 +287,7 @@ Live-tested 2026-10-15: download + checksum, install, sizes, HTTP 200 with
 the expected sizes; unsigned jar correctly not activated.
 
 Live-tested 2026-10-17 (test host, keystore from `08-SSL/ssl_local_ca.sh
-codesign`, TSA `http://timestamp.digicert.com`): `jacob.jar` signed with
+codesign`, TSA `<http://timestamp.digicert.com>`): `jacob.jar` signed with
 timestamp (49846 → 61050 bytes, `jacob.jar.orig` kept), activated
 (`WebUtilArchive=frmwebutil.jar,jacob.jar`, `extensions.jnlp` entry), served
 via HTTP 200; second run "up to date (signed)", no re-signing; no password

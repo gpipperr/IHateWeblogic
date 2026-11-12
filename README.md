@@ -16,7 +16,7 @@ permalink: /
 
 <p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude </p>
 
-Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
+Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
 
 Independent community project – not affiliated with Oracle. See
 [Disclaimer & Acknowledgements](#disclaimer--acknowledgements).
@@ -628,20 +628,20 @@ to the table.
 
 ## Oracle Documentation References
 
-- Forms 14c Install Guide: https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html
-- Reports 12c Install Guide: https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/
-- Reports 14c Install Guide on Windows: https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64 
-- Reports 12c Install Guide on Windows:https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64
-- SSL Weblogic : https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl
+- Forms 14c Install Guide: <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html>
+- Reports 12c Install Guide: <https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/>
+- Reports 14c Install Guide on Windows: <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64> 
+- Reports 12c Install Guide on Windows:<https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64>
+- SSL Weblogic : <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12_ssl>
 
-- Font Usage Oracle Reports : https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+- Font Usage Oracle Reports : <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm>
 - Architecture overview with verified Oracle sources (10.3 / 11g / 12c / 14c):
   [`80-FMW-Architecture/weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md)
 - RCU / repository / OPSS with verified Oracle sources (RCU guide, Upgrade
   Assistant, OPatch, 11g Patch Set Assistant):
   [`80-FMW-Architecture/rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md)
 - Working with Oracle Forms 14.1.2 (Web Configuration Parameters, Environment Variables, runtime pooling):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html –
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html> –
   digested with quotes in [`80-FMW-Architecture/forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md)
 - Reports server / engines / `rwrun` with Oracle sources:
   [`80-FMW-Architecture/reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md)

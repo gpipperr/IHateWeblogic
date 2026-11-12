@@ -4,7 +4,7 @@
 
 ## Password Security Concept
 
-Based on: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen
+Based on: <https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen>
 
 The WebLogic admin password is encrypted with `openssl des3` using the machine's
 disk UUID as key. The encrypted file `weblogic_sec.conf.des3` is machine-specific

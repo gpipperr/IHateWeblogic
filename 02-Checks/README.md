@@ -608,16 +608,16 @@ Fix:     run as the oracle user that started WebLogic, or as root:
 All links checked 2026-10-19 (HTTP 200, title matches).
 
 - Oracle FMW 14.1.2 System Requirements and Specifications:
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html>
 - Securing a Production Environment for Oracle WebLogic Server 14.1.2:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html>
 - Oracle Database Installation Guide 21c for Linux (ulimits / kernel
   parameters of Oracle products):
-  https://docs.oracle.com/en/database/oracle/oracle-database/21/ladbi/
+  <https://docs.oracle.com/en/database/oracle/oracle-database/21/ladbi/>
 - Troubleshooting Oracle Reports Services (12.2.1.3 guide, still valid for
   the architecture):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm>
 - Log4j security (CVE-2021-44228):
-  https://logging.apache.org/log4j/2.x/security.html
+  <https://logging.apache.org/log4j/2.x/security.html>
 - My Oracle Support Note 2827793.1 (Log4j and FMW):
-  https://support.oracle.com/epmos/faces/DocumentDisplay?id=2827793.1
+  <https://support.oracle.com/epmos/faces/DocumentDisplay?id=2827793.1>

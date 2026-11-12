@@ -337,6 +337,6 @@ ls /etc/nginx/conf.d/
 
 | Topic | URL |
 |---|---|
-| Oracle APEX + Nginx + Tomcat proxy config (Windows, template concept) | https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server |
-| GitLab on Oracle Linux 9 – Nginx reverse proxy + SSL handling | https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9 |
-| Easy-RSA CA on Oracle Linux 9 – SSL certificate creation with simple tools | https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9 |
+| Oracle APEX + Nginx + Tomcat proxy config (Windows, template concept) | <https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server> |
+| GitLab on Oracle Linux 9 – Nginx reverse proxy + SSL handling | <https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9> |
+| Easy-RSA CA on Oracle Linux 9 – SSL certificate creation with simple tools | <https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9> |

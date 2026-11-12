@@ -21,8 +21,8 @@ substitute for re-verifying against MOS before each patch cycle.
 
 Most importend URLs'
 
-- https://www.oracle.com/security-alerts/cspusep2026.html
-- https://support.oracle.com/support/?documentId=KA1182
+- <https://www.oracle.com/security-alerts/cspusep2026.html>
+- <https://support.oracle.com/support/?documentId=KA1182>
 
 
 | Doc ID | Title | Used for |
@@ -106,12 +106,12 @@ All links checked 2026-10-18 (HTTP 200, title matches).
 
 | Advisory | URL |
 |---|---|
-| Overview – CPUs, CSPUs, Security Alerts and Bulletins | https://www.oracle.com/security-alerts/ |
-| CSPU September 2026 | https://www.oracle.com/security-alerts/cspusep2026.html |
-| CSPU August 2026 | https://www.oracle.com/security-alerts/cspuaug2026.html |
-| CPU July 2026 | https://www.oracle.com/security-alerts/cpujul2026.html |
-| CSPU June 2026 | https://www.oracle.com/security-alerts/cspujun2026.html |
-| CPU October 2026 (pre-release until 20 Oct) | https://www.oracle.com/security-alerts/cpuoct2026.html |
+| Overview – CPUs, CSPUs, Security Alerts and Bulletins | <https://www.oracle.com/security-alerts/> |
+| CSPU September 2026 | <https://www.oracle.com/security-alerts/cspusep2026.html> |
+| CSPU August 2026 | <https://www.oracle.com/security-alerts/cspuaug2026.html> |
+| CPU July 2026 | <https://www.oracle.com/security-alerts/cpujul2026.html> |
+| CSPU June 2026 | <https://www.oracle.com/security-alerts/cspujun2026.html> |
+| CPU October 2026 (pre-release until 20 Oct) | <https://www.oracle.com/security-alerts/cpuoct2026.html> |
 
 Naming pattern: `cpu<mon><yyyy>.html` for CPUs, `cspu<mon><yyyy>.html` for
 CSPUs. `www.oracle.com` refuses some non-browser clients (HTTP 403) – with

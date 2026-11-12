@@ -44,13 +44,13 @@ Search Google for:
 January 2026 Critical Patch Update (CPU) Oracle Fusion Middleware Infrastructure 14.1.2.0.0
 ```
 
-Navigate to **https://www.oracle.com/security-alerts/cpujan2026.html**, search the
+Navigate to **<https://www.oracle.com/security-alerts/cpujan2026.html>**, search the
 page for **"Oracle WebLogic"**, and find the entry:
 
 > Oracle HTTP Server, Oracle WebLogic Server Proxy Plug-in, versions 12.2.1.4.0,
 > 14.1.1.0.0, 14.1.2.0.0
 
-Click the entry — it leads to **https://www.oracle.com/security-alerts/cpujan2026.html#AppendixFMW**
+Click the entry — it leads to **<https://www.oracle.com/security-alerts/cpujan2026.html#AppendixFMW>**
 
 > **Note:** The CPU URL changes every quarter. In April the path will be
 > `cpuapr2026.html`, in July `cpujul2026.html`, etc. Oracle makes sure to keep
@@ -61,13 +61,13 @@ Click the entry — it leads to **https://www.oracle.com/security-alerts/cpujan2
 On the CPU page you will find, on the right-hand side, a link to a My Oracle
 Support Doc ID — for January 2026 this is **KA1182**.
 
-Go to **https://support.oracle.com/** and search for the Doc ID number **only**
+Go to **<https://support.oracle.com/>** and search for the Doc ID number **only**
 (e.g. `KA1182`). Do not attempt to search by product name — the AI market leader
 cannot recognise its own products in its own support interface and will return
 only noise.
 
 With some luck you will reach a page such as:
-**https://support.oracle.com/support/?kmContentId=2806740&page=sptemplate&sptemplate=km-article**
+**<https://support.oracle.com/support/?kmContentId=2806740&page=sptemplate&sptemplate=km-article>**
 
 Select the tab **"FMW Infrastructure"** → menu item **"FMW Infrastructure 14.1.2.0"**
 — and there is your patch number.

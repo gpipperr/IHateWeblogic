@@ -672,12 +672,12 @@ Not yet included: see §12.
   specific `frmsal.jar`, Certificate Importer / `formstruststore`, FSAL
   Reference: `fsalEnableAutoUpdate`, command-line arguments), checked
   2026-10-22 (HTTP 200, title "Oracle Forms Standalone Launcher"):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html>
 - Same book – Web Configuration Parameters (`fsalJavaVersion`), checked
   2026-10-22 (HTTP 200, title "Web Configuration Parameters"):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/web-configuration-parameters.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/web-configuration-parameters.html>
 - Java SE 21 archive downloads (JDK only, last 21.0.12.1, NFTC), checked
-  2026-10-22: https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html
+  2026-10-22: <https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html>
 - MOS CPU426 – Oracle Java SE Security Alert for CVE-2026-91403 ("each
   release is a full distribution"), read 2026-10-22; see
   [00-patch-references.md](00-patch-references.md).

@@ -170,7 +170,7 @@ before the 19c installation. With a remote database the section says
 **By hand** (host without MOS access – the dry-run inventory prints the same
 hints for every missing patch):
 
-1. **https://support.oracle.com** → *Patches & Updates* → *Patch Name or
+1. **<https://support.oracle.com>** → *Patches & Updates* → *Patch Name or
    Number* `30839369`, platform **Linux x86-64** → *Search*
 2. The patch lists **five files** (live 2026-10-27) – download only the
    first one:
@@ -214,14 +214,14 @@ the license acceptance (as for the FMW ZIPs in manual mode), and
 `$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip`).
 
 **Simplest source – the database download page** (Oracle account login,
-no cart): **https://www.oracle.com/database/technologies/oracle19c-linux-downloads.html**
+no cart): **<https://www.oracle.com/database/technologies/oracle19c-linux-downloads.html>**
 → *Oracle Database 19c (19.3) for Linux x86-64*, ZIP → accept the license →
 the file is already called **`LINUX.X64_193000_db_home.zip`** – no renaming.
 The page also shows the SHA-256.
 
 **Alternative – eDelivery** (same content, other name):
 
-1. Log in at **https://edelivery.oracle.com**
+1. Log in at **<https://edelivery.oracle.com>**
 2. Search: `Oracle Database 19c Enterprise Edition` (or *Standard Edition 2* –
    the same ZIP; the edition is a matter of the license), release
    **19.3.0.0.0**

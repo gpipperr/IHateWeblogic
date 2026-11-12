@@ -386,10 +386,10 @@ adds itself here and links back to this article.
 
 - pipperr.de – Database TLS: OS certificate store in 26ai (OS store paths,
   splitting a chain, interception sub-CA, Windows store, Ansible):
-  https://pipperr.de/dokuwiki/doku.php?id=dba:database_tls_os_certstore_26ai
+  <https://pipperr.de/dokuwiki/doku.php?id=dba:database_tls_os_certstore_26ai>
 - pipperr.de – own CA on Oracle Linux 9 with Easy-RSA (key algorithm,
   lifetimes, SAN, CA backup):
-  https://pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9
+  <https://pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9>
 - `update-ca-trust(8)` (Oracle Linux 9 / RHEL – `source/anchors`,
   `extracted/` bundles incl. `java/cacerts`)
 - Java SE `keytool` and the `java.security` file

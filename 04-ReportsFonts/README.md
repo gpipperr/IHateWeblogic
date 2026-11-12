@@ -1,6 +1,6 @@
 # Oracle Reports – Font Configuration Guide
 
-Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
+Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
 
 > This guide explains the Oracle Reports font system on Oracle Linux 8/9
 > and how to use the `04-ReportsFonts/` scripts to resolve common font problems.
@@ -989,17 +989,17 @@ mfontchk $DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/reptools
 ## References
 
 - Oracle Reports 12c Font Usage:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xplat001.htm>
 - Oracle Reports Font Configuration:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font001.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font001.htm>
 - Oracle Reports uifont.ali – Font Config Files (12.2.1.3):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm>
 - Oracle Reports uifont.ali – Font Config Files (12.2.1, with [PDF:Subset] syntax detail):
-  https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745
+  <https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745>
 - Oracle Reports Font Aliasing:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font004.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font004.htm>
 - Oracle Reports 11g uifont.ali [PDF:Subset] examples (with quoted filenames):
-  https://docs.oracle.com/cd/E17904_01/bi.1111/b32121/pbr_pdf003.htm#RSPUB23424
-- Liberation Fonts Project: https://github.com/liberationfonts/liberation-fonts
+  <https://docs.oracle.com/cd/E17904_01/bi.1111/b32121/pbr_pdf003.htm#RSPUB23424>
+- Liberation Fonts Project: <https://github.com/liberationfonts/liberation-fonts>
 - Pipperr.de – Oracle Reports 14c Install Guide:
-  https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
+  <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>

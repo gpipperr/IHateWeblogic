@@ -11,9 +11,9 @@ re-verifying against MOS before each patch cycle.
 
 Most important URLs:
 
-- https://www.oracle.com/security-alerts/cpuoct2026.html
-- https://www.oracle.com/security-alerts/alert-cve-2026-91403.html
-- https://support.oracle.com/support/?documentId=KA1182
+- <https://www.oracle.com/security-alerts/cpuoct2026.html>
+- <https://www.oracle.com/security-alerts/alert-cve-2026-91403.html>
+- <https://support.oracle.com/support/?documentId=KA1182>
 
 ## Patch cycle history
 
@@ -168,7 +168,7 @@ Consequences for this project:
   CSPU can bring a CVSS 10.0 fix for WLS or Forms (September 2026: five
   CVSS 10.0 in Fusion Middleware, see the snapshot).
 - **Additionally** watch the Security Alerts section of
-  https://www.oracle.com/security-alerts/ – an alert does not wait for the
+  <https://www.oracle.com/security-alerts/> – an alert does not wait for the
   next third Tuesday and can make the version of the CPU just applied
   obsolete (October 2026: JDK 21.0.13 from the CPU, affected by the alert
   one day later).
@@ -214,13 +214,13 @@ All links checked 2026-10-22 (HTTP 200, title matches).
 
 | Advisory | URL |
 |---|---|
-| Overview – CPUs, CSPUs, Security Alerts and Bulletins | https://www.oracle.com/security-alerts/ |
-| Security Alert CVE-2026-91403 (Java SE JSSE) | https://www.oracle.com/security-alerts/alert-cve-2026-91403.html |
-| CPU October 2026 | https://www.oracle.com/security-alerts/cpuoct2026.html |
-| CSPU September 2026 | https://www.oracle.com/security-alerts/cspusep2026.html |
-| CSPU August 2026 | https://www.oracle.com/security-alerts/cspuaug2026.html |
-| CPU July 2026 | https://www.oracle.com/security-alerts/cpujul2026.html |
-| CSPU June 2026 | https://www.oracle.com/security-alerts/cspujun2026.html |
+| Overview – CPUs, CSPUs, Security Alerts and Bulletins | <https://www.oracle.com/security-alerts/> |
+| Security Alert CVE-2026-91403 (Java SE JSSE) | <https://www.oracle.com/security-alerts/alert-cve-2026-91403.html> |
+| CPU October 2026 | <https://www.oracle.com/security-alerts/cpuoct2026.html> |
+| CSPU September 2026 | <https://www.oracle.com/security-alerts/cspusep2026.html> |
+| CSPU August 2026 | <https://www.oracle.com/security-alerts/cspuaug2026.html> |
+| CPU July 2026 | <https://www.oracle.com/security-alerts/cpujul2026.html> |
+| CSPU June 2026 | <https://www.oracle.com/security-alerts/cspujun2026.html> |
 
 Naming pattern: `cpu<mon><yyyy>.html` for CPUs, `cspu<mon><yyyy>.html` for
 CSPUs, `alert-cve-<yyyy>-<nr>.html` for Security Alerts. `www.oracle.com`
@@ -444,10 +444,10 @@ dnf needs-restarting
 Not part of the Oracle CPU / CSPU – OS errata only; check again with the
 next [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) run (OS errata section).
 
-Sources: CVE record https://www.cve.org/CVERecord?id=CVE-2026-111497 ·
-https://brandefense.io/blog/http2shell-brotli-cve-2026-111497/ ·
-https://linux.oracle.com/errata/ELSA-2026-500513.html ·
-https://nodejs.org/en/blog/vulnerability/october-2026-security-releases
+Sources: CVE record <https://www.cve.org/CVERecord?id=CVE-2026-111497> ·
+<https://brandefense.io/blog/http2shell-brotli-cve-2026-111497/> ·
+<https://linux.oracle.com/errata/ELSA-2026-500513.html> ·
+<https://nodejs.org/en/blog/vulnerability/october-2026-security-releases>
 
 ## Patch List — CPU October 2026 cycle
 

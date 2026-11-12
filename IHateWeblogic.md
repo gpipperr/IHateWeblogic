@@ -4,7 +4,7 @@
 
 <p align="center">Made by <a href="https://www.pipperr.info/" target="_blank" rel="noopener"><img src="assets/IHateWeblogic_logo.png" alt="IHateWeblogic logo" width="160"></a> Gunther & Claude</p>
 
-Author: Gunther Pipperr | https://pipperr.de
+Author: Gunther Pipperr | <https://pipperr.de>
 License: Apache 2.0
 
 ## Meaning of the Project Name
@@ -115,7 +115,7 @@ differ accordingly and show only what is publicly visible (checked
 
 ## License
 
-Copyright 2024 Gunther Pipperr – https://pipperr.de
+Copyright 2024 Gunther Pipperr – <https://pipperr.de>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

@@ -467,24 +467,24 @@ message idea in the 2001 and the 2024 documentation. Year values marked
 Oracle (still online, checked 2026-10-19, HTTP 200):
 
 - Forms 6i documentation overview:
-  https://www.oracle.com/application-development/technologies/forms/6i-forms.html
+  <https://www.oracle.com/application-development/technologies/forms/6i-forms.html>
 - Oracle Forms Server Release 6i: Deploying Forms Applications to the Web with iAS – contents:
-  https://docs.oracle.com/cd/A97335_02/apps.102/a86202/toc.htm
+  <https://docs.oracle.com/cd/A97335_02/apps.102/a86202/toc.htm>
 - … chapter "Configuring the Forms Server" (listener `f60ctl`/`ifsrv60`, `mode=socket|http|https`, `connectMode`, RC4 message encryption):
-  https://docs.oracle.com/cd/A97335_02/apps.102/a86202/chap05.htm
+  <https://docs.oracle.com/cd/A97335_02/apps.102/a86202/chap05.htm>
 - Forms6i Patch 5: Forms Listener Servlet for Deployment of Forms on the Internet (white paper, April 2001 – pre-Patch-4 architecture, `f60webm`, why HTTP through firewalls):
-  https://download.oracle.com/otn_hosted_doc/forms/forms/p5_listenerservlet.pdf
+  <https://download.oracle.com/otn_hosted_doc/forms/forms/p5_listenerservlet.pdf>
 - Forms 6i to Oracle9i Forms Upgrade Reference (December 2002 – what was removed: character mode, client/server):
-  https://www.oracle.com/technetwork/developer-tools/forms/forms-upgrade-reference-128184.pdf
+  <https://www.oracle.com/technetwork/developer-tools/forms/forms-upgrade-reference-128184.pdf>
 - My Oracle Support Doc ID 166640.1 "The History and Methods of Running Oracle Forms Over The Web" (login required):
-  https://support.oracle.com/knowledge/Middleware/166640_1.html
+  <https://support.oracle.com/knowledge/Middleware/166640_1.html>
 
 Secondary:
 
 - Wikipedia "Oracle Forms" (version table, 14.1.2 release date, support dates):
-  https://en.wikipedia.org/wiki/Oracle_Forms
+  <https://en.wikipedia.org/wiki/Oracle_Forms>
 - Kumaran Systems, "Oracle Forms Version History" (2023, vendor blog – years for 11g / 12c):
-  https://kumaran.com/blogs/oracle-forms-version-history-a-timeline-and-comprehensive-guide-of-how-the-software-has-progressed/
+  <https://kumaran.com/blogs/oracle-forms-version-history-a-timeline-and-comprehensive-guide-of-how-the-software-has-progressed/>
 
 ## 9. Open points
 
@@ -506,25 +506,25 @@ pool vs. session criterion and RSS of a session (2026-11-03, section 3 / 5).
 *Working with Oracle Forms 14.1.2* (all checked 2026-10-19, HTTP 200, title matches):
 
 - Oracle Forms Services Architecture:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-services-architecture.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-services-architecture.html>
 - Built-in Optimization Features of Forms Services (runtime pooling, prestart parameters, "not … in the [default] section", shared FMX memory):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/built-optimization-features-forms-services.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/built-optimization-features-forms-services.html>
 - Web Configuration Parameters (`heartBeat`, `maxRuntimeProcesses`, `allowNewConnections`, `networkRetries`, `gzipCompressApplet`, `prestartRuntimes`):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/web-configuration-parameters.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/web-configuration-parameters.html>
 - Environment Variables (`FORMS_TIMEOUT`, `FORMS_PATH`, `FORMS_TRACE_DIR`):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/environment-variables.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/environment-variables.html>
 - Configuration Files:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/configuration-files.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/configuration-files.html>
 - Managing User Sessions:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/managing-user-sessions.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/managing-user-sessions.html>
 - Tracing and Diagnostics:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/tracing-and-diagnostics.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/tracing-and-diagnostics.html>
 - Forms Diagnostics Agent:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/forms-diagnostics-agent.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/forms-diagnostics-agent.html>
 
 Java (checked 2026-10-22, HTTP 200, title matches):
 
 - Java Secure Socket Extension (JSSE) Reference Guide (JDK 21):
-  https://docs.oracle.com/en/java/javase/21/security/java-secure-socket-extension-jsse-reference-guide.html
+  <https://docs.oracle.com/en/java/javase/21/security/java-secure-socket-extension-jsse-reference-guide.html>
 - Oracle Security Alert Advisory – CVE-2026-91403 (JSSE, CVSS 9.1, 2026-10-21; patch document MOS CPU426):
-  https://www.oracle.com/security-alerts/alert-cve-2026-91403.html
+  <https://www.oracle.com/security-alerts/alert-cve-2026-91403.html>

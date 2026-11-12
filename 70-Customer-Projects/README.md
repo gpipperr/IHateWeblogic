@@ -149,21 +149,21 @@ topics from real projects, published on the author's blog
 repository.
 
 **Oracle Reports – Windows**
-- 14c: https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
-- 12c R2: https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64
-- 11g R2: https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_11g_r2_windows64
+- 14c: <https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>
+- 12c R2: <https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_12c_r2_windows64>
+- 11g R2: <https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_11g_r2_windows64>
 
 **Oracle WebLogic Based Products**
 
 *Oracle WebLogic – Linux*
-- WebLogic 10.3.5 Install: https://pipperr.de/dokuwiki/doku.php?id=prod:weblogic_10_3_5_install_linux
+- WebLogic 10.3.5 Install: <https://pipperr.de/dokuwiki/doku.php?id=prod:weblogic_10_3_5_install_linux>
 
 *Oracle BI Publisher – Linux*
-- BI Publisher 11g Install: https://pipperr.de/dokuwiki/doku.php?id=prod:bipublisher_11g_install
+- BI Publisher 11g Install: <https://pipperr.de/dokuwiki/doku.php?id=prod:bipublisher_11g_install>
 
 **Enterprise Manager / Cloud Control**
-- Cloud Control 12c Install: https://pipperr.de/dokuwiki/doku.php?id=dba:cloudcontrol_12c_oracle_install
+- Cloud Control 12c Install: <https://pipperr.de/dokuwiki/doku.php?id=dba:cloudcontrol_12c_oracle_install>
 
 **Primavera**
-- Primavera P6 8 Web Install: https://pipperr.de/dokuwiki/doku.php?id=prod:primavera_p6_p_8_web_install
-- Primavera P6 15.1 Web Install: https://pipperr.de/dokuwiki/doku.php?id=prod:primavera_p6_p_15_1_web_install
+- Primavera P6 8 Web Install: <https://pipperr.de/dokuwiki/doku.php?id=prod:primavera_p6_p_8_web_install>
+- Primavera P6 15.1 Web Install: <https://pipperr.de/dokuwiki/doku.php?id=prod:primavera_p6_p_15_1_web_install>

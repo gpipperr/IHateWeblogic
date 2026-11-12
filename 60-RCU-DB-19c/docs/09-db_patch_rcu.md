@@ -192,6 +192,6 @@ Findings of the run (fixed in the scripts):
 ## References
 
 - pipperr.de – AutoUpgrade patch automation 26ai (download, keystore,
-  create_home / deploy, pitfalls): https://pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_26ai
+  create_home / deploy, pitfalls): <https://pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_26ai>
 - [01-db_install_software.md](01-db_install_software.md) – AutoUpgrade download, install routes, `jdk`
 - [07-Maintenance/rcu_repository_check.sh](../../07-Maintenance/README.md) – Data Pump backup

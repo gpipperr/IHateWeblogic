@@ -824,18 +824,18 @@ Place the following files there manually before working on related scripts:
 ## 12. References
 
 - **Oracle FMW 14.1.2 – System Requirements and Specifications (PDF):**
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.pdf
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.pdf>
   *(Authoritative source for hardware, OS, DB, and JDK requirements — to be analysed in detail during final validation.)*
 
 - Oracle Forms & Reports 14.1.2 – Installation Guide:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/index.html>
 - Oracle WebLogic Server 14.1.1 – Installation Guide:
-  https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/wlsig/planning-oracle-weblogic-server-installation.html#GUID-458885D0-B7E0-437F-866F-7EA6BA1B7BCC
+  <https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/wlsig/planning-oracle-weblogic-server-installation.html#GUID-458885D0-B7E0-437F-866F-7EA6BA1B7BCC>
 - Oracle WebLogic Server 14.1.1 – Documentation Home:
-  https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/index.html
+  <https://docs.oracle.com/en/middleware/standalone/weblogic-server/14.1.1.0/index.html>
 - Oracle Forms 14.1.2 – Practical installation guide:
-  https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
+  <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>
 - Nginx proxy concept reference:
-  https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server
+  <https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server>
 - getMOSPatch.jar (MOS download tool):
-  https://github.com/MarisElsins/getMOSPatch
+  <https://github.com/MarisElsins/getMOSPatch>

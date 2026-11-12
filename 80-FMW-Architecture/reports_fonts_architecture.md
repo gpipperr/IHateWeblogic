@@ -272,20 +272,20 @@ fonts live only on the customer's servers.
 - Microsoft, *Font redistribution FAQ* (Windows-supplied fonts: use, document
   embedding, no copy to other computers / servers, extended rights via
   Monotype), updated 2024-11-19:
-  https://learn.microsoft.com/en-us/typography/fonts/font-faq
+  <https://learn.microsoft.com/en-us/typography/fonts/font-faq>
 - OpenType specification, OS/2 table `fsType` (embedding permissions):
-  https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype
+  <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype>
 - Liberation fonts (OFL 1.1 from 2.00.0, metric compatibility):
-  https://github.com/liberationfonts/liberation-fonts ,
-  https://en.wikipedia.org/wiki/Liberation_fonts
-- Carlito (OFL 1.1, Calibri-compatible): https://ctan.org/pkg/carlito
-- DejaVu fonts licence: https://dejavu-fonts.github.io/License.html
-- SIL Open Font License 1.1: https://openfontlicense.org/
+  <https://github.com/liberationfonts/liberation-fonts> ,
+  <https://en.wikipedia.org/wiki/Liberation_fonts>
+- Carlito (OFL 1.1, Calibri-compatible): <https://ctan.org/pkg/carlito>
+- DejaVu fonts licence: <https://dejavu-fonts.github.io/License.html>
+- SIL Open Font License 1.1: <https://openfontlicense.org/>
 - Oracle Reports 12.2.1.3 – *Using Oracle Reports*, fonts and PDF
   (font model, `REPORTS_ENHANCED_FONTHANDLING`, `[PDF:Subset]`):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_pdf001.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_pdf001.htm>
 - Oracle Reports 11g – *Overview of the Font Model*:
-  https://docs.oracle.com/cd/E24269_01/doc.11120/e24479/pbr_xplat002.htm
+  <https://docs.oracle.com/cd/E24269_01/doc.11120/e24479/pbr_xplat002.htm>
 - Live tests: [04-ReportsFonts/README.md](../04-ReportsFonts/README.md) (2026-10-19),
   `rpm -qi liberation-sans-fonts dejavu-sans-fonts` and `dnf repoquery` on
   the OL 9 test host (2026-11-03).

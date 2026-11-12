@@ -1,6 +1,6 @@
 # 03-Logs – Log Management for Forms / Reports / WebLogic
 
-Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
+Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
 
 Where an FMW 14.1.2 Forms & Reports domain writes its logs, what to look
 for, and the `03-Logs/` scripts for inventory, search, live view, cleanup,
@@ -488,8 +488,8 @@ persisted: check logging.xml for level='TRACE…' entries left from old runs.
 All links checked 2026-10-19 (HTTP 200, title matches) – see below.
 
 - Configuring Log Files and Filtering Log Messages for Oracle WebLogic Server 14.1.2:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wllog/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wllog/index.html>
 - Troubleshooting Oracle Reports Services (12.2.1.3 guide, still valid for the architecture):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_trouble.htm>
 - Pipperr.de – Oracle Reports 14c install guide:
-  https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
+  <https://www.pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>

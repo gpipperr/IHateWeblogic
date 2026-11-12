@@ -509,53 +509,53 @@ All links checked 2026-10-16 (HTTP 200, title matches).
 
 - WebLogic Server 10.3 – *Understanding WebLogic Server Domains* (domain,
   AdminServer, managed servers, clusters, machines):
-  https://docs.oracle.com/cd/E13222_01/wls/docs103/domain_config/understand_domains.html
+  <https://docs.oracle.com/cd/E13222_01/wls/docs103/domain_config/understand_domains.html>
 - WebLogic Server 10.3 – *Node Manager Overview*:
-  https://docs.oracle.com/cd/E13222_01/wls/docs103/nodemgr/overview.html
+  <https://docs.oracle.com/cd/E13222_01/wls/docs103/nodemgr/overview.html>
 - Fusion Middleware 11g – *Administrator's Guide*, chapter *Understanding
   Oracle Fusion Middleware Concepts* (Middleware Home, Oracle Home, WebLogic
   domain, **Oracle Instance**, OPMN, system components, Fusion Middleware
-  Control): https://docs.oracle.com/cd/E23943_01/core.1111/e10105/concepts.htm
+  Control): <https://docs.oracle.com/cd/E23943_01/core.1111/e10105/concepts.htm>
 - Fusion Middleware 11g – *Concepts Guide* (overview of the components and of
   administration/operations):
-  https://docs.oracle.com/cd/E21764_01/core.1111/e10103/toc.htm
+  <https://docs.oracle.com/cd/E21764_01/core.1111/e10103/toc.htm>
 - WebLogic Server 11g (10.3.6) – *Understanding Domain Configuration*:
-  https://docs.oracle.com/cd/E23943_01/web.1111/e13716/understand_domains.htm
+  <https://docs.oracle.com/cd/E23943_01/web.1111/e13716/understand_domains.htm>
 - WebLogic Server 11g – *Node Manager Administrator's Guide*:
-  https://docs.oracle.com/cd/E23943_01/web.1111/e13740/overview.htm
+  <https://docs.oracle.com/cd/E23943_01/web.1111/e13740/overview.htm>
 - WebLogic Server 11g – *Managing Server Startup and Shutdown* (MSI, start
-  order, boot identity): https://docs.oracle.com/cd/E23943_01/web.1111/e13708/toc.htm
+  order, boot identity): <https://docs.oracle.com/cd/E23943_01/web.1111/e13708/toc.htm>
 - WebLogic Server 11g – *Configuring Log Files and Filtering Log Messages*
-  (server log, domain log, stdout): https://docs.oracle.com/cd/E23943_01/web.1111/e13739/toc.htm
+  (server log, domain log, stdout): <https://docs.oracle.com/cd/E23943_01/web.1111/e13739/toc.htm>
 - Fusion Middleware 11g – *Administrator's Guide*, *Managing Log Files and
   Diagnostic Data* (ODL, EM log viewer):
-  https://docs.oracle.com/cd/E23943_01/core.1111/e10105/logs.htm
+  <https://docs.oracle.com/cd/E23943_01/core.1111/e10105/logs.htm>
 - Forms 11g – *Forms Services Deployment Guide*, *Basics of Deploying Oracle
   Forms Applications* (Forms servlet, Listener Servlet, frmweb):
-  https://docs.oracle.com/cd/E28280_01/web.1111/e10240/basics.htm
+  <https://docs.oracle.com/cd/E28280_01/web.1111/e10240/basics.htm>
 - Reports 11g – *Publishing Reports to the Web*, *Understanding the Oracle
   Reports Services Architecture*:
-  https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_arch.htm
+  <https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_arch.htm>
 
 **Current editions**
 
 - *Understanding Oracle Fusion Middleware* 14.1.2:
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/ascon/index.html
-  (12.2.1.4: https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/ascon/index.html)
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/ascon/index.html>
+  (12.2.1.4: <https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/ascon/index.html>)
 - *Administering Oracle Fusion Middleware* 14.1.2 (EM, starting/stopping,
-  logs): https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html
-  (12.2.1.4: https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/asadm/index.html)
+  logs): <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html>
+  (12.2.1.4: <https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/asadm/index.html>)
 - *Understanding Domain Configuration for Oracle WebLogic Server* 14.1.2:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/domcf/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/domcf/index.html>
 - *Administering Node Manager for Oracle WebLogic Server* 14.1.2:
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/nodem/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/nodem/index.html>
 - *Working with Oracle Forms* 14.1.2:
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/index.html>
 - Reports: the Forms & Reports 14.1.2 book list
   (https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/books.html)
   links the **12.2.1.3** Reports books – *Publishing Reports to the Web*,
   *Understanding the Oracle Reports Services Architecture*:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch.htm>
 
 **Related documents in this repository**
 

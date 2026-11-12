@@ -318,15 +318,15 @@ meant for Forms only and served only to Forms users of the server.
 
 All checked 2026-10-22 (HTTP 200, title matches):
 
-- JEP 220: Modular Run-Time Images – https://openjdk.org/jeps/220
-- JEP 261: Module System – https://openjdk.org/jeps/261
-- JEP 282: jlink: The Java Linker – https://openjdk.org/jeps/282
-- JEP 493: Linking Run-Time Images without JMODs (JDK 24) – https://openjdk.org/jeps/493
-- The jlink Command (JDK 21) – https://docs.oracle.com/en/java/javase/21/docs/specs/man/jlink.html
-- The jdeps Command (JDK 21) – https://docs.oracle.com/en/java/javase/21/docs/specs/man/jdeps.html
+- JEP 220: Modular Run-Time Images – <https://openjdk.org/jeps/220>
+- JEP 261: Module System – <https://openjdk.org/jeps/261>
+- JEP 282: jlink: The Java Linker – <https://openjdk.org/jeps/282>
+- JEP 493: Linking Run-Time Images without JMODs (JDK 24) – <https://openjdk.org/jeps/493>
+- The jlink Command (JDK 21) – <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jlink.html>
+- The jdeps Command (JDK 21) – <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jdeps.html>
 - Oracle Forms 14.1.2 – Oracle Forms Standalone Launcher (requirements,
   Custom JRE Support, version-specific `frmsal.jar`, Certificate Importer,
   command-line arguments) –
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/working-forms/oracle-forms-standalone-launcher.html>
 - MOS CPU426 (Java SE Security Alert CVE-2026-91403, "each release is a
   full distribution") – see [00-patch-references.md](../09-Install/docs/00-patch-references.md)

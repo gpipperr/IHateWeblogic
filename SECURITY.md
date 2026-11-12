@@ -8,7 +8,7 @@ Please report security problems **privately** – not as a public issue:
    *Report a vulnerability* in this repository.
 2. **E-mail:** info@pipperr.de
 
-Contact: Gunther Pipperr – https://pipperr.de
+Contact: Gunther Pipperr – <https://pipperr.de>
 
 Please include the script / file, the commit or date of your checkout, what
 an attacker can do and how to reproduce it. Do **not** attach `*.des3`

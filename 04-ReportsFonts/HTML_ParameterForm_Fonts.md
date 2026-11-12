@@ -1,6 +1,6 @@
 # Oracle Reports: Greek / Symbol Glyphs in the HTML Parameter Form
 
-Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
+Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
 
 > How the HTML parameter form (and HTML output) of Oracle Reports 12c/14c on
 > Oracle Linux resolves fonts, why it can render every text in the **Symbol**
@@ -590,9 +590,9 @@ browser, fill in **Actual** and **Pass/Fail**.
 - MOS KB83026: How to Use TTF Fonts for Font Metrics On Unix With Reports
 - Oracle Reports documentation, NLS chapter: "Repairing Garbled Fonts When
   Using the WE8ISO8859P15 Character Set"
-  https://docs.oracle.com/html/B14048_02/pbr_nls.htm
+  <https://docs.oracle.com/html/B14048_02/pbr_nls.htm>
 - Oracle Reports Font Configuration Files (uifont.ali):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm
-- fontTools: https://github.com/fonttools/fonttools
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_font003.htm>
+- fontTools: <https://github.com/fonttools/fonttools>
 - Adobe Font Metrics File Format Specification (AFM 4.1), Adobe Technical Note #5004
 - See also `README.md` in this directory for the PDF font setup.

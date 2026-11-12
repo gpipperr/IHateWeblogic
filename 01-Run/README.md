@@ -482,12 +482,12 @@ All checked 2026-10-19 (HTTP 200, title matches) – the three links listed
 here before were 404.
 
 - WLST Command Reference for Oracle WebLogic Server 14c (14.1.2.0.0):
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wlstc/
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/wlstc/>
 - Administering Node Manager for Oracle WebLogic Server 14c (14.1.2.0.0):
-  https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/nodem/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/nodem/index.html>
 - Administering Oracle Fusion Middleware 14c (14.1.2.0.0) (starting / stopping, system components):
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html>
 - Publishing Reports 12.2.1.3 – Starting and Stopping Reports Server:
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt001.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt001.htm>
 - Publishing Reports 12.2.1.3 – Overview of Oracle Reports Components (`rwrun`, `rwclient`):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm>

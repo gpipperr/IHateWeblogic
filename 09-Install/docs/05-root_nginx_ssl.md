@@ -443,7 +443,7 @@ For environments without a public CA, Easy-RSA provides a simple way to operate
 an internal CA and issue server certificates with correct SANs.
 All certificates will be trusted by browsers/clients once the CA root is imported.
 
-Reference: https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9
+Reference: <https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9>
 
 #### 1. Install Easy-RSA
 
@@ -563,6 +563,6 @@ openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
 
 | Resource | URL |
 |---|---|
-| Nginx + ORDS + APEX proxy concept | https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server |
-| Nginx + GitLab on OL 9 (SSL handling) | https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9 |
-| Easy-RSA CA on Oracle Linux 9 | https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9 |
+| Nginx + ORDS + APEX proxy concept | <https://www.pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_nginx_tomcat_ords_install_windows_server> |
+| Nginx + GitLab on OL 9 (SSL handling) | <https://www.pipperr.de/dokuwiki/doku.php?id=prog:gitlab_oracle_linux_9> |
+| Easy-RSA CA on Oracle Linux 9 | <https://www.pipperr.de/dokuwiki/doku.php?id=linux:ca_on_oracle_linux_9> |

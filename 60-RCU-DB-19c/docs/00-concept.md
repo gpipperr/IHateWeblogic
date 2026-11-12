@@ -268,12 +268,12 @@ totals in the root README [Disk Sizing Guide](../../docs/forms_reports_sizing.md
 
 | Document | URL |
 |---|---|
-| FMW 14.1.2 System Requirements and Specifications | https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html#GUID-A5BAA99B-E383-4063-9EF7-BA963CF472A1 |
-| FMW 14.1.2 Repository Creation Utility Guide | https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD |
+| FMW 14.1.2 System Requirements and Specifications | <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html#GUID-A5BAA99B-E383-4063-9EF7-BA963CF472A1> |
+| FMW 14.1.2 Repository Creation Utility Guide | <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html#GUID-2E73B30E-9E64-4986-82AD-CD54BB9641BD> |
 | FMW Interoperability Matrix (MOS) | Doc ID 2605929.1 |
-| Oracle AutoUpgrade / Patch Automation 19c | https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c |
-| Oracle Unified Auditing Migration | https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai |
-| Oracle Linux 8 OS Baseline for Oracle DB | https://www.pipperr.de/dokuwiki/doku.php?id=linux:linux_8_system_grundeinstellungen_oracle_datenbank_rac |
+| Oracle AutoUpgrade / Patch Automation 19c | <https://www.pipperr.de/dokuwiki/doku.php?id=dba:autouppgrade_patch_automation_19c> |
+| Oracle Unified Auditing Migration | <https://www.pipperr.de/dokuwiki/doku.php?id=dba:unified_auditing_oracle_migration_23ai> |
+| Oracle Linux 8 OS Baseline for Oracle DB | <https://www.pipperr.de/dokuwiki/doku.php?id=linux:linux_8_system_grundeinstellungen_oracle_datenbank_rac> |
 
 ---
 

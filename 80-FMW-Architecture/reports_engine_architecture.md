@@ -448,30 +448,30 @@ All links checked 2026-10-17, A.2 on 2026-10-19 (HTTP 200, title matches). The F
 *Publishing Reports to the Web with Oracle Reports Services* 12.2.1.3:
 - 2.2 Oracle Reports Services (components, in-process server, communication,
   broadcast vs. COS naming, `rwdiag`):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch002.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch002.htm>
 - 2.4 Setting Up a High Availability Environment (`<cluster>` in
   `rwservlet.properties`):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch004.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_arch004.htm>
 - 5.1 Starting and Stopping Reports Server (Node Manager, in-process start):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt001.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt001.htm>
 - 5.5 Starting and Stopping the In-process Reports Server ("the default
   configuration"):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt005.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_strt005.htm>
 - 7.2 Reports Server Configuration File (`engine`: initEngine, maxEngine,
   minEngine, engLife, maxIdle, callbackTimeOut, jvmOptions …):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm>
 - 7.5 Network Configuration File (`rwnetwork.conf`, multicast, naming service):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf005.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf005.htm>
 - A.2 Overview of Oracle Reports Components (`rwclient` A.2.1, `rwrun` A.2.2:
   own in-process server in the rwrun JVM, `rwbuilder.conf`, "for testing
   purposes only"):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm>
 - 15.8 Managing Users and Security Policies (embedded ID store for
   in-process vs. `system-jazn-data.xml` for standalone):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_sec_arch008.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_sec_arch008.htm>
 - 24.3 Tuning Reports Server Configuration (engine sizing formulas, cache,
   queue):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_tune003.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_tune003.htm>
 
 MOS (read 2026-11-10):
 - KB924687 "After July QPR 39600348 Unable to start Standalone Report Server –
@@ -481,11 +481,11 @@ MOS (read 2026-11-10):
 
 Older editions (history, same concepts):
 - 11g – Understanding the Oracle Reports Services Architecture:
-  https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_arch.htm
+  <https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_arch.htm>
 - 10g (10.1.2) – Understanding the OracleAS Reports Services Architecture
   (in-process server, CGI "maintained for backward compatibility", COS
   naming "to avoid broadcast traffic", OPMN):
-  https://docs.oracle.com/cd/B14099_19/bi.1012/b14048/pbr_arch.htm
+  <https://docs.oracle.com/cd/B14099_19/bi.1012/b14048/pbr_arch.htm>
 
 Related documents in this repository:
 - [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) – discovery in depth, REP-50600 / REP-56040

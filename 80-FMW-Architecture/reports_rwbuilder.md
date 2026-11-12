@@ -282,16 +282,16 @@ local-admin requirement for the developer accounts (section 4).
 - Oracle Forms 14.1.2 installation guide, chapter "About Oracle Reports"
   (Reports 14.1.2 unchanged since 12.2.1.3, deprecated, installed by the
   12.2.1.3 guide):
-  https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/oracle-reports.html
+  <https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/install-fnr/oracle-reports.html>
 - Installing and Configuring Oracle Forms and Reports 12.2.1.3 – installation
   types (§2.4.4), ReportsTools instance / `createReportsToolsInstance`
   (§2.4.7), Windows environment limits (App. B.3):
-  https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/installing-and-configuring-oracle-forms-and-reports1.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/installing-and-configuring-oracle-forms-and-reports1.htm>
 - Oracle Fusion Middleware Supported System Configurations (Windows Server
-  versions): https://www.oracle.com/middleware/technologies/fusion-certification.html
+  versions): <https://www.oracle.com/middleware/technologies/fusion-certification.html>
 - pipperr.de – Oracle Reports 14c on Windows (services, Visual C++ runtime,
   `TNS_ADMIN` in `reports.bat`):
-  https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64
+  <https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>
 - Patch READMEs of the CPU October 2026 Windows patches (39600348, 39951765,
   39987730, 39100536) – facts in the
   [folder README](../70-Customer-Projects/Reports14_builder_windows/README.md)

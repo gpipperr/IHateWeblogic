@@ -45,8 +45,8 @@ OPatch, `oracle_common/jdk` for the Reports engines and tools):
 | Java used outside WebLogic (CLI tools, cron jobs, other apps on same host) | **Yes** |
 
 See also:
-- https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html
-- https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf
+- <https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html>
+- <https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf>
 
 ---
 
@@ -84,7 +84,7 @@ not to whatever `alternatives` selects as the system default.
 | Current update (21.0.13+) | MOS Patch 35702194 – `04-oracle_pre_download.sh --apply --mos` |
 
 > **`/java/21/latest/` is gone** (HTTP 404, checked 2026-10-29) and JDK 21 is
-> no longer offered on https://www.oracle.com/java/technologies/downloads/
+> no longer offered on <https://www.oracle.com/java/technologies/downloads/>
 > (only JDK 25+). The CDN **archive** still holds the NFTC releases up to
 > **21.0.12.1** (September 2026) – `02b-` uses it as bootstrap fallback
 > (`JDK_CDN_ARCHIVE` / `JDK_NFTC_LAST` in the script). Every later update:
@@ -116,8 +116,8 @@ server hung (outbound HTTPS silently dropped by the firewall – see
 is the browser on the admin workstation:
 
 1. Download both files in the browser (no Oracle login needed for the archive):
-   - https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz
-   - https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256
+   - <https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz>
+   - <https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256>
 2. Copy the tarball to the server:
    ```bash
    scp jdk-21.0.12.1_linux-x64_bin.tar.gz oracle@<server>:/tmp/
@@ -408,9 +408,9 @@ jps -m
 | Topic | Source |
 |---|---|
 | Oracle Java SE license when used with Oracle products | Oracle Support Doc ID 1557737.1 |
-| Oracle Java licensing changes 2023 | https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html |
-| Oracle Java SE subscription price list | https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf |
-| Oracle Java downloads (JDK 25+, JDK 21 no longer listed) | https://www.oracle.com/java/technologies/downloads/ |
+| Oracle Java licensing changes 2023 | <https://redresscompliance.com/decoding-oracle-java-licensing-java-licensing-changes-2023.html> |
+| Oracle Java SE subscription price list | <https://www.oracle.com/in/a/ocom/docs/corporate/pricing/java-se-subscription-pricelist-5028356.pdf> |
+| Oracle Java downloads (JDK 25+, JDK 21 no longer listed) | <https://www.oracle.com/java/technologies/downloads/> |
 | Oracle JDK 21 updates after the NFTC | MOS Patch 35702194 |
 | Oracle JDK 21.0.12.1 (last NFTC) – CDN archive | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz` |
 | Oracle JDK 21.0.12.1 – SHA256 checksum | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256` |

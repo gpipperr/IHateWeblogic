@@ -139,11 +139,11 @@ All checked 2026-10-20 (HTTP 200, title matches):
 - Java API for XML Processing (JAXP) Security Guide (JDK 21) –
   `accessExternalDTD`, default `all`, "External connections are allowed
   even when FSP is on by default":
-  https://docs.oracle.com/en/java/javase/21/security/java-api-xml-processing-jaxp-security-guide.html
+  <https://docs.oracle.com/en/java/javase/21/security/java-api-xml-processing-jaxp-security-guide.html>
 - `java.util.Properties` (Java SE 21) – properties.dtd "is not accessed":
-  https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Properties.html
+  <https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Properties.html>
 - Networking Properties (Java SE 8 guide) – `sun.net.client.defaultConnectTimeout` /
   `defaultReadTimeout`, default `-1`:
-  https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html
+  <https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html>
 - `javax.xml.XMLConstants` (Java SE 21) – `ACCESS_EXTERNAL_DTD`:
-  https://docs.oracle.com/en/java/javase/21/docs/api/java.xml/javax/xml/XMLConstants.html
+  <https://docs.oracle.com/en/java/javase/21/docs/api/java.xml/javax/xml/XMLConstants.html>

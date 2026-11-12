@@ -25,8 +25,8 @@ without Clusterware – here: system requirements of a 19c database home.
 | MOS patch | **30839369** "Standalone CVU Platform-specific package supports 21c and 19c" |
 | Release | Linux: **26ai (23.26)** (`p30839369_2326000_Linux-x86-64.zip`, build 2026-07, Java 11.0.32, `CV_ASSUME_CL_VERSION=23`); the Windows README of the same patch describes 21cR21 (January 2026) |
 | Platform | Linux x86-64 – the MOS patch holds several kits, see below |
-| Download page | https://www.oracle.com/database/technologies/cvu-downloads.html |
-| FAQ | https://www.oracle.com/database/technologies/cvu-faq.html |
+| Download page | <https://www.oracle.com/database/technologies/cvu-downloads.html> |
+| FAQ | <https://www.oracle.com/database/technologies/cvu-faq.html> |
 
 ## Download
 

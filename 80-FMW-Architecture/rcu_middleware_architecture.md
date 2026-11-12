@@ -420,7 +420,7 @@ whether the schema users are editions-enabled.
     (14.1.2), chapter "Obtaining and Running Repository Creation Utility",
     section **"Creating Schemas for Oracle Access Manager and Oracle
     Internet Directory"**:
-    https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/obtaining-and-running-repository-creation-utility.html#GUID-7C47260C-8755-4E50-A03D-9D11C8438F5A
+    <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/obtaining-and-running-repository-creation-utility.html#GUID-7C47260C-8755-4E50-A03D-9D11C8438F5A>
     (checked 2026-10-17, HTTP 200, anchor present)
   - Quote: *"IDM schemas do not support EBR, so you must invoke RCU twice
     when creating schemas. When you invoke RCU the first time, select the
@@ -901,20 +901,20 @@ All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
 - *System Requirements and Specifications* 14c (14.1.2), "RCU Requirements
   for Oracle Databases" (versions 19.14 / 23.4.0.24, AL32UTF8 + warning text,
   Oracle JVM, parameter minimums, MDS privileges):
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/sysrs/system-requirements-and-specifications.html>
 - *Creating Schemas with the Repository Creation Utility* 14c, "Finding a
   Certified Database", "Database Requirements for RCU":
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/repository-creation-utility.html>
 - Oracle Fusion Middleware Supported System Configurations (certification
   matrix 14.1.2 – the authoritative list of databases):
-  https://www.oracle.com/middleware/technologies/fusion-certification.html
+  <https://www.oracle.com/middleware/technologies/fusion-certification.html>
 - Oracle WebLogic Server blog, "Announcing WebLogic Server certification with
   Oracle AI Database 26ai" (WLS 14.1.1 / 14.1.2 / 15.1.1, RCU patch
   38391376):
-  https://blogs.oracle.com/weblogicserver/announcing-weblogic-server-certification-with-oracle-ai-database-26ai
+  <https://blogs.oracle.com/weblogicserver/announcing-weblogic-server-certification-with-oracle-ai-database-26ai>
 - dbi-services, "Oracle FMW 14 installation: ORA-00439 feature not enabled:
   Fine-grained access control" (SE2, patch 37506854, MOS Doc ID 3083393.1):
-  https://www.dbi-services.com/blog/oracle-fmw-14-installation-ora-00439-feature-not-enabled-fine-grained-access-control/
+  <https://www.dbi-services.com/blog/oracle-fmw-14-installation-ora-00439-feature-not-enabled-fine-grained-access-control/>
 - Licence: *Oracle Fusion Middleware Licensing Information User Manual*
   (E56762-96), section Oracle Forms and Reports / restricted-use licenses –
   referenced by the audit wording of 9.4 (manual text not opened here)
@@ -924,32 +924,32 @@ All links checked 2026-10-17 (HTTP 200, title matches); section 9 sources
 - *Creating Schemas with the Repository Creation Utility* 14c – system load /
   product load, custom prefixes, service table, verifying schema version
   numbers, dropping schemas, log files (`/tmp/RCU<timestamp>/logs`):
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/index.html>
 - *Upgrading to the Oracle Fusion Middleware Infrastructure* 14c – pre-upgrade
   checklist, "Backing Up the Schema Version Registry Table", Upgrade
   Assistant, readiness check, "Verifying the Schema Upgrade":
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/infup/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/infup/index.html>
 - *Planning an Upgrade of Oracle Fusion Middleware* 14c – tools (OPatch,
   UA, Reconfiguration Wizard), "no patch set installers in 12c", in-place
-  upgrade: https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asmas/index.html
+  upgrade: <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asmas/index.html>
 - *Patching with OPatch* 14c:
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/opatc/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/opatc/index.html>
 - *Administering Oracle Fusion Middleware* 14c (backup, wiring components):
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/asadm/index.html>
 
 - RCU guide 14c, "Creating Schemas for Oracle Access Manager and Oracle
   Internet Directory" (EBR + non-EBR in one DB):
-  https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/obtaining-and-running-repository-creation-utility.html#GUID-7C47260C-8755-4E50-A03D-9D11C8438F5A
+  <https://docs.oracle.com/en/middleware/fusion-middleware/14.1.2/rcuug/obtaining-and-running-repository-creation-utility.html#GUID-7C47260C-8755-4E50-A03D-9D11C8438F5A>
 
 **Older editions**
 
-- 12.2.1.4 – RCU guide: https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/rcuug/index.html
+- 12.2.1.4 – RCU guide: <https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/rcuug/index.html>
 - 12.2.1.4 – Upgrading to the FMW Infrastructure:
-  https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/infup/index.html
+  <https://docs.oracle.com/en/middleware/fusion-middleware/12.2.1.4/infup/index.html>
 - 11g (11.1.1.x) – *Patching Guide*, "Updating Your Schemas with Patch Set
   Assistant" (the PSA concept that no longer exists):
-  https://docs.oracle.com/cd/E29542_01/doc.1111/e16793/patch_set_assistant.htm
-  (contents: https://docs.oracle.com/cd/E29542_01/doc.1111/e16793/toc.htm)
+  <https://docs.oracle.com/cd/E29542_01/doc.1111/e16793/patch_set_assistant.htm>
+  (contents: <https://docs.oracle.com/cd/E29542_01/doc.1111/e16793/toc.htm>)
 
 **Live sources on the test host**
 

@@ -155,13 +155,13 @@ programmatically (`new FormModule(...)`, `Block`, `Item`, `Trigger`,
 ### References — Forms
 
 - Forms2XML/XML2Forms documentation (options, syntax):
-  https://docs.oracle.com/database/apex-18.1/AEMIG/Converting_FormModules_ObjectLibraries_MenuModules_to_XML.htm
+  <https://docs.oracle.com/database/apex-18.1/AEMIG/Converting_FormModules_ObjectLibraries_MenuModules_to_XML.htm>
 - Real XML dump of an FMB (10.1.2, structural reference):
-  https://odieweblog.wordpress.com/2011/11/23/oracle-xml-db-a-practical-example/
-- `frmf2xml` practical walkthrough: https://www.sqlines.com/articles/oracle-forms/convert-to-xml
-- JDAPI example: http://www.e-ammar.net/Oracle_TIPS/Forms_API.htm
+  <https://odieweblog.wordpress.com/2011/11/23/oracle-xml-db-a-practical-example/>
+- `frmf2xml` practical walkthrough: <https://www.sqlines.com/articles/oracle-forms/convert-to-xml>
+- JDAPI example: <http://www.e-ammar.net/Oracle_TIPS/Forms_API.htm>
 - Oracle Forums (2006) — `frmxml2f` failure report / Oracle-staff advice
-  against cross-version XML: https://forums.oracle.com/ords/apexds/post/convert-xml-file-to-fmb-very-urgent-1747
+  against cross-version XML: <https://forums.oracle.com/ords/apexds/post/convert-xml-file-to-fmb-very-urgent-1747>
 
 ---
 
@@ -249,13 +249,13 @@ fonts (Liberation Sans / Serif / Mono, DejaVu Sans), all checks OK.
 ### References — Reports
 
 - XML Report Definitions overview + standalone XML reports (10g AS):
-  https://docs.oracle.com/cd/B14504_01/dl/web/B12099_01/adx14rep.htm
+  <https://docs.oracle.com/cd/B14504_01/dl/web/B12099_01/adx14rep.htm>
 - Creating XML Customizations, runnable standalone example (11g):
-  https://docs.oracle.com/middleware/11119/classic/use-reports/pbr_xml002.htm
+  <https://docs.oracle.com/middleware/11119/classic/use-reports/pbr_xml002.htm>
 - Creating XML Data Models, DTD fragments (12.2.1.3):
-  https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xml003.htm
+  <https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_xml003.htm>
 - Customization examples (colors, format masks, exceptions):
-  https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_xml002.htm
+  <https://docs.oracle.com/cd/E28280_01/bi.1111/b32121/pbr_xml002.htm>
 
 ---
 
