@@ -15,7 +15,7 @@ Reports installation – the TLS certificate of the Nginx frontend and the
 code-signing certificate for `jacob.jar` (Forms/WebUtil). Role in the
 library: certificates are **built** here (see the folder roles in the
 [root README](../docs/forms_reports_installation_steps.md#folder-roles)); the host-wide TLS audit incl.
-WebLogic's own SSL ports is `02-Checks/ssl_check.sh`.
+WebLogic's own SSL ports is [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh).
 
 Background (`80-FMW-Architecture/`):
 - where TLS ends and how Nginx, WebLogic and the Forms/Reports processes are
@@ -35,18 +35,18 @@ It covers these recurring tasks:
 
 | Task | Script | When |
 |---|---|---|
-| Prepare / create a certificate | `ssl_prepare_cert.sh` | Before first Nginx start and at renewal |
-| Own root CA + server + code-signing certificates | `ssl_local_ca.sh` | Once (CA), then at renewal; code signing for Forms/WebUtil (`jacob.jar`) |
-| Check + import the **customer's** certificates (inbox `user_certs/`) | `ssl_customer_certs.sh` | Customer PKI instead of the own root CA – see [Customer certificates](#customer-certificates) |
-| Deploy certificate to Nginx | `09-Install/05-root_nginx_ssl.sh` | Install-time (once) and at renewal |
-| Audit current SSL configuration | `ssl_config.sh` | Anytime – monitoring, compliance checks |
+| Prepare / create a certificate | [`ssl_prepare_cert.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_prepare_cert.sh) | Before first Nginx start and at renewal |
+| Own root CA + server + code-signing certificates | [`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) | Once (CA), then at renewal; code signing for Forms/WebUtil (`jacob.jar`) |
+| Check + import the **customer's** certificates (inbox `user_certs/`) | [`ssl_customer_certs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_customer_certs.sh) | Customer PKI instead of the own root CA – see [Customer certificates](#customer-certificates) |
+| Deploy certificate to Nginx | [`09-Install/05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh) | Install-time (once) and at renewal |
+| Audit current SSL configuration | [`ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) | Anytime – monitoring, compliance checks |
 
 The module does **not** manage SSL inside WebLogic directly.
 WebLogic listens on `127.0.0.1` only; SSL for clients is terminated at Nginx.
 Note: the domain templates also enable WebLogic SSL listen ports with the
 **demo certificate** (`WLS_FORMS` 9501, `WLS_REPORTS` 9512, found by
 `02-Checks/ssl_check.sh` 2026-10-20). **Switched off since 2026-10-23:**
-`09-Install/08-oracle_setup_domain.sh` creates new domains without them,
+[`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) creates new domains without them,
 `02-Checks/clone_check.sh --apply` disables them in an existing domain
 ([doc 08](../09-Install/docs/08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address)).
 
@@ -268,8 +268,8 @@ HTTP at signing time – on a host without outbound access see
 
 | des3 file (repository root, gitignored) | Variable | Used by |
 |---|---|---|
-| `ssl_ca_sec.conf.des3` | `SSL_CA_PASS` | `ssl_local_ca.sh` (signing with the root key) |
-| `forms_sign_sec.conf.des3` | `FORMS_SIGN_STOREPASS` | `ssl_local_ca.sh codesign`, `09-Install/14-oracle_setup_forms.sh` |
+| `ssl_ca_sec.conf.des3` | `SSL_CA_PASS` | [`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) (signing with the root key) |
+| `forms_sign_sec.conf.des3` | `FORMS_SIGN_STOREPASS` | `ssl_local_ca.sh codesign`, [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) |
 
 The des3 files are bound to this machine (key = system identifier). Back up
 `SSL_CA_DIR` **together with the plain passphrase** offline (password safe):
@@ -355,7 +355,7 @@ what is signed, who creates the key, who signs, who checks.
 
 | Question | Answer |
 |---|---|
-| What is signed? | only **customer** jars – here `jacob.jar` (WebUtil OLE / Excel). Oracle's jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) are signed by Oracle (DigiCert, timestamped) and stay untouched. Planned: Authenticode signature of the client installer `FormsWeb-Setup.ps1` with the same keystore (open – [40-forms_client_distribution.md §5.1](../09-Install/docs/40-forms_client_distribution.md#51-getting-the-script-to-run--executionpolicy-and-signing-chicken-and-egg)) |
+| What is signed? | only **customer** jars – here `jacob.jar` (WebUtil OLE / Excel). Oracle's jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) are signed by Oracle (DigiCert, timestamped) and stay untouched. Planned: Authenticode signature of the client installer [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) with the same keystore (open – [40-forms_client_distribution.md §5.1](../09-Install/docs/40-forms_client_distribution.md#51-getting-the-script-to-run--executionpolicy-and-signing-chicken-and-egg)) |
 | Which certificate? | EKU *codeSigning*. Own root CA (`ssl_local_ca.sh codesign`, lab / internal), company CA or public CA. Production: company or public CA, never a single self-signed certificate ([§9](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed)) |
 | Customer delivers a keystore? | PFX / PKCS12 with key + chain (password on a separate channel) as **`08-SSL/user_certs/codesign.p12`** (or `.pfx`) → `./08-SSL/ssl_customer_certs.sh --only codesign --apply`: checks EKU / chain / quality, copies it to `$SSL_CA_DIR/customer/codesign.p12` (600), sets `FORMS_SIGN_KEYSTORE` / `FORMS_SIGN_ALIAS` (alias read from the PFX) / `FORMS_SIGN_LOCALCA=false`, password → `forms_sign_sec.conf.des3`; then `14-oracle_setup_forms.sh --apply --resign` and delete the inbox file. A JKS keystore: convert first (`keytool -importkeystore -deststoretype PKCS12`). Key only on a token / HSM (public CA): no file – sign elsewhere ([user_certs/README.md](user_certs/README.md)) |
 | Who signs? | `09-Install/14-oracle_setup_forms.sh --apply` with any PKCS12 keystore – details: [14-forms-detail-settings.md Step 1](../09-Install/docs/14-forms-detail-settings.md#step-1--jacob-webutil-ole--office-automation). Creating (08-SSL) and using (14-) are separate |
@@ -375,7 +375,7 @@ largest operational effect
 
 Monitoring: `14-` reports after every run whether the signature is
 timestamped or until when it is valid (WARN < 90 days);
-`10-Monitoring/cert_expiry_check.sh` watches the code-signing certificate
+[`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) watches the code-signing certificate
 (via `ssl_local_ca.sh status`) and reminds of `--resign` when no TSA is set.
 
 **After a Forms patch / new JACOB version:** `14-oracle_setup_forms.sh --apply`
@@ -388,7 +388,7 @@ timestamped or until when it is valid (WARN < 90 days);
 
 When the customer has an own PKI, its certificates replace those of the own
 root CA. The switch is `SSL_CERT_SOURCE` in `ssl.conf` (`localca` default |
-`customer`), asked by `09-Install/01-setup-interview.sh`.
+`customer`), asked by [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh).
 
 ```
 08-SSL/user_certs/               inbox, gitignored except the README
@@ -434,12 +434,12 @@ the WebLogic environment.
 
 | File | Git | Purpose |
 |---|---|---|
-| `ssl.conf.template` | committed | Reference with documented defaults |
+| [`ssl.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl.conf.template) | committed | Reference with documented defaults |
 | `ssl.conf` | **gitignored** | Server-specific values (CN, paths, key size …) |
 
 ### Interactive prompt with saved defaults
 
-When `ssl_prepare_cert.sh` is called, it reads `ssl.conf` and shows each
+When [`ssl_prepare_cert.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_prepare_cert.sh) is called, it reads `ssl.conf` and shows each
 current value as the prompt default:
 
 ```
@@ -478,7 +478,7 @@ the next run shows them as defaults again.
 | `SSL_CSR_FILE` | Output path for CSR (REQUEST mode) |
 | `EASYRSA_PKI_DIR` | Easy-RSA PKI root directory (EASYRSA mode) |
 | `EASYRSA_CA_DAYS` | CA certificate validity (new CA only) |
-| `SSL_CA_DIR` | Local CA directory (`ssl_local_ca.sh`), default `$ORACLE_BASE/admin/pki` |
+| `SSL_CA_DIR` | Local CA directory ([`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh)), default `$ORACLE_BASE/admin/pki` |
 | `SSL_CA_CN` | Common Name of the local root CA, default `<SSL_ORG> Root CA` |
 | `SSL_CA_DAYS` | Root CA validity in days, default `3650` |
 | `SSL_CA_KEY_SIZE` | Root CA RSA key size, default `4096` |
@@ -549,16 +549,16 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 
 | Script | Role |
 |---|---|
-| `09-Install/04-root_nginx.sh` | Install Nginx + generate base proxy config (upstream + location blocks) |
-| `09-Install/05-root_nginx_ssl.sh` | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
-| `08-SSL/ssl_prepare_cert.sh` | Create / prepare the certificate (all cert options) |
-| `08-SSL/ssl_local_ca.sh` | Local root CA; server + code-signing certificates |
-| `09-Install/14-oracle_setup_forms.sh` | Signs `jacob.jar` with `FORMS_SIGN_KEYSTORE` (code-signing certificate) |
-| `08-SSL/ssl_config.sh` | Audit SSL config + expiry monitoring |
-| `00-Setup/detect_env_conf.sh` | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
-| `02-Checks/ssl_check.sh` | Host-wide TLS audit: who terminates TLS (Nginx / WLS / OHS), live TLS, WebLogic demo certificates / keystores |
-| `07-Maintenance/backup_config.sh` | Does **not** back up `SSL_CA_DIR` on purpose – the CA key belongs in an offline backup (see above) |
-| `10-Monitoring/cert_expiry_check.sh` | the scheduled run (daily cron, `--cron --apply`) of `ssl_config.sh` / `ssl_local_ca.sh status` – done 2026-10-23 |
+| [`09-Install/04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) | Install Nginx + generate base proxy config (upstream + location blocks) |
+| [`09-Install/05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh) | Deploy cert to Nginx + inject SSL directives + start/reload Nginx |
+| [`08-SSL/ssl_prepare_cert.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_prepare_cert.sh) | Create / prepare the certificate (all cert options) |
+| [`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) | Local root CA; server + code-signing certificates |
+| [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | Signs `jacob.jar` with `FORMS_SIGN_KEYSTORE` (code-signing certificate) |
+| [`08-SSL/ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) | Audit SSL config + expiry monitoring |
+| [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) | Sets `WLS_SERVER_FQDN`, `SSL_*` paths in `environment.conf` |
+| [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) | Host-wide TLS audit: who terminates TLS (Nginx / WLS / OHS), live TLS, WebLogic demo certificates / keystores |
+| [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | Does **not** back up `SSL_CA_DIR` on purpose – the CA key belongs in an offline backup (see above) |
+| [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) | the scheduled run (daily cron, `--cron --apply`) of [`ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) / `ssl_local_ca.sh status` – done 2026-10-23 |
 
 ---
 
@@ -567,12 +567,12 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
 | Option | Command | Trust | Use Case |
 |---|---|---|---|
 | Self-signed | `ssl_prepare_cert.sh SELF` | None (browser warning) | Smoke test only |
-| Local CA (openssl) | `ssl_prepare_cert.sh LOCALCA` / `ssl_local_ca.sh` | Internal, after root import (one root also for code signing) | Lab / internal, **recommended** without company PKI |
+| Local CA (openssl) | `ssl_prepare_cert.sh LOCALCA` / [`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) | Internal, after root import (one root also for code signing) | Lab / internal, **recommended** without company PKI |
 | Easy-RSA internal CA | `ssl_prepare_cert.sh EASYRSA` | Internal, after CA root import | Alternative to LOCALCA (EPEL package) |
 | Customer / public CA | `ssl_prepare_cert.sh REQUEST` → CA signs | Full (public) | Production |
 | Customer PKI (files delivered) | `user_certs/` + `ssl_customer_certs.sh --apply` | Customer root (GPO) | Production with company PKI – also code signing / interception CA |
 
-> For Easy-RSA setup details see: `09-Install/docs/05-root_nginx_ssl.md`
+> For Easy-RSA setup details see: [`09-Install/docs/05-root_nginx_ssl.md`](../09-Install/docs/05-root_nginx_ssl.md)
 > – section "Option B – Local CA with openssl", "Option C – Internal CA with Easy-RSA"
 
 ---
@@ -585,14 +585,14 @@ Scheduled (daily, oracle crontab, journal entry `ihw-cert` on WARN/FAIL):
   Start accepts such a chain or needs a revocation setting / a CRL served by
   Nginx is open (Windows client test).
 
-All three scripts are implemented (all four `ssl_prepare_cert.sh` modes,
-`ssl_local_ca.sh`, all `ssl_config.sh` audit sections). What's still missing:
+All three scripts are implemented (all four [`ssl_prepare_cert.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_prepare_cert.sh) modes,
+[`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh), all [`ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) audit sections). What's still missing:
 
 - **Trust-store distribution / check script** (customer root + intermediates,
   TLS-interception CA, both server JDKs, OS trust) – concept in
   [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
   §8; not implemented yet. (Expiry monitoring is done:
-  `10-Monitoring/cert_expiry_check.sh`, daily cron.)
+  [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh), daily cron.)
 - Consider `ssl_renew_easyrsa.sh` as a dedicated renewal script for Easy-RSA
   environments (currently: re-run `ssl_prepare_cert.sh EASYRSA --apply`,
   which re-issues but does not automate CA rotation).
