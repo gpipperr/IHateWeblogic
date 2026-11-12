@@ -12,7 +12,7 @@ guide is the master for that automation (doc-as-master).
 | Starting point | CSPU September 2026 (the test host, section 1a of the [README](README.md)) |
 | Sources | KA1182 (PDF 2026-10-22), CPU360, CPU426, the patch READMEs ([README](README.md) section 3a), [00-patch-references.md](../../09-Install/docs/00-patch-references.md) |
 | Status | **verified 2026-10-24** – applied on the test host with the scripts that automate each step (`07-Maintenance/80-` / `81-` / `82-`), 0 FAIL, start + smoke test + Forms session from a Windows PC OK; all 17 patch READMEs read ([README](README.md) section 3a); runtimes: [README](README.md) section 8 (patch work ~70 min, downtime incl. checks ~2.5 h). Updated 2026-10-26 (eMudhra alert, Nginx, RCU check) |
-| Automated (running system) | `07-Maintenance/80-patch_java_os.sh` (step 5), `81-patch_weblogic.sh` (= `05-`, steps 6–8), `82-patch_forms_reports.sh` (= `06-`, steps 9–10) – each with the stop gate and a VM-snapshot pause on `--apply`; fresh install: `09-Install/05-` / `06-` |
+| Automated (running system) | [`07-Maintenance/80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) (step 5), [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) (= `05-`, steps 6–8), [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) (= `06-`, steps 9–10) – each with the stop gate and a VM-snapshot pause on `--apply`; fresh install: `09-Install/05-` / `06-` |
 | Markers | **documented** (README / KA1182), **confirmed (live)** (test host, date), **assumption** |
 
 Target state:
@@ -156,7 +156,7 @@ $JDK_HOME/bin/java -version
 ```
 
 Then: domain files and `oui/` that WLST resolved to `jdk-21.0.x` instead of
-the link (known pattern) – `07-Maintenance/domain_jdk_path.sh` lists them,
+the link (known pattern) – [`07-Maintenance/domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) lists them,
 `--apply` sets the link path again.
 
 The bundled JDK 17.0.12 in `$ORACLE_HOME/oracle_common/jdk` stays – KA1182
@@ -365,7 +365,7 @@ command, only hardening directives for an OHS instance / the Apache plug-in
 (all off by default). If an instance is created later, use the directive
 list of the 12c analysis (section 3.5b). The same header-spoofing class
 was closed for our Nginx frontend on 2026-10-26 (README open point 11,
-`09-Install/nginx-wls.conf.template`). The OHS BP
+[`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template)). The OHS BP
 README (documented) confirms CVE-2026-87347 / -87346 and switches the
 July / August 2026 CSPU hardening off by default (flags) – relevant only for
 an OHS instance.
@@ -407,7 +407,7 @@ grep -E 'BEA-149205|Unresolved Webapp Library' \
 
 Live 2026-10-24: `start-all` ~2.5 min, no `<Error>` / `<Critical>` in the
 AdminServer / WLS_FORMS / WLS_REPORTS logs, EM answers, smoke test 30 OK
-(6 s), Forms session from the Windows PC OK, `rcu_repository_check.sh`: no
+(6 s), Forms session from the Windows PC OK, [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh): no
 object invalidated by the patches.
 
 ---
