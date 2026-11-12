@@ -5,8 +5,8 @@
 # Pruefung, keine Wandlung .rdf -> .xml. Fuer einen Rechner ohne Reports und
 # ohne Administrator-Rechte - und zum Ausprobieren des Git-Ablaufs.
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\checkin_only.ps1 "was ich geaendert habe"
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\checkin_only.ps1 "was ich geaendert habe"
 #
 # Was das Skript macht:
 #   1. hat der Git-Server neuere Check-ins, holt es sie zuerst (nur

@@ -69,7 +69,7 @@ remote() {
 commit_files() {
     # diff-tree: --root also for the very first commit, -r into folders,
     # --no-commit-id only the paths; deletions (D) are not deployed
-    git diff-tree -z -r --root --no-commit-id --name-only --diff-filter=AMR "$1" -- Reports/source Reports/images
+    git diff-tree -z -r --root --no-commit-id --name-only --diff-filter=AMR "$1" -- source images
 }
 
 FILES=()
@@ -94,7 +94,7 @@ if [ "$MODE" = "dev" ]; then
         if git merge-base --is-ancestor "$LAST" "$SHA"; then
             say "changes since the last deploy $LAST:"
             # --diff-filter=AMR: added, modified, renamed - deletions are not deployed
-            mapfile -d '' FILES < <(git diff -z --name-only --diff-filter=AMR "$LAST" "$SHA" -- Reports/source Reports/images)
+            mapfile -d '' FILES < <(git diff -z --name-only --diff-filter=AMR "$LAST" "$SHA" -- source images)
         else
             say "WARNING: last deploy $LAST is not an ancestor of $SHA (main rewritten?) - only the files of this commit"
             mapfile -d '' FILES < <(commit_files "$SHA")
@@ -107,7 +107,7 @@ if [ "$MODE" = "dev" ]; then
         if [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BEFORE" =~ ^0+$ ]] \
             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git merge-base --is-ancestor "$BEFORE" "$SHA"; then
             say "no usable last deploy ('$LAST') - the files of this push since $BEFORE"
-            mapfile -d '' FILES < <(git diff -z --name-only --diff-filter=AMR "$BEFORE" "$SHA" -- Reports/source Reports/images)
+            mapfile -d '' FILES < <(git diff -z --name-only --diff-filter=AMR "$BEFORE" "$SHA" -- source images)
         else
             say "no usable last deploy ('$LAST') - only the files of this commit"
             mapfile -d '' FILES < <(commit_files "$SHA")
@@ -131,7 +131,7 @@ fi
 SEND=()
 for f in "${FILES[@]}"; do
     case "$f" in
-        Reports/source/*.rdf|Reports/images/*) SEND+=("$f"); say "  $f" ;;
+        source/*.rdf|images/*) SEND+=("$f"); say "  $f" ;;
     esac
 done
 say "files to deploy: ${#SEND[@]} ($KIND)"

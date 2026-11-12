@@ -28,13 +28,13 @@ Related:
  developer (RDP, personal login, e.g. gpi)
         |
         |  1. pull.ps1            at the start of the work
-        |  2. edit in the Builder E:\git\%USERNAME%\Reports\source\*.rdf
+        |  2. edit in the Builder E:\git\%USERNAME%\oracle-report\source\*.rdf
         |  3. checkin.ps1 "comment"
         |        a) fetch: behind the remote? -> fast-forward first
         |        b) list of changed files -> number (only this one), a (all)
         |           (n = only upload unsent check-ins - offered only when there are some;
         |            x or Enter = cancel)
-        |        c) selected .rdf -> convert_rdf.ps1 (rwconverter) -> Reports\xml\<name>.xml
+        |        c) selected .rdf -> convert_rdf.ps1 (rwconverter) -> xml\<name>.xml
         |        d) git add + commit only the selection ; push
         v
  Git server (HTTPS) --> later: automation to the Linux DEV Reports server
@@ -42,13 +42,14 @@ Related:
 
 | Item | Value |
 |---|---|
-| clone per developer | `E:\git\%USERNAME%` – the folder name = the Windows login, e.g. `E:\git\gpi` for the user `gpi` |
-| report sources | `E:\git\%USERNAME%\Reports\source\*.rdf` |
-| images | `E:\git\%USERNAME%\Reports\images\` (file names in lower case, see the image article) |
-| XML of every report | `E:\git\%USERNAME%\Reports\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
-| scripts | `E:\git\%USERNAME%\Reports\pull.ps1`, `...\checkin.ps1`, `...\convert_rdf.ps1`, `...\git_setup.ps1` (part of the repository, so every clone has the same version; `git_setup.ps1` once per user before the first check-in) |
+| clone per developer | `E:\git\%USERNAME%\oracle-report` – the folder above = the Windows login, e.g. `E:\git\gpi\oracle-report` for the user `gpi` |
+| repository layout | top folder: `menu.cmd` / `menu.ps1` / `menu.ini`, `.gitlab-ci.yml`, `README.md`; folders `deploy\` (all scripts, also `ci_deploy.sh` / `rwdeploy.sh`), `source\` (`.rdf`), `xml\` (`.xml`), `images\` – layout of the customer, adopted 2026-11-12 |
+| report sources | `E:\git\%USERNAME%\oracle-report\source\*.rdf` |
+| images | `E:\git\%USERNAME%\oracle-report\images\` (file names in lower case, see the image article) |
+| XML of every report | `E:\git\%USERNAME%\oracle-report\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
+| scripts | `E:\git\%USERNAME%\oracle-report\deploy\pull.ps1`, `...\checkin.ps1`, `...\convert_rdf.ps1`, `...\git_setup.ps1` (part of the repository, so every clone has the same version; `git_setup.ps1` once per user before the first check-in) |
 | Git | Git for Windows (command line), remote via HTTPS, personal user |
-| Builder start | desktop file `rwbuilder_git.bat` = copy of the original with `REPORTS_PATH=E:\git\%USERNAME%\Reports\source;...\images` in front (3.5) |
+| Builder start | desktop file `rwbuilder_git.bat` = copy of the original with `REPORTS_PATH=E:\git\%USERNAME%\oracle-report\source;...\images` in front (3.5) |
 | user in commands and scripts | always the variable **`%USERNAME%`** (cmd) / **`$env:USERNAME`** (PowerShell) – no user name is written into a command, a script or `reports.bat`; the same text works for every developer. `gpi` is only the demo user of the examples |
 | rights | the developer account is a **local administrator**, and the scripts / `rwconverter.bat` run in an **elevated session** (2.1) |
 
@@ -74,8 +75,8 @@ cookbook "User accounts"). Therefore:
   "Run as administrator" (shortcut → Properties → Advanced).
 
 ```bat
-%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\%USERNAME%\Reports\source\sales.rdf stype=rdffile ^
-    dest=E:\git\%USERNAME%\Reports\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
+%DOMAIN_HOME%\reports\bin\rwconverter.bat source=E:\git\%USERNAME%\oracle-report\source\sales.rdf stype=rdffile ^
+    dest=E:\git\%USERNAME%\oracle-report\xml\sales.xml dtype=xmlfile batch=yes overwrite=yes ^
     cmdfile=%USERPROFILE%\.rwconv\login.txt
 ```
 
@@ -130,7 +131,7 @@ icacls %USERPROFILE%\.rwconv\login.txt
 ```
 
 Expected: only one line with `<computer>\gpi:(F)`. `%USERPROFILE%` is
-`C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\%USERNAME%`, so Git
+`C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\%USERNAME%\oracle-report`, so Git
 never sees the file. A changed DB password = edit this one line.
 
 **Other place (2026-11-12):** `convert_rdf.ps1` looks for
@@ -193,10 +194,10 @@ neither user nor password of the conversion login in the file).
 
 | Path | In Git | Why |
 |---|---|---|
-| `Reports\source\*.rdf` | yes (binary) | the file the Builder and the server use |
-| `Reports\xml\*.xml` | yes | readable diff, review, restore; written only by `checkin.ps1` |
-| `Reports\images\*` | yes | the server needs the same files |
-| `Reports\pull.ps1`, `checkin.ps1` | yes | same script version for everyone |
+| `source\*.rdf` | yes (binary) | the file the Builder and the server use |
+| `xml\*.xml` | yes | readable diff, review, restore; written only by `checkin.ps1` |
+| `images\*` | yes | the server needs the same files |
+| `deploy\*.ps1`, `menu.*` | yes | same script version for everyone |
 | login file, `*.rep`, Builder backups (`*.rdf~`?), `*.log` | **no** – `.gitignore` | secrets, generated files |
 
 `.gitattributes`: `*.rdf binary`, `*.xml` with a fixed line end (2.3).
@@ -276,7 +277,7 @@ article). One file for all developers, because the user comes from
 |---|---|
 | original | `%DOMAIN_HOME%\reports\bin\rwbuilder.bat` (written by `createReportsToolsInstance`, cookbook step 7) |
 | copy | `C:\Users\Public\Desktop\rwbuilder_git.bat` – the public desktop, every RDP user sees it |
-| added line | `set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;%REPORTS_PATH%` – **after** the line that calls `reports.bat` (that file sets `REPORTS_PATH` itself) and before the call of `rwbuilder.exe` |
+| added line | `set REPORTS_PATH=E:\git\%USERNAME%\oracle-report\source;E:\git\%USERNAME%\oracle-report\images;%REPORTS_PATH%` – **after** the line that calls `reports.bat` (that file sets `REPORTS_PATH` itself) and before the call of `rwbuilder.exe` |
 | start | with administrator rights (2.1) – a `.bat` has no "Run as administrator" setting of its own, so a shortcut to it does (below) |
 
 Create it once, as administrator, in a cmd shell after
@@ -303,7 +304,7 @@ line):
 
 ```bat
 rem IHW: own Git clone first - E:\git\<Windows login>\Reports
-set REPORTS_PATH=E:\git\%USERNAME%\Reports\source;E:\git\%USERNAME%\Reports\images;%REPORTS_PATH%
+set REPORTS_PATH=E:\git\%USERNAME%\oracle-report\source;E:\git\%USERNAME%\oracle-report\images;%REPORTS_PATH%
 ```
 
 Check – the line is there and stands between the two others:
@@ -321,7 +322,7 @@ the real path (e.g. `E:\oracle\user_projects\domains\rwbuilder_domain\reports\bi
 Optionally hide the `.bat` itself and leave only the shortcut visible.
 
 Test as a developer (e.g. `gpi`): start "Reports Builder (Git)", open a
-report from `E:\git\gpi\Reports\source`, preview – images with a file name
+report from `E:\git\gpi\source`, preview – images with a file name
 only (no path) must appear. Help → About shows 14.1.2.0.0.
 
 Notes:
@@ -347,21 +348,21 @@ Files in [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Custo
 adaptation: plain PowerShell, one step after the other, no nested commands,
 **messages and comments in German** (the developers' language), plain ASCII
 (Windows PowerShell 5.1 reads files without BOM as ANSI). Copy them into
-`E:\git\<repo>\Reports\` of the repository (the scripts change to the top folder
+`deploy\` of the repository, `menu.cmd` / `menu.ps1` / `menu.ini` into the top folder (the scripts change to the top folder
 themselves – `Set-Location $PSScriptRoot`, then `git rev-parse
 --show-toplevel` – so they work from any start folder; all paths in the
-scripts are relative to the top folder: `Reports/source`, `Reports/xml`,
-`Reports/images`).
+scripts are relative to the top folder: `source`, `xml`,
+`images`).
 
 | File | Purpose |
 |---|---|
 | [pull.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
 | [git_setup.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | once per Windows user: asks name, e-mail address and `core.autocrlf` (`true` / `input` / `false`, proposal `true`; Enter keeps the shown value), sets them with `git config --global`, shows the result |
-| [convert_rdf.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | one report `.rdf` → `.xml` with `rwconverter` (`cmdfile=` login file – no password on the command line); output of the converter captured with `Start-Process` (stdout / stderr into temp files, `REP-` / `ORA-` lines shown); success = exit code 0 **and** XML written now; `-Check` = only the checks (admin session, converter, login file). Only the report name: `.\convert_rdf.ps1 bericht` → `Reports\source\bericht.rdf` → `Reports\xml\bericht.xml` (folders relative to the top folder of the repository, same values as in `checkin.ps1`; always `<name>.xml`, so the XML stays stable – see the report-name row in 2.2). Called by `checkin.ps1`, also usable alone |
+| [convert_rdf.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | one report `.rdf` → `.xml` with `rwconverter` (`cmdfile=` login file – no password on the command line); output of the converter captured with `Start-Process` (stdout / stderr into temp files, `REP-` / `ORA-` lines shown); success = exit code 0 **and** XML written now; `-Check` = only the checks (admin session, converter, login file). Only the report name: `.\convert_rdf.ps1 bericht` → `source\bericht.rdf` → `xml\bericht.xml` (folders relative to the top folder of the repository, same values as in `checkin.ps1`; always `<name>.xml`, so the XML stays stable – see the report-name row in 2.2). Called by `checkin.ps1`, also usable alone |
 | [checkin.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (`convert_rdf.ps1 -Check`) → `git fetch` (behind → fast-forward; same report changed → stop) → numbered list of the changed files in source / images, **number = only this file, `a` = all, `n` = nothing new, only send** → comment → convert the selected new / changed `.rdf` with `convert_rdf.ps1` (stop at the first error, nothing committed) → delete the `.xml` of a selected deleted `.rdf` → `git add` + commit **only the selection, one check-in per file** (a report together with its `.xml`; with several files the file name is appended to the comment – the tag concept of [Git_deploy.md](Git_deploy.md) needs one report per check-in) → push (rejected → `pull --no-rebase` + push; conflict → `merge --abort`) |
 | [checkin_only.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin_only.ps1) | the same Git flow **without the Reports part** – no admin check, no `.rdf` → `.xml` conversion, the list shows every changed file of the repository (number / `a` / `n`, commit only the selection – one check-in per file, merge on a rejected push). For a PC without Reports and without admin rights – to try the Git flow before the Builder server is ready. Stand-alone file, no shared code (the customer wants each script as simple as possible) |
 | [status.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) | **read only**: `git fetch` (files unchanged), then branch + server branch, files changed but not checked in, local check-ins not yet on the server, server check-ins not yet here (with the right next script: `pull.ps1`, or `checkin.ps1` when both sides have new check-ins – `pull.ps1` can only fast-forward), the last 5 check-ins locally and on the server (hash, date, author, comment) |
-| [status_detail.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) | **read only**: the last 20 check-ins of the current branch (`status_detail.ps1 50` = 50) as a Markdown table with the columns Datum, Commit ID, Datei, Tag, Prod – one row per changed file, `-` for a check-in without files (merge), tags from `--decorate-refs=refs/tags/`, `NO_TAG` without tag; the first line of an annotated tag's message goes into the row(s) below the tag name (indented, wrapped at the width of the longest tag name, at least 40 – keeps the table narrow; the rows of the commit's other files are used first); **Prod** = `PROD` (this version is in production: commit of the most recently created `prod-*` tag of the file, same logic as `release_tag.ps1`, one `git diff-tree --stdin` for all tags), `offen` (newer than that), `alt` (older, or production is on a commit not yet pulled – then a hint `pull.ps1`), `-` (not deployed: anything but `Reports/source/*.rdf` / `Reports/images/*`, deleted files); below the table the open files of this list and a pointer to `release_tag.ps1 -List`; no fetch; `-File <text>` = only files whose name contains the text (pathspec `:(glob,icase)**/*<text>*`, special characters escaped; the count then means the last N check-ins of those files; case-insensitive only for a-z) |
+| [status_detail.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) | **read only**: the last 20 check-ins of the current branch (`status_detail.ps1 50` = 50) as a Markdown table with the columns Datum, Commit ID, Datei, Tag, Prod – one row per changed file, `-` for a check-in without files (merge), tags from `--decorate-refs=refs/tags/`, `NO_TAG` without tag; the first line of an annotated tag's message goes into the row(s) below the tag name (indented, wrapped at the width of the longest tag name, at least 40 – keeps the table narrow; the rows of the commit's other files are used first); **Prod** = `PROD` (this version is in production: commit of the most recently created `prod-*` tag of the file, same logic as `release_tag.ps1`, one `git diff-tree --stdin` for all tags), `offen` (newer than that), `alt` (older, or production is on a commit not yet pulled – then a hint `pull.ps1`), `-` (not deployed: anything but `source/*.rdf` / `images/*`, deleted files); below the table the open files of this list and a pointer to `release_tag.ps1 -List`; no fetch; `-File <text>` = only files whose name contains the text (pathspec `:(glob,icase)**/*<text>*`, special characters escaped; the count then means the last N check-ins of those files; case-insensitive only for a-z) |
 | [menu.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) / [menu.cmd](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [menu.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) | **start menu for a double click** (customer request 2026-11-12): `menu.cmd` (desktop shortcut, set to *Run as administrator* for `checkin.ps1`) starts `powershell.exe -NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File menu.ps1 -Fenster -Zeilen %ZEILEN% -Spalten %SPALTEN%`; window size set at the top of `menu.cmd` (`ZEILEN=60`, `SPALTEN=0` = keep width), `menu.ps1` sets `RawUI.WindowSize` capped at `MaxPhysicalWindowSize` plus a 3000-line buffer (not `mode con`, which would drop the scrollback), errors ignored (Windows Terminal ignores the size); `menu.ps1` reads `menu.ini` (UTF-8, one section per entry: `Sortierung`, `Skript`, `Parameter`, `Kurz`, `Lang`, `Admin`; section `[Menue]` = `Titel`, `Frage`, `SkriptPfad`; `SkriptPfad` = folder of the scripts – empty = folder of `menu.ps1`, relative = from the folder of `menu.ps1` (`..\Reports`), absolute with `%VARIABLE%` expanded (`E:\git\%USERNAME%\Reports`), a `SkriptPfad` in an entry wins over the one in `[Menue]`; surrounding quotes are ignored, spaces allowed; `menu.cmd` / `.ps1` / `.ini` stay together), shows the numbered list sorted by `Sortierung`, asks until a valid number or `x`; the chosen script runs in the same window via `& 'path' <Parameter>` (its `exit` ends only the script), the long text is shown first, the return code afterwards; `-NoExit` keeps the window open with the result; `x` closes the window (`[Environment]::Exit` only with `-Fenster`, otherwise just returns); `Admin = ja` checks for an elevated window first; `menu.ps1` defines a global function `m` (`Set-Item function:global:m`, same `-Ini` / `-Fenster`, no resize) so `m` + Enter in the open window starts the menu again; a missing script is shown as "Skript fehlt". All German texts with umlauts live in `menu.ini`, the `.ps1` stays ASCII; `template.gitattributes` gets `*.cmd` / `*.ini` `eol=crlf` |
 | [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | **release of one check-in to production** (customer script rebuilt in our style, adapted to the tag concept 2026-11-12): part 1 = check-ins on `origin/main` newer than the production state of their file (= commit of the most recently created `prod-*` tag of that file, so a rollback tag counts), numbered with files and a per-file summary; part 2 = the last 20 check-ins sorted by date (`--date-order`), one row per file with the tag of its own commit or `NO_TAG`, then the last 20 releases sorted by tag date with only the files of the tagged commit; part 3 = number from part 1 **or a commit id** (`-Commit`, also an older check-in – checked: exists, on the branch, no merge), warnings (newer check-ins of the same file are listed – they do not go along; several files), annotated tag `prod-<yyyy-MM-dd_HHmm>_<file>` on the chosen commit, `git push origin <tag>` – starts the PROD pipeline ([Git_deploy.md](Git_deploy.md)). Default filter `-Filter '*.rdf'` (`-like` on the whole path, `''` = all files), `-File <text>` = part of the file name (case-insensitive incl. umlauts, both filters applied in PowerShell); further `-Branch`, `-TagPrefix`, `-Anzahl`, `-Nummer`, `-TagDatei`, `-Nachricht`, `-Ja`, `-NoPush`, `-NoFetch`; `-List` = only parts 1 and 2, no question, no tag (not together with `-Nummer` / `-Commit`) |
 | [README_DE.md](scripts/README_DE.md) | **for the developers, German:** the daily workflow with an ASCII diagram (pull → Builder → save → status → check-in), one-time set-up, the selection (number / `a` / `n` / `x`), what each message means, rules – goes into the customer repository next to the scripts |
@@ -373,8 +374,8 @@ Settings at the top of `convert_rdf.ps1`: `$DomainHome` (default
 `DOMAIN_HOME` wins), the login file `%USERPROFILE%\.rwconv\login.txt` –
 when missing the fixed `$LoginFileFixed` (default `E:\oracle\rwconv\login.txt`,
 adapt it) –, the variable `RWCONVERTER` replaces the converter – for tests only. At the top
-of `checkin.ps1`: the three folders `Reports/source`, `Reports/xml`,
-`Reports/images`.
+of `checkin.ps1`: the three folders `source`, `xml`,
+`images`.
 
 ### 4.1 Tested on Linux (2026-11-11, file selection 2026-11-12) – Windows to confirm
 
@@ -415,6 +416,7 @@ customer (section 5).
 | `status.ps1` (2026-11-12) | clean: "OK - lokal und Git-Server sind gleich"; 1 changed file + 1 unsent + 1 newer server check-in: all three listed with the hint `checkin.ps1` (pull.ps1 would fail); only behind: hint `pull.ps1`; umlauts in comments shown correctly; working copy unchanged afterwards |
 | `status_detail.ps1` (2026-11-12) | one row per file; two tags on one commit shown as `v1.0, v1.1`; annotated tag with umlaut message `v2.0` + `Freigabe Übersicht Q4` (since the Prod column in the row below, before in brackets), only the first line; tag with empty message shown as name only; `-File umsatz` finds `umsatz.rdf` and `UMSATZ_neu.rdf` but not `umsatz_dir/a.txt` (name only), `-File [1]` / `*` taken literally, `-File Übersicht` ok (`übersicht` not – git icase only a-z), no match: message, exit 0; merge commit shown with `-`; umlaut file name in clear text; `2` = only 2 commits; `0`: message, exit 1. Prod column (tag-concept sandbox): tagged `umsatz.rdf` `PROD`, its older check-in `alt`, untagged `kunde.rdf` `offen` + summary line, `.xml` / scripts `-`, tag message wrapped into the following rows; rollback tag on the older `umsatz` → older `PROD`, newer `offen`, a pipe sign in the message shown as `/`; HEAD on an older commit with a newer prod tag → `alt` + hint `pull.ps1` |
 | `menu.ps1` (2026-11-12, pwsh 7.4 on Linux, input piped) | menu from `menu.ini` sorted, umlauts from the UTF-8 ini shown correctly; `9` / `abc`: message, asks again; `3` runs `status_detail.ps1` in the same process, end line "Fertig"; `5` passes `-List` to `release_tag.ps1`; ini entry with `-List -Nummer 1`: script error shown with "Rueckgabe 1"; `Admin = ja` without elevation: message, script not started; section without `Skript`: warning, skipped; missing script file marked in red with the searched path below the list; `x` rc 0 with and without `-Fenster`; `-NoExit` session: `3`, `m`, `2`, `m`, `x` = menu three times, two scripts, then closed; menu in its own folder: `SkriptPfad = ../Reports`, absolute with `%VAR%` and per-entry `SkriptPfad` find and run the scripts, empty = all marked "Skript fehlt". Menu one level above the scripts (`SkriptPfad = Reports`, path with a space, started from another folder) and in a subfolder (`..`) ok; `"Reports"` in quotes failed first – fixed. Open: double click / `-NoExit` / elevated shortcut on Windows PS 5.1 |
+| layout switch (2026-11-12, sandbox `<user>/oracle-report`: bare repo, `deploy/`, `source/`, `xml/`, `images/`, `menu.*` in the top folder) | `checkin.ps1` (`a`): one check-in for `images/logo.png`, one for `source/umsatz.rdf` + `xml/umsatz.xml`; `ci_deploy.sh dev` (no last, BEFORE fallback): both files copied to DEV; `release_tag.ps1 -Nummer 1 -Ja`: tag pushed; `ci_deploy.sh prod`: only `umsatz.rdf` to PROD; `status_detail.ps1`: `umsatz.rdf` `PROD`, `logo.png` `offen`, scripts `-`; menu started from `/`: all 6 scripts found in `deploy`; `rwdeploy.sh` rejects `Reports/source/a.rdf`, `source/sub/b.rdf`, `source/c.txt` |
 | `release_tag.ps1` (2026-11-12, bare repo as server) | default only `.rdf`: doc-only check-in hidden; tag pushed (`ls-remote` shows it); `-Filter ''`: check-in with 2 files asks for the file, `Übersicht.rdf` -> tag `..._Uebersicht.rdf`; tag concept (only `main`): older version of a report chosen → "ACHTUNG … neuerer Check-in", after the tag on the newest version both check-ins of the report no longer open, part 2 date-sorted with `NO_TAG` for untagged check-ins; rollback tag on the older `umsatz` → the newer one open again; `-File UMS` / `-File übersicht` case-insensitive; `-Nummer 9`, input `x`, unknown branch: message, exit 1; Enter: nothing tagged, exit 0; `-NoPush`: tag only local; `-List`: lists only, exit 0; `-List -Nummer 1`: message, exit 1 |
 | `git_setup.ps1` (isolated `HOME`) | first run sets the 3 values; Enter keeps them; `input` changes only `core.autocrlf`; invalid e-mail / value: message, nothing changed |
 | colleague pushes during the check-in, **another changed report not selected** | `pull --rebase` would refuse ("unstaged changes") – merge works, the not selected change stays, exit 0 |

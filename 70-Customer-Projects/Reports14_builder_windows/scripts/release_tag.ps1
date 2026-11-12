@@ -22,18 +22,18 @@
 # Standard: nur .rdf-Dateien (-Filter '*.rdf'). Mit -Filter ein anderes
 # Muster, mit -Filter '' alle Dateien.
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\release_tag.ps1                    anzeigen, dann Nummer waehlen
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\release_tag.ps1                    anzeigen, dann Nummer waehlen
 #                                                (Enter = nichts taggen)
-#   .\Reports\release_tag.ps1 -List             nur anzeigen (Teil 1 und 2),
+#   .\deploy\release_tag.ps1 -List             nur anzeigen (Teil 1 und 2),
 #                                                keine Frage, kein Tag
-#   .\Reports\release_tag.ps1 -File umsatz       nur Dateien, deren Name
+#   .\deploy\release_tag.ps1 -File umsatz       nur Dateien, deren Name
 #                                                'umsatz' enthaelt
-#   .\Reports\release_tag.ps1 -Filter ''         alle Dateien, nicht nur .rdf
-#   .\Reports\release_tag.ps1 -Filter '*.png'    nur Bilder (.png)
-#   .\Reports\release_tag.ps1 -Nummer 2 -Ja      Check-in Nr. 2 ohne Rueckfrage
+#   .\deploy\release_tag.ps1 -Filter ''         alle Dateien, nicht nur .rdf
+#   .\deploy\release_tag.ps1 -Filter '*.png'    nur Bilder (.png)
+#   .\deploy\release_tag.ps1 -Nummer 2 -Ja      Check-in Nr. 2 ohne Rueckfrage
 #                                                taggen und senden
-#   .\Reports\release_tag.ps1 -Commit 52819c1    genau diesen (aelteren)
+#   .\deploy\release_tag.ps1 -Commit 52819c1    genau diesen (aelteren)
 #                                                Check-in taggen
 #
 # Weitere Parameter: -Branch (Standard origin/main), -TagPrefix (prod),

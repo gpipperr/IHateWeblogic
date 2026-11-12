@@ -9,8 +9,8 @@
 #   4. Check-ins auf dem Git-Server, die Sie noch nicht haben
 #   5. die letzten 5 Check-ins - lokal und auf dem Git-Server
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\status.ps1
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\status.ps1
 #
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.

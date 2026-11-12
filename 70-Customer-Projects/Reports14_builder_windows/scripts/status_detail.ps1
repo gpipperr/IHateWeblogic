@@ -27,10 +27,10 @@
 # Produktion sind. Alle offenen und das Freigeben selbst: release_tag.ps1
 # (release_tag.ps1 -List = nur anzeigen).
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\status_detail.ps1          die letzten 20 Check-ins
-#   .\Reports\status_detail.ps1 50       die letzten 50 Check-ins
-#   .\Reports\status_detail.ps1 -File umsatz
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\status_detail.ps1          die letzten 20 Check-ins
+#   .\deploy\status_detail.ps1 50       die letzten 50 Check-ins
+#   .\deploy\status_detail.ps1 -File umsatz
 #                                        nur Dateien, deren Name 'umsatz'
 #                                        enthaelt (gross/klein egal) - die
 #                                        letzten 20 Check-ins dieser Dateien
@@ -68,7 +68,7 @@ function Exit-Script([int]$Code) {
 # prod-Tags (wie -TagPrefix in release_tag.ps1)
 $TagPattern = 'prod-*'
 # Diese Dateien bringt die Pipeline in die Produktion (wie deploy/ci_deploy.sh)
-$ProdMuster = @('Reports/source/*.rdf', 'Reports/images/*')
+$ProdMuster = @('source/*.rdf', 'images/*')
 
 # --- 0. In den obersten Ordner des Repositorys wechseln
 Set-Location $PSScriptRoot

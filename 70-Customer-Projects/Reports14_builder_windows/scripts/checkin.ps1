@@ -5,8 +5,8 @@
 # "Als Administrator ausfuehren" gestartet wurde (die Reports-Werkzeuge
 # brauchen das auf diesem Server):
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\checkin.ps1 "was ich geaendert habe"
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\checkin.ps1 "was ich geaendert habe"
 #
 # Startordner egal: das Skript wechselt selbst in den obersten Ordner des
 # Repositorys (git rev-parse --show-toplevel).
@@ -36,7 +36,7 @@
 #   - Git for Windows (Name / E-Mail einmal mit git_setup.ps1 setzen); das Kennwort fuer den Git-Server speichert der
 #     Git Credential Manager (wird beim ersten Push einmal abgefragt)
 #
-# Ablage : E:\git\<Login>\Reports\checkin.ps1 (Teil des Repositorys)
+# Ablage : E:\git\<Login>\oracle-report\deploy\checkin.ps1 (Teil des Repositorys)
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
@@ -56,9 +56,9 @@ $ConvertScript = Join-Path $PSScriptRoot 'convert_rdf.ps1'
 
 # Ordner im Repository (relativ zum obersten Ordner des Repositorys) -
 # dieselben Werte wie in convert_rdf.ps1
-$SourceDir = 'Reports/source'
-$XmlDir    = 'Reports/xml'
-$ImageDir  = 'Reports/images'
+$SourceDir = 'source'
+$XmlDir    = 'xml'
+$ImageDir  = 'images'
 # ----------------------------------------------------------------------------
 
 # Am Ende - auch bei Abbruch oder Fehler - wieder in den Ordner des Skripts

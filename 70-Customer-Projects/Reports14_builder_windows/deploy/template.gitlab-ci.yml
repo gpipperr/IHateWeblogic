@@ -31,7 +31,7 @@ deploy_dev:
     name: development
   resource_group: deploy-dev    # one deploy at a time
   script:
-    - bash Reports/deploy/ci_deploy.sh dev
+    - bash deploy/ci_deploy.sh dev
 
 deploy_prod:
   extends: .deploy
@@ -41,4 +41,4 @@ deploy_prod:
     name: production
   resource_group: deploy-prod
   script:
-    - bash Reports/deploy/ci_deploy.sh prod
+    - bash deploy/ci_deploy.sh prod

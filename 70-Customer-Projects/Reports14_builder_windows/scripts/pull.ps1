@@ -3,8 +3,8 @@
 # =============================================================================
 # Aufruf zu BEGINN der Arbeit, bevor ein Bericht im Builder geoeffnet wird:
 #
-#   cd E:\git\<Ihr Login>
-#   .\Reports\pull.ps1
+#   cd E:\git\<Ihr Login>\oracle-report
+#   .\deploy\pull.ps1
 #
 # Startordner egal: das Skript wechselt selbst in den obersten Ordner des
 # Repositorys (git rev-parse --show-toplevel).
@@ -17,7 +17,7 @@
 #      geaendert hat - dann wird nichts ueberschrieben.
 #   3. zeigt die letzten 5 Check-ins
 #
-# Ablage : E:\git\<Login>\Reports\pull.ps1 (Teil des Repositorys)
+# Ablage : E:\git\<Login>\oracle-report\deploy\pull.ps1 (Teil des Repositorys)
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================

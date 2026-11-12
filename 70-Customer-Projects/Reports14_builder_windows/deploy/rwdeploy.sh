@@ -18,7 +18,7 @@
 #
 # delta    (DEV)  : push to main - the files changed since the last DEV deploy
 # tag      (PROD) : tag prod-* - the files of the tagged commit (one report)
-# snapshot        : the whole Reports/source + Reports/images (not used by
+# snapshot        : the whole source/ + images/ (not used by
 #                   ci_deploy.sh any more; files missing in git but present
 #                   on the server -> warning)
 # Nothing is ever deleted on the server.
@@ -167,16 +167,16 @@ cmd_list() {
 }
 
 # --- worker -------------------------------------------------------------------
-# allowed tar members: directories Reports/, Reports/source/, Reports/images/,
-# files Reports/source/<name>.rdf and Reports/images/<name> - nothing else
+# allowed tar members (paths as in the repository): directories source/,
+# images/, files source/<name>.rdf and images/<name> - nothing else
 member_ok() {
     local m="$1"
     case "$m" in
         /*|*..*) return 1 ;;
     esac
-    [[ "$m" =~ ^Reports/((source|images)/)?$ ]] && return 0
-    [[ "$m" =~ ^Reports/source/[^/]+\.rdf$ ]] && return 0
-    [[ "$m" =~ ^Reports/images/[^/]+$ ]] && return 0
+    [[ "$m" =~ ^(source|images)/$ ]] && return 0
+    [[ "$m" =~ ^source/[^/]+\.rdf$ ]] && return 0
+    [[ "$m" =~ ^images/[^/]+$ ]] && return 0
     return 1
 }
 
@@ -214,12 +214,12 @@ process_job() {
             mkdir -p "$stage"
             tar -xf "$tar" -C "$stage" --no-same-owner --no-same-permissions || bad=1
         fi
-        if [ "$bad" -eq 0 ] && [ -d "$stage/Reports" ]; then
+        if [ "$bad" -eq 0 ] && { [ -d "$stage/source" ] || [ -d "$stage/images" ]; }; then
             while IFS= read -r -d '' rel; do
                 rel="${rel#"$stage"/}"
                 case "$rel" in
-                    Reports/source/*) target="$TARGET_SOURCE_DIR/${rel#Reports/source/}" ;;
-                    Reports/images/*) target="$TARGET_IMAGE_DIR/${rel#Reports/images/}" ;;
+                    source/*) target="$TARGET_SOURCE_DIR/${rel#source/}" ;;
+                    images/*) target="$TARGET_IMAGE_DIR/${rel#images/}" ;;
                     *) continue ;;
                 esac
                 if [ -f "$target" ] && cmp -s "$stage/$rel" "$target"; then
@@ -237,7 +237,7 @@ process_job() {
                     rm -f "$target.rwdeploy.tmp"
                     say "ERROR: copy $rel -> $target"; bad=1; break
                 fi
-            done < <(find "$stage/Reports" -type f -print0 | sort -z)
+            done < <(find "$stage" -type f -print0 | sort -z)
         fi
 
         # 3. snapshot: files on the server that are no longer in git
@@ -245,7 +245,7 @@ process_job() {
             set +f
             for target in "$TARGET_SOURCE_DIR"/*.rdf; do
                 [ -e "$target" ] || continue
-                [ -e "$stage/Reports/source/$(basename "$target")" ] || \
+                [ -e "$stage/source/$(basename "$target")" ] || \
                     say "  WARNING not in git (kept): $target"
             done
             set -f

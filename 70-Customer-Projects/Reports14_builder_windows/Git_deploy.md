@@ -67,22 +67,29 @@ a webhook receiver.
 
 ## 2. Files
 
+Repository layout (the customer's, adopted 2026-11-12): top folder with
+`menu.cmd` / `menu.ps1` / `menu.ini`, `.gitlab-ci.yml`, `README.md`; folders
+`deploy/` (all scripts incl. `ci_deploy.sh`), `source/` (`.rdf`), `xml/`
+(`.xml`, only for review), `images/`. Deployed are only `source/*.rdf` and
+`images/*` – the tar keeps these repository paths, `rwdeploy.sh` accepts
+nothing else.
+
 | File | Where it goes | Purpose |
 |---|---|---|
 | [template.gitlab-ci.yml](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template.gitlab-ci.yml) | `.gitlab-ci.yml` in the top folder of the repository | job `deploy_dev` (push to `main`) and `deploy_prod` (tag `prod-*`), `GIT_DEPTH: 0`, `resource_group` per environment |
-| [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | `Reports/deploy/ci_deploy.sh` in the repository | the job (section 4) |
+| [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | `deploy/ci_deploy.sh` in the repository | the job (section 4) |
 | [rwdeploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | Reports server, e.g. `/u01/app/oracle/rwdeploy/bin/` | queue + worker, SSH forced command (section 5) |
 | [rwdeploy.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.conf.template) | `rwdeploy.conf` next to `rwdeploy.sh` | spool folder, target folders, size limit |
 | [authorized_keys.example](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/authorized_keys.example) | `~oracle/.ssh/authorized_keys` on the server | the deploy key may only start `rwdeploy.sh`, only from the runner |
-| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `Reports\release_tag.ps1` next to `checkin.ps1` | release of one check-in (section 3) |
+| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `deploy\release_tag.ps1` next to `checkin.ps1` | release of one check-in (section 3) |
 
 ## 3. Release of one report – `release_tag.ps1`
 
 ```powershell
-cd E:\git\<login>
-.\Reports\release_tag.ps1                  # show, then choose a number (Enter = nothing)
-.\Reports\release_tag.ps1 -List            # only show (parts 1 and 2) - no question, no tag
-.\Reports\release_tag.ps1 -File umsatz     # only files with 'umsatz' in the name
+cd E:\git\<login>\oracle-report
+.\deploy\release_tag.ps1                  # show, then choose a number (Enter = nothing)
+.\deploy\release_tag.ps1 -List            # only show (parts 1 and 2) - no question, no tag
+.\deploy\release_tag.ps1 -File umsatz     # only files with 'umsatz' in the name
 ```
 
 1. `git fetch origin --tags` – the developer's files stay unchanged.
@@ -176,15 +183,15 @@ enough; there is no runner on the Reports servers.
 | `list` | the last 15 jobs with their state |
 | `work` | the worker – also from cron as a safety net |
 
-`delta` = DEV, `tag` = PROD. `snapshot` (the whole `Reports/source` +
-`Reports/images`, with a warning for `.rdf` files that are no longer in Git)
+`delta` = DEV, `tag` = PROD. `snapshot` (the whole `source` +
+`images`, with a warning for `.rdf` files that are no longer in Git)
 is still accepted but no longer sent by `ci_deploy.sh`.
 
 The worker:
 - runs once at a time (`flock`) and takes the jobs oldest first;
 - checks **every tar member before extracting**:
   - only plain files and folders are allowed, no links;
-  - only the names `Reports/source/<name>.rdf` and `Reports/images/<name>`;
+  - only the names `source/<name>.rdf` and `images/<name>`;
   - no `..`, no absolute paths;
 - extracts into `staging/`;
 - copies only changed files (`cmp`), each first to a temporary name and then
@@ -224,7 +231,7 @@ ssh -i gitlab-deploy-dev oracle@<server> 'id'    # -> ERROR: unknown command 'id
 
 **First set-up:**
 - `main` holds today's reports (one import), together with `.gitlab-ci.yml`
-  and `Reports/deploy/ci_deploy.sh`.
+  and `deploy/ci_deploy.sh`.
 - PROD needs no starting point: each tag brings its own files.
 - DEV: optional, write the commit of the imported state once as the last
   deploy, so the first DEV pipeline sends only what changed after the
@@ -261,7 +268,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | job: `the tag is on a merge commit` | the tag points at a merge of `checkin.ps1` (colleague checked in at the same moment) | delete the tag (`git push origin :refs/tags/<tag>`, `git tag -d <tag>`) and tag the check-in of the report with `release_tag.ps1` |
 | job: `the tagged commit holds no report (.rdf) or image` | the tag is on a check-in without report or image | delete the tag, tag the right check-in |
 | job: `last deploy … is not an ancestor` (warning, DEV) | `main` history was changed (force push) | only the files of this commit were deployed; check DEV, set `last_sha` |
-| job red, `ERROR: path not allowed` | a file outside `Reports/source/*.rdf` / `Reports/images/` was sent | nothing was copied; check the repository content |
+| job red, `ERROR: path not allowed` | a file outside `source/*.rdf` / `images/` was sent | nothing was copied; check the repository content |
 | job: `PENDING` after the wait | worker busy or not running | `ssh … list` on the runner host; cron safety net present? |
 | wrong report in production | – | rollback (section 3); the replaced file is in `spool/backup/<job>/` on the server |
 

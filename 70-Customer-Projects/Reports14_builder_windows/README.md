@@ -92,7 +92,7 @@ laborious and error-prone parts of a Windows server installation.
 
 ## Next: Git check-in
 
-Idea 2026-11-11: one Git clone per developer (`E:\git\<user>`), `pull.ps1`
+Idea 2026-11-11: one Git clone per developer (`E:\git\<user>\oracle-report`), `pull.ps1`
 at the start of the work, `checkin.ps1` converts every changed `.rdf` to XML
 and commits / pushes – for developers without Git experience. Step 1 (rdf →
 xml from the command line) is tested on the Linux test host; Windows test

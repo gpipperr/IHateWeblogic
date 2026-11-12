@@ -8,7 +8,7 @@
 #        nur pruefen: Administrator-Fenster, Konverter, DB-Login-Datei
 #
 #   .\convert_rdf.ps1 bericht
-#        wandelt Reports\source\bericht.rdf -> Reports\xml\bericht.xml (vorher
+#        wandelt source\bericht.rdf -> xml\bericht.xml (vorher
 #        dieselben Pruefungen). "bericht.rdf" oder ein Pfad gehen auch - es
 #        zaehlt nur der Name. Die Ordner stehen unten in den Einstellungen,
 #        relativ zum obersten Ordner des Repositorys - der Startordner ist
@@ -28,7 +28,7 @@
 #     Gesucht wird zuerst %USERPROFILE%\.rwconv\login.txt (pro Benutzer),
 #     gibt es die nicht, die feste Datei aus $LoginFileFixed (Einstellungen).
 #
-# Ablage : E:\git\<Login>\Reports\convert_rdf.ps1 (Teil des Repositorys)
+# Ablage : E:\git\<Login>\oracle-report\deploy\convert_rdf.ps1 (Teil des Repositorys)
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
@@ -62,8 +62,8 @@ if (-not (Test-Path $LoginFileUser)) {
 
 # Ordner der Berichte - relativ zum obersten Ordner des Repositorys,
 # dieselben Werte wie in checkin.ps1
-$SourceDirRel = 'Reports/source'
-$XmlDirRel    = 'Reports/xml'
+$SourceDirRel = 'source'
+$XmlDirRel    = 'xml'
 # ----------------------------------------------------------------------------
 
 # Am Ende - auch bei Abbruch oder Fehler - wieder in den Ordner des Skripts
@@ -87,7 +87,7 @@ if ($LASTEXITCODE -ne 0) {
 Set-Location $RepoRoot
 # Windows-Schreibweise (git liefert E:/git/...) - rwconverter bekommt volle Pfade
 $RepoRoot  = (Get-Location).Path
-# GetFullPath macht aus Reports/source unter Windows Reports\source
+# GetFullPath macht aus E:/git/.../source unter Windows E:\git\...\source
 $SourceDir = [IO.Path]::GetFullPath((Join-Path $RepoRoot $SourceDirRel))
 $XmlDir    = [IO.Path]::GetFullPath((Join-Path $RepoRoot $XmlDirRel))
 

@@ -5,6 +5,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows`: **repository layout of the customer adopted** – top folder
+  `menu.cmd` / `menu.ps1` / `menu.ini`, folders `deploy/` (scripts), `source/`, `xml/`, `images/`
+  (before: everything under `Reports/`). `checkin.ps1` / `convert_rdf.ps1` folders, `status_detail.ps1`
+  Prod column (showed `-` everywhere at the customer), `ci_deploy.sh` file list, `rwdeploy.sh` allowed
+  tar members (`source/<name>.rdf`, `images/<name>`), `.gitlab-ci.yml` (`bash deploy/ci_deploy.sh`),
+  `menu.ini` `SkriptPfad = deploy`, all docs and usage lines (`.\deploy\...`). `rwdeploy.sh` must be
+  installed again on DEV / PROD.
 - `Reports14_builder_windows/scripts`: new start menu for a double click - `menu.cmd` (desktop icon,
   `-NoExit` keeps the window open with the result) starts `menu.ps1`, which lists the scripts from
   `menu.ini` (sorting, short + long text, parameters, admin flag) and runs the chosen one in the

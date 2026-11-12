@@ -2,7 +2,7 @@
 
 Diese Skripte verbinden den Oracle Reports Builder mit einem Git-Repository.
 Jeder Entwickler arbeitet in seiner eigenen Kopie (Clone) unter
-`E:\git\<Ihr Login>`, holt sich vor der Arbeit den neuesten Stand und checkt
+`E:\git\<Ihr Login>\oracle-report`, holt sich vor der Arbeit den neuesten Stand und checkt
 fertige Berichte wieder ein. Beim Einchecken wird jeder Bericht zusätzlich als
 lesbare XML-Datei abgelegt – so sieht man im Git-Server, *was* sich geändert
 hat.
@@ -26,8 +26,8 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
         |
         v
   +-------------------------------+
-  | 3. Bericht öffnen, ändern,    |   Berichte liegen in Reports\source\*.rdf,
-  |    speichern und schließen    |   Bilder in Reports\images\
+  | 3. Bericht öffnen, ändern,    |   Berichte liegen in source\*.rdf,
+  |    speichern und schließen    |   Bilder in images\
   +-------------------------------+
         |
         |   (zwischendurch jederzeit:  status.ps1  - was ist offen?)
@@ -51,13 +51,27 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
   +-------------------------------+   --> Produktion
 ```
 
+## Aufbau des Repositorys
+
+```
+  E:\git\<Ihr Login>\oracle-report\     (Ihre Kopie des Repositorys)
+    menu.cmd, menu.ps1, menu.ini        Menü per Doppelklick
+    README.md
+    deploy\                             alle Skripte (pull.ps1, checkin.ps1, ...)
+    source\                             Berichte (.rdf) - die öffnet der Builder
+    xml\                                XML zu jedem Bericht (schreibt checkin.ps1)
+    images\                             Bilder der Berichte
+```
+
+In die Produktion gehen nur `source\*.rdf` und `images\*`.
+
 ## Einmalige Einrichtung (pro Benutzer)
 
 1. **Git for Windows** ist installiert (fragt der Administrator).
 2. **Repository holen** – in einem PowerShell-Fenster:
 
    ```powershell
-   git clone https://<git-server>/<gruppe>/<repo>.git E:\git\$env:USERNAME
+   git clone https://<git-server>/<gruppe>/oracle-report.git E:\git\$env:USERNAME\oracle-report
    ```
 
    Ist Ihr Git-Login ein LDAP-Konto, das anders heißt als Ihre
@@ -67,8 +81,8 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
 3. **Name und E-Mail setzen** – einmal:
 
    ```powershell
-   cd E:\git\$env:USERNAME
-   .\Reports\git_setup.ps1
+   cd E:\git\$env:USERNAME\oracle-report
+   .\deploy\git_setup.ps1
    ```
 
 4. **DB-Login für die XML-Umwandlung** – eine Datei mit einer Zeile
@@ -80,7 +94,7 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
    Administrator ein; sie startet den Builder mit Ihren Git-Ordnern als
    Suchpfad (`REPORTS_PATH`).
 6. **Desktop-Icon für das Menü** – einmal:
-   - Rechtsklick auf `E:\git\<Ihr Login>\Reports\menu.cmd` → *Senden an*
+   - Rechtsklick auf `E:\git\<Ihr Login>\oracle-report\menu.cmd` → *Senden an*
      → *Desktop (Verknüpfung erstellen)*.
    - Verknüpfung → *Eigenschaften* → *Erweitert* → **"Als Administrator
      ausführen"** anhaken (`checkin.ps1` braucht das).
@@ -112,12 +126,12 @@ Wähle eine Option oder breche mit x ab :
   kommt wieder – oder erneut Doppelklick auf das Icon.
 - `x` = abbrechen, das Fenster schließt sich.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
-  `Reports\menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
-- Liegen die Skripte nicht neben `menu.ps1`, steht ihr Ordner in `menu.ini`
-  unter `SkriptPfad` – für alle in `[Menue]` oder je Eintrag, relativ
-  (`..\Reports`) oder absolut mit `%VARIABLE%`
-  (`E:\git\%USERNAME%\Reports`). `menu.cmd`, `menu.ps1` und `menu.ini`
-  bleiben zusammen in einem Ordner.
+  `menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
+- Die Skripte liegen in `deploy\`, das Menü im obersten Ordner – das steht
+  in `menu.ini` als `SkriptPfad = deploy`. Andere Ablage: `SkriptPfad`
+  ändern, für alle in `[Menue]` oder je Eintrag, relativ (`deploy`, `..`)
+  oder absolut mit `%VARIABLE%` (`E:\git\%USERNAME%\oracle-report\deploy`).
+  `menu.cmd`, `menu.ps1` und `menu.ini` bleiben zusammen in einem Ordner.
 - Die Fenstergröße (60 Zeilen) steht oben in `menu.cmd` (`ZEILEN`,
   `SPALTEN`). Im Windows Terminal (Windows 11) gilt dessen eigene
   Einstellung.
@@ -134,8 +148,8 @@ ausführen") – `checkin.ps1` braucht das später, so reicht ein Fenster für
 alles. Dann:
 
 ```powershell
-cd E:\git\$env:USERNAME
-.\Reports\pull.ps1
+cd E:\git\$env:USERNAME\oracle-report
+.\deploy\pull.ps1
 ```
 
 Das Skript holt die Check-ins der Kollegen und zeigt die letzten fünf an. Ihre
@@ -146,20 +160,20 @@ nichts überschrieben**. Dann den Git-Ansprechpartner fragen.
 ### 2. Reports Builder starten
 
 Über die Desktop-Verknüpfung **"Reports Builder (Git)"**. Berichte immer aus
-`E:\git\<Ihr Login>\Reports\source\` öffnen und dort speichern – nicht aus
+`E:\git\<Ihr Login>\oracle-report\source\` öffnen und dort speichern – nicht aus
 anderen Ordnern.
 
 ### 3. Arbeiten
 
 Bericht ändern, **speichern und schließen**. Neue Bilder nach
-`Reports\images\`. Sprechen Sie sich ab, wer an welchem Bericht arbeitet –
+`images\`. Sprechen Sie sich ab, wer an welchem Bericht arbeitet –
 zwei Personen am selben Bericht kann Git nicht zusammenführen (`.rdf` ist
 eine Binärdatei).
 
 ### 4. Zwischendurch: `status.ps1` (nur anzeigen)
 
 ```powershell
-.\Reports\status.ps1
+.\deploy\status.ps1
 ```
 
 Zeigt, ohne etwas zu ändern:
@@ -174,19 +188,19 @@ Am Ende steht, welches Skript als Nächstes dran ist.
 Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag und dem Stand in der Produktion:
 
 ```powershell
-.\Reports\status_detail.ps1        # die letzten 20 Check-ins
-.\Reports\status_detail.ps1 50     # die letzten 50
+.\deploy\status_detail.ps1        # die letzten 20 Check-ins
+.\deploy\status_detail.ps1 50     # die letzten 50
 ```
 
 ```
-|Datum           |Commit ID|Datei                    |Tag                                     |Prod |
-|----------------|---------|-------------------------|----------------------------------------|-----|
-|2026-11-12 17:08|1c28588  |Reports/source/kunde.rdf |NO_TAG                                  |offen|
-|2026-11-12 17:08|f7c434c  |Reports/source/umsatz.rdf|prod-2026-11-12_1708_umsatz.rdf         |PROD |
-|2026-11-12 17:08|f7c434c  |Reports/xml/umsatz.xml   |  Freigabe Produktion: umsatz.rdf -     |-    |
-|                |         |                         |  Umsatz Spalte                         |     |
-|2026-11-12 17:07|52819c1  |Reports/source/umsatz.rdf|NO_TAG                                  |alt  |
-|2026-11-12 17:07|52819c1  |Reports/xml/umsatz.xml   |                                        |-    |
+|Datum           |Commit ID|Datei            |Tag                                     |Prod |
+|----------------|---------|-----------------|----------------------------------------|-----|
+|2026-11-12 17:08|1c28588  |source/kunde.rdf |NO_TAG                                  |offen|
+|2026-11-12 17:08|f7c434c  |source/umsatz.rdf|prod-2026-11-12_1708_umsatz.rdf         |PROD |
+|2026-11-12 17:08|f7c434c  |xml/umsatz.xml   |  Freigabe Produktion: umsatz.rdf -     |-    |
+|                |         |                 |  Umsatz Spalte                         |     |
+|2026-11-12 17:07|52819c1  |source/umsatz.rdf|NO_TAG                                  |alt  |
+|2026-11-12 17:07|52819c1  |xml/umsatz.xml   |                                        |-    |
 
 Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
 ```
@@ -212,27 +226,27 @@ Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
 Nur bestimmte Dateien – Teil des Dateinamens genügt, Groß/Klein egal (bei Umlauten muss Groß/Klein stimmen):
 
 ```powershell
-.\Reports\status_detail.ps1 -File umsatz       # die letzten 20 Check-ins mit 'umsatz' im Dateinamen
-.\Reports\status_detail.ps1 5 -File umsatz     # nur die letzten 5
+.\deploy\status_detail.ps1 -File umsatz       # die letzten 20 Check-ins mit 'umsatz' im Dateinamen
+.\deploy\status_detail.ps1 5 -File umsatz     # nur die letzten 5
 ```
 
 ### 5. Fertig: `checkin.ps1`
 
 ```powershell
-.\Reports\checkin.ps1
+.\deploy\checkin.ps1
 ```
 
 ```
 Geaenderte Dateien:
-    1  geaendert  Reports/source/umsatz.rdf
-    2  neu        Reports/source/kunden.rdf
-    3  neu        Reports/images/logo.png
+    1  geaendert  source/umsatz.rdf
+    2  neu        source/kunden.rdf
+    3  neu        images/logo.png
 
 Welche Datei einchecken? Nummer (nur diese), a (alle) oder x (abbrechen): 1
 
-Ausgewaehlt: geaendert  Reports/source/umsatz.rdf
+Ausgewaehlt: geaendert  source/umsatz.rdf
 Kommentar fuer diesen Check-in (was und warum): Spalte Rabatt ergaenzt
-Wandle Reports/source/umsatz.rdf -> Reports/xml/umsatz.xml
+Wandle source/umsatz.rdf -> xml/umsatz.xml
 ...
 OK - eingecheckt (1 Check-in(s)): Spalte Rabatt ergaenzt
 Die Pipeline in GitLab verteilt die Berichte jetzt auf DEV (Build -> Pipelines).
@@ -260,7 +274,7 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
         |
         v
   +----------------------------------+
-  | .\Reports\release_tag.ps1        |   a) Liste: noch nicht in Produktion
+  | .\deploy\release_tag.ps1         |   a) Liste: noch nicht in Produktion
   |                                  |   b) Nummer des Check-ins wählen
   |                                  |   c) Tag-Kommentar (Enter = Vorschlag)
   |                                  |   d) Tag prod-<Datum>_<bericht> setzen
@@ -274,10 +288,10 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
 ### Freigeben: `release_tag.ps1`
 
 ```powershell
-.\Reports\release_tag.ps1                  # anzeigen, dann Nummer wählen (Enter = nichts)
-.\Reports\release_tag.ps1 -List            # nur anzeigen – keine Frage, kein Tag
-.\Reports\release_tag.ps1 -File umsatz     # nur Dateien mit 'umsatz' im Namen
-.\Reports\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
+.\deploy\release_tag.ps1                  # anzeigen, dann Nummer wählen (Enter = nichts)
+.\deploy\release_tag.ps1 -List            # nur anzeigen – keine Frage, kein Tag
+.\deploy\release_tag.ps1 -File umsatz     # nur Dateien mit 'umsatz' im Namen
+.\deploy\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
 ```
 
 1. **Noch nicht in Produktion:** die Check-ins auf dem Git-Server, die neuer
@@ -288,18 +302,18 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
    – jede Datei mit dem Tag ihres Check-ins, ohne Tag `NO_TAG`:
 
    ```
-   Datum             Commit   Datei                      Tag
-   2026-11-12 17:08  1c28588  Reports/source/kunde.rdf   NO_TAG
-   2026-11-12 17:08  f7c434c  Reports/source/umsatz.rdf  prod-2026-11-12_1708_umsatz.rdf
+   Datum             Commit   Datei              Tag
+   2026-11-12 17:08  1c28588  source/kunde.rdf   NO_TAG
+   2026-11-12 17:08  f7c434c  source/umsatz.rdf  prod-2026-11-12_1708_umsatz.rdf
    ```
 
    Danach die **letzten 20 Freigaben**, nach Tag sortiert (neuester zuerst)
    – pro Tag nur die Dateien seines Check-ins:
 
    ```
-   Datum             Tag                              Commit   Datei                      Freigeber
-   2026-11-12 17:08  prod-2026-11-12_1708_umsatz.rdf  f7c434c  Reports/source/umsatz.rdf  gpi
-   2026-11-12 17:08  prod-2026-11-12_1708_lager.rdf   70b578b  Reports/source/lager.rdf   gpi
+   Datum             Tag                              Commit   Datei              Freigeber
+   2026-11-12 17:08  prod-2026-11-12_1708_umsatz.rdf  f7c434c  source/umsatz.rdf  gpi
+   2026-11-12 17:08  prod-2026-11-12_1708_lager.rdf   70b578b  source/lager.rdf   gpi
    ```
 3. **Freigabe:** Nummer aus Teil 1 eingeben – oder eine **Commit-ID** aus
    Teil 2, auch einen älteren Check-in → Tag mit Kommentar auf genau diesen
@@ -361,7 +375,7 @@ Auch ein leerer Kommentar bricht ab.
 | `status.ps1` | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
 | `status_detail.ps1` | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag, Prod (`PROD` / `offen` / `alt`) – eine Zeile pro Datei (ändert nichts) |
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
-| `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
+| `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\deploy\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
 | `release_tag.ps1` | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das; `-List` = nur anzeigen |
 

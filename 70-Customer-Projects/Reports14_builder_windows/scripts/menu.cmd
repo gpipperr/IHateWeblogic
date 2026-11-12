@@ -6,6 +6,7 @@ rem Eine .ps1-Datei oeffnet Windows per Doppelklick nur im Editor - diese
 rem Datei startet sie in PowerShell. Das Fenster bleibt nach dem Skript offen
 rem (-NoExit), damit das Ergebnis stehen bleibt; schliessen mit dem X oder exit.
 rem
+rem Ablage: oberster Ordner des Repositorys (neben deploy, source, xml).
 rem Desktop-Icon: Rechtsklick auf menu.cmd -> Senden an -> Desktop
 rem (Verknuepfung erstellen). Fuer checkin.ps1 braucht es ein Administrator-
 rem Fenster: Verknuepfung -> Eigenschaften -> Erweitert -> "Als Administrator

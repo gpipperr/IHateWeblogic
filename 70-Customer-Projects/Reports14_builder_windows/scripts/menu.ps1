@@ -19,7 +19,8 @@
 #   Waehle eine Option oder breche mit x ab :
 #
 # Start : Doppelklick auf menu.cmd (oder eine Desktop-Verknuepfung darauf)
-#         oder im PowerShell-Fenster:  .\Reports\menu.ps1
+#         oder im PowerShell-Fenster:  .\menu.ps1 (oberster Ordner des
+#         Repositorys, Skripte in deploy - SkriptPfad in menu.ini)
 # Inhalt: menu.ini im selben Ordner - Skript, Kurz- und Langtext,
 #         Sortierung, Parameter, Admin, SkriptPfad (Beschreibung in menu.ini)
 #         SkriptPfad = Ordner der Skripte, wenn sie nicht neben menu.ps1
@@ -107,10 +108,10 @@ if ($cfg.Contains('Menue')) {
 }
 
 # Ordner der Skripte: SkriptPfad aus menu.ini - %VARIABLE% wird ersetzt
-# (z.B. E:\git\%USERNAME%\Reports), ein relativer Pfad gilt ab dem Ordner
-# von menu.ps1 (z.B. ..\Reports), leer = Ordner von menu.ps1
+# (z.B. E:\git\%USERNAME%\oracle-report\deploy), ein relativer Pfad gilt ab dem Ordner
+# von menu.ps1 (z.B. deploy), leer = Ordner von menu.ps1
 function Resolve-Ordner([string]$Pfad) {
-    # "E:\mit Leerzeichen\Reports" - Anfuehrungszeichen weglassen
+    # "E:\mit Leerzeichen\deploy" - Anfuehrungszeichen weglassen
     $Pfad = $Pfad.Trim().Trim('"', "'").Trim()
     if ($Pfad -eq '') { return $PSScriptRoot }
     $Pfad = [Environment]::ExpandEnvironmentVariables($Pfad)
