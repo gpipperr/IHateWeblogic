@@ -1,8 +1,8 @@
 # 06-FormsDiag – Oracle Forms Diagnostics
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
-[root README](../README.md)). On a new installation `09-Install/14-oracle_setup_forms.sh`
-sets the values and `09-Install/docs/90-oracle_validate.md` calls these scripts
+[root README](../README.md)). On a new installation [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh)
+sets the values and [`09-Install/docs/90-oracle_validate.md`](../09-Install/docs/90-oracle_validate.md) calls these scripts
 read-only as acceptance; `10-Monitoring/` uses them as a data source.
 
 How Forms works on the server (servlet, listener, `frmweb` per session,
@@ -16,33 +16,33 @@ runtime pooling, timeout chain, memory, logs):
 ## 1. Overview – and what is NOT here
 
 Typical symptoms: Forms sessions dropped, too many `frmweb`, timeouts →
-`06-FormsDiag/forms_perf_settings.sh` (background
+[`06-FormsDiag/forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) (background
 [forms_runtime_architecture.md](../80-FMW-Architecture/forms_runtime_architecture.md)).
 
 | Script | Question it answers |
 |---|---|
-| `forms_settings.sh` | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit, `jacob.jar` (signature, activation, DLL sizes) |
-| `forms_perf_settings.sh` | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters, `time-taken` in the access log; values vs. `environment.conf` (what a `14-` re-run would write, [section 6](#6-sync-with-the-installation-09-install14-)). `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]`, `--fix-accesslog` adds `time-taken` to the WLS_FORMS access log |
-| `forms_perf_analyse.sh` | How does the server carry its load? `frmweb` per config section (pool vs. session), memory vs. RAM and limit, access log per section / status, Forms logs by ODL level, crash dumps |
+| [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) | Is the Forms configuration complete and consistent? Files actually used, binaries + libraries, `FORMS_PATH`, `default.env` vs. `environment.conf`, config sections and what they inherit, `jacob.jar` (signature, activation, DLL sizes) |
+| [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) | Do the session / runtime parameters fit together and follow Oracle's rules? Timeout chain, `maxRuntimeProcesses`, runtime pooling incl. inheritance from `[default]`, startup parameters, `time-taken` in the access log; values vs. `environment.conf` (what a `14-` re-run would write, [section 6](#6-sync-with-the-installation-09-install14-)). `--apply` changes single keys in one section, `--fix-prestart` moves pooling out of `[default]`, `--fix-accesslog` adds `time-taken` to the WLS_FORMS access log |
+| [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) | How does the server carry its load? `frmweb` per config section (pool vs. session), memory vs. RAM and limit, access log per section / status, Forms logs by ODL level, crash dumps |
 
 Not duplicated here:
 
 | Need | Script |
 |---|---|
-| WLS_FORMS JVM heap (servlet / listener – not the sessions) | `02-Checks/weblogic_performance.sh` |
-| Search all logs, tail | `03-Logs/grep_logs.sh 'FRM-'`, `03-Logs/tail_logs.sh` |
+| WLS_FORMS JVM heap (servlet / listener – not the sessions) | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
+| Search all logs, tail | `03-Logs/grep_logs.sh 'FRM-'`, [`03-Logs/tail_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/tail_logs.sh) |
 | `uifont.ali` / fonts | `04-ReportsFonts/` |
-| DB connectivity (ORA-) | `02-Checks/db_connect_check.sh` |
-| `TNS_ADMIN` of `default.env` and of every running `frmweb` | `02-Checks/tns_admin_check.sh` |
-| Signing / re-signing `jacob.jar`, expiry monitoring of the code-signing certificate | `09-Install/14-oracle_setup_forms.sh --apply [--resign]`, `10-Monitoring/cert_expiry_check.sh` – [08-SSL Code Signing](../08-SSL/README.md#code-signing-jacobjar) |
+| DB connectivity (ORA-) | [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
+| `TNS_ADMIN` of `default.env` and of every running `frmweb` | [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) |
+| Signing / re-signing `jacob.jar`, expiry monitoring of the code-signing certificate | `09-Install/14-oracle_setup_forms.sh --apply [--resign]`, [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) – [08-SSL Code Signing](../08-SSL/README.md#code-signing-jacobjar) |
 | Response time seen by the client (Nginx `rt=` / `urt=`) | Nginx `access.log` – [forms_performance_analyse_tuning.md §2](../80-FMW-Architecture/forms_performance_analyse_tuning.md#2-measuring-per-layer) |
-| Start / stop WLS_FORMS | `01-Run/startStop.sh` |
+| Start / stop WLS_FORMS | [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) |
 
 Shared helpers: [forms_lib.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh) (sourced; `frm_*`: WLS_FORMS
 server/PID, formsweb.cfg / default.env of the deployed application, value of
 a key in a section **with inheritance** from `[default]`, set/unset a key in
 one section, `frmweb` processes per section, session-timeout of the
-servlet). Also used by `09-Install/14-oracle_setup_forms.sh`.
+servlet). Also used by [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh).
 
 ---
 
@@ -123,7 +123,7 @@ Pooling changes need a WLS_FORMS restart (read only at servlet start).
 |---|---|
 | frmweb per Config Section | count, RSS sum / max, **client** = connection from the WLS_FORMS JVM (Listener servlet) = session, **logged on** = any other connection (Oracle Net), prestart Init of the section; pool = no client connection; > 20 processes without a session → WARN. Criterion **confirmed (live)** 2026-11-03, see below |
 | Memory and Session Limit | RAM, WLS_FORMS RSS, frmweb RSS, average RSS of real sessions and how many fit; `maxRuntimeProcesses` unset → WARN, >= 90 % used → WARN; < 10 % RAM available → WARN |
-| HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time with a `time-taken` field (the **last** `#Fields` header counts): frmservlet avg/max, **lservlet** avg/max and requests ≥ 2 s (every round trip of a running session); field missing → hint `--fix-accesslog`. Check of the field itself: `forms_perf_settings.sh` section Access Log |
+| HTTP Requests | `access.log` columns from its `#Fields` header: frmservlet requests per `config=`, lservlet requests, HTTP status, 5xx → WARN; response time with a `time-taken` field (the **last** `#Fields` header counts): frmservlet avg/max, **lservlet** avg/max and requests ≥ 2 s (every round trip of a running session); field missing → hint `--fix-accesslog`. Check of the field itself: [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) section Access Log |
 | Forms Logs | `WLS_FORMS-diagnostic.log`, `formsapp-diagnostic.log`, `WLS_FORMS.out`: ERROR/WARNING lines by message id (top 5), FRM `[NOTIFICATION]`s separately (runtime pool, servlet start), ORA-, OutOfMemoryError |
 | Crash Dumps | files changed in `FORMS_TRACE_DIR` (default `$DOMAIN_HOME/system_component/FORMS/<instance>/trace`) in the last 7 days |
 | Recommendations | prestart fix, session limit, memory, heap (02-Checks), FRM/ORA, 5xx, dumps |
@@ -132,7 +132,7 @@ Pooling changes need a WLS_FORMS restart (read only at servlet start).
 
 ## 6. Sync with the installation (`09-Install/14-`)
 
-On a new installation `14-oracle_setup_forms.sh` writes the Forms
+On a new installation [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) writes the Forms
 configuration from `environment.conf`; on an existing one these scripts
 check it. A value changed only in the domain (EM, by hand, `--apply` here)
 is **overwritten by the next `14- --apply`** – the scripts say where that
@@ -141,17 +141,17 @@ the `environment.conf` variable.
 
 | Setting | `14-` writes from (`environment.conf`) | Checked by |
 |---|---|---|
-| `maxRuntimeProcesses` (`[default]`) | `FORMS_MAX_RUNTIME_PROCESSES`, empty = RAM proposal `frm_mrp_proposal` (`forms_lib.sh`) | `forms_perf_settings.sh` Global Parameters (differs → WARN; `--set` writes it back) |
-| runtime pooling | `FORMS_PRESTART_SECTION` + `FORMS_PRESTART_INIT` / `_MIN` / `_INCREMENT` (5 / 4 / 1), never in `[default]` | `forms_perf_settings.sh` Runtime Pooling (other values / other section → WARN; FSAL section ≠ pooled section → WARN) |
-| `TNS_ADMIN` (`default.env`) | `TNS_ADMIN` | `forms_settings.sh` default.env, `02-Checks/tns_admin_check.sh` |
-| `TMPDIR` (`default.env`) | `FORMS_TMP` (directory created by `14-`) | `forms_settings.sh` default.env |
-| `FORMS_PATH` (`default.env`) | `FORMS_CUSTOMER_DIR` first | `forms_settings.sh` FORMS_PATH |
-| `heartBeat`, `FORMS_TIMEOUT`, `networkRetries`, `gzipCompressApplet` | not set – Oracle defaults (2 / 15 min, 0, FALSE) | `forms_perf_settings.sh` Timeout Chain, Startup / Network |
-| `WebUtilArchive`, `extensions.jnlp` (`jacob.jar`), JACOB DLLs in `webutil.cfg` | `FORMS_WEBUTIL_JACOB`, `FORMS_SIGN_*` – only when signed | `forms_settings.sh` WebUtil / JACOB |
-| `time-taken` in the access log | `09-Install/08-` (domain creation, not `14-`) | `forms_perf_settings.sh` Access Log |
+| `maxRuntimeProcesses` (`[default]`) | `FORMS_MAX_RUNTIME_PROCESSES`, empty = RAM proposal `frm_mrp_proposal` ([`forms_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh)) | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Global Parameters (differs → WARN; `--set` writes it back) |
+| runtime pooling | `FORMS_PRESTART_SECTION` + `FORMS_PRESTART_INIT` / `_MIN` / `_INCREMENT` (5 / 4 / 1), never in `[default]` | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Runtime Pooling (other values / other section → WARN; FSAL section ≠ pooled section → WARN) |
+| `TNS_ADMIN` (`default.env`) | `TNS_ADMIN` | [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) default.env, [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) |
+| `TMPDIR` (`default.env`) | `FORMS_TMP` (directory created by `14-`) | [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) default.env |
+| `FORMS_PATH` (`default.env`) | `FORMS_CUSTOMER_DIR` first | [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) FORMS_PATH |
+| `heartBeat`, `FORMS_TIMEOUT`, `networkRetries`, `gzipCompressApplet` | not set – Oracle defaults (2 / 15 min, 0, FALSE) | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Timeout Chain, Startup / Network |
+| `WebUtilArchive`, `extensions.jnlp` (`jacob.jar`), JACOB DLLs in `webutil.cfg` | `FORMS_WEBUTIL_JACOB`, `FORMS_SIGN_*` – only when signed | [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) WebUtil / JACOB |
+| `time-taken` in the access log | `09-Install/08-` (domain creation, not `14-`) | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Access Log |
 
-The acceptance of a new installation (`09-Install/90-oracle_validate.sh`)
-runs `forms_settings.sh` and `forms_perf_settings.sh` read-only.
+The acceptance of a new installation ([`09-Install/90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh))
+runs [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) and [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) read-only.
 
 ---
 
@@ -169,7 +169,7 @@ runs `forms_settings.sh` and `forms_perf_settings.sh` read-only.
 | `[PDF:Subset]` check | Reports topic | removed (04-ReportsFonts) |
 | access.log "last numeric field = ms" | that field is `bytes` | columns from `#Fields`, time only with `time-taken` |
 | `WLS_FORMS.log`, "timeout" pattern, every FRM- = error | wrong file, noise, pool notifications counted as errors | diagnostic logs, ODL level |
-| copies of the file-finding helpers in each script | drifted apart | `forms_lib.sh` |
+| copies of the file-finding helpers in each script | drifted apart | [`forms_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh) |
 
 Live after the fix on the test host: 50 → 5 `frmweb` (only `[webstart]`),
 smoke test 15- green.
@@ -189,7 +189,7 @@ into the Forms logon dialog – no password in the URL / access log):
 | session, logged on (test form open) | + one connection to the DB port (`:1521`) | 39 MB, private (`RssAnon`) 7 MB | 0 s |
 | client killed hard (08:13) | both connections stay; the `frmweb` ended between 08:38 and 08:39 – **~25 min**, although `FORMS_TIMEOUT` is not set (Oracle default 15 min). Cause **open** (timer granularity / heartBeat interplay?); no FRM message in `WLS_FORMS-diagnostic.log` / `formsapp-diagnostic.log` for the end | – | – |
 
-Consequences, built into `forms_perf_analyse.sh`:
+Consequences, built into [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh):
 - **client** (session) = a connection whose peer is a socket of the
   WLS_FORMS JVM; **logged on** = any other connection. The old "with DB" counted
   every connection, i.e. also a session still at the logon dialog.
@@ -197,7 +197,7 @@ Consequences, built into `forms_perf_analyse.sh`:
   process had more ticks than the new session – dropped.
 - The session did not come from the pool: the pool is in `[webstart]`, FSAL
   started `standaloneapp` – a new `frmweb` was started
-  (`forms_perf_settings.sh` now warns about that). Switched the same day:
+  ([`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) now warns about that). Switched the same day:
   `FORMS_PRESTART_SECTION="standaloneapp"` + `14- --apply` + WLS_FORMS
   restart → 5 × `frmweb …,standaloneapp`, no WARN
   ([forms_runtime_architecture.md §3](../80-FMW-Architecture/forms_runtime_architecture.md#3-runtime-pooling-prestart)).
