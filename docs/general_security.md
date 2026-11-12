@@ -15,10 +15,10 @@ holds all other secrets in the repository root – never in `environment.conf`:
 
 | File | Content | Written by |
 |---|---|---|
-| `weblogic_sec.conf.des3` | WebLogic admin | `01-setup-interview.sh`, `00-Setup/weblogic_sec.sh` |
+| `weblogic_sec.conf.des3` | WebLogic admin | [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh), [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) |
 | `db_sys_sec.conf.des3` | DB SYS + RCU schema password | interview |
-| `mos_sec.conf.des3` | My Oracle Support | interview, `00-Setup/mos_sec.sh` |
-| `reports_users.conf.des3` | `monUser`, `RepRunner` | `12-oracle_reports_users.sh` |
+| `mos_sec.conf.des3` | My Oracle Support | interview, [`00-Setup/mos_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/mos_sec.sh) |
+| `reports_users.conf.des3` | `monUser`, `RepRunner` | [`12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) |
 | `embedded_ldap_sec.conf.des3` | embedded LDAP `cn=Admin` (`REPORTS_SECURITY=ldap`) | interview (13- sets it in the domain) |
 | `reports_admin_sec.conf.des3` | Reports server admin `<identifier>` | interview, else random by `13- --apply` |
 | `test_db_sec.conf.des3` | DB user of the smoke test | `15-` (asks once) |
@@ -36,7 +36,7 @@ separating **monitoring** (`monUser` / `RW_MONITOR` – status queries only, no
 reports) from **report execution** (`RepRunner` / `RW_EXECREPORTS` – runs
 reports via `authid=` in `cgicmd.dat`, password never appears in the report
 URL) from full **admin access** (`weblogic` / `RW_ADMINISTRATOR`). Automated
-by `09-Install/12-oracle_reports_users.sh`; the same concept is also in the
+by [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh); the same concept is also in the
 German manual cookbook (Schritt 8) for customers installing by hand — see
 [`70-Customer-Projects/`](../70-Customer-Projects/README.md).
 
@@ -57,11 +57,11 @@ German manual cookbook (Schritt 8) for customers installing by hand — see
 > (`repadmin/...`); `authid=monUser/...` or the WebLogic admin return
 > `REP-52262 Diagnostic output is disabled` (confirmed in the
 > `CommandManager.checkDiagnostic` bytecode). See
-> `09-Install/docs/13-reports-detail-settings.md`.
+> [`09-Install/docs/13-reports-detail-settings.md`](../09-Install/docs/13-reports-detail-settings.md).
 >
-> `01-Run/rwserver_status.sh` and `05-ReportsPerformance/engine_perf_analyse.sh`
+> [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) and [`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)
 > call `getserverinfo` with `authid` (`--auth`, shared
-> `01-Run/reports_server_lib.sh`, since 2026-10-17 / 2026-10-19).
+> [`01-Run/reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh), since 2026-10-17 / 2026-10-19).
 >
 > **Test series 2026-10-23** ([doc 81 §7](../09-Install/docs/81-reports_rwservlet_security.md)):
 > an **empty** `<identifier>` stops the Reports server from starting
