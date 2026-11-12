@@ -29,7 +29,7 @@ first rollout.
 
 <details markdown="block"><summary>ASCII version</summary>
 
-```ascii
+```ascii?name=claude-hosts
  production FMW host                 analysis host (test host / admin VM)
  ─────────────────────               ─────────────────────────────────────
  IHW_ENV_TYPE=prod                   IHW_ENV_TYPE=test
