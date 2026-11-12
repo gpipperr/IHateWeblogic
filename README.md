@@ -543,7 +543,7 @@ IHateWeblogic/
     │   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
     │   ├── Git_deploy.md                 – push to main -> DEV (changed reports), prod-* tag -> exactly that check-in to production (GitLab)
     │   ├── deploy/                       – template.gitlab-ci.yml, ci_deploy.sh (job), rwdeploy.sh (SSH forced-command queue on the server), rwdeploy.conf.template, authorized_keys.example
-    │   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag), release_tag.ps1 (open vs. released, set prod-* tag -> production), README_DE.md (workflow for the developers), template.gitattributes / .gitignore
+    │   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag), release_tag.ps1 (open vs. released, set prod-* tag -> production), menue.cmd / menue.ps1 / menu.ini (start menu for a double click), README_DE.md (workflow for the developers), template.gitattributes / .gitignore
     │   ├── ReportBuilder_Windows_Kochbuch_de.txt
     │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/

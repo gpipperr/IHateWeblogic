@@ -1,17 +1,31 @@
 # =============================================================================
-# status_detail.ps1 - Liste der letzten Check-ins mit Dateien und Tags (nur lesen)
+# status_detail.ps1 - Liste der letzten Check-ins mit Dateien, Tags und Prod (nur lesen)
 # =============================================================================
 # Aendert nichts. Zeigt die letzten 20 Check-ins des aktuellen Branches als
 # Tabelle - eine Zeile pro Datei:
 #
-#   |Datum|Commit ID|Datei|Tag|
+#   |Datum|Commit ID|Datei|Tag|Prod|
 #
 #   Datum     : Datum des Check-ins (2026-11-12 14:30)
 #   Commit ID : Kurz-Nummer des Check-ins
 #   Datei     : jede Datei, die der Check-in geaendert hat (- = keine,
 #               z.B. beim Zusammenfuehren)
-#   Tag       : Tag(s) auf diesem Check-in, sonst leer - mit Kommentar,
-#               falls der Tag einen hat (git tag -a): v1.0 (Freigabe Q4)
+#   Tag       : Tag(s) auf diesem Check-in, ohne Tag: NO_TAG. Hat der Tag
+#               einen Kommentar (git tag -a), steht er in der Zeile darunter
+#               (eingerueckt, lange Kommentare umgebrochen) - so bleibt die
+#               Tabelle schmal
+#   Prod      : PROD  = genau diese Version ist in der Produktion
+#               offen = neuer als der Stand in der Produktion (noch kein Tag)
+#               alt   = aeltere Version - die Produktion hat eine andere
+#               -     = geht nicht in die Produktion (.xml, Skripte, Doku,
+#                       geloeschte Dateien)
+#               In der Produktion ist je Datei der Check-in des ZULETZT
+#               angelegten prod-Tags (ein spaeterer Tag auf eine aeltere
+#               Version = Rollback). Gleiche Logik wie in release_tag.ps1.
+#
+# Darunter eine Zeile: welche Dateien DIESER Liste noch offen fuer die
+# Produktion sind. Alle offenen und das Freigeben selbst: release_tag.ps1
+# (release_tag.ps1 -List = nur anzeigen).
 #
 #   cd E:\git\<Ihr Login>
 #   .\Reports\status_detail.ps1          die letzten 20 Check-ins
@@ -22,6 +36,9 @@
 #                                        letzten 20 Check-ins dieser Dateien
 #                                        Umlaute: gross/klein muss stimmen
 #                                        (git kennt das nur fuer a-z)
+#
+# Tags und Stand sind die vom letzten pull.ps1 - das Skript holt selbst
+# nichts vom Git-Server.
 #
 # Die Tabelle ist Markdown - sie kann z.B. in ein Ticket kopiert werden.
 #
@@ -46,6 +63,12 @@ function Exit-Script([int]$Code) {
     Set-Location $PSScriptRoot
     exit $Code
 }
+
+# --- Einstellungen - an das Repository anpassen -----------------------------
+# prod-Tags (wie -TagPrefix in release_tag.ps1)
+$TagPattern = 'prod-*'
+# Diese Dateien bringt die Pipeline in die Produktion (wie deploy/ci_deploy.sh)
+$ProdMuster = @('Reports/source/*.rdf', 'Reports/images/*')
 
 # --- 0. In den obersten Ordner des Repositorys wechseln
 Set-Location $PSScriptRoot
@@ -83,83 +106,199 @@ if ($File -ne '') {
 #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
 #   --no-pager              : direkt ausgeben, nicht seitenweise
 #   -n $Anzahl              : nur die letzten $Anzahl Check-ins
-#   --name-only             : unter jedem Check-in die geaenderten Dateien
+#   --date-order            : nach Datum, neueste zuerst
+#   --name-status           : unter jedem Check-in die geaenderten Dateien
+#                             mit Status (A neu, M geaendert, D geloescht,
+#                             R umbenannt)
 #   --decorate-refs=refs/tags/ : als Markierung (%D) nur Tags, keine Branches
 #   --format                : eine Kopfzeile je Check-in, beginnt mit '@@':
-#                             %h Kurz-Nummer, %ad Datum, %D Tags (nur um
-#                             zu sehen, ob der Check-in einen Tag hat)
+#                             %h Kurz-Nummer, %H volle Nummer, %ad Datum,
+#                             %D Tags (nur um zu sehen, ob der Check-in
+#                             einen Tag hat)
 #   --date=format:'%Y-%m-%d %H:%M' : Datum als 2026-11-12 14:30
 #   -- <muster>             : nur mit -File: nur passende Dateien (siehe oben)
-$lines = @(git -c core.quotePath=false --no-pager log -n $Anzahl --name-only `
-    --decorate-refs=refs/tags/ --format='@@%h|%ad|%D' --date=format:'%Y-%m-%d %H:%M' `
+$lines = @(git -c core.quotePath=false --no-pager log -n $Anzahl --date-order --name-status `
+    --decorate-refs=refs/tags/ --format='@@%h|%H|%ad|%D' --date=format:'%Y-%m-%d %H:%M' `
     @pathspec)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "FEHLER: git log ist fehlgeschlagen (noch kein Check-in?)." -ForegroundColor Red
     Exit-Script 1
 }
 
-# Zeilen in Tabellenzeilen umsetzen: eine Zeile pro Datei
-$rows    = New-Object System.Collections.Generic.List[object]
+# Zeilen in Check-ins mit Dateien und Tags umsetzen
+$commits = New-Object System.Collections.Generic.List[object]
 $current = $null
-$files   = 0
-
-function Add-Commit {
-    # Check-in ohne Datei (z.B. Zusammenfuehren): eine Zeile mit '-'
-    if ($null -ne $script:current -and $script:files -eq 0) {
-        $script:rows.Add([pscustomobject]@{
-            Datum = $script:current.Datum; Commit = $script:current.Commit
-            Datei = '-'; Tag = $script:current.Tag })
-    }
-}
-
 foreach ($line in $lines) {
     if ($line.StartsWith('@@')) {
-        Add-Commit
-        $parts = $line.Substring(2).Split('|', 3)
-        $tag = ''
-        if ($parts[2].Trim() -ne '') {
+        $parts = $line.Substring(2).Split('|', 4)
+        $tags = @()
+        if ($parts[3].Trim() -ne '') {
             # Tags mit Kommentar lesen - nur fuer Check-ins, die einen Tag haben
             # git tag -l --points-at <nr>: alle Tags auf diesem Check-in
             #   --format : %(refname:short) Tag-Name, %(objecttype) 'tag' bei
             #              einem Tag mit Kommentar (git tag -a), 'commit' bei
             #              einem einfachen Tag; %(contents:subject) erste
             #              Zeile des Tag-Kommentars
-            $tagList = @(git -c core.quotePath=false tag -l --points-at $parts[0] `
+            $tagList = @(git -c core.quotePath=false tag -l --points-at $parts[1] `
                 --format='%(refname:short)|%(objecttype)|%(contents:subject)')
-            $tagText = foreach ($t in $tagList) {
+            foreach ($t in $tagList) {
+                if (-not $t) { continue }
                 $tp = $t.Split('|', 3)
-                # "v1.0 (Kommentar)" - einfacher Tag ohne Kommentar: nur "v1.0"
-                if ($tp[1] -eq 'tag' -and $tp[2].Trim() -ne '') { "$($tp[0]) ($($tp[2].Trim()))" }
-                else { $tp[0] }
+                $text = ''
+                # '|' im Kommentar wuerde die Markdown-Tabelle zerlegen
+                if ($tp[1] -eq 'tag') { $text = $tp[2].Trim().Replace('|', '/') }
+                $tags += [pscustomobject]@{ Name = $tp[0]; Kommentar = $text }
             }
-            $tag = $tagText -join ', '
         }
-        $current = [pscustomobject]@{ Datum = $parts[1]; Commit = $parts[0]; Tag = $tag }
-        $files = 0
+        $current = [pscustomobject]@{
+            Hash = $parts[0]; Voll = $parts[1]; Datum = $parts[2]; Tags = $tags
+            Dateien = New-Object System.Collections.ArrayList }
+        $commits.Add($current)
     }
     elseif ($line.Trim() -ne '' -and $null -ne $current) {
-        $rows.Add([pscustomobject]@{
-            Datum = $current.Datum; Commit = $current.Commit
-            Datei = $line; Tag = $current.Tag })
-        $files++
+        # "M<TAB>pfad", "R100<TAB>alt<TAB>neu": Status = erster Buchstabe,
+        # Pfad = bei Umbenennung der neue
+        $p = $line -split "`t"
+        [void]$current.Dateien.Add([pscustomobject]@{ Status = $p[0].Substring(0, 1); Pfad = $p[-1] })
     }
 }
-Add-Commit
 
-if ($File -ne '' -and $rows.Count -eq 0) {
-    Write-Host "Keine Check-ins mit einer Datei, deren Name '$File' enthaelt (Branch $branch)." -ForegroundColor Yellow
+if ($commits.Count -eq 0) {
+    if ($File -ne '') {
+        Write-Host "Keine Check-ins mit einer Datei, deren Name '$File' enthaelt (Branch $branch)." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "Keine Check-ins gefunden (Branch $branch)." -ForegroundColor Yellow
+    }
     Exit-Script 0
 }
 
-# --- 2. Tabelle ausgeben (Spalten auf gleiche Breite)
-$head = [pscustomobject]@{ Datum = 'Datum'; Commit = 'Commit ID'; Datei = 'Datei'; Tag = 'Tag' }
+# --- 2. Was ist in der Produktion? (gleiche Logik wie in release_tag.ps1)
+# Pro Datei der Check-in des ZULETZT angelegten prod-Tags - ein spaeterer Tag
+# auf eine aeltere Version = Rollback, dann ist wieder die aeltere drin.
+function Test-Prod([string]$Pfad) {
+    foreach ($m in $ProdMuster) { if ($Pfad -like $m) { return $true } }
+    return $false
+}
+
+# git for-each-ref refs/tags/<muster>: alle prod-Tags
+#   --sort=creatordate : aeltester Tag zuerst
+#   --format : Check-in, auf den der Tag zeigt - %(*objectname) bei einem
+#              Tag mit Kommentar, %(objectname) bei einem einfachen Tag
+$prodShas = @(git for-each-ref "refs/tags/$TagPattern" --sort=creatordate `
+    '--format=%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)' | Where-Object { $_ })
+
+$inProd = @{}
+if ($prodShas.Count -gt 0) {
+    # git diff-tree --stdin: die Dateien aller getaggten Check-ins in EINEM Aufruf
+    #   (Nummern kommen ueber die Pipe; Ausgabe: Nummer, darunter die Dateien)
+    #   -r            : auch Dateien in Unterordnern
+    #   --root        : auch beim allerersten Check-in
+    #   --name-only   : nur die Dateinamen
+    #   --diff-filter=AMR : neu, geaendert, umbenannt - wie die Pipeline
+    $dt = @($prodShas | git -c core.quotePath=false diff-tree --stdin -r --root --name-only --diff-filter=AMR)
+    $dateienVon = @{}
+    $sha = $null
+    foreach ($l in $dt) {
+        if (-not $l) { continue }
+        if ($l -match '^[0-9a-f]{40}$') { $sha = $l; $dateienVon[$sha] = @(); continue }
+        if ($null -ne $sha) { $dateienVon[$sha] += $l }
+    }
+    foreach ($s in $prodShas) {
+        if (-not $dateienVon.ContainsKey($s)) { continue }
+        foreach ($f in $dateienVon[$s]) { if (Test-Prod $f) { $inProd[$f] = $s } }
+    }
+}
+
+# Ist der Check-in in der Produktion auch in Ihrem Stand? Wenn nicht, ist er
+# neuer als alles hier (Kollege hat freigegeben, Sie haben noch nicht geholt).
+$prodLokal = @{}
+foreach ($s in ($inProd.Values | Sort-Object -Unique)) {
+    # git merge-base --is-ancestor <nr> HEAD: ist <nr> in Ihrem Stand enthalten?
+    #   Rueckgabe 0 = ja, 1 = nein
+    git merge-base --is-ancestor $s HEAD 2>$null
+    $prodLokal[$s] = ($LASTEXITCODE -eq 0)
+}
+
+# git log ist neu -> alt: bis zum Check-in in der Produktion = offen, danach alt
+$gesehen = @{}
+$neuerAufServer = $false
+function Get-Prod($f, [string]$voll) {
+    if ($f.Status -eq 'D' -or -not (Test-Prod $f.Pfad)) { return '-' }
+    if (-not $inProd.ContainsKey($f.Pfad)) { return 'offen' }
+    $p = $inProd[$f.Pfad]
+    if ($p -eq $voll) { $script:gesehen[$f.Pfad] = $true; return 'PROD' }
+    if (-not $prodLokal[$p]) { $script:neuerAufServer = $true; return 'alt' }
+    if ($script:gesehen.ContainsKey($f.Pfad)) { return 'alt' }
+    return 'offen'
+}
+
+# Lange Tag-Kommentare auf mehrere Zeilen umbrechen (an Leerzeichen)
+function Split-Text([string]$t, [int]$w) {
+    $out = @()
+    $cur = ''
+    foreach ($word in ($t -split '\s+')) {
+        if (-not $word) { continue }
+        if ($cur -eq '') { $cur = $word }
+        elseif (($cur.Length + 1 + $word.Length) -le $w) { $cur += " $word" }
+        else { $out += $cur; $cur = $word }
+    }
+    if ($cur -ne '') { $out += $cur }
+    return $out
+}
+
+# Breite der Spalte Tag = laengster Tag-Name (mindestens 40) - Kommentare
+# werden darauf umgebrochen und machen die Tabelle nicht breiter
+$wrap = 40
+foreach ($c in $commits) { foreach ($t in $c.Tags) { if ($t.Name.Length -gt $wrap) { $wrap = $t.Name.Length } } }
+
+# Tabellenzeilen: links die Dateien des Check-ins, rechts die Tag-Zeilen
+# (Name, darunter der Kommentar) - so viele Zeilen wie der laengere Teil
+$rows  = New-Object System.Collections.Generic.List[object]
+$offen = New-Object System.Collections.Generic.List[string]
+foreach ($c in $commits) {
+    $tagZeilen = @()
+    foreach ($t in $c.Tags) {
+        $tagZeilen += $t.Name
+        if ($t.Kommentar -ne '') {
+            foreach ($z in (Split-Text $t.Kommentar ($wrap - 2))) { $tagZeilen += "  $z" }
+        }
+    }
+    if ($tagZeilen.Count -eq 0) { $tagZeilen = @('NO_TAG') }
+
+    $dateien = @($c.Dateien)
+    $n = [Math]::Max([Math]::Max($dateien.Count, $tagZeilen.Count), 1)
+    for ($k = 0; $k -lt $n; $k++) {
+        $r = [pscustomobject]@{ Datum = ''; Commit = ''; Datei = ''; Tag = ''; Prod = '' }
+        if ($k -lt $dateien.Count) {
+            $f = $dateien[$k]
+            $r.Datum = $c.Datum; $r.Commit = $c.Hash; $r.Datei = $f.Pfad
+            $r.Prod = Get-Prod $f $c.Voll
+            if ($r.Prod -eq 'offen') {
+                $leaf = $f.Pfad.Substring($f.Pfad.LastIndexOf('/') + 1)
+                if (-not $offen.Contains($leaf)) { $offen.Add($leaf) }
+            }
+        }
+        elseif ($k -eq 0) {
+            # Check-in ohne Datei (z.B. Zusammenfuehren)
+            $r.Datum = $c.Datum; $r.Commit = $c.Hash; $r.Datei = '-'; $r.Prod = '-'
+        }
+        if ($k -lt $tagZeilen.Count) { $r.Tag = $tagZeilen[$k] }
+        $rows.Add($r)
+    }
+}
+
+# --- 3. Tabelle ausgeben (Spalten auf gleiche Breite)
+$head = [pscustomobject]@{ Datum = 'Datum'; Commit = 'Commit ID'; Datei = 'Datei'; Tag = 'Tag'; Prod = 'Prod' }
 $wD = ($rows + $head | ForEach-Object { $_.Datum.Length }  | Measure-Object -Maximum).Maximum
 $wC = ($rows + $head | ForEach-Object { $_.Commit.Length } | Measure-Object -Maximum).Maximum
 $wF = ($rows + $head | ForEach-Object { $_.Datei.Length }  | Measure-Object -Maximum).Maximum
 $wT = ($rows + $head | ForEach-Object { $_.Tag.Length }    | Measure-Object -Maximum).Maximum
+$wP = 5
 
-function Format-Row($d, $c, $f, $t) {
-    return '|' + $d.PadRight($wD) + '|' + $c.PadRight($wC) + '|' + $f.PadRight($wF) + '|' + $t.PadRight($wT) + '|'
+function Format-Row($r) {
+    return '|' + $r.Datum.PadRight($wD) + '|' + $r.Commit.PadRight($wC) + '|' + $r.Datei.PadRight($wF) +
+           '|' + $r.Tag.PadRight($wT) + '|' + $r.Prod.PadRight($wP) + '|'
 }
 
 Write-Host "Repository: $((Get-Location).Path)"
@@ -170,11 +309,26 @@ else {
     Write-Host "Die letzten $Anzahl Check-ins lokal ($branch):" -ForegroundColor Cyan
 }
 Write-Host ""
-Write-Host (Format-Row 'Datum' 'Commit ID' 'Datei' 'Tag')
-Write-Host ('|' + ('-' * $wD) + '|' + ('-' * $wC) + '|' + ('-' * $wF) + '|' + ('-' * $wT) + '|')
+Write-Host (Format-Row $head)
+Write-Host ('|' + ('-' * $wD) + '|' + ('-' * $wC) + '|' + ('-' * $wF) + '|' + ('-' * $wT) + '|' + ('-' * $wP) + '|')
+$color = 'Gray'
 foreach ($r in $rows) {
-    Write-Host (Format-Row $r.Datum $r.Commit $r.Datei $r.Tag)
+    # Farbe nach Prod; Zeilen nur mit Tag-Kommentar wie die Zeile darueber
+    if ($r.Prod -eq 'PROD')      { $color = 'Green' }
+    elseif ($r.Prod -eq 'offen') { $color = 'Yellow' }
+    elseif ($r.Prod -ne '')      { $color = 'Gray' }
+    Write-Host (Format-Row $r) -ForegroundColor $color
 }
 Write-Host ""
+if ($offen.Count -eq 0) {
+    Write-Host "Offen fuer die Produktion (in dieser Liste): nichts." -ForegroundColor Green
+}
+else {
+    Write-Host ("Offen fuer die Produktion (in dieser Liste): {0} Datei(en) - {1}" -f $offen.Count, ($offen -join ', ')) -ForegroundColor Yellow
+}
+if ($neuerAufServer) {
+    Write-Host "Hinweis: die Produktion hat neuere Versionen als Ihr Stand - erst pull.ps1." -ForegroundColor Yellow
+}
+Write-Host "Alle offenen Freigaben: release_tag.ps1 -List   Freigeben: release_tag.ps1"
 Write-Host "Tipp: status.ps1 zeigt, was lokal und auf dem Git-Server noch offen ist."
 Exit-Script 0

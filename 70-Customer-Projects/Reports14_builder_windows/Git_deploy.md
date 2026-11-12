@@ -81,6 +81,7 @@ a webhook receiver.
 ```powershell
 cd E:\git\<login>
 .\Reports\release_tag.ps1                  # show, then choose a number (Enter = nothing)
+.\Reports\release_tag.ps1 -List            # only show (parts 1 and 2) - no question, no tag
 .\Reports\release_tag.ps1 -File umsatz     # only files with 'umsatz' in the name
 ```
 

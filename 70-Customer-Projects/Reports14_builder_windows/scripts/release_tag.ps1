@@ -25,6 +25,8 @@
 #   cd E:\git\<Ihr Login>
 #   .\Reports\release_tag.ps1                    anzeigen, dann Nummer waehlen
 #                                                (Enter = nichts taggen)
+#   .\Reports\release_tag.ps1 -List             nur anzeigen (Teil 1 und 2),
+#                                                keine Frage, kein Tag
 #   .\Reports\release_tag.ps1 -File umsatz       nur Dateien, deren Name
 #                                                'umsatz' enthaelt
 #   .\Reports\release_tag.ps1 -Filter ''         alle Dateien, nicht nur .rdf
@@ -74,7 +76,9 @@ param(
     # Tag nur lokal setzen, nicht zum Git-Server senden
     [switch]$NoPush,
     # ohne vorheriges git fetch
-    [switch]$NoFetch
+    [switch]$NoFetch,
+    # nur anzeigen (Teil 1 und 2) - keine Frage, kein Tag
+    [switch]$List
 )
 
 # Umlaute: Git liefert Dateinamen und Kommentare als UTF-8. Ohne diese Zeile
@@ -153,6 +157,11 @@ function Get-SafeName([string]$s) {
     $s = $s -replace '[^A-Za-z0-9._-]', '_'
     $s = $s -replace '\.{2,}', '.'
     return $s.Trim('.', '_', '-')
+}
+
+if ($List -and ($Nummer -gt 0 -or $Commit -ne '')) {
+    Write-Host "FEHLER: -List zeigt nur an - nicht zusammen mit -Nummer / -Commit." -ForegroundColor Red
+    Exit-Script 1
 }
 
 # --- 0. In den obersten Ordner des Repositorys wechseln
@@ -401,6 +410,12 @@ else {
     }
 }
 Write-Host ""
+
+# -List: nur anzeigen - hier aufhoeren
+if ($List) {
+    Write-Host "Nur angezeigt (-List) - kein Tag gesetzt. Freigeben: release_tag.ps1 ohne -List."
+    Exit-Script 0
+}
 
 # --- 3. Check-in fuer die Produktion freigeben (Tag setzen)
 # Gewaehlt wird eine Nummer aus Teil 1 ODER eine Commit-ID (z.B. aus Teil 2,

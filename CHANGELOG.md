@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows/scripts`: new start menu for a double click - `menue.cmd` (desktop icon,
+  `-NoExit` keeps the window open with the result) starts `menue.ps1`, which lists the scripts from
+  `menu.ini` (sorting, short + long text, parameters, admin flag) and runs the chosen one in the
+  same window; `x` closes it.
+- `Reports14_builder_windows/scripts`: `status_detail.ps1` gets the column **Prod** (`PROD` / `offen` /
+  `alt` / `-`, same production logic as `release_tag.ps1`), `NO_TAG` and the tag message in the row
+  below the tag name (narrow table), plus a line with the open files of the list;
+  `release_tag.ps1 -List` = only show, no question, no tag.
 - `Reports14_builder_windows`: **deployment switched to the customer's tag concept** – only the
   branch `main`, one report per check-in (`checkin.ps1` / `checkin_only.ps1` commit every selected
   file on its own, a report with its `.xml`); push to `main` -> `deploy_dev` sends the files changed

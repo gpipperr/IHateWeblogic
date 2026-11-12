@@ -79,6 +79,42 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
 5. **Desktop-Verknüpfung "Reports Builder (Git)"** – richtet der
    Administrator ein; sie startet den Builder mit Ihren Git-Ordnern als
    Suchpfad (`REPORTS_PATH`).
+6. **Desktop-Icon für das Menü** – einmal:
+   - Rechtsklick auf `E:\git\<Ihr Login>\Reports\menue.cmd` → *Senden an*
+     → *Desktop (Verknüpfung erstellen)*.
+   - Verknüpfung → *Eigenschaften* → *Erweitert* → **"Als Administrator
+     ausführen"** anhaken (`checkin.ps1` braucht das).
+
+## Ohne Tippen: das Menü
+
+Doppelklick auf das Desktop-Icon öffnet das Menü:
+
+```
+============================================================
+ Oracle Reports Git Handling
+============================================================
+
+ 1 - pull.ps1              - Hole die letzten Änderungen vom Git-Server
+ 2 - status.ps1            - Zeige den aktuellen Status an
+ 3 - status_detail.ps1     - Liste der letzten Check-ins mit Tag und Stand in Produktion
+ 4 - checkin.ps1           - Bericht einchecken und nach DEV verteilen
+ 5 - release_tag.ps1 -List - Zeige, was noch nicht in Produktion ist
+ 6 - release_tag.ps1       - Release-Tag setzen - Bericht in Produktion einspielen
+------------------------------------------------------------
+
+Wähle eine Option oder breche mit x ab :
+```
+
+- Nummer eingeben: kurze Erklärung, dann läuft das Skript **im selben
+  Fenster**. Das Fenster bleibt danach offen, damit das Ergebnis stehen
+  bleibt – schließen mit dem X.
+- Für den nächsten Schritt: wieder Doppelklick auf das Icon.
+- `x` = abbrechen, das Fenster schließt sich.
+- Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
+  `Reports\menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
+
+Die Skripte lassen sich weiterhin auch direkt im PowerShell-Fenster starten,
+wie unten beschrieben.
 
 ## Schritt für Schritt
 
@@ -126,7 +162,7 @@ Zeigt, ohne etwas zu ändern:
 
 Am Ende steht, welches Skript als Nächstes dran ist.
 
-Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag:
+Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag und dem Stand in der Produktion:
 
 ```powershell
 .\Reports\status_detail.ps1        # die letzten 20 Check-ins
@@ -134,12 +170,35 @@ Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag:
 ```
 
 ```
-|Datum           |Commit ID|Datei                    |Tag               |
-|----------------|---------|-------------------------|------------------|
-|2026-11-12 15:23|cd9aa23  |Reports/source/umsatz.rdf|v1.0 (Freigabe Q4)|
+|Datum           |Commit ID|Datei                    |Tag                                     |Prod |
+|----------------|---------|-------------------------|----------------------------------------|-----|
+|2026-11-12 17:08|1c28588  |Reports/source/kunde.rdf |NO_TAG                                  |offen|
+|2026-11-12 17:08|f7c434c  |Reports/source/umsatz.rdf|prod-2026-11-12_1708_umsatz.rdf         |PROD |
+|2026-11-12 17:08|f7c434c  |Reports/xml/umsatz.xml   |  Freigabe Produktion: umsatz.rdf -     |-    |
+|                |         |                         |  Umsatz Spalte                         |     |
+|2026-11-12 17:07|52819c1  |Reports/source/umsatz.rdf|NO_TAG                                  |alt  |
+|2026-11-12 17:07|52819c1  |Reports/xml/umsatz.xml   |                                        |-    |
+
+Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
 ```
 
-Hat der Tag einen Kommentar (`git tag -a`), steht dessen erste Zeile in Klammern dahinter.
+- **Tag:** der Tag des Check-ins, ohne Tag `NO_TAG`. Hat der Tag einen
+  Kommentar (`git tag -a`), steht er eingerückt in der Zeile darunter, lange
+  Kommentare umgebrochen – so bleibt die Tabelle schmal.
+- **Prod:**
+
+  | Prod | Bedeutung |
+  |---|---|
+  | `PROD` | genau diese Version ist in der Produktion |
+  | `offen` | neuer als der Stand in der Produktion, noch nicht freigegeben |
+  | `alt` | ältere Version – die Produktion hat eine andere |
+  | `-` | geht nicht in die Produktion (`.xml`, Skripte, Doku, gelöschte Dateien) |
+
+- Darunter: welche Dateien **dieser Liste** noch offen sind. Alle offenen
+  Freigaben zeigt `release_tag.ps1 -List`.
+- Tags und Stand sind die vom letzten `pull.ps1` – das Skript holt nichts vom
+  Git-Server. Meldet es „die Produktion hat neuere Versionen als Ihr Stand“:
+  erst `pull.ps1`.
 
 Nur bestimmte Dateien – Teil des Dateinamens genügt, Groß/Klein egal (bei Umlauten muss Groß/Klein stimmen):
 
@@ -207,6 +266,7 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
 
 ```powershell
 .\Reports\release_tag.ps1                  # anzeigen, dann Nummer wählen (Enter = nichts)
+.\Reports\release_tag.ps1 -List            # nur anzeigen – keine Frage, kein Tag
 .\Reports\release_tag.ps1 -File umsatz     # nur Dateien mit 'umsatz' im Namen
 .\Reports\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
 ```
@@ -286,14 +346,15 @@ Auch ein leerer Kommentar bricht ab.
 
 | Skript | Wann |
 |---|---|
+| `menue.cmd` / `menue.ps1` | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, Fenster bleibt offen; Inhalt aus `menu.ini` |
 | `git_setup.ps1` | einmal pro Benutzer: Name, E-Mail, Zeilenende |
 | `pull.ps1` | zu Arbeitsbeginn: neuesten Stand holen |
 | `status.ps1` | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
-| `status_detail.ps1` | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag – eine Zeile pro Datei (ändert nichts) |
+| `status_detail.ps1` | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag, Prod (`PROD` / `offen` / `alt`) – eine Zeile pro Datei (ändert nichts) |
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
 | `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
-| `release_tag.ps1` | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das |
+| `release_tag.ps1` | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das; `-List` = nur anzeigen |
 
 ## Regeln
 
