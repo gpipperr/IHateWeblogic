@@ -1,0 +1,209 @@
+/* =============================================================================
+   ihw.css - IHateWeblogic on GitHub Pages in the style of www.pipperr.de
+   CI: #FEB80A (gold) #000000 #FFFFFF #990000 (dark red)
+   Loaded after the Cayman theme CSS (_layouts/default.html): Cayman keeps the
+   content formatting (tables, code, lists), this file sets frame, menu and
+   colours. Ids follow pipperr.de master.css (kopf, menuetop, mitte, menue,
+   navigation, fuss) - Cayman does not use them.
+   ============================================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background-color: #FFFFFF;
+  font-family: Arial, Verdana, Helvetica, sans-serif;
+  color: #000000;
+  margin: 0;
+  padding: 0;
+  border-left: 4px solid #000000;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -- Header ----------------------------------------------------------------- */
+#kopf {
+  padding: 0.35em 1em;
+  background-color: #FFFFFF;
+  border-bottom: 3px solid #FEB80A;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  flex-shrink: 0;
+}
+
+#kopf .ihw-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  color: #000000;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1.25em;
+  letter-spacing: 0.04em;
+}
+#kopf .ihw-brand img { height: 38px; width: auto; }
+#kopf .ihw-brand:hover span { text-decoration: underline; }
+
+#comments {
+  font-size: 0.7em;
+  color: #990000;
+  border-top: 1px solid #990000;
+  border-bottom: 1px solid #990000;
+  padding: 0.2em 0.5em;
+  background-color: #FFFFFF;
+  white-space: nowrap;
+}
+
+/* -- Bar under the header: breadcrumb left, GitHub right -------------------- */
+#menuetop {
+  font-size: 0.85em;
+  padding: 0.45em 1em;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+#menuetop a:link, #menuetop a:visited { color: #000000; text-decoration: none; }
+#menuetop a:hover { text-decoration: underline; background-color: #FEB80A; }
+#menuetop .sep { margin: 0 0.35em; color: #888888; }
+#menuetop [aria-current] { color: #990000; }
+
+/* -- Main layout: menu column + content ------------------------------------- */
+#mitte {
+  display: grid;
+  grid-template-columns: 11.5em minmax(0, 1fr);
+  grid-template-areas: "nav content";
+  flex: 1;
+}
+
+#menue {
+  grid-area: nav;
+  padding: 0.6em 0.2em;
+  background-color: #FFFFFF;
+  border-right: 1px solid #e8e8e8;
+}
+
+/* -- Menu ------------------------------------------------------------------- */
+#navigation { list-style: none; margin: 0; padding: 0; }
+#navigation li { margin: 0; padding: 0; }
+
+#navigation a:link,
+#navigation a:visited {
+  display: block;
+  margin: 2px 0;
+  padding: 0.25em 0.5em;
+  background-color: #FFFFFF;
+  border-left: 6px solid #000000;
+  font-size: 0.8em;
+  color: #000000;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#navigation a:hover {
+  background-color: #FEB80A;
+  border-left: 3px solid #000000;
+  margin-left: 3px;
+  text-decoration: underline;
+}
+
+#navigation .ihw-active > a,
+#navigation .ihw-active > a:visited {
+  background-color: #FEB80A;
+  font-weight: bold;
+}
+
+#navigation .ihw-navgap { height: 0.6em; }
+
+/* -- Content (overrides Cayman .main-content) -------------------------------- */
+#mitte .main-content {
+  grid-area: content;
+  max-width: 64rem;
+  margin: 0;
+  padding: 1.2em 1.8em;
+  min-width: 0;
+  overflow-x: auto;
+  font-size: 1rem;
+  color: #000000;
+}
+
+#mitte .main-content h1,
+#mitte .main-content h2,
+#mitte .main-content h3,
+#mitte .main-content h4,
+#mitte .main-content h5,
+#mitte .main-content h6 { color: #000000; font-family: Arial, Verdana, Helvetica, sans-serif; }
+
+#mitte .main-content h1 { margin-top: 0.2em; border-bottom: 3px solid #FEB80A; padding-bottom: 0.2em; }
+#mitte .main-content h2 { border-left: 5px solid #FEB80A; padding-left: 0.5em; margin: 1.4em 0 0.6em; }
+#mitte .main-content h3 { border-left: 3px solid #FEB80A; padding-left: 0.4em; margin: 1em 0 0.4em; }
+
+#mitte .main-content a:hover { color: #990000; }
+
+#mitte .main-content blockquote { border-left: 0.3rem solid #FEB80A; color: #333333; }
+
+#mitte .main-content table th { background-color: #fff6dd; }
+
+#mitte .main-content ul { list-style-type: square; }
+
+/* -- Footer ----------------------------------------------------------------- */
+#fuss {
+  font-size: 0.75em;
+  padding: 0.8em 1.2em;
+  background-color: #FFFFFF;
+  border-top: 3px solid #FEB80A;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em 1.2em;
+}
+#fuss a:link, #fuss a:visited { color: #000000; }
+#fuss a:hover { color: #990000; }
+#fuss .ihw-madeby { display: inline-flex; align-items: center; gap: 0.35em; }
+#fuss .ihw-madeby img { height: 22px; width: auto; }
+
+/* -- Responsive (as pipperr.de) ---------------------------------------------- */
+@media (max-width: 960px) {
+  #mitte {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "nav" "content";
+  }
+
+  #menue {
+    border-right: none;
+    border-bottom: 2px solid #FEB80A;
+    padding: 0.4em 0.5em;
+  }
+
+  #navigation { display: flex; flex-wrap: wrap; gap: 0.2em; }
+  #navigation li { flex: 0 0 auto; }
+  #navigation .ihw-navgap { display: none; }
+
+  #navigation a:link,
+  #navigation a:visited {
+    border-left: none;
+    border-bottom: 3px solid #000000;
+    padding: 0.2em 0.6em;
+  }
+
+  #navigation a:hover {
+    margin-left: 0;
+    border-left: none;
+    border-bottom: 3px solid #FEB80A;
+  }
+
+  body { border-left: none; border-top: 4px solid #000000; }
+
+  #mitte .main-content { padding: 0.8em 1em; }
+}
+
+@media (max-width: 480px) {
+  #kopf .ihw-brand { font-size: 1.05em; }
+  #kopf .ihw-brand img { height: 30px; }
+}
