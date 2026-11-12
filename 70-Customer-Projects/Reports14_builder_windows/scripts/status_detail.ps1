@@ -16,6 +16,12 @@
 #   cd E:\git\<Ihr Login>
 #   .\Reports\status_detail.ps1          die letzten 20 Check-ins
 #   .\Reports\status_detail.ps1 50       die letzten 50 Check-ins
+#   .\Reports\status_detail.ps1 -File umsatz
+#                                        nur Dateien, deren Name 'umsatz'
+#                                        enthaelt (gross/klein egal) - die
+#                                        letzten 20 Check-ins dieser Dateien
+#                                        Umlaute: gross/klein muss stimmen
+#                                        (git kennt das nur fuer a-z)
 #
 # Die Tabelle ist Markdown - sie kann z.B. in ein Ticket kopiert werden.
 #
@@ -25,7 +31,9 @@
 
 param(
     # Anzahl der Check-ins (Standard 20)
-    [Parameter(Position = 0)][int]$Anzahl = 20
+    [Parameter(Position = 0)][int]$Anzahl = 20,
+    # nur Dateien, deren Name diesen Text enthaelt (Teil des Namens genuegt)
+    [string]$File = ''
 )
 
 # Umlaute: Git liefert Dateinamen als UTF-8. Ohne diese Zeile liest Windows
@@ -60,6 +68,17 @@ if ($Anzahl -lt 1) {
 $branch = git rev-parse --abbrev-ref HEAD
 
 # --- 1. Check-ins mit Dateien und Tags lesen
+# -File: als Git-Pfadfilter (pathspec) - dann zaehlen nur Check-ins, die eine
+# passende Datei geaendert haben, und nur diese Dateien werden gelistet
+#   :(glob,icase) : Muster mit * , gross/klein egal
+#   **/*<text>*   : <text> irgendwo im Dateinamen, in jedem Ordner
+# Zeichen mit Sonderbedeutung im Muster (* ? [ ] \) werden mit \ entwertet
+$pathspec = @()
+if ($File -ne '') {
+    $escaped  = $File -replace '([\\*?\[\]])', '\$1'
+    $pathspec = @('--', ":(glob,icase)**/*$escaped*")
+}
+
 # git log: die letzten $Anzahl Check-ins des aktuellen Branches
 #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
 #   --no-pager              : direkt ausgeben, nicht seitenweise
@@ -70,8 +89,10 @@ $branch = git rev-parse --abbrev-ref HEAD
 #                             %h Kurz-Nummer, %ad Datum, %D Tags (nur um
 #                             zu sehen, ob der Check-in einen Tag hat)
 #   --date=format:'%Y-%m-%d %H:%M' : Datum als 2026-11-12 14:30
+#   -- <muster>             : nur mit -File: nur passende Dateien (siehe oben)
 $lines = @(git -c core.quotePath=false --no-pager log -n $Anzahl --name-only `
-    --decorate-refs=refs/tags/ --format='@@%h|%ad|%D' --date=format:'%Y-%m-%d %H:%M')
+    --decorate-refs=refs/tags/ --format='@@%h|%ad|%D' --date=format:'%Y-%m-%d %H:%M' `
+    @pathspec)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "FEHLER: git log ist fehlgeschlagen (noch kein Check-in?)." -ForegroundColor Red
     Exit-Script 1
@@ -125,6 +146,11 @@ foreach ($line in $lines) {
 }
 Add-Commit
 
+if ($File -ne '' -and $rows.Count -eq 0) {
+    Write-Host "Keine Check-ins mit einer Datei, deren Name '$File' enthaelt (Branch $branch)." -ForegroundColor Yellow
+    Exit-Script 0
+}
+
 # --- 2. Tabelle ausgeben (Spalten auf gleiche Breite)
 $head = [pscustomobject]@{ Datum = 'Datum'; Commit = 'Commit ID'; Datei = 'Datei'; Tag = 'Tag' }
 $wD = ($rows + $head | ForEach-Object { $_.Datum.Length }  | Measure-Object -Maximum).Maximum
@@ -137,7 +163,12 @@ function Format-Row($d, $c, $f, $t) {
 }
 
 Write-Host "Repository: $((Get-Location).Path)"
-Write-Host "Die letzten $Anzahl Check-ins lokal ($branch):" -ForegroundColor Cyan
+if ($File -ne '') {
+    Write-Host "Die letzten $Anzahl Check-ins lokal ($branch) mit '$File' im Dateinamen:" -ForegroundColor Cyan
+}
+else {
+    Write-Host "Die letzten $Anzahl Check-ins lokal ($branch):" -ForegroundColor Cyan
+}
 Write-Host ""
 Write-Host (Format-Row 'Datum' 'Commit ID' 'Datei' 'Tag')
 Write-Host ('|' + ('-' * $wD) + '|' + ('-' * $wC) + '|' + ('-' * $wF) + '|' + ('-' * $wT) + '|')

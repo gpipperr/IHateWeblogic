@@ -135,6 +135,13 @@ Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag:
 
 Hat der Tag einen Kommentar (`git tag -a`), steht dessen erste Zeile in Klammern dahinter.
 
+Nur bestimmte Dateien – Teil des Dateinamens genügt, Groß/Klein egal (bei Umlauten muss Groß/Klein stimmen):
+
+```powershell
+.\Reports\status_detail.ps1 -File umsatz       # die letzten 20 Check-ins mit 'umsatz' im Dateinamen
+.\Reports\status_detail.ps1 5 -File umsatz     # nur die letzten 5
+```
+
 ### 5. Fertig: `checkin.ps1`
 
 ```powershell
