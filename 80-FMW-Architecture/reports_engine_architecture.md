@@ -81,7 +81,7 @@ application (**confirmed (live)**):
   values, e.g. `maxEngine=1`) and the one of the standalone server under
   `config/fmwconfig/components/ReportsServerComponent/<name>/`. Only the one
   of the mode in use is effective – a classic trap when tuning
-  (**confirmed (live)**; `01-Run/rwserver_status.sh` therefore reads the
+  (**confirmed (live)**; [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) therefore reads the
   component's file since 2026-10-17).
 - In-process is Oracle's default: "If you are using Reports Server as an
   in-process Reports Server (the default configuration), sending a run
@@ -179,7 +179,7 @@ the 60 s delay we fixed with `ORBTCPConnectTimeouts`), server discovery
   Manager"); engines are not separate targets – their state is part of the
   server's status.
 - Engine status therefore comes from the server itself: `getserverinfo`
-  (`01-Run/rwserver_status.sh --auth …`, customer `status.sh`), or EM.
+  (`01-Run/rwserver_status.sh --auth …`, customer [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh)), or EM.
 
 ### 5.1 `rwrun` – a report without rwservlet and without Reports server
 
@@ -238,7 +238,7 @@ rm -f /tmp/rw.cmd
 
 Always via the domain wrapper `$DOMAIN_HOME/reports/bin/rwrun.sh`: called
 directly, `$ORACLE_HOME/bin/rwrun` lacks the component environment and
-crashes or asks for a logon dialog (`01-Run/rwrun_trace.sh` documents the
+crashes or asks for a logon dialog ([`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) documents the
 chain).
 
 When to use which:
@@ -247,7 +247,7 @@ When to use which:
 |---|---|
 | report for users / applications (web, Forms) | rwservlet → Reports server |
 | batch job without the web path, but with queue, cache, security | `rwclient` – "parses and transfers a command line to the specified Reports Server" (**documented**, A.2.1) |
-| quick test of a report or of the Reports installation, crash analysis | `rwrun` (`01-Run/rwrun_trace.sh`; the `15-` smoke test uses `rwconverter` + rwservlet instead) |
+| quick test of a report or of the Reports installation, crash analysis | `rwrun` ([`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh); the `15-` smoke test uses `rwconverter` + rwservlet instead) |
 
 Consequence: a report that works with `rwrun` can still fail on the server
 (different `rwserver.conf`, `securityId`, server environment, engine JVM
@@ -298,7 +298,7 @@ Configuration") and the `engine` element (7.2.1.8):
 | `engLife` | `engine` | 50 | jobs per engine before it is replaced – "to thwart memory leaks" |
 | `maxIdle` | `engine` | 30 (min) | idle engines above `minEngine` are stopped after this time |
 | `callbackTimeOut` | `engine` | 90000 ms | wait for a new engine to call the server back |
-| `engineResponseTimeOut` | `engine` | none | minutes without a status update of a running job (hanging engine); Oracle: "set to the maximum time a report takes", batch reports better on an own server. Here: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h – safety net against a hanging engine, never kills a long batch report; default 30 until 2026-11-10), `engine_perf_analyse.sh` measures the run times (`showjobs` `timingInfo`) and proposes 2 × longest job, ≥ 5 – test host 2026-10-23: 68 jobs, longest 1 s → 5 |
+| `engineResponseTimeOut` | `engine` | none | minutes without a status update of a running job (hanging engine); Oracle: "set to the maximum time a report takes", batch reports better on an own server. Here: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h – safety net against a hanging engine, never kills a long batch report; default 30 until 2026-11-10), [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) measures the run times (`showjobs` `timingInfo`) and proposes 2 × longest job, ≥ 5 – test host 2026-10-23: 68 jobs, longest 1 s → 5 |
 | `jvmOptions` | `engine` | – | heap etc. of the **engine** JVMs |
 | `maxQueueSize` | `queue` | – | jobs kept; rate × `EXPIRATION` (10/min × 480 min → 4800) |
 | `cacheSize` | `cache` | – | `maxQueueSize` × average output size (4800 × 100 KB → 480 MB) |
@@ -307,7 +307,7 @@ Configuration") and the `engine` element (7.2.1.8):
 Oracle also advises: "If you are not using the URL engine, comment the
 engine element with ID="rwURLEng"".
 
-This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
+This repository ([`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)): `initEngine=2`,
 `maxEngine=5`, `minEngine=2`, `engLife=50`, `maxConnect=300`,
 `maxQueueSize=4000`, `engineResponseTimeOut=360` (environment.conf
 `REPORTS_ENGINE_*`; `maxIdle` and engine `jvmOptions` only when
@@ -315,10 +315,10 @@ This repository (`09-Install/13-oracle_setup_reports.sh`): `initEngine=2`,
 2026-10-23 **every** engine value comes from `environment.conf` – `13-` and
 `05-ReportsPerformance/engine_perf_settings.sh --apply` write the same
 values, so an `--apply` survives the next `13-`; `engineResponseTimeOut` is
-proposed from the measured run times (`engine_perf_analyse.sh`, `showjobs`); JVM of the
+proposed from the measured run times ([`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh), `showjobs`); JVM of the
 **server** via `REPORTS_JVM_OPTIONS` in `reports.sh` (not `jvmOptions`,
 which is for the engines). Engine `jvmOptions` **replace** the `REPORTS_JVM_OPTIONS` the engines
-otherwise inherit – `13-` / `engine_perf_settings.sh` therefore add
+otherwise inherit – `13-` / [`engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) therefore add
 `-DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1`
 (customer 2026-11-10: engines
 on `0.0.0.0` with `jvmOptions="-Xms1024m -Xmx2048m"`). Live test 2026-10-16: regular `engLife`
@@ -415,7 +415,7 @@ installation (**confirmed (live)** / customer 2026-10-15, see
   scenarios, and recommends the naming service "if … you want to avoid
   broadcast traffic on your network" (**documented**, 10g guide 1.x)
 - diagnosis needs extra tools (`rwdiag`, `tcpdump`,
-  `02-Checks/reports_network_scan.sh`)
+  [`02-Checks/reports_network_scan.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/reports_network_scan.sh))
 
 The alternative COS naming service avoids broadcast but adds another
 process to run and monitor – for one host the multicast with a unique port
@@ -491,7 +491,7 @@ Related documents in this repository:
 - [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) – discovery in depth, REP-50600 / REP-56040
 - [reports_user_local_ldap.md](reports_user_local_ldap.md) – standalone server + WebLogic users, JVM/ORB fixes
 - [weblogic_middleware_architecture.md](weblogic_middleware_architecture.md) – domain, Node Manager, consoles
-- `09-Install/docs/13-reports-detail-settings.md` – how `13-` configures the standalone server
-- `01-Run/rwserver_status.sh` – status of the Reports server and its engines; `01-Run/rwrun_trace.sh` – traced `rwrun` runs (section 5.1)
-- `05-ReportsPerformance/engine_perf_settings.sh` / `engine_perf_analyse.sh` – parameter review against section 6 and load analysis
-- `02-Checks/tns_admin_check.sh` – `TNS_ADMIN` in `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` and of the running processes (section 5.2)
+- [`09-Install/docs/13-reports-detail-settings.md`](../09-Install/docs/13-reports-detail-settings.md) – how `13-` configures the standalone server
+- [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) – status of the Reports server and its engines; [`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) – traced `rwrun` runs (section 5.1)
+- [`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) / [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) – parameter review against section 6 and load analysis
+- [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) – `TNS_ADMIN` in `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` and of the running processes (section 5.2)

@@ -94,7 +94,7 @@ Database Accounts", "Configuring the APEX_PUBLIC_USER Account",
 | `APEX_PUBLIC_ROUTER` | – | **new**: resolves friendly URLs for an ORDS REST module; "on highly active systems may reach the maximum number of sessions allowed" (sessions per user / profile) |
 | `APEX_260200`, `FLOWS_FILES` | release schema, files | unchanged (one schema per release; `FLOWS_FILES` always locked) |
 
-Consequences for this library (`12-APEX-Ords/02-install-apex.sh`):
+Consequences for this library ([`12-APEX-Ords/02-install-apex.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/02-install-apex.sh)):
 - **No password and no unlock for `APEX_PUBLIC_USER`.** Our ORDS uses `ORDS_PUBLIC_USER` + proxy right ([ords_architecture.md §5](ords_architecture.md#5-the-proxy-right--how-one-pool-serves-many-schemas)) – a passwordless gateway account cannot be used for a direct login. That is a smaller attack surface than the old "unlock with password".
 - One password less: only `APEX_REST_PUBLIC_USER` (random, `apex_sec.conf.des3`).
 - `APEX_PUBLIC_ROUTER` gets the profile `APEX_USER` like the other runtime accounts. It is **no** proxy client of `ORDS_PUBLIC_USER` (**confirmed (live)**, `proxy_users` after `ords install`).
@@ -288,8 +288,8 @@ ORDS 25.3), and the REST call inside an APEX session
 | Oracle Net | pool via TNS alias from `TNS_ADMIN` – the same directory as Forms / Reports |
 | Java | `JDK_HOME` (Oracle JDK 21; ORDS 26.3 supports 17, 21, 25) |
 | Versions | ORDS ≥ APEX **and** the APEXlang compiler in `ords.war` ≥ APEX (APEX 26.2 needs ORDS 26.3.0 + SQLcl 26.3.0); one APEX schema per release (`APEX_260200`); images per version / patch level in `/srv/apex/APEX_<ver>[_p<nr>]` |
-| Downloads | `09-Install/04-oracle_pre_download.sh` (OTN "latest" ZIPs, APEX patch via getMOSPatch platform `2000P` Generic – confirmed live 2026-10-23) |
-| Database users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` → profile **`APEX_USER`** (no expiry / lock-out, `12-APEX-Ords/apex_user_profile.sql`, like `RCU_USER` in [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §6.1) – `APEX_REST_PUBLIC_USER` would have expired after 180 days (live) |
+| Downloads | [`09-Install/04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) (OTN "latest" ZIPs, APEX patch via getMOSPatch platform `2000P` Generic – confirmed live 2026-10-23) |
+| Database users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` → profile **`APEX_USER`** (no expiry / lock-out, [`12-APEX-Ords/apex_user_profile.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/apex_user_profile.sql), like `RCU_USER` in [rcu_middleware_architecture.md](rcu_middleware_architecture.md) §6.1) – `APEX_REST_PUBLIC_USER` would have expired after 180 days (live) |
 | Scripts | `12-APEX-Ords/01-` prepare DB, `02-` install APEX, `03-` patch APEX, `04-` install ORDS, `05-` Nginx, `06-` patch ORDS |
 
 ---

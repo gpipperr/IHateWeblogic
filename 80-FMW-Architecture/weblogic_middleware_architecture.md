@@ -27,11 +27,11 @@ Further homes of the platform:
 
 | Term | Path | Note |
 |---|---|---|
-| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`, symlink → `jdk-21.0.x`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`), by OPatch / `wlst.sh` (`$ORACLE_HOME/oui/.globalEnv.properties`) and by ORDS. Updated by switching the link (`02b- --upgrade-jdk` / `07-Maintenance/80-`); installer and `createDomain` write the resolved path – `07-Maintenance/domain_jdk_path.sh` puts the link back |
-| FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`); since 2026-10-24 `JDK_HOME` = 21.0.13.0.2 (CPU Oct 2026), the bundled JDK is still 17.0.12 – no Oracle patch for it yet (SR). JDK updates via `JDK_HOME` do not reach it – checked by `02-Checks/java_check.sh` and `10-Monitoring/cve_inventory.sh` |
+| JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`, symlink → `jdk-21.0.x`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`), by OPatch / `wlst.sh` (`$ORACLE_HOME/oui/.globalEnv.properties`) and by ORDS. Updated by switching the link (`02b- --upgrade-jdk` / `07-Maintenance/80-`); installer and `createDomain` write the resolved path – [`07-Maintenance/domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) puts the link back |
+| FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`); since 2026-10-24 `JDK_HOME` = 21.0.13.0.2 (CPU Oct 2026), the bundled JDK is still 17.0.12 – no Oracle patch for it yet (SR). JDK updates via `JDK_HOME` do not reach it – checked by [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) and [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) |
 | Inventory | `/u01/app/oracle/oraInventory` | OUI/OPatch registry of the Oracle Homes |
 | Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path). Created with the domain, but **inside the Oracle Home** in this layout – see [§7a](#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home) |
-| Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – `09-Install/30-configure_autostart.sh` |
+| Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – [`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh) |
 
 **Rule of thumb:** *Oracle Home = what Oracle delivered, Domain Home = what
 you configured.* Never edit files under `$ORACLE_HOME/.../templates` to change
@@ -118,10 +118,10 @@ The rule has exceptions in both directions, see
   `DEV_STB`, `DEV_OPSS`, `DEV_IAU_APPEND`/`_VIEWER`, `DEV_WLS`,
   `DEV_WLS_RUNTIME`.
 - WebLogic listens on `localhost` only (`WLS_LISTEN_ADDRESS=localhost`) –
-  clients reach it only through NGINX (`09-Install/docs/00-root_os_network.md`).
+  clients reach it only through NGINX ([`09-Install/docs/00-root_os_network.md`](../09-Install/docs/00-root_os_network.md)).
   Since 2026-10-23 also the rest is loopback-only: the SSL demo listen ports
   9501 / 9512 are off, Coherence and the Reports ORB use `127.0.0.1`
-  ([clone_golden_image.md](clone_golden_image.md), `02-Checks/clone_check.sh`);
+  ([clone_golden_image.md](clone_golden_image.md), [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh));
   only `frmweb` (no bind option) and a Coherence remainder stay on the host IP
   behind the firewall.
 - Outside the domain, same NGINX: **ORDS / APEX** (`/ords`, `/i/`) as
@@ -198,7 +198,7 @@ Domain fr_domain  ($DOMAIN_HOME/config/config.xml)
 - Credentials: the NM user/password are stored twice – encrypted in
   `config.xml` (domain side) and hashed in
   `$DOMAIN_HOME/config/nodemanager/nm_password.properties` (NM side); see
-  `09-Install/docs/80-oracle_security.md`.
+  [`09-Install/docs/80-oracle_security.md`](../09-Install/docs/80-oracle_security.md).
 - State per server: `servers/<name>/data/nodemanager/<name>.state`
   (`RUNNING`, `SHUTDOWN`, `FAILED_NOT_RESTARTABLE` …), `.pid`, `.lck`,
   `boot.properties`, `startup.properties`. A server started with
@@ -228,7 +228,7 @@ table) tells the domain where the other schemas are; `_OPSS` holds the
 policy, credential and key stores (shared by all JVMs of the domain incl.
 the standalone Reports server); `_IAU*` audit; `_WLS`/`_WLS_RUNTIME`
 WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
-`09-Install/docs/07-oracle_setup_repository.md`)
+[`09-Install/docs/07-oracle_setup_repository.md`](../09-Install/docs/07-oracle_setup_repository.md))
 
 ---
 
@@ -262,7 +262,7 @@ WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
   `java` ← `startWebLogic.sh` ← Node Manager JVM. A server started by hand
   instead: `java` ← `startWebLogic.sh` ← `startManagedWebLogic.sh` – no NM
   in the chain. The NM then reports `SHUTDOWN`, `fmw_ctl.sh`/systemd skip it
-  and the next `nmStart` fails on the occupied port. `01-Run/startStop.sh`
+  and the next `nmStart` fails on the occupied port. [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh)
   shows this in its column `Ctrl` (`NM`/`script`) and starts through
   `fmw_ctl.sh` / the NM since 2026-10-16.
 - Order matters: NM → AdminServer → managed servers → Reports server; stop
@@ -324,12 +324,12 @@ Consequences:
 | AdminServer ↔ managed servers | t3 (admin URL), configuration download at start, change distribution, runtime MBeans | `config.xml` (listen address/port), `startup.properties` |
 | AdminServer / WLST → Node Manager | NM protocol, `plain` on `localhost:5556`, NM credentials | `config.xml` machine `<node-manager>`, `nodemanager.properties`, `nm_password.properties` |
 | Node Manager → servers | starts `startWebLogic.sh` / `rwserver.sh`, watches the process | `servers/<name>/data/nodemanager/` |
-| NGINX → WebLogic | HTTP proxy `localhost:7001/9001/9002`, forwards Host, `X-Forwarded-For` **overwritten** with the client address, `WL-Proxy-SSL` / `WL-Proxy-Client-IP` set, client-supplied `WL-Proxy-*` / `X-WebLogic-*` headers stripped (since 2026-10-26); the AdminServer trusts them via `weblogic-plugin-enabled` | `/etc/nginx/conf.d/oracle-wls.conf` (template `09-Install/nginx-wls.conf.template`) |
+| NGINX → WebLogic | HTTP proxy `localhost:7001/9001/9002`, forwards Host, `X-Forwarded-For` **overwritten** with the client address, `WL-Proxy-SSL` / `WL-Proxy-Client-IP` set, client-supplied `WL-Proxy-*` / `X-WebLogic-*` headers stripped (since 2026-10-26); the AdminServer trusts them via `weblogic-plugin-enabled` | `/etc/nginx/conf.d/oracle-wls.conf` (template [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template)) |
 | NGINX → ORDS | HTTP proxy `127.0.0.1:8081` (`/ords/`), APEX images served by NGINX itself (`/i/` → `/srv/apex/apex_1`) | `/etc/nginx/oracle-wls.d/ords_1.conf` |
 | frmservlet → frmweb | WLS_FORMS spawns `frmweb` per session, Listener Servlet relays the client traffic | `formsweb.cfg`, `default.env` (`$DOMAIN_HOME/config/fmwconfig/servers/WLS_FORMS/applications/formsapp_14.1.2/config/`) |
 | rwservlet → rwserver | CORBA/IIOP, server found by name via UDP multicast (`rwnetwork.conf`, port 14027 here) | [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) |
 | all JVMs → OPSS | `jps-config.xml` (WebLogic) / `jps-config-jse.xml` (standalone Reports server) → `opss-data-source` | `$DOMAIN_HOME/config/fmwconfig/` |
-| frmweb / Reports engines → application DB | SQL*Net – **one** `TNS_ADMIN` for every process (`environment.conf`) | `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` – checked by `02-Checks/tns_admin_check.sh`; report `userid=` |
+| frmweb / Reports engines → application DB | SQL*Net – **one** `TNS_ADMIN` for every process (`environment.conf`) | `default.env`, `rwserver.conf`, `reports.sh`, `setUserOverrides.sh` – checked by [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh); report `userid=` |
 
 ---
 
@@ -409,7 +409,7 @@ Files in the home that are newer than the domain and do not come from a patch:
 |---|---|
 | `user_projects/applications/<domain>/em.ear` (86 KB, source path of EM in `config.xml`), `.fads.domain`, `forms/fads` | domain creation |
 | `domain-registry.xml` (list of the domains of this home) | domain creation |
-| `forms/java/jacob.jar`, `jacob.jar.orig`, `extensions.jnlp`, `forms/webutil/win32` + `win64/jacob-*.dll`, signed jars of an overlay | `09-Install/14-oracle_setup_forms.sh` |
+| `forms/java/jacob.jar`, `jacob.jar.orig`, `extensions.jnlp`, `forms/webutil/win32` + `win64/jacob-*.dll`, signed jars of an overlay | [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) |
 | `envPropertiesCache/` | at runtime |
 
 OPatch leaves all of them alone: `em.ear` still has its date of 2026-10-15 although the
@@ -432,7 +432,7 @@ the test host.
    If the application directory is outside the home (for example
    `/oracle/user_projects/applications`), this point does not apply.
 3. Swap the home, then copy `user_projects/` and `domain-registry.xml` from the old one.
-4. Run `14-oracle_setup_forms.sh` again, or copy the files of the table above.
+4. Run [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) again, or copy the files of the table above.
 5. Delete the rebuildable files (next section), then start.
 6. Check that the processes run from the new home with the expected patches:
    ```bash
@@ -562,5 +562,5 @@ All links checked 2026-10-16 (HTTP 200, title matches).
 - [reports_server_discovery_multicast.md](reports_server_discovery_multicast.md) – rwservlet ↔ rwserver discovery
 - [reports_user_local_ldap.md](reports_user_local_ldap.md) – OPSS / identity store of the standalone Reports server
 - [em_principal_search_libovd.md](em_principal_search_libovd.md) – EM user search, libOVD
-- `01-Run/README.md` – `startStop.sh`, column `Ctrl`, Node Manager control
-- `09-Install/docs/80-oracle_security.md` – Node Manager credentials, boot identity
+- `01-Run/README.md` – [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh), column `Ctrl`, Node Manager control
+- [`09-Install/docs/80-oracle_security.md`](../09-Install/docs/80-oracle_security.md) – Node Manager credentials, boot identity

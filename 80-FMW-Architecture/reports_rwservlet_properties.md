@@ -44,7 +44,7 @@ $DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/co
 
 ### 1.1 What the library writes
 
-`09-Install/13-oracle_setup_reports.sh` writes the **whole file**
+[`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) writes the **whole file**
 (test host, 2026-11-11):
 
 ```xml
@@ -148,7 +148,7 @@ entries (`cgicmd.dat`, section 4).
 - **`JOBRETRY=`** (Oracle A.6.15) – keyword of `rwservlet` and `rwclient`,
   default 0: "All jobs that fail with unexpected errors (either engine crash
   or normal errors) are retried." An invalid value gives `REP-50003`.
-- **This library writes `retry="3"`** (`13-oracle_setup_reports.sh`, doc 13)
+- **This library writes `retry="3"`** ([`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh), doc 13)
   – decided 2026-11-11 to keep it: a short DB or engine hiccup is retried
   automatically.
 

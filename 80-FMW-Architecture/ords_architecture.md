@@ -57,7 +57,7 @@ AI agents). It is **not** processed in the database:
 Consequences for this library:
 - **ORDS ≥ APEX is a hard rule.** The APEX 26.2 installation guide: "Oracle APEX requires Oracle REST Data Services (ORDS) 26.3.0 or later" and "SQLcl 26.3.0 or later" (**documented**).
 - An APEX upgrade can force an ORDS upgrade (and an SQLcl update) – patch them as **one pair**, in one window.
-- `04-install-ords.sh` / `06-patch-ords.sh` check both the ORDS version and the version of the APEXlang compiler inside the new `ords.war` against the APEX version of the database – FAIL, not WARN.
+- [`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh) / [`06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh) check both the ORDS version and the version of the APEXlang compiler inside the new `ords.war` against the APEX version of the database – FAIL, not WARN.
 - Oracle now recommends: "in new installations, ORDS should be installed before APEX" (APEX 26.2 installation guide, **documented**). This library installs APEX first (`02-`) and ORDS second (`04-`) – it works (live), because `ords install` finds the existing `APEX_PUBLIC_USER` and grants the proxy right.
 
 ### 1b. Java base
@@ -173,7 +173,7 @@ share one repository – in this library it is one ORDS per database.
 > - Ways to save the definitions, from the smallest to the largest:
 >   - the export of the REST workshop (SQL Developer Web / APEX: export module);
 >   - the PL/SQL export API – packages `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN` exist in 26.3 (**confirmed (live)**); the exact procedure names: ORDS 26.3 Developer's Guide;
->   - SQLcl `rest export` into a script under version control (SQLcl 26.3 is installed by `00-Setup/install_db_client_tools.sh`);
+>   - SQLcl `rest export` into a script under version control (SQLcl 26.3 is installed by [`00-Setup/install_db_client_tools.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/install_db_client_tools.sh));
 >   - Data Pump of the REST-enabled schema **plus** a backup of the whole PDB – a Data Pump of `ORDS_METADATA` alone is no restore path.
 > - Keep the exported scripts in the repository of the application – then
 >   a lost interface is re-created with one script instead of rebuilt by
@@ -184,7 +184,7 @@ share one repository – in this library it is one ORDS per database.
 ## 4. Level 1 in detail – the configuration directory
 
 One directory per ORDS instance, given with `--config`. Created by
-`04-install-ords.sh` (**confirmed (live)**):
+[`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh) (**confirmed (live)**):
 
 ```
 ords_1/config/                     mode 700 (owner oracle) – holds the wallet
@@ -242,7 +242,7 @@ alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of
   - `ords install --gateway-mode proxied --gateway-user APEX_PUBLIC_USER` grants it for the PL/SQL gateway user;
   - `ords.enable_schema` grants it for a REST-enabled schema;
   - **documented:** "proxied – The PL/SQL gateway call is performed by proxying from the run-time user (`db.username` in `pool.xml`) to the relevant schema configured by `ords_admin.config_plsql_gateway`" (ORDS 26.3 installation guide).
-- **Confirmed (live)** after `04-install-ords.sh` (`proxy_users`):
+- **Confirmed (live)** after [`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh) (`proxy_users`):
   - `ORDS_PUBLIC_USER` → `APEX_PUBLIC_USER`
   - `ORDS_PUBLIC_USER` → `APEX_REST_PUBLIC_USER`
   - `APEX_REST_PUBLIC_USER` → `APEX_PUBLIC_USER` (created by `apex_rest_config.sql`)
@@ -257,7 +257,7 @@ alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of
 
 ## 6. Features – and their risk
 
-`ords config list --include-defaults` after `04-install-ords.sh`
+`ords config list --include-defaults` after [`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh)
 (**confirmed (live)**):
 
 | Feature | Setting | ORDS default | This library | Risk if on |
@@ -372,12 +372,12 @@ OAuth2 would identify the client, not the user. The wiki's pattern:
 
 | Topic | Rule |
 |---|---|
-| Expiring / locked runtime users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` get the profile **`APEX_USER`** (`PASSWORD_LIFE_TIME` / `FAILED_LOGIN_ATTEMPTS UNLIMITED`, `12-APEX-Ords/apex_user_profile.sql`) – before, `APEX_REST_PUBLIC_USER` would have expired on 2027-04-21 (**confirmed (live)**). No lock-out means: long random passwords and a DB listener reachable from the application hosts only |
-| Pool vs. `processes` | Σ `jdbc.MaxLimit` (50 per ORDS) + FMW / RCU pools + 50 ≤ `processes` (`01-prepare-database.sh` checks) |
+| Expiring / locked runtime users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` get the profile **`APEX_USER`** (`PASSWORD_LIFE_TIME` / `FAILED_LOGIN_ATTEMPTS UNLIMITED`, [`12-APEX-Ords/apex_user_profile.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/apex_user_profile.sql)) – before, `APEX_REST_PUBLIC_USER` would have expired on 2027-04-21 (**confirmed (live)**). No lock-out means: long random passwords and a DB listener reachable from the application hosts only |
+| Pool vs. `processes` | Σ `jdbc.MaxLimit` (50 per ORDS) + FMW / RCU pools + 50 ≤ `processes` ([`01-prepare-database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/01-prepare-database.sh) checks) |
 | Listener | `standalone.binds 127.0.0.1` – Nginx is the one door (`04-` checks with `ss`) |
-| Wallet | `config/` mode 700; belongs into the configuration backup (open item: `backup_config.sh`) |
+| Wallet | `config/` mode 700; belongs into the configuration backup (open item: [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)) |
 | Logs | systemd stdout / stderr (almost empty), access log per day (90 days), `ords_sys_N.log` (5 × 10 MB) in `/var/log/ords_N` |
-| Upgrade | new `ords-<ver>` beside the old one, link switch, `ords install` upgrades `ORDS_METADATA` – **one-way**; rollback by link only while the repository is unchanged (`06-patch-ords.sh`) |
+| Upgrade | new `ords-<ver>` beside the old one, link switch, `ords install` upgrades `ORDS_METADATA` – **one-way**; rollback by link only while the repository is unchanged ([`06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh)) |
 | ORDS + APEX + SQLcl | one patch window (section 1a) |
 
 ---
@@ -386,11 +386,11 @@ OAuth2 would identify the client, not the user. The wiki's pattern:
 
 | Script | What |
 |---|---|
-| `00-Setup/install_db_client_tools.sh` | SQLcl (APEXlang, `apex export`, `rest export`) + Instant Client |
-| `12-APEX-Ords/01-prepare-database.sh` | tablespace for APEX **and** `ORDS_METADATA`, profile `APEX_USER` |
-| `12-APEX-Ords/04-install-ords.sh` | software `ords-<ver>`, home `ords_N` (config 700, link), `ords install` (non-interactive, passwords via stdin), `config set` with key check, profile, systemd `ords@.service`, loopback check |
-| `12-APEX-Ords/05-setup-nginx.sh` | `/etc/nginx/oracle-wls.d/ords_N.conf` – `/ords/` proxy (X-Forwarded-For overwritten) + `/i/` images |
-| `12-APEX-Ords/06-patch-ords.sh` | new ORDS release, repository upgrade, rollback, clean-up |
+| [`00-Setup/install_db_client_tools.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/install_db_client_tools.sh) | SQLcl (APEXlang, `apex export`, `rest export`) + Instant Client |
+| [`12-APEX-Ords/01-prepare-database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/01-prepare-database.sh) | tablespace for APEX **and** `ORDS_METADATA`, profile `APEX_USER` |
+| [`12-APEX-Ords/04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh) | software `ords-<ver>`, home `ords_N` (config 700, link), `ords install` (non-interactive, passwords via stdin), `config set` with key check, profile, systemd `ords@.service`, loopback check |
+| [`12-APEX-Ords/05-setup-nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/05-setup-nginx.sh) | `/etc/nginx/oracle-wls.d/ords_N.conf` – `/ords/` proxy (X-Forwarded-For overwritten) + `/i/` images |
+| [`12-APEX-Ords/06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh) | new ORDS release, repository upgrade, rollback, clean-up |
 
 Variables: `ORDS_N_DB_ALIAS / _PORT / _CONTEXT / _IMAGE_PREFIX`,
 `ORDS_JAVA_HEAP`, `ORDS_PUBLIC_URL`, `ORDS_LOG_BASE`, `ORDS_FEATURE_*`,
@@ -421,11 +421,11 @@ Dates before 2018 are background from the author's experience
   check workspace schemas for `auto_rest_auth`, profile, tablespace maxsize,
   public REST modules, feature drift; test whether an expired parsing-schema
   password breaks the ORDS proxy session.
-- `06-patch-ords.sh` upgrade path: first real run with the next ORDS
+- [`06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh) upgrade path: first real run with the next ORDS
   release (`ords install --db-only` for the repository upgrade is taken from
   `ords install --help`, not yet run).
-- `backup_config.sh` / `clone_check.sh` for the ORDS config directory
-  (wallet!), `cve_inventory.sh` for ORDS / APEX / SQLcl / Instant Client.
+- [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) / [`clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) for the ORDS config directory
+  (wallet!), [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) for ORDS / APEX / SQLcl / Instant Client.
 
 ---
 

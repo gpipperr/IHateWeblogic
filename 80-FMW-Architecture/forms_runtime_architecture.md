@@ -6,7 +6,7 @@ How a Forms session runs on the server: servlet, listener, `frmweb`
 processes, runtime pooling, timeouts, memory, configuration inheritance,
 logs, where TLS is spoken and who uses Java's JSSE (section 1.1), the threat
 model of a client-side TLS flaw (1.2) – and
-where it comes from (section 8: protocol history 1979–2024). Background for `06-FormsDiag/` and `09-Install/14-oracle_setup_forms.sh`.
+where it comes from (section 8: protocol history 1979–2024). Background for `06-FormsDiag/` and [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh).
 
 Markers: **confirmed (live)** = seen on the test host (FMW 14.1.2, OL 9),
 **documented** = Oracle documentation (sources in sections 8.2 and 10),
@@ -98,7 +98,7 @@ older; Oracle's note names Java Web Start explicitly).
 | WLS_FORMS → `frmweb` | none – TCP to the listen port of the runtime (section 1) | no – `frmweb` is native |
 | `frmweb` → database | SQL*Net (native Oracle client; TCPS only if configured in `tnsnames.ora`) | no |
 | WebLogic SSL listen ports `9501` / `9512` (demo certificate, enabled by the domain templates) | WebLogic | **off** since 2026-10-23 (`08-` template, `02-Checks/clone_check.sh --apply`) |
-| WebLogic → LDAP / OID / AD over LDAPS, outbound HTTPS from applications | WebLogic | **yes** – only if configured (not on the test host, `egress_check.sh`) |
+| WebLogic → LDAP / OID / AD over LDAPS, outbound HTTPS from applications | WebLogic | **yes** – only if configured (not on the test host, [`egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh)) |
 
 Consequence for a Java security fix:
 
@@ -232,14 +232,14 @@ change. Values are per WLS_FORMS JVM.
   `14- --apply`, restart WLS_FORMS → log `FRM-93424 removing the prestarted
   runtime processes for configuration section [webstart]`, `FRM-93412 There
   are 5 prestarted runtime processes … for configuration section
-  [standaloneapp]`, `forms_perf_settings.sh` without WARN (**confirmed
+  [standaloneapp]`, [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) without WARN (**confirmed
   (live)**). That an FSAL session now takes a pooled process is not
   re-tested yet.
 - A pooled runtime "is removed from the prestart pool once client
   connection is made" (**documented**). A pooled process only listens on
   its port; when a client attaches, it closes the listen socket and holds
   one connection from the WLS_FORMS JVM (Listener servlet), after the logon
-  one more to the database – `06-FormsDiag/forms_perf_analyse.sh` separates
+  one more to the database – [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) separates
   pool / session / logged on by these connections (**confirmed (live)**
   2026-11-03, [06-FormsDiag/README.md §8](../06-FormsDiag/README.md#8-pool-vs-session--live-test-2026-11-03)).
   CPU time is no criterion (`ps` shows 0 s for a session, a pooled process
@@ -289,7 +289,7 @@ names.
   (live)** 2026-11-03, small test form): idle pooled `frmweb` 4 MB RSS,
   session at the logon dialog 30 MB, logged on 39 MB RSS of which 7 MB
   private (`RssAnon`) – the rest is shared libraries / FMX. Real
-  applications: measure under load (`forms_perf_analyse.sh`, RSS and
+  applications: measure under load ([`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh), RSS and
   private MB per session).
 - `allowNewConnections=FALSE` blocks new sessions (maintenance), read on
   every request (**documented**).
@@ -304,7 +304,7 @@ names.
 | Forms Trace (events of a session) | `ftrace.cfg` of the instance, Tracing and Diagnostics chapter |
 | Sessions, metrics, kill a session | Fusion Middleware Control → Forms → User Sessions; Forms Diagnostics Agent `formsagentapp.war` (`$ORACLE_HOME/forms/j2ee/`, not deployed by us) |
 
-Collected by `03-Logs/log_locations.sh` (group `forms`).
+Collected by [`03-Logs/log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh) (group `forms`).
 
 ### 6.1 access.log and `time-taken`
 
@@ -327,14 +327,14 @@ milliseconds** (test host:
 
 A high `lservlet` value is therefore a slow action on the server side (PL/SQL,
 SQL, triggers, a blocked `frmweb`), not a network problem.
-`06-FormsDiag/forms_perf_analyse.sh` reports average / maximum per kind and
+[`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) reports average / maximum per kind and
 the `lservlet` requests ≥ 2 s.
 
 **What it does not contain.** The network between client and Nginx, Nginx
 itself, TLS and the client's rendering. The time seen from outside would come
 from Nginx (`$request_time`, `$upstream_response_time`) – not in its default
 `main` log format; our template logs them as `rt=` / `urt=` / `uct=` (format
-`ihw_timing`, `09-Install/nginx-wls.conf.template`, since 2026-11-03). A big
+`ihw_timing`, [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template), since 2026-11-03). A big
 difference between the user's perception and `time-taken` points to network
 / client.
 
@@ -350,7 +350,7 @@ the `WebServerLog` MBean):
 | running | `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog` – WLST online, keeps the other fields, dynamic (no restart): WebLogic rotates `access.log` and starts it with a new `#Fields` header | 2026-10-23 (**confirmed (live)**) |
 
 Check: `grep -c time-taken $DOMAIN_HOME/config/config.xml` (1), or the last
-`#Fields` header of `access.log`; `forms_perf_settings.sh` section Access Log.
+`#Fields` header of `access.log`; [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) section Access Log.
 
 How to use it together with the Nginx times (`rt` / `urt`) when a user
 reports "slow": [forms_performance_analyse_tuning.md](forms_performance_analyse_tuning.md).
@@ -366,14 +366,14 @@ reports "slow": [forms_performance_analyse_tuning.md](forms_performance_analyse_
 
 | Script | Section |
 |---|---|
-| `06-FormsDiag/forms_settings.sh` | 1, 2 (files, binaries, FORMS_PATH, default.env, sections) |
-| `06-FormsDiag/forms_perf_settings.sh` | 3, 4, 5, 6.1 (prestart incl. inheritance and sync with `FORMS_PRESTART_*`, timeout chain, limits, `time-taken`; `--apply --fix-prestart`, `--fix-accesslog`) |
-| `06-FormsDiag/forms_perf_analyse.sh` | 3, 5, 6 (processes per section, pool vs. session, memory, access.log, logs, dumps) |
-| `09-Install/14-oracle_setup_forms.sh` | 2, 2.1, 3, 5 (writes `formsweb.cfg` / `default.env`: `TNS_ADMIN`, `FORMS_PRESTART_SECTION`, `maxRuntimeProcesses`) – what 06 compares with it: [06-FormsDiag/README.md §6](../06-FormsDiag/README.md#6-sync-with-the-installation-09-install14-) |
-| `09-Install/08-oracle_setup_domain.sh` | 6.1 (`time-taken` for new domains) |
-| `09-Install/90-oracle_validate.sh` | acceptance: runs `forms_settings.sh` + `forms_perf_settings.sh` read-only |
-| `02-Checks/weblogic_performance.sh` | WLS_FORMS heap (servlet side only) |
-| `02-Checks/tns_admin_check.sh` | 2.1 (`TNS_ADMIN` in `default.env` and of every running `frmweb`) |
+| [`06-FormsDiag/forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) | 1, 2 (files, binaries, FORMS_PATH, default.env, sections) |
+| [`06-FormsDiag/forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) | 3, 4, 5, 6.1 (prestart incl. inheritance and sync with `FORMS_PRESTART_*`, timeout chain, limits, `time-taken`; `--apply --fix-prestart`, `--fix-accesslog`) |
+| [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) | 3, 5, 6 (processes per section, pool vs. session, memory, access.log, logs, dumps) |
+| [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | 2, 2.1, 3, 5 (writes `formsweb.cfg` / `default.env`: `TNS_ADMIN`, `FORMS_PRESTART_SECTION`, `maxRuntimeProcesses`) – what 06 compares with it: [06-FormsDiag/README.md §6](../06-FormsDiag/README.md#6-sync-with-the-installation-09-install14-) |
+| [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) | 6.1 (`time-taken` for new domains) |
+| [`09-Install/90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh) | acceptance: runs [`forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) + [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) read-only |
+| [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) | WLS_FORMS heap (servlet side only) |
+| [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) | 2.1 (`TNS_ADMIN` in `default.env` and of every running `frmweb`) |
 
 ## 8. History – how client and runtime talk, 1979 to 2024
 

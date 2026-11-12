@@ -47,7 +47,7 @@ Permissions on the test host (**confirmed (live)** 2026-10-29):
 | File | Mode | Note |
 |---|---|---|
 | `security/SerializedSystemIni.dat` | `640 oracle:oinstall` | **group-readable** |
-| `servers/<srv>/security/boot.properties` | `600` | written by `10-oracle_boot_properties.sh` |
+| `servers/<srv>/security/boot.properties` | `600` | written by [`10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh) |
 | `servers/<ms>/data/nodemanager/boot.properties` | `640` | written by the Node Manager at every start (section 3) |
 | `config/nodemanager/nm_password.properties` | `640` | hash only |
 | `config/fmwconfig/bootstrap/cwallet.sso`, `config/fmwconfig/cwallet.sso`, `security/cwallet.sso` | `600` | OPSS wallets (section 4) |
@@ -65,7 +65,7 @@ username=<admin user>
 password=<password>
 ```
 
-- Written in **clear text** (by hand or `09-Install/10-oracle_boot_properties.sh`),
+- Written in **clear text** (by hand or [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh)),
   rewritten by the server at its **first successful start** as
   `username={AES256}…` / `password={AES256}…` (**confirmed (live)**). Until
   that first start the password lies in clear text on disk – start the server
@@ -108,7 +108,7 @@ Consequence – the cache **depends on how the server was started**:
 
 | Start path | Uses / writes the cache |
 |---|---|
-| WLST `start('<ms>')` via the AdminServer (our `01-Run/startStop.sh`, `fmw_ctl.sh` / `wls_start.py` of the autostart) | AdminServer sends identity + start properties → NM **writes** `data/nodemanager/boot.properties` + `startup.properties` (**confirmed (live)**: time stamps = last `start-all`) |
+| WLST `start('<ms>')` via the AdminServer (our [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh), `fmw_ctl.sh` / `wls_start.py` of the autostart) | AdminServer sends identity + start properties → NM **writes** `data/nodemanager/boot.properties` + `startup.properties` (**confirmed (live)**: time stamps = last `start-all`) |
 | WLST `nmStart('<ms>')` without the AdminServer (fallback in `wls_start.py` when the AdminServer cannot be reached) | NM starts with what is **already in the cache**; with an empty cache it has no boot identity / no admin URL from the AdminServer (**assumption**: falls back to `security/boot.properties`, or the server starts without the AdminServer's start properties – to verify, see test plan) |
 | `startManagedWebLogic.sh` / `startWebLogic.sh` by hand | **no** Node Manager in the chain – reads `security/boot.properties`, the NM cache is neither used nor updated; the NM sees the server as `SHUTDOWN` ([weblogic_middleware_architecture.md §4](weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain)) |
 
@@ -162,7 +162,7 @@ On the test host, `WLS_FORMS`, one step at a time:
 | Reports key map `cgicmd.dat` | `…/reports_14.1.2/configuration/cgicmd.dat` (mode `640`) | `userid=` **encrypted** by rwservlet (`{AES}…`), `authid=` **clear text** | section 4a |
 | Forms `userid=` in `formsweb.cfg` (if used) | domain config | **clear text** | avoid – let the user log in, or use SSO / a proxy user |
 | WLST stored credentials / autostart key files | `~/<user>-WebLogicConfig.properties` + `…Key.properties`, `$ORACLE_BASE/admin/<domain>/ctrl/keyfile/` (dir `700`) | encrypted + key file next to it | same model: key next to the value |
-| ORDS (`ORDS_PUBLIC_USER`) | `ords_N/config/databases/default/wallet/cwallet.sso` | auto-login wallet | backed up by `backup_config.sh` category `ords` (set mode 600) |
+| ORDS (`ORDS_PUBLIC_USER`) | `ords_N/config/databases/default/wallet/cwallet.sso` | auto-login wallet | backed up by [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) category `ords` (set mode 600) |
 | IHateWeblogic | `*.des3` in the repository | `openssl des3`, key from the machine | [SECURITY.md](../SECURITY.md#password-encryption-is-obfuscation-not-protection) |
 
 ### 4a. `cgicmd.dat` – `userid=` encrypted, `authid=` not
@@ -209,7 +209,7 @@ Consequences:
   everybody who can read the file (`oracle`, group `oinstall` with 640) –
   use a user with `RW_EXECREPORTS` only, keep the file `640`/`600`; whether
   an `authid` can be replaced by an encrypted form is open (SR question).
-- `14b-oracle_reports_fonts.sh` / `restore_config.sh` write the file in
+- [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) / [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) write the file in
   clear text again; the next WLS_REPORTS start encrypts the `userid=` values
   once more. A `cgicmd.dat` restored into **another** domain needs its
   `userid=` values in clear text.
@@ -231,7 +231,7 @@ Consequences:
    interview / `10-` write them right before the start.
 4. **Backups and clones are secrets.** A domain backup or VM snapshot holds
    `SerializedSystemIni.dat` + every `{AES256}` value + the auto-login
-   wallets = all passwords. `07-Maintenance/backup_config.sh` therefore
+   wallets = all passwords. [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) therefore
    does **not** copy `boot.properties`, `SerializedSystemIni.dat` or the
    keystores (only full domain / file-system backups do) –
    [07-Maintenance/README.md](../07-Maintenance/README.md).

@@ -11,7 +11,7 @@ Markers as in [README.md](README.md): **confirmed (code)**, **confirmed
 (live)**, **documented**, **assumption**. Findings of the test run are in §7.
 
 Related: [em_principal_search_libovd.md](em_principal_search_libovd.md)
-(same split JSE ↔ WebLogic, libOVD), `09-Install/docs/81-reports_rwservlet_security.md`
+(same split JSE ↔ WebLogic, libOVD), [`09-Install/docs/81-reports_rwservlet_security.md`](../09-Install/docs/81-reports_rwservlet_security.md)
 (web commands, `<identifier>`, `webcommandaccess`).
 
 ---

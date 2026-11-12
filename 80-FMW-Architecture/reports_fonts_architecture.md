@@ -13,7 +13,7 @@ The configuration steps are in
 form (screen printer, AFM) is in
 [HTML_ParameterForm_Fonts.md](../04-ReportsFonts/HTML_ParameterForm_Fonts.md).
 This page is the background for both, and for the font classes of
-`70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`.
+[`70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh).
 
 Markers as in the rest of this folder: **confirmed (live)**, **documented**,
 **assumption**, **open**.
@@ -69,7 +69,7 @@ the six conditions for embedded TrueType are in its "Lessons Learned".
 | Way | What is on the server | PDF result | Layout |
 |---|---|---|---|
 | **Original** | the same TTF the report was designed with (e.g. `arial.ttf`) in `REPORTS_FONT_DIRECTORY`, not renamed by `[Global]` | embedded TrueType – no screen-printer step needed (**confirmed (live)** 2026-10-19) | identical to the Builder |
-| **Substitute** | a different font file, mapped by `uifont.ali` (Arial → Liberation Sans) | embedded after the screen-printer step (`paramform_afm_setup.sh`) – without it `Symbol Type 1`, Latin text as Greek glyphs (**confirmed (live)**) | identical **only** with a metric-compatible substitute (section 4) |
+| **Substitute** | a different font file, mapped by `uifont.ali` (Arial → Liberation Sans) | embedded after the screen-printer step ([`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh)) – without it `Symbol Type 1`, Latin text as Greek glyphs (**confirmed (live)**) | identical **only** with a metric-compatible substitute (section 4) |
 
 The original is the "easy" technical way, but only allowed where the
 licence allows it (section 3). The substitute is the normal way on Linux,
@@ -132,7 +132,7 @@ Its point is full Unicode coverage, which DejaVu / Noto give for free.
 
 | Font | Replaces | Licence | On OL 9 |
 |---|---|---|---|
-| Liberation Sans / Serif / Mono (2.x) | Arial / Times New Roman / Courier New – **identical metrics** | SIL Open Font License 1.1 since 2.00.0 (older 1.x: GPLv2 with font exception) | `liberation-*-fonts` 2.1.3, installed by `09-Install/02-root_os_packages.sh` (**confirmed (live)**, `rpm -qi`: License OFL) |
+| Liberation Sans / Serif / Mono (2.x) | Arial / Times New Roman / Courier New – **identical metrics** | SIL Open Font License 1.1 since 2.00.0 (older 1.x: GPLv2 with font exception) | `liberation-*-fonts` 2.1.3, installed by [`09-Install/02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) (**confirmed (live)**, `rpm -qi`: License OFL) |
 | Liberation Sans Narrow | Arial Narrow – identical metrics | only in the 1.x line (2.x dropped it): licence "Liberation" (GPLv2 with font exception – embedding in documents allowed) | `liberation-narrow-fonts` 1.07.6 (`ol9_appstream`), installed by `02-` since 2026-11-03 |
 | Carlito | Calibri – identical metrics | SIL OFL 1.1 | `google-carlito-fonts` 1.103 (`ol9_appstream`), installed by `02-` since 2026-11-03 |
 | Caladea | Cambria – identical metrics | SIL OFL 1.1 | not in the OL 9 base repositories (**open**: EPEL / upstream) |
@@ -152,7 +152,7 @@ separate "server licence" for applications that generate documents for
 others. These fonts have **no** replacement: a barcode font with other
 metrics gives an unreadable barcode. For a new or additional server, check
 the vendor licence (**open** per customer). Technically they are deployed
-like any TTF (`04-ReportsFonts/custom_fonts_dir/` → `deploy_fonts.sh`,
+like any TTF (`04-ReportsFonts/custom_fonts_dir/` → [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh),
 gitignored).
 
 ## 4. Metric compatibility – "identical" vs. "similar"
@@ -220,7 +220,7 @@ Per font:
    the original for the new server.
 4. **ms** symbol fonts (Wingdings …): original with licence, or change the
    report to Unicode characters.
-5. Test with PDFs from the **server** (`pdffonts`, `04-ReportsFonts/pdf_font_verify.sh`),
+5. Test with PDFs from the **server** (`pdffonts`, [`04-ReportsFonts/pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh)),
    reports that use each font, compared page by page with the old output.
 
 Which reports use which font: the export tool does not read the binary
@@ -237,8 +237,8 @@ need a decision.
 | Where | What |
 |---|---|
 | [09-Install/02-root_os_packages.sh](../09-Install/docs/01-root_install_packages.md) | installs Liberation (Sans / Serif / Mono) and DejaVu (all six packages) |
-| `09-Install/14b-oracle_reports_fonts.sh` | deploys the fonts to `REPORTS_FONT_DIRECTORY`, `uifont.ali`, AFM / PPD step |
-| [04-ReportsFonts/](../04-ReportsFonts/README.md) | `deploy_fonts.sh`, `uifont_ali_update.sh` (template `uifont_ali_template.ali`: `[Global]` Arial = helvetica, Verdana / Tahoma = DejaVuSans, `[PDF:Subset]` families), `paramform_afm_setup.sh`, `pdf_font_verify.sh`, `font_inventory.sh`; `custom_fonts_dir/` for customer fonts (gitignored – licence) |
+| [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) | deploys the fonts to `REPORTS_FONT_DIRECTORY`, `uifont.ali`, AFM / PPD step |
+| [04-ReportsFonts/](../04-ReportsFonts/README.md) | [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh), [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) (template [`uifont_ali_template.ali`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_template.ali): `[Global]` Arial = helvetica, Verdana / Tahoma = DejaVuSans, `[PDF:Subset]` families), [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh), [`pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh), [`font_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_inventory.sh); `custom_fonts_dir/` for customer fonts (gitignored – licence) |
 | [70-Customer-Projects/tools/bash/export_forms_reports_conf.sh](../70-Customer-Projects/tools/README.md#export_forms_reports_confsh) | fonts of an existing installation in three classes `customer` / `ms` / `free` with the 14c replacement (`ihw_import/fonts.txt`, since 2026-11-03) |
 | [reports_rwbuilder.md](reports_rwbuilder.md) | Builder on Windows vs. server fonts |
 | [reports_engine_architecture.md](reports_engine_architecture.md) | which process reads which font configuration |
@@ -252,7 +252,7 @@ fonts live only on the customer's servers.
 - **Cambria → Caladea:** not in the OL 9 base repositories (EPEL / the
   upstream release would be needed). Calibri → Carlito and Arial Narrow →
   Liberation Sans Narrow are done (2026-11-03): packages in `02-`,
-  `deploy_fonts.sh` copies Carlito, `[Global]` + `[PDF:Subset]` entries,
+  [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh) copies Carlito, `[Global]` + `[PDF:Subset]` entries,
   font test of `15-` with both families – all `CID TrueType emb=yes
   sub=yes` (**confirmed (live)**).
 - **`fsType`:** does the Reports engine respect the embedding flags of a

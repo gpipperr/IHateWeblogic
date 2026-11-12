@@ -119,7 +119,7 @@ Facts:
 
 ### Test series (test host, 2026-10-16)
 
-Report definition `test_dual.xml` called through the rwservlet with
+Report definition [`test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml) called through the rwservlet with
 `report=<absolute path>` and a deliberately invalid `userid`. **REP-501**
 (database cannot be connected) means: folder access granted; **REP-56132**:
 refused.
@@ -263,6 +263,6 @@ Notes:
 | Where | State |
 |---|---|
 | `70-Customer-Projects/…/Reports_kochbuch_de.txt` | fixed 2026-10-16: 9.7 one `;`-separated `<read>` (the first version of the same day had two elements – wrong), known problems REP-56132 and REP-108 with Way A / Way B |
-| `09-Install/13-oracle_setup_reports.sh` | fixed 2026-10-16: writes `<read>` with the `:` of `REPORTS_PATH` converted to `;` |
-| `09-Install/docs/13-reports-detail-settings.md` | fixed 2026-10-16: both separators documented |
+| [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | fixed 2026-10-16: writes `<read>` with the `:` of `REPORTS_PATH` converted to `;` |
+| [`09-Install/docs/13-reports-detail-settings.md`](../09-Install/docs/13-reports-detail-settings.md) | fixed 2026-10-16: both separators documented |
 | possible script | Way B of §5 as a script (dry-run lists paths and missing images, `--apply` converts with backup) – open |

@@ -2,7 +2,7 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)
 
-Background for the WebUtil/JACOB step of `09-Install/14-oracle_setup_forms.sh`
+Background for the WebUtil/JACOB step of [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh)
 (`docs/14-forms-detail-settings.md`, step 1).
 
 ---
@@ -266,7 +266,7 @@ jarsigner -verify -verbose -certs jacob.jar     # "jar verified." + chain + time
   required only in the main jar of the application, "secondary JAR files
   and extensions are not required to have the Permissions attribute",
   without `Codebase` the Java console shows a warning (**documented**, JAR
-  File Manifest Attributes for Security). `14-oracle_setup_forms.sh` adds
+  File Manifest Attributes for Security). [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) adds
   them to the main section before signing, like Oracle's `frmwebutil.jar`.
 
 ## 9. Which certificates are needed
@@ -274,7 +274,7 @@ jarsigner -verify -verbose -certs jacob.jar     # "jar verified." + chain + time
 | Purpose | Certificate | Checked by | Notes |
 |---|---|---|---|
 | **Code signing** of `jacob.jar` (and other own jars) | code-signing certificate (Extended Key Usage *Code Signing*) | Java Web Start on the client | from a public CA or an internal company CA, see below |
-| **TLS** of the Forms URL (NGINX) | server certificate (`08-SSL/`, `09-Install/05-root_nginx_ssl.sh`) | Java client (JWS **and** FSAL) when connecting via `https` | FSAL: "requires that the SSL / TLS certificate public key be included in the user's Java TrustStore" (**documented**, FSAL "Secure Socket Layer") |
+| **TLS** of the Forms URL (NGINX) | server certificate (`08-SSL/`, [`09-Install/05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh)) | Java client (JWS **and** FSAL) when connecting via `https` | FSAL: "requires that the SSL / TLS certificate public key be included in the user's Java TrustStore" (**documented**, FSAL "Secure Socket Layer") |
 | **Deployment Rule Set** (optional, JWS) | code-signing certificate for `DeploymentRuleSet.jar` | Java Web Start | "must be signed with a valid certificate from a trusted certificate authority" (**documented**, Java Deployment Rule Set) |
 
 Options for the code-signing certificate:
@@ -283,7 +283,7 @@ Options for the code-signing certificate:
 |---|---|---|
 | **A – public CA** (DigiCert, Sectigo, …) | already trusted: the CA root is in the Java `cacerts` and the Windows store → **nothing to distribute** | costs per year; since 2023 the private key must live on a hardware token / HSM or a cloud signing service (**assumption** – CA/Browser Forum code-signing requirements, check with the CA) → the signing step is a manual or CA-tool step, not a plain script |
 | **B – internal company CA** (Windows AD CS …) | the **root of the company CA** must be trusted by the Java client: Windows store via GPO (JWS uses it by default, see 10) and/or the Java trust stores | company PKI needed; CRL/OCSP of the CA must be reachable from the clients (revocation check, see 10); renewals under the same root need **no** redistribution |
-| **B' – own root CA** (`08-SSL/ssl_local_ca.sh`, implemented) | like B, but the root is self-made: one root signs the code-signing **and** the TLS certificate of Nginx → the clients import one root once (GPO / Java trust store) | same mechanics as B without a company PKI; the root key is the crown jewel (offline backup); no CRL / OCSP published – how Java Web Start's revocation check reacts is open (**assumption**, client test); Oracle's "self-generated certificates … should be avoided" applies – lab / internal use |
+| **B' – own root CA** ([`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh), implemented) | like B, but the root is self-made: one root signs the code-signing **and** the TLS certificate of Nginx → the clients import one root once (GPO / Java trust store) | same mechanics as B without a company PKI; the root key is the crown jewel (offline backup); no CRL / OCSP published – how Java Web Start's revocation check reacts is open (**assumption**, client test); Oracle's "self-generated certificates … should be avoided" applies – lab / internal use |
 | **C – single self-signed certificate** | every client imports that one certificate | Oracle: avoid; each new certificate = redistribute to every client – test only |
 
 ## 10. Who checks the signature – and against what
@@ -349,10 +349,10 @@ whether `CLIENT_HOST` is needed at all.
 
 | Event | What happens | Action |
 |---|---|---|
-| **Forms patch / bundle** (`07-Maintenance/82-patch_forms_reports.sh`) | Oracle replaces its own signed jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) – signed by Oracle, nothing to do; `jacob.jar` and the JACOB DLLs are not Oracle files and normally stay; **Oracle files we changed can be reset**: `extensions.jnlp` (jacob entry), `webutil.cfg` template | after every Forms patch: re-run `14-oracle_setup_forms.sh --apply` (checks `jacob.jar` present + `jarsigner -verify`, re-activates the `extensions.jnlp` entry and `WebUtilArchive`) |
+| **Forms patch / bundle** ([`07-Maintenance/82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh)) | Oracle replaces its own signed jars (`frmall.jar`, `frmwebutil.jar`, `frmsal.jar`) – signed by Oracle, nothing to do; `jacob.jar` and the JACOB DLLs are not Oracle files and normally stay; **Oracle files we changed can be reset**: `extensions.jnlp` (jacob entry), `webutil.cfg` template | after every Forms patch: re-run `14-oracle_setup_forms.sh --apply` (checks `jacob.jar` present + `jarsigner -verify`, re-activates the `extensions.jnlp` entry and `WebUtilArchive`) |
 | **New JACOB version required** (release notes of a Forms patch) | new `jacob.jar` (unsigned again) and new DLLs (other sizes) | download (`04-`), sign again, adapt `install.syslib.*` size/version in `webutil.cfg` (`14-` does it), clients download the new DLL automatically |
 | **Own code-signing certificate expires** | signatures **with timestamp** stay valid; without timestamp the jar is blocked from that day (Java Web Start) | sign with `-tsa` where the TSA is reachable; renew the certificate before expiry; with timestamp re-signing is needed only for new / changed jars |
-| **Signed without timestamp** (host without outbound access, `FORMS_SIGN_TSA_URL=""`) | signature valid only until the signer certificate expires; `14-` reports the date after every run (WARN < 90 days), `cert_expiry_check.sh` reminds | before expiry: `ssl_local_ca.sh codesign --apply --renew` (or a new customer `codesign.p12`) **and** `14-oracle_setup_forms.sh --apply --resign` – `14-` alone keeps the jar signed with the old certificate |
+| **Signed without timestamp** (host without outbound access, `FORMS_SIGN_TSA_URL=""`) | signature valid only until the signer certificate expires; `14-` reports the date after every run (WARN < 90 days), [`cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) reminds | before expiry: `ssl_local_ca.sh codesign --apply --renew` (or a new customer `codesign.p12`) **and** `14-oracle_setup_forms.sh --apply --resign` – `14-` alone keeps the jar signed with the old certificate |
 | **Own root CA (B') – leaf renewal** | new code-signing / TLS certificate under the **same root** | `ssl_local_ca.sh codesign --apply --renew` / `ssl_prepare_cert.sh LOCALCA --apply --renew`; nothing to change on the clients; already signed + timestamped jars stay valid; without timestamp: `14- --apply --resign` |
 | **Certificate revoked / key compromised** | revocation check blocks every jar signed with it – also timestamped ones (**assumption** for the timestamp interplay) | new certificate, re-sign, serve |
 | **Algorithm deprecated** (e.g. SHA-1 disabled in Java updates) | old signatures rejected by new Java versions | re-sign with SHA-256 (`-digestalg SHA-256`, current `jarsigner` default) |
@@ -434,7 +434,7 @@ Recommendation (design, to be decided with the customer):
   PKCS12 keystore – from the own root CA, a company CA or a public CA.
   Variables `FORMS_SIGN_KEYSTORE`, `FORMS_SIGN_ALIAS`, `FORMS_SIGN_TSA_URL`
   (`environment.conf`), password `FORMS_SIGN_STOREPASS` in
-  `forms_sign_sec.conf.des3`. Details: `09-Install/docs/14-forms-detail-settings.md`
+  `forms_sign_sec.conf.des3`. Details: [`09-Install/docs/14-forms-detail-settings.md`](../09-Install/docs/14-forms-detail-settings.md)
   Step 1, `08-SSL/README.md` section "ssl_local_ca.sh"; operator summary
   (who creates / signs / checks, TSA decision, `--resign`):
   [08-SSL/README.md – Code Signing](../08-SSL/README.md#code-signing-jacobjar).
@@ -460,7 +460,7 @@ Recommendation (design, to be decided with the customer):
 
 **2026-10-17 – signed and active:** own root CA `$ORACLE_BASE/admin/pki`
 (`ssl_local_ca.sh init`), Nginx TLS certificate from that root (deployed by
-`05-root_nginx_ssl.sh`, `openssl s_client -CAfile ca.crt` → `Verify return
+[`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh), `openssl s_client -CAfile ca.crt` → `Verify return
 code: 0`), code-signing keystore (`codesign`); `14- --apply` signed
 `jacob.jar` with DigiCert timestamp (signer certificate until 2029-10-16,
 timestamp until 2031-11-10), `WebUtilArchive=frmwebutil.jar,jacob.jar`,

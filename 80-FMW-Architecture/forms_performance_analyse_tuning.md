@@ -52,11 +52,11 @@ JNLP, the client loads the jars, then the first `lservlet` request takes a
 
 | Layer | Where | What it shows | Tool |
 |---|---|---|---|
-| Client → Nginx → client | Nginx `access.log`, field `rt=` | whole request as Nginx sees it, incl. sending the answer to the client (s) | `09-Install/nginx-wls.conf.template` (format `ihw_timing`, since 2026-11-03) |
+| Client → Nginx → client | Nginx `access.log`, field `rt=` | whole request as Nginx sees it, incl. sending the answer to the client (s) | [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template) (format `ihw_timing`, since 2026-11-03) |
 | Nginx → WebLogic | Nginx `access.log`, `urt=` / `uct=` | WebLogic answer incl. transfer to Nginx / TCP connect (`0.000` with keepalive) | same |
-| WebLogic | `servers/WLS_FORMS/logs/access.log`, `time-taken` | time WebLogic needed to complete the request (s) | `06-FormsDiag/forms_perf_analyse.sh` (avg / max, `lservlet` ≥ 2 s) |
-| `frmweb` | processes | count per config section, pool vs. session, RSS, CPU, DB connection | `forms_perf_analyse.sh` |
-| WLS_FORMS JVM | heap, GC | servlet / listener only – **not** the sessions | `02-Checks/weblogic_performance.sh` |
+| WebLogic | `servers/WLS_FORMS/logs/access.log`, `time-taken` | time WebLogic needed to complete the request (s) | [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) (avg / max, `lservlet` ≥ 2 s) |
+| `frmweb` | processes | count per config section, pool vs. session, RSS, CPU, DB connection | [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) |
+| WLS_FORMS JVM | heap, GC | servlet / listener only – **not** the sessions | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
 | Database | `v$session`, ASH / AWR | SQL and waits of the `frmweb` sessions | manual – see §5 (open) |
 
 Nginx line (test with a private Nginx in front of WLS_FORMS, **confirmed
@@ -90,13 +90,13 @@ every action, one particular form / button, or a certain time of day.
 | Symptom | First check | Likely cause | Setting / fix |
 |---|---|---|---|
 | Start of a session slow, actions fine | `frmservlet` `time-taken`, Nginx `rt` of the jars, pool size per section | no pooled `frmweb` for this section, jar download, client JVM start | prestart in the **used** section (FSAL of the client distribution: `standaloneapp`), not `[default]` (§3 of the architecture doc); `gzipCompressApplet`; client bundle / jar cache (`40-`) |
-| Every action slow for everybody | `lservlet` avg in `forms_perf_analyse.sh`, `rt` vs. `urt` | DB or host overloaded, `frmweb` CPU-bound | §5 DB; host load (CPU, swap); number of sessions vs. RAM |
+| Every action slow for everybody | `lservlet` avg in [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh), `rt` vs. `urt` | DB or host overloaded, `frmweb` CPU-bound | §5 DB; host load (CPU, swap); number of sessions vs. RAM |
 | One form / one button slow | `lservlet` max, ≥ 2 s list (time of day) | SQL / PL/SQL of that action | DB (§5) – not a Forms server setting |
 | Slow, but `time-taken` small | `rt` − `urt` | network / client | network path, proxy, client PC; not the server |
-| Sessions end, "no response" | timeout chain | `FORMS_TIMEOUT` ≤ `heartBeat`, proxy / load-balancer idle timeout < `heartBeat` | `forms_perf_settings.sh` Timeout Chain (§4 of the architecture doc) |
-| New sessions rejected / host swaps | memory section of `forms_perf_analyse.sh` | too many `frmweb`, no limit | `maxRuntimeProcesses` (§5 of the architecture doc), RAM |
+| Sessions end, "no response" | timeout chain | `FORMS_TIMEOUT` ≤ `heartBeat`, proxy / load-balancer idle timeout < `heartBeat` | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Timeout Chain (§4 of the architecture doc) |
+| New sessions rejected / host swaps | memory section of [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) | too many `frmweb`, no limit | `maxRuntimeProcesses` (§5 of the architecture doc), RAM |
 | Many `frmweb` without users | pool per section | prestart in `[default]` (pool × number of sections) | `forms_perf_settings.sh --apply --fix-prestart <section>` |
-| HTTP 5xx | `forms_perf_analyse.sh` HTTP status, `WLS_FORMS-diagnostic.log` | servlet errors, `frmweb` crash | Forms logs / crash dumps (§6 of the architecture doc) |
+| HTTP 5xx | [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) HTTP status, `WLS_FORMS-diagnostic.log` | servlet errors, `frmweb` crash | Forms logs / crash dumps (§6 of the architecture doc) |
 
 ---
 
@@ -104,12 +104,12 @@ every action, one particular form / button, or a certain time of day.
 
 | Setting | Where | Influences | Restart | Checked by |
 |---|---|---|---|---|
-| `prestartRuntimes`, `prestartInit`, `prestartMin`, `prestartIncrement`, `prestartTimeout` | formsweb.cfg, per section | start of a session (pool), memory of idle processes | WLS_FORMS (read at servlet start, **documented**) | `forms_perf_settings.sh` Runtime Pooling |
-| `maxRuntimeProcesses` | formsweb.cfg `[default]` | upper limit of `frmweb` = protection of RAM | WLS_FORMS | `forms_perf_settings.sh` Global Parameters, `forms_perf_analyse.sh` |
-| `heartBeat`, `FORMS_TIMEOUT`, session-timeout | formsweb.cfg / default.env / formsapp.ear | when idle sessions end, network traffic of idle clients | WLS_FORMS | `forms_perf_settings.sh` Timeout Chain |
-| `networkRetries` | formsweb.cfg | retries of the client on a network error (default 0) | – | `forms_perf_settings.sh` Startup / Network |
+| `prestartRuntimes`, `prestartInit`, `prestartMin`, `prestartIncrement`, `prestartTimeout` | formsweb.cfg, per section | start of a session (pool), memory of idle processes | WLS_FORMS (read at servlet start, **documented**) | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Runtime Pooling |
+| `maxRuntimeProcesses` | formsweb.cfg `[default]` | upper limit of `frmweb` = protection of RAM | WLS_FORMS | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Global Parameters, [`forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) |
+| `heartBeat`, `FORMS_TIMEOUT`, session-timeout | formsweb.cfg / default.env / formsapp.ear | when idle sessions end, network traffic of idle clients | WLS_FORMS | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Timeout Chain |
+| `networkRetries` | formsweb.cfg | retries of the client on a network error (default 0) | – | [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) Startup / Network |
 | `gzipCompressApplet` | formsweb.cfg | size of the jar download at the start | – | same (INFO) |
-| WLS_FORMS heap (`-Xmx`) | setUserOverrides.sh | servlet / listener JVM | WLS_FORMS | `02-Checks/weblogic_performance.sh` |
+| WLS_FORMS heap (`-Xmx`) | setUserOverrides.sh | servlet / listener JVM | WLS_FORMS | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
 
 What does **not** help:
 

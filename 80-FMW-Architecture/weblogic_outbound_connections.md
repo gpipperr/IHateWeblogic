@@ -5,8 +5,8 @@
 Which connections a Forms & Reports 14.1.2 domain opens to other hosts, how
 to measure that, and why an XML parser that downloads a DTD can block a
 server start forever behind a firewall. Background for
-`02-Checks/egress_check.sh` and the customer pre-check in
-`09-Install/04-oracle_pre_checks.sh`.
+[`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) and the customer pre-check in
+[`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh).
 
 Markers: **confirmed (live)** = measured on the test host (FMW 14.1.2,
 Oracle JDK 21.0.12.1, OL 9, 2026-10-20), **documented** = Oracle
@@ -25,8 +25,8 @@ documentation (section 7), **assumption** = plausible, not verified.
 | DNS, NTP | OS (resolver, chrony) | UDP | yes |
 | Node Manager, AdminServer ↔ managed servers | WebLogic | T3, loopback / own host | yes |
 | **Internet** | – | – | **no** – nothing in the product needs it at run time |
-| MOS, yum, GitHub, Oracle advisories | **our scripts** (`04-oracle_pre_download.sh`, `dnf`, `cve_inventory.sh --online`), never the domain | HTTPS | only for downloads / the CVE watch |
-| Timestamp server (TSA) `FORMS_SIGN_TSA_URL`, default `http://timestamp.digicert.com` | `jarsigner -tsa` in `09-Install/14-oracle_setup_forms.sh` when it signs `jacob.jar` (only `FORMS_WEBUTIL_JACOB=true`) | HTTP (port 80, RFC 3161) | only at signing; blocked → `jarsigner` **fails** (`ConnectException`, customer 2026-11-03) – allow it or `FORMS_SIGN_TSA_URL=""` ([certificates_trust_stores.md §6.1](certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access)) |
+| MOS, yum, GitHub, Oracle advisories | **our scripts** ([`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh), `dnf`, `cve_inventory.sh --online`), never the domain | HTTPS | only for downloads / the CVE watch |
+| Timestamp server (TSA) `FORMS_SIGN_TSA_URL`, default `http://timestamp.digicert.com` | `jarsigner -tsa` in [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) when it signs `jacob.jar` (only `FORMS_WEBUTIL_JACOB=true`) | HTTP (port 80, RFC 3161) | only at signing; blocked → `jarsigner` **fails** (`ConnectException`, customer 2026-11-03) – allow it or `FORMS_SIGN_TSA_URL=""` ([certificates_trust_stores.md §6.1](certificates_trust_stores.md#61-code-signing-on-a-host-without-outbound-access)) |
 
 **Confirmed (live) 2026-10-20:** full restart of the domain under
 `tcpdump` – AdminServer incl. Enterprise Manager, WLS_FORMS incl. the
@@ -96,7 +96,7 @@ confirmed by Oracle for the affected component.
 ## 4. How to measure what a JVM sends
 
 1. **Static:** external URLs in `DOCTYPE` / `schemaLocation` of the
-   configuration – `02-Checks/egress_check.sh` lists them per host and file.
+   configuration – [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) lists them per host and file.
 2. **Live snapshot:** `ss -tnp` – established connections that leave the
    host, per process (`egress_check.sh` without options).
 3. **Capture during a start:** `tcpdump` of DNS and of outgoing TCP SYN /
@@ -119,9 +119,9 @@ confirmed by Oracle for the affected component.
 
 | Script | What |
 |---|---|
-| `02-Checks/egress_check.sh` | static DTD/schema URLs, `/etc/hosts` entries for them, XML/network JVM options of the running servers, live outbound connections, `--capture` |
-| `09-Install/04-oracle_pre_checks.sh` | customer pre-check: proxy settings, does `http://java.sun.com/dtd/…` answer, fail fast or hang? |
-| `09-Install/docs/00-root_set_os_parameter.md` | firewall: outgoing traffic is not filtered by firewalld |
+| [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) | static DTD/schema URLs, `/etc/hosts` entries for them, XML/network JVM options of the running servers, live outbound connections, `--capture` |
+| [`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) | customer pre-check: proxy settings, does `http://java.sun.com/dtd/…` answer, fail fast or hang? |
+| [`09-Install/docs/00-root_set_os_parameter.md`](../09-Install/docs/00-root_set_os_parameter.md) | firewall: outgoing traffic is not filtered by firewalld |
 
 ## 6. Open points
 

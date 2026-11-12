@@ -90,7 +90,7 @@ With `-K` the password appears neither in the process list (`ps`) nor in the
 shell history nor in the access log.
 
 > Our own [rwserver_status.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) and
-> `engine_perf_analyse.sh` (`rws_fetch_serverinfo` in `reports_server_lib.sh`)
+> [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) (`rws_fetch_serverinfo` in [`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh))
 > use POST since 2026-11-03: the query string of the URL goes into the body
 > as it is, `authid` via `data-urlencode`, all of it as a curl config on
 > stdin. Live-tested with `--auth auto|mon|admin|none` and `showjobs`. Before
@@ -257,14 +257,14 @@ of 17 jobs. Delete `/tmp/sj.xml` afterwards.
 | Property | Meaning | Use |
 |---|---|---|
 | `successfulJobs` | jobs finished OK | throughput (delta per minute) |
-| `failedJobs` | jobs with an error (`REP-`/`ORA-`) | **delta > 0 = WARNING**. A failure rate ≥ 5 % of the jobs = a functional problem, not tuning (`engine_perf_analyse.sh`) |
+| `failedJobs` | jobs with an error (`REP-`/`ORA-`) | **delta > 0 = WARNING**. A failure rate ≥ 5 % of the jobs = a functional problem, not tuning ([`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)) |
 | `currentJobs` | jobs running now | load |
 | `futureJobs` | scheduled jobs (`schedule=`) | only if used |
 | `transferredJobs` | jobs taken over from another server (cluster) | normally 0 |
 | `longRunningJobs` | jobs longer than Oracle's "long running" limit | WARNING – slow SQL or a huge report |
 | `potentialRunawayJobs` | jobs that probably never end | **CRITICAL** – look at once (`showjobs`, `killjobid`) |
 | `averageResponseTime` | ms from request to result (end to end) | trend |
-| `avgQueuingTime` | ms spent waiting for a free engine | **queuing share** = `avgQueuingTime / averageResponseTime`; ≥ 50 % = jobs wait for engines (`engine_perf_analyse.sh`) |
+| `avgQueuingTime` | ms spent waiting for a free engine | **queuing share** = `avgQueuingTime / averageResponseTime`; ≥ 50 % = jobs wait for engines ([`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)) |
 | `averageElapsedTime` | should be the engine time – **always `0.0` in 14.1.2** (live, 2026-10-19) | do not use |
 
 ## 5. What to alarm on
@@ -297,7 +297,7 @@ of 17 jobs. Delete `/tmp/sj.xml` afterwards.
 | logs | `$DOMAIN_HOME/servers/<repserver>/logs/*.log`, engine logs: `REP-`, `ORA-`, `OutOfMemoryError` | the reason behind `failedJobs` |
 | disk | cache directory of the Reports server, `/tmp`, `$DOMAIN_HOME` | a full cache = every job fails |
 | end-to-end | once per hour a small test report via `cmdkey=` → `%PDF` | proves DB login, fonts and the PDF output (15- test report) |
-| certificates | `10-Monitoring/cert_expiry_check.sh` | HTTPS in front of rwservlet |
+| certificates | [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) | HTTPS in front of rwservlet |
 
 ## 7. Implementations
 
@@ -517,13 +517,13 @@ the host name).
 | Tool | Use |
 |---|---|
 | `01-Run/rwserver_status.sh --auth auto` | readable dump of the whole answer (server, engines, counters) |
-| `05-ReportsPerformance/engine_perf_analyse.sh` | evaluation: failure rate, queuing share, pool at `maxEngine`, logs |
+| [`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) | evaluation: failure rate, queuing share, pool at `maxEngine`, logs |
 | customer tool `/u01/oracle/tools/status.sh` | ports, processes and Node Manager state of the whole domain (Tools_status_logs_kochbuch.txt) |
 
 ## 8. Open points
 
 - Still GET with a password in the URL: the test report run of
-  `09-Install/15-deploy-test-report-forms_template.sh` (`userid=` with the
+  [`09-Install/15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) (`userid=` with the
   DB password), and examples in older docs / cookbooks (doc 12, doc 13,
   WLS_Report_start_stop_kochbuch.txt, Patch_Kochbuch 13.6). On customer
   hosts: check old access logs for `authid=` / `userid=` and clean them.

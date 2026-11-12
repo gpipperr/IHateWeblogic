@@ -123,8 +123,8 @@ Implemented in:
 
 | Where | |
 |---|---|
-| `09-Install/autostart_templates/fmw_ctl.sh.template` (`_clear_ovd_lock`) | before `start all` / `start AdminServer`, logged in `ctrl/log/fmw_ctl_<date>.log` |
-| `01-Run/startStop.sh` (ADMIN start) | before `startWebLogic.sh` |
+| [`09-Install/autostart_templates/fmw_ctl.sh.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/autostart_templates/fmw_ctl.sh.template) (`_clear_ovd_lock`) | before `start all` / `start AdminServer`, logged in `ctrl/log/fmw_ctl_<date>.log` |
+| [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) (ADMIN start) | before `startWebLogic.sh` |
 | `70-Customer-Projects/…/WLS_Report_start_stop_kochbuch.txt` | step 0.1 and `start_wls_all.sh` |
 | `70-Customer-Projects/…/Autostart_linux_middleware.txt` | `start_all.sh` |
 | `70-Customer-Projects/…/Reports_security.txt` | known problem, check, manual fix, workaround |

@@ -201,7 +201,7 @@ MODULES="… 18 modules …"
 `bin/` contains `java.exe`, `javaw.exe` (PE32+ x86-64, GUI subsystem) and
 `keytool.exe`. Built with the Linux `jlink` 21.0.12.1. **Confirmed (live)
 2026-10-23:** the cross-built runtime starts on Windows and runs the first FSAL
-session against the test host (installed by `FormsWeb-Setup.ps1` 1.0.2 from
+session against the test host (installed by [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) 1.0.2 from
 `/formsWeb/`, TLS with the CA inside its `cacerts`) –
 [40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md).
 
@@ -260,7 +260,7 @@ verified.
 
 1. Download the JDK of the **target** platform from MOS (full
    distribution, no base + patch): Linux `226P`, Windows x64 `233P`
-   (`04-oracle_pre_download.sh`, `client/jdk/<nr>/`).
+   ([`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh), `client/jdk/<nr>/`).
 2. Check the SHA-256 against `SHA256_VALUES`, extract the JDK ZIP
    (`jdk-<ver>_<platform>_bin.zip` / `.tar.gz`).
 3. `jlink --module-path <target-jdk>/jmods --add-modules <list> … --output <dir>`
@@ -273,7 +273,7 @@ verified.
    `javaw -jar frmsal.jar -url "…config=standaloneapp" -cert_truststore java`.
 6. Rebuild at every Java CPU / Security Alert and after the CA changes.
 
-Automated as `09-Install/40-oracle_forms_client_bundle.sh` (planned, concept
+Automated as [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) (planned, concept
 [40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md)).
 
 ---
