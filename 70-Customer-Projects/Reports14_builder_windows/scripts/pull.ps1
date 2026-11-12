@@ -19,13 +19,18 @@
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
 
+# Umlaute: Git liefert Dateinamen und Kommentare als UTF-8. Ohne diese Zeile
+# liest Windows PowerShell 5.1 sie in der Konsolen-Codepage (falsche Zeichen,
+# z.B. f<C3><BC>r statt fuer). Gilt fuer dieses Konsolenfenster.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # --- 1. In den obersten Ordner des Repositorys wechseln (eine Ebene ueber dem Skript)
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 Write-Host "Repository: $RepoRoot"
 
 # --- 2. Eigene, nicht eingecheckte Aenderungen anzeigen (nur zur Info)
-$changes = git status --porcelain
+$changes = git -c core.quotePath=false status --porcelain
 if ($LASTEXITCODE -ne 0) {
     Write-Host "FEHLER: git status ist fehlgeschlagen - ist das ein Git-Repository?" -ForegroundColor Red
     exit 1
@@ -51,7 +56,7 @@ if ($LASTEXITCODE -ne 0) {
 # --- 4. Die letzten 5 Check-ins anzeigen
 Write-Host ""
 Write-Host "Die letzten 5 Check-ins:"
-git log --oneline -5
+git --no-pager log --oneline --no-decorate -5
 Write-Host ""
 Write-Host "OK - Sie sind auf dem aktuellen Stand. Builder ueber 'Reports Builder (Git)' starten." -ForegroundColor Green
 exit 0

@@ -39,6 +39,11 @@ param(
     [string]$Comment
 )
 
+# Umlaute: Git liefert Dateinamen und Kommentare als UTF-8. Ohne diese Zeile
+# liest Windows PowerShell 5.1 sie in der Konsolen-Codepage (falsche Zeichen,
+# z.B. f<C3><BC>r statt fuer). Gilt fuer dieses Konsolenfenster.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # --- Einstellungen - an den Server anpassen ---------------------------------
 # Konverter, Domain und DB-Login-Datei stehen in convert_rdf.ps1.
 $ConvertScript = Join-Path $PSScriptRoot 'convert_rdf.ps1'
@@ -103,7 +108,7 @@ if ([int]$behind -gt 0 -and [int]$ahead -eq 0) {
 # Neue (--others), geaenderte (--modified) und geloeschte (--deleted) Dateien
 # in source und images. Eine geloeschte Datei steht bei --modified und
 # --deleted - Sort-Object -Unique zeigt sie nur einmal.
-$changed = @(git ls-files --modified --deleted --others --exclude-standard -- $SourceDir $ImageDir | Sort-Object -Unique)
+$changed = @(git -c core.quotePath=false ls-files --modified --deleted --others --exclude-standard -- $SourceDir $ImageDir | Sort-Object -Unique)
 $selected = @()
 $states   = @()
 
@@ -123,7 +128,7 @@ if ($changed.Count -gt 0) {
         }
         else {
             # Noch nie eingecheckt? Dann kennt git ls-files die Datei nicht.
-            $known = git ls-files -- $file
+            $known = git -c core.quotePath=false ls-files -- $file
             if (-not $known) {
                 $state = 'neu'
             }
@@ -182,8 +187,8 @@ if ($selected.Count -gt 0 -and -not $Comment) {
     $Comment = Read-Host "Kommentar fuer diesen Check-in (was und warum)"
 }
 if ($selected.Count -gt 0 -and -not $Comment) {
-    Write-Host "Kein Kommentar - es wurde nichts eingecheckt." -ForegroundColor Yellow
-    exit 1
+    Write-Host "Abgebrochen (kein Kommentar) - es wurde nichts eingecheckt." -ForegroundColor Yellow
+    exit 0
 }
 
 # --- 4. Ausgewaehlte neue oder geaenderte .rdf nach xml\<name>.xml wandeln
@@ -261,7 +266,7 @@ if ($nothingNew) {
 if (-not $nothingNew) {
     Write-Host ""
     Write-Host "Diese Dateien werden eingecheckt:"
-    git diff --cached --name-status -- $addPaths
+    git -c core.quotePath=false diff --cached --name-status -- $addPaths
 
     # "-- $addPaths": nur die ausgewaehlten Dateien kommen in den Check-in
     git commit --quiet -m $Comment -- $addPaths
@@ -308,5 +313,5 @@ if ($nothingNew) {
 else {
     Write-Host "OK - eingecheckt: $Comment" -ForegroundColor Green
 }
-git log --oneline -1
+git --no-pager log --oneline --no-decorate -1
 exit 0
