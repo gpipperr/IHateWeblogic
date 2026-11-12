@@ -5,6 +5,7 @@
 *.log
 *.tmp
 *.bak
+*.pdf
 *~
 # Login-Dateien gehoeren nie ins Repository
 login.txt
