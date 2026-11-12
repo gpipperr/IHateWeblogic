@@ -42,7 +42,7 @@ und deutschen Kommentaren.
      `rwserver.conf`, nicht einen WebLogic-Benutzer.
    - **Schritt 1–4 – alles auf einmal:** zwei eigene Skripte
      `start_wls_all.sh` / `stop_wls_all.sh` (in `/u01/oracle/tools`, Werte
-     aus `patch_install.ini`), die die Umgebung immer
+     aus [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini)), die die Umgebung immer
      komplett in der richtigen Reihenfolge starten bzw. stoppen (das
      WebLogic-Passwort wird beim Stoppen verdeckt abgefragt und nirgends
      gespeichert).
@@ -74,17 +74,17 @@ und deutschen Kommentaren.
    [../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
    (ohne IHateWeblogic-Lib; Werte in [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini);
    PATH auf die Tools, `wlst` und `domain` setzt `setdb`):
-   - `status.sh` – Zustand in drei Stufen: Ports (`ss`), Prozesse (`ps`,
+   - [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) – Zustand in drei Stufen: Ports (`ss`), Prozesse (`ps`,
      inkl. "gestartet vom Node Manager?" und Anzahl Reports-Engines),
      Status über `/weblogic/ready` und den Node Manager (WLST mit den
      gespeicherten storeUserConfig-Zugangsdaten); Rückgabewert 0/1/2.
-   - `show_all_logs.sh` – alle aktuellen Logs der Domain live (`tail -F`).
-   - `show_errors.sh` – nur Fehlerzeilen (`<Error>`, `REP-`, `BEA-`,
+   - [`show_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_all_logs.sh) – alle aktuellen Logs der Domain live (`tail -F`).
+   - [`show_errors.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_errors.sh) – nur Fehlerzeilen (`<Error>`, `REP-`, `BEA-`,
      `JPS-`, Exceptions …), mit `-r` erst die letzten Fehler, dann live.
-   - `show_log.sh` – das aktuelle Log einer Komponente (Node Manager,
+   - [`show_log.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_log.sh) – das aktuelle Log einer Komponente (Node Manager,
      AdminServer, Managed Server, Reports-Server/Engines) per Auswahl-Menü
      oder direkt (`show_log.sh reports engine`).
-   - `patch_install.ini` + `set_script_env.sh` – alle Werte dieser
+   - `patch_install.ini` + [`set_script_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/set_script_env.sh) – alle Werte dieser
      Umgebung an einer Stelle (Kochbücher und Tools), mit
      `. /u01/oracle/tools/set_script_env.sh` in die Sitzung zu laden.
 
