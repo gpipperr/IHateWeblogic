@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows/scripts`: `checkin.ps1` shows the changed files of `source` / `images`
+  as a numbered list – number = only this file (+ its `.xml`), `a` = all, `n` = nothing new, only
+  send unsent check-ins; only the selection is committed (`git commit -- <paths>`). Rejected push
+  now `git pull --no-rebase --ff` instead of `--rebase` (a rebase refuses while other, not
+  selected reports are changed – reproduced); conflict -> `merge --abort`. New `convert_rdf.ps1`
+  (report name only, folders fixed, `-Check`; output captured with `Start-Process`, success = exit
+  0 AND XML written) and `git_setup.ps1` (name, e-mail, `core.autocrlf` global). `rwconverter
+  logfile=` tested live and rejected: deprecated (`REP-34551`), no `REP-` lines in the file, and
+  with a wrong login it prompts "Enter Password:" despite `batch=yes`. Tested with PowerShell 7.4
+  (bare repo, two clones, races) and the real `rwconverter.sh` 14.1.2; `Git_checkin.md` updated.
 - **GitHub Pages links** (prompt `prompt_ihw_pages_verlinkung.md`, steps 1–4 started): new
   `tools/check_pages_links.py` (stdlib only) – local check of every relative link (missing,
   anchor against the headings, folder without README, excluded in `_config.yml`, raw file,

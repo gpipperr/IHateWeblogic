@@ -30,9 +30,11 @@ Related:
         |  1. pull.ps1            at the start of the work
         |  2. edit in the Builder E:\git\%USERNAME%\Reports\source\*.rdf
         |  3. checkin.ps1 "comment"
-        |        a) fetch: behind the remote? -> stop, "run pull.ps1 first"
-        |        b) changed .rdf -> rwconverter -> Reports\xml\<name>.xml
-        |        c) git add source xml images ; commit -m "comment" ; push
+        |        a) fetch: behind the remote? -> fast-forward first
+        |        b) list of changed files -> number (only this one), a (all)
+        |           or n (nothing new, only send unsent check-ins)
+        |        c) selected .rdf -> convert_rdf.ps1 (rwconverter) -> Reports\xml\<name>.xml
+        |        d) git add + commit only the selection ; push
         v
  Git server (HTTPS) --> later: automation to the Linux DEV Reports server
 ```
@@ -43,7 +45,7 @@ Related:
 | report sources | `E:\git\%USERNAME%\Reports\source\*.rdf` |
 | images | `E:\git\%USERNAME%\Reports\images\` (file names in lower case, see the image article) |
 | XML of every report | `E:\git\%USERNAME%\Reports\xml\<name>.xml` – written by `checkin.ps1`, never by hand |
-| scripts | `E:\git\%USERNAME%\Reports\pull.ps1`, `...\checkin.ps1` (part of the repository, so every clone has the same version) |
+| scripts | `E:\git\%USERNAME%\Reports\pull.ps1`, `...\checkin.ps1`, `...\convert_rdf.ps1`, `...\git_setup.ps1` (part of the repository, so every clone has the same version; `git_setup.ps1` once per user before the first check-in) |
 | Git | Git for Windows (command line), remote via HTTPS, personal user |
 | Builder start | desktop file `rwbuilder_git.bat` = copy of the original with `REPORTS_PATH=E:\git\%USERNAME%\Reports\source;...\images` in front (3.5) |
 | user in commands and scripts | always the variable **`%USERNAME%`** (cmd) / **`$env:USERNAME`** (PowerShell) – no user name is written into a command, a script or `reports.bat`; the same text works for every developer. `gpi` is only the demo user of the examples |
@@ -145,6 +147,7 @@ Reports 14.1.2 + QPR 39600348, `$DOMAIN_HOME/reports/bin/rwconverter.sh`
 | report file missing | `REP-1950 The Source specified is invalid`, exit code 1 | check the exit code – stop the check-in |
 | broken file | `REP-0110 ... cannot be opened`, `REP-1070`, exit code 1 | the same |
 | wrong DB login | three tries `REP-0501`, then `REP-0309 ... after three attempts. Access denied.`, exit code 1 | the same; message "check your login file" |
+| `logfile=<file>` (2026-11-12) | **not usable:** `REP-34551 Feature LOGFILE is deprecated`; the file holds only "Converting … to …" and "Conversion … canceled" – **no `REP-` messages** (they go to the console only); with a wrong login the converter suddenly asks "Enter Password:" despite `batch=yes` and waited for input (hung until the timeout), the log file is not even created | `convert_rdf.ps1` does not use it – it redirects stdout / stderr itself and checks that the XML was written |
 | several reports in one call | `source=(a.rdf,b.rdf) dest=(xml/a.xml,xml/b.xml)` works, exit code 0 – **but** the `name=` of the second file was the internal report name, not the file name | one call per report (0.5 s each is cheap) – stable names |
 
 The XML contains the queries and the layout, **no login data** (checked:
@@ -156,8 +159,15 @@ neither user nor password of the conversion login in the file).
   who is a local admin – in an elevated window ("Run as administrator");
   check whether it also works without elevation (UAC) – expected no, as for
   the Builder.
-- Exit code arrives in PowerShell (`$LASTEXITCODE`) – expected 0 / 1 as on
-  Linux.
+- Exit code arrives in PowerShell – expected 0 / 1 as on Linux.
+- **Messages:** a plain call of `rwconverter.bat` returns no message to
+  PowerShell on Windows (`rwconverter.exe` is a Windows program without a
+  console – seen at the customer). `convert_rdf.ps1` starts it with
+  `Start-Process -RedirectStandardOutput / -RedirectStandardError` and
+  counts a conversion as successful only when the exit code is 0 **and**
+  the XML was written now. To check on Windows: do the `REP-` lines arrive
+  in the redirected output? If not, the script says "rwconverter hat keine
+  Meldung geliefert" and the developer compiles the report in the Builder.
 - Byte-identical XML on Windows (line ends: Windows may write CRLF – then set
   `*.xml text eol=crlf` or `-text` in `.gitattributes` so Git does not report
   every file as changed).
@@ -191,11 +201,22 @@ scripts follow:
   and a newer server could neither pull nor check in.
 - `checkin.ps1` runs `git fetch` before converting: behind the server →
   fast-forward first; the same report changed by a colleague → stop.
-- **Local check-ins not yet on the server** (e.g. after a rejected push) and
-  a newer server: no fast-forward possible – the script commits, and on the
-  rejected push it runs `git pull --rebase` and pushes again. On a conflict
-  (same report) it runs `git rebase --abort`: the check-in stays local, the
-  working copy is clean, the developer asks the Git contact person.
+- **One file or all (2026-11-12):** `checkin.ps1` lists the changed files of
+  `source\` and `images\` (new / changed / deleted) with numbers – a number
+  checks in only that file (plus its `.xml`), `a` checks in all, `n` checks
+  in nothing new and only sends check-ins still waiting locally. Only the
+  selection is staged and committed (`git commit -- <paths>`); the other
+  changes stay in the working copy for a later check-in.
+- **Rejected push → merge, not rebase (2026-11-12):** when a colleague pushed
+  between `fetch` and `push` (or local check-ins not yet on the server meet a
+  newer server), the script runs `git pull --no-rebase --ff` and pushes again.
+  A rebase refuses to run while other, not selected reports are changed –
+  with the file selection that is the normal case (tested). A merge works
+  with them and **aborts before touching anything** when one of them would
+  be overwritten – no stash, nothing can get lost. Price: in this rare case a
+  merge commit appears in the history. On a conflict (same report) the
+  script runs `git merge --abort`: the check-in stays local, the working copy
+  is unchanged, the developer asks the Git contact person.
 - The same report changed by two developers at the same time stays a
   conflict that a person resolves (agree who works on which report; Git LFS
   file locking would be the technical answer – later, if needed).
@@ -310,17 +331,20 @@ adaptation: plain PowerShell, one step after the other, no nested commands,
 | File | Purpose |
 |---|---|
 | [pull.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
-| [checkin.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (admin session, converter, login file) → comment → `git fetch` (behind → fast-forward; same report changed → stop) → convert every new / changed `.rdf` (stop at the first error, nothing committed) → delete the `.xml` of a deleted `.rdf` → `git add` source / xml / images → commit → push (rejected → `pull --rebase` + push; conflict → `rebase --abort`) |
+| [git_setup.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | once per Windows user: asks name, e-mail address and `core.autocrlf` (`true` / `input` / `false`, proposal `true`; Enter keeps the shown value), sets them with `git config --global`, shows the result |
+| [convert_rdf.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | one report `.rdf` → `.xml` with `rwconverter` (`cmdfile=` login file – no password on the command line); output of the converter captured with `Start-Process` (stdout / stderr into temp files, `REP-` / `ORA-` lines shown); success = exit code 0 **and** XML written now; `-Check` = only the checks (admin session, converter, login file). Only the report name: `.\convert_rdf.ps1 bericht` → `source\bericht.rdf` → `xml\bericht.xml` (folders fixed next to the script; always `<name>.xml`, because rwconverter takes the internal report name from the destination file name). Called by `checkin.ps1`, also usable alone |
+| [checkin.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (`convert_rdf.ps1 -Check`) → `git fetch` (behind → fast-forward; same report changed → stop) → numbered list of the changed files in source / images, **number = only this file, `a` = all, `n` = nothing new, only send** → comment → convert the selected new / changed `.rdf` with `convert_rdf.ps1` (stop at the first error, nothing committed) → delete the `.xml` of a selected deleted `.rdf` → `git add` + commit **only the selection** → push (rejected → `pull --no-rebase` + push; conflict → `merge --abort`) |
 | [template.gitattributes](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/template.gitattributes) | `*.rdf binary`, line ends of `*.xml` (value after the Windows test, 2.3) |
 | [template.gitignore](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/template.gitignore) | `*.rep`, logs, backups, `login.txt` |
 
-Settings at the top of `checkin.ps1`: `$DomainHome` (default
+Settings at the top of `convert_rdf.ps1`: `$DomainHome` (default
 `E:\oracle\user_projects\domains\rwbuilder_domain`, the environment variable
 `DOMAIN_HOME` wins), the login file `%USERPROFILE%\.rwconv\login.txt`, the
-three folders `Reports/source`, `Reports/xml`, `Reports/images`. The
-variable `RWCONVERTER` replaces the converter – for tests only.
+variable `RWCONVERTER` replaces the converter – for tests only. At the top
+of `checkin.ps1`: the three folders `Reports/source`, `Reports/xml`,
+`Reports/images`.
 
-### 4.1 Tested on Linux (2026-11-11) – Windows to confirm
+### 4.1 Tested on Linux (2026-11-11, file selection 2026-11-12) – Windows to confirm
 
 PowerShell 7.4 on the Linux test host, a local bare repository as the Git
 server, two clones (`gpi`, `kollege`), a fake converter (writes the XML,
@@ -338,9 +362,20 @@ customer (section 5).
 | **colleague changed the same report** – check-in / pull | Git: "would be overwritten", script stops, nothing changed, exit 1 |
 | broken report | `REP-1430` shown, nothing committed, exit 1 |
 | report deleted | `.rdf` and matching `.xml` deleted and checked in |
-| colleague pushes **during** the check-in (other report) | first push rejected → `pull --rebase` → push, exit 0 |
-| same, **same report** | rebase conflict → `rebase --abort`; check-in local, working copy clean, exit 1 |
-| local unsent check-in + newer server | message, commit, rebase on push – both on the server, exit 0 |
+| colleague pushes **during** the check-in (other report) | first push rejected → `pull --no-rebase` → push, exit 0 |
+| same, **same report** | merge conflict → `merge --abort`; check-in local, own change kept, no merge left open, exit 1 |
+| local unsent check-in + newer server | message, commit, merge on push – both on the server, exit 0 |
+| **file selection** (2026-11-12): 4 changes, number 4 = new report | only that `.rdf` + its `.xml` committed, the other 3 changes stay |
+| selection: deleted report / new image | only the deletion / only the image committed |
+| selection `a` | all changes + converted `.xml` committed |
+| invalid number (`9`) | "Ungueltige Auswahl", nothing checked in, exit 1 |
+| `n` without unsent check-ins / with 1 unsent check-in | "nichts zu senden", exit 0 / only pushed, "OK - an den Git-Server gesendet" |
+| converter moved to `convert_rdf.ps1` | broken report: `REP-1430` from `convert_rdf.ps1`, nothing committed, exit 1; login file missing: message from `-Check` before the list; alone without arguments: usage, exit 1; alone with the report name (`b1`, `b1.rdf` or a path): `xml\b1.xml` written, exit 0; unknown name: "Bericht nicht gefunden", exit 1 |
+| `convert_rdf.ps1` with the **real** `rwconverter.sh` 14.1.2 (2026-11-12) | success: XML written, exit 0 (also a second run); broken file: `REP-0110` / `REP-1070` shown, exit 1; wrong login: 3× `REP-0501` + `REP-0309` shown, no hang, exit 1 |
+| converter without any output (exit 1, or exit 0 without writing the XML) | "rwconverter hat keine Meldung geliefert …", exit 1 – a missing XML is caught even with exit code 0 |
+| `git_setup.ps1` (isolated `HOME`) | first run sets the 3 values; Enter keeps them; `input` changes only `core.autocrlf`; invalid e-mail / value: message, nothing changed |
+| colleague pushes during the check-in, **another changed report not selected** | `pull --rebase` would refuse ("unstaged changes") – merge works, the not selected change stays, exit 0 |
+| same, colleague changed exactly **that not selected report** | Git: "would be overwritten" before any change, check-in local, the own edit unchanged, exit 1 |
 | nothing new, 1 unsent check-in | only pushed |
 | login file missing | clear message with the line format, exit 1 |
 | both scripts | parse without errors (PowerShell parser), plain ASCII |
