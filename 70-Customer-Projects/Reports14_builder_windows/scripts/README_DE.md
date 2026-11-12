@@ -210,6 +210,28 @@ Genehmigung:
 | `ist in main schon genau so` | nichts zu tun |
 | `OK - Merge Request ... angelegt` | in GitLab wartet der Merge Request auf die Genehmigung |
 
+### Freigaben anzeigen und markieren: `release_tag.ps1`
+
+```powershell
+.\Reports\release_tag.ps1                  # anzeigen, dann Nummer wählen (Enter = nichts)
+.\Reports\release_tag.ps1 -File umsatz     # nur Dateien mit 'umsatz' im Namen
+.\Reports\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
+```
+
+1. **Noch nicht in Produktion:** alle Check-ins auf `origin/development`, die
+   in keinem `prod-`-Tag enthalten sind – nummeriert, mit Dateien und einer
+   Liste pro Datei.
+2. **Letzte Freigaben:** die letzten 20 `prod-`-Tags mit Datum, Freigeber und
+   den Dateien seit der vorherigen Freigabe.
+3. **Freigabe:** Nummer eingeben → Tag mit Kommentar auf diesen Check-in,
+   z.B. `prod-2026-11-12_1430_umsatz.rdf`, und zum Git-Server senden.
+
+- Standard: nur `.rdf`-Dateien. `-Filter '*.png'` zeigt z.B. nur Bilder,
+  `-Filter ''` alle Dateien.
+- Ein Tag auf Nr. 3 gibt auch alle **älteren** Check-ins frei (Nr. 4, 5, …).
+- Das Skript setzt nur den Tag – es verteilt nichts. Die Pipeline startet
+  ihn nicht.
+
 ## Die Auswahl beim Einchecken
 
 | Eingabe | Bedeutung |
@@ -244,6 +266,7 @@ Auch ein leerer Kommentar bricht ab.
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
 | `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
+| `release_tag.ps1` | Freigaben anzeigen (offen / letzte `prod-`-Tags) und einen Check-in mit einem `prod-`-Tag markieren; Standard nur `.rdf`, `-Filter` ändert das |
 | `promote.ps1` | einen getesteten Bericht für die Produktion freigeben: `.\Reports\promote.ps1 umsatz` legt den Merge Request nach `main` an |
 
 ## Regeln

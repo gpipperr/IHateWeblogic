@@ -5,6 +5,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows/scripts`: customer script for release tags rebuilt as `release_tag.ps1` in
+  our style (repo-root logic, Exit-Script, commented git calls, ASCII): open check-ins on
+  `origin/development` without a `prod-*` tag, the last 20 releases, set + push an annotated tag;
+  new default filter `*.rdf` (`-Filter` overrides, `''` = all), `-File` = part of the file name.
 - `Reports14_builder_windows/scripts`: new `status_detail.ps1` (read only) - the last 20 check-ins
   (parameter = other count) as a Markdown table `|Datum|Commit ID|Datei|Tag|`, one row per file.
 - `Reports14_builder_windows`: **deployment** with a self-hosted GitLab (`Git_deploy.md`, folder
