@@ -10,7 +10,8 @@
 #   Commit ID : Kurz-Nummer des Check-ins
 #   Datei     : jede Datei, die der Check-in geaendert hat (- = keine,
 #               z.B. beim Zusammenfuehren)
-#   Tag       : Tag(s) auf diesem Check-in (z.B. v1.0), sonst leer
+#   Tag       : Tag(s) auf diesem Check-in, sonst leer - mit Kommentar,
+#               falls der Tag einen hat (git tag -a): v1.0 (Freigabe Q4)
 #
 #   cd E:\git\<Ihr Login>
 #   .\Reports\status_detail.ps1          die letzten 20 Check-ins
@@ -66,8 +67,8 @@ $branch = git rev-parse --abbrev-ref HEAD
 #   --name-only             : unter jedem Check-in die geaenderten Dateien
 #   --decorate-refs=refs/tags/ : als Markierung (%D) nur Tags, keine Branches
 #   --format                : eine Kopfzeile je Check-in, beginnt mit '@@':
-#                             %h Kurz-Nummer, %ad Datum, %D Tags
-#                             (z.B. "tag: v1.0, tag: v1.1")
+#                             %h Kurz-Nummer, %ad Datum, %D Tags (nur um
+#                             zu sehen, ob der Check-in einen Tag hat)
 #   --date=format:'%Y-%m-%d %H:%M' : Datum als 2026-11-12 14:30
 $lines = @(git -c core.quotePath=false --no-pager log -n $Anzahl --name-only `
     --decorate-refs=refs/tags/ --format='@@%h|%ad|%D' --date=format:'%Y-%m-%d %H:%M')
@@ -94,8 +95,24 @@ foreach ($line in $lines) {
     if ($line.StartsWith('@@')) {
         Add-Commit
         $parts = $line.Substring(2).Split('|', 3)
-        # "tag: v1.0, tag: v1.1" -> "v1.0, v1.1"
-        $tag = ($parts[2] -replace 'tag: ', '').Trim()
+        $tag = ''
+        if ($parts[2].Trim() -ne '') {
+            # Tags mit Kommentar lesen - nur fuer Check-ins, die einen Tag haben
+            # git tag -l --points-at <nr>: alle Tags auf diesem Check-in
+            #   --format : %(refname:short) Tag-Name, %(objecttype) 'tag' bei
+            #              einem Tag mit Kommentar (git tag -a), 'commit' bei
+            #              einem einfachen Tag; %(contents:subject) erste
+            #              Zeile des Tag-Kommentars
+            $tagList = @(git -c core.quotePath=false tag -l --points-at $parts[0] `
+                --format='%(refname:short)|%(objecttype)|%(contents:subject)')
+            $tagText = foreach ($t in $tagList) {
+                $tp = $t.Split('|', 3)
+                # "v1.0 (Kommentar)" - einfacher Tag ohne Kommentar: nur "v1.0"
+                if ($tp[1] -eq 'tag' -and $tp[2].Trim() -ne '') { "$($tp[0]) ($($tp[2].Trim()))" }
+                else { $tp[0] }
+            }
+            $tag = $tagText -join ', '
+        }
         $current = [pscustomobject]@{ Datum = $parts[1]; Commit = $parts[0]; Tag = $tag }
         $files = 0
     }

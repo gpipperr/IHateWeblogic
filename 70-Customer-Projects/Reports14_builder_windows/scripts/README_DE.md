@@ -128,10 +128,12 @@ Mehr Details zu den letzten Check-ins – eine Zeile pro Datei, mit Tag:
 ```
 
 ```
-|Datum           |Commit ID|Datei                    |Tag |
-|----------------|---------|-------------------------|----|
-|2026-11-12 15:23|cd9aa23  |Reports/source/umsatz.rdf|v1.0|
+|Datum           |Commit ID|Datei                    |Tag               |
+|----------------|---------|-------------------------|------------------|
+|2026-11-12 15:23|cd9aa23  |Reports/source/umsatz.rdf|v1.0 (Freigabe Q4)|
 ```
+
+Hat der Tag einen Kommentar (`git tag -a`), steht dessen erste Zeile in Klammern dahinter.
 
 ### 5. Fertig: `checkin.ps1`
 
