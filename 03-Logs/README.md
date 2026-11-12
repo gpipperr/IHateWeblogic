@@ -68,10 +68,10 @@ Outside `$DOMAIN_HOME` (Nginx and the access log analysis are not covered by the
 | Log | Where | Note |
 |---|---|---|
 | Nginx access / error | `/var/log/nginx/` | root-readable; the only entry from outside – first place for HTTP 4xx / 5xx and TLS errors; HTTPS lines end with `rt=` (whole request) `urt=` (WebLogic) `uct=` (connect) since 2026-11-03 – [forms_performance_analyse_tuning.md §2](../80-FMW-Architecture/forms_performance_analyse_tuning.md#2-measuring-per-layer) |
-| Forms response times | `servers/WLS_FORMS/logs/access.log` | `time-taken` column: new domains from `09-Install/08-`, existing ones after `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`; analysed by `06-FormsDiag/forms_perf_analyse.sh` – meaning: [forms_runtime_architecture.md §6.1](../80-FMW-Architecture/forms_runtime_architecture.md#61-accesslog-and-time-taken) |
+| Forms response times | `servers/WLS_FORMS/logs/access.log` | `time-taken` column: new domains from `09-Install/08-`, existing ones after `06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog`; analysed by [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) – meaning: [forms_runtime_architecture.md §6.1](../80-FMW-Architecture/forms_runtime_architecture.md#61-accesslog-and-time-taken) |
 | IHateWeblogic scripts | `log/<yyyymmdd>/` in the repository | `DIAG_LOG_DIR` |
 | ORDS access log (APEX / REST requests) | `/var/log/ords_N/ords_<yyyy_mm_dd>.log` | one file per day, NCSA format (`standalone.access.log`); the Nginx log shows the same request from outside |
-| ORDS server log | `/var/log/ords_N/ords_sys_<n>.log` | `java.util.logging`, level WARNING, 5 × 10 MB (`config/global/logging.properties`, written by `12-APEX-Ords/04-install-ords.sh`) |
+| ORDS server log | `/var/log/ords_N/ords_sys_<n>.log` | `java.util.logging`, level WARNING, 5 × 10 MB (`config/global/logging.properties`, written by [`12-APEX-Ords/04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh)) |
 | ORDS start / crash | `/var/log/ords_N/ords_stdout.log`, `ords_stderr.log`; `journalctl -u ords@ords_N` | systemd `append:` (owner root), normally almost empty – grows only on errors (Java, DB pool) |
 
 Directory `/var/log/ords_N/` (`oracle:oinstall`, 750; `ORDS_LOG_BASE`) –
@@ -85,7 +85,7 @@ scripts said so): `$DOMAIN_HOME/diagnostics/logs/` does **not exist** in
 
 Not counted as logs, but the real disk consumers below `servers/` on the
 test host: `servers/<srv>/tmp/` (WebLogic cache, 400–800 MB each) and
-`servers/<srv>/adr/` (ADR incidents) – `get_all_logs.sh` lists them
+`servers/<srv>/adr/` (ADR incidents) – [`get_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/get_all_logs.sh) lists them
 separately.
 
 > **Key point for Reports:** `WLS_REPORTS.log` and
@@ -94,7 +94,7 @@ separately.
 > `servers/<repserver>/logs/rwEng-N_diagnostic.log` and
 > `rwserver_diagnostic.log`. Batch runs via `rwrun` log to
 > `servers/reptools1/logs/runtime_diagnostic.log`
-> (deeper: `01-Run/rwrun_trace.sh`).
+> (deeper: [`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh)).
 
 All `03-Logs` scripts find these directories themselves
 ([`log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh)): every `servers/*/logs` with its
@@ -149,7 +149,7 @@ The scripts treat as **rotated**: `*.log00001`, `*.out00001`,
 | Problem | Look first in |
 |---|---|
 | Report fails, user sees REP error | `servers/<repserver>/logs/rwEng-N_diagnostic.log` (cause), `rwserver_diagnostic.log` (job), then `WLS_REPORTS/logs/reports/rwservlet_diagnostic.log` |
-| Report via `rwrun` / batch | `servers/reptools1/logs/runtime_diagnostic.log`, `01-Run/rwrun_trace.sh` |
+| Report via `rwrun` / batch | `servers/reptools1/logs/runtime_diagnostic.log`, [`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) |
 | Reports server does not start / restarts | `nodemanager/nodemanager.log`, `servers/<repserver>/logs/<repserver>.out` (REP-50600 multicast, REP-56040 name in use) |
 | Forms session does not start | `WLS_FORMS/logs/formsapp-diagnostic.log` (FRM-93xxx: frmweb start, environment), `WLS_FORMS.out` |
 | Server does not start / crashes | `nodemanager/nodemanager.log`, `<srv>.out` (JVM errors, OutOfMemoryError), `<srv>.log` |
@@ -179,7 +179,7 @@ project:
 | `REP-1924` | engine log | font file not found – see `04-ReportsFonts/` |
 | `FRM-93xxx` | `formsapp-diagnostic.log` | Forms servlet / `frmweb` process start, environment (`default.env`) |
 | `BEA-000362` | `<srv>.log` | server failed to start (e.g. port in use) |
-| `ORA-12541` / `ORA-01017` / `ORA-28001` | data source / engine logs | no listener / wrong password / password expired – `02-Checks/db_connect_check.sh` |
+| `ORA-12541` / `ORA-01017` / `ORA-28001` | data source / engine logs | no listener / wrong password / password expired – [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
 
 Quick scan:
 
@@ -215,7 +215,7 @@ standalone Reports server process; their level is set in
 (restart of the Reports server), for `rwrun` via
 `01-Run/rwrun_trace.sh --odl`.
 
-`setLogLevel.sh` changes the level **at runtime only** by default
+[`setLogLevel.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/setLogLevel.sh) changes the level **at runtime only** by default
 (`persist=0`); `--persist` writes it into
 `config/fmwconfig/servers/<srv>/logging.xml` so that it survives a restart.
 
@@ -236,13 +236,13 @@ for today, older days as **rotated**; `ords_sys_0.log` is active,
 
 | Script | Purpose | Mode |
 |---|---|---|
-| `get_all_logs.sh` | inventory: every log with size, date, active / rotated / compressed, totals | read-only |
-| `grep_logs.sh` | search a pattern in all logs incl. rotated and `.gz` | read-only |
-| `tail_logs.sh` | live view of the main logs (tmux split panes or plain `tail -F`) | read-only |
-| `cleanLogFiles.sh` | truncate active logs, delete old rotated / compressed ones | `--apply` |
-| `archive_logs.sh` | gzip rotated logs | `--apply` |
-| `setLogLevel.sh` | query / set WebLogic logger levels via WLST | `--apply` |
-| `log_locations.sh` | shared helper (sourced): log groups, file kind, file search | – |
+| [`get_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/get_all_logs.sh) | inventory: every log with size, date, active / rotated / compressed, totals | read-only |
+| [`grep_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/grep_logs.sh) | search a pattern in all logs incl. rotated and `.gz` | read-only |
+| [`tail_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/tail_logs.sh) | live view of the main logs (tmux split panes or plain `tail -F`) | read-only |
+| [`cleanLogFiles.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/cleanLogFiles.sh) | truncate active logs, delete old rotated / compressed ones | `--apply` |
+| [`archive_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/archive_logs.sh) | gzip rotated logs | `--apply` |
+| [`setLogLevel.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/setLogLevel.sh) | query / set WebLogic logger levels via WLST | `--apply` |
+| [`log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh) | shared helper (sourced): log groups, file kind, file search | – |
 
 ### get_all_logs.sh
 
@@ -303,7 +303,7 @@ Main logs per group: `<srv>.log`, `<srv>.out`, `<srv>-diagnostic.log`,
 `rwserver_diagnostic.log`, `rwEng-*_diagnostic.log`, `<name>.out`; Reports
 tools: `runtime_diagnostic.log`; `nodemanager.log` (16 files for `all` on
 the test host); ORDS: today's access log, `ords_sys_0.log`, `ords_stderr.log`
-(the access log of today – a new day needs a restart of `tail_logs.sh`). `tail -F` follows by name – it keeps following when
+(the access log of today – a new day needs a restart of [`tail_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/tail_logs.sh)). `tail -F` follows by name – it keeps following when
 WebLogic rotates a log.
 
 tmux: one pane per file (tiled, file name in the pane border); inside tmux
@@ -325,7 +325,7 @@ warnings yellow, info green).
 | Option | Description |
 |---|---|
 | `--apply` | execute (default: dry-run plan) |
-| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 14 – the same value `get_all_logs.sh` uses for its "not written for N days" warning) |
+| `--retain-days N` | keep rotated / compressed logs N days (default `LOG_RETAIN_DAYS`, 14 – the same value [`get_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/get_all_logs.sh) uses for its "not written for N days" warning) |
 | `--include-out` | also truncate `*.out` (skipped by default – may hold JVM crash output) |
 | `--component NAME` | see above |
 
@@ -338,7 +338,7 @@ are never truncated (`java.util.logging` does not write in append mode,
 older than `--retain-days` are deleted. The plan shows
 TRUNCATE / DELETE / SKIP per file and the space freed.
 
-> Truncating is irreversible – run `grep_logs.sh` first.
+> Truncating is irreversible – run [`grep_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/grep_logs.sh) first.
 
 ### archive_logs.sh
 
@@ -358,7 +358,7 @@ TRUNCATE / DELETE / SKIP per file and the space freed.
 
 Compresses **rotated** logs (`*.log00001`, `*.out00001`,
 `*-diagnostic-1.log`, …) with gzip; active and already compressed files
-are never touched. Afterwards still searchable with `grep_logs.sh` /
+are never touched. Afterwards still searchable with [`grep_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/grep_logs.sh) /
 `zgrep`.
 
 ### setLogLevel.sh
@@ -380,7 +380,7 @@ are never touched. Afterwards still searchable with `grep_logs.sh` /
 | `--persist` | also save to `logging.xml` (survives a restart) |
 
 Needs the running AdminServer and the stored credentials
-(`00-Setup/weblogic_sec.sh`). WebLogic servers only – see section 5 for
+([`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh)). WebLogic servers only – see section 5 for
 the Reports server / engines.
 
 Fixed 2026-10-19 (**confirmed (live)**): `--query` found no loggers
