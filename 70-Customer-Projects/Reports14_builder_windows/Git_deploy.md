@@ -240,7 +240,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
   jobs"** for DEV, as a second line next to the ancestor check in
   `ci_deploy.sh`. It also blocks retrying an older PROD pipeline – for a
   rollback set a new tag on the older check-in instead.
-- Delete the old branch `development` once it is no longer used.
+- The old branch `development` is already deleted at the customer.
 
 ## 7. When something goes wrong
 
