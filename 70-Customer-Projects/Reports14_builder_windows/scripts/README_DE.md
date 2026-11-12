@@ -117,6 +117,9 @@ Wähle eine Option oder breche mit x ab :
   (`..\Reports`) oder absolut mit `%VARIABLE%`
   (`E:\git\%USERNAME%\Reports`). `menu.cmd`, `menu.ps1` und `menu.ini`
   bleiben zusammen in einem Ordner.
+- Die Fenstergröße (60 Zeilen) steht oben in `menu.cmd` (`ZEILEN`,
+  `SPALTEN`). Im Windows Terminal (Windows 11) gilt dessen eigene
+  Einstellung.
 
 Die Skripte lassen sich weiterhin auch direkt im PowerShell-Fenster starten,
 wie unten beschrieben.

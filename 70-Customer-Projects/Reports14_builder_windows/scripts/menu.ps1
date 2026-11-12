@@ -33,7 +33,11 @@ param(
     # andere Menue-Datei (Standard: menu.ini neben diesem Skript)
     [string]$Ini = '',
     # von menu.cmd gesetzt: eigenes Fenster - x schliesst es
-    [switch]$Fenster
+    [switch]$Fenster,
+    # von menu.cmd gesetzt: Fensterhoehe in Zeilen / Breite in Zeichen
+    # (0 = nicht aendern)
+    [int]$Zeilen = 0,
+    [int]$Spalten = 0
 )
 
 # Umlaute: Ausgaben von git als UTF-8 lesen (wie in den anderen Skripten)
@@ -128,6 +132,33 @@ $items = @($items | Sort-Object Sort, Name)
 
 # --- 2. Menue anzeigen
 try { $Host.UI.RawUI.WindowTitle = $titel } catch { }
+
+# Fenstergroesse aus menu.cmd setzen - Puffer (Zurueckscrollen) 3000 Zeilen.
+# Das Fenster darf nie groesser als der Puffer sein, daher die Reihenfolge.
+# Klappt nur im klassischen Konsolenfenster; Windows Terminal und andere
+# Umgebungen lehnen es ab - dann bleibt die Groesse einfach, wie sie ist.
+if ($Zeilen -gt 0 -or $Spalten -gt 0) {
+    try {
+        $raw = $Host.UI.RawUI
+        $max = $raw.MaxPhysicalWindowSize
+        $win = $raw.WindowSize
+        $h = $win.Height
+        $w = $win.Width
+        if ($Zeilen -gt 0)  { $h = [Math]::Min($Zeilen, $max.Height) }
+        if ($Spalten -gt 0) { $w = [Math]::Min($Spalten, $max.Width) }
+        $bufH = [Math]::Max($raw.BufferSize.Height, 3000)
+        if ($w -gt $raw.BufferSize.Width) {
+            $raw.BufferSize = New-Object Management.Automation.Host.Size($w, $bufH)
+            $raw.WindowSize = New-Object Management.Automation.Host.Size($w, $h)
+        }
+        else {
+            $raw.BufferSize = New-Object Management.Automation.Host.Size($raw.BufferSize.Width, $bufH)
+            $raw.WindowSize = New-Object Management.Automation.Host.Size($w, $h)
+            $raw.BufferSize = New-Object Management.Automation.Host.Size($w, $bufH)
+        }
+    }
+    catch { }
+}
 Write-Host ""
 Write-Host $Line -ForegroundColor Cyan
 Write-Host " $titel" -ForegroundColor Cyan
