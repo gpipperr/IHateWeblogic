@@ -11,8 +11,10 @@
 #        wandelt source\bericht.rdf -> xml\bericht.xml (vorher dieselben
 #        Pruefungen). "bericht.rdf" oder ein Pfad gehen auch - es zaehlt nur
 #        der Name. Die Ordner stehen fest unten in den Einstellungen.
-#        Die xml-Datei heisst immer <name>.xml: rwconverter uebernimmt den
-#        internen Berichtsnamen aus dem Zieldateinamen.
+#        Die xml-Datei heisst immer <name>.xml: so bleibt das XML stabil
+#        (rwconverter setzt den internen Berichtsnamen aus dem Zieldateinamen,
+#        wenn die .rdf so heisst wie der Bericht; eine umbenannte .rdf behaelt
+#        ihren alten internen Namen - im Builder einmal neu speichern).
 #
 # Exit-Code: 0 = OK, 1 = Fehler (Meldung steht auf dem Bildschirm)
 #
