@@ -92,8 +92,8 @@ laborious and error-prone parts of a Windows server installation.
 
 ## Next: Git check-in
 
-Idea 2026-11-11: one Git clone per developer (`E:\git\<user>\oracle-report`), `pull.ps1`
-at the start of the work, `checkin.ps1` converts every changed `.rdf` to XML
+Idea 2026-11-11: one Git clone per developer (`E:\git\<user>\oracle-report`), [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1)
+at the start of the work, [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) converts every changed `.rdf` to XML
 and commits / pushes – for developers without Git experience. Step 1 (rdf →
 xml from the command line) is tested on the Linux test host; Windows test
 procedure for the customer and the script design:
@@ -103,8 +103,8 @@ skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
 
 Deployment (2026-11-12): only the branch `main`, one report per check-in;
 push → the changed reports to the Linux DEV server; a `prod-*` tag
-(`release_tag.ps1`) → exactly that check-in to production. GitLab CI
-template, SSH forced-command queue `rwdeploy.sh`: [Git_deploy.md](Git_deploy.md);
+([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)) → exactly that check-in to production. GitLab CI
+template, SSH forced-command queue [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh): [Git_deploy.md](Git_deploy.md);
 set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
 
 ## Patch level
@@ -141,7 +141,7 @@ Platform-specific (Windows x64):
 | 4 | Storage of the report sources (network drive, Git?) and the way to the Linux server (share, sftp, deployment script) |
 | 5 | Anti-virus: exclusions for the Oracle home during installation and patching |
 | 6 | ~~Windows variants of the platform-specific patches on MOS?~~ **Clarified 2026-10-26: all available** (platform "Microsoft Windows x64 (64-bit)"): Reports 39600348 (3.5 MB, 2026-08-17), PERL 39951765 (38.4 MB, 2026-10-19), OHS 39987730 (20.3 MB, 2026-10-19), WebGate 39100536 (11.1 MB, 2026-04-21). The MOS title of the Reports QPR ("MERGE REQUEST … FOR BUGS 38991174 37866660 39375353") names only the bugs of the merge request – the **Windows README lists 31 bugs**, identical to the inventory of the Linux test host (`lsinventory -bugs_fixed`, compared 2026-10-26). Builder and server therefore have the same Reports level. |
-| 7 | **Done 2026-10-28:** downloading the MOS patches one by one by hand took too long at the appointment (about 15 files, ~7 GB, platform chosen per patch). For that there is now [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows variant since 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), plus `collect_fmw_env.ps1` / `fmw_patch_env.ps1`; Windows platform `233P`): one CSV list (patch number, platform `233P` / generic `2000P`, file regexp, mandatory/optional) loaded in one run with getMOSPatch, `unzip -t` + SHA-256 – in advance on a machine with MOS access, then the files as a package to the customer. The CSV for this download checklist will be created from the cookbook at the next appointment (template: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
+| 7 | **Done 2026-10-28:** downloading the MOS patches one by one by hand took too long at the appointment (about 15 files, ~7 GB, platform chosen per patch). For that there is now [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows variant since 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), plus [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1) / [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1); Windows platform `233P`): one CSV list (patch number, platform `233P` / generic `2000P`, file regexp, mandatory/optional) loaded in one run with getMOSPatch, `unzip -t` + SHA-256 – in advance on a machine with MOS access, then the files as a package to the customer. The CSV for this download checklist will be created from the cookbook at the next appointment (template: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
 | 8 | **RCU DB day to day:** the Reports tools do not use the RCU schemas at runtime (measured 2026-10-27 with `strace` on `rwconverter` on the Linux test system: no OPSS / wallet file, no AdminServer, only the login of the report) – the own RCU DB on the builder server is only needed for domain changes and a version upgrade, service set to "Manual". **Open:** start the Builder once with the DB service stopped and create a preview (Builder GUI not measured yet). Details: cookbook step 10, [reports_rwbuilder.md §3.2/3.3](../../80-FMW-Architecture/reports_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
 
 Status: **confirmed live 2026-10-27** at the customer (Windows Server 2025,

@@ -1,7 +1,7 @@
 # Git deployment – push to `main` → DEV server, `prod-*` tag → production
 
 Follow-up of [Git_checkin.md](Git_checkin.md): the developers check reports
-in with `checkin.ps1`. This document describes how they reach the Linux
+in with [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1). This document describes how they reach the Linux
 Reports servers. The Git server is a self-hosted **GitLab**.
 
 - **One branch:** there is only **`main`**. No `development` branch, no
@@ -11,7 +11,7 @@ Reports servers. The Git server is a self-hosted **GitLab**.
 - **DEV:** every push to `main` deploys the changed reports to the DEV
   Reports server automatically – normally exactly the checked-in report.
 - **Production:** a **`prod-*` tag** on a check-in (set with
-  `release_tag.ps1`) starts the pipeline that deploys **exactly the files of
+  [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)) starts the pipeline that deploys **exactly the files of
   that check-in** to production. Nothing else goes along.
 
 Decided by the customer on 2026-11-12; it replaces the first design of the
@@ -55,7 +55,7 @@ of this check-in. Other reports on `main` – newer or older, released or not
 – are not touched.
 
 **Rules:**
-- Check in one report per check-in (`checkin.ps1` does that on its own,
+- Check in one report per check-in ([`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) does that on its own,
   also with selection `a`).
 - Production only through a `prod-*` tag – never copy by hand.
 - Creating a `prod-*` tag is the release: protect the tags in GitLab
@@ -71,20 +71,20 @@ cookbook style): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHat
 ## 2. Files
 
 Repository layout (the customer's, adopted 2026-11-12): top folder with
-`menu.cmd` / `menu.ps1` / `menu.ini`, `.gitlab-ci.yml`, `README.md`; folders
-`deploy/` (all scripts incl. `ci_deploy.sh`), `source/` (`.rdf`), `xml/`
+[`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) / [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini), `.gitlab-ci.yml`, `README.md`; folders
+`deploy/` (all scripts incl. [`ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh)), `source/` (`.rdf`), `xml/`
 (`.xml`, only for review), `images/`. Deployed are only `source/*.rdf` and
-`images/*` – the tar keeps these repository paths, `rwdeploy.sh` accepts
+`images/*` – the tar keeps these repository paths, [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) accepts
 nothing else.
 
 | File | Where it goes | Purpose |
 |---|---|---|
 | [template.gitlab-ci.yml](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template.gitlab-ci.yml) | `.gitlab-ci.yml` in the top folder of the repository | job `deploy_dev` (push to `main`) and `deploy_prod` (tag `prod-*`), `GIT_DEPTH: 0`, `resource_group` per environment |
-| [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | `deploy/ci_deploy.sh` in the repository | the job (section 4) |
+| [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | [`deploy/ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) in the repository | the job (section 4) |
 | [rwdeploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | Reports server, e.g. `/u01/app/oracle/rwdeploy/bin/` | queue + worker, SSH forced command (section 5) |
-| [rwdeploy.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.conf.template) | `rwdeploy.conf` next to `rwdeploy.sh` | spool folder, target folders, size limit |
-| [authorized_keys.example](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/authorized_keys.example) | `~oracle/.ssh/authorized_keys` on the server | the deploy key may only start `rwdeploy.sh`, only from the runner |
-| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `deploy\release_tag.ps1` next to `checkin.ps1` | release of one check-in (section 3) |
+| [rwdeploy.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.conf.template) | `rwdeploy.conf` next to [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | spool folder, target folders, size limit |
+| [authorized_keys.example](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/authorized_keys.example) | `~oracle/.ssh/authorized_keys` on the server | the deploy key may only start [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh), only from the runner |
+| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `deploy\release_tag.ps1` next to [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | release of one check-in (section 3) |
 
 ## 3. Release of one report – `release_tag.ps1`
 
@@ -126,7 +126,7 @@ file name, case-insensitive. Further: `-Nummer`, `-Ja` (no questions),
 `-TagDatei`, `-Nachricht`, `-NoPush`, `-NoFetch`, `-Branch`, `-TagPrefix`,
 `-Anzahl`.
 
-**Rollback:** set a new tag on the older check-in (`release_tag.ps1`, enter
+**Rollback:** set a new tag on the older check-in ([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1), enter
 its commit id from the list of the last check-ins, or `-Commit <id>`). The
 newer check-ins of the report then count as open again. The replaced file is also in `spool/backup/<job>/` on the server.
 
@@ -188,7 +188,7 @@ enough; there is no runner on the Reports servers.
 
 `delta` = DEV, `tag` = PROD. `snapshot` (the whole `source` +
 `images`, with a warning for `.rdf` files that are no longer in Git)
-is still accepted but no longer sent by `ci_deploy.sh`.
+is still accepted but no longer sent by [`ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh).
 
 The worker:
 - runs once at a time (`flock`) and takes the jobs oldest first;
@@ -258,7 +258,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
   DEV job never sees the PROD key.
 - Settings → CI/CD → General pipelines: **"Prevent outdated deployment
   jobs"** for DEV, as a second line next to the ancestor check in
-  `ci_deploy.sh`. It also blocks retrying an older PROD pipeline – for a
+  [`ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh). It also blocks retrying an older PROD pipeline – for a
   rollback set a new tag on the older check-in instead.
 - The old branch `development` is already deleted at the customer.
 
@@ -266,9 +266,9 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 
 | Message | Meaning | What to do |
 |---|---|---|
-| `release_tag.ps1`: "ACHTUNG: Es gibt N neuere(n) Check-in(s) dieser Datei(en)" | the chosen check-in is not the newest version of the report; the newer ones do not go along | answer `n` and choose the newer one – unless the older version is wanted on purpose (rollback) |
-| `release_tag.ps1`: "Der Check-in hat N Dateien" | an old check-in with several reports | all of them go to production – fine if wanted, otherwise do not tag it |
-| job: `the tag is on a merge commit` | the tag points at a merge of `checkin.ps1` (colleague checked in at the same moment) | delete the tag (`git push origin :refs/tags/<tag>`, `git tag -d <tag>`) and tag the check-in of the report with `release_tag.ps1` |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1): "ACHTUNG: Es gibt N neuere(n) Check-in(s) dieser Datei(en)" | the chosen check-in is not the newest version of the report; the newer ones do not go along | answer `n` and choose the newer one – unless the older version is wanted on purpose (rollback) |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1): "Der Check-in hat N Dateien" | an old check-in with several reports | all of them go to production – fine if wanted, otherwise do not tag it |
+| job: `the tag is on a merge commit` | the tag points at a merge of [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) (colleague checked in at the same moment) | delete the tag (`git push origin :refs/tags/<tag>`, `git tag -d <tag>`) and tag the check-in of the report with [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) |
 | job: `the tagged commit holds no report (.rdf) or image` | the tag is on a check-in without report or image | delete the tag, tag the right check-in |
 | job: `last deploy … is not an ancestor` (warning, DEV) | `main` history was changed (force push) | only the files of this commit were deployed; check DEV, set `last_sha` |
 | job red, `ERROR: path not allowed` | a file outside `source/*.rdf` / `images/` was sent | nothing was copied; check the repository content |
@@ -279,18 +279,18 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 
 | Test | Result |
 |---|---|
-| `checkin.ps1` selection `a` with 2 reports | 2 check-ins `Erste Version (lager.rdf)` / `(umsatz.rdf)`, each with its `.xml` |
-| `checkin_only.ps1` selection `a` | one check-in per file, file name in the comment |
+| [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) selection `a` with 2 reports | 2 check-ins `Erste Version (lager.rdf)` / `(umsatz.rdf)`, each with its `.xml` |
+| [`checkin_only.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin_only.ps1) selection `a` | one check-in per file, file name in the comment |
 | DEV, first push with 2 check-ins, server `none` | both reports deployed (`CI_COMMIT_BEFORE_SHA..sha`) |
 | DEV, next push with `umsatz` v2 | only `umsatz.rdf` copied |
 | DEV, older pipeline afterwards | "already part of the last deploy", file stays at v2 |
-| `release_tag.ps1` before any tag | 4 open check-ins incl. both versions of `umsatz`; tag on `lager` pushed |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) before any tag | 4 open check-ins incl. both versions of `umsatz`; tag on `lager` pushed |
 | PROD tag `lager` | only `lager.rdf` deployed – the newer `umsatz` stays out |
-| `release_tag.ps1` on the older `umsatz` check-in | "ACHTUNG … neuere(n) Check-in(s)" with the list, `n` = nothing tagged |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) on the older `umsatz` check-in | "ACHTUNG … neuere(n) Check-in(s)" with the list, `n` = nothing tagged |
 | rollback: commit id of `umsatz` v1 entered (`-Commit 52819c1`) | tag on exactly that check-in; PROD job copies only `umsatz.rdf` v1, v2 does not go along; afterwards v2 open again; invalid id / merge commit / not on main: message, exit 1 |
 | PROD tag on `umsatz` v2 (`-Nummer 1 -Ja`) | `umsatz.rdf` v2 deployed; afterwards both `umsatz` check-ins no longer open, both tags listed with their files |
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
-| `rwdeploy.sh` from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
+| [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
 
 Open at the customer: real GitLab (tag rule, protected tags, protected and
 scoped variables), SSH from the runner, the scripts on Windows PowerShell
