@@ -13,6 +13,10 @@
 #                          Pages serves it raw or as a download
 #              permalink   README with front matter but without permalink -
 #                          the folder address is 404 on Pages
+#              nopage      CONTRIBUTING / LICENSE / CODE_OF_CONDUCT ... .md
+#                          without front matter - jekyll-optional-front-matter
+#                          skips these names, Pages serves the raw Markdown
+#                          (no .html page, links stay .md)
 #            --live checks the published site: every page of the sitemap,
 #            every internal href (HTTP status) and #anchor (id= in the HTML).
 # Call     : tools/check_pages_links.py                  local check
@@ -198,6 +202,10 @@ def classify(root, md, target, excludes):
 
 
 # --- local check -------------------------------------------------------------------
+NOPAGE_NAMES = {"LICENSE", "LICENCE", "COPYING", "CODE_OF_CONDUCT", "CONTRIBUTING",
+                "ISSUE_TEMPLATE", "PULL_REQUEST_TEMPLATE"}
+
+
 def local_check(root, files, excludes):
     findings = []
     for md in files:
@@ -214,6 +222,10 @@ def local_check(root, files, excludes):
         if base == "README.md" and fm is not None and md != "README.md" \
                 and not any(l.startswith("permalink:") for l in fm):
             findings.append((md, 1, "permalink", "-", "permalink: /%s/" % os.path.dirname(md)))
+        # names jekyll-optional-front-matter never turns into a page (its
+        # FILENAME_BLACKLIST; README is handled by jekyll-readme-index)
+        if fm is None and not off_pages and os.path.splitext(base)[0].upper() in NOPAGE_NAMES:
+            findings.append((md, 1, "nopage", "-", "add front matter (title / description)"))
     return findings
 
 

@@ -1,3 +1,8 @@
+---
+title: "Contributing to IHateWeblogic – Findings, Pull Requests, Conventions"
+description: "How to report a finding for the Oracle Forms & Reports 14c scripts, pull request rules, script and doc conventions and the customer-data rule with its hook."
+---
+
 # Contributing to IHateWeblogic
 
 ← Back to the [root README](README.md)
