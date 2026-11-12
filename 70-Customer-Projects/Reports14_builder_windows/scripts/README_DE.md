@@ -116,7 +116,7 @@ Doppelklick auf das Desktop-Icon öffnet das Menü:
  6 - release_tag.ps1       - Release-Tag setzen - Bericht in Produktion einspielen
 ------------------------------------------------------------
 
-Wähle eine Option oder breche mit x ab :
+Wähle eine Option oder breche mit x / q ab :
 ```
 
 - Nummer eingeben: kurze Erklärung, dann läuft das Skript **im selben
@@ -124,7 +124,8 @@ Wähle eine Option oder breche mit x ab :
   bleibt – schließen mit dem X.
 - Für den nächsten Schritt: im selben Fenster **`m` + Enter** – das Menü
   kommt wieder – oder erneut Doppelklick auf das Icon.
-- `x` = abbrechen, das Fenster schließt sich.
+- `x` oder `q` = abbrechen, das Fenster schließt sich. Auch nach dem Skript:
+  `x` + Enter (oder `q`) schließt das Fenster.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
   `menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
 - Die Skripte liegen in `deploy\`, das Menü im obersten Ordner – das steht

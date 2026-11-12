@@ -6,7 +6,8 @@
 # Fenster offen (Start ueber menu.cmd mit -NoExit), damit das Ergebnis
 # stehen bleibt. Fuer den naechsten Schritt: m + Enter im selben Fenster
 # (Kurzbefehl, den menu.ps1 anlegt) oder wieder Doppelklick auf das Icon.
-# x = abbrechen, das Fenster schliesst sich.
+# x oder q = abbrechen, das Fenster schliesst sich (auch nach dem Skript:
+# x / q + Enter im offenen Fenster).
 #
 #   ===================================
 #    Oracle Reports Git Handling
@@ -16,7 +17,7 @@
 #    2 - status.ps1   - Zeige den aktuellen Status an
 #    ...
 #   -----------------------------------
-#   Waehle eine Option oder breche mit x ab :
+#   Waehle eine Option oder breche mit x / q ab :
 #
 # Start : Doppelklick auf menu.cmd (oder eine Desktop-Verknuepfung darauf)
 #         oder im PowerShell-Fenster:  .\menu.ps1 (oberster Ordner des
@@ -34,7 +35,7 @@
 param(
     # andere Menue-Datei (Standard: menu.ini neben diesem Skript)
     [string]$Ini = '',
-    # von menu.cmd gesetzt: eigenes Fenster - x schliesst es
+    # von menu.cmd gesetzt: eigenes Fenster - x / q schliesst es
     [switch]$Fenster,
     # von menu.cmd gesetzt: Fensterhoehe in Zeilen / Breite in Zeichen
     # (0 = nicht aendern)
@@ -57,6 +58,14 @@ if ($Ini -eq '') { $Ini = Join-Path $PSScriptRoot 'menu.ini' }
 $mAufruf = "& '$($PSCommandPath.Replace("'", "''"))' -Ini '$($Ini.Replace("'", "''"))'"
 if ($Fenster) { $mAufruf += ' -Fenster' }
 Set-Item -Path function:global:m -Value ([scriptblock]::Create($mAufruf))
+
+# Kurzbefehle x und q: das eigene Fenster (menu.cmd) schliessen - nach dem
+# Skript reicht x + Enter statt Klick auf das X. Nur im eigenen Fenster, eine
+# selbst geoeffnete PowerShell bleibt davon unberuehrt.
+if ($Fenster) {
+    Set-Item -Path function:global:x -Value { [Environment]::Exit(0) }
+    Set-Item -Path function:global:q -Value { [Environment]::Exit(0) }
+}
 
 # --- 1. menu.ini lesen
 # Einfaches INI-Format: [abschnitt], schluessel = wert, ; oder # = Kommentar
@@ -99,7 +108,7 @@ if (-not (Test-Path -LiteralPath $Ini)) {
 $cfg = Read-Ini $Ini
 
 $titel = 'Oracle Reports Git Handling'
-$frage = 'Option waehlen oder mit x abbrechen'
+$frage = 'Option waehlen oder mit x / q abbrechen'
 $skriptPfad = ''
 if ($cfg.Contains('Menue')) {
     if ($cfg['Menue']['Titel'])      { $titel = $cfg['Menue']['Titel'] }
@@ -201,11 +210,12 @@ if ($fehlen.Count -gt 0) {
 Write-Host $Line2
 Write-Host ""
 
-# --- 3. Auswahl - bis eine gueltige Nummer oder x kommt
+# --- 3. Auswahl - bis eine gueltige Nummer oder x / q kommt
 $wahl = $null
 while ($null -eq $wahl) {
     $in = "$(Read-Host "$frage ")".Trim()
-    if ($in -eq 'x' -or $in -eq 'X') {
+    # -in vergleicht ohne Unterschied gross/klein: x X q Q
+    if ($in -in @('x', 'q')) {
         # Abbruch: eigenes Fenster (menu.cmd, -NoExit) ganz schliessen -
         # exit allein liesse dort die Eingabezeile offen. Aus einer eigenen
         # PowerShell gestartet: nur zurueck, Ihr Fenster bleibt.
@@ -217,7 +227,7 @@ while ($null -eq $wahl) {
         $wahl = $items[$nr - 1]
     }
     else {
-        Write-Host "  Bitte eine Nummer von 1 bis $($items.Count) eingeben oder x." -ForegroundColor Yellow
+        Write-Host "  Bitte eine Nummer von 1 bis $($items.Count) eingeben oder x / q." -ForegroundColor Yellow
     }
 }
 
@@ -265,10 +275,10 @@ catch {
 Write-Host ""
 Write-Host $Line2
 if ($rc -eq 0) {
-    Write-Host " Fertig: $($wahl.Skript). Fenster bleibt offen - schliessen mit X." -ForegroundColor Green
+    Write-Host " Fertig: $($wahl.Skript). Fenster bleibt offen - schliessen mit x + Enter." -ForegroundColor Green
 }
 else {
     Write-Host " $($wahl.Skript) mit Fehler beendet (Rueckgabe $rc) - siehe Meldungen oben." -ForegroundColor Red
 }
-Write-Host " Naechster Schritt: m + Enter (Menue erneut) oder Doppelklick auf das Icon."
+Write-Host " Naechster Schritt: m + Enter (Menue erneut), x + Enter (Fenster schliessen)."
 Write-Host $Line2

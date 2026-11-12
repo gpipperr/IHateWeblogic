@@ -18,7 +18,7 @@ rem   -NoExit                 : Fenster nach dem Skript offen lassen
 rem   -ExecutionPolicy Bypass : Skripte aus diesem Ordner ohne Signatur
 rem                             erlauben (nur fuer dieses Fenster)
 rem   %~dp0                   : Ordner dieser Datei
-rem   -Fenster                : eigenes Fenster - x im Menue schliesst es
+rem   -Fenster                : eigenes Fenster - x / q schliesst es
 rem   -Zeilen / -Spalten      : Fenstergroesse (siehe unten)
 rem ===========================================================================
 
