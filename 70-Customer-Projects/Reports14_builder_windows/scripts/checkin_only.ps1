@@ -14,7 +14,9 @@
 #      bricht es ab - nichts wird ueberschrieben.
 #   2. zeigt alle geaenderten Dateien des Repositorys als nummerierte Liste:
 #      Nummer = nur diese eine Datei, a = alle,
-#      n = nichts Neues, nur noch nicht gesendete Check-ins senden
+#      n = nichts einchecken, nur noch nicht gesendete Check-ins hochladen
+#      (wird nur angeboten, wenn es solche gibt - z.B. nach einem
+#      abgelehnten Push)
 #   3. fragt nach einem Kommentar, wenn keiner angegeben ist
 #   4. git add + commit (nur die Auswahl, mit Ihrem Kommentar) + push
 #
@@ -103,18 +105,21 @@ if ($changed.Count -gt 0) {
         Write-Host ("  {0,3}  {1,-10} {2}" -f ($i + 1), $state, $file)
     }
     Write-Host ""
-    $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese), a (alle) oder n (nichts Neues, nur senden)"
+    # n nur anbieten, wenn es lokale Check-ins gibt, die noch nicht auf dem
+    # Git-Server sind (z.B. nach einem abgelehnten Push)
+    if ([int]$ahead -gt 0) {
+        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese), a (alle) oder n (nichts einchecken, nur die $ahead noch nicht gesendete(n) Check-in(s) hochladen)"
+    }
+    else {
+        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese) oder a (alle)"
+    }
     $answer = "$answer".Trim()
     $number = 0
     if ($answer -eq 'a' -or $answer -eq 'A') {
         $selected = $changed
     }
-    elseif ($answer -eq 'n' -or $answer -eq 'N') {
-        # Nichts auswaehlen - unten werden nur noch nicht gesendete Check-ins gesendet
-        if ([int]$ahead -eq 0) {
-            Write-Host "Nichts Neues ausgewaehlt und nichts zu senden - es wurde nichts eingecheckt." -ForegroundColor Yellow
-            exit 0
-        }
+    elseif (($answer -eq 'n' -or $answer -eq 'N') -and [int]$ahead -gt 0) {
+        # Nichts auswaehlen - unten werden nur die noch nicht gesendeten Check-ins hochgeladen
     }
     elseif ([int]::TryParse($answer, [ref]$number) -and $number -ge 1 -and $number -le $changed.Count) {
         $selected = @($changed[$number - 1])
