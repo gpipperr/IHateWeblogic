@@ -59,7 +59,7 @@ documented; the order and the leftovers come from our two test runs.
   (steps 7/8): the old one (read the source OPSS store) and the new one
   (write). From step 9 on, only the new one is needed.
 - DBA with SYS for the new database (RCU, 19c+, AL32UTF8).
-- `clone_check_fmw.sh` **2026-11-10.8** or newer in the tools directory.
+- [`clone_check_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/clone_check_fmw.sh) **2026-11-10.8** or newer in the tools directory.
 
 ## 3. Flow
 
@@ -76,8 +76,8 @@ Cookbook steps in short:
 | 7 | clone | start the AdminServer **only** (still on the source OPSS, read) |
 | 8 | clone, WLST online | new OPSS data source, `reassociateSecurityStore`, `updateCred` |
 | 9 | clone, WLST offline | stop with `ADMIN_URL=t3://localhost:7001`, other data sources (user, password, URL), `audit.loader.jdbc.string` |
-| 10 | clone | multicast port, mail sender, Nginx + certificate, firewall, tools `patch_install.ini`, crontab |
-| 11–12 | clone (+ source) | start all, autostart on, checks: logs, EM, `clone_check_fmw.sh`, `v$session` on both DBs, `showjobs` |
+| 10 | clone | multicast port, mail sender, Nginx + certificate, firewall, tools [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini), crontab |
+| 11–12 | clone (+ source) | start all, autostart on, checks: logs, EM, [`clone_check_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/clone_check_fmw.sh), `v$session` on both DBs, `showjobs` |
 
 ## 4. What changes where
 
@@ -168,7 +168,7 @@ Manager passes it when it starts the managed server directly (autostart).
 On the clone it names the source IP. The managed server then looks for the
 source, or runs in *Managed Server independence mode*: EM shows the server,
 `cluster_reports` and the `reports` deployment red, the AdminServer logs only
-`BEA-149505`, while `status.sh` shows everything RUNNING. The customer had
+`BEA-149505`, while [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) shows everything RUNNING. The customer had
 this on the source too, because the loopback hardening does not rewrite the
 file. Fix: `AdminURL=http\://localhost\:7001`, before the first start.
 
@@ -205,7 +205,7 @@ their own targets.
 
 - `$TOOLS/patch_install.ini` comes along with the source values
   (`WLS_SERVER_FQDN`, `SSL_CN`, `DB_HOST/PORT/SERVICE`, `DB_SCHEMA_PREFIX`,
-  `REPORTS_BROADCAST_PORT`). Move it aside, run `make_patch_install_ini.sh`
+  `REPORTS_BROADCAST_PORT`). Move it aside, run [`make_patch_install_ini.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/make_patch_install_ini.sh)
   (shows) and then `--apply` (writes, never overwrites), and carry over
   hand-made entries from a `diff`.
 - The crontabs of oracle and root and `/etc/cron.d` come along. Comment out
