@@ -68,11 +68,11 @@ render_ascii source links absolute, `code` links sample in `09-Install/README.md
 + `00-Setup/README.md`, root README folder column. Rules: `.md` links relative,
 code / raw files -> `github.com/…/blob/main/`, no Liquid in Markdown, no rewording.
 
-- [ ] **Step 4 – rest:** `tools/check_pages_links.py --link-code` over all other
-  `.md` (dry run: ~1,290 links in ~106 files; first mention per section, every
-  table row; skips CHANGELOG / TODO / SKILL.md, dot files, ambiguous names) –
-  `--apply`, check "only link brackets added", rebuild customer ZIPs, one commit
-  per folder.
+- [x] **Step 4 – rest:** done 2026-11-12 – `--link-code --apply` folder by folder
+  (07-Maintenance `9b716d7`, then 23 groups up to 09-Install `402f121`): 1,395 code
+  mentions linked in 108 files, per folder: all targets exist, only link brackets
+  added (text with the links removed is identical), checker 0, customer ZIPs
+  rebuilt with `70-Customer-Projects/tools`; dry run afterwards: 0 links left.
 - [ ] **Step 5 – navigation, variant A** (chosen): `_layouts/default.html` from
   Cayman 1:1 + menu bar (Start, 00-Setup, 09-Install, 80-FMW-Architecture,
   10-Monitoring, 70-Customer-Projects, GitHub) + breadcrumb from `page.path`;
