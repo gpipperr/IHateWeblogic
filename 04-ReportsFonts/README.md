@@ -27,11 +27,11 @@ PDFs. Verified end-to-end on the test host 2026-10-19 (**confirmed (live)**,
 | # | Condition | How to verify | Fix |
 |---|-----------|---------------|-----|
 | 1 | **TTF file exists in REPORTS_FONT_DIRECTORY** | `ls $DOMAIN_HOME/reports/fonts/*.ttf` | `deploy_fonts.sh --apply` |
-| 2 | **REPORTS_FONT_DIRECTORY + REPORTS_ENHANCED_FONTHANDLING reach the engines** – the engines of the standalone Reports server render the PDF, not WLS_REPORTS | `cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ \| tr '\0' '\n' \| grep -E 'REPORTS_FONT\|ENHANCED'` | `$DOMAIN_HOME/reports/bin/reports.sh` (written by `13-`); `fontpath_config.sh` covers the WebLogic servers |
+| 2 | **REPORTS_FONT_DIRECTORY + REPORTS_ENHANCED_FONTHANDLING reach the engines** – the engines of the standalone Reports server render the PDF, not WLS_REPORTS | `cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ \| tr '\0' '\n' \| grep -E 'REPORTS_FONT\|ENHANCED'` | `$DOMAIN_HOME/reports/bin/reports.sh` (written by `13-`); [`fontpath_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/fontpath_config.sh) covers the WebLogic servers |
 | 3 | **Substitute fonts only:** the screen printer knows the font (`screenprinter.ppd` + AFM). Needed when the report font is mapped to another TTF (Arial → Liberation Sans); without it such a font becomes Type 1 `Symbol` (Latin text as Greek glyphs). A font whose own TTF is deployed works without it | `ls …/reptools1/guicommon/tk/admin/AFM/` | `paramform_afm_setup.sh --apply` |
 | 4 | **uifont.ali [PDF:Subset] has the FAMILY of the resolved font** (`"Times"..`, `"Helvetica"..`, …) | `mfontchk <uifont.ali>`, then `pdffonts` | `uifont_ali_update.sh --apply` |
 | 5 | **Font cache is current** (fontconfig) | `fc-list \| grep <fontname>` | `font_cache_reset.sh --apply` |
-| 6 | **Reports server restarted** after every change – the engines read AFM / PPD / uifont.ali at start | `rwserver_status.sh` | `01-Run/startStop.sh stop repserver01 --apply` + `start …` |
+| 6 | **Reports server restarted** after every change – the engines read AFM / PPD / uifont.ali at start | [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | `01-Run/startStop.sh stop repserver01 --apply` + `start …` |
 
 Test with a report using Arial, Helvetica, Times New Roman, Courier New,
 Tahoma, Liberation Sans, DejaVu Sans (2026-10-19):
@@ -144,7 +144,7 @@ standalone Reports server, without AFM files, `pdffonts`):
 | any font, `NLS_LANG` `AL32UTF8` or `WE8MSWIN1252` | – | no difference |
 
 So the **two paths are real** (PDF: TTF in the font directory, HTML: screen
-printer); the screen-printer step (`paramform_afm_setup.sh`) is
+printer); the screen-printer step ([`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh)) is
 additionally required for PDF **when fonts are substituted** – i.e. when the
 original fonts are not on the server, which is the normal case without
 Windows font licences.
@@ -205,7 +205,7 @@ report design**. This name may differ from the `fc-query` family name when:
 - The font family name contains spaces (`"Corp Font"`) but the report used the
   compact PostScript name (`"CorpFont"` without space)
 
-`uifont_ali_update.sh` automatically detects this mismatch using `%{postscriptname}`
+[`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) automatically detects this mismatch using `%{postscriptname}`
 from `fc-query` and generates duplicate entries for both the family name and the
 PostScript name.
 
@@ -227,10 +227,10 @@ Observed on the test host (2026-10-19, **confirmed (live)**, strace):
 - `$ORACLE_HOME/guicommon/tk/admin/uifont.ali` does not exist in 14.1.2;
   Oracle's template is `$ORACLE_HOME/frcommon/templates/tk/config/uifont.ali`.
 
-`TK_FONTALIAS` / `ORACLE_FONTALIAS` (set by `fontpath_config.sh` for the
+`TK_FONTALIAS` / `ORACLE_FONTALIAS` (set by [`fontpath_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/fontpath_config.sh) for the
 WebLogic servers) are harmless but not what makes the fonts work.
 
-Use `font_inventory.sh` to find the active location on your system.
+Use [`font_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_inventory.sh) to find the active location on your system.
 
 ### File Format
 
@@ -297,7 +297,7 @@ Use `font_inventory.sh` to find the active location on your system.
 >   (ref: Oracle Reports 12.2.1 Font Configuration – [pbr_font003](https://docs.oracle.com/middleware/1221/formsandreports/use-reports/pbr_font003.htm#i1009745))
 > - More-specific entries (BoldItalic, Bold, Italic) **must precede** less-specific (Regular) within a family
 > - This quoting rule applies **only to `[PDF:Subset]`** — other sections (`[Global]`, `[Printer]`) use different syntax
-> - Use `uifont_ali_update.sh` to generate correct entries automatically
+> - Use [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) to generate correct entries automatically
 
 ---
 
@@ -306,7 +306,7 @@ Use `font_inventory.sh` to find the active location on your system.
 The Liberation fonts are **metrically identical** to Microsoft's core fonts,
 meaning text wrapping and page layout matches a Windows rendering exactly.
 
-These entries are generated automatically by `uifont_ali_update.sh`:
+These entries are generated automatically by [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh):
 
 ```ini
 [ PDF:Subset ]
@@ -376,7 +376,7 @@ These entries are generated automatically by `uifont_ali_update.sh`:
 "DejaVu Sans"..                          = "DejaVuSans.ttf"
 ```
 
-`[Global]` (template `uifont_ali_template.ali`) – fonts without an AFM of
+`[Global]` (template [`uifont_ali_template.ali`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_template.ali)) – fonts without an AFM of
 their own need an alias to a family that has one, otherwise they fall back
 to Courier (Tahoma did, 2026-10-19):
 
@@ -393,15 +393,15 @@ fc-query --format '%{style}\n'          /path/to/Font.ttf   # style (Bold, Itali
 fc-query --format '%{postscriptname}\n' /path/to/Font.ttf   # PS name (no spaces)
 ```
 
-Use `get_font_names.sh` to run this automatically for all installed fonts.
+Use [`get_font_names.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/get_font_names.sh) to run this automatically for all installed fonts.
 
 ---
 
 ## 6. Custom and Corporate Fonts
 
 Place proprietary or licensed TTF files in `custom_fonts_dir/` before running
-`deploy_fonts.sh`. The script will copy them to `REPORTS_FONT_DIRECTORY` and
-`uifont_ali_update.sh` will generate the correct `[PDF:Subset]` entries.
+[`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh). The script will copy them to `REPORTS_FONT_DIRECTORY` and
+[`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) will generate the correct `[PDF:Subset]` entries.
 
 ### Font name considerations
 
@@ -413,7 +413,7 @@ but reports may have been designed using the **PostScript name without spaces**:
 | `Corp Font`          | `CorpFont`                  | `CorpFont`            |
 | `Corp Font`          | `CorpFont`                  | `Corp Font`           |
 
-`uifont_ali_update.sh` detects this automatically and generates entries for **both**
+[`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) detects this automatically and generates entries for **both**
 names, so reports work regardless of which naming convention was used.
 
 ### Font style variants
@@ -508,7 +508,7 @@ Who needs them (test host 2026-10-19, `/proc/<pid>/environ`):
 |---|---|---|
 | Engines `rwEng-N` + `rwserver` of the standalone Reports server | `$DOMAIN_HOME/reports/bin/reports.sh` (`REPORTS_FONT_DIRECTORY`, `REPORTS_ENHANCED_FONTHANDLING=YES`, written by `13-`) | **yes** |
 | `rwrun` / `rwconverter` (Reports tools) | same `reports.sh` | yes (batch) |
-| WebLogic servers (WLS_REPORTS …) | `setUserOverrides.sh` (`fontpath_config.sh`) | only with an in-process Reports server |
+| WebLogic servers (WLS_REPORTS …) | `setUserOverrides.sh` ([`fontpath_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/fontpath_config.sh)) | only with an in-process Reports server |
 
 `fontpath_config.sh --apply` writes the six lines below into
 `setUserOverrides.sh` as OS exports **and** JVM `-D` system properties:
@@ -534,22 +534,22 @@ cat /proc/$(pgrep -f 'RWEngine name=rwEng-0')/environ | tr '\0' '\n' | grep -E '
 
 | Script | Purpose | Modifies |
 |--------|---------|----------|
-| `get_root_install_libs.sh` | Generate `dnf install` command for required OS packages | nothing (generates command) |
-| `font_inventory.sh` | Show current TTF/PS fonts, uifont.ali location, font dir status | nothing |
-| `get_font_names.sh` | Run `fc-query` on deployed fonts, show ready-to-paste uifont.ali entries | nothing |
-| `deploy_fonts.sh` | Copy Liberation, DejaVu, and custom TTFs to `REPORTS_FONT_DIRECTORY` | font directory |
-| `uifont_ali_update.sh` | Rewrite `uifont.ali` with fresh `[PDF:Subset]` section | uifont.ali |
-| `fontpath_config.sh` | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
-| `pdf_font_verify.sh` | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
-| `font_cache_reset.sh` | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
-| `paramform_afm_setup.sh` | Set up AFM/PPD for the "screen printer" – HTML parameter form / HTML output, and PDF **with substitute fonts** (section 3) | domain-local AFM dir, screenprinter.ppd |
-| `ttf2reports_afm.py` | Generate/check an AFM file from a TTF for the screen printer (called by `paramform_afm_setup.sh`) | nothing by itself (writes only to `-o <file>`) |
+| [`get_root_install_libs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/get_root_install_libs.sh) | Generate `dnf install` command for required OS packages | nothing (generates command) |
+| [`font_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_inventory.sh) | Show current TTF/PS fonts, uifont.ali location, font dir status | nothing |
+| [`get_font_names.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/get_font_names.sh) | Run `fc-query` on deployed fonts, show ready-to-paste uifont.ali entries | nothing |
+| [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh) | Copy Liberation, DejaVu, and custom TTFs to `REPORTS_FONT_DIRECTORY` | font directory |
+| [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) | Rewrite `uifont.ali` with fresh `[PDF:Subset]` section | uifont.ali |
+| [`fontpath_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/fontpath_config.sh) | Set `REPORTS_FONT_DIRECTORY` + `REPORTS_ENHANCED_FONTHANDLING` in `setUserOverrides.sh` | setUserOverrides.sh |
+| [`pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh) | Verify PDF fonts are TrueType and embedded (`pdffonts`) | nothing |
+| [`font_cache_reset.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_cache_reset.sh) | Rebuild Linux fontconfig cache (`fc-cache`) after font deploy; shows restart hints | font cache |
+| [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) | Set up AFM/PPD for the "screen printer" – HTML parameter form / HTML output, and PDF **with substitute fonts** (section 3) | domain-local AFM dir, screenprinter.ppd |
+| [`ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py) | Generate/check an AFM file from a TTF for the screen printer (called by [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh)) | nothing by itself (writes only to `-o <file>`) |
 
 All scripts default to **dry-run** mode. Add `--apply` to write changes.
 
 ### uifont_ali_update.sh – behaviour
 
-- **Builds the entire `uifont.ali` from `uifont_ali_template.ali`** on each `--apply`
+- **Builds the entire `uifont.ali` from [`uifont_ali_template.ali`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_template.ali)** on each `--apply`
   run — it does **not** parse or preserve content from the currently deployed
   `uifont.ali` at all (that file is only read for the diff preview and the backup).
   This means: any customization must live in the **template file**
@@ -578,12 +578,12 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 - Fixes the "screen printer" (section 3): required for the HTML parameter
   form, and for the PDF output when fonts are substituted (Arial →
   Liberation Sans …, confirmed live 2026-10-19) – called by
-  `09-Install/14b-oracle_reports_fonts.sh` since then
+  [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) since then
 - Step A: creates `FontSpecific` copies of the standard PostScript AFMs
   (`Helvetica*`, `Courier*`, `Times*`) from the Oracle Home AFM directory into
   the domain-local AFM directory — never modifies the Oracle Home copies
 - Step B: generates an AFM for every TTF in `REPORTS_FONT_DIR` via
-  `ttf2reports_afm.py` (keyed `Family`/`Family-Bold`/`Family-Italic`/
+  [`ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py) (keyed `Family`/`Family-Bold`/`Family-Italic`/
   `Family-BoldItalic` from `fc-query`), then runs `--check` on each one
 - Step C: adds the matching `*Font <key>: Standard "(001.000)" Standard ROM`
   line to `screenprinter.ppd` for every standard and generated AFM; backs up
@@ -600,10 +600,10 @@ All scripts default to **dry-run** mode. Add `--apply` to write changes.
 ### Smoke test with all fonts
 
 `09-Install/15-deploy-test-report-forms_template.sh --apply` also runs the
-font test report `09-Install/reports_templates/test_fonts.xml` (Arial,
+font test report [`09-Install/reports_templates/test_fonts.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_fonts.xml) (Arial,
 Helvetica, Times New Roman, Courier New, Tahoma, Liberation Sans, DejaVu Sans,
 with umlauts) and checks the PDF with `pdffonts`, `pdftotext` and
-`pdf_font_verify.sh` – the quickest end-to-end check after a font change
+[`pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh) – the quickest end-to-end check after a font change
 ([20-forms_reports_testmodules.md Step 4](../09-Install/docs/20-forms_reports_testmodules.md)).
 
 ## 10. Step-by-Step Setup
@@ -931,7 +931,7 @@ AAAWCI+DejaVu,Sans                   CID TrueType      Identity-H       yes yes 
 
 Oracle Reports 14.1.2 writes the subsets as **CID TrueType** (`Identity-H`,
 with ToUnicode → `uni=yes`); the font name is the family with a comma
-(`Liberation,Sans`). `pdf_font_verify.sh` accepts it (tested).
+(`Liberation,Sans`). [`pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh) accepts it (tested).
 
 **Correct indicators:**
 - All fonts are `TrueType`

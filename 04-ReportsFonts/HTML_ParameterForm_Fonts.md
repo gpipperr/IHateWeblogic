@@ -5,7 +5,7 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 > How the HTML parameter form (and HTML output) of Oracle Reports 12c/14c on
 > Oracle Linux resolves fonts, why it can render every text in the **Symbol**
 > font (Latin text shown as Greek letters) while PDF output is perfectly fine,
-> and how to fix it with domain-local AFM files and `ttf2reports_afm.py`.
+> and how to fix it with domain-local AFM files and [`ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py).
 
 ---
 
@@ -14,7 +14,7 @@ Author: Gunther Pipperr | https://pipperr.de | License: Apache 2.0
 | Problem | Cause | Fix |
 |---------|-------|-----|
 | HTML parameter form shows Greek glyphs, HTML contains `<font face="symbol">` | The **screen printer** uses PPD + AFM metrics. The standard AFMs have `EncodingScheme AdobeStandardEncoding`, which does not match `NLS_LANG=...WE8MSWIN1252`. Only `Symbol` (`FontSpecific`) passes the charset check. | Copy the standard AFMs into the **domain** AFM directory and set `EncodingScheme FontSpecific` (MOS Doc ID 300416.1) |
-| After that fix every text is `Courier` | Font is not in `screenprinter.ppd` or has no AFM. Reports falls back to `*DefaultFont: Courier`. **uifont.ali aliases are not applied** here. | Generate an AFM from the TTF with `ttf2reports_afm.py`, add a `*Font` line to `screenprinter.ppd` |
+| After that fix every text is `Courier` | Font is not in `screenprinter.ppd` or has no AFM. Reports falls back to `*DefaultFont: Courier`. **uifont.ali aliases are not applied** here. | Generate an AFM from the TTF with [`ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py), add a `*Font` line to `screenprinter.ppd` |
 | PDF is fine (customer) | PDF uses the TTF of the font itself from `REPORTS_FONT_DIRECTORY` (the customer had the real Windows TTFs) – different code path | nothing to do – **unless fonts are substituted** (no `arial.ttf` on the server, Arial mapped to Liberation Sans): then the PDF gets the same `Symbol` and needs this fix too (proven 2026-10-19, section 2) |
 
 Result after the fix: `<font size="4" face="arial">` in the HTML parameter form.
@@ -134,7 +134,7 @@ file is opened.
 > With this fix plus family entries in `[PDF:Subset]` (`"Times"..`,
 > `"LiberationSans"..`, `"DejaVuSans"..`) and `[Global] Tahoma = DejaVuSans`
 > all substitute fonts became embedded TrueType.
-> `09-Install/14b-oracle_reports_fonts.sh` runs `paramform_afm_setup.sh` for
+> [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) runs [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) for
 > every installation – it does no harm when the original TTFs are present.
 
 ---
@@ -301,7 +301,7 @@ not a `rwengine` binary.
 
 ## 5. ttf2reports_afm.py: Summary
 
-Source of truth: `04-ReportsFonts/ttf2reports_afm.py` (do not duplicate it
+Source of truth: [`04-ReportsFonts/ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py) (do not duplicate it
 here — this section only summarizes what it does so the two files cannot
 drift out of sync).
 
@@ -330,7 +330,7 @@ python3 ttf2reports_afm.py --check <afm-file>
   `CapHeight`/`XHeight` of `0`, `EncodingScheme` other than `FontSpecific`,
   a `FontName` that doesn't match the AFM file's own name, and (best-effort,
   non-ASCII only) a localized `FullName`. Exit 0 if clean, 1 otherwise —
-  this is what `paramform_afm_setup.sh` gates on after each generation.
+  this is what [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) gates on after each generation.
 
 Requires: `python3-fonttools` (OL9 AppStream) — generation only; `--check`
 has no extra dependency.
@@ -377,9 +377,9 @@ EndFontMetrics
 
 ## 6. Automation
 
-Implemented as `04-ReportsFonts/paramform_afm_setup.sh` — integrated into the
+Implemented as [`04-ReportsFonts/paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) — integrated into the
 module's existing workflow (dry-run by default, `--apply` to write, same
-`environment.conf`/`IHateWeblogic_lib.sh` conventions as every other script
+`environment.conf`/[`IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) conventions as every other script
 here; see the README section 9 "behaviour" entry for the full description).
 It automates exactly the three manual steps from section 4:
 
@@ -387,7 +387,7 @@ It automates exactly the three manual steps from section 4:
   (`Helvetica*`/`Courier*`/`Times*`) from the Oracle Home AFM directory into
   the domain-local AFM directory
 - **Step B**: generates an AFM for every TTF in `REPORTS_FONT_DIR` (keys
-  derived from `fc-query`, not hardcoded) via `ttf2reports_afm.py`, then
+  derived from `fc-query`, not hardcoded) via [`ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py), then
   runs `--check` on each one
 - **Step C**: idempotent `*Font <key>` line insertion into
   `screenprinter.ppd`, with a single backup per run
