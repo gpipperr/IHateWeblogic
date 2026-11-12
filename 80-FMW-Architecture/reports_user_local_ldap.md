@@ -41,9 +41,9 @@ identity store is the file `system-jazn-data.xml` (JAZN XML).
 ![ldap-request-path](diagrams/ldap-request-path.svg?v=501a18db)
 <sub>Source: [diagrams/ldap-request-path.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ldap-request-path.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ldap-request-path.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=ldap-request-path
+```ascii?name=ldap-request-path
  Browser / Monitoring / Application
         |  HTTPS POST /reports/rwservlet/getserverinfo (authid=monUser/... in the body)
         v

@@ -2,13 +2,17 @@
 # =============================================================================
 # Script   : render_ascii.py
 # Purpose  : Render marked ASCII diagrams of Markdown files additionally as SVG.
-#            Block marker:   ```ascii name=<name>
+#            Block marker:   ```ascii?name=<name>  (old form ```ascii name=<name>
+#                            is still read and rewritten - kramdown / GitHub
+#                            Pages takes only '<lang>?...' after the backticks)
 #            Engine d2 (default): ASCII + STYLE -> diagrams/<name>.prompt ->
 #              LLM -> diagrams/<name>.d2 -> "d2 --layout dagre|elk" -> <name>.svg
 #            Engine svgbob: ASCII -> svgbob -> <name>.svg (no LLM)
 #            The MD gets the image link + a source line (link to the .prompt)
 #            in front of the block; the ASCII block is folded into
-#            <details><summary>ASCII version</summary>. Idempotent.
+#            <details markdown="block"><summary>ASCII version</summary>
+#            (markdown="block": kramdown parses the fenced block inside,
+#            so a <placeholder> in the ASCII cannot swallow the page). Idempotent.
 #            Unmarked blocks that look like a diagram are only reported.
 # Call     : render_ascii.py --file X.md | --all  [--engine d2|svgbob]
 #                            [--force] [--dry-run]
@@ -41,12 +45,14 @@ STYLE_DEFAULT = os.path.join(TOOL_DIR, "style_default.txt")
 CONF_FILE = os.path.join(TOOL_DIR, "render_ascii.conf")
 
 FENCE_RE = re.compile(r"^(\s*)(`{3,})(.*)$")
-MARK_RE = re.compile(r"^ascii\s+name=([a-z0-9][a-z0-9_-]*)\s*$")
+MARK_RE = re.compile(r"^ascii(?:\s+|\?)name=([a-z0-9][a-z0-9_-]*)\s*$")
 BOXY_RE = re.compile(r"(\+-{2,}|-{2,}\+|[┌┐└┘├┤┬┴┼─│═║╔╗╚╝▶◀▼▲]|-->|<--|==>|-{3,}>)")
-SUMMARY = "<details><summary>ASCII version</summary>"
-# older wrappers (German, until 2026-11-11) are still recognised and rewritten
+SUMMARY = '<details markdown="block"><summary>ASCII version</summary>'
+# older wrappers (without markdown="block" until 2026-11-12, German until
+# 2026-11-11) are still recognised and rewritten
 BLOB_URL = "https://github.com/gpipperr/IHateWeblogic/blob/main/"
-SUMMARIES = (SUMMARY, "<details><summary>ASCII-Version</summary>")
+SUMMARIES = (SUMMARY, "<details><summary>ASCII version</summary>",
+             "<details><summary>ASCII-Version</summary>")
 
 COUNT = {"OK": 0, "WARN": 0, "FAIL": 0}
 LOG_FH = None
@@ -446,13 +452,15 @@ def wrap_lines(md_path, lines, b, name, ascii_text, engine="d2"):
     ind, fence = b["indent"], b["fence"]
     img_idx, wrapped, sum_idx = wrapper_state(lines, b, name)
     body = ascii_text.split("\n")
-    block = [ind + fence + b["info"]] + body + [ind + fence]
+    # marker always in the kramdown-safe form ```ascii?name=<name>
+    info = "ascii?name=%s" % name
+    block = [ind + fence + info] + body + [ind + fence]
     head = head_lines(md_path, b, name, engine)
     if not wrapped:
         tail = ["", ind + "</details>"]
         return [(b["start"], b["end"] + 1, head + [""] + block + tail)]
     edits = []
-    if body != b["body"]:
+    if body != b["body"] or b["info"] != info:
         edits.append((b["start"], b["end"] + 1, block))
     if img_idx is not None and lines[img_idx:sum_idx + 1] != head:
         edits.append((img_idx, sum_idx + 1, head))

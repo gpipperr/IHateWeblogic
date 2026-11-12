@@ -55,9 +55,9 @@ can.
 ![rwbuilder-setup](diagrams/rwbuilder-setup.svg?v=4a6199a1)
 <sub>Source: [diagrams/rwbuilder-setup.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rwbuilder-setup.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rwbuilder-setup.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=rwbuilder-setup
+```ascii?name=rwbuilder-setup
   Developer workstation                Windows Server (central, RDP)
   ---------------------                ---------------------------------------------
   RDP client  ----- RDP ----------->   rwbuilder.bat  (one process per developer)

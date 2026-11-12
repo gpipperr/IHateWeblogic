@@ -34,9 +34,9 @@ the job is complete." (**documented**, Publishing Reports 12.2.1.3, 2.2)
 ![repeng-modes](diagrams/repeng-modes.svg?v=27736417)
 <sub>Source: [diagrams/repeng-modes.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/repeng-modes.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/repeng-modes.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=repeng-modes
+```ascii?name=repeng-modes
  MODE A: IN-PROCESS (Oracle default)              MODE B: STANDALONE (this repository)
 
   Browser / cgicmd key                             Browser / cgicmd key

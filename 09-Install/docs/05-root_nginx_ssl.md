@@ -36,9 +36,9 @@ traffic is handled by NGINX; WebLogic listens on `localhost` only and never hand
 ![nginx-ssl-proxy](diagrams/nginx-ssl-proxy.svg?v=81aa9797)
 <sub>Source: [diagrams/nginx-ssl-proxy.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/nginx-ssl-proxy.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/nginx-ssl-proxy.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=nginx-ssl-proxy
+```ascii?name=nginx-ssl-proxy
 Client (HTTPS :443)
       │
       ▼

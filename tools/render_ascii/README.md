@@ -10,7 +10,7 @@ State: in use since 2026-11-10 (32 diagrams), checked in on 2026-11-11.
 ## Flow
 
 ```
- MD block ```ascii name=<n>
+ MD block ```ascii?name=<n>
         |
         v
  diagrams/<n>.prompt   = ### STYLE (template) + ### ASCII (block)
@@ -24,7 +24,7 @@ State: in use since 2026-11-10 (32 diagrams), checked in on 2026-11-11.
         v
  MD: ![<n>](diagrams/<n>.svg?v=<8 hex of the SVG's SHA-256>)
      <sub>Source: [diagrams/<n>.prompt] · [D2]</sub>   (absolute github.com/…/blob/main/ links)
-     <details><summary>ASCII version</summary> … block … </details>
+     <details markdown="block"><summary>ASCII version</summary> … block … </details>
 ```
 
 `diagrams/` lies next to the Markdown file.
@@ -57,9 +57,18 @@ reports them as "candidate".
 ## Marking a diagram
 
 Only marked blocks are processed. ```` ``` ```` becomes
-```` ```ascii name=<n> ```` – `<n>` of lower-case letters, digits, `-` and
+```` ```ascii?name=<n> ```` – `<n>` of lower-case letters, digits, `-` and
 `_`, unique per Markdown file. Unmarked blocks that look like a diagram are
 only reported as "candidate" (file:line).
+
+Why this form (2026-11-12): GitHub Pages (kramdown) accepts after the
+backticks only the language plus an optional `?…` – the old marker
+```` ```ascii name=<n> ```` was no fence there, and the next ```` ``` ````
+opened a code block that swallowed `</details>` and the rest of the page.
+`markdown="block"` makes kramdown parse the block inside `<details>`; without
+it a placeholder like `<cn>` in the ASCII was read as an HTML tag. github.com
+renders both forms the same. The old marker and the old wrapper are still
+recognised and rewritten.
 
 ## Call
 

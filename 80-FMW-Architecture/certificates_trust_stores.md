@@ -111,9 +111,9 @@ encrypted (AES-256), `codesign.p12` with SHA-256 MAC (OpenSSL 3 default).
 ![certs-in-out](diagrams/certs-in-out.svg?v=7f946897)
 <sub>Source: [diagrams/certs-in-out.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/certs-in-out.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/certs-in-out.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=certs-in-out
+```ascii?name=certs-in-out
   INBOUND  (who proves identity: our server)
     browser / Forms client (JRE, FSAL) --TLS--> Nginx :443 --(127.0.0.1, http)--> WebLogic / ORDS
       client must trust: root of the Nginx certificate (local CA / customer CA / public CA)

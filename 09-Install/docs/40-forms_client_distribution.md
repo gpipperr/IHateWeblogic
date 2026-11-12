@@ -53,9 +53,9 @@ reproducible (open items "Tests that need a client" in the root README).
 ![client-distribution](diagrams/client-distribution.svg?v=e4f8de09)
 <sub>Source: [diagrams/client-distribution.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/client-distribution.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/client-distribution.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=client-distribution
+```ascii?name=client-distribution
   Application server (Linux)                                Windows client (user scope)
  +---------------------------------------------+          +-------------------------------------------+
  | $PATCH_STORAGE/client/jdk/<nr>/             |          | Desktop / start menu shortcut             |

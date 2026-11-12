@@ -60,9 +60,9 @@ Background per step – **why** the domain looks like this (`80-FMW-Architecture
 ![install-overview](diagrams/install-overview.svg?v=72fca71b)
 <sub>Source: [diagrams/install-overview.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/diagrams/install-overview.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/diagrams/install-overview.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=install-overview
+```ascii?name=install-overview
 Internet / Intranet
         │
         │ HTTPS (443)

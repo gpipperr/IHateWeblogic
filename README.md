@@ -54,9 +54,9 @@ APEX on the same database**, each where it is strongest:
 ![target-picture](diagrams/target-picture.svg?v=d9b389b6)
 <sub>Source: [diagrams/target-picture.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/diagrams/target-picture.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/diagrams/target-picture.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=target-picture
+```ascii?name=target-picture
                  users (browser / FSAL)
                           |  HTTPS
               +---------- Nginx (TLS, one host name) ----------+

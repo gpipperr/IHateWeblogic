@@ -70,9 +70,9 @@ WebUtil is part of Oracle Forms since 11g (before that a separate download).
 ![jacob-chain](diagrams/jacob-chain.svg?v=82e35e4c)
 <sub>Source: [diagrams/jacob-chain.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-chain.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-chain.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=jacob-chain
+```ascii?name=jacob-chain
 +---------------------------+
 | Oracle Forms runtime      |
 | (server, frmweb)          |
@@ -186,9 +186,9 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 ![jacob-signing](diagrams/jacob-signing.svg?v=a8daf0a0)
 <sub>Source: [diagrams/jacob-signing.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-signing.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-signing.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=jacob-signing
+```ascii?name=jacob-signing
    Oracle (vendor)                         Customer (you)
   +------------------------------+        +----------------------------------+
   | frmall.jar, frmwebutil.jar,  |        | jacob.jar, own jars (icons ...)  |
@@ -412,9 +412,9 @@ Recommendation (design, to be decided with the customer):
 ![jacob-codesign](diagrams/jacob-codesign.svg?v=e10e0ad4)
 <sub>Source: [diagrams/jacob-codesign.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-codesign.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-codesign.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=jacob-codesign
+```ascii?name=jacob-codesign
   08-SSL/ssl_local_ca.sh  (creates)                09-Install/14-oracle_setup_forms.sh  (uses)
   +------------------------------+                 +------------------------------------------+
   | init     root CA             |                 | FORMS_SIGN_KEYSTORE set and jacob.jar    |

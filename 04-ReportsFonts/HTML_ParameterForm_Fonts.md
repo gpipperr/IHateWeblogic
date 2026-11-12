@@ -82,9 +82,9 @@ the same engine.
 ![font-two-paths](diagrams/font-two-paths.svg?v=5c27e119)
 <sub>Source: [diagrams/font-two-paths.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/diagrams/font-two-paths.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/diagrams/font-two-paths.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=font-two-paths
+```ascii?name=font-two-paths
                          Report font name ("Arial")
                                    │
              ┌─────────────────────┴─────────────────────┐

@@ -35,9 +35,9 @@ Practice (anonymised, from a customer project 2026-11-09/10):
 ![clone-target](diagrams/clone-target.svg?v=64d8be7a)
 <sub>Source: [diagrams/clone-target.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-target.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-target.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=clone-target
+```ascii?name=clone-target
   client (browser / FSAL)
         |  HTTPS, host name + certificate  <-- the ONLY host-specific edge
         v
@@ -188,9 +188,9 @@ knows the prefix (§4, §5 there).
 ![clone-rcu-location](diagrams/clone-rcu-location.svg?v=b946795a)
 <sub>Source: [diagrams/clone-rcu-location.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-rcu-location.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-rcu-location.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=clone-rcu-location
+```ascii?name=clone-rcu-location
   RCU DB on the WLS host (this repository: 60-RCU-DB-19c)
   +----------------- machine -----------------+
   | domain  --JDBC-->  DB (prefix DEV)         |   clone = domain + DB together

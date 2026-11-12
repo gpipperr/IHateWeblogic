@@ -77,9 +77,9 @@ older; Oracle's note names Java Web Start explicitly).
 ![formsrt-tls-path](diagrams/formsrt-tls-path.svg?v=5062845d)
 <sub>Source: [diagrams/formsrt-tls-path.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsrt-tls-path.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsrt-tls-path.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=formsrt-tls-path
+```ascii?name=formsrt-tls-path
  client PC                              server
  +--------------------------+   HTTPS   +-------------------+  HTTP (loopback)  +------------------+  TCP (own port)  +--------+  SQL*Net
  | JWS / FSAL client JVM    |---------->| Nginx             |------------------>| WLS_FORMS JVM    |----------------->| frmweb |---------> DB

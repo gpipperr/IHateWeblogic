@@ -16,9 +16,9 @@ Markers as in the rest of this folder: **documented** (Oracle documentation),
 ![formsperf-path](diagrams/formsperf-path.svg?v=4e954697)
 <sub>Source: [diagrams/formsperf-path.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsperf-path.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsperf-path.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=formsperf-path
+```ascii?name=formsperf-path
  Forms client (Java, FSAL / Web Start)
    │  HTTPS                                   ← network, TLS
    ▼

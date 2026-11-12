@@ -28,9 +28,9 @@ A modern Forms environment is Forms **and** APEX on the same database
 ![apex-ords-overview](diagrams/apex-ords-overview.svg?v=6001bc48)
 <sub>Source: [diagrams/apex-ords-overview.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/diagrams/apex-ords-overview.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/diagrams/apex-ords-overview.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=apex-ords-overview
+```ascii?name=apex-ords-overview
    browser / FSAL
         |  HTTPS – one host name, one certificate
    +--- Nginx -------------------------------------------------------------------+

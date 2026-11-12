@@ -27,9 +27,9 @@ section 2.1 (hardening checklist), section 3 (where host name / IP live).
 ![localhost-target](diagrams/localhost-target.svg?v=4ae0820e)
 <sub>Source: [diagrams/localhost-target.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/diagrams/localhost-target.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/diagrams/localhost-target.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=localhost-target
+```ascii?name=localhost-target
   client (browser / Forms client)
         |  HTTPS, host name + certificate   <-- the ONLY host-specific edge
         v

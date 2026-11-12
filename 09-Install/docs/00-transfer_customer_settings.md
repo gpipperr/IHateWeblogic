@@ -36,9 +36,9 @@ The export of the old environment is the master data of the new build.
 ![transfer-flow](diagrams/transfer-flow.svg?v=d46b68c5)
 <sub>Source: [diagrams/transfer-flow.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/transfer-flow.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/transfer-flow.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=transfer-flow
+```ascii?name=transfer-flow
  customer host (old 12c / 14c)          our host                              new 14c host
  ─────────────────────────────          ────────                              ────────────
  tools ZIP                              our analysis               ─┐

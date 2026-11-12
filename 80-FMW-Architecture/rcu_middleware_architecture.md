@@ -54,9 +54,9 @@ domain reads one of two files in `$DOMAIN_HOME/config/fmwconfig/`
 ![rcu-opss-store](diagrams/rcu-opss-store.svg?v=06b9eb5d)
 <sub>Source: [diagrams/rcu-opss-store.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-opss-store.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-opss-store.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=rcu-opss-store
+```ascii?name=rcu-opss-store
               policy + credential + key store: ONE copy, in the database
                          +------------------------------+
                          |  DEV_OPSS  (RCU schema)      |
@@ -140,9 +140,9 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
 ![rcu-repository](diagrams/rcu-repository.svg?v=ec0cc168)
 <sub>Source: [diagrams/rcu-repository.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-repository.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-repository.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=rcu-repository
+```ascii?name=rcu-repository
                        Repository of prefix DEV  (one PDB, tablespace FMW_DATA)
  +------------------------------------------------------------------------------------+
  |                                                                                    |
@@ -199,9 +199,9 @@ matches "no data source" for `MDS` / `UMS` in the table (**confirmed
 ![rcu-homes](diagrams/rcu-homes.svg?v=32aea91c)
 <sub>Source: [diagrams/rcu-homes.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-homes.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rcu-homes.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=rcu-homes
+```ascii?name=rcu-homes
   Oracle Home (software)                         Domain Home (configuration)
   +----------------------------+                 +----------------------------------------+
   | oracle_common/bin/rcu      |  create / drop  | config/jdbc/*-jdbc.xml                 |

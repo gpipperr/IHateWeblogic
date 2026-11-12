@@ -55,9 +55,9 @@ laborious and error-prone parts of a Windows server installation.
 ![builder-windows](diagrams/builder-windows.svg?v=65a44a9e)
 <sub>Source: [diagrams/builder-windows.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="block"><summary>ASCII version</summary>
 
-```ascii name=builder-windows
+```ascii?name=builder-windows
  Developer (RDP) ──► Windows Server ──── Reports Builder (rwbuilder.bat)
                          │  Oracle Home + builder domain (AdminServer stopped)
                          ├──────────► existing DB: RCU prefix + application data
