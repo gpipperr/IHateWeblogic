@@ -64,7 +64,7 @@ if ($Anzahl -lt 1) {
     Exit-Script 1
 }
 
-# git rev-parse --abbrev-ref HEAD: Name des aktuellen Branches (z.B. development)
+# git rev-parse --abbrev-ref HEAD: Name des aktuellen Branches (main)
 $branch = git rev-parse --abbrev-ref HEAD
 
 # --- 1. Check-ins mit Dateien und Tags lesen

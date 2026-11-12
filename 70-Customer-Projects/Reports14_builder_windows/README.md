@@ -101,10 +101,10 @@ procedure for the customer and the script design:
 skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
 [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts).
 
-Deployment (2026-11-12): push to `development` → all reports to the Linux
-DEV server; one released report (`promote.ps1`, merge request) → `main` →
-manual pipeline job → production. GitLab CI template, SSH forced-command
-queue `rwdeploy.sh`: [Git_deploy.md](Git_deploy.md).
+Deployment (2026-11-12): only the branch `main`, one report per check-in;
+push → the changed reports to the Linux DEV server; a `prod-*` tag
+(`release_tag.ps1`) → exactly that check-in to production. GitLab CI
+template, SSH forced-command queue `rwdeploy.sh`: [Git_deploy.md](Git_deploy.md).
 
 ## Patch level
 

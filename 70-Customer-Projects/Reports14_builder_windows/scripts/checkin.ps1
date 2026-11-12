@@ -23,9 +23,12 @@
 #   3. fragt nach einem Kommentar, wenn keiner angegeben ist
 #   4. wandelt die ausgewaehlte(n) .rdf nach xml\<name>.xml - mit
 #      convert_rdf.ps1 (bricht beim ersten Fehler ab - dann wird nichts
-#      eingecheckt)
-#   5. loescht die xml\<name>.xml eines geloeschten Berichts
-#   6. git add (nur die Auswahl) + commit (mit Ihrem Kommentar) + push
+#      eingecheckt); loescht die xml\<name>.xml eines geloeschten Berichts
+#   5. git add (nur die Auswahl)
+#   6. commit JEDER Datei einzeln (Bericht + seine xml = ein Check-in, bei
+#      mehreren mit dem Dateinamen im Kommentar) + push. Der Push auf main
+#      verteilt die Berichte auf DEV; ein prod-Tag auf einen Check-in bringt
+#      genau diesen Bericht in die Produktion (release_tag.ps1)
 #
 # Voraussetzungen:
 #   - convert_rdf.ps1 im selben Ordner (Konverter + DB-Login-Datei dort
@@ -234,54 +237,49 @@ if ($selected.Count -gt 0 -and -not $Comment) {
     Exit-Script 0
 }
 
-# --- 4. Ausgewaehlte neue oder geaenderte .rdf nach xml\<name>.xml wandeln
-# $addPaths sammelt, was in Schritt 6 eingecheckt wird: die Auswahl + die
-# passende xml-Datei.
+# --- 4. Pro ausgewaehlter Datei eine Gruppe fuer einen eigenen Check-in:
+# die Datei + bei einem Bericht die passende xml-Datei. Jeder Bericht wird
+# einzeln eingecheckt - ein prod-Tag auf diesen Check-in bringt genau diesen
+# Bericht in die Produktion (release_tag.ps1, Git_deploy.md).
+#   neuer / geaenderter Bericht : .rdf nach xml\<name>.xml wandeln
+#   geloeschter Bericht         : xml\<name>.xml ebenfalls loeschen
+$groups    = @()
 $addPaths  = @()
 $converted = 0
 foreach ($file in $selected) {
-    $addPaths += $file
-    if (-not $file.EndsWith('.rdf')) {
-        continue
+    $group = @($file)
+    if ($file.EndsWith('.rdf')) {
+        $name = [IO.Path]::GetFileNameWithoutExtension($file)
+        if (Test-Path $file) {
+            Write-Host "Wandle $file -> $XmlDir/$name.xml"
+            # convert_rdf.ps1 kennt die Ordner selbst: source\<name>.rdf -> xml\<name>.xml
+            & $ConvertScript $name
+            Set-Location $RepoRoot
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Es wurde nichts eingecheckt. Bericht (oder Login-Datei) korrigieren und erneut starten." -ForegroundColor Red
+                Exit-Script 1
+            }
+            $group += "$XmlDir/$name.xml"
+            $converted = $converted + 1
+        }
+        else {
+            $xmlFile = Join-Path $RepoRoot "$XmlDir/$name.xml"
+            if (Test-Path $xmlFile) {
+                Write-Host "Bericht $file wurde geloescht - loesche $XmlDir/$name.xml"
+                Remove-Item $xmlFile
+                $group += "$XmlDir/$name.xml"
+            }
+        }
     }
-    if (-not (Test-Path $file)) {
-        continue
-    }
-    $name = [IO.Path]::GetFileNameWithoutExtension($file)
-    Write-Host "Wandle $file -> $XmlDir/$name.xml"
-
-    # convert_rdf.ps1 kennt die Ordner selbst: source\<name>.rdf -> xml\<name>.xml
-    & $ConvertScript $name
-    Set-Location $RepoRoot
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Es wurde nichts eingecheckt. Bericht (oder Login-Datei) korrigieren und erneut starten." -ForegroundColor Red
-        Exit-Script 1
-    }
-    $addPaths += "$XmlDir/$name.xml"
-    $converted = $converted + 1
+    # ',' = die Gruppe bleibt ein eigenes Array in der Liste
+    $groups   += ,$group
+    $addPaths += $group
 }
 if ($selected.Count -gt 0) {
     Write-Host "Gewandelte Berichte: $converted"
 }
 
-# --- 5. Geloeschter Bericht ausgewaehlt: die passende xml ebenfalls loeschen
-foreach ($file in $selected) {
-    if (-not $file.EndsWith('.rdf')) {
-        continue
-    }
-    if (Test-Path $file) {
-        continue
-    }
-    $name    = [IO.Path]::GetFileNameWithoutExtension($file)
-    $xmlFile = Join-Path $RepoRoot "$XmlDir/$name.xml"
-    if (Test-Path $xmlFile) {
-        Write-Host "Bericht $file wurde geloescht - loesche $XmlDir/$name.xml"
-        Remove-Item $xmlFile
-        $addPaths += "$XmlDir/$name.xml"
-    }
-}
-
-# --- 6. Hinzufuegen (nur die Auswahl), committen, hochladen
+# --- 5. Hinzufuegen (nur die Auswahl)
 if ($addPaths.Count -gt 0) {
     # git add: Dateien fuer den naechsten Check-in vormerken
     #   --all : auch neue und geloeschte Dateien (eine geloeschte wird als
@@ -294,16 +292,42 @@ if ($addPaths.Count -gt 0) {
     }
 }
 
-# Gibt es ueberhaupt etwas Neues einzuchecken? Nur die Auswahl zaehlt -
-# andere, frueher vorgemerkte Dateien bleiben ausserhalb dieses Check-ins.
-$nothingNew = $true
-if ($addPaths.Count -gt 0) {
+# --- 6. Einchecken - eine Gruppe nach der anderen, jede ein eigener Check-in
+# Nur die Auswahl zaehlt - andere, frueher vorgemerkte Dateien bleiben
+# ausserhalb dieser Check-ins.
+$commits = 0
+foreach ($group in $groups) {
     # git diff --cached: vergleicht das Vorgemerkte mit dem letzten Check-in
     #   --quiet : keine Ausgabe, nur Exit-Code: 0 = kein Unterschied, 1 = Aenderung
-    #   --      : nur die ausgewaehlten Dateien vergleichen
-    git diff --cached --quiet -- $addPaths
-    $nothingNew = ($LASTEXITCODE -eq 0)
+    #   --      : nur die Dateien dieser Gruppe vergleichen
+    git diff --cached --quiet -- $group
+    if ($LASTEXITCODE -eq 0) {
+        continue
+    }
+    # mehrere Check-ins: der Dateiname kommt in den Kommentar
+    $message = $Comment
+    if ($groups.Count -gt 1) {
+        $message = "$Comment ($([IO.Path]::GetFileName($group[0])))"
+    }
+    Write-Host ""
+    Write-Host "Check-in: $message"
+    # git diff --cached --name-status: Liste des Vorgemerkten - Buchstabe + Datei
+    #   (A = neu, M = geaendert, D = geloescht)
+    #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
+    git -c core.quotePath=false diff --cached --name-status -- $group
+
+    # git commit: den Check-in lokal speichern (noch nicht auf dem Git-Server)
+    #   --quiet     : keine Zusammenfassung
+    #   -m $message : Ihr Kommentar (sonst wuerde git einen Editor oeffnen)
+    #   -- <dateien>: NUR die Dateien dieser Gruppe - andere bleiben draussen
+    git commit --quiet -m $message -- $group
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FEHLER: git commit ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
+        Exit-Script 1
+    }
+    $commits++
 }
+$nothingNew = ($commits -eq 0)
 
 if ($nothingNew -and [int]$ahead -eq 0) {
     Write-Host "Nichts einzuchecken - keine geaenderten Berichte, XML-Dateien oder Bilder." -ForegroundColor Yellow
@@ -312,26 +336,6 @@ if ($nothingNew -and [int]$ahead -eq 0) {
 
 if ($nothingNew) {
     Write-Host "Nichts Neues - sende nur Ihre(n) $ahead noch nicht gesendeten Check-in(s)."
-}
-
-if (-not $nothingNew) {
-    Write-Host ""
-    Write-Host "Diese Dateien werden eingecheckt:"
-    # git diff --cached --name-status: Liste des Vorgemerkten - Buchstabe + Datei
-    #   (A = neu, M = geaendert, D = geloescht)
-    #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
-    git -c core.quotePath=false diff --cached --name-status -- $addPaths
-
-    # "-- $addPaths": nur die ausgewaehlten Dateien kommen in den Check-in
-    # git commit: den Check-in lokal speichern (noch nicht auf dem Git-Server)
-    #   --quiet     : keine Zusammenfassung
-    #   -m $Comment : Ihr Kommentar (sonst wuerde git einen Editor oeffnen)
-    #   -- <dateien>: NUR diese Dateien - andere vorgemerkte bleiben draussen
-    git commit --quiet -m $Comment -- $addPaths
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "FEHLER: git commit ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
-        Exit-Script 1
-    }
 }
 
 Write-Host "Sende an den Git-Server ..."
@@ -382,12 +386,14 @@ if ($nothingNew) {
     Write-Host "OK - an den Git-Server gesendet." -ForegroundColor Green
 }
 else {
-    Write-Host "OK - eingecheckt: $Comment" -ForegroundColor Green
+    Write-Host "OK - eingecheckt ($commits Check-in(s)): $Comment" -ForegroundColor Green
 }
-# git log: den eben gesendeten Check-in zeigen
+Write-Host "Die Pipeline in GitLab verteilt die Berichte jetzt auf DEV (Build -> Pipelines)."
+# git log: die eben gesendeten Check-ins zeigen
 #   --no-pager    : direkt ausgeben, kein Blaettern mit 'less'
 #   --oneline     : eine Zeile (Kurz-Nummer + Kommentar)
 #   --no-decorate : ohne Branch-Namen in Klammern
-#   -1            : nur den letzten Check-in
-git --no-pager log --oneline --no-decorate -1
+#   -<n>          : nur die letzten n Check-ins (mindestens 1)
+$show = [Math]::Max($commits, 1)
+git --no-pager log --oneline --no-decorate "-$show"
 Exit-Script 0

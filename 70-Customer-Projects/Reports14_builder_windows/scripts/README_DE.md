@@ -38,11 +38,17 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
   |                               |      Nummer / a (alle) / x (abbrechen)
   |                               |   c) Kommentar: was und warum
   |                               |   d) Bericht .rdf -> .xml umwandeln
-  |                               |   e) einchecken und hochladen
+  |                               |   e) einchecken (jeder Bericht einzeln)
+  |                               |      und hochladen
   +-------------------------------+
         |
         v
-  GIT-SERVER  (Kollegen holen es sich mit pull.ps1)
+  GIT-SERVER (main)  -->  automatisch auf DEV
+        |                 (Kollegen holen es sich mit pull.ps1)
+        v
+  +-------------------------------+
+  | 5. release_tag.ps1            |   auf DEV getestet? prod-Tag setzen
+  +-------------------------------+   --> Produktion
 ```
 
 ## Einmalige Einrichtung (pro Benutzer)
@@ -160,7 +166,8 @@ Ausgewaehlt: geaendert  Reports/source/umsatz.rdf
 Kommentar fuer diesen Check-in (was und warum): Spalte Rabatt ergaenzt
 Wandle Reports/source/umsatz.rdf -> Reports/xml/umsatz.xml
 ...
-OK - eingecheckt: Spalte Rabatt ergaenzt
+OK - eingecheckt (1 Check-in(s)): Spalte Rabatt ergaenzt
+Die Pipeline in GitLab verteilt die Berichte jetzt auf DEV (Build -> Pipelines).
 ```
 
 Eingecheckt wird **nur die Auswahl** – die anderen Dateien bleiben liegen und
@@ -169,48 +176,34 @@ XML-Datei, die das Skript selbst erzeugt; XML-Dateien nie von Hand ändern.
 
 ## Nach dem Einchecken: DEV und Produktion
 
-Gearbeitet wird im Branch **`development`**. Jedes Hochladen dorthin
-verteilt **alle** Berichte automatisch auf den Linux-**DEV**-Reports-Server.
-Dort testen Sie den Bericht über `rwservlet`. Das Ergebnis der Verteilung
-steht in GitLab unter **Build → Pipelines** (grün oder rot).
+Es gibt nur den Branch **`main`**. Jeder Bericht wird **einzeln**
+eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
+(ein Check-in pro Bericht, mit seiner XML-Datei).
 
-In die **Produktion** kommt ein Bericht nur einzeln und nur nach
-Genehmigung:
+- **DEV:** Jedes Hochladen verteilt die geänderten Berichte automatisch auf
+  den Linux-**DEV**-Reports-Server – normalerweise genau den eingecheckten
+  Bericht. Dort testen Sie ihn über `rwservlet`. Das Ergebnis steht in
+  GitLab unter **Build → Pipelines** (grün oder rot).
+- **Produktion:** Ein **`prod-`-Tag** auf den Check-in des Berichts startet
+  die Verteilung in die Produktion – genau dieser Check-in, sonst nichts.
 
 ```
   Bericht auf DEV getestet
         |
         v
-  +-------------------------------+
-  | .\Reports\promote.ps1 umsatz  |   a) Bilder mitnehmen? Nummern / a / Enter
-  |                               |   b) Grund der Freigabe
-  |                               |   c) legt in GitLab einen Merge Request an
-  +-------------------------------+      (Ihr Arbeitsordner bleibt, wie er ist)
+  +----------------------------------+
+  | .\Reports\release_tag.ps1        |   a) Liste: noch nicht in Produktion
+  |                                  |   b) Nummer des Check-ins wählen
+  |                                  |   c) Tag-Kommentar (Enter = Vorschlag)
+  |                                  |   d) Tag prod-<Datum>_<bericht> setzen
+  +----------------------------------+      und zum Git-Server senden
         |
         v
-  GitLab: Merge Request "Release umsatz: <Grund>"
-        |   der Verantwortliche prüft, genehmigt und führt ihn zusammen (main)
-        v
-  GitLab: Pipeline auf main, Knopf "Play"  -->  PRODUKTION
-          (nur die freigegebenen Berichte, alle anderen bleiben auf DEV)
+  GitLab: Pipeline zum Tag  -->  PRODUKTION
+          (nur der Bericht dieses Check-ins, alle anderen bleiben, wie sie sind)
 ```
 
-- Freigegeben wird der Stand auf dem **Git-Server**. Den Bericht also zuerst
-  mit `checkin.ps1` einchecken und hochladen, dann `promote.ps1`.
-- Nur dieser eine Bericht (mit seiner XML-Datei und den gewählten Bildern)
-  geht nach `main`. Ihre anderen Berichte bleiben in `development`.
-- Ist der Bericht in `main` schon genau so, meldet das Skript es und tut
-  nichts.
-
-| Meldung von `promote.ps1` | Was tun |
-|---|---|
-| `gibt es auf dem Git-Server in development nicht` | Name prüfen, oder den Bericht zuerst mit `checkin.ps1` einchecken |
-| `ist bei Ihnen geaendert und noch nicht eingecheckt` | zuerst `checkin.ps1`, dann wieder `promote.ps1` |
-| `ein anderer als auf dem Git-Server` | `status.ps1` ansehen: noch nicht gesendet (`checkin.ps1`, Auswahl `n`) oder noch nicht geholt (`pull.ps1`) |
-| `ist in main schon genau so` | nichts zu tun |
-| `OK - Merge Request ... angelegt` | in GitLab wartet der Merge Request auf die Genehmigung |
-
-### Freigaben anzeigen und markieren: `release_tag.ps1`
+### Freigeben: `release_tag.ps1`
 
 ```powershell
 .\Reports\release_tag.ps1                  # anzeigen, dann Nummer wählen (Enter = nichts)
@@ -218,26 +211,41 @@ Genehmigung:
 .\Reports\release_tag.ps1 -Filter ''       # alle Dateien statt nur .rdf
 ```
 
-1. **Noch nicht in Produktion:** alle Check-ins auf `origin/development`, die
-   in keinem `prod-`-Tag enthalten sind – nummeriert, mit Dateien und einer
-   Liste pro Datei.
+1. **Noch nicht in Produktion:** die Check-ins auf dem Git-Server ohne
+   eigenen `prod-`-Tag – nummeriert, neueste zuerst, mit Dateien und einer
+   Liste pro Datei. Hat eine neuere Version eines Berichts schon einen Tag,
+   fallen die älteren Check-ins dieses Berichts weg.
 2. **Letzte Freigaben:** die letzten 20 `prod-`-Tags mit Datum, Freigeber und
-   den Dateien seit der vorherigen Freigabe.
+   den Dateien des Check-ins (= was in die Produktion ging).
 3. **Freigabe:** Nummer eingeben → Tag mit Kommentar auf diesen Check-in,
-   z.B. `prod-2026-11-12_1430_umsatz.rdf`, und zum Git-Server senden.
+   z.B. `prod-2026-11-12_1430_umsatz.rdf`, zum Git-Server senden → die
+   Pipeline verteilt den Bericht in die Produktion.
 
-- Standard: nur `.rdf`-Dateien. `-Filter '*.png'` zeigt z.B. nur Bilder,
-  `-Filter ''` alle Dateien.
-- Ein Tag auf Nr. 3 gibt auch alle **älteren** Check-ins frei (Nr. 4, 5, …).
-- Das Skript setzt nur den Tag – es verteilt nichts. Die Pipeline startet
-  ihn nicht.
+- Freigegeben wird der Stand auf dem **Git-Server**: den Bericht zuerst mit
+  `checkin.ps1` einchecken und hochladen, auf DEV testen, dann
+  `release_tag.ps1`.
+- Standard: nur `.rdf`-Dateien. `-Filter '*.png'` zeigt z.B. nur Bilder –
+  auch ein Bild kommt so mit einem eigenen Tag in die Produktion.
+- Ein Tag gibt **nur seinen Check-in** frei. Ältere Check-ins anderer
+  Berichte bleiben, wo sie sind.
+
+| Meldung von `release_tag.ps1` | Was tun |
+|---|---|
+| `ACHTUNG : Von ... gibt es einen neueren Check-in [1]` | Sie haben eine ältere Version gewählt – mit `n` abbrechen und die neuere Nummer wählen (außer Sie wollen bewusst zurück auf die ältere) |
+| `Der Check-in hat N Dateien - alle gehen in die Produktion` | ein alter Check-in mit mehreren Dateien – nur taggen, wenn alle in die Produktion sollen |
+| `Alles freigegeben - keine offenen Check-ins` | nichts zu tun |
+| Pipeline rot: `the tag is on a merge commit` | Tag liegt auf einer Zusammenführung – Git-Ansprechpartner fragen (Tag löschen, richtigen Check-in taggen) |
+
+**Zurück auf eine ältere Version:** in `release_tag.ps1` den älteren
+Check-in des Berichts wählen (die ACHTUNG-Meldung mit `j` bestätigen) – er
+bekommt einen neuen Tag und geht wieder in die Produktion.
 
 ## Die Auswahl beim Einchecken
 
 | Eingabe | Bedeutung |
 |---|---|
 | Nummer | nur diese eine Datei einchecken (bei einem Bericht mit seiner XML-Datei) |
-| `a` | alle geänderten Dateien einchecken |
+| `a` | alle geänderten Dateien einchecken – jede als eigener Check-in (gleicher Kommentar, Dateiname in Klammern dahinter) |
 | `n` | nichts Neues einchecken, nur Check-ins hochladen, die bei Ihnen gespeichert, aber noch nicht auf dem Git-Server sind (z.B. nach einem fehlgeschlagenen Hochladen). Wird nur angeboten, wenn es solche gibt. |
 | `x` oder Enter | abbrechen – es wird nichts eingecheckt |
 
@@ -266,14 +274,14 @@ Auch ein leerer Kommentar bricht ab.
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
 | `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
-| `release_tag.ps1` | Freigaben anzeigen (offen / letzte `prod-`-Tags) und einen Check-in mit einem `prod-`-Tag markieren; Standard nur `.rdf`, `-Filter` ändert das |
-| `promote.ps1` | einen getesteten Bericht für die Produktion freigeben: `.\Reports\promote.ps1 umsatz` legt den Merge Request nach `main` an |
+| `release_tag.ps1` | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das |
 
 ## Regeln
 
-- Gearbeitet wird im Branch `development` (`status.ps1` warnt sonst).
+- Es gibt nur den Branch `main` (`status.ps1` warnt sonst).
+- Jeder Bericht ein eigener Check-in – `checkin.ps1` macht das selbst.
 - Vor der Arbeit `pull.ps1`, danach `checkin.ps1` – möglichst am selben Tag.
-- In die Produktion nur über `promote.ps1` – nie von Hand nach `main`.
+- In die Produktion nur über einen `prod-`-Tag mit `release_tag.ps1` – nie von Hand kopieren.
 - Ein Bericht – eine Person zur gleichen Zeit (absprechen).
 - XML-Dateien erzeugt nur das Skript.
 - Kennwörter nie in Dateien im Repository und nie in einen Kommentar.

@@ -42,10 +42,10 @@ Set-Location $RepoRoot
 Write-Host "Repository: $((Get-Location).Path)"
 
 # --- 1. Branch und Git-Server-Branch
-# git rev-parse --abbrev-ref HEAD: Name des aktuellen Branches (z.B. development)
+# git rev-parse --abbrev-ref HEAD: Name des aktuellen Branches (main)
 $branch   = git rev-parse --abbrev-ref HEAD
 # git rev-parse --abbrev-ref '@{u}': Name des Git-Server-Branches, mit dem
-#   dieser Branch verbunden ist ("Upstream", z.B. origin/development).
+#   dieser Branch verbunden ist ("Upstream", z.B. origin/main).
 #   '@{u}' = upstream; Fehler, wenn keiner eingetragen ist
 $upstream = git rev-parse --abbrev-ref '@{u}' 2>$null
 if ($LASTEXITCODE -ne 0) {
@@ -54,10 +54,10 @@ if ($LASTEXITCODE -ne 0) {
     Exit-Script 1
 }
 Write-Host "Branch    : $branch  (Git-Server: $upstream)"
-# Entwickelt wird in development - main bekommt Berichte nur einzeln ueber
-# promote.ps1 (Merge Request), siehe README_DE.md
-if ($branch -ne 'development') {
-    Write-Host "Hinweis: Sie sind nicht auf dem Branch 'development' - dort wird entwickelt." -ForegroundColor Yellow
+# Es gibt nur den Branch main - die Produktion bekommt einen Bericht ueber
+# einen prod-Tag (release_tag.ps1), siehe README_DE.md
+if ($branch -ne 'main') {
+    Write-Host "Hinweis: Sie sind nicht auf dem Branch 'main' - es wird nur in main gearbeitet." -ForegroundColor Yellow
 }
 
 Write-Host "Hole den Stand vom Git-Server (an Ihren Dateien aendert sich nichts) ..."

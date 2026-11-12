@@ -9,16 +9,18 @@
 # folders - one job after the other, with a backup of every replaced file.
 #
 # Commands (from SSH_ORIGINAL_COMMAND, or as arguments when run locally):
-#   enqueue <sha> <snapshot|delta>   tar on stdin -> spool/incoming, start worker
+#   enqueue <sha> <delta|tag|snapshot>  tar on stdin -> spool/incoming, start worker
 #   status  <sha> [--wait <sec>]     result of the newest job for <sha>
 #                                    exit 0 = done, 1 = failed, 2 = pending
 #   last                             SHA of the last successful job (or "none")
 #   list                             the last 15 jobs with their state
 #   work                             run the worker (also from cron)
 #
-# snapshot (DEV)  : the tar holds the whole Reports/source + Reports/images;
-#                   files missing in git but present on the server -> warning
-# delta    (PROD) : the tar holds only the released files
+# delta    (DEV)  : push to main - the files changed since the last DEV deploy
+# tag      (PROD) : tag prod-* - the files of the tagged commit (one report)
+# snapshot        : the whole Reports/source + Reports/images (not used by
+#                   ci_deploy.sh any more; files missing in git but present
+#                   on the server -> warning)
 # Nothing is ever deleted on the server.
 #
 # Config: rwdeploy.conf next to this script (or RWDEPLOY_CONF), see
@@ -64,7 +66,7 @@ valid_sha() { [[ "$1" =~ ^[0-9a-f]{7,40}$ ]]; }
 cmd_enqueue() {
     local sha="${1:-}" kind="${2:-}"
     valid_sha "$sha" || die "invalid sha '$sha'"
-    [[ "$kind" == "snapshot" || "$kind" == "delta" ]] || die "kind must be snapshot or delta"
+    [[ "$kind" == "delta" || "$kind" == "tag" || "$kind" == "snapshot" ]] || die "kind must be delta, tag or snapshot"
 
     local job part max size
     job="$(date +%Y%m%d-%H%M%S-%N)-${sha:0:12}"
@@ -293,7 +295,7 @@ if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
 else
     ARGS=("$@")
 fi
-[ "${#ARGS[@]}" -gt 0 ] || die "usage: enqueue <sha> <snapshot|delta> | status <sha> [--wait N] | last | list | work"
+[ "${#ARGS[@]}" -gt 0 ] || die "usage: enqueue <sha> <delta|tag|snapshot> | status <sha> [--wait N] | last | list | work"
 
 case "${ARGS[0]}" in
     enqueue) cmd_enqueue "${ARGS[1]:-}" "${ARGS[2]:-}" ;;

@@ -5,6 +5,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows`: **deployment switched to the customer's tag concept** – only the
+  branch `main`, one report per check-in (`checkin.ps1` / `checkin_only.ps1` commit every selected
+  file on its own, a report with its `.xml`); push to `main` -> `deploy_dev` sends the files changed
+  since the last DEV deploy; a `prod-*` tag (`release_tag.ps1`) -> `deploy_prod` sends exactly the
+  files of the tagged commit. No `development` branch, no merge requests: `promote.ps1` removed.
+  `release_tag.ps1`: open = no own tag and no newer tagged check-in of the same file, warning for an
+  older version, releases list the files of their commit. `rwdeploy.sh` kinds `delta` / `tag`
+  (`snapshot` still accepted). `Git_deploy.md` rewritten; README_DE, Git_checkin.md updated.
 - `Reports14_builder_windows/scripts`: customer script for release tags rebuilt as `release_tag.ps1` in
   our style (repo-root logic, Exit-Script, commented git calls, ASCII): open check-ins on
   `origin/development` without a `prod-*` tag, the last 20 releases, set + push an annotated tag;

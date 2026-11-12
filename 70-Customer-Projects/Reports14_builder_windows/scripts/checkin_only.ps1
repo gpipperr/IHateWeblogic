@@ -18,7 +18,8 @@
 #      (wird nur angeboten, wenn es solche gibt - z.B. nach einem
 #      abgelehnten Push), x oder Enter = abbrechen
 #   3. fragt nach einem Kommentar, wenn keiner angegeben ist
-#   4. git add + commit (nur die Auswahl, mit Ihrem Kommentar) + push
+#   4. git add + commit JEDER Datei einzeln (bei mehreren mit dem
+#      Dateinamen im Kommentar) + push
 #
 # Voraussetzung: Git for Windows (Name / E-Mail einmal mit git_setup.ps1 setzen)
 #
@@ -197,8 +198,10 @@ if ($selected.Count -gt 0 -and -not $Comment) {
     Exit-Script 0
 }
 
-# --- 4. Hinzufuegen (nur die Auswahl), committen, hochladen
-$nothingNew = $true
+# --- 4. Hinzufuegen (nur die Auswahl), JEDE Datei einzeln einchecken
+# Ein Check-in pro Datei - ein prod-Tag auf diesen Check-in bringt genau
+# diese Datei in die Produktion (release_tag.ps1, Git_deploy.md).
+$commits = 0
 if ($selected.Count -gt 0) {
     # git add: Dateien fuer den naechsten Check-in vormerken
     #   --all : auch neue und geloeschte Dateien (eine geloeschte wird als
@@ -209,12 +212,39 @@ if ($selected.Count -gt 0) {
         Write-Host "FEHLER: git add ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
         Exit-Script 1
     }
+}
+foreach ($file in $selected) {
     # git diff --cached: vergleicht das Vorgemerkte mit dem letzten Check-in
     #   --quiet : keine Ausgabe, nur Exit-Code: 0 = kein Unterschied, 1 = Aenderung
-    #   --      : nur die ausgewaehlten Dateien vergleichen
-    git diff --cached --quiet -- $selected
-    $nothingNew = ($LASTEXITCODE -eq 0)
+    #   --      : nur diese Datei vergleichen
+    git diff --cached --quiet -- $file
+    if ($LASTEXITCODE -eq 0) {
+        continue
+    }
+    # mehrere Check-ins: der Dateiname kommt in den Kommentar
+    $message = $Comment
+    if ($selected.Count -gt 1) {
+        $message = "$Comment ($([IO.Path]::GetFileName($file)))"
+    }
+    Write-Host ""
+    Write-Host "Check-in: $message"
+    # git diff --cached --name-status: Buchstabe + Datei
+    #   (A = neu, M = geaendert, D = geloescht)
+    #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
+    git -c core.quotePath=false diff --cached --name-status -- $file
+
+    # git commit: den Check-in lokal speichern (noch nicht auf dem Git-Server)
+    #   --quiet     : keine Zusammenfassung
+    #   -m $message : Ihr Kommentar (sonst wuerde git einen Editor oeffnen)
+    #   -- <datei>  : NUR diese Datei - andere vorgemerkte bleiben draussen
+    git commit --quiet -m $message -- $file
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FEHLER: git commit ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
+        Exit-Script 1
+    }
+    $commits++
 }
+$nothingNew = ($commits -eq 0)
 
 if ($nothingNew -and [int]$ahead -eq 0) {
     Write-Host "Nichts einzuchecken - keine Aenderung in der Auswahl." -ForegroundColor Yellow
@@ -223,26 +253,6 @@ if ($nothingNew -and [int]$ahead -eq 0) {
 
 if ($nothingNew) {
     Write-Host "Nichts Neues - sende nur Ihre(n) $ahead noch nicht gesendeten Check-in(s)."
-}
-
-if (-not $nothingNew) {
-    Write-Host ""
-    Write-Host "Diese Dateien werden eingecheckt:"
-    # git diff --cached --name-status: Liste des Vorgemerkten - Buchstabe + Datei
-    #   (A = neu, M = geaendert, D = geloescht)
-    #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
-    git -c core.quotePath=false diff --cached --name-status -- $selected
-
-    # "-- $selected": nur die ausgewaehlten Dateien kommen in den Check-in
-    # git commit: den Check-in lokal speichern (noch nicht auf dem Git-Server)
-    #   --quiet     : keine Zusammenfassung
-    #   -m $Comment : Ihr Kommentar (sonst wuerde git einen Editor oeffnen)
-    #   -- <dateien>: NUR diese Dateien - andere vorgemerkte bleiben draussen
-    git commit --quiet -m $Comment -- $selected
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "FEHLER: git commit ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
-        Exit-Script 1
-    }
 }
 
 Write-Host "Sende an den Git-Server ..."
@@ -293,12 +303,13 @@ if ($nothingNew) {
     Write-Host "OK - an den Git-Server gesendet." -ForegroundColor Green
 }
 else {
-    Write-Host "OK - eingecheckt: $Comment" -ForegroundColor Green
+    Write-Host "OK - eingecheckt ($commits Check-in(s)): $Comment" -ForegroundColor Green
 }
-# git log: den eben gesendeten Check-in zeigen
+# git log: die eben gesendeten Check-ins zeigen
 #   --no-pager    : direkt ausgeben, kein Blaettern mit 'less'
 #   --oneline     : eine Zeile (Kurz-Nummer + Kommentar)
 #   --no-decorate : ohne Branch-Namen in Klammern
-#   -1            : nur den letzten Check-in
-git --no-pager log --oneline --no-decorate -1
+#   -<n>          : nur die letzten n Check-ins (mindestens 1)
+$show = [Math]::Max($commits, 1)
+git --no-pager log --oneline --no-decorate "-$show"
 Exit-Script 0
