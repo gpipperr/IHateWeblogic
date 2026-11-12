@@ -31,12 +31,12 @@ explained in the background documents of
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/reports_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
-`$DIAG_LOG_DIR/` (or `log/<date>/`). Run `00-Setup/detect_env_conf.sh` first if
+`$DIAG_LOG_DIR/` (or `log/<date>/`). Run [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) first if
 `environment.conf` does not exist yet.
 
-Related, outside this folder: `10-Monitoring/cve_inventory.sh` (installed
+Related, outside this folder: [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) (installed
 components, patch cycle, both JDKs, exposure, Oracle advisories) and
-`08-SSL/ssl_config.sh` (Nginx TLS audit).
+[`08-SSL/ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) (Nginx TLS audit).
 
 ---
 
@@ -93,7 +93,7 @@ Step 9 – Loopback-only / clone-capable (after the installation)
 Read-only – no options. **Why:** the OS settings FMW needs and why –
 [`09-Install/docs/00-root_set_os_parameter.md`](../09-Install/docs/00-root_set_os_parameter.md);
 sizing of ulimits / sysctl by expected sessions:
-`09-Install/01-setup-interview.sh` (`EXPECTED_SESSIONS`).
+[`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) (`EXPECTED_SESSIONS`).
 
 | Section | What is checked |
 |---|---|
@@ -108,7 +108,7 @@ sizing of ulimits / sysctl by expected sessions:
 Exit code 0 = all OK, 1 = warnings, 2 = at least one FAIL.
 
 > **umask (decided 2026-10-19):** 022 – the Oracle default for the software
-> owner, as written by `09-Install/03-root_user_oracle.sh`. The check used to
+> owner, as written by [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh). The check used to
 > demand 027 without an Oracle source. Files with passwords are protected
 > explicitly (600 / 640), not via the umask.
 
@@ -196,7 +196,7 @@ Ports of the domain in this project (`environment.conf`):
 | WLS_REPORTS | 9002 | 127.0.0.1 | via Nginx `/reports` |
 | WLS_FORMS / WLS_REPORTS SSL | 9501 / 9512 | – | **off**: the domain templates enable them with the **WebLogic demo certificate**; `09-Install/08-` (new domains) and `clone_check.sh --apply` (existing ones) switch them off – TLS ends at Nginx |
 | Coherence (cluster_forms / cluster_reports) | unicast | 127.0.0.1 | `08-` / `clone_check.sh --apply`; a remainder stays on the host IP (firewall) |
-| Reports ORB | dynamic | 127.0.0.1 | `ORBServerHost` set by `13-oracle_setup_reports.sh` |
+| Reports ORB | dynamic | 127.0.0.1 | `ORBServerHost` set by [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) |
 | Node Manager | 5556 | 127.0.0.1 | plain |
 | Nginx | 80 / 443 | all interfaces | the only entry from outside (firewall) |
 | Reports discovery | 14027/udp | multicast | `REPORTS_BROADCAST_PORT` |
@@ -299,10 +299,10 @@ private key of that CA ships with every WebLogic installation.
 
 > Found 2026-10-19 on the test host: the SSL listen ports 9501 (WLS_FORMS)
 > and 9512 (WLS_REPORTS) were enabled with the demo certificate. **Fixed
-> 2026-10-23:** `09-Install/08-oracle_setup_domain.sh` creates new domains
+> 2026-10-23:** [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) creates new domains
 > without them ([doc 08, loopback only](../09-Install/docs/08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address)),
 > `clone_check.sh --apply` switches them off in an existing domain (test host:
-> `<enabled>false</enabled>` for both). If `ssl_check.sh` still reports them,
+> `<enabled>false</enabled>` for both). If [`ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) still reports them,
 > the domain is older than that fix.
 
 Fixed 2026-10-19 (were false findings): certificate file in the 700 root
@@ -341,7 +341,7 @@ freshly booted VM this can stall the WebLogic start for 30 s to minutes.
 `file:/dev/./urandom` points to the same device but does not match that
 string. `--apply`: `backup_file()` + `sed`; effective at the next JVM start.
 The JDK of the Reports engines (`oracle_common/jdk`) is a separate
-`java.security` – see `java_check.sh`.
+`java.security` – see [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh).
 
 #### Section 2 – `setUserOverrides.sh`: heap per server
 
@@ -366,8 +366,8 @@ Typical values:
 `USER_MEM_ARGS` line inside an existing server block is replaced, a missing
 block is appended, the Log4j guard is added only if missing. Everything
 else stays – the file also holds the Reports font settings
-(`14b-oracle_reports_fonts.sh`) and the rwservlet ORB timeout
-(`13-oracle_setup_reports.sh`). Until 2026-10-19 `--apply` rewrote the
+([`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh)) and the rwservlet ORB timeout
+([`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)). Until 2026-10-19 `--apply` rewrote the
 whole file and dropped them; the server-name parser also read every block
 as "not set". Restart the servers afterwards.
 
@@ -449,12 +449,12 @@ login with an alias failed with `ORA-12162` / `ORA-12154` (test host
 
 | Process / reader | File | Written by | Note |
 |---|---|---|---|
-| Forms runtime (`frmweb`, one per session) | `default.env` (`TNS_ADMIN=`) | `09-Install/14-oracle_setup_forms.sh` (`##TNS_ADMIN##`) | read at every new session – no restart |
-| Reports engines | `rwserver.conf` `<environment id="QS">` `<envVariable name="TNS_ADMIN">` | `09-Install/13-oracle_setup_reports.sh` | Reports server restart |
+| Forms runtime (`frmweb`, one per session) | `default.env` (`TNS_ADMIN=`) | [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) (`##TNS_ADMIN##`) | read at every new session – no restart |
+| Reports engines | `rwserver.conf` `<environment id="QS">` `<envVariable name="TNS_ADMIN">` | [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | Reports server restart |
 | Reports server process, `rwrun`, `rwconverter` | `$DOMAIN_HOME/reports/bin/reports.sh` | `13-` (IHW block, after Oracle's "set if empty" default) | Reports server restart |
-| WebLogic JVMs (`WLS_FORMS`, `WLS_REPORTS`, AdminServer: JDBC alias resolution) | `setUserOverrides.sh` – `export TNS_ADMIN` + `-Doracle.net.tns_admin` | this script `--apply` (also called by `09-oracle_configure.sh`) | sourced **after** Oracle's `setStartupEnv.sh`, which sets `$DOMAIN_HOME/config/fmwconfig` for the Reports group; server restart |
-| oracle shell (`sqlplus`, tools by hand) | `~oracle/.bash_profile` | `09-Install/03-root_user_oracle.sh` (root) | new login |
-| Smoke test / `rwrun_trace.sh` | use the alias of `$TNS_ADMIN/tnsnames.ora` with the test DB service (`tns_alias_for_service` in the lib); a temporary directory is ignored by `reports.sh` (`ORA-12162`, 2026-10-23) | `15-`, `01-Run/rwrun_trace.sh` | Forms tools need `TNS_ADMIN` **exported** |
+| WebLogic JVMs (`WLS_FORMS`, `WLS_REPORTS`, AdminServer: JDBC alias resolution) | `setUserOverrides.sh` – `export TNS_ADMIN` + `-Doracle.net.tns_admin` | this script `--apply` (also called by [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh)) | sourced **after** Oracle's `setStartupEnv.sh`, which sets `$DOMAIN_HOME/config/fmwconfig` for the Reports group; server restart |
+| oracle shell (`sqlplus`, tools by hand) | `~oracle/.bash_profile` | [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) (root) | new login |
+| Smoke test / [`rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) | use the alias of `$TNS_ADMIN/tnsnames.ora` with the test DB service (`tns_alias_for_service` in the lib); a temporary directory is ignored by `reports.sh` (`ORA-12162`, 2026-10-23) | `15-`, `01-Run/rwrun_trace.sh` | Forms tools need `TNS_ADMIN` **exported** |
 
 Live 2026-10-23 (**confirmed**): after setting the files the check showed
 the old value for every running process (8 OK / 4 WARN); after
@@ -466,8 +466,8 @@ of `sqlnet.ora`), every file of the table, and – the real proof – the
 environment of the running processes (`/proc/<pid>/environ` of `frmweb`,
 `rwserver`, `WLS_FORMS`, `WLS_REPORTS`). A WARN names the script that owns
 the file. Diagnosis scripts that compare one place on their own:
-`06-FormsDiag/forms_settings.sh` (default.env),
-`05-ReportsPerformance/engine_perf_settings.sh` (rwserver.conf).
+[`06-FormsDiag/forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) (default.env),
+[`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) (rwserver.conf).
 
 ---
 
@@ -591,15 +591,15 @@ Fix:     run as the oracle user that started WebLogic, or as root:
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/detect_env_conf.sh` | detect FMW / domain paths, generate `environment.conf` |
-| `00-Setup/weblogic_sec.sh` | store the WebLogic admin credentials (des3) |
-| `01-Run/rwrun_trace.sh` | diagnose `rwrun` crashes |
-| `03-Logs/grep_logs.sh` | search the logs after a failed check |
-| `08-SSL/` | certificates: local CA, deployment to Nginx, `ssl_config.sh` audit |
-| `09-Install/01-root_os_baseline.sh` | fix what `os_check.sh` reports (sysctl, THP, firewall, sshd) |
-| `10-Monitoring/cve_inventory.sh` | installed components vs. patch cycle and Oracle advisories, both JDKs, exposure |
-| `10-Monitoring/cert_expiry_check.sh` | daily certificate expiry check (cron, `--cron --apply`) |
-| `09-Install/04-oracle_pre_checks.sh` | pre-install checks – calls `os_check.sh` and `db_connect_check.sh`; JDK at `JDK_HOME` and free ports are checked there directly |
+| [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) | detect FMW / domain paths, generate `environment.conf` |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | store the WebLogic admin credentials (des3) |
+| [`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) | diagnose `rwrun` crashes |
+| [`03-Logs/grep_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/grep_logs.sh) | search the logs after a failed check |
+| `08-SSL/` | certificates: local CA, deployment to Nginx, [`ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) audit |
+| [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) | fix what [`os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) reports (sysctl, THP, firewall, sshd) |
+| [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) | installed components vs. patch cycle and Oracle advisories, both JDKs, exposure |
+| [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) | daily certificate expiry check (cron, `--cron --apply`) |
+| [`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) | pre-install checks – calls [`os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) and [`db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh); JDK at `JDK_HOME` and free ports are checked there directly |
 
 ---
 
