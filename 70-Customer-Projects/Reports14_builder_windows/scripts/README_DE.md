@@ -80,7 +80,7 @@ Sie brauchen dafür keine Git-Befehle – die Skripte machen das.
    Administrator ein; sie startet den Builder mit Ihren Git-Ordnern als
    Suchpfad (`REPORTS_PATH`).
 6. **Desktop-Icon für das Menü** – einmal:
-   - Rechtsklick auf `E:\git\<Ihr Login>\Reports\menue.cmd` → *Senden an*
+   - Rechtsklick auf `E:\git\<Ihr Login>\Reports\menu.cmd` → *Senden an*
      → *Desktop (Verknüpfung erstellen)*.
    - Verknüpfung → *Eigenschaften* → *Erweitert* → **"Als Administrator
      ausführen"** anhaken (`checkin.ps1` braucht das).
@@ -112,6 +112,11 @@ Wähle eine Option oder breche mit x ab :
 - `x` = abbrechen, das Fenster schließt sich.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
   `Reports\menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
+- Liegen die Skripte nicht neben `menu.ps1`, steht ihr Ordner in `menu.ini`
+  unter `SkriptPfad` – für alle in `[Menue]` oder je Eintrag, relativ
+  (`..\Reports`) oder absolut mit `%VARIABLE%`
+  (`E:\git\%USERNAME%\Reports`). `menu.cmd`, `menu.ps1` und `menu.ini`
+  bleiben zusammen in einem Ordner.
 
 Die Skripte lassen sich weiterhin auch direkt im PowerShell-Fenster starten,
 wie unten beschrieben.
@@ -346,7 +351,7 @@ Auch ein leerer Kommentar bricht ab.
 
 | Skript | Wann |
 |---|---|
-| `menue.cmd` / `menue.ps1` | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, Fenster bleibt offen; Inhalt aus `menu.ini` |
+| `menu.cmd` / `menu.ps1` | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, Fenster bleibt offen; Inhalt aus `menu.ini` |
 | `git_setup.ps1` | einmal pro Benutzer: Name, E-Mail, Zeilenende |
 | `pull.ps1` | zu Arbeitsbeginn: neuesten Stand holen |
 | `status.ps1` | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |

@@ -5,10 +5,11 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
-- `Reports14_builder_windows/scripts`: new start menu for a double click - `menue.cmd` (desktop icon,
-  `-NoExit` keeps the window open with the result) starts `menue.ps1`, which lists the scripts from
+- `Reports14_builder_windows/scripts`: new start menu for a double click - `menu.cmd` (desktop icon,
+  `-NoExit` keeps the window open with the result) starts `menu.ps1`, which lists the scripts from
   `menu.ini` (sorting, short + long text, parameters, admin flag) and runs the chosen one in the
-  same window; `x` closes it.
+  same window; `x` closes it. `SkriptPfad` in `menu.ini` (global or per entry, relative,
+  absolute, `%VARIABLE%`) when the scripts are in another folder.
 - `Reports14_builder_windows/scripts`: `status_detail.ps1` gets the column **Prod** (`PROD` / `offen` /
   `alt` / `-`, same production logic as `release_tag.ps1`), `NO_TAG` and the tag message in the row
   below the tag name (narrow table), plus a line with the open files of the list;

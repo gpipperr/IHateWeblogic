@@ -1,9 +1,9 @@
 # =============================================================================
-# menue.ps1 - Startmenue fuer die Reports-Git-Skripte (per Doppelklick)
+# menu.ps1 - Startmenue fuer die Reports-Git-Skripte (per Doppelklick)
 # =============================================================================
 # Zeigt die Skripte aus menu.ini als nummerierte Liste. Der Anwender waehlt
 # eine Nummer - das Skript laeuft in DIESEM Fenster, danach bleibt das
-# Fenster offen (Start ueber menue.cmd mit -NoExit), damit das Ergebnis
+# Fenster offen (Start ueber menu.cmd mit -NoExit), damit das Ergebnis
 # stehen bleibt. Fuer den naechsten Schritt: wieder Doppelklick auf das Icon.
 # x = abbrechen, das Fenster schliesst sich.
 #
@@ -17,10 +17,12 @@
 #   -----------------------------------
 #   Waehle eine Option oder breche mit x ab :
 #
-# Start : Doppelklick auf menue.cmd (oder eine Desktop-Verknuepfung darauf)
-#         oder im PowerShell-Fenster:  .\Reports\menue.ps1
+# Start : Doppelklick auf menu.cmd (oder eine Desktop-Verknuepfung darauf)
+#         oder im PowerShell-Fenster:  .\Reports\menu.ps1
 # Inhalt: menu.ini im selben Ordner - Skript, Kurz- und Langtext,
-#         Sortierung, Parameter, Admin (Beschreibung in menu.ini)
+#         Sortierung, Parameter, Admin, SkriptPfad (Beschreibung in menu.ini)
+#         SkriptPfad = Ordner der Skripte, wenn sie nicht neben menu.ps1
+#         liegen - fuer alle in [Menue] oder je Eintrag
 #
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
@@ -30,7 +32,7 @@
 param(
     # andere Menue-Datei (Standard: menu.ini neben diesem Skript)
     [string]$Ini = '',
-    # von menue.cmd gesetzt: eigenes Fenster - x schliesst es
+    # von menu.cmd gesetzt: eigenes Fenster - x schliesst es
     [switch]$Fenster
 )
 
@@ -84,9 +86,21 @@ $cfg = Read-Ini $Ini
 
 $titel = 'Oracle Reports Git Handling'
 $frage = 'Option waehlen oder mit x abbrechen'
+$skriptPfad = ''
 if ($cfg.Contains('Menue')) {
-    if ($cfg['Menue']['Titel']) { $titel = $cfg['Menue']['Titel'] }
-    if ($cfg['Menue']['Frage']) { $frage = $cfg['Menue']['Frage'] }
+    if ($cfg['Menue']['Titel'])      { $titel = $cfg['Menue']['Titel'] }
+    if ($cfg['Menue']['Frage'])      { $frage = $cfg['Menue']['Frage'] }
+    if ($cfg['Menue']['SkriptPfad']) { $skriptPfad = $cfg['Menue']['SkriptPfad'] }
+}
+
+# Ordner der Skripte: SkriptPfad aus menu.ini - %VARIABLE% wird ersetzt
+# (z.B. E:\git\%USERNAME%\Reports), ein relativer Pfad gilt ab dem Ordner
+# von menu.ps1 (z.B. ..\Reports), leer = Ordner von menu.ps1
+function Resolve-Ordner([string]$Pfad) {
+    if ($Pfad -eq '') { return $PSScriptRoot }
+    $Pfad = [Environment]::ExpandEnvironmentVariables($Pfad)
+    if (-not [IO.Path]::IsPathRooted($Pfad)) { $Pfad = Join-Path $PSScriptRoot $Pfad }
+    return [IO.Path]::GetFullPath($Pfad)
 }
 
 # Menuepunkte: alle Abschnitte ausser [Menue] mit Skript, nach Sortierung
@@ -100,10 +114,13 @@ foreach ($name in $cfg.Keys) {
     if (-not [int]::TryParse("$($e['Sortierung'])", [ref]$sort)) { $sort = 9999 }
     $kurz = $e['Kurz']
     if (-not $kurz) { $kurz = $e['Skript'] }
+    # SkriptPfad im Eintrag geht vor SkriptPfad in [Menue]
+    $ordner = $skriptPfad
+    if ($e['SkriptPfad']) { $ordner = $e['SkriptPfad'] }
     [void]$items.Add([pscustomobject]@{
         Name = $name; Sort = $sort; Skript = $e['Skript']; Parameter = "$($e['Parameter'])"
         Kurz = $kurz; Lang = "$($e['Lang'])"; Admin = ("$($e['Admin'])" -match '^(ja|yes|true|1)$')
-        Pfad = Join-Path $PSScriptRoot $e['Skript'] })
+        Pfad = Join-Path (Resolve-Ordner $ordner) $e['Skript'] })
 }
 $items = @($items | Sort-Object Sort, Name)
 
@@ -138,7 +155,7 @@ $wahl = $null
 while ($null -eq $wahl) {
     $in = "$(Read-Host "$frage ")".Trim()
     if ($in -eq 'x' -or $in -eq 'X') {
-        # Abbruch: eigenes Fenster (menue.cmd, -NoExit) ganz schliessen -
+        # Abbruch: eigenes Fenster (menu.cmd, -NoExit) ganz schliessen -
         # exit allein liesse dort die Eingabezeile offen. Aus einer eigenen
         # PowerShell gestartet: nur zurueck, Ihr Fenster bleibt.
         if ($Fenster) { [Environment]::Exit(0) }
