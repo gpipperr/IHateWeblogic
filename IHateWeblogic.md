@@ -89,12 +89,53 @@ E-Business Suite first among them, also when run in Oracle's cloud, and the
 OPERA 5 property management system of Oracle Hospitality (formerly MICROS
 Fidelio), whose application server is a WebLogic / Forms / Reports stack.
 
+### And Oracle Reports – deprecated for years, still doing its job
+
+Oracle Reports has been deprecated for many years, yet it cannot be taken
+out of an Oracle Forms solution – and it still does its business job with
+flying colours. Like Forms it is a little old-fashioned. But the reports are
+built with embedded PL/SQL – data model queries, formula columns, triggers,
+the same packages as the Forms application – so a classic PDF generator
+cannot simply take over: every report would have to be rebuilt, with its
+logic. Let us hope Oracle is wise enough to keep maintaining it.
+
+How long "deprecated" has lasted so far – in Oracle's own words²:
+
+| Year | Release | What Oracle says |
+|---|---|---|
+| 2005 | Reports 10g | "Oracle Reports 10g, shipped in 2005 was its last feature bearing release." (looking back, release notes 12.2.1.2) |
+| 2015 | FMW 12.2.1 | "Oracle Reports is deprecated. It is included in this 12.2.1 release, but will not be updated in future releases." |
+| 2016 | FMW 12.2.1.2 | "Oracle Fusion Middleware's 12c R2 release (12.2.1.3.0) will be Oracle Reports terminal release." |
+| 2017 | FMW 12.2.1.3 | the announced terminal release ships |
+| 2019 | FMW 12.2.1.4 | ships with Reports again – still deprecated |
+| 2023 | Forms & Reports 12.2.1.19 | "Oracle Reports has been deprecated as of Fusion Middleware 12c Release 2 (12.2.1.3.0). No further development of Oracle Reports is planned for the future. If future releases are made available, …" |
+| 2024 | Forms & Reports 14.1.2 | "Although included in this release, Oracle Reports has been deprecated. Oracle is not planning any functional enhancements other than critical bug fixes and changes necessary to make it compatible with a new supporting technology stack." |
+
+So the last release with new features is more than twenty years old, the
+product has been deprecated since 2015, and after the announced terminal
+release 12.2.1.3 three more releases have shipped with it – 12.2.1.4,
+12.2.1.19 and 14.1.2. A bit like the Rolling Stones: every tour is
+announced as the last one, and the band keeps playing. The customers keep
+listening, too.
+
 ¹ Detected by web crawling, each vendor with its own method – the counts
 differ accordingly and show only what is publicly visible (checked
 2026-10-23):
 [Landbase](https://data.landbase.com/technology/oracle-forms/),
 [6sense](https://6sense.com/tech/database/oracle-forms-market-share),
 [iDataLabs](https://www.idatalabs.com/tech/products/oracle-forms).
+
+² Oracle documentation, quotes checked 2026-11-12:
+[release notes 12.2.1 – Oracle Reports](https://docs.oracle.com/middleware/1221/formsandreports/releasenotes-fnr/reports.htm),
+[release notes 12.2.1.2 – Deprecation Notice for Oracle Reports](https://docs.oracle.com/middleware/12212/formsandreports/releasenotes-fnr/GUID-344F190C-4F51-428E-850E-B3BE8E0706A5.htm),
+[release notes 12.2.1.19 – Deprecated and Desupported Features](https://docs.oracle.com/en/middleware/developer-tools/forms/12.2.1.19/releasenotes-fnr/deprecated-and-desupported-features.html),
+[release notes 14.1.2 – Deprecated and Desupported Features](https://docs.oracle.com/en/middleware/developer-tools/forms/14.1.2/releasenotes-fnr/deprecated-and-desupported-features.html).
+Release years: 12.2.1 October 2015
+([oracle-base](https://oracle-base.com/blog/2015/10/24/fusion-middleware-12-2-1-0-released/)),
+12.2.1.3 August 2017, 12.2.1.19 February 2023
+([Oracle blog, Japanese](https://blogs.oracle.com/oracle4engineer/oracle-forms-and-reports-122119)),
+14.1.2 December 2024
+([Oracle announcement](https://blogs.oracle.com/fusionmiddlewaresupport/post/announcement-oracle-fmw-forms-and-reports-1412-has-been-released)).
 
 ## Target Environment
 
