@@ -27,7 +27,7 @@ first rollout.
 ![claude-hosts](diagrams/claude-hosts.svg?v=e28c8c50)
 <sub>Source: [diagrams/claude-hosts.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/diagrams/claude-hosts.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/diagrams/claude-hosts.d2)</sub>
 
-<details><summary>ASCII version</summary>
+<details markdown="1"><summary>ASCII version</summary>
 
 ```ascii name=claude-hosts
  production FMW host                 analysis host (test host / admin VM)
