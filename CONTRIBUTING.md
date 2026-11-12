@@ -87,7 +87,7 @@ inbound = outbound); there is no separate contributor agreement.
 - Every finding is checked on a real system before it is marked
   "confirmed live" – say what was tested and what was not.
 - Diagrams: the ASCII drawing in the Markdown file is the source, the SVG is
-  generated with [`tools/render_ascii/`](tools/render_ascii/README.md).
+  generated with [`tools/render_ascii/`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/render_ascii/README.md).
 
 ### Commits
 
@@ -117,7 +117,7 @@ to the demo data before they are committed.
 
 ### Pre-commit hook
 
-[`tools/hooks/pre-commit`](tools/hooks/pre-commit) checks every commit –
+[`tools/hooks/pre-commit`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/hooks/pre-commit) checks every commit –
 only the **staged** lines and file names:
 
 | Check | Blocks |
@@ -137,7 +137,7 @@ tools/hooks/install.sh
 
 It sets `git config core.hooksPath tools/hooks` and creates
 `~/.config/ihw/customer_patterns` (mode 600) from
-[`customer_patterns.example`](tools/hooks/customer_patterns.example). Put the
+[`customer_patterns.example`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/hooks/customer_patterns.example). Put the
 names of **your** customers there – the list stays outside every clone and
 never goes into git (it would publish exactly the names it protects).
 Without the list the hook only warns that customer names are not checked.

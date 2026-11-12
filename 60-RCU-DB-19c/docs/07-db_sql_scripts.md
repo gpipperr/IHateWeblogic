@@ -17,7 +17,7 @@ Provide the DBA SQL script collection
   by name without a path.
 
 When you select a **DB entry**, the shell switcher `setdb`
-([ihw_shell_env.sh](../../70-Customer-Projects/tools/bash/ihw_shell_env.sh),
+([ihw_shell_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh),
 installed by `09-Install/03-root_user_oracle.sh`) exports `SQLPATH` and
 `ORACLE_PATH` (SQLcl) to `~/sql`. sqlplus then finds the scripts and
 `login.sql` from any directory.

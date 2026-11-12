@@ -151,7 +151,7 @@ DB_SERVICE=FMWPDB   # PDB service name
 
 `01-db_install_software.sh` lets AutoUpgrade download the patch set from MOS.
 Without MOS access (OCI private subnet, egress allow-list) download the list
-[09-Install/download/patches_db.csv](../09-Install/download/patches_db.csv)
+[09-Install/download/patches_db.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv)
 on a host that may, with the standalone
 [mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh),
 and copy it:

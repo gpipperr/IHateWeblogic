@@ -217,7 +217,7 @@ the marker `IHW TNS_ADMIN`). The other places that read Oracle Net settings:
 `~oracle/.bash_profile` stays the baseline. For switching between the FMW
 home, the domain and DB homes in **one** shell, the script installs the
 switcher file
-[70-Customer-Projects/tools/bash/ihw_shell_env.sh](../../70-Customer-Projects/tools/bash/ihw_shell_env.sh)
+[70-Customer-Projects/tools/bash/ihw_shell_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh)
 as `~oracle/.bashrc.d/ihw_env.sh`. The OL9 default `~/.bashrc` sources
 `~/.bashrc.d/*`, and `.bash_profile` sources `~/.bashrc`, so it is active in
 ssh, `su - oracle` and new terminals.

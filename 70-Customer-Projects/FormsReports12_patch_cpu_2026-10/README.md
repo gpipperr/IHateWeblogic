@@ -13,7 +13,7 @@ here depends on the IHateWeblogic scripts.
 | Counterpart for 14.1.2 | [09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md) (same cycle, our own 14.1.2 stack) |
 
 **Cookbook for the patch run (German, plain text):**
-[Patch_Kochbuch_CPU_Okt2026_de.txt](Patch_Kochbuch_CPU_Okt2026_de.txt) – built from
+[Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/Patch_Kochbuch_CPU_Okt2026_de.txt) – built from
 this analysis and the READMEs of all patches (sections 3.1–3.4a).
 
 Patch numbers change every month – before applying, compare against the
@@ -72,7 +72,7 @@ Also check:
 
 Result of the check → fill in section 7 (open points).
 
-All of this in one run: [../tools/bash/collect_fmw_env.sh](../tools/bash/collect_fmw_env.sh) –
+All of this in one run: [../tools/bash/collect_fmw_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_fmw_env.sh) –
 standalone, read-only, secrets masked, result `/tmp/fmw_collect_<host>_<ts>.tar.gz`
 (shared collector for 12c and 14c, see [../tools/README.md](../tools/README.md)).
 
@@ -150,7 +150,7 @@ Oracle Home and the inventory before (`tar` of `ORACLE_HOME` and
 of an older release is still required if it is not installed yet.
 
 **Download in one run:** all ZIPs of 3.1–3.5 (incl. the OHS set) are listed
-in [patches_cpu_forms_reports_12c_oct2026.csv](patches_cpu_forms_reports_12c_oct2026.csv) (patch, MOS platform,
+in [patches_cpu_forms_reports_12c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv) (patch, MOS platform,
 file, required, cookbook step) –
 [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) loads
 them with getMOSPatch, checks every ZIP and writes the SHA-256 list

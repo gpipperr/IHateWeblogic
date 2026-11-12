@@ -40,7 +40,7 @@ systemctl enable nginx
 ### 2. Create the proxy configuration
 
 Create `/etc/nginx/conf.d/oracle-wls.conf`.
-A complete reference configuration is shown in [nginx-wls.conf.template](../nginx-wls.conf.template).
+A complete reference configuration is shown in [nginx-wls.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template).
 
 Key design decisions to apply manually:
 

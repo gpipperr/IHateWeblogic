@@ -7,9 +7,9 @@ little Fusion Middleware as possible: one central Windows Server, developers
 work via RDP, the reports are designed there and executed on the existing
 Linux Reports server. This document explains the architecture and why it
 looks like this; the step-by-step installation is the customer cookbook
-[ReportBuilder_Windows_Kochbuch_en.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt)
+[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt)
 (English) /
-[ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
+[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
 (German, the version run at the customer); background and decisions:
 [README.md](../70-Customer-Projects/Reports14_builder_windows/README.md).
 
@@ -53,7 +53,7 @@ can.
 ## 3. Architecture
 
 ![rwbuilder-setup](diagrams/rwbuilder-setup.svg?v=4a6199a1)
-<sub>Source: [diagrams/rwbuilder-setup.prompt](diagrams/rwbuilder-setup.prompt) · [D2](diagrams/rwbuilder-setup.d2)</sub>
+<sub>Source: [diagrams/rwbuilder-setup.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rwbuilder-setup.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/rwbuilder-setup.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -180,7 +180,7 @@ The minimal setup works only if these four things are kept identical:
 | Item | Why | Where |
 |---|---|---|
 | **Patch level** | a report saved by a newer Builder must run on the server; same CPU cycle, Windows variants of the same patch numbers | cookbook step 4, Linux cookbooks |
-| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](../70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) |
+| **Fonts + `uifont.ali`** | the preview uses the Windows fonts; the PDF on the server uses `uifont.ali` + TTF/AFM – different fonts = different layout ([reports_fonts_architecture.md](reports_fonts_architecture.md): metric-compatible replacements, the Windows fonts may not be copied to the Linux server) | cookbook step 8.3, [Font cookbook](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) |
 | **Connect aliases** | same `tnsnames.ora` entries on both sides | `DOMAIN_HOME\config\fmwconfig` vs. server `TNS_ADMIN` |
 | **Paths** | images / libraries via `REPORTS_PATH`; Windows paths in reports have no fallback on Linux (`REP-108`) – references carry the file name only (section 6) | [reports_server_image_handling.md](reports_server_image_handling.md) |
 
@@ -229,7 +229,7 @@ eports\img\logo.gif`)
    the DEV `rwservlet`, e.g.
    `https://<dev-server>/reports/rwservlet?report=<name>.rdf&destype=cache&desformat=pdf&<cmdkey>`
    (connect from a `cgicmd.dat` key, no password in the URL –
-   [Reports_security.txt](../70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt)). This is the real test: server fonts / `uifont.ali`,
+   [Reports_security.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt)). This is the real test: server fonts / `uifont.ali`,
    Linux paths, the server's patch level.
 
 Why this order: the Builder preview (Windows fonts, Windows paths) is only a
@@ -293,5 +293,5 @@ local-admin requirement for the developer accounts (section 4).
   39987730, 39100536) – facts in the
   [folder README](../70-Customer-Projects/Reports14_builder_windows/README.md)
 - Customer installation 2026-10-27 (Windows Server 2025) – cookbook
-  [ReportBuilder_Windows_Kochbuch_de.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
-  (English: [ReportBuilder_Windows_Kochbuch_en.txt](../70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt))
+  [ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
+  (English: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt))

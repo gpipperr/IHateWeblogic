@@ -34,7 +34,7 @@ NGINX is the single SSL termination point in front of WebLogic. All external HTT
 traffic is handled by NGINX; WebLogic listens on `localhost` only and never handles SSL.
 
 ![nginx-ssl-proxy](diagrams/nginx-ssl-proxy.svg?v=81aa9797)
-<sub>Source: [diagrams/nginx-ssl-proxy.prompt](diagrams/nginx-ssl-proxy.prompt) · [D2](diagrams/nginx-ssl-proxy.d2)</sub>
+<sub>Source: [diagrams/nginx-ssl-proxy.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/nginx-ssl-proxy.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/nginx-ssl-proxy.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -94,7 +94,7 @@ only deploys the certificate files it references.
 ### Structure: /etc/nginx/conf.d/oracle-wls.conf
 
 The **authoritative** configuration is the template
-[`09-Install/nginx-wls.conf.template`](../nginx-wls.conf.template), rendered by
+[`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template), rendered by
 `04-root_nginx.sh` into `/etc/nginx/conf.d/oracle-wls.conf` (upstreams
 `127.0.0.1:7001/9001/9002`, HTTP → HTTPS redirect, `/forms`, `/reports`,
 `/console` + `/em` behind `ADMIN_IP_RANGE`, include of `oracle-wls.d/*.conf`

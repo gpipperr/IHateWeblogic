@@ -109,7 +109,7 @@ encrypted (AES-256), `codesign.p12` with SHA-256 MAC (OpenSSL 3 default).
 ## 3. Three directions of trust
 
 ![certs-in-out](diagrams/certs-in-out.svg?v=7f946897)
-<sub>Source: [diagrams/certs-in-out.prompt](diagrams/certs-in-out.prompt) · [D2](diagrams/certs-in-out.d2)</sub>
+<sub>Source: [diagrams/certs-in-out.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/certs-in-out.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/certs-in-out.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

@@ -14,7 +14,7 @@ Markers as in the rest of this folder: **documented** (Oracle documentation),
 ## 1. The chain of one user action
 
 ![formsperf-path](diagrams/formsperf-path.svg?v=4e954697)
-<sub>Source: [diagrams/formsperf-path.prompt](diagrams/formsperf-path.prompt) · [D2](diagrams/formsperf-path.d2)</sub>
+<sub>Source: [diagrams/formsperf-path.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsperf-path.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/formsperf-path.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

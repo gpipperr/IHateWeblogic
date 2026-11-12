@@ -8,7 +8,7 @@ output.
 
 ## First steps at a customer – the road map
 
-→ [Start_beim_Kunden_kochbuch_de.txt](Start_beim_Kunden_kochbuch_de.txt) (German, step by step)
+→ [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt) (German, step by step)
 
 Every customer engagement on Linux starts the same way, whatever the folder:
 
@@ -20,7 +20,7 @@ Every customer engagement on Linux starts the same way, whatever the folder:
    shell – one menu for the FMW home / domains and DB homes, PATH on the
    tools, `wlst`, `domain`.
 3. **One ini:** the `patch_install.ini` of the customer folder (template:
-   [Reports14_linux_manual_install/patch_install.ini](Reports14_linux_manual_install/patch_install.ini))
+   [Reports14_linux_manual_install/patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini))
    to `$ORACLE_BASE/tools` (600), plus the `patches_cpu_*.csv` when patching.
 4. **Existing environment?**
    - yes → analysis with `collect_fmw_env.sh`, fill / check the ini from its
@@ -55,7 +55,7 @@ A manual, step-by-step installation guide (in German) for a Reports-only
 FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
 "Kochbuch" text files a customer can follow without using any of the
 IHateWeblogic scripts, with all values in one
-[patch_install.ini](Reports14_linux_manual_install/patch_install.ini).
+[patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini).
 
 ### Oracle Reports Builder 14.1.2 on Windows – Development Environment (German)
 
@@ -80,7 +80,7 @@ Java Security Alert CVE-2026-91403 (server JDK 8 and client JRE), with the
 CVE background and the questions to clarify with the customer – applied by
 hand with the German cookbook `Patch_Kochbuch_CPU_Okt2026_de.txt` (manual run
 at the customer 2026-10-29). Download list
-[patches_cpu_forms_reports_12c_oct2026.csv](FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv)
+[patches_cpu_forms_reports_12c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv)
 for `tools/bash/mos_patch_download.sh`.
 
 ### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)

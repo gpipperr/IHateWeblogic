@@ -10,7 +10,7 @@
 
 This is the foundation layer every other script in the repository depends on:
 
-- **`IHateWeblogic_lib.sh`** – the shared library (output helpers, password
+- **[`IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh)** – the shared library (output helpers, password
   encryption, environment helpers) that every script sources first.
 - **`environment.conf`** – the single source of truth for all paths, ports and
   instance names, generated and maintained by the scripts in this folder.
@@ -31,14 +31,14 @@ secures the configuration that the rest of the library (`09-Install/`,
 
 | File | Type | Purpose |
 |---|---|---|
-| `IHateWeblogic_lib.sh` | library (source only) | Output functions, password encryption, environment helpers |
-| `detect_env_conf.sh` | script | Detect FMW/DB paths → generate/extend `environments/<name>.conf`; `--list` / `--select` switch the `environment.conf` symlink (until 2026-11-04: `init_env.sh`, the switch was `set_env.sh`) |
-| `weblogic_sec.sh` | script | Store/verify the WebLogic admin password (encrypted) |
-| `database_rcu_sec.sh` | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
-| `mos_sec.sh` | script | Store/verify My Oracle Support credentials (encrypted) |
-| `customer_conf_import.sh` | script | Customer export (`export_forms_reports_conf.sh`) → customer overlay `environments/<env>.customer/` + `IMPORT_DECISIONS.md` + `environment.conf` block; read by `13-` / `14-` / `14b-` – spec `09-Install/docs/17-customer_conf_import.md`, process [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md) |
-| `install_db_client_tools.sh` | script | Oracle Instant Client (SQL\*Plus, tools) + SQLcl, versioned, update / rollback by link |
-| `set_environment.md` | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
+| [`IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) | library (source only) | Output functions, password encryption, environment helpers |
+| [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) | script | Detect FMW/DB paths → generate/extend `environments/<name>.conf`; `--list` / `--select` switch the `environment.conf` symlink (until 2026-11-04: `init_env.sh`, the switch was `set_env.sh`) |
+| [`weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | script | Store/verify the WebLogic admin password (encrypted) |
+| [`database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) | script | Store/verify the RCU `SYS` + FMW schema password (encrypted) |
+| [`mos_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/mos_sec.sh) | script | Store/verify My Oracle Support credentials (encrypted) |
+| [`customer_conf_import.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/customer_conf_import.sh) | script | Customer export ([`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh)) → customer overlay `environments/<env>.customer/` + `IMPORT_DECISIONS.md` + `environment.conf` block; read by `13-` / `14-` / `14b-` – spec [`09-Install/docs/17-customer_conf_import.md`](../09-Install/docs/17-customer_conf_import.md), process [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md) |
+| [`install_db_client_tools.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/install_db_client_tools.sh) | script | Oracle Instant Client (SQL\*Plus, tools) + SQLcl, versioned, update / rollback by link |
+| [`set_environment.md`](set_environment.md) | doc | Deep-dive on the `environment.conf` symlink + `environments/` concept |
 | `environments/` | directory | One conf file per environment (FMW domain or DB home) + templates |
 
 ---
@@ -118,7 +118,7 @@ appears). With several configured environments, `--list` shows them and
    `ORACLE_HOME`, `JDK_HOME`, `DOMAIN_HOME`, `PATCH_STORAGE`, `TNS_ADMIN`
    (default `$ORACLE_BASE/admin/tns_names`), `INSTALL_COMPONENTS`) and writes
    a minimal conf. This is the read-only
-   *analysis* equivalent of `09-Install/01-setup-interview.sh` for people who
+   *analysis* equivalent of [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) for people who
    skip the full guided interview.
 
 2. **`environment.conf` already exists** (post-installation, or re-run after
@@ -138,8 +138,8 @@ Detection covers (non-exhaustive): `ORACLE_HOME`, `DOMAIN_HOME`,
 `RWSERVER_CONF`, `CGICMD_DAT`, `JDK_HOME`, the OS user running WebLogic, and
 the DB connection parameters used by JRF (`DB_HOST`/`DB_PORT`/`DB_SERVICE`).
 `--interview` also asks **`IHW_ENV_TYPE`** (`test` | `prod`, no silent
-default): on `prod` `10-Monitoring/claude_setup_check.sh` and
-`patch_cycle_analysis.sh` refuse to run and the Claude guard hook denies every
+default): on `prod` [`10-Monitoring/claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) and
+[`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) refuse to run and the Claude guard hook denies every
 changing command ([setup_claude.md](../10-Monitoring/setup_claude.md));
 `09-Install/01-setup-interview.sh` asks it with the default `prod`.
 
@@ -194,12 +194,12 @@ identical command pattern — only the stored fields differ:
 
 | Script | Encrypted file | Stored fields |
 |---|---|---|
-| `weblogic_sec.sh` | `weblogic_sec.conf.des3` | `WL_USER`, `WL_PASSWORD`, `WL_ADMIN_URL` |
-| `database_rcu_sec.sh` | `db_sys_sec.conf.des3` | `DB_SYS_PWD` (SYSDBA, RCU only), `DB_SCHEMA_PWD` (all FMW schemas) |
-| `mos_sec.sh` | `mos_sec.conf.des3` | `MOS_USER`, `MOS_PWD` |
+| [`weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | `weblogic_sec.conf.des3` | `WL_USER`, `WL_PASSWORD`, `WL_ADMIN_URL` |
+| [`database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) | `db_sys_sec.conf.des3` | `DB_SYS_PWD` (SYSDBA, RCU only), `DB_SCHEMA_PWD` (all FMW schemas) |
+| [`mos_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/mos_sec.sh) | `mos_sec.conf.des3` | `MOS_USER`, `MOS_PWD` |
 
 Further `*.des3` files of the same concept – written by the step that needs
-them (and partly by `09-Install/01-setup-interview.sh`), read with
+them (and partly by [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)), read with
 `load_secrets_file`:
 
 | Encrypted file | Content | Written by |
@@ -207,11 +207,11 @@ them (and partly by `09-Install/01-setup-interview.sh`), read with
 | `embedded_ldap_sec.conf.des3` | embedded LDAP `cn=Admin` password | interview, `09-Install/13-` |
 | `reports_admin_sec.conf.des3` | Reports server admin (`<identifier>`) | interview, `09-Install/13-` |
 | `reports_users.conf.des3` | `monUser` / `RepRunner` | `09-Install/12-` |
-| `forms_sign_sec.conf.des3` | keystore password of the Forms jar signing | interview, `08-SSL/ssl_local_ca.sh` |
-| `ssl_ca_sec.conf.des3` | passphrase of the local root CA | `08-SSL/ssl_local_ca.sh` |
+| `forms_sign_sec.conf.des3` | keystore password of the Forms jar signing | interview, [`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) |
+| `ssl_ca_sec.conf.des3` | passphrase of the local root CA | [`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) |
 | `apex_sec.conf.des3` | APEX `ADMIN` / ORDS passwords (`merge_secrets_file`) | interview, `12-APEX-Ords/` |
-| `db_connect.conf.des3` | DB login for `02-Checks/db_connect_check.sh` | `db_connect_check.sh` (asks once; path `SEC_CONF_DB` from `detect_env_conf.sh`) |
-| `test_db_sec.conf.des3` | DB user of the smoke test / `rwrun_trace.sh` | `09-Install/15-` |
+| `db_connect.conf.des3` | DB login for [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) | `db_connect_check.sh` (asks once; path `SEC_CONF_DB` from [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh)) |
+| `test_db_sec.conf.des3` | DB user of the smoke test / [`rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) | `09-Install/15-` |
 
 ```bash
 ./00-Setup/weblogic_sec.sh          # read-only: test decryption on this machine
@@ -238,12 +238,12 @@ between servers (e.g. via `git clone` or backup restore) is safe by design;
 they simply won't decrypt anywhere else, so they must be recreated with
 `--apply` on the new machine.
 
-`weblogic_sec.sh` additionally enforces the WebLogic password policy while
+[`weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) additionally enforces the WebLogic password policy while
 prompting (min. 8 characters, at least one digit or special character —
 avoids the well-known WLST error 60455 during later domain operations).
 
-`database_rcu_sec.sh` stores **two** passwords in one file because RCU needs
-both: the `SYS` password (used once, only during `07-oracle_setup_repository.sh`)
+[`database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) stores **two** passwords in one file because RCU needs
+both: the `SYS` password (used once, only during [`07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh))
 and the schema password assigned to every `<PREFIX>_STB`, `<PREFIX>_MDS`, …
 schema created by RCU.
 
@@ -264,7 +264,7 @@ environment):
 
 | Tool | Use | Source |
 |---|---|---|
-| **Instant Client** 23.26.x (26ai): `basic` + `sqlplus` + `tools` | SQL\*Plus for the Oracle installer scripts (APEX `apexins.sql`, `catpatch.sql`), DB checks (`02-Checks/db_connect_check.sh`, RCU repository); sqlldr, expdp / impdp | versioned OTN link `IC_URL_BASE` / `IC_VERSION` – the "latest" link still delivered 23.26.2 on 2026-10-23 while the page lists 23.26.4 |
+| **Instant Client** 23.26.x (26ai): `basic` + `sqlplus` + `tools` | SQL\*Plus for the Oracle installer scripts (APEX `apexins.sql`, `catpatch.sql`), DB checks ([`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh), RCU repository); sqlldr, expdp / impdp | versioned OTN link `IC_URL_BASE` / `IC_VERSION` – the "latest" link still delivered 23.26.2 on 2026-10-23 while the page lists 23.26.4 |
 | **SQLcl** | `apex export` (application / workspace backup), `rest export` (ORDS REST modules – see the `ON DELETE CASCADE` warning in [apex_architecture.md §2](../80-FMW-Architecture/apex_architecture.md)), Liquibase `lb`; pure Java on `JDK_HOME` | `SQLCL_ZIP_URL` (`sqlcl-latest.zip`), version from `sqlcl/bin/version.txt` |
 
 Layout (versions side by side, the scripts use only the links):
@@ -279,13 +279,13 @@ $ORACLE_BASE/product/sqlcl -> sqlcl_26.3.0.260.1620
 ```
 
 `environment.conf` (written with backup): `INSTANT_CLIENT_HOME`,
-`SQLPLUS_BIN` (read by `db_connect_check.sh`), `SQLCL_HOME`, `SQLCL_BIN`.
+`SQLPLUS_BIN` (read by [`db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh)), `SQLCL_HOME`, `SQLCL_BIN`.
 The lib offers `ihw_sqlplus` (SQL\*Plus with `LD_LIBRARY_PATH`, `TNS_ADMIN`,
 `NLS_LANG`) and `ihw_sql_sys ALIAS` (SQL from stdin as `SYS AS SYSDBA`, the
 password from `IHW_SYS_PWD` via stdin – never on the command line).
 
 **Update – one more component in the patch cycle:**
-- Instant Client: new `IC_VERSION` / `IC_URL_BASE` in `oracle_software_version.conf` (quarterly with the DB RU);
+- Instant Client: new `IC_VERSION` / `IC_URL_BASE` in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (quarterly with the DB RU);
 - SQLcl: the latest link (quarterly releases);
 - re-run with `--apply`: the new version goes into its own directories, and the link switches only after the smoke test (`sqlplus -V`, `sql -V`);
 - `--rollback` switches the link back, `--keep N` (default 2) removes older versions;
@@ -332,7 +332,7 @@ find . -name "*.sh" -exec chmod u+x {} \;
 No fixed path is required by any script — everything is derived from
 `SCRIPT_DIR`/`ROOT_DIR` at runtime — but `/home/oracle/IHateWeblogic` matches
 the `oracle` OS user's home directory created by
-`09-Install/03-root_user_oracle.sh` and is the path used throughout the
+[`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) and is the path used throughout the
 `09-Install/docs/`.
 
 ### 2. Fill in all parameters
@@ -348,7 +348,7 @@ Two different starting points, same result — a complete `environment.conf`:
 Full guided interview: install parameters (`ORACLE_BASE`, `ORACLE_HOME`,
 `JDK_HOME`, `DOMAIN_HOME`, …), MOS credentials, DB connection, RCU passwords —
 all in one pass, idempotent (safe to re-run, only prompts for what's still
-missing). See `09-Install/docs/01-setup-interview.md`.
+missing). See [`09-Install/docs/01-setup-interview.md`](../09-Install/docs/01-setup-interview.md).
 
 **Existing system, no `environment.conf` yet** (e.g. taking over an
 already-installed environment):
@@ -360,8 +360,8 @@ already-installed environment):
 Scans the running system and shows every detected value for confirmation.
 
 **After installation, or after any config change** (extend with runtime
-values, e.g. after `09-Install/13-oracle_setup_reports.sh` or
-`14-oracle_setup_forms.sh` created new instances):
+values, e.g. after [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) or
+[`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) created new instances):
 
 ```bash
 ./00-Setup/detect_env_conf.sh --apply
@@ -436,7 +436,7 @@ library between them, `setdb` the shell; see
 | `environments/*.conf` | Server-specific paths (templates and `README.md` ARE committed) |
 | `*.des3`, `*.des3.bak*` | Encrypted credentials — machine-specific key, no reason to share |
 | `weblogic_sec.conf` | Plaintext intermediate — exists only briefly at runtime, always deleted |
-| `environment.conf.bak*`, `*.conf.pre_deinstall_*` | Backups of the conf (`detect_env_conf.sh`, `99-oracle_deinstall_fmw.sh`) |
+| `environment.conf.bak*`, `*.conf.pre_deinstall_*` | Backups of the conf ([`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh), [`99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh)) |
 | `00-Setup/getPWDs.sh` | Local debug helper that prints every decrypted `*.des3` – never committed, never on a customer host |
 
 ---
@@ -445,11 +445,11 @@ library between them, `setdb` the shell; see
 
 | Module | Role |
 |---|---|
-| `09-Install/01-setup-interview.sh` | Alternative front-end to the same `environment.conf` — full guided interview for a brand-new install |
+| [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) | Alternative front-end to the same `environment.conf` — full guided interview for a brand-new install |
 | `02-Checks/*` | Read `environment.conf` for all detected paths |
-| `01-Run/wlst_connect.sh` | Uses `load_weblogic_password` from the library to auto-login |
-| `07-Maintenance/backup_config.sh` | Backs up `environment.conf` under the `ihw` category |
+| [`01-Run/wlst_connect.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/wlst_connect.sh) | Uses `load_weblogic_password` from the library to auto-login |
+| [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | Backs up `environment.conf` under the `ihw` category |
 | `08-SSL/*` | Same credential-encryption concept for the local CA and the Forms signing keystore (`ssl_ca_sec`, `forms_sign_sec`) |
-| `09-Install/*` | Read `environment.conf` + the `*.des3` files; `01-setup-interview.sh` writes both |
+| `09-Install/*` | Read `environment.conf` + the `*.des3` files; [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) writes both |
 | `60-RCU-DB-19c/*` | Own `environment_db.conf` (no overlap with `environment.conf`); share the lib and `db_sys_sec.conf.des3` |
 | `10-Monitoring/*` | `IHW_ENV_TYPE` decides whether Claude tooling may run on the host |

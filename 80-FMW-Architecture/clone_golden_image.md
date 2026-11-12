@@ -33,7 +33,7 @@ Practice (anonymised, from a customer project 2026-11-09/10):
 ## 1. Target picture
 
 ![clone-target](diagrams/clone-target.svg?v=64d8be7a)
-<sub>Source: [diagrams/clone-target.prompt](diagrams/clone-target.prompt) · [D2](diagrams/clone-target.d2)</sub>
+<sub>Source: [diagrams/clone-target.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-target.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-target.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -186,7 +186,7 @@ table `<prefix>_STB` names the schemas, `SYSTEM.SCHEMA_VERSION_REGISTRY$`
 knows the prefix (§4, §5 there).
 
 ![clone-rcu-location](diagrams/clone-rcu-location.svg?v=b946795a)
-<sub>Source: [diagrams/clone-rcu-location.prompt](diagrams/clone-rcu-location.prompt) · [D2](diagrams/clone-rcu-location.d2)</sub>
+<sub>Source: [diagrams/clone-rcu-location.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-rcu-location.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/clone-rcu-location.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

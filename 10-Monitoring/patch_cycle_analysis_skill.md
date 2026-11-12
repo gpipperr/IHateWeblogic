@@ -8,7 +8,7 @@ description: "Analyse Oracle Critical Patch Updates, CSPU and Security Alerts fo
 How a patch cycle (CPU quarterly, CSPU in the months between, Security Alerts)
 is analysed and documented with Claude. Written from the CPU October 2026 run
 (2026-10-22 … 26). Started by
-[`patch_cycle_analysis.sh`](patch_cycle_analysis.sh) or directly with the
+[`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) or directly with the
 Claude Code skill `/patch-cycle-analysis` (`.claude/skills/patch-cycle-analysis/`,
 local – `.claude/` is not in Git; template
 [`claude/skills/patch-cycle-analysis/SKILL.md`](claude/skills/patch-cycle-analysis/SKILL.md),

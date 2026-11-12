@@ -23,7 +23,7 @@ on the test host since 2026-10-23 (`12-APEX-Ords/01-` … `05-`, PDB on DB
 ## 1. The parts
 
 ![apex-parts](diagrams/apex-parts.svg?v=5b2f0e13)
-<sub>Source: [diagrams/apex-parts.prompt](diagrams/apex-parts.prompt) · [D2](diagrams/apex-parts.d2)</sub>
+<sub>Source: [diagrams/apex-parts.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/apex-parts.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/apex-parts.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

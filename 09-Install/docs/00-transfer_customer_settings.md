@@ -14,7 +14,7 @@ The scripts themselves are described elsewhere – this document is the
 workflow:
 - **collect / export / analysis:** [70-Customer-Projects/tools/README.md](../../70-Customer-Projects/tools/README.md);
 - **importer and overlay (spec of the scripts):** [17-customer_conf_import.md](17-customer_conf_import.md);
-- **first visit at the customer (German):** [Start_beim_Kunden_kochbuch_de.txt](../../70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
+- **first visit at the customer (German):** [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
 Status 2026-11-06: both ways have run live at a customer. Way 2: import, two
 customer Reports servers, old default server removed (2026-11-05). Way 1: new
@@ -34,7 +34,7 @@ build with the import before the interview (reported 2026-11-06).
 The export of the old environment is the master data of the new build.
 
 ![transfer-flow](diagrams/transfer-flow.svg?v=d46b68c5)
-<sub>Source: [diagrams/transfer-flow.prompt](diagrams/transfer-flow.prompt) · [D2](diagrams/transfer-flow.d2)</sub>
+<sub>Source: [diagrams/transfer-flow.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/transfer-flow.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/transfer-flow.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -63,7 +63,7 @@ The export of the old environment is the master data of the new build.
 
 As the software owner (`oracle`), from the unpacked tools ZIP in
 `$ORACLE_BASE/tools`. The first visit is described step by step in
-[Start_beim_Kunden_kochbuch_de.txt](../../70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
+[Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
 ```bash
 cd $ORACLE_BASE/tools

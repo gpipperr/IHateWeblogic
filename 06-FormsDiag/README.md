@@ -38,7 +38,7 @@ Not duplicated here:
 | Response time seen by the client (Nginx `rt=` / `urt=`) | Nginx `access.log` – [forms_performance_analyse_tuning.md §2](../80-FMW-Architecture/forms_performance_analyse_tuning.md#2-measuring-per-layer) |
 | Start / stop WLS_FORMS | `01-Run/startStop.sh` |
 
-Shared helpers: [forms_lib.sh](forms_lib.sh) (sourced; `frm_*`: WLS_FORMS
+Shared helpers: [forms_lib.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh) (sourced; `frm_*`: WLS_FORMS
 server/PID, formsweb.cfg / default.env of the deployed application, value of
 a key in a section **with inheritance** from `[default]`, set/unset a key in
 one section, `frmweb` processes per section, session-timeout of the

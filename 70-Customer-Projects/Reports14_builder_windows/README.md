@@ -8,8 +8,8 @@ the reports are designed on Windows and run and tested on the Linux Reports
 server.
 
 → Step-by-step guide:
-[ReportBuilder_Windows_Kochbuch_en.txt](ReportBuilder_Windows_Kochbuch_en.txt) (English) ·
-[ReportBuilder_Windows_Kochbuch_de.txt](ReportBuilder_Windows_Kochbuch_de.txt) (German, the version run at the customer)
+[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt) (English) ·
+[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt) (German, the version run at the customer)
 
 → Architecture and idea:
 [80-FMW-Architecture/reports_rwbuilder.md](../../80-FMW-Architecture/reports_rwbuilder.md)
@@ -53,7 +53,7 @@ Day to day the developer only starts `rwbuilder.bat` from
 laborious and error-prone parts of a Windows server installation.
 
 ![builder-windows](diagrams/builder-windows.svg?v=65a44a9e)
-<sub>Source: [diagrams/builder-windows.prompt](diagrams/builder-windows.prompt) · [D2](diagrams/builder-windows.d2)</sub>
+<sub>Source: [diagrams/builder-windows.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -84,7 +84,7 @@ laborious and error-prone parts of a Windows server installation.
   `REPORTS_PATH` of the Builder; keep fonts and `uifont.ali` **identical** to
   the Linux server, otherwise the preview looks different from the server
   output (see
-  [Font_kochbuch_de.txt](../Reports14_linux_manual_install/Font_kochbuch_de.txt)).
+  [Font_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt)).
 - Database connections via a shared `tnsnames.ora`
   (`%DOMAIN_HOME%\config\fmwconfig`, `TNS_ADMIN` from `reports.bat`).
 - Java: Oracle JDK only for Oracle products → licence-free per MOS Doc ID
@@ -99,13 +99,13 @@ xml from the command line) is tested on the Linux test host; Windows test
 procedure for the customer and the script design:
 [Git_checkin.md](Git_checkin.md). The two scripts (German messages, a
 skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
-[scripts/](scripts/).
+[scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts).
 
 ## Patch level
 
 CPU October 2026 – the same patches as the Linux server
-([FMW_Kochbuch_de.txt](../Reports14_linux_manual_install/FMW_Kochbuch_de.txt)
-step 3, [Reports_kochbuch_de.txt](../Reports14_linux_manual_install/Reports_kochbuch_de.txt)
+([FMW_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt)
+step 3, [Reports_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_kochbuch_de.txt)
 step 2), each in the Windows variant (MOS platform "Microsoft Windows x64
 (64-bit)", getMOSPatch `233P`). JDK 21.0.13.0.2 from MOS patch 35702194
 (Windows). Builder and server should have **the same patch level** – a

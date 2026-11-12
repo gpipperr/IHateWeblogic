@@ -80,7 +80,7 @@ The key insight: Reports 12c/14c uses **two different font mechanisms** in
 the same engine.
 
 ![font-two-paths](diagrams/font-two-paths.svg?v=5c27e119)
-<sub>Source: [diagrams/font-two-paths.prompt](diagrams/font-two-paths.prompt) · [D2](diagrams/font-two-paths.d2)</sub>
+<sub>Source: [diagrams/font-two-paths.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/diagrams/font-two-paths.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/diagrams/font-two-paths.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

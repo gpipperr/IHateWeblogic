@@ -225,7 +225,7 @@ WLS_FORMS and WLS_REPORTS run with `/u01/app/oracle/java/jdk-21/bin/java`.
 Start AdminServer, then create the Reports monitoring and execution users with
 their Application Roles and Policies (`monUser` → `RW_MONITOR`,
 `RepRunner` → `RW_EXECREPORTS`). This is a separate, dedicated step —
-see [09-Install/12-oracle_reports_users.sh](../12-oracle_reports_users.sh) and
+see [09-Install/12-oracle_reports_users.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) and
 [docs/12-weblogic-report-monitoring_user.md](12-weblogic-report-monitoring_user.md)
 for the full WLST/OPSS procedure (manual and scripted).
 

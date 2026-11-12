@@ -471,7 +471,7 @@ building block – it already finds open sockets and the missing firewall
 
 Precondition for every Claude-based script here: [setup_claude.md](setup_claude.md)
 – never on a production host (`IHW_ENV_TYPE=prod`), managed settings with
-sandbox, secret deny rules and the guard hook [claude/ihw_guard.sh](claude/ihw_guard.sh);
+sandbox, secret deny rules and the guard hook [claude/ihw_guard.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude/ihw_guard.sh);
 check and install commands: `./10-Monitoring/claude_setup_check.sh [--profile maintainer] [--apply]`.
 The same sandbox is the base for the proactive log analysis below.
 
@@ -634,4 +634,4 @@ their logic. Repairs stay a human decision in 01–07.
 - Notification of the cron checks (`cert_expiry_check.sh` writes only to the
   journal tag `ihw-cert` today)
 
-Same list, project-wide: [TODO.md – Monitoring (phase 9)](../TODO.md#monitoring-phase-9).
+Same list, project-wide: [TODO.md – Monitoring (phase 9)](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md#monitoring-phase-9).

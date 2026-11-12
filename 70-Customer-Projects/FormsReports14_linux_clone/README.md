@@ -9,7 +9,7 @@ along with; this README explains what each step changes and why.
 
 | File | Content |
 |---|---|
-| [Clone_cookbook_en.txt](Clone_cookbook_en.txt) | Step-by-step cookbook (English, bash, ASCII). Part A on the source, Part B on the clone, ROLLBACK, KNOWN PROBLEMS |
+| [Clone_cookbook_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_clone/Clone_cookbook_en.txt) | Step-by-step cookbook (English, bash, ASCII). Part A on the source, Part B on the clone, ROLLBACK, KNOWN PROBLEMS |
 | README.md | This file – background, what changes where, open points |
 
 Theory (not repeated here):
@@ -257,9 +257,9 @@ machine.
 
 ## 8. Check scripts
 
-- Repository: [`02-Checks/clone_check.sh`](../../02-Checks/clone_check.sh).
+- Repository: [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh).
 - Customer hosts (standalone, read-only):
-  [`tools/bash/clone_check_fmw.sh`](../tools/bash/clone_check_fmw.sh),
+  [`tools/bash/clone_check_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/clone_check_fmw.sh),
   version **2026-11-10.8**: `ADMIN_URL` in `bin/*.sh` (2026-11-10.2),
   `startup.properties` `AdminURL` (.3), engine `jvmOptions` without
   `ORBServerHost` and the EM `tmp/` copy of `emoms.properties` (.8). Use

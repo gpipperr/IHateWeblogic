@@ -11,7 +11,7 @@ analysis is the same for Linux and Windows hosts.
 |---|---|---|
 | [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only metadata collection (OS, services, Java, OPatch, domain, Forms / Reports config, processes, Oracle Net, logs), secrets masked → ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
-| [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
+| [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
 
 ## Starting a script (ExecutionPolicy)
 

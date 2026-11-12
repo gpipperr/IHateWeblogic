@@ -26,7 +26,7 @@ A modern Forms environment is Forms **and** APEX on the same database
 | reporting for everyone (dashboards, interactive reports) | Oracle APEX (+ Oracle Reports for print) |
 
 ![apex-ords-overview](diagrams/apex-ords-overview.svg?v=6001bc48)
-<sub>Source: [diagrams/apex-ords-overview.prompt](diagrams/apex-ords-overview.prompt) · [D2](diagrams/apex-ords-overview.d2)</sub>
+<sub>Source: [diagrams/apex-ords-overview.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/diagrams/apex-ords-overview.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/diagrams/apex-ords-overview.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

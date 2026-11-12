@@ -13,10 +13,10 @@ customer host):
 
 Each with a `.sha256` next to it (same link + `.sha256`). Unpacked with
 `unzip … -d $ORACLE_BASE` it gives `$ORACLE_BASE/tools/` – the layout of the
-road map [Start_beim_Kunden_kochbuch_de.txt](../Start_beim_Kunden_kochbuch_de.txt).
+road map [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
 **Maintainer rule:** the ZIPs are built by
-[make_customer_zip.sh](make_customer_zip.sh) – deterministic (fixed time
+[make_customer_zip.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/make_customer_zip.sh) – deterministic (fixed time
 stamps, sorted, no extra attributes), so they only change when a tool really
 changed. Before **every commit** that touches `bash/`, `powershell/`, this
 README or the road map:
@@ -58,13 +58,13 @@ Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
 All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
 
 Order at a customer (tools → setdb → ini → analysis or installation):
-[../Start_beim_Kunden_kochbuch_de.txt](../Start_beim_Kunden_kochbuch_de.txt).
+[../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
 Used by:
 - [Reports14_linux_manual_install](../Reports14_linux_manual_install/README.md)
-  (all values in [patch_install.ini](../Reports14_linux_manual_install/patch_install.ini))
+  (all values in [patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini))
 - [FormsReports12_patch_cpu_2026-10](../FormsReports12_patch_cpu_2026-10/README.md)
-  (patch list [patches_cpu_forms_reports_12c_oct2026.csv](../FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv))
+  (patch list [patches_cpu_forms_reports_12c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv))
 - [FormsReports14_patch_cpu_2026-10](../FormsReports14_patch_cpu_2026-10/README.md)
 
 ## collect_fmw_env.sh
@@ -772,7 +772,7 @@ terminal and a running Node Manager.
 | `LOG_MINUTES` | `show_all_logs.sh`, `show_errors.sh` |
 
 No passwords in the ini. Cookbook:
-[Tools_status_logs_kochbuch.txt](../Reports14_linux_manual_install/Tools_status_logs_kochbuch.txt).
+[Tools_status_logs_kochbuch.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Tools_status_logs_kochbuch.txt).
 Tested 2026-11-06 on the test host from a scratch copy with an isolated `HOME`:
 setdb domain without ini, ini with the same and another domain, `IHW_INI`, no
 domain, a DB entry; `t`, `2t`, `9t`, `cdt`, `h`; stage 3 with the library keys, the

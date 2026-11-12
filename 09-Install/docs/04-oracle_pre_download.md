@@ -470,7 +470,7 @@ update: start a new cycle with `--fresh-patches` (archives both
 directories). Further optional files: CVU (`database/cvu/`, section
 "Standalone CVU" above), Reports one-off `38936596` (Generic,
 `patches/38936596/`, only `REPORTS_BIDIPARENTHESIS=YES`) – all rows with
-platform, file and target: [download/patches_fmw.csv](../download/patches_fmw.csv).
+platform, file and target: [download/patches_fmw.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv).
 
 ### 7. Apply OPatch and patches (after FMW installation)
 

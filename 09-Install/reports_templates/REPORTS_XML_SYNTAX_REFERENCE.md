@@ -21,7 +21,7 @@ Sources, in order of authority:
 3. Oracle doc [About Distribution XML Files (11g)](https://docs.oracle.com/middleware/11119/classic/use-reports/pbr_dist003.htm) —
    confirms `distribution.dtd` governs a *separate* kind of XML file (output
    distribution — mail/file/printer destinations), not the report definition
-   itself; see [Distribution XML](#distribution-xml--distributiondtd) below.
+   itself; see [Distribution XML](#distribution-xml-distributiondtd) below.
 4. A real, presumably-working production report (`90-Source-MetaData/TNQ.xml`,
    never committed — customer data, deleted again after use) — read and its
    structure mapped out for usage patterns the DTD alone doesn't show (which

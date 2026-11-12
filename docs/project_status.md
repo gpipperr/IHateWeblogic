@@ -21,14 +21,14 @@ with cookbooks, in
 [`FormsReports14_linux_localhost`](../70-Customer-Projects/FormsReports14_linux_localhost/README.md) /
 [`FormsReports14_linux_clone`](../70-Customer-Projects/FormsReports14_linux_clone/README.md).
 What was done when: [CHANGELOG.md](../CHANGELOG.md) (newest first). What is
-still open: [TODO.md](../TODO.md).
+still open: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
 How the ~96 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
 about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
 (CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
 the certificate expiry check and the Claude patch-cycle analysis done;
 notification, log analysis, config security scanner are concept); minus the
-[open items](../TODO.md) – mainly the questions to Oracle (bundled
+[open items](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md) – mainly the questions to Oracle (bundled
 JDK 17 + FMW DBCLIENT SR, `frmweb` bind address), the
 remaining client tests (update / offline / JACOB on Windows) and tests on a
 fresh installation.

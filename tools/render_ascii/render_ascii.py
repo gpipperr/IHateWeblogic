@@ -45,6 +45,7 @@ MARK_RE = re.compile(r"^ascii\s+name=([a-z0-9][a-z0-9_-]*)\s*$")
 BOXY_RE = re.compile(r"(\+-{2,}|-{2,}\+|[┌┐└┘├┤┬┴┼─│═║╔╗╚╝▶◀▼▲]|-->|<--|==>|-{3,}>)")
 SUMMARY = "<details><summary>ASCII version</summary>"
 # older wrappers (German, until 2026-11-11) are still recognised and rewritten
+BLOB_URL = "https://github.com/gpipperr/IHateWeblogic/blob/main/"
 SUMMARIES = (SUMMARY, "<details><summary>ASCII-Version</summary>")
 
 COUNT = {"OK": 0, "WARN": 0, "FAIL": 0}
@@ -430,8 +431,12 @@ def head_lines(md_path, b, name, engine="d2"):
     if engine == "svgbob":
         src = ind + "<sub>Source: ASCII version below (svgbob)</sub>"
     else:
-        src = (ind + "<sub>Source: [diagrams/%s.prompt](diagrams/%s.prompt) · "
-               "[D2](diagrams/%s.d2)</sub>" % (name, name, name))
+        # absolute GitHub view: on GitHub Pages a relative .prompt / .d2 link
+        # would be served as a raw file / download (the SVG stays relative)
+        d = os.path.relpath(os.path.join(os.path.dirname(os.path.abspath(md_path)), "diagrams"), REPO_DIR)
+        base = BLOB_URL + d.replace(os.sep, "/") + "/"
+        src = (ind + "<sub>Source: [diagrams/%s.prompt](%s%s.prompt) · "
+               "[D2](%s%s.d2)</sub>" % (name, base, name, base, name))
     return [ind + img_ref(md_path, name), src, "", ind + SUMMARY]
 
 

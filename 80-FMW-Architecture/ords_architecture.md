@@ -76,7 +76,7 @@ Consequences for this library:
 ## 2. A request through ORDS
 
 ![ords-dispatch](diagrams/ords-dispatch.svg?v=f3d12bc5)
-<sub>Source: [diagrams/ords-dispatch.prompt](diagrams/ords-dispatch.prompt) · [D2](diagrams/ords-dispatch.d2)</sub>
+<sub>Source: [diagrams/ords-dispatch.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ords-dispatch.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ords-dispatch.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

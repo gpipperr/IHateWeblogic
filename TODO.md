@@ -27,7 +27,7 @@ step beside the customer work (state 2026-11-10). Order:
   https://www.der-it-macher.de/) – also kept in `09-Install/README.md`.
 - [x] **3. Compact root README – move, do not shorten** – done 2026-11-11:
   "Start here" block (what, for whom, 3 entry paths, list of the moved
-  files); nine sections moved 1:1 into six files in [`docs/`](docs/) (migration,
+  files); nine sections moved 1:1 into six files in [`docs/`](https://github.com/gpipperr/IHateWeblogic/tree/main/docs) (migration,
   project status, security & patch status, sizing + new memory / process
   table, installation steps, general security), one summary + link each,
   headings kept as stubs; line check: 0 lines lost (35 link lines adjusted
@@ -55,7 +55,7 @@ step beside the customer work (state 2026-11-10). Order:
   template, `clone_check.sh --apply` file places on a real domain,
   `REPORTS_ONLY` domain creation.
 - [x] 9. Optional: `render_ascii` checked in, `?v=` cache-busting for SVGs –
-  done 2026-11-11: [`tools/render_ascii/`](tools/render_ascii/README.md) in git (README in English),
+  done 2026-11-11: [`tools/render_ascii/`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/render_ascii/README.md) in git (README in English),
   all 32 image links carry `?v=<SVG hash>`, "Source:" / "ASCII version"; diagram texts
   checked – `builder-windows` translated to English, Target Picture ORDS 26.3.
 

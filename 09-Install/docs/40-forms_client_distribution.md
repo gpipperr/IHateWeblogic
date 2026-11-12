@@ -51,7 +51,7 @@ reproducible (open items "Tests that need a client" in the root README).
 ## 2. Architecture
 
 ![client-distribution](diagrams/client-distribution.svg?v=e4f8de09)
-<sub>Source: [diagrams/client-distribution.prompt](diagrams/client-distribution.prompt) · [D2](diagrams/client-distribution.d2)</sub>
+<sub>Source: [diagrams/client-distribution.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/client-distribution.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/docs/diagrams/client-distribution.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

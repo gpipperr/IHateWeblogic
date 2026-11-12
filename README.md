@@ -52,7 +52,7 @@ A modern Oracle Forms environment is not "Forms or APEX" but **Forms and
 APEX on the same database**, each where it is strongest:
 
 ![target-picture](diagrams/target-picture.svg?v=d9b389b6)
-<sub>Source: [diagrams/target-picture.prompt](diagrams/target-picture.prompt) · [D2](diagrams/target-picture.d2)</sub>
+<sub>Source: [diagrams/target-picture.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/diagrams/target-picture.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/diagrams/target-picture.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -84,7 +84,7 @@ of replacing it piece by piece with other platforms (background and appeal:
 Status in this library: manual installation in
 [`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (ORDS standalone homes
 `ords_1` / `ords_2`, images copied to `/srv/apex`, Nginx `/ords` + `/i/`);
-the automation is an [open item](TODO.md).
+the automation is an [open item](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
 ## Start here
 
@@ -151,7 +151,7 @@ Security Alerts, state 2026-10-26), patch lists and what matters in it:
 > (2026-10-22/23), at a customer the localhost hardening of an existing domain
 > and a VM clone with a new RCU prefix (2026-11-09/10) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
-> fix: `git log`; what is still open: [TODO.md](TODO.md).
+> fix: `git log`; what is still open: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 > Use with caution and verify output before applying any changes (`--apply`).
 > Contributions and bug reports welcome.
 
@@ -182,21 +182,21 @@ environment (analyse + fix): the order of the first scripts –
 
 | Directory             | Purpose                                              |
 |-----------------------|------------------------------------------------------|
-| `00-Setup/`           | Environment setup, lib, password management          |
-| `01-Run/`             | Start/stop, WLST, Reports Server status              |
-| `02-Checks/`          | OS, Java, ports, DB connectivity, SSL checks         |
-| `03-Logs/`            | Log discovery, grep, tail, archive, cleanup          |
-| `04-ReportsFonts/`    | Font inventory, migration PS→TTF, uifont.ali, deploy |
-| `05-ReportsPerformance/` | Reports server: analyse + fix an existing environment (parameters, load, logs) |
-| `06-FormsDiag/`       | Forms: analyse + fix an existing environment (configuration, sessions, performance) |
-| `07-Maintenance/`     | Config backup/restore, patching an already-running environment |
-| `08-SSL/`             | SSL certificate lifecycle: prepare, deploy, audit    |
-| `09-Install/`         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
-| `12-APEX-Ords/`       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
-| `10-Monitoring/`      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
-| `60-RCU-DB-19c/`     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
-| `70-Customer-Projects/` | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
-| `80-FMW-Architecture/` | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
+| [`00-Setup/`](00-Setup/README.md)           | Environment setup, lib, password management          |
+| [`01-Run/`](01-Run/README.md)             | Start/stop, WLST, Reports Server status              |
+| [`02-Checks/`](02-Checks/README.md)          | OS, Java, ports, DB connectivity, SSL checks         |
+| [`03-Logs/`](03-Logs/README.md)            | Log discovery, grep, tail, archive, cleanup          |
+| [`04-ReportsFonts/`](04-ReportsFonts/README.md)    | Font inventory, migration PS→TTF, uifont.ali, deploy |
+| [`05-ReportsPerformance/`](05-ReportsPerformance/README.md) | Reports server: analyse + fix an existing environment (parameters, load, logs) |
+| [`06-FormsDiag/`](06-FormsDiag/README.md)       | Forms: analyse + fix an existing environment (configuration, sessions, performance) |
+| [`07-Maintenance/`](07-Maintenance/README.md)     | Config backup/restore, patching an already-running environment |
+| [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
+| [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
+| [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
+| [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning (`cve_inventory.sh`, `cve_watch.sh`), certificate expiry, patch-cycle analysis with Claude (`patch_cycle_analysis.sh`); concept: notification, AI-assisted log analysis |
+| [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
+| [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
+| [`80-FMW-Architecture/`](80-FMW-Architecture/README.md) | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Common Flags
 
@@ -599,7 +599,7 @@ data and stay as they are.
 - **Use at your own risk.** With `--apply` the scripts change OS, WebLogic and
   database settings – test in a non-production environment first and keep
   backups. The project is provided "as is", without warranty of any kind – see
-  [LICENSE](LICENSE) (Apache 2.0). For Oracle products follow Oracle's
+  [LICENSE](https://github.com/gpipperr/IHateWeblogic/blob/main/LICENSE) (Apache 2.0). For Oracle products follow Oracle's
   documentation and My Oracle Support; licensing of Oracle software is your
   responsibility.
 - The bird logo (`assets/IHateWeblogic_logo.png`) is the **personal logo of

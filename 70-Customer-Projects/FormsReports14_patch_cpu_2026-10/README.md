@@ -24,7 +24,7 @@ new one (`Forms14_reports14_patch_analyse_<mm>_<yyyy>`) is created.
 ## 1. Check the installation first
 
 Read-only, as the software owner. Everything in one run: the shared collector
-[../tools/bash/collect_fmw_env.sh](../tools/bash/collect_fmw_env.sh) (12c and 14c),
+[../tools/bash/collect_fmw_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_fmw_env.sh) (12c and 14c),
 `--full` for `opatch lsinventory -bugs_fixed`.
 
 ```bash

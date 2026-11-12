@@ -55,7 +55,7 @@ Note: the domain templates also enable WebLogic SSL listen ports with the
 ## Architecture: SSL in This Installation
 
 ![ssl-nginx](diagrams/ssl-nginx.svg?v=39aab5a3)
-<sub>Source: [diagrams/ssl-nginx.prompt](diagrams/ssl-nginx.prompt) · [D2](diagrams/ssl-nginx.d2)</sub>
+<sub>Source: [diagrams/ssl-nginx.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-nginx.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-nginx.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -184,7 +184,7 @@ Renewal: repeat steps 1 → 2 → 3 with the new certificate.
 (no Easy-RSA, no EPEL): **one root CA**, two kinds of leaf certificates.
 
 ![ssl-local-ca](diagrams/ssl-local-ca.svg?v=7412638e)
-<sub>Source: [diagrams/ssl-local-ca.prompt](diagrams/ssl-local-ca.prompt) · [D2](diagrams/ssl-local-ca.d2)</sub>
+<sub>Source: [diagrams/ssl-local-ca.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-local-ca.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-local-ca.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -334,7 +334,7 @@ Short version of the architecture article
 what is signed, who creates the key, who signs, who checks.
 
 ![ssl-codesign-flow](diagrams/ssl-codesign-flow.svg?v=13203770)
-<sub>Source: [diagrams/ssl-codesign-flow.prompt](diagrams/ssl-codesign-flow.prompt) · [D2](diagrams/ssl-codesign-flow.d2)</sub>
+<sub>Source: [diagrams/ssl-codesign-flow.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-codesign-flow.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/diagrams/ssl-codesign-flow.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

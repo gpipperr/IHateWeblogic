@@ -39,7 +39,7 @@ identity store is the file `system-jazn-data.xml` (JAZN XML).
 ## 2. Who talks to whom – today (identity store XML)
 
 ![ldap-request-path](diagrams/ldap-request-path.svg?v=501a18db)
-<sub>Source: [diagrams/ldap-request-path.prompt](diagrams/ldap-request-path.prompt) · [D2](diagrams/ldap-request-path.d2)</sub>
+<sub>Source: [diagrams/ldap-request-path.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ldap-request-path.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/ldap-request-path.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

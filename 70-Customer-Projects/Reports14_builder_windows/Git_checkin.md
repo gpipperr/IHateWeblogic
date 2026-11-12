@@ -10,11 +10,11 @@ Status 2026-11-11: **step 1 of the architecture** – the rdf → xml
 conversion from the command line – is tested on the Linux test host (same
 Reports 14.1.2 tools runtime, `rwconverter`). **The Windows commands below
 are to be confirmed at the customer** (test procedure in section 5). The
-scripts are in [scripts/](scripts/) (section 4) – tested on Linux with
+scripts are in [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts) (section 4) – tested on Linux with
 PowerShell 7.4, to confirm with Windows PowerShell 5.1 at the customer.
 
 Related:
-- Builder server set-up: [ReportBuilder_Windows_Kochbuch_en.txt](ReportBuilder_Windows_Kochbuch_en.txt).
+- Builder server set-up: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt).
 - Development workflow (copy → Builder → Git → DEV server → test):
   [reports_rwbuilder.md §6](../../80-FMW-Architecture/reports_rwbuilder.md#6-development-workflow--from-the-old-report-to-the-linux-dev-server).
 - Image references (file name only, `REPORTS_PATH`):
@@ -300,7 +300,7 @@ Notes:
 
 ## 4. The scripts
 
-Files in [scripts/](scripts/) – a skeleton for the customer's own
+Files in [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts) – a skeleton for the customer's own
 adaptation: plain PowerShell, one step after the other, no nested commands,
 **messages and comments in German** (the developers' language), plain ASCII
 (Windows PowerShell 5.1 reads files without BOM as ANSI). Copy them into
@@ -309,10 +309,10 @@ adaptation: plain PowerShell, one step after the other, no nested commands,
 
 | File | Purpose |
 |---|---|
-| [pull.ps1](scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
-| [checkin.ps1](scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (admin session, converter, login file) → comment → `git fetch` (behind → fast-forward; same report changed → stop) → convert every new / changed `.rdf` (stop at the first error, nothing committed) → delete the `.xml` of a deleted `.rdf` → `git add` source / xml / images → commit → push (rejected → `pull --rebase` + push; conflict → `rebase --abort`) |
-| [template.gitattributes](scripts/template.gitattributes) | `*.rdf binary`, line ends of `*.xml` (value after the Windows test, 2.3) |
-| [template.gitignore](scripts/template.gitignore) | `*.rep`, logs, backups, `login.txt` |
+| [pull.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
+| [checkin.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (admin session, converter, login file) → comment → `git fetch` (behind → fast-forward; same report changed → stop) → convert every new / changed `.rdf` (stop at the first error, nothing committed) → delete the `.xml` of a deleted `.rdf` → `git add` source / xml / images → commit → push (rejected → `pull --rebase` + push; conflict → `rebase --abort`) |
+| [template.gitattributes](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/template.gitattributes) | `*.rdf binary`, line ends of `*.xml` (value after the Windows test, 2.3) |
+| [template.gitignore](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/template.gitignore) | `*.rep`, logs, backups, `login.txt` |
 
 Settings at the top of `checkin.ps1`: `$DomainHome` (default
 `E:\oracle\user_projects\domains\rwbuilder_domain`, the environment variable

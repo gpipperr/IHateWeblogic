@@ -37,7 +37,7 @@ to the table.
 | Document | Purpose |
 |---|---|
 | [docs/00-environment-setup.md](docs/00-environment-setup.md) | All `environment.conf` parameters explained — what they mean, who sets them, when they are available. Reference for the entire installation. |
-| [docs/01-setup-interview.md](docs/01-setup-interview.md) | How `01-setup-interview.sh` collects parameters interactively and writes `environment.conf` before Phase 0 begins. |
+| [docs/01-setup-interview.md](docs/01-setup-interview.md) | How [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) collects parameters interactively and writes `environment.conf` before Phase 0 begins. |
 
 ---
 
@@ -58,7 +58,7 @@ Background per step – **why** the domain looks like this (`80-FMW-Architecture
 ### SSL Proxy Architecture
 
 ![install-overview](diagrams/install-overview.svg?v=72fca71b)
-<sub>Source: [diagrams/install-overview.prompt](diagrams/install-overview.prompt) · [D2](diagrams/install-overview.d2)</sub>
+<sub>Source: [diagrams/install-overview.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/diagrams/install-overview.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/diagrams/install-overview.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -92,7 +92,7 @@ SSL terminates entirely at Nginx; no SSL required inside WLS.
 | `RepRunner` | Reports Runner | Submits Reports jobs via rwservlet (`RW_EXECREPORTS` role) |
 
 All passwords stored encrypted (`openssl des3 -pbkdf2` + disk UUID as key —
-same mechanism as `00-Setup/weblogic_sec.sh`).
+same mechanism as [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh)).
 
 ### OS User
 
@@ -115,7 +115,7 @@ execution if sudo is not available.
 ### Prerequisites – certificates (decide and prepare first)
 
 The certificate steps are part of the flow below (server certificate before
-`05-root_nginx_ssl.sh`, code signing before `14-oracle_setup_forms.sh`) –
+[`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh), code signing before [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh)) –
 this block collects them, so they are not forgotten and the decisions are
 made at the start. Background:
 [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md).
@@ -123,9 +123,9 @@ made at the start. Background:
 | # | What | Own root CA (`SSL_CERT_SOURCE=localca`, default) | Customer PKI (`SSL_CERT_SOURCE=customer`) | Needed by |
 |---|---|---|---|---|
 | 1 | Root CA | `./08-SSL/ssl_local_ca.sh init --apply` (once; key protected by `ssl_ca_sec.conf.des3`) – also created by `ssl_prepare_cert.sh LOCALCA` | customer root + intermediates → `08-SSL/user_certs/` | everything below |
-| 2 | Server (TLS) certificate for Nginx, SAN = `WLS_SERVER_FQDN` | `./08-SSL/ssl_prepare_cert.sh LOCALCA --apply` | `server.crt` + `server.key` (or `server.p12`) → `08-SSL/user_certs/`, `./08-SSL/ssl_customer_certs.sh --apply` | `05-root_nginx_ssl.sh` |
-| 3 | Code-signing keystore (only `FORMS_WEBUTIL_JACOB=true`) | `./08-SSL/ssl_local_ca.sh codesign --apply` (or `FORMS_SIGN_LOCALCA=true` – `14-` creates it) | `codesign.p12` → `08-SSL/user_certs/`, `ssl_customer_certs.sh --apply` | `14-oracle_setup_forms.sh` |
-| 4 | Timestamp server for code signing | `FORMS_SIGN_TSA_URL` reachable (HTTP 80) – no outbound access: allow only the TSA, or `FORMS_SIGN_TSA_URL=""` (re-sign after every renewal: `14- --apply --resign`) | same, or an internal TSA of the PKI | `14-oracle_setup_forms.sh` |
+| 2 | Server (TLS) certificate for Nginx, SAN = `WLS_SERVER_FQDN` | `./08-SSL/ssl_prepare_cert.sh LOCALCA --apply` | `server.crt` + `server.key` (or `server.p12`) → `08-SSL/user_certs/`, `./08-SSL/ssl_customer_certs.sh --apply` | [`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh) |
+| 3 | Code-signing keystore (only `FORMS_WEBUTIL_JACOB=true`) | `./08-SSL/ssl_local_ca.sh codesign --apply` (or `FORMS_SIGN_LOCALCA=true` – `14-` creates it) | `codesign.p12` → `08-SSL/user_certs/`, `ssl_customer_certs.sh --apply` | [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) |
+| 4 | Timestamp server for code signing | `FORMS_SIGN_TSA_URL` reachable (HTTP 80) – no outbound access: allow only the TSA, or `FORMS_SIGN_TSA_URL=""` (re-sign after every renewal: `14- --apply --resign`) | same, or an internal TSA of the PKI | [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) |
 | 5 | Trust on the clients | distribute `$ORACLE_BASE/admin/pki/ca/ca.cer` (GPO / Windows store); the Forms client bundle has it in its `cacerts` (`FORMS_CLIENT_TRUST_CA`, `40-`) | the customer root is usually already distributed | browsers, FSAL / Java Web Start |
 
 ```bash
@@ -403,36 +403,36 @@ Teardown – Remove FMW, keep the database (as oracle) [IRREVERSIBLE]
 
 | Phase | Script | Description | Detail |
 |---|---|---|---|
-| any | `00-install-status.sh` | Installation progress: every step of the flow with its state from `log/run_history.csv` (last `--apply` run, rc) + a probe on the system (result present?), SKIP by `environment.conf` (local DB, APEX, client distribution, components, certificate source), progress bar and the next step; steps without a run before the last done step = "not recorded" (done before the history existed) | – |
-| 0 | `00-root_os_network.sh` | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
-| 0 | `01-root_os_baseline.sh` | SELinux, kernel params, THP, core dump dir, firewall (safe activation with rollback timer), sshd hardening (`SSH_ALLOW_USERS`); `--only <sections>` → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
-| 0 | `02-root_os_packages.sh` | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
-| 0 / 1 | `02b-root_os_java.sh` | Oracle JDK 21 install, alternatives, jps, SecureRandom fix; after `04-` `--upgrade-jdk` = JDK of the current patch cycle | [→ docs](docs/01-root_setup_java.md) |
-| 0 | `03-root_user_oracle.sh` | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
-| 0 | `04-root_nginx.sh` | Nginx install + proxy config from template; optional admin network `ADMIN_IP_RANGE` (asked once, `--admin-range`) | [→ docs](docs/04-root_nginx.md) |
-| 0 | `05-root_nginx_ssl.sh` | SSL certificate deploy (from `08-SSL/certs/` – customer files imported first with `08-SSL/ssl_customer_certs.sh`), start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
-| 1 | `04-oracle_pre_checks.sh` | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
-| 1 | `04-oracle_pre_download.sh` | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
-| 2 | `05-oracle_install_weblogic.sh` | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
-| 2 | `05-oracle_patch_weblogic.sh` | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
-| 3 | `06-oracle_install_forms_reports.sh` | Forms/Reports 14.1.2 silent install (Forms and Reports Deployment / Standalone Forms Builder) | [→ docs](docs/06-oracle_install_forms_reports.md) |
-| 3 | `06-oracle_patch_forms_reports.sh` | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
-| 4 | `07-oracle_setup_repository.sh` | RCU: create FMW metadata schemas; `--check` = DB requirements only | [→ docs](docs/07-oracle_setup_repository.md) |
-| 4 | `08-oracle_setup_domain.sh` | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
-| 5 | `09-oracle_configure.sh` | Pre-start configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
-| 6 | `10-oracle_boot_properties.sh` | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
-| 6 | `11-oracle_nodemanager.sh` | Configure NodeManager (plain mode, Node Manager credentials = admin user, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
-| 6 | `12-oracle_reports_users.sh` | Create WLS users monUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
-| 6 | `13-root_reports_fix.sh` | libnsl.so.2 symlink for OL9 – runs as oracle (`ORACLE_HOME/lib` is oracle's), root works too | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `13-oracle_setup_reports.sh` | Configure Reports Server (instances, rwnetwork, rwservlet, rwserver, secured server via embedded LDAP – first run needs an AdminServer restart + second run) | [→ docs](docs/13-reports-detail-settings.md) |
-| 6 | `14-oracle_setup_forms.sh` | Forms configuration into the domain (templates + Oracle's files merged), JACOB install + code signing (`--resign` after a certificate renewal) | [→ docs](docs/14-forms-detail-settings.md) |
-| 6 | `14b-oracle_reports_fonts.sh` | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
-| 7 | `90-oracle_validate.sh` | Acceptance: calls the read-only analyse scripts of 01–10 + direct checks of what the install steps set up, one summary table (exit 0/1/2); `--smoke` adds `15-` | [→ docs](docs/90-oracle_validate.md) |
-| 7b | `15-deploy-test-report-forms_template.sh` | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
-| pre | `01-setup-interview.sh` | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
-| 7c | `30-configure_autostart.sh` | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
-| 7d | `40-oracle_forms_client_bundle.sh` | Forms client bundle for Nginx `/formsWeb/`: Windows Java runtime built with jlink from the MOS client JDK (CA inside `cacerts`), `frmsal.jar`, JACOB DLL, `manifest.json` (atomic switch, `--rollback`); only `FORMS_CLIENT_DIST=true`. PowerShell installer `client_templates/FormsWeb-Setup.ps1` (first Windows FSAL session 2026-10-23) | [→ docs](docs/40-forms_client_distribution.md) |
-| teardown | `99-oracle_deinstall_fmw.sh` | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
+| any | [`00-install-status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-install-status.sh) | Installation progress: every step of the flow with its state from `log/run_history.csv` (last `--apply` run, rc) + a probe on the system (result present?), SKIP by `environment.conf` (local DB, APEX, client distribution, components, certificate source), progress bar and the next step; steps without a run before the last done step = "not recorded" (done before the history existed) | – |
+| 0 | [`00-root_os_network.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-root_os_network.sh) | Hostname, DNS/hosts, resolver, IPv6, chrony (read-only check) | [→ docs](docs/00-root_os_network.md) |
+| 0 | [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) | SELinux, kernel params, THP, core dump dir, firewall (safe activation with rollback timer), sshd hardening (`SSH_ALLOW_USERS`); `--only <sections>` → **REBOOT** | [→ docs](docs/00-root_set_os_parameter.md) |
+| 0 | [`02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) | dnf packages (motif, gcc, numactl …) | [→ docs](docs/01-root_install_packages.md) |
+| 0 / 1 | [`02b-root_os_java.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02b-root_os_java.sh) | Oracle JDK 21 install, alternatives, jps, SecureRandom fix; after `04-` `--upgrade-jdk` = JDK of the current patch cycle | [→ docs](docs/01-root_setup_java.md) |
+| 0 | [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) | oracle user, limits, locale, sudo, dirs, repo handover | [→ docs](docs/03-root_user_oracle.md) |
+| 0 | [`04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) | Nginx install + proxy config from template; optional admin network `ADMIN_IP_RANGE` (asked once, `--admin-range`) | [→ docs](docs/04-root_nginx.md) |
+| 0 | [`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh) | SSL certificate deploy (from `08-SSL/certs/` – customer files imported first with [`08-SSL/ssl_customer_certs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_customer_certs.sh)), start Nginx | [→ docs](docs/05-root_nginx_ssl.md) |
+| 1 | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) | Pre-install prerequisite validation | [→ docs](docs/04-oracle_pre_checks.md) |
+| 1 | [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) | eDelivery ZIPs (manual/wget) + getMOSPatch: OPatch + patches | [→ docs](docs/04-oracle_pre_download.md) |
+| 2 | [`05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh) | FMW Infrastructure silent install | [→ docs](docs/05-oracle_install_weblogic.md) |
+| 2 | [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) | OPatch update + WLS patches | [→ docs](docs/05-oracle_patch_weblogic.md) |
+| 3 | [`06-oracle_install_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_install_forms_reports.sh) | Forms/Reports 14.1.2 silent install (Forms and Reports Deployment / Standalone Forms Builder) | [→ docs](docs/06-oracle_install_forms_reports.md) |
+| 3 | [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) | Forms/Reports patches | [→ docs](docs/06-oracle_patch_forms_reports.md) |
+| 4 | [`07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh) | RCU: create FMW metadata schemas; `--check` = DB requirements only | [→ docs](docs/07-oracle_setup_repository.md) |
+| 4 | [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) | Domain creation (WLST silent) | [→ docs](docs/08-oracle_setup_domain.md) |
+| 5 | [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) | Pre-start configuration using 00-07 scripts | [→ docs](docs/09-oracle_configure.md) |
+| 6 | [`10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh) | boot.properties for AdminServer + Managed Server | [→ docs](docs/10-oracle_boot_properties.md) |
+| 6 | [`11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) | Configure NodeManager (plain mode, Node Manager credentials = admin user, WLST) | [→ docs](docs/11-oracle_nodemanager.md) |
+| 6 | [`12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) | Create WLS users monUser + RepRunner | [→ docs](docs/12-weblogic-report-monitoring_user.md) |
+| 6 | [`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) | libnsl.so.2 symlink for OL9 – runs as oracle (`ORACLE_HOME/lib` is oracle's), root works too | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | Configure Reports Server (instances, rwnetwork, rwservlet, rwserver, secured server via embedded LDAP – first run needs an AdminServer restart + second run) | [→ docs](docs/13-reports-detail-settings.md) |
+| 6 | [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | Forms configuration into the domain (templates + Oracle's files merged), JACOB install + code signing (`--resign` after a certificate renewal) | [→ docs](docs/14-forms-detail-settings.md) |
+| 6 | [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) | Reports fonts, uifont.ali, cgicmd.dat (after first start) | [→ docs](docs/14b-oracle_reports_fonts.md) |
+| 7 | [`90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh) | Acceptance: calls the read-only analyse scripts of 01–10 + direct checks of what the install steps set up, one summary table (exit 0/1/2); `--smoke` adds `15-` | [→ docs](docs/90-oracle_validate.md) |
+| 7b | [`15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) | Smoke test: minimal Forms module + Reports demo, DB reachability only. verified 2026-10-16 (XML→FMX, XML→RDF→PDF); DB user/password in `test_db_sec.conf.des3` | [→ docs](docs/20-forms_reports_testmodules.md) |
+| pre | [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) | Configuration interview → environment.conf | [→ docs](docs/01-setup-interview.md) |
+| 7c | [`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh) | Autostart at boot: control scripts from `autostart_templates/` (Node Manager controlled, orderly shutdown), WLST key files, systemd unit | [→ docs](docs/30-configure_autostart.md) |
+| 7d | [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) | Forms client bundle for Nginx `/formsWeb/`: Windows Java runtime built with jlink from the MOS client JDK (CA inside `cacerts`), `frmsal.jar`, JACOB DLL, `manifest.json` (atomic switch, `--rollback`); only `FORMS_CLIENT_DIST=true`. PowerShell installer [`client_templates/FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) (first Windows FSAL session 2026-10-23) | [→ docs](docs/40-forms_client_distribution.md) |
+| teardown | [`99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh) | Remove the whole FMW installation for a clean reinstall; database on the same host is kept. **Irreversible**, typed confirmation | [→ docs](docs/99-oracle_deinstall_fmw.md) |
 
 ---
 
@@ -481,7 +481,7 @@ MOS_USER=firstname.lastname@example.com
 ```
 
 Software versions, patch numbers, SHA-256 checksums and OPatch regexp are defined
-in `09-Install/oracle_software_version.conf` (committed to git, no credentials).
+in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (committed to git, no credentials).
 
 Existing parameters (`FMW_HOME`, `DOMAIN_HOME`, `REPORTS_SERVER_NAME` etc.) remain
 unchanged — all modules 00–07 continue to work without modification.
@@ -494,20 +494,20 @@ The installation module calls existing scripts directly — no code duplication:
 
 | Existing script | Called from |
 |---|---|
-| `02-Checks/os_check.sh` | `04-oracle_pre_checks.sh` |
-| `02-Checks/java_check.sh` | `04-oracle_pre_checks.sh` |
-| `02-Checks/port_check.sh` | `04-oracle_pre_checks.sh` |
-| `02-Checks/db_connect_check.sh` | `01-setup-interview.sh`, `04-oracle_pre_checks.sh` |
-| `02-Checks/ssl_check.sh`, `02-Checks/port_check.sh`, `02-Checks/os_check.sh`, `02-Checks/java_check.sh`, `02-Checks/tns_admin_check.sh`, `02-Checks/clone_check.sh`, `02-Checks/egress_check.sh`, `08-SSL/ssl_config.sh`, `05-ReportsPerformance/engine_perf_settings.sh`, `06-FormsDiag/forms_settings.sh` / `forms_perf_settings.sh`, `07-Maintenance/rcu_repository_check.sh`, `10-Monitoring/cert_expiry_check.sh` | `90-oracle_validate.sh` |
-| `02-Checks/weblogic_performance.sh` | `09-oracle_configure.sh` |
-| `04-ReportsFonts/get_root_install_libs.sh` | `09-oracle_configure.sh` |
-| `04-ReportsFonts/deploy_fonts.sh` | `14b-oracle_reports_fonts.sh` |
-| `04-ReportsFonts/font_cache_reset.sh` | `14b-oracle_reports_fonts.sh` |
-| `04-ReportsFonts/uifont_ali_update.sh` | `14b-oracle_reports_fonts.sh` |
-| `04-ReportsFonts/fontpath_config.sh` | `14b-oracle_reports_fonts.sh` |
-| `07-Maintenance/backup_config.sh` | `09-oracle_configure.sh`, `14b-oracle_reports_fonts.sh` |
-| `09-Install/10-oracle_boot_properties.sh` | `09-oracle_configure.sh` (Step 0) |
-| `01-Run/rwserver_status.sh` | `90-oracle_validate.sh` |
+| [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) |
+| [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) |
+| [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) |
+| [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) | [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh), [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) |
+| [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh), [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh), [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh), [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh), [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh), [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh), [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh), [`08-SSL/ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh), [`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh), [`06-FormsDiag/forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) / [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh), [`07-Maintenance/rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh), [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) | [`90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh) |
+| [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) | [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) |
+| [`04-ReportsFonts/get_root_install_libs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/get_root_install_libs.sh) | [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) |
+| [`04-ReportsFonts/deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh) | [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) |
+| [`04-ReportsFonts/font_cache_reset.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_cache_reset.sh) | [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) |
+| [`04-ReportsFonts/uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) | [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) |
+| [`04-ReportsFonts/fontpath_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/fontpath_config.sh) | [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) |
+| [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh), [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) |
+| [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh) | [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) (Step 0) |
+| [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | [`90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh) |
 
 Shared install functions (silent response file generation, OPatch version check,
 password-file handling for RCU) are planned to live in `install_lib.sh` — not yet
@@ -540,8 +540,8 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
     └── 39600348/                 ← Reports 14.1.2 QPR (INSTALL_PATCHES_REPORTS)
 ```
 
-> Patch numbers change every month (CPU quarterly, CSPU in between). Current values are in `oracle_software_version.conf`,
-> central Doc-ID list in `docs/00-patch-references.md`.
+> Patch numbers change every month (CPU quarterly, CSPU in between). Current values are in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf),
+> central Doc-ID list in [`docs/00-patch-references.md`](docs/00-patch-references.md).
 > See [docs/05-oracle_patch_weblogic.md](docs/05-oracle_patch_weblogic.md) for the discovery workflow.
 > New cycle: `04-oracle_pre_download.sh --apply --fresh-patches --mos` (old ZIPs moved to `patches_<ts>/`).
 
@@ -592,8 +592,8 @@ otherwise display the command for manual execution.
 | `/tmp` | 300 MB (OUI min) | 2 GB | 2 GB |
 | ulimit `nofile`/`nproc` (oracle user) | 65536 / 16384 | 65536 / 16384 | **81920/81920** (100-500) · ~131072/131072 (500-1000, est.) · ~262144/262144 (>1000, lowest confidence) |
 
-> ulimit values are set by `03-root_user_oracle.sh`, sized via the
-> `EXPECTED_SESSIONS` question in `01-setup-interview.sh` (< 100 / 100-500 /
+> ulimit values are set by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh), sized via the
+> `EXPECTED_SESSIONS` question in [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) (< 100 / 100-500 /
 > 500-1000 / > 1000 concurrent Forms/Reports sessions). Only the 100-500
 > tier (81920/81920) is a confirmed real production value; the `500-1000`
 > and especially the `>1000` tier are estimates of decreasing confidence,
@@ -816,8 +816,8 @@ Place the following files there manually before working on related scripts:
 
 | File | Relevant for |
 |---|---|
-| `Oracle_WebLogic_Server_14.1.2.0.0_install.docx` | `05-oracle_install_weblogic.sh`, response files, OPatch |
-| `fmw-141200-certmatrix.xlsx` | `04-oracle_pre_checks.sh`, `02-Checks/os_check.sh` |
+| `Oracle_WebLogic_Server_14.1.2.0.0_install.docx` | [`05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh), response files, OPatch |
+| `fmw-141200-certmatrix.xlsx` | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh), [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) |
 
 ---
 

@@ -23,7 +23,7 @@ State: in use since 2026-11-10 (32 diagrams), checked in on 2026-11-11.
         |
         v
  MD: ![<n>](diagrams/<n>.svg?v=<8 hex of the SVG's SHA-256>)
-     <sub>Source: [diagrams/<n>.prompt] · [D2]</sub>
+     <sub>Source: [diagrams/<n>.prompt] · [D2]</sub>   (absolute github.com/…/blob/main/ links)
      <details><summary>ASCII version</summary> … block … </details>
 ```
 
@@ -33,6 +33,11 @@ State: in use since 2026-11-10 (32 diagrams), checked in on 2026-11-11.
 SHA-256 of the SVG. A changed SVG gets a new URL, so browsers and GitHub's
 image proxy load it again instead of showing the old picture. The tool
 updates the value on every run when the SVG changed – never edit it by hand.
+
+**Source links absolute (since 2026-11-12):** the `.prompt` / `.d2` links
+point to `https://github.com/gpipperr/IHateWeblogic/blob/main/<dir>/diagrams/…`
+– on GitHub Pages a relative link to a raw file is served raw or as a
+download. The SVG link stays relative (works on github.com and Pages).
 
 Wrappers written before 2026-11-11 (German "Quelle:" / "ASCII-Version",
 image link without `?v=`) are recognised and rewritten on the next run.

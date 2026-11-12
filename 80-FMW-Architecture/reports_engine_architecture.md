@@ -32,7 +32,7 @@ the job is complete." (**documented**, Publishing Reports 12.2.1.3, 2.2)
 ## 2. Two modes
 
 ![repeng-modes](diagrams/repeng-modes.svg?v=27736417)
-<sub>Source: [diagrams/repeng-modes.prompt](diagrams/repeng-modes.prompt) · [D2](diagrams/repeng-modes.d2)</sub>
+<sub>Source: [diagrams/repeng-modes.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/repeng-modes.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/repeng-modes.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

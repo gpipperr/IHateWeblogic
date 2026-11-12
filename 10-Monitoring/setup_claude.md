@@ -4,10 +4,10 @@
 
 How Claude Code is installed and locked down for the Claude-based parts of
 the lib: the patch-cycle analysis
-([patch_cycle_analysis.sh](patch_cycle_analysis.sh)) now, the proactive log
+([patch_cycle_analysis.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)) now, the proactive log
 analysis ([README.md](README.md#architecture)) later. Check script:
-[claude_setup_check.sh](claude_setup_check.sh); files to install:
-[claude/](claude/).
+[claude_setup_check.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh); files to install:
+[claude/](https://github.com/gpipperr/IHateWeblogic/tree/main/10-Monitoring/claude).
 
 > **WARNING – test and admin hosts only.**
 > Claude Code is **never** installed or started on a production FMW server.
@@ -25,7 +25,7 @@ first rollout.
 ## 1. Placement
 
 ![claude-hosts](diagrams/claude-hosts.svg?v=e28c8c50)
-<sub>Source: [diagrams/claude-hosts.prompt](diagrams/claude-hosts.prompt) · [D2](diagrams/claude-hosts.d2)</sub>
+<sub>Source: [diagrams/claude-hosts.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/diagrams/claude-hosts.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/diagrams/claude-hosts.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -151,7 +151,7 @@ Then start a new session: `/status` shows `Enterprise managed settings
 `--apply` after new secret files, a changed `IHW_ENV_TYPE` or a new template
 (check 4 reports the difference).
 
-Template: [claude/managed-settings.json.template](claude/managed-settings.json.template)
+Template: [claude/managed-settings.json.template](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude/managed-settings.json.template)
 (placeholders `@IHW_ROOT@`, `@ENV_CONF_TARGET@`, `@IHW_ENV_TYPE@`; the script
 adds the secret files to `sandbox.filesystem.denyRead` and the profile keys).
 `allowManagedPermissionRulesOnly` is **not** set – the project / user allow

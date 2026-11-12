@@ -37,7 +37,7 @@ sizing, or encryption separately from the RCU defaults.
 
 Skip it otherwise – RCU creates its own tablespaces per component
 (`<PREFIX>_STB`, `<PREFIX>_IAS_OPSS`, `<PREFIX>_IAS_AUDIT` …, see
-[07-oracle_setup_repository.md](../../09-Install/docs/07-oracle_setup_repository.md#default-rcu-creates-its-own-tablespaces)),
+[07-oracle_setup_repository.md](../../09-Install/docs/07-oracle_setup_repository.md#fallback-rcu_tablespace-empty--rcu-creates-its-own)),
 which is fine for the metadata workload. Which schemas live there and who uses
 them: [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
 

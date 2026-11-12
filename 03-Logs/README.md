@@ -97,7 +97,7 @@ separately.
 > (deeper: `01-Run/rwrun_trace.sh`).
 
 All `03-Logs` scripts find these directories themselves
-([`log_locations.sh`](log_locations.sh)): every `servers/*/logs` with its
+([`log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh)): every `servers/*/logs` with its
 role (Admin server, Managed server, Reports server, Reports tools), plus
 Node Manager, EM and every ORDS log directory `${ORDS_LOG_BASE:-/var/log}/ords_N`
 (role `ORDS`, also without a domain). No server name is hard-coded.
@@ -224,7 +224,7 @@ standalone Reports server process; their level is set in
 ## 6. Scripts Reference
 
 All scripts read `environment.conf`; the log directories come from
-[`log_locations.sh`](log_locations.sh). `--component` accepts:
+[`log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh). `--component` accepts:
 `all` (default), `reports` (WLS_REPORTS + Reports servers + Reports tools),
 `forms`, `wls` (all WebLogic servers), `nm`, `em`, `ords` (all ORDS
 instances), or a server / instance name (`AdminServer`, `WLS_REPORTS`,

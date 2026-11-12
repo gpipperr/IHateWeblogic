@@ -7,7 +7,7 @@ two tools do it:
 | What | Tool | Reads / changes |
 |---|---|---|
 | **Library configuration** – which conf every IHateWeblogic script reads | `00-Setup/detect_env_conf.sh` (detect, `--list`, `--select`) | `00-Setup/environments/*.conf`, symlink `environment.conf` |
-| **Current interactive shell** – `ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`, `wlst` | `setdb` = `setfmw` = `setfw` ([ihw_shell_env.sh](../70-Customer-Projects/tools/bash/ihw_shell_env.sh), `~/.bashrc.d/ihw_env.sh`) | only the shell; detects the homes itself (`~/.ihw_env.conf`), never touches `environment.conf` |
+| **Current interactive shell** – `ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`, `wlst` | `setdb` = `setfmw` = `setfw` ([ihw_shell_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh), `~/.bashrc.d/ihw_env.sh`) | only the shell; detects the homes itself (`~/.ihw_env.conf`), never touches `environment.conf` |
 
 Until 2026-11-04 `00-Setup/set_env.sh` did both (symlink + shell export) and
 `detect_env_conf.sh` was called `init_env.sh`. `set_env.sh` was removed: the

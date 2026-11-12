@@ -1,7 +1,21 @@
 # IHateWeblogic – Changelog
 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
-details of every fix: `git log`. Open items: [TODO.md](TODO.md).
+details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
+
+## 2026-11-12
+
+- **GitHub Pages links** (prompt `prompt_ihw_pages_verlinkung.md`, steps 1–4 started): new
+  `tools/check_pages_links.py` (stdlib only) – local check of every relative link (missing,
+  anchor against the headings, folder without README, excluded in `_config.yml`, raw file,
+  README without permalink), `--live` (sitemap + every internal href / anchor over HTTP),
+  `--fix` and `--link-code` (dry-run diff, `--apply` with backup). Fixed: 2 broken anchors (also
+  on github.com), 7 `TODO.md` + 3 `tools/` links (excluded on Pages) and 5 folder links -> GitHub
+  view, 84 raw-file links (`.sh`, `.txt`, `.csv` …) -> `github.com/…/blob/main/`; render_ascii
+  writes the `.prompt` / `.d2` source links absolute (migrated its own 64 links, no re-render).
+  Only link targets changed (checked line by line). `code` mentions linked in
+  `09-Install/README.md` + `00-Setup/README.md` as a sample (first mention per section, every
+  table row); root README "Script Directories": folder column linked.
 
 ## 2026-11-11
 
@@ -520,13 +534,13 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
   former `env.ini` + `install.ini` are **one `patch_install.ini`** per
   customer folder; `setdb` puts `$ORACLE_BASE/tools` into the PATH and has
   `domain`; road map
-  [Start_beim_Kunden_kochbuch_de.txt](70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
+  [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
   (tools → setdb → ini → analysis or installation).
 - **Uniform customer folder names** (`Reports14_linux_manual_install`,
   `Reports14_builder_windows`, `FormsReports12/14_patch_cpu_2026-10`) and
   speaking patch list names (`patches_cpu_forms_reports_12c_oct2026.csv`,
   `patches_cpu_reports_14c_oct2026.csv`).
-- README split into README (overview), [TODO.md](TODO.md) and this file.
+- README split into README (overview), [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md) and this file.
 - `;` in `<folderAccess><write>` confirmed at the customer (nightly report
   job into a second output directory).
 - 12c patch cookbook CPU Oct 2026 final version for the customer.
@@ -534,7 +548,7 @@ details of every fix: `git log`. Open items: [TODO.md](TODO.md).
 ## 2026-11-03 (afternoon, customer on site + test host)
 
 - **Shell environment switcher** `setdb` / `setfmw` / `setfw`
-  ([ihw_shell_env.sh](70-Customer-Projects/tools/bash/ihw_shell_env.sh), installed by `03-` as
+  ([ihw_shell_env.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh), installed by `03-` as
   `~oracle/.bashrc.d/ihw_env.sh`, after the model of OraBashShell): one menu – FMW home only + domains,
   DB homes under their home name with every SID and always a `(no SID)` line, `c` clear, `h` help, `q`
   quit. It sets `WLST`, `wlst`, `cdlog` and the Forms / Reports config paths, never touches

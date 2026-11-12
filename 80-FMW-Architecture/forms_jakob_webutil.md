@@ -68,7 +68,7 @@ WebUtil is part of Oracle Forms since 11g (before that a separate download).
 ## 4. Architecture
 
 ![jacob-chain](diagrams/jacob-chain.svg?v=82e35e4c)
-<sub>Source: [diagrams/jacob-chain.prompt](diagrams/jacob-chain.prompt) · [D2](diagrams/jacob-chain.d2)</sub>
+<sub>Source: [diagrams/jacob-chain.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-chain.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-chain.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -184,7 +184,7 @@ Oracle's default `formsweb.cfg` section `[webutil]`:
 ## 8. Signing – how Oracle intends it
 
 ![jacob-signing](diagrams/jacob-signing.svg?v=a8daf0a0)
-<sub>Source: [diagrams/jacob-signing.prompt](diagrams/jacob-signing.prompt) · [D2](diagrams/jacob-signing.d2)</sub>
+<sub>Source: [diagrams/jacob-signing.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-signing.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-signing.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
@@ -410,7 +410,7 @@ Recommendation (design, to be decided with the customer):
 ## 13. Implementation in this repository (2026-10-17)
 
 ![jacob-codesign](diagrams/jacob-codesign.svg?v=e10e0ad4)
-<sub>Source: [diagrams/jacob-codesign.prompt](diagrams/jacob-codesign.prompt) · [D2](diagrams/jacob-codesign.d2)</sub>
+<sub>Source: [diagrams/jacob-codesign.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-codesign.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/80-FMW-Architecture/diagrams/jacob-codesign.d2)</sub>
 
 <details><summary>ASCII version</summary>
 

@@ -12,9 +12,9 @@ Related:
 - Security of the web commands: [reports_user_local_ldap.md](reports_user_local_ldap.md)
   and [81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md).
 - Engines and sizing: [reports_engine_architecture.md](reports_engine_architecture.md).
-- Our own tools: [01-Run/rwserver_status.sh](../01-Run/rwserver_status.sh)
+- Our own tools: [01-Run/rwserver_status.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh)
   (display) and
-  [05-ReportsPerformance/engine_perf_analyse.sh](../05-ReportsPerformance/engine_perf_analyse.sh)
+  [05-ReportsPerformance/engine_perf_analyse.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)
   (evaluation).
 
 ---
@@ -89,7 +89,7 @@ data-urlencode = "authid=monUser/<MONUSER_PASSWORD>"
 With `-K` the password appears neither in the process list (`ps`) nor in the
 shell history nor in the access log.
 
-> Our own [rwserver_status.sh](../01-Run/rwserver_status.sh) and
+> Our own [rwserver_status.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) and
 > `engine_perf_analyse.sh` (`rws_fetch_serverinfo` in `reports_server_lib.sh`)
 > use POST since 2026-11-03: the query string of the URL goes into the body
 > as it is, `authid` via `data-urlencode`, all of it as a curl config on

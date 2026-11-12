@@ -1,7 +1,7 @@
 # Skill: writing a customer cookbook (Kochbuch)
 
 How a step-by-step guide for a customer system is written - the style of
-[Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt](Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt),
+[Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt),
 reworked at the customer on 2026-11-03 because dense command blocks were
 "too complicated" to type along with.
 
@@ -69,7 +69,7 @@ KNOWN PROBLEMS      Problem: / Cause: / Solution: - points back to the step
 ### 1.1 Storage, paths and sources - always written down
 
 Model:
-[FormsReports12_patch_cpu_2026-10/Patch_Kochbuch_CPU_Okt2026_de.txt](FormsReports12_patch_cpu_2026-10/Patch_Kochbuch_CPU_Okt2026_de.txt),
+[FormsReports12_patch_cpu_2026-10/Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/Patch_Kochbuch_CPU_Okt2026_de.txt),
 sections "IST-STATUS" and "VORAUSSETZUNGEN / Was wo landet".
 
 The customer must never wonder where a file comes from or where it ends up.

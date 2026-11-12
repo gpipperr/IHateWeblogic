@@ -13,7 +13,7 @@ created hardened by `09-Install/08-`).
 
 | File | Content |
 |---|---|
-| [Localhost_cookbook_en.txt](Localhost_cookbook_en.txt) | Step-by-step cookbook (bash, English, plain text): starting point, backup, WLST, `reports.sh`, `setUserOverrides.sh`, engine `jvmOptions`, `startup.properties`, `bin/*.sh`, EM `emoms.properties`, restart, checks, firewall, rollback, known problems. One run ends with `clone_check_fmw.sh` **"Clone-capable: yes"**. Forms parts marked "skip if Reports only". |
+| [Localhost_cookbook_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/Localhost_cookbook_en.txt) | Step-by-step cookbook (bash, English, plain text): starting point, backup, WLST, `reports.sh`, `setUserOverrides.sh`, engine `jvmOptions`, `startup.properties`, `bin/*.sh`, EM `emoms.properties`, restart, checks, firewall, rollback, known problems. One run ends with `clone_check_fmw.sh` **"Clone-capable: yes"**. Forms parts marked "skip if Reports only". |
 
 Theory (not repeated here):
 [../../80-FMW-Architecture/clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md)
@@ -25,7 +25,7 @@ section 2.1 (hardening checklist), section 3 (where host name / IP live).
 ## 1. Target picture
 
 ![localhost-target](diagrams/localhost-target.svg?v=4ae0820e)
-<sub>Source: [diagrams/localhost-target.prompt](diagrams/localhost-target.prompt) · [D2](diagrams/localhost-target.d2)</sub>
+<sub>Source: [diagrams/localhost-target.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/diagrams/localhost-target.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/diagrams/localhost-target.d2)</sub>
 
 <details><summary>ASCII version</summary>
 
