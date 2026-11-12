@@ -73,10 +73,15 @@ code / raw files -> `github.com/…/blob/main/`, no Liquid in Markdown, no rewor
   mentions linked in 108 files, per folder: all targets exist, only link brackets
   added (text with the links removed is identical), checker 0, customer ZIPs
   rebuilt with `70-Customer-Projects/tools`; dry run afterwards: 0 links left.
-- [ ] **Step 5 – navigation, variant A** (chosen): `_layouts/default.html` from
-  Cayman 1:1 + menu bar (Start, 00-Setup, 09-Install, 80-FMW-Architecture,
-  10-Monitoring, 70-Customer-Projects, GitHub) + breadcrumb from `page.path`;
-  Liquid only in the layout; "← Back to" lines stay.
+- [x] **Step 5 – navigation** – done 2026-11-12 (`07b9aec`): own `_layouts/default.html`
+  in the style of www.pipperr.de (header with logo + section, breadcrumb – folder
+  link only with README –, menu column, "This page on GitHub", footer "Made by"),
+  Cayman CSS kept for the content, `assets/css/ihw.css` on top. Found by the live
+  check and fixed: ASCII `<details>` blocks swallowed the rest of 12 pages
+  (kramdown: no fence after ```` ```ascii name= ````, `<placeholder>` as HTML) →
+  `<details markdown="block">` + ```` ```ascii?name=<n> ````, render_ascii writes
+  this form (`3485c0b`); 240 bare URLs in 40 files were plain text on Pages →
+  `<https://…>` (`8900443`). Live check: 0 findings (2,344 links, 119 pages).
 - [ ] **Step 6 – front matter:** proposal list `title` (≤ 70) / `description`
   (150–160) for the module READMEs `00`–`08`, `12`, `60`, `70` (+ `permalink:
   /<folder>/`) and all `09-Install/docs/*.md` – show first, enter after OK;
