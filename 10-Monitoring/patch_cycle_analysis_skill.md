@@ -15,7 +15,7 @@ local – `.claude/` is not in Git; template
 install: `mkdir -p .claude/skills && cp -r 10-Monitoring/claude/skills/patch-cycle-analysis .claude/skills/`).
 
 Precondition: Claude Code set up as in [setup_claude.md](setup_claude.md)
-(`claude_setup_check.sh` OK, never on a host with `IHW_ENV_TYPE=prod`).
+([`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) OK, never on a host with `IHW_ENV_TYPE=prod`).
 
 ## 1. One cycle = three stages, two use cases
 
@@ -29,7 +29,7 @@ Precondition: Claude Code set up as in [setup_claude.md](setup_claude.md)
 
 | | **customer** (uses the lib, default) | **maintainer** (develops the lib) |
 |---|---|---|
-| analysis output | `Patch-Doku/<cycle>/result/` – nothing in the repo is touched | freeze + new `09-Install/docs/00-patch-references.md`, new `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/` |
+| analysis output | `Patch-Doku/<cycle>/result/` – nothing in the repo is touched | freeze + new [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), new `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/` |
 | `update_plan.md` | not created | created in the 70 folder |
 | end of the cycle | patches by hand; for automation pull the current release of the lib | session with `update_plan.md` as prompt → lib switched, commit, `git tag <cycle>` → the customer's next pull closes the loop |
 
@@ -50,8 +50,8 @@ and customer data. Layout:
 ## 2. Phase 1 – prepare (public sources only)
 
 Inputs: `cycle.info` (cycle id, URL), the current
-`09-Install/docs/00-patch-references.md` and
-`09-Install/oracle_software_version.conf` (what is installed / configured).
+[`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md) and
+[`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (what is installed / configured).
 
 1. **Fetch** with `curl -sfL -m 30 -A "Mozilla/5.0" <url>` – oracle.com
    answers WebFetch-style clients with **403**. Save to `Patch-Doku/<cycle>/src/`
@@ -114,7 +114,7 @@ Inputs: `readmes/`, `env/` (optional), `readme_list.md`, the current
    - customer mode: both into `Patch-Doku/<cycle>/result/` (German cookbook
      style if the customer wants German – ask)
    - maintainer mode:
-     1. freeze `00-patch-references.md` → `00-patch-references_<month>_<year>.md`
+     1. freeze [`00-patch-references.md`](../09-Install/docs/00-patch-references.md) → `00-patch-references_<month>_<year>.md`
         (rule "Rule for every new cycle" in that file), new row in the cycle
         table, rework the file for the new cycle
      2. new folder `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`,
@@ -173,7 +173,7 @@ Structure:
    no MOS text, customer-data scan, no edit of running scripts).
 5. **Checks** – `bash -n` of changed scripts, dry-runs of 04/05/06,
    link check of changed Markdown, customer-data scan, ASCII check of the
-   `*.txt` cookbooks, `cve_inventory.sh` shows the new cycle.
+   `*.txt` cookbooks, [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) shows the new cycle.
 6. **Finish** – status "lib switched" in the 70 folder and the cycle row of
    00-patch-references; ask before commit / push / `git tag <cycle>`.
 
@@ -184,12 +184,12 @@ Template for every change list (built from the October 2026 switch: commits
 
 | Area | Places |
 |---|---|
-| patch list | `09-Install/download/patches_fmw.csv`: one row per patch file (number, platform, exact file regexp, role, `dir`, sha256 from the README / MOS digest) – the conf derives `WLS_SPB_PATCH_NR`, `INSTALL_PATCHES*`, `JDK_PATCH_NR`, `CLIENT_JDK_*`, `DB_CVU_*`, `APEX_PATCH_NR` from it; `download/patches_db.csv` for the 19c repository (offline route). Same file is used by `70-Customer-Projects/tools/bash/mos_patch_download.sh` on a host without the library |
-| conf | `09-Install/oracle_software_version.conf`: `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY`, `OPATCH_VERSION_MIN/_INSTALL`, `OPATCH_PATCHES_MIN`, `WLS_SPB_VERSION/_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS`, `JDK_VERSION_MIN`, the comment blocks and the "Superseded" list |
-| scripts | `09-Install/06-oracle_patch_forms_reports.sh` `SUPERSEDES` map; `04-`/`05-`/`06-` and `07-Maintenance/80-82` only if the patch model changed (new mechanism, new pre-check) |
-| install docs | `09-Install/docs/00-patch-references.md` (cycle row → "lib switched"), `04-oracle_pre_download.md` (conf table, manual download block, storage tree), `05-oracle_patch_weblogic.md` (current set, SPB section), `06-oracle_patch_forms_reports.md` (current state, `SUPERSEDES`) |
+| patch list | [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv): one row per patch file (number, platform, exact file regexp, role, `dir`, sha256 from the README / MOS digest) – the conf derives `WLS_SPB_PATCH_NR`, `INSTALL_PATCHES*`, `JDK_PATCH_NR`, `CLIENT_JDK_*`, `DB_CVU_*`, `APEX_PATCH_NR` from it; `download/patches_db.csv` for the 19c repository (offline route). Same file is used by [`70-Customer-Projects/tools/bash/mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) on a host without the library |
+| conf | [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf): `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY`, `OPATCH_VERSION_MIN/_INSTALL`, `OPATCH_PATCHES_MIN`, `WLS_SPB_VERSION/_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS`, `JDK_VERSION_MIN`, the comment blocks and the "Superseded" list |
+| scripts | [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) `SUPERSEDES` map; `04-`/`05-`/`06-` and `07-Maintenance/80-82` only if the patch model changed (new mechanism, new pre-check) |
+| install docs | [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md) (cycle row → "lib switched"), [`04-oracle_pre_download.md`](../09-Install/docs/04-oracle_pre_download.md) (conf table, manual download block, storage tree), [`05-oracle_patch_weblogic.md`](../09-Install/docs/05-oracle_patch_weblogic.md) (current set, SPB section), [`06-oracle_patch_forms_reports.md`](../09-Install/docs/06-oracle_patch_forms_reports.md) (current state, `SUPERSEDES`) |
 | cycle folder | `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`: status, "Automated" lines of the guide; previous folder frozen |
-| customer cookbooks | `70-Customer-Projects/Reports14_linux_manual_install/`: `FMW_Kochbuch_de.txt` step 3, `Reports_kochbuch_de.txt` step 2, `OS_Kochbuch_de.txt` JDK example + Java note, `Reports_security.txt` step 12, `README.md` download checklist + "Patchstand"; `70-Customer-Projects/Reports14_builder_windows/`: download checklist + step 4 of the cookbook (Windows variants) |
+| customer cookbooks | `70-Customer-Projects/Reports14_linux_manual_install/`: [`FMW_Kochbuch_de.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt) step 3, [`Reports_kochbuch_de.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_kochbuch_de.txt) step 2, [`OS_Kochbuch_de.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) JDK example + Java note, [`Reports_security.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt) step 12, `README.md` download checklist + "Patchstand"; `70-Customer-Projects/Reports14_builder_windows/`: download checklist + step 4 of the cookbook (Windows variants) |
 | overview | root `README.md` (Project Status, Security & Patch Status, Known Gaps, Open Items), `70-Customer-Projects/README.md` |
-| monitoring | `10-Monitoring/cve_inventory.sh` follows the conf – check its output; new alert types → this skill |
+| monitoring | [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) follows the conf – check its output; new alert types → this skill |
 | follow-ups | `04-oracle_pre_download.sh --apply --fresh-patches --mos` (archives the previous ZIPs), Java / OS alerts after the cycle, SR drafts (`SR/`, local), memory of the session |

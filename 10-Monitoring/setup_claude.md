@@ -14,7 +14,7 @@ analysis ([README.md](README.md#architecture)) later. Check script:
 > Production data reaches Claude only as a collector archive
 > (`70-Customer-Projects/tools/bash/collect_fmw_env.sh --full`), analysed on a test
 > or admin host. A host with `IHW_ENV_TYPE=prod` in `environment.conf` is
-> refused by `claude_setup_check.sh` and `patch_cycle_analysis.sh`, and the
+> refused by [`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) and [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh), and the
 > guard hook denies every changing command there.
 
 Facts checked against the Claude Code documentation (code.claude.com/docs,
@@ -64,8 +64,8 @@ claude                              # first start: login (claude.ai account or A
   only in 22.23.4 / 24.22.1 / 26.12.1 – Claude Code decodes HTTP responses,
   WebFetch from arbitrary servers). Test host state 2026-10-28:
   `nodejs-20.20.2` (nodesource) → switch the nodesource repo to 22 or 24 and
-  update (details: `09-Install/docs/00-patch-references.md`, "Brotli").
-  `claude_setup_check.sh` check 1 shows the Node version.
+  update (details: [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), "Brotli").
+  [`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) check 1 shows the Node version.
 - **Account:** the customer's own Claude account / API key, never ours, never
   in a file of the repo. Which account is used at the customer is agreed
   before the first session (section 7).
@@ -75,7 +75,7 @@ claude                              # first start: login (claude.ai account or A
 - **Egress:** Claude itself needs `api.anthropic.com:443`; the patch analysis
   additionally `www.oracle.com` (advisories). Proxy / firewall: see
   [weblogic_outbound_connections.md](../80-FMW-Architecture/weblogic_outbound_connections.md)
-  and `02-Checks/egress_check.sh`; check 8 of `claude_setup_check.sh` tests
+  and [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh); check 8 of `claude_setup_check.sh` tests
   both.
 
 ## 3. Data protection
@@ -100,8 +100,8 @@ What Claude sees is sent to Anthropic for processing:
 | 1 | Placement | no Claude on production (section 1) | this document, check 2 + 3 |
 | 2 | Permission rules | `Read` deny for the secret files, `Edit` deny for `environment.conf`, `git push` = ask, bypass mode off; profile `customer` also auto mode off | managed settings |
 | 3 | Sandbox | Bash and every child process: writes only in the working directory + temp, reads denied for the secret files found on the host, network only to the allowed domains | managed settings, bubblewrap + socat |
-| 4 | Guard hook | `ihw_guard.sh` before every Bash call: `--apply`, OPatch apply/rollback, WLST, start/stop scripts, RCU / config.sh, sqlplus / rman / Data Pump, systemctl changes, sudo / su, `rm -r`, kill, package or crontab changes, `git push` → **ask** on `test`, **deny** on `prod` / unknown | managed settings, `/etc/claude-code/` (root-owned) |
-| 5 | Environment type | `IHW_ENV_TYPE=test\|prod` in `environment.conf` (interview / `detect_env_conf.sh`); fixed into the hook command at install time – a later change of the conf makes the hook treat the host as `prod` | `environment.conf` + managed settings |
+| 4 | Guard hook | [`ihw_guard.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude/ihw_guard.sh) before every Bash call: `--apply`, OPatch apply/rollback, WLST, start/stop scripts, RCU / config.sh, sqlplus / rman / Data Pump, systemctl changes, sudo / su, `rm -r`, kill, package or crontab changes, `git push` → **ask** on `test`, **deny** on `prod` / unknown | managed settings, `/etc/claude-code/` (root-owned) |
+| 5 | Environment type | `IHW_ENV_TYPE=test\|prod` in `environment.conf` (interview / [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh)); fixed into the hook command at install time – a later change of the conf makes the hook treat the host as `prod` | `environment.conf` + managed settings |
 
 Why several layers (documented behaviour of Claude Code):
 
@@ -161,15 +161,15 @@ rules stay usable; a customer who wants only managed rules adds it.
 
 | Use case | Status | Inputs (read) | Outputs (write) |
 |---|---|---|---|
-| Patch-cycle analysis | implemented – `patch_cycle_analysis.sh`, [skill](patch_cycle_analysis_skill.md) | public Oracle pages (curl), `Patch-Doku/<cycle>/readmes/`, `env/` | `Patch-Doku/<cycle>/result/`; maintainer: repo docs |
+| Patch-cycle analysis | implemented – [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh), [skill](patch_cycle_analysis_skill.md) | public Oracle pages (curl), `Patch-Doku/<cycle>/readmes/`, `env/` | `Patch-Doku/<cycle>/result/`; maintainer: repo docs |
 | Proactive log analysis | concept – [README.md](README.md#architecture) | logs (local, or a read-only mount of the production log dirs – to decide), findings of the 01–07 checks | `10-Monitoring/reports/` |
 
 **Development / analysis system only – never on a Forms / Reports
 instance:** turning the customer reports
 (our analysis, private repository below `70-Customer-Projects/customer-analyse/`) into PDF needs the OS package
 `pango` (`dnf install pango`, for the Python renderer weasyprint in a private
-venv). It is no FMW prerequisite – the install chain (`02-root_os_packages.sh`)
-must not add it, and `os_check.sh` must not demand it.
+venv). It is no FMW prerequisite – the install chain ([`02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh))
+must not add it, and [`os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) must not demand it.
 
 The log analysis will run headless (`claude -p`, read-only tools, cron) in
 the same sandbox and reports only the *unusual* entries – availability,
@@ -196,7 +196,7 @@ journalctl -t ihw-claude                                   # guard decisions (as
 | 7 | secret files | a file not in `denyRead` |
 | 8 | egress | `api.anthropic.com` / `www.oracle.com` not reachable |
 
-`patch_cycle_analysis.sh` runs the check before it starts Claude (FAIL on
+[`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) runs the check before it starts Claude (FAIL on
 `prod`, WARN otherwise).
 
 ## 7. Operations

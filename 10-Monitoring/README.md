@@ -13,7 +13,7 @@ permalink: /10-Monitoring/
 **Phase:** Ongoing operation – the last stage of the lifecycle, after installation,
 configuration, SSL, fonts, performance tuning and Forms are all in place.
 
-**Status:** Concept – first script implemented: `cve_inventory.sh` (CVE watch step 1, 2026-10-19).
+**Status:** Concept – first script implemented: [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) (CVE watch step 1, 2026-10-19).
 
 ---
 
@@ -95,10 +95,10 @@ findings would be "not configured yet" rather than genuine anomalies.
 
 ## CVE Watch – installed components vs. Oracle security advisories
 
-**Status:** step 1 implemented (`cve_inventory.sh`, 2026-10-19), step 2
-implemented (`cve_watch.sh`, 2026-10-30 – early warning between the Oracle
+**Status:** step 1 implemented ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), 2026-10-19), step 2
+implemented ([`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh), 2026-10-30 – early warning between the Oracle
 releases); steps 3–4 concept. Prototype of the later steps = the manual check of 2026-10-18 in
-`09-Install/docs/00-patch-references.md`, section "CVE check".
+[`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), section "CVE check".
 
 ### cve_inventory.sh (step 1, implemented)
 
@@ -118,7 +118,7 @@ later collector reads come from `05-`/`06-`, explained in
 | Section | Source | Result |
 |---|---|---|
 | 1. Components | `comps.xml` → advisory product names (WLS, JRF, OPSS, Coherence, Forms, Reports, OHS, WebGate) + libOVD jar date | version + "configured in the domain" / "binaries only" |
-| 2. Patch level | `PATCH_CYCLE*`, `WLS_SPB_MARKER_PATCH`, `INSTALL_PATCHES*` from `09-Install/oracle_software_version.conf` (patch numbers: `download/patches_fmw.csv`) vs. `opatch lspatches` | FAIL per missing configured patch; SPB level with build date; OPatch vs. `OPATCH_VERSION_MIN`; WARN for OHS / WebGate binaries in the home |
+| 2. Patch level | `PATCH_CYCLE*`, `WLS_SPB_MARKER_PATCH`, `INSTALL_PATCHES*` from [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (patch numbers: `download/patches_fmw.csv`) vs. `opatch lspatches` | FAIL per missing configured patch; SPB level with build date; OPatch vs. `OPATCH_VERSION_MIN`; WARN for OHS / WebGate binaries in the home |
 | 3. Java | `JDK_HOME` and `oracle_common/jdk` (`java.version`, `java.version.date`); which **running** JVMs use each JDK (`/proc/<pid>/exe`), domain `JavaHome` | WARN below `JDK_VERSION_MIN`, or other major release older than a year – with the list of processes that really run on it |
 | 4. Active use and exposure | running processes per product (WLS servers, Node Manager, `frmweb`, `rwserver`, Reports engines, OHS, Nginx); sockets of the oracle processes beyond loopback (`ss -ltnp`, only the process role goes into the JSON, no addresses); firewalld / nftables state | WARN for processes reachable from the network without a firewall |
 | 5. OS | `/etc/os-release`, kernel, `rpm -q nginx openssl glibc`, `dnf --cacheonly updateinfo list --security` (timeout 60 s) | open security advisories (ELSA), no repository access needed |
@@ -159,7 +159,7 @@ findings:
   The September 2026 CSPU has a Forms CVE over TCP (CVE-2026-83104, 9.1).
   **Fixed the same day:** firewalld enabled with only ssh / http / https /
   14027/udp (`01-root_os_baseline.sh --only firewall,ssh`, see
-  `09-Install/docs/00-root_set_os_parameter.md`); the inventory now reports
+  [`09-Install/docs/00-root_set_os_parameter.md`](../09-Install/docs/00-root_set_os_parameter.md)); the inventory now reports
   these sockets as "filtered by firewalld". Still open: loopback binding of
   the `frmweb` / `rwserver` sockets.
 - 4 open OS security advisories (Important) in the dnf cache.
@@ -224,7 +224,7 @@ the later steps (section "Notification").
 journalctl -t ihw-cve                              # new WARN / CRIT
 ```
 
-Read-only. Input is the `inventory.json` of `cve_inventory.sh` (products,
+Read-only. Input is the `inventory.json` of [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) (products,
 versions, both JDKs and – since 2026-10-30 – the **third-party jars** of the
 Oracle Home as Maven coordinates, paths relative to `ORACLE_HOME`; no host
 data). So the watcher runs on any host with internet: customer servers
@@ -279,7 +279,7 @@ the manual check of 2026-10-22. Runtime about 60 s.
 
 Since May 2026 Oracle publishes security fixes **monthly** (CPU in
 Jan/Apr/Jul/Oct, CSPU in the other months, third Tuesday – see "Terms" in
-`00-patch-references.md`). A CSPU risk matrix lists only the *new* CVEs, and
+[`00-patch-references.md`](../09-Install/docs/00-patch-references.md)). A CSPU risk matrix lists only the *new* CVEs, and
 the September 2026 CSPU alone had five CVSS 10.0 entries in Fusion
 Middleware (WLS Web Container, Forms Services, OPSS …). Reading every
 advisory by hand and matching it against what is really installed on each
@@ -294,10 +294,10 @@ Collected locally, deterministically (no AI, no network):
 |---|---|---|
 | `$ORACLE_HOME/inventory/ContentsXML/comps.xml` (fast; `opatch lsinventory` is slow) | installed components + version (`oracle.as.install.wls`, `oracle.developer.forms.*`, Reports, Coherence, OHS / WebGate if present) | Oracle WebLogic Server, Oracle Forms, Oracle Coherence, Oracle HTTP Server, Oracle Fusion Middleware, Oracle Platform Security for Java, Middleware Common Libraries and Tools, Fusion Middleware Control |
 | `opatch lspatches` | applied patches (SPB marker, PSU, QPRs, SPUs) | current patch level → which cycle is applied |
-| `09-Install/oracle_software_version.conf` | configured cycle (e.g. "CSPU Sep 2026") | compared with the latest released advisory |
+| [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) | configured cycle (e.g. "CSPU Sep 2026") | compared with the latest released advisory |
 | `$JDK_HOME/bin/java -version` **and** `$ORACLE_HOME/oracle_common/jdk/bin/java -version` | both JDKs – the domain JDK and the FMW-bundled one | Oracle Java SE |
 | `rpm -q nginx openssl glibc kernel …`, `dnf updateinfo list --security` | OS / Nginx security errata | Oracle Linux (ELSA) – not in the Oracle CPU/CSPU |
-| repository DB version (optional, `sqlplus` / `rcu_repository_check.sh`) | DB release + RU | Oracle Database Server matrix |
+| repository DB version (optional, `sqlplus` / [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh)) | DB release + RU | Oracle Database Server matrix |
 | JACOB version (`JACOB_VERSION`), Nginx frontend exposure | third-party / exposure context | – |
 
 Live example (test host, 2026-10-18): WLS / Forms / Reports 14.1.2.0.0, the
@@ -370,7 +370,7 @@ with the matching project script – not 1283 CVE rows. Two ways to run it:
 | Option | How | Pros / cons |
 |---|---|---|
 | **Claude API** (`claude_analyze.sh`, as planned above) | the script sends `inventory.json` + `candidates.json`, gets the SEVERITY block back | deterministic input, small data, no tools on the server; the model cannot look anything up itself |
-| **Claude Code headless** (`claude -p` from the timer, restricted tools: read-only repo + `curl` to the advisory URLs) | the agent runs steps 2–3 itself, can read the repo docs (`00-patch-references.md`, KA notes) and write the draft | more flexible (new advisory formats, follow-up lookups); needs a tool allow-list and must never run `--apply` scripts or `opatch` |
+| **Claude Code headless** (`claude -p` from the timer, restricted tools: read-only repo + `curl` to the advisory URLs) | the agent runs steps 2–3 itself, can read the repo docs ([`00-patch-references.md`](../09-Install/docs/00-patch-references.md), KA notes) and write the draft | more flexible (new advisory formats, follow-up lookups); needs a tool allow-list and must never run `--apply` scripts or `opatch` |
 
 In both cases: **read-only** – the job never downloads or applies patches,
 it only reports and drafts. Applying stays a human decision (patch cycle in
@@ -453,15 +453,15 @@ chapters before implementing):
 
 | Area | Examples |
 |---|---|
-| WebLogic | production mode; demo identity / trust keystores still in use – **SSL listen ports enabled with the WebLogic demo certificate** (`CertGenCA`, `DemoCertFor_<domain>`): found 2026-10-19 on the test host, WLS_FORMS 9501 / WLS_REPORTS 9512 active although TLS ends at Nginx (bound to 127.0.0.1, behind the firewall; detected today by `02-Checks/ssl_check.sh` → FAIL) – fix: disable the SSL listen port in the domain setup (`09-Install/08-`) or own certificate in a custom keystore; T3 / IIOP reachable (`HttpTunnelingEnabled`, connection filter, `RemoteAnonymousRMIT3Enabled`); sample / unused deployments (e.g. `wls-wsat`, async); admin console / EM / `/management` reachable through Nginx from outside; account lockout settings; `boot.properties` encrypted; audit provider |
+| WebLogic | production mode; demo identity / trust keystores still in use – **SSL listen ports enabled with the WebLogic demo certificate** (`CertGenCA`, `DemoCertFor_<domain>`): found 2026-10-19 on the test host, WLS_FORMS 9501 / WLS_REPORTS 9512 active although TLS ends at Nginx (bound to 127.0.0.1, behind the firewall; detected today by [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) → FAIL) – fix: disable the SSL listen port in the domain setup (`09-Install/08-`) or own certificate in a custom keystore; T3 / IIOP reachable (`HttpTunnelingEnabled`, connection filter, `RemoteAnonymousRMIT3Enabled`); sample / unused deployments (e.g. `wls-wsat`, async); admin console / EM / `/management` reachable through Nginx from outside; account lockout settings; `boot.properties` encrypted; audit provider |
 | Forms | `formsweb.cfg`: public `debug` / test configurations, `allowNewConnections`, `userid=` accepted in the URL, test modules deployed (`test_form` from 15-); `webutil.cfg`: `transfer.appsrv.read/write` directories, host command / OLE enabled without need; signed jars (JACOB) and expiry |
 | Reports | rwservlet web commands open (`showenv`, `showjobs`, `getserverinfo`, `killjobs` – doc 81); `DIAGNOSTIC` in `rwservlet.properties`; `<identifier>` and `securityId` set (`REPORTS_SECURITY`); `cgicmd.dat` with clear-text `userid`; `folderAccess` read / write paths |
-| Nginx / TLS | protocols and ciphers (`ssl_config.sh`), only the needed locations proxied, security headers, certificate expiry (`ssl_local_ca.sh status`) |
-| OS | firewall active and only ssh / 80 / 443 / Reports UDP open, sshd hardening (`01-root_os_baseline.sh` sections 8 + 9), permissions of `*.des3`, keystores, `boot.properties`, world-readable config files |
+| Nginx / TLS | protocols and ciphers ([`ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh)), only the needed locations proxied, security headers, certificate expiry (`ssl_local_ca.sh status`) |
+| OS | firewall active and only ssh / 80 / 443 / Reports UDP open, sshd hardening ([`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) sections 8 + 9), permissions of `*.des3`, keystores, `boot.properties`, world-readable config files |
 | External view | optional probe from a second host: what an attacker sees (open ports, reachable URLs, error pages with version strings) |
 
-Relation: `02-Checks/ssl_check.sh` already finds demo certificates on the
-WLS SSL ports (2026-10-19); `cve_inventory.sh` section 4 (active use / exposure) is the first
+Relation: [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) already finds demo certificates on the
+WLS SSL ports (2026-10-19); [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) section 4 (active use / exposure) is the first
 building block – it already finds open sockets and the missing firewall
 (2026-10-19).
 
@@ -505,14 +505,14 @@ claude "$(cat 70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/u
 | Mode | Writes | End of the cycle |
 |---|---|---|
 | `customer` (default) | only `10-Monitoring/Patch-Doku/<cycle>/result/` – the repo stays untouched | patches by hand; for automation pull the current release of the lib |
-| `maintainer` | snapshot + new `09-Install/docs/00-patch-references.md`, new 70 folder, `update_plan.md` | after the live run: session with `update_plan.md`, commit, `git tag <cycle>` |
+| `maintainer` | snapshot + new [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), new 70 folder, `update_plan.md` | after the live run: session with `update_plan.md`, commit, `git tag <cycle>` |
 
 `Patch-Doku/` is gitignored (Oracle documents, customer data). The script
 never runs as root and needs `claude` in `PATH`; without `--apply` it only
 shows what it would do. Claude needs permission for `curl` to
 `www.oracle.com` and for writing into `Patch-Doku/` – grant it at the first
 prompt or in `.claude/settings.json`. The cycle detection
-(`ihw_oracle_advisories`, third Tuesday) is shared with `cve_inventory.sh`
+(`ihw_oracle_advisories`, third Tuesday) is shared with [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh)
 section 6; before the release the next cycle comes from the calendar (CPU in
 Jan/Apr/Jul/Oct, CSPU in the months between).
 
@@ -522,11 +522,11 @@ Jan/Apr/Jul/Oct, CSPU in the months between).
 |---|---|
 | `claude_monitor.sh` | Orchestrator – runs the collection step, calls `claude_analyze.sh`, handles notification. Cron-friendly (no interactive prompts). |
 | `claude_analyze.sh` | Builds the prompt from collected findings + `monitor.conf`, calls the Claude API, parses the structured response. |
-| `cve_inventory.sh` | **implemented** – CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
-| `claude_setup_check.sh` | **implemented** – Claude Code sandbox / managed settings / guard hook / `IHW_ENV_TYPE` check, `--apply` renders the managed settings ([setup_claude.md](setup_claude.md)) |
-| `patch_cycle_analysis.sh` | **implemented** – starts the Claude patch-cycle analysis (prepare / analyse, customer / maintainer), see above |
-| `cert_expiry_check.sh` | **implemented** – daily certificate expiry check (cron), calls `08-SSL/ssl_config.sh --expiry` + `ssl_local_ca.sh status`, journal tag `ihw-cert` |
-| `cve_watch.sh` | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
+| [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) | **implemented** – CVE watch step 1 – installed components, patches, both JDKs, OS errata → `inventory.json` (local, read-only) |
+| [`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) | **implemented** – Claude Code sandbox / managed settings / guard hook / `IHW_ENV_TYPE` check, `--apply` renders the managed settings ([setup_claude.md](setup_claude.md)) |
+| [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) | **implemented** – starts the Claude patch-cycle analysis (prepare / analyse, customer / maintainer), see above |
+| [`cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) | **implemented** – daily certificate expiry check (cron), calls `08-SSL/ssl_config.sh --expiry` + `ssl_local_ca.sh status`, journal tag `ihw-cert` |
+| [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh) | CVE watch steps 2–4 – fetch advisories since the applied cycle, match against the inventory, hand candidates to Claude, write `reports/cve_<yyyy-mm>.md` |
 | `monitor.conf.template` | Committed template: thresholds, known-issue allow-list, notification target, run mode defaults. |
 | `monitor.conf` | **Gitignored** – server-specific config incl. API key reference. |
 
@@ -597,14 +597,14 @@ their logic. Repairs stay a human decision in 01–07.
 | Module | Role in this module |
 |---|---|
 | `02-Checks/` | Primary data source – OS, Java, SSL, port, WebLogic health |
-| `09-Install/oracle_software_version.conf`, `09-Install/docs/00-patch-references.md` | Applied / configured patch cycle; target of the CVE watch drafts |
+| [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf), [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md) | Applied / configured patch cycle; target of the CVE watch drafts |
 | `07-Maintenance/` (patch cycle) | Where a CVE watch finding leads to |
-| `01-Run/rwserver_status.sh`, `01-Run/reports_server_lib.sh` | Reports engine live status; the library is the one place that reads `getserverinfo` (with `authid`) |
+| [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh), [`01-Run/reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) | Reports engine live status; the library is the one place that reads `getserverinfo` (with `authid`) |
 | `05-ReportsPerformance/` | Reports engine performance findings |
 | `06-FormsDiag/` | Forms performance findings |
 | `03-Logs/` | Error pattern scanning (ORA-, REP-, FRM-) |
-| `00-Setup/weblogic_sec.sh` | Encryption pattern reused for the Claude API key |
-| `07-Maintenance/backup_config.sh` | Not directly used, but config drift found here may point back to it |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | Encryption pattern reused for the Claude API key |
+| [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | Not directly used, but config drift found here may point back to it |
 
 ---
 
@@ -617,19 +617,19 @@ their logic. Repairs stay a human decision in 01–07.
 - Decide on notification mechanism (see above)
 - Define retention policy for `reports/` (this directory will grow unbounded otherwise)
 - Idea: configuration security scanner for WebLogic / Forms / Reports (section above) – design + check list
-- CVE watch: `cve_inventory.sh` done (2026-10-19); next `cve_watch.sh` with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
-- ~~Scheduled certificate expiry check~~ – done 2026-10-23 (`cert_expiry_check.sh`, cron)
+- CVE watch: [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) done (2026-10-19); next [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh) with risk-matrix parser + fixture test, decide API vs. Claude Code headless, clarify KA1182 access
+- ~~Scheduled certificate expiry check~~ – done 2026-10-23 ([`cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh), cron)
 - Uniform machine-readable output of the 01–07 scripts (report/JSON beside `print_summary`) as input for the collector – one format for all, not per script
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)
 - **CSPU November 2026** (release 2026-11-17) = first real run of
-  `patch_cycle_analysis.sh` (prepare → analyse `--mode maintainer` → live run
+  [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) (prepare → analyse `--mode maintainer` → live run
   → `update_plan.md`)
 - **Claude sandbox rollout on the test host** (`IHW_ENV_TYPE=test`,
   `claude_setup_check.sh --profile maintainer --apply`, root: bubblewrap +
   socat, `/etc/claude-code/`) – [setup_claude.md](setup_claude.md); Node.js of
   Claude Code from 20 (EOL) to 22 / 24 LTS
 - **Proactive log analysis** on that sandbox (headless `claude -p`, read-only
-  inputs; the logs now include the ORDS group of `03-Logs/log_locations.sh`);
+  inputs; the logs now include the ORDS group of [`03-Logs/log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh));
   open: read-only mount of the production log directories on the analysis host
 - Notification of the cron checks (`cert_expiry_check.sh` writes only to the
   journal tag `ihw-cert` today)
