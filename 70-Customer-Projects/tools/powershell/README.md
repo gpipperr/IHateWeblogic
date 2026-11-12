@@ -127,7 +127,7 @@ stays open.
 | `-PasswordStdin` | `--password-stdin` | password from stdin, first line |
 | `-Apply` | `--apply` | download (default: plan only) |
 
-**The MOS password – `GetMOSPatchRunner.java`.** getMOSPatch reads user and
+**The MOS password – [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java).** getMOSPatch reads user and
 password only through `System.console()`. On Linux the bash version feeds
 them through a pseudo terminal; Windows has no such terminal, and with
 redirected streams `System.console()` is null. Passing `MOSPass=` on the
@@ -169,15 +169,15 @@ Tested 2026-11-03 with PowerShell 7.4.6 on the Linux test host (not on
 Windows):
 - all scripts parse without errors and use only ASCII and 5.1-compatible
   syntax;
-- `mos_patch_download.ps1`:
+- [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1):
   - the plan for `Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv` is identical to the bash version (18 patches);
   - `-Apply -Only 28186730,39100536`: real MOS download through the runner (Java 21), CRC and SHA-256 OK, SHA-256 equal to the CSV;
   - the password was never in `ps` and never in the log;
-- `fmw_patch_env.ps1`:
+- [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1):
   - dot-sourced with `-Apply`, it gives the same values as the bash version;
   - `patch_env.ps1` is written and the backup path is derived from `…\install\<name>`;
   - no leftovers in the session;
-- `collect_fmw_env.ps1`:
+- [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1):
   - Java, OPatch, inventory, domain, Forms / Reports configuration, processes, Oracle Net and logs ran on the 14.1.2 test host;
   - the masking is identical to bash;
   - no `{AES}` value and no known password in the output.

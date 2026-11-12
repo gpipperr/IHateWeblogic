@@ -8,8 +8,8 @@ customer host):
 
 | ZIP | Content | Link |
 |---|---|---|
-| [ihw_customer_tools_linux.zip](ihw_customer_tools_linux.zip) | `tools/*.sh` (all of `bash/` except the analysis, incl. `ihw_tools_lib.sh`), `tools/doc/` (this README, the road map, `patch_install.ini.template`), `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip` |
-| [ihw_customer_tools_windows.zip](ihw_customer_tools_windows.zip) | `tools/*.ps1`, `GetMOSPatchRunner.java`, `tools/doc/README.md`, `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_windows.zip` |
+| [ihw_customer_tools_linux.zip](ihw_customer_tools_linux.zip) | `tools/*.sh` (all of `bash/` except the analysis, incl. [`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh)), `tools/doc/` (this README, the road map, `patch_install.ini.template`), `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip` |
+| [ihw_customer_tools_windows.zip](ihw_customer_tools_windows.zip) | `tools/*.ps1`, [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java), `tools/doc/README.md`, `tools/VERSIONS.txt` | `https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_windows.zip` |
 
 Each with a `.sha256` next to it (same link + `.sha256`). Unpacked with
 `unzip … -d $ORACLE_BASE` it gives `$ORACLE_BASE/tools/` – the layout of the
@@ -31,7 +31,7 @@ Not in the ZIPs: the local cookbook formatter.
 | Folder | Platform |
 |---|---|
 | `bash/` | Linux – plain bash + coreutils (this README) |
-| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: `collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1` (+ `GetMOSPatchRunner.java`), same output / CSV format as the bash versions |
+| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
 
 The bash scripts (`bash/`): one script for all releases – it works for FMW / Forms &
 Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
@@ -46,9 +46,9 @@ runtime, never by a second copy of the script.
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
 | [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
-| [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's `patch_install.ini` into the session for the cookbook commands; `set_script_env_show` lists the values |
-| [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create `patch_install.ini` from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
-| [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read `patch_install.ini` next to them |
+| [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) into the session for the cookbook commands; `set_script_env_show` lists the values |
+| [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
+| [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) next to them |
 | [bash/clean_domain_tmp.sh](#clean_domain_tmpsh) | delete the contents of `servers/*/tmp` and `cache` of a stopped domain, rebuilt at the next start, e.g. after a patch (dry run shows the sizes, `--apply` deletes, refuses while anything runs) |
 | [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
@@ -72,7 +72,7 @@ Used by:
 Collects the metadata of an Oracle Forms & Reports / FMW host – OS, Java,
 Oracle Home / inventory / patches, domain configuration, processes, Oracle
 Net, logs – for the **patch analysis** (the configuration for a move:
-`export_forms_reports_conf.sh`). Since 2026-11-05.1 the result is an
+[`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh)). Since 2026-11-05.1 the result is an
 **encrypted ZIP** (`fmw_collect_<host>_<ts>.zip.enc` + `.sha256`) – masked,
 but with host names, IPs and paths of the customer.
 
@@ -97,7 +97,7 @@ cd $ORACLE_BASE/tools
 | `--no-encrypt` | plain `.zip` instead of `.zip.enc` (the content is masked in both cases) |
 | `--keep` | keep the output directory next to the archive |
 
-Encryption: the same as the configuration export (`ihw_tools_lib.sh`
+Encryption: the same as the configuration export ([`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh)
 `ihwt_read_passphrase` / `ihwt_pack`: openssl AES-256-CBC, PBKDF2 200 000,
 the passphrase only via a file descriptor). Decrypt:
 `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in <file>.zip.enc -out <file>.zip` –
@@ -154,7 +154,7 @@ repository.
 Downloads all patches of a CSV list from My Oracle Support with
 [getMOSPatch](https://github.com/MarisElsins/getMOSPatch) – per patch the
 right platform and only the needed file, then `unzip -t` and SHA-256 of every
-ZIP. Standalone like `collect_fmw_env.sh`: bash + coreutils + Java +
+ZIP. Standalone like [`collect_fmw_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_fmw_env.sh): bash + coreutils + Java +
 python (only for the password terminal), no IHateWeblogic library.
 
 ### Place getMOSPatch on the host
@@ -241,7 +241,7 @@ patch;platform;file_regexp;required;step;description[;dir[;sha256]]
 | `platform` | MOS platform code; alternatives with `\|` (`2000P\|226P`) are tried in order when MOS has no file for the first |
 | `file_regexp` | Java regex of the **whole file name** (incl. `\.zip`); empty = all files of the platform. The script strips a trailing `\.zip` before passing it to getMOSPatch – getMOSPatch compares with `String.matches()` against the file name **without** `.zip` (`p38832179_122140_Linux-x86-64`), a regexp ending in `\.zip` never matches there (checked in the class, 2026-10-28) |
 | `required` | `yes` or `optional` (only with `--all` / `--only`) |
-| `step` | step of the cookbook that applies the patch (information only); in the library list `09-Install/download/patches_fmw.csv` the **role** (`spb`, `wls`, `jdk`, … – [download/README.md](../../09-Install/download/README.md)), filter with `--steps` |
+| `step` | step of the cookbook that applies the patch (information only); in the library list [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) the **role** (`spb`, `wls`, `jdk`, … – [download/README.md](../../09-Install/download/README.md)), filter with `--steps` |
 | `description` | free text |
 | `dir` | optional: target below `-d` (default `<patch>`) – e.g. `patches/40125898`, `client/jdk/35702194`, `database/cvu` |
 | `sha256` | optional: SHA-256 of the analysed file – **soft check**: a different value is a WARN (exit 1), never a FAIL – Oracle re-releases patches under the same number (the JDK patch with every update); `unzip -t` stays the hard check |
@@ -274,7 +274,7 @@ platforms / languages the patch exists for and writes a new
 
 Live-tested 2026-10-28 on the test host (OL9, Java 21, getMOSPatch from the
 patch repository): `--only 38832179` → ZIP, `unzip -t`, SHA-256 OK; password
-not in the log. 2026-10-30 (version 2026-10-30.1): `patches_fmw.csv` with
+not in the log. 2026-10-30 (version 2026-10-30.1): [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) with
 `--password-stdin --only 39726399,39600348` → `patches/<nr>/`, digests equal
 to the CSV; wrong digest → WARN / exit 1, damaged ZIP → FAIL / exit 2; called
 by `04-oracle_pre_download.sh --apply --mos` (all present, plumbing).
@@ -300,7 +300,7 @@ cd /oracle/install/cpu_okt2026                 # base directory of the patch run
 | `INV_PTR` / `INVENTORY` | `/etc/oraInst.loc`, else `$ORACLE_HOME/oraInst.loc`; `inventory_loc` |
 | `JDK_LINK` / `NEW_JDK_BASE` | `JAVA_HOME` of `$ORACLE_HOME/oui/.globalEnv.properties` (the JDK of OPatch and the servers) / its parent |
 | `JDK_HOME`, `JAVA_HOME` | = `JDK_LINK` – the cookbook steps use `JDK_HOME`; since 2026-11-03 set by the script and written to `patch_env.sh` (before, an empty `JDK_HOME` in a new shell made the `ps \| grep` check of step 4 match every process) |
-| `PATCH_DIR` / `STAGE` / `LOGDIR` | `-b` (default: current directory) + `/zip`, `/stage`, `/stage/logs` – `PATCH_DIR` = the `-d` of `mos_patch_download.sh` |
+| `PATCH_DIR` / `STAGE` / `LOGDIR` | `-b` (default: current directory) + `/zip`, `/stage`, `/stage/logs` – `PATCH_DIR` = the `-d` of [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) |
 | `BACKUP` | `-k`; default `<prefix>/backup/<name>` for `<prefix>/install/<name>` (cookbook layout), else `<base>/backup` |
 
 Shown as well (the cookbook decides on them): JDK build and link or real
