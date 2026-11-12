@@ -105,6 +105,7 @@ if ([int]$behind -gt 0 -and [int]$ahead -eq 0) {
 # --deleted - Sort-Object -Unique zeigt sie nur einmal.
 $changed = @(git ls-files --modified --deleted --others --exclude-standard -- $SourceDir $ImageDir | Sort-Object -Unique)
 $selected = @()
+$states   = @()
 
 if ($changed.Count -eq 0 -and [int]$ahead -eq 0) {
     Write-Host "Nichts einzuchecken - keine geaenderten Berichte oder Bilder." -ForegroundColor Yellow
@@ -127,6 +128,7 @@ if ($changed.Count -gt 0) {
                 $state = 'neu'
             }
         }
+        $states += $state
         Write-Host ("  {0,3}  {1,-10} {2}" -f ($i + 1), $state, $file)
     }
     Write-Host ""
@@ -161,8 +163,23 @@ if ($changed.Count -gt 0) {
 }
 
 # --- 3. Kommentar (nur wenn etwas Neues eingecheckt wird)
+# Zuerst zeigen, wofuer der Kommentar gilt - und dass noch nicht gesendete
+# Check-ins beim Hochladen mitgehen.
+if ($selected.Count -gt 0) {
+    Write-Host ""
+    if ($selected.Count -eq 1) {
+        $pos = [array]::IndexOf($changed, $selected[0])
+        Write-Host "Ausgewaehlt: $($states[$pos])  $($selected[0])"
+    }
+    else {
+        Write-Host "Ausgewaehlt: $($selected.Count) Dateien"
+    }
+    if ([int]$ahead -gt 0) {
+        Write-Host "Hinweis: Ihr(e) $ahead noch nicht gesendete(n) Check-in(s) wird/werden mit hochgeladen." -ForegroundColor Yellow
+    }
+}
 if ($selected.Count -gt 0 -and -not $Comment) {
-    $Comment = Read-Host "Was haben Sie geaendert? (Kommentar fuer den Check-in)"
+    $Comment = Read-Host "Kommentar fuer diesen Check-in (was und warum)"
 }
 if ($selected.Count -gt 0 -and -not $Comment) {
     Write-Host "Kein Kommentar - es wurde nichts eingecheckt." -ForegroundColor Yellow

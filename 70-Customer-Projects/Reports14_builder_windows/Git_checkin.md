@@ -215,7 +215,12 @@ scripts follow:
   in nothing new and only uploads check-ins that are committed locally but
   not yet on the server (after a failed push) – `n` is offered only when
   there are such check-ins, with their number; `x` or just Enter cancels
-  ("Abgebrochen", exit 0, nothing checked in). Only the
+  ("Abgebrochen", exit 0, nothing checked in). Before the comment the
+  script shows what the comment is for ("Ausgewaehlt: neu  <file>" or
+  "Ausgewaehlt: 2 Dateien") and, when unsent check-ins exist, the note that
+  they are uploaded together with this one; the question is neutral
+  ("Kommentar fuer diesen Check-in (was und warum)") – "what did you change"
+  did not fit a new or deleted file. Only the
   selection is staged and committed (`git commit -- <paths>`); the other
   changes stay in the working copy for a later check-in.
 - **Rejected push → merge, not rebase (2026-11-12):** when a colleague pushed
@@ -382,6 +387,7 @@ customer (section 5).
 | selection: deleted report / new image | only the deletion / only the image committed |
 | selection `a` | all changes + converted `.xml` committed |
 | invalid number (`9`) | "Ungueltige Auswahl", nothing checked in, exit 1 |
+| selection display (both scripts) | number: "Ausgewaehlt: neu  doc/n1.txt"; `a` with 1 file: the same with its state; `a` with 2: "Ausgewaehlt: 2 Dateien"; comment as parameter: display, no question; with 1 unsent check-in: the note "… wird/werden mit hochgeladen", both check-ins on the server afterwards |
 | `x`, `X` or just Enter (both scripts, also when `n` is offered) | "Abgebrochen - es wurde nichts eingecheckt.", exit 0; files and unsent check-ins untouched |
 | `n` without unsent check-ins / with 1 unsent check-in | not offered – the question shows only "Nummer (nur diese) oder a (alle)", `n` = "Ungueltige Auswahl", exit 1 / offered with the count ("… n (nichts einchecken, nur die 1 noch nicht gesendete(n) Check-in(s) hochladen)"), only pushed, "OK - an den Git-Server gesendet" (both scripts) |
 | converter moved to `convert_rdf.ps1` | broken report: `REP-1430` from `convert_rdf.ps1`, nothing committed, exit 1; login file missing: message from `-Check` before the list; alone without arguments: usage, exit 1; alone with the report name (`b1`, `b1.rdf` or a path): `xml\b1.xml` written, exit 0; unknown name: "Bericht nicht gefunden", exit 1 |
@@ -399,6 +405,13 @@ customer (section 5).
 Not covered by the scripts (on purpose, kept simple): Git LFS / locking,
 several branches, a pre-check that the Builder has saved and closed the
 report.
+
+**Next topic – branches (after the scripts work at the customer):** the
+scripts work on the branch that is checked out and its upstream (seen at
+the customer: `development` → `origin/development`, works). Open: which
+branch the developers use, whether `pull.ps1` / `checkin.ps1` should show or
+check the branch, and how a change gets from `development` to the branch
+the Linux DEV Reports server is fed from.
 
 ## 5. Test procedure for the customer appointment (Windows, cmd)
 
