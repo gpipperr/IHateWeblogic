@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Domain – Configuration Before First Start"
+description: "Standard configuration of a new Oracle Forms & Reports 14.1.2 domain before its first start: boot.properties, JVM heap, SecureRandom, fonts, checks, backup."
+---
+
 # Step 5a – 09-oracle_configure.sh
 
 **Script:** [`09-Install/09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh)

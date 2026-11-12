@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Install – environment.conf Parameters"
+description: "Concept and parameters of environment.conf for the Oracle Forms & Reports 14.1.2 installation: homes, domain, ports, database, before or after FMW is installed."
+---
+
 # Environment Setup – Concept and Parameters
 
 **Goal:** Create `environment.conf` before or after Oracle FMW is installed.

@@ -1,3 +1,9 @@
+---
+title: "Minimal Oracle 19c Database for the FMW 14.1.2 RCU Repository"
+description: "Smallest Oracle 19c CDB/PDB for the RCU schemas of Oracle Forms & Reports 14.1.2: install, out-of-place patching, sizing, password profile, audit cleanup."
+permalink: /60-RCU-DB-19c/
+---
+
 # 60-RCU-DB-19c – Minimal Oracle 19c Database for FMW RCU
 
 Oracle 19c single-instance CDB/PDB database, sized for FMW 14.1.2 RCU metadata

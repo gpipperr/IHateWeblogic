@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms 14c Client Distribution via URL – FSAL and JRE Bundle"
+description: "Concept for distributing the Oracle Forms 14.1.2 client from a URL: Nginx download folder, bundle with jlink JRE and FSAL, Windows install and self-update."
+---
+
 # 40 – Forms Client Distribution via URL (Concept)
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

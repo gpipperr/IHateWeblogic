@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms 14c Server Configuration – formsweb.cfg, default.env"
+description: "Detail configuration of Oracle Forms 14.1.2 after the domain is created: formsweb.cfg, default.env, Registry.dat, WebUtil, JACOB - from templates per customer."
+---
+
 # Step 14 – Oracle Forms Server Detail Configuration
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

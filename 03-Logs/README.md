@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms & Reports 14c Logs – Where WebLogic Writes, What to Check"
+description: "Logs of Oracle Forms, Reports and WebLogic 14.1.2: which process writes where, what to look for, and scripts to search, follow, clean up and archive the logs."
+permalink: /03-Logs/
+---
+
 # 03-Logs – Log Management for Forms / Reports / WebLogic
 
 Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0

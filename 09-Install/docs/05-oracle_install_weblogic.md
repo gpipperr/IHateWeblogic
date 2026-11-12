@@ -1,3 +1,8 @@
+---
+title: "Install FMW Infrastructure 14.1.2 (WebLogic) – Silent Installation"
+description: "Silent installation of Oracle Fusion Middleware Infrastructure 14.1.2 with WebLogic Server as the base layer for Oracle Forms & Reports, with JDK 21 path check."
+---
+
 # Step 2a – 05-oracle_install_weblogic.sh
 
 **Script:** [`09-Install/05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh)

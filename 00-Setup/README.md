@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms & Reports 14c Script Library – Setup and Credentials"
+description: "Base of the IHateWeblogic scripts for Oracle Forms & Reports 14.1.2: shared bash library, environment.conf detection and encrypted WebLogic credentials."
+permalink: /00-Setup/
+---
+
 # 00-Setup – Library, Environment Detection & Credentials
 
 **Module:** `00-Setup/`

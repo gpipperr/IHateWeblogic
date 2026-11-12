@@ -1,3 +1,8 @@
+---
+title: "Install Oracle Forms & Reports 14.1.2 – Silent Installation"
+description: "Silent installation of Oracle Forms & Reports 14.1.2 into the FMW Infrastructure home on Oracle Linux 9, with inventory and component checks afterwards."
+---
+
 # Step 3a – 06-oracle_install_forms_reports.sh
 
 **Script:** [`09-Install/06-oracle_install_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_install_forms_reports.sh)

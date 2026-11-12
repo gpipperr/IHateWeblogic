@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Server Security – Monitoring and Report Users"
+description: "Secure the Oracle Reports 14.1.2 server on WebLogic: three users with their own rights for administration, monitoring and scripted report runs, roles via WLST."
+---
+
 # Step 12 – Reports Server User & Security Setup
 
 **Script:** [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh)

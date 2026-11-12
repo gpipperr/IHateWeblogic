@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Test Modules Without a GUI Builder"
+description: "Build a minimal Oracle Forms test module (FMB/FMX) and an Oracle Reports demo report (RDF) from the command line - no Builder, no X display, just a DB login."
+---
+
 # Creating Forms & Reports Test Modules Without a GUI Builder
 
 Procedure for building a minimal Oracle Forms test module (FMB/FMX) and a

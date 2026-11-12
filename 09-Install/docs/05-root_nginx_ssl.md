@@ -1,3 +1,8 @@
+---
+title: "Nginx TLS for Oracle Forms & Reports 14c – Deploy the Certificate"
+description: "Deploy the TLS certificate to the Nginx in front of WebLogic 14.1.2, validate the configuration and start Nginx - last step before Forms & Reports go external."
+---
+
 # Step 05 – 05-root_nginx_ssl.sh
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

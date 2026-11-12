@@ -1,3 +1,8 @@
+---
+title: "WebLogic 14.1.2 Node Manager for Oracle Forms & Reports – Setup"
+description: "Configure the WebLogic 14.1.2 Node Manager for Oracle Forms & Reports: plain listener on localhost, credentials, and how the Node Manager starts the servers."
+---
+
 # Step 11 – NodeManager Configuration
 
 **Script:** [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh)

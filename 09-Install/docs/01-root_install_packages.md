@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c on Oracle Linux 9 – Required OS Packages"
+description: "Install all Oracle Linux 9 packages for the Oracle FMW 14.1.2 installer and runtime, incl. Motif and X libraries for Forms and the font stack for Reports PDF."
+---
+
 # Step 02 – 02-root_os_packages.sh
 
 **Script:** [`09-Install/02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh)

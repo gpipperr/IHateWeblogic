@@ -1,3 +1,9 @@
+---
+title: "WebLogic 14.1.2 Diagnostics – OS, Java, Domain, Database and TLS"
+description: "Read-only diagnostic scripts for Oracle Forms & Reports 14.1.2 hosts: OS limits, Oracle JDK, WebLogic domain, database connection, TLS and Reports discovery."
+permalink: /02-Checks/
+---
+
 # 02-Checks – System & Environment Diagnostics
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)

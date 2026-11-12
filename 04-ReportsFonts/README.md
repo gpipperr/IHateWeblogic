@@ -1,3 +1,9 @@
+---
+title: "Oracle Reports 14c Fonts on Linux – uifont.ali and PDF Embedding"
+description: "Oracle Reports 14.1.2 font setup on Linux: uifont.ali, TrueType subsetting in PDF, font paths, AFM metrics and free fonts with the metrics of Windows fonts."
+permalink: /04-ReportsFonts/
+---
+
 # Oracle Reports – Font Configuration Guide
 
 Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0

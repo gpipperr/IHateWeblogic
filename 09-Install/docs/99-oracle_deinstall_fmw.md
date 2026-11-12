@@ -1,3 +1,8 @@
+---
+title: "Deinstall Oracle Forms & Reports 14.1.2 (FMW) and Keep the Database"
+description: "Remove Oracle Forms & Reports 14.1.2 for a clean rebuild: FMW home, domain and autostart go; database, RCU schemas, JDK and the downloaded patches stay."
+---
+
 # 99 – Deinstall FMW (keep the database)
 
 Script: [`09-Install/99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh)

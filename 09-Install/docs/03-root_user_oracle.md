@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Install – oracle OS User, Limits, Dirs"
+description: "Create the oracle OS user for Oracle Forms & Reports 14.1.2 on Oracle Linux 9: group, shell limits, sudo rights, environment variables and directory structure."
+---
+
 # Step 03 – 03-root_user_oracle.sh
 
 **Script:** [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)

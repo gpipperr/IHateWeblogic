@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c rwservlet Security – Web Commands, identifier"
+description: "Secure the Oracle Reports 14.1.2 rwservlet: web commands like showjobs and getserverinfo, the identifier element, webcommandaccess and a secured Reports server."
+---
+
 # Reports Servlet Security – web commands, `<identifier>`, `webcommandaccess`
 
 **Status:** analysis 2026-10-15; test D 2026-10-16 (secured server works

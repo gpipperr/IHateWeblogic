@@ -1,3 +1,8 @@
+---
+title: "WebLogic 14.1.2 boot.properties – Start Without Password Prompt"
+description: "Create boot.properties for the WebLogic 14.1.2 AdminServer and managed servers of Oracle Forms & Reports, so scripted starts need no password prompt at all."
+---
+
 # Step 5b – 10-oracle_boot_properties.sh
 
 **Script:** [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh)

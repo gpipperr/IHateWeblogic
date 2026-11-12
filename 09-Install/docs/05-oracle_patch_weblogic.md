@@ -1,3 +1,8 @@
+---
+title: "Patch WebLogic 14.1.2 – OPatch Update and Stack Patch Bundle"
+description: "Update OPatch and apply the WebLogic 14.1.2 patches (Stack Patch Bundle) right after the base install, before the Oracle Forms & Reports domain is created."
+---
+
 # Step 2b – 05-oracle_patch_weblogic.sh
 
 **Script:** [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh)

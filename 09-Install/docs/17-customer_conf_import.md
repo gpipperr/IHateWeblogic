@@ -1,3 +1,8 @@
+---
+title: "Import a Customer Configuration into Oracle Forms & Reports 14c"
+description: "Bring the configuration of an existing Oracle Forms & Reports 12c or 14c environment into a new 14.1.2 installation as an overlay: dry run, apply, check."
+---
+
 # Step 17 – Import the customer configuration (overlay)
 
 > The whole process – collect, analyse, build (Way 1 / Way 2), check again –

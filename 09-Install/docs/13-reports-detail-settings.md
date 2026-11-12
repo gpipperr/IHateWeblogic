@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Server Configuration – Engines, Paths, Security"
+description: "Detail configuration of the Oracle Reports 14.1.2 server: standalone or in-process, engines, timeouts, folderAccess, secured server, discovery and cgicmd.dat."
+---
+
 # Step 13 – Reports Server Detail Configuration
 
 **Scripts:** [`09-Install/13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) · [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)

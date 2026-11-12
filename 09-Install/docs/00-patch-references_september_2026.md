@@ -1,3 +1,8 @@
+---
+title: "FMW 14.1.2 Patching – MOS Doc IDs, CSPU September 2026 (frozen)"
+description: "Frozen reference of the My Oracle Support Doc IDs for Oracle Forms & Reports 14.1.2 and WebLogic patching of the CSPU Sept. 2026: patches, OPatch, JDK, CVEs."
+---
+
 # MOS Reference Documents – FMW 14.1.2 Patching – CSPU September 2026 (frozen)
 
 > **Frozen snapshot** of the patch cycle **CSPU September 2026** (released

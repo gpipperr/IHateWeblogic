@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Security Hardening After Installation"
+description: "Post-installation security checklist for Oracle Forms & Reports 14.1.2 on WebLogic: revoke temporary sudo rights, ports, demo certificates, web commands, files."
+---
+
 # Step 20 – Post-Installation Security Hardening
 
 **Runs as:** `root`

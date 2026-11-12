@@ -1,3 +1,9 @@
+---
+title: "Oracle Reports 14c Performance – Engines, Response Times, Tuning"
+description: "Analyse and tune Oracle Reports 14.1.2 on WebLogic: engine count and lifetime, response times, job queue and server statistics - read-only scripts plus fixes."
+permalink: /05-ReportsPerformance/
+---
+
 # 05-ReportsPerformance – Oracle Reports Engine Performance
 
 **Role: analyse + fix an existing environment** (see the folder roles in the

@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Fonts – Deploy Fonts for PDF and Parameter Form"
+description: "Deploy the fonts for Oracle Reports 14.1.2 on Linux: font packages, uifont.ali, AFM metrics for PDF and the HTML parameter form, test PDF after domain start."
+---
+
 # Step 6b – 14b-oracle_reports_fonts.sh
 
 **Script:** [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh)

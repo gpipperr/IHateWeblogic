@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Install – Network Check (hostname, DNS)"
+description: "Pre-installation network check for Oracle Forms & Reports 14.1.2 on Oracle Linux 9: hostname, FQDN, IP address, DNS and loopback - read-only, before WebLogic."
+---
+
 # Step 00 – 00-root_os_network.sh
 
 **Script:** [`09-Install/00-root_os_network.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-root_os_network.sh)

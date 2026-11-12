@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Installation Acceptance – Validation Run"
+description: "Acceptance of a finished Oracle Forms & Reports 14.1.2 installation: one read-only run of all checks, one summary table and one exit code as customer record."
+---
+
 # Step 90 – 90-oracle_validate.sh
 
 **Script:** [`09-Install/90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh)

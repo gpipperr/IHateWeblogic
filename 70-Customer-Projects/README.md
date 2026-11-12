@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms & Reports Customer Projects – Cookbooks, Real Installs"
+description: "Real Oracle Forms & Reports 12c and 14c projects: German step-by-step cookbooks for install, CPU patching, cloning and the Reports Builder with Git on Windows."
+permalink: /70-Customer-Projects/
+---
+
 # 70-Customer-Projects
 
 Practical, real-world installation examples collected from actual customer

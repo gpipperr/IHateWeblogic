@@ -1,3 +1,8 @@
+---
+title: "Create the WebLogic 14.1.2 Domain for Oracle Forms & Reports (WLST)"
+description: "Create the WebLogic 14.1.2 domain for Oracle Forms & Reports with WLST in silent mode: AdminServer, WLS_FORMS, WLS_REPORTS, system components, loopback listen."
+---
+
 # Step 4b – 08-oracle_setup_domain.sh
 
 **Script:** [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh)

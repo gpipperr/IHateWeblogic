@@ -1,3 +1,9 @@
+---
+title: "WebLogic 14.1.2 SSL Certificates – Nginx TLS, CSR, Audit, Renewal"
+description: "SSL certificates for Oracle Forms & Reports 14.1.2 behind Nginx: create the CSR, deploy the customer certificate, audit expiry, sign the Forms JACOB jar."
+permalink: /08-SSL/
+---
+
 # 08-SSL – SSL Certificate Management
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)

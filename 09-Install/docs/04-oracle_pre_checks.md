@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Install – Pre-Install Checks"
+description: "Check every prerequisite before the Oracle Forms & Reports 14.1.2 installation: OS, Java, disk space, ports, database, network - fail fast, not mid-install."
+---
+
 # Step 1a – 04-oracle_pre_checks.sh
 
 **Script:** [`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh)

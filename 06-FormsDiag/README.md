@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms 14c Diagnostics – frmweb Sessions, Settings, Performance"
+description: "Diagnose Oracle Forms 14.1.2 on WebLogic: formsweb.cfg and default.env settings, frmweb process per session, heartbeat, runtime limits, session performance."
+permalink: /06-FormsDiag/
+---
+
 # 06-FormsDiag – Oracle Forms Diagnostics
 
 **Role: analyse + fix an existing environment** (see the folder roles in the

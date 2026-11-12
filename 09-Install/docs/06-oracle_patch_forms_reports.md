@@ -1,3 +1,8 @@
+---
+title: "Patch Oracle Forms & Reports 14.1.2 – QPR and Relink on Oracle Linux 9"
+description: "Apply the Oracle Forms and Reports 14.1.2 patches (QPR) with OPatch, relink frmweb and the Reports binaries, fix for the Forms relink after the Reports QPR."
+---
+
 # Step 3b – 06-oracle_patch_forms_reports.sh
 
 **Script:** [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh)

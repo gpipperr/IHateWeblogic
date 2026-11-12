@@ -1,3 +1,8 @@
+---
+title: "Nginx Reverse Proxy for WebLogic 14.1.2 – Oracle Forms & Reports"
+description: "Install Nginx as the only external entry point for Oracle Forms & Reports 14.1.2: reverse proxy to the WebLogic managed servers on 127.0.0.1, SSL ends at Nginx."
+---
+
 # Step 04 – 04-root_nginx.sh
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

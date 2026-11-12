@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14.1.2 – Download Installers and Patches"
+description: "Download the Oracle FMW 14.1.2 installers and patches for Forms & Reports into the patch storage: eDelivery checksums + unzip, or MOS download with getMOSPatch."
+---
+
 # Step 1b – 04-oracle_pre_download.sh
 
 **Script:** [`09-Install/04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)

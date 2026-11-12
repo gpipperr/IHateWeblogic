@@ -1,3 +1,8 @@
+---
+title: "Oracle Linux 9 for WebLogic 14.1.2 – Kernel, Limits, THP, Firewall"
+description: "OS baseline for Oracle Forms & Reports 14.1.2 on Oracle Linux 9: kernel parameters, transparent huge pages off, core dumps, SELinux and firewall ports."
+---
+
 # Step 01 – 01-root_os_baseline.sh
 
 **Script:** [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh)

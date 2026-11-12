@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Install – Configuration Interview"
+description: "Interactive interview for the Oracle Forms & Reports 14.1.2 installation: asks only missing parameters, writes environment.conf and stores passwords encrypted."
+---
+
 # Step: 01-setup-interview.sh – Configuration Interview
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

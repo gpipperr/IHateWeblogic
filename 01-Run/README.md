@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms & Reports 14c Operation – Start/Stop, WLST, Reports"
+description: "Run an Oracle Forms & Reports 14.1.2 domain on WebLogic: start and stop servers and components, interactive WLST, Reports Server status, traced report runs."
+permalink: /01-Run/
+---
+
 # 01-Run – Start/Stop, WLST, Reports Server
 
 Scripts for operating a running Oracle Forms/Reports domain: component

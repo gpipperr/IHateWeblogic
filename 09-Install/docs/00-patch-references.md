@@ -1,3 +1,8 @@
+---
+title: "FMW 14.1.2 Patching – MOS Doc IDs, CPU October 2026"
+description: "My Oracle Support Doc IDs for patching Oracle Forms & Reports 14.1.2 and WebLogic: CPU October 2026 patch numbers, OPatch, JDK, known issues and CVE notes."
+---
+
 # MOS Reference Documents – FMW 14.1.2 Patching – CPU October 2026 (current)
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

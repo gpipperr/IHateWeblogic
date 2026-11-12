@@ -1,3 +1,8 @@
+---
+title: "Move Oracle Forms & Reports 12c/14c to 14c – Customer Settings"
+description: "Move the configuration of an Oracle Forms & Reports 12c or 14c environment to a new 14.1.2 installation: export, import as overlay and check of the result."
+---
+
 # Moving a customer environment to Forms & Reports 14c
 
 How the configuration of an existing customer environment (12c or 14c)

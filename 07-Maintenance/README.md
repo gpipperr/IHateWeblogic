@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms & Reports 14c Maintenance – Backup, Restore, Patching"
+description: "Backup, restore and patching of a running Oracle Forms & Reports 14.1.2 installation: config backup, OPatch for WebLogic, Forms and Reports, JDK 21, RCU check."
+permalink: /07-Maintenance/
+---
+
 # 07-Maintenance – Maintenance & Patches (Phase 8)
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)

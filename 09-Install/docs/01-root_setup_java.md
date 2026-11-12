@@ -1,3 +1,8 @@
+---
+title: "Oracle JDK 21 for WebLogic 14.1.2 – Install and Upgrade"
+description: "Install Oracle JDK 21 for WebLogic and Oracle Forms & Reports 14.1.2: JDK_HOME symlink, SecureRandom fix, upgrade from the MOS patch before the FMW install."
+---
+
 # Step 02b – Java Installation
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)

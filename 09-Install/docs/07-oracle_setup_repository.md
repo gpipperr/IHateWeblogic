@@ -1,3 +1,8 @@
+---
+title: "RCU for Oracle Forms & Reports 14.1.2 – Create the Repository Schemas"
+description: "Run the Repository Creation Utility for Oracle Forms & Reports 14.1.2: database checks, FMW metadata schemas, password profile without expiry, EBR, SecureFiles."
+---
+
 # Step 4a – 07-oracle_setup_repository.sh
 
 **Script:** [`09-Install/07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh)

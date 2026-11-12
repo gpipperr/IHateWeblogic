@@ -1,3 +1,8 @@
+---
+title: "WebLogic 14.1.2 Autostart with systemd – Oracle Forms & Reports"
+description: "Autostart for an Oracle Forms & Reports 14.1.2 domain on Oracle Linux 9: systemd starts the Node Manager, it starts AdminServer, managed servers, components."
+---
+
 # 30 – Autostart: FMW domain under Node Manager control (systemd)
 
 Script: [`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)
