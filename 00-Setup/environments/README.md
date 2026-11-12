@@ -20,8 +20,8 @@ Same as the standard `environment.conf`, plus two optional header comments:
 ```
 
 Templates:
-- `fmw_prod.conf.template` → copy, rename, adapt for your FMW domain
-- `db_prod.conf.template`  → copy, rename, adapt for your DB home
+- [`fmw_prod.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/environments/fmw_prod.conf.template) → copy, rename, adapt for your FMW domain
+- [`db_prod.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/environments/db_prod.conf.template)  → copy, rename, adapt for your DB home
 
 ---
 
@@ -43,7 +43,7 @@ scripts miss `DOMAIN_HOME`; select the FMW conf again.
 The **current shell** (`ORACLE_HOME`, `ORACLE_SID`, `DOMAIN_HOME`, `PATH`,
 `wlst`) is switched with `setdb` / `setfmw`
 ([ihw_shell_env.sh](../../70-Customer-Projects/tools/README.md#ihw_shell_envsh),
-installed by `09-Install/03-root_user_oracle.sh` as `~/.bashrc.d/ihw_env.sh`).
+installed by [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) as `~/.bashrc.d/ihw_env.sh`).
 It detects the homes itself and does not read these conf files. The former
 `00-Setup/set_env.sh` (symlink + shell export) was removed on 2026-11-04.
 
@@ -62,8 +62,8 @@ IHateWeblogic/
 ## .gitignore
 
 The actual `*.conf` files contain server-specific paths and are excluded
-from Git, together with their backups (`*.conf.bak*` of `detect_env_conf.sh`,
-`*.conf.pre_deinstall_*` of `09-Install/99-oracle_deinstall_fmw.sh`). Only
+from Git, together with their backups (`*.conf.bak*` of [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh),
+`*.conf.pre_deinstall_*` of [`09-Install/99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh)). Only
 `*.template` files and this `README.md` are committed.
 
 Typical content on a host (`detect_env_conf.sh --apply` names the file after the
