@@ -19,8 +19,10 @@
 # Voraussetzungen:
 #   - PowerShell mit "Als Administrator ausfuehren" gestartet (die
 #     Reports-Werkzeuge brauchen das auf diesem Server)
-#   - DB-Login fuer den Konverter in %USERPROFILE%\.rwconv\login.txt,
-#     eine Zeile:  userid=<db user>/<kennwort>@<tns alias>   (Git_checkin.md 2.1)
+#   - DB-Login fuer den Konverter, eine Zeile:
+#       userid=<db user>/<kennwort>@<tns alias>   (Git_checkin.md 2.1)
+#     Gesucht wird zuerst %USERPROFILE%\.rwconv\login.txt (pro Benutzer),
+#     gibt es die nicht, die feste Datei aus $LoginFileFixed (Einstellungen).
 #
 # Ablage : E:\git\<Login>\Reports\convert_rdf.ps1 (Teil des Repositorys)
 # Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
@@ -45,7 +47,14 @@ $Converter = "$DomainHome\reports\bin\rwconverter.bat"
 if ($env:RWCONVERTER) {
     $Converter = $env:RWCONVERTER
 }
-$LoginFile = Join-Path $env:USERPROFILE '.rwconv\login.txt'
+# DB-Login-Datei: zuerst die persoenliche Datei des Benutzers, gibt es die
+# nicht, die feste Datei - den Pfad an den Server anpassen.
+$LoginFileUser  = Join-Path $env:USERPROFILE '.rwconv\login.txt'
+$LoginFileFixed = 'E:\oracle\rwconv\login.txt'
+$LoginFile = $LoginFileUser
+if (-not (Test-Path $LoginFileUser)) {
+    $LoginFile = $LoginFileFixed
+}
 
 # Ordner der Berichte - neben diesem Skript (E:\git\<Login>\Reports\...)
 $SourceDir = Join-Path $PSScriptRoot 'source'
@@ -68,8 +77,10 @@ if (-not (Test-Path $Converter)) {
     exit 1
 }
 if (-not (Test-Path $LoginFile)) {
-    Write-Host "FEHLER: DB-Login-Datei nicht gefunden: $LoginFile" -ForegroundColor Red
-    Write-Host "Einmal anlegen, eine Zeile:  userid=<db user>/<kennwort>@<tns alias>" -ForegroundColor Red
+    Write-Host "FEHLER: DB-Login-Datei nicht gefunden - gesucht:" -ForegroundColor Red
+    Write-Host "  1. $LoginFileUser   (pro Benutzer)" -ForegroundColor Red
+    Write-Host "  2. $LoginFileFixed   (fest, `$LoginFileFixed oben in convert_rdf.ps1)" -ForegroundColor Red
+    Write-Host "Eine davon anlegen, eine Zeile:  userid=<db user>/<kennwort>@<tns alias>" -ForegroundColor Red
     Write-Host "(Git_checkin.md Abschnitt 2.1)" -ForegroundColor Red
     exit 1
 }

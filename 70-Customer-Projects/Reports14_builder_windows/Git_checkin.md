@@ -131,6 +131,13 @@ Expected: only one line with `<computer>\gpi:(F)`. `%USERPROFILE%` is
 `C:\Users\gpi` for the user `gpi` – outside the clone `E:\git\%USERNAME%`, so Git
 never sees the file. A changed DB password = edit this one line.
 
+**Other place (2026-11-12):** `convert_rdf.ps1` looks for
+`%USERPROFILE%\.rwconv\login.txt` first; when it does not exist, it takes the
+fixed file in `$LoginFileFixed` at the top of the script (default
+`E:\oracle\rwconv\login.txt` – the customer sets the real place, e.g. one
+shared conversion login for all developers, protected with `icacls` the same
+way). Neither found → the message lists both paths.
+
 ### 2.2 Results – confirmed (live) on the Linux test host, 2026-11-11
 
 Reports 14.1.2 + QPR 39600348, `$DOMAIN_HOME/reports/bin/rwconverter.sh`
@@ -339,8 +346,9 @@ adaptation: plain PowerShell, one step after the other, no nested commands,
 
 Settings at the top of `convert_rdf.ps1`: `$DomainHome` (default
 `E:\oracle\user_projects\domains\rwbuilder_domain`, the environment variable
-`DOMAIN_HOME` wins), the login file `%USERPROFILE%\.rwconv\login.txt`, the
-variable `RWCONVERTER` replaces the converter – for tests only. At the top
+`DOMAIN_HOME` wins), the login file `%USERPROFILE%\.rwconv\login.txt` –
+when missing the fixed `$LoginFileFixed` (default `E:\oracle\rwconv\login.txt`,
+adapt it) –, the variable `RWCONVERTER` replaces the converter – for tests only. At the top
 of `checkin.ps1`: the three folders `Reports/source`, `Reports/xml`,
 `Reports/images`.
 
@@ -371,6 +379,7 @@ customer (section 5).
 | invalid number (`9`) | "Ungueltige Auswahl", nothing checked in, exit 1 |
 | `n` without unsent check-ins / with 1 unsent check-in | "nichts zu senden", exit 0 / only pushed, "OK - an den Git-Server gesendet" |
 | converter moved to `convert_rdf.ps1` | broken report: `REP-1430` from `convert_rdf.ps1`, nothing committed, exit 1; login file missing: message from `-Check` before the list; alone without arguments: usage, exit 1; alone with the report name (`b1`, `b1.rdf` or a path): `xml\b1.xml` written, exit 0; unknown name: "Bericht nicht gefunden", exit 1 |
+| login file: personal file missing → fixed `$LoginFileFixed` used; both missing → message with both paths, exit 1 |  as expected (2026-11-12) |
 | `convert_rdf.ps1` with the **real** `rwconverter.sh` 14.1.2 (2026-11-12) | success: XML written, exit 0 (also a second run); broken file: `REP-0110` / `REP-1070` shown, exit 1; wrong login: 3× `REP-0501` + `REP-0309` shown, no hang, exit 1 |
 | converter without any output (exit 1, or exit 0 without writing the XML) | "rwconverter hat keine Meldung geliefert …", exit 1 – a missing XML is caught even with exit code 0 |
 | `git_setup.ps1` (isolated `HOME`) | first run sets the 3 values; Enter keeps them; `input` changes only `core.autocrlf`; invalid e-mail / value: message, nothing changed |
