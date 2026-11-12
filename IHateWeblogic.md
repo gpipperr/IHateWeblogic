@@ -50,7 +50,17 @@ This library focuses on:
 - **Bug hunting and root cause analysis**
 - **Documentation** for support cases and customer cookbooks
 
-### Why Forms & Reports still matter – an appeal
+### Target Environment
+
+- Oracle Forms 14c / Reports 12c (technically 14c naming but Reports is still 12c codebase)
+- Oracle WebLogic 14c (FMW 14.1.2), Oracle JDK 21
+- Oracle Linux 8 / 9, Nginx as the only entry
+- Repository database Oracle 19c (local, `60-RCU-DB-19c/`) or 26ai
+- Oracle APEX + ORDS beside Forms (`12-APEX-Ords/`)
+- Existing 12.2.1.x installations: analysis and manual patch cookbooks with
+  standalone tools (`70-Customer-Projects/`)
+
+## Why Forms & Reports still matter – an appeal
 
 Oracle Forms and Oracle Reports have been tied to the success of the
 Oracle database from the very beginning. The database came first, in 1979,
@@ -89,7 +99,7 @@ E-Business Suite first among them, also when run in Oracle's cloud, and the
 OPERA 5 property management system of Oracle Hospitality (formerly MICROS
 Fidelio), whose application server is a WebLogic / Forms / Reports stack.
 
-### And Oracle Reports – deprecated for years, still doing its job
+## And Oracle Reports – deprecated for years, still doing its job
 
 Oracle Reports has been deprecated for many years, yet it cannot be taken
 out of an Oracle Forms solution – and it still does its business job with
@@ -136,16 +146,6 @@ Release years: 12.2.1 October 2015
 ([Oracle blog, Japanese](https://blogs.oracle.com/oracle4engineer/oracle-forms-and-reports-122119)),
 14.1.2 December 2024
 ([Oracle announcement](https://blogs.oracle.com/fusionmiddlewaresupport/post/announcement-oracle-fmw-forms-and-reports-1412-has-been-released)).
-
-## Target Environment
-
-- Oracle Forms 14c / Reports 12c (technically 14c naming but Reports is still 12c codebase)
-- Oracle WebLogic 14c (FMW 14.1.2), Oracle JDK 21
-- Oracle Linux 8 / 9, Nginx as the only entry
-- Repository database Oracle 19c (local, `60-RCU-DB-19c/`) or 26ai
-- Oracle APEX + ORDS beside Forms (`12-APEX-Ords/`)
-- Existing 12.2.1.x installations: analysis and manual patch cookbooks with
-  standalone tools (`70-Customer-Projects/`)
 
 ## Philosophy
 
