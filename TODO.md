@@ -82,14 +82,13 @@ code / raw files -> `github.com/…/blob/main/`, no Liquid in Markdown, no rewor
   `<details markdown="block">` + ```` ```ascii?name=<n> ````, render_ascii writes
   this form (`3485c0b`); 240 bare URLs in 40 files were plain text on Pages →
   `<https://…>` (`8900443`). Live check: 0 findings (2,344 links, 119 pages).
-- [ ] **Step 6 – front matter:** proposal list `title` (≤ 70) / `description`
-  (150–160) for the module READMEs `00`–`08`, `12`, `60`, `70` (+ `permalink:
-  /<folder>/`) and all `09-Install/docs/*.md` – show first, enter after OK;
-  `SKILL.md` untouched.
-- [ ] **Step 7 – close:** checker locally 0, `ci_lint.sh` green; after Gunther's
-  push: `gh run watch` (pages build), `check_pages_links.py --live`, folder
-  addresses `/`, `/09-Install/`, `/80-FMW-Architecture/`, `/10-Monitoring/` +
-  new permalinks -> HTTP 200, menu / breadcrumb spot check.
+- [x] **Step 6 – front matter** – done 2026-11-12 (`7cc3629`): own `title` (≤ 70) /
+  `description` (150–160) for the 12 module READMEs (+ `permalink: /<folder>/`) and
+  the 35 `09-Install/docs`; description used only for the browser tab, Google and
+  link previews (not shown on the page – decided).
+- [x] **Step 7 – close** – done 2026-11-12: pages build green, `check_pages_links.py
+  --live` 0 findings (2,344 links, 119 pages), all 16 folder addresses HTTP 200,
+  `<title>` / meta description live from the front matter.
 
 ## Cookbooks – still to check on a fresh run / at the customer
 
