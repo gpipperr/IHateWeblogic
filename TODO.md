@@ -59,6 +59,33 @@ step beside the customer work (state 2026-11-10). Order:
   all 32 image links carry `?v=<SVG hash>`, "Source:" / "ASCII version"; diagram texts
   checked – `builder-windows` translated to English, Target Picture ORDS 26.3.
 
+## GitHub Pages – docs as a linked website (started 2026-11-12)
+
+Spec: `90-Source-MetaData/prompt_ihw_pages_verlinkung.md` (local), plan steps 1–7;
+tool: `tools/check_pages_links.py`. Done (`c95949c`): link checker, 2 broken
+anchors, `TODO.md` / `tools/` / folder links + 84 raw-file links -> GitHub view,
+render_ascii source links absolute, `code` links sample in `09-Install/README.md`
++ `00-Setup/README.md`, root README folder column. Rules: `.md` links relative,
+code / raw files -> `github.com/…/blob/main/`, no Liquid in Markdown, no rewording.
+
+- [ ] **Step 4 – rest:** `tools/check_pages_links.py --link-code` over all other
+  `.md` (dry run: ~1,290 links in ~106 files; first mention per section, every
+  table row; skips CHANGELOG / TODO / SKILL.md, dot files, ambiguous names) –
+  `--apply`, check "only link brackets added", rebuild customer ZIPs, one commit
+  per folder.
+- [ ] **Step 5 – navigation, variant A** (chosen): `_layouts/default.html` from
+  Cayman 1:1 + menu bar (Start, 00-Setup, 09-Install, 80-FMW-Architecture,
+  10-Monitoring, 70-Customer-Projects, GitHub) + breadcrumb from `page.path`;
+  Liquid only in the layout; "← Back to" lines stay.
+- [ ] **Step 6 – front matter:** proposal list `title` (≤ 70) / `description`
+  (150–160) for the module READMEs `00`–`08`, `12`, `60`, `70` (+ `permalink:
+  /<folder>/`) and all `09-Install/docs/*.md` – show first, enter after OK;
+  `SKILL.md` untouched.
+- [ ] **Step 7 – close:** checker locally 0, `ci_lint.sh` green; after Gunther's
+  push: `gh run watch` (pages build), `check_pages_links.py --live`, folder
+  addresses `/`, `/09-Install/`, `/80-FMW-Architecture/`, `/10-Monitoring/` +
+  new permalinks -> HTTP 200, menu / breadcrumb spot check.
+
 ## Cookbooks – still to check on a fresh run / at the customer
 
 The findings of the cookbook style rewrite (2026-11-04) are fixed (`git log`).
