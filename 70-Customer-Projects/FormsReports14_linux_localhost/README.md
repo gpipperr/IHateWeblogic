@@ -13,7 +13,7 @@ created hardened by `09-Install/08-`).
 
 | File | Content |
 |---|---|
-| [Localhost_cookbook_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/Localhost_cookbook_en.txt) | Step-by-step cookbook (bash, English, plain text): starting point, backup, WLST, `reports.sh`, `setUserOverrides.sh`, engine `jvmOptions`, `startup.properties`, `bin/*.sh`, EM `emoms.properties`, restart, checks, firewall, rollback, known problems. One run ends with `clone_check_fmw.sh` **"Clone-capable: yes"**. Forms parts marked "skip if Reports only". |
+| [Localhost_cookbook_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports14_linux_localhost/Localhost_cookbook_en.txt) | Step-by-step cookbook (bash, English, plain text): starting point, backup, WLST, `reports.sh`, `setUserOverrides.sh`, engine `jvmOptions`, `startup.properties`, `bin/*.sh`, EM `emoms.properties`, restart, checks, firewall, rollback, known problems. One run ends with [`clone_check_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/clone_check_fmw.sh) **"Clone-capable: yes"**. Forms parts marked "skip if Reports only". |
 
 Theory (not repeated here):
 [../../80-FMW-Architecture/clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md)
@@ -89,7 +89,7 @@ design – `clone_check` reports it as STEP (adjust per clone), not as FIX.
 | Check | Expected |
 |---|---|
 | `70-Customer-Projects/tools/bash/clone_check_fmw.sh --config -t <dir>` (customer hosts, read-only, version **2026-11-10.8** or newer; in `tools/ihw_customer_tools_linux.zip`) | last line `OK  Clone-capable: yes – <n> step(s) after cloning` (test host: 11 STEP) |
-| `02-Checks/clone_check.sh` (hosts with the IHateWeblogic library) | `OK  Clone-capable: yes – <n> step(s) after cloning (INFO above)` (test host: 14). `--apply` switches SSL off and Coherence to 127.0.0.1 (WLST online) and sets the file places `AdminURL`, `ADMIN_URL`, emoms (3 files), engine `jvmOptions` (backup of each) – the automated version of the cookbook steps for these places |
+| [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) (hosts with the IHateWeblogic library) | `OK  Clone-capable: yes – <n> step(s) after cloning (INFO above)` (test host: 14). `--apply` switches SSL off and Coherence to 127.0.0.1 (WLST online) and sets the file places `AdminURL`, `ADMIN_URL`, emoms (3 files), engine `jvmOptions` (backup of each) – the automated version of the cookbook steps for these places |
 | `tools/bash/status.sh` | `Ergebnis: alles in Ordnung` (German output) – note: says RUNNING even when EM is red (symptom 1 below) |
 | `ss -Hltn '( sport = :7001 or sport = :9001 or sport = :9002 or sport = :5556 )'` | only `127.0.0.1:<port>` |
 | `ss -Hltnp 'not src 127.0.0.1' \| grep -e rwserver -e java` | only the Coherence remainder (7574 + one port) |
@@ -101,7 +101,7 @@ design – `clone_check` reports it as STEP (adjust per clone), not as FIX.
 
 | Symptom | Cause | Fix (cookbook) |
 |---|---|---|
-| EM shows WLS_REPORTS, `cluster_reports` and the `reports` deployment red / shut down, `status.sh` says RUNNING; AdminServer.log only `BEA-149505 … JMX Service URL of <none>`; WLS_REPORTS.log "Managed Server independence mode" | Node Manager started the managed server directly (autostart) with the old `AdminURL` (host IP) from `startup.properties`; the AdminServer listens only on localhost | `startup.properties` → `http\://localhost\:7001`, restart via Node Manager → `BEA-149506` (5.1) |
+| EM shows WLS_REPORTS, `cluster_reports` and the `reports` deployment red / shut down, [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) says RUNNING; AdminServer.log only `BEA-149505 … JMX Service URL of <none>`; WLS_REPORTS.log "Managed Server independence mode" | Node Manager started the managed server directly (autostart) with the old `AdminURL` (host IP) from `startup.properties`; the AdminServer listens only on localhost | `startup.properties` → `http\://localhost\:7001`, restart via Node Manager → `BEA-149506` (5.1) |
 | clone_check: `tcp 0.0.0.0:<port> rwEng-0 … all interfaces`, the Reports server itself on loopback | `<engine jvmOptions="…">` replaces `REPORTS_JVM_OPTIONS` – no `ORBServerHost` for the engines | append both options to `jvmOptions`, restart the Reports server (4.3) |
 | `emoms.properties` back to the FQDN after an AdminServer restart | EM copies `servers/AdminServer/tmp/_WL_user/em/<id>/META-INF/emoms.properties` over the `config/` files at every start | change all three files (5.3); check again after an EM patch / redeploy |
 | Reports server does not start: `REP-50125 : java.lang.NullPointerException … Utility.getOrbProperties` | `REPORTS_JVM_OPTIONS` set without `-DORBWaitForResponseTimeout=…` (Oracle reads it as empty) – or broken quotes in `jvmOptions` | add `-DORBWaitForResponseTimeout=999999999` (4.1 / 4.3) (background: [reports_engine_architecture.md §6](../../80-FMW-Architecture/reports_engine_architecture.md), MOS KB924687) |
@@ -116,10 +116,10 @@ design – `clone_check` reports it as STEP (adjust per clone), not as FIX.
 
 | Script | What |
 |---|---|
-| `09-Install/08-oracle_setup_domain.sh` + `09-Install/response_files/domain_config.py.template` | domain with `ListenAddress=${WLS_LISTEN_ADDRESS}` (default 127.0.0.1 / localhost) for AdminServer and managed servers, SSL listen ports of the managed servers off, Coherence `UnicastListenAddress`; `nodemanager.properties` `ListenAddress=127.0.0.1`; checks Coherence unicast on loopback |
-| `09-Install/11-oracle_nodemanager.sh` | Node Manager settings, admin URL `t3://localhost:<port>` |
-| `09-Install/13-oracle_setup_reports.sh` | `reports.sh` `REPORTS_JVM_OPTIONS` (with timeout + `ORBServerHost`), `setUserOverrides.sh` rwservlet ORB for WLS_REPORTS, engine `jvmOptions` always with both options (since 2026-11-10) |
-| `05-ReportsPerformance/engine_perf_settings.sh` | keeps both ORB options when it changes engine `jvmOptions` |
+| [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) + [`09-Install/response_files/domain_config.py.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/response_files/domain_config.py.template) | domain with `ListenAddress=${WLS_LISTEN_ADDRESS}` (default 127.0.0.1 / localhost) for AdminServer and managed servers, SSL listen ports of the managed servers off, Coherence `UnicastListenAddress`; `nodemanager.properties` `ListenAddress=127.0.0.1`; checks Coherence unicast on loopback |
+| [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) | Node Manager settings, admin URL `t3://localhost:<port>` |
+| [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | `reports.sh` `REPORTS_JVM_OPTIONS` (with timeout + `ORBServerHost`), `setUserOverrides.sh` rwservlet ORB for WLS_REPORTS, engine `jvmOptions` always with both options (since 2026-11-10) |
+| [`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) | keeps both ORB options when it changes engine `jvmOptions` |
 | `02-Checks/clone_check.sh [--apply]` | check; `--apply` = SSL off + Coherence 127.0.0.1 and the four file places on an existing domain |
 
 Domains created with `localhost` have `startup.properties`, `bin/*.sh`
