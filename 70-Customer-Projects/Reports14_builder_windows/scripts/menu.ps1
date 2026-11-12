@@ -97,6 +97,8 @@ if ($cfg.Contains('Menue')) {
 # (z.B. E:\git\%USERNAME%\Reports), ein relativer Pfad gilt ab dem Ordner
 # von menu.ps1 (z.B. ..\Reports), leer = Ordner von menu.ps1
 function Resolve-Ordner([string]$Pfad) {
+    # "E:\mit Leerzeichen\Reports" - Anfuehrungszeichen weglassen
+    $Pfad = $Pfad.Trim().Trim('"', "'").Trim()
     if ($Pfad -eq '') { return $PSScriptRoot }
     $Pfad = [Environment]::ExpandEnvironmentVariables($Pfad)
     if (-not [IO.Path]::IsPathRooted($Pfad)) { $Pfad = Join-Path $PSScriptRoot $Pfad }
@@ -144,8 +146,16 @@ for ($i = 0; $i -lt $items.Count; $i++) {
     $aufruf = ("$($it.Skript) $($it.Parameter)").Trim()
     $kurz  = $it.Kurz
     $color = 'White'
-    if (-not (Test-Path -LiteralPath $it.Pfad)) { $color = 'DarkGray'; $kurz = "$kurz (Skript fehlt)" }
+    if (-not (Test-Path -LiteralPath $it.Pfad)) { $color = 'Red'; $kurz = "$kurz (Skript fehlt)" }
     Write-Host (" {0} - {1} - {2}" -f "$($i + 1)".PadLeft($wN), $aufruf.PadRight($wS), $kurz) -ForegroundColor $color
+}
+# Fehlende Skripte: wo gesucht wurde - SkriptPfad in menu.ini pruefen oder
+# das Skript dorthin kopieren (pull.ps1)
+$fehlen = @($items | Where-Object { -not (Test-Path -LiteralPath $_.Pfad) })
+if ($fehlen.Count -gt 0) {
+    Write-Host ""
+    foreach ($it in $fehlen) { Write-Host "  Skript fehlt: $($it.Pfad)" -ForegroundColor Red }
+    Write-Host "  -> SkriptPfad in $(Split-Path -Leaf $Ini) pruefen ($Ini)" -ForegroundColor Red
 }
 Write-Host $Line2
 Write-Host ""

@@ -11,6 +11,7 @@ rem (Verknuepfung erstellen). Fuer checkin.ps1 braucht es ein Administrator-
 rem Fenster: Verknuepfung -> Eigenschaften -> Erweitert -> "Als Administrator
 rem ausfuehren" anhaken.
 rem
+rem   -NoLogo                 : ohne Kopfzeilen "Windows PowerShell / Copyright"
 rem   -NoProfile              : ohne persoenliches PowerShell-Profil
 rem   -NoExit                 : Fenster nach dem Skript offen lassen
 rem   -ExecutionPolicy Bypass : Skripte aus diesem Ordner ohne Signatur
@@ -18,4 +19,4 @@ rem                             erlauben (nur fuer dieses Fenster)
 rem   %~dp0                   : Ordner dieser Datei
 rem   -Fenster                : eigenes Fenster - x im Menue schliesst es
 rem ===========================================================================
-powershell.exe -NoProfile -NoExit -ExecutionPolicy Bypass -File "%~dp0menu.ps1" -Fenster
+powershell.exe -NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "%~dp0menu.ps1" -Fenster
