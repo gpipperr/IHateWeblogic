@@ -17,18 +17,18 @@ Reports server, engines and `rwrun`:
 
 | Script | Status | Purpose |
 |---|---|---|
-| `startStop.sh` | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS, ORDS (systemd units of `12-APEX-Ords`) |
-| `wlst_connect.sh` | ✅ implemented | Interactive WLST shell with auto-login |
-| `rwserver_status.sh` | ✅ implemented | Engine pool, job queue, rwservlet HTTP status (`--auth` for secured servers) |
-| `reports_server_lib.sh` | sourced | Shared Reports helpers (`rws_*`): component `rwserver.conf`, report engine attributes, server/engine PIDs, `getserverinfo` with `authid` – also used by `05-ReportsPerformance/` |
-| `rwrun_trace.sh` | ✅ implemented | Run one report with `rwrun` + trace (TRACEOPTS, optional ODL `TRACE:32`), collect output/trace/log excerpt/ADR incidents |
+| [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) | ✅ implemented | Component status table; start/stop NM, WLS, Reports servers, OHS, ORDS (systemd units of `12-APEX-Ords`) |
+| [`wlst_connect.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/wlst_connect.sh) | ✅ implemented | Interactive WLST shell with auto-login |
+| [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | ✅ implemented | Engine pool, job queue, rwservlet HTTP status (`--auth` for secured servers) |
+| [`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) | sourced | Shared Reports helpers (`rws_*`): component `rwserver.conf`, report engine attributes, server/engine PIDs, `getserverinfo` with `authid` – also used by `05-ReportsPerformance/` |
+| [`rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) | ✅ implemented | Run one report with `rwrun` + trace (TRACEOPTS, optional ODL `TRACE:32`), collect output/trace/log excerpt/ADR incidents |
 
-All scripts source `environment.conf`. Run `00-Setup/detect_env_conf.sh` first
+All scripts source `environment.conf`. Run [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) first
 if `environment.conf` does not exist yet.
 
-Review 2026-10-19: status table, `rwserver_status.sh` (`--auth auto/none`),
-`rwrun_trace.sh` and the dry-runs re-tested live; `rwserver_status.sh` now
-uses `reports_server_lib.sh` (output unchanged); AdminServer port 7001 shown;
+Review 2026-10-19: status table, [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) (`--auth auto/none`),
+[`rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) and the dry-runs re-tested live; `rwserver_status.sh` now
+uses [`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) (output unchanged); AdminServer port 7001 shown;
 README sections / WLST examples / references corrected.
 
 ---
@@ -60,7 +60,7 @@ Servers are started the way the Node Manager knows about them (since
 
 | Situation | ADMIN / MANAGED / REPORTS start | stop | `start-all` / `stop-all` |
 |---|---|---|---|
-| **Autostart configured** (`$ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh` from `30-configure_autostart.sh`) | `fmw_ctl.sh start <name>` | `fmw_ctl.sh stop <name>` | `fmw_ctl.sh start\|stop all` (+ note on the systemd unit state) |
+| **Autostart configured** (`$ORACLE_BASE/admin/<domain>/ctrl/fmw_ctl.sh` from [`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)) | `fmw_ctl.sh start <name>` | `fmw_ctl.sh stop <name>` | `fmw_ctl.sh start\|stop all` (+ note on the systemd unit state) |
 | NM running, no autostart | AdminServer: `nmStart`; managed: WLST `start()` via the AdminServer (NM-controlled) | WLST `shutdown()` | per component, as below |
 | NM not running | start scripts (table below) | WLST `shutdown()` | per component |
 
@@ -80,7 +80,7 @@ needed. Table of the plain mechanisms (NM not running / no autostart):
 system component – the NM must be running. `startComponent.sh` /
 `stopComponent.sh` do the same, but prompt for the NM password unless a WLST
 user config was stored; the script connects with the admin credentials from
-`weblogic_sec.conf.des3` (`11-oracle_nodemanager.sh` sets the NM credentials
+`weblogic_sec.conf.des3` ([`11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) sets the NM credentials
 to the same). `restartComponent.sh` is not supported for Reports servers –
 use stop + start. Status: process `rwserver server=<name>`.
 `ReportsToolsComponent` and `FORMS` system components are configuration only
@@ -150,7 +150,7 @@ WARN  Running OUTSIDE the Node Manager: WLS_FORMS
 
 Such a server is `SHUTDOWN` for the NM: `fmw_ctl.sh` / `systemctl` skip it
 and the next `nmStart` fails on the occupied port (seen 2026-10-15 with the
-old `startStop.sh`). Fix: `stop <name> --apply` (shut down through the
+old [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh)). Fix: `stop <name> --apply` (shut down through the
 AdminServer – `fmw_ctl.sh` would skip it; `stop-all` does this first), then
 `start <name> --apply` (now through the NM). Tested 2026-10-16 with
 WLS_FORMS: `script` → stop → start via `fmw_ctl.sh` → `NM`.
@@ -222,7 +222,7 @@ before 2026-10-19). Start output of servers started by script goes to
    with only the `connect()` call – the password is passed via env vars,
    never stored in the file and never on the command line.
    (`/proc/<pid>/environ` of the WLST JVM is readable only by the same user
-   and root; `startStop.sh` uses the same pattern for its WLST calls.)
+   and root; [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) uses the same pattern for its WLST calls.)
 4. Pipes bootstrap to WLST stdin, then forwards terminal input.
    WLST stays interactive after the auto-connect.
 5. On exit: temp file and password env vars are removed by the EXIT trap.
@@ -236,7 +236,7 @@ normally.
 ### Typical WLST commands after connect
 
 Reports engines are not WLS MBeans – their state comes from
-`rwserver_status.sh` (`getserverinfo`), not from WLST.
+[`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) (`getserverinfo`), not from WLST.
 
 ```python
 # Domain overview
@@ -317,15 +317,15 @@ a hint (`REP-52262`, `REP-50171`, `REP-56071`). Live 2026-10-17: `auto`
 Meaning of every field, alarm thresholds and a monitoring plugin:
 [reports_monitoring_getserverinfo.md](../80-FMW-Architecture/reports_monitoring_getserverinfo.md).
 Evaluation of these numbers (failure rate, queuing share, pool at
-`maxEngine`, server logs): `05-ReportsPerformance/engine_perf_analyse.sh`.
-All `getserverinfo` / `rwserver.conf` helpers are in `reports_server_lib.sh`
+`maxEngine`, server logs): [`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh).
+All `getserverinfo` / `rwserver.conf` helpers are in [`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh)
 (shared with 05, see section 1).
 
 ### Two-layer design
 
-`startStop.sh` answers: **Is WLS_REPORTS up?** (JVM process / port)
+[`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) answers: **Is WLS_REPORTS up?** (JVM process / port)
 
-`rwserver_status.sh` answers: **Is the Reports engine working?**
+[`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) answers: **Is the Reports engine working?**
 
 - A running `WLS_REPORTS` JVM does not guarantee a functional engine pool.
 - Failed engine spawns, misconfigured fonts, or a full job queue will
@@ -464,15 +464,15 @@ Fix:     Correct ORACLE_HOME in environment.conf, then re-run detect_env_conf.sh
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/detect_env_conf.sh` | Detect FMW/Domain paths, generate `environment.conf` |
-| `00-Setup/weblogic_sec.sh` | Store WebLogic credentials (used by wlst_connect and startStop) |
-| `02-Checks/port_check.sh` | Verify ports before start; complements status table |
-| `03-Logs/tail_logs.sh` | Live-tail server logs during start/stop |
-| `05-ReportsPerformance/engine_perf_settings.sh` | Engine parameters vs. Oracle's tuning rules, CPUs, RAM (`--apply`) |
-| `05-ReportsPerformance/engine_perf_analyse.sh` | Load analysis: failure rate, queuing share, pool usage, Reports server logs |
-| `06-FormsDiag/forms_perf_analyse.sh` | Forms: `frmweb` per config section, memory, Forms logs |
+| [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) | Detect FMW/Domain paths, generate `environment.conf` |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | Store WebLogic credentials (used by wlst_connect and startStop) |
+| [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) | Verify ports before start; complements status table |
+| [`03-Logs/tail_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/tail_logs.sh) | Live-tail server logs during start/stop |
+| [`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) | Engine parameters vs. Oracle's tuning rules, CPUs, RAM (`--apply`) |
+| [`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) | Load analysis: failure rate, queuing share, pool usage, Reports server logs |
+| [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) | Forms: `frmweb` per config section, memory, Forms logs |
 | `07-Maintenance/80-`/`81-`/`82-patch_*.sh` | Patching: `stop-all --apply` first – the patch gate refuses while any process from `$ORACLE_HOME` runs, `80-` (JDK) also while a JVM runs from `JDK_HOME` (ORDS) |
-| `09-Install/30-configure_autostart.sh` | systemd unit + `fmw_ctl.sh` that `startStop.sh` delegates to |
+| [`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh) | systemd unit + `fmw_ctl.sh` that [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) delegates to |
 
 ---
 
