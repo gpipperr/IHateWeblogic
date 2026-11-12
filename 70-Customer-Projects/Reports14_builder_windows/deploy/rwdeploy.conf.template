@@ -8,8 +8,8 @@ SPOOL_DIR="/u01/app/oracle/rwdeploy"
 
 # Target folders - must be part of REPORTS_PATH and of <folderAccess><read>
 # in rwserver.conf (ONE element, folders separated by ";")
-TARGET_SOURCE_DIR="/u01/app/oracle/reports/source"
-TARGET_IMAGE_DIR="/u01/app/oracle/reports/images"
+TARGET_SOURCE_DIR="/u01/reports/source"
+TARGET_IMAGE_DIR="/u01/reports/images"
 
 # Largest tar accepted from GitLab (MB)
 MAX_TAR_MB=100

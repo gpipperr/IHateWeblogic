@@ -5,6 +5,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows`: new cookbook `git_pipeline_kochbuch_de.txt` (German) - set-up of
+  `deploy_dev` / `deploy_prod` step by step: `rwdeploy.sh` on DEV and PROD, deploy keys with
+  `command=` / `restrict` / `from=`, host key for `DEPLOY_KNOWN_HOSTS`, runner tag, GitLab protected
+  branch / tags, scoped variables, `.gitlab-ci.yml` as the last step, tests DEV + PROD, rollback,
+  known problems. `rwdeploy.conf.template` targets `/u01/reports/source` / `images`; `rwdeploy.sh`
+  `die` no longer prints the exit code in the message.
 - `Reports14_builder_windows`: **repository layout of the customer adopted** – top folder
   `menu.cmd` / `menu.ps1` / `menu.ini`, folders `deploy/` (scripts), `source/`, `xml/`, `images/`
   (before: everything under `Reports/`). `checkin.ps1` / `convert_rdf.ps1` folders, `status_detail.ps1`

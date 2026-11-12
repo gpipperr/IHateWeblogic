@@ -1,0 +1,938 @@
+==========================================================================
+  Kochbuch: GitLab-Pipelines fuer Oracle Reports einrichten
+            deploy_dev  (Push auf main     -> DEV-Reports-Server)
+            deploy_prod (Tag prod-*        -> PROD-Reports-Server)
+==========================================================================
+  Zielgruppe : GitLab-Administrator (Einstellungen, Runner) und
+               Linux-Administrator der beiden Reports-Server (Benutzer oracle)
+  Umgebung   : selbst gehostetes GitLab, ein GitLab-Runner mit bash/git/ssh,
+               zwei Linux-Server mit Oracle Reports 14.1.2 (DEV und PROD),
+               Entwickler-PCs mit dem Repository oracle-report (Windows)
+  Erstellt   : 2026-11-12
+  Grundlage  : IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/
+                 Git_deploy.md        (Konzept, Abschnitte 2 bis 7)
+                 deploy/ci_deploy.sh  (der Pipeline-Job)
+                 deploy/rwdeploy.sh   (Warteschlange auf dem Server)
+                 deploy/template.gitlab-ci.yml
+                 deploy/rwdeploy.conf.template
+                 deploy/authorized_keys.example
+                 scripts/README_DE.md (Arbeitsablauf der Entwickler)
+  Wichtig    : - Reihenfolge einhalten: erst Server (SCHRITT 1-3), dann
+                 GitLab (SCHRITT 4-5), ZULETZT die Datei .gitlab-ci.yml ins
+                 Repository (SCHRITT 6). Der Push in SCHRITT 6 startet schon
+                 die erste Pipeline.
+               - Der private Schluessel gehoert NUR in die GitLab-Variable -
+                 nie ins Repository, nie in eine Mail, nie in ein Ticket.
+               - Auf den Servern wird nie etwas geloescht. Jede ersetzte
+                 Datei liegt danach in der Sicherung (backup/<auftrag>/).
+==========================================================================
+
+
+ZIELZUSTAND
+-----------
+
+  Was                                   Ziel                          Schritt
+  ------------------------------------  ----------------------------  -------
+  rwdeploy.sh + rwdeploy.conf DEV       $RWD_BIN auf dem DEV-Server   1
+  rwdeploy.sh + rwdeploy.conf PROD      $RWD_BIN auf dem PROD-Server  2
+  Deploy-Schluessel DEV / PROD          authorized_keys (Server),     3
+                                        private Teil nur in GitLab
+  Runner mit Tag reports-deploy         GitLab-Runner-Host            4
+  main + prod-* geschuetzt, Variablen   GitLab-Projekt oracle-report  5
+  .gitlab-ci.yml + deploy/ci_deploy.sh  Repository (main)             6
+  Test DEV: Bericht einchecken          DEV-Server hat den Bericht    7
+  Test PROD: prod-Tag setzen            PROD-Server hat den Bericht   8
+
+
+SO LAEUFT ES (Ueberblick)
+-------------------------
+
+  Entwickler: checkin.ps1 --push--> GitLab main --Job deploy_dev--> DEV
+  Entwickler: release_tag.ps1 --Tag prod-...--> GitLab --Job deploy_prod--> PROD
+
+  Der Job laeuft auf dem GitLab-Runner, baut ein tar mit den Dateien und
+  schickt es per SSH an rwdeploy.sh auf dem Server. rwdeploy.sh prueft das
+  tar, kopiert die Dateien in die Reports-Ordner (mit Sicherung) und meldet
+  das Ergebnis zurueck - die Pipeline wird gruen oder rot.
+
+  Netz: nur Runner -> Server, Port 22 (SSH). Die Server rufen GitLab nie auf.
+
+
+VORAUSSETZUNGEN
+---------------
+
+  V.1  GitLab: Rechte "Maintainer" (oder hoeher) im Projekt oracle-report.
+
+  V.2  GitLab-Runner: ein Runner, der das Projekt bedienen darf, mit bash,
+       git und ssh. Der Runner-Host erreicht DEV und PROD auf Port 22.
+       Seine IP-Adresse (so, wie die Server sie sehen) wird in SCHRITT 3
+       gebraucht - beim GitLab-Administrator erfragen.
+
+  V.3  Reports-Server DEV und PROD: Anmeldung als oracle (ssh oder Konsole).
+
+  V.4  Die Ordner, aus denen der Reports-Server die Berichte liest, sind
+       bekannt (REPORTS_PATH / <folderAccess> in rwserver.conf) - SCHRITT 1.4
+       zeigt, wie man sie findet.
+
+  V.5  Repository oracle-report hat den Aufbau:
+
+         oracle-report\
+           menu.cmd, menu.ps1, menu.ini, README.md
+           deploy\      Skripte (pull.ps1, checkin.ps1, ..., ci_deploy.sh)
+           source\      Berichte .rdf   -> werden verteilt
+           xml\         XML zu jedem Bericht (nur zum Lesen in Git)
+           images\      Bilder          -> werden verteilt
+
+  V.6  Ein Entwickler-PC mit Git und einem Clone unter
+       E:\git\<Login>\oracle-report (fuer SCHRITT 6 bis 8).
+
+
+  Was wo landet
+  -------------
+
+  Quelle aller Dateien:
+    IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/deploy/
+    (oder der Ordner deploy\ im Kunden-Repository, falls dort abgelegt)
+
+  Auf JEDEM Reports-Server (DEV und PROD), Benutzer oracle:
+
+    $HOME/rwdeploy_install/            Uebergabe-Ordner <- 1.2 (spaeter weg)
+      rwdeploy.sh                      aus deploy/
+      rwdeploy.conf.template           aus deploy/
+    /u01/app/oracle/rwdeploy/          $RWD_HOME = Warteschlange  <- 1.3
+      bin/                             $RWD_BIN
+        rwdeploy.sh                    <- 1.3 (das Skript)
+        rwdeploy.conf                  <- 1.4 (Ziel-Ordner eintragen)
+      keys/                            nur waehrend SCHRITT 3, danach leer
+      incoming/ work/ staging/         legt rwdeploy.sh selbst an (1.5)
+      done/ failed/                    Ergebnis jedes Auftrags
+      log/<auftrag>.log                Protokoll jedes Auftrags
+      backup/<auftrag>/                ersetzte Dateien (Sicherung)
+      state/last_sha                   zuletzt verteilter Check-in (nur DEV
+                                       wichtig) <- 1.7 optional
+    $HOME/.ssh/authorized_keys         eine Zeile fuer GitLab  <- 3.4
+    crontab von oracle                 eine Zeile (Sicherheitsnetz)  <- 1.6
+    /u01/reports/source/               TARGET_SOURCE_DIR - hierhin kommen
+                                       die .rdf (vorhanden, pruefen in 1.4)
+    /u01/reports/images/               TARGET_IMAGE_DIR - die Bilder
+                                       (Standard im Template; anderer Ordner
+                                       beim Kunden -> in 1.4 eintragen)
+
+  Im GitLab-Projekt oracle-report (Browser):
+
+    Settings > Repository > Protected branches   main            <- 5.1
+    Settings > Repository > Protected tags       prod-*          <- 5.2
+    Settings > CI/CD > Variables                 5 Werte je
+                                                 Umgebung        <- 5.3
+    Settings > CI/CD > General pipelines         veraltete Jobs  <- 5.4
+
+  Im Repository oracle-report (Entwickler-PC, SCHRITT 6):
+
+    E:\git\<Login>\oracle-report\
+      .gitlab-ci.yml                   aus deploy/template.gitlab-ci.yml
+      deploy\ci_deploy.sh              aus deploy/ci_deploy.sh
+
+
+  Quelldateien
+  ------------
+
+  Datei                        Inhalt                              Schritt
+  ---------------------------  ----------------------------------  -------
+  deploy/rwdeploy.sh           Warteschlange + Kopierer (Server)   1.3
+  deploy/rwdeploy.conf.template Ziel-Ordner, Groessengrenze        1.4
+  deploy/authorized_keys.example Muster der Schluessel-Zeile       3.4
+  deploy/template.gitlab-ci.yml die zwei Jobs -> .gitlab-ci.yml    6
+  deploy/ci_deploy.sh          der Job selbst (Runner)             6
+
+
+  Regeln fuer den ganzen Ablauf
+  -----------------------------
+
+  - Jeden Befehl einzeln eingeben und die Ausgabe mit "Erwartet:" vergleichen.
+  - Weicht etwas ab: STOP, Ausgabe sichern, melden - nicht raten.
+  - DEV zuerst komplett (SCHRITT 1, 3 fuer DEV), dann PROD.
+  - Werte, die spaeter gebraucht werden, schreibt das Kochbuch in Dateien
+    unter $RWD_HOME/keys/ - eine neue Sitzung verliert sonst die Variable.
+
+
+==========================================================================
+SCHRITT 0: Variablen setzen und pruefen  (als oracle, auf dem Server)
+==========================================================================
+
+  In JEDER neuen Sitzung auf einem Reports-Server zuerst diese Zeilen.
+  RWD_ENV ist dev auf dem DEV-Server und prod auf dem PROD-Server.
+
+  whoami
+  # Erwartet: oracle
+
+  hostname -f
+  # Erwartet: der Name dieses Servers - DEV oder PROD? Pruefen!
+
+  export RWD_ENV=dev
+  # Auf dem PROD-Server:  export RWD_ENV=prod
+
+  export RWD_HOME=/u01/app/oracle/rwdeploy
+
+  export RWD_BIN=$RWD_HOME/bin
+
+  export RUNNER_IP=<IP des GitLab-Runners aus V.2>
+
+  echo "RWD_ENV=$RWD_ENV  RWD_HOME=$RWD_HOME"
+  # Erwartet z.B.: RWD_ENV=dev  RWD_HOME=/u01/app/oracle/rwdeploy
+
+  echo "RWD_BIN=$RWD_BIN  RUNNER_IP=$RUNNER_IP"
+  # Erwartet z.B.: RWD_BIN=/u01/app/oracle/rwdeploy/bin  RUNNER_IP=<runner-ip>
+  # Ein Wert LEER oder noch <...>? -> Zeile oben korrigieren.
+
+
+==========================================================================
+SCHRITT 1: DEV-Server - rwdeploy.sh einrichten  (als oracle)
+==========================================================================
+
+  ---------------------------------------------------
+  1.1 Brauche ich diesen Schritt?
+  ---------------------------------------------------
+
+  ls -l $RWD_BIN/rwdeploy.sh
+  # "No such file or directory"        -> neu einrichten, weiter mit 1.2
+  # Datei vorhanden                    -> Version pruefen:
+
+  grep -c 'Reports/source' $RWD_BIN/rwdeploy.sh
+  # 0                 -> aktuelle Version; nur 1.4 bis 1.6 pruefen
+  # 1 oder mehr       -> ALTE Version (erwartet Ordner Reports/...) - sie
+  #                      lehnt die Lieferungen ab ("path not allowed").
+  #                      Sichern und mit 1.2 / 1.3 ersetzen:
+
+  cp -p $RWD_BIN/rwdeploy.sh $RWD_BIN/rwdeploy.sh.bak
+
+  ---------------------------------------------------
+  1.2 Dateien auf den Server bringen
+  ---------------------------------------------------
+
+  mkdir -p $HOME/rwdeploy_install
+
+  # Jetzt vom PC aus (z.B. WinSCP oder scp) diese zwei Dateien nach
+  # $HOME/rwdeploy_install/ kopieren:
+  #   deploy/rwdeploy.sh
+  #   deploy/rwdeploy.conf.template
+  # Uebertragung im Binaer-Modus (keine Zeilenende-Umwandlung).
+
+  ls -l $HOME/rwdeploy_install
+  # Erwartet: rwdeploy.sh und rwdeploy.conf.template
+
+  file $HOME/rwdeploy_install/rwdeploy.sh
+  # Erwartet: "Bourne-Again shell script, ASCII text executable"
+  # Steht dort "with CRLF line terminators": falsch uebertragen ->
+  # erneut im Binaer-Modus kopieren.
+
+  ---------------------------------------------------
+  1.3 Ordner anlegen und Skript ablegen
+  ---------------------------------------------------
+
+  mkdir -p $RWD_BIN
+
+  cp $HOME/rwdeploy_install/rwdeploy.sh $RWD_BIN/
+
+  chmod 750 $RWD_BIN/rwdeploy.sh
+
+  bash -n $RWD_BIN/rwdeploy.sh
+  # Erwartet: keine Ausgabe (= Syntax in Ordnung)
+
+  ---------------------------------------------------
+  1.4 Ziel-Ordner herausfinden und eintragen
+  ---------------------------------------------------
+
+  Die Berichte muessen in einen Ordner, aus dem der Reports-Server liest.
+  Das steht in rwserver.conf unter <folderAccess><read>.
+
+  ls $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/
+  # Erwartet: der Name Ihres Reports-Servers, z.B. repserver01
+  # DOMAIN_HOME leer? -> export DOMAIN_HOME=<Domain-Ordner>, z.B.
+  #                      /u01/app/oracle/domains/fr_domain
+
+  export RW_SERVER=<Name aus der Zeile oben>
+
+  RW_CONF=$DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/$RW_SERVER/rwserver.conf
+
+  ls -l $RW_CONF
+  # Erwartet: die Datei rwserver.conf (No such file -> RW_SERVER pruefen)
+
+  grep -A2 '<folderAccess>' $RW_CONF
+  # Erwartet z.B.:
+  #   <folderAccess>
+  #      <read>/u01/reports/source;/u01/reports/images</read>
+  #   </folderAccess>
+  # -> der Ordner fuer die .rdf und der fuer die Bilder. Notieren.
+  # Kein <folderAccess>? -> REPORTS_PATH pruefen:
+
+  grep REPORTS_PATH $DOMAIN_HOME/reports/bin/reports.sh
+  # Erwartet: eine Zeile mit den Ordnern, getrennt durch ":"
+
+  cp $HOME/rwdeploy_install/rwdeploy.conf.template $RWD_BIN/rwdeploy.conf
+
+  vi $RWD_BIN/rwdeploy.conf
+
+  # In vi die drei Zeilen pruefen - im Template stehen schon die
+  # Standard-Ordner; nur aendern, wenn folderAccess etwas anderes zeigt
+  # (Cursor auf den Wert,  cw  oder  i ):
+  #   SPOOL_DIR="/u01/app/oracle/rwdeploy"        = $RWD_HOME
+  #   TARGET_SOURCE_DIR="/u01/reports/source"     Ordner der .rdf
+  #   TARGET_IMAGE_DIR="/u01/reports/images"      Ordner der Bilder
+  # MAX_TAR_MB=100 so lassen.
+  # Dann  Esc  und  :wq  (speichern und beenden).
+
+  grep -v '^#' $RWD_BIN/rwdeploy.conf
+  # Erwartet z.B.:
+  #   SPOOL_DIR="/u01/app/oracle/rwdeploy"
+  #   TARGET_SOURCE_DIR="/u01/reports/source"
+  #   TARGET_IMAGE_DIR="/u01/reports/images"
+  #   MAX_TAR_MB=100
+
+  ls -ld /u01/reports/source /u01/reports/images
+  # (Ihre Werte aus rwdeploy.conf einsetzen)
+  # Erwartet: beide Ordner vorhanden, Besitzer oracle (oder Schreibrecht
+  # fuer oracle). Fehlt einer: STOP - mit dem Reports-Administrator klaeren,
+  # NICHT einfach anlegen (der Reports-Server muss ihn kennen).
+
+  ---------------------------------------------------
+  1.5 Skript lokal testen
+  ---------------------------------------------------
+
+  $RWD_BIN/rwdeploy.sh
+  # Erwartet:
+  #   ERROR: usage: enqueue <sha> <delta|tag|snapshot> | status <sha> [--wait N] | last | list | work
+  # (= Skript laeuft und liest rwdeploy.conf)
+  # "config not found" -> 1.4 pruefen.
+
+  $RWD_BIN/rwdeploy.sh last
+  # Erwartet: none   (= noch nie etwas verteilt)
+
+  $RWD_BIN/rwdeploy.sh list
+  # Erwartet: keine Ausgabe (noch keine Auftraege)
+
+  ls $RWD_HOME
+  # Erwartet: backup  bin  done  failed  incoming  log  staging  state  work
+  #           (worker.lock erscheint nach dem ersten Auftrag)
+
+  ---------------------------------------------------
+  1.6 Sicherheitsnetz: Kopierer alle 5 Minuten (cron)
+  ---------------------------------------------------
+
+  Normalerweise startet jede Lieferung den Kopierer sofort. Der cron-Eintrag
+  arbeitet liegengebliebene Auftraege ab (z.B. nach einem Neustart).
+
+  crontab -l | grep rwdeploy
+  # Erwartet: keine Ausgabe -> weiter mit dem naechsten Befehl
+  # Eine Zeile mit rwdeploy.sh work vorhanden? -> fertig, weiter mit 1.7
+
+  crontab -e
+
+  # Im Editor: ans Ende ( G ), neue Zeile ( o ), diese Zeile einfuegen:
+
+*/5 * * * * /u01/app/oracle/rwdeploy/bin/rwdeploy.sh work
+
+  # Dann  Esc  und  :wq . Die Zeile beginnt ganz links.
+  # Anderer RWD_HOME als /u01/app/oracle/rwdeploy? -> Pfad anpassen.
+
+  crontab -l | grep rwdeploy
+  # Erwartet: */5 * * * * /u01/app/oracle/rwdeploy/bin/rwdeploy.sh work
+
+  ---------------------------------------------------
+  1.7 Startpunkt fuer DEV setzen  (optional, nur DEV)
+  ---------------------------------------------------
+
+  Ohne Startpunkt bringt die erste DEV-Pipeline die Dateien ihres Pushes
+  (in SCHRITT 6 nur Pipeline-Dateien, also keinen Bericht) - das ist in
+  Ordnung. Den Schritt nur machen, wenn DEV schon genau den Stand von
+  main hat und das sicher ist.
+
+  # Auf dem Entwickler-PC im Clone (PowerShell):
+  #   cd E:\git\$env:USERNAME\oracle-report
+  #   git fetch
+  #   git rev-parse origin/main
+  # Erwartet: eine 40-stellige Nummer, z.B.
+  #   43098bc0d0e46ef5dffa72a3e3dc104c53205715
+
+  # Zurueck auf dem DEV-Server:
+
+  printf '%s\n' '<40-stellige Nummer>' > $RWD_HOME/state/last_sha
+
+  $RWD_BIN/rwdeploy.sh last
+  # Erwartet: die Nummer von oben
+
+  ---------------------------------------------------
+  1.8 Aufraeumen
+  ---------------------------------------------------
+
+  rm -r $HOME/rwdeploy_install
+
+
+==========================================================================
+SCHRITT 2: PROD-Server - rwdeploy.sh einrichten  (als oracle)
+==========================================================================
+
+  Genau wie SCHRITT 1, aber auf dem PROD-Server:
+
+  - SCHRITT 0 mit  export RWD_ENV=prod
+  - 1.1 bis 1.6 und 1.8 wie oben, mit den Ordnern des PROD-Reports-Servers
+  - 1.7 NICHT - PROD braucht keinen Startpunkt: jeder Tag bringt genau
+    seine eigenen Dateien.
+
+  $RWD_BIN/rwdeploy.sh last
+  # Erwartet auf PROD: none
+
+
+==========================================================================
+SCHRITT 3: Deploy-Schluessel  (als oracle, je Server einmal)
+==========================================================================
+
+  Jeder Server bekommt sein eigenes Schluesselpaar:
+  - der oeffentliche Teil kommt in authorized_keys dieses Servers und
+    darf dort NUR rwdeploy.sh starten, NUR vom Runner aus;
+  - der private Teil kommt in die GitLab-Variable DEPLOY_SSH_KEY dieser
+    Umgebung (SCHRITT 5.3) und wird danach auf dem Server geloescht.
+
+  Erst fuer DEV (RWD_ENV=dev), dann fuer PROD (RWD_ENV=prod).
+
+  ---------------------------------------------------
+  3.1 Variablen pruefen
+  ---------------------------------------------------
+
+  echo "RWD_ENV=$RWD_ENV  RWD_HOME=$RWD_HOME  RUNNER_IP=$RUNNER_IP"
+  # Leer? -> erst SCHRITT 0.
+
+  ---------------------------------------------------
+  3.2 Schluesselpaar erzeugen
+  ---------------------------------------------------
+
+  mkdir -p $RWD_HOME/keys
+
+  chmod 700 $RWD_HOME/keys
+
+  cd $RWD_HOME/keys
+
+  ssh-keygen -t ed25519 -N '' -C gitlab-deploy-$RWD_ENV -f ./gitlab-deploy-$RWD_ENV
+  # Erwartet:
+  #   Generating public/private ed25519 key pair.
+  #   Your identification has been saved in ./gitlab-deploy-dev
+  #   Your public key has been saved in ./gitlab-deploy-dev.pub
+
+  ls -l $RWD_HOME/keys
+  # Erwartet: gitlab-deploy-dev (privat) und gitlab-deploy-dev.pub
+
+  ---------------------------------------------------
+  3.3 Zeile fuer authorized_keys vorbereiten
+  ---------------------------------------------------
+
+  PUBKEY=$(cat $RWD_HOME/keys/gitlab-deploy-$RWD_ENV.pub)
+
+  echo "$PUBKEY"
+  # Erwartet: ssh-ed25519 AAAA... gitlab-deploy-dev
+
+  printf 'command="%s",restrict,from="%s" %s\n' "$RWD_BIN/rwdeploy.sh" "$RUNNER_IP" "$PUBKEY" > $RWD_HOME/keys/authorized_keys_zeile.txt
+
+  cat $RWD_HOME/keys/authorized_keys_zeile.txt
+  # Erwartet (EINE Zeile):
+  #   command="/u01/app/oracle/rwdeploy/bin/rwdeploy.sh",restrict,from="<runner-ip>" ssh-ed25519 AAAA... gitlab-deploy-dev
+  # Bedeutung:
+  #   command=  jede Anmeldung mit diesem Schluessel startet nur rwdeploy.sh
+  #   restrict  keine Shell, keine Weiterleitungen
+  #   from=     nur vom Runner (IP aus V.2)
+
+  ---------------------------------------------------
+  3.4 Zeile in authorized_keys eintragen
+  ---------------------------------------------------
+
+  mkdir -p $HOME/.ssh
+
+  chmod 700 $HOME/.ssh
+
+  grep -c "gitlab-deploy-$RWD_ENV" $HOME/.ssh/authorized_keys
+  # 0 oder "No such file"   -> weiter mit dem naechsten Befehl
+  # 1                       -> alte Zeile vorhanden: in vi zuerst diese
+  #                            Zeile loeschen ( dd ), dann wie unten
+
+  vi $HOME/.ssh/authorized_keys
+
+  # In vi:  G  (ans Dateiende), dann
+  #   :r /u01/app/oracle/rwdeploy/keys/authorized_keys_zeile.txt
+  # (fuegt die vorbereitete Zeile ein - nichts von Hand tippen)
+  # Dann  Esc  und  :wq .
+
+  chmod 600 $HOME/.ssh/authorized_keys
+
+  grep "gitlab-deploy-$RWD_ENV" $HOME/.ssh/authorized_keys
+  # Erwartet: genau die Zeile aus 3.3
+
+  ---------------------------------------------------
+  3.5 Host-Schluessel des Servers fuer GitLab (DEPLOY_KNOWN_HOSTS)
+  ---------------------------------------------------
+
+  Der Job prueft, dass er wirklich mit diesem Server spricht. Dafuer
+  braucht GitLab den Host-Schluessel - als Zeile "<Servername> <Schluessel>".
+  Der Servername muss GENAU der sein, der in DEPLOY_HOST (5.3) steht.
+
+  export DEPLOY_HOST=<Servername, wie der Runner ihn anspricht>
+
+  HOSTKEY=$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)
+
+  printf '%s %s\n' "$DEPLOY_HOST" "$HOSTKEY" > $RWD_HOME/keys/known_hosts_zeile.txt
+
+  cat $RWD_HOME/keys/known_hosts_zeile.txt
+  # Erwartet: <Servername> ssh-ed25519 AAAA...
+  # Gegenprobe (optional, auf dem Runner-Host):
+  #   ssh-keyscan -t ed25519 <Servername>
+  # muss denselben Schluessel zeigen.
+
+  ---------------------------------------------------
+  3.6 Werte fuer GitLab bereitlegen
+  ---------------------------------------------------
+
+  Fuer SCHRITT 5.3 werden diese zwei Texte gebraucht (anzeigen, markieren,
+  in das GitLab-Feld kopieren - nicht in Mail oder Ticket):
+
+  cat $RWD_HOME/keys/gitlab-deploy-$RWD_ENV
+  # Erwartet: mehrere Zeilen; die erste beginnt mit fuenf Bindestrichen
+  #           und "BEGIN OPENSSH ...", die letzte mit "END OPENSSH ...".
+  # -> Wert fuer DEPLOY_SSH_KEY (alle Zeilen, auch die erste und die letzte)
+
+  cat $RWD_HOME/keys/known_hosts_zeile.txt
+  # -> Wert fuer DEPLOY_KNOWN_HOSTS
+
+  Die Dateien bleiben liegen, bis SCHRITT 5.3 erledigt ist. Danach 3.7.
+
+  ---------------------------------------------------
+  3.7 Privaten Schluessel loeschen  (NACH SCHRITT 5.3)
+  ---------------------------------------------------
+
+  ls $RWD_HOME/keys
+  # Erwartet: authorized_keys_zeile.txt  gitlab-deploy-dev
+  #           gitlab-deploy-dev.pub      known_hosts_zeile.txt
+
+  rm $RWD_HOME/keys/gitlab-deploy-$RWD_ENV
+
+  ls $RWD_HOME/keys
+  # Erwartet: der private Schluessel (ohne .pub) ist weg.
+  # Ging er verloren, bevor er in GitLab war: 3.2 bis 3.6 neu.
+
+
+==========================================================================
+SCHRITT 4: GitLab-Runner  (GitLab-Administrator)
+==========================================================================
+
+  Die Jobs laufen nur auf einem Runner mit dem Tag  reports-deploy
+  (steht so in .gitlab-ci.yml).
+
+  ---------------------------------------------------
+  4.1 Gibt es den Runner schon?
+  ---------------------------------------------------
+
+  # Browser: Projekt oracle-report > Settings > CI/CD > Runners
+  # Ein Runner mit dem Tag "reports-deploy", Status gruen (online)?
+  #   ja   -> weiter mit 4.3
+  #   nein -> 4.2
+
+  ---------------------------------------------------
+  4.2 Tag an einen Runner vergeben
+  ---------------------------------------------------
+
+  # Settings > CI/CD > Runners > beim passenden Runner das Stift-Symbol >
+  # Tags: reports-deploy  eintragen > Save.
+  # Der Runner braucht einen Shell- oder Docker-Executor mit bash, git, ssh.
+  # Neuen Runner registrieren: GitLab-Doku "Registering runners" - Aufgabe
+  # des GitLab-Administrators.
+
+  ---------------------------------------------------
+  4.3 Runner-Host pruefen  (auf dem Runner-Host, als Runner-Benutzer)
+  ---------------------------------------------------
+
+  bash --version | head -1
+  # Erwartet: GNU bash, version 4 oder neuer
+
+  git --version
+  # Erwartet: git version 2.x
+
+  ssh -V
+  # Erwartet: OpenSSH_8 oder neuer
+
+  timeout 5 bash -c '</dev/tcp/<DEV-Servername>/22' && echo "Port 22 DEV offen"
+  # Erwartet: Port 22 DEV offen
+  # Keine Ausgabe / "Connection refused" / Zeitablauf -> Firewall: STOP,
+  # Freigabe Runner -> DEV Port 22 beantragen.
+
+  timeout 5 bash -c '</dev/tcp/<PROD-Servername>/22' && echo "Port 22 PROD offen"
+  # Erwartet: Port 22 PROD offen
+
+
+==========================================================================
+SCHRITT 5: GitLab-Projekt einstellen  (Browser, Maintainer)
+==========================================================================
+
+  Die Menuepunkte heissen je nach GitLab-Version leicht anders; gemeint ist
+  immer das Projekt oracle-report, linke Leiste "Settings".
+
+  ---------------------------------------------------
+  5.1 Branch main schuetzen
+  ---------------------------------------------------
+
+  # Settings > Repository > Protected branches
+  #   Branch: main
+  #   Allowed to merge: Maintainers
+  #   Allowed to push and merge: Developers + Maintainers
+  #     (die Entwickler checken direkt auf main ein)
+  #   Allowed to force push: AUS
+  # -> Protect
+
+  ---------------------------------------------------
+  5.2 Tags prod-* schuetzen  (= wer darf freigeben)
+  ---------------------------------------------------
+
+  # Settings > Repository > Protected tags
+  #   Tag: prod-*
+  #   Allowed to create: Maintainers  (oder die Personen, die in die
+  #                      Produktion freigeben duerfen)
+  # -> Protect
+  #
+  # WICHTIG: Ohne Schutz bekommt der PROD-Job die geschuetzten Variablen
+  # NICHT - er bricht mit "DEPLOY_HOST not set" ab.
+
+  ---------------------------------------------------
+  5.3 CI/CD-Variablen anlegen  (je Umgebung)
+  ---------------------------------------------------
+
+  # Settings > CI/CD > Variables > Add variable - fuer JEDE Zeile unten
+  # eine Variable. Bei allen:
+  #   Protect variable: AN
+  #   Environment scope: development (fuer DEV) bzw. production (fuer PROD)
+  #     (den Namen eintippen, falls er nicht in der Liste steht)
+  #
+  #   Key                 Type      Wert
+  #   ------------------  --------  ----------------------------------------
+  #   DEPLOY_HOST         Variable  Servername (genau wie in 3.5)
+  #   DEPLOY_USER         Variable  oracle
+  #   DEPLOY_SSH_KEY      File      privater Schluessel aus 3.6, alle Zeilen
+  #                                 inkl. erster/letzter Zeile, am Ende eine
+  #                                 Leerzeile
+  #   DEPLOY_KNOWN_HOSTS  Variable  Zeile aus 3.5 (known_hosts_zeile.txt)
+  #   DEPLOY_WAIT         Variable  300  (optional: Sekunden Wartezeit)
+  #
+  # Also 4 bis 5 Variablen mit Scope "development" (Werte vom DEV-Server)
+  # und dieselben 4 bis 5 mit Scope "production" (Werte vom PROD-Server).
+  # DEPLOY_SSH_KEY kann nicht "masked" werden (mehrzeilig) - das ist normal,
+  # der Job schreibt nur den Dateinamen ins Protokoll, nie den Inhalt.
+
+  # Kontrolle - die Liste muss so aussehen:
+  #   DEPLOY_HOST         development   DEPLOY_HOST         production
+  #   DEPLOY_KNOWN_HOSTS  development   DEPLOY_KNOWN_HOSTS  production
+  #   DEPLOY_SSH_KEY      development   DEPLOY_SSH_KEY      production
+  #   DEPLOY_USER         development   DEPLOY_USER         production
+
+  -> Jetzt auf beiden Servern 3.7 (privaten Schluessel loeschen).
+
+  ---------------------------------------------------
+  5.4 Veraltete Deploy-Jobs verhindern
+  ---------------------------------------------------
+
+  # Settings > CI/CD > General pipelines
+  #   "Prevent outdated deployment jobs": AN  -> Save changes
+  # Zweite Sicherung neben der Pruefung in ci_deploy.sh: ein alter
+  # DEV-Job nach einem neueren laeuft nicht mehr.
+  # Folge: auch eine alte PROD-Pipeline laesst sich nicht wiederholen -
+  # fuer einen Rollback einen NEUEN Tag auf den aelteren Check-in setzen
+  # (release_tag.ps1, siehe ROLLBACK).
+
+
+==========================================================================
+SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
+==========================================================================
+
+  Dieser Push startet die erste DEV-Pipeline. Er enthaelt keinen Bericht,
+  also wird nichts kopiert - ein guter erster Test der Verbindung.
+
+  ---------------------------------------------------
+  6.1 Aktuellen Stand holen
+  ---------------------------------------------------
+
+  cd E:\git\$env:USERNAME\oracle-report
+
+  git status
+
+  # Erwartet: "On branch main" und "nothing to commit, working tree clean"
+  # Offene Aenderungen? -> erst einchecken oder klaeren.
+
+  git pull
+
+  # Erwartet: "Already up to date." oder eine Liste neuer Dateien
+
+  ---------------------------------------------------
+  6.2 Dateien ablegen
+  ---------------------------------------------------
+
+  Quelle: IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy\
+  (Pfad zur eigenen Kopie hier einsetzen)
+
+  $QUELLE = 'C:\pfad\zu\IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy'
+
+  Test-Path "$QUELLE\ci_deploy.sh"
+
+  # Erwartet: True   (False -> Pfad in $QUELLE korrigieren)
+
+  Copy-Item "$QUELLE\template.gitlab-ci.yml" .\.gitlab-ci.yml
+
+  Copy-Item "$QUELLE\ci_deploy.sh" .\deploy\ci_deploy.sh
+
+  Get-ChildItem .\.gitlab-ci.yml, .\deploy\ci_deploy.sh
+
+  # Erwartet: beide Dateien mit aktuellem Datum
+
+  Select-String -Path .\.gitlab-ci.yml -Pattern 'ci_deploy.sh'
+
+  # Erwartet: zwei Zeilen
+  #   ...:    - bash deploy/ci_deploy.sh dev
+  #   ...:    - bash deploy/ci_deploy.sh prod
+
+  ---------------------------------------------------
+  6.3 Einchecken und senden
+  ---------------------------------------------------
+
+  git add .gitlab-ci.yml deploy/ci_deploy.sh
+
+  git status --short
+
+  # Erwartet:
+  #   A  .gitlab-ci.yml
+  #   A  deploy/ci_deploy.sh      (oder M, wenn sie schon da war)
+
+  git commit -m "GitLab-Pipeline fuer DEV und PROD eingerichtet"
+
+  # Erwartet: "2 files changed"
+
+  git push
+
+  # Erwartet: "main -> main"
+
+  ---------------------------------------------------
+  6.4 Erste Pipeline pruefen  (Browser)
+  ---------------------------------------------------
+
+  # Projekt > Build > Pipelines: neueste Pipeline, Job "deploy_dev".
+  # Status: gruen (passed). Im Job-Protokoll, unten:
+  #
+  #   no usable last deploy ('none') - the files of this push since <nummer>
+  #   files to deploy: 0 (delta)
+  #   QUEUED 20261112-202049-...-8530d31b16da (delta, 10240 bytes)
+  #   job 20261112-202049-...  sha 8530d31b...  kind delta  start ...
+  #   copied 0, unchanged 0
+  #   result DONE ...
+  #   deploy OK
+  #
+  # Mit Startpunkt aus 1.7 steht in Zeile 1 stattdessen:
+  #   changes since the last deploy <nummer>:
+  #
+  # Job "pending" und startet nicht      -> kein Runner mit Tag
+  #                                         reports-deploy (SCHRITT 4)
+  # Job rot: siehe BEKANNTE PROBLEME.
+
+  # Gegenprobe auf dem DEV-Server (als oracle, SCHRITT 0):
+
+  $RWD_BIN/rwdeploy.sh list
+  # Erwartet: eine Zeile  20261112-...-8530d31b16da done     delta
+
+  $RWD_BIN/rwdeploy.sh last
+  # Erwartet: die Nummer des Commits aus 6.3
+
+
+==========================================================================
+SCHRITT 7: Test DEV - einen Bericht einchecken  (Entwickler-PC)
+==========================================================================
+
+  Einen kleinen Testbericht nehmen (oder eine harmlose Aenderung an einem
+  bestehenden), damit der Test nichts Wichtiges beruehrt.
+
+  ---------------------------------------------------
+  7.1 Einchecken
+  ---------------------------------------------------
+
+  # Doppelklick auf das Menue (menu.cmd) > 4 - checkin.ps1
+  # oder in PowerShell:
+
+  .\deploy\checkin.ps1
+
+  # Bericht waehlen, Kommentar eingeben.
+  # Erwartet am Ende:
+  #   OK - eingecheckt (1 Check-in(s)): <Kommentar>
+  #   Die Pipeline in GitLab verteilt die Berichte jetzt auf DEV (Build -> Pipelines).
+
+  ---------------------------------------------------
+  7.2 Pipeline pruefen  (Browser)
+  ---------------------------------------------------
+
+  # Build > Pipelines > neueste > deploy_dev: gruen. Im Protokoll:
+  #   changes since the last deploy <nummer>:
+  #     source/<bericht>.rdf
+  #   files to deploy: 1 (delta)
+  #   ...
+  #     copied  source/<bericht>.rdf -> /u01/reports/source/<bericht>.rdf
+  #   copied 1, unchanged 0
+  #   deploy OK
+  # Die .xml geht NICHT mit - sie ist nur zum Lesen in Git.
+
+  ---------------------------------------------------
+  7.3 Auf dem DEV-Server pruefen  (als oracle)
+  ---------------------------------------------------
+
+  ls -l /u01/reports/source/<bericht>.rdf
+  # (Ordner aus rwdeploy.conf) Erwartet: Datum/Uhrzeit = gerade eben
+
+  $RWD_BIN/rwdeploy.sh list
+  # Erwartet: neueste Zeile  ...  done     delta
+
+  ls $RWD_HOME/backup
+  # Erwartet: ein Ordner je Auftrag, der eine Datei ersetzt hat (neuer
+  # Bericht: kein Ordner - es gab nichts zu sichern)
+
+  # Den Bericht auf DEV einmal aufrufen (Browser/rwservlet) - laeuft er?
+
+
+==========================================================================
+SCHRITT 8: Test PROD - den Bericht freigeben  (Entwickler-PC)
+==========================================================================
+
+  ---------------------------------------------------
+  8.1 prod-Tag setzen
+  ---------------------------------------------------
+
+  # Menue > 6 - release_tag.ps1   oder:
+
+  .\deploy\release_tag.ps1
+
+  # Die Nummer des Check-ins aus SCHRITT 7 waehlen, Kommentar bestaetigen.
+  # Erwartet:
+  #   Tag prod-2026-11-12_1430_<bericht>.rdf gesetzt.
+  #   Die Pipeline in GitLab verteilt jetzt nach Produktion (Build -> Pipelines).
+
+  ---------------------------------------------------
+  8.2 Pipeline pruefen  (Browser)
+  ---------------------------------------------------
+
+  # Build > Pipelines: Pipeline zum Tag prod-..., Job deploy_prod: gruen.
+  # Im Protokoll:
+  #   tag prod-2026-11-12_1430_<bericht>.rdf on <nummer>
+  #   files of this commit:
+  #     source/<bericht>.rdf
+  #   files to deploy: 1 (tag)
+  #   ...
+  #     copied  source/<bericht>.rdf -> /u01/reports/source/<bericht>.rdf
+  #   copied 1, unchanged 0
+  #   deploy OK
+
+  ---------------------------------------------------
+  8.3 Auf dem PROD-Server pruefen  (als oracle, SCHRITT 0 mit prod)
+  ---------------------------------------------------
+
+  ls -l /u01/reports/source/<bericht>.rdf
+  # Erwartet: Datum/Uhrzeit = gerade eben
+
+  $RWD_BIN/rwdeploy.sh list
+  # Erwartet: neueste Zeile  ...  done     tag
+
+  # Fertig: beide Pipelines laufen.
+
+  ---------------------------------------------------
+  8.4 Uebersicht fuer die Entwickler
+  ---------------------------------------------------
+
+  # Menue > 3 - status_detail.ps1: der Bericht steht mit seinem Tag und
+  # in der Spalte Prod mit "PROD".
+
+
+==========================================================================
+ROLLBACK
+==========================================================================
+
+  Was                                    Wie
+  -------------------------------------  -------------------------------------
+  falscher Bericht in PROD               release_tag.ps1: Commit-ID des
+                                         aelteren Check-ins eingeben (oder
+                                         -Commit <id>) -> neuer Tag -> PROD
+                                         bekommt die aeltere Version
+  einzelne Datei auf dem Server zurueck  aus $RWD_HOME/backup/<auftrag>/source/
+                                         in den Ziel-Ordner kopieren (cp -p);
+                                         Auftrag aus "rwdeploy.sh list" / log/
+  falsch gesetzter Tag (vor dem Job)     git push origin :refs/tags/<tag>
+                                         git tag -d <tag>
+  Pipelines ganz abschalten              .gitlab-ci.yml im Repository
+                                         loeschen (git rm, commit, push) -
+                                         die Server bleiben, wie sie sind
+  GitLab-Zugriff auf einen Server sperren  Zeile gitlab-deploy-<env> aus
+                                         $HOME/.ssh/authorized_keys loeschen
+  alte rwdeploy.sh wieder herstellen     rwdeploy.sh.bak in $RWD_BIN zurueck
+                                         kopieren (nur wenn 1.1 eine Sicherung angelegt
+                                         hat; die alte Version erwartet
+                                         Reports/... - passt nicht zum
+                                         neuen Aufbau)
+
+
+==========================================================================
+BEKANNTE PROBLEME
+==========================================================================
+
+  Problem : Job deploy_dev / deploy_prod bleibt "pending", startet nie.
+  Ursache : Kein Runner mit dem Tag reports-deploy online.
+  Loesung : SCHRITT 4.
+
+  Problem : Job rot: "DEPLOY_HOST: DEPLOY_HOST not set"
+  Ursache : Variablen fehlen fuer diese Umgebung, oder Branch/Tag nicht
+            geschuetzt (geschuetzte Variablen gibt es nur dort).
+  Loesung : 5.1 / 5.2 (Schutz) und 5.3 (Scope development / production).
+
+  Problem : Job rot: "Host key verification failed."
+  Ursache : DEPLOY_KNOWN_HOSTS passt nicht zum Server oder der Name darin
+            ist ein anderer als in DEPLOY_HOST.
+  Loesung : 3.5 mit genau dem Namen aus DEPLOY_HOST wiederholen, 5.3.
+
+  Problem : Job rot: "Permission denied (publickey)."
+  Ursache : falscher privater Schluessel in GitLab, Zeile fehlt in
+            authorized_keys, oder from="..." ist nicht die IP, mit der der
+            Runner beim Server ankommt (NAT, Proxy).
+  Loesung : 3.4 pruefen; auf dem Server  grep sshd /var/log/secure | tail
+            (als root) zeigt die wirkliche Absender-IP -> in from= eintragen.
+
+  Problem : Job rot: "ERROR: unknown command ..." oder "usage: ..."
+  Ursache : command= in authorized_keys zeigt auf ein anderes Skript, oder
+            ci_deploy.sh und rwdeploy.sh passen nicht zusammen.
+  Loesung : 3.3 / 3.4; beide Dateien aus demselben Stand nehmen.
+
+  Problem : Job rot: "ERROR: path not allowed: Reports/source/..." oder
+            "path not allowed: source/..."
+  Ursache : alte rwdeploy.sh (Aufbau Reports/...) auf dem Server, oder
+            alte ci_deploy.sh im Repository.
+  Loesung : 1.1 (Version pruefen) und SCHRITT 6 (ci_deploy.sh ersetzen).
+
+  Problem : deploy_prod rot: "the tagged commit holds no report (.rdf) or
+            image - nothing to deploy, check the tag"
+  Ursache : Tag auf einem Check-in ohne Bericht (z.B. nur Skripte).
+  Loesung : Tag loeschen (ROLLBACK), mit release_tag.ps1 den Check-in des
+            Berichts taggen.
+
+  Problem : deploy_prod rot: "the tag is on a merge commit"
+  Ursache : Zwei Kollegen haben gleichzeitig eingecheckt, der Tag sitzt auf
+            dem Zusammenfuehrungs-Check-in.
+  Loesung : Tag loeschen, mit release_tag.ps1 den Check-in des Berichts
+            taggen.
+
+  Problem : Job endet mit "deploy still pending after 300s"
+  Ursache : Kopierer laeuft nicht oder ist beschaeftigt.
+  Loesung : auf dem Server  $RWD_BIN/rwdeploy.sh list  und
+            ls $RWD_HOME/incoming ; dann  $RWD_BIN/rwdeploy.sh work  von
+            Hand starten; cron (1.6) pruefen.
+
+  Problem : DEV meldet "WARNING: last deploy ... is not an ancestor"
+  Ursache : Die Historie von main wurde umgeschrieben (force push).
+  Loesung : Nur die Dateien dieses Check-ins wurden verteilt. DEV pruefen,
+            ggf. Startpunkt neu setzen (1.7). Force push auf main
+            verbieten (5.1).
+
+  Problem : Im Menue steht ein Eintrag rot "(Skript fehlt)".
+  Ursache : Das Skript liegt nicht im Ordner deploy\ des Clones.
+  Loesung : git pull (pull.ps1); SkriptPfad in menu.ini pruefen.

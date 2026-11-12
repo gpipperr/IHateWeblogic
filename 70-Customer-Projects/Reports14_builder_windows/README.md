@@ -104,7 +104,8 @@ skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
 Deployment (2026-11-12): only the branch `main`, one report per check-in;
 push → the changed reports to the Linux DEV server; a `prod-*` tag
 (`release_tag.ps1`) → exactly that check-in to production. GitLab CI
-template, SSH forced-command queue `rwdeploy.sh`: [Git_deploy.md](Git_deploy.md).
+template, SSH forced-command queue `rwdeploy.sh`: [Git_deploy.md](Git_deploy.md);
+set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
 
 ## Patch level
 

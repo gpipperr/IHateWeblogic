@@ -37,7 +37,7 @@ SCRIPT_DIR="$(dirname "$SCRIPT")"
 CONF="${RWDEPLOY_CONF:-$SCRIPT_DIR/rwdeploy.conf}"
 
 say()  { printf '%s\n' "$*"; }
-die()  { printf 'ERROR: %s\n' "$*" >&2; exit "${2:-1}"; }
+die()  { printf 'ERROR: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 [ -r "$CONF" ] || die "config not found: $CONF"
 # shellcheck source=/dev/null

@@ -65,6 +65,9 @@ Network: only **GitLab → server** (SSH). The servers never reach GitLab, so
 there is no `git fetch` on the servers and no inbound HTTP service such as
 a webhook receiver.
 
+Step-by-step set-up of both pipelines for the administrators (German,
+cookbook style): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
+
 ## 2. Files
 
 Repository layout (the customer's, adopted 2026-11-12): top folder with
