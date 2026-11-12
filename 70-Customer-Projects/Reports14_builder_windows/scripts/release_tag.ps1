@@ -11,6 +11,8 @@
 #         einer Liste pro Datei
 # Teil 2: die letzten 20 Check-ins nach Datum (neueste zuerst), jede Datei
 #         mit dem Tag ihres Check-ins - ohne Tag: NO_TAG
+#         danach die letzten 20 Freigaben nach Tag sortiert (neuester Tag
+#         zuerst), pro Tag NUR die Dateien seines Check-ins
 # Teil 3: fragt nach einer Nummer aus Teil 1 oder einer Commit-ID (auch ein
 #         aelterer Check-in, z.B. aus Teil 2 = Rollback), setzt auf genau
 #         diesen Check-in einen Tag mit Kommentar und sendet ihn, z.B.
@@ -33,7 +35,7 @@
 #                                                Check-in taggen
 #
 # Weitere Parameter: -Branch (Standard origin/main), -TagPrefix (prod),
-# -Anzahl (20 Check-ins in Teil 2), -TagDatei / -Nachricht (ohne Rueckfrage),
+# -Anzahl (20 Check-ins / Freigaben in Teil 2), -TagDatei / -Nachricht (ohne Rueckfrage),
 # -NoPush (Tag nur lokal), -NoFetch (ohne git fetch).
 #
 # Aendert nichts an Ihren Dateien und wechselt keinen Branch - es setzt nur
@@ -348,6 +350,54 @@ else {
         $color = 'Green'
         if ($r.Tag -eq 'NO_TAG') { $color = 'Gray' }
         Write-Host ("  {0}  {1}  {2}  {3}" -f $r.Datum.PadRight($wD), $r.Commit.PadRight($wC), $r.Datei.PadRight($wF), $r.Tag) -ForegroundColor $color
+    }
+}
+Write-Host ""
+
+# --- 2b. Die letzten Freigaben - nach Tag sortiert (neuester Tag zuerst)
+# Pro Tag NUR die Dateien seines Check-ins - genau die gingen mit diesem Tag
+# in die Produktion (nicht die Dateien zwischen zwei Tags)
+Write-Host $Line -ForegroundColor Cyan
+Write-Host " LETZTE $Anzahl FREIGABEN  (Tags '$TagPattern' nach Datum des Tags$filterText)" -ForegroundColor Cyan
+Write-Host $Line -ForegroundColor Cyan
+
+# git for-each-ref refs/tags/<muster>: alle Tags mit diesem Muster
+#   --sort=-creatordate : neuester Tag zuerst
+#   --format : %(refname:short) Tag-Name, %(creatordate:...) Datum des Tags,
+#              %(taggername) Freigeber (- bei einfachem Tag ohne Kommentar),
+#              %(*objectname) / %(objectname) Check-in, auf den der Tag zeigt
+$fmt = '%(refname:short)|%(creatordate:format:%Y-%m-%d %H:%M)|%(if)%(taggername)%(then)%(taggername)%(else)-%(end)|%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)'
+$tagListe = @(git -c core.quotePath=false for-each-ref "refs/tags/$TagPattern" --sort=-creatordate "--format=$fmt")
+Assert-Git 'git for-each-ref'
+
+$fRows = New-Object System.Collections.Generic.List[object]
+$gezeigt = 0
+foreach ($r in $tagListe) {
+    if (-not $r -or $gezeigt -ge $Anzahl) { continue }
+    $t = $r.Split('|', 4)
+    # git diff-tree: die Dateien des Check-ins, auf den der Tag zeigt
+    #   -r / --root / --no-commit-id / --name-status : wie oben
+    $dateien = @(ConvertFrom-NameStatus @(git -c core.quotePath=false diff-tree -r --root --no-commit-id --name-status $t[3]))
+    Assert-Git 'git diff-tree'
+    # Tag ohne passende Datei (wegen -Filter / -File): auslassen
+    if ($dateien.Count -eq 0) { continue }
+    foreach ($f in $dateien) {
+        $fRows.Add([pscustomobject]@{ Datum = $t[1]; Tag = $t[0]; Commit = $t[3].Substring(0, 7); Datei = $f.Pfad; Von = $t[2] })
+    }
+    $gezeigt++
+}
+
+if ($fRows.Count -eq 0) {
+    Write-Host "  Keine Freigaben gefunden." -ForegroundColor Yellow
+}
+else {
+    $wD = ($fRows | ForEach-Object { $_.Datum.Length } | Measure-Object -Maximum).Maximum
+    $wT = (@($fRows | ForEach-Object { $_.Tag.Length }) + 3 | Measure-Object -Maximum).Maximum
+    $wF = (@($fRows | ForEach-Object { $_.Datei.Length }) + 5 | Measure-Object -Maximum).Maximum
+    Write-Host ""
+    Write-Host ("  {0}  {1}  {2}  {3}  {4}" -f 'Datum'.PadRight($wD), 'Tag'.PadRight($wT), 'Commit ', 'Datei'.PadRight($wF), 'Freigeber')
+    foreach ($r in $fRows) {
+        Write-Host ("  {0}  {1}  {2}  {3}  {4}" -f $r.Datum.PadRight($wD), $r.Tag.PadRight($wT), $r.Commit, $r.Datei.PadRight($wF), $r.Von) -ForegroundColor Green
     }
 }
 Write-Host ""

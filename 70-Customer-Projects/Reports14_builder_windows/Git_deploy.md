@@ -92,7 +92,9 @@ cd E:\git\<login>
    summary per file.
 3. **Last check-ins:** the last 20 check-ins sorted by date (`git log
    --date-order`, newest first), one row per file with the tag of **its own**
-   check-in, or `NO_TAG`.
+   check-in, or `NO_TAG`. Then the **last 20 releases** sorted by the tag
+   date (newest first): tag, check-in, tagger and **only the files of the
+   tagged check-in** – not the files between two tags.
 4. **Release:** the developer enters a number from part 2 – or a **commit
    id** (e.g. from part 3, also an older check-in; `-Commit <id>`). The tag
    points at exactly this one check-in; newer check-ins are **not** pulled

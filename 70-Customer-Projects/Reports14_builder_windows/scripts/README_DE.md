@@ -223,6 +223,15 @@ eingecheckt – das macht `checkin.ps1` selbst, auch bei der Auswahl `a`
    2026-11-12 17:08  1c28588  Reports/source/kunde.rdf   NO_TAG
    2026-11-12 17:08  f7c434c  Reports/source/umsatz.rdf  prod-2026-11-12_1708_umsatz.rdf
    ```
+
+   Danach die **letzten 20 Freigaben**, nach Tag sortiert (neuester zuerst)
+   – pro Tag nur die Dateien seines Check-ins:
+
+   ```
+   Datum             Tag                              Commit   Datei                      Freigeber
+   2026-11-12 17:08  prod-2026-11-12_1708_umsatz.rdf  f7c434c  Reports/source/umsatz.rdf  gpi
+   2026-11-12 17:08  prod-2026-11-12_1708_lager.rdf   70b578b  Reports/source/lager.rdf   gpi
+   ```
 3. **Freigabe:** Nummer aus Teil 1 eingeben – oder eine **Commit-ID** aus
    Teil 2, auch einen älteren Check-in → Tag mit Kommentar auf genau diesen
    Check-in, z.B. `prod-2026-11-12_1430_umsatz.rdf`, zum Git-Server senden →
