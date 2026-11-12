@@ -4,7 +4,8 @@
 # Zeigt die Skripte aus menu.ini als nummerierte Liste. Der Anwender waehlt
 # eine Nummer - das Skript laeuft in DIESEM Fenster, danach bleibt das
 # Fenster offen (Start ueber menu.cmd mit -NoExit), damit das Ergebnis
-# stehen bleibt. Fuer den naechsten Schritt: wieder Doppelklick auf das Icon.
+# stehen bleibt. Fuer den naechsten Schritt: m + Enter im selben Fenster
+# (Kurzbefehl, den menu.ps1 anlegt) oder wieder Doppelklick auf das Icon.
 # x = abbrechen, das Fenster schliesst sich.
 #
 #   ===================================
@@ -47,6 +48,14 @@ $Line  = '=' * 60
 $Line2 = '-' * 60
 
 if ($Ini -eq '') { $Ini = Join-Path $PSScriptRoot 'menu.ini' }
+
+# Kurzbefehl m: das Menue in diesem Fenster erneut starten (statt neuem
+# Doppelklick). global: = bleibt nach dem Ende des Skripts in der offenen
+# PowerShell-Sitzung erhalten. Gleiche Menue-Datei, gleiches -Fenster,
+# Fenstergroesse nicht noch einmal setzen.
+$mAufruf = "& '$($PSCommandPath.Replace("'", "''"))' -Ini '$($Ini.Replace("'", "''"))'"
+if ($Fenster) { $mAufruf += ' -Fenster' }
+Set-Item -Path function:global:m -Value ([scriptblock]::Create($mAufruf))
 
 # --- 1. menu.ini lesen
 # Einfaches INI-Format: [abschnitt], schluessel = wert, ; oder # = Kommentar
@@ -260,5 +269,5 @@ if ($rc -eq 0) {
 else {
     Write-Host " $($wahl.Skript) mit Fehler beendet (Rueckgabe $rc) - siehe Meldungen oben." -ForegroundColor Red
 }
-Write-Host " Naechster Schritt: wieder Doppelklick auf das Menue-Icon."
+Write-Host " Naechster Schritt: m + Enter (Menue erneut) oder Doppelklick auf das Icon."
 Write-Host $Line2

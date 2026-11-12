@@ -108,7 +108,8 @@ Wähle eine Option oder breche mit x ab :
 - Nummer eingeben: kurze Erklärung, dann läuft das Skript **im selben
   Fenster**. Das Fenster bleibt danach offen, damit das Ergebnis stehen
   bleibt – schließen mit dem X.
-- Für den nächsten Schritt: wieder Doppelklick auf das Icon.
+- Für den nächsten Schritt: im selben Fenster **`m` + Enter** – das Menü
+  kommt wieder – oder erneut Doppelklick auf das Icon.
 - `x` = abbrechen, das Fenster schließt sich.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
   `Reports\menu.ini` – Änderungen dort macht der Git-Ansprechpartner.
