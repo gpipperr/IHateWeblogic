@@ -2,8 +2,8 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
-**Script:** `09-Install/04-root_nginx.sh`
-**Template:** `09-Install/nginx-wls.conf.template`
+**Script:** [`09-Install/04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh)
+**Template:** [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template)
 **Runs as:** `root` or `oracle` with sudo
 **Phase:** 0 – OS Preparation
 
@@ -18,7 +18,7 @@ WebLogic listens **only on `127.0.0.1`** — Nginx is the sole external entry po
 SSL termination happens at Nginx; WebLogic sees plain HTTP internally.
 
 This script **does not start Nginx** — SSL certificates must be in place first.
-Start happens in `05-root_nginx_ssl.sh`.
+Start happens in [`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh).
 
 Background: [how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined),
 [consoles – who provides what](../../80-FMW-Architecture/weblogic_middleware_architecture.md#5-consoles--who-provides-what)
@@ -94,7 +94,7 @@ nginx -t
 ## What the Script Does
 
 1. Reads `environment.conf` for port and hostname values
-2. Substitutes `##VARIABLE##` placeholders in `nginx-wls.conf.template` → temp config
+2. Substitutes `##VARIABLE##` placeholders in [`nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template) → temp config
 3. Keeps the optional block `#@FORMS_CLIENT_BEGIN@` … `#@FORMS_CLIENT_END@`
    (Forms client bundle) only when `FORMS_CLIENT_DIST=true` and Forms is
    installed – otherwise the whole block is removed
@@ -109,13 +109,13 @@ nginx -t
     creates `/etc/nginx/oracle-wls.d/` – the template includes
     `/etc/nginx/oracle-wls.d/*.conf` **inside the 443 server block**: one file
     per further application (APEX / ORDS: `ords_N.conf`, written by
-    `12-APEX-Ords/05-setup-nginx.sh`). Not below `conf.d/` – those files are
+    [`12-APEX-Ords/05-setup-nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/05-setup-nginx.sh)). Not below `conf.d/` – those files are
     loaded at `http{}` level, where `location` is not allowed
 11. `nginx -t` if the SSL certs are in place (checked as root – `/etc/nginx/ssl`
     is mode 700), then **reloads a running Nginx**; a failed `nginx -t`
     restores the backup at once (Nginx keeps running unchanged). Without
     certs (first installation) validation and reload follow with
-    `05-root_nginx_ssl.sh`. Fixed 2026-10-23: run as oracle with sudo, the
+    [`05-root_nginx_ssl.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-root_nginx_ssl.sh). Fixed 2026-10-23: run as oracle with sudo, the
     cert check and the backup failed silently and the new configuration was
     written but never loaded
 12. Detects and disables conflicting `/etc/nginx/conf.d/default.conf`
@@ -181,7 +181,7 @@ location ~* ^/reports/rwservlet/(getserverinfo|showjobs|showenv|showmap|showauth
 
 - `getjobid`, `showjobid`, `showmyjobs` stay open – users fetch the output of
   their own jobs with them.
-- Our status checks (`01-Run/rwserver_status.sh`, `05-ReportsPerformance/`,
+- Our status checks ([`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh), `05-ReportsPerformance/`,
   cookbooks) call `http://localhost:<WLS_REPORTS_PORT>` directly, not through
   Nginx – not affected.
 - Existing installations: re-run `09-Install/04-root_nginx.sh --apply` (root);
@@ -191,7 +191,7 @@ location ~* ^/reports/rwservlet/(getserverinfo|showjobs|showenv|showmap|showauth
 ### Start page `https://<host>/` (since 2026-11-05)
 
 `04-` writes `/usr/share/nginx/ihw-html/index.html` from
-`09-Install/nginx-index.html.template`. The server block serves it with an
+[`09-Install/nginx-index.html.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-index.html.template). The server block serves it with an
 exact-match location:
 
 ```nginx

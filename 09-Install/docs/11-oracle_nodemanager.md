@@ -1,6 +1,6 @@
 # Step 11 – NodeManager Configuration
 
-**Script:** `09-Install/11-oracle_nodemanager.sh`
+**Script:** [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh)
 **Runs as:** `oracle`
 **Phase:** 6 – Post-Domain Configuration
 
@@ -124,7 +124,7 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 
 > **Why the AdminServer first:** a WLST-offline production domain has random
 > Node Manager credentials (step 5 below). With the Node Manager running,
-> `startStop.sh` starts the AdminServer through it (`nmConnect` with the
+> [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) starts the AdminServer through it (`nmConnect` with the
 > admin user) – on a fresh domain that fails with
 > `Access to domain 'fr_domain' for user 'webadmin' denied` (customer
 > 2026-11-03; this workflow said "NodeManager first" until then).
@@ -149,7 +149,7 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 | 4 | Set `SecureListener=false`; `StartScriptEnabled` only if explicitly `false` (default is `true` since WLS 12.1.2) – restart NodeManager after a change |
 | 5 | Connect to AdminServer via WLST (if reachable) and set `NMType=Plain` on the domain's Machine/NodeManager MBean (requires exactly one Machine in the domain), and set the Node Manager credentials (`SecurityConfiguration` `NodeManagerUsername` + `setNodeManagerPassword()` – a clear-text `NodeManagerPasswordEncrypted` is refused in production mode) to the admin user – a WLST-offline production domain gets random ones (e.g. user `o2HTp584LE`, password unknown; `startComponent.sh` cannot log in). Restart the NodeManager afterwards |
 | 6 | Verify written values, then **test `nmConnect`** with the WebLogic admin credentials (host/port/type from `nodemanager.properties`, domain name from `config.xml`) – `connect()` to the AdminServer working does not mean `nmConnect()` works (customer 2026-10-15). If the test fails right after the credentials were changed in this run, `--apply` offers to restart the Node Manager (it reads `nm_password.properties` only at startup) and repeats the test. Skipped when the NM does not listen. A wrong password shows as `Access to domain '<domain>' for user '<user>' denied` |
-| 7 | Print next-step hints (`01-Run/startStop.sh` start/stop commands) |
+| 7 | Print next-step hints ([`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) start/stop commands) |
 
 ---
 
@@ -180,10 +180,10 @@ nohup $DOMAIN_HOME/bin/startNodeManager.sh \
 
 | Script | Purpose |
 |---|---|
-| `09-Install/08-oracle_setup_domain.sh` | Creates the domain (prerequisite) |
-| `09-Install/10-oracle_boot_properties.sh` | Write boot.properties (run before first start) |
-| `09-Install/12-oracle_reports_users.sh` | Create Reports monitor/exec users (run after NM is up) |
-| `01-Run/startStop.sh` | Day-to-day server start/stop via NodeManager |
+| [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) | Creates the domain (prerequisite) |
+| [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh) | Write boot.properties (run before first start) |
+| [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) | Create Reports monitor/exec users (run after NM is up) |
+| [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) | Day-to-day server start/stop via NodeManager |
 
 ---
 

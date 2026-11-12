@@ -1,6 +1,6 @@
 # Step 02 – 02-root_os_packages.sh
 
-**Script:** `09-Install/02-root_os_packages.sh`
+**Script:** [`09-Install/02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh)
 **Runs as:** `root`
 **Phase:** 0 – OS Preparation
 
@@ -168,7 +168,7 @@ dnf config-manager --set-enabled ol9_appstream # if it is missing
 ```
 
 ULN: channel `ol9_x86_64_appstream`; local mirrors (OLAM/Satellite) may use other
-repo IDs – `dnf repolist --all`. `02-root_os_packages.sh` checks this first
+repo IDs – `dnf repolist --all`. [`02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) checks this first
 (section "Repositories") and offers to enable a disabled AppStream repo with `--apply`.
 
 ### 2. FMW prerequisite libraries
@@ -187,7 +187,7 @@ dnf install -y \
 
 > `libnsl2` provides `/usr/lib64/libnsl.so.3*`, the target of the
 > `libnsl.so.2` symlink that Reports (`rwserver`) needs on OL9 — created later by
-> `13-root_reports_fix.sh`, which only checks for the package.
+> [`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh), which only checks for the package.
 
 ### 3. Font stack (Reports PDF rendering)
 
@@ -218,8 +218,8 @@ dnf install -y \
 > abort without a working `DISPLAY` even in batch mode.
 >
 > `python3-fonttools`: AFM generation for the Reports fonts
-> (`04-ReportsFonts/ttf2reports_afm.py`); installed here so that
-> `04-oracle_pre_checks.sh` (→ `02-Checks/os_check.sh`) does not warn in phase 1.
+> ([`04-ReportsFonts/ttf2reports_afm.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/ttf2reports_afm.py)); installed here so that
+> [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) (→ [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh)) does not warn in phase 1.
 > `cups-libs` is enough for Reports; the CUPS server `cups` only for
 > `DESTYPE=printer` (os_check shows it as INFO).
 
@@ -243,15 +243,15 @@ package = FAIL, missing `nmon` = WARN.
 `rsync` copies installers / patches between the patch archive and the local
 `PATCH_STORAGE` (`07-Maintenance/patch_storage.sh pull|clean`, resumable with
 `--partial`) and for the offline route (copy of a downloaded `PATCH_STORAGE`);
-without it `patch_storage.sh` falls back to `cp` (added 2026-10-30).
+without it [`patch_storage.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/patch_storage.sh) falls back to `cp` (added 2026-10-30).
 
 `git-core` (plain `git` without Perl / extras) is needed for the very first
 `git clone` of IHateWeblogic and for the DBA SQL scripts in `~oracle/sql`
-(`60-RCU-DB-19c/07-db_sql_scripts.sh`, local DB only). Before the first
+([`60-RCU-DB-19c/07-db_sql_scripts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/07-db_sql_scripts.sh), local DB only). Before the first
 clone root installs it by hand (`dnf install -y git-core`). 02- keeps it
 installed afterwards (added 2026-11-03).
 
-`poppler-utils` provides `pdffonts`, used by `04-ReportsFonts/pdf_font_verify.sh`
+`poppler-utils` provides `pdffonts`, used by [`04-ReportsFonts/pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh)
 to check that a report PDF embeds TrueType fonts (added 2026-10-19 – without
 it the check could not run on the test host).
 

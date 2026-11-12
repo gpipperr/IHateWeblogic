@@ -1,6 +1,6 @@
 # 30 – Autostart: FMW domain under Node Manager control (systemd)
 
-Script: `09-Install/30-configure_autostart.sh`
+Script: [`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)
 Templates: `09-Install/autostart_templates/`
 
 Starts the complete Forms/Reports domain automatically at boot and stops it
@@ -17,14 +17,14 @@ deliberate changes:
 
 | Original procedure | Here |
 |---|---|
-| Repository DB started by the same unit | DB has its own units (`60-RCU-DB-19c/08-db_auto_start.sh`); with `LOCAL_REP_DB=true` the FMW unit is only ordered **after** `oracle-db.service`/`oracle-listener.service` |
+| Repository DB started by the same unit | DB has its own units ([`60-RCU-DB-19c/08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh)); with `LOCAL_REP_DB=true` the FMW unit is only ordered **after** `oracle-db.service`/`oracle-listener.service` |
 | Servers stopped with `nmKill` (hard kill) | Orderly WLST `shutdown()` via the AdminServer, `nmKill` only as fallback |
 | `kill -9` loop for leftover processes | Not used |
 | One script per component (`wls_start_forms.sh`, …) | One wrapper `fmw_ctl.sh <action> [component]` |
 | Managed servers started with `nmStart` | Started with `start()` through the AdminServer (passes the admin URL / startup properties correctly); AdminServer and system components with `nmStart` |
 
 > **Simple alternative for customers who set everything up by hand:**
-> `70-Customer-Projects/Reports14_linux_manual_install/Autostart_linux_middleware.txt`
+> [`70-Customer-Projects/Reports14_linux_manual_install/Autostart_linux_middleware.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Autostart_linux_middleware.txt)
 > (plain start scripts, no Node Manager control).
 
 ---
@@ -68,7 +68,7 @@ later (`13-`, customer import) or removed (`13- --remove-server`) is unknown
 to `fmw_ctl.sh` and the systemd unit until the scripts are rendered again
 with `30-configure_autostart.sh --apply`. The lib function `autostart_drift`
 compares the list with `config.xml`:
-- `01-Run/startStop.sh` warns and starts / stops the missing components
+- [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) warns and starts / stops the missing components
   directly through the Node Manager;
 - `13-` warns after `--apply` and after `--remove-server`;
 - `07-Maintenance/apply_customer_conf.sh --apply` runs `30- --apply` itself
@@ -174,7 +174,7 @@ has no LDAP adapter for the `DefaultAuthenticator` and the EM user search in
 [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md)).
 Logged as `Removed stale libOVD lock …` in `ctrl/log/fmw_ctl_<date>.log`.
 
-**Interplay with `01-Run/startStop.sh`:** once the autostart is active, control
+**Interplay with [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh):** once the autostart is active, control
 the servers through `fmw_ctl.sh` / `systemctl` (Node Manager). Servers started
 outside the Node Manager show up as `UNKNOWN` in `fmw_ctl.sh status`.
 
@@ -196,7 +196,7 @@ outside the Node Manager show up as `UNKNOWN` in `fmw_ctl.sh status`.
 
 ## Deinstall
 
-`99-oracle_deinstall_fmw.sh` disables and removes the unit and deletes
+[`99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh) disables and removes the unit and deletes
 `$ORACLE_BASE/admin/<DOMAIN_NAME>`; other directories under `$ORACLE_BASE/admin`
 (database) stay protected.
 

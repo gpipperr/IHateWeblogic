@@ -1,6 +1,6 @@
 # Step 5b – 10-oracle_boot_properties.sh
 
-**Script:** `09-Install/10-oracle_boot_properties.sh`
+**Script:** [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh)
 **Runs as:** `oracle`
 **Phase:** 5 – Configuration & Validation
 
@@ -16,7 +16,7 @@ typed at the console — which makes unattended or scripted starts impossible.
 
 This script must run **before the first domain start**.
 
-> **Note:** `08-oracle_setup_domain.sh` already writes AdminServer's
+> **Note:** [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) already writes AdminServer's
 > `boot.properties` right after domain creation, so it can be started
 > immediately without waiting for this step. Re-running this script overwrites
 > that file with identical content (harmless) and additionally covers the
@@ -53,7 +53,7 @@ password={AES256}xyz789...
 disk. The key is the domain's `security/SerializedSystemIni.dat` – the
 encrypted values work only in this domain.
 
-Without `boot.properties` a server started by the Node Manager / `startStop.sh`
+Without `boot.properties` a server started by the Node Manager / [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh)
 dies at once (`BEA-090782`) – why the Node Manager needs it:
 [who starts whom](../../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain).
 
@@ -143,9 +143,9 @@ overwritten** — the entry is reported as `OK … already encrypted`.
 
 | Script | Purpose |
 |---|---|
-| `00-Setup/weblogic_sec.sh` | Store WebLogic credentials (prerequisite) |
-| `09-Install/09-oracle_configure.sh` | Calls this script as Step 0 |
-| `01-Run/startStop.sh` | Warns if boot.properties is missing before start |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | Store WebLogic credentials (prerequisite) |
+| [`09-Install/09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) | Calls this script as Step 0 |
+| [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) | Warns if boot.properties is missing before start |
 
 ---
 
@@ -155,5 +155,5 @@ overwritten** — the entry is reported as `OK … already encrypted`.
 |---|---|---|
 | `startWebLogic.sh` hangs waiting for input | `boot.properties` missing | Run this script with `--apply` |
 | `Decryption failed` | Wrong machine or corrupted `.des3` file | Re-run `00-Setup/weblogic_sec.sh --apply` |
-| `Server directory not found` | Domain not yet created | Run `08-oracle_setup_domain.sh` first, then this script |
+| `Server directory not found` | Domain not yet created | Run [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) first, then this script |
 | File already encrypted – no overwrite | WebLogic already started once | No action needed |

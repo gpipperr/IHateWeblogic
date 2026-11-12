@@ -1,6 +1,6 @@
 # Step 3a – 06-oracle_install_forms_reports.sh
 
-**Script:** `09-Install/06-oracle_install_forms_reports.sh`
+**Script:** [`09-Install/06-oracle_install_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_install_forms_reports.sh)
 **Runs as:** `oracle`
 **Phase:** 3 – Forms & Reports Installation
 
@@ -9,7 +9,7 @@
 ## Purpose
 
 Silent installation of Oracle Forms & Reports 14.1.2.0.0 into the same `ORACLE_HOME`
-as FMW Infrastructure. Must run after `05-oracle_install_weblogic.sh`.
+as FMW Infrastructure. Must run after [`05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh).
 
 Background – what this layer adds to the home and how its parts run later:
 Forms (`frmweb` per session, servlet in `WLS_FORMS`) –
@@ -23,7 +23,7 @@ Builder on Windows – [reports_rwbuilder.md](../../80-FMW-Architecture/reports_
 ## Installation Options (INSTALL_COMPONENTS)
 
 Three installation variants are supported. The choice is made once during the
-setup interview (`01-setup-interview.sh`) and stored in `environment.conf`.
+setup interview ([`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)) and stored in `environment.conf`.
 
 ### How it is set
 
@@ -127,7 +127,7 @@ $PATCH_STORAGE/fr/fmw_14.1.2.0.0_fr_linux64.bin \
 > **Temp dir:** the script runs the installer with `TMP`/`TMPDIR` and
 > `-J-Djava.io.tmpdir` = `$ORACLE_BASE/tmp` – OUI extracts and executes helpers in
 > its temp dir, which fails on a `noexec` `/tmp` (CIS-hardened images;
-> `01-root_os_baseline.sh` reports it). Same as `05-oracle_patch_weblogic.sh`.
+> [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) reports it). Same as [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh).
 
 > The `.bin` file is a native Linux executable — **not** a JAR file.
 > Do **not** call it with `java -jar`. Run it directly (chmod +x required).
@@ -170,7 +170,7 @@ $ORACLE_HOME/OPatch/opatch lsinventory | grep -iE "Forms|Reports"
 
 ## Response File Template
 
-Located at: `09-Install/response_files/fr_install.rsp.template`
+Located at: [`09-Install/response_files/fr_install.rsp.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/response_files/fr_install.rsp.template)
 
 ---
 

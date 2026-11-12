@@ -37,7 +37,7 @@ Sources, in order of authority:
 > needed for a given query, exact parameter-form geometry) is still only
 > example-derived (source 4) and **not yet confirmed by actually
 > converting/running a report in this project** — see
-> `09-Install/docs/20-forms_reports_testmodules.md`.
+> [`09-Install/docs/20-forms_reports_testmodules.md`](../docs/20-forms_reports_testmodules.md).
 
 ---
 
@@ -67,7 +67,7 @@ itself emits XML, not for a plain PDF/HTML report).
 - `DTDVersion="9.0.2.0.0"` is what Oracle's own debugging-doc example uses,
   and is documented as valid through 11g/12c.
 - `9.0.2.0.10` is the version actually seen in use together with
-  `<userParameter>`/`<parameterForm>` (see `test_user_objects.xml`) — if a
+  `<userParameter>`/`<parameterForm>` (see [`test_user_objects.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_user_objects.xml)) — if a
   report with parameters fails to convert under `9.0.2.0.0`, try `9.0.2.0.10`.
   The DTD itself does not restrict `DTDVersion` to an enumerated list (it's
   plain `CDATA`), so this is a convention, not a DTD constraint.
@@ -102,14 +102,14 @@ itself emits XML, not for a plain PDF/HTML report).
   dynamic lexical substitution that the built-in parser can't handle).
 - Column aliases in the `SELECT` are **mandatory** for unambiguous column
   names, and are what `source=` in `<layout>` references. Avoid reserved
-  words as aliases (e.g. `current_date` breaks — see `test_dual.xml`'s header
+  words as aliases (e.g. `current_date` breaks — see [`test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml)'s header
   comment for the concrete trap).
 
 ### `<userParameter>`
 
 DTD: `<!ELEMENT userParameter (comment?, listOfValues?)>`, attributes `name`
 (`#REQUIRED`), `datatype` (`number|character|date`, **default `number`** —
-easy to forget, `test_user_objects.xml`'s `P_OBJECT_NAME` needs
+easy to forget, [`test_user_objects.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_user_objects.xml)'s `P_OBJECT_NAME` needs
 `datatype="character"` explicitly), `pluginClass`, `width` (default `"20"`),
 `scale`/`precision` (default `"0"` each), `initialValue`, `inputMask`,
 `validationTrigger`, `label`, `defaultWidth`, `defaultHeight`,
@@ -200,7 +200,7 @@ parsing, so it can change the query's structure (add a clause, build an
   `start`), `nullValue`, `breakOrder` are the commonly-used ones.
 - Additional elements as needed: `<link>` (master-detail), `<formula>`,
   `<exception>`/`<condition>` (format triggers).
-- See `test_dual.xml` for a complete, minimal working example of this block.
+- See [`test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml) for a complete, minimal working example of this block.
 
 ## `<parameterForm>` — Parameter Entry Screen
 
@@ -282,11 +282,11 @@ distribution.dtd` (65 lines) plus Oracle's
 - `$ORACLE_HOME/reports/dtd/reports.dtd` — the full, authoritative DTD;
   grep it directly for any element/attribute not covered above.
 - `$ORACLE_HOME/reports/dtd/distribution.dtd` — the distribution-XML DTD.
-- `09-Install/reports_templates/test_dual.xml` — minimal working example,
+- [`09-Install/reports_templates/test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml) — minimal working example,
   no parameters.
-- `09-Install/reports_templates/test_user_objects.xml` — minimal working
+- [`09-Install/reports_templates/test_user_objects.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_user_objects.xml) — minimal working
   example, one parameter + parameter form.
-- `09-Install/docs/20-forms_reports_testmodules.md` — overall test-module
+- [`09-Install/docs/20-forms_reports_testmodules.md`](../docs/20-forms_reports_testmodules.md) — overall test-module
   status, open verification points, live test log.
 
 (The production report this reference was derived from,

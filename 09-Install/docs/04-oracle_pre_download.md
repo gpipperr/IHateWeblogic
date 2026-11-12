@@ -1,6 +1,6 @@
 # Step 1b – 04-oracle_pre_download.sh
 
-**Script:** `09-Install/04-oracle_pre_download.sh`
+**Script:** [`09-Install/04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)
 **Runs as:** `oracle`
 **Phase:** 1 – Pre-Install
 
@@ -27,14 +27,14 @@ FMW 14.1.2 software comes from **two different sources** — the script handles 
 |---|---|---|
 | **eDelivery** (Oracle Software Delivery Cloud) | Base installers (V\*.zip) | Manual download, then unzip |
 | **MOS** (My Oracle Support) | OPatch + individual patches | `getMOSPatch.jar` (automated) |
-| **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` (`oracle_software_version.conf`) |
-| **Repository** (`09-Install/forms_templates/IHateWeblogic.ico`) | default shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true`, Forms installed and `FORMS_CLIENT_ICON=$PATCH_STORAGE/icon/IHateWeblogic.ico` (interview default) | `--apply` copies the template to `$PATCH_STORAGE/icon/IHateWeblogic.ico` if missing; an existing file is kept (replace it there by the customer's own icon of the same name, or point `FORMS_CLIENT_ICON` elsewhere) |
+| **GitHub** (freemansoft/jacob-project) | JACOB for WebUtil OLE – only with `FORMS_WEBUTIL_JACOB=true` and Forms installed | `curl` in `--apply`, SHA-256 from `JACOB_SHA256` ([`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)) |
+| **Repository** ([`09-Install/forms_templates/IHateWeblogic.ico`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/IHateWeblogic.ico)) | default shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true`, Forms installed and `FORMS_CLIENT_ICON=$PATCH_STORAGE/icon/IHateWeblogic.ico` (interview default) | `--apply` copies the template to `$PATCH_STORAGE/icon/IHateWeblogic.ico` if missing; an existing file is kept (replace it there by the customer's own icon of the same name, or point `FORMS_CLIENT_ICON` elsewhere) |
 | **URL** (any) | own shortcut icon of the Forms client – only with `FORMS_CLIENT_DIST=true` and `FORMS_CLIENT_ICON` set to an `http(s)` URL | `curl` into `$PATCH_STORAGE/icon/<basename>`, must be ICO or PNG; sites with a browser check (HTTP 403) → download in the browser and place the file under the name the script prints |
 | **OTN** (download.oracle.com, no login) | **APEX** and **ORDS** – only with `INSTALL_APEX=true` | `curl` of `APEX_ZIP_URL` / `ORDS_ZIP_URL` (default the "latest" links), version read from the ZIP, stored in `$PATCH_STORAGE/apex/<ver>/` / `$PATCH_STORAGE/ords/<ver>/`, SHA-256 against `APEX_SHA256` / `ORDS_SHA256` if set |
 | **MOS**, platform Generic | **APEX patch set bundle** (`APEX_PATCH_NR`) – only with `INSTALL_APEX=true` and `--mos` | `getMOSPatch.jar` with platform `2000P` (Generic) into `$PATCH_STORAGE/apex/<ver>/patch/<nr>/` |
 | **MOS**, second platform | Oracle JDK 21 for **Windows x64** – client Java of the Forms client distribution, only with `FORMS_CLIENT_DIST=true` and Forms installed | `getMOSPatch.jar` with platform `CLIENT_JDK_PLATFORM` (`233P`) into `$PATCH_STORAGE/client/jdk/<nr>/` |
 | **oracle.com** (login) or eDelivery | **Oracle Database 19c base** `LINUX.X64_193000_db_home.zip` – only for a local RCU database (`LOCAL_REP_DB=true`, `60-RCU-DB-19c/`) | **not handled by this script** – browser download, placed as `$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip`; see [Oracle Database 19c base](#oracle-database-19c-base-local-rcu-database-local_rep_dbtrue) |
-| **MOS** (AutoUpgrade) | 19c RU / OJVM / OPatch / Data Pump bundle / DB-home JDK | online: `60-RCU-DB-19c/01-db_install_software.sh` (AutoUpgrade); offline: [download/patches_db.csv](../download/README.md) with `mos_patch_download.sh` |
+| **MOS** (AutoUpgrade) | 19c RU / OJVM / OPatch / Data Pump bundle / DB-home JDK | online: [`60-RCU-DB-19c/01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) (AutoUpgrade); offline: [download/patches_db.csv](../download/README.md) with [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) |
 
 Credentials for MOS come from `environment.conf` (`MOS_USER`) and
 `mos_sec.conf.des3` (encrypted password). getMOSPatch gets them through a
@@ -47,7 +47,7 @@ where every user could read it in `ps` (fixed 2026-10-20).
 ## Configuration: oracle_software_version.conf + download/patches_fmw.csv
 
 Base software (eDelivery file names, SHA-256), cycle values and versions are
-in `09-Install/oracle_software_version.conf`; **patch numbers** are in
+in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf); **patch numbers** are in
 [`09-Install/download/patches_fmw.csv`](../download/README.md) – the conf
 loads the CSV and sets the variables below by the role column (`opatch`,
 `spb`, `wls`, `fr_common`, `reports`, `forms`, `fr_optional`, `jdk`,
@@ -118,7 +118,7 @@ The ZIP name does not change between JDK updates
 
 ### APEX, ORDS and the APEX patch (`INSTALL_APEX=true`)
 
-| Variable (`oracle_software_version.conf`) | Value | Description |
+| Variable ([`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)) | Value | Description |
 |---|---|---|
 | `APEX_ZIP_URL` | `https://download.oracle.com/otn_software/apex/apex_26.2.zip` | **pinned to APEX 26.2** (2026-10-30) – versioned link of the [APEX download page](https://www.oracle.com/tools/downloads/apex-downloads/) ("All languages"); `…/apex-latest.zip` would follow every new release silently |
 | `APEX_SHA256` | `50e27e5451435aa79205acbcd22ee44353d36d96768634695eb01b93fa02d782` | SHA-256 of the download page for `apex_26.2.zip` – checked after a new download; belongs to this one version (empty with the "latest" link) |
@@ -158,10 +158,10 @@ patch directory gets its own cfg (same mechanism as the client Java).
 | Variable | Value | Description |
 |---|---|---|
 | `DB_CVU_PATCH_NR` | `30839369` | MOS "Standalone CVU Platform-specific package supports 21c and 19c" – platform of the master cfg (Linux x86-64) |
-| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: `mos_patch_download.sh` strips the trailing `\.zip` – getMOSPatch compares the regexp with `String.matches()` against the file name **without** `.zip` (checked 2026-10-28; before, the filter never matched); the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
+| `DB_CVU_REGEXP` | `p30839369_[0-9]+_Linux-x86-64\.zip` | getMOSPatch filter: [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) strips the trailing `\.zip` – getMOSPatch compares the regexp with `String.matches()` against the file name **without** `.zip` (checked 2026-10-28; before, the filter never matched); the patch holds five ZIPs (26ai (23.26) kit, OCW RU variant, 21c / 18c `cvupack_*.zip`, 810 MB together, confirmed live 2026-10-27) – only the 26ai kit (133 MB) is needed |
 
 Downloaded with `--mos` only when the RCU database runs on this host
-(`LOCAL_REP_DB=true` from `01-setup-interview.sh`) into
+(`LOCAL_REP_DB=true` from [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)) into
 `$PATCH_STORAGE/database/cvu/`; used by
 [60-RCU-DB-19c/00b-db_cvu_check.sh](../../60-RCU-DB-19c/docs/00b-db_cvu_check.md)
 before the 19c installation. With a remote database the section says
@@ -208,8 +208,8 @@ another server is installed by its DBA – nothing to download here.
 
 **Not downloaded by this script** – eDelivery needs a browser session and
 the license acceptance (as for the FMW ZIPs in manual mode), and
-`04-oracle_pre_download.sh` does not check the file either; it is read by
-`60-RCU-DB-19c/01-db_install_software.sh` from `DB_INSTALL_ARCHIVE`
+[`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) does not check the file either; it is read by
+[`60-RCU-DB-19c/01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) from `DB_INSTALL_ARCHIVE`
 (`60-RCU-DB-19c/environment_db.conf`, default
 `$PATCH_STORAGE/database/LINUX.X64_193000_db_home.zip`).
 
@@ -250,7 +250,7 @@ scp LINUX.X64_193000_db_home.zip oracle@<host>:$PATCH_STORAGE/database/
 JDK) are not in this script either: online `01-db_install_software.sh` lets
 AutoUpgrade load the current set from MOS (`DB_TARGET_RU`, `RECOMMENDED` =
 gold image); host without MOS access → [download/patches_db.csv](../download/README.md)
-with `mos_patch_download.sh` on another host into
+with [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) on another host into
 `$PATCH_STORAGE/database/patches/<nr>/` – `01-` copies them into its empty
 AutoUpgrade `patchdir`. Full procedure:
 [60-RCU-DB-19c/docs/01-db_install_software.md](../../60-RCU-DB-19c/docs/01-db_install_software.md).
@@ -265,7 +265,7 @@ The standalone CVU for the pre-check of the host is the only DB file of
 | `CLIENT_JDK_PLATFORM` | `233P` | MOS platform code, Microsoft Windows x64 (64-bit) |
 
 Only downloaded when `FORMS_CLIENT_DIST=true` (`environment.conf`, asked by
-`01-setup-interview.sh`) and Forms is part of the installation – never for
+[`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)) and Forms is part of the installation – never for
 `REPORTS_ONLY`. Source of the Java runtime of the client bundle, concept
 [40-forms_client_distribution.md](40-forms_client_distribution.md) §3.1.
 
@@ -288,7 +288,7 @@ The procedure for finding the correct current patch numbers is documented in:
 → **[06-oracle_patch_forms_reports.md](06-oracle_patch_forms_reports.md)** – Forms & Reports patches
 → **[00-patch-references.md](00-patch-references.md)** – central list of MOS Doc IDs used to find them
 
-Current configuration in `oracle_software_version.conf`:
+Current configuration in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf):
 
 | Variable | Value | Description |
 |---|---|---|
@@ -299,8 +299,8 @@ Current configuration in `oracle_software_version.conf`:
 
 All three variables are **space-separated** patch number lists.
 `INSTALL_PATCHES` and `WLS_SPB_PATCH_NR` are applied by
-`05-oracle_patch_weblogic.sh`; `INSTALL_PATCHES_REPORTS`/
-`INSTALL_PATCHES_FORMS` are applied by `06-oracle_patch_forms_reports.sh`,
+[`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh); `INSTALL_PATCHES_REPORTS`/
+`INSTALL_PATCHES_FORMS` are applied by [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh),
 which also auto-detects whether Forms/Reports is actually installed.
 Always update OPatch **before** applying patches.
 
@@ -368,7 +368,7 @@ https://raw.githubusercontent.com/MarisElsins/getMOSPatch/master/getMOSPatch.jar
 → $PATCH_STORAGE/bin/getMOSPatch.jar
 ```
 
-Either `wget` or `curl` must be installed. No `.getMOSPatch.cfg` to prepare: `mos_patch_download.sh` writes one per patch directory (`<platform from the CSV>;4L`).
+Either `wget` or `curl` must be installed. No `.getMOSPatch.cfg` to prepare: [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) writes one per patch directory (`<platform from the CSV>;4L`).
 
 **Manual fallback** (if GitHub is unreachable):
 
@@ -464,7 +464,7 @@ java -jar $PATCH_STORAGE/bin/getMOSPatch.jar patch=35702194 regexp=p35702194_210
 ```
 
 Never put the Windows ZIP into `patches/35702194/` (or the Linux ZIP into
-`client/jdk/`) – `40-oracle_forms_client_bundle.sh` takes the Windows JDK
+`client/jdk/`) – [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) takes the Windows JDK
 only from `client/jdk/<nr>/`. Both ZIPs keep their name with every JDK
 update: start a new cycle with `--fresh-patches` (archives both
 directories). Further optional files: CVU (`database/cvu/`, section
@@ -475,8 +475,8 @@ platform, file and target: [download/patches_fmw.csv](https://github.com/gpipper
 ### 7. Apply OPatch and patches (after FMW installation)
 
 OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
-`05-oracle_patch_weblogic.sh`; F&R QPR patches by
-`06-oracle_patch_forms_reports.sh`.
+[`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh); F&R QPR patches by
+[`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh).
 
 ```bash
 # Automated (recommended):
@@ -492,7 +492,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
 ## What the Script Does
 
 - Reads `MOS_USER`, `PATCH_STORAGE`, `INSTALL_COMPONENTS` from `environment.conf`
-- Reads versions, filenames, patch numbers from `oracle_software_version.conf`
+- Reads versions, filenames, patch numbers from [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)
 - **`--fresh-patches`** (with `--apply`): archives `$PATCH_STORAGE/patches/` to
   `patches_<timestamp>/` (and `client/jdk/` to `client/jdk_<timestamp>/`)
   before anything else, then creates a clean, empty
@@ -504,7 +504,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
   - Wget mode (`--wget`): prompts for Bearer Token, then prompts per-file for download URL
   - Skips files that are already present with a valid checksum
 - **MOS patches** (with `--mos` or `--all`):
-  - Decrypts MOS password from `mos_sec.conf.des3` (written by `01-setup-interview.sh`)
+  - Decrypts MOS password from `mos_sec.conf.des3` (written by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh))
   - Builds the role list from `environment.conf` (`forms` only with Forms,
     `client_jdk` only `FORMS_CLIENT_DIST=true`, `cvu` only `LOCAL_REP_DB=true`,
     `apex` only `INSTALL_APEX=true`, `fr_optional` only `REPORTS_BIDIPARENTHESIS=YES`)
@@ -515,7 +515,7 @@ OPatch upgrade, WLS Stack Patch Bundle, and WLS patch apply are handled by
     (different digest = WARN, Oracle re-releases ZIPs under the same number)
   - Result per role (target = column `dir` of the CSV):
   - Downloads OPatch upgrade **Patch `OPATCH_UPGRADE_PATCH_NR`** (`28186730`) to `$PATCH_STORAGE/patches/28186730/`
-    (contains `opatch_generic.jar` — used by `05-oracle_patch_weblogic.sh`)
+    (contains `opatch_generic.jar` — used by [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh))
   - Downloads the **WLS Stack Patch Bundle `WLS_SPB_PATCH_NR`** (`40125898`) to
     `$PATCH_STORAGE/patches/40125898/`, if set (skips if empty)
   - Downloads the Java SE patch **`JDK_PATCH_NR`** (`35702194`) to
@@ -582,7 +582,7 @@ Typical causes:
 
 **Offline route** (no change on the network side) – the download host needs
 **no library**, only Java, `getMOSPatch.jar`, a MOS account and the two files
-`mos_patch_download.sh` + `patches_fmw.csv`:
+[`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) + [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv):
 
 ```bash
 # 1. on a host WITH MOS access (share, admin workstation)
@@ -663,7 +663,7 @@ $PATCH_STORAGE/
 
 > **Note:** The `opatch/` directory from older versions of this guide no longer exists.
 > Patch 28186730 (in `patches/28186730/`) replaces the direct download of Patch 6880880.
-> The `05-oracle_patch_weblogic.sh` script unzips Patch 28186730 and uses the
+> The [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) script unzips Patch 28186730 and uses the
 > `6880880/opatch_generic.jar` inside it for the OPatch upgrade.
 >
 > Patch numbers for future CPU releases change quarterly — see

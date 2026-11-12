@@ -1,6 +1,6 @@
 # Forms Configuration Templates
 
-These templates must be **edited by the customer** before running `14-oracle_setup_forms.sh`.
+These templates must be **edited by the customer** before running [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh).
 
 ## Workflow
 
@@ -15,14 +15,14 @@ The script copies each template to its target path(s) and creates a
 
 | Template | Target(s) in domain | Notes |
 |---|---|---|
-| `default.env.template` | `$DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_*/config/` | Main Forms environment file |
-| `formsweb.cfg.template` | Same config dir as `default.env` | `[default]` overrides merged into Oracle's formsweb.cfg (keeps `[webstart]`, `[standaloneapp]` …) |
-| `webutil.cfg.template` | `$FR_INST/server/` **and** `$FR_INST_ALT/server/` | File transfer settings; merged into Oracle's webutil.cfg, written to both locations |
-| `Registry.dat.template` | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
-| `fmrweb_utf8.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
-| `fmrwebd.res.template` | `$FR_INST/admin/resource/D/` | Keyboard bindings (non-UTF-8 fallback) |
-| `test_form.xml` | not copied – compiled by `15-deploy-test-report-forms_template.sh` into `FORMS_CUSTOMER_DIR` | smoke-test Forms module (`select sysdate from dual`), verified 2026-10-16 |
-| `IHateWeblogic.ico` | `$PATCH_STORAGE/icon/IHateWeblogic.ico` (copied by `04-oracle_pre_download.sh --apply`) | Default shortcut icon of the Forms client distribution (`FORMS_CLIENT_ICON`, concept 40) – project logo, 16/32/48/256 px; not used by 14- |
+| [`default.env.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/default.env.template) | `$DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_*/config/` | Main Forms environment file |
+| [`formsweb.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/formsweb.cfg.template) | Same config dir as `default.env` | `[default]` overrides merged into Oracle's formsweb.cfg (keeps `[webstart]`, `[standaloneapp]` …) |
+| [`webutil.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/webutil.cfg.template) | `$FR_INST/server/` **and** `$FR_INST_ALT/server/` | File transfer settings; merged into Oracle's webutil.cfg, written to both locations |
+| [`Registry.dat.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/Registry.dat.template) | `.../formsapp_*/config/oracle/forms/registry/` | Font mapping + UI settings |
+| [`fmrweb_utf8.res.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/fmrweb_utf8.res.template) | `$FR_INST/admin/resource/D/` | Keyboard bindings (UTF-8 NLS) |
+| [`fmrwebd.res.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/fmrwebd.res.template) | `$FR_INST/admin/resource/D/` | Keyboard bindings (non-UTF-8 fallback) |
+| [`test_form.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/test_form.xml) | not copied – compiled by [`15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) into `FORMS_CUSTOMER_DIR` | smoke-test Forms module (`select sysdate from dual`), verified 2026-10-16 |
+| [`IHateWeblogic.ico`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/IHateWeblogic.ico) | `$PATCH_STORAGE/icon/IHateWeblogic.ico` (copied by `04-oracle_pre_download.sh --apply`) | Default shortcut icon of the Forms client distribution (`FORMS_CLIENT_ICON`, concept 40) – project logo, 16/32/48/256 px; not used by 14- |
 
 `$FR_INST`     = `$DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/$FORMS_INSTANCE_NAME`
 `$FR_INST_ALT` = `$DOMAIN_HOME/config/fmwconfig/components/FORMS/$FORMS_INSTANCE_NAME`

@@ -6,15 +6,15 @@
 > (current cycle, history table at the top).
 > Use: rebuild or roll back an environment **by hand** to this patch level –
 > e.g. when a later cycle brings a bug. The patch numbers are in the tables
-> below; set them in `09-Install/oracle_software_version.conf` (and
+> below; set them in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (and
 > download them with `04-oracle_pre_download.sh --apply --fresh-patches --mos`)
 > to reproduce this state. Statements like "next step" or "state of the test
 > host" describe the situation of 2026-10-22.
 
 
 Central lookup of My Oracle Support (MOS) Doc IDs used across the patch
-scripts (`05-oracle_patch_weblogic.sh`, `06-oracle_patch_forms_reports.sh`,
-`04-oracle_pre_download.sh`) and their docs, plus the full patch list for
+scripts ([`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh), [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh),
+[`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)) and their docs, plus the full patch list for
 the currently configured cycle. Doc IDs and patch numbers change every
 quarter — this file is a starting point for the next check, not a
 substitute for re-verifying against MOS before each patch cycle.
@@ -32,7 +32,7 @@ Most importend URLs'
 | CPU211 | Patch Availability Document FMW, CPU July 2026 | Historical reference for the July 2026 cycle |
 | CPU349 | CSPU September 2026 for Oracle Java SE | Current recommended JDK version/patch for the Sep 2026 cycle |
 | KB168467 | Stack Patch Bundle (SPB) with SPBAT Utility | Background on the SPB/SPBAT mechanism reintroduced for 14.1.2 in CSPU Sep 2026 — see the corrected note in `docs/05-oracle_patch_weblogic.md` |
-| KB175049 | Installing and maintaining Java SE for FMW 11g/12c/14c | JDK install/update procedure, referenced by `02b-root_os_java.sh` |
+| KB175049 | Installing and maintaining Java SE for FMW 11g/12c/14c | JDK install/update procedure, referenced by [`02b-root_os_java.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02b-root_os_java.sh) |
 | KB159467 | Restricting Incoming Serialized Java Objects (JEP 290) | Why an up-to-date JDK is required for the WLS PSU deserialization fixes to take effect |
 | KB694158 | Security Advice and Post-Install for WLS PSUs | Post-install steps after applying the WLS Stack Patch Bundle / SPU |
 | KB559857 | Cumulative README Post-Install Steps for OHS 14.1.2.0 Bundle Patches | Only relevant if OHS is co-located in the same Oracle Home (conditional patch 39597026) |
@@ -44,13 +44,13 @@ Most importend URLs'
 1. Every third Tuesday (CPU **or** CSPU), read the public advisory (risk
    matrix: WLS, OPSS, Forms, "Oracle Fusion Middleware"), then open KA1182
    on MOS and compare the current patch numbers against
-   `09-Install/oracle_software_version.conf`.
+   [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf).
 2. If a Doc ID listed here has been superseded or renumbered by Oracle,
    update this table — do not silently start referencing a new number
    from inline comments elsewhere, this table is the single place to look.
 3. Set `PATCH_CYCLE`, `PATCH_CYCLE_DATE`, `PATCH_CYCLE_ADVISORY` in
    `oracle_software_version.conf` together with the patch numbers –
-   `10-Monitoring/cve_inventory.sh` compares installed patches and newer
+   [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) compares installed patches and newer
    advisories against them.
 4. Patch numbers themselves live in `oracle_software_version.conf`, not
    here — the tables below are a point-in-time snapshot for reference,
@@ -151,7 +151,7 @@ CSPU Sep 2026 set of this file.
 
 Next step: on 20 October 2026 the CPU October 2026 replaces this set – new
 KA1182 check, new JDK (Java SE 21.0.12.1 is listed as affected), update
-`oracle_software_version.conf` and the patch list below.
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) and the patch list below.
 
 ---
 
@@ -168,7 +168,7 @@ Linux 9), Nginx as frontend.
 | 1b | *open* | FMW-bundled JDK `oracle_common/jdk` (OPatch component `oracle.jdk` 17.0.12.8.0) – used by Reports server/engines and Forms/Reports tools; patch number to be determined (`FMW_JDK_PATCH_NR`). Oracle Support AI 2026-10-20: no published patch / Doc ID known, "Do not manually replace that JDK directory", check KA1182 – portal returned only empty pages, to be checked later | – | – |
 | 2 | 28186730 | OPatch for FMW/WLS 14.1.2.0.0 | CPU | standalone MOS download currently only offers **13.9.4.2.22** (`p28186730_1394222_Generic.zip`); **13.9.4.2.24** — the version this project's `OPATCH_VERSION_MIN` actually requires — is bundled inside the SPB (patch 39925660) at `tools/opatch/generic/p28186730_1394224_Generic.zip` instead; confirmed 2026-10-13, see the caveat in `docs/05-oracle_patch_weblogic.md` |
 | 3 | **39925660** | WLS Stack Patch Bundle 14.1.2.0.260825 | CSPU Sep 2026 | `p39925660_141200_Generic.zip` |
-| 4 | **39988381** | WLS 14.1.2 SPU for CVE-2026-70748 (in addition to the SPB) | CSPU Sep 2026 | ships 4 product-version variants under one patch number (12.2.1.4.0/14.1.1.0.0/14.1.2.0.0/15.1.1.x) — `05-/06-oracle_patch_*.sh` select the 14.1.2 one automatically via `_select_patch_zip()` in `IHateWeblogic_lib.sh` |
+| 4 | **39988381** | WLS 14.1.2 SPU for CVE-2026-70748 (in addition to the SPB) | CSPU Sep 2026 | ships 4 product-version variants under one patch number (12.2.1.4.0/14.1.1.0.0/14.1.2.0.0/15.1.1.x) — `05-/06-oracle_patch_*.sh` select the 14.1.2 one automatically via `_select_patch_zip()` in [`IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) |
 | 5 | 38590500 | FMW PERL Security Patch Update 14.1.2.0.260120 – component `oracle.perlint`, comes with the Forms & Reports installer: applied by `06-` (`INSTALL_PATCHES_FR_COMMON`), not in the infrastructure-only home | CPU Jan 2026 | `p38590500_141200_Linux-x86-64.zip` |
 | 6 | **39600348** | Oracle Reports Developer QPR 14.1.2.0 | Aug 2026 | `p39600348_141200_Linux-x86-64.zip` — supersedes 38827528 |
 
@@ -194,7 +194,7 @@ Source: KA1182, CSPU September 2026.
 |---|---|---|---|
 | 39842516 | Oracle Forms QPR 14.1.2.0 | Sep 2026 | Only if Forms is in inventory (`opatch lsinventory -details`, component `oracle.forms*`) — supersedes 38874285 |
 | 38936596 | One-off for Bug 38936596 (ewt3.jar, BiDi parentheses) | | Only if `REPORTS_BIDIPARENTHESIS=YES` (Hebrew). Per the QPR README the fix is only complete together with 39600348 |
-| 39597026 | OHS Bundle Patch 14.1.2.0.260622 | Jul 2026 | Only if OHS is in the same Home. **Correction 2026-10-19:** the Forms & Reports installer puts the OHS binaries (`oracle.ohs2`, `$ORACLE_HOME/ohs`) into the home even with an Nginx frontend – no OHS instance, but the files are there (`10-Monitoring/cve_inventory.sh`). Agreed 2026-10-19: patch everything on disk (not running ≠ not exploitable) – add the OHS bundle patch to the patch set from the CPU Oct 2026 cycle on. Post-install per KB559857 |
+| 39597026 | OHS Bundle Patch 14.1.2.0.260622 | Jul 2026 | Only if OHS is in the same Home. **Correction 2026-10-19:** the Forms & Reports installer puts the OHS binaries (`oracle.ohs2`, `$ORACLE_HOME/ohs`) into the home even with an Nginx frontend – no OHS instance, but the files are there ([`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh)). Agreed 2026-10-19: patch everything on disk (not running ≠ not exploitable) – add the OHS bundle patch to the patch set from the CPU Oct 2026 cycle on. Post-install per KB559857 |
 | 39100536 | OAM WebGate Bundle Patch 14.1.2.0.260318 | Apr 2026 | Only if WebGate is installed – **it is** (`oracle.oamclient.webgate.ohs`, `$ORACLE_HOME/webgate`, comes with the Forms & Reports installer, 2026-10-19); patch it like OHS from the CPU Oct 2026 cycle on |
 | 39726399 | LIBOVD merge patch 14.1.2.0.0 ("MERGE REQUEST ON TOP OF 14.1.2.0.0 FOR BUGS 39458344 39301239", README dated 2026-08-14, `opatch apply`, ZDT-eligible) | one-off, not in a CPU/CSPU list | **Not applied, not required** (checked 2026-10-19): fixes OAM/OID TLS bugs (37331005 TLSv1.3 LDAP, 37567156 TLSv1.2 ciphers to OID, 37359866 OAM audit, 39272755); no CVE, not on the CSPU Sep 2026 list we took from KA1182. Only relevant with an external LDAP / OID identity store over TLS. libOVD itself is in every home (`oracle_common/modules/oracle.ovd`, test host: `ovd.jar` unchanged since 2024 – the SPB does not touch it). Re-check if KA1182 ever lists it, or for the EM principal search problem (libOVD) only on Oracle Support's advice |
 | WLS Proxy Plug-In | see KA1182 | | Only for IIS/Apache as a proxy — not relevant with Nginx |

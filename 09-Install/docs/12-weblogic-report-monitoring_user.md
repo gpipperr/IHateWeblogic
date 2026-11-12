@@ -1,6 +1,6 @@
 # Step 12 – Reports Server User & Security Setup
 
-**Script:** `09-Install/12-oracle_reports_users.sh`
+**Script:** [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh)
 **Runs as:** `oracle` (WLST) / Browser (Enterprise Manager)
 **Phase:** 6 – Runtime Configuration – after `11-` (AdminServer running),
 before `13-`
@@ -161,7 +161,7 @@ curl -s -K ~/.config/rwmon.curl --data-urlencode "statusformat=XML" \
 
 This user is stored in `cgicmd.dat` as the `authid=` parameter so that reports
 can be executed automatically without exposing a password in the URL –
-written by `14b-oracle_reports_fonts.sh` from `reports_users.conf.des3`
+written by [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) from `reports_users.conf.des3`
 (section 4).
 
 ### 3a – Create User (Security Realm)
@@ -269,10 +269,10 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 | `401 Unauthorized` on getserverinfo | Servlet secured, no authid passed | Send `authid=user/pwd` in the POST body (never in the URL) |
 | `403 Forbidden` despite authid | User not assigned to role | Check Application Role (step 2b / 3b) |
 | `403 Forbidden` on report call | Policy permission missing | Check Application Policy (step 3c) |
-| getserverinfo returns empty response | Reports Server not running | `01-Run/startStop.sh` (status), `01-Run/rwserver_status.sh` – WLS 14.1.2 has no Administration Console |
+| getserverinfo returns empty response | Reports Server not running | [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) (status), [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) – WLS 14.1.2 has no Administration Console |
 | Password visible in URL | authid not in cgicmd.dat | Add authid to cgicmd.dat key (section 4) |
 | Changes have no effect | Security cache not refreshed | Restart WLS_REPORTS managed server |
-| EM "Add Principal": user search returns nothing (users exist) | libOVD lock `config/fmwconfig/ovd/default/ovd.lok` left by the Reports server – the AdminServer started with it has no `DefaultAuthenticator` LDAP adapter | Stop AdminServer, move `ovd.lok` away, start AdminServer (`fmw_ctl.sh` / `startStop.sh` do this automatically since 2026-10-16); workaround: "Advanced Option" in the dialog or WLST `grantAppRole`. Background: [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md) |
+| EM "Add Principal": user search returns nothing (users exist) | libOVD lock `config/fmwconfig/ovd/default/ovd.lok` left by the Reports server – the AdminServer started with it has no `DefaultAuthenticator` LDAP adapter | Stop AdminServer, move `ovd.lok` away, start AdminServer (`fmw_ctl.sh` / [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) do this automatically since 2026-10-16); workaround: "Advanced Option" in the dialog or WLST `grantAppRole`. Background: [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md) |
 
 ---
 
@@ -361,11 +361,11 @@ URL:
 | File | Purpose |
 |---|---|
 | `$DOMAIN_HOME/.../cgicmd.dat` | authid parameter for report execution |
-| `09-Install/12-oracle_reports_users.sh` | Automation script for this setup |
-| `09-Install/14b-oracle_reports_fonts.sh` | writes the `cgicmd.dat` `default` key with `authid` (from `reports_users.conf.des3`) |
+| [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) | Automation script for this setup |
+| [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) | writes the `cgicmd.dat` `default` key with `authid` (from `reports_users.conf.des3`) |
 | `reports_users.conf.des3` | `REPORTS_MON_USER` / `_PWD`, `REPORTS_EXEC_USER` / `_PWD` (encrypted, machine-bound, gitignored) |
-| `01-Run/rwserver_status.sh` | Automated status monitoring (uses getserverinfo) |
-| `00-Setup/weblogic_sec.sh` | WebLogic password concept (encrypted storage) |
+| [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | Automated status monitoring (uses getserverinfo) |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | WebLogic password concept (encrypted storage) |
 
 
 

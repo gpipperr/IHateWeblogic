@@ -2,7 +2,7 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
-**Script:** `09-Install/01-setup-interview.sh`
+**Script:** [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)
 **Runs as:** `oracle`
 **When:** Before all other installation steps
 
@@ -51,11 +51,11 @@ rm mos_sec.conf
 - Reads existing `environment.conf` (skip already-set parameters)
 - Prompts interactively for each missing parameter with a sensible default
 - Validates input immediately (directory exists, port is numeric, etc.)
-- Encrypts all passwords via the same mechanism as `00-Setup/weblogic_sec.sh`
+- Encrypts all passwords via the same mechanism as [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh)
 - Writes a reusable `setup.conf` template (passwords stripped) for subsequent installs
 - Shows a summary of all values and asks for confirmation before writing
 - Writes the values to `00-Setup/environments/<basename DOMAIN_HOME>.conf` and
-  points the `environment.conf` symlink at it – the same layout `00-Setup/detect_env_conf.sh`
+  points the `environment.conf` symlink at it – the same layout [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh)
   uses later. If `environment.conf` is already a symlink, its target is updated;
   a legacy plain `environment.conf` is moved there first. (A plain file would
   otherwise be replaced by `detect_env_conf.sh`'s symlink and all interview values lost.)
@@ -65,7 +65,7 @@ rm mos_sec.conf
 - Block 4 asks for `LOCAL_REP_DB` (Oracle DB on this host?) with a detected
   default: `true` if an `ora_pmon_*` process runs or `DB_HOST` is a local
   address. Must be `true` on a shared FMW+DB host – with `false`,
-  `01-root_os_baseline.sh` comments out the DB's shm/sysctl values
+  [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) comments out the DB's shm/sysctl values
 
 ---
 
@@ -162,11 +162,11 @@ FORMS_SIGN_TSA_URL   (default http://timestamp.digicert.com, Enter on an
 | `FORMS_SIGN_ALIAS` | `forms_codesign` | alias (friendly name) of the key in the keystore |
 | `FORMS_SIGN_STOREPASS` | only if the keystore exists: prompted, encrypted → `forms_sign_sec.conf.des3` | checked against the keystore with `openssl pkcs12` |
 | `FORMS_SIGN_LOCALCA` | set by the interview | `true` = keystore did not exist; `14- --apply` runs `08-SSL/ssl_local_ca.sh init` (only without root) + `codesign` |
-| `SSL_ORG`, `SSL_COUNTRY`, `SSL_CA_CN`, `SSL_CODESIGN_CN`, `SSL_CODESIGN_DAYS` | `Company GmbH`, `DE`, `<org> Root CA`, `<org> Forms Code Signing`, `1095` | only if the keystore is missing; written into `08-SSL/ssl.conf` (key replaced or appended, backup first) – the SSL module's own config, also used later by `ssl_prepare_cert.sh` |
+| `SSL_ORG`, `SSL_COUNTRY`, `SSL_CA_CN`, `SSL_CODESIGN_CN`, `SSL_CODESIGN_DAYS` | `Company GmbH`, `DE`, `<org> Root CA`, `<org> Forms Code Signing`, `1095` | only if the keystore is missing; written into `08-SSL/ssl.conf` (key replaced or appended, backup first) – the SSL module's own config, also used later by [`ssl_prepare_cert.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_prepare_cert.sh) |
 | `FORMS_SIGN_TSA_URL` | `http://timestamp.digicert.com` | `jarsigner -tsa`; needs outbound HTTP from the server |
 
 Client distribution (`docs/40-forms_client_distribution.md` §3.0, bundle
-built by `40-oracle_forms_client_bundle.sh`):
+built by [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh)):
 
 | Parameter | Default | Notes |
 |---|---|---|
@@ -192,7 +192,7 @@ only.
 #### EXPECTED_SESSIONS
 
 Sizes the `nofile`/`nproc` OS limits for the `oracle` user
-(`09-Install/03-root_user_oracle.sh`) to the expected number of concurrent
+([`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)) to the expected number of concurrent
 Forms/Reports sessions.
 
 ```
@@ -210,7 +210,7 @@ Forms/Reports sessions.
 
 > Only the 100-500 tier is backed by a real production system. The other
 > tiers are plausible estimates, not validated numbers — see
-> `09-Install/docs/00-root_set_os_parameter.md` for the full rationale and
+> [`09-Install/docs/00-root_set_os_parameter.md`](00-root_set_os_parameter.md) for the full rationale and
 > the related sysctl kernel parameters sized from the same reference host.
 > Each `frmweb` process (one per active Forms session) also needs roughly
 > 30-80 MB RAM — factor `expected sessions × ~50 MB` into host sizing on
@@ -235,7 +235,7 @@ Determines which network interface WebLogic (Admin Server and all Managed Server
 > **Note:** With `localhost`, WebLogic never terminates SSL itself — all certificates
 > are managed exclusively in NGINX. This eliminates the need for a WLS keystore and
 > avoids the common failure mode of expired certificates inside the WebLogic config.
-> See `09-Install/docs/05-root_nginx_ssl.md` for NGINX SSL setup.
+> See [`09-Install/docs/05-root_nginx_ssl.md`](05-root_nginx_ssl.md) for NGINX SSL setup.
 
 ### Block 3b – Reports Server Details
 
@@ -269,7 +269,7 @@ Background: [reports_engine_architecture.md](../../80-FMW-Architecture/reports_e
 | `REPORTS_ENGINE_LIFE` | `50` | `rwserver.conf`: `engLife` – jobs per engine before it is replaced |
 | `REPORTS_ENGINE_MAX_IDLE` | *(empty)* | `rwserver.conf`: `maxIdle` (minutes) – empty = not written, Oracle default 30 |
 | `REPORTS_ENGINE_JVM_OPTIONS` | *(empty)* | `rwserver.conf`: engine `jvmOptions` (e.g. `-Xmx1g`) – empty = not written, engines run with `-Xmx256M`; no `" & < >`; 13- adds `-DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` (jvmOptions replace the inherited `REPORTS_JVM_OPTIONS`) |
-| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `360` | `rwserver.conf`: `engineResponseTimeOut` (minutes) – hanging engine is killed; set to the longest report run time (measured by `05-ReportsPerformance/engine_perf_analyse.sh`) |
+| `REPORTS_ENGINE_RESPONSE_TIMEOUT` | `360` | `rwserver.conf`: `engineResponseTimeOut` (minutes) – hanging engine is killed; set to the longest report run time (measured by [`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)) |
 | `REPORTS_MAX_CONNECT` | `300` | `rwserver.conf`: max simultaneous client connections |
 | `REPORTS_MAX_QUEUE` | `4000` | `rwserver.conf`: max requests queued |
 | `REPORTS_COOKIE_KEY` | *(generated)* | `rwservlet.properties` cookie encryption key – generated once, keep stable |
@@ -323,7 +323,7 @@ done
 Background – which schemas RCU creates, who logs in, password expiry:
 [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md).
 
-Immediate connection test via `02-Checks/db_connect_check.sh` after entry.
+Immediate connection test via [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) after entry.
 
 ### Block 4b – APEX / ORDS (optional)
 
@@ -332,7 +332,7 @@ Oracle APEX + ORDS standalone beside Forms
 first; everything else is asked only with `INSTALL_APEX=true`. Values for
 the **first** ORDS instance (`ords_1`); a second one (`ords_2`, other DB) is
 added by hand as `ORDS_2_*` in `environment.conf`. Software versions and
-download URLs are in `oracle_software_version.conf` (`APEX_*`, `ORDS_*`).
+download URLs are in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (`APEX_*`, `ORDS_*`).
 
 | Parameter | Default | Notes |
 |---|---|---|
@@ -346,10 +346,10 @@ download URLs are in `oracle_software_version.conf` (`APEX_*`, `ORDS_*`).
 | `ORDS_1_IMAGE_PREFIX` | `/i/` | APEX `IMAGE_PREFIX` of this DB = Nginx alias to `/srv/apex/apex_1` |
 | `ORDS_JAVA_HEAP` | `2G` | `-Xms` = `-Xmx` of every ORDS (dev 1–2 G, prod ≥ 4 G) |
 | `APEX_TABLESPACE` | `APEX_DATA` | `apexins.sql` tablespace (created if missing) |
-| `APEX_TEMP_TABLESPACE` | *(empty)* | temp tablespace for `apexins.sql`; empty = `DEFAULT_TEMP_TABLESPACE` of the DB (`12-APEX-Ords/01-prepare-database.sh` detects it and writes it back) |
+| `APEX_TEMP_TABLESPACE` | *(empty)* | temp tablespace for `apexins.sql`; empty = `DEFAULT_TEMP_TABLESPACE` of the DB ([`12-APEX-Ords/01-prepare-database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/01-prepare-database.sh) detects it and writes it back) |
 | `APEX_LANGUAGES` | `de` | language packs to load (`builder/<lang>/load_<lang>.sql`), space-separated, empty = English only |
-| `APEX_DB_PROFILE` | `APEX_USER` | DB profile without password expiry / lock-out for `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` – created by `12-APEX-Ords/01-prepare-database.sh` (`apex_user_profile.sql`), assigned by 01 / 02 / 04 |
-| `ORDS_PUBLIC_URL` | `https://<WLS_SERVER_FQDN>` | public URL of APEX – ORDS `security.externalSessionTrustedOrigins` (`04-install-ords.sh`) |
+| `APEX_DB_PROFILE` | `APEX_USER` | DB profile without password expiry / lock-out for `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` – created by [`12-APEX-Ords/01-prepare-database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/01-prepare-database.sh) ([`apex_user_profile.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/apex_user_profile.sql)), assigned by 01 / 02 / 04 |
+| `ORDS_PUBLIC_URL` | `https://<WLS_SERVER_FQDN>` | public URL of APEX – ORDS `security.externalSessionTrustedOrigins` ([`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh)) |
 | `APEX_ADMIN_EMAIL` | *(empty = `ADMIN`)* | e-mail of the instance administrator `ADMIN` |
 | *(not asked)* `ORDS_LOG_BASE` | `/var/log` | ORDS logs in `/var/log/ords_N` |
 | *(not asked)* `ORDS_FEATURE_SDW`, `ORDS_FEATURE_REST_SQL`, `ORDS_FEATURE_DB_API`, `ORDS_FEATURE_GRAPHQL` | `false` (GraphQL `disable_all`) | ORDS features Database Actions, REST-enabled SQL, Database API; `ORDS_FEATURE_GRAPHQL` = `disable_all` (ORDS default `enabled`!) – off = smallest attack surface ([ords_architecture.md](../../80-FMW-Architecture/ords_architecture.md)); set to `true` by hand only when needed |
@@ -379,9 +379,9 @@ Asks for confirmation before writing `environment.conf`.
 | `mos_sec.conf.des3` | Encrypted MOS password |
 | `reports_admin_sec.conf.des3` | Encrypted Reports server admin (`<identifier>`) user + password |
 | `embedded_ldap_sec.conf.des3` | Encrypted embedded LDAP `cn=Admin` password (`REPORTS_SECURITY=ldap`) |
-| `forms_sign_sec.conf.des3` | Encrypted code-signing keystore password (existing keystore; otherwise written by `ssl_local_ca.sh`) |
+| `forms_sign_sec.conf.des3` | Encrypted code-signing keystore password (existing keystore; otherwise written by [`ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh)) |
 | `08-SSL/ssl.conf` | Local CA subject values (only when the code-signing keystore does not exist yet) |
-| `apex_sec.conf.des3` | Encrypted APEX / ORDS passwords (`INSTALL_APEX=true`): `APEX_ADMIN_USER` / `APEX_ADMIN_PWD` (interview), `APEX_REST_PUBLIC_PWD` (`02-install-apex.sh`), `ORDS_1_PUBLIC_PWD` (`04-install-ords.sh`, also in the ORDS wallet) – every writer merges, no key is lost |
+| `apex_sec.conf.des3` | Encrypted APEX / ORDS passwords (`INSTALL_APEX=true`): `APEX_ADMIN_USER` / `APEX_ADMIN_PWD` (interview), `APEX_REST_PUBLIC_PWD` ([`02-install-apex.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/02-install-apex.sh)), `ORDS_1_PUBLIC_PWD` ([`04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh), also in the ORDS wallet) – every writer merges, no key is lost |
 | `setup.conf` | Reusable template (no passwords) |
 
 ---

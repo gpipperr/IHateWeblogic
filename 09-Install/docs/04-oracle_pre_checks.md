@@ -1,6 +1,6 @@
 # Step 1a – 04-oracle_pre_checks.sh
 
-**Script:** `09-Install/04-oracle_pre_checks.sh`
+**Script:** [`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh)
 **Runs as:** `oracle`
 **Phase:** 1 – Pre-Install Checks
 
@@ -130,10 +130,10 @@ Runs the following checks in sequence and reports OK/WARN/FAIL for each:
 
 | # | Check | Source |
 |---|---|---|
-| 1 | OS version, kernel, RAM, disk, ulimits (nofile, nproc), packages | → calls `02-Checks/os_check.sh` |
-| 2 | Oracle JDK at `JDK_HOME` (version, vendor) | direct check – `java_check.sh` re-reads `environment.conf` and is meant for the installed system (both JDKs, running JVMs) |
-| 3 | Ports 7001, 9001, 9002, 5556 **free** | direct check – `port_check.sh` checks the opposite (ports open, WLS running) after the installation |
-| 4 | DB connectivity for RCU (skipped with `--skip-db`; skipped automatically with `LOCAL_REP_DB=true` while no local DB runs yet – no `ora_pmon_*`, nothing on `DB_PORT`; the DB is built later with `60-RCU-DB-19c/`) | → calls `02-Checks/db_connect_check.sh` |
+| 1 | OS version, kernel, RAM, disk, ulimits (nofile, nproc), packages | → calls [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) |
+| 2 | Oracle JDK at `JDK_HOME` (version, vendor) | direct check – [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) re-reads `environment.conf` and is meant for the installed system (both JDKs, running JVMs) |
+| 3 | Ports 7001, 9001, 9002, 5556 **free** | direct check – [`port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) checks the opposite (ports open, WLS running) after the installation |
+| 4 | DB connectivity for RCU (skipped with `--skip-db`; skipped automatically with `LOCAL_REP_DB=true` while no local DB runs yet – no `ora_pmon_*`, nothing on `DB_PORT`; the DB is built later with `60-RCU-DB-19c/`) | → calls [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
 | 5 | Disk space in ORACLE_HOME, DOMAIN_HOME, PATCH_STORAGE – sizing: [Disk Sizing Guide](../../docs/forms_reports_sizing.md#disk-sizing-guide) | direct check |
 | 6 | – (ulimits: part of check 1) | – |
 | 7 | oraInst.loc exists and is valid | direct check |
@@ -158,5 +158,5 @@ Exits with code 2 if any FAIL. Continues past WARNs.
 ## Verification
 
 The script is self-verifying. Review the summary at the end:
-- All OK → safe to proceed to `04-oracle_pre_download.sh`
+- All OK → safe to proceed to [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)
 - Any FAIL → fix the reported issue, re-run

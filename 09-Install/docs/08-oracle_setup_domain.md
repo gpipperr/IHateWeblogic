@@ -1,6 +1,6 @@
 # Step 4b – 08-oracle_setup_domain.sh
 
-**Script:** `09-Install/08-oracle_setup_domain.sh`
+**Script:** [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh)
 **Runs as:** `oracle`
 **Phase:** 4 – Repository & Domain
 
@@ -45,7 +45,7 @@ the `forms1` instance):
 Template check and WLST script follow the same selection
 (`##WITH_FORMS##` / `##WITH_REPORTS##` in the template). Verified offline with
 WLST (templates added, server list read, no `writeDomain`). With
-`REPORTS_ONLY`, `14-oracle_setup_forms.sh` skips itself.
+`REPORTS_ONLY`, [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) skips itself.
 
 ---
 
@@ -94,7 +94,7 @@ ORA-12514 = `DB_SERVICE` not registered at the listener.
 
 ### 1. Create WLST domain config script
 
-Create from template `09-Install/response_files/domain_config.py.template`
+Create from template [`09-Install/response_files/domain_config.py.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/response_files/domain_config.py.template)
 (the script substitutes all `##PLACEHOLDER##` values at runtime into a temp file):
 
 ```python
@@ -194,7 +194,7 @@ EOF
 Only these keys – Node Manager adds the missing ones with their defaults at
 the first start (`DomainsFile`, `StartScriptEnabled`, `CrashRecoveryEnabled`,
 … – seen on the test host). Node Manager as a systemd service: phase 7c
-(`30-configure_autostart.sh`); `installNodeMgrSvc` exists for Windows only.
+([`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)); `installNodeMgrSvc` exists for Windows only.
 
 ### 3b. JDK path: symlink instead of the versioned directory
 

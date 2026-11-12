@@ -1,6 +1,6 @@
 # Step 01 – 01-root_os_baseline.sh
 
-**Script:** `09-Install/01-root_os_baseline.sh`
+**Script:** [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh)
 **Runs as:** `root` or `oracle` with passwordless sudo (`NOPASSWD`)
 **Phase:** 0 – OS Preparation
 
@@ -203,7 +203,7 @@ LOCAL_REP_DB="false"   # default: no local Oracle DB
 LOCAL_REP_DB="true"    # Oracle DB on this host (mixed setup, 60-RCU-DB-19c/)
 ```
 
-`01-setup-interview.sh` asks for `LOCAL_REP_DB` and proposes the detected
+[`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) asks for `LOCAL_REP_DB` and proposes the detected
 value (`true` when an `ora_pmon_*` process runs or `DB_HOST` is a local
 address).
 
@@ -304,7 +304,7 @@ created *after* it was set – an interface that already exists keeps its own
 value, and NetworkManager re-enables IPv6 on its connections (`ipv6.method`).
 Seen at a customer (2026-10-15): `all=1`, `default=1`, but `ens33=0` with an
 `fe80::` address – the JVMs listened via the IPv6 stack (`[::ffff:127.0.0.1]:5556`).
-`01-root_os_baseline.sh` therefore also checks every interface and with
+[`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) therefore also checks every interface and with
 `--apply` sets it at runtime and makes it persistent via NetworkManager:
 
 ```bash
@@ -353,7 +353,7 @@ used: Nginx (`listen [::]`) and others would have to change. Check after a reboo
 | `kernel.shmall` | `2030959` | real production host | Total shared memory pages |
 | `kernel.sem` | `250 32000 100 128` | real production host | SysV semaphores — WLS/Forms/Reports native processes use these too, not DB-only |
 | `kernel.shmmni` | `4096` | real production host | Shared memory segment count |
-| `fs.file-max` | `6815744` | real production host | System-wide open file handle ceiling; `os_check.sh` already read/displayed this without anything setting it until now |
+| `fs.file-max` | `6815744` | real production host | System-wide open file handle ceiling; [`os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) already read/displayed this without anything setting it until now |
 | `fs.aio-max-nr` | `1048576` | real production host | Async I/O request limit |
 | `net.core.rmem_default` / `rmem_max` | `262144` / `4194304` | real production host | Socket receive buffer sizing for many concurrent connections |
 | `net.core.wmem_default` / `wmem_max` | `262144` / `4194304` | real production host + symmetric adjustment | Socket send buffer sizing; `wmem_max` raised to match `rmem_max` symmetrically (gpiwls01 itself has an asymmetric `1048576`, but a ~1000-session community sizing reference recommends matching `rmem_max` — adopted here as the more conservative choice) |
@@ -558,7 +558,7 @@ rm /u01/app/oracle/swapfile
   Oracle EPEL (`ol9_developer_EPEL`, for `nmon`) are enabled. EPEL with
   `--apply` (question): a configured but disabled EPEL repo (cloud images) is
   enabled with `dnf config-manager --set-enabled`, a missing one is added with
-  `oracle-epel-release-el<N>`. `02-root_os_packages.sh` offers the same if this
+  `oracle-epel-release-el<N>`. [`02-root_os_packages.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02-root_os_packages.sh) offers the same if this
   step was skipped, and no longer aborts when `nmon` is unavailable.
 - **Kernel parameters file:** `--apply` writes exactly the block above (same
   values as the script's check). Until 2026-10-29 the script wrote an older
@@ -579,7 +579,7 @@ rm /u01/app/oracle/swapfile
   ```
   `/tmp` with `noexec` (same CIS item) is only reported (WARN): OUI / OPatch run
   extracted helpers from the temp dir → use `TMPDIR=$ORACLE_BASE/tmp` and
-  `-Djava.io.tmpdir=$ORACLE_BASE/tmp` (as `05-oracle_patch_weblogic.sh` does).
+  `-Djava.io.tmpdir=$ORACLE_BASE/tmp` (as [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) does).
 - **Transparent HugePages (THP):** Disabled via `grubby` (`transparent_hugepage=never`)
   — required to avoid JVM GC pause spikes caused by THP merging/splitting
 - **Swap space:** ≥ 512 MB required by OUI prereq check; `--apply` creates a 2 GB
@@ -590,7 +590,7 @@ rm /u01/app/oracle/swapfile
   (default 14027) is opened – the Reports server sends a multicast discovery packet
   (`228.5.6.7`) at start and must *receive* packets, otherwise it stops with
   `REP-50600 Broadcasting is disabled` and the Node Manager restarts it in a loop
-  (customer 2026-10-15). The port must match the one `13-oracle_setup_reports.sh`
+  (customer 2026-10-15). The port must match the one [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)
   writes into the three `rwnetwork.conf` files and be unique per environment in
   the subnet (14021–14030, Doc ID 437228.1). `13-` checks it again.
 - **Sysctl conflict detection:** The script scans all `/etc/sysctl.d/*.conf` and
@@ -607,7 +607,7 @@ socket is on 127.0.0.1: [clone_golden_image.md](../../80-FMW-Architecture/clone_
 the Reports UDP port: [discovery – prerequisites on the host](../../80-FMW-Architecture/reports_server_discovery_multicast.md#5-prerequisites-on-the-host);
 `frmweb` has no bind option: [forms_runtime_architecture.md §1](../../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts).
 
-Why (found 2026-10-19 by `10-Monitoring/cve_inventory.sh` on the test host):
+Why (found 2026-10-19 by [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) on the test host):
 firewalld was installed but disabled. ~50 prestarted `frmweb`, `rwserver`,
 the Reports engines and WLS Coherence listen on all interfaces – without a
 host firewall they are reachable past Nginx. Patching closes known holes;
@@ -739,10 +739,10 @@ session and a VM console session open:
   oracle worked, root refused. `sshd -T -C user=…`: admin/oracle password yes,
   root no, X11 no for all.
 - `cockpit` removed from the zone afterwards (not needed on an FMW server; service was inactive anyway).
-- Found on the way: `02-Checks/os_check.sh` reported a running firewalld as
+- Found on the way: [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) reported a running firewalld as
   "not running" (`firewall-cmd --state` needs root) and rated "no firewall"
   as OK – fixed (systemctl, WARN without firewall). Same fix in
-  `10-Monitoring/cve_inventory.sh`.
+  [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh).
 
 ### Manual (without the script)
 

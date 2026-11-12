@@ -1,6 +1,6 @@
 # Step 3b – 06-oracle_patch_forms_reports.sh
 
-**Script:** `09-Install/06-oracle_patch_forms_reports.sh`
+**Script:** [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh)
 **Runs as:** `oracle`
 **Phase:** 3 – Forms & Reports Installation
 
@@ -16,7 +16,7 @@ the same patches on a running system: `07-Maintenance/82-`.
 
 Apply Forms & Reports specific patches after the base F&R install. Patches
 are listed in `INSTALL_PATCHES_REPORTS` and `INSTALL_PATCHES_FORMS` in
-`oracle_software_version.conf` and applied **only for the component(s)
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) and applied **only for the component(s)
 actually present** in `$ORACLE_HOME` — this project supports Reports-only
 installs, so `INSTALL_PATCHES_FORMS` is automatically skipped when
 `$ORACLE_HOME/forms` does not exist (and vice versa for a Forms-only host).
@@ -25,7 +25,7 @@ installs, so `INSTALL_PATCHES_FORMS` is automatically skipped when
 OK — nothing to do.**
 
 F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
-(applied by `05-oracle_patch_weblogic.sh`: the WLS Stack Patch Bundle and,
+(applied by [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh): the WLS Stack Patch Bundle and,
 since CPU Oct 2026, the eight FMW Infrastructure bundle patches) already
 cover the shared home.
 `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are only needed for patches
@@ -50,7 +50,7 @@ applied — see "What the Script Does" below.
 
 ## INSTALL_PATCHES_REPORTS / INSTALL_PATCHES_FORMS
 
-Defined in `09-Install/oracle_software_version.conf` (space-separated lists):
+Defined in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (space-separated lists):
 
 ```bash
 INSTALL_PATCHES_FR_COMMON="39951765 39987730 39100536"   # if Forms OR Reports is installed
@@ -100,16 +100,16 @@ Forms is actually installed in this `ORACLE_HOME`.
 > downloading — do not trust the KA204 table alone.
 
 To add a future Forms/Reports-specific patch:
-1. Add a row to `09-Install/download/patches_fmw.csv` (role `reports` /
+1. Add a row to [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) (role `reports` /
    `forms` / `fr_common`, exact file regexp, `dir` `patches/<nr>`, sha256
    after the first download) – the conf derives `INSTALL_PATCHES_REPORTS` /
    `INSTALL_PATCHES_FORMS` from it
 2. Download the patch ZIP via `04-oracle_pre_download.sh --apply --mos`
-   (or `mos_patch_download.sh` on a host with MOS access, see
+   (or [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) on a host with MOS access, see
    [download/README.md](../download/README.md))
 3. If it supersedes an older patch, add that mapping to the `SUPERSEDES`
    array at the top of the "Automatic rollback of superseded QPRs" section
-   in `06-oracle_patch_forms_reports.sh`
+   in [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh)
 4. Run `06-oracle_patch_forms_reports.sh --check-only` first
 5. Run `06-oracle_patch_forms_reports.sh --apply`
 
@@ -153,7 +153,7 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
   applied, checks a `SUPERSEDES` map (currently `39600348`→`38827528`,
   `39842516`→`38874285`, PERL `39951765`→`38590500`) and rolls back the old patch first if found
   installed — same idiom as the `23335292` pre-check in
-  `05-oracle_patch_weblogic.sh`
+  [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh)
 - Skips patches already installed (idempotent)
 - For remaining patches: extract ZIP to staging, conflict check, apply
 - Cleans up staging directory after apply
@@ -180,11 +180,11 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
 ## Notes
 
 - `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are in
-  `oracle_software_version.conf` (not `environment.conf`)
+  [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (not `environment.conf`)
 - F&R and WLS share one `ORACLE_HOME` — OPatch operates on the whole home
 - FMW Bundle Patches often cover both WLS and F&R components; check the CPU
   advisory whether a separate F&R patch is listed
-- OPatch upgrade is not repeated here (done in `05-oracle_patch_weblogic.sh`)
+- OPatch upgrade is not repeated here (done in [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh))
 - Reports-only hosts: `forms/` simply does not exist, so
   `INSTALL_PATCHES_FORMS` is silently skipped — this is expected, not an error
 
@@ -214,7 +214,7 @@ The Forms QPR `39842516` also ends with "completed with warnings"
 siedt.c, sdejm.c) and `ld: warning: -z lazyload ignored` (Solaris-only
 linker option) – both harmless, the relink itself succeeds.
 
-`06-oracle_patch_forms_reports.sh` detects `"completed with warnings"` in
+[`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) detects `"completed with warnings"` in
 the `opatch apply` output after a successful (`rc=0`) apply and surfaces
 it via `warn()`, calling out the known patterns by name when present —
 this does **not** change pass/fail, which is still decided purely by the
@@ -296,7 +296,7 @@ Reports QPR on Linux 9" (last updated Sep 30, 2026).
 - Tracked as **Bug 38892485**, status "being investigated" – **no fix patch yet**.
   (The MOS Support AI named 37795631 as fix – wrong: that patch belongs to
   KB177278, the Forms EXIT_FORM crash FRM-93656/93652, Bug 36749613, and is
-  already covered by DB RU 39264447 from the SPB – see `00-patch-references.md`.)
+  already covered by DB RU 39264447 from the SPB – see [`00-patch-references.md`](00-patch-references.md).)
 - Also affects 12.2.1.19 (Reports QPR 38617683) and 14.1.2 since Reports QPR
   38827528 (Jan 2026).
 - Oracle's workaround: move `lib/libzrc.so` away, so the Forms relink
@@ -337,7 +337,7 @@ The article lists QPR patches per product and version.
    - Product Version = `14.1.2.0.0`
 5. Note the patch number for this platform variant
 6. Update `INSTALL_PATCHES_REPORTS` or `INSTALL_PATCHES_FORMS` (whichever
-   product the patch is for) in `oracle_software_version.conf`, and add a
+   product the patch is for) in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf), and add a
    `SUPERSEDES` entry in the script if it replaces an older patch
 7. Run `04-oracle_pre_download.sh --apply --mos` to download
 8. Run `06-oracle_patch_forms_reports.sh --check-only` then `--apply`

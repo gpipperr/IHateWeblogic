@@ -2,7 +2,7 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
-**Script:** `09-Install/02b-root_os_java.sh`
+**Script:** [`09-Install/02b-root_os_java.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02b-root_os_java.sh)
 **Runs as:** `root`
 **Phase:** 0 – OS Preparation (bootstrap JDK); again after `04-oracle_pre_download.sh --mos`
 with `--upgrade-jdk` – **before** `05-` (the FMW installer and `createDomain`
@@ -89,7 +89,7 @@ not to whatever `alternatives` selects as the system default.
 > **21.0.12.1** (September 2026) – `02b-` uses it as bootstrap fallback
 > (`JDK_CDN_ARCHIVE` / `JDK_NFTC_LAST` in the script). Every later update:
 > MOS Patch 35702194, see "Patch-cycle minimum and upgrade" below. SHA256 is
-> verified automatically by `02b-root_os_java.sh`.
+> verified automatically by [`02b-root_os_java.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02b-root_os_java.sh).
 
 ### Installer search order in 02b-root_os_java.sh
 
@@ -177,7 +177,7 @@ never download a JDK update themselves – they only look into the patch
 repository.
 
 `download/patches_fmw.csv` (role `jdk` = `JDK_PATCH_NR`) and
-`oracle_software_version.conf`: `JDK_VERSION_MIN` (minimum
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf): `JDK_VERSION_MIN` (minimum
 of the current patch cycle, CSPU Sep 2026: **21.0.12.1**). The script warns
 if the JDK at `JDK_HOME` is older.
 
@@ -265,7 +265,7 @@ The `JAVA_HOME` path after installation:
 
 ## JAVA_HOME – WebLogic Configuration
 
-Set in `/home/oracle/.bash_profile` (done by `03-root_user_oracle.sh`):
+Set in `/home/oracle/.bash_profile` (done by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)):
 
 ```bash
 export JAVA_HOME=/u01/app/oracle/java/jdk-21
@@ -414,4 +414,4 @@ jps -m
 | Oracle JDK 21 updates after the NFTC | MOS Patch 35702194 |
 | Oracle JDK 21.0.12.1 (last NFTC) – CDN archive | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz` |
 | Oracle JDK 21.0.12.1 – SHA256 checksum | `https://download.oracle.com/java/21/archive/jdk-21.0.12.1_linux-x64_bin.tar.gz.sha256` |
-| SecureRandom fix for WebLogic | `02-Checks/weblogic_performance.sh` – Section 1 |
+| SecureRandom fix for WebLogic | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) – Section 1 |

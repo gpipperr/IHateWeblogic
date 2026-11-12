@@ -90,7 +90,7 @@ su - oracle -c "sudo -l"
 >
 > Without sudo, the library scripts that need a root step later (`fc-cache` in
 > the font scripts, `firewall-cmd` checks, systemd units of `30-` / ORDS,
-> `13-root_reports_fix.sh`) do not fail – they **print the root command**
+> [`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh)) do not fail – they **print the root command**
 > (`ihw_run_root`) for an administrator to run.
 
 ---
@@ -122,7 +122,7 @@ id oracle
 | Measure | Description | When |
 |---|---|---|
 | Remove sudo NOPASSWD | See sections 1 + 2 | After installation |
-| SELinux | **Do NOT simply set `SELINUX=enforcing`** — Forms/Reports native libraries require SELinux disabled (see `01-root_os_baseline.sh` / `docs/00-root_set_os_parameter.md`). A proper, WLS-specific SELinux policy is a planned future improvement, not yet available | Not currently actionable |
+| SELinux | **Do NOT simply set `SELINUX=enforcing`** — Forms/Reports native libraries require SELinux disabled (see [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) / `docs/00-root_set_os_parameter.md`). A proper, WLS-specific SELinux policy is a planned future improvement, not yet available | Not currently actionable |
 | Review firewall rules | Only ports 80/443 open externally; 7001/9001/9002/5556 internal only | After installation |
 | WebLogic Console: enforce HTTPS | Admin Console reachable only via SSL | After certificate setup |
 | Rotate WebLogic passwords | Re-encrypt `boot.properties` | After initial installation |
@@ -132,14 +132,14 @@ Already applied by the library (check, do not redo):
 
 | Measure | Where | Background |
 |---|---|---|
-| Every internal socket on `127.0.0.1` (WebLogic, Node Manager, Reports ORB, Coherence), Nginx the only entry | `08-`, `13-`, `02-Checks/clone_check.sh` | [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md) |
+| Every internal socket on `127.0.0.1` (WebLogic, Node Manager, Reports ORB, Coherence), Nginx the only entry | `08-`, `13-`, [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) | [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md) |
 | WebLogic SSL demo listen ports (demo certificate) off | `08-`, `clone_check.sh --apply` | [doc 08](08-oracle_setup_domain.md#loopback-only-ssl-listen-ports-off-coherence-on-the-listen-address) |
-| Client-supplied WebLogic proxy headers stripped, `X-Forwarded-For` overwritten | `09-Install/nginx-wls.conf.template` | [doc 05-root_nginx_ssl](05-root_nginx_ssl.md) |
-| `/console`, `/em`, Reports admin web commands only from `ADMIN_IP_RANGE` (optional – `any` where there is no admin network; admin web commands then localhost only) | Nginx template, asked by `04-root_nginx.sh` ([doc 04](04-root_nginx.md#admin-network-admin_ip_range--optional)) | [doc 81](81-reports_rwservlet_security.md) |
+| Client-supplied WebLogic proxy headers stripped, `X-Forwarded-For` overwritten | [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template) | [doc 05-root_nginx_ssl](05-root_nginx_ssl.md) |
+| `/console`, `/em`, Reports admin web commands only from `ADMIN_IP_RANGE` (optional – `any` where there is no admin network; admin web commands then localhost only) | Nginx template, asked by [`04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) ([doc 04](04-root_nginx.md#admin-network-admin_ip_range--optional)) | [doc 81](81-reports_rwservlet_security.md) |
 | Secured Reports server (`REPORTS_SECURITY=ldap`), web-command rights | `12-`, `13-` | [reports_user_local_ldap.md](../../80-FMW-Architecture/reports_user_local_ldap.md) |
-| Firewall + sshd hardening | `01-root_os_baseline.sh` | [doc 00-root_set_os_parameter](00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
-| No outbound calls of the domain, external-DTD trap | `04-oracle_pre_checks.sh` (check 10), `02-Checks/egress_check.sh` | [weblogic_outbound_connections.md](../../80-FMW-Architecture/weblogic_outbound_connections.md) |
-| Certificate expiry, CA quality | `10-Monitoring/cert_expiry_check.sh --cron --apply`, `02-Checks/ssl_check.sh` | [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md) |
+| Firewall + sshd hardening | [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) | [doc 00-root_set_os_parameter](00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
+| No outbound calls of the domain, external-DTD trap | [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) (check 10), [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) | [weblogic_outbound_connections.md](../../80-FMW-Architecture/weblogic_outbound_connections.md) |
+| Certificate expiry, CA quality | `10-Monitoring/cert_expiry_check.sh --cron --apply`, [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) | [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md) |
 
 ---
 
@@ -161,10 +161,10 @@ observe for security: [fmw_pwd_handling.md](../../80-FMW-Architecture/fmw_pwd_ha
 | Node Manager user/password (domain side) | `config/config.xml` → `<security-configuration>`: `<node-manager-username>` (cleartext), `<node-manager-password-encrypted>{AES256}…` | encrypted | AdminServer, WLST; `startComponent.sh` takes the **user name** from here |
 | Node Manager user/password (NM side) | `config/nodemanager/nm_password.properties` | `hashed=…` (one-way) | **the Node Manager itself** at every `nmConnect` |
 | WLST stored credentials (`storeUserConfig()`, `startComponent.sh … storeUserConfig`) | `~/<os-user>-WebLogicConfig.properties` + `~/<os-user>-WebLogicKey.properties` (default), or the files given to `storeUserConfig` | encrypted + key | WLST `connect()`/`nmConnect()` **without** credentials, `startComponent.sh`/`stopComponent.sh` |
-| Autostart key files (`30-configure_autostart.sh`) | `$ORACLE_BASE/admin/<domain>/ctrl/keyfile/` | encrypted + key | `fmw_ctl.sh` / systemd unit |
+| Autostart key files ([`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)) | `$ORACLE_BASE/admin/<domain>/ctrl/keyfile/` | encrypted + key | `fmw_ctl.sh` / systemd unit |
 | IHateWeblogic passwords | `*.des3` in the repository root (`weblogic_sec.conf.des3`, `db_sys_sec.conf.des3`, `reports_users.conf.des3`, …) | `openssl des3`, key = system identifier | IHateWeblogic scripts (local helper `00-Setup/getPWDs.sh` displays them – gitignored) |
-| Local CA root key (`08-SSL/ssl_local_ca.sh`) | `$SSL_CA_DIR/ca/ca.key` (default `$ORACLE_BASE/admin/pki`, dir 700, file 600); passphrase `SSL_CA_PASS` in `ssl_ca_sec.conf.des3` | AES-256 encrypted key | `ssl_local_ca.sh` when issuing server / code-signing certificates. Back up `SSL_CA_DIR` **and** the passphrase offline – the des3 file only works on this machine |
-| Code-signing keystore (Forms/WebUtil `jacob.jar`) | `FORMS_SIGN_KEYSTORE` (PKCS12, 600); password `FORMS_SIGN_STOREPASS` in `forms_sign_sec.conf.des3` | PKCS12 | `ssl_local_ca.sh codesign`, `14-oracle_setup_forms.sh` (`jarsigner -storepass:file`, temp file 600, never on the command line) |
+| Local CA root key ([`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh)) | `$SSL_CA_DIR/ca/ca.key` (default `$ORACLE_BASE/admin/pki`, dir 700, file 600); passphrase `SSL_CA_PASS` in `ssl_ca_sec.conf.des3` | AES-256 encrypted key | `ssl_local_ca.sh` when issuing server / code-signing certificates. Back up `SSL_CA_DIR` **and** the passphrase offline – the des3 file only works on this machine |
+| Code-signing keystore (Forms/WebUtil `jacob.jar`) | `FORMS_SIGN_KEYSTORE` (PKCS12, 600); password `FORMS_SIGN_STOREPASS` in `forms_sign_sec.conf.des3` | PKCS12 | `ssl_local_ca.sh codesign`, [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) (`jarsigner -storepass:file`, temp file 600, never on the command line) |
 
 > Admin password and Node Manager password are **independent**.
 > `<node-manager-username>weblogic` does not mean the NM password equals the
@@ -236,7 +236,7 @@ next start (Oracle-documented procedure; **live-tested on the test host
 2026-10-15**: clear text written, NM restarted via `stopNodeManager.sh` /
 `startNodeManager.sh`, listening again after ~4 s, file contained only
 `hashed=…` afterwards, `nmConnect` OK – checked with
-`11-oracle_nodemanager.sh` – and all servers kept running):
+[`11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) – and all servers kept running):
 
 ```bash
 F=$DOMAIN_HOME/config/nodemanager/nm_password.properties
@@ -297,8 +297,8 @@ written. After an admin or NM password change, recreate them:
   `~/<os-user>-WebLogicConfig.properties` + `…Key.properties` if they do not
   exist – delete the old pair first), then `chmod 600` both files.
 - Autostart key files: `09-Install/30-configure_autostart.sh --apply`.
-- IHateWeblogic `*.des3`: `00-Setup/weblogic_sec.sh` (WebLogic),
-  `00-Setup/database_rcu_sec.sh` (DB), `12-oracle_reports_users.sh` (Reports
+- IHateWeblogic `*.des3`: [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) (WebLogic),
+  [`00-Setup/database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) (DB), [`12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) (Reports
   users).
 
 > **Caution when testing:** the default pair in the oracle home is used
@@ -322,10 +322,10 @@ before. Afterwards renew everything in 5.3 and 5.4.
 
 | Topic | Source |
 |---|---|
-| sudo configuration | `09-Install/docs/00-root_set_os_parameter.md` – Prerequisites section |
-| Firewall ports | `09-Install/docs/00-root_set_os_parameter.md` – Verification section |
-| SELinux requirement (must stay disabled) | `09-Install/01-root_os_baseline.sh` – Section 1 |
-| WebLogic password concept | `00-Setup/weblogic_sec.sh` |
-| Node Manager credentials (WLST) | `09-Install/11-oracle_nodemanager.sh`, `docs/11-oracle_nodemanager.md` |
-| boot.properties | `09-Install/10-oracle_boot_properties.sh`, `docs/10-oracle_boot_properties.md` |
+| sudo configuration | [`09-Install/docs/00-root_set_os_parameter.md`](00-root_set_os_parameter.md) – Prerequisites section |
+| Firewall ports | [`09-Install/docs/00-root_set_os_parameter.md`](00-root_set_os_parameter.md) – Verification section |
+| SELinux requirement (must stay disabled) | [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) – Section 1 |
+| WebLogic password concept | [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) |
+| Node Manager credentials (WLST) | [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh), `docs/11-oracle_nodemanager.md` |
+| boot.properties | [`09-Install/10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh), `docs/10-oracle_boot_properties.md` |
 | Reports servlet / `<identifier>` | `docs/81-reports_rwservlet_security.md` |

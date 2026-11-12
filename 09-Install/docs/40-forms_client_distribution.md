@@ -3,10 +3,10 @@
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
 **Status 2026-10-23: server side live on the test host** (download `04-`,
-Nginx `/formsWeb/`, bundle `40-oracle_forms_client_bundle.sh`, client templates
+Nginx `/formsWeb/`, bundle [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh), client templates
 `09-Install/client_templates/`) **and first Windows client run OK** –
 installation from the URL and the FSAL start of the test form work
-(`FormsWeb-Setup.ps1` 1.0.2, Windows client JDK platform `233P` = Windows x64).
+([`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) 1.0.2, Windows client JDK platform `233P` = Windows x64).
 Open (§8 / §12): update and self-update round, offline start, `-Rollback`,
 JACOB / Excel, `AllSigned` + Authenticode signature of the setup script. This
 document is the master for the scripts (doc-as-master: doc first, then
@@ -85,7 +85,7 @@ reproducible (open items "Tests that need a client" in the root README).
 
 ## 3. Server Side – the Bundle
 
-Built by `40-oracle_forms_client_bundle.sh` (read-only by
+Built by [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) (read-only by
 default, `--apply` builds, §10) **only from sources the library already
 manages** – logic once, no own download:
 
@@ -93,15 +93,15 @@ manages** – logic once, no own download:
 |---|---|---|
 | **Java runtime** | Oracle JDK 21 for **Windows x64** – MOS Patch 35702194 ("JDK 21 latest") or the release-specific patch (CPU426: 40186074 = 21.0.13.0.2), platform **233P** | see 3.1 |
 | **`frmsal.jar`** | `$ORACLE_HOME/forms/java/frmsal.jar` of this server | Oracle-signed; "version-specific – you cannot use frmsal.jar from one installation against another" (**documented**) → always the server's own file; replaced by Forms patches → rebuild the bundle after every Forms patch |
-| **JACOB DLL** | `$PATCH_STORAGE/jacob/$JACOB_ZIP` (same ZIP as `14-oracle_setup_forms.sh`, SHA-256 in `oracle_software_version.conf`) | x64 DLL – bitness of the client Java (FSAL is 64-bit only); see 5.6 |
-| **Trust** | CA chain of the Nginx TLS certificate (`08-SSL/ssl_local_ca.sh` root, company CA, or nothing for a public CA) | imported with the server `keytool` into the `cacerts` of the **bundled** runtime; see 5.5 |
+| **JACOB DLL** | `$PATCH_STORAGE/jacob/$JACOB_ZIP` (same ZIP as [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh), SHA-256 in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)) | x64 DLL – bitness of the client Java (FSAL is 64-bit only); see 5.6 |
+| **Trust** | CA chain of the Nginx TLS certificate ([`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) root, company CA, or nothing for a public CA) | imported with the server `keytool` into the `cacerts` of the **bundled** runtime; see 5.5 |
 | **`manifest.json`** | generated | see 3.2 |
-| **`FormsWeb-Setup.ps1`**, **`FormsWeb-Install.cmd`** | `09-Install/client_templates/` (§11) | unsigned today; Authenticode signature with the `FORMS_SIGN_*` keystore is open (§5.1, §12) |
+| **[`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1)**, **[`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd)** | `09-Install/client_templates/` (§11) | unsigned today; Authenticode signature with the `FORMS_SIGN_*` keystore is open (§5.1, §12) |
 
 Location: `FORMS_CLIENT_DIR` (default `/srv/formsWeb`, next to
 `PATCH_STORAGE=/srv/patch_storage`), created by root in
-`03-root_user_oracle.sh` (owner `oracle:oinstall`, mode 755 – Nginx only
-reads). `01-root_os_baseline.sh` disables SELinux; on a customer host with
+[`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) (owner `oracle:oinstall`, mode 755 – Nginx only
+reads). [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) disables SELinux; on a customer host with
 SELinux enforcing the directory needs the context `httpd_sys_content_t`
 (`semanage fcontext -a -t httpd_sys_content_t '/srv/formsWeb(/.*)?'` +
 `restorecon -R /srv/formsWeb`). No sibling directory for a rollback
@@ -123,7 +123,7 @@ Reports-only installation has no Forms client and asks none of them.
 | `FORMS_CLIENT_CONFIG` | `standaloneapp` | `formsweb.cfg` section → `…/frmservlet?config=<section>` |
 | `FORMS_CLIENT_FORM` | empty | optional start form → `&form=<name>`; empty = `form=` of the section |
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | name of the desktop / start menu shortcut |
-| `FORMS_CLIENT_ICON` | `${PATCH_STORAGE}/icon/IHateWeblogic.ico` | shortcut icon – the default is the project logo `09-Install/forms_templates/IHateWeblogic.ico` (16/32/48/256 px), copied there by `04- --apply` if missing; own icon: local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – for production use the customer's application / company icon |
+| `FORMS_CLIENT_ICON` | `${PATCH_STORAGE}/icon/IHateWeblogic.ico` | shortcut icon – the default is the project logo [`09-Install/forms_templates/IHateWeblogic.ico`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/IHateWeblogic.ico) (16/32/48/256 px), copied there by `04- --apply` if missing; own icon: local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – for production use the customer's application / company icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` = slim runtime, `jdk` = full JDK ZIP |
 | `FORMS_CLIENT_TRUST_CA` | `${SSL_CA_DIR}/ca/ca.crt` if it exists, else empty | CA for the truststore of the bundled runtime; empty = public CA |
 
@@ -131,7 +131,7 @@ Code signing of the setup script uses the existing `FORMS_SIGN_*`
 keystore (also asked when `FORMS_CLIENT_DIST=true`, not only for JACOB).
 Not in the interview (software versions, one source):
 `CLIENT_JDK_PATCH_NR` and `CLIENT_JDK_PLATFORM` in
-`oracle_software_version.conf`.
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf).
 
 ### 3.1 Java runtime – no "base JRE + patch"
 
@@ -146,13 +146,13 @@ Not in the interview (software versions, one source):
   distribution: "each release is a full distribution and supersedes prior
   releases" (CPU426, **documented**). So the bundle needs no base version –
   only the current MOS patch for the Windows platform.
-- **Download:** `04-oracle_pre_download.sh` loads Patch 35702194 today only
+- **Download:** [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) loads Patch 35702194 today only
   for `MOS_PLATFORM=226P` (Linux x86-64); getMOSPatch takes one platform per
   run. Second pass for the client platform (**implemented 2026-10-22**,
   `04- --apply --mos` with `FORMS_CLIENT_DIST=true`): variables
   `CLIENT_JDK_PATCH_NR` (empty = `JDK_PATCH_NR`) and
   `CLIENT_JDK_PLATFORM="233P"` (Microsoft Windows x64) in
-  `oracle_software_version.conf`, target `$PATCH_STORAGE/client/jdk/<nr>/`
+  [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf), target `$PATCH_STORAGE/client/jdk/<nr>/`
   – an own directory, because the skip check of `04-` treats any ZIP in
   `patches/<nr>/` as present ([04-oracle_pre_download.md](04-oracle_pre_download.md)).
   First download **confirmed (live) 2026-10-22**: `p35702194_2100_MSWIN-x86-64.zip`
@@ -246,8 +246,8 @@ large files safely.
 
 ## 4. Nginx
 
-Optional block in `09-Install/nginx-wls.conf.template`, kept by
-`04-root_nginx.sh` only with `FORMS_CLIENT_DIST=true` – the exact
+Optional block in [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template), kept by
+[`04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) only with `FORMS_CLIENT_DIST=true` – the exact
 configuration is in [04-root_nginx.md](04-root_nginx.md) ("Forms client
 bundle location"): `location /formsWeb/` with `alias /srv/formsWeb/`,
 `autoindex off`, `.ps1` as `text/plain`, `.cmd` / `.dll` / everything else
@@ -262,7 +262,7 @@ access from outside the networks that may use Forms (same rules as
 
 **Landing page (since 2026-11-05):** `/formsWeb/` shows `index.html`
 instead of a 403. The page has the shortcut name, a button for
-`FormsWeb-Install.cmd`, three steps, the SmartScreen note and the versions
+[`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd), three steps, the SmartScreen note and the versions
 of the manifest.
 - It is written by `40-` from `client_templates/index.html.template`.
 - The location needs `index index.html;` and `text/html html` in its
@@ -291,11 +291,11 @@ and how it is called decides whether it runs:
 
 Design:
 
-1. **Bootstrap `FormsWeb-Install.cmd`** – from a link on the Forms start
+1. **Bootstrap [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd)** – from a link on the Forms start
    page, by mail from IT, or as the only content of an SCCM / Intune
    package. It runs
    `powershell -NoProfile -ExecutionPolicy Bypass -Command …`, downloads
-   `manifest.json` and `FormsWeb-Setup.ps1` into
+   `manifest.json` and [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) into
    `%LOCALAPPDATA%\FormsWeb\`, checks the SHA-256 of the script against the
    manifest and starts it with `-Install`. The one-liner
    `irm https://<host>/formsWeb/FormsWeb-Setup.ps1 | iex` is documented
@@ -458,7 +458,7 @@ the x64 DLL; a 32-bit JRE 8 of an older Web Start setup needs the x86 DLL.
 
 ### 5.8 Own root CA on a test client – manual import (no administrator)
 
-Needed only with the own root CA of `08-SSL/ssl_local_ca.sh` (or a company
+Needed only with the own root CA of [`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) (or a company
 CA the client does not know yet) and only for the **Windows** side:
 PowerShell, the browser and the bootstrap download use the Windows
 certificate store. FSAL itself does not need it – the bundled runtime brings
@@ -505,7 +505,7 @@ Notes:
   (import there, or enable `security.enterprise_roots.enabled`).
 - A root in the *user* store is trusted only for this Windows user;
   `Cert:\LocalMachine\Root` (all users) needs an administrator.
-- For the Authenticode-signed `FormsWeb-Setup.ps1` (`AllSigned`, §5.1) the
+- For the Authenticode-signed [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) (`AllSigned`, §5.1) the
   signing certificate additionally goes into
   `Cert:\CurrentUser\TrustedPublisher` – same procedure with the
   code-signing certificate (`$SSL_CA_DIR/codesign/`).
@@ -540,7 +540,7 @@ Notes:
 | New JACOB version | `04-` + `14-` as today, then `40- --apply` |
 | TLS CA change | `40- --apply` (CA into the bundled runtime); the Windows store via GPO / user import |
 | Problem with a new version | server: `40-oracle_forms_client_bundle.sh --apply --rollback` (makes `manifest.prev.json` current again); client: `FormsWeb-Setup.ps1 -Rollback` |
-| Relation to the customer's software deployment | alternative to it – or the SCCM / Intune package carries only `FormsWeb-Install.cmd` |
+| Relation to the customer's software deployment | alternative to it – or the SCCM / Intune package carries only [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd) |
 
 ---
 
@@ -566,15 +566,15 @@ Notes:
 
 | Piece | Change |
 |---|---|
-| `09-Install/40-oracle_forms_client_bundle.sh` | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest, setup scripts) – **done 2026-10-22**, see §10 |
-| `09-Install/client_templates/` | `FormsWeb-Setup.ps1`, `FormsWeb-Install.cmd` – **written 2026-10-22**, served on the test host, see §11; Windows client test open |
-| Authenticode signature of `FormsWeb-Setup.ps1` | **open** (§12) |
-| `09-Install/04-oracle_pre_download.sh` + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
-| `09-Install/download/patches_fmw.csv` | role `client_jdk` (`CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`) – **done 2026-10-22**, CSV since 2026-10-30 |
-| `09-Install/nginx-wls.conf.template` + `04-root_nginx.sh` + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
-| `environment.conf` / `01-setup-interview.sh` | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
-| `09-Install/03-root_user_oracle.sh` | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |
-| `14-oracle_setup_forms.sh` | optional `fsalJavaVersion` in `[standaloneapp]` – **open** (§12) |
+| [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) | read-only check / `--apply` builds `FORMS_CLIENT_DIR` (jlink, CA import, manifest, setup scripts) – **done 2026-10-22**, see §10 |
+| `09-Install/client_templates/` | [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1), [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd) – **written 2026-10-22**, served on the test host, see §11; Windows client test open |
+| Authenticode signature of [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) | **open** (§12) |
+| [`09-Install/04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) + doc 04 | second getMOSPatch pass for `CLIENT_JDK_PLATFORM` into `client/jdk/<nr>/` – **done 2026-10-22** |
+| [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) | role `client_jdk` (`CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM`) – **done 2026-10-22**, CSV since 2026-10-30 |
+| [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template) + [`04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) + doc 04 | `location <FORMS_CLIENT_URL_PATH>/` (default `/formsWeb/`) – **done 2026-10-22**, deployed on the test host (200 / 304 / MIME checked) |
+| `environment.conf` / [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) | `FORMS_CLIENT_*` (§3.0) – **done 2026-10-22** |
+| [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) | creates `FORMS_CLIENT_DIR` (only Forms + `FORMS_CLIENT_DIST=true`) – **done 2026-10-22** |
+| [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | optional `fsalJavaVersion` in `[standaloneapp]` – **open** (§12) |
 | `07-Maintenance/README.md` | "after every Java / Forms patch: `40- --apply`" – **done 2026-10-22** |
 
 ---
@@ -596,7 +596,7 @@ Runs as oracle. Only for Forms installations with `FORMS_CLIENT_DIST=true`
 | 1. Sources | client JDK ZIP from `$PATCH_STORAGE/client/jdk/<CLIENT_JDK_PATCH_NR or JDK_PATCH_NR>/` (no Linux ZIP), the outer ZIP checked against the `sha256` of the patch list (`patch_zip_sha_check`, row `client_jdk`, soft check), the inner `jdk-<ver>_windows-x64_bin.zip` against `SHA256_VALUES`; the start section `FORMS_CLIENT_CONFIG` in the deployed `formsweb.cfg`: FAIL if it does not exist, WARN if it switches WebUtil on without `baseSAAfile=webutilsaa.txt` (FSAL then loads no WebUtil jars; `[default]` alone carries `WebUtilArchive` for every section and does not count); the start form (`FORMS_CLIENT_FORM`, else `form=` of the section): WARN when its `.fmx` is not in the `FORMS_PATH` of the section's `envFile` (the client would start into FRM-40010), hint for a name with `.fmb`; `$ORACLE_HOME/forms/java/frmsal.jar`; JACOB x64 DLL from `$PATCH_STORAGE/jacob/$JACOB_ZIP` (only `FORMS_WEBUTIL_JACOB=true`, size checked against `JACOB_DLL_X64_SIZE`); CA `FORMS_CLIENT_TRUST_CA` (optional) |
 | 2. Change check | a fingerprint per component (SHA-256 of the source, module list, runtime mode, CA), the start parameters (URL with `config=` / `form=`, shortcut name) and the icon are compared with the current `manifest.json` – nothing changed → "up to date", nothing written (unless `--force`) |
 | 3. Runtime | work directory `mktemp -d`; `jlink` mode: only `jmods/` of the Windows JDK extracted, `$JDK_HOME/bin/jlink` with `FORMS_CLIENT_JLINK_MODULES` (default list of [java_jlink_forms_env.md §3](../../80-FMW-Architecture/java_jlink_forms_env.md#3-the-module-list-for-forms-1412), Windows modules included); `jdk` mode: the whole JDK; then the CA into `lib/security/cacerts` (`keytool`, alias `ihw-forms-ca`); ZIP with the runtime files at the top level → `jre-<JAVA_VERSION>-win-x64.zip` |
-| 4. Other files | `frmsal-<forms version>-<sha8>.jar`, `jacob-1.21-x64.dll`; `FormsWeb-Setup.ps1` / `FormsWeb-Install.cmd` from `09-Install/client_templates/` once they exist |
+| 4. Other files | `frmsal-<forms version>-<sha8>.jar`, `jacob-1.21-x64.dll`; [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) / [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd) from `09-Install/client_templates/` once they exist |
 | 5. Manifest | `manifest.json` (schema §3.2) written to a temp file in `FORMS_CLIENT_DIR`, the old one renamed to `manifest.prev.json`, the new one moved into place – the atomic switch for the clients |
 | 6. Clean-up | files referenced by neither `manifest.json` nor `manifest.prev.json` are deleted (only our own patterns `jre-*`, `frmsal-*`, `jacob-*`); files 644, owner oracle |
 
@@ -609,9 +609,9 @@ client JDK), every Forms patch (new `frmsal.jar`) and every CA change.
 
 | File | Content |
 |---|---|
-| `FormsWeb-Install.cmd` | bootstrap; `40-` replaces `@@BASE_URL@@` with `FORMS_CLIENT_BASE_URL` + `FORMS_CLIENT_URL_PATH` when copying it into the bundle; downloads `manifest.json` and `FormsWeb-Setup.ps1`, checks the SHA-256, runs `-Install -BaseUrl …`; CRLF line endings |
-| `index.html.template` | landing page of `/formsWeb/` (§4). `40-` fills in `@@APP_NAME@@` (HTML-escaped `FORMS_CLIENT_APP_NAME`), `@@BASE_URL@@` and the versions of the current manifest (`@@JAVA_VERSION@@`, `@@FSAL_VERSION@@`, `@@SETUP_VERSION@@`, `@@GENERATED@@`). It writes the page only when the content changed, also when the bundle is up to date. German with English lines; self-contained (no external fonts / scripts); edit the template, not the rendered file |
-| `FormsWeb-Setup.ps1` | the installer / starter of §5; first line of interest `$FormsWebSetupVersion = 'x.y.z'` – `40-` reads it into `setup.version` of the manifest; **raise it with every change**, otherwise clients do not self-update |
+| [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd) | bootstrap; `40-` replaces `@@BASE_URL@@` with `FORMS_CLIENT_BASE_URL` + `FORMS_CLIENT_URL_PATH` when copying it into the bundle; downloads `manifest.json` and [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1), checks the SHA-256, runs `-Install -BaseUrl …`; CRLF line endings |
+| [`index.html.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/index.html.template) | landing page of `/formsWeb/` (§4). `40-` fills in `@@APP_NAME@@` (HTML-escaped `FORMS_CLIENT_APP_NAME`), `@@BASE_URL@@` and the versions of the current manifest (`@@JAVA_VERSION@@`, `@@FSAL_VERSION@@`, `@@SETUP_VERSION@@`, `@@GENERATED@@`). It writes the page only when the content changed, also when the bundle is up to date. German with English lines; self-contained (no external fonts / scripts); edit the template, not the rendered file |
+| [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) | the installer / starter of §5; first line of interest `$FormsWebSetupVersion = 'x.y.z'` – `40-` reads it into `setup.version` of the manifest; **raise it with every change**, otherwise clients do not self-update |
 
 Written for **Windows PowerShell 5.1** (default on Windows 10 / 11):
 
@@ -658,8 +658,8 @@ Not yet included: see §12.
 | 1 | **Windows client test** – install + FSAL start **done 2026-10-23**; open: update / self-update round (next cycle or `40- --force`), offline start, `-Rollback` | rest of test plan §8 |
 | 2 | Cross-built runtime on Windows | **done 2026-10-23** (`javaw.exe` start, TLS with the bundled `cacerts`) |
 | 3 | Module list sufficient for WebUtil / JACOB / German locale | test 9 + a form with dates / numbers |
-| 4 | Authenticode signature of `FormsWeb-Setup.ps1` | `osslsigncode` with the `FORMS_SIGN_*` keystore in `40-` (only needed under `AllSigned`) |
-| 5 | `fsalJavaVersion` in `[standaloneapp]` | `14-oracle_setup_forms.sh` option, value from the bundled runtime |
+| 4 | Authenticode signature of [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) | `osslsigncode` with the `FORMS_SIGN_*` keystore in `40-` (only needed under `AllSigned`) |
+| 5 | `fsalJavaVersion` in `[standaloneapp]` | [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) option, value from the bundled runtime |
 | 6 | Licence of the jlink runtime (1557737.1) | confirm with Oracle / the customer |
 | 7 | CPU October 2026 switch | after the new client JDK download: `40- --apply` (the Windows client JDK is already 21.0.13.0.2) |
 

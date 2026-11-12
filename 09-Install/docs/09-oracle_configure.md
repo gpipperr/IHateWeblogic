@@ -1,6 +1,6 @@
 # Step 5a – 09-oracle_configure.sh
 
-**Script:** `09-Install/09-oracle_configure.sh`
+**Script:** [`09-Install/09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh)
 **Runs as:** `oracle`
 **Phase:** 5 – Configuration & Validation
 
@@ -27,9 +27,9 @@ scripts from modules 00–07.
 > **Split 2026-10-15:** the font configuration (`deploy_fonts`, font cache,
 > `uifont.ali`, font path) and the `cgicmd.dat` default key moved to
 > [`14b-oracle_reports_fonts.sh`](14b-oracle_reports_fonts.md). They need the
-> ReportsTools component (created by `13-oracle_setup_reports.sh`) and the
+> ReportsTools component (created by [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)) and the
 > WLS_REPORTS application directory (exists only after the first start of
-> WLS_REPORTS). Right after `08-` none of that exists — `uifont_ali_update.sh`
+> WLS_REPORTS). Right after `08-` none of that exists — [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh)
 > failed with "Target directory does not exist" (confirmed 2026-10-15).
 
 ---
@@ -81,21 +81,21 @@ Orchestrates the configuration sequence:
 | 0 | boot.properties | `09-Install/10-oracle_boot_properties.sh --apply` | [10-oracle_boot_properties.md](10-oracle_boot_properties.md) |
 | 1 | JVM settings | `02-Checks/weblogic_performance.sh --apply` – **interactive** (asks per setting) | |
 | 1b | TNS_ADMIN for all WebLogic JVMs | `02-Checks/tns_admin_check.sh --apply` | `export TNS_ADMIN` + `-Doracle.net.tns_admin` in `setUserOverrides.sh` (value from `environment.conf`), [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
-| 2 | Font OS packages | `04-ReportsFonts/get_root_install_libs.sh --apply` – as root, or as oracle when `sudo -n -l /usr/bin/dnf install …` is allowed (the rule of `03-root_user_oracle.sh`; the script calls `sudo dnf` itself); otherwise the manual command + the package list | |
+| 2 | Font OS packages | `04-ReportsFonts/get_root_install_libs.sh --apply` – as root, or as oracle when `sudo -n -l /usr/bin/dnf install …` is allowed (the rule of [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh); the script calls `sudo dnf` itself); otherwise the manual command + the package list | |
 | 3 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
 | 4 | Config backup | `07-Maintenance/backup_config.sh --apply` | |
-| – | Fonts, uifont.ali, cgicmd.dat | **later:** `14b-oracle_reports_fonts.sh` | [14b-oracle_reports_fonts.md](14b-oracle_reports_fonts.md) |
+| – | Fonts, uifont.ali, cgicmd.dat | **later:** [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) | [14b-oracle_reports_fonts.md](14b-oracle_reports_fonts.md) |
 
 > Step 2 is skipped with `--skip-fonts`.
 >
-> Expected on a fresh domain (not errors): `10-oracle_boot_properties.sh` warns
+> Expected on a fresh domain (not errors): [`10-oracle_boot_properties.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/10-oracle_boot_properties.sh) warns
 > that `servers/WLS_REPORTS` does not exist yet (created on first start – `10-`
-> runs again in Phase 6), `weblogic_performance.sh` creates `setUserOverrides.sh`.
+> runs again in Phase 6), [`weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) creates `setUserOverrides.sh`.
 
 Each called script reports its own OK/WARN/FAIL. The orchestrator counts per
 step: rc ≥ 2 = FAIL (exit 2), rc 1 = WARN; a missing called script stops it
 in the pre-checks. Unknown options: exit 1. At the end it prints the Phase 6
-order (`detect_env_conf.sh`, `10-` … `14b-`).
+order ([`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh), `10-` … `14b-`).
 
 > Until 2026-11-03 step 2 tested `sudo -n true` – false with the restricted
 > sudoers of `03-` (only `dnf install *` etc.), so the packages were never

@@ -27,7 +27,7 @@ build with the import before the interview (reported 2026-11-06).
 | Situation | Way | Why |
 |---|---|---|
 | New 14c host, not installed yet | **Way 1 – preferred** | The customer values are in the conf **before** the interview and the install chain. `13-` creates the customer's Reports servers directly, `14-` writes the customer sections and jars at the first run. There is no default server to remove, and no second restart cycle. |
-| 14c environment already built with the library (e.g. with `repserver01`) | **Way 2** | The overlay is applied afterwards with `07-Maintenance/apply_customer_conf.sh`; the default servers are removed with `13- --remove-server`. |
+| 14c environment already built with the library (e.g. with `repserver01`) | **Way 2** | The overlay is applied afterwards with [`07-Maintenance/apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh); the default servers are removed with `13- --remove-server`. |
 | 14c environment **not** built with the library | – | Not covered. The scripts expect the library's conf, layout and templates. |
 
 **So: collect at the start of the project, not when the new host is ready.**
@@ -109,7 +109,7 @@ The reports contain host names and paths. They go **only** to the customer
 | Mail server for Reports (`destype=mail`) | `rwserver.conf` `mailServer` | Often an unset Oracle placeholder at the customer, too. |
 | TNS aliases | export `tns.csv` | The new `TNS_ADMIN` needs a `tnsnames.ora`; the smoke test `15-` also needs an alias for the test DB service. |
 | Code signing of the customer jars | jar table (signer, expiry) | Customer PKI or our own CA; a timestamp authority (`FORMS_SIGN_TSA_URL`) for signatures that outlive the certificate. |
-| Outbound connections / firewall | collector web tier, `egress_check.sh` | Proxy, TSA, mail server, external DTDs. |
+| Outbound connections / firewall | collector web tier, [`egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) | Proxy, TSA, mail server, external DTDs. |
 
 ---
 
@@ -170,7 +170,7 @@ points to.
    `13-`, `14-` and `14b-` read the overlay (`CUSTOMER_CONF_DIR`).
 5. **Autostart:** `30-configure_autostart.sh --apply`, **after** `13-`. It
    writes the Reports servers of `config.xml` into the control scripts.
-6. **Validate:** `90-oracle_validate.sh`, then phase D.
+6. **Validate:** [`90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh), then phase D.
 
 ---
 
@@ -249,17 +249,17 @@ environment, before / after.
 
 | Symptom | Cause | Now |
 |---|---|---|
-| `13-` would create only one of two customer servers | the conf holds **two** server lists (`REPORTS_SERVER_NAMES` of the interview, `REPORTS_SERVER_INSTANCES`); one was incomplete, one had a typo | `apply_customer_conf.sh` "Reports server names": both lists shown, WARN on a difference, on a typo and on an overlay server missing from the list |
+| `13-` would create only one of two customer servers | the conf holds **two** server lists (`REPORTS_SERVER_NAMES` of the interview, `REPORTS_SERVER_INSTANCES`); one was incomplete, one had a typo | [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) "Reports server names": both lists shown, WARN on a difference, on a typo and on an overlay server missing from the list |
 | `14b-` writes `cgicmd.dat` for the old server | `REPORTS_SERVER_NAME` still the old default server | WARN in the same section |
 | `REPORTS_BROADCAST_PORT` differs from the old environment | the new servers have the **same names** as the old ones – the same port in the same network would mix them up (multicast discovery) | keep the library's port (importer: INFO "kept") |
 | `13-` FAIL "Multicast prerequisites failed" right after creating the servers | WLST creates a new server with Oracle's default port 14021; the check ran before `13-` aligned it | the check runs after the port update |
-| `start-all` / systemd do not start the new servers | `30-` writes the system components into its control scripts at configure time | lib `autostart_drift`: `startStop.sh` warns and starts / stops them directly, `13-` warns, `apply_customer_conf.sh` re-renders with `30- --apply` |
-| `15-` REP-51002 right after `start-all` although the server runs | the Node Manager reports "started" minutes before the Reports server accepts requests (about 3 min) | `apply_customer_conf.sh` waits for `getserverinfo` |
-| `rwserver_status.sh` OK with an empty "Server Info" | HTTP 200 without `<serverInfo>` counted as reachable | FAIL with the start of the answer |
+| `start-all` / systemd do not start the new servers | `30-` writes the system components into its control scripts at configure time | lib `autostart_drift`: [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) warns and starts / stops them directly, `13-` warns, [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) re-renders with `30- --apply` |
+| `15-` REP-51002 right after `start-all` although the server runs | the Node Manager reports "started" minutes before the Reports server accepts requests (about 3 min) | [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) waits for `getserverinfo` |
+| [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) OK with an empty "Server Info" | HTTP 200 without `<serverInfo>` counted as reachable | FAIL with the start of the answer |
 | `14-` dry run OK, but `--apply` would fail for the customer jars | the keystore check covered only `jacob.jar` | the check counts the customer jars of the overlay |
 | 14 WARN "signature without timestamp" | `FORMS_SIGN_TSA_URL` empty | set it when the host may reach a TSA, then `14- --apply --resign` |
 | `15-` FAIL "No alias with SERVICE_NAME=…" | no `tnsnames.ora` in `TNS_ADMIN` | create it before the smoke test |
-| logins of the Reports servers take 1.6–2.6 s (test host: 60 ms) | suspected: IPv6 still active – `localhost` is tried as `::1` first (not confirmed yet) | `01-root_os_baseline.sh --apply`, then compare "Avg auth time" in `rwserver_status.sh` |
+| logins of the Reports servers take 1.6–2.6 s (test host: 60 ms) | suspected: IPv6 still active – `localhost` is tried as `::1` first (not confirmed yet) | `01-root_os_baseline.sh --apply`, then compare "Avg auth time" in [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) |
 
 ---
 
@@ -285,7 +285,7 @@ Then:
 
 | What | Backup | Back |
 |---|---|---|
-| configuration files of the domain | `07-Maintenance/ConfigBackup/<ts>/` (`backup_config.sh`) | `07-Maintenance/restore_config.sh --apply` |
+| configuration files of the domain | `07-Maintenance/ConfigBackup/<ts>/` ([`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)) | `07-Maintenance/restore_config.sh --apply` |
 | conf of the environment | `00-Setup/environments/<env>.conf.bak_<ts>` (importer) | copy back |
 | overlay | `<env>.customer.bak_<ts>` (a repeated import) | rename back |
 | removed Reports server | `ConfigBackup/remove_reports_<name>_<ts>/` (`config.xml`, component directories, `servers/<name>`) | re-create it with `13-` (add the name to `REPORTS_SERVER_INSTANCES`) – the backup holds its old configuration |

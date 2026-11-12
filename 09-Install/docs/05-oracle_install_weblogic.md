@@ -1,6 +1,6 @@
 # Step 2a – 05-oracle_install_weblogic.sh
 
-**Script:** `09-Install/05-oracle_install_weblogic.sh`
+**Script:** [`09-Install/05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh)
 **Runs as:** `oracle`
 **Phase:** 2 – WebLogic Installation
 
@@ -15,7 +15,7 @@ This is the base layer required before Forms & Reports can be installed.
 versioned path (`jdk-21.0.x`) into `$ORACLE_HOME/oui/.globalEnv.properties`
 (the JDK of OPatch / `wlst.sh`). Install the JDK of the current patch cycle
 **before** this step (`02b-root_os_java.sh --apply --upgrade-jdk` after
-`04- --mos`); later JDK updates need `07-Maintenance/domain_jdk_path.sh` to put
+`04- --mos`); later JDK updates need [`07-Maintenance/domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) to put
 the link back in. The installer also brings the second, bundled JDK
 `oracle_common/jdk` (used by the Reports engines).
 
@@ -64,7 +64,7 @@ cat /etc/oraInst.loc
 > `/etc/oraInst.loc` points to `ORACLE_INVENTORY` (one level above `ORACLE_BASE`).
 > The installer would find it automatically even without `-invPtrLoc` — the script
 > passes it explicitly anyway (see step 3), for the same reason it is always passed
-> to OPatch in `05-oracle_patch_weblogic.sh`: it removes any dependency on the
+> to OPatch in [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh): it removes any dependency on the
 > installer's default search behavior.
 > If `/etc/oraInst.loc` is missing, re-run `03-root_user_oracle.sh --apply`.
 
@@ -90,7 +90,7 @@ unset CV_ASSUME_DISTID
 > **Temp dir:** the script runs the installer with `TMP`/`TMPDIR` and
 > `java.io.tmpdir` = `$ORACLE_BASE/tmp` – OUI extracts and executes helpers in
 > its temp dir, which fails on a `noexec` `/tmp` (CIS-hardened images;
-> `01-root_os_baseline.sh` reports it). Same as `05-oracle_patch_weblogic.sh`.
+> [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) reports it). Same as [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh).
 
 > `-invPtrLoc /etc/oraInst.loc` is passed explicitly even though the installer would
 > find the same file automatically — this avoids relying on default search behavior.
@@ -112,10 +112,10 @@ ls -la $ORACLE_HOME/oracle_common/
 ## What the Script Does
 
 - Reads `ORACLE_HOME`, `ORACLE_BASE`, `JDK_HOME`, `PATCH_STORAGE` from `environment.conf`
-- Reads `CV_ASSUME_DISTID`, `FMW_INFRA_FILENAME`, `FMW_INFRA_ZIP` from `oracle_software_version.conf`
+- Reads `CV_ASSUME_DISTID`, `FMW_INFRA_FILENAME`, `FMW_INFRA_ZIP` from [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)
 - Locates the FMW Infrastructure JAR in `$PATCH_STORAGE/wls/`; unzips from `FMW_INFRA_ZIP` if JAR not yet extracted
 - Generates the response file inline (substituting `ORACLE_HOME`, `ORACLE_BASE`)
-- Verifies `/etc/oraInst.loc` exists (created by `03-root_user_oracle.sh`); aborts if missing
+- Verifies `/etc/oraInst.loc` exists (created by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)); aborts if missing
 - Checks that `ORACLE_HOME` does not yet exist (prevents overwriting an existing install)
 - Exports `CV_ASSUME_DISTID` for the duration of the installer run only; unsets afterwards
 - Runs the silent installer with `$JDK_HOME/bin/java`, passing `-invPtrLoc /etc/oraInst.loc`
@@ -164,11 +164,11 @@ cat $ORACLE_HOME/inventory/registry.xml | grep "WLS"
 
 - `CV_ASSUME_DISTID=OEL8` is set only for the installer run and unset immediately
   after — it is **not** written to `.bash_profile`. The value is read from
-  `oracle_software_version.conf` so it can be adjusted if Oracle certifies OL9
+  [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) so it can be adjusted if Oracle certifies OL9
   natively in a future release.
 - The `-ignoreSysPrereqs` flag is intentionally **not** used — `CV_ASSUME_DISTID`
   is the targeted fix for the OS detection only; all other CV checks run normally.
-  Full prerequisite validation happens in `04-oracle_pre_checks.sh` beforehand.
+  Full prerequisite validation happens in [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) beforehand.
 - Install time: approximately 10–15 minutes depending on disk speed
 - Do not run as root — installer must run as `oracle` user
 - If installation fails: check log in `$ORACLE_INVENTORY/logs/`  (= `/u01/app/oraInventory/logs/`)

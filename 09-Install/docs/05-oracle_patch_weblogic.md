@@ -1,6 +1,6 @@
 # Step 2b – 05-oracle_patch_weblogic.sh
 
-**Script:** `09-Install/05-oracle_patch_weblogic.sh`
+**Script:** [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh)
 **Runs as:** `oracle`
 **Phase:** 2 – WebLogic Installation
 
@@ -35,7 +35,7 @@ cumbersome as possible, and they usually succeed admirably.
 > patch set (CPU October 2026: WLS Stack Patch Bundle + FMW Infrastructure
 > bundle patches), see
 > [`docs/00-patch-references.md`](00-patch-references.md) and
-> `oracle_software_version.conf` directly.
+> [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) directly.
 
 ### Step 1 – Find the current CPU
 
@@ -154,7 +154,7 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
 - Reads `ORACLE_HOME`, `JDK_HOME`, `PATCH_STORAGE`, `ORACLE_BASE` from `environment.conf`
 - Reads `INSTALL_PATCHES`, `OPATCH_VERSION_MIN`, `OPATCH_UPGRADE_PATCH_NR`,
   `WLS_SPB_PATCH_NR`/`WLS_SPB_MARKER_PATCH`/`WLS_SPB_PATCHLIST_FILE`,
-  `FMW_PRODUCT_RELEASE` from `oracle_software_version.conf`
+  `FMW_PRODUCT_RELEASE` from [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)
 - **OPatch upgrade first** (if current version < `OPATCH_VERSION_MIN`), same
   order as the manual cookbook:
   - Checks for patch 23335292 in inventory; rolls it back if present (waits 20 s)
@@ -322,7 +322,7 @@ Introduced with CSPU September 2026 (SPB `39925660`, 14.1.2.0.260825);
 current: CPU October 2026, SPB `40125898` (14.1.2.0.261007, marker
 `40126042`, WLS PSU 40058371, OPatch 13.9.4.2.25 in `tools/opatch/generic/`).
 
-`05-oracle_patch_weblogic.sh` runs this automatically when `WLS_SPB_PATCH_NR`
+[`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) runs this automatically when `WLS_SPB_PATCH_NR`
 is set (role `spb` in `download/patches_fmw.csv`, currently `40125898`), inserted
 between the OPatch-upgrade step and the `INSTALL_PATCHES` loop (the OPatch
 upgrade extracts only its own ZIP from the SPB archive, the full SPB is
@@ -427,11 +427,11 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 > snapshot `docs/00-patch-references_september_2026.md`. Always verify the downloaded ZIP's actual
 > release in `etc/config/inventory.xml`, not just the filename.
 >
-> `check_patch_zip()` (`00-Setup/IHateWeblogic_lib.sh`) now automates both
+> `check_patch_zip()` ([`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh)) now automates both
 > checks for every patch in `INSTALL_PATCHES`, before extraction: rejects
 > EBS-pattern artifacts, and compares the majority `version=` value across
 > `inventory.xml`'s `<required_components>` entries against
-> `FMW_PRODUCT_RELEASE` (`oracle_software_version.conf`) — a majority vote,
+> `FMW_PRODUCT_RELEASE` ([`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)) — a majority vote,
 > not one hardcoded component name, since the naming convention differs per
 > product (`oracle.wls.*` for WLS, `oracle.reports.*` for Reports QPRs,
 > `oracle.developer.forms.*` for Forms QPRs, confirmed against real ZIPs of

@@ -1,10 +1,10 @@
 # 99 – Deinstall FMW (keep the database)
 
-Script: `09-Install/99-oracle_deinstall_fmw.sh`
+Script: [`09-Install/99-oracle_deinstall_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/99-oracle_deinstall_fmw.sh)
 
 Removes the complete Fusion Middleware installation (Forms/Reports 14.1.2 +
 WebLogic) from a host so it can be rebuilt from scratch with
-`01-setup-interview.sh` and the current patch level — while leaving a
+[`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) and the current patch level — while leaving a
 repository database on the **same host** untouched. Typical use: a test host
 whose state has become unclear after many experiments.
 
@@ -19,7 +19,7 @@ whose state has become unclear after many experiments.
 |---|---|
 | `$ORACLE_HOME` – first via the Oracle deinstaller, then any leftovers | Database homes under `$ORACLE_BASE/product/`, `oradata/`, `admin/<DB_NAME>/`, `audit/`, `flash_recovery_area/`, `autoupgrade/`, `cfgtoollogs/` |
 | `$DOMAIN_HOME` and the parent `domains/` directory if it is then empty | `$ORACLE_BASE/diag/` – on a shared host this is the **database** ADR (`rdbms`, `tnslsnr`) |
-| Autostart (`30-configure_autostart.sh`): unit `fmw-<DOMAIN_NAME>.service` (disabled + removed before the stop) and `$ORACLE_BASE/admin/<DOMAIN_NAME>` | Every other directory under `$ORACLE_BASE/admin` (database admin dirs such as `admin/<DB_NAME>`) |
+| Autostart ([`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)): unit `fmw-<DOMAIN_NAME>.service` (disabled + removed before the stop) and `$ORACLE_BASE/admin/<DOMAIN_NAME>` | Every other directory under `$ORACLE_BASE/admin` (database admin dirs such as `admin/<DB_NAME>`) |
 | `~/oradiag_oracle` – client ADR of the FMW tools (`rwrun`, `rwconverter`, … crash incidents) | Central inventory – only the FMW home entry is removed (by the deinstaller) |
 | `REPORTS_TMP` and `/tmp/ihw_*` staging leftovers, if present | `JDK_HOME` (installed by root in Phase 0), `PATCH_STORAGE` (downloads are reused) |
 | | This repository incl. `*.des3` password files, `log/`, `07-Maintenance/ConfigBackup/` |
@@ -27,7 +27,7 @@ whose state has become unclear after many experiments.
 | | RCU schemas in the database (see [Reinstall](#reinstall-afterwards)) |
 | | ORDS / APEX (`$ORACLE_BASE/product/ords`, `product/apex`, `/srv/apex`, units `ords@ords_N`, `/var/log/ords_N`) – under `product/`, never touched; ORDS keeps running |
 | | Forms client bundle `FORMS_CLIENT_DIR` (`/srv/formsWeb`), the `TNS_ADMIN` directory (`$ORACLE_BASE/admin/tns_names`), the local CA (`$ORACLE_BASE/admin/pki`) |
-| | crontab of `oracle` (e.g. `10-Monitoring/cert_expiry_check.sh`) – remove with `--cron --remove --apply` if the host is retired |
+| | crontab of `oracle` (e.g. [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh)) – remove with `--cron --remove --apply` if the host is retired |
 
 ## Why the database needs special care
 
@@ -108,7 +108,7 @@ and deletes nothing; the OUI log is in `<inventory>/logs/`.
 The symlink target (e.g. `00-Setup/environments/prod.conf`) is renamed to
 `<name>.pre_deinstall_<timestamp>` and the `environment.conf` symlink is
 removed, so the interview starts clean. The `*.des3` files stay in place —
-`01-setup-interview.sh` detects them and keeps the passwords
+[`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) detects them and keeps the passwords
 (`[existing encrypted file]`).
 
 ## Reinstall afterwards
@@ -117,7 +117,7 @@ removed, so the interview starts clean. The `*.des3` files stay in place —
    - **Set `ORACLE_INVENTORY` to the existing central inventory** shown by the
      script (e.g. `/u01/app/oracle/oraInventory`), not the suggested default
      `$(dirname ORACLE_BASE)/oraInventory`. Otherwise
-     `03-root_user_oracle.sh` rewrites `/etc/oraInst.loc` and the database
+     [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh) rewrites `/etc/oraInst.loc` and the database
      homes disappear from the inventory the installers see.
 2. Phase 0–3 as usual (`09-Install/README.md`).
 3. Recreate the RCU schemas — the OPSS security store in the old schemas is
@@ -128,7 +128,7 @@ removed, so the interview starts clean. The `*.des3` files stay in place —
    ```
    This needs `rcu` from the **new** `$ORACLE_HOME`, so it can only run after
    Phase 3; the deinstall script deliberately does not drop the schemas.
-4. Continue with `08-oracle_setup_domain.sh` and the remaining phases.
+4. Continue with [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) and the remaining phases.
 
 ## Manual procedure (without the script)
 

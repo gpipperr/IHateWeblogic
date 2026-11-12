@@ -1,6 +1,6 @@
 # Step 4a – 07-oracle_setup_repository.sh
 
-**Script:** `09-Install/07-oracle_setup_repository.sh`
+**Script:** [`09-Install/07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh)
 **Runs as:** `oracle`
 **Phase:** 4 – Repository & Domain
 
@@ -11,8 +11,8 @@
 ```
 
 Checked against the script 2026-11-03. Before it (local DB, `60-RCU-DB-19c`):
-`04-db_audit_setup.sh`, `05-db_fmw_tablespace.sh` (when `RCU_TABLESPACE` is
-set), `06-db_rcu_profile.sh`; the DB credentials with
+[`04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh), [`05-db_fmw_tablespace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/05-db_fmw_tablespace.sh) (when `RCU_TABLESPACE` is
+set), [`06-db_rcu_profile.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/06-db_rcu_profile.sh); the DB credentials with
 `00-Setup/database_rcu_sec.sh --apply`.
 
 ---

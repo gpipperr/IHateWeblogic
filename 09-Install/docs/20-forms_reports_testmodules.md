@@ -25,11 +25,11 @@ alias ([forms_runtime_architecture.md §2.1](../../80-FMW-Architecture/forms_run
 
 | File | Purpose |
 |---|---|
-| `09-Install/forms_templates/test_form.xml` | Forms XML module: control block `BL_DATA`, items `IT_SYSDATE`/`IT_OBJ_COUNT`, a `WHEN-NEW-FORM-INSTANCE` trigger populates both (`sysdate`, `user_objects`) |
-| `09-Install/reports_templates/test_dual.xml` | Reports XML: `to_char(sysdate, ...) as sys_datum from dual` (**not** `current_date` as alias — reserved word!) |
-| `09-Install/reports_templates/test_fonts.xml` | Reports XML **font test**: one boilerplate `<text>` per family (Arial, Helvetica, Times New Roman, Courier New, Tahoma, Liberation Sans, DejaVu Sans) with umlauts – which TrueType file the engine embeds |
-| `09-Install/reports_templates/test_user_objects.xml` | Reports XML: tabular listing of `object_name, object_type, status from user_objects`, filtered by a `<userParameter>` + `<parameterForm>` (object-name pattern, default `%`) — see `REPORTS_XML_SYNTAX_REFERENCE.md` |
-| `09-Install/15-deploy-test-report-forms_template.sh` | Driver script: `frmxml2f.sh` → `frmcmp_batch.sh` (Forms), `rwconverter.sh` (Reports), deploy into `FORMS_CUSTOMER_DIR` / `REPORTS_CUSTOMER_DIR`, run `test_dual.rdf` and `test_fonts.rdf` via `rwservlet` (PDF check, font check). Only the component(s) selected in `INSTALL_COMPONENTS`. |
+| [`09-Install/forms_templates/test_form.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/test_form.xml) | Forms XML module: control block `BL_DATA`, items `IT_SYSDATE`/`IT_OBJ_COUNT`, a `WHEN-NEW-FORM-INSTANCE` trigger populates both (`sysdate`, `user_objects`) |
+| [`09-Install/reports_templates/test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml) | Reports XML: `to_char(sysdate, ...) as sys_datum from dual` (**not** `current_date` as alias — reserved word!) |
+| [`09-Install/reports_templates/test_fonts.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_fonts.xml) | Reports XML **font test**: one boilerplate `<text>` per family (Arial, Helvetica, Times New Roman, Courier New, Tahoma, Liberation Sans, DejaVu Sans) with umlauts – which TrueType file the engine embeds |
+| [`09-Install/reports_templates/test_user_objects.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_user_objects.xml) | Reports XML: tabular listing of `object_name, object_type, status from user_objects`, filtered by a `<userParameter>` + `<parameterForm>` (object-name pattern, default `%`) — see [`REPORTS_XML_SYNTAX_REFERENCE.md`](../reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md) |
+| [`09-Install/15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) | Driver script: `frmxml2f.sh` → `frmcmp_batch.sh` (Forms), `rwconverter.sh` (Reports), deploy into `FORMS_CUSTOMER_DIR` / `REPORTS_CUSTOMER_DIR`, run `test_dual.rdf` and `test_fonts.rdf` via `rwservlet` (PDF check, font check). Only the component(s) selected in `INSTALL_COMPONENTS`. |
 
 ### Test database credentials
 
@@ -81,7 +81,7 @@ The former plain `TEST_DB_CONNECT` in `environment.conf` is no longer used.
 
 ### Step 1 — Forms XML module
 
-`test_form.xml` defines one control block `BL_DATA` (`DatabaseBlock="false"`),
+[`test_form.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/test_form.xml) defines one control block `BL_DATA` (`DatabaseBlock="false"`),
 two text items and a `WHEN-NEW-FORM-INSTANCE` trigger. Verified syntax
 (schema from `frmxmlsg.sh`, roundtrip of `$ORACLE_HOME/forms/test.fmb` with
 `frmf2xml.sh`):
@@ -181,7 +181,7 @@ programmatically (`new FormModule(...)`, `Block`, `Item`, `Trigger`,
 
 ### Step 1 — Reports XML definition
 
-`test_dual.xml`: one data source `to_char(sysdate, ...) as sys_datum from dual`
+[`test_dual.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_dual.xml): one data source `to_char(sysdate, ...) as sys_datum from dual`
 and a tabular layout.
 
 > **Alias trap:** do not use `current_date` as a column alias — it is a
@@ -226,7 +226,7 @@ Same path (convert, deploy, `rwservlet`), then the PDF is checked:
 | font per family | `pdffonts`, names compared without `,` `-` blank (`AADIGD+Liberation,Sans`) | Arial / Helvetica → LiberationSans, Times New Roman → LiberationSerif, Courier New → LiberationMono, Tahoma / DejaVu Sans → DejaVuSans; missing → WARN (mapping, `14b-`) |
 | no Base-14 fallback | `pdffonts` | no `Courier` / `Symbol` / `ZapfDingbats` – else a family has no TTF mapping → WARN |
 | umlauts in the text layer | `pdftotext -enc UTF-8` | all 7 lines contain `Größe Übung ÄÖÜ äöü ß` → else WARN (NLS_LANG / encoding) |
-| embedded | `04-ReportsFonts/pdf_font_verify.sh` | every font embedded TrueType, else FAIL |
+| embedded | [`04-ReportsFonts/pdf_font_verify.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/pdf_font_verify.sh) | every font embedded TrueType, else FAIL |
 
 Live 2026-10-23 (**confirmed**): first version with `<font>` on the fields
 of a generated `formLike` layout – the engine **ignored** the font of the
@@ -244,7 +244,7 @@ fonts (Liberation Sans / Serif / Mono, DejaVu Sans), all checks OK.
   references the alias
 - DTD: `$ORACLE_HOME/reports/dtd/report.dtd`
 - Parameters (`<userParameter>`, `<parameterForm>`): see
-  `09-Install/reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md`
+  [`09-Install/reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md`](../reports_templates/REPORTS_XML_SYNTAX_REFERENCE.md)
 
 ### References — Reports
 
@@ -298,7 +298,7 @@ Way there:
 3. `FORMS_API_TK_BYPASS=TRUE` → JDAPI starts (also without `DISPLAY`) and
    shows the real schema errors of the hand-written XML.
 4. `frmxmlsg.sh` (schema) + `frmf2xml.sh` roundtrip of
-   `$ORACLE_HOME/forms/test.fmb` → corrected `test_form.xml` → FMB.
+   `$ORACLE_HOME/forms/test.fmb` → corrected [`test_form.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/test_form.xml) → FMB.
 5. `frmcmp_batch` with EZConnect: `Form not created`; sqlplus with the same
    credentials works; TNS alias → FMX created.
 
@@ -307,7 +307,7 @@ Way there:
 Found: `frmxml2f`/`frmf2xml` are Java classes, not binaries in
 `$ORACLE_HOME/bin`; all Forms/Reports binaries are directly under
 `$ORACLE_HOME/bin/` (not `forms/bin` / `reports/bin`); `libnsl2` fix of
-`13-root_reports_fix.sh` correct. Wrong conclusions of that day, corrected
+[`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) correct. Wrong conclusions of that day, corrected
 2026-10-16: "both tools need an X display" (→ `FORMS_API_TK_BYPASS`,
 instance wrapper) and "rwconverter crash probably memory pressure" (→
 missing Reports environment).
@@ -346,4 +346,4 @@ started with **Java Web Start** or the **Forms Standalone Launcher (FSAL)**.
   side verified: JNLP, `fsal.htm`, `frmsal.jar` via NGINX). FSAL is done: first
   Windows FSAL session with the test form 2026-10-23 (client distribution
   `40-`, [doc 40](40-forms_client_distribution.md)).
-- `test_user_objects.xml` (parameter form) is not part of the script run.
+- [`test_user_objects.xml`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/reports_templates/test_user_objects.xml) (parameter form) is not part of the script run.

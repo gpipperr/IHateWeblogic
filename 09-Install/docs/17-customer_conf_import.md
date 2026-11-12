@@ -6,8 +6,8 @@
 > document is the reference of the importer and the overlay.
 
 **Status 2026-11-06: built, Way 1 and Way 2 live at a customer.**
-- **Importer:** `00-Setup/customer_conf_import.sh`.
-- **Way 2:** `07-Maintenance/apply_customer_conf.sh`.
+- **Importer:** [`00-Setup/customer_conf_import.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/customer_conf_import.sh).
+- **Way 2:** [`07-Maintenance/apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh).
 - **Overlay readers:** `13-`, `14-`, `14b-`, `04-ReportsFonts`.
 - **Tested with the first real customer export (12c):**
   - dry run and `--apply` in an isolated copy of the repository, Way 1 (new
@@ -29,7 +29,7 @@
 
 This step brings the configuration of an existing customer environment
 (12c or 14c) into a 14c environment built with the IHateWeblogic library.
-The source is an export of `70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`,
+The source is an export of [`70-Customer-Projects/tools/bash/export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh),
 analysed first on our side (report for the customer).
 
 There are two ways in, and both use **one** code path:
@@ -37,7 +37,7 @@ There are two ways in, and both use **one** code path:
 | | Way 1 – new system | Way 2 – existing library environment |
 |---|---|---|
 | 1 | `customer_conf_import.sh --apply` | `07-Maintenance/backup_config.sh --apply` |
-| 2 | `01-setup-interview.sh` – the imported values are shown as `[kept]`; it asks for the host values, the decisions and the passwords | `customer_conf_import.sh --apply` |
+| 2 | [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) – the imported values are shown as `[kept]`; it asks for the host values, the decisions and the passwords | `customer_conf_import.sh --apply` |
 | 3 | install chain `04-` … `15-`; `13-`, `14-` and `14b-` read the overlay | `07-Maintenance/apply_customer_conf.sh --apply`: `14-` → `14b-` → `13-` → restart → `15-` smoke test → `90-` validate |
 
 Foreign 14c environments, i.e. ones not built with the library, are not
@@ -74,7 +74,7 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 ```
 
 - **Values:** an overlay value `__REMOVE__` comments a key of the base out
-  (`frm_kv_overlay`, `06-FormsDiag/forms_lib.sh`).
+  (`frm_kv_overlay`, [`06-FormsDiag/forms_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh)).
 - **Passwords never go into the overlay.** Stored logins of the customer
   configuration (`userid=` in `formsweb.cfg`, logins in `cgicmd.dat`) are
   removed and listed in `IMPORT_DECISIONS.md`. In 14c, logins come from the
@@ -91,7 +91,7 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 
 - **`--env`:** default = the conf the `environment.conf` link points to.
 - **A missing `environments/<name>.conf`** is created with the import block
-  only (Way 1, then `01-setup-interview.sh`).
+  only (Way 1, then [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)).
   - Without an `environment.conf`, the importer links it to this file, so
     the interview reads the import block and writes into the same file.
   - The interview takes `REPORTS_SERVER_INSTANCES` of the import as its
@@ -123,7 +123,7 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
   importer.
 
 1. **Unpack** with the same function as the analysis (`ihwt_unpack` in
-   `ihw_tools_lib.sh`).
+   [`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh)).
 2. **Map the export to the overlay** with the parsers `ihwt_sections`,
    `ihwt_keys` and `ihwt_cfgval`:
    - **formsweb.cfg:** `[default]` keys that differ from Oracle's file, plus
@@ -188,9 +188,9 @@ If it is empty or unset, there is no overlay and the scripts behave as before.
 
 | Script | Overlay part | Behaviour |
 |---|---|---|
-| `14-oracle_setup_forms.sh` | `forms/*` | [14-forms-detail-settings.md – Customer overlay](14-forms-detail-settings.md#customer-overlay-customer_conf_dir-import-of-an-existing-environment): sections are created or replaced completely, env files are written, WebUtil keys are added, jars are copied and signed |
-| `14b-oracle_reports_fonts.sh` (+ `04-ReportsFonts`) | `fonts/*`, `reports/cgicmd.dat.customer` | [14b-oracle_reports_fonts.md – Notes](14b-oracle_reports_fonts.md#what-the-script-does) |
-| `13-oracle_setup_reports.sh` | `reports/<server>.env` | [13-reports-detail-settings.md – Server list and customer overlay](13-reports-detail-settings.md#server-list-and-customer-overlay) |
+| [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | `forms/*` | [14-forms-detail-settings.md – Customer overlay](14-forms-detail-settings.md#customer-overlay-customer_conf_dir-import-of-an-existing-environment): sections are created or replaced completely, env files are written, WebUtil keys are added, jars are copied and signed |
+| [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) (+ `04-ReportsFonts`) | `fonts/*`, `reports/cgicmd.dat.customer` | [14b-oracle_reports_fonts.md – Notes](14b-oracle_reports_fonts.md#what-the-script-does) |
+| [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | `reports/<server>.env` | [13-reports-detail-settings.md – Server list and customer overlay](13-reports-detail-settings.md#server-list-and-customer-overlay) |
 
 Every part is idempotent: a second run reports `up to date` and writes
 nothing (tested 2026-11-04 for `14-` in an isolated copy, and for the

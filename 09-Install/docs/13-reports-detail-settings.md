@@ -1,6 +1,6 @@
 # Step 13 – Reports Server Detail Configuration
 
-**Scripts:** `09-Install/13-root_reports_fix.sh` · `09-Install/13-oracle_setup_reports.sh`
+**Scripts:** [`09-Install/13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) · [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)
 **Runs as:** `oracle` (both – the fix step needs no root, `ORACLE_HOME/lib` belongs to oracle; root works too)
 **Phase:** 6 – Reports Server Setup
 
@@ -26,11 +26,11 @@ within the WebLogic domain.  It covers:
 5. Configuring `rwserver.conf` (engine, environment, queue, folder access)
 6. Configuring `reports.sh` (font and locale environment variables)
 7. Font and Unicode configuration (`uifont.ali`) – **manual reference only**:
-   the script part moved to `14b-oracle_reports_fonts.sh` (after the first
+   the script part moved to [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh) (after the first
    start of `WLS_REPORTS`, [doc 14b](14b-oracle_reports_fonts.md))
 8. Starting and stopping system components
 
-Script call (`13-oracle_setup_reports.sh`):
+Script call ([`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh)):
 
 ```bash
 ./09-Install/13-root_reports_fix.sh --apply            # OL9: libnsl.so.2 symlink (Step 1), as oracle
@@ -50,7 +50,7 @@ and writes `TNS_ADMIN` into `rwserver.conf` and `reports.sh`
 | Prerequisite | Check |
 |---|---|
 | AdminServer running | `ss -tlnp \| grep 7001` |
-| NodeManager running (plain mode) | `11-oracle_nodemanager.sh` completed |
+| NodeManager running (plain mode) | [`11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) completed |
 | `boot.properties` written | `10-oracle_boot_properties.sh --apply` done |
 | `environment.conf` has Reports variables | see [Required Variables](#required-environment-variables) |
 
@@ -118,8 +118,8 @@ TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (intervie
 ### Server list and customer overlay
 
 - **Server list:** `REPORTS_SERVER_INSTANCES` (space-separated, written by
-  `00-Setup/detect_env_conf.sh`). Empty → the array `REPORTS_SERVER_NAMES` of
-  the interview (`01-setup-interview.sh`), else `REPORTS_SERVER_NAME` – one
+  [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh)). Empty → the array `REPORTS_SERVER_NAMES` of
+  the interview ([`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)), else `REPORTS_SERVER_NAME` – one
   list under two names until 2026-11-04.
 - **Customer overlay** (`CUSTOMER_CONF_DIR`, import of an existing
   environment – [17-customer_conf_import.md](17-customer_conf_import.md)):
@@ -161,11 +161,11 @@ ls -la $ORACLE_HOME/lib/libnsl.so.2
 ldd $ORACLE_HOME/bin/rwserver | grep libnsl    # => .../lib/libnsl.so.2
 ```
 
-Script `13-root_reports_fix.sh` (name kept): check without `--apply`,
+Script [`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) (name kept): check without `--apply`,
 `--apply` creates / corrects the link. Runs as oracle when
 `$ORACLE_HOME/lib` is writable, else as root or with sudo (until 2026-11-03
 it required root or an unrestricted sudo – false with the sudo rules of
-`03-root_user_oracle.sh`). `/lib64/libnsl.so.3` comes from the package
+[`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)). `/lib64/libnsl.so.3` comes from the package
 `libnsl2` (AppStream repository – the script checks it and prints the install
 hint). Then `ldd` on `rwserver`; "Nothing to do" when the link is right.
 
@@ -223,7 +223,7 @@ one for batch jobs).  Create one instance per entry in `REPORTS_SERVER_INSTANCES
 > in "Oracle Reports Tools". Without it:
 > `Attribute oracle.reports:Type=ReportsServerComponent,Name=ReportsServerComponentManager not found`
 > (confirmed 2026-10-15; a running WLS_REPORTS does not change that).
-> `08-oracle_setup_domain.sh` adds the template since 2026-10-15. An existing
+> [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) adds the template since 2026-10-15. An existing
 > domain is extended offline (stop all servers first):
 >
 > ```python
@@ -515,7 +515,7 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
 | `<envVariable NLS_LANG>` | Must match Oracle DB character set |
 | `<envVariable TNS_ADMIN>` | Must point to `tnsnames.ora` for DB connections – `TNS_ADMIN` of `environment.conf`; `13-` also writes `TNS_ADMIN=…; export TNS_ADMIN` into the IHW block of `reports.sh` (Reports server process, `rwrun`, `rwconverter`) – Oracle's own `reports.sh` sets it only when empty (`/etc` or `$DOMAIN_HOME/config/fmwconfig`). All places: [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
 | `<job … securityId>` | `rwJaznSec` with `REPORTS_SECURITY=ldap` (Step 5a). Without the LDAP identity store every WebLogic user fails with `REP-50171` – then (`REPORTS_SECURITY=identifier`) leave it out. The old statement "causes startup errors" is wrong: the server starts fine (tested 2026-10-16) |
-| `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `repadmin`) + password from `reports_admin_sec.conf.des3` (asked by `01-setup-interview.sh`; missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
+| `<identifier>` | Reports server admin (not a WebLogic user): `REPORTS_ADMIN_USER` (default `repadmin`) + password from `reports_admin_sec.conf.des3` (asked by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh); missing → `--apply` generates a random one and stores it). Letters/digits only – `/ & < > " '` and blanks are rejected. `rwserver.conf` gets mode 640 |
 | `<folderAccess><read>` | Reports Server will only read `.rdf` files from these directories. **Exactly one** `<read>`; several directories separated by **`;`** – also on Linux (`13-` converts the `:` of `REPORTS_PATH`). `:` / `,` are taken as one directory name, two `<read>` elements → only the last counts, subdirectories are not included; outside → `REP-56132 Access is denied to the report definition file` (test series 2026-10-16, [reports_server_image_handling.md](../../80-FMW-Architecture/reports_server_image_handling.md)) |
 | `<folderAccess><write>` | Output files written here; must be writable by oracle user |
 
@@ -562,7 +562,7 @@ an in-process Reports server.
 Steps of the script (with `--apply`, AdminServer running):
 
 1. Prerequisite: password of the embedded LDAP administrator `cn=Admin` in
-   `embedded_ldap_sec.conf.des3` – asked by `01-setup-interview.sh`
+   `embedded_ldap_sec.conf.des3` – asked by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)
    (`REPORTS_SECURITY=ldap`); if the file is missing the script prints how
    to create it by hand (architecture doc §5.1).
 2. LDAP bind check as `cn=Admin` against `ldap://localhost:<admin port>`.
@@ -581,7 +581,7 @@ Steps of the script (with `--apply`, AdminServer running):
    `LDAPException: error result (49); Invalid credentials`, state `FAILED`,
    the Node Manager gives up after its restart attempts (customer
    2026-11-03: `WLS_FORMS` started after `13-`, `WLS_REPORTS` from before
-   kept running). `01-Run/startStop.sh` recognises error 49 in
+   kept running). [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) recognises error 49 in
    `<server>.out` and prints the fix: `stop-all` / `start-all`, then `13-
    --apply` again.
 3. `createCred(map='reports.idstore', key='embeddedldap', user='cn=Admin', …)`
@@ -670,11 +670,11 @@ the Reports server only 8 s (before 64 s), after an engine crash 7 s (before
 
 ## Step 7 – Font and Unicode Configuration
 
-> **Automated by `14b-oracle_reports_fonts.sh`**, not by `13-` – this section
+> **Automated by [`14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh)**, not by `13-` – this section
 > stays as the manual reference. Why two font paths and the same files for the
 > engines and `rwrun`: [reports_engine_architecture.md §5.1](../../80-FMW-Architecture/reports_engine_architecture.md#51-rwrun--a-report-without-rwservlet-and-without-reports-server).
 
-> **See also:** `04-ReportsFonts/uifont_ali_update.sh` and `04-ReportsFonts/font_cache_reset.sh`
+> **See also:** [`04-ReportsFonts/uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) and [`04-ReportsFonts/font_cache_reset.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/font_cache_reset.sh)
 
 **Relevant Oracle Support Notes:**
 - *Doc ID 852698.1* – Using TTF Fonts for Font Metrics on Unix with Reports 11g/12c
@@ -749,7 +749,7 @@ Arial.....           = "arial.ttf"
 
 > **Style qualifier order:** `Italic.Bold` before `Bold` before `Italic` before plain.
 > Right-hand side: always in double quotes, always with `.ttf` extension.
-> See `04-ReportsFonts/uifont_ali_update.sh` for automated maintenance.
+> See [`04-ReportsFonts/uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) for automated maintenance.
 
 ### 7.4 Verify `uifont.ali` Syntax
 
@@ -779,7 +779,7 @@ After `13-` and `14-` the changes become active with one restart:
 ./01-Run/startStop.sh start repserver01 --apply
 ```
 
-The ReportsTools instance is **not** a running process: `startStop.sh` does
+The ReportsTools instance is **not** a running process: [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) does
 not list it, the test host runs without starting it (`rwrun`,
 `rwconverter`, `14b-` use only its configuration directory).
 
@@ -796,7 +796,7 @@ $DOMAIN_HOME/bin/stopManagedWebLogic.sh WLS_REPORTS
 $DOMAIN_HOME/bin/stopWebLogic.sh
 ```
 
-A server started by hand is unknown to the Node Manager – `startStop.sh` /
+A server started by hand is unknown to the Node Manager – [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) /
 autostart then cannot stop it cleanly; prefer the scripts.
 
 ---
@@ -878,7 +878,7 @@ Where this repository sets it, and why:
   the engines, same value);
 - engine `jvmOptions` – **only when** `REPORTS_ENGINE_JVM_OPTIONS` is set: the
   attribute replaces the inherited `-D` options on the engine command line, so
-  `13-` / `engine_perf_settings.sh` add `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1`
+  `13-` / [`engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) add `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1`
   and, like `reports.sh`, the timeout (since 2026-11-10, customer: engines with
   `jvmOptions` on `0.0.0.0`). Against the KB note on purpose: the value is the
   **same** `999999999` everywhere, so nothing can conflict; running at the
@@ -929,7 +929,7 @@ packets; a server with the **same name** on the same channel/port gives
    `docs/00-root_set_os_parameter.md`, "IPv6 per interface"
 3. no multicast route → `ip route get 228.5.6.7` must name the LAN interface
 
-`13-oracle_setup_reports.sh` runs a **multicast pre-check** before it writes the
+[`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) runs a **multicast pre-check** before it writes the
 broadcast port (since 2026-10-15, via `02-Checks/reports_network_scan.sh
 --no-scan --port <port>`; the same script without `--no-scan` also scans the
 network for other Reports servers per port): route to `228.5.6.7` (not via `lo`),
@@ -943,7 +943,7 @@ anyway). During a 10 s passive listen it reports foreign senders on the port –
 only a hint: Reports servers send only while starting, so silence does not
 prove the port is unused in the subnet.
 
-`13-root_reports_fix.sh` checks for `/lib64/libnsl.so.3`; if it is missing it
+[`13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) checks for `/lib64/libnsl.so.3`; if it is missing it
 points out that `libnsl2` is AppStream-only and whether AppStream is enabled.
 
 Check with `tcpdump -ni <if> udp port <port>` while stopping/starting the component
@@ -986,12 +986,12 @@ grep -i "SEVERE\|error\|exception" \
 
 | Item | Purpose |
 |---|---|
-| `09-Install/13-root_reports_fix.sh` | Root: `libnsl.so.2` symlink (OL9) |
-| `09-Install/13-oracle_setup_reports.sh` | Create instances, configure all files |
-| `09-Install/11-oracle_nodemanager.sh` | NodeManager plain mode (prerequisite) |
-| `09-Install/12-oracle_reports_users.sh` | Create monitor/exec users in security realm |
-| `04-ReportsFonts/uifont_ali_update.sh` | Automated `uifont.ali` maintenance |
-| `01-Run/rwserver_status.sh` | Runtime status monitoring |
+| [`09-Install/13-root_reports_fix.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-root_reports_fix.sh) | Root: `libnsl.so.2` symlink (OL9) |
+| [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | Create instances, configure all files |
+| [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) | NodeManager plain mode (prerequisite) |
+| [`09-Install/12-oracle_reports_users.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/12-oracle_reports_users.sh) | Create monitor/exec users in security realm |
+| [`04-ReportsFonts/uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) | Automated `uifont.ali` maintenance |
+| [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | Runtime status monitoring |
 | `90-Source-MetaData/oracle_reports_config_ch6.md` | Source document (Chapter 6) |
 
 **Oracle Support Notes referenced:**

@@ -2,7 +2,7 @@
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../../80-FMW-Architecture/certificates_trust_stores.md)
 
-**Scripts:** `09-Install/14-oracle_setup_forms.sh`
+**Scripts:** [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh)
 **Runs as:** `oracle`
 **Phase:** 6 – Forms Server Setup
 
@@ -14,7 +14,7 @@
 ## Overview
 
 This step configures all Oracle Forms runtime files after the domain and
-managed servers have been created (Step 8 `08-oracle_setup_domain.sh`).
+managed servers have been created (Step 8 [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh)).
 
 The configuration uses a **template** approach: customer-edited templates in
 `09-Install/forms_templates/` are rendered into the domain. What comes from
@@ -34,7 +34,7 @@ rewrite the deployed file (own header line, trailing blanks and empty lines
 removed) – a difference only in comments / blank lines counts as "up to
 date". Unknown options: exit 1.
 
-Steps performed by `14-oracle_setup_forms.sh`:
+Steps performed by [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh):
 
 1. Detect paths (`FR_INST`, `FR_INST_ALT`, Forms app dir)
 2. JACOB (only `FORMS_WEBUTIL_JACOB=true`): install jar + DLLs from
@@ -52,7 +52,7 @@ Steps performed by `14-oracle_setup_forms.sh`:
 
 | Prerequisite | Check |
 |---|---|
-| Domain created | `08-oracle_setup_domain.sh` completed |
+| Domain created | [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) completed |
 | `WLS_FORMS` started once | creates `servers/WLS_FORMS/applications/formsapp_<version>/config` – the target of `default.env`, `formsweb.cfg`, `Registry.dat`; missing = **FAIL** (since 2026-11-03, before only a WARN and those three files were skipped): `01-Run/startStop.sh start WLS_FORMS --apply`, then re-run |
 | `FORMS_INSTANCE_NAME` set in `environment.conf` | default: `forms1` |
 | `WLS_FORMS_SERVER` set in `environment.conf` | default: `WLS_FORMS` |
@@ -91,12 +91,12 @@ of parameters to adapt.
 
 | Template | Must adapt |
 |---|---|
-| `default.env.template` | only `FORMS_PATH` (extra `.fmx` dirs), `NLS_LANG`, `NLS_DATE_FORMAT` – every path (`ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, JDK in `PATH` / `LD_LIBRARY_PATH` / `LD_PRELOAD`) is a `##…##` placeholder filled from `environment.conf`; do not replace them by hand |
-| `formsweb.cfg.template` | overrides for `[default]` only (window size, WebUtil); optional `form=`, `pageTitle=` – runtime pooling is NOT set here (`FORMS_PRESTART_SECTION`) |
-| `webutil.cfg.template` | `transfer.appsrv.read.N`, `transfer.appsrv.write.N` |
-| `Registry.dat.template` | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
-| `fmrweb_utf8.res.template` | Only if function key assignment differs from the standard layout |
-| `fmrwebd.res.template` | Only if `NLS_LANG` does not use UTF8 |
+| [`default.env.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/default.env.template) | only `FORMS_PATH` (extra `.fmx` dirs), `NLS_LANG`, `NLS_DATE_FORMAT` – every path (`ORACLE_HOME`, `FORMS_INSTANCE`, `TNS_ADMIN`, JDK in `PATH` / `LD_LIBRARY_PATH` / `LD_PRELOAD`) is a `##…##` placeholder filled from `environment.conf`; do not replace them by hand |
+| [`formsweb.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/formsweb.cfg.template) | overrides for `[default]` only (window size, WebUtil); optional `form=`, `pageTitle=` – runtime pooling is NOT set here (`FORMS_PRESTART_SECTION`) |
+| [`webutil.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/webutil.cfg.template) | `transfer.appsrv.read.N`, `transfer.appsrv.write.N` |
+| [`Registry.dat.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/Registry.dat.template) | Rename `MyScheme` and set hex colours, or remove the colour scheme section |
+| [`fmrweb_utf8.res.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/fmrweb_utf8.res.template) | Only if function key assignment differs from the standard layout |
+| [`fmrwebd.res.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/fmrwebd.res.template) | Only if `NLS_LANG` does not use UTF8 |
 
 ### Customer overlay (`CUSTOMER_CONF_DIR`, import of an existing environment)
 
@@ -108,11 +108,11 @@ templates, in every run, so a re-run keeps the customer configuration:
 
 | Overlay file | Applied in | How |
 |---|---|---|
-| `forms/formsweb.default.cfg` | Step 4 | appended to the `[default]` overlay of `formsweb.cfg.template` (later key wins) |
-| `forms/formsweb.sections.cfg` | Step 4 | every `[section]` of the file is created or **replaced completely** (`frm_cfg_put_sections`, `06-FormsDiag/forms_lib.sh`) – before `maxRuntimeProcesses` / prestart, so `FORMS_PRESTART_SECTION` can be a customer section; `[default]` is not allowed there |
-| `forms/env/default.env` | Step 3 | key overlay on the rendered `default.env.template` (`frm_kv_overlay`) |
-| `forms/env/<name>.env` | Step 3 | one more env file next to `default.env`: the rendered `default.env.template` + this overlay – for the `envFile=<name>.env` of the customer sections |
-| `forms/webutil.cfg.overrides` | Step 2 | appended to the `webutil.cfg.template` overlay (later key wins) |
+| `forms/formsweb.default.cfg` | Step 4 | appended to the `[default]` overlay of [`formsweb.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/formsweb.cfg.template) (later key wins) |
+| `forms/formsweb.sections.cfg` | Step 4 | every `[section]` of the file is created or **replaced completely** (`frm_cfg_put_sections`, [`06-FormsDiag/forms_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh)) – before `maxRuntimeProcesses` / prestart, so `FORMS_PRESTART_SECTION` can be a customer section; `[default]` is not allowed there |
+| `forms/env/default.env` | Step 3 | key overlay on the rendered [`default.env.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/default.env.template) (`frm_kv_overlay`) |
+| `forms/env/<name>.env` | Step 3 | one more env file next to `default.env`: the rendered [`default.env.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/default.env.template) + this overlay – for the `envFile=<name>.env` of the customer sections |
+| `forms/webutil.cfg.overrides` | Step 2 | appended to the [`webutil.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/webutil.cfg.template) overlay (later key wins) |
 | `forms/jars/*.jar` | Step 4b | copied to `$ORACLE_HOME/forms/java` and signed with `FORMS_SIGN_*` (old signatures removed first); the `archive=` keys come with the sections |
 
 An overlay value `__REMOVE__` comments a key of the base out
@@ -163,7 +163,7 @@ applications use WebUtil OLE (`CLIENT_OLE2`, Word/Excel automation). File
 transfer, host commands etc. work without it. Oracle does not ship JACOB
 (LGPL). Background: [80-FMW-Architecture/forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md).
 
-Version data in `oracle_software_version.conf`: `JACOB_VERSION=1.21` (Forms
+Version data in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf): `JACOB_VERSION=1.21` (Forms
 14.1.2 is preconfigured for it), `JACOB_URL` (GitHub release
 `Root_B-1_21`), `JACOB_SHA256`, `JACOB_DLL_X86_SIZE` / `JACOB_DLL_X64_SIZE`.
 
@@ -186,7 +186,7 @@ $ORACLE_HOME/forms/webutil/win64/jacob-1.21-x64.dll
    yet signed). `jacob.jar` from the release is unsigned. The script signs it
    with the customer's code-signing certificate – Oracle signs only its own
    jars, own/third-party jars are signed by the customer
-   (`forms_jakob_webutil.md` §8):
+   ([`forms_jakob_webutil.md`](../../80-FMW-Architecture/forms_jakob_webutil.md) §8):
 
    | Variable (`environment.conf`) | Meaning | Default |
    |---|---|---|
@@ -313,7 +313,7 @@ $FR_INST_ALT/server/webutil.cfg
 ```
 
 **Base is Oracle's own file** `$ORACLE_HOME/forms/templates/config/webutil.cfg`;
-`webutil.cfg.template` only overrides keys (since 2026-10-15):
+[`webutil.cfg.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/webutil.cfg.template) only overrides keys (since 2026-10-15):
 
 - keys of the template replace the same keys of Oracle's file,
 - numbered `transfer.appsrv.read.N` / `write.N` of Oracle's file that the
@@ -376,7 +376,7 @@ Then every `transfer.appsrv.read.N` / `write.N` directory of the deployed
 $DOMAIN_HOME/config/fmwconfig/servers/$WLS_FORMS_SERVER/applications/formsapp_<version>/config/default.env
 ```
 
-All path values are `##...##` placeholders, filled by `14-oracle_setup_forms.sh`
+All path values are `##...##` placeholders, filled by [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh)
 from `environment.conf` when it copies the template (`##ORACLE_HOME##`,
 `##DOMAIN_HOME##`, `##JDK_HOME##`, `##FORMS_INSTANCE_NAME##`,
 `##REPORTS_TOOLS_INSTANCE##`, `##FORMS_CUSTOMER_DIR##`, `##FORMS_TMP##` (`TMPDIR`), `##TNS_ADMIN##` – `TNS_ADMIN`
@@ -389,7 +389,7 @@ and a 12c CLASSPATH (`ldapjclnt11.jar`, `jpsmanifest.jar`,
 `CLASSPATH` and `LD_LIBRARY_PATH` are written on one line each, like Oracle's own
 `default.env` (no documented line continuation).
 
-Parameters in `default.env.template`:
+Parameters in [`default.env.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/default.env.template):
 
 | Parameter | Notes |
 |---|---|
@@ -397,7 +397,7 @@ Parameters in `default.env.template`:
 | `FORMS_INSTANCE` | Full path to Forms instance dir (= `$FR_INST`) |
 | `TNS_ADMIN` | Directory containing `tnsnames.ora` / `sqlnet.ora` |
 | `FORMS_PATH` | Colon-separated list of `.fmb`/`.fmx` search dirs |
-| `NLS_LANG` | Client character set of the Forms runtime, e.g. `GERMAN_GERMANY.AL32UTF8` (`UTF8` = old CESU-8 – `06-FormsDiag/forms_settings.sh` reports it) |
+| `NLS_LANG` | Client character set of the Forms runtime, e.g. `GERMAN_GERMANY.AL32UTF8` (`UTF8` = old CESU-8 – [`06-FormsDiag/forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) reports it) |
 | `NLS_DATE_FORMAT` | Date display format (`DD.MM.YYYY` for German) |
 | `COMPONENT_CONFIG_PATH` | Full path to `ReportsToolsComponent/<instance>` dir |
 | `PATH` | Must include `$ORACLE_HOME/bin` and JDK `bin` |
@@ -523,13 +523,13 @@ vulnerable to Denial of Service attacks". The script writes
 |---|---|---|
 | `FORMS_MAX_RUNTIME_PROCESSES` | proposal from RAM (interview) | `maxRuntimeProcesses`; empty = the script uses the proposal and says so |
 
-Proposal (`frm_mrp_proposal` in `06-FormsDiag/forms_lib.sh`, used by the
-interview, `14-` and `forms_perf_settings.sh`): half of `MemTotal` for Forms
+Proposal (`frm_mrp_proposal` in [`06-FormsDiag/forms_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_lib.sh), used by the
+interview, `14-` and [`forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh)): half of `MemTotal` for Forms
 (the other half: OS, AdminServer / WLS_FORMS / WLS_REPORTS heaps, Reports
 engines, a local DB) divided by **64 MB per session under load**, rounded
 down to tens, at least 20. Test host (18 GB): 140. The 64 MB is an
 **assumption** – idle pooled `frmweb` measured 16 MB RSS (2026-10-23); measure
-real sessions with `06-FormsDiag/forms_perf_analyse.sh` and correct the value.
+real sessions with [`06-FormsDiag/forms_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_analyse.sh) and correct the value.
 `06-FormsDiag/forms_perf_settings.sh --apply --set maxRuntimeProcesses=<n>`
 writes the value back to `FORMS_MAX_RUNTIME_PROCESSES`.
 
@@ -652,11 +652,11 @@ tail -100 $DOMAIN_HOME/servers/$WLS_FORMS_SERVER/logs/${WLS_FORMS_SERVER}-diagno
 
 | Item | Purpose |
 |---|---|
-| `09-Install/14-oracle_setup_forms.sh` | Copy templates to domain locations |
+| [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) | Copy templates to domain locations |
 | `09-Install/forms_templates/` | Customer-edited configuration templates |
 | `09-Install/forms_templates/README.md` | Template editing guide |
-| `09-Install/11-oracle_nodemanager.sh` | NodeManager plain mode (prerequisite) |
-| `09-Install/13-oracle_setup_reports.sh` | Reports Server setup (step before; one restart for both) |
+| [`09-Install/11-oracle_nodemanager.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/11-oracle_nodemanager.sh) | NodeManager plain mode (prerequisite) |
+| [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | Reports Server setup (step before; one restart for both) |
 | `06-FormsDiag/` | check the deployed configuration, pooling, limits, load |
-| `04-ReportsFonts/uifont_ali_update.sh` | Font configuration for Reports (shares `REPORTS_FONT_DIR`) |
+| [`04-ReportsFonts/uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) | Font configuration for Reports (shares `REPORTS_FONT_DIR`) |
 | `90-Source-MetaData/oracle_forms_config_ch7_8.md` | Source document (Chapters 7–8) |

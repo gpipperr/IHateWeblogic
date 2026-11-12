@@ -23,7 +23,7 @@ Related: [12-weblogic-report-monitoring_user.md](12-weblogic-report-monitoring_u
 
 `getserverinfo` / `showjobs` (web commands of `rwservlet`) are used for every
 status check – by operators (start/stop cookbook, step 0.2), by
-`01-Run/rwserver_status.sh` and by monitoring. During the rebuild they answered
+[`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) and by monitoring. During the rebuild they answered
 `REP-52262 Diagnostic output is disabled` for every user we tried, and the
 current scripts/cookbooks contain statements that turned out to be wrong.
 A customer who copied the Reports cookbook only from step 9.7 on ended up with
@@ -76,12 +76,12 @@ Consequences:
 
 | Artifact | State |
 |---|---|
-| `09-Install/13-oracle_setup_reports.sh` | `REPORTS_SECURITY=ldap` (default): `securityId` on the report job; `<identifier>` always from `reports_admin_sec.conf.des3` (random if missing) – FAIL if no password, never an empty element; `rwservlet.properties` `singlesignon=yes`, `webcommandaccess=L1`; info "never L2" in identifier mode |
-| `01-Run/rwserver_status.sh` | `--auth auto` (monUser for ldap, else the `<identifier>` admin) since 2026-10-17; new section **Web Command Security**: `securityId`, `<identifier>` missing (WARN, test A) / empty (FAIL, test B) / encrypted, `webcommandaccess` not `no`/`L0`/`L1` (FAIL, test C); hint for `REP-51002` |
-| `01-Run/reports_server_lib.sh` | REP errors only from `<error code=…>` – the `REP-` of old failed jobs in `showjobs` no longer counts as a command error |
-| `09-Install/nginx-wls.conf.template`, doc 04 | admin web commands (`getserverinfo`, `showjobs`, `showenv`, `showmap`, `showauth`, `delauth`, `killjobid`, `parsequery`, `stopserver`) only from `127.0.0.1` + `ADMIN_IP_RANGE`; `getjobid` / `showjobid` / `showmyjobs` stay open (Forms `RUN_REPORT_OBJECT` + `WEB.SHOW_DOCUMENT`) – tested with an own Nginx instance (403 / pass) |
+| [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | `REPORTS_SECURITY=ldap` (default): `securityId` on the report job; `<identifier>` always from `reports_admin_sec.conf.des3` (random if missing) – FAIL if no password, never an empty element; `rwservlet.properties` `singlesignon=yes`, `webcommandaccess=L1`; info "never L2" in identifier mode |
+| [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) | `--auth auto` (monUser for ldap, else the `<identifier>` admin) since 2026-10-17; new section **Web Command Security**: `securityId`, `<identifier>` missing (WARN, test A) / empty (FAIL, test B) / encrypted, `webcommandaccess` not `no`/`L0`/`L1` (FAIL, test C); hint for `REP-51002` |
+| [`01-Run/reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) | REP errors only from `<error code=…>` – the `REP-` of old failed jobs in `showjobs` no longer counts as a command error |
+| [`09-Install/nginx-wls.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/nginx-wls.conf.template), doc 04 | admin web commands (`getserverinfo`, `showjobs`, `showenv`, `showmap`, `showauth`, `delauth`, `killjobid`, `parsequery`, `stopserver`) only from `127.0.0.1` + `ADMIN_IP_RANGE`; `getjobid` / `showjobid` / `showmyjobs` stay open (Forms `RUN_REPORT_OBJECT` + `WEB.SHOW_DOCUMENT`) – tested with an own Nginx instance (403 / pass) |
 | Reports cookbook 9.2 / 9.6 / 9.7 / 9.11 / Bekannte Probleme | 9.2: value quoted, "never empty"; 9.6 writes `singlesignon=yes` + `L1` directly ("L0 is not open, never L2"); 9.7 aborts on an empty `REPORTS_IDENTIFIER` (`${VAR:?}`); 9.11 Nginx check expects 499 / 403; new problem entry "empty `<identifier>`" |
-| `Reports_security.txt` (cookbook) | step 7: tested behaviour of a missing / empty `<identifier>`; step 8: L0 = L1, L2 open, monUser vs. admin; 2.3: keep `getjobid` open for Forms; open point removed |
+| [`Reports_security.txt`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt) (cookbook) | step 7: tested behaviour of a missing / empty `<identifier>`; step 8: L0 = L1, L2 open, monUser vs. admin; 2.3: keep `getjobid` open for Forms; open point removed |
 | start/stop cookbook 0.2 | `getserverinfo … authid=<identifier>` – correct (admin works in both modes) |
 
 ---
@@ -175,4 +175,4 @@ restore the current state afterwards.
 Pitfalls of the test itself: a `REP-52262` answer is wrapped in
 `<serverQueues>`, and `showjobs` lists the `REP-` codes of old failed jobs
 in `<status>` – only `<error code=…>` is a command error (fixed in
-`reports_server_lib.sh`). `showenv` / `showmap` answer HTML, not XML.
+[`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh)). `showenv` / `showmap` answer HTML, not XML.

@@ -1,11 +1,11 @@
 # download – patch lists per cycle
 
 The patch numbers of the library live **here**, not in the scripts and not in
-`oracle_software_version.conf`. One CSV row per patch file; the same file is
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf). One CSV row per patch file; the same file is
 read by
 
 - the library – `09-Install/oracle_software_version.conf` loads
-  `patches_fmw.csv` and sets the variables the scripts have always used
+  [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) and sets the variables the scripts have always used
   (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR`, …); `04-oracle_pre_download.sh --mos`
   downloads with the tool below, `05-`/`06-` apply in row order;
 - the standalone download tool
@@ -40,7 +40,7 @@ patch;platform;file_regexp;required;step;description;dir;sha256
 | `dir` | target below `PATCH_STORAGE` (tool: below `-d`); empty = `<patch>` |
 | `sha256` | SHA-256 at analysis time – **soft check** (below) |
 
-Roles of `patches_fmw.csv` (rows of one role in apply order):
+Roles of [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) (rows of one role in apply order):
 
 | Role | Variable | Downloaded when | Applied by |
 |---|---|---|---|
@@ -51,11 +51,11 @@ Roles of `patches_fmw.csv` (rows of one role in apply order):
 | `reports` / `forms` | `INSTALL_PATCHES_REPORTS` / `_FORMS` | Reports always / Forms only with Forms in `INSTALL_COMPONENTS` | `06-` |
 | `fr_optional` | `INSTALL_PATCHES_FR_OPTIONAL` | `REPORTS_BIDIPARENTHESIS=YES` | `06-` |
 | `jdk` | `JDK_PATCH_NR` | always | `02b- --upgrade-jdk`, `07-Maintenance/80-` |
-| `client_jdk` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` | `FORMS_CLIENT_DIST=true` (Forms) | `40-oracle_forms_client_bundle.sh` |
+| `client_jdk` | `CLIENT_JDK_PATCH_NR`, `CLIENT_JDK_PLATFORM` | `FORMS_CLIENT_DIST=true` (Forms) | [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) |
 | `cvu` | `DB_CVU_PATCH_NR`, `DB_CVU_REGEXP` | `LOCAL_REP_DB=true` | `60-RCU-DB-19c/00b-` |
 | `apex` | `APEX_PATCH_NR`, `APEX_PATCH_PLATFORM` | `INSTALL_APEX=true` | `12-APEX-Ords/03-` |
 
-Cycle values that are not patch numbers stay in `oracle_software_version.conf`:
+Cycle values that are not patch numbers stay in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf):
 `PATCH_CYCLE*`, `OPATCH_VERSION_MIN/_INSTALL`, `WLS_SPB_VERSION`,
 `WLS_SPB_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS`, `JDK_VERSION_MIN`.
 
@@ -99,9 +99,9 @@ into the `-d` directory.
 
 ## New cycle
 
-1. Patch-cycle analysis (`10-Monitoring/patch_cycle_analysis.sh`) → new
+1. Patch-cycle analysis ([`10-Monitoring/patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)) → new
    numbers, file names, digests.
-2. Edit `patches_fmw.csv` (and the cycle values in the conf); keep the old
+2. Edit [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) (and the cycle values in the conf); keep the old
    state in git – no copy per cycle needed.
 3. `04-oracle_pre_download.sh --apply --fresh-patches --mos` (or the tool on
    the share host), then `05-`/`06-` / `07-Maintenance/81-82`.

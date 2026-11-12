@@ -12,7 +12,7 @@ Background – which home, configuration and process a parameter belongs to:
 
 | Situation | Tool | Method |
 |---|---|---|
-| **New installation** (no FMW present) | `09-Install/01-setup-interview.sh` | Interactive interview, sensible defaults suggested |
+| **New installation** (no FMW present) | [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) | Interactive interview, sensible defaults suggested |
 | **Existing system, no conf** | `00-Setup/detect_env_conf.sh --interview --apply` | Auto-detect + user confirms or overrides each value |
 | **Existing system, conf present** | `00-Setup/detect_env_conf.sh --apply` | Auto-detect, append only missing values |
 | **Multi-domain environment** | `00-Setup/detect_env_conf.sh --select [n] --apply` | Switch symlink to the active conf (shell: `setdb`) |
@@ -33,7 +33,7 @@ explicitly provides a different value during `--interview`.
 ```
 
 **Passwords never in plaintext:** All passwords are encrypted immediately
-(same `openssl des3` concept as `00-Setup/weblogic_sec.sh`) and stored only as
+(same `openssl des3` concept as [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh)) and stored only as
 `*.des3` files – list of all files: [00-Setup/README.md](../../00-Setup/README.md#credential-scripts-weblogic_secsh--database_rcu_secsh--mos_secsh).
 
 ---
@@ -72,21 +72,21 @@ explicitly provides a different value during `--interview`.
 ## All Parameters
 
 ### Block 1 – Installation Paths
-*Install parameters – set by `01-setup-interview.sh`*
+*Install parameters – set by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh)*
 
 | Variable | Default | Description | Validation |
 |---|---|---|---|
 | `ORACLE_BASE` | `/u01/app/oracle` | Base directory for all Oracle installations | Directory writable or creatable |
 | `ORACLE_HOME` | `$ORACLE_BASE/fmw` | FMW installation target (= `FMW_HOME` after install) | Must be empty before installation |
-| `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 symlink (created by `02b-root_os_java.sh`) | `$JDK_HOME/bin/java -version` must return JDK 21 |
+| `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | Oracle JDK 21 symlink (created by [`02b-root_os_java.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/02b-root_os_java.sh)) | `$JDK_HOME/bin/java -version` must return JDK 21 |
 | `PATCH_STORAGE` | `/srv/patch_storage` | Storage for installer ZIPs and patches | ≥ 20 GB free (less with `PATCH_ARCHIVE`: only the current step) |
-| `PATCH_ARCHIVE` | *(empty)* | Optional NFS/ZFS archive = master copy, same layout; `07-Maintenance/patch_storage.sh` pulls a step's files to `PATCH_STORAGE` and frees them after the step | readable (writable for `clean` archiving) |
-| `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` if that is not possible) | Central inventory, written to `/etc/oraInst.loc` by `03-root_user_oracle.sh`. On a host with an existing inventory (local RCU DB, reinstall) enter **that** one | directory |
+| `PATCH_ARCHIVE` | *(empty)* | Optional NFS/ZFS archive = master copy, same layout; [`07-Maintenance/patch_storage.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/patch_storage.sh) pulls a step's files to `PATCH_STORAGE` and frees them after the step | readable (writable for `clean` archiving) |
+| `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` if that is not possible) | Central inventory, written to `/etc/oraInst.loc` by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh). On a host with an existing inventory (local RCU DB, reinstall) enter **that** one | directory |
 | `TNS_ADMIN` | `$ORACLE_BASE/admin/tns_names` | The one Oracle Net directory for every process – [02-Checks/tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) | directory |
 | `INSTALL_COMPONENTS` | `FORMS_AND_REPORTS` | `FORMS_AND_REPORTS` / `FORMS_ONLY` / `REPORTS_ONLY` | menu |
 
 ### Block 2 – FMW Runtime Paths
-*Runtime parameters – auto-detected by `detect_env_conf.sh` after installation*
+*Runtime parameters – auto-detected by [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) after installation*
 
 | Variable | Value | Description |
 |---|---|---|
@@ -120,7 +120,7 @@ explicitly provides a different value during `--interview`.
 | `WLS_FORMS_SERVER` | `WLS_FORMS` | Forms managed server name (auto-detected) |
 | `SETDOMAINENV` | `$DOMAIN_HOME/bin/setDomainEnv.sh` | Domain environment script (derived) |
 | `EXPECTED_SESSIONS` | `lt100` | Expected concurrent Forms/Reports sessions tier — sizes the two variables below. See `docs/01-setup-interview.md` |
-| `ULIMIT_NOFILE` | `65536` | oracle OS user `nofile` ulimit, used by `03-root_user_oracle.sh`. `81920` confirmed for 100-500 sessions (real production reference); `131072`/`262144` for the higher tiers are estimates of decreasing confidence — `262144` (`>1000`) is the least confident, a cautious doubling with no reference data behind it |
+| `ULIMIT_NOFILE` | `65536` | oracle OS user `nofile` ulimit, used by [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh). `81920` confirmed for 100-500 sessions (real production reference); `131072`/`262144` for the higher tiers are estimates of decreasing confidence — `262144` (`>1000`) is the least confident, a cautious doubling with no reference data behind it |
 | `ULIMIT_NPROC` | `16384` | oracle OS user `nproc` ulimit — same tiering/provenance as `ULIMIT_NOFILE` |
 | `ULIMIT_MEMLOCK` | `3145728` | oracle OS user `memlock` ulimit (KB) — fixed, not session-tiered; not asked by the interview, override manually if needed |
 | `ULIMIT_CORE` | `2097152` | oracle OS user `core` ulimit (blocks) — fixed, not session-tiered; not asked by the interview, override manually if needed |
@@ -165,7 +165,7 @@ All engine values are written by `13-` / `05-ReportsPerformance --apply` into
 | `CGICMD_DAT` | Path to `cgicmd.dat` (same directory as `rwserver.conf`) |
 
 ### Block 4b – Forms
-*Interview + defaults; written into the domain by `14-oracle_setup_forms.sh` –
+*Interview + defaults; written into the domain by [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) –
 background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runtime_architecture.md)*
 
 | Variable | Default | Description |
@@ -178,7 +178,7 @@ background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runt
 | `FORMS_WEBUTIL_JACOB` | `false` | WebUtil OLE / Office automation – [forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md) |
 | `FORMS_SIGN_KEYSTORE` / `FORMS_SIGN_ALIAS` | `<CA dir>/codesign/codesign.p12` / `forms_codesign` | code signing of `jacob.jar` (password → `forms_sign_sec.conf.des3`) |
 | `FORMS_SIGN_TSA_URL` | `http://timestamp.digicert.com` | timestamp server for `jarsigner` |
-| `FORMS_SIGN_LOCALCA` | `false` | `true` = certificate from the local CA (`08-SSL/ssl_local_ca.sh`) |
+| `FORMS_SIGN_LOCALCA` | `false` | `true` = certificate from the local CA ([`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh)) |
 
 ### Block 4c – Forms client distribution (`40-`)
 *Only with `FORMS_CLIENT_DIST=true` – [docs/40](40-forms_client_distribution.md),
@@ -208,9 +208,9 @@ background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runt
 | `SEC_CONF_DB` | `db_connect.conf.des3` | Encrypted DB credentials |
 | `RCU_DB_TYPE` | `EBR` | `EBR` (editions enabled, Oracle's default for 14.1.2) or `ORACLE` – [rcu_middleware_architecture.md](../../80-FMW-Architecture/rcu_middleware_architecture.md) |
 | `RCU_TABLESPACE` / `RCU_TEMP_TABLESPACE` | empty (RCU creates its own) / `TEMP` | tablespaces for the RCU schemas |
-| `LOCAL_REP_DB` | detected | `true` if an Oracle DB runs on the same host as WebLogic. Asked in `01-setup-interview.sh` Block 4; the detected value (`ora_pmon_*` running, or `DB_HOST` is a local address) is offered as default |
+| `LOCAL_REP_DB` | detected | `true` if an Oracle DB runs on the same host as WebLogic. Asked in [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) Block 4; the detected value (`ora_pmon_*` running, or `DB_HOST` is a local address) is offered as default |
 
-> **`LOCAL_REP_DB`:** Controls the behaviour of `01-root_os_baseline.sh` when
+> **`LOCAL_REP_DB`:** Controls the behaviour of [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) when
 > `oracle-database-preinstall-*` sysctl files conflict with WebLogic OUI requirements.
 > `false` → conflicting files are flagged as FAIL and their keys commented out.
 > `true`  → WARN only, no modification (the local DB needs the large shm values).
@@ -224,7 +224,7 @@ background: [forms_runtime_architecture.md](../../80-FMW-Architecture/forms_runt
 | `MOS_PWD` | Encrypted → `mos_sec.conf.des3` (never in env.conf) |
 
 Patch numbers (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR` …) are
-**not** in `environment.conf` – they live in `09-Install/oracle_software_version.conf`
+**not** in `environment.conf` – they live in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)
 (committed, one set per patch cycle).
 
 ### Block 7b – APEX / ORDS
@@ -249,16 +249,16 @@ Patch numbers (`INSTALL_PATCHES`, `WLS_SPB_PATCH_NR`, `JDK_PATCH_NR` …) are
 | `WLS_LOG_DIR` | `$DOMAIN_HOME/servers/$WLS_MANAGED_SERVER/logs` | WLS log directory |
 | `DIAG_LOG_DIR` | `$ROOT_DIR/log/$(date +%Y%m%d)` | IHateWeblogic script logs |
 | `DISPLAY_VAR` | `:99` | X11 display for rwrun and Oracle Installer |
-| `SSH_ALLOW_USERS` / `SSH_PASSWORD_USERS` | empty | sshd hardening of `01-root_os_baseline.sh` (`AllowUsers`, password login only for these) |
-| `CONFIG_BACKUP_KEEP` / `BAK_FILES_KEEP` | `10` / `3` | retention of `backup_config.sh` runs / `*.bak_<ts>` copies (`bak_cleanup.sh`) |
-| `IHW_ENV_TYPE` | interview: `prod`; `detect_env_conf.sh`: none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
+| `SSH_ALLOW_USERS` / `SSH_PASSWORD_USERS` | empty | sshd hardening of [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) (`AllowUsers`, password login only for these) |
+| `CONFIG_BACKUP_KEEP` / `BAK_FILES_KEEP` | `10` / `3` | retention of [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) runs / `*.bak_<ts>` copies ([`bak_cleanup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/bak_cleanup.sh)) |
+| `IHW_ENV_TYPE` | interview: `prod`; [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh): none (asked) | `test` \| `prod` – on `prod` the Claude tooling refuses to run and the guard hook denies changing commands ([setup_claude.md](../../10-Monitoring/setup_claude.md)) |
 
 ### Block 9 – Test Modules (Smoke Test)
 *Manual parameter — not set by the interview; add by hand if used*
 
 | Variable | Default | Description |
 |---|---|---|
-| `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_SERVICE` | `DB_HOST` / `DB_PORT` / `DB_SERVICE` | Optional: database for the Forms/Reports smoke test (`15-deploy-test-report-forms_template.sh`) if it differs from the repository DB. User/password are **not** stored here but encrypted in `test_db_sec.conf.des3` (asked by `15-` on first `--apply`). See `docs/20-forms_reports_testmodules.md`. |
+| `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_SERVICE` | `DB_HOST` / `DB_PORT` / `DB_SERVICE` | Optional: database for the Forms/Reports smoke test ([`15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh)) if it differs from the repository DB. User/password are **not** stored here but encrypted in `test_db_sec.conf.des3` (asked by `15-` on first `--apply`). See `docs/20-forms_reports_testmodules.md`. |
 
 ---
 
@@ -280,7 +280,7 @@ $ORACLE_HOME/oracle_common/jdk                  (FMW-bundled JDK, part of the ho
 
 Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
 
-> **`detect_env_conf.sh` without an existing conf** (taking over a system) proposes
+> **[`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) without an existing conf** (taking over a system) proposes
 > `JDK_HOME` in this order (since 2026-10-29; before, the bundled JDK came
 > first and became `JDK_HOME`): `JAVA_HOME` of
 > `$ORACLE_HOME/oui/.globalEnv.properties` → java of a running WebLogic server /
@@ -342,8 +342,8 @@ DB connection:
 | `db_sys_sec.conf.des3` | Encrypted DB SYS password (RCU only) | **No** |
 | `db_connect.conf.des3` | Encrypted DB runtime credentials | **No** |
 | further `*.des3` | LDAP, Reports admin / users, Forms signing, CA, APEX, test DB – [00-Setup/README.md](../../00-Setup/README.md) | **No** |
-| `09-Install/oracle_software_version.conf` | Software versions, SHA-256, cycle values | **Yes** |
-| `09-Install/download/patches_fmw.csv` / `patches_db.csv` | Patch numbers per cycle (library + `mos_patch_download.sh`) | **Yes** |
+| [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) | Software versions, SHA-256, cycle values | **Yes** |
+| [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) / [`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) | Patch numbers per cycle (library + [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh)) | **Yes** |
 | `setup.conf` | Password-free reusable template | **No** |
 | `environment.conf.bak.*` | Backups before any overwrite | **No** |
 
@@ -353,8 +353,8 @@ DB connection:
 
 | Script | Purpose |
 |---|---|
-| `09-Install/01-setup-interview.sh` | New install: interview → environment.conf + encrypted passwords |
-| `00-Setup/detect_env_conf.sh` | Existing system: auto-detect → extend environment.conf |
-| `00-Setup/weblogic_sec.sh` | Password concept: encrypt/decrypt via machine UUID |
+| [`09-Install/01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) | New install: interview → environment.conf + encrypted passwords |
+| [`00-Setup/detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) | Existing system: auto-detect → extend environment.conf |
+| [`00-Setup/weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) | Password concept: encrypt/decrypt via machine UUID |
 | `00-Setup/detect_env_conf.sh --list / --select` | Multi-domain: show / switch the symlink to the active conf |
-| `09-Install/04-oracle_pre_checks.sh` | Phase 1: reads install parameters from environment.conf |
+| [`09-Install/04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh) | Phase 1: reads install parameters from environment.conf |

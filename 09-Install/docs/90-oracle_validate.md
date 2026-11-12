@@ -1,6 +1,6 @@
 # Step 90 – 90-oracle_validate.sh
 
-**Script:** `09-Install/90-oracle_validate.sh`
+**Script:** [`09-Install/90-oracle_validate.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/90-oracle_validate.sh)
 **Runs as:** `oracle` – domain started (`01-Run/startStop.sh start-all`)
 **Phase:** 7 – Validation (after Phase 6, before / after 7c autostart)
 
@@ -34,28 +34,28 @@ readable as oracle, old failed report jobs), 0 FAIL, ~25 s.
 
 ### 0. Installation progress (information only)
 
-The progress line and the next step of `00-install-status.sh` – not counted.
+The progress line and the next step of [`00-install-status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-install-status.sh) – not counted.
 
 ### 1. Analyse scripts (read-only)
 
 | # | Check | Script (arguments) |
 |---|---|---|
-| 1 | OS version, RAM, disk, ulimits | `02-Checks/os_check.sh` |
-| 2 | `JDK_HOME`, bundled JDK, JVMs of running processes | `02-Checks/java_check.sh` |
-| 3 | Ports of the domain (SSL ports only when enabled in `config.xml`) | `02-Checks/port_check.sh` |
-| 4 | SecureRandom, JVM heap | `02-Checks/weblogic_performance.sh` |
-| 5 | DB listener + service (no `--login`: that needs credentials saved by `db_connect_check.sh --new`, the installation never writes them – the logins are row 14) | `02-Checks/db_connect_check.sh` |
-| 6 | Nginx certificate, SAN, chain, TLS versions, expiry | `08-SSL/ssl_config.sh` |
-| 7 | WebLogic keystores / SSL ports (demo ports off) | `02-Checks/ssl_check.sh` |
-| 8 | Reports server: `getserverinfo` (authid from `reports_users.conf.des3`), engines, jobs – not for `FORMS_ONLY` | `01-Run/rwserver_status.sh` |
-| 9 | Report engine parameters vs. Oracle rules / CPUs / RAM | `05-ReportsPerformance/engine_perf_settings.sh` |
-| 10 | Forms files, binaries, `FORMS_PATH`, default.env, sections – not for `REPORTS_ONLY` | `06-FormsDiag/forms_settings.sh` |
-| 11 | Forms timeout chain, `maxRuntimeProcesses`, runtime pooling | `06-FormsDiag/forms_perf_settings.sh` |
-| 12 | `TNS_ADMIN` in every file and running process | `02-Checks/tns_admin_check.sh` |
-| 13 | Loopback-only sockets, clone-capable | `02-Checks/clone_check.sh` |
-| 13b | Outbound connections, external DTDs | `02-Checks/egress_check.sh` |
-| 14 | RCU repository: data source logins, invalid objects, profile | `07-Maintenance/rcu_repository_check.sh` |
-| 15 | Certificate expiry incl. code signing, cron present | `10-Monitoring/cert_expiry_check.sh` |
+| 1 | OS version, RAM, disk, ulimits | [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) |
+| 2 | `JDK_HOME`, bundled JDK, JVMs of running processes | [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) |
+| 3 | Ports of the domain (SSL ports only when enabled in `config.xml`) | [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) |
+| 4 | SecureRandom, JVM heap | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
+| 5 | DB listener + service (no `--login`: that needs credentials saved by `db_connect_check.sh --new`, the installation never writes them – the logins are row 14) | [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
+| 6 | Nginx certificate, SAN, chain, TLS versions, expiry | [`08-SSL/ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) |
+| 7 | WebLogic keystores / SSL ports (demo ports off) | [`02-Checks/ssl_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/ssl_check.sh) |
+| 8 | Reports server: `getserverinfo` (authid from `reports_users.conf.des3`), engines, jobs – not for `FORMS_ONLY` | [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) |
+| 9 | Report engine parameters vs. Oracle rules / CPUs / RAM | [`05-ReportsPerformance/engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) |
+| 10 | Forms files, binaries, `FORMS_PATH`, default.env, sections – not for `REPORTS_ONLY` | [`06-FormsDiag/forms_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_settings.sh) |
+| 11 | Forms timeout chain, `maxRuntimeProcesses`, runtime pooling | [`06-FormsDiag/forms_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/06-FormsDiag/forms_perf_settings.sh) |
+| 12 | `TNS_ADMIN` in every file and running process | [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) |
+| 13 | Loopback-only sockets, clone-capable | [`02-Checks/clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) |
+| 13b | Outbound connections, external DTDs | [`02-Checks/egress_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/egress_check.sh) |
+| 14 | RCU repository: data source logins, invalid objects, profile | [`07-Maintenance/rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) |
+| 15 | Certificate expiry incl. code signing, cron present | [`10-Monitoring/cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh) |
 
 Each step runs with a timeout (`--timeout`, default 600 s); its full output
 goes to `log/<date>/validate_<time>/NN_<script>.log`, the console shows the
@@ -72,7 +72,7 @@ script (0 OK, 1 WARN, else / timeout FAIL).
 | Forms access log | `time-taken` in `config.xml` | `08-` / `forms_perf_settings.sh --fix-accesslog` |
 | `jacob.jar` signature (`FORMS_WEBUTIL_JACOB=true`) | signed; timestamped, or without timestamp: WARN below 90 days to the signer certificate's expiry | `14-` |
 | `jacob.jar` active | `WebUtilArchive` of the deployed `formsweb.cfg` contains `jacob.jar` | `14-` |
-| Nginx timing log | `ihw_timing` in `/etc/nginx/conf.d/oracle-wls.conf` | `04-root_nginx.sh` |
+| Nginx timing log | `ihw_timing` in `/etc/nginx/conf.d/oracle-wls.conf` | [`04-root_nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-root_nginx.sh) |
 | Forms servlet | `http://localhost:9001/forms/frmservlet` → 200 | domain |
 | Forms through Nginx | `https://localhost/forms/frmservlet` → 200 | Nginx |
 | Config backup | at least one set in `07-Maintenance/ConfigBackup/` | `09-`, `14b-` |
@@ -161,7 +161,7 @@ Unknown options: exit 1.
 ## Post-Validation
 
 1. Phase 7b smoke test if not run with `--smoke`; Phase 7c autostart
-   (`30-configure_autostart.sh`), Phase 7d client distribution.
+   ([`30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh)), Phase 7d client distribution.
 2. Monitoring with `monUser` (`01-Run/rwserver_status.sh --auth mon`),
    certificate expiry cron (`cert_expiry_check.sh --cron --apply`).
 3. Keep the summary (`log/<date>/90-oracle_validate_*.log` + step logs) as

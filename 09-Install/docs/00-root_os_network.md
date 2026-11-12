@@ -1,6 +1,6 @@
 # Step 00 – 00-root_os_network.sh
 
-**Script:** `09-Install/00-root_os_network.sh`
+**Script:** [`09-Install/00-root_os_network.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-root_os_network.sh)
 **Runs as:** root or oracle (read-only, no write access needed)
 **Phase:** 0 – Pre-Installation Network Check
 
@@ -146,7 +146,7 @@ ip -6 addr show scope global
   discovery failed). WARN when an interface still has IPv6 or a connection is not
   `ipv6.method disabled`; the fix is done by `01-root_os_baseline.sh --apply`
 - If **disabled** via sysctl on all interfaces: OK for WebLogic (matches
-  `net.ipv6.conf.all.disable_ipv6=1` from `01-root_os_baseline.sh`)
+  `net.ipv6.conf.all.disable_ipv6=1` from [`01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh))
 - If **enabled**:
   - Check whether the host has a routable IPv6 address (global scope)
   - Check whether a AAAA record exists in DNS

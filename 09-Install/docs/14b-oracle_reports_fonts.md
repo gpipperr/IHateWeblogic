@@ -1,6 +1,6 @@
 # Step 6b – 14b-oracle_reports_fonts.sh
 
-**Script:** `09-Install/14b-oracle_reports_fonts.sh`
+**Script:** [`09-Install/14b-oracle_reports_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14b-oracle_reports_fonts.sh)
 **Runs as:** `oracle`
 **Phase:** 6 – Runtime Configuration (after `13-`/`14-` and the first domain start)
 
@@ -15,16 +15,16 @@ the two font paths (PDF / HTML parameter form):
 [04-ReportsFonts/README.md](../../04-ReportsFonts/README.md).
 
 Configure the Reports fonts and the `cgicmd.dat` default key once the Reports
-components exist. Split off `09-oracle_configure.sh` on 2026-10-15:
+components exist. Split off [`09-oracle_configure.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/09-oracle_configure.sh) on 2026-10-15:
 
 - `uifont.ali` lives in the **ReportsTools component**
   (`$DOMAIN_HOME/config/fmwconfig/components/ReportsToolsComponent/<instance>/guicommon/tk/admin/`),
-  created by `13-oracle_setup_reports.sh`.
+  created by [`13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh).
 - `cgicmd.dat` lives in the **WLS_REPORTS application directory**
   (`$DOMAIN_HOME/config/fmwconfig/servers/WLS_REPORTS/applications/reports_14.1.2/configuration/`),
   which only exists after WLS_REPORTS has been **started once**.
 
-Right after `08-oracle_setup_domain.sh` neither exists, so these steps cannot
+Right after [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh) neither exists, so these steps cannot
 run in `09-`.
 
 This script does **not implement new functionality** — it orchestrates the
@@ -66,7 +66,7 @@ Times New Roman / Courier New / Tahoma mapped to Liberation / DejaVu – the
 normal case without Windows font licences) is resolved through the screen
 printer (`screenprinter.ppd` + AFM files) first; without step 5 the test
 report showed all of them as non-embedded **Type 1 "Symbol"** (Greek
-glyphs), with step 5 + `uifont_ali_update.sh` as embedded TrueType.
+glyphs), with step 5 + [`uifont_ali_update.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/uifont_ali_update.sh) as embedded TrueType.
 `NLS_LANG` (`AL32UTF8` / `WE8MSWIN1252`) made no difference. The script
 always runs step 5 – it does no harm when the original TTFs are present.
 Restart the Reports server afterwards – the engines read the files at start.

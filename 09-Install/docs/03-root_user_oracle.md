@@ -1,6 +1,6 @@
 # Step 03 – 03-root_user_oracle.sh
 
-**Script:** `09-Install/03-root_user_oracle.sh`
+**Script:** [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)
 **Runs as:** `root`
 **Phase:** 0 – OS Preparation
 
@@ -57,7 +57,7 @@ passwd oracle   # set initial password, or configure SSH key
 The script writes a drop-in file `/etc/security/limits.d/oracle-fmw.conf`
 (preferred over editing `limits.conf` directly). `nofile`/`nproc` are sized
 by `ULIMIT_NOFILE`/`ULIMIT_NPROC` in `environment.conf` — set by the
-`EXPECTED_SESSIONS` question in `01-setup-interview.sh` (see
+`EXPECTED_SESSIONS` question in [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) (see
 `docs/01-setup-interview.md`). `memlock`/`core` are fixed values, not
 session-tiered.
 
@@ -121,7 +121,7 @@ oracle   hard   memlock    3145728
 > you customize the startup method.
 
 > **FMW/DB co-location risk:** if the RCU database also runs on this host,
-> `60-RCU-DB-19c/00-root_db_os_baseline.sh` writes its own
+> [`60-RCU-DB-19c/00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh) writes its own
 > `/etc/security/limits.d/60-oracle-db.conf` for the same `oracle` OS user
 > with different (typically higher, e.g. 131072/131072) nofile/nproc values.
 > Because `oracle-fmw.conf` sorts after `60-oracle-db.conf` alphabetically,
@@ -351,7 +351,7 @@ chown -R oracle:oinstall /path/to/IHateWeblogic
 find /path/to/IHateWeblogic -name "*.sh" -exec chmod u+x {} \;
 ```
 
-From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
+From here: `su - oracle`, then continue with [`04-oracle_pre_checks.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_checks.sh).
 
 ---
 
@@ -365,7 +365,7 @@ From here: `su - oracle`, then continue with `04-oracle_pre_checks.sh`.
 - Creates `/etc/sudoers.d/oracle-fmw` and validates with `visudo -c`
 - Writes `~oracle/.bash_profile` FMW block (checks for existing entries, no duplicates)
 - Creates the `TNS_ADMIN` directory and writes `export TNS_ADMIN=…` into `.bash_profile` (own `IHW TNS_ADMIN` block, corrected when `environment.conf` changes)
-- Installs the environment switcher `~oracle/.bashrc.d/ihw_env.sh` (`setdb` / `setfmw`, from `70-Customer-Projects/tools/bash/ihw_shell_env.sh`; replaced with a backup when the repo version is newer) and checks that `~/.bashrc` sources `~/.bashrc.d`
+- Installs the environment switcher `~oracle/.bashrc.d/ihw_env.sh` (`setdb` / `setfmw`, from [`70-Customer-Projects/tools/bash/ihw_shell_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh); replaced with a backup when the repo version is newer) and checks that `~/.bashrc` sources `~/.bashrc.d`
 - Creates full directory tree with correct ownership (`$ORACLE_BASE/*` and `$ORACLE_INVENTORY`)
 - Creates `/etc/oraInst.loc` pointing to `$ORACLE_INVENTORY` (system-wide, root-owned)
 - Transfers repository ownership to `oracle:oinstall` (bootstrap handover)
