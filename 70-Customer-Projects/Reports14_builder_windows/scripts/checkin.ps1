@@ -16,7 +16,7 @@
 #      als nummerierte Liste: Nummer = nur diese eine Datei, a = alle,
 #      n = nichts einchecken, nur noch nicht gesendete Check-ins hochladen
 #      (wird nur angeboten, wenn es solche gibt - z.B. nach einem
-#      abgelehnten Push)
+#      abgelehnten Push), x oder Enter = abbrechen
 #   3. fragt nach einem Kommentar, wenn keiner angegeben ist
 #   4. wandelt die ausgewaehlte(n) .rdf nach xml\<name>.xml - mit
 #      convert_rdf.ps1 (bricht beim ersten Fehler ab - dann wird nichts
@@ -133,13 +133,18 @@ if ($changed.Count -gt 0) {
     # n nur anbieten, wenn es lokale Check-ins gibt, die noch nicht auf dem
     # Git-Server sind (z.B. nach einem abgelehnten Push)
     if ([int]$ahead -gt 0) {
-        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese), a (alle) oder n (nichts einchecken, nur die $ahead noch nicht gesendete(n) Check-in(s) hochladen)"
+        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese), a (alle), n (nichts einchecken, nur die $ahead noch nicht gesendete(n) Check-in(s) hochladen) oder x (abbrechen)"
     }
     else {
-        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese) oder a (alle)"
+        $answer = Read-Host "Welche Datei einchecken? Nummer (nur diese), a (alle) oder x (abbrechen)"
     }
     $answer = "$answer".Trim()
     $number = 0
+    # x oder nur Enter = abbrechen - Ihre Dateien bleiben, wie sie sind
+    if ($answer -eq '' -or $answer -eq 'x' -or $answer -eq 'X') {
+        Write-Host "Abgebrochen - es wurde nichts eingecheckt." -ForegroundColor Yellow
+        exit 0
+    }
     if ($answer -eq 'a' -or $answer -eq 'A') {
         $selected = $changed
     }
