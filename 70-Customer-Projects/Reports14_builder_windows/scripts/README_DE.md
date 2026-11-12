@@ -145,6 +145,49 @@ Eingecheckt wird **nur die Auswahl** – die anderen Dateien bleiben liegen und
 können später eingecheckt werden. Zu einem Bericht gehört immer seine
 XML-Datei, die das Skript selbst erzeugt; XML-Dateien nie von Hand ändern.
 
+## Nach dem Einchecken: DEV und Produktion
+
+Gearbeitet wird im Branch **`development`**. Jedes Hochladen dorthin
+verteilt **alle** Berichte automatisch auf den Linux-**DEV**-Reports-Server.
+Dort testen Sie den Bericht über `rwservlet`. Das Ergebnis der Verteilung
+steht in GitLab unter **Build → Pipelines** (grün oder rot).
+
+In die **Produktion** kommt ein Bericht nur einzeln und nur nach
+Genehmigung:
+
+```
+  Bericht auf DEV getestet
+        |
+        v
+  +-------------------------------+
+  | .\Reports\promote.ps1 umsatz  |   a) Bilder mitnehmen? Nummern / a / Enter
+  |                               |   b) Grund der Freigabe
+  |                               |   c) legt in GitLab einen Merge Request an
+  +-------------------------------+      (Ihr Arbeitsordner bleibt, wie er ist)
+        |
+        v
+  GitLab: Merge Request "Release umsatz: <Grund>"
+        |   der Verantwortliche prüft, genehmigt und führt ihn zusammen (main)
+        v
+  GitLab: Pipeline auf main, Knopf "Play"  -->  PRODUKTION
+          (nur die freigegebenen Berichte, alle anderen bleiben auf DEV)
+```
+
+- Freigegeben wird der Stand auf dem **Git-Server**. Den Bericht also zuerst
+  mit `checkin.ps1` einchecken und hochladen, dann `promote.ps1`.
+- Nur dieser eine Bericht (mit seiner XML-Datei und den gewählten Bildern)
+  geht nach `main`. Ihre anderen Berichte bleiben in `development`.
+- Ist der Bericht in `main` schon genau so, meldet das Skript es und tut
+  nichts.
+
+| Meldung von `promote.ps1` | Was tun |
+|---|---|
+| `gibt es auf dem Git-Server in development nicht` | Name prüfen, oder den Bericht zuerst mit `checkin.ps1` einchecken |
+| `ist bei Ihnen geaendert und noch nicht eingecheckt` | zuerst `checkin.ps1`, dann wieder `promote.ps1` |
+| `ein anderer als auf dem Git-Server` | `status.ps1` ansehen: noch nicht gesendet (`checkin.ps1`, Auswahl `n`) oder noch nicht geholt (`pull.ps1`) |
+| `ist in main schon genau so` | nichts zu tun |
+| `OK - Merge Request ... angelegt` | in GitLab wartet der Merge Request auf die Genehmigung |
+
 ## Die Auswahl beim Einchecken
 
 | Eingabe | Bedeutung |
@@ -178,15 +221,18 @@ Auch ein leerer Kommentar bricht ab.
 | `checkin.ps1` | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
 | `convert_rdf.ps1` | wird von `checkin.ps1` aufgerufen; einzeln: `.\Reports\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
 | `checkin_only.ps1` | wie `checkin.ps1`, aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
+| `promote.ps1` | einen getesteten Bericht für die Produktion freigeben: `.\Reports\promote.ps1 umsatz` legt den Merge Request nach `main` an |
 
 ## Regeln
 
+- Gearbeitet wird im Branch `development` (`status.ps1` warnt sonst).
 - Vor der Arbeit `pull.ps1`, danach `checkin.ps1` – möglichst am selben Tag.
+- In die Produktion nur über `promote.ps1` – nie von Hand nach `main`.
 - Ein Bericht – eine Person zur gleichen Zeit (absprechen).
 - XML-Dateien erzeugt nur das Skript.
 - Kennwörter nie in Dateien im Repository und nie in einen Kommentar.
 - Kein `git stash`, kein Zusammenführen von Hand – im Zweifel den
   Git-Ansprechpartner fragen.
 
-Technischer Hintergrund (englisch): `Git_checkin.md` im IHateWeblogic-Projekt,
+Technischer Hintergrund (englisch): `Git_checkin.md` und `Git_deploy.md` im IHateWeblogic-Projekt,
 Ordner `70-Customer-Projects/Reports14_builder_windows`.

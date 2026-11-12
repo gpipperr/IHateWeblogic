@@ -1,0 +1,15 @@
+# =============================================================================
+# rwdeploy.conf - settings for rwdeploy.sh (copy to rwdeploy.conf next to it)
+# =============================================================================
+# One file per server (DEV / PROD). Sourced by bash - plain KEY="value".
+
+# Spool of the queue: incoming/ work/ done/ failed/ log/ backup/ state/
+SPOOL_DIR="/u01/app/oracle/rwdeploy"
+
+# Target folders - must be part of REPORTS_PATH and of <folderAccess><read>
+# in rwserver.conf (ONE element, folders separated by ";")
+TARGET_SOURCE_DIR="/u01/app/oracle/reports/source"
+TARGET_IMAGE_DIR="/u01/app/oracle/reports/images"
+
+# Largest tar accepted from GitLab (MB)
+MAX_TAR_MB=100

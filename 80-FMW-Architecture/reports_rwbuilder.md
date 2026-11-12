@@ -224,7 +224,10 @@ eports\img\logo.gif`)
    `.rdf` (and images / libraries, if changed) into the source directory of
    the Linux **DEV** Reports server – a directory that is part of its
    `REPORTS_PATH` and of `<folderAccess><read>` (one element, directories
-   separated by `;`).
+   separated by `;`). One way with a self-hosted GitLab: every push to
+   `development` deploys all reports to DEV, single reports are released
+   to `main` (merge request) and deployed to production by a manual job –
+   [Git_deploy.md](../70-Customer-Projects/Reports14_builder_windows/Git_deploy.md).
 5. **Run it on the Linux server:** the developer calls the report through
    the DEV `rwservlet`, e.g.
    `https://<dev-server>/reports/rwservlet?report=<name>.rdf&destype=cache&desformat=pdf&<cmdkey>`

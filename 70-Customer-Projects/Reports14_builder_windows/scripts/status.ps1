@@ -54,6 +54,11 @@ if ($LASTEXITCODE -ne 0) {
     Exit-Script 1
 }
 Write-Host "Branch    : $branch  (Git-Server: $upstream)"
+# Entwickelt wird in development - main bekommt Berichte nur einzeln ueber
+# promote.ps1 (Merge Request), siehe README_DE.md
+if ($branch -ne 'development') {
+    Write-Host "Hinweis: Sie sind nicht auf dem Branch 'development' - dort wird entwickelt." -ForegroundColor Yellow
+}
 
 Write-Host "Hole den Stand vom Git-Server (an Ihren Dateien aendert sich nichts) ..."
 # git fetch: den Stand des Git-Servers abholen - nur in die Kopie des

@@ -1,0 +1,45 @@
+# =============================================================================
+# .gitlab-ci.yml - Reports deployment (copy to the top folder of the repository)
+# =============================================================================
+#  development -> deploy_dev  (automatic, every push: all reports, snapshot)
+#  main        -> deploy_prod (manual "Play": only the released reports since
+#                              the last PROD deploy - main gets reports only
+#                              one by one via promote.ps1 + merge request)
+# Other branches (release/...) start no deploy.
+# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# =============================================================================
+
+stages:
+  - deploy
+
+variables:
+  # full history - deploy_prod compares with the last deployed commit
+  GIT_DEPTH: "0"
+
+.deploy:
+  stage: deploy
+  tags:
+    - reports-deploy        # runner with bash, git, ssh that may reach the servers
+  interruptible: false
+
+deploy_dev:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "development" && $CI_PIPELINE_SOURCE == "push"'
+  environment:
+    name: development
+  resource_group: deploy-dev    # one deploy at a time
+  script:
+    - bash Reports/deploy/ci_deploy.sh dev
+
+deploy_prod:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      when: manual              # waits for "Play" in GitLab
+  allow_failure: false          # the pipeline stays "blocked" until played
+  environment:
+    name: production
+  resource_group: deploy-prod
+  script:
+    - bash Reports/deploy/ci_deploy.sh prod

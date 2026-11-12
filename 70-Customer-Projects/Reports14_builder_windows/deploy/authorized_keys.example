@@ -1,0 +1,7 @@
+# ~oracle/.ssh/authorized_keys on the Reports server (DEV or PROD) - ONE line.
+# The GitLab deploy key may only start rwdeploy.sh, only from the runner:
+#   command=  : every login runs rwdeploy.sh; the requested command arrives
+#               in SSH_ORIGINAL_COMMAND (enqueue / status / last / list)
+#   restrict  : no shell, no pty, no port / agent / X11 forwarding
+#   from=     : only from the GitLab runner host (IP or DNS name)
+command="/u01/app/oracle/rwdeploy/bin/rwdeploy.sh",restrict,from="<runner-ip>" ssh-ed25519 AAAA...key... gitlab-deploy-dev

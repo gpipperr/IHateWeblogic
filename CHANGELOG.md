@@ -5,6 +5,18 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-12
 
+- `Reports14_builder_windows`: **deployment** with a self-hosted GitLab (`Git_deploy.md`, folder
+  `deploy/`). Push to `development` -> job `deploy_dev` sends all reports + images as a snapshot;
+  new `scripts/promote.ps1 <report>` releases ONE report (.rdf + .xml, images on request) from
+  `origin/development` into a `release/...` branch built in a temporary `git worktree` (working copy
+  untouched) and opens the merge request to `main` with push options (no API token); after the
+  merge `deploy_prod` (manual "Play") sends only the files changed since the last PROD deploy.
+  Server side `rwdeploy.sh`: SSH forced command (`restrict`, `from=`), spool queue with `flock`,
+  tar members checked before extracting, copy only changed files with backup, never delete,
+  `status --wait` so the pipeline shows the deploy result; older pipelines are recognised with
+  `merge-base --is-ancestor`. Builder Git scripts: same repo-root logic everywhere, return to the
+  script folder at the end, German comments on every git parameter; `status.ps1` warns outside
+  `development`. Tested in a sandbox (bare repos, simulated ssh, malicious tars, races).
 - `Reports14_builder_windows/scripts`: `checkin.ps1` shows the changed files of `source` / `images`
   as a numbered list – number = only this file (+ its `.xml`), `a` = all, `n` = nothing new, only
   send unsent check-ins; only the selection is committed (`git commit -- <paths>`). Rejected push
