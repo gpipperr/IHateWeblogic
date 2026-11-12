@@ -2,14 +2,14 @@
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
 [root README](../README.md)). On a new installation
-`09-Install/13-oracle_setup_reports.sh` sets the values and
-`09-Install/docs/90-oracle_validate.md` calls these scripts read-only as
+[`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) sets the values and
+[`09-Install/docs/90-oracle_validate.md`](../09-Install/docs/90-oracle_validate.md) calls these scripts read-only as
 acceptance; `10-Monitoring/` uses them as a data source.
 
 Configuration review and load analysis of the **standalone Reports server**
 (system component, e.g. `repserver01`) and its engines.
 All scripts source `environment.conf`, log to `log/<date>/` and are
-read-only by default (`--apply` only in `engine_perf_settings.sh`).
+read-only by default (`--apply` only in [`engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh)).
 
 Background (why the server/engine split, which process uses which JDK,
 Oracle's tuning rules): [reports_engine_architecture.md](../80-FMW-Architecture/reports_engine_architecture.md).
@@ -19,24 +19,24 @@ Oracle's tuning rules): [reports_engine_architecture.md](../80-FMW-Architecture/
 ## 1. Overview – and what is NOT here
 
 Typical symptoms: Reports server slow, jobs waiting, failures →
-`05-ReportsPerformance/engine_perf_analyse.sh`.
+[`05-ReportsPerformance/engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh).
 
 | Script | Question it answers |
 |---|---|
-| `engine_perf_settings.sh` | Are the engine/queue/cache parameters sensible for this host (CPUs, RAM) and in line with `environment.conf`? `--apply` changes the report engine |
-| `engine_perf_analyse.sh` | How does the server cope with its load: failure rate, queuing share, pool usage vs. `maxEngine`, engine memory, REP-/ORA- errors in the Reports server logs? |
+| [`engine_perf_settings.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_settings.sh) | Are the engine/queue/cache parameters sensible for this host (CPUs, RAM) and in line with `environment.conf`? `--apply` changes the report engine |
+| [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) | How does the server cope with its load: failure rate, queuing share, pool usage vs. `maxEngine`, engine memory, REP-/ORA- errors in the Reports server logs? |
 
 Not duplicated here – use the existing scripts:
 
 | Need | Script |
 |---|---|
-| Is the Reports server running, which engines, raw `getserverinfo` | `01-Run/rwserver_status.sh` |
+| Is the Reports server running, which engines, raw `getserverinfo` | [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) |
 | Search all logs for an error | `03-Logs/grep_logs.sh 'REP-'` |
-| Run one report outside the server (crash / trace) | `01-Run/rwrun_trace.sh` |
-| WebLogic JVM heap / GC of `WLS_REPORTS` (the servlet, not the engines) | `02-Checks/weblogic_performance.sh` |
-| `ORA-12154` / `ORA-12162` in reports – which `tnsnames.ora` do the engines use? | `02-Checks/tns_admin_check.sh` |
+| Run one report outside the server (crash / trace) | [`01-Run/rwrun_trace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwrun_trace.sh) |
+| WebLogic JVM heap / GC of `WLS_REPORTS` (the servlet, not the engines) | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
+| `ORA-12154` / `ORA-12162` in reports – which `tnsnames.ora` do the engines use? | [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) |
 
-All three Reports scripts share `01-Run/reports_server_lib.sh` (find the
+All three Reports scripts share [`01-Run/reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) (find the
 component's `rwserver.conf`, read the **report** engine, server/engine PIDs,
 `getserverinfo` with `authid`). Before 2026-10-19 the 05 scripts had their
 own older copies of these helpers and evaluated the wrong file and engine
@@ -84,7 +84,7 @@ File: `config/fmwconfig/components/ReportsServerComponent/<name>/rwserver.conf`.
 | Reports engine | `initEngine`, `minEngine`, `maxEngine`, `engLife`, `maxIdle`, `callbackTimeOut`, `engineResponseTimeOut`, `jvmOptions` of the engine used by `<job jobType="report">` (`rwEng`) – **not** the URL engine `rwURLEng`. WARN: `minEngine=0` (cold start), `minEngine > initEngine`, `maxEngine <= 1`, `maxEngine > 4 × CPUs`, `engLife > 1000`, **no `engineResponseTimeOut`** (a hanging engine is never ended – typical for domains not built with this library); FAIL: `maxEngine < minEngine/initEngine`. INFO: URL engine active |
 | Engine JVM Heap | `-Xmx` from `jvmOptions`, else from the running engines (`/proc/<pid>/cmdline`), RSS per engine; `maxEngine × -Xmx` against MemAvailable + RSS of the running engines (WARN > 80 %) |
 | Queue, Connections, Cache | `maxQueueSize`, `maxConnect`, `idleTimeOut`, `cacheSize`, cache directory (size, files) |
-| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: `02-Checks/tns_admin_check.sh` ([why three places](../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
+| rwserver.conf vs. environment.conf | `REPORTS_ENGINE_INIT/MIN/MAX/LIFE/MAX_IDLE/JVM_OPTIONS/RESPONSE_TIMEOUT`, `REPORTS_MAX_CONNECT`, `REPORTS_MAX_QUEUE`, `TNS_ADMIN` (`<envVariable>` of the engines) – WARN on drift. All places of `TNS_ADMIN` incl. `reports.sh` and the running processes: [`02-Checks/tns_admin_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/tns_admin_check.sh) ([why three places](../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin)) |
 | Live Engine Processes | `rwserver server=<name>` PID, engines = its child processes, count vs. min/max |
 
 **`engineResponseTimeOut` – not the same as `ORBWaitForResponseTimeout`.**
@@ -94,7 +94,7 @@ against an endless query or a DB lock. `-DORBWaitForResponseTimeout=999999999`
 (Java option, **milliseconds**, in `REPORTS_JVM_OPTIONS` / `jvmOptions`) is only
 the ORB wait time and the workaround for REP-50125 – it limits nothing. Default of
 this library: `REPORTS_ENGINE_RESPONSE_TIMEOUT=360` (6 h safety net since
-2026-11-10, before 30); tune it to 2 × the longest job from `engine_perf_analyse.sh`
+2026-11-10, before 30); tune it to 2 × the longest job from [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)
 (customer 2026-11-11: longest 260 s → 9 min).
 
 The rules and Oracle's numbers behind the checks:
@@ -133,7 +133,7 @@ shows the change list, asks for confirmation, then:
 |---|---|
 | `--server NAME` | Reports server component |
 | `--port N` | `WLS_REPORTS` listen port (default from `config.xml`) |
-| `--auth MODE` | `authid` for `getserverinfo`: `auto` (default), `mon`, `admin`, `none` – same as `rwserver_status.sh` ([01-Run/README.md §4](../01-Run/README.md)) |
+| `--auth MODE` | `authid` for `getserverinfo`: `auto` (default), `mon`, `admin`, `none` – same as [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) ([01-Run/README.md §4](../01-Run/README.md)) |
 | `--lines N` | Last N lines per log file (default 1000) |
 | `--no-http` | Only processes and logs |
 
@@ -144,8 +144,8 @@ shows the change list, asks for confirmation, then:
 | Job Run Times | `showjobs` (always with the Reports server admin `<identifier>` – the monitoring user sees only its own jobs): number of past jobs, longest and 95th percentile run time from `timingInfo`, vs. `engineResponseTimeOut` – unset → WARN, longest job ≥ timeout → WARN (the server would kill it); proposal 2 × longest job, ≥ 5 min (`rws_ert_proposal`). Test host 2026-10-23: 68 jobs, longest 1 s → 5 |
 | Engine Pool Usage | `maxEnginesUsed` / `avgEnginesUsed` vs. `maxEngine` (pool reached → WARN), connections, per instance status/jobs/life left/current job time, DEAD → FAIL |
 | Engine Processes | RSS, `-Xmx`, uptime per engine process |
-| Reports Server Logs | `servers/<repserver>/logs/rwserver_diagnostic.log` + `rwEng-N_diagnostic.log` (found via `03-Logs/log_locations.sh`): lines with ORA-/REP-/OutOfMemoryError, the five most frequent REP codes with an example |
-| Recommendations | pool full → raise `maxEngine` (heap must fit); high queuing **without** full pool → cause is not `maxEngine` (engine start, failed jobs, retries); OOM → engine `-Xmx`; REP/failed jobs → fix the cause first; ORA → `db_connect_check.sh` |
+| Reports Server Logs | `servers/<repserver>/logs/rwserver_diagnostic.log` + `rwEng-N_diagnostic.log` (found via [`03-Logs/log_locations.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/log_locations.sh)): lines with ORA-/REP-/OutOfMemoryError, the five most frequent REP codes with an example |
+| Recommendations | pool full → raise `maxEngine` (heap must fit); high queuing **without** full pool → cause is not `maxEngine` (engine start, failed jobs, retries); OOM → engine `-Xmx`; REP/failed jobs → fix the cause first; ORA → [`db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
 
 Note: the job counters of `getserverinfo` include jobs from before the last
 restart of the Reports server (live 2026-10-19: server up 20 min, engines had
@@ -166,11 +166,11 @@ Slow first request / engine replacement after a crash:
 
 | Problem (old 05 scripts) | Effect | Now |
 |---|---|---|
-| Used `RWSERVER_CONF` / first `rwserver.conf` found | evaluated the in-process server of `WLS_REPORTS`, not `repserver01` | component file via `reports_server_lib.sh` |
+| Used `RWSERVER_CONF` / first `rwserver.conf` found | evaluated the in-process server of `WLS_REPORTS`, not `repserver01` | component file via [`reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh) |
 | Greedy attribute match over the whole file | showed `minEngine=0 maxEngine=1` of the URL engine | report engine only |
 | `--apply` with `sed …/g` | would have changed **both** engines | python, report engine element only |
 | `pgrep -f rwengine` | 14.1.2 has no `rwengine` process → "0 engines" | child processes of `rwserver` |
-| `getserverinfo` without `authid` | HTTP 499 on the secured server, all HTTP sections empty | same `--auth` logic as `rwserver_status.sh` |
+| `getserverinfo` without `authid` | HTTP 499 on the secured server, all HTTP sections empty | same `--auth` logic as [`rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh) |
 | Log scan of `WLS_REPORTS.log` | the Reports errors are in `servers/repserver01/logs/` | Reports server + engine logs |
 | Integer comparison of `2134.06` / `grep -c … \|\| printf 0` | silent wrong results, "0\n0" and a bash error | awk compare, plain `grep -c` |
 | `initTime`, `purgeTime`, `maxJobSize` | not attributes of the 14.1.2 `engine`/`cache` element | Oracle's attribute list (§6 of the architecture doc) |
@@ -181,7 +181,7 @@ Slow first request / engine replacement after a crash:
 
 ## 6. Open items
 
-- 10-Monitoring: `engine_perf_analyse.sh` as data source for the queue/pool
+- 10-Monitoring: [`engine_perf_analyse.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh) as data source for the queue/pool
   KPIs ([10-Monitoring/README.md](../10-Monitoring/README.md)).
 
 ---
@@ -191,6 +191,6 @@ Slow first request / engine replacement after a crash:
 - Oracle Reports 12.2.1.3 "Publishing Reports", 24.3 Tuning Reports Server
   Configuration and 7.2.1.8 `engine` element – quoted and linked in
   [reports_engine_architecture.md §6 / §10](../80-FMW-Architecture/reports_engine_architecture.md)
-- Related scripts: `01-Run/rwserver_status.sh`, `01-Run/reports_server_lib.sh`,
-  `03-Logs/grep_logs.sh`, `02-Checks/db_connect_check.sh`,
-  `07-Maintenance/backup_config.sh` (category `reports_comp`)
+- Related scripts: [`01-Run/rwserver_status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh), [`01-Run/reports_server_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/reports_server_lib.sh),
+  [`03-Logs/grep_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/grep_logs.sh), [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh),
+  [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) (category `reports_comp`)
