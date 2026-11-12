@@ -12,29 +12,29 @@ output.
 
 Every customer engagement on Linux starts the same way, whatever the folder:
 
-1. **Tools:** one link – `tools/ihw_customer_tools_linux.zip` (Windows:
+1. **Tools:** one link – [`tools/ihw_customer_tools_linux.zip`](tools/ihw_customer_tools_linux.zip) (Windows:
    `…_windows.zip`), unpacked into `$ORACLE_BASE` = `$ORACLE_BASE/tools`; no
    git clone at the customer. Built with `tools/make_customer_zip.sh --apply`
    before every commit that touches the tools.
-2. **setdb:** `tools/bash/ihw_shell_env.sh` → `~/.bashrc.d/ihw_env.sh`, new
+2. **setdb:** [`tools/bash/ihw_shell_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh) → `~/.bashrc.d/ihw_env.sh`, new
    shell – one menu for the FMW home / domains and DB homes, PATH on the
    tools, `wlst`, `domain`.
-3. **One ini:** the `patch_install.ini` of the customer folder (template:
+3. **One ini:** the [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) of the customer folder (template:
    [Reports14_linux_manual_install/patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini))
    to `$ORACLE_BASE/tools` (600), plus the `patches_cpu_*.csv` when patching.
 4. **Existing environment?**
-   - yes → analysis with `collect_fmw_env.sh`, fill / check the ini from its
+   - yes → analysis with [`collect_fmw_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_fmw_env.sh), fill / check the ini from its
      `00_summary.txt`;
    - no → fill the ini from the installation cookbooks.
 5. **In both cases** `. $ORACLE_BASE/tools/set_script_env.sh` in every new
-   session – then the cookbooks of the customer folder; `status.sh` /
-   `show_log.sh` / `show_errors.sh` read the same ini.
+   session – then the cookbooks of the customer folder; [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) /
+   [`show_log.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_log.sh) / [`show_errors.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_errors.sh) read the same ini.
 
 So a customer folder holds only **one ini, one csv and the cookbooks**; all
 scripts are shared in `tools/bash/`.
 
 **Moving to 14c:** export the old environment at the first visit
-(`export_forms_reports_conf.sh`, next to `collect_fmw_env.sh`). The whole
+([`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh), next to `collect_fmw_env.sh`). The whole
 process – analysis, build with the customer's data, check again – is in
 [09-Install/docs/00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md).
 
@@ -81,7 +81,7 @@ CVE background and the questions to clarify with the customer – applied by
 hand with the German cookbook `Patch_Kochbuch_CPU_Okt2026_de.txt` (manual run
 at the customer 2026-10-29). Download list
 [patches_cpu_forms_reports_12c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv)
-for `tools/bash/mos_patch_download.sh`.
+for [`tools/bash/mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh).
 
 ### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
 
@@ -127,18 +127,18 @@ No IHateWeblogic library needed – copy the script to the host:
 
 | Script | Purpose |
 |---|---|
-| `collect_fmw_env.sh` | read-only collection of OS, Java, Oracle Home / patches, domain, Forms / Reports / OHS / web server configuration into one archive for the analysis; secrets masked |
-| `mos_patch_download.sh` | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
-| `clone_check_fmw.sh` | read-only check whether the installation is clone-capable (golden image) – e.g. after the 12c patch run |
-| `fmw_patch_env.sh` | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
-| `ihw_shell_env.sh` | `setdb` / `setfmw`: one menu to switch the shell between FMW home / domains and DB homes / SIDs (`~/.bashrc.d/ihw_env.sh`) |
-| `set_script_env.sh` | loads the customer's `patch_install.ini` into the session for the cookbook commands – sourced |
-| `status.sh`, `show_log.sh`, `show_errors.sh`, `show_all_logs.sh` | operation: status in three stages (ports / processes / HTTP + Node Manager), logs and error lines – read `patch_install.ini` next to them |
-| `check_disk_space.sh`, `export_forms_reports_conf.sh` | disk space before a patch run; read-only export of the Forms / Reports configuration (12c → 14c) |
-| `ihw_tools_lib.sh` | shared helpers of the tools (sourced, always copied with them) |
+| [`collect_fmw_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_fmw_env.sh) | read-only collection of OS, Java, Oracle Home / patches, domain, Forms / Reports / OHS / web server configuration into one archive for the analysis; secrets masked |
+| [`mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh) | downloads a patch list (CSV per cycle) from MOS with getMOSPatch in one run, `unzip -t` + SHA-256 (used at the customer 2026-10-29) |
+| [`clone_check_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/clone_check_fmw.sh) | read-only check whether the installation is clone-capable (golden image) – e.g. after the 12c patch run |
+| [`fmw_patch_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/fmw_patch_env.sh) | detects and sets the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR` …) – sourced |
+| [`ihw_shell_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_shell_env.sh) | `setdb` / `setfmw`: one menu to switch the shell between FMW home / domains and DB homes / SIDs (`~/.bashrc.d/ihw_env.sh`) |
+| [`set_script_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/set_script_env.sh) | loads the customer's [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) into the session for the cookbook commands – sourced |
+| [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh), [`show_log.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_log.sh), [`show_errors.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_errors.sh), [`show_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_all_logs.sh) | operation: status in three stages (ports / processes / HTTP + Node Manager), logs and error lines – read [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) next to them |
+| [`check_disk_space.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/check_disk_space.sh), [`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh) | disk space before a patch run; read-only export of the Forms / Reports configuration (12c → 14c) |
+| [`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh) | shared helpers of the tools (sourced, always copied with them) |
 
 Linux: `tools/bash/`. Windows Server hosts: `tools/powershell/` –
-`collect_fmw_env.ps1`, `fmw_patch_env.ps1`, `mos_patch_download.ps1`, same
+[`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1), same
 output / CSV format → [tools/powershell/README.md](tools/powershell/README.md)
 
 ## Further Installation Guides (German)
