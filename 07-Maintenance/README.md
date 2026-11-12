@@ -29,18 +29,18 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 
 | Script | Status | Purpose |
 |---|---|---|
-| `backup_config.sh` | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
-| `restore_config.sh` | ✅ implemented | List backups, restore a selected set back to its original locations |
-| `apply_customer_conf.sh` | ✅ implemented | Way 2 of the customer import: apply the overlay of `00-Setup/customer_conf_import.sh` to an existing library environment – `14b-` / `14-` / `13-`, `30-` autostart when a server is missing, restart, wait for the Reports servers, `15-` smoke test, `90-` validate (`09-Install/docs/17-customer_conf_import.md`; process: [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md)) |
-| `patch_storage.sh` | ✅ implemented | Local `PATCH_STORAGE` as working copy of a patch archive (`PATCH_ARCHIVE`, NFS/ZFS): `status`, `pull <step>` before a step, `clean` after it – done steps from the run history `log/run_history.csv` |
-| `bak_cleanup.sh` | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
-| `80-patch_java_os.sh` | ✅ implemented | Java/OS layer — `java_check.sh`; `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then `domain_jdk_path.sh` check |
-| `rcu_repository_check.sh` | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
-| `domain_jdk_path.sh` | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
-| `81-patch_weblogic.sh` | ✅ implemented | WLS FMW Basis layer — wraps `09-Install/05-oracle_patch_weblogic.sh` |
-| `82-patch_forms_reports.sh` | ✅ implemented | Forms + Reports layer (combined) — wraps `09-Install/06-oracle_patch_forms_reports.sh` |
+| [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
+| [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) | ✅ implemented | List backups, restore a selected set back to its original locations |
+| [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) | ✅ implemented | Way 2 of the customer import: apply the overlay of [`00-Setup/customer_conf_import.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/customer_conf_import.sh) to an existing library environment – `14b-` / `14-` / `13-`, `30-` autostart when a server is missing, restart, wait for the Reports servers, `15-` smoke test, `90-` validate ([`09-Install/docs/17-customer_conf_import.md`](../09-Install/docs/17-customer_conf_import.md); process: [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md)) |
+| [`patch_storage.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/patch_storage.sh) | ✅ implemented | Local `PATCH_STORAGE` as working copy of a patch archive (`PATCH_ARCHIVE`, NFS/ZFS): `status`, `pull <step>` before a step, `clean` after it – done steps from the run history `log/run_history.csv` |
+| [`bak_cleanup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/bak_cleanup.sh) | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
+| [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) | ✅ implemented | Java/OS layer — [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh); `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) check |
+| [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
+| [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
+| [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
+| [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
 
-`82-patch_forms_reports.sh` covers both the Forms and the Reports
+[`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) covers both the Forms and the Reports
 conceptual layer in a single call — see §3 below for why there is no
 separate Forms-only/Reports-only script.
 
@@ -57,8 +57,8 @@ If something breaks afterwards:
   ./07-Maintenance/restore_config.sh --apply     # select a set and restore it
 ```
 
-Scripts that already call `backup_config.sh`-style backups internally before
-writing (via `backup_file()` in `00-Setup/IHateWeblogic_lib.sh`) still
+Scripts that already call [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)-style backups internally before
+writing (via `backup_file()` in [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh)) still
 benefit from a full `backup_config.sh --apply` run beforehand — it captures
 a **complete, consistent snapshot** across all categories in one place,
 rather than one file at a time.
@@ -72,7 +72,7 @@ rather than one file at a time.
 
 > **RCU schemas and patching:** regular patches (SPB / CSPU / Forms and
 > Reports one-offs) never change the RCU schemas – only a version upgrade
-> does (Upgrade Assistant). Run `rcu_repository_check.sh` before and after a
+> does (Upgrade Assistant). Run [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) before and after a
 > patch cycle as a health check; before an upgrade or a move with `--apply`
 > (backup). Background:
 > [`80-FMW-Architecture/rcu_middleware_architecture.md`](../80-FMW-Architecture/rcu_middleware_architecture.md).
@@ -117,17 +117,17 @@ duplicated here.
 11. If something breaks: ./07-Maintenance/restore_config.sh --apply
 ```
 
-**Why only 3 scripts for "4 layers"?** `06-oracle_patch_forms_reports.sh`
+**Why only 3 scripts for "4 layers"?** [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh)
 already auto-detects whether `$ORACLE_HOME/forms` and `$ORACLE_HOME/reports`
 exist and only patches what's actually installed — there is exactly one
-underlying call for both, so `82-patch_forms_reports.sh` covers the Forms
+underlying call for both, so [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) covers the Forms
 and the Reports conceptual layer together. A separate Forms-only/
 Reports-only script would need a new `--only forms|reports` scope flag on
 the delegated script first — not implemented (bundled on purpose, see
-`09-Install/docs/06-oracle_patch_forms_reports.md`).
+[`09-Install/docs/06-oracle_patch_forms_reports.md`](../09-Install/docs/06-oracle_patch_forms_reports.md)).
 
-**Why `04-oracle_pre_download.sh` isn't called automatically by the
-wrappers:** updating `oracle_software_version.conf` with the new cycle's
+**Why [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) isn't called automatically by the
+wrappers:** updating [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) with the new cycle's
 patch numbers (step 1) is an inherent human-judgment step (reading the new
 CPU/CSPU advisory) — it has to happen before any download anyway, and
 `05-`/`06-oracle_patch_*.sh` already print the exact download command
@@ -157,7 +157,7 @@ instance scripts and `init-info/*`; the installer into
 that only repoints the symlink would not reach WebLogic. Matches `JDK_HOME`
 followed by a version suffix and the current symlink target; skips logs,
 `servers/` and backups. Backup: `ConfigBackup/jdk_path_<ts>/` with the original
-paths below it. Called by `09-Install/08-oracle_setup_domain.sh`; run it
+paths below it. Called by [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh); run it
 after every JDK upgrade and every `updateDomain`.
 
 ---
@@ -185,7 +185,7 @@ sets beyond N are removed – counted separately per kind:
 
 | Kind | Name | Created by |
 |---|---|---|
-| config sets | `YYYYMMDD_HHMM` and `YYYYMMDD_HHMM_pre_restore` | `backup_config.sh`, `restore_config.sh` |
+| config sets | `YYYYMMDD_HHMM` and `YYYYMMDD_HHMM_pre_restore` | [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh), [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) |
 | JDK path sets | `jdk_path_YYYYMMDD_HHMMSS` | `domain_jdk_path.sh --apply` |
 
 The dry-run lists the sets that the next `--apply` would remove (the new set
@@ -201,25 +201,25 @@ install), not hardcoded:
 |---|---|---|---|
 | `fonts` | `$UIFONT_ALI` | Oracle Reports font alias file (`uifont.ali`) | `04-`, `14b-` |
 | `fonts_ttf` | `$REPORTS_FONT_DIR/*.ttf/.ttc/.otf` (any case) | Deployed TrueType/OpenType font files (system + customer fonts as deployed) | `04-`, `14b-` |
-| `fonts_custom` | `04-ReportsFonts/custom_fonts_dir/*.ttf/.ttc/.otf` | **Customer / licensed font originals** – source for `deploy_fonts.sh`; gitignored (licence), so this backup is their only copy besides the deployed one | customer |
-| `reports_afm` | `ReportsToolsComponent/<inst>/guicommon/tk/admin/AFM/*` | AFM font metrics (files without extension) | `paramform_afm_setup.sh` |
+| `fonts_custom` | `04-ReportsFonts/custom_fonts_dir/*.ttf/.ttc/.otf` | **Customer / licensed font originals** – source for [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh); gitignored (licence), so this backup is their only copy besides the deployed one | customer |
+| `reports_afm` | `ReportsToolsComponent/<inst>/guicommon/tk/admin/AFM/*` | AFM font metrics (files without extension) | [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) |
 | `reports_comp` | `ReportsServerComponent/<instance>/` | `rwserver.conf`, `rwnetwork.conf` | `13-`, `05-` |
-| `reports_tools` | `ReportsToolsComponent/<instance>/` | `rwnetwork.conf`, `rwbuilder.conf`, `PPD/screenprinter.ppd` | `13-`, `paramform_afm_setup.sh` |
+| `reports_tools` | `ReportsToolsComponent/<instance>/` | `rwnetwork.conf`, `rwbuilder.conf`, `PPD/screenprinter.ppd` | `13-`, [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) |
 | `reports_wls` | `servers/$WLS_MANAGED_SERVER/applications/reports_*/configuration/` | `rwserver.conf` (in-process), `rwservlet.properties`, `cgicmd.dat` | `13-`, `14b-` |
 | `fmw` | `$ORACLE_HOME/reports/conf/` | `cgicmd.dat` from the FMW install (separate category — same filename as the domain copy) | – |
 | `forms_wls` | `servers/*/applications/formsapp_*/config/` | `formsweb.cfg`, `default.env`, `oracle/forms/registry/Registry.dat` | `14-`, `06-` |
 | `forms_inst` | `components/FORMS/instances/<inst>/server/`, `components/FORMS/<inst>/server/` | `webutil.cfg` (stored as `webutil.cfg` / `webutil_alt.cfg`) | `14-` |
 | `security` | `config/fmwconfig/` | `jps-config.xml`, `jps-config-jse.xml` (identity store of the Reports server) | `13-` |
 | `logging` | `servers/*/logging.xml`, `components/Reports*Component/*/logging.xml` | ODL logging config (stored as `<server>_logging.xml`) | `03-Logs/setLogLevel.sh --persist` |
-| `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, `domain_jdk_path.sh` |
-| `ihw` | project root | `environment.conf` | interview, `detect_env_conf.sh` |
+| `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) |
+| `ihw` | project root | `environment.conf` | interview, [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) |
 | `ords` | `$APEX_ORDS_BASE/ords_*/config/` (whole tree) | ORDS `pool.xml`, `global/settings.xml`, `logging.properties`, wallet `cwallet.sso` (credentials of `ORDS_PUBLIC_USER`) – stored as `<inst>__<path>` (e.g. `ords_1__databases__default__wallet__cwallet.sso`), mode 600 like the whole set; restore → restart `ords@ords_<n>`. Never copied **into** the config directory (ORDS reads every file there) | `12-APEX-Ords/04-`, `06-` |
 
 **Not backed up on purpose:**
 
 | What | Why / where instead |
 |---|---|
-| `*.des3` secret files | encrypted with a machine-bound key – useless on another host, re-created by `01-setup-interview.sh` / the scripts that ask for them |
+| `*.des3` secret files | encrypted with a machine-bound key – useless on another host, re-created by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) / the scripts that ask for them |
 | own root CA `$ORACLE_BASE/admin/pki` | the CA key belongs in an **offline** backup with its passphrase ([08-SSL/README.md](../08-SSL/README.md)), not next to the configuration |
 | Nginx configuration | root-owned, written by `09-Install/04-`/`05-root_nginx*.sh` from templates |
 | keystores, `boot.properties`, `security/SerializedSystemIni.dat` | domain secrets – part of a full domain / file-system backup, not of this config snapshot |
@@ -252,7 +252,7 @@ as `WARN` and simply skipped — the backup still runs for everything that
 **is** found. If nothing at all is found, the script aborts before creating
 an (empty) backup directory.
 
-`manifest.txt` is the single source of truth `restore_config.sh` uses to
+`manifest.txt` is the single source of truth [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) uses to
 find files again — do not rename or move files inside a backup directory.
 
 **Permissions:** `umask 077` – backup directories 700, files 600 (the set
@@ -323,23 +323,23 @@ straight into it (`mos_patch_download.sh -c patches_fmw.csv -d <archive> --all
 ./07-Maintenance/patch_storage.sh history                                  # last run per script
 ```
 
-**Items** – no own list: every row of `09-Install/download/patches_fmw.csv`
-(+ `patches_db.csv` with `LOCAL_REP_DB=true`) the installation needs (same role
+**Items** – no own list: every row of [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv)
+(+ [`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) with `LOCAL_REP_DB=true`) the installation needs (same role
 rules as `04-`), the eDelivery ZIPs + their extracted installers of
-`oracle_software_version.conf`, the 19c base (`DB_INSTALL_ARCHIVE`, when below
+[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf), the 19c base (`DB_INSTALL_ARCHIVE`, when below
 `PATCH_STORAGE`), APEX/ORDS version directories.
 
 **Which run frees what** (last `--apply` run with rc 0 or 1 in the run history):
 
 | Files | Freed by a successful |
 |---|---|
-| `wls/` ZIP + `fmw_*_infrastructure.jar` | `09-Install/05-oracle_install_weblogic.sh` |
-| `fr/` ZIP + `fmw_*_fr_linux64.bin` | `09-Install/06-oracle_install_forms_reports.sh` |
-| roles `opatch`, `spb`, `wls` | `09-Install/05-oracle_patch_weblogic.sh` or `81-patch_weblogic.sh` (not `--opatch-only`) |
-| roles `fr_common`, `reports`, `forms`, `fr_optional` | `09-Install/06-oracle_patch_forms_reports.sh` or `82-patch_forms_reports.sh` |
-| role `jdk` | `09-Install/02b-root_os_java.sh --upgrade-jdk` or `80-patch_java_os.sh` |
-| role `client_jdk` | `09-Install/40-oracle_forms_client_bundle.sh` |
-| role `cvu` / 19c base + `patches_db.csv` | `60-RCU-DB-19c/00b-` / `01-db_install_software.sh` |
+| `wls/` ZIP + `fmw_*_infrastructure.jar` | [`09-Install/05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh) |
+| `fr/` ZIP + `fmw_*_fr_linux64.bin` | [`09-Install/06-oracle_install_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_install_forms_reports.sh) |
+| roles `opatch`, `spb`, `wls` | [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) or [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) (not `--opatch-only`) |
+| roles `fr_common`, `reports`, `forms`, `fr_optional` | [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) or [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) |
+| role `jdk` | `09-Install/02b-root_os_java.sh --upgrade-jdk` or [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) |
+| role `client_jdk` | [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) |
+| role `cvu` / 19c base + [`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) | `60-RCU-DB-19c/00b-` / [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) |
 | role `apex`, APEX / ORDS directories | `12-APEX-Ords/03-` / `02-` / `04-` |
 
 **Proposals** (`status`, `clean`): `pull` = only in the archive, step not done
@@ -355,12 +355,12 @@ in `$ORACLE_BASE/tmp` (`mw_patches_<pid>`, `fr_patches_<pid>`, `wls_spb_<pid>`,
 
 `pull` checks the free space first (size + 10 %), copies with `rsync -a
 --partial` (resumable; without `rsync` `cp` via a `.part` name), compares the
-size and the SHA-256 of the CSV (soft check, WARN). `04-oracle_pre_download.sh`
+size and the SHA-256 of the CSV (soft check, WARN). [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)
 shows files that are only in the archive as *in archive* (not MISSING); the
 "ZIP not found" messages of `05-`, `06-`, `02b-`, `40-` name the `pull`
 command when `PATCH_ARCHIVE` is set.
 
-**Run history** – `00-Setup/IHateWeblogic_lib.sh` (`print_summary` →
+**Run history** – [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) (`print_summary` →
 `run_history_record`) appends one row per run of every script in `09-Install`,
 `07-Maintenance`, `08-SSL`, `12-APEX-Ords`, `60-RCU-DB-19c` to
 `log/run_history.csv` (`IHW_RUN_HISTORY` overrides the path):
@@ -369,7 +369,7 @@ OK/WARN/FAIL result of `print_summary` (a wrapper that raises its exit code
 afterwards, e.g. `81-` after `05-`, is recorded with its own summary; the
 delegated `05-` has its own row). Root scripts of phase 0 hand a new file to
 the repository owner. The installation progress built from it:
-`09-Install/00-install-status.sh` (every step, its state, the next step).
+[`09-Install/00-install-status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-install-status.sh) (every step, its state, the next step).
 
 ---
 
@@ -393,7 +393,7 @@ Options:
 a `manifest.txt` (newest first) with its file count, then prints the full
 `manifest.txt` of each — read-only, nothing is touched. Directories without
 a manifest come from single scripts (e.g. `jdk_path_<ts>/` of
-`domain_jdk_path.sh`) and are only named.
+[`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh)) and are only named.
 
 **With `--apply`:**
 
@@ -412,7 +412,7 @@ a manifest come from single scripts (e.g. `jdk_path_<ts>/` of
 4. Prompts for confirmation (`askYesNo`, default **no**) before overwriting anything
 5. Copies each file from the backup back to its original path
 6. Prints next steps per restored category: font cache, restart of the
-   Reports server / `WLS_REPORTS` / `WLS_FORMS` via `01-Run/startStop.sh`,
+   Reports server / `WLS_REPORTS` / `WLS_FORMS` via [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh),
    `start-all` after `domain`/`security`
 
 If the destination directory for a file no longer exists (e.g. a Reports
@@ -430,10 +430,10 @@ a `WARN` rather than failing the whole restore.
 
 | Option | Description |
 |---|---|
-| `--apply` | domain must be stopped (`require_wls_stopped`); calls `09-Install/02b-root_os_java.sh --apply --upgrade-jdk` (sudo inside), then `domain_jdk_path.sh` (read-only check) and `java_check.sh` |
+| `--apply` | domain must be stopped (`require_wls_stopped`); calls `09-Install/02b-root_os_java.sh --apply --upgrade-jdk` (sudo inside), then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) (read-only check) and [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) |
 | `--help` | Show usage |
 
-Without `--apply`: `java_check.sh` plus `02b- --upgrade-jdk` as dry-run –
+Without `--apply`: [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) plus `02b- --upgrade-jdk` as dry-run –
 which JDK is in the repository, would it be installed. Rollback:
 `ln -sfn <old jdk dir> $JDK_HOME` (old directory is kept).
 
@@ -445,7 +445,7 @@ which JDK is in the repository, would it be installed. Rollback:
 ./07-Maintenance/81-patch_weblogic.sh --apply         # patch (requires WLS stopped)
 ```
 
-Options: same as `09-Install/05-oracle_patch_weblogic.sh` (`--apply`,
+Options: same as [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) (`--apply`,
 `--check-only`, `--help`) — forwarded verbatim, no translation.
 
 Delegates to: `09-Install/05-oracle_patch_weblogic.sh` (OPatch upgrade, WLS
@@ -461,7 +461,7 @@ enforce a stopped domain).
 ./07-Maintenance/82-patch_forms_reports.sh --apply          # patch (requires WLS stopped)
 ```
 
-Options: same as `09-Install/06-oracle_patch_forms_reports.sh` — forwarded
+Options: same as [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) — forwarded
 verbatim.
 
 Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (auto-detects
