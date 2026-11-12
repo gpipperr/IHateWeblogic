@@ -5,8 +5,11 @@
 # "Als Administrator ausfuehren" gestartet wurde (die Reports-Werkzeuge
 # brauchen das auf diesem Server):
 #
-#   cd E:\git\<Ihr Login>\Reports
-#   .\checkin.ps1 "was ich geaendert habe"
+#   cd E:\git\<Ihr Login>
+#   .\Reports\checkin.ps1 "was ich geaendert habe"
+#
+# Startordner egal: das Skript wechselt selbst in den obersten Ordner des
+# Repositorys (git rev-parse --show-toplevel).
 #
 # Was das Skript macht:
 #   1. hat der Git-Server neuere Check-ins, holt es sie zuerst (nur
@@ -48,43 +51,71 @@ param(
 # Konverter, Domain und DB-Login-Datei stehen in convert_rdf.ps1.
 $ConvertScript = Join-Path $PSScriptRoot 'convert_rdf.ps1'
 
-# Ordner im Repository (relativ zum obersten Ordner des Repositorys)
+# Ordner im Repository (relativ zum obersten Ordner des Repositorys) -
+# dieselben Werte wie in convert_rdf.ps1
 $SourceDir = 'Reports/source'
 $XmlDir    = 'Reports/xml'
 $ImageDir  = 'Reports/images'
 # ----------------------------------------------------------------------------
 
-# --- 0. In den obersten Ordner des Repositorys wechseln (eine Ebene ueber dem Skript)
-$RepoRoot = Split-Path -Parent $PSScriptRoot
+# Am Ende - auch bei Abbruch oder Fehler - wieder in den Ordner des Skripts
+# wechseln: Exit-Script statt exit
+function Exit-Script([int]$Code) {
+    Set-Location $PSScriptRoot
+    exit $Code
+}
+
+# --- 0. In den obersten Ordner des Repositorys wechseln - egal, in welchem
+# Ordner das Skript gestartet wird (wie checkin_only.ps1 und convert_rdf.ps1)
+Set-Location $PSScriptRoot
+# git rev-parse --show-toplevel: liefert den obersten Ordner des Repositorys,
+#   in dem der aktuelle Ordner liegt (Fehler, wenn er in keinem liegt).
+# 2>$null: die englische Fehlermeldung von git ausblenden
+$RepoRoot = git rev-parse --show-toplevel 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "FEHLER: Das Skript liegt nicht in einem Git-Repository." -ForegroundColor Red
+    Exit-Script 1
+}
 Set-Location $RepoRoot
+# Windows-Schreibweise (git liefert E:/git/...)
+$RepoRoot = (Get-Location).Path
 Write-Host "Repository: $RepoRoot"
 
 # --- 0a. Pruefungen vor dem Start (Administrator-Fenster, Konverter,
 # DB-Login-Datei) - macht convert_rdf.ps1 -Check und zeigt die Meldung selbst
 if (-not (Test-Path $ConvertScript)) {
     Write-Host "FEHLER: convert_rdf.ps1 fehlt neben checkin.ps1: $ConvertScript" -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
 & $ConvertScript -Check
+# convert_rdf.ps1 springt am Ende in seinen Skript-Ordner - zurueck ins Repository
+Set-Location $RepoRoot
 if ($LASTEXITCODE -ne 0) {
-    exit 1
+    Exit-Script 1
 }
 
 # --- 1. Hat der Git-Server neuere Check-ins? Dann zuerst holen.
 Write-Host "Pruefe den Git-Server auf neuere Check-ins ..."
+# git fetch: den Stand des Git-Servers abholen - nur in die Kopie des
+#   Server-Stands (origin/...), Ihre Dateien und Check-ins bleiben unveraendert
+#   --quiet : keine Fortschrittsanzeige
 git fetch --quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Host "FEHLER: git fetch ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
+# git rev-list --count A..B: zaehlt die Check-ins, die in B sind, aber nicht in A
+#   'HEAD..@{u}' : auf dem Git-Server (@{u} = Upstream), aber noch nicht lokal
 $behind = git rev-list --count 'HEAD..@{u}'
 if ($LASTEXITCODE -ne 0) {
     Write-Host "FEHLER: Vergleich mit dem Git-Server nicht moeglich (kein Upstream-Branch?)." -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
 # Lokale Check-ins, die noch nicht auf dem Git-Server sind (z.B. nach einem
 # abgelehnten Push). Dann geht kein fast-forward - beides wird beim Senden in
 # Schritt 6 zusammengefuehrt (merge).
+# git rev-list --count '@{u}..HEAD': zaehlt die lokalen Check-ins, die noch
+#   nicht auf dem Git-Server (@{u} = Upstream) sind
 $ahead = git rev-list --count '@{u}..HEAD'
 if ([int]$behind -gt 0 -and [int]$ahead -gt 0) {
     Write-Host "Der Git-Server hat $behind neuere(n) Check-in(s), Sie haben $ahead noch nicht gesendete(n)."
@@ -94,13 +125,17 @@ if ([int]$behind -gt 0 -and [int]$ahead -eq 0) {
     Write-Host "Der Git-Server hat $behind neuere(n) Check-in(s) - hole sie zuerst ..."
     # Nur fast-forward: Ihre Aenderungen bleiben erhalten. Git bricht von selbst
     # ab, wenn eine Ihrer Aenderungen ueberschrieben wuerde (gleicher Bericht).
+    # git pull: neue Check-ins vom Git-Server holen und einspielen
+    #   --ff-only : nur "fast-forward" - Ihr Stand wird nur nach vorne geschoben;
+    #               ist das nicht moeglich, bricht git ab statt zusammenzufuehren
+    #   --quiet   : keine Fortschrittsanzeige
     git pull --ff-only --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Host "FEHLER: Ein Kollege hat denselben Bericht geaendert (siehe Meldung oben)." -ForegroundColor Red
         Write-Host "Es wurde nichts eingecheckt und nichts ueberschrieben." -ForegroundColor Red
         Write-Host "Bitte Ihren Bericht sichern und den Git-Ansprechpartner fragen." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
 }
 
@@ -108,13 +143,19 @@ if ([int]$behind -gt 0 -and [int]$ahead -eq 0) {
 # Neue (--others), geaenderte (--modified) und geloeschte (--deleted) Dateien
 # in source und images. Eine geloeschte Datei steht bei --modified und
 # --deleted - Sort-Object -Unique zeigt sie nur einmal.
+# git ls-files: Dateien auflisten
+#   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
+#   --modified              : geaenderte Dateien (und geloeschte)
+#   --deleted               : geloeschte Dateien
+#   --others                : neue Dateien, die git noch nicht kennt
+#   --exclude-standard      : ohne die Dateien aus .gitignore
 $changed = @(git -c core.quotePath=false ls-files --modified --deleted --others --exclude-standard -- $SourceDir $ImageDir | Sort-Object -Unique)
 $selected = @()
 $states   = @()
 
 if ($changed.Count -eq 0 -and [int]$ahead -eq 0) {
     Write-Host "Nichts einzuchecken - keine geaenderten Berichte oder Bilder." -ForegroundColor Yellow
-    exit 0
+    Exit-Script 0
 }
 
 if ($changed.Count -gt 0) {
@@ -128,6 +169,8 @@ if ($changed.Count -gt 0) {
         }
         else {
             # Noch nie eingecheckt? Dann kennt git ls-files die Datei nicht.
+            # git ls-files -- <datei>: gibt die Datei aus, wenn sie schon eingecheckt
+            #   ist - leer = neue Datei. '--' = ab hier folgen nur Dateinamen
             $known = git -c core.quotePath=false ls-files -- $file
             if (-not $known) {
                 $state = 'neu'
@@ -150,7 +193,7 @@ if ($changed.Count -gt 0) {
     # x oder nur Enter = abbrechen - Ihre Dateien bleiben, wie sie sind
     if ($answer -eq '' -or $answer -eq 'x' -or $answer -eq 'X') {
         Write-Host "Abgebrochen - es wurde nichts eingecheckt." -ForegroundColor Yellow
-        exit 0
+        Exit-Script 0
     }
     if ($answer -eq 'a' -or $answer -eq 'A') {
         $selected = $changed
@@ -163,7 +206,7 @@ if ($changed.Count -gt 0) {
     }
     else {
         Write-Host "Ungueltige Auswahl '$answer' - es wurde nichts eingecheckt." -ForegroundColor Yellow
-        exit 1
+        Exit-Script 1
     }
 }
 
@@ -188,7 +231,7 @@ if ($selected.Count -gt 0 -and -not $Comment) {
 }
 if ($selected.Count -gt 0 -and -not $Comment) {
     Write-Host "Abgebrochen (kein Kommentar) - es wurde nichts eingecheckt." -ForegroundColor Yellow
-    exit 0
+    Exit-Script 0
 }
 
 # --- 4. Ausgewaehlte neue oder geaenderte .rdf nach xml\<name>.xml wandeln
@@ -209,9 +252,10 @@ foreach ($file in $selected) {
 
     # convert_rdf.ps1 kennt die Ordner selbst: source\<name>.rdf -> xml\<name>.xml
     & $ConvertScript $name
+    Set-Location $RepoRoot
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Es wurde nichts eingecheckt. Bericht (oder Login-Datei) korrigieren und erneut starten." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
     $addPaths += "$XmlDir/$name.xml"
     $converted = $converted + 1
@@ -239,10 +283,14 @@ foreach ($file in $selected) {
 
 # --- 6. Hinzufuegen (nur die Auswahl), committen, hochladen
 if ($addPaths.Count -gt 0) {
+    # git add: Dateien fuer den naechsten Check-in vormerken
+    #   --all : auch neue und geloeschte Dateien (eine geloeschte wird als
+    #           Loeschung vorgemerkt)
+    #   --    : ab hier folgen nur Dateinamen - nur die Auswahl
     git add --all -- $addPaths
     if ($LASTEXITCODE -ne 0) {
         Write-Host "FEHLER: git add ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
 }
 
@@ -250,13 +298,16 @@ if ($addPaths.Count -gt 0) {
 # andere, frueher vorgemerkte Dateien bleiben ausserhalb dieses Check-ins.
 $nothingNew = $true
 if ($addPaths.Count -gt 0) {
+    # git diff --cached: vergleicht das Vorgemerkte mit dem letzten Check-in
+    #   --quiet : keine Ausgabe, nur Exit-Code: 0 = kein Unterschied, 1 = Aenderung
+    #   --      : nur die ausgewaehlten Dateien vergleichen
     git diff --cached --quiet -- $addPaths
     $nothingNew = ($LASTEXITCODE -eq 0)
 }
 
 if ($nothingNew -and [int]$ahead -eq 0) {
     Write-Host "Nichts einzuchecken - keine geaenderten Berichte, XML-Dateien oder Bilder." -ForegroundColor Yellow
-    exit 0
+    Exit-Script 0
 }
 
 if ($nothingNew) {
@@ -266,18 +317,28 @@ if ($nothingNew) {
 if (-not $nothingNew) {
     Write-Host ""
     Write-Host "Diese Dateien werden eingecheckt:"
+    # git diff --cached --name-status: Liste des Vorgemerkten - Buchstabe + Datei
+    #   (A = neu, M = geaendert, D = geloescht)
+    #   -c core.quotePath=false : Dateinamen mit Umlauten im Klartext
     git -c core.quotePath=false diff --cached --name-status -- $addPaths
 
     # "-- $addPaths": nur die ausgewaehlten Dateien kommen in den Check-in
+    # git commit: den Check-in lokal speichern (noch nicht auf dem Git-Server)
+    #   --quiet     : keine Zusammenfassung
+    #   -m $Comment : Ihr Kommentar (sonst wuerde git einen Editor oeffnen)
+    #   -- <dateien>: NUR diese Dateien - andere vorgemerkte bleiben draussen
     git commit --quiet -m $Comment -- $addPaths
     if ($LASTEXITCODE -ne 0) {
         Write-Host "FEHLER: git commit ist fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
 }
 
 Write-Host "Sende an den Git-Server ..."
 # Fehlermeldung des ersten Versuchs ausblenden - der haeufigste Grund wird unten behandelt
+# git push: lokale Check-ins an den Git-Server senden
+#   --quiet  : keine Fortschrittsanzeige
+#   2>$null  : Fehlermeldung ausblenden - der Fall wird unten behandelt
 git push --quiet 2>$null
 if ($LASTEXITCODE -ne 0) {
     # Meist hat ein Kollege genau in diesem Moment eingecheckt. Seinen Stand
@@ -287,22 +348,32 @@ if ($LASTEXITCODE -ne 0) {
     # ueberschrieben wuerde (kein Stash, nichts geht verloren).
     # --ff: gilt auch, wenn in der Git-Konfiguration pull.ff=only steht.
     Write-Host "Der Git-Server war inzwischen neuer - hole den neuen Stand und fuehre ihn zusammen ..."
+    # git pull: neuen Stand holen und mit Ihren Check-ins zusammenfuehren
+    #   --no-rebase : zusammenfuehren (merge), Ihre Check-ins nicht umschreiben
+    #   --ff        : fast-forward, wenn moeglich, sonst ein Merge-Check-in
+    #                 (gilt auch, wenn pull.ff=only konfiguriert ist)
+    #   --no-edit   : Standard-Kommentar fuer den Merge-Check-in, kein Editor
+    #   --quiet     : keine Fortschrittsanzeige
     git pull --no-rebase --ff --no-edit --quiet
     if ($LASTEXITCODE -ne 0) {
         # Halb fertigen Merge zuruecknehmen (gibt es keinen, passiert nichts)
+        # git merge --abort: einen halb fertigen Merge zuruecknehmen - der Stand vor
+        #   dem Pull ist wieder da. 2>$null: keine Meldung, wenn es keinen Merge gibt
         git merge --abort 2>$null
         Write-Host ""
         Write-Host "FEHLER: Ein Kollege hat gleichzeitig einen Ihrer Berichte geaendert" -ForegroundColor Red
         Write-Host "(einen eingecheckten oder einen, den Sie noch bearbeiten - siehe Meldung oben)." -ForegroundColor Red
         Write-Host "Ihr Check-in ist lokal gespeichert, aber NICHT auf dem Git-Server." -ForegroundColor Red
         Write-Host "Bitte den Git-Ansprechpartner fragen." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
+    # git push: zweiter Versuch, jetzt mit dem zusammengefuehrten Stand
+    #   --quiet : keine Fortschrittsanzeige
     git push --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Host "FEHLER: git push ist erneut fehlgeschlagen - siehe Meldung oben." -ForegroundColor Red
         Write-Host "Ihr Check-in ist lokal gespeichert. Spaeter erneut .\checkin.ps1 starten." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
 }
 
@@ -313,5 +384,10 @@ if ($nothingNew) {
 else {
     Write-Host "OK - eingecheckt: $Comment" -ForegroundColor Green
 }
+# git log: den eben gesendeten Check-in zeigen
+#   --no-pager    : direkt ausgeben, kein Blaettern mit 'less'
+#   --oneline     : eine Zeile (Kurz-Nummer + Kommentar)
+#   --no-decorate : ohne Branch-Namen in Klammern
+#   -1            : nur den letzten Check-in
 git --no-pager log --oneline --no-decorate -1
-exit 0
+Exit-Script 0

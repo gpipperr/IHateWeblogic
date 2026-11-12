@@ -23,6 +23,9 @@ if (-not $gitCmd) {
 }
 
 # --- 1. Aktuelle Werte lesen (leer, wenn noch nicht gesetzt)
+# git config --global <name>: Wert aus der globalen Git-Konfiguration lesen
+#   (gilt fuer alle Repositorys dieses Windows-Benutzers, Datei
+#   %USERPROFILE%\.gitconfig); leer, wenn nicht gesetzt
 $curName  = git config --global user.name
 $curEmail = git config --global user.email
 $curCrlf  = git config --global core.autocrlf
@@ -75,6 +78,10 @@ if ($crlf -ne 'true' -and $crlf -ne 'input' -and $crlf -ne 'false') {
 }
 
 # --- 5. Setzen
+# git config --global <name> <wert>: Wert in die globale Git-Konfiguration
+#   schreiben (%USERPROFILE%\.gitconfig, fuer alle Repositorys dieses Benutzers)
+#   user.name / user.email : Autor jedes Check-ins
+#   core.autocrlf          : Zeilenende-Umwandlung (siehe Auswahl oben)
 git config --global user.name "$name"
 $rcName = $LASTEXITCODE
 git config --global user.email "$email"

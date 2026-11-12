@@ -8,9 +8,11 @@
 #        nur pruefen: Administrator-Fenster, Konverter, DB-Login-Datei
 #
 #   .\convert_rdf.ps1 bericht
-#        wandelt source\bericht.rdf -> xml\bericht.xml (vorher dieselben
-#        Pruefungen). "bericht.rdf" oder ein Pfad gehen auch - es zaehlt nur
-#        der Name. Die Ordner stehen fest unten in den Einstellungen.
+#        wandelt Reports\source\bericht.rdf -> Reports\xml\bericht.xml (vorher
+#        dieselben Pruefungen). "bericht.rdf" oder ein Pfad gehen auch - es
+#        zaehlt nur der Name. Die Ordner stehen unten in den Einstellungen,
+#        relativ zum obersten Ordner des Repositorys - der Startordner ist
+#        egal, das Skript wechselt selbst dorthin.
 #        Die xml-Datei heisst immer <name>.xml: so bleibt das XML stabil
 #        (rwconverter setzt den internen Berichtsnamen aus dem Zieldateinamen,
 #        wenn die .rdf so heisst wie der Bericht; eine umbenannte .rdf behaelt
@@ -58,10 +60,36 @@ if (-not (Test-Path $LoginFileUser)) {
     $LoginFile = $LoginFileFixed
 }
 
-# Ordner der Berichte - neben diesem Skript (E:\git\<Login>\Reports\...)
-$SourceDir = Join-Path $PSScriptRoot 'source'
-$XmlDir    = Join-Path $PSScriptRoot 'xml'
+# Ordner der Berichte - relativ zum obersten Ordner des Repositorys,
+# dieselben Werte wie in checkin.ps1
+$SourceDirRel = 'Reports/source'
+$XmlDirRel    = 'Reports/xml'
 # ----------------------------------------------------------------------------
+
+# Am Ende - auch bei Abbruch oder Fehler - wieder in den Ordner des Skripts
+# wechseln: Exit-Script statt exit
+function Exit-Script([int]$Code) {
+    Set-Location $PSScriptRoot
+    exit $Code
+}
+
+# --- 0. In den obersten Ordner des Repositorys wechseln - egal, in welchem
+# Ordner das Skript gestartet wird (wie checkin.ps1 und checkin_only.ps1)
+Set-Location $PSScriptRoot
+# git rev-parse --show-toplevel: liefert den obersten Ordner des Repositorys,
+#   in dem der aktuelle Ordner liegt (Fehler, wenn er in keinem liegt).
+# 2>$null: die englische Fehlermeldung von git ausblenden
+$RepoRoot = git rev-parse --show-toplevel 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "FEHLER: Das Skript liegt nicht in einem Git-Repository." -ForegroundColor Red
+    Exit-Script 1
+}
+Set-Location $RepoRoot
+# Windows-Schreibweise (git liefert E:/git/...) - rwconverter bekommt volle Pfade
+$RepoRoot  = (Get-Location).Path
+# GetFullPath macht aus Reports/source unter Windows Reports\source
+$SourceDir = [IO.Path]::GetFullPath((Join-Path $RepoRoot $SourceDirRel))
+$XmlDir    = [IO.Path]::GetFullPath((Join-Path $RepoRoot $XmlDirRel))
 
 # --- 1. Pruefungen
 if ($env:OS -eq 'Windows_NT') {
@@ -70,13 +98,13 @@ if ($env:OS -eq 'Windows_NT') {
     $isAdmin   = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
         Write-Host "FEHLER: PowerShell mit 'Als Administrator ausfuehren' starten - die Reports-Werkzeuge brauchen das." -ForegroundColor Red
-        exit 1
+        Exit-Script 1
     }
 }
 if (-not (Test-Path $Converter)) {
     Write-Host "FEHLER: Konverter nicht gefunden: $Converter" -ForegroundColor Red
     Write-Host "Bitte `$DomainHome oben in convert_rdf.ps1 pruefen." -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
 if (-not (Test-Path $LoginFile)) {
     Write-Host "FEHLER: DB-Login-Datei nicht gefunden - gesucht:" -ForegroundColor Red
@@ -84,23 +112,23 @@ if (-not (Test-Path $LoginFile)) {
     Write-Host "  2. $LoginFileFixed   (fest, `$LoginFileFixed oben in convert_rdf.ps1)" -ForegroundColor Red
     Write-Host "Eine davon anlegen, eine Zeile:  userid=<db user>/<kennwort>@<tns alias>" -ForegroundColor Red
     Write-Host "(Git_checkin.md Abschnitt 2.1)" -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
 if ($Check) {
-    exit 0
+    Exit-Script 0
 }
 
 # --- 2. Aufruf pruefen: nur der Name zaehlt (bericht, bericht.rdf oder Pfad)
 if (-not $Report) {
     Write-Host "Aufruf: .\convert_rdf.ps1 <berichtsname>   (oder -Check)" -ForegroundColor Yellow
-    exit 1
+    Exit-Script 1
 }
 $name   = [IO.Path]::GetFileNameWithoutExtension($Report)
 $Source = Join-Path $SourceDir "$name.rdf"
 $Dest   = Join-Path $XmlDir "$name.xml"
 if (-not (Test-Path $Source)) {
     Write-Host "FEHLER: Bericht nicht gefunden: $Source" -ForegroundColor Red
-    exit 1
+    Exit-Script 1
 }
 if (-not (Test-Path $XmlDir)) {
     New-Item -ItemType Directory -Path $XmlDir | Out-Null
@@ -162,6 +190,6 @@ if ($rc -ne 0 -or -not $xmlWritten) {
         Write-Host "  rwconverter hat keine Meldung geliefert. Bericht im Reports Builder oeffnen" -ForegroundColor Red
         Write-Host "  und kompilieren - dort steht der Fehler; Login-Datei pruefen." -ForegroundColor Red
     }
-    exit 1
+    Exit-Script 1
 }
-exit 0
+Exit-Script 0

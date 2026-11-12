@@ -89,9 +89,10 @@ $repo = "E:\git\$env:USERNAME\Reports"
     "cmdfile=$env:USERPROFILE\.rwconv\login.txt"
 ```
 
-The scripts may also take the clone from their own location
-(`$PSScriptRoot` = `E:\git\%USERNAME%\Reports`) – then the folder name does not
-even have to match the login.
+The scripts take the clone from their own location: they change to
+`$PSScriptRoot` and from there to the top folder of the repository
+(`git rev-parse --show-toplevel`) – the folder name does not even have to
+match the login, and the folder they are started from does not matter.
 
 - `cmdfile=` holds one line `userid=<user>/<password>@<tns-alias>` – the DB
   login, see 2.2. It is not on the command line (process list) and not in
@@ -346,14 +347,17 @@ Files in [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Custo
 adaptation: plain PowerShell, one step after the other, no nested commands,
 **messages and comments in German** (the developers' language), plain ASCII
 (Windows PowerShell 5.1 reads files without BOM as ANSI). Copy them into
-`E:\git\<repo>\Reports\` of the repository (one level below the top folder
-– the scripts find the top folder through `$PSScriptRoot`).
+`E:\git\<repo>\Reports\` of the repository (the scripts change to the top folder
+themselves – `Set-Location $PSScriptRoot`, then `git rev-parse
+--show-toplevel` – so they work from any start folder; all paths in the
+scripts are relative to the top folder: `Reports/source`, `Reports/xml`,
+`Reports/images`).
 
 | File | Purpose |
 |---|---|
 | [pull.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | at the start of the work: shows own uncommitted changes (they stay), `git pull --ff-only`, the last 5 check-ins |
 | [git_setup.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | once per Windows user: asks name, e-mail address and `core.autocrlf` (`true` / `input` / `false`, proposal `true`; Enter keeps the shown value), sets them with `git config --global`, shows the result |
-| [convert_rdf.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | one report `.rdf` → `.xml` with `rwconverter` (`cmdfile=` login file – no password on the command line); output of the converter captured with `Start-Process` (stdout / stderr into temp files, `REP-` / `ORA-` lines shown); success = exit code 0 **and** XML written now; `-Check` = only the checks (admin session, converter, login file). Only the report name: `.\convert_rdf.ps1 bericht` → `source\bericht.rdf` → `xml\bericht.xml` (folders fixed next to the script; always `<name>.xml`, so the XML stays stable – see the report-name row in 2.2). Called by `checkin.ps1`, also usable alone |
+| [convert_rdf.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | one report `.rdf` → `.xml` with `rwconverter` (`cmdfile=` login file – no password on the command line); output of the converter captured with `Start-Process` (stdout / stderr into temp files, `REP-` / `ORA-` lines shown); success = exit code 0 **and** XML written now; `-Check` = only the checks (admin session, converter, login file). Only the report name: `.\convert_rdf.ps1 bericht` → `Reports\source\bericht.rdf` → `Reports\xml\bericht.xml` (folders relative to the top folder of the repository, same values as in `checkin.ps1`; always `<name>.xml`, so the XML stays stable – see the report-name row in 2.2). Called by `checkin.ps1`, also usable alone |
 | [checkin.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | `.\checkin.ps1 "comment"`: checks (`convert_rdf.ps1 -Check`) → `git fetch` (behind → fast-forward; same report changed → stop) → numbered list of the changed files in source / images, **number = only this file, `a` = all, `n` = nothing new, only send** → comment → convert the selected new / changed `.rdf` with `convert_rdf.ps1` (stop at the first error, nothing committed) → delete the `.xml` of a selected deleted `.rdf` → `git add` + commit **only the selection** → push (rejected → `pull --no-rebase` + push; conflict → `merge --abort`) |
 | [checkin_only.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin_only.ps1) | the same Git flow **without the Reports part** – no admin check, no `.rdf` → `.xml` conversion, the list shows every changed file of the repository (number / `a` / `n`, commit only the selection, merge on a rejected push). For a PC without Reports and without admin rights – to try the Git flow before the Builder server is ready. Stand-alone file, no shared code (the customer wants each script as simple as possible) |
 | [status.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) | **read only**: `git fetch` (files unchanged), then branch + server branch, files changed but not checked in, local check-ins not yet on the server, server check-ins not yet here (with the right next script: `pull.ps1`, or `checkin.ps1` when both sides have new check-ins – `pull.ps1` can only fast-forward), the last 5 check-ins locally and on the server (hash, date, author, comment) |
