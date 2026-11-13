@@ -24,7 +24,7 @@ frontend.
 These folders keep the **manual** procedure of every cycle – who has to stay
 on, or go back to, an older patch set finds the exact steps and README facts
 of that cycle here. When the next cycle starts, this folder is frozen and a
-new one (`Forms14_reports14_patch_analyse_<mm>_<yyyy>`) is created.
+new one (`FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>`) is created.
 
 ---
 

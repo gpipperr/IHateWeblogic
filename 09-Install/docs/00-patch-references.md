@@ -48,7 +48,7 @@ Rule for every new cycle:
    only `00-patch-references.md` for the current state – a snapshot is
    linked only from this table or where a text describes that one cycle.
 4. Manual guide: create the folder
-   `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`
+   `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`
    (analysis `README.md` with the facts of every patch README +
    `install_14c_patch_set_<month>_<year>_manual.md`), add the
    "Frozen – do not edit" header to the folder of the previous cycle, link
@@ -430,7 +430,7 @@ Products with an own copy (Node.js, Bun, Envoy, …) need their own fix.
 | **WebLogic / JDKs / ORDS** | no native libbrotli in the Oracle Home, `JDK_HOME`, bundled JDK, ORDS homes; `httpclient5-5.6.4.jar` (and `oamcfgtool.jar`) only contain Brotli wrapper classes – the Java decoder `org.brotli.dec` is **not** on any class path | **not affected** |
 | **Reports** (`rwserver`, engine JVMs) | map `/usr/lib64/libbrotlidec.so.1.0.9` – loaded through **`libfreetype`** (font rendering; FreeType decodes Brotli only for WOFF2 web fonts) | vulnerable library **loaded but not reachable remotely** (Reports reads local TTF fonts); fixed with the OS update + restart |
 | **OS packages** | `brotli`, `libbrotli`, `python3-brotli`, `brotli-devel` `1.0.9-10.el9_8`; `libcurl` links libbrotli (`curl --compressed`) | **affected** – OS fix below |
-| **Node.js of Claude Code** (`10-Monitoring/`, nodesource `nodejs-20.20.2`) | bundles its own **Brotli 1.1.0** | **affected, no fix** – Node.js 20 is end of life; fixed lines 22.23.4 / 24.22.1 / 26.12.1. Claude Code decodes HTTP responses (WebFetch: arbitrary servers) – see [setup_claude.md](../../10-Monitoring/setup_claude.md) |
+| **Node.js of Claude Code** (`10-Monitoring/`, nodesource `nodejs-20.20.2`) | bundled its own **Brotli 1.1.0** | **fixed 2026-11-13 on the test host:** npm CLI 2.1.287 and Node.js 20 (end of life) removed, native Claude Code build 2.1.325 without Node.js installed – see [setup_claude.md](../../10-Monitoring/setup_claude.md) §2 |
 
 **OS fix:** Oracle Linux 9 **ELSA-2026-500513** (Important, 2026-10-26):
 `brotli-1.0.9-10.0.1.el9_8` – Oracle backported the fix into 1.0.9 (the

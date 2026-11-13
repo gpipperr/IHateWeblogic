@@ -55,27 +55,35 @@ first rollout.
 
 ## 2. Installation (as the analysis user, not root)
 
+Native build – no Node.js needed, installed into the home of the user
+(`~/.local/bin/claude`, program files in `~/.local/share/claude`):
+
 ```bash
-node --version                      # a SUPPORTED Node.js LTS (22 / 24) - not 20 (EOL, see below)
-npm config set prefix ~/.npm-global # no root, as on our test host
-npm install -g @anthropic-ai/claude-code@<version>   # pin a version
-export PATH="$HOME/.npm-global/bin:$PATH"            # .bash_profile
+curl -fsSL https://claude.ai/install.sh | bash
+echo 'export DISABLE_AUTOUPDATER=1' >> ~/.bashrc   # updates only deliberately
+# new shell:
+which claude                        # /home/<user>/.local/bin/claude
 claude --version
 claude                              # first start: login (claude.ai account or API key)
 ```
 
-- **Node.js:** only a supported, patched LTS line. Node.js 20 is end of
-  life and bundles a vulnerable Brotli decoder (**CVE-2026-111497**, fixed
-  only in 22.23.4 / 24.22.1 / 26.12.1 – Claude Code decodes HTTP responses,
-  WebFetch from arbitrary servers). Test host state 2026-10-28:
-  `nodejs-20.20.2` (nodesource) → switch the nodesource repo to 22 or 24 and
-  update (details: [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), "Brotli").
-  [`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) check 1 shows the Node version.
+- **No npm build:** the old way (`npm install -g @anthropic-ai/claude-code`)
+  needs Node.js, and Node.js 20 is end of life with a vulnerable bundled
+  Brotli decoder (**CVE-2026-111497**, fixed only in 22.23.4 / 24.22.1 /
+  26.12.1 – Claude Code decodes HTTP responses, WebFetch from arbitrary
+  servers). Test host 2026-11-13: npm CLI 2.1.287 and `nodejs-20.20.2`
+  (nodesource) removed, native 2.1.325 installed (details:
+  [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), "Brotli"). Switching: `npm uninstall
+  -g @anthropic-ai/claude-code` (as the user), `dnf remove nodejs` (root),
+  remove `~/.npm-global/bin` from the PATH. The data in `~/.claude/` and
+  `~/.claude.json` (memory, transcripts, settings, login) is not touched –
+  every build uses the same files. [`claude_setup_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/claude_setup_check.sh) check 1 shows
+  the path, the version and a Node.js that is still in the PATH.
 - **Account:** the customer's own Claude account / API key, never ours, never
   in a file of the repo. Which account is used at the customer is agreed
   before the first session (section 7).
-- **Updates:** deliberate only – the managed settings set
-  `DISABLE_AUTOUPDATER=1`; update with `npm install -g …@<new version>` and
+- **Updates:** deliberate only – `DISABLE_AUTOUPDATER=1` in the shell of
+  the user and in the managed settings; update with `claude update` and
   re-run `claude_setup_check.sh`.
 - **Egress:** Claude itself needs `api.anthropic.com:443`; the patch analysis
   additionally `www.oracle.com` (advisories). Proxy / firewall: see

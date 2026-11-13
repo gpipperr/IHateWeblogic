@@ -144,7 +144,7 @@ step-by-step guide:
 
 - **current:** [70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)
   (CPU October 2026)
-- older cycles: the folders `70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/`
+- older cycles: the folders `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`
   and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the
   cycle table in [00-patch-references.md](00-patch-references.md)
 
@@ -244,7 +244,7 @@ $ORACLE_HOME/OPatch/opatch lsinventory
 
 $ORACLE_HOME/OPatch/opatch lspatches
 # Compare with the expected list of the current cycle – manual guide
-# (70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/) step "Start and verify"
+# (70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/) step "Start and verify"
 ```
 
 ---

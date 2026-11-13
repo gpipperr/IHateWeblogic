@@ -499,7 +499,7 @@ copied once into the local, untracked `.claude/skills/` (`.claude/` is not in Gi
 ./10-Monitoring/patch_cycle_analysis.sh analyse --env /tmp/fmw_env_full.tgz --apply           # customer
 ./10-Monitoring/patch_cycle_analysis.sh analyse --mode maintainer --apply                       # we
 ./10-Monitoring/patch_cycle_analysis.sh analyse --print-prompt                                  # prompt only
-claude "$(cat 70-Customer-Projects/Forms14_reports14_patch_analyse_<mm>_<yyyy>/update_plan.md)" # stage 3
+claude "$(cat 70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/update_plan.md)" # stage 3
 ```
 
 | Mode | Writes | End of the cycle |
