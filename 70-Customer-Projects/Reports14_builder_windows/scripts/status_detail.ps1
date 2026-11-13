@@ -76,6 +76,15 @@ param(
 # PowerShell 5.1 sie in der Konsolen-Codepage (falsche Zeichen).
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Umlaute fuer die Texte als Zeichen-Codes - die Datei selbst bleibt ASCII.
+# Grund: Windows PowerShell 5.1 liest eine .ps1 ohne BOM als ANSI - ein per
+# Copy & Paste eingefuegtes Umlaut-Zeichen wird dort zu zwei falschen Zeichen. Im Text
+# so schreiben:  "F${ue}r", "${ae}ltere", "gel${oe}scht", "Gr${oe}${ss}e",
+# gross: "${grUe}bersicht". Eigene Namen fuer gross - PowerShell unterscheidet
+# bei Variablen NICHT gross/klein ($Ae waere dasselbe wie $ae).
+$ae   = [char]0x00E4; $oe   = [char]0x00F6; $ue   = [char]0x00FC; $ss = [char]0x00DF
+$grAe = [char]0x00C4; $grOe = [char]0x00D6; $grUe = [char]0x00DC
+
 # Am Ende - auch bei Abbruch oder Fehler - wieder in den Ordner des Skripts
 # wechseln: Exit-Script statt exit
 function Exit-Script([int]$Code) {
@@ -353,7 +362,9 @@ if ($neuerAufServer) {
 }
 # Legende der Spalte Prod
 Write-Host "Prod: PROD = in Produktion | offen = wartet auf Freigabe (nie freigegeben oder neuer als Produktion)"
-Write-Host "      alt = aeltere Version | - = geht nicht in die Produktion (.xml, Skripte, geloescht)"
+Write-Host "      alt = ${ae}ltere Version | - = geht nicht in die Produktion (.xml, Skripte, gel${oe}scht)"
+Write-Host "Hinweis: F${ue}r Berichte, die neuer sind, aber ${ae}ltere Tags haben, muss der Bericht neu"
+Write-Host "         eingecheckt werden, um ihn erneut in die Produktion zu stellen - auf das Tag-Datum achten."
 if ($ReleaseSkript -ne '') {
     Write-Host "Freigeben: $ReleaseSkript"
 }
