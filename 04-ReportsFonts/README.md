@@ -6,8 +6,6 @@ permalink: /04-ReportsFonts/
 
 # Oracle Reports – Font Configuration Guide
 
-Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
-
 > This guide explains the Oracle Reports font system on Oracle Linux 8/9
 > and how to use the `04-ReportsFonts/` scripts to resolve common font problems.
 
