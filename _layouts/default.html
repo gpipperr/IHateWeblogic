@@ -26,9 +26,10 @@
     {%- comment -%}
       Left menu: the sections in number order, "|" = small gap between the
       groups (setup / analyse + fix / build + monitor / projects + background);
-      "folder=text" = shorter text in the menu, the link stays on the folder
+      "folder=text" = shorter text in the menu, the link stays on the folder;
+      "path.md=text" = a single page (key pages of the project, below Start)
     {%- endcomment -%}
-    {%- assign ihw_sections = "00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
+    {%- assign ihw_sections = "IHateWeblogic.md=The idea,09-Install/docs/00-patch-references.md=Current patches,|,00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
     {%- assign ihw_repo = site.github.repository_url | default: "https://github.com/gpipperr/IHateWeblogic" -%}
     {%- assign ihw_label = ihw_top -%}
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}
@@ -118,8 +119,16 @@
           {%- else %}
           {%- assign ihw_s_parts = ihw_s | split: "=" -%}
           {%- assign ihw_s_dir = ihw_s_parts[0] -%}
-          {%- assign ihw_s_text = ihw_s_parts[1] | default: ihw_s_dir %}
+          {%- assign ihw_s_text = ihw_s_parts[1] | default: ihw_s_dir -%}
+          {%- assign ihw_s_ext = ihw_s_dir | split: "." | last -%}
+          {%- if ihw_s_ext == "md" -%}
+            {%- assign ihw_s_page = site.pages | where: "path", ihw_s_dir | first -%}
+            {%- if ihw_s_page %}
+          <li class="ihw-key{% if page.path == ihw_s_dir %} ihw-active{% endif %}"><a href="{{ ihw_s_page.url | relative_url }}"{% if ihw_s_page.title %} title="{{ ihw_s_page.title | escape }}"{% endif %}>{{ ihw_s_text }}</a></li>
+            {%- endif -%}
+          {%- else %}
           <li{% if ihw_top == ihw_s_dir %} class="ihw-active"{% endif %}><a href="{{ '/' | append: ihw_s_dir | append: '/' | relative_url }}"{% if ihw_s_text != ihw_s_dir %} title="{{ ihw_s_dir }}"{% endif %}>{{ ihw_s_text }}</a></li>
+          {%- endif -%}
           {%- endif %}
           {%- endfor %}
           <li class="ihw-navgap" aria-hidden="true"></li>

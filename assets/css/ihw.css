@@ -162,6 +162,11 @@ body {
 
 #navigation .ihw-navgap { height: 0.6em; }
 
+/* key pages below Start (the idea, current patches): gold bar instead of black */
+#navigation .ihw-key > a:link,
+#navigation .ihw-key > a:visited { border-left-color: #FEB80A; font-weight: bold; }
+#navigation .ihw-key > a:hover { border-left-color: #000000; }
+
 /* -- Content (overrides Cayman .main-content) -------------------------------- */
 #mitte .main-content {
   grid-area: content;
