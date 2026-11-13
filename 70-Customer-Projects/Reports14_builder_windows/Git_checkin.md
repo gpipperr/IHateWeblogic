@@ -61,6 +61,13 @@ The Reports tools need the environment of the tools instance – the same as
 for `rwbuilder.bat`. `rwconverter.bat` of the domain sets it itself (it
 calls `reports.bat`).
 
+Oracle reference (Publishing Reports 12.2.1.3 – Reports 14.1.2 refers to it):
+[`rwconverter`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm#i634710) (A.2.4) and its keywords
+[`SOURCE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23898), [`STYPE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23904),
+[`DEST`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23818), [`DTYPE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla006.htm#RSPUB23822),
+[`BATCH`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23796), [`OVERWRITE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla007.htm#RSPUB23855),
+[`CMDFILE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23803), [`USERID`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23910).
+
 **Rights: local administrator, elevated session.** The Oracle installer
 breaks the inheritance of permissions below `E:\oracle`, so a normal user
 account cannot run the Reports tools – the same as for the Builder
@@ -69,7 +76,8 @@ cookbook "User accounts"). Therefore:
 - the developer account is a member of the local group **Administrators**;
 - `rwconverter.bat`, [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) and [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) run in a shell started with
   **"Run as administrator"** (cmd or PowerShell) – with UAC switched on, a
-  normal window of an admin account still runs with standard rights.
+  normal window of an admin account still runs with standard rights
+  ([how User Account Control works](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works)).
   **Assumption:** `rwconverter` behaves like the Builder here (to confirm at
   the customer, section 5). A shortcut "Reports check-in" can be set to
   "Run as administrator" (shortcut → Properties → Advanced).
@@ -84,7 +92,7 @@ In PowerShell (as the scripts will call it) – the clone folder from
 `$env:USERNAME`:
 
 ```powershell
-$repo = "E:\git\$env:USERNAME\Reports"
+$repo = "E:\git\$env:USERNAME\oracle-report"
 & "$env:DOMAIN_HOME\reports\bin\rwconverter.bat" "source=$repo\source\sales.rdf" stype=rdffile `
     "dest=$repo\xml\sales.xml" dtype=xmlfile batch=yes overwrite=yes `
     "cmdfile=$env:USERPROFILE\.rwconv\login.txt"
@@ -95,10 +103,10 @@ The scripts take the clone from their own location: they change to
 (`git rev-parse --show-toplevel`) – the folder name does not even have to
 match the login, and the folder they are started from does not matter.
 
-- `cmdfile=` holds one line `userid=<user>/<password>@<tns-alias>` – the DB
+- [`cmdfile=`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23803) holds one line [`userid=<user>/<password>@<tns-alias>`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23910) – the DB
   login, see 2.2. It is not on the command line (process list) and not in
   the repository.
-- `batch=yes` = no dialog; `overwrite=yes` = replace the old XML.
+- [`batch=yes`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23796) = no dialog; [`overwrite=yes`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla007.htm#RSPUB23855) = replace the old XML.
 - **Same base name** for `.rdf` and `.xml` (2.2, "report name").
 
 Example of the login file – shown for the demo user `gpi` (DB user `gpi`, TNS alias
@@ -120,7 +128,7 @@ userid=gpi/<password>@fmwpdb
 ```
 
 Only the developer may read the file (remove inherited rights, grant the own
-account full access):
+account full access – [`icacls`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls)):
 
 ```bat
 icacls %USERPROFILE%\.rwconv\login.txt /inheritance:r /grant:r "%USERNAME%:F"
@@ -200,14 +208,15 @@ neither user nor password of the conversion login in the file).
 | `deploy\*.ps1`, `menu.*` | yes | same script version for everyone |
 | login file, `*.rep`, Builder backups (`*.rdf~`?), `*.log` | **no** – `.gitignore` | secrets, generated files |
 
-`.gitattributes`: `*.rdf binary`, `*.xml` with a fixed line end (2.3).
+[`.gitattributes`](https://git-scm.com/docs/gitattributes): `*.rdf binary`, `*.xml` with a fixed line end (2.3);
+[`.gitignore`](https://git-scm.com/docs/gitignore) for the rest.
 
 ### 3.2 No stash, no merge for beginners
 
 `.rdf` is binary – Git cannot merge two changes of the same report
 (`*.rdf binary` in `.gitattributes`, template in `scripts/`). Rules the
 scripts follow:
-- **Only fast-forward, never stash.** `git pull --ff-only` also works with
+- **Only fast-forward, never stash.** [`git pull --ff-only`](https://git-scm.com/docs/git-pull) also works with
   own uncommitted changes – Git updates the other files and **aborts by
   itself** ("would be overwritten") when an incoming change touches a file
   the developer changed too. Nothing is overwritten, nothing is stashed.
@@ -238,7 +247,7 @@ scripts follow:
   with them and **aborts before touching anything** when one of them would
   be overwritten – no stash, nothing can get lost. Price: in this rare case a
   merge commit appears in the history. On a conflict (same report) the
-  script runs `git merge --abort`: the check-in stays local, the working copy
+  script runs [`git merge --abort`](https://git-scm.com/docs/git-merge): the check-in stays local, the working copy
   is unchanged, the developer asks the Git contact person.
 - The same report changed by two developers at the same time stays a
   conflict that a person resolves (agree who works on which report; Git LFS
@@ -246,18 +255,18 @@ scripts follow:
 
 ### 3.3 Credentials
 
-- **Git over HTTPS:** Git for Windows brings the **Git Credential Manager** –
+- **Git over HTTPS:** Git for Windows brings the **[Git Credential Manager](https://github.com/git-ecosystem/git-credential-manager)** –
   the developer types user and password (or token) once, Windows keeps them
   in the credential store of the personal login. Nothing in the scripts.
 - **DB login for the conversion:** one file per developer outside the
   repository, e.g. `%USERPROFILE%\.rwconv\login.txt` (`userid=...@alias`),
   readable only for the user. [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) asks for it once if it is
-  missing (`Read-Host -AsSecureString`) and writes the file. Alias from the
+  missing ([`Read-Host -AsSecureString`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/read-host)) and writes the file. Alias from the
   shared `tnsnames.ora` of the domain.
 
 ### 3.4 `REPORTS_PATH` per developer
 
-Today `reports.bat` holds one `REPORTS_PATH` for all users (cookbook step
+Today `reports.bat` holds one [`REPORTS_PATH`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_rfap001.htm#i648209) (Oracle: B.1.61) for all users (cookbook step
 8.2: `E:\reports\src;E:\reports\images`). With one clone per user the Builder
 must search the user's own clone – **decided: a copy of `rwbuilder.bat` on
 the desktop sets it from `%USERNAME%` (3.5).** `reports.bat` itself stays
@@ -267,7 +276,7 @@ part.
 ### 3.5 Builder start from the desktop – own `rwbuilder.bat` with `%USERNAME%`
 
 The developer starts the Builder **only** through this file. It is a copy of
-the original `%DOMAIN_HOME%\reports\bin\rwbuilder.bat` with one added line
+the original `%DOMAIN_HOME%\reports\bin\rwbuilder.bat` ([`rwbuilder`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm#i634624), Oracle A.2.3) with one added line
 that puts the own clone at the front of `REPORTS_PATH` – report sources and
 images (the Builder finds images through `REPORTS_PATH`, see the image
 article). One file for all developers, because the user comes from
@@ -303,7 +312,7 @@ Insert directly **below** the `reports.bat` line (and above the `rwbuilder`
 line):
 
 ```bat
-rem IHW: own Git clone first - E:\git\<Windows login>\Reports
+rem IHW: own Git clone first - E:\git\<Windows login>\oracle-report
 set REPORTS_PATH=E:\git\%USERNAME%\oracle-report\source;E:\git\%USERNAME%\oracle-report\images;%REPORTS_PATH%
 ```
 
@@ -349,8 +358,8 @@ adaptation: plain PowerShell, one step after the other, no nested commands,
 **messages and comments in German** (the developers' language), plain ASCII
 (Windows PowerShell 5.1 reads files without BOM as ANSI). Copy them into
 `deploy\` of the repository, [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) / [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) into the top folder (the scripts change to the top folder
-themselves – `Set-Location $PSScriptRoot`, then `git rev-parse
---show-toplevel` – so they work from any start folder; all paths in the
+themselves – `Set-Location` [`$PSScriptRoot`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables), then [`git rev-parse
+--show-toplevel`](https://git-scm.com/docs/git-rev-parse) – so they work from any start folder; all paths in the
 scripts are relative to the top folder: `source`, `xml`,
 `images`).
 
@@ -519,3 +528,18 @@ rmdir /s /q E:\temp\xmltest
 
 Note the results (time per report, `fc` result, line ends of the XML) –
 they decide 2.3 and the `.gitattributes`.
+
+## 6. References
+
+Checked 2026-11-13 (all addresses HTTP 200, anchors present). Reports
+14.1.2 refers to the 12.2.1.3 documentation library for Oracle Reports.
+
+| Topic | Original documentation |
+|---|---|
+| converter | Oracle Publishing Reports 12.2.1.3: [`rwconverter` (A.2.4)](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm#i634710); keywords [`SOURCE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23898), [`STYPE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23904), [`DEST`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23818), [`DTYPE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla006.htm#RSPUB23822), [`BATCH`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23796), [`OVERWRITE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla007.htm#RSPUB23855), [`CMDFILE`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla005.htm#RSPUB23803), [`USERID`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla008.htm#RSPUB23910) |
+| Builder, search path | Oracle: [`rwbuilder` (A.2.3)](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_cla002.htm#i634624), [`REPORTS_PATH` (B.1.61)](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_rfap001.htm#i648209) |
+| fast-forward, merge, commit | Git [`git pull`](https://git-scm.com/docs/git-pull) (`--ff-only`, `--no-rebase`), [`git merge`](https://git-scm.com/docs/git-merge) (`--abort`), [`git commit`](https://git-scm.com/docs/git-commit) (`-- <paths>` = only the selection), [`git log`](https://git-scm.com/docs/git-log), [`git rev-parse`](https://git-scm.com/docs/git-rev-parse) (`--show-toplevel`) |
+| settings | Git [`git config`](https://git-scm.com/docs/git-config) (`core.autocrlf`, `core.quotePath`, `user.name` / `user.email`), [`gitattributes`](https://git-scm.com/docs/gitattributes) (`binary`, `eol`), [`gitignore`](https://git-scm.com/docs/gitignore) |
+| HTTPS login | [Git Credential Manager](https://github.com/git-ecosystem/git-credential-manager) |
+| PowerShell | [`Start-Process`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process) (`-RedirectStandardOutput` / `-RedirectStandardError`, `-Wait`, `-PassThru`), [`$PSScriptRoot`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables), [`Read-Host -AsSecureString`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/read-host), [execution policies](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies) (`-ExecutionPolicy Bypass` in `menu.cmd`), [`powershell.exe` options](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe) (`-NoExit`, `-NoLogo`, `-NoProfile`, `-File`) |
+| Windows rights | [`icacls`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls), [how User Account Control works](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works) ("Run as administrator") |

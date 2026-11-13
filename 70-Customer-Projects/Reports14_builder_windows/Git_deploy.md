@@ -120,6 +120,10 @@ cd E:\git\<login>\oracle-report
      as `ue`, `oe`, …; `-2`, `-3` if the name exists) and pushes it with
      `git push origin <tag>` – this starts `deploy_prod`.
 
+   Git reference: [`git tag -a`](https://git-scm.com/docs/git-tag) (annotated
+   tag on a given commit), [`git for-each-ref --sort=creatordate`](https://git-scm.com/docs/git-for-each-ref)
+   (which tag was created last), [`git push origin <tag>`](https://git-scm.com/docs/git-push).
+
 Default filter `-Filter '*.rdf'` (`-like` on the whole path); `-Filter ''`
 shows all files, `-Filter '*.png'` only images. `-File <text>` = part of the
 file name, case-insensitive. Further: `-Nummer`, `-Ja` (no questions),
@@ -141,12 +145,22 @@ newer check-ins of the report then count as open again. The replaced file is als
 | stops | – | tag on a merge commit; tagged commit without `.rdf` / image |
 | serialised by | `resource_group: deploy-dev` | `resource_group: deploy-prod` |
 
+GitLab reference: job rules [`rules:if`](https://docs.gitlab.com/ci/yaml/#rules) with the
+[predefined variables](https://docs.gitlab.com/ci/variables/predefined_variables/)
+`CI_COMMIT_BRANCH`, `CI_PIPELINE_SOURCE`, `CI_COMMIT_TAG`, `CI_COMMIT_SHA`,
+`CI_COMMIT_BEFORE_SHA`; [`environment`](https://docs.gitlab.com/ci/yaml/#environment)
+([environments](https://docs.gitlab.com/ci/environments/)); one deployment at a time with
+[`resource_group`](https://docs.gitlab.com/ci/yaml/#resource_group)
+([resource groups](https://docs.gitlab.com/ci/resource_groups/)); [`interruptible`](https://docs.gitlab.com/ci/yaml/#interruptible);
+full history for the delta with `GIT_DEPTH: "0"`
+([shallow cloning](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning)).
+
 DEV takes the last deployed commit from the server itself (`rwdeploy.sh
 last`):
 - A failed or skipped DEV pipeline loses nothing: the next one brings every
   change since the last successful deploy.
-- An older pipeline after a newer deploy is recognised with `git merge-base
-  --is-ancestor` and does nothing.
+- An older pipeline after a newer deploy is recognised with [`git merge-base
+  --is-ancestor`](https://git-scm.com/docs/git-merge-base) and does nothing.
 - First deploy (server answers `none`): the files of this push
   (`CI_COMMIT_BEFORE_SHA..CI_COMMIT_SHA`), or only the files of the commit.
 - If the last deployed commit is not an ancestor (`main` rewritten), the job
@@ -156,27 +170,39 @@ last`):
 needs only the `.rdf` files and the images. Deleted files are never removed
 from a server.
 
-The job sends `git archive <sha> -- <files>` as a tar over SSH
-(`enqueue <sha> delta|tag`). It then waits with `status <sha> --wait 300`,
+The job sends [`git archive <sha> -- <files>`](https://git-scm.com/docs/git-archive) as a tar over SSH
+(`enqueue <sha> delta|tag`; file list from [`git diff`](https://git-scm.com/docs/git-diff) /
+[`git diff-tree`](https://git-scm.com/docs/git-diff-tree) with `--diff-filter=AMR`). It then waits with `status <sha> --wait 300`,
 so **the pipeline shows green or red for the deploy itself**, with the
 server's log in the job output.
 
 CI variables (Settings → CI/CD → Variables). Set them **protected**, and
-**per environment** (scope `development` / `production`):
+**per environment** (scope `development` / `production`) – GitLab:
+[protect a variable](https://docs.gitlab.com/ci/variables/#protect-a-cicd-variable),
+[environment scope](https://docs.gitlab.com/ci/variables/#environment-scope),
+[file type variable](https://docs.gitlab.com/ci/variables/#use-file-type-cicd-variables),
+[SSH keys in CI/CD jobs](https://docs.gitlab.com/ci/jobs/ssh_keys/):
 
 | Variable | Content |
 |---|---|
 | `DEPLOY_HOST` | server name |
 | `DEPLOY_USER` | SSH user (default `oracle`) |
 | `DEPLOY_SSH_KEY` | private key, variable type **File** – one key per environment |
-| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan <server>`; the job uses `StrictHostKeyChecking=yes` with only this host key |
+| `DEPLOY_KNOWN_HOSTS` | output of [`ssh-keyscan <server>`](https://man.openbsd.org/ssh-keyscan); the job uses [`StrictHostKeyChecking=yes`](https://man.openbsd.org/ssh_config#StrictHostKeyChecking) with only this host key ([`UserKnownHostsFile`](https://man.openbsd.org/ssh_config#UserKnownHostsFile), [`BatchMode`](https://man.openbsd.org/ssh_config#BatchMode); GitLab: [verifying the SSH host keys](https://docs.gitlab.com/ci/jobs/ssh_keys/#verifying-the-ssh-host-keys)) |
 | `DEPLOY_WAIT` | optional, seconds to wait for the result (default 300) |
 
-Runner: a runner with the tag `reports-deploy` that has bash, git and ssh,
+Runner: a runner with the tag `reports-deploy` ([`tags`](https://docs.gitlab.com/ci/yaml/#tags)) that has bash, git and ssh,
 and may reach the servers on port 22. A shell runner on the GitLab side is
 enough; there is no runner on the Reports servers.
 
 ## 5. The server side – `rwdeploy.sh`
+
+`rwdeploy.sh` is the **forced command** of the deploy key: OpenSSH runs it
+for every login with this key and passes the requested command in
+`SSH_ORIGINAL_COMMAND` – [`sshd(8)` AUTHORIZED_KEYS FILE FORMAT](https://man.openbsd.org/sshd#AUTHORIZED_KEYS_FILE_FORMAT):
+[`command=`](https://man.openbsd.org/sshd#command=_command_),
+[`restrict`](https://man.openbsd.org/sshd#restrict),
+[`from=`](https://man.openbsd.org/sshd#from=_pattern-list_).
 
 | Command (from `SSH_ORIGINAL_COMMAND`) | Effect |
 |---|---|
@@ -191,7 +217,7 @@ enough; there is no runner on the Reports servers.
 is still accepted but no longer sent by [`ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh).
 
 The worker:
-- runs once at a time (`flock`) and takes the jobs oldest first;
+- runs once at a time ([`flock`](https://man7.org/linux/man-pages/man1/flock.1.html)) and takes the jobs oldest first;
 - checks **every tar member before extracting**:
   - only plain files and folders are allowed, no links;
   - only the names `source/<name>.rdf` and `images/<name>`;
@@ -215,7 +241,7 @@ chmod 750 /u01/app/oracle/rwdeploy/bin/rwdeploy.sh
 cp rwdeploy.conf.template /u01/app/oracle/rwdeploy/bin/rwdeploy.conf
 vi /u01/app/oracle/rwdeploy/bin/rwdeploy.conf
 #   SPOOL_DIR, TARGET_SOURCE_DIR, TARGET_IMAGE_DIR
-#   the targets must be in REPORTS_PATH and in <folderAccess><read>
+#   the targets must be in REPORTS_PATH and in <folderAccess><read> (Oracle: links below)
 
 # deploy key: one key pair per server, the private key goes to GitLab (scope development / production)
 ssh-keygen -t ed25519 -N '' -C gitlab-deploy-dev -f ./gitlab-deploy-dev
@@ -231,6 +257,14 @@ crontab -e
 ssh -i gitlab-deploy-dev oracle@<server> list
 ssh -i gitlab-deploy-dev oracle@<server> 'id'    # -> ERROR: unknown command 'id'
 ```
+
+Oracle Reports: the target folders must be in
+[`REPORTS_PATH`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_rfap001.htm#i648209) (Publishing Reports 12.2.1.3,
+B.1.61 – where the Reports server looks for reports and images) and in
+[`<folderAccess>`](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm#CHDJEGID) of `rwserver.conf` (7.2.1.21 –
+the folders the server may read; one `<read>` element, folders separated
+by `;`). Reports 14.1.2 refers to the 12.2.1.3 documentation for Reports.
+SSH key: [`ssh-keygen`](https://man.openbsd.org/ssh-keygen).
 
 **First set-up:**
 - `main` holds today's reports (one import), together with `.gitlab-ci.yml`
@@ -248,16 +282,16 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 
 ## 6. GitLab settings (customer – to confirm)
 
-- **`main` protected:** push for Developers (they check in directly), no
-  force push.
-- **Tags `prod-*` protected** (Settings → Repository → Protected tags):
+- **`main` protected** ([protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/)):
+  push for Developers (they check in directly), no force push.
+- **Tags `prod-*` protected** ([protected tags](https://docs.gitlab.com/user/project/protected_tags/); Settings → Repository → Protected tags):
   allowed to create = Maintainers, or the persons who may release. Creating
   the tag is the release; protected CI variables are also available to
   protected tags.
-- CI variables per environment scope (`development` / `production`), so the
+- CI variables per [environment scope](https://docs.gitlab.com/ci/variables/#environment-scope) (`development` / `production`), so the
   DEV job never sees the PROD key.
-- Settings → CI/CD → General pipelines: **"Prevent outdated deployment
-  jobs"** for DEV, as a second line next to the ancestor check in
+- Settings → CI/CD → General pipelines: **["Prevent outdated deployment
+  jobs"](https://docs.gitlab.com/ci/environments/deployment_safety/#prevent-outdated-deployment-jobs)** for DEV, as a second line next to the ancestor check in
   [`ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh). It also blocks retrying an older PROD pipeline – for a
   rollback set a new tag on the older check-in instead.
 - The old branch `development` is already deleted at the customer.
@@ -295,3 +329,23 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 Open at the customer: real GitLab (tag rule, protected tags, protected and
 scoped variables), SSH from the runner, the scripts on Windows PowerShell
 5.1.
+
+## 9. References
+
+Checked 2026-11-13 (all addresses HTTP 200, anchors present).
+
+| Topic | Original documentation |
+|---|---|
+| job rules, variables | GitLab [CI/CD YAML syntax – `rules`](https://docs.gitlab.com/ci/yaml/#rules), [predefined CI/CD variables](https://docs.gitlab.com/ci/variables/predefined_variables/) |
+| one deploy at a time | GitLab [`resource_group`](https://docs.gitlab.com/ci/yaml/#resource_group), [resource groups](https://docs.gitlab.com/ci/resource_groups/) |
+| environments, outdated jobs | GitLab [environments](https://docs.gitlab.com/ci/environments/), [deployment safety – prevent outdated deployment jobs](https://docs.gitlab.com/ci/environments/deployment_safety/#prevent-outdated-deployment-jobs) |
+| full clone | GitLab [shallow cloning / `GIT_DEPTH`](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning) |
+| runner selection | GitLab [`tags`](https://docs.gitlab.com/ci/yaml/#tags) |
+| secrets | GitLab [CI/CD variables – protect](https://docs.gitlab.com/ci/variables/#protect-a-cicd-variable), [environment scope](https://docs.gitlab.com/ci/variables/#environment-scope), [file type](https://docs.gitlab.com/ci/variables/#use-file-type-cicd-variables); [SSH keys in CI/CD jobs](https://docs.gitlab.com/ci/jobs/ssh_keys/) |
+| who may push / release | GitLab [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), [protected tags](https://docs.gitlab.com/user/project/protected_tags/) |
+| forced command | OpenSSH [`sshd(8)` – AUTHORIZED_KEYS FILE FORMAT](https://man.openbsd.org/sshd#AUTHORIZED_KEYS_FILE_FORMAT) (`command=`, `restrict`, `from=`) |
+| SSH client options | OpenSSH [`ssh_config(5)`](https://man.openbsd.org/ssh_config) (`StrictHostKeyChecking`, `UserKnownHostsFile`, `BatchMode`, `IdentitiesOnly`), [`ssh-keyscan(1)`](https://man.openbsd.org/ssh-keyscan), [`ssh-keygen(1)`](https://man.openbsd.org/ssh-keygen) |
+| file lists, tar | Git [`git diff`](https://git-scm.com/docs/git-diff), [`git diff-tree`](https://git-scm.com/docs/git-diff-tree), [`git archive`](https://git-scm.com/docs/git-archive), [`git merge-base --is-ancestor`](https://git-scm.com/docs/git-merge-base) |
+| release tags | Git [`git tag`](https://git-scm.com/docs/git-tag), [`git for-each-ref`](https://git-scm.com/docs/git-for-each-ref), [`git push`](https://git-scm.com/docs/git-push) |
+| one worker at a time | [`flock(1)`](https://man7.org/linux/man-pages/man1/flock.1.html) |
+| target folders on the Reports server | Oracle Publishing Reports 12.2.1.3: [`REPORTS_PATH` (B.1.61)](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_rfap001.htm#i648209), [`folderAccess` in `rwserver.conf` (7.2.1.21)](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm#CHDJEGID) |
