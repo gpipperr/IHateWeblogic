@@ -82,6 +82,7 @@ nothing else.
 |---|---|---|
 | [template.gitlab-ci.yml](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template.gitlab-ci.yml) | `.gitlab-ci.yml` in the top folder of the repository | job `deploy_dev` (push to `main`) and `deploy_prod` (tag `prod-*`), `GIT_DEPTH: 0`, `resource_group` per environment |
 | [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | [`deploy/ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) in the repository | the job (section 4) |
+| [ci_notify_mail.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh) | `deploy/ci_notify_mail.sh` in the repository | mail after the PROD deploy (jobs `notify_prod_ok` / `notify_prod_failed`, section 4) |
 | [ci_deploy_debug.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy_debug.sh) | `deploy/ci_deploy_debug.sh` in the repository (only for tests) | no logic: writes the call (`$0`, `$1`), the GitLab predefined variables and the `DEPLOY_*` variables as `NAME = value` to `/tmp/report_pip.txt` and into the job log – `DEPLOY_SSH_KEY` only as path. In `.gitlab-ci.yml` before the real call: `- bash deploy/ci_deploy_debug.sh dev` |
 | [rwdeploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | Reports server, e.g. `/u01/app/oracle/rwdeploy/bin/` | queue + worker, SSH forced command (section 5) |
 | [rwdeploy.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.conf.template) | `rwdeploy.conf` next to [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | spool folder, target folders, size limit |
@@ -146,6 +147,7 @@ newer check-ins of the report then count as open again. The replaced file is als
 | older pipeline after a newer deploy | "already part of the last deploy – nothing to do" | deploys its own check-in again (= rollback when started on purpose) |
 | stops | – | tag on a merge commit; tagged commit without `.rdf` / image |
 | serialised by | `resource_group: deploy-dev` | `resource_group: deploy-prod` |
+| mail | – | stage `notify` after `deploy_prod`: `notify_prod_ok` (`when: on_success`) or `notify_prod_failed` (`when: on_failure`) – exactly one mail per release |
 
 GitLab reference: job rules [`rules:if`](https://docs.gitlab.com/ci/yaml/#rules) with the
 [predefined variables](https://docs.gitlab.com/ci/variables/predefined_variables/)
@@ -156,6 +158,23 @@ GitLab reference: job rules [`rules:if`](https://docs.gitlab.com/ci/yaml/#rules)
 ([resource groups](https://docs.gitlab.com/ci/resource_groups/)); [`interruptible`](https://docs.gitlab.com/ci/yaml/#interruptible);
 full history for the delta with `GIT_DEPTH: "0"`
 ([shallow cloning](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning)).
+
+**Mail after the PROD deploy** ([`ci_notify_mail.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh)):
+only tag pipelines `prod-*`, no mail for DEV. Subject `[PROD] <report>.rdf
+deployed - <tag>` (or `FAILED`), body with released by (`GITLAB_USER_NAME` /
+`GITLAB_USER_EMAIL`), tag message (`CI_COMMIT_TAG_MESSAGE`), files of the
+check-in and links (`CI_PIPELINE_URL`, `CI_JOB_URL`). Recipients in the CI
+variable `MAIL_TO` (scope `production`), sender `MAIL_FROM` (optional). The
+script hands the mail to the local `sendmail` of the runner host – Postfix
+with a `relayhost` to the company mail server over TLS (demo: `[mxmail01.pipperr.local]:587`,
+STARTTLS, `smtp_tls_security_level = encrypt`; cookbook step 9). The jobs
+have `allow_failure: true` – a mail problem shows orange, the release stays
+green; `MAIL_DRYRUN=1` prints the mail instead of sending it
+([`when`](https://docs.gitlab.com/ci/yaml/#when), [`needs`](https://docs.gitlab.com/ci/yaml/#needs),
+[`allow_failure`](https://docs.gitlab.com/ci/yaml/#allow_failure),
+[`environment:action`](https://docs.gitlab.com/ci/yaml/#environmentaction)). Alternative without
+code: GitLab [pipeline status emails](https://docs.gitlab.com/user/project/integrations/pipeline_status_emails/) –
+but for every pipeline (also DEV) and with a generic text.
 
 DEV takes the last deployed commit from the server itself (`rwdeploy.sh
 last`):
@@ -209,6 +228,18 @@ customer's GitLab has none for this project yet, so we create one:
 There is no runner on the Reports servers. The token is a secret like a
 password. Menu names and the output of `register` follow the GitLab
 documentation – to confirm at the customer.
+
+**Runner version (customer, 2026-11-13).** The runner's `major.minor`
+must match the GitLab version ("the GitLab Runner major.minor version
+should stay in sync with the GitLab major and minor version", GitLab Runner
+docs). At the customer an outdated runner took no jobs. Solved in this
+order: check `gitlab-runner --version` → add the GitLab Runner repository →
+`dnf upgrade gitlab-runner` → reboot → **delete the old runner in GitLab**
+(it was still shown with the old version after the reboot – that is the old
+registration, not the service) → create the runner again and register it
+with a **new name** (the interactive `register` proposes the name of the
+existing runner – do not take it; the customer used `report-deploy`) →
+test commit → the job ran. Cookbook step 4.3 "Runner zu alt".
 
 **A runner already exists?**
 - `gitlab-runner register` does **not** overwrite anything: it appends one
@@ -372,7 +403,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
 | [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
 
-Open at the customer: the project runner (install, register, protected),
+Open at the customer: the mail after the PROD deploy (relay, `MAIL_TO`),
 real GitLab (tag rule, protected tags, protected and scoped variables), SSH
 from the runner, the scripts on Windows PowerShell 5.1.
 
@@ -387,6 +418,7 @@ Checked 2026-11-13 (all addresses HTTP 200, anchors present).
 | environments, outdated jobs | GitLab [environments](https://docs.gitlab.com/ci/environments/), [deployment safety – prevent outdated deployment jobs](https://docs.gitlab.com/ci/environments/deployment_safety/#prevent-outdated-deployment-jobs) |
 | full clone | GitLab [shallow cloning / `GIT_DEPTH`](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning) |
 | runner selection | GitLab [`tags`](https://docs.gitlab.com/ci/yaml/#tags) |
+| mail | GitLab [`when`](https://docs.gitlab.com/ci/yaml/#when), [`needs`](https://docs.gitlab.com/ci/yaml/#needs), [`allow_failure`](https://docs.gitlab.com/ci/yaml/#allow_failure), [pipeline status emails](https://docs.gitlab.com/user/project/integrations/pipeline_status_emails/) (alternative) |
 | project runner | GitLab [project runners](https://docs.gitlab.com/ci/runners/runners_scope/#project-runners), [install GitLab Runner (Linux repository)](https://docs.gitlab.com/runner/install/linux-repository/), [registering runners](https://docs.gitlab.com/runner/register/), [shell executor](https://docs.gitlab.com/runner/executors/shell/) |
 | secrets | GitLab [CI/CD variables – protect](https://docs.gitlab.com/ci/variables/#protect-a-cicd-variable), [environment scope](https://docs.gitlab.com/ci/variables/#environment-scope), [file type](https://docs.gitlab.com/ci/variables/#use-file-type-cicd-variables); [SSH keys in CI/CD jobs](https://docs.gitlab.com/ci/jobs/ssh_keys/) |
 | who may push / release | GitLab [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), [protected tags](https://docs.gitlab.com/user/project/protected_tags/) |

@@ -602,6 +602,7 @@ as they are on a host built with this library:
 | FMW / JDK home | `/u01/app/oracle/fmw` / `/u01/app/oracle/java/jdk-21` |
 | Reports server | `repserver01` |
 | Reports-only demo domain (manual cookbooks in `70-Customer-Projects/Reports14_linux_manual_install`) | `reportGPI` (systemd unit `reportgpi`) |
+| SMTP relay (mail from scripts / pipelines) | `mxmail01.pipperr.local`, port 587 (STARTTLS) |
 | further names in examples | `forms.pipperr.local` (public alias), `mail.pipperr.local`, `proxy.pipperr.local` |
 
 Rule of thumb: everything with `orafusion`, `pipperr.local`, `10.10.10.` or `gpi`

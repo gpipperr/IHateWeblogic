@@ -5,6 +5,8 @@
 #                               DEV deploy - normally the checked-in report)
 #  tag prod-*   -> deploy_prod (automatic: exactly the files of the tagged
 #                               commit - one report, set with release_tag.ps1)
+#                 -> notify_prod_ok / notify_prod_failed (mail, only PROD;
+#                               needs MAIL_TO + sendmail on the runner host)
 # There is only the branch main - no merge requests, no release branches.
 # Protect the tags prod-* in GitLab: creating one is the release.
 # Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
@@ -12,6 +14,7 @@
 
 stages:
   - deploy
+  - notify
 
 variables:
   # full history - deploy_dev compares with the last deployed commit
@@ -42,3 +45,34 @@ deploy_prod:
   resource_group: deploy-prod
   script:
     - bash deploy/ci_deploy.sh prod
+
+# --- mail after the PROD deploy (only tag pipelines prod-*) -----------------
+# exactly one of the two runs: on_success = deploy_prod green,
+# on_failure = deploy_prod red. allow_failure: a mail problem does not turn
+# the release red - the deploy itself is shown by deploy_prod.
+.notify_prod:
+  stage: notify
+  tags:
+    - reports-deploy
+  needs:
+    - deploy_prod
+  environment:
+    name: production            # gets MAIL_TO of the scope production
+    action: access              # no new deployment entry
+  allow_failure: true
+
+notify_prod_ok:
+  extends: .notify_prod
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-/'
+      when: on_success
+  script:
+    - bash deploy/ci_notify_mail.sh ok
+
+notify_prod_failed:
+  extends: .notify_prod
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-/'
+      when: on_failure
+  script:
+    - bash deploy/ci_notify_mail.sh failed

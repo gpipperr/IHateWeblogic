@@ -43,6 +43,8 @@ ZIELZUSTAND
   .gitlab-ci.yml + deploy/ci_deploy.sh  Repository (main)             6
   Test DEV: Bericht einchecken          DEV-Server hat den Bericht    7
   Test PROD: prod-Tag setzen            PROD-Server hat den Bericht   8
+  Mail nach PROD-Deploy                 Postfix auf dem Runner-Host,  9
+                                        MAIL_TO in GitLab
 
 
 SO LAEUFT ES (Ueberblick)
@@ -127,6 +129,7 @@ VORAUSSETZUNGEN
     /etc/gitlab-runner/config.toml     Registrierung + Token (600)  <- 4.5
     /home/gitlab-runner/builds/        Arbeitsordner der Jobs (Checkout)
     /tmp/report_pip.txt                nur beim Test mit ci_deploy_debug.sh
+    Postfix (relayhost)                Mail nach PROD-Deploy  <- 9.2
 
   Im GitLab-Projekt oracle-report (Browser):
 
@@ -142,6 +145,7 @@ VORAUSSETZUNGEN
     E:\git\<Login>\oracle-report\
       .gitlab-ci.yml                   aus deploy/template.gitlab-ci.yml
       deploy\ci_deploy.sh              aus deploy/ci_deploy.sh
+      deploy\ci_notify_mail.sh         aus deploy/ci_notify_mail.sh (Mail, SCHRITT 9)
 
 
   Quelldateien
@@ -154,6 +158,7 @@ VORAUSSETZUNGEN
   deploy/authorized_keys.example Muster der Schluessel-Zeile       3.4
   deploy/template.gitlab-ci.yml die zwei Jobs -> .gitlab-ci.yml    6
   deploy/ci_deploy.sh          der Job selbst (Runner)             6
+  deploy/ci_notify_mail.sh     Mail nach PROD-Deploy (Runner)      6, 9
 
 
   Regeln fuer den ganzen Ablauf
@@ -605,7 +610,53 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
   rpm -q gitlab-runner
   # "package gitlab-runner is not installed" -> weiter mit dem naechsten Befehl
   # eine Version wird angezeigt                -> schon installiert: diese
-  #   Installation nutzen, NICHT neu installieren; vorhandene Runner zeigen:
+  #   Installation nutzen, NICHT neu installieren - aber VERSION pruefen:
+
+  gitlab-runner --version
+  # Erwartet: "Version: <major.minor>..." = die Version des GitLab-Servers
+  # (GitLab: Hilfe-Menue "?" > "Help" oder Admin-Bereich zeigt sie).
+  # GitLab-Doku: "the GitLab Runner major.minor version should stay in sync
+  # with the GitLab major and minor version."
+  # Gleich (oder hoeher) -> weiter mit "gitlab-runner list".
+  # Deutlich aelter -> erst "Runner zu alt" (unten), sonst nimmt er die
+  # Jobs nicht an (beim Kunden 2026-11-13 so passiert).
+
+  # --- Runner zu alt: aktualisieren (NUR wenn die Version zu alt ist) ---
+  #
+  # Erfahrung beim Kunden 2026-11-13: alter Runner nahm keine Jobs. Geloest
+  # in dieser Reihenfolge: Version geprueft -> GitLab-Runner-Repository
+  # eingebunden -> Software aktualisiert -> Reboot -> den ALTEN Runner in
+  # GitLab geloescht (er wurde auch nach dem Reboot noch mit der alten
+  # Version angezeigt - das ist der alte Eintrag, nicht der Dienst) ->
+  # Runner NEU angelegt (4.4) und mit einem NEUEN Namen registriert (4.5)
+  # -> Test-Commit -> Job lief.
+
+  curl -sS -o /root/gitlab-runner-repo.sh https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.rpm.sh
+
+  head -20 /root/gitlab-runner-repo.sh
+  # Erwartet: Skript von packages.gitlab.com - erst ansehen, dann ausfuehren
+
+  bash /root/gitlab-runner-repo.sh
+  # Erwartet: "The repository is setup! You can now install packages."
+
+  dnf upgrade -y gitlab-runner
+  # Erwartet: "Complete!" (laufende Jobs vorher abwarten - das Update
+  # startet den Dienst neu)
+
+  gitlab-runner --version
+  # Erwartet: die neue Version (passend zum GitLab-Server)
+
+  rm /root/gitlab-runner-repo.sh
+
+  # Reboot des Runner-Hosts (beim Kunden so gemacht; mindestens
+  #   systemctl restart gitlab-runner )
+
+  # Danach: alten Runner in GitLab loeschen (Settings > CI/CD > Runners >
+  # alter Runner > Loeschen) und den verwaisten Eintrag entfernen
+  # ("Altlasten bereinigen" unten: verify / verify --delete). Dann 4.4.
+  # --- Ende Runner zu alt ---
+
+  # vorhandene Runner zeigen:
 
   gitlab-runner list
   # Erwartet: keine Zeile (neuer Host) - oder die schon vorhandenen Runner
@@ -704,7 +755,9 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
   #
   #   Tags                 : reports-deploy
   #   Run untagged jobs    : AUS
-  #   Runner description   : reports-deploy <Runner-Host>
+  #   Runner description   : reports-deploy <Runner-Host>  - ein NEUER Name,
+  #                          nie der eines schon vorhandenen / alten Runners
+  #                          (beim Kunden: report-deploy)
   #   Protected            : AN  (nimmt nur Jobs von geschuetzten Branches /
   #                               Tags - main und prod-*, siehe SCHRITT 5.1/5.2;
   #                               passt zu den geschuetzten Variablen)
@@ -744,6 +797,10 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
 
   gitlab-runner register --non-interactive --url "$GITLAB_URL" --token "$RUNNER_TOKEN" --executor shell --description "reports-deploy $(hostname -s)"
   # Erwartet am Ende: "Runner registered successfully."
+  # Interaktiv ("gitlab-runner register" ohne --non-interactive) schlaegt
+  # GitLab Runner als Namen den eines schon vorhandenen Runners vor - den
+  # NICHT uebernehmen, einen neuen eintippen (beim Kunden 2026-11-13: der
+  # vorgeschlagene alte Name wurde ersetzt durch report-deploy).
   # Tags und "Protected" wurden in 4.4 in GitLab gesetzt - beim
   # Registrieren mit glrt-Token nicht noch einmal angeben.
   # Hinweis: das Token steht dabei kurz in der Prozessliste und danach
@@ -895,6 +952,8 @@ SCHRITT 5: GitLab-Projekt einstellen  (Browser, Maintainer)
   #                                 Leerzeile
   #   DEPLOY_KNOWN_HOSTS  Variable  Zeile aus 3.5 (known_hosts_zeile.txt)
   #   DEPLOY_WAIT         Variable  300  (optional: Sekunden Wartezeit)
+  #   MAIL_TO             Variable  Empfaenger der PROD-Mail - NUR Scope
+  #                                 production (SCHRITT 9.4)
   #
   # Also 4 bis 5 Variablen mit Scope "development" (Werte vom DEV-Server)
   # und dieselben 4 bis 5 mit Scope "production" (Werte vom PROD-Server).
@@ -961,9 +1020,13 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
 
   Copy-Item "$QUELLE\ci_deploy.sh" .\deploy\ci_deploy.sh
 
-  Get-ChildItem .\.gitlab-ci.yml, .\deploy\ci_deploy.sh
+  Copy-Item "$QUELLE\ci_notify_mail.sh" .\deploy\ci_notify_mail.sh
 
-  # Erwartet: beide Dateien mit aktuellem Datum
+  Get-ChildItem .\.gitlab-ci.yml, .\deploy\ci_deploy.sh, .\deploy\ci_notify_mail.sh
+
+  # Erwartet: alle drei Dateien mit aktuellem Datum
+  # (ci_notify_mail.sh = Mail nach PROD-Deploy, eingerichtet in SCHRITT 9;
+  # bis dahin wird der Mail-Job nach einer Freigabe orange - harmlos)
 
   Select-String -Path .\.gitlab-ci.yml -Pattern 'ci_deploy.sh'
 
@@ -982,17 +1045,18 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
   6.3 Einchecken und senden
   ---------------------------------------------------
 
-  git add .gitlab-ci.yml deploy/ci_deploy.sh
+  git add .gitlab-ci.yml deploy/ci_deploy.sh deploy/ci_notify_mail.sh
 
   git status --short
 
   # Erwartet:
   #   A  .gitlab-ci.yml
   #   A  deploy/ci_deploy.sh      (oder M, wenn sie schon da war)
+  #   A  deploy/ci_notify_mail.sh
 
   git commit -m "GitLab-Pipeline fuer DEV und PROD eingerichtet"
 
-  # Erwartet: "2 files changed"
+  # Erwartet: "3 files changed"
 
   git push
 
@@ -1134,6 +1198,137 @@ SCHRITT 8: Test PROD - den Bericht freigeben  (Entwickler-PC)
 
 
 ==========================================================================
+SCHRITT 9: Mail nach dem PROD-Deploy  (root auf dem Runner-Host, Browser)
+==========================================================================
+
+  Nach jedem PROD-Deploy (Tag prod-*) schickt die Pipeline EINE Mail:
+  notify_prod_ok wenn deploy_prod gruen war, notify_prod_failed wenn er
+  rot war. DEV-Pushes schicken keine Mail. Das Skript
+  deploy/ci_notify_mail.sh (seit SCHRITT 6 im Repository) gibt die Mail an
+  das lokale sendmail des Runner-Hosts; Postfix reicht sie an den
+  Mailserver der Firma weiter.
+
+  Inhalt: Betreff "[PROD] <bericht>.rdf deployed - <tag>" (bzw. "FAILED"),
+  Freigeber, Tag-Kommentar, Dateien des Check-ins, Links zu Pipeline und
+  Job. Ein Mail-Problem macht die Freigabe NICHT rot (allow_failure) -
+  der Job erscheint dann orange.
+
+  ---------------------------------------------------
+  9.1 Mailserver klaeren
+  ---------------------------------------------------
+
+  # Beim Mail-Administrator erfragen:
+  #   - SMTP-Relay (Name, TLS-Port), den der Runner-Host benutzen darf
+  #     Demo-Wert: mxmail01.pipperr.local, Port 587 (STARTTLS)
+  #   - erlaubte Absender-Adresse (MAIL_FROM), z.B. gitlab-runner@<firma>
+  #   - Empfaenger (MAIL_TO), z.B. die Verteilerliste des Reports-Teams
+
+  export MAIL_RELAY=mxmail01.pipperr.local
+  # (Demo-Wert - beim Kunden den Relay aus der Abfrage oben)
+
+  export MAIL_PORT=587
+
+  timeout 5 bash -c "</dev/tcp/$MAIL_RELAY/$MAIL_PORT" && echo "Relay Port $MAIL_PORT offen"
+  # Erwartet: Relay Port 587 offen
+  # Keine Ausgabe -> Firewall: STOP, Freigabe Runner -> Relay Port 587.
+
+  openssl s_client -starttls smtp -connect $MAIL_RELAY:$MAIL_PORT -brief < /dev/null
+  # Erwartet: "CONNECTION ESTABLISHED", "Protocol version: TLSv1.2" oder
+  # "TLSv1.3", "Verification: OK"
+  # "Verification error" -> die CA des Relays fehlt im System-Truststore
+  # (/etc/pki/ca-trust/source/anchors/ + update-ca-trust) - siehe
+  # 80-FMW-Architecture/certificates_trust_stores.md.
+
+  ---------------------------------------------------
+  9.2 Postfix als Weiterleiter einrichten  (als root)
+  ---------------------------------------------------
+
+  rpm -q postfix
+  # "not installed" -> dnf install -y postfix
+
+  postconf relayhost
+  # Erwartet nach der Einrichtung: relayhost = [mxmail01.pipperr.local]:587
+  # Leer ("relayhost =") -> naechster Befehl. Schon ein anderer Wert ->
+  # STOP, der Host versendet schon - mit dem Mail-Administrator klaeren.
+
+  cp -p /etc/postfix/main.cf /etc/postfix/main.cf.bak_$(date +%Y%m%d)
+
+  postconf -e "relayhost = [$MAIL_RELAY]:$MAIL_PORT"
+
+  postconf -e "smtp_tls_security_level = encrypt"
+  # Mails zum Relay NUR verschluesselt (STARTTLS) - sonst kein Versand
+
+  postconf -e "smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt"
+  # System-Truststore von Oracle Linux - prueft das Zertifikat des Relays
+
+  postconf -e "inet_interfaces = loopback-only"
+  # nimmt nur Mails vom Host selbst an - kein offener Mailserver
+
+  postconf relayhost smtp_tls_security_level inet_interfaces
+  # Erwartet:
+  #   relayhost = [mxmail01.pipperr.local]:587
+  #   smtp_tls_security_level = encrypt
+  #   inet_interfaces = loopback-only
+  # Verlangt der Relay eine Anmeldung (SASL): Benutzer / Kennwort beim
+  # Mail-Administrator erfragen, smtp_sasl_auth_enable + sasl_passwd -
+  # nicht Teil dieses Kochbuchs (Kennwort nie in eine Datei im Repository).
+
+  systemctl enable --now postfix
+
+  systemctl restart postfix
+
+  systemctl is-active postfix
+  # Erwartet: active
+
+  ---------------------------------------------------
+  9.3 Testmail vom Runner-Host  (als Benutzer gitlab-runner)
+  ---------------------------------------------------
+
+  printf 'Subject: Test Runner-Mail\n\nTest von %s\n' "$(hostname -f)" > /tmp/testmail.txt
+
+  sudo -u gitlab-runner /usr/sbin/sendmail -oi <ihre-adresse@firma> < /tmp/testmail.txt
+
+  journalctl -u postfix --since "-5min" --no-pager | grep status=
+  # Erwartet: eine Zeile mit "relay=mxmail01.pipperr.local[...]:587" und
+  # "status=sent (250 ...)"
+  # "status=deferred" / "bounced" -> Text dahinter dem Mail-Administrator
+  # geben (meist: Absender nicht erlaubt oder Relay verweigert).
+
+  rm /tmp/testmail.txt
+
+  # Postfach pruefen: die Testmail ist angekommen.
+
+  ---------------------------------------------------
+  9.4 Empfaenger in GitLab eintragen  (Browser, Maintainer)
+  ---------------------------------------------------
+
+  # Settings > CI/CD > Variables > Add variable (wie 5.3):
+  #   Key         Type      Scope        Wert
+  #   MAIL_TO     Variable  production   empfaenger1@firma,empfaenger2@firma
+  #   MAIL_FROM   Variable  production   erlaubter Absender aus 9.1 (optional)
+  #   Protect variable: AN
+
+  ---------------------------------------------------
+  9.5 Test mit einer Freigabe
+  ---------------------------------------------------
+
+  # Eine Freigabe wie SCHRITT 8 (release_tag.ps1). In der Pipeline zum Tag
+  # erscheinen jetzt zwei Stufen: deploy (deploy_prod) und notify
+  # (notify_prod_ok). Im Protokoll von notify_prod_ok, letzte Zeile:
+  #   mail sent to: <MAIL_TO>  ([PROD] <bericht>.rdf deployed - prod-...)
+  # Postfach: die Mail ist da.
+  #
+  # Orange "notify_prod_ok" mit
+  #   "MAIL_TO not set"        -> 9.4 (Scope production, Protect AN)
+  #   "/usr/sbin/sendmail not found" -> 9.2
+  #   "sendmail failed"        -> 9.3, journalctl -u postfix
+  #
+  # Zum Ansehen ohne Versand (z.B. vorab): MAIL_DRYRUN=1 als CI-Variable
+  # setzen - das Skript schreibt die Mail dann nur ins Job-Protokoll.
+  # Danach die Variable wieder loeschen.
+
+
+==========================================================================
 ROLLBACK
 ==========================================================================
 
@@ -1179,6 +1374,14 @@ BEKANNTE PROBLEME
             5.2 fehlt), oder der Dienst laeuft nicht.
   Loesung : SCHRITT 4.7 (gitlab-runner verify, systemctl status
             gitlab-runner), SCHRITT 5.1 / 5.2.
+
+  Problem : Runner ist da und gruen, nimmt aber keine Jobs an (Jobs
+            bleiben "pending") - beim Kunden 2026-11-13.
+  Ursache : gitlab-runner-Version zu alt fuer den GitLab-Server.
+  Loesung : SCHRITT 4.3 "Runner zu alt": Repository einbinden, dnf upgrade,
+            Reboot; alten Runner in GitLab loeschen (zeigt auch danach noch
+            die alte Version), verify --delete; Runner neu anlegen (4.4) und
+            mit NEUEM Namen registrieren (4.5); Test-Commit.
 
   Problem : journalctl -u gitlab-runner voll mit "403 Forbidden" /
             "is removed" / "invalid token" - auch wenn kein Job laeuft.
