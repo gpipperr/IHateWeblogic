@@ -36,7 +36,7 @@
 # The password never goes on the curl command line (process list): curl gets
 # it as a config on stdin (-K -).
 #
-# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doc: Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # =============================================================================
 
 stages:

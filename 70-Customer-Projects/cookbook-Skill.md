@@ -415,6 +415,6 @@ Prompt pattern:
 Examples:
 - [Reports14_linux_manual_install/](Reports14_linux_manual_install/)
   (bash, German);
-- [Reports14_builder_windows/](Reports14_builder_windows/)
+- [14-ReportsBuilder/](../14-ReportsBuilder/README.md)
   (Windows, German);
 - tools: [tools/README.md](tools/README.md).

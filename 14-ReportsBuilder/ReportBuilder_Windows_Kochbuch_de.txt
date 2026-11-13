@@ -13,7 +13,8 @@
                (gilt laut Oracle unveraendert fuer 14.1.2), pipperr.de
                "Oracle Reports 14c unter Windows", IHateWeblogic 70-Customer-
                Projects/Reports14_linux_manual_install (Linux-Server, gleicher
-               Kunde). Hintergrund und Entscheidung: README.md in diesem Ordner.
+               Kunde). Hintergrund und Entscheidung:
+               ReportsBuilder_install_windows.md in diesem Ordner.
   Status     : LIVE BESTAETIGT 2026-10-27 beim Kunden (Windows Server 2025,
                CPU Okt 2026): alle Schritte 1-9 genau so durchgespielt und
                erfolgreich. Markierung je Schritt: [live 2026-10-27].
@@ -21,7 +22,7 @@
                Admin-Rechten ("Benutzerkonten" unten).
                Fuer das naechste Mal: Die MOS-Patches einzeln zu laden dauert
                zu lange - ein Download-Skript mit Liste ist als TODO notiert
-               (README.md dieses Ordners, offener Punkt 7).
+               (ReportsBuilder_install_windows.md, offener Punkt 7).
 
   Ziel       : Entwickler starten per RDP den Reports Builder
                (rwbuilder.bat) - mit einem Konto mit LOKALEN

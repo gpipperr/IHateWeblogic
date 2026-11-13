@@ -12,7 +12,7 @@
 #   cd E:\git\<Ihr Login>\oracle-report
 #   .\deploy\status.ps1
 #
-# Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doku   : Git_checkin.md (IHateWeblogic, 14-ReportsBuilder)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
 

@@ -24,7 +24,7 @@
 # Only for tests: RWDEPLOY_LOCAL=<path to rwdeploy.sh> runs it locally
 # instead of ssh.
 #
-# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doc: Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # =============================================================================
 
 set -u

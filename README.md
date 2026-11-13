@@ -196,8 +196,9 @@ environment (analyse + fix): the order of the first scripts –
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
 | [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
+| [`14-ReportsBuilder/`](14-ReportsBuilder/README.md)  | Oracle Reports Builder 14.1.2 on a central Windows Server (builder-only domain, RDP) and the report deployment with GitLab: rdf → xml, one report per check-in, PowerShell scripts + menu, push → DEV, `prod-*` tag → production, SSH forced-command queue; live at a customer since 2026-11-13 |
 | [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
-| [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle), Reports Builder on Windows with Git check-in and GitLab deployment (DEV on push, PROD by `prod-*` tag) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
+| [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | [`80-FMW-Architecture/`](80-FMW-Architecture/README.md) | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 
 ## Common Flags
@@ -444,6 +445,17 @@ IHateWeblogic/
 │   ├── apex_user_profile.sql        – DB profile APEX_USER (no expiry / lock-out) for the runtime accounts
 │   └── templates/                   – ords@.service, logging.properties, nginx-ords.conf
 │
+├── 14-ReportsBuilder/               – Reports Builder on Windows + report deployment with GitLab (moved from 70-Customer-Projects 2026-11-13)
+│   ├── README.md                     – overview: idea, distribute and manage reports with GitLab (diagram), documents
+│   ├── ReportsBuilder_install_windows.md – Reports Builder on Windows Server (builder-only domain), patches, open points
+│   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
+│   ├── Git_deploy.md                 – push to main -> DEV (changed reports), prod-* tag -> exactly that check-in to production (GitLab)
+│   ├── git_pipeline_kochbuch_de.txt  – German cookbook: set up both pipelines (servers, deploy keys, GitLab, tests)
+│   ├── deploy/                       – template.gitlab-ci.yml, ci_deploy.sh (job), rwdeploy.sh (SSH forced-command queue on the server), rwdeploy.conf.template, authorized_keys.example
+│   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag / prod state), release_tag.ps1 (open vs. released, set prod-* tag -> production), menu.cmd / menu.ps1 / menu.ini (start menu for a double click), README.md / README_DE.md (workflow for the developers, English / German), template.gitattributes / .gitignore
+│   ├── ReportBuilder_Windows_Kochbuch_de.txt
+│   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
+│
 ├── 60-RCU-DB-19c/
 │   ├── README.md                    – DB setup roadmap (Phase DB, between Phase 3 and 4)
 │   ├── 00a-db_env_interview.sh      – environment_db.conf from the template (interview, --check)
@@ -556,15 +568,6 @@ IHateWeblogic/
     │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
-    ├── Reports14_builder_windows/
-    │   ├── README.md                     – Reports Builder on Windows Server (builder-only domain)
-    │   ├── Git_checkin.md                – Git check-in idea: pull.ps1 / checkin.ps1, rdf -> xml (step 1 tested)
-    │   ├── Git_deploy.md                 – push to main -> DEV (changed reports), prod-* tag -> exactly that check-in to production (GitLab)
-    │   ├── git_pipeline_kochbuch_de.txt  – German cookbook: set up both pipelines (servers, deploy keys, GitLab, tests)
-    │   ├── deploy/                       – template.gitlab-ci.yml, ci_deploy.sh (job), rwdeploy.sh (SSH forced-command queue on the server), rwdeploy.conf.template, authorized_keys.example
-    │   ├── scripts/                      – git_setup.ps1, pull.ps1, checkin.ps1 (file selection), convert_rdf.ps1, checkin_only.ps1 (without Reports), status.ps1 (local vs. server; German messages), status_detail.ps1 (last 20 check-ins: date / commit / file / tag / prod state), release_tag.ps1 (open vs. released, set prod-* tag -> production), menu.cmd / menu.ps1 / menu.ini (start menu for a double click), README_DE.md (workflow for the developers), template.gitattributes / .gitignore
-    │   ├── ReportBuilder_Windows_Kochbuch_de.txt
-    │   └── ReportBuilder_Windows_Kochbuch_en.txt – English version (2026-11-11)
     └── Reports14_linux_manual_install/
         ├── README.md                     – Reading order + one-sentence purpose per Kochbuch
         ├── OS_Kochbuch_de.txt             – OS prep for OL9 (packages, Java, oracle user, network)

@@ -7,11 +7,13 @@ little Fusion Middleware as possible: one central Windows Server, developers
 work via RDP, the reports are designed there and executed on the existing
 Linux Reports server. This document explains the architecture and why it
 looks like this; the step-by-step installation is the customer cookbook
-[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt)
+[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_en.txt)
 (English) /
-[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
+[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_de.txt)
 (German, the version run at the customer); background and decisions:
-[README.md](../70-Customer-Projects/Reports14_builder_windows/README.md).
+[ReportsBuilder_install_windows.md](../14-ReportsBuilder/ReportsBuilder_install_windows.md);
+overview of the folder (with the GitLab deployment):
+[14-ReportsBuilder](../14-ReportsBuilder/README.md).
 
 Markers as in [README.md](README.md): **confirmed (live)** = customer
 installation 2026-10-27 (Windows Server 2025, CPU October 2026 – the
@@ -219,7 +221,7 @@ eports\img\logo.gif`)
    the repository is the only place the source lives; no copies on file
    shares. A simple variant for developers without Git experience
    (`pull.ps1` / `checkin.ps1`, the `.rdf` converted to XML on every
-   check-in): [Git_checkin.md](../70-Customer-Projects/Reports14_builder_windows/Git_checkin.md).
+   check-in): [Git_checkin.md](../14-ReportsBuilder/Git_checkin.md).
 4. **Git automation deploys it to DEV:** the customer's pipeline copies the
    `.rdf` (and images / libraries, if changed) into the source directory of
    the Linux **DEV** Reports server – a directory that is part of its
@@ -227,7 +229,7 @@ eports\img\logo.gif`)
    separated by `;`). One way with a self-hosted GitLab: only the branch
    `main`, one report per check-in; every push deploys the changed reports
    to DEV, a `prod-*` tag deploys exactly the tagged check-in to production –
-   [Git_deploy.md](../70-Customer-Projects/Reports14_builder_windows/Git_deploy.md).
+   [Git_deploy.md](../14-ReportsBuilder/Git_deploy.md).
 5. **Run it on the Linux server:** the developer calls the report through
    the DEV `rwservlet`, e.g.
    `https://<dev-server>/reports/rwservlet?report=<name>.rdf&destype=cache&desformat=pdf&<cmdkey>`
@@ -294,7 +296,7 @@ local-admin requirement for the developer accounts (section 4).
   <https://pipperr.de/dokuwiki/doku.php?id=forms:oracle_reports_14c_windows64>
 - Patch READMEs of the CPU October 2026 Windows patches (39600348, 39951765,
   39987730, 39100536) – facts in the
-  [folder README](../70-Customer-Projects/Reports14_builder_windows/README.md)
+  [installation doc](../14-ReportsBuilder/ReportsBuilder_install_windows.md)
 - Customer installation 2026-10-27 (Windows Server 2025) – cookbook
-  [ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt)
-  (English: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt))
+  [ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_de.txt)
+  (English: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_en.txt))

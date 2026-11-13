@@ -40,7 +40,7 @@
 #     Git Credential Manager (wird beim ersten Push einmal abgefragt)
 #
 # Ablage : E:\git\<Login>\oracle-report\deploy\checkin.ps1 (Teil des Repositorys)
-# Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doku   : Git_checkin.md (IHateWeblogic, 14-ReportsBuilder)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
 

@@ -13,7 +13,7 @@
                Projekt-Runner, DEV- und PROD-Deploy (Dateien kommen korrekt
                an), Mail nach PROD, geschuetzte Tags, Variablen je Umgebung.
                Erfahrung "Runner zu alt" in SCHRITT 4.3.
-  Grundlage  : IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/
+  Grundlage  : IHateWeblogic/14-ReportsBuilder/
                  Git_deploy.md        (Konzept, Abschnitte 2 bis 7)
                  deploy/ci_deploy.sh  (der Pipeline-Job)
                  deploy/ci_notify_mail.sh (Mail nach PROD-Deploy)
@@ -110,7 +110,7 @@ VORAUSSETZUNGEN
   -------------
 
   Quelle aller Dateien:
-    IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/deploy/
+    IHateWeblogic/14-ReportsBuilder/deploy/
     (oder der Ordner deploy\ im Kunden-Repository, falls dort abgelegt)
 
   Auf JEDEM Reports-Server (DEV und PROD), Benutzer oracle:
@@ -944,7 +944,7 @@ SCHRITT 4b: Pipeline-Mechanismus testen - mit ci_deploy_debug.sh
 
   git pull
 
-  $QUELLE = 'C:\pfad\zu\IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy'
+  $QUELLE = 'C:\pfad\zu\IHateWeblogic\14-ReportsBuilder\deploy'
 
   Copy-Item "$QUELLE\ci_deploy_debug.sh" .\deploy\ci_deploy_debug.sh
 
@@ -1143,10 +1143,10 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
   6.2 Dateien ablegen
   ---------------------------------------------------
 
-  Quelle: IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy\
+  Quelle: IHateWeblogic\14-ReportsBuilder\deploy\
   (Pfad zur eigenen Kopie hier einsetzen)
 
-  $QUELLE = 'C:\pfad\zu\IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy'
+  $QUELLE = 'C:\pfad\zu\IHateWeblogic\14-ReportsBuilder\deploy'
 
   Test-Path "$QUELLE\ci_deploy.sh"
 

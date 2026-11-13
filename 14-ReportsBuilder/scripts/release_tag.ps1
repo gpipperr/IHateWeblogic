@@ -48,7 +48,7 @@
 # bleiben, wo sie sind. Gibt es von derselben Datei einen neueren Check-in,
 # warnt das Skript: die Produktion bekommt den aelteren Stand (Rollback).
 #
-# Doku   : Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doku   : Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
 

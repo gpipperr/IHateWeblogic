@@ -1,6 +1,6 @@
 ---
 title: "Oracle Forms & Reports Customer Projects – Cookbooks, Real Installs"
-description: "Real Oracle Forms & Reports 12c and 14c projects: German step-by-step cookbooks for install, CPU patching, cloning and the Reports Builder with Git on Windows."
+description: "Real Oracle Forms & Reports 12c and 14c projects: German step-by-step cookbooks for install, CPU patching, cloning and a localhost-only domain."
 permalink: /70-Customer-Projects/
 ---
 
@@ -63,18 +63,14 @@ FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
 IHateWeblogic scripts, with all values in one
 [patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini).
 
-### Oracle Reports Builder 14.1.2 on Windows – Development Environment (German)
+### Oracle Reports Builder 14.1.2 on Windows – moved to 14-ReportsBuilder
 
-→ [Reports14_builder_windows/README.md](Reports14_builder_windows/README.md)
+→ [14-ReportsBuilder](../14-ReportsBuilder/README.md)
 
-Same customer as the Reports-only Linux install: a minimal **Reports Builder**
-environment on a central Windows Server (developers via RDP). Analysis of the
-Oracle docs (no "Standalone Reports Builder" like for Forms – the Reports Tools
-template needs JRF + EM + RCU) and a cookbook for a builder-only domain without
-Reports server, Windows services or SSL; reports are tested on the Linux server.
-**Live-confirmed 2026-10-27** at the customer (Windows Server 2025, CPU
-October 2026) – developers need local admin accounts (the installer breaks the
-ACL inheritance under the Oracle base).
+Started here as a customer project (builder-only Windows Server, live
+2026-10-27; Git check-in and GitLab deployment, live 2026-11-13). Since
+2026-11-13 it is a main folder of the library: installation, Git check-in
+with PowerShell scripts and the GitLab deployment to DEV and PROD.
 
 ### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
 

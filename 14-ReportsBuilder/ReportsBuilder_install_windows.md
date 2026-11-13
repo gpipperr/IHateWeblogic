@@ -1,25 +1,27 @@
 ---
-nav_title: "Reports Builder + Git"
-title: "Oracle Reports Builder 14.1.2 on Windows – with Git"
-description: "Oracle Reports Builder 14.1.2 on a central Windows Server (RDP): installation, Git check-in of the reports as XML, GitLab deployment to DEV and PROD."
-permalink: /70-Customer-Projects/Reports14_builder_windows/
+nav_title: "Installation (Windows)"
+title: "Install Oracle Reports Builder 14.1.2 on a Windows Server"
+description: "Builder-only Oracle Reports Builder 14.1.2 on a central Windows Server (RDP): which FMW parts are needed, patches, cookbooks, multi-user operation, open points."
 ---
 
 # Reports Builder Environment on MS Windows – Oracle Reports Builder 14.1.2
 
+> Overview of the folder – idea, report deployment with GitLab, all
+> documents: [README.md](README.md).
+
 Minimal development environment for the **Oracle Reports Builder 14.1.2** on
 a central **Windows Server**, where the developers work via **RDP**. Same
 customer as the Linux Reports installation in
-[`../Reports14_linux_manual_install/`](../Reports14_linux_manual_install/README.md):
+[`../70-Customer-Projects/Reports14_linux_manual_install/`](../70-Customer-Projects/Reports14_linux_manual_install/README.md):
 the reports are designed on Windows and run and tested on the Linux Reports
 server.
 
 → Step-by-step guide:
-[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_en.txt) (English) ·
-[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/ReportBuilder_Windows_Kochbuch_de.txt) (German, the version run at the customer)
+[ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_en.txt) (English) ·
+[ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_de.txt) (German, the version run at the customer)
 
 → Architecture and idea:
-[80-FMW-Architecture/reports_rwbuilder.md](../../80-FMW-Architecture/reports_rwbuilder.md)
+[80-FMW-Architecture/reports_rwbuilder.md](../80-FMW-Architecture/reports_rwbuilder.md)
 
 ## The question: does the Reports Builder work without the full FMW stack?
 
@@ -60,7 +62,7 @@ Day to day the developer only starts `rwbuilder.bat` from
 laborious and error-prone parts of a Windows server installation.
 
 ![builder-windows](diagrams/builder-windows.svg?v=65a44a9e)
-<sub>Source: [diagrams/builder-windows.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/diagrams/builder-windows.d2)</sub>
+<sub>Source: [diagrams/builder-windows.prompt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/diagrams/builder-windows.prompt) · [D2](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/diagrams/builder-windows.d2)</sub>
 
 <details markdown="block"><summary>ASCII version</summary>
 
@@ -103,22 +105,22 @@ laborious and error-prone parts of a Windows server installation.
 Since 2026-11-12 in use at the customer: one Git clone per developer
 (`E:\git\<user>\oracle-report` – folders `deploy\` for the scripts,
 `source\`, `xml\`, `images\`), a start menu for a double click
-([`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / `menu.ini`), [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1)
-at the start of the work, [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) converts every changed `.rdf` to XML
+([`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.cmd) / `menu.ini`), [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1)
+at the start of the work, [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) converts every changed `.rdf` to XML
 and checks in one report per check-in (the report name in the comment),
-[`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) shows tags and the production state – for developers
+[`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status_detail.ps1) shows tags and the production state – for developers
 without Git experience. Design, tests and the Windows test procedure:
 [Git_checkin.md](Git_checkin.md); for the developers:
 [scripts/README_DE.md](scripts/README_DE.md) (German, at the customer) /
 [scripts/README.md](scripts/README.md) (English); all scripts and the
 `.gitattributes` / `.gitignore` templates:
-[scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts).
+[scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/14-ReportsBuilder/scripts).
 
 Deployment (2026-11-12): only the branch `main`, one report per check-in;
 push → the changed reports to the Linux DEV server; a `prod-*` tag
-([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)) → exactly that check-in to production. GitLab CI
-template, SSH forced-command queue [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh): [Git_deploy.md](Git_deploy.md);
-set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
+([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1)) → exactly that check-in to production. GitLab CI
+template, SSH forced-command queue [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/deploy/rwdeploy.sh): [Git_deploy.md](Git_deploy.md);
+set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/git_pipeline_kochbuch_de.txt).
 Status: **live at the customer since 2026-11-13** – own GitLab project
 runner, DEV and PROD deploys (files transferred correctly), mail after the
 PROD deploy, protected `prod-*` tags and variables per environment.
@@ -137,7 +139,7 @@ report saved with a newer Builder must run on the server.
 
 Generic patches (OPatch 28186730, SPB 40125898, the eight infrastructure
 bundles) have the same README as on Linux – facts in the
-[14c README, section 3a](../FormsReports14_patch_cpu_2026-10/README.md).
+[14c README, section 3a](../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md).
 Platform-specific (Windows x64):
 
 | Patch | Read | Installation | Prerequisite / Windows notes | Bugs / remarks |
@@ -157,8 +159,8 @@ Platform-specific (Windows x64):
 | 4 | ~~Storage of the report sources and the way to the Linux server?~~ **Clarified 2026-11-12:** Git (self-hosted GitLab, only branch `main`), push → DEV, `prod-*` tag → PROD through the GitLab pipeline and the SSH queue `rwdeploy.sh` – [Git_deploy.md](Git_deploy.md). |
 | 5 | Anti-virus: exclusions for the Oracle home during installation and patching |
 | 6 | ~~Windows variants of the platform-specific patches on MOS?~~ **Clarified 2026-10-26: all available** (platform "Microsoft Windows x64 (64-bit)"): Reports 39600348 (3.5 MB, 2026-08-17), PERL 39951765 (38.4 MB, 2026-10-19), OHS 39987730 (20.3 MB, 2026-10-19), WebGate 39100536 (11.1 MB, 2026-04-21). The MOS title of the Reports QPR ("MERGE REQUEST … FOR BUGS 38991174 37866660 39375353") names only the bugs of the merge request – the **Windows README lists 31 bugs**, identical to the inventory of the Linux test host (`lsinventory -bugs_fixed`, compared 2026-10-26). Builder and server therefore have the same Reports level. |
-| 7 | **Done 2026-10-28:** downloading the MOS patches one by one by hand took too long at the appointment (about 15 files, ~7 GB, platform chosen per patch). For that there is now [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows variant since 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), plus [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1) / [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1); Windows platform `233P`): one CSV list (patch number, platform `233P` / generic `2000P`, file regexp, mandatory/optional) loaded in one run with getMOSPatch, `unzip -t` + SHA-256 – in advance on a machine with MOS access, then the files as a package to the customer. The CSV for this download checklist will be created from the cookbook at the next appointment (template: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
-| 8 | **RCU DB day to day:** the Reports tools do not use the RCU schemas at runtime (measured 2026-10-27 with `strace` on `rwconverter` on the Linux test system: no OPSS / wallet file, no AdminServer, only the login of the report) – the own RCU DB on the builder server is only needed for domain changes and a version upgrade, service set to "Manual". **Open:** start the Builder once with the DB service stopped and create a preview (Builder GUI not measured yet). Details: cookbook step 10, [reports_rwbuilder.md §3.2/3.3](../../80-FMW-Architecture/reports_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
+| 7 | **Done 2026-10-28:** downloading the MOS patches one by one by hand took too long at the appointment (about 15 files, ~7 GB, platform chosen per patch). For that there is now [tools/bash/mos_patch_download.sh](../70-Customer-Projects/tools/README.md#mos_patch_downloadsh) (Windows variant since 2026-11-03: [tools/powershell/mos_patch_download.ps1](../70-Customer-Projects/tools/powershell/README.md#mos_patch_downloadps1), plus [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1) / [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1); Windows platform `233P`): one CSV list (patch number, platform `233P` / generic `2000P`, file regexp, mandatory/optional) loaded in one run with getMOSPatch, `unzip -t` + SHA-256 – in advance on a machine with MOS access, then the files as a package to the customer. The CSV for this download checklist will be created from the cookbook at the next appointment (template: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
+| 8 | **RCU DB day to day:** the Reports tools do not use the RCU schemas at runtime (measured 2026-10-27 with `strace` on `rwconverter` on the Linux test system: no OPSS / wallet file, no AdminServer, only the login of the report) – the own RCU DB on the builder server is only needed for domain changes and a version upgrade, service set to "Manual". **Open:** start the Builder once with the DB service stopped and create a preview (Builder GUI not measured yet). Details: cookbook step 10, [reports_rwbuilder.md §3.2/3.3](../80-FMW-Architecture/reports_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
 
 Status: **confirmed live 2026-10-27** at the customer (Windows Server 2025,
 CPU October 2026) – the cookbook was run step by step and worked exactly

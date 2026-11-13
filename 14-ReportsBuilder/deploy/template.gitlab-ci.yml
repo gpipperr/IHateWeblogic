@@ -9,7 +9,7 @@
 #                               needs MAIL_TO + sendmail on the runner host)
 # There is only the branch main - no merge requests, no release branches.
 # Protect the tags prod-* in GitLab: creating one is the release.
-# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doc: Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # =============================================================================
 
 stages:

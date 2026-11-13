@@ -5,6 +5,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-13
 
+- **New main folder `14-ReportsBuilder/`** (moved from `70-Customer-Projects/Reports14_builder_windows`,
+  history kept with `git mv`): new overview `README.md` – the idea (builder-only Windows server) and
+  the core question how to distribute and manage reports with GitLab, with the diagram
+  `builder-gitlab-flow`; the former README is now `ReportsBuilder_install_windows.md`. English
+  developer workflow `scripts/README.md` next to `README_DE.md`. All paths updated (docs, script
+  header comments, cookbook `$QUELLE`); old Pages URLs redirect (`jekyll-redirect-from`). Pages: left
+  menu entry 14-ReportsBuilder, right column (all pages of the folder, new mode `dir/**`), links
+  from `80-FMW-Architecture/reports_rwbuilder.md` and `clone_golden_image.md` to the practice;
+  key pages "The idea" / "Current patches" below Start; right column for 00, 04, 09, 10, 60, 70
+  (tree with `nav_title`), 80.
 - `Reports14_builder_windows`: **Reports deployment live at the customer** – own GitLab project
   runner, push -> DEV and `prod-*` tag -> PROD (files arrive correctly), mail after the PROD deploy,
   protected tags, variables per environment. New: `deploy/ci_deploy_debug.sh` (no-logic test of the
@@ -157,14 +167,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   library 3), needs a Reports server restart, `JOBRETRY` in request / key overrides it (key
   wins), normal REP errors are retried too; "retry does not take" checklist.
   `reports_mail_handling.md`: `jobretry=0` in the ticket key (one mail per failure).
-- New `70-Customer-Projects/Reports14_builder_windows/Git_checkin.md`: Git check-in idea for
+- New `14-ReportsBuilder/Git_checkin.md`: Git check-in idea for
   Reports developers on the Windows Builder server (clone per user `E:\git\<user>`,
   `pull.ps1` / `checkin.ps1`, no stash / ff-only, Git Credential Manager). Step 1 rdf -> xml
   tested live on the Linux test host: needs a DB login (`cmdfile=`; without: REP-3022 /
   REP-1430, also with Xvfb), 0.4-0.7 s per report, byte-identical XML on re-conversion, `name=`
   from the destination file name, exit code 1 on missing / broken file and wrong login;
   Windows test procedure for the customer included. Scripts: flow sketch only.
-- `70-Customer-Projects/Reports14_builder_windows`: README in English; new
+- `14-ReportsBuilder`: README in English; new
   `ReportBuilder_Windows_Kochbuch_en.txt` (full translation of the German cookbook, same commands
   checked line by line, ASCII / 80 columns); German cookbook unchanged. Links added in
   `reports_rwbuilder.md`, the Linux manual-install README and the root repository tree.

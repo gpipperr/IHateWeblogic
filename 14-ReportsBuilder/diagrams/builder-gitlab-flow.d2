@@ -1,0 +1,120 @@
+classes: {
+  ext: {
+    style: {
+      fill: "#EDEDED"
+      stroke: "#7F7F7F"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  wls: {
+    style: {
+      fill: "#E2EFDA"
+      stroke: "#548235"
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 20
+      font-color: "#C00000"
+    }
+  }
+  zone: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#7F7F7F"
+      stroke-dash: 4
+      border-radius: 8
+      stroke-width: 1
+      shadow: false
+      font-size: 22
+      bold: true
+      font-color: "#C00000"
+    }
+  }
+  conn: {
+    style: {
+      stroke: "#7F7F7F"
+      stroke-width: 2
+      font-color: "#000000"
+      font-size: 18
+    }
+  }
+}
+
+direction: down
+
+developer: "Developer (RDP)" {
+  class: ext
+}
+
+builder: "Windows Builder server\nReports Builder, Git clone per developer\ncheckin.ps1:  .rdf -> .xml, one report per check-in\nrelease_tag.ps1:  tag prod-<date>_<report>" {
+  class: ext
+}
+
+gitlab: "GitLab project" {
+  class: zone
+  direction: right
+
+  main: "branch main" {
+    class: ext
+  }
+  deploy_dev: "job deploy_dev" {
+    class: ext
+  }
+  tags: "tags prod-*" {
+    class: ext
+  }
+  deploy_prod: "job deploy_prod" {
+    class: ext
+  }
+
+  main -> deploy_dev: "push" {
+    class: conn
+  }
+  tags -> deploy_prod: "tag" {
+    class: conn
+  }
+}
+
+runner: "Project runner (Linux VM, shell executor)" {
+  class: ext
+}
+
+dev: "DEV Reports server:  rwdeploy.sh\nbackup, copy, log" {
+  class: wls
+}
+
+prod: "PROD Reports server: rwdeploy.sh\nbackup, copy, log" {
+  class: wls
+}
+
+mail: "mail after the PROD deploy" {
+  class: ext
+}
+
+developer -> builder: {
+  class: conn
+}
+
+builder -> gitlab: "git push\n(HTTPS)" {
+  class: conn
+}
+
+gitlab -> runner: {
+  class: conn
+}
+
+runner -> dev: "ssh, forced\ncommand" {
+  class: conn
+}
+
+runner -> prod: "ssh, forced\ncommand" {
+  class: conn
+}
+
+runner -> mail: {
+  class: conn
+}

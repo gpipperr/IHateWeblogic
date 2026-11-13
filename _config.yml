@@ -9,6 +9,7 @@ baseurl: /IHateWeblogic
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
+  - jekyll-redirect-from
 exclude:
   - TODO.md
   - tools/

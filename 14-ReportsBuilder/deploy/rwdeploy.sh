@@ -25,7 +25,7 @@
 #
 # Config: rwdeploy.conf next to this script (or RWDEPLOY_CONF), see
 #         rwdeploy.conf.template.
-# Doc   : Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doc   : Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # =============================================================================
 
 set -u

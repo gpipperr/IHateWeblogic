@@ -16,8 +16,8 @@
                12.2.1.3 (valid unchanged for 14.1.2 according to Oracle),
                pipperr.de "Oracle Reports 14c unter Windows", IHateWeblogic
                70-Customer-Projects/Reports14_linux_manual_install (Linux
-               server, same customer). Background and decision: README.md in
-               this folder.
+               server, same customer). Background and decision:
+               ReportsBuilder_install_windows.md in this folder.
   Status     : CONFIRMED LIVE 2026-10-27 at the customer (Windows Server
                2025, CPU Oct 2026): all steps 1-9 run exactly like this and
                successful. Marker per step: [live 2026-10-27].
@@ -25,7 +25,7 @@
                admin rights ("User accounts" below).
                For the next time: downloading the MOS patches one by one
                takes too long - use the CSV-driven download tool
-               (README.md of this folder, open point 7).
+               (ReportsBuilder_install_windows.md, open point 7).
 
   Goal       : Developers start the Reports Builder (rwbuilder.bat) via
                RDP - with an account with LOCAL ADMINISTRATOR RIGHTS (see
@@ -194,8 +194,8 @@ PREREQUISITES  (adapt the values ONCE to the environment - STEP 0)
   for 14.1.2 and Windows x64 or Generic.
   Tip: with getMOSPatch the download runs in one go (platform 233P for d)
   and b), Generic for c)) - see the CSV-driven tool
-  tools/powershell/mos_patch_download.ps1 (README.md of this folder, open
-  point 7) or OS_Kochbuch_de.txt step 7 in the folder
+  tools/powershell/mos_patch_download.ps1
+  (ReportsBuilder_install_windows.md, open point 7) or OS_Kochbuch_de.txt step 7 in the folder
   Reports14_linux_manual_install.
 
   Space: about 10 GB for Oracle home + domain, plus about 6 GB while

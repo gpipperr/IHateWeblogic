@@ -20,7 +20,7 @@
 #   CI_PROJECT_PATH
 # Only for tests: MAIL_DRYRUN=1 prints the mail instead of sending it.
 #
-# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doc: Git_deploy.md (IHateWeblogic, 14-ReportsBuilder)
 # =============================================================================
 
 set -u

@@ -2,7 +2,9 @@
 nav_title: "Scripts (English)"
 title: "Oracle Reports Development with Git – the Developer Workflow"
 description: "Daily workflow of Oracle Reports developers with Git on Windows: menu, pull, check-in, status and release to production with a prod tag."
-permalink: /70-Customer-Projects/Reports14_builder_windows/scripts/
+permalink: /14-ReportsBuilder/scripts/
+redirect_from:
+  - /70-Customer-Projects/Reports14_builder_windows/scripts/
 ---
 
 # Reports development with Git – the workflow
@@ -98,7 +100,7 @@ Only `source\*.rdf` and `images\*` go to production.
 4. **DB login for the XML conversion** – a file with one line
    `userid=<db user>/<password>@<tns alias>`, either personal in
    `%USERPROFILE%\.rwconv\login.txt` or at the fixed place your
-   administrator entered in [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1). The file is never in
+   administrator entered in [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/convert_rdf.ps1). The file is never in
    the repository.
 5. **Desktop shortcut "Reports Builder (Git)"** – set up by the
    administrator; it starts the Builder with your Git folders as search
@@ -107,7 +109,7 @@ Only `source\*.rdf` and `images\*` go to production.
    - right-click `E:\git\<your login>\oracle-report\menu.cmd` → *Send to*
      → *Desktop (create shortcut)*.
    - shortcut → *Properties* → *Advanced* → tick **"Run as
-     administrator"** ([`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) needs it).
+     administrator"** ([`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) needs it).
 
 ## Without typing: the menu
 
@@ -131,7 +133,7 @@ A double click on the desktop icon opens the menu:
 Wähle eine Option oder breche mit x / q ab :
 ```
 
-(The texts come from [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) – German at the customer: get the
+(The texts come from [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ini) – German at the customer: get the
 latest changes, show the status, list of the last check-ins with tag and
 production state, check in a report and deploy to DEV, show what is not in
 production yet, set the release tag.)
@@ -146,12 +148,12 @@ production yet, set the release tag.)
 - Only if a script was cancelled with Ctrl+C and the menu is gone:
   **`m` + Enter** starts it again in the same window.
 - What the menu shows (order, texts, parameters) is set in
-  [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) – changes there are made by the Git contact person.
+  [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ini) – changes there are made by the Git contact person.
 - The scripts are in `deploy\`, the menu in the top folder – `menu.ini`
   says so with `SkriptPfad = deploy`. Another place: change `SkriptPfad`,
   for all in `[Menue]` or per entry, relative (`deploy`, `..`) or absolute
   with `%VARIABLE%` (`E:\git\%USERNAME%\oracle-report\deploy`).
-  [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd), [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) and `menu.ini` always stay together in one folder.
+  [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.cmd), [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ps1) and `menu.ini` always stay together in one folder.
 - The window size (60 lines) is set at the top of `menu.cmd` (`ZEILEN`,
   `SPALTEN`). In Windows Terminal (Windows 11) its own setting applies.
 
@@ -163,7 +165,7 @@ described below.
 ### 1. Start of work: `pull.ps1`
 
 Start PowerShell **as administrator** (right-click → "Run as
-administrator") – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) needs it later, so one window does
+administrator") – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) needs it later, so one window does
 everything. Then:
 
 ```powershell
@@ -244,7 +246,7 @@ Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
 - The name of the release script is shown only when it is entered at the
   top of the script in `$ReleaseSkript` (default: empty – every customer
   has an own one, e.g. `release_tag.ps1`).
-- Tags and state are those of the last [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) – the script gets
+- Tags and state are those of the last [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1) – the script gets
   nothing from the Git server. If it reports "production has newer
   versions than your state": run `pull.ps1` first.
 
@@ -291,7 +293,7 @@ script creates itself; never change XML files by hand.
 ## After the check-in: DEV and production
 
 There is only the branch **`main`**. Every report is checked in **on its
-own** – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) does this itself, also with the selection `a`
+own** – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) does this itself, also with the selection `a`
 (one check-in per report, with its XML file).
 
 - **DEV:** every upload deploys the changed reports automatically to the
@@ -356,14 +358,14 @@ own** – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70
    **not** go along.
 
 - Released is the state on the **Git server**: first check in and upload
-  the report with [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1), test it on DEV, then
-  [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1).
+  the report with [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1), test it on DEV, then
+  [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1).
 - Default: only `.rdf` files. `-Filter '*.png'` shows e.g. only images –
   an image also goes to production this way, with a tag of its own.
 - A tag releases **only its check-in**. Older check-ins of other reports
   stay where they are.
 
-| Message of [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | What to do |
+| Message of [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) | What to do |
 |---|---|
 | `ACHTUNG : Es gibt N neuere(n) Check-in(s) dieser Datei(en)` (there are N newer check-ins of this file) | you chose an older version, the newer ones do not go along – cancel with `n` and choose the newer one (unless you deliberately want to go back to the older one) |
 | `Der Check-in hat N Dateien - alle gehen in die Produktion` (the check-in has N files – all go to production) | an old check-in with several files – tag it only if all of them should go to production |
@@ -400,29 +402,29 @@ An empty comment cancels as well.
 | `Wandlung von ... fehlgeschlagen` with a `REP-` message | the report cannot be converted (error in the report or wrong DB login) | open and compile the report in the Builder, check the login file – nothing was checked in |
 | `rwconverter hat keine Meldung geliefert` | the conversion gave no result | as above |
 | `Ein Kollege hat denselben Bericht geaendert` | you and a colleague changed the same report | nothing was overwritten – save the report, ask the Git contact person |
-| `Ihr Check-in ist lokal gespeichert, aber NICHT auf dem Git-Server` | the upload failed (network, server, colleague at the same time) | run [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) again later – `n` only uploads |
+| `Ihr Check-in ist lokal gespeichert, aber NICHT auf dem Git-Server` | the upload failed (network, server, colleague at the same time) | run [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) again later – `n` only uploads |
 | `Ungueltige Auswahl` | the input was no valid number | start the script again |
 
 ## The scripts
 
 | Script | When |
 |---|---|
-| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) | menu for a double click (desktop icon): choose a script, it runs in the same window, then the menu comes back (`c` = clear the screen, `x` / `q` = quit); content from [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) |
-| [`git_setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | once per user: name, e-mail, line ends |
-| [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | at the start of work: get the latest state |
-| [`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) | at any time: what is open – locally and on the Git server (changes nothing) |
-| [`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) | list of the last 20 check-ins: date, commit ID, file, tag, Prod (`PROD` / `offen` / `alt`) – one line per file (changes nothing) |
-| [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | check in reports: selection, comment, conversion to XML, upload |
-| [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | called by [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1); on its own: `.\deploy\convert_rdf.ps1 umsatz` converts `source\umsatz.rdf` to `xml\umsatz.xml` |
-| [`checkin_only.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin_only.ps1) | like [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1), but without the Reports part – for a PC without the Reports Builder |
-| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | release a tested report to production: shows open check-ins and the last `prod-` tags, sets the tag – the pipeline then deploys to production; default only `.rdf`, `-Filter` changes that; `-List` = show only |
+| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ps1) | menu for a double click (desktop icon): choose a script, it runs in the same window, then the menu comes back (`c` = clear the screen, `x` / `q` = quit); content from [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ini) |
+| [`git_setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/git_setup.ps1) | once per user: name, e-mail, line ends |
+| [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1) | at the start of work: get the latest state |
+| [`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status.ps1) | at any time: what is open – locally and on the Git server (changes nothing) |
+| [`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status_detail.ps1) | list of the last 20 check-ins: date, commit ID, file, tag, Prod (`PROD` / `offen` / `alt`) – one line per file (changes nothing) |
+| [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) | check in reports: selection, comment, conversion to XML, upload |
+| [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/convert_rdf.ps1) | called by [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1); on its own: `.\deploy\convert_rdf.ps1 umsatz` converts `source\umsatz.rdf` to `xml\umsatz.xml` |
+| [`checkin_only.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin_only.ps1) | like [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1), but without the Reports part – for a PC without the Reports Builder |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) | release a tested report to production: shows open check-ins and the last `prod-` tags, sets the tag – the pipeline then deploys to production; default only `.rdf`, `-Filter` changes that; `-List` = show only |
 
 ## Rules
 
-- There is only the branch `main` ([`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) warns otherwise).
-- Every report is a check-in of its own – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) does this itself.
-- [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) before the work, `checkin.ps1` afterwards – if possible on the same day.
-- To production only via a `prod-` tag with [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) – never copy by hand.
+- There is only the branch `main` ([`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status.ps1) warns otherwise).
+- Every report is a check-in of its own – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) does this itself.
+- [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1) before the work, `checkin.ps1` afterwards – if possible on the same day.
+- To production only via a `prod-` tag with [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) – never copy by hand.
 - One report – one person at a time (agree on it).
 - XML files are created only by the script.
 - Passwords never in files in the repository and never in a comment.
@@ -431,4 +433,4 @@ An empty comment cancels as well.
 
 Technical background: [`Git_checkin.md`](../Git_checkin.md) and
 [`Git_deploy.md`](../Git_deploy.md) in the IHateWeblogic project, folder
-`70-Customer-Projects/Reports14_builder_windows`.
+`14-ReportsBuilder`.

@@ -18,7 +18,7 @@
 #   3. zeigt die letzten 5 Check-ins
 #
 # Ablage : E:\git\<Login>\oracle-report\deploy\pull.ps1 (Teil des Repositorys)
-# Doku   : Git_checkin.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# Doku   : Git_checkin.md (IHateWeblogic, 14-ReportsBuilder)
 # Nur ASCII - Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI.
 # =============================================================================
 

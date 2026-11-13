@@ -2,6 +2,8 @@
 nav_title: "Skripte (Deutsch)"
 title: "Oracle Reports Entwicklung mit Git – der Arbeitsablauf"
 description: "Arbeitsablauf der Reports-Entwickler mit Git unter Windows: Menü, pull, checkin, Status, Freigabe nach Produktion per Release-Tag."
+redirect_from:
+  - /70-Customer-Projects/Reports14_builder_windows/scripts/README_DE.html
 ---
 
 # Reports-Entwicklung mit Git – der Arbeitsablauf
@@ -96,7 +98,7 @@ In die Produktion gehen nur `source\*.rdf` und `images\*`.
 4. **DB-Login für die XML-Umwandlung** – eine Datei mit einer Zeile
    `userid=<db user>/<kennwort>@<tns alias>`, entweder persönlich unter
    `%USERPROFILE%\.rwconv\login.txt` oder an der festen Stelle, die Ihr
-   Administrator in [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) eingetragen hat. Die Datei liegt nie im
+   Administrator in [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/convert_rdf.ps1) eingetragen hat. Die Datei liegt nie im
    Repository.
 5. **Desktop-Verknüpfung "Reports Builder (Git)"** – richtet der
    Administrator ein; sie startet den Builder mit Ihren Git-Ordnern als
@@ -105,7 +107,7 @@ In die Produktion gehen nur `source\*.rdf` und `images\*`.
    - Rechtsklick auf `E:\git\<Ihr Login>\oracle-report\menu.cmd` → *Senden an*
      → *Desktop (Verknüpfung erstellen)*.
    - Verknüpfung → *Eigenschaften* → *Erweitert* → **"Als Administrator
-     ausführen"** anhaken ([`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) braucht das).
+     ausführen"** anhaken ([`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) braucht das).
 
 ## Ohne Tippen: das Menü
 
@@ -139,12 +141,12 @@ Wähle eine Option oder breche mit x / q ab :
 - Nur falls ein Skript mit Strg+C abgebrochen wurde und das Menü weg ist:
   **`m` + Enter** startet es im selben Fenster neu.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
-  [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) – Änderungen dort macht der Git-Ansprechpartner.
+  [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ini) – Änderungen dort macht der Git-Ansprechpartner.
 - Die Skripte liegen in `deploy\`, das Menü im obersten Ordner – das steht
   in `menu.ini` als `SkriptPfad = deploy`. Andere Ablage: `SkriptPfad`
   ändern, für alle in `[Menue]` oder je Eintrag, relativ (`deploy`, `..`)
   oder absolut mit `%VARIABLE%` (`E:\git\%USERNAME%\oracle-report\deploy`).
-  [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd), [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) und `menu.ini` bleiben zusammen in einem Ordner.
+  [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.cmd), [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ps1) und `menu.ini` bleiben zusammen in einem Ordner.
 - Die Fenstergröße (60 Zeilen) steht oben in `menu.cmd` (`ZEILEN`,
   `SPALTEN`). Im Windows Terminal (Windows 11) gilt dessen eigene
   Einstellung.
@@ -157,7 +159,7 @@ wie unten beschrieben.
 ### 1. Arbeitsbeginn: `pull.ps1`
 
 PowerShell **als Administrator** starten (Rechtsklick → "Als Administrator
-ausführen") – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) braucht das später, so reicht ein Fenster für
+ausführen") – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) braucht das später, so reicht ein Fenster für
 alles. Dann:
 
 ```powershell
@@ -236,7 +238,7 @@ Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
 - Den Namen des Freigabe-Skripts zeigt die Liste nur, wenn er oben im
   Skript in `$ReleaseSkript` eingetragen ist (Standard: leer – jeder hat
   sein eigenes, z.B. `release_tag.ps1`).
-- Tags und Stand sind die vom letzten [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) – das Skript holt nichts vom
+- Tags und Stand sind die vom letzten [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1) – das Skript holt nichts vom
   Git-Server. Meldet es „die Produktion hat neuere Versionen als Ihr Stand“:
   erst `pull.ps1`.
 
@@ -278,7 +280,7 @@ XML-Datei, die das Skript selbst erzeugt; XML-Dateien nie von Hand ändern.
 ## Nach dem Einchecken: DEV und Produktion
 
 Es gibt nur den Branch **`main`**. Jeder Bericht wird **einzeln**
-eingecheckt – das macht [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) selbst, auch bei der Auswahl `a`
+eingecheckt – das macht [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) selbst, auch bei der Auswahl `a`
 (ein Check-in pro Bericht, mit seiner XML-Datei).
 
 - **DEV:** Jedes Hochladen verteilt die geänderten Berichte automatisch auf
@@ -341,14 +343,14 @@ eingecheckt – das macht [`checkin.ps1`](https://github.com/gpipperr/IHateWeblo
    gehen **nicht** mit.
 
 - Freigegeben wird der Stand auf dem **Git-Server**: den Bericht zuerst mit
-  [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) einchecken und hochladen, auf DEV testen, dann
-  [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1).
+  [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) einchecken und hochladen, auf DEV testen, dann
+  [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1).
 - Standard: nur `.rdf`-Dateien. `-Filter '*.png'` zeigt z.B. nur Bilder –
   auch ein Bild kommt so mit einem eigenen Tag in die Produktion.
 - Ein Tag gibt **nur seinen Check-in** frei. Ältere Check-ins anderer
   Berichte bleiben, wo sie sind.
 
-| Meldung von [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | Was tun |
+| Meldung von [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) | Was tun |
 |---|---|
 | `ACHTUNG : Es gibt N neuere(n) Check-in(s) dieser Datei(en)` | Sie haben eine ältere Version gewählt, die neueren gehen nicht mit – mit `n` abbrechen und die neuere wählen (außer Sie wollen bewusst zurück auf die ältere) |
 | `Der Check-in hat N Dateien - alle gehen in die Produktion` | ein alter Check-in mit mehreren Dateien – nur taggen, wenn alle in die Produktion sollen |
@@ -386,29 +388,29 @@ Auch ein leerer Kommentar bricht ab.
 | `Wandlung von ... fehlgeschlagen` mit `REP-`-Meldung | der Bericht lässt sich nicht umwandeln (Fehler im Bericht oder falscher DB-Login) | Bericht im Builder öffnen und kompilieren, Login-Datei prüfen – es wurde nichts eingecheckt |
 | `rwconverter hat keine Meldung geliefert` | die Umwandlung hat kein Ergebnis gebracht | wie oben |
 | `Ein Kollege hat denselben Bericht geaendert` | Sie und ein Kollege haben denselben Bericht geändert | nichts wurde überschrieben – Bericht sichern, Git-Ansprechpartner fragen |
-| `Ihr Check-in ist lokal gespeichert, aber NICHT auf dem Git-Server` | das Hochladen ging nicht (Netz, Server, Kollege gleichzeitig) | später erneut [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) – mit `n` nur hochladen |
+| `Ihr Check-in ist lokal gespeichert, aber NICHT auf dem Git-Server` | das Hochladen ging nicht (Netz, Server, Kollege gleichzeitig) | später erneut [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) – mit `n` nur hochladen |
 | `Ungueltige Auswahl` | Eingabe war keine gültige Nummer | Skript neu starten |
 
 ## Die Skripte
 
 | Skript | Wann |
 |---|---|
-| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, danach kommt das Menü wieder (`c` = Bildschirm löschen, `x` / `q` = beenden); Inhalt aus [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) |
-| [`git_setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | einmal pro Benutzer: Name, E-Mail, Zeilenende |
-| [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | zu Arbeitsbeginn: neuesten Stand holen |
-| [`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
-| [`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag, Prod (`PROD` / `offen` / `alt`) – eine Zeile pro Datei (ändert nichts) |
-| [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
-| [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/convert_rdf.ps1) | wird von [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) aufgerufen; einzeln: `.\deploy\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
-| [`checkin_only.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin_only.ps1) | wie [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1), aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
-| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das; `-List` = nur anzeigen |
+| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ps1) | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, danach kommt das Menü wieder (`c` = Bildschirm löschen, `x` / `q` = beenden); Inhalt aus [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/menu.ini) |
+| [`git_setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/git_setup.ps1) | einmal pro Benutzer: Name, E-Mail, Zeilenende |
+| [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1) | zu Arbeitsbeginn: neuesten Stand holen |
+| [`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status.ps1) | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
+| [`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status_detail.ps1) | Liste der letzten 20 Check-ins: Datum, Commit ID, Datei, Tag, Prod (`PROD` / `offen` / `alt`) – eine Zeile pro Datei (ändert nichts) |
+| [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) | Berichte einchecken: Auswahl, Kommentar, Umwandlung nach XML, hochladen |
+| [`convert_rdf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/convert_rdf.ps1) | wird von [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) aufgerufen; einzeln: `.\deploy\convert_rdf.ps1 umsatz` wandelt `source\umsatz.rdf` nach `xml\umsatz.xml` |
+| [`checkin_only.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin_only.ps1) | wie [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1), aber ohne Reports-Teil – für einen Rechner ohne Reports Builder |
+| [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) | einen getesteten Bericht für die Produktion freigeben: zeigt offene Check-ins und die letzten `prod-`-Tags, setzt den Tag – die Pipeline verteilt dann in die Produktion; Standard nur `.rdf`, `-Filter` ändert das; `-List` = nur anzeigen |
 
 ## Regeln
 
-- Es gibt nur den Branch `main` ([`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) warnt sonst).
-- Jeder Bericht ein eigener Check-in – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) macht das selbst.
-- Vor der Arbeit [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1), danach `checkin.ps1` – möglichst am selben Tag.
-- In die Produktion nur über einen `prod-`-Tag mit [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) – nie von Hand kopieren.
+- Es gibt nur den Branch `main` ([`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/status.ps1) warnt sonst).
+- Jeder Bericht ein eigener Check-in – [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/checkin.ps1) macht das selbst.
+- Vor der Arbeit [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/pull.ps1), danach `checkin.ps1` – möglichst am selben Tag.
+- In die Produktion nur über einen `prod-`-Tag mit [`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/scripts/release_tag.ps1) – nie von Hand kopieren.
 - Ein Bericht – eine Person zur gleichen Zeit (absprechen).
 - XML-Dateien erzeugt nur das Skript.
 - Kennwörter nie in Dateien im Repository und nie in einen Kommentar.
@@ -416,4 +418,4 @@ Auch ein leerer Kommentar bricht ab.
   Git-Ansprechpartner fragen.
 
 Technischer Hintergrund (englisch): [`Git_checkin.md`](../Git_checkin.md) und [`Git_deploy.md`](../Git_deploy.md) im IHateWeblogic-Projekt,
-Ordner `70-Customer-Projects/Reports14_builder_windows`.
+Ordner `14-ReportsBuilder`.
