@@ -1,7 +1,5 @@
 # Oracle Reports: Greek / Symbol Glyphs in the HTML Parameter Form
 
-Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
-
 > How the HTML parameter form (and HTML output) of Oracle Reports 12c/14c on
 > Oracle Linux resolves fonts, why it can render every text in the **Symbol**
 > font (Latin text shown as Greek letters) while PDF output is perfectly fine,
