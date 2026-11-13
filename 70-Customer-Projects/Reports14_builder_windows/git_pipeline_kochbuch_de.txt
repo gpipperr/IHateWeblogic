@@ -37,7 +37,8 @@ ZIELZUSTAND
   rwdeploy.sh + rwdeploy.conf PROD      $RWD_BIN auf dem PROD-Server  2
   Deploy-Schluessel DEV / PROD          authorized_keys (Server),     3
                                         private Teil nur in GitLab
-  Runner mit Tag reports-deploy         GitLab-Runner-Host            4
+  Projekt-Runner, Tag reports-deploy,   Runner-Host (gitlab-runner,   4
+  protected, Executor shell             Benutzer gitlab-runner)
   main + prod-* geschuetzt, Variablen   GitLab-Projekt oracle-report  5
   .gitlab-ci.yml + deploy/ci_deploy.sh  Repository (main)             6
   Test DEV: Bericht einchecken          DEV-Server hat den Bericht    7
@@ -63,10 +64,11 @@ VORAUSSETZUNGEN
 
   V.1  GitLab: Rechte "Maintainer" (oder hoeher) im Projekt oracle-report.
 
-  V.2  GitLab-Runner: ein Runner, der das Projekt bedienen darf, mit bash,
-       git und ssh. Der Runner-Host erreicht DEV und PROD auf Port 22.
-       Seine IP-Adresse (so, wie die Server sie sehen) wird in SCHRITT 3
-       gebraucht - beim GitLab-Administrator erfragen.
+  V.2  Runner-Host: eine Linux-VM fuer den Projekt-Runner (eingerichtet in
+       SCHRITT 4), root-Zugang, ausgehend HTTPS zu GitLab und Port 22 zu
+       DEV und PROD. Seine IP-Adresse (so, wie die Server sie sehen) wird
+       schon in SCHRITT 3 gebraucht (from=...) - Host also vorher
+       festlegen (4.2).
 
   V.3  Reports-Server DEV und PROD: Anmeldung als oracle (ssh oder Konsole).
 
@@ -118,8 +120,17 @@ VORAUSSETZUNGEN
                                        (Standard im Template; anderer Ordner
                                        beim Kunden -> in 1.4 eintragen)
 
+  Auf dem Runner-Host (root, SCHRITT 4):
+
+    gitlab-runner (Paket)              aus packages.gitlab.com  <- 4.3
+    Benutzer gitlab-runner             legt das Paket an; die Jobs laufen so
+    /etc/gitlab-runner/config.toml     Registrierung + Token (600)  <- 4.5
+    /home/gitlab-runner/builds/        Arbeitsordner der Jobs (Checkout)
+    /tmp/report_pip.txt                nur beim Test mit ci_deploy_debug.sh
+
   Im GitLab-Projekt oracle-report (Browser):
 
+    Settings > CI/CD > Runners                   Projekt-Runner  <- 4.4
     Settings > Repository > Protected branches   main            <- 5.1
     Settings > Repository > Protected tags       prod-*          <- 5.2
     Settings > CI/CD > Variables                 5 Werte je
@@ -517,51 +528,250 @@ SCHRITT 3: Deploy-Schluessel  (als oracle, je Server einmal)
 
 
 ==========================================================================
-SCHRITT 4: GitLab-Runner  (GitLab-Administrator)
+SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
 ==========================================================================
 
   Die Jobs laufen nur auf einem Runner mit dem Tag  reports-deploy
-  (steht so in .gitlab-ci.yml).
+  (steht so in .gitlab-ci.yml). Wir richten dafuer einen eigenen
+  PROJEKT-RUNNER ein: nur fuer das Projekt oracle-report, nur fuer
+  geschuetzte Branches/Tags (main, prod-*), Executor "shell".
+
+  Der Runner holt sich seine Jobs selbst bei GitLab ab (ausgehend HTTPS) -
+  eingehend ist auf dem Runner-Host nichts noetig. Zu den Reports-Servern
+  geht er ausgehend auf Port 22.
+
+  Teile, die nur mit dem echten GitLab gehen (Menue-Namen, Ausgabe von
+  "register"), sind nach der GitLab-Doku geschrieben und BEIM KUNDEN ZU
+  BESTAETIGEN:
+    https://docs.gitlab.com/ci/runners/runners_scope/#project-runners
+    https://docs.gitlab.com/runner/install/linux-repository/
+    https://docs.gitlab.com/runner/register/
+    https://docs.gitlab.com/runner/executors/shell/
 
   ---------------------------------------------------
   4.1 Gibt es den Runner schon?
   ---------------------------------------------------
 
   # Browser: Projekt oracle-report > Settings > CI/CD > Runners
-  # Ein Runner mit dem Tag "reports-deploy", Status gruen (online)?
-  #   ja   -> weiter mit 4.3
+  # Ein Projekt-Runner mit dem Tag "reports-deploy", Status gruen (online)?
+  #   ja   -> weiter mit 4.7 (pruefen) - KEINEN zweiten anlegen: zwei Runner
+  #           mit diesem Tag nehmen beide Jobs an
   #   nein -> 4.2
+  #
+  # Den Tag reports-deploy hat NUR der Deploy-Runner. Andere Runner (auch
+  # Instanz-Runner) ohne diesen Tag nehmen unsere Jobs nicht.
+  #
+  # Ein schon vorhandener Runner wird durch die folgenden Schritte NICHT
+  # ueberschrieben: "register" haengt in /etc/gitlab-runner/config.toml
+  # einen weiteren [[runners]]-Block an, ein gitlab-runner-Dienst bedient
+  # beliebig viele Runner.
 
   ---------------------------------------------------
-  4.2 Tag an einen Runner vergeben
+  4.2 Runner-Host festlegen
   ---------------------------------------------------
 
-  # Settings > CI/CD > Runners > beim passenden Runner das Stift-Symbol >
-  # Tags: reports-deploy  eintragen > Save.
-  # Der Runner braucht einen Shell- oder Docker-Executor mit bash, git, ssh.
-  # Neuen Runner registrieren: GitLab-Doku "Registering runners" - Aufgabe
-  # des GitLab-Administrators.
+  Eine Linux-VM (z.B. Oracle Linux 9), die
+  - GitLab per HTTPS erreicht (ausgehend, Port 443),
+  - DEV und PROD auf Port 22 erreicht (ausgehend),
+  - KEIN Reports-Server ist (der Runner gehoert nicht auf die Zielserver).
+
+  SICHERHEIT bei einem Host, auf dem schon Runner anderer Projekte laufen:
+  Beim Shell-Executor laufen ALLE Jobs aller Runner dieses Hosts als
+  derselbe Benutzer gitlab-runner. Waehrend unseres Jobs liegt der private
+  Deploy-Schluessel (DEPLOY_SSH_KEY, Typ File) als Datei im Build-Ordner -
+  ein gleichzeitig laufender Job eines anderen Projekts koennte ihn lesen.
+  Fuer den PROD-Schluessel daher: EIGENER Host nur fuer diesen Runner.
+  Mindestens: dort laeuft kein Projekt, dessen Pipeline beliebige
+  Entwickler aendern koennen.
+
+  # Auf dem Runner-Host (als root):
+
+  hostname -f
+  # Erwartet: der Name des Runner-Hosts - notieren
+
+  ip -4 -brief addr
+  # Erwartet: die IP(s) des Hosts. Die IP, mit der er bei DEV/PROD
+  # ankommt, gehoert in from="..." (SCHRITT 3.3, RUNNER_IP). Hinter NAT /
+  # Proxy kann es eine andere sein - Gegenprobe in 4.7.
+
+  curl -sS -o /dev/null -w '%{http_code}\n' https://<gitlab-server>/users/sign_in
+  # Erwartet: 200 (GitLab erreichbar)
+  # Fehler / Zeitablauf -> Firewall / Proxy: STOP, Freigabe beantragen.
 
   ---------------------------------------------------
-  4.3 Runner-Host pruefen  (auf dem Runner-Host, als Runner-Benutzer)
+  4.3 gitlab-runner installieren  (als root auf dem Runner-Host)
   ---------------------------------------------------
 
-  bash --version | head -1
+  rpm -q gitlab-runner
+  # "package gitlab-runner is not installed" -> weiter mit dem naechsten Befehl
+  # eine Version wird angezeigt                -> schon installiert: diese
+  #   Installation nutzen, NICHT neu installieren; vorhandene Runner zeigen:
+
+  gitlab-runner list
+  # Erwartet: keine Zeile (neuer Host) - oder die schon vorhandenen Runner
+  # (andere Projekte). Dann:
+  #   - Sicherheit (4.2) beachten,
+  #   - "concurrent" (gilt fuer ALLE Runner des Hosts zusammen) ansehen:
+
+  grep -n '^concurrent' /etc/gitlab-runner/config.toml
+  # Erwartet z.B.: concurrent = 1
+  # 1 = immer nur EIN Job auf dem Host: unser Deploy wartet hinter langen
+  # Jobs anderer Projekte. Bei Bedarf in vi auf 2 oder 4 setzen (der Dienst
+  # liest die Datei selbst neu).
+  # Danach weiter mit 4.4.
+
+  curl -sS -o /root/gitlab-runner-repo.sh https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.rpm.sh
+
+  head -20 /root/gitlab-runner-repo.sh
+  # Erwartet: ein Shell-Skript von packages.gitlab.com (richtet das
+  # dnf-Repository "runner_gitlab-runner" ein). Erst ansehen, dann ausfuehren.
+
+  bash /root/gitlab-runner-repo.sh
+  # Erwartet am Ende: "The repository is setup! You can now install packages."
+
+  dnf install -y gitlab-runner
+  # Erwartet: "Complete!" - legt den Benutzer gitlab-runner und den Dienst an
+
+  gitlab-runner --version
+  # Erwartet: Version: 17.x oder neuer
+
+  systemctl is-active gitlab-runner
+  # Erwartet: active
+
+  rm /root/gitlab-runner-repo.sh
+
+  ---------------------------------------------------
+  4.4 Projekt-Runner in GitLab anlegen  (Browser, Maintainer)
+  ---------------------------------------------------
+
+  # Projekt oracle-report > Settings > CI/CD > Runners >
+  #   "New project runner" (bzw. "Create project runner"):
+  #
+  #   Tags                 : reports-deploy
+  #   Run untagged jobs    : AUS
+  #   Runner description   : reports-deploy <Runner-Host>
+  #   Protected            : AN  (nimmt nur Jobs von geschuetzten Branches /
+  #                               Tags - main und prod-*, siehe SCHRITT 5.1/5.2;
+  #                               passt zu den geschuetzten Variablen)
+  #   Lock to current projects : AN  (falls angeboten)
+  #
+  #   -> "Create runner". GitLab zeigt den Befehl "gitlab-runner register"
+  #      mit einem Token, das mit glrt- beginnt.
+  #
+  # Das Token ist ein Geheimnis wie ein Kennwort: nicht in Mail, Ticket oder
+  # Chat kopieren. Es wird nur einmal angezeigt - Seite offen lassen bis 4.5.
+
+  ---------------------------------------------------
+  4.5 Runner registrieren  (als root auf dem Runner-Host)
+  ---------------------------------------------------
+
+  # Vorher sichern und den Stand merken - register haengt nur an, aber so
+  # ist der Vergleich eindeutig (bei einem neuen Host gibt es die Datei
+  # evtl. noch nicht - dann "No such file", weiter):
+
+  cp -p /etc/gitlab-runner/config.toml /etc/gitlab-runner/config.toml.bak_$(date +%Y%m%d_%H%M)
+
+  gitlab-runner list 2>&1 | tee /root/runner_list_vorher.txt
+  # Erwartet: die schon vorhandenen Runner (oder keine Zeile)
+
+  export GITLAB_URL=https://<gitlab-server>/
+
+  echo "GITLAB_URL=$GITLAB_URL"
+  # Erwartet: die Adresse von GitLab mit / am Ende
+
+  read -s -p "Runner-Token (glrt-...): " RUNNER_TOKEN
+
+  echo
+
+  echo "Token-Laenge: ${#RUNNER_TOKEN}"
+  # Erwartet: eine Zahl > 20 (der Wert selbst wird nicht angezeigt).
+  # 0 -> read wiederholen.
+
+  gitlab-runner register --non-interactive --url "$GITLAB_URL" --token "$RUNNER_TOKEN" --executor shell --description "reports-deploy $(hostname -s)"
+  # Erwartet am Ende: "Runner registered successfully."
+  # Tags und "Protected" wurden in 4.4 in GitLab gesetzt - beim
+  # Registrieren mit glrt-Token nicht noch einmal angeben.
+  # Hinweis: das Token steht dabei kurz in der Prozessliste und danach
+  # in /etc/gitlab-runner/config.toml (nur root lesbar) - so sieht es die
+  # GitLab-Doku vor.
+
+  unset RUNNER_TOKEN
+
+  ls -l /etc/gitlab-runner/config.toml
+  # Erwartet: -rw------- root root ... config.toml
+
+  gitlab-runner list 2>&1 | tee /root/runner_list_nachher.txt
+
+  diff /root/runner_list_vorher.txt /root/runner_list_nachher.txt
+  # Erwartet: genau EINE neue Zeile ("> reports-deploy <host> ..."), die
+  # alten Zeilen unveraendert. Zwei neue Zeilen = doppelt registriert ->
+  # den zweiten mit  gitlab-runner unregister --name "<Name>"  entfernen
+  # und in GitLab loeschen.
+
+  ---------------------------------------------------
+  4.6 Runner auf das Projekt beschraenken  (Browser)
+  ---------------------------------------------------
+
+  # Projekt > Settings > CI/CD > Runners > beim neuen Runner (Stift-Symbol):
+  #   "Lock to current projects" / "prevent enabling for other projects": AN
+  #   Tags: reports-deploy, Protected: AN  - Kontrolle
+  # Doku: https://docs.gitlab.com/ci/runners/runners_scope/#prevent-a-project-runner-from-being-enabled-for-other-projects
+
+  ---------------------------------------------------
+  4.7 Runner pruefen
+  ---------------------------------------------------
+
+  # Auf dem Runner-Host (als root):
+
+  gitlab-runner list
+  # Erwartet: eine Zeile  reports-deploy <host>  Executor=shell  URL=https://<gitlab-server>/
+
+  gitlab-runner verify
+  # Erwartet: "Verifying runner... is valid"
+
+  systemctl is-enabled gitlab-runner
+  # Erwartet: enabled  (startet auch nach einem Neustart des Hosts)
+  # disabled -> systemctl enable --now gitlab-runner
+
+  systemctl is-active gitlab-runner
+  # Erwartet: active
+  # Der Dienst IST "gitlab-runner run" im Hintergrund - von Hand nichts
+  # starten. Nach "register" liest er config.toml selbst neu (kein
+  # Neustart noetig). "gitlab-runner --debug run" im Vordergrund nur zur
+  # Fehlersuche, vorher  systemctl stop gitlab-runner  (sonst zwei
+  # Instanzen), danach  systemctl start gitlab-runner.
+
+  # Browser: Projekt > Settings > CI/CD > Runners -> Runner gruen (online),
+  # Tag reports-deploy, Schloss-Symbol (protected).
+
+  # Die Jobs laufen als Benutzer gitlab-runner (Shell-Executor) - die
+  # Werkzeuge muessen fuer DIESEN Benutzer da sein:
+
+  sudo -u gitlab-runner bash --version | head -1
   # Erwartet: GNU bash, version 4 oder neuer
 
-  git --version
-  # Erwartet: git version 2.x
+  sudo -u gitlab-runner git --version
+  # Erwartet: git version 2.x  ("command not found" -> dnf install -y git)
 
-  ssh -V
+  sudo -u gitlab-runner ssh -V
   # Erwartet: OpenSSH_8 oder neuer
 
-  timeout 5 bash -c '</dev/tcp/<DEV-Servername>/22' && echo "Port 22 DEV offen"
+  sudo -u gitlab-runner timeout 5 bash -c '</dev/tcp/<DEV-Servername>/22' && echo "Port 22 DEV offen"
   # Erwartet: Port 22 DEV offen
   # Keine Ausgabe / "Connection refused" / Zeitablauf -> Firewall: STOP,
   # Freigabe Runner -> DEV Port 22 beantragen.
 
-  timeout 5 bash -c '</dev/tcp/<PROD-Servername>/22' && echo "Port 22 PROD offen"
+  sudo -u gitlab-runner timeout 5 bash -c '</dev/tcp/<PROD-Servername>/22' && echo "Port 22 PROD offen"
   # Erwartet: Port 22 PROD offen
+
+  # Gegenprobe der Absender-IP fuer from="..." (optional, auf dem DEV-Server
+  # als root, direkt nach dem Port-Test oben):
+  #   grep 'Connection closed\|Did not receive' /var/log/secure | tail -3
+  #   -> "from <IP>" = die IP, die in SCHRITT 3.3 als RUNNER_IP gilt.
+
+  # Erster echter Test des Runners: SCHRITT 6 - der Push dort startet den
+  # Job auf diesem Runner. Zum reinen Verstehen der Uebergabe kann dort
+  # zuerst deploy/ci_deploy_debug.sh laufen (siehe 6.2, Hinweis).
 
 
 ==========================================================================
@@ -690,6 +900,13 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
   # Erwartet: zwei Zeilen
   #   ...:    - bash deploy/ci_deploy.sh dev
   #   ...:    - bash deploy/ci_deploy.sh prod
+
+  # Hinweis - Uebergabe erst nur ansehen (optional): in .gitlab-ci.yml je
+  # Job vor die echte Zeile  - bash deploy/ci_deploy_debug.sh dev  (bzw.
+  # prod) setzen und deploy/ci_deploy_debug.sh mit einchecken. Das Skript
+  # schreibt Argument, GitLab-Variablen und DEPLOY_*-Werte ins Job-Protokoll
+  # und nach /tmp/report_pip.txt auf dem Runner-Host - ohne Logik, ohne SSH.
+  # So sieht man, ob Runner, Regel und Variablen-Scope stimmen.
 
   ---------------------------------------------------
   6.3 Einchecken und senden
@@ -861,6 +1078,11 @@ ROLLBACK
                                          Auftrag aus "rwdeploy.sh list" / log/
   falsch gesetzter Tag (vor dem Job)     git push origin :refs/tags/<tag>
                                          git tag -d <tag>
+  Projekt-Runner entfernen               auf dem Runner-Host
+                                         gitlab-runner unregister --name
+                                         "reports-deploy <host>", dann in
+                                         GitLab Settings > CI/CD > Runners
+                                         den Runner loeschen
   Pipelines ganz abschalten              .gitlab-ci.yml im Repository
                                          loeschen (git rm, commit, push) -
                                          die Server bleiben, wie sie sind
@@ -878,8 +1100,29 @@ BEKANNTE PROBLEME
 ==========================================================================
 
   Problem : Job deploy_dev / deploy_prod bleibt "pending", startet nie.
-  Ursache : Kein Runner mit dem Tag reports-deploy online.
-  Loesung : SCHRITT 4.
+  Ursache : Kein Runner mit dem Tag reports-deploy online - oder der Runner
+            ist "protected" und der Branch / Tag ist es nicht (SCHRITT 5.1 /
+            5.2 fehlt), oder der Dienst laeuft nicht.
+  Loesung : SCHRITT 4.7 (gitlab-runner verify, systemctl status
+            gitlab-runner), SCHRITT 5.1 / 5.2.
+
+  Problem : Deploy-Job wartet lange, bevor er startet ("pending" einige
+            Minuten), DEV meldet danach evtl. "still pending".
+  Ursache : Auf dem Runner-Host laufen auch Runner anderer Projekte,
+            concurrent = 1 - unser Job wartet hinter deren Jobs.
+  Loesung : concurrent in /etc/gitlab-runner/config.toml erhoehen (4.3) -
+            besser: eigener Host fuer den Deploy-Runner (4.2).
+
+  Problem : Jobs laufen mal hier, mal dort / zwei Runner mit dem Tag
+            reports-deploy in Settings > CI/CD > Runners.
+  Ursache : Doppelt registriert (4.1 uebersprungen) oder der Tag auch an
+            einem anderen Runner.
+  Loesung : den ueberzaehligen Runner entfernen (ROLLBACK, Projekt-Runner
+            entfernen) bzw. den Tag dort loeschen.
+
+  Problem : Job rot: "git: command not found" / "ssh: command not found"
+  Ursache : Werkzeug fehlt auf dem Runner-Host (Benutzer gitlab-runner).
+  Loesung : dnf install -y git openssh-clients, dann 4.7.
 
   Problem : Job rot: "DEPLOY_HOST: DEPLOY_HOST not set"
   Ursache : Variablen fehlen fuer diese Umgebung, oder Branch/Tag nicht

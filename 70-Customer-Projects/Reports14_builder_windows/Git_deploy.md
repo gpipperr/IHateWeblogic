@@ -61,9 +61,10 @@ of this check-in. Other reports on `main` – newer or older, released or not
 - Creating a `prod-*` tag is the release: protect the tags in GitLab
   (section 6).
 
-Network: only **GitLab → server** (SSH). The servers never reach GitLab, so
-there is no `git fetch` on the servers and no inbound HTTP service such as
-a webhook receiver.
+Network: the **project runner** (own Linux VM, section 4) fetches its jobs
+from GitLab (outbound HTTPS) and connects to the Reports servers (outbound
+SSH, port 22). The servers never reach GitLab, so there is no `git fetch` on
+the servers and no inbound HTTP service such as a webhook receiver.
 
 Step-by-step set-up of both pipelines for the administrators (German,
 cookbook style): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
@@ -192,9 +193,41 @@ CI variables (Settings → CI/CD → Variables). Set them **protected**, and
 | `DEPLOY_KNOWN_HOSTS` | output of [`ssh-keyscan <server>`](https://man.openbsd.org/ssh-keyscan); the job uses [`StrictHostKeyChecking=yes`](https://man.openbsd.org/ssh_config#StrictHostKeyChecking) with only this host key ([`UserKnownHostsFile`](https://man.openbsd.org/ssh_config#UserKnownHostsFile), [`BatchMode`](https://man.openbsd.org/ssh_config#BatchMode); GitLab: [verifying the SSH host keys](https://docs.gitlab.com/ci/jobs/ssh_keys/#verifying-the-ssh-host-keys)) |
 | `DEPLOY_WAIT` | optional, seconds to wait for the result (default 300) |
 
-Runner: a runner with the tag `reports-deploy` ([`tags`](https://docs.gitlab.com/ci/yaml/#tags)) that has bash, git and ssh,
-and may reach the servers on port 22. A shell runner on the GitLab side is
-enough; there is no runner on the Reports servers.
+**Runner – an own project runner** (cookbook step 4). The jobs need a
+runner with the tag `reports-deploy` ([`tags`](https://docs.gitlab.com/ci/yaml/#tags)); the
+customer's GitLab has none for this project yet, so we create one:
+
+| Step | Where | What |
+|---|---|---|
+| runner host | own Linux VM (not a Reports server) | outbound HTTPS to GitLab (the runner polls for jobs – nothing inbound), outbound port 22 to DEV and PROD; its IP goes into `from=` of `authorized_keys` |
+| install | runner host, root | package `gitlab-runner` from packages.gitlab.com ([install](https://docs.gitlab.com/runner/install/linux-repository/)); creates the user `gitlab-runner` and the service |
+| create | GitLab: project → Settings → CI/CD → Runners → **New project runner** | tag `reports-deploy`, "Run untagged jobs" off, **Protected** on (only jobs of protected branches / tags = `main`, `prod-*` – matches the protected variables); GitLab shows a token `glrt-…` ([project runners](https://docs.gitlab.com/ci/runners/runners_scope/#create-a-project-runner-with-a-runner-authentication-token)) |
+| register | runner host, root | `gitlab-runner register --non-interactive --url <gitlab> --token <glrt-…> --executor shell` – token read with `read -s`, kept in `/etc/gitlab-runner/config.toml` (600) ([registering runners](https://docs.gitlab.com/runner/register/), [shell executor](https://docs.gitlab.com/runner/executors/shell/)) |
+| restrict | GitLab | not enabled for other projects ([prevent enabling for other projects](https://docs.gitlab.com/ci/runners/runners_scope/#prevent-a-project-runner-from-being-enabled-for-other-projects)) |
+| check | runner host + GitLab | `gitlab-runner list`, `gitlab-runner verify`; runner green in the project; bash, git, ssh and port 22 checked **as user `gitlab-runner`** (the shell executor runs the jobs as this user) |
+
+There is no runner on the Reports servers. The token is a secret like a
+password. Menu names and the output of `register` follow the GitLab
+documentation – to confirm at the customer.
+
+**A runner already exists?**
+- `gitlab-runner register` does **not** overwrite anything: it appends one
+  more `[[runners]]` block to `config.toml`; one `gitlab-runner` service
+  serves any number of runners. The cookbook backs up `config.toml` and
+  compares `gitlab-runner list` before / after (exactly one new line).
+- A runner with the tag `reports-deploy` that is online for the project is
+  enough – a second one with the same tag would take jobs as well. Only the
+  deploy runner carries this tag.
+- On a host that already runs runners of other projects: `concurrent` in
+  `config.toml` (default 1) counts for **all** runners of the host – the
+  deploy job waits behind their jobs.
+- **Security:** with the shell executor all jobs of all runners of a host
+  run as the same user `gitlab-runner`. During our job the private deploy
+  key (`DEPLOY_SSH_KEY`, file variable) lies in the build folder, readable
+  for a parallel job of another project. For the PROD key: an **own host**
+  for the deploy runner; at least no project there whose pipeline any
+  developer can change.
+
 
 ## 5. The server side – `rwdeploy.sh`
 
@@ -327,9 +360,9 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
 | [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
 
-Open at the customer: real GitLab (tag rule, protected tags, protected and
-scoped variables), SSH from the runner, the scripts on Windows PowerShell
-5.1.
+Open at the customer: the project runner (install, register, protected),
+real GitLab (tag rule, protected tags, protected and scoped variables), SSH
+from the runner, the scripts on Windows PowerShell 5.1.
 
 ## 9. References
 
@@ -342,6 +375,7 @@ Checked 2026-11-13 (all addresses HTTP 200, anchors present).
 | environments, outdated jobs | GitLab [environments](https://docs.gitlab.com/ci/environments/), [deployment safety – prevent outdated deployment jobs](https://docs.gitlab.com/ci/environments/deployment_safety/#prevent-outdated-deployment-jobs) |
 | full clone | GitLab [shallow cloning / `GIT_DEPTH`](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning) |
 | runner selection | GitLab [`tags`](https://docs.gitlab.com/ci/yaml/#tags) |
+| project runner | GitLab [project runners](https://docs.gitlab.com/ci/runners/runners_scope/#project-runners), [install GitLab Runner (Linux repository)](https://docs.gitlab.com/runner/install/linux-repository/), [registering runners](https://docs.gitlab.com/runner/register/), [shell executor](https://docs.gitlab.com/runner/executors/shell/) |
 | secrets | GitLab [CI/CD variables – protect](https://docs.gitlab.com/ci/variables/#protect-a-cicd-variable), [environment scope](https://docs.gitlab.com/ci/variables/#environment-scope), [file type](https://docs.gitlab.com/ci/variables/#use-file-type-cicd-variables); [SSH keys in CI/CD jobs](https://docs.gitlab.com/ci/jobs/ssh_keys/) |
 | who may push / release | GitLab [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), [protected tags](https://docs.gitlab.com/user/project/protected_tags/) |
 | forced command | OpenSSH [`sshd(8)` – AUTHORIZED_KEYS FILE FORMAT](https://man.openbsd.org/sshd#AUTHORIZED_KEYS_FILE_FORMAT) (`command=`, `restrict`, `from=`) |
