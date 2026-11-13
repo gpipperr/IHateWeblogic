@@ -88,7 +88,7 @@ body {
   border-right: 1px solid #e8e8e8;
 }
 
-/* Right column (pages of <section>/docs/, _layouts/default.html ihw_side_sections) */
+/* Right column (pages of one folder per section, _layouts/default.html ihw_side_dirs) */
 #mitte.ihw-with-side {
   grid-template-columns: 11.5em minmax(0, 1fr) 16em;
   grid-template-areas: "nav content side";

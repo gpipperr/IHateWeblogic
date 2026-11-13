@@ -29,15 +29,23 @@
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}
     {%- elsif ihw_top == "" -%}{%- assign ihw_label = page.path | replace: ".md", "" -%}{%- endif -%}
     {%- comment -%}
-      Right column: sections listed here get a list of the pages in
-      <section>/docs/ (only that folder, no subfolders, sorted by file name =
-      step number) on every page of the section. Add a section here to give
-      it the column, too.
+      Right column: one folder per section (folder of the section first, then
+      the subfolder, ending with /). Every page of the section lists the
+      pages in that folder (only that folder, no subfolders, no README.md,
+      sorted by file name = step number). Add a folder here to give another
+      section the column.
     {%- endcomment -%}
-    {%- assign ihw_side_sections = "09-Install" | split: "," -%}
+    {%- assign ihw_side_dirs = "09-Install/docs/,80-FMW-Architecture/" | split: "," -%}
     {%- assign ihw_side = false -%}
-    {%- if ihw_side_sections contains ihw_top -%}{%- assign ihw_side = true -%}{%- endif -%}
-    {%- assign ihw_side_dir = ihw_top | append: "/docs/" %}
+    {%- assign ihw_side_dir = "" -%}
+    {%- assign ihw_top_slash = ihw_top | append: "/" -%}
+    {%- for ihw_d in ihw_side_dirs -%}
+      {%- assign ihw_d_top = ihw_d | split: "/" | first | append: "/" -%}
+      {%- if ihw_top != "" and ihw_d_top == ihw_top_slash -%}
+        {%- assign ihw_side = true -%}
+        {%- assign ihw_side_dir = ihw_d -%}
+      {%- endif -%}
+    {%- endfor %}
 
     <header id="kopf">
       <a class="ihw-brand" href="{{ '/' | relative_url }}" title="IHateWeblogic - start page">
@@ -111,7 +119,7 @@
           {%- if ihw_readme and ihw_readme_path != page.path -%}
           <a href="{{ ihw_readme.url | relative_url }}">{{ ihw_top }} overview</a>
           {%- else -%}
-          {{ ihw_top }} docs
+          {{ ihw_top }}
           {%- endif -%}
         </p>
         <ul>
@@ -120,9 +128,13 @@
             {%- assign ihw_p_parts = ihw_p.path | split: "/" -%}
             {%- assign ihw_p_start = ihw_p.path | slice: 0, ihw_side_dir.size -%}
             {%- assign ihw_p_ext = ihw_p.path | split: "." | last -%}
-            {%- if ihw_p_start == ihw_side_dir and ihw_p_parts.size == 3 and ihw_p_ext == "md" -%}
+            {%- assign ihw_p_file = ihw_p_parts | last -%}
+            {%- assign ihw_p_rest = ihw_p.path | slice: ihw_side_dir.size, 500 -%}
+            {%- if ihw_p_start == ihw_side_dir and ihw_p_ext == "md" and ihw_p_file != "README.md" -%}
+            {%- unless ihw_p_rest contains "/" -%}
               {%- assign ihw_p_name = ihw_p_parts | last | replace: ".md", "" | replace: "_", "_<wbr>" %}
           <li{% if ihw_p.path == page.path %} class="ihw-active"{% endif %}><a href="{{ ihw_p.url | relative_url }}"{% if ihw_p.title %} title="{{ ihw_p.title | escape }}"{% endif %}{% if ihw_p.path == page.path %} aria-current="page"{% endif %}>{{ ihw_p_name }}</a></li>
+            {%- endunless -%}
             {%- endif -%}
           {%- endfor %}
         </ul>
