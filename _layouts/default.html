@@ -2,8 +2,15 @@
 <html lang="{{ site.lang | default: "en-US" }}">
   <head>
     <meta charset="UTF-8">
-
-{% seo %}
+    {%- comment -%}
+      Own <title>: " | IHateWeblogic" only when the whole title stays <= 60 characters
+      (Google cuts after ~60); jekyll-seo-tag writes everything else (meta, og:, JSON-LD).
+    {%- endcomment -%}
+    {%- assign ihw_t = page.title | default: site.title -%}
+    {%- assign ihw_t_full = ihw_t | append: " | " | append: site.title -%}
+    {%- if ihw_t == site.title or ihw_t_full.size > 60 -%}{%- assign ihw_t_full = ihw_t -%}{%- endif %}
+    <title>{{ ihw_t_full | escape }}</title>
+{% seo title=false %}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FEB80A">
     <!-- favicon: the "GP" icon of www.pipperr.de (gold, black bar) - a project site needs the
