@@ -55,6 +55,9 @@ Same order as the script, after `08-`, domain not started:
 # 1b. TNS_ADMIN for every WebLogic JVM (export + -Doracle.net.tns_admin in setUserOverrides.sh)
 ./02-Checks/tns_admin_check.sh --apply
 
+# 1c. Apache Derby off: DERBY_FLAG=false in setUserOverrides.sh, stop a running instance
+./02-Checks/port_check.sh --apply
+
 # 2. font OS packages (runs "sudo dnf install" itself when not root)
 ./04-ReportsFonts/get_root_install_libs.sh --apply
 
@@ -86,6 +89,7 @@ Orchestrates the configuration sequence:
 | 0 | boot.properties | `09-Install/10-oracle_boot_properties.sh --apply` | [10-oracle_boot_properties.md](10-oracle_boot_properties.md) |
 | 1 | JVM settings | `02-Checks/weblogic_performance.sh --apply` – **interactive** (asks per setting) | |
 | 1b | TNS_ADMIN for all WebLogic JVMs | `02-Checks/tns_admin_check.sh --apply` | `export TNS_ADMIN` + `-Doracle.net.tns_admin` in `setUserOverrides.sh` (value from `environment.conf`), [tns_admin_check.sh](../../02-Checks/README.md#tns_admin_checksh) |
+| 1c | Apache Derby off | `02-Checks/port_check.sh --apply` | `DERBY_FLAG=false` block in `setUserOverrides.sh` (sourced after the default of `setDomainEnv.sh`), running Derby network server stopped – the WebLogic evaluation database on `127.0.0.1:1527` is not used by Forms & Reports, [fmw_derby_history.md](../../80-FMW-Architecture/fmw_derby_history.md) |
 | 2 | Font OS packages | `04-ReportsFonts/get_root_install_libs.sh --apply` – as root, or as oracle when `sudo -n -l /usr/bin/dnf install …` is allowed (the rule of [`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh); the script calls `sudo dnf` itself); otherwise the manual command + the package list | |
 | 3 | Domain validation | verify domain artifacts + `nodemanager.properties` | |
 | 4 | Config backup | `07-Maintenance/backup_config.sh --apply` | |

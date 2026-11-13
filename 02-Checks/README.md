@@ -165,12 +165,14 @@ Log4j classification:
 ./02-Checks/port_check.sh
 ./02-Checks/port_check.sh --http
 ./02-Checks/port_check.sh --timeout 5
+./02-Checks/port_check.sh --apply   # switch off the Apache Derby evaluation database
 ```
 
 | Option | Description |
 |---|---|
 | `--http` | also HTTP checks against the AdminServer (`/console`, `/weblogic/ready`) |
 | `--timeout N` | TCP connect timeout in seconds (default 3) |
+| `--apply` | only for Derby: `DERBY_FLAG=false` block in `setUserOverrides.sh` (backup, idempotent) and stop a running Derby network server (`stopNetworkServer.sh`) – called by `09-Install/09-oracle_configure.sh` step 1c |
 
 **Why:** which component listens where and who talks to whom –
 [how the parts are joined](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined).
@@ -192,6 +194,13 @@ Sections:
    page, HTTP 302 = OK) and `/weblogic/ready` (200 = server RUNNING). The
    old `/bea_wls_internal/versionInfo.jsp` no longer exists in 14.1.2
    (replaced 2026-10-19).
+7. **Apache Derby** (section 5b) – the WebLogic evaluation database that
+   every `startWebLogic.sh` starts on `127.0.0.1:1527` while `DERBY_FLAG`
+   is not `false`: running → WARN (not used by Forms & Reports, no
+   authentication, not supported in production); not running but no
+   `DERBY_FLAG=false` in `setUserOverrides.sh` → WARN (the next server start
+   brings it back); off → OK. Background:
+   [fmw_derby_history.md](../80-FMW-Architecture/fmw_derby_history.md).
 
 Ports of the domain in this project (`environment.conf`):
 

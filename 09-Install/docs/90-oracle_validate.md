@@ -47,7 +47,7 @@ The progress line and the next step of [`00-install-status.sh`](https://github.c
 |---|---|---|
 | 1 | OS version, RAM, disk, ulimits | [`02-Checks/os_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/os_check.sh) |
 | 2 | `JDK_HOME`, bundled JDK, JVMs of running processes | [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) |
-| 3 | Ports of the domain (SSL ports only when enabled in `config.xml`) | [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) |
+| 3 | Ports of the domain (SSL ports only when enabled in `config.xml`); Apache Derby on 1527 or `DERBY_FLAG` not `false` → WARN | [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) |
 | 4 | SecureRandom, JVM heap | [`02-Checks/weblogic_performance.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/weblogic_performance.sh) |
 | 5 | DB listener + service (no `--login`: that needs credentials saved by `db_connect_check.sh --new`, the installation never writes them – the logins are row 14) | [`02-Checks/db_connect_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/db_connect_check.sh) |
 | 6 | Nginx certificate, SAN, chain, TLS versions, expiry | [`08-SSL/ssl_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_config.sh) |

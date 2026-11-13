@@ -201,6 +201,15 @@ _run_step "TNS_ADMIN (setUserOverrides.sh)" \
     "$ROOT_DIR/02-Checks/tns_admin_check.sh" --apply
 
 # =============================================================================
+# Step 1c – Apache Derby off (DERBY_FLAG=false in setUserOverrides.sh)
+#           WebLogic evaluation database, started by every startWebLogic.sh,
+#           not used by Forms & Reports – 80-FMW-Architecture/fmw_derby_history.md
+# =============================================================================
+
+_run_step "Derby off (setUserOverrides.sh)" \
+    "$ROOT_DIR/02-Checks/port_check.sh" --apply
+
+# =============================================================================
 # Step 2 – Font OS packages  (skippable via --skip-fonts)
 # =============================================================================
 

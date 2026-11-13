@@ -6,8 +6,12 @@
 #            listening sockets reported by ss(8), and verify TCP connectivity.
 # Call     : ./port_check.sh
 #            ./port_check.sh --http
+#            ./port_check.sh --apply
 # Options  : --http         Also run HTTP GET health check on AdminServer console URL
 #            --timeout N    TCP connect timeout in seconds (default: 3)
+#            --apply        Switch off the Apache Derby evaluation database:
+#                           DERBY_FLAG=false block in setUserOverrides.sh
+#                           (backup), stop a running Derby network server
 # Requires : ss (or netstat), ip (or ifconfig), awk, bash
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
@@ -36,11 +40,13 @@ init_log
 
 HTTP_CHECK=false
 TCP_TIMEOUT=3
+APPLY=false
 
 _usage() {
     printf "Usage: %s [options]\n\n" "$(basename "$0")"
     printf "  %-22s %s\n" "--http"       "Also run HTTP GET health check on AdminServer console"
     printf "  %-22s %s\n" "--timeout N"  "TCP connect timeout in seconds (default: 3)"
+    printf "  %-22s %s\n" "--apply"      "Switch off Derby: DERBY_FLAG=false in setUserOverrides.sh, stop it"
     printf "\nExamples:\n"
     printf "  %s\n"        "$(basename "$0")"
     printf "  %s --http\n" "$(basename "$0")"
@@ -51,6 +57,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --http)      HTTP_CHECK=true; shift ;;
         --timeout)   TCP_TIMEOUT="$2"; shift 2 ;;
+        --apply)     APPLY=true; shift ;;
         --help|-h)   _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2
@@ -355,6 +362,94 @@ for (( i=0; i < ${#PROBE_COMP[@]}; i++ )); do
         "$comp" "$host" "$port" "$proto" | tee -a "${LOG_FILE:-/dev/null}"
     printf "${ss_col}    ${tcp_col}\n"     | tee -a "${LOG_FILE:-/dev/null}"
 done
+
+# =============================================================================
+# 5b. Apache Derby – WebLogic evaluation database
+#     setDomainEnv.sh sets DERBY_FLAG=true when derby.jar exists, every
+#     startWebLogic.sh then starts the Derby network server on 1527 – unused
+#     by Forms & Reports, no authentication, not supported in production.
+#     Background: 80-FMW-Architecture/fmw_derby_history.md
+# =============================================================================
+
+printLine
+section "Apache Derby (WebLogic evaluation database)"
+
+_derby_home="${WL_HOME:-${ORACLE_HOME}/wlserver}/common/derby"
+_derby_pid="$(pgrep -f 'org\.apache\.derby\.drda\.NetworkServerControl start' 2>/dev/null | head -1)"
+_derby_port="$(_ss_state 1527)"
+_derby_ovr="${DOMAIN_HOME}/bin/setUserOverrides.sh"
+_derby_off=false
+grep -qE '^[[:space:]]*(export[[:space:]]+)?DERBY_FLAG="?false"?' "$_derby_ovr" 2>/dev/null && _derby_off=true
+
+printf "  %-24s %s\n" "Derby in WL_HOME:" \
+    "$([ -f "$_derby_home/lib/derby.jar" ] && printf '%s' "$_derby_home" || printf 'no')" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-24s %s\n" "Network server:" \
+    "$([ -n "$_derby_pid" ] && printf 'running (pid %s)' "$_derby_pid" || printf 'not running')" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-24s %s\n" "Port 1527:" "$_derby_port" | tee -a "${LOG_FILE:-/dev/null}"
+printf "  %-24s %s\n" "DERBY_FLAG=false:" \
+    "$($_derby_off && printf 'yes (setUserOverrides.sh)' || printf 'no')" | tee -a "${LOG_FILE:-/dev/null}"
+
+_derby_mb="# --- IHateWeblogic: Apache Derby off (port_check.sh --apply) ---"
+_derby_me="# --- IHateWeblogic: end Derby ---"
+
+if $APPLY && [ -f "$_derby_home/lib/derby.jar" ]; then
+    # 1. DERBY_FLAG=false - setUserOverrides.sh is sourced by setDomainEnv.sh
+    #    AFTER its default (DERBY_FLAG=true when derby.jar exists)
+    if $_derby_off; then
+        ok "DERBY_FLAG=false already in setUserOverrides.sh"
+    elif [ ! -f "$_derby_ovr" ]; then
+        fail "setUserOverrides.sh not found: $_derby_ovr (domain created?)"
+    else
+        backup_file "$_derby_ovr" > /dev/null
+        _tmp="$(mktemp)"
+        sed "/^${_derby_mb}/,/^${_derby_me}/d" "$_derby_ovr" > "$_tmp"
+        {
+            printf '%s\n' "$_derby_mb"
+            printf '# Apache Derby (WLS evaluation database) - not used by Forms & Reports\n'
+            printf '# 80-FMW-Architecture/fmw_derby_history.md\n'
+            printf 'DERBY_FLAG="false"\n'
+            printf 'export DERBY_FLAG\n'
+            printf '%s\n' "$_derby_me"
+        } >> "$_tmp"
+        cat "$_tmp" > "$_derby_ovr" && rm -f "$_tmp"
+        _derby_off=true
+        ok "setUserOverrides.sh: DERBY_FLAG=false written – no server start brings Derby back"
+        unset _tmp
+    fi
+    # 2. stop a running instance (unused - nothing connects to it)
+    if [ -n "$_derby_pid" ] || [ "$_derby_port" = "LISTEN" ]; then
+        JAVA_HOME="${JDK_HOME:-$JAVA_HOME}" "$_derby_home/bin/stopNetworkServer.sh" > /dev/null 2>&1
+        for _i in 1 2 3 4 5 6 7 8 9 10; do
+            pgrep -f 'org\.apache\.derby\.drda\.NetworkServerControl start' > /dev/null 2>&1 || break
+            sleep 1
+        done
+        if pgrep -f 'org\.apache\.derby\.drda\.NetworkServerControl start' > /dev/null 2>&1; then
+            fail "Derby still running after stopNetworkServer.sh – stop it by hand (pid $(pgrep -f 'NetworkServerControl start' | head -1))"
+        else
+            ok "Derby network server stopped – port 1527 free"
+            _derby_pid=""; _derby_port="DOWN"
+        fi
+        unset _i
+    fi
+fi
+
+if [ -n "$_derby_pid" ] || [ "$_derby_port" = "LISTEN" ]; then
+    warn "Derby network server running on 1527 – not used by Forms & Reports, no authentication, not supported in production"
+    if $_derby_off; then
+        info "  DERBY_FLAG=false is set – leftover instance, stop it once: $_derby_home/bin/stopNetworkServer.sh"
+    else
+        info "  Switch off: $(basename "$0") --apply (DERBY_FLAG=false in setUserOverrides.sh + stop)"
+    fi
+    info "  Background: 80-FMW-Architecture/fmw_derby_history.md"
+elif [ ! -f "$_derby_home/lib/derby.jar" ]; then
+    ok "No Derby in WL_HOME – nothing starts on 1527"
+elif $_derby_off; then
+    ok "Derby not running – DERBY_FLAG=false in setUserOverrides.sh"
+else
+    warn "Derby not running now, but the next startWebLogic.sh starts it (DERBY_FLAG not false)"
+    info "  Switch off: $(basename "$0") --apply (DERBY_FLAG=false in setUserOverrides.sh)"
+fi
+unset _derby_home _derby_pid _derby_port _derby_ovr _derby_off _derby_mb _derby_me
 
 # =============================================================================
 # 6. HTTP Health Check (optional --http)

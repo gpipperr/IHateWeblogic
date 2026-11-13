@@ -35,7 +35,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-05.3"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-13.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -310,7 +310,7 @@ fi
 # =============================================================================
 say "5/7 Processes"
 runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
-    "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx' | grep -v grep"
+    "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx|NetworkServerControl' | grep -v grep"
 runsh 50_processes.txt "Process tree of $(id -un) (other users are not collected)" "ps -u \"\$(id -un)\" fww -o pid,ppid,lstart,etime,rss,args"
 fact "frmweb processes" "$(pgrep -c frmweb 2>/dev/null; true)"
 # Which home do the running FMW processes come from? (2026-10-29)
@@ -321,6 +321,20 @@ _foreign="$(for p in $(pgrep -f 'weblogic\.(Server|NodeManager)|frmweb|rwserver|
     | grep -E '/(java|frmweb|rwserver|rwrun|rwengine)$' | sort -u | grep -v "^$(readlink -f "${OH:-/nonexistent}")/" | grep -v "^$(readlink -f "${_jdk:-/nonexistent}")/" | tr '\n' ' ')"
 fact "Processes outside ORACLE_HOME / JDK" "${_foreign:-none}"
 fact "WLS servers running" "$(ps -eo args= | sed -n 's/.*-Dweblogic[.]Name=\([^ ]*\).*/\1/p' | sort -u | tr '\n' ' ')"
+# Apache Derby = WebLogic evaluation database, started by every startWebLogic.sh
+# while DERBY_FLAG is not false (80-FMW-Architecture/fmw_derby_history.md)
+_dpid="$(pgrep -f 'org\.apache\.derby\.drda\.NetworkServerControl start' 2>/dev/null | head -1)"
+_dlsn="$(ss -ltn 2>/dev/null | awk '$4 ~ /:1527$/ {print $4}' | head -1)"
+if [ -n "$_dpid" ] || [ -n "$_dlsn" ]; then
+    fact "Derby network server" "running (pid ${_dpid:-?}, ${_dlsn:-1527})"
+else
+    fact "Derby network server" "not running"
+fi
+if [ -n "$DH" ]; then
+    grep -qE '^[[:space:]]*(export[[:space:]]+)?DERBY_FLAG="?false"?' "$DH/bin/setUserOverrides.sh" 2>/dev/null \
+        && fact "DERBY_FLAG (setUserOverrides)" "false" || fact "DERBY_FLAG (setUserOverrides)" "not set (Derby starts with every server)"
+fi
+unset _dpid _dlsn
 
 # =============================================================================
 # 6. Oracle Net, web tier

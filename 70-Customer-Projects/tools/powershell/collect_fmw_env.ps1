@@ -63,7 +63,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-03.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-13.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $on_windows = ([Environment]::OSVersion.Platform -eq 'Win32NT')
@@ -162,7 +162,7 @@ if ($on_windows) {
             [pscustomobject]@{ ProcessId = [int]$Matches[1]; Name = (($Matches[2] -split ' ')[0] | Split-Path -Leaf); CommandLine = $Matches[2]; ExecutablePath = "$exe" }
         } })
 }
-$fmw_pat = 'weblogic\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwEng|rwrun|httpd|nginx|beasvc'
+$fmw_pat = 'weblogic\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwEng|rwrun|httpd|nginx|beasvc|NetworkServerControl'
 
 #------------------------------------------------------------------------------
 # Locate ORACLE_HOME / DOMAIN_HOME
@@ -396,6 +396,26 @@ local-fact "WLS servers running" ((@($procs | ForEach-Object { if ("$($_.Command
 $foreign = @($fmw_procs | ForEach-Object { $_.ExecutablePath } | Where-Object { $_ -match '[\\/](javaw?|frmweb|rwserver|rwrun|rwengine)(\.exe)?$' } | Sort-Object -Unique | Where-Object {
               -not (($OH -and $_.StartsWith($OH, [StringComparison]::OrdinalIgnoreCase)) -or ($jdk_ge -and $_.StartsWith($jdk_ge, [StringComparison]::OrdinalIgnoreCase))) })
 local-fact "Processes outside ORACLE_HOME / JDK" $(if ($foreign.Count) { $foreign -join ' ' } else { "none" })
+# Apache Derby = WebLogic evaluation database, started by every startWebLogic.cmd
+# while DERBY_FLAG is not false (80-FMW-Architecture/fmw_derby_history.md)
+$derby = @($procs | Where-Object { "$($_.CommandLine)" -match 'org\.apache\.derby\.drda\.NetworkServerControl\s+start' })
+$derby_lsn = $null
+if ($on_windows) { $derby_lsn = @(Get-NetTCPConnection -State Listen -LocalPort 1527 -ErrorAction SilentlyContinue) | Select-Object -First 1 }
+if ($derby.Count -or $derby_lsn) {
+    $dpid = if ($derby.Count) { $derby[0].ProcessId } else { $derby_lsn.OwningProcess }
+    $dadr = if ($derby_lsn) { "$($derby_lsn.LocalAddress):1527" } else { "1527" }
+    local-fact "Derby network server" "running (pid $dpid, $dadr)"
+} else {
+    local-fact "Derby network server" "not running"
+}
+if ($DH) {
+    $dflag = $false
+    foreach ($f in @("setUserOverrides.cmd", "setUserOverrides.sh")) {
+        $uo = local-jp @($DH, "bin", $f)
+        if ((Test-Path -LiteralPath $uo) -and (Select-String -LiteralPath $uo -Pattern '^\s*(set\s+|export\s+)?"?DERBY_FLAG="?false"?' -Quiet)) { $dflag = $true }
+    }
+    local-fact "DERBY_FLAG (setUserOverrides)" $(if ($dflag) { "false" } else { "not set (Derby starts with every server)" })
+}
 
 #==============================================================================
 # 6. Oracle Net, web tier

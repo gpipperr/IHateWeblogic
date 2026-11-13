@@ -177,7 +177,17 @@ start ways (Node Manager, `startWebLogic.sh`, `startManagedWebLogic.sh`).
 Editing `setDomainEnv.sh` itself works too, but a domain reconfiguration
 rewrites that file.
 
-As `oracle` (backup first):
+**With the library:** `./02-Checks/port_check.sh --apply` writes the block
+below into `setUserOverrides.sh` (backup, idempotent) and stops a running
+Derby network server; a new installation does this in
+`09-Install/09-oracle_configure.sh` step 1c. Without `--apply`,
+`port_check.sh` reports a running Derby or a missing `DERBY_FLAG=false` as
+WARN – so does the acceptance run `09-Install/90-oracle_validate.sh`
+(step "Ports"). The customer collector `collect_fmw_env.sh` / `.ps1`
+(2026-11-13.1) records both facts, the patch analysis lists them as a
+hardening hint.
+
+By hand, as `oracle` (backup first):
 
 ```bash
 cd $DOMAIN_HOME/bin
@@ -219,11 +229,11 @@ restore the backup) and restart a server.
 
 ## 6. Open points
 
-- **Library step:** set `DERBY_FLAG=false` in `setUserOverrides.sh` during
-  the domain configuration (`09-Install/09-oracle_configure.sh`, next to
-  `TNS_ADMIN`) and check it in the security hardening
-  ([80-oracle_security.md](../09-Install/docs/80-oracle_security.md)) and
-  in [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh) (port 1527 = finding) – not done yet.
+- **Library step done 2026-11-13:** [`02-Checks/port_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/port_check.sh)
+  (check + `--apply`), `09-oracle_configure.sh` step 1c, hardening table of
+  [80-oracle_security.md](../09-Install/docs/80-oracle_security.md),
+  collector facts. Open: `--apply` on the test host itself (the live
+  instance there still runs).
 - 14.1.2 lists the Node Manager properties `startscriptenabled` /
   `startscriptname` as removed (source 11), yet the test host's Node
   Manager starts the servers through `startWebLogic.sh` – and with it
