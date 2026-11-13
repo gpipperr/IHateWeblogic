@@ -6,8 +6,6 @@ permalink: /03-Logs/
 
 # 03-Logs – Log Management for Forms / Reports / WebLogic
 
-Author: Gunther Pipperr | <https://pipperr.de> | License: Apache 2.0
-
 Where an FMW 14.1.2 Forms & Reports domain writes its logs, what to look
 for, and the `03-Logs/` scripts for inventory, search, live view, cleanup,
 archiving and log levels.
