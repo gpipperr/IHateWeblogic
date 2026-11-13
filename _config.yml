@@ -6,6 +6,18 @@ author: Gunther Pippèrr
 url: https://gpipperr.github.io
 google_site_verification: n98iDKjm72tLvTJClLgqW5eFzyXijNmEDhnqi50pSR4
 baseurl: /IHateWeblogic
+# social preview (og:image / twitter:image via jekyll-seo-tag) - the bird logo for links shared
+# in WhatsApp, Teams, LinkedIn, Facebook ...; logo = JSON-LD publisher logo
+logo: /assets/IHateWeblogic_logo.png
+defaults:
+  - scope:
+      path: ""
+    values:
+      image:
+        path: /assets/git_hub_social_preview.png
+        width: 640
+        height: 320
+        alt: "IHateWeblogic - bird logo of Gunther Pipperr"
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
