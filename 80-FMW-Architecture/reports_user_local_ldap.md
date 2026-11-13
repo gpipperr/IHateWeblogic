@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Users – OPSS JSE and Embedded LDAP"
+description: "Who authenticates Reports users in 14.1.2: standalone Reports server, OPSS JSE and the WebLogic embedded LDAP – realm users and roles for rwservlet, monitoring."
+---
+
 # Reports users – who authenticates whom: standalone Reports server, OPSS JSE, WebLogic embedded LDAP
 
 **Scope:** FMW 14.1.2.0.0 (CSPU Sep 2026, Reports QPR 39600348), Forms/Reports

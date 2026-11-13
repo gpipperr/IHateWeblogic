@@ -1,3 +1,8 @@
+---
+title: "Oracle REST Data Services (ORDS) – How It Works"
+description: "ORDS between Nginx and the database: Jetty, JDBC pools, the proxy right, the two configuration levels, REST security with OAuth2 and which features carry risk."
+---
+
 # Oracle REST Data Services (ORDS) – How It Works
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

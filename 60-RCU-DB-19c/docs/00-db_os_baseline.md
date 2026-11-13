@@ -1,3 +1,8 @@
+---
+title: "Oracle 19c OS Baseline for the RCU Database (OL9)"
+description: "Step 0 of the RCU database on Oracle Linux 9 as root: preinstall RPM, kernel parameters, user limits, transparent huge pages and core dumps for Oracle 19c."
+---
+
 # Step 0 – 00-root_db_os_baseline.sh
 
 **Script:** [`60-RCU-DB-19c/00-root_db_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00-root_db_os_baseline.sh)

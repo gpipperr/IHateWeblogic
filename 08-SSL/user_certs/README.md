@@ -1,3 +1,9 @@
+---
+title: "user_certs – Inbox for the Customer Certificates"
+description: "Drop the certificates of the customer PKI here, then check and import them with ssl_customer_certs.sh; everything except this README is ignored by git."
+permalink: /08-SSL/user_certs/
+---
+
 # user_certs – inbox for the customer's certificates
 
 Drop the certificates of the customer PKI here, then check and import them:

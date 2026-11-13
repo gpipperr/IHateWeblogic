@@ -1,3 +1,8 @@
+---
+title: "Oracle 19c Autostart with systemd – oratab, dbstart"
+description: "Step 8: start the Oracle 19c RCU database automatically after a reboot – /etc/oratab entry, systemd unit oracle-db.service with dbstart and dbshut, checks."
+---
+
 # Step 8 – 08-db_auto_start.sh
 
 **Script:** [`60-RCU-DB-19c/08-db_auto_start.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/08-db_auto_start.sh)

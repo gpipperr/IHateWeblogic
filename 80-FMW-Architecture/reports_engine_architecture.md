@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Server and Engines – Standalone"
+description: "Oracle Reports 14.1.2 in-process vs. standalone server: which rwserver.conf applies, how engines start, who knows the users, and why it is so complicated."
+---
+
 # Reports server and engines – in-process vs. standalone, and why it is so complicated
 
 Oracle Reports can run its server in two places and starts the engines

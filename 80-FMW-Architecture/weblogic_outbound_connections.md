@@ -1,3 +1,8 @@
+---
+title: "Oracle FMW 14.1.2 Outbound Connections and External DTD"
+description: "Which connections a Forms & Reports 14.1.2 domain opens to other hosts, how to measure them, and why a parser fetching a DTD can block a server start forever."
+---
+
 # Outbound connections of an FMW domain – what leaves the host, and the external-DTD trap
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Create the Oracle 19c CDB and PDB for the FMW RCU"
+description: "Step 3: create the Oracle 19c CDB and PDB for the FMW 14.1.2 repository with DBCA – RCU requirements checked, post-configuration, clean and re-create."
+---
+
 # Step 3 – 03-db_create_database.sh
 
 **Script:** [`60-RCU-DB-19c/03-db_create_database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/03-db_create_database.sh)

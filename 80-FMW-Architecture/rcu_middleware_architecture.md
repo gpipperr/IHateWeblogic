@@ -1,3 +1,8 @@
+---
+title: "Oracle FMW 14.1.2 RCU Repository – Schemas and Patching"
+description: "What RCU creates for Forms & Reports 14.1.2, which process logs in to which schema, where the passwords live, and why regular patches never touch the schemas."
+---
+
 # RCU and the FMW repository – what it is, who uses it, how it is patched
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

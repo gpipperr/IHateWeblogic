@@ -1,3 +1,8 @@
+---
+title: "Oracle 19c Unified Auditing for the RCU Database"
+description: "Step 4: Unified Auditing for the local Oracle 19c RCU database – uniaud_on relink, audit policies, own AUDITLOG tablespace and purge jobs, dry-run first."
+---
+
 # Step 4 – 04-db_audit_setup.sh
 
 **Script:** [`60-RCU-DB-19c/04-db_audit_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/04-db_audit_setup.sh)

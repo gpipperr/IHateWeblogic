@@ -1,3 +1,8 @@
+---
+title: "IHateWeblogic Project Status – Phases and Progress"
+description: "Project status of IHateWeblogic: which phases of the Oracle Forms & Reports 14c library are implemented and live-tested, what is reviewed, what is still open."
+---
+
 # Project Status
 
 ← Back to the [root README](../README.md)

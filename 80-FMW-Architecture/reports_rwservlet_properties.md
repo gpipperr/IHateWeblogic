@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c rwservlet.properties and Job Retry"
+description: "Every element of rwservlet.properties in Oracle Reports 14.1.2 with default, meaning and a DEV / PROD recommendation, plus job retry and the cgicmd.dat key map."
+---
+
 # `rwservlet.properties` – what can be set in Reports 14.1.2, and the job `retry`
 
 The configuration file of the Reports servlet (`rwservlet`, the web entry of

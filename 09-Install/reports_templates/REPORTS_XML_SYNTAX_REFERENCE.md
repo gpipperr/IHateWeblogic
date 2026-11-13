@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports XML Report Definition – Syntax Reference"
+description: "Syntax reference for the Oracle Reports XML report definition of rwconverter: elements and attributes from the 14.1.2 DTD, queries, layout, parameter form."
+---
+
 # Oracle Reports XML Report Definition — Syntax Reference
 
 Knowledge reference for the Reports XML Report Definition format (the

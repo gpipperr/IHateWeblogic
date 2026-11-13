@@ -1,3 +1,8 @@
+---
+title: "Monitoring Oracle Reports 14c with getserverinfo"
+description: "Watch a standalone Oracle Reports 14.1.2 server from Nagios, Checkmk or Zabbix: getserverinfo XML of rwservlet, engine states, job counters, a monitor user."
+---
+
 # Monitoring the Reports server with `getserverinfo`
 
 How to watch a standalone Oracle Reports 14.1.2 server from a monitoring

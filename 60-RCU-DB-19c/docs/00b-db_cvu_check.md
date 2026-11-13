@@ -1,3 +1,8 @@
+---
+title: "Oracle 19c Pre-Install Check with the Standalone CVU"
+description: "Step 0b: check the host before the Oracle 19c install with the standalone Cluster Verification Utility – download, fixups and how to read the expected findings."
+---
+
 # Step 0b – 00b-db_cvu_check.sh (standalone CVU)
 
 **Script:** [`60-RCU-DB-19c/00b-db_cvu_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00b-db_cvu_check.sh)

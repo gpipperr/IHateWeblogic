@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms 14.1.2 Runtime Architecture – frmweb, Pooling"
+description: "How an Oracle Forms 14.1.2 session runs on the server: servlet, listener, frmweb processes, runtime pooling, timeout chain, memory, configuration, logs and TLS."
+---
+
 # Oracle Forms 14.1.2 – runtime architecture
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Password Handling in an Oracle Forms / Reports Domain"
+description: "Where WebLogic, Node Manager, OPSS, Reports and this library keep credentials, how they are encrypted, and why the Node Manager copy of boot.properties matters."
+---
+
 # Password handling in an FMW Forms / Reports domain
 
 Where WebLogic, the Node Manager, OPSS, Reports and this library keep

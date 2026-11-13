@@ -1,3 +1,8 @@
+---
+title: "Own Java Runtime for the Forms Client with jlink"
+description: "Build a small self-contained Java runtime for the Oracle Forms 14.1.2 Standalone Launcher (FSAL) with jdeps and jlink – theory, modules and a tested result."
+---
+
 # Own Java Runtime for the Forms Client – jlink, Theory and Practice
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

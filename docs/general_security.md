@@ -1,3 +1,8 @@
+---
+title: "Password Security and Secure Report Invocation"
+description: "How this library stores passwords (encrypted per machine, never in environment.conf) and how Oracle Reports are invoked securely with basic rwservlet hardening."
+---
+
 # General Security – Passwords and Report Invocation
 
 ← Back to the [root README](../README.md)

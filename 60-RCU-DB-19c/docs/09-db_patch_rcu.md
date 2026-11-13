@@ -1,3 +1,8 @@
+---
+title: "Patch the Oracle 19c RCU Database Out-of-Place"
+description: "Step 9: patch the running Oracle 19c RCU database out-of-place each release update cycle – build the new home, move the database, datapatch, rollback path."
+---
+
 # Step 9 – 09-db_patch_rcu.sh (patch the RCU database out-of-place)
 
 **Script:** [`60-RCU-DB-19c/09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)

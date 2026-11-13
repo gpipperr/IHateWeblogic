@@ -1,3 +1,9 @@
+---
+title: "Oracle Forms 14c Configuration Templates"
+description: "Templates for default.env, formsweb.cfg, webutil.cfg, Registry.dat and key bindings that the customer edits before 14-oracle_setup_forms.sh copies them."
+permalink: /09-Install/forms_templates/
+---
+
 # Forms Configuration Templates
 
 These templates must be **edited by the customer** before running [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh).

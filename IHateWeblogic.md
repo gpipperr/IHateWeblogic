@@ -1,3 +1,8 @@
+---
+title: "IHateWeblogic – the Idea Behind the Script Library"
+description: "Why IHateWeblogic exists: the meaning of the name, the intention, why Oracle Forms & Reports still matter, and the philosophy of this open-source library."
+---
+
 
 
 # IHateWeblogic – Oracle Forms & Reports Diagnostic Script Library

@@ -1,3 +1,8 @@
+---
+title: "Claude Code on an Oracle FMW Host – Setup, Hardening"
+description: "Install and lock down Claude Code for the patch-cycle analysis on a test or admin host: never on production, managed settings, sandbox, guard hook and checks."
+---
+
 # Claude Code on an FMW host – setup and hardening
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Oracle 19c Listener for the RCU Database – Oracle Net"
+description: "Step 2: Oracle Net configuration and TNS listener for the local RCU database: listener.ora, sqlnet.ora, loopback warning, two Net directories, systemd unit."
+---
+
 # Step 2 – 02-db_setup_listener.sh
 
 **Script:** [`60-RCU-DB-19c/02-db_setup_listener.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/02-db_setup_listener.sh)

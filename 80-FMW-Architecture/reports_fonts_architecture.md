@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports Fonts – Output Path and Font Licences"
+description: "How Oracle Reports finds a font for PDF and HTML output, Windows fonts vs. free metric-compatible replacements, licences, and moving reports to a Linux server."
+---
+
 # Oracle Reports fonts – how a font gets into the output, and who may use which font
 
 Reports are designed on Windows with Windows font names (Arial, Times New

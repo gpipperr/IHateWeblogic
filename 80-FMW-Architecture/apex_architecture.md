@@ -1,3 +1,8 @@
+---
+title: "Oracle APEX and ORDS – How a Request Reaches the Database"
+description: "How Oracle APEX 26.2 works beside a Forms & Reports domain: request path through Nginx and ORDS, the APEX database accounts, SQL in the parsing schema."
+---
+
 # Oracle APEX and ORDS – How a Request Reaches the Database
 
 How Oracle APEX works beside a Forms / Reports domain:

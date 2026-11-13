@@ -1,3 +1,9 @@
+---
+title: "FMW 14.1.2 Patch Lists per Cycle – CSV Files"
+description: "The patch numbers of IHateWeblogic per Oracle patch cycle as CSV files: read by the install scripts and the standalone MOS download tool, with sha256 checks."
+permalink: /09-Install/download/
+---
+
 # download – patch lists per cycle
 
 The patch numbers of the library live **here**, not in the scripts and not in

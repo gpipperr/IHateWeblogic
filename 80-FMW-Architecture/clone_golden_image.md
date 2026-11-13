@@ -1,3 +1,8 @@
+---
+title: "Clone-Capable Oracle FMW 14.1.2 Install – Golden Image"
+description: "What a Forms & Reports 14.1.2 host binds to, which files hold host name, IP and machine identity, and what changes after a clone – loopback-only design."
+---
+
 # Clone-Capable Installation – Loopback Only, One Host Name at the Edge
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Install Oracle 19c Already Patched – Gold Image or RU"
+description: "Step 1: install Oracle 19c into an already patched home in one run – from a gold image or the 19.3 base with the release update applied by opatch before setup."
+---
+
 # Step 1 – 01-db_install_software.sh
 
 **Script:** [`60-RCU-DB-19c/01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh)

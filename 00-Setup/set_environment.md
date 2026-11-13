@@ -1,3 +1,8 @@
+---
+title: "Environment Switching – environment.conf and setdb"
+description: "Several Oracle environments on one server: detect_env_conf.sh selects the configuration of the library, setdb switches the interactive shell between homes."
+---
+
 # Environment management – `environment.conf`, `detect_env_conf.sh`, `setdb`
 
 Several Oracle environments on one server: FMW/WebLogic domains and Oracle

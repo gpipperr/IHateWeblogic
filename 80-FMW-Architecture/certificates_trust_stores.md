@@ -1,3 +1,8 @@
+---
+title: "Certificates and Trust Stores in Oracle FMW 14.1.2"
+description: "Certificates, keys and trust stores of a Forms & Reports 14.1.2 stack: terms, every store, who needs what, customer PKI and TLS interception, central trust."
+---
+
 # Certificates, keys and trust stores – where what lives, who needs what
 
 The central architecture description of the certificate topic for a Forms &

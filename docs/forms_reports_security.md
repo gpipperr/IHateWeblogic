@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Security and Patch Status"
+description: "Security and patch status of Oracle Forms & Reports 14.1.2: the current Oracle patch cycle, where the patch list lives, CVE check and the hardening documents."
+---
+
 # Forms & Reports – Security & Patch Status
 
 ← Back to the [root README](../README.md)

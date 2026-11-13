@@ -1,3 +1,8 @@
+---
+title: "DBA SQL Scripts for the Local RCU Database"
+description: "Step 7: install the OraDBASQLScripts collection in ~oracle/sql on a host with a local RCU database – login.sql and about 290 analysis scripts called by name."
+---
+
 # Step 7 – 07-db_sql_scripts.sh
 
 **Script:** [`60-RCU-DB-19c/07-db_sql_scripts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/07-db_sql_scripts.sh)

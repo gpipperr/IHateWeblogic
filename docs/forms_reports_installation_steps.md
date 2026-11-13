@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Lifecycle and First Run"
+description: "The lifecycle of an Oracle Forms & Reports 14c installation with this library: folder roles, the required order on an existing environment, and the setup."
+---
+
 # Forms & Reports – Lifecycle, First Run, Setup
 
 ← Back to the [root README](../README.md)

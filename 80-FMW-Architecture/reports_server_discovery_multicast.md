@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports Server Discovery – Multicast, REP-56040"
+description: "How rwservlet finds a standalone Oracle Reports 14.1.2 server: UDP multicast, rwnetwork.conf, and the errors REP-50600 and REP-56040 with causes and fixes."
+---
+
 # Reports server discovery – UDP multicast, `rwnetwork.conf`, REP-50600 / REP-56040
 
 **Scope:** Oracle Reports 14.1.2 (FMW 14.1.2.0.0, Reports QPR 39600348),

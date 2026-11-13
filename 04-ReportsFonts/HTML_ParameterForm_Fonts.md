@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports Greek Glyphs in the HTML Parameter Form"
+description: "Why the Oracle Reports 14c HTML parameter form shows Latin text as Greek Symbol glyphs while PDF is fine, and the fix with domain-local AFM files and PPD."
+---
+
 # Oracle Reports: Greek / Symbol Glyphs in the HTML Parameter Form
 
 > How the HTML parameter form (and HTML output) of Oracle Reports 12c/14c on

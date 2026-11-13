@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms 14 – WebUtil and JACOB Architecture"
+description: "Oracle Forms 14.1.2 WebUtil and JACOB: architecture, download, files, signing the JAR files, which certificates are needed and who checks the signature."
+---
+
 # Oracle Forms 14 – WebUtil and JACOB Architecture
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

@@ -1,3 +1,8 @@
+---
+title: "Minimal Oracle 19c Database for the FMW 14.1.2 RCU"
+description: "Concept of the smallest Oracle 19c database for the FMW 14.1.2 RCU schemas: what they hold, CDB + one PDB, memory, archivelog, Unified Auditing, disk layout."
+---
+
 # Concept – Minimal Oracle 19c RCU Database
 
 ## Goal

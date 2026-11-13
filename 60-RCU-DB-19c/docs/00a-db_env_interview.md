@@ -1,3 +1,8 @@
+---
+title: "RCU Database Configuration Interview – environment_db"
+description: "Step 0a: the configuration interview for the local Oracle 19c RCU database writes environment_db.conf – questions, defaults, dry-run, reset, consistency check."
+---
+
 # Step 0a – 00a-db_env_interview.sh
 
 **Script:** [`60-RCU-DB-19c/00a-db_env_interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00a-db_env_interview.sh)

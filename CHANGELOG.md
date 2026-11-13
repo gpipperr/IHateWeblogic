@@ -1,3 +1,8 @@
+---
+title: "IHateWeblogic Changelog – What Was Finished When"
+description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 14c on WebLogic 14.1.2: what was finished when, newest first, with links to the documents."
+---
+
 # IHateWeblogic – Changelog
 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
@@ -5,6 +10,11 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-13
 
+- **SEO:** front matter `title` (≤ 60 characters) and `description` (140–160) for the 52 pages that
+  still had the general site description (80-FMW-Architecture, 60-RCU-DB-19c/docs, docs/, root pages,
+  set_environment, HTML_ParameterForm_Fonts, setup_claude, XML syntax reference, sub-folder READMEs
+  with permalink) – also used as og:description when a page is shared. Layout: own `<title>`,
+  " | IHateWeblogic" only when the whole title stays ≤ 60 characters (`{% seo title=false %}`).
 - **New main folder `14-ReportsBuilder/`** (moved from `70-Customer-Projects/Reports14_builder_windows`,
   history kept with `git mv`): new overview `README.md` – the idea (builder-only Windows server) and
   the core question how to distribute and manage reports with GitLab, with the diagram

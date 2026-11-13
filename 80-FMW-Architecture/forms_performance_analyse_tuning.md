@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms 14c Performance – Analysis and Tuning"
+description: "Forms is slow – where to look and in which order: network, frmweb processes, pooling, timeouts, memory, database, and which setting fits which finding."
+---
+
 # Forms performance – analysis and tuning
 
 "Forms is slow" – where to look, in which order, and which setting belongs

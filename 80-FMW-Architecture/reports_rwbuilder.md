@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports Builder 14.1.2 – Builder-Only Windows Server"
+description: "Give report developers the Oracle Reports Builder 14.1.2 with minimal Fusion Middleware: one Windows Server via RDP, builder domain, reports run on Linux."
+---
+
 # Reports Builder minimal setup – a builder-only Windows server
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](certificates_trust_stores.md)

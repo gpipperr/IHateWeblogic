@@ -1,3 +1,8 @@
+---
+title: "One Tablespace for All FMW RCU Schemas – FMW_DATA"
+description: "Step 5: create the one tablespace FMW_DATA in the PDB for all FMW 14.1.2 RCU schemas before RCU runs, and keep RCU_TABLESPACE in environment.conf in sync."
+---
+
 # Step 5 – 05-db_fmw_tablespace.sh
 
 **Script:** [`60-RCU-DB-19c/05-db_fmw_tablespace.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/05-db_fmw_tablespace.sh)

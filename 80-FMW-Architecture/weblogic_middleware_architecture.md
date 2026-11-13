@@ -1,3 +1,8 @@
+---
+title: "WebLogic 14.1.2 Fusion Middleware Architecture Overview"
+description: "Base map of a Forms & Reports 14.1.2 domain: which processes exist, who starts whom, how they talk, which console does what, where homes, configs and logs live."
+---
+
 # WebLogic / Fusion Middleware architecture – how the components work together
 
 Base overview for a Forms & Reports 14.1.2 domain: which processes exist,

@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Scheduled Jobs, Job Queues and cron"
+description: "Run Oracle Reports 14.1.2 jobs on a schedule on Linux: job queues, persistence, cron with rwclient, watching and cancelling jobs on a secured Reports server."
+---
+
 # Reports job handling – scheduled reports, job queues, cron
 
 How a report is run automatically on a schedule on a standalone Oracle

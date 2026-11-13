@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Images – REPORTS_PATH, folderAccess"
+description: "Images of reports migrated from Windows on a standalone Oracle Reports 14.1.2 server: absolute paths, REPORTS_PATH, the folderAccess rule, error REP-56132."
+---
+
 # Reports server – images, `REPORTS_PATH` and `<folderAccess>`
 
 **Scope:** Oracle Reports 14.1.2 (FMW 14.1.2.0.0, Reports QPR 39600348),

@@ -1,3 +1,8 @@
+---
+title: "DB Profile for the RCU Schemas – No Password Expiry"
+description: "Step 6: a database profile for the FMW RCU schemas, so passwords do not expire after 180 days and a wrong password locks no schema (ORA-28001, ORA-28000)."
+---
+
 # Step 6 – DB profile for the RCU schemas (`06-db_rcu_profile.sh`)
 
 ## Purpose

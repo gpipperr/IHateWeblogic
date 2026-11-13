@@ -1,3 +1,8 @@
+---
+title: "Oracle Forms & Reports 14c Sizing – Disk, Memory"
+description: "Disk, memory and process sizing for Oracle Forms & Reports 14.1.2, measured on a test host: Oracle Home, domain, JDK, RCU database homes, patch storage."
+---
+
 # Forms & Reports – Sizing (disk, memory, processes)
 
 ← Back to the [root README](../README.md)

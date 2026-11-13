@@ -1,3 +1,8 @@
+---
+title: "IHateWeblogic Security Policy – Report a Vulnerability"
+description: "How to report a security problem in the IHateWeblogic scripts privately via GitHub vulnerability reporting or e-mail, what to include and what not to attach."
+---
+
 # Security Policy
 
 ## Reporting a vulnerability

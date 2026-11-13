@@ -1,3 +1,8 @@
+---
+title: "EM Add Principal Finds No Users – libOVD, Reports 14c"
+description: "Enterprise Manager 14.1.2 finds no users in Add Principal: the standalone Reports server overwrites the libOVD configuration and its lock file – cause and fix."
+---
+
 # EM "Add Principal" finds no users – libOVD and the lock of the Reports server
 
 **Scope:** FMW 14.1.2.0.0 (CSPU Sep 2026, Reports QPR 39600348), Forms/Reports

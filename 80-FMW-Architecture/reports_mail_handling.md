@@ -1,3 +1,8 @@
+---
+title: "Oracle Reports 14c Mail – SMTP, Notifications, Tickets"
+description: "How a standalone Oracle Reports 14.1.2 server sends mail: destype=mail, notifysuccess / notifyfailure, mail server and sender, failure mail to a ticket system."
+---
+
 # Reports mail handling – mail server, sender, notifications, failure mail to a ticket system
 
 How a standalone Oracle Reports 14.1.2 server sends mail: the report itself

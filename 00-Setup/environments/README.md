@@ -1,3 +1,9 @@
+---
+title: "environments/ – One Configuration per Oracle Home"
+description: "The environments directory of IHateWeblogic: one conf file per FMW domain or Oracle Database home, the active one linked as environment.conf, with templates."
+permalink: /00-Setup/environments/
+---
+
 # environments/
 
 One `*.conf` file per Oracle environment on this server.
