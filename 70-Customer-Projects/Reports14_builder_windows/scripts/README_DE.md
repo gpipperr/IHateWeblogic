@@ -6,6 +6,8 @@ description: "Arbeitsablauf der Reports-Entwickler mit Git unter Windows: Menü,
 
 # Reports-Entwicklung mit Git – der Arbeitsablauf
 
+> English version: [README.md](README.md).
+
 Diese Skripte verbinden den Oracle Reports Builder mit einem Git-Repository.
 Jeder Entwickler arbeitet in seiner eigenen Kopie (Clone) unter
 `E:\git\<Ihr Login>\oracle-report`, holt sich vor der Arbeit den neuesten Stand und checkt

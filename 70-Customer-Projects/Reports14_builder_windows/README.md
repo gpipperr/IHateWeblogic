@@ -108,8 +108,9 @@ at the start of the work, [`checkin.ps1`](https://github.com/gpipperr/IHateWeblo
 and checks in one report per check-in (the report name in the comment),
 [`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) shows tags and the production state – for developers
 without Git experience. Design, tests and the Windows test procedure:
-[Git_checkin.md](Git_checkin.md); for the developers (German):
-[scripts/README_DE.md](scripts/README_DE.md); all scripts and the
+[Git_checkin.md](Git_checkin.md); for the developers:
+[scripts/README_DE.md](scripts/README_DE.md) (German, at the customer) /
+[scripts/README.md](scripts/README.md) (English); all scripts and the
 `.gitattributes` / `.gitignore` templates:
 [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts).
 
