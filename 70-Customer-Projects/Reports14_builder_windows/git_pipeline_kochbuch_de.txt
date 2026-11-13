@@ -609,7 +609,62 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
 
   gitlab-runner list
   # Erwartet: keine Zeile (neuer Host) - oder die schon vorhandenen Runner
-  # (andere Projekte). Dann:
+  # (andere Projekte).
+
+  # ALTLASTEN pruefen - bevor ein neuer Runner dazukommt. Ein Eintrag in
+  # config.toml, dessen Runner in GitLab schon geloescht ist (alter
+  # Versuch, abgebrochene Registrierung), fragt GitLab weiter alle paar
+  # Sekunden an und fuellt das Protokoll mit Fehlern - die ueberdecken
+  # spaeter die Meldungen des neuen Runners:
+
+  gitlab-runner verify
+  # Erwartet je vorhandenem Runner: "Verifying runner... is alive   runner=<id>"
+  # "is removed" / "is not valid" / 403 Forbidden -> Altlast: dieser
+  # Runner existiert in GitLab nicht mehr.
+  # Keine Altlast -> weiter mit "journalctl" unten.
+  # Altlast -> erst die folgenden Befehle (Altlasten bereinigen).
+
+  # --- Altlasten bereinigen (NUR wenn verify oben eine Altlast zeigt) ---
+  #
+  # "gitlab-runner verify --delete" fragt GitLab fuer jeden Eintrag in
+  # config.toml und entfernt NUR die, die GitLab nicht mehr kennt. Laufende
+  # Runner bleiben. Nicht rueckgaengig zu machen - daher erst sichern. Gehoert
+  # der verwaiste Eintrag zu einem anderen Projekt: vorher mit dessen
+  # Verantwortlichen klaeren.
+  # Doku: https://docs.gitlab.com/runner/commands/#gitlab-runner-verify
+
+  cp -p /etc/gitlab-runner/config.toml /etc/gitlab-runner/config.toml.bak_vor_verify
+
+  ls -l /etc/gitlab-runner/config.toml.bak_vor_verify
+  # Erwartet: die Sicherung, gleiche Groesse wie config.toml
+
+  grep -c '^\[\[runners\]\]' /etc/gitlab-runner/config.toml
+  # Erwartet: Anzahl der Eintraege vorher, z.B. 3 - notieren
+
+  gitlab-runner verify --delete
+  # Erwartet: fuer die gesunden Runner "is alive", fuer die Altlast
+  # "is removed" - und die Altlast wird aus config.toml geloescht.
+
+  grep -c '^\[\[runners\]\]' /etc/gitlab-runner/config.toml
+  # Erwartet: Anzahl vorher minus Zahl der Altlasten, z.B. 2
+
+  gitlab-runner verify
+  # Erwartet: nur noch "is alive". Steht noch "is removed" da -> STOP,
+  # Ausgabe sichern, mit dem GitLab-Administrator klaeren.
+
+  # Ein falscher Eintrag geloescht? Zurueck:
+  #   cp -p /etc/gitlab-runner/config.toml.bak_vor_verify /etc/gitlab-runner/config.toml
+  # (der Dienst liest die Datei selbst neu)
+
+  # --- Ende Altlasten ---
+
+  journalctl -u gitlab-runner --since "-1h" --no-pager | grep -ci error
+  # Erwartet: 0 (kein Fehler in der letzten Stunde) - die saubere
+  # Ausgangslage. Eine Zahl > 0: die Zeilen ansehen
+  #   journalctl -u gitlab-runner --since "-1h" --no-pager | grep -i error | tail -5
+  # und klaeren, bevor der neue Runner dazukommt.
+
+  # Dann:
   #   - Sicherheit (4.2) beachten,
   #   - "concurrent" (gilt fuer ALLE Runner des Hosts zusammen) ansehen:
 
@@ -727,7 +782,11 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
   # Erwartet: eine Zeile  reports-deploy <host>  Executor=shell  URL=https://<gitlab-server>/
 
   gitlab-runner verify
-  # Erwartet: "Verifying runner... is valid"
+  # Erwartet je Runner: "Verifying runner... is alive   runner=<id>"
+  # (der neue reports-deploy und die schon vorhandenen) - kein "is removed"
+
+  journalctl -u gitlab-runner --since "-10min" --no-pager | grep -i error
+  # Erwartet: keine Ausgabe
 
   systemctl is-enabled gitlab-runner
   # Erwartet: enabled  (startet auch nach einem Neustart des Hosts)
@@ -1078,6 +1137,10 @@ ROLLBACK
                                          Auftrag aus "rwdeploy.sh list" / log/
   falsch gesetzter Tag (vor dem Job)     git push origin :refs/tags/<tag>
                                          git tag -d <tag>
+  verify --delete hat zu viel entfernt    cp -p /etc/gitlab-runner/
+                                         config.toml.bak_vor_verify
+                                         /etc/gitlab-runner/config.toml
+                                         (Dienst liest neu), dann verify
   Projekt-Runner entfernen               auf dem Runner-Host
                                          gitlab-runner unregister --name
                                          "reports-deploy <host>", dann in
@@ -1105,6 +1168,14 @@ BEKANNTE PROBLEME
             5.2 fehlt), oder der Dienst laeuft nicht.
   Loesung : SCHRITT 4.7 (gitlab-runner verify, systemctl status
             gitlab-runner), SCHRITT 5.1 / 5.2.
+
+  Problem : journalctl -u gitlab-runner voll mit "403 Forbidden" /
+            "is removed" / "invalid token" - auch wenn kein Job laeuft.
+  Ursache : Altlast: ein Eintrag in /etc/gitlab-runner/config.toml, dessen
+            Runner in GitLab geloescht ist (alter Versuch, abgebrochene
+            Registrierung, Runner in der Oberflaeche entfernt).
+  Loesung : SCHRITT 4.3 "Altlasten bereinigen": sichern, gitlab-runner
+            verify --delete, danach nur noch "is alive".
 
   Problem : Deploy-Job wartet lange, bevor er startet ("pending" einige
             Minuten), DEV meldet danach evtl. "still pending".

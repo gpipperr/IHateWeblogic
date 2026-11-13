@@ -204,7 +204,7 @@ customer's GitLab has none for this project yet, so we create one:
 | create | GitLab: project → Settings → CI/CD → Runners → **New project runner** | tag `reports-deploy`, "Run untagged jobs" off, **Protected** on (only jobs of protected branches / tags = `main`, `prod-*` – matches the protected variables); GitLab shows a token `glrt-…` ([project runners](https://docs.gitlab.com/ci/runners/runners_scope/#create-a-project-runner-with-a-runner-authentication-token)) |
 | register | runner host, root | `gitlab-runner register --non-interactive --url <gitlab> --token <glrt-…> --executor shell` – token read with `read -s`, kept in `/etc/gitlab-runner/config.toml` (600) ([registering runners](https://docs.gitlab.com/runner/register/), [shell executor](https://docs.gitlab.com/runner/executors/shell/)) |
 | restrict | GitLab | not enabled for other projects ([prevent enabling for other projects](https://docs.gitlab.com/ci/runners/runners_scope/#prevent-a-project-runner-from-being-enabled-for-other-projects)) |
-| check | runner host + GitLab | `gitlab-runner list`, `gitlab-runner verify`; runner green in the project; bash, git, ssh and port 22 checked **as user `gitlab-runner`** (the shell executor runs the jobs as this user) |
+| check | runner host + GitLab | `gitlab-runner list`, `gitlab-runner verify` (`is alive` for every runner); runner green in the project; bash, git, ssh and port 22 checked **as user `gitlab-runner`** (the shell executor runs the jobs as this user) |
 
 There is no runner on the Reports servers. The token is a secret like a
 password. Menu names and the output of `register` follow the GitLab
@@ -215,6 +215,15 @@ documentation – to confirm at the customer.
   more `[[runners]]` block to `config.toml`; one `gitlab-runner` service
   serves any number of runners. The cookbook backs up `config.toml` and
   compares `gitlab-runner list` before / after (exactly one new line).
+- **Stale entries first:** before registering, `gitlab-runner verify` must
+  show `is alive` for every runner. An entry whose runner was already
+  deleted in GitLab (`is removed`, 403) keeps polling and fills the log with
+  errors that would hide the messages of the new runner – back up
+  `config.toml`, then [`gitlab-runner verify --delete`](https://docs.gitlab.com/runner/commands/#gitlab-runner-verify)
+  (removes only such entries; cannot be undone; count the `[[runners]]`
+  blocks before / after; restore from the backup if a wrong one went;
+  cookbook step 4.3 "Altlasten bereinigen"). A clean `journalctl -u gitlab-runner` is the
+  baseline.
 - A runner with the tag `reports-deploy` that is online for the project is
   enough – a second one with the same tag would take jobs as well. Only the
   deploy runner carries this tag.
