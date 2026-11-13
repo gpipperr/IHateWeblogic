@@ -3,6 +3,20 @@
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-13
+
+- `Reports14_builder_windows`: **Reports deployment live at the customer** – own GitLab project
+  runner, push -> DEV and `prod-*` tag -> PROD (files arrive correctly), mail after the PROD deploy,
+  protected tags, variables per environment. New: `deploy/ci_deploy_debug.sh` (no-logic test of the
+  pipeline mechanism, cookbook step 4b), `deploy/ci_notify_mail.sh` + stage `notify` (mail only for
+  PROD, Postfix relay over TLS, cookbook step 9; demo relay `mxmail01.pipperr.local:587` in the
+  README demo data); cookbook step 4 rewritten for the project runner (stale entries / `verify
+  --delete`, no restart after `register`, runner too old -> upgrade + new registration with a new
+  name); `checkin.ps1` puts the report name into every comment; `status_detail.ps1` explains `offen`,
+  legend, `$ReleaseSkript`, umlauts via character codes; `Git_deploy.md` / `Git_checkin.md` link the
+  original documentation (GitLab, OpenSSH, Git, Oracle Reports 12.2.1.3, PowerShell) and list where
+  each value is set and used.
+
 ## 2026-11-12
 
 - **GitHub Pages – docs as a linked website, finished** (steps 4–7 of

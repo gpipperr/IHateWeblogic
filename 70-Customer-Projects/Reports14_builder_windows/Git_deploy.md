@@ -19,11 +19,12 @@ same day (`development` → DEV, single reports via `promote.ps1` and a merge
 request to `main`). Built and tested on the Linux test host (sandbox:
 PowerShell 7.4, local bare repositories, `ssh` simulated).
 
-Status at the customer (2026-11-13): own **project runner** `report-deploy`
-set up (after a runner update, see section 4 "Runner version"), a test
-commit started the pipeline and the job ran. Still to confirm there: the
-PROD path with a `prod-*` tag, protected tags and scoped variables
-(section 6), the mail after the PROD deploy (cookbook step 9).
+Status at the customer: **live since 2026-11-13.** Own project runner
+`report-deploy` (after a runner update, see section 4 "Runner version");
+push → `deploy_dev` → report on the DEV server, `prod-*` tag →
+`deploy_prod` → report on the PROD server, the mail after the PROD deploy,
+protected `prod-*` tags and the variables per environment – all confirmed,
+the files arrive correctly.
 
 Folder [deploy/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/deploy)
 holds the server and pipeline side. [scripts/release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)
@@ -391,7 +392,7 @@ mkdir -p /u01/app/oracle/rwdeploy/state                            # on the DEV 
 printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 ```
 
-## 6. GitLab settings (customer – to confirm)
+## 6. GitLab settings (live at the customer since 2026-11-13)
 
 - **`main` protected** ([protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/)):
   push for Developers (they check in directly), no force push.
@@ -436,12 +437,13 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | PROD tag on `umsatz` v2 (`-Nummer 1 -Ja`) | `umsatz.rdf` v2 deployed; afterwards both `umsatz` check-ins no longer open, both tags listed with their files |
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
 | **customer, 2026-11-13** | project runner created and registered (after `gitlab-runner` update, old runner deleted, new name `report-deploy`), test commit → pipeline ran |
+| **customer, 2026-11-13 – live** | DEV: push → `deploy_dev` → report on the DEV server; PROD: `prod-*` tag → `deploy_prod` → report on the PROD server; mail after the PROD deploy arrived; protected `prod-*` tags and scoped variables in place – files transferred correctly |
 | [`ci_notify_mail.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh) (2026-11-13, `MAIL_DRYRUN=1`) | `ok`: subject `[PROD] umsatz.rdf deployed - prod-…`, body with tag, commit, released by, tag message, files; `failed`: `[PROD] FAILED: …`; no `MAIL_TO` / wrong argument: message, exit 1; real sending via Postfix not tested (no relay on the test host) |
 | [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
 
-Open at the customer: the PROD path (`prod-*` tag → `deploy_prod`), the
-mail after the PROD deploy (relay, `MAIL_TO`), protected tags and scoped
-variables (section 6).
+Open at the customer: nothing for the pipeline – in operation since
+2026-11-13. Still open on Windows: the points of
+[Git_checkin.md 2.3](Git_checkin.md#23-open-on-windows).
 
 ## 9. References
 

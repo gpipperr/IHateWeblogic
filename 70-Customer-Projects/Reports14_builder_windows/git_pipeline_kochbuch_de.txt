@@ -8,8 +8,11 @@
   Umgebung   : selbst gehostetes GitLab, ein GitLab-Runner mit bash/git/ssh,
                zwei Linux-Server mit Oracle Reports 14.1.2 (DEV und PROD),
                Entwickler-PCs mit dem Repository oracle-report (Windows)
-  Erstellt   : 2026-11-12, Stand 2026-11-13 (Projekt-Runner beim Kunden
-               eingerichtet, Erfahrung "Runner zu alt", Mail nach PROD)
+  Erstellt   : 2026-11-12, Stand 2026-11-13
+  Status     : beim Kunden am 2026-11-13 komplett durchgefuehrt und LIVE:
+               Projekt-Runner, DEV- und PROD-Deploy (Dateien kommen korrekt
+               an), Mail nach PROD, geschuetzte Tags, Variablen je Umgebung.
+               Erfahrung "Runner zu alt" in SCHRITT 4.3.
   Grundlage  : IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/
                  Git_deploy.md        (Konzept, Abschnitte 2 bis 7)
                  deploy/ci_deploy.sh  (der Pipeline-Job)

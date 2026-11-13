@@ -13,7 +13,8 @@ Linux with PowerShell 7.4 and **in use at the customer** since 2026-11-12/13
 (repository layout `<user>\oracle-report`, start menu `menu.cmd`, own
 customer variants of some scripts, e.g. a release script of their own). The
 check-ins reach the Linux DEV server through the GitLab pipeline
-([Git_deploy.md](Git_deploy.md)) – a test commit ran there on 2026-11-13.
+([Git_deploy.md](Git_deploy.md)) – in operation since 2026-11-13, DEV and
+PROD (`prod-*` tag), including the mail after the PROD deploy.
 Still to confirm on Windows: the open points of 2.3 (umlauts in report
 names, `REP-` lines in the redirected output, line ends of the XML).
 

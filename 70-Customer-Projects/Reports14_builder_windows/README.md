@@ -111,9 +111,9 @@ push → the changed reports to the Linux DEV server; a `prod-*` tag
 ([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)) → exactly that check-in to production. GitLab CI
 template, SSH forced-command queue [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh): [Git_deploy.md](Git_deploy.md);
 set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
-Status 2026-11-13: own GitLab project runner live, a test commit ran
-through the pipeline; open: the PROD path with a `prod-*` tag and the mail
-after the PROD deploy.
+Status: **live at the customer since 2026-11-13** – own GitLab project
+runner, DEV and PROD deploys (files transferred correctly), mail after the
+PROD deploy, protected `prod-*` tags and variables per environment.
 
 ## Patch level
 
