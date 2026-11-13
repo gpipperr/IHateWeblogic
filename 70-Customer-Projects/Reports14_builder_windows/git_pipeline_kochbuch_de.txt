@@ -752,6 +752,17 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
 
   unset RUNNER_TOKEN
 
+  # KEIN Neustart des Dienstes noetig: der laufende gitlab-runner-Dienst
+  # prueft config.toml alle 3 Sekunden und laedt den neuen Eintrag selbst
+  # (GitLab-Doku "Advanced configuration"). Der neue Runner ist nach
+  # wenigen Sekunden aktiv - Kontrolle in 4.7.
+  # "systemctl restart gitlab-runner" hier NICHT ausfuehren: ein Neustart
+  # bricht laufende Jobs ALLER Runner dieses Hosts ab (auch die anderer
+  # Projekte). Nur wenn der Runner nach 1-2 Minuten in 4.7 nicht "is alive"
+  # / gruen ist und keine fremden Jobs laufen (Projekte fragen bzw.
+  #   journalctl -u gitlab-runner --since "-5min" --no-pager | grep -i job
+  # ansehen), dann:  systemctl restart gitlab-runner
+
   ls -l /etc/gitlab-runner/config.toml
   # Erwartet: -rw------- root root ... config.toml
 

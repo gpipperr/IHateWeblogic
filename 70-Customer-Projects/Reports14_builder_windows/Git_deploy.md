@@ -213,7 +213,10 @@ documentation – to confirm at the customer.
 **A runner already exists?**
 - `gitlab-runner register` does **not** overwrite anything: it appends one
   more `[[runners]]` block to `config.toml`; one `gitlab-runner` service
-  serves any number of runners. The cookbook backs up `config.toml` and
+  serves any number of runners and re-reads `config.toml` every 3 seconds
+  ([advanced configuration](https://docs.gitlab.com/runner/configuration/advanced-configuration/)) –
+  **no restart** after `register`; a `systemctl restart gitlab-runner` would
+  abort the running jobs of all runners of the host. The cookbook backs up `config.toml` and
   compares `gitlab-runner list` before / after (exactly one new line).
 - **Stale entries first:** before registering, `gitlab-runner verify` must
   show `is alive` for every runner. An entry whose runner was already
