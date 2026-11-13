@@ -1,0 +1,146 @@
+# =============================================================================
+# .gitlab-ci.yml - Reports deployment WITH result mail in the pipeline
+#                  (alternative to template.gitlab-ci.yml + ci_notify_mail.sh)
+# =============================================================================
+# Copy to the top folder of the repository as .gitlab-ci.yml.
+#
+#  push to main -> deploy_dev  (automatic: the files changed since the last
+#                               DEV deploy - normally the checked-in report)
+#  tag prod-*   -> deploy_prod (automatic: exactly the files of the tagged
+#                               commit - one report, set with release_tag.ps1)
+# There is only the branch main - no merge requests, no release branches.
+# Protect the tags prod-* in GitLab: creating one is the release.
+#
+# Result mail (solution of the customer, 2026-11-13): after EVERY deploy -
+# DEV and PROD - the user who started the pipeline (GITLAB_USER_EMAIL) gets
+# BESTANDEN / NICHT BESTANDEN and the full output of ci_deploy.sh by mail.
+# Sent from the after_script with curl directly to the SMTP server - no
+# Postfix / sendmail on the runner host needed (difference to
+# ci_notify_mail.sh: mail only for PROD, to MAIL_TO, via local sendmail).
+#
+# Needed CI/CD variables (Admin or Project -> Settings -> CI/CD -> Variables,
+# scope all environments), values e.g. from /etc/gitlab/gitlab.rb on the
+# GitLab server (the SMTP settings GitLab itself uses):
+#   SMTP_HOST            smtp_address
+#   SMTP_PORT            smtp_port (465 = implicit TLS, else STARTTLS -
+#                        TLS is always required)
+#   SMTP_USER            smtp_user_name   (optional)
+#   SMTP_PASS            smtp_password    (optional, Masked + Protected)
+#   SMTP_MAIL_FROM       gitlab_email_from
+#   SMTP_MAIL_FROM_NAME  gitlab_email_display_name   (optional)
+#   SMTP_TLS_INSECURE    optional: 1 = do NOT verify the server certificate
+#                        (curl --insecure) - only as long as the CA of the
+#                        mail server is missing on the runner host; better:
+#                        add the CA there (/etc/pki/ca-trust/source/anchors/
+#                        + update-ca-trust)
+# The password never goes on the curl command line (process list): curl gets
+# it as a config on stdin (-K -).
+#
+# Doc: Git_deploy.md (IHateWeblogic, 70-Customer-Projects/Reports14_builder_windows)
+# =============================================================================
+
+stages:
+  - deploy
+
+variables:
+  # full history - deploy_dev compares with the last deployed commit
+  GIT_DEPTH: "0"
+
+.deploy:
+  stage: deploy
+  tags:
+    - reports-deploy        # runner with bash, git, ssh that may reach the servers
+  interruptible: false
+  after_script:
+    # runs always (also after a failed deploy) - a mail error does not change
+    # the job result (after_script errors are ignored by GitLab)
+    - |
+      LOG="$CI_PROJECT_DIR/deploy.log"
+      MAIL="$CI_PROJECT_DIR/mail.txt"
+      echo "Log-Datei: $LOG"
+      ls -l "$LOG" 2>&1 || true
+      [ -f "$LOG" ] && echo "Zeilen im Log: $(wc -l < "$LOG")"
+
+      if [ "$CI_JOB_STATUS" = "success" ]; then ERG="BESTANDEN"; else ERG="NICHT BESTANDEN"; fi
+      {
+        echo "From: ${SMTP_MAIL_FROM_NAME:-GitLab} <$SMTP_MAIL_FROM>"
+        echo "To: $GITLAB_USER_EMAIL"
+        echo "Subject: [$ERG] Deployment $CI_PROJECT_NAME - $CI_ENVIRONMENT_NAME"
+        echo "MIME-Version: 1.0"
+        echo "Content-Type: text/plain; charset=UTF-8"
+        echo
+        echo "Ergebnis:   $ERG"
+        echo "Umgebung:   $CI_ENVIRONMENT_NAME"
+        echo "Projekt:    $CI_PROJECT_PATH"
+        echo "Ref:        $CI_COMMIT_REF_NAME"
+        echo "Commit:     $CI_COMMIT_SHORT_SHA - $CI_COMMIT_TITLE"
+        echo "Ausgeloest: $GITLAB_USER_NAME"
+        echo "Job-Log:    $CI_JOB_URL"
+        echo
+        echo "=============== Ausgabe ci_deploy.sh ==============="
+        if [ -s "$LOG" ]; then
+          sed 's/\x1b\[[0-9;]*[mK]//g' "$LOG"     # Farbcodes entfernen
+        else
+          echo "(kein Log vorhanden: $LOG)"
+        fi
+      } > "$MAIL"
+
+      if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_PORT:-}" ] || [ -z "${SMTP_MAIL_FROM:-}" ]; then
+        echo "WARNUNG: SMTP_HOST / SMTP_PORT / SMTP_MAIL_FROM nicht gesetzt - keine Mail"
+        exit 0
+      fi
+      # 465 = TLS von Anfang an (smtps), sonst STARTTLS - TLS ist Pflicht
+      if [ "$SMTP_PORT" = "465" ]; then
+        url="smtps://$SMTP_HOST:$SMTP_PORT"
+        opts=()
+      else
+        url="smtp://$SMTP_HOST:$SMTP_PORT"
+        opts=(--ssl-reqd)
+      fi
+      # Zertifikat des Mailservers pruefen - abschalten nur bewusst
+      if [ "${SMTP_TLS_INSECURE:-}" = "1" ]; then
+        opts+=(--insecure)
+        echo "WARNUNG: SMTP_TLS_INSECURE=1 - Zertifikat des Mailservers wird NICHT geprueft"
+      fi
+
+      # Anmeldung (optional) als curl-Konfiguration ueber stdin (-K -):
+      # das Kennwort steht nie auf der Kommandozeile (Prozessliste)
+      # (in der Konfiguration muessen \ und " mit \ maskiert werden)
+      if [ -n "${SMTP_USER:-}" ]; then
+        pw="${SMTP_PASS:-}"; pw="${pw//\\/\\\\}"; pw="${pw//\"/\\\"}"
+        printf 'user = "%s:%s"\n' "$SMTP_USER" "$pw" |
+          curl -sS --crlf -K - --url "$url" "${opts[@]}" \
+               --mail-from "$SMTP_MAIL_FROM" --mail-rcpt "$GITLAB_USER_EMAIL" \
+               --upload-file "$MAIL"
+      else
+        curl -sS --crlf --url "$url" "${opts[@]}" \
+             --mail-from "$SMTP_MAIL_FROM" --mail-rcpt "$GITLAB_USER_EMAIL" \
+             --upload-file "$MAIL"
+      fi
+      if [ $? -eq 0 ]; then
+        echo "Mail an $GITLAB_USER_EMAIL gesendet (TLS, Port $SMTP_PORT)"
+      else
+        echo "WARNUNG: Mailversand fehlgeschlagen (Port $SMTP_PORT)"
+      fi
+      rm -f "$MAIL"
+
+deploy_dev:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+  environment:
+    name: development
+  resource_group: deploy-dev    # one deploy at a time
+  script:
+    # pipefail: the job fails if ci_deploy.sh fails (not only tee)
+    - set -o pipefail; bash deploy/ci_deploy.sh dev 2>&1 | tee "$CI_PROJECT_DIR/deploy.log"
+
+deploy_prod:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-/'
+  environment:
+    name: production
+  resource_group: deploy-prod
+  script:
+    - set -o pipefail; bash deploy/ci_deploy.sh prod 2>&1 | tee "$CI_PROJECT_DIR/deploy.log"

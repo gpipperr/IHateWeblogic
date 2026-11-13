@@ -1342,6 +1342,13 @@ SCHRITT 9: Mail nach dem PROD-Deploy  (root auf dem Runner-Host, Browser)
   das lokale sendmail des Runner-Hosts; Postfix reicht sie an den
   Mailserver der Firma weiter.
 
+  ALTERNATIVE (Loesung des Kunden): deploy/template_mail_in_pipe.gitlab-ci.yml
+  statt template.gitlab-ci.yml - Mail nach JEDEM Deploy (DEV und PROD) an
+  den Ausloeser, mit der ganzen Ausgabe von ci_deploy.sh, per curl direkt an
+  den SMTP-Server (Variablen SMTP_HOST, SMTP_PORT, SMTP_MAIL_FROM, optional
+  SMTP_USER / SMTP_PASS) - dann entfaellt Postfix auf dem Runner-Host und
+  dieser Schritt 9. Vergleich: Git_deploy.md, Abschnitt 4 "Mail - two ways".
+
   Inhalt: Betreff "[PROD] <bericht>.rdf deployed - <tag>" (bzw. "FAILED"),
   Freigeber, Tag-Kommentar, Dateien des Check-ins, Links zu Pipeline und
   Job. Ein Mail-Problem macht die Freigabe NICHT rot (allow_failure) -

@@ -86,6 +86,7 @@ nothing else.
 | File | Where it goes | Purpose |
 |---|---|---|
 | [template.gitlab-ci.yml](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template.gitlab-ci.yml) | `.gitlab-ci.yml` in the top folder of the repository | job `deploy_dev` (push to `main`) and `deploy_prod` (tag `prod-*`), `GIT_DEPTH: 0`, `resource_group` per environment |
+| [template_mail_in_pipe.gitlab-ci.yml](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template_mail_in_pipe.gitlab-ci.yml) | instead of `template.gitlab-ci.yml` as `.gitlab-ci.yml` (alternative) | the same two jobs, plus a result mail after **every** deploy (DEV and PROD) to the user who started the pipeline, sent with `curl` from the `after_script` – the customer's solution (section 4, "Mail – two ways") |
 | [ci_deploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) | [`deploy/ci_deploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy.sh) in the repository | the job (section 4) |
 | [ci_notify_mail.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh) | `deploy/ci_notify_mail.sh` in the repository | mail after the PROD deploy (jobs `notify_prod_ok` / `notify_prod_failed`, section 4) |
 | [ci_deploy_debug.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy_debug.sh) | `deploy/ci_deploy_debug.sh` in the repository (only for tests) | no logic: writes the call (`$0`, `$1`), the GitLab predefined variables and the `DEPLOY_*` variables as `NAME = value` to `/tmp/report_pip.txt` and into the job log – `DEPLOY_SSH_KEY` only as path. In `.gitlab-ci.yml` before the real call: `- bash deploy/ci_deploy_debug.sh dev` |
@@ -209,6 +210,33 @@ green; `MAIL_DRYRUN=1` prints the mail instead of sending it
 [`environment:action`](https://docs.gitlab.com/ci/yaml/#environmentaction)). Alternative without
 code: GitLab [pipeline status emails](https://docs.gitlab.com/user/project/integrations/pipeline_status_emails/) –
 but for every pipeline (also DEV) and with a generic text.
+
+**Mail – two ways.** The customer uses a second solution:
+[`template_mail_in_pipe.gitlab-ci.yml`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/template_mail_in_pipe.gitlab-ci.yml) – the mail is written in the
+`after_script` of every deploy job and sent with `curl` straight to the SMTP
+server; the job output is captured with
+`set -o pipefail; bash deploy/ci_deploy.sh … 2>&1 | tee deploy.log` and goes
+into the mail.
+
+| | `ci_notify_mail.sh` (stage `notify`) | `template_mail_in_pipe.gitlab-ci.yml` (`after_script`) |
+|---|---|---|
+| when | only PROD (`prod-*` tag) | every deploy, DEV and PROD |
+| to | `MAIL_TO` (fixed list, scope `production`) | `GITLAB_USER_EMAIL` – the user who pushed / tagged |
+| content | tag, report files, released by, tag message, links | BESTANDEN / NICHT BESTANDEN, environment, commit, the **full output** of `ci_deploy.sh` |
+| sent via | local `sendmail` (Postfix relay on the runner host, cookbook step 9) | `curl` to `SMTP_HOST:SMTP_PORT` (465 = implicit TLS, else STARTTLS; TLS required) – no MTA on the runner host |
+| variables | `MAIL_TO`, `MAIL_FROM` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` / `SMTP_PASS` (optional, masked), `SMTP_MAIL_FROM`, `SMTP_MAIL_FROM_NAME`, `SMTP_TLS_INSECURE` (optional) – values e.g. from the SMTP settings in `/etc/gitlab/gitlab.rb` |
+
+Both keep the release result: a mail problem never turns the deploy red
+(`allow_failure` / `after_script`). In the template, compared with the
+customer's first version: the SMTP password reaches `curl` as a config on
+stdin (`-K -`), never on the command line; the server certificate is
+verified unless `SMTP_TLS_INSECURE=1` is set on purpose (better: the CA of
+the mail server on the runner host). Tested with a fake `curl` (mail text,
+colour codes removed, password not in the arguments, `"` / `\` in the
+password escaped); the customer runs it live
+([`after_script`](https://docs.gitlab.com/ci/yaml/#after_script),
+[`CI_JOB_STATUS`](https://docs.gitlab.com/ci/variables/predefined_variables/),
+[curl SMTP](https://everything.curl.dev/usingcurl/smtp.html)).
 
 DEV takes the last deployed commit from the server itself (`rwdeploy.sh
 last`):
@@ -456,6 +484,7 @@ Checked 2026-11-13 (all addresses HTTP 200, anchors present).
 | environments, outdated jobs | GitLab [environments](https://docs.gitlab.com/ci/environments/), [deployment safety – prevent outdated deployment jobs](https://docs.gitlab.com/ci/environments/deployment_safety/#prevent-outdated-deployment-jobs) |
 | full clone | GitLab [shallow cloning / `GIT_DEPTH`](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning) |
 | runner selection | GitLab [`tags`](https://docs.gitlab.com/ci/yaml/#tags) |
+| mail (alternative) | GitLab [`after_script`](https://docs.gitlab.com/ci/yaml/#after_script); [curl – SMTP](https://everything.curl.dev/usingcurl/smtp.html), [curl `-K` config file](https://curl.se/docs/manpage.html#-K) |
 | mail | GitLab [`when`](https://docs.gitlab.com/ci/yaml/#when), [`needs`](https://docs.gitlab.com/ci/yaml/#needs), [`allow_failure`](https://docs.gitlab.com/ci/yaml/#allow_failure), [pipeline status emails](https://docs.gitlab.com/user/project/integrations/pipeline_status_emails/) (alternative) |
 | project runner | GitLab [project runners](https://docs.gitlab.com/ci/runners/runners_scope/#project-runners), [install GitLab Runner (Linux repository)](https://docs.gitlab.com/runner/install/linux-repository/), [registering runners](https://docs.gitlab.com/runner/register/), [shell executor](https://docs.gitlab.com/runner/executors/shell/) |
 | secrets | GitLab [CI/CD variables – protect](https://docs.gitlab.com/ci/variables/#protect-a-cicd-variable), [environment scope](https://docs.gitlab.com/ci/variables/#environment-scope), [file type](https://docs.gitlab.com/ci/variables/#use-file-type-cicd-variables); [SSH keys in CI/CD jobs](https://docs.gitlab.com/ci/jobs/ssh_keys/) |
