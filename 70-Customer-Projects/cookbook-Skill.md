@@ -1,3 +1,9 @@
+---
+nav_title: "Cookbook rules"
+title: "Writing a Customer Cookbook – Rules and Layout"
+description: "How IHateWeblogic writes a customer cookbook (Kochbuch): reader, one simple command per step, blank lines, derived paths, expected output."
+---
+
 # Skill: writing a customer cookbook (Kochbuch)
 
 How a step-by-step guide for a customer system is written - the style of

@@ -1,3 +1,9 @@
+---
+nav_title: "Git check-in"
+title: "Oracle Reports Git Check-in – rdf to xml with PowerShell"
+description: "Git check-in for Oracle Reports developers on Windows: rdf to xml with rwconverter, PowerShell scripts pull, checkin, status, release tags and menu."
+---
+
 # Git check-in for Reports developers – rdf → xml, `pull.ps1` / `checkin.ps1`
 
 A very simple Git "deployment queue" for the Reports Builder server on

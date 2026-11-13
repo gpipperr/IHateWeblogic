@@ -1,3 +1,10 @@
+---
+nav_title: "Customer tools"
+title: "Forms & Reports Customer Tools – Metadata and Patch Download"
+description: "Standalone customer tools for Oracle Forms & Reports hosts, one ZIP per platform: metadata collection, setdb environment switcher, MOS patch download."
+permalink: /70-Customer-Projects/tools/
+---
+
 # tools – metadata collection and patch download for a Forms & Reports host
 
 Shared, standalone helpers for the patch analyses in `70-Customer-Projects/`

@@ -1,3 +1,10 @@
+---
+nav_title: "PowerShell tools"
+title: "Forms & Reports Customer Tools for Windows (PowerShell)"
+description: "Windows PowerShell versions of the IHateWeblogic customer tools: metadata collection, patch cookbook variables and MOS patch download (FMW 12.2.1 / 14.1.2)."
+permalink: /70-Customer-Projects/tools/powershell/
+---
+
 # tools/powershell – Windows versions of the customer tools
 
 PowerShell versions of three tools from [../bash/](../README.md), for Forms

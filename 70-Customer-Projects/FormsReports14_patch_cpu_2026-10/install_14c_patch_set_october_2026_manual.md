@@ -1,3 +1,9 @@
+---
+nav_title: "Manual patch guide"
+title: "Install the CPU October 2026 Patch Set – Forms & Reports 14.1.2"
+description: "Step-by-step manual installation of the CPU October 2026 patch set on Oracle Forms & Reports 14.1.2: stop, OPatch, napply, relink, start and verify."
+---
+
 # Install the CPU October 2026 Patch Set – Forms & Reports 14.1.2 (manual)
 
 Manual, step-by-step installation of the **CPU October 2026** patch set plus

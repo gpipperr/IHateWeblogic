@@ -1,3 +1,10 @@
+---
+nav_title: "F&R 14 – domain clone"
+title: "Clone an Oracle Forms & Reports 14.1.2 Domain with Its VM"
+description: "Clone an Oracle Forms & Reports 14.1.2 domain with its VM: new RCU prefix in another database, OPSS moved with reassociateSecurityStore."
+permalink: /70-Customer-Projects/FormsReports14_linux_clone/
+---
+
 # Forms & Reports 14.1.2 – clone a domain with its VM, own RCU prefix ("way 3")
 
 Anonymised knowledge base from a customer run on 2026-11-10: a Reports-only

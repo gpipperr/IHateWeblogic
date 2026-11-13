@@ -1,3 +1,10 @@
+---
+nav_title: "Reports 14 – manual install"
+title: "Oracle Reports 14.1.2 – manuelle Installation ohne Forms"
+description: "Oracle Reports 14.1.2 ohne Forms auf Oracle Linux 9 von Hand: deutsche Text-Kochbücher für OS, WebLogic, SSL, Reports, Fonts und Start/Stop."
+permalink: /70-Customer-Projects/Reports14_linux_manual_install/
+---
+
 # Oracle Reports 14.1.2 – manuelle Installation (ohne Forms)
 
 Kundenspezifische Anleitung für eine reine Oracle-Reports-Installation

@@ -1,3 +1,9 @@
+---
+nav_title: "Skripte (Deutsch)"
+title: "Oracle Reports Entwicklung mit Git – der Arbeitsablauf"
+description: "Arbeitsablauf der Reports-Entwickler mit Git unter Windows: Menü, pull, checkin, Status, Freigabe nach Produktion per Release-Tag."
+---
+
 # Reports-Entwicklung mit Git – der Arbeitsablauf
 
 Diese Skripte verbinden den Oracle Reports Builder mit einem Git-Repository.

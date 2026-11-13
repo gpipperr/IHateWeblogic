@@ -1,3 +1,10 @@
+---
+nav_title: "F&R 14 – localhost domain"
+title: "Oracle Forms & Reports 14.1.2 Domain on localhost Only (Linux)"
+description: "Loopback hardening of an Oracle Forms & Reports 14.1.2 domain: every internal socket on 127.0.0.1, only Nginx carries the host name - safer, clone-capable."
+permalink: /70-Customer-Projects/FormsReports14_linux_localhost/
+---
+
 # Forms & Reports 14.1.2 – Domain on localhost only (Linux)
 
 Knowledge base for the **loopback hardening of an existing Forms / Reports

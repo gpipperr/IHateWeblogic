@@ -1,3 +1,10 @@
+---
+nav_title: "Reports Builder + Git"
+title: "Oracle Reports Builder 14.1.2 on Windows – with Git"
+description: "Oracle Reports Builder 14.1.2 on a central Windows Server (RDP): installation, Git check-in of the reports as XML, GitLab deployment to DEV and PROD."
+permalink: /70-Customer-Projects/Reports14_builder_windows/
+---
+
 # Reports Builder Environment on MS Windows – Oracle Reports Builder 14.1.2
 
 Minimal development environment for the **Oracle Reports Builder 14.1.2** on

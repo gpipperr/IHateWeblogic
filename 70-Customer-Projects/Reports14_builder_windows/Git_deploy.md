@@ -1,3 +1,9 @@
+---
+nav_title: "Git deployment"
+title: "Oracle Reports Deployment with GitLab CI – DEV and PROD"
+description: "GitLab CI deployment of Oracle Reports: push to main goes to the DEV server, a prod-* tag to production, SSH forced-command queue and result mail."
+---
+
 # Git deployment – push to `main` → DEV server, `prod-*` tag → production
 
 Follow-up of [Git_checkin.md](Git_checkin.md): the developers check reports

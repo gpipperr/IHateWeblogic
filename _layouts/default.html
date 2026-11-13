@@ -29,21 +29,27 @@
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}
     {%- elsif ihw_top == "" -%}{%- assign ihw_label = page.path | replace: ".md", "" -%}{%- endif -%}
     {%- comment -%}
-      Right column: one folder per section (folder of the section first, then
-      the subfolder, ending with /). Every page of the section lists the
-      pages in that folder (only that folder, no subfolders, no README.md,
-      sorted by file name = step number). Add a folder here to give another
-      section the column.
+      Right column: one entry per section, folder of the section first, then
+      the subfolder, ending with /. Every page of the section lists:
+        "dir/"   flat - the pages directly in that folder (no subfolders, no
+                 README.md), sorted by file name = step number
+        "dir/*"  tree - one line per project folder (its README.md), below
+                 it indented the other pages of that project (also from
+                 subfolders), at the end the pages directly in dir/
+      Label: front matter nav_title, else the folder name for a README.md,
+      else the file name. Add an entry here to give another section the column.
     {%- endcomment -%}
-    {%- assign ihw_side_dirs = "09-Install/docs/,80-FMW-Architecture/" | split: "," -%}
+    {%- assign ihw_side_dirs = "09-Install/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
     {%- assign ihw_side = false -%}
     {%- assign ihw_side_dir = "" -%}
+    {%- assign ihw_side_tree = false -%}
     {%- assign ihw_top_slash = ihw_top | append: "/" -%}
     {%- for ihw_d in ihw_side_dirs -%}
       {%- assign ihw_d_top = ihw_d | split: "/" | first | append: "/" -%}
       {%- if ihw_top != "" and ihw_d_top == ihw_top_slash -%}
         {%- assign ihw_side = true -%}
-        {%- assign ihw_side_dir = ihw_d -%}
+        {%- assign ihw_side_dir = ihw_d | remove: "*" -%}
+        {%- if ihw_d contains "*" -%}{%- assign ihw_side_tree = true -%}{%- endif -%}
       {%- endif -%}
     {%- endfor %}
 
@@ -122,20 +128,58 @@
           {{ ihw_top }}
           {%- endif -%}
         </p>
-        <ul>
-          {%- assign ihw_side_pages = site.pages | sort: "path" -%}
-          {%- for ihw_p in ihw_side_pages -%}
-            {%- assign ihw_p_parts = ihw_p.path | split: "/" -%}
-            {%- assign ihw_p_start = ihw_p.path | slice: 0, ihw_side_dir.size -%}
-            {%- assign ihw_p_ext = ihw_p.path | split: "." | last -%}
-            {%- assign ihw_p_file = ihw_p_parts | last -%}
+        {%- comment -%}
+          1. ihw_items = ordered list "path|level;path|level;..." (level 1 =
+             indented), 2. one loop prints it. Only .md pages below the folder.
+        {%- endcomment -%}
+        {%- assign ihw_side_pages = site.pages | sort: "path" -%}
+        {%- assign ihw_items = "" -%}
+        {%- assign ihw_tops = "" -%}
+        {%- for ihw_p in ihw_side_pages -%}
+          {%- assign ihw_p_start = ihw_p.path | slice: 0, ihw_side_dir.size -%}
+          {%- assign ihw_p_ext = ihw_p.path | split: "." | last -%}
+          {%- if ihw_p_start == ihw_side_dir and ihw_p_ext == "md" -%}
             {%- assign ihw_p_rest = ihw_p.path | slice: ihw_side_dir.size, 500 -%}
-            {%- if ihw_p_start == ihw_side_dir and ihw_p_ext == "md" and ihw_p_file != "README.md" -%}
-            {%- unless ihw_p_rest contains "/" -%}
-              {%- assign ihw_p_name = ihw_p_parts | last | replace: ".md", "" | replace: "_", "_<wbr>" %}
-          <li{% if ihw_p.path == page.path %} class="ihw-active"{% endif %}><a href="{{ ihw_p.url | relative_url }}"{% if ihw_p.title %} title="{{ ihw_p.title | escape }}"{% endif %}{% if ihw_p.path == page.path %} aria-current="page"{% endif %}>{{ ihw_p_name }}</a></li>
-            {%- endunless -%}
+            {%- assign ihw_p_rparts = ihw_p_rest | split: "/" -%}
+            {%- if ihw_side_tree -%}
+              {%- if ihw_p_rparts.size == 2 and ihw_p_rparts[1] == "README.md" -%}
+                {%- assign ihw_items = ihw_items | append: ihw_p.path | append: "|0;" -%}
+                {%- assign ihw_proj = ihw_side_dir | append: ihw_p_rparts[0] | append: "/" -%}
+                {%- for ihw_c in ihw_side_pages -%}
+                  {%- assign ihw_c_start = ihw_c.path | slice: 0, ihw_proj.size -%}
+                  {%- assign ihw_c_ext = ihw_c.path | split: "." | last -%}
+                  {%- if ihw_c_start == ihw_proj and ihw_c_ext == "md" and ihw_c.path != ihw_p.path -%}
+                    {%- assign ihw_items = ihw_items | append: ihw_c.path | append: "|1;" -%}
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- elsif ihw_p_rparts.size == 1 and ihw_p_rest != "README.md" -%}
+                {%- assign ihw_tops = ihw_tops | append: ihw_p.path | append: "|0;" -%}
+              {%- endif -%}
+            {%- elsif ihw_p_rparts.size == 1 and ihw_p_rest != "README.md" -%}
+              {%- assign ihw_items = ihw_items | append: ihw_p.path | append: "|0;" -%}
             {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- assign ihw_items = ihw_items | append: ihw_tops | split: ";" %}
+        <ul>
+          {%- for ihw_item in ihw_items -%}
+            {%- if ihw_item == "" -%}{%- continue -%}{%- endif -%}
+            {%- assign ihw_i = ihw_item | split: "|" -%}
+            {%- assign ihw_p = site.pages | where: "path", ihw_i[0] | first -%}
+            {%- assign ihw_p_parts = ihw_p.path | split: "/" -%}
+            {%- assign ihw_p_file = ihw_p_parts | last -%}
+            {%- if ihw_p.nav_title -%}
+              {%- assign ihw_p_name = ihw_p.nav_title | escape -%}
+            {%- elsif ihw_p_file == "README.md" -%}
+              {%- assign ihw_p_dirs = ihw_p_parts.size | minus: 2 -%}
+              {%- assign ihw_p_name = ihw_p_parts[ihw_p_dirs] | replace: "_", "_<wbr>" -%}
+            {%- else -%}
+              {%- assign ihw_p_name = ihw_p_file | replace: ".md", "" | replace: "_", "_<wbr>" -%}
+            {%- endif -%}
+            {%- assign ihw_cls = "" -%}
+            {%- if ihw_i[1] == "1" -%}{%- assign ihw_cls = "ihw-child" -%}{%- endif -%}
+            {%- if ihw_p.path == page.path -%}{%- assign ihw_cls = ihw_cls | append: " ihw-active" | strip -%}{%- endif %}
+          <li{% if ihw_cls != "" %} class="{{ ihw_cls }}"{% endif %}><a href="{{ ihw_p.url | relative_url }}"{% if ihw_p.title %} title="{{ ihw_p.title | escape }}"{% endif %}{% if ihw_p.path == page.path %} aria-current="page"{% endif %}>{{ ihw_p_name }}</a></li>
           {%- endfor %}
         </ul>
       </nav>

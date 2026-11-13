@@ -1,3 +1,10 @@
+---
+nav_title: "F&R 14 – CPU Oct 2026"
+title: "Oracle Forms & Reports 14.1.2 – CPU October 2026 Patch Analysis"
+description: "CPU October 2026 plus Security Alert CVE-2026-91403 for Oracle Forms & Reports 14.1.2 on Oracle Linux 9: manual and automated way, test host result."
+permalink: /70-Customer-Projects/FormsReports14_patch_cpu_2026-10/
+---
+
 # Patch Analysis – Oracle Forms & Reports 14.1.2 – CPU October 2026
 
 Patch set **CPU October 2026** plus the **Security Alert CVE-2026-91403**
