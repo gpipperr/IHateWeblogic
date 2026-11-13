@@ -25,8 +25,11 @@
 #      convert_rdf.ps1 (bricht beim ersten Fehler ab - dann wird nichts
 #      eingecheckt); loescht die xml\<name>.xml eines geloeschten Berichts
 #   5. git add (nur die Auswahl)
-#   6. commit JEDER Datei einzeln (Bericht + seine xml = ein Check-in, bei
-#      mehreren mit dem Dateinamen im Kommentar) + push. Der Push auf main
+#   6. commit JEDER Datei einzeln (Bericht + seine xml = ein Check-in) +
+#      push. Bei einem Bericht (.rdf) steht sein Dateiname immer hinten im
+#      Kommentar - "Spalte Rabatt (umsatz.rdf)" - so zeigt GitLab in der
+#      Liste der Check-ins, welcher Bericht es war; bei mehreren Dateien
+#      gilt das fuer jede (auch Bilder). Der Push auf main
 #      verteilt die Berichte auf DEV; ein prod-Tag auf einen Check-in bringt
 #      genau diesen Bericht in die Produktion (release_tag.ps1)
 #
@@ -304,10 +307,16 @@ foreach ($group in $groups) {
     if ($LASTEXITCODE -eq 0) {
         continue
     }
-    # mehrere Check-ins: der Dateiname kommt in den Kommentar
-    $message = $Comment
-    if ($groups.Count -gt 1) {
-        $message = "$Comment ($([IO.Path]::GetFileName($group[0])))"
+    # Dateiname in den Kommentar - bei einem Bericht (.rdf) immer, sonst
+    # bei mehreren Check-ins: GitLab zeigt in der Liste der Check-ins nur
+    # den Kommentar, so sieht man dort, welcher Bericht es war.
+    # Steht der Name schon im Kommentar, nicht noch einmal anhaengen
+    # (IndexOf statt -like: [ ] im Dateinamen waeren dort Platzhalter).
+    $message  = $Comment
+    $fileName = [IO.Path]::GetFileName($group[0])
+    $addName  = ($groups.Count -gt 1) -or $group[0].EndsWith('.rdf')
+    if ($addName -and $Comment.IndexOf($fileName, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        $message = "$Comment ($fileName)"
     }
     Write-Host ""
     Write-Host "Check-in: $message"

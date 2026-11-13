@@ -214,12 +214,16 @@ Offen fuer die Produktion (in dieser Liste): 1 Datei(en) - kunde.rdf
   | Prod | Bedeutung |
   |---|---|
   | `PROD` | genau diese Version ist in der Produktion |
-  | `offen` | neuer als der Stand in der Produktion, noch nicht freigegeben |
+  | `offen` | wartet auf die Freigabe: die Datei war **noch nie** in der Produktion (z.B. ein neuer Bericht) **oder** diese Version ist **neuer** als die in der Produktion. Mehrere offene Versionen einer Datei: freigegeben wird in der Regel die neueste – danach wird sie `PROD`, die älteren offenen werden `alt` |
   | `alt` | ältere Version – die Produktion hat eine andere |
   | `-` | geht nicht in die Produktion (`.xml`, Skripte, Doku, gelöschte Dateien) |
 
-- Darunter: welche Dateien **dieser Liste** noch offen sind. Alle offenen
-  Freigaben zeigt `release_tag.ps1 -List`.
+- Darunter: welche Dateien **dieser Liste** noch offen sind – nur die
+  gezeigten Check-ins; ältere offene erst mit größerer Anzahl
+  (`status_detail.ps1 50`). Danach eine kurze Legende der Spalte Prod.
+- Den Namen des Freigabe-Skripts zeigt die Liste nur, wenn er oben im
+  Skript in `$ReleaseSkript` eingetragen ist (Standard: leer – jeder hat
+  sein eigenes, z.B. `release_tag.ps1`).
 - Tags und Stand sind die vom letzten [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) – das Skript holt nichts vom
   Git-Server. Meldet es „die Produktion hat neuere Versionen als Ihr Stand“:
   erst `pull.ps1`.
@@ -248,6 +252,8 @@ Welche Datei einchecken? Nummer (nur diese), a (alle) oder x (abbrechen): 1
 Ausgewaehlt: geaendert  source/umsatz.rdf
 Kommentar fuer diesen Check-in (was und warum): Spalte Rabatt ergaenzt
 Wandle source/umsatz.rdf -> xml/umsatz.xml
+...
+Check-in: Spalte Rabatt ergaenzt (umsatz.rdf)
 ...
 OK - eingecheckt (1 Check-in(s)): Spalte Rabatt ergaenzt
 Die Pipeline in GitLab verteilt die Berichte jetzt auf DEV (Build -> Pipelines).
@@ -347,10 +353,15 @@ offen in der Liste.
 
 | Eingabe | Bedeutung |
 |---|---|
-| Nummer | nur diese eine Datei einchecken (bei einem Bericht mit seiner XML-Datei) |
+| Nummer | nur diese eine Datei einchecken (bei einem Bericht mit seiner XML-Datei; der Berichtsname kommt in Klammern hinter den Kommentar) |
 | `a` | alle geänderten Dateien einchecken – jede als eigener Check-in (gleicher Kommentar, Dateiname in Klammern dahinter) |
 | `n` | nichts Neues einchecken, nur Check-ins hochladen, die bei Ihnen gespeichert, aber noch nicht auf dem Git-Server sind (z.B. nach einem fehlgeschlagenen Hochladen). Wird nur angeboten, wenn es solche gibt. |
 | `x` oder Enter | abbrechen – es wird nichts eingecheckt |
+
+Bei einem Bericht (`.rdf`) hängt `checkin.ps1` den Dateinamen immer in
+Klammern an den Kommentar an – „Spalte Rabatt ergaenzt (umsatz.rdf)“. So
+zeigt GitLab in der Liste der Check-ins, welcher Bericht es war. Steht der
+Name schon im Kommentar, wird er nicht noch einmal angehängt.
 
 Auch ein leerer Kommentar bricht ab.
 

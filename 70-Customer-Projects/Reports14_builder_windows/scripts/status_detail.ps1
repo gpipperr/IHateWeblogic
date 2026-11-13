@@ -14,18 +14,37 @@
 #               einen Kommentar (git tag -a), steht er in der Zeile darunter
 #               (eingerueckt, lange Kommentare umgebrochen) - so bleibt die
 #               Tabelle schmal
-#   Prod      : PROD  = genau diese Version ist in der Produktion
-#               offen = neuer als der Stand in der Produktion (noch kein Tag)
-#               alt   = aeltere Version - die Produktion hat eine andere
+#   Prod      : Stand dieser Version gegenueber der Produktion - je Datei:
+#               PROD  = genau diese Version ist in der Produktion (der
+#                       zuletzt angelegte prod-Tag dieser Datei zeigt auf
+#                       diesen Check-in)
+#               offen = diese Version wartet auf die Freigabe - einer von
+#                       zwei Faellen:
+#                       a) die Datei war noch NIE in der Produktion (kein
+#                          prod-Tag enthaelt sie, z.B. ein neuer Bericht)
+#                       b) die Version ist NEUER als die in der Produktion
+#                          (eingecheckt nach dem Check-in, der in der
+#                          Produktion ist)
+#                       Hat eine Datei mehrere offene Versionen, sind alle
+#                       offen - freigegeben wird in der Regel die neueste.
+#                       Ein Tag auf eine offene Version macht sie zu PROD,
+#                       aeltere offene Versionen derselben Datei werden alt.
+#               alt   = aeltere Version - die Produktion hat eine neuere
+#                       (oder nach einem Rollback eine andere) Version
 #               -     = geht nicht in die Produktion (.xml, Skripte, Doku,
-#                       geloeschte Dateien)
+#                       geloeschte Dateien) - nur source/*.rdf und images/*
+#                       werden verteilt
 #               In der Produktion ist je Datei der Check-in des ZULETZT
 #               angelegten prod-Tags (ein spaeterer Tag auf eine aeltere
 #               Version = Rollback). Gleiche Logik wie in release_tag.ps1.
+#               Grundlage: Ihr Stand und die Tags vom letzten pull.ps1 -
+#               eine Freigabe eines Kollegen sehen Sie erst danach.
 #
 # Darunter eine Zeile: welche Dateien DIESER Liste noch offen fuer die
-# Produktion sind. Alle offenen und das Freigeben selbst: release_tag.ps1
-# (release_tag.ps1 -List = nur anzeigen).
+# Produktion sind (nur die gezeigten Check-ins - aeltere offene stehen
+# evtl. nicht in der Liste, dann mit groesserer Anzahl aufrufen).
+# Optional ein Hinweis auf das Freigabe-Skript: $ReleaseSkript in den
+# Einstellungen (leer = kein Hinweis).
 #
 #   cd E:\git\<Ihr Login>\oracle-report
 #   .\deploy\status_detail.ps1          die letzten 20 Check-ins
@@ -69,6 +88,9 @@ function Exit-Script([int]$Code) {
 $TagPattern = 'prod-*'
 # Diese Dateien bringt die Pipeline in die Produktion (wie deploy/ci_deploy.sh)
 $ProdMuster = @('source/*.rdf', 'images/*')
+# Name des Freigabe-Skripts fuer den Hinweis unter der Tabelle, z.B.
+# 'release_tag.ps1' - leer = kein Hinweis (jeder Kunde hat seinen eigenen)
+$ReleaseSkript = ''
 
 # --- 0. In den obersten Ordner des Repositorys wechseln
 Set-Location $PSScriptRoot
@@ -329,6 +351,11 @@ else {
 if ($neuerAufServer) {
     Write-Host "Hinweis: die Produktion hat neuere Versionen als Ihr Stand - erst pull.ps1." -ForegroundColor Yellow
 }
-Write-Host "Alle offenen Freigaben: release_tag.ps1 -List   Freigeben: release_tag.ps1"
+# Legende der Spalte Prod
+Write-Host "Prod: PROD = in Produktion | offen = wartet auf Freigabe (nie freigegeben oder neuer als Produktion)"
+Write-Host "      alt = aeltere Version | - = geht nicht in die Produktion (.xml, Skripte, geloescht)"
+if ($ReleaseSkript -ne '') {
+    Write-Host "Freigeben: $ReleaseSkript"
+}
 Write-Host "Tipp: status.ps1 zeigt, was lokal und auf dem Git-Server noch offen ist."
 Exit-Script 0
