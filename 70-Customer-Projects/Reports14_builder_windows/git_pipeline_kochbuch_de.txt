@@ -8,19 +8,27 @@
   Umgebung   : selbst gehostetes GitLab, ein GitLab-Runner mit bash/git/ssh,
                zwei Linux-Server mit Oracle Reports 14.1.2 (DEV und PROD),
                Entwickler-PCs mit dem Repository oracle-report (Windows)
-  Erstellt   : 2026-11-12
+  Erstellt   : 2026-11-12, Stand 2026-11-13 (Projekt-Runner beim Kunden
+               eingerichtet, Erfahrung "Runner zu alt", Mail nach PROD)
   Grundlage  : IHateWeblogic/70-Customer-Projects/Reports14_builder_windows/
                  Git_deploy.md        (Konzept, Abschnitte 2 bis 7)
                  deploy/ci_deploy.sh  (der Pipeline-Job)
+                 deploy/ci_notify_mail.sh (Mail nach PROD-Deploy)
+                 deploy/ci_deploy_debug.sh (nur Test: zeigt die Uebergabe)
                  deploy/rwdeploy.sh   (Warteschlange auf dem Server)
                  deploy/template.gitlab-ci.yml
                  deploy/rwdeploy.conf.template
                  deploy/authorized_keys.example
                  scripts/README_DE.md (Arbeitsablauf der Entwickler)
-  Wichtig    : - Reihenfolge einhalten: erst Server (SCHRITT 1-3), dann
-                 GitLab (SCHRITT 4-5), ZULETZT die Datei .gitlab-ci.yml ins
-                 Repository (SCHRITT 6). Der Push in SCHRITT 6 startet schon
-                 die erste Pipeline.
+  Wichtig    : - Erst den MECHANISMUS testen, dann den Rest: Runner
+                 (SCHRITT 4), main und prod-* schuetzen (5.1, 5.2), dann
+                 SCHRITT 4b - Test-Pipeline mit ci_deploy_debug.sh (ohne
+                 Server, ohne Schluessel). Danach Server (SCHRITT 1-3),
+                 Variablen (5.3, Kontrolle 4b.4), ZULETZT die echte
+                 .gitlab-ci.yml (SCHRITT 6). Tests: SCHRITT 7 (DEV),
+                 8 (PROD), Mail: SCHRITT 9.
+               - Welche Variable wo gesetzt und wo verwendet wird:
+                 Git_deploy.md, Abschnitt 4 "Where each value is set".
                - Der private Schluessel gehoert NUR in die GitLab-Variable -
                  nie ins Repository, nie in eine Mail, nie in ein Ticket.
                - Auf den Servern wird nie etwas geloescht. Jede ersetzte
@@ -39,6 +47,8 @@ ZIELZUSTAND
                                         private Teil nur in GitLab
   Projekt-Runner, Tag reports-deploy,   Runner-Host (gitlab-runner,   4
   protected, Executor shell             Benutzer gitlab-runner)
+  Mechanismus getestet (Debug-Skript)   Job-Protokoll zeigt Argument  4b
+                                        und Variablen
   main + prod-* geschuetzt, Variablen   GitLab-Projekt oracle-report  5
   .gitlab-ci.yml + deploy/ci_deploy.sh  Repository (main)             6
   Test DEV: Bericht einchecken          DEV-Server hat den Bericht    7
@@ -52,13 +62,15 @@ SO LAEUFT ES (Ueberblick)
 
   Entwickler: checkin.ps1 --push--> GitLab main --Job deploy_dev--> DEV
   Entwickler: release_tag.ps1 --Tag prod-...--> GitLab --Job deploy_prod--> PROD
+                                                  --Job notify_prod_*--> Mail
 
   Der Job laeuft auf dem GitLab-Runner, baut ein tar mit den Dateien und
   schickt es per SSH an rwdeploy.sh auf dem Server. rwdeploy.sh prueft das
   tar, kopiert die Dateien in die Reports-Ordner (mit Sicherung) und meldet
   das Ergebnis zurueck - die Pipeline wird gruen oder rot.
 
-  Netz: nur Runner -> Server, Port 22 (SSH). Die Server rufen GitLab nie auf.
+  Netz: Runner -> GitLab (HTTPS, holt die Jobs ab), Runner -> Server Port 22
+  (SSH), Runner -> Mail-Relay (SCHRITT 9). Die Server rufen GitLab nie auf.
 
 
 VORAUSSETZUNGEN
@@ -146,6 +158,7 @@ VORAUSSETZUNGEN
       .gitlab-ci.yml                   aus deploy/template.gitlab-ci.yml
       deploy\ci_deploy.sh              aus deploy/ci_deploy.sh
       deploy\ci_notify_mail.sh         aus deploy/ci_notify_mail.sh (Mail, SCHRITT 9)
+      deploy\ci_deploy_debug.sh        aus deploy/ci_deploy_debug.sh (Test, SCHRITT 4b)
 
 
   Quelldateien
@@ -159,6 +172,7 @@ VORAUSSETZUNGEN
   deploy/template.gitlab-ci.yml die zwei Jobs -> .gitlab-ci.yml    6
   deploy/ci_deploy.sh          der Job selbst (Runner)             6
   deploy/ci_notify_mail.sh     Mail nach PROD-Deploy (Runner)      6, 9
+  deploy/ci_deploy_debug.sh    Test: zeigt die Uebergabe (Runner)  4b
 
 
   Regeln fuer den ganzen Ablauf
@@ -546,8 +560,8 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
   geht er ausgehend auf Port 22.
 
   Teile, die nur mit dem echten GitLab gehen (Menue-Namen, Ausgabe von
-  "register"), sind nach der GitLab-Doku geschrieben und BEIM KUNDEN ZU
-  BESTAETIGEN:
+  "register"), sind nach der GitLab-Doku geschrieben; beim Kunden am
+  2026-11-13 so durchgefuehrt (mit der Erfahrung "Runner zu alt", 4.3):
     https://docs.gitlab.com/ci/runners/runners_scope/#project-runners
     https://docs.gitlab.com/runner/install/linux-repository/
     https://docs.gitlab.com/runner/register/
@@ -896,9 +910,128 @@ SCHRITT 4: Projekt-Runner einrichten  (GitLab-Admin, root auf dem Runner-Host)
   #   grep 'Connection closed\|Did not receive' /var/log/secure | tail -3
   #   -> "from <IP>" = die IP, die in SCHRITT 3.3 als RUNNER_IP gilt.
 
-  # Erster echter Test des Runners: SCHRITT 6 - der Push dort startet den
-  # Job auf diesem Runner. Zum reinen Verstehen der Uebergabe kann dort
-  # zuerst deploy/ci_deploy_debug.sh laufen (siehe 6.2, Hinweis).
+  # Erster Test des Runners: SCHRITT 4b (Debug-Skript, noch ohne Server) -
+  # vorher 5.1 und 5.2 (main und prod-* schuetzen).
+
+
+==========================================================================
+SCHRITT 4b: Pipeline-Mechanismus testen - mit ci_deploy_debug.sh
+            (Entwickler-PC + Browser, noch OHNE Server, Schluessel, Variablen)
+==========================================================================
+
+  Zuerst nur den Mechanismus pruefen, erst danach den Rest einrichten:
+  Startet bei einem Push der Job deploy_dev, bei einem Tag prod-* der Job
+  deploy_prod? Nimmt der Projekt-Runner ihn? Was kommt im Skript an?
+  Dafuer laeuft statt ci_deploy.sh das Skript deploy/ci_deploy_debug.sh -
+  es hat KEINE Logik, baut keine Verbindung auf und schreibt nur auf, was
+  der Job bekommt (Argument, GitLab-Variablen, DEPLOY_*-Werte), ins
+  Job-Protokoll und nach /tmp/report_pip.txt auf dem Runner-Host.
+  Geht das, ist klar, wie es am Ende funktioniert - Fehler in den
+  spaeteren Schritten liegen dann nicht mehr am Mechanismus.
+
+  Voraussetzung: SCHRITT 4 (Runner gruen) und SCHRITT 5.1 + 5.2 (main und
+  prod-* geschuetzt) - der Runner ist "protected" und nimmt Jobs von
+  ungeschuetzten Branches / Tags nicht an (sie bleiben "pending").
+
+  ---------------------------------------------------
+  4b.1 Test-Pipeline einchecken  (Entwickler-PC, PowerShell)
+  ---------------------------------------------------
+
+  cd E:\git\$env:USERNAME\oracle-report
+
+  git pull
+
+  $QUELLE = 'C:\pfad\zu\IHateWeblogic\70-Customer-Projects\Reports14_builder_windows\deploy'
+
+  Copy-Item "$QUELLE\ci_deploy_debug.sh" .\deploy\ci_deploy_debug.sh
+
+  Copy-Item "$QUELLE\template.gitlab-ci.yml" .\.gitlab-ci.yml
+
+  notepad .\.gitlab-ci.yml
+
+  # Im Editor in BEIDEN Jobs die script-Zeile ersetzen:
+  #   deploy_dev :   - bash deploy/ci_deploy.sh dev
+  #             ->   - bash deploy/ci_deploy_debug.sh dev
+  #   deploy_prod:   - bash deploy/ci_deploy.sh prod
+  #             ->   - bash deploy/ci_deploy_debug.sh prod
+  # Die beiden notify_prod_*-Jobs (Mail) am Ende ganz loeschen - sie
+  # kommen erst in SCHRITT 6 / 9. Speichern, schliessen.
+
+  Select-String -Path .\.gitlab-ci.yml -Pattern 'bash deploy/'
+
+  # Erwartet: genau zwei Zeilen
+  #   ...:    - bash deploy/ci_deploy_debug.sh dev
+  #   ...:    - bash deploy/ci_deploy_debug.sh prod
+
+  git add .gitlab-ci.yml deploy/ci_deploy_debug.sh
+
+  git commit -m "Pipeline-Test mit ci_deploy_debug.sh"
+
+  git push
+
+  # Erwartet: "main -> main" - der Push startet deploy_dev
+
+  ---------------------------------------------------
+  4b.2 Job deploy_dev ansehen  (Browser)
+  ---------------------------------------------------
+
+  # Projekt > Build > Pipelines > neueste > Job deploy_dev: gruen.
+  # Im Protokoll (Ausschnitt, erwartete Werte):
+  #   argument 1 ($1)          = dev
+  #   CI_PIPELINE_SOURCE       = push
+  #   CI_COMMIT_BRANCH         = main
+  #   CI_COMMIT_TAG            = <empty>
+  #   CI_ENVIRONMENT_NAME      = development
+  #   CI_RUNNER_DESCRIPTION    = der Projekt-Runner aus 4.4 / 4.5
+  #   CI_RUNNER_TAGS           = enthaelt reports-deploy
+  #   GIT_DEPTH                = 0
+  #   DEPLOY_HOST ... DEPLOY_WAIT = <empty>   (noch keine Variablen - richtig)
+  #   bash / git / ssh         = Versionen auf dem Runner-Host
+  #
+  # Job "pending"          -> Runner offline / Tag / main nicht geschuetzt
+  #                           (4.7, 5.1)
+  # Job lief, aber "argument 1" leer oder falsch -> script-Zeile in
+  #                           .gitlab-ci.yml pruefen (4b.1)
+
+  ---------------------------------------------------
+  4b.3 Job deploy_prod mit einem Test-Tag  (Entwickler-PC + Browser)
+  ---------------------------------------------------
+
+  git tag -a prod-test-debug -m "Test Pipeline-Mechanismus"
+
+  git push origin prod-test-debug
+
+  # Erwartet: "[new tag] prod-test-debug -> prod-test-debug"
+  # Browser: Pipeline zum Tag prod-test-debug, Job deploy_prod: gruen.
+  # Im Protokoll:
+  #   argument 1 ($1)          = prod
+  #   CI_COMMIT_TAG            = prod-test-debug
+  #   CI_COMMIT_BRANCH         = <empty>   (Tag-Pipelines haben keinen Branch)
+  #   CI_ENVIRONMENT_NAME      = production
+  #
+  # Kein Job zum Tag / "pending" -> prod-* nicht geschuetzt (5.2)
+
+  # Test-Tag wieder entfernen (auf dem Git-Server und lokal):
+
+  git push origin :refs/tags/prod-test-debug
+
+  git tag -d prod-test-debug
+
+  ---------------------------------------------------
+  4b.4 Spaeter noch einmal: kommen die Variablen an?  (nach SCHRITT 5.3)
+  ---------------------------------------------------
+
+  # Nach 5.3 (Variablen je Umgebung angelegt) im Browser den Job deploy_dev
+  # aus 4b.2 erneut starten ("Retry" / Pfeil-Symbol). Jetzt im Protokoll:
+  #   DEPLOY_HOST              = der DEV-Server (Scope development)
+  #   DEPLOY_SSH_KEY (path)    = ein Pfad, "key file present = yes"
+  #   DEPLOY_KNOWN_HOSTS       = "<DEV-Server> ssh-ed25519 ..."
+  # Und mit einem neuen Test-Tag (4b.3) im Job deploy_prod die Werte des
+  # PROD-Servers (Scope production). Falscher Server = falscher Scope.
+  # Der Schluessel selbst erscheint nie im Protokoll, nur sein Pfad.
+
+  # Danach bleibt ci_deploy_debug.sh im Repository liegen (schadet nicht);
+  # SCHRITT 6 ersetzt .gitlab-ci.yml durch die echte Vorlage.
 
 
 ==========================================================================
@@ -1034,12 +1167,10 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
   #   ...:    - bash deploy/ci_deploy.sh dev
   #   ...:    - bash deploy/ci_deploy.sh prod
 
-  # Hinweis - Uebergabe erst nur ansehen (optional): in .gitlab-ci.yml je
-  # Job vor die echte Zeile  - bash deploy/ci_deploy_debug.sh dev  (bzw.
-  # prod) setzen und deploy/ci_deploy_debug.sh mit einchecken. Das Skript
-  # schreibt Argument, GitLab-Variablen und DEPLOY_*-Werte ins Job-Protokoll
-  # und nach /tmp/report_pip.txt auf dem Runner-Host - ohne Logik, ohne SSH.
-  # So sieht man, ob Runner, Regel und Variablen-Scope stimmen.
+  # Diese Vorlage ersetzt die Test-Pipeline aus SCHRITT 4b (dort lief nur
+  # ci_deploy_debug.sh). Bei Fehlern spaeter: die Zeile
+  #   - bash deploy/ci_deploy_debug.sh dev   (bzw. prod)
+  # vor die echte Zeile setzen - zeigt im Protokoll, was ankommt.
 
   ---------------------------------------------------
   6.3 Einchecken und senden
@@ -1050,7 +1181,7 @@ SCHRITT 6: Pipeline-Dateien ins Repository  (Entwickler-PC, PowerShell)
   git status --short
 
   # Erwartet:
-  #   A  .gitlab-ci.yml
+  #   M  .gitlab-ci.yml           (aus SCHRITT 4b schon da; sonst A)
   #   A  deploy/ci_deploy.sh      (oder M, wenn sie schon da war)
   #   A  deploy/ci_notify_mail.sh
 

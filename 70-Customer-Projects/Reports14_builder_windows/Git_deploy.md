@@ -17,9 +17,13 @@ Reports servers. The Git server is a self-hosted **GitLab**.
 Decided by the customer on 2026-11-12; it replaces the first design of the
 same day (`development` → DEV, single reports via `promote.ps1` and a merge
 request to `main`). Built and tested on the Linux test host (sandbox:
-PowerShell 7.4, local bare repositories, `ssh` simulated). At the customer,
-the GitLab runner, the SSH keys and the protected tags are still **to
-confirm** (section 6).
+PowerShell 7.4, local bare repositories, `ssh` simulated).
+
+Status at the customer (2026-11-13): own **project runner** `report-deploy`
+set up (after a runner update, see section 4 "Runner version"), a test
+commit started the pipeline and the job ran. Still to confirm there: the
+PROD path with a `prod-*` tag, protected tags and scoped variables
+(section 6), the mail after the PROD deploy (cookbook step 9).
 
 Folder [deploy/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/deploy)
 holds the server and pipeline side. [scripts/release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)
@@ -87,7 +91,7 @@ nothing else.
 | [rwdeploy.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | Reports server, e.g. `/u01/app/oracle/rwdeploy/bin/` | queue + worker, SSH forced command (section 5) |
 | [rwdeploy.conf.template](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.conf.template) | `rwdeploy.conf` next to [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) | spool folder, target folders, size limit |
 | [authorized_keys.example](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/authorized_keys.example) | `~oracle/.ssh/authorized_keys` on the server | the deploy key may only start [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh), only from the runner |
-| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `deploy\release_tag.ps1` next to [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | release of one check-in (section 3) |
+| [release_tag.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1) | `deploy\release_tag.ps1` next to [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) | release of one check-in (section 3); the customer uses an own variant of it – the pipeline only needs the `prod-*` tag |
 
 ## 3. Release of one report – `release_tag.ps1`
 
@@ -159,6 +163,35 @@ GitLab reference: job rules [`rules:if`](https://docs.gitlab.com/ci/yaml/#rules)
 full history for the delta with `GIT_DEPTH: "0"`
 ([shallow cloning](https://docs.gitlab.com/ci/runners/configure_runners/#shallow-cloning)).
 
+**Test the mechanism first** ([`ci_deploy_debug.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_deploy_debug.sh),
+cookbook step 4b). Before the servers, the keys and the variables are set
+up, the pipeline runs once with only the debug script in both jobs
+(`- bash deploy/ci_deploy_debug.sh dev` / `prod`): it has no logic, opens no
+connection and writes what the job receives – the argument, the GitLab
+variables, the `DEPLOY_*` values – into the job log and
+`/tmp/report_pip.txt` on the runner host. A push must show `dev`,
+`CI_COMMIT_BRANCH=main`, `CI_ENVIRONMENT_NAME=development`; a test tag
+`prod-test-debug` must show `prod`, `CI_COMMIT_TAG`, `production`. Only
+when that works is the rest configured; after the variables are set
+(cookbook 5.3) a retry of the debug job shows that each scope delivers the
+right server. Requirement: `main` and `prod-*` are protected – the project
+runner is protected and does not take jobs of unprotected refs.
+
+**Where each value is set – and where it is used:**
+
+| Value | Set in | Used by |
+|---|---|---|
+| `dev` / `prod` (`$1`) | `.gitlab-ci.yml`, line `script:` of the job | `ci_deploy.sh` (which path: delta or tag) |
+| `CI_COMMIT_SHA`, `CI_COMMIT_TAG`, `CI_COMMIT_BEFORE_SHA`, `CI_PIPELINE_SOURCE`, `CI_COMMIT_BRANCH` | GitLab, automatically per pipeline | the job rules in `.gitlab-ci.yml`, `ci_deploy.sh` |
+| `CI_COMMIT_TAG_MESSAGE`, `GITLAB_USER_NAME` / `_EMAIL`, `CI_PIPELINE_URL`, `CI_JOB_URL` | GitLab, automatically | `ci_notify_mail.sh` |
+| `CI_ENVIRONMENT_NAME` (`development` / `production`) | `.gitlab-ci.yml`, `environment:` of the job | GitLab: chooses which scoped variables the job gets |
+| `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `DEPLOY_WAIT` | GitLab Settings → CI/CD → Variables, scope `development` / `production`, protected | `ci_deploy.sh` (ssh target, key, host key, wait) |
+| `MAIL_TO`, `MAIL_FROM` | the same, scope `production` | `ci_notify_mail.sh` |
+| runner tag `reports-deploy` | `.gitlab-ci.yml` `tags:` + the project runner (cookbook 4.4) | GitLab: which runner takes the job |
+| `rwdeploy.sh` as the program behind the key | `authorized_keys` on the server, `command="…"` | `sshd` – starts it for every login with the key, the request in `SSH_ORIGINAL_COMMAND` |
+| target folders, spool | `rwdeploy.conf` next to `rwdeploy.sh` (or `RWDEPLOY_CONF`) | `rwdeploy.sh` |
+| last DEV deploy | `state/last_sha` on the DEV server (written by `rwdeploy.sh`) | `ci_deploy.sh dev` via `rwdeploy.sh last` |
+
 **Mail after the PROD deploy** ([`ci_notify_mail.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh)):
 only tag pipelines `prod-*`, no mail for DEV. Subject `[PROD] <report>.rdf
 deployed - <tag>` (or `FAILED`), body with released by (`GITLAB_USER_NAME` /
@@ -214,7 +247,8 @@ CI variables (Settings → CI/CD → Variables). Set them **protected**, and
 
 **Runner – an own project runner** (cookbook step 4). The jobs need a
 runner with the tag `reports-deploy` ([`tags`](https://docs.gitlab.com/ci/yaml/#tags)); the
-customer's GitLab has none for this project yet, so we create one:
+customer's GitLab had none for this project, so we created one (live
+2026-11-13, name `report-deploy`):
 
 | Step | Where | What |
 |---|---|---|
@@ -227,7 +261,7 @@ customer's GitLab has none for this project yet, so we create one:
 
 There is no runner on the Reports servers. The token is a secret like a
 password. Menu names and the output of `register` follow the GitLab
-documentation – to confirm at the customer.
+documentation; the steps were run at the customer on 2026-11-13.
 
 **Runner version (customer, 2026-11-13).** The runner's `major.minor`
 must match the GitLab version ("the GitLab Runner major.minor version
@@ -344,8 +378,8 @@ by `;`). Reports 14.1.2 refers to the 12.2.1.3 documentation for Reports.
 SSH key: [`ssh-keygen`](https://man.openbsd.org/ssh-keygen).
 
 **First set-up:**
-- `main` holds today's reports (one import), together with `.gitlab-ci.yml`
-  and `deploy/ci_deploy.sh`.
+- `main` holds today's reports (one import), together with `.gitlab-ci.yml`,
+  `deploy/ci_deploy.sh` and `deploy/ci_notify_mail.sh`.
 - PROD needs no starting point: each tag brings its own files.
 - DEV: optional, write the commit of the imported state once as the last
   deploy, so the first DEV pipeline sends only what changed after the
@@ -386,7 +420,7 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | job: `PENDING` after the wait | worker busy or not running | `ssh … list` on the runner host; cron safety net present? |
 | wrong report in production | – | rollback (section 3); the replaced file is in `spool/backup/<job>/` on the server |
 
-## 8. Tests (Linux test host, 2026-11-12)
+## 8. Tests (Linux test host 2026-11-12/13, customer 2026-11-13)
 
 | Test | Result |
 |---|---|
@@ -401,11 +435,13 @@ printf '%s\n' '<commit>' > /u01/app/oracle/rwdeploy/state/last_sha
 | rollback: commit id of `umsatz` v1 entered (`-Commit 52819c1`) | tag on exactly that check-in; PROD job copies only `umsatz.rdf` v1, v2 does not go along; afterwards v2 open again; invalid id / merge commit / not on main: message, exit 1 |
 | PROD tag on `umsatz` v2 (`-Nummer 1 -Ja`) | `umsatz.rdf` v2 deployed; afterwards both `umsatz` check-ins no longer open, both tags listed with their files |
 | PROD tag on a doc-only check-in / on a merge commit | job stops with the message, nothing copied |
+| **customer, 2026-11-13** | project runner created and registered (after `gitlab-runner` update, old runner deleted, new name `report-deploy`), test commit → pipeline ran |
+| [`ci_notify_mail.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/ci_notify_mail.sh) (2026-11-13, `MAIL_DRYRUN=1`) | `ok`: subject `[PROD] umsatz.rdf deployed - prod-…`, body with tag, commit, released by, tag message, files; `failed`: `[PROD] FAILED: …`; no `MAIL_TO` / wrong argument: message, exit 1; real sending via Postfix not tested (no relay on the test host) |
 | [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh) from the first design: tar with `../`, absolute path, symlink, other folder, `.sh` in `source`, garbage, > `MAX_TAR_MB`; 5 concurrent jobs; commands `rm -rf /`, `last; id`, `list $(id)` | rejected / worked off one after the other – unchanged code paths |
 
-Open at the customer: the mail after the PROD deploy (relay, `MAIL_TO`),
-real GitLab (tag rule, protected tags, protected and scoped variables), SSH
-from the runner, the scripts on Windows PowerShell 5.1.
+Open at the customer: the PROD path (`prod-*` tag → `deploy_prod`), the
+mail after the PROD deploy (relay, `MAIL_TO`), protected tags and scoped
+variables (section 6).
 
 ## 9. References
 

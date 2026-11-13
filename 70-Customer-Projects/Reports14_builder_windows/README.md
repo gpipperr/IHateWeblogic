@@ -80,8 +80,9 @@ laborious and error-prone parts of a Windows server installation.
   group "Administrators", the server only for Builder development.
   2 simultaneous admin RDP sessions work without RDS licences – fits 2
   developers.
-- Report sources in a shared directory (or version control), in the
-  `REPORTS_PATH` of the Builder; keep fonts and `uifont.ali` **identical** to
+- Report sources: since 2026-11-12 one Git clone per developer
+  (`E:\git\<user>\oracle-report`, section "Git check-in and deployment"), in the
+  `REPORTS_PATH` of the Builder (own `rwbuilder_git.bat`); keep fonts and `uifont.ali` **identical** to
   the Linux server, otherwise the preview looks different from the server
   output (see
   [Font_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt)).
@@ -90,15 +91,19 @@ laborious and error-prone parts of a Windows server installation.
 - Java: Oracle JDK only for Oracle products → licence-free per MOS Doc ID
   1557737.1.
 
-## Next: Git check-in
+## Git check-in and deployment
 
-Idea 2026-11-11: one Git clone per developer (`E:\git\<user>\oracle-report`), [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1)
+Since 2026-11-12 in use at the customer: one Git clone per developer
+(`E:\git\<user>\oracle-report` – folders `deploy\` for the scripts,
+`source\`, `xml\`, `images\`), a start menu for a double click
+([`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / `menu.ini`), [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1)
 at the start of the work, [`checkin.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/checkin.ps1) converts every changed `.rdf` to XML
-and commits / pushes – for developers without Git experience. Step 1 (rdf →
-xml from the command line) is tested on the Linux test host; Windows test
-procedure for the customer and the script design:
-[Git_checkin.md](Git_checkin.md). The two scripts (German messages, a
-skeleton for own adaptation) and `.gitattributes` / `.gitignore` templates:
+and checks in one report per check-in (the report name in the comment),
+[`status_detail.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status_detail.ps1) shows tags and the production state – for developers
+without Git experience. Design, tests and the Windows test procedure:
+[Git_checkin.md](Git_checkin.md); for the developers (German):
+[scripts/README_DE.md](scripts/README_DE.md); all scripts and the
+`.gitattributes` / `.gitignore` templates:
 [scripts/](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/Reports14_builder_windows/scripts).
 
 Deployment (2026-11-12): only the branch `main`, one report per check-in;
@@ -106,6 +111,9 @@ push → the changed reports to the Linux DEV server; a `prod-*` tag
 ([`release_tag.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/release_tag.ps1)) → exactly that check-in to production. GitLab CI
 template, SSH forced-command queue [`rwdeploy.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/deploy/rwdeploy.sh): [Git_deploy.md](Git_deploy.md);
 set-up step by step (German): [git_pipeline_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/git_pipeline_kochbuch_de.txt).
+Status 2026-11-13: own GitLab project runner live, a test commit ran
+through the pipeline; open: the PROD path with a `prod-*` tag and the mail
+after the PROD deploy.
 
 ## Patch level
 
@@ -138,7 +146,7 @@ Platform-specific (Windows x64):
 | 1 | ~~Windows version?~~ **Clarified 2026-10-26: Windows Server 2025.** By the last check FMW / Reports 14.1.2 are certified for 2022 only (check the [Certification Matrix](https://www.oracle.com/middleware/technologies/fusion-certification.html) again before the installation); 2025 is tested successfully on pipperr.de (installation, Builder starts). Consequences: the installer prerequisite check may object to 2025 (then "Skip" or `-ignoreSysPrereqs`), and Oracle Support may point to a certified platform in an SR. WebGate BP: minimum OS 2022 – fits. Open: English OS? |
 | 2 | Database for the RCU prefix (host/service, DBA for RCU) – the same as for the Linux server? Prefix name? |
 | 3 | ~~How many developers?~~ **Clarified 2026-10-26: 2 developers** (simultaneously via RDP). RAM: 8 GB base + roughly 0.5–1 GB per Builder session → **12 GB** are enough with a reserve (assumption, measure in operation); Windows Server 2025 allows 2 simultaneous admin RDP sessions without RDS licences – **clarified 2026-10-27:** the developers work with local admin accounts (normal accounts fail on the rights below `E:\oracle`, see "Multi-user operation"), so the 2 admin sessions are enough; RDS only from the third simultaneous user on. |
-| 4 | Storage of the report sources (network drive, Git?) and the way to the Linux server (share, sftp, deployment script) |
+| 4 | ~~Storage of the report sources and the way to the Linux server?~~ **Clarified 2026-11-12:** Git (self-hosted GitLab, only branch `main`), push → DEV, `prod-*` tag → PROD through the GitLab pipeline and the SSH queue `rwdeploy.sh` – [Git_deploy.md](Git_deploy.md). |
 | 5 | Anti-virus: exclusions for the Oracle home during installation and patching |
 | 6 | ~~Windows variants of the platform-specific patches on MOS?~~ **Clarified 2026-10-26: all available** (platform "Microsoft Windows x64 (64-bit)"): Reports 39600348 (3.5 MB, 2026-08-17), PERL 39951765 (38.4 MB, 2026-10-19), OHS 39987730 (20.3 MB, 2026-10-19), WebGate 39100536 (11.1 MB, 2026-04-21). The MOS title of the Reports QPR ("MERGE REQUEST … FOR BUGS 38991174 37866660 39375353") names only the bugs of the merge request – the **Windows README lists 31 bugs**, identical to the inventory of the Linux test host (`lsinventory -bugs_fixed`, compared 2026-10-26). Builder and server therefore have the same Reports level. |
 | 7 | **Done 2026-10-28:** downloading the MOS patches one by one by hand took too long at the appointment (about 15 files, ~7 GB, platform chosen per patch). For that there is now [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) (Windows variant since 2026-11-03: [tools/powershell/mos_patch_download.ps1](../tools/powershell/README.md#mos_patch_downloadps1), plus [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1) / [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1); Windows platform `233P`): one CSV list (patch number, platform `233P` / generic `2000P`, file regexp, mandatory/optional) loaded in one run with getMOSPatch, `unzip -t` + SHA-256 – in advance on a machine with MOS access, then the files as a package to the customer. The CSV for this download checklist will be created from the cookbook at the next appointment (template: `FormsReports12_patch_cpu_2026-10/patches_cpu_reports_14c_oct2026.csv`). |
