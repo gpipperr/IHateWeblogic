@@ -23,7 +23,11 @@
     {%- assign ihw_parts = page.path | split: "/" -%}
     {%- assign ihw_top = "" -%}
     {%- if ihw_parts.size > 1 -%}{%- assign ihw_top = ihw_parts | first -%}{%- endif -%}
-    {%- assign ihw_sections = "00-Setup,09-Install,80-FMW-Architecture,10-Monitoring,70-Customer-Projects" | split: "," -%}
+    {%- comment -%}
+      Left menu: the sections in number order, "|" = small gap between the
+      groups (setup / analyse + fix / build + monitor / projects + background)
+    {%- endcomment -%}
+    {%- assign ihw_sections = "00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
     {%- assign ihw_repo = site.github.repository_url | default: "https://github.com/gpipperr/IHateWeblogic" -%}
     {%- assign ihw_label = ihw_top -%}
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}
@@ -39,7 +43,7 @@
       Label: front matter nav_title, else the folder name for a README.md,
       else the file name. Add an entry here to give another section the column.
     {%- endcomment -%}
-    {%- assign ihw_side_dirs = "09-Install/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
+    {%- assign ihw_side_dirs = "09-Install/docs/,60-RCU-DB-19c/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
     {%- assign ihw_side = false -%}
     {%- assign ihw_side_dir = "" -%}
     {%- assign ihw_side_tree = false -%}
@@ -106,7 +110,11 @@
         <ul id="navigation">
           <li{% if page.path == "README.md" %} class="ihw-active"{% endif %}><a href="{{ '/' | relative_url }}">Start</a></li>
           {%- for ihw_s in ihw_sections %}
+          {%- if ihw_s == "|" %}
+          <li class="ihw-navgap" aria-hidden="true"></li>
+          {%- else %}
           <li{% if ihw_top == ihw_s %} class="ihw-active"{% endif %}><a href="{{ '/' | append: ihw_s | append: '/' | relative_url }}">{{ ihw_s }}</a></li>
+          {%- endif %}
           {%- endfor %}
           <li class="ihw-navgap" aria-hidden="true"></li>
           <li><a href="{{ ihw_repo }}">GitHub</a></li>
