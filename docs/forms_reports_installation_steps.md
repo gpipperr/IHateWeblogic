@@ -142,6 +142,7 @@ the monitoring (10). The folder numbers stay; each folder has one role:
 |---|---|---|
 | **Analyse + fix** a running environment (no matter who built it) | `01-Run/`, `02-Checks/`, `03-Logs/`, `04-ReportsFonts/`, `05-ReportsPerformance/`, `06-FormsDiag/`, `07-Maintenance/` | read-only by default, `--apply` repairs with backup, may be interactive |
 | **Build** (once, fixed order) | `09-Install/`, `08-SSL/`, `60-RCU-DB-19c/` | sets the values from `environment.conf`; acceptance by calling the analyse scripts ([`09-Install/docs/90-oracle_validate.md`](../09-Install/docs/90-oracle_validate.md)), no own check logic |
+| **Build beside the stack** | `12-APEX-Ords/` (APEX + ORDS), `14-ReportsBuilder/` (Reports Builder on Windows, report deployment with GitLab – PowerShell / GitLab CI, not the bash library) | own install / deploy flow, same rules: backup, no secrets on command lines |
 | **Monitor** (regularly, unattended) | `10-Monitoring/` | calls the analyse scripts read-only (exit code, log), never `--apply`; own logic only for what exists nowhere else (CVE comparison, trends, AI assessment) |
 | Background / customer | `80-FMW-Architecture/`, `70-Customer-Projects/` | why it behaves that way / manual cookbooks |
 
