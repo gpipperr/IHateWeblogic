@@ -88,6 +88,47 @@ body {
   border-right: 1px solid #e8e8e8;
 }
 
+/* Right column (pages of <section>/docs/, _layouts/default.html ihw_side_sections) */
+#mitte.ihw-with-side {
+  grid-template-columns: 11.5em minmax(0, 1fr) 16em;
+  grid-template-areas: "nav content side";
+}
+
+#seite {
+  grid-area: side;
+  padding: 0.6em 0.4em;
+  border-left: 1px solid #e8e8e8;
+  font-size: 0.8em;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+#seite .ihw-side-head {
+  margin: 0 0 0.4em;
+  padding: 0.2em 0.5em;
+  font-weight: bold;
+  border-bottom: 2px solid #FEB80A;
+}
+#seite ul { list-style: none; margin: 0; padding: 0; }
+#seite li { margin: 0; padding: 0; }
+#seite a:link, #seite a:visited {
+  display: block;
+  margin: 1px 0;
+  padding: 0.15em 0.5em;
+  border-left: 3px solid #e8e8e8;
+  color: #000000;
+  text-decoration: none;
+  line-height: 1.3;
+}
+#seite a:hover { background-color: #FEB80A; border-left-color: #000000; text-decoration: underline; }
+#seite .ihw-active > a, #seite .ihw-active > a:visited {
+  background-color: #FEB80A;
+  border-left-color: #000000;
+  font-weight: bold;
+}
+
 /* -- Menu ------------------------------------------------------------------- */
 #navigation { list-style: none; margin: 0; padding: 0; }
 #navigation li { margin: 0; padding: 0; }
@@ -169,11 +210,28 @@ body {
 #fuss .ihw-madeby img { height: 22px; width: auto; }
 
 /* -- Responsive (as pipperr.de) ---------------------------------------------- */
-@media (max-width: 960px) {
-  #mitte {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "nav" "content";
+/* not enough room for three columns: right column below the content */
+@media (max-width: 1280px) {
+  #mitte.ihw-with-side {
+    grid-template-columns: 11.5em minmax(0, 1fr);
+    grid-template-areas: "nav content" "nav side";
   }
+  #seite {
+    position: static;
+    max-height: none;
+    border-left: none;
+    border-top: 2px solid #FEB80A;
+    margin: 0 1.8em 1em;
+  }
+  #seite ul { columns: 2 16em; column-gap: 1.5em; }
+}
+
+@media (max-width: 960px) {
+  #mitte, #mitte.ihw-with-side {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "nav" "content" "side";
+  }
+  #seite { margin: 0 1em 1em; }
 
   #menue {
     border-right: none;
