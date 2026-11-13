@@ -44,7 +44,9 @@
       Label: front matter nav_title, else the folder name for a README.md,
       else the file name. Add an entry here to give another section the column.
     {%- endcomment -%}
-    {%- assign ihw_side_dirs = "09-Install/docs/,60-RCU-DB-19c/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
+    {%- assign ihw_side_dirs = "00-Setup/,04-ReportsFonts/,09-Install/docs/,10-Monitoring/,60-RCU-DB-19c/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
+    {%- comment -%} pages never listed in the right column {%- endcomment -%}
+    {%- assign ihw_side_skip = "10-Monitoring/patch_cycle_analysis_skill.md" | split: "," -%}
     {%- assign ihw_side = false -%}
     {%- assign ihw_side_dir = "" -%}
     {%- assign ihw_side_tree = false -%}
@@ -168,7 +170,9 @@
                 {%- assign ihw_tops = ihw_tops | append: ihw_p.path | append: "|0;" -%}
               {%- endif -%}
             {%- elsif ihw_p_rparts.size == 1 and ihw_p_rest != "README.md" -%}
+              {%- unless ihw_side_skip contains ihw_p.path -%}
               {%- assign ihw_items = ihw_items | append: ihw_p.path | append: "|0;" -%}
+              {%- endunless -%}
             {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
