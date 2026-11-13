@@ -2,12 +2,11 @@
 # menu.ps1 - Startmenue fuer die Reports-Git-Skripte (per Doppelklick)
 # =============================================================================
 # Zeigt die Skripte aus menu.ini als nummerierte Liste. Der Anwender waehlt
-# eine Nummer - das Skript laeuft in DIESEM Fenster, danach bleibt das
-# Fenster offen (Start ueber menu.cmd mit -NoExit), damit das Ergebnis
-# stehen bleibt. Fuer den naechsten Schritt: m + Enter im selben Fenster
-# (Kurzbefehl, den menu.ps1 anlegt) oder wieder Doppelklick auf das Icon.
-# x oder q = abbrechen, das Fenster schliesst sich (auch nach dem Skript:
-# x / q + Enter im offenen Fenster).
+# eine Nummer - das Skript laeuft in DIESEM Fenster, danach erscheint das
+# Menue darunter wieder (die Ausgabe des Skripts bleibt oben stehen, zurueck-
+# scrollen). c = Bildschirm loeschen und Menue neu anzeigen. x oder q =
+# beenden, das eigene Fenster (menu.cmd) schliesst sich. m + Enter startet
+# das Menue in einem offenen Fenster neu (z.B. nach Strg+C).
 #
 #   ===================================
 #    Oracle Reports Git Handling
@@ -16,6 +15,7 @@
 #    1 - pull.ps1     - Hole die letzten Aenderungen vom Git-Server
 #    2 - status.ps1   - Zeige den aktuellen Status an
 #    ...
+#    c = Bildschirm loeschen und Menue neu anzeigen   x / q = beenden
 #   -----------------------------------
 #   Waehle eine Option oder breche mit x / q ab :
 #
@@ -149,7 +149,16 @@ foreach ($name in $cfg.Keys) {
 }
 $items = @($items | Sort-Object Sort, Name)
 
-# --- 2. Menue anzeigen
+# Administrator-Fenster? (die Reports-Werkzeuge brauchen das)
+function Test-Admin {
+    try {
+        $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    catch { return $false }
+}
+
+# --- 2. Fenster vorbereiten (einmal)
 try { $Host.UI.RawUI.WindowTitle = $titel } catch { }
 
 # Fenstergroesse aus menu.cmd setzen - Puffer (Zurueckscrollen) 3000 Zeilen.
@@ -178,42 +187,50 @@ if ($Zeilen -gt 0 -or $Spalten -gt 0) {
     }
     catch { }
 }
-Write-Host ""
-Write-Host $Line -ForegroundColor Cyan
-Write-Host " $titel" -ForegroundColor Cyan
-Write-Host $Line -ForegroundColor Cyan
-Write-Host ""
+
 foreach ($f in $fehler) { Write-Host "WARNUNG: $(Split-Path -Leaf $Ini) $f" -ForegroundColor Yellow }
 if ($items.Count -eq 0) {
     Write-Host "FEHLER: In $Ini steht kein Menuepunkt." -ForegroundColor Red
     return
 }
 
-$wS = ($items | ForEach-Object { ("$($_.Skript) $($_.Parameter)").Trim().Length } | Measure-Object -Maximum).Maximum
-$wN = "$($items.Count)".Length
-for ($i = 0; $i -lt $items.Count; $i++) {
-    $it = $items[$i]
-    $aufruf = ("$($it.Skript) $($it.Parameter)").Trim()
-    $kurz  = $it.Kurz
-    $color = 'White'
-    if (-not (Test-Path -LiteralPath $it.Pfad)) { $color = 'Red'; $kurz = "$kurz (Skript fehlt)" }
-    Write-Host (" {0} - {1} - {2}" -f "$($i + 1)".PadLeft($wN), $aufruf.PadRight($wS), $kurz) -ForegroundColor $color
-}
-# Fehlende Skripte: wo gesucht wurde - SkriptPfad in menu.ini pruefen oder
-# das Skript dorthin kopieren (pull.ps1)
-$fehlen = @($items | Where-Object { -not (Test-Path -LiteralPath $_.Pfad) })
-if ($fehlen.Count -gt 0) {
+# Menue ausgeben - nach jedem Skript erneut (unter dessen Ausgabe) und mit c
+# auf einem frisch geloeschten Bildschirm
+function Show-Menu {
     Write-Host ""
-    foreach ($it in $fehlen) { Write-Host "  Skript fehlt: $($it.Pfad)" -ForegroundColor Red }
-    Write-Host "  -> SkriptPfad in $(Split-Path -Leaf $Ini) pruefen ($Ini)" -ForegroundColor Red
+    Write-Host $Line -ForegroundColor Cyan
+    Write-Host " $titel" -ForegroundColor Cyan
+    Write-Host $Line -ForegroundColor Cyan
+    Write-Host ""
+    $wS = ($items | ForEach-Object { ("$($_.Skript) $($_.Parameter)").Trim().Length } | Measure-Object -Maximum).Maximum
+    $wN = "$($items.Count)".Length
+    for ($i = 0; $i -lt $items.Count; $i++) {
+        $it = $items[$i]
+        $aufruf = ("$($it.Skript) $($it.Parameter)").Trim()
+        $kurz  = $it.Kurz
+        $color = 'White'
+        if (-not (Test-Path -LiteralPath $it.Pfad)) { $color = 'Red'; $kurz = "$kurz (Skript fehlt)" }
+        Write-Host (" {0} - {1} - {2}" -f "$($i + 1)".PadLeft($wN), $aufruf.PadRight($wS), $kurz) -ForegroundColor $color
+    }
+    # Fehlende Skripte: wo gesucht wurde - SkriptPfad in menu.ini pruefen oder
+    # das Skript dorthin kopieren (pull.ps1)
+    $fehlen = @($items | Where-Object { -not (Test-Path -LiteralPath $_.Pfad) })
+    if ($fehlen.Count -gt 0) {
+        Write-Host ""
+        foreach ($it in $fehlen) { Write-Host "  Skript fehlt: $($it.Pfad)" -ForegroundColor Red }
+        Write-Host "  -> SkriptPfad in $(Split-Path -Leaf $Ini) pruefen ($Ini)" -ForegroundColor Red
+    }
+    Write-Host ""
+    Write-Host " c = Bildschirm loeschen und Menue neu anzeigen   x / q = beenden" -ForegroundColor DarkGray
+    Write-Host $Line2
+    Write-Host ""
 }
-Write-Host $Line2
-Write-Host ""
 
-# --- 3. Auswahl - bis eine gueltige Nummer oder x / q kommt
-$wahl = $null
-while ($null -eq $wahl) {
+# --- 3. Schleife: Menue - Auswahl - Skript - Menue ... bis x / q
+Show-Menu
+while ($true) {
     $in = "$(Read-Host "$frage ")".Trim()
+
     # -in vergleicht ohne Unterschied gross/klein: x X q Q
     if ($in -in @('x', 'q')) {
         # Abbruch: eigenes Fenster (menu.cmd, -NoExit) ganz schliessen -
@@ -222,63 +239,65 @@ while ($null -eq $wahl) {
         if ($Fenster) { [Environment]::Exit(0) }
         return
     }
+
+    # c: Bildschirm loeschen, Menue neu schreiben
+    if ($in -eq 'c') {
+        Clear-Host
+        Show-Menu
+        continue
+    }
+
     $nr = 0
-    if ([int]::TryParse($in, [ref]$nr) -and $nr -ge 1 -and $nr -le $items.Count) {
-        $wahl = $items[$nr - 1]
+    if (-not ([int]::TryParse($in, [ref]$nr) -and $nr -ge 1 -and $nr -le $items.Count)) {
+        Write-Host "  Bitte eine Nummer von 1 bis $($items.Count) eingeben, c oder x / q." -ForegroundColor Yellow
+        continue
     }
-    else {
-        Write-Host "  Bitte eine Nummer von 1 bis $($items.Count) eingeben oder x / q." -ForegroundColor Yellow
+    $wahl = $items[$nr - 1]
+
+    # --- 4. Gewaehltes Skript in diesem Fenster starten
+    Write-Host ""
+    Write-Host $Line -ForegroundColor Cyan
+    Write-Host " $(("$($wahl.Skript) $($wahl.Parameter)").Trim()) - $($wahl.Kurz)" -ForegroundColor Cyan
+    Write-Host $Line -ForegroundColor Cyan
+    if ($wahl.Lang -ne '') { Write-Wrapped $wahl.Lang 72 '  ' }
+    Write-Host ""
+
+    $rc = 0
+    if (-not (Test-Path -LiteralPath $wahl.Pfad)) {
+        Write-Host "FEHLER: $($wahl.Pfad) fehlt." -ForegroundColor Red
+        $rc = 1
     }
-}
-
-# --- 4. Gewaehltes Skript in diesem Fenster starten
-Write-Host ""
-Write-Host $Line -ForegroundColor Cyan
-Write-Host " $(("$($wahl.Skript) $($wahl.Parameter)").Trim()) - $($wahl.Kurz)" -ForegroundColor Cyan
-Write-Host $Line -ForegroundColor Cyan
-if ($wahl.Lang -ne '') { Write-Wrapped $wahl.Lang 72 '  ' }
-Write-Host ""
-
-if (-not (Test-Path -LiteralPath $wahl.Pfad)) {
-    Write-Host "FEHLER: $($wahl.Pfad) fehlt." -ForegroundColor Red
-    return
-}
-
-if ($wahl.Admin) {
-    # Administrator-Fenster? (die Reports-Werkzeuge brauchen das)
-    $isAdmin = $false
-    try {
-        $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-        $isAdmin   = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    catch { }
-    if (-not $isAdmin) {
+    elseif ($wahl.Admin -and -not (Test-Admin)) {
         Write-Host "FEHLER: $($wahl.Skript) braucht ein Administrator-Fenster." -ForegroundColor Red
         Write-Host "        Menue mit Rechtsklick -> 'Als Administrator ausfuehren' starten" -ForegroundColor Red
         Write-Host "        (Verknuepfung -> Eigenschaften -> Erweitert -> 'Als Administrator ausfuehren')." -ForegroundColor Red
-        return
+        $rc = 1
     }
-}
+    else {
+        # Skript mit den Parametern aus menu.ini aufrufen: & 'pfad' <parameter>
+        # (exit im Skript beendet nur das Skript, nicht dieses Fenster)
+        $global:LASTEXITCODE = 0
+        try {
+            & ([scriptblock]::Create("& '$($wahl.Pfad.Replace("'", "''"))' $($wahl.Parameter)"))
+            $rc = $global:LASTEXITCODE
+        }
+        catch {
+            Write-Host "FEHLER: $($_.Exception.Message)" -ForegroundColor Red
+            $rc = 1
+        }
+        # die Skripte springen am Ende in ihren eigenen Ordner - zurueck
+        Set-Location $PSScriptRoot
+    }
 
-# Skript mit den Parametern aus menu.ini aufrufen: & 'pfad' <parameter>
-# (exit im Skript beendet nur das Skript, nicht dieses Fenster)
-$global:LASTEXITCODE = 0
-try {
-    & ([scriptblock]::Create("& '$($wahl.Pfad.Replace("'", "''"))' $($wahl.Parameter)"))
-    $rc = $global:LASTEXITCODE
+    Write-Host ""
+    Write-Host $Line2
+    if ($rc -eq 0) {
+        Write-Host " Fertig: $($wahl.Skript)." -ForegroundColor Green
+    }
+    else {
+        Write-Host " $($wahl.Skript) mit Fehler beendet (Rueckgabe $rc) - siehe Meldungen oben." -ForegroundColor Red
+    }
+    # Menue wieder darunter - die Ausgabe des Skripts bleibt oben stehen
+    # (zurueckscrollen), c loescht den Bildschirm
+    Show-Menu
 }
-catch {
-    Write-Host "FEHLER: $($_.Exception.Message)" -ForegroundColor Red
-    $rc = 1
-}
-
-Write-Host ""
-Write-Host $Line2
-if ($rc -eq 0) {
-    Write-Host " Fertig: $($wahl.Skript). Fenster bleibt offen - schliessen mit x + Enter." -ForegroundColor Green
-}
-else {
-    Write-Host " $($wahl.Skript) mit Fehler beendet (Rueckgabe $rc) - siehe Meldungen oben." -ForegroundColor Red
-}
-Write-Host " Naechster Schritt: m + Enter (Menue erneut), x + Enter (Fenster schliessen)."
-Write-Host $Line2

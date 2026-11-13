@@ -114,18 +114,22 @@ Doppelklick auf das Desktop-Icon öffnet das Menü:
  4 - checkin.ps1           - Bericht einchecken und nach DEV verteilen
  5 - release_tag.ps1 -List - Zeige, was noch nicht in Produktion ist
  6 - release_tag.ps1       - Release-Tag setzen - Bericht in Produktion einspielen
+
+ c = Bildschirm loeschen und Menue neu anzeigen   x / q = beenden
 ------------------------------------------------------------
 
 Wähle eine Option oder breche mit x / q ab :
 ```
 
 - Nummer eingeben: kurze Erklärung, dann läuft das Skript **im selben
-  Fenster**. Das Fenster bleibt danach offen, damit das Ergebnis stehen
-  bleibt – schließen mit dem X.
-- Für den nächsten Schritt: im selben Fenster **`m` + Enter** – das Menü
-  kommt wieder – oder erneut Doppelklick auf das Icon.
-- `x` oder `q` = abbrechen, das Fenster schließt sich. Auch nach dem Skript:
-  `x` + Enter (oder `q`) schließt das Fenster.
+  Fenster**. Danach erscheint das Menü **direkt darunter wieder** – die
+  Ausgabe des Skripts bleibt darüber stehen (nach oben scrollen). Der
+  nächste Schritt ist also einfach die nächste Nummer.
+- `c` = Bildschirm löschen und das Menü neu anzeigen (wenn es nach
+  mehreren Skripten unübersichtlich wird).
+- `x` oder `q` = beenden, das Fenster schließt sich.
+- Nur falls ein Skript mit Strg+C abgebrochen wurde und das Menü weg ist:
+  **`m` + Enter** startet es im selben Fenster neu.
 - Was im Menü steht (Reihenfolge, Texte, Parameter), steht in
   [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) – Änderungen dort macht der Git-Ansprechpartner.
 - Die Skripte liegen in `deploy\`, das Menü im obersten Ordner – das steht
@@ -381,7 +385,7 @@ Auch ein leerer Kommentar bricht ab.
 
 | Skript | Wann |
 |---|---|
-| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, Fenster bleibt offen; Inhalt aus [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) |
+| [`menu.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.cmd) / [`menu.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ps1) | Menü per Doppelklick (Desktop-Icon): Skript wählen, läuft im selben Fenster, danach kommt das Menü wieder (`c` = Bildschirm löschen, `x` / `q` = beenden); Inhalt aus [`menu.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/menu.ini) |
 | [`git_setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/git_setup.ps1) | einmal pro Benutzer: Name, E-Mail, Zeilenende |
 | [`pull.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/pull.ps1) | zu Arbeitsbeginn: neuesten Stand holen |
 | [`status.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_builder_windows/scripts/status.ps1) | jederzeit: was ist offen – lokal und auf dem Git-Server (ändert nichts) |
