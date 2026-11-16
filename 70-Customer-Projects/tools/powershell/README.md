@@ -1,7 +1,7 @@
 ---
 nav_title: "PowerShell tools"
 title: "Forms & Reports Customer Tools for Windows (PowerShell)"
-description: "Windows PowerShell versions of the IHateWeblogic customer tools: metadata collection, patch cookbook variables and MOS patch download (FMW 12.2.1 / 14.1.2)."
+description: "Windows PowerShell versions of the IHateWeblogic customer tools: state collection, configuration export, patch cookbook variables and MOS patch download (FMW 12.2.1 / 14.1.2)."
 permalink: /70-Customer-Projects/tools/powershell/
 ---
 
@@ -12,7 +12,7 @@ PowerShell versions of the tools from [../bash/](../README.md), for Forms
 PowerShell 5.1** (built into every Windows Server 2016 or newer) and
 PowerShell 7, and cover FMW **12.2.1.x and 14.1.2**. The output and the CSV
 format match the bash versions, so the analysis is the same for Linux and
-Windows hosts. `collect_fmw_env.ps1` needs the shared
+Windows hosts. `collect_fmw_env.ps1` and `export_forms_reports_conf.ps1` need the shared
 [`ihw_tools_lib.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) next to it (the twin of
 `bash/ihw_tools_lib.sh`: masking, encryption, web tier, Nginx, load profile);
 copy the whole folder / the Windows ZIP.
@@ -20,6 +20,7 @@ copy the whole folder / the Windows ZIP.
 | Script | Purpose | bash version |
 |---|---|---|
 | [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only collection of the **state** (OS + pending Windows updates, services, Java, OPatch / components / other homes, domain facts, processes and memory, web tier with Nginx in detail, HTTPS certificates, load profile, logs), secrets masked → encrypted ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
+| [export_forms_reports_conf.ps1](#export_forms_reports_confps1) | read-only export of the **configuration** for the 14c rebuild (Forms, Reports, domain, JDBC, Oracle Net, web tier incl. IIS, fonts, source inventory, Oracle registry environment, Windows → Linux path map), same archive layout as bash → encrypted ZIP | [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh) |
 | [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
@@ -119,6 +120,52 @@ Runs as the software owner or as an administrator. Some service and registry
 values are only readable for an administrator, and the summary says whether
 the run had admin rights.
 
+## export_forms_reports_conf.ps1
+
+```powershell
+.\export_forms_reports_conf.ps1                     # auto-detect, encrypted archive (passphrase asked twice)
+.\export_forms_reports_conf.ps1 -OracleHome D:\Oracle\Middleware\Oracle_Home -DomainHome D:\Oracle\user_projects\domains\fr_domain
+.\export_forms_reports_conf.ps1 -Masked             # passwords masked, not encrypted - for an analysis
+.\export_forms_reports_conf.ps1 -NoFonts -Keep      # list fonts only, keep the staging directory
+```
+
+The Windows version of [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh):
+the **configuration** of the host for the rebuild with the 14c library on
+Linux. The state (patch level, Java, memory, load profile, HTTPS
+certificates) is [collect_fmw_env.ps1](#collect_fmw_envps1) - an analysis
+always needs both runs.
+
+**Same archive as bash:** `00_report.txt`, `raw/` (1:1 copies below
+`domain/`, `oracle_home/`, `other/<drive>/...`, `other/UNC/<server>/...`),
+`ihw_import/` (proposals), `sources_*`, `manifest.csv`,
+`secrets_locations.txt`. Every path in the derived files is written with
+`/` (`D:/Oracle/...`), so the environment analysis reads Windows exports with
+the same rules. On the Linux test host the PowerShell and the bash export of
+the same domain give the same files (2026-11-16).
+
+Windows specifics:
+- `ihw_import/registry_env.txt` - the values of `HKLM\SOFTWARE\Oracle\KEY_*`
+  (`FORMS_PATH`, `REPORTS_PATH`, `NLS_LANG`, `TNS_ADMIN` ...) and the machine
+  environment variables Oracle reads, with "in an env file yes / no" - Windows
+  Forms / Reports read them from the registry, Linux has none;
+- `ihw_import/path_map.txt` - every Windows path of the configuration
+  (sources, fonts, `TNS_ADMIN`) with a proposal for the Linux path of the 14c
+  host (`$ORACLE_BASE/...`; network shares: `/mnt/<server>/<share>` + mount);
+- web tier: IIS (`applicationHost.config` + the `iisproxy.ini` of the
+  WebLogic plug-in next to the `iisproxy.dll`), Nginx installed by hand,
+  Apache, OHS;
+- fonts: the Reports font directories plus `C:\Windows\Fonts` - fonts an
+  administrator installed (barcode, corporate) are customer fonts and are
+  copied; Microsoft fonts are only listed, never copied (licence); the fonts of
+  Windows itself (owner `TrustedInstaller`) only when the name is known;
+- source directories on network shares (UNC) are checked with a timeout and
+  listed as "not reachable" instead of hanging;
+- domain scripts `setUserOverrides.cmd` / `setDomainEnv.cmd`,
+  `reports.cmd` / `reports.bat`.
+
+The options of the load profile (`-NoLoad`, `-LoadDays`, `-RwAuth`) belong to
+`collect_fmw_env.ps1` - here they are accepted and ignored with a note.
+
 ## fmw_patch_env.ps1
 
 ```powershell
@@ -207,6 +254,18 @@ own `platform` / `file_regexp` columns – check the file names on MOS once.
 ## Tested – and what is not
 
 Tested 2026-11-16 with PowerShell 7.7.0 on the Linux test host (not on
+Windows), `export_forms_reports_conf.ps1` 2026-11-16.1 / `ihw_tools_lib.ps1`
+2026-11-16.2:
+- all files of the archive equal to the bash export of the same domain
+  (only the order of a few sorted lists differs); the environment analysis
+  gives the same report for both;
+- a Windows export simulated from it (drive paths, CRLF in `raw/`, registry
+  values, UNC and blank paths) runs through the Windows branch of the
+  environment analysis (section 13.4, Windows findings);
+- the masking now works line by line like `sed` (before, a value could run
+  over the line end and mask the next line too - also in the collector).
+
+Tested 2026-11-16 with PowerShell 7.7.0 on the Linux test host (not on
 Windows), `collect_fmw_env.ps1` 2026-11-16.3 / `ihw_tools_lib.ps1`:
 - encryption both ways against openssl (also with umlauts in the
   passphrase), the manual PBKDF2 of .NET 4.6.2 equal to the built-in one;
@@ -234,7 +293,7 @@ Windows):
   - no `{AES}` value and no known password in the output.
 
 **Not tested** because no Windows host was available:
-- the Windows-only parts: CIM (`Win32_*`), registry, services, firewall, event log, IIS;
+- the Windows-only parts: CIM (`Win32_*`), registry (`KEY_*` of the export), services, firewall, event log, IIS / `iisproxy.ini`, ACLs (fonts, source directories), UNC paths;
 - Nginx on Windows (NSSM / WinSW / task detection, ACL), the Windows Update Agent search;
 - `opatch.bat` started through `cmd.exe`;
 - `Read-Host -AsSecureString`;

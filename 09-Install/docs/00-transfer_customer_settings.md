@@ -76,6 +76,19 @@ cd $ORACLE_BASE/tools
 ./export_forms_reports_conf.sh -t $ORACLE_BASE/install  # configuration for the rebuild
 ```
 
+On a **Windows** host the same two runs with the PowerShell versions from
+the Windows tools ZIP ([tools/powershell](../../70-Customer-Projects/tools/powershell/README.md)):
+
+```powershell
+.\collect_fmw_env.ps1 -OutBase D:\temp              # state
+.\export_forms_reports_conf.ps1 -OutBase D:\temp    # configuration (+ registry_env.txt, path_map.txt)
+```
+
+The Windows export has the same layout; the paths of the old host
+(`D:/...`, `//server/share`) are mapped to the Linux layout of the 14c host by
+hand - `ihw_import/path_map.txt` holds a proposal for every path, section
+13.4 of the environment analysis the registry values and the paths.
+
 - **Read-only:** both scripts change nothing on the host.
 - **Encrypted:** both ask for a passphrase at the start and write a
   `.zip.enc` with a `.sha256` next to it. Send the passphrase separately from

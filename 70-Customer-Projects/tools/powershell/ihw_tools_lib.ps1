@@ -6,7 +6,8 @@
 #            tools/bash/ihw_tools_lib.sh: masking, output helpers, git guard,
 #            passphrase + openssl-compatible encryption, packing, web tier
 #            (find / flatten / routes / settings), certificates, Nginx patch
-#            facts, Reports server list, load profile, OS update state.
+#            facts, Reports server list, load profile, OS update state,
+#            homes, ini parsing, font classes, registry environment.
 #            Same output formats as the bash versions, so the analyses on our
 #            side read Linux and Windows archives alike.
 # Use      : . (Join-Path $PSScriptRoot "ihw_tools_lib.ps1")
@@ -19,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.1"
+$IHWT_PS_LIB_VERSION = "2026-11-16.2"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -38,9 +39,10 @@ function ihwt-mask {
     param([string] $Text)
     if (-not $Text) { return $Text }
     $t = $Text
-    $t = [regex]::Replace($t, '(<[^>/]*[Pp]ass[Ww]or[dD][^>]*>)[^<]*', '$1***MASKED***')
-    $t = [regex]::Replace($t, '(<identifier[^>]*>)[^<]*', '$1***MASKED***')
-    $t = [regex]::Replace($t, '(name="[^"]*([Pp]ass[Ww](or)?[dD]|pwd|PWD)[^"]*"\s+value=")[^"]*', '$1***MASKED***')
+    # line by line like the sed of bash: no class may run over a line end
+    $t = [regex]::Replace($t, '(<[^>/\r\n]*[Pp]ass[Ww]or[dD][^>\r\n]*>)[^<\r\n]*', '$1***MASKED***')
+    $t = [regex]::Replace($t, '(<identifier[^>\r\n]*>)[^<\r\n]*', '$1***MASKED***')
+    $t = [regex]::Replace($t, '(name="[^"\r\n]*([Pp]ass[Ww](or)?[dD]|pwd|PWD)[^"\r\n]*"[ \t]+value=")[^"\r\n]*', '$1***MASKED***')
     $t = [regex]::Replace($t, '\{AES(256)?\}[A-Za-z0-9+/=]+', '{AES}***MASKED***')
     $t = [regex]::Replace($t, '(?m)((^|[\s;&?])(userid|USERID|UserId|authid|AUTHID|password|PASSWORD|Password|passwd|pwd|PWD|dbpassword)[ \t]*=[ \t]*)[^\s;&]+', '$1***MASKED***')
     $t = [regex]::Replace($t, '(-D[A-Za-z0-9._]*[Pp]ass[Ww]ord[A-Za-z0-9._]*=)\S+', '$1***MASKED***')
@@ -272,7 +274,7 @@ function ihwt-identity {
         ($f -f "Host", $hn),
         ($f -f "ORACLE_HOME", $(if ($OH) { $OH } else { "(not found)" })),
         ($f -f "DOMAIN_HOME", $(if ($DH) { $DH } else { "(not found)" })),
-        ($f -f "Platform", ("{0} {1}" -f $(if ($IHWT_ON_WINDOWS) { "Windows" } else { [Environment]::OSVersion.Platform }), $(if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }))),
+        ($f -f "Platform", ("{0} {1}" -f $(if ($IHWT_ON_WINDOWS) { "Windows" } elseif ("$([Environment]::OSVersion.Platform)" -eq "Unix" -and (Test-Path -LiteralPath /proc/version)) { "Linux" } else { [Environment]::OSVersion.Platform }), $(if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }))),
         ($f -f "FMW version", $fmw),
         ($f -f "Java", $java),
         ($f -f "CPUs", [Environment]::ProcessorCount),
@@ -777,6 +779,168 @@ function ihwt-os-advisories {
     if ($ListFile) { ihwt-write-file $ListFile $l }
     $c = @($l | Where-Object { $_ -match '^(Critical|Important);' }).Count
     return ("{0} advisories ({1} critical/important, Windows Update cache)" -f $l.Count, $c)
+}
+
+#------------------------------------------------------------------------------
+# ORACLE_HOME / DOMAIN_HOME of the host (collector and export alike):
+# parameter / environment, running WebLogic (-Dweblogic.home), registry
+# HKLM\SOFTWARE\Oracle (ORACLE_HOME with OPatch + wlserver), usual directories;
+# DOMAIN_HOME from domain-registry.xml, else -Dweblogic.RootDirectory.
+# Returns @{ OH = ...; DH = ... } ("" when not found)
+#------------------------------------------------------------------------------
+function ihwt-find-homes {
+    param([string] $OracleHome, [string] $DomainHome, $Procs = $null)
+    if ($null -eq $Procs) { $Procs = ihwt-procs }
+    if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) {
+        $OracleHome = ""
+        foreach ($p in $Procs) {
+            if ("$($p.CommandLine)" -match '-Dweblogic\.home="?([^"\s]+?)[\\/]wlserver[\\/]server') { $OracleHome = $Matches[1]; break }
+        }
+        if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch")) -and $IHWT_ON_WINDOWS) {
+            $OracleHome = ""
+            foreach ($k in @(Get-ChildItem -LiteralPath "HKLM:\SOFTWARE\Oracle" -ErrorAction SilentlyContinue)) {
+                $v = (Get-ItemProperty -LiteralPath $k.PSPath -Name ORACLE_HOME -ErrorAction SilentlyContinue).ORACLE_HOME
+                if ($v -and (ihwt-isdir (Join-Path $v "OPatch")) -and (ihwt-isdir (Join-Path $v "wlserver"))) { $OracleHome = $v; break }
+            }
+            if (-not $OracleHome) {
+                foreach ($d in @("C:", "D:", "E:")) {
+                    foreach ($s in @("\Oracle\Middleware\Oracle_Home", "\Oracle\Oracle_Home", "\Oracle\fmw", "\app\oracle\fmw", "\oracle\product\mw")) {
+                        if (ihwt-isdir "$d$s\OPatch") { $OracleHome = "$d$s"; break }
+                    }
+                    if ($OracleHome) { break }
+                }
+            }
+        }
+        if (-not $OracleHome -and -not $IHWT_ON_WINDOWS) {
+            foreach ($c in @("/oracle/product/mw", "/u01/app/oracle/fmw", "/u01/oracle/fmw", "/u01/app/oracle/middleware", "/u01/oracle/middleware")) {
+                if (ihwt-isdir "$c/OPatch") { $OracleHome = $c; break }
+            }
+        }
+    }
+    if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) { $OracleHome = "" }
+    if (-not $DomainHome -and $OracleHome -and (Test-Path -LiteralPath (Join-Path $OracleHome "domain-registry.xml"))) {
+        $m = Select-String -LiteralPath (Join-Path $OracleHome "domain-registry.xml") -Pattern 'location="([^"]*)"' | Select-Object -First 1
+        if ($m) { $DomainHome = $m.Matches[0].Groups[1].Value }
+    }
+    if (-not $DomainHome) {
+        foreach ($p in $Procs) { if ("$($p.CommandLine)" -match '-Dweblogic\.RootDirectory="?([^"\s]+)') { $DomainHome = $Matches[1]; break } }
+    }
+    if ($DomainHome -and -not (Test-Path -LiteralPath (ihwt-jp @($DomainHome, "config", "config.xml")))) { $DomainHome = "" }
+    return @{ OH = $OracleHome; DH = $DomainHome }
+}
+
+#------------------------------------------------------------------------------
+# Paths, text files, strings
+#------------------------------------------------------------------------------
+# ihwt-fwd PATH - "/" instead of "\" (D:/Oracle/...) - every path in the derived
+# files of the export, so the analyses on our side (basename, prefixes) read
+# Windows and Linux archives alike; Windows accepts "/" too
+function ihwt-fwd { param([string] $p) return ($p -replace '\\', '/') }
+# ihwt-under PATH BASE - $true when PATH is BASE or below it (case-insensitive
+# on Windows, "\" and "/" alike)
+function ihwt-under {
+    param([string] $p, [string] $b)
+    if (-not $p -or -not $b) { return $false }
+    $p = (ihwt-fwd $p).TrimEnd('/'); $b = (ihwt-fwd $b).TrimEnd('/')
+    $cmp = $(if ($IHWT_ON_WINDOWS) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal })
+    return ($p.Equals($b, $cmp) -or $p.StartsWith("$b/", $cmp))
+}
+# ihwt-is-text FILE - like "grep -Iq ." (not empty, no NUL byte in the first 8 KB)
+function ihwt-is-text {
+    param([string] $f)
+    try {
+        $fs = [IO.File]::OpenRead($f)
+        try { $buf = New-Object byte[] 8192; $n = $fs.Read($buf, 0, 8192) } finally { $fs.Close() }
+        if ($n -le 0) { return $false }
+        return ([Array]::IndexOf($buf, [byte]0, 0, $n) -lt 0)
+    } catch { return $false }
+}
+# ihwt-strings FILE MINLEN - printable ASCII runs like "strings -n MINLEN"
+function ihwt-strings {
+    param([string] $f, [int] $Min = 4)
+    try { $s = [Text.Encoding]::GetEncoding(28591).GetString([IO.File]::ReadAllBytes($f)) } catch { return @() }
+    return @([regex]::Matches($s, "[\x20-\x7E\t]{$Min,}") | ForEach-Object { $_.Value })
+}
+
+#------------------------------------------------------------------------------
+# Config file parsing (ihwt_cfgval / ihwt_sections / ihwt_keys of bash)
+#------------------------------------------------------------------------------
+function _ihwt-lines { param([string] $f) if (-not $f -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return @() }; try { return [IO.File]::ReadAllLines($f) } catch { return @() } }
+# ihwt-cfgval FILE KEYREGEX - values of KEY=... (all occurrences, trailing blanks
+# removed; case-sensitive like the sed of bash)
+function ihwt-cfgval {
+    param([string] $f, [string] $Key)
+    return @(_ihwt-lines $f | ForEach-Object { if ($_ -cmatch "^\s*$Key\s*=\s*(.*)$") { $Matches[1] -replace '\s+$', '' } })
+}
+# ihwt-sections FILE - "section`tkey`tvalue" of an ini-like file
+function ihwt-sections {
+    param([string] $f)
+    $s = ""; $res = New-Object System.Collections.Generic.List[string]
+    foreach ($l in (_ihwt-lines $f)) {
+        if ($l -match '^\s*[#;]') { continue }
+        if ($l -match '^\s*\[([^\]]+)\]') { $s = $Matches[1]; continue }
+        $i = $l.IndexOf('='); if ($i -lt 0) { continue }
+        $k = $l.Substring(0, $i) -replace '\s', ''; $v = $l.Substring($i + 1) -replace '\s+$', ''
+        if ($k) { $res.Add("$s`t$k`t$v") }
+    }
+    return $res.ToArray()
+}
+# ihwt-keys FILE - "key`tvalue" of a key=value file (no sections)
+function ihwt-keys {
+    param([string] $f)
+    $res = New-Object System.Collections.Generic.List[string]
+    foreach ($l in (_ihwt-lines $f)) {
+        if ($l -match '^\s*[#;]') { continue }
+        $i = $l.IndexOf('='); if ($i -lt 0) { continue }
+        $k = $l.Substring(0, $i) -replace '\s', ''; $v = $l.Substring($i + 1) -replace '\s+$', ''
+        if ($k) { $res.Add("$k`t$v") }
+    }
+    return $res.ToArray()
+}
+# ihwt-font-class FILE_NAME - "class;replacement" (the list of ihwt_font_class)
+function ihwt-font-class {
+    param([string] $n)
+    $d = [char]0x2013   # en dash like the bash version (ASCII source for PS 5.1)
+    switch -regex ($n.ToLower()) {
+        '^(liberation|dejavu|carlito|caladea)'          { return 'free;OS package (14b-)' }
+        '^(arialuni|arial-unicode|arial_unicode)'       { return "ms;DejaVu Sans / Noto (similar $d only needed for non-Latin text)" }
+        '^arialn'                                       { return 'ms;Liberation Sans Narrow (identical metrics)' }
+        '^(arial|ariblk)'                               { return 'ms;Liberation Sans (identical metrics)' }
+        '^times'                                        { return 'ms;Liberation Serif (identical metrics)' }
+        '^cour'                                         { return 'ms;Liberation Mono (identical metrics)' }
+        '^calibri'                                      { return 'ms;Carlito (identical metrics)' }
+        '^cambria'                                      { return 'ms;Caladea (identical metrics) - not set up in 14c yet, see reports_fonts_architecture.md' }
+        '^(verdana|tahoma|trebuc|segoe|micross)'        { return "ms;DejaVu Sans (similar $d layout can shift)" }
+        '^(georgia|pala|book|constan)'                  { return "ms;Liberation Serif (similar $d layout can shift)" }
+        '^(consola|lucon)'                              { return 'ms;Liberation Mono (similar)' }
+        '^(wingding|webdings|symbol|marlett)'           { return "ms;none $d symbol font, original TTF needed" }
+        '^(candara|corbel|comic|impact|l_10646|gara|century|gothic|franklin)' { return "ms;DejaVu Sans / Liberation (similar $d check)" }
+        default                                         { return "customer;none $d must move" }
+    }
+}
+
+#------------------------------------------------------------------------------
+# Windows: Oracle registry environment (KEY_<home>: FORMS_PATH, REPORTS_PATH,
+# NLS_LANG, TNS_ADMIN ...) and the machine environment variables Oracle reads.
+# Objects Source, Name, Value (empty list on Linux)
+#------------------------------------------------------------------------------
+function ihwt-registry-env {
+    $res = @()
+    if (-not $IHWT_ON_WINDOWS) { return $res }
+    foreach ($root in @("HKLM:\SOFTWARE\Oracle", "HKLM:\SOFTWARE\WOW6432Node\Oracle")) {
+        foreach ($k in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -like 'KEY_*' })) {
+            $p = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue; if (-not $p) { continue }
+            foreach ($pr in $p.PSObject.Properties) {
+                if ($pr.Name -like 'PS*') { continue }
+                $res += [pscustomobject]@{ Source = ("{0}\{1}" -f ($root -replace '^HKLM:', 'HKLM'), $k.PSChildName); Name = $pr.Name; Value = "$($pr.Value)" }
+            }
+        }
+    }
+    foreach ($n in @("ORACLE_HOME", "ORACLE_BASE", "TNS_ADMIN", "NLS_LANG", "NLS_DATE_FORMAT", "FORMS_PATH", "REPORTS_PATH", "REPORTS_TMP", "REPORTS_FONT_DIRECTORY", "TWO_TASK", "LOCAL", "JAVA_HOME", "DOMAIN_HOME")) {
+        $v = [Environment]::GetEnvironmentVariable($n, 'Machine')
+        if ($v) { $res += [pscustomobject]@{ Source = "ENV(Machine)"; Name = $n; Value = $v } }
+    }
+    return $res
 }
 
 #------------------------------------------------------------------------------

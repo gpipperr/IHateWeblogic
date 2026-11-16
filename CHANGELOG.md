@@ -30,6 +30,15 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   updates from the Windows Update cache; load profile; patch facts (products, components, other
   homes, OPatch prerequisites) so the patch analysis reads Windows collections
   ([powershell/README.md](70-Customer-Projects/tools/powershell/README.md)).
+- **Windows export (export_forms_reports_conf.ps1 2026-11-16.1, ihw_tools_lib.ps1 2026-11-16.2):** the
+  configuration of a Windows host with the same archive layout as bash (paths with `/` in the derived
+  files, `raw/other/<drive>/`), plus `ihw_import/registry_env.txt` (Oracle `KEY_*` + machine
+  environment) and `ihw_import/path_map.txt` (Windows path → Linux proposal); IIS + `iisproxy.ini`,
+  `C:\Windows\Fonts` (customer fonts by owner, Microsoft fonts listed only), UNC sources with a
+  timeout. On the test host equal to the bash export of the same domain. The environment analysis
+  reads Windows exports (CRLF, drive paths, section 13.4, Windows findings: registry-only variables,
+  UNC shares, blanks, upper / lower case). PowerShell masking now line by line like `sed`;
+  `ihwt-find-homes` shared by collector (2026-11-16.4) and export.
 - **Collector memory (2026-11-16.2):** `collect_fmw_env.sh` / `.ps1` write `51_forms_memory.txt`
   (every frmweb with RSS, private, PSS, session / pool; heap / GC arguments and RSS of every WLS
   server; prestart keys of formsweb.cfg) and the facts "Forms frmweb memory", "WLS heap (Xms/Xmx,

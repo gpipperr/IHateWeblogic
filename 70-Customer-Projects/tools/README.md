@@ -38,7 +38,7 @@ Not in the ZIPs: the local cookbook formatter.
 | Folder | Platform |
 |---|---|
 | `bash/` | Linux – plain bash + coreutils (this README) |
-| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
+| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`export_forms_reports_conf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/export_forms_reports_conf.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
 
 The bash scripts (`bash/`): one script for all releases – it works for FMW / Forms &
 Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
@@ -73,8 +73,11 @@ the host:
 | `export_forms_reports_conf.sh` | the configuration (raw copies + `ihw_import/` proposals) for the rebuild | **environment analysis** (export + collection): configuration, security, performance, load profile, 14c target – the patch level only as one summary line |
 
 Windows: [`powershell/collect_fmw_env.ps1`](powershell/README.md#collect_fmw_envps1) collects the same
-state (2026-11-16.3, with `powershell/ihw_tools_lib.ps1`; Nginx installed by
-hand in detail, pending Windows updates); the PowerShell export follows.
+state (with `powershell/ihw_tools_lib.ps1`; Nginx installed by hand in
+detail, pending Windows updates), [`powershell/export_forms_reports_conf.ps1`](powershell/README.md#export_forms_reports_confps1)
+exports the configuration with the same archive layout plus the Oracle
+registry environment and a Windows → Linux path map. Both analyses read
+Linux and Windows archives alike.
 
 Order at a customer (tools → setdb → ini → analysis or installation):
 [../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).

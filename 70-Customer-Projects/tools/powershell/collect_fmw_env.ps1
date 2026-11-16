@@ -90,7 +90,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.3"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.4"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -129,38 +129,11 @@ $fmw_pat = 'weblogic\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwEng|rwrun|
 #------------------------------------------------------------------------------
 # Locate ORACLE_HOME / DOMAIN_HOME
 #------------------------------------------------------------------------------
-if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) {
-    $OracleHome = ""
-    foreach ($p in $procs) {
-        if ("$($p.CommandLine)" -match '-Dweblogic\.home="?([^"\s]+?)[\\/]wlserver[\\/]server') { $OracleHome = $Matches[1]; break }
-    }
-    if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch")) -and $IHWT_ON_WINDOWS) {
-        $OracleHome = ""
-        foreach ($k in @(Get-ChildItem -LiteralPath "HKLM:\SOFTWARE\Oracle" -ErrorAction SilentlyContinue)) {
-            $v = (Get-ItemProperty -LiteralPath $k.PSPath -Name ORACLE_HOME -ErrorAction SilentlyContinue).ORACLE_HOME
-            if ($v -and (ihwt-isdir (Join-Path $v "OPatch")) -and (ihwt-isdir (Join-Path $v "wlserver"))) { $OracleHome = $v; break }
-        }
-        if (-not $OracleHome) {
-            foreach ($d in @("C:", "D:", "E:")) {
-                foreach ($s in @("\Oracle\Middleware\Oracle_Home", "\Oracle\Oracle_Home", "\Oracle\fmw", "\app\oracle\fmw", "\oracle\product\mw")) {
-                    if (ihwt-isdir "$d$s\OPatch") { $OracleHome = "$d$s"; break }
-                }
-                if ($OracleHome) { break }
-            }
-        }
-    }
-}
-if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) { Write-Host "ORACLE_HOME not found - use -OracleHome" -ForegroundColor Yellow; $OracleHome = "" }
-if (-not $DomainHome -and $OracleHome -and (Test-Path -LiteralPath (Join-Path $OracleHome "domain-registry.xml"))) {
-    $m = Select-String -LiteralPath (Join-Path $OracleHome "domain-registry.xml") -Pattern 'location="([^"]*)"' | Select-Object -First 1
-    if ($m) { $DomainHome = $m.Matches[0].Groups[1].Value }
-}
-if (-not $DomainHome) {
-    foreach ($p in $procs) { if ("$($p.CommandLine)" -match '-Dweblogic\.RootDirectory="?([^"\s]+)') { $DomainHome = $Matches[1]; break } }
-}
-if ($DomainHome -and -not (Test-Path -LiteralPath (ihwt-jp @($DomainHome, "config", "config.xml")))) {
-    Write-Host "DOMAIN_HOME $DomainHome has no config.xml - use -DomainHome" -ForegroundColor Yellow; $DomainHome = ""
-}
+# (ihwt-find-homes of the lib - the same search as export_forms_reports_conf.ps1)
+$homes = ihwt-find-homes $OracleHome $DomainHome $procs
+if (-not $homes.OH) { Write-Host "ORACLE_HOME not found - use -OracleHome" -ForegroundColor Yellow }
+if ($DomainHome -and -not $homes.DH) { Write-Host "DOMAIN_HOME $DomainHome has no config.xml - use -DomainHome" -ForegroundColor Yellow }
+$OracleHome = $homes.OH; $DomainHome = $homes.DH
 $OH = $OracleHome; $DH = $DomainHome
 
 ihwt-write-file $SUM @(
