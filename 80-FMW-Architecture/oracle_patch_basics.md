@@ -73,6 +73,30 @@ with the Upgrade Assistant at a version upgrade
 | **MRP** – Monthly Recommended Patches | since October 2022: six MRPs per RU, each with all earlier MRPs of that RU plus the current recommended one-offs; "MRPs replace Release Update Revisions (RURs)", "MRPs are available only for the Linux operating system" (**documented**, source 9) – not used in this library |
 | **one-off** on top of an RU | must be built for exactly that RU – with the next RU it is rebuilt (or is already contained) |
 
+**Windows lags behind.** For a Windows DB home the quarterly RU (as Windows
+Bundle Patch) is the only vehicle – there are no MRPs (**documented**,
+source 9), so between two RUs only single one-offs help, if Oracle builds
+them for Windows at all. In practice the Windows Bundle Patch of a cycle
+also arrives **two to three weeks after** the Linux RU (observation of the
+author over several cycles, not an Oracle statement), and generic patches
+do not always apply on Windows (Data Pump bundle, section 3). Why Oracle
+treats Windows this way is not documented – **assumption**:
+
+- Oracle's own database fleet (Autonomous Database, Exadata, OCI DB
+  services) runs on Linux; the recommended one-offs of an MRP are fixes
+  Oracle needs for that fleet anyway – for Linux they come almost for free,
+  for Windows they would have to be built and tested separately.
+- The Windows patch model never fitted single one-offs on top of a bundle
+  well (DLLs replaced as a whole, merge patches) – an MRP as "collection of
+  recommended one-offs" assumes exactly that model.
+- Less pressure from customers: Windows databases are more often
+  departmental or application databases behind the firewall, large
+  customers with strict security SLAs mostly run Linux.
+
+For a customer on Windows: plan the DB patch of a cycle two to three weeks
+later than on Linux, and check the Windows patch list of the cycle instead
+of assuming that a generic patch fits.
+
 A DB patch has two parts: the **binaries** (OPatch, Oracle Home) and the
 **SQL part** in the database (`datapatch` – registry `dba_registry_sqlpatch`).
 An FMW patch has no SQL part.
