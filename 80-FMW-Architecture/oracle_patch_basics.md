@@ -108,6 +108,18 @@ Windows x64 (source 7).
 OPatch compares the platform of the patch with the one of the home
 (prerequisite `CheckPatchApplicableOnCurrentPlatform`) – a Linux ZIP on a
 Windows home, or a 32-bit build on a 64-bit home, stops there (source 6).
+
+**Generic is not always generic – Data Pump bundle 19.33:** the Data Pump
+Bundle Patch **40057600** ("DATAPUMP BUNDLE PATCH 19.33.0.0.0") is
+delivered only as `p40057600_1933000DBRU_Generic.zip` – `inventory.xml`
+says `<platform id="0" name="Generic Platform 1"/>`, UPI 29497019. On the
+Linux test host it applied without a complaint (**confirmed (live)**,
+2026-10-28, UPI 29497019 in `lsinventory` = UPI of the ZIP). On a
+**Windows** DB home OPatch refused the same ZIP with a wrong-platform
+message (customer observation 2026-11, no SR opened). Generic patch, but
+not applicable on Windows – so the "generic" label of a DB patch is no
+guarantee; check the README and the Windows patch list of the cycle, and
+re-test with the Data Pump bundle of the next RU.
 For FMW most patches are **generic** (WebLogic, ADF, OPSS – Java), only the
 native parts are per platform (Forms / Reports QPR, OHS, WebGate, Perl, DB
 client). For the Database almost everything is per platform.

@@ -77,6 +77,12 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
+- [ ] **Data Pump Bundle Patch on Windows:** 40057600 (19.33, delivered only
+  as `…_Generic.zip`, platform id 0) is refused by OPatch on a Windows DB
+  home as "wrong platform" (customer 2026-11, no SR). Re-test with the Data
+  Pump bundle of the next RU (January 2027); if it still fails: SR or
+  document as "Linux only" –
+  [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §3.
 - [ ] **Unique Patch ID (ARU) per patch file:** new column in
   `09-Install/download/patches_*.csv` with the expected `<unique_patch_id>`
   (from `etc/config/inventory.xml` of the ZIP); `cve_inventory.sh` and the
