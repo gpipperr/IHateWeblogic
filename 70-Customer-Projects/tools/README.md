@@ -57,6 +57,7 @@ runtime, never by a second copy of the script.
 | [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) next to them |
 | [bash/clean_domain_tmp.sh](#clean_domain_tmpsh) | delete the contents of `servers/*/tmp` and `cache` of a stopped domain, rebuilt at the next start, e.g. after a patch (dry run shows the sizes, `--apply` deletes, refuses while anything runs) |
+| [bash/create_server_cert_from_pfx.sh](#create_server_cert_from_pfxsh) | split a customer PFX / PKCS#12 (e.g. wildcard certificate) into `server.key` / `server.cert` / `ca_chain.cert` for Apache / Nginx – without `--apply` only list the container (password, format, names / SAN, validity, key ↔ certificate, chain) |
 | [bash/ihw_tools_lib.sh](#ihw_tools_libsh) | shared helpers of these tools (masking, ini parsing, font classes, git guard, Markdown tables) – sourced, lies next to the tools |
 | [bash/check_disk_space.sh](#check_disk_spacesh) | read-only: where is the space of the local disks – usage tree, known space eaters with their clean command, deleted-but-open files, files > 500 MB; NFS / network mounts are never scanned |
 
@@ -739,6 +740,39 @@ never goes into git (refused inside the repo; `.gitignore` has
 `ihw_export_*` and `70-Customer-Projects/**/export/` for a copy placed there
 for the import). Tested 2026-11-03 on 14.1.2 and on a simulated 12.2.1 tree
 (`forms_12.2.1` / `reports_12.2.1`, standalone + in-process server).
+
+## create_server_cert_from_pfx.sh
+
+```bash
+./create_server_cert_from_pfx.sh --in _.kunde.de.pfx --pwd pw.text                 # LIST only
+./create_server_cert_from_pfx.sh --in _.kunde.de.pfx --pwd pw.text -o ./out --apply # write the 3 files
+./create_server_cert_from_pfx.sh --in server.pfx                                   # password asked hidden
+```
+
+Splits a PFX / PKCS#12 container from the customer's PKI (often a wildcard
+certificate) into the PEM files of a web server. The manual commands and the
+background: [08-SSL/README.md – Manual: split a PFX](../../08-SSL/README.md#manual-split-a-pfx--pkcs12-also-wildcard-certificates).
+
+| Option | Meaning |
+|---|---|
+| `--in FILE` | the PFX / P12 container |
+| `--pwd FILE` | file with the container password in its first line (e.g. `pw.text` from the mail); without it the password is asked hidden – never on the command line |
+| `-o DIR` | output directory for `--apply` (default: directory of the PFX); existing files are kept as `<file>.bak_<ts>` |
+| `--apply` | write `server.key` (600, unencrypted), `server.cert` (leaf), `ca_chain.cert` (intermediates in order leaf issuer → root) |
+
+**Without `--apply` (list):** OpenSSL version, password check ("WRONG
+PASSWORD" = exit 2), container format / encryption, every certificate with
+subject, issuer, names (SAN – the wildcard names), validity, CA yes / no,
+key size, signature, SHA-256 fingerprint; expired / expiring within 30 days
+/ SHA-1; which certificate matches the private key; chain order and
+`openssl verify`. Nothing is written; the extracted key exists only in a
+temporary 700 directory that is removed at the end.
+
+OpenSSL 1.1.1 (OL 8) uses `-nodes`, OpenSSL 3 (OL 9) `-noenc`; an old RC2
+container is read with `-legacy` on OpenSSL 3 automatically. Exit 0 = ok,
+1 = findings (expired, no intermediate, key does not match …), 2 = error.
+Tested 2026-11-16 with OpenSSL 3.5 and a test PKI (modern and RC2 PFX,
+wrong password, PFX without and with reversed chain, `--apply` twice).
 
 ## ihw_tools_lib.sh
 

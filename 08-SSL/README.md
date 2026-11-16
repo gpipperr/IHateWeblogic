@@ -426,7 +426,10 @@ written with root / sudo (`ihw_run_root`), otherwise the command is printed.
 ### Manual: split a PFX / PKCS#12 (also wildcard certificates)
 
 `ssl_customer_certs.sh` does this by itself (`server.pfx` / `server.p12` in
-`user_certs/`). By hand – e.g. on a host without the library, or to look at a
+`user_certs/`). On a customer host without the library: the standalone tool
+[`create_server_cert_from_pfx.sh`](../70-Customer-Projects/tools/README.md#create_server_cert_from_pfxsh)
+of the customer tools ZIP (list the container, `--apply` writes the three
+files). By hand – e.g. on a host without the library, or to look at a
 customer PFX first – the commands differ between the OpenSSL versions:
 
 | | OpenSSL 1.1.1 (OL 8, e.g. 1.1.1k) | OpenSSL 3.x (OL 9) |

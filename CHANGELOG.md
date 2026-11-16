@@ -10,6 +10,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **create_server_cert_from_pfx.sh** (customer tools): PFX / PKCS#12 → `server.key` / `server.cert` /
+  `ca_chain.cert`; without `--apply` it lists the container (password, format, names, validity, key ↔
+  certificate, chain); OpenSSL 1.1.1 and 3 ([tools/README.md](70-Customer-Projects/tools/README.md#create_server_cert_from_pfxsh)).
 - **Manual PFX split** ([08-SSL/README.md](08-SSL/README.md#manual-split-a-pfx--pkcs12-also-wildcard-certificates)):
   key / certificate / chain from a PFX with OpenSSL 1.1.1 (`-nodes`) and 3.x (`-noenc`, `-legacy` for old
   RC2 PFX), checks (SAN, key ↔ certificate, chain with / without the root in the OS trust store),
