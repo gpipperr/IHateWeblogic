@@ -8,6 +8,17 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-16
+
+- **Forms FADS:** [forms_fads_app_dep_service.md](80-FMW-Architecture/forms_fads_app_dep_service.md),
+  collector facts "FADS in the domain" / "FADS software in home".
+- **Patch basics:** [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) – patch
+  vehicles FMW / DB, platforms, patch number → ARU / UPI, lsinventory, superset, Windows lag.
+- **Collector memory (2026-11-16.2):** `collect_fmw_env.sh` / `.ps1` write `51_forms_memory.txt`
+  (every frmweb with RSS, private, PSS, session / pool; heap / GC arguments and RSS of every WLS
+  server; prestart keys of formsweb.cfg) and the facts "Forms frmweb memory", "WLS heap (Xms/Xmx,
+  RSS)", "Forms prestart sections" – for comparing the memory of Forms 12c and 14c hosts.
+
 ## 2026-11-13
 
 - **SEO:** front matter `title` (≤ 60 characters) and `description` (140–160) for the 52 pages that

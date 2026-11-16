@@ -63,7 +63,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.2"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $on_windows = ([Environment]::OSVersion.Platform -eq 'Win32NT')
@@ -431,6 +431,54 @@ if ($DH) {
         if ((Test-Path -LiteralPath $uo) -and (Select-String -LiteralPath $uo -Pattern '^\s*(set\s+|export\s+)?"?DERBY_FLAG="?false"?' -Quiet)) { $dflag = $true }
     }
     local-fact "DERBY_FLAG (setUserOverrides)" $(if ($dflag) { "false" } else { "not set (Derby starts with every server)" })
+}
+# Forms memory (2026-11-16): frmweb runs OUTSIDE the WLS_FORMS heap. Working
+# set counts shared DLLs in every process again - private = PrivatePageCount
+# (private bytes). Client = established connection from a socket of the parent
+# JVM (Forms Listener servlet), pool = none (06-FormsDiag/forms_perf_analyse.sh).
+# Win32_Process only - the Linux test run has no WorkingSetSize / ParentProcessId (StrictMode)
+$frm = @(if ($on_windows) { $procs | Where-Object { $_.Name -match '^frmweb' } })
+$est = @()
+if ($on_windows) { $est = @(Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue) }
+$frm_rows = @(foreach ($p in $frm) {
+    $jports = @($est | Where-Object { $_.OwningProcess -eq $p.ParentProcessId } | ForEach-Object { $_.LocalPort })
+    $cl = @($est | Where-Object { $_.OwningProcess -eq $p.ProcessId -and $jports -contains $_.RemotePort }).Count
+    $sec = if ("$($p.CommandLine)" -match 'webfile=[^,]*,(\S+)') { $Matches[1] } else { "?" }
+    [pscustomobject]@{ Pid = $p.ProcessId; PPid = $p.ParentProcessId; Section = $sec
+                       WorkingSetMB = [math]::Round($p.WorkingSetSize / 1MB); PrivateMB = [math]::Round($p.PrivatePageCount / 1MB)
+                       Started = $p.CreationDate; Kind = $(if ($cl) { "session" } else { "pool" }) }
+})
+local-runps 51_forms_memory.txt "frmweb per process (MB): working set, private bytes, session|pool" { if ($frm_rows.Count) { $frm_rows | Format-Table -AutoSize } else { "none" } }
+$wls = @(if ($on_windows) { $procs | Where-Object { "$($_.CommandLine)" -match 'weblogic\.Server' } })
+$wls_rows = @(foreach ($p in $wls) {
+    $c = "$($p.CommandLine)"
+    [pscustomobject]@{ Pid = $p.ProcessId; Server = $(if ($c -match '-Dweblogic\.Name=(\S+)') { $Matches[1] } else { "?" })
+                       WorkingSetMB = [math]::Round($p.WorkingSetSize / 1MB); PrivateMB = [math]::Round($p.PrivatePageCount / 1MB)
+                       Args = ((([regex]::Matches($c, '(-Xm[sx]\S+|-XX:(Max|Min)?(Metaspace|RAMPercentage|HeapFreeRatio)\S*|-XX:\+Use\w*GC|-XX:\+AlwaysPreTouch|-XX:G1PeriodicGCInterval\S*)')) | ForEach-Object { $_.Value }) -join ' ') }
+})
+local-runps 51_forms_memory.txt "WLS servers: heap / GC arguments, working set, private bytes" { if ($wls_rows.Count) { $wls_rows | Format-List } else { "none" } }
+$cfgs = @()
+if (local-isdir $DH) { $cfgs = @(Get-ChildItem -LiteralPath (local-jp @($DH, "config", "fmwconfig", "servers")) -Recurse -Filter formsweb.cfg -File -ErrorAction SilentlyContinue) }
+local-runps 51_forms_memory.txt "formsweb.cfg prestart / pool keys per section" {
+    foreach ($f in $cfgs) { $f.FullName; $s = ""
+        foreach ($l in (Get-Content -LiteralPath $f.FullName)) { if ($l -match '^\[') { $s = $l } elseif ($l -match '^\s*(prestart\w*|maxRuntimeProcesses)\s*=') { "  $s $l" } } }
+}
+if ($frm_rows.Count) {
+    $ses = @($frm_rows | Where-Object { $_.Kind -eq "session" })
+    $per = if ($ses.Count) { [math]::Round(($ses | Measure-Object PrivateMB -Sum).Sum / $ses.Count) } else { "-" }
+    local-fact "Forms frmweb memory" ("{0} procs ({1} session, {2} pool): working set {3} MB, private {4} MB, max working set {5} MB, private per session {6} MB" -f `
+        $frm_rows.Count, $ses.Count, ($frm_rows.Count - $ses.Count), ($frm_rows | Measure-Object WorkingSetMB -Sum).Sum,
+        ($frm_rows | Measure-Object PrivateMB -Sum).Sum, ($frm_rows | Measure-Object WorkingSetMB -Maximum).Maximum, $per)
+} else {
+    local-fact "Forms frmweb memory" "no frmweb running"
+}
+local-fact "WLS heap (Xms/Xmx, RSS)" $(if ($wls_rows.Count) { ($wls_rows | ForEach-Object {
+        $xs = if ($_.Args -match '(-Xms\S+)') { $Matches[1] } else { "-Xms?" }
+        $xm = if ($_.Args -match '(-Xmx\S+)') { $Matches[1] } else { "-Xmx(default 1/4 RAM)" }
+        "$($_.Server) $xs/$xm ws=$($_.WorkingSetMB)MB" }) -join '; ' } else { "no WLS server running" })
+if ($DH) {
+    local-fact "Forms prestart sections" ((@(foreach ($f in $cfgs) { $s = ""
+        foreach ($l in (Get-Content -LiteralPath $f.FullName)) { if ($l -match '^\[') { $s = $l } elseif ($l -match '^\s*prestartRuntimes\s*=\s*true') { $s } } })) -join ' ')
 }
 
 #==============================================================================

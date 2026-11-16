@@ -35,7 +35,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.2"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -350,6 +350,48 @@ if [ -n "$DH" ]; then
         && fact "DERBY_FLAG (setUserOverrides)" "false" || fact "DERBY_FLAG (setUserOverrides)" "not set (Derby starts with every server)"
 fi
 unset _dpid _dlsn
+# Forms memory (2026-11-16): frmweb runs OUTSIDE the WLS_FORMS heap. RSS counts
+# the shared libraries in every process again - private = RssAnon, fair share
+# = Pss (smaps_rollup). Client = established connection from a socket of the
+# parent JVM (Forms Listener servlet), pool = no such connection - the rule of
+# 06-FormsDiag/forms_perf_analyse.sh. Heap of every WLS server from its args.
+_est="$(ss -tnpH state established 2>/dev/null)"
+_fm="$(for p in $(pgrep -x frmweb 2>/dev/null); do
+          pp="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
+          sec="$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | sed -n 's/.*webfile=[^,]*,\([^ ]*\).*/\1/p')"
+          rss="$(awk '/^VmRSS/ {print int($2/1024)}' "/proc/$p/status" 2>/dev/null)"
+          anon="$(awk '/^RssAnon/ {print int($2/1024)}' "/proc/$p/status" 2>/dev/null)"
+          pss="$(awk '/^Pss:/ {print int($2/1024)}' "/proc/$p/smaps_rollup" 2>/dev/null)"
+          et="$(ps -o etime= -p "$p" 2>/dev/null | tr -d ' ')"
+          jp="$(printf '%s\n' "$_est" | grep "pid=$pp," | awk '{n = split($3, a, ":"); print a[n]}')"
+          cl="$(printf '%s\n' "$_est" | grep "\"frmweb\",pid=$p," | awk '{n = split($4, a, ":"); print a[n]}' | grep -cxF -f <(printf '%s\n' "${jp:-none}"))"
+          printf '%s %s %s %s %s %s %s %s\n' "$p" "${pp:-?}" "${sec:-?}" "${rss:-0}" "${anon:-0}" "${pss:--}" "${et:--}" "$( [ "${cl:-0}" -gt 0 ] && printf session || printf pool)"
+      done)"
+{
+    printf '### frmweb per process (MB): pid ppid section rss rss_anon(private) pss etime session|pool\n'
+    printf '%s\n' "${_fm:-none}"
+    printf '### rc=0\n\n'
+} >> "$OUT/51_forms_memory.txt"
+runsh 51_forms_memory.txt "WLS servers: heap / GC arguments and RSS" \
+    "for p in \$(pgrep -f 'weblogic[.]Server'); do printf '%s %s rss=%sMB %s\n' \$p \"\$(tr '\\0' '\\n' < /proc/\$p/cmdline | sed -n 's/^-Dweblogic[.]Name=//p')\" \"\$(awk '/^VmRSS/ {print int(\$2/1024)}' /proc/\$p/status)\" \"\$(tr '\\0' '\\n' < /proc/\$p/cmdline | grep -E '^-Xm[sx]|^-XX:(Max|Min)?(Metaspace|RAMPercentage|HeapFreeRatio)|^-XX:[+]Use[A-Za-z]*GC|^-XX:[+]AlwaysPreTouch|^-XX:G1PeriodicGCInterval' | tr '\\n' ' ')\"; done"
+[ -n "$DH" ] && runsh 51_forms_memory.txt "formsweb.cfg prestart / pool keys per section" \
+    "for f in \$(find '$DH/config/fmwconfig/servers' -name formsweb.cfg 2>/dev/null); do printf '%s\n' \"\$f\"; awk '/^\\[/ {s=\$0} /^[[:space:]]*(prestart[A-Za-z]*|maxRuntimeProcesses)[[:space:]]*=/ {print \"  \" s \" \" \$0}' \"\$f\"; done"
+if [ -n "$_fm" ]; then
+    fact "Forms frmweb memory" "$(printf '%s\n' "$_fm" | awk '{n++; r+=$4; a+=$5; if ($6 != "-") p+=$6; if ($4 > m) m=$4; if ($8 == "session") {s++; sa+=$5}}
+        END {printf "%d procs (%d session, %d pool): RSS %d MB, private %d MB, PSS %d MB, max RSS %d MB, private per session %s MB",
+             n, s, n-s, r, a, p, m, (s ? int(sa/s) : "-")}')"
+else
+    fact "Forms frmweb memory" "no frmweb running"
+fi
+_wh="$(for p in $(pgrep -f 'weblogic[.]Server' 2>/dev/null); do
+          tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null | awk -v r="$(awk '/^VmRSS/ {print int($2/1024)}' "/proc/$p/status" 2>/dev/null)" \
+              '/^-Dweblogic[.]Name=/ {sub(/^-Dweblogic[.]Name=/, ""); n=$0} /^-Xms/ {xs=$0} /^-Xmx/ {xm=$0}
+               END {printf "%s %s/%s rss=%sMB; ", n, (xs ? xs : "-Xms?"), (xm ? xm : "-Xmx(default 1/4 RAM)"), r}'
+      done)"
+fact "WLS heap (Xms/Xmx, RSS)" "${_wh:-no WLS server running}"
+[ -n "$DH" ] && fact "Forms prestart sections" "$(find "$DH/config/fmwconfig/servers" -name formsweb.cfg -exec \
+        awk '/^\[/ {s=$0} tolower($0) ~ /^[[:space:]]*prestartruntimes[[:space:]]*=[[:space:]]*true/ {printf "%s ", s}' {} + 2>/dev/null | tr -s ' ')"
+unset _est _fm _wh
 
 # =============================================================================
 # 6. Oracle Net, web tier
