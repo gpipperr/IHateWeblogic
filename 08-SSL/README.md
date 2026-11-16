@@ -8,6 +8,44 @@ permalink: /08-SSL/
 
 > Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
 
+## Terms – what is meant
+
+The biggest source of confusion: **the file extension says little about the
+content.** `.crt`, `.cert`, `.cer` and `.pem` can all hold the same
+certificate, in text (PEM) or binary (DER) encoding. Always say **what** a
+file holds (key, certificate, chain, container) and **which encoding** it
+has.
+
+| Term (standard) | What it is | Typical extensions | Recognised by |
+|---|---|---|---|
+| **X.509 certificate** | public key + name (subject, SAN) + issuer + validity, signed by a CA – public, may be shown to anybody | `.crt` `.cert` `.cer` `.pem` | – |
+| **Private key** (PKCS#1 / PKCS#8) | the secret half of the key pair – never leaves the server, mode `600` | `.key` `.pem` | PEM header `-----BEGIN` … `PRIVATE KEY-----` (with `ENCRYPTED` before `PRIVATE` = with passphrase) |
+| **Chain** (intermediate CA certificates) | the certificates between the server certificate and the root – the server must send them | `chain.crt` `ca_chain.cert` `.pem` | several `BEGIN CERTIFICATE` blocks |
+| **Root CA certificate** | the trust anchor; lives in the client's trust store, not on the server | `root.crt` `ca.cer` | subject = issuer |
+| **PEM** (RFC 7468) | an *encoding*: Base64 text between `-----BEGIN …-----` / `-----END …-----` – Nginx, Apache, openssl | `.pem` `.crt` `.key` | readable with `cat` |
+| **DER** | the same content binary – Windows / Java import | `.cer` `.der` | not readable, `openssl x509 -inform der` |
+| **PKCS#12** (RFC 7292) | a password-protected *container*: key + certificate + chain in one file | **`.pfx` = `.p12`** (same format) | binary; `openssl pkcs12 -info` asks for the password |
+| **PKCS#7** | certificates / chain only, no key | `.p7b` `.p7c` | `openssl pkcs7 -print_certs` |
+| **CSR** (PKCS#10) | certificate request: public key + name, sent to the CA | `.csr` | `-----BEGIN CERTIFICATE REQUEST-----` |
+| **JKS** | Java's old key store – convert to PKCS#12 | `.jks` | `keytool -list` |
+
+What is it? Three commands answer it:
+
+```bash
+file server.cer                                   # "PEM certificate" / "Certificate, Version=3" (DER) / "data" (e.g. PKCS#12)
+head -1 server.cer                                # PEM: -----BEGIN CERTIFICATE----- / PRIVATE KEY / CERTIFICATE REQUEST
+openssl x509 -in server.cer -inform der -noout -subject   # works -> DER certificate
+```
+
+In this library: `server.crt` (or `server.cert`) = the server certificate
+(PEM), `server.key` = its private key (PEM, unencrypted for Nginx / Apache),
+`chain.crt` (or `ca_chain.cert`) = the intermediates (PEM), `fullchain.pem` =
+server certificate + chain in one file (Nginx). A customer "certificate" in
+a `.pfx` is a PKCS#12 container – split it with
+[the manual steps](#manual-split-a-pfx--pkcs12-also-wildcard-certificates).
+More formats (Oracle wallet, JCEKS) and who uses which:
+[certificates_trust_stores.md §1.1](../80-FMW-Architecture/certificates_trust_stores.md#11-formats-and-containers).
+
 **Module:** `08-SSL/`
 **Runs as:** `root` (cert deployment) / `oracle` (audit + CSR)
 **Phase:** Operational – before initial start and on every certificate renewal

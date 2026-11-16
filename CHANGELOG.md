@@ -10,6 +10,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **08-SSL terms** ([08-SSL/README.md](08-SSL/README.md#terms--what-is-meant)): short list of the standard terms
+  (X.509 certificate, private key, chain, root, PEM, DER, PKCS#12 = `.pfx` / `.p12`, PKCS#7, CSR, JKS) with
+  the usual extensions and how to recognise a file – the extension says little about the content.
 - **create_server_cert_from_pfx.sh** (customer tools): PFX / PKCS#12 → `server.key` / `server.cert` /
   `ca_chain.cert`; without `--apply` it lists the container (password, format, names, validity, key ↔
   certificate, chain); OpenSSL 1.1.1 and 3 ([tools/README.md](70-Customer-Projects/tools/README.md#create_server_cert_from_pfxsh)).
