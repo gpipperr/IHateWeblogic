@@ -63,7 +63,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-13.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $on_windows = ([Environment]::OSVersion.Platform -eq 'Win32NT')
@@ -372,7 +372,23 @@ if ($DH) {
         # listen-port is missing in config.xml when it is the default 7001 (StrictMode: check the property)
         local-fact "Servers (config.xml)" ((@($xml.domain.server | ForEach-Object { "{0}:{1}" -f $_.name, $(if ($_.PSObject.Properties['listen-port']) { $_.'listen-port' } else { "7001" }) })) -join ' ')
     }
+    # Forms Application Deployment Services (FADS): software in every Forms
+    # home, in the domain only when the extension template + fads_config.py
+    # were applied - then FADS also writes formsweb.cfg, Registry.dat,
+    # jvmcontrollers.cfg, <app>.env (80-FMW-Architecture/forms_fads_app_dep_service.md)
+    $fapps = @(Select-String -LiteralPath $cfg -Pattern '<name>(fads[^<]*)</name>' -AllMatches -ErrorAction SilentlyContinue | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $dinfo = local-jp @($DH, "init-info", "domain-info.xml")
+    $ftpl = ""
+    $m = Select-String -LiteralPath $dinfo -Pattern 'name="([^"]*Application Deployment Servic[^"]*)"' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($m) { $ftpl = $m.Matches[0].Groups[1].Value }
+    local-runps 40_domain.txt "FADS (Forms Application Deployment Services): deployments, template" ([scriptblock]::Create("Select-String -LiteralPath '$($cfg -replace "'", "''")' -Pattern '<name>fads' -Context 1,6 -ErrorAction SilentlyContinue | ForEach-Object { `$_.ToString() }; Select-String -LiteralPath '$($dinfo -replace "'", "''")' -Pattern 'Application Deployment Servic' -ErrorAction SilentlyContinue | ForEach-Object { `$_.Line.Trim() }"))
+    if ($fapps.Count -or $ftpl) {
+        local-fact "FADS in the domain" ("CONFIGURED (deployments: {0}; template: {1})" -f $(if ($fapps.Count) { $fapps -join ' ' } else { "none" }), $(if ($ftpl) { $ftpl } else { "not listed" }))
+    } else {
+        local-fact "FADS in the domain" "not configured"
+    }
 }
+if ($OH) { local-fact "FADS software in home" $(if (Test-Path -LiteralPath (local-jp @($OH, "forms", "fads", "fads.ear"))) { "yes (forms/fads)" } else { "no" }) }
 
 #==============================================================================
 # 5. Running processes, Windows services

@@ -35,7 +35,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-13.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -303,7 +303,22 @@ if [ -n "$DH" ]; then
     fact "Domain version (config.xml)" "$(sed -n 's/.*<domain-version>\([^<]*\)<.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Domain" "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Servers (config.xml)" "$(awk '/<server>/{s=1} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");printf "%s ",$0;s=0}' "$DH/config/config.xml")"
+    # Forms Application Deployment Services (FADS): software in every Forms
+    # home, in the domain only when the extension template + fads_config.py
+    # were applied - then FADS also writes formsweb.cfg, Registry.dat,
+    # jvmcontrollers.cfg, <app>.env (80-FMW-Architecture/forms_fads_app_dep_service.md)
+    _fapps="$(grep -o '<name>fads[^<]*</name>' "$DH/config/config.xml" 2>/dev/null | sed 's/<[^>]*>//g' | sort -u | paste -sd' ' -)"
+    _ftpl="$(grep -oi 'name="[^"]*Application Deployment Servic[^"]*"' "$DH/init-info/domain-info.xml" 2>/dev/null | head -1 | sed 's/^name=//; s/"//g')"
+    runsh 40_domain.txt "FADS (Forms Application Deployment Services): deployments, template, software" \
+        "grep -n -B1 -A6 '<name>fads' '$DH/config/config.xml' 2>/dev/null; grep -i 'Application Deployment Servic' '$DH/init-info/domain-info.xml' 2>/dev/null; ls -l --time-style=long-iso '$OH/forms/fads' 2>&1"
+    if [ -n "$_fapps" ] || [ -n "$_ftpl" ]; then
+        fact "FADS in the domain" "CONFIGURED (deployments: ${_fapps:-none}; template: ${_ftpl:-not listed})"
+    else
+        fact "FADS in the domain" "not configured"
+    fi
+    unset _fapps _ftpl
 fi
+[ -n "$OH" ] && fact "FADS software in home" "$( [ -f "$OH/forms/fads/fads.ear" ] && printf 'yes (forms/fads)' || printf 'no')"
 
 # =============================================================================
 # 5. Running processes
