@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-11.1"
+IHWT_LIB_VERSION="2026-11-16.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -547,5 +547,269 @@ ihwt_ops_from_domain() {
     if [ -z "${ORACLE_HOME:-}" ]; then
         v="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}\(ORACLE_HOME\|MW_HOME\)="\{0,1\}\([^"$]*\)"\{0,1\}.*/\3/p' "$DOMAIN_HOME/bin/setDomainEnv.sh" 2>/dev/null | head -1)"
         [ -n "$v" ] && ORACLE_HOME="$v"
+    fi
+}
+
+# =============================================================================
+# Building blocks shared by collect_fmw_env.sh (installed / patch / Java / OS /
+# performance / security) and export_forms_reports_conf.sh (configuration for
+# the rebuild) - 2026-11-16: the load profile and the certificates moved from
+# the export into the collector.
+# =============================================================================
+
+# ihwt_identity WIDTH OH DH - identification lines "KEY<pad>value" of a run
+ihwt_identity() {
+    local w="$1" oh="$2" dh="$3"
+    printf "%-${w}s %s\n" Host "$(hostname -f 2>/dev/null || hostname)" \
+        ORACLE_HOME "${oh:-(not found)}" DOMAIN_HOME "${dh:-(not found)}" \
+        Platform "$(uname -sm 2>/dev/null)" \
+        "FMW version" "$(grep -m1 -oE 'version="1[0-9.]+"' "$oh/inventory/registry.xml" 2>/dev/null)" \
+        Java "$("$oh/oracle_common/jdk/bin/java" -version 2>&1 | head -1)" \
+        CPUs "$(nproc 2>/dev/null)" \
+        "RAM MB" "$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+}
+
+# ihwt_rs_list DOMAIN_HOME - Reports servers of the domain, one line each:
+#   name;type;rwserver.conf;rwnetwork.conf;dir
+#   type standalone = system component; in-process = rwservlet with
+#   <inprocess>yes; servlet = rwservlet configuration pointing to another server
+ihwt_rs_list() {
+    local dh="$1" cfg="$1/config/fmwconfig" n d srv inp names=()
+    while IFS= read -r n; do [ -n "$n" ] && names+=("$n"); done < <(
+        awk '/<system-component>/{n="";t=""} /<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)}
+             /<component-type>ReportsServerComponent</{t="R"} /<\/system-component>/{if(t=="R")print n}' "$dh/config/config.xml" 2>/dev/null)
+    for d in "$cfg"/components/ReportsServerComponent/*; do
+        [ -d "$d" ] || continue; n="$(basename "$d")"; [ "$n" = mbeans ] && continue
+        printf '%s\n' "${names[@]}" | grep -qx "$n" || names+=("$n")
+    done
+    for n in "${names[@]}"; do
+        d="$cfg/components/ReportsServerComponent/$n"
+        printf '%s;standalone;%s;%s;%s\n' "$n" "$d/rwserver.conf" "$d/rwnetwork.conf" "$d"
+    done
+    find "$cfg/servers" -maxdepth 4 -type d -path '*/applications/reports_*/configuration' 2>/dev/null | sort | while IFS= read -r d; do
+        srv="$(sed -n 's:.*<server>\([^<]*\)</server>.*:\1:p' "$d/rwservlet.properties" 2>/dev/null | head -1)"
+        inp="$(sed -n 's:.*<inprocess>\([^<]*\)</inprocess>.*:\1:p' "$d/rwservlet.properties" 2>/dev/null | head -1)"
+        if [ "$inp" = yes ]; then printf '%s;in-process;%s;%s;%s\n' "${srv:-in-process}" "$d/rwserver.conf" "$d/rwnetwork.conf" "$d"
+        else printf '%s;servlet;%s;%s;%s\n' "${srv:--}" "$d/rwserver.conf" "$d/rwnetwork.conf" "$d"; fi
+    done
+}
+# ihwt_rs_running NAME - rc 0 when the Reports server NAME runs
+ihwt_rs_running() { pgrep -f "rwserver.* server=$1( |$)" >/dev/null 2>&1; }
+
+# ihwt_load_profile DOMAIN_HOME LOADDIR DAYS - AGGREGATED load counts of the
+# last DAYS days into LOADDIR (no raw log line leaves the host: access logs
+# hold client IPs, user names and - with GET report calls - even passwords).
+# Reports admin for getserverinfo / showjobs of a secured server: IHWT_RWAUTH
+# (user/password, set by the caller, cleared here). Read-only.
+ihwt_load_profile() {
+    local dh="$1" load="$2" days="$3" cut f rs code rport rwurl elf
+    local -a fl rl
+    mkdir -p "$load" || return 1
+    cut="$(date -d "-$days days" +%Y-%m-%d)"
+    _ihwt_lp_logs() { find "$dh"/servers/$1/logs -maxdepth 1 -type f -name 'access.log*' -mtime -"$days" 2>/dev/null | sort; }
+    _ihwt_lp_cat()  { case "$1" in *.gz) zcat -- "$1" 2>/dev/null ;; *) cat -- "$1" 2>/dev/null ;; esac; }
+    # ELF access log (WebLogic "extended", #Fields header) - field positions from the header
+    elf='
+        /^#Fields:/ { dI=tI=uI=sI=ttI=0; n=split($0,a,/[ \t]+/)
+                      for (i=2;i<=n;i++) { f=a[i]; j=i-1
+                          if (f=="date") dI=j; else if (f=="time") tI=j; else if (f=="cs-uri") uI=j
+                          else if (f=="sc-status") sI=j; else if (f=="time-taken") ttI=j }
+                      next }
+        /^#/ || !dI || !uI { next }
+        { d=$dI; h=substr($tI,1,2); u=$uI; st=$sI; if (d !~ /^[0-9][0-9][0-9][0-9]-/ || d < cut) next }'
+    # --- Forms ---------------------------------------------------------------
+    mapfile -t fl < <(_ihwt_lp_logs '*FORMS*')
+    if [ ${#fl[@]} -gt 0 ]; then
+        for f in "${fl[@]}"; do _ihwt_lp_cat "$f"; done | awk -v cut="$cut" "$elf"'
+            u ~ /\/frmservlet/ && st ~ /^2/ { c="default"
+                if (match(u, /[?&]config=[^&]+/)) { c=substr(u, RSTART+8, RLENGTH-8) }
+                gsub(/[;\t ]/, "_", c); starts[d ";" c]++; hour[h]++ }
+            u ~ /\/lservlet/ { ls[d]++ }
+            { req[d]++; if (st ~ /^5/) e5[d]++; if (ttI && $ttI ~ /^[0-9.]+$/) { tt[d]+=$ttI; tn[d]++ } }
+            END {
+                for (k in starts) print k ";" starts[k] > "'"$load"'/forms_starts.csv"
+                for (x in hour) print x ";" hour[x] > "'"$load"'/forms_hourly.csv"
+                for (x in req) printf "%s;%d;%d;%d;%s\n", x, req[x], ls[x], e5[x], (tn[x] ? sprintf("%.0f", 1000*tt[x]/tn[x]) : "-") > "'"$load"'/forms_traffic.csv"
+            }'
+        printf '%s\n' "${fl[@]}" | sed "s#^$dh/#\$DOMAIN_HOME/#" > "$load/forms_logfiles.txt"
+    fi
+    # frmweb processes right now (concurrent sessions + pool)
+    f="$(ps -C frmweb -o rss= 2>/dev/null)"
+    printf 'frmweb_count=%s\nfrmweb_rss_avg_mb=%s\nfrmweb_rss_max_mb=%s\nfrmweb_rss_total_mb=%s\n' \
+        "$(printf '%s\n' "$f" | grep -c '[0-9]')" \
+        "$(printf '%s\n' "$f" | awk 'NF{s+=$1;n++} END{print (n?int(s/n/1024):0)}')" \
+        "$(printf '%s\n' "$f" | awk 'NF&&$1>m{m=$1} END{print int(m/1024)}')" \
+        "$(printf '%s\n' "$f" | awk 'NF{s+=$1} END{print int(s/1024)}')" > "$load/now.txt"
+    # --- Reports: servlet requests per day and command --------------------------
+    mapfile -t rl < <(_ihwt_lp_logs '*REPORTS*')
+    if [ ${#rl[@]} -gt 0 ]; then
+        for f in "${rl[@]}"; do _ihwt_lp_cat "$f"; done | awk -v cut="$cut" "$elf"'
+            u ~ /\/rwservlet/ { c=u; sub(/^.*\/rwservlet\/?/, "", c); sub(/[?;].*$/, "", c); if (c=="") c="(report run)"
+                gsub(/[0-9]+$/, "", c); k=d ";" c; r[k]++; if (st ~ /^5/) e[k]++ }
+            END { for (k in r) printf "%s;%d;%d\n", k, r[k], e[k] > "'"$load"'/reports_requests.csv" }'
+    fi
+    printf 'rwengine_count=%s\n' "$(pgrep -fc 'RWEngine|rwEng-[0-9]' 2>/dev/null)" >> "$load/now.txt"
+    # --- Reports: getserverinfo + past jobs of every RUNNING server --------------
+    # (a not running in-process server is NOT asked - the request would start it)
+    rport="$(awk '/<server>/{s=1;n="";p=""} s&&/<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)} s&&/<listen-port>/{p=$0; gsub(/.*<listen-port>|<\/listen-port>.*/,"",p)}
+                   /<\/server>/{ if (s && n ~ /REPORTS/ && p != "") { print p; exit } s=0 }' "$dh/config/config.xml" 2>/dev/null)"
+    rwurl="http://127.0.0.1:${rport:-9002}/reports/rwservlet"
+    # _ihwt_rw CMD SERVER OUTFILE [extra data] - POST, authid only via curl config on stdin
+    _ihwt_rw() {
+        { printf 'url = "%s/%s"\n' "$rwurl" "$1"
+          printf 'data = "server=%s&statusformat=XML%s"\n' "$2" "${4:+&$4}"
+          [ -n "${IHWT_RWAUTH:-}" ] && printf 'data-urlencode = "authid=%s"\n' "$IHWT_RWAUTH"
+        } | curl -s -m 60 -K - -o "$3" -w '%{http_code}' 2>/dev/null
+    }
+    if command -v curl >/dev/null 2>&1; then
+        ihwt_rs_list "$dh" | awk -F';' '$2!="servlet" {print $1}' | sort -u | while read -r rs; do
+            ihwt_rs_running "$rs" || continue
+            code="$(_ihwt_rw getserverinfo "$rs" "$load/reports_${rs}_serverinfo.xml")"
+            if ! grep -q '<serverInfo' "$load/reports_${rs}_serverinfo.xml" 2>/dev/null; then
+                printf '%s;getserverinfo;HTTP %s - no serverInfo (secured server: --rw-auth USER)\n' "$rs" "$code" >> "$load/reports_not_collected.txt"
+                rm -f "$load/reports_${rs}_serverinfo.xml"; continue
+            fi
+            _ihwt_rw showjobs "$rs" "$load/.sj.xml" "queuetype=past&count=1000" >/dev/null
+            # one line per past job: server;id;report;status;started_epoch;seconds (no owner, no parameters)
+            tr '\n' ' ' < "$load/.sj.xml" | sed 's/<job /\n<job /g' | awk -v s="$rs" '
+                function ep(t,   a, m, p, h) { # "Nov 3, 2026, 3:32:15/PM"
+                    if (!match(t, /([A-Z][a-z][a-z]) ([0-9]+), ([0-9]+), ([0-9]+):([0-9]+):([0-9]+)\/(AM|PM)/, a)) return ""
+                    m = index("JanFebMarAprMayJunJulAugSepOctNovDec", a[1]); m = (m + 2) / 3; h = a[4] % 12; if (a[7] == "PM") h += 12
+                    return mktime(a[3] " " m " " a[2] " " h " " a[5] " " a[6]) }
+                /^<job / { id=$0; sub(/^<job id="/, "", id); sub(/".*/, "", id)
+                    n=$0; if (match(n, /<name>[^<]*<\/name>/)) n=substr(n, RSTART+6, RLENGTH-13); else n="-"
+                    c=$0; if (match(c, /<status code="[0-9]+"/)) c=substr(c, RSTART+14, RLENGTH-15); else c="-"
+                    a1=$0; b1=$0; st=""; fi=""; sr=""; fr=""
+                    if (match(a1, /<started>[^<]*<\/started>/)) { sr=substr(a1, RSTART+9, RLENGTH-19); st=ep(sr) }
+                    if (match(b1, /<finished>[^<]*<\/finished>/)) { fr=substr(b1, RSTART+10, RLENGTH-21); fi=ep(fr) }
+                    gsub(/[;]/, "_", n); gsub(/[;]/, ",", sr); gsub(/[;]/, ",", fr)
+                    printf "%s;%s;%s;%s;%s;%s;%s;%s\n", s, id, n, c, st, ((st != "" && fi != "") ? fi - st : ""), sr, fr }' >> "$load/reports_jobs.csv"
+            rm -f "$load/.sj.xml"
+        done
+    else
+        printf 'all;-;curl missing\n' >> "$load/reports_not_collected.txt"
+    fi
+    IHWT_RWAUTH=""
+    # --- host: sar history (sysstat) + now --------------------------------------
+    if command -v sar >/dev/null 2>&1; then
+        for f in $(find /var/log/sa -maxdepth 1 -name 'sa[0-9][0-9]' -mtime -"$days" 2>/dev/null | sort); do
+            local d cpu mem cpm
+            d="$(LC_ALL=C sar -f "$f" 2>/dev/null | head -1 | grep -oE '[0-9]{2}/[0-9]{2}/[0-9]{2,4}' | head -1 | awk -F/ '{y=$3; if (length(y)==2) y="20" y; print y "-" $1 "-" $2}')"
+            cpu="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {s+=100-$NF; n++} END {if (n) printf "%.0f", s/n}')"
+            mem="$(LC_ALL=C sar -r -f "$f" 2>/dev/null | awk '/%memused/ {for (i=1;i<=NF;i++) if ($i=="%memused") c=i} /^Average/ && c && $c ~ /^[0-9.]+$/ && $c+0 <= 100 {printf "%.0f", $c; exit}')"
+            cpm="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {b=100-$NF; if (b>m) m=b} END {printf "%.0f", m}')"
+            [ -n "$d" ] && printf '%s;%s;%s;%s\n' "$d" "${cpu:--}" "${cpm:--}" "${mem:--}"
+        done > "$load/host_sar.csv"
+    fi
+    { printf 'uptime=%s\n' "$(uptime -p 2>/dev/null)"
+      printf 'loadavg=%s\n' "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
+      printf 'load_days=%s\n' "$days"; } >> "$load/now.txt"
+    unset -f _ihwt_lp_logs _ihwt_lp_cat _ihwt_rw
+}
+
+# ihwt_certificates < routes - public part only (subject / issuer / expiry) of
+# every HTTPS listener of the routing table ($IHWT_WT_HEAD rows on stdin):
+# s_client with the server name, else the certificate file of the route.
+# Output "source;subject;issuer;not_after" (no header).
+ihwt_certificates() {
+    command -v openssl >/dev/null 2>&1 || return 0
+    awk -F';' '$5=="yes" { n=split($3, L, ","); sn=$4; sub(/,.*/, "", sn)
+                for (i=1; i<=n; i++) if (L[i] !~ /^\[/ || L[i] ~ /^\[::\]:/) print $1 ";" L[i] ";" sn ";" $10 }' \
+        | awk -F';' '{ p=$2; sub(/.*:/, "", p) } !seen[$1 ";" p ";" $3]++' \
+        | while IFS=';' read -r _t _l _sn _cf; do
+        local _h="${_l%:*}" _p="${_l##*:}" _src _c
+        case "$_h" in '*'|0.0.0.0|'[::]'|'') _h=127.0.0.1 ;; esac
+        case "$_sn" in ''|_|'*'*|localhost) _sn="$(hostname -f 2>/dev/null || hostname)" ;; esac
+        _src="https $_t $_l ($_sn)"
+        _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_sn" </dev/null 2>/dev/null \
+              | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
+        if [ -z "$_c" ] && [ -f "$_cf" ] && [ -r "$_cf" ]; then
+            _c="$(openssl x509 -in "$_cf" -noout -subject -issuer -enddate 2>/dev/null)"; _src="https $_t $_l (file $_cf)"
+        fi
+        if [ -n "$_c" ]; then
+            printf '%s;%s;%s;%s\n' "$_src" "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p' | tr ';' ',')" \
+                "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p' | tr ';' ',')" "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')"
+        else
+            printf '%s;-;-;not reachable / no readable certificate file\n' "$_src"
+        fi
+    done
+}
+
+# ihwt_os_advisories - open OS security advisories from the dnf CACHE (no
+# network, works as a normal user when the cache is readable). Prints
+#   "N advisories (C critical/important, P packages)" or "not available (...)"
+# and writes the list to stdout of IHWT_ADV_LIST when that variable names a file.
+ihwt_os_advisories() {
+    local l
+    command -v dnf >/dev/null 2>&1 || { printf 'not available (no dnf)'; return 0; }
+    if ! l="$(timeout 60 dnf -q --cacheonly updateinfo list --security 2>/dev/null)"; then
+        printf 'not available (no readable dnf cache)'; return 0
+    fi
+    [ -n "${IHWT_ADV_LIST:-}" ] && printf '%s\n' "$l" > "$IHWT_ADV_LIST"
+    printf '%s\n' "$l" | awk 'NF>=3 { a[$1]=1; p[$NF]=1; if ($2 ~ /^(Critical|Important)/) c[$1]=1 }
+        END { printf "%d advisories (%d critical/important, %d packages)", length(a), length(c), length(p) }'
+}
+# ihwt_dnf_cache_age - age of the dnf metadata cache in days ("-" if none)
+ihwt_dnf_cache_age() {
+    local f
+    f="$(find /var/cache/dnf "$HOME/.cache/dnf" -maxdepth 3 \( -name 'repomd.xml' -o -name '*.solv' \) -printf '%T@\n' 2>/dev/null | sort -n | tail -1)"
+    [ -n "$f" ] && printf '%s' $(( ( $(date +%s) - ${f%.*} ) / 86400 )) || printf '-'
+}
+
+# ihwt_epoch_of_pid PID - start time of a process as epoch (readable without root)
+ihwt_epoch_of_pid() { local t; t="$(ps -o lstart= -p "$1" 2>/dev/null)"; [ -n "$t" ] && date -d "$t" +%s 2>/dev/null; }
+
+# ihwt_nginx_patch [ADVISORY_LIST] - patch facts of the Nginx of this host
+# (the library builds on Nginx in front of WebLogic), one "key;value" per line.
+# Read-only, no root, no network (dnf cache only). ADVISORY_LIST = output of
+# "dnf updateinfo list --security" (ihwt_os_advisories, IHWT_ADV_LIST).
+ihwt_nginx_patch() {
+    local adv="${1:-}" bin v pk inst ven repo stream upd mpid mst ossl_inst
+    bin="$(command -v nginx 2>/dev/null || { [ -x /usr/sbin/nginx ] && printf /usr/sbin/nginx; })"
+    mpid="$(pgrep -f 'nginx: master process' 2>/dev/null | head -1)"
+    if [ -z "$bin" ] && [ -z "$mpid" ]; then printf 'installed;no\n'; return 0; fi
+    printf 'installed;yes\nbinary;%s\n' "${bin:-(not in PATH)}"
+    if [ -n "$bin" ]; then
+        v="$("$bin" -V 2>&1)"
+        printf 'version;%s\n' "$(printf '%s\n' "$v" | sed -n 's#^nginx version: nginx/##p')"
+        printf 'openssl;%s\n' "$(printf '%s\n' "$v" | sed -n 's/^built with //p')"
+        printf 'dynamic_modules_dir;%s\n' "$(printf '%s\n' "$v" | grep -oE -- '--modules-path=[^ ]+' | cut -d= -f2)"
+    fi
+    pk="$(rpm -qf --qf '%{NAME} %{VERSION}-%{RELEASE}\n' "${bin:-/usr/sbin/nginx}" 2>/dev/null | head -1)"
+    case "$pk" in
+        ""|*"not owned"*)
+            printf 'package;none (built / copied by hand - no patches through dnf)\norigin;own build\n' ;;
+        *)  inst="$(rpm -q --qf '%{INSTALLTIME}' "${pk%% *}" 2>/dev/null)"
+            ven="$(rpm -q --qf '%{VENDOR}' "${pk%% *}" 2>/dev/null)"
+            repo="$(timeout 30 dnf -q --cacheonly info --installed "${pk%% *}" 2>/dev/null | sed -n 's/^From repo *: *//p' | head -1)"
+            printf 'package;%s\npackage_installed;%s\n' "$pk" "$(date -d "@$inst" '+%Y-%m-%d %H:%M' 2>/dev/null)"
+            case "$ven$repo" in
+                *nginx*|*Nginx*|*F5*) printf 'origin;nginx.org repository (%s)\n' "${repo:-$ven}" ;;
+                *) printf 'origin;OS repository (%s, %s)\n' "${repo:-?}" "${ven:-?}" ;;
+            esac
+            stream="$(timeout 30 dnf -q --cacheonly module list --installed nginx 2>/dev/null | awk '$1=="nginx" {print $2; exit}')"
+            printf 'module_stream;%s\n' "${stream:-none (default version of the OS release)}"
+            upd="$(timeout 60 dnf -q --cacheonly list --upgrades 'nginx*' 2>/dev/null | awk 'NF==3 && $1 ~ /^nginx/ {print $1 " " $2}' | paste -sd, -)"
+            printf 'update_available;%s\n' "${upd:-none (dnf cache)}"
+            printf 'modules_installed;%s\n' "$(rpm -qa --qf '%{NAME} ' 'nginx-mod-*' 2>/dev/null)"
+            ;;
+    esac
+    if [ -n "$adv" ] && [ -f "$adv" ]; then
+        printf 'advisories_nginx;%s\n' "$(awk '$NF ~ /^nginx/ {a[$1]=$2} END {for (k in a) printf "%s(%s) ", k, a[k]}' "$adv")"
+        printf 'advisories_openssl;%s\n' "$(awk '$NF ~ /^openssl/ {a[$1]=$2} END {for (k in a) printf "%s(%s) ", k, a[k]}' "$adv")"
+    fi
+    if [ -n "$mpid" ]; then
+        mst="$(ihwt_epoch_of_pid "$mpid")"
+        printf 'master_pid;%s\nmaster_started;%s\n' "$mpid" "$(date -d "@$mst" '+%Y-%m-%d %H:%M' 2>/dev/null)"
+        ossl_inst="$(rpm -q --qf '%{INSTALLTIME}' openssl-libs 2>/dev/null)"
+        if [ -n "$inst" ] && [ -n "$mst" ] && [ "$mst" -lt "$inst" ]; then
+            printf 'restart_pending;yes (nginx package newer than the running master)\n'
+        elif [ -n "$ossl_inst" ] && [ -n "$mst" ] && [ "$ossl_inst" -gt "$mst" ] 2>/dev/null; then
+            printf 'restart_pending;yes (openssl-libs newer than the running master)\n'
+        else
+            printf 'restart_pending;no\n'
+        fi
+    else
+        printf 'master_pid;not running\n'
     fi
 }

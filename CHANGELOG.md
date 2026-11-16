@@ -14,6 +14,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   collector facts "FADS in the domain" / "FADS software in home".
 - **Patch basics:** [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) – patch
   vehicles FMW / DB, platforms, patch number → ARU / UPI, lsinventory, superset, Windows lag.
+- **Collector and export split (collector 2026-11-16.3, export 2026-11-16.1):** `collect_fmw_env.sh`
+  = the state (installed, patch level, Java, OS security advisories from the dnf cache, Nginx patch
+  facts in detail, memory, load profile, HTTPS certificates, Derby, FADS) without configuration files;
+  `export_forms_reports_conf.sh` = the configuration for the rebuild (load profile and listener
+  certificates moved to the collector). Shared blocks in `ihw_tools_lib.sh` (`ihwt_identity`,
+  `ihwt_rs_list`, `ihwt_load_profile`, `ihwt_certificates`, `ihwt_os_advisories`, `ihwt_nginx_patch`).
+  Every analysis needs both runs: patch analysis = collection, environment analysis = export +
+  collection ([tools/README.md](70-Customer-Projects/tools/README.md)).
 - **Collector memory (2026-11-16.2):** `collect_fmw_env.sh` / `.ps1` write `51_forms_memory.txt`
   (every frmweb with RSS, private, PSS, session / pool; heap / GC arguments and RSS of every WLS
   server; prestart keys of formsweb.cfg) and the facts "Forms frmweb memory", "WLS heap (Xms/Xmx,

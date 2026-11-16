@@ -47,11 +47,11 @@ runtime, never by a second copy of the script.
 
 | Script | Purpose |
 |---|---|
-| [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only metadata collection for the patch analysis |
+| [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only collection of the **state**: installed products, patch level (Oracle, Java, OS advisories, Nginx), performance (memory, load profile), security / quality of operation (Derby, FADS, certificates) – input of the patch analysis and, with the export, of the environment analysis |
 | [bash/mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
 | [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
-| [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports configuration (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, source paths + dependencies) into one encrypted archive for the 14c rebuild |
+| [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports **configuration** (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, web tier, source paths + dependencies) into one encrypted archive – everything to build the environment again |
 | [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
@@ -63,6 +63,14 @@ runtime, never by a second copy of the script.
 Cookbooks (`*_Kochbuch_de.txt`): **a blank line after every command**
 (customer request 2026-11-03).
 All style rules: [../cookbook-Skill.md](../cookbook-Skill.md).
+
+**Two tools, two analyses (2026-11-16)** – every analysis needs both runs on
+the host:
+
+| Tool | Collects | Analysis |
+|---|---|---|
+| `collect_fmw_env.sh` | what is installed where, patch level (Oracle, Java, OS security advisories, Nginx in detail), Java, memory, load profile, Derby, FADS, HTTPS certificates – masked, no configuration files | **patch analysis**: installed products, patch level, Java, OS, number of missing patches / advisories, Nginx, how to patch |
+| `export_forms_reports_conf.sh` | the configuration (raw copies + `ihw_import/` proposals) for the rebuild | **environment analysis** (export + collection): configuration, security, performance, load profile, 14c target – the patch level only as one summary line |
 
 Order at a customer (tools → setdb → ini → analysis or installation):
 [../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
@@ -76,10 +84,13 @@ Used by:
 
 ## collect_fmw_env.sh
 
-Collects the metadata of an Oracle Forms & Reports / FMW host – OS, Java,
-Oracle Home / inventory / patches, domain configuration, processes, Oracle
-Net, logs – for the **patch analysis** (the configuration for a move:
-[`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh)). Since 2026-11-05.1 the result is an
+Collects the **state** of an Oracle Forms & Reports / FMW host – OS and its
+open security advisories, Java, Oracle Home / inventory / patches, domain
+facts, processes and memory, web tier (Nginx patch facts in detail), HTTPS
+certificates, load profile, logs. The **configuration files** are not copied
+(since 2026-11-16.3) – they are in the export
+([`export_forms_reports_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/export_forms_reports_conf.sh));
+an analysis always needs both. Since 2026-11-05.1 the result is an
 **encrypted ZIP** (`fmw_collect_<host>_<ts>.zip.enc` + `.sha256`) – masked,
 but with host names, IPs and paths of the customer.
 
@@ -103,6 +114,20 @@ cd $ORACLE_BASE/tools
 | `--logs` | error / FRM- / REP- / ORA- lines of the server logs |
 | `--no-encrypt` | plain `.zip` instead of `.zip.enc` (the content is masked in both cases) |
 | `--keep` | keep the output directory next to the archive |
+| `--no-load` | no load profile (default: on – `load/`, see [export_forms_reports_conf.sh](#export_forms_reports_confsh) for the files) |
+| `--load-days N` | period of the load profile (access logs / sar files changed in the last N days, default 90) |
+| `--rw-auth USER` | Reports admin (`<identifier>`) for `getserverinfo` / `showjobs` of a **secured** Reports server – password asked hidden at the start; non-interactive: `IHW_RW_AUTH=user/password` in the environment. Passed to curl only via a config on stdin (never on the command line) |
+
+**Since 2026-11-16.3:**
+
+| File / fact | Content |
+|---|---|
+| `10_os.txt`, facts `OS security advisories`, `dnf cache age (days)` | open OS security advisories from the **dnf cache** (`dnf --cacheonly updateinfo list --security`, no network) – the analyses show only the numbers |
+| `61_webserver.txt` block `Nginx patch facts`, facts `Nginx …` | Nginx version, OpenSSL (built / running), package and origin (OS repository / nginx.org / own build), module stream, update available, open nginx / openssl advisories, master start time against the package install time (`restart pending`), modules and `load_module` lines |
+| facts `Apache WebLogic plug-in`, `Apache ProxyPass routes`, `httpd restart pending` | web tier patch facts derived from the configuration (the configuration itself: export) |
+| `62_certificates.txt`, fact `HTTPS certificates` | subject / issuer / expiry of every HTTPS listener (moved from the export) |
+| `load/` | the load profile (moved from the export) |
+| facts `Forms in domain`, `TNS_ADMIN (environment)`, identification (`Platform`, `FMW version`, `CPUs`, `RAM MB`) | for the analyses; `40_domain.txt` / `60_net.txt` list the configuration files with date and size, without content |
 
 Encryption: the same as the configuration export ([`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh)
 `ihwt_read_passphrase` / `ihwt_pack`: openssl AES-256-CBC, PBKDF2 200 000,
@@ -139,10 +164,10 @@ Check the version first: `./collect_fmw_env.sh -V` (also the first line of
 Result: `/tmp/fmw_collect_<host>_<timestamp>.zip.enc` (about 130 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `33_components`,
-`34_other_homes`, `35_opatch_prereq`, `40_config.xml`, `41_domain_scripts`,
-`42_forms_reports_config`, `43_ohs_config`, `44_forms_client`, `50_processes`,
-`60_net`, `61_webserver` (Nginx / Apache / standalone OHS: routing, rated
-directives, configuration with all includes), `70_logs`). Runtime on the test host: about 60 s.
+`34_other_homes`, `35_opatch_prereq`, `40_domain`, `43_ohs` (default
+`index.html`), `44_forms_client`, `50_processes`, `51_forms_memory`, `60_net`,
+`61_webserver` (Nginx / Apache / standalone OHS: routing, rated directives,
+patch facts), `62_certificates`, `load/`, `70_logs`). Runtime on the test host: about 90 s.
 
 **Read-only:** writes only into the output directory (OPatch writes its usual
 logs to `$ORACLE_HOME/cfgtoollogs` while it reads the inventory). Every
@@ -565,11 +590,14 @@ cd $ORACLE_BASE/tools
 | `--masked` | mask passwords in every file, archive not encrypted |
 | `--no-fonts` | list the font files only, do not copy them |
 | `--keep` | keep the unpacked staging directory (delete it yourself – customer data) |
-| `--no-load` | no load profile (default: on, see below) |
-| `--load-days N` | period of the load profile (access logs / sar files changed in the last N days, default 90) |
-| `--rw-auth USER` | Reports admin (`<identifier>`) for `getserverinfo` / `showjobs` of a **secured** Reports server – password asked hidden at the start; non-interactive: `IHW_RW_AUTH=user/password` in the environment. Passed to curl only via a config on stdin (never on the command line) |
 
-**Load profile** (`load/`, since 2026-11-04.4) – **only counted values**, no
+`--no-load` / `--load-days` / `--rw-auth` moved to `collect_fmw_env.sh` with
+the load profile and the HTTPS listener certificates (2026-11-16.1); the
+export accepts them and prints a note. `ihw_import/certificates.txt` keeps the
+signers of the customer jars.
+
+**Load profile** (`load/` of `collect_fmw_env.sh` since 2026-11-16.3, before
+of the export since 2026-11-04.4) – **only counted values**, no
 log line leaves the host (access logs hold client addresses, user names and,
 with GET report calls, passwords):
 

@@ -1,9 +1,13 @@
 #!/bin/bash
 # =============================================================================
 # Script   : export_forms_reports_conf.sh
-# Purpose  : Export the customer-specific Forms & Reports configuration of an
-#            EXISTING environment (12.2.1.x or 14.1.2) into one archive, for
-#            the rebuild with the IHateWeblogic 14c library:
+# Purpose  : Export the customer-specific Forms & Reports CONFIGURATION of an
+#            EXISTING environment (12.2.1.x or 14.1.2) into one archive - all
+#            that is needed to build the environment again with the
+#            IHateWeblogic 14c library. What is installed, patch level, Java,
+#            OS, performance (memory, load profile) and security / quality of
+#            operation (certificates, Derby ...) are NOT here - that is
+#            collect_fmw_env.sh; an analysis always needs both runs:
 #              raw/        1:1 copies (original paths below domain/,
 #                          oracle_home/, other/) – formsweb.cfg + every
 #                          envFile, Registry.dat, webutil.cfg, *.res,
@@ -31,19 +35,15 @@
 #            No IHateWeblogic library - bash + coreutils + openssl and the
 #            shared helpers ihw_tools_lib.sh next to this script.
 # Call     : ./export_forms_reports_conf.sh [-o ORACLE_HOME] [-d DOMAIN_HOME]
-#                 [-t OUTDIR] [--masked] [--no-fonts] [--keep] [--no-load]
-#                 [--load-days N] [--rw-auth USER]
+#                 [-t OUTDIR] [--masked] [--no-fonts] [--keep]
 #            -o / -d    default: environment, domain-registry.xml, process,
 #                       /oracle/product/mw, /u01/app/oracle/fmw ...
 #            -t         output directory (default /tmp)
 #            --masked   mask passwords, do not encrypt
 #            --no-fonts do not copy font files (only list them)
 #            --keep     keep the unpacked staging directory
-#            --no-load  no load profile (default: aggregated counts of the
-#                       last --load-days N days, default 90 - see 6b)
-#            --rw-auth USER  Reports admin for getserverinfo / showjobs of a
-#                       secured Reports server (password asked hidden; or
-#                       IHW_RW_AUTH=user/password in the environment)
+#            (--no-load / --load-days / --rw-auth: moved to collect_fmw_env.sh
+#            2026-11-16 - accepted and ignored here with a note)
 # Runs as  : the software owner (oracle), not root
 # Output   : <OUTDIR>/ihw_export_<host>_<ts>.zip.enc (+ .sha256)
 #            decrypt: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 \
@@ -57,10 +57,10 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-11.1"   # bump on every change – shown in the report
+VERSION="2026-11-16.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
-MASKED=false; FONTS=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; RWAUTH="${IHW_RW_AUTH:-}"
+MASKED=false; FONTS=true; KEEP=false; MOVED=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OH="${2:-}"; shift ;;
@@ -69,9 +69,8 @@ while [ $# -gt 0 ]; do
         --masked)   MASKED=true ;;
         --no-fonts) FONTS=false ;;
         --keep)     KEEP=true ;;
-        --no-load)  LOADP=false ;;
-        --load-days) LOAD_DAYS="${2:-90}"; shift ;;
-        --rw-auth)  RW_AUTH_USER="${2:-}"; shift ;;
+        --no-load)  MOVED="$MOVED $1" ;;
+        --load-days|--rw-auth) MOVED="$MOVED $1"; shift ;;
         -h|--help)  sed -n '2,52p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
         -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
@@ -96,11 +95,7 @@ if ! $MASKED; then
     ihwt_read_passphrase "export archive" || { printf '  -> or use --masked\n' >&2; exit 2; }
 fi
 
-if $LOADP && [ -n "$RW_AUTH_USER" ] && [ -z "$RWAUTH" ]; then
-    [ -t 0 ] || { printf -- '--rw-auth needs a terminal for the password (or IHW_RW_AUTH)\n' >&2; exit 2; }
-    read -r -s -p "  Password of the Reports admin $RW_AUTH_USER: " _rp; printf '\n'
-    RWAUTH="$RW_AUTH_USER/$_rp"; unset _rp
-fi
+[ -n "$MOVED" ] && say "NOTE:$MOVED - the load profile moved to collect_fmw_env.sh (2026-11-16), ignored here"
 
 # --- locate ORACLE_HOME / DOMAIN_HOME (as collect_fmw_env.sh) --------------------
 if [ -z "$OH" ] || [ ! -d "$OH/OPatch" ]; then
@@ -126,7 +121,7 @@ DONE=false; ARCH=""
 _cleanup() {
     local rc=$?
     $DONE && return
-    IHWT_PASS=""; RWAUTH=""
+    IHWT_PASS=""
     [ -n "$ARCH" ] && rm -f "$OUTBASE/$ARCH" "$OUTBASE/$ARCH.enc"
     if $KEEP; then
         printf '\n  ABORTED (rc %s) – staging kept (--keep): %s – contains %s data, delete it\n' \
@@ -308,31 +303,26 @@ _rs_line() {   # name type conf netconf
     port="$(sed -nE 's/.*<(multicast|cluster)[^>]*port="([0-9]+)".*/\2/p' "$net" 2>/dev/null | head -1)"
     printf '%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n' "$n" "$t" "$run" "$c" "${eng:--}" "${life:--}" "$idf" "$sec" "$jsr" "${port:--}" >> "$RSV"
 }
-RS_NAMES=()
-while IFS= read -r n; do [ -n "$n" ] && RS_NAMES+=("$n"); done < <(
-    awk '/<system-component>/{n="";t=""} /<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)}
-         /<component-type>ReportsServerComponent</{t="R"} /<\/system-component>/{if(t=="R")print n}' "$DH/config/config.xml")
-for d in "$CFG"/components/ReportsServerComponent/*; do
-    [ -d "$d" ] || continue; n="$(basename "$d")"; [ "$n" = mbeans ] && continue
-    printf '%s\n' "${RS_NAMES[@]}" | grep -qx "$n" || RS_NAMES+=("$n")
-done
-for n in "${RS_NAMES[@]}"; do
-    d="$CFG/components/ReportsServerComponent/$n"
-    for f in "$d"/*.conf "$d"/*.xml "$d"/*.properties; do _store "$f" reports_server; done
-    _rs_line "$n" standalone "$d/rwserver.conf" "$d/rwnetwork.conf"
-done
+# the Reports servers of the domain (ihw_tools_lib ihwt_rs_list - the collector
+# uses the same list for the load profile): standalone components first, then
+# the rwservlet configurations of the WLS_REPORTS applications
 INPROC_DIRS=()
-while IFS= read -r d; do INPROC_DIRS+=("$d"); done < <(
-    find "$CFG/servers" -maxdepth 4 -type d -path '*/applications/reports_*/configuration' 2>/dev/null | sort)
-for d in "${INPROC_DIRS[@]}"; do
-    for f in "$d"/rwserver.conf "$d"/rwservlet.properties "$d"/cgicmd.dat "$d"/CGICMD.DAT "$d"/rwnetwork.conf "$d"/*.xml; do
-        _store "$f" reports_wls
-    done
-    _srv="$(sed -n 's:.*<server>\([^<]*\)</server>.*:\1:p' "$d/rwservlet.properties" 2>/dev/null | head -1)"
-    _inp="$(sed -n 's:.*<inprocess>\([^<]*\)</inprocess>.*:\1:p' "$d/rwservlet.properties" 2>/dev/null | head -1)"
-    [ "$_inp" = "yes" ] && _rs_line "${_srv:-in-process}" "in-process" "$d/rwserver.conf" "$d/rwnetwork.conf"
-    printf '# rwservlet %s: server=%s inprocess=%s\n' "$d" "${_srv:--}" "${_inp:--}" >> "$RSV"
-done
+while IFS=';' read -r _n _t _c _net _d; do
+    case "$_t" in
+        standalone)
+            for f in "$_d"/*.conf "$_d"/*.xml "$_d"/*.properties; do _store "$f" reports_server; done
+            _rs_line "$_n" standalone "$_c" "$_net" ;;
+        in-process|servlet)
+            INPROC_DIRS+=("$_d")
+            for f in "$_d"/rwserver.conf "$_d"/rwservlet.properties "$_d"/cgicmd.dat "$_d"/CGICMD.DAT "$_d"/rwnetwork.conf "$_d"/*.xml; do
+                _store "$f" reports_wls
+            done
+            [ "$_t" = in-process ] && _rs_line "$_n" "in-process" "$_c" "$_net"
+            _inp="$(sed -n 's:.*<inprocess>\([^<]*\)</inprocess>.*:\1:p' "$_d/rwservlet.properties" 2>/dev/null | head -1)"
+            printf '# rwservlet %s: server=%s inprocess=%s\n' "$_d" "$_n" "${_inp:--}" >> "$RSV" ;;
+    esac
+done < <(ihwt_rs_list "$DH")
+unset _n _t _c _net _d _inp
 _store "$OH/reports/conf/cgicmd.dat" reports_fmw
 TOOLS_DIRS=()
 for d in "$CFG"/components/ReportsToolsComponent/*; do
@@ -388,33 +378,10 @@ for _e in "${WT_FOUND[@]}"; do
 done
 rm -f "$STAGE/.wt_flat"
 [ ${#WT_FOUND[@]} -eq 0 ] && warn "web tier: no Nginx / Apache / OHS configuration found (other host? -> export it there too)"
-# certificates - public part only (subject / issuer / expiry): every HTTPS
-# listener of the web tier (s_client with the server name, else the certificate
-# file) and the signers of the jars
+# certificates: only the signers of the customer jars (part of the jars);
+# the certificates of the HTTPS listeners are collected by collect_fmw_env.sh
 CERT_TXT="$STAGE/ihw_import/certificates.txt"
 printf 'source;subject;issuer;not_after\n' > "$CERT_TXT"
-if command -v openssl >/dev/null 2>&1; then
-    awk -F';' 'NR>1 && $5=="yes" { n=split($3, L, ","); sn=$4; sub(/,.*/, "", sn)
-                for (i=1; i<=n; i++) if (L[i] !~ /^\[/ || L[i] ~ /^\[::\]:/) print $1 ";" L[i] ";" sn ";" $10 }' "$WT_TXT" \
-        | awk -F';' '{ p=$2; sub(/.*:/, "", p) } !seen[$1 ";" p ";" $3]++' \
-        | while IFS=';' read -r _t _l _sn _cf; do
-        _h="${_l%:*}"; _p="${_l##*:}"
-        case "$_h" in '*'|0.0.0.0|'[::]'|'') _h=127.0.0.1 ;; esac
-        case "$_sn" in ''|_|'*'*|localhost) _sn="$(hostname -f 2>/dev/null || hostname)" ;; esac
-        _src="https $_t $_l ($_sn)"
-        _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_sn" </dev/null 2>/dev/null \
-              | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
-        if [ -z "$_c" ] && [ -f "$_cf" ] && [ -r "$_cf" ]; then
-            _c="$(openssl x509 -in "$_cf" -noout -subject -issuer -enddate 2>/dev/null)"; _src="https $_t $_l (file $_cf)"
-        fi
-        if [ -n "$_c" ]; then
-            printf '%s;%s;%s;%s\n' "$_src" "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p' | tr ';' ',')" \
-                "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p' | tr ';' ',')" "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')"
-        else
-            printf '%s;-;-;not reachable / no readable certificate file\n' "$_src"
-        fi
-    done >> "$CERT_TXT"
-fi
 [ -f "$STAGE/ihw_import/.jar_certs" ] && { sort -u "$STAGE/ihw_import/.jar_certs" >> "$CERT_TXT"; rm -f "$STAGE/ihw_import/.jar_certs"; }
 unset _h _p _c _u _usr _t _m _e _f _l _sn _cf _src
 
@@ -598,116 +565,6 @@ done
 rm -f "$LIBS"
 
 # =============================================================================
-# 6b. Load profile - AGGREGATED counts only (no raw log line leaves the host:
-#     access logs hold client IPs, user names and - with GET report calls -
-#     even passwords). Read-only; --no-load skips it.
-# =============================================================================
-LOAD="$STAGE/load"
-if $LOADP; then
-    say "Load profile (last $LOAD_DAYS days, aggregated) ..."
-    mkdir -p "$LOAD"
-    # _logs SERVER_GLOB - access logs of the servers, modified in the last LOAD_DAYS days
-    _logs() { find "$DH"/servers/$1/logs -maxdepth 1 -type f -name 'access.log*' -mtime -"$LOAD_DAYS" 2>/dev/null | sort; }
-    _cat()  { case "$1" in *.gz) zcat -- "$1" 2>/dev/null ;; *) cat -- "$1" 2>/dev/null ;; esac; }
-    # ELF access log (WebLogic "extended", #Fields header) - field positions from the header
-    _elf_awk='
-        /^#Fields:/ { dI=tI=uI=sI=ttI=0; n=split($0,a,/[ \t]+/)
-                      for (i=2;i<=n;i++) { f=a[i]; j=i-1
-                          if (f=="date") dI=j; else if (f=="time") tI=j; else if (f=="cs-uri") uI=j
-                          else if (f=="sc-status") sI=j; else if (f=="time-taken") ttI=j }
-                      next }
-        /^#/ || !dI || !uI { next }
-        { d=$dI; h=substr($tI,1,2); u=$uI; st=$sI; if (d !~ /^[0-9][0-9][0-9][0-9]-/ || d < cut) next }'
-    LOAD_CUT="$(date -d "-$LOAD_DAYS days" +%Y-%m-%d)"
-    # --- Forms ---------------------------------------------------------------
-    mapfile -t _fl < <(_logs '*FORMS*')
-    if [ ${#_fl[@]} -gt 0 ]; then
-        for f in "${_fl[@]}"; do _cat "$f"; done | awk -v cut="$LOAD_CUT" "$_elf_awk"'
-            u ~ /\/frmservlet/ && st ~ /^2/ { c="default"
-                if (match(u, /[?&]config=[^&]+/)) { c=substr(u, RSTART+8, RLENGTH-8) }
-                gsub(/[;\t ]/, "_", c); starts[d ";" c]++; hour[h]++ }
-            u ~ /\/lservlet/ { ls[d]++ }
-            { req[d]++; if (st ~ /^5/) e5[d]++; if (ttI && $ttI ~ /^[0-9.]+$/) { tt[d]+=$ttI; tn[d]++ } }
-            END {
-                for (k in starts) print k ";" starts[k] > "'"$LOAD"'/forms_starts.csv"
-                for (x in hour) print x ";" hour[x] > "'"$LOAD"'/forms_hourly.csv"
-                for (x in req) printf "%s;%d;%d;%d;%s\n", x, req[x], ls[x], e5[x], (tn[x] ? sprintf("%.0f", 1000*tt[x]/tn[x]) : "-") > "'"$LOAD"'/forms_traffic.csv"
-            }'
-        printf '%s\n' "${_fl[@]}" | sed "s#^$DH/#\$DOMAIN_HOME/#" > "$LOAD/forms_logfiles.txt"
-    fi
-    # frmweb processes right now (concurrent sessions + pool)
-    _rss="$(ps -C frmweb -o rss= 2>/dev/null)"
-    printf 'frmweb_count=%s\nfrmweb_rss_avg_mb=%s\nfrmweb_rss_max_mb=%s\nfrmweb_rss_total_mb=%s\n' \
-        "$(printf '%s\n' "$_rss" | grep -c '[0-9]')" \
-        "$(printf '%s\n' "$_rss" | awk 'NF{s+=$1;n++} END{print (n?int(s/n/1024):0)}')" \
-        "$(printf '%s\n' "$_rss" | awk 'NF&&$1>m{m=$1} END{print int(m/1024)}')" \
-        "$(printf '%s\n' "$_rss" | awk 'NF{s+=$1} END{print int(s/1024)}')" > "$LOAD/now.txt"
-    # --- Reports: servlet requests per day and command --------------------------
-    mapfile -t _rl < <(_logs '*REPORTS*')
-    if [ ${#_rl[@]} -gt 0 ]; then
-        for f in "${_rl[@]}"; do _cat "$f"; done | awk -v cut="$LOAD_CUT" "$_elf_awk"'
-            u ~ /\/rwservlet/ { c=u; sub(/^.*\/rwservlet\/?/, "", c); sub(/[?;].*$/, "", c); if (c=="") c="(report run)"
-                gsub(/[0-9]+$/, "", c); k=d ";" c; r[k]++; if (st ~ /^5/) e[k]++ }
-            END { for (k in r) printf "%s;%d;%d\n", k, r[k], e[k] > "'"$LOAD"'/reports_requests.csv" }'
-    fi
-    # engine processes right now
-    printf 'rwengine_count=%s\n' "$(pgrep -fc 'RWEngine|rwEng-[0-9]' 2>/dev/null)" >> "$LOAD/now.txt"
-    # --- Reports: getserverinfo + past jobs of every RUNNING server --------------
-    # (a not running in-process server is NOT asked - the request would start it)
-    _rport="$(awk '/<server>/{s=1;n="";p=""} s&&/<name>/&&n==""{n=$0; gsub(/.*<name>|<\/name>.*/,"",n)} s&&/<listen-port>/{p=$0; gsub(/.*<listen-port>|<\/listen-port>.*/,"",p)}
-                   /<\/server>/{ if (s && n ~ /REPORTS/ && p != "") { print p; exit } s=0 }' "$DH/config/config.xml" 2>/dev/null)"
-    RWURL="http://127.0.0.1:${_rport:-9002}/reports/rwservlet"
-    # _rw CMD SERVER OUTFILE [extra data] - POST, authid only via curl config on stdin
-    _rw() {
-        { printf 'url = "%s/%s"\n' "$RWURL" "$1"
-          printf 'data = "server=%s&statusformat=XML%s"\n' "$2" "${4:+&$4}"
-          [ -n "$RWAUTH" ] && printf 'data-urlencode = "authid=%s"\n' "$RWAUTH"
-        } | curl -s -m 60 -K - -o "$3" -w '%{http_code}' 2>/dev/null
-    }
-    if command -v curl >/dev/null 2>&1; then
-        awk -F';' 'NR>1 && $1!~/^#/ && $3=="yes" {print $1}' "$RSV" | sort -u | while read -r rs; do
-            code="$(_rw getserverinfo "$rs" "$LOAD/reports_${rs}_serverinfo.xml")"
-            if ! grep -q '<serverInfo' "$LOAD/reports_${rs}_serverinfo.xml" 2>/dev/null; then
-                printf '%s;getserverinfo;HTTP %s - no serverInfo (secured server: --rw-auth USER)\n' "$rs" "$code" >> "$LOAD/reports_not_collected.txt"
-                rm -f "$LOAD/reports_${rs}_serverinfo.xml"; continue
-            fi
-            _rw showjobs "$rs" "$LOAD/.sj.xml" "queuetype=past&count=1000" >/dev/null
-            # one line per past job: server;id;report;status;started_epoch;seconds (no owner, no parameters)
-            tr '\n' ' ' < "$LOAD/.sj.xml" | sed 's/<job /\n<job /g' | awk -v s="$rs" '
-                function ep(t,   a, m, p, h) { # "Nov 3, 2026, 3:32:15/PM"
-                    if (!match(t, /([A-Z][a-z][a-z]) ([0-9]+), ([0-9]+), ([0-9]+):([0-9]+):([0-9]+)\/(AM|PM)/, a)) return ""
-                    m = index("JanFebMarAprMayJunJulAugSepOctNovDec", a[1]); m = (m + 2) / 3; h = a[4] % 12; if (a[7] == "PM") h += 12
-                    return mktime(a[3] " " m " " a[2] " " h " " a[5] " " a[6]) }
-                /^<job / { id=$0; sub(/^<job id="/, "", id); sub(/".*/, "", id)
-                    n=$0; if (match(n, /<name>[^<]*<\/name>/)) n=substr(n, RSTART+6, RLENGTH-13); else n="-"
-                    c=$0; if (match(c, /<status code="[0-9]+"/)) c=substr(c, RSTART+14, RLENGTH-15); else c="-"
-                    a1=$0; b1=$0; st=""; fi=""; sr=""; fr=""
-                    if (match(a1, /<started>[^<]*<\/started>/)) { sr=substr(a1, RSTART+9, RLENGTH-19); st=ep(sr) }
-                    if (match(b1, /<finished>[^<]*<\/finished>/)) { fr=substr(b1, RSTART+10, RLENGTH-21); fi=ep(fr) }
-                    gsub(/[;]/, "_", n); gsub(/[;]/, ",", sr); gsub(/[;]/, ",", fr)
-                    printf "%s;%s;%s;%s;%s;%s;%s;%s\n", s, id, n, c, st, ((st != "" && fi != "") ? fi - st : ""), sr, fr }' >> "$LOAD/reports_jobs.csv"
-            rm -f "$LOAD/.sj.xml"
-        done
-    else
-        printf 'all;-;curl missing\n' >> "$LOAD/reports_not_collected.txt"
-    fi
-    RWAUTH=""
-    # --- host: sar history (sysstat) + now --------------------------------------
-    if command -v sar >/dev/null 2>&1; then
-        for f in $(find /var/log/sa -maxdepth 1 -name 'sa[0-9][0-9]' -mtime -"$LOAD_DAYS" 2>/dev/null | sort); do
-            d="$(LC_ALL=C sar -f "$f" 2>/dev/null | head -1 | grep -oE '[0-9]{2}/[0-9]{2}/[0-9]{2,4}' | head -1 | awk -F/ '{y=$3; if (length(y)==2) y="20" y; print y "-" $1 "-" $2}')"
-            cpu="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {s+=100-$NF; n++} END {if (n) printf "%.0f", s/n}')"
-            mem="$(LC_ALL=C sar -r -f "$f" 2>/dev/null | awk '/%memused/ {for (i=1;i<=NF;i++) if ($i=="%memused") c=i} /^Average/ && c && $c ~ /^[0-9.]+$/ && $c+0 <= 100 {printf "%.0f", $c; exit}')"
-            cpm="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {b=100-$NF; if (b>m) m=b} END {printf "%.0f", m}')"
-            [ -n "$d" ] && printf '%s;%s;%s;%s\n' "$d" "${cpu:--}" "${cpm:--}" "${mem:--}"
-        done > "$LOAD/host_sar.csv"
-    fi
-    { printf 'uptime=%s\n' "$(uptime -p 2>/dev/null)"
-      printf 'loadavg=%s\n' "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
-      printf 'load_days=%s\n' "$LOAD_DAYS"; } >> "$LOAD/now.txt"
-fi
-
-# =============================================================================
 # 7. environment.conf proposal
 # =============================================================================
 PROP="$IMP/environment.conf.proposal"
@@ -783,11 +640,7 @@ unset _first_rs _rc _fp1
     printf 'Forms & Reports configuration export – %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
     printf 'export_forms_reports_conf.sh %s (ihw_tools_lib %s) – %s\n\n' "$VERSION" "$(ihwt_lib_version)" "$($MASKED && printf 'passwords MASKED' || printf 'passwords INCLUDED – archive encrypted')"
     printf '!!! Contains customer data – NEVER commit to git, keep encrypted, delete after the import.\n\n'
-    printf '%-24s %s\n' Host "$(hostname -f 2>/dev/null || hostname)" ORACLE_HOME "$OH" DOMAIN_HOME "$DH"
-    printf '%-24s %s\n' "FMW version" "$(grep -m1 -oE 'version="1[0-9.]+"' "$OH/inventory/registry.xml" 2>/dev/null)"
-    printf '%-24s %s\n' "Java" "$("$OH/oracle_common/jdk/bin/java" -version 2>&1 | head -1)"
-    printf '%-24s %s\n' "CPUs" "$(nproc 2>/dev/null)"
-    printf '%-24s %s\n' "RAM MB" "$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+    ihwt_identity 24 "$OH" "$DH"
     printf '\n== Forms ==\n'; printf '  %s\n' "${FORMS_CFGS[@]:-none}"
     printf '  env files: %s\n' "${ENV_FILES[*]:-none}"
     printf '  sections: %s\n' "$(for fw in "${FORMS_CFGS[@]}"; do grep -oE '^\[[^]]+\]' "$fw"; done | tr -d '[]' | sort -u | paste -sd' ')"
@@ -825,15 +678,8 @@ unset _first_rs _rc _fp1
     printf '  custom_fonts_dir/              -> overlay fonts/ (customer fonts; Microsoft fonts only with licence – fonts.txt class)\n'
     printf '  environment.conf.proposal      -> import block of environments/<env>.conf\n'
     printf '  web_tier.txt                   -> 09-Install/nginx-wls.conf.template (04-root_nginx.sh): own paths by hand\n'
-    if $LOADP; then
-        printf '\n== Load profile (load/, last %s days, aggregated - no log lines) ==\n' "$LOAD_DAYS"
-        printf '  Forms starts: %s   Forms days: %s   Reports jobs (past queue): %s   sar days: %s\n' \
-            "$(awk -F';' '{s+=$3} END{print s+0}' "$LOAD/forms_starts.csv" 2>/dev/null)" "$(cat "$LOAD/forms_traffic.csv" 2>/dev/null | wc -l)" \
-            "$(cat "$LOAD/reports_jobs.csv" 2>/dev/null | wc -l)" "$(cat "$LOAD/host_sar.csv" 2>/dev/null | wc -l)"
-        # a missing file is no error: no jobs (secured server without --rw-auth -> "not collected"), no sysstat
-        [ -f "$LOAD/reports_not_collected.txt" ] && sed 's/^/  not collected: /' "$LOAD/reports_not_collected.txt"
-        sed 's/^/  /' "$LOAD/now.txt"
-    fi
+    printf '\n== Not in this export (collect_fmw_env.sh) ==\n'
+    printf '  load profile, certificates of the HTTPS listeners, patch level, Java, OS, memory\n'
     [ ${#WARNINGS[@]} -gt 0 ] && { printf '\n== Warnings ==\n'; printf '  %s\n' "${WARNINGS[@]}"; }
     printf '\n== Files (manifest.csv) ==\n  %s files\n' "$(($(wc -l < "$MANIFEST") - 1))"
 } > "$REPORT"

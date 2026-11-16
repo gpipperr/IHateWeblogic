@@ -1,9 +1,16 @@
 #!/bin/bash
 # =============================================================================
 # Script   : collect_fmw_env.sh
-# Purpose  : Collect the metadata of an Oracle Forms & Reports / FMW host
-#            (12.2.1.x and 14.1.2) –
-#            from the OS to Forms – into one directory + tar.gz for analysis.
+# Purpose  : Collect the state of an Oracle Forms & Reports / FMW host
+#            (12.2.1.x and 14.1.2) for the analyses: what is installed where,
+#            patch level (Oracle, Java, OS advisories, Nginx / web tier),
+#            Java, performance (memory, load profile) and security / quality
+#            of operation (Derby, FADS, certificates, processes).
+#            The CONFIGURATION (formsweb.cfg, env files, rwserver.conf,
+#            config.xml, tnsnames, web tier files ...) is NOT copied here -
+#            that is export_forms_reports_conf.sh. An analysis always needs
+#            both runs: patch analysis = this collection, environment
+#            analysis = export + this collection.
 #            READ-ONLY: writes only into the output directory (OPatch itself
 #            writes its usual logs to $ORACLE_HOME/cfgtoollogs when it reads
 #            the inventory). Secrets are masked before they are stored.
@@ -14,6 +21,7 @@
 #            names, IPs and paths of the customer.
 # Call     : ./collect_fmw_env.sh [-o ORACLE_HOME] [-d DOMAIN_HOME] [-t OUTBASE]
 #                                 [--full] [--logs] [--no-encrypt] [--keep]
+#                                 [--no-load] [--load-days N] [--rw-auth USER]
 #            -o / -d  default: environment, $ORACLE_HOME/domain-registry.xml,
 #                     /oracle/product/mw, /u01/app/oracle/fmw …
 #            -t       base directory of the output (default /tmp)
@@ -22,6 +30,11 @@
 #            --logs   also the error lines of the server logs (last 200)
 #            --no-encrypt  plain ZIP (still masked) - e.g. without a terminal
 #            --keep   keep the output directory next to the archive
+#            --no-load  no load profile (default: aggregated counts of the
+#                     last --load-days N days, default 90 - load/)
+#            --rw-auth USER  Reports admin for getserverinfo / showjobs of a
+#                     secured Reports server (password asked hidden; or
+#                     IHW_RW_AUTH=user/password in the environment)
 # Runs as  : the software owner of the Oracle Home (oracle), not root
 # Output   : <OUTBASE>/fmw_collect_<host>_<yyyymmdd_hhmmss>.zip.enc (+ .sha256)
 #            decrypt: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 \
@@ -35,14 +48,14 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.2"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.3"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"; FULL=false; LOGS=false
-ENCRYPT=true; KEEP=false
+ENCRYPT=true; KEEP=false; LOADP=true; LOAD_DAYS=90; RW_AUTH_USER=""; IHWT_RWAUTH="${IHW_RW_AUTH:-}"
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OH="${2:-}"; shift ;;
@@ -52,7 +65,10 @@ while [ $# -gt 0 ]; do
         --logs) LOGS=true ;;
         --no-encrypt) ENCRYPT=false ;;
         --keep) KEEP=true ;;
-        -h|--help) sed -n '2,34p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
+        --no-load) LOADP=false ;;
+        --load-days) LOAD_DAYS="${2:-90}"; shift ;;
+        --rw-auth) RW_AUTH_USER="${2:-}"; shift ;;
+        -h|--help) sed -n '2,47p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
         -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -71,8 +87,13 @@ IHWT_PASS=""
 if $ENCRYPT; then
     ihwt_read_passphrase "collector archive" || { printf '  -> or use --no-encrypt (plain ZIP, masked)\n' >&2; exit 2; }
 fi
+if $LOADP && [ -n "$RW_AUTH_USER" ] && [ -z "$IHWT_RWAUTH" ]; then
+    [ -t 0 ] || { printf -- '--rw-auth needs a terminal for the password (or IHW_RW_AUTH)\n' >&2; exit 2; }
+    read -r -s -p "  Password of the Reports admin $RW_AUTH_USER: " _rp; printf '\n'
+    IHWT_RWAUTH="$RW_AUTH_USER/$_rp"; unset _rp
+fi
 mkdir -p "$OUT" || { printf 'Cannot create %s\n' "$OUT" >&2; exit 2; }
-trap 'IHWT_PASS=""' EXIT
+trap 'IHWT_PASS=""; IHWT_RWAUTH=""' EXIT
 SUM="$OUT/00_summary.txt"
 
 # --- helpers -----------------------------------------------------------------
@@ -131,15 +152,13 @@ fi
     printf 'FMW environment collection – %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
     printf '%s\n\n' "collect_fmw_env.sh version $VERSION (ihw_tools_lib $(ihwt_lib_version), read-only, secrets masked)"
 } > "$SUM"
-fact "Host" "$(hostname -f 2>/dev/null || hostname)"
+ihwt_identity 28 "$OH" "$DH" >> "$SUM"
 fact "User" "$(id)"
-fact "ORACLE_HOME" "${OH:-(not found)}"
-fact "DOMAIN_HOME" "${DH:-(not found)}"
 
 # =============================================================================
 # 1. Operating system
 # =============================================================================
-say "1/7 OS"
+say "1/8 OS"
 run 10_os.txt "OS release"          cat /etc/os-release
 run 10_os.txt "Kernel"              uname -a
 run 10_os.txt "glibc"               ldd --version
@@ -164,11 +183,18 @@ fact "Uptime" "$(uptime -p 2>/dev/null || uptime)"
 fact "Memory MB (total/avail)" "$(free -m 2>/dev/null | awk '/^Mem:/{print $2" / "$7}')"
 fact "SELinux" "$(getenforce 2>/dev/null || printf 'n/a')"
 fact "openssl / ca-certificates" "$(rpm -q openssl ca-certificates 2>/dev/null | tr '\n' ' ')"
+# open OS security advisories - dnf CACHE only (no network); the list stays in
+# 10_os.txt, the analyses show only the numbers
+IHWT_ADV_LIST="$OUT/.os_advisories"
+fact "OS security advisories" "$(ihwt_os_advisories)"
+fact "dnf cache age (days)" "$(ihwt_dnf_cache_age)"
+{ printf '### Open OS security advisories (dnf --cacheonly updateinfo list --security)\n'
+  cat "$IHWT_ADV_LIST" 2>/dev/null || printf 'not available\n'; printf '\n'; } >> "$OUT/10_os.txt"
 
 # =============================================================================
 # 2. Java
 # =============================================================================
-say "2/7 Java"
+say "2/8 Java"
 JAVA_CANDIDATES="$( { [ -n "$OH" ] && sed -n 's/^JAVA_HOME[A-Z0-9_]*=//p' "$OH/oui/.globalEnv.properties" 2>/dev/null;
                      [ -n "$OH" ] && [ -x "$OH/oracle_common/jdk/bin/java" ] && printf '%s\n' "$OH/oracle_common/jdk";
                      [ -n "${JAVA_HOME:-}" ] && printf '%s\n' "$JAVA_HOME";
@@ -191,7 +217,7 @@ fact "JDKs of running processes" "$(for p in $(pgrep -f java 2>/dev/null); do re
 # =============================================================================
 # 3. Oracle Home, inventory, patches
 # =============================================================================
-say "3/7 Oracle Home / OPatch"
+say "3/8 Oracle Home / OPatch"
 if [ -n "$OH" ]; then
     OP="$OH/OPatch/opatch"
     copy 30_inventory.txt /etc/oraInst.loc
@@ -265,35 +291,23 @@ fi
 # =============================================================================
 # 4. Domain configuration (masked)
 # =============================================================================
-say "4/7 Domain"
+say "4/8 Domain"
 if [ -n "$DH" ]; then
-    copy 40_config.xml.txt "$DH/config/config.xml"
+    # the configuration files themselves are in the export
+    # (export_forms_reports_conf.sh) - here only what the analyses derive
     runsh 40_domain.txt "Servers / listen addresses / ports (config.xml)" \
         "grep -E '<(name|listen-address|listen-port|machine|cluster|enabled|nm-type|listen-port-enabled)>' '$DH/config/config.xml' | sed 's/^ *//' | head -200"
     runsh 40_domain.txt "Servers on disk" "ls -l '$DH/servers'"
     runsh 40_domain.txt "Domain files" "ls -l '$DH' '$DH/bin' '$DH/nodemanager' 2>&1"
-    for f in "$DH/nodemanager/nodemanager.properties" "$DH/bin/setUserOverrides.sh" \
-             "$DH/bin/setDomainEnv.sh" "$DH/bin/startNodeManager.sh"; do
-        copy 41_domain_scripts.txt "$f"
-    done
     runsh 40_domain.txt "Versioned JDK paths in the domain (instead of a link)" \
         "grep -rn 'jdk1\\.8\\.0_\\|jdk-[0-9]' '$DH/bin' '$DH/nodemanager' 2>/dev/null | head -50"
-    # Forms / Reports configuration files
-    for pat in formsweb.cfg default.env webutil.cfg ftrace.cfg registry.dat rwserver.conf \
-               rwservlet.properties cgicmd.dat uifont.ali rwnetwork.conf; do
-        find "$DH/config/fmwconfig" -name "$pat" -type f 2>/dev/null | head -10 | while read -r f; do
-            copy "42_forms_reports_config.txt" "$f"
-        done
-    done
-    # OHS instances (domain configuration, not the runtime copy)
+    runsh 40_domain.txt "Forms / Reports configuration files (list only - content: export)" \
+        "find '$DH/config/fmwconfig' -type f \\( -name formsweb.cfg -o -name '*.env' -o -name webutil.cfg -o -iname registry.dat -o -name rwserver.conf -o -name rwservlet.properties -o -iname cgicmd.dat -o -name uifont.ali -o -name rwnetwork.conf \\) -printf '%TY-%Tm-%Td %TH:%TM %10s %p\\n' 2>/dev/null | sort -k3 | head -60"
+    # OHS instances: Oracle's default index.html still there? (quality / security)
     for d in "$DH"/config/fmwconfig/components/OHS/*/; do
         [ -d "$d" ] || continue
         case "$d" in */instances/) continue ;; esac
-        for f in httpd.conf ssl.conf admin.conf mod_wl_ohs.conf; do
-            copy 43_ohs_config.txt "$d$f"
-        done
-        for f in "$d"moduleconf/*.conf; do copy 43_ohs_config.txt "$f"; done
-        runsh 43_ohs_config.txt "default index.html in $d" \
+        runsh 43_ohs.txt "default index.html in $d" \
             "ls -l '${d}htdocs/index.html' 2>&1; grep -ic 'oracle http server' '${d}htdocs/index.html' 2>/dev/null"
     done
     # client JRE of the Forms users (Java alerts also concern the client JREs)
@@ -303,6 +317,9 @@ if [ -n "$DH" ]; then
     fact "Domain version (config.xml)" "$(sed -n 's/.*<domain-version>\([^<]*\)<.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Domain" "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Servers (config.xml)" "$(awk '/<server>/{s=1} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");printf "%s ",$0;s=0}' "$DH/config/config.xml")"
+    # the patch analysis needs it (Forms QPR applies only to a domain with Forms)
+    grep -qiE 'WLS_FORMS|formsapp|<name>forms' "$DH/config/config.xml" 2>/dev/null \
+        && fact "Forms in domain" "yes" || fact "Forms in domain" "no"
     # Forms Application Deployment Services (FADS): software in every Forms
     # home, in the domain only when the extension template + fads_config.py
     # were applied - then FADS also writes formsweb.cfg, Registry.dat,
@@ -323,7 +340,7 @@ fi
 # =============================================================================
 # 5. Running processes
 # =============================================================================
-say "5/7 Processes"
+say "5/8 Processes"
 runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
     "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx|NetworkServerControl' | grep -v grep"
 runsh 50_processes.txt "Process tree of $(id -un) (other users are not collected)" "ps -u \"\$(id -un)\" fww -o pid,ppid,lstart,etime,rss,args"
@@ -396,12 +413,11 @@ unset _est _fm _wh
 # =============================================================================
 # 6. Oracle Net, web tier
 # =============================================================================
-say "6/7 Oracle Net / web tier"
-for d in "${TNS_ADMIN:-}" "$DH/config/fmwconfig" "$OH/network/admin"; do
-    [ -n "$d" ] && [ -d "$d" ] || continue
-    find "$d" -maxdepth 4 \( -name tnsnames.ora -o -name sqlnet.ora -o -name ldap.ora \) -type f 2>/dev/null \
-        | head -10 | while read -r f; do copy 60_net.txt "$f"; done
-done
+say "6/8 Oracle Net / web tier"
+# Oracle Net files: where they are (one TNS_ADMIN?) - the content is in the export
+runsh 60_net.txt "tnsnames.ora / sqlnet.ora / ldap.ora (list only - content: export)" \
+    "for d in '${TNS_ADMIN:-}' '$DH/config/fmwconfig' '$OH/network/admin'; do [ -n \"\$d\" ] && [ -d \"\$d\" ] && find \"\$d\" -maxdepth 4 -type f \\( -name tnsnames.ora -o -name sqlnet.ora -o -name ldap.ora \\) -printf '%TY-%Tm-%Td %TH:%TM %8s %p\\n' 2>/dev/null; done | sort -u | head -20"
+fact "TNS_ADMIN (environment)" "${TNS_ADMIN:-not set}"
 runsh 60_net.txt "Web server in front (nginx / httpd / OHS)" \
     "command -v nginx httpd apachectl 2>/dev/null; ls -d /etc/nginx /etc/httpd '$DH'/config/fmwconfig/components/OHS 2>/dev/null"
 # OS web servers in front of WebLogic (configuration is usually world-readable;
@@ -421,12 +437,45 @@ mapfile -t WT_FOUND < <(ihwt_webtier_find "$DH")
     for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | ihwt_webtier_settings "${e%%;*}" "${e#*;}"; done
     printf '\n'
 } >> "$OUT/61_webserver.txt"
-for e in "${WT_FOUND[@]}"; do
-    # OHS of this domain: 43_ohs_config.txt has the files already
-    case "${e#*;}" in "$DH"/*) continue ;; esac
-    { printf '### configuration %s (%s) - includes inlined, #@@ = file markers\n' "${e#*;}" "${e%%;*}"
-      ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | mask; printf '\n'; } >> "$OUT/61_webserver.txt"
-done
+# patch facts of the web tier - derived from the flattened configuration, the
+# configuration itself is in the export: WebLogic proxy plug-in loaded or only
+# commented out, mod_proxy routes, dynamic Nginx modules
+_wtflat="$(for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}"; done)"
+_wlon="$(printf '%s\n' "$_wtflat" | grep -E '^[[:space:]]*LoadModule[[:space:]]+weblogic_module' | awk '{print $3}' | sort -u | paste -sd, -)"
+_wloff="$(printf '%s\n' "$_wtflat" | grep -cE '^[[:space:]]*#[[:space:]]*LoadModule[[:space:]]+weblogic_module')"
+fact "Apache WebLogic plug-in" "$( if [ -n "$_wlon" ]; then printf 'active (%s)' "$_wlon"; elif [ "$_wloff" -gt 0 ]; then printf 'commented out'; else printf 'none'; fi)"
+fact "Apache ProxyPass routes" "$(printf '%s\n' "$_wtflat" | grep -ciE '^[[:space:]]*ProxyPass[[:space:]]')"
+{ printf '### Nginx load_module lines\n'
+  printf '%s\n' "$_wtflat" | grep -E '^[[:space:]]*load_module[[:space:]]' | sed 's/^[[:space:]]*//' | sort -u
+  printf '\n'; } >> "$OUT/61_webserver.txt"
+# Nginx = the central web tier of the library: patch facts in detail
+# (version, OpenSSL, package / origin / stream, update, advisories, restart)
+_ngx="$(ihwt_nginx_patch "$IHWT_ADV_LIST")"
+{ printf '### Nginx patch facts (key;value)\n%s\n\n' "$_ngx"; } >> "$OUT/61_webserver.txt"
+_nv() { printf '%s\n' "$_ngx" | sed -n "s/^$1;//p" | head -1; }
+if [ "$(_nv installed)" = yes ]; then
+    fact "Nginx" "$(_nv version) ($(_nv package)); origin $(_nv origin); stream $(_nv module_stream)"
+    fact "Nginx OpenSSL" "$(_nv openssl)"
+    fact "Nginx update (dnf cache)" "$(_nv update_available)"
+    fact "Nginx advisories" "nginx: $(_nv advisories_nginx | wc -w); openssl: $(_nv advisories_openssl | wc -w) $(_nv advisories_nginx)$(_nv advisories_openssl)"
+    fact "Nginx restart pending" "$(_nv restart_pending)"
+else
+    fact "Nginx" "not installed"
+fi
+# Apache httpd: still the old binary in memory after a package update?
+_hp="$(pgrep -o -x httpd 2>/dev/null)"
+if [ -n "$_hp" ]; then
+    _hi="$(rpm -q --qf '%{INSTALLTIME}' httpd 2>/dev/null)"; _hs="$(ihwt_epoch_of_pid "$_hp")"
+    [ -n "$_hi" ] && [ -n "$_hs" ] && [ "$_hs" -lt "$_hi" ] 2>/dev/null && fact "httpd restart pending" "yes (httpd package newer than the running process)"
+fi
+[ ${#WT_FOUND[@]} -eq 0 ] && [ -n "$(ps -eo args= | grep -m1 'weblogic[.]Server')" ] && \
+    fact "Web tier hint" "no web server on this host while WebLogic runs - web tier on another host? run the collector there"
+# certificates of every HTTPS listener (public part: subject / issuer / expiry)
+{ printf 'source;subject;issuer;not_after\n'
+  for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | ihwt_webtier_routes "${e%%;*}" "${e#*;}"; done | ihwt_certificates
+} > "$OUT/62_certificates.txt"
+fact "HTTPS certificates" "$(($(wc -l < "$OUT/62_certificates.txt") - 1)) - first expiry: $(awk -F';' 'NR>1 && $4 !~ /not reachable/ {print $4}' "$OUT/62_certificates.txt" | while read -r d; do date -d "$d" +%Y-%m-%d 2>/dev/null; done | sort | head -1)"
+unset _wtflat _wlon _wloff _ngx _hp _hi _hs
 fact "Web tier" "$(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort | uniq -c | awk '{printf "%s%s x%s", (NR>1?", ":""), $2, $1}')"
 fact "Web tier unreadable" "$(for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}"; done | grep -c '^#@@ UNREADABLE') file(s)"
 # built with the IHateWeblogic library? (decides the patch route of the patch
@@ -444,9 +493,21 @@ fi
 unset _ihwlib _ihwroot
 
 # =============================================================================
-# 7. Logs (sizes always, error lines only with --logs)
+# 7. Load profile - AGGREGATED counts only (ihw_tools_lib ihwt_load_profile)
 # =============================================================================
-say "7/7 Logs"
+say "7/8 Load profile"
+if $LOADP && [ -n "$DH" ]; then
+    ihwt_load_profile "$DH" "$OUT/load" "$LOAD_DAYS"
+    fact "Load profile" "load/ (last $LOAD_DAYS days, aggregated)"
+else
+    fact "Load profile" "not collected ($($LOADP && printf 'no DOMAIN_HOME' || printf '--no-load'))"
+fi
+IHWT_RWAUTH=""
+
+# =============================================================================
+# 8. Logs (sizes always, error lines only with --logs)
+# =============================================================================
+say "8/8 Logs"
 if [ -n "$DH" ]; then
     runsh 70_logs.txt "Server log files" "ls -l --time-style=long-iso '$DH'/servers/*/logs/ 2>/dev/null"
     runsh 70_logs.txt "Error counts per server log" \
@@ -464,6 +525,7 @@ fi
 # =============================================================================
 # Pack
 # =============================================================================
+rm -f "$IHWT_ADV_LIST"
 printf '\nFiles:\n' >> "$SUM"; (cd "$OUT" && ls -l) >> "$SUM"
 ihwt_pack "$OUTBASE" "$NAME" "$ENCRYPT" || exit 2
 ARCH="$IHWT_ARCHIVE"
@@ -473,4 +535,5 @@ say "SHA-256 : $OUTBASE/$ARCH.sha256"
 $ENCRYPT && say "Decrypt : openssl enc -d $IHWT_ENC_OPTS -in $ARCH -out ${ARCH%.enc}"
 $KEEP && say "Kept    : $OUT (00_summary.txt = key facts)"
 say "Secrets are masked; host names, IPs and paths are included - send the encrypted archive."
+say "For the analysis also run export_forms_reports_conf.sh (configuration) on this host."
 exit 0

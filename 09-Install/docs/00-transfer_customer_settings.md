@@ -72,8 +72,8 @@ As the software owner (`oracle`), from the unpacked tools ZIP in
 
 ```bash
 cd $ORACLE_BASE/tools
-./collect_fmw_env.sh -t $ORACLE_BASE/install          # patch level, OS, Java, web tier
-./export_forms_reports_conf.sh -t $ORACLE_BASE/install  # configuration + load profile
+./collect_fmw_env.sh -t $ORACLE_BASE/install          # state: patch level, OS, Java, Nginx, memory, load profile
+./export_forms_reports_conf.sh -t $ORACLE_BASE/install  # configuration for the rebuild
 ```
 
 - **Read-only:** both scripts change nothing on the host.
@@ -82,10 +82,14 @@ cd $ORACLE_BASE/tools
   the file.
 - **Passwords never leave the host in clear text.** The export removes or
   masks stored logins; the importer takes none of them over.
-- **Secured Reports server:** with `--rw-auth <user>` the export also asks
+- **Both runs are needed:** the collection is the input of the patch
+  analysis, the export plus the collection the input of the environment
+  analysis.
+- **Secured Reports server:** with `--rw-auth <user>` the collector also asks
   `getserverinfo` / `showjobs` (password asked hidden).
-- **Load profile:** the export counts the application starts of the last 90
-  days. This is the basis of the "unused section" decisions.
+- **Load profile:** the collector counts the application starts of the last
+  90 days (before 2026-11-16 the export did). This is the basis of the
+  "unused section" decisions.
 
 ---
 
@@ -97,8 +101,8 @@ reports:
 
 | Report | Content | Light |
 |---|---|---|
-| `patch_analyse_<customer>_<date>.md` | patch level against the cycle, Java, web tier, how to patch | patch light (cycle met / partly / not) |
-| `fmw_forms_reports_status_<customer>_<date>.md` | the whole configuration, the 14c target mapping, findings | security light per area, overall = worst area |
+| `patch_analyse_<customer>_<date>.md` (from the collection) | what is installed where, patch level against the cycle, Java, OS security advisories (number), Nginx in detail, how to patch | patch light (cycle met / partly / not) |
+| `fmw_forms_reports_status_<customer>_<date>.md` (export + collection) | the whole configuration, security, memory and load profile, the 14c target mapping, findings; the patch level only as one line with the numbers | security light per area, overall = worst area |
 
 The reports contain host names and paths. They go **only** to the customer
 (as PDF).
