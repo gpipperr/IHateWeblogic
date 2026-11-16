@@ -34,6 +34,8 @@ Extensions `.crt`, `.cert`, `.cer`, `.pem`, `.der`, `.p7b` are accepted for the
 certificates; PEM, DER and PKCS#7 are detected by content and converted to
 PEM. Passwords of `server.key`, `server.p12` and `codesign.p12` are asked
 by the script (hidden) – never put them into a file here.
+Splitting a PFX by hand (OpenSSL 1.1.1 `-nodes` vs. 3.x `-noenc` / `-legacy`,
+wildcard certificates): [../README.md – Manual: split a PFX](../README.md#manual-split-a-pfx--pkcs12-also-wildcard-certificates).
 
 ## What to request from the customer's PKI team
 

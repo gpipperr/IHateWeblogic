@@ -423,6 +423,88 @@ A role with a FAIL is not imported; replaced files are kept as
 `*.bak_<ts>`; passwords (key, PFX) are asked hidden. OS trust anchors are
 written with root / sudo (`ihw_run_root`), otherwise the command is printed.
 
+### Manual: split a PFX / PKCS#12 (also wildcard certificates)
+
+`ssl_customer_certs.sh` does this by itself (`server.pfx` / `server.p12` in
+`user_certs/`). By hand – e.g. on a host without the library, or to look at a
+customer PFX first – the commands differ between the OpenSSL versions:
+
+| | OpenSSL 1.1.1 (OL 8, e.g. 1.1.1k) | OpenSSL 3.x (OL 9) |
+|---|---|---|
+| key without passphrase | `-nodes` | `-noenc` (`-nodes` still works, deprecated) |
+| old Windows PFX (`pbeWithSHA1And40BitRC2-CBC`) | reads it directly | `error:0308010C … unsupported … Algorithm (RC2-40-CBC : 0)` → add `-legacy` to every `pkcs12` command |
+| show the SAN | `x509 -text` + grep | `x509 -ext subjectAltName` |
+
+`openssl version` shows the version. The PFX password is asked hidden by
+each command – never give it with `-passin pass:…` on the command line
+(shell history, process list).
+
+```bash
+cd /path/to/the/pfx
+umask 077                                    # new files readable by the owner only
+
+# 1. look at the PFX first: how many certificates, is a key inside
+openssl pkcs12 -in server.pfx -info -nokeys -noout          # OpenSSL 3: add -legacy on "unsupported"
+
+# 2. key (unencrypted - Nginx cannot ask for a passphrase at start)
+openssl pkcs12 -in server.pfx -nocerts -nodes -out server.key   # OpenSSL 1.1.1
+openssl pkcs12 -in server.pfx -nocerts -noenc -out server.key   # OpenSSL 3.x
+
+# 3. server certificate only, and the CA certificates (chain)
+openssl pkcs12 -in server.pfx -clcerts -nokeys -out server.crt
+openssl pkcs12 -in server.pfx -cacerts -nokeys -out chain.crt
+
+# 4. optional: remove the "Bag Attributes" lines (clean PEM)
+openssl pkey -in server.key -out server.key.pem && mv server.key.pem server.key
+openssl x509 -in server.crt -out server.crt.pem && mv server.crt.pem server.crt
+```
+
+Check before it goes to Nginx:
+
+```bash
+# names (wildcard: *.domain) and expiry
+openssl x509 -in server.crt -noout -subject -issuer -enddate
+openssl x509 -in server.crt -noout -text | grep -A1 'Subject Alternative Name'   # 1.1.1
+openssl x509 -in server.crt -noout -ext subjectAltName                           # 3.x
+
+# key and certificate belong together: both hashes must be equal
+openssl x509 -in server.crt -noout -pubkey | sha256sum
+openssl pkey -in server.key -pubout | sha256sum
+
+# chain complete - root of the customer in the OS trust store:
+openssl verify -untrusted chain.crt server.crt
+# root not in the OS trust store (usual for a company PKI): root as file
+openssl verify -CAfile root.crt -untrusted chain.crt server.crt
+```
+
+Expected: the same two hashes, `server.crt: OK`. `error 19 … self-signed
+certificate in certificate chain` = the root is in `chain.crt` but not
+trusted by the OS – use the second form with the root as `root.crt` (the
+last certificate of `chain.crt`, or from the customer). For Nginx
+(`chain.crt` → `fullchain.pem`) the root is not needed: remove it from
+`chain.crt` or leave it, browsers ignore it. `chain.crt` empty = the
+PFX has no intermediate CA – ask the customer for it (without it Java
+clients – Forms client, FSAL – fail with "PKIX path building failed", while
+browsers often still show the page).
+
+Tested 2026-11-16 with OpenSSL 3.5 and a test PKI (root, intermediate,
+wildcard server certificate, modern and RC2 PFX): `-noenc` and `-nodes`
+give the same key; RC2 only with `-legacy`.
+
+Then: copy to `08-SSL/certs/server.crt`, `server.key` (`chmod 600`),
+`chain.crt` and run `09-Install/05-root_nginx_ssl.sh --apply` (root) – it
+writes `fullchain.pem` (server first, then the intermediates). Without the
+library: `cat server.crt chain.crt > fullchain.pem`, `nginx -t`,
+`systemctl reload nginx`.
+
+**Wildcard certificates** (`*.kunde.de`):
+- cover exactly **one** level: `forms.kunde.de` yes, `forms.intern.kunde.de`
+  and `kunde.de` itself no (unless `kunde.de` is in the SAN too) – the name
+  of `WLS_SERVER_FQDN` must match;
+- the same key usually lies on many hosts of the customer – whoever has it
+  can pose as every host of the domain: `server.key` mode 600, not in
+  tickets / mails / exports, delete the PFX copy afterwards.
+
 **Back to the own root CA:** `./08-SSL/ssl_prepare_cert.sh LOCALCA --apply`
 (server) and `./08-SSL/ssl_local_ca.sh codesign --apply` (code signing),
 `SSL_CERT_SOURCE=localca` in `ssl.conf`, then `05-root_nginx_ssl.sh --apply`.

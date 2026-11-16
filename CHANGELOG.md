@@ -10,6 +10,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **Manual PFX split** ([08-SSL/README.md](08-SSL/README.md#manual-split-a-pfx--pkcs12-also-wildcard-certificates)):
+  key / certificate / chain from a PFX with OpenSSL 1.1.1 (`-nodes`) and 3.x (`-noenc`, `-legacy` for old
+  RC2 PFX), checks (SAN, key ↔ certificate, chain with / without the root in the OS trust store),
+  wildcard notes – tested with a test PKI.
 - **Forms & Reports licensing:** [fmw_forms_reports_licence.md](80-FMW-Architecture/fmw_forms_reports_licence.md) –
   technical classification with disclaimer (EN / DE), glossary of the abbreviations, what the licence
   covers, Builder not covered, NUP vs. processor with core factor and Oracle Store / price list
