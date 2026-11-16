@@ -36,6 +36,7 @@ weblogic_sec.conf
 
 # SSL certificate configuration (server-specific; template is committed)
 08-SSL/ssl.conf
+08-SSL/ssl.conf.bak*
 # Generated certificates and keys (never commit private keys)
 08-SSL/certs/
 # Customer certificates inbox (keys / PFX) – only the README is committed
@@ -48,6 +49,10 @@ log/
 # Stray log files dropped by Oracle Reports tools (rwrun/rwconverter/...)
 # when invoked from the repo root instead of a working directory
 *.log
+
+# Backups written by backup_file() (IHateWeblogic_lib.sh) next to a local
+# config file: <file>.bak_<yyyymmdd_hhmmss> - safety net for every folder
+*.bak_[0-9]*
 
 # Backup directories (contain local config)
 07-Maintenance/ConfigBackup/*/
