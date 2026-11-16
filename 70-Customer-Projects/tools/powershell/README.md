@@ -7,16 +7,20 @@ permalink: /70-Customer-Projects/tools/powershell/
 
 # tools/powershell – Windows versions of the customer tools
 
-PowerShell versions of three tools from [../bash/](../README.md), for Forms
-& Reports installations on **MS Windows Server**. Each one is standalone
-(no library), runs on **Windows PowerShell 5.1** (built into every Windows
-Server 2016 or newer) and PowerShell 7, and covers FMW **12.2.1.x and
-14.1.2**. The output and the CSV format match the bash versions, so the
-analysis is the same for Linux and Windows hosts.
+PowerShell versions of the tools from [../bash/](../README.md), for Forms
+& Reports installations on **MS Windows Server**. They run on **Windows
+PowerShell 5.1** (built into every Windows Server 2016 or newer) and
+PowerShell 7, and cover FMW **12.2.1.x and 14.1.2**. The output and the CSV
+format match the bash versions, so the analysis is the same for Linux and
+Windows hosts. `collect_fmw_env.ps1` needs the shared
+[`ihw_tools_lib.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) next to it (the twin of
+`bash/ihw_tools_lib.sh`: masking, encryption, web tier, Nginx, load profile);
+copy the whole folder / the Windows ZIP.
 
 | Script | Purpose | bash version |
 |---|---|---|
-| [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only metadata collection (OS, services, Java, OPatch, domain, Forms / Reports config, processes, Oracle Net, logs), secrets masked → ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
+| [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only collection of the **state** (OS + pending Windows updates, services, Java, OPatch / components / other homes, domain facts, processes and memory, web tier with Nginx in detail, HTTPS certificates, load profile, logs), secrets masked → encrypted ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
+| [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
 
@@ -48,11 +52,24 @@ them correctly without a BOM. Git checks out `*.ps1` with CRLF line endings
 .\collect_fmw_env.ps1 -Full                            # + opatch lsinventory -details / -bugs_fixed
 .\collect_fmw_env.ps1 -Logs                            # + error lines of the server logs + Windows event log (7 days)
 .\collect_fmw_env.ps1 -OutBase D:\temp                 # default: $env:TEMP
+.\collect_fmw_env.ps1 -NoEncrypt                       # plain ZIP (still masked)
+.\collect_fmw_env.ps1 -RwAuth rwadmin                  # secured Reports server: password asked hidden
+.\collect_fmw_env.ps1 -NoLoad                          # no load profile (default: last 90 days, -LoadDays N)
 ```
 
-The output goes to `<OutBase>\fmw_collect_<host>_<timestamp>\`, packed as
-`.zip`. It uses the same file names as the bash version (`00_summary.txt`,
-`10_os.txt` … `71_log_errors.txt`, plus `72_eventlog.txt`).
+Since 2026-11-16.3 the collector collects the **state** only; the
+configuration files are in the export (the PowerShell export follows). The
+output goes to `<OutBase>\fmw_collect_<host>_<timestamp>\`, packed as
+**`.zip.enc`** (passphrase asked twice at the start, `-NoEncrypt` = plain
+`.zip`) with a `.sha256`. The encryption is the one of the bash tools
+(AES-256-CBC, PBKDF2-HMAC-SHA256 200 000, salt) done by .NET – no
+`openssl.exe` needed on the customer host; decrypt on our side:
+`openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in <file>.zip.enc -out <file>.zip`.
+Every file is UTF-8 without BOM with LF line ends, the ZIP entries use `/`
+(Windows PowerShell 5.1 `Compress-Archive` writes `\`) – so the Linux tools
+of the analysis read it like a bash collection. It uses the same file names
+as the bash version (`00_summary.txt`, `10_os.txt` … `71_log_errors.txt`,
+plus `72_eventlog.txt`).
 
 **Detection on Windows:**
 - **`ORACLE_HOME`**, in this order:
@@ -71,10 +88,27 @@ The output goes to `<OutBase>\fmw_collect_<host>_<timestamp>\`, packed as
 | OS | `Win32_OperatingSystem`, hotfixes (last 30), volumes, pagefile, time zone / culture / code page, firewall profiles, listening ports with process name, scheduled tasks with an Oracle / WebLogic reference, machine environment |
 | Services | `Win32_Service` (Oracle / WebLogic / Node Manager / Forms / Reports / OHS / IIS): state, start mode, account, path |
 | Processes | `Win32_Process` with start time, working set, `ExecutablePath`, `CommandLine` (masked) |
-| Domain scripts | `setDomainEnv.cmd`, `setUserOverrides.cmd`, `startNodeManager.cmd`, `startWebLogic.cmd`, `reports\bin\*` |
-| Oracle Net | `TNS_ADMIN` from the session, the machine environment and `HKLM\SOFTWARE\Oracle\KEY_*` |
-| Web tier | owner of the ports 80 / 443 / 7777 / 4443 / 8080 / 8443, IIS (`W3SVC`, `iisproxy` in `applicationHost.config`), OHS instances, nginx under `C:\nginx*` / `D:\nginx*` |
+| OS updates | updates **not installed** from the Windows Update Agent cache of the last scan (`Microsoft.Update.Session`, offline search, 180 s timeout – no network forced), `MsrcSeverity` Critical / Important counted; build with `UBR` |
+| Oracle Net | `TNS_ADMIN` from the session, the machine environment and `HKLM\SOFTWARE\Oracle\KEY_*` (file list only) |
+| Web tier | owner of the ports 80 / 443 / 7777 / 4443 / 8080 / 8443, IIS (`W3SVC`, sites / bindings, WebLogic `iisproxy.ini`), OHS instances, Apache, **Nginx** (below) – routing and rated directives in the format of the bash version |
+| Load profile | Forms / Reports access logs aggregated like bash, `getserverinfo` / `showjobs` per POST; no `sar` on Windows (CPU / memory history "not collected") |
 | Logs (`-Logs`) | also the event log `Application` / `System`, level Critical / Error, last 7 days (max 300) |
+
+**Nginx on Windows** (installed by hand – no package manager, OpenSSL linked
+statically into `nginx.exe`):
+- found through the running `nginx.exe` (`-p` / `-c` of the command line),
+  Windows services also behind a wrapper (**NSSM**: `Parameters\Application` /
+  `AppDirectory`; **WinSW**: the `<id>.xml` next to the wrapper; srvany),
+  scheduled tasks and the usual directories (`C:|D:|E:\nginx*`,
+  `C:\tools\nginx*`, `C:\opt\nginx*`, `%ProgramFiles%\nginx*`); several
+  installations are all listed;
+- `nginx.exe -V`: version, OpenSSL it was built with, stable / mainline
+  (even / odd minor version); date and file version of `nginx.exe`; master
+  start time against the file date (`restart pending`); how it is started
+  (service / wrapper / task / by hand, start type, account);
+- who may write into the nginx directory (ACL entries with write rights;
+  `Users` / `Authenticated Users` / `Everyone` = security finding of the
+  environment analysis).
 
 **Masking:** the rules are the same as `mask()` of the bash version and
 cover `<…password…>` elements, `{AES}` values, `userid=` / `authid=` /
@@ -172,6 +206,16 @@ own `platform` / `file_regexp` columns – check the file names on MOS once.
 
 ## Tested – and what is not
 
+Tested 2026-11-16 with PowerShell 7.7.0 on the Linux test host (not on
+Windows), `collect_fmw_env.ps1` 2026-11-16.3 / `ihw_tools_lib.ps1`:
+- encryption both ways against openssl (also with umlauts in the
+  passphrase), the manual PBKDF2 of .NET 4.6.2 equal to the built-in one;
+- web tier find / flatten / routes / settings and the certificate lines
+  identical to the bash functions; load profile files identical (except
+  `host_sar.csv` – no sar);
+- both analyses read the collection (patch analysis, environment analysis
+  with the bash export).
+
 Tested 2026-11-03 with PowerShell 7.4.6 on the Linux test host (not on
 Windows):
 - all scripts parse without errors and use only ASCII and 5.1-compatible
@@ -191,6 +235,7 @@ Windows):
 
 **Not tested** because no Windows host was available:
 - the Windows-only parts: CIM (`Win32_*`), registry, services, firewall, event log, IIS;
+- Nginx on Windows (NSSM / WinSW / task detection, ACL), the Windows Update Agent search;
 - `opatch.bat` started through `cmd.exe`;
 - `Read-Host -AsSecureString`;
 - junction detection;

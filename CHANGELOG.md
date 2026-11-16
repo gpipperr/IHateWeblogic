@@ -22,6 +22,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   `ihwt_rs_list`, `ihwt_load_profile`, `ihwt_certificates`, `ihwt_os_advisories`, `ihwt_nginx_patch`).
   Every analysis needs both runs: patch analysis = collection, environment analysis = export +
   collection ([tools/README.md](70-Customer-Projects/tools/README.md)).
+- **Windows collector (collect_fmw_env.ps1 2026-11-16.3 + new `ihw_tools_lib.ps1`):** the same split
+  as bash - state only, encrypted `.zip.enc` (.NET AES compatible with the openssl command of the bash
+  tools), UTF-8 without BOM / LF / `/` in the ZIP; web tier routing identical to bash; Nginx installed
+  by hand found through process, NSSM / WinSW / srvany service, task or directory, with version,
+  static OpenSSL, stable / mainline, build date, restart pending and write rights; pending Windows
+  updates from the Windows Update cache; load profile; patch facts (products, components, other
+  homes, OPatch prerequisites) so the patch analysis reads Windows collections
+  ([powershell/README.md](70-Customer-Projects/tools/powershell/README.md)).
 - **Collector memory (2026-11-16.2):** `collect_fmw_env.sh` / `.ps1` write `51_forms_memory.txt`
   (every frmweb with RSS, private, PSS, session / pool; heap / GC arguments and RSS of every WLS
   server; prestart keys of formsweb.cfg) and the facts "Forms frmweb memory", "WLS heap (Xms/Xmx,

@@ -72,6 +72,10 @@ the host:
 | `collect_fmw_env.sh` | what is installed where, patch level (Oracle, Java, OS security advisories, Nginx in detail), Java, memory, load profile, Derby, FADS, HTTPS certificates – masked, no configuration files | **patch analysis**: installed products, patch level, Java, OS, number of missing patches / advisories, Nginx, how to patch |
 | `export_forms_reports_conf.sh` | the configuration (raw copies + `ihw_import/` proposals) for the rebuild | **environment analysis** (export + collection): configuration, security, performance, load profile, 14c target – the patch level only as one summary line |
 
+Windows: [`powershell/collect_fmw_env.ps1`](powershell/README.md#collect_fmw_envps1) collects the same
+state (2026-11-16.3, with `powershell/ihw_tools_lib.ps1`; Nginx installed by
+hand in detail, pending Windows updates); the PowerShell export follows.
+
 Order at a customer (tools → setdb → ini → analysis or installation):
 [../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt).
 
