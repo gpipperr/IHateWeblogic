@@ -8,7 +8,11 @@
 #            of operation (Derby, FADS, certificates, processes), licence
 #            indicators (WebLogic Server Basic restrictions visible in the
 #            configuration, applications of the domain, CPU / virtualization,
-#            database / ORDS on the host - 45_licence.txt, no licence statement).
+#            database / ORDS on the host - 45_licence.txt, no licence statement),
+#            the other WebLogic domains of the host at the top level
+#            (41_other_domains.txt) and whether WebGate is configured in an
+#            OHS instance (43_ohs.txt).
+#            Test only: IHWT_DOMAINS_EXTRA="dir ..." adds domain candidates.
 #            The CONFIGURATION (formsweb.cfg, env files, rwserver.conf,
 #            config.xml, tnsnames, web tier files ...) is NOT copied here -
 #            that is export_forms_reports_conf.sh. An analysis always needs
@@ -51,7 +55,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.5"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.6"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -339,6 +343,38 @@ if [ -n "$DH" ]; then
     unset _fapps _ftpl
 fi
 [ -n "$OH" ] && fact "FADS software in home" "$( [ -f "$OH/forms/fads/fads.ear" ] && printf 'yes (forms/fads)' || printf 'no')"
+
+# WebGate (OAM agent) configured in an OHS instance of the domain, or only
+# installed in the home? Decides whether the WebGate bundle patch is active
+# (patch analysis). Names, mode, OAM server, certificate expiry - no passphrase.
+if [ -n "$DH" ]; then
+    { printf '### WebGate in the OHS instances (webgate/config/ObAccessClient.xml)\n'
+      ihwt_webgate "$DH" | mask; printf '### rc=0\n\n'; } >> "$OUT/43_ohs.txt"
+    _wg="$(grep '^webgate;' "$OUT/43_ohs.txt" | grep -v '^webgate;none;' | awk -F';' '{printf "%s%s: %s, %s, %s, %s, %s", (NR>1?"; ":""), $2, $3, $5, $6, $7, $4}')"
+    fact "WebGate configured (OHS)" "${_wg:-no (no OHS instance with an OAM agent configuration)}"
+    unset _wg
+fi
+
+# other WebLogic domains of this host (top level only: BI Publisher, OAM, ...
+# next to the Forms domain) - name, version, home, servers, deployments,
+# products; their homes are in 34_other_homes.txt (patch level)
+_od="$OUT/41_other_domains.txt"
+_odn=0
+while read -r _d; do
+    [ -n "$_d" ] || continue
+    { printf '### Domain %s\n' "$_d"; ihwt_domain_summary "$_d" | mask; printf '### rc=0\n\n'; } >> "$_od"
+    _odn=$((_odn + 1))
+done < <(ihwt_domains_find "$OH" "$DH")
+if [ "$_odn" -gt 0 ]; then
+    fact "Other WebLogic domains" "$(awk -F';' '/^### Domain / {if (n!="") out(); n=""; v=""; p=""; s=0; r=0; h=""}
+        $1=="domain" && $2=="name" {n=$3} $1=="domain" && $2=="version" {v=$3} $1=="domain" && $2=="products" {p=$3} $1=="domain" && $2=="oracle_home" {h=$3}
+        $1=="server" {s++; if ($6!="no") r++}
+        function out() { printf "%s%s (%s, %s, %d/%d servers running, home %s)", (k++ ? "; " : ""), n, p, v, r, s, h }
+        END {if (n!="") out()}' "$_od")"
+else
+    fact "Other WebLogic domains" "none"
+fi
+unset _od _odn _d
 
 # =============================================================================
 # 5. Running processes

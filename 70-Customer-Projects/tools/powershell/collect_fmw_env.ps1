@@ -9,7 +9,9 @@
 #            certificates, processes), licence indicators (45_licence.txt -
 #            WebLogic Server Basic restrictions visible in the configuration,
 #            applications of the domain, CPU / virtualization, database / ORDS
-#            on the host; no licence statement). The CONFIGURATION is not copied - that
+#            on the host; no licence statement), the other WebLogic domains at
+#            the top level (41_other_domains.txt), WebGate configured in an
+#            OHS instance (43_ohs.txt). The CONFIGURATION is not copied - that
 #            is export_forms_reports_conf.ps1; an analysis always needs both.
 #            Windows / PowerShell version of tools/bash/collect_fmw_env.sh
 #            (same file layout 00_summary.txt, 10_os.txt ... 71_log_errors.txt).
@@ -93,7 +95,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.6"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.7"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -388,6 +390,26 @@ if ($DH -and $OH) {
     ihwt-block 44_forms_client.txt "FSAL / client jars (frmsal.jar)" (((@(Get-ChildItem -Path (ihwt-jp @($OH, "forms", "java", "frmsal*.jar")), (ihwt-jp @($OH, "forms", "java", "frmall.jar")) -File -ErrorAction SilentlyContinue | ForEach-Object { "{0,10} {1} {2}" -f $_.Length, $_.LastWriteTime.ToString("yyyy-MM-dd HH:mm"), $_.FullName })) -join "`n"))
 }
 if ($OH) { ihwt-fact "FADS software in home" $(if (Test-Path -LiteralPath (ihwt-jp @($OH, "forms", "fads", "fads.ear"))) { "yes (forms/fads)" } else { "no" }) }
+
+# WebGate (OAM agent) configured in an OHS instance of the domain or only
+# installed (as bash): decides whether the WebGate bundle patch is active
+if ($DH) {
+    $wgl = @(ihwt-webgate $DH)
+    ihwt-block 43_ohs.txt "WebGate in the OHS instances (webgate/config/ObAccessClient.xml)" ($wgl -join "`n")
+    $wgf = @($wgl | Where-Object { $_ -notlike 'webgate;none;*' } | ForEach-Object { $q = $_ -split ';'; "{0}: {1}, {2}, {3}, {4}, {5}" -f $q[1], $q[2], $q[4], $q[5], $q[6], $q[3] })
+    ihwt-fact "WebGate configured (OHS)" $(if ($wgf.Count) { $wgf -join '; ' } else { "no (no OHS instance with an OAM agent configuration)" })
+}
+
+# other WebLogic domains of this host (top level only, as bash)
+$odo = New-Object System.Collections.Generic.List[string]
+foreach ($od in @(ihwt-domains-find $OH $DH $procs)) {
+    $sl = @(ihwt-domain-summary $od $procs)
+    ihwt-block 41_other_domains.txt "Domain $od" ($sl -join "`n")
+    $kv = @{}; $sn = 0; $sr = 0
+    foreach ($l in $sl) { $q = $l -split ';'; if ($q[0] -eq 'domain') { $kv[$q[1]] = ($l -split ';', 3)[2] } elseif ($q[0] -eq 'server') { $sn++; if ($q[5] -ne 'no') { $sr++ } } }
+    $odo.Add(("{0} ({1}, {2}, {3}/{4} servers running, home {5})" -f $kv['name'], $kv['products'], $kv['version'], $sr, $sn, $kv['oracle_home']))
+}
+ihwt-fact "Other WebLogic domains" $(if ($odo.Count) { $odo -join '; ' } else { "none" })
 
 #==============================================================================
 # 5. Running processes, Windows services

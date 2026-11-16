@@ -161,6 +161,8 @@ refused unless git ignores the path.
 | `30_inventory.txt` | + product versions of `inventory/registry.xml` (WLS / Forms & Reports / OPatch – selects the patch list) |
 | `33_components.txt` | patch-relevant `comps.xml` components with version (DB client, Perl, OHS, WebGate, Coherence, ADF / JRF / OPSS / OWSM / EM / UMS / WebCenter / LibOVD / OAMCLIENT, Forms / Reports), `sqlplus -V`, `perl -v`, OHS / WebGate directories |
 | `34_other_homes.txt` | `opatch lspatches -oh` of every other home of the central inventory (separate OHS / WebGate / DB client / old FMW homes) |
+| `41_other_domains.txt` | the **other WebLogic domains** of the host, top level only (2026-11-16.6): found through `domain-registry.xml` / `nodemanager.domains` of every inventory home, the running servers and the sibling directories of the Forms domain; per domain name, version, production mode, Oracle home / `JAVA_HOME` of `setDomainEnv`, every server (listen address / port / cluster, pid / java / `-Xmx` when running), the application deployments and the products derived from them (BI Publisher, OAM, SOA …) – no configuration content; fact `Other WebLogic domains` |
+| `43_ohs.txt` block `WebGate in the OHS instances` | WebGate (OAM agent) **configured** in an OHS instance of the domain (`webgate/config/ObAccessClient.xml`: agent id, security mode, OAM server, `webgate.conf` included, expiry of `aaa_cert.pem`) or only installed in the home – no passphrase; fact `WebGate configured (OHS)`; the patch analysis marks the WebGate bundle patch "active (OAM login)" |
 | `35_opatch_prereq.txt` | inventory locks, owner / mode of the home and inventory, files not owned by the user, `.patch_storage` size, free space, the last apply / napply / rollback runs with their result |
 | `44_forms_client.txt` | client JRE of the Forms users: JNLP `java version`, `formsweb.cfg` Java keys, `frmsal.jar` |
 | `00_summary.txt` | + bundled JDK `oracle_common/jdk`, product versions, DB client, Perl, WebGate, `.patch_storage`, free space, locks, other homes, domain version, `openssl` / `ca-certificates` |
@@ -181,8 +183,8 @@ Check the version first: `./collect_fmw_env.sh -V` (also the first line of
 Result: `/tmp/fmw_collect_<host>_<timestamp>.zip.enc` (about 130 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `33_components`,
-`34_other_homes`, `35_opatch_prereq`, `40_domain`, `43_ohs` (default
-`index.html`), `44_forms_client`, `45_licence`, `50_processes`, `51_forms_memory`, `60_net`,
+`34_other_homes`, `35_opatch_prereq`, `40_domain`, `41_other_domains`, `43_ohs` (default
+`index.html`, WebGate), `44_forms_client`, `45_licence`, `50_processes`, `51_forms_memory`, `60_net`,
 `61_webserver` (Nginx / Apache / standalone OHS: routing, rated directives,
 patch facts), `62_certificates`, `load/`, `70_logs`). Runtime on the test host: about 90 s.
 

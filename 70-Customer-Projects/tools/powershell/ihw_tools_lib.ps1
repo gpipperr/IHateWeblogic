@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.5"
+$IHWT_PS_LIB_VERSION = "2026-11-16.6"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1240,4 +1240,155 @@ function ihwt-licence-host {
              "host;oracle_db_instances;$(if ($db) { $db } else { 'none' })") + $ed.ToArray() + @(
              "host;ords_process;$(if ($od) { $od } else { 'none' })",
              "host;wls_domains;$(if ($dm) { $dm } elseif ($DH) { $DH } else { '-' })")
+}
+
+# ihwt-realpath P - resolved path (Linux: readlink -f, Windows: full path)
+function ihwt-realpath {
+    param([string] $P)
+    if (-not $IHWT_ON_WINDOWS) { $r = "$(& readlink -f $P 2>$null)".Trim(); if ($r) { return $r } }
+    try { return [IO.Path]::GetFullPath($P).TrimEnd('\', '/') } catch { return $P }
+}
+
+# ihwt-domains-find OH DH PROCS - the OTHER WebLogic domains of this host (top
+# level, read-only), as bash ihwt_domains_find: domain-registry.xml and
+# nodemanager.domains of OH and every inventory home, running servers
+# (-Dweblogic.RootDirectory, -Ddomain.home, working directory on Linux),
+# nodemanager.domains of DH and the sibling directories of DH; DH left out.
+# IHWT_DOMAINS_EXTRA (tests only): additional candidates.
+function ihwt-domains-find {
+    param([string] $OH, [string] $DH, $Procs)
+    $cand = New-Object System.Collections.Generic.List[string]
+    $homes = New-Object System.Collections.Generic.List[string]
+    if ($OH) { $homes.Add($OH) }
+    $inv = ""
+    if ($IHWT_ON_WINDOWS) { try { $inv = (Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Oracle" -Name inst_loc -ErrorAction Stop).inst_loc } catch { } }
+    else { $m = Select-String -LiteralPath /etc/oraInst.loc -Pattern '^inventory_loc=(.*)$' -ErrorAction SilentlyContinue | Select-Object -First 1; if ($m) { $inv = $m.Matches[0].Groups[1].Value.Trim() } }
+    if ($inv) {
+        foreach ($m in @(Select-String -LiteralPath (ihwt-jp @($inv, "ContentsXML", "inventory.xml")) -Pattern '<HOME ' -ErrorAction SilentlyContinue | Where-Object { $_.Line -notmatch 'REMOVED="T"' })) {
+            if ($m.Line -match ' LOC="([^"]*)"') { $homes.Add($Matches[1]) }
+        }
+    }
+    foreach ($h in @($homes | Sort-Object -Unique)) {
+        foreach ($m in @(Select-String -LiteralPath (Join-Path $h "domain-registry.xml") -Pattern 'location="([^"]*)"' -AllMatches -ErrorAction SilentlyContinue)) { foreach ($x in $m.Matches) { $cand.Add($x.Groups[1].Value) } }
+        foreach ($l in @(Get-Content -LiteralPath (ihwt-jp @($h, "oracle_common", "common", "nodemanager", "nodemanager.domains")) -ErrorAction SilentlyContinue)) { if ($l -match '^[^#=]*=(.*)$') { $cand.Add(($Matches[1] -replace '\\:', ':' -replace '\\\\', '\')) } }
+    }
+    foreach ($p in @($Procs)) {
+        $c = "$($p.CommandLine)"
+        if ($c -match '-Dweblogic\.RootDirectory=("?)([^" ]+)\1') { $cand.Add($Matches[2]) }
+        if ($c -match '-Ddomain\.home=("?)([^" ]+)\1') { $cand.Add($Matches[2]) }
+        if (-not $IHWT_ON_WINDOWS -and $c -match '-Dweblogic\.Name=') { $w = "$(& readlink -f "/proc/$($p.ProcessId)/cwd" 2>$null)".Trim(); if ($w) { $cand.Add($w) } }
+    }
+    if ($DH) {
+        foreach ($l in @(Get-Content -LiteralPath (ihwt-jp @($DH, "nodemanager", "nodemanager.domains")) -ErrorAction SilentlyContinue)) { if ($l -match '^[^#=]*=(.*)$') { $cand.Add(($Matches[1] -replace '\\:', ':' -replace '\\\\', '\')) } }
+        $par = Split-Path -Parent $DH
+        if ($par) { foreach ($d in @(Get-ChildItem -LiteralPath $par -Directory -ErrorAction SilentlyContinue)) { $cand.Add($d.FullName) } }
+    }
+    if ($env:IHWT_DOMAINS_EXTRA) { foreach ($x in ($env:IHWT_DOMAINS_EXTRA -split '\s+')) { if ($x) { $cand.Add($x) } } }
+    $rd = $(if ($DH) { ihwt-realpath $DH } else { "" })
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($c in $cand) {
+        if (-not $c -or -not (Test-Path -LiteralPath (ihwt-jp @($c, "config", "config.xml")))) { continue }
+        $r = ihwt-realpath $c
+        if ($r -eq $rd -or $out.Contains($r)) { continue }
+        $out.Add($r)
+    }
+    $a = [string[]]$out.ToArray(); [Array]::Sort($a, [StringComparer]::Ordinal); return $a
+}
+
+# ihwt-domain-product NAME - product of a deployment / server name (as bash)
+function ihwt-domain-product {
+    param([string] $Name)
+    $n = ($Name -split '#')[0].ToLower()
+    switch -regex ($n) {
+        '^formsapp' { return 'Forms' } '^reports' { return 'Reports' }
+        '^(xmlpserver|bipublisher)' { return 'BI Publisher' }
+        '^(analytics|bimad|bi-|biee|bicomposer)' { return 'BI / Oracle Analytics' }
+        '^(oam_server|oam_admin|oamsso)' { return 'OAM' } '^(oim|identity)' { return 'OIM' }
+        '^(soa-infra|soa_server)' { return 'SOA' } '^ords' { return 'ORDS' } '^apex' { return 'APEX' }
+        '^fads' { return 'FADS' } '^em$' { return 'Fusion Middleware Control' } '^wsm-pm' { return 'OWSM' }
+    }
+    return ''
+}
+
+# ihwt-domain-summary D PROCS - top level of one domain (same lines as bash
+# ihwt_domain_summary): name, version, production mode, home / JAVA_HOME of
+# setDomainEnv, servers (address, port, cluster, pid / java / -Xmx when
+# running), deployments with targets, products
+function ihwt-domain-summary {
+    param([string] $D, $Procs)
+    $cf = ihwt-jp @($D, "config", "config.xml")
+    if (-not (Test-Path -LiteralPath $cf)) { return @() }
+    $x = $null; try { $x = [xml](Get-Content -LiteralPath $cf -Raw) } catch { return @("domain;path;$D", "domain;name;unreadable config.xml") }
+    $dm = $x.DocumentElement
+    $r = New-Object System.Collections.Generic.List[string]
+    $r.Add("domain;path;$D")
+    $r.Add("domain;name;$(_ihwt-child $dm 'name')")
+    $r.Add("domain;version;$(_ihwt-child $dm 'domain-version')")
+    $r.Add("domain;production_mode;$(_ihwt-child $dm 'production-mode-enabled')")
+    $sde = @((ihwt-jp @($D, "bin", "setDomainEnv.sh")), (ihwt-jp @($D, "bin", "setDomainEnv.cmd"))) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $wl = ""; $oh = ""; $jh = ""
+    if ($sde) {
+        $lines = @(Get-Content -LiteralPath $sde -ErrorAction SilentlyContinue)
+        foreach ($l in $lines) { if (-not $wl -and $l -match '^\s*(export\s+|set\s+)?WL_HOME="?([^"$%]*)"?\s*$') { $wl = $Matches[2] } }
+        if ($wl) { $oh = Split-Path -Parent $wl }
+        if (-not $oh) { foreach ($l in $lines) { if (-not $oh -and $l -match '^\s*(export\s+|set\s+)?(MW_HOME|ORACLE_HOME)="?([^"$%]*)"?\s*$') { $oh = $Matches[3] } } }
+        foreach ($l in $lines) { if ($l -match '^\s*(export\s+|set\s+)?JAVA_HOME="?([^"$%]*)"?\s*$') { $jh = $Matches[2] } }
+    }
+    $r.Add("domain;oracle_home;$(if ($oh) { $oh } else { '-' })")
+    $r.Add("domain;java_home;$(if ($jh) { $jh } else { '-' })")
+    $wls = @($Procs | Where-Object { "$($_.CommandLine)" -match '-Dweblogic\.Name=' })
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($s in @($dm.SelectNodes("*[local-name()='server']"))) {
+        $n = _ihwt-child $s 'name'; $names.Add($n)
+        $a = _ihwt-child $s 'listen-address'; $p = _ihwt-child $s 'listen-port'; $cl = _ihwt-child $s 'cluster'
+        $pid_ = ""; $ja = "-"; $xm = "-"
+        foreach ($q in $wls) {
+            $c = "$($q.CommandLine)"
+            if ($c -notmatch ('-Dweblogic\.Name=' + [regex]::Escape($n) + '(\s|$)')) { continue }
+            $hit = $c.Contains("=$D ") -or $c.Contains("=$D/") -or $c.Contains("=$D\") -or $c.Contains("$D/") -or $c.Contains("$D\")
+            if (-not $hit -and -not $IHWT_ON_WINDOWS) { $hit = ("$(& readlink -f "/proc/$($q.ProcessId)/cwd" 2>$null)".Trim() -eq $D) }
+            if ($hit) {
+                $pid_ = "$($q.ProcessId)"
+                $ja = $(if ($c -match '^"([^"]+)"') { $Matches[1] } else { ($c -split '\s+')[0] })
+                $xa = @([regex]::Matches($c, '-Xmx[0-9]+[kKmMgG]?')); if ($xa.Count) { $xm = $xa[-1].Value }
+                break
+            }
+        }
+        $r.Add(("server;{0};{1};{2};{3};{4};{5};{6}" -f $n, $(if ($a) { $a } else { '-' }), $(if ($p) { $p } else { '7001' }), $(if ($cl) { $cl } else { '-' }), $(if ($pid_) { $pid_ } else { 'no' }), $ja, $xm))
+    }
+    foreach ($ad in @($dm.SelectNodes("*[local-name()='app-deployment']"))) { $an = _ihwt-child $ad 'name'; $names.Add($an); $r.Add("deployment;$an;$(_ihwt-child $ad 'target')") }
+    $pr = @($names | ForEach-Object { ihwt-domain-product $_ } | Where-Object { $_ } | Sort-Object -Unique)
+    $pa = [string[]]$pr; [Array]::Sort($pa, [StringComparer]::Ordinal)
+    $r.Add("domain;products;$(if ($pa.Count) { $pa -join ',' } else { 'unknown' })")
+    return $r.ToArray()
+}
+
+# ihwt-webgate DH - WebGate configured in the OHS instances of the domain (as
+# bash ihwt_webgate): "webgate;<instance>;loaded=..;id=..;security=..;primary=..;cert_until=.."
+# or "webgate;none;-" - names, mode, OAM server, certificate expiry, no passphrase
+function ihwt-webgate {
+    param([string] $DH)
+    $root = $(if ($DH) { ihwt-jp @($DH, "config", "fmwconfig", "components", "OHS") } else { "" })
+    if (-not $root -or -not (Test-Path -LiteralPath $root)) { return @("webgate;none;-") }
+    $out = New-Object System.Collections.Generic.List[string]
+    $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter ObAccessClient.xml -ErrorAction SilentlyContinue |
+               Where-Object { ($_.FullName -replace '\\', '/') -match '/webgate/config/ObAccessClient\.xml$' -and ($_.FullName -replace '\\', '/') -notmatch '/lang/' } |
+               Sort-Object { $_.FullName } -Culture ([Globalization.CultureInfo]::InvariantCulture))
+    foreach ($f in $files) {
+        $base = $f.Directory.Parent.Parent.FullName; $inst = Split-Path -Leaf $base
+        if (($base -replace '\\', '/') -match '/instances/') { $inst = "instances/$inst" }
+        $t = (Get-Content -LiteralPath $f.FullName -Raw) -replace "[\r\n]", ' '
+        $kv = @{}
+        foreach ($m in [regex]::Matches($t, 'ParamName="([^"]*)"\s+Value="([^"]*)"')) { $k = $m.Groups[1].Value.ToLower(); if (-not $kv.ContainsKey($k)) { $kv[$k] = $m.Groups[2].Value } }
+        $ce = "-"
+        foreach ($c in @(Get-ChildItem -LiteralPath (Join-Path $base (Join-Path "webgate" "config")) -Recurse -File -Filter aaa_cert.pem -ErrorAction SilentlyContinue)) {
+            try { $x509 = [Security.Cryptography.X509Certificates.X509Certificate2]::new($c.FullName); $u = $x509.NotAfter.ToUniversalTime()
+                  $ce = "{0} {1,2} {2} GMT" -f $u.ToString('MMM', [Globalization.CultureInfo]::InvariantCulture), $u.Day, $u.ToString('HH:mm:ss yyyy', [Globalization.CultureInfo]::InvariantCulture); break } catch { }
+        }
+        $ld = $(if (Select-String -LiteralPath (Join-Path $base "httpd.conf") -Pattern '^\s*include\s.*webgate\.conf' -Quiet -ErrorAction SilentlyContinue) { 'yes' } else { 'no' })
+        $pri = $(if ($kv['host']) { "$($kv['host']):$($kv['port'])" } else { '' })
+        $out.Add(("webgate;{0};loaded={1};id={2};security={3};primary={4};cert_until={5}" -f $inst, $ld, $(if ($kv['id']) { $kv['id'] } else { '-' }), $(if ($kv['security']) { $kv['security'] } else { '-' }), $pri, $ce))
+    }
+    if ($out.Count -eq 0) { return @("webgate;none;-") }
+    return $out.ToArray()
 }

@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-16.5"
+IHWT_LIB_VERSION="2026-11-16.6"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -988,4 +988,139 @@ ihwt_licence_host() {
     printf 'host;ords_process;%s\n' "${od:-none}"
     dm="$( [ -n "$oh" ] && sed -n 's/.*location="\([^"]*\)".*/\1/p' "$oh/domain-registry.xml" 2>/dev/null | paste -sd, -)"
     printf 'host;wls_domains;%s\n' "${dm:-${dh:--}}"
+}
+
+# ihwt_domains_find OH DH - the OTHER WebLogic domains of this host (top level
+#   only, read-only): domain-registry.xml and nodemanager.domains of OH and of
+#   every home of the central inventory, running servers (-Dweblogic.RootDirectory,
+#   -Ddomain.home, working directory), nodemanager.domains of DH and the sibling
+#   directories of DH. One realpath per line, DH itself left out.
+#   IHWT_DOMAINS_EXTRA (tests only): additional candidates.
+ihwt_domains_find() {
+    local oh="${1:-}" dh="${2:-}" inv h p rd
+    inv="$(sed -n 's/^inventory_loc=//p' /etc/oraInst.loc 2>/dev/null | head -1)"
+    rd="$( [ -n "$dh" ] && readlink -f "$dh")"
+    {
+        { [ -n "$oh" ] && printf '%s\n' "$oh"
+          [ -n "$inv" ] && grep '<HOME ' "$inv/ContentsXML/inventory.xml" 2>/dev/null | grep -v 'REMOVED="T"' | sed -n 's/.*LOC="\([^"]*\)".*/\1/p'
+        } | sort -u | while read -r h; do
+            sed -n 's/.*location="\([^"]*\)".*/\1/p' "$h/domain-registry.xml" 2>/dev/null
+            sed -n 's/^[^#=]*=\(.*\)$/\1/p' "$h/oracle_common/common/nodemanager/nodemanager.domains" 2>/dev/null
+        done
+        ps -eo args= 2>/dev/null | sed -n 's/.*-Dweblogic\.RootDirectory=\([^ ]*\).*/\1/p; s/.*-Ddomain\.home=\([^ ]*\).*/\1/p'
+        for p in $(ps -eo pid=,args= 2>/dev/null | awk '/-Dweblogic\.Name=/ && !/awk/ {print $1}'); do
+            readlink -f "/proc/$p/cwd" 2>/dev/null
+        done
+        if [ -n "$dh" ]; then
+            sed -n 's/^[^#=]*=\(.*\)$/\1/p' "$dh/nodemanager/nodemanager.domains" 2>/dev/null
+            for p in "$(dirname "$dh")"/*/; do printf '%s\n' "${p%/}"; done
+        fi
+        [ -n "${IHWT_DOMAINS_EXTRA:-}" ] && printf '%s\n' $IHWT_DOMAINS_EXTRA
+    } | while read -r p; do
+        [ -n "$p" ] && [ -f "$p/config/config.xml" ] || continue
+        p="$(readlink -f "$p")"; [ "$p" = "$rd" ] && continue
+        printf '%s\n' "$p"
+    done | sort -u
+}
+
+# ihwt_domain_product NAME - product of a deployment / server name (BI
+#   Publisher, OAM, ... - for the overview of the other domains)
+ihwt_domain_product() {
+    case "$(printf '%s' "${1%%#*}" | tr '[:upper:]' '[:lower:]')" in
+        formsapp*) printf 'Forms' ;;
+        reports*) printf 'Reports' ;;
+        xmlpserver*|bipublisher*) printf 'BI Publisher' ;;
+        analytics*|bimad*|bi-*|biee*|bicomposer*) printf 'BI / Oracle Analytics' ;;
+        oam_server*|oam_admin*|oamsso*) printf 'OAM' ;;
+        oim*|identity*) printf 'OIM' ;;
+        soa-infra*|soa_server*) printf 'SOA' ;;
+        ords*) printf 'ORDS' ;;
+        apex*) printf 'APEX' ;;
+        fads*) printf 'FADS' ;;
+        em) printf 'Fusion Middleware Control' ;;
+        wsm-pm*) printf 'OWSM' ;;
+        *) printf '' ;;
+    esac
+}
+
+# ihwt_domain_summary D - top level of one domain, key;value lines (no
+#   configuration content, no secrets): name, version, production mode, Oracle
+#   home and JAVA_HOME of setDomainEnv.sh, every server with listen address /
+#   port / cluster and - when running - pid, java binary and -Xmx, every
+#   application deployment with its targets, the products derived from them
+ihwt_domain_summary() {
+    local d="$1" c="$1/config/config.xml" wl oh jh ps_ pr
+    [ -f "$c" ] || return 0
+    printf 'domain;path;%s\n' "$d"
+    printf 'domain;name;%s\n' "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$c" | head -1)"
+    printf 'domain;version;%s\n' "$(sed -n 's/.*<domain-version>\([^<]*\)<.*/\1/p' "$c" | head -1)"
+    printf 'domain;production_mode;%s\n' "$(sed -n 's/.*<production-mode-enabled>\([^<]*\)<.*/\1/p' "$c" | head -1)"
+    wl="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}WL_HOME="\{0,1\}\([^"$]*\)"\{0,1\}[[:space:]]*$/\2/p' "$d/bin/setDomainEnv.sh" 2>/dev/null | head -1)"
+    oh="$( [ -n "$wl" ] && dirname "$wl")"
+    [ -z "$oh" ] && oh="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}\(MW_HOME\|ORACLE_HOME\)="\{0,1\}\([^"$]*\)"\{0,1\}[[:space:]]*$/\3/p' "$d/bin/setDomainEnv.sh" 2>/dev/null | head -1)"
+    jh="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}JAVA_HOME="\{0,1\}\([^"$]*\)"\{0,1\}[[:space:]]*$/\2/p' "$d/bin/setDomainEnv.sh" 2>/dev/null | tail -1)"
+    printf 'domain;oracle_home;%s\n' "${oh:--}"
+    printf 'domain;java_home;%s\n' "${jh:--}"
+    ps_="$(ps -eo pid=,args= 2>/dev/null | awk '/-Dweblogic\.Name=/ && !/awk/')"
+    # direct children of <server> only: same indentation as its first <name>
+    # (nested network-access-point / ssl elements have their own listen-port)
+    awk 'function ind(x) { match(x, /^[ \t]*/); return RLENGTH }
+         !s && /^[ \t]*<server>[ \t]*$/ {s=1; n=""; a=""; p=""; cl=""; ci=-1; si=ind($0); next}
+         s && /^[ \t]*<\/server>/ && ind($0)==si {print n ";" (a=="" ? "-" : a) ";" (p=="" ? "7001" : p) ";" (cl=="" ? "-" : cl); s=0; next}
+         s && n=="" && /<name>/ {n=$0; gsub(/.*<name>|<\/name>.*/, "", n); ci=ind($0); next}
+         s && ind($0)!=ci {next}
+         s && /<listen-address>/ {a=$0; gsub(/.*<listen-address>|<\/listen-address>.*/, "", a)}
+         s && /<listen-port>/ {p=$0; gsub(/.*<listen-port>|<\/listen-port>.*/, "", p)}
+         s && /<cluster>/ {cl=$0; gsub(/.*<cluster>|<\/cluster>.*/, "", cl)}' "$c" \
+    | while IFS=';' read -r n a p cl; do
+        local pid="" ja="-" xm="-" l
+        while read -r l; do
+            [ -n "$l" ] || continue
+            case "$l" in *"-Dweblogic.Name=$n "*|*"-Dweblogic.Name=$n") ;; *) continue ;; esac
+            case "$l" in *"=$d "*|*"=$d/"*|*"$d/"*) pid="${l%% *}" ;;
+                *) [ "$(readlink -f "/proc/${l%% *}/cwd" 2>/dev/null)" = "$d" ] && pid="${l%% *}" ;; esac
+            if [ -n "$pid" ]; then
+                ja="$(printf '%s' "$l" | awk '{print $2}')"
+                xm="$(printf '%s' "$l" | grep -oE -- '-Xmx[0-9]+[kKmMgG]?' | tail -1)"; break
+            fi
+        done <<< "$ps_"
+        printf 'server;%s;%s;%s;%s;%s;%s;%s\n' "$n" "$a" "$p" "$cl" "${pid:-no}" "$ja" "${xm:--}"
+    done
+    awk '/<app-deployment>/ {s=1; n=""; t=""; next}
+         s && /<\/app-deployment>/ {print n ";" t; s=0; next}
+         s && n=="" && /<name>/ {n=$0; gsub(/.*<name>|<\/name>.*/, "", n)}
+         s && /<target>/ {t=$0; gsub(/.*<target>|<\/target>.*/, "", t)}' "$c" \
+        | while IFS=';' read -r n t; do printf 'deployment;%s;%s\n' "$n" "$t"; done
+    pr="$( { awk '/<app-deployment>/ {s=1; next} s && /<name>/ {n=$0; gsub(/.*<name>|<\/name>.*/, "", n); print n; s=0}' "$c"
+             awk '/^[ \t]*<server>[ \t]*$/ {s=1; next} s && /<name>/ {n=$0; gsub(/.*<name>|<\/name>.*/, "", n); print n; s=0}' "$c"; } \
+           | while read -r n; do ihwt_domain_product "$n"; printf '\n'; done | grep -v '^$' | sort -u | paste -sd, -)"
+    printf 'domain;products;%s\n' "${pr:-unknown}"
+}
+
+# ihwt_webgate DH - WebGate configured in the OHS instances of the domain?
+#   (installed in the home = binaries only; configured = webgate/config/
+#   ObAccessClient.xml of the instance, written by the OAM agent registration)
+#   "webgate;<instance>;loaded=<yes|no>;id=..;security=..;primary=host:port;cert_until=.."
+#   or "webgate;none;-". Only names, mode, server and the certificate expiry -
+#   no passphrase. The language catalogues webgate/ohs/lang/*/ObAccessClient.xml
+#   of the home are not agent configurations.
+ihwt_webgate() {
+    local dh="${1:-}" f inst base kv id sec host port ce ld n=0
+    [ -n "$dh" ] && [ -d "$dh/config/fmwconfig/components/OHS" ] || { printf 'webgate;none;-\n'; return 0; }
+    while read -r f; do
+        [ -n "$f" ] || continue
+        base="${f%/webgate/config/ObAccessClient.xml}"; inst="${base##*/}"
+        case "$base" in */instances/*) inst="instances/$inst" ;; esac
+        kv="$(tr '\n' ' ' < "$f" | grep -oE 'ParamName="[^"]*"[[:space:]]+Value="[^"]*"' | sed -E 's/ParamName="([^"]*)"[[:space:]]+Value="([^"]*)"/\1=\2/')"
+        id="$(printf '%s\n' "$kv" | grep -iE '^id=' | head -1 | cut -d= -f2-)"
+        sec="$(printf '%s\n' "$kv" | grep -iE '^security=' | head -1 | cut -d= -f2-)"
+        host="$(printf '%s\n' "$kv" | grep -iE '^host=' | head -1 | cut -d= -f2-)"
+        port="$(printf '%s\n' "$kv" | grep -iE '^port=' | head -1 | cut -d= -f2-)"
+        ce="$(find "$base/webgate/config" -name 'aaa_cert.pem' 2>/dev/null | while read -r c; do openssl x509 -noout -enddate -in "$c" 2>/dev/null | sed 's/^notAfter=//'; done | head -1)"
+        ld=no; grep -qsE '^[[:space:]]*include[[:space:]].*webgate\.conf' "$base/httpd.conf" && ld=yes
+        printf 'webgate;%s;loaded=%s;id=%s;security=%s;primary=%s;cert_until=%s\n' "$inst" "$ld" "${id:--}" "${sec:--}" "${host:+$host:$port}" "${ce:--}"
+        n=$((n + 1))
+    done < <(find "$dh/config/fmwconfig/components/OHS" -path '*/webgate/config/ObAccessClient.xml' ! -path '*/lang/*' 2>/dev/null | sort)
+    [ "$n" -eq 0 ] && printf 'webgate;none;-\n'
+    return 0
 }

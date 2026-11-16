@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **Collector: other WebLogic domains and WebGate** (`collect_fmw_env.sh` 2026-11-16.6, `.ps1` 2026-11-16.7,
+  `ihw_tools_lib` 2026-11-16.6 / `.ps1` 2026-11-16.6): `41_other_domains.txt` with the top level of every
+  other domain of the host (BI Publisher, OAM … next to the Forms domain: version, home, servers, deployments,
+  products) and whether WebGate (OAM agent) is configured in an OHS instance (`43_ohs.txt`: security mode,
+  OAM server, agent certificate expiry) – so the WebGate bundle patch of the single sign-on client side is
+  recommended as "active"; bash and PowerShell give the same lines
+  ([tools/README.md](70-Customer-Projects/tools/README.md#collect_fmw_envsh)).
 - **Licence in the public cloud** ([fmw_forms_reports_licence.md](80-FMW-Architecture/fmw_forms_reports_licence.md#4-metric-and-prices)):
   OCI counted per OCPU (Core Factor Table, x86 2 / Ampere 4 OCPUs per processor licence), AWS / Azure /
   Google Cloud per vCPU (cloud licensing policy, as of 2026-09-04), core factor not applicable; glossary

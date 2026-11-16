@@ -121,6 +121,15 @@ edition of their home (`oracle_install_db_InstallEdition`) and ORDS
 processes. No licence statement - see
 [fmw_forms_reports_licence.md](../../../80-FMW-Architecture/fmw_forms_reports_licence.md).
 
+**Other WebLogic domains and WebGate** (2026-11-16.7, the same lines as bash -
+tested on the test host with a second domain): `41_other_domains.txt` with the
+top level of every other domain (inventory homes from `inst_loc` in the
+registry, `domain-registry.xml`, `nodemanager.domains`, the
+`-Dweblogic.RootDirectory` / `-Ddomain.home` of the running servers, sibling
+directories of the Forms domain; `setDomainEnv.cmd` / `.sh`), and the
+`webgate` lines in `43_ohs.txt` (agent certificate expiry read with .NET
+`X509Certificate2`).
+
 **Masking:** the rules are the same as `mask()` of the bash version and
 cover `<…password…>` elements, `{AES}` values, `userid=` / `authid=` /
 `password=` / `pwd=`, `-D…Password=` and `user/password@`. They were tested
