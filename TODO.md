@@ -77,6 +77,16 @@ Applied on the test host 2026-10-24 (details, runtimes, answered open points:
 [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
+- [ ] **Unique Patch ID (ARU) per patch file:** new column in
+  `09-Install/download/patches_*.csv` with the expected `<unique_patch_id>`
+  (from `etc/config/inventory.xml` of the ZIP); `cve_inventory.sh` and the
+  customer patch analysis compare it with `opatch lsinventory` – a patch
+  re-released under the same number (new build) then shows up as "installed,
+  but old build". The MOS patch page shows no ARU – only the download link
+  (`…?aru=<ARU>&patch_file=…`) has it, for Java the only place at all:
+  `mos_patch_download.sh` should log the ARU of every file and fill the
+  column. Background:
+  [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
   after 23 Oct whether 18143322 then also delivers b26) via the customer's
