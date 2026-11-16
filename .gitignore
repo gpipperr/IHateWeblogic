@@ -102,5 +102,11 @@ ihw_export_*
 # Analysis of customer exports: own private repository, cloned here
 70-Customer-Projects/customer-analyse/
 
+# Customer cookbooks / scripts with customer names, hosts, paths - local only,
+# never in any repository (one sub-folder per customer). The pre-commit hook
+# also blocks them when added with "git add -f" (tools/hooks/pre-commit, 2b).
+70-Customer-Projects/customer-scripts/
+**/customer-scripts/
+
 # render_ascii (checked in since 2026-11-11): only the local configuration stays out
 tools/render_ascii/render_ascii.conf

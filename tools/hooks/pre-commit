@@ -4,7 +4,8 @@
 # Purpose  : Git pre-commit hook - stops customer data, secrets and broken
 #            scripts before they reach git. Checks ONLY what is staged:
 #              1. customer names    local list (never in git), see below
-#              2. forbidden files   *.des3, environment.conf, keys, exports
+#              2. forbidden files   *.des3, environment.conf, keys, exports,
+#                                   local customer folders (customer-scripts/)
 #              3. secrets           private keys, GitHub tokens, password=<value>
 #              4. private IPs       10/8, 172.16/12, 192.168/16 except the demo
 #                                   net 10.10.10.0/24 and generic examples
@@ -19,7 +20,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-VERSION="2026-11-11.1"
+VERSION="2026-11-16.1"
 
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
 cd "$ROOT" || exit 1
@@ -77,6 +78,14 @@ for f in "${FILES[@]}"; do
         *.des3|*.des3.bak*|environment.conf|*/environment.conf|setup.conf|*_sec.conf|\
         *ihw_export_*|*.pem|*.key|*.p12|*.pfx|*.jks)
             _hit "forbidden-file" "$f (never commit - see .gitignore / CONTRIBUTING.md)" ;;
+    esac
+done
+
+# --- 2b. local-only customer folders (also when forced with git add -f) -----------
+for f in "${FILES[@]}"; do
+    case "$f" in
+        customer-scripts/*|*/customer-scripts/*|70-Customer-Projects/customer-analyse/*)
+            _hit "customer-folder" "$f (local customer folder - never commit, see .gitignore)" ;;
     esac
 done
 
