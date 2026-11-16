@@ -70,7 +70,7 @@ with the Upgrade Assistant at a version upgrade
 | **JDK bundle patch** | the JDK inside the DB home (`$ORACLE_HOME/jdk`) – own patch per cycle in addition to the RU (test host: 39902051) |
 | **Data Pump bundle patch** | Data Pump fixes on top of the RU |
 | **Windows Bundle Patch** | on Windows the DB gets a *Windows Bundle Patch* with the same version string as the Linux RU but its **own** patch number |
-| **MRP** – Monthly Recommended Patches | a collection of recommended one-offs between two RUs (Linux) – **assumption**, not used in this library |
+| **MRP** – Monthly Recommended Patches | since October 2022: six MRPs per RU, each with all earlier MRPs of that RU plus the current recommended one-offs; "MRPs replace Release Update Revisions (RURs)", "MRPs are available only for the Linux operating system" (**documented**, source 9) – not used in this library |
 | **one-off** on top of an RU | must be built for exactly that RU – with the next RU it is rebuilt (or is already contained) |
 
 A DB patch has two parts: the **binaries** (OPatch, Oracle Home) and the
@@ -333,8 +333,12 @@ MOS, and in the ARU of the download link. Rules of this library:
    and MOSC thread "ARU platform id: 226" (title / snippet only)
 8. Oracle Database 19c – About Oracle Database Release Numbers:
    <https://docs.oracle.com/en/database/oracle/oracle-database/19/upgrd/oracle-database-release-numbers.html>
-9. MOS Doc ID 2285040.1 – Release Update Introduction and FAQ (DB RU
-   program; title only)
+9. Oracle AI Database 26 – About Oracle Database Release Numbers (RU and
+   MRP since October 2022, MRP replaces RUR, Linux only, recommended
+   one-offs in MOS Note 555.1):
+   <https://docs.oracle.com/en/database/oracle/oracle-database/26/upgrd/oracle-database-release-numbers.html>
+   – the former MOS Doc ID 2285040.1 "Release Update Introduction and FAQ"
+   is no longer found in the support portal (checked 2026-11-16)
 10. Test host 2026-11-16: `opatch lsinventory` / `lspatches` of the FMW home
     and the DB home 19.33, `etc/config/inventory.xml` of 39987730,
     39925660, 39988381 in the patch storage
