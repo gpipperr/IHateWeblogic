@@ -111,6 +111,15 @@ statically into `nginx.exe`):
   `Users` / `Authenticated Users` / `Everyone` = security finding of the
   environment analysis).
 
+**Licence indicators** (2026-11-16.5, `45_licence.txt`, the same lines as
+bash - tested on the test host): WebLogic Server Basic restrictions visible in
+the domain configuration, every application / library with "source in
+ORACLE_HOME", CPU (`Win32_Processor`), virtualization (`Win32_ComputerSystem`
+manufacturer / model), running `OracleService*` database services with the
+edition of their home (`oracle_install_db_InstallEdition`) and ORDS
+processes. No licence statement - see
+[fmw_forms_reports_licence.md](../../../80-FMW-Architecture/fmw_forms_reports_licence.md).
+
 **Masking:** the rules are the same as `mask()` of the bash version and
 cover `<…password…>` elements, `{AES}` values, `userid=` / `authid=` /
 `password=` / `pwd=`, `-D…Password=` and `user/password@`. They were tested

@@ -136,6 +136,15 @@ cd $ORACLE_BASE/tools
 | `load/` | the load profile (moved from the export) |
 | facts `Forms in domain`, `TNS_ADMIN (environment)`, identification (`Platform`, `FMW version`, `CPUs`, `RAM MB`) | for the analyses; `40_domain.txt` / `60_net.txt` list the configuration files with date and size, without content |
 
+**Since 2026-11-16.4 (`.ps1` 2026-11-16.5) – licence indicators, no licence statement**
+([80-FMW-Architecture/fmw_forms_reports_licence.md](../../80-FMW-Architecture/fmw_forms_reports_licence.md)):
+
+| File / fact | Content |
+|---|---|
+| `45_licence.txt` block `WebLogic Server Basic indicators` | offline from `config.xml`, `config/jdbc`, `config/jms`: the WebLogic Server Basic restrictions of MOS note 885587.1 that need no running server (cluster constraints, ADMIN / STANDBY start, automatic migration, overload actions, MAN / WAN replication, singleton services, global Work Managers, SAF agents, Tuxedo Connector, SNMP, own WLDF modules, standalone JDBC / JMS modules, HTTP Pub-Sub, Active GridLink, JMS Unit-of-Order / Unit-of-Work), every application and library with "source in ORACLE_HOME", production / secure mode and administration port |
+| `45_licence.txt` block `Host (licence context)` | CPU sockets / cores / threads / model, virtualization, Oracle Database instances with the **edition chosen at installation** (`oracle_install_db_InstallEdition` of the home, instance → home via `/proc/<pmon>/exe`; every DB home of the inventory), ORDS processes on the host, WebLogic domains of the home |
+| facts `WLS Basic indicators`, `Deployments (apps / libs)`, `WLS secure mode / admin port`, `CPU (sockets/cores/threads)`, `Virtualization`, `Oracle DB on this host`, `ORDS on this host` | the summary; the environment analysis compares the deployments with `rules/wls_basic_ofr_allowlist.txt` (section 13.5) |
+
 Encryption: the same as the configuration export ([`ihw_tools_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/ihw_tools_lib.sh)
 `ihwt_read_passphrase` / `ihwt_pack`: openssl AES-256-CBC, PBKDF2 200 000,
 the passphrase only via a file descriptor). Decrypt:
@@ -172,7 +181,7 @@ Result: `/tmp/fmw_collect_<host>_<timestamp>.zip.enc` (about 130 KB
 without `--full`); `00_summary.txt` holds the key facts, every other file one
 area (`10_os`, `20_java`, `30_inventory`, `31_opatch`, `33_components`,
 `34_other_homes`, `35_opatch_prereq`, `40_domain`, `43_ohs` (default
-`index.html`), `44_forms_client`, `50_processes`, `51_forms_memory`, `60_net`,
+`index.html`), `44_forms_client`, `45_licence`, `50_processes`, `51_forms_memory`, `60_net`,
 `61_webserver` (Nginx / Apache / standalone OHS: routing, rated directives,
 patch facts), `62_certificates`, `load/`, `70_logs`). Runtime on the test host: about 90 s.
 

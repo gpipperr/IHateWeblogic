@@ -6,7 +6,10 @@
 #            installed where, patch level (Oracle, Java, Windows updates, Nginx
 #            - installed by hand on Windows - / web tier), performance (memory,
 #            load profile), security / quality of operation (Derby, FADS,
-#            certificates, processes). The CONFIGURATION is not copied - that
+#            certificates, processes), licence indicators (45_licence.txt -
+#            WebLogic Server Basic restrictions visible in the configuration,
+#            applications of the domain, CPU / virtualization, database / ORDS
+#            on the host; no licence statement). The CONFIGURATION is not copied - that
 #            is export_forms_reports_conf.ps1; an analysis always needs both.
 #            Windows / PowerShell version of tools/bash/collect_fmw_env.sh
 #            (same file layout 00_summary.txt, 10_os.txt ... 71_log_errors.txt).
@@ -90,7 +93,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.4"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.5"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -150,7 +153,7 @@ ihwt-fact "PowerShell" ("{0} ({1})" -f $PSVersionTable.PSVersion, $PSVersionTabl
 #==============================================================================
 # 1. Operating system
 #==============================================================================
-ihwt-say "1/8 OS"
+ihwt-say "1/9 OS"
 if ($IHWT_ON_WINDOWS) {
     ihwt-runps 10_os.txt "OS" { Get-CimInstance Win32_OperatingSystem | Format-List Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime, TotalVisibleMemorySize, FreePhysicalMemory, CodeSet, Locale, OSLanguage }
     ihwt-runps 10_os.txt "Computer" { Get-CimInstance Win32_ComputerSystem | Format-List Name, Domain, Manufacturer, Model, NumberOfProcessors, NumberOfLogicalProcessors, TotalPhysicalMemory, HypervisorPresent }
@@ -185,7 +188,7 @@ if ($IHWT_ON_WINDOWS) {
 #==============================================================================
 # 2. Java
 #==============================================================================
-ihwt-say "2/8 Java"
+ihwt-say "2/9 Java"
 $ge_file = ""; $jdk_ge = ""
 if ($OH) {
     $ge_file = ihwt-jp @($OH, "oui", ".globalEnv.properties")
@@ -224,7 +227,7 @@ ihwt-fact "Bundled JDK (oracle_common/jdk)" $(if ($bj) { $bj } else { "none" })
 #==============================================================================
 # 3. Oracle Home, inventory, patches
 #==============================================================================
-ihwt-say "3/8 Oracle Home / OPatch"
+ihwt-say "3/9 Oracle Home / OPatch"
 if ($IHWT_ON_WINDOWS) {
     ihwt-runps 30_inventory.txt "Registry HKLM\SOFTWARE\Oracle (inst_loc, KEY_* homes)" {
         foreach ($k in @("HKLM:\SOFTWARE\Oracle", "HKLM:\SOFTWARE\WOW6432Node\Oracle")) {
@@ -341,7 +344,7 @@ ihwt-fact "IHateWeblogic library" "none"
 #==============================================================================
 # 4. Domain configuration (masked)
 #==============================================================================
-ihwt-say "4/8 Domain"
+ihwt-say "4/9 Domain"
 if ($DH) {
     $cfg = ihwt-jp @($DH, "config", "config.xml")
     # the configuration files themselves are in the export
@@ -389,7 +392,7 @@ if ($OH) { ihwt-fact "FADS software in home" $(if (Test-Path -LiteralPath (ihwt-
 #==============================================================================
 # 5. Running processes, Windows services
 #==============================================================================
-ihwt-say "5/8 Processes / services"
+ihwt-say "5/9 Processes / services"
 $fmw_procs = @($procs | Where-Object { "$($_.Name) $($_.CommandLine)" -match $fmw_pat })
 if ($IHWT_ON_WINDOWS) {
     ihwt-runps 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" { $fmw_procs | Sort-Object ProcessId | Format-List ProcessId, ParentProcessId, Name, CreationDate, @{n='WorkingSetMB';e={[math]::Round($_.WorkingSetSize/1MB)}}, ExecutablePath, CommandLine }
@@ -480,7 +483,7 @@ if ($DH) {
 #==============================================================================
 # 6. Oracle Net, web tier
 #==============================================================================
-ihwt-say "6/8 Oracle Net / web tier"
+ihwt-say "6/9 Oracle Net / web tier"
 $tns_dirs = New-Object System.Collections.Generic.List[string]
 if ($env:TNS_ADMIN) { $tns_dirs.Add($env:TNS_ADMIN) }
 if ($IHWT_ON_WINDOWS) {
@@ -552,9 +555,42 @@ $exp = @($certs | ForEach-Object { ($_ -split ';')[3] } | Where-Object { $_ -not
 ihwt-fact "HTTPS certificates" ("{0} - first expiry: {1}" -f $certs.Count, $(if ($exp.Count) { $exp[0] } else { "" }))
 
 #==============================================================================
-# 7. Load profile - AGGREGATED counts only (ihw_tools_lib.ps1 ihwt-load-profile)
+# 7. Licence indicators - NO licence statement: what the configuration shows
+#    (WebLogic Server Basic restrictions readable offline, applications of the
+#    domain, CPU / virtualization, database / ORDS on the host) - background:
+#    80-FMW-Architecture/fmw_forms_reports_licence.md
 #==============================================================================
-ihwt-say "7/8 Load profile"
+ihwt-say "7/9 Licence indicators"
+$lic = @()
+if ($DH) {
+    $wb = @(ihwt-wls-basic $DH $OH)
+    $lic += $wb
+    ihwt-block 45_licence.txt "WebLogic Server Basic indicators (config.xml, config/jdbc, config/jms - offline, MOS 885587.1 checks without a running server)" ($wb -join "`n")
+}
+$lh = @(ihwt-licence-host $OH $DH $procs)
+$lic += $lh
+ihwt-block 45_licence.txt "Host (licence context)" ($lh -join "`n")
+$lv = { param($k) foreach ($l in $lh) { $p = $l -split ';', 3; if ($p[1] -eq $k) { return $p[2] } }; return "" }
+if ($DH) {
+    $ind = @($wb | Where-Object { $_ -like 'indicator;*' })
+    ihwt-fact "WLS Basic indicators" $(if ($ind.Count) { "{0} ({1})" -f $ind.Count, (@($ind | ForEach-Object { ($_ -split ';')[1] } | Sort-Object -Unique) -join ',') } else { "0 - none configured" })
+    $apps = @($wb | Where-Object { $_ -like 'deployment;*' } | ForEach-Object { ,($_ -split ';') }); $libs = @($wb | Where-Object { $_ -like 'library;*' } | ForEach-Object { ,($_ -split ';') })
+    $ao = @($apps | Where-Object { $_[5] -eq 'no' } | ForEach-Object { $_[1] })
+    ihwt-fact "Deployments (apps / libs)" ("{0} apps ({1} outside ORACLE_HOME{2}) / {3} libraries ({4} outside)" -f $apps.Count, $ao.Count, $(if ($ao.Count) { ": " + ($ao -join ',') } else { "" }), $libs.Count, @($libs | Where-Object { $_[3] -eq 'no' }).Count)
+    $cx = @{}; foreach ($l in @($wb | Where-Object { $_ -like 'context;*' })) { $p = $l -split ';', 3; $cx[$p[1]] = $p[2] }
+    ihwt-fact "WLS secure mode / admin port" ("production mode {0}, secure mode {1}, administration port {2}" -f $cx['production_mode'], $cx['secure_mode'], $cx['admin_port_domain'])
+}
+ihwt-fact "CPU (sockets/cores/threads)" ("{0} / {1} / {2} - {3}" -f (& $lv cpu_sockets), (& $lv cpu_cores), (& $lv cpu_threads_per_core), (& $lv cpu_model))
+ihwt-fact "Virtualization" ("{0} ({1})" -f (& $lv virtualization), (& $lv product_name))
+$dbe = @($lh | Where-Object { $_ -like 'host;oracle_db_edition;*' } | ForEach-Object { ($_ -split ';', 3)[2] })
+ihwt-fact "Oracle DB on this host" ("{0}{1}" -f (& $lv oracle_db_instances), $(if ($dbe.Count) { " - edition (installation): " + ($dbe -join ', ') } else { "" }))
+$od = @($lic | Where-Object { $_ -like 'deployment;*' } | ForEach-Object { ($_ -split ';')[1] } | Where-Object { $_ -match '(?i)ords|apex' })
+ihwt-fact "ORDS on this host" ("process: {0}; in the domain: {1}" -f (& $lv ords_process), $(if ($od.Count) { $od -join ',' } else { "no" }))
+
+#==============================================================================
+# 8. Load profile - AGGREGATED counts only (ihw_tools_lib.ps1 ihwt-load-profile)
+#==============================================================================
+ihwt-say "8/9 Load profile"
 if (-not $NoLoad -and $DH) {
     ihwt-load-profile $DH (Join-Path $OUT "load") $LoadDays $procs $RWAUTH
     ihwt-fact "Load profile" "load/ (last $LoadDays days, aggregated)"
@@ -564,9 +600,9 @@ if (-not $NoLoad -and $DH) {
 $RWAUTH = ""
 
 #==============================================================================
-# 8. Logs (sizes always, error lines only with -Logs)
+# 9. Logs (sizes always, error lines only with -Logs)
 #==============================================================================
-ihwt-say "8/8 Logs"
+ihwt-say "9/9 Logs"
 if ($DH) {
     # a wildcard in the middle of -Path returns the logs directories themselves - list each one
     $logfiles = @(Get-ChildItem -LiteralPath (Join-Path $DH "servers") -Directory -ErrorAction SilentlyContinue |

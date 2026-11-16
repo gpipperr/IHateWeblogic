@@ -5,7 +5,10 @@
 #            (12.2.1.x and 14.1.2) for the analyses: what is installed where,
 #            patch level (Oracle, Java, OS advisories, Nginx / web tier),
 #            Java, performance (memory, load profile) and security / quality
-#            of operation (Derby, FADS, certificates, processes).
+#            of operation (Derby, FADS, certificates, processes), licence
+#            indicators (WebLogic Server Basic restrictions visible in the
+#            configuration, applications of the domain, CPU / virtualization,
+#            database / ORDS on the host - 45_licence.txt, no licence statement).
 #            The CONFIGURATION (formsweb.cfg, env files, rwserver.conf,
 #            config.xml, tnsnames, web tier files ...) is NOT copied here -
 #            that is export_forms_reports_conf.sh. An analysis always needs
@@ -48,7 +51,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.3"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.4"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -158,7 +161,7 @@ fact "User" "$(id)"
 # =============================================================================
 # 1. Operating system
 # =============================================================================
-say "1/8 OS"
+say "1/9 OS"
 run 10_os.txt "OS release"          cat /etc/os-release
 run 10_os.txt "Kernel"              uname -a
 run 10_os.txt "glibc"               ldd --version
@@ -194,7 +197,7 @@ fact "dnf cache age (days)" "$(ihwt_dnf_cache_age)"
 # =============================================================================
 # 2. Java
 # =============================================================================
-say "2/8 Java"
+say "2/9 Java"
 JAVA_CANDIDATES="$( { [ -n "$OH" ] && sed -n 's/^JAVA_HOME[A-Z0-9_]*=//p' "$OH/oui/.globalEnv.properties" 2>/dev/null;
                      [ -n "$OH" ] && [ -x "$OH/oracle_common/jdk/bin/java" ] && printf '%s\n' "$OH/oracle_common/jdk";
                      [ -n "${JAVA_HOME:-}" ] && printf '%s\n' "$JAVA_HOME";
@@ -217,7 +220,7 @@ fact "JDKs of running processes" "$(for p in $(pgrep -f java 2>/dev/null); do re
 # =============================================================================
 # 3. Oracle Home, inventory, patches
 # =============================================================================
-say "3/8 Oracle Home / OPatch"
+say "3/9 Oracle Home / OPatch"
 if [ -n "$OH" ]; then
     OP="$OH/OPatch/opatch"
     copy 30_inventory.txt /etc/oraInst.loc
@@ -291,7 +294,7 @@ fi
 # =============================================================================
 # 4. Domain configuration (masked)
 # =============================================================================
-say "4/8 Domain"
+say "4/9 Domain"
 if [ -n "$DH" ]; then
     # the configuration files themselves are in the export
     # (export_forms_reports_conf.sh) - here only what the analyses derive
@@ -340,7 +343,7 @@ fi
 # =============================================================================
 # 5. Running processes
 # =============================================================================
-say "5/8 Processes"
+say "5/9 Processes"
 runsh 50_processes.txt "WLS / Node Manager / Forms / Reports / OHS processes" \
     "ps -eo pid,ppid,user,lstart,etime,rss,args | grep -E 'weblogic\\.(Server|NodeManager)|frmweb|rwserver|rwengine|rwrun|httpd|nginx|NetworkServerControl' | grep -v grep"
 runsh 50_processes.txt "Process tree of $(id -un) (other users are not collected)" "ps -u \"\$(id -un)\" fww -o pid,ppid,lstart,etime,rss,args"
@@ -413,7 +416,7 @@ unset _est _fm _wh
 # =============================================================================
 # 6. Oracle Net, web tier
 # =============================================================================
-say "6/8 Oracle Net / web tier"
+say "6/9 Oracle Net / web tier"
 # Oracle Net files: where they are (one TNS_ADMIN?) - the content is in the export
 runsh 60_net.txt "tnsnames.ora / sqlnet.ora / ldap.ora (list only - content: export)" \
     "for d in '${TNS_ADMIN:-}' '$DH/config/fmwconfig' '$OH/network/admin'; do [ -n \"\$d\" ] && [ -d \"\$d\" ] && find \"\$d\" -maxdepth 4 -type f \\( -name tnsnames.ora -o -name sqlnet.ora -o -name ldap.ora \\) -printf '%TY-%Tm-%Td %TH:%TM %8s %p\\n' 2>/dev/null; done | sort -u | head -20"
@@ -493,9 +496,42 @@ fi
 unset _ihwlib _ihwroot
 
 # =============================================================================
-# 7. Load profile - AGGREGATED counts only (ihw_tools_lib ihwt_load_profile)
+# 7. Licence indicators - NO licence statement: what the configuration shows
+#    (WebLogic Server Basic restrictions readable offline, applications of the
+#    domain, CPU / virtualization, database / ORDS on the host) - background:
+#    80-FMW-Architecture/fmw_forms_reports_licence.md
 # =============================================================================
-say "7/8 Load profile"
+say "7/9 Licence indicators"
+_lic="$OUT/45_licence.txt"
+if [ -n "$DH" ]; then
+    { printf '### WebLogic Server Basic indicators (config.xml, config/jdbc, config/jms - offline, MOS 885587.1 checks without a running server)
+'
+      ihwt_wls_basic "$DH" "$OH" | mask; printf '### rc=0
+
+'; } >> "$_lic"
+fi
+{ printf '### Host (licence context)
+'; ihwt_licence_host "$OH" "$DH"; printf '### rc=0
+
+'; } >> "$_lic"
+_lv() { awk -F';' -v k="$1" '$1=="host" && $2==k {print $3; exit}' "$_lic"; }
+if [ -n "$DH" ]; then
+    fact "WLS Basic indicators" "$(awk -F';' '$1=="indicator" {n++; k[$2]=1} END {s=""; for (x in k) s=s (s==""?"":",") x; printf "%d%s", n, (n ? " (" s ")" : " - none configured")}' "$_lic")"
+    fact "Deployments (apps / libs)" "$(awk -F';' '$1=="deployment" {a++; if ($6=="no") {ao++; an=an (an==""?"":",") $2}} $1=="library" {l++; if ($4=="no") lo++}
+        END {printf "%d apps (%d outside ORACLE_HOME%s) / %d libraries (%d outside)", a, ao, (an=="" ? "" : ": " an), l, lo}' "$_lic")"
+    fact "WLS secure mode / admin port" "$(awk -F';' '$1=="context" && $2=="production_mode" {p=$3} $1=="context" && $2=="secure_mode" {s=$3} $1=="context" && $2=="admin_port_domain" {a=$3}
+        END {printf "production mode %s, secure mode %s, administration port %s", p, s, a}' "$_lic")"
+fi
+fact "CPU (sockets/cores/threads)" "$(_lv cpu_sockets) / $(_lv cpu_cores) / $(_lv cpu_threads_per_core) - $(_lv cpu_model)"
+fact "Virtualization" "$(_lv virtualization) ($(_lv product_name))"
+fact "Oracle DB on this host" "$(_lv oracle_db_instances)$(awk -F';' '$1=="host" && $2=="oracle_db_edition" {e=e (e==""?"":", ") $3} END {if (e!="") printf " - edition (installation): %s", e}' "$_lic")"
+fact "ORDS on this host" "process: $(_lv ords_process); in the domain: $(awk -F';' '$1=="deployment" && tolower($2) ~ /ords|apex/ {d=d (d==""?"":",") $2} END {print (d=="" ? "no" : d)}' "$_lic")"
+unset _lic
+
+# =============================================================================
+# 8. Load profile - AGGREGATED counts only (ihw_tools_lib ihwt_load_profile)
+# =============================================================================
+say "8/9 Load profile"
 if $LOADP && [ -n "$DH" ]; then
     ihwt_load_profile "$DH" "$OUT/load" "$LOAD_DAYS"
     fact "Load profile" "load/ (last $LOAD_DAYS days, aggregated)"
@@ -505,9 +541,9 @@ fi
 IHWT_RWAUTH=""
 
 # =============================================================================
-# 8. Logs (sizes always, error lines only with --logs)
+# 9. Logs (sizes always, error lines only with --logs)
 # =============================================================================
-say "8/8 Logs"
+say "9/9 Logs"
 if [ -n "$DH" ]; then
     runsh 70_logs.txt "Server log files" "ls -l --time-style=long-iso '$DH'/servers/*/logs/ 2>/dev/null"
     runsh 70_logs.txt "Error counts per server log" \

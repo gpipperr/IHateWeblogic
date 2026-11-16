@@ -853,9 +853,15 @@ German version (customer documents):
 > (Dokumenten-ID: E56762-96).
 
 - Source of the wording: compliance statement provided by the author
-  2026-10-27 – the conservative ("safe side") reading. The manual text
-  itself was not opened from this repository; the exact section / revision
-  should be quoted from the current manual in an audit.
+  2026-10-27 – the conservative ("safe side") reading. Checked against the
+  current manual on 2026-11-16: the restricted-use list of Oracle Forms and
+  Reports contains **no** database; a restricted-use database for the RCU
+  schemas exists only for Oracle Internet Application Server SE / EE
+  ([FMWLC, Application Server Products](https://docs.oracle.com/en/middleware/fusion-middleware/fmwlc/application-server-products-new-structure.html)).
+  Quote the section / revision of the manual valid for the customer in an
+  audit. Licensing overview of Forms & Reports (developers, metric, WebLogic
+  Basic, Reports deprecation, disclaimer):
+  [fmw_forms_reports_licence.md](fmw_forms_reports_licence.md).
 - Consistent with the licence notice in `60-RCU-DB-19c/README.md` (no
   licence-free special case for RCU). Oracle Database XE is not an option
   (not certified for RCU).

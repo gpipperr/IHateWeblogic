@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.2"
+$IHWT_PS_LIB_VERSION = "2026-11-16.4"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1065,4 +1065,160 @@ function ihwt-load-profile {
     else { $up = (& uptime -p 2>$null) }
     $now += "uptime=$up"; $now += "loadavg=$(if ($IHWT_ON_WINDOWS) { 'n/a (Windows)' } elseif (Test-Path /proc/loadavg) { ((Get-Content /proc/loadavg) -split ' ')[0..2] -join ' ' })"; $now += "load_days=$Days"
     ihwt-write-file (Join-Path $Load "now.txt") $now
+}
+
+#------------------------------------------------------------------------------
+# Licence indicators (80-FMW-Architecture/fmw_forms_reports_licence.md) - NO
+# licence statement. Same lines as ihwt_wls_basic / ihwt_licence_host (bash):
+#   context;<key>;<value>
+#   deployment;<name>;<module-type>;<order|->;<targets>;<in_oracle_home>
+#   library;<name>;<targets>;<in_oracle_home>
+#   indicator;<key>;<object>;<value>
+#   host;<key>;<value>
+#------------------------------------------------------------------------------
+function _ihwt-child { param($n, [string] $t) if (-not $n) { return "" }; $c = $n.SelectSingleNode("*[local-name()='$t']"); if ($c) { return "$($c.InnerText)" }; return "" }
+function ihwt-wls-basic {
+    param([string] $DH, [string] $OH = "")
+    $cf = ihwt-jp @($DH, "config", "config.xml")
+    if (-not (Test-Path -LiteralPath $cf -PathType Leaf)) { return @() }
+    $x = $null; try { [xml]$x = [IO.File]::ReadAllText($cf) } catch { return @("context;config_xml;not readable") }
+    $ohf = (ihwt-fwd $OH).TrimEnd('/')
+    $inoh = { param([string] $p) if (-not $p) { return "-" }
+        $f = ihwt-fwd $p
+        if ($f -notmatch '^(/|[A-Za-z]:/|//)') { return "yes (relative)" }
+        if ($ohf -and $f.StartsWith("$ohf/", $(if ($IHWT_ON_WINDOWS) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }))) { return "yes" }
+        return "no" }
+    $out = New-Object System.Collections.Generic.List[string]
+    $prod = ""; $smode = ""; $aport = ""
+    foreach ($n in @($x.DocumentElement.ChildNodes | Where-Object { $_.NodeType -eq 'Element' })) {
+        $t = $n.LocalName; $nm = _ihwt-child $n 'name'; if (-not $nm) { $nm = "-" }
+        switch ($t) {
+            'production-mode-enabled'     { $prod = $n.InnerText }
+            'administration-port-enabled' { $aport = $n.InnerText }
+            'cluster-constraints-enabled' { if ($n.InnerText -eq 'true') { $out.Add("indicator;cluster_constraints;domain;true") } }
+            'security-configuration'      { $s = $n.SelectSingleNode("*[local-name()='secure-mode']"); if ($s) { $v = _ihwt-child $s 'secure-mode-enabled'; if ($v) { $smode = $v } } }
+            'app-deployment' {
+                $mt = _ihwt-child $n 'module-type'; $od = _ihwt-child $n 'deployment-order'; $tg = _ihwt-child $n 'target'
+                $out.Add(("deployment;{0};{1};{2};{3};{4}" -f $nm, $(if ($mt) { $mt } else { "-" }), $(if ($od) { $od } else { "-" }), $(if ($tg) { $tg } else { "-" }), (& $inoh (_ihwt-child $n 'source-path'))))
+                if ($mt -in @('jdbc', 'jms', 'wldf')) { $out.Add("indicator;module_deployment;$nm;$mt") }
+            }
+            'library' {
+                $tg = _ihwt-child $n 'target'
+                $out.Add(("library;{0};{1};{2}" -f $nm, $(if ($tg) { $tg } else { "-" }), (& $inoh (_ihwt-child $n 'source-path'))))
+                if ($nm.ToLower() -like 'pubsub*') { $out.Add("indicator;http_pubsub;$nm;-") }
+            }
+            { $_ -in @('server', 'cluster', 'migratable-target') } {
+                $sm = _ihwt-child $n 'startup-mode'
+                if ($t -eq 'server' -and $sm.ToUpper() -in @('ADMIN', 'STANDBY')) { $out.Add("indicator;server_startup_mode;$nm;$($sm.ToUpper())") }
+                if ($t -eq 'server' -and (_ihwt-child $n 'auto-migration-enabled') -eq 'true') { $out.Add("indicator;auto_migration;$nm;true") }
+                $ct = _ihwt-child $n 'cluster-type'; if ($t -eq 'cluster' -and $ct -in @('man', 'wan')) { $out.Add("indicator;cluster_type;$nm;$ct") }
+                if ($t -eq 'cluster' -and (_ihwt-child $n 'migration-basis') -eq 'consensus') { $out.Add("indicator;migration_basis;$nm;consensus") }
+                $mp = _ihwt-child $n 'migration-policy'; if ($t -eq 'migratable-target' -and $mp -and $mp -ne 'manual') { $out.Add("indicator;migration_policy;$nm;$mp") }
+                $op = $n.SelectSingleNode("*[local-name()='overload-protection']")
+                if ($op -and $t -ne 'migratable-target') {
+                    $ov = @(foreach ($a in @('failure-action', 'panic-action')) { $v = _ihwt-child $op $a; if ($v -and $v -ne 'no-action') { "$a=$v" } }) -join ' '
+                    if ($ov) { $out.Add("indicator;overload_protection;$nm;$ov") }
+                }
+            }
+            'self-tuning'           { foreach ($w in @($n.SelectNodes("*[local-name()='work-manager']"))) { $out.Add("indicator;global_work_manager;$(_ihwt-child $w 'name');-") } }
+            'snmp-agent'            { if ((_ihwt-child $n 'enabled') -eq 'true') { $out.Add("indicator;snmp_agent;domain;enabled") } }
+            'snmp-agent-deployment' { $out.Add("indicator;snmp_agent;$nm;deployment") }
+            'singleton-service'     { $out.Add("indicator;singleton_service;$nm;-") }
+            'saf-agent'             { $out.Add("indicator;saf_agent;$nm;-") }
+            'wtc-server'            { $out.Add("indicator;wtc_server;$nm;-") }
+            'wldf-system-resource'  { if ($nm -notlike 'Module-FMWDFW*') { $out.Add("indicator;wldf_resource;$nm;-") } }
+        }
+    }
+    $out.Add("context;production_mode;$(if ($prod) { $prod } else { 'not set' })")
+    $out.Add("context;secure_mode;$(if ($smode) { $smode } else { 'not set' })")
+    $out.Add("context;admin_port_domain;$(if ($aport) { $aport } else { 'not set' })")
+    if ($aport -eq 'true') { $out.Add("indicator;admin_port_domain;domain;true") }
+    foreach ($f in @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "config", "jdbc")) -Filter '*-jdbc.xml' -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        $tx = [IO.File]::ReadAllText($f.FullName)
+        if ($tx -match '<fan-enabled>true</fan-enabled>|<ons-node-list>[^<]+</ons-node-list>|<active-gridlink>true') { $out.Add("indicator;active_gridlink;$($f.Name);fan / ons") }
+    }
+    foreach ($f in @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "config", "jms")) -Filter '*.xml' -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        $tx = [IO.File]::ReadAllText($f.FullName)
+        if ($tx -match '<default-unit-of-order>[^<]*</default-unit-of-order>' -and $tx -notmatch '<default-unit-of-order>None</default-unit-of-order>') { $out.Add("indicator;jms_unit_of_order;$($f.Name);-") }
+        if ($tx -match '<unit-of-work-handling-policy>' -and $tx -notmatch '<unit-of-work-handling-policy>PassThrough<') { $out.Add("indicator;jms_unit_of_work;$($f.Name);-") }
+    }
+    return $out.ToArray()
+}
+# ihwt-db-edition DB_HOME - edition chosen at the installation (EE, SE2, SE ...)
+# from inventory/globalvariables/oracle.server/globalvariables.xml; "" = no DB home
+function ihwt-db-edition {
+    param([string] $H)
+    $f = ihwt-jp @($H, "inventory", "globalvariables", "oracle.server", "globalvariables.xml")
+    $m = Select-String -LiteralPath $f -Pattern 'NAME="oracle_install_db_InstallEdition"[^>]*VALUE="([^"]*)"' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($m) { return $m.Matches[0].Groups[1].Value }; return ""
+}
+# ihwt-licence-host OH DH PROCS - CPU, virtualization, database instances,
+# ORDS processes, WebLogic domains of the home
+function ihwt-licence-host {
+    param([string] $OH = "", [string] $DH = "", $Procs = $null)
+    if ($null -eq $Procs) { $Procs = ihwt-procs }
+    $so = ""; $co = ""; $th = ""; $mo = ""; $vi = ""; $pr = ""; $db = ""
+    if ($IHWT_ON_WINDOWS) {
+        $cpu = @(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue)
+        if ($cpu.Count) {
+            $so = $cpu.Count; $co = ($cpu | Measure-Object NumberOfCores -Sum).Sum
+            $lp = ($cpu | Measure-Object NumberOfLogicalProcessors -Sum).Sum; if ($co) { $th = [math]::Round($lp / $co) }
+            $mo = "$($cpu[0].Name)".Trim()
+        }
+        $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($cs) {
+            $pr = "$($cs.Manufacturer) $($cs.Model)".Trim()
+            $vi = switch -regex ($pr) { 'VMware' { 'vmware' } 'Microsoft Corporation Virtual' { 'microsoft (Hyper-V)' } 'QEMU|KVM' { 'kvm' } 'Xen' { 'xen' } 'VirtualBox|innotek' { 'oracle (VirtualBox)' } 'Amazon EC2' { 'amazon' } 'Google' { 'google' } default { if ($cs.PSObject.Properties['HypervisorPresent'] -and $cs.HypervisorPresent) { 'hypervisor present' } else { 'none' } } }
+        }
+        $db = @(Get-Service -Name 'OracleService*' -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' } | ForEach-Object { $_.Name -replace '^OracleService', '' } | Sort-Object) -join ','
+    } else {
+        $ls = (& lscpu 2>$null) -join "`n"
+        if ($ls -match '(?m)^Socket\(s\):\s*(\d+)') { $so = $Matches[1] }
+        if ($ls -match '(?m)^Core\(s\) per socket:\s*(\d+)') { $co = $Matches[1]; if ($so) { $co = [int]$so * [int]$co } }
+        if ($ls -match '(?m)^Thread\(s\) per core:\s*(\d+)') { $th = $Matches[1] }
+        if ($ls -match '(?m)^Model name:\s*(.+)$') { $mo = $Matches[1].Trim() }
+        $vi = "$(& systemd-detect-virt 2>$null)".Trim()
+        if (-not $vi -and $ls -match '(?m)^Hypervisor vendor:\s*(.+)$') { $vi = $Matches[1].Trim().ToLower() }
+        try { $pr = ([IO.File]::ReadAllText('/sys/class/dmi/id/product_name')).Trim() } catch { }
+        $db = @($Procs | ForEach-Object { if ("$($_.CommandLine)" -match '^ora_pmon_(.+)$') { $Matches[1].Trim() } } | Sort-Object -Unique) -join ','
+    }
+    # edition chosen at the installation of each database home (no database
+    # login): running instance -> home (Linux /proc/<pmon>/exe, Windows the
+    # image path of the OracleService<SID> service), plus every home of the inventory
+    $ed = New-Object System.Collections.Generic.List[string]
+    if ($IHWT_ON_WINDOWS) {
+        foreach ($sv in @(Get-CimInstance Win32_Service -Filter "Name LIKE 'OracleService%'" -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Running' } | Sort-Object Name)) {
+            $sid = $sv.Name -replace '^OracleService', ''; $hm = ""
+            if ("$($sv.PathName)" -match '^"?(.+?)[\\/]bin[\\/]oracle\.exe') { $hm = $Matches[1] }
+            $e = $(if ($hm) { ihwt-db-edition $hm } else { "" })
+            $ed.Add("host;oracle_db_edition;$sid=$(if ($e) { $e } else { 'unknown' }) ($(if ($hm) { $hm } else { 'path not readable' }))")
+        }
+        $inv = ""; try { $inv = (Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Oracle" -Name inst_loc -ErrorAction Stop).inst_loc } catch { }
+    } else {
+        foreach ($p in @($Procs | Where-Object { "$($_.CommandLine)" -match '^ora_pmon_' } | Sort-Object ProcessId)) {
+            $sid = "$($p.CommandLine)" -replace '^ora_pmon_', ''; $sid = $sid.Trim(); $exe = "$($p.ExecutablePath)"
+            if ($exe) { $hm = $exe -replace '/bin/oracle$', ''; $e = ihwt-db-edition $hm } else { $hm = "(not readable as $([Environment]::UserName))"; $e = "" }
+            $ed.Add("host;oracle_db_edition;$sid=$(if ($e) { $e } else { 'unknown' }) ($hm)")
+        }
+        $inv = ""; $m = Select-String -LiteralPath /etc/oraInst.loc -Pattern '^inventory_loc=(.*)$' -ErrorAction SilentlyContinue | Select-Object -First 1; if ($m) { $inv = $m.Matches[0].Groups[1].Value.Trim() }
+    }
+    if ($inv) {
+        foreach ($m in @(Select-String -LiteralPath (ihwt-jp @($inv, "ContentsXML", "inventory.xml")) -Pattern '<HOME ' -ErrorAction SilentlyContinue | Where-Object { $_.Line -notmatch 'REMOVED="T"' })) {
+            if ($m.Line -match ' LOC="([^"]*)"') { $h = $Matches[1]; $e = ihwt-db-edition $h; if ($e) { $ed.Add("host;oracle_db_home;$h=$e") } }
+        }
+    }
+    $od = @($Procs | Where-Object { "$($_.CommandLine)" -match 'ords\.war|ords\s+serve|oracle\.dbtools\.launcher' } | ForEach-Object { $_.ProcessId }) -join ','
+    $dm = ""
+    if ($OH -and (Test-Path -LiteralPath (Join-Path $OH "domain-registry.xml"))) {
+        $dm = @(Select-String -LiteralPath (Join-Path $OH "domain-registry.xml") -Pattern 'location="([^"]*)"' -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value }) -join ','
+    }
+    return @("host;cpu_sockets;$(if ($so) { $so } else { '-' })",
+             "host;cpu_cores;$(if ($co) { $co } else { [Environment]::ProcessorCount })",
+             "host;cpu_threads_per_core;$(if ($th) { $th } else { '-' })",
+             "host;cpu_model;$(if ($mo) { $mo } else { '-' })",
+             "host;virtualization;$(if ($vi) { $vi } else { 'none' })",
+             "host;product_name;$(if ($pr) { $pr } else { '-' })",
+             "host;oracle_db_instances;$(if ($db) { $db } else { 'none' })") + $ed.ToArray() + @(
+             "host;ords_process;$(if ($od) { $od } else { 'none' })",
+             "host;wls_domains;$(if ($dm) { $dm } elseif ($DH) { $DH } else { '-' })")
 }

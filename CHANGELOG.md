@@ -10,6 +10,20 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **Forms & Reports licensing:** [fmw_forms_reports_licence.md](80-FMW-Architecture/fmw_forms_reports_licence.md) –
+  technical classification with disclaimer (EN / DE), glossary of the abbreviations, what the licence
+  covers, Builder not covered, NUP vs. processor with core factor and Oracle Store / price list
+  prices, virtualization, RCU database, WebLogic Server Basic restrictions, MOS note 885587.1 assessed,
+  Reports deprecated / Reports-only with the Lifetime Support dates, old contracts, checklist – every
+  statement with its source; socket metric and chiplets (only "Standard Edition" products count dies as
+  sockets – OFR per core, but SE2 for the RCU database / WebLogic SE) with a 2 × AMD EPYC 9654 example
+  (96 processor licences vs. 960 NUP minimum, VMware vs. KVM hard partitioning). Collector licence indicators (`collect_fmw_env.sh` 2026-11-16.4,
+  `.ps1` 2026-11-16.5, `45_licence.txt`, `ihwt_wls_basic` / `ihwt_licence_host`): the WebLogic Server
+  Basic restrictions visible offline in the domain configuration, every application / library with
+  "source in ORACLE_HOME", CPU / virtualization, database (edition chosen at installation from
+  `oracle_install_db_InstallEdition`, instance → home without a login) and ORDS on the host – bash and
+  PowerShell give the same lines; the analysis warns (HINT) for a Standard Edition database on a host
+  with more than 2 sockets / a multi-die CPU.
 - **Forms FADS:** [forms_fads_app_dep_service.md](80-FMW-Architecture/forms_fads_app_dep_service.md),
   collector facts "FADS in the domain" / "FADS software in home".
 - **Patch basics:** [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) – patch

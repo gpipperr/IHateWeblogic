@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-16.1"
+IHWT_LIB_VERSION="2026-11-16.3"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -812,4 +812,151 @@ ihwt_nginx_patch() {
     else
         printf 'master_pid;not running\n'
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Licence indicators (80-FMW-Architecture/fmw_forms_reports_licence.md) - NO
+# licence statement, only what the configuration shows.
+# ihwt_wls_basic DH OH - the WebLogic Server Basic restrictions that are
+#   visible OFFLINE in config.xml / config/jdbc / config/jms (the checks of MOS
+#   note 885587.1 that need no running server), plus every application and
+#   library of the domain. Lines (same in ihw_tools_lib.ps1):
+#     context;<key>;<value>
+#     deployment;<name>;<module-type>;<deployment-order|->;<targets>;<in_oracle_home yes|no>
+#     library;<name>;<targets>;<in_oracle_home yes|no>
+#     indicator;<key>;<object>;<value>      (only when the feature is configured)
+# -----------------------------------------------------------------------------
+ihwt_wls_basic() {
+    local dh="$1" oh="${2:-}" c="$1/config/config.xml" f
+    [ -f "$c" ] || return 0
+    awk -v oh="$oh" -v dh="$dh" '
+        function tagof(l,  t) { t = l; sub(/^[ \t]*<\/?/, "", t); sub(/[ \t>\/].*$/, "", t); sub(/^[A-Za-z0-9_]+:/, "", t); return t }
+        function inoh(p) { if (p == "") return "-"; if (p !~ /^\//) return "yes (relative)"; return (oh != "" && index(p, oh "/") == 1) ? "yes" : "no" }
+        { sub(/\r$/, "") }
+        # leaf <x>value</x>
+        /^[ \t]*<[A-Za-z][^>]*>[^<]*<\/[^>]+>[ \t]*$/ {
+            t = tagof($0); v = $0; sub(/^[ \t]*<[^>]*>/, "", v); sub(/<\/[^>]*>[ \t]*$/, "", v)
+            p = ""; for (i = 2; i <= d; i++) p = p (p == "" ? "" : "/") S[i]
+            if (t == "name" && !(d in N)) N[d] = v
+            if (p == "") {
+                if (t == "production-mode-enabled") prod = v
+                if (t == "administration-port-enabled") aport = v
+                if (t == "cluster-constraints-enabled" && v == "true") print "indicator;cluster_constraints;domain;true"
+            }
+            if (p == "security-configuration/secure-mode" && t == "secure-mode-enabled") smode = v
+            if (p == "app-deployment" || p == "library") { if (t == "module-type") mt = v; if (t == "deployment-order") ord = v; if (t == "target") tg = v; if (t == "source-path") sp = v }
+            if (p == "server") {
+                if (t == "startup-mode" && (toupper(v) == "ADMIN" || toupper(v) == "STANDBY")) SI["server_startup_mode"] = toupper(v)
+                if (t == "auto-migration-enabled" && v == "true") SI["auto_migration"] = "true"
+            }
+            if (p == "cluster") {
+                if (t == "cluster-type" && (v == "man" || v == "wan")) SI["cluster_type"] = v
+                if (t == "migration-basis" && v == "consensus") SI["migration_basis"] = v
+            }
+            if ((p == "server/overload-protection" || p == "cluster/overload-protection") && (t == "failure-action" || t == "panic-action") && v != "no-action") OV = OV (OV == "" ? "" : " ") t "=" v
+            if (p == "migratable-target" && t == "migration-policy" && v != "manual") SI["migration_policy"] = v
+            if (p == "self-tuning/work-manager" && t == "name") print "indicator;global_work_manager;" v ";-"
+            if (p == "snmp-agent" && t == "enabled" && v == "true") print "indicator;snmp_agent;domain;enabled"
+            next
+        }
+        # empty element / processing instruction / comment
+        /^[ \t]*<[A-Za-z][^>]*\/>[ \t]*$/ || /^[ \t]*<[?!]/ { next }
+        # closing tag
+        /^[ \t]*<\/[^>]+>/ {
+            t = tagof($0); nm = (d in N) ? N[d] : "-"
+            p = ""; for (i = 2; i < d; i++) p = p (p == "" ? "" : "/") S[i]
+            if (p == "" && t == "app-deployment") {
+                print "deployment;" nm ";" (mt == "" ? "-" : mt) ";" (ord == "" ? "-" : ord) ";" (tg == "" ? "-" : tg) ";" inoh(sp)
+                if (mt == "jdbc" || mt == "jms" || mt == "wldf") print "indicator;module_deployment;" nm ";" mt
+            }
+            if (p == "" && t == "library") {
+                print "library;" nm ";" (tg == "" ? "-" : tg) ";" inoh(sp)
+                if (tolower(nm) ~ /^pubsub/) print "indicator;http_pubsub;" nm ";-"
+            }
+            if (p == "" && (t == "server" || t == "cluster" || t == "migratable-target")) {
+                for (k in SI) print "indicator;" k ";" nm ";" SI[k]
+                if (OV != "") print "indicator;overload_protection;" nm ";" OV
+                delete SI; OV = ""
+            }
+            if (p == "" && t == "singleton-service") print "indicator;singleton_service;" nm ";-"
+            if (p == "" && t == "saf-agent") print "indicator;saf_agent;" nm ";-"
+            if (p == "" && t == "wtc-server") print "indicator;wtc_server;" nm ";-"
+            if (p == "" && t == "snmp-agent-deployment") print "indicator;snmp_agent;" nm ";deployment"
+            if (p == "" && t == "wldf-system-resource" && nm !~ /^Module-FMWDFW/) print "indicator;wldf_resource;" nm ";-"
+            if (p == "" && (t == "app-deployment" || t == "library")) { mt = ""; ord = ""; tg = ""; sp = "" }
+            delete N[d]; d--
+            next
+        }
+        # opening tag
+        /^[ \t]*<[A-Za-z][^>]*>[ \t]*$/ { d++; S[d] = tagof($0); delete N[d]; next }
+        END {
+            print "context;production_mode;" (prod == "" ? "not set" : prod)
+            print "context;secure_mode;" (smode == "" ? "not set" : smode)
+            print "context;admin_port_domain;" (aport == "" ? "not set" : aport)
+            if (aport == "true") print "indicator;admin_port_domain;domain;true"
+        }' "$c"
+    # data sources with Active GridLink (FAN / ONS) - JDBC system modules
+    for f in "$dh"/config/jdbc/*-jdbc.xml; do
+        [ -f "$f" ] || continue
+        if grep -qE '<fan-enabled>true</fan-enabled>|<ons-node-list>[^<]+</ons-node-list>|<active-gridlink>true' "$f"; then
+            printf 'indicator;active_gridlink;%s;fan / ons\n' "$(basename "$f")"
+        fi
+    done
+    # JMS system modules: Unit-of-Order / Unit-of-Work other than the default
+    for f in "$dh"/config/jms/*.xml; do
+        [ -f "$f" ] || continue
+        grep -qE '<default-unit-of-order>[^<]*</default-unit-of-order>' "$f" && \
+            ! grep -qE '<default-unit-of-order>None</default-unit-of-order>' "$f" && printf 'indicator;jms_unit_of_order;%s;-\n' "$(basename "$f")"
+        grep -qE '<unit-of-work-handling-policy>' "$f" && ! grep -qE '<unit-of-work-handling-policy>PassThrough<' "$f" && \
+            printf 'indicator;jms_unit_of_work;%s;-\n' "$(basename "$f")"
+    done
+    return 0
+}
+
+# ihwt_db_edition DB_HOME - edition chosen at the installation (EE, SE2, SE,
+#   SEONE ...) from inventory/globalvariables/oracle.server/globalvariables.xml
+#   (oracle_install_db_InstallEdition, 11g - 19c checked); empty = no DB home
+ihwt_db_edition() {
+    sed -n 's/.*NAME="oracle_install_db_InstallEdition"[^>]*VALUE="\([^"]*\)".*/\1/p' \
+        "$1/inventory/globalvariables/oracle.server/globalvariables.xml" 2>/dev/null | head -1
+}
+
+# ihwt_licence_host OH DH - host facts for the licence (not in the MOS script):
+#   host;<key>;<value> - CPU sockets / cores / threads / model, virtualization,
+#   Oracle database instances, ORDS processes, WebLogic domains of the home
+ihwt_licence_host() {
+    local oh="${1:-}" dh="${2:-}" so co th mo vi pr db od dm
+    so="$(lscpu 2>/dev/null | awk -F: '/^Socket\(s\)/ {gsub(/ /,"",$2); print $2}')"
+    co="$(lscpu 2>/dev/null | awk -F: '/^Core\(s\) per socket/ {gsub(/ /,"",$2); print $2}')"
+    th="$(lscpu 2>/dev/null | awk -F: '/^Thread\(s\) per core/ {gsub(/ /,"",$2); print $2}')"
+    mo="$(lscpu 2>/dev/null | awk -F: '/^Model name/ {sub(/^[ \t]+/,"",$2); print $2; exit}')"
+    printf 'host;cpu_sockets;%s\n' "${so:--}"
+    printf 'host;cpu_cores;%s\n' "$( [ -n "$so" ] && [ -n "$co" ] && printf '%s' "$((so * co))" || printf '%s' "$(nproc 2>/dev/null)")"
+    printf 'host;cpu_threads_per_core;%s\n' "${th:--}"
+    printf 'host;cpu_model;%s\n' "${mo:--}"
+    vi="$(systemd-detect-virt 2>/dev/null)"
+    [ -z "$vi" ] && vi="$(lscpu 2>/dev/null | awk -F: '/^Hypervisor vendor/ {gsub(/^[ \t]+/,"",$2); print tolower($2)}')"
+    pr="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
+    printf 'host;virtualization;%s\n' "${vi:-none}"
+    printf 'host;product_name;%s\n' "${pr:--}"
+    db="$(ps -eo args= 2>/dev/null | sed -n 's/^ora_pmon_\(.*\)$/\1/p' | sort -u | paste -sd, -)"
+    printf 'host;oracle_db_instances;%s\n' "${db:-none}"
+    # edition chosen at the installation of the database home (oracle.server
+    # globalvariables, oracle_install_db_InstallEdition: EE / SE2 / SE ...) -
+    # running instance -> home through /proc/<pmon>/exe, no database login
+    local p sid exe hm ed inv h
+    for p in $(pgrep -f '^ora_pmon_' 2>/dev/null); do
+        sid="$(ps -o args= -p "$p" 2>/dev/null | sed 's/^ora_pmon_//')"
+        exe="$(readlink "/proc/$p/exe" 2>/dev/null)"; hm="${exe%/bin/oracle}"
+        if [ -n "$exe" ]; then ed="$(ihwt_db_edition "$hm")"; else hm="(not readable as $(id -un))"; ed="unknown"; fi
+        printf 'host;oracle_db_edition;%s=%s (%s)\n' "$sid" "${ed:-unknown}" "$hm"
+    done
+    inv="$(sed -n 's/^inventory_loc=//p' /etc/oraInst.loc 2>/dev/null)"
+    for h in $(grep '<HOME ' "${inv:-/nonexistent}/ContentsXML/inventory.xml" 2>/dev/null | grep -v 'REMOVED="T"' | sed -n 's/.* LOC="\([^"]*\)".*/\1/p'); do
+        ed="$(ihwt_db_edition "$h")"; [ -n "$ed" ] && printf 'host;oracle_db_home;%s=%s\n' "$h" "$ed"
+    done
+    od="$(ps -eo pid=,args= 2>/dev/null | awk '/ords\.war|ords[ \t]+serve|oracle\.dbtools\.launcher/ && !/awk/ {print $1}' | paste -sd, -)"
+    printf 'host;ords_process;%s\n' "${od:-none}"
+    dm="$( [ -n "$oh" ] && sed -n 's/.*location="\([^"]*\)".*/\1/p' "$oh/domain-registry.xml" 2>/dev/null | paste -sd, -)"
+    printf 'host;wls_domains;%s\n' "${dm:-${dh:--}}"
 }
