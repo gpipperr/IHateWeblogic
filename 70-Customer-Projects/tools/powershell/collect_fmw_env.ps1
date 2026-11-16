@@ -93,7 +93,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.5"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.6"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -582,6 +582,7 @@ if ($DH) {
 }
 ihwt-fact "CPU (sockets/cores/threads)" ("{0} / {1} / {2} - {3}" -f (& $lv cpu_sockets), (& $lv cpu_cores), (& $lv cpu_threads_per_core), (& $lv cpu_model))
 ihwt-fact "Virtualization" ("{0} ({1})" -f (& $lv virtualization), (& $lv product_name))
+ihwt-fact "Public cloud / CPU arch" ("{0} / {1}" -f (& $lv cloud), (& $lv cpu_arch))
 $dbe = @($lh | Where-Object { $_ -like 'host;oracle_db_edition;*' } | ForEach-Object { ($_ -split ';', 3)[2] })
 ihwt-fact "Oracle DB on this host" ("{0}{1}" -f (& $lv oracle_db_instances), $(if ($dbe.Count) { " - edition (installation): " + ($dbe -join ', ') } else { "" }))
 $od = @($lic | Where-Object { $_ -like 'deployment;*' } | ForEach-Object { ($_ -split ';')[1] } | Where-Object { $_ -match '(?i)ords|apex' })

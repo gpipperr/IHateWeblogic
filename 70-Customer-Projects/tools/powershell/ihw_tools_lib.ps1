@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.4"
+$IHWT_PS_LIB_VERSION = "2026-11-16.5"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1182,6 +1182,23 @@ function ihwt-licence-host {
         try { $pr = ([IO.File]::ReadAllText('/sys/class/dmi/id/product_name')).Trim() } catch { }
         $db = @($Procs | ForEach-Object { if ("$($_.CommandLine)" -match '^ora_pmon_(.+)$') { $Matches[1].Trim() } } | Sort-Object -Unique) -join ','
     }
+    # public cloud (same markers as cloud-init / bash ihwt_cloud): chassis
+    # asset tag OracleCloud.com = OCI, 7783-7084-3265-9085-8269-3286-77 = Azure,
+    # vendor / BIOS Amazon EC2 = AWS, product Google Compute Engine = GCP
+    $at = ""; $sv = ""; $bv = ""; $pn = ""; $ar = ""
+    if ($IHWT_ON_WINDOWS) {
+        $en = Get-CimInstance Win32_SystemEnclosure -ErrorAction SilentlyContinue | Select-Object -First 1; if ($en) { $at = "$($en.SMBIOSAssetTag)".Trim() }
+        if ($cs) { $sv = "$($cs.Manufacturer)"; $pn = "$($cs.Model)" }
+        $bi = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue | Select-Object -First 1; if ($bi) { $bv = "$($bi.Manufacturer) $($bi.SMBIOSBIOSVersion)" }
+        $ar = "$env:PROCESSOR_ARCHITECTURE"
+    } else {
+        foreach ($k in 'chassis_asset_tag', 'sys_vendor', 'product_name', 'bios_version', 'bios_vendor') {
+            $v = ""; try { $v = ([IO.File]::ReadAllText("/sys/class/dmi/id/$k")).Trim() } catch { }
+            switch ($k) { 'chassis_asset_tag' { $at = $v } 'sys_vendor' { $sv = $v } 'product_name' { $pn = $v } default { $bv = "$bv $v" } }
+        }
+        $ar = "$(& uname -m 2>$null)".Trim()
+    }
+    $cl = $(if ($at -match 'OracleCloud') { 'oci' } elseif ($at -eq '7783-7084-3265-9085-8269-3286-77') { 'azure' } elseif ("$sv $bv" -cmatch 'Amazon EC2|amazon') { 'aws' } elseif ($pn -match 'Google Compute Engine') { 'gcp' } else { 'none' })
     # edition chosen at the installation of each database home (no database
     # login): running instance -> home (Linux /proc/<pmon>/exe, Windows the
     # image path of the OracleService<SID> service), plus every home of the inventory
@@ -1218,6 +1235,8 @@ function ihwt-licence-host {
              "host;cpu_model;$(if ($mo) { $mo } else { '-' })",
              "host;virtualization;$(if ($vi) { $vi } else { 'none' })",
              "host;product_name;$(if ($pr) { $pr } else { '-' })",
+             "host;cpu_arch;$(if ($ar) { $ar } else { '-' })",
+             "host;cloud;$cl",
              "host;oracle_db_instances;$(if ($db) { $db } else { 'none' })") + $ed.ToArray() + @(
              "host;ords_process;$(if ($od) { $od } else { 'none' })",
              "host;wls_domains;$(if ($dm) { $dm } elseif ($DH) { $DH } else { '-' })")

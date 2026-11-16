@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-16.3"
+IHWT_LIB_VERSION="2026-11-16.5"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -696,7 +696,15 @@ ihwt_load_profile() {
             local d cpu mem cpm
             d="$(LC_ALL=C sar -f "$f" 2>/dev/null | head -1 | grep -oE '[0-9]{2}/[0-9]{2}/[0-9]{2,4}' | head -1 | awk -F/ '{y=$3; if (length(y)==2) y="20" y; print y "-" $1 "-" $2}')"
             cpu="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {s+=100-$NF; n++} END {if (n) printf "%.0f", s/n}')"
-            mem="$(LC_ALL=C sar -r -f "$f" 2>/dev/null | awk '/%memused/ {for (i=1;i<=NF;i++) if ($i=="%memused") c=i} /^Average/ && c && $c ~ /^[0-9.]+$/ && $c+0 <= 100 {printf "%.0f", $c; exit}')"
+            # memory in use = 100 - available / total (like "available" of free):
+            # %memused counts the page cache with sysstat < 12 (OL8 11.7: 98 %
+            # on a host with 2/3 available), total = kbmemused * 100 / %memused
+            # works with every version; without kbavail (sysstat 10) %memused
+            mem="$(LC_ALL=C sar -r -f "$f" 2>/dev/null | awk '/%memused/ {for (i=1;i<=NF;i++) {if ($i=="%memused") c=i; if ($i=="kbmemused") u=i; if ($i=="kbavail") a=i}}
+                /^Average/ && c && $c ~ /^[0-9.]+$/ && $c+0 <= 100 {
+                    if (a && u && $c+0 > 0 && $u+0 > 0) { t=$u*100/$c; p=100-$a*100/t; if (p<0) p=0; printf "%.0f", p }
+                    else printf "%.0f", $c
+                    exit }')"
             cpm="$(LC_ALL=C sar -u -f "$f" 2>/dev/null | awk '$1 ~ /^[0-9]/ && $NF ~ /^[0-9.]+$/ {b=100-$NF; if (b>m) m=b} END {printf "%.0f", m}')"
             [ -n "$d" ] && printf '%s;%s;%s;%s\n' "$d" "${cpu:--}" "${cpm:--}" "${mem:--}"
         done > "$load/host_sar.csv"
@@ -921,6 +929,25 @@ ihwt_db_edition() {
         "$1/inventory/globalvariables/oracle.server/globalvariables.xml" 2>/dev/null | head -1
 }
 
+# ihwt_cloud - public cloud of this host from the DMI data (readable without
+#   root, same markers as cloud-init): oci (chassis asset tag OracleCloud.com,
+#   VM and bare metal), azure (chassis asset tag 7783-7084-3265-9085-8269-3286-77),
+#   aws (vendor / BIOS "Amazon EC2" / amazon), gcp (product "Google Compute
+#   Engine") - else none. Cloud licence rules differ from the on-premises
+#   processor count (Core Factor Table "Important Notes", cloud licensing policy)
+ihwt_cloud() {
+    local d="${IHWT_DMI_DIR:-/sys/class/dmi/id}" at sv pr bv   # IHWT_DMI_DIR: tests only
+    at="$(cat "$d/chassis_asset_tag" 2>/dev/null)"; sv="$(cat "$d/sys_vendor" 2>/dev/null)"
+    pr="$(cat "$d/product_name" 2>/dev/null)"; bv="$(cat "$d/bios_version" "$d/bios_vendor" 2>/dev/null | paste -sd' ' -)"
+    case "$at" in
+        *OracleCloud*) printf 'oci\n'; return ;;
+        7783-7084-3265-9085-8269-3286-77) printf 'azure\n'; return ;;
+    esac
+    case "$sv $bv" in *"Amazon EC2"*|*amazon*) printf 'aws\n'; return ;; esac
+    case "$pr" in *"Google Compute Engine"*) printf 'gcp\n'; return ;; esac
+    printf 'none\n'
+}
+
 # ihwt_licence_host OH DH - host facts for the licence (not in the MOS script):
 #   host;<key>;<value> - CPU sockets / cores / threads / model, virtualization,
 #   Oracle database instances, ORDS processes, WebLogic domains of the home
@@ -939,6 +966,8 @@ ihwt_licence_host() {
     pr="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
     printf 'host;virtualization;%s\n' "${vi:-none}"
     printf 'host;product_name;%s\n' "${pr:--}"
+    printf 'host;cpu_arch;%s\n' "$(uname -m 2>/dev/null || printf -- '-')"
+    printf 'host;cloud;%s\n' "$(ihwt_cloud)"
     db="$(ps -eo args= 2>/dev/null | sed -n 's/^ora_pmon_\(.*\)$/\1/p' | sort -u | paste -sd, -)"
     printf 'host;oracle_db_instances;%s\n' "${db:-none}"
     # edition chosen at the installation of the database home (oracle.server

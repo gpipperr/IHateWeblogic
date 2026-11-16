@@ -48,6 +48,10 @@ Every statement is marked by how it is backed:
 | NUP | Named User Plus | user-based licence metric | every person **and** every non-human device that can use the programs |
 | CSI | Customer Support Identifier | support contract number in My Oracle Support | shows the licences under support (and their current product names) |
 | LMS | Oracle License Management Services | Oracle's licence audit / advisory unit | the binding contact for licence questions |
+| OCI | Oracle Cloud Infrastructure | Oracle's public cloud | own counting rule: OCPUs instead of cores × core factor (section 4) |
+| OCPU | Oracle CPU | the compute unit of OCI: one physical core (x86: 2 vCPUs, Ampere: 1) | x86: 2 OCPUs, Ampere: 4 OCPUs per processor licence |
+| vCPU | virtual CPU | one hardware thread as the guest sees it | AWS / Azure / Google Cloud: 2 vCPUs (multi-threading on) per processor licence |
+| BYOL | Bring Your Own Licence | own perpetual licences used in a cloud | counted by the cloud rules of section 4 |
 | MOS | My Oracle Support | Oracle's support portal | notes like 885587.1, patches |
 | OTN | Oracle Technology Network | Oracle's developer download site | own licence texts (developer / trial) |
 | eDelivery | Oracle Software Delivery Cloud | download site for licensed software | Forms 14.1.2 comes from here; with a licence the own contract applies, without one a 30-day trial licence (evaluation, no production) |
@@ -90,6 +94,7 @@ Every statement is marked by how it is backed:
 | What does the Forms & Reports licence contain? | the runtime (Forms / Reports Services, compilers, WebUtil, Fusion Middleware Control) plus restricted-use products | [2](#2-what-the-ofr-licence-covers) |
 | May our developers use Form Builder / Reports Builder with it? | no – the Builder is not covered | [3](#3-developers-and-the-builder) |
 | Processor or Named User Plus? What does it cost? | both metrics exist; minimums and core factor apply | [4](#4-metric-and-prices) |
+| We run on OCI / AWS / Azure / Google Cloud – how do we count? | OCI per OCPU (x86: 2 per processor licence), the others per vCPU – no core factor | [4](#4-metric-and-prices) |
 | Is the database for the RCU schemas included? | no – a separately licensed database is needed | [5](#5-rcu-database-and-the-same-machine) |
 | May ORDS, APEX or our own WAR run on the Forms WebLogic? | not under the OFR licence | [6](#6-weblogic-server-basic) |
 | How do we check the WebLogic configuration? | MOS note 885587.1 (old script) + the licence indicators of our collector | [7](#7-mos-note-8855871-wls-basic-measurement-script) |
@@ -263,6 +268,44 @@ partitioning is accepted for Oracle Linux KVM "only if specific cores are
 allocated" as described in
 [Oracle Linux KVM hard partitioning](https://www.oracle.com/a/ocom/docs/linux/ol-kvm-hard-partitioning.pdf)
 (documented, same policy).
+
+**Public cloud – own rules instead of core factor and Partitioning Policy.**
+Licences you bring yourself (bring your own licence, BYOL) are counted by
+the size of the cloud instance, not by the physical host:
+- **Oracle Cloud Infrastructure (OCI)**: the section "Running Oracle Licenses
+  in the Oracle Cloud and Oracle Compute Cloud@Customer" of the
+  [Oracle Processor Core Factor Table](https://www.oracle.com/us/corporate/contracts/processor-core-factor-table-070634.pdf)
+  (documented, updated January 28, 2026) says: "For running on the x86
+  platform, every one (1) Processor license covers use of the program on two
+  (2) OCPUs. For running on the Ampere (Altra/AltraMax and AmpereOne)
+  platform, every one (1) Processor license covers use of the program on
+  four (4) OCPUs." For NUP "you must have the greater of: a) the actual
+  number of users, or b) the minimum number of NUP licenses per Processor",
+  e.g. "a minimum of 10 NUP licenses for every two (2) OCPUs of x86" for
+  programs with a minimum of 10 NUP per processor. An OCPU (Oracle CPU) is
+  one physical core – on x86 with two hardware threads (2 vCPUs), on Ampere
+  one thread. Example: a Forms VM with 2 OCPUs x86 (4 vCPUs) needs 1
+  processor licence, or at least 10 NUP if the 10-NUP minimum applies to OFR
+  (secondary, see above); with 4 OCPUs it is 2 processor licences / 20 NUP.
+  Programs with "Standard Edition" in the name count "every one (1) Processor
+  license … on four (4) OCPUs" (same source).
+- **AWS, Microsoft Azure and Google Cloud** ("Authorized Cloud Environments"):
+  [Licensing Oracle Software in the Cloud Computing Environment](https://www.oracle.com/a/ocom/docs/cloud-licensing-070579.pdf)
+  (documented, "educational purposes only", in effect as of September 4,
+  2026): "count two vCPUs as equivalent to one Oracle Processor license if
+  multi-threading of processor cores is enabled, and one vCPU as equivalent
+  to one Oracle Processor license if multi-threading of processor cores is
+  not enabled", counted on "the maximum vCPUs of an instance type"; "the
+  Oracle Processor Core Factor Table is not applicable". The policy names
+  only these three vendors; OCI is covered by the Core Factor Table above.
+- Other clouds and hosters (not named in either document): treat them like
+  on-premises virtualization (Partitioning Policy) and clarify with LMS.
+
+The collector writes the cloud as `host;cloud` (`oci`, `aws`, `azure`, `gcp`
+or `none`, read from the DMI data of the guest as cloud-init does: chassis
+asset tag `OracleCloud.com` = OCI) and `host;cpu_arch` into
+`45_licence.txt`; the environment analysis turns it into a "Licence" finding
+with the count of this instance.
 
 **Socket metric and chiplets – not an OFR topic, but one for the database
 next to it.** The price list counts a processor as an occupied socket only
@@ -544,6 +587,7 @@ included.
 - [ ] Ordering documents, CSI numbers and the last support invoice of the customer collected
 - [ ] Metric clear (processor or NUP); cores and core factor of every Forms / Reports server noted
 - [ ] Virtualization noted (VMware / KVM / Oracle VM, cluster size) and clarified against the Partitioning Policy
+- [ ] Public cloud noted: OCI counted per OCPU (x86 2, Ampere 4 OCPUs per processor licence), AWS / Azure / Google Cloud per vCPU (cloud licensing policy)
 - [ ] With NUP: people plus batch jobs / service accounts / interfaces counted, minimum per processor checked
 - [ ] Every environment listed and licensed (production, development, QA / test / staging, DR – Oracle Software Licensing Basics)
 - [ ] Developers with Form Builder / Reports Builder have an own developer licence (iDS or equivalent)
@@ -572,7 +616,10 @@ included.
 4. Allowlist of the OFR deployments: started from the 14.1.2 test domain
    (7 applications, about 90 Oracle libraries); 12.2.1.x domains to add with
    the first customer collections.
-5. Minimum 10 NUP per processor: no public Oracle primary source found.
+5. Minimum 10 NUP per processor: no public Oracle primary source found that
+   names OFR. The Core Factor Table (OCI section) confirms the concept –
+   "programs with a license minimum of 10 NUP per Processor" and of 25 NUP –
+   but not which programs have which minimum.
 6. Conversion of old Forms licences: case by case, in writing from Oracle
    LMS.
 
@@ -591,6 +638,9 @@ Oracle (primary):
   <https://shop.oracle.com/apex/f?p=DSTORE:6:::::>
 - Oracle Processor Core Factor Table:
   <https://www.oracle.com/us/corporate/contracts/processor-core-factor-table-070634.pdf>
+- Licensing Oracle Software in the Cloud Computing Environment (AWS, Azure,
+  Google Cloud; in effect as of September 4, 2026):
+  <https://www.oracle.com/a/ocom/docs/cloud-licensing-070579.pdf>
 - Oracle Partitioning Policy:
   <https://www.oracle.com/assets/partitioning-070609.pdf>
 - Oracle Linux KVM hard partitioning:

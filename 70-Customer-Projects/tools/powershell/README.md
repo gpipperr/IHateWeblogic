@@ -115,7 +115,8 @@ statically into `nginx.exe`):
 bash - tested on the test host): WebLogic Server Basic restrictions visible in
 the domain configuration, every application / library with "source in
 ORACLE_HOME", CPU (`Win32_Processor`), virtualization (`Win32_ComputerSystem`
-manufacturer / model), running `OracleService*` database services with the
+manufacturer / model), public cloud (`Win32_SystemEnclosure` asset tag,
+`Win32_BIOS`; on Linux the DMI files as in bash), running `OracleService*` database services with the
 edition of their home (`oracle_install_db_InstallEdition`) and ORDS
 processes. No licence statement - see
 [fmw_forms_reports_licence.md](../../../80-FMW-Architecture/fmw_forms_reports_licence.md).

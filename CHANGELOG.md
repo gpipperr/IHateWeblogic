@@ -10,6 +10,15 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **Licence in the public cloud** ([fmw_forms_reports_licence.md](80-FMW-Architecture/fmw_forms_reports_licence.md#4-metric-and-prices)):
+  OCI counted per OCPU (Core Factor Table, x86 2 / Ampere 4 OCPUs per processor licence), AWS / Azure /
+  Google Cloud per vCPU (cloud licensing policy, as of 2026-09-04), core factor not applicable; glossary
+  OCI / OCPU / vCPU / BYOL. Collector (`collect_fmw_env.sh` 2026-11-16.5, `.ps1` 2026-11-16.6,
+  `ihw_tools_lib` 2026-11-16.5 / `.ps1` 2026-11-16.5): `host;cloud` (DMI as cloud-init reads it) and
+  `host;cpu_arch` in `45_licence.txt`, fact `Public cloud / CPU arch`.
+- **sar memory history fixed** (`ihw_tools_lib.sh`): "memory used" now = 100 − available / total (like
+  `free`); with sysstat < 12 (OL7 / OL8) `%memused` counted the page cache and showed 98 % on a host with
+  two thirds of the memory available.
 - **08-SSL terms** ([08-SSL/README.md](08-SSL/README.md#terms--what-is-meant)): short list of the standard terms
   (X.509 certificate, private key, chain, root, PEM, DER, PKCS#12 = `.pfx` / `.p12`, PKCS#7, CSR, JKS) with
   the usual extensions and how to recognise a file – the extension says little about the content.

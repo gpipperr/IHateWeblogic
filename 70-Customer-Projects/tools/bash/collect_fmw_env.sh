@@ -51,7 +51,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.4"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.5"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -524,6 +524,7 @@ if [ -n "$DH" ]; then
 fi
 fact "CPU (sockets/cores/threads)" "$(_lv cpu_sockets) / $(_lv cpu_cores) / $(_lv cpu_threads_per_core) - $(_lv cpu_model)"
 fact "Virtualization" "$(_lv virtualization) ($(_lv product_name))"
+fact "Public cloud / CPU arch" "$(_lv cloud) / $(_lv cpu_arch)"
 fact "Oracle DB on this host" "$(_lv oracle_db_instances)$(awk -F';' '$1=="host" && $2=="oracle_db_edition" {e=e (e==""?"":", ") $3} END {if (e!="") printf " - edition (installation): %s", e}' "$_lic")"
 fact "ORDS on this host" "process: $(_lv ords_process); in the domain: $(awk -F';' '$1=="deployment" && tolower($2) ~ /ords|apex/ {d=d (d==""?"":",") $2} END {print (d=="" ? "no" : d)}' "$_lic")"
 unset _lic
