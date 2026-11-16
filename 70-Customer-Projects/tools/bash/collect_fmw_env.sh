@@ -55,7 +55,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.6"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-16.7"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -182,6 +182,9 @@ runsh 10_os.txt "Packages (FMW prerequisites)" "rpm -q binutils gcc gcc-c++ glib
 runsh 10_os.txt "Packages relevant for patches (CA / SSL / kernel)" "rpm -q openssl openssl-libs ca-certificates kernel kernel-uek 2>&1; rpm -qa --last 2>/dev/null | head -15"
 run 10_os.txt "Network addresses"   ip -br addr
 runsh 10_os.txt "Listening ports"     "ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null"
+# normalised for the analyses: loopback only / one address / all interfaces
+{ printf '### Listening ports (normalised: port;addr;port;scope;pid;process)\n'; ihwt_listen_ports; printf '### rc=0\n\n'; } >> "$OUT/10_os.txt"
+fact "Listening ports" "$(awk -F';' '$1=="port" {n++; if ($4=="local") l++; else o++} END {printf "%d (%d reachable from the network, %d loopback only)", n, o, l}' "$OUT/10_os.txt")"
 runsh 10_os.txt "systemd units (oracle/wls/forms/reports/nginx/httpd)" "systemctl list-unit-files 2>/dev/null | grep -iE 'oracle|weblogic|wls|fmw|forms|report|nodemanager|nginx|httpd|ohs'"
 run 10_os.txt "crontab (this user)" crontab -l
 fact "OS" "$(sed -n 's/^PRETTY_NAME="\(.*\)"/\1/p' /etc/os-release 2>/dev/null)"
@@ -321,6 +324,9 @@ if [ -n "$DH" ]; then
     runsh 44_forms_client.txt "JNLP j2se / java versions" "grep -Hn -iE 'j2se|<java ' '$OH'/forms/java/*.jnlp '$OH'/forms/templates/config/*.jnlp \$(find '$DH/config/fmwconfig' -name '*.jnlp' 2>/dev/null) 2>/dev/null | head -40"
     runsh 44_forms_client.txt "formsweb.cfg Java plug-in / client keys" "for f in \$(find '$DH/config/fmwconfig/servers' -name formsweb.cfg 2>/dev/null); do grep -Hn -iE '^(jpi_|baseHTMLjpi|webstart|fsal|java_version|jre)' \"\$f\"; done | head -40"
     runsh 44_forms_client.txt "FSAL / client jars (frmsal.jar)" "ls -l --time-style=long-iso '$OH'/forms/java/frmsal*.jar '$OH'/forms/java/frmall.jar 2>&1; unzip -p '$OH/forms/java/frmsal.jar' META-INF/MANIFEST.MF 2>/dev/null | grep -iE 'version|built'"
+    # top level of the Forms domain (servers, listen addresses, ports, WebLogic
+    # plug-in flag) - the architecture overview of both reports reads it
+    { printf '### Domain summary (top level)\n'; ihwt_domain_summary "$DH" | mask; printf '### rc=0\n\n'; } >> "$OUT/40_domain.txt"
     fact "Domain version (config.xml)" "$(sed -n 's/.*<domain-version>\([^<]*\)<.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Domain" "$(sed -n 's/.*<name>\([^<]*\)<\/name>.*/\1/p' "$DH/config/config.xml" | head -1)"
     fact "Servers (config.xml)" "$(awk '/<server>/{s=1} s&&/<name>/{gsub(/.*<name>|<\/name>.*/,"");printf "%s ",$0;s=0}' "$DH/config/config.xml")"
@@ -510,7 +516,7 @@ fi
 [ ${#WT_FOUND[@]} -eq 0 ] && [ -n "$(ps -eo args= | grep -m1 'weblogic[.]Server')" ] && \
     fact "Web tier hint" "no web server on this host while WebLogic runs - web tier on another host? run the collector there"
 # certificates of every HTTPS listener (public part: subject / issuer / expiry)
-{ printf 'source;subject;issuer;not_after\n'
+{ printf 'source;subject;issuer;not_after;san;key;sig;chain\n'
   for e in "${WT_FOUND[@]}"; do ihwt_webtier_flatten "${e%%;*}" "${e#*;}" | ihwt_webtier_routes "${e%%;*}" "${e#*;}"; done | ihwt_certificates
 } > "$OUT/62_certificates.txt"
 fact "HTTPS certificates" "$(($(wc -l < "$OUT/62_certificates.txt") - 1)) - first expiry: $(awk -F';' 'NR>1 && $4 !~ /not reachable/ {print $4}' "$OUT/62_certificates.txt" | while read -r d; do date -d "$d" +%Y-%m-%d 2>/dev/null; done | sort | head -1)"

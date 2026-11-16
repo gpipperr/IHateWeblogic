@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.6"
+$IHWT_PS_LIB_VERSION = "2026-11-16.7"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -562,6 +562,7 @@ function ihwt-webtier-routes {
         }
     } else {
         # Apache / OHS (the awk of ihwt_webtier_routes)
+        $hport = @{}
         $st = @{ vh = 0; nv = 0; gl = ""; gn = ""; gt = ""; gpr = ""; gcert = ""; gwh = ""; gwp = ""; gwc = ""; gred = ""; grows = 0; inl = $false; lpth = ""; lh = $false; lwh = ""; lwp = ""; lwc = ""; lacc = "open"; lpx = "" }
         $VH = @{}; $RT = New-Object System.Collections.Generic.List[object]
         $wlt = { param($h, $p, $c)
@@ -582,7 +583,8 @@ function ihwt-webtier-routes {
             if ($w -match '^<location(match)?>?$' -or $w -match '^<location(match)?>') { $st.inl = $true; $st.lpth = ($a -replace '"', '') -replace '>$', ''; $st.lh = $false; $st.lwh = ""; $st.lwp = ""; $st.lwc = ""; $st.lacc = "open"; $st.lpx = ""; continue }
             if ($w -match '^</location') { if ($st.lh -or $st.lpx) { & $row $st.lpth $(if ($st.lpx) { $st.lpx } else { & $wlt $st.lwh $st.lwp $st.lwc }) $st.lacc }; $st.inl = $false; continue }
             switch ($w) {
-                "listen" { $vv = $a -replace '\s.*$', ''; if ($vv -notmatch ':') { $vv = "*:$vv" }; $st.gl = $(if ($st.gl) { "$($st.gl),$vv" } else { $vv }); continue }
+                "listen" { $vv = $a -replace '\s.*$', ''; if ($vv -notmatch ':') { $vv = "*:$vv" }; $st.gl = $(if ($st.gl) { "$($st.gl),$vv" } else { $vv })
+                           if ($a -match '\shttps$') { $hport[($vv -replace '.*:', '')] = 1 }; continue }
                 "servername" { $vv = ($a -replace '^https?://', '') -replace ':.*$', ''; if ($v) { $v.vn = $vv } else { $st.gn = $vv }; continue }
                 "serveralias" { if ($v) { $v.vn = ("$($v.vn),$a") -replace '\s+', ',' }; continue }
                 "sslengine" { if ($a.ToLower() -match '^on') { if ($v) { $v.vt = "yes" } else { $st.gt = "yes" } }; continue }
@@ -600,10 +602,20 @@ function ihwt-webtier-routes {
             if (($w -eq "require" -and $a.ToLower() -notmatch '^all granted') -or $w -eq "allow" -or $w -eq "deny" -or $w -eq "authtype") { if ($st.inl) { $st.lacc = "restricted" }; continue }
             if ($w -eq "redirect" -or $w -eq "redirectmatch" -or ($w -eq "rewriterule" -and $a -match 'https:')) { if ($v) { $v.red = "redirect $a" } else { $st.gred = "redirect $a" } }
         }
+        # global routes are inherited by every VirtualHost without own routes
+        # (as bash): global rows keep only the listeners no vhost covers
+        $used = @{}; $inh = @{}
+        for ($i = 1; $i -le $st.nv; $i++) { if (-not $VH[$i].rows -and $st.grows) { $inh[$i] = 1; foreach ($q in ($VH[$i].vl -split ',')) { $used[($q -replace '.*:', '')] = 1 } } }
+        $glp = @(($st.gl -split ',') | Where-Object { $_ -and -not $used.ContainsKey(($_ -replace '.*:', '')) -and -not $hport.ContainsKey(($_ -replace '.*:', '')) }) -join ','
+        if (-not $st.nv) { $glp = $st.gl }
         foreach ($r in $RT) { $v = $(if ($r.v) { $VH[$r.v] } else { $null })
-            $rows.Add(("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}" -f $Type, $Main, $(if ($v) { $v.vl } else { $st.gl }), $(if ($v -and $v.vn) { $v.vn } else { $st.gn }),
+            if (-not $v -and -not $glp) { continue }
+            $rows.Add(("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}" -f $Type, $Main, $(if ($v) { $v.vl } else { $glp }), $(if ($v -and $v.vn) { $v.vn } else { $st.gn }),
                 $(if ($v) { $v.vt } elseif ($st.gt) { $st.gt } else { "no" }), $(if ($v -and $v.vpr) { $v.vpr } else { $st.gpr }), $r.p, $r.t, $r.a, $(if ($v -and $v.vcert) { $v.vcert } else { $st.gcert }))) }
-        for ($i = 1; $i -le $st.nv; $i++) { $v = $VH[$i]; if ($v.rows) { continue }
+        for ($i = 1; $i -le $st.nv; $i++) { if (-not $inh.ContainsKey($i)) { continue }; $v = $VH[$i]
+            foreach ($r in @($RT | Where-Object { -not $_.v })) {
+                $rows.Add(("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}" -f $Type, $Main, $v.vl, $(if ($v.vn) { $v.vn } else { $st.gn }), $v.vt, $(if ($v.vpr) { $v.vpr } else { $st.gpr }), $r.p, $r.t, $r.a, $(if ($v.vcert) { $v.vcert } else { $st.gcert }))) } }
+        for ($i = 1; $i -le $st.nv; $i++) { $v = $VH[$i]; if ($v.rows -or $inh.ContainsKey($i)) { continue }
             $rows.Add(("{0};{1};{2};{3};{4};{5};-;{6};open;{7}" -f $Type, $Main, $v.vl, $(if ($v.vn) { $v.vn } else { $st.gn }), $v.vt, $(if ($v.vpr) { $v.vpr } else { $st.gpr }), $(if ($v.red) { $v.red } else { "-" }), $(if ($v.vcert) { $v.vcert } else { $st.gcert }))) }
         if (-not $st.nv -and -not $st.grows) { $rows.Add(("{0};{1};{2};{3};{4};{5};-;{6};open;{7}" -f $Type, $Main, $st.gl, $st.gn, $(if ($st.gt) { $st.gt } else { "no" }), $st.gpr, $(if ($st.gred) { $st.gred } else { "-" }), $st.gcert)) }
         if ($Type -eq "ohs") {
@@ -625,7 +637,7 @@ function ihwt-webtier-settings {
         if ($raw -match '^\s*#') { continue }
         $l = ($raw -replace '^\s+', '') -replace '[\s;]+$', ''; $w = $l -replace '\s.*$', ''; $a = $l -replace '^\S+\s*', ''; $lw = $w.ToLower()
         $f = $(if ($stk.Count) { $stk.Peek() } else { "" })
-        if ($lw -match '^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex)$') { $res += "$Type;$Main;$w;$a;$f" }
+        if ($lw -match '^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex|wlproxyssl|wlproxysslpassthrough)$') { $res += "$Type;$Main;$w;$a;$f" }
         elseif ($lw -eq "options" -and $a.ToLower() -match '(^|\s)\+?indexes') { $res += "$Type;$Main;Options;$a;$f" }
     }
     return $res
@@ -665,7 +677,28 @@ function _ihwt-dn {
 
 # ihwt-certificates ROWS - subject / issuer / expiry (public part) of every
 # HTTPS listener of the routing rows: TLS handshake with the server name, else
-# the certificate file of the route. "source;subject;issuer;not_after" (no header)
+# the certificate file of the route. "source;subject;issuer;not_after;san;key;sig;chain"
+# (no header, as bash ihwt_certificates; chain = certificates the server sends)
+# openssl date format "%b %e %H:%M:%S %Y GMT" (day padded with a blank)
+function _ihwt-osdate { param([datetime] $D) $u = $D.ToUniversalTime(); $ci = [Globalization.CultureInfo]::InvariantCulture
+    return ("{0} {1,2} {2} GMT" -f $u.ToString('MMM', $ci), $u.Day, $u.ToString('HH:mm:ss yyyy', $ci)) }
+function _ihwt-cert-cols {
+    param($c)
+    $san = ""
+    foreach ($e in $c.Extensions) { if ($e.Oid.Value -eq '2.5.29.17') { $san = ($e.Format($false) -replace '(DNS Name|DNS|IP Address)[=:]', '' -replace '\s', '' -replace ';', ',') } }
+    $ka = $c.PublicKey.Oid.Value; $kb = ""
+    switch ($ka) {
+        '1.2.840.113549.1.1.1' { $kn = 'RSA'; try { $kb = $c.PublicKey.GetRSAPublicKey().KeySize } catch { try { $kb = $c.PublicKey.Key.KeySize } catch { } } }
+        '1.2.840.10045.2.1' { $kn = 'EC'; try { $kb = $c.PublicKey.GetECDsaPublicKey().KeySize } catch { } }
+        '1.2.840.113549.1.1.10' { $kn = 'RSA-PSS' }
+        default { $kn = $c.PublicKey.Oid.FriendlyName }
+    }
+    $sm = @{ '1.2.840.113549.1.1.11' = 'sha256WithRSAEncryption'; '1.2.840.113549.1.1.12' = 'sha384WithRSAEncryption'; '1.2.840.113549.1.1.13' = 'sha512WithRSAEncryption'
+             '1.2.840.113549.1.1.5' = 'sha1WithRSAEncryption'; '1.2.840.113549.1.1.4' = 'md5WithRSAEncryption'; '1.2.840.113549.1.1.10' = 'rsassaPss'
+             '1.2.840.10045.4.3.2' = 'ecdsa-with-SHA256'; '1.2.840.10045.4.3.3' = 'ecdsa-with-SHA384'; '1.2.840.10045.4.3.4' = 'ecdsa-with-SHA512' }
+    $sg = $(if ($sm.ContainsKey($c.SignatureAlgorithm.Value)) { $sm[$c.SignatureAlgorithm.Value] } else { $c.SignatureAlgorithm.FriendlyName })
+    return ("{0};{1} {2};{3}" -f $(if ($san) { $san } else { '' }), $kn, $kb, $sg)
+}
 function ihwt-certificates {
     param([string[]] $Rows)
     $seen = @{}; $res = @()
@@ -678,11 +711,13 @@ function ihwt-certificates {
             $port = $lis -replace '^.*:', ''; $key = "$($f[0]);$port;$sn"; if ($seen.ContainsKey($key)) { continue }; $seen[$key] = 1
             $h = $lis.Substring(0, $lis.LastIndexOf(':')); if ($h -in @('*', '0.0.0.0', '[::]', '')) { $h = "127.0.0.1" }
             $name = $(if ($sn -in @('', '_', 'localhost') -or $sn -like '`**') { $hn } else { $sn })
-            $src = "https $($f[0]) $lis ($name)"; $c = $null
+            $src = "https $($f[0]) $lis ($name)"; $c = $null; $script:_ihwt_chain = "-"
             try {
                 $tcp = New-Object System.Net.Sockets.TcpClient
                 if ($tcp.ConnectAsync($h, [int]$port).Wait(10000)) {
-                    $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ({ $true } -as [System.Net.Security.RemoteCertificateValidationCallback]))
+                    # the certificates the server sent are in the ExtraStore of the chain (.NET Core)
+                    $cb = { param($snd, $crt, $chn, $err) try { $script:_ihwt_chain = "$(1 + @($chn.ChainPolicy.ExtraStore | Where-Object { $_.Thumbprint -ne $crt.GetCertHashString() }).Count)" } catch { }; $true }
+                    $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, ($cb -as [System.Net.Security.RemoteCertificateValidationCallback]))
                     $ssl.AuthenticateAsClient($name)
                     $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate)
                     $ssl.Close()
@@ -690,12 +725,12 @@ function ihwt-certificates {
                 $tcp.Close()
             } catch { $c = $null }
             if (-not $c -and $f[9] -and (Test-Path -LiteralPath $f[9] -PathType Leaf)) {
-                try { $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($f[9]); $src = "https $($f[0]) $lis (file $($f[9]))" } catch { $c = $null }
+                try { $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($f[9]); $src = "https $($f[0]) $lis (file $($f[9]))"; $script:_ihwt_chain = "file" } catch { $c = $null }
             }
             # openssl order and names ("C=DE, ST=..., CN=...") like the bash version
             $dn = { param($x) _ihwt-dn $x.RawData }
-            if ($c) { $res += ("{0};{1};{2};{3}" -f $src, (& $dn $c.SubjectName), (& $dn $c.IssuerName), $c.NotAfter.ToUniversalTime().ToString("MMM d HH:mm:ss yyyy 'GMT'", [Globalization.CultureInfo]::InvariantCulture)) }
-            else { $res += "$src;-;-;not reachable / no readable certificate file" }
+            if ($c) { $res += ("{0};{1};{2};{3};{4};{5}" -f $src, (& $dn $c.SubjectName), (& $dn $c.IssuerName), $(_ihwt-osdate $c.NotAfter), (_ihwt-cert-cols $c), $script:_ihwt_chain) }
+            else { $res += "$src;-;-;not reachable / no readable certificate file;-;-;-;-" }
         }
     }
     return $res
@@ -1249,6 +1284,40 @@ function ihwt-realpath {
     try { return [IO.Path]::GetFullPath($P).TrimEnd('\', '/') } catch { return $P }
 }
 
+# ihwt-listen-ports - listening TCP ports, normalised (as bash ihwt_listen_ports):
+# "port;<addr>;<port>;<scope>;<pid>;<process>", scope local / ip / all.
+# Windows: Get-NetTCPConnection (every process visible); Linux: ss.
+function ihwt-listen-ports {
+    $items = New-Object System.Collections.Generic.List[object]
+    if ($IHWT_ON_WINDOWS) {
+        $pn = @{}; Get-Process -ErrorAction SilentlyContinue | ForEach-Object { $pn[$_.Id] = $_.ProcessName }
+        foreach ($c in @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue)) {
+            $items.Add(@{ a = ("$($c.LocalAddress)" -replace '%.*$', ''); p = [int]$c.LocalPort; pid = "$($c.OwningProcess)"; pn = $(if ($pn.ContainsKey([int]$c.OwningProcess)) { $pn[[int]$c.OwningProcess] } else { '-' }) })
+        }
+    } else {
+        foreach ($l in @(& ss -ltnpH 2>$null)) {
+            $f = ($l.Trim() -split '\s+'); if ($f.Count -lt 4) { continue }
+            $la = $f[3]; $pr = $(if ($f.Count -ge 6) { $f[-1] } else { '' })
+            if ($la -notmatch '^(.*):(\d+)$') { continue }
+            $ad = $Matches[1] -replace '%[^\]]*', ''; $po = [int]$Matches[2]
+            $pid_ = '-'; $pnm = '-'
+            if ($pr -match 'pid=(\d+)') { $pid_ = $Matches[1]; if ($pr -match '"([^"]*)"') { $pnm = $Matches[1] } }
+            $items.Add(@{ a = $ad; p = $po; pid = $pid_; pn = $pnm })
+        }
+    }
+    $seen = @{}; $out = New-Object System.Collections.Generic.List[object]
+    foreach ($i in $items) {
+        $k = "$($i.a):$($i.p)"; if ($seen.ContainsKey($k)) { continue }; $seen[$k] = 1
+        $sc = 'ip'
+        if ($i.a -match '^(\*|0\.0\.0\.0|\[::\]|::|\[::ffff:0\.0\.0\.0\])$') { $sc = 'all' }
+        elseif ($i.a -match '^(127\.|\[::1\]|::1$|\[::ffff:127\.)') { $sc = 'local' }
+        $out.Add([pscustomobject]@{ a = $i.a; p = $i.p; line = ("port;{0};{1};{2};{3};{4}" -f $i.a, $i.p, $sc, $i.pid, $i.pn) })
+    }
+    $arr = $out.ToArray()
+    [Array]::Sort($arr, [Comparison[object]] { param($x, $y) $d = $x.p.CompareTo($y.p); if ($d -ne 0) { return $d }; return [string]::CompareOrdinal($x.a, $y.a) })
+    return @($arr | ForEach-Object { $_.line })
+}
+
 # ihwt-domains-find OH DH PROCS - the OTHER WebLogic domains of this host (top
 # level, read-only), as bash ihwt_domains_find: domain-registry.xml and
 # nodemanager.domains of OH and every inventory home, running servers
@@ -1334,6 +1403,14 @@ function ihwt-domain-summary {
         if (-not $oh) { foreach ($l in $lines) { if (-not $oh -and $l -match '^\s*(export\s+|set\s+)?(MW_HOME|ORACLE_HOME)="?([^"$%]*)"?\s*$') { $oh = $Matches[3] } } }
         foreach ($l in $lines) { if ($l -match '^\s*(export\s+|set\s+)?JAVA_HOME="?([^"$%]*)"?\s*$') { $jh = $Matches[2] } }
     }
+    # WebLogic plug-in enabled (web-app-container = domain, cluster, server), as bash
+    $pe = New-Object System.Collections.Generic.List[string]
+    foreach ($nd in @($dm.ChildNodes)) {
+        if ($nd.NodeType -ne 'Element' -or $nd.LocalName -notin @('server', 'cluster', 'web-app-container')) { continue }
+        $v = _ihwt-child $nd 'weblogic-plugin-enabled'
+        if ($v) { $pe.Add(("{0}={1}" -f $(if ($nd.LocalName -eq 'web-app-container') { 'domain' } else { _ihwt-child $nd 'name' }), $v)) }
+    }
+    $r.Add("domain;weblogic_plugin_enabled;$(if ($pe.Count) { $pe -join ',' } else { 'not set' })")
     $r.Add("domain;oracle_home;$(if ($oh) { $oh } else { '-' })")
     $r.Add("domain;java_home;$(if ($jh) { $jh } else { '-' })")
     $wls = @($Procs | Where-Object { "$($_.CommandLine)" -match '-Dweblogic\.Name=' })

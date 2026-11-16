@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-16.6"
+IHWT_LIB_VERSION="2026-11-16.7"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -345,7 +345,8 @@ ihwt_webtier_routes() {
         w ~ /^<location(match)?$/ || w ~ /^<location(match)?>/ { inl=1; lpth=unq(a); sub(/>$/, "", lpth); lh=0; lwh=""; lwp=""; lwc=""; lacc="open"; lpx=""; next }
         w ~ /^<\/location/ { if (lh || lpx != "") row(lpth, (lpx != "" ? lpx : wlt(lwh, lwp, lwc)), lacc)
                              inl=0; next }
-        w=="listen" { v=a; s="no"; if (v ~ /[[:space:]]https$/) s="yes"; sub(/[[:space:]].*/, "", v); if (v !~ /:/) v="*:" v; gl=(gl=="" ? v : gl "," v); next }
+        w=="listen" { v=a; s="no"; if (v ~ /[[:space:]]https$/) s="yes"; sub(/[[:space:]].*/, "", v); if (v !~ /:/) v="*:" v; gl=(gl=="" ? v : gl "," v)
+            if (s=="yes") { q=v; sub(/.*:/, "", q); hport[q]=1 }; next }
         w=="servername" { v=a; sub(/^https?:\/\//, "", v); sub(/:.*/, "", v); if (vh) vn[vh]=v; else gn=v; next }
         w=="serveralias" && vh { vn[vh]=vn[vh] "," a; gsub(/[[:space:]]+/, ",", vn[vh]); next }
         w=="sslengine" && tolower(a) ~ /^on/ { if (vh) vt[vh]="yes"; else gt="yes"; next }
@@ -362,10 +363,22 @@ ihwt_webtier_routes() {
             t=pp[2]; sub(/^[a-z]+:\/\//, "", t); sub(/\/.*/, "", t)
             if (inl) { lpx=t } else row(pp[1], t, "open"); next }
         w=="redirect" || w=="redirectmatch" || (w=="rewriterule" && a ~ /https:/) { if (vh) vred[vh]="redirect " a; else gred="redirect " a; next }
-        END { for (r=1; r<=nr; r++) { v=rv[r]
-                  printf "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", type, conf, (v ? vl[v] : gl), (v ? (vn[v] != "" ? vn[v] : gn) : gn),
+        # global <Location> / ProxyPass / MatchExpression apply to every
+        # VirtualHost without own routes (Apache inheritance): those vhosts
+        # get the global rows with their listen / tls / certificate, the
+        # global rows keep only the listeners no vhost covers (and no
+        # "Listen ... https" port)
+        END { for (v=1; v<=nv; v++) if (!vrows[v] && grows) { inh[v]=1; n=split(vl[v], L, ","); for (i=1; i<=n; i++) { q=L[i]; sub(/.*:/, "", q); used[q]=1 } }
+              n=split(gl, L, ","); glp=""; for (i=1; i<=n; i++) { q=L[i]; sub(/.*:/, "", q); if (!(q in used) && !(q in hport)) glp=(glp=="" ? L[i] : glp "," L[i]) }
+              if (!nv) glp=gl
+              for (r=1; r<=nr; r++) { v=rv[r]
+                  if (!v && glp=="") continue
+                  printf "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", type, conf, (v ? vl[v] : glp), (v ? (vn[v] != "" ? vn[v] : gn) : gn),
                       (v ? vt[v] : (gt != "" ? gt : "no")), (v && vpr[v] != "" ? vpr[v] : gpr), rpth[r], rtg[r], racc[r], (v && vcert[v] != "" ? vcert[v] : gcert) }
-              for (v=1; v<=nv; v++) if (!vrows[v])
+              for (v=1; v<=nv; v++) if (inh[v]) for (r=1; r<=nr; r++) if (!rv[r])
+                  printf "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", type, conf, vl[v], (vn[v] != "" ? vn[v] : gn), vt[v], (vpr[v] != "" ? vpr[v] : gpr),
+                      rpth[r], rtg[r], racc[r], (vcert[v] != "" ? vcert[v] : gcert)
+              for (v=1; v<=nv; v++) if (!vrows[v] && !inh[v])
                   printf "%s;%s;%s;%s;%s;%s;-;%s;open;%s\n", type, conf, vl[v], (vn[v] != "" ? vn[v] : gn), vt[v], (vpr[v] != "" ? vpr[v] : gpr),
                       (vred[v] != "" ? vred[v] : "-"), (vcert[v] != "" ? vcert[v] : gcert)
               if (!nv && !grows) printf "%s;%s;%s;%s;%s;%s;-;%s;open;%s\n", type, conf, gl, gn, (gt != "" ? gt : "no"), gpr, (gred != "" ? gred : "-"), gcert }'
@@ -386,7 +399,7 @@ ihwt_webtier_settings() {
         /^#@@ END /  { n--; next }
         /^[[:space:]]*#/ { next }
         { l=$0; gsub(/^[[:space:]]+|[[:space:];]+$/, "", l); w=l; sub(/[[:space:]].*/, "", w); a=l; sub(/^[^[:space:]]+[[:space:]]*/, "", a); lw=tolower(w) }
-        lw ~ /^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex)$/ { printf "%s;%s;%s;%s;%s\n", type, conf, w, a, stk[n] }
+        lw ~ /^(server_tokens|servertokens|serversignature|traceenable|debugconfiginfo|autoindex|wlproxyssl|wlproxysslpassthrough)$/ { printf "%s;%s;%s;%s;%s\n", type, conf, w, a, stk[n] }
         lw=="options" && tolower(a) ~ /(^|[[:space:]])\+?indexes/ { printf "%s;%s;Options;%s;%s\n", type, conf, a, stk[n] }'
 }
 
@@ -715,30 +728,48 @@ ihwt_load_profile() {
     unset -f _ihwt_lp_logs _ihwt_lp_cat _ihwt_rw
 }
 
-# ihwt_certificates < routes - public part only (subject / issuer / expiry) of
-# every HTTPS listener of the routing table ($IHWT_WT_HEAD rows on stdin):
-# s_client with the server name, else the certificate file of the route.
-# Output "source;subject;issuer;not_after" (no header).
+# ihwt_certificates < routes - public part only of every HTTPS listener of the
+# routing table ($IHWT_WT_HEAD rows on stdin): s_client with the server name,
+# else the certificate file of the route. Output (no header)
+#   "source;subject;issuer;not_after;san;key;sig;chain"
+#   san   DNS names / IPs of subjectAltName, comma separated
+#   key   "RSA 2048" / "EC 256" ...      sig  signature algorithm (openssl name)
+#   chain number of certificates the server sends (leaf + intermediates), "file"
+# The first four columns are the old format (2026-11-16.6 and older).
+_ihwt_cert_details() {   # PEM (leaf) on stdin -> "subject;issuer;not_after;san;key;sig"
+    local p t
+    p="$(cat)"; [ -n "$p" ] || return 1
+    t="$(printf '%s\n' "$p" | openssl x509 -noout -text 2>/dev/null)" || return 1
+    printf '%s;%s;%s;%s;%s;%s\n' \
+        "$(printf '%s\n' "$p" | openssl x509 -noout -subject 2>/dev/null | sed 's/^subject= *//' | tr ';' ',')" \
+        "$(printf '%s\n' "$p" | openssl x509 -noout -issuer 2>/dev/null | sed 's/^issuer= *//' | tr ';' ',')" \
+        "$(printf '%s\n' "$p" | openssl x509 -noout -enddate 2>/dev/null | sed 's/^notAfter=//')" \
+        "$(printf '%s\n' "$t" | awk '/X509v3 Subject Alternative Name/ {getline; print; exit}' | sed 's/^[[:space:]]*//; s/DNS://g; s/IP Address://g; s/[[:space:]]//g' | tr ';' ',')" \
+        "$(printf '%s\n' "$t" | awk '/Public Key Algorithm:/ {a=$NF} /Public-Key: \(/ {b=$0; gsub(/.*\(| bit.*/, "", b)} END {
+              if (a=="rsaEncryption") a="RSA"; else if (a=="id-ecPublicKey") a="EC"; else if (a=="rsassaPss") a="RSA-PSS"
+              printf "%s %s", a, b}')" \
+        "$(printf '%s\n' "$t" | awk '/Signature Algorithm:/ {print $NF; exit}')"
+}
 ihwt_certificates() {
     command -v openssl >/dev/null 2>&1 || return 0
     awk -F';' '$5=="yes" { n=split($3, L, ","); sn=$4; sub(/,.*/, "", sn)
                 for (i=1; i<=n; i++) if (L[i] !~ /^\[/ || L[i] ~ /^\[::\]:/) print $1 ";" L[i] ";" sn ";" $10 }' \
         | awk -F';' '{ p=$2; sub(/.*:/, "", p) } !seen[$1 ";" p ";" $3]++' \
         | while IFS=';' read -r _t _l _sn _cf; do
-        local _h="${_l%:*}" _p="${_l##*:}" _src _c
+        local _h="${_l%:*}" _p="${_l##*:}" _src _sc _d _n
         case "$_h" in '*'|0.0.0.0|'[::]'|'') _h=127.0.0.1 ;; esac
         case "$_sn" in ''|_|'*'*|localhost) _sn="$(hostname -f 2>/dev/null || hostname)" ;; esac
         _src="https $_t $_l ($_sn)"
-        _c="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_sn" </dev/null 2>/dev/null \
-              | openssl x509 -noout -subject -issuer -enddate 2>/dev/null)"
-        if [ -z "$_c" ] && [ -f "$_cf" ] && [ -r "$_cf" ]; then
-            _c="$(openssl x509 -in "$_cf" -noout -subject -issuer -enddate 2>/dev/null)"; _src="https $_t $_l (file $_cf)"
+        _sc="$(timeout 10 openssl s_client -connect "$_h:$_p" -servername "$_sn" -showcerts </dev/null 2>/dev/null)"
+        _n="$(printf '%s\n' "$_sc" | grep -c 'BEGIN CERTIFICATE')"
+        _d="$(printf '%s\n' "$_sc" | awk '/BEGIN CERTIFICATE/ {on=1} on {print} /END CERTIFICATE/ {exit}' | _ihwt_cert_details)"
+        if [ -z "$_d" ] && [ -f "$_cf" ] && [ -r "$_cf" ]; then
+            _d="$(awk '/BEGIN CERTIFICATE/ {on=1} on {print} /END CERTIFICATE/ {exit}' "$_cf" | _ihwt_cert_details)"; _src="https $_t $_l (file $_cf)"; _n="file"
         fi
-        if [ -n "$_c" ]; then
-            printf '%s;%s;%s;%s\n' "$_src" "$(printf '%s\n' "$_c" | sed -n 's/^subject= *//p' | tr ';' ',')" \
-                "$(printf '%s\n' "$_c" | sed -n 's/^issuer= *//p' | tr ';' ',')" "$(printf '%s\n' "$_c" | sed -n 's/^notAfter=//p')"
+        if [ -n "$_d" ]; then
+            printf '%s;%s;%s\n' "$_src" "$_d" "$_n"
         else
-            printf '%s;-;-;not reachable / no readable certificate file\n' "$_src"
+            printf '%s;-;-;not reachable / no readable certificate file;-;-;-;-\n' "$_src"
         fi
     done
 }
@@ -990,6 +1021,32 @@ ihwt_licence_host() {
     printf 'host;wls_domains;%s\n' "${dm:-${dh:--}}"
 }
 
+# ihwt_listen_ports - listening TCP ports, normalised (ss, else netstat):
+#   "port;<addr>;<port>;<scope>;<pid>;<process>" - scope local (loopback),
+#   ip (one address) or all (0.0.0.0 / * / [::]); pid / process only where the
+#   OS shows them (without root: the processes of this user), else "-".
+#   Sorted by port, then address; one line per address:port.
+ihwt_listen_ports() {
+    { ss -ltnpH 2>/dev/null | awk '{print $4 " " $NF}' \
+      || netstat -ltnp 2>/dev/null | awk '$1 ~ /^tcp/ {print $4 " " $7}'; } | ihwt_listen_ports_parse
+}
+# ihwt_listen_ports_parse - "local_address process" lines on stdin (from ss /
+#   netstat, or the raw "ss -ltnp" block of an older collection) -> the
+#   normalised port lines of ihwt_listen_ports
+ihwt_listen_ports_parse() {
+    awk '{ a=$1; pr=$2; port=a; sub(/.*:/, "", port); ad=substr(a, 1, length(a)-length(port)-1); gsub(/%[^]]*/, "", ad)
+             if (port !~ /^[0-9]+$/) next
+             sc="ip"
+             if (ad ~ /^(\*|0\.0\.0\.0|\[::\]|::|\[::ffff:0\.0\.0\.0\])$/) sc="all"
+             else if (ad ~ /^(127\.|\[::1\]|::1|\[::ffff:127\.)/) sc="local"
+             pid="-"; pn="-"
+             if (pr ~ /pid=/) { pid=pr; sub(/.*pid=/, "", pid); sub(/[^0-9].*/, "", pid); pn=pr; sub(/^[^"]*"/, "", pn); sub(/".*/, "", pn) }
+             else if (pr ~ /^[0-9]+\//) { pid=pr; sub(/\/.*/, "", pid); pn=pr; sub(/^[0-9]+\//, "", pn) }
+             k=ad ":" port; if (k in seen) next; seen[k]=1
+             printf "port;%s;%s;%s;%s;%s\n", ad, port, sc, pid, pn }' \
+    | LC_ALL=C sort -t';' -k3,3n -k2,2
+}
+
 # ihwt_domains_find OH DH - the OTHER WebLogic domains of this host (top level
 #   only, read-only): domain-registry.xml and nodemanager.domains of OH and of
 #   every home of the central inventory, running servers (-Dweblogic.RootDirectory,
@@ -1059,6 +1116,16 @@ ihwt_domain_summary() {
     oh="$( [ -n "$wl" ] && dirname "$wl")"
     [ -z "$oh" ] && oh="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}\(MW_HOME\|ORACLE_HOME\)="\{0,1\}\([^"$]*\)"\{0,1\}[[:space:]]*$/\3/p' "$d/bin/setDomainEnv.sh" 2>/dev/null | head -1)"
     jh="$(sed -n 's/^[[:space:]]*\(export \)\{0,1\}JAVA_HOME="\{0,1\}\([^"$]*\)"\{0,1\}[[:space:]]*$/\2/p' "$d/bin/setDomainEnv.sh" 2>/dev/null | tail -1)"
+    # WebLogic plug-in enabled (domain web-app-container, cluster, server):
+    # needed when TLS ends in front of WebLogic (WL-Proxy-SSL header honoured)
+    printf 'domain;weblogic_plugin_enabled;%s\n' "$(awk 'function ind(x) { match(x, /^[ \t]*/); return RLENGTH }
+        di<0 && /<name>/ {di=ind($0); next}
+        BEGIN {di=-1}
+        di>=0 && ind($0)==di && /^[ \t]*<(server|cluster|web-app-container)>/ {k=$0; gsub(/[ \t<>]/, "", k); n=(k=="web-app-container" ? "domain" : ""); next}
+        k!="" && n=="" && /<name>/ {n=$0; gsub(/.*<name>|<\/name>.*/, "", n)}
+        k!="" && /<weblogic-plugin-enabled>/ {v=$0; gsub(/.*<weblogic-plugin-enabled>|<\/weblogic-plugin-enabled>.*/, "", v); o=o (o==""?"":",") n "=" v}
+        di>=0 && ind($0)==di && /^[ \t]*<\/(server|cluster|web-app-container)>/ {k=""; n=""}
+        END {print (o=="" ? "not set" : o)}' "$c")"
     printf 'domain;oracle_home;%s\n' "${oh:--}"
     printf 'domain;java_home;%s\n' "${jh:--}"
     ps_="$(ps -eo pid=,args= 2>/dev/null | awk '/-Dweblogic\.Name=/ && !/awk/')"

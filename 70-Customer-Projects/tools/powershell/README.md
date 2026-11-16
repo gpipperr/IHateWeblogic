@@ -130,6 +130,13 @@ directories of the Forms domain; `setDomainEnv.cmd` / `.sh`), and the
 `webgate` lines in `43_ohs.txt` (agent certificate expiry read with .NET
 `X509Certificate2`).
 
+**Architecture data** (2026-11-16.8, the same lines as bash): normalised
+listening ports (`Get-NetTCPConnection`, every process visible on Windows),
+`Domain summary (top level)` in `40_domain.txt` with the WebLogic plug-in flag,
+certificate columns SAN / key / signature / chain (`SslStream`, chain from the
+certificates the server sends), the Apache / OHS route inheritance of global
+`<Location>` blocks.
+
 **Masking:** the rules are the same as `mask()` of the bash version and
 cover `<…password…>` elements, `{AES}` values, `userid=` / `authid=` /
 `password=` / `pwd=`, `-D…Password=` and `user/password@`. They were tested

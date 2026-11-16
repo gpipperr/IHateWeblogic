@@ -87,7 +87,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.1"   # bump on every change - shown in the report
+$SCRIPT_VERSION = "2026-11-16.2"   # bump on every change - shown in the report
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"

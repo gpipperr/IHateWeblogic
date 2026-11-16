@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-16
 
+- **Architecture data in the collector** (`collect_fmw_env.sh` 2026-11-16.7, `.ps1` 2026-11-16.8, `ihw_tools_lib`
+  2026-11-16.7, export 2026-11-16.2): normalised listening ports (loopback / one address / all interfaces),
+  `Domain summary (top level)` with the WebLogic plug-in flag, certificate columns SAN / key / signature /
+  chain, `WLProxySSL` in the rated directives; **fix**: Apache / OHS global `<Location>` routes are inherited
+  by every VirtualHost without own routes – a TLS VirtualHost no longer looks as if `/forms` ran over plain
+  HTTP only. bash and PowerShell give the same lines.
 - **Collector: other WebLogic domains and WebGate** (`collect_fmw_env.sh` 2026-11-16.6, `.ps1` 2026-11-16.7,
   `ihw_tools_lib` 2026-11-16.6 / `.ps1` 2026-11-16.6): `41_other_domains.txt` with the top level of every
   other domain of the host (BI Publisher, OAM … next to the Forms domain: version, home, servers, deployments,

@@ -95,7 +95,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.7"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-16.8"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -186,6 +186,11 @@ if ($IHWT_ON_WINDOWS) {
 } else {
     ihwt-runps 10_os.txt "OS (not Windows - test run)" { Get-Content /etc/os-release; & uname -a }
 }
+# listening ports normalised for the analyses (as bash): loopback / one address / all
+$lp = @(ihwt-listen-ports)
+ihwt-block 10_os.txt "Listening ports (normalised: port;addr;port;scope;pid;process)" ($lp -join "`n")
+$lpl = @($lp | Where-Object { ($_ -split ';')[3] -eq 'local' }).Count
+ihwt-fact "Listening ports" ("{0} ({1} reachable from the network, {2} loopback only)" -f $lp.Count, ($lp.Count - $lpl), $lpl)
 
 #==============================================================================
 # 2. Java
@@ -363,6 +368,7 @@ if ($DH) {
     if ($xml) {
         ihwt-fact "Domain" $xml.domain.name
         ihwt-fact "Domain version (config.xml)" $xml.domain.'domain-version'
+        ihwt-block 40_domain.txt "Domain summary (top level)" (@(ihwt-domain-summary $DH $procs) -join "`n")
         # listen-port is missing in config.xml when it is the default 7001 (StrictMode: check the property)
         ihwt-fact "Servers (config.xml)" ((@($xml.domain.server | ForEach-Object { "{0}:{1}" -f $_.name, $(if ($_.PSObject.Properties['listen-port']) { $_.'listen-port' } else { "7001" }) })) -join ' ')
     }
@@ -572,7 +578,7 @@ if (-not $wt_found.Count -and @($procs | Where-Object { "$($_.CommandLine)" -mat
 }
 # certificates of every HTTPS listener (public part: subject / issuer / expiry)
 $certs = @(ihwt-certificates $wt_rows)
-ihwt-write-file (Join-Path $OUT "62_certificates.txt") (@("source;subject;issuer;not_after") + $certs)
+ihwt-write-file (Join-Path $OUT "62_certificates.txt") (@("source;subject;issuer;not_after;san;key;sig;chain") + $certs)
 $exp = @($certs | ForEach-Object { ($_ -split ';')[3] } | Where-Object { $_ -notmatch 'not reachable' } | ForEach-Object { try { [datetime]::ParseExact(($_ -replace ' GMT$', ''), 'MMM d HH:mm:ss yyyy', [Globalization.CultureInfo]::InvariantCulture).ToString('yyyy-MM-dd') } catch { } } | Sort-Object)
 ihwt-fact "HTTPS certificates" ("{0} - first expiry: {1}" -f $certs.Count, $(if ($exp.Count) { $exp[0] } else { "" }))
 

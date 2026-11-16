@@ -57,7 +57,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-16.1"   # bump on every change – shown in the report
+VERSION="2026-11-16.2"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; MOVED=""
