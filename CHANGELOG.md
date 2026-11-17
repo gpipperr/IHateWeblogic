@@ -10,6 +10,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **New JDK by hand** ([70-Customer-Projects/FormsReports_change_java/](70-Customer-Projects/FormsReports_change_java/README.md)):
+  German cookbook – unpack the new Oracle JDK, carry over SecureRandom and own CAs, create / switch the
+  version-neutral link, switch domain and Oracle home (23 files on the test host) with vi, check, way back;
+  tested in an isolated copy with the files of the 2026-10-15 switch.
 - **domain_jdk_path.sh** also scans the text scripts directly in `$ORACLE_HOME/bin`: the installer pins
   `JAVA_HOME` to the versioned JDK there too (`aqxmlctl`, found on the test host – no Forms / Reports start
   path, the domain and `oui/` were already on the link).

@@ -121,6 +121,19 @@ and what not, data sources, expected RCU sessions, scheduled jobs) and an
 English cookbook – anonymised from a customer run 2026-11-10. Theory:
 [clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) §5, §6.
 
+### Forms & Reports – new JDK, version-neutral link, domain switched by hand (German)
+
+→ [FormsReports_change_java/README.md](FormsReports_change_java/README.md)
+
+The installer and WLST write the resolved, versioned JDK directory into the
+domain and the Oracle home – a later link switch alone does not reach them.
+German cookbook: unpack the new Oracle JDK, carry over `java.security`
+(SecureRandom) and own CAs in `cacerts`, create / switch the link, find every
+file with the old path (23 on the 14.1.2 test host, incl. `oui/` and
+`bin/aqxmlctl`), back them up, change them with vi, check, way back. The
+manual twin of
+[07-Maintenance/domain_jdk_path.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh).
+
 ### tools – standalone helpers for customer hosts (12c and 14c)
 
 → [tools/README.md](tools/README.md)

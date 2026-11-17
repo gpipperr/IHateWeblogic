@@ -1,0 +1,464 @@
+==============================================================================
+  Kochbuch: Neues Oracle JDK fuer Forms & Reports (FMW 12.2.1.4 / 14.1.2)
+            installieren, versionsneutralen Link anlegen, Domain umstellen
+==============================================================================
+  Zielgruppe : Administrator der Forms-/Reports-Umgebung (Linux, bash, vi)
+  Umgebung   : Oracle Linux 8 / 9, Oracle FMW Forms & Reports mit WebLogic,
+               Server-JDK = Oracle JDK (12.2.1.4: JDK 8, 14.1.2: JDK 21)
+  Erstellt   : 2026-11-17, getestet auf dem 14.1.2-Testsystem (JDK 21)
+  Grundlage  : IHateWeblogic/07-Maintenance/domain_jdk_path.sh
+                 (dieselbe Umstellung automatisch, --apply)
+               IHateWeblogic/09-Install/docs/08-oracle_setup_domain.md 3b
+               IHateWeblogic/09-Install/docs/01-root_setup_java.md
+               JDK 21 fuer FMW: MOS-Patch 35702194 (Oracle JDK 21)
+  Wichtig    : - Der Installer und WLST (createDomain, updateDomain, Config
+                 Wizard) loesen einen Link auf und schreiben das ECHTE
+                 Verzeichnis (jdk-21.0.12.1) in die Dateien. Ein spaeteres
+                 Umbiegen des Links kommt dort dann nicht an.
+               - Nach dieser Umstellung ist ein JDK-Update nur noch:
+                 neues JDK auspacken (STEP 2), Einstellungen uebernehmen
+                 (STEP 3), Link umbiegen (STEP 5), neu starten.
+               - Das zweite JDK im Home ($ORACLE_HOME/oracle_common/jdk)
+                 ist kein Link und wird NICHT angefasst.
+
+ZIELZUSTAND
+------------------------------------------------------------------------------
+  Komponente                         Ziel                            Schritt
+  JDK-Verzeichnis                    /oracle/java/jdk-21.0.x         STEP 2
+  java.security / cacerts            wie im alten JDK                STEP 3
+  Link                               /oracle/java/jdk-21 -> jdk-...  STEP 5
+  Domain, oui/, bin/                 JAVA_HOME = Link                STEP 6
+  laufende Server / Node Manager     .../jdk-21/bin/java             STEP 7
+
+VORAUSSETZUNGEN
+------------------------------------------------------------------------------
+  - Wartungsfenster: fuer STEP 5 bis 7 wird die Umgebung gestoppt.
+  - VM-Snapshot oder Datensicherung durch das zustaendige Team.
+  - Das neue JDK als tar.gz (Linux x64), aus MOS-Patch 35702194 (JDK 21)
+    oder dem passenden JDK-8-Patch fuer 12.2.1.4.
+  - Platz: ca. 350 MB je JDK, das alte JDK bleibt stehen.
+
+  Was wo landet (Beispielpfade - in STEP 0 an das System anpassen):
+
+    /oracle/java/                        $JAVA_BASE
+      jdk-21.0.12.1/                     altes JDK (bleibt fuer den Rueckweg)
+      jdk-21.0.13.0.2/                   $NEWJDK  <- STEP 2 (aus dem tar.gz)
+      jdk-21  -> jdk-21.0.13.0.2         $JDK_LINK  <- STEP 5
+    /oracle/install/jdk_wechsel/         $WORK  <- STEP 0
+      jdk-21.0.13.0.2_linux-x64_bin.tar.gz   von MOS, hierher kopiert
+      logs/                              $LOGDIR (Ausgaben aller Schritte,
+                                         alter Pfad, alter Link-Stand)
+      backup/                            $BACKUP  <- STEP 6 (tar der Dateien)
+
+  Regeln fuer den ganzen Lauf:
+  - Jeder Befehl einzeln, nach jedem Befehl die Ausgabe mit "Erwartet"
+    vergleichen.
+  - Nichts loeschen: das alte JDK bleibt, bis der naechste Wechsel laeuft.
+
+==============================================================================
+STEP 0: Variablen setzen und pruefen  (in JEDEM neuen Terminal, als oracle)
+==============================================================================
+
+  export ORACLE_HOME=/oracle/product/fmw
+
+  export DOMAIN_HOME=/oracle/user_projects/domains/fr_domain
+
+  export JAVA_BASE=/oracle/java
+
+  export JDK_LINK=$JAVA_BASE/jdk-21
+
+  export WORK=/oracle/install/jdk_wechsel
+
+  export LOGDIR=$WORK/logs
+
+  export BACKUP=$WORK/backup
+
+  # JDK 8 (12.2.1.4): JDK_LINK=$JAVA_BASE/jdk-8 - sonst alles gleich.
+
+  echo "ORACLE_HOME=$ORACLE_HOME DOMAIN_HOME=$DOMAIN_HOME"
+
+  echo "JAVA_BASE=$JAVA_BASE JDK_LINK=$JDK_LINK WORK=$WORK"
+  # Ein Wert LEER? -> die export-Zeilen oben noch einmal.
+
+  ls -d $ORACLE_HOME/oui $DOMAIN_HOME/config
+  # Erwartet: beide Verzeichnisse werden angezeigt.
+  # "No such file" -> Pfad in den export-Zeilen korrigieren.
+
+  mkdir -p $LOGDIR $BACKUP
+
+==============================================================================
+STEP 1: Ist-Stand  (als oracle, System darf laufen)
+==============================================================================
+
+  ---------------------------------------------------
+  1.1 Welches JDK steht in den Dateien?
+  ---------------------------------------------------
+
+  grep -n '^JAVA_HOME=' $ORACLE_HOME/oui/.globalEnv.properties
+  # Erwartet z.B.: 3:JAVA_HOME=/oracle/java/jdk-21.0.12.1
+
+  ALT=$(sed -n 's/^JAVA_HOME=//p' $ORACLE_HOME/oui/.globalEnv.properties)
+
+  echo "ALT=$ALT"
+  # Das ist der alte, harte Pfad, der in STEP 6 ersetzt wird.
+
+  echo "$ALT" > $LOGDIR/01_alter_pfad.txt
+  # In einem neuen Terminal: ALT=$(cat $LOGDIR/01_alter_pfad.txt)
+
+  # Entscheidung:
+  #   ALT = $JDK_LINK (z.B. /oracle/java/jdk-21)
+  #       -> Umgebung steht schon auf dem Link: nur STEP 2, 3, 4, 5, 7.
+  #   ALT = Versionsverzeichnis (jdk-21.0.12.1, /usr/java/jdk...)
+  #       -> erstmalige Umstellung: alle Schritte.
+
+  ---------------------------------------------------
+  1.2 Mit welchem JDK laufen die Prozesse?
+  ---------------------------------------------------
+
+  ps -eo args | grep '[j]ava -' | awk '{print $1}' | sort | uniq -c | tee $LOGDIR/01_java_prozesse.txt
+  # Erwartet z.B.:
+  #   2 /oracle/product/fmw/oracle_common/jdk/bin/java    (Reports-Engines)
+  #   4 /oracle/java/jdk-21.0.12.1/bin/java               (WLS, Node Manager)
+
+  ---------------------------------------------------
+  1.3 Gibt es den Link schon?
+  ---------------------------------------------------
+
+  ls -l $JAVA_BASE
+  # Erwartet z.B.:
+  #   jdk-21 -> /oracle/java/jdk-21.0.12.1     (Link vorhanden)
+  #   jdk-21.0.12.1
+  # Kein "jdk-21 ->" -> der Link wird in STEP 5 neu angelegt.
+
+  readlink -f $JDK_LINK | tee $LOGDIR/01_link_vorher.txt
+  # Erwartet: das aktuelle Ziel - oder keine Ausgabe (kein Link).
+
+==============================================================================
+STEP 2: Neues JDK auspacken  (als Eigentuemer von $JAVA_BASE, oft root;
+        System darf laufen)
+==============================================================================
+
+  # Als root: zuerst STEP 0 in diesem Terminal wiederholen.
+
+  ls -l $WORK/jdk-*_linux-x64_bin.tar.gz
+  # Erwartet: genau EINE Datei, z.B. jdk-21.0.13.0.2_linux-x64_bin.tar.gz
+
+  TGZ=$(ls $WORK/jdk-*_linux-x64_bin.tar.gz)
+
+  NEWJDK=$JAVA_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
+
+  echo "NEWJDK=$NEWJDK"
+  # Erwartet z.B.: NEWJDK=/oracle/java/jdk-21.0.13.0.2
+
+  echo "$NEWJDK" > $LOGDIR/02_neues_jdk.txt
+
+  ls -d $NEWJDK
+  # Erwartet: "No such file or directory" (noch nicht ausgepackt).
+  # Verzeichnis gibt es schon? -> nicht noch einmal auspacken, weiter mit 2.x.
+
+  tar -xzf "$TGZ" -C $JAVA_BASE
+
+  $NEWJDK/bin/java -version
+  # Erwartet z.B.: java version "21.0.13.0.2" 2026-10-21 LTS
+
+  ls -ld $NEWJDK
+  # Erwartet: lesbar fuer oracle (drwxr-xr-x).
+
+==============================================================================
+STEP 3: Einstellungen aus dem alten JDK uebernehmen  (wie STEP 2)
+==============================================================================
+
+  # java.security und cacerts liegen IM JDK-Verzeichnis. Das neue JDK
+  # bringt die Oracle-Standardwerte mit - eigene Aenderungen fehlen dort.
+
+  NEWJDK=$(cat $LOGDIR/02_neues_jdk.txt)
+
+  ALT=$(cat $LOGDIR/01_alter_pfad.txt)
+
+  OLDJDK=$(readlink -f $ALT)
+
+  echo "OLDJDK=$OLDJDK NEWJDK=$NEWJDK"
+
+  ---------------------------------------------------
+  3.1 SecureRandom (schneller Start von WebLogic)
+  ---------------------------------------------------
+
+  SEC=conf/security/java.security
+  # JDK 8 (12.2.1.4): SEC=jre/lib/security/java.security
+
+  echo "SEC=$SEC"
+
+  grep -n '^securerandom.source=' $OLDJDK/$SEC
+  # Erwartet: 156:securerandom.source=file:/dev/./urandom
+  # (JDK 8: andere Zeilennummer, gleicher Text)
+
+  grep -n '^securerandom.source=' $NEWJDK/$SEC
+  # file:/dev/./urandom  -> schon gesetzt (z.B. durch 02b-root_os_java.sh),
+  #                         nichts zu tun, weiter mit 3.2
+  # file:/dev/random     -> Oracle-Standard eines frisch ausgepackten JDK,
+  #                         die naechsten Befehle ausfuehren
+
+  cp -p $NEWJDK/$SEC $NEWJDK/$SEC.orig
+
+  vi $NEWJDK/$SEC
+  # Zeile securerandom.source=file:/dev/random aendern in:
+
+securerandom.source=file:/dev/./urandom
+
+  grep -n '^securerandom.source=' $NEWJDK/$SEC
+  # Erwartet: 156:securerandom.source=file:/dev/./urandom
+
+  ---------------------------------------------------
+  3.2 Eigene CA-Zertifikate in cacerts?
+  ---------------------------------------------------
+
+  $OLDJDK/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort > $LOGDIR/03_cacerts_alt.txt
+
+  $NEWJDK/bin/keytool -list -cacerts -storepass changeit | grep trustedCertEntry | cut -d, -f1 | sort > $LOGDIR/03_cacerts_neu.txt
+
+  # JDK 8 kennt "-cacerts" nicht: dort statt "-cacerts" immer
+  # "-keystore $OLDJDK/jre/lib/security/cacerts" bzw.
+  # "-keystore $NEWJDK/jre/lib/security/cacerts" schreiben.
+
+  comm -23 $LOGDIR/03_cacerts_alt.txt $LOGDIR/03_cacerts_neu.txt
+  # Erwartet: keine Ausgabe -> nichts zu tun.
+  # Zeilen mit "[jdk]" (z.B. "luxtrustglobalrootca [jdk]") = Standard-CAs,
+  # die Oracle im neuen JDK entfernt hat -> ignorieren (KNOWN AND HARMLESS).
+  # Aliasnamen OHNE "[jdk]" (z.B. "firmen-root-ca") -> eigene CAs: je Alias
+  # aus dem alten JDK exportieren und ins neue importieren:
+
+  $OLDJDK/bin/keytool -exportcert -cacerts -storepass changeit -alias <ALIAS> -file $WORK/<ALIAS>.cer
+
+  $NEWJDK/bin/keytool -importcert -cacerts -storepass changeit -noprompt -alias <ALIAS> -file $WORK/<ALIAS>.cer
+  # Erwartet: Certificate was added to keystore
+  # Anderes cacerts-Kennwort als "changeit"? -> -storepass weglassen,
+  # keytool fragt dann danach.
+
+==============================================================================
+STEP 4: Umgebung stoppen  (als oracle)
+==============================================================================
+
+  # Wie im Betrieb ueblich: Managed Server (WLS_FORMS, WLS_REPORTS),
+  # Reports-Server, AdminServer, zuletzt der Node Manager.
+
+  ps -eo args | grep '[j]ava -' | awk '{print $1}' | sort | uniq -c
+  # Erwartet: keine Zeile mit $JAVA_BASE/... mehr.
+  # Prozesse von oracle_common/jdk (Reports-Engines) muessen auch weg.
+  # Noch Zeilen? -> STOP, erst die Umgebung vollstaendig stoppen.
+
+==============================================================================
+STEP 5: Link anlegen oder umbiegen  (als Eigentuemer von $JAVA_BASE)
+==============================================================================
+
+  NEWJDK=$(cat $LOGDIR/02_neues_jdk.txt)
+
+  ls -l $JDK_LINK
+  # "No such file"            -> 5.1 (erstes Mal)
+  # "jdk-21 -> ...jdk-21.0.x" -> 5.2 (Update)
+  # Ein ECHTES Verzeichnis jdk-21 (kein "->")? -> STOP, erst umbenennen.
+
+  ---------------------------------------------------
+  5.1 Erstes Mal: Link anlegen
+  ---------------------------------------------------
+
+  ln -s $NEWJDK $JDK_LINK
+
+  ---------------------------------------------------
+  5.2 Update: Link umbiegen
+  ---------------------------------------------------
+
+  ln -sfn $NEWJDK $JDK_LINK
+
+  ---------------------------------------------------
+  5.3 Kontrolle
+  ---------------------------------------------------
+
+  ls -l $JDK_LINK
+  # Erwartet: jdk-21 -> /oracle/java/jdk-21.0.13.0.2
+
+  $JDK_LINK/bin/java -version
+  # Erwartet: java version "21.0.13.0.2" ...
+
+==============================================================================
+STEP 6: Domain und Oracle Home auf den Link umstellen  (als oracle)
+        - nur beim ersten Mal und nach jedem updateDomain / Config Wizard
+==============================================================================
+
+  ---------------------------------------------------
+  6.1 Welche Dateien enthalten den alten Pfad?
+  ---------------------------------------------------
+
+  ALT=$(cat $LOGDIR/01_alter_pfad.txt)
+
+  echo "ALT=$ALT"
+  # LEER oder gleich $JDK_LINK? -> STEP 6 entfaellt, weiter mit STEP 7.
+
+  grep -rlF "$ALT" $DOMAIN_HOME --exclude-dir=servers --exclude-dir=logs --exclude-dir=tmp --exclude='*.log' --exclude='*.out' --exclude='*.bak*' > $LOGDIR/06_dateien.txt
+
+  grep -rlF "$ALT" $ORACLE_HOME/oui/.globalEnv.properties $ORACLE_HOME/oui/bin >> $LOGDIR/06_dateien.txt
+
+  grep -IlF "$ALT" $ORACLE_HOME/bin/* 2>/dev/null >> $LOGDIR/06_dateien.txt
+
+  cat $LOGDIR/06_dateien.txt
+  # Erwartet (14.1.2-Testsystem, 23 Dateien):
+  #   $DOMAIN_HOME/bin/setDomainEnv.sh
+  #   $DOMAIN_HOME/bin/setNMJavaHome.sh
+  #   $DOMAIN_HOME/nodemanager/nodemanager.properties
+  #   $DOMAIN_HOME/config/fmwconfig/components/FORMS/instances/forms1/bin/
+  #     frmbld.sh frmcmp.sh frmcmp_batch.sh frmf2xlf.sh frmf2xml.sh
+  #     frmplsqlconv.sh frmxlf2f.sh frmxml2f.sh frmxmlsg.sh frmxmlv.sh
+  #   $DOMAIN_HOME/init-info/domain-info.xml nodemanager-properties.xml
+  #     startscript.xml tokenValue.properties
+  #   $ORACLE_HOME/oui/.globalEnv.properties
+  #   $ORACLE_HOME/oui/bin/compareInventory.sh launch.sh setProperty.sh
+  #     viewInventory.sh
+  #   $ORACLE_HOME/bin/aqxmlctl
+  # Reports-only-Domain: ohne die FORMS-Zeilen. 12.2.1.4: aehnlich.
+  # NICHT aendern: Logs, *.bak, servers/*/adr (Incidents),
+  # $ORACLE_HOME/inventory (Historie) - die stehen bewusst nicht in der Liste.
+
+  ---------------------------------------------------
+  6.2 Sicherung der Dateien
+  ---------------------------------------------------
+
+  tar -czf $BACKUP/06_jdk_dateien_vorher.tar.gz -T $LOGDIR/06_dateien.txt 2>&1 | tee $LOGDIR/06_tar.txt
+  # Erwartet: "tar: Removing leading `/' from member names" (harmlos),
+  #           ggf. auch "... from hard link targets" (harmlos).
+
+  tar -tzf $BACKUP/06_jdk_dateien_vorher.tar.gz | wc -l
+  # Erwartet: dieselbe Anzahl wie Zeilen in 06_dateien.txt
+  #           (wc -l < $LOGDIR/06_dateien.txt)
+
+  ---------------------------------------------------
+  6.3 Dateien aendern
+  ---------------------------------------------------
+
+  # In jeder Datei der Liste den alten Pfad durch den Link ersetzen:
+  #   alt:  der Wert von $ALT      (z.B. /oracle/java/jdk-21.0.12.1)
+  #   neu:  der Wert von $JDK_LINK (z.B. /oracle/java/jdk-21)
+  # Jede Datei einzeln, Beispiele:
+
+  vi $DOMAIN_HOME/bin/setDomainEnv.sh
+
+  vi $DOMAIN_HOME/bin/setNMJavaHome.sh
+
+  vi $DOMAIN_HOME/nodemanager/nodemanager.properties
+
+  vi $ORACLE_HOME/oui/.globalEnv.properties
+
+  # ... und so weiter fuer alle Dateien aus 6.1.
+  # Viele Dateien (Forms-Instanz, init-info)? -> ANHANG A.
+
+  ---------------------------------------------------
+  6.4 Kontrolle - der alte Pfad ist weg
+  ---------------------------------------------------
+
+  grep -lF "$ALT" $(cat $LOGDIR/06_dateien.txt)
+  # Erwartet: keine Ausgabe.
+  # Datei angezeigt -> dort fehlt noch eine Stelle (vi, 6.3).
+
+  grep -n 'JavaHome' $DOMAIN_HOME/nodemanager/nodemanager.properties
+  # Erwartet: JavaHome=/oracle/java/jdk-21
+
+  grep -n '^JAVA_HOME' $ORACLE_HOME/oui/.globalEnv.properties
+  # Erwartet:
+  #   3:JAVA_HOME=/oracle/java/jdk-21
+  #   4:JAVA_HOME_21_0=/oracle/java/jdk-21
+
+  bash -n $DOMAIN_HOME/bin/setDomainEnv.sh
+  # Erwartet: keine Ausgabe (Syntax in Ordnung).
+
+  ---------------------------------------------------
+  6.5 Eigenes Profil des oracle-Users
+  ---------------------------------------------------
+
+  grep -n 'JAVA_HOME' ~/.bash_profile ~/.bashrc
+  # Steht dort ein Versionsverzeichnis -> mit vi auf $JDK_LINK aendern.
+  # Erwartet danach z.B.: export JAVA_HOME=/oracle/java/jdk-21
+
+==============================================================================
+STEP 7: Umgebung starten und pruefen  (als oracle)
+==============================================================================
+
+  # Wie im Betrieb ueblich: Node Manager, AdminServer, Managed Server,
+  # Reports-Server.
+
+  ps -eo args | grep '[j]ava -' | awk '{print $1}' | sort | uniq -c | tee $LOGDIR/07_java_prozesse.txt
+  # Erwartet z.B.:
+  #   2 /oracle/product/fmw/oracle_common/jdk/bin/java    (Reports-Engines)
+  #   4 /oracle/java/jdk-21/bin/java                      (WLS, Node Manager)
+  # Noch ein Versionsverzeichnis (jdk-21.0.12.1)? -> dieser Prozess hat
+  # eine Datei, die in 6.1 nicht gefunden wurde: Prozess merken, melden.
+
+  for P in $(pgrep -f 'weblogic[.]Server'); do readlink -f /proc/$P/exe; done
+  # Erwartet: /oracle/java/jdk-21.0.13.0.2/bin/java  (das neue JDK)
+
+  # Anwendung pruefen: Forms-Anmeldung, ein Report, EM-Anmeldung.
+
+==============================================================================
+STEP 8: Aufraeumen  (spaeter, NICHT im selben Fenster)
+==============================================================================
+
+  # Das alte JDK bleibt stehen, bis der naechste Wechsel erfolgreich
+  # gelaufen ist - es ist der Rueckweg (ROLLBACK).
+  # Danach, als Eigentuemer von $JAVA_BASE:
+
+  OLDJDK=<altes Verzeichnis, z.B. /oracle/java/jdk-21.0.10>
+
+  echo "loeschen: ${OLDJDK:?}"
+  # Pruefen: das ist NICHT das Ziel von $JDK_LINK (ls -l $JDK_LINK).
+
+  rm -rf "${OLDJDK:?}"
+
+==============================================================================
+ANHANG A: Viele Dateien in einem Zug ersetzen (statt vi je Datei)
+==============================================================================
+
+  # Gleiche Ersetzung wie 6.3 fuer alle Dateien aus 6.1, Sicherung aus 6.2
+  # muss vorhanden sein.
+
+  ALT=$(cat $LOGDIR/01_alter_pfad.txt)
+
+  echo "ALT=$ALT JDK_LINK=$JDK_LINK"
+  # Beide gesetzt? Sonst STOP.
+
+  sed -i "s#$ALT#$JDK_LINK#g" $(cat $LOGDIR/06_dateien.txt)
+
+  # Weiter mit 6.4.
+
+ROLLBACK
+------------------------------------------------------------------------------
+  Was                         Wie (als Eigentuemer, Umgebung gestoppt)
+  Link auf altes JDK zurueck  ln -sfn "$(cat $LOGDIR/01_link_vorher.txt)" \
+                                      $JDK_LINK
+  Dateien aus STEP 6 zurueck  cd /
+                              tar -xzf $BACKUP/06_jdk_dateien_vorher.tar.gz
+  Danach                      Umgebung starten, STEP 7 pruefen
+
+  01_link_vorher.txt leer (es gab vorher keinen Link)? -> nur die Dateien
+  zurueckspielen; sie zeigen dann wieder direkt auf das alte JDK.
+
+BEKANNTE PROBLEME
+------------------------------------------------------------------------------
+  Problem : Nach updateDomain / Config Wizard / Erweiterung der Domain laeuft
+            wieder das alte JDK.
+  Ursache : WLST schreibt beim Speichern das aufgeloeste, echte Verzeichnis.
+  Loesung : STEP 1.1 und STEP 6 wiederholen (oder domain_jdk_path.sh).
+
+  Problem : Reports-Engines laufen weiter mit oracle_common/jdk.
+  Ursache : Produkteigenschaft - reports.sh / rwengine starten die Engines
+            immer mit dem mitgelieferten JDK im Home.
+  Loesung : keine; dieses JDK kommt mit den Oracle-Patches des Homes.
+
+  Problem : WebLogic startet sehr langsam (Minuten bis "RUNNING").
+  Ursache : SecureRandom-Einstellung fehlt im neuen JDK.
+  Loesung : STEP 3.1.
+
+  Problem : HTTPS-/LDAPS-Verbindungen aus WebLogic oder Reports schlagen
+            nach dem Wechsel fehl ("PKIX path building failed").
+  Ursache : eigene CA fehlt in cacerts des neuen JDK.
+  Loesung : STEP 3.2.
+
+  Problem : OPatch / wlst.sh melden "JAVA_HOME ... not found".
+  Ursache : altes JDK geloescht, aber .globalEnv.properties zeigt noch dorthin.
+  Loesung : STEP 6 (oui/.globalEnv.properties auf den Link).
