@@ -91,6 +91,24 @@ script is in the 14c home:
 `$ORACLE_HOME/reports/admin/sql/rw_server.sql` (last fix 2020, bug 22846976)
 plus `rw_job_repos.sql`, which it calls.
 
+How stable the whole thing is shows the header of the script that still
+ships with 14.1.2:
+
+```
+REM Version
+REM -------
+REM 9.0.4.0.0
+...
+REM  26-Mar-99 P Narth   Created
+...
+REM  Note: This script is only certified to work against Oracle RDBMS 8.1.7 or
+REM  later
+```
+
+Created in March 1999, "certified" for Oracle 8i – and it ran unchanged
+against a 19c PDB on the test host. "8.1.7 or later" has simply become a very
+long "later".
+
 ### 3.1 Database user with minimal rights
 
 ```sql
