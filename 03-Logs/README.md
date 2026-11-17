@@ -217,7 +217,9 @@ Loggers on `WLS_REPORTS` (`setLogLevel.sh --query`, **confirmed (live)**):
 standalone Reports server process; their level is set in
 `config/fmwconfig/components/ReportsServerComponent/<name>/logging.xml`
 (restart of the Reports server), for `rwrun` via
-`01-Run/rwrun_trace.sh --odl`.
+`01-Run/rwrun_trace.sh --odl`. Step by step, what each level adds and what no
+longer works in 14.1.2 (`<trace>` in `rwserver.conf`, `traceopts=` in the URL):
+[reports_error_trace.md](../80-FMW-Architecture/reports_error_trace.md).
 
 [`setLogLevel.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/03-Logs/setLogLevel.sh) changes the level **at runtime only** by default
 (`persist=0`); `--persist` writes it into

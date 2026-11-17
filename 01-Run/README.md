@@ -379,6 +379,10 @@ If the endpoint is not reachable, the process section still shows
 
 ## 5. rwrun_trace.sh
 
+The only way left in 14.1.2 to trace **one** report with `TRACEOPTS` – the
+Reports server only knows server-wide ODL levels
+([reports_error_trace.md](../80-FMW-Architecture/reports_error_trace.md)).
+
 Runs **one** report in-process with `rwrun` (no Reports server, no
 rwservlet) – to find out whether a problem is in the report itself (SQL,
 PL/SQL, fonts, parameters) or in the server/servlet path. How `rwrun`

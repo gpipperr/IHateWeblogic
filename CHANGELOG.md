@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **New architecture page: Reports error analysis and trace levels** ([reports_error_trace.md](80-FMW-Architecture/reports_error_trace.md)):
+  which log holds the cause, ODL levels vs the old `TRACE_*` options (Oracle Table 24-3), where the level is
+  set per component, `TRACE:32` step by step with measured volume. Live 2026-11-17: `<trace>` in
+  `rwserver.conf` commented out in the 14.1.2 xsd, `traceopts=` in the rwservlet URL → `REP-50125` for every
+  value, a missing report file reports `REP-56132`, `retry="3"` = four error blocks per job, `userid` in the
+  trace without password. Linked from the 80- README, 03-Logs §5, 01-Run §5.
 - **FormsReports_change_java README in English** ([README](70-Customer-Projects/FormsReports_change_java/README.md)), the cookbook stays German; linked from 07-Maintenance/README.md, 01-root_setup_java.md, 08-oracle_setup_domain.md §3b, weblogic_middleware_architecture.md and as arrow link below weblogic_middleware_architecture in the right column of 80-FMW-Architecture.
 - **Server lock `servers/<name>/tmp/<name>.lok` before every start** ([01-Run/README.md](01-Run/README.md),
   [30-configure_autostart.md](09-Install/docs/30-configure_autostart.md)): a running server holds its `.lok`
