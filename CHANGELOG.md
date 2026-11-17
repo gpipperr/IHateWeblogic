@@ -10,6 +10,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **TODO.md:** open script side of the Reports job queue page (13- template, collector / analysis detection)
+  and the ORDS follow-ups (Nginx rate limit, `ords pool --pid … list`, pool destroy test).
+  12-APEX-Ords README §4: ORDS requirement corrected to 26.3+ for APEX 26.2 (was "documented for APEX 26.1").
 - **ORDS architecture page compared with Oracle Skills `db/ords`** ([ords_architecture.md](80-FMW-Architecture/ords_architecture.md)):
   new §3.1 export API `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN` (signatures from `dba_arguments`, typo
   `p_include_privleges`, `select … FALSE from dual` → `ORA-00904` on 19c, PL/SQL block instead); §4 config keys

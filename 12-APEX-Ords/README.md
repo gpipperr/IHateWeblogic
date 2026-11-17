@@ -117,7 +117,7 @@ Manager (5556). In the steps below `N` = 1 or 2, shown for `ords_1`.
 | Item | Value |
 |---|---|
 | APEX | 26.2 (released 2026-10-06), `apex_26.2.zip` + language packs inside |
-| ORDS | 26.x – **ORDS version ≥ APEX version** (documented for APEX 26.1: older ORDS releases do not work with it) |
+| ORDS | **26.3 or later** – APEX 26.2 installation guide: "Oracle APEX requires Oracle REST Data Services (ORDS) 26.3.0 or later" (SQLcl as well 26.3.0+); the APEXlang compiler of APEX lives in ORDS, so ORDS, APEX and SQLcl are patched as one set ([ords_architecture.md §1a](../80-FMW-Architecture/ords_architecture.md#1a-apexlang--apex-and-ords-are-coupled-since-26x)) |
 | Java | Java 21 at `JDK_HOME` |
 | Database | 19c or 26ai, PDB; APEX 26.2 is supported on both |
 | DB sizing | `processes` ≥ Σ `jdbc.MaxLimit` of all ORDS on this DB + 50–100, `sessions` ≈ processes × 1.1 (else `ORA-00020`) |

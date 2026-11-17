@@ -217,6 +217,17 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   longest job 1 s on the test host) – re-check with
   `06-FormsDiag/forms_perf_analyse.sh` and
   `05-ReportsPerformance/engine_perf_analyse.sh` at the first customer.
+- [ ] **Reports job queue in the DB – script side** (page
+  [reports_job_queue_monitoring.md](80-FMW-Architecture/reports_job_queue_monitoring.md),
+  live-tested 2026-11-17; scripts deliberately not changed yet):
+  - `13-oracle_setup_reports.sh` / `13-reports-detail-settings.md`: replace
+    the commented `...` template by a link to the page, optionally an
+    `--apply` path (schema with the six minimal rights, `rw_server.sql`, csf
+    key via WLST, element after `log` / before `connection`);
+  - collector / env analysis: detect `<jobStatusRepository>` (active or
+    commented), report `dbconn`, a clear-text `dbpassword` instead of `csf:`,
+    `maxQueueSize`; hint when the repository schema lives in the RCU prefix;
+  - optional check script: row count / orphans per `server` vs. `showjobs`.
 
 ## APEX / ORDS beside Forms
 
@@ -227,6 +238,19 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
   wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; move `rcu_repository_check` etc. to `ihw_sqlplus`;
   the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
+- [ ] **ORDS follow-ups from the Oracle Skills comparison (2026-11-17,
+  [ords_architecture.md](80-FMW-Architecture/ords_architecture.md) §8 / §11):**
+  - Nginx rate limit for `/ords/` (`limit_req_zone` / `limit_req`, status
+    429): test the values with a real APEX application (pages load many
+    requests in a burst), then as an option in
+    `12-APEX-Ords/templates/nginx-ords.conf.template`; at least for public
+    REST modules and the OAuth token endpoint.
+  - `ords --config <dir> pool --pid <PID> list` as a cheap liveness check
+    (no HTTP, no admin user) in `01-Run/startStop.sh` status and in the
+    collector; health checks / monitors must accept 302 on `/ords/` or use
+    `/ords/_/landing` (200).
+  - Test `ords pool --pid … destroy` (does ORDS rebuild the pool on the next
+    request?) – documented as an assumption.
 
 ## Monitoring (phase 9)
 
