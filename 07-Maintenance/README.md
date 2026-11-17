@@ -155,6 +155,8 @@ is patched with OPatch (`FMW_JDK_PATCH_NR`, still to be determined).
 ./07-Maintenance/domain_jdk_path.sh --apply    # replace with JDK_HOME, then restart
 ```
 
+Manual way without the library (German cookbook, every file with vi): [70-Customer-Projects/FormsReports_change_java](../70-Customer-Projects/FormsReports_change_java/README.md).
+
 WLST `createDomain` / `updateDomain` (and the Config Wizard) resolve the
 `JDK_HOME` symlink and write the versioned JDK directory into
 `setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, the Forms

@@ -121,7 +121,7 @@ and what not, data sources, expected RCU sessions, scheduled jobs) and an
 English cookbook – anonymised from a customer run 2026-11-10. Theory:
 [clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) §5, §6.
 
-### Forms & Reports – new JDK, version-neutral link, domain switched by hand (German)
+### Forms & Reports – new JDK, version-neutral link, domain switched by hand (German cookbook)
 
 → [FormsReports_change_java/README.md](FormsReports_change_java/README.md)
 

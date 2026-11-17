@@ -10,6 +10,7 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **FormsReports_change_java README in English** ([README](70-Customer-Projects/FormsReports_change_java/README.md)), the cookbook stays German; linked from 07-Maintenance/README.md, 01-root_setup_java.md, 08-oracle_setup_domain.md §3b, weblogic_middleware_architecture.md and as arrow link below weblogic_middleware_architecture in the right column of 80-FMW-Architecture.
 - **Server lock `servers/<name>/tmp/<name>.lok` before every start** ([01-Run/README.md](01-Run/README.md),
   [30-configure_autostart.md](09-Install/docs/30-configure_autostart.md)): a running server holds its `.lok`
   open (`fuser` shows the JVM). `startStop.sh` aborts the start with the PID when an old JVM still holds it

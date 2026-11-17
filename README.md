@@ -529,7 +529,7 @@ IHateWeblogic/
     │   │                                 domain to localhost
     │   ├── README.md                     – every place touched, symptom -> cause table
     │   └── Localhost_cookbook_en.txt     – manual cookbook, ends with "Clone-capable: yes"
-    ├── FormsReports_change_java/    – German cookbook: new JDK, link, domain switched by hand
+    ├── FormsReports_change_java/    – new JDK (German cookbook), link, domain switched by hand
     │   ├── README.md                     – which files, where the real path stays
     │   └── Java_wechsel_Kochbuch_de.txt  – manual twin of 07-Maintenance/domain_jdk_path.sh
     ├── FormsReports14_linux_clone/   – knowledge base (English, anonymised): VM clone, new RCU prefix

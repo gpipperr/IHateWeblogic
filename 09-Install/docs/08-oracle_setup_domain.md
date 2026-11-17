@@ -223,6 +223,8 @@ grep -rlE "java/jdk-21\.[0-9]" $DOMAIN_HOME --exclude-dir=servers --exclude=*.lo
 07-Maintenance/domain_jdk_path.sh --apply
 ```
 
+Manual way without the library (German cookbook, every file with vi): [70-Customer-Projects/FormsReports_change_java](../../70-Customer-Projects/FormsReports_change_java/README.md).
+
 Live-tested 2026-10-15: 22 files, after the restart NM, AdminServer,
 WLS_FORMS and WLS_REPORTS run with `/u01/app/oracle/java/jdk-21/bin/java`.
 

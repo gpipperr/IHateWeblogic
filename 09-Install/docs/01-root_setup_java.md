@@ -229,6 +229,7 @@ resets this after the domain is created; after an upgrade (or any
 ```
 
 `--upgrade-jdk` prints this hint when `DOMAIN_HOME/config/config.xml` exists.
+Manual way without the library (German cookbook, every file with vi): [70-Customer-Projects/FormsReports_change_java](../../70-Customer-Projects/FormsReports_change_java/README.md).
 
 **FMW-bundled JDK (`$ORACLE_HOME/oracle_common/jdk`, 17.0.12):** not touched
 by this step. It is an OPatch component of the Oracle Home (`oracle.jdk`
