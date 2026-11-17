@@ -709,7 +709,6 @@ Disk space per area (FMW only ~75 GB, with a local RCU DB ≥ 140 GB): see
 ```
 09-Install/
 ├── README.md                          ← this roadmap
-├── install_lib.sh                     ← [TODO] shared functions
 ├── 00-install-status.sh               ← where am I: state of every step + next step (run history)
 ├── 01-setup-interview.sh              ← configuration interview
 ├── 00-root_os_network.sh              ← Phase 0: hostname, DNS/hosts, IPv6, chrony (check only)

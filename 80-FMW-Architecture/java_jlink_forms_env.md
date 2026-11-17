@@ -308,9 +308,11 @@ meant for Forms only and served only to Forms users of the server.
 
 ## 8. Open points
 
-- Windows client: start of the cross-built runtime, FSAL session, TLS via
-  the bundled `cacerts`, JACOB / WebUtil (`frmwebutil.jar`, native DLLs)
-  with the reduced module list.
+- ~~Windows client: start of the cross-built runtime, FSAL session, TLS via
+  the bundled `cacerts`~~ – done 2026-10-23
+  ([40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md) §12).
+  Open: JACOB / WebUtil (`frmwebutil.jar`, native DLLs) with the reduced
+  module list.
 - `Windows-ROOT` as trust store type (`jdk.crypto.mscapi`) as an
   alternative to the bundled `cacerts` – not tested.
 - `fsalJavaVersion` in `formsweb.cfg` against the runtime version

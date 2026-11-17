@@ -152,8 +152,21 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   WLST steps (listen / SSL / Coherence) of the localhost cookbook, `curl -K -`
   for `showjobs` in the clone cookbook (stdin form checked, not against
   `showjobs`), the manual stop/start path without autostart.
-- [ ] HTML parameter form with `AL32UTF8` umlauts
-  ([test plan §9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)).
+- [ ] **HTML parameter form – test plan 1–5**
+  ([§9](04-ReportsFonts/HTML_ParameterForm_Fonts.md)): font names with a
+  space via PPD key (1) and via PostScript name (2), HTML report body
+  (`desformat=html` / `htmlcss`) on the same screen-printer path (3),
+  `--encoding` for `AL32UTF8` umlauts / `€` (4) and `WE8ISO8859P15` (5).
+- [ ] **Reports fonts – open points**
+  ([reports_fonts_architecture.md §8](80-FMW-Architecture/reports_fonts_architecture.md)):
+  does the engine respect the `fsType` embedding flag of bought fonts; Windows
+  server: `REPORTS_FONT_DIRECTORY` = `C:\Windows\Fonts` without a copy (test at
+  the Windows customer); Cambria → Caladea (not in the OL 9 base repos);
+  fonts per report from the report XML for the export tooling.
+- [ ] **PRTG REST Custom v2 sensor** for `getserverinfo`
+  ([reports_monitoring_getserverinfo.md §7.3.1 / §8](80-FMW-Architecture/reports_monitoring_getserverinfo.md)):
+  live test – URL-encoding of `%restpassword` in the POST body, sensor state
+  when an XPath finds no value, mapping of the `count()` result.
 - [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
   growth in the PDB checked 2026-11-10: `AUDITLOG` 85 of 100 MB (autoextend
   4 GB), 4–32 rows per normal day, peaks only on admin days (patch 6390, RCU

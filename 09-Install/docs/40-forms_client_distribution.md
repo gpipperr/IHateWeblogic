@@ -666,7 +666,7 @@ Not yet included: see §12.
 | 4 | Authenticode signature of [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) | `osslsigncode` with the `FORMS_SIGN_*` keystore in `40-` (only needed under `AllSigned`) |
 | 5 | `fsalJavaVersion` in `[standaloneapp]` | [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) option, value from the bundled runtime |
 | 6 | Licence of the jlink runtime (1557737.1) | confirm with Oracle / the customer |
-| 7 | CPU October 2026 switch | after the new client JDK download: `40- --apply` (the Windows client JDK is already 21.0.13.0.2) |
+| 7 | Client JDK of the cycle | the Windows client JDK is 21.0.13.0.2 (CPU October 2026); the CSPU November 2026 replaces 21.0.13.0.2 – after the new client JDK download: `40- --apply` |
 
 ---
 

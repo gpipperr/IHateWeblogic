@@ -529,11 +529,11 @@ the host name).
 
 ## 8. Open points
 
-- Still GET with a password in the URL: the test report run of
-  [`09-Install/15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) (`userid=` with the
-  DB password), and examples in older docs / cookbooks (doc 12, doc 13,
-  WLS_Report_start_stop_kochbuch.txt, Patch_Kochbuch 13.6). On customer
-  hosts: check old access logs for `authid=` / `userid=` and clean them.
+- ~~GET with a password in the URL in the library~~ – done: the test report
+  run of [`09-Install/15-deploy-test-report-forms_template.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/15-deploy-test-report-forms_template.sh) sends every
+  parameter by POST (curl config on stdin), no doc / cookbook example uses
+  `userid=` / `authid=` in a URL any more (checked 2026-11-17). Still to do on
+  customer hosts: check old access logs for `authid=` / `userid=` and clean them.
 - Does the access log really contain no body after the switch? Not yet seen
   live: the test host's `access.log` had not been written since 2026-10-27
   (buffer / rotation, to be checked). By definition, `cs-uri` holds only the
@@ -543,9 +543,10 @@ the host name).
   `engineResponseTimeOut`).
 - `showjobs` (job list with `REP-` per job) as a second source for the "why"
   behind `failedJobs`.
-- Behaviour of the job counters when the past queue reaches `maxQueueSize`
-  (assumption: oldest jobs drop out, `failedJobs` falls) and whether
-  `engineInfo` also comes from the queue – not seen live yet.
+- Job counters and `maxQueueSize`: answered in
+  [reports_job_queue_monitoring.md §4a.2](reports_job_queue_monitoring.md#4a-who-deletes-rows-from-the-table--and-how-it-is-set)
+  (the counters are computed from the persisted past queue – oldest jobs
+  drop out). Open: whether `engineInfo` also comes from the queue.
 - PRTG REST Custom v2 sensor (7.3.1) not tested live: URL-encoding of
   `%restpassword` in the POST body, sensor state when an XPath finds no value,
   Status (string) mapping of the `count()` result.

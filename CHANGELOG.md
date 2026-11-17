@@ -10,6 +10,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Open points of the doc pages reviewed:** stale entries cleaned (getserverinfo §8 GET examples + `maxQueueSize`,
+  ords_architecture §11 backup, java_jlink §8 Windows client, 10-Monitoring `cve_watch.sh` / CSPU state,
+  09-Install file tree `install_lib.sh`, doc 40 §12 client JDK); TODO.md: full HTML parameter form test plan,
+  Reports font open points, PRTG sensor live test.
 - **Patch lists with the Unique Patch ID (ARU)** – new column `aru` in `09-Install/download/patches_fmw.csv` /
   `patches_db.csv` (CPU October 2026 values from the `inventory.xml` of the ZIPs, all identical with
   `opatch lsinventory` on the test host). `mos_patch_download.sh` / `.ps1` 2026-11-17.1 read the ARU of every

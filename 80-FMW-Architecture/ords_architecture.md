@@ -501,8 +501,10 @@ Dates before 2018 are background from the author's experience
   application, then as an option in `templates/nginx-ords.conf.template`.
 - `ords pool --pid … list` as a cheap liveness check in
   [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) / the collector.
-- [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) / [`clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) for the ORDS config directory
-  (wallet!), [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) for ORDS / APEX / SQLcl / Instant Client.
+- [`clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) for the host-specific ORDS settings
+  (`externalSessionTrustedOrigins`), [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) for ORDS / APEX / SQLcl / Instant Client.
+  The ORDS config directory with its wallet is in
+  [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) since 2026-10-29 (category `ords`).
 
 ---
 
