@@ -20,6 +20,22 @@ Most important URLs:
 - <https://www.oracle.com/security-alerts/alert-cve-2026-91403.html>
 - <https://support.oracle.com/support/?documentId=KA1182>
 
+**Next important step – CSPU November 2026, released Tuesday 2026-11-17:**
+<https://www.oracle.com/security-alerts/cspunov2026.html>
+
+Read 2026-11-17 (still the *Pre-Release Announcement*, may change until the
+advisory is published): 71 new FMW patches, highest CVSS 10.0. Affected in
+our stack:
+- **14.1.2.0.0:** WebLogic Server, Oracle HTTP Server, ADF, Platform
+  Security for Java (OPSS), Middleware Common Libraries and Tools.
+- **Java SE** 21.0.13 (`JDK_HOME`), 17.0.21 (bundled `oracle_common/jdk`),
+  8u511 (Forms client); highest CVSS 8.1.
+- **Database** 19.3–19.33 (RCU DB), **APEX** 26.2.0.
+- Forms / Reports themselves are **not** listed. ORDS only up to 26.2.3.
+
+Then run `10-Monitoring/patch_cycle_analysis.sh prepare` as soon as the
+final advisory and KA1182 are out.
+
 ## Patch cycle history
 
 The library itself is not versioned (always "latest"). This file is: at
