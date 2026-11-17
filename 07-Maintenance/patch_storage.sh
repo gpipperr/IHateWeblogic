@@ -159,7 +159,7 @@ _add_csv_rows() {
     local rows="$1" row nr st desc dir re lz az lrel arel sha
     while IFS= read -r row; do
         [ -z "$row" ] && continue
-        IFS=';' read -r nr _ re _ st desc dir sha <<< "$row"
+        IFS=';' read -r nr _ re _ st desc dir sha _ <<< "$row"
         _need_role "$st" || continue
         lz="$(patch_row_zip "$row" "$PS")"
         az=""; [ -n "$PA" ] && az="$(patch_row_zip "$row" "$PA")"

@@ -364,22 +364,39 @@ _select_patch_zip() {
 # from oracle_software_version.conf). Oracle re-releases patches under the
 # same number (JDK 35702194: every update), so a different value only WARNs –
 # never blocks an apply. No row / no value = nothing printed. Return 0 always.
+# Also the column aru (Unique Patch ID of the build, from
+# <nr>/etc/config/inventory.xml in the ZIP): a different value = new build of
+# the same patch number - WARN as well.
 # -----------------------------------------------------------------------------
 patch_zip_sha_check() {
-    local zip="$1" nr="$2" b row re sha is _r_nr
+    local zip="$1" nr="$2" b row re sha aru is upi _r_nr
     [ -f "$zip" ] && [ -n "${IHW_PATCH_ROWS:-}" ] || return 0
     b="$(basename "$zip")"
     while IFS= read -r row; do
-        IFS=';' read -r _r_nr _ re _ _ _ _ sha <<< "$row"
-        [ "$_r_nr" = "$nr" ] && [ -n "$sha" ] || continue
+        IFS=';' read -r _r_nr _ re _ _ _ _ sha aru _ <<< "$row"
+        [ "$_r_nr" = "$nr" ] && [ -n "$sha$aru" ] || continue
         if [ -n "$re" ]; then [[ "$b" =~ ^$re$ ]] || continue; fi
-        is="$(sha256sum "$zip" 2>/dev/null | awk '{print tolower($1)}')"
-        if [ "$is" = "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ]; then
-            ok "$(printf "Patch %s SHA-256 matches the patch list" "$nr")"
-        else
-            warn "$(printf "Patch %s SHA-256 differs from the patch list (%s… vs. %s…)" "$nr" "${is:0:12}" "${sha:0:12}")"
-            info "  Oracle may have re-released the ZIP under the same number – compare the digest on MOS,"
-            info "  then update download/patches_fmw.csv. Not blocking: the OPatch checks follow."
+        if [ -n "$sha" ]; then
+            is="$(sha256sum "$zip" 2>/dev/null | awk '{print tolower($1)}')"
+            if [ "$is" = "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ]; then
+                ok "$(printf "Patch %s SHA-256 matches the patch list" "$nr")"
+            else
+                warn "$(printf "Patch %s SHA-256 differs from the patch list (%s… vs. %s…)" "$nr" "${is:0:12}" "${sha:0:12}")"
+                info "  Oracle may have re-released the ZIP under the same number – compare the digest on MOS,"
+                info "  then update download/patches_fmw.csv. Not blocking: the OPatch checks follow."
+            fi
+        fi
+        if [ -n "$aru" ]; then
+            upi="$(unzip -p "$zip" "$nr/etc/config/inventory.xml" 2>/dev/null \
+                   | grep -oE '<unique_patch_id>[0-9]+' | grep -oE '[0-9]+$' | head -1)"
+            if [ -z "$upi" ]; then
+                :   # no OPatch inventory at the top (bundle) - nothing to compare
+            elif [ "$upi" = "$aru" ]; then
+                ok "$(printf "Patch %s ARU (Unique Patch ID) %s matches the patch list" "$nr" "$upi")"
+            else
+                warn "$(printf "Patch %s ARU %s differs from the patch list (%s) – new build of the same patch" "$nr" "$upi" "$aru")"
+                info "  Read the README of this build, then update the column aru in download/patches_fmw.csv."
+            fi
         fi
         return 0
     done <<< "$IHW_PATCH_ROWS"

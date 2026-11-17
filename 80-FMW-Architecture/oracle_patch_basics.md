@@ -210,6 +210,14 @@ ARU, otherwise only the build inside the JDK (`java -version`) tells the
 builds apart. On the page itself, "Last Updated" is the only hint that a
 patch was re-released.
 
+**In this library** (since 2026-11-17): the patch lists
+`09-Install/download/patches_*.csv` have a column **`aru`** with the
+Unique Patch ID of the analysed build. The download tools read it from the
+`inventory.xml` of every ZIP and warn on a different value; `05-` / `06-`
+check it before the apply. Empty for the SPB, OPatch, JDK and CVU (no
+OPatch inventory at the top) –
+[download/README.md](../09-Install/download/README.md#aru-unique-patch-id--soft-check).
+
 ### FMW and DB – the same numbers, different habits
 
 | | Fusion Middleware 14.1.2 | Database 19c |

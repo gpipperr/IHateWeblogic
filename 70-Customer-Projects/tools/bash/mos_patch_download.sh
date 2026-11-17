@@ -30,22 +30,26 @@
 #            The MOS password is asked once (hidden) and typed into
 #            getMOSPatch through a pseudo terminal - never on a command line,
 #            never stored, masked in the output.
-# CSV      : patch;platform;file_regexp;required;step;description[;dir[;sha256]]
-#            dir / sha256 optional (6-column lists keep working). sha256 is a
-#            SOFT check: a different value only WARNs - Oracle re-releases
-#            patches under the same number (unzip -t stays the hard check).
+# CSV      : patch;platform;file_regexp;required;step;description[;dir[;sha256[;aru]]]
+#            dir / sha256 / aru optional (6- and 8-column lists keep working).
+#            sha256 and aru are SOFT checks: a different value only WARNs -
+#            Oracle re-releases patches under the same number (unzip -t stays
+#            the hard check). aru = Unique Patch ID of the build, read from
+#            <patch>/etc/config/inventory.xml in the ZIP (= "Unique Patch ID"
+#            of opatch lsinventory); empty for ZIPs without an OPatch inventory
+#            (Stack Patch Bundle, OPatch, JDK, CVU).
 # Output   : <DIR>/<dir>/p<patch>_*.zip, <DIR>/patches_sha256.txt,
-#            <DIR>/patches_sha256.csv (patch;step;file;sha256 - to fill the
-#            sha256 column), <DIR>/mos_patch_download_<ts>.log
-# Exit     : 0 = all required patches present, 1 = optional missing or SHA-256
-#            differs from the list, 2 = required missing / error
+#            <DIR>/patches_sha256.csv (patch;step;file;sha256;aru - to fill the
+#            sha256 / aru columns), <DIR>/mos_patch_download_<ts>.log
+# Exit     : 0 = all required patches present, 1 = optional missing or SHA-256 /
+#            ARU differs from the list, 2 = required missing / error
 # Doc      : 70-Customer-Projects/tools/README.md
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================
 set -u
 umask 022
-VERSION="2026-10-30.1"   # bump on every change
+VERSION="2026-11-17.1"   # bump on every change
 
 CSV=""; DIR=""; JAR=""; MOS_USER="${MOS_USER:-}"; ALL=false; ONLY=""; APPLY=false
 JAVA_BIN=""; PROXY=""; LANG_CODE="4L"; RETRIES=3; STEPS=""; PWD_STDIN=false
@@ -62,7 +66,7 @@ while [ $# -gt 0 ]; do
         --java) JAVA_BIN="${2:-}"; shift ;;
         --proxy) PROXY="${2:-}"; shift ;;
         --apply) APPLY=true ;;
-        -h|--help) sed -n '2,45p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
+        -h|--help) sed -n '2,49p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
         -V|--version) printf '%s\n' "$VERSION"; exit 0 ;;
         *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -143,22 +147,36 @@ ROWS=()
 while IFS= read -r _line || [ -n "$_line" ]; do
     _line="${_line%$'\r'}"
     case "$_line" in ''|'#'*|patch\;*) continue ;; esac
-    # more than 8 columns = a ";" inside a field (description) - the columns
+    # more than 9 columns = a ";" inside a field (description) - the columns
     # shift and the ZIP lands in a wrong directory (patches_db.csv, 2026-11-02)
     _semi="${_line//[^;]/}"
-    [ "${#_semi}" -le 7 ] || { fail "skipped line (more than 8 columns – ';' in a field?): $_line"; continue; }
-    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha <<< "$_line"
+    [ "${#_semi}" -le 8 ] || { fail "skipped line (more than 9 columns – ';' in a field?): $_line"; continue; }
+    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha _aru <<< "$_line"
     [[ "$_nr" =~ ^[0-9]+$ ]] || { warn "skipped line (no patch number): $_line"; continue; }
     if [ -n "$ONLY" ] && [[ "$ONLY" != *",$_nr,"* ]]; then continue; fi
     if [ -n "$STEPS" ] && [[ "$STEPS" != *",$_step,"* ]]; then continue; fi
     if [ "${_req:-yes}" != "yes" ] && ! $ALL && [ -z "$ONLY" ] && [ -z "$STEPS" ]; then
         info "$(printf '%-10s optional – skipped (use --all)  %s' "$_nr" "$_desc")"; continue
     fi
-    ROWS+=("$_nr;$_plat;$_re;${_req:-yes};$_step;$_desc;${_dir:-$_nr};$_sha")
+    ROWS+=("$_nr;$_plat;$_re;${_req:-yes};$_step;$_desc;${_dir:-$_nr};$_sha;$_aru")
     info "$(printf '%-10s %-11s step %-10s %-9s %s' "$_nr" "$_plat" "${_step:--}" "${_req:-yes}" "$_desc")"
 done < "$CSV"
 [ "${#ROWS[@]}" -gt 0 ] || { fail "no patch selected"; exit 2; }
 info "${#ROWS[@]} patch(es) selected"
+
+# _zip_upi ZIP NR - Unique Patch ID (ARU) of the build from the OPatch inventory
+# in the ZIP: <NR>/etc/config/inventory.xml, else the only inventory.xml of the
+# ZIP; nothing for ZIPs with none or several (Stack Patch Bundle, JDK, OPatch)
+_zip_upi() {
+    local lst inv
+    lst="$(unzip -Z1 "$1" 2>/dev/null)" || return 0
+    inv="$(printf '%s\n' "$lst" | grep -xE "$2/etc/config/inventory\.xml" | head -1)"
+    if [ -z "$inv" ] && [ "$(printf '%s\n' "$lst" | grep -cE '(^|/)etc/config/inventory\.xml$')" = 1 ]; then
+        inv="$(printf '%s\n' "$lst" | grep -E '(^|/)etc/config/inventory\.xml$')"
+    fi
+    [ -n "$inv" ] || return 0
+    unzip -p "$1" "$inv" 2>/dev/null | grep -oE '<unique_patch_id>[0-9]+' | grep -oE '[0-9]+$' | head -1
+}
 
 # _have NR REGEX SUBDIR - is a matching ZIP already in <DIR>/<SUBDIR>/ ?
 _have() {
@@ -174,7 +192,7 @@ _have() {
 if ! $APPLY; then
     section "Plan"
     for _r in "${ROWS[@]}"; do
-        IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha <<< "$_r"
+        IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha _aru <<< "$_r"
         if _have "$_nr" "$_re" "$_dir"; then info "$(printf '%-10s present – will be skipped  %s' "$_nr" "$_dir")"
         else info "$(printf '%-10s download  platform %-11s file %s -> %s' "$_nr" "$_plat" "${_re:-<all>}" "$_dir")"; fi
     done
@@ -232,7 +250,7 @@ sys.exit(os.WEXITSTATUS(st) if os.WIFEXITED(st) else 1)
 }
 
 for _r in "${ROWS[@]}"; do
-    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha <<< "$_r"
+    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha _aru <<< "$_r"
     _d="$DIR/$_dir"
     if _have "$_nr" "$_re" "$_dir"; then ok "$(printf '%-10s already present – skipped (%s)' "$_nr" "$_dir")"; continue; fi
     mkdir -p "$_d"
@@ -270,10 +288,10 @@ MOS_PWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; unset MOS_PWD
 section "4. Check (unzip -t, SHA-256)"
 SUMFILE="$DIR/patches_sha256.txt"
 SUMCSV="$DIR/patches_sha256.csv"
-: > "$SUMFILE"; printf 'patch;step;file;sha256\n' > "$SUMCSV"
-_missing_req=0; _missing_opt=0; _sha_diff=0
+: > "$SUMFILE"; printf 'patch;step;file;sha256;aru\n' > "$SUMCSV"
+_missing_req=0; _missing_opt=0; _sha_diff=0; _aru_diff=0
 for _r in "${ROWS[@]}"; do
-    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha <<< "$_r"
+    IFS=';' read -r _nr _plat _re _req _step _desc _dir _sha _aru <<< "$_r"
     _f=""
     for _z in "$DIR/$_dir"/*.zip; do
         [ -f "$_z" ] || continue; _b="$(basename "$_z")"
@@ -286,8 +304,14 @@ for _r in "${ROWS[@]}"; do
     if unzip -tq "$_f" > /dev/null 2>&1; then
         _is="$(sha256sum "$_f" | awk '{print tolower($1)}')"
         printf '%s  %s\n' "$_is" "${_f#$DIR/}" >> "$SUMFILE"
-        printf '%s;%s;%s;%s\n' "$_nr" "$_step" "$(basename "$_f")" "$_is" >> "$SUMCSV"
-        ok "$(printf '%-10s %-42s %6s  %s…' "$_nr" "$(basename "$_f")" "$(du -h "$_f" | cut -f1)" "${_is:0:16}")"
+        _upi="$(_zip_upi "$_f" "$_nr")"
+        printf '%s;%s;%s;%s;%s\n' "$_nr" "$_step" "$(basename "$_f")" "$_is" "$_upi" >> "$SUMCSV"
+        ok "$(printf '%-10s %-42s %6s  %s…  ARU %s' "$_nr" "$(basename "$_f")" "$(du -h "$_f" | cut -f1)" "${_is:0:16}" "${_upi:--}")"
+        # soft check: same patch number, other build (= new ARU / Unique Patch ID)
+        if [ -n "$_aru" ] && [ -n "$_upi" ] && [ "$_upi" != "$_aru" ]; then
+            warn "$(printf '%-10s ARU %s differs from the list (%s) – Oracle re-released the patch as a new build; read the README, then update the CSV' "$_nr" "$_upi" "$_aru")"
+            _aru_diff=$((_aru_diff + 1))
+        fi
         # soft check: Oracle re-releases patches under the same number
         if [ -n "$_sha" ] && [ "$_is" != "$(printf '%s' "$_sha" | tr 'A-F' 'a-f')" ]; then
             warn "$(printf '%-10s SHA-256 differs from the list (%s…) – re-released by Oracle? compare the digest on MOS, then update the CSV' "$_nr" "${_sha:0:16}")"
@@ -298,7 +322,7 @@ for _r in "${ROWS[@]}"; do
         [ "$_req" = "yes" ] && _missing_req=$((_missing_req + 1)) || _missing_opt=$((_missing_opt + 1))
     fi
 done
-info "SHA-256 list: $SUMFILE  (compare with the values on MOS)"
+info "SHA-256 list: $SUMFILE  (compare with the values on MOS); sha256 + aru per file: $SUMCSV"
 
 _p ""
 _p "=== Summary: OK $N_OK  WARN $N_WARN  FAIL $N_FAIL – log $LOG"
@@ -306,4 +330,5 @@ _p "=== Summary: OK $N_OK  WARN $N_WARN  FAIL $N_FAIL – log $LOG"
 [ "$N_FAIL" -gt 0 ] && exit 2
 [ "$_missing_opt" -gt 0 ] && { _p "$_missing_opt optional patch(es) missing"; exit 1; }
 [ "$_sha_diff" -gt 0 ] && { _p "$_sha_diff file(s) with a SHA-256 other than in the list (WARN)"; exit 1; }
+[ "$_aru_diff" -gt 0 ] && { _p "$_aru_diff file(s) with an ARU other than in the list (WARN)"; exit 1; }
 exit 0

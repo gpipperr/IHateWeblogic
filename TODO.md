@@ -83,15 +83,15 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   Pump bundle of the next RU (January 2027); if it still fails: SR or
   document as "Linux only" –
   [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §3.
-- [ ] **Unique Patch ID (ARU) per patch file:** new column in
-  `09-Install/download/patches_*.csv` with the expected `<unique_patch_id>`
-  (from `etc/config/inventory.xml` of the ZIP); `cve_inventory.sh` and the
-  customer patch analysis compare it with `opatch lsinventory` – a patch
-  re-released under the same number (new build) then shows up as "installed,
-  but old build". The MOS patch page shows no ARU – only the download link
-  (`…?aru=<ARU>&patch_file=…`) has it, for Java the only place at all:
-  `mos_patch_download.sh` should log the ARU of every file and fill the
-  column. Background:
+- [ ] **Unique Patch ID (ARU) – rest:** column `aru` in
+  `09-Install/download/patches_*.csv`, read and checked by
+  `mos_patch_download.sh` / `.ps1` and before the apply by `05-` / `06-`
+  (lib `patch_zip_sha_check`) – **done 2026-11-17** (October values verified
+  against `opatch lsinventory`). Open: `cve_inventory.sh` and the customer
+  patch analysis compare the column with `opatch lsinventory` ("installed,
+  but old build"); ARU of the ZIPs without OPatch inventory (SPB, JDK, OPatch)
+  only from the MOS download link (`…?aru=<ARU>&patch_file=…`) – getMOSPatch
+  does not print it. Background:
   [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
   (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check

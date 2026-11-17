@@ -16,7 +16,7 @@
 
 .DESCRIPTION
   Reads the patch list (CSV: patch;platform;file_regexp;required;step;
-  description[;dir[;sha256]]), downloads every selected patch into
+  description[;dir[;sha256[;aru]]]), downloads every selected patch into
   <Dir>\<dir>\ (default <dir> = patch number) and checks each ZIP.
 
   Without -Apply only the plan is shown.
@@ -27,11 +27,15 @@
   source launch). With an older Java (FMW 12c: JDK 8) getMOSPatch is started
   directly and asks for user / password itself for every patch.
 
-  CSV column sha256 is a SOFT check (WARN): Oracle re-releases patches under
-  the same number. The ZIP check (CRC of every entry) is the hard check.
+  CSV columns sha256 and aru are SOFT checks (WARN): Oracle re-releases
+  patches under the same number. The ZIP check (CRC of every entry) is the
+  hard check. aru = Unique Patch ID of the build from
+  <patch>/etc/config/inventory.xml in the ZIP (= "Unique Patch ID" of
+  opatch lsinventory); empty for ZIPs without an OPatch inventory (Stack
+  Patch Bundle, OPatch, JDK, CVU).
 
-  Exit: 0 = all required patches present, 1 = optional missing or SHA-256
-  differs from the list, 2 = required missing / error.
+  Exit: 0 = all required patches present, 1 = optional missing or SHA-256 /
+  ARU differs from the list, 2 = required missing / error.
 
 .PARAMETER Csv
   Patch list, e.g. ..\..\Reports14_linux_manual_install\patches_cpu_reports_14c_oct2026.csv
@@ -93,7 +97,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-03.1"   # bump on every change
+$SCRIPT_VERSION = "2026-11-17.1"   # bump on every change
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $LANG_CODE = "4L"
@@ -234,13 +238,13 @@ $rows = New-Object System.Collections.ArrayList
 foreach ($line in Get-Content -LiteralPath $Csv) {
     $line = $line.TrimEnd("`r")
     if ($line -eq "" -or $line.StartsWith("#") -or $line.StartsWith("patch;")) { continue }
-    # more than 8 columns = a ";" inside a field - columns would shift
+    # more than 9 columns = a ";" inside a field - columns would shift
     $f = $line.Split(';')
-    if ($f.Count -gt 8) { local-fail "skipped line (more than 8 columns - ';' in a field?): $line"; continue }
-    while ($f.Count -lt 8) { $f += "" }
+    if ($f.Count -gt 9) { local-fail "skipped line (more than 9 columns - ';' in a field?): $line"; continue }
+    while ($f.Count -lt 9) { $f += "" }
     $r = [pscustomobject]@{
         Nr = $f[0].Trim(); Plat = $f[1].Trim(); Re = $f[2].Trim(); Req = $f[3].Trim()
-        Step = $f[4].Trim(); Desc = $f[5].Trim(); Sub = $f[6].Trim(); Sha = $f[7].Trim()
+        Step = $f[4].Trim(); Desc = $f[5].Trim(); Sub = $f[6].Trim(); Sha = $f[7].Trim(); Aru = $f[8].Trim()
     }
     if ($r.Nr -notmatch '^\d+$') { local-warn "skipped line (no patch number): $line"; continue }
     if (-not $r.Req) { $r.Req = "yes" }
@@ -354,8 +358,31 @@ local-section "4. Check (ZIP CRC, SHA-256)"
 $sum_file = Join-Path $script:dir_abs "patches_sha256.txt"
 $sum_csv  = Join-Path $script:dir_abs "patches_sha256.csv"
 Set-Content -LiteralPath $sum_file -Value $null -Encoding ASCII
-Set-Content -LiteralPath $sum_csv  -Value "patch;step;file;sha256" -Encoding ASCII
-$missing_req = 0; $missing_opt = 0; $sha_diff = 0
+Set-Content -LiteralPath $sum_csv  -Value "patch;step;file;sha256;aru" -Encoding ASCII
+$missing_req = 0; $missing_opt = 0; $sha_diff = 0; $aru_diff = 0
+
+# Unique Patch ID (ARU) of the build from the OPatch inventory in the ZIP:
+# <Nr>/etc/config/inventory.xml, else the only inventory.xml of the ZIP;
+# "" for ZIPs with none or several (Stack Patch Bundle, JDK, OPatch)
+function local-zip-upi {
+    param([string] $Zip, [string] $Nr)
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $z = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+        try {
+            $inv = @($z.Entries | Where-Object { $_.FullName -eq "$Nr/etc/config/inventory.xml" })
+            if ($inv.Count -eq 0) {
+                $all = @($z.Entries | Where-Object { $_.FullName -match '(^|/)etc/config/inventory\.xml$' })
+                if ($all.Count -eq 1) { $inv = $all }
+            }
+            if ($inv.Count -eq 0) { return "" }
+            $rd = New-Object System.IO.StreamReader($inv[0].Open())
+            try { $x = $rd.ReadToEnd() } finally { $rd.Dispose() }
+            if ($x -match '<unique_patch_id>(\d+)') { return $Matches[1] }
+            return ""
+        } finally { $z.Dispose() }
+    } catch { return "" }
+}
 
 # ZIP check: Java runner (CRC of every entry, like "unzip -t"); without
 # Java 11+ only the structure via .NET (entries readable, CRC not verified)
@@ -385,8 +412,14 @@ foreach ($r in $rows) {
     if ($zc.Ok) {
         $is = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLower()
         Add-Content -LiteralPath $sum_file -Value ("{0}  {1}\{2}" -f $is, $r.Sub, $f.Name) -Encoding ASCII
-        Add-Content -LiteralPath $sum_csv  -Value ("{0};{1};{2};{3}" -f $r.Nr, $r.Step, $f.Name, $is) -Encoding ASCII
-        local-ok ("{0,-10} {1,-42} {2,6} MB  {3}..." -f $r.Nr, $f.Name, [math]::Round($f.Length / 1MB), $is.Substring(0, 16))
+        $upi = local-zip-upi $f.FullName $r.Nr
+        Add-Content -LiteralPath $sum_csv  -Value ("{0};{1};{2};{3};{4}" -f $r.Nr, $r.Step, $f.Name, $is, $upi) -Encoding ASCII
+        local-ok ("{0,-10} {1,-42} {2,6} MB  {3}...  ARU {4}" -f $r.Nr, $f.Name, [math]::Round($f.Length / 1MB), $is.Substring(0, 16), $(if ($upi) { $upi } else { "-" }))
+        # soft check: same patch number, other build (= new ARU / Unique Patch ID)
+        if ($r.Aru -and $upi -and $upi -ne $r.Aru) {
+            local-warn ("{0,-10} ARU {1} differs from the list ({2}) - Oracle re-released the patch as a new build; read the README, then update the CSV" -f $r.Nr, $upi, $r.Aru)
+            $aru_diff++
+        }
         if ($zc.Msg -like "structure OK*") { local-info "           $($zc.Msg)" }
         # soft check: Oracle re-releases patches under the same number
         if ($r.Sha -and $is -ne $r.Sha.ToLower()) {
@@ -406,4 +439,5 @@ if ($missing_req -gt 0) { local-print "$missing_req required patch(es) missing";
 if ($script:n_fail -gt 0) { exit 2 }
 if ($missing_opt -gt 0) { local-print "$missing_opt optional patch(es) missing"; exit 1 }
 if ($sha_diff -gt 0) { local-print "$sha_diff file(s) with a SHA-256 other than in the list (WARN)"; exit 1 }
+if ($aru_diff -gt 0) { local-print "$aru_diff file(s) with an ARU other than in the list (WARN)"; exit 1 }
 exit 0

@@ -31,8 +31,9 @@ release – file names and SHA-256 stay in `oracle_software_version.conf` /
 ## Format
 
 ```
-patch;platform;file_regexp;required;step;description;dir;sha256
-40125898;226P|2000P;p40125898_141200_Generic\.zip;yes;spb;WLS Stack Patch Bundle 14.1.2.0.261007;patches/40125898;ad9b79…
+patch;platform;file_regexp;required;step;description;dir;sha256;aru
+40125898;226P|2000P;p40125898_141200_Generic\.zip;yes;spb;WLS Stack Patch Bundle 14.1.2.0.261007;patches/40125898;ad9b79…;
+39987730;226P;p39987730_141200_Linux-x86-64\.zip;yes;fr_common;OHS (native) Bundle Patch 14.1.2.0.260907;patches/39987730;93b242…;29093973
 ```
 
 | Column | Meaning |
@@ -45,6 +46,7 @@ patch;platform;file_regexp;required;step;description;dir;sha256
 | `description` | free text |
 | `dir` | target below `PATCH_STORAGE` (tool: below `-d`); empty = `<patch>` |
 | `sha256` | SHA-256 at analysis time – **soft check** (below) |
+| `aru` | Unique Patch ID (ARU) of the analysed build – **soft check** (below); empty for ZIPs without an OPatch inventory |
 
 Roles of [`patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) (rows of one role in apply order):
 
@@ -74,6 +76,29 @@ a fix of the package. A different value therefore only **WARNs** (tool exit 1,
 `05-`/`06-` before the apply) – compare the digest on MOS, then update the
 row. Empty = no check. The hard check is `unzip -t` (tool) and the OPatch
 package check of `05-`/`06-` (`check_patch_zip`).
+
+## ARU (Unique Patch ID) – soft check
+
+`aru` is the build number of the patch: `<unique_patch_id>` in
+`<patch>/etc/config/inventory.xml` of the ZIP – the same value `opatch
+lsinventory` shows as "Unique Patch ID" after the apply (CPU October 2026,
+test host: all 13 OPatch patches of the list identical, 2026-11-17).
+Oracle re-releases a patch under the same number as a **new build** – the
+patch number stays, the ARU changes
+([oracle_patch_basics.md §4](../../80-FMW-Architecture/oracle_patch_basics.md)).
+
+- `mos_patch_download.sh` / `.ps1` read the ARU of every downloaded ZIP,
+  show it in the check and write it to `patches_sha256.csv`
+  (`patch;step;file;sha256;aru` – the source for both columns after an
+  analysis); a value other than in the list → WARN (exit 1).
+- `05-` / `06-` / `40-` compare it before the apply (lib
+  `patch_zip_sha_check`, WARN, never blocking).
+- **Empty** for ZIPs without an OPatch inventory at the top: the Stack Patch
+  Bundle (a bundle of ~11 patches, each with its own ARU – `lsinventory`
+  lists them one by one), OPatch, JDK, CVU. For those the ARU is only in the
+  MOS download link (`…?aru=<ARU>&patch_file=…`) – getMOSPatch does not
+  print it; for the SPB the SHA-256 is the check.
+- Older 6- and 8-column lists keep working.
 
 ## Calls
 

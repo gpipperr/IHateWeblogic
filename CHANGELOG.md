@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Patch lists with the Unique Patch ID (ARU)** – new column `aru` in `09-Install/download/patches_fmw.csv` /
+  `patches_db.csv` (CPU October 2026 values from the `inventory.xml` of the ZIPs, all identical with
+  `opatch lsinventory` on the test host). `mos_patch_download.sh` / `.ps1` 2026-11-17.1 read the ARU of every
+  ZIP, show it, write it to `patches_sha256.csv` and WARN on a new build; lib `patch_zip_sha_check` (05- / 06- /
+  40-) checks it before the apply. Empty for SPB, OPatch, JDK, CVU (no OPatch inventory). Old 6- / 8-column
+  lists keep working ([download/README.md](09-Install/download/README.md#aru-unique-patch-id--soft-check)).
 - **TODO.md:** open script side of the Reports job queue page (13- template, collector / analysis detection)
   and the ORDS follow-ups (Nginx rate limit, `ords pool --pid … list`, pool destroy test).
   12-APEX-Ords README §4: ORDS requirement corrected to 26.3+ for APEX 26.2 (was "documented for APEX 26.1").

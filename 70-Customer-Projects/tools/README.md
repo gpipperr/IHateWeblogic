@@ -272,10 +272,10 @@ patch and platform.
 
 Result: `DIR/<dir>/…zip`, `DIR/patches_sha256.txt` (compare with the
 SHA-256 shown on the MOS download page), `DIR/patches_sha256.csv`
-(`patch;step;file;sha256` – to fill the `sha256` column after an analysis),
+(`patch;step;file;sha256;aru` – to fill the `sha256` / `aru` columns after an analysis; `aru` = Unique Patch ID from `<patch>/etc/config/inventory.xml` of the ZIP, also shown in the check line),
 `DIR/mos_patch_download_<ts>.log`.
 Exit code 0 = all required patches present, 1 = an optional one missing or a
-SHA-256 differs from the list, 2 = a required one missing / damaged ZIP /
+SHA-256 / ARU differs from the list, 2 = a required one missing / damaged ZIP /
 prerequisite missing.
 
 ### CSV format
@@ -283,7 +283,7 @@ prerequisite missing.
 `;`-separated, `#` = comment, one header line:
 
 ```
-patch;platform;file_regexp;required;step;description[;dir[;sha256]]
+patch;platform;file_regexp;required;step;description[;dir[;sha256[;aru]]]
 40129641;2000P;p40129641_122140_Generic\.zip;yes;6;WLS Stack Patch Bundle 12.2.1.4.261007
 39888613;226P;p39888613_1221190_Linux-x86-64\.zip;yes;8;Oracle Forms QPR 12.2.1.19
 40186682;226P;p40186682_.*_Linux-x86-64\.zip;yes;4;JDK 8u511 (file name not fixed)
@@ -299,6 +299,7 @@ patch;platform;file_regexp;required;step;description[;dir[;sha256]]
 | `description` | free text |
 | `dir` | optional: target below `-d` (default `<patch>`) – e.g. `patches/40125898`, `client/jdk/35702194`, `database/cvu` |
 | `sha256` | optional: SHA-256 of the analysed file – **soft check**: a different value is a WARN (exit 1), never a FAIL – Oracle re-releases patches under the same number (the JDK patch with every update); `unzip -t` stays the hard check |
+| `aru` | optional: Unique Patch ID (ARU) of the analysed build (`<unique_patch_id>` in `<patch>/etc/config/inventory.xml` = "Unique Patch ID" of `opatch lsinventory`) – **soft check** like `sha256`: a new build of the same patch number has a new ARU → WARN (exit 1). Stays empty for ZIPs without an OPatch inventory (Stack Patch Bundle, OPatch, JDK, CVU) – there the ARU is only in the MOS download link |
 
 Platform codes (checked 2026-10-22):
 
