@@ -143,6 +143,21 @@ Reports server) before the AdminServer starts – otherwise the EM user search i
 "Add Principal" stays empty
 ([em_principal_search_libovd.md](../80-FMW-Architecture/em_principal_search_libovd.md)).
 
+**Server lock `servers/<name>/tmp/<name>.lok`:** before an AdminServer or
+managed server starts, `startStop.sh` checks the WebLogic server lock with
+`fuser` (fallback `lsof`). A running server holds this file open (test host
+2026-11-17: `fuser` shows the server JVM on every `<name>.lok`).
+- **Held by a process** although the server is not `RUNNING`: an old JVM still
+  hangs and the new start would wait for the lock (`BEA-141281 unable to get
+  file lock, will retry`). The start is aborted with the PID – stop that
+  process first. The file is **not** deleted: the old JVM keeps its lock on the
+  deleted inode, and a second JVM could start on the same domain.
+- **Not held**: leftover of a killed server, harmless on a local disk, renamed
+  to `<name>.lok.stale` (on NFS stale locks can block).
+
+Unlike `ovd.lok`, which no process holds, this lock must never be removed
+blindly (`rm -f *.lok` in a start script).
+
 ### Column `Ctrl` – started by the Node Manager?
 
 For running servers and Reports components the status table shows who

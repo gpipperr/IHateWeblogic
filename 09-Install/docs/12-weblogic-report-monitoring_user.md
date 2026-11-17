@@ -278,6 +278,7 @@ curl -I "http://localhost:9002/reports/rwservlet?cmdkey=default&report=<testrepo
 | Password visible in URL | authid not in cgicmd.dat | Add authid to cgicmd.dat key (section 4) |
 | Changes have no effect | Security cache not refreshed | Restart WLS_REPORTS managed server |
 | EM "Add Principal": user search returns nothing (users exist) | libOVD lock `config/fmwconfig/ovd/default/ovd.lok` left by the Reports server – the AdminServer started with it has no `DefaultAuthenticator` LDAP adapter | Stop AdminServer, move `ovd.lok` away, start AdminServer (`fmw_ctl.sh` / [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) do this automatically since 2026-10-16); workaround: "Advanced Option" in the dialog or WLST `grantAppRole`. Background: [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md) |
+| AdminServer / managed server does not come up, log repeats `BEA-141281 unable to get file lock, will retry` | `servers/<name>/tmp/<name>.lok` still held by an old JVM of that server | `fuser -v` on the `.lok` → stop that PID, then start; never delete a held `.lok`. A `.lok` no process holds is harmless. `startStop.sh` / `fmw_ctl.sh` check this before every start ([01-Run/README.md](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/README.md)) |
 
 ---
 

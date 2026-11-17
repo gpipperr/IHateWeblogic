@@ -299,6 +299,8 @@ of 17 jobs. Delete `/tmp/sj.xml` afterwards.
 |---|---|---|
 | process `rwserver` | `pgrep -f "rwserver server=repserver01"` | distinguishes "Reports server down" from "WLS_REPORTS down" |
 | AdminServer | port 7001 / `startStop.sh status` | the secured Reports server authenticates against the AdminServer's LDAP – AdminServer down = `REP-50171` for everyone |
+| libOVD lock | `test -e $DOMAIN_HOME/config/fmwconfig/ovd/default/ovd.lok` **and** the file is older than the AdminServer process (`ps -o lstart= -p <pid>`) | the AdminServer started with the lock has no LDAP adapter → EM "Add Principal" finds no users ([em_principal_search_libovd.md](em_principal_search_libovd.md)). The lock alone is normal: the Reports server leaves it after every start, so alarm only on "older than the AdminServer start" |
+| server locks | for each `servers/<name>/tmp/<name>.lok`: `fuser` shows a PID **while** the server is not `RUNNING` | an old JVM hangs and blocks the next start (`BEA-141281`). A held lock of a running server and a lock no process holds are both normal – no alarm on "file exists" |
 | logs | `$DOMAIN_HOME/servers/<repserver>/logs/*.log`, engine logs: `REP-`, `ORA-`, `OutOfMemoryError` | the reason behind `failedJobs` |
 | disk | cache directory of the Reports server, `/tmp`, `$DOMAIN_HOME` | a full cache = every job fails |
 | end-to-end | once per hour a small test report via `cmdkey=` → `%PDF` | proves DB login, fonts and the PDF output (15- test report) |

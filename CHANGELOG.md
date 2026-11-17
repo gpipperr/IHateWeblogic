@@ -10,6 +10,15 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Server lock `servers/<name>/tmp/<name>.lok` before every start** ([01-Run/README.md](01-Run/README.md),
+  [30-configure_autostart.md](09-Install/docs/30-configure_autostart.md)): a running server holds its `.lok`
+  open (`fuser` shows the JVM). `startStop.sh` aborts the start with the PID when an old JVM still holds it
+  (new start would wait, `BEA-141281`) and moves a lock no process holds to `.lok.stale`; `fmw_ctl.sh` does
+  the same and only logs a WARNING. Never delete a held `.lok`. Troubleshooting row in
+  [12-weblogic-report-monitoring_user.md](09-Install/docs/12-weblogic-report-monitoring_user.md), known
+  problem in `WLS_Report_start_stop_kochbuch.txt`, monitoring checks for `ovd.lok` (older than the
+  AdminServer start) and held server locks in
+  [reports_monitoring_getserverinfo.md §6](80-FMW-Architecture/reports_monitoring_getserverinfo.md).
 - **Clones: rescue image of the old machine-id out of `/boot`** ([FormsReports14_linux_clone](70-Customer-Projects/FormsReports14_linux_clone/README.md),
   [forms_reports_sizing.md](docs/forms_reports_sizing.md#os-disk-layout--boot-3-gb-not-the-installer-default)): a VM clone carries the
   template's rescue image (~90 MB); after the new machine-id the next kernel update builds a second one and

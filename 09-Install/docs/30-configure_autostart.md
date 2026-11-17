@@ -179,6 +179,16 @@ has no LDAP adapter for the `DefaultAuthenticator` and the EM user search in
 [em_principal_search_libovd.md](../../80-FMW-Architecture/em_principal_search_libovd.md)).
 Logged as `Removed stale libOVD lock …` in `ctrl/log/fmw_ctl_<date>.log`.
 
+**Server lock:** for every server of the target that is not running,
+`fmw_ctl.sh start` checks `$DOMAIN_HOME/servers/<server>/tmp/<server>.lok`
+with `fuser`. Not held by any process → renamed to `<server>.lok.stale`
+(`Removed stale server lock …`). Still held → `WARNING: … held by PID(s) …`
+in the log and the file stays: an old JVM of that server still hangs, the new
+start waits for the lock (`BEA-141281`) until that process is stopped. Details:
+[01-Run/README.md](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/README.md).
+Existing installations get the check after a new
+`30-configure_autostart.sh --apply` (the script copies the template to `ctrl/`).
+
 **Interplay with [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh):** once the autostart is active, control
 the servers through `fmw_ctl.sh` / `systemctl` (Node Manager). Servers started
 outside the Node Manager show up as `UNKNOWN` in `fmw_ctl.sh status`.

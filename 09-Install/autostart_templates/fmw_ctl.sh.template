@@ -94,9 +94,32 @@ _clear_ovd_lock() {
     mv -f "$lok" "${lok}.stale" && _log "Removed stale libOVD lock $lok (left by the Reports server)"
 }
 
+# WebLogic server lock servers/<srv>/tmp/<srv>.lok: a running server holds it
+# open (fuser shows the JVM). Held although the server is not running = an old
+# JVM hangs, the new start waits for the lock -> log a WARNING with the PID,
+# never delete it (the old JVM keeps its lock on the deleted inode). Not held
+# = leftover of a killed server -> moved away (matters on NFS).
+_clear_server_locks() {
+    local srv lok holders
+    command -v fuser > /dev/null 2>&1 || return 0
+    for srv in $ADMIN_SERVER $MANAGED_SERVERS; do
+        [ "$TARGET" = "all" ] || [ "$TARGET" = "$srv" ] || continue
+        lok="$DOMAIN_HOME/servers/$srv/tmp/$srv.lok"
+        [ -e "$lok" ] || continue
+        pgrep -f "weblogic.Name=${srv}( |$)" > /dev/null 2>&1 && continue
+        holders="$(fuser "$lok" 2>/dev/null | tr -s ' ')"
+        if [ -n "${holders// /}" ]; then
+            _log "WARNING: $lok held by PID(s)${holders} although $srv is not running - stop that process first"
+        else
+            mv -f "$lok" "${lok}.stale" && _log "Removed stale server lock $lok (no process holds it)"
+        fi
+    done
+}
+
 _start() {
     _start_nm || return 1
     _clear_ovd_lock
+    _clear_server_locks
     _log "Starting: $TARGET"
     _wlst wls_start.py "$TARGET"
 }

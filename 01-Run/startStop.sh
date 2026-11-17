@@ -584,6 +584,37 @@ _check_early_exit() {
     return 0
 }
 
+# _server_lok_check name - WebLogic server lock servers/<name>/tmp/<name>.lok.
+# A running server holds the file open (test host 2026-11-17: fuser shows the
+# server JVM on every <name>.lok). Held by a process although the server is
+# not reported RUNNING = an old JVM still hangs: a new start waits for the
+# lock - stop it, do NOT delete the file (the old JVM keeps its lock on the
+# deleted inode and a second JVM could start on the same domain). Not held =
+# leftover of a killed server, harmless on a local disk - moved away anyway
+# (NFS keeps stale locks).
+_server_lok_check() {
+    local name="$1"
+    local lok="$DOMAIN_HOME/servers/$name/tmp/$name.lok"
+    local holders=""
+    [ -e "$lok" ] || return 0
+    if command -v fuser > /dev/null 2>&1; then
+        holders="$(fuser "$lok" 2>/dev/null | tr -s ' ')"
+    elif command -v lsof > /dev/null 2>&1; then
+        holders="$(lsof -t "$lok" 2>/dev/null | tr '\n' ' ')"
+    else
+        info "fuser / lsof not found – server lock $lok not checked"
+        return 0
+    fi
+    if [ -n "${holders// /}" ]; then
+        fail "Server lock $lok held by PID(s) ${holders# } – an old $name process is still running"
+        info "  Check: ps -fp <PID>; stop it (kill <PID>, kill -9 only if it hangs), then start again"
+        info "  Do NOT delete the .lok while a process holds it"
+        return 1
+    fi
+    mv -f "$lok" "${lok}.stale" && info "Removed stale server lock (no process holds it): $lok"
+    return 0
+}
+
 _start_comp() {
     local name="$1" ctype="$2"
     local start_log="${DIAG_LOG_DIR:-/tmp}/start_${name}_$(date +%H%M%S).log"
@@ -626,6 +657,7 @@ _start_comp() {
                 mv -f "$ovd_lok" "${ovd_lok}.stale" \
                     && info "Removed stale libOVD lock: $ovd_lok"
             fi
+            _server_lok_check "$name" || return 1
             if [ -n "$FMW_CTL" ]; then
                 _fmw_ctl start "$name"; return $?
             elif [ -n "$(_nm_pid)" ]; then
@@ -651,6 +683,7 @@ _start_comp() {
                 info "  Fix: ./09-Install/10-oracle_boot_properties.sh --apply"
                 return 1
             fi
+            _server_lok_check "$name" || return 1
             if [ -n "$FMW_CTL" ]; then
                 _fmw_ctl start "$name"; return $?
             elif [ -n "$(_nm_pid)" ]; then

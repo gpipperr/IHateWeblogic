@@ -495,6 +495,34 @@ BEKANNTE PROBLEME UND LOESUNGEN
   Loesung: per POST aufrufen (curl -d / --data-urlencode, Schritt 0.2 /
            4.2)
 
+  Problem: Server startet nicht, im Server-Log steht wiederholt
+           "unable to get file lock, will retry" (BEA-141281); im
+           Verzeichnis $DOMAIN_HOME/servers/<Server>/tmp/ liegt <Server>.lok
+  Ursache: Jeder laufende Server haelt seine Datei <Server>.lok offen. Haengt
+           noch ein alter Java-Prozess dieses Servers (nicht sauber beendet),
+           wartet der neue Start auf die Sperre. Die Datei allein (ohne
+           Prozess) stoert auf einer lokalen Platte nicht
+  Loesung: Zuerst pruefen, ob ein Prozess die Datei haelt:
+
+             fuser -v $DOMAIN_HOME/servers/AdminServer/tmp/AdminServer.lok
+
+           Erwartet bei gestopptem Server: keine Ausgabe. Steht dort ein
+           java-Prozess, diesen Prozess beenden (ps -fp <PID>, kill <PID>,
+           kill -9 nur, wenn er haengt) - NICHT die .lok loeschen, solange
+           ein Prozess sie haelt: der alte Prozess behaelt seine Sperre, und
+           ein zweiter Server koennte auf derselben Domain starten.
+           Ohne Ausgabe darf die Datei zur Seite:
+
+             mv $DOMAIN_HOME/servers/AdminServer/tmp/AdminServer.lok \
+                $DOMAIN_HOME/servers/AdminServer/tmp/AdminServer.lok.stale
+
+           Erwartet: keine Ausgabe. Fuer Managed Server den Namen ersetzen.
+           01-Run/startStop.sh und fmw_ctl.sh (Autostart) machen diese
+           Pruefung vor jedem Start selbst.
+           Nicht verwechseln mit ovd.lok (libOVD-Sperre, Schritt 0.1 / 2):
+           die haelt kein Prozess, sie wird vor jedem AdminServer-Start
+           einfach zur Seite gelegt.
+
   Problem: $DOMAIN_HOME ist leer, wenn man "echo $DOMAIN_HOME" eingibt
   Ursache: neue Sitzung, die Werte der ini sind noch nicht geladen
   Loesung: . /u01/oracle/tools/set_script_env.sh (Schritt 0.0) - die
