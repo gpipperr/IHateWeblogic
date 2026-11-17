@@ -19,6 +19,7 @@ Related:
 - Security: [reports_user_local_ldap.md](reports_user_local_ldap.md) and
   [81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md).
 - Monitoring of the counters: [reports_monitoring_getserverinfo.md](reports_monitoring_getserverinfo.md).
+- Job queue as a database table (`jobStatusRepository`): [reports_job_queue_monitoring.md](reports_job_queue_monitoring.md).
 - Engines: [reports_engine_architecture.md](reports_engine_architecture.md).
 - Read / write directories: [reports_server_image_handling.md](reports_server_image_handling.md).
 

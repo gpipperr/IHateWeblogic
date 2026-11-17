@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Reports job queue in the database** ([reports_job_queue_monitoring.md](80-FMW-Architecture/reports_job_queue_monitoring.md)):
+  `jobStatusRepository` / `RW_SERVER_JOB_QUEUE` on 14.1.2 – setup with minimal rights, csf key, xsd order,
+  `dbconn` for a PDB, status codes and queries; live test: the table mirrors the past queue, orphan rows after
+  restarts, a repository outage kills the Reports server (Node Manager restart loop, jobs lost), silent
+  package errors, `COMMAND_LINE` may contain passwords; old sources (snapdba 2016, Oracle 11g / 12.2.1.x)
+  assessed. Thanks to Jürgen for the setup notes.
 - **New JDK by hand** ([70-Customer-Projects/FormsReports_change_java/](70-Customer-Projects/FormsReports_change_java/README.md)):
   German cookbook – unpack the new Oracle JDK, carry over SecureRandom and own CAs, create / switch the
   version-neutral link, switch domain and Oracle home (23 files on the test host) with vi, check, way back;

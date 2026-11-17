@@ -477,7 +477,8 @@ $DOMAIN_HOME/config/fmwconfig/components/ReportsServerComponent/<instance>/rwser
     <property name="failnotefile" value="failnote.txt"/>
   </notification>
 
-  <!-- jobStatusRepository: keep commented out unless DB repository is required -->
+  <!-- jobStatusRepository: keep commented out unless DB repository is required
+       (setup, rights, risks: 80-FMW-Architecture/reports_job_queue_monitoring.md) -->
   <!--
   <jobStatusRepository class="oracle.reports.server.JobRepositoryDB">
     <property name="dbuser"     value="..."/>
