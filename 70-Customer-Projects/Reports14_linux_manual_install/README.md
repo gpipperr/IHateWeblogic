@@ -1,146 +1,144 @@
 ---
 nav_title: "Reports 14 – manual install"
-title: "Oracle Reports 14.1.2 – manuelle Installation ohne Forms"
-description: "Oracle Reports 14.1.2 ohne Forms auf Oracle Linux 9 von Hand: deutsche Text-Kochbücher für OS, WebLogic, SSL, Reports, Fonts und Start/Stop."
+title: "Oracle Reports 14.1.2 – Manual Install Without Forms"
+description: "Oracle Reports 14.1.2 without Forms on Oracle Linux 9 by hand: German text cookbooks for OS, WebLogic, SSL, Reports, fonts, start/stop, security and patching."
 permalink: /70-Customer-Projects/Reports14_linux_manual_install/
 ---
 
-# Oracle Reports 14.1.2 – manuelle Installation (ohne Forms)
+# Oracle Reports 14.1.2 – manual installation (without Forms)
 
-Kundenspezifische Anleitung für eine reine Oracle-Reports-Installation
-(FMW 14.1.2, WebLogic 14.1.2, Oracle Linux 9), die der Kunde ohne die
-IHateWeblogic-Skripte selbst Schritt für Schritt nachvollziehen kann. Jede
-Datei ist ein eigenständiges, reines Text-Kochbuch mit Copy-paste-Befehlen
-und deutschen Kommentaren.
+Customer-specific guide for a Reports-only installation (FMW 14.1.2,
+WebLogic 14.1.2, Oracle Linux 9) that the customer can follow step by step
+without the IHateWeblogic scripts. Every file is a self-contained plain-text
+cookbook with copy-paste commands and **German** comments.
 
-## Reihenfolge
+## Order
 
-1. [OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) – Betriebssystem vorbereiten:
-   Pakete, Java, oracle-User, Netzwerk-Grundlagen auf Oracle Linux 9;
-   Schritt 9: Firewall und SSH absichern (mit Sicherheitsnetz).
-2. [FMW_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt) – WebLogic/FMW-Infrastruktur
-   installieren, patchen (CPU Oktober 2026: OPatch 13.9.4.2.25, WLS Stack
-   Patch Bundle 40125898, acht FMW-Infrastruktur-Bundles) und
-   SSL-Zertifikat auf Nginx ausrollen.
-3. [SSL_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/SSL_Kochbuch_de.txt) – SSL-Zertifikat erzeugen und
-   prüfen (nur Zertifikatserstellung/-kontrolle, das Ausrollen selbst steht
-   im FMW-Kochbuch).
-4. [Reports_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_kochbuch_de.txt) – Oracle Reports
-   installieren und patchen (Reports-QPR, PERL, OHS-/WebGate-Binaries),
-   RCU-Schema registrieren, WebLogic-Domain anlegen und den Reports-Server
-   konfigurieren (bewusst ohne Forms).
-5. [Font_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) – TrueType-Fonts und den
-   HTML-Parameterformular-Fontpfad für Reports einrichten.
+1. [OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) – prepare the operating system:
+   packages, Java, oracle user, network basics on Oracle Linux 9;
+   step 9: harden firewall and SSH (with a safety net).
+2. [FMW_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt) – install and patch the
+   WebLogic / FMW Infrastructure (CPU October 2026: OPatch 13.9.4.2.25, WLS
+   Stack Patch Bundle 40125898, eight FMW Infrastructure bundles) and roll
+   out the SSL certificate on Nginx.
+3. [SSL_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/SSL_Kochbuch_de.txt) – create and check the SSL
+   certificate (creation and checks only; the rollout is in the FMW
+   cookbook).
+4. [Reports_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_kochbuch_de.txt) – install and patch
+   Oracle Reports (Reports QPR, PERL, OHS / WebGate binaries), register the
+   RCU schema, create the WebLogic domain and configure the Reports server
+   (deliberately without Forms).
+5. [Font_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Font_kochbuch_de.txt) – set up TrueType fonts and the
+   font path of the HTML parameter form for Reports.
 6. [WLS_Report_start_stop_kochbuch.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/WLS_Report_start_stop_kochbuch.txt) –
-   Starten, Stoppen und Statusabfrage der Umgebung im laufenden Betrieb,
-   ohne jede Abhängigkeit zu den IHateWeblogic-Skripten:
-   - **Schritt 0 – Handbetrieb mit den Oracle-Skripten:** Übersicht der
-     Start-/Stop-Skripte, die Oracle in `$DOMAIN_HOME/bin/` mitliefert
+   start, stop and check the environment in daily operation, without any
+   dependency on the IHateWeblogic scripts:
+   - **Step 0 – by hand with the Oracle scripts:** overview of the
+     start / stop scripts Oracle ships in `$DOMAIN_HOME/bin/`
      (`startWebLogic.sh`, `startNodeManager.sh`, `startManagedWebLogic.sh`,
-     `startComponent.sh` und die `stop*`-Gegenstücke). Damit lassen sich
-     AdminServer, Node Manager, Managed Server und Reports Server einzeln
-     starten und in umgekehrter Reihenfolge stoppen – z.B. zur Fehlersuche
-     oder wenn nur eine Komponente neu gestartet werden soll.
-   - **Statusabfrage aller vier Komponenten:** AdminServer und Managed
-     Server über `/weblogic/ready` (HTTP 200), Node Manager über Port 5556
-     und Prozess, Reports Server über den `rwserver`-Prozess und
-     `getserverinfo` (Engine-Status `1` = bereit). Wichtig: `getserverinfo`
-     braucht als `authid` den Server-Administrator aus `<identifier>` in
-     `rwserver.conf`, nicht einen WebLogic-Benutzer.
-   - **Schritt 1–4 – alles auf einmal:** zwei eigene Skripte
-     `start_wls_all.sh` / `stop_wls_all.sh` (in `/u01/oracle/tools`, Werte
-     aus [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini)), die die Umgebung immer
-     komplett in der richtigen Reihenfolge starten bzw. stoppen (das
-     WebLogic-Passwort wird beim Stoppen verdeckt abgefragt und nirgends
-     gespeichert).
-   - **Bekannte Probleme:** u.a. Server stirbt direkt nach dem Start
-     (fehlende `boot.properties`, `BEA-090782`), `REP-52262` bei der
-     Statusabfrage.
+     `startComponent.sh` and their `stop*` counterparts). They start
+     AdminServer, Node Manager, managed server and Reports server one by one
+     and stop them in reverse order – e.g. for troubleshooting or to restart
+     a single component.
+   - **Status of all four components:** AdminServer and managed server via
+     `/weblogic/ready` (HTTP 200), Node Manager via port 5556 and process,
+     Reports server via the `rwserver` process and `getserverinfo` (engine
+     status `1` = ready). Important: `getserverinfo` needs the server
+     administrator from `<identifier>` in `rwserver.conf` as `authid`, not a
+     WebLogic user.
+   - **Steps 1–4 – everything at once:** two own scripts
+     `start_wls_all.sh` / `stop_wls_all.sh` (in `/u01/oracle/tools`, values
+     from [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini)) that always start or stop the
+     whole environment in the right order (the WebLogic password for the
+     stop is asked for hidden and stored nowhere).
+   - **Known problems:** among others the server dies right after the start
+     (missing `boot.properties`, `BEA-090782`), `REP-52262` on the status
+     query, a server lock `<server>.lok` still held by an old process.
 
-   Sobald der Autostart (Punkt 7) eingerichtet ist, wird die Umgebung nur
-   noch über `systemctl start/stop` bedient – die Befehle aus diesem
-   Kochbuch dienen dann nur noch der Fehlersuche.
+   Once the autostart (item 7) is set up, the environment is operated only
+   with `systemctl start/stop` – the commands of this cookbook are then for
+   troubleshooting only.
 7. [Autostart_linux_middleware.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Autostart_linux_middleware.txt) –
-   automatischer Start/Stop beim Hoch- und Herunterfahren des Servers über
-   eine systemd-Unit (wartet auf "RUNNING" statt fester Pausen, Stop ohne
-   Passworteingabe über boot.properties).
+   automatic start / stop at boot and shutdown with a systemd unit (waits
+   for "RUNNING" instead of fixed pauses, stop without a password prompt via
+   `boot.properties`).
 
-8. [Reports_security.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt) – Härtung der fertigen
-   Reports-/WebLogic-Umgebung (nach SSL): Ports/Firewall, Nginx (Header,
-   `/em` nur für Admins, Reports-Verwaltungsbefehle wie `showenv` von außen
-   gesperrt), Kennwort-Richtlinie und Kontosperre, persönliche
-   Admin-Konten, Reports-Benutzer/Rollen/Policies, Reports-Server-
-   Administrator `<identifier>`, `rwservlet.properties`, Dateirechte,
-   Node Manager, sudo, Patchstand, Kennwortwechsel. Benutzer und Rollen
-   jeweils über die Oberfläche (Enterprise Manager) **und** als
-   WLST-Befehle zum Selbst-Eintippen.
+8. [Reports_security.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_security.txt) – hardening of the finished
+   Reports / WebLogic environment (after SSL): ports / firewall, Nginx
+   (headers, `/em` for admins only, Reports administration commands such as
+   `showenv` blocked from outside), password policy and account lockout,
+   personal admin accounts, Reports users / roles / policies, Reports server
+   administrator `<identifier>`, `rwservlet.properties`, file permissions,
+   Node Manager, sudo, patch level, password changes. Users and roles each
+   through the UI (Enterprise Manager) **and** as WLST commands to type in.
 
 9. [Tools_status_logs_kochbuch.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Tools_status_logs_kochbuch.txt) –
-   kleine Betriebs-Skripte aus [`../tools/bash/`](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/tools/bash), abgelegt
-   unter `/u01/oracle/tools` nach dem Fahrplan
+   small operations scripts from [`../tools/bash/`](https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/tools/bash), placed in
+   `/u01/oracle/tools` following
    [../Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
-   (ohne IHateWeblogic-Lib; Werte in [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini);
-   PATH auf die Tools, `wlst` und `domain` setzt `setdb`):
-   - [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) – Zustand in drei Stufen: Ports (`ss`), Prozesse (`ps`,
-     inkl. "gestartet vom Node Manager?" und Anzahl Reports-Engines),
-     Status über `/weblogic/ready` und den Node Manager (WLST mit den
-     gespeicherten storeUserConfig-Zugangsdaten); Rückgabewert 0/1/2.
-   - [`show_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_all_logs.sh) – alle aktuellen Logs der Domain live (`tail -F`).
-   - [`show_errors.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_errors.sh) – nur Fehlerzeilen (`<Error>`, `REP-`, `BEA-`,
-     `JPS-`, Exceptions …), mit `-r` erst die letzten Fehler, dann live.
-   - [`show_log.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_log.sh) – das aktuelle Log einer Komponente (Node Manager,
-     AdminServer, Managed Server, Reports-Server/Engines) per Auswahl-Menü
-     oder direkt (`show_log.sh reports engine`).
-   - `patch_install.ini` + [`set_script_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/set_script_env.sh) – alle Werte dieser
-     Umgebung an einer Stelle (Kochbücher und Tools), mit
-     `. /u01/oracle/tools/set_script_env.sh` in die Sitzung zu laden.
+   (without the IHateWeblogic lib; values in [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini);
+   `setdb` sets the PATH to the tools, `wlst` and `domain`):
+   - [`status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/status.sh) – state in three levels: ports (`ss`), processes (`ps`,
+     incl. "started by the Node Manager?" and number of Reports engines),
+     status via `/weblogic/ready` and the Node Manager (WLST with the stored
+     storeUserConfig credentials); return code 0/1/2.
+   - [`show_all_logs.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_all_logs.sh) – all current logs of the domain live (`tail -F`).
+   - [`show_errors.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_errors.sh) – error lines only (`<Error>`, `REP-`, `BEA-`,
+     `JPS-`, exceptions …), with `-r` first the latest errors, then live.
+   - [`show_log.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/show_log.sh) – the current log of one component (Node Manager,
+     AdminServer, managed server, Reports server / engines) from a menu or
+     directly (`show_log.sh reports engine`).
+   - `patch_install.ini` + [`set_script_env.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/set_script_env.sh) – all values of this
+     environment in one place (cookbooks and tools), loaded into the session
+     with `. /u01/oracle/tools/set_script_env.sh`.
 
 10. [Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt) –
-    eine **bestehende** Reports-Umgebung auf CPU Oktober 2026 (+ Security
-    Alert CVE-2026-91403) heben, wenn der Ausgangsstand unbekannt ist:
-    kompletter Patchsatz, vor jedem Patch Prüfung per `opatch lspatches`,
-    JDK-Wechsel mit Übernahme von `java.security` / `cacerts`, OPatch, SPB
-    per `napply`, acht Infrastruktur-Bundles, PERL, OHS/WebGate (nur
-    Binaries – keine OHS-Instanz), Reports-QPR (Forms-QPR nur optional
-    für einen Scanner, Anhang 12.F mit `libzrc`-Prüfung), Start und Test, Rollback. Download aller Patches in
-    einem Lauf: [patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) mit
+    bring an **existing** Reports environment to CPU October 2026 (+ Security
+    Alert CVE-2026-91403) when the starting level is unknown: complete patch
+    set, a check with `opatch lspatches` before every patch, JDK change with
+    carry-over of `java.security` / `cacerts`, OPatch, SPB via `napply`,
+    eight infrastructure bundles, PERL, OHS / WebGate (binaries only – no
+    OHS instance), Reports QPR (Forms QPR only optional for a scanner,
+    appendix 12.F with the `libzrc` check), start and test, rollback.
+    Download of all patches in one run:
+    [patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) with
     [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
     (`--all`).
 
 11. [Reports_Absicherung_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_Absicherung_kochbuch_de.txt) –
-    nach dem Patch: eine **bestehende**, nur teilweise abgesicherte
-    Reports-Umgebung prüfen und sauber nachziehen – Bestandsaufnahme mit
-    Soll-Werten, Kennwort `cn=Admin` des WebLogic-LDAP (danach
-    Komplett-Neustart, sonst Fehler 49 beim Start der Managed Server),
-    `monUser` / `RepRunner` mit Rollen und Berechtigungen per WLST,
-    Credential Store, `jps-config-jse.xml` auf das LDAP, `<identifier>` und
-    `securityId`, `cgicmd.dat`, JVM-Optionen, das OVD-Problem (EM findet
-    keine Benutzer) mit Umgehungen, Testmatrix und Kennwortwechsel.
+    after the patch: check an **existing**, only partly secured Reports
+    environment and complete it – inventory with target values, password of
+    `cn=Admin` of the WebLogic LDAP (then a full restart, otherwise error 49
+    when the managed servers start), `monUser` / `RepRunner` with roles and
+    permissions via WLST, credential store, `jps-config-jse.xml` to the
+    LDAP, `<identifier>` and `securityId`, `cgicmd.dat`, JVM options, the OVD
+    problem (EM finds no users) with workarounds, test matrix and password
+    changes.
 12. [Reports_Zeitplan_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_Zeitplan_kochbuch_de.txt) –
-    Berichte automatisch per Zeitplan als PDF erzeugen: empfohlen cron +
-    `rwclient.sh cmdfile=` (Kennwörter in einer Datei, PDF mit Datum,
-    Exit-Code ins Journal), als Anhang `SCHEDULE=` im Reports-Server per POST
-    mit `showjobs` / `killjobid`. Wichtig: PDF nur in ein `<write>`-Verzeichnis,
-    keine Unterverzeichnisse (REP-56133). Hintergrund:
+    create reports automatically on a schedule as PDF: recommended cron +
+    `rwclient.sh cmdfile=` (passwords in a file, PDF with date, exit code to
+    the journal), as an appendix `SCHEDULE=` in the Reports server via POST
+    with `showjobs` / `killjobid`. Important: PDF only into a `<write>`
+    directory, no subdirectories (REP-56133). Background:
     [reports_job_handling.md](../../80-FMW-Architecture/reports_job_handling.md).
 
-## Download-Checkliste (Vorbereitung)
+## Download checklist (preparation)
 
-Alles vor dem Installationstermin herunterladen und in das Patch-Verzeichnis
-legen (`/u01/oracle/patch_storage`, Aufbau wie in
-[OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) Schritt 7: `wls/`, `fr/`,
-`patches/<nummer>/`). Stand **CPU Oktober 2026** – vor dem Download in MOS
-KA1182 prüfen, ob sich Nummern geändert haben. Bei MOS-Patches die
-Plattform beachten: **Generic** = ein ZIP für alle Plattformen, sonst
-**Linux x86-64** (getMOSPatch: Plattform `226P`). Dateinamen und Größen:
-Download auf dem Testsystem vom 26.10.2026.
+Download everything before the installation date and put it into the patch
+directory (`/u01/oracle/patch_storage`, layout as in
+[OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) step 7: `wls/`, `fr/`,
+`patches/<number>/`). State **CPU October 2026** – check in MOS KA1182
+before the download whether numbers have changed. Mind the platform of MOS
+patches: **Generic** = one ZIP for all platforms, otherwise **Linux x86-64**
+(getMOSPatch: platform `226P`). File names and sizes: download on the test
+system on 2026-10-26.
 
 **a) Oracle Software Delivery Cloud** (edelivery.oracle.com)
 
-- [ ] `V1045135-01.zip` – FMW Infrastructure 14.1.2.0.0 · 2,1 GB · nach `wls/` · FMW Schritt 1
-- [ ] `V1045121-01.zip` – Forms and Reports 14.1.2.0.0 Linux x86-64 · 1,3 GB · nach `fr/` · Reports Schritt 1
+- [ ] `V1045135-01.zip` – FMW Infrastructure 14.1.2.0.0 · 2.1 GB · to `wls/` · FMW step 1
+- [ ] `V1045121-01.zip` – Forms and Reports 14.1.2.0.0 Linux x86-64 · 1.3 GB · to `fr/` · Reports step 1
 
-Prüfsummen (SHA-256, nach dem Download mit `sha256sum` vergleichen):
+Checksums (SHA-256, compare with `sha256sum` after the download):
 
 ```
 V1045135-01.zip  1AAE35167BDED101E7194AA3D75C26B292010035A36C289A3F90B663D84E68BD
@@ -149,72 +147,72 @@ V1045121-01.zip  01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175
 
 **b) My Oracle Support – Java**
 
-- [ ] **35702194** `p35702194_2100_Linux-x86-64.zip` – Oracle JDK 21 · 539 MB · OS Schritt 4
-  (im ZIP prüfen: `jdk-21.0.13.0.2_linux-x64_bin.tar.gz` oder neuer)
+- [ ] **35702194** `p35702194_2100_Linux-x86-64.zip` – Oracle JDK 21 · 539 MB · OS step 4
+  (check in the ZIP: `jdk-21.0.13.0.2_linux-x64_bin.tar.gz` or newer)
 
-**c) My Oracle Support – WebLogic / FMW Infrastructure** (alle *Generic*)
+**c) My Oracle Support – WebLogic / FMW Infrastructure** (all *Generic*)
 
-- [ ] **40125898** `p40125898_141200_Generic.zip` – WLS Stack Patch Bundle 14.1.2.0.261007 · 2,8 GB · FMW Schritt 3.2/3.3
-  (enthält OPatch 13.9.4.2.25 – kein eigener Download von 28186730 nötig)
-- [ ] **40050062** `p40050062_141200_Generic.zip` – ADF Bundle · 22 MB · FMW Schritt 3.4
-- [ ] **40035984** `p40035984_141200_Generic.zip` – WebCenter Core Bundle · 80 MB · FMW Schritt 3.4
-- [ ] **40024749** `p40024749_141200_Generic.zip` – OWSM Bundle · 5,4 MB · FMW Schritt 3.4
-- [ ] **39995927** `p39995927_141200_Generic.zip` – FMW Control (EM) Bundle · 13 MB · FMW Schritt 3.4
-- [ ] **40057999** `p40057999_141200_Generic.zip` – OAMCLIENT Bundle · 2,4 MB · FMW Schritt 3.4
-- [ ] **39940047** `p39940047_141200_Generic.zip` – UMS Bundle · 4,5 MB · FMW Schritt 3.4
-- [ ] **39979746** `p39979746_141200_Generic.zip` – OPSS Bundle · 1,5 MB · FMW Schritt 3.4
-- [ ] **39726399** `p39726399_141200_Generic.zip` – LibOVD Bundle · 0,5 MB · FMW Schritt 3.4
+- [ ] **40125898** `p40125898_141200_Generic.zip` – WLS Stack Patch Bundle 14.1.2.0.261007 · 2.8 GB · FMW step 3.2/3.3
+  (contains OPatch 13.9.4.2.25 – no separate download of 28186730 needed)
+- [ ] **40050062** `p40050062_141200_Generic.zip` – ADF bundle · 22 MB · FMW step 3.4
+- [ ] **40035984** `p40035984_141200_Generic.zip` – WebCenter Core bundle · 80 MB · FMW step 3.4
+- [ ] **40024749** `p40024749_141200_Generic.zip` – OWSM bundle · 5.4 MB · FMW step 3.4
+- [ ] **39995927** `p39995927_141200_Generic.zip` – FMW Control (EM) bundle · 13 MB · FMW step 3.4
+- [ ] **40057999** `p40057999_141200_Generic.zip` – OAMCLIENT bundle · 2.4 MB · FMW step 3.4
+- [ ] **39940047** `p39940047_141200_Generic.zip` – UMS bundle · 4.5 MB · FMW step 3.4
+- [ ] **39979746** `p39979746_141200_Generic.zip` – OPSS bundle · 1.5 MB · FMW step 3.4
+- [ ] **39726399** `p39726399_141200_Generic.zip` – LibOVD bundle · 0.5 MB · FMW step 3.4
 
-**d) My Oracle Support – Reports-Home** (Plattform *Linux x86-64*)
+**d) My Oracle Support – Reports home** (platform *Linux x86-64*)
 
-- [ ] **39600348** `p39600348_141200_Linux-x86-64.zip` – Reports-QPR 14.1.2 · 0,5 MB · Reports Schritt 2
-- [ ] **39951765** `p39951765_141200_Linux-x86-64.zip` – PERL SPU (ersetzt 38590500) · 29 MB · Reports Schritt 2
-- [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS Bundle (nur Binaries) · 17 MB · Reports Schritt 2
-- [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate Bundle (nur Binaries) · 21 MB · Reports Schritt 2
+- [ ] **39600348** `p39600348_141200_Linux-x86-64.zip` – Reports QPR 14.1.2 · 0.5 MB · Reports step 2
+- [ ] **39951765** `p39951765_141200_Linux-x86-64.zip` – PERL SPU (replaces 38590500) · 29 MB · Reports step 2
+- [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS bundle (binaries only) · 17 MB · Reports step 2
+- [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate bundle (binaries only) · 21 MB · Reports step 2
 
-Nicht nötig: Forms-QPR 39842516 (reine Reports-Installation, kein Forms im
-Einsatz) – im Patch-Kochbuch (Punkt 10) nur noch als optionaler Anhang 12.F,
-falls ein Schwachstellen-Scanner die Forms-Binaries im Home anmahnt. Optional:
-One-off 38936596 nur bei hebräischer Klammer-Darstellung
+Not needed: Forms QPR 39842516 (Reports-only installation, no Forms in use)
+– in the patch cookbook (item 10) only as optional appendix 12.F, in case a
+vulnerability scanner flags the Forms binaries in the home. Optional:
+one-off 38936596 only for the Hebrew parenthesis display
 (`REPORTS_BIDIPARENTHESIS=YES`).
 
-**e) Aus den Oracle-Linux-Repositories** (kein Download vorab, `dnf` am
-Termin): Betriebssystem-Pakete, Nginx und `ca-certificates`
-([OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) Schritte 2–3 und 8).
-Optional für den MOS-Download per Kommandozeile:
-[getMOSPatch.jar](https://github.com/MarisElsins/getMOSPatch) (OS-Kochbuch
-Schritt 7) – oder alle MOS-Patches in einem Lauf mit
-[tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) und
-einer CSV-Liste (Vorlage:
-[patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) – kompletter Satz, mit `--all`
-auch die optionalen Zeilen: Forms-QPR für Anhang 12.F, JDK-Ersatz 40186074).
+**e) From the Oracle Linux repositories** (no download in advance, `dnf` on
+the day): operating system packages, Nginx and `ca-certificates`
+([OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) steps 2–3 and 8).
+Optional for the MOS download on the command line:
+[getMOSPatch.jar](https://github.com/MarisElsins/getMOSPatch) (OS cookbook
+step 7) – or all MOS patches in one run with
+[tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) and
+a CSV list (template:
+[patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) – complete set, with `--all`
+also the optional rows: Forms QPR for appendix 12.F, JDK replacement 40186074).
 
-**Summe:** ca. 7 GB. Liegen für eine Patch-Nummer mehrere Varianten vor,
-nur die für 14.1.2 und Linux x86-64 bzw. Generic verwenden. Die gleiche
-Liste für die Windows-Builder-Umgebung (andere Plattform-ZIPs):
+**Total:** about 7 GB. If there are several variants for one patch number,
+use only the one for 14.1.2 and Linux x86-64 or Generic. The same list for
+the Windows Builder environment (other platform ZIPs):
 [ReportBuilder_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_de.txt)
-(englisch: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_en.txt)).
+(English: [ReportBuilder_Windows_Kochbuch_en.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/14-ReportsBuilder/ReportBuilder_Windows_Kochbuch_en.txt)).
 
-## Entwicklungsumgebung (Reports Builder)
+## Development environment (Reports Builder)
 
-Der Reports Builder für diesen Server läuft auf einem eigenen Windows Server
-(Entwickler per RDP) – Analyse und Kochbuch:
+The Reports Builder for this server runs on its own Windows server
+(developers via RDP) – analysis and cookbook:
 [14-ReportsBuilder/](../../14-ReportsBuilder/README.md)
-(seit 2026-11-13 ein eigener Hauptordner der Bibliothek).
+(a main folder of the library since 2026-11-13).
 
-## Patchstand
+## Patch level
 
-Alle Kochbücher stehen auf **CPU Oktober 2026** (+ Security Alert
-CVE-2026-91403), auf dem Testsystem am 24.10.2026 eingespielt und
-getestet; Nachträge vom 26.10.2026: Nginx entfernt vom Client
-mitgeschickte WebLogic-Header, `weblogic-plugin-enabled` auch am
-AdminServer, eMudhra-Vorfall (`ca-certificates`, Java-Truststore). Den
-jeweils aktuellen Stand und die Historie führt
-`IHateWeblogic/09-Install/docs/00-patch-references.md`; Oracle liefert
-inzwischen monatlich – vor jeder Installation in MOS KA1182 prüfen.
+All cookbooks are at **CPU October 2026** (+ Security Alert
+CVE-2026-91403), applied and tested on the test system on 2026-10-24;
+additions of 2026-10-26: Nginx removes WebLogic headers sent by the client,
+`weblogic-plugin-enabled` also on the AdminServer, eMudhra incident
+(`ca-certificates`, Java trust store). The current state and the history are
+kept in
+[09-Install/docs/00-patch-references.md](../../09-Install/docs/00-patch-references.md);
+Oracle now ships monthly – check MOS KA1182 before every installation.
 
-## Hinweis
+## Note
 
-Die externe Datenbank wird in keinem dieser Kochbücher angelegt – sie
-läuft nicht auf dieser Maschine und wird von einem anderen Team betrieben;
-es werden nur Schemas in einer bereits bestehenden Datenbank registriert.
+The external database is not created in any of these cookbooks – it does
+not run on this machine and is operated by another team; only schemas are
+registered in an existing database.

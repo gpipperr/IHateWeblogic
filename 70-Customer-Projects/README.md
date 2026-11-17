@@ -53,7 +53,7 @@ paths, "Expected" output under each command, rollback in every step.
 
 ## Available Walkthroughs
 
-### Oracle Reports 14.1.2 – Manual Install (German)
+### Oracle Reports 14.1.2 – Manual Install (German cookbooks)
 
 → [Reports14_linux_manual_install/README.md](Reports14_linux_manual_install/README.md)
 

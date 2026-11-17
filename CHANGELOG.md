@@ -10,6 +10,7 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Reports14_linux_manual_install README in English** ([README](70-Customer-Projects/Reports14_linux_manual_install/README.md)), the cookbooks stay German; known problem `<server>.lok` added to item 6, patch-references path as link.
 - **New architecture page: Reports error analysis and trace levels** ([reports_error_trace.md](80-FMW-Architecture/reports_error_trace.md)):
   which log holds the cause, ODL levels vs the old `TRACE_*` options (Oracle Table 24-3), where the level is
   set per component, `TRACE:32` step by step with measured volume. Live 2026-11-17: `<trace>` in
