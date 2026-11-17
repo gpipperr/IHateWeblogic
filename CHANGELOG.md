@@ -8,6 +8,12 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-17
+
+- **domain_jdk_path.sh** also scans the text scripts directly in `$ORACLE_HOME/bin`: the installer pins
+  `JAVA_HOME` to the versioned JDK there too (`aqxmlctl`, found on the test host – no Forms / Reports start
+  path, the domain and `oui/` were already on the link).
+
 ## 2026-11-16
 
 - **Architecture data in the collector** (`collect_fmw_env.sh` 2026-11-16.7, `.ps1` 2026-11-16.8, `ihw_tools_lib`

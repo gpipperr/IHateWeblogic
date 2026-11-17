@@ -210,7 +210,8 @@ the first start (`DomainsFile`, `StartScriptEnabled`, `CrashRecoveryEnabled`,
 (`config/fmwconfig/components/FORMS/instances/*/bin/*.sh`) and `init-info/*`
 (the templates `updateDomain` regenerates the scripts from). The FMW installer
 does the same in `$ORACLE_HOME/oui/.globalEnv.properties` (JAVA_HOME of
-`wlst.sh`, OPatch) and `oui/bin/*.sh`. A JDK upgrade that only switches the
+`wlst.sh`, OPatch), `oui/bin/*.sh` and scripts in `$ORACLE_HOME/bin` such as
+`aqxmlctl` (found 2026-11-17). A JDK upgrade that only switches the
 symlink (`02b-root_os_java.sh --upgrade-jdk`) would then not reach the domain
 (found 2026-10-15).
 

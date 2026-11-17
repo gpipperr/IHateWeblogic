@@ -8,7 +8,9 @@
 #            symlink and write the real directory into setDomainEnv.sh,
 #            setNMJavaHome.sh, nodemanager.properties, the Forms instance
 #            scripts, init-info/* (templates updateDomain regenerates from)
-#            and oui/.globalEnv.properties (JAVA_HOME of wlst.sh/OPatch).
+#            and oui/.globalEnv.properties (JAVA_HOME of wlst.sh/OPatch);
+#            the installer also pins scripts in $ORACLE_HOME/bin (e.g.
+#            aqxmlctl, found 2026-11-17).
 #            A JDK upgrade that only switches the symlink
 #            (02b-root_os_java.sh --upgrade-jdk) would then not take effect.
 #            Run after 08 (called there), after every updateDomain / Config
@@ -90,8 +92,9 @@ PIN_RE="$(_esc "$JDK_HOME")[._][0-9][0-9._]*[0-9]"
 section "Files with a versioned JDK path"
 
 # Domain: everything except logs, server runtime dirs and our own backups.
-# Oracle Home: only oui/ (JAVA_HOME of wlst.sh, OPatch, installer) – the
-# inventory clone description is history, not configuration.
+# Oracle Home: oui/ (JAVA_HOME of wlst.sh, OPatch, installer) and the text
+# scripts directly in bin/ (installer writes JAVA_HOME there too, e.g.
+# aqxmlctl) – the inventory clone description is history, not configuration.
 _find_pinned() {
     if [ -n "${DOMAIN_HOME:-}" ] && [ -d "$DOMAIN_HOME" ]; then
         grep -rIlE "$PIN_RE" "$DOMAIN_HOME" \
@@ -102,6 +105,11 @@ _find_pinned() {
     if [ -n "${ORACLE_HOME:-}" ] && [ -d "$ORACLE_HOME/oui" ]; then
         grep -rIlE "$PIN_RE" "$ORACLE_HOME/oui/.globalEnv.properties" "$ORACLE_HOME/oui/bin" \
             --exclude='*.bak*' 2>/dev/null
+    fi
+    if [ -n "${ORACLE_HOME:-}" ] && [ -d "$ORACLE_HOME/bin" ]; then
+        # top level of bin/ only, text files only (-I skips the binaries)
+        find "$ORACLE_HOME/bin" -maxdepth 1 -type f ! -name '*.bak*' -print0 2>/dev/null \
+            | xargs -0 -r grep -IlE "$PIN_RE" 2>/dev/null
     fi
 }
 

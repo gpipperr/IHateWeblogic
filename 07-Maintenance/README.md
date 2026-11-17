@@ -42,7 +42,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | [`bak_cleanup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/bak_cleanup.sh) | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
 | [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) | ✅ implemented | Java/OS layer — [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh); `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) check |
 | [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
-| [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
+| [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` + `bin/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
 | [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
 
@@ -159,7 +159,8 @@ WLST `createDomain` / `updateDomain` (and the Config Wizard) resolve the
 `JDK_HOME` symlink and write the versioned JDK directory into
 `setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, the Forms
 instance scripts and `init-info/*`; the installer into
-`$ORACLE_HOME/oui/.globalEnv.properties` and `oui/bin/*.sh`. A JDK upgrade
+`$ORACLE_HOME/oui/.globalEnv.properties`, `oui/bin/*.sh` and text scripts directly in
+`$ORACLE_HOME/bin` (e.g. `aqxmlctl`, found 2026-11-17). A JDK upgrade
 that only repoints the symlink would not reach WebLogic. Matches `JDK_HOME`
 followed by a version suffix and the current symlink target; skips logs,
 `servers/` and backups. Backup: `ConfigBackup/jdk_path_<ts>/` with the original
