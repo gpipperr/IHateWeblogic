@@ -73,7 +73,7 @@ This page is about the `jobStatusRepository` only.
   queue (`<queue maxQueueSize>`, default 1000, library 4000) is deleted from
   the table too (`RW_SERVER.remove_job`). With `maxQueueSize="100"` and 112
   new jobs exactly the newest 100 rows stayed. The table is therefore **no
-  long-term history** – see 5.3.
+  long-term history** – who deletes what and how to keep a history: 4a.
 - **Not back-filled:** jobs that were already in the `.dat` before the element
   was activated do not appear in the table.
 - **Which `rwserver.conf`:**
@@ -325,6 +325,135 @@ SELECT job_id, job_name, status_code, queued
    AND queued < SYSDATE - 30/1440;
 ```
 
+## 4a. Who deletes rows from the table – and how it is set
+
+The table is not a log that only grows. The Reports Server **deletes rows
+itself**, and it is the only regular writer. All deletes go through the
+package of the schema; the server never reads the table (the package has no
+read function), so deleting rows yourself never touches a job of the server.
+
+### 4a.1 Who deletes what
+
+| Who | When | What happens to the rows | Controlled by |
+|---|---|---|---|
+| **Reports Server** → `RW_SERVER.remove_job(job_id, server)` | a job changes its queue – e.g. the scheduled parent job expires | the old row is deleted, the new state inserted (live: parent 128 `Scheduled` → `Past`, status 15) | nothing – part of the design |
+| **Reports Server** → `RW_SERVER.remove_job` | the past queue holds more finished jobs than `maxQueueSize` – the oldest job leaves the queue | the row of that job is deleted **at once** (live: `maxQueueSize="100"`, 112 new jobs → exactly the newest 100 rows left) | `<queue maxQueueSize="…"/>` in `rwserver.conf` (4a.2) |
+| nobody | the server drops past jobs while it reads the `.dat` at a start (after `maxQueueSize` was lowered) | the rows **stay** as orphans (live: 6 rows) | clean up yourself (4a.4) |
+| `RW_SERVER.clean_up_queue` | only when somebody calls it – the server did not call it at a restart (live) | `TRUNCATE TABLE` – **all** rows, no trigger fires, no undo | never call it on a table in use |
+| `rw_server.sql` run again | by hand | `DROP` of table, view, `RW_JOBS`, sequence – everything | run the script once (5.4) |
+| your own job | as you define it | e.g. archive and delete old rows | `DBMS_SCHEDULER` job (4a.3, 4a.4) |
+
+So the table always holds **at most the last `maxQueueSize` finished jobs
+per Reports server**, plus the current and scheduled ones, plus possible
+orphans.
+
+### 4a.2 The setting: `<queue maxQueueSize>`
+
+```xml
+   <queue maxQueueSize="4000"/>
+```
+
+- **Where:** `rwserver.conf` of the Reports server (path as in section 2),
+  after `connection` / `ORBPorts`, before `folderAccess` (xsd order, 3.4).
+- **Default:** 1000 when the element is missing; **minimum 100**
+  (`rwserverconf.xsd`). The library's template sets 4000
+  (`13-oracle_setup_reports.sh`).
+- **Scope:** only the queue of **finished** jobs (`Past`). Oracle: "This
+  element is applicable only to the completed job queue … The scheduled job
+  queue and the in-progress job queue remain unaffected"
+  ([12.2.1.3, 7.2.1.20 queue](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm)).
+- **When it takes effect:** read at the start of the Reports server – change
+  it, then restart the Reports server.
+- **What else it limits** – the same queue feeds:
+  - the job counters of `getserverinfo` (`successfulJobs` / `failedJobs` are
+    computed from the persisted past queue,
+    [reports_monitoring_getserverinfo.md](reports_monitoring_getserverinfo.md));
+  - `showjobs queuetype=past`;
+  - the size of the `.dat` file;
+  - Oracle warns that the Reports Queue Manager (`rwrqm`) may fail above 3000.
+- **How to choose it:** jobs per day × days of history you want to see in the
+  table. Example: 2,000 jobs a day and `maxQueueSize="4000"` = about two days.
+  For longer history do not raise the queue into the tens of thousands –
+  archive instead (4a.3).
+- **Lowering it** makes the server drop the oldest past jobs at the next
+  start without deleting their rows → orphans (4a.4).
+
+### 4a.3 Keeping a history: archive before the server deletes
+
+Because the server deletes the rows itself, an archive must catch them
+**before** the delete – a trigger on the table. Tested 2026-11-17 in the
+repository schema (rows inserted and removed through `RW_SERVER.insert_job` /
+`remove_job`, the same calls the Reports server makes): the removed row
+arrived in the archive.
+
+```sql
+CREATE TABLE rw_jobq_archive AS
+  SELECT q.*, SYSDATE archived FROM rw_server_job_queue q WHERE 1 = 0;
+
+CREATE OR REPLACE TRIGGER rw_jobq_archive_trg
+  BEFORE DELETE ON rw_server_job_queue
+  FOR EACH ROW
+  WHEN (OLD.job_queue = 'Past')
+BEGIN
+  INSERT INTO rw_jobq_archive VALUES (
+    :OLD.job_queue, :OLD.job_id, :OLD.job_type, :OLD.job_name, :OLD.status_code,
+    :OLD.status_message, :OLD.command_line, :OLD.owner, :OLD.destype, :OLD.desname,
+    :OLD.server, :OLD.queued, :OLD.started, :OLD.finished, :OLD.run_elapse,
+    :OLD.total_elapse, :OLD.last_run, :OLD.next_run, :OLD.repeat_interval,
+    :OLD.repeat_pattern, :OLD.cache_key, :OLD.cache_hit, SYSDATE);
+END;
+/
+```
+
+- Only `Past` rows are archived – the replaced `Scheduled` rows are not
+  history.
+- **An error in the trigger makes `remove_job` fail – silently** (5.2), and
+  the row stays in the queue table. Keep the trigger simple and the archive
+  tablespace with enough quota.
+- `TRUNCATE` (`clean_up_queue`) fires no trigger – one more reason never to
+  call it.
+- `COMMAND_LINE` goes into the archive as well (passwords in the request,
+  5.5) – same access rules as the queue table, or leave the column out
+  (`NULL` in the trigger).
+- The archive grows without limit: delete old rows with an own scheduler
+  job, e.g. every night:
+
+```sql
+BEGIN
+  DBMS_SCHEDULER.CREATE_JOB(
+    job_name        => 'RW_JOBQ_ARCHIVE_PURGE',
+    job_type        => 'PLSQL_BLOCK',
+    job_action      => 'BEGIN DELETE FROM rw_jobq_archive WHERE archived < SYSDATE - 400; COMMIT; END;',
+    repeat_interval => 'FREQ=DAILY;BYHOUR=3',
+    enabled         => TRUE);
+END;
+/
+```
+
+  (needs `CREATE JOB` for the schema; 400 days = one year plus a margin –
+  set it to what the customer needs to keep.)
+
+### 4a.4 Removing orphan rows
+
+Orphans are `Past` rows the server no longer knows. They disturb counts but
+do no harm – the server never reads the table. Two ways:
+
+- **By age** (simple, safe): delete `Past` rows older than the history the
+  queue can hold anyway, e.g. older than 30 days when the queue covers two
+  days:
+
+```sql
+DELETE FROM rw_server_job_queue
+ WHERE job_queue = 'Past' AND queued < SYSDATE - 30;
+```
+
+- **Exactly:** keep the newest `maxQueueSize` `Past` rows per server, delete
+  the rest – only valid as long as the job ids of the server keep growing
+  (a new `.dat` starts the ids again).
+
+With the archive trigger of 4a.3 the deleted orphans land in the archive too
+– which is usually what you want.
+
 ## 5. What to watch out for
 
 ### 5.1 The repository database is a dependency of the Reports server
@@ -356,23 +485,25 @@ the repository database:
 Every function of `RW_SERVER` ends with
 `EXCEPTION WHEN OTHERS THEN RETURN (SQLCODE)`. A full tablespace, a missing
 quota or a value too long for a column (`OWNER VARCHAR2(30)`,
-`SERVER VARCHAR2(80)`) is not reported to the Reports server as an error –
-the row is simply missing, the report runs anyway. Check now and then that
+`SERVER VARCHAR2(80)`) is not raised – the function only returns the error
+code, the row is simply missing, the report runs anyway. Tested 2026-11-17:
+`insert_job` with a 40-character owner returned `-12899` (ORA-12899 value too
+large) and wrote no row; whether the Reports server logs such a code was not
+seen. Check now and then that
 the number of rows of the day matches `successfulJobs` + `failedJobs` of
 `getserverinfo` ([reports_monitoring_getserverinfo.md](reports_monitoring_getserverinfo.md)).
 
 ### 5.3 No long-term history, orphan rows
 
-- The table holds at most the past queue (`maxQueueSize`) per Reports server
-  (section 2). For statistics over months copy the rows into an own
-  archive table – a scheduler job (`INSERT ... SELECT` of new `Past` rows) or a
-  trigger on insert. The snapdba article calls the table "self-housekeeping";
-  that is right, and it is exactly why the history disappears.
+- The table holds at most the past queue (`maxQueueSize`) per Reports server.
+  For statistics over months archive the rows before the server deletes
+  them – tested trigger in 4a.3. The snapdba article calls the table
+  "self-housekeeping"; that is right, and it is exactly why the history
+  disappears.
 - **Orphans:** when the server drops past jobs at a start (e.g. after
   `maxQueueSize` was lowered) their rows stay in the table (live: 6 rows
   remained after the restart with `maxQueueSize="100"`). Harmless, but they
-  disturb counts – delete rows older than the oldest job of the past queue
-  now and then.
+  disturb counts – remove them as in 4a.4.
 - `RW_SERVER.clean_up_queue` is a `TRUNCATE TABLE` of the whole table. It was
   not called at a restart in the test; never run it on a table that is used
   for monitoring.
@@ -432,7 +563,7 @@ Usually it goes into the database of the application.
 
 | Source | Still right | To correct for 14.1.2 |
 |---|---|---|
-| [snapdba, 2016](https://www.snapdba.com/2016/10/configuring-oracle-reports-server-job-queue-monitoring/) (11gR2) | idea, `rw_server.sql`, csf key in the map `reports`, Enterprise Manager setting "Enable Job Status Repository DB", status queries | `GRANT RESOURCE` too wide (3.1); `dbconn` as `host:port:SID` – for a PDB `host:port/service`; "restart WLS_REPORTS" – the standalone Reports server must be restarted; "self-housekeeping" = history limited to `maxQueueSize` (5.3); `.dat` path now `$DOMAIN_HOME/reports/server/` |
+| [snapdba, 2016](https://www.snapdba.com/2016/10/configuring-oracle-reports-server-job-queue-monitoring/) (11gR2) | idea, `rw_server.sql`, csf key in the map `reports`, Enterprise Manager setting "Enable Job Status Repository DB", status queries | `GRANT RESOURCE` too wide (3.1); `dbconn` as `host:port:SID` – for a PDB `host:port/service`; "restart WLS_REPORTS" – the standalone Reports server must be restarted; "self-housekeeping" = history limited to `maxQueueSize` (4a); `.dat` path now `$DOMAIN_HOME/reports/server/` |
 | [Oracle 11.1.1, 8.2.1.12](https://docs.oracle.com/cd/E21764_01/bi.1111/b32121/pbr_conf002.htm#i1006647) and [12.2.1.3, 7.2.1.11](https://docs.oracle.com/middleware/12213/formsandreports/use-reports/pbr_conf002.htm) | element, default class, properties as name/value pairs, `dbconn` note | example `value=csf:reports:"<dbkey>"` is not well-formed XML; the text still names `repositoryconn` |
 | [Oracle 12.2.1.2, 24.3.6](https://docs.oracle.com/middleware/12212/formsandreports/use-reports/pbr_tune003.htm) | table, status codes, count query, `rwserver.conf` paths standalone / in-process | "certified to work against Oracle 10g database" – works against 19c (test host); setup step names `repositoryconn` |
 | setup notes from a customer project (Jürgen) | order of the steps: schema, `rw_server.sql`, csf key, element, restart | `CREATE ANY TRIGGER` → `CREATE TRIGGER`; add `CREATE SEQUENCE`; keep passwords out of notes files |
