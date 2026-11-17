@@ -10,6 +10,11 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Clones: rescue image of the old machine-id out of `/boot`** ([FormsReports14_linux_clone](70-Customer-Projects/FormsReports14_linux_clone/README.md),
+  [forms_reports_sizing.md](docs/forms_reports_sizing.md#os-disk-layout--boot-3-gb-not-the-installer-default)): a VM clone carries the
+  template's rescue image (~90 MB); after the new machine-id the next kernel update builds a second one and
+  the old one stays – clone cookbook step 4.5 remembers the old id and removes it, or `dracut_rescue_image="no"`
+  in the template.
 - **Disk sizing: OS layout with `/boot` 3 GB** ([forms_reports_sizing.md](docs/forms_reports_sizing.md#os-disk-layout--boot-3-gb-not-the-installer-default)):
   the installer default 1 GiB (960 MB usable) holds about three kernels; measured per kernel (UEK ≈ 100 MB
   with kdump, RHCK ≈ 60 MB), `installonly_limit` counts UEK and RHCK separately, update peak; recommended

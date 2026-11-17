@@ -327,7 +327,8 @@ STEP 4: Linux - identity of the clone  (as root on the clone, domain stopped)
 ================================================================================
 
   # Has the VM team already set host name and IP (cloud-init,
-  # virt-sysprep)? Then only check (4.5) and continue with step 5.
+  # virt-sysprep)? Then only 4.5 (/boot rescue image - the new machine ID
+  # came from the VM team) and the check 4.6, then step 5.
 
   ----------------------------------------------------------------------------
   4.1 Host name
@@ -365,6 +366,13 @@ STEP 4: Linux - identity of the clone  (as root on the clone, domain stopped)
   4.4 New machine ID and SSH host keys
   ----------------------------------------------------------------------------
 
+  OLD_ID=$(cat /etc/machine-id)
+
+  echo "OLD_ID=$OLD_ID"
+  # The machine ID of the source - needed in 4.5 for the old rescue image.
+
+  echo "$OLD_ID" > /root/clone_old_machine_id.txt
+
   rm -f /etc/machine-id
 
   systemd-machine-id-setup
@@ -377,7 +385,53 @@ STEP 4: Linux - identity of the clone  (as root on the clone, domain stopped)
   systemctl restart sshd
 
   ----------------------------------------------------------------------------
-  4.5 Check
+  4.5 /boot: remove the rescue image of the old machine ID
+  ----------------------------------------------------------------------------
+
+  # The clone carries the rescue image of the source (about 90 MB:
+  # initramfs-0-rescue-<id>.img + vmlinuz-0-rescue-<id>). At the next kernel
+  # update dracut builds a second one for the NEW machine ID - the old one is
+  # never removed, and the default /boot of about 960 MB runs full
+  # (forms_reports_sizing.md, OS disk layout).
+
+  OLD_ID=$(cat /root/clone_old_machine_id.txt)
+
+  echo "OLD_ID=$OLD_ID NEW_ID=$(cat /etc/machine-id)"
+  # Both set and different? Otherwise STOP - back to 4.4.
+
+  ls -l /boot/*0-rescue-${OLD_ID}* /boot/loader/entries/${OLD_ID}-0-rescue.conf
+  # Expected e.g.:
+  #   /boot/initramfs-0-rescue-<old-id>.img   ~ 76 MB
+  #   /boot/vmlinuz-0-rescue-<old-id>          ~ 13 MB
+  #   /boot/loader/entries/<old-id>-0-rescue.conf
+  # "No such file" for all three -> nothing to do, continue with 4.6.
+
+  rm -f /boot/initramfs-0-rescue-${OLD_ID}.img
+
+  rm -f /boot/vmlinuz-0-rescue-${OLD_ID}
+
+  rm -f /boot/loader/entries/${OLD_ID}-0-rescue.conf
+
+  df -h /boot
+  # Expected: about 90 MB more free than before.
+
+  # Optional - no rescue image at all on this host (and on later clones of
+  # it): dracut builds it only with dracut_rescue_image="yes" (default of
+  # the package dracut-config-rescue). Check first:
+
+  grep -rn dracut_rescue_image /etc/dracut.conf.d/
+  # No output -> the default "yes" applies.
+
+  vi /etc/dracut.conf.d/02-rescue.conf
+  # new file with this one line:
+
+dracut_rescue_image="no"
+
+  cat /etc/dracut.conf.d/02-rescue.conf
+  # Expected: dracut_rescue_image="no"
+
+  ----------------------------------------------------------------------------
+  4.6 Check
   ----------------------------------------------------------------------------
 
   hostname -f

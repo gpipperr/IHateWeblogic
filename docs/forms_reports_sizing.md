@@ -96,6 +96,18 @@ dnf remove --oldinstallonly --setopt installonly_limit=2 kernel-uek
   updates.
 - Check `df -h /boot` before every `dnf update`: at least 300 MB free.
 
+**Cloned VMs: the rescue image of the source.** A VM clone carries the
+rescue image of the template (`initramfs-0-rescue-<machine-id>.img` +
+`vmlinuz-0-rescue-…`, about 90 MB – 77 + 13 MB on the test host). Once the
+clone has its own machine-id, the next kernel update builds a **second**
+rescue image for the new ID; the old one stays. That alone can fill a 960 MB
+`/boot`. So:
+- in the template: delete the rescue image, or switch it off with
+  `dracut_rescue_image="no"` in `/etc/dracut.conf.d/02-rescue.conf`;
+- in the clone workflow: after the new machine-id remove
+  `/boot/*0-rescue-<old-id>*` and `/boot/loader/entries/<old-id>-0-rescue.conf`
+  ([clone cookbook step 4.5](../70-Customer-Projects/FormsReports14_linux_clone/README.md)).
+
 Rules:
 
 - Check free space **before** every patch run. [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) and [`09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh) check it first and stop on FAIL; the FMW patch scripts `81-` / `82-` need the SPB workspace.

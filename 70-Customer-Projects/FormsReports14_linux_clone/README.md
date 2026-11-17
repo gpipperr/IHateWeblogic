@@ -77,7 +77,7 @@ Cookbook steps in short:
 | Step | Where | What |
 |---|---|---|
 | 1–3 | source | autostart off, clone check, stop, VM clone, autostart on, start |
-| 4 | clone, root | host name, IP, `/etc/hosts`, machine-id, ssh host keys |
+| 4 | clone, root | host name, IP, `/etc/hosts`, machine-id, ssh host keys, **4.5** rescue image of the old machine-id out of `/boot` |
 | 5 | clone | backup `config/`, `<server>.dat` aside, **5.1** `ADMIN_URL`, **5.2** `AdminURL`, **5.3** loopback leftovers (check) |
 | 6 | clone + DBA | RCU `-createRepository` with the new prefix (same components) |
 | 7 | clone | start the AdminServer **only** (still on the source OPSS, read) |
@@ -196,6 +196,26 @@ already correct and step 5.3 only checks them:
   and `.jmxori` at every AdminServer start. Change all three
   (`ConsoleServerHost` / `ConsoleServerName` → `localhost`), and check again
   after an EM patch or redeploy.
+
+### 4.6a `/boot` – rescue image of the source (step 4.5)
+
+The clone carries the rescue image of the source in `/boot`
+(`initramfs-0-rescue-<old-machine-id>.img` + `vmlinuz-0-rescue-…`, about
+90 MB, plus `/boot/loader/entries/<old-id>-0-rescue.conf`). After the new
+machine-id, the next kernel update lets dracut build a second rescue image for
+the new ID (`/usr/lib/kernel/install.d/51-dracut-rescue.install`); the old one
+is never removed. On the installer-default `/boot` of about 960 MB the next
+`dnf update` then fails – seen at a customer on 2026-11-17
+([forms_reports_sizing.md, OS disk layout](../../docs/forms_reports_sizing.md#os-disk-layout--boot-3-gb-not-the-installer-default)).
+
+For future clones:
+- **in the template / golden image:** delete the rescue image before the
+  clone, or switch it off with `dracut_rescue_image="no"` in
+  `/etc/dracut.conf.d/02-rescue.conf` (the default `"yes"` comes from the
+  package `dracut-config-rescue`, `/usr/lib/dracut/dracut.conf.d/02-rescue.conf`);
+- **in the clone workflow:** remember the old machine-id before it is
+  changed, then remove `/boot/*0-rescue-<old-id>*` and the matching entry
+  under `/boot/loader/entries/` (cookbook step 4.5).
 
 ### 4.7 Scheduled jobs (`.dat`, step 5 and 12.2)
 
