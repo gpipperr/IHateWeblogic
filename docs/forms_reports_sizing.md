@@ -24,6 +24,7 @@ Measured on the test host on 2026-10-28. That host runs everything on one server
 | APEX / ORDS / Instant Client | `product/apex`, `ords_*`, `instantclient*` | 1.6 GB | **3 GB** | two ORDS homes for an ORDS switch |
 | **Patch storage** | `PATCH_STORAGE` (`/srv/patch_storage`) | 20 GB | **30 GB** | base installers (WLS 4.2, F&R 2.7 GB), current patch set 3.8 GB **+ archived previous set** (6.5 GB, `04- --fresh-patches`), client Java 1.1 GB, APEX / ORDS / SQLcl |
 | OS / swap / tmp | `/`, `swapfile`, `/tmp` | ~15 GB | **20 GB** | swap file 2 GB, `/tmp` for installers and OPatch |
+| `/boot` | own partition | 624 MB of 960 MB (6 kernels) | **3 GB** | the installer default 1 GiB holds only about three kernels – see [OS disk layout](#os-disk-layout--boot-3-gb-not-the-installer-default) |
 
 **Totals:**
 
@@ -32,6 +33,68 @@ Measured on the test host on 2026-10-28. That host runs everything on one server
 | FMW only (RCU DB on another server) | **~75 GB**: FMW 12 + 5 workspace + domain 5 + JDK 2 + patch storage 30 + OS 20 – the patch storage can be shared or on a separate disk |
 | RCU DB server only | **~80 GB**: 2 homes 24 + data 15 + admin 3 + AutoUpgrade 18 + OS 20 |
 | **Everything on one host** (like the test host) | **≥ 140 GB** (sum of the plan column: 137 GB). Better split: `/u01` ≥ 90 GB, `/srv/patch_storage` 30–40 GB, OS 20 GB. 100 GB is already too tight while a DB patch runs. |
+
+### OS disk layout – `/boot` 3 GB, not the installer default
+
+The Oracle Linux installer creates a **1 GiB `/boot`** (XFS shows about
+**960 MB** usable). That holds only about three kernels – too little for a
+host that gets `dnf update` every month. At a customer `dnf update` stopped on
+2026-11-17 because `/boot` was full.
+
+Measured on the test host (Oracle Linux 9.8, 2026-11-17): **624 MB of 960 MB
+used**.
+
+| In `/boot` | Size each | On the test host |
+|---|---|---|
+| UEK kernel: `vmlinuz` + `initramfs` + `initramfs…kdump` (+ `config`, `System.map`) | ≈ **100 MB** (14 + 38 + 43 MB + small files) | 3 × (`kernel-uek` 5.15.0-317 / -318 / -325) |
+| Red Hat compatible kernel (RHCK): `vmlinuz` + `initramfs` | ≈ **60 MB** (15 + 39 MB + small files), more with its own kdump image | 3 × (`kernel` 5.14.0-611.36 / -611.38 / -687) |
+| rescue image `initramfs-0-rescue-*` | 77 MB | 1 |
+
+Why it fills up:
+- `installonly_limit=3` in `/etc/dnf/dnf.conf` counts **per package name**:
+  three `kernel-uek` **and** three `kernel` (RHCK) – both are installed by
+  default.
+- During `dnf update` the **new** kernel is installed before the oldest one
+  is removed: for a moment four of each, plus the space `dracut` needs to
+  build the new initramfs.
+- Every UEK generation brings bigger images (UEK 8 / kernel 6.12 more than
+  UEK 7).
+
+Recommended layout for a new Forms & Reports host (Oracle Linux 8 / 9):
+
+| Mount | Size | Note |
+|---|---|---|
+| `/boot` | **3 GB** (XFS, normal partition) | room for UEK + RHCK with kdump and the update peak |
+| `/boot/efi` | 600 MB | only with UEFI (installer default) |
+| `/` | 20 GB (LVM) | OS, `/tmp` for installers and OPatch; or `/var` / `/tmp` as own LVs |
+| swap | 2–4 GB (LV or swap file) | |
+| `/u01` (`ORACLE_BASE`) | ≥ 25 GB FMW only, ≥ 90 GB with a local RCU DB | see the table above |
+| `/srv/patch_storage` | 30–40 GB | can be shared / NFS |
+
+Keep free extents in the volume group: an LV grows online, `/boot` (a plain
+partition in front of the LVM) does not – enlarging it later means moving
+partitions, in practice a new disk layout. So set it at the installation.
+
+**An existing host with the 960 MB `/boot`** – make room instead of resizing:
+
+```bash
+df -h /boot
+
+uname -r
+# the running kernel - never remove it
+
+rpm -q kernel-uek kernel-core
+
+dnf remove --oldinstallonly --setopt installonly_limit=2 kernel-uek
+# keeps the two newest UEK kernels (the running one included)
+```
+
+- Only UEK in use (the default boot entry)? The RHCK kernels can go too
+  (`dnf remove --oldinstallonly --setopt installonly_limit=1 kernel-core`) –
+  keep at least one as a fallback if the operations team wants it.
+- `installonly_limit=2` in `/etc/dnf/dnf.conf` keeps it that way for the next
+  updates.
+- Check `df -h /boot` before every `dnf update`: at least 300 MB free.
 
 Rules:
 

@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **Disk sizing: OS layout with `/boot` 3 GB** ([forms_reports_sizing.md](docs/forms_reports_sizing.md#os-disk-layout--boot-3-gb-not-the-installer-default)):
+  the installer default 1 GiB (960 MB usable) holds about three kernels; measured per kernel (UEK ≈ 100 MB
+  with kdump, RHCK ≈ 60 MB), `installonly_limit` counts UEK and RHCK separately, update peak; recommended
+  layout, and how to make room on an existing host (`dnf remove --oldinstallonly`). A customer `dnf update`
+  stopped on a full `/boot`. `02-Checks/os_check.sh` now checks `/boot`: free space against the next kernel
+  update, installed UEK / RHCK kernels, `installonly_limit`, hint when `/boot` is the installer default.
 - **Reports job queue in the database** ([reports_job_queue_monitoring.md](80-FMW-Architecture/reports_job_queue_monitoring.md)):
   `jobStatusRepository` / `RW_SERVER_JOB_QUEUE` on 14.1.2 – setup with minimal rights, csf key, xsd order,
   `dbconn` for a PDB, status codes and queries; live test: the table mirrors the past queue, orphan rows after

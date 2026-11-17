@@ -259,6 +259,42 @@ for check_dir in "${ORACLE_HOME:-${FMW_HOME}}" "${DOMAIN_HOME}" "/tmp" "/var/log
         warn "DISK USAGE ${USE_PCT}% on $check_dir – risk of disk full!"
 done
 
+# /boot: the installer default (1 GiB, ~960 MB usable) holds only about three
+# kernels; dnf installs the new kernel before it removes the oldest one, so
+# the next update needs room for one more kernel set (vmlinuz + initramfs +
+# kdump initramfs). docs/forms_reports_sizing.md "OS disk layout".
+if findmnt -n /boot >/dev/null 2>&1; then
+    printf "\n"
+    BOOT_AVAIL_KB="$(df -k /boot 2>/dev/null | awk 'NR==2{print $4}')"
+    BOOT_TOTAL_KB="$(df -k /boot 2>/dev/null | awk 'NR==2{print $2}')"
+    printList "Disk: /boot" 30 \
+        "avail=$(_kb_to_human "${BOOT_AVAIL_KB:-0}") / total=$(_kb_to_human "${BOOT_TOTAL_KB:-0}")"
+    # installed kernels per package (installonly_limit counts per package name)
+    _uek_n="$(rpm -q kernel-uek 2>/dev/null | grep -c '^kernel-uek-')"
+    _rhck_n="$(rpm -q kernel-core 2>/dev/null | grep -c '^kernel-core-')"
+    _limit="$(sed -n 's/^[[:space:]]*installonly_limit[[:space:]]*=[[:space:]]*//p' /etc/dnf/dnf.conf 2>/dev/null | tail -1)"
+    printList "Kernels installed" 30 "UEK ${_uek_n}, RHCK ${_rhck_n} (installonly_limit=${_limit:-3}, running $(uname -r))"
+    # size of the biggest kernel set = what the next update needs in addition
+    _set_kb=0
+    for _v in $(ls /boot/vmlinuz-* 2>/dev/null | sed 's#^/boot/vmlinuz-##' | grep -v rescue); do
+        _kb="$(ls -l /boot/*"$_v"* 2>/dev/null | awk '{s+=$5} END {print int(s/1024)}')"
+        [ "${_kb:-0}" -gt "$_set_kb" ] && _set_kb="$_kb"
+    done
+    _need_kb=$(( _set_kb + _set_kb / 2 ))   # one set + dracut work space
+    printList "Next kernel update needs" 30 "~$(_kb_to_human "$_need_kb") (biggest kernel set $(_kb_to_human "$_set_kb") + 50 %)"
+    if [ "${BOOT_AVAIL_KB:-0}" -lt "$_set_kb" ]; then
+        fail "/boot: $(_kb_to_human "${BOOT_AVAIL_KB:-0}") free - the next kernel update fails; remove old kernels first (dnf remove --oldinstallonly --setopt installonly_limit=2 kernel-uek)"
+    elif [ "${BOOT_AVAIL_KB:-0}" -lt "$_need_kb" ]; then
+        warn "/boot: only $(_kb_to_human "${BOOT_AVAIL_KB:-0}") free - tight for the next kernel update; remove old kernels (dnf remove --oldinstallonly --setopt installonly_limit=2 kernel-uek)"
+    else
+        ok "/boot: $(_kb_to_human "${BOOT_AVAIL_KB:-0}") free - enough for the next kernel update"
+    fi
+    if [ "${BOOT_TOTAL_KB:-0}" -lt 2097152 ]; then
+        info "/boot is $(_kb_to_human "${BOOT_TOTAL_KB:-0}") (installer default) - new hosts: 3 GB (docs/forms_reports_sizing.md, OS disk layout)"
+    fi
+    unset _uek_n _rhck_n _limit _set_kb _need_kb _v _kb
+fi
+
 # =============================================================================
 # Section 3: ulimits
 # =============================================================================
