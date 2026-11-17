@@ -87,9 +87,9 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   `09-Install/download/patches_*.csv`, read and checked by
   `mos_patch_download.sh` / `.ps1` and before the apply by `05-` / `06-`
   (lib `patch_zip_sha_check`) – **done 2026-11-17** (October values verified
-  against `opatch lsinventory`). Open: `cve_inventory.sh` and the customer
-  patch analysis compare the column with `opatch lsinventory` ("installed,
-  but old build"); ARU of the ZIPs without OPatch inventory (SPB, JDK, OPatch)
+  against `opatch lsinventory`); the customer patch analysis compares it with
+  the "Unique Patch ID" of `opatch lsinventory` in the collection (WARN
+  "other build", done 2026-11-17). Open: the same in `cve_inventory.sh`; ARU of the ZIPs without OPatch inventory (SPB, JDK, OPatch)
   only from the MOS download link (`…?aru=<ARU>&patch_file=…`) – getMOSPatch
   does not print it. Background:
   [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
