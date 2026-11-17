@@ -57,10 +57,12 @@ paths, "Expected" output under each command, rollback in every step.
 
 → [Reports14_linux_manual_install/README.md](Reports14_linux_manual_install/README.md)
 
-A manual, step-by-step installation guide (in German) for a Reports-only
-FMW 14.1.2 environment (WebLogic 14.1.2, Oracle Linux 9) — six self-contained
-"Kochbuch" text files a customer can follow without using any of the
-IHateWeblogic scripts, with all values in one
+A manual, step-by-step guide for a Reports-only FMW 14.1.2 environment
+(WebLogic 14.1.2, Oracle Linux 9), README in English — twelve self-contained
+German "Kochbuch" text files a customer can follow without using any of the
+IHateWeblogic scripts: OS, FMW, SSL, Reports, fonts, start / stop,
+autostart, security, operations tools, patching an existing environment,
+completing its security and scheduled reports, with all values in one
 [patch_install.ini](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini).
 
 ### Oracle Reports Builder 14.1.2 on Windows – moved to 14-ReportsBuilder
