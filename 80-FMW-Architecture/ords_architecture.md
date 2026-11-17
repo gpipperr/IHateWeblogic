@@ -177,12 +177,59 @@ share one repository – in this library it is one ORDS per database.
 >   not touch.
 > - Ways to save the definitions, from the smallest to the largest:
 >   - the export of the REST workshop (SQL Developer Web / APEX: export module);
->   - the PL/SQL export API – packages `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN` exist in 26.3 (**confirmed (live)**); the exact procedure names: ORDS 26.3 Developer's Guide;
+>   - the PL/SQL export API – packages `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN`, see [3.1](#31-export-rest-definitions-with-the-plsql-api) (signatures and a 19c pitfall, **confirmed (live)**);
 >   - SQLcl `rest export` into a script under version control (SQLcl 26.3 is installed by [`00-Setup/install_db_client_tools.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/install_db_client_tools.sh));
 >   - Data Pump of the REST-enabled schema **plus** a backup of the whole PDB – a Data Pump of `ORDS_METADATA` alone is no restore path.
 > - Keep the exported scripts in the repository of the application – then
 >   a lost interface is re-created with one script instead of rebuilt by
 >   hand.
+
+### 3.1 Export REST definitions with the PL/SQL API
+
+Both packages live in `ORDS_METADATA` and have public synonyms. Their
+functions return a **CLOB with a rerunnable PL/SQL script** (`ORDS.*` /
+`ORDS_ADMIN.*` calls). Checked live 2026-11-17 in `dba_arguments`, ORDS 26.3
+repository on DB 19.30:
+
+| Package | Who may call it | Functions (main parameters) |
+|---|---|---|
+| `ORDS_EXPORT` | `EXECUTE` granted to `PUBLIC` – works on the **own** schema | `EXPORT_MODULE(p_module_name, p_include_enable_schema, p_include_privs [, p_privs_with_other_mod_refs, p_export_date])`, `EXPORT_SCHEMA(...)` (4 overloads, the full one with `p_include_modules`, `p_include_privileges`, `p_include_roles`, `p_include_oauth`, `p_include_rest_objects`, `p_include_jwt_profiles`, `p_include_enable_schema`, `p_export_date`), `EXPORT_OAUTH_CLIENT(p_client_name, ...)` |
+| `ORDS_EXPORT_ADMIN` | `EXECUTE` only for `ORDS_ADMINISTRATOR_ROLE` (and SYS) – works on **any** schema (`p_schema`) | `EXPORT_SCHEMA(p_schema, ...)` same flags as above plus `p_runnable_as_admin`, `p_cleanup_missing_objects`; `EXPORT_MODULE(p_schema, p_module_name, ...)`; `EXPORT_OAUTH_CLIENT(p_schema, p_client_name, ...)` |
+
+- **Typo in Oracle's API:** `ORDS_EXPORT_ADMIN.EXPORT_MODULE` spells the
+  parameter **`p_include_privleges`** (without the second "i"), while
+  `EXPORT_SCHEMA` uses `p_include_privileges` and `ORDS_EXPORT.EXPORT_MODULE`
+  uses `p_include_privs`. Named notation with the "right" spelling fails with
+  `PLS-00306`.
+- **19c pitfall:** the flags are PL/SQL `BOOLEAN`. The common example
+  `select ords_export_admin.export_schema(p_schema => 'X', p_export_date => FALSE) from dual`
+  fails on 19c with **`ORA-00904: "FALSE": invalid identifier`** (live) –
+  SQL knows `BOOLEAN` only from 23ai on. On 19c call it in a PL/SQL block:
+
+```sql
+set serveroutput on size unlimited
+declare
+  c clob;
+begin
+  c := ords_export_admin.export_schema(p_schema                => '<SCHEMA>',
+                                       p_include_enable_schema => true,
+                                       p_export_date           => false);
+  -- write c to a file (UTL_FILE / SQLcl spool); dbms_output only for a look
+  dbms_output.put_line(dbms_lob.substr(c, 4000, 1));
+end;
+/
+```
+
+- The export of the workspace schema `GPIDEV` (live) starts with
+  `ORDS_ADMIN.ENABLE_SCHEMA(... p_auto_rest_auth => FALSE)` and the AutoREST /
+  SODA roles and privileges – the open metadata catalog of
+  [6.1](#61-apex-workspaces-rest-enable-their-schema--with-an-open-catalog)
+  is part of the export, so a re-import re-creates it. The header says the
+  script needs `ORDS_ADMINISTRATOR_ROLE`.
+- `p_export_date => false` keeps the script identical between two runs –
+  the right choice for version control.
+- For a file under version control SQLcl `rest export` is the shorter way;
+  the PL/SQL API fits a scheduled export inside the database.
 
 ---
 
@@ -218,6 +265,23 @@ ords_1/config/                     mode 700 (owner oracle) – holds the wallet
 > reports "not a recognized configuration setting" – `04-install-ords.sh`
 > checks every key this way before it sets it, and checks the listener with
 > `ss` afterwards.
+>
+> More keys from general ORDS guides that ORDS 26.3 does **not** know
+> (`ords config info`, live 2026-11-17) – setting them changes nothing:
+> - `feature.db-api`, `feature.rest-enabled-sql` – even rejected as "invalid
+>   setting name"; the real keys are `database.api.enabled` and
+>   `restEnabledSql.active` (section 6). The install options
+>   `--feature-db-api` / `--feature-rest-enabled-sql` are fine;
+> - `log.folder`, `log.maxFileSize`, `log.maxBackupIndex` – the server log is
+>   configured in `logging.properties` (section 1b);
+> - `java.opts` – Java options belong to the systemd unit (`_JAVA_OPTIONS`) or
+>   `ords --java-options`;
+> - `jdbc.DebugPrintStatementBounds`.
+>
+> Also: `jdbc.statementTimeout` is **no** query timeout – ORDS describes it as
+> the time "a borrowed (in use) connection can remain unused before it is
+> considered as abandoned and reclaimed" (default 900 s); and `ords validate`
+> does not exist in 26.3 (`ords --help`).
 
 - `ords config list --include-defaults` shows every effective value with
   its source (`Global`, `Pool`, `Default`).
@@ -278,6 +342,7 @@ alter user <SCHEMA>         grant connect through ORDS_PUBLIC_USER;   -- REST of
 | MongoDB API | `mongo.enabled` | `false` (`mongo.host 0.0.0.0` when on!) | default | own listener port 27017 on all interfaces |
 | Static files | `standalone.static.*` | context `/i` | not used – Nginx serves `/srv/apex` | an ORDS image path in addition to Nginx |
 | HTTPS behind a proxy | `security.httpsHeaderCheck` | none | `X-Forwarded-Proto: https` | without it ORDS builds **`http://`** links (REST catalog, OpenAPI, redirects) although the client used HTTPS – seen live before the fix |
+| CORS for the PL/SQL gateway | `security.externalSessionTrustedOrigins` | none | `ORDS_PUBLIC_URL` (one origin) | the **CORS allow list** of the gateway: "if this setting is empty or not configured, then no CORS requests are allowed for the PL/SQL gateway and results in a 403" (`ords config info`, live). Keep it to the own `https://<FQDN>` – every extra origin may call APEX / gateway procedures from its pages with the user's session. Host-specific: adjust on a clone (section 3). Not the same as `requestValidationFunction`, which decides *which procedure* may run. CORS of REST modules is set per module with `ords.set_module_origins_allowed(p_module_name, p_origins_allowed)` (exists in 26.3, `dba_arguments`) |
 
 ### 6.1 APEX workspaces REST-enable their schema – with an open catalog
 
@@ -380,6 +445,9 @@ OAuth2 would identify the client, not the user. The wiki's pattern:
 | Expiring / locked runtime users | `ORDS_PUBLIC_USER`, `APEX_PUBLIC_USER`, `APEX_REST_PUBLIC_USER`, `APEX_PUBLIC_ROUTER` get the profile **`APEX_USER`** (`PASSWORD_LIFE_TIME` / `FAILED_LOGIN_ATTEMPTS UNLIMITED`, [`12-APEX-Ords/apex_user_profile.sql`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/apex_user_profile.sql)) – before, `APEX_REST_PUBLIC_USER` would have expired on 2027-04-21 (**confirmed (live)**). No lock-out means: long random passwords and a DB listener reachable from the application hosts only |
 | Pool vs. `processes` | Σ `jdbc.MaxLimit` (50 per ORDS) + FMW / RCU pools + 50 ≤ `processes` ([`01-prepare-database.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/01-prepare-database.sh) checks) |
 | Listener | `standalone.binds 127.0.0.1` – Nginx is the one door (`04-` checks with `ss`) |
+| Running pools | `ords --config <dir> pool --pid <PID> list` (new in the 26.x CLI) asks the **running** instance for its pools – no HTTP, no admin user. Live: `default` answers. PID: `systemctl show -p MainPID --value ords@ords_1`. `pool --pid <PID> destroy <name>` drops a pool of the running instance (not tested here; whether ORDS rebuilds it on the next request is an **assumption** – restart the unit instead unless that is proven) |
+| Health check | `GET /ords/` answers **302** (redirect to `/ords/_/landing`), not 200 (live) – a load balancer or monitor expecting 200 marks ORDS as down. Check `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/ords/_/landing` (200) or accept 3xx. The pool status endpoint `/ords/_/db-api/stable/database/` gives **404** here, because the Database API is off (section 6) – on purpose |
+| Rate limit | ORDS has none of its own. Nginx can limit per client address before ORDS: `limit_req_zone $binary_remote_addr zone=ords:10m rate=10r/s;` in the `http` block, `limit_req zone=ords burst=50 nodelay; limit_req_status 429;` in `location /ords/`. **Not in our template** (open, section 11): APEX pages load many requests in a burst, so the values need a test with real users. Useful in front of public REST modules and the OAuth token endpoint |
 | Wallet | `config/` mode 700; belongs into the configuration backup (open item: [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)) |
 | Logs | systemd stdout / stderr (almost empty), access log per day (90 days), `ords_sys_N.log` (5 × 10 MB) in `/var/log/ords_N` |
 | Upgrade | new `ords-<ver>` beside the old one, link switch, `ords install` upgrades `ORDS_METADATA` – **one-way**; rollback by link only while the repository is unchanged ([`06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh)) |
@@ -429,6 +497,10 @@ Dates before 2018 are background from the author's experience
 - [`06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh) upgrade path: first real run with the next ORDS
   release (`ords install --db-only` for the repository upgrade is taken from
   `ords install --help`, not yet run).
+- Nginx rate limit for `/ords/` (section 8): values to test with an APEX
+  application, then as an option in `templates/nginx-ords.conf.template`.
+- `ords pool --pid … list` as a cheap liveness check in
+  [`startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh) / the collector.
 - [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) / [`clone_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/clone_check.sh) for the ORDS config directory
   (wallet!), [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) for ORDS / APEX / SQLcl / Instant Client.
 
@@ -458,3 +530,10 @@ All checked 2026-10-23:
 - Gunther Pipperr – APEX 26.1 with ORDS 26.1 standalone and Nginx on OL9 –
   <https://pipperr.de/dokuwiki/doku.php?id=prog:oracle_apex_26_1_ords_standalone_nginx_ol9>
 - MOS Doc ID 2770463.1 (ORDS 503, pool user not authorized to proxy) – title only.
+- Added 2026-11-17: `ords config info`, `ords --help`, `ords pool --help` and
+  `dba_arguments` of `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN` on the test host
+  (ORDS 26.3, DB 19.30).
+- Oracle Skills – `db/ords` (agent skills, written for ORDS 22–25.4) –
+  <https://github.com/oracle/skills/tree/main/db/ords> – compared 2026-11-17:
+  source of the export example, the CORS and rate-limit hints; several
+  config keys and commands there do not exist in ORDS 26.3 (section 4).

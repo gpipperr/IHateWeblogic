@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-17
 
+- **ORDS architecture page compared with Oracle Skills `db/ords`** ([ords_architecture.md](80-FMW-Architecture/ords_architecture.md)):
+  new §3.1 export API `ORDS_EXPORT` / `ORDS_EXPORT_ADMIN` (signatures from `dba_arguments`, typo
+  `p_include_privleges`, `select … FALSE from dual` → `ORA-00904` on 19c, PL/SQL block instead); §4 config keys
+  of general guides unknown to ORDS 26.3 (`feature.db-api`, `log.folder`, `java.opts`, …), `ords validate`
+  gone, `jdbc.statementTimeout` is no query timeout; §6 CORS meaning of `externalSessionTrustedOrigins`;
+  §8 `ords pool --pid … list`, health check `/ords/` = 302, Nginx rate limit (not in the template yet).
+  All checked live on the test host.
 - **Reports14_linux_manual_install README in English** ([README](70-Customer-Projects/Reports14_linux_manual_install/README.md)), the cookbooks stay German; known problem `<server>.lok` added to item 6, patch-references path as link.
 - **New architecture page: Reports error analysis and trace levels** ([reports_error_trace.md](80-FMW-Architecture/reports_error_trace.md)):
   which log holds the cause, ODL levels vs the old `TRACE_*` options (Oracle Table 24-3), where the level is
