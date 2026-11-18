@@ -244,9 +244,17 @@ between servers (e.g. via `git clone` or backup restore) is safe by design;
 they simply won't decrypt anywhere else, so they must be recreated with
 `--apply` on the new machine.
 
-[`weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) additionally enforces the WebLogic password policy while
-prompting (min. 8 characters, at least one digit or special character —
-avoids the well-known WLST error 60455 during later domain operations).
+[`weblogic_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/weblogic_sec.sh) checks the password against the **password rule of the
+realm** while prompting (lib `wls_pwd_rule_spec` / `wls_pwd_rule_fail`: the
+`SystemPasswordValidator` values of `config.xml`; without a domain the rule
+this library sets – 12 characters, upper + lower case, digit, special
+character, not containing the user name). A password that fails is accepted
+only after a confirmation – it may be the existing password of the realm (the
+rule applies when a password is *set*). The same check runs in
+`01-setup-interview.sh` (WLS admin) and `12-oracle_reports_users.sh`
+(`monUser`, `RepRunner`). Background:
+[stig_weblogic_forms_reports.md](../80-FMW-Architecture/stig_weblogic_forms_reports.md),
+[`07-Maintenance/wls_password_rule.sh`](../07-Maintenance/README.md#wls_password_rulesh).
 
 [`database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) stores **two** passwords in one file because RCU needs
 both: the `SYS` password (used once, only during [`07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh))

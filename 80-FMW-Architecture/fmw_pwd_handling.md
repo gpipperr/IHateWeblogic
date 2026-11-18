@@ -109,7 +109,7 @@ point – the decrypted admin password – reached on two different ways
   production domain, an EBS domain) **plus backup copies** of domains on the
   same host, decrypted `boot.properties` and logged in to the console as
   `weblogic` – with a password that met the domain's password rule
-  (8 characters, one digit).
+  (8 characters, one digit – the rule of the domain template).
 
 Lessons:
 
@@ -333,9 +333,12 @@ Consequences:
    `oinstall` membership (section 1), small blast radius (section 1b) – and
    keep every admin interface off the network (section 1a, path (b)). Check:
    [`02-Checks/domain_secret_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/domain_secret_check.sh).
-2. **Strong, unique admin password and own admin name.** The library's rule
-   (`weblogic_sec.sh`: 8 characters, one digit or special character) is the
-   minimum – the password of case (b) met such a rule. Use a long passphrase,
+2. **Strong, unique admin password and own admin name.** The domain
+   template only demands 8 characters and one digit or special character –
+   the password of case (b) met such a rule. Since 2026-11-18 the library
+   sets 12 characters with upper / lower case, digit and special character in
+   the realm ([`07-Maintenance/wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh))
+   and the prompts check it. Use a long passphrase,
    not `weblogic` / `welcome1`, an own admin user name instead of `weblogic`,
    and never the same password in UAT and production. Account lockout stays
    on (WebLogic default: 5 failed logins, 30 min – `domain_secret_check.sh`

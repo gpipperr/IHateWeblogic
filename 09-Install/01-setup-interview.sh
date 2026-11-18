@@ -152,6 +152,7 @@ _ask_password() {
     local var="$1"
     local label="$2"
     local out_file="$3"
+    local realm_user="${4:-}"   # set = WebLogic realm user -> password rule check
 
     if [ -f "$out_file" ] && [ "$RESET_MODE" -eq 0 ]; then
         eval "${var}=\"****\""
@@ -165,6 +166,9 @@ _ask_password() {
         read -rs pw1; printf "\n"
         if [ -z "$pw1" ]; then
             printf "  \033[31m  Password cannot be empty.\033[0m\n"
+            pw1="" pw2="x"; continue
+        fi
+        if [ -n "$realm_user" ] && ! wls_pwd_rule_prompt_ok "$pw1" "$realm_user"; then
             pw1="" pw2="x"; continue
         fi
         printf "  %-30s : " "Confirm $label"
@@ -743,7 +747,8 @@ esac
 printf "\n"
 info "WLS Admin password → encrypted to: weblogic_sec.conf.des3"
 WLS_SEC_FILE="$ROOT_DIR/weblogic_sec.conf.des3"
-_ask_password WLS_ADMIN_PWD "WLS Admin password" "$WLS_SEC_FILE"
+info "  Password rule: $(wls_pwd_rule_text "$(wls_pwd_rule_spec)")"
+_ask_password WLS_ADMIN_PWD "WLS Admin password" "$WLS_SEC_FILE" "${WLS_ADMIN_USER:-weblogic}"
 
 printf "\n"
 

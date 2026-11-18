@@ -980,6 +980,75 @@ save_weblogic_password() {
     return 0
 }
 
+# -----------------------------------------------------------------------------
+# Password rule of the WebLogic realm (SystemPasswordValidator, DISA STIG
+# V-235966-70; 07-Maintenance/wls_password_rule.sh sets it). A rule "spec" is
+# "len=N upper=N lower=N digit=N special=N numspecial=N nouser=0|1".
+# wls_pwd_rule_spec [CONFIG_XML] - the active rule of the domain; without a
+#   domain (new installation) the rule this library sets: length
+#   WLS_PWD_MIN_LENGTH (12), upper + lower + digit + special, no user name
+# wls_pwd_rule_text SPEC         - readable form of a spec
+# wls_pwd_rule_fail PWD [USER] [SPEC] - failed criteria (empty = ok);
+#   return 1 when PWD fails. Nothing of PWD is printed.
+# -----------------------------------------------------------------------------
+_ihw_pv_get() { local v; v="$(printf '%s' "$1" | grep -o "<pas:$2>[^<]*" | sed 's/.*>//' | head -1)"; printf '%s' "${v:-0}"; }
+# shellcheck disable=SC2120  # CONFIG_XML optional - callers in other scripts
+wls_pwd_rule_spec() {
+    local c="${1:-${DOMAIN_HOME:-}/config/config.xml}" pv=""
+    [ -f "$c" ] && pv="$(tr -d '\n' < "$c" | grep -o '<sec:password-validator.*</sec:password-validator>' | head -1)"
+    if [ -n "$pv" ]; then
+        printf 'len=%s upper=%s lower=%s digit=%s special=%s numspecial=%s nouser=%s' \
+            "$(_ihw_pv_get "$pv" min-password-length)" \
+            "$(_ihw_pv_get "$pv" min-uppercase-characters)" \
+            "$(_ihw_pv_get "$pv" min-lowercase-characters)" \
+            "$(_ihw_pv_get "$pv" min-numeric-characters)" \
+            "$(_ihw_pv_get "$pv" min-non-alphanumeric-characters)" \
+            "$(_ihw_pv_get "$pv" min-numeric-or-special-characters)" \
+            "$([ "$(_ihw_pv_get "$pv" reject-equal-or-contain-username)" = "true" ] && printf 1 || printf 0)"
+    else
+        printf 'len=%s upper=1 lower=1 digit=1 special=1 numspecial=1 nouser=1' "${WLS_PWD_MIN_LENGTH:-12}"
+    fi
+}
+_ihw_spec() { printf '%s\n' $1 | sed -n "s/^$2=//p" | head -1; }
+wls_pwd_rule_text() {
+    local s="$1" t
+    t="min $(_ihw_spec "$s" len) characters"
+    [ "$(_ihw_spec "$s" upper)" -gt 0 ] 2>/dev/null && t="$t, upper case"
+    [ "$(_ihw_spec "$s" lower)" -gt 0 ] 2>/dev/null && t="$t, lower case"
+    [ "$(_ihw_spec "$s" digit)" -gt 0 ] 2>/dev/null && t="$t, digit"
+    [ "$(_ihw_spec "$s" special)" -gt 0 ] 2>/dev/null && t="$t, special character"
+    [ "$(_ihw_spec "$s" numspecial)" -gt 0 ] 2>/dev/null && [ "$(_ihw_spec "$s" digit)$(_ihw_spec "$s" special)" = "00" ] \
+        && t="$t, digit or special character"
+    [ "$(_ihw_spec "$s" nouser)" = "1" ] && t="$t, not containing the user name"
+    printf '%s' "$t"
+}
+wls_pwd_rule_fail() {
+    local p="$1" u="${2:-}" s="${3:-$(wls_pwd_rule_spec)}" f="" n
+    n="$(_ihw_spec "$s" len)"; [ "${#p}" -lt "${n:-0}" ] && f="$f length<$n"
+    [ "$(_ihw_spec "$s" upper)" -gt 0 ] 2>/dev/null && ! [[ "$p" =~ [A-Z] ]] && f="$f no-upper"
+    [ "$(_ihw_spec "$s" lower)" -gt 0 ] 2>/dev/null && ! [[ "$p" =~ [a-z] ]] && f="$f no-lower"
+    [ "$(_ihw_spec "$s" digit)" -gt 0 ] 2>/dev/null && ! [[ "$p" =~ [0-9] ]] && f="$f no-digit"
+    [ "$(_ihw_spec "$s" special)" -gt 0 ] 2>/dev/null && ! [[ "$p" =~ [^A-Za-z0-9] ]] && f="$f no-special"
+    [ "$(_ihw_spec "$s" numspecial)" -gt 0 ] 2>/dev/null && ! [[ "$p" =~ [^A-Za-z] ]] && f="$f no-digit-or-special"
+    if [ "$(_ihw_spec "$s" nouser)" = "1" ] && [ -n "$u" ] && [[ "${p,,}" == *"${u,,}"* ]]; then
+        f="$f contains-user-name"
+    fi
+    printf '%s' "${f# }"
+    [ -z "$f" ]
+}
+# wls_pwd_rule_prompt_ok PWD USER - for password prompts: 0 = accept. A password
+#   that fails the rule is accepted only after a confirmation (it may be the
+#   existing password of a realm user - the rule applies when a password is SET)
+wls_pwd_rule_prompt_ok() {
+    local r s ans; s="$(wls_pwd_rule_spec)"
+    r="$(wls_pwd_rule_fail "$1" "$2" "$s")" && return 0
+    printf "  \033[33mPassword does not meet the WebLogic password rule (%s): %s\033[0m\n" "$(wls_pwd_rule_text "$s")" "$r" >&2
+    printf "  A NEW realm password must meet it (07-Maintenance/wls_password_rule.sh). Keep it anyway – existing password of the realm? [y/N]: " >&2
+    read -r ans < /dev/tty 2>/dev/null || ans=""
+    case "${ans,,}" in y|yes|j|ja) return 0 ;; esac
+    return 1
+}
+
 # load_weblogic_password  [des3_file]
 # Decrypts, sources (exports WL_USER, WL_ADMIN_URL), deletes plaintext,
 # copies password to INTERNAL_WL_PWD, redacts WL_PASSWORD.

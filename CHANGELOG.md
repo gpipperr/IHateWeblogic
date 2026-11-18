@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **STIG change 2 – password rule of the realm:** new [`07-Maintenance/wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh)
+  (read-only: rule, realm users, stored passwords checked locally; `--apply` 12 characters / upper / lower / digit /
+  special / no user name, `--undo`). New lib functions `wls_pwd_rule_spec`, `wls_pwd_rule_text`, `wls_pwd_rule_fail`,
+  `wls_pwd_rule_prompt_ok`; the prompts of `01-setup-interview.sh`, `00-Setup/weblogic_sec.sh` (replaces the fixed 8/1
+  check) and `12-oracle_reports_users.sh` check the active rule (failing password only after confirmation). Live: no
+  restart, weak test password rejected (Security:099069/078/079), strong accepted, test user removed, smoke test 32 OK;
+  the stored admin password does not meet the rule (keeps working).
+
 - **STIG change 1 – audit trail:** new [`07-Maintenance/wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh)
   (read-only by default, `--apply`, `--undo`): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`
   (severity ERROR = ERROR + SUCCESS + FAILURE), OPSS `filterPreset` Low. Live on the test host: restart, every component

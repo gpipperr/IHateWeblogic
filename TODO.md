@@ -207,13 +207,26 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   (domain key, file-read paths, admin locations, lockout, blast radius);
   live `--apply` + restart on the test host OK (NM keeps 600); open:
   collector facts for customer hosts.
+- [ ] **Test host: admin password (`webadmin`) does not meet the new realm
+  password rule** (12 characters, upper / lower case, digit, special
+  character – `07-Maintenance/wls_password_rule.sh` 2026-11-18: fails
+  length, upper case, special character). It keeps working; change it to a
+  rule-conform one: realm (WLST / EM) → `security/boot.properties` of every
+  server → Node Manager cache → stored WLST credentials / autostart key files
+  (`30-configure_autostart.sh --apply`) → `weblogic_sec.conf.des3`
+  (`00-Setup/weblogic_sec.sh --apply`) – order in
+  [fmw_pwd_handling.md §5](80-FMW-Architecture/fmw_pwd_handling.md#5-what-to-observe-for-security)
+  / [80-oracle_security.md §5](09-Install/docs/80-oracle_security.md#5--password-recovery).
 - [ ] **DISA STIG changes** ([stig_weblogic_forms_reports.md §5](80-FMW-Architecture/stig_weblogic_forms_reports.md#5-order-of-the-open-changes)),
   each one separately with `--apply`, test host first: (1) configuration
   audit `logaudit` + auditing provider + OPSS `filterPreset` – **done
   2026-11-18** (`07-Maintenance/wls_audit_config.sh`; open: OPSS loader
   writes nothing into `DEV_IAU`, `--undo` live, DefaultAuditRecorder volume
   over days, step for new installs); (2) password
-  rule of the domain 12–15 characters (agree first); (3) lockout 3 / 15 / 15
+  rule of the domain – **done 2026-11-18** with 12 characters
+  (`07-Maintenance/wls_password_rule.sh`, prompts check it; open: change the
+  admin password of the test host to a rule-conform one, `--undo` live, step
+  for new installs after `08-`); (3) lockout 3 / 15 / 15
   only with service-user protection (`RepRunner`, `monUser`). Plus: WLST
   read-only check "service users not in Administrators / Deployers";
   `umask` 027 for our scripts without breaking Nginx-readable files.

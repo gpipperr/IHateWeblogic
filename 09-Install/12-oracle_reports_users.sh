@@ -153,10 +153,14 @@ REPORTS_EXEC_PWD=""
 _prompt_password() {
     local prompt="$1"
     local -n _ref="$2"
+    local _ruser="${3:-}"   # realm user -> password rule of the realm (lib)
     local _p1 _p2
     while true; do
         printf "  %s: " "$prompt" >&2
         read -r -s _p1; printf "\n" >&2
+        if [ -n "$_p1" ] && [ -n "$_ruser" ] && ! wls_pwd_rule_prompt_ok "$_p1" "$_ruser"; then
+            continue
+        fi
         printf "  Confirm password: " >&2
         read -r -s _p2; printf "\n" >&2
         if [ -z "$_p1" ]; then
@@ -186,10 +190,11 @@ else
     info "No reports_users.conf.des3 found – credentials needed"
     if $APPLY; then
         printf "\n  Setting up monitoring user: \033[1m%s\033[0m\n" "$REPORTS_MON_USER"
-        _prompt_password "Password for $REPORTS_MON_USER" REPORTS_MON_PWD
+        info "  Password rule: $(wls_pwd_rule_text "$(wls_pwd_rule_spec)")"
+        _prompt_password "Password for $REPORTS_MON_USER" REPORTS_MON_PWD "$REPORTS_MON_USER"
 
         printf "\n  Setting up execution user: \033[1m%s\033[0m\n" "$REPORTS_EXEC_USER"
-        _prompt_password "Password for $REPORTS_EXEC_USER" REPORTS_EXEC_PWD
+        _prompt_password "Password for $REPORTS_EXEC_USER" REPORTS_EXEC_PWD "$REPORTS_EXEC_USER"
 
         # Save encrypted for future runs
         printf "\n"

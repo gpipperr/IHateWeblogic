@@ -44,6 +44,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` + `bin/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | [`wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh) | ✅ implemented | Audit trail of the domain (DISA STIG): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`, OPSS audit `filterPreset` Low; read-only by default, `--apply`, `--undo` |
+| [`wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh) | ✅ implemented | Password rule of the realm (DISA STIG): current rule, realm users, stored passwords checked locally; `--apply` = 12 characters (`--min-length`), upper + lower + digit + special, no user name; `--undo` |
 | [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
 | [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
 
@@ -568,6 +569,43 @@ is in `auditlogs/JPS/`. `domain_secret_check.sh` section 7: both audit WARN
 gone; smoke test 32 OK. **Open:** the OPSS audit loader did not write that
 event into `DEV_IAU` (0 rows in every `E$` table) – the file under
 `auditlogs/` is the record for now; `--undo` not run live yet.
+
+### wls_password_rule.sh
+
+```bash
+./07-Maintenance/wls_password_rule.sh                     # rule, realm users, stored passwords vs. the new rule
+./07-Maintenance/wls_password_rule.sh --apply             # --min-length N (default 12, STIG 15)
+./07-Maintenance/wls_password_rule.sh --undo --apply      # back to the template: 8 characters, 1 digit or special
+```
+
+**Why:** the domain template only demands 8 characters and one digit or
+special character – the cracked admin password of the Medium case met
+exactly that ([fmw_pwd_handling.md §1a](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths),
+DISA STIG V-235966–70).
+
+| Section | Content |
+|---|---|
+| 1 current rule | `SystemPasswordValidator` values of `config.xml` |
+| 2 realm users | WLST online, read-only (`listUsers` of every authentication provider) |
+| 3 stored passwords | `weblogic_sec.conf.des3` (admin), `reports_users.conf.des3` (`monUser`, `RepRunner`) checked **locally** against the target rule (lib `wls_pwd_rule_fail`) – only the failed criteria are printed; a failing password cannot be set again after the change |
+| 4 plan / 5 apply | backup of `config.xml`, WLST: `MinPasswordLength`, `MinUppercaseCharacters`, `MinLowercaseCharacters`, `MinNumericCharacters`, `MinNonAlphanumericCharacters` (1 each), `MinNumericOrSpecialCharacters` 1, `RejectEqualOrContainUsername` true |
+
+The rule is checked whenever a password is **set** (create user, change,
+reset) – existing passwords keep working. Not affected: Node Manager
+password, embedded LDAP `cn=Admin`, Reports `<identifier>`, DB / RCU
+passwords (no realm users). The prompts of the library check the active rule
+before WLST would fail: `01-setup-interview.sh` (WLS admin),
+`00-Setup/weblogic_sec.sh`, `12-oracle_reports_users.sh` – a failing password
+only after a confirmation (it may be the existing password of the realm).
+
+**Live on the test host 2026-11-18** (`--min-length 12`): active at once,
+no restart (dynamic attributes); a temporary test user with a weak password
+was rejected (`Security:099069` length, `099078` upper case, `099079`
+special character), a strong one accepted, the user removed again – the
+three steps are in `DefaultAuditRecorder.log` (audit trail of step 1).
+Stored passwords: `monUser` / `RepRunner` meet the rule, the **admin
+password does not** (length, upper case, special character) – it keeps
+working; the next change must meet the rule. Smoke test 32 OK.
 
 ## 5. Troubleshooting
 

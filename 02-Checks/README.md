@@ -568,7 +568,9 @@ rewritten its `boot.properties` **and kept 600**, smoke test (`15- --apply`)
 32 OK. Section 7 (added the same day) gave 3 more WARN on the test host:
 password rule 8 / 1, no configuration audit, OPSS audit `None`; after
 [`07-Maintenance/wls_audit_config.sh --apply`](../07-Maintenance/README.md#wls_audit_configsh)
-only the password rule is left. The OPSS value is read from the audit
+only the password rule was left, and after
+[`07-Maintenance/wls_password_rule.sh --apply`](../07-Maintenance/README.md#wls_password_rulesh)
+(12 characters) section 7 has no WARN any more. The OPSS value is read from the audit
 service instance of the default `jpsContext` (`audit.db` in 14.1.2 – the
 file-based `audit` instance keeps an unused `None`).
 

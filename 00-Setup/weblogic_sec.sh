@@ -52,7 +52,7 @@ init_log "$DIAG_LOG_DIR"
 _prompt_password_confirmed() {
     local pw1="" pw2="x"
 
-    printf "  WLS password policy: min 8 chars, at least 1 number or special char.\n" >&2
+    printf "  WebLogic password rule of the realm: %s\n" "$(wls_pwd_rule_text "$(wls_pwd_rule_spec)")" >&2
 
     while [ "$pw1" != "$pw2" ] || [ -z "$pw1" ]; do
         printf "  WebLogic admin password: " >&2
@@ -65,14 +65,9 @@ _prompt_password_confirmed() {
             continue
         fi
 
-        # WebLogic password policy check (error 60455)
-        if [ "${#pw1}" -lt 8 ]; then
-            printf "  \033[33mPassword too short (min 8 characters). Try again.\033[0m\n" >&2
-            pw1="" pw2="x"
-            continue
-        fi
-        if ! printf "%s" "$pw1" | grep -qE '[0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/]'; then
-            printf "  \033[33mPassword must contain at least one number or special character. Try again.\033[0m\n" >&2
+        # password rule of the realm (SystemPasswordValidator, lib) - a password
+        # that fails it may still be the existing one of the realm: confirm
+        if ! wls_pwd_rule_prompt_ok "$pw1" "${INPUT_USER:-}"; then
             pw1="" pw2="x"
             continue
         fi

@@ -467,12 +467,15 @@ again. `02-Checks/ssl_check.sh` shows "SSL deaktiviert".
 
 ### WebLogic Admin Password Requirements
 
-WebLogic enforces a password policy during domain creation (error 60455):
-
-- **Minimum 8 characters**
-- **At least one number or special character**
-
-Example valid passwords: `Welcome1`, `Admin#2024`, `Muster01!`
+WebLogic enforces the password rule of the domain template during domain
+creation (error 60455): **minimum 8 characters, at least one number or
+special character**. This library asks for a stronger password from the start
+(interview / `weblogic_sec.sh`: 12 characters, upper + lower case, digit,
+special character, not containing the user name) and sets that rule in the
+realm afterwards with
+[`07-Maintenance/wls_password_rule.sh --apply`](../../07-Maintenance/README.md#wls_password_rulesh)
+(DISA STIG, [stig_weblogic_forms_reports.md](../../80-FMW-Architecture/stig_weblogic_forms_reports.md)).
+Do not use well-known examples (`Welcome1`, `weblogic1` …).
 
 Set via `00-Setup/weblogic_sec.sh --apply` before running this script.
 
