@@ -291,10 +291,10 @@ DRIFT=0
 _cmp() {
     local label="$1" envval="$2" confval="$3"
     [ -z "$envval" ] && return
-    # 13- adds the engine ORB options to jvmOptions itself - not a drift
+    # 13- adds the engine ORB options + the Java4Shell option to jvmOptions itself - not a drift
     if [ "$label" = "jvmOptions" ]; then
-        envval="$(printf '%s' "$envval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//')"
-        confval="$(printf '%s' "$confval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//')"
+        envval="$(printf '%s' "$envval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//; s/ *-XX:-UseBASE64Intrinsics//')"
+        confval="$(printf '%s' "$confval" | sed 's/ *-Dcom.sun.corba.ee.ORBServerHost=[^ ]*//; s/ *-DORBWaitForResponseTimeout=[^ ]*//; s/ *-XX:-UseBASE64Intrinsics//')"
     fi
     if [ "$envval" = "$confval" ]; then
         ok "$(printf "%-14s %s" "$label" "$confval")"
@@ -405,6 +405,9 @@ if [ "$APPLY_MODE" -eq 1 ]; then
             || NEW_JVM="$NEW_JVM -DORBWaitForResponseTimeout=999999999"
         printf '%s' "$NEW_JVM" | grep -q 'ORBServerHost=' \
             || NEW_JVM="$NEW_JVM -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+        # Java4Shell (CVE-2026-114938): Base64 intrinsic off on the bundled JDK 11+
+        _b64="$(reports_b64_opt)"
+        [ -n "$_b64" ] && ! printf '%s' "$NEW_JVM" | grep -q 'UseBASE64Intrinsics' && NEW_JVM="${NEW_JVM}${_b64}"
         CHANGES+=("jvmOptions=$NEW_JVM")
     fi
 

@@ -10,6 +10,19 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Java4Shell mitigation for the FMW-bundled JDK 17.0.12** (Reports server + engines, no FMW patch yet):
+  `-XX:-UseBASE64Intrinsics` added by `09-Install/13-oracle_setup_reports.sh --apply` to `REPORTS_JVM_OPTIONS` in
+  `reports.sh` (appended to the existing line) and to engine `jvmOptions`; `05-ReportsPerformance/engine_perf_settings.sh`
+  keeps it (no drift). Set on every host whose bundled JDK is Java 11+ – **no CPU check** (no-op without AVX-512, a VM
+  can move); never with Java 8 (`Unrecognized VM option` – checked with 8u513). New lib helpers `java_version`,
+  `java_major`, `cpu_avx512_vbmi`, `java4shell_affected`, `reports_b64_opt`. `02-Checks/java_check.sh` section
+  "Java4Shell": CPU flags, bundled JDK range, `reports.sh`, engine `jvmOptions`, every running process on the bundled JDK
+  (WARN on AVX-512 VBMI CPUs, otherwise INFO). Live on the test host (no AVX-512): `13- --apply` → flag appended,
+  repserver01 restarted, `java_check.sh` shows it active in rwserver + rwEng-0/1 (`jcmd VM.flags`), smoke test `15-
+  --apply` 32 OK. Side effects documented
+  ([13-reports-detail-settings.md](09-Install/docs/13-reports-detail-settings.md),
+  [00-patch-references.md – Java4Shell](09-Install/docs/00-patch-references.md#java4shell--cve-2026-114938-state-2026-11-18)).
+
 - **`60-RCU-DB-19c/09-db_patch_rcu.sh --mrp [--apply]`** – the monthly MRP + DB home JDK in-place into
   `DB_ORACLE_HOME`, as done by hand in the CSPU window
   ([09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months----mrp), doc = spec):

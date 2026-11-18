@@ -112,7 +112,8 @@ REPORTS_MAX_QUEUE="4000"                    # queue maxQueueSize
 # server (reports.sh): 13- / engine_perf_settings.sh always add
 # -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1,
 # else the engine ORB listens on 0.0.0.0 (customer 2026-11-10, clone_check FIX)
-# and the ORB timeout of reports.sh is missing.
+# and the ORB timeout of reports.sh is missing; with a bundled JDK 11+ also
+# -XX:-UseBASE64Intrinsics (Java4Shell, see reports.sh below).
 
 # TNS / database
 TNS_ADMIN="/u01/app/oracle/admin/tns_names" # ONE Oracle Net directory (interview block 1)
@@ -630,7 +631,7 @@ export NLS_LANG=GERMAN_GERMANY.AL32UTF8
 # Font configuration (must match rwserver.conf envVariable entries)
 REPORTS_FONT_DIRECTORY=${DOMAIN_HOME}/reports/fonts; export REPORTS_FONT_DIRECTORY
 REPORTS_ENHANCED_FONTHANDLING=YES; export REPORTS_ENHANCED_FONTHANDLING
-REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"; export REPORTS_JVM_OPTIONS
+REPORTS_JVM_OPTIONS="-Xmx256M -Djdk.lang.processReaperUseDefaultStackSize=true -DORBWaitForResponseTimeout=999999999 -Dcom.sun.corba.ee.transport.ORBTCPConnectTimeouts=250:5000:100:1000 -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1 -XX:-UseBASE64Intrinsics"; export REPORTS_JVM_OPTIONS
 REPORTS_PATH=${REPORTS_PATH}:<REPORTS_PATH of environment.conf>; export REPORTS_PATH
 # ────────────────────────────────────────────────────────────────────────────
 ```
@@ -646,6 +647,7 @@ REPORTS_PATH=${REPORTS_PATH}:<REPORTS_PATH of environment.conf>; export REPORTS_
 | `-DORBWaitForResponseTimeout=999999999` | required as soon as `REPORTS_JVM_OPTIONS` is set (see troubleshooting REP-50125) |
 | `-Dcom.sun.corba.ee.ORBServerHost=127.0.0.1` | the ORB (GlassFish CORBA) of the server **and of the engines** (they inherit the variable) binds to `127.0.0.1` instead of all interfaces and writes it into the IOR – rwservlet on the same host still works, smoke test OK (2026-10-23, [clone_golden_image.md](../../80-FMW-Architecture/clone_golden_image.md)); a Reports client on **another** host cannot call this server any more |
 | `-Xmx256M` | previous default |
+| `-XX:-UseBASE64Intrinsics` | **Java4Shell** (CVE-2026-114938, since 2026-11-18): the rwserver and the engines run on the FMW-bundled JDK 17.0.12 – in the affected range, no FMW patch yet. The option switches the AVX-512 Base64 stub off (pure-Java Base64, same results, slightly slower Base64 only). Set **regardless of the CPU** – a no-op without AVX-512, and a VM can move to newer hardware. Only when the bundled JDK is **Java 11+** (lib `reports_b64_opt`): Java 8 does not know the flag and the JVM does not start (`Unrecognized VM option`). Added to an existing line (other options stay), also to engine `jvmOptions` (13- / `engine_perf_settings.sh`); remove it once Oracle ships a bundled-JDK patch. Live 2026-11-18 (test host): rwserver + engines start, smoke test 32 OK. Check: `02-Checks/java_check.sh` section "Java4Shell" – [00-patch-references.md](00-patch-references.md#java4shell--cve-2026-114938-state-2026-11-18) |
 
 Check: `jcmd <rwserver pid> VM.command_line`, `ss -ltnp` (rwserver + engines on `127.0.0.1`).
 Older `reports.sh` blocks (without `ORBServerHost`) are updated by `13- --apply`.

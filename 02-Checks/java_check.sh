@@ -2,7 +2,8 @@
 # =============================================================================
 # Script   : java_check.sh
 # Purpose  : Verify JAVA_HOME (FMW-JDK vs system JDK), Java version,
-#            running WLS JVM settings, and Log4j CVE scan
+#            running WLS JVM settings, Log4j CVE scan, and the Java4Shell
+#            mitigation (-XX:-UseBASE64Intrinsics) of the FMW-bundled JDK
 # Call     : ./java_check.sh
 # Requires : java, ps, unzip (log4j JAR inspection), awk, grep, readlink
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -471,6 +472,75 @@ elif [ "$LOG4J_VULN" -gt 0 ]; then
 else
     ok "All log4j JARs appear safe"
 fi
+
+# =============================================================================
+# Java4Shell (CVE-2026-114938) – Base64 intrinsic of the FMW-bundled JDK
+# Reports server (native rwserver, embedded JVM) and engines run on
+# $ORACLE_HOME/oracle_common/jdk; no FMW patch yet -> -XX:-UseBASE64Intrinsics
+# (09-Install/13-oracle_setup_reports.sh). Severity: missing on an AVX-512
+# VBMI CPU = WARN, otherwise INFO (not reachable, but a VM can move).
+# Spec: 09-Install/docs/00-patch-references.md "Java4Shell"
+# =============================================================================
+section "Java4Shell (CVE-2026-114938) – bundled JDK"
+
+_bj="${ORACLE_HOME:-${FMW_HOME:-}}/oracle_common/jdk/bin/java"
+_cpu_vuln=false; cpu_avx512_vbmi && _cpu_vuln=true
+if $_cpu_vuln; then
+    warn "CPU has AVX-512 F/BW/VBMI + BMI2 – the vulnerable Base64 stub can run on an affected JDK"
+else
+    ok "CPU without AVX-512 VBMI – the vulnerable Base64 stub cannot run here"
+fi
+# _b64_miss MSG - WARN on an AVX-512 VBMI CPU, otherwise INFO
+_b64_miss() { if $_cpu_vuln; then warn "$1"; else info "$1 (not reachable on this CPU)"; fi; }
+
+if [ ! -x "$_bj" ]; then
+    info "No bundled JDK: $_bj"
+else
+    _bv="$(java_version "$_bj")"
+    _bm="$(java_major "$_bv")"
+    printList "Bundled JDK" 32 "${_bv:-?}  ($_bj)"
+    if [ -n "$_bm" ] && [ "$_bm" -lt 11 ]; then
+        ok "Bundled JDK is Java ${_bm} – not affected (and does not know $IHW_B64_OPT: never set it)"
+    elif ! java4shell_affected "$_bv"; then
+        ok "Bundled JDK ${_bv} – not in the affected range"
+    else
+        info "Bundled JDK ${_bv} in the affected range – no FMW patch yet, mitigation $IHW_B64_OPT"
+        # configuration: reports.sh (rwserver + inherited by the engines)
+        _rsh="$DOMAIN_HOME/reports/bin/reports.sh"
+        if [ -f "$_rsh" ] && grep '^REPORTS_JVM_OPTIONS=' "$_rsh" | grep -q -- "$IHW_B64_OPT"; then
+            ok "  reports.sh: REPORTS_JVM_OPTIONS contains $IHW_B64_OPT"
+        elif [ -f "$_rsh" ]; then
+            _b64_miss "  reports.sh: $IHW_B64_OPT missing – 09-Install/13-oracle_setup_reports.sh --apply"
+        fi
+        # engine jvmOptions replace the inherited REPORTS_JVM_OPTIONS
+        for _rc in "$DOMAIN_HOME"/config/fmwconfig/components/ReportsServerComponent/*/rwserver.conf; do
+            [ -f "$_rc" ] || continue
+            _rn="$(basename "$(dirname "$_rc")")"
+            grep -o '<engine [^>]*jvmOptions="[^"]*"' "$_rc" | grep -v -- "$IHW_B64_OPT" \
+                | grep -o 'id="[^"]*"' | while read -r _e; do
+                    _b64_miss "$(printf "  rwserver.conf %s: engine %s jvmOptions without %s (they replace REPORTS_JVM_OPTIONS)" "$_rn" "$_e" "$IHW_B64_OPT")"
+                done
+        done
+        # runtime: every process of this user on the bundled JDK
+        _np=0
+        for _pid in $(pgrep -u "$(id -u)" -f "${_bj%/bin/java}/bin/java|${ORACLE_HOME:-${FMW_HOME:-}}/bin/rw" 2>/dev/null); do
+            _cmd="$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null)"
+            [ -n "$_cmd" ] || continue
+            _np=$((_np + 1))
+            _name="$(printf '%s' "$_cmd" | grep -oE 'oracle\.reports\.component=[^ ]+' | cut -d= -f2)"
+            [ -z "$_name" ] && _name="$(basename "$(printf '%s' "$_cmd" | awk '{print $1}')")"
+            # native rwserver: the embedded JVM reads REPORTS_JVM_OPTIONS from its environment
+            if printf '%s' "$_cmd" | grep -q -- "$IHW_B64_OPT" \
+               || tr '\0' '\n' < "/proc/$_pid/environ" 2>/dev/null | grep '^REPORTS_JVM_OPTIONS=' | grep -q -- "$IHW_B64_OPT"; then
+                ok "$(printf "  running %-14s PID %-8s %s active" "$_name" "$_pid" "$IHW_B64_OPT")"
+            else
+                _b64_miss "$(printf "  running %-14s PID %-8s without %s – restart after 13- --apply" "$_name" "$_pid" "$IHW_B64_OPT")"
+            fi
+        done
+        [ "$_np" -eq 0 ] && info "  No running process on the bundled JDK (Reports server down?)"
+    fi
+fi
+unset _bj _bv _bm _rsh _rc _rn _pid _cmd _name _np _cpu_vuln
 
 # =============================================================================
 # Summary

@@ -212,15 +212,15 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
-- [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – no FMW
-  patch; on hosts with AVX-512 VBMI (`avx512f avx512bw avx512vbmi bmi2`)
-  the Reports server / engines run the vulnerable Base64 stub. Options: `13-`
-  / `reports.sh` adds `-XX:-UseBASE64Intrinsics` to `REPORTS_JVM_OPTIONS` /
-  engine `jvmOptions` when the CPU has the flags (test on such a host:
-  engines start, report OK); `collect_fmw_env.sh` + `java_check.sh` report
-  the CPU flags and `UseBASE64Intrinsics` of every running JVM; part of the
-  SR on the bundled JDK. Details: `09-Install/docs/00-patch-references.md`
-  "Java4Shell".
+- [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – the
+  mitigation `-XX:-UseBASE64Intrinsics` is in `13-` / `engine_perf_settings.sh`
+  and checked by `java_check.sh` (2026-11-18, every bundled JDK 11+, no CPU
+  check; live on the test host 2026-11-18: engines start, smoke test OK).
+  Open: test on an **AVX-512 VBMI host** (engines start, report OK,
+  `UseBASE64Intrinsics=false` at runtime); roll out at the 14c customers
+  (`13- --apply` + Reports server restart); collector fact
+  (`collect_fmw_env.sh`: CPU flags + flag in the running JVMs); remove the
+  option once Oracle ships a bundled-JDK patch.
 - [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
   `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
   tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in

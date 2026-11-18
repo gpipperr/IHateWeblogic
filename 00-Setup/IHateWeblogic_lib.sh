@@ -752,6 +752,59 @@ patch_row_zip() {
 }
 
 # =============================================================================
+# Java4Shell (CVE-2026-114938) – Base64 intrinsic of HotSpot (AVX-512 VBMI path)
+# Spec: 09-Install/docs/00-patch-references.md "Java4Shell". Mitigation for the
+# FMW-bundled JDK (oracle_common/jdk, Reports server + engines) until Oracle
+# ships a patch: -XX:-UseBASE64Intrinsics - pure-Java Base64, same results;
+# a no-op on CPUs without AVX-512 (set it regardless of the CPU: a VM can move
+# to newer hardware). Java 8 does not know the flag and does NOT start with it.
+# =============================================================================
+IHW_B64_OPT="-XX:-UseBASE64Intrinsics"
+
+# java_version JAVA_BIN - version string of a java binary (8: "1.8.0_513")
+java_version() {
+    "$1" -version 2>&1 | head -1 | grep -oE '"[0-9][^"]*"' | tr -d '"'
+}
+# java_major VERSION - 8, 11, 17, 21 ... ("" when unknown)
+java_major() {
+    printf '%s' "$1" | awk -F'[._-]' '$1 != "" { print ($1 == 1) ? $2 : $1 }'
+}
+# cpu_avx512_vbmi - return 0 when the CPU offers avx512f avx512bw avx512vbmi
+# bmi2 (all four = the vulnerable stub can run)
+cpu_avx512_vbmi() {
+    local f; f="$(grep -m1 '^flags' /proc/cpuinfo 2>/dev/null | tr ' ' '\n')"
+    local x; for x in avx512f avx512bw avx512vbmi bmi2; do
+        printf '%s\n' "$f" | grep -qx "$x" || return 1
+    done
+    return 0
+}
+# java4shell_affected VERSION - return 0 when the version is in the affected
+# range (Oracle / OpenJDK advisory 2026-11-17): 17.0.6 - 17.0.21.0.x,
+# 21 < 21.0.13.1, 25 < 25.0.5.1, 27 < 27.0.1.1; 8 / 11 not listed
+java4shell_affected() {
+    local v="$1" m fix lo=""
+    m="$(java_major "$v")"
+    case "$m" in
+        17) lo="17.0.6"; fix="17.0.21.1" ;;
+        21) fix="21.0.13.1" ;;
+        25) fix="25.0.5.1" ;;
+        27) fix="27.0.1.1" ;;
+        *)  return 1 ;;
+    esac
+    [ -n "$lo" ] && [ "$(printf '%s\n%s\n' "$v" "$lo" | sort -V | head -1)" != "$lo" ] && return 1
+    [ "$(printf '%s\n%s\n' "$v" "$fix" | sort -V | head -1)" = "$v" ] && [ "$v" != "$fix" ]
+}
+# reports_b64_opt - " -XX:-UseBASE64Intrinsics" when the bundled JDK
+# ($ORACLE_HOME/oracle_common/jdk) is Java 11+, else "" (Java 8: flag unknown)
+reports_b64_opt() {
+    local j="${ORACLE_HOME:-${FMW_HOME:-}}/oracle_common/jdk/bin/java" m
+    [ -x "$j" ] || return 0
+    m="$(java_major "$(java_version "$j")")"
+    [ -n "$m" ] && [ "$m" -ge 11 ] && printf ' %s' "$IHW_B64_OPT"
+    return 0
+}
+
+# =============================================================================
 # Security / Password functions  (pipperr.de concept)
 # Source: https://www.pipperr.de/dokuwiki/doku.php?id=dba:passwort_verschluesselt_hinterlegen
 # =============================================================================

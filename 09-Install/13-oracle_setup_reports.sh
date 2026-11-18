@@ -914,11 +914,16 @@ esac
 # from the server (reports.sh) - without ORBServerHost there the engine ORB
 # listens on 0.0.0.0 (customer 2026-11-10), and like in reports.sh the ORB
 # timeout belongs to it (REP-50125 on the server without it). Always added here.
+# Java4Shell (CVE-2026-114938): the engines run on the bundled JDK 17 - the
+# Base64 intrinsic off (lib reports_b64_opt: only Java 11+, Java 8 would not start)
+_B64="$(reports_b64_opt)"
 if [ -n "$_ENG_JVM" ]; then
     printf '%s' "$_ENG_JVM" | grep -q 'ORBWaitForResponseTimeout=' \
         || _ENG_JVM="${_ENG_JVM} -DORBWaitForResponseTimeout=999999999"
     printf '%s' "$_ENG_JVM" | grep -q 'ORBServerHost=' \
         || _ENG_JVM="${_ENG_JVM} -Dcom.sun.corba.ee.ORBServerHost=127.0.0.1"
+    [ -n "$_B64" ] && ! printf '%s' "$_ENG_JVM" | grep -q 'UseBASE64Intrinsics' \
+        && _ENG_JVM="${_ENG_JVM}${_B64}"
 fi
 _eng_extra=""
 [ -n "$_ENG_IDLE" ] && _eng_extra="${_eng_extra} maxIdle=\"${_ENG_IDLE}\""
@@ -1155,7 +1160,8 @@ elif grep -q 'IHateWeblogic Settings' "$_REPORTS_SH" 2>/dev/null; then
     # JVM of the rwserver process (librw.so reads REPORTS_JVM_OPTIONS, default
     # -Xmx256M): process reaper fix (first authentication waited ~4 min) +
     # ORB connect timeout 5 s instead of 60 s (engine crash) - 2026-10-16
-    if grep -qxF "$_RWS_JVM_LINE" "$_REPORTS_SH"; then
+    # the Java4Shell option is handled separately below - ignore it here
+    if grep '^REPORTS_JVM_OPTIONS=' "$_REPORTS_SH" | sed "s/ $IHW_B64_OPT//" | grep -qxF "$_RWS_JVM_LINE"; then
         ok "reports.sh: REPORTS_JVM_OPTIONS (reaper + ORB timeout + ORB on 127.0.0.1) present"
     elif $APPLY; then
         cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
@@ -1206,6 +1212,30 @@ else
     else
         info "Dry-run – would append NLS_LANG + REPORTS_FONT_DIRECTORY to reports.sh"
     fi
+fi
+# Java4Shell (CVE-2026-114938): rwserver + engines (inherit REPORTS_JVM_OPTIONS)
+# run on the bundled JDK - Base64 intrinsic off, regardless of the CPU (no-op
+# without AVX-512); only Java 11+ (Java 8 does not start with the flag)
+if [ -f "$_REPORTS_SH" ] && grep -q '^REPORTS_JVM_OPTIONS=' "$_REPORTS_SH"; then
+    _b64_has=false; grep '^REPORTS_JVM_OPTIONS=' "$_REPORTS_SH" | grep -q -- "$IHW_B64_OPT" && _b64_has=true
+    if [ -z "$_B64" ]; then
+        if $_b64_has; then
+            fail "reports.sh: $IHW_B64_OPT set, but the bundled JDK is not Java 11+ – the JVM does not start; remove it"
+        else
+            info "reports.sh: $IHW_B64_OPT not set (bundled JDK not Java 11+ / not found – Java4Shell does not apply)"
+        fi
+    elif $_b64_has; then
+        ok "reports.sh: $IHW_B64_OPT (Java4Shell mitigation, bundled JDK) present"
+    elif $APPLY; then
+        cp "$_REPORTS_SH" "${_REPORTS_SH}.bak_$(date +%Y%m%d_%H%M%S)"
+        sed -i "/^REPORTS_JVM_OPTIONS=/s|^REPORTS_JVM_OPTIONS=\"\([^\"]*\)\"|REPORTS_JVM_OPTIONS=\"\1 $IHW_B64_OPT\"|" "$_REPORTS_SH"
+        grep '^REPORTS_JVM_OPTIONS=' "$_REPORTS_SH" | grep -q -- "$IHW_B64_OPT" \
+            && ok "reports.sh: $IHW_B64_OPT added (Java4Shell mitigation) – Reports server restart" \
+            || fail "reports.sh: $IHW_B64_OPT not written – check $_REPORTS_SH"
+    else
+        info "Dry-run – would add $IHW_B64_OPT to REPORTS_JVM_OPTIONS in reports.sh (Java4Shell mitigation)"
+    fi
+    unset _b64_has
 fi
 # TNS_ADMIN of environment.conf for the Reports server process and the tools
 # (rwrun, rwconverter) - Oracle's block above sets it only when it is empty

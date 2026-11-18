@@ -44,8 +44,9 @@ What matters in this cycle:
   alert CVE-2026-114820); Forms clients: client bundle 21.0.13.1 / JRE 8
   **8u513**. Details: [00-patch-references.md – Java4Shell](../09-Install/docs/00-patch-references.md#java4shell--cve-2026-114938-state-2026-11-18).
 - **FMW-bundled JDK** `oracle_common/jdk` 17.0.12 (Reports engines): still
-  no patch – in the Java4Shell range; on AVX-512 VBMI hosts mitigate with
-  `-XX:-UseBASE64Intrinsics`; SR open.
+  no patch – in the Java4Shell range; mitigated with
+  `-XX:-UseBASE64Intrinsics` (`13-oracle_setup_reports.sh --apply`, every
+  host with a bundled JDK 11+, check `java_check.sh`); SR open.
 - **Repository DB 19.33** – Oracle Text CVE-2026-114848 (9.9) → MRP
   **40196156** (in-place) + DB home JDK 8u513; OpenSSL CVE-2026-72897 has no
   19c fix yet and does **not** depend on the OS `openssl` package (not
