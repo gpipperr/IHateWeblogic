@@ -10,6 +10,15 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **STIG change 3 – account lockout:** new [`07-Maintenance/wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh)
+  (settings, lockout runtime + locked users per server, `BEA-090078` events; `--apply` 3 / 30 / 15 – 30 instead of the
+  STIG's 15 because WebLogic warns below 30 in production mode, `BEA-090978`; `--undo`; `--unlock USER`). Live: restart
+  (non-dynamic), test user locked after 3 failures and released by `--unlock`; wrong `authid=RepRunner` via `rwservlet`
+  gives `REP-50171` but **no lockout** (LDAP bind of the standalone Reports server,
+  [reports_user_local_ldap.md §8](80-FMW-Architecture/reports_user_local_ldap.md#8-account-lockout-does-not-cover-authid-test-host-2026-11-18)).
+  `domain_secret_check.sh` reads the realm elements with the `sec:` prefix (the lockout values were never found
+  before) and rates 3 / 30 / 15 as OK. Smoke test 32 OK.
+
 - **STIG change 2 – password rule of the realm:** new [`07-Maintenance/wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh)
   (read-only: rule, realm users, stored passwords checked locally; `--apply` 12 characters / upper / lower / digit /
   special / no user name, `--undo`). New lib functions `wls_pwd_rule_spec`, `wls_pwd_rule_text`, `wls_pwd_rule_fail`,

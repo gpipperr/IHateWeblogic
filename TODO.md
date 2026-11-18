@@ -227,7 +227,12 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   (`07-Maintenance/wls_password_rule.sh`, prompts check it; open: change the
   admin password of the test host to a rule-conform one, `--undo` live, step
   for new installs after `08-`); (3) lockout 3 / 15 / 15
-  only with service-user protection (`RepRunner`, `monUser`). Plus: WLST
+  only with service-user protection (`RepRunner`, `monUser`) – **done
+  2026-11-18** as 3 / 30 / 15 (`07-Maintenance/wls_lockout_config.sh`,
+  `--unlock`); finding: Reports `authid` (LDAP bind of the standalone
+  server) is not covered by the realm lockout → **next:** Nginx
+  `limit_req` for `/reports/rwservlet` + monitoring of `REP-50171` /
+  `LDAP error code 49` in `rwserver_diagnostic.log`. Plus: WLST
   read-only check "service users not in Administrators / Deployers";
   `umask` 027 for our scripts without breaking Nginx-readable files.
 - [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch

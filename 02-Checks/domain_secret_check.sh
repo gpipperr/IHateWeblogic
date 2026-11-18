@@ -243,7 +243,8 @@ done
 # =============================================================================
 section "5. Account lockout / admin user"
 # =============================================================================
-_ulm="$(tr -d '\n' < "$DH/config/config.xml" | grep -o '<user-lockout-manager>.*</user-lockout-manager>' | head -1)"
+# config.xml writes the realm elements with the prefix "sec:" (14.1.2)
+_ulm="$(tr -d '\n' < "$DH/config/config.xml" | grep -oE '<(sec:)?user-lockout-manager>.*</(sec:)?user-lockout-manager>' | head -1 | sed 's#<\(/\{0,1\}\)sec:#<\1#g')"
 if [ -z "$_ulm" ]; then
     info "  no <user-lockout-manager> in config.xml = WebLogic defaults (lockout on, 5 failed logins, 30 min, reset after 5 min)"
 elif printf '%s' "$_ulm" | grep -q '<lockout-enabled>false</lockout-enabled>'; then
@@ -321,8 +322,12 @@ else
     ok "$_m"
 fi
 # V-235936-38 lockout values of the STIG (section 5 rates on / off)
-_lt="$(printf '%s' "$_cx" | grep -o '<lockout-threshold>[0-9]*' | grep -o '[0-9]*$' | head -1)"
-info "$(printf "  lockout threshold %s (STIG: 3 failed logins, 15 min lock, 15 min reset – mind the service users RepRunner / monUser: a guessed login locks them)" "${_lt:-5 (default)}")"
+_lt="$(printf '%s' "$_cx" | grep -oE '<(sec:)?lockout-threshold>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_ld="$(printf '%s' "$_cx" | grep -oE '<(sec:)?lockout-duration>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_lr="$(printf '%s' "$_cx" | grep -oE '<(sec:)?lockout-reset-duration>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_m="$(printf "  lockout %s / %s / %s (threshold / duration / reset; STIG 3 / 15 / 15 – library 3 / 30 / 15: Oracle warns below 30 min, BEA-090978)" "${_lt:-5}" "${_ld:-30}" "${_lr:-5}")"
+if [ "${_lt:-5}" -le 3 ] && [ "${_lr:-5}" -ge 15 ]; then ok "$_m"
+else info "$_m – 07-Maintenance/wls_lockout_config.sh; mind the service users RepRunner / monUser (a guessed login locks them)"; fi
 # V-235933/34 configuration audit + auditing provider
 _cat="$(printf '%s' "$_cx" | grep -o '<configuration-audit-type>[^<]*' | sed 's/.*>//' | head -1)"
 _aud="$(printf '%s' "$_cx" | grep -o '<sec:auditor' | head -1)"

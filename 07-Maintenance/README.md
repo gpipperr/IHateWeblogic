@@ -45,6 +45,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` + `bin/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
 | [`wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh) | ✅ implemented | Audit trail of the domain (DISA STIG): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`, OPSS audit `filterPreset` Low; read-only by default, `--apply`, `--undo` |
 | [`wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh) | ✅ implemented | Password rule of the realm (DISA STIG): current rule, realm users, stored passwords checked locally; `--apply` = 12 characters (`--min-length`), upper + lower + digit + special, no user name; `--undo` |
+| [`wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh) | ✅ implemented | Account lockout of the realm (DISA STIG): settings, lockout runtime per server + locked users, `BEA-090078` events with client address; `--apply` = 3 / 30 / 15, `--undo` = 5 / 30 / 5, `--unlock USER` |
 | [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
 | [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
 
@@ -606,6 +607,40 @@ three steps are in `DefaultAuditRecorder.log` (audit trail of step 1).
 Stored passwords: `monUser` / `RepRunner` meet the rule, the **admin
 password does not** (length, upper case, special character) – it keeps
 working; the next change must meet the rule. Smoke test 32 OK.
+
+### wls_lockout_config.sh
+
+```bash
+./07-Maintenance/wls_lockout_config.sh                     # settings, runtime, lockout events (30 days)
+./07-Maintenance/wls_lockout_config.sh --apply             # 3 / 30 / 15 (--threshold / --duration / --reset)
+./07-Maintenance/wls_lockout_config.sh --undo --apply      # WebLogic defaults 5 / 30 / 5
+./07-Maintenance/wls_lockout_config.sh --unlock RepRunner  # operational: clear a lockout on every running server
+```
+
+**Why:** DISA STIG V-235936–38 (3 failed logins); the default 5 / 30 / 5
+lets a guesser try 5 passwords every 5 minutes.
+
+| Value | STIG | Library | Note |
+|---|---|---|---|
+| threshold | 3 | **3** | |
+| duration (min) | 15 | **30** | WebLogic warns below 30 min in production mode (`BEA-090978`, message catalog) – 30 is the stricter value |
+| reset duration (min) | 15 | **15** | failures are counted over 15 minutes |
+
+The values are **non-dynamic** – restart the domain after `--apply`. The
+runtime view (section 2) lists per server the users locked now, invalid
+logins and lockouts since the start; section 3 the `BEA-090078` messages
+(user + client address) of the last `LOCKOUT_LOG_DAYS` (30) days – WebLogic
+logs one at the lockout and one for each attempt on the locked account.
+
+**Live on the test host 2026-11-18:** `--apply`, restart (no
+`BEA-090978`), every component up; a temporary test user was locked after 3
+wrong logins (the right password then answered 401 instead of 403),
+`--unlock` released it (403 again), user removed. 4 wrong
+`authid=RepRunner` through `rwservlet` gave `REP-50171` but **no lockout** –
+the standalone Reports server checks `authid` with an LDAP bind against the
+embedded LDAP, past the realm lockout
+([reports_user_local_ldap.md §8](../80-FMW-Architecture/reports_user_local_ldap.md#8-account-lockout-does-not-cover-authid-test-host-2026-11-18)).
+Smoke test 32 OK.
 
 ## 5. Troubleshooting
 

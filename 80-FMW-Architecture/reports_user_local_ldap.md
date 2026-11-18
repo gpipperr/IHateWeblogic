@@ -443,3 +443,30 @@ Earlier considered alternatives (no longer needed):
 - Customer: with `securityId` set but the XML identity store the customer
   got `REP-50171` and slowness – the slowness is the same libOVD/ADR start
   (§7.3), the `REP-50171` the XML store (§2).
+
+## 8. Account lockout does not cover `authid` (test host, 2026-11-18)
+
+**Confirmed (live)** after the realm lockout was set to 3 / 30 / 15
+([`07-Maintenance/wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh)):
+four `getserverinfo` POSTs with `authid=RepRunner/<wrong>` answered
+`<error code="50171" … message="Authentication failed."/>`, the lockout
+runtime of WLS_REPORTS stayed at 0 invalid logins and `RepRunner` was **not**
+locked. `rwserver_diagnostic.log` shows why: the standalone Reports server
+checks the password with an LDAP bind of `uid=RepRunner,ou=people,ou=myrealm,dc=<domain>`
+against the embedded LDAP (OPSS JSE, `ArisIdAuthException … LDAP error code
+49 Invalid Credentials`) – past the WebLogic authentication and therefore
+past the user lockout manager of the realm.
+
+Consequences:
+
+- an attacker cannot lock `RepRunner` / the Reports users through
+  `rwservlet` (no denial of service of the report jobs by guessing) – but
+  the guessing of `authid` passwords is **not slowed down** either;
+- protection therefore lies outside the realm: long service-user passwords
+  (realm rule 12 characters since 2026-11-18), `rwservlet` web commands
+  restricted ([doc 81](../09-Install/docs/81-reports_rwservlet_security.md)),
+  a request limit in Nginx for `/reports/rwservlet` and monitoring of
+  `REP-50171` / `LDAP error code 49` in `rwserver_diagnostic.log` (open, TODO);
+- the same users are still locked when the guessing happens through a
+  WebLogic login (EM, REST) – those paths are behind `ADMIN_IP_RANGE`.
+
