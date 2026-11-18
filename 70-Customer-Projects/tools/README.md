@@ -25,8 +25,11 @@ road map [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWe
 **Maintainer rule:** the ZIPs are built by
 [make_customer_zip.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/make_customer_zip.sh) – deterministic (fixed time
 stamps, sorted, no extra attributes), so they only change when a tool really
-changed. Before **every commit** that touches `bash/`, `powershell/`, this
-README or the road map:
+changed. Before **every commit** that touches a packed file – `bash/`,
+`powershell/`, this README, the road map (`Start_beim_Kunden_kochbuch_de.txt`)
+or the `patch_install.ini` template; the full list prints
+`make_customer_zip.sh --sources`, and the pre-commit hook blocks a commit
+that changes one of them without a current ZIP:
 
 ```bash
 70-Customer-Projects/tools/make_customer_zip.sh            # check: exit 1 + changed files = stale

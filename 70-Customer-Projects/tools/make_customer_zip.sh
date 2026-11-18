@@ -19,9 +19,14 @@
 # Call     : ./make_customer_zip.sh            check only: are the ZIPs current?
 #                                              (exit 1 = stale - run with --apply)
 #            ./make_customer_zip.sh --apply    rebuild the stale ZIPs
-# Rule     : run before every commit that touches tools/bash or
-#            tools/powershell (part of the commit routine, like the
-#            customer-data scan) - a stale ZIP sends old tools to the customer
+#            ./make_customer_zip.sh --sources  list the source files of both
+#                                              ZIPs (repository-relative) –
+#                                              used by tools/hooks/pre-commit
+# Rule     : run before every commit that touches one of the source files
+#            (tools/bash, tools/powershell, tools/README.md, the start
+#            cookbook, the patch_install.ini template – see --sources); the
+#            pre-commit hook checks it - a stale ZIP sends old tools / docs
+#            to the customer
 # Download : https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_linux.zip
 #            https://github.com/gpipperr/IHateWeblogic/raw/main/70-Customer-Projects/tools/ihw_customer_tools_windows.zip
 # Author   : Gunther Pipperr | https://pipperr.de
@@ -30,11 +35,13 @@
 
 set -u
 APPLY=false
+SOURCES=false
 case "${1:-}" in
     --apply) APPLY=true ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    --sources) SOURCES=true ;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     "") ;;
-    *) printf 'Unknown option: %s (--apply, --help)\n' "$1" >&2; exit 2 ;;
+    *) printf 'Unknown option: %s (--apply, --sources, --help)\n' "$1" >&2; exit 2 ;;
 esac
 
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,6 +69,13 @@ _files_windows() {
                      *)    printf '%s;tools/%s;644\n' "$f" "$(basename "$f")" ;; esac
     done
 }
+
+# --sources: one repository-relative path per line (all files of both ZIPs)
+if $SOURCES; then
+    _repo="$(dirname "$PROJ")"
+    { _files_linux; _files_windows; } | cut -d';' -f1 | sed "s|^$_repo/||" | LC_ALL=C sort -u
+    exit 0
+fi
 
 # _version FILE - first VERSION="..." / *_VERSION="..." of a script
 _version() { grep -m1 -oE '[A-Z_]*VERSION="[0-9][^"]*"' "$1" 2>/dev/null | sed 's/.*="//; s/"$//'; }

@@ -10,7 +10,7 @@
 #              4. private IPs       10/8, 172.16/12, 192.168/16 except the demo
 #                                   net 10.10.10.0/24 and generic examples
 #              5. bash -n           staged *.sh / *.sh.template
-#              6. customer ZIPs     stale after a change in tools/bash|powershell
+#              6. customer ZIPs     stale after a change of a packed file (make_customer_zip.sh --sources)
 # Install  : tools/hooks/install.sh   (= git config core.hooksPath tools/hooks)
 # List     : ${IHW_CUSTOMER_PATTERNS:-~/.config/ihw/customer_patterns}
 #            format: tools/hooks/customer_patterns.example
@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-VERSION="2026-11-16.1"
+VERSION="2026-11-18.1"
 
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
 cd "$ROOT" || exit 1
@@ -131,7 +131,14 @@ for f in "${FILES[@]}"; do
 done
 
 # --- 6. customer ZIPs current? ------------------------------------------------------------
-if printf '%s\n' "${FILES[@]}" | grep -qE '^70-Customer-Projects/tools/(bash|powershell)/'; then
+# Trigger = any staged file that make_customer_zip.sh packs (--sources: scripts, tools
+# README, start cookbook, patch_install.ini template) - not only tools/bash|powershell
+# (v1.0.202611: a tools/README.md change left the Linux ZIP stale). Fallback pattern if
+# the script is missing or too old for --sources.
+_zip_src="$(cd 70-Customer-Projects/tools 2>/dev/null && ./make_customer_zip.sh --sources 2>/dev/null)"
+[ -n "$_zip_src" ] || _zip_src="$(printf '%s\n' '^70-Customer-Projects/tools/(bash|powershell)/')"
+if printf '%s\n' "${FILES[@]}" | grep -qxF -f <(printf '%s\n' "$_zip_src") \
+   || printf '%s\n' "${FILES[@]}" | grep -qE '^70-Customer-Projects/tools/(bash|powershell)/'; then
     if ! out="$(cd 70-Customer-Projects/tools && ./make_customer_zip.sh 2>&1)"; then
         _hit "customer-zip" "stale - run 70-Customer-Projects/tools/make_customer_zip.sh --apply and stage the ZIP"
         printf '%s\n' "$out" | grep -v '^ *OK' | sed 's/^/           /'

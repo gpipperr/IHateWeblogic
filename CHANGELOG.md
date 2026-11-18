@@ -8,6 +8,15 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-18 (after the release)
+
+- **Pre-commit hook 2026-11-18.1 – customer ZIPs:** the stale-ZIP check now triggers on every file
+  `make_customer_zip.sh` packs (new option `--sources`: scripts, `tools/README.md`, start cookbook,
+  `patch_install.ini` template), not only on `tools/bash|powershell` – the switch commit of `v1.0.202611`
+  had left the Linux ZIP stale after a `tools/README.md` change (fixed by 7ca50c2 before the tag). Tested in a
+  scratch clone: README / start cookbook changed without ZIP → blocked, with rebuilt ZIP → passes, unrelated
+  file → passes.
+
 ## v1.0.202611 – CSPU November 2026 (2026-11-18)
 
 First release after `v1.0.0`: the library is switched to the **CSPU November 2026** in one commit

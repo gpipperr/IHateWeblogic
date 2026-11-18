@@ -132,7 +132,7 @@ only the **staged** lines and file names:
 | secrets | private keys, GitHub tokens, `password=<real value>` |
 | private IPs | `10/8`, `172.16/12`, `192.168/16` except the demo net `10.10.10.0/24` |
 | `bash -n` | staged `*.sh` with a syntax error |
-| customer ZIPs | `70-Customer-Projects/tools/` changed but the ZIP is stale |
+| customer ZIPs | a file packed into the customer ZIPs changed (`make_customer_zip.sh --sources`) but the ZIP is stale |
 
 Install once per clone:
 
@@ -164,5 +164,7 @@ from the `ol9_developer_EPEL` repository).
 70-Customer-Projects/tools/make_customer_zip.sh --apply
 ```
 
-After a change in `70-Customer-Projects/tools/bash` or `…/powershell` –
-rebuilds the download ZIPs (the hook blocks a stale ZIP).
+After a change of a file that goes into the download ZIPs (`tools/bash`,
+`tools/powershell`, `tools/README.md`, the start cookbook, the
+`patch_install.ini` template – `make_customer_zip.sh --sources`) – rebuilds
+the ZIPs (the hook blocks a stale ZIP).
