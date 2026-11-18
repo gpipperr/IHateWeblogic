@@ -18,8 +18,8 @@ cookbook with copy-paste commands and **German** comments.
    packages, Java, oracle user, network basics on Oracle Linux 9;
    step 9: harden firewall and SSH (with a safety net).
 2. [FMW_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt) – install and patch the
-   WebLogic / FMW Infrastructure (CPU October 2026: OPatch 13.9.4.2.25, WLS
-   Stack Patch Bundle 40125898, eight FMW Infrastructure bundles) and roll
+   WebLogic / FMW Infrastructure (CSPU November 2026: OPatch 13.9.4.2.25, WLS
+   Stack Patch Bundle 40289362, eight FMW Infrastructure bundles) and roll
    out the SSL certificate on Nginx.
 3. [SSL_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/SSL_Kochbuch_de.txt) – create and check the SSL
    certificate (creation and checks only; the rollout is in the FMW
@@ -92,18 +92,23 @@ cookbook with copy-paste commands and **German** comments.
      environment in one place (cookbooks and tools), loaded into the session
      with `. /u01/oracle/tools/set_script_env.sh`.
 
-10. [Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt) –
-    bring an **existing** Reports environment to CPU October 2026 (+ Security
-    Alert CVE-2026-91403) when the starting level is unknown: complete patch
+10. [Patch_Kochbuch_CSPU_Nov2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Patch_Kochbuch_CSPU_Nov2026_de.txt) –
+    bring an **existing** Reports environment to CSPU November 2026 – one
+    run from any level (the list contains the October CPU patches, KA1182 is
+    cumulative); on the October state only JDK, SPB, ADF / UMS / OPSS and
+    OHS are new. When the starting level is unknown: complete patch
     set, a check with `opatch lspatches` before every patch, JDK change with
     carry-over of `java.security` / `cacerts`, OPatch, SPB via `napply`,
     eight infrastructure bundles, PERL, OHS / WebGate (binaries only – no
     OHS instance), Reports QPR (Forms QPR only optional for a scanner,
     appendix 12.F with the `libzrc` check), start and test, rollback.
     Download of all patches in one run:
-    [patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) with
+    [patches_cspu_reports_14c_nov2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cspu_reports_14c_nov2026.csv) with
     [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh)
-    (`--all`).
+    (`--all`). The October cookbook
+    ([Patch_Kochbuch_CPU_Okt2026_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Patch_Kochbuch_CPU_Okt2026_de.txt),
+    [patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv))
+    stays as the frozen record of that cycle.
 
 11. [Reports_Absicherung_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_Absicherung_kochbuch_de.txt) –
     after the patch: check an **existing**, only partly secured Reports
@@ -127,11 +132,11 @@ cookbook with copy-paste commands and **German** comments.
 Download everything before the installation date and put it into the patch
 directory (`/u01/oracle/patch_storage`, layout as in
 [OS_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/OS_Kochbuch_de.txt) step 7: `wls/`, `fr/`,
-`patches/<number>/`). State **CPU October 2026** – check in MOS KA1182
+`patches/<number>/`). State **CSPU November 2026** – check in MOS KA1182
 before the download whether numbers have changed. Mind the platform of MOS
 patches: **Generic** = one ZIP for all platforms, otherwise **Linux x86-64**
 (getMOSPatch: platform `226P`). File names and sizes: download on the test
-system on 2026-10-26.
+system on 2026-10-26 / 2026-11-18 (new November patches).
 
 **a) Oracle Software Delivery Cloud** (edelivery.oracle.com)
 
@@ -148,26 +153,26 @@ V1045121-01.zip  01D7A1042F0896FA5BDDD1EA268C1B60452476032819AAA307A789B15373175
 **b) My Oracle Support – Java**
 
 - [ ] **35702194** `p35702194_2100_Linux-x86-64.zip` – Oracle JDK 21 · 539 MB · OS step 4
-  (check in the ZIP: `jdk-21.0.13.0.2_linux-x64_bin.tar.gz` or newer)
+  (check in the ZIP: `jdk-21.0.13.1_linux-x64_bin.tar.gz` or newer)
 
 **c) My Oracle Support – WebLogic / FMW Infrastructure** (all *Generic*)
 
-- [ ] **40125898** `p40125898_141200_Generic.zip` – WLS Stack Patch Bundle 14.1.2.0.261007 · 2.8 GB · FMW step 3.2/3.3
+- [ ] **40289362** `p40289362_141200_Generic.zip` – WLS Stack Patch Bundle 14.1.2.0.261112 · 2.8 GB · FMW step 3.2/3.3
   (contains OPatch 13.9.4.2.25 – no separate download of 28186730 needed)
-- [ ] **40050062** `p40050062_141200_Generic.zip` – ADF bundle · 22 MB · FMW step 3.4
+- [ ] **40155248** `p40155248_141200_Generic.zip` – ADF bundle · 22 MB · FMW step 3.4
 - [ ] **40035984** `p40035984_141200_Generic.zip` – WebCenter Core bundle · 80 MB · FMW step 3.4
 - [ ] **40024749** `p40024749_141200_Generic.zip` – OWSM bundle · 5.4 MB · FMW step 3.4
 - [ ] **39995927** `p39995927_141200_Generic.zip` – FMW Control (EM) bundle · 13 MB · FMW step 3.4
 - [ ] **40057999** `p40057999_141200_Generic.zip` – OAMCLIENT bundle · 2.4 MB · FMW step 3.4
-- [ ] **39940047** `p39940047_141200_Generic.zip` – UMS bundle · 4.5 MB · FMW step 3.4
-- [ ] **39979746** `p39979746_141200_Generic.zip` – OPSS bundle · 1.5 MB · FMW step 3.4
+- [ ] **40145610** `p40145610_141200_Generic.zip` – UMS bundle · 4.5 MB · FMW step 3.4
+- [ ] **40154045** `p40154045_141200_Generic.zip` – OPSS bundle · 1.5 MB · FMW step 3.4
 - [ ] **39726399** `p39726399_141200_Generic.zip` – LibOVD bundle · 0.5 MB · FMW step 3.4
 
 **d) My Oracle Support – Reports home** (platform *Linux x86-64*)
 
 - [ ] **39600348** `p39600348_141200_Linux-x86-64.zip` – Reports QPR 14.1.2 · 0.5 MB · Reports step 2
 - [ ] **39951765** `p39951765_141200_Linux-x86-64.zip` – PERL SPU (replaces 38590500) · 29 MB · Reports step 2
-- [ ] **39987730** `p39987730_141200_Linux-x86-64.zip` – OHS bundle (binaries only) · 17 MB · Reports step 2
+- [ ] **40181911** `p40181911_141200_Linux-x86-64.zip` – OHS bundle (binaries only) · 17 MB · Reports step 2
 - [ ] **39100536** `p39100536_141200_Linux-x86-64.zip` – WebGate bundle (binaries only) · 21 MB · Reports step 2
 
 Not needed: Forms QPR 39842516 (Reports-only installation, no Forms in use)
@@ -184,8 +189,8 @@ Optional for the MOS download on the command line:
 step 7) – or all MOS patches in one run with
 [tools/bash/mos_patch_download.sh](../tools/README.md#mos_patch_downloadsh) and
 a CSV list (template:
-[patches_cpu_reports_14c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cpu_reports_14c_oct2026.csv) – complete set, with `--all`
-also the optional rows: Forms QPR for appendix 12.F, JDK replacement 40186074).
+[patches_cspu_reports_14c_nov2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patches_cspu_reports_14c_nov2026.csv) – complete set, with `--all`
+also the optional rows: Forms QPR for appendix 12.F, JDK replacement 40239626).
 
 **Total:** about 7 GB. If there are several variants for one patch number,
 use only the one for 14.1.2 and Linux x86-64 or Generic. The same list for
@@ -202,9 +207,10 @@ The Reports Builder for this server runs on its own Windows server
 
 ## Patch level
 
-All cookbooks are at **CPU October 2026** (+ Security Alert
-CVE-2026-91403), applied and tested on the test system on 2026-10-24;
-additions of 2026-10-26: Nginx removes WebLogic headers sent by the client,
+All cookbooks are at **CSPU November 2026** (JDK 21.0.13.1, SPB 40289362,
+ADF / UMS / OPSS / OHS bundles of November), applied and tested on the test
+system on 2026-11-18 (the October state on 2026-10-24); additions of
+2026-10-26: Nginx removes WebLogic headers sent by the client,
 `weblogic-plugin-enabled` also on the AdminServer, eMudhra incident
 (`ca-certificates`, Java trust store). The current state and the history are
 kept in

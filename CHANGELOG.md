@@ -8,6 +8,44 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## v1.0.202611 – CSPU November 2026 (2026-11-18)
+
+First release after `v1.0.0`: the library is switched to the **CSPU November 2026** in one commit
+(release tag scheme `v1.0.<yyyymm>`). Procedure: new fixed step list
+[docs/update_lib_to_act_cpu.md](docs/update_lib_to_act_cpu.md); facts of this cycle:
+[update_plan.md](70-Customer-Projects/FormsReports14_patch_cspu_2026-11/update_plan.md).
+
+- **Analysis** (`patch_cycle_analysis.sh prepare` / `analyse --mode maintainer`, first real run): final advisory
+  (differs from the pre-release: ORDS 26.3.0 affected), KA1182 of 2026-11-17, CPU450 / CPU435 / CPU431, every
+  README read from the ZIP (download to a staging area, ARU of every ZIP). New cycle folder
+  [FormsReports14_patch_cspu_2026-11](70-Customer-Projects/FormsReports14_patch_cspu_2026-11/README.md) with
+  **two** guides (full / cumulative from CPU Oct 2026); October folder frozen;
+  `00-patch-references.md` archived as `_october_2026.md` and rewritten (new sections "What a home needs – CPU
+  vs. CSPU", "Java4Shell" CVE-2026-114938, MRP / OpenSSL assessment of the repository DB).
+- **Live run on the test host 2026-11-18** (by hand, cumulative guide): JDK 21.0.13.1, SPB 40289362 (PSU
+  40205408, TPP 40288205, marker 40289390), ADF 40155248, OPSS 40154045, UMS 40145610, OHS 40181911 – OPatch sets
+  the October bundles "inactive" itself; validate 0 FAIL after the SecureRandom fix (missing after a manual JDK
+  unpack – added to both guides); smoke test, Forms session OK. DB window: MRP 40196156 in-place + DB home JDK
+  40245331 (`datapatch` without work – binary-only one-offs). APEX 26.2.1 (patch set bundle 40040466) and
+  ORDS 26.3.1.
+- **A patch lists:** `patches_fmw.csv` (complete November set, release month per row, `apex` row 40040466),
+  `patches_db.csv` (new role `db_mrp`, MRP in `database/mrp/<nr>/`, DB JDK 40245331); customer list
+  `patches_cspu_reports_14c_nov2026.csv` + `Patch_Kochbuch_CSPU_Nov2026_de.txt` (Reports14).
+- **B conf:** `PATCH_CYCLE` CSPU Nov 2026, `WLS_SPB_VERSION` / `_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS="39924025
+  40073770"` (JAX-WS gate of the Nov PSU), `JDK_VERSION_MIN=21.0.13.1`, superseded list.
+- **C scripts:** lib `otn_newest_zip` ignores non-version directories (`apex/patch/<nr>/` hid `apex/26.2` – found
+  by the switch check); comments only otherwise (no `SUPERSEDES` change needed).
+- **D install docs:** 04 / 05 (new section "November 2026 PSU: JAX-WS gate ON by default") / 06 / 40, download
+  README, 60-RCU docs 01 / 09 ("Monthly MRP in-place"), 12-APEX-Ords README.
+- **F customer cookbooks:** Reports14 FMW / Reports / OS / security cookbooks and README, Java change cookbook,
+  14-ReportsBuilder (de / en / install page – Windows ZIP of OHS 40181911).
+- **G / H / J:** ORDS and certificate pages (current state), security & patch status page, root README, project
+  status, 70-Customer-Projects index, 10-Monitoring README, TODO, skill doc (rules learned: KA1182 cumulative,
+  "Service Delivery Platform" = UMS, pre-release vs. final, PAD vs. matrix, README template errors, manual JDK
+  switch + SecureRandom, news CVEs).
+- **K storage (test host, not in Git):** October ZIPs archived, November ZIPs in place; `04-` reports every row
+  present, `81-` / `82-` `--check-only` "already installed", `cve_inventory.sh` 0 FAIL.
+
 ## 2026-11-17
 
 - **Open points of the doc pages reviewed:** stale entries cleaned (getserverinfo §8 GET examples + `maxQueueSize`,

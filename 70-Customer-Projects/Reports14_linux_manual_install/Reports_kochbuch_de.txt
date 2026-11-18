@@ -111,7 +111,7 @@ WAS WO LANDET
     39600348  p39600348_*.zip       Reports-QPR (Stand Aug 2026)       2.2
     39951765  p39951765_*.zip       FMW PERL SPU 14.1.2                2.3
                                     (ersetzt 38590500)
-    39987730  p39987730_*.zip       OHS Bundle 14.1.2.0.260907         2.4
+    40181911  p40181911_*.zip       OHS Bundle 14.1.2.0.261020         2.4
     39100536  p39100536_*.zip       WebGate Bundle 14.1.2.0.260318     2.4
     39842516                        Forms-QPR - NICHT einspielen       -
 
@@ -431,12 +431,12 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   bewusst WEGGELASSEN, da reines Forms-Patch ohne Reports-Bezug.
     Reports-Patch (einspielen):      39600348  (Stand Aug 2026)
     Forms-Patch (NICHT einspielen):  39842516  (Stand Sep 2026)
-  Beide sind auch im CPU Oktober 2026 unveraendert aktuell (KA1182).
+  Beide sind auch im CSPU November 2026 unveraendert aktuell (KA1182).
   Dazu kommen Patches fuer Komponenten, die erst die Forms-&-Reports-
-  Installation mitbringt (Stand CPU Oktober 2026, auf dem Testsystem
-  am 2026-10-24 eingespielt):
+  Installation mitbringt (Stand CSPU November 2026, auf dem Testsystem
+  am 2026-11-18 eingespielt; PERL / WebGate seit 2026-10-24):
     39951765  FMW PERL SPU 14.1.2 (ersetzt 38590500)       ~4,5 min
-    39987730  OHS Bundle 14.1.2.0.260907 (nur Binaries)     ~3,5 min
+    40181911  OHS Bundle 14.1.2.0.261020 (nur Binaries)     ~4,5 min
     39100536  WebGate Bundle 14.1.2.0.260318 (nur Binaries) ~3,5 min
   Aktuelle Patchnummern per MOS KA1182 / KA204 ermitteln (aendern sich
   monatlich) - siehe IHateWeblogic/09-Install/docs/00-patch-references.md
@@ -447,7 +447,7 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   ls -l $PATCH_STORAGE/patches/39600348 $PATCH_STORAGE/patches/39951765
   # Erwartet: je ein p<nr>_*.zip
 
-  ls -l $PATCH_STORAGE/patches/39987730 $PATCH_STORAGE/patches/39100536
+  ls -l $PATCH_STORAGE/patches/40181911 $PATCH_STORAGE/patches/39100536
   # Erwartet: je ein p<nr>_*.zip
 
   mkdir -p $MW_PATCHES
@@ -522,18 +522,18 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
   # ist Perl in diesem Home nicht installiert - dann nicht anwendbar.
 
   ----------------------------------------------------------------------------
-  2.4 OHS-Bundle 39987730 und WebGate-Bundle 39100536
+  2.4 OHS-Bundle 40181911 und WebGate-Bundle 39100536
   ----------------------------------------------------------------------------
   # OHS- und WebGate-Bundle: die Binaries liegen in jedem Forms-&-Reports-
   # Home, auch wenn Nginx davor steht und keine OHS-Instanz existiert -
   # alles, was auf der Platte liegt, wird gepatcht (Scanner melden es sonst).
   # Ohne OHS-Instanz ist laut MOS KB559857 nach dem Einspielen nichts zu tun.
 
-  # --- OHS-Bundle 39987730 ---
+  # --- OHS-Bundle 40181911 ---
 
-  unzip -q -o $PATCH_STORAGE/patches/39987730/p39987730_*.zip -d $MW_PATCHES
+  unzip -q -o $PATCH_STORAGE/patches/40181911/p40181911_*.zip -d $MW_PATCHES
 
-  cd $MW_PATCHES/39987730
+  cd $MW_PATCHES/40181911
 
   $OPATCH prereq CheckConflictAgainstOHWithDetail -ph .
   # Pruefen: "Prereq ... passed" - sonst NICHT weitermachen
@@ -557,7 +557,7 @@ SCHRITT 2: Reports-Patch einspielen  (als oracle)
 
   # --- Kontrolle beider Bundles ---
 
-  $OPATCH lspatches | grep -E "39987730|39100536"
+  $OPATCH lspatches | grep -E "40181911|39100536"
   # Erwartet: "OHS (NATIVE) BUNDLE PATCH 14.1.2.0.260907" und
   #           "OAM WEBGATE BUNDLE PATCH 14.1.2.0.260318"
 

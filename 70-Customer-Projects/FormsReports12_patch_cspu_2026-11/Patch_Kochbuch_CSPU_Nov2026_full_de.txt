@@ -647,6 +647,12 @@ SCHRITT 4: Server-JDK 8u513 einspielen  (als oracle, README 3.1)
 
   $ORACLE_HOME/oracle_common/jdk/bin/java -version
 
+  # Java4Shell (CVE-2026-114938, Nov 2026, Fehler im Base64-Decoder der
+  # JVM): betrifft Java 17 / 21 / 25 / 27 - bei Java 8 nur den Spezial-
+  # Build 8u511b33-perf. Server-JDK, dieses JDK im Home (8u341) und die
+  # Client-JREs 8 sind davon NICHT betroffen; die uebrigen Java-8-CVEs
+  # des November schon (deshalb 8u513).
+
   # Dieses JDK NICHT von Hand ersetzen (Oracle: "Do not manually replace
   # that JDK directory"). Ob es fuer 12.2.1.19 einen Patch / ein
   # unterstuetztes Verfahren gibt, ist offen (README 7, Punkt 14) - bis
@@ -662,13 +668,16 @@ SCHRITT 4: Server-JDK 8u513 einspielen  (als oracle, README 3.1)
   # erste Build mit dem Fix (CPU435). Auf unserem 14c-Testhost (2026-10-26)
   # vertraute das alte gebuendelte JDK im Home den gefaelschten
   # Zertifikaten, ein aktuelles JDK nicht.
-  # Java 8: Sicherheitsdateien unter jre/lib/security.
+  # Java 8: Sicherheitsdateien unter jre/lib/security, die Sperrliste
+  # heisst dort blacklisted.certs (erst ab neueren JDKs blocked.certs).
+  # Gegenprobe JDK 8u513 (2026-11-18): 0 emSign-Eintraege, 87 Sperr-
+  # eintraege.
 
   # a) neues Server-JDK:
 
   $NEW_JDK/bin/keytool -list -keystore $NEW_JDK/jre/lib/security/cacerts -storepass changeit | grep -ci emsign
 
-  grep -c '^[0-9A-F]' $NEW_JDK/jre/lib/security/blocked.certs
+  grep -c '^[0-9A-F]' $NEW_JDK/jre/lib/security/blacklisted.certs
 
   # b) gebuendeltes JDK im Home:
 
@@ -676,7 +685,7 @@ SCHRITT 4: Server-JDK 8u513 einspielen  (als oracle, README 3.1)
 
   $OCJ/bin/keytool -list -keystore $OCJ/jre/lib/security/cacerts -storepass changeit | grep -ci emsign
 
-  grep -c '^[0-9A-F]' $OCJ/jre/lib/security/blocked.certs
+  grep -c '^[0-9A-F]' $OCJ/jre/lib/security/blacklisted.certs
 
   # Bewertung: eMudhra-Eintraege in cacerts (Zahl > 0) + kurze Sperrliste =
   # vertraut den gefaelschten Zertifikaten. Erwartet fuer 8u513: 0.

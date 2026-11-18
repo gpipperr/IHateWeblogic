@@ -1044,9 +1044,12 @@ ZIPPY
 }
 
 # otn_newest_zip BASE PATTERN – ZIP of the newest version directory under BASE
+# Only directories that start with a digit count as versions: BASE can hold
+# other directories (apex/patch/<nr>/ = APEX patch set bundles) that "sort -V"
+# would rank above every version (CSPU Nov 2026: apex/patch hid apex/26.2).
 otn_newest_zip() {
     local d
-    d="$(ls -d "$1"/*/ 2>/dev/null | sed 's:/$::' | sort -V | tail -1)"
+    d="$(ls -d "$1"/[0-9]*/ 2>/dev/null | sed 's:/$::' | sort -V | tail -1)"
     [ -n "$d" ] && ls "$d"/$2 2>/dev/null | head -1
 }
 

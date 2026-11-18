@@ -29,7 +29,7 @@ What was done when: [CHANGELOG.md](../CHANGELOG.md) (newest first). What is
 still open: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
 How the ~96 % is estimated: phases 1–7 count as done (7 × ~11 %), phase 8
-about nine tenths (CPU Oct 2026 applied on the test host 2026-10-24; bundled-JDK patch open), phase 9 about half
+about nine tenths (CSPU Nov 2026 applied on the test host 2026-11-18 incl. DB MRP / APEX / ORDS, lib switched with release v1.0.202611 – procedure [update_lib_to_act_cpu.md](update_lib_to_act_cpu.md); bundled-JDK patch open), phase 9 about half
 (CVE watch steps 1 + 2 (`cve_inventory.sh`, `cve_watch.sh` early warning),
 the certificate expiry check and the Claude patch-cycle analysis done;
 notification, log analysis, config security scanner are concept); minus the

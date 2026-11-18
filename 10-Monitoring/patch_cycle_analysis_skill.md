@@ -7,7 +7,8 @@ description: "Analyse Oracle Critical Patch Updates, CSPU and Security Alerts fo
 
 How a patch cycle (CPU quarterly, CSPU in the months between, Security Alerts)
 is analysed and documented with Claude. Written from the CPU October 2026 run
-(2026-10-22 … 26). Started by
+(2026-10-22 … 26), extended with the CSPU November 2026 run (2026-11-17 … 18:
+first complete cycle prepare → analyse → live run → library switch). Started by
 [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) or directly with the
 Claude Code skill `/patch-cycle-analysis` (`.claude/skills/patch-cycle-analysis/`,
 local – `.claude/` is not in Git; template
@@ -24,14 +25,15 @@ Precondition: Claude Code set up as in [setup_claude.md](setup_claude.md)
             analyse: READMEs + environment     -> analysis README + manual guide
 2 MANUAL    patches applied by hand (manual guide) or with the released lib
             (07-Maintenance/80-82); live results turn [Doku] into [live]
-3 UPDATE    maintainer only: update_plan.md = the prompt that switches the lib
+3 UPDATE    maintainer only: docs/update_lib_to_act_cpu.md (fixed procedure) +
+            update_plan.md (facts of the cycle) -> one commit, release v1.0.<yyyymm>
 ```
 
 | | **customer** (uses the lib, default) | **maintainer** (develops the lib) |
 |---|---|---|
-| analysis output | `Patch-Doku/<cycle>/result/` – nothing in the repo is touched | freeze + new [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), new `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/` |
+| analysis output | `Patch-Doku/<cycle>/result/` – nothing in the repo is touched | archive `00-patch-references_<month>_<yyyy>.md` (the month it describes) + new [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md), new `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/` with README + **two** guides (full / cumulative from the previous cycle) |
 | `update_plan.md` | not created | created in the 70 folder |
-| end of the cycle | patches by hand; for automation pull the current release of the lib | session with `update_plan.md` as prompt → lib switched, commit, `git tag <cycle>` → the customer's next pull closes the loop |
+| end of the cycle | patches by hand; for automation pull the current release of the lib | session with [`docs/update_lib_to_act_cpu.md`](../docs/update_lib_to_act_cpu.md) + `update_plan.md` → lib switched in **one** commit, release tag `v1.0.<yyyymm>` → the customer's next pull closes the loop |
 
 `Patch-Doku/` lives in `10-Monitoring/Patch-Doku/<yyyy-mm>_<cycle>/` and is
 **not** in Git (`.gitignore`): it holds Oracle documents (READMEs, KA1182 PDF)
@@ -64,7 +66,8 @@ Inputs: `cycle.info` (cycle id, URL), the current
 2. **Filter** the risk-matrix rows: affected versions incl. **14.1.2.0.0** (and
    the customer's release, e.g. 12.2.1.4.0) and products that are part of a
    Forms & Reports home (WebLogic, FMW Infrastructure components – OPSS, OWSM,
-   ADF/JDeveloper runtime, EM/FMW Control, UMS, LibOVD, OAM client – OHS,
+   ADF/JDeveloper runtime, EM/FMW Control, UMS (matrix name "Service Delivery
+   Platform"), LibOVD, OAM client – OHS,
    WebGate, Forms, Reports, Perl, Coherence, third-party components). Java SE
    rows for the JDK at `JDK_HOME` and the client JRE. Database / Instant
    Client / SQLcl / APEX / ORDS rows separately (own release cycles).
@@ -107,22 +110,27 @@ Inputs: `readmes/`, `env/` (optional), `readme_list.md`, the current
    - analysis README: header (cycle, sources, roles), 1 check / 1a
      inventory, 2 patch list, 3a README facts, 6 order of work, 7 open
      points, 8 runtimes (empty until stage 2)
-   - manual guide `install_14c_patch_set_<month>_<year>_manual.md`: steps
-     0 prerequisites … 13 known problems, each step names the script that
+   - **two** manual guides: `install_14c_patch_set_<month>_<year>_manual_full.md`
+     (complete current KA1182 set, any older level) and
+     `install_14c_patch_set_<month>_<year>_manual_cumulativ_from_<cpu|cspu><mm><yyyy>.md`
+     (only the patches newer than the directly previous cycle); steps 0
+     prerequisites … known problems, each step names the script that
      automates it; markers **documented** / **confirmed (live)** /
      **assumption**
    - customer mode: both into `Patch-Doku/<cycle>/result/` (German cookbook
      style if the customer wants German – ask)
    - maintainer mode:
      1. freeze [`00-patch-references.md`](../09-Install/docs/00-patch-references.md) → `00-patch-references_<month>_<year>.md`
-        (rule "Rule for every new cycle" in that file), new row in the cycle
-        table, rework the file for the new cycle
-     2. new folder `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`,
-        previous folder header "Frozen – do not edit"
+        – the month the file **describes** (rule "Rule for every new cycle"
+        in that file), new row in the cycle table, rework the file for the
+        new cycle
+     2. new folder `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`;
+        the previous folder stays as it is (only the header "Frozen – do
+        not edit", set at the switch)
      3. **`update_plan.md`** in the new folder (section 5)
 6. **No** conf / script change and **no** commit in this phase.
 
-## 4. Rules learned (CPU October 2026)
+## 4. Rules learned (CPU October 2026, CSPU November 2026)
 
 - Fetch oracle.com with `curl -A "Mozilla/5.0"`; `ops.java` pages can be down
   – note it, do not guess their content.
@@ -146,18 +154,44 @@ Inputs: `readmes/`, `env/` (optional), `readme_list.md`, the current
   project memory before every commit; `Patch-Doku/` stays local.
 - Customer cookbooks are German and pure ASCII (`*.txt`); repo docs English.
 - Never edit a script while the user runs it (bash reads incrementally).
+- **KA1182 is cumulative:** in a CSPU month the list still contains the
+  patches of the last CPU (release column) – the full guide / `patches_fmw.csv`
+  is always the complete set, a never patched home needs **one** run; never
+  drop an unchanged row. Two layers only outside KA1182: the repository DB
+  (RU of the CPU + **MRP** of the month, in-place) and APEX (release + patch
+  set bundle). Overlay case: a CSPU patch on top of the CPU's PSU = `spb` +
+  `wls` row.
+- Product names of the risk matrix ≠ KA1182 names: **"Service Delivery
+  Platform" = UMS** (CSPU Nov 2026: 9.8, missed in phase 1) – keep it in the
+  phase-1 filter.
+- The **pre-release** announcement can differ from the final advisory (Nov
+  2026: ORDS 26.3.0 moved into the affected range) – always re-read the final
+  page (`cspu<mon><yyyy>.html` + `…verbose.html`) before the analysis.
+- Matrix vs. Patch Availability Document (CPU450) can differ (Nov 2026: two
+  ADF CVEs listed for 14.1.2 but mapped to the 12.2.1.4 patch only) – follow
+  the PAD, note the difference.
+- MOS README text can carry template errors (DB MRP 40196156 named RU 19.32
+  as its base) – the `inventory.xml` of the (sub-)patches and the conflict
+  check decide.
+- A **manual** JDK switch misses the SecureRandom fix (`02b-` / `80-` do it):
+  every new Oracle JDK ships `securerandom.source=file:/dev/random`.
+- CVEs from the news (Nov 2026: "Java4Shell") – check them against the
+  matrix of the cycle and document them in `00-patch-references.md` with the
+  stack assessment per JVM (JDK_HOME, bundled JDK, client).
 - Never read secret files (`*.des3`, `boot.properties`, wallets, keys) – the
   deny rules / sandbox of setup_claude.md block them; do not work around a
   block, ask the user.
 
 ## 5. `update_plan.md` – the prompt for stage 3 (maintainer)
 
-Written at the end of phase 2, **self-contained**, so that one Claude session
-switches the whole lib in one go without re-reading the READMEs. Started
-after the live run (stage 2) with
+Written at the end of phase 2 and completed with the live results of stage
+2. It holds the **facts** of the cycle; the **procedure** (gates, change
+areas A–K, sweep, checks, one commit, release `v1.0.<yyyymm>`) is the fixed
+page [`docs/update_lib_to_act_cpu.md`](../docs/update_lib_to_act_cpu.md).
+Started after the live run with
 
 ```bash
-claude "$(cat 70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/update_plan.md)"
+claude "Follow docs/update_lib_to_act_cpu.md with the facts of 70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/update_plan.md"
 ```
 
 Structure:
@@ -175,12 +209,15 @@ Structure:
    link check of changed Markdown, customer-data scan, ASCII check of the
    `*.txt` cookbooks, [`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) shows the new cycle.
 6. **Finish** – status "lib switched" in the 70 folder and the cycle row of
-   00-patch-references; ask before commit / push / `git tag <cycle>`.
+   00-patch-references; ask before commit / push / `git tag v1.0.<yyyymm>` /
+   GitHub release.
 
 ## 6. Registry – where the cycle lives in the lib
 
 Template for every change list (built from the October 2026 switch: commits
-7fbc79c, 2412d70, 1f8e0cd, 90c970c, 539b22b, f48ff46):
+7fbc79c, 2412d70, 1f8e0cd, 90c970c, 539b22b, f48ff46). The complete,
+maintained step list is [`docs/update_lib_to_act_cpu.md`](../docs/update_lib_to_act_cpu.md) §5 – this table is
+the short overview:
 
 | Area | Places |
 |---|---|

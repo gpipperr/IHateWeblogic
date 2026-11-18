@@ -200,7 +200,7 @@ Good (one idea per line, the result is shown before it is used):
   NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
 
   echo "new JDK: $NEWJDK"
-  # Expected e.g.: /u01/oracle/java/jdk-21.0.13.0.2
+  # Expected e.g.: /u01/oracle/java/jdk-21.0.13.1
 
   ln -sfn "$NEWJDK" "$JDK_HOME"
 ```

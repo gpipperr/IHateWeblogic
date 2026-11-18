@@ -172,7 +172,9 @@ files are **excluded** from `backup_config.sh` – back up offline
 
 ### 4.1 The two JDK root lists are not the OS root list
 
-Comparison by SHA-256 fingerprint, **confirmed (live)** 2026-10-28:
+Comparison by SHA-256 fingerprint, **confirmed (live)** 2026-10-28 (JDK
+21.0.13.0.2 – the current 21.0.13.1 of the CSPU Nov 2026 additionally removed
+the emSign roots of the eMudhra incident):
 
 | | Oracle JDK 21.0.13.0.2 `cacerts` | OS `extracted/java/cacerts` (Mozilla, `ca-certificates` 2026.2) |
 |---|---|---|

@@ -36,7 +36,7 @@ thing. Result of the research in the Oracle documentation (state
 | Installation types of the Forms & Reports installer: **"Forms and Reports Deployment"** or **"Standalone Forms Builder"** – no Reports counterpart | [Install 12.2.1.3 §2.4.4](https://docs.oracle.com/middleware/12213/formsandreports/install-fnr/installing-and-configuring-oracle-forms-and-reports1.htm) |
 | "**One ReportsTools component is compulsory**" – the Builder needs a Reports Tools instance, created with WLST `createReportsToolsInstance()` against a **running AdminServer** | ibid. §2.4.7, §2.4.7.1, §2.4.7.3 |
 | The domain template "Oracle Reports Tools" pulls in **Oracle JRF** (full) and **Oracle Enterprise Manager** → **RCU schemas are mandatory**. "Oracle Forms Development", in contrast, runs on Restricted JRF without a database – Reports has no such counterpart | `template-info.xml` of the templates; WLST offline `selectTemplate('Oracle Reports Tools')` → JRF, EM, Coherence extension (checked 2026-10-26 on the 14.1.2 test system) |
-| The WLS Stack Patch Bundle contains its own `windows64_patchlist.txt` and the DB client for Windows → patching as on Linux with `opatch napply` | SPB 40125898 (CPU October 2026) |
+| The WLS Stack Patch Bundle contains its own `windows64_patchlist.txt` and the DB client for Windows → patching as on Linux with `opatch napply` | SPB 40289362 (CSPU November 2026) |
 
 **So a domain with RCU cannot be avoided.** What can be avoided is the
 **running server stack** – and that is exactly what makes the effort on
@@ -127,17 +127,17 @@ PROD deploy, protected `prod-*` tags and variables per environment.
 
 ## Patch level
 
-CPU October 2026 – the same patches as the Linux server
+CSPU November 2026 – the same patches as the Linux server
 ([FMW_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/FMW_Kochbuch_de.txt)
 step 3, [Reports_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/Reports_kochbuch_de.txt)
 step 2), each in the Windows variant (MOS platform "Microsoft Windows x64
-(64-bit)", getMOSPatch `233P`). JDK 21.0.13.0.2 from MOS patch 35702194
+(64-bit)", getMOSPatch `233P`). JDK 21.0.13.1 from MOS patch 35702194
 (Windows). Builder and server should have **the same patch level** – a
 report saved with a newer Builder must run on the server.
 
 ## Facts from the Windows patch READMEs
 
-Generic patches (OPatch 28186730, SPB 40125898, the eight infrastructure
+Generic patches (OPatch 28186730, SPB 40289362, the eight infrastructure
 bundles) have the same README as on Linux – facts in the
 [14c README, section 3a](../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md).
 Platform-specific (Windows x64):
@@ -146,7 +146,8 @@ Platform-specific (Windows x64):
 |---|---|---|---|---|
 | **39600348** Reports QPR (README 10-Aug-26, `MSWIN-x86-64`) | 2026-10-26 | unpack, `opatch apply` in the directory `39600348`; rollback `opatch rollback -id 39600348` | all processes of the home stopped, same user as for the installation; OPatch minimum version only given as a placeholder "13.9.4.2.XXXX" (we have .25); patch directory in the root directory (`C:\MW_PATCHES`, 256-character limit), on "path too long" unpack with `%JDK_HOME%\bin\jar -xvf`; pause anti-virus; no relink (`make`/`ld` Unix only) | 31 bugs, identical to Linux: among others 37866660 (alternative JAVA_HOME for the tools), 38617264 (ENHANCEDSPREADSHEET REP-56048), 38872838 (`RUN_REPORT_OBJECT` after 30 min), 37756029 (`cgicmd.dat` encrypted), 36434214 (umlauts in `DESNAME`), 35740116 (`rwconverter` ORA-00933), 35363833 (Office365 STARTTLS), 37548468 (SRW package in ADB 23ai) + 20× "Fix for Bug 39375xxx" |
 | **39951765** PERL SPU (README 03-Sep-26, Windows x64) | 2026-10-26 | unpack, `opatch apply` in the directory `39951765`; rollback `opatch rollback -id 39951765` | **OPatch ≥ 13.9.4.2.17**; all processes stopped, same user; the same Windows notes as above (`C:\MW_PATCHES`, `jar -xvf`, anti-virus). The README does not mention the DB client; on Linux KA1182 requires DBCLIENT ≥ 23.26 – it comes with the SPB (`dbclient/windows64`), so apply it **after** the SPB. The predecessor 38590500 does not exist on a new installation | the only fix **CVE-2026-4176** (Bug 39400045) – identical to the Linux variant |
-| **39987730** OHS (Native) BP 14.1.2.0.260907 (README 08-Sep-26, Windows x64) | 2026-10-26 | unpack, `opatch apply` in the directory `39987730`; rollback `opatch rollback -id 39987730` | **OPatch ≥ 13.9.4.2.17**; all processes stopped, same user; Windows notes as above. Post-install: MOS **KB559857** – without an OHS instance (the builder domain has no OHS) **nothing to do** | cumulative since 250320, the same bug list as Linux: **CVE-2026-87347 / -87346** (260907), July / August hardening off by default (39902419 / 39901639 / 39901695) and more – binaries only, patched so that scanners do not report them |
+| **40181911** OHS (Native) BP 14.1.2.0.261020 (CSPU Nov 2026, Windows x64 ZIP 20.4 MB; README of the Linux ZIP read 2026-11-18 – same bundle content) | 2026-11-18 | unpack, `opatch apply` in the directory `40181911`; rollback `opatch rollback -id 40181911` | **OPatch ≥ 13.9.4.2.17**; all processes stopped, same user; replaces 39987730 (OPatch sets it "inactive"); post-install KB559857 – nothing without an OHS instance | new: 39932075 = CVE-2026-9545 (curl, CPU450); Windows run of this version not yet live |
+| ~~**39987730**~~ OHS (Native) BP 14.1.2.0.260907 (CPU Oct 2026, superseded by 40181911; README 08-Sep-26, Windows x64) | 2026-10-26 | unpack, `opatch apply` in the directory `39987730`; rollback `opatch rollback -id 39987730` | **OPatch ≥ 13.9.4.2.17**; all processes stopped, same user; Windows notes as above. Post-install: MOS **KB559857** – without an OHS instance (the builder domain has no OHS) **nothing to do** | cumulative since 250320, the same bug list as Linux: **CVE-2026-87347 / -87346** (260907), July / August hardening off by default (39902419 / 39901639 / 39901695) and more – binaries only, patched so that scanners do not report them |
 | **39100536** WebGate BP 14.1.2.0.260318 (release notes G14589-06, Apr 2026, all platforms) | 2026-10-26 | unpack, `opatch apply` in the directory `39100536`; cumulative, an older BP does not have to be removed; rollback `opatch rollback -id 39100536` | latest OPatch; stop the Node Manager and the OHS component first (builder domain: neither runs); **minimum OS Windows 2022** – Windows Server 2022/2025 fits | **CVE-2025-0725** (libcurl), plus Windows fixes 38141444 (IIS module) and 38381381 (`webgate.log` on Windows) – binaries only, no OAM in use |
 
 ## Open points for the customer
@@ -163,7 +164,8 @@ Platform-specific (Windows x64):
 | 8 | **RCU DB day to day:** the Reports tools do not use the RCU schemas at runtime (measured 2026-10-27 with `strace` on `rwconverter` on the Linux test system: no OPSS / wallet file, no AdminServer, only the login of the report) – the own RCU DB on the builder server is only needed for domain changes and a version upgrade, service set to "Manual". **Open:** start the Builder once with the DB service stopped and create a preview (Builder GUI not measured yet). Details: cookbook step 10, [reports_rwbuilder.md §3.2/3.3](../80-FMW-Architecture/reports_rwbuilder.md#32-what-the-builder-still-needs-at-runtime). |
 
 Status: **confirmed live 2026-10-27** at the customer (Windows Server 2025,
-CPU October 2026) – the cookbook was run step by step and worked exactly
+CPU October 2026; cookbook numbers switched to CSPU November 2026 on
+2026-11-18 – the November set was run live on the Linux test host) – the cookbook was run step by step and worked exactly
 like this; the only addition: developer accounts with local admin rights
 (see "Multi-user operation"). English cookbook: translated 2026-11-11 from
 the German version (same commands, checked line by line).

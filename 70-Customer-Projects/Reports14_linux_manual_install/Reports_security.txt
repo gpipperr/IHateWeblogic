@@ -1035,7 +1035,18 @@ SCHRITT 12: Patchstand  (als oracle)
   # Oracle liefert inzwischen MONATLICH: Critical Patch Update (CPU) im
   # Quartal (Jan/Apr/Jul/Okt), Critical Security Patch Update (CSPU) in
   # den Monaten dazwischen, dazu Security Alerts. Sicherheit heisst auch:
-  # regelmaessig patchen. Stand dieser Kochbuecher: CPU Oktober 2026.
+  # regelmaessig patchen. Stand dieser Kochbuecher: CSPU November 2026.
+  # Ein CSPU ist kein "Zusatz" zum CPU: MOS KA1182 ist kumulativ - die
+  # Patchliste des aktuellen Monats enthaelt die Patches des letzten CPU
+  # schon (ein Lauf, auch fuer ein ungepatchtes Home).
+  # Java4Shell (CVE-2026-114938, Nov 2026): Fehler im Base64-Decoder der
+  # JVM, nur auf CPUs mit AVX-512 VBMI (neuere Xeon, AMD Zen 4+). Behoben
+  # mit JDK 21.0.13.1 (JDK_HOME). Das JDK im Home ($ORACLE_HOME/
+  # oracle_common/jdk 17.0.12, Reports-Engines) hat keinen Patch - auf
+  # solchen CPUs die JVM-Option -XX:-UseBASE64Intrinsics fuer die
+  # Reports-Engines mit dem Betrieb abstimmen. CPU pruefen:
+  #   grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx512f|avx512bw|avx512vbmi|bmi2)$'
+  # Alle vier Zeilen = betroffene CPU.
 
   ----------------------------------------------------------------------------
   12.1 Patchstand und Java
@@ -1050,9 +1061,9 @@ SCHRITT 12: Patchstand  (als oracle)
   $JDK/bin/java -version 2>&1 | head -1
   # Mit dem aktuellen Stand aus MOS KA1182 vergleichen - Vorgehen siehe
   # FMW_Kochbuch_de.txt Schritt 3 / Reports_kochbuch_de.txt Schritt 2.
-  # Erwartet (CPU Okt 2026) u.a.: 40126042 (SPB), 40058371 (WLS-PSU),
-  # die acht Infrastruktur-Bundles, 39951765 (PERL), 39987730 (OHS),
-  # 39100536 (WebGate), 39600348 (Reports-QPR); JDK 21.0.13.0.2 oder neuer.
+  # Erwartet (CSPU Nov 2026) u.a.: 40289390 (SPB), 40205408 (WLS-PSU),
+  # die acht Infrastruktur-Bundles, 39951765 (PERL), 40181911 (OHS),
+  # 39100536 (WebGate), 39600348 (Reports-QPR); JDK 21.0.13.1 oder neuer.
   # Auch nginx und ca-certificates (dnf update) aktuell halten.
 
   ----------------------------------------------------------------------------

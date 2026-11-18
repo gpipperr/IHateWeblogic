@@ -621,10 +621,12 @@ their logic. Repairs stay a human decision in 01–07.
 - ~~Scheduled certificate expiry check~~ – done 2026-10-23 ([`cert_expiry_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cert_expiry_check.sh), cron)
 - Uniform machine-readable output of the 01–07 scripts (report/JSON beside `print_summary`) as input for the collector – one format for all, not per script
 - Consider a `--dry-run` mode that shows the exact prompt without calling the API (useful for prompt tuning and for reviewing what data leaves the server)
-- **CSPU November 2026** (release 2026-11-17) = first real run of
-  [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh) – prepare done 2026-11-17 (pre-release
-  announcement, `readme_list.md`); next: final advisory, KA1182 + READMEs,
-  analyse `--mode maintainer` → live run → `update_plan.md`
+- ~~**CSPU November 2026** = first real run of
+  [`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)~~ – done 2026-11-17 / 18:
+  prepare (pre-release + final advisory), analyse `--mode maintainer`
+  (READMEs from the ZIPs), live run on the test host (FMW, DB MRP, APEX,
+  ORDS), library switch with [docs/update_lib_to_act_cpu.md](../docs/update_lib_to_act_cpu.md) – release
+  `v1.0.202611`. Next cycle: CSPU December 2026 (2026-12-15)
 - **Claude sandbox rollout on the test host** (`IHW_ENV_TYPE=test`,
   `claude_setup_check.sh --profile maintainer --apply`, root: bubblewrap +
   socat, `/etc/claude-code/`) – [setup_claude.md](setup_claude.md); Node.js of

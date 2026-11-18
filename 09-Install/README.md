@@ -530,11 +530,11 @@ created; each script currently defines its own helpers (`_run_root`, `_can_sudo`
 │   └── fmw_14.1.2.0.0_fr_linux64.bin
 ├── jdk/                          ← JDK 21 tarballs extracted by 02b- --upgrade-jdk
 ├── database/cvu/                 ← standalone CVU (only LOCAL_REP_DB=true)
-└── patches/<patch nr>/p<nr>_*.zip  ← getMOSPatch, one directory per patch, e.g. (CPU Oct 2026):
+└── patches/<patch nr>/p<nr>_*.zip  ← getMOSPatch, one directory per patch, e.g. (CSPU Nov 2026):
     ├── 28186730/                 ← OPatch 13.9.4.2.25 (OPATCH_UPGRADE_PATCH_NR; also inside the SPB)
-    ├── 40125898/                 ← WLS Stack Patch Bundle 14.1.2.0.261007 (WLS_SPB_PATCH_NR) – opatch napply
+    ├── 40289362/                 ← WLS Stack Patch Bundle 14.1.2.0.261112 (WLS_SPB_PATCH_NR) – opatch napply
     ├── 35702194/                 ← Oracle JDK 21 (JDK_PATCH_NR)
-    ├── 40050062/ …               ← FMW Infrastructure bundles (INSTALL_PATCHES)
+    ├── 40155248/ …               ← FMW Infrastructure bundles (INSTALL_PATCHES)
     ├── 39951765/ …               ← Forms & Reports common (INSTALL_PATCHES_FR_COMMON)
     ├── 39842516/                 ← Forms 14.1.2 QPR (INSTALL_PATCHES_FORMS)
     └── 39600348/                 ← Reports 14.1.2 QPR (INSTALL_PATCHES_REPORTS)

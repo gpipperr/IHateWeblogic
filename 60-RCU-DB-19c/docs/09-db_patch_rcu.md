@@ -194,6 +194,43 @@ Findings of the run (fixed in the scripts):
 | systemd unit files readable by root only → "no reference" was reported | unreadable units are treated as "to change", root commands printed |
 | PDB$SEED could not be opened before (ORA-14696) | repaired the same day ([03-db_create_database.md](03-db_create_database.md)) |
 
+## Monthly MRP in-place (CSPU months)
+
+Since 2026 Oracle ships the database part of a **CSPU** for Linux x86-64
+as a **Monthly Recommended Patch (MRP)** on top of the RU of the last CPU –
+"RU of the CPU + MRP of the month" (two layers, see
+[00-patch-references.md – What a home needs](../../09-Install/docs/00-patch-references.md#what-a-home-needs--cpu-vs-cspu-one-list-two-starting-points)).
+The MRP is a container of one-off patches built on that RU; it goes
+**in-place** into the existing home – the out-of-place route of this script
+is for an RU change. `09-db_patch_rcu.sh` has no MRP mode yet (TODO) – by
+hand, **confirmed live 2026-11-18** (MRP 40196156 = 19.33.0.0.261117 + DB
+home JDK 40245331 on the 19.33 home, downtime ~17 min incl. domain):
+
+```bash
+export ORACLE_HOME=<DB home> ORACLE_SID=<SID> PATH=$ORACLE_HOME/bin:$ORACLE_HOME/OPatch:$PATH
+# ALWAYS the DB home: with the FMW ORACLE_HOME in the environment opatch reports the FMW OPatch
+opatch version                                              # >= 12.2.0.1.52 (MRP), .54 (DB JDK)
+cd <stage>; unzip -q <PATCH_STORAGE>/database/mrp/<nr>/p<nr>_*.zip
+opatch prereq CheckConflictAgainstOHWithDetail -ph ./<nr>  # passed
+01-Run/startStop.sh stop-all --apply                        # domain + ORDS (as oracle, library checkout)
+sudo systemctl stop oracle-db oracle-listener               # listener unit may end "failed" – harmless
+opatch napply ./<nr> -silent                                # MRP: n one-offs (~9 min)
+cd <stage>/<db jdk nr> && opatch apply -silent              # DB home JDK (~3 min)
+sudo systemctl reset-failed oracle-listener oracle-db
+sudo systemctl start oracle-listener oracle-db
+sqlplus / as sysdba <<< "alter pluggable database all open;"
+$ORACLE_HOME/OPatch/datapatch -verbose                      # keep it – a later MRP can carry SQL
+# check: dba_registry_sqlpatch (new rows only if the MRP had SQL), invalid objects
+01-Run/startStop.sh start-all --apply                       # smoke test 15-, rcu_repository_check.sh
+```
+
+Live findings 2026-11-18: the MRP README named "RU 19.32.0.0.260721" as the
+base – a template error, all five sub-patch inventories say 19.33.0.0.0 and
+the conflict check passed on 19.33; the five one-offs were binary-only
+(datapatch: "No interim patches need to be applied"); OpenSSL CVE-2026-72897
+is not fixed by this MRP and does not depend on the OS `openssl` package
+(00-patch-references.md, repository DB section).
+
 ## References
 
 - pipperr.de – AutoUpgrade patch automation 26ai (download, keystore,

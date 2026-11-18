@@ -96,7 +96,7 @@ manages** – logic once, no own download:
 
 | Component | Source | Notes |
 |---|---|---|
-| **Java runtime** | Oracle JDK 21 for **Windows x64** – MOS Patch 35702194 ("JDK 21 latest") or the release-specific patch (CPU426: 40186074 = 21.0.13.0.2), platform **233P** | see 3.1 |
+| **Java runtime** | Oracle JDK 21 for **Windows x64** – MOS Patch 35702194 ("JDK 21 latest") or the release-specific patch (CPU435: 40239626 = 21.0.13.1), platform **233P** | see 3.1 |
 | **`frmsal.jar`** | `$ORACLE_HOME/forms/java/frmsal.jar` of this server | Oracle-signed; "version-specific – you cannot use frmsal.jar from one installation against another" (**documented**) → always the server's own file; replaced by Forms patches → rebuild the bundle after every Forms patch |
 | **JACOB DLL** | `$PATCH_STORAGE/jacob/$JACOB_ZIP` (same ZIP as [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh), SHA-256 in [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf)) | x64 DLL – bitness of the client Java (FSAL is 64-bit only); see 5.6 |
 | **Trust** | CA chain of the Nginx TLS certificate ([`08-SSL/ssl_local_ca.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/08-SSL/ssl_local_ca.sh) root, company CA, or nothing for a public CA) | imported with the server `keytool` into the `cacerts` of the **bundled** runtime; see 5.5 |
@@ -161,10 +161,10 @@ Not in the interview (software versions, one source):
   – an own directory, because the skip check of `04-` treats any ZIP in
   `patches/<nr>/` as present ([04-oracle_pre_download.md](04-oracle_pre_download.md)).
   First download **confirmed (live) 2026-10-22**: `p35702194_2100_MSWIN-x86-64.zip`
-  (518 MB) holds `jdk-21.0.13.0.2_windows-x64_bin.zip` (the source for
+  (518 MB) holds `jdk-21.0.13.1_windows-x64_bin.zip` (the source for
   `jlink`), `.exe`, `.msi`, `SHA256_VALUES` – already the alert release.
-  Same version target as the server (`JDK_VERSION_MIN`, CPU October 2026 +
-  alert: 21.0.13.0.2).
+  Same version target as the server (`JDK_VERSION_MIN`, CSPU November 2026:
+  21.0.13.1).
 - **Slim runtime with `jlink` (default):** "Forms also supports using a
   custom JRE distribution that you create using Oracle Java version 17 or
   newer … jdeps … jlink … jpackage" (**documented**, Forms 14.1.2 FSAL,
@@ -209,7 +209,7 @@ Not in the interview (software versions, one source):
   section of `formsweb.cfg` – "17.0.5* : Runs only the specified version or
   later in the Java 17 family" (**documented**, Web Configuration
   Parameters). Setting e.g. `21.0.13*` rejects clients with an older Java
-  (whether the four-part `21.0.13.0.2*` is accepted: **assumption**).
+  (whether the four-part `21.0.13.1*` is accepted: **assumption**).
 
 ### 3.2 `manifest.json` – the one small file checked on every start
 

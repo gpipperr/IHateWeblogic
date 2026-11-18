@@ -42,10 +42,10 @@ VORAUSSETZUNGEN
 
     /oracle/java/                        $JAVA_BASE
       jdk-21.0.12.1/                     altes JDK (bleibt fuer den Rueckweg)
-      jdk-21.0.13.0.2/                   $NEWJDK  <- STEP 2 (aus dem tar.gz)
-      jdk-21  -> jdk-21.0.13.0.2         $JDK_LINK  <- STEP 5
+      jdk-21.0.13.1/                     $NEWJDK  <- STEP 2 (aus dem tar.gz)
+      jdk-21  -> jdk-21.0.13.1           $JDK_LINK  <- STEP 5
     /oracle/install/jdk_wechsel/         $WORK  <- STEP 0
-      jdk-21.0.13.0.2_linux-x64_bin.tar.gz   von MOS, hierher kopiert
+      jdk-21.0.13.1_linux-x64_bin.tar.gz     von MOS, hierher kopiert
       logs/                              $LOGDIR (Ausgaben aller Schritte,
                                          alter Pfad, alter Link-Stand)
       backup/                            $BACKUP  <- STEP 6 (tar der Dateien)
@@ -141,14 +141,14 @@ STEP 2: Neues JDK auspacken  (als Eigentuemer von $JAVA_BASE, oft root;
   # Als root: zuerst STEP 0 in diesem Terminal wiederholen.
 
   ls -l $WORK/jdk-*_linux-x64_bin.tar.gz
-  # Erwartet: genau EINE Datei, z.B. jdk-21.0.13.0.2_linux-x64_bin.tar.gz
+  # Erwartet: genau EINE Datei, z.B. jdk-21.0.13.1_linux-x64_bin.tar.gz
 
   TGZ=$(ls $WORK/jdk-*_linux-x64_bin.tar.gz)
 
   NEWJDK=$JAVA_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
 
   echo "NEWJDK=$NEWJDK"
-  # Erwartet z.B.: NEWJDK=/oracle/java/jdk-21.0.13.0.2
+  # Erwartet z.B.: NEWJDK=/oracle/java/jdk-21.0.13.1
 
   echo "$NEWJDK" > $LOGDIR/02_neues_jdk.txt
 
@@ -159,7 +159,7 @@ STEP 2: Neues JDK auspacken  (als Eigentuemer von $JAVA_BASE, oft root;
   tar -xzf "$TGZ" -C $JAVA_BASE
 
   $NEWJDK/bin/java -version
-  # Erwartet z.B.: java version "21.0.13.0.2" 2026-10-21 LTS
+  # Erwartet z.B.: java version "21.0.13.1" 2026-11-17 LTS
 
   ls -ld $NEWJDK
   # Erwartet: lesbar fuer oracle (drwxr-xr-x).
@@ -274,10 +274,10 @@ STEP 5: Link anlegen oder umbiegen  (als Eigentuemer von $JAVA_BASE)
   ---------------------------------------------------
 
   ls -l $JDK_LINK
-  # Erwartet: jdk-21 -> /oracle/java/jdk-21.0.13.0.2
+  # Erwartet: jdk-21 -> /oracle/java/jdk-21.0.13.1
 
   $JDK_LINK/bin/java -version
-  # Erwartet: java version "21.0.13.0.2" ...
+  # Erwartet: java version "21.0.13.1" ...
 
 ==============================================================================
 STEP 6: Domain und Oracle Home auf den Link umstellen  (als oracle)
@@ -391,7 +391,7 @@ STEP 7: Umgebung starten und pruefen  (als oracle)
   # eine Datei, die in 6.1 nicht gefunden wurde: Prozess merken, melden.
 
   for P in $(pgrep -f 'weblogic[.]Server'); do readlink -f /proc/$P/exe; done
-  # Erwartet: /oracle/java/jdk-21.0.13.0.2/bin/java  (das neue JDK)
+  # Erwartet: /oracle/java/jdk-21.0.13.1/bin/java  (das neue JDK)
 
   # Anwendung pruefen: Forms-Anmeldung, ein Report, EM-Anmeldung.
 

@@ -1,0 +1,40 @@
+# Patch list Reports 14.1.2 only (FMW / WLS 14.1.2.0, Linux x86-64) - CSPU November 2026
+# (JDK 21.0.13.1). COMPLETE set - KA1182 is cumulative, the October CPU patches are included
+# (one run also for a never patched home). The starting level of the
+# customer home is unknown (no collector run possible) - download everything (--all), the
+# cookbook checks per patch with "opatch lspatches" whether it is already installed.
+# Forms QPR optional (no Forms in use; cookbook appendix 12.F only if a scanner flags the Forms
+# binaries the 14.1.2 installer always puts on disk) - loaded with --all.
+# No OHS instance - OHS / WebGate binaries are patched, no post-install (KB559857).
+# Source: README.md download checklist, FMW_Kochbuch_de.txt step 3, Reports_kochbuch_de.txt
+# step 2, 09-Install/download/patches_fmw.csv (state 2026-11-18); steps = Patch_Kochbuch_CSPU_Nov2026_de.txt
+# Download in one run into $PATCH_DIR/<nr>/ (Patch_Kochbuch_CSPU_Nov2026_de.txt VORAUSSETZUNGEN V.3):
+#   ./mos_patch_download.sh -c patches_cspu_reports_14c_nov2026.csv -d $PATCH_DIR --all            # plan
+#   ./mos_patch_download.sh -c patches_cspu_reports_14c_nov2026.csv -d $PATCH_DIR --all --apply
+#   (--all = also the optional rows - recommended here, rather one patch too many)
+# Columns : patch;platform;file_regexp;required;step;description;dir;sha256
+#   platform    226P = Linux x86-64, 2000P = Generic - alternatives with "|" tried in order
+#   required    yes | optional (optional only with --all)
+#   sha256      at analysis time - soft check (WARN): Oracle re-releases under the same number
+# Before the run: compare with the current KA1182 - numbers change every month.
+patch;platform;file_regexp;required;step;description;dir;sha256
+35702194;226P;p35702194_2100_Linux-x86-64\.zip;yes;6;Oracle JDK 21 latest - must contain jdk-21.0.13.1 or newer (check inside the ZIP);;89cbcb2c30c13635dd18a6c3071b8fd3a656fcc67ca1199081213c5e055fa0bd
+40239626;226P;p40239626_.*_Linux-x86-64\.zip;optional;6;Oracle JDK 21.0.13.1 fixed-version patch (CPU435) - fallback if 35702194 holds an older build;;
+28186730;226P|2000P;p28186730_1394225_Generic\.zip;yes;7;OPatch 13.9.4.2.25 - also inside the SPB (tools/opatch/generic);;e4798826ea8f28fe58aa1b441e480fe8a1e16e9f2d63cd80770c7fc72ca83eef
+40289362;226P|2000P;p40289362_141200_Generic\.zip;yes;8;WLS Stack Patch Bundle 14.1.2.0.261112 (opatch napply) - Nov 2026;;2b5a0951c6c9afd70df2bb6b11b667f1bb4b2f4d3e67e7284ca8f2d8ff5651b6
+40155248;226P|2000P;p40155248_141200_Generic\.zip;yes;9;ADF Bundle Patch 14.1.2.0.261013 (after the SPB) - Nov 2026;;a96c88248b8b28dabaaca905f040ae9e56a5a8caa5b71a0040cfb91db1b4fa15
+40035984;226P|2000P;p40035984_141200_Generic\.zip;yes;9;WebCenter Core Bundle Patch 14.1.2.0.260916;;53029bd1c82b8212f292f6f38fd52b68ea82aae5bd70a4fe488656e59bbf6c4d
+40024749;226P|2000P;p40024749_141200_Generic\.zip;yes;9;OWSM Bundle Patch 14.1.2.0.260914;;74029759664ace399013e849af0c3e2b769ed22a7f862dc2536882ef2161ee79
+39995927;226P|2000P;p39995927_141200_Generic\.zip;yes;9;FMW Control (EM) Bundle Patch 14.1.2.0.260908;;8440d7b07e9dbb1584a4037411890c0e8c658b6d18858f8a74fd51c96f19ccb1
+40057999;226P|2000P;p40057999_141200_Generic\.zip;yes;9;OAMCLIENT Bundle Patch 14.1.2.0.260922;;a7ee1d9d18cac8b340a2761706fbb7962e31d6fb64f82fb8273da0e54e986204
+40145610;226P|2000P;p40145610_141200_Generic\.zip;yes;9;UMS Bundle Patch 14.1.2.0.261012 - Nov 2026;;3069d53f0edc58630934c820e1f0d7dddbdf41c6afe7464d6f1ec81534624b22
+40154045;226P|2000P;p40154045_141200_Generic\.zip;yes;9;OPSS Bundle Patch 14.1.2.0.261013 - Nov 2026;;22854270194918883bf126d7309cdf2c8ff65d2b4325992b7c79507d30dd4a9d
+39726399;226P|2000P;p39726399_141200_Generic\.zip;yes;9;LibOVD Bundle Patch 14.1.2.0;;7c4998b060c77f81a9a7f77384643b76c794b41cfff449f2a2cfc1c2307d4fb9
+39951765;226P;p39951765_141200_Linux-x86-64\.zip;yes;10;FMW PERL SPU 14.1.2 (replaces 38590500);;eea5c6416d998242c916c6f0535987ed7187b9ea1458291557aa351596641d1d
+40181911;226P;p40181911_141200_Linux-x86-64\.zip;yes;11;OHS (native) Bundle Patch 14.1.2.0.261020 - binaries only, no OHS instance - Nov 2026;;111a479d7567b1d815979231e7b03c96149bb8451eedee2d95b121771f106bee
+39100536;226P;p39100536_141200_Linux-x86-64\.zip;yes;11;OAM WebGate Bundle Patch 14.1.2.0.260318 - binaries only;;e29ac71bf8b4fbcf09a437a18750d897685477b42f727387b0103b63f84010da
+39842516;226P;p39842516_141200_Linux-x86-64\.zip;optional;12.F;Oracle Forms 14.1.2 QPR (Sep 2026) - only for a scanner (no Forms in use) - BEFORE the Reports QPR (libzrc, KB873815);;4907661f9017079c75b5c91bc7d049f01675934fdd115de978e0985fb065dcdb
+39600348;226P;p39600348_141200_Linux-x86-64\.zip;yes;12;Oracle Reports 14.1.2 QPR (Aug 2026) - unchanged since Sep;;e6c42fc5f2e587791db94982b6955abab3c592c67fc0654b181bb14fee7a5466
+38936596;2000P;p38936596_141200_Generic\.zip;optional;12;Reports one-off bidi parenthesis - only with REPORTS_BIDIPARENTHESIS=YES;;a6088b2b08377012ca26b03cee96da4189ebb2b033d04f156c0f374221d7a9ee
+# NOT needed: OHS post-install KB559857 (no OHS instance); superseded: Oct 40125898 / 40050062 / 39940047 /
+# 39979746 / 39987730 / 40186074, Sep 39925660 / 39988381 / 38590500

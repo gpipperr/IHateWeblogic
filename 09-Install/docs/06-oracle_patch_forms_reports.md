@@ -31,7 +31,7 @@ OK — nothing to do.**
 
 F&R and WLS share the same `ORACLE_HOME`. The WLS patches from `INSTALL_PATCHES`
 (applied by [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh): the WLS Stack Patch Bundle and,
-since CPU Oct 2026, the eight FMW Infrastructure bundle patches) already
+since CSPU Nov 2026, the eight FMW Infrastructure bundle patches) already
 cover the shared home.
 `INSTALL_PATCHES_REPORTS`/`INSTALL_PATCHES_FORMS` are only needed for patches
 that are F&R-specific and not included in the WLS bundle.
@@ -41,8 +41,8 @@ replaces. The script handles this automatically via a `SUPERSEDES` map: if
 the old patch is found installed, it is rolled back before the new one is
 applied — see "What the Script Does" below.
 
-> **Current state (14.1.2, CPU Oct 2026):**
-> `INSTALL_PATCHES_FR_COMMON="39951765 39987730 39100536"` (PERL SPU
+> **Current state (14.1.2, CSPU Nov 2026):**
+> `INSTALL_PATCHES_FR_COMMON="39951765 40181911 39100536"` (PERL SPU
 > supersedes `38590500`, OHS BP, WebGate BP),
 > `INSTALL_PATCHES_REPORTS="39600348"` (supersedes `38827528`),
 > `INSTALL_PATCHES_FORMS="39842516"` (supersedes `38874285`) – the QPRs are
@@ -58,7 +58,7 @@ applied — see "What the Script Does" below.
 Defined in [`09-Install/oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) (space-separated lists):
 
 ```bash
-INSTALL_PATCHES_FR_COMMON="39951765 39987730 39100536"   # if Forms OR Reports is installed
+INSTALL_PATCHES_FR_COMMON="39951765 40181911 39100536"   # if Forms OR Reports is installed
 INSTALL_PATCHES_REPORTS="39600348"
 INSTALL_PATCHES_FORMS="39842516"
 INSTALL_PATCHES_FR_OPTIONAL="38936596"   # only if REPORTS_BIDIPARENTHESIS=YES
@@ -66,7 +66,7 @@ INSTALL_PATCHES_FR_OPTIONAL="38936596"   # only if REPORTS_BIDIPARENTHESIS=YES
 
 `INSTALL_PATCHES_FR_COMMON` holds patches for components that only the Forms
 & Reports installer brings – currently the FMW PERL SPU 39951765 (component
-`oracle.perlint`, CVE-2026-4176), the OHS bundle patch 39987730 (`oracle.ohs2*`)
+`oracle.perlint`, CVE-2026-4176), the OHS bundle patch 40181911 (`oracle.ohs2*`)
 and the WebGate bundle patch 39100536 (`oracle.oamclient.webgate.ohs`). OHS and
 WebGate are patched although Nginx is the frontend – the binaries are on disk;
 their post-install (KB559857) needs nothing without an OHS instance. They are
@@ -127,7 +127,7 @@ with the analysis (patch list, facts of every patch README) and a
 step-by-step guide:
 
 - **current:** [70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)
-  (CPU October 2026)
+  (CSPU November 2026)
 - older cycles: the folders `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`
   and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the
   cycle table in [00-patch-references.md](00-patch-references.md)

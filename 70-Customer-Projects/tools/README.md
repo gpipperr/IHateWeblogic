@@ -297,7 +297,7 @@ patch;platform;file_regexp;required;step;description[;dir[;sha256[;aru]]]
 | `required` | `yes` or `optional` (only with `--all` / `--only`) |
 | `step` | step of the cookbook that applies the patch (information only); in the library list [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv) the **role** (`spb`, `wls`, `jdk`, … – [download/README.md](../../09-Install/download/README.md)), filter with `--steps` |
 | `description` | free text |
-| `dir` | optional: target below `-d` (default `<patch>`) – e.g. `patches/40125898`, `client/jdk/35702194`, `database/cvu` |
+| `dir` | optional: target below `-d` (default `<patch>`) – e.g. `patches/40289362`, `client/jdk/35702194`, `database/cvu`, `database/mrp/40196156` |
 | `sha256` | optional: SHA-256 of the analysed file – **soft check**: a different value is a WARN (exit 1), never a FAIL – Oracle re-releases patches under the same number (the JDK patch with every update); `unzip -t` stays the hard check |
 | `aru` | optional: Unique Patch ID (ARU) of the analysed build (`<unique_patch_id>` in `<patch>/etc/config/inventory.xml` = "Unique Patch ID" of `opatch lsinventory`) – **soft check** like `sha256`: a new build of the same patch number has a new ARU → WARN (exit 1). Stays empty for ZIPs without an OPatch inventory (Stack Patch Bundle, OPatch, JDK, CVU) – there the ARU is only in the MOS download link |
 

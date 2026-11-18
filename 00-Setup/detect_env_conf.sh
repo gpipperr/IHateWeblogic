@@ -333,7 +333,7 @@ detect_wls_reports_server() {
 }
 
 # _jdk_prefer_link dir – a version-neutral symlink next to dir that points to
-# it (jdk-21 -> jdk-21.0.13.0.2) is preferred: JDK updates switch the link only
+# it (jdk-21 -> jdk-21.0.13.1) is preferred: JDK updates switch the link only
 _jdk_prefer_link() {
     local d="$1" l
     for l in "$(dirname "$d")"/*; do

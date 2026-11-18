@@ -133,7 +133,7 @@ stored per version; with `--mos` also the APEX patch set bundle
 ```
 $PATCH_STORAGE/apex/26.2/apex_26.2.zip                       (SHA-256 = download page, checked 2026-10-23)
 $PATCH_STORAGE/apex/26.2/patch/<APEX_PATCH_NR>/p<nr>_262_Generic.zip
-$PATCH_STORAGE/ords/26.3.0.272.1811/ords-26.3.0.272.1811.zip
+$PATCH_STORAGE/ords/26.3.1.303.1615/ords-26.3.1.303.1615.zip
 ```
 
 **Values – `environment.conf`** (interview block 4b,
@@ -191,7 +191,7 @@ chmod 755 /srv/apex
 
 ```bash
 # ZIPs from 04-oracle_pre_download.sh (checksum checked there)
-OZ=$PATCH_STORAGE/ords/26.3.0.272.1811/ords-26.3.0.272.1811.zip
+OZ=$PATCH_STORAGE/ords/26.3.1.303.1615/ords-26.3.1.303.1615.zip
 AZ=$PATCH_STORAGE/apex/26.2/apex_26.2.zip
 
 mkdir $ORACLE_BASE/product/ords/ords-26.3.0

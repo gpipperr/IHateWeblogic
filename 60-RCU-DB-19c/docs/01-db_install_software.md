@@ -153,7 +153,7 @@ DB_AUTOUPGRADE_HOME/
 │   ├── db_goldimage_19_33_*.zip   ← gold image (online "recommended", 4.9 GB)
 │   ├── p39915792_*.zip            ← DB RU 19.33 (offline route; inventory.xml "Database Release Update")
 │   ├── p39803650_*.zip            ← OJVM RU 19.33       (OneOff)
-│   ├── p39902051_*.zip            ← JDK bundle patch    (OneOff)
+│   ├── p40245331_*.zip            ← JDK bundle patch    (OneOff, Nov 2026)
 │   ├── p40057600_*.zip            ← Data Pump bundle    (OneOff)
 │   ├── p6880880_*.zip             ← OPatch 12.2.0.1.55
 │   └── patches_info.json
@@ -263,7 +263,21 @@ installer, gold image after it; `-applyOneOffs` only with
 | Content | JDK `1.8.0_511-b09` (own build line of Oracle homes – not comparable with the b-numbers of the public JRE); files 2026-09-22 → CPU level; **not** the level of the Java alerts of 21 / 24 Oct 2026 (`cacerts` still with the emSign roots, `blacklisted.certs` = list of 2024) |
 | OPatch | `opatch` → 12.2.0.1.55 (Oct 2026); the JDK patch needs ≥ 12.2.0.1.52 |
 | Existing home | `cd <dir>/<nr>; $ORACLE_HOME/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./; opatch apply` – **no** database shutdown needed (README); rollback `opatch rollback -id <nr>`; with Examples installed first `chmod -R 755 $ORACLE_HOME/jdk` |
+| CSPU Nov 2026 | patch **40245331** "JDK BUNDLE PATCH 19.0.0.0.261117" (8u513-b04, DB OPatch ≥ 12.2.0.1.54) – applied in-place on the 19.33 home 2026-11-18 (~3 min, `opatch apply` with the DB stopped as part of the MRP window); the old 39902051 stays listed in `lspatches` (JDK bundles stack) |
 | Each cycle | AutoUpgrade takes the newest revision automatically; check its content (emSign roots gone from `cacerts` = alert level) |
+
+### Monthly MRP (CSPU months) – not via AutoUpgrade
+
+In a CSPU month Oracle delivers the database fixes for Linux x86-64 as a
+**Monthly Recommended Patch** on top of the RU of the last CPU (CSPU Nov
+2026: MRP **40196156** = 19.33.0.0.261117 on RU 19.33). It is a container of
+one-off patches, applied **in-place** on the running RU home (not a new
+home) – see [09-db_patch_rcu.md – Monthly MRP](09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months).
+`patches_db.csv` keeps it in its own directory `database/mrp/<nr>/` (role
+`db_mrp`), so the offline route of `01-` (which links everything under
+`database/patches/` into the AutoUpgrade patchdir) does not pick it up.
+**Open:** whether AutoUpgrade `recommended` (newest jar) also delivers the
+MRP for a new home – check at the next new home build (TODO).
 
 ## Additional home for patching (`--target-home`)
 
@@ -332,7 +346,7 @@ for z in $DB_AUTOUPGRADE_HOME/patchdir/p[0-9]*.zip; do       # RU + OneOffs (not
 $OH/oui/bin/runInstaller -silent -attachHome ORACLE_HOME=$OH ORACLE_HOME_NAME=OraDB19Home1
 grep -c "LOC=\"$OH\"" $INV                                   # 1
 # 2. RU first, then the OneOffs in patch-number order (OJVM, JDK bundle, Data Pump bundle)
-for p in 39915792 39803650 39902051 40057600; do
+for p in 39915792 39803650 40245331 40057600; do
     (cd $PS/$p && ORACLE_HOME=$OH $OH/OPatch/opatch apply -silent -oh $OH) || break
 done                                                         # "OPatch succeeded", no "skipped"
 ORACLE_HOME=$OH $OH/OPatch/opatch lspatches | grep '^39915792;'
@@ -386,7 +400,7 @@ unzip -q -o p6880880_190000_Linux-x86-64.zip -d $OH          # newest OPatch (ov
 cd $OH
 CV_ASSUME_DISTID=OEL7.6 ./runInstaller -silent -ignorePrereqFailure -waitforcompletion \
     <same arguments as step 4 above>                         # rc 0 or 6 = OK
-for p in 39803650 39902051 40057600; do                      # OneOffs unpacked to $PS
+for p in 39803650 40245331 40057600; do                      # OneOffs unpacked to $PS
     (cd $PS/$p && ORACLE_HOME=$OH $OH/OPatch/opatch apply -silent -oh $OH) || break
 done
 ```

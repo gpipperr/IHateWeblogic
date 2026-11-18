@@ -32,8 +32,8 @@ release – file names and SHA-256 stay in `oracle_software_version.conf` /
 
 ```
 patch;platform;file_regexp;required;step;description;dir;sha256;aru
-40125898;226P|2000P;p40125898_141200_Generic\.zip;yes;spb;WLS Stack Patch Bundle 14.1.2.0.261007;patches/40125898;ad9b79…;
-39987730;226P;p39987730_141200_Linux-x86-64\.zip;yes;fr_common;OHS (native) Bundle Patch 14.1.2.0.260907;patches/39987730;93b242…;29093973
+40289362;226P|2000P;p40289362_141200_Generic\.zip;yes;spb;WLS Stack Patch Bundle 14.1.2.0.261112;patches/40289362;2b5a09…;
+40181911;226P;p40181911_141200_Linux-x86-64\.zip;yes;fr_common;OHS (native) Bundle Patch 14.1.2.0.261020;patches/40181911;111a47…;29522371
 ```
 
 | Column | Meaning |

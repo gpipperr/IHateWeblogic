@@ -99,7 +99,22 @@ at the customer 2026-10-29). Download list
 [patches_cpu_forms_reports_12c_oct2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_forms_reports_12c_oct2026.csv)
 for [`tools/bash/mos_patch_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/mos_patch_download.sh).
 
-### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English)
+### Oracle Forms & Reports 14.1.2 – Patch Set CSPU November 2026 (English)
+
+→ [FormsReports14_patch_cspu_2026-11/README.md](FormsReports14_patch_cspu_2026-11/README.md)
+
+Current cycle of the reference stack (Forms & Reports 14.1.2, OL9, Nginx):
+analysis with the facts of every patch README (read from the ZIPs), the
+live run on the test host 2026-11-18 (FMW home, repository DB MRP, APEX
+26.2.1, ORDS 26.3.1) and **two** manual guides –
+[full](FormsReports14_patch_cspu_2026-11/install_14c_patch_set_november_2026_manual_full.md)
+(any older level, one run – the list contains the October CPU patches) and
+[cumulative from CPU October 2026](FormsReports14_patch_cspu_2026-11/install_14c_patch_set_november_2026_manual_cumulativ_from_cpu102026.md)
+(JDK 21.0.13.1, SPB 40289362, ADF / OPSS / UMS, OHS). The library switch of
+this cycle: [update_plan.md](FormsReports14_patch_cspu_2026-11/update_plan.md)
+with [docs/update_lib_to_act_cpu.md](../docs/update_lib_to_act_cpu.md).
+
+### Oracle Forms & Reports 14.1.2 – Patch Set CPU October 2026 (English, frozen)
 
 → [FormsReports14_patch_cpu_2026-10/README.md](FormsReports14_patch_cpu_2026-10/README.md)
 

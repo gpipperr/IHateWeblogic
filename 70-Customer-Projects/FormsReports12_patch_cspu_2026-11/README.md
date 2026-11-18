@@ -180,6 +180,20 @@ build) – Oracle removed the eMudhra roots from `cacerts`. Proof:
 The bundled `oracle_common/jdk` (8u341, Reports engines) still has no FMW
 patch in KA1182 (open point 14).
 
+**Java4Shell** (CVE-2026-114938, Base64 intrinsic on AVX-512 VBMI CPUs, in
+the news 2026-11-17/18) concerns Java 17 / 21 / 25 / 27 and for Java 8
+**only the `8u511b33-perf` build** – the server JDK, the bundled 8u341 and
+the client JRE 8 of a 12.2.1.19 home are **not** affected by it (the other
+Java 8 CVEs of November are the reason for 8u513). Details:
+[00-patch-references.md – Java4Shell](../../09-Install/docs/00-patch-references.md#java4shell--cve-2026-114938-state-2026-11-18).
+
+Java 8 security files are in `jre/lib/security/`; the block list is called
+**`blacklisted.certs`** there (the name `blocked.certs` belongs to newer
+JDKs) – corrected in step 4.8 of both November cookbooks on 2026-11-18
+(checked against JDK 8u513: 0 emSign entries in `cacerts`, 87 entries in
+`blacklisted.certs`). The frozen October cookbook still says `blocked.certs`
+in its eMudhra check – use `blacklisted.certs`.
+
 ### 3.2 OPatch and WebLogic Server 12.2.1.4
 
 | Patch | Description | KA1182 release | Note |

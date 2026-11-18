@@ -6,7 +6,7 @@
   Umgebung   : Windows Server 2025 (Kunde; FMW 14.1.2 nach letztem Stand nur
                fuer 2022 zertifiziert - Certification Matrix vor der
                Installation pruefen; 2025 von pipperr.de erfolgreich getestet),
-               FMW 14.1.2.0.0, Oracle Reports 14.1.2, Patchstand CPU Okt 2026
+               FMW 14.1.2.0.0, Oracle Reports 14.1.2, Patchstand CSPU Nov 2026
   Erstellt   : 2026-10-26, ergaenzt 2026-10-27 (Benutzerrechte, live),
                Stil nach 70-Customer-Projects/cookbook-Skill.md (2026-11-04)
   Grundlage  : Oracle-Doku Forms 14.1.2 Kap. 5 + Reports-Installation 12.2.1.3
@@ -71,10 +71,10 @@ WAS WO LANDET
                                        (alle ZIPs a-d, ca. 7 GB)
       stage\                           %STAGE% <- SCHRITT 1-4 (entpackt,
                                        beim Patchen zusaetzlich ca. 6 GB)
-        jdk-21.0.13.0.2_windows-x64_bin.zip    aus 35702194 (1.2)
+        jdk-21.0.13.1_windows-x64_bin.zip      aus 35702194 (1.2)
         fmw_14.1.2.0.0_infrastructure.jar      aus V1045135-01.zip (2)
         setup_fmw_14.1.2.0.0_fr_win64.exe      aus V1045122-01.zip (3)
-        WLS_SPB_14.1.2.0.261007\       aus 40125898 (4.1 / 4.2)
+        WLS_SPB_14.1.2.0.261112\       aus 40289362 (4.1 / 4.2)
         opatch\6880880\                OPatch 13.9.4.2.25 (4.1)
         <patchnr>\                     je Patch aus 4.3 / 4.4
         logs\                          %LOGDIR% <- SCHRITT 0.3 (lspatches
@@ -88,7 +88,7 @@ WAS WO LANDET
                                        <- SCHRITT 7 (darin tools\COMMON\
                                        uifont.ali, SCHRITT 8.3)
     E:\Java\                           %JAVA_BASE%
-      jdk-21.0.13.0.2\                 <- SCHRITT 1.2
+      jdk-21.0.13.1\                   <- SCHRITT 1.2
       jdk-21                           %JDK_HOME% = Junction <- SCHRITT 1.3
     E:\temp\                           java.io.tmpdir (4.1), Test-Ausgaben (9)
     E:\reports\src\                    Berichtsquellen <- SCHRITT 8.2
@@ -139,7 +139,7 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen - SCHRITT 0)
   - Virenschutz: Ausnahme fuer E:\oracle waehrend Installation und Patchen
     (Patch-READMEs: "anti-virus software should be temporarily stopped").
 
-  DOWNLOAD-CHECKLISTE  (alles nach %PATCH_STORAGE%, Stand CPU Oktober 2026)
+  DOWNLOAD-CHECKLISTE  (alles nach %PATCH_STORAGE%, Stand CSPU November 2026)
   ---------------------------------------------------------------------------
   Vor dem Termin herunterladen und abhaken. Bei MOS-Patches immer die
   richtige Plattform waehlen: "Generic" = ein ZIP fuer alle Plattformen,
@@ -154,25 +154,25 @@ VORAUSSETZUNGEN  (Werte EINMAL an die Umgebung anpassen - SCHRITT 0)
 
   b) My Oracle Support - Java
   [ ] 35702194  p35702194_2100_MSWIN-x86-64.zip   Oracle JDK 21 (Windows)  ~520 MB  Schritt 1
-                Inhalt pruefen: jdk-21.0.13.0.2_windows-x64_bin.zip (oder neuer)
+                Inhalt pruefen: jdk-21.0.13.1_windows-x64_bin.zip (oder neuer)
 
   c) My Oracle Support - WebLogic / FMW Infrastructure (alle "Generic")
-  [ ] 40125898  p40125898_141200_Generic.zip  WLS Stack Patch Bundle     2,8 GB   Schritt 4.1/4.2
-                14.1.2.0.261007 (enthaelt OPatch 13.9.4.2.25 - kein
+  [ ] 40289362  p40289362_141200_Generic.zip  WLS Stack Patch Bundle     2,8 GB   Schritt 4.1/4.2
+                14.1.2.0.261112 (enthaelt OPatch 13.9.4.2.25 - kein
                 eigener Download von 28186730 noetig)
-  [ ] 40050062  p40050062_141200_Generic.zip  ADF Bundle                 22 MB    Schritt 4.3
+  [ ] 40155248  p40155248_141200_Generic.zip  ADF Bundle                 22 MB    Schritt 4.3
   [ ] 40035984  p40035984_141200_Generic.zip  WebCenter Core Bundle      81 MB    Schritt 4.3
   [ ] 40024749  p40024749_141200_Generic.zip  OWSM Bundle               5,5 MB    Schritt 4.3
   [ ] 39995927  p39995927_141200_Generic.zip  FMW Control (EM) Bundle    13 MB    Schritt 4.3
   [ ] 40057999  p40057999_141200_Generic.zip  OAMCLIENT Bundle          2,5 MB    Schritt 4.3
-  [ ] 39940047  p39940047_141200_Generic.zip  UMS Bundle                4,5 MB    Schritt 4.3
-  [ ] 39979746  p39979746_141200_Generic.zip  OPSS Bundle               1,6 MB    Schritt 4.3
+  [ ] 40145610  p40145610_141200_Generic.zip  UMS Bundle                4,5 MB    Schritt 4.3
+  [ ] 40154045  p40154045_141200_Generic.zip  OPSS Bundle               1,6 MB    Schritt 4.3
   [ ] 39726399  p39726399_141200_Generic.zip  LibOVD Bundle             0,6 MB    Schritt 4.3
 
   d) My Oracle Support - Forms & Reports (Plattform Microsoft Windows x64)
   [ ] 39600348  p39600348_141200_MSWIN-x86-64.zip  Reports-QPR 14.1.2    3,5 MB   Schritt 4.4
   [ ] 39951765  p39951765_141200_MSWIN-x86-64.zip  PERL SPU             38,4 MB   Schritt 4.4
-  [ ] 39987730  p39987730_141200_MSWIN-x86-64.zip  OHS Bundle           20,3 MB   Schritt 4.4
+  [ ] 40181911  p40181911_141200_MSWIN-x86-64.zip  OHS Bundle           20,4 MB   Schritt 4.4
   [ ] 39100536  p39100536_141200_MSWIN-x86-64.zip  WebGate Bundle       11,1 MB   Schritt 4.4
       optional: 39842516 Forms-QPR (nur wenn auch Forms entwickelt wird)
 
@@ -274,19 +274,19 @@ SCHRITT 1: Windows vorbereiten und JDK installieren  [live 2026-10-27]
   ----------------------------------------------------------------------------
   1.2 JDK aus MOS-Patch 35702194
   ----------------------------------------------------------------------------
-  REM Die Version steht NUR im ZIP (Stand CPU Okt 2026: jdk-21.0.13.0.2;
+  REM Die Version steht NUR im ZIP (Stand CSPU Nov 2026: jdk-21.0.13.1;
   REM der Alert-Build, die 21.0.13 des CPU selbst ist betroffen)
 
   cd /d %PATCH_STORAGE%
 
   tar -tf p35702194_2100_MSWIN-x86-64.zip | findstr /i "jdk-21"
-  REM Erwartet z.B.: jdk-21.0.13.0.2_windows-x64_bin.zip
+  REM Erwartet z.B.: jdk-21.0.13.1_windows-x64_bin.zip
 
   tar -xf p35702194_2100_MSWIN-x86-64.zip -C %STAGE%
 
   REM Den Namen aus der Ausgabe oben OHNE "_windows-x64_bin.zip" eintragen:
 
-  set JDKVER=jdk-21.0.13.0.2
+  set JDKVER=jdk-21.0.13.1
 
   echo %JDKVER%> %LOGDIR%\01_jdkver.txt
 
@@ -308,9 +308,9 @@ SCHRITT 1: Windows vorbereiten und JDK installieren  [live 2026-10-27]
 
   mklink /J %JDK_HOME% %JAVA_BASE%\%JDKVER%
   REM Erwartet (englisches Windows):
-  REM   Junction created for E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.0.2
+  REM   Junction created for E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.1
   REM Deutsches Windows:
-  REM   Verbindung erstellt fuer E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.0.2
+  REM   Verbindung erstellt fuer E:\Java\jdk-21 <<===>> E:\Java\jdk-21.0.13.1
   REM Pruefen unabhaengig von der Sprache: dir E:\Java zeigt jdk-21 als
   REM <JUNCTION> mit dem Ziel in eckigen Klammern.
 
@@ -410,7 +410,7 @@ SCHRITT 3: Forms and Reports installieren (gleiches Oracle Home)  [live 2026-10-
 
 
 ================================================================================
-SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
+SCHRITT 4: Patchen - CSPU November 2026  [live 2026-10-27 mit dem Okt-Stand]
 ================================================================================
 
   REM Gleicher Patchstand wie der Linux-Reports-Server (FMW_Kochbuch_de.txt
@@ -418,6 +418,11 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
   REM Reports14_linux_manual_install). Builder und Server sollen gleich
   REM stehen. Vor dem Lauf in MOS KA1182 pruefen, ob sich Nummern geaendert
   REM haben (Oracle liefert monatlich).
+  REM Stand CSPU Nov 2026: neu gegenueber Oktober sind JDK 21.0.13.1, SPB
+  REM 40289362, ADF 40155248, UMS 40145610, OPSS 40154045 und OHS 40181911
+  REM (Windows-ZIP). Die Liste ist kumulativ - ein ungepatchtes Home braucht
+  REM nur diesen einen Lauf. Live geprueft ist der Ablauf mit dem
+  REM Oktober-Stand (2026-10-27); die November-Nummern auf Linux 2026-11-18.
   REM Alle Oracle-Prozesse dieses Homes beendet, Virenschutz pausiert,
   REM VM-Snapshot JETZT.
 
@@ -426,18 +431,18 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
   type %LOGDIR%\04_lspatches_before.txt
 
   ----------------------------------------------------------------------------
-  4.1 OPatch 13.9.4.2.25 - steckt im SPB 40125898
+  4.1 OPatch 13.9.4.2.25 - steckt im SPB 40289362
   ----------------------------------------------------------------------------
   cd /d %STAGE%
 
-  tar -xf %PATCH_STORAGE%\p40125898_141200_Generic.zip
+  tar -xf %PATCH_STORAGE%\p40289362_141200_Generic.zip
 
-  dir %STAGE%\WLS_SPB_14.1.2.0.261007
-  REM Erwartet: Verzeichnis WLS_SPB_14.1.2.0.261007
+  dir %STAGE%\WLS_SPB_14.1.2.0.261112
+  REM Erwartet: Verzeichnis WLS_SPB_14.1.2.0.261112
 
   mkdir %STAGE%\opatch
 
-  tar -xf %STAGE%\WLS_SPB_14.1.2.0.261007\tools\opatch\generic\p28186730_1394225_Generic.zip -C %STAGE%\opatch
+  tar -xf %STAGE%\WLS_SPB_14.1.2.0.261112\tools\opatch\generic\p28186730_1394225_Generic.zip -C %STAGE%\opatch
 
   %JDK_HOME%\bin\java -Djava.io.tmpdir=E:\temp -jar %STAGE%\opatch\6880880\opatch_generic.jar ^
       -silent oracle_home=%ORACLE_HOME%
@@ -448,7 +453,7 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
   ----------------------------------------------------------------------------
   4.2 WLS Stack Patch Bundle per napply - Windows-Patchliste!
   ----------------------------------------------------------------------------
-  cd /d %STAGE%\WLS_SPB_14.1.2.0.261007\binary_patches
+  cd /d %STAGE%\WLS_SPB_14.1.2.0.261112\binary_patches
 
   dir windows64_patchlist.txt
   REM Erwartet: die Datei ist da
@@ -475,8 +480,8 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
 
   set JAVA_HOME=%JDK_HOME%
 
-  %ORACLE_HOME%\OPatch\opatch.bat lspatches | findstr "40126042 40058371"
-  REM Erwartet: 40126042 (SPB-Marker) und 40058371 (WLS-PSU 14.1.2.0.260922)
+  %ORACLE_HOME%\OPatch\opatch.bat lspatches | findstr "40289390 40205408"
+  REM Erwartet: 40289390 (SPB-Marker) und 40205408 (WLS-PSU 14.1.2.0.261025)
 
   ----------------------------------------------------------------------------
   4.3 FMW-Infrastruktur-Bundles  (alle "Generic", normales apply)
@@ -486,7 +491,7 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
 
   cd /d %STAGE%
 
-  for %P in (40050062 40035984 40024749 39995927 40057999 39940047 39979746 39726399) do (
+  for %P in (40155248 40035984 40024749 39995927 40057999 40145610 40154045 39726399) do (
       echo ===== Patch %P
       tar -xf %PATCH_STORAGE%\p%P_141200_Generic.zip -C %STAGE%
       pushd %STAGE%\%P
@@ -512,14 +517,14 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
   REM             zum Linux-Server. Kontrolle nach dem Einspielen unten.
   REM   39951765  PERL SPU (falls Perl im Home - sonst meldet opatch
   REM             "none of the components ... present")       38,4 MB
-  REM   39987730  OHS Bundle (nur Binaries)                     20,3 MB
+  REM   40181911  OHS Bundle (nur Binaries)                     20,4 MB
   REM   39100536  WebGate Bundle (nur Binaries)                 11,1 MB
   REM   Forms-QPR 39842516: nur noetig, wenn auch Forms entwickelt wird.
   REM Je Patch: entpacken, pushd, opatch.bat apply -silent, popd:
 
   cd /d %STAGE%
 
-  for %P in (39600348 39951765 39987730 39100536) do (
+  for %P in (39600348 39951765 40181911 39100536) do (
       echo ===== Patch %P
       tar -xf %PATCH_STORAGE%\p%P_141200_MSWIN-x86-64.zip -C %STAGE%
       pushd %STAGE%\%P
@@ -539,7 +544,7 @@ SCHRITT 4: Patchen - CPU Oktober 2026  [live 2026-10-27]
   %ORACLE_HOME%\OPatch\opatch.bat lspatches > %LOGDIR%\04_lspatches_after.txt
 
   type %LOGDIR%\04_lspatches_after.txt
-  REM Erwartet u.a.: 40126042, 40058371, die Bundles aus 4.3 und die
+  REM Erwartet u.a.: 40289390, 40205408, die Bundles aus 4.3 und die
   REM Patches aus 4.4. Mit 04_lspatches_before.txt vergleichen.
 
 

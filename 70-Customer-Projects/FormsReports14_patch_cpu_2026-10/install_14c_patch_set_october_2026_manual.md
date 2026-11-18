@@ -6,6 +6,9 @@ description: "Step-by-step manual installation of the CPU October 2026 patch set
 
 # Install the CPU October 2026 Patch Set – Forms & Reports 14.1.2 (manual)
 
+> **Frozen – do not edit.** Guide of the CPU October 2026 cycle. Current
+> cycle: [FormsReports14_patch_cspu_2026-11](../FormsReports14_patch_cspu_2026-11/README.md).
+
 Manual, step-by-step installation of the **CPU October 2026** patch set plus
 the **Security Alert CVE-2026-91403** on an Oracle Forms & Reports 14.1.2.0.0
 home (FMW / WebLogic 14.1.2, Oracle Linux 9, Nginx frontend) – without the

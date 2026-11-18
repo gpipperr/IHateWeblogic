@@ -22,7 +22,9 @@ The APEX side (engine, SYS objects, page flow) is in
 
 Markers: **documented** (source in section 12), **confirmed (live)** (test
 host, ORDS 26.3.0.272.1811 + APEX 26.2 on DB 19.30, 2026-10-23),
-**assumption** (not proven yet).
+**assumption** (not proven yet). Current on the test host since 2026-11-18:
+**ORDS 26.3.1.303.1615** + APEX 26.2.1 on DB 19.33 (CSPU Nov 2026 – 26.3.0
+was affected); the version-specific findings below were made on 26.3.0.
 
 ---
 

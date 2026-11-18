@@ -15,8 +15,8 @@ description: "Update OPatch and apply the WebLogic 14.1.2 patches (Stack Patch B
 > Stack Patch Bundle applied with `opatch napply` **does** again since CSPU
 > Sep 2026 – see the [SPB note](#note-on-spbat-and-stack-patch-bundles) below.
 >
-> **Current set: CPU October 2026** (+ Security Alert CVE-2026-91403):
-> OPatch 13.9.4.2.25, SPB `40125898` (marker `40126042`), then the eight FMW
+> **Current set: CSPU November 2026** (live on the test host 2026-11-18):
+> OPatch 13.9.4.2.25, SPB `40289362` (marker `40289390`), then the eight FMW
 > Infrastructure bundle patches in `INSTALL_PATCHES`. Manual procedure and the
 > facts of every patch README:
 > [`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md).
@@ -37,7 +37,7 @@ cumbersome as possible, and they usually succeed admirably.
 > The walkthrough below uses the January 2026 CPU (Patch 38566996) as a
 > worked example of the discovery process itself — it is still the correct
 > *procedure*, but the *numbers* are already out of date. For the current
-> patch set (CPU October 2026: WLS Stack Patch Bundle + FMW Infrastructure
+> patch set (CSPU November 2026: WLS Stack Patch Bundle + FMW Infrastructure
 > bundle patches), see
 > [`docs/00-patch-references.md`](00-patch-references.md) and
 > [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) directly.
@@ -143,7 +143,7 @@ with the analysis (patch list, facts of every patch README) and a
 step-by-step guide:
 
 - **current:** [70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md](../../70-Customer-Projects/FormsReports14_patch_cpu_2026-10/install_14c_patch_set_october_2026_manual.md)
-  (CPU October 2026)
+  (CSPU November 2026)
 - older cycles: the folders `70-Customer-Projects/FormsReports14_patch_<cpu|cspu>_<yyyy>-<mm>/`
   and the frozen `00-patch-references_<month>_<year>.md` snapshots – see the
   cycle table in [00-patch-references.md](00-patch-references.md)
@@ -201,9 +201,9 @@ UMS bundle of January 2026); they aged with every cycle and were removed on
 - All OPatch calls that would ask "Do you want to proceed? [y|n]" (`napply`,
   `rollback`, `apply`) run with `-silent` – otherwise they fail with rc=73 when
   no terminal is attached (confirmed 2026-10-14)
-- **Applies patches** in the order they appear in `INSTALL_PATCHES` – CPU Oct
-  2026: ADF 40050062, WebCenter Core 40035984, OWSM 40024749, FMW Control
-  39995927, OAMCLIENT 40057999, UMS 39940047, OPSS 39979746, LibOVD 39726399
+- **Applies patches** in the order they appear in `INSTALL_PATCHES` – CSPU Nov
+  2026: ADF 40155248, WebCenter Core 40035984, OWSM 40024749, FMW Control
+  39995927, OAMCLIENT 40057999, UMS 40145610, OPSS 40154045, LibOVD 39726399
   (KA1182 tab "FMW Infrastructure 14.1.2.0" – required whenever only the WLS
   SPB is applied; missing in the Sep set). ADF only after the SPB (same-cycle
   rule ADF BP + WLS PSU + Third-Party BP, MOS PNEWS2138). A patch whose
@@ -324,18 +324,18 @@ manual guide of the current cycle, linked under "Without the Script").
 ### SPB – what the script does
 
 Introduced with CSPU September 2026 (SPB `39925660`, 14.1.2.0.260825);
-current: CPU October 2026, SPB `40125898` (14.1.2.0.261007, marker
-`40126042`, WLS PSU 40058371, OPatch 13.9.4.2.25 in `tools/opatch/generic/`).
+current: CSPU November 2026, SPB `40289362` (14.1.2.0.261112, marker
+`40289390`, WLS PSU 40205408, OPatch 13.9.4.2.25 in `tools/opatch/generic/`).
 
 [`05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) runs this automatically when `WLS_SPB_PATCH_NR`
-is set (role `spb` in `download/patches_fmw.csv`, currently `40125898`), inserted
+is set (role `spb` in `download/patches_fmw.csv`, currently `40289362`), inserted
 between the OPatch-upgrade step and the `INSTALL_PATCHES` loop (the OPatch
 upgrade extracts only its own ZIP from the SPB archive, the full SPB is
 staged here, after the upgrade):
 
 1. Skip if the SPB's marker patch (`WLS_SPB_MARKER_PATCH`, currently
-   `40126042`) is already in `opatch lspatches` (idempotent)
-2. Unzip the downloaded SPB ZIP (`$PATCH_STORAGE/patches/40125898/`) to a
+   `40289390`) is already in `opatch lspatches` (idempotent)
+2. Unzip the downloaded SPB ZIP (`$PATCH_STORAGE/patches/40289362/`) to a
    staging directory under `$ORACLE_BASE/tmp/`
 3. Locate the `WLS_SPB_*` directory inside it (the name changes with the SPB
    version, so the script discovers it rather than hardcoding it)
@@ -346,7 +346,7 @@ staged here, after the upgrade):
    scoped to a subshell with no effect on the rest of the script
 5. Verify the marker patch now appears in `opatch lspatches`
 6. Remove the staging directory — the ZIP itself stays in `$PATCH_STORAGE/
-   patches/40125898/` in case a later `opatch nrollback` is needed
+   patches/40289362/` in case a later `opatch nrollback` is needed
 7. Check `WLS_SPB_CHECK_BUGS` in `opatch lsinventory -bugs_fixed` (WARN if
    missing)
 
@@ -355,9 +355,9 @@ source patch plan):
 
 ```bash
 cd $PATCH_STAGE
-unzip -q p40125898_141200_Generic.zip
+unzip -q p40289362_141200_Generic.zip
 
-cd WLS_SPB_14.1.2.0.261007/binary_patches
+cd WLS_SPB_14.1.2.0.261112/binary_patches
 unset JAVA_HOME
 unset ORACLE_HOME
 $ORACLE_HOME_SAVED/OPatch/opatch napply -report -oh $ORACLE_HOME_SAVED -phBaseFile linux64_patchlist.txt   # dry-run
@@ -386,11 +386,11 @@ rolling back individual patches out of an SPB.
 > one — logged either way as `OPatch upgrade ZIP found (<source>): ...`.
 > The SPB archive is unzipped only once and the same staging directory is
 > reused by the later `opatch napply` step, instead of unzipping the
-> multi-GB archive twice. CPU Oct 2026: the same – OPatch 13.9.4.2.25 is in
-> `WLS_SPB_14.1.2.0.261007/tools/opatch/generic/` (SPB README).
+> multi-GB archive twice. CSPU Nov 2026: the same – OPatch 13.9.4.2.25 is in
+> `WLS_SPB_14.1.2.0.261112/tools/opatch/generic/` (SPB README).
 
 ```bash
-cd WLS_SPB_14.1.2.0.261007/binary_patches
+cd WLS_SPB_14.1.2.0.261112/binary_patches
 opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 ```
 
@@ -407,7 +407,7 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 > **CPU Oct 2026:** 39988381 is no longer in `INSTALL_PATCHES`. Its ZIP README
 > (read again 2026-10-24) names it an overlay on the Sep PSU 39919611
 > (mandatory), base bug 39924025 – it can not be applied on the new PSU
-> 40058371. The script checks the base bug after the SPB
+> 40058371 (nor on 40205408 of November – both contain the fix). The script checks the base bug after the SPB
 > (`WLS_SPB_CHECK_BUGS`). The section below stays as the background of
 > `check_patch_zip()`.
 
@@ -451,8 +451,22 @@ opatch nrollback -oh $ORACLE_HOME -idFile rollback_patchlist.txt
 > `6880880/opatch_generic.jar`, no `inventory.xml`) — those are staged and
 > applied through their own, already-existing mechanisms described above.
 >
-> CPU Oct 2026 (2026-10-20) checked against KA1182 (PDF 2026-10-22) – see
-> the current set at the top.
+> CSPU Nov 2026 (2026-11-17) checked against KA1182 (2026-11-17 19:11) and
+> the READMEs from the ZIPs (2026-11-18) – see the current set at the top.
+
+### November 2026 PSU: JAX-WS gate ON by default (F41372-26, KB694158)
+
+The WLS PSU 14.1.2.0.261025 (40205408, in SPB 40289362) adds
+`FeatureCompatibilityMBean.JAXWSRejectUnknownSEIOperationsEnabled` (bug
+40073770): JAX-WS endpoints with a Service Endpoint Interface answer SOAP
+requests for operations that do not map to an SEI method with an "Invalid
+operation" SOAP fault, before WorkContext processing. **Unlike all gates of
+July to September it is enabled by default (`true`)**; dynamic, no restart;
+`false` restores the old behaviour. Live 2026-11-18 on the test host: no
+"Invalid operation" in any server log, EM / Forms / Reports / ORDS fine – no
+action. Set it to `false` only for a legitimate SOAP client that breaks
+after the patch. `05-` checks bug 40073770 after the SPB
+(`WLS_SPB_CHECK_BUGS`).
 
 ### New post-install hardening options (Sep/Aug/Jul 2026 editions, F41372-23)
 

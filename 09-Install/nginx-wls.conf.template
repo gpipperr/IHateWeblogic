@@ -128,6 +128,7 @@ server {
 
     # --- Strip client-supplied WebLogic proxy / control headers -----------
     # Nginx counterpart of the OHS / mod_wl hardening of the CPU Oct 2026
+    # (KB559857, unchanged in the CSPU Nov 2026)
     # (MOS KB559857: WLStripWLProxyHeaders, WLStripPathRewriteHeaders,
     # WLStripWebLogicControlHeaders, WLStripTyrusConnectionHeader). With
     # weblogic-plugin-enabled=true WebLogic trusts these headers; only a proxy

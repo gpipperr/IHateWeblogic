@@ -60,8 +60,8 @@ WAS WO LANDET
     /tmp/jdk-21.*_linux-x64_bin.tar.gz aus dem MOS-ZIP <- SCHRITT 4.2
                                        (nur temporaer)
     $JDK_BASE/                         /u01/oracle/java <- SCHRITT 4
-      jdk-21.0.13.0.2/                 das JDK (Name kommt aus dem tar.gz)
-      jdk-21 -> jdk-21.0.13.0.2        $JDK_HOME = versionsneutraler Link
+      jdk-21.0.13.1/                   das JDK (Name kommt aus dem tar.gz)
+      jdk-21 -> jdk-21.0.13.1          $JDK_HOME = versionsneutraler Link
     $ORACLE_HOME/                      /u01/oracle/fmw <- SCHRITT 5 (leer,
                                        befuellt im FMW_Kochbuch_de.txt)
     /u01/user_projects/domains/        <- SCHRITT 5 (Domain kommt im
@@ -702,8 +702,8 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
   # Quelle: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS,
   # Patch 35702194 ("Oracle JDK 21" latest, ZIP-Name bleibt immer gleich:
   # p35702194_2100_Linux-x86-64.zip). Die Version steht nur IM ZIP -
-  # vorher pruefen (Stand CPU Oktober 2026: jdk-21.0.13.0.2, Alert-Build zu
-  # CVE-2026-91403; die 21.0.13 des CPU selbst ist betroffen):
+  # vorher pruefen (Stand CSPU November 2026: jdk-21.0.13.1; 21.0.13.0.2
+  # aus dem Oktober ist betroffen, u.a. Java4Shell CVE-2026-114938):
 
   echo "JDK_BASE=$JDK_BASE JDK_HOME=$JDK_HOME MEDIA=$MEDIA"
   # Erwartet: /u01/oracle/java /u01/oracle/java/jdk-21 ... LEER? -> SCHRITT 0
@@ -711,7 +711,7 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
   mkdir -p $JDK_BASE
 
   unzip -l $MEDIA/p35702194_2100_Linux-x86-64.zip | grep -o 'jdk-21[^_]*'
-  # Erwartet z.B.: jdk-21.0.13.0.2
+  # Erwartet z.B.: jdk-21.0.13.1
 
   ----------------------------------------------------------------------------
   4.2 Auspacken  (tar.gz-Variante, haelt das JDK unabhaengig vom FMW_HOME)
@@ -721,12 +721,12 @@ SCHRITT 4: Java (Oracle JDK 21) installieren  (als root)
   TGZ=$(ls /tmp/jdk-21*_linux-x64_bin.tar.gz)
 
   echo "TGZ=$TGZ"
-  # Erwartet: GENAU eine Datei, z.B. /tmp/jdk-21.0.13.0.2_linux-x64_bin.tar.gz
+  # Erwartet: GENAU eine Datei, z.B. /tmp/jdk-21.0.13.1_linux-x64_bin.tar.gz
 
   NEWJDK=$JDK_BASE/$(tar -tzf "$TGZ" | head -1 | cut -d/ -f1)
 
   echo "NEWJDK=$NEWJDK"
-  # Erwartet z.B.: /u01/oracle/java/jdk-21.0.13.0.2
+  # Erwartet z.B.: /u01/oracle/java/jdk-21.0.13.1
 
   echo "$NEWJDK" > $WORK/04_newjdk.txt
 
@@ -1070,10 +1070,9 @@ SCHRITT 7: Installationsmedien bereitstellen  (als oracle)
   # Java: JDK-21-Updates gibt es seit Oktober 2026 nur noch ueber MOS
   # (Patch 35702194, ZIP mit jdk-21.0.x_linux-x64_bin.tar.gz) - die
   # oeffentliche Download-Seite bleibt bei 21.0.12.1 (NFTC endete 09/2026).
-  # Stand CPU Oktober 2026: 21.0.13.0.2 - der Security Alert
-  # CVE-2026-114820 (eMudhra, 2026-10-24) nennt auch diese Version; der
-  # Build sperrt die betroffenen Zwischen-CAs aber schon - den naechsten
-  # Build nehmen, sobald MOS ihn liefert.
+  # Stand CSPU November 2026: 21.0.13.1 - schliesst auch den Security
+  # Alert CVE-2026-114820 (eMudhra, 2026-10-24: Wurzeln entfernt) und
+  # Java4Shell (CVE-2026-114938). Naechster Java-CPU: 19.01.2027.
 
   # Ergebnis-Verzeichnisstruktur (siehe auch "Was wo landet"):
   #   $PATCH_STORAGE/

@@ -139,11 +139,11 @@ Documentation:
 ## Security & Patch Status
 
 Oracle ships security fixes every month – check the current cycle before
-every installation and every patch run. Current cycle (CPU October 2026 +
-Security Alerts, state 2026-10-26), patch lists and what matters in it:
+every installation and every patch run. Current cycle (CSPU November 2026,
+state 2026-11-18, release `v1.0.202611`), patch lists and what matters in it:
 [docs/forms_reports_security.md](docs/forms_reports_security.md).
 
-> **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CPU Oct 2026, local 19c
+> **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CSPU Nov 2026, local 19c
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
 > chain incl. autostart and smoke test (2026-10-14/16), secured standalone
 > Reports server (2026-10-16), RCU repository analysis (2026-10-17), review of
@@ -539,11 +539,16 @@ IHateWeblogic/
     │   ├── README.md                     – Patch analysis Forms & Reports 12.2.1.19, CPU Oct 2026 +
     │   │                                     Java alert (server JDK 8, client JRE), manual
     │   └── Patch_Kochbuch_CPU_Okt2026_de.txt – German patch cookbook for the customer (12 steps)
-    ├── FormsReports14_patch_cpu_2026-10/   – one folder per patch cycle (history of the
-    │   │                                     manual procedure; the scripts follow the current cycle)
+    ├── FormsReports12_patch_cspu_2026-11/ – 12.2.1.19 CSPU Nov 2026: README + full / cumulative cookbook
+    ├── FormsReports14_patch_cspu_2026-11/ – one folder per patch cycle (current: CSPU Nov 2026)
+    │   ├── README.md                     – analysis, README facts from the ZIPs, live run 2026-11-18
+    │   ├── install_14c_patch_set_november_2026_manual_full.md – complete set, any older level
+    │   ├── install_14c_patch_set_november_2026_manual_cumulativ_from_cpu102026.md – only the new patches
+    │   └── update_plan.md                – facts for the library switch (docs/update_lib_to_act_cpu.md)
+    ├── FormsReports14_patch_cpu_2026-10/   – previous cycle, frozen (history of the manual procedure)
     │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
     │   │                                     facts of every patch README
-    │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide (master for 04-/05-/06-/80-)
+    │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide of that cycle
     ├── customer-analyse/             – not in this repository: analysis scripts / templates (private
     │                                     repository) + local customer data (never committed)
     ├── tools/
@@ -587,8 +592,9 @@ IHateWeblogic/
         ├── Autostart_linux_middleware.txt – Start/stop at boot/shutdown via a systemd unit
         ├── Reports_security.txt           – Hardening of the finished environment (new install)
         ├── Reports_Zeitplan_kochbuch_de.txt – scheduled reports with cron + rwclient (appendix: SCHEDULE=)
-        ├── Patch_Kochbuch_CPU_Okt2026_de.txt – CPU Oct 2026 for an EXISTING home with unknown
-        │                                    patch level (+ patches_cpu_reports_14c_oct2026.csv, 18 patches)
+        ├── Patch_Kochbuch_CSPU_Nov2026_de.txt – CSPU Nov 2026 for an EXISTING home with unknown
+        │                                    patch level (+ patches_cspu_reports_14c_nov2026.csv, 18 patches)
+        ├── Patch_Kochbuch_CPU_Okt2026_de.txt – previous cycle (frozen, + patches_cpu_reports_14c_oct2026.csv)
         └── Reports_Absicherung_kochbuch_de.txt – check + complete the Reports security of an
                                              existing domain (monUser/RepRunner, LDAP, libOVD)
 ```

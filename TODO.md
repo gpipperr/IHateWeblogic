@@ -71,11 +71,24 @@ Still open:
 - [ ] Autostart / start-stop: generated `report_env.sh` (values from step 0)
   and `start_wls_all.sh` reading `patch_install.ini` – first real run.
 
-## Patch cycle CPU October 2026 – remaining
+## Patch cycle CSPU November 2026 – remaining
 
-Applied on the test host 2026-10-24 (details, runtimes, answered open points:
-[`70-Customer-Projects/FormsReports14_patch_cpu_2026-10/`](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
-Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
+Applied on the test host 2026-11-18 (FMW home, DB MRP + DB JDK, APEX 26.2.1,
+ORDS 26.3.1) and the library switched (release `v1.0.202611`) – details,
+runtimes, open points:
+[`70-Customer-Projects/FormsReports14_patch_cspu_2026-11/`](70-Customer-Projects/FormsReports14_patch_cspu_2026-11/README.md)
+(CPU October 2026: [frozen folder](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
+Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare`.
+
+- [ ] **Forms client bundle 21.0.13.1** on the test host:
+  `09-Install/40-oracle_forms_client_bundle.sh --apply` after the switch
+  (Java4Shell / Nov Java CVEs on client PCs with AVX-512).
+- [ ] **`09-db_patch_rcu.sh --mrp`** – in-place MRP mode (stop domain + DB,
+  prereq, `opatch napply`, DB home JDK, start, `datapatch`, checks) as done
+  by hand 2026-11-18 ([60-RCU-DB-19c/docs/09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md) "Monthly MRP");
+  plus: does AutoUpgrade `recommended` deliver the MRP for a new home?
+- [ ] **OpenSSL CVE-2026-72897** (DB 19.32–19.33, Oracle's own crypto):
+  no 19c fix named in CPU431 – check the next MRP / RU.
 
 - [ ] **Data Pump Bundle Patch on Windows:** 40057600 (19.33, delivered only
   as `…_Generic.zip`, platform id 0) is refused by OPatch on a Windows DB
@@ -93,9 +106,9 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
   only from the MOS download link (`…?aru=<ARU>&patch_file=…`) – getMOSPatch
   does not print it. Background:
   [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
-- [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CPU426 JRE
-  (JRE 8u511 Patch 40186686 = `1.8.0_511-b26`, observed 2026-10-22; re-check
-  after 23 Oct whether 18143322 then also delivers b26) via the customer's
+- [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CSPU Nov
+  2026 JRE 8u513-b04 (Patch 40239650; the October target 40186686 /
+  8u511-b26 is affected by the November Java CVEs) via the customer's
   software distribution, same bitness as the WebUtil DLLs, test the
   code-signing trust after the update – JSSE runs on the client, see
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
@@ -202,6 +215,37 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ## Scripts
 
+- [ ] **`10-Monitoring/cve_inventory.sh` – superseded patches** (live run
+  CSPU Nov 2026, 2026-11-18): the expected-patch check compares exact
+  numbers. A home that is **newer** than the configured cycle (or the test
+  host between live run and lib switch) shows FAIL "MISSING – configured
+  for …" for every bundle that a newer one replaced (5 FAIL on 2026-11-18:
+  40126042, 40050062, 39940047, 39979746, 39987730 – OPatch had set them
+  "inactive"). Recognise "superseded by an installed newer patch" (OPatch
+  superset info in `lsinventory`, or the conf "Superseded" list / the
+  `SUPERSEDES` map) and report INFO instead of FAIL.
+- [ ] **`09-Install/04-oracle_pre_download.sh` – newer ORDS release** (CSPU Nov
+  2026, 2026-11-18): with `ords/26.3.0.272.1811/ords-*.zip` in the storage
+  the script reports ORDS "present" and does not fetch `ords-latest.zip`
+  (26.3.1 since 2026-11-04) – `06-patch-ords.sh` then finds no newer ZIP.
+  Compare the version of the remote `ords-latest.zip` (HEAD Last-Modified /
+  download + version from `ords.war`) with the newest stored one; same for
+  `apex-latest.zip` / SQLcl. Downloaded by hand on 2026-11-18.
+- [ ] **`09-Install/15-deploy-test-report-forms_template.sh` – REP-50001**
+  (live run 2026-11-18): started right after `startStop.sh start-all` the
+  report runs got "REP-50001: The server is initializing" (HTTP 200, no
+  PDF) → 2 FAIL; a second run seconds later 32 OK. Wait for the Reports
+  server (getserverinfo / `rwserver_status.sh` OK) or retry REP-50001 a few
+  times before FAIL.
+- [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – no FMW
+  patch; on hosts with AVX-512 VBMI (`avx512f avx512bw avx512vbmi bmi2`)
+  the Reports server / engines run the vulnerable Base64 stub. Options: `13-`
+  / `reports.sh` adds `-XX:-UseBASE64Intrinsics` to `REPORTS_JVM_OPTIONS` /
+  engine `jvmOptions` when the CPU has the flags (test on such a host:
+  engines start, report OK); `collect_fmw_env.sh` + `java_check.sh` report
+  the CPU flags and `UseBASE64Intrinsics` of every running JVM; part of the
+  SR on the bundled JDK. Details: `09-Install/docs/00-patch-references.md`
+  "Java4Shell".
 - [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
   `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
   tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in
@@ -267,10 +311,11 @@ Next cycle: CSPU November 2026 – new 14c folder, freeze the October one.
 
 ## Monitoring (phase 9)
 
-- [ ] **CSPU November 2026** (release 2026-11-17) = first real run of
-  `10-Monitoring/patch_cycle_analysis.sh` (prepare → analyse --mode
-  maintainer → live run → `update_plan.md` → `git tag`); check the
-  registry of the skill doc against what really changed.
+- [x] **CSPU November 2026** = first real run of
+  `10-Monitoring/patch_cycle_analysis.sh` – done 2026-11-17 / 18 (prepare →
+  analyse --mode maintainer → live run → library switch with
+  `docs/update_lib_to_act_cpu.md`, release `v1.0.202611`); skill registry
+  and rules updated.
 - [ ] **Claude sandbox rollout on the test host:** `IHW_ENV_TYPE=test`,
   `claude_setup_check.sh --profile maintainer --apply` → root: bubblewrap +
   socat, `/etc/claude-code/`; verify `/status`, guard ask/deny, `.des3`
