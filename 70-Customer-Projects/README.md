@@ -74,7 +74,19 @@ Started here as a customer project (builder-only Windows Server, live
 2026-11-13 it is a main folder of the library: installation, Git check-in
 with PowerShell scripts and the GitLab deployment to DEV and PROD.
 
-### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English)
+### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CSPU November 2026 (English)
+
+→ [FormsReports12_patch_cspu_2026-11/README.md](FormsReports12_patch_cspu_2026-11/README.md)
+
+Current cycle for the Forms & Reports 12.2.1.19 home (FMW 12.2.1.4): delta to
+CPU October 2026 (JDK / JRE 8u513, WLS SPB 40213323, ADF, OPSS, UMS and OHS
+bundles), CVE → patch mapping from MOS CPU450, the new JAX-WS gate of the
+November PSU (default on) – two German cookbooks: `Patch_Kochbuch_CSPU_Nov2026_full_de.txt`
+(full run) and `Patch_Kochbuch_CSPU_Nov2026_kumulativ_auf_cpu102026_de.txt` (only the
+new patches on top of the October state). Download
+list [patches_cspu_forms_reports_12c_nov2026.csv](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports12_patch_cspu_2026-11/patches_cspu_forms_reports_12c_nov2026.csv).
+
+### Oracle Forms & Reports 12.2.1.19 – Patch Analysis CPU October 2026 (English, frozen)
 
 → [FormsReports12_patch_cpu_2026-10/README.md](FormsReports12_patch_cpu_2026-10/README.md)
 

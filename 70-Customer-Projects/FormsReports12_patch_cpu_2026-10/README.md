@@ -7,6 +7,10 @@ permalink: /70-Customer-Projects/FormsReports12_patch_cpu_2026-10/
 
 # Patch Analysis – Oracle Forms & Reports 12.2.1.19 – CPU October 2026
 
+> **Frozen – do not edit.** State of the CPU October 2026 cycle. Current
+> cycle: [FormsReports12_patch_cspu_2026-11](../FormsReports12_patch_cspu_2026-11/README.md)
+> (CSPU November 2026, full run and run on top of this October state).
+
 Patch analysis for an existing customer installation of **Oracle Forms &
 Reports 12.2.1.19** (FMW Infrastructure / WebLogic Server 12.2.1.4) for the
 cycle **CPU October 2026** plus the **Security Alert CVE-2026-91403**
