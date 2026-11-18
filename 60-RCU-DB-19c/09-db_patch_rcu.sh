@@ -25,12 +25,19 @@
 #            --rollback: the same back into DB_ORACLE_HOME_PREV; datapatch from
 #            the old home rolls the SQL part of the newer RU back.
 #            The old home is never removed by this script.
+#            --mrp: Monthly Recommended Patch (CSPU months) IN-PLACE into the
+#            running home DB_ORACLE_HOME - patches of the roles db_mrp / db_jdk
+#            (db_opatch when OPatch is too old) from download/patches_db.csv,
+#            ZIPs from PATCH_STORAGE: checks + conflict check (also dry-run),
+#            stop, opatch napply (MRP) + apply (DB home JDK), start, datapatch.
 # Call     : ./60-RCU-DB-19c/09-db_patch_rcu.sh --new-home <dir>            (dry-run)
 #            ./60-RCU-DB-19c/09-db_patch_rcu.sh --new-home <dir> --apply
 #            ./60-RCU-DB-19c/09-db_patch_rcu.sh --rollback [--apply]
+#            ./60-RCU-DB-19c/09-db_patch_rcu.sh --mrp [--apply]
 # Runs as  : oracle (on the DB host; systemd unit update needs root - printed)
 # Requires : environment.conf, environment_db.conf (DB_ORACLE_HOME, DB_SID,
-#            DB_PDB_NAME), the new home installed and registered in the inventory
+#            DB_PDB_NAME), the new home installed and registered in the inventory;
+#            --mrp: PATCH_STORAGE with the db_mrp (+ db_jdk) ZIPs
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # Ref      : 60-RCU-DB-19c/docs/09-db_patch_rcu.md
@@ -61,12 +68,14 @@ init_log "$DIAG_LOG_DIR"
 
 APPLY=false
 ROLLBACK=false
+MRP=false
 NEW_HOME_ARG=""
 
 _usage() {
-    printf "Usage: %s --new-home <dir> [--apply] | --rollback [--apply]\n\n" "$(basename "$0")"
+    printf "Usage: %s --new-home <dir> [--apply] | --rollback [--apply] | --mrp [--apply]\n\n" "$(basename "$0")"
     printf "  %-18s %s\n" "--new-home DIR" "patched home built by 01-db_install_software.sh --target-home DIR"
     printf "  %-18s %s\n" "--rollback"     "back into DB_ORACLE_HOME_PREV (datapatch from the old home)"
+    printf "  %-18s %s\n" "--mrp"          "monthly MRP + DB home JDK in-place into DB_ORACLE_HOME (CSPU months)"
     printf "  %-18s %s\n" "--apply"        "execute (default: checks + plan only)"
     exit 0
 }
@@ -75,6 +84,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --new-home) shift; NEW_HOME_ARG="${1:?--new-home needs a directory}" ;;
         --rollback) ROLLBACK=true ;;
+        --mrp)      MRP=true ;;
         --apply)    APPLY=true ;;
         --help|-h)  _usage ;;
         *) printf "\033[31mERROR\033[0m Unknown option: %s\n" "$1" >&2; exit 1 ;;
@@ -83,7 +93,13 @@ while [ $# -gt 0 ]; do
 done
 
 FROM_HOME="${DB_ORACLE_HOME:-}"
-if $ROLLBACK; then
+if $MRP && { $ROLLBACK || [ -n "$NEW_HOME_ARG" ]; }; then
+    printf "\033[31mERROR\033[0m --mrp cannot be combined with --new-home / --rollback\n" >&2; exit 1
+fi
+if $MRP; then
+    TO_HOME="$FROM_HOME"
+    [ -z "$TO_HOME" ] && { printf "\033[31mERROR\033[0m DB_ORACLE_HOME not set in environment_db.conf\n" >&2; exit 1; }
+elif $ROLLBACK; then
     TO_HOME="${DB_ORACLE_HOME_PREV:-}"
     [ -z "$TO_HOME" ] && { printf "\033[31mERROR\033[0m DB_ORACLE_HOME_PREV not set in environment_db.conf – nothing to roll back to\n" >&2; exit 1; }
 else
@@ -118,6 +134,340 @@ _pmon_home() {   # home of the running PMON of $SID (empty = down)
 }
 _free_gb() { local d="$1"; while [ ! -d "$d" ] && [ "$d" != "/" ]; do d="$(dirname "$d")"; done
     df -Pk "$d" 2>/dev/null | awk 'NR==2 { printf "%d", $4 / 1048576 }'; }
+
+# =============================================================================
+# --mrp: Monthly Recommended Patch + DB home JDK IN-PLACE (CSPU months)
+# Spec: docs/09-db_patch_rcu.md "Monthly MRP in-place (CSPU months) – --mrp".
+# Own flow, ends with exit - the out-of-place code below is not reached.
+# =============================================================================
+
+# _opx ARGS - opatch of the DB home. ORACLE_HOME/PATH always the DB home: with
+# the FMW ORACLE_HOME in the environment opatch reports the FMW OPatch.
+_opx() { ORACLE_HOME="$TO_HOME" PATH="$TO_HOME/bin:$TO_HOME/OPatch:$PATH" "$TO_HOME/OPatch/opatch" "$@" 2>&1; }
+# _op_ok OUTPUT - OPatch rc 0 is no proof: "OPatch succeeded" and no skipped /
+# not applicable / failed prerequisite (benign duplicate re-link note ignored)
+_op_ok() {
+    printf '%s\n' "$1" | grep -q 'OPatch succeeded' \
+      && ! printf '%s\n' "$1" | grep -v 're-links will eventually be skipped' \
+           | grep -qiE 'skipped|not applicable|Prerequisite check .* failed|OPatch failed'
+}
+# _zip_subs ZIP NR - sub-patch numbers of a napply container (numbered dirs
+# below NR/); a plain one-off returns NR itself
+_zip_subs() {
+    local s
+    s="$(unzip -Z1 "$1" 2>/dev/null | sed -n "s#^$2/\([0-9]\{1,\}\)/.*#\1#p" | sort -u)"
+    [ -n "$s" ] && printf '%s\n' "$s" || printf '%s\n' "$2"
+}
+# _zip_inv ZIP NR SUB TAG - value(s) of an element of SUB's etc/config/inventory.xml
+_zip_inv() {
+    local f="$2/etc/config/inventory.xml"
+    [ "$3" != "$2" ] && f="$2/$3/etc/config/inventory.xml"
+    case "$4" in
+        prereq)  unzip -p "$1" "$f" 2>/dev/null | grep -oE '<prereq oneoff_id="[0-9]+"' | grep -oE '[0-9]+' ;;
+        opatch)  unzip -p "$1" "$f" 2>/dev/null | grep -oE '<minimum_opatch_version>[0-9.]+' | grep -oE '[0-9.]+$' ;;
+    esac
+}
+_in_lsp() { printf '%s\n' "$_lsp" | grep -q "^$1;"; }
+
+if $MRP; then
+    DB_CSV="${DB_PATCH_CSV:-$ROOT_DIR/09-Install/download/patches_db.csv}"
+    STAGE="${DB_PATCH_STAGE:-$ORACLE_BASE/stage}/db_mrp_$TS"
+    BACKUP_DIR="$DIAG_LOG_DIR/rcu_mrp_$TS"
+
+    printLine
+    printf "\n\033[1m  IHateWeblogic – RCU database MRP (in-place)\033[0m\n" | tee -a "$LOG_FILE"
+    printList "Mode"      20 "MRP in-place$($APPLY || printf ' – dry-run')"
+    printList "DB home"   20 "$TO_HOME"
+    printList "SID / PDB" 20 "$SID / ${PDB:-?}"
+    printList "Patch list" 20 "$DB_CSV"
+    printLine
+
+    # -------------------------------------------------------------------------
+    section "1a. Patches (patches_db.csv, PATCH_STORAGE)"
+    [ -f "$DB_CSV" ] || { fail "Patch list not found: $DB_CSV"; print_summary; exit 2; }
+    [ -d "${PATCH_STORAGE:-}" ] || { fail "PATCH_STORAGE not set / not found: ${PATCH_STORAGE:-}"; print_summary; exit 2; }
+    _rows="$(grep -E '^[0-9]+;' "$DB_CSV")"
+    _row_of() { printf '%s\n' "$_rows" | awk -F';' -v r="$1" '$5 == r' | head -1; }
+    _r_mrp="$(_row_of db_mrp)"; _r_jdk="$(_row_of db_jdk)"; _r_op="$(_row_of db_opatch)"
+    MRP_NR="${_r_mrp%%;*}"; JDK_NR="${_r_jdk%%;*}"
+    MRP_ZIP=""; JDK_ZIP=""; OP_ZIP=""
+    [ -n "$_r_op" ] && OP_ZIP="$(patch_row_zip "$_r_op")"
+    # sha256 / aru soft check reads IHW_PATCH_ROWS - here the DB rows
+    # shellcheck disable=SC2034  # read by patch_zip_sha_check (lib)
+    IHW_PATCH_ROWS="$_rows"
+    if [ -z "$_r_mrp" ]; then
+        fail "No db_mrp row in patches_db.csv – no MRP in this cycle (CPU month: RU out-of-place with --new-home)"
+        print_summary; exit 2
+    fi
+    if MRP_ZIP="$(patch_row_zip "$_r_mrp")"; then
+        ok "$(printf "  MRP %-10s %s" "$MRP_NR" "$MRP_ZIP")"
+        patch_zip_sha_check "$MRP_ZIP" "$MRP_NR"
+    else
+        fail "$(printf "  MRP %-10s ZIP missing in %s/%s" "$MRP_NR" "$PATCH_STORAGE" "$(printf '%s' "$_r_mrp" | cut -d';' -f7)")"
+        info "  Download: 09-Install/04-oracle_pre_download.sh (LOCAL_REP_DB=true) or 07-Maintenance/patch_storage.sh"
+        archive_pull_hint "60-RCU-DB-19c/09-db_patch_rcu.sh"
+        print_summary; exit 2
+    fi
+    if [ -n "$_r_jdk" ]; then
+        if JDK_ZIP="$(patch_row_zip "$_r_jdk")"; then
+            ok "$(printf "  DB JDK %-7s %s" "$JDK_NR" "$JDK_ZIP")"
+            patch_zip_sha_check "$JDK_ZIP" "$JDK_NR"
+        else
+            warn "$(printf "  DB JDK %-7s ZIP missing – the MRP goes in without it" "$JDK_NR")"
+            JDK_NR=""
+        fi
+    else
+        info "  No db_jdk row in patches_db.csv"
+    fi
+
+    _lsp="$(_opx lspatches | grep -E '^[0-9]+;')"
+    MRP_SUBS="$(_zip_subs "$MRP_ZIP" "$MRP_NR")"
+    _todo_mrp=""; _todo_jdk=false
+    for _s in $MRP_SUBS; do
+        if _in_lsp "$_s"; then ok "$(printf "    sub-patch %-10s already applied" "$_s")"
+        else info "$(printf "    sub-patch %-10s to apply" "$_s")"; _todo_mrp="$_todo_mrp $_s"; fi
+    done
+    if [ -n "$JDK_NR" ]; then
+        if _in_lsp "$JDK_NR"; then ok "$(printf "    DB JDK    %-10s already applied" "$JDK_NR")"
+        else info "$(printf "    DB JDK    %-10s to apply" "$JDK_NR")"; _todo_jdk=true; fi
+    fi
+    if [ -z "$_todo_mrp" ] && ! $_todo_jdk; then
+        ok "MRP $MRP_NR${JDK_NR:+ and DB JDK $JDK_NR} already applied in $TO_HOME – nothing to do"
+        print_summary; exit "$EXIT_CODE"
+    fi
+    if [ -n "$_todo_mrp" ] && [ "$(printf '%s\n' $_todo_mrp | wc -l)" -ne "$(printf '%s\n' $MRP_SUBS | wc -l)" ]; then
+        warn "MRP partly applied (missing:$_todo_mrp) – check lsinventory / an aborted run before --apply"
+    fi
+
+    # -------------------------------------------------------------------------
+    section "1b. Home and database"
+    _run_home="$(_pmon_home)"
+    if [ -z "$_run_home" ]; then
+        fail "Instance $SID is not running – start it from $TO_HOME first"
+    elif [ "$_run_home" = "$TO_HOME" ]; then
+        ok "Instance $SID runs from $TO_HOME"
+    else
+        fail "Instance $SID runs from $_run_home, not from DB_ORACLE_HOME=$TO_HOME"
+    fi
+    info "  RU of the home: $(_ru_of "$TO_HOME")"
+    # base RU (prereq_oneoffs) - the inventory decides, not the README text
+    _prq="$( { for _s in $MRP_SUBS; do _zip_inv "$MRP_ZIP" "$MRP_NR" "$_s" prereq; done
+               [ -n "$JDK_NR" ] && _zip_inv "$JDK_ZIP" "$JDK_NR" "$JDK_NR" prereq; } | sort -u)"
+    for _p in $_prq; do
+        if _in_lsp "$_p"; then ok "  Prerequisite patch $_p (base RU) installed"
+        else fail "  Prerequisite patch $_p missing in the home – MRP is for another RU (RU change: --new-home first)"; fi
+    done
+    [ -z "$_prq" ] && info "  No prereq_oneoffs in the patch inventories"
+    # OPatch version
+    _op_need="$( { for _s in $MRP_SUBS; do _zip_inv "$MRP_ZIP" "$MRP_NR" "$_s" opatch; done
+                   [ -n "$JDK_NR" ] && _zip_inv "$JDK_ZIP" "$JDK_NR" "$JDK_NR" opatch; } | sort -V | tail -1)"
+    _op_have="$(_opx version | grep -oE '[0-9]+(\.[0-9]+){4}' | head -1)"
+    OP_UPDATE=false
+    if [ -z "$_op_need" ] || [ "$(printf '%s\n%s\n' "$_op_need" "$_op_have" | sort -V | head -1)" = "$_op_need" ]; then
+        ok "OPatch $_op_have (needed >= ${_op_need:-?})"
+    elif [ -n "$OP_ZIP" ]; then
+        warn "OPatch $_op_have < $_op_need – --apply replaces it from $(basename "$OP_ZIP") (old one kept as OPatch.bak_$TS)"
+        OP_UPDATE=true
+    else
+        fail "OPatch $_op_have < $_op_need and no db_opatch ZIP in PATCH_STORAGE"
+    fi
+    # disk
+    _chk_space() {   # label dir min_gb
+        local f m; f="$(_free_gb "$2")"
+        m="$(printf "  %-26s %4s GB free (min %s)  %s" "$1" "${f:-?}" "$3" "$2")"
+        [ "${f:-0}" -lt "$3" ] && fail "$m" || ok "$m"
+    }
+    _chk_space "DB home (.patch_storage)" "$TO_HOME" 3
+    _chk_space "stage" "$(dirname "$STAGE")" 1
+    # datapatch prerequisites - a later MRP can carry SQL
+    if [ -n "$_run_home" ]; then
+        _seed="$(_sql "$TO_HOME" "SELECT open_mode FROM v\$pdbs WHERE name='PDB\$SEED';" | grep -E 'READ|MOUNT' | head -1 | xargs)"
+        [ "$_seed" = "READ ONLY" ] && ok "PDB\$SEED: READ ONLY" \
+            || warn "PDB\$SEED: ${_seed:-?} – ALTER PLUGGABLE DATABASE PDB\$SEED OPEN READ ONLY (never READ WRITE)"
+        for _c in 'CDB$ROOT' "$PDB"; do
+            [ -z "$_c" ] && continue
+            _sf="$(_sql "$TO_HOME" "ALTER SESSION SET CONTAINER=$_c;
+SELECT UPPER(value) FROM v\$parameter WHERE name='db_securefile';" | grep -E '^[A-Z]+$' | head -1)"
+            [ "$_sf" = "FORCE" ] && fail "db_securefile=FORCE in $_c – datapatch scripts can fail with ORA-43853 (PREFERRED SCOPE=MEMORY for the patch)" \
+                || ok "db_securefile=${_sf:-?} in $_c"
+        done
+    fi
+    if [ "${CNT_FAIL:-0}" -gt 0 ]; then
+        fail "Checks failed – nothing changed"; print_summary; exit 2
+    fi
+
+    # -------------------------------------------------------------------------
+    section "1c. Conflict check (stage $STAGE)"
+    mkdir -p "$STAGE" || { fail "Cannot create $STAGE (DB_PATCH_STAGE)"; print_summary; exit 2; }
+    unzip -q -o "$MRP_ZIP" -d "$STAGE" && [ -n "$JDK_NR" ] && unzip -q -o "$JDK_ZIP" -d "$STAGE"
+    _cc_fail=false
+    for _p in ${_todo_mrp:+$MRP_NR} $($_todo_jdk && printf '%s' "$JDK_NR"); do
+        _out="$(cd "$STAGE" && _opx prereq CheckConflictAgainstOHWithDetail -ph "./$_p")"
+        printf '%s\n' "$_out" >> "$LOG_FILE"
+        if printf '%s\n' "$_out" | grep -q 'Prereq "checkConflictAgainstOHWithDetail" passed' && _op_ok "$_out"; then
+            ok "  $_p: no conflicts (prereq passed)"
+        else
+            fail "  $_p: $(printf '%s\n' "$_out" | grep -iE 'conflict|fail|requires|not applicable' | head -1)"
+            _cc_fail=true
+        fi
+    done
+    if $_cc_fail; then
+        info "  Output in $LOG_FILE, stage kept: $STAGE"
+        fail "Conflict check failed – nothing changed"; print_summary; exit 2
+    fi
+
+    if ! $APPLY; then
+        rm -rf "$STAGE"
+        section "Plan (with --apply)"
+        info "  2 backup: opatch lsinventory, dbs/, network/admin/, environment_db.conf -> $BACKUP_DIR"
+        info "  3 stop: FMW domain (startStop.sh stop-all), database + listener, snapshot pause"
+        $OP_UPDATE && info "  4 OPatch -> OPatch.bak_$TS, $(basename "$OP_ZIP") unpacked"
+        [ -n "$_todo_mrp" ] && info "  5 opatch napply $MRP_NR -silent (sub-patches:$_todo_mrp)"
+        $_todo_jdk && info "  6 opatch apply $JDK_NR -silent (DB home JDK)"
+        info "  7 start listener + database, open all PDBs, service registration"
+        info "  8 datapatch -verbose (utlrp only if it applied SQL)"
+        info "  9 verify, start FMW domain, rcu_repository_check.sh"
+        warn "Dry-run – use --apply to execute (downtime of the FMW domain, ~17 min on the test host)"
+        print_summary; exit "$EXIT_CODE"
+    fi
+
+    _inv_cnt() { _sql "$TO_HOME" "SELECT COUNT(*) FROM cdb_objects WHERE status='INVALID';" | grep -E '^[[:space:]]*[0-9]+[[:space:]]*$' | head -1 | xargs; }
+    _abort() { fail "$1"; info "  Stage kept: $STAGE – logs: $TO_HOME/cfgtoollogs/opatch/, domain + database stay down"
+               info "  Way back: opatch nrollback -id <sub-patches> -silent (docs/09-db_patch_rcu.md)"; print_summary; exit 2; }
+
+    # -------------------------------------------------------------------------
+    section "2. Backup"
+    mkdir -p "$BACKUP_DIR/dbs" "$BACKUP_DIR/network_admin"
+    _opx lsinventory > "$BACKUP_DIR/lsinventory_before.txt"
+    cp -p "$TO_HOME/dbs/"*"$SID"* "$BACKUP_DIR/dbs/" 2>/dev/null
+    cp -p "$TO_HOME/network/admin/"*.ora "$BACKUP_DIR/network_admin/" 2>/dev/null
+    cp -p "$ENV_DB_CONF" "$BACKUP_DIR/" 2>/dev/null
+    _inv_before="$(_inv_cnt)"
+    ok "Backup: $BACKUP_DIR (invalid objects before: ${_inv_before:-?})"
+
+    # -------------------------------------------------------------------------
+    section "3. Stop"
+    if [ "${LOCAL_REP_DB:-false}" = "true" ] && [ -x "$ROOT_DIR/01-Run/startStop.sh" ]; then
+        info "Stopping the FMW domain (startStop.sh stop-all) ..."
+        "$ROOT_DIR/01-Run/startStop.sh" stop-all --apply >> "$LOG_FILE" 2>&1 \
+            && ok "FMW domain stopped" || warn "startStop.sh stop-all reported problems – see $LOG_FILE"
+    else
+        warn "FMW domain not on this host (LOCAL_REP_DB=${LOCAL_REP_DB:-false}) – stop it on the FMW host now"
+        askYesNo "FMW domain stopped?" "n" || { rm -rf "$STAGE"; fail "Aborted – domain still running"; print_summary; exit 2; }
+    fi
+    _sql "$TO_HOME" "SHUTDOWN IMMEDIATE" | tee -a "$LOG_FILE" | grep -E 'ORACLE instance shut down|ORA-' | head -3
+    [ -z "$(_pmon_home)" ] && ok "Database $SID stopped" || _abort "Database still running"
+    _lsnr "$TO_HOME" stop >> "$LOG_FILE" && ok "Listener stopped" || warn "Listener stop reported an error"
+    sleep 3
+    _busy="$(for _x in /proc/[0-9]*/exe; do readlink "$_x" 2>/dev/null; done | grep "^$TO_HOME/" | sort | uniq -c | head -5)"
+    if [ -n "$_busy" ]; then
+        printf '%s\n' "$_busy" | while read -r _n _b; do warn "  still running from the home: $_b ($_n)"; done
+        _abort "Processes still run from $TO_HOME – stop them, then start again"
+    fi
+    ok "No process runs from $TO_HOME"
+    confirm_snapshot || { EXIT_CODE=2; print_summary; exit $EXIT_CODE; }
+
+    # -------------------------------------------------------------------------
+    if $OP_UPDATE; then
+        section "4. OPatch update"
+        mv "$TO_HOME/OPatch" "$TO_HOME/OPatch.bak_$TS" && unzip -q "$OP_ZIP" -d "$TO_HOME" \
+            || { [ -d "$TO_HOME/OPatch" ] || mv "$TO_HOME/OPatch.bak_$TS" "$TO_HOME/OPatch"; _abort "OPatch update failed"; }
+        ok "OPatch now $(_opx version | grep -oE '[0-9]+(\.[0-9]+){4}' | head -1) (old: OPatch.bak_$TS)"
+    fi
+
+    # -------------------------------------------------------------------------
+    if [ -n "$_todo_mrp" ]; then
+        section "5. MRP $MRP_NR (opatch napply)"
+        info "opatch napply $MRP_NR -silent (~9 min on the test host) ..."
+        _out="$(cd "$STAGE/$MRP_NR" && _opx napply -silent)"
+        printf '%s\n' "$_out" >> "$LOG_FILE"
+        _op_ok "$_out" || _abort "napply $MRP_NR: $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
+        _lsp="$(_opx lspatches | grep -E '^[0-9]+;')"
+        _miss=""; for _s in $MRP_SUBS; do _in_lsp "$_s" || _miss="$_miss $_s"; done
+        [ -n "$_miss" ] && _abort "napply reported success, but not in lspatches:$_miss"
+        ok "MRP $MRP_NR applied ($(printf '%s\n' $MRP_SUBS | wc -l) sub-patches in lspatches)"
+    fi
+    if $_todo_jdk; then
+        section "6. DB home JDK $JDK_NR (opatch apply)"
+        _out="$(cd "$STAGE/$JDK_NR" && _opx apply -silent)"
+        printf '%s\n' "$_out" >> "$LOG_FILE"
+        _op_ok "$_out" || _abort "apply $JDK_NR: $(printf '%s\n' "$_out" | grep -iE 'error|fail|skip|not applicable' | head -1)"
+        ok "DB JDK $JDK_NR applied – $("$TO_HOME/jdk/bin/java" -version 2>&1 | head -1)"
+    fi
+
+    # -------------------------------------------------------------------------
+    section "7. Start"
+    _lsnr "$TO_HOME" start >> "$LOG_FILE" && ok "Listener started" || _abort "Listener start failed"
+    _sql "$TO_HOME" "STARTUP" | tee -a "$LOG_FILE" | grep -E 'Database opened|ORA-' | head -3
+    [ "$(_pmon_home)" = "$TO_HOME" ] && ok "Database $SID started" || _abort "Database did not start – see $LOG_FILE"
+    _sql "$TO_HOME" "ALTER PLUGGABLE DATABASE ALL OPEN;
+ALTER SYSTEM REGISTER;" > /dev/null
+    _svc_ok=false
+    for _i in $(seq 1 24); do
+        _lsnr "$TO_HOME" status | grep -qi "Service \"${PDB:-$SID}\"" && { _svc_ok=true; break; }
+        sleep 5
+    done
+    $_svc_ok && ok "Service ${PDB:-$SID} registered with the listener" \
+        || warn "Service ${PDB:-$SID} not registered after 120 s – check local_listener (lsnrctl status)"
+
+    # -------------------------------------------------------------------------
+    section "8. datapatch"
+    info "datapatch -verbose (CDB + PDBs) ..."
+    _dp="$(cd "$TO_HOME/OPatch" && ORACLE_HOME="$TO_HOME" ORACLE_SID="$SID" TNS_ADMIN="$TO_HOME/network/admin" \
+        ./datapatch -verbose 2>&1)"
+    _dp_rc=$?
+    printf '%s\n' "$_dp" >> "$LOG_FILE"
+    _sp="$(_sql "$TO_HOME" "SELECT con_id||' '||patch_id||' '||action||' '||status FROM cdb_registry_sqlpatch
+WHERE action_time > SYSTIMESTAMP - INTERVAL '2' HOUR ORDER BY action_time;" | grep -E '^[0-9]')"
+    if [ -z "$_sp" ]; then
+        info "  No new SQL patch rows – binary-only MRP ($(printf '%s\n' "$_dp" | grep -m1 -i 'need to be applied' | xargs))"
+    else
+        printf '%s\n' "$_sp" | while read -r _cid _pid _act _st; do
+            _m="$(printf "  con %-3s patch %-10s %-10s %s" "$_cid" "$_pid" "$_act" "$_st")"
+            [ "$_st" = "SUCCESS" ] && ok "$_m" || fail "$_m"
+        done
+    fi
+    if [ "$_dp_rc" -ne 0 ] || printf '%s\n' "$_sp" | grep -qE ' (WITH ERRORS|FAILED|END)$'; then
+        _abort "datapatch rc=$_dp_rc – logs: $TO_HOME/cfgtoollogs/sqlpatch/"
+    fi
+    ok "datapatch completed (rc=0)"
+    if [ -n "$_sp" ]; then
+        info "utlrp in all containers (catcon) ..."
+        ( cd "$TO_HOME/rdbms/admin" && ORACLE_HOME="$TO_HOME" ORACLE_SID="$SID" \
+            PATH="$TO_HOME/bin:$TO_HOME/perl/bin:$PATH" TNS_ADMIN="$TO_HOME/network/admin" \
+            "$TO_HOME/perl/bin/perl" catcon.pl -n 1 -d "$TO_HOME/rdbms/admin" -l "$BACKUP_DIR" -b utlrp utlrp.sql ) >> "$LOG_FILE" 2>&1 \
+            && ok "utlrp done" || warn "utlrp reported problems – see $BACKUP_DIR/utlrp*.log"
+    fi
+    _inv_after="$(_inv_cnt)"
+    _m="$(printf "  invalid objects: before %s, after %s" "${_inv_before:-?}" "${_inv_after:-?}")"
+    [ "${_inv_after:-0}" -le "${_inv_before:-0}" ] && ok "$_m" || warn "$_m – run utlrp / check cdb_objects"
+
+    # -------------------------------------------------------------------------
+    section "9. Verification"
+    _opx lsinventory > "$BACKUP_DIR/lsinventory_after.txt"
+    _opx lspatches | grep -E '^[0-9]+;' | while IFS=';' read -r _n _d; do info "$(printf "  %-10s %s" "$_n" "$_d")"; done
+    info "  version: $(_sql "$TO_HOME" "SELECT version_full FROM v\$instance;" | grep -E '^[0-9]' | head -1)"
+    if [ "${LOCAL_REP_DB:-false}" = "true" ] && [ -x "$ROOT_DIR/01-Run/startStop.sh" ]; then
+        info "Starting the FMW domain (startStop.sh start-all) ..."
+        "$ROOT_DIR/01-Run/startStop.sh" start-all --apply >> "$LOG_FILE" 2>&1 \
+            && ok "FMW domain started" || warn "startStop.sh start-all reported problems – see $LOG_FILE"
+        "$ROOT_DIR/07-Maintenance/rcu_repository_check.sh" >> "$LOG_FILE" 2>&1
+        _rc=$?
+        [ "$_rc" -lt 2 ] && ok "rcu_repository_check.sh rc=$_rc (data sources log in)" \
+            || fail "rcu_repository_check.sh rc=$_rc – see $LOG_FILE"
+    else
+        info "Start the FMW domain on its host now, then run 07-Maintenance/rcu_repository_check.sh"
+    fi
+    rm -rf "$STAGE" && ok "Stage removed: $STAGE"
+
+    section "Next steps"
+    info "  systemd: listener + database were stopped / started outside the units – as root:"
+    info "    systemctl reset-failed oracle-listener oracle-db"
+    info "  Smoke test: 09-Install/15-deploy-test-report-forms_template.sh"
+    info "  Record MRP $MRP_NR${JDK_NR:+ + DB JDK $JDK_NR} in the patch documentation of the cycle"
+    print_summary
+    exit "$EXIT_CODE"
+fi
 
 printLine
 printf "\n\033[1m  IHateWeblogic – RCU database patch (out-of-place)\033[0m\n" | tee -a "$LOG_FILE"

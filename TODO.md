@@ -80,9 +80,9 @@ runtimes, open points:
 (CPU October 2026: [frozen folder](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare`.
 
-- [ ] **`09-db_patch_rcu.sh --mrp`** – in-place MRP mode (stop domain + DB,
-  prereq, `opatch napply`, DB home JDK, start, `datapatch`, checks) as done
-  by hand 2026-11-18 ([60-RCU-DB-19c/docs/09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md) "Monthly MRP");
+- [ ] **`09-db_patch_rcu.sh --mrp --apply`** – first real run with the next
+  MRP (CSPU December 2026; dry-run tested 2026-11-18, the November MRP was
+  applied by hand) – [09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months----mrp);
   plus: does AutoUpgrade `recommended` deliver the MRP for a new home?
 - [ ] **OpenSSL CVE-2026-72897** (DB 19.32–19.33, Oracle's own crypto):
   no 19c fix named in CPU431 – check the next MRP / RU.

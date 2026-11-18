@@ -272,7 +272,7 @@ In a CSPU month Oracle delivers the database fixes for Linux x86-64 as a
 **Monthly Recommended Patch** on top of the RU of the last CPU (CSPU Nov
 2026: MRP **40196156** = 19.33.0.0.261117 on RU 19.33). It is a container of
 one-off patches, applied **in-place** on the running RU home (not a new
-home) – see [09-db_patch_rcu.md – Monthly MRP](09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months).
+home, `09-db_patch_rcu.sh --mrp`) – see [09-db_patch_rcu.md – Monthly MRP](09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months----mrp).
 `patches_db.csv` keeps it in its own directory `database/mrp/<nr>/` (role
 `db_mrp`), so the offline route of `01-` (which links everything under
 `database/patches/` into the AutoUpgrade patchdir) does not pick it up.

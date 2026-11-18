@@ -234,7 +234,7 @@ is.
 |---|---|---|---|
 | FMW home (SPB, infrastructure bundles, PERL, OHS, WebGate, QPRs) | **all** rows of the current KA1182 – one run (full guide) | only the rows newer than the previous cycle (cumulative guide) | **one** `download/patches_fmw.csv` = the full KA1182 set (unchanged rows stay, new numbers replace old ones); `05-` / `06-` skip what is installed (SPB marker, "already installed"), OPatch deactivates older bundles itself (sub-set, live 2026-11-18) |
 | Java (`JDK_HOME`, client) | newest build only (35702194 "latest") | same | `JDK_VERSION_MIN` – no stacking |
-| Repository DB 19c | **RU of the last CPU** (19.33 = Oct 2026) **+ MRP / CSPU patch of the month** (Nov: MRP 40196156) + DB home JDK – two layers | only the MRP + DB home JDK | `patches_db.csv`: RU, OJVM, DPBP, DB JDK + role **`db_mrp`** (`database/mrp/<nr>/`, not linked into the AutoUpgrade patchdir); in-place apply documented ([09-db_patch_rcu.md – Monthly MRP](../../60-RCU-DB-19c/docs/09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months), live 2026-11-18), script mode `09- --mrp` open (TODO) |
+| Repository DB 19c | **RU of the last CPU** (19.33 = Oct 2026) **+ MRP / CSPU patch of the month** (Nov: MRP 40196156) + DB home JDK – two layers | only the MRP + DB home JDK | `patches_db.csv`: RU, OJVM, DPBP, DB JDK + role **`db_mrp`** (`database/mrp/<nr>/`, not linked into the AutoUpgrade patchdir); in-place apply documented ([09-db_patch_rcu.md – Monthly MRP](../../60-RCU-DB-19c/docs/09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months----mrp), live 2026-11-18), script mode `09-db_patch_rcu.sh --mrp` (dry-run tested 2026-11-18) |
 | APEX | base release (26.2) + patch set bundle (26.2.1) | patch set bundle only | `02-install-apex.sh` + `03-patch-apex.sh` (`APEX_PATCH_NR`) |
 | ORDS | newest release (complete install) | same | `06-patch-ords.sh` |
 
@@ -797,7 +797,7 @@ Only when the RCU / APEX database runs on a host of this library
 | DB OPatch | 6880880 = 12.2.0.1.55 (unchanged) | CPU431 demands ≥ 12.2.0.1.55 for CVE-2026-89425 – fulfilled |
 | CVE-2026-114819 (Oracle Text, 9.9) | – | listed for 19.32 / 19.28 only – **19.33 not affected** |
 | OpenSSL CVE-2026-72897 | – | 19c: matrix 19.32–19.33, CPU431 lists the fix for 26ai only. **Checked 2026-11-18:** the DB home does not load the OS OpenSSL (no libssl / libcrypto `NEEDED`, no `dlopen`; Oracle's own crypto in `libnnz19` / `libzt*`) – `dnf update openssl` keeps the **OS** current (Nginx, curl; test host: openssl 3.5.8-2.0.1, no update pending) but does not fix the DB. No 19c vehicle named yet → open (next MRP / RU); not reachable without a TCPS listener (test host: TCP only) |
-| datapatch / move of the instance | – | in-place `opatch napply` of the MRP on the 19.33 home (it is an overlay, not a new RU) – the out-of-place route of `09-db_patch_rcu.sh` is for RU changes; how the lib applies an MRP is part of the switch (`update_plan.md`) |
+| datapatch / move of the instance | – | in-place `opatch napply` of the MRP on the 19.33 home (it is an overlay, not a new RU) – the out-of-place route of `09-db_patch_rcu.sh` is for RU changes; MRP + DB home JDK: `09-db_patch_rcu.sh --mrp [--apply]` |
 | Standalone CVU (host pre-check) | **30839369** (`DB_CVU_PATCH_NR`, 26ai kit) | `04-oracle_pre_download.sh --mos`, [`60-RCU-DB-19c/00b-db_cvu_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/00b-db_cvu_check.sh) |
 | AHF / TFA | AHF 26.11 (16 CVEs, CPU431) | only if AHF is installed on the DB host – the library does not install it |
 

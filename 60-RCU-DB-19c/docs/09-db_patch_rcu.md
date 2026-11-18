@@ -1,14 +1,15 @@
 ---
-title: "Patch the Oracle 19c RCU Database Out-of-Place"
-description: "Step 9: patch the running Oracle 19c RCU database out-of-place each release update cycle – build the new home, move the database, datapatch, rollback path."
+title: "Patch the Oracle 19c RCU Database (RU Out-of-Place, MRP In-Place)"
+description: "Step 9: patch the running Oracle 19c RCU database – out-of-place for each release update (build the new home, move the database, datapatch, rollback path), in-place for the monthly MRP (--mrp)."
 ---
 
-# Step 9 – 09-db_patch_rcu.sh (patch the RCU database out-of-place)
+# Step 9 – 09-db_patch_rcu.sh (patch the RCU database: RU out-of-place, MRP in-place)
 
 **Script:** [`60-RCU-DB-19c/09-db_patch_rcu.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/09-db_patch_rcu.sh)
 **Runs as:** `oracle` on the DB host (systemd unit change: root, commands printed)
 **When:** every DB release update cycle (CPU / RU, e.g. 19.30 → 19.33 for CPU
-October 2026) on a running installation
+October 2026) on a running installation; `--mrp`: every CSPU month (Monthly
+Recommended Patch + DB home JDK in-place, [section below](#monthly-mrp-in-place-cspu-months----mrp))
 
 ---
 
@@ -194,17 +195,55 @@ Findings of the run (fixed in the scripts):
 | systemd unit files readable by root only → "no reference" was reported | unreadable units are treated as "to change", root commands printed |
 | PDB$SEED could not be opened before (ORA-14696) | repaired the same day ([03-db_create_database.md](03-db_create_database.md)) |
 
-## Monthly MRP in-place (CSPU months)
+## Monthly MRP in-place (CSPU months) – `--mrp`
 
 Since 2026 Oracle ships the database part of a **CSPU** for Linux x86-64
 as a **Monthly Recommended Patch (MRP)** on top of the RU of the last CPU –
 "RU of the CPU + MRP of the month" (two layers, see
 [00-patch-references.md – What a home needs](../../09-Install/docs/00-patch-references.md#what-a-home-needs--cpu-vs-cspu-one-list-two-starting-points)).
 The MRP is a container of one-off patches built on that RU; it goes
-**in-place** into the existing home – the out-of-place route of this script
-is for an RU change. `09-db_patch_rcu.sh` has no MRP mode yet (TODO) – by
-hand, **confirmed live 2026-11-18** (MRP 40196156 = 19.33.0.0.261117 + DB
-home JDK 40245331 on the 19.33 home, downtime ~17 min incl. domain):
+**in-place** into the running home (`DB_ORACLE_HOME`) with `opatch napply` –
+the out-of-place route above is for an RU change. The DB home JDK bundle
+patch of the month (role `db_jdk`) goes in-place in the same window.
+
+```bash
+./60-RCU-DB-19c/09-db_patch_rcu.sh --mrp            # checks + conflict check + plan
+./60-RCU-DB-19c/09-db_patch_rcu.sh --mrp --apply    # downtime of the domain (~17 min)
+```
+
+The patches come from the patch list `09-Install/download/patches_db.csv`
+(roles `db_mrp`, `db_jdk`, `db_opatch`), the ZIPs from `PATCH_STORAGE`
+(`database/mrp/<nr>/`, `database/patches/<nr>/`) – downloaded by
+`04-oracle_pre_download.sh` (with `LOCAL_REP_DB=true`) or
+`07-Maintenance/patch_storage.sh`.
+
+| # | Step | Details |
+|---|---|---|
+| 1a | patches | `db_mrp` row: ZIP present (FAIL otherwise); sub-patches = the numbered directories in the ZIP; `db_jdk` row optional (missing ZIP = WARN, the MRP still goes in); SHA-256 / ARU soft check against the list. Every sub-patch and the JDK patch already in `opatch lspatches` → **"already applied"**, nothing to do (rc 0, `--apply` stops here as well) |
+| 1b | home / DB | instance runs from `DB_ORACLE_HOME` (`/proc/<pmon>/exe`); base RU of the MRP (`prereq_oneoffs` in the sub-patch `etc/config/inventory.xml`) in `lspatches` – otherwise FAIL (wrong RU: out-of-place first). The MRP README may name a different RU (template error 2026-11) – the inventory decides; OPatch of the DB home ≥ the highest `minimum_opatch_version` of all patches – otherwise WARN and, with `--apply`, OPatch is replaced from the `db_opatch` ZIP (old one kept as `OPatch.bak_<ts>`), FAIL without that ZIP; disk: home ≥ 3 GB free (OPatch backup in `.patch_storage`), stage ≥ 1 GB; `PDB$SEED` READ ONLY, `db_securefile` not `FORCE` (same as the out-of-place checks – a later MRP can carry SQL) |
+| 1c | conflict check | ZIPs unpacked into `DB_PATCH_STAGE` (default `$ORACLE_BASE/stage/db_mrp_<ts>`), `opatch prereq CheckConflictAgainstOHWithDetail -ph <MRP dir>` and `-ph <JDK dir>` – must say `passed`; also in the dry-run (read-only for the home, the stage is removed again) |
+| 2 | backup | `opatch lsinventory` (before), copy of `dbs/`, `network/admin/`, `environment_db.conf` to `log/<date>/rcu_mrp_<ts>/`; invalid objects counted (`cdb_objects`). No Data Pump – the way back is `opatch nrollback` (below) + VM snapshot |
+| 3 | stop | `01-Run/startStop.sh stop-all` (with `LOCAL_REP_DB=true`, otherwise confirmation that the remote domain is down), `SHUTDOWN IMMEDIATE`, `lsnrctl stop`; no process may run from the home any more (`/proc/*/exe`); VM snapshot pause (`confirm_snapshot`) |
+| 4 | OPatch | only when 1b found it too old: `OPatch` → `OPatch.bak_<ts>`, `db_opatch` ZIP unpacked |
+| 5 | MRP | `opatch napply <stage>/<nr> -silent` (~9 min); OPatch rc 0 is no proof – the output must contain `OPatch succeeded`, no `failed` / `SKIPPED` / `not applicable`, and every sub-patch must be in `lspatches` afterwards |
+| 6 | DB JDK | `opatch apply -silent` in `<stage>/<jdk nr>` (~3 min), same evaluation |
+| 7 | start | listener + `STARTUP` (`TNS_ADMIN` = the home's `network/admin`), `ALTER PLUGGABLE DATABASE ALL OPEN`, `ALTER SYSTEM REGISTER`, wait ≤ 120 s for the PDB service |
+| 8 | datapatch | `datapatch -verbose` **always** (a later MRP can carry SQL); new rows in `cdb_registry_sqlpatch` must be `SUCCESS`; no new rows = binary-only MRP ("No interim patches need to be applied") → INFO. `utlrp` (catcon) only when datapatch applied something; invalid objects compared with step 2 (more = WARN) |
+| 9 | verify / start | `lspatches` after, `startStop.sh start-all`, `rcu_repository_check.sh`; stage removed on success (kept on an error for the analysis); systemd: `reset-failed` printed (the units point to the same home, nothing else changes) |
+
+**Rollback of an MRP** (by hand, domain and DB down as in step 3):
+
+```bash
+export ORACLE_HOME=$DB_ORACLE_HOME PATH=$ORACLE_HOME/bin:$ORACLE_HOME/OPatch:$PATH
+opatch nrollback -id <sub-patch>,<sub-patch>,... -silent   # the MRP sub-patches
+opatch rollback -id <jdk nr> -silent                         # only if the JDK patch has to go too
+# start, datapatch -verbose (rolls SQL of the MRP back, if it had any)
+```
+
+### Manual equivalent (confirmed live 2026-11-18)
+
+MRP 40196156 = 19.33.0.0.261117 + DB home JDK 40245331 on the 19.33 home,
+downtime ~17 min incl. domain:
 
 ```bash
 export ORACLE_HOME=<DB home> ORACLE_SID=<SID> PATH=$ORACLE_HOME/bin:$ORACLE_HOME/OPatch:$PATH

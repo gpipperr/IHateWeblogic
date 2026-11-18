@@ -475,7 +475,7 @@ IHateWeblogic/
 │   ├── rcu_db_requirements.sql      – FMW 14.1.2 DB requirements (version, edition, AL32UTF8, JVM, parameters)
 │   ├── 07-db_sql_scripts.sh         – DBA SQL script collection (OraDBASQLScripts: login.sql + analysis scripts)
 │   ├── 08-db_auto_start.sh          – Configure DB/listener autostart (oratab, systemd)
-│   ├── 09-db_patch_rcu.sh           – patch the running DB out-of-place (new home via 01- --target-home, move, datapatch, rollback)
+│   ├── 09-db_patch_rcu.sh           – patch the running DB: RU out-of-place (new home via 01- --target-home, move, datapatch, rollback), MRP in-place (--mrp)
 │   ├── *.sql                        – Unified Audit policy scripts (generate/disable)
 │   ├── environment_db.conf.example  – committed – DB-specific variables (DB_ORACLE_HOME, DB_SID, …)
 │   ├── environment_db.conf          – gitignored – server-specific values

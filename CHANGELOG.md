@@ -10,6 +10,18 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **`60-RCU-DB-19c/09-db_patch_rcu.sh --mrp [--apply]`** – the monthly MRP + DB home JDK in-place into
+  `DB_ORACLE_HOME`, as done by hand in the CSPU window
+  ([09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md#monthly-mrp-in-place-cspu-months----mrp), doc = spec):
+  patches from `patches_db.csv` (roles `db_mrp` / `db_jdk` / `db_opatch`), sub-patches from the ZIP, "already
+  applied" from `lspatches` (nothing to do, rc 0); base RU (`prereq_oneoffs`) and minimum OPatch read from the patch
+  inventories (OPatch replaced from the `db_opatch` ZIP when too old); conflict check also in the dry-run (stage
+  removed again); with `--apply` backup, stop, no process left in the home, snapshot pause, `napply` / `apply` with
+  output evaluation, start + all PDBs open, `datapatch` (utlrp only when it applied SQL), invalid-object compare,
+  domain start, `rcu_repository_check.sh`. Tested: live dry-run on the test host → "already applied" (rc 0);
+  isolated copy with two sub-patches simulated missing → partial-state WARN, RU / OPatch / disk / seed checks,
+  conflict check passed, plan. First `--apply` with the December MRP.
+
 - **Script package from the CSPU live run:**
   - `10-Monitoring/cve_inventory.sh`: a configured patch that a newer installed one superseded (`opatch lsinventory
     -inactive`, read only when a patch is not in `lspatches`) is INFO "superseded" instead of FAIL "MISSING", plus
