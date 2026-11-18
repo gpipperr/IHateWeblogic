@@ -28,6 +28,14 @@
 #            --apply --mos       – eDelivery + getMOSPatch (OPatch + patches)
 #            --apply --all       – alias for --apply --mos
 #            --apply --wget --mos – Bearer Token wget + getMOSPatch
+#            --offline-list[=FILE] – no MOS access on this host: write the
+#                                   missing MOS rows (patches_fmw.csv + patches_db.csv
+#                                   with LOCAL_REP_DB=true) as a CSV for
+#                                   tools/powershell/mos_patch_download.ps1 on a
+#                                   Windows PC (or tools/bash/mos_patch_download.sh
+#                                   elsewhere); download there into the same layout,
+#                                   copy the tree back into PATCH_STORAGE. Read-only.
+#            --offline-list-all[=FILE] – the same with ALL needed rows (new cycle)
 #            --apply --fresh-patches --mos – archive patches/ to patches_<timestamp>/
 #                                   first, then download into a clean patches/
 #                                   (use at the start of a new patch cycle - a ZIP
@@ -85,6 +93,9 @@ APPLY=false
 WGET_MODE=false
 MOS_MODE=false
 FRESH_PATCHES=false
+OFFLINE_LIST=false
+OFFLINE_ALL=false
+OFFLINE_FILE=""
 
 _usage() {
     printf "Usage: %s [--apply] [--wget] [--mos|--all] [--fresh-patches] [--help]\n\n" "$(basename "$0")"
@@ -94,6 +105,9 @@ _usage() {
     printf "  %-22s %s\n" "--apply --mos"  "eDelivery + getMOSPatch (OPatch + patches)"
     printf "  %-22s %s\n" "--apply --all"  "Alias for --apply --mos"
     printf "  %-22s %s\n" "--fresh-patches" "Archive existing patches/ to patches_<timestamp>/ first"
+    printf "  %-22s %s\n" "--offline-list[=FILE]" "No MOS access here: write the MISSING MOS rows as CSV for"
+    printf "  %-22s %s\n" ""              "tools/powershell/mos_patch_download.ps1 on another PC (read-only)"
+    printf "  %-22s %s\n" "--offline-list-all[=FILE]" "the same with ALL needed rows (new patch cycle)"
     printf "\nBearer Token: edelivery.oracle.com → WGET Options → Generate Token (valid 1 h)\n"
     exit 0
 }
@@ -104,12 +118,19 @@ for _arg in "$@"; do
         --wget)           WGET_MODE=true ;;
         --mos|--all)      MOS_MODE=true ;;
         --fresh-patches)  FRESH_PATCHES=true ;;
+        --offline-list)       OFFLINE_LIST=true ;;
+        --offline-list=*)     OFFLINE_LIST=true; OFFLINE_FILE="${_arg#*=}" ;;
+        --offline-list-all)   OFFLINE_LIST=true; OFFLINE_ALL=true ;;
+        --offline-list-all=*) OFFLINE_LIST=true; OFFLINE_ALL=true; OFFLINE_FILE="${_arg#*=}" ;;
         --help|-h)        _usage ;;
         *)
             printf "\033[31mERROR\033[0m Unknown option: %s\n" "$_arg" >&2; exit 1 ;;
     esac
 done
 unset _arg
+if $OFFLINE_LIST && $APPLY; then
+    printf "\033[31mERROR\033[0m --offline-list is read-only – do not combine it with --apply\n" >&2; exit 1
+fi
 
 # =============================================================================
 # Helpers – eDelivery
@@ -495,6 +516,8 @@ fi
 # Read-only. Answers "is everything already downloaded?" without --apply.
 section "Storage Inventory ($PATCH_STORAGE)"
 INVENTORY_MISSING=0
+OFFLINE_ROWS=()      # CSV rows for --offline-list (MOS, downloadable by mos_patch_download.ps1/.sh)
+OFFLINE_NOTES=()     # non-MOS items (OTN / GitHub / URL) - comment lines with URL + target
 
 _inv_file() {
     local path="$1" label="$2"
@@ -527,6 +550,7 @@ while IFS= read -r _row; do
     [ -z "$_row" ] && continue
     IFS=';' read -r _nr _ _re _ _st _ _dir _ <<< "$_row"
     [[ " $MOS_STEPS " == *" $_st "* ]] || continue
+    $OFFLINE_ALL && OFFLINE_ROWS+=("$_row")
     _z="$(_row_zip "$_row")"
     if [ -n "$_z" ]; then
         ok "$(printf "  %-26s present  %s/%s" "$_st $_nr" "${_dir:-$_nr}" "$(basename "$_z")")"
@@ -540,7 +564,8 @@ while IFS= read -r _row; do
         ok "$(printf "  %-26s bundled in SPB %s – no separate download needed" "opatch $_nr" "$WLS_SPB_PATCH_NR")"
     else
         warn "$(printf "  %-26s MISSING  %s/ (%s)" "$_st $_nr" "${_dir:-$_nr}" "${_re:-p${_nr}_*}")"
-        $MOS_MODE || _row_manual "$_row"
+        $MOS_MODE || $OFFLINE_LIST || _row_manual "$_row"
+        $OFFLINE_ALL || OFFLINE_ROWS+=("$_row")
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
 done <<< "$IHW_PATCH_ROWS"
@@ -553,7 +578,8 @@ case "${INSTALL_COMPONENTS:-FORMS_AND_REPORTS}" in
     FORMS_AND_REPORTS|FORMS_ONLY)
         [ "${FORMS_WEBUTIL_JACOB:-false}" = "true" ] && [ -n "${JACOB_ZIP:-}" ] && DOWNLOAD_JACOB=true ;;
 esac
-$DOWNLOAD_JACOB && _inv_file "$PATCH_STORAGE/jacob/$JACOB_ZIP" "JACOB ZIP (WebUtil OLE)"
+$DOWNLOAD_JACOB && { _inv_file "$PATCH_STORAGE/jacob/$JACOB_ZIP" "JACOB ZIP (WebUtil OLE)" \
+    || OFFLINE_NOTES+=("JACOB  ${JACOB_URL:-<JACOB_URL>}  ->  jacob/$JACOB_ZIP"); }
 
 # Client Java (FORMS_CLIENT_DIST=true, Forms only): CSV role client_jdk, above
 if [ "${FORMS_CLIENT_DIST:-false}" = "true" ] && [ -z "$CLIENT_JDK_NR" ]; then
@@ -573,7 +599,8 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
                 http://*|https://*)
                     DOWNLOAD_ICON=true
                     CLIENT_ICON_FILE="$(forms_client_icon_path)"
-                    _inv_file "$CLIENT_ICON_FILE" "Client shortcut icon" ;;
+                    _inv_file "$CLIENT_ICON_FILE" "Client shortcut icon" \
+                        || OFFLINE_NOTES+=("ICON  $FORMS_CLIENT_ICON  ->  ${CLIENT_ICON_FILE#"$PATCH_STORAGE"/}") ;;
                 */icon/IHateWeblogic.ico)
                     COPY_ICON=true
                     CLIENT_ICON_FILE="$(forms_client_icon_path)"
@@ -592,12 +619,14 @@ if $DOWNLOAD_APEX; then
         ok "$(printf "  %-26s present  %s" "APEX $APEX_VER" "apex/$APEX_VER/$(basename "$APEX_ZIP_FILE")")"
     else
         warn "$(printf "  %-26s MISSING  apex/<ver>/ (%s)" "APEX" "${APEX_ZIP_URL:-APEX_ZIP_URL not set}")"
+        OFFLINE_NOTES+=("APEX  ${APEX_ZIP_URL:-<APEX_ZIP_URL>}  ->  apex/<ver>/apex_<ver>.zip (e.g. apex/26.2/apex_26.2.zip)")
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
     if [ -n "$ORDS_ZIP_FILE" ]; then
         ok "$(printf "  %-26s present  %s" "ORDS $ORDS_VER" "ords/$ORDS_VER/$(basename "$ORDS_ZIP_FILE")")"
     else
         warn "$(printf "  %-26s MISSING  ords/<ver>/ (%s)" "ORDS" "${ORDS_ZIP_URL:-ORDS_ZIP_URL not set}")"
+        OFFLINE_NOTES+=("ORDS  ${ORDS_ZIP_URL:-<ORDS_ZIP_URL>}  ->  ords/<ver>/ords-<ver>.zip (<ver> = version of the jars in ords.war, e.g. 26.3.1.303.1615)")
         INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
     fi
     [ -z "${APEX_PATCH_NR:-}" ] && \
@@ -608,8 +637,66 @@ if [ "$INVENTORY_MISSING" -eq 0 ]; then
     ok "All required installers and patches are present – no download needed"
 else
     info "$INVENTORY_MISSING item(s) missing – download with: $(basename "$0") --apply --mos"
-    info "  no MOS access here: download on another host (mos_patch_download.sh -c $(basename "$IHW_PATCH_CSV"),"
-    info "  see 09-Install/download/README.md) or by hand as shown above, then copy into PATCH_STORAGE"
+    info "  no MOS access here: $(basename "$0") --offline-list writes a CSV for"
+    info "  tools/powershell/mos_patch_download.ps1 on a PC with internet access (same layout, copy the"
+    info "  tree back into PATCH_STORAGE) – 09-Install/docs/04-oracle_pre_download.md, or by hand as shown above"
+fi
+
+# --- Offline list (--offline-list / --offline-list-all) -------------------------
+# Repository DB rows (download/patches_db.csv, LOCAL_REP_DB=true): present in
+# PATCH_STORAGE/<dir>/ (offline route of 60-RCU-DB-19c/01-) OR in the AutoUpgrade
+# patchdir (online route – 01- downloads RU / OJVM / DPBP / OPatch / JDK there,
+# 07-Maintenance/patch_storage.sh does not count them as missing either).
+if $OFFLINE_LIST; then
+    section "Offline list for a host with MOS access"
+    _db_csv="$ROOT_DIR/09-Install/download/patches_db.csv"
+    _au_pd="$(sed -n 's/^DB_AUTOUPGRADE_HOME="\(.*\)".*/\1/p' "$ROOT_DIR/60-RCU-DB-19c/environment_db.conf" 2>/dev/null | head -1)"
+    _au_pd="${_au_pd//\$\{ORACLE_BASE\}/${ORACLE_BASE:-}}"
+    _au_pd="${_au_pd:-${ORACLE_BASE:-/u01/app/oracle}/autoupgrade}/patchdir"
+    if [ "${LOCAL_REP_DB:-false}" = "true" ] && [ -f "$_db_csv" ]; then
+        while IFS= read -r _row; do
+            [ -z "$_row" ] && continue
+            if $OFFLINE_ALL || { ! patch_row_zip "$_row" >/dev/null && ! patch_row_zip "${_row%%;*};x;$(cut -d';' -f3 <<< "$_row");x;x;x;." "$_au_pd" >/dev/null; }; then
+                OFFLINE_ROWS+=("$_row")
+                IFS=';' read -r _nr _ _ _ _st _ _dir _ <<< "$_row"
+                $OFFLINE_ALL || warn "$(printf "  %-26s MISSING  %s/" "$_st $_nr" "${_dir:-$_nr}")"
+            fi
+        done < <(grep -E '^[0-9]+;' "$_db_csv")
+    fi
+    if [ "${#OFFLINE_ROWS[@]}" -eq 0 ] && [ "${#OFFLINE_NOTES[@]}" -eq 0 ]; then
+        ok "Offline list: nothing to download – no file written"
+    else
+        [ -z "$OFFLINE_FILE" ] && OFFLINE_FILE="$PATCH_STORAGE/offline_download_$(date +%Y%m%d_%H%M%S).csv"
+        _ps="${PATCH_STORAGE:-/srv/patch_storage}"
+        {
+            printf '# Offline patch download list – written by 09-Install/04-oracle_pre_download.sh %s\n' \
+                "$($OFFLINE_ALL && printf -- '--offline-list-all' || printf -- '--offline-list')"
+            printf '# Date %s, patch cycle %s, %d MOS row(s)%s\n' "$(date '+%F %T')" "${PATCH_CYCLE:-?}" \
+                "${#OFFLINE_ROWS[@]}" "$($OFFLINE_ALL && printf ' (all needed rows)' || printf ' (only the missing ones)')"
+            printf '# Format = download/patches_fmw.csv (patch;platform;file_regexp;required;step;description;dir;sha256;aru)\n'
+            printf '#\n'
+            printf '# 1. Copy this file to the Windows PC (scp), next to the tools of ihw_customer_tools_windows.zip,\n'
+            printf '#    getMOSPatch.jar (github.com/MarisElsins/getMOSPatch) and a Java 11+ (java.exe).\n'
+            printf '# 2. Plan, then download (MOS password asked once, hidden):\n'
+            printf '#      .\\mos_patch_download.ps1 -Csv %s -Dir D:\\patch_storage -All\n' "$(basename "$OFFLINE_FILE")"
+            printf '#      .\\mos_patch_download.ps1 -Csv %s -Dir D:\\patch_storage -All -Apply [-Proxy host:port]\n' "$(basename "$OFFLINE_FILE")"
+            printf '#    -> D:\\patch_storage\\<dir>\\p<nr>_*.zip = the layout of PATCH_STORAGE on this host\n'
+            printf '# 3. Copy the tree back (as the software owner):\n'
+            printf '#      scp -r D:\\patch_storage\\* oracle@%s:%s/\n' "$(hostname -f 2>/dev/null || hostname)" "$_ps"
+            printf '# 4. On this host: 09-Install/04-oracle_pre_download.sh  -> every row "present"\n'
+            if [ "${#OFFLINE_NOTES[@]}" -gt 0 ]; then
+                printf '#\n# Not on MOS (download in the browser, put it below %s):\n' "$_ps"
+                for _n in "${OFFLINE_NOTES[@]}"; do printf '#   %s\n' "$_n"; done
+            fi
+            printf 'patch;platform;file_regexp;required;step;description;dir;sha256;aru\n'
+            for _row in "${OFFLINE_ROWS[@]}"; do printf '%s\n' "$_row"; done
+        } > "$OFFLINE_FILE" && ok "$(printf "Offline list: %d MOS row(s)%s -> %s" "${#OFFLINE_ROWS[@]}" \
+            "$([ "${#OFFLINE_NOTES[@]}" -gt 0 ] && printf ', %d non-MOS note(s)' "${#OFFLINE_NOTES[@]}")" "$OFFLINE_FILE")" \
+            || fail "Could not write $OFFLINE_FILE"
+        info "  next: copy it to the Windows PC, mos_patch_download.ps1 -Csv … -Dir D:\\patch_storage -All -Apply,"
+        info "  scp -r the tree back into $_ps, then run $(basename "$0") again (dry-run)"
+    fi
+    unset _db_csv _au_pd _row _nr _st _dir _n _ps
 fi
 
 # --- Dry-run exit -------------------------------------------------------------

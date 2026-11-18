@@ -251,7 +251,9 @@ With the new `patches_fmw.csv` / `patches_db.csv`:
 09-Install/04-oracle_pre_download.sh --apply --fresh-patches --mos   # archives patches/ to patches_<ts>/, loads the new set
 ```
 
-or move the staged ZIPs into place (`patches/<nr>/`, `client/jdk/<nr>/`,
+(host without MOS access: `04-oracle_pre_download.sh --offline-list` → CSV
+for `mos_patch_download.ps1` on a PC, tree copied back), or move the staged
+ZIPs into place (`patches/<nr>/`, `client/jdk/<nr>/`,
 `apex/patch/<nr>/`, `database/patches/<nr>/`, `ords/<ver>/`) and archive
 the replaced ones; then `04-` without `--apply` must report every row
 "present". Newer OTN releases (ORDS / APEX / SQLcl "latest") are not

@@ -250,6 +250,12 @@ cp <repo>/70-Customer-Projects/FormsReports12_patch_cpu_2026-10/patches_cpu_form
 # patch list of the library (14.1.2) on a host without the library - result in
 # the PATCH_STORAGE layout (column dir), then rsync to the target host:
 ./mos_patch_download.sh -c patches_fmw.csv -d /share/patch_storage --all --apply
+
+# control file from the TARGET host (library: only what it misses) - also for
+# mos_patch_download.ps1 on a Windows PC when the host itself has no MOS access:
+#   target host:  09-Install/04-oracle_pre_download.sh --offline-list
+#   PC:           .\mos_patch_download.ps1 -Csv offline_download_<ts>.csv -Dir D:\patch_storage -All -Apply
+#   back:         scp -r D:\patch_storage\* oracle@<host>:<PATCH_STORAGE>/
 ```
 
 | Option | Meaning |

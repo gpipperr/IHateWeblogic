@@ -97,6 +97,9 @@ duplicated here.
    the maintainer switched conf + patch lists already)
 2. 09-Install/04-oracle_pre_download.sh --apply --mos
    (add --fresh-patches first to archive the previous cycle's ZIPs)
+   no MOS access on the host: 04- --offline-list -> CSV for
+   mos_patch_download.ps1 on a PC with internet, scp the tree back
+   (09-Install/docs/04-oracle_pre_download.md "No MOS access on the host")
    ./07-Maintenance/domain_jdk_path.sh            # read-only: pinned jdk-21.0.x paths?
 3. ./07-Maintenance/backup_config.sh --apply
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7

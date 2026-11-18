@@ -118,6 +118,37 @@ rsync -a <share>/patch_storage/ oracle@<target>:$PATCH_STORAGE/
 ./09-Install/04-oracle_pre_download.sh
 ```
 
+**Only a Windows PC has internet access** (firewall blocks `updates.oracle.com`
+/ `login.oracle.com` on the host, no second Linux host – the PC may `scp` to
+the server): let the **host** write the list of what it really needs, and
+download it on the PC with the PowerShell twin of the tool:
+
+```bash
+# 1. target host (library): only the MISSING rows of the roles of environment.conf
+#    (+ patches_db.csv with LOCAL_REP_DB=true) - read-only, writes the CSV only
+./09-Install/04-oracle_pre_download.sh --offline-list            # -> $PATCH_STORAGE/offline_download_<ts>.csv
+./09-Install/04-oracle_pre_download.sh --offline-list-all=/tmp/all.csv   # all needed rows (new cycle)
+```
+
+```powershell
+# 2. Windows PC: tools of ihw_customer_tools_windows.zip + getMOSPatch.jar + Java 11+
+scp oracle@<host>:/srv/patch_storage/offline_download_<ts>.csv .
+.\mos_patch_download.ps1 -Csv offline_download_<ts>.csv -Dir D:\patch_storage -All          # plan
+.\mos_patch_download.ps1 -Csv offline_download_<ts>.csv -Dir D:\patch_storage -All -Apply   # download
+# 3. copy the tree back - D:\patch_storage\<dir>\ = the PATCH_STORAGE layout
+scp -r D:\patch_storage\* oracle@<host>:/srv/patch_storage/
+```
+
+The list is a normal patch list (same format, SHA-256 and ARU carried over –
+the PowerShell tool soft-checks them); the header of the file repeats the
+commands. Items that are not on MOS (APEX / ORDS ZIP, JACOB, a client icon
+URL) are listed as comment lines with URL and target directory – browser
+download. Back on the host `04-oracle_pre_download.sh` (dry-run) must report
+every row "present". Tested 2026-11-18 (isolated copy: 4 missing rows +
+ORDS note, plan run of the `.sh` and of the `.ps1` with pwsh, round trip →
+all present). Details:
+[04-oracle_pre_download.md – no MOS access](../docs/04-oracle_pre_download.md#no-mos-access-on-the-host--offline-list--windows-download).
+
 **Patch archive** (`PATCH_ARCHIVE`, NFS/ZFS, too slow to install from): let
 the share host download straight into the archive (`-d <archive>`), then the
 target host pulls each step's files right before the step and frees them

@@ -311,6 +311,41 @@ Always update OPatch **before** applying patches.
 
 ---
 
+## No MOS access on the host – offline list + Windows download
+
+The firewall blocks `updates.oracle.com` / `login*.oracle.com` on the host,
+there is no second Linux host – only a Windows PC with internet access that
+may `scp` to the server. The host knows what it needs (roles from
+`environment.conf`, what is already in `PATCH_STORAGE`); the PC downloads
+with [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1)
+(standalone, Windows tools ZIP) into the same layout.
+
+| # | Where | Command | Result |
+|---|---|---|---|
+| 1 | host | `09-Install/04-oracle_pre_download.sh --offline-list[=FILE]` | CSV with the **missing** MOS rows (`patches_fmw.csv` rows of the needed roles; `patches_db.csv` with `LOCAL_REP_DB=true` – a DB row in the AutoUpgrade patchdir counts as present); default `$PATCH_STORAGE/offline_download_<ts>.csv`. `--offline-list-all[=FILE]` = all needed rows (new cycle). Read-only, refused together with `--apply`; nothing missing → no file |
+| 2 | PC | `scp oracle@<host>:<file> .` | the list; plus `ihw_customer_tools_windows.zip`, `getMOSPatch.jar`, Java 11+ |
+| 3 | PC | `.\mos_patch_download.ps1 -Csv <file> -Dir D:\patch_storage -All` (plan), then `-Apply` (`-Proxy host:port`) | `D:\patch_storage\<dir>\p<nr>_*.zip` – column `dir` = the `PATCH_STORAGE` layout; SHA-256 / ARU soft-checked, `patches_sha256.csv` |
+| 4 | PC | `scp -r D:\patch_storage\* oracle@<host>:<PATCH_STORAGE>/` | tree back on the host (as the software owner – owner `oracle`) |
+| 5 | host | `09-Install/04-oracle_pre_download.sh` | every row "present"; then patch as usual (`80-` / `81-` / `82-`, `07-Maintenance/README.md` §3) |
+
+Notes:
+- The list has the format of `patches_fmw.csv` – the header comments repeat
+  the commands; the same file also works with the bash tool on any other
+  host (`mos_patch_download.sh -c <file> -d <dir> --all`).
+- Not on MOS (APEX / ORDS ZIP, JACOB, client icon URL): comment lines with URL
+  and target directory, browser download (ORDS: `ords/<ver>/ords-<ver>.zip`,
+  `<ver>` = version of the jars in `ords.war`).
+- `.getMOSPatch.cfg` and the download log are copied along – harmless, the
+  scripts only look for the ZIPs.
+- JDK 35702194: the ZIP name never changes – `02b-` / `80-` check the version
+  inside, as on the direct route.
+- Tested 2026-11-18: isolated copy with 4 missing rows + ORDS → list with 4
+  rows + 1 note; plan runs of `mos_patch_download.sh` and `.ps1` (pwsh 7.7)
+  show the same 4 target directories; tree copied back → "All required
+  installers and patches are present".
+
+---
+
 ## Purpose
 
 Download FMW 14.1.2 installers and patches into the patch storage directory.

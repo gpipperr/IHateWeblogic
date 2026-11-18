@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Offline patch download for a host without MOS access** – `09-Install/04-oracle_pre_download.sh
+  --offline-list[=FILE]` / `--offline-list-all` (read-only): writes the MOS rows this host needs and misses
+  (roles of `environment.conf`; `patches_db.csv` with `LOCAL_REP_DB=true`, a row in the AutoUpgrade patchdir
+  counts as present) as a normal patch list with a command header; the standalone
+  `mos_patch_download.ps1` on a Windows PC downloads it into the `PATCH_STORAGE` layout, the tree goes back by
+  `scp`; non-MOS items (APEX / ORDS, JACOB, icon URL) as URL + target comments. No change to the
+  downloaders. Tested in an isolated copy (4 rows + ORDS note, plan runs of `.sh` and `.ps1`, round trip →
+  all present). Docs: [04-oracle_pre_download.md](09-Install/docs/04-oracle_pre_download.md#no-mos-access-on-the-host--offline-list--windows-download),
+  download README, tools README, 07-Maintenance README.
+
 - **Pre-commit hook 2026-11-18.1 – customer ZIPs:** the stale-ZIP check now triggers on every file
   `make_customer_zip.sh` packs (new option `--sources`: scripts, `tools/README.md`, start cookbook,
   `patch_install.ini` template), not only on `tools/bash|powershell` – the switch commit of `v1.0.202611`
