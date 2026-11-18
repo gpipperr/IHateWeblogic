@@ -15,6 +15,9 @@ Markers as in the [README](README.md): **confirmed (live)** = seen on the test
 host (FMW 14.1.2, `fr_domain`, 2026-10-29), **documented** = Oracle
 documentation, **assumption** = plausible, not verified.
 
+Checklist view of the same topic (audit, password rule, lockout, TLS
+deviation): [stig_weblogic_forms_reports.md](stig_weblogic_forms_reports.md).
+
 Steps to **recover / reset** a password (Node Manager, admin, stored WLST
 credentials): [09-Install/docs/80-oracle_security.md §5](../09-Install/docs/80-oracle_security.md#5--password-recovery).
 The same "key under the doormat" model for this library's `*.des3` files:

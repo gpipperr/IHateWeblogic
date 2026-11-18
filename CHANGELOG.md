@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **DISA STIG for WebLogic read against Forms / Reports:**
+  new [stig_weblogic_forms_reports.md](80-FMW-Architecture/stig_weblogic_forms_reports.md) (WebLogic 12c STIG V2R2,
+  73 rules): transferable findings open on the test host (no configuration / OPSS audit, password rule 8/1, lockout
+  values vs. service users, Nginx log as audit source, 12c = CAT I "unsupported", umask 0022), what the library meets
+  (production mode, nothing on the AdminServer, loopback, UTC audit), the deliberate deviation "TLS at Nginx, WebLogic on
+  loopback", what does not apply (FIPS, WLDF mail, sizing). `domain_secret_check.sh` section 7 checks the items
+  read-only (test host: 3 WARN). Changes open, one by one (TODO).
+
 - **Domain key / admin password – attack paths and check:**
   [fmw_pwd_handling.md](80-FMW-Architecture/fmw_pwd_handling.md) new §1a (two public cases: vulhub file read →
   key + `{AES}` → offline decryption → console → WAR; Medium case study WebLogic 12.2.1.4, reachable port 7001,

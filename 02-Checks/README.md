@@ -554,6 +554,7 @@ console (CVE-2020-14882) – [fmw_pwd_handling.md §1a](../80-FMW-Architecture/f
 | 4 admin interfaces | Nginx `location` on `/console`, `/em`, `/management` … without `allow` + `deny all` | the same with `ADMIN_IP_RANGE=any` (decision of `04-root_nginx.sh`); AdminServer / NM port on a non-loopback address | `/management` not proxied, ports on `127.0.0.1` |
 | 5 lockout / admin name | `<lockout-enabled>false` | threshold > 10 | no `user-lockout-manager` = defaults (5 failed logins, 30 min); admin name `weblogic` / `admin` (INFO) |
 | 6 blast radius of the owner | – | `wheel` / `sudo` group, password-less `sudo` (`sudo -n -l`), `dba` / `oper` with a database on the host, further domains of the owner, copies of `SerializedSystemIni.dat` below `ORACLE_BASE` | – |
+| 7 DISA STIG items ([stig_weblogic_forms_reports.md](../80-FMW-Architecture/stig_weblogic_forms_reports.md)) | – | password rule of the domain below 12 characters (V-235966), no configuration audit (V-235933), OPSS `audit.filterPreset=None` (V-235931), applications on the AdminServer besides the FMW infrastructure (V-235983) | lockout values vs. STIG 3 / 15 / 15, auditing provider, `umask` of the owner, TLS-at-Nginx deviation |
 
 `--apply` changes only modes: the key and every `boot.properties` that is
 group- or world-readable get `600`; the old modes go to
@@ -564,7 +565,9 @@ needed. Live on the test host 2026-11-18: before 3 WARN (sudo / `wheel` /
 (INFO); `--apply` set the key and the two NM-cache `boot.properties` to 600;
 after `stop-all` / `start-all` every component ran, the Node Manager had
 rewritten its `boot.properties` **and kept 600**, smoke test (`15- --apply`)
-32 OK.
+32 OK. Section 7 (added the same day) gives 3 more WARN on the test host:
+password rule 8 / 1, no configuration audit, OPSS audit `None` – changes
+open, one by one.
 
 ---
 

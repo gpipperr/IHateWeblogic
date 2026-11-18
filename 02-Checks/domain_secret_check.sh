@@ -20,6 +20,11 @@
 #              5 account lockout (config.xml), admin user name
 #              6 blast radius: groups / sudo of the owner, DB on the host,
 #                other domains, copies of the domain key outside the domain
+#              7 DISA STIG items (WebLogic 12c V2R2): password rule of the
+#                domain, lockout values, configuration audit / auditing
+#                provider, OPSS audit filterPreset, applications on the
+#                AdminServer, umask of the owner (80-FMW-Architecture/
+#                stig_weblogic_forms_reports.md)
 #            --apply: chmod 600 on SerializedSystemIni.dat and every
 #            boot.properties (old modes saved to log/<date>/) - nothing else.
 # Call     : ./02-Checks/domain_secret_check.sh            (read-only)
@@ -27,7 +32,7 @@
 # Runs as  : the domain owner (oracle)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 80-FMW-Architecture/fmw_pwd_handling.md, 02-Checks/README.md
+# Ref      : 80-FMW-Architecture/fmw_pwd_handling.md, stig_weblogic_forms_reports.md, 02-Checks/README.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -296,6 +301,67 @@ if [ -n "$_copies" ]; then
 else
     ok "  no copy of the domain key outside $DH/security (below ${ORACLE_BASE:-the domain parent})"
 fi
+
+# =============================================================================
+section "7. DISA STIG items (WebLogic 12c V2R2, transferable to 14.1.2)"
+# =============================================================================
+# 80-FMW-Architecture/stig_weblogic_forms_reports.md - read-only, recommendations
+_cx="$(tr -d '\n' < "$DH/config/config.xml")"
+# V-235966-70 password rule of the domain (SystemPasswordValidator)
+_pv="$(printf '%s' "$_cx" | grep -o '<sec:password-validator.*</sec:password-validator>' | head -1)"
+_pmin="$(printf '%s' "$_pv" | grep -o 'min-password-length>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_pnum="$(printf '%s' "$_pv" | grep -o 'min-numeric-or-special-characters>[0-9]*\|min-numeric-characters>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_pup="$(printf '%s' "$_pv" | grep -o 'min-uppercase-characters>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+_m="$(printf "  password rule of the domain: min length %s, digits/special %s, upper case %s (STIG: 15 / 1 / 1, plus lower case + special)" "${_pmin:-?}" "${_pnum:-0}" "${_pup:-0}")"
+if [ -z "$_pv" ]; then
+    warn "  no SystemPasswordValidator in config.xml – no password rule for WebLogic users"
+elif [ "${_pmin:-0}" -lt 12 ]; then
+    warn "$_m – admin, RepRunner and the Reports users may get short passwords (V-235966)"
+else
+    ok "$_m"
+fi
+# V-235936-38 lockout values of the STIG (section 5 rates on / off)
+_lt="$(printf '%s' "$_cx" | grep -o '<lockout-threshold>[0-9]*' | grep -o '[0-9]*$' | head -1)"
+info "$(printf "  lockout threshold %s (STIG: 3 failed logins, 15 min lock, 15 min reset – mind the service users RepRunner / monUser: a guessed login locks them)" "${_lt:-5 (default)}")"
+# V-235933/34 configuration audit + auditing provider
+_cat="$(printf '%s' "$_cx" | grep -o '<configuration-audit-type>[^<]*' | sed 's/.*>//' | head -1)"
+_aud="$(printf '%s' "$_cx" | grep -o '<sec:auditor' | head -1)"
+case "${_cat:-none}" in
+    logaudit) ok "  configuration audit: Change Log and Audit (logaudit)" ;;
+    log|audit) info "  configuration audit: ${_cat} (STIG: logaudit = Change Log and Audit)" ;;
+    *) warn "  configuration audit off (no <configuration-audit-type>) – admin changes / deployments leave no trail (V-235933)" ;;
+esac
+[ -n "$_aud" ] && ok "  auditing provider configured in the realm" \
+    || info "  no auditing provider in the realm (STIG: at least one, e.g. DefaultAuditor – needed for configuration audit 'audit' / 'logaudit')"
+# V-235931/35/39 OPSS audit policy
+_fp="$(grep -o 'name="audit.filterPreset" value="[^"]*"' "$DH/config/fmwconfig/jps-config.xml" 2>/dev/null | head -1 | sed 's/.*value="//; s/"$//')"
+if [ -z "$_fp" ]; then
+    info "  OPSS audit: no audit.filterPreset in jps-config.xml"
+elif [ "$_fp" = "None" ]; then
+    warn "  OPSS audit filterPreset=None – no OPSS security events (logins, policy / credential changes) are recorded (V-235931)"
+else
+    ok "  OPSS audit filterPreset=$_fp"
+fi
+# V-235983 no applications on the AdminServer except the FMW infrastructure
+_infra='^(em|opss-rest|DMS Application.*|state-management-provider.*|coherence-transaction-rar|wsm-pm|FMW Welcome Page Application.*|fmw-welcome.*|mds-.*|owsm-.*|jms-.*|wls-.*|bea_wls.*|ORDS.*-rest|sdpmessaging.*|usermessagingserver.*)$'
+_adm="$(printf '%s' "$_cx" | grep -o '<app-deployment>.*</app-deployment>' | sed 's#</app-deployment>#&\n#g' \
+        | sed -n 's#.*<name>\([^<]*\)</name>.*<target>\([^<]*\)</target>.*#\1|\2#p' \
+        | awk -F'|' '("," $2 ",") ~ /,AdminServer,/ {print $1}' | grep -vE "$_infra" | paste -sd, -)"
+if [ -n "$_adm" ]; then
+    warn "  applications on the AdminServer besides the FMW infrastructure: $_adm – management and application in one JVM (V-235983)"
+else
+    ok "  only FMW infrastructure on the AdminServer (EM, OPSS REST, DMS, adapters); Forms / Reports on the managed servers"
+fi
+# Overview 2.1.2 umask 027 of the installation user
+_um="$(grep -hE '^[[:space:]]*umask[[:space:]]+[0-7]+' "$(getent passwd "${OWNER:-x}" | cut -d: -f6)/.bash_profile" 2>/dev/null | tail -1 | awk '{print $2}')"
+if [ -z "$_um" ]; then
+    info "  no umask in ~${OWNER}/.bash_profile (system default; the WebLogic start scripts set 027 themselves)"
+elif [ "$(( 8#$_um & 8#007 ))" -eq 7 ]; then
+    ok "  umask $_um in ~${OWNER}/.bash_profile"
+else
+    info "  umask $_um in ~${OWNER}/.bash_profile – files of our scripts are world-readable (STIG: 027; WebLogic writes the domain with 027 anyway – keep files Nginx must read, e.g. the Forms client bundle, readable)"
+fi
+info "  Deliberate deviation: STIG wants SSL-only listen ports on every server – here TLS ends at Nginx, WebLogic listens on 127.0.0.1 only (stig_weblogic_forms_reports.md)"
 
 # =============================================================================
 # --apply: chmod 600

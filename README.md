@@ -506,7 +506,8 @@ IHateWeblogic/
 │   ├── reports_mail_handling.md     – mail server, sender, notifications, failure mail to a ticket system
 │   ├── reports_rwservlet_properties.md – what rwservlet.properties can set in 14.1.2, job retry
 │   ├── reports_monitoring_getserverinfo.md – monitoring the Reports server with getserverinfo
-│   ├── fmw_pwd_handling.md          – password handling in the domain (domain key, {AES256}, stores)
+│   ├── fmw_pwd_handling.md          – password handling in the domain (domain key, {AES256}, stores, attack paths)
+│   ├── stig_weblogic_forms_reports.md – DISA WebLogic STIG read against Forms / Reports 14c
 │   ├── forms_performance_analyse_tuning.md – "Forms is slow": method, what to measure, tuning
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export

@@ -207,6 +207,13 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   (domain key, file-read paths, admin locations, lockout, blast radius);
   live `--apply` + restart on the test host OK (NM keeps 600); open:
   collector facts for customer hosts.
+- [ ] **DISA STIG changes** ([stig_weblogic_forms_reports.md §5](80-FMW-Architecture/stig_weblogic_forms_reports.md#5-order-of-the-open-changes)),
+  each one separately with `--apply`, test host first: (1) configuration
+  audit `logaudit` + auditing provider + OPSS `filterPreset`; (2) password
+  rule of the domain 12–15 characters (agree first); (3) lockout 3 / 15 / 15
+  only with service-user protection (`RepRunner`, `monUser`). Plus: WLST
+  read-only check "service users not in Administrators / Deployers";
+  `umask` 027 for our scripts without breaking Nginx-readable files.
 - [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch
   13.9.4.2.25: removes the rollback copies of superseded patches in
   `$ORACLE_HOME/.patch_storage` (scanners report old jars there) – supported
