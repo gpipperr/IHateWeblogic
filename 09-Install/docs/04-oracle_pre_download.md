@@ -158,6 +158,16 @@ older than APEX.
 cfg (`226P`) MOS offers no file for an APEX patch, therefore the APEX
 patch directory gets its own cfg (same mechanism as the client Java).
 
+
+**Newer "latest" release (dry-run check, since 2026-11-18):** the dry-run
+compares a stored ORDS ZIP (and an APEX ZIP from an `apex-latest` URL; a
+pinned version URL is skipped) with the size of the remote `…-latest.zip`
+(HEAD request, 15 s): `= current OTN release` or WARN `NEWER release on OTN`
+– `--apply` then fetches it into a new `ords/<ver>/` directory (otn_get, size
+compare), `06-patch-ords.sh` sees the new version. Offline: INFO, nothing
+checked; with `--offline-list` the newer release is written as a note. Found
+with ORDS 26.3.1 (2026-11-04) while 26.3.0 was stored – the dry-run had said
+"present".
 ### Standalone CVU for the local RCU database (`LOCAL_REP_DB=true`)
 
 | Variable | Value | Description |

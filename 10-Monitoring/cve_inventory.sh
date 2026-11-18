@@ -5,7 +5,10 @@
 #            level, in one view (read-only, no changes):
 #              1. Oracle Home components  -> advisory product names
 #              2. Patch cycle: configured (oracle_software_version.conf) vs.
-#                 installed (opatch lspatches), SPB level, OPatch version
+#                 installed (opatch lspatches), SPB level, OPatch version;
+#                 a configured patch that a newer installed one superseded
+#                 (opatch lsinventory -inactive) counts as covered (INFO) –
+#                 the home is newer than the configured cycle
 #              3. Both JDKs (JDK_HOME and the FMW-bundled oracle_common/jdk)
 #                 and which one the domain uses
 #              4. Active use and exposure: running processes per product,
@@ -209,12 +212,28 @@ if $FORMS_INSTALLED; then
     for _p in ${INSTALL_PATCHES_FORMS:-};   do _expected+=("$_p:Forms QPR"); done
 fi
 
+# Patches OPatch made inactive because a superset patch was applied (e.g. the
+# October bundles after the November ones, live 2026-11-18). Read only when a
+# configured patch is not in lspatches – the call takes ~25 s.
+INACTIVE="$WORK_DIR/inactive.txt"; : > "$INACTIVE"
+for _e in "${_expected[@]}"; do
+    grep -q "^${_e%%:*};" "$LSPATCHES" && continue
+    "$OPATCH" lsinventory -inactive -oh "$ORACLE_HOME" 2>/dev/null \
+        | sed -n 's/^Patch[[:space:]]\{1,\}\([0-9]\{1,\}\)[[:space:]]*:.*/\1/p' > "$INACTIVE"
+    break
+done
+
 _missing=0
+_superseded=0
 for _e in "${_expected[@]}"; do
     _nr="${_e%%:*}"; _what="${_e#*:}"
     if grep -q "^${_nr};" "$LSPATCHES"; then
         ok "$(printf "  %-10s %-26s installed" "$_nr" "$_what")"
         _rec patch "$_nr" "installed" "$_what"
+    elif grep -qx "$_nr" "$INACTIVE"; then
+        info "$(printf "  %-10s %-26s superseded – a newer installed patch replaced it (opatch: inactive)" "$_nr" "$_what")"
+        _rec patch "$_nr" "superseded" "$_what"
+        _superseded=$(( _superseded + 1 ))
     else
         fail "$(printf "  %-10s %-26s MISSING – configured for %s" "$_nr" "$_what" "${PATCH_CYCLE:-this cycle}")"
         _rec patch "$_nr" "missing" "$_what"
@@ -222,6 +241,8 @@ for _e in "${_expected[@]}"; do
     fi
 done
 [ "$_missing" -gt 0 ] && info "  Apply: 07-Maintenance patch cycle (README section 3)"
+[ "$_superseded" -gt 0 ] && info "$(printf "  %d configured patch(es) superseded: the home is NEWER than %s – update the library (git pull of the current release)" \
+    "$_superseded" "${PATCH_CYCLE:-the configured cycle}")"
 
 # Everything else in the inventory (SPB content, one-offs)
 info "Installed patches (opatch lspatches):"

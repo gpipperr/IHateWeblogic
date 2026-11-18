@@ -221,6 +221,11 @@ head -c 5 test_dual.pdf      # %PDF-
   stdin (`-K -`): the password shows up neither in the process list nor in
   `WLS_REPORTS/logs/access.log` (WebLogic logs the query string of a GET in plain
   text; until 2026-11-06 this call did).
+- Right after `startStop.sh start-all` / `start repserver01` the server answers
+  `REP-50001: The server is initializing` for a few seconds. The script retries
+  every 10 s, up to `REPORTS_INIT_RETRIES` (default 6) times, and only then
+  reports a failure (since 2026-11-18; live: one retry right after a restart of
+  `repserver01`, then 32 OK).
 
 ### Step 4 — Font test (`test_fonts.xml`)
 
@@ -275,6 +280,7 @@ fonts (Liberation Sans / Serif / Mono, DejaVu Sans), all checks OK.
 | `rwconverter` `Aborted (core dumped)`, rc=134 | `$ORACLE_HOME/bin/rwconverter` without the Reports environment | `$DOMAIN_HOME/reports/bin/rwconverter.sh` |
 | report run returns no PDF, HTTP 499 | secured Reports server, no `cmdkey` | `cgicmd.dat` key `default` (14b-) |
 | report run `REP-56132` | RDF directory not in `<folderAccess><read>` | `REPORTS_PATH` / 13- |
+| report run `REP-50001` after all retries | Reports server does not finish its start (engines, DB, LDAP of a secured server) | `01-Run/rwserver_status.sh`, `rwserver_diagnostic.log`; more time: `REPORTS_INIT_RETRIES=12` |
 
 ---
 

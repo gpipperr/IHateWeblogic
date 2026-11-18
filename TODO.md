@@ -80,9 +80,6 @@ runtimes, open points:
 (CPU October 2026: [frozen folder](70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md)).
 Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare`.
 
-- [ ] **Forms client bundle 21.0.13.1** on the test host:
-  `09-Install/40-oracle_forms_client_bundle.sh --apply` after the switch
-  (Java4Shell / Nov Java CVEs on client PCs with AVX-512).
 - [ ] **`09-db_patch_rcu.sh --mrp`** – in-place MRP mode (stop domain + DB,
   prereq, `opatch napply`, DB home JDK, start, `datapatch`, checks) as done
   by hand 2026-11-18 ([60-RCU-DB-19c/docs/09-db_patch_rcu.md](60-RCU-DB-19c/docs/09-db_patch_rcu.md) "Monthly MRP");
@@ -215,28 +212,6 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
-- [ ] **`10-Monitoring/cve_inventory.sh` – superseded patches** (live run
-  CSPU Nov 2026, 2026-11-18): the expected-patch check compares exact
-  numbers. A home that is **newer** than the configured cycle (or the test
-  host between live run and lib switch) shows FAIL "MISSING – configured
-  for …" for every bundle that a newer one replaced (5 FAIL on 2026-11-18:
-  40126042, 40050062, 39940047, 39979746, 39987730 – OPatch had set them
-  "inactive"). Recognise "superseded by an installed newer patch" (OPatch
-  superset info in `lsinventory`, or the conf "Superseded" list / the
-  `SUPERSEDES` map) and report INFO instead of FAIL.
-- [ ] **`09-Install/04-oracle_pre_download.sh` – newer ORDS release** (CSPU Nov
-  2026, 2026-11-18): with `ords/26.3.0.272.1811/ords-*.zip` in the storage
-  the script reports ORDS "present" and does not fetch `ords-latest.zip`
-  (26.3.1 since 2026-11-04) – `06-patch-ords.sh` then finds no newer ZIP.
-  Compare the version of the remote `ords-latest.zip` (HEAD Last-Modified /
-  download + version from `ords.war`) with the newest stored one; same for
-  `apex-latest.zip` / SQLcl. Downloaded by hand on 2026-11-18.
-- [ ] **`09-Install/15-deploy-test-report-forms_template.sh` – REP-50001**
-  (live run 2026-11-18): started right after `startStop.sh start-all` the
-  report runs got "REP-50001: The server is initializing" (HTTP 200, no
-  PDF) → 2 FAIL; a second run seconds later 32 OK. Wait for the Reports
-  server (getserverinfo / `rwserver_status.sh` OK) or retry REP-50001 a few
-  times before FAIL.
 - [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – no FMW
   patch; on hosts with AVX-512 VBMI (`avx512f avx512bw avx512vbmi bmi2`)
   the Reports server / engines run the vulnerable Base64 stub. Options: `13-`

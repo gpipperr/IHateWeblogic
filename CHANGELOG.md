@@ -10,6 +10,18 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Script package from the CSPU live run:**
+  - `10-Monitoring/cve_inventory.sh`: a configured patch that a newer installed one superseded (`opatch lsinventory
+    -inactive`, read only when a patch is not in `lspatches`) is INFO "superseded" instead of FAIL "MISSING", plus
+    the hint "home newer than the configured cycle – update the library". Tested with the October conf in an
+    isolated copy: 5 FAIL → 5 INFO; a really missing patch stays FAIL (rc 2).
+  - `09-Install/04-oracle_pre_download.sh`: the dry-run checks a stored ORDS ZIP (APEX only with a "latest" URL)
+    against the remote `…-latest.zip` (HEAD, size) – WARN "NEWER release on OTN", note in `--offline-list`. Tested:
+    26.3.1 stored → "= current OTN release"; only 26.3.0 stored → newer release detected.
+  - `09-Install/15-deploy-test-report-forms_template.sh`: `REP-50001` (Reports server initializing) → retry every
+    10 s, up to `REPORTS_INIT_RETRIES` (6). Live: `repserver01` restarted, smoke test right away → one retry, 32 OK.
+  - TODO: the three items and the done client-bundle entry removed.
+
 - **Architecture base map §3.7 "Infrastructure components in every home – installed, deployed, reachable?"**
   ([weblogic_middleware_architecture.md](80-FMW-Architecture/weblogic_middleware_architecture.md#37-infrastructure-components-in-every-home--installed-deployed-reachable)):
   OPSS, ADF, EM, OWSM, UMS ("Service Delivery Platform"), WebCenter Core, OAMCLIENT, LibOVD, Coherence, OHS /

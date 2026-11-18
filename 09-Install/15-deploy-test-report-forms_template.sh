@@ -406,8 +406,18 @@ _run_report() {
     _deploy "$STAGING/${name}.rdf" "$REPORTS_CUSTOMER_DIR" || return 1
 
     # --- Run through the Reports server. The engine resolves the DB itself
-    # (EZConnect works there).
-    http="$(_rws_post_report "$name" "$STAGING/${name}.pdf")"
+    # (EZConnect works there). Right after startStop.sh start-all the server
+    # answers "REP-50001: The server is initializing" for some seconds (live
+    # 2026-11-18, CSPU run) - wait and retry instead of reporting a failure.
+    local try=1 max="${REPORTS_INIT_RETRIES:-6}"
+    while :; do
+        http="$(_rws_post_report "$name" "$STAGING/${name}.pdf")"
+        [ "$(head -c 5 "$STAGING/${name}.pdf" 2>/dev/null)" = "%PDF-" ] && break
+        grep -aq 'REP-50001' "$STAGING/${name}.pdf" 2>/dev/null || break
+        [ "$try" -ge "$max" ] && break
+        info "  REP-50001 (Reports server still initializing) – retry $try/$max in 10 s"
+        sleep 10; try=$(( try + 1 ))
+    done
     if [ "$(head -c 5 "$STAGING/${name}.pdf" 2>/dev/null)" = "%PDF-" ]; then
         ok "$(printf "Report run OK: %s PDF %s bytes (HTTP %s, %ss)" \
             "$name" "$(wc -c < "$STAGING/${name}.pdf")" "${http%% *}" "${http#* }")"

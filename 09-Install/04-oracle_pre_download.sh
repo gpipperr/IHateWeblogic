@@ -609,6 +609,29 @@ if $DOWNLOAD_CLIENT_JDK || [ "${FORMS_CLIENT_DIST:-false}" = "true" ]; then
     esac
 fi
 
+# _otn_newer KIND URL LOCAL_ZIP – dry-run check of a "latest" OTN link: a stored
+# ZIP counts as "present", but Oracle may have released a newer one behind the
+# same URL (ORDS 26.3.1 on 2026-11-04 while 26.3.0 was stored - 06-patch-ords.sh
+# then saw nothing new). HEAD request, size compare like otn_get; offline = INFO.
+_otn_newer() {
+    local kind="$1" url="$2" zip="$3" len lm lbl
+    lbl="$(tr '[:lower:]' '[:upper:]' <<< "$kind") (OTN latest)"
+    case "$url" in *latest*) ;; *) return 0 ;; esac        # pinned version URL: nothing to compare
+    len="$(curl -sIL -A 'Mozilla/5.0' --max-time 15 "$url" 2>/dev/null | tr -d '\r' \
+           | awk 'tolower($1)=="content-length:" {l=$2} tolower($1)=="last-modified:" {sub(/^[^:]*: */,""); m=$0} END {print l"|"m}')"
+    lm="${len#*|}"; len="${len%%|*}"
+    if [ -z "$len" ]; then
+        info "$(printf "  %-26s remote not reachable – newer release on OTN not checked (%s)" "$lbl" "$url")"
+    elif [ "$(stat -c %s "$zip" 2>/dev/null)" = "$len" ]; then
+        ok "$(printf "  %-26s = current OTN release (same size, %s)" "$lbl" "${lm:-?}")"
+    else
+        warn "$(printf "  %-26s NEWER release on OTN (remote %s bytes, %s) – %s --apply fetches it into a new version directory" \
+            "$lbl" "$len" "${lm:-?}" "$(basename "$0")")"
+        OFFLINE_NOTES+=("$(printf '%s  %s  ->  %s/<ver>/ (newer than the stored %s)' "$(tr '[:lower:]' '[:upper:]' <<< "$kind")" "$url" "$kind" "$(basename "$(dirname "$zip")")")")
+        INVENTORY_MISSING=$(( INVENTORY_MISSING + 1 ))
+    fi
+}
+
 APEX_ZIP_FILE="" ; APEX_VER="" ; ORDS_ZIP_FILE="" ; ORDS_VER=""
 if $DOWNLOAD_APEX; then
     APEX_ZIP_FILE="$(otn_newest_zip "$PATCH_STORAGE/apex" 'apex_*.zip')"
@@ -617,6 +640,7 @@ if $DOWNLOAD_APEX; then
     [ -n "$ORDS_ZIP_FILE" ] && ORDS_VER="$(basename "$(dirname "$ORDS_ZIP_FILE")")"
     if [ -n "$APEX_ZIP_FILE" ]; then
         ok "$(printf "  %-26s present  %s" "APEX $APEX_VER" "apex/$APEX_VER/$(basename "$APEX_ZIP_FILE")")"
+        $APPLY || _otn_newer apex "${APEX_ZIP_URL:-}" "$APEX_ZIP_FILE"
     else
         warn "$(printf "  %-26s MISSING  apex/<ver>/ (%s)" "APEX" "${APEX_ZIP_URL:-APEX_ZIP_URL not set}")"
         OFFLINE_NOTES+=("APEX  ${APEX_ZIP_URL:-<APEX_ZIP_URL>}  ->  apex/<ver>/apex_<ver>.zip (e.g. apex/26.2/apex_26.2.zip)")
@@ -624,6 +648,7 @@ if $DOWNLOAD_APEX; then
     fi
     if [ -n "$ORDS_ZIP_FILE" ]; then
         ok "$(printf "  %-26s present  %s" "ORDS $ORDS_VER" "ords/$ORDS_VER/$(basename "$ORDS_ZIP_FILE")")"
+        $APPLY || _otn_newer ords "${ORDS_ZIP_URL:-}" "$ORDS_ZIP_FILE"
     else
         warn "$(printf "  %-26s MISSING  ords/<ver>/ (%s)" "ORDS" "${ORDS_ZIP_URL:-ORDS_ZIP_URL not set}")"
         OFFLINE_NOTES+=("ORDS  ${ORDS_ZIP_URL:-<ORDS_ZIP_URL>}  ->  ords/<ver>/ords-<ver>.zip (<ver> = version of the jars in ords.war, e.g. 26.3.1.303.1615)")
