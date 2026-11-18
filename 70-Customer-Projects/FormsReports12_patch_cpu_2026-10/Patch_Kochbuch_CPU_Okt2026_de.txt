@@ -685,13 +685,15 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (als oracle, README 3.1)
   # eMudhra-Wurzeln aus cacerts; betroffen u.a. 8u511-b32. Auf unserem
   # 14c-Testhost (2026-10-26) vertraute das alte gebuendelte JDK im Home den
   # gefaelschten Zertifikaten, ein aktuelles JDK nicht.
-  # Java 8: Sicherheitsdateien unter jre/lib/security.
+  # Java 8: Sicherheitsdateien unter jre/lib/security, die Sperrliste
+  # heisst dort blacklisted.certs (KORRIGIERT 2026-11-18 - vorher stand
+  # hier faelschlich blocked.certs, der Name neuerer JDKs).
 
   # a) neues Server-JDK:
 
   $NEW_JDK/bin/keytool -list -keystore $NEW_JDK/jre/lib/security/cacerts -storepass changeit | grep -ci emsign
 
-  grep -c '^[0-9A-F]' $NEW_JDK/jre/lib/security/blocked.certs
+  grep -c '^[0-9A-F]' $NEW_JDK/jre/lib/security/blacklisted.certs
 
   # b) gebuendeltes JDK im Home:
 
@@ -699,7 +701,7 @@ SCHRITT 4: Server-JDK 8u511 (Alert-Build) einspielen  (als oracle, README 3.1)
 
   $OCJ/bin/keytool -list -keystore $OCJ/jre/lib/security/cacerts -storepass changeit | grep -ci emsign
 
-  grep -c '^[0-9A-F]' $OCJ/jre/lib/security/blocked.certs
+  grep -c '^[0-9A-F]' $OCJ/jre/lib/security/blacklisted.certs
 
   # Bewertung: eMudhra-Eintraege in cacerts (Zahl > 0) + kurze Sperrliste =
   # vertraut den gefaelschten Zertifikaten. Relevant nur fuer Java, das

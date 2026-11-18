@@ -129,7 +129,7 @@ Created by `09-Install/07-oracle_setup_repository.sh`
 | `WLS` | `DEV_WLS` | WebLogic persistence (JDBC/JMS stores, leasing, …) | `WLSSchemaDataSource` – exists, but **no target** in a Forms/Reports domain → no session at runtime (**confirmed (live)** 2026-11-10, test host and a customer domain) |
 | `WLS_RUNTIME` | `DEV_WLS_RUNTIME` | WebLogic runtime data | `WLSRuntimeSchemaDataSource` – **no target**, as `WLSSchemaDataSource` |
 | `MDS` | `DEV_MDS` | Metadata Services repository | **no data source** in this domain |
-| `UCSUMS` | `DEV_UMS` | User Messaging Service | **no data source** in this domain |
+| `UCSUMS` | `DEV_UMS` | User Messaging Service (what UMS is and why only its client libraries run here: [weblogic_middleware_architecture.md §3.7](weblogic_middleware_architecture.md#37-infrastructure-components-in-every-home--installed-deployed-reachable)) | **no data source** in this domain |
 
 All schemas: version `14.1.2.0.0`, status `VALID`, `UPGRADED=N`, default
 tablespace `FMW_DATA` (`60-RCU-DB-19c/05-db_fmw_tablespace.sh`).

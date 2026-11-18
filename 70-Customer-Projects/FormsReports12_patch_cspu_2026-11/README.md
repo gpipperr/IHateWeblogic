@@ -191,8 +191,8 @@ Java 8 security files are in `jre/lib/security/`; the block list is called
 **`blacklisted.certs`** there (the name `blocked.certs` belongs to newer
 JDKs) – corrected in step 4.8 of both November cookbooks on 2026-11-18
 (checked against JDK 8u513: 0 emSign entries in `cacerts`, 87 entries in
-`blacklisted.certs`). The frozen October cookbook still says `blocked.certs`
-in its eMudhra check – use `blacklisted.certs`.
+`blacklisted.certs`). The frozen October cookbook had the same error in its
+eMudhra check – corrected there as well on 2026-11-18 (marked in step 4.8).
 
 ### 3.2 OPatch and WebLogic Server 12.2.1.4
 

@@ -235,6 +235,65 @@ the standalone Reports server); `_IAU*` audit; `_WLS`/`_WLS_RUNTIME`
 WebLogic persistence (leasing, JMS/JDBC stores). (**documented**,
 [`09-Install/docs/07-oracle_setup_repository.md`](../09-Install/docs/07-oracle_setup_repository.md))
 
+### 3.7 Infrastructure components in every home – installed, deployed, reachable?
+
+The Forms & Reports installer lays down the complete **FMW Infrastructure**
+(JRF) into the Oracle Home, and the domain is created from JRF templates.
+That is why MOS KA1182 asks for the same eight infrastructure bundle
+patches in every Forms & Reports home – and why a risk matrix with a CVSS
+9.8 for "Service Delivery Platform" concerns this home at all. Three
+different things have to be told apart:
+
+- **installed** – the software is on disk (`$ORACLE_HOME`). A scanner finds
+  it, the patch has to go in;
+- **deployed** – the domain uses it: as an application (own code, own URL)
+  or only as a **shared library** that other applications load;
+- **reachable** – an application that offers an endpoint (HTTP / SOAP / T3)
+  a client can call. Only this makes a remote CVE exploitable here.
+
+State of the test domain (**confirmed (live)** 2026-11-18, `config.xml`,
+`init-info/domain-info.xml`, `curl` on the AdminServer and the managed
+servers):
+
+| Component | What it is | In this domain | KA1182 bundle (CSPU Nov 2026) |
+|---|---|---|---|
+| **OPSS** – Oracle Platform Security Services | policy, credential and key store of every JVM of the domain (DB schema `_OPSS`, `jps-config.xml` / `jps-config-jse.xml`); application roles, keystores | **used everywhere** – applications `opss-rest` (AdminServer), all servers and the standalone Reports server read it | OPSS BP 40154045 |
+| **ADF** – Application Development Framework (+ MDS) | Java web framework of Oracle (JSF based, "ADF Faces"); risk-matrix product "JDeveloper" / "ADF" | **used by EM** – 38 `adf.*` shared libraries, template "Oracle ADF and MDS Extensions for JRF"; Forms / Reports themselves are no ADF applications | ADF BP 40155248 (+ Third-Party BP / WLS PSU of the same cycle, PNEWS2138) |
+| **EM / FMW Control** – Fusion Middleware Control | the `/em` console (an ADF application) | **deployed + reachable** – application `em` on the AdminServer (loopback, through NGINX `/em`) | FMW Control BP 39995927 |
+| **OWSM** – Oracle Web Services Manager | security policies for SOAP / REST web services (policy manager `wsm-pm`, agent, seed policies) | **libraries + agent only** – `oracle.wsm.*` shared libraries, templates "WSM Agent" / "Policy Attachment"; **no** policy manager application (`/wsm-pm` → 404) | OWSM BP 40024749 |
+| **UMS** – User Messaging Service (risk matrix: **"Service Delivery Platform"**, component "Messaging Enabler") | sends notifications by e-mail, SMS, XMPP, push for SOA / BPM / WebCenter (UMS server + drivers, DB schema `_UMS`) | **client libraries only** – template "User Messaging Service **Client** Extensions for JRF", shared libraries `oracle.sdp.client` / `oracle.sdp.messaging`; **no** `usermessagingserver` / driver application, no UMS data source; the EARs only on disk (`oracle_common/communications/applications/`); `/ucs/messaging/webservice`, `/sdpmessaging/userprefs-ui` → 404 on 7001 / 9001 / 9002. CVE-2026-114826 (SOAP, 9.8) needs the UMS server → **not reachable** here | UMS BP 40145610 |
+| **WebCenter Core** (Composer, Skin) | page-composer / skin libraries of WebCenter Portal, also used by EM | **libraries only** – `oracle.webcenter.composer` / `.skin`; no WebCenter Portal (`/webcenter` → 404) | WebCenter Core BP 40035984 |
+| **OAMCLIENT** – Oracle Access Manager client | client libraries for OAM single sign-on (identity asserter, `oamcfgtool`) – **not** the OAM server (its 10.0 CVEs do not apply) | **on disk only** – no OAM identity asserter configured | OAMCLIENT BP 40057999 |
+| **LibOVD** – Oracle Virtual Directory library | virtual LDAP layer of OPSS (several identity stores as one) | **used** by the identity store / EM user search (`config/fmwconfig/ovd/`) – [em_principal_search_libovd.md](em_principal_search_libovd.md) | LibOVD BP 39726399 |
+| **Coherence** | in-memory data grid of WebLogic | WebLogic Coherence cluster extension; loopback since 2026-10-23 | inside the WLS SPB |
+| **OHS, WebGate, Perl, FMW DBCLIENT** | Oracle HTTP Server + OAM WebGate binaries, Perl of the home, the DB client of the home | OHS / WebGate: **binaries only, no OHS instance** (NGINX is the front end); Perl / DBCLIENT: used by tools and the native processes | OHS BP 40181911, WebGate BP 39100536, PERL SPU 39951765, DBCLIENT in the SPB |
+
+Rule: **the patch scope is what is installed, the risk rating follows what
+is reachable.** KA1182 lists every bundle because every component is in the
+home (and a scanner reports it); a CVE of a component that is only a
+library or only on disk is patched anyway, but it is no open attack path.
+A customer domain can differ (SOA / WebCenter templates, an OHS instance,
+UMS server deployed) – check it:
+
+```bash
+C=$DOMAIN_HOME/config/config.xml
+# applications of the domain (own code / URLs)
+awk '/<app-deployment>/{f=1} f&&/<name>/{gsub(/ *<\/?name>/,"");print;f=0}' $C
+# UMS server deployed?  (0 = client libraries only)
+grep -c usermessagingserver $C
+# OWSM policy manager deployed?  (0 = agent / libraries only)
+grep -c 'wsm-pm' $C
+# templates the domain was built from
+grep -o 'extention-template-ref name="[^"]*"' $DOMAIN_HOME/init-info/domain-info.xml
+# OHS instance?  (no directory = binaries only)
+ls $DOMAIN_HOME/config/fmwconfig/components/OHS 2>/dev/null
+```
+
+The bundle numbers and the CVEs per cycle:
+[00-patch-references.md](../09-Install/docs/00-patch-references.md); the
+schemas behind OPSS / UMS / IAU:
+[rcu_middleware_architecture.md](rcu_middleware_architecture.md).
+
 ---
 
 ## 4. Who starts whom – the control chain

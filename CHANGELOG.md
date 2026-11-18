@@ -10,6 +10,15 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Architecture base map §3.7 "Infrastructure components in every home – installed, deployed, reachable?"**
+  ([weblogic_middleware_architecture.md](80-FMW-Architecture/weblogic_middleware_architecture.md#37-infrastructure-components-in-every-home--installed-deployed-reachable)):
+  OPSS, ADF, EM, OWSM, UMS ("Service Delivery Platform"), WebCenter Core, OAMCLIENT, LibOVD, Coherence, OHS /
+  WebGate / Perl / DBCLIENT with what they are, their state in the test domain (checked live: UMS / OWSM /
+  WebCenter only libraries, endpoints 404) and the KA1182 bundle; rule "patch scope = installed, risk = reachable",
+  check commands for a customer domain. UMS check recorded in the CSPU Nov 2026 folder (open point 3) and the CVE
+  table. 12c October cookbook: eMudhra check `blocked.certs` → `blacklisted.certs` (Java 8), noted in the frozen
+  header.
+
 - **`mos_patch_download.ps1` 2026-11-18.1 – Java < 11 fixed:** without the password runner getMOSPatch was
   started with `| Out-Host`; the pipe left `System.console()` `null` → `NullPointerException` in
   `getMOSPatch.setAuthentication`, no user / password prompt (first customer run of the offline list with Java
