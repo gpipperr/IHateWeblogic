@@ -93,8 +93,11 @@ duplicated here.
 ```
 1. Update 09-Install/oracle_software_version.conf with the new cycle's
    patch numbers — see 09-Install/docs/00-patch-references.md
+   (customer host: git pull of the current release, e.g. v1.0.202611 –
+   the maintainer switched conf + patch lists already)
 2. 09-Install/04-oracle_pre_download.sh --apply --mos
    (add --fresh-patches first to archive the previous cycle's ZIPs)
+   ./07-Maintenance/domain_jdk_path.sh            # read-only: pinned jdk-21.0.x paths?
 3. ./07-Maintenance/backup_config.sh --apply
 4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
    (81-/82- refuse --apply while NM, a WLS server or ANY process from
@@ -104,7 +107,8 @@ duplicated here.
    continue, anything else aborts (no terminal or IHW_NO_SNAPSHOT_PROMPT=true:
    no pause). Everything is stopped at that point, so the snapshot is
    consistent.
-5. ./07-Maintenance/80-patch_java_os.sh --apply   # JDK_HOME from patches/<JDK_PATCH_NR>/ (WARN if missing)
+5. ./07-Maintenance/domain_jdk_path.sh --apply    # only if step 2 listed files (backup first)
+   ./07-Maintenance/80-patch_java_os.sh --apply   # JDK_HOME from patches/<JDK_PATCH_NR>/ (WARN if missing)
 6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
 7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
 8. Forms only: ./09-Install/14-oracle_setup_forms.sh --apply
@@ -147,6 +151,29 @@ looks into `$PATCH_STORAGE/patches/<JDK_PATCH_NR>/` – missing or not newer →
 WARN / OK, no download. Details: [01-root_setup_java.md](../09-Install/docs/01-root_setup_java.md#patch-cycle-minimum-and-upgrade---upgrade-jdk).
 The FMW-bundled JDK (`oracle_common/jdk`, OPatch component `oracle.jdk`)
 is patched with OPatch (`FMW_JDK_PATCH_NR`, still to be determined).
+
+#### JDK update on an existing customer home – order
+
+`80-` only repoints the symlink `JDK_HOME` (`jdk-21 → jdk-21.0.x`). A file
+that still names the **versioned** directory (`setDomainEnv.sh`,
+`nodemanager.properties`, `oui/.globalEnv.properties`, a text script in
+`$ORACLE_HOME/bin` like `aqxmlctl` …) keeps the domain on the **old** JDK
+after the switch – `80-` reports it afterwards only read-only ("Pinned JDK
+paths found"). So clean them up **before** the switch, in the same window:
+
+| # | When | Command | Note |
+|---|---|---|---|
+| 1 | before, system runs | `git pull` (release of the cycle), `09-Install/04-oracle_pre_download.sh --apply --mos` | JDK patch (35702194) into the patch storage – check the version inside the ZIP |
+| 2 | before, system runs | `07-Maintenance/domain_jdk_path.sh` | read-only – lists pinned paths; `WARN JDK_HOME is no symlink` → first convert `JDK_HOME` to a link by hand (variant b of [Java_wechsel_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports_change_java/Java_wechsel_Kochbuch_de.txt)), only then go on |
+| 3 | window | `01-Run/startStop.sh stop-all --apply` | also ORDS; any other JVM on `JDK_HOME` is named by `80-`, which refuses otherwise |
+| 4 | window | `07-Maintenance/domain_jdk_path.sh --apply` | only if step 2 found files; backup `ConfigBackup/jdk_path_<ts>/`; harmless before the switch (the old JDK directory stays) |
+| 5 | window | `07-Maintenance/80-patch_java_os.sh --apply` | VM-snapshot pause, `02b-` installs the new JDK beside the old one (SHA-256, **SecureRandom fix** `file:/dev/./urandom` – a manual unpack misses it, live 2026-11-18), link switch, `domain_jdk_path.sh` read-only as counter-check |
+| 6 | window | `01-Run/startStop.sh start-all --apply`, `09-Install/15-deploy-test-report-forms_template.sh --apply`, `09-Install/90-oracle_validate.sh` | wait for the Reports server before the smoke test (REP-50001 right after the start) |
+| 7 | after | `09-Install/40-oracle_forms_client_bundle.sh --apply` | only with the Forms client distribution – new client runtime |
+
+Rollback: `sudo ln -sfn <old jdk dir> $JDK_HOME` (printed by `80-`), the
+files of step 4 from `ConfigBackup/jdk_path_<ts>/`. The bundled
+`oracle_common/jdk` is not touched by any of these steps.
 
 ### domain_jdk_path.sh
 
