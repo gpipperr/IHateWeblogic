@@ -403,7 +403,7 @@ Background:
 | Item | Recommendation |
 |---|---|
 | Patch | **40239650** – JRE 8 Update 513 (CPU435) – replaces the October target 40186686 (8u511 alert build, still affected by the eMudhra alert). Platform = the **bitness the clients use today** – the WebUtil DLLs (JACOB etc., `install.syslib` in `webutil.cfg`) must match the JRE bitness |
-| Current state (2026-10-22, unchanged) | Software deployment rolls out a private JRE `1.8.0_241-b07` (January 2020), **32-bit** ("Client VM", under `Program Files (x86)`) – six years of Java security fixes behind, not only the alert. Either the 32-bit (Windows x86) build of 40186686, or a planned switch to 64-bit **together** with x64 WebUtil/JACOB DLLs |
+| Current state (2026-10-22, unchanged) | Software deployment rolls out a private JRE `1.8.0_241-b07` (January 2020), **32-bit** ("Client VM", under `Program Files (x86)`) – six years of Java security fixes behind, not only the alert. Either the 32-bit (Windows x86) build of 40239650 (JRE 8u513), or a planned switch to 64-bit **together** with x64 WebUtil/JACOB DLLs |
 | Gap 8u241 → 8u513 | Oracle tightened the defaults in between: TLS 1.0/1.1 disabled (TLS 1.2+ needed at the web server in front of Forms), SHA-1-signed JARs and weak keys rejected. Test the own signed jars (WebUtil, JACOB, customer jars: signature algorithm, key length, timestamp, certificate expiry) and the TLS setup of the web server with the new JRE before the rollout |
 | Not | 18143322 ("JDK 8 latest") – a JDK where a JRE is enough |
 | Java version | stay on Java 8 for Java Web Start – `javaws` does not exist from Java 11 on (with 11+ only FSAL works) |

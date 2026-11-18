@@ -110,8 +110,9 @@ VORAUSSETZUNGEN
 
     cd /oracle/install/cspu_nov2026
 
-    # fmw_patch_env.sh, mos_patch_download.sh, patches_cspu_forms_reports_12c_nov2026.csv und
-    # getMOSPatch.jar hierher kopieren, dann:
+    # fmw_patch_env.sh, mos_patch_download.sh,
+    # patches_cspu_forms_reports_12c_nov2026.csv und getMOSPatch.jar
+    # hierher kopieren, dann:
 
     chmod +x fmw_patch_env.sh mos_patch_download.sh
 
@@ -142,7 +143,8 @@ VORAUSSETZUNGEN
     export DOMAIN_HOME=/oracle/user_projects/domains/fr_domain
 
     export INV_PTR=/etc/oraInst.loc
-    # Kundenumgebung: inventory_loc=/home/oracle/oraInventory, inst_group=oinstall
+    # Kundenumgebung: inventory_loc=/home/oracle/oraInventory,
+    #                 inst_group=oinstall
 
     export JDK_LINK=/oracle/java/jdk
     # Kundenumgebung: JAVA_HOME (und JAVA_HOME_1_8) in .globalEnv.properties
@@ -273,7 +275,8 @@ SCHRITT 0: Ist-Stand erfassen  (als oracle, vor dem Wartungsfenster, System laeu
       grep -q "^$P;" $LOGDIR/00_lspatches_vorher.txt || echo "FEHLT: $P"
   done
   # Erwartet: keine Ausgabe (40005842 39114058 38098858 38832179 nur, wenn
-  # OHS im Home liegt). FEHLT ... -> STOP, Patch_Kochbuch_CSPU_Nov2026_full_de.txt
+  # OHS im Home liegt). FEHLT ... -> STOP,
+  # Patch_Kochbuch_CSPU_Nov2026_full_de.txt
 
   ----------------------------------------------------------------------------
   0.3 Java der Server und das Java von OPatch
@@ -611,9 +614,10 @@ SCHRITT 4: Server-JDK 8u513 einspielen  (als oracle, README 3.1)
   grep -c '^[0-9A-F]' $OCJ/jre/lib/security/blocked.certs
 
   # Bewertung: eMudhra-Eintraege in cacerts (Zahl > 0) + kurze Sperrliste =
-  # vertraut den gefaelschten Zertifikaten. Erwartet fuer 8u513: 0. Relevant nur fuer Java, das
-  # selbst als TLS-Client nach aussen geht (Server-JDK, Reports-Engines bei
-  # https-Quellen / SMTPS / WebDAV, vor allem die Client-JREs - Schritt 10).
+  # vertraut den gefaelschten Zertifikaten. Erwartet fuer 8u513: 0.
+  # Relevant nur fuer Java, das selbst als TLS-Client nach aussen geht
+  # (Server-JDK, Reports-Engines bei https-Quellen / SMTPS / WebDAV, vor
+  # allem die Client-JREs - Schritt 10).
   # Abhilfe: neuester JDK/JRE-Build von MOS (4.3); fuer das gebuendelte JDK
   # gibt es keine - README 7, Punkt 18.
 
