@@ -220,8 +220,17 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   `UseBASE64Intrinsics=false` at runtime); roll out at the 14c customers
   (`13- --apply` + Reports server restart); first run of the Windows
   collector (`collect_fmw_env.ps1` 2026-11-18.1, tested only with pwsh on
-  Linux) on a Windows Reports host: CPU source `jvm`, `reports.bat`;
-  remove the option once Oracle ships a bundled-JDK patch.
+  Linux) on a Windows Reports host: CPU source `jvm`, `reports.bat`.
+- [ ] **Java4Shell: remove `-XX:-UseBASE64Intrinsics` again** as soon as
+  Oracle ships a patch for the bundled JDK (`oracle_common/jdk` ≥ 17.0.21.1 –
+  watch KA1182 every cycle, see "FMW-bundled JDK" below). Then: patch the
+  bundled JDK; take the flag out of `13-oracle_setup_reports.sh` (reports.sh
+  + engine `jvmOptions`, also strip it from existing lines) and
+  `engine_perf_settings.sh`; `java_check.sh` / collectors already rate a
+  fixed JDK as "not affected" (`java4shell_affected`) – the check stays;
+  update `13-reports-detail-settings.md`, `00-patch-references.md`
+  "Java4Shell" and `forms_reports_security.md`; at the customers
+  `13- --apply` + Reports server restart.
 - [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
   `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
   tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in
