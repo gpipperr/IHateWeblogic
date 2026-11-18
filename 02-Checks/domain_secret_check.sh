@@ -334,13 +334,17 @@ esac
 [ -n "$_aud" ] && ok "  auditing provider configured in the realm" \
     || info "  no auditing provider in the realm (STIG: at least one, e.g. DefaultAuditor – needed for configuration audit 'audit' / 'logaudit')"
 # V-235931/35/39 OPSS audit policy
-_fp="$(grep -o 'name="audit.filterPreset" value="[^"]*"' "$DH/config/fmwconfig/jps-config.xml" 2>/dev/null | head -1 | sed 's/.*value="//; s/"$//')"
+# the audit service instance of the default jpsContext counts (14.1.2: "audit.db";
+# the file-based "audit" instance keeps its own, unused value)
+_jc="$DH/config/fmwconfig/jps-config.xml"
+_ai="$(tr -d '\n' < "$_jc" 2>/dev/null | grep -o '<jpsContext name="default">.*' | sed 's#</jpsContext>.*##' | grep -o 'serviceInstanceRef ref="audit[^"]*"' | head -1 | sed 's/.*ref="//; s/"$//')"
+_fp="$(tr -d '\n' < "$_jc" 2>/dev/null | grep -o "<serviceInstance name=\"${_ai:-audit}\"[^>]*>.*" | sed 's#</serviceInstance>.*##' | grep -o 'name="audit.filterPreset" value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
 if [ -z "$_fp" ]; then
     info "  OPSS audit: no audit.filterPreset in jps-config.xml"
 elif [ "$_fp" = "None" ]; then
     warn "  OPSS audit filterPreset=None – no OPSS security events (logins, policy / credential changes) are recorded (V-235931)"
 else
-    ok "  OPSS audit filterPreset=$_fp"
+    ok "  OPSS audit filterPreset=$_fp (service instance ${_ai:-audit})"
 fi
 # V-235983 no applications on the AdminServer except the FMW infrastructure
 _infra='^(em|opss-rest|DMS Application.*|state-management-provider.*|coherence-transaction-rar|wsm-pm|FMW Welcome Page Application.*|fmw-welcome.*|mds-.*|owsm-.*|jms-.*|wls-.*|bea_wls.*|ORDS.*-rest|sdpmessaging.*|usermessagingserver.*)$'

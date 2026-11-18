@@ -209,7 +209,10 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   collector facts for customer hosts.
 - [ ] **DISA STIG changes** ([stig_weblogic_forms_reports.md §5](80-FMW-Architecture/stig_weblogic_forms_reports.md#5-order-of-the-open-changes)),
   each one separately with `--apply`, test host first: (1) configuration
-  audit `logaudit` + auditing provider + OPSS `filterPreset`; (2) password
+  audit `logaudit` + auditing provider + OPSS `filterPreset` – **done
+  2026-11-18** (`07-Maintenance/wls_audit_config.sh`; open: OPSS loader
+  writes nothing into `DEV_IAU`, `--undo` live, DefaultAuditRecorder volume
+  over days, step for new installs); (2) password
   rule of the domain 12–15 characters (agree first); (3) lockout 3 / 15 / 15
   only with service-user protection (`RepRunner`, `monUser`). Plus: WLST
   read-only check "service users not in Administrators / Deployers";

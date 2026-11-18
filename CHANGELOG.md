@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **STIG change 1 – audit trail:** new [`07-Maintenance/wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh)
+  (read-only by default, `--apply`, `--undo`): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`
+  (severity ERROR = ERROR + SUCCESS + FAILURE), OPSS `filterPreset` Low. Live on the test host: restart, every component
+  up, failed login recorded with the user name in `DefaultAuditRecorder.log`, smoke test 32 OK; OPSS Low = management
+  events only, loader into `DEV_IAU` open. `domain_secret_check.sh` §7 reads the OPSS value of the default
+  `jpsContext` (`audit.db`).
+
 - **DISA STIG for WebLogic read against Forms / Reports:**
   new [stig_weblogic_forms_reports.md](80-FMW-Architecture/stig_weblogic_forms_reports.md) (WebLogic 12c STIG V2R2,
   73 rules): transferable findings open on the test host (no configuration / OPSS audit, password rule 8/1, lockout

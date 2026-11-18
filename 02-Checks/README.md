@@ -565,9 +565,12 @@ needed. Live on the test host 2026-11-18: before 3 WARN (sudo / `wheel` /
 (INFO); `--apply` set the key and the two NM-cache `boot.properties` to 600;
 after `stop-all` / `start-all` every component ran, the Node Manager had
 rewritten its `boot.properties` **and kept 600**, smoke test (`15- --apply`)
-32 OK. Section 7 (added the same day) gives 3 more WARN on the test host:
-password rule 8 / 1, no configuration audit, OPSS audit `None` – changes
-open, one by one.
+32 OK. Section 7 (added the same day) gave 3 more WARN on the test host:
+password rule 8 / 1, no configuration audit, OPSS audit `None`; after
+[`07-Maintenance/wls_audit_config.sh --apply`](../07-Maintenance/README.md#wls_audit_configsh)
+only the password rule is left. The OPSS value is read from the audit
+service instance of the default `jpsContext` (`audit.db` in 14.1.2 – the
+file-based `audit` instance keeps an unused `None`).
 
 ---
 

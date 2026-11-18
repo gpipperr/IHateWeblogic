@@ -43,6 +43,7 @@ All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
 | [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) | ✅ implemented | Java/OS layer — [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh); `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) check |
 | [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
 | [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` + `bin/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
+| [`wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh) | ✅ implemented | Audit trail of the domain (DISA STIG): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`, OPSS audit `filterPreset` Low; read-only by default, `--apply`, `--undo` |
 | [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
 | [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
 
@@ -533,6 +534,40 @@ DB a DBA may prefer an own export user. Live 2026-10-17 on the test host:
 27 checks OK; export schemas 22 MB / 56 s, registry 9 rows / 16 s.
 
 ---
+
+### wls_audit_config.sh
+
+```bash
+./07-Maintenance/wls_audit_config.sh                      # current state (WLST online) + plan
+./07-Maintenance/wls_audit_config.sh --apply              # + --preset Medium for OPSS
+./07-Maintenance/wls_audit_config.sh --undo --apply       # the way back
+```
+
+**Why:** without an audit trail an admin login and a deployment leave no
+trace in the domain – the end point of both attack paths in
+[fmw_pwd_handling.md §1a](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths)
+(DISA STIG V-235931/33/34, [stig_weblogic_forms_reports.md](../80-FMW-Architecture/stig_weblogic_forms_reports.md)).
+
+| Change | Where it lands | Active |
+|---|---|---|
+| configuration audit `logaudit` (Change Log and Audit) | every configuration change / activation with user in `<server>.log` + the auditing provider | after the restart (non-dynamic) |
+| auditing provider `IHW_DefaultAuditor` (DefaultAuditor, severity `ERROR` = ERROR + SUCCESS + FAILURE) – only if the realm has none | `servers/<server>/logs/DefaultAuditRecorder.log`: successful and failed logins, configuration events, role / policy deployment; rotated daily, 50 files kept (provider defaults) | after the restart |
+| OPSS audit `filterPreset` Low (`setAuditPolicy`) | OPSS management events only (credentials, keystores, policies, roles, audit configuration – `audit-store.xml`, no logins / authorisation checks): `servers/<server>/logs/auditlogs/JPS/audit_*.log` | at once |
+
+`--apply` backs up `config.xml` first and prints the restart (`stop-all` /
+`start-all`). `--undo` sets the configuration audit to `none`, removes only
+`IHW_DefaultAuditor` and sets `filterPreset` to `None`.
+
+**Live on the test host 2026-11-18:** `--apply` with Low, `stop-all` /
+`start-all`: every component up; `DefaultAuditRecorder.log` in all three
+servers (AdminServer ~300 records / 100 KB right after the start – mostly
+role / policy deployment; a smoke test run added ~4 KB on WLS_REPORTS); a
+login with a wrong user produced a `FAILURE` record with the user name, the
+WLST login of the script a `SUCCESS` record; the OPSS policy change itself
+is in `auditlogs/JPS/`. `domain_secret_check.sh` section 7: both audit WARN
+gone; smoke test 32 OK. **Open:** the OPSS audit loader did not write that
+event into `DEV_IAU` (0 rows in every `E$` table) – the file under
+`auditlogs/` is the record for now; `--undo` not run live yet.
 
 ## 5. Troubleshooting
 
